@@ -32,9 +32,8 @@ const TAROKKA_ROWS = [
   'foundry.tarokka.reveal',
   'foundry.tarokka.open-doc',
 ];
-const REFUSAL = /also wrote to the AI Tool's own data/;
 // The summary of a handout reveal, to choose the change among the new ones.
-const HANDOUT_REVEAL = /Sweep handout|Reveal|handout/i;
+const HANDOUT_REVEAL = /Reveal page .*Sweep handout/i;
 const TAROKKA_REVEAL = /Reveal Tarokka/i;
 const PAGE_NAME = 'Sweep handout page';
 const REVEAL_TEXT = 'The sweep reveals only this sentence.';
@@ -92,42 +91,47 @@ async function undoNewChanges(t, known, hint) {
 /**
  * Undo the change a reveal just made, found by its id (the ids that were listed before the reveal are
  * not candidates), the way a GM does from the Changes window. A change that also wrote to the AI
- * Tool's own data (a reveal records who may read it) cannot be undone from the window: the backend
- * refuses with a message. The sweep then undoes it the other way a GM can (the dashboard's Recent
- * Changes, here the same `undo-change` call) and says so in the note.
- * @param {any} t
+ * Tool's own data (a reveal records who may read it) is undone there with the plain undo, so the
+ * window must open its confirm dialog and say "Undone", not refuse.
  * @param {import('playwright-core').Page} gm
  * @param {Set<string>} known  the change ids listed before the reveal
  * @param {RegExp} hint  the summary of the reveal, to choose when several new changes appeared
  * @returns {Promise<string>} what happened
  */
-async function undoFromWindow(t, gm, known, hint) {
+async function undoFromWindow(gm, known, hint) {
   await openTool(gm, 'aiChanges', 'fmb-ai-changes');
   const row = await until(async () => {
     await gm.locator('#fmb-ai-changes button[data-action="refresh"]').click();
     await waitLoaded(gm, 'fmb-ai-changes');
     const fresh = (await readRows(gm)).filter(r => !known.has(r.id) && r.actions.includes('undo'));
-    return fresh.find(r => hint.test(r.summary)) ?? fresh[0];
+    return fresh.find(r => hint.test(r.summary));
   }, 'the new change of the reveal in the Changes window');
   await gm
     .locator(`#fmb-ai-changes .fmb-ai-row[data-change-id="${row.id}"] [data-action="undo"]`)
     .click();
-  const refusal = REFUSAL;
-  const outcome = await until(async () => {
-    if (await gm.locator('.application.dialog').count()) return 'dialog';
-    const notes = await notifications(gm);
-    return notes.some(n => refusal.test(n)) ? 'refused' : '';
-  }, 'the undo dialog or a refusal');
-  let note;
-  if (outcome === 'dialog') {
-    await answerYes(gm, 'Undo');
-    await waitNotification(gm, /Undone/);
-    note = 'undone from the Changes window';
-  } else {
-    await t.guarded.undo(row.id);
-    note =
-      'the Changes window refuses to undo a change that also wrote to the AI Tool data, so it was undone with undo-change';
-  }
+  await until(
+    async () => ((await gm.locator('.application.dialog').count()) ? 'dialog' : ''),
+    'the undo dialog (a reveal must not be refused)'
+  );
+  const before = new Set(await notifications(gm));
+  await answerYes(gm, 'Undo');
+  // Not the "Undone" notification: one from the row before can still be on screen. The list reloads
+  // after the undo and marks the row.
+  await until(async () => {
+    if (
+      await gm
+        .locator(`#fmb-ai-changes .fmb-ai-row.fmb-ai-undone[data-change-id="${row.id}"]`)
+        .count()
+    )
+      return true;
+    // A refused undo (a conflict, writes off) only shows as an error notification: fail with its text.
+    const refused = (await notifications(gm)).find(
+      n => !before.has(n) && /Conflict|refus|cannot|not allowed/i.test(n)
+    );
+    if (refused) throw new Error(`the Changes window did not undo the reveal: ${refused}`);
+    return false;
+  }, 'the reveal to show as undone in the Changes window');
+  const note = 'undone from the Changes window';
   await closeWindow(gm, 'fmb-ai-changes');
   await resetControls(gm);
   return note;
@@ -250,40 +254,35 @@ export async function handoutsRows(sweep, { t, gm, player }) {
     return `Remove takes the sweep page out of the queue at once (${others} other rows unchanged); the page was queued again`;
   });
 
-  await sweep.row(
-    'foundry.handouts.reveal',
-    'gm',
-    async () => {
-      const button = gm.locator(`${HO} button[data-action="reveal"]`);
-      const label = (await button.textContent())?.trim() ?? '';
-      if (!label.includes(PAGE_NAME)) throw new Error(`Reveal next reads "${label}"`);
-      if (await button.isDisabled()) throw new Error('Reveal next is disabled with a page queued');
-      await button.click();
-      const dialog = await readDialog(gm);
-      if (dialog.title !== 'Reveal handout')
-        throw new Error(`the dialog is titled "${dialog.title}"`);
-      if (!dialog.text.includes(PAGE_NAME)) throw new Error('the dialog does not name the page');
-      await answerNo(gm);
-      if (await seenByPlayer()) throw new Error('Cancel revealed the page to the player');
-      const known = await changeIds(t);
-      await button.click();
-      await readDialog(gm);
-      const started = Date.now();
-      await answerYes(gm, 'Reveal');
-      await waitNotification(gm, /Revealed|reveal/i);
-      const revealMs = Date.now() - started;
-      await until(seenByPlayer, 'the kit player to see the handout');
-      const copy = await playerReads(player, { name: PAGE_NAME });
-      if (!/handout/.test(copy)) throw new Error('the player copy has no text');
-      const undoNote = await undoFromWindow(t, gm, known, HANDOUT_REVEAL);
-      await until(async () => !(await seenByPlayer()), 'the handout to leave the player view');
-      return {
-        note: `Cancel changed nothing; Reveal showed the page to the kit player; ${undoNote}`,
-        timings: { revealMs },
-      };
-    },
-    { expectErrors: [REFUSAL] }
-  );
+  await sweep.row('foundry.handouts.reveal', 'gm', async () => {
+    const button = gm.locator(`${HO} button[data-action="reveal"]`);
+    const label = (await button.textContent())?.trim() ?? '';
+    if (!label.includes(PAGE_NAME)) throw new Error(`Reveal next reads "${label}"`);
+    if (await button.isDisabled()) throw new Error('Reveal next is disabled with a page queued');
+    await button.click();
+    const dialog = await readDialog(gm);
+    if (dialog.title !== 'Reveal handout')
+      throw new Error(`the dialog is titled "${dialog.title}"`);
+    if (!dialog.text.includes(PAGE_NAME)) throw new Error('the dialog does not name the page');
+    await answerNo(gm);
+    if (await seenByPlayer()) throw new Error('Cancel revealed the page to the player');
+    const known = await changeIds(t);
+    await button.click();
+    await readDialog(gm);
+    const started = Date.now();
+    await answerYes(gm, 'Reveal');
+    await waitNotification(gm, /Revealed|reveal/i);
+    const revealMs = Date.now() - started;
+    await until(seenByPlayer, 'the kit player to see the handout');
+    const copy = await playerReads(player, { name: PAGE_NAME });
+    if (!/handout/.test(copy)) throw new Error('the player copy has no text');
+    const undoNote = await undoFromWindow(gm, known, HANDOUT_REVEAL);
+    await until(async () => !(await seenByPlayer()), 'the handout to leave the player view');
+    return {
+      note: `Cancel changed nothing; Reveal showed the page to the kit player; ${undoNote}`,
+      timings: { revealMs },
+    };
+  });
 
   await closeWindow(gm, 'fmb-handouts');
   await resetControls(gm);
@@ -385,59 +384,53 @@ export async function tarokkaRows(sweep, { t, gm, player }) {
     { expectErrors: [/Write the text the players will read first/] }
   );
 
-  await sweep.row(
-    'foundry.tarokka.reveal',
-    'gm',
-    async () => {
-      const position = gm.locator(`${TK} li[data-position]`).first();
-      await position.locator('button[data-action="revealOpen"]').click();
-      await gm.locator(`${TK} textarea[data-field="revealText"]`).fill(REVEAL_TEXT);
-      await gm.locator(`${TK} button[data-action="revealGo"]`).click();
-      const dialog = await readDialog(gm);
-      if (dialog.title !== 'Reveal Tarokka card')
-        throw new Error(`the dialog is titled "${dialog.title}"`);
-      await answerNo(gm);
-      const known = await changeIds(t);
-      const started = Date.now();
-      await gm.locator(`${TK} button[data-action="revealGo"]`).click();
-      await readDialog(gm);
-      await answerYes(gm, 'Reveal');
-      await waitNotification(gm, /Revealed/);
-      const revealMs = Date.now() - started;
-      const playerText = await until(
-        () => playerReads(player, { text: REVEAL_TEXT }),
-        'the kit player to see the revealed text'
-      );
-      if (!playerText.includes(REVEAL_TEXT))
-        throw new Error('the player page lacks the typed text');
-      await sweep.row('foundry.tarokka.open-doc', 'gm', async () => {
-        await gm.locator(`${TK} li[data-position] button[data-action="openDoc"]`).first().click();
-        await until(
-          () =>
-            gm.evaluate(() =>
-              [...foundry.applications.instances.values()].some(
-                a =>
-                  /JournalEntry|journal/i.test(a.constructor?.name ?? '') ||
-                  a.element?.classList?.contains('journal-sheet')
-              )
-            ),
-          'the revealed page to open in a journal window'
-        );
-        await closeAllJournalSheets(gm);
-        return 'Open page opens the revealed page in a journal window (a card linked to a document is not in the dealt reading)';
-      });
-      const undoNote = await undoFromWindow(t, gm, known, TAROKKA_REVEAL);
+  await sweep.row('foundry.tarokka.reveal', 'gm', async () => {
+    const position = gm.locator(`${TK} li[data-position]`).first();
+    await position.locator('button[data-action="revealOpen"]').click();
+    await gm.locator(`${TK} textarea[data-field="revealText"]`).fill(REVEAL_TEXT);
+    await gm.locator(`${TK} button[data-action="revealGo"]`).click();
+    const dialog = await readDialog(gm);
+    if (dialog.title !== 'Reveal Tarokka card')
+      throw new Error(`the dialog is titled "${dialog.title}"`);
+    await answerNo(gm);
+    const known = await changeIds(t);
+    const started = Date.now();
+    await gm.locator(`${TK} button[data-action="revealGo"]`).click();
+    await readDialog(gm);
+    await answerYes(gm, 'Reveal');
+    await waitNotification(gm, /Revealed/);
+    const revealMs = Date.now() - started;
+    const playerText = await until(
+      () => playerReads(player, { text: REVEAL_TEXT }),
+      'the kit player to see the revealed text'
+    );
+    if (!playerText.includes(REVEAL_TEXT)) throw new Error('the player page lacks the typed text');
+    await sweep.row('foundry.tarokka.open-doc', 'gm', async () => {
+      await gm.locator(`${TK} li[data-position] button[data-action="openDoc"]`).first().click();
       await until(
-        async () => (await playerReads(player, { text: REVEAL_TEXT })) === '',
-        'the revealed text to leave the player view'
+        () =>
+          gm.evaluate(() =>
+            [...foundry.applications.instances.values()].some(
+              a =>
+                /JournalEntry|journal/i.test(a.constructor?.name ?? '') ||
+                a.element?.classList?.contains('journal-sheet')
+            )
+          ),
+        'the revealed page to open in a journal window'
       );
-      return {
-        note: `Cancel changed nothing; Reveal showed exactly the typed text to the kit player; ${undoNote}`,
-        timings: { revealMs },
-      };
-    },
-    { expectErrors: [REFUSAL] }
-  );
+      await closeAllJournalSheets(gm);
+      return 'Open page opens the revealed page in a journal window (a card linked to a document is not in the dealt reading)';
+    });
+    const undoNote = await undoFromWindow(gm, known, TAROKKA_REVEAL);
+    await until(
+      async () => (await playerReads(player, { text: REVEAL_TEXT })) === '',
+      'the revealed text to leave the player view'
+    );
+    return {
+      note: `Cancel changed nothing; Reveal showed exactly the typed text to the kit player; ${undoNote}`,
+      timings: { revealMs },
+    };
+  });
 
   await closeWindow(gm, 'fmb-tarokka');
   await resetControls(gm);

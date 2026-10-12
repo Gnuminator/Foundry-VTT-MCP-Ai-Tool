@@ -2124,6 +2124,15 @@ async function undoFlow(id) {
     return;
   }
   const row = rowView(change, everyoneChanges);
+  if (row.ownData) {
+    // A reveal also wrote the AI Tool's own data, which a plan cannot put back: the plain undo
+    // (the AI tab's), after its own confirm.
+    await runTool('undo-change', { changeId: id }, 'destructive', {
+      diff: row.lines,
+      summary: `Undo: ${row.summary}`,
+    });
+    return;
+  }
   const planFor = async scope => {
     try {
       const plan = await callReadTool('plan-undo-changes', planArgs(id, scope));

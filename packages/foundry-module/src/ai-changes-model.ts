@@ -27,6 +27,8 @@ export interface ChangeEntry {
   /** The first thing it touched, by name ("Ireena"), or empty. */
   thing: string;
   canUndo: boolean;
+  /** The change also wrote the AI Tool's own data (a reveal): undone with the plain `undo-change`, not a planned undo. */
+  ownData: boolean;
   undone: boolean;
   /** The changeId of the undo entry that undid it. */
   undoneBy: string;
@@ -63,6 +65,8 @@ export interface ChangeRow {
   diff: string[];
   /** The Undo button is offered. */
   canUndo: boolean;
+  /** Also wrote the AI Tool's own data (a reveal): its Undo is the plain one, as on an older bridge. */
+  ownData: boolean;
   /** The change that took this one back, when the Redo button is offered (undoing that brings this back). */
   redoId: string;
   /** An undo entry that took back more than one change (see `ChangeEntry.coversSeveral`). */
@@ -194,6 +198,7 @@ function parseEntry(raw: unknown): ChangeEntry | null {
       requestedBy: text(c.requestedBy),
       thing: text(things[0]?.name),
       canUndo: c.canUndo === true,
+      ownData: c.ownData === true,
       undone: c.undone === true || undoneBy !== '',
       undoneBy,
       coversSeveral: typeof c.covers === 'number' ? c.covers > 1 : lines.length > 1,
@@ -214,6 +219,7 @@ function parseEntry(raw: unknown): ChangeEntry | null {
     requestedBy: text(c.requestedBy),
     thing: '',
     canUndo: c.canUndo === true,
+    ownData: c.ownData === true,
     undone: undoneBy !== '',
     undoneBy,
     coversSeveral: diff.length > 1,
@@ -271,6 +277,7 @@ export function buildChangeRow(
     undoneByWho: undoer?.requestedBy ?? '',
     diff: entry.lines,
     canUndo: entry.canUndo && !entry.undone && !isUndo,
+    ownData: entry.ownData,
     redoId: redoable ? undoer.id : '',
     coversSeveral: entry.coversSeveral,
   };

@@ -287,6 +287,68 @@ describe('AiChangesController: undo', () => {
     expect(c.view.busyId).toBeNull();
   });
 
+  it('a change that also wrote the AI Tool own data (a reveal) is undone with the plain undo-change, never planned', async () => {
+    const deps = makeDeps(['yes'], {
+      'list-changes': () => ({
+        changes: [item('c1', { feature: 'tarokka', ownData: true })],
+      }),
+    });
+    const c = await loaded(deps);
+    expect(c.view.rows[0]?.canUndo).toBe(true);
+
+    await c.undo('c1');
+
+    expect(names(deps)).toEqual(['undo-change', 'list-changes']);
+    expect(deps.request).toHaveBeenNthCalledWith(1, 'undo-change', {
+      changeId: 'c1',
+      confirm: true,
+    });
+    expect(deps.ask).toHaveBeenCalledTimes(1);
+    expect(deps.notifyInfo).toHaveBeenCalledWith('Undone: Change c1');
+    expect(deps.notifyError).not.toHaveBeenCalled();
+  });
+
+  describe('a change that also wrote the AI Tool own data', () => {
+    const reveal = {
+      'list-changes': (): unknown => ({
+        changes: [item('c1', { feature: 'tarokka', ownData: true })],
+      }),
+    };
+
+    it('says the AI Tool own record is put back, in its confirm', async () => {
+      const deps = makeDeps(['yes'], reveal);
+      const c = await loaded(deps);
+      await c.undo('c1');
+      const spec = deps.ask.mock.calls[0]?.[0] as DialogSpec;
+      expect(spec.content).toContain('own record of it');
+    });
+
+    it('sends nothing when the confirm is cancelled', async () => {
+      const deps = makeDeps([], reveal);
+      const c = await loaded(deps);
+      await c.undo('c1');
+      expect(names(deps)).toEqual([]);
+      expect(deps.notifyInfo).not.toHaveBeenCalled();
+      expect(c.view.busyId).toBeNull();
+    });
+
+    it('shows the backend conflict, reloads the list and never plans', async () => {
+      const deps = makeDeps(['yes'], {
+        ...reveal,
+        'undo-change': () => {
+          throw new Error('Conflict, nothing was written: the page was edited since');
+        },
+      });
+      const c = await loaded(deps);
+      await c.undo('c1');
+      expect(names(deps)).toEqual(['undo-change', 'list-changes']);
+      expect(deps.notifyError).toHaveBeenCalledWith(
+        'Conflict, nothing was written: the page was edited since'
+      );
+      expect(c.view.busyId).toBeNull();
+    });
+  });
+
   it("passes the plan's own destructive flag on to the apply", async () => {
     const deps = makeDeps(['yes'], {
       'plan-undo-changes': () =>

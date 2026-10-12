@@ -532,7 +532,7 @@ export class UndoPlanner {
     if (undone) throw new Error(`Change ${id} was already undone (${undone.undoneBy})`);
     if ((entry.vaultOps?.length ?? 0) > 0) {
       throw new Error(
-        `Change ${id} also wrote to the AI Tool's own data, which this cannot put back: undo it with undo-change`
+        `Change ${id} also wrote to the AI Tool's own data, which a planned undo cannot put back: undo it with undo-change, or with Undo in the Changes window or the dashboard's Recent Changes`
       );
     }
     if (!entry.results?.length) throw new Error(`Change ${id} has nothing to undo`);
@@ -543,7 +543,7 @@ export class UndoPlanner {
   private skipItem(item: Item, notes: string[]): boolean {
     if ((item.entry?.vaultOps?.length ?? 0) === 0) return false;
     notes.push(
-      `Not undone: "${item.summary}" also wrote to the AI Tool's own data (undo it with undo-change)`
+      `Not undone: "${item.summary}" also wrote to the AI Tool's own data (undo it on its own with undo-change, the Changes window's Undo or the dashboard's Recent Changes)`
     );
     return true;
   }

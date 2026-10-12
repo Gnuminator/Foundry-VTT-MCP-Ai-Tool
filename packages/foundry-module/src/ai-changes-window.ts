@@ -157,15 +157,16 @@ export class AiChangesController {
 
   /**
    * Undo one change. A bridge that knows `plan-undo-changes` plans it and shows the choices
-   * ({@link undoPlanned}); an older one confirms and runs `undo-change`. Conflicts show as the
+   * ({@link undoPlanned}); an older one confirms and runs `undo-change`, and so does a change
+   * that also wrote the AI Tool's own data (a reveal), which a plan cannot take back. Conflicts show as the
    * backend words them, and the list reloads after anything was attempted.
    */
   async undo(changeId: string): Promise<void> {
     const row = this.view.rows.find(r => r.id === changeId);
     if (!row?.canUndo) return;
     await this.run(changeId, async () => {
-      if (this.view.legacy) {
-        if (!(await this.confirm(undoPlanDialog(row, legacyPlan(row))))) return false;
+      if (this.view.legacy || row.ownData) {
+        if (!(await this.confirm(undoPlanDialog(row, legacyPlan(row, row.ownData))))) return false;
         await this.deps.request('undo-change', { changeId, confirm: true });
         this.deps.notifyInfo(`Undone: ${row.summary}`);
         return true;
@@ -257,13 +258,17 @@ export class AiChangesController {
 }
 
 /** The old bridge's confirm shows the row's own lines (there is no plan to read them from). */
-function legacyPlan(row: ChangeRow): UndoPlan {
+function legacyPlan(row: ChangeRow, ownData = false): UndoPlan {
   return {
     planId: '',
     summary: row.summary,
     count: 1,
     lines: row.diff,
-    notes: [],
+    notes: ownData
+      ? [
+          "This also puts back the AI Tool's own record of it (who may read the page, the Tarokka reading).",
+        ]
+      : [],
     later: [],
     confirmDestructive: false,
   };

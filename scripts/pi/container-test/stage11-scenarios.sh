@@ -21,6 +21,7 @@ set -uo pipefail
 H=/repo/scripts/pi/container-test
 STAGE=/repo/scripts/pi/remote/11-world.sh
 LIB=/repo/scripts/pi/remote/lib.sh
+LIBGM=/repo/scripts/pi/remote/lib-gm-passwords.sh
 
 export DEBIAN_FRONTEND=noninteractive
 apt_setup() { apt-get update && apt-get install -y --no-install-recommends nodejs tar ca-certificates; }
@@ -34,7 +35,9 @@ ln -sf "$(command -v node)" /opt/node24/bin/node
 for f in systemctl curl journalctl sleep; do install -m 755 "$H/bin/$f" "/usr/local/sbin/$f"; done
 mkdir -p /run/systemd/system # have_systemd() looks for this folder
 
-eval "$(grep -E '^(FOUNDRY_USER|FOUNDRY_DATA|TOOL_DIR|TOOL_ETC|TOOL_DATA)=' "$LIB")"
+eval "$(grep -E '^(FOUNDRY_USER|FOUNDRY_APP|FOUNDRY_DATA|TOOL_DIR|TOOL_ETC|TOOL_DATA)=' "$LIB")"
+# shellcheck source=fake-gm-check.sh
+. "$H/fake-gm-check.sh"
 IMPORT=/var/lib/foundry-import
 id "$FOUNDRY_USER" >/dev/null 2>&1 || useradd --system --home-dir "$FOUNDRY_DATA" --shell /usr/sbin/nologin "$FOUNDRY_USER"
 data="$FOUNDRY_DATA/Data"
@@ -52,6 +55,10 @@ fresh_pi() {
     echo '{"id":"'"$w"'","title":"'"$w"' (on the Pi)"}' >"$data/worlds/$w/world.json"
     echo "the Pi's own $w" >"$data/worlds/$w/sentinel"
   done
+  # The closing GM password check: the fake classic-level and an administrator password. No world has a users
+  # database (a bundle brings none), so the check finds every world "never launched".
+  fake_classic_level
+  fake_admin_password
   chown -R "$FOUNDRY_USER:$FOUNDRY_USER" "$FOUNDRY_DATA"
   mkdir -p "$TOOL_ETC" "$TOOL_DIR/app" "$TOOL_DIR/gm-browser" "$TOOL_DATA"
   install -m 644 "$H/stage11-provision.mjs" "$TOOL_DIR/gm-browser/assistant-gm.mjs"
@@ -97,7 +104,7 @@ run_stage() {
   make_bundle "$bw"
   (
     set +o pipefail
-    cd /root && cat "$LIB" "$STAGE" | env BUNDLE="$BUNDLE_PATH" "$@" bash -s
+    cd /root && cat "$LIB" "$LIBGM" "$STAGE" | env BUNDLE="$BUNDLE_PATH" "$@" bash -s
   ) 2>&1
 }
 

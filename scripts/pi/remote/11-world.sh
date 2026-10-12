@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Stage 11: install a world bundle that scripts/pi/push-world.ps1 uploaded (docs/dev/PI-SETUP.md, "Licensed
 # content"). The bundle holds the campaign world, its private modules and the image folders it uses.
-#   cat scripts/pi/remote/lib.sh scripts/pi/remote/11-world.sh | ssh foundry-pi 'BUNDLE=/var/lib/foundry-import/curse-of-strahd-<stamp>.tar bash -s'
+#   cat scripts/pi/remote/lib.sh scripts/pi/remote/lib-gm-passwords.sh scripts/pi/remote/11-world.sh | ssh foundry-pi 'BUNDLE=/var/lib/foundry-import/curse-of-strahd-<stamp>.tar bash -s'
 # Take a snapshot first (dietpi-backup 1) and get the user's OK: this stops Foundry for a few minutes.
 # Env: BUNDLE (required, a .tar under /var/lib/foundry-import/), WORLD (curse-of-strahd), KIT_WORLD (a test copy of
 #   WORLD that every run resets; empty skips it; strahd-kit by default, but only for WORLD=curse-of-strahd: another
@@ -798,6 +798,13 @@ if [ -z "$(ls -A "$prev")" ]; then
   prev_note="nothing was replaced, so there is no prev folder"
 else
   prev_note="old copies kept in $prev ($(du -sh "$prev" | cut -f1)); remove them later, only with the user's OK"
+fi
+
+# Read-only closing check (lib-gm-passwords.sh; it clears the traps, which this stage has cleared above).
+if declare -F gm_passwords_notice >/dev/null; then
+  gm_passwords_notice
+else
+  warn "lib-gm-passwords.sh was not in the pipe, so the GM password check was skipped: run gm-passwords.sh (docs/dev/PI-SETUP.md)"
 fi
 
 say "summary"

@@ -49,6 +49,8 @@ export const SCREENS: Screen[] = [
     show: async (page): Promise<void> => {
       await page.locator('[data-fold="handouts"]').click();
       await inPage('during', 'Torn ledger page')(page);
+      // The Live Feed has its events (on a phone it starts folded: the head and the count show).
+      await expect(page.locator('#feed-meta')).toHaveText('8 events');
       await expect(
         page.locator('#party-drawer').getByRole('heading', { name: /Party/ })
       ).toBeVisible();

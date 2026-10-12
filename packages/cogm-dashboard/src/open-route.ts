@@ -32,7 +32,12 @@ import { resolveRole, isGm, type AuthRequest } from './auth.js';
 import type { AuthConfig } from './config.js';
 import { ChannelError, TimeoutError } from './feed/mcp-control-client.js';
 import type { Logger } from './logger.js';
-import { staticHeaders, type StaticHeaderGroup, type StaticSetHeaders } from './static-headers.js';
+import {
+  staticHeaders,
+  type BigStat,
+  type StaticHeaderGroup,
+  type StaticSetHeaders,
+} from './static-headers.js';
 
 /** Headers on the confirm page (stricter than the player page's CSP). */
 export const OPEN_PAGE_CSP =
@@ -94,8 +99,8 @@ export const OPEN_PAGE_HEADERS: StaticHeaderGroup = {
  * `static-headers.ts`). The app combines `OPEN_PAGE_HEADERS` with its other
  * groups into one hook.
  */
-export function openPageStaticHeaders(publicDir: string): StaticSetHeaders {
-  return staticHeaders(publicDir, [OPEN_PAGE_HEADERS]);
+export function openPageStaticHeaders(publicDir: string, statBig?: BigStat): StaticSetHeaders {
+  return staticHeaders(publicDir, [OPEN_PAGE_HEADERS], statBig);
 }
 
 function single(value: string | string[] | undefined): string | undefined {

@@ -42,6 +42,8 @@ export interface Combatant {
   defeated: boolean;
   deathSaves: { successes: number; failures: number } | null;
   boss: BossResources | null;
+  /** The combatant's token (null from an older module or the sample fight): what a plan targets. */
+  tokenId: string | null;
 }
 
 /** The fight the stream last reported (`combat`, GM only). Combatants are in the bridge's order. */
@@ -101,6 +103,7 @@ function readCombatant(v: unknown): Combatant | null {
       ? { successes: num(saves['successes'], 0), failures: num(saves['failures'], 0) }
       : null,
     boss: readBoss(v['boss']),
+    tokenId: typeof v['tokenId'] === 'string' && v['tokenId'] ? v['tokenId'] : null,
   };
 }
 
@@ -343,19 +346,27 @@ export function toggleSelection(selected: ReadonlySet<string>, id: string): Read
   return next;
 }
 
-/** The picked combatants' names, in the bridge's order. */
-export function selectedNames(combat: CombatState | null, selected: ReadonlySet<string>): string[] {
-  return combat ? combat.combatants.filter(c => selected.has(c.id)).map(c => c.name) : [];
+/**
+ * What a plan targets for the picked combatants, in the bridge's order: the token's id (two
+ * "Wolf" rows stay two tokens), the name where there is no token id (older module, sample fight).
+ */
+export function selectedTargets(
+  combat: CombatState | null,
+  selected: ReadonlySet<string>
+): string[] {
+  return combat
+    ? combat.combatants.filter(c => selected.has(c.id)).map(c => c.tokenId ?? c.name)
+    : [];
 }
 
 export type SelectionAction = 'damage' | 'condition';
 
-/** The tool runner's request for Damage / Heal or Condition on these names (plan, then apply). */
+/** The tool runner's request for Damage / Heal or Condition on these targets (plan, then apply). */
 export function planRequest(
   action: SelectionAction,
-  names: string[]
+  targets: string[]
 ): { name: 'plan-actor-change'; prefill: { action: SelectionAction; targets: string[] } } {
-  return { name: 'plan-actor-change', prefill: { action, targets: names } };
+  return { name: 'plan-actor-change', prefill: { action, targets } };
 }
 
 // --- The bridge --------------------------------------------------------------------------------
@@ -385,6 +396,17 @@ export function stripMode(combat: CombatState | null, away: boolean): 'none' | '
   return away ? 'stale' : 'live';
 }
 
+/**
+ * Away only because a poll failed: the control channel is up and Foundry's state is unknown (a
+ * timeout or channel error on one poll, polling-feed.ts handlePollError). That is the status that
+ * flickers; a dropped channel or a Foundry that said it is unreachable is not a blip.
+ */
+export function bridgeBlip(
+  status: { controlChannel: string; foundry: string } | undefined
+): boolean {
+  return status?.controlChannel === 'connected' && status.foundry === 'unknown';
+}
+
 // --- The trial's sample fight -----------------------------------------------------------------
 
 function sampleCombatant(
@@ -408,6 +430,7 @@ function sampleCombatant(
     defeated: false,
     deathSaves: null,
     boss: null,
+    tokenId: null,
     ...extra,
   };
 }

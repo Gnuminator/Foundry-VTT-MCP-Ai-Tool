@@ -813,8 +813,3 @@ a.btn {
   }
   /* During has its own narrow rules (max-width 899px, above): its slots need their areas. */
 }
-
-.help-pane .help-wiki-link {
-  color: var(--accent-bright);
-  font-size: var(--fs-xs);
-}

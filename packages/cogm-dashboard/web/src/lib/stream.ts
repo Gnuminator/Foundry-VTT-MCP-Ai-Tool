@@ -3,10 +3,11 @@
 // so a panel reads it like any other query and re-renders when it changes. EventSource reconnects
 // by itself; the server replays what a new connection needs (status, recent errors, ...).
 import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 
 import { streamUrl } from './auth';
-import { bridgeAway, readCombat, type CombatState } from './combat';
+import { bridgeAway, bridgeBlip, readCombat, type CombatState } from './combat';
+import { EMPTY_FEED, addFeedEvents, readFeedEvents, type FeedLog } from './feed';
 import { onPrefs } from './prefs';
 
 /** One Foundry module error or warning (feed/types.ts ModuleError on the server). */
@@ -60,6 +61,13 @@ export type { CombatState } from './combat';
 
 export const COMBAT_KEY = ['stream', 'combat'] as const;
 
+/**
+ * The session events the stream brought (`events`, GM only), as the Live Feed shows them
+ * (lib/feed.ts). Absent until the first `events` message, which the server sends on every
+ * connect even when empty.
+ */
+export const FEED_KEY = ['stream', 'events'] as const;
+
 /** The old page keeps 150 entries on screen; the server keeps the newest 100. */
 export const MAX_ERROR_ENTRIES = 150;
 
@@ -103,6 +111,11 @@ export const TAROKKA_KEY = ['game', 'tarokka'] as const;
 /** One handler per event this page uses; each puts the event into the query cache. */
 const HANDLERS: Record<string, (queryClient: QueryClient, data: unknown) => void> = {
   errors: onErrors,
+  // Oldest first; the same events come again on a reconnect, and the log adds each id once.
+  events: (queryClient, data) => {
+    const batch = readFeedEvents((data as { events?: unknown } | null)?.events);
+    queryClient.setQueryData<FeedLog>(FEED_KEY, log => addFeedEvents(log ?? EMPTY_FEED, batch));
+  },
   // A player opened a handout for the first time (GM only, no payload): the drawer reloads its
   // seen ticks when it is open. A closed drawer loads afresh on its next opening anyway.
   'handouts-seen': queryClient => void queryClient.invalidateQueries({ queryKey: HANDOUTS_KEY }),
@@ -154,6 +167,18 @@ export function useModuleErrors(): ModuleErrorLog {
     gcTime: Infinity,
   });
   return data ?? EMPTY_LOG;
+}
+
+/** The events the stream has brought so far; null until its first `events` message. */
+export function useFeed(): FeedLog | null {
+  const queryClient = useQueryClient();
+  const { data } = useQuery({
+    queryKey: FEED_KEY,
+    queryFn: () => queryClient.getQueryData<FeedLog>(FEED_KEY) ?? null,
+    staleTime: Infinity,
+    gcTime: Infinity,
+  });
+  return data ?? null;
 }
 
 /** The bridge link as the stream last reported it; undefined until the first status event. */
@@ -209,9 +234,36 @@ export function useCombatActive(): boolean {
   return useCombat()?.active === true;
 }
 
-/** Whether the bridge is away, as the stream's status last said (false before the first one). */
+/**
+ * How long a failed poll has to keep the bridge in doubt before the panels say it is away: a bit
+ * over the 4 s poll interval, so one failed poll that the next one clears is never shown (the
+ * status stays `unknown` until a poll succeeds). Only that doubt waits (bridgeBlip): a dropped
+ * channel or an unreachable Foundry shows at once, and so does back, and so does a status the
+ * panel mounts with.
+ */
+export const AWAY_AFTER_MS = 5000;
+
+/** Whether the bridge is away, as the stream last said (false before the first status). */
 export function useBridgeAway(): boolean {
-  return bridgeAway(useBridgeStatus());
+  const status = useBridgeStatus();
+  const away = bridgeAway(status);
+  const blip = away && bridgeBlip(status);
+  const [shown, setShown] = useState(blip);
+  // Once shown it stays until the bridge is back: after a dropped link the status goes to
+  // "connected, not sure" (a blip by itself) and must not take the mark off the old fight.
+  useEffect(() => {
+    if (!away) {
+      setShown(false);
+      return;
+    }
+    if (!blip) {
+      setShown(true);
+      return;
+    }
+    const timer = setTimeout(() => setShown(true), AWAY_AFTER_MS);
+    return (): void => clearTimeout(timer);
+  }, [away, blip]);
+  return away && (!blip || shown);
 }
 
 /**

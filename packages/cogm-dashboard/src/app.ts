@@ -683,7 +683,9 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
     // Per world: before the world is known these would be the defaults (and flash the layout
     // trial card); the world load broadcasts them.
     if (world) sse.send(res, 'prefs', prefsPayload());
-    if (state.combat) sse.send(res, 'combat', { combat: state.combat });
+    // Always, null when no fight runs: a page that was disconnected while a fight ended would
+    // otherwise keep showing it as live (the broadcast of the end went to nobody).
+    sse.send(res, 'combat', { combat: state.combat });
     sse.send(res, 'events', { events: state.recentEvents, initial: true });
     sse.send(res, 'errors', { errors: state.recentErrors, initial: true });
   });

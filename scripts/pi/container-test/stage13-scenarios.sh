@@ -21,6 +21,7 @@ set -uo pipefail
 H=/repo/scripts/pi/container-test
 STAGE=/repo/scripts/pi/remote/13-player-creation.sh
 LIB=/repo/scripts/pi/remote/lib.sh
+LIBGM=/repo/scripts/pi/remote/lib-gm-passwords.sh
 
 export DEBIAN_FRONTEND=noninteractive
 apt_setup() { apt-get update && apt-get install -y --no-install-recommends nodejs zip unzip curl ca-certificates; }
@@ -34,7 +35,9 @@ ln -sf "$(command -v node)" /opt/node24/bin/node
 for f in systemctl curl journalctl sleep; do install -m 755 "$H/bin/$f" "/usr/local/sbin/$f"; done
 mkdir -p /run/systemd/system # have_systemd() looks for this folder
 
-eval "$(grep -E '^(FOUNDRY_USER|FOUNDRY_DATA|TOOL_DIR|TOOL_ETC|TOOL_DATA)=' "$LIB")"
+eval "$(grep -E '^(FOUNDRY_USER|FOUNDRY_APP|FOUNDRY_DATA|TOOL_DIR|TOOL_ETC|TOOL_DATA)=' "$LIB")"
+# shellcheck source=fake-gm-check.sh
+. "$H/fake-gm-check.sh"
 PINNED_VERSION="$(sed -n 's/^PINNED_VERSION=//p' "$STAGE")"
 IMPORT=/var/lib/foundry-import
 id "$FOUNDRY_USER" >/dev/null 2>&1 || useradd --system --home-dir "$FOUNDRY_DATA" --shell /usr/sbin/nologin "$FOUNDRY_USER"
@@ -54,6 +57,10 @@ fresh_pi() {
     mkdir -p "$FOUNDRY_DATA/Data/modules/foundryvtt-actor-studio"
     echo '{"id":"foundryvtt-actor-studio","version":"'"${1:-$PINNED_VERSION}"'"}' >"$FOUNDRY_DATA/Data/modules/foundryvtt-actor-studio/module.json"
   fi
+  # The closing GM password check: every world's Gamemaster has a password, and Foundry has an administrator password.
+  fake_classic_level
+  fake_admin_password
+  for w in curse-of-strahd strahd-kit frostmaiden-training; do fake_gm_user "$w" secret123; done
   chown -R "$FOUNDRY_USER:$FOUNDRY_USER" "$FOUNDRY_DATA"
   mkdir -p "$TOOL_ETC" "$TOOL_DIR/app" "$TOOL_DATA"
   for w in curse-of-strahd strahd-kit frostmaiden-training; do
@@ -80,7 +87,9 @@ local_zip() {
 
 # name, /api/status body, its curl exit code, installed version, inactive units ("foundry", "gm"),
 # then the environment for the stage (KEY=VALUE words; "localzip" adds a local build, "gmbroken" makes the
-# Assistant GM browser fail to start again).
+# Assistant GM browser fail to start again, "nogmpw" takes the administrator password away and leaves the campaign's
+# Gamemaster without one, "twice" runs the whole stage a second time on the same fake Pi and
+# prints that run as "--- rerun output" and "--- rerun exit", the calls of both runs together).
 scenario() {
   local name="$1" status="$2" rc="$3" installed="$4" inactive="$5"
   shift 5
@@ -94,18 +103,25 @@ scenario() {
       gm) touch /tmp/stopped-foundry-ai-tool-gm-browser.service ;;
     esac
   done
-  local env_words=()
+  local env_words=() rerun=0
   for w in "$@"; do
     case "$w" in
+      twice) rerun=1 ;;
       localzip) read -ra pair < <(local_zip) && env_words+=("${pair[@]}") ;;
       gmbroken) touch /tmp/gmbroken ;;
+      nogmpw) rm -f "$FOUNDRY_DATA/Config/admin.txt" && fake_gm_user curse-of-strahd "" ;;
       *) env_words+=("$w") ;;
     esac
   done
   echo "=== SCENARIO $name"
   echo "--- output"
-  (cd /root && cat "$LIB" "$STAGE" | env "${env_words[@]}" bash -s) 2>&1
+  (cd /root && cat "$LIB" "$LIBGM" "$STAGE" | env "${env_words[@]}" bash -s) 2>&1
   echo "--- exit $?"
+  if [ "$rerun" = 1 ]; then
+    echo "--- rerun output"
+    (cd /root && cat "$LIB" "$LIBGM" "$STAGE" | env "${env_words[@]}" bash -s) 2>&1
+    echo "--- rerun exit $?"
+  fi
   echo "--- calls"
   cat /tmp/calls
   echo "--- options.json"
@@ -120,6 +136,8 @@ scenario() {
 only="$*"
 U0='{"active":true,"users":0}'
 scenario good "$U0" 0 "" ""
+scenario install-twice "$U0" 0 none "" localzip twice
+scenario gm-passwords-missing "$U0" 0 "" "" nogmpw
 scenario status-unreadable '' 7 "" ""
 scenario status-unreadable-force '' 7 "" "" FORCE=1
 scenario status-html '<html>' 0 "" ""

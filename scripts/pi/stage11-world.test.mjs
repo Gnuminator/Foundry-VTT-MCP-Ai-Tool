@@ -521,6 +521,11 @@ describe('11-world.sh in an ARM64 container', { skip: containerReason }, () => {
     assert.equal(r.exit, '0', r.output);
     assert.match(r.output, /kit world strahd-kit reset from the bundle/);
     assert.match(r.output, /world curse-of-strahd installed/);
+    // The closing GM password check (read-only, only warns): the fake Pi's worlds have no users database.
+    assert.match(r.output, /==> GM passwords[\s\S]*ok: Foundry has an administrator password/);
+    assert.match(r.output, /FOUND: curse-of-strahd: never launched/);
+    assert.match(r.output, /WARNING: a Gamemaster or Assistant GM user has no password/);
+    assert.ok(r.output.indexOf('==> GM passwords') < r.output.indexOf('==> summary'));
     assert.ok(!sentinel(r, 'strahd-kit'), 'the kit world is reset from the bundle');
     assert.ok(!sentinel(r, 'curse-of-strahd'), 'REPLACE_WORLD=1 replaced the real world');
     assert.deepEqual(lines(r.worlds), [

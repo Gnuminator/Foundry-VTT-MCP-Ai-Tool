@@ -32,7 +32,7 @@ require_arm64
 # ---- no GM without a password (#273) ----------------------------------------------------------------
 say "Foundry's administrator password and the GM passwords in every world"
 declare -F gm_password_check >/dev/null || die "gm_password_check is missing: pipe lib-gm-passwords.sh after lib.sh (see the header). Nothing was changed"
-admin_password_set || die "Foundry has no administrator password ($FOUNDRY_DATA/Config/admin.txt is missing or empty): through the tunnel anyone past Cloudflare Access could open /setup and launch, delete or reinstall worlds. Set one in Foundry (Setup, Configuration, Administrator Password), then run this stage again. Nothing was changed"
+admin_password_set || die "Foundry has no administrator password ($FOUNDRY_DATA/Config/admin.txt is missing or empty): through the tunnel anyone past Cloudflare Access could open /setup and launch, delete or reinstall worlds. Set one on Foundry's setup screen (the Configure gear, Application Configuration, Administrator Password), then run this stage again. Nothing was changed"
 ok "Foundry has an administrator password"
 gm_rc=0
 gm_password_check || gm_rc=$?

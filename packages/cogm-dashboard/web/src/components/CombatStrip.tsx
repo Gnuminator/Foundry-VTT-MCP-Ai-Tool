@@ -30,7 +30,7 @@ import {
   pruneSelection,
   reactionLabel,
   reactionsFor,
-  selectedNames,
+  selectedTargets,
   showBossToggle,
   showDeathSaves,
   showReaction,
@@ -423,8 +423,8 @@ export function CombatStrip({
                 count={kept.size}
                 stale={stale}
                 onAct={action => {
-                  const names = selectedNames(combat, kept);
-                  if (names.length > 0) onOpenTool(planRequest(action, names));
+                  const targets = selectedTargets(combat, kept);
+                  if (targets.length > 0) onOpenTool(planRequest(action, targets));
                 }}
                 onClear={() => setPicked(new Set())}
               />

@@ -69,6 +69,7 @@ export const STEPS = [
   nodeTest('pi-gm-passwords', 'scripts/pi/gm-passwords.test.mjs'),
   nodeTest('pi-player-creation', 'scripts/pi/player-creation.test.mjs'),
   nodeTest('pi-kit-session', 'scripts/pi/kit-session.test.mjs'),
+  nodeTest('pi-runtime-imports', 'scripts/pi/runtime-imports.test.mjs'),
   nodeTest('plan-b', 'scripts/plan-b/plan-b.test.mjs'),
   { name: 'changelog', cmd: 'npm', args: ['run', 'changelog:check'] },
   nodeTest('gm-coach-test', 'tools/gm-coach/build.test.mjs'),

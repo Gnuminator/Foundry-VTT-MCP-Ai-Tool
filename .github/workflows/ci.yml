@@ -124,6 +124,12 @@ jobs:
         # container on the ARM runner (build-test-arm).
         run: node --test scripts/pi/kit-session.test.mjs
 
+      - name: Pi runtime imports
+        # The services on the Pi run from a build that stage 5 prunes of its dev packages (#310): every package the bridge,
+        # the dashboard server, the Discord bot and shared import at run time must be a dependency of its workspace, and
+        # the lock keeps one copy of playwright-core (scripts/pi/runtime-imports.mjs).
+        run: node --test scripts/pi/runtime-imports.test.mjs
+
       - name: Plan B scripts
         # scripts/plan-b (docs/dev/PLAN-B.md, D-097 item 6): every script parses; ports and refusals, the
         # newest-backup choice, the version match, the module port flag, the stop and clean decisions and

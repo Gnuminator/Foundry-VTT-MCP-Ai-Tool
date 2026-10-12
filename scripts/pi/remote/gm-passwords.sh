@@ -9,7 +9,7 @@
 # Claude runs:
 #   cat scripts/pi/remote/lib.sh scripts/pi/remote/lib-gm-passwords.sh scripts/pi/remote/gm-passwords.sh | ssh foundry-pi 'bash -s'
 # Exit 0: all set. Exit 3: something found (set a password in that world: Game Settings, User Management,
-# as that world's Gamemaster; or Setup, Configuration, Administrator Password). Exit 1: a world could not be
+# as that world's Gamemaster; or, for the administrator password, the Configure gear on the setup screen: Application Configuration, Administrator Password). Exit 1: a world could not be
 # read, or there is no worlds folder.
 
 require_root

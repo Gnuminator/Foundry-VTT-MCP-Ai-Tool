@@ -5,8 +5,8 @@
 # online (the module's "bridge user" setting names that user).
 # Claude copies the browser driver first:  scp scripts/pi/remote/assistant-gm.mjs foundry-pi:/root/
 # then runs:  cat scripts/pi/remote/lib.sh scripts/pi/remote/5-tool.sh | ssh foundry-pi 'bash -s'
-# TOOL_REF picks the git tag, branch or commit to build (default below). Everything listens on
-# loopback only; Tailscale serve shares the control port (31414) and the dashboard (3000) with the
+# TOOL_REF picks the git tag, branch or commit to build (default below).
+# Everything listens on loopback only; Tailscale serve shares the control port (31414) and the dashboard (3000) with the
 # tailnet, never with the home network or the internet. The bridge's control port has no login of
 # its own (vault idea I-023).
 
@@ -15,7 +15,7 @@ require_arm64
 [ -x "$NODE_DIR/bin/node" ] || die "Node is missing: run stage 2 first"
 [ -f "$FOUNDRY_APP/main.js" ] || die "Foundry is missing: run stage 3 first"
 
-ref="${TOOL_REF:-v0.21.0}"
+ref="${TOOL_REF:-pi-build-2026-10-12}"
 repo="${TOOL_REPO:-https://github.com/Gnuminator/Foundry-VTT-MCP-Ai-Tool.git}"
 app="$TOOL_DIR/app"
 driver_src="${ASSISTANT_GM_DRIVER:-/root/assistant-gm.mjs}"
@@ -27,11 +27,25 @@ say "packages"
 apt_install git ca-certificates chromium fonts-liberation
 ok "$(chromium --version 2>/dev/null || echo 'chromium installed')"
 
+# True when the build in $1 lists playwright-core as a dependency, which is what lets the stage drop the dev packages
+# (the Assistant GM driver and stages 11 and 13 load it from the build); older tags such as v0.21.0 list it as a
+# dev package, so their build keeps every package.
+tool_prunable() {
+  (cd "$1" && node -e 'process.exit(require("./package.json").dependencies?.["playwright-core"] ? 0 : 1)')
+}
+
 say "the tool at $ref"
+# The same ref is not built again, unless its build still has the dev packages although this stage can drop them
+# (an earlier stage 5 did not, or the ref moved past the prune since): then it is built once more, pruned. A pruned
+# build carries .tool-pruned.
 if [ -f "$app/.tool-ref" ] && [ "$(cat "$app/.tool-ref")" = "$ref" ] &&
-  [ -f "$app/packages/mcp-server/dist/standalone.js" ]; then
+  [ -f "$app/packages/mcp-server/dist/standalone.js" ] &&
+  { [ -f "$app/.tool-pruned" ] || ! tool_prunable "$app"; }; then
   ok "$ref is already built in $app"
 else
+  if [ -f "$app/.tool-ref" ] && [ "$(cat "$app/.tool-ref")" = "$ref" ]; then
+    warn "$ref is built in $app without dropping the dev packages: building it again, pruned (the old copy stays as app.prev until the next build, so the disk drops only then)"
+  fi
   build="$TOOL_DIR/build"
   log="$TOOL_DIR/build.log"
   rm -rf "${build:?}"
@@ -56,11 +70,14 @@ else
   # GM driver and stages 11 and 13 load playwright-core from this build, so a ref that still lists it as a dev
   # package (older tags such as v0.21.0) keeps them all.
   size_before="$(du -sm "$build" | cut -f1)"
-  if (cd "$build" && node -e 'process.exit(require("./package.json").dependencies?.["playwright-core"] ? 0 : 1)'); then
+  if tool_prunable "$build"; then
     if ! (cd "$build" && npm prune --omit=dev --no-audit --no-fund) >>"$log" 2>&1; then
       tail -n 40 "$log" >&2
       die "npm prune of the $ref build failed (full log: $log)"
     fi
+    # Scope folders (@storybook, ...) whose last package went are left empty.
+    find "$build/node_modules" -maxdepth 1 -type d -name '@*' -empty -delete || warn "could not remove the empty scope folders (harmless)"
+    : >"$build/.tool-pruned"
     ok "dev packages removed: $size_before MB -> $(du -sm "$build" | cut -f1) MB"
   else
     warn "$ref lists playwright-core as a dev package (the Assistant GM needs it): dev packages kept ($size_before MB)"

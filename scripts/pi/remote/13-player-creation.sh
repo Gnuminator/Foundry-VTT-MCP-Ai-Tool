@@ -2,7 +2,7 @@
 # Stage 13: let players make their own level-1 characters in Actor Studio at session 0 (decisions D-112 and
 # D-113, docs/dev/PI-SETUP.md). Two parts: (A) install our Actor Studio fork build, (B) in each world, set the
 # Foundry and Actor Studio settings that character creation needs.
-#   scp scripts/pi/remote/player-creation-settings.mjs foundry-pi:/root/ && cat scripts/pi/remote/lib.sh scripts/pi/remote/13-player-creation.sh | ssh foundry-pi 'bash -s'
+#   scp scripts/pi/remote/player-creation-settings.mjs foundry-pi:/root/ && cat scripts/pi/remote/lib.sh scripts/pi/remote/lib-gm-passwords.sh scripts/pi/remote/13-player-creation.sh | ssh foundry-pi 'bash -s'
 # The scp copies the in-browser part (the stage installs it into /opt/foundry-ai-tool/gm-browser/ and removes the
 # upload, the same way stage 5 handles assistant-gm.mjs). Environment variables go in front of bash:
 #   ... | ssh foundry-pi 'WORLD=curse-of-strahd bash -s'
@@ -446,6 +446,13 @@ rm -rf "${work:?}"
 prev_note="nothing was replaced, so there is no prev folder"
 if [ -d "$prev" ]; then
   prev_note="old copies kept in $prev ($(du -sh "$prev" | cut -f1)); remove them later, only with the user's OK"
+fi
+
+# Read-only closing check (lib-gm-passwords.sh; it clears the traps, which this stage has cleared above).
+if declare -F gm_passwords_notice >/dev/null; then
+  gm_passwords_notice
+else
+  warn "lib-gm-passwords.sh was not in the pipe, so the GM password check was skipped: run gm-passwords.sh (docs/dev/PI-SETUP.md)"
 fi
 
 say "summary"

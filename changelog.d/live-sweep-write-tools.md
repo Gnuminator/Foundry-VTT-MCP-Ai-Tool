@@ -1,0 +1,4 @@
+### Test tools (I-016)
+
+- **`live:sweep` now runs every write tool:** besides the direct-write tools it plans, applies, checks, undoes and checks again the party (pace, rest request, place, add to combat), Tarokka (import, links, reveal, and checks that the reading from before comes back), handout (queue, unqueue, reveal, hide), Obsidian mirror and planned-undo tools, plays and stops a playlist, and runs `use-item` without a click (the clean-up closes its dialog). It turns the party, Tarokka, handout and Obsidian mirror switches on for the run and puts them back. The three `request-*` tools still need the Player user logged in and are skipped with the reason otherwise.
+- **Test world helper (test worlds only):** three new modes behind `/api/test/live-sweep` (`switches`, `fixture`, `playlist-state`) and a clean-up that also removes sweep playlists and closes `use-item` dialogs.

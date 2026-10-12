@@ -20,9 +20,16 @@ each time the bridge/module/dashboard changes.
   live game is never left altered. `npm run live:sweep` (`scripts/live-write-sweep.mjs`,
   I-016) does this for every direct-write tool on the test world only: it names what it
   makes "AI Tool Sweep ...", puts back what it changed, and has the module delete the
-  rest (a test-world-only helper behind `POST /api/test/live-sweep`). `use-item` runs only
-  with `--with-dialogs` (it opens a dialog in the GM's browser); the three `request-*`
+  rest (a test-world-only helper behind `POST /api/test/live-sweep`). `use-item` opens its
+  activity dialog on the GM's screen (nobody clicks it; the clean-up closes it); the three `request-*`
   tools need the "Player" user logged in (a second browser origin), else they are skipped.
+  Coverage (I-016): every direct write tool and every guarded `plan-*` tool runs, undone where it
+  can be (plan, apply, check, undo, check); `plan-undo-changes` runs as the window's undo and
+  its redo. The party, Tarokka, handout and Obsidian mirror features run with their switches turned
+  on and put back; the Tarokka steps import, link and reveal a fresh reading and check that the
+  reading from before is back after the undos. Recorded skips: the three `request-*` tools
+  without a logged-in Player; the sweep never raises the mirror's `enabled` flag, so no note is
+  written. New write tools get a step in the sweep (or a skip with its reason) in the same PR.
   `npm run live:roundtrip` covers one guarded write and its undo.
 - **Record** every run's pass/skip/fail + notes back into
   `docs/LIVE-VERIFICATION-<date>.md`. A failure report must include the exact

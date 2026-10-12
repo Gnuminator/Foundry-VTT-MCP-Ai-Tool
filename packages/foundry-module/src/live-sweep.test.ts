@@ -66,6 +66,97 @@ describe('liveSweep (I-016)', () => {
     expect(() => scripts.parseWorldArg(['--world'])).toThrow(/--world must/);
   });
 
+  it('switches turns guarded features on or off and gives back what they were', async () => {
+    const world = install(SWEEP_WORLD_ID);
+    world.setSetting('foundry-mcp-bridge', 'feature.party.enabled', true);
+    world.setSetting('foundry-mcp-bridge', 'feature.obsidian-mirror.enabled', false);
+
+    const result = await liveSweep({
+      mode: 'switches',
+      switches: { party: false, 'obsidian-mirror': true },
+    });
+
+    expect(result).toEqual({
+      mode: 'switches',
+      before: { party: true, 'obsidian-mirror': false },
+    });
+    expect(world.settings.get('foundry-mcp-bridge.feature.party.enabled')).toBe(false);
+    expect(world.settings.get('foundry-mcp-bridge.feature.obsidian-mirror.enabled')).toBe(true);
+    await expect(liveSweep({ mode: 'switches', switches: {} })).rejects.toThrow(/switches needs/);
+    await expect(liveSweep({ mode: 'switches', switches: { 'x/y': true } })).rejects.toThrow(
+      /must be a feature id/
+    );
+    await expect(liveSweep({ mode: 'switches', switches: { party: 'yes' } })).rejects.toThrow(
+      /true or false/
+    );
+  });
+
+  it('switches refuses outside the test world', async () => {
+    install('curse-of-strahd');
+    await expect(liveSweep({ mode: 'switches', switches: { party: true } })).rejects.toThrow(
+      /only in the test world/
+    );
+  });
+
+  it('fixture refuses an unknown kind and playlist-state an unknown playlist', async () => {
+    install(SWEEP_WORLD_ID);
+    await expect(liveSweep({ mode: 'fixture', kind: 'castle' })).rejects.toThrow(/Unknown fixture/);
+    await expect(liveSweep({ mode: 'playlist-state', id: 'nope' })).rejects.toThrow(
+      /no playlist nope/
+    );
+  });
+
+  it('cleanup closes the dialogs use-item left open on a sweep actor, and only those', async () => {
+    install(SWEEP_WORLD_ID);
+    const g = globalThis as unknown as { foundry?: unknown };
+    const hadFoundry = g.foundry;
+    const closed: string[] = [];
+    const app = (id: string, actorName: string | null): object => ({
+      item: actorName === null ? undefined : { actor: { name: actorName } },
+      close: (): Promise<void> => {
+        closed.push(id);
+        return Promise.resolve();
+      },
+    });
+    g.foundry = {
+      applications: {
+        instances: new Map([
+          ['a', app('a', `${SWEEP_PREFIX} Wolf`)],
+          ['b', app('b', 'Test Hero')],
+          ['c', app('c', null)],
+        ]),
+      },
+    };
+    try {
+      const result = await liveSweep({});
+      expect(closed).toEqual(['a']);
+      expect(result.deleted).toMatchObject({ dialogs: 1 });
+    } finally {
+      g.foundry = hadFoundry;
+    }
+  });
+
+  it('deletes sweep playlists with the other named documents', async () => {
+    const world = install(SWEEP_WORLD_ID);
+    const playlist = (id: string, name: string): never =>
+      ({
+        id,
+        name,
+        delete: () => {
+          world.playlists.delete(id);
+          return Promise.resolve();
+        },
+      }) as never;
+    world.playlists.add(playlist('p1', `${SWEEP_PREFIX} Playlist`));
+    world.playlists.add(playlist('p2', 'Tavern'));
+
+    const result = await liveSweep({});
+
+    expect(world.playlists.has('p1')).toBe(false);
+    expect(world.playlists.has('p2')).toBe(true);
+    expect(result.deleted).toMatchObject({ playlists: 1 });
+  });
+
   it('rejects an unknown mode', async () => {
     install(SWEEP_WORLD_ID);
     await expect(liveSweep({ mode: 'wipe' })).rejects.toThrow(/Unknown live sweep mode/);

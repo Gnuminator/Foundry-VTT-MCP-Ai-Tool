@@ -1118,6 +1118,11 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
     if (typeof body.since === 'number') request.since = body.since;
     if (Array.isArray(body.tokenIds)) request.tokenIds = body.tokenIds.map(String);
     if (Array.isArray(body.actorIds)) request.actorIds = body.actorIds.map(String);
+    if (typeof body.kind === 'string') request.kind = body.kind;
+    if (typeof body.id === 'string') request.id = body.id;
+    if (body.switches && typeof body.switches === 'object' && !Array.isArray(body.switches)) {
+      request.switches = body.switches;
+    }
     client
       .liveSweep(request)
       .then(result => res.json({ ok: true, result }))

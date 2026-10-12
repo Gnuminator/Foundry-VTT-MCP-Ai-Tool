@@ -121,8 +121,10 @@ expectations](prep-and-expectations.md#a-session-0-agenda-you-can-change).
 - When a player says they are done, open their sheet and go through the checklist in step 10 with
   them. The most common miss: a choice skipped with **Next** (a missing skill or spell). Fix it by
   hand, or delete the character and let them redo it.
-- **Wizards:** the Player's Handbook module's wizard starting equipment has no spellbook. Find a Spellbook
-  in the Compendium Packs tab (search the item packs) and drag it onto the wizard's sheet.
+- **Wizards:** the Player's Handbook module's wizard starting equipment has no spellbook. Open the
+  wizard's sheet and its **Inventory** tab. In the **Compendium Packs** tab of the sidebar, click
+  **Open Compendium Browser**, open its **Items** tab, search for "Spellbook" and drag it onto the
+  sheet.
 - Check each player picked their character in **User Configuration** (the Players list shows
   `Name [Character]`).
 - Add portraits: players can't upload pictures, so they send them to you. Open the sheet, click

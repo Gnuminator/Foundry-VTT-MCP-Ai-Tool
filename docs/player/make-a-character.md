@@ -141,7 +141,7 @@ The steps you will see, roughly in this order:
     so you are also shown spells from the other two lists, and nothing stops you picking one.
   - A spell card may linger at the bottom right of the screen after the browser closes. Ignore it.
 
-  ![Foundry's compendium browser in the Magic Initiate step: every spell listed once per book (SRD 5.1, SRD 5.2, PHB, PHB 2024), with the Cleric, Druid and Wizard filters locked on](../images/guides/studio-spell-picker.png)
+  ![Foundry's compendium browser in the Magic Initiate step: most spells listed once per book (SRD 5.1, SRD 5.2, PHB, PHB 2024), with the Cleric, Druid and Wizard filters locked on](../images/guides/studio-spell-picker.png)
 
 - **Class:** hit points, saving throws, **skills to choose** (most classes pick two), weapon and
   armour training, and your level-1 class features. The steps are headed "Level 1 -> 2" even though

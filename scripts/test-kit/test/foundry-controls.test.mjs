@@ -112,10 +112,11 @@ test('every control of the table is named in the sweep or the scenario, so a new
   const source = files.map(f => readFileSync(f, 'utf8')).join('\n');
   // A skip row is listed by the scenario from the table itself. A name built in a template literal
   // (`foundry.scene.${tool}`) counts when the tool's last part is named in the source as well.
+  const escapeRe = (/** @type {string} */ text) => text.replace(/[\\^$.*+?()[\]{}|]/g, '\\$&');
   const named = (/** @type {string} */ name) => {
-    if (new RegExp(`['"\`]${name.replace(/\./g, '\\.')}['"\`]`).test(source)) return true;
+    if (new RegExp(`['"\`]${escapeRe(name)}['"\`]`).test(source)) return true;
     const cut = name.lastIndexOf('.');
-    const prefix = name.slice(0, cut + 1).replace(/\./g, '\\.');
+    const prefix = escapeRe(name.slice(0, cut + 1));
     const last = name.slice(cut + 1);
     return new RegExp(`\`${prefix}\\$\\{`).test(source) && source.includes(last);
   };

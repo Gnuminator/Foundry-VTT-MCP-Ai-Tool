@@ -118,6 +118,12 @@ jobs:
         # every user. The stage itself runs in a container on the ARM runner (build-test-arm).
         run: node --test scripts/pi/player-creation.test.mjs
 
+      - name: Pi kit session driver
+        # kit-session.mjs against a fake game: the settings character creation needs in strahd-kit, the Kit Player
+        # user, and the teardown that deletes only that user and the actors it owns. The stage itself runs in a
+        # container on the ARM runner (build-test-arm).
+        run: node --test scripts/pi/kit-session.test.mjs
+
       - name: Plan B scripts
         # scripts/plan-b (docs/dev/PLAN-B.md, D-097 item 6): every script parses; ports and refusals, the
         # newest-backup choice, the version match, the module port flag, the stop and clean decisions and
@@ -426,6 +432,13 @@ jobs:
         env:
           PI_STAGE13_CONTAINER: 1
         run: node --test scripts/pi/player-creation.test.mjs
+
+      - name: Pi kit session in an ARM64 container
+        # scripts/pi/container-test/kit-session-scenarios.sh: MODE=up and MODE=down on Debian 13 ARM64 with stand-ins
+        # for systemd (the refusals, a failed driver putting everything back, a second run).
+        env:
+          PI_KIT_SESSION_CONTAINER: 1
+        run: node --test scripts/pi/kit-session.test.mjs
 
       - name: Pi stage 11 in an ARM64 container
         # scripts/pi/container-test/stage11-scenarios.sh: stage 11 on Debian 13 ARM64 with stand-ins for systemd

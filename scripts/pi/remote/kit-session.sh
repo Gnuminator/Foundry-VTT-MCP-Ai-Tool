@@ -1,0 +1,362 @@
+#!/usr/bin/env bash
+# Kit session: a throwaway test run of level-1 character creation, as a player, in the Pi's test world strahd-kit
+# (never curse-of-strahd), and then everything put back (docs/dev/PI-SETUP.md, "Kit session"). Modelled on stage 13.
+#   scp scripts/pi/remote/kit-session.mjs foundry-pi:/root/ && cat scripts/pi/remote/lib.sh scripts/pi/remote/kit-session.sh | ssh foundry-pi 'MODE=up bash -s'
+# ...the player makes a character at http://foundry-pi:30000/join as "Kit Player", then:
+#   cat scripts/pi/remote/lib.sh scripts/pi/remote/kit-session.sh | ssh foundry-pi 'MODE=down bash -s'
+# The scp copies the in-browser part (the stage installs it into /opt/foundry-ai-tool/gm-browser/ and removes the
+# upload, the same way stage 13 handles player-creation-settings.mjs). Environment variables go in front of bash.
+# Take a snapshot first (dietpi-backup 1) and get the user's OK: this stops Foundry for a few minutes.
+# Env: MODE (required: up or down; anything else stops before anything changes), FORCE (1 goes on even when people
+#   are online or /api/status cannot be read; default 0 refuses), SESSION_DRIVER (the uploaded .mjs, default
+#   /root/kit-session.mjs), MAX_DELETE (down only: more than 5 actors owned by Kit Player are refused; this raises
+#   the limit). The world (strahd-kit) and the player (Kit Player) are fixed in this script and in the driver.
+# What MODE=up does:
+#   Before anything stops: the world, its GM login (/etc/foundry-ai-tool/world-strahd-kit.env, never printed) and the
+#   tool's build must be there, no kit session may be up already (the state file below), Foundry must not launch
+#   strahd-kit already, and space is checked (20% free warns, under 5% stops). Then the Assistant GM browser stops,
+#   /api/status must answer and count no one online (FORCE=1 overrides), and Foundry stops. The state file
+#   /var/lib/foundry-ai-tool/kit-session.env (ORIG_WORLD, WAS_GM_BROWSER, STAMP; mode 600) is written before
+#   options.json changes. strahd-kit's settings, users and actors are copied to
+#   /var/lib/foundry-import/prev-<stamp>/worlds/strahd-kit/ (never deleted). options.json launches strahd-kit, Foundry
+#   starts, and a headless Chromium joins as the world's GM and runs kit-session.mjs ACTION=setup: the settings
+#   character creation needs, and the passwordless player user "Kit Player". Foundry stays running on strahd-kit and
+#   the Assistant GM browser stays stopped (its login is for the campaign world). If anything fails after the services
+#   stopped, options.json, Foundry and the Assistant GM browser are put back as they were and the state file is removed.
+# What MODE=down does:
+#   Needs the state file, strahd-kit running, and nobody online (the Kit Player must have left the game; FORCE=1
+#   overrides). It runs kit-session.mjs ACTION=teardown while strahd-kit still runs: the actors Kit Player owns (at
+#   most 5) and the user are deleted, nothing else. If that fails, nothing else changes (the state file stays, Foundry
+#   stays on strahd-kit) so the stage can run again. Otherwise Foundry stops, options.json launches ORIG_WORLD again,
+#   the state file is removed, Foundry starts, and the Assistant GM browser starts again if it ran before (the stage
+#   waits for "joined world").
+
+require_root
+require_arm64
+
+MODE="${MODE:-}"
+case "$MODE" in up | down) ;; *) die "usage: MODE=up (set up the kit session) or MODE=down (take it down), got '$MODE'. Nothing was changed" ;; esac
+
+# Fixed on purpose: no environment variable can point this stage at another world or another player.
+KIT_WORLD=strahd-kit
+PLAYER_NAME='Kit Player'
+FORCE="${FORCE:-0}"
+SESSION_DRIVER="${SESSION_DRIVER:-/root/kit-session.mjs}"
+MAX_DELETE="${MAX_DELETE:-}"
+IMPORT=/var/lib/foundry-import
+STATE="$TOOL_DATA/kit-session.env"
+data="$FOUNDRY_DATA/Data"
+options="$FOUNDRY_DATA/Config/options.json"
+driver_dir="$TOOL_DIR/gm-browser"
+driver="$driver_dir/kit-session.mjs"
+envf="$TOOL_ETC/world-$KIT_WORLD.env"
+stamp="$(date +%Y%m%d-%H%M%S)"
+export PATH="$NODE_DIR/bin:$PATH"
+
+say "checking the request ($MODE)"
+case "$SESSION_DRIVER" in /root/*.mjs) ;; *) die "SESSION_DRIVER must be a .mjs file under /root/ (got $SESSION_DRIVER)" ;; esac
+case "$SESSION_DRIVER" in */../* | */..) die "SESSION_DRIVER must not hold .." ;; esac
+[ -z "$MAX_DELETE" ] || [[ "$MAX_DELETE" =~ ^[1-9][0-9]{0,3}$ ]] || die "MAX_DELETE must be a whole number from 1 (got '$MAX_DELETE')"
+id "$FOUNDRY_USER" >/dev/null 2>&1 || die "no user $FOUNDRY_USER: run stage 1 first"
+[ -f "$options" ] || die "no $options: has Foundry started once (stage 3)?"
+[ -x "$NODE_DIR/bin/node" ] || die "no Node at $NODE_DIR: run stage 2 first"
+have_systemd || die "no systemd here: the kit session needs the real Pi (it starts and stops Foundry)"
+[ -d "$TOOL_DATA" ] || die "no $TOOL_DATA: run stage 5 first"
+
+# options.json "world" is what Foundry launches. The kit session changes it; the first value is kept in the state file.
+set_world() {
+  node -e 'const fs=require("fs");const p=process.argv[1];const o=JSON.parse(fs.readFileSync(p,"utf8"));o.world=process.argv[2]||null;fs.writeFileSync(p,JSON.stringify(o,null,2)+"\n")' "$options" "$1"
+}
+current_world() {
+  node -e 'const o=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));process.stdout.write(o.world||"")' "$options"
+}
+
+# The user's storage rule (2026-10-06, stage 10): every job checks its source and its destination for 20%
+# free; below 20% it warns and goes on, below 5% it stops. Integer percent, rounded down.
+check_space() { # $1 a path on the filesystem, $2 what to call it
+  local avail size pct
+  read -r avail size < <(df --output=avail,size -B1 "$1" | tail -n1)
+  [ "${size:-0}" -gt 0 ] || {
+    warn "cannot read the free space of $2"
+    return 0
+  }
+  pct=$((avail * 100 / size))
+  if [ "$pct" -lt 5 ]; then
+    die "space is critical on $2: $pct% free (under 5%). Free up space and run this stage again"
+  elif [ "$pct" -lt 20 ]; then
+    warn "space is low on $2: $pct% free (the rule is 20%); going on"
+  else
+    ok "$2: $pct% free"
+  fi
+}
+
+# The driver: the upload in /root when there is one, else the copy installed by an earlier run.
+driver_available() { [ -f "$SESSION_DRIVER" ] || [ -f "$driver" ]; }
+install_driver() {
+  if [ -f "$SESSION_DRIVER" ]; then
+    install -d -m 755 "$driver_dir"
+    install -m 0644 "$SESSION_DRIVER" "$driver"
+    rm -f "$SESSION_DRIVER"
+    ok "installed $driver"
+  else
+    ok "already installed (no new copy in $SESSION_DRIVER)"
+  fi
+}
+
+# /join answers 200 even when no world runs (an error page), so look for the join form's template.
+world_up() { curl -fs http://127.0.0.1:30000/join 2>/dev/null | grep -q 'id="join-game"'; }
+wait_for_world() { # $1 world id
+  local up=0
+  for _ in $(seq 1 60); do
+    if world_up; then
+      up=1
+      break
+    fi
+    sleep 2
+  done
+  [ "$up" = 1 ] || die "$1 is not running on port 30000 (see: journalctl -u foundry -n 50)"
+}
+
+# Nobody may be playing. An answer that cannot be read counts as "?" (unknown), not as nobody; the setup screen
+# has no users field and counts as 0. FORCE=1 goes on anyway.
+check_nobody_online() { # $1 what the people would lose
+  local online=""
+  for _ in $(seq 1 10); do
+    online="$(curl -fs http://127.0.0.1:30000/api/status 2>/dev/null | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{const u=JSON.parse(s).users;process.stdout.write(String(Number.isInteger(u)?u:0))}catch{process.stdout.write("?")}})')" || online="?"
+    [ "$online" != 0 ] || break
+    sleep 2
+  done
+  if [ "$online" = "?" ]; then
+    if [ "$FORCE" = 1 ]; then
+      warn "cannot read who is online (/api/status); FORCE=1, going on anyway"
+    else
+      die "cannot read who is online in Foundry (/api/status on port 30000): check it runs, or FORCE=1 to go on anyway"
+    fi
+  elif [ "$online" != 0 ]; then
+    if [ "$FORCE" = 1 ]; then
+      warn "$online user(s) still online; FORCE=1, going on anyway"
+    else
+      die "$online user(s) are online in Foundry: $1 (or FORCE=1 to go on anyway)"
+    fi
+  fi
+}
+
+# Foundry runs the world; a headless Chromium joins as the world's GM and does ACTION (setup or teardown).
+run_driver() { # $1 setup or teardown
+  (
+    set -a
+    # shellcheck disable=SC1090
+    . "$envf"
+    set +a
+    [ -n "${GM_USER:-}" ] && [ -n "${GM_PASSWORD:-}" ] || {
+      echo "ERROR: $envf has no GM_USER and GM_PASSWORD" >&2
+      exit 1
+    }
+    # The login stays in the environment (exported by the sourced file), never on a command line. runuser
+    # resets HOME to the Foundry user's home (the Foundry data folder), so env sets it after the switch.
+    export WORLD="$KIT_WORLD"
+    runuser -u "$FOUNDRY_USER" -- env HOME="$TOOL_DATA" TOOL_APP="$TOOL_DIR/app" \
+      FOUNDRY_URL=http://127.0.0.1:30000 CHROMIUM=/usr/bin/chromium \
+      ACTION="$1" MAX_DELETE="$MAX_DELETE" \
+      node "$driver"
+  )
+}
+
+# The GM login must exist with both fields, without printing either.
+env_has_login() {
+  (
+    set -a
+    # shellcheck disable=SC1090
+    . "$envf"
+    set +a
+    [ -n "${GM_USER:-}" ] && [ -n "${GM_PASSWORD:-}" ]
+  )
+}
+
+# A value from the state file (a plain KEY=VALUE file; never sourced).
+state_value() { # $1 key
+  grep -m1 "^$1=" "$STATE" | cut -d= -f2- || true
+}
+
+# ---- MODE=up ------------------------------------------------------------------------------------------------------
+if [ "$MODE" = up ]; then
+  # Everything that can say no comes before anything stops or changes.
+  [ -f "$data/worlds/$KIT_WORLD/world.json" ] || die "world $KIT_WORLD is not installed ($data/worlds/$KIT_WORLD/world.json): run stage 11 first"
+  [ -f "$envf" ] || die "no $envf (the GM login stage 11 writes): run stage 11 first"
+  env_has_login || die "$envf has no GM_USER and GM_PASSWORD: run stage 11 first"
+  [ -f "$TOOL_DIR/app/package.json" ] || die "the tool is not built at $TOOL_DIR/app: run stage 5 first"
+  [ ! -e "$STATE" ] || die "a kit session is already up: run MODE=down first (state: $STATE)"
+  orig_world="$(current_world)"
+  [ "$orig_world" != "$KIT_WORLD" ] || die "Foundry already launches $KIT_WORLD: nothing to set up (and nothing to put back afterwards). Nothing was changed"
+  [[ "$orig_world" =~ ^[a-z0-9-]*$ ]] || die "options.json launches '$orig_world', which is not a plain world id: nothing was changed"
+  driver_available || die "no $SESSION_DRIVER: scp scripts/pi/remote/kit-session.mjs foundry-pi:/root/ first"
+  install -d -m 700 "$IMPORT"
+  prev="$IMPORT/prev-$stamp"
+  check_space "$IMPORT" "$IMPORT"
+  check_space "$FOUNDRY_DATA" "$FOUNDRY_DATA"
+
+  say "the in-browser part"
+  install_driver
+
+  # A failure after the services stopped puts options.json, Foundry and the Assistant GM browser back as they were
+  # and removes the state file, so the Pi is never left in a half state.
+  stopped=0
+  was_foundry=0
+  foundry_stopped=0
+  was_gm_browser=0
+  world_changed=0
+  state_written=0
+  on_exit() {
+    if [ "$stopped" = 1 ]; then
+      if [ "$world_changed" = 1 ]; then
+        set_world "$orig_world" || true
+        warn "options.json restored to launch '${orig_world:-no world}'"
+      fi
+      if [ "$was_foundry" = 1 ] && [ "$foundry_stopped" = 1 ]; then
+        systemctl restart foundry.service || true
+      elif [ "$was_foundry" = 1 ]; then
+        : # never stopped (people were online) or already back on its world: leave it running
+      else
+        systemctl stop foundry.service 2>/dev/null || true
+      fi
+      if [ "$was_gm_browser" = 1 ]; then
+        systemctl is-active --quiet foundry-ai-tool-gm-browser.service || systemctl start foundry-ai-tool-gm-browser.service || true
+      fi
+      if [ "$state_written" = 1 ]; then rm -f "${STATE:?}"; fi
+      warn "the run did not finish: Foundry and the Assistant GM browser are back as they were before it, and there is no kit session"
+      if [ -d "$prev" ]; then warn "old copies are in $prev"; fi
+    fi
+  }
+  trap on_exit EXIT
+
+  # Remember what ran, so a failed run starts only that again.
+  systemctl is-active --quiet foundry.service && was_foundry=1
+  systemctl is-active --quiet foundry-ai-tool-gm-browser.service && was_gm_browser=1
+  say "stopping the Assistant GM browser and Foundry"
+  stopped=1
+  systemctl stop foundry-ai-tool-gm-browser.service 2>/dev/null || true
+  # With the Assistant GM browser gone, /api/status counts the people still online.
+  if [ "$was_foundry" = 1 ]; then check_nobody_online "run this when nobody plays"; fi
+  foundry_stopped=1
+  systemctl stop foundry.service
+
+  # The state file first: from here on, MODE=down knows what to put back, and so does a run that fails.
+  (umask 077 && printf 'ORIG_WORLD=%s\nWAS_GM_BROWSER=%s\nSTAMP=%s\n' "$orig_world" "$was_gm_browser" "$stamp" >"$STATE")
+  chmod 600 "$STATE"
+  state_written=1
+  ok "state written to $STATE"
+
+  # Foundry is stopped, so the world's databases can be copied as they are.
+  say "copying the settings, users and actors of $KIT_WORLD to $prev"
+  install -d -m 700 "$prev" "$prev/worlds" "$prev/worlds/$KIT_WORLD"
+  for part in settings users actors; do
+    if [ -d "$data/worlds/$KIT_WORLD/data/$part" ]; then
+      cp -a "$data/worlds/$KIT_WORLD/data/$part" "$prev/worlds/$KIT_WORLD/$part"
+      ok "$part: $prev/worlds/$KIT_WORLD/$part"
+    else
+      warn "$KIT_WORLD has no data/$part folder to back up"
+    fi
+  done
+
+  say "starting $KIT_WORLD and setting it up"
+  set_world "$KIT_WORLD"
+  world_changed=1
+  systemctl start foundry.service
+  wait_for_world "$KIT_WORLD"
+  ok "$KIT_WORLD is running"
+  run_driver setup || die "the setup of $KIT_WORLD failed or did not verify (see the lines above)"
+  ok "$KIT_WORLD: settings and the player user set and read back"
+
+  # Done: Foundry stays on strahd-kit, the Assistant GM browser stays stopped, and nothing is put back by itself.
+  stopped=0
+  trap - EXIT
+  prev_note="old copies kept in $prev ($(du -sh "$prev" | cut -f1)); remove them later, only with the user's OK"
+
+  say "summary"
+  echo "    The kit session is up. Foundry runs $KIT_WORLD (it launched ${orig_world:-no world} before)."
+  echo "    Join:  http://foundry-pi:30000/join"
+  echo "    User:  $PLAYER_NAME (no password)"
+  echo "    The Assistant GM browser is stopped until MODE=down (its login is for the campaign world)."
+  echo "    When the player is done and has left the game, run MODE=down: it deletes $PLAYER_NAME and the actors it owns,"
+  echo "    puts options.json back on ${orig_world:-no world} and starts Foundry and the Assistant GM browser again."
+  echo "    $prev_note"
+  exit 0
+fi
+
+# ---- MODE=down ----------------------------------------------------------------------------------------------------
+[ -f "$STATE" ] && [ -r "$STATE" ] || die "no kit session is up ($STATE is missing or unreadable): nothing to take down. Nothing was changed"
+orig_world="$(state_value ORIG_WORLD)"
+was_gm_browser="$(state_value WAS_GM_BROWSER)"
+state_stamp="$(state_value STAMP)"
+[[ "$orig_world" =~ ^[a-z0-9-]*$ ]] || die "$STATE holds a world id I do not trust (ORIG_WORLD): check the file by hand. Nothing was changed"
+[[ "$was_gm_browser" =~ ^[01]$ ]] || die "$STATE holds no valid WAS_GM_BROWSER (0 or 1): check the file by hand. Nothing was changed"
+[[ "$state_stamp" =~ ^[0-9]{8}-[0-9]{6}$ ]] || die "$STATE holds no valid STAMP: check the file by hand. Nothing was changed"
+[ -f "$envf" ] && env_has_login || die "no GM login for $KIT_WORLD in $envf: nothing was changed"
+[ -f "$TOOL_DIR/app/package.json" ] || die "the tool is not built at $TOOL_DIR/app: run stage 5 first"
+[ "$(current_world)" = "$KIT_WORLD" ] || die "options.json does not launch $KIT_WORLD (it launches '$(current_world)'): the kit session is not up. Nothing was changed"
+driver_available || die "no kit-session.mjs (not installed in $driver_dir, no upload in $SESSION_DRIVER): scp scripts/pi/remote/kit-session.mjs foundry-pi:/root/ first"
+systemctl is-active --quiet foundry.service || die "Foundry is not running: start it (systemctl start foundry) and run MODE=down again. Nothing was changed"
+world_up || die "$KIT_WORLD is not answering on port 30000 (see: journalctl -u foundry -n 50). Nothing was changed"
+check_nobody_online "the Kit Player must leave the game first"
+
+say "the in-browser part"
+install_driver
+
+# The teardown runs while strahd-kit still runs. If it fails nothing else has changed and this can run again.
+say "deleting $PLAYER_NAME and the actors it owns in $KIT_WORLD"
+run_driver teardown || die "the teardown in $KIT_WORLD failed or did not verify (see the lines above): nothing else was changed; Foundry still runs $KIT_WORLD and the state file stays, so run MODE=down again"
+ok "$PLAYER_NAME and its actors are gone from $KIT_WORLD, read back"
+
+# From here on the kit session is over. A failure below leaves no state file (a stuck one would refuse both modes)
+# and tries to bring the Assistant GM browser back.
+back_exit() {
+  if systemctl is-active --quiet foundry.service && world_up; then return 0; fi
+  warn "Foundry did not come back on '${orig_world:-no world}' (see: journalctl -u foundry -n 50); the kit session is over and options.json is restored"
+  if [ "$was_gm_browser" = 1 ]; then
+    systemctl is-active --quiet foundry-ai-tool-gm-browser.service || systemctl start foundry-ai-tool-gm-browser.service || true
+    warn "the Assistant GM browser was started again; check it once Foundry runs"
+  fi
+}
+trap back_exit EXIT
+
+say "Foundry launches ${orig_world:-no world} again"
+systemctl stop foundry.service
+set_world "$orig_world"
+rm -f "${STATE:?}"
+ok "options.json launches ${orig_world:-no world}; state file removed"
+since="$(date '+%Y-%m-%d %H:%M:%S')"
+systemctl start foundry.service
+if [ -n "$orig_world" ]; then
+  wait_for_world "$orig_world"
+  ok "$orig_world is running"
+fi
+trap - EXIT
+
+if [ "$was_gm_browser" = 1 ]; then
+  systemctl restart foundry-ai-tool-gm-browser.service
+  sleep 2
+  systemctl is-active --quiet foundry-ai-tool-gm-browser.service || die "the Assistant GM browser did not start; see: journalctl -u foundry-ai-tool-gm-browser -n 50"
+  if [ -n "$orig_world" ]; then
+    joined=0
+    for _ in $(seq 1 45); do
+      if journalctl -u foundry-ai-tool-gm-browser --since "$since" --no-pager | grep -q 'joined world'; then
+        joined=1
+        break
+      fi
+      sleep 2
+    done
+    journalctl -u foundry-ai-tool-gm-browser -n 5 --no-pager | grep 'assistant-gm' || true
+    if [ "$joined" = 1 ]; then
+      ok "the Assistant GM browser joined the world"
+    else
+      warn "no 'joined world' yet; see: journalctl -u foundry-ai-tool-gm-browser -n 30"
+    fi
+  fi
+else
+  ok "the Assistant GM browser was not running before the kit session: left off"
+fi
+
+say "summary"
+echo "    The kit session is down. $PLAYER_NAME and the actors it owned are deleted from $KIT_WORLD."
+echo "    Foundry launches: ${orig_world:-no world}"
+echo "    The copies of $KIT_WORLD from before the session, if any, are in $IMPORT/prev-$state_stamp (kept; remove them later, only with the user's OK)"

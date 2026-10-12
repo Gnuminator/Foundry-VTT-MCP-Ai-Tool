@@ -10,8 +10,9 @@ the same users and passwords, the same modules and maps, the bridge, the dashboa
 Assistant GM. What is lost: everything played on the Pi after that backup. The GM sets hit points,
 spell slots and items back by hand.
 
-Measured on this PC (2026-10-09): restoring the backup takes about 30 seconds, starting everything
-about one minute. Budget 15 minutes for the whole switch, including telling the players.
+Measured on this PC (2026-10-12, [rehearsal record](#rehearsal-record)): restoring the backup takes
+10 to 15 seconds, starting everything about 20 seconds, and the Assistant GM has joined the world
+within 40 seconds of that. Budget 15 minutes for the whole switch, including telling the players.
 
 ## What it touches
 
@@ -95,7 +96,8 @@ Open PowerShell 7 in the repo's main checkout.
    .\scripts\plan-b\check.ps1
    ```
 
-   It ends with "Plan B is up." or names each problem and what to do.
+   It ends with "Plan B is up." or names each problem and what to do. Right after the start it waits
+   up to 90 seconds for the Assistant GM to join the world (it says so); that is normal.
 
 5. **Tell the players.** Post the address in Discord: `https://plan-b.<domain>` (remote), or
    `http://<your PC's address>:30000` at the table on your home network (`ipconfig` shows the
@@ -167,15 +169,48 @@ so it can run while the Pi and the test server run.
 .\scripts\plan-b\restore.ps1
 .\scripts\plan-b\start.ps1
 .\scripts\plan-b\check.ps1
-# open http://localhost:30100 and log in as a player: the world, the maps and the characters are there
+# open http://localhost:30100 and log in: the world, the maps and the characters are there
 .\scripts\plan-b\stop.ps1 -Clean
 ```
+
+Log in as the GM or, once the players have accounts, as a player. The Pi's backup of 2026-10-12 holds
+two users, both GMs (the Gamemaster and the Assistant GM) and no player. The Assistant GM's login is
+the restored one, and `check.ps1` showing the module link proves it works. A person logging in
+needs the user name and password from the Pi, which Claude never types. `stop.ps1` without `-Clean`
+keeps the restored data (about 1.7 GB) for a look afterwards.
+
+Drill for the way back (build only, nothing goes to the Pi): after `stop.ps1`, set `"played": true`
+and `"playedAt": "<date>"` in `C:\FoundryPlanB\state.json`, run `.\scripts\plan-b\push-back.ps1`
+(27 seconds; it leaves a 1.35 GB tar and a staged copy, about 2.7 GB, in
+`%TEMP%\foundry-world-bundle-<time>`. Delete that whole folder afterwards: both hold the world's
+password hashes), and set `played` back to `false`. A rehearsal never sets it, so `push-back.ps1` refuses
+a plain rehearsal copy by design.
 
 The full rehearsal before the first online night (G2) also tests the tunnel with a phone off
 Wi-Fi. It keeps the rehearsal ports and uses the tunnel's rehearsal route, so the Pi keeps running:
 `start.ps1 -Tunnel -PublicHost plan-b-test.<domain>`, log in from the phone at
 `https://plan-b-test.<domain>`, then `stop.ps1 -Clean`. The game-night route (`plan-b`, port 30000)
 is the same tunnel; only the port differs.
+
+### Rehearsal record
+
+2026-10-12, this PC, ports 30100 / 31614 / 31615 / 3300, Foundry 14.368, dnd5e 6.0.5, backup
+`d292b2bc` of 2026-10-12 04:30 (nothing written to the Pi, the restic copy or the test server):
+
+| Step                                                      | Time                                             |
+| --------------------------------------------------------- | ------------------------------------------------ |
+| `restore.ps1` (1.7 GB from `E:\PiBackup\restic`)          | 15 s first run, 10 s second                      |
+| `start.ps1` (Foundry, bridge, dashboard, Assistant GM)    | 16 s first run, 6 s second                       |
+| Assistant GM joined, module link up                       | about 25 s after the start                       |
+| `check.ps1` right after the start                         | all OK (it waited 21 s for the link)             |
+| AI Tool through the bridge (dashboard 3300, read tools)   | world, scenes, journals, compendium: 2 to 52 ms  |
+| `stop.ps1`                                                | 2 s, ports free                                  |
+| `push-back.ps1` build and check (played flag set by hand) | 27 s                                             |
+| `connectors.ps1 -To planb -Rehearsal -DryRun`             | 5 connector values would change, nothing written |
+
+Not rehearsed: a person logging in (Claude has no credentials, and the backup has no player
+accounts yet), `-GameNight` (game night only), `-Tunnel` (Part C is not live), changing Claude
+Desktop's connectors for real, and the rollback on the Pi itself (a snapshot and your OK first).
 
 ## Spare tunnel (finished once Part C is live)
 

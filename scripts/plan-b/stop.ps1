@@ -67,6 +67,9 @@ if ($state -and $state.PSObject.Properties['services'] -and $state.services) {
   Write-PlanBState $L $state
   if ($state.PSObject.Properties['ports'] -and $state.ports) {
     foreach ($p in $state.ports.PSObject.Properties) {
+      # A stopped process can hold its listener for a moment (Foundry did on 2026-10-12): look for 5 seconds.
+      $closeBy = (Get-Date).AddSeconds(5)
+      while ((Test-PlanBPortOpen ([int]$p.Value)) -and (Get-Date) -lt $closeBy) { Start-Sleep -Milliseconds 500 }
       if (Test-PlanBPortOpen ([int]$p.Value)) { Write-Host "WARNING: port $($p.Value) ($($p.Name)) is still in use" -ForegroundColor Yellow }
     }
   }

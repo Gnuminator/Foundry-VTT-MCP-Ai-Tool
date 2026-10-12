@@ -278,10 +278,14 @@ Build time depends on the number of heroes, about five seconds each. Measured on
 
 | Profile    | Size    | Heroes | Build            | Whole run (build and scenarios) |
 | ---------- | ------- | ------ | ---------------- | ------------------------------- |
-| `srd`      | `smoke` | 12     | about 1 minute   | about 1 minute                  |
+| `srd`      | `smoke` | 12     | about 1 minute   | about 1 minute (see below)      |
 | `srd`      | `full`  | 64     | about 5 minutes  | about 5 minutes                 |
-| `licensed` | `smoke` | 13     | about 1 minute   | about 1.5 minutes               |
+| `licensed` | `smoke` | 13     | about 1 minute   | about 1.5 minutes (see below)   |
 | `licensed` | `full`  | 157    | about 12 minutes | about 13 minutes                |
+
+The `smoke` times were measured before `foundry-controls` joined `smoke`. That scenario launches a second Edge,
+rebuilds the Enhanced Creature Index (it waits up to 4 minutes) and polls the join page in a fresh Edge per
+attempt, so a `smoke` run now takes several minutes longer than the table says. It has not been re-measured.
 
 The two feature scenarios add little: about 25 seconds to an `srd` `full` run (5 minutes in all) and about
 2 minutes to a `licensed` `full` run (14 minutes in all, 157 heroes, 2195 activities used).
@@ -290,11 +294,11 @@ Start a `full` run in the background and do not wait on it.
 
 ## The scenarios
 
-Twenty-two SRD scenarios ship in the repo. The first eighteen in the table are in `smoke` and `full`; `heroes-advancement`, the two
+Twenty-four SRD scenarios ship in the repo. The first nineteen in the table are in `smoke` and `full`; `heroes-advancement`, the two
 feature scenarios, `heroes-studio`, the three monster scenarios, the two spell scenarios and the four origin
 scenarios are in `long` as well. The spell scenarios use the sizes differently: `smoke` casts a sample of about
-thirty spells, `full` and `long` cast them all. The dashboard scenarios at the end of the table are real-browser
-scenarios with their own sizes, named in the table and in the text after it.
+thirty spells, `full` and `long` cast them all. The dashboard scenarios and `foundry-controls` at the end of the
+table are real-browser scenarios with their own sizes, named in the table and in the text after it.
 
 | Id                          | What it proves                                                                                                                                                               |
 | --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -320,6 +324,7 @@ scenarios with their own sizes, named in the table and in the text after it.
 | `dashboard-write-flows`     | The dashboard's write flows clicked in Edge: confirm, Undo, the undo window (Just this, Everything since, Redo), Tarokka, party, handouts, notes, links. Full and long only. |
 | `dashboard-login-split`     | With a GM and a player token: no token gets nothing, `/player` has no GM controls, the GM token works. Runs last.                                                            |
 | `dashboard-controls`        | Every dashboard and player control is there, opens what it should and logs no console error. Full and long only.                                                             |
+| `foundry-controls`          | Every control the module adds inside Foundry is there, works for the GM, is hidden from a player, and logs no console error. Smoke, full and long.                           |
 | `player-rendered`           | The drawn player page shows no hidden token, true monster name or canary. Smoke and full.                                                                                    |
 
 `dashboard-write-flows` and `dashboard-login-split` need a real browser (`t.browser`), so against the fake
@@ -374,6 +379,61 @@ rewind under Advanced only plan, Apply is never clicked. The sweep puts the page
 each control: the theme, the During layout, any open drawer, the undo window and the AI tab of Recent Changes. `player-rendered` places a hidden token with a
 canary name in a combat, opens `/player`, waits for the page to draw the combat and checks that neither the
 HTML nor the text of the page names the canary or the monsters' true names.
+
+`foundry-controls` sweeps the other half: every control the module adds inside Foundry itself, as the GM
+(`Kit GM`) and as a player (`Kit Player`, in a second Edge). Its table is `lib/foundry-controls.mjs` (a unit
+test keeps it in step with the usage catalog's `module.*` names, and with the drivers: a row no driver names
+fails the test); the drivers are `lib/foundry-sweep.mjs` and `foundry-sweep-changes.mjs`, `-handouts.mjs`,
+`-settings.mjs` and `-play.mjs`. It covers:
+
+- **Scene controls:** the **AI Tool** group and its tools Changes, Handouts and Tarokka; each opens its window,
+  which loads without an error and closes again.
+- **Changes window:** Refresh, the Show filter, Show more, the row details and the Undo choices for an older
+  change (Cancel is checked first). One guarded damage change is planned, applied, found in the window, undone
+  and redone from the window, and put back.
+- **Handouts and Tarokka windows:** the reveals are done through the windows' own buttons, checked from the kit
+  player's side and then undone.
+- **Settings:** the "Foundry AI Tool" section, the nine feature switches, the three settings menus (GM guide,
+  Enhanced Index, join page look), and the join page look: Apply The Veil and back to Foundry's look.
+- **Journal and chat:** the campaign status toggle on a journal (the GM cycles it, a player is refused) and the
+  roll request card (the player rolls, the card says who did).
+- **A player:** cannot see the AI Tool group, the settings section or the windows, and cannot call the bridge
+  queries.
+
+It needs a real browser and a second Edge, so against the fake it skips itself. What a row changes is put back
+by cleanups that run at the end of the scenario, last registered first. Each cleanup tries every put-back even
+when one fails (an undo that is refused does not stop the next one) and fails as one step that lists everything
+it could not do: the hit points of the kit monster are checked against their start, the join page look is
+compared with the description and background the world had before (and written back directly when Back to
+Foundry's look does not restore them), and the handout page is unqueued only while it is queued. A sweep that
+dies in the middle can still leave a change behind, so a kit world is not guaranteed clean after a crash.
+
+Console errors: a row fails when either page (the GM's or the player's) logs a console error or a page error while
+it runs, with the page named in the note. Errors that land between rows (setup, a late error) are judged by the
+last step, "no control failed". Foundry logs every error notification as a console error, so a row that is meant
+to provoke one names it (`expectErrors`, one narrow text per row) and the scenario lists those texts in
+`knownConsoleErrors` (the runner applies that list to the module errors of the GM page), with a comment on which
+row owns which text. After a failed row the sweep closes the dialogs it left open (the tool windows stay), and it
+never answers the "Rewind the whole table" dialog; a confirm is answered only through its `yes` button or the
+button with the expected label (Undo, Redo, Reveal).
+
+The GM guide link is not followed: the sweep replaces the page's `window.open` during the click, records the
+address, the target and the features (it must be the `gnuminator.github.io` guide, `_blank`, `noopener`) and no
+tab opens. It also sends one HEAD request for that address from the kit PC to the public docs page; offline, or a
+page that is not published yet, is only a note in the row. The Handouts and Tarokka reveals are found in the
+Changes window by their change id (the ids listed before the reveal are not candidates). When the world already
+has a Tarokka reading the five Tarokka rows are skipped, and they fail instead when the reading carries the
+sweep's own reveal text (a leftover of an earlier run). The queries-locked row first checks that the GM client
+registers the helper query, then needs the player's refusal to say "not registered" or "GM-only", so a timeout is
+not taken for a lock. The two Tarokka offer dialogs are skipped, because the
+`tarokka-reading` module is not in the kit worlds. The Changes window cannot undo a change that also wrote the AI
+Tool's own data (a reveal does), so the sweep undoes reveals with `undo-change` and says so in the row's note.
+The report gets three attachments: `foundry-controls` (one row per control and role: pass, fail or skip with the
+reason), `foundry-timings` (milliseconds for opening each window and for the guarded round trip: the I-098
+numbers) and `foundry-control-classes` (the rows counted by how the sweep treats them). While developing, the
+environment variable `KIT_FOUNDRY_AREAS=scene,changes,handouts,tarokka,settings,join-page,journal,chat,player`
+(any of those, comma separated) runs only those areas; `settings` and `join-page` share one driver, so either runs
+both (the Creature Index rebuild included).
 
 ### heroes-advancement
 
@@ -1077,6 +1137,8 @@ t.check(t.browser.consoleErrors(page).length === 0, 'the player page logs no err
 | The SRD scenarios (no licensed content)   | `scripts/test-kit/scenarios/*.scenario.mjs` (in the repo)                                                                                   |
 | The SRD content profile                   | `scripts/test-kit/data/profiles/srd.json`                                                                                                   |
 | The known findings of a profile           | `scripts/test-kit/lib/known.mjs`, `data/profiles/srd.known.json`, `<kit home>\licensed\profiles\<id>.known.json`                            |
+| The module control table (inside Foundry) | `scripts/test-kit/lib/foundry-controls.mjs`                                                                                                 |
+| The module control sweep drivers          | `scripts/test-kit/lib/foundry-sweep.mjs`, `foundry-sweep-changes.mjs`, `-handouts.mjs`, `-settings.mjs`, `-play.mjs`                        |
 | The pick coverage                         | `scripts/test-kit/lib/picks.mjs`                                                                                                            |
 | The monsters and the scene                | `scripts/test-kit/data/smoke-matrix.json`                                                                                                   |
 | The manifest of the last build            | `<kit home>\worlds\<world>\manifest.json` (`worlds-B` for B)                                                                                |

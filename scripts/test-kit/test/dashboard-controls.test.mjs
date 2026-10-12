@@ -137,13 +137,13 @@ test('rows say what they need: reasons, keys and checks', () => {
   }
 });
 
-test('module entries are skipped with the reason "inside Foundry"', () => {
+test('module entries are skipped with the reason "inside Foundry: the foundry-controls scenario"', () => {
   const skips = moduleSkips(catalog);
   assert.equal(skips.length, catalog.filter(c => c.surface === 'module').length);
   for (const s of skips) {
     assert.equal(s.how, 'skip');
     assert.equal(s.why, MODULE_SKIP_REASON);
-    assert.equal(s.why, 'inside Foundry');
+    assert.equal(s.why, 'inside Foundry: the foundry-controls scenario');
   }
 });
 

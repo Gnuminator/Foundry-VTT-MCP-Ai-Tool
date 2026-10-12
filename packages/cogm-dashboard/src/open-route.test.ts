@@ -30,6 +30,7 @@ import {
   crossSiteRefusal,
   openPageStaticHeaders,
 } from './open-route.js';
+import type { BigStat } from './static-headers.js';
 
 const PUBLIC_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'public');
 
@@ -323,7 +324,15 @@ describe('GET /open (the static confirm page)', () => {
   it('recognizes the page files by identity, whatever name reached them', () => {
     const set: Record<string, string> = {};
     const res = { setHeader: (name: string, value: string): string => (set[name] = value) };
-    const hook = openPageStaticHeaders(PUBLIC_DIR);
+    // The made-up short name maps to the real file in the bigint re-stat, which the hook makes when
+    // an NTFS file id is over 2^53 (it depends on the checkout), so the test does not.
+    const statBig: BigStat = filePath => {
+      const name = path.basename(filePath);
+      return statSync(path.join(PUBLIC_DIR, name === 'OPEN~1.HTM' ? 'open.html' : name), {
+        bigint: true,
+      });
+    };
+    const hook = openPageStaticHeaders(PUBLIC_DIR, statBig);
     // Another name for the same file (for example a Windows short name).
     hook(res as never, 'C:\\public\\OPEN~1.HTM', statSync(path.join(PUBLIC_DIR, 'open.html')));
     expect(set['Content-Security-Policy']).toBe(OPEN_PAGE_CSP);

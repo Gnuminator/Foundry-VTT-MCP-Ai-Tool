@@ -5,7 +5,7 @@
 # online (the module's "bridge user" setting names that user).
 # Claude copies the browser driver first:  scp scripts/pi/remote/assistant-gm.mjs foundry-pi:/root/
 # then runs:  cat scripts/pi/remote/lib.sh scripts/pi/remote/5-tool.sh | ssh foundry-pi 'bash -s'
-# TOOL_REF picks the git tag, branch or commit to build (default below: a tag whose build the stage can prune).
+# TOOL_REF picks the git tag, branch or commit to build (default below).
 # Everything listens on loopback only; Tailscale serve shares the control port (31414) and the dashboard (3000) with the
 # tailnet, never with the home network or the internet. The bridge's control port has no login of
 # its own (vault idea I-023).
@@ -15,7 +15,7 @@ require_arm64
 [ -x "$NODE_DIR/bin/node" ] || die "Node is missing: run stage 2 first"
 [ -f "$FOUNDRY_APP/main.js" ] || die "Foundry is missing: run stage 3 first"
 
-ref="${TOOL_REF:-pi-build-2026-10-12}"
+ref="${TOOL_REF:-v0.21.0}"
 repo="${TOOL_REPO:-https://github.com/Gnuminator/Foundry-VTT-MCP-Ai-Tool.git}"
 app="$TOOL_DIR/app"
 driver_src="${ASSISTANT_GM_DRIVER:-/root/assistant-gm.mjs}"
@@ -44,7 +44,7 @@ if [ -f "$app/.tool-ref" ] && [ "$(cat "$app/.tool-ref")" = "$ref" ] &&
   ok "$ref is already built in $app"
 else
   if [ -f "$app/.tool-ref" ] && [ "$(cat "$app/.tool-ref")" = "$ref" ]; then
-    warn "$ref is built in $app without dropping the dev packages: building it again, pruned"
+    warn "$ref is built in $app without dropping the dev packages: building it again, pruned (the old copy stays as app.prev until the next build, so the disk drops only then)"
   fi
   build="$TOOL_DIR/build"
   log="$TOOL_DIR/build.log"
@@ -76,7 +76,7 @@ else
       die "npm prune of the $ref build failed (full log: $log)"
     fi
     # Scope folders (@storybook, ...) whose last package went are left empty.
-    find "$build/node_modules" -maxdepth 1 -type d -name '@*' -empty -delete
+    find "$build/node_modules" -maxdepth 1 -type d -name '@*' -empty -delete || warn "could not remove the empty scope folders (harmless)"
     : >"$build/.tool-pruned"
     ok "dev packages removed: $size_before MB -> $(du -sm "$build" | cut -f1) MB"
   else

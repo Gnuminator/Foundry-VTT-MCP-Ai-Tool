@@ -56,6 +56,25 @@ export function runtimeSpecifiers(text, fileName = 'file.ts') {
       : ts.ScriptKind.TS;
   const source = ts.createSourceFile(fileName, text, ts.ScriptTarget.Latest, true, kind);
   const found = [];
+  const isCreateRequire = n =>
+    ts.isCallExpression(n) &&
+    ts.isIdentifier(n.expression) &&
+    n.expression.text === 'createRequire';
+  // `require` itself, and every name a createRequire(...) result is stored in (found first: a use may sit in a
+  // function that comes before the declaration in the file).
+  const requirers = new Set(['require']);
+  const collect = node => {
+    if (
+      ts.isVariableDeclaration(node) &&
+      ts.isIdentifier(node.name) &&
+      node.initializer &&
+      isCreateRequire(node.initializer)
+    ) {
+      requirers.add(node.name.text);
+    }
+    ts.forEachChild(node, collect);
+  };
+  collect(source);
   const visit = node => {
     if (ts.isImportDeclaration(node)) {
       const clause = node.importClause;
@@ -78,13 +97,18 @@ export function runtimeSpecifiers(text, fileName = 'file.ts') {
     } else if (ts.isCallExpression(node)) {
       const callee = node.expression;
       const isImport = callee.kind === ts.SyntaxKind.ImportKeyword;
-      const isRequire = ts.isIdentifier(callee) && callee.text === 'require';
-      // createRequire(import.meta.url)('x'), the way the Pi's ESM scripts load a package from the build.
-      const isCreated =
-        ts.isCallExpression(callee) &&
-        ts.isIdentifier(callee.expression) &&
-        callee.expression.text === 'createRequire';
-      if (isImport || isRequire || isCreated) found.push(literal(node.arguments[0]));
+      // require('x'), req('x') for a `const req = createRequire(...)`, and createRequire(...)('x') in one go: the
+      // way the Pi's ESM scripts load a package from the build.
+      const isRequire = ts.isIdentifier(callee) && requirers.has(callee.text);
+      const isCreated = isCreateRequire(callee);
+      // require.resolve('x'), req.resolve('x') and import.meta.resolve('x') name a package too.
+      const isResolve =
+        ts.isPropertyAccessExpression(callee) &&
+        callee.name.text === 'resolve' &&
+        ((ts.isIdentifier(callee.expression) && requirers.has(callee.expression.text)) ||
+          ts.isMetaProperty(callee.expression) ||
+          isCreateRequire(callee.expression));
+      if (isImport || isRequire || isCreated || isResolve) found.push(literal(node.arguments[0]));
     }
     ts.forEachChild(node, visit);
   };

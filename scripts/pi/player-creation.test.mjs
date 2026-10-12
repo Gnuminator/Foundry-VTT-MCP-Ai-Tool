@@ -336,10 +336,9 @@ describe('13-player-creation.sh in an ARM64 container', { skip: containerReason 
     );
     assert.match(r.rerunOutput, /the Assistant GM browser joined the world/);
     assert.doesNotMatch(r.rerunOutput, /secret123/);
-    // The calls of both runs: the same sequence twice. The module is installed with Foundry stopped,
-    // so the first run's calls carry no extra stop or start.
+    // The calls of both runs: the same sequence twice.
     const calls = r.calls.filter(c => !c.startsWith('journalctl'));
-    assert.deepEqual(calls.slice(calls.length / 2), GOOD_CALLS, calls.join('\n'));
+    assert.deepEqual(calls, [...GOOD_CALLS, ...GOOD_CALLS], calls.join('\n'));
     assert.equal(r.world, 'curse-of-strahd');
     assert.equal(r.version, PINNED);
     assert.deepEqual(

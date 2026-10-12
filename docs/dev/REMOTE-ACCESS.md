@@ -129,7 +129,8 @@ scripts, and the two that touch secrets are run by you.
    the bridge, the dashboard and the Assistant GM browser. It must be told which build is already
    on the Pi, or it would build its default version instead (a downgrade): Claude runs it with
    `TOOL_REF` set to the contents of `/opt/foundry-ai-tool/app/.tool-ref` (the file stage 5 itself
-   writes after a build), so the build is skipped. Take a `dietpi-backup 1` snapshot first.
+   writes after a build), so the build is skipped (a build of a newer ref that has no `.tool-pruned`
+   is built once more, pruned). Take a `dietpi-backup 1` snapshot first.
 3. **The access settings (you, in your own SSH session).** Claude does not type these. From the
    repo folder in PowerShell:
 

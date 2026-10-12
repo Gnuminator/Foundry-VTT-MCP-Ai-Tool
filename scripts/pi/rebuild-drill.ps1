@@ -24,7 +24,7 @@
 
 .EXAMPLE
   .\scripts\pi\rebuild-drill.ps1
-  .\scripts\pi\rebuild-drill.ps1 -HostPort 30090 -ToolRef pi-build-2026-10-12
+  .\scripts\pi\rebuild-drill.ps1 -HostPort 30090 -ToolRef v0.21.0
 #>
 [CmdletBinding()]
 param(
@@ -33,7 +33,7 @@ param(
   [string]$Repo = 'E:\PiBackup\restic',
   [string]$PassFile = (Join-Path $env:APPDATA 'foundry-ai-tool\restic-pc.pass'),
   [string]$Scratch = ('E:\Restore\' + (Get-Date -Format 'yyyy-MM-dd') + '-drill'),
-  [string]$ToolRef = 'pi-build-2026-10-12',
+  [string]$ToolRef = 'v0.21.0',
   [string]$Snapshot = 'latest',
   [string]$Image = 'debian:trixie',
   [int]$Cpus = 4,

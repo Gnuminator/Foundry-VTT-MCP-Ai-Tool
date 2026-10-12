@@ -41,16 +41,25 @@ describe('the scanner', () => {
       const old = require('old-pkg');
       const made = createRequire(import.meta.url)('created-pkg');
       const variable = require(name);
+      const req = createRequire(import.meta.url);
+      const viaVariable = req('stored-req-pkg');
+      const resolved = require.resolve('resolved-pkg');
+      const resolvedVar = req.resolve('resolved-var-pkg');
+      const metaResolved = import.meta.resolve('meta-pkg');
     `;
     assert.deepEqual(bareImports(src, 'file.ts'), [
       '@modelcontextprotocol/sdk',
       'created-pkg',
       'express',
       'lazy-pkg',
+      'meta-pkg',
       'mixed',
       'old-pkg',
       'reexported',
+      'resolved-pkg',
+      'resolved-var-pkg',
       'side-effect',
+      'stored-req-pkg',
       'zod',
     ]);
   });
@@ -144,10 +153,12 @@ describe('playwright-core (#310 review, L3)', () => {
       !root.devDependencies?.['playwright-core'],
       'playwright-core is a dependency, not a devDependency'
     );
+    const entry = lock.packages['node_modules/playwright-core'];
+    assert.equal(entry.dev, undefined, 'the lock still marks it dev-only');
     assert.equal(
-      lock.packages['node_modules/playwright-core'].dev,
+      entry.devOptional,
       undefined,
-      'the lock still marks it dev-only'
+      'the lock marks it dev-or-optional: the prune may drop it'
     );
   });
 });

@@ -82,7 +82,7 @@ if (-not $health) {
       (Get-Process -Id ([int]$agm.Value.pid) -ErrorAction SilentlyContinue)) {
     Write-Host "waiting for the Assistant GM to join the world (up to $WaitSeconds seconds)..." -ForegroundColor Gray
     $until = (Get-Date).AddSeconds($WaitSeconds)
-    while ((Get-Date) -lt $until -and $st.status.foundry -ne 'reachable') {
+    while ((Get-Date) -lt $until -and $st.status.foundry -ne 'reachable' -and (Get-Process -Id ([int]$agm.Value.pid) -ErrorAction SilentlyContinue)) {
       Start-Sleep -Seconds 3
       $again = Get-Json "http://127.0.0.1:$($ports.Dashboard)/api/state"
       if ($again -and $again.PSObject.Properties['status']) { $st = $again }

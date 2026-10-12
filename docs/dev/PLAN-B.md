@@ -181,8 +181,9 @@ keeps the restored data (about 1.7 GB) for a look afterwards.
 
 Drill for the way back (build only, nothing goes to the Pi): after `stop.ps1`, set `"played": true`
 and `"playedAt": "<date>"` in `C:\FoundryPlanB\state.json`, run `.\scripts\plan-b\push-back.ps1`
-(27 seconds, a 1.35 GB bundle in `%TEMP%` that you delete afterwards: it holds the world's password
-hashes), and set `played` back to `false`. A rehearsal never sets it, so `push-back.ps1` refuses
+(27 seconds; it leaves a 1.35 GB tar and a staged copy, about 2.7 GB, in
+`%TEMP%oundry-world-bundle-<time>`. Delete that whole folder afterwards: both hold the world's
+password hashes), and set `played` back to `false`. A rehearsal never sets it, so `push-back.ps1` refuses
 a plain rehearsal copy by design.
 
 The full rehearsal before the first online night (G2) also tests the tunnel with a phone off

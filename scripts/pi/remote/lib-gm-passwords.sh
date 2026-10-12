@@ -13,13 +13,15 @@
 # database is copied to a root-only folder in /tmp and read there with Foundry's own classic-level (opening a
 # LevelDB writes to it, and Foundry holds the running world's); the copy is removed afterwards. Prints world
 # ids, user names and roles only, never a hash or salt.
-# Returns 0 when there is none, 3 when there is one or more, 1 when a world could not be read.
+# Returns 0 when there is none, 3 when there is one or more, 1 when a world could not be read or there is no
+# worlds folder at all (a wrong FOUNDRY_DATA must not pass). It sets and then clears the EXIT, INT, TERM and HUP
+# traps, so the copy with the hashes is removed even when the run is cut off: call it before setting a trap.
 gm_password_check() {
   local worlds="$FOUNDRY_DATA/Data/worlds" level="$FOUNDRY_APP/node_modules/classic-level"
   local work rc=0 dir id
   if [ ! -d "$worlds" ]; then
-    ok "no worlds folder ($worlds): no world to check"
-    return 0
+    printf 'ERROR: no worlds folder (%s): has Foundry started once (stage 3)?\n' "$worlds" >&2
+    return 1
   fi
   [ -x "$NODE_DIR/bin/node" ] || {
     printf 'ERROR: Node is missing (%s): cannot read the worlds\n' "$NODE_DIR/bin/node" >&2
@@ -31,12 +33,16 @@ gm_password_check() {
   }
   work="$(mktemp -d /tmp/gm-password-check.XXXXXX)" || return 1
   chmod 700 "$work"
+  _gm_check_work="$work"
+  trap 'rm -rf "${_gm_check_work:?}"' EXIT
+  trap 'rm -rf "${_gm_check_work:?}"; exit 130' INT TERM HUP
   for dir in "$worlds"/*/; do
     [ -f "$dir/world.json" ] || continue
     id="$(basename "$dir")"
     mkdir -p "$work/$id"
     if [ -d "$dir/data/users" ]; then
-      cp -a "$dir/data/users" "$work/$id/users" || {
+      # -L: a symlinked users folder is copied, never opened in place.
+      cp -aL "$dir/data/users" "$work/$id/users" || {
         printf 'ERROR: could not copy the users database of %s\n' "$id" >&2
         rc=1
       }
@@ -103,5 +109,14 @@ process.exitCode = failed ? 1 : found ? 3 : 0;
 NODE
   fi
   rm -rf "${work:?}"
+  trap - EXIT INT TERM HUP
   return "$rc"
+}
+
+# Read-only (#308 review, M1): true when Foundry has an administrator password. Without one, /setup is open to
+# anyone who reaches Foundry (through the tunnel: anyone past Cloudflare Access), who can then launch, delete or
+# reinstall worlds. Foundry keeps the password's hash in Config/admin.txt and deletes the file when the password
+# is cleared, so a file with something in it means a password is set. The file is never read.
+admin_password_set() {
+  [ -s "$FOUNDRY_DATA/Config/admin.txt" ]
 }

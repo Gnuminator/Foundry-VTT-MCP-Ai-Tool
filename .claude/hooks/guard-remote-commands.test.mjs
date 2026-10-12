@@ -58,6 +58,12 @@ test('gm-passwords.sh (the read-only GM password check) passes the guard as docu
   assert.equal(kind(command), 'allow', JSON.stringify(decide(command, repo)));
 });
 
+test('stage 12 (tunnel, with the GM password helper in the pipe) passes the guard as documented', () => {
+  const command =
+    "cat scripts/pi/remote/lib.sh scripts/pi/remote/lib-gm-passwords.sh scripts/pi/remote/12-tunnel.sh | ssh -o BatchMode=yes foundry-pi 'bash -s'";
+  assert.equal(kind(command), 'allow', JSON.stringify(decide(command, repo)));
+});
+
 test('every script in scripts/pi/remote is one of the kinds checked above', () => {
   const dir = path.join(repo, 'scripts', 'pi', 'remote');
   const known = n =>

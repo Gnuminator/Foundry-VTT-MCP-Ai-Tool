@@ -57,12 +57,23 @@ Pick the names yourself; `play` and `cogm` are examples. Below, `<domain>` is yo
 6. **Pi: install the tunnel (Claude, with your OK).** Claude takes a `dietpi-backup 1` snapshot, then
    runs stage 12 (`12-tunnel.sh`, see [Orange Pi setup](PI-SETUP.md)). It installs Cloudflare's
    `cloudflared` from Cloudflare's own signed package source and sets it up as a service that stays
-   off until the token is there. Before anything else it checks every world on the Pi and stops
-   while any Gamemaster or Assistant GM user has no password (anyone past Cloudflare Access could
-   pick that user on the join page). It names the world and the user; set a password in that world
-   (Game Settings, User Management) and run it again. Claude can run the same check on its own at
-   any time; it changes nothing:
+   off until the token is there. Before anything else it checks two things and stops while either
+   fails, because anyone past Cloudflare Access reaches what is behind them:
+   - **Foundry's administrator password** is set (without it `/setup` is open, and anyone could
+     launch, delete or reinstall worlds). Set it in Foundry: Setup, Configuration, Administrator
+     Password.
+   - **Every world's Gamemaster and Assistant GM users have a password** (anyone could pick such a
+     user on the join page). A world with no Gamemaster at all counts too, for example a world that
+     was never launched: its next launch makes a "Gamemaster" with no password. The stage names the
+     world and the user; set a password in that world (Game Settings, User Management), or launch
+     the world once and set the new Gamemaster's password, or remove a world nobody uses. Then run
+     the stage again.
+
+   Stage 12 checks only when it runs. **Run the check again after adding or resetting a world or
+   adding a GM user** once the tunnel is open. Claude runs it on its own at any time; it changes
+   nothing:
    `cat scripts/pi/remote/lib.sh scripts/pi/remote/lib-gm-passwords.sh scripts/pi/remote/gm-passwords.sh | ssh foundry-pi 'bash -s'`.
+
 7. **Pi: Foundry's public name (Claude, with your OK).** Claude runs the stage again with
    `FOUNDRY_PUBLIC_HOST=play.<domain>`. That sets three Foundry options so invitation links and
    audio and video use the public name: `hostname` = `play.<domain>`, `proxySSL` = true,

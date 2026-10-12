@@ -6,7 +6,15 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { pbkdf2Sync, randomBytes } from 'node:crypto';
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  chmodSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { after, describe, test } from 'node:test';
@@ -50,8 +58,8 @@ class ClassicLevel {
 module.exports = { ClassicLevel };
 `;
 
-/** A fresh fake install: app (with a fake classic-level), node dir, empty data folder. */
-function makeRoot({ withLevel = true } = {}) {
+/** A fresh fake install: app (with a fake classic-level), node dir, empty data folder, an admin password. */
+function makeRoot({ withLevel = true, withAdmin = true } = {}) {
   const root = mkdtempSync(path.join(os.tmpdir(), 'gm-pw-test-'));
   roots.push(root);
   const app = path.join(root, 'app');
@@ -60,6 +68,11 @@ function makeRoot({ withLevel = true } = {}) {
   mkdirSync(app, { recursive: true });
   mkdirSync(path.join(data, 'Data', 'worlds'), { recursive: true });
   mkdirSync(path.join(nodeDir, 'bin'), { recursive: true });
+  if (withAdmin) {
+    // Foundry keeps the administrator password's hash here (never read by the check, only its size).
+    mkdirSync(path.join(data, 'Config'), { recursive: true });
+    writeFileSync(path.join(data, 'Config', 'admin.txt'), randomBytes(64).toString('hex'));
+  }
   if (withLevel) {
     const level = path.join(app, 'node_modules', 'classic-level');
     mkdirSync(level, { recursive: true });
@@ -91,16 +104,29 @@ function user(name, role, password) {
   };
 }
 
-/** Add a world with a users database holding these records (or raw [key, value] pairs). */
-function addWorld(env, id, users, { raw } = {}) {
+/**
+ * Add a world with a users database holding these records (or raw [key, value] pairs).
+ * With symlinked: true, data/users is a RELATIVE symlink to a real folder outside the world (so a copy that
+ * keeps the link instead of following it would dangle). Returns false when the symlink cannot be made.
+ */
+function addWorld(env, id, users, { raw, symlinked = false } = {}) {
   const dir = path.join(env.data, 'Data', 'worlds', id);
   mkdirSync(dir, { recursive: true });
   writeFileSync(path.join(dir, 'world.json'), JSON.stringify({ id, title: id }));
-  if (users === null) return;
-  const db = path.join(dir, 'data', 'users');
-  mkdirSync(db, { recursive: true });
+  if (users === null) return true;
   const entries = raw ?? users.map(u => [`!users!${u._id}`, JSON.stringify(u)]);
+  const db = symlinked ? path.join(env.root, `real-users-${id}`) : path.join(dir, 'data', 'users');
+  mkdirSync(db, { recursive: true });
   writeFileSync(path.join(db, 'fixture.json'), JSON.stringify(entries));
+  if (!symlinked) return true;
+  mkdirSync(path.join(dir, 'data'), { recursive: true });
+  const link = path.join(dir, 'data', 'users');
+  try {
+    symlinkSync(path.relative(path.dirname(link), db), link, 'dir');
+  } catch (e) {
+    return false;
+  }
+  return true;
 }
 
 /** Run gm_password_check (lib.sh, then lib-gm-passwords.sh). Paths go in as positional args. */
@@ -241,11 +267,31 @@ describe('gm_password_check', { skip: noBash }, () => {
     assert.doesNotMatch(r.out + r.err, /not-a-world/);
   });
 
-  test('a missing worlds folder passes', () => {
+  test('a missing worlds folder returns 1 with an ERROR line (a wrong data folder must not pass)', () => {
     const env = makeRoot();
     rmSync(path.join(env.data, 'Data', 'worlds'), { recursive: true });
     const r = runCheck(env);
-    assert.equal(r.rc, 0, r.out + r.err);
+    assert.equal(r.rc, 1, r.out + r.err);
+    assert.match(r.err, /ERROR: no worlds folder/);
+  });
+
+  test('a symlinked data/users folder is copied and checked, not opened in place', t => {
+    const bad = makeRoot();
+    if (!addWorld(bad, 'linked', [user('Chris', 4, '')], { symlinked: true })) {
+      t.skip(
+        'cannot create a symlink here (on Windows: needs Developer Mode or an elevated shell)'
+      );
+      return;
+    }
+    const a = runCheck(bad);
+    assert.equal(a.rc, 3, a.out + a.err);
+    assert.match(a.out, /FOUND: linked: Gamemaster "Chris" has no password/);
+
+    const good = makeRoot();
+    assert.ok(addWorld(good, 'linked', [user('Chris', 4, 'pw')], { symlinked: true }));
+    const b = runCheck(good);
+    assert.equal(b.rc, 0, b.out + b.err);
+    assert.match(b.out, /ok: linked:/);
   });
 
   test('an unreadable users database returns 1 with an ERROR line', () => {
@@ -291,6 +337,73 @@ describe('gm_password_check', { skip: noBash }, () => {
     assert.equal(r.rc, 1, r.out + r.err);
     assert.match(r.err, /classic-level is missing/);
   });
+
+  test('it leaves no EXIT, INT, TERM or HUP trap behind, after a clean, a found and a failed run', () => {
+    const cases = [
+      ['clean', [user('Chris', 4, 'pw')], undefined, 0],
+      ['found', [user('Chris', 4, '')], undefined, 3],
+      ['failed', [], { raw: [['k', 'nope']] }, 1],
+    ];
+    for (const [id, users, opts, expected] of cases) {
+      const env = makeRoot();
+      addWorld(env, id, users, opts);
+      const script =
+        'source "$1"; source "$5"; FOUNDRY_DATA="$2"; FOUNDRY_APP="$3"; NODE_DIR="$4"; ' +
+        'rc=0; gm_password_check >/dev/null 2>&1 || rc=$?; echo "rc=$rc"; ' +
+        'echo "--traps--"; trap -p EXIT; trap -p INT TERM HUP; echo "--end--"';
+      const res = spawnSync(
+        'bash',
+        ['-c', script, 'bash', fwd(lib), env.data, env.app, env.nodeDir, fwd(gmLib)],
+        { encoding: 'utf8' }
+      );
+      assert.match(
+        res.stdout,
+        new RegExp(`rc=${expected}\\b`),
+        `${id}: ${res.stdout}${res.stderr}`
+      );
+      const traps = /--traps--\n([\s\S]*?)--end--/.exec(res.stdout);
+      assert.ok(traps, `${id}: no trap section; stdout=${res.stdout} stderr=${res.stderr}`);
+      assert.equal(traps[1].trim(), '', `${id}: a trap was left behind: ${traps[1]}`);
+    }
+  });
+});
+
+describe('admin_password_set', { skip: noBash }, () => {
+  /** Run admin_password_set against env.data and report its exit status. */
+  function adminSet(env) {
+    const res = spawnSync(
+      'bash',
+      [
+        '-c',
+        'source "$1"; source "$3"; FOUNDRY_DATA="$2"; rc=0; admin_password_set || rc=$?; echo "rc=$rc"',
+        'bash',
+        fwd(lib),
+        env.data,
+        fwd(gmLib),
+      ],
+      { encoding: 'utf8' }
+    );
+    const m = /rc=(\d+)\s*$/.exec(res.stdout);
+    assert.ok(m, `no rc line; stdout=${res.stdout} stderr=${res.stderr}`);
+    return Number(m[1]) === 0;
+  }
+
+  test('false when Config/admin.txt is missing', () => {
+    const env = makeRoot({ withAdmin: false });
+    assert.equal(adminSet(env), false);
+  });
+
+  test('false when Config/admin.txt is empty', () => {
+    const env = makeRoot({ withAdmin: false });
+    mkdirSync(path.join(env.data, 'Config'), { recursive: true });
+    writeFileSync(path.join(env.data, 'Config', 'admin.txt'), '');
+    assert.equal(adminSet(env), false);
+  });
+
+  test('true when Config/admin.txt has content', () => {
+    const env = makeRoot();
+    assert.equal(adminSet(env), true);
+  });
 });
 
 describe('gm-passwords.sh', { skip: noBash }, () => {
@@ -307,6 +420,40 @@ describe('gm-passwords.sh', { skip: noBash }, () => {
     const b = runPiped(good, override(), wrapper);
     assert.equal(b.status, 0, b.stdout + b.stderr);
     assert.match(b.stdout, /none: every world's Gamemaster/);
+    assert.doesNotMatch(b.stdout, /no administrator password/);
+  });
+
+  test('clean worlds but no administrator password: exit 3 and a FOUND line', () => {
+    const env = makeRoot({ withAdmin: false });
+    addWorld(env, 'strahd', [user('Chris', 4, 'pw')]);
+    const r = runPiped(env, override(), wrapper);
+    assert.equal(r.status, 3, r.stdout + r.stderr);
+    assert.match(r.stdout, /FOUND: no administrator password/);
+    assert.match(r.stdout, /ok: strahd:/);
+  });
+
+  test('clean worlds and an administrator password: exit 0', () => {
+    const env = makeRoot();
+    addWorld(env, 'strahd', [user('Chris', 4, 'pw')]);
+    const r = runPiped(env, override(), wrapper);
+    assert.equal(r.status, 0, r.stdout + r.stderr);
+    assert.doesNotMatch(r.stdout, /FOUND/);
+  });
+
+  test("the GM check's non-zero code wins over the administrator password's 3", () => {
+    const env = makeRoot({ withAdmin: false });
+    addWorld(env, 'broken', [], { raw: [['k', 'nope']] });
+    const r = runPiped(env, override(), wrapper);
+    assert.equal(r.status, 1, r.stdout + r.stderr);
+    assert.match(r.stdout, /FOUND: no administrator password/);
+  });
+
+  test('no worlds folder: exit 1 even with an administrator password', () => {
+    const env = makeRoot();
+    rmSync(path.join(env.data, 'Data', 'worlds'), { recursive: true });
+    const r = runPiped(env, override(), wrapper);
+    assert.equal(r.status, 1, r.stdout + r.stderr);
+    assert.match(r.stderr, /ERROR: no worlds folder/);
   });
 });
 
@@ -321,6 +468,17 @@ describe('12-tunnel.sh', { skip: noBash }, () => {
     assert.match(r.stderr, /no password/);
     assert.match(r.stderr, /Nothing was changed/);
     assert.doesNotMatch(r.stdout, /APT-CALLED/);
+  });
+
+  test('refuses without an administrator password, even on clean worlds, before the GM check', () => {
+    const env = makeRoot({ withAdmin: false });
+    addWorld(env, 'strahd', [user('Chris', 4, 'pw')]);
+    const r = runPiped(env, override(stubs), stage12);
+    assert.notEqual(r.status, 0, r.stdout + r.stderr);
+    assert.match(r.stderr, /no administrator password/);
+    assert.match(r.stderr, /Nothing was changed/);
+    assert.doesNotMatch(r.stdout, /APT-CALLED/);
+    assert.doesNotMatch(r.stdout, /ok: strahd:/, 'the GM check ran before the admin check');
   });
 
   test('refuses when a world cannot be read', () => {

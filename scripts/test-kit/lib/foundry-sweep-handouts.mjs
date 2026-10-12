@@ -113,6 +113,7 @@ async function undoFromWindow(gm, known, hint) {
     async () => ((await gm.locator('.application.dialog').count()) ? 'dialog' : ''),
     'the undo dialog (a reveal must not be refused)'
   );
+  const before = new Set(await notifications(gm));
   await answerYes(gm, 'Undo');
   // Not the "Undone" notification: one from the row before can still be on screen. The list reloads
   // after the undo and marks the row.
@@ -124,8 +125,8 @@ async function undoFromWindow(gm, known, hint) {
     )
       return true;
     // A refused undo (a conflict, writes off) only shows as an error notification: fail with its text.
-    const refused = (await notifications(gm)).find(n =>
-      /Conflict|refus|cannot|not allowed/i.test(n)
+    const refused = (await notifications(gm)).find(
+      n => !before.has(n) && /Conflict|refus|cannot|not allowed/i.test(n)
     );
     if (refused) throw new Error(`the Changes window did not undo the reveal: ${refused}`);
     return false;

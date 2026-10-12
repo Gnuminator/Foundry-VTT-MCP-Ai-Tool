@@ -6,6 +6,7 @@ import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-quer
 import { useEffect } from 'react';
 
 import { streamUrl } from './auth';
+import { bridgeAway, readCombat, type CombatState } from './combat';
 import { onPrefs } from './prefs';
 
 /** One Foundry module error or warning (feed/types.ts ModuleError on the server). */
@@ -54,13 +55,8 @@ export interface WorldInfo {
 
 export const WORLD_KEY = ['stream', 'world'] as const;
 
-/**
- * The fight the stream last reported (`combat`, GM only, `{combat}`); null when none is active.
- * Only whether one is active is used so far: the During layouts change with it.
- */
-export interface CombatState {
-  active: boolean;
-}
+/** The fight the stream last reported (`combat`, GM only, `{combat}`); null when none is active. */
+export type { CombatState } from './combat';
 
 export const COMBAT_KEY = ['stream', 'combat'] as const;
 
@@ -118,10 +114,10 @@ const HANDLERS: Record<string, (queryClient: QueryClient, data: unknown) => void
     queryClient.setQueryData<WorldInfo | null>(WORLD_KEY, (data as WorldInfo | null) ?? null),
   // The GM's screen choices for this world (lib/prefs.ts).
   prefs: onPrefs,
+  // The whole fight (lib/combat.ts), null when none runs: the During layouts and the strip read it.
   combat: (queryClient, data) => {
-    const combat = (data as { combat?: { active?: unknown } | null } | null)?.combat;
-    const state: CombatState | null = combat ? { active: combat.active === true } : null;
-    queryClient.setQueryData<CombatState | null>(COMBAT_KEY, () => state);
+    const combat = readCombat((data as { combat?: unknown } | null)?.combat);
+    queryClient.setQueryData<CombatState | null>(COMBAT_KEY, () => combat);
   },
 };
 
@@ -196,8 +192,8 @@ export function useWorld(): WorldInfo | null {
   return data ?? null;
 }
 
-/** Whether a fight is running, as the stream last said; false until it says. */
-export function useCombatActive(): boolean {
+/** The fight as the stream last said, in the bridge's order; null when none runs. */
+export function useCombat(): CombatState | null {
   const queryClient = useQueryClient();
   const { data } = useQuery({
     queryKey: COMBAT_KEY,
@@ -205,7 +201,17 @@ export function useCombatActive(): boolean {
     staleTime: Infinity,
     gcTime: Infinity,
   });
-  return data?.active === true;
+  return data ?? null;
+}
+
+/** Whether a fight is running, as the stream last said; false until it says. */
+export function useCombatActive(): boolean {
+  return useCombat()?.active === true;
+}
+
+/** Whether the bridge is away, as the stream's status last said (false before the first one). */
+export function useBridgeAway(): boolean {
+  return bridgeAway(useBridgeStatus());
 }
 
 /**

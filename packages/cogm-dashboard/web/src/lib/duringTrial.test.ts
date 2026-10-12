@@ -11,6 +11,7 @@ import {
   keepChange,
   nextLabel,
   nextTrial,
+  showsSampleFight,
   stepLine,
 } from './duringTrial';
 import {
@@ -19,6 +20,7 @@ import {
   applyPrefsChange,
   hintSessionKey,
   readPrefs,
+  rollBackChange,
   showLayoutHint,
   type DuringPrefs,
 } from './prefsModel';
@@ -208,5 +210,33 @@ describe('the prefs', () => {
       prefs({ duringLayout: 'toggle', layoutPicked: true })
     );
     expect(applyPrefsChange(prefs(), { hintSession: 'x' })).toEqual(prefs());
+  });
+
+  it('rolls back only the fields of a failed change that still show it', () => {
+    const before = prefs();
+    const change = { duringLayout: 'auto', layoutPicked: true } as const;
+    // Nothing newer: both fields go back.
+    expect(rollBackChange(applyPrefsChange(before, change), before, change)).toEqual(before);
+    // A newer change to another field survives.
+    const newer = applyPrefsChange(applyPrefsChange(before, change), { duringFull: true });
+    expect(rollBackChange(newer, before, change)).toEqual(prefs({ duringFull: true }));
+    // A field that something newer changed is left alone.
+    const toggled = applyPrefsChange(applyPrefsChange(before, change), { duringLayout: 'toggle' });
+    expect(rollBackChange(toggled, before, change)).toEqual(
+      prefs({ duringLayout: 'toggle', layoutPicked: false })
+    );
+    // The hint count has nothing to roll back.
+    expect(rollBackChange(before, before, { hintSession: 'x' })).toEqual(before);
+  });
+});
+
+describe('the sample fight', () => {
+  it('shows on the Auto step only, and not outside the trial', () => {
+    expect(showsSampleFight(null)).toBe(false);
+    expect(TOUR.map((_, step) => showsSampleFight({ step, full: false }))).toEqual([
+      false,
+      false,
+      true,
+    ]);
   });
 });

@@ -5,6 +5,7 @@ import { expect, userEvent, waitFor, within } from 'storybook/test';
 import { PREFS_KEY } from '../lib/prefs';
 import type { DuringPrefs } from '../lib/prefsModel';
 import { COMBAT_KEY } from '../lib/stream';
+import { FIGHT } from '../storybook/fixtures/combat';
 import { HandoutsDrawer } from '../panels/Handouts';
 import { PartyDrawer } from '../panels/Party';
 import { reply, toolOk } from '../storybook/fakeApi';
@@ -28,6 +29,7 @@ import {
   useDuringLayout,
 } from './During';
 import { DockContext } from './Drawer';
+import { FoldScope } from './Folds';
 import { MomentViews, useDocks, type Moment } from './Moments';
 
 // The During layouts: the bar with its switch, the Before card and the guide of the layout trial,
@@ -61,7 +63,7 @@ function bridge({ prefs, combat = false, session = false }: Setup): {
     dashboard: {
       cache: [
         ...(prefs ? [[PREFS_KEY, prefs] as const] : []),
-        ...(combat ? [[COMBAT_KEY, { active: true }] as const] : []),
+        ...(combat ? [[COMBAT_KEY, FIGHT] as const] : []),
       ],
       api: {
         routes: {
@@ -278,7 +280,11 @@ function Page(): JSX.Element {
   const during = useDuringLayout('during', noop);
   const { slotRefs, dockOf } = useDocks('during');
   const dock = (name: 'party' | 'handouts', panel: JSX.Element): JSX.Element => (
-    <DockContext.Provider value={dockOf(name)}>{panel}</DockContext.Provider>
+    <DockContext.Provider value={dockOf(name)}>
+      <FoldScope card={name} folds={during.folds} active>
+        {panel}
+      </FoldScope>
+    </DockContext.Provider>
   );
   return (
     <div className="story-app">
@@ -294,6 +300,7 @@ function Page(): JSX.Element {
         slotRefs={slotRefs}
         duringScreen={during.screen}
         duringBar={<DuringBar during={during} />}
+        duringFolds={during.folds}
       />
       {dock('party', <PartyDrawer open onOpenChange={noop} />)}
       {dock('handouts', <HandoutsDrawer open onOpenChange={noop} onQueuePage={noop} />)}

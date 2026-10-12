@@ -1,8 +1,7 @@
 #!/usr/bin/env node
-// Entry point: serve the page, or print the lanes table / the snapshot once.
+// Entry point: serve the page, or print the snapshot / versions once.
 import { getPaths } from './paths.mjs';
 import { buildSnapshot, writeSnapshot, assertWhitelisted } from './snapshot.mjs';
-import { formatLanesTable } from './lanes.mjs';
 
 const args = process.argv.slice(2);
 const paths = getPaths();
@@ -69,24 +68,6 @@ function formatVersionsTable(v) {
 }
 
 async function main() {
-  if (args.includes('--lanes')) {
-    const next = flagValue('--lanes');
-    const n = /^\d+$/.test(next ?? '') ? Number(next) : 10;
-    const snap = await buildSnapshot({
-      paths,
-      now: new Date(),
-      withPrs: true,
-      deps: { getPrs: getPrsWithTimeout },
-    });
-    console.log(formatLanesTable(snap.lanes.rows, n, new Date()));
-    const { used, max, steward } = snap.lanes.cap;
-    console.log(
-      `\nlanes in use: ${used}/${max}${steward ? ` (steward ${steward.slice(0, 8)} not counted)` : ''}`
-    );
-    if (snap.prs.error) console.log(`PRs: ${snap.prs.error}`);
-    for (const w of snap.warnings) console.log(`warning: ${w}`);
-    process.exit(0);
-  }
   if (args.includes('--usage-log')) {
     const { runHousekeeping } = await import('./housekeeping.mjs');
     const push = await runHousekeeping({ paths, forcePush: true });

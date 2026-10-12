@@ -38,6 +38,8 @@
     "changelog:check": "node scripts/changelog-fold.mjs --check",
     "changelog:fold": "node scripts/changelog-fold.mjs",
     "drift:check": "node scripts/drift-check.mjs",
+    "green": "node scripts/green.mjs",
+    "lane:merge": "node scripts/lane-merge.mjs",
     "docs:lint": "markdownlint-cli2",
     "docs:links": "node scripts/check-links.mjs",
     "docs:tools": "node scripts/docs-tools.mjs",
@@ -46,6 +48,7 @@
     "wiki:test": "node --test scripts/wiki/stage.test.mjs",
     "usage:catalog": "node scripts/usage-catalog.mjs",
     "usage:catalog:check": "node scripts/usage-catalog.mjs --check",
+    "usage:week": "node scripts/dev/usage-week.mjs",
     "live:roundtrip": "node scripts/live-roundtrip.mjs",
     "live:sweep": "node scripts/live-write-sweep.mjs",
     "demo:obs-setup": "node scripts/demo/demo.mjs obs-setup",
@@ -63,6 +66,9 @@
     "size:analyze": "npm run bundle:server && npx esbuild-analyzer packages/mcp-server/dist/backend.bundle.cjs",
     "prepare": "husky"
   },
+  "dependencies": {
+    "playwright-core": "^1.63.0"
+  },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@types/node": "^22.0.0",
@@ -78,7 +84,6 @@
     "lint-staged": "^16.4.0",
     "madge": "^8.0.0",
     "markdownlint-cli2": "^0.23.3",
-    "playwright-core": "^1.63.0",
     "prettier": "^3.0.0",
     "typescript": "^5.0.0",
     "typescript-eslint": "^8.71.1",

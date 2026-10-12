@@ -1,13 +1,12 @@
 #!/usr/bin/env node
-// SessionStart hook: alerts only (D-102 line 3). Silent when all is fine; otherwise at most nine
+// SessionStart hook: alerts only (D-102 line 3). Silent when all is fine; otherwise at most ten
 // short lines, one per alert:
 //   - the main checkout's CLAUDE.md differs from the vault master (repo-docs/CLAUDE.md),
+//   - the due "Waiting on the user" items (vault Waiting.md, D-122),
 //   - somebody holds the test server lock (or it cannot be read, or a queue waits on a free lock),
-//   - lanes of this project at 200k context or more (busy or waiting, not CLOSED),
 //   - a session-notes run was missed or paused on the usage limit (the watchdog).
-// It never prints the Waiting list (CLAUDE.md already loads it).
 //
-// The lanes and the watchdog come from the control center (GET 127.0.0.1:3200/snapshot.json,
+// The watchdog comes from the control center (GET 127.0.0.1:3200/snapshot.json,
 // Gnuminator/control-center), else from a snapshot.json under 30 minutes old in its data folder.
 // When neither answers and the control center is installed on this PC, one line says so. The
 // lock is read straight from <test env root>/lock.json (written only by scripts/test-env/lock.ps1).
@@ -23,12 +22,13 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
-export const MAX_LINES = 9;
-export const LANE_ALERT = 200_000;
-export const LANE_RED = 250_000;
+export const MAX_LINES = 10;
 const SNAPSHOT_MAX_AGE_MS = 30 * 60 * 1000;
 const LOCK_OLD_MS = 4 * 60 * 60 * 1000;
 const FETCH_TIMEOUT_MS = 3000;
+const WAITING_NOTE = path.join('Dev', 'Foundry AI Tool', 'Waiting.md');
+const WAITING_LEAD_DAYS = 7;
+const WAITING_SHOWN = 4;
 const VAULT_MASTER = path.join('Dev', 'Foundry AI Tool', 'repo-docs', 'CLAUDE.md');
 
 // A worktree belongs to the main checkout: its .git file reads "gitdir: <main>/.git/worktrees/<name>"
@@ -118,10 +118,77 @@ export function claudeMdAlert({ repoRoot, vaultDir }) {
   const copy = path.join(repoRoot, 'CLAUDE.md');
   const repoText = readText(copy);
   if (repoText === null)
-    return 'CLAUDE.md is missing in the main checkout; the steward copies it from the vault master (repo-docs/CLAUDE.md).';
+    return 'CLAUDE.md is missing in the main checkout; the planner copies it from the vault master (repo-docs/CLAUDE.md).';
   if (normalizeDoc(repoText) === normalizeDoc(vaultText)) return null;
   const newer = (mtime(master) ?? 0) > (mtime(copy) ?? 0) ? 'the vault master' : 'the repo copy';
-  return `CLAUDE.md differs from the vault master (newer: ${newer}); the steward syncs them (vault repo-docs/CLAUDE.md, pull first).`;
+  return `CLAUDE.md differs from the vault master (newer: ${newer}); the planner syncs them (vault repo-docs/CLAUDE.md, pull first).`;
+}
+
+// --- the Waiting list (vault Waiting.md) ----------------------------------------------------
+
+// Items are "## W<id> <title>" headings (id like 6 or 12b) with "- due: YYYY-MM-DD|none" and an
+// optional "- from: YYYY-MM-DD" list line. Returns [{ id, title, due, from }]; dates are strings or null.
+export function parseWaiting(text) {
+  const items = [];
+  try {
+    let cur = null;
+    for (const line of String(text ?? '').split(/\r?\n/)) {
+      const h = /^##\s+W(\d+[a-z]?)\s+(.+?)\s*$/i.exec(line);
+      if (h) {
+        cur = { id: h[1].toLowerCase(), title: h[2], due: null, from: null };
+        items.push(cur);
+        continue;
+      }
+      if (/^#{1,2}\s/.test(line)) {
+        cur = null;
+        continue;
+      }
+      const d = cur && /^\s*[-*]\s+(due|from):\s*(\d{4}-\d{2}-\d{2})\b/i.exec(line);
+      if (d && !cur[d[1].toLowerCase()]) cur[d[1].toLowerCase()] = d[2];
+    }
+  } catch {
+    return [];
+  }
+  return items;
+}
+
+function dayNumber(iso) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || '');
+  if (!m) return null;
+  const t = Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  return Number.isFinite(t) ? Math.round(t / 86400000) : null;
+}
+
+function idOrder(a, b) {
+  const [, na, sa] = /^(\d+)(.*)$/.exec(a) || [0, 0, a];
+  const [, nb, sb] = /^(\d+)(.*)$/.exec(b) || [0, 0, b];
+  return Number(na) - Number(nb) || sa.localeCompare(sb);
+}
+
+export function waitingAlert({ vaultDir, now = new Date() }) {
+  try {
+    const text = readText(path.join(vaultDir, WAITING_NOTE));
+    if (text === null) return null;
+    const today = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()) / 86400000;
+    const due = parseWaiting(text)
+      .map(i => ({ ...i, dueDay: dayNumber(i.due), fromDay: dayNumber(i.from) }))
+      .filter(
+        i =>
+          i.dueDay !== null &&
+          today >= i.dueDay - WAITING_LEAD_DAYS &&
+          (i.fromDay === null || today >= i.fromDay)
+      )
+      .sort((a, b) => a.dueDay - b.dueDay || idOrder(a.id, b.id));
+    if (!due.length) return null;
+    const shown = due.slice(0, WAITING_SHOWN).map(i => {
+      const label = i.dueDay < today ? ', overdue' : i.dueDay === today ? ', today' : '';
+      return `W${i.id} ${clip(i.title, 45)} (due ${i.due}${label})`;
+    });
+    const more = due.length > WAITING_SHOWN ? ` and ${due.length - WAITING_SHOWN} more due` : '';
+    return `Waiting on the user (vault Waiting.md): ${shown.join(', ')}${more}.`;
+  } catch {
+    return null;
+  }
 }
 
 export function readLockFile(testEnvRoot) {
@@ -174,24 +241,10 @@ export function foundryPart(snap) {
   if (!snap || typeof snap !== 'object') return null;
   if (Array.isArray(snap.projects)) {
     const p = snap.projects.find(x => x && x.pack === 'foundry');
-    return p ? { lanes: p.lanes, watchdog: p.panels?.watchdog } : null;
+    return p ? { watchdog: p.panels?.watchdog } : null;
   }
-  if (snap.lanes) return { lanes: snap.lanes, watchdog: snap.watchdog };
+  if (snap.watchdog) return { watchdog: snap.watchdog };
   return null;
-}
-
-export function lanesAlert(lanes) {
-  const rows = Array.isArray(lanes?.rows) ? lanes.rows : [];
-  const hot = rows
-    .filter(r => r && !r.closed && r.state !== 'stale' && Number(r.context) >= LANE_ALERT)
-    .sort((a, b) => b.context - a.context);
-  if (!hot.length) return null;
-  const shown = hot
-    .slice(0, 3)
-    .map(r => `${clip(r.title || r.sessionId, 45)} ${Math.round(r.context / 1000)}k`);
-  const more = hot.length > 3 ? ` and ${hot.length - 3} more` : '';
-  const red = hot.some(r => r.context >= LANE_RED) ? ' (250k or more: hand over now)' : '';
-  return `Lanes over 200k context: ${shown.join(', ')}${more}${red}.`;
 }
 
 export function watchdogAlert(w) {
@@ -252,6 +305,7 @@ export async function collectAlerts({
     if (line) lines.push(line);
   };
   add(claudeMdAlert({ repoRoot, vaultDir }));
+  add(waitingAlert({ vaultDir, now }));
   add(lockAlert(readLockFile(testEnvRoot), now));
   // Test server B (kit runs, scripts/test-env/servers.json) has a lock of its own.
   if (testEnvRootB)
@@ -261,11 +315,10 @@ export async function collectAlerts({
   const { snap } = await loadSnapshot({ url: snapshotUrl, file: snapshotFile, now, fetchImpl });
   const part = foundryPart(snap);
   if (part) {
-    add(lanesAlert(part.lanes));
     add(watchdogAlert(part.watchdog));
   } else if (ccDir && existsSync(ccDir)) {
     add(
-      'Control center not answering on 127.0.0.1:3200: lane context and session notes not checked.'
+      'Control center not answering on 127.0.0.1:3200: session notes not checked.'
     );
   }
   return lines.slice(0, MAX_LINES);
@@ -278,7 +331,7 @@ export function formatOutput(lines) {
     systemMessage: `Start alerts:\n${text}`,
     hookSpecificOutput: {
       hookEventName: 'SessionStart',
-      additionalContext: `Start alerts (project SessionStart hook, D-102):\n${text}`,
+      additionalContext: `Start alerts (project SessionStart hook, D-102; Waiting items are raised by the planner, not by lanes):\n${text}`,
     },
   });
 }

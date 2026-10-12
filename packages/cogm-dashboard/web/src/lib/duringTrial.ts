@@ -87,6 +87,11 @@ export function duringScreen(input: {
   return { layout, context, view: layout === 'toggle' ? (full ? 'full' : 'simple') : undefined };
 }
 
+/** Whether the trial's step shows the made-up fight in the strip (when no real one runs). */
+export function showsSampleFight(trial: Trial | null): boolean {
+  return trial !== null && TOUR[trial.step]?.sampleCombat === true;
+}
+
 /** The note beside the switch in Auto. */
 export function autoNote(context: DuringContext): string {
   return context === 'combat'

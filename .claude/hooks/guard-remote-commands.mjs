@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // PreToolUse guard for commands that reach another machine (Claude Code hook).
 //
-// The user's rule for the Orange Pi and any Linux host (2026-10-04, CLAUDE.md "Critical rules"):
+// The user's rule for the Orange Pi and any Linux host (2026-10-04; CLAUDE.md and the pi-work skill):
 // read-only commands freely, changes only from reviewed stage scripts after an OK, and a fixed list
 // of dangerous actions needs the user's explicit OK every time. This hook makes that list
 // mechanical: it reads every Bash or PowerShell command that uses ssh, scp, sftp or rsync, plus the

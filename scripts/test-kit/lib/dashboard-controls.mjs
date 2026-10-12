@@ -213,6 +213,36 @@ export const DASHBOARD_CONTROLS = [
     how: 'write',
     why: 'saves hintDismissed for the world; only shown during a session before a layout was picked',
   },
+  // The fold buttons app.js puts first in each During card's head (in memory only, nothing saved);
+  // app.js builds their data-track in code, so the sweep finds them by data-fold.
+  {
+    name: 'dash.during.fold-feed',
+    how: 'toggle',
+    reach: [MOMENT_DURING],
+    selector: '.fold-btn[data-fold="feed"]',
+    changes: true,
+  },
+  {
+    name: 'dash.during.fold-changes',
+    how: 'toggle',
+    reach: [MOMENT_DURING],
+    selector: '.fold-btn[data-fold="changes"]',
+    changes: true,
+  },
+  {
+    name: 'dash.during.fold-handouts',
+    how: 'toggle',
+    reach: [MOMENT_DURING],
+    selector: '.fold-btn[data-fold="handouts"]',
+    changes: true,
+  },
+  {
+    name: 'dash.during.fold-party',
+    how: 'toggle',
+    reach: [MOMENT_DURING],
+    selector: '.fold-btn[data-fold="party"]',
+    changes: true,
+  },
   { name: 'dash.help.during-layouts', how: 'open', reach: [MOMENT_DURING], expect: '#pane-help' },
   // The "?" app.js adds to each panel heading (help-links.json); the diagnostics one stands for all.
   {

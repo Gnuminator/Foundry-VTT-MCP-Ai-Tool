@@ -26,7 +26,8 @@ param(
   [switch]$Force,
   [string]$World = 'ai-tool-demo',
   [string]$Source = 'ai-tool-test',
-  [string]$Title = ''
+  [string]$Title = '',
+  [ValidateSet('A', 'B')] [string]$Server
 )
 
 if ($World -notmatch '^ai-tool-demo(-[a-z0-9]+)*$') {
@@ -74,7 +75,7 @@ function Stop-TestServer {
     throw "Foundry is running world '$running', not $DemoWorld. Another session may be using the test server; ask first, then rerun with -Force."
   }
   $global:LASTEXITCODE = 0
-  & (Join-Path $PSScriptRoot 'stop.ps1')
+  & (Join-Path $PSScriptRoot 'stop.ps1') -Server $TestEnv.Server
   if ($LASTEXITCODE) {
     throw "stop.ps1 refused to stop the test server (exit $LASTEXITCODE); nothing is copied while Foundry may still hold the world open."
   }
@@ -103,7 +104,7 @@ if ($Init) {
   $manifest.title = if ($Title) { $Title } elseif ($DemoWorld -eq 'ai-tool-demo') { 'AI Tool Demo' } else { "AI Tool Demo: $($DemoWorld.Substring(13)) (local only)" }
   $manifest | ConvertTo-Json -Depth 20 | Set-Content $manifestPath -Encoding utf8NoBOM
   Write-Host "Created $DemoWorld from $SourceWorld. Tidy it in Foundry, then save it with -Snapshot."
-  if ($Start) { & (Join-Path $PSScriptRoot 'start.ps1') -World $DemoWorld }
+  if ($Start) { & (Join-Path $PSScriptRoot 'start.ps1') -World $DemoWorld -Server $TestEnv.Server }
   return
 }
 
@@ -143,4 +144,4 @@ if ($Snapshot) {
   Write-Host "Restored $DemoWorld from the snapshot of $((Get-Content $info -Raw | ConvertFrom-Json).savedAt)."
 }
 
-if ($Start) { & (Join-Path $PSScriptRoot 'start.ps1') -World $DemoWorld }
+if ($Start) { & (Join-Path $PSScriptRoot 'start.ps1') -World $DemoWorld -Server $TestEnv.Server }

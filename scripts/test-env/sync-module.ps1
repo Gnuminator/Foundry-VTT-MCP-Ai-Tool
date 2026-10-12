@@ -7,6 +7,7 @@
 #   pwsh scripts/test-env/sync-module.ps1            build, then copy
 #   pwsh scripts/test-env/sync-module.ps1 -NoBuild   copy the existing build
 #   pwsh scripts/test-env/sync-module.ps1 -Watch -Session <local_id> [-NoBuild]
+#   ... -Server B                                    test server B's module folder and lock (default A)
 #
 # -Watch (sync on save, D-102): runs the module's TypeScript build in watch mode (not with
 # -NoBuild) and copies the module again after every change to its build (dist, lang, styles,
@@ -25,7 +26,8 @@ param(
   [switch]$Watch,
   [string]$Session,
   [string]$Root,
-  [string]$Source
+  [string]$Source,
+  [ValidateSet('A', 'B')] [string]$Server
 )
 
 . (Join-Path $PSScriptRoot 'config.ps1')

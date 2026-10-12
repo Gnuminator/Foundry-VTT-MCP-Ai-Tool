@@ -1,0 +1,18 @@
+{
+  "A": {
+    "Root": "C:\\FoundryTest",
+    "HomeRoot": "foundry-test",
+    "FoundryPort": 30001,
+    "ControlPort": 31514,
+    "LinkPort": 31515,
+    "DashboardPort": 3100
+  },
+  "B": {
+    "Root": "C:\\FoundryTestB",
+    "HomeRoot": "foundry-test-b",
+    "FoundryPort": 30002,
+    "ControlPort": 31524,
+    "LinkPort": 31525,
+    "DashboardPort": 3101
+  }
+}

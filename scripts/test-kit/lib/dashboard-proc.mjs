@@ -5,7 +5,8 @@
  * environment (start.ps1's service inherits the calling process's environment). With `null` the tokens
  * are taken out of the child's environment, so the dashboard comes back in the normal single user mode.
  *
- * Only the test dashboard port is allowed (3100); the live bridge ports are refused. The tokens are
+ * Only the test server's dashboard port is allowed (3100 on server A, 3101 on B, from
+ * FOUNDRY_TEST_SERVER); the live bridge ports are refused. The tokens are
  * only ever put in the child's environment of start.ps1 (stop.ps1 gets none): never in an argument, a
  * log line or an error message. Nothing is stopped unless this checkout has a built dashboard to start
  * again, and stop.ps1 itself kills the recorded pid only when it owns the dashboard port.
@@ -15,7 +16,7 @@ import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { LIVE_BRIDGE_PORTS } from './contract.mjs';
 import { EnvError } from './errors.mjs';
-import { TEST_DASHBOARD_PORT } from './targets.mjs';
+import { testServer, testServerName } from './targets.mjs';
 
 /** The environment variables that turn the player/GM split on. */
 export const SPLIT_ENV_KEYS = ['GM_DASHBOARD_TOKEN', 'PLAYER_DASHBOARD_TOKEN'];
@@ -24,16 +25,18 @@ export const SPLIT_ENV_KEYS = ['GM_DASHBOARD_TOKEN', 'PLAYER_DASHBOARD_TOKEN'];
 export const DASHBOARD_SERVER = ['packages', 'cogm-dashboard', 'dist', 'server.js'];
 
 /**
- * Refuses every port but the test dashboard's (and always the live bridge ports).
+ * Refuses every port but the test server's dashboard (and always the live bridge ports).
  * @param {number} port
+ * @param {Record<string, string | undefined>} [env] picks the test server (FOUNDRY_TEST_SERVER)
  */
-export function assertTestDashboardPort(port) {
+export function assertTestDashboardPort(port, env = process.env) {
   if (LIVE_BRIDGE_PORTS.includes(port)) {
     throw new EnvError(`REFUSED: port ${port} is the live bridge. The test kit never restarts it.`);
   }
-  if (port !== TEST_DASHBOARD_PORT) {
+  const server = testServer(undefined, env);
+  if (port !== server.dashboardPort) {
     throw new EnvError(
-      `REFUSED: port ${port} is not the test dashboard. Only port ${TEST_DASHBOARD_PORT} may be restarted.`
+      `REFUSED: port ${port} is not the test dashboard. Only port ${server.dashboardPort} (server ${server.name}) may be restarted.`
     );
   }
 }
@@ -64,7 +67,12 @@ export function dashboardEnv(base, tokens) {
   for (const key of SPLIT_ENV_KEYS) delete env[key];
   if (tokens) {
     const { gmToken, playerToken } = tokens;
-    if (typeof gmToken !== 'string' || !gmToken || typeof playerToken !== 'string' || !playerToken) {
+    if (
+      typeof gmToken !== 'string' ||
+      !gmToken ||
+      typeof playerToken !== 'string' ||
+      !playerToken
+    ) {
       throw new EnvError('the split needs a GM token and a player token (both non-empty text)');
     }
     if (gmToken === playerToken) {
@@ -77,14 +85,24 @@ export function dashboardEnv(base, tokens) {
 }
 
 /**
- * The PowerShell arguments that run one test-env script for the dashboard only.
+ * The PowerShell arguments that run one test-env script for the dashboard only, on one server.
  * @param {string} repoRoot
  * @param {'stop' | 'start'} which
+ * @param {string} [server] the test server (default: FOUNDRY_TEST_SERVER, else A)
  * @returns {string[]}
  */
-export function scriptArgs(repoRoot, which) {
+export function scriptArgs(repoRoot, which, server = testServerName()) {
   const script = path.join(repoRoot, 'scripts', 'test-env', `${which}.ps1`);
-  return ['-NoProfile', '-NonInteractive', '-File', script, '-Only', 'dashboard'];
+  return [
+    '-NoProfile',
+    '-NonInteractive',
+    '-File',
+    script,
+    '-Server',
+    server,
+    '-Only',
+    'dashboard',
+  ];
 }
 
 /**
@@ -160,8 +178,8 @@ async function until(fn, timeoutMs, pollMs) {
 export async function restartDashboard(tokens, opts) {
   const {
     repoRoot,
-    port = TEST_DASHBOARD_PORT,
     env = process.env,
+    port = testServer(undefined, env).dashboardPort,
     run = runPwsh,
     probe = probeDashboard,
     timeoutMs = 60000,
@@ -169,7 +187,8 @@ export async function restartDashboard(tokens, opts) {
     pollMs = 500,
     exists = existsSync,
   } = opts;
-  assertTestDashboardPort(port);
+  assertTestDashboardPort(port, env);
+  const testEnvServer = testServerName(env);
   const childEnv = dashboardEnv(env, tokens);
   const mode = tokens ? 'split' : 'normal';
 
@@ -184,7 +203,11 @@ export async function restartDashboard(tokens, opts) {
 
   // stop.ps1 needs no token; it kills the recorded pid only when that pid owns the dashboard port,
   // and refuses (exit 1, "REFUSED: ..." on stderr) when another process has the port or the pid.
-  const stopped = await run(scriptArgs(repoRoot, 'stop'), dashboardEnv(env, null), repoRoot);
+  const stopped = await run(
+    scriptArgs(repoRoot, 'stop', testEnvServer),
+    dashboardEnv(env, null),
+    repoRoot
+  );
   if (stopped.code !== 0) {
     throw new EnvError(
       `could not stop the test dashboard (stop.ps1 exited ${stopped.code}): ${stopped.stderr.trim().slice(0, 400)}`
@@ -197,7 +220,7 @@ export async function restartDashboard(tokens, opts) {
     );
   }
 
-  const started = await run(scriptArgs(repoRoot, 'start'), childEnv, repoRoot);
+  const started = await run(scriptArgs(repoRoot, 'start', testEnvServer), childEnv, repoRoot);
   if (started.code !== 0) {
     throw new EnvError(
       `could not start the test dashboard in ${mode} mode (start.ps1 exited ${started.code}): ${started.stderr.trim().slice(0, 300)}`

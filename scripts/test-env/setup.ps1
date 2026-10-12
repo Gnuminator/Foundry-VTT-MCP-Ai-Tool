@@ -3,7 +3,7 @@
 # test Foundry, and says what is still missing. Safe to re-run.
 #
 #   pwsh scripts/test-env/setup.ps1
-param([switch]$Rebuild)
+param([switch]$Rebuild, [ValidateSet('A', 'B')] [string]$Server)
 
 . (Join-Path $PSScriptRoot 'config.ps1')
 Assert-SafePorts
@@ -24,7 +24,7 @@ if ($Rebuild -or -not $built) {
   } finally { Pop-Location }
 }
 
-& (Join-Path $PSScriptRoot 'sync-module.ps1') -NoBuild:(-not $Rebuild -and $built)
+& (Join-Path $PSScriptRoot 'sync-module.ps1') -NoBuild:(-not $Rebuild -and $built) -Server $TestEnv.Server
 
 $main = Find-FoundryMain
 $worldDir = Join-Path $TestEnv.DataDir 'Data' 'worlds' $TestEnv.WorldId

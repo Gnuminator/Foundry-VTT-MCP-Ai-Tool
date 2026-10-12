@@ -50,6 +50,12 @@ test('only the test dashboard port is allowed; the live bridge ports are refused
       e => e instanceof EnvError && /live bridge/.test(e.message)
     );
   }
+  // server B: its own dashboard port only
+  assertTestDashboardPort(3101, { FOUNDRY_TEST_SERVER: 'B' });
+  assert.throws(
+    () => assertTestDashboardPort(3100, { FOUNDRY_TEST_SERVER: 'B' }),
+    e => e instanceof EnvError && /Only port 3101 \(server B\)/.test(e.message)
+  );
   for (const port of [3000, 30001, 31514, 80]) {
     assert.throws(
       () => assertTestDashboardPort(port),
@@ -72,6 +78,8 @@ test('scriptArgs runs the test-env script for the dashboard only, with no token 
     const args = scriptArgs(root, which);
     assert.equal(args.at(-2), '-Only');
     assert.equal(args.at(-1), 'dashboard');
+    assert.equal(args[args.indexOf('-Server') + 1], 'A');
+    assert.equal(scriptArgs(root, which, 'B')[args.indexOf('-Server') + 1], 'B');
     assert.ok(args.includes(path.join(root, 'scripts', 'test-env', `${which}.ps1`)));
     assert.ok(args.includes('-File'));
   }
@@ -120,10 +128,7 @@ test('restartDashboard stops, then starts; the split tokens go to start.ps1 only
   assert.equal(s.calls[1].env.PLAYER_DASHBOARD_TOKEN, 'player-test-token');
   assert.equal(s.calls[1].cwd, 'C:\\repo');
   for (const call of s.calls) {
-    assert.ok(
-      !call.args.some(a => a.includes('test-token')),
-      'no token is ever an argument'
-    );
+    assert.ok(!call.args.some(a => a.includes('test-token')), 'no token is ever an argument');
   }
 });
 
@@ -171,7 +176,10 @@ test('restartDashboard refuses a checkout without a built dashboard before it st
         return false;
       },
     }),
-    e => e instanceof EnvError && /not built in C:\\repo/.test(e.message) && /left alone/.test(e.message)
+    e =>
+      e instanceof EnvError &&
+      /not built in C:\\repo/.test(e.message) &&
+      /left alone/.test(e.message)
   );
   assert.equal(s.calls.length, 0, 'stop.ps1 never ran');
   assert.deepEqual(asked, [path.join('C:\\repo', ...DASHBOARD_SERVER)]);
@@ -191,8 +199,17 @@ test('a refusal from stop.ps1 (another process owns the port or the pid) reaches
       : r;
   };
   await assert.rejects(
-    restartDashboard(TOKENS, { repoRoot: 'C:\\repo', run, probe: s.probe, exists: s.exists, pollMs: 5 }),
-    e => e instanceof EnvError && /could not stop/.test(e.message) && /REFUSED: dashboard/.test(e.message)
+    restartDashboard(TOKENS, {
+      repoRoot: 'C:\\repo',
+      run,
+      probe: s.probe,
+      exists: s.exists,
+      pollMs: 5,
+    }),
+    e =>
+      e instanceof EnvError &&
+      /could not stop/.test(e.message) &&
+      /REFUSED: dashboard/.test(e.message)
   );
   assert.equal(s.calls.length, 1, 'start.ps1 never ran after the refusal');
 });

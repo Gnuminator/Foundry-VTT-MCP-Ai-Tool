@@ -257,10 +257,7 @@ export function knownMarkdown(r) {
     if (!data || !data.entries) continue;
     if (!lines.length) lines.push('## Known findings', '');
     const matched = Object.entries(data.matched ?? {});
-    lines.push(
-      `### ${s.id}: ${matched.length} of ${data.entries} entries matched`,
-      ''
-    );
+    lines.push(`### ${s.id}: ${matched.length} of ${data.entries} entries matched`, '');
     for (const [id, m] of matched)
       lines.push(`- ${mdCell(id)} (${m.kind}, ${m.problems} problem(s)): ${mdCell(m.why)}`);
     if (data.unseen?.length)
@@ -306,7 +303,9 @@ export function picksMarkdown(r) {
   lines.push('| Class | Choice | Heroes | Offered | Picked | Never picked |');
   lines.push('| --- | --- | --- | --- | --- | --- |');
   for (const row of rows) {
-    const never = row.never.slice(0, 12).join(', ') + (row.never.length > 12 ? ` and ${row.never.length - 12} more` : '');
+    const never =
+      row.never.slice(0, 12).join(', ') +
+      (row.never.length > 12 ? ` and ${row.never.length - 12} more` : '');
     lines.push(
       `| ${mdCell(row.classIdentifier)} | ${mdCell(row.title)} | ${row.heroes} | ${row.offered} | ` +
         `${row.offered - row.never.length} | ${mdCell(never || '-')} |`
@@ -346,7 +345,7 @@ export function renderMarkdown(r) {
   lines.push(`- Size: ${run.size}${run.fake ? ' (fake)' : ''}`);
   if (r.build) lines.push(`- Profile: ${r.build.profile || 'unknown'}`);
   lines.push(
-    `- Target: ${run.target.name} (dashboard ${run.target.dashboard}, Foundry ${run.target.foundry})`
+    `- Target: ${run.target.name}${run.target.server ? `, server ${run.target.server}` : ''} (dashboard ${run.target.dashboard}, Foundry ${run.target.foundry})`
   );
   lines.push(`- World: ${run.target.world}`);
   lines.push(`- Git: ${run.gitSha}, Node ${run.node}`);
@@ -540,7 +539,7 @@ export function renderHtml(r) {
 <style>${CSS}</style></head>
 <body><main>
 <h1>Test kit report: ${esc(run.size)}${run.fake ? ' (fake)' : ''}</h1>
-<p class="meta">${r.build ? `<span>Profile ${esc(r.build.profile || 'unknown')}</span>` : ''}<span>Target ${esc(run.target.name)} (${esc(run.target.dashboard)})</span><span>World ${esc(run.target.world)}</span><span>Git ${esc(run.gitSha)}</span><span>Node ${esc(run.node)}</span><span>${esc(run.startedAt)}</span><span>Duration ${fmtMs(run.durationMs)}</span></p>
+<p class="meta">${r.build ? `<span>Profile ${esc(r.build.profile || 'unknown')}</span>` : ''}<span>Target ${esc(run.target.name)}${run.target.server ? ` ${esc(run.target.server)}` : ''} (${esc(run.target.dashboard)})</span><span>World ${esc(run.target.world)}</span><span>Git ${esc(run.gitSha)}</span><span>Node ${esc(run.node)}</span><span>${esc(run.startedAt)}</span><span>Duration ${fmtMs(run.durationMs)}</span></p>
 <p class="sum"><span class="pass">${summary.passed} passed</span>, <span class="fail">${summary.failed} failed</span>, <span class="skip">${summary.skipped} skipped</span> of ${summary.total}</p>
 ${warnHtml}<div class="bar" role="img" aria-label="${summary.passed} passed, ${summary.failed} failed, ${summary.skipped} skipped"><i class="p" style="width:${pct(summary.passed)}%"></i><i class="f" style="width:${pct(summary.failed)}%"></i><i class="s" style="width:${pct(summary.skipped)}%"></i></div>
 <div class="filters"><label>Status <select id="f-status"><option value="">all</option><option value="bad">failed or error</option><option value="pass">pass</option><option value="fail">fail</option><option value="error">error</option><option value="skip">skip</option></select></label>

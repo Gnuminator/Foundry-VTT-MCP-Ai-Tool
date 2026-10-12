@@ -1,6 +1,7 @@
 # Show the test environment's state, and (read-only) whether the live bridge is up.
 #
-#   pwsh scripts/test-env/status.ps1
+#   pwsh scripts/test-env/status.ps1 [-Server A|B]
+param([ValidateSet('A', 'B')] [string]$Server)
 . (Join-Path $PSScriptRoot 'config.ps1')
 Assert-SafePorts
 $pids = Read-Pids
@@ -11,12 +12,16 @@ function Show([string]$Name, [int]$Port) {
   Write-Host ('{0,-10} {1,-6} {2,-5} {3}' -f $Name, $Port, $(if ($up) { 'UP' } else { 'down' }), $pidText)
 }
 
-Write-Host 'Test environment'
+Write-Host "Test environment, server $($TestEnv.Server) ($($TestEnv.Root))"
 Show 'foundry' $TestEnv.FoundryPort
 Show 'bridge' $TestEnv.ControlPort
 Show 'link' $TestEnv.LinkPort  # opened by the bridge (Foundry module connects here)
 Show 'dashboard' $TestEnv.DashboardPort
 Write-Host ''
+$others = @($TestServers.PSObject.Properties.Name | Where-Object { $_ -ne $TestEnv.Server } | ForEach-Object {
+  "$_ $(if (Test-PortOpen ([int]$TestServers.$_.FoundryPort)) { 'UP' } else { 'down' })"
+})
+if ($others) { Write-Host "Other test servers (Foundry): $($others -join ', ') (status.ps1 -Server <name>)" }
 $live = $LivePorts | Where-Object { Test-PortOpen $_ }
 Write-Host ("Live bridge (31414-31416, never touched): {0}" -f $(if ($live) { "UP on $($live -join ', ')" } else { 'down' }))
 Write-Host ''

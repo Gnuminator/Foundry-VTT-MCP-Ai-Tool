@@ -108,6 +108,37 @@ test('parseArgs: on-demand defaults and the nightly preset', () => {
   assert.throws(() => parseArgs(['--bogus']), /unknown option/);
 });
 
+test('parseArgs: kit runs go to test server B unless --server says otherwise', () => {
+  assert.equal(parseArgs([]).server, 'B');
+  assert.equal(parseArgs(['--server', 'a']).server, 'A');
+  assert.throws(() => parseArgs(['--server', 'C']), /--server must be one of A, B/);
+});
+
+test('every test-env script gets -Server and every child FOUNDRY_TEST_SERVER', async () => {
+  const seen = [];
+  const t = setup();
+  const inner = t.deps.run;
+  t.deps.run = async (file, args, opts = {}) => {
+    seen.push({ file, args, env: opts.env });
+    return inner(file, args, opts);
+  };
+  try {
+    const { code, result } = await kitRun({ ...t.o, server: 'A' }, t.deps);
+    assert.equal(code, 0);
+    assert.equal(result.server, 'A');
+    assert.match(noteRow(result), / on A \|/);
+    for (const call of seen) {
+      assert.equal(call.env?.FOUNDRY_TEST_SERVER, 'A', `${call.file} ${call.args.join(' ')}`);
+      if (call.args.some(a => /\.ps1$/.test(a))) {
+        assert.equal(call.args[call.args.indexOf('-Server') + 1], 'A', call.args.join(' '));
+      }
+    }
+    assert.ok(seen.some(c => c.args.some(a => /kit\.mjs$/.test(a))));
+  } finally {
+    t.cleanup();
+  }
+});
+
 test('a passing run: lock, build, fresh environment, kit, stop, release, then the record', async () => {
   const t = setup();
   try {
@@ -119,10 +150,10 @@ test('a passing run: lock, build, fresh environment, kit, stop, release, then th
       'lock.ps1 take',
       'npm run',
       'sync-module.ps1 -NoBuild',
-      'stop.ps1',
+      'stop.ps1 -Server',
       'start.ps1 -World',
       'kit.mjs all',
-      'stop.ps1',
+      'stop.ps1 -Server',
       'lock.ps1 release',
     ]);
     assert.equal(result.state, 'passed');
@@ -215,7 +246,7 @@ test('environment not ready: exit 2, the environment is stopped and the lock rel
     assert.equal(code, 2);
     assert.match(result.detail, /runs world ai-tool-test, not ai-tool-kit-srd/);
     assert.ok(!t.fake.calls.includes('kit.mjs all'));
-    assert.deepEqual(t.fake.calls.slice(-2), ['stop.ps1', 'lock.ps1 release']);
+    assert.deepEqual(t.fake.calls.slice(-2), ['stop.ps1 -Server', 'lock.ps1 release']);
   } finally {
     t.cleanup();
   }
@@ -236,7 +267,7 @@ test('a failed build stops before the environment; --keep-up and --no-build skip
   try {
     await kitRun({ ...k.o, keepUp: true, build: false }, k.deps);
     assert.ok(!k.fake.calls.includes('npm run'));
-    assert.equal(k.fake.calls.filter(c => c === 'stop.ps1').length, 1);
+    assert.equal(k.fake.calls.filter(c => c === 'stop.ps1 -Server').length, 1);
   } finally {
     k.cleanup();
   }

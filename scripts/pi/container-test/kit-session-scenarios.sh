@@ -18,7 +18,7 @@ set -uo pipefail
 }
 
 H=/repo/scripts/pi/container-test
-STAGE=/repo/scripts/pi/remote/kit-session.sh
+STAGE="${KIT_STAGE_FILE:-/repo/scripts/pi/remote/kit-session.sh}" # KIT_STAGE_FILE: a test run against another copy of the stage
 LIB=/repo/scripts/pi/remote/lib.sh
 
 export DEBIAN_FRONTEND=noninteractive
@@ -91,7 +91,10 @@ write_state() {
 #   gm-counts    /api/status counts the Assistant GM browser as a user while it runs
 #   joinfail     the world does not answer on port 30000 once Foundry was stopped
 #   stopfail     "systemctl stop foundry.service" fails
-#   closepipe    the stage's output is cut off after 7 lines, as when the ssh session drops (SIGPIPE)
+#   closepipe=N  the stage's output is cut off after N lines, as when the ssh session drops (SIGPIPE): the next write
+#                dies. For up, 13 lines end at "strahd-kit is running", after options.json was changed; for down,
+#                8 ends after "Foundry launches ... again" (the cut falls while Foundry is stopped and options.json
+#                is back) and 9 after "options.json launches ..." (the cut falls while the world starts)
 scenario() {
   local name="$1" status="$2" rc="$3" inactive="$4" mode="$5"
   shift 5
@@ -127,7 +130,7 @@ scenario() {
       gm-counts) touch /tmp/gm-counts ;;
       joinfail) touch /tmp/joinfail ;;
       stopfail) touch /tmp/stopfail ;;
-      closepipe) pipe_lines=7 ;;
+      closepipe=*) pipe_lines="${w#closepipe=}" ;;
       gmbroken) touch /tmp/gmbroken ;;
       noupload) rm -f /root/kit-session.mjs "$TOOL_DIR/gm-browser/kit-session.mjs" ;;
       noenvfile) rm -f "$TOOL_ETC/world-strahd-kit.env" ;;
@@ -184,7 +187,7 @@ scenario up-no-login "$U0" 0 "" up noenvfile
 scenario up-no-world "$U0" 0 "" up noworld
 scenario up-wrong-driver-path "$U0" 0 "" up SESSION_DRIVER=/tmp/kit-session.mjs
 scenario up-ignores-world-env "$U0" 0 "" up WORLD=curse-of-strahd
-scenario up-pipe-closed "$U0" 0 "" up closepipe
+scenario up-pipe-closed "$U0" 0 "" up closepipe=13
 scenario bad-mode "$U0" 0 "" sideways
 scenario no-mode "$U0" 0 "" -
 scenario down-ok "$U0" 0 "gm" down down-state
@@ -203,6 +206,8 @@ scenario down-gm-active "$U0" 0 "" down down-state gm-counts
 scenario down-gm-active-users-online '{"active":true,"users":2}' 0 "" down down-state gm-counts
 scenario down-world-not-back "$U0" 0 "gm" down down-state joinfail
 scenario down-world-not-back-gm-off "$U0" 0 "gm" down down-state-gm0 joinfail
+scenario down-pipe-closed-stopping "$U0" 0 "gm" down down-state closepipe=8
+scenario down-pipe-closed-starting "$U0" 0 "gm" down down-state closepipe=9
 scenario down-stop-fails "$U0" 0 "gm" down down-state stopfail
 scenario down-gm-browser-fails "$U0" 0 "gm" down down-state gmbroken
 echo "=== ALL DONE"

@@ -329,16 +329,26 @@ back_exit() {
     warn "options.json still launches $KIT_WORLD and the state file stays (nothing was put back): start Foundry if it is stopped and run MODE=down again"
     return 0
   fi
-  if systemctl is-active --quiet foundry.service && world_up; then return 0; fi
-  warn "Foundry did not come back on '${orig_world:-no world}' (see: journalctl -u foundry -n 50); the kit session is over and options.json is restored"
+  # The session is over, whether or not the run got any further: a dropped ssh session while Foundry stops or
+  # starts must leave Foundry running and the Assistant GM browser back.
+  if [ "$halted" = 1 ] && ! systemctl is-active --quiet foundry.service; then systemctl start foundry.service; fi
+  came_back=0
+  if systemctl is-active --quiet foundry.service && world_up; then
+    came_back=1
+  else
+    warn "Foundry did not come back on '${orig_world:-no world}' (see: journalctl -u foundry -n 50); the kit session is over and options.json is restored"
+  fi
   if [ "$was_gm_browser" = 1 ]; then
     if systemctl is-active --quiet foundry.service; then
-      systemctl is-active --quiet foundry-ai-tool-gm-browser.service || systemctl start foundry-ai-tool-gm-browser.service
-      warn "the Assistant GM browser was started again; check it once Foundry runs"
+      if ! systemctl is-active --quiet foundry-ai-tool-gm-browser.service; then
+        systemctl start foundry-ai-tool-gm-browser.service
+        warn "the Assistant GM browser was started again; check it once Foundry runs"
+      fi
     else
       warn "Foundry is stopped, so the Assistant GM browser was not started: after fixing Foundry, run systemctl start foundry-ai-tool-gm-browser"
     fi
   fi
+  return 0
 }
 trap back_exit EXIT
 

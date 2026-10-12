@@ -996,6 +996,24 @@ describe('kit-session.sh in an ARM64 container', { skip: containerReason }, () =
     assert.deepEqual(r.state, ['absent']);
     assert.equal(count(r.calls, 'restart foundry.service'), 1, r.calls.join('\n'));
     assert.equal(r.calls.at(-1), `start ${GM}`);
+    // The cut falls after options.json was changed: the run was killed after the old world was put back.
+    assert.match(r.output, /strahd-kit is running/);
+  });
+
+  test('down with the ssh session dropping after options.json was put back still ends with Foundry and the GM browser running', () => {
+    // Cut while Foundry is stopped: the handler starts Foundry again, then the Assistant GM browser.
+    const stopping = run('down-pipe-closed-stopping');
+    assert.notEqual(stopping.exit, 0, stopping.output);
+    assert.equal(stopping.world, 'curse-of-strahd');
+    assert.deepEqual(stopping.state, ['absent']);
+    assert.equal(count(stopping.calls, 'start foundry.service'), 1, stopping.calls.join('\n'));
+    assert.equal(stopping.calls.at(-1), `start ${GM}`);
+    // Cut while the campaign world starts: Foundry runs already, the GM browser must still come back.
+    const starting = run('down-pipe-closed-starting');
+    assert.notEqual(starting.exit, 0, starting.output);
+    assert.equal(starting.world, 'curse-of-strahd');
+    assert.deepEqual(starting.state, ['absent']);
+    assert.ok(starting.calls.includes(`start ${GM}`), starting.calls.join('\n'));
   });
 
   test('down stops the Assistant GM browser before it counts who is online', () => {

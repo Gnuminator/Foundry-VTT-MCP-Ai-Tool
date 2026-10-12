@@ -20,7 +20,7 @@ param(
 . (Join-Path $PSScriptRoot 'config.ps1')
 Assert-SafePorts
 if ($World -and -not (Test-Path (Join-Path $TestEnv.DataDir 'Data' 'worlds' $World))) {
-  throw "No world '$World' under $(Join-Path $TestEnv.DataDir 'Data' 'worlds') (server $($TestEnv.Server)); nothing started."
+  throw "No world '$World' under $(Join-Path $TestEnv.DataDir 'Data' 'worlds') (server $($TestEnv.Server)); nothing started.$(if ($TestEnv.Server -ne 'A') { ' Run pwsh scripts/test-env/server-b.ps1 once on this PC to create or refresh the server.' })"
 }
 New-Item -ItemType Directory -Force $TestEnv.LogDir, $TestEnv.VaultDir | Out-Null
 $node = Get-NodeExe
@@ -119,6 +119,10 @@ if ($Only -in 'all', 'dashboard') {
     MCP_CONTROL_HOST = '127.0.0.1'
     MCP_CONTROL_PORT = $TestEnv.ControlPort
     FOUNDRY_AI_OBSIDIAN_DIR = $TestEnv.ObsidianDir
+    # Each test dashboard keeps its own player links and prefs: server A uses the default
+    # ~/.foundry-ai-tool, the others a folder under their root (two dashboards on one links file
+    # overwrite each other's saves).
+    COGM_STATE_DIR  = if ($TestEnv.Server -eq 'A') { Join-Path $HOME '.foundry-ai-tool' } else { Join-Path $TestEnv.Root 'dashboard-state' }
   } (Join-Path $RepoRoot 'packages' 'cogm-dashboard') 30
 }
 

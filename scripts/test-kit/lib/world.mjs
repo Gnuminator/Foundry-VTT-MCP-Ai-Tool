@@ -10,7 +10,7 @@ import { KIT_CLAUDE_USER, KIT_GM_USER, KIT_PLAYER_USER, KIT_WORLDS } from './con
 import { EnvError } from './errors.mjs';
 import { assertKitWorld, collectErrors, joinGame, launchBrowser, waitForGame } from './gm.mjs';
 import { turnOffTrackingFor } from './player-creation.mjs';
-import { LOOPBACK_HOSTS, TEST_FOUNDRY_URL } from './targets.mjs';
+import { LOOPBACK_HOSTS, TEST_FOUNDRY_URL, TEST_SERVERS } from './targets.mjs';
 
 const MODULE_ID = 'foundry-mcp-bridge';
 const DEFAULT_GM = 'Gamemaster';
@@ -54,7 +54,8 @@ export function initWorld({ dataDir, profile, log = () => {} }) {
 }
 
 /**
- * Refuses to provision any Foundry but the PC's test Foundry (TEST_FOUNDRY_URL on Windows).
+ * Refuses to provision any Foundry but one of the PC's test Foundrys (servers.json: A on 30001, B on
+ * 30002; Windows only).
  * Provisioning makes passwordless GMs (Kit GM, Claude): fine on the PC's test server, an open GM
  * login on a host others can reach. A loopback address alone does not prove that: on the Pi
  * 127.0.0.1:30000 is the port the tunnel serves, and an SSH forward makes the Pi look local. A
@@ -72,14 +73,15 @@ export function assertLocalProvision(foundryUrl, { platform = process.platform }
   }
   const test = new URL(TEST_FOUNDRY_URL);
   const port = url.port || (url.protocol === 'https:' ? '443' : '80');
+  const testPorts = Object.values(TEST_SERVERS).map(s => String(s.FoundryPort));
   const isTestFoundry =
     platform === 'win32' &&
     url.protocol === test.protocol &&
     LOOPBACK_HOSTS.includes(url.hostname) &&
-    port === test.port;
+    testPorts.includes(port);
   if (!isTestFoundry) {
     throw new EnvError(
-      `REFUSED: provisioning makes passwordless GMs; ${url.host} on ${platform} is not the PC's test Foundry (${TEST_FOUNDRY_URL} on Windows).`
+      `REFUSED: provisioning makes passwordless GMs; ${url.host} on ${platform} is not the PC's test Foundry (${TEST_FOUNDRY_URL}, or server B's port, on Windows).`
     );
   }
 }

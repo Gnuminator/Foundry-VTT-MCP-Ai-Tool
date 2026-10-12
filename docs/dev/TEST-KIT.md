@@ -115,6 +115,7 @@ $env:FOUNDRY_TEST_SERVER = 'B'
 pwsh scripts/test-env/start.ps1 -World ai-tool-kit-srd   # -Server B from the variable
 node scripts/test-kit/kit.mjs all --profile srd
 pwsh scripts/test-env/stop.ps1
+Remove-Item Env:FOUNDRY_TEST_SERVER   # later commands in this shell go back to server A
 ```
 
 ### The kit run command
@@ -201,7 +202,7 @@ The folder layout on this PC:
 
 ```text
 C:\FoundryTest\test-kit\            the kit home (or the folder in TEST_KIT_HOME)
-  worlds\<world>\manifest.json      what the last build made
+  worlds\<world>\manifest.json      what the last build made (worlds-B\ for server B)
   reports\<time>-<size>\            report.html, report.md, report.json of each run
   licensed\                         this PC only, never in a repo or the vault
     README.txt
@@ -1078,7 +1079,7 @@ t.check(t.browser.consoleErrors(page).length === 0, 'the player page logs no err
 | The known findings of a profile           | `scripts/test-kit/lib/known.mjs`, `data/profiles/srd.known.json`, `<kit home>\licensed\profiles\<id>.known.json`                            |
 | The pick coverage                         | `scripts/test-kit/lib/picks.mjs`                                                                                                            |
 | The monsters and the scene                | `scripts/test-kit/data/smoke-matrix.json`                                                                                                   |
-| The manifest of the last build            | `<kit home>\worlds\<world>\manifest.json`                                                                                                   |
+| The manifest of the last build            | `<kit home>\worlds\<world>\manifest.json` (`worlds-B` for B)                                                                                |
 | Reports                                   | `<kit home>\reports\` (this PC only)                                                                                                        |
 | Console error groups, known list          | `scripts/test-kit/lib/console-errors.mjs`, `data/studio-expected.json`                                                                      |
 | Licensed profiles and scenarios           | `<kit home>\licensed\` (this PC only)                                                                                                       |
@@ -1119,8 +1120,8 @@ When you change a tool's result shape, change the fake with it.
 - **The wipe is by flag.** Every document the builder makes carries the flag `world.testKit`. A
   rebuild deletes only documents with that flag.
 - **Live ports are refused.** The bridge ports 31414 to 31416 are never used, also with `--fake`.
-  The only real target is the test dashboard on `127.0.0.1:3100` and the test Foundry on
-  `127.0.0.1:30001`. Anything not on this machine is refused.
+  The only real targets are a test server's dashboard and Foundry: `127.0.0.1:3100` and `:30001`
+  (A), `:3101` and `:30002` (B). Anything not on this machine is refused.
 - **Wrong world, no run.** If the connected world is not the profile's kit world, the run stops
   with exit code 2 before it changes anything.
 - **GM Actions are turned on for the run and put back** as they were found.
@@ -1129,10 +1130,10 @@ When you change a tool's result shape, change the fake with it.
   that is already there keeps its password: a lower-role `Claude` is promoted to Gamemaster, and
   a password someone gave it stays.
 - **Passwordless GMs only on the PC's test Foundry.** `init` provisions only `http://127.0.0.1:30001`
-  (any loopback spelling) on Windows, because its passwordless GMs would be an open GM login on a
+  (server A) or `:30002` (server B), any loopback spelling, on Windows, because its passwordless GMs would be an open GM login on a
   host others can reach. A loopback address alone is not enough: on the Pi `127.0.0.1:30000` is the
   port the tunnel serves, and an SSH forward makes the Pi look local, so both are refused. An SSH
-  forward onto port 30001 itself cannot be told apart; never forward the Pi there. A remote target
+  forward onto port 30001 or 30002 itself cannot be told apart; never forward the Pi there. A remote target
   (the Pi's `strahd-kit`) needs a way to give its GMs passwords before `provisionWorld` can serve
   it; there is no opt-out today.
 

@@ -414,7 +414,7 @@ export async function kitRun(o, deps = {}) {
     now = () => new Date(),
     log = line => console.log(`kit:run ${line}`),
     home = kitHome(),
-    state = () => envState(fetchImpl, serverPorts(o.server)),
+    state = () => envState(fetchImpl, serverPorts(o.server || DEFAULT_SERVER)),
     writeVault = writeVaultNote,
     signals = process,
     exit = code => process.exit(code),

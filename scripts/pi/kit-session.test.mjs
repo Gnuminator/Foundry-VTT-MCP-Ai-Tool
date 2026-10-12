@@ -974,6 +974,38 @@ describe('kit-session.mjs, the Kit GM (the in-browser part)', () => {
     }
   });
 
+  test('originalBridgeUser: after a cut-off run (the Kit GM is the bridge user) the single Assistant GM stands in', () => {
+    assert.equal(originalBridgeUser(ID_A, ID_A, [ID_B]), ID_B);
+    assert.equal(originalBridgeUser(ID_A, ID_A, []), '', 'no Assistant GM: Any GM');
+    assert.equal(
+      originalBridgeUser(ID_A, ID_A, [ID_B, 'QrStUvWx98765432']),
+      '',
+      'two of them: not a guess'
+    );
+    assert.equal(
+      originalBridgeUser(ID_A, ID_A, ['../etc']),
+      '',
+      'what is not a user id is dropped'
+    );
+    // Not the Kit GM: the setting is what it is, whoever the Assistant GMs are.
+    assert.equal(originalBridgeUser(ID_B, ID_A, [ID_B]), ID_B);
+    assert.equal(originalBridgeUser('', ID_A, [ID_B]), '');
+  });
+
+  test('readState lists the Assistant GM users with role 3 or above as assistantGms', () => {
+    use(
+      fakeGame({
+        users: [
+          { id: 'asst', name: 'Assistant GM', role: 3 },
+          { id: 'asstGm', name: 'Assistant GM', role: 4 },
+          { id: 'asstPlayer', name: 'Assistant GM', role: 1 },
+          { id: 'other', name: 'Someone', role: 4 },
+        ],
+      })
+    );
+    assert.deepEqual(readState(ARGS).assistantGms, ['asst', 'asstGm']);
+  });
+
   test('parseOrigBridgeUser: unset stays unset (the old state file), empty and an id pass, nothing else does', () => {
     assert.equal(parseOrigBridgeUser(undefined), undefined);
     assert.equal(parseOrigBridgeUser(''), '');
@@ -1703,6 +1735,38 @@ describe('kit-session.sh in an ARM64 container', { skip: containerReason }, () =
     assert.equal(empty.exit, 0, empty.output);
     assert.ok(empty.state.includes('ORIG_BRIDGE_USER='), empty.state.join('\n'));
     assert.match(empty.output, /the bridge user it replaced \(Any GM\) is kept/);
+  });
+
+  test('set_world is done by the foundry user (M1): links in its folders are not followed, mode and owner of options.json stay', () => {
+    const r = run('up-plant-links');
+    assert.equal(r.exit, 0, r.output);
+    assert.ok(r.kitgm.includes('victims root:755 root:644 victim'), r.kitgm.join('\n'));
+    assert.ok(r.kitgm.includes('options mode 644 owner foundry tmp absent'), r.kitgm.join('\n'));
+    assert.equal(r.world, 'strahd-kit');
+    const up600 = run('up-options-600');
+    assert.equal(up600.exit, 0, up600.output);
+    assert.ok(
+      up600.kitgm.includes('options mode 600 owner foundry tmp absent'),
+      up600.kitgm.join('\n')
+    );
+    const down600 = run('down-options-600');
+    assert.equal(down600.exit, 0, down600.output);
+    assert.equal(down600.world, 'curse-of-strahd');
+    assert.ok(
+      down600.kitgm.includes('options mode 600 owner foundry tmp absent'),
+      down600.kitgm.join('\n')
+    );
+  });
+
+  test('up-options-readonly: when the foundry user cannot write options.json, nothing half written is left and everything is put back', () => {
+    const r = run('up-options-readonly');
+    assert.notEqual(r.exit, 0, r.output);
+    assert.equal(r.world, 'curse-of-strahd', 'options.json is as it was');
+    assert.ok(r.kitgm.includes('options mode 644 owner foundry tmp absent'), r.kitgm.join('\n'));
+    assert.deepEqual(r.state, ['absent']);
+    assert.deepEqual(kit(r), KIT_GONE);
+    assert.equal(count(r.calls, 'restart foundry.service'), 1, r.calls.join('\n'));
+    assert.equal(r.calls.at(-1), `start ${GM}`);
   });
 
   test('up-orig-bridge-bad: a reported bridge user that is not a user id puts everything back', () => {

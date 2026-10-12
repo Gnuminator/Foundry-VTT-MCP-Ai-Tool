@@ -105,7 +105,7 @@ const log = msg => console.log(`[kit-session] ${redact(msg)}`);
 // ownedActors: for the user named playerName, the actors where that user is an explicit OWNER.
 // leftActors: the ids in actorIds that are still in game.actors (the teardown's read-back: once the user is gone,
 // ownedActors can no longer find its actors, so the ids found before the delete are looked up one by one).
-// gmIds: the ids of the users with role 3 or above; kitGm: the users named gmName (online or not); userId: the user this page joined as; bridgeModuleInstalled and
+// gmIds: the ids of the users with role 3 or above; assistantGms: those of them named assistantName; kitGm: the users named gmName (online or not); userId: the user this page joined as; bridgeModuleInstalled and
 // bridgeModuleActive: the bridge module (bridgeModule); bridgeUserId: its world setting, null while the module
 // registers none (it registers its settings only when it is active).
 export function readState({
@@ -116,6 +116,7 @@ export function readState({
   playerName,
   gmName,
   bridgeModule,
+  assistantName = 'Assistant GM',
   actorIds = [],
 }) {
   const settings = game.settings;
@@ -156,6 +157,9 @@ export function readState({
     isGM: game.user.isGM,
     kitGm,
     gmIds,
+    assistantGms: game.users
+      .filter(u => u.name === assistantName && u.role >= CONST.USER_ROLES.ASSISTANT)
+      .map(u => u.id),
     bridgeModuleInstalled: game.modules.has(bridgeModule),
     bridgeModuleActive: game.modules.get(bridgeModule)?.active === true,
     bridgeUserId: settings.settings.has(bridgeUserKey)
@@ -550,14 +554,18 @@ export function kitGmTeardownMismatches(before, after, bridgeTo) {
 const USER_ID = /^([A-Za-z0-9]{16})?$/;
 
 // Setup: the bridge user it is about to replace, as the id the stage keeps (or empty for "Any GM", also when the
-// setting is not registered yet). The Kit GM itself (a session that was cut off) is not worth restoring. Anything
-// that is not a Foundry user id is refused.
-export function originalBridgeUser(bridgeUserId, kitGmId) {
+// setting is not registered yet). The Kit GM itself (a session that was cut off) is never restored: the single
+// Assistant GM stands in for it, if there is one. Anything that is not a Foundry user id is refused.
+export function originalBridgeUser(bridgeUserId, kitGmId, assistantGms = []) {
   const id = bridgeUserId ?? ANY_GM_CHOICE;
   if (typeof id !== 'string' || !USER_ID.test(id)) {
     throw new Error(`the bridge user setting holds ${JSON.stringify(id)}, which is not a user id`);
   }
-  return id === kitGmId ? ANY_GM_CHOICE : id;
+  if (id !== kitGmId) return id;
+  // The Kit GM is already the bridge user: an earlier run was cut off and left it. Its original is lost; the best
+  // guess is the one Assistant GM that stage 11 provisions (exactly one, role 3 or above), else Any GM.
+  const [only] = assistantGms;
+  return assistantGms.length === 1 && USER_ID.test(only) ? only : ANY_GM_CHOICE;
 }
 
 // Teardown: ORIG_BRIDGE_USER from the environment. Not set means the old state file format: undefined (Any GM).
@@ -716,7 +724,7 @@ async function main() {
         bridgeSeen = enabled.bridgeUserId;
       }
       // The bridge user this setup replaces, kept by the stage so the teardown can put it back.
-      const origBridgeUser = originalBridgeUser(bridgeSeen, oldGm?.id);
+      const origBridgeUser = originalBridgeUser(bridgeSeen, oldGm?.id, before.assistantGms);
       if (changes.length) {
         await page.evaluate(applyChanges, { moduleId: MODULE_ID, changes });
       }

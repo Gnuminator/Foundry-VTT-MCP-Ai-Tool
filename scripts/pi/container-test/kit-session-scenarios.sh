@@ -121,8 +121,10 @@ write_state() {
 #   origbridge-empty / origbridge-bad / origbridge-none   the fake setup driver reports no bridge user (Any GM), one that
 #                is not a user id, or does not report one at all (default: AbCdEfGh01234567)
 #   kit-activating   a Kit GM browser unit between restarts ("activating"), nothing else left behind
+#   options600   options.json has mode 600 (it must keep it)     options-readonly  the foundry user cannot write in the Config folder
 #   xtrace       the stage runs as bash -x -s (a trace on stderr, as when someone runs it by mistake)
-#   plant-links  the foundry user left links in its folder where the stage's profile folder and old files would be
+#   plant-links  the foundry user left links in its folders where the stage's profile folder, old files and the temp file
+#                of options.json would be
 #   leftover     a Kit GM password file, temp file, profile folder and running browser, and no state file (a run that
 #                was cut off)
 #   on-kit       options.json launches strahd-kit
@@ -183,6 +185,12 @@ scenario() {
       origbridge-bad) echo BAD >/tmp/fake-orig-bridge ;;
       origbridge-none) echo NONE >/tmp/fake-orig-bridge ;;
       kit-activating) touch /tmp/kit-activating ;;
+      options600) chmod 600 "$FOUNDRY_DATA/Config/options.json" ;;
+      options-readonly)
+        # The Config folder is root's here: the foundry user cannot write the temp file (set_world fails before any rename).
+        chown root:root "$FOUNDRY_DATA/Config"
+        chmod 755 "$FOUNDRY_DATA/Config"
+        ;;
       xtrace) bash_flags=(-x -s) ;;
       plant-links)
         # A directory and a file root must never touch, reached through links in the foundry user's folder.
@@ -190,6 +198,7 @@ scenario() {
         echo victim >/tmp/victim-file && chmod 644 /tmp/victim-file
         ln -s /tmp/victim-dir "$TOOL_DATA/kit-gm-browser"
         ln -s /tmp/victim-file "$TOOL_DATA/kit-gm.env.tmp"
+        ln -s /tmp/victim-file "$FOUNDRY_DATA/Config/options.json.kit-tmp" # the temp name set_world used
         ;;
       bad-state) printf 'ORIG_WORLD=../../etc\nWAS_GM_BROWSER=1\nSTAMP=20261012-101010\n' >"$STATE" ;;
       bad-kit-flag) printf 'ORIG_WORLD=curse-of-strahd\nWAS_GM_BROWSER=1\nSTAMP=20261012-101010\nKIT_GM_BROWSER=maybe\n' >"$STATE" ;;
@@ -265,6 +274,7 @@ scenario() {
     echo "profile absent"
   fi
   echo "unit $([ -e /tmp/started-kit ] && echo running || echo stopped)"
+  echo "options mode $(stat -c %a "$FOUNDRY_DATA/Config/options.json") owner $(stat -c %U "$FOUNDRY_DATA/Config/options.json") tmp $([ -e "$FOUNDRY_DATA/Config/options.json.kit-tmp" ] || [ -L "$FOUNDRY_DATA/Config/options.json.kit-tmp" ] && echo present || echo absent)"
   echo "tooldata $(find "$TOOL_DATA" -mindepth 1 -maxdepth 1 -printf '%f\n' | sort | tr '\n' ' ' | sed 's/ $//')"
   echo "unit-activating $([ -e /tmp/kit-activating ] && echo yes || echo no)"
   echo "victims $(stat -c '%U:%a' /tmp/victim-dir 2>/dev/null || echo none) $(stat -c '%U:%a' /tmp/victim-file 2>/dev/null || echo none) $(cat /tmp/victim-file 2>/dev/null || true)"
@@ -316,6 +326,8 @@ scenario up-orig-bridge-none "$U0" 0 "" up origbridge-none
 scenario up-leftover-activating "$U0" 0 "" up kit-activating
 scenario up-xtrace "$U0" 0 "" up xtrace
 scenario up-plant-links "$U0" 0 "" up plant-links
+scenario up-options-600 "$U0" 0 "" up options600
+scenario up-options-readonly "$U0" 0 "" up options-readonly
 scenario bad-mode "$U0" 0 "" sideways
 scenario no-mode "$U0" 0 "" -
 scenario down-ok "$U0" 0 "gm" down down-state
@@ -338,6 +350,7 @@ scenario down-pipe-closed-stopping "$U0" 0 "gm" down down-state closepipe=9
 scenario down-pipe-closed-starting "$U0" 0 "gm" down down-state closepipe=10
 scenario down-pipe-closed-after-teardown "$U0" 0 "gm" down down-state closepipe=6
 scenario down-old-state "$U0" 0 "gm" down down-state-old
+scenario down-options-600 "$U0" 0 "gm" down down-state options600
 scenario down-no-orig-bridge "$U0" 0 "gm" down down-state-noorig
 scenario down-empty-orig-bridge "$U0" 0 "gm" down down-state-emptyorig
 scenario down-bad-orig-bridge "$U0" 0 "gm" down bad-orig-state

@@ -103,8 +103,11 @@ have_systemd || die "no systemd here: the kit session needs the real Pi (it star
 
 # options.json "world" is what Foundry launches. The kit session changes it; the first value is kept in the state file.
 set_world() {
-  # Written to a temp file next to it (same owner and mode) and renamed, so a failure never leaves a half file.
-  node -e 'const fs=require("fs");const p=process.argv[1];const st=fs.statSync(p);const o=JSON.parse(fs.readFileSync(p,"utf8"));o.world=process.argv[2]||null;const t=p+".kit-tmp";fs.writeFileSync(t,JSON.stringify(o,null,2)+"\n",{mode:st.mode&0o777});fs.chownSync(t,st.uid,st.gid);fs.renameSync(t,p)' "$options" "$1"
+  # Written by the foundry user, who owns the Config folder and the file: to a temp file next to it (same mode) and
+  # renamed, so a failure never leaves a half file. Root must not write there: a link the foundry user left at the temp
+  # name would make root write over any file, and a chown would hand it to the foundry user. No chown is needed:
+  # the file is the foundry user's own.
+  runuser -u "$FOUNDRY_USER" -- "$NODE_DIR/bin/node" -e 'const fs=require("fs");const p=process.argv[1];const st=fs.statSync(p);const o=JSON.parse(fs.readFileSync(p,"utf8"));o.world=process.argv[2]||null;const t=p+".kit-tmp";fs.rmSync(t,{force:true});fs.writeFileSync(t,JSON.stringify(o,null,2)+"\n",{mode:st.mode&0o777});fs.chmodSync(t,st.mode&0o777);fs.renameSync(t,p)' "$options" "$1"
 }
 current_world() {
   node -e 'const o=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));process.stdout.write(o.world||"")' "$options"

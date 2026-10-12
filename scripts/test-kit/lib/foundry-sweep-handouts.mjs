@@ -5,6 +5,7 @@
  * undoes it from the Changes window, and checks the player sees nothing again.
  */
 import { KIT_FLAG_KEY, KIT_FLAG_SCOPE } from './contract.mjs';
+import { listOf } from './helpers.mjs';
 import {
   Skip,
   answerNo,
@@ -14,6 +15,9 @@ import {
   openTool,
   readDialog,
   resetControls,
+  runAll,
+  undoIfOpen,
+  until,
   waitLoaded,
   waitNotification,
 } from './foundry-sweep.mjs';
@@ -29,6 +33,9 @@ const TAROKKA_ROWS = [
   'foundry.tarokka.open-doc',
 ];
 const REFUSAL = /also wrote to the AI Tool's own data/;
+// The summary of a handout reveal, to choose the change among the new ones.
+const HANDOUT_REVEAL = /Sweep handout|Reveal|handout/i;
+const TAROKKA_REVEAL = /Reveal Tarokka/i;
 const PAGE_NAME = 'Sweep handout page';
 const REVEAL_TEXT = 'The sweep reveals only this sentence.';
 
@@ -53,40 +60,55 @@ function playerReads(player, want) {
 }
 
 /**
- * Poll until a function on a page returns something truthy.
- * @template T
- * @param {() => Promise<T>} fn
- * @param {string} what
- * @param {number} [timeout]
- * @returns {Promise<T>}
+ * The ids of the changes the bridge lists now, to tell the change a row makes from the older ones.
+ * @param {any} t
+ * @returns {Promise<Set<string>>}
  */
-async function until(fn, what, timeout = 15000) {
-  const end = Date.now() + timeout;
-  for (;;) {
-    const v = await fn();
-    if (v) return v;
-    if (Date.now() > end) throw new Error(`timed out waiting for ${what}`);
-    await new Promise(r => setTimeout(r, 250));
-  }
+async function changeIds(t) {
+  const changes = listOf(await t.tool('list-recent-changes', { limit: 200 }), 'changes');
+  return new Set(changes.map(c => String(c.changeId)));
 }
 
 /**
- * Undo the newest undoable row of the Changes window whose summary matches, the way a GM does. A
- * change that also wrote to the AI Tool's own data (a reveal records who may read it) cannot be
- * undone from the window: the backend refuses with a message. The sweep then undoes it the other way
- * a GM can (the dashboard's Recent Changes, here the same `undo-change` call) and says so in the note.
+ * Put-back: undo the undoable changes that appeared since `known` and whose summary matches (a reveal
+ * that a failed row did not undo), newest first, each in its own try.
+ * @param {any} t
+ * @param {Set<string>} known
+ * @param {RegExp} hint
+ */
+async function undoNewChanges(t, known, hint) {
+  const changes = listOf(await t.tool('list-recent-changes', { limit: 200 }), 'changes')
+    .filter(
+      c =>
+        !known.has(String(c.changeId)) &&
+        c.mode === 'apply' &&
+        c.canUndo === true &&
+        hint.test(String(c.summary ?? ''))
+    )
+    .sort((a, b) => String(b.appliedAt).localeCompare(String(a.appliedAt)));
+  await runAll(changes.map(c => [`undo ${c.changeId}`, () => t.guarded.undo(c.changeId)]));
+}
+
+/**
+ * Undo the change a reveal just made, found by its id (the ids that were listed before the reveal are
+ * not candidates), the way a GM does from the Changes window. A change that also wrote to the AI
+ * Tool's own data (a reveal records who may read it) cannot be undone from the window: the backend
+ * refuses with a message. The sweep then undoes it the other way a GM can (the dashboard's Recent
+ * Changes, here the same `undo-change` call) and says so in the note.
  * @param {any} t
  * @param {import('playwright-core').Page} gm
- * @param {RegExp} match
+ * @param {Set<string>} known  the change ids listed before the reveal
+ * @param {RegExp} hint  the summary of the reveal, to choose when several new changes appeared
  * @returns {Promise<string>} what happened
  */
-async function undoFromWindow(t, gm, match) {
+async function undoFromWindow(t, gm, known, hint) {
   await openTool(gm, 'aiChanges', 'fmb-ai-changes');
   const row = await until(async () => {
     await gm.locator('#fmb-ai-changes button[data-action="refresh"]').click();
     await waitLoaded(gm, 'fmb-ai-changes');
-    return (await readRows(gm)).find(r => match.test(r.summary) && r.actions.includes('undo'));
-  }, `a row like ${match} in the Changes window`);
+    const fresh = (await readRows(gm)).filter(r => !known.has(r.id) && r.actions.includes('undo'));
+    return fresh.find(r => hint.test(r.summary)) ?? fresh[0];
+  }, 'the new change of the reveal in the Changes window');
   await gm
     .locator(`#fmb-ai-changes .fmb-ai-row[data-change-id="${row.id}"] [data-action="undo"]`)
     .click();
@@ -98,7 +120,7 @@ async function undoFromWindow(t, gm, match) {
   }, 'the undo dialog or a refusal');
   let note;
   if (outcome === 'dialog') {
-    await answerYes(gm);
+    await answerYes(gm, 'Undo');
     await waitNotification(gm, /Undone/);
     note = 'undone from the Changes window';
   } else {
@@ -120,6 +142,7 @@ export async function handoutsRows(sweep, { t, gm, player }) {
   t.cleanup(async () => {
     await t.gm('setFeatureSwitches', { switches: before });
   });
+  const knownAtStart = await changeIds(t);
   const made = await gm.evaluate(
     async ([scope, key, pageName]) => {
       const entry = await JournalEntry.create({
@@ -139,10 +162,28 @@ export async function handoutsRows(sweep, { t, gm, player }) {
     [KIT_FLAG_SCOPE, KIT_FLAG_KEY, PAGE_NAME]
   );
   t.cleanup(async () => {
-    await t
-      .tool('plan-page-reveal', { action: 'unqueue', pageUuid: made.pageUuid }, { confirm: true })
-      .catch(() => {});
-    await gm.evaluate(id => game.journal.get(id)?.delete(), made.id);
+    // Both put-backs are tried. Unqueue refuses a page that is not queued (a reveal that was undone
+    // puts it back, one that was not leaves it out): only that refusal is fine.
+    await runAll([
+      ['undo a reveal a failed row left', () => undoNewChanges(t, knownAtStart, HANDOUT_REVEAL)],
+      [
+        'unqueue the sweep page',
+        () =>
+          t
+            .tool(
+              'plan-page-reveal',
+              { action: 'unqueue', pageUuid: made.pageUuid },
+              { confirm: true }
+            )
+            .catch(err => {
+              if (!/not in the reveal queue/i.test(String(err?.message ?? err))) throw err;
+            }),
+      ],
+      [
+        'delete the sweep journal',
+        () => gm.evaluate(id => game.journal.get(id)?.delete(), made.id),
+      ],
+    ]);
   });
   const queue = () =>
     t.tool('plan-page-reveal', { action: 'queue', pageUuid: made.pageUuid }, { confirm: true });
@@ -183,23 +224,30 @@ export async function handoutsRows(sweep, { t, gm, player }) {
   });
 
   await sweep.row('foundry.handouts.remove', 'gm', async () => {
-    await gm.locator(`${HO} button[data-action="remove"]`).first().click();
-    await waitNotification(gm, /Removed|queue/i);
-    await until(
-      async () => (await gm.locator(`${HO} .fmb-ai-row`).count()) === 0,
-      'the queue to be empty'
+    // Only the sweep's own page: whatever else is queued in this world is not ours to remove.
+    const mine = gm.locator(
+      `${HO} button[data-action="remove"][data-page-uuid="${made.pageUuid}"]`
     );
-    const empty = await gm.locator(`${HO} .fmb-ai-notice`).allTextContents();
-    if (!empty.some(x => /Nothing queued/.test(x)))
-      throw new Error('the window does not say the queue is empty');
+    if (!(await mine.count())) throw new Error('the sweep page has no Remove button in the queue');
+    const rows = gm.locator(`${HO} .fmb-ai-row`);
+    const others = (await rows.count()) - 1;
+    await mine.click();
+    await waitNotification(gm, /Removed|queue/i);
+    await until(async () => (await mine.count()) === 0, 'the sweep page to leave the queue');
+    if ((await rows.count()) !== others)
+      throw new Error(
+        `Remove changed the other rows (${others} before, ${await rows.count()} after)`
+      );
+    if (others === 0) {
+      const empty = await gm.locator(`${HO} .fmb-ai-notice`).allTextContents();
+      if (!empty.some(x => /Nothing queued/.test(x)))
+        throw new Error('the window does not say the queue is empty');
+    }
     await queue();
     await gm.locator(`${HO} button[data-action="refresh"]`).click();
     await waitLoaded(gm, 'fmb-handouts');
-    await until(
-      async () => (await gm.locator(`${HO} .fmb-ai-row`).count()) > 0,
-      'the page queued again'
-    );
-    return 'Remove empties the queue at once; the page was queued again';
+    await until(async () => (await mine.count()) > 0, 'the page queued again');
+    return `Remove takes the sweep page out of the queue at once (${others} other rows unchanged); the page was queued again`;
   });
 
   await sweep.row(
@@ -217,16 +265,17 @@ export async function handoutsRows(sweep, { t, gm, player }) {
       if (!dialog.text.includes(PAGE_NAME)) throw new Error('the dialog does not name the page');
       await answerNo(gm);
       if (await seenByPlayer()) throw new Error('Cancel revealed the page to the player');
+      const known = await changeIds(t);
       await button.click();
       await readDialog(gm);
       const started = Date.now();
-      await answerYes(gm);
+      await answerYes(gm, 'Reveal');
       await waitNotification(gm, /Revealed|reveal/i);
       const revealMs = Date.now() - started;
       await until(seenByPlayer, 'the kit player to see the handout');
       const copy = await playerReads(player, { name: PAGE_NAME });
       if (!/handout/.test(copy)) throw new Error('the player copy has no text');
-      const undoNote = await undoFromWindow(t, gm, /Sweep handout|Reveal|handout/i);
+      const undoNote = await undoFromWindow(t, gm, known, HANDOUT_REVEAL);
       await until(async () => !(await seenByPlayer()), 'the handout to leave the player view');
       return {
         note: `Cancel changed nothing; Reveal showed the page to the kit player; ${undoNote}`,
@@ -236,7 +285,7 @@ export async function handoutsRows(sweep, { t, gm, player }) {
     { expectErrors: [REFUSAL] }
   );
 
-  await closeWindow(gm, 'fmb-handouts').catch(() => {});
+  await closeWindow(gm, 'fmb-handouts');
   await resetControls(gm);
 }
 
@@ -251,16 +300,37 @@ export async function tarokkaRows(sweep, { t, gm, player }) {
   });
   const existing = await t.tool('get-tarokka-reading', {});
   if (existing?.reading?.readingId) {
+    // A reading left by a failed earlier run of this sweep (its reveal text is still in a journal)
+    // is a failure, not a skip: otherwise every later run would show five skips and stay green.
+    const leftover = await gm.evaluate(
+      text =>
+        game.journal.contents.some(j =>
+          j.pages.contents.some(p => (p.text?.content ?? '').includes(text))
+        ),
+      REVEAL_TEXT
+    );
+    const readingId = String(existing.reading.readingId);
     for (const name of TAROKKA_ROWS) {
       await sweep.row(name, 'gm', async () => {
-        throw new Skip('the world already has a Tarokka reading; the sweep will not archive it');
+        if (leftover)
+          throw new Error(
+            `the world still holds the sweep's Tarokka reveal text (reading ${readingId}): an earlier run did not put it back`
+          );
+        throw new Skip(
+          `the world already has a Tarokka reading (${readingId}); the sweep will not archive it, so all ${TAROKKA_ROWS.length} Tarokka rows are skipped`
+        );
       });
     }
     return;
   }
+  const knownAtStart = await changeIds(t);
   const imported = await t.guarded.planApply('plan-tarokka-import', { source: 'builtin-roll' });
   t.cleanup(async () => {
-    await t.guarded.undo(imported.changeId);
+    // The reveal comes after the import, so a reveal a failed row left goes first.
+    await runAll([
+      ['undo a reveal a failed row left', () => undoNewChanges(t, knownAtStart, TAROKKA_REVEAL)],
+      ['undo the Tarokka import', () => undoIfOpen(t, imported.changeId)],
+    ]);
   });
   const openMs = await openTool(gm, 'tarokka', 'fmb-tarokka');
   const cardsNow = () =>
@@ -327,10 +397,11 @@ export async function tarokkaRows(sweep, { t, gm, player }) {
       if (dialog.title !== 'Reveal Tarokka card')
         throw new Error(`the dialog is titled "${dialog.title}"`);
       await answerNo(gm);
+      const known = await changeIds(t);
       const started = Date.now();
       await gm.locator(`${TK} button[data-action="revealGo"]`).click();
       await readDialog(gm);
-      await answerYes(gm);
+      await answerYes(gm, 'Reveal');
       await waitNotification(gm, /Revealed/);
       const revealMs = Date.now() - started;
       const playerText = await until(
@@ -355,7 +426,7 @@ export async function tarokkaRows(sweep, { t, gm, player }) {
         await closeAllJournalSheets(gm);
         return 'Open page opens the revealed page in a journal window (a card linked to a document is not in the dealt reading)';
       });
-      const undoNote = await undoFromWindow(t, gm, /Reveal Tarokka/i);
+      const undoNote = await undoFromWindow(t, gm, known, TAROKKA_REVEAL);
       await until(
         async () => (await playerReads(player, { text: REVEAL_TEXT })) === '',
         'the revealed text to leave the player view'
@@ -368,7 +439,7 @@ export async function tarokkaRows(sweep, { t, gm, player }) {
     { expectErrors: [REFUSAL] }
   );
 
-  await closeWindow(gm, 'fmb-tarokka').catch(() => {});
+  await closeWindow(gm, 'fmb-tarokka');
   await resetControls(gm);
 }
 

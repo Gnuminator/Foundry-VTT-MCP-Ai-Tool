@@ -278,10 +278,14 @@ Build time depends on the number of heroes, about five seconds each. Measured on
 
 | Profile    | Size    | Heroes | Build            | Whole run (build and scenarios) |
 | ---------- | ------- | ------ | ---------------- | ------------------------------- |
-| `srd`      | `smoke` | 12     | about 1 minute   | about 1 minute                  |
+| `srd`      | `smoke` | 12     | about 1 minute   | about 1 minute (see below)      |
 | `srd`      | `full`  | 64     | about 5 minutes  | about 5 minutes                 |
-| `licensed` | `smoke` | 13     | about 1 minute   | about 1.5 minutes               |
+| `licensed` | `smoke` | 13     | about 1 minute   | about 1.5 minutes (see below)   |
 | `licensed` | `full`  | 157    | about 12 minutes | about 13 minutes                |
+
+The `smoke` times were measured before `foundry-controls` joined `smoke`. That scenario launches a second Edge,
+rebuilds the Enhanced Creature Index (it waits up to 4 minutes) and polls the join page in a fresh Edge per
+attempt, so a `smoke` run now takes several minutes longer than the table says. It has not been re-measured.
 
 The two feature scenarios add little: about 25 seconds to an `srd` `full` run (5 minutes in all) and about
 2 minutes to a `licensed` `full` run (14 minutes in all, 157 heroes, 2195 activities used).
@@ -396,17 +400,40 @@ fails the test); the drivers are `lib/foundry-sweep.mjs` and `foundry-sweep-chan
 - **A player:** cannot see the AI Tool group, the settings section or the windows, and cannot call the bridge
   queries.
 
-It needs a real browser and a second Edge, so against the fake it skips itself. Each row puts back what it
-changed, also after a failure. Foundry logs every error notification as a console error, so a row that is meant
-to provoke one names it (`expectErrors`) and the scenario lists those texts in `knownConsoleErrors`; any other
-console error fails the row it happened in. The two Tarokka offer dialogs are skipped, because the
+It needs a real browser and a second Edge, so against the fake it skips itself. What a row changes is put back
+by cleanups that run at the end of the scenario, last registered first. Each cleanup tries every put-back even
+when one fails (an undo that is refused does not stop the next one) and fails as one step that lists everything
+it could not do: the hit points of the kit monster are checked against their start, the join page look is
+compared with the description and background the world had before (and written back directly when Back to
+Foundry's look does not restore them), and the handout page is unqueued only while it is queued. A sweep that
+dies in the middle can still leave a change behind, so a kit world is not guaranteed clean after a crash.
+
+Console errors: a row fails when either page (the GM's or the player's) logs a console error or a page error while
+it runs, with the page named in the note. Errors that land between rows (setup, a late error) are judged by the
+last step, "no control failed". Foundry logs every error notification as a console error, so a row that is meant
+to provoke one names it (`expectErrors`, one narrow text per row) and the scenario lists those texts in
+`knownConsoleErrors` (the runner applies that list to the module errors of the GM page), with a comment on which
+row owns which text. After a failed row the sweep closes the dialogs it left open (the tool windows stay), and it
+never answers the "Rewind the whole table" dialog; a confirm is answered only through its `yes` button or the
+button with the expected label (Undo, Redo, Reveal).
+
+The GM guide link is not followed: the sweep replaces the page's `window.open` during the click, records the
+address, the target and the features (it must be the `gnuminator.github.io` guide, `_blank`, `noopener`) and no
+tab opens. It also sends one HEAD request for that address from the kit PC to the public docs page; offline, or a
+page that is not published yet, is only a note in the row. The Handouts and Tarokka reveals are found in the
+Changes window by their change id (the ids listed before the reveal are not candidates). When the world already
+has a Tarokka reading the five Tarokka rows are skipped, and they fail instead when the reading carries the
+sweep's own reveal text (a leftover of an earlier run). The queries-locked row first checks that the GM client
+registers the helper query, then needs the player's refusal to say "not registered" or "GM-only", so a timeout is
+not taken for a lock. The two Tarokka offer dialogs are skipped, because the
 `tarokka-reading` module is not in the kit worlds. The Changes window cannot undo a change that also wrote the AI
 Tool's own data (a reveal does), so the sweep undoes reveals with `undo-change` and says so in the row's note.
 The report gets three attachments: `foundry-controls` (one row per control and role: pass, fail or skip with the
 reason), `foundry-timings` (milliseconds for opening each window and for the guarded round trip: the I-098
 numbers) and `foundry-control-classes` (the rows counted by how the sweep treats them). While developing, the
 environment variable `KIT_FOUNDRY_AREAS=scene,changes,handouts,tarokka,settings,join-page,journal,chat,player`
-(any of those, comma separated) runs only those areas.
+(any of those, comma separated) runs only those areas; `settings` and `join-page` share one driver, so either runs
+both (the Creature Index rebuild included).
 
 ### heroes-advancement
 

@@ -9,11 +9,14 @@
  * The table is lib/foundry-controls.mjs (a unit test keeps it in step with the usage catalog); the
  * rows are in lib/foundry-sweep-*.mjs. One guarded write is followed end to end: a damage change is
  * planned and applied, found in the Changes window, undone and redone there, and put back. Every row
- * puts back what it changed, and a row fails when its page logs a console error while it runs.
+ * puts back what it changed (a cleanup runs at the end of the scenario and tries every put-back, also
+ * after a failed row), and a row fails when either page logs a console error while it runs; errors
+ * between rows are judged by the last step.
  *
  * The report attaches `foundry-controls` (one row per control and role) and `foundry-timings`
  * (milliseconds for opening each window and for the guarded round trip: the I-098 numbers).
- * `KIT_FOUNDRY_AREAS=scene,changes` runs only those areas (a development filter).
+ * `KIT_FOUNDRY_AREAS=scene,changes` runs only those areas (a development filter; `settings` and
+ * `join-page` share one driver, so either runs both, the creature index rebuild included).
  */
 import { readUsageCatalog } from '../lib/dashboard-controls.mjs';
 import { FOUNDRY_CONTROLS, countHows, errorCounterRows, rowsOf } from '../lib/foundry-controls.mjs';
@@ -47,12 +50,19 @@ export default {
     'request-ability-check',
   ],
   gmActions: ['setFeatureSwitches'],
-  // Foundry logs an error notification as a console error: a form refused with a message, and the
-  // Changes window telling the GM it cannot undo a reveal.
+  // Foundry logs an error notification as a console error. The runner applies this list to the GM
+  // page's module errors for the whole scenario; each row also names its own texts (`expectErrors`),
+  // which is what counts for the page console errors of a row. Who owns which message:
+  // - "Write the text the players will read first": row foundry.tarokka.reveal-form (an empty reveal
+  //   text is refused with a notification);
+  // - "also wrote to the AI Tool's own data": rows foundry.handouts.reveal and foundry.tarokka.reveal
+  //   (the Changes window cannot undo a reveal, the sweep then uses undo-change);
+  // - the 401: rows module.join-page.veil and module.join-page.default only (Foundry answers a saved
+  //   world change on /setup with 401 and the data, join-page.ts). It stays here because the runner
+  //   blames a module console error on the scenario; it is not needed by any other row.
   knownConsoleErrors: [
     'Write the text the players will read first',
     "also wrote to the AI Tool's own data",
-    // Foundry answers a saved world change on /setup with 401 and the data (join-page.ts).
     'status of 401 \\(Unauthorized\\)',
   ],
   timeoutMs: 15 * 60 * 1000,
@@ -171,7 +181,8 @@ export default {
         `${sweep.results.length} checks: ${sweep.count('pass')} passed, ${sweep.count('fail')} failed, ${sweep.count('skip')} skipped`
       );
     }
-    const failed = sweep.failures();
+    // Console errors outside every row (setup between rows, a late error) are judged here, once.
+    const failed = [...sweep.failures(), ...sweep.strayErrors()];
     await t.step('no control failed', async () => {
       t.check(failed.length === 0, `${failed.length} control check(s) failed`, failed);
     });
@@ -179,8 +190,8 @@ export default {
 };
 
 /**
- * One line for a step: how many checks of the area's rows passed, failed or skipped. A failure also
- * fails the step, with the reasons.
+ * One line for a step: how many checks of the area's rows passed, failed or skipped. It only returns
+ * the line; a failed row is raised by the last step ("no control failed"), with the reasons.
  * @param {Sweep} sweep
  * @param {Array<{name: string}>} rows
  */

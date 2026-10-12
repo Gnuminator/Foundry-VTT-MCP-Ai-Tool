@@ -6,28 +6,13 @@
 import { KIT_FLAG_KEY, KIT_FLAG_SCOPE } from './contract.mjs';
 import { playerHero } from './helpers.mjs';
 import { FOUNDRY_CONTROLS } from './foundry-controls.mjs';
-import { Skip, waitNotification } from './foundry-sweep.mjs';
+import { Skip, until, waitNotification } from './foundry-sweep.mjs';
 
 const TOGGLE_PAGE = 'Sweep status toggle';
 const WINDOW_IDS = ['fmb-ai-changes', 'fmb-handouts', 'fmb-tarokka'];
-
-/**
- * Poll until a function returns something truthy.
- * @template T
- * @param {() => Promise<T>} fn
- * @param {string} what
- * @param {number} [timeout]
- * @returns {Promise<T>}
- */
-async function until(fn, what, timeout = 15000) {
-  const end = Date.now() + timeout;
-  for (;;) {
-    const v = await fn();
-    if (v) return v;
-    if (Date.now() > end) throw new Error(`timed out waiting for ${what}`);
-    await new Promise(r => setTimeout(r, 250));
-  }
-}
+// What a locked query says: Foundry's own "not registered" for a name no client registers (the bridge
+// handlers are private), the module's "helper queries are GM-only" for the GM helper queries.
+const REFUSED = /not registered|not a registered|GM-only/i;
 
 /**
  * The campaign status toggle of a campaign dashboard journal: the GM's click cycles it and saves it
@@ -194,13 +179,19 @@ export async function chatRows(sweep, { t, gm, player }) {
 /**
  * A player cannot call the bridge: the module's queries are registered for the GM's bridge only.
  * @param {import('./foundry-sweep.mjs').Sweep} sweep
- * @param {{player: import('playwright-core').Page}} ctx
+ * @param {{gm: import('playwright-core').Page, player: import('playwright-core').Page}} ctx
  */
-export async function playerQueryRows(sweep, { player }) {
+export async function playerQueryRows(sweep, { gm, player }) {
   await sweep.row(
     'foundry.player.queries-locked',
     'player',
     async () => {
+      // Positive control: the GM's client does register the helper query, so a refusal below is
+      // the player being locked out and not a query that was never there.
+      const registered = await gm.evaluate(
+        () => typeof CONFIG.queries?.['foundry-mcp-bridge.gm.tarokkaReading'] === 'function'
+      );
+      if (!registered) throw new Error('the GM client has no gm.tarokkaReading query registered');
       const outcome = await player.evaluate(async () => {
         const gm = game.users.activeGM;
         if (!gm) return { skip: 'no GM is connected' };
@@ -213,7 +204,7 @@ export async function playerQueryRows(sweep, { player }) {
             await gm.query(name, {}, { timeout: 5000 });
             results[name] = 'answered';
           } catch (error) {
-            results[name] = `refused: ${String(error?.message ?? error).slice(0, 90)}`;
+            results[name] = `refused: ${String(error?.message ?? error).slice(0, 160)}`;
           }
         }
         return results;
@@ -222,11 +213,19 @@ export async function playerQueryRows(sweep, { player }) {
       const answered = Object.entries(outcome).filter(([, v]) => v === 'answered');
       if (answered.length)
         throw new Error(`a player got an answer from ${answered.map(a => a[0]).join(', ')}`);
+      // A refusal is Foundry saying the query is not registered, or the module saying GM-only. A
+      // timeout or any other error is not a lock (nothing may be listening at all).
+      const other = Object.entries(outcome).filter(([, v]) => !REFUSED.test(String(v)));
+      if (other.length) {
+        throw new Error(
+          `not a refusal by a lock: ${other.map(([k, v]) => `${k} ${v}`).join('; ')}`
+        );
+      }
       return Object.entries(outcome)
         .map(([k, v]) => `${k.replace('foundry-mcp-bridge.', '')} ${v}`)
         .join('; ');
     },
-    { expectErrors: [/not registered|GM-only|query/i] }
+    { expectErrors: [REFUSED] }
   );
 }
 

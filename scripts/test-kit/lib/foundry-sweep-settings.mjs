@@ -19,11 +19,12 @@ const MODULE = 'foundry-mcp-bridge';
 const CONFIG = '#settings-config';
 const GUIDE_HOST = 'gnuminator.github.io';
 // Foundry answers a saved world change on /setup with 401 and the saved data (join-page.ts says so),
-// which the browser logs as a failed resource.
-// Foundry's own settings window sometimes runs its search filter on a window that is closing (the
-// popup of the guide link gives the page focus back), which logs a null read. Not the module's.
-const SEARCH_FILTER = /reading 'querySelector'/;
-const SETUP_401 = /Failed to load resource.*401/;
+// which the browser logs as a failed resource. Only the two Veil rows expect it.
+const SETUP_401 = /Failed to load resource.*status of 401/;
+// A failed rebuild is announced by an error notification, which Foundry also logs as a console error;
+// the row throws on that notification itself, so the console line only repeats it. A healthy rebuild
+// logs no error (a pack that cannot be indexed is a warning, not an error).
+const REBUILD_FAILED = /^Failed to build enhanced creature index/;
 
 /** The visible settings, by label, as the module registers them. */
 export const SETTING_LABELS = [
@@ -245,42 +246,73 @@ export async function settingsRows(sweep, { t, gm, player }) {
     await gm.locator(`${CONFIG} button[data-key="${MODULE}.${key}"]`).click();
   };
 
-  await sweep.row(
-    'module.settings.help',
-    'gm',
-    async () => {
-      await openSettings(gm);
-      await openModuleTab(gm);
-      const [popup] = await Promise.all([
-        gm.context().waitForEvent('page', { timeout: 8000 }),
-        gm.locator(`${CONFIG} button[data-key="${MODULE}.helpMenu"]`).click(),
-      ]);
-      const url = popup.url();
-      await popup.close();
-      const parsed = new URL(url);
-      if (parsed.protocol !== 'https:' || parsed.hostname !== GUIDE_HOST) {
-        throw new Error(`the GM guide opens ${url}`);
-      }
-      // The target must exist; offline is not a failure of the control.
-      let reach = 'not checked (no network)';
-      try {
-        const res = await fetch(url, {
-          method: 'GET',
-          signal: AbortSignal.timeout(8000),
-          redirect: 'follow',
-        });
-        if (res.status === 404 || res.status === 410)
-          throw new Error(`the GM guide at ${url} answers ${res.status}`);
-        reach = `answers ${res.status}`;
-      } catch (err) {
-        if (/GM guide at/.test(String(err))) throw err;
-      }
-      await gm.waitForTimeout(500);
-      await closeAll(gm);
-      return `opens ${url} in a new tab (${reach})`;
-    },
-    { expectErrors: [SEARCH_FILTER] }
-  );
+  await sweep.row('module.settings.help', 'gm', async () => {
+    await openSettings(gm);
+    await openModuleTab(gm);
+    // The menu opens the guide with `window.open`. The page's `open` is replaced for the click, so
+    // the call is recorded and no tab ever opens: the link is read, not followed.
+    await gm.evaluate(() => {
+      const w = /** @type {any} */ (window);
+      w.__fmbOpened = [];
+      w.__fmbOpenOriginal = w.open;
+      w.open = (/** @type {any[]} */ ...args) => {
+        w.__fmbOpened.push(args.map(a => (a == null ? null : String(a))));
+        return null;
+      };
+    });
+    /** @type {Array<Array<string | null>>} */
+    let calls = [];
+    try {
+      await gm.locator(`${CONFIG} button[data-key="${MODULE}.helpMenu"]`).click();
+      await gm.waitForFunction(() => /** @type {any} */ (window).__fmbOpened?.length > 0, null, {
+        timeout: 8000,
+      });
+    } finally {
+      calls = await gm.evaluate(() => {
+        const w = /** @type {any} */ (window);
+        const recorded = w.__fmbOpened ?? [];
+        if (w.__fmbOpenOriginal) w.open = w.__fmbOpenOriginal;
+        delete w.__fmbOpenOriginal;
+        delete w.__fmbOpened;
+        return recorded;
+      });
+    }
+    if (calls.length !== 1)
+      throw new Error(`the GM guide button called window.open ${calls.length} times`);
+    const [url = '', target = '', features = ''] = calls[0].map(a => a ?? '');
+    let parsed;
+    try {
+      parsed = new URL(url);
+    } catch {
+      throw new Error(`the GM guide opens "${url}", which is not a link`);
+    }
+    if (parsed.protocol !== 'https:' || parsed.hostname !== GUIDE_HOST) {
+      throw new Error(`the GM guide opens ${url}`);
+    }
+    if (target !== '_blank' || !/noopener/.test(features)) {
+      throw new Error(
+        `the GM guide opens in "${target}" with "${features}", not a new tab with noopener`
+      );
+    }
+    // The public docs page is asked once with a HEAD request from this PC (the page is not opened);
+    // offline, or a page that is not published yet, is a note and never a failure of the control.
+    let reach = 'not checked (no network)';
+    try {
+      const res = await fetch(url, {
+        method: 'HEAD',
+        signal: AbortSignal.timeout(8000),
+        redirect: 'follow',
+      });
+      reach =
+        res.status === 404 || res.status === 410
+          ? `the page answers ${res.status}: not published yet?`
+          : `answers ${res.status}`;
+    } catch {
+      // no network
+    }
+    await closeAll(gm);
+    return `calls window.open(${url}, ${target}, ${features}), recorded without opening a tab (${reach})`;
+  });
 
   await sweep.row('module.settings.enhanced-index-open', 'gm', async () => {
     await openMenu('enhancedIndexMenu');
@@ -342,7 +374,7 @@ export async function settingsRows(sweep, { t, gm, player }) {
       if (/Failed to build/.test(done)) throw new Error(done);
       return { note: done.slice(0, 120), timings: { rebuildMs: Date.now() - started } };
     },
-    { expectErrors: [/creature index|Failed to index pack/i] }
+    { expectErrors: [REBUILD_FAILED] }
   );
   await closeAll(gm);
 
@@ -391,7 +423,19 @@ async function joinPageRows(sweep, { t, gm }) {
       await other.close();
     }
   };
-  const descriptionBefore = await gm.evaluate(() => game.world.description ?? '');
+  // The description and the background the world has now, with the system's own picture counted as no
+  // background (the module does the same: Foundry fills an empty background with it on load).
+  const look = () =>
+    gm.evaluate(() => {
+      const world = game.world;
+      const system = /** @type {any} */ (game.system)?.background;
+      return {
+        description: world.description ?? '',
+        background: world.background && world.background !== system ? world.background : null,
+      };
+    });
+  const before = await look();
+  const descriptionBefore = before.description;
   if (/data-ai-tool-join="veil"/.test(descriptionBefore)) {
     for (const name of ['module.join-page.veil', 'module.join-page.default']) {
       await sweep.row(name, 'gm', async () => {
@@ -414,13 +458,58 @@ async function joinPageRows(sweep, { t, gm }) {
       .first()
       .click();
   };
-  let applied = false;
+  /** What differs from the start, or '' when the world looks as it did. @param {Awaited<ReturnType<typeof look>>} now */
+  const differences = now =>
+    [
+      now.description !== before.description ? 'the description' : '',
+      now.background !== before.background ? 'the background' : '',
+    ]
+      .filter(Boolean)
+      .join(' and ');
+  // Whatever state a row left, the world must end as it started: Back is pressed whenever the world
+  // differs from the start, and when it still differs the start values are written back directly.
   t.cleanup(async () => {
-    if (!applied) return;
-    await open();
-    await click("Back to Foundry's look");
-    await closeAll(gm);
+    if (!differences(await look())) return;
+    /** @type {string[]} */
+    const problems = [];
+    try {
+      await open();
+      await click("Back to Foundry's look");
+      await waitNotification(gm, /back to Foundry's own look|not saved/);
+    } catch (err) {
+      problems.push(`Back to Foundry's look: ${err instanceof Error ? err.message : err}`);
+    }
+    await closeAll(gm).catch(() => {});
+    let left = differences(await look());
+    if (left) {
+      try {
+        await gm.evaluate(
+          async ([id, description, background]) => {
+            const res = await fetch(foundry.utils.getRoute('setup'), {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ action: 'editWorld', id, description, background }),
+            });
+            // Not res.ok: a saved world change can come back as 401 (join-page.ts).
+            const saved = await res.json();
+            if (!saved || saved.error) throw new Error(`Foundry answered ${JSON.stringify(saved)}`);
+            game.world.updateSource(saved);
+          },
+          /** @type {[string, string, string | null]} */ ([
+            await worldId(),
+            before.description,
+            before.background,
+          ])
+        );
+      } catch (err) {
+        problems.push(`direct restore: ${err instanceof Error ? err.message : err}`);
+      }
+      left = differences(await look());
+    }
+    if (left) problems.push(`the world's ${left} still differ from the start`);
+    if (problems.length) throw new Error(problems.join(' | '));
   });
+  const worldId = () => gm.evaluate(() => game.world.id);
 
   await sweep.row(
     'module.join-page.veil',
@@ -428,7 +517,6 @@ async function joinPageRows(sweep, { t, gm }) {
     async () => {
       await open();
       await click('Apply The Veil');
-      applied = true;
       await waitNotification(gm, /The Veil is on the join page|not saved/);
       const notes = (await notifications(gm)).join(' | ');
       if (/not saved/.test(notes)) throw new Error(notes);
@@ -448,18 +536,22 @@ async function joinPageRows(sweep, { t, gm }) {
     async () => {
       await open();
       await click("Back to Foundry's look");
-      applied = false;
       await waitNotification(gm, /back to Foundry's own look|not saved/);
+      const notes = (await notifications(gm)).join(' | ');
+      if (/not saved/.test(notes)) throw new Error(notes);
       const until = Date.now() + 10000;
       while (await hasVeil()) {
         if (Date.now() > until) throw new Error('the join page still shows The Veil');
         await gm.waitForTimeout(300);
       }
-      const description = await gm.evaluate(() => game.world.description ?? '');
+      const now = await look();
       await closeAll(gm);
-      if (/data-ai-tool-join="veil"/.test(description))
+      if (/data-ai-tool-join="veil"/.test(now.description))
         throw new Error('the Veil block is still in the description');
-      return "the join page is back to Foundry's look";
+      // The world must read exactly as it did before The Veil (the cleanup writes the start values back).
+      const differs = differences(now);
+      if (differs) throw new Error(`after Back the world's ${differs} differ from the start`);
+      return "the join page is back to Foundry's look; the description and the background read as before";
     },
     { expectErrors: [SETUP_401] }
   );

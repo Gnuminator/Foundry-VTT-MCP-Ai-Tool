@@ -11,7 +11,9 @@
  * - `toggle`  changes it, checks the effect and puts it back;
  * - `write`   a change to the game or the world, always through the guarded path or a setting that is
  *             put back; a failure to put it back fails the row;
- * - `external` a link out of Foundry: the target is read, never followed;
+ * - `external` a link out of Foundry: the sweep records the target the control opens (the page's
+ *             `window.open` is replaced during the click, so no tab opens) and checks it; it does not
+ *             follow the link. One HEAD request to the public docs page is made from the kit PC;
  * - `skip`    cannot run in a kit world (the reason is in `why`).
  *
  * `player` says what a player must see: `hidden` (the control is not on the player's screen at all),

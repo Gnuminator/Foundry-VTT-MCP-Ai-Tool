@@ -4,7 +4,7 @@
  * applied through the bridge, shows up in the window, is undone from the window (Cancel first, then
  * Undo), redone from the window, and put back.
  */
-import { monsterOf } from './helpers.mjs';
+import { listOf, monsterOf } from './helpers.mjs';
 import {
   Skip,
   answerNo,
@@ -13,6 +13,8 @@ import {
   openTool,
   readDialog,
   resetControls,
+  runAll,
+  undoIfOpen,
   waitLoaded,
   waitNotification,
 } from './foundry-sweep.mjs';
@@ -141,7 +143,7 @@ export async function sceneRows(sweep, { gm, player }) {
  * @param {import('./foundry-sweep.mjs').Sweep} sweep
  * @param {{t: any, gm: import('playwright-core').Page, player: import('playwright-core').Page}} ctx
  */
-export async function changesRows(sweep, { t, gm, player }) {
+export async function changesRows(sweep, { t, gm }) {
   const monster = monsterOf(t.kit, 'beast');
   const sceneId = t.kit.scene.sceneId;
   const hp = () =>
@@ -153,23 +155,46 @@ export async function changesRows(sweep, { t, gm, player }) {
   if (!(hp0 >= 3)) throw new Error(`${monster.name} has ${hp0} HP; the sweep needs at least 3`);
   /** @type {string[]} */
   const open = [];
+  /** What the put-back could not do, reported together at the end. @type {string[]} */
+  const problems = [];
+  const startedAt = new Date(Date.now() - 5000).toISOString();
   t.cleanup(async () => {
-    while (open.length) await t.guarded.undo(/** @type {string} */ (open.pop()));
+    // Every put-back is tried, newest first, whatever an earlier one did: a change that a row has
+    // undone is not an error, and one refusal must not leave the other change applied.
+    await runAll([...open].reverse().map(id => [`undo ${id}`, () => undoIfOpen(t, id)])).catch(
+      err => problems.push(err.message)
+    );
+    // A redo from the window records a change of its own; anything of this run that is still
+    // undoable on the monster is undone too (newest first), until the hit points are back.
+    if ((await hp()) !== hp0) {
+      const rest = listOf(await t.tool('list-recent-changes', { limit: 200 }), 'changes')
+        .filter(
+          c =>
+            c.mode === 'apply' &&
+            c.canUndo === true &&
+            String(c.appliedAt) >= startedAt &&
+            String(c.summary ?? '').includes(monster.name)
+        )
+        .sort((a, b) => String(b.appliedAt).localeCompare(String(a.appliedAt)));
+      for (const c of rest) {
+        if ((await hp()) === hp0) break;
+        await t.guarded.undo(c.changeId).catch(err => problems.push(String(err?.message ?? err)));
+      }
+    }
     const now = await hp();
-    if (now !== hp0) throw new Error(`${monster.name} ended at ${now} HP, not ${hp0}`);
+    if (now !== hp0) problems.push(`${monster.name} ended at ${now} HP, not ${hp0}`);
+    if (problems.length) throw new Error(problems.join(' | '));
   });
 
   // An older change on the same thing first: the undo dialog of a change that was followed by another
   // one has more choices (Just this, Everything since).
-  const damage = async () => {
-    const plan = await t.tool('plan-actor-change', {
+  const damage = () =>
+    t.tool('plan-actor-change', {
       action: 'damage',
       targets: [monster.name],
       amount: 1,
       damageType: 'bludgeoning',
     });
-    return plan;
-  };
   const olderPlan = await damage();
   const olderApplied = await t.tool(
     'apply-planned-change',
@@ -183,7 +208,6 @@ export async function changesRows(sweep, { t, gm, player }) {
   // A change the window can show and undo: 1 bludgeoning damage, planned and applied through the bridge.
   /** @type {{changeId: string}} */
   let change;
-  const t0 = Date.now();
   const planStart = Date.now();
   const plan = await damage();
   const planMs = Date.now() - planStart;
@@ -193,7 +217,6 @@ export async function changesRows(sweep, { t, gm, player }) {
   change = { changeId: applied.changeId };
   open.push(change.changeId);
   t.check((await hp()) === hpPre - 1, `${monster.name} lost 1 HP`);
-  void t0;
 
   const shownMs = await openTool(gm, 'aiChanges', 'fmb-ai-changes');
   await waitRows(
@@ -302,6 +325,12 @@ export async function changesRows(sweep, { t, gm, player }) {
     };
     if (dialog.title !== 'Undo change') throw new Error(`the dialog is titled "${dialog.title}"`);
     if (!dialog.actions.includes('cancel')) throw new Error('the dialog has no Cancel');
+    // The older change has a later change after it: the dialog offers both ways and Cancel.
+    const missing = ['just-this', 'everything-since'].filter(a => !dialog.actions.includes(a));
+    if (missing.length)
+      throw new Error(
+        `the dialog lacks ${missing.join(', ')} (it offers ${dialog.actions.join(', ')})`
+      );
     const choices = dialog.actions.filter(a => a !== 'cancel');
     await answerNo(gm);
     await refresh(gm);
@@ -332,7 +361,7 @@ export async function changesRows(sweep, { t, gm, player }) {
     await gm.locator(`${selector} [data-action="undo"]`).click();
     await readDialog(gm);
     const started = Date.now();
-    await answerYes(gm);
+    await answerYes(gm, 'Undo');
     await waitNotification(gm, /Undone:/);
     const ms = Date.now() - started;
     if ((await hp()) !== hpPre)
@@ -361,7 +390,7 @@ export async function changesRows(sweep, { t, gm, player }) {
     await gm.locator(`${selector} [data-action="redo"]`).click();
     await readDialog(gm);
     const started = Date.now();
-    await answerYes(gm);
+    await answerYes(gm, 'Redo');
     await waitNotification(gm, /Redone:/);
     const ms = Date.now() - started;
     if ((await hp()) !== hpPre - 1)
@@ -372,8 +401,7 @@ export async function changesRows(sweep, { t, gm, player }) {
     };
   });
 
-  await closeWindow(gm, 'fmb-ai-changes').catch(() => {});
+  // A window that will not close is a failure of the step, not something to hide.
+  await closeWindow(gm, 'fmb-ai-changes');
   await resetControls(gm);
-  // A player has no way to the window; the player rows of this area are recorded by sceneRows.
-  void player;
 }

@@ -122,7 +122,11 @@ async function playerSettings(player) {
       ],
     ])
   );
+  // Foundry core's settings search filter fires a moment after the window is built and fails on a
+  // window that is already gone; the row that calls this expects that one error.
+  await player.waitForTimeout(500);
   await closeAll(player);
+  await player.waitForTimeout(500);
   return info;
 }
 
@@ -135,7 +139,24 @@ export async function settingsRows(sweep, { t, gm, player }) {
     gm.evaluate(([id, k]) => game.settings.get(id, k), [MODULE, key]);
 
   // --- The section, as a player sees Game Settings and as the GM does -----------------------------
-  const seen = await playerSettings(player);
+  // The player's window is read inside its own row: Foundry core's SettingsConfig search filter logs
+  // "reading 'querySelector'" on the player page when that window closes quickly after opening.
+  /** @type {Awaited<ReturnType<typeof playerSettings>>} */
+  let seen = { tabs: [], moduleTab: false, labelsSeen: [], menus: [] };
+  await sweep.row(
+    'foundry.settings.section',
+    'player',
+    async () => {
+      seen = await playerSettings(player);
+      if (seen.moduleTab || seen.menus.length || seen.labelsSeen.length) {
+        throw new Error(
+          `a player sees ${seen.moduleTab ? 'the module tab, ' : ''}${seen.labelsSeen.slice(0, 3).join(', ')}`
+        );
+      }
+      return `a player's Game Settings has the tabs ${seen.tabs.join(', ')} and nothing of the module`;
+    },
+    { expectErrors: [/reading 'querySelector'/] }
+  );
   await openSettings(gm);
   await openModuleTab(gm);
 
@@ -159,15 +180,6 @@ export async function settingsRows(sweep, { t, gm, player }) {
     await sweep.shot('gm', 'settings-section.png');
     return `${SETTING_LABELS.length} settings and ${MENUS.length} menu buttons`;
   });
-  await sweep.row('foundry.settings.section', 'player', async () => {
-    if (seen.moduleTab || seen.menus.length || seen.labelsSeen.length) {
-      throw new Error(
-        `a player sees ${seen.moduleTab ? 'the module tab, ' : ''}${seen.labelsSeen.slice(0, 3).join(', ')}`
-      );
-    }
-    return `a player's Game Settings has the tabs ${seen.tabs.join(', ')} and nothing of the module`;
-  });
-
   await sweep.row('foundry.settings.feature-switches', 'gm', async () => {
     const found = await gm.evaluate(
       ([id, switches]) =>

@@ -31,7 +31,7 @@ export const PLAYER_ROLE = 1;
  * `grants` are fixed, `choose` counts what the player picks from a pool.
  * @typedef {{
  *   saves: string[], weapons: string[], armor: string[],
- *   skills: {grants: string[], choose: number, pools?: string[][]},
+ *   skills: {grants: string[], choose: number, pools?: string[][], poolCounts?: number[]},
  *   tools: {grants: string[], choose: number},
  *   languages: {grants: string[], choose: number}
  * }} Expectations
@@ -43,7 +43,7 @@ export const PLAYER_ROLE = 1;
  * @returns {Promise<Sheet>}
  */
 export async function readSheet(page, actorId) {
-  const { copies, ...sheet } = await page.evaluate(id => {
+  const { copies, advancementItems, ...sheet } = await page.evaluate(id => {
     const a = game.actors.get(id);
     if (!a) throw new Error(`no actor ${id}`);
     const items = [...a.items];
@@ -126,50 +126,103 @@ export async function readSheet(page, actorId) {
       languages: [...a.system.traits.languages.value],
       weaponProf: [...a.system.traits.weaponProf.value],
       armorProf: [...a.system.traits.armorProf.value],
-      // What the picked class, species and background promise at level 1, from their own Trait
-      // advancements (default mode only: expertise and weapon mastery are no new proficiency).
-      // Fixed grants and counts of free choices; a wildcard grant ("tool:game:*") is a choice.
-      expect: (() => {
-        const out = {
-          saves: [],
-          weapons: [],
-          armor: [],
-          skills: { grants: [], choose: 0, pools: [] },
-          tools: { grants: [], choose: 0 },
-          languages: { grants: [], choose: 0 },
-        };
-        const last = key => key.split(':').at(-1) ?? key;
-        for (const item of items.filter(i => ['class', 'race', 'background'].includes(i.type))) {
-          for (const adv of Array.from(item.system.advancement ?? [])) {
-            if (adv.type !== 'Trait' || (adv.level ?? 0) > 1) continue;
-            // A multiclass-only advancement (classRestriction 'secondary') is not for a first class.
-            if (adv.classRestriction === 'secondary') continue;
-            const c = adv.configuration;
-            if ((c.mode ?? 'default') !== 'default') continue;
-            for (const key of c.grants ?? []) {
-              if (key.endsWith('*')) continue;
-              if (key.startsWith('saves:')) out.saves.push(last(key));
-              else if (key.startsWith('weapon:')) out.weapons.push(last(key));
-              else if (key.startsWith('armor:')) out.armor.push(last(key));
-              else if (key.startsWith('skills:')) out.skills.grants.push(last(key));
-              else if (key.startsWith('tool:')) out.tools.grants.push(last(key));
-              else if (key.startsWith('languages:')) out.languages.grants.push(last(key));
-            }
-            for (const ch of c.choices ?? []) {
-              const first = String([...(ch.pool ?? [])][0] ?? '');
-              if (first.startsWith('skills:')) {
-                out.skills.choose += ch.count;
-                out.skills.pools.push([...(ch.pool ?? [])].map(last));
-              } else if (first.startsWith('tool:')) out.tools.choose += ch.count;
-              else if (first.startsWith('languages:')) out.languages.choose += ch.count;
-            }
-          }
-        }
-        return out;
-      })(),
+      // The Trait advancements of the picked class, species and background as plain data; the
+      // pure expectationsFromItems turns them into what the character must have.
+      advancementItems: items
+        .filter(i => ['class', 'race', 'background'].includes(i.type))
+        .map(item => ({
+          type: item.type,
+          advancement: Array.from(item.system.advancement ?? []).map(adv => {
+            // Only a Trait advancement has grants and choices of this shape (an Item Choice
+            // advancement's choices are an object keyed by level).
+            const trait = adv.type === 'Trait' ? adv.configuration : null;
+            return {
+              type: adv.type,
+              level: adv.level ?? 0,
+              classRestriction: adv.classRestriction ?? '',
+              mode: trait?.mode ?? 'default',
+              grants: [...(trait?.grants ?? [])],
+              choices: (trait?.choices ?? []).map(c => ({
+                count: c.count,
+                pool: [...(c.pool ?? [])],
+              })),
+            };
+          }),
+        })),
     };
   }, actorId);
-  return { ...sheet, duplicates: findDuplicates(copies) };
+  return {
+    ...sheet,
+    duplicates: findDuplicates(copies),
+    expect: expectationsFromItems(advancementItems),
+  };
+}
+
+/**
+ * What the picked class, species and background promise at level 1, from their Trait advancements
+ * (plain data, see readSheet). Default-mode advancements of level 1 or lower only: expertise and
+ * weapon mastery are no new proficiency, and an advancement restricted to a multiclass
+ * (`classRestriction: 'secondary'`) is not for a first class. A fixed grant two sources repeat
+ * counts once. A wildcard grant ("tool:game:*") is a free choice the data does not size, so it
+ * adds nothing: the minimums are lower bounds. Feat grants are not read, so a feat that adds a
+ * proficiency can hide one skipped choice.
+ * @param {Array<{type: string, advancement: Array<{type: string, level: number,
+ *   classRestriction: string, mode: string, grants: string[],
+ *   choices: Array<{count: number, pool: string[]}>}>}>} items
+ * @returns {Expectations}
+ */
+export function expectationsFromItems(items) {
+  const set = () => /** @type {Set<string>} */ (new Set());
+  const grants = {
+    saves: set(),
+    weapons: set(),
+    armor: set(),
+    skills: set(),
+    tools: set(),
+    languages: set(),
+  };
+  const choose = { skills: 0, tools: 0, languages: 0 };
+  /** @type {string[][]} */
+  const pools = [];
+  /** @type {number[]} */
+  const poolCounts = [];
+  const last = (/** @type {string} */ key) => key.split(':').at(-1) ?? key;
+  for (const item of items) {
+    for (const adv of item.advancement) {
+      if (adv.type !== 'Trait' || adv.level > 1) continue;
+      if (adv.classRestriction === 'secondary' || adv.mode !== 'default') continue;
+      for (const key of adv.grants) {
+        if (key.endsWith('*')) continue;
+        const [kind] = key.split(':');
+        const target = {
+          saves: 'saves',
+          weapon: 'weapons',
+          armor: 'armor',
+          skills: 'skills',
+          tool: 'tools',
+          languages: 'languages',
+        }[kind];
+        if (target) grants[/** @type {keyof typeof grants} */ (target)].add(last(key));
+      }
+      for (const ch of adv.choices) {
+        const first = String(ch.pool[0] ?? '');
+        if (first.startsWith('skills:')) {
+          choose.skills += ch.count;
+          pools.push(ch.pool.map(last));
+          poolCounts.push(ch.count);
+        } else if (first.startsWith('tool:')) choose.tools += ch.count;
+        else if (first.startsWith('languages:')) choose.languages += ch.count;
+      }
+    }
+  }
+  return {
+    saves: [...grants.saves],
+    weapons: [...grants.weapons],
+    armor: [...grants.armor],
+    skills: { grants: [...grants.skills], choose: choose.skills, pools, poolCounts },
+    tools: { grants: [...grants.tools], choose: choose.tools },
+    languages: { grants: [...grants.languages], choose: choose.languages },
+  };
 }
 
 /**
@@ -425,7 +478,7 @@ export function judgeAbilities(sheet, base) {
  * fixed skill, tool, weapon and armor grant, at least as many skills, tools and languages as the
  * fixed grants plus the free choices, and the level-1 proficiency bonus of 2.
  * @param {Sheet} sheet
- * @returns {Array<{what: string, evidence: string}>}
+ * @returns {{problems: Array<{what: string, evidence: string}>, notes: string[]}}
  */
 export function judgeProficiencies(sheet) {
   const want = sheet.expect;
@@ -440,6 +493,12 @@ export function judgeProficiencies(sheet) {
     need.filter(k => !(have ?? []).includes(k));
   if (sheet.prof !== undefined && sheet.prof !== 2) {
     bad('the proficiency bonus is not +2', `+${sheet.prof}`);
+  }
+  if (sheet.classes.length && !want.saves.length) {
+    bad(
+      'the class’s saving throws could not be read from its advancements',
+      'the Trait advancements of the class item hold no saves: the data shape may have changed'
+    );
   }
   const saves = [...(sheet.saves ?? [])].sort();
   const wantSaves = [...want.saves].sort();
@@ -487,13 +546,19 @@ export function judgeProficiencies(sheet) {
 }
 
 /**
- * How many skill choices could land on a skill that is already granted.
+ * How many skill picks could land on a skill that is already granted (a pool that holds a granted
+ * skill, or any skill, counts all its picks).
  * @param {NonNullable<Sheet['expect']>['skills']} skills
  */
 function repeatableChoices(skills) {
   const granted = new Set(skills.grants);
-  return (skills.pools ?? []).filter(pool => pool.includes('*') || pool.some(k => granted.has(k)))
-    .length;
+  return (skills.pools ?? []).reduce(
+    (sum, pool, i) =>
+      pool.includes('*') || pool.some(k => granted.has(k))
+        ? sum + (skills.poolCounts?.[i] ?? 1)
+        : sum,
+    0
+  );
 }
 
 /**

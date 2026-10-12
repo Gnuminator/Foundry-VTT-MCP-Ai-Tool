@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  expectationsFromItems,
   findDuplicates,
   judgeAbilities,
   judgeProficiencies,
@@ -387,4 +388,106 @@ test('judgeProficiencies: a skill choice that repeats a granted skill is a note,
     },
   });
   assert.match(none.problems[0].what, /fewer skill proficiencies/);
+});
+
+/** One Trait advancement as readSheet hands it over. */
+const trait = (o = {}) => ({
+  type: 'Trait',
+  level: 1,
+  classRestriction: '',
+  mode: 'default',
+  grants: [],
+  choices: [],
+  ...o,
+});
+
+test('expectationsFromItems: level 1, default mode, first class only; duplicates count once', () => {
+  const e = expectationsFromItems([
+    {
+      type: 'class',
+      advancement: [
+        trait({ grants: ['saves:dex', 'saves:int', 'weapon:sim', 'armor:lgt', 'tool:thief'] }),
+        trait({ choices: [{ count: 4, pool: ['skills:acr', 'skills:ath'] }] }),
+        // multiclass only, a later level, expertise and mastery add nothing
+        trait({ classRestriction: 'secondary', choices: [{ count: 1, pool: ['skills:acr'] }] }),
+        trait({ level: 2, choices: [{ count: 9, pool: ['skills:*'] }] }),
+        trait({ mode: 'expertise', choices: [{ count: 2, pool: ['skills:*'] }] }),
+        trait({ mode: 'mastery', choices: [{ count: 2, pool: ['weapon:*'] }] }),
+        {
+          type: 'HitPoints',
+          level: 1,
+          grants: [],
+          choices: [],
+          mode: 'default',
+          classRestriction: '',
+        },
+      ],
+    },
+    {
+      type: 'background',
+      advancement: [
+        // Thieves' Tools again, a wildcard tool grant (a choice the data does not size), two skills
+        trait({
+          grants: [
+            'tool:thief',
+            'skills:ins',
+            'skills:ste',
+            'tool:game:*',
+            'languages:standard:common',
+          ],
+        }),
+        trait({ choices: [{ count: 2, pool: ['languages:standard:*'] }] }),
+      ],
+    },
+    {
+      type: 'race',
+      advancement: [trait({ choices: [{ count: 1, pool: ['skills:ins', 'skills:prc'] }] })],
+    },
+  ]);
+  assert.deepEqual(e.saves.sort(), ['dex', 'int']);
+  assert.deepEqual(e.weapons, ['sim']);
+  assert.deepEqual(e.armor, ['lgt']);
+  assert.deepEqual(e.tools, { grants: ['thief'], choose: 0 });
+  assert.deepEqual(e.languages, { grants: ['common'], choose: 2 });
+  assert.deepEqual(e.skills.grants, ['ins', 'ste']);
+  assert.equal(e.skills.choose, 5);
+  assert.deepEqual(e.skills.poolCounts, [4, 1]);
+  assert.deepEqual(expectationsFromItems([]).saves, []);
+});
+
+test('judgeProficiencies: a tool both class and background grant is one proficiency', () => {
+  const o = wizardFixture();
+  const sheet = {
+    ...o.sheet,
+    tools: ['thief'],
+    expect: expectationsFromItems([
+      { type: 'class', advancement: [trait({ grants: ['saves:int', 'saves:wis', 'tool:thief'] })] },
+      { type: 'background', advancement: [trait({ grants: ['tool:thief'] })] },
+    ]),
+    skills: [],
+    languages: [],
+    weaponProf: [],
+  };
+  assert.deepEqual(judgeProficiencies(sheet).problems, []);
+});
+
+test('judgeProficiencies: a class whose saving throws were not read is a problem, not a pass', () => {
+  const o = wizardFixture();
+  const v = judgeProficiencies({ ...o.sheet, expect: { ...o.sheet.expect, saves: [] } });
+  assert.match(v.problems[0].what, /saving throws could not be read/);
+});
+
+test('judgeProficiencies: a three-pick skill pool can repeat up to three granted skills', () => {
+  const o = wizardFixture();
+  const sheet = {
+    ...o.sheet,
+    skills: ['arc', 'his'],
+    expect: {
+      ...o.sheet.expect,
+      skills: { grants: ['arc', 'his'], choose: 3, pools: [['*']], poolCounts: [3] },
+    },
+  };
+  const v = judgeProficiencies(sheet);
+  assert.deepEqual(v.problems, []);
+  assert.match(v.notes[0], /3 proficiency fewer/);
 });

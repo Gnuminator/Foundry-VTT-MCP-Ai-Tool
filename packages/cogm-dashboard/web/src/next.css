@@ -189,12 +189,19 @@ main.moment-views #moment-during.during-no-bar {
   padding: 0;
   border: 0;
 }
-/* Dimmed with a filter, not opacity: opacity would drop the text under the contrast it needs. */
+/* Greyed with a filter, not opacity: opacity would drop the text under the contrast it needs. Only
+   grayscale, no brightness: axe does not see a filter, so the text must keep the contrast axe
+   measured, and a grayscale keeps the lightness of the colours (checked on the bridge-away baseline). */
 #pane-combat.is-stale .pane-body {
-  filter: grayscale(0.9) brightness(0.85);
+  filter: grayscale(0.9);
 }
 #pane-combat.is-stale .combatant {
   border-style: dashed;
+}
+/* The Enemy tag: the danger red on its own tint is 3.4:1, so the text takes a lighter red (the old
+   page keeps its tag). */
+.side-enemy {
+  color: color-mix(in srgb, var(--enemy) 62%, var(--text));
 }
 .reaction-btn[aria-disabled='true'],
 .combat-actions .ca-btn[aria-disabled='true'] {

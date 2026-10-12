@@ -19,6 +19,7 @@ import type { DuringScreen } from '../lib/duringTrial';
 import { usePlaySession, type PlaySession } from '../lib/session';
 
 import { FoldButton, type DuringFolds } from './Folds';
+import { LiveFeed } from './LiveFeed';
 
 export type Moment = 'before' | 'during' | 'after';
 export type DockName = 'preflight' | 'prep' | 'party' | 'handouts';
@@ -177,8 +178,8 @@ export function MomentTabs({
 }
 
 /**
- * A slot whose panel is not in the new dashboard yet. In During, the Live Feed and Recent Changes
- * placeholders are fold cards already, so the layout and the folds work around them.
+ * A slot whose panel is not in the new dashboard yet. In During, the Recent Changes placeholder
+ * is a fold card already, so the layout and the folds work around it.
  */
 function NotHereYet({
   title,
@@ -273,10 +274,7 @@ export function MomentViews({
           {duringStrip}
         </div>
         <div className="slot slot-feed" data-slot="feed">
-          <NotHereYet
-            title="Live Feed"
-            {...(duringFolds ? { fold: { card: 'feed', folds: duringFolds } } : {})}
-          />
+          <LiveFeed {...(duringFolds ? { folds: duringFolds } : {})} />
         </div>
         <div className="slot slot-changes" data-slot="changes">
           <NotHereYet

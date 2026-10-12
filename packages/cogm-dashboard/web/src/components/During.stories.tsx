@@ -4,8 +4,9 @@ import { expect, userEvent, waitFor, within } from 'storybook/test';
 
 import { PREFS_KEY } from '../lib/prefs';
 import type { DuringPrefs } from '../lib/prefsModel';
-import { COMBAT_KEY } from '../lib/stream';
+import { COMBAT_KEY, FEED_KEY } from '../lib/stream';
 import { FIGHT } from '../storybook/fixtures/combat';
+import { FEED_FEW } from '../storybook/fixtures/feed';
 import { HandoutsDrawer } from '../panels/Handouts';
 import { PartyDrawer } from '../panels/Party';
 import { reply, toolOk } from '../storybook/fakeApi';
@@ -62,6 +63,7 @@ function bridge({ prefs, combat = false, session = false }: Setup): {
   return {
     dashboard: {
       cache: [
+        [FEED_KEY, FEED_FEW] as const,
         ...(prefs ? [[PREFS_KEY, prefs] as const] : []),
         ...(combat ? [[COMBAT_KEY, FIGHT] as const] : []),
       ],

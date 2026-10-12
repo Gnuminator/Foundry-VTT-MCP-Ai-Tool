@@ -18,8 +18,23 @@ export const PLAYER_ROLE = 1;
  *   duplicates?: Array<{name: string, types: string[], count: number, origins: Array<string | null>}>,
  *   classSources?: Array<string | null>, backgroundSources?: Array<string | null>,
  *   spells: Array<{name: string, identifier: string, level: number, origin: string | null}>,
- *   armor: Array<{name: string, equipped: boolean}>
+ *   armor: Array<{name: string, equipped: boolean}>,
+ *   abilities?: Record<string, number>, saves?: string[], prof?: number, skills?: string[],
+ *   tools?: string[], languages?: string[], weaponProf?: string[], armorProf?: string[],
+ *   expect?: Expectations
  * }} Sheet
+ */
+
+/**
+ * What the picked class, species and background promise at level 1, read from their own Trait
+ * advancements (default mode only: expertise and weapon mastery are not new proficiencies).
+ * `grants` are fixed, `choose` counts what the player picks from a pool.
+ * @typedef {{
+ *   saves: string[], weapons: string[], armor: string[],
+ *   skills: {grants: string[], choose: number, pools?: string[][], poolCounts?: number[]},
+ *   tools: {grants: string[], choose: number},
+ *   languages: {grants: string[], choose: number}
+ * }} Expectations
  */
 
 /**
@@ -28,7 +43,7 @@ export const PLAYER_ROLE = 1;
  * @returns {Promise<Sheet>}
  */
 export async function readSheet(page, actorId) {
-  const { copies, ...sheet } = await page.evaluate(id => {
+  const { copies, advancementItems, ...sheet } = await page.evaluate(id => {
     const a = game.actors.get(id);
     if (!a) throw new Error(`no actor ${id}`);
     const items = [...a.items];
@@ -95,9 +110,119 @@ export async function readSheet(page, actorId) {
       armor: items
         .filter(i => i.type === 'equipment' && armorTypes.includes(i.system.type?.value))
         .map(i => ({ name: i.name, equipped: !!i.system.equipped })),
+      abilities: Object.fromEntries(
+        Object.entries(a.system.abilities).map(([k, v]) => [k, v.value])
+      ),
+      saves: Object.entries(a.system.abilities)
+        .filter(([, v]) => v.proficient)
+        .map(([k]) => k),
+      prof: a.system.attributes.prof,
+      skills: Object.entries(a.system.skills)
+        .filter(([, v]) => v.value > 0)
+        .map(([k]) => k),
+      tools: Object.entries(a.system.tools ?? {})
+        .filter(([, v]) => v.value > 0)
+        .map(([k]) => k),
+      languages: [...a.system.traits.languages.value],
+      weaponProf: [...a.system.traits.weaponProf.value],
+      armorProf: [...a.system.traits.armorProf.value],
+      // The Trait advancements of the picked class, species and background as plain data; the
+      // pure expectationsFromItems turns them into what the character must have.
+      advancementItems: items
+        .filter(i => ['class', 'race', 'background'].includes(i.type))
+        .map(item => ({
+          type: item.type,
+          advancement: Array.from(item.system.advancement ?? []).map(adv => {
+            // Only a Trait advancement has grants and choices of this shape (an Item Choice
+            // advancement's choices are an object keyed by level).
+            const trait = adv.type === 'Trait' ? adv.configuration : null;
+            return {
+              type: adv.type,
+              level: adv.level ?? 0,
+              classRestriction: adv.classRestriction ?? '',
+              mode: trait?.mode ?? 'default',
+              grants: [...(trait?.grants ?? [])],
+              choices: (trait?.choices ?? []).map(c => ({
+                count: c.count,
+                pool: [...(c.pool ?? [])],
+              })),
+            };
+          }),
+        })),
     };
   }, actorId);
-  return { ...sheet, duplicates: findDuplicates(copies) };
+  return {
+    ...sheet,
+    duplicates: findDuplicates(copies),
+    expect: expectationsFromItems(advancementItems),
+  };
+}
+
+/**
+ * What the picked class, species and background promise at level 1, from their Trait advancements
+ * (plain data, see readSheet). Default-mode advancements of level 1 or lower only: expertise and
+ * weapon mastery are no new proficiency, and an advancement restricted to a multiclass
+ * (`classRestriction: 'secondary'`) is not for a first class. A fixed grant two sources repeat
+ * counts once. A wildcard grant ("tool:game:*") is a free choice the data does not size, so it
+ * adds nothing: the minimums are lower bounds. Feat grants are not read, so a feat that adds a
+ * proficiency can hide one skipped choice.
+ * @param {Array<{type: string, advancement: Array<{type: string, level: number,
+ *   classRestriction: string, mode: string, grants: string[],
+ *   choices: Array<{count: number, pool: string[]}>}>}>} items
+ * @returns {Expectations}
+ */
+export function expectationsFromItems(items) {
+  const set = () => /** @type {Set<string>} */ (new Set());
+  const grants = {
+    saves: set(),
+    weapons: set(),
+    armor: set(),
+    skills: set(),
+    tools: set(),
+    languages: set(),
+  };
+  const choose = { skills: 0, tools: 0, languages: 0 };
+  /** @type {string[][]} */
+  const pools = [];
+  /** @type {number[]} */
+  const poolCounts = [];
+  const last = (/** @type {string} */ key) => key.split(':').at(-1) ?? key;
+  for (const item of items) {
+    for (const adv of item.advancement) {
+      if (adv.type !== 'Trait' || adv.level > 1) continue;
+      if (adv.classRestriction === 'secondary' || adv.mode !== 'default') continue;
+      for (const key of adv.grants) {
+        if (key.endsWith('*')) continue;
+        const [kind] = key.split(':');
+        const target = {
+          saves: 'saves',
+          weapon: 'weapons',
+          armor: 'armor',
+          skills: 'skills',
+          tool: 'tools',
+          languages: 'languages',
+        }[kind];
+        if (target) grants[/** @type {keyof typeof grants} */ (target)].add(last(key));
+      }
+      for (const ch of adv.choices) {
+        const first = String(ch.pool[0] ?? '');
+        if (first.startsWith('skills:')) {
+          choose.skills += ch.count;
+          pools.push(ch.pool.map(last));
+          poolCounts.push(ch.count);
+        } else if (first.startsWith('tool:')) choose.tools += ch.count;
+        else if (first.startsWith('languages:')) choose.languages += ch.count;
+      }
+    }
+  }
+  return {
+    saves: [...grants.saves],
+    weapons: [...grants.weapons],
+    armor: [...grants.armor],
+    skills: { grants: [...grants.skills], choose: choose.skills, pools, poolCounts },
+    tools: { grants: [...grants.tools], choose: choose.tools },
+    languages: { grants: [...grants.languages], choose: choose.languages },
+  };
 }
 
 /**
@@ -182,9 +307,10 @@ export function turnOffTrackingFor(page, studio, userName) {
  * The checks on one new character. Problems fail the step; notes are only reported.
  * @param {{sheet: Sheet, playerId: string, classIdentifier: string, planned: string[],
  *   spellList: string[] | null, pumpErrors?: string[], speciesUuid?: string, classUuid?: string,
- *   backgroundUuid?: string}} o
+ *   backgroundUuid?: string, baseAbilities?: Record<string, number> | null}} o
  *   speciesUuid, classUuid, backgroundUuid: what the plan picked; the sheet's species, class and
  *   background items must come from those entries (a 2014 and a 2024 Fighter share an identifier)
+ *   baseAbilities: the six scores the player entered before the background raised them
  * @returns {{problems: Array<{what: string, evidence: string}>, notes: string[]}}
  */
 export function judgeSheet({
@@ -197,6 +323,7 @@ export function judgeSheet({
   speciesUuid = '',
   classUuid = '',
   backgroundUuid = '',
+  baseAbilities = null,
 }) {
   /** @type {Array<{what: string, evidence: string}>} */
   const problems = [];
@@ -282,6 +409,10 @@ export function judgeSheet({
     );
   }
   for (const e of pumpErrors) bad('an advancement answer failed', e);
+  for (const p of judgeAbilities(sheet, baseAbilities)) bad(p.what, p.evidence);
+  const proficiencies = judgeProficiencies(sheet);
+  for (const p of proficiencies.problems) bad(p.what, p.evidence);
+  notes.push(...proficiencies.notes);
 
   if (sheet.armor.length && !sheet.armor.some(a => a.equipped)) {
     notes.push(
@@ -293,10 +424,140 @@ export function judgeSheet({
       `${d.name} is on the sheet ${d.count} times: ${d.types.map((type, k) => `${type} from ${d.origins[k] ?? 'no advancement'}`).join(', ')}`
     );
   }
+  if (
+    classIdentifier === 'wizard' &&
+    sheet.items.length &&
+    !sheet.items.some(i => /spellbook/i.test(i.name))
+  ) {
+    notes.push(
+      'the wizard has no Spellbook item (the Player’s Handbook module’s wizard equipment does not include one): the GM adds it'
+    );
+  }
   notes.push(
     `${sheet.items.length} items, ${sheet.spells.length} spells, ${sheet.gp} gp, AC ${sheet.ac}`
   );
   return { problems, notes };
+}
+
+/**
+ * The ability scores of a new character. Every score is a whole number from 1 to 20 (a level-1
+ * build never passes 20). With the scores the player entered, the 2024 background raised them by
+ * 3 points in all (2 and 1, or 1, 1 and 1), none by more than 2, none lowered.
+ * @param {Sheet} sheet
+ * @param {Record<string, number> | null} base
+ * @returns {Array<{what: string, evidence: string}>}
+ */
+export function judgeAbilities(sheet, base) {
+  const scores = sheet.abilities;
+  if (!scores) return [];
+  /** @type {Array<{what: string, evidence: string}>} */
+  const problems = [];
+  const keys = ['str', 'dex', 'con', 'int', 'wis', 'cha'];
+  const shown = keys.map(k => `${k} ${scores[k]}`).join(', ');
+  const odd = keys.filter(k => !Number.isInteger(scores[k]) || scores[k] < 1 || scores[k] > 20);
+  if (odd.length) problems.push({ what: 'ability scores out of range (1 to 20)', evidence: shown });
+  if (!base) return problems;
+  const raised = keys.map(k => scores[k] - base[k]);
+  if (raised.some(n => n < 0 || n > 2)) {
+    problems.push({
+      what: 'the background changed a score by more than +2, or lowered one',
+      evidence: `entered ${keys.map(k => base[k]).join('/')}, now ${shown}`,
+    });
+  } else if (raised.reduce((sum, n) => sum + n, 0) !== 3) {
+    problems.push({
+      what: 'the background did not raise the scores by 3 points in all',
+      evidence: `entered ${keys.map(k => base[k]).join('/')}, now ${shown}`,
+    });
+  }
+  return problems;
+}
+
+/**
+ * The proficiencies of a new character against what its class, species and background promise
+ * (`sheet.expect`, read from their Trait advancements): the class's saving throws exactly, every
+ * fixed skill, tool, weapon and armor grant, at least as many skills, tools and languages as the
+ * fixed grants plus the free choices, and the level-1 proficiency bonus of 2.
+ * @param {Sheet} sheet
+ * @returns {{problems: Array<{what: string, evidence: string}>, notes: string[]}}
+ */
+export function judgeProficiencies(sheet) {
+  const want = sheet.expect;
+  /** @type {Array<{what: string, evidence: string}>} */
+  const problems = [];
+  /** @type {string[]} */
+  const notes = [];
+  if (!want || !sheet.skills) return { problems, notes };
+  const bad = (/** @type {string} */ what, /** @type {string} */ evidence) =>
+    problems.push({ what, evidence });
+  const missing = (/** @type {string[]} */ need, /** @type {string[] | undefined} */ have) =>
+    need.filter(k => !(have ?? []).includes(k));
+  if (sheet.prof !== undefined && sheet.prof !== 2) {
+    bad('the proficiency bonus is not +2', `+${sheet.prof}`);
+  }
+  if (sheet.classes.length && !want.saves.length) {
+    bad(
+      'the class’s saving throws could not be read from its advancements',
+      'the Trait advancements of the class item hold no saves: the data shape may have changed'
+    );
+  }
+  const saves = [...(sheet.saves ?? [])].sort();
+  const wantSaves = [...want.saves].sort();
+  if (wantSaves.length && saves.join() !== wantSaves.join()) {
+    bad(
+      'saving throw proficiencies are not the class’s',
+      `have ${saves.join(', ') || 'none'}; the class gives ${wantSaves.join(', ')}`
+    );
+  }
+  const lacking = [
+    ['skills', want.skills.grants, sheet.skills],
+    ['tools', want.tools.grants, sheet.tools],
+    ['weapons', want.weapons, sheet.weaponProf],
+    ['armor', want.armor, sheet.armorProf],
+    ['languages', want.languages.grants, sheet.languages],
+  ].map(([what, need, have]) => [
+    what,
+    missing(/** @type {any} */ (need), /** @type {any} */ (have)),
+  ]);
+  for (const [what, list] of lacking) {
+    if (list.length) bad(`${what} the character should have are missing`, list.join(', '));
+  }
+  for (const [what, grants, choose, have] of [
+    ['skill', want.skills.grants.length, want.skills.choose, sheet.skills],
+    ['tool', want.tools.grants.length, want.tools.choose, sheet.tools],
+    ['language', want.languages.grants.length, want.languages.choose, sheet.languages],
+  ]) {
+    const least = /** @type {number} */ (grants) + /** @type {number} */ (choose);
+    const count = /** @type {string[]} */ (have)?.length ?? 0;
+    // A skill choice that repeats a skill another source grants (an Elf's Keen Senses on Insight
+    // for a Wayfarer, who gets Insight too) costs one proficiency: a note, not a skipped choice.
+    const repeats = what === 'skill' ? repeatableChoices(want.skills) : 0;
+    if (count < least && least - count <= repeats) {
+      notes.push(
+        `${what} choices may repeat a granted skill (${least - count} proficiency fewer than granted and chosen): pick a skill the background does not already give`
+      );
+    } else if (count < least) {
+      bad(
+        `fewer ${what} proficiencies than granted and chosen (a choice was skipped)`,
+        `${count}, at least ${grants} granted + ${choose} chosen = ${least}`
+      );
+    }
+  }
+  return { problems, notes };
+}
+
+/**
+ * How many skill picks could land on a skill that is already granted.
+ * @param {NonNullable<Sheet['expect']>['skills']} skills
+ */
+function repeatableChoices(skills) {
+  const granted = new Set(skills.grants);
+  // A pick repeats a skill that is already granted, so each pool allows at most as many repeats as
+  // it has picks or granted skills it can reach, and all pools together no more than the grants.
+  const total = (skills.pools ?? []).reduce((sum, pool, i) => {
+    const reach = pool.includes('*') ? granted.size : pool.filter(k => granted.has(k)).length;
+    return sum + Math.min(skills.poolCounts?.[i] ?? 1, reach);
+  }, 0);
+  return Math.min(total, granted.size);
 }
 
 /**

@@ -5,8 +5,10 @@
  * species, background, class, the advancement questions, the starting equipment and the spells),
  * then checks the sheet on the GM side: the player owns it, one level of the class, species and
  * background, level-1 hit points, the planned starting equipment on the sheet, every spell the
- * class gave on its spell list (species and feat spells may be off it), and no console errors on
- * the player's page.
+ * class gave on its spell list (species and feat spells may be off it), the ability scores (the
+ * background's +3 on what the player entered), the proficiencies the class, species and
+ * background promise (saving throws, skills, tools, weapons, armor, languages, proficiency bonus),
+ * and no console errors on the player's page.
  *
  * What the table must set up for this (the scenario sets it for the run and puts it back):
  * - the Player role needs Foundry's "Create New Actors" permission (Actor Studio refuses without it);
@@ -251,6 +253,7 @@ export default {
             speciesUuid: sp,
             classUuid: c.uuid,
             backgroundUuid: bg,
+            baseAbilities: raw?.abilities ?? KIT_ABILITIES,
           });
           const seconds = Math.round((Date.now() - started) / 1000);
           results.push({

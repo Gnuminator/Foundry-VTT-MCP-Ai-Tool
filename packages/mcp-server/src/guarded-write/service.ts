@@ -229,6 +229,8 @@ export interface RecentChange extends AppliedChange {
   undoneBy?: string;
   undoneAt?: string;
   canUndo: boolean;
+  /** The change also wrote the AI Tool's own data (Tarokka and handout reveals): only `undo-change` takes it back. */
+  ownData?: boolean;
 }
 
 export interface GuardedWriteServiceOptions {
@@ -757,6 +759,7 @@ export class GuardedWriteService {
         ...this.appliedView(e),
         ...(undone ? { undoneBy: undone.undoneBy, undoneAt: undone.undoneAt } : {}),
         canUndo: !undone && ((e.results?.length ?? 0) > 0 || (e.vaultOps?.length ?? 0) > 0),
+        ...((e.vaultOps?.length ?? 0) > 0 ? { ownData: true } : {}),
       };
     });
   }

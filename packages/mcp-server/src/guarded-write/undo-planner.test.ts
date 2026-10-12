@@ -222,7 +222,9 @@ describe('refusals', () => {
       }),
       entry('chg-empty', 2)
     );
-    await expect(plan('chg-v')).rejects.toThrow(/undo-change/);
+    await expect(plan('chg-v')).rejects.toThrow(
+      /undo it with undo-change, or with Undo in the Changes window/
+    );
     await expect(plan('chg-empty')).rejects.toThrow(/nothing to undo/);
   });
 

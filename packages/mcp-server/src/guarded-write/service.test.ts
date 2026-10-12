@@ -629,6 +629,7 @@ describe('undo (Foundry ops)', () => {
     await expect(service.undo(applied.changeId, { confirm: true })).rejects.toThrow(/Conflict/);
     expect(foundry.docs.get('Actor.ireena')!.source.system.hp).toBe(1);
     expect((await service.listRecentChanges())[0].canUndo).toBe(true);
+    expect((await service.listRecentChanges())[0]).not.toHaveProperty('ownData');
   });
 
   it('round-trips create and a big delete (snapshot kept in backups/)', async () => {
@@ -679,6 +680,12 @@ describe('vault ops', () => {
     ]);
 
     const applied = await service.applyPlan(p.planId, { confirm: true });
+    // The list says it also wrote the AI Tool's own data: the Changes window undoes it with undo-change.
+    expect((await service.listRecentChanges())[0]).toMatchObject({
+      changeId: applied.changeId,
+      canUndo: true,
+      ownData: true,
+    });
     const file = await store.read('curse-of-strahd', 'gm', 'attention.json');
     expect(file).toMatchObject({
       schema: 2,

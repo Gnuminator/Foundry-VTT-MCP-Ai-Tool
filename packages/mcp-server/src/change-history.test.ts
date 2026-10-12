@@ -1219,6 +1219,20 @@ describe('ChangeHistory.list', () => {
     });
   });
 
+  it('passes on that an AI change also wrote the AI Tool own data, and leaves it out otherwise', async () => {
+    audit = [
+      aiChange({
+        changeId: 'chg-2',
+        appliedAt: new Date(NOW - 2 * MIN).toISOString(),
+        ownData: true,
+      }),
+      aiChange({ changeId: 'chg-1', appliedAt: new Date(NOW - 9 * MIN).toISOString() }),
+    ];
+    const { changes } = await makeHistory().list();
+    expect(changes[0]).toMatchObject({ id: 'chg-2', ownData: true });
+    expect(changes[1]).not.toHaveProperty('ownData');
+  });
+
   it('says how many changes an undo took back, and leaves it out otherwise', async () => {
     audit = [
       aiChange({

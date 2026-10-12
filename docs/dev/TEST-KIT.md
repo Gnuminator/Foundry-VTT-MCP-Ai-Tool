@@ -426,8 +426,8 @@ has a Tarokka reading the five Tarokka rows are skipped, and they fail instead w
 sweep's own reveal text (a leftover of an earlier run). The queries-locked row first checks that the GM client
 registers the helper query, then needs the player's refusal to say "not registered" or "GM-only", so a timeout is
 not taken for a lock. The two Tarokka offer dialogs are skipped, because the
-`tarokka-reading` module is not in the kit worlds. The Changes window cannot undo a change that also wrote the AI
-Tool's own data (a reveal does), so the sweep undoes reveals with `undo-change` and says so in the row's note.
+`tarokka-reading` module is not in the kit worlds. The Changes window undoes a change that also wrote the AI
+Tool's own data (a reveal does) with the plain `undo-change`, not a planned undo; the reveal rows fail if the window refuses it.
 The report gets three attachments: `foundry-controls` (one row per control and role: pass, fail or skip with the
 reason), `foundry-timings` (milliseconds for opening each window and for the guarded round trip: the I-098
 numbers) and `foundry-control-classes` (the rows counted by how the sweep treats them). While developing, the

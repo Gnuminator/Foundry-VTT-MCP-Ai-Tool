@@ -287,6 +287,27 @@ describe('AiChangesController: undo', () => {
     expect(c.view.busyId).toBeNull();
   });
 
+  it('a change that also wrote the AI Tool own data (a reveal) is undone with the plain undo-change, never planned', async () => {
+    const deps = makeDeps(['yes'], {
+      'list-changes': () => ({
+        changes: [item('c1', { feature: 'tarokka', ownData: true })],
+      }),
+    });
+    const c = await loaded(deps);
+    expect(c.view.rows[0]?.canUndo).toBe(true);
+
+    await c.undo('c1');
+
+    expect(names(deps)).toEqual(['undo-change', 'list-changes']);
+    expect(deps.request).toHaveBeenNthCalledWith(1, 'undo-change', {
+      changeId: 'c1',
+      confirm: true,
+    });
+    expect(deps.ask).toHaveBeenCalledTimes(1);
+    expect(deps.notifyInfo).toHaveBeenCalledWith('Undone: Change c1');
+    expect(deps.notifyError).not.toHaveBeenCalled();
+  });
+
   it("passes the plan's own destructive flag on to the apply", async () => {
     const deps = makeDeps(['yes'], {
       'plan-undo-changes': () =>

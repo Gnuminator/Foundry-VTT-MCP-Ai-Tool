@@ -168,6 +168,8 @@ export interface AiChangeItem {
   mode: 'apply' | 'undo';
   feature: string;
   canUndo: boolean;
+  /** Also wrote the AI Tool's own data (a reveal): the planned undo cannot take it back, `undo-change` can. */
+  ownData?: boolean;
   undone: boolean;
   undoneBy?: string;
   undoneAt?: string;
@@ -1331,6 +1333,7 @@ function aiItem(change: RecentChange, followUps: string[] = []): AiChangeItem {
     mode: change.mode,
     feature: change.feature,
     canUndo: change.canUndo,
+    ...(change.ownData ? { ownData: true } : {}),
     undone: !!change.undoneBy,
     ...(change.undoneBy ? { undoneBy: change.undoneBy } : {}),
     ...(change.undoneAt ? { undoneAt: change.undoneAt } : {}),

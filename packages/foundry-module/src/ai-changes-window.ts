@@ -266,7 +266,7 @@ function legacyPlan(row: ChangeRow, ownData = false): UndoPlan {
     lines: row.diff,
     notes: ownData
       ? [
-          "This also puts back the AI Tool's own record of it (who may read the page, the Tarokka reading). Players stop seeing it.",
+          "This also puts back the AI Tool's own record of it (who may read the page, the Tarokka reading).",
         ]
       : [],
     later: [],

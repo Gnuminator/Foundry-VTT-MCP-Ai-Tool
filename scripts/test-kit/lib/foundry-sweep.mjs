@@ -56,6 +56,22 @@ export class Sweep {
     this.results = [];
     /** Timings that rows reported, by key (milliseconds). @type {Record<string, number>} */
     this.timings = {};
+    /** Set by the scenario: stores a screenshot in the report. @type {((name: string, data: Buffer) => unknown) | null} */
+    this.attachShot = null;
+  }
+
+  /**
+   * A screenshot of a page for the report (a person looks at it; no pixel comparison).
+   * @param {Who} who
+   * @param {string} name  file name, for example `changes-window.png`
+   */
+  async shot(who, name) {
+    if (!this.attachShot) return;
+    try {
+      this.attachShot(name, await this.pages[who].screenshot());
+    } catch {
+      // a screenshot is never a reason to fail a row
+    }
   }
 
   /** Stop listening. */
@@ -85,7 +101,8 @@ export class Sweep {
       if (typeof out === 'string') result.note = out;
       else if (out && typeof out === 'object') {
         result.note = out.note ?? '';
-        for (const [key, ms] of Object.entries(out.timings ?? {})) this.timings[`${name}.${key}`] = ms;
+        for (const [key, ms] of Object.entries(out.timings ?? {}))
+          this.timings[`${name}.${key}`] = ms;
       }
     } catch (err) {
       if (err instanceof Skip) {
@@ -311,7 +328,8 @@ export async function answerYes(page) {
   const action = dialog.actions.includes('yes')
     ? 'yes'
     : dialog.actions.find(a => !NOT_AN_ANSWER.includes(a));
-  if (!action) throw new Error(`dialog "${dialog.title}" has no yes button (${dialog.actions.join(', ')})`);
+  if (!action)
+    throw new Error(`dialog "${dialog.title}" has no yes button (${dialog.actions.join(', ')})`);
   await answerDialog(page, action);
   return action;
 }
@@ -324,7 +342,8 @@ export async function answerYes(page) {
 export async function answerNo(page) {
   const dialog = await readDialog(page);
   const action = ['cancel', 'no'].find(a => dialog.actions.includes(a));
-  if (!action) throw new Error(`dialog "${dialog.title}" has no Cancel (${dialog.actions.join(', ')})`);
+  if (!action)
+    throw new Error(`dialog "${dialog.title}" has no Cancel (${dialog.actions.join(', ')})`);
   await answerDialog(page, action);
   return action;
 }

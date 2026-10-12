@@ -74,7 +74,8 @@ export async function sceneRows(sweep, { gm, player }) {
     const group = gm.locator('#scene-controls-layers button[data-control="aiTool"]');
     await group.waitFor({ state: 'visible', timeout: 10000 });
     const title = await group.evaluate(
-      /** @param {HTMLElement} b */ b => b.getAttribute('aria-label') || b.dataset.tooltip || b.title
+      /** @param {HTMLElement} b */ b =>
+        b.getAttribute('aria-label') || b.dataset.tooltip || b.title
     );
     if (title !== 'AI Tool') throw new Error(`the group is called "${title}", not "AI Tool"`);
     const layerBefore = await gm.evaluate(() => canvas.activeLayer?.constructor?.name ?? '');
@@ -114,21 +115,24 @@ export async function sceneRows(sweep, { gm, player }) {
     await sweep.row(`foundry.scene.${tool === 'aiChanges' ? 'changes' : tool}`, 'gm', async () => {
       const ms = await openTool(gm, /** @type {any} */ (tool), id);
       const shown = await gm.locator(`#${id} .window-title`).textContent();
-      if (shown?.trim() !== title) throw new Error(`the window is titled "${shown}", not "${title}"`);
+      if (shown?.trim() !== title)
+        throw new Error(`the window is titled "${shown}", not "${title}"`);
+      await sweep.shot('gm', `window-${tool === 'aiChanges' ? 'changes' : tool}.png`);
       const broken = await gm.locator(`#${id} .fmb-ai-error`).allTextContents();
       if (broken.length) throw new Error(`the window shows an error: ${broken[0]}`);
       await closeWindow(gm, id);
       await resetControls(gm);
       return { note: `opened and loaded in ${ms} ms, closed with its X`, timings: { openMs: ms } };
     });
-    await sweep.row(`foundry.scene.${tool === 'aiChanges' ? 'changes' : tool}`, 'player', async () => {
-      const has = await player.evaluate(
-        windowId => !!document.getElementById(windowId),
-        id
-      );
-      if (has) throw new Error(`a player has the ${title} window open`);
-      return 'no tool and no window on a player screen';
-    });
+    await sweep.row(
+      `foundry.scene.${tool === 'aiChanges' ? 'changes' : tool}`,
+      'player',
+      async () => {
+        const has = await player.evaluate(windowId => !!document.getElementById(windowId), id);
+        if (has) throw new Error(`a player has the ${title} window open`);
+        return 'no tool and no window on a player screen';
+      }
+    );
   }
 }
 
@@ -167,7 +171,11 @@ export async function changesRows(sweep, { t, gm, player }) {
     return plan;
   };
   const olderPlan = await damage();
-  const olderApplied = await t.tool('apply-planned-change', { planId: olderPlan.planId }, { confirm: true });
+  const olderApplied = await t.tool(
+    'apply-planned-change',
+    { planId: olderPlan.planId },
+    { confirm: true }
+  );
   open.push(olderApplied.changeId);
   const hpPre = hp0 - 1;
   t.check((await hp()) === hpPre, `${monster.name} lost 1 HP to the older change`);
@@ -180,11 +188,7 @@ export async function changesRows(sweep, { t, gm, player }) {
   const plan = await damage();
   const planMs = Date.now() - planStart;
   const applyStart = Date.now();
-  const applied = await t.tool(
-    'apply-planned-change',
-    { planId: plan.planId },
-    { confirm: true }
-  );
+  const applied = await t.tool('apply-planned-change', { planId: plan.planId }, { confirm: true });
   const applyMs = Date.now() - applyStart;
   change = { changeId: applied.changeId };
   open.push(change.changeId);
@@ -192,7 +196,11 @@ export async function changesRows(sweep, { t, gm, player }) {
   void t0;
 
   const shownMs = await openTool(gm, 'aiChanges', 'fmb-ai-changes');
-  await waitRows(gm, rows => rows.some(r => r.id === change.changeId), 'the new change in the window');
+  await waitRows(
+    gm,
+    rows => rows.some(r => r.id === change.changeId),
+    'the new change in the window'
+  );
   const toWindowMs = Date.now() - applyStart - applyMs;
   sweep.timings['guarded.planMs'] = planMs;
   sweep.timings['guarded.applyMs'] = applyMs;
@@ -210,8 +218,8 @@ export async function changesRows(sweep, { t, gm, player }) {
 
   await sweep.row('foundry.changes.filter', 'gm', async () => {
     const options = await gm.evaluate(() =>
-      [...document.querySelectorAll('#fmb-ai-changes select[data-fmb-filter] option')].map(o =>
-        /** @type {HTMLOptionElement} */ (o).value
+      [...document.querySelectorAll('#fmb-ai-changes select[data-fmb-filter] option')].map(
+        o => /** @type {HTMLOptionElement} */ (o).value
       )
     );
     if (!options.includes('all') || !options.includes('ai')) {
@@ -224,7 +232,8 @@ export async function changesRows(sweep, { t, gm, player }) {
     const rows = await readRows(gm);
     const wrong = rows.filter(r => !/^AI/.test(r.meta));
     if (wrong.length) throw new Error(`the AI filter lists a row by ${wrong[0].meta}`);
-    if (!rows.some(r => r.id === change.changeId)) throw new Error('the AI change is not in the AI filter');
+    if (!rows.some(r => r.id === change.changeId))
+      throw new Error('the AI change is not in the AI filter');
     await select.selectOption('all');
     await waitLoaded(gm, 'fmb-ai-changes');
     await gm.waitForTimeout(400);
@@ -235,7 +244,8 @@ export async function changesRows(sweep, { t, gm, player }) {
 
   await sweep.row('foundry.changes.more', 'gm', async () => {
     const more = gm.locator(`${CHANGES} button[data-action="more"]`);
-    if (!(await more.count())) throw new Skip('fewer rows than one page, so Show more is not offered');
+    if (!(await more.count()))
+      throw new Skip('fewer rows than one page, so Show more is not offered');
     const before = (await readRows(gm)).length;
     await more.click();
     await waitRows(gm, rows => rows.length > before, 'more rows');
@@ -257,9 +267,7 @@ export async function changesRows(sweep, { t, gm, player }) {
       .locator(`${CHANGES} details.fmb-ai-details[data-change-id="${id}"]`)
       .evaluate(el => /** @type {HTMLDetailsElement} */ (el).open);
     if (!stillOpen) throw new Error('the details closed again after Refresh');
-    await gm
-      .locator(`${CHANGES} details.fmb-ai-details[data-change-id="${id}"] summary`)
-      .click();
+    await gm.locator(`${CHANGES} details.fmb-ai-details[data-change-id="${id}"] summary`).click();
     return 'opens and stays open through a Refresh';
   });
 
@@ -268,18 +276,23 @@ export async function changesRows(sweep, { t, gm, player }) {
   await sweep.row('foundry.changes.undo-older', 'gm', async () => {
     const rows = await readRows(gm);
     const target = rows.find(r => r.id === olderApplied.changeId);
-    if (!target?.actions.includes('undo')) throw new Error('the older change is not listed with an Undo button');
+    if (!target?.actions.includes('undo'))
+      throw new Error('the older change is not listed with an Undo button');
     const before = rows.length;
-    await gm.locator(`${CHANGES} .fmb-ai-row[data-change-id="${target.id}"] [data-action="undo"]`).click();
+    await gm
+      .locator(`${CHANGES} .fmb-ai-row[data-change-id="${target.id}"] [data-action="undo"]`)
+      .click();
     const dialog = await readDialog(gm);
+    await sweep.shot('gm', 'changes-undo-dialog.png');
     const advanced = await gm
       .locator('.application.dialog')
       .last()
       .evaluate(el => ({
         summary: el.querySelector('details.fmb-ai-advanced > summary')?.textContent?.trim() ?? '',
         rewind:
-          /** @type {HTMLElement | null} */ (el.querySelector('[data-choice="rewind"]'))?.textContent?.trim() ??
-          '',
+          /** @type {HTMLElement | null} */ (
+            el.querySelector('[data-choice="rewind"]')
+          )?.textContent?.trim() ?? '',
       }));
     older = {
       title: dialog.title,
@@ -322,7 +335,8 @@ export async function changesRows(sweep, { t, gm, player }) {
     await answerYes(gm);
     await waitNotification(gm, /Undone:/);
     const ms = Date.now() - started;
-    if ((await hp()) !== hpPre) throw new Error(`${monster.name} has ${await hp()} HP after Undo, not ${hpPre}`);
+    if ((await hp()) !== hpPre)
+      throw new Error(`${monster.name} has ${await hp()} HP after Undo, not ${hpPre}`);
     await waitRows(
       gm,
       rows => /undone/.test(rows.find(r => r.id === change.changeId)?.meta ?? ''),
@@ -337,7 +351,8 @@ export async function changesRows(sweep, { t, gm, player }) {
   await sweep.row('foundry.changes.redo', 'gm', async () => {
     const selector = `${CHANGES} .fmb-ai-row[data-change-id="${change.changeId}"]`;
     const row = (await readRows(gm)).find(r => r.id === change.changeId);
-    if (!row?.actions.includes('redo')) throw new Skip(`the undone row offers ${row?.actions.join(', ') || 'nothing'}`);
+    if (!row?.actions.includes('redo'))
+      throw new Skip(`the undone row offers ${row?.actions.join(', ') || 'nothing'}`);
     await gm.locator(`${selector} [data-action="redo"]`).click();
     const dialog = await readDialog(gm);
     if (dialog.title !== 'Redo change') throw new Error(`the dialog is titled "${dialog.title}"`);
@@ -349,7 +364,8 @@ export async function changesRows(sweep, { t, gm, player }) {
     await answerYes(gm);
     await waitNotification(gm, /Redone:/);
     const ms = Date.now() - started;
-    if ((await hp()) !== hpPre - 1) throw new Error(`${monster.name} has ${await hp()} HP after Redo, not ${hpPre - 1}`);
+    if ((await hp()) !== hpPre - 1)
+      throw new Error(`${monster.name} has ${await hp()} HP after Redo, not ${hpPre - 1}`);
     return {
       note: `${monster.name} ${hpPre} -> ${hpPre - 1} HP; Cancel changed nothing`,
       timings: { redoMs: ms },

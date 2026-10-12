@@ -4,7 +4,8 @@
  * nothing or logs a console error shows up in the report. The classification table is
  * lib/dashboard-controls.mjs (a unit test keeps it in step with the catalog); the page driver is
  * lib/dashboard-sweep.mjs. Controls that change Foundry or the world (write rows) are never clicked
- * here, the Foundry-only module controls are listed as skipped.
+ * here. The module controls inside Foundry are listed as skipped; the foundry-controls scenario
+ * sweeps them in the Foundry client.
  *
  * One screenshot per drawer, view, moment and During layout goes into the report for a person to
  * review (no pixel comparison).
@@ -161,7 +162,9 @@ export default {
         t.cleanup(async () => {
           const ended = await t.gm('endCombats');
           if (started && !(ended?.ended >= 1)) {
-            throw new Error(`endCombats ended ${ended?.ended ?? 'no'} combats, expected the boss's`);
+            throw new Error(
+              `endCombats ended ${ended?.ended ?? 'no'} combats, expected the boss's`
+            );
           }
         });
         await t.gm('startCombat', { sceneId, tokenIds: [boss.tokenId, hero.tokenId] });

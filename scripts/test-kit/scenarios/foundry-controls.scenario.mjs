@@ -16,12 +16,7 @@
  * `KIT_FOUNDRY_AREAS=scene,changes` runs only those areas (a development filter).
  */
 import { readUsageCatalog } from '../lib/dashboard-controls.mjs';
-import {
-  FOUNDRY_CONTROLS,
-  countHows,
-  errorCounterRows,
-  rowsOf,
-} from '../lib/foundry-controls.mjs';
+import { FOUNDRY_CONTROLS, countHows, errorCounterRows, rowsOf } from '../lib/foundry-controls.mjs';
 import { changesRows, sceneRows } from '../lib/foundry-sweep-changes.mjs';
 import { handoutsRows, tarokkaRows } from '../lib/foundry-sweep-handouts.mjs';
 import {
@@ -90,6 +85,7 @@ export default {
     await expandSidebar(gmPage);
     await expandSidebar(player.page);
     const sweep = new Sweep({ gm: gmPage, player: player.page });
+    sweep.attachShot = (name, data) => t.attachFile(name, data);
     t.cleanup(async () => {
       sweep.stop();
       await closeWindows(gmPage).catch(() => {});

@@ -104,10 +104,11 @@ test('the fake implements every GM action and every tool the scenarios and the b
     'get-compendium-item',
     'create-actor-from-compendium',
   ]);
-  // A scenario that drives dashboard pages in a real browser (t.browser) skips itself against the fake,
-  // so the fake does not need the tools it clicks.
+  // A scenario that drives dashboard pages (t.browser) or the Foundry client (t.joinFoundry) in a real
+  // browser skips itself against the fake, so the fake does not need the tools it clicks.
   for (const { scenario, file, dir } of scenarios) {
-    if (readFileSync(path.join(dir, file), 'utf8').includes('t.browser')) continue;
+    const source = readFileSync(path.join(dir, file), 'utf8');
+    if (source.includes('t.browser') || source.includes('t.joinFoundry')) continue;
     for (const name of scenario.tools) wanted.add(name);
   }
   const missing = [...wanted].filter(name => !FAKE_TOOL_NAMES.includes(name));

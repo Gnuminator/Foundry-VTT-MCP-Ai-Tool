@@ -20,6 +20,9 @@ const CONFIG = '#settings-config';
 const GUIDE_HOST = 'gnuminator.github.io';
 // Foundry answers a saved world change on /setup with 401 and the saved data (join-page.ts says so),
 // which the browser logs as a failed resource.
+// Foundry's own settings window sometimes runs its search filter on a window that is closing (the
+// popup of the guide link gives the page focus back), which logs a null read. Not the module's.
+const SEARCH_FILTER = /reading 'querySelector'/;
 const SETUP_401 = /Failed to load resource.*401/;
 
 /** The visible settings, by label, as the module registers them. */
@@ -111,7 +114,11 @@ async function playerSettings(player) {
     },
     /** @type {[string, string[]]} */ ([
       MODULE,
-      [...SETTING_LABELS, ...FEATURE_SWITCHES.map(f => String(f[1])), ...MENUS.map(m => String(m[1]))],
+      [
+        ...SETTING_LABELS,
+        ...FEATURE_SWITCHES.map(f => String(f[1])),
+        ...MENUS.map(m => String(m[1])),
+      ],
     ])
   );
   await closeAll(player);
@@ -135,9 +142,11 @@ export async function settingsRows(sweep, { t, gm, player }) {
     const missing = await gm.evaluate(
       ([labels, menus]) => {
         const text = document.querySelector('#settings-config section.active')?.textContent ?? '';
-        const buttons = [...document.querySelectorAll('#settings-config section.active button[data-action="openSubmenu"]')].map(
-          b => b.textContent?.trim() ?? ''
-        );
+        const buttons = [
+          ...document.querySelectorAll(
+            '#settings-config section.active button[data-action="openSubmenu"]'
+          ),
+        ].map(b => b.textContent?.trim() ?? '');
         return [
           ...labels.filter(l => !text.includes(l)).map(l => `setting "${l}"`),
           ...menus.filter(m => !buttons.includes(m)).map(m => `menu button "${m}"`),
@@ -146,6 +155,7 @@ export async function settingsRows(sweep, { t, gm, player }) {
       /** @type {[string[], string[]]} */ ([SETTING_LABELS, MENUS.map(m => String(m[1]))])
     );
     if (missing.length) throw new Error(`missing from the module section: ${missing.join(', ')}`);
+    await sweep.shot('gm', 'settings-section.png');
     return `${SETTING_LABELS.length} settings and ${MENUS.length} menu buttons`;
   });
   await sweep.row('foundry.settings.section', 'player', async () => {
@@ -181,20 +191,23 @@ export async function settingsRows(sweep, { t, gm, player }) {
     );
     const wrong = found.filter(f => !f.there || f.label !== f.expected || f.checked !== f.current);
     if (wrong.length) {
-      throw new Error(`switches that are off: ${wrong.map(f => `${f.key} (${f.label || 'missing'})`).join(', ')}`);
+      throw new Error(
+        `switches that are off: ${wrong.map(f => `${f.key} (${f.label || 'missing'})`).join(', ')}`
+      );
     }
     // Defaults are checked against the module's own registered defaults, not against this world.
     const defaults = await gm.evaluate(
-      ([id, keys]) =>
-        keys.map(k => [k, game.settings.settings.get(`${id}.${k}`)?.default]),
+      ([id, keys]) => keys.map(k => [k, game.settings.settings.get(`${id}.${k}`)?.default]),
       /** @type {[string, string[]]} */ ([MODULE, FEATURE_SWITCHES.map(f => String(f[0]))])
     );
     const off = defaults.filter(([k, d]) => d !== FEATURE_SWITCHES.find(f => f[0] === k)?.[2]);
-    if (off.length) throw new Error(`defaults differ: ${off.map(([k, d]) => `${k}=${d}`).join(', ')}`);
+    if (off.length)
+      throw new Error(`defaults differ: ${off.map(([k, d]) => `${k}=${d}`).join(', ')}`);
     return `${found.length} switches shown, ticked as the world has them, with the documented defaults`;
   });
   await sweep.row('foundry.settings.feature-switches', 'player', async () => {
-    if (seen.labelsSeen.some(l => l.startsWith('AI Tool:'))) throw new Error('a player sees an AI Tool switch');
+    if (seen.labelsSeen.some(l => l.startsWith('AI Tool:')))
+      throw new Error('a player sees an AI Tool switch');
     return 'no switch on a player screen';
   });
 
@@ -232,44 +245,60 @@ export async function settingsRows(sweep, { t, gm, player }) {
     await gm.locator(`${CONFIG} button[data-key="${MODULE}.${key}"]`).click();
   };
 
-  await sweep.row('module.settings.help', 'gm', async () => {
-    await openSettings(gm);
-    await openModuleTab(gm);
-    const [popup] = await Promise.all([
-      gm.context().waitForEvent('page', { timeout: 8000 }),
-      gm.locator(`${CONFIG} button[data-key="${MODULE}.helpMenu"]`).click(),
-    ]);
-    const url = popup.url();
-    await popup.close();
-    const parsed = new URL(url);
-    if (parsed.protocol !== 'https:' || parsed.hostname !== GUIDE_HOST) {
-      throw new Error(`the GM guide opens ${url}`);
-    }
-    // The target must exist; offline is not a failure of the control.
-    let reach = 'not checked (no network)';
-    try {
-      const res = await fetch(url, { method: 'GET', signal: AbortSignal.timeout(8000), redirect: 'follow' });
-      if (res.status === 404 || res.status === 410) throw new Error(`the GM guide at ${url} answers ${res.status}`);
-      reach = `answers ${res.status}`;
-    } catch (err) {
-      if (/GM guide at/.test(String(err))) throw err;
-    }
-    await closeAll(gm);
-    return `opens ${url} in a new tab (${reach})`;
-  });
+  await sweep.row(
+    'module.settings.help',
+    'gm',
+    async () => {
+      await openSettings(gm);
+      await openModuleTab(gm);
+      const [popup] = await Promise.all([
+        gm.context().waitForEvent('page', { timeout: 8000 }),
+        gm.locator(`${CONFIG} button[data-key="${MODULE}.helpMenu"]`).click(),
+      ]);
+      const url = popup.url();
+      await popup.close();
+      const parsed = new URL(url);
+      if (parsed.protocol !== 'https:' || parsed.hostname !== GUIDE_HOST) {
+        throw new Error(`the GM guide opens ${url}`);
+      }
+      // The target must exist; offline is not a failure of the control.
+      let reach = 'not checked (no network)';
+      try {
+        const res = await fetch(url, {
+          method: 'GET',
+          signal: AbortSignal.timeout(8000),
+          redirect: 'follow',
+        });
+        if (res.status === 404 || res.status === 410)
+          throw new Error(`the GM guide at ${url} answers ${res.status}`);
+        reach = `answers ${res.status}`;
+      } catch (err) {
+        if (/GM guide at/.test(String(err))) throw err;
+      }
+      await gm.waitForTimeout(500);
+      await closeAll(gm);
+      return `opens ${url} in a new tab (${reach})`;
+    },
+    { expectErrors: [SEARCH_FILTER] }
+  );
 
   await sweep.row('module.settings.enhanced-index-open', 'gm', async () => {
     await openMenu('enhancedIndexMenu');
-    const title = gm.locator('.application', { hasText: 'Enhanced Creature Index Settings' }).last();
+    const title = gm
+      .locator('.application', { hasText: 'Enhanced Creature Index Settings' })
+      .last();
     await title.waitFor({ state: 'visible', timeout: 10000 });
     const controls = await title.evaluate(el => ({
-      checks: [...el.querySelectorAll('input[type="checkbox"]')].map(i => /** @type {HTMLInputElement} */ (i).name),
+      checks: [...el.querySelectorAll('input[type="checkbox"]')].map(
+        i => /** @type {HTMLInputElement} */ (i).name
+      ),
       rebuild: !!el.querySelector('button[data-action="rebuild"]'),
       save: !!el.querySelector('button[type="submit"]'),
     }));
     if (!controls.rebuild || !controls.save || controls.checks.length < 2) {
       throw new Error(`the window holds ${JSON.stringify(controls)}`);
     }
+    await sweep.shot('gm', 'enhanced-index-window.png');
     return `window with ${controls.checks.length} checkboxes, Rebuild and Save Settings`;
   });
 
@@ -293,26 +322,39 @@ export async function settingsRows(sweep, { t, gm, player }) {
     return `"Auto-Rebuild Index on Pack Changes" went ${before} to ${!before} with Save Settings, and was put back`;
   });
 
-  await sweep.row('module.settings.enhanced-index-rebuild', 'gm', async () => {
-    const win = gm.locator('.application', { hasText: 'Enhanced Creature Index Settings' }).last();
-    if (!(await win.count())) await openMenu('enhancedIndexMenu');
-    const started = Date.now();
-    await win.locator('button[data-action="rebuild"]').click();
-    await waitNotification(gm, /Rebuilding enhanced creature index/);
-    await waitNotification(gm, /Enhanced creature index complete|Failed to build enhanced creature index/, 240000);
-    const done = (await notifications(gm)).find(n => /complete|Failed to build/.test(n)) ?? '';
-    if (/Failed to build/.test(done)) throw new Error(done);
-    return { note: done.slice(0, 120), timings: { rebuildMs: Date.now() - started } };
-  }, { expectErrors: [/creature index|Failed to index pack/i] });
+  await sweep.row(
+    'module.settings.enhanced-index-rebuild',
+    'gm',
+    async () => {
+      const win = gm
+        .locator('.application', { hasText: 'Enhanced Creature Index Settings' })
+        .last();
+      if (!(await win.count())) await openMenu('enhancedIndexMenu');
+      const started = Date.now();
+      await win.locator('button[data-action="rebuild"]').click();
+      await waitNotification(gm, /Rebuilding enhanced creature index/);
+      await waitNotification(
+        gm,
+        /Enhanced creature index complete|Failed to build enhanced creature index/,
+        240000
+      );
+      const done = (await notifications(gm)).find(n => /complete|Failed to build/.test(n)) ?? '';
+      if (/Failed to build/.test(done)) throw new Error(done);
+      return { note: done.slice(0, 120), timings: { rebuildMs: Date.now() - started } };
+    },
+    { expectErrors: [/creature index|Failed to index pack/i] }
+  );
   await closeAll(gm);
 
   await sweep.row('foundry.join-page.dialog', 'gm', async () => {
     const before = await gm.evaluate(() => game.world.description ?? '');
     await openMenu('joinPageMenu');
     const dialog = await readDialog(gm);
-    if (dialog.title !== 'Join page look') throw new Error(`the dialog is titled "${dialog.title}"`);
+    if (dialog.title !== 'Join page look')
+      throw new Error(`the dialog is titled "${dialog.title}"`);
     const field = await gm.locator('#ai-tool-join-tagline').inputValue();
     if (!field) throw new Error('the tagline field is empty');
+    await sweep.shot('gm', 'join-page-dialog.png');
     const labels = dialog.labels.join(' / ');
     if (!/Apply The Veil/.test(labels)) throw new Error(`the dialog offers ${labels}`);
     await answerNo(gm);
@@ -365,7 +407,12 @@ async function joinPageRows(sweep, { t, gm }) {
     await readDialog(gm);
   };
   const click = async (/** @type {string} */ label) => {
-    await gm.locator('.application.dialog').last().locator('button', { hasText: label }).first().click();
+    await gm
+      .locator('.application.dialog')
+      .last()
+      .locator('button', { hasText: label })
+      .first()
+      .click();
   };
   let applied = false;
   t.cleanup(async () => {
@@ -375,34 +422,45 @@ async function joinPageRows(sweep, { t, gm }) {
     await closeAll(gm);
   });
 
-  await sweep.row('module.join-page.veil', 'gm', async () => {
-    await open();
-    await click('Apply The Veil');
-    applied = true;
-    await waitNotification(gm, /The Veil is on the join page|not saved/);
-    const notes = (await notifications(gm)).join(' | ');
-    if (/not saved/.test(notes)) throw new Error(notes);
-    const until = Date.now() + 10000;
-    while (!(await hasVeil())) {
-      if (Date.now() > until) throw new Error('the join page does not show The Veil');
-      await gm.waitForTimeout(300);
-    }
-    await closeAll(gm);
-    return 'the join page now carries the Veil line';
-  }, { expectErrors: [SETUP_401] });
-  await sweep.row('module.join-page.default', 'gm', async () => {
-    await open();
-    await click("Back to Foundry's look");
-    applied = false;
-    await waitNotification(gm, /back to Foundry's own look|not saved/);
-    const until = Date.now() + 10000;
-    while (await hasVeil()) {
-      if (Date.now() > until) throw new Error('the join page still shows The Veil');
-      await gm.waitForTimeout(300);
-    }
-    const description = await gm.evaluate(() => game.world.description ?? '');
-    await closeAll(gm);
-    if (/data-ai-tool-join="veil"/.test(description)) throw new Error('the Veil block is still in the description');
-    return "the join page is back to Foundry's look";
-  }, { expectErrors: [SETUP_401] });
+  await sweep.row(
+    'module.join-page.veil',
+    'gm',
+    async () => {
+      await open();
+      await click('Apply The Veil');
+      applied = true;
+      await waitNotification(gm, /The Veil is on the join page|not saved/);
+      const notes = (await notifications(gm)).join(' | ');
+      if (/not saved/.test(notes)) throw new Error(notes);
+      const until = Date.now() + 10000;
+      while (!(await hasVeil())) {
+        if (Date.now() > until) throw new Error('the join page does not show The Veil');
+        await gm.waitForTimeout(300);
+      }
+      await closeAll(gm);
+      return 'the join page now carries the Veil line';
+    },
+    { expectErrors: [SETUP_401] }
+  );
+  await sweep.row(
+    'module.join-page.default',
+    'gm',
+    async () => {
+      await open();
+      await click("Back to Foundry's look");
+      applied = false;
+      await waitNotification(gm, /back to Foundry's own look|not saved/);
+      const until = Date.now() + 10000;
+      while (await hasVeil()) {
+        if (Date.now() > until) throw new Error('the join page still shows The Veil');
+        await gm.waitForTimeout(300);
+      }
+      const description = await gm.evaluate(() => game.world.description ?? '');
+      await closeAll(gm);
+      if (/data-ai-tool-join="veil"/.test(description))
+        throw new Error('the Veil block is still in the description');
+      return "the join page is back to Foundry's look";
+    },
+    { expectErrors: [SETUP_401] }
+  );
 }

@@ -5,7 +5,8 @@
  * 'dashboard' or 'player') is classified here by what a test may do with it in a real browser. The unit
  * test `test/dashboard-controls.test.mjs` fails when a catalog name has no row (a new control must be
  * classified on purpose) or a row names something the catalog no longer has. Module entries are out of
- * scope: the sweep reports them as skipped ("inside Foundry").
+ * scope: the sweep reports them as skipped ("inside Foundry: the foundry-controls scenario", which
+ * sweeps them in the Foundry client).
  *
  * The facts come from the front end itself: packages/cogm-dashboard/public/index.html, app.js,
  * player.html and player.js. A control is marked in the page with `data-track="<name>"`; the few that
@@ -69,7 +70,7 @@ export const HOWS = [
  * }} ControlRow */
 
 /** The reason every module entry is skipped. */
-export const MODULE_SKIP_REASON = 'inside Foundry';
+export const MODULE_SKIP_REASON = 'inside Foundry: the foundry-controls scenario';
 
 const ADV = 'dash.header.advanced';
 const MOMENT_BEFORE = 'dash.moment.before';
@@ -951,7 +952,7 @@ export function unclassified(catalog) {
 }
 
 /**
- * The module entries of the catalog as skipped rows ("inside Foundry").
+ * The module entries of the catalog as skipped rows (swept by the foundry-controls scenario).
  * @param {Array<{name: string, surface: string}>} catalog
  * @returns {ControlRow[]}
  */

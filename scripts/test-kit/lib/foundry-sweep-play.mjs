@@ -84,10 +84,19 @@ export async function journalRows(sweep, { t, gm, player }) {
     const toggle = () => gm.locator('.campaign-status-toggle').first();
     const classOf = async () => (await toggle().getAttribute('class')) ?? '';
     await toggle().click();
-    await until(async () => (await flag())?.['sweep-part1'] === 'in_progress', 'the saved status "in_progress"');
-    await until(async () => /in-progress/.test(await classOf()), 'the toggle to show "in progress"');
+    await until(
+      async () => (await flag())?.['sweep-part1'] === 'in_progress',
+      'the saved status "in_progress"'
+    );
+    await until(
+      async () => /in-progress/.test(await classOf()),
+      'the toggle to show "in progress"'
+    );
     await toggle().click();
-    await until(async () => (await flag())?.['sweep-part1'] === 'completed', 'the saved status "completed"');
+    await until(
+      async () => (await flag())?.['sweep-part1'] === 'completed',
+      'the saved status "completed"'
+    );
     await until(async () => /completed/.test(await classOf()), 'the toggle to show "completed"');
     await close(gm);
     return 'a click cycles not started, in progress, completed, and saves each on the journal';
@@ -98,7 +107,8 @@ export async function journalRows(sweep, { t, gm, player }) {
     await player.waitForTimeout(400);
     await toggle.click();
     await waitNotification(player, /Only GMs can modify campaign progress/);
-    if (JSON.stringify(await flag()) !== before) throw new Error('a player changed the saved status');
+    if (JSON.stringify(await flag()) !== before)
+      throw new Error('a player changed the saved status');
     await close(player);
     return 'a player is told "Only GMs can modify campaign progress" and nothing is saved';
   });
@@ -154,26 +164,30 @@ export async function chatRows(sweep, { t, gm, player }) {
     await button.click();
     await until(
       () =>
-        player.evaluate(
-          () =>
-            [...document.querySelectorAll('.mcp-roll-request, .message-content')].some(el =>
-              /Completed by/.test(el.textContent ?? '')
-            )
+        player.evaluate(() =>
+          [...document.querySelectorAll('.mcp-roll-request, .message-content')].some(el =>
+            /Completed by/.test(el.textContent ?? '')
+          )
         ),
       'the card to say who rolled'
     );
     const ms = Date.now() - started;
     const text = await player.evaluate(() => {
-      const el = [...document.querySelectorAll('.message-content')].find(e => /Completed by/.test(e.textContent ?? ''));
+      const el = [...document.querySelectorAll('.message-content')].find(e =>
+        /Completed by/.test(e.textContent ?? '')
+      );
       return (el?.textContent ?? '').replace(/\s+/g, ' ').trim();
     });
     if (!/Kit Player/.test(text)) throw new Error(`the card says "${text.slice(0, 120)}"`);
-    const rolled = await gm.evaluate(
-      () => game.messages.contents.some(m => m.isRoll && /Ability Check/i.test(m.flavor ?? ''))
+    const rolled = await gm.evaluate(() =>
+      game.messages.contents.some(m => m.isRoll && /Ability Check/i.test(m.flavor ?? ''))
     );
     if (!rolled) throw new Error('no roll message was posted to the chat');
     if ((await messageIds()).length < before) throw new Error('the request card is gone');
-    return { note: `the player rolled; the card now reads "${text.slice(0, 80)}"`, timings: { rollMs: ms } };
+    return {
+      note: `the player rolled; the card now reads "${text.slice(0, 80)}"`,
+      timings: { rollMs: ms },
+    };
   });
 }
 
@@ -183,28 +197,37 @@ export async function chatRows(sweep, { t, gm, player }) {
  * @param {{player: import('playwright-core').Page}} ctx
  */
 export async function playerQueryRows(sweep, { player }) {
-  await sweep.row('foundry.player.queries-locked', 'player', async () => {
-    const outcome = await player.evaluate(async () => {
-      const gm = game.users.activeGM;
-      if (!gm) return { skip: 'no GM is connected' };
-      const results = {};
-      for (const name of ['foundry-mcp-bridge.getWorldInfo', 'foundry-mcp-bridge.gm.tarokkaReading']) {
-        try {
-          await gm.query(name, {}, { timeout: 5000 });
-          results[name] = 'answered';
-        } catch (error) {
-          results[name] = `refused: ${String(error?.message ?? error).slice(0, 90)}`;
+  await sweep.row(
+    'foundry.player.queries-locked',
+    'player',
+    async () => {
+      const outcome = await player.evaluate(async () => {
+        const gm = game.users.activeGM;
+        if (!gm) return { skip: 'no GM is connected' };
+        const results = {};
+        for (const name of [
+          'foundry-mcp-bridge.getWorldInfo',
+          'foundry-mcp-bridge.gm.tarokkaReading',
+        ]) {
+          try {
+            await gm.query(name, {}, { timeout: 5000 });
+            results[name] = 'answered';
+          } catch (error) {
+            results[name] = `refused: ${String(error?.message ?? error).slice(0, 90)}`;
+          }
         }
-      }
-      return results;
-    });
-    if (outcome.skip) throw new Skip(String(outcome.skip));
-    const answered = Object.entries(outcome).filter(([, v]) => v === 'answered');
-    if (answered.length) throw new Error(`a player got an answer from ${answered.map(a => a[0]).join(', ')}`);
-    return Object.entries(outcome)
-      .map(([k, v]) => `${k.replace('foundry-mcp-bridge.', '')} ${v}`)
-      .join('; ');
-  }, { expectErrors: [/not registered|GM-only|query/i] });
+        return results;
+      });
+      if (outcome.skip) throw new Skip(String(outcome.skip));
+      const answered = Object.entries(outcome).filter(([, v]) => v === 'answered');
+      if (answered.length)
+        throw new Error(`a player got an answer from ${answered.map(a => a[0]).join(', ')}`);
+      return Object.entries(outcome)
+        .map(([k, v]) => `${k.replace('foundry-mcp-bridge.', '')} ${v}`)
+        .join('; ');
+    },
+    { expectErrors: [/not registered|GM-only|query/i] }
+  );
 }
 
 /**
@@ -221,7 +244,8 @@ export async function playerHiddenRows(sweep, { player }, wanted) {
       const seen = await player.evaluate(ids => {
         const windows = ids.filter(id => document.getElementById(id));
         const group = Object.keys(ui.controls?.controls ?? {}).includes('aiTool');
-        const settingsTab = [...document.querySelectorAll('[data-tab="foundry-mcp-bridge"]')].length;
+        const settingsTab = [...document.querySelectorAll('[data-tab="foundry-mcp-bridge"]')]
+          .length;
         return { windows, group, settingsTab };
       }, WINDOW_IDS);
       if (seen.windows.length || seen.group || seen.settingsTab) {

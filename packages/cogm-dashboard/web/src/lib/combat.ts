@@ -404,9 +404,7 @@ export function stripMode(combat: CombatState | null, away: boolean): 'none' | '
 export function bridgeBlip(
   status: { controlChannel: string; foundry: string } | undefined
 ): boolean {
-  return (
-    status !== undefined && status.controlChannel === 'connected' && status.foundry === 'unknown'
-  );
+  return status?.controlChannel === 'connected' && status.foundry === 'unknown';
 }
 
 // --- The trial's sample fight -----------------------------------------------------------------

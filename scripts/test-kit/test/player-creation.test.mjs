@@ -477,7 +477,7 @@ test('judgeProficiencies: a class whose saving throws were not read is a problem
   assert.match(v.problems[0].what, /saving throws could not be read/);
 });
 
-test('judgeProficiencies: a three-pick skill pool can repeat up to three granted skills', () => {
+test('judgeProficiencies: a wildcard skill pool can repeat at most the granted skills', () => {
   const o = wizardFixture();
   const sheet = {
     ...o.sheet,
@@ -487,7 +487,14 @@ test('judgeProficiencies: a three-pick skill pool can repeat up to three granted
       skills: { grants: ['arc', 'his'], choose: 3, pools: [['*']], poolCounts: [3] },
     },
   };
-  const v = judgeProficiencies(sheet);
-  assert.deepEqual(v.problems, []);
-  assert.match(v.notes[0], /3 proficiency fewer/);
+  // Three picks, none made: only two could have repeated a grant, so this is a problem.
+  assert.match(judgeProficiencies(sheet).problems[0].what, /fewer skill proficiencies/);
+  // One pick short of the grants plus choices is explained by one repeat: a note.
+  const one = judgeProficiencies({ ...sheet, skills: ['arc', 'his', 'inv', 'med'] });
+  assert.deepEqual(one.problems, []);
+  assert.match(one.notes[0], /1 proficiency fewer/);
+  // Two short is still within the two granted skills.
+  const two = judgeProficiencies({ ...sheet, skills: ['arc', 'his', 'inv'] });
+  assert.deepEqual(two.problems, []);
+  assert.match(two.notes[0], /2 proficiency fewer/);
 });

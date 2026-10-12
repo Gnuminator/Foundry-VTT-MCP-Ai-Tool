@@ -546,19 +546,18 @@ export function judgeProficiencies(sheet) {
 }
 
 /**
- * How many skill picks could land on a skill that is already granted (a pool that holds a granted
- * skill, or any skill, counts all its picks).
+ * How many skill picks could land on a skill that is already granted.
  * @param {NonNullable<Sheet['expect']>['skills']} skills
  */
 function repeatableChoices(skills) {
   const granted = new Set(skills.grants);
-  return (skills.pools ?? []).reduce(
-    (sum, pool, i) =>
-      pool.includes('*') || pool.some(k => granted.has(k))
-        ? sum + (skills.poolCounts?.[i] ?? 1)
-        : sum,
-    0
-  );
+  // A pick repeats a skill that is already granted, so each pool allows at most as many repeats as
+  // it has picks or granted skills it can reach, and all pools together no more than the grants.
+  const total = (skills.pools ?? []).reduce((sum, pool, i) => {
+    const reach = pool.includes('*') ? granted.size : pool.filter(k => granted.has(k)).length;
+    return sum + Math.min(skills.poolCounts?.[i] ?? 1, reach);
+  }, 0);
+  return Math.min(total, granted.size);
 }
 
 /**

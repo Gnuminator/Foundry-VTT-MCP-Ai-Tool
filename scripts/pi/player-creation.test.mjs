@@ -257,6 +257,8 @@ describe('13-player-creation.sh in an ARM64 container', { skip: containerReason 
         runs.set(name, {
           output: part('output'),
           exit: Number(block.match(/^--- exit (\d+)$/m)?.[1]),
+          rerunOutput: part('rerun output'),
+          rerunExit: Number(block.match(/^--- rerun exit (\d+)$/m)?.[1]),
           calls: part('calls').split('\n').filter(Boolean),
           world: part('options.json'),
           version: part('module version'),

@@ -817,10 +817,13 @@ scp scripts/pi/remote/kit-session.mjs foundry-pi:/root/ && cat scripts/pi/remote
   existing `Kit Player` must be a Player who really joins without a password (the script tries it),
   otherwise nothing is changed. Values are printed before and after, read back after a reload, and a
   second run changes nothing. When it works, Foundry stays on `strahd-kit` and the Assistant GM
-  browser stays **stopped**, because its login is for the campaign world. The stage prints the join
-  address (`http://foundry-pi:30000/join`) and the user name. If anything fails after the services
-  stopped, `options.json`, Foundry and the Assistant GM browser are put back as they were and the
-  state file is removed.
+  browser stays **stopped**: it would join `strahd-kit` and move the bridge link (and with it the
+  Claude Desktop connectors) to the test world. The stage prints the join address
+  (`http://foundry-pi:30000/join`) and the user name. If anything fails after the services stopped,
+  `options.json`, Foundry and the Assistant GM browser are put back as they were and the state file
+  is removed, even when the ssh session drops in the middle of the run. A run that fails after the
+  world was started may leave `Kit Player` in `strahd-kit`; the stage says so, and `MODE=up` followed
+  by `MODE=down` removes it.
 - **The player plays.** They join as `Kit Player` and make their character in Actor Studio. When they
   have left the game:
 
@@ -829,10 +832,13 @@ scp scripts/pi/remote/kit-session.mjs foundry-pi:/root/ && cat scripts/pi/remote
   ```
 
 - **`MODE=down`** needs the state file, `strahd-kit` running and nobody online (`FORCE=1` goes on
-  anyway). With `strahd-kit` still running it runs `kit-session.mjs` with `ACTION=teardown`: the
+  anyway). It stops the Assistant GM browser first, because a reboot during the session starts it on
+  `strahd-kit`, where it would count as a user. With `strahd-kit` still running it runs `kit-session.mjs` with `ACTION=teardown`: the
   actors that `Kit Player` owns are listed by name and id and deleted, then the user. At most 5
   actors are deleted; more than that stops the run (`MAX_DELETE=<n>` raises the limit after you have
-  looked at them), and nothing else is deleted and no setting is touched. If the teardown fails,
+  looked at them), and nothing else is deleted and no setting is touched. Any actor you give
+  `Kit Player` during the session is deleted too; the copy from before the session is in
+  `prev-<time>`. If the teardown fails,
   nothing else changes: Foundry stays on `strahd-kit` and the state file stays, so `MODE=down` can run
   again. Otherwise Foundry stops, `options.json` launches the world it launched before, the state
   file is removed, Foundry starts, and the Assistant GM browser starts again if it ran before (the

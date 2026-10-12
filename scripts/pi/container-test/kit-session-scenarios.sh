@@ -41,7 +41,7 @@ id "$FOUNDRY_USER" >/dev/null 2>&1 || useradd --system --home-dir "$FOUNDRY_DATA
 # $1 the world options.json launches, $2 "upload" (the driver waits in /root) or "installed"
 fresh_pi() {
   rm -rf "${FOUNDRY_DATA:?}" "${TOOL_DIR:?}" "${TOOL_ETC:?}" "${TOOL_DATA:?}" "${IMPORT:?}" /root/kit-session.mjs
-  rm -f /tmp/stopped-* /tmp/gmbroken /tmp/calls /tmp/status /tmp/status_rc /tmp/driverfail
+  rm -f /tmp/stopped-* /tmp/gmbroken /tmp/calls /tmp/status /tmp/status_rc /tmp/driverfail /tmp/gm-counts /tmp/joinfail /tmp/stopfail
   mkdir -p "$FOUNDRY_DATA/Config" "$FOUNDRY_DATA/Data/worlds"
   echo '{"world":"'"$1"'"}' >"$FOUNDRY_DATA/Config/options.json"
   for w in curse-of-strahd strahd-kit; do
@@ -88,11 +88,15 @@ write_state() {
 #   driverfail   the fake driver fails
 #   gmbroken     the Assistant GM browser fails to start again
 #   noupload     no driver anywhere     noenvfile  no GM login for strahd-kit     noworld  no strahd-kit world
+#   gm-counts    /api/status counts the Assistant GM browser as a user while it runs
+#   joinfail     the world does not answer on port 30000 once Foundry was stopped
+#   stopfail     "systemctl stop foundry.service" fails
+#   closepipe    the stage's output is cut off after 7 lines, as when the ssh session drops (SIGPIPE)
 scenario() {
   local name="$1" status="$2" rc="$3" inactive="$4" mode="$5"
   shift 5
   if [ -n "$only" ] && [[ " $only " != *" $name "* ]]; then return 0; fi
-  local first=curse-of-strahd driver=upload
+  local first=curse-of-strahd driver=upload pipe_lines=""
   local w
   for w in "$@"; do
     case "$w" in
@@ -120,6 +124,10 @@ scenario() {
       down-state-no-orig) write_state "" 1 ;;
       bad-state) printf 'ORIG_WORLD=../../etc\nWAS_GM_BROWSER=1\nSTAMP=20261012-101010\n' >"$STATE" ;;
       driverfail) touch /tmp/driverfail ;;
+      gm-counts) touch /tmp/gm-counts ;;
+      joinfail) touch /tmp/joinfail ;;
+      stopfail) touch /tmp/stopfail ;;
+      closepipe) pipe_lines=7 ;;
       gmbroken) touch /tmp/gmbroken ;;
       noupload) rm -f /root/kit-session.mjs "$TOOL_DIR/gm-browser/kit-session.mjs" ;;
       noenvfile) rm -f "$TOOL_ETC/world-strahd-kit.env" ;;
@@ -130,8 +138,16 @@ scenario() {
   done
   echo "=== SCENARIO $name"
   echo "--- output"
-  (cd /root && cat "$LIB" "$STAGE" | env "${env_words[@]}" bash -s) 2>&1
-  echo "--- exit $?"
+  local rc
+  if [ -n "$pipe_lines" ]; then
+    # head quits after N lines; the stage's next write then dies of SIGPIPE, and its handlers must still run.
+    (cd /root && cat "$LIB" "$STAGE" | env "${env_words[@]}" bash -s) 2>&1 | head -n "$pipe_lines"
+    rc=${PIPESTATUS[0]}
+  else
+    (cd /root && cat "$LIB" "$STAGE" | env "${env_words[@]}" bash -s) 2>&1
+    rc=$?
+  fi
+  echo "--- exit $rc"
   echo "--- calls"
   cat /tmp/calls
   echo "--- options.json"
@@ -168,6 +184,7 @@ scenario up-no-login "$U0" 0 "" up noenvfile
 scenario up-no-world "$U0" 0 "" up noworld
 scenario up-wrong-driver-path "$U0" 0 "" up SESSION_DRIVER=/tmp/kit-session.mjs
 scenario up-ignores-world-env "$U0" 0 "" up WORLD=curse-of-strahd
+scenario up-pipe-closed "$U0" 0 "" up closepipe
 scenario bad-mode "$U0" 0 "" sideways
 scenario no-mode "$U0" 0 "" -
 scenario down-ok "$U0" 0 "gm" down down-state
@@ -182,5 +199,10 @@ scenario down-users-online-force '{"active":true,"users":1}' 0 "gm" down down-st
 scenario down-foundry-off "$U0" 0 "gm foundry" down down-state
 scenario down-max-delete "$U0" 0 "gm" down down-state MAX_DELETE=9
 scenario down-bad-max-delete "$U0" 0 "gm" down down-state MAX_DELETE=lots
+scenario down-gm-active "$U0" 0 "" down down-state gm-counts
+scenario down-gm-active-users-online '{"active":true,"users":2}' 0 "" down down-state gm-counts
+scenario down-world-not-back "$U0" 0 "gm" down down-state joinfail
+scenario down-world-not-back-gm-off "$U0" 0 "gm" down down-state-gm0 joinfail
+scenario down-stop-fails "$U0" 0 "gm" down down-state stopfail
 scenario down-gm-browser-fails "$U0" 0 "gm" down down-state gmbroken
 echo "=== ALL DONE"

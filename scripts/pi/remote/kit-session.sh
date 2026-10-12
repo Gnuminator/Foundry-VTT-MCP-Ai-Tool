@@ -21,11 +21,12 @@
 #   /var/lib/foundry-import/prev-<stamp>/worlds/strahd-kit/ (never deleted). options.json launches strahd-kit, Foundry
 #   starts, and a headless Chromium joins as the world's GM and runs kit-session.mjs ACTION=setup: the settings
 #   character creation needs, and the passwordless player user "Kit Player". Foundry stays running on strahd-kit and
-#   the Assistant GM browser stays stopped (its login is for the campaign world). If anything fails after the services
-#   stopped, options.json, Foundry and the Assistant GM browser are put back as they were and the state file is removed.
+#   the Assistant GM browser stays stopped (it would join strahd-kit and move the bridge link, and so the Claude
+#   Desktop connectors, to the test world). If anything fails after the services stopped, options.json, Foundry and the
+#   Assistant GM browser are put back as they were and the state file is removed, even when the ssh session drops.
 # What MODE=down does:
 #   Needs the state file, strahd-kit running, and nobody online (the Kit Player must have left the game; FORCE=1
-#   overrides). It runs kit-session.mjs ACTION=teardown while strahd-kit still runs: the actors Kit Player owns (at
+#   overrides). The Assistant GM browser is stopped first (a reboot during the session starts it on strahd-kit). It runs kit-session.mjs ACTION=teardown while strahd-kit still runs: the actors Kit Player owns (at
 #   most 5) and the user are deleted, nothing else. If that fails, nothing else changes (the state file stays, Foundry
 #   stays on strahd-kit) so the stage can run again. Otherwise Foundry stops, options.json launches ORIG_WORLD again,
 #   the state file is removed, Foundry starts, and the Assistant GM browser starts again if it ran before (the stage
@@ -65,7 +66,8 @@ have_systemd || die "no systemd here: the kit session needs the real Pi (it star
 
 # options.json "world" is what Foundry launches. The kit session changes it; the first value is kept in the state file.
 set_world() {
-  node -e 'const fs=require("fs");const p=process.argv[1];const o=JSON.parse(fs.readFileSync(p,"utf8"));o.world=process.argv[2]||null;fs.writeFileSync(p,JSON.stringify(o,null,2)+"\n")' "$options" "$1"
+  # Written to a temp file next to it (same owner and mode) and renamed, so a failure never leaves a half file.
+  node -e 'const fs=require("fs");const p=process.argv[1];const st=fs.statSync(p);const o=JSON.parse(fs.readFileSync(p,"utf8"));o.world=process.argv[2]||null;const t=p+".kit-tmp";fs.writeFileSync(t,JSON.stringify(o,null,2)+"\n",{mode:st.mode&0o777});fs.chownSync(t,st.uid,st.gid);fs.renameSync(t,p)' "$options" "$1"
 }
 current_world() {
   node -e 'const o=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));process.stdout.write(o.world||"")' "$options"
@@ -207,10 +209,14 @@ if [ "$MODE" = up ]; then
   world_changed=0
   state_written=0
   on_exit() {
+    # A dropped ssh session closes our output (SIGPIPE, HUP): the steps below must still all run.
+    set +e
+    trap '' PIPE HUP
     if [ "$stopped" = 1 ]; then
       if [ "$world_changed" = 1 ]; then
         set_world "$orig_world" || true
         warn "options.json restored to launch '${orig_world:-no world}'"
+        warn "$PLAYER_NAME may exist in $KIT_WORLD: MODE=up and then MODE=down removes it"
       fi
       if [ "$was_foundry" = 1 ] && [ "$foundry_stopped" = 1 ]; then
         systemctl restart foundry.service || true
@@ -241,9 +247,9 @@ if [ "$MODE" = up ]; then
   systemctl stop foundry.service
 
   # The state file first: from here on, MODE=down knows what to put back, and so does a run that fails.
+  state_written=1 # before the write: on_exit removes a half written file too
   (umask 077 && printf 'ORIG_WORLD=%s\nWAS_GM_BROWSER=%s\nSTAMP=%s\n' "$orig_world" "$was_gm_browser" "$stamp" >"$STATE")
   chmod 600 "$STATE"
-  state_written=1
   ok "state written to $STATE"
 
   # Foundry is stopped, so the world's databases can be copied as they are.
@@ -259,8 +265,8 @@ if [ "$MODE" = up ]; then
   done
 
   say "starting $KIT_WORLD and setting it up"
+  world_changed=1 # before the write: putting the old world back is harmless when nothing was written
   set_world "$KIT_WORLD"
-  world_changed=1
   systemctl start foundry.service
   wait_for_world "$KIT_WORLD"
   ok "$KIT_WORLD is running"
@@ -276,7 +282,7 @@ if [ "$MODE" = up ]; then
   echo "    The kit session is up. Foundry runs $KIT_WORLD (it launched ${orig_world:-no world} before)."
   echo "    Join:  http://foundry-pi:30000/join"
   echo "    User:  $PLAYER_NAME (no password)"
-  echo "    The Assistant GM browser is stopped until MODE=down (its login is for the campaign world)."
+  echo "    The Assistant GM browser is stopped until MODE=down (it would join $KIT_WORLD and move the bridge link to the test world)."
   echo "    When the player is done and has left the game, run MODE=down: it deletes $PLAYER_NAME and the actors it owns,"
   echo "    puts options.json back on ${orig_world:-no world} and starts Foundry and the Assistant GM browser again."
   echo "    $prev_note"
@@ -297,6 +303,8 @@ state_stamp="$(state_value STAMP)"
 driver_available || die "no kit-session.mjs (not installed in $driver_dir, no upload in $SESSION_DRIVER): scp scripts/pi/remote/kit-session.mjs foundry-pi:/root/ first"
 systemctl is-active --quiet foundry.service || die "Foundry is not running: start it (systemctl start foundry) and run MODE=down again. Nothing was changed"
 world_up || die "$KIT_WORLD is not answering on port 30000 (see: journalctl -u foundry -n 50). Nothing was changed"
+# A reboot during the session starts the Assistant GM browser, which joins strahd-kit and would count as online.
+systemctl stop foundry-ai-tool-gm-browser.service 2>/dev/null || true
 check_nobody_online "the Kit Player must leave the game first"
 
 say "the in-browser part"
@@ -307,21 +315,38 @@ say "deleting $PLAYER_NAME and the actors it owns in $KIT_WORLD"
 run_driver teardown || die "the teardown in $KIT_WORLD failed or did not verify (see the lines above): nothing else was changed; Foundry still runs $KIT_WORLD and the state file stays, so run MODE=down again"
 ok "$PLAYER_NAME and its actors are gone from $KIT_WORLD, read back"
 
-# From here on the kit session is over. A failure below leaves no state file (a stuck one would refuse both modes)
-# and tries to bring the Assistant GM browser back.
+# From here on the kit session ends. halted: Foundry was stopped by this run; restored: options.json launches
+# ORIG_WORLD again and the state file is gone (the session is over). A failure leaves what is still true:
+# before "restored" the state file stays, so MODE=down can run again; after it the Assistant GM browser comes back.
+halted=0
+restored=0
 back_exit() {
+  # A dropped ssh session closes our output (SIGPIPE, HUP): the steps below must still all run.
+  set +e
+  trap '' PIPE HUP
+  if [ "$restored" = 0 ]; then
+    if [ "$halted" = 1 ]; then systemctl start foundry.service; fi
+    warn "options.json still launches $KIT_WORLD and the state file stays (nothing was put back): start Foundry if it is stopped and run MODE=down again"
+    return 0
+  fi
   if systemctl is-active --quiet foundry.service && world_up; then return 0; fi
   warn "Foundry did not come back on '${orig_world:-no world}' (see: journalctl -u foundry -n 50); the kit session is over and options.json is restored"
   if [ "$was_gm_browser" = 1 ]; then
-    systemctl is-active --quiet foundry-ai-tool-gm-browser.service || systemctl start foundry-ai-tool-gm-browser.service || true
-    warn "the Assistant GM browser was started again; check it once Foundry runs"
+    if systemctl is-active --quiet foundry.service; then
+      systemctl is-active --quiet foundry-ai-tool-gm-browser.service || systemctl start foundry-ai-tool-gm-browser.service
+      warn "the Assistant GM browser was started again; check it once Foundry runs"
+    else
+      warn "Foundry is stopped, so the Assistant GM browser was not started: after fixing Foundry, run systemctl start foundry-ai-tool-gm-browser"
+    fi
   fi
 }
 trap back_exit EXIT
 
 say "Foundry launches ${orig_world:-no world} again"
+halted=1
 systemctl stop foundry.service
 set_world "$orig_world"
+restored=1
 rm -f "${STATE:?}"
 ok "options.json launches ${orig_world:-no world}; state file removed"
 since="$(date '+%Y-%m-%d %H:%M:%S')"

@@ -71,6 +71,9 @@ class Collection extends Array {
   get(id) {
     return this.find(item => item.id === id);
   }
+  has(id) {
+    return this.some(item => item.id === id);
+  }
 }
 
 const startSources = () => ({
@@ -453,17 +456,41 @@ describe('kit-session.mjs teardown (the in-browser part)', () => {
       ['Gamemaster']
     );
     assert.deepEqual(game.sets, [], 'no setting is touched');
-    const after = readState(ARGS);
+    const ids = before.ownedActors.map(a => a.id);
+    const after = readState({ ...ARGS, actorIds: ids });
+    assert.deepEqual(after.leftActors, []);
     assert.deepEqual(teardownMismatches(before, after), []);
   });
 
   test('the read-back complains when the user or an actor is still there', () => {
     globalThis.game = world();
     const before = readState(ARGS);
-    const problems = teardownMismatches(before, before).join('; ');
+    const ids = before.ownedActors.map(a => a.id);
+    const problems = teardownMismatches(before, readState({ ...ARGS, actorIds: ids })).join('; ');
     assert.match(problems, /Kit Player still exists/);
-    assert.match(problems, /these actors are still there: a1, a2/);
     assert.match(problems, /Mine one \(a1\) was not deleted/);
+    assert.match(problems, /Mine two \(a2\) was not deleted/);
+  });
+
+  test('the read-back finds an actor that is left although the user is gone', async () => {
+    const game = world();
+    globalThis.game = game;
+    const before = readState(ARGS);
+    const ids = before.ownedActors.map(a => a.id);
+    // The user is deleted and a1 too, but a2 is still there (a delete that did not take).
+    await game.actors.get('a1').delete();
+    await game.users.get('userKit').delete();
+    const after = readState({ ...ARGS, actorIds: ids });
+    assert.deepEqual(after.users, []);
+    assert.deepEqual(after.ownedActors, [], 'the owner is gone, so ownership alone finds nothing');
+    assert.deepEqual(after.leftActors, ['a2']);
+    assert.deepEqual(teardownMismatches(before, after), ['Mine two (a2) was not deleted']);
+    // A read-back that never looked up the ids is not accepted as clean.
+    const blind = { ...after, leftActors: undefined };
+    assert.match(
+      teardownMismatches(before, blind).join('; '),
+      /did not look up the deleted actors/
+    );
   });
 
   test('more actors than the limit, or a user that is not a Player, are refused', () => {
@@ -792,6 +819,10 @@ describe('kit-session.sh in an ARM64 container', { skip: containerReason }, () =
     assert.match(r.output, /the setup of strahd-kit failed or did not verify/);
     assert.match(r.output, /options.json restored to launch 'curse-of-strahd'/);
     assert.match(r.output, /there is no kit session/);
+    assert.match(
+      r.output,
+      /Kit Player may exist in strahd-kit: MODE=up and then MODE=down removes it/
+    );
     assert.equal(r.world, 'curse-of-strahd');
     assert.deepEqual(r.state, ['absent']);
     assert.deepEqual(notJournal(r.calls), [
@@ -856,6 +887,7 @@ describe('kit-session.sh in an ARM64 container', { skip: containerReason }, () =
     assert.match(r.output, /DRIVER_SEES options=strahd-kit foundry_runs=true/);
     assert.deepEqual(notJournal(r.calls), [
       'is-active --quiet foundry.service',
+      `stop ${GM}`,
       'stop foundry.service',
       'start foundry.service',
       `restart ${GM}`,
@@ -911,7 +943,7 @@ describe('kit-session.sh in an ARM64 container', { skip: containerReason }, () =
     untouched(r, 'strahd-kit');
     assert.match(r.output, /the teardown in strahd-kit failed or did not verify/);
     assert.match(r.output, /run MODE=down again/);
-    assert.deepEqual(r.calls, ['is-active --quiet foundry.service']);
+    assert.deepEqual(r.calls, ['is-active --quiet foundry.service', `stop ${GM}`]);
     assert.deepEqual(r.state, ['mode 600 owner root', ...STATE_UP]);
   });
 
@@ -954,5 +986,57 @@ describe('kit-session.sh in an ARM64 container', { skip: containerReason }, () =
     assert.equal(r.world, 'curse-of-strahd');
     assert.deepEqual(r.state, ['absent']);
     assert.equal(count(r.calls, 'start foundry.service'), 1);
+  });
+
+  test('up with the ssh session dropping (SIGPIPE) after the services stopped still restores everything', () => {
+    const r = run('up-pipe-closed');
+    assert.notEqual(r.exit, 0, r.output);
+    assert.doesNotMatch(r.output, /summary/, 'the output really was cut off');
+    assert.equal(r.world, 'curse-of-strahd');
+    assert.deepEqual(r.state, ['absent']);
+    assert.equal(count(r.calls, 'restart foundry.service'), 1, r.calls.join('\n'));
+    assert.equal(r.calls.at(-1), `start ${GM}`);
+  });
+
+  test('down stops the Assistant GM browser before it counts who is online', () => {
+    const r = run('down-gm-active');
+    assert.equal(r.exit, 0, r.output);
+    const calls = notJournal(r.calls);
+    assert.deepEqual(calls.slice(0, 3), [
+      'is-active --quiet foundry.service',
+      `stop ${GM}`,
+      'stop foundry.service',
+    ]);
+    assert.equal(r.world, 'curse-of-strahd');
+    // With it running, /api/status counts it as a user: refused for a real reason, but it was stopped first.
+    const online = run('down-gm-active-users-online');
+    untouched(online, 'strahd-kit');
+    assert.ok(online.calls.includes(`stop ${GM}`));
+    assert.match(online.output, /2 user\(s\) are online/);
+  });
+
+  test('down when the campaign world does not come back: the session is over, the GM browser is started', () => {
+    const r = run('down-world-not-back');
+    assert.equal(r.exit, 1, r.output);
+    assert.match(r.output, /curse-of-strahd is not running on port 30000/);
+    assert.match(r.output, /Foundry did not come back on 'curse-of-strahd'/);
+    assert.match(r.output, /options.json is restored/);
+    assert.equal(r.world, 'curse-of-strahd');
+    assert.deepEqual(r.state, ['absent']);
+    assert.equal(r.calls.at(-1), `start ${GM}`);
+    const off = run('down-world-not-back-gm-off');
+    assert.equal(off.exit, 1, off.output);
+    assert.ok(!off.calls.some(c => c === `start ${GM}`));
+  });
+
+  test('down when Foundry cannot be stopped: nothing was put back, the state stays, run it again', () => {
+    const r = run('down-stop-fails');
+    assert.equal(r.exit, 1, r.output);
+    assert.match(r.output, /nothing was put back/);
+    assert.match(r.output, /run MODE=down again/);
+    assert.doesNotMatch(r.output, /options.json is restored/);
+    assert.equal(r.world, 'strahd-kit');
+    assert.deepEqual(r.state, ['mode 600 owner root', ...STATE_UP]);
+    assert.ok(!r.calls.some(c => c === `start ${GM}`), 'the GM browser stays off');
   });
 });

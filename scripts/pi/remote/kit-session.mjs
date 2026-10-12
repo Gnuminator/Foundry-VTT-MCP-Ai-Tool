@@ -78,7 +78,9 @@ const log = msg => console.log(`[kit-session] ${msg}`);
 // trackingOn: how many users have Actor Studio's usage-tracking saved as anything but false (a saved
 // per-user value overrides the off default); null when the module does not register the setting.
 // ownedActors: for the user named playerName, the actors where that user is an explicit OWNER.
-export function readState({ moduleId, phbModule, packs, settingKeys, playerName }) {
+// leftActors: the ids in actorIds that are still in game.actors (the teardown's read-back: once the user is gone,
+// ownedActors can no longer find its actors, so the ids found before the delete are looked up one by one).
+export function readState({ moduleId, phbModule, packs, settingKeys, playerName, actorIds = [] }) {
   const settings = game.settings;
   const registered = key => settings.settings.has(`${moduleId}.${key}`);
   const permissions = settings.get('core', 'permissions');
@@ -117,6 +119,7 @@ export function readState({ moduleId, phbModule, packs, settingKeys, playerName 
     values,
     users,
     ownedActors,
+    leftActors: actorIds.filter(id => game.actors.has(id)),
   };
 }
 
@@ -336,10 +339,15 @@ export function teardownProblems(state, maxDelete) {
 export function teardownMismatches(before, after) {
   const problems = [];
   if (after.users.length) problems.push(`${PLAYER_NAME} still exists`);
-  const left = after.ownedActors.map(a => a.id);
-  if (left.length) problems.push(`these actors are still there: ${left.join(', ')}`);
-  for (const actor of before.ownedActors) {
-    if (left.includes(actor.id)) problems.push(`${actor.name} (${actor.id}) was not deleted`);
+  // after must come from readState with the ids of before.ownedActors as actorIds.
+  const left = after.leftActors ?? [];
+  const wanted = new Set(before.ownedActors.map(a => a.id));
+  for (const id of left) {
+    const name = before.ownedActors.find(a => a.id === id)?.name ?? '?';
+    problems.push(`${name} (${id}) was not deleted`);
+  }
+  if (wanted.size && after.leftActors === undefined) {
+    problems.push('the read-back did not look up the deleted actors');
   }
   return problems;
 }
@@ -478,7 +486,10 @@ async function main() {
       });
       await page.reload({ waitUntil: 'domcontentloaded' });
       await ready();
-      const after = await page.evaluate(readState, args);
+      const after = await page.evaluate(readState, {
+        ...args,
+        actorIds: before.ownedActors.map(a => a.id),
+      });
       log(`after:  ${show(after)}`);
       const wrong = teardownMismatches(before, after);
       if (wrong.length) throw new Error(`read-back does not match: ${wrong.join('; ')}`);

@@ -120,3 +120,25 @@ NODE
 admin_password_set() {
   [ -s "$FOUNDRY_DATA/Config/admin.txt" ]
 }
+
+# Read-only: the same two checks as gm-passwords.sh, as a closing step for stages 11 and 13, so a world or a GM
+# user those stages (or anyone since stage 12) added is noticed. It only warns: the stage's own work is done, and
+# stage 12 refuses to open the tunnel while anything is found. Always returns 0. It calls gm_password_check, which
+# clears the EXIT, INT, TERM and HUP traps: call it after the stage has cleared its own traps (both stages do
+# before their summary). Needs lib.sh (say, ok, warn) before it in the pipe.
+gm_passwords_notice() {
+  local rc=0
+  say "GM passwords (read-only; gm-passwords.sh runs the same check)"
+  if admin_password_set; then
+    ok "Foundry has an administrator password"
+  else
+    warn "Foundry has no administrator password ($FOUNDRY_DATA/Config/admin.txt is missing or empty): /setup is open to anyone who reaches Foundry. Set one under the Configure gear (Application Configuration) in Foundry's setup screen before stage 12"
+  fi
+  gm_password_check || rc=$?
+  case "$rc" in
+    0) ok "every world's Gamemaster and Assistant GM users have a password" ;;
+    3) warn "a Gamemaster or Assistant GM user has no password (FOUND above): set one in that world (Game Settings, User Management) before stage 12 opens the tunnel" ;;
+    *) warn "the GM password check could not read every world (see the errors above); run gm-passwords.sh" ;;
+  esac
+  return 0
+}

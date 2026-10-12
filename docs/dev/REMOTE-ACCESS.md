@@ -60,8 +60,8 @@ Pick the names yourself; `play` and `cogm` are examples. Below, `<domain>` is yo
    off until the token is there. Before anything else it checks two things and stops while either
    fails, because anyone past Cloudflare Access reaches what is behind them:
    - **Foundry's administrator password** is set (without it `/setup` is open, and anyone could
-     launch, delete or reinstall worlds). Set it in Foundry: Setup, Configuration, Administrator
-     Password.
+     launch, delete or reinstall worlds). Set it on Foundry's setup screen: the Configure gear
+     (Application Configuration), Administrator Password (the button reads Change Password once one is set).
    - **Every world's Gamemaster and Assistant GM users have a password** (anyone could pick such a
      user on the join page). A world with no Gamemaster at all counts too, for example a world that
      was never launched: its next launch makes a "Gamemaster" with no password. The stage names the
@@ -129,7 +129,8 @@ scripts, and the two that touch secrets are run by you.
    the bridge, the dashboard and the Assistant GM browser. It must be told which build is already
    on the Pi, or it would build its default version instead (a downgrade): Claude runs it with
    `TOOL_REF` set to the contents of `/opt/foundry-ai-tool/app/.tool-ref` (the file stage 5 itself
-   writes after a build), so the build is skipped. Take a `dietpi-backup 1` snapshot first.
+   writes after a build), so the build is skipped (a build of a newer ref that has no `.tool-pruned`
+   is built once more, pruned). Take a `dietpi-backup 1` snapshot first.
 3. **The access settings (you, in your own SSH session).** Claude does not type these. From the
    repo folder in PowerShell:
 

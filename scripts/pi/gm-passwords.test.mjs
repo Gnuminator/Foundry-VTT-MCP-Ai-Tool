@@ -499,3 +499,95 @@ describe('12-tunnel.sh', { skip: noBash }, () => {
     assert.match(r.stdout, /APT-CALLED/);
   });
 });
+
+describe('gm_passwords_notice (the closing step of stages 11 and 13)', { skip: noBash }, () => {
+  /** A stand-in for a stage's last lines: the notice, then a line proving the script went on. */
+  function runNotice(env) {
+    const file = path.join(env.root, 'closing.sh');
+    writeFileSync(
+      file,
+      'gm_passwords_notice\necho "traps=[$(trap -p EXIT INT TERM HUP)]"\necho AFTER\n'
+    );
+    return runPiped(env, override(), file);
+  }
+
+  test('clean: ok lines, no warning, the traps are cleared and the script goes on', () => {
+    const env = makeRoot();
+    addWorld(env, 'strahd', [user('Chris', 4, 'pw')]);
+    const r = runNotice(env);
+    assert.equal(r.status, 0, r.stdout + r.stderr);
+    assert.match(r.stdout, /ok: Foundry has an administrator password/);
+    assert.match(r.stdout, /ok: strahd:/);
+    assert.match(r.stdout, /ok: every world's Gamemaster and Assistant GM users have a password/);
+    assert.doesNotMatch(r.stdout + r.stderr, /WARNING|FOUND/);
+    assert.match(r.stdout, /traps=\[\]/);
+    assert.match(r.stdout, /AFTER/);
+  });
+
+  test('no administrator password and a GM without one: warnings only, still exit 0', () => {
+    const env = makeRoot({ withAdmin: false });
+    addWorld(env, 'strahd', [user('Chris', 4, '')]);
+    const r = runNotice(env);
+    assert.equal(r.status, 0, r.stdout + r.stderr);
+    assert.match(r.stderr, /WARNING: Foundry has no administrator password/);
+    assert.match(r.stderr, /Configure gear \(Application Configuration\)/);
+    assert.match(r.stdout, /FOUND: strahd: Gamemaster "Chris" has no password/);
+    assert.match(r.stderr, /WARNING: a Gamemaster or Assistant GM user has no password/);
+    assert.match(r.stdout, /AFTER/);
+  });
+
+  test('a world that cannot be read, or no worlds folder: a warning, still exit 0', () => {
+    const broken = makeRoot();
+    addWorld(broken, 'broken', [], { raw: [['k', 'nope']] });
+    const a = runNotice(broken);
+    assert.equal(a.status, 0, a.stdout + a.stderr);
+    assert.match(a.stderr, /WARNING: the GM password check could not read every world/);
+    assert.match(a.stdout, /AFTER/);
+
+    const none = makeRoot();
+    rmSync(path.join(none.data, 'Data', 'worlds'), { recursive: true });
+    const b = runNotice(none);
+    assert.equal(b.status, 0, b.stdout + b.stderr);
+    assert.match(b.stderr, /ERROR: no worlds folder/);
+    assert.match(b.stdout, /AFTER/);
+  });
+
+  test('stages 11 and 13 call it after clearing their own traps and before the summary', () => {
+    for (const f of ['11-world.sh', '13-player-creation.sh']) {
+      const text = readFileSync(path.join(here, 'remote', f), 'utf8');
+      const call = text.indexOf('  gm_passwords_notice\n');
+      const lastTrap = text.lastIndexOf('trap - EXIT');
+      const summary = text.indexOf('say "summary"');
+      assert.ok(call > 0, `${f} does not call gm_passwords_notice`);
+      assert.ok(
+        lastTrap > 0 && lastTrap < call,
+        `${f}: the notice clears the traps, so it comes after trap - EXIT`
+      );
+      assert.ok(call < summary, `${f}: the notice comes before the summary`);
+      assert.match(
+        text,
+        /declare -F gm_passwords_notice/,
+        `${f} must cope with the helper missing from the pipe`
+      );
+    }
+  });
+
+  test('a stage run without the helper in the pipe warns and goes on', () => {
+    const env = makeRoot();
+    // The closing block of stage 13 as written, with the helper taken out of the pipe.
+    const lines = readFileSync(path.join(here, 'remote', '13-player-creation.sh'), 'utf8').split(
+      '\n'
+    );
+    const from = lines.findIndex(l => l.startsWith('# Read-only closing check'));
+    const to = lines.findIndex(l => l.startsWith('say "summary"'));
+    const file = path.join(env.root, 'closing.sh');
+    writeFileSync(
+      file,
+      `unset -f gm_passwords_notice\n${lines.slice(from, to).join('\n')}\necho AFTER\n`
+    );
+    const r = runPiped(env, override(), file);
+    assert.equal(r.status, 0, r.stdout + r.stderr);
+    assert.match(r.stderr, /WARNING: lib-gm-passwords.sh was not in the pipe/);
+    assert.match(r.stdout, /AFTER/);
+  });
+});

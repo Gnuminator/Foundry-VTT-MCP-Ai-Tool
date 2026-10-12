@@ -64,6 +64,15 @@ test('stage 12 (tunnel, with the GM password helper in the pipe) passes the guar
   assert.equal(kind(command), 'allow', JSON.stringify(decide(command, repo)));
 });
 
+test('stages 11 and 13 (with the GM password helper in the pipe) pass the guard as documented', () => {
+  for (const command of [
+    "cat scripts/pi/remote/lib.sh scripts/pi/remote/lib-gm-passwords.sh scripts/pi/remote/11-world.sh | ssh foundry-pi 'BUNDLE=/var/lib/foundry-import/curse-of-strahd-1.tar WORLD=curse-of-strahd bash -s'",
+    "scp scripts/pi/remote/player-creation-settings.mjs foundry-pi:/root/ && cat scripts/pi/remote/lib.sh scripts/pi/remote/lib-gm-passwords.sh scripts/pi/remote/13-player-creation.sh | ssh foundry-pi 'bash -s'",
+  ]) {
+    assert.equal(kind(command), 'allow', `${command}: ${JSON.stringify(decide(command, repo))}`);
+  }
+});
+
 test('every script in scripts/pi/remote is one of the kinds checked above', () => {
   const dir = path.join(repo, 'scripts', 'pi', 'remote');
   const known = n =>

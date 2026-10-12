@@ -309,15 +309,15 @@ if ($LASTEXITCODE -ne 0) { Fail 'ssh to the Pi failed' }
 if ($LASTEXITCODE -ne 0) { Fail 'scp failed' }
 Write-Host 'uploaded. Stage 11 has NOT been run. After a snapshot (dietpi-backup 1) and your OK:' -ForegroundColor Green
 if ($PushBack) {
-  Write-Host "  cat scripts/pi/remote/lib.sh scripts/pi/remote/11-world.sh | ssh $PiHost 'BUNDLE=/var/lib/foundry-import/$remoteName WORLD=$World REPLACE_WORLD=1 KIT_WORLD= bash -s'"
+  Write-Host "  cat scripts/pi/remote/lib.sh scripts/pi/remote/lib-gm-passwords.sh scripts/pi/remote/11-world.sh | ssh $PiHost 'BUNDLE=/var/lib/foundry-import/$remoteName WORLD=$World REPLACE_WORLD=1 KIT_WORLD= bash -s'"
   Write-Host "It refuses if the Pi's world changed after $basedOn (it lists what changed). Only with your OK to lose those"
   Write-Host 'Pi-side changes: add REPLACE_NEWER=1. The Pi''s old copy is kept in /var/lib/foundry-import/prev-<time> either way.'
 } elseif ($World -ne 'curse-of-strahd') {
   # A second world beside the campaign: stage 11 wants KIT_WORLD and LAUNCH set explicitly for it.
-  Write-Host "  cat scripts/pi/remote/lib.sh scripts/pi/remote/11-world.sh | ssh $PiHost 'BUNDLE=/var/lib/foundry-import/$remoteName WORLD=$World KIT_WORLD= LAUNCH=curse-of-strahd bash -s'"
+  Write-Host "  cat scripts/pi/remote/lib.sh scripts/pi/remote/lib-gm-passwords.sh scripts/pi/remote/11-world.sh | ssh $PiHost 'BUNDLE=/var/lib/foundry-import/$remoteName WORLD=$World KIT_WORLD= LAUNCH=curse-of-strahd bash -s'"
   Write-Host '  EXTRA_GM_USER=<name> is optional: put it before bash -s for a second full GM with its own password.'
   if ($Modules.Count) { Write-Host "  The bundle ships modules ($($Modules -join ', ')): stage 11 refuses that for a second world unless SHIP_MODULES=1, because it replaces the campaign's copies. Better build the bundle again with -Modules '' -PiModules <ids>." }
 } else {
-  Write-Host "  cat scripts/pi/remote/lib.sh scripts/pi/remote/11-world.sh | ssh $PiHost 'BUNDLE=/var/lib/foundry-import/$remoteName WORLD=$World bash -s'"
+  Write-Host "  cat scripts/pi/remote/lib.sh scripts/pi/remote/lib-gm-passwords.sh scripts/pi/remote/11-world.sh | ssh $PiHost 'BUNDLE=/var/lib/foundry-import/$remoteName WORLD=$World bash -s'"
 }
 if ($PiModules.Count) { Write-Host "Modules left as they are on the Pi (not in the bundle): $($PiModules -join ', ')" }

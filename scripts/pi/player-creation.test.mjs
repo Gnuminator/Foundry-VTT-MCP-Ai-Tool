@@ -242,7 +242,7 @@ test('the container suite has Docker when CI asks for it', { skip: !noDockerInCi
 });
 
 describe('13-player-creation.sh in an ARM64 container', { skip: containerReason }, () => {
-  /** @type {Map<string, {output: string, exit: number, calls: string[], world: string, version: string, prev: string[]}>} */
+  /** @type {Map<string, {output: string, exit: number, rerunOutput: string, rerunExit: number, calls: string[], world: string, version: string, prev: string[]}>} */
   const runs = new Map();
   before(
     () => {
@@ -257,6 +257,8 @@ describe('13-player-creation.sh in an ARM64 container', { skip: containerReason 
         runs.set(name, {
           output: part('output'),
           exit: Number(block.match(/^--- exit (\d+)$/m)?.[1]),
+          rerunOutput: part('rerun output'),
+          rerunExit: Number(block.match(/^--- rerun exit (\d+)$/m)?.[1]),
           calls: part('calls').split('\n').filter(Boolean),
           world: part('options.json'),
           version: part('module version'),
@@ -298,12 +300,51 @@ describe('13-player-creation.sh in an ARM64 container', { skip: containerReason 
     assert.match(r.output, /HOME=\/var\/lib\/foundry-ai-tool TOOL_APP=\/opt\/foundry-ai-tool\/app/);
     assert.doesNotMatch(r.output, /secret123/);
     assert.match(r.output, /the Assistant GM browser joined the world/);
+    // The closing GM password check (read-only) found nothing.
+    assert.match(r.output, /==> GM passwords[\s\S]*Foundry has an administrator password/);
+    assert.match(r.output, /ok: every world's Gamemaster and Assistant GM users have a password/);
+    assert.doesNotMatch(r.output, /FOUND:/);
     assert.equal(r.world, 'curse-of-strahd');
     assert.equal(r.version, PINNED);
     assert.deepEqual(r.prev, [
       'worlds/curse-of-strahd/settings/000001.log',
       'worlds/strahd-kit/settings/000001.log',
     ]);
+  });
+
+  test('the closing GM password check only warns: no administrator password, a Gamemaster without one', () => {
+    const r = run('gm-passwords-missing');
+    assert.equal(r.exit, 0, r.output);
+    assert.match(r.output, /WARNING: Foundry has no administrator password/);
+    assert.match(r.output, /FOUND: curse-of-strahd: Gamemaster "Gamemaster" has no password/);
+    assert.match(r.output, /ok: strahd-kit: every Gamemaster and Assistant GM has a password/);
+    assert.match(r.output, /WARNING: a Gamemaster or Assistant GM user has no password/);
+    assert.equal(r.version, PINNED);
+  });
+
+  test('a second run on the same Pi installs nothing again and sets both worlds again', () => {
+    const r = run('install-twice');
+    assert.equal(r.exit, 0, r.output);
+    assert.match(r.output, /sha256 matches/);
+    assert.match(r.output, /Actor Studio: \S+ \(installed\)/);
+    assert.equal(r.rerunExit, 0, r.rerunOutput);
+    assert.match(r.rerunOutput, /Actor Studio: \S+ \(already there, skipped\)/);
+    assert.doesNotMatch(r.rerunOutput, /sha256 matches|installing Actor Studio/);
+    assert.match(
+      r.rerunOutput,
+      /WORLD=strahd-kit HAS_PW=true[\s\S]*WORLD=curse-of-strahd HAS_PW=true/
+    );
+    assert.match(r.rerunOutput, /the Assistant GM browser joined the world/);
+    assert.doesNotMatch(r.rerunOutput, /secret123/);
+    // The calls of both runs: the same sequence twice.
+    const calls = r.calls.filter(c => !c.startsWith('journalctl'));
+    assert.deepEqual(calls, [...GOOD_CALLS, ...GOOD_CALLS], calls.join('\n'));
+    assert.equal(r.world, 'curse-of-strahd');
+    assert.equal(r.version, PINNED);
+    assert.deepEqual(
+      r.prev.filter(p => p.startsWith('modules/')),
+      []
+    );
   });
 
   for (const [name, reason] of [

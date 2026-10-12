@@ -9,6 +9,10 @@ We play in two places at once: **Foundry** in your web browser (the map, your ch
 the dice) and **Discord** (voice). This page gets you into both. Do it once before session 0, so
 any problem shows up before the game.
 
+> **Walkthrough to come.** The steps on this page describe the plan. The step-by-step version with
+> pictures is added once the game server is online and has been tried from outside the GM's own home
+> network. Until then, follow the GM's message if it differs from this page.
+
 ## What you need
 
 - **A laptop or desktop computer.** Foundry needs a screen of at least 1366 by 768 pixels. Phones
@@ -22,10 +26,6 @@ any problem shows up before the game.
   email address you want to log in with.
 
 ## 1. Open the game's address
-
-> **Walkthrough to come.** The steps below describe the plan. The step-by-step version with
-> pictures is added once the game server is online and has been tried from outside the GM's own home
-> network. Until then, follow the GM's message if it differs from this page.
 
 Open the address the GM sends you. It looks like `https://play.<our domain>` (the real one is in
 the GM's message).

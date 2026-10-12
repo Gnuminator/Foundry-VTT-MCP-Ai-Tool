@@ -73,12 +73,21 @@ test('stages 11 and 13 (with the GM password helper in the pipe) pass the guard 
   }
 });
 
+test('kit-session.sh (the strahd-kit test run) passes the guard as documented, up and down', () => {
+  for (const mode of ['up', 'down']) {
+    const command = `cat scripts/pi/remote/lib.sh scripts/pi/remote/kit-session.sh | ssh foundry-pi 'MODE=${mode} bash -s'`;
+    assert.equal(kind(command), 'allow', `${mode}: ${JSON.stringify(decide(command, repo))}`);
+  }
+});
+
 test('every script in scripts/pi/remote is one of the kinds checked above', () => {
   const dir = path.join(repo, 'scripts', 'pi', 'remote');
   const known = n =>
     /^\d+-.*\.sh$/.test(n) ||
     /^set-.*\.sh$/.test(n) ||
-    ['lib.sh', 'lib-gm-passwords.sh', 'gm-script.sh', 'gm-passwords.sh'].includes(n);
+    ['lib.sh', 'lib-gm-passwords.sh', 'gm-script.sh', 'gm-passwords.sh', 'kit-session.sh'].includes(
+      n
+    );
   const unchecked = readdirSync(dir).filter(n => n.endsWith('.sh') && !known(n));
   assert.deepEqual(unchecked, [], 'add a guard test for each new script the user runs over SSH');
 });

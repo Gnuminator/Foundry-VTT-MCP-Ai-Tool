@@ -790,6 +790,74 @@ screen, an install from a local zip, services that were off staying off, and a f
 browser start that restarts Foundry only once. CI runs both, the container part on the ARM runner,
 where a missing Docker fails the step instead of skipping it.
 
+## Kit session (strahd-kit test run)
+
+Before session 0 it is worth watching a real player make a level-1 character, as a player, on the
+Pi itself. The kit session does that in the throwaway world `strahd-kit` (never
+`curse-of-strahd`) and puts everything back afterwards. It is a pair of runs of one script,
+`kit-session.sh`, and it needs stages 5, 11 and 13 first (the tool's build for Chromium, the GM
+login in `/etc/foundry-ai-tool/world-strahd-kit.env`, and the Actor Studio fork). Take a
+`dietpi-backup 1` snapshot and get your OK first: Foundry stops for a few minutes. The world
+(`strahd-kit`) and the player (`Kit Player`) are fixed in the script; no variable can change them.
+The in-browser part goes over first, the same way as for stage 13:
+
+```powershell
+scp scripts/pi/remote/kit-session.mjs foundry-pi:/root/ && cat scripts/pi/remote/lib.sh scripts/pi/remote/kit-session.sh | ssh foundry-pi 'MODE=up bash -s'
+```
+
+- **`MODE=up`** checks everything before it stops anything: the world and its GM login are there, the
+  tool is built, no kit session is up already, Foundry does not launch `strahd-kit` already, and
+  space is fine (the 20 % rule). Then the Assistant GM browser stops, `/api/status` must answer and
+  count nobody online (`FORCE=1` goes on anyway), and Foundry stops. What ran before is written to
+  `/var/lib/foundry-ai-tool/kit-session.env` (mode 600) before `options.json` changes, and
+  `strahd-kit`'s settings, users and actors are copied to
+  `/var/lib/foundry-import/prev-<time>/worlds/strahd-kit/` (kept, never deleted). Foundry starts on
+  `strahd-kit` and a headless Chromium joins as the world's GM and runs `kit-session.mjs` with
+  `ACTION=setup`. It makes sure players may create actors (Player and Trusted Player are added to
+  `ACTOR_CREATE`, roles already there stay), points Actor Studio at the Player's Handbook packs
+  (origins for species, features and backgrounds; classes for classes and subclasses; spells, feats
+  and equipment each from their own pack; the item source is left alone), turns on the standard
+  array, spell selection and equipment selection and turns off manual input, point buy and rolling,
+  turns usage tracking off, and creates the user `Kit Player` with no password if it is missing. An
+  existing `Kit Player` must be a Player who really joins without a password (the script tries it),
+  otherwise nothing is changed. Values are printed before and after, read back after a reload, and a
+  second run changes nothing. When it works, Foundry stays on `strahd-kit` and the Assistant GM
+  browser stays **stopped**: it would join `strahd-kit` and move the bridge link (and with it the
+  Claude Desktop connectors) to the test world. The stage prints the join address
+  (`http://foundry-pi:30000/join`) and the user name. If anything fails after the services stopped,
+  `options.json`, Foundry and the Assistant GM browser are put back as they were and the state file
+  is removed, even when the ssh session drops in the middle of the run. A run that fails after the
+  world was started may leave `Kit Player` in `strahd-kit`; the stage says so, and `MODE=up` followed
+  by `MODE=down` removes it.
+- **The player plays.** They join as `Kit Player` and make their character in Actor Studio. When they
+  have left the game:
+
+  ```powershell
+  cat scripts/pi/remote/lib.sh scripts/pi/remote/kit-session.sh | ssh foundry-pi 'MODE=down bash -s'
+  ```
+
+- **`MODE=down`** needs the state file, `strahd-kit` running and nobody online (`FORCE=1` goes on
+  anyway). It stops the Assistant GM browser first, because a reboot during the session starts it on
+  `strahd-kit`, where it would count as a user. With `strahd-kit` still running it runs `kit-session.mjs` with `ACTION=teardown`: the
+  actors that `Kit Player` owns are listed by name and id and deleted, then the user. At most 5
+  actors are deleted; more than that stops the run (`MAX_DELETE=<n>` raises the limit after you have
+  looked at them), and nothing else is deleted and no setting is touched. Any actor you give
+  `Kit Player` during the session is deleted too; the copy from before the session is in
+  `prev-<time>`. If the teardown fails,
+  nothing else changes: Foundry stays on `strahd-kit` and the state file stays, so `MODE=down` can run
+  again. Otherwise Foundry stops, `options.json` launches the world it launched before, the state
+  file is removed, Foundry starts, and the Assistant GM browser starts again if it ran before (the
+  stage waits for "joined world").
+- **Anything else as `MODE`** stops with a usage line before anything changes.
+
+Tested the same way as stage 13: `node --test scripts/pi/kit-session.test.mjs` runs the browser
+script against a fake `game` (every decision of the setup and the teardown), and with
+`PI_KIT_SESSION_CONTAINER=1` it runs the stage in an ARM64 Debian 13 container with stand-ins for
+systemd (`scripts/pi/container-test/kit-session-scenarios.sh`; Docker needed): up and down, the
+refusals (a session already up, already on `strahd-kit`, people online, a bad `MODE`), a failing
+script putting everything back, and services that were off staying off. The real browser script has
+not run against a live world yet: that is what the first kit session on the Pi is for.
+
 ## GM scripts
 
 Some world changes need a GM in the browser (a module's own import, a script that places map pins),

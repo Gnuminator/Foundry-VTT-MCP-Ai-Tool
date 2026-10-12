@@ -563,10 +563,10 @@ const remote = path.join(path.dirname(fileURLToPath(import.meta.url)), 'remote')
 const hasBash = spawnSync('bash', ['-c', 'true']).status === 0;
 
 test(
-  'stages 11 and 13 and the helpers they run with parse (bash -n)',
+  'stages 11 and 13, the kit session and the helpers they run with parse (bash -n)',
   { skip: !hasBash && 'bash is not available' },
   () => {
-    for (const file of ['lib.sh', '11-world.sh', '13-player-creation.sh']) {
+    for (const file of ['lib.sh', '11-world.sh', '13-player-creation.sh', 'kit-session.sh']) {
       const r = spawnSync('bash', ['-n', path.join(remote, file)], { encoding: 'utf8' });
       assert.equal(r.status, 0, `${file}: ${r.stderr}`);
     }
@@ -811,6 +811,13 @@ test('the in-browser script of stage 13 parses (node --check)', () => {
     ['--check', path.join(remote, 'player-creation-settings.mjs')],
     { encoding: 'utf8' }
   );
+  assert.equal(r.status, 0, r.stderr);
+});
+
+test('the in-browser script of the kit session parses (node --check)', () => {
+  const r = spawnSync(process.execPath, ['--check', path.join(remote, 'kit-session.mjs')], {
+    encoding: 'utf8',
+  });
   assert.equal(r.status, 0, r.stderr);
 });
 

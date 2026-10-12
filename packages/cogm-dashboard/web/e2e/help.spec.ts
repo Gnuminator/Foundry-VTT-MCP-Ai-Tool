@@ -70,3 +70,52 @@ test('a guide that cannot load says why, and the next open asks again', async ({
   await fromMenu(page, 'btn-guides');
   await expect.poll(() => calls).toBe(2);
 });
+
+test('a link inside a guide opens that guide in the same pane, and the wiki link follows', async ({
+  page,
+}) => {
+  await fromMenu(page, 'btn-guides');
+  const pane = helpPane(page);
+  await expect(pane.locator('.help-body h1')).toBeVisible();
+  const wiki = pane.getByRole('link', { name: 'Open this page on the wiki' });
+  await expect(wiki).toHaveAttribute(
+    'href',
+    'https://gnuminator.github.io/Foundry-VTT-MCP-Ai-Tool/gm/'
+  );
+
+  // The index links to "Getting started"; the link does not navigate the page (href is "#").
+  await pane.locator('.help-body a[data-help^="getting-started"]').first().click();
+  await expect(page).not.toHaveURL(/#/);
+  await expect(wiki).toHaveAttribute(
+    'href',
+    'https://gnuminator.github.io/Foundry-VTT-MCP-Ai-Tool/gm/getting-started/'
+  );
+  await expect(pane.locator('[id="getting-started"]').first()).toBeVisible();
+  await expect(pane.locator('.pane-head h2')).toHaveText('Getting started');
+});
+
+test('on a narrow screen the help head keeps its title, wiki link and close button on screen', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 375, height: 812 });
+  await fromMenu(page, 'btn-guides');
+  const pane = helpPane(page);
+  await expect(pane.locator('.help-body h1')).toBeVisible();
+  const box = await pane.boundingBox();
+  const parts = [
+    pane.locator('.pane-head h2'),
+    pane.getByRole('link', { name: 'Open this page on the wiki' }),
+    pane.getByRole('button', { name: 'Close help' }),
+  ];
+  for (const part of parts) {
+    await expect(part).toBeVisible();
+    const b = await part.boundingBox();
+    expect(b?.x).toBeGreaterThanOrEqual((box?.x ?? 0) - 1);
+    expect((b?.x ?? 0) + (b?.width ?? 0)).toBeLessThanOrEqual(
+      (box?.x ?? 0) + (box?.width ?? 0) + 1
+    );
+  }
+  // Nothing in the head sticks out of the pane.
+  const head = pane.locator('.pane-head');
+  expect(await head.evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true);
+});

@@ -2,7 +2,7 @@
 // (`GET /api/help/:page`, help-route.ts; the HTML is made from docs/ at build time) and scrolls to
 // a heading. Anything can open it with useHelp()("page#anchor"), as data-help does on the old page.
 import { useQuery } from '@tanstack/react-query';
-import { useEffect, useRef, useState, type JSX, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type JSX, type MouseEvent, type ReactNode } from 'react';
 
 import { api, errorText } from '../lib/api';
 import { usage } from '../lib/usage';
@@ -17,7 +17,15 @@ interface HelpPage {
 }
 
 /** The guide's HTML, scrolled to the heading the link asked for (else to the top). */
-function HelpHtml({ html, anchor }: { html: string; anchor: string }): JSX.Element {
+function HelpHtml({
+  html,
+  anchor,
+  onLink,
+}: {
+  html: string;
+  anchor: string;
+  onLink: OpenHelp;
+}): JSX.Element {
   const body = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const target = anchor ? body.current?.querySelector(`[id="${CSS.escape(anchor)}"]`) : null;
@@ -25,7 +33,15 @@ function HelpHtml({ html, anchor }: { html: string; anchor: string }): JSX.Eleme
     else body.current?.closest('.pane-body')?.scrollTo({ top: 0 });
   }, [html, anchor]);
   // Built from the repo's own docs by scripts/build-help.mjs, not from anything a user typed.
-  return <div ref={body} dangerouslySetInnerHTML={{ __html: html }} />;
+  // The guide's own links carry data-help="page#anchor" (the old page's click handler): they open
+  // that page in this pane instead of following their href.
+  const follow = (e: MouseEvent<HTMLDivElement>): void => {
+    const link = e.target instanceof Element ? e.target.closest<HTMLElement>('[data-help]') : null;
+    if (!link?.dataset.help) return;
+    e.preventDefault();
+    onLink(link.dataset.help);
+  };
+  return <div ref={body} onClick={follow} dangerouslySetInnerHTML={{ __html: html }} />;
 }
 
 /** The help pane and the context that opens it. Wraps the page once, in App. */
@@ -87,7 +103,7 @@ export function HelpProvider({ children }: { children: ReactNode }): JSX.Element
         ) : help.isError ? (
           <p className="empty">Couldn&apos;t load the help: {errorText(help.error)}</p>
         ) : (
-          <HelpHtml html={help.data.html} anchor={target.anchor} />
+          <HelpHtml html={help.data.html} anchor={target.anchor} onLink={openHelp} />
         )}
       </OverlayPane>
     </HelpContext.Provider>

@@ -9,6 +9,10 @@ We play in two places at once: **Foundry** in your web browser (the map, your ch
 the dice) and **Discord** (voice). This page gets you into both. Do it once before session 0, so
 any problem shows up before the game.
 
+> **Walkthrough to come.** The steps on this page describe the plan. The step-by-step version with
+> pictures is added once the game server is online and has been tried from outside the GM's own home
+> network. Until then, follow the GM's message if it differs from this page.
+
 ## What you need
 
 - **A laptop or desktop computer.** Foundry needs a screen of at least 1366 by 768 pixels. Phones
@@ -42,8 +46,9 @@ Foundry's join page opens.
 2. Type your **password**.
 3. Click **Join Game Session**.
 
-The game loads. The first time, a **User Configuration** window may open. You can close it: once
-you have a character, you pick it there (see [Make your character](make-a-character.md)).
+The game loads. The first time, two windows open by themselves: the Actor Studio welcome window
+and Foundry's **User Configuration**. Close both for now. User Configuration comes back every time
+you join until you have a character and have picked it there (see [Make your character](make-a-character.md)).
 
 To leave, close the browser tab. To switch user on the same computer, press **Esc** and choose
 **Log Out**.

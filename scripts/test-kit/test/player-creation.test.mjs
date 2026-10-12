@@ -1,6 +1,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { findDuplicates, judgeSheet, playerStudioSettings } from '../lib/player-creation.mjs';
+import {
+  findDuplicates,
+  judgeAbilities,
+  judgeProficiencies,
+  judgeSheet,
+  playerStudioSettings,
+} from '../lib/player-creation.mjs';
 import { narrowSources, studioSettingsFor } from '../lib/studio.mjs';
 
 /** A level-1 wizard sheet that passes every check; tests break one thing. */
@@ -234,4 +240,151 @@ test('playerStudioSettings: equipment on, class and origin lists narrowed, equip
   // Without equipment packs in the profile, the system's own 2024 equipment.
   const bare = studioSettingsFor({ packs: { ...profile.packs, equipment: undefined } });
   assert.deepEqual(bare.compendiumSources.equipment, ['dnd5e.equipment24']);
+});
+
+/**
+ * The level-1 wizard made by hand in the licensed kit world (High Elf, Sage; names only): the
+ * scores the player typed were 8/13/14/15/12/10 and the background raised Intelligence by 2 and
+ * Constitution by 1.
+ */
+function wizardFixture() {
+  return {
+    ...fixture(),
+    baseAbilities: { str: 8, dex: 13, con: 14, int: 15, wis: 12, cha: 10 },
+    sheet: {
+      ...fixture().sheet,
+      abilities: { str: 8, dex: 13, con: 15, int: 17, wis: 12, cha: 10 },
+      saves: ['int', 'wis'],
+      prof: 2,
+      skills: ['arc', 'his', 'inv', 'med', 'prc'],
+      tools: ['calligrapher'],
+      languages: ['common', 'elvish', 'dwarvish'],
+      weaponProf: ['sim'],
+      armorProf: [],
+      expect: {
+        saves: ['int', 'wis'],
+        weapons: ['sim'],
+        armor: [],
+        skills: { grants: ['arc', 'his'], choose: 3 },
+        tools: { grants: ['calligrapher'], choose: 0 },
+        languages: { grants: ['common'], choose: 2 },
+      },
+    },
+  };
+}
+
+test('judgeSheet: a wizard with its scores and proficiencies in order passes, with a Spellbook note', () => {
+  const v = judgeSheet(wizardFixture());
+  assert.deepEqual(v.problems, []);
+  assert.ok(v.notes.some(n => /no Spellbook item/.test(n)));
+  const withBook = wizardFixture();
+  withBook.sheet.items.push({ name: 'Spellbook', type: 'loot' });
+  assert.ok(!judgeSheet(withBook).notes.some(n => /Spellbook/.test(n)));
+});
+
+test('judgeAbilities: range, and the background’s 3 points on what the player entered', () => {
+  const o = wizardFixture();
+  assert.deepEqual(judgeAbilities(o.sheet, o.baseAbilities), []);
+  // +1/+1/+1 is fine too.
+  assert.deepEqual(
+    judgeAbilities(
+      { ...o.sheet, abilities: { ...o.sheet.abilities, con: 15, int: 16, wis: 13 } },
+      o.baseAbilities
+    ),
+    []
+  );
+  // The background step skipped: nothing raised.
+  const skipped = judgeAbilities({ ...o.sheet, abilities: o.baseAbilities }, o.baseAbilities);
+  assert.equal(skipped[0].what, 'the background did not raise the scores by 3 points in all');
+  assert.match(skipped[0].evidence, /entered 8\/13\/14\/15\/12\/10, now str 8, dex 13/);
+  // +3 on one score, a score lowered, a score of 21.
+  const three = judgeAbilities(
+    { ...o.sheet, abilities: { ...o.sheet.abilities, con: 14, int: 18 } },
+    o.baseAbilities
+  );
+  assert.match(three[0].what, /more than \+2, or lowered/);
+  const low = judgeAbilities(
+    { ...o.sheet, abilities: { ...o.sheet.abilities, str: 7, int: 19 } },
+    o.baseAbilities
+  );
+  assert.match(low[0].what, /more than \+2, or lowered/);
+  const high = judgeAbilities({ ...o.sheet, abilities: { ...o.sheet.abilities, int: 21 } });
+  assert.equal(high[0].what, 'ability scores out of range (1 to 20)');
+  // Without the entered scores only the range is judged; without scores nothing is.
+  assert.deepEqual(judgeAbilities(o.sheet, null), []);
+  assert.deepEqual(judgeAbilities(fixture().sheet, o.baseAbilities), []);
+});
+
+test('judgeProficiencies: saves are the class’s, grants are present, choices were made', () => {
+  const o = wizardFixture();
+  assert.deepEqual(judgeProficiencies(o.sheet), { problems: [], notes: [] });
+  const broken = {
+    ...o.sheet,
+    prof: 3,
+    saves: ['int', 'cha'],
+    skills: ['arc', 'prc'],
+    tools: [],
+    languages: ['common'],
+    weaponProf: [],
+  };
+  const what = judgeProficiencies(broken).problems.map(p => p.what);
+  assert.deepEqual(what, [
+    'the proficiency bonus is not +2',
+    'saving throw proficiencies are not the class’s',
+    'skills the character should have are missing',
+    'tools the character should have are missing',
+    'weapons the character should have are missing',
+    'fewer skill proficiencies than granted and chosen (a choice was skipped)',
+    'fewer tool proficiencies than granted and chosen (a choice was skipped)',
+    'fewer language proficiencies than granted and chosen (a choice was skipped)',
+  ]);
+  const skills = judgeProficiencies(broken).problems.find(p => /fewer skill/.test(p.what));
+  assert.equal(skills?.evidence, '2, at least 2 granted + 3 chosen = 5');
+  // A sheet read without expectations (older callers) is not judged.
+  assert.deepEqual(judgeProficiencies({ ...o.sheet, expect: undefined }), {
+    problems: [],
+    notes: [],
+  });
+});
+
+test('judgeProficiencies: a skill choice that repeats a granted skill is a note, a skipped choice a problem', () => {
+  const o = wizardFixture();
+  // A Wayfarer-style overlap: Insight granted, the Elf's Keen Senses also picked Insight.
+  const sheet = {
+    ...o.sheet,
+    skills: ['arc', 'his', 'inv', 'med'],
+    expect: {
+      ...o.sheet.expect,
+      skills: {
+        grants: ['arc', 'his'],
+        choose: 3,
+        pools: [
+          ['arc', 'his', 'ins', 'inv'],
+          ['ins', 'prc', 'sur'],
+        ],
+      },
+    },
+  };
+  const v = judgeProficiencies(sheet);
+  assert.deepEqual(v.problems, []);
+  assert.match(v.notes[0], /skill choices may repeat a granted skill \(1 proficiency fewer/);
+  // Two proficiencies short is more than one overlap can explain.
+  const two = judgeProficiencies({ ...sheet, skills: ['arc', 'his', 'inv'] });
+  assert.match(two.problems[0].what, /fewer skill proficiencies/);
+  // Pools that cannot overlap the grants explain nothing.
+  const none = judgeProficiencies({
+    ...sheet,
+    expect: {
+      ...sheet.expect,
+      skills: {
+        grants: ['arc', 'his'],
+        choose: 3,
+        pools: [
+          ['nat', 'rel'],
+          ['prc', 'sur'],
+        ],
+      },
+    },
+  });
+  assert.match(none.problems[0].what, /fewer skill proficiencies/);
 });

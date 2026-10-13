@@ -34,6 +34,41 @@ tool_prunable() {
   (cd "$1" && node -e 'process.exit(require("./package.json").dependencies?.["playwright-core"] ? 0 : 1)')
 }
 
+# Loads one side-effect-free module of each package from the build in $1 (the bridge, the dashboard app and the shared
+# package), so a runtime package the prune took away stops the stage before any service stops, not as a restart loop
+# after the swap (#310 review M1). Nothing is started: the entry files (standalone.js, server.js) listen on import and
+# are not touched. A listed file this ref does not have is skipped; a package with none left fails. The failures go to
+# stderr, one line each.
+check_build_loads() {
+  (cd "$1" && timeout 120 node --input-type=module -e '
+    import { existsSync } from "node:fs";
+    import path from "node:path";
+    import { pathToFileURL } from "node:url";
+    const groups = {
+      bridge: ["config.js", "logger.js", "foundry-connector.js", "handouts/strip-secrets.js", "prompts/register.js"].map(f => "packages/mcp-server/dist/" + f),
+      dashboard: ["packages/cogm-dashboard/dist/app.js"],
+      shared: ["shared/dist/index.js"],
+    };
+    let failed = false;
+    for (const [group, files] of Object.entries(groups)) {
+      const present = files.filter(f => existsSync(f));
+      if (present.length === 0) {
+        console.error(`${group}: none of ${files.join(", ")} exists`);
+        failed = true;
+      }
+      for (const f of present) {
+        try {
+          await import(pathToFileURL(path.resolve(f)).href);
+        } catch (e) {
+          console.error(`${group}: ${f}: ${String(e && e.message).split("\n")[0]}`);
+          failed = true;
+        }
+      }
+    }
+    process.exit(failed ? 1 : 0);
+  ')
+}
+
 say "the tool at $ref"
 # The same ref is not built again, unless its build still has the dev packages although this stage can drop them
 # (an earlier stage 5 did not, or the ref moved past the prune since): then it is built once more, pruned. A pruned
@@ -84,6 +119,11 @@ else
   fi
   (cd "$build" && node -e 'require.resolve("playwright-core")') >/dev/null 2>&1 ||
     die "the build of $ref has no playwright-core: the Assistant GM could not start"
+  # Before anything stops: the pruned build must load. A failure leaves the services and the old copy in $app as they are.
+  loads_out="$(check_build_loads "$build" 2>&1)" ||
+    die "the pruned build of $ref does not load (a runtime package is missing?); nothing was stopped, the services and $app are as they were:
+$loads_out"
+  ok "the pruned build loads (bridge, dashboard app, shared)"
   printf '%s\n' "$ref" >"$build/.tool-ref"
   if have_systemd; then
     for unit in foundry-ai-tool-gm-browser foundry-ai-tool-dashboard foundry-ai-tool-bridge; do

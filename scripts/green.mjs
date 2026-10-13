@@ -72,6 +72,8 @@ export const STEPS = [
   nodeTest('pi-fetch-kit-login', 'scripts/pi/fetch-kit-login.test.mjs'),
   nodeTest('pi-health-kit-line', 'scripts/pi/health-kit-line.test.mjs'),
   nodeTest('pi-runtime-imports', 'scripts/pi/runtime-imports.test.mjs'),
+  nodeTest('pi-runuser-helper', 'scripts/pi/runuser-helper.test.mjs'),
+  nodeTest('pi-stage5-load-check', 'scripts/pi/stage5-load-check.test.mjs'),
   nodeTest('plan-b', 'scripts/plan-b/plan-b.test.mjs'),
   { name: 'changelog', cmd: 'npm', args: ['run', 'changelog:check'] },
   nodeTest('gm-coach-test', 'tools/gm-coach/build.test.mjs'),

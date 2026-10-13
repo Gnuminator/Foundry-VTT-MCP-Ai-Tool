@@ -92,8 +92,10 @@ if [ "$current" = "$world" ]; then
 else
   [ -z "$current" ] || [ "${FORCE_WORLD:-}" = 1 ] ||
     die "options.json launches '$current'; this script never replaces another world (FORCE_WORLD=1 to override)"
+  # Written by the foundry user (lib.sh), checked before Foundry stops: a Config folder it cannot write would leave Foundry down.
+  foundry_can_write "${options%/*}" || die "the $FOUNDRY_USER user cannot write in ${options%/*}, where options.json is changed. Nothing was changed"
   if have_systemd; then systemctl stop foundry.service; fi
-  node -e 'const fs=require("fs");const p=process.argv[1];const o=JSON.parse(fs.readFileSync(p,"utf8"));o.world=process.argv[2];fs.writeFileSync(p,JSON.stringify(o,null,2)+"\n")' "$options" "$world"
+  foundry_edit_json "$options" 'o.world = a[0]' "$world"
   ok "options.json launches $world"
   if have_systemd; then systemctl start foundry.service; fi
 fi

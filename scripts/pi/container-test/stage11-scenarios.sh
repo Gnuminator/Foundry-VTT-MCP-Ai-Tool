@@ -46,6 +46,7 @@ fresh_pi() {
   rm -rf "${FOUNDRY_DATA:?}" "${TOOL_DIR:?}" "${TOOL_ETC:?}" "${TOOL_DATA:?}" "${IMPORT:?}" /tmp/bundle-src
   manifest_extra=""
   bundle_module=""
+  bundle_assets=0
   rm -f /tmp/stopped-* /tmp/provfail /tmp/calls /tmp/provision /tmp/out.first /tmp/out.last /tmp/victim-file
   ln -sf "$(command -v node)" /opt/node24/bin/node # the no-node fixture removes it
   mkdir -p "$data/worlds" "$data/modules/foundry-mcp-bridge" "$FOUNDRY_DATA/Config"
@@ -91,6 +92,11 @@ make_bundle() {
   if [ -n "$bundle_module" ]; then
     mkdir -p "$src/Data/modules/$bundle_module"
     echo '{"id":"'"$bundle_module"'","version":"1.1.0"}' >"$src/Data/modules/$bundle_module/module.json"
+  fi
+  if [ "$bundle_assets" = 1 ]; then
+    mkdir -p "$src/Data/ddb-images"
+    echo "bundle pic" >"$src/Data/ddb-images/pic.png"
+    echo "bundle new" >"$src/Data/ddb-images/new.png"
   fi
   (cd "$src" && find Data -type f | LC_ALL=C sort | xargs sha256sum >SHA256SUMS)
   install -d -m 700 "$IMPORT"
@@ -150,8 +156,25 @@ options_readonly() {
 plant_link() {
   echo victim >/tmp/victim-file
   chmod 644 /tmp/victim-file
-  ln -s /tmp/victim-file "$FOUNDRY_DATA/Config/options.json.world-tmp"
-  chown -h "$FOUNDRY_USER:$FOUNDRY_USER" "$FOUNDRY_DATA/Config/options.json.world-tmp"
+  ln -s /tmp/victim-file "$FOUNDRY_DATA/Config/options.json.foundry-tmp"
+  chown -h "$FOUNDRY_USER:$FOUNDRY_USER" "$FOUNDRY_DATA/Config/options.json.foundry-tmp"
+}
+# The bundle ships an asset folder (ddb-images with pic.png and new.png). assets_file: the Pi has its own, different
+# pic.png (a regular file); assets_link: the Pi's pic.png is a link the foundry user left, to a root file the merge
+# must never write through.
+assets_file() {
+  bundle_assets=1
+  mkdir -p "$data/ddb-images"
+  echo "pi pic" >"$data/ddb-images/pic.png"
+  chown -R "$FOUNDRY_USER:$FOUNDRY_USER" "$data/ddb-images"
+}
+assets_link() {
+  bundle_assets=1
+  echo victim >/tmp/victim-file
+  chmod 644 /tmp/victim-file
+  mkdir -p "$data/ddb-images"
+  ln -s /tmp/victim-file "$data/ddb-images/pic.png"
+  chown -R -h "$FOUNDRY_USER:$FOUNDRY_USER" "$data/ddb-images"
 }
 # A kit session is up (kit-session.sh wrote its state file): this stage must not switch the world under it.
 kit_session_up() { printf 'STAMP=20261013-074544\n' >"$TOOL_DATA/kit-session.env"; }
@@ -257,13 +280,22 @@ scenario() {
   node -e 'process.stdout.write(JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")).world+"\n")' "$FOUNDRY_DATA/Config/options.json"
   echo "--- options state"
   # Mode and owner of options.json after the run, and whether a temp file (or a link) is left at the temp name.
-  echo "options mode $(stat -c %a "$FOUNDRY_DATA/Config/options.json") owner $(stat -c %U "$FOUNDRY_DATA/Config/options.json") tmp $([ -e "$FOUNDRY_DATA/Config/options.json.world-tmp" ] || [ -L "$FOUNDRY_DATA/Config/options.json.world-tmp" ] && echo present || echo absent)"
+  echo "options mode $(stat -c %a "$FOUNDRY_DATA/Config/options.json") owner $(stat -c %U "$FOUNDRY_DATA/Config/options.json") tmp $([ -e "$FOUNDRY_DATA/Config/options.json.foundry-tmp" ] || [ -L "$FOUNDRY_DATA/Config/options.json.foundry-tmp" ] && echo present || echo absent)"
   echo "--- victim"
   if [ -f /tmp/victim-file ]; then
     echo "victim $(stat -c %U:%G:%a /tmp/victim-file) $(cat /tmp/victim-file)"
   else
     echo none
   fi
+  echo "--- assets"
+  for f in pic.png new.png; do
+    p="$data/ddb-images/$f"
+    if [ -e "$p" ] || [ -L "$p" ]; then
+      echo "$f $([ -L "$p" ] && echo link || echo file) $(stat -c %U "$p") $(cat "$p")"
+    else
+      echo "$f none"
+    fi
+  done
   echo "--- env after"
   env_state
   echo "--- pending"
@@ -340,6 +372,10 @@ scenario world-switch curse-of-strahd - LAUNCH=strahd-kit
 scenario options-600 curse-of-strahd options600 LAUNCH=strahd-kit
 scenario options-readonly curse-of-strahd options_readonly LAUNCH=strahd-kit
 scenario plant-link curse-of-strahd plant_link LAUNCH=strahd-kit
+# The asset merge: a changed file is replaced (and saved to prev), a new one added; a link at a destination name is
+# replaced by the bundle's file and its target is not written.
+scenario assets-merge curse-of-strahd assets_file LAUNCH=strahd-kit
+scenario assets-link curse-of-strahd assets_link LAUNCH=strahd-kit
 scenario kit-session-up curse-of-strahd kit_session_up LAUNCH=strahd-kit
 scenario no-node curse-of-strahd no_node LAUNCH=strahd-kit
 echo "=== ALL DONE"

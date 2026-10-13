@@ -105,11 +105,12 @@ else
   echo "foundry.service is not running under systemd: backing up as it is"
 fi
 
-# Left out on purpose: Foundry's logs, the Assistant GM's Chromium profile (rebuilt by logging in)
+# Left out on purpose: Foundry's logs, the Chromium profiles of the Assistant GM and the kit session (rebuilt by logging in)
 # and the recordings (this PC pulls them separately and the Pi deletes them after 7 days).
 restic backup --tag nightly \
   --exclude /var/lib/foundry/Logs \
   --exclude /var/lib/foundry-ai-tool/gm-browser \
+  --exclude /var/lib/foundry-ai-tool/kit-gm-browser \
   --exclude /var/lib/foundry-ai-tool/recordings \
   /var/lib/foundry /var/lib/foundry-ai-tool /etc/foundry-ai-tool </dev/null
 

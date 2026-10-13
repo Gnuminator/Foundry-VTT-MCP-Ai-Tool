@@ -109,7 +109,7 @@ Foundry's "Disable Canvas", does not have). It is a first slice: no clicking, no
    ```json
    {
      "pi": {
-       "host": "foundry-pi",
+       "host": "foundry-pi.your-tailnet.ts.net",
        "dashboardPort": 3000,
        "foundryPort": 30000,
        "dashboardTokenFile": "C:\\Users\\you\\AppData\\Local\\foundry-ai-tool\\dashboard-token.txt",
@@ -118,12 +118,18 @@ Foundry's "Disable Canvas", does not have). It is a first slice: no clicking, no
    }
    ```
 
-   `dashboardTokenFile` holds the dashboard's GM token (the Pi dashboard asks for it over Tailscale;
-   you put it there once, the kit sends it as `X-CoGM-Token`). `kitGmPasswordFile` is the
+   `host` must be the Pi's full Tailscale name (`tailscale status` on the Pi, or the address of the
+   dashboard link; the Pi's is `foundry-pi.tailf949aa.ts.net`), not the short name `foundry-pi`: the
+   Pi dashboard only answers the host names in its `DASHBOARD_ALLOWED_HOSTS` and refuses any other with
+   HTTP 421 (`host-not-allowed`), which the kit reports as "answered HTTP 421".
+
+   `dashboardTokenFile` is optional. It holds the dashboard's GM token, for a dashboard that has one
+   (`GM_DASHBOARD_TOKEN` set, as it will be after Part C; the kit sends it as `X-CoGM-Token`).
+   Leave it out while the Pi dashboard runs in single-user mode, as it did on 2026-10-13. `kitGmPasswordFile` is the
    per-session `Kit GM` password: `pwsh scripts/pi/fetch-kit-login.ps1` copies it from the Pi with
    one read-only command, never prints it, and limits the file to your Windows user;
    `pwsh scripts/pi/fetch-kit-login.ps1 -Remove` deletes it after `MODE=down`. The kit reads both
-   files only where it needs them and never prints them. This slice sends the token only; the
+   files only where it needs them and never prints them. This slice sends the token (when there is one) only; the
    password is for the later clicking slice (`lib/gm.mjs` can already type it into the join form of
    the kit's own throwaway `Kit GM`).
 

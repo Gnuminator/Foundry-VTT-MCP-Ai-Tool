@@ -50,4 +50,16 @@ install -d -m 0750 -o root -g "$FOUNDRY_USER" "$TOOL_ETC"
 install -d -m 2770 -o "$FOUNDRY_USER" -g "$FOUNDRY_USER" "$TOOL_DATA/recordings"
 ok "$FOUNDRY_APP $NODE_DIR $TOOL_DIR (root), $FOUNDRY_DATA $TOOL_DATA ($FOUNDRY_USER), $TOOL_ETC (root, group $FOUNDRY_USER)"
 
+# A kit session (kit-session.sh MODE=up) that was never taken down makes Foundry launch strahd-kit and keeps the Assistant
+# GM browser stopped, which matters on a game night. The state file is read with sed, never sourced.
+say "kit session"
+kit_state="$TOOL_DATA/kit-session.env"
+if [ -f "$kit_state" ]; then
+  kit_stamp="$(sed -n 's/^STAMP=\([0-9]\{8\}-[0-9]\{6\}\)$/\1/p' "$kit_state" | head -n1)"
+  kit_launch="$(sed -n 's/^ *"world": *"\([^"]*\)".*/\1/p' "$FOUNDRY_DATA/Config/options.json" 2>/dev/null | head -n1)" || kit_launch=""
+  warn "kit session up since ${kit_stamp:-an unknown time} (kit-session.sh MODE=up): Foundry launches ${kit_launch:-an unknown world}; run kit-session.sh MODE=down before the game"
+else
+  ok "no kit session up"
+fi
+
 say "stage 1 done"

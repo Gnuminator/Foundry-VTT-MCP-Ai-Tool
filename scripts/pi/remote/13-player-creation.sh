@@ -75,6 +75,8 @@ case "$SETTINGS_DRIVER" in */../* | */..) die "SETTINGS_DRIVER must not hold .."
 id "$FOUNDRY_USER" >/dev/null 2>&1 || die "no user $FOUNDRY_USER: run stage 1 first"
 [ -f "$options" ] || die "no $options: has Foundry started once (stage 3)?"
 [ -x "$NODE_DIR/bin/node" ] || die "no Node at $NODE_DIR: run stage 2 first"
+[ ! -e "$TOOL_DATA/kit-session.env" ] || die "a kit session is up ($TOOL_DATA/kit-session.env exists): run kit-session.sh MODE=down first. Nothing was changed"
+runuser -u "$FOUNDRY_USER" -- test -w "${options%/*}" || die "the $FOUNDRY_USER user cannot write in ${options%/*}, where options.json is changed. Nothing was changed"
 
 # Which build: the pinned one, or the pair the environment gives (a test feed). A checksum is always checked.
 if [ -n "$STUDIO_ZIP" ]; then
@@ -100,7 +102,11 @@ fi
 # options.json "world" is what Foundry launches. Part B changes it per world; the first value is saved here and
 # put back at the end and when the run fails (see on_exit).
 set_world() {
-  node -e 'const fs=require("fs");const p=process.argv[1];const o=JSON.parse(fs.readFileSync(p,"utf8"));o.world=process.argv[2]||null;fs.writeFileSync(p,JSON.stringify(o,null,2)+"\n")' "$options" "$1"
+  # Written by the foundry user, who owns the Config folder and the file: to a temp file next to it (same mode) and
+  # renamed, so a failure never leaves a half file. Root must not write there: a link the foundry user left at the temp
+  # name would make root write over any file, and a chown would hand it to the foundry user. No chown is needed:
+  # the file is the foundry user's own (same as kit-session.sh).
+  runuser -u "$FOUNDRY_USER" -- "$NODE_DIR/bin/node" -e 'const fs=require("fs");const p=process.argv[1];const st=fs.statSync(p);const o=JSON.parse(fs.readFileSync(p,"utf8"));o.world=process.argv[2]||null;const t=p+".world-tmp";fs.rmSync(t,{force:true});fs.writeFileSync(t,JSON.stringify(o,null,2)+"\n",{mode:st.mode&0o777});fs.chmodSync(t,st.mode&0o777);fs.renameSync(t,p)' "$options" "$1"
   world_changed=1
 }
 orig_world="$(node -e 'const o=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));process.stdout.write(o.world||"")' "$options")"

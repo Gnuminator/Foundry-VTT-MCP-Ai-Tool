@@ -70,6 +70,7 @@ export const STEPS = [
   nodeTest('pi-player-creation', 'scripts/pi/player-creation.test.mjs'),
   nodeTest('pi-kit-session', 'scripts/pi/kit-session.test.mjs'),
   nodeTest('pi-fetch-kit-login', 'scripts/pi/fetch-kit-login.test.mjs'),
+  nodeTest('pi-health-kit-line', 'scripts/pi/health-kit-line.test.mjs'),
   nodeTest('pi-runtime-imports', 'scripts/pi/runtime-imports.test.mjs'),
   nodeTest('plan-b', 'scripts/plan-b/plan-b.test.mjs'),
   { name: 'changelog', cmd: 'npm', args: ['run', 'changelog:check'] },

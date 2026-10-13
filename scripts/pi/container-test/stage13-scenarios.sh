@@ -45,7 +45,7 @@ id "$FOUNDRY_USER" >/dev/null 2>&1 || useradd --system --home-dir "$FOUNDRY_DATA
 # $1 the installed Actor Studio version ("" for the pinned one, "none" for no module)
 fresh_pi() {
   rm -rf "${FOUNDRY_DATA:?}" "${TOOL_DIR:?}" "${TOOL_ETC:?}" "${TOOL_DATA:?}" "${IMPORT:?}" /root/player-creation-settings.mjs
-  rm -f /tmp/stopped-* /tmp/gmbroken /tmp/calls /tmp/status /tmp/status_rc
+  rm -f /tmp/stopped-* /tmp/gmbroken /tmp/calls /tmp/status /tmp/status_rc /tmp/victim-file
   mkdir -p "$FOUNDRY_DATA/Config" "$FOUNDRY_DATA/Data/worlds" "$FOUNDRY_DATA/Data/modules"
   echo '{"world":"curse-of-strahd"}' >"$FOUNDRY_DATA/Config/options.json"
   for w in curse-of-strahd strahd-kit frostmaiden-training; do
@@ -89,7 +89,10 @@ local_zip() {
 # then the environment for the stage (KEY=VALUE words; "localzip" adds a local build, "gmbroken" makes the
 # Assistant GM browser fail to start again, "nogmpw" takes the administrator password away and leaves the campaign's
 # Gamemaster without one, "twice" runs the whole stage a second time on the same fake Pi and
-# prints that run as "--- rerun output" and "--- rerun exit", the calls of both runs together).
+# prints that run as "--- rerun output" and "--- rerun exit", the calls of both runs together; "options600" gives
+# options.json mode 600; "options-readonly" makes the Config folder root's; "plant-link" leaves a link at the temp
+# name options.json.world-tmp pointing to /tmp/victim-file; "kit-session-up" leaves a kit-session.env in the tool's
+# data folder). The "--- files" block says what mode and owner options.json has and whether the temp name is left.
 scenario() {
   local name="$1" status="$2" rc="$3" installed="$4" inactive="$5"
   shift 5
@@ -110,6 +113,18 @@ scenario() {
       localzip) read -ra pair < <(local_zip) && env_words+=("${pair[@]}") ;;
       gmbroken) touch /tmp/gmbroken ;;
       nogmpw) rm -f "$FOUNDRY_DATA/Config/admin.txt" && fake_gm_user curse-of-strahd "" ;;
+      options600) chmod 600 "$FOUNDRY_DATA/Config/options.json" ;;
+      options-readonly)
+        # The Config folder is root's here: the foundry user cannot write the temp file next to options.json.
+        chown root:root "$FOUNDRY_DATA/Config"
+        chmod 755 "$FOUNDRY_DATA/Config"
+        ;;
+      plant-link)
+        # A link left at the temp name set_world uses, pointing at a file root must never touch.
+        echo victim >/tmp/victim-file && chmod 644 /tmp/victim-file
+        ln -s /tmp/victim-file "$FOUNDRY_DATA/Config/options.json.world-tmp"
+        ;;
+      kit-session-up) echo STAMP=20261013-074544 >"$TOOL_DATA/kit-session.env" ;;
       *) env_words+=("$w") ;;
     esac
   done
@@ -126,6 +141,10 @@ scenario() {
   cat /tmp/calls
   echo "--- options.json"
   node -e 'process.stdout.write(JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")).world+"\n")' "$FOUNDRY_DATA/Config/options.json"
+  echo "--- files"
+  cfg="$FOUNDRY_DATA/Config"
+  echo "options mode $(stat -c %a "$cfg/options.json") owner $(stat -c %U "$cfg/options.json") tmp $([ -e "$cfg/options.json.world-tmp" ] || [ -L "$cfg/options.json.world-tmp" ] && echo present || echo absent)"
+  if [ -e /tmp/victim-file ]; then echo "victim $(stat -c %U:%G:%a /tmp/victim-file) $(cat /tmp/victim-file)"; fi
   echo "--- module version"
   node -e 'try{process.stdout.write(JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")).version+"\n")}catch{console.log("none")}' "$FOUNDRY_DATA/Data/modules/foundryvtt-actor-studio/module.json"
   echo "--- prev"
@@ -151,4 +170,8 @@ scenario services-off "$U0" 0 "" "foundry gm"
 scenario gm-browser-fails "$U0" 0 "" "" gmbroken
 scenario training-needs-kit-world "$U0" 0 "" "" WORLD=frostmaiden-training
 scenario training-world "$U0" 0 "" "" WORLD=frostmaiden-training KIT_WORLD=
+scenario options-600 "$U0" 0 "" "" options600
+scenario options-readonly "$U0" 0 "" "" options-readonly
+scenario plant-link "$U0" 0 "" "" plant-link
+scenario kit-session-up "$U0" 0 "" "" kit-session-up
 echo "=== ALL DONE"

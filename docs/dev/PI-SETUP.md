@@ -894,10 +894,17 @@ script putting everything back, and services that were off staying off. For the 
 password file (mode, form, never in the output or in any recorded call), the `systemd-run` call, a
 browser that does not join, a dropped ssh session at each new step, the stop order in `MODE=down`, a
 failed teardown and the old state file format; each of those scenarios is proven to fail on the
-stage without the change. The real browser script has not run against a live world yet: that is
-what the first kit session on the Pi is for. Only a live run shows how real systemd treats the
-transient unit (`EnvironmentFile` of a root-only file, `ProtectSystem=full` with the Chromium
-profile) and how Foundry takes the Bridge User setting for a user that was just made.
+stage without the change. The first live kit session on the Pi (2026-10-13) worked: real systemd
+ran the transient unit (`EnvironmentFile` of the root-only file, `ProtectSystem=full` with the
+Chromium profile), Foundry took the Bridge User setting for the user made seconds before, the Kit GM
+browser joined and held the bridge link, and `MODE=down` put `curse-of-strahd`, the Bridge User and
+the Assistant GM browser back (about 6 minutes up, 2 down; stopping the Assistant GM browser alone
+takes about 40 seconds).
+
+`1-health.sh` (stage 1, read-only apart from its own folders) ends with a "kit session" line: a
+warning "kit session up since `<STAMP>`" while `kit-session.env` exists, so a session nobody took
+down (Foundry would launch `strahd-kit` on game night) shows up in the next health check.
+The nightly restic backup (stage 6) leaves out the Kit GM browser profile like the Assistant GM's.
 
 ## GM scripts
 

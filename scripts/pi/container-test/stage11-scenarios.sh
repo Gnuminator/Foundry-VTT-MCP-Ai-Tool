@@ -46,7 +46,8 @@ fresh_pi() {
   rm -rf "${FOUNDRY_DATA:?}" "${TOOL_DIR:?}" "${TOOL_ETC:?}" "${TOOL_DATA:?}" "${IMPORT:?}" /tmp/bundle-src
   manifest_extra=""
   bundle_module=""
-  rm -f /tmp/stopped-* /tmp/provfail /tmp/calls /tmp/provision /tmp/out.first /tmp/out.last
+  rm -f /tmp/stopped-* /tmp/provfail /tmp/calls /tmp/provision /tmp/out.first /tmp/out.last /tmp/victim-file
+  ln -sf "$(command -v node)" /opt/node24/bin/node # the no-node fixture removes it
   mkdir -p "$data/worlds" "$data/modules/foundry-mcp-bridge" "$FOUNDRY_DATA/Config"
   echo '{"world":"curse-of-strahd"}' >"$FOUNDRY_DATA/Config/options.json"
   local w
@@ -136,6 +137,26 @@ leak_check() {
 give_other_extra() {
   printf 'EXTRA_GM_USER="Other"\nEXTRA_GM_PASSWORD="osecret"\n' >>"$TOOL_ETC/world-curse-of-strahd.env"
 }
+
+# Fixtures for how set_world writes options.json (as the foundry user, through a temp file and a rename) and for the
+# refusals before anything stops. Same names and meaning as in kit-session-scenarios.sh.
+options600() { chmod 600 "$FOUNDRY_DATA/Config/options.json"; } # it must keep mode 600 and its owner
+# The Config folder is root's: the foundry user cannot write the temp file, so the run is refused up front.
+options_readonly() {
+  chown root:root "$FOUNDRY_DATA/Config"
+  chmod 755 "$FOUNDRY_DATA/Config"
+}
+# A file root must never touch, reached through a link the foundry user left at the temp name set_world uses.
+plant_link() {
+  echo victim >/tmp/victim-file
+  chmod 644 /tmp/victim-file
+  ln -s /tmp/victim-file "$FOUNDRY_DATA/Config/options.json.world-tmp"
+  chown -h "$FOUNDRY_USER:$FOUNDRY_USER" "$FOUNDRY_DATA/Config/options.json.world-tmp"
+}
+# A kit session is up (kit-session.sh wrote its state file): this stage must not switch the world under it.
+kit_session_up() { printf 'STAMP=20261013-074544\n' >"$TOOL_DATA/kit-session.env"; }
+# No Node where stage 2 puts it. fresh_pi links it again for the next scenario.
+no_node() { rm -f /opt/node24/bin/node; }
 
 # A module the Pi already has from the campaign bundle, named in the MANIFEST's pi-modules: line (a second world
 # that uses it without shipping it). $1 the Pi's version, $2 the line's entry. The sentinel proves the stage never
@@ -234,6 +255,15 @@ scenario() {
   cat /tmp/provision
   echo "--- options.json"
   node -e 'process.stdout.write(JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")).world+"\n")' "$FOUNDRY_DATA/Config/options.json"
+  echo "--- options state"
+  # Mode and owner of options.json after the run, and whether a temp file (or a link) is left at the temp name.
+  echo "options mode $(stat -c %a "$FOUNDRY_DATA/Config/options.json") owner $(stat -c %U "$FOUNDRY_DATA/Config/options.json") tmp $([ -e "$FOUNDRY_DATA/Config/options.json.world-tmp" ] || [ -L "$FOUNDRY_DATA/Config/options.json.world-tmp" ] && echo present || echo absent)"
+  echo "--- victim"
+  if [ -f /tmp/victim-file ]; then
+    echo "victim $(stat -c %U:%G:%a /tmp/victim-file) $(cat /tmp/victim-file)"
+  else
+    echo none
+  fi
   echo "--- env after"
   env_state
   echo "--- pending"
@@ -304,4 +334,12 @@ scenario pi-modules-suffix-newer frostmaiden-training pimod_suffix_newer WORLD=f
 scenario old-driver-extra frostmaiden-training old_driver WORLD=frostmaiden-training KIT_WORLD= LAUNCH=curse-of-strahd EXTRA_GM_USER=Claude
 scenario old-driver-env frostmaiden-training old_driver_env WORLD=frostmaiden-training KIT_WORLD= LAUNCH=curse-of-strahd
 scenario old-driver-plain frostmaiden-training old_driver WORLD=frostmaiden-training KIT_WORLD= LAUNCH=curse-of-strahd
+# How options.json is written (the foundry user, a temp file, a rename) and the up-front refusals. LAUNCH=strahd-kit
+# makes the world actually change, so a write that went wrong shows. The campaign bundle ships no module here.
+scenario world-switch curse-of-strahd - LAUNCH=strahd-kit
+scenario options-600 curse-of-strahd options600 LAUNCH=strahd-kit
+scenario options-readonly curse-of-strahd options_readonly LAUNCH=strahd-kit
+scenario plant-link curse-of-strahd plant_link LAUNCH=strahd-kit
+scenario kit-session-up curse-of-strahd kit_session_up LAUNCH=strahd-kit
+scenario no-node curse-of-strahd no_node LAUNCH=strahd-kit
 echo "=== ALL DONE"

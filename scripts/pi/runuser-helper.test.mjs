@@ -13,6 +13,7 @@ import {
   lstatSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   rmSync,
   symlinkSync,
@@ -50,7 +51,7 @@ after(() => rmSync(dir, { recursive: true, force: true }));
 function sh(body) {
   const script = [
     'set -euo pipefail',
-    'runuser() { shift 3; "$@"; }', // runuser -u USER -- CMD...: runs CMD as ourselves
+    'runuser() { [ "$1 $2 $3" = "-u foundry --" ] || { echo "runuser: unexpected arguments: $*" >&2; return 97; }; shift 3; "$@"; }', // runuser -u foundry -- CMD...: runs CMD as ourselves; any other form fails
     'FOUNDRY_USER=foundry',
     `NODE_DIR=${JSON.stringify(posix(join(dir, 'node24')))}`,
     helpers,
@@ -257,5 +258,77 @@ describe('the stages use the helpers and no longer write options.json as root', 
         .filter(l => /^#.*\blib\.sh\b/.test(l));
       assert.ok(piped.length > 0, `${file} header does not pipe lib.sh`);
     }
+  });
+});
+
+describe('stage 12, Foundry proxy options (backup, edit, put back)', () => {
+  const tunnel = read('12-tunnel.sh');
+  const from = tunnel.indexOf('say "Foundry\'s proxy options"');
+  const to = tunnel.indexOf('say "the check"');
+  assert.ok(from > 0 && to > from, '12-tunnel.sh sections moved');
+  const section = tunnel.slice(from, to);
+
+  /** Runs the section with stand-ins; `override` is bash that runs after the helpers load. */
+  function proxy(json, override = '') {
+    const o = options(json);
+    const calls = join(o.d, 'calls');
+    const body = [
+      `FOUNDRY_DATA=${JSON.stringify(posix(o.d))}`,
+      'mkdir -p "$FOUNDRY_DATA/Config"',
+      `cp "${o.p}" "$FOUNDRY_DATA/Config/options.json"`,
+      'public_host=play.example.com',
+      'say() { :; }; ok() { :; }; warn() { :; }',
+      'die() { echo "ERROR: $*" >&2; exit 1; }',
+      'have_systemd() { return 0; }',
+      `systemctl() { echo "$*" >>"${posix(calls)}"; }`,
+      override,
+      section,
+    ].join('\n');
+    const r = sh(body);
+    const cfg = join(o.d, 'Config');
+    return {
+      ...r,
+      options: JSON.parse(readFileSync(join(cfg, 'options.json'), 'utf8')),
+      calls: existsSync(calls) ? readFileSync(calls, 'utf8').trim().split('\n') : [],
+      backups: readdirSync(cfg).filter(f => f.includes('before-tunnel')),
+      tmp: readdirSync(cfg).filter(f => f.endsWith('.foundry-tmp')),
+    };
+  }
+
+  test('success: Foundry stops, the options change, Foundry starts, a backup stays', () => {
+    const r = proxy('{"hostname":null,"port":30000}');
+    assert.equal(r.status, 0, r.out);
+    assert.deepEqual(r.options, {
+      hostname: 'play.example.com',
+      port: 30000,
+      proxySSL: true,
+      proxyPort: 443,
+    });
+    assert.deepEqual(r.calls, ['stop foundry.service', 'start foundry.service']);
+    assert.equal(r.backups.length, 1);
+    assert.deepEqual(r.tmp, []);
+  });
+
+  test('a failed edit puts options.json back and starts Foundry again', () => {
+    const r = proxy('{"hostname":null,"port":30000}', 'foundry_edit_json() { return 1; }');
+    assert.notEqual(r.status, 0);
+    assert.match(r.out, /options\.json put back from .* and Foundry started again/);
+    assert.deepEqual(r.options, { hostname: null, port: 30000 });
+    assert.deepEqual(r.calls, ['stop foundry.service', 'start foundry.service']);
+  });
+
+  test('a Config folder the foundry user cannot write is refused before Foundry stops', () => {
+    const r = proxy('{"hostname":null}', 'foundry_can_write() { return 1; }');
+    assert.notEqual(r.status, 0);
+    assert.match(r.out, /cannot write in .*Foundry was not stopped/);
+    assert.deepEqual(r.calls, []);
+    assert.deepEqual(r.options, { hostname: null });
+  });
+
+  test('options.json that already has the values is left alone', () => {
+    const r = proxy('{"hostname":"play.example.com","proxySSL":true,"proxyPort":443}');
+    assert.equal(r.status, 0, r.out);
+    assert.deepEqual(r.calls, []);
+    assert.deepEqual(r.backups, []);
   });
 });

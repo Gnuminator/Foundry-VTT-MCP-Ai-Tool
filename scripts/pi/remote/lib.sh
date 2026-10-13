@@ -84,7 +84,7 @@ enable_unit() {
 # Root must not write there: a link the foundry user left at the destination (or at a temp name) would make root
 # write over any file, and a chown would hand it to the foundry user. These two helpers run the write as the foundry
 # user, to a temp file next to the target (same mode) that is renamed over it, so a failure never leaves a half file
-# and the target keeps its owner and mode. The temp name is <target>.foundry-tmp; a leftover or a link there is
+# and the target keeps its mode (its owner becomes the foundry user). The temp name is <target>.foundry-tmp; a leftover or a link there is
 # removed first. $NODE_DIR/bin/node must exist (check it up front).
 
 # True when the foundry user can write in directory $1 (read-only check, for the up-front refusals).

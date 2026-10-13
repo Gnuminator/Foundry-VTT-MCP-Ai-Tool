@@ -11,6 +11,7 @@
 
 require_root
 require_arm64
+[ -x "$NODE_DIR/bin/node" ] || die "Node is missing: run stage 2 first"
 [ -f "$TOOL_DIR/gm-browser/assistant-gm.mjs" ] || die "run 5-tool.sh first"
 
 world="${CHECK_WORLD:-pi-check}"
@@ -92,10 +93,14 @@ if [ "$current" = "$world" ]; then
 else
   [ -z "$current" ] || [ "${FORCE_WORLD:-}" = 1 ] ||
     die "options.json launches '$current'; this script never replaces another world (FORCE_WORLD=1 to override)"
-  # Written by the foundry user (lib.sh), checked before Foundry stops: a Config folder it cannot write would leave Foundry down.
-  foundry_can_write "${options%/*}" || die "the $FOUNDRY_USER user cannot write in ${options%/*}, where options.json is changed. Nothing was changed"
+  # Written by the foundry user (lib.sh), checked before Foundry stops: a Config folder or file it cannot reach would leave Foundry down.
+  foundry_can_write "${options%/*}" || die "the $FOUNDRY_USER user cannot write in ${options%/*}, where options.json is changed. Foundry was not stopped"
+  runuser -u "$FOUNDRY_USER" -- test -r "$options" || die "the $FOUNDRY_USER user cannot read $options. Foundry was not stopped"
   if have_systemd; then systemctl stop foundry.service; fi
-  foundry_edit_json "$options" 'o.world = a[0]' "$world"
+  if ! foundry_edit_json "$options" 'o.world = a[0]' "$world"; then
+    if have_systemd; then systemctl start foundry.service || true; fi
+    die "options.json could not be changed; Foundry was started again on '$current'"
+  fi
   ok "options.json launches $world"
   if have_systemd; then systemctl start foundry.service; fi
 fi

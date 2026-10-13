@@ -46,7 +46,7 @@ check_build_loads() {
     import { pathToFileURL } from "node:url";
     const groups = {
       bridge: ["config.js", "logger.js", "foundry-connector.js", "handouts/strip-secrets.js", "prompts/register.js"].map(f => "packages/mcp-server/dist/" + f),
-      dashboard: ["packages/cogm-dashboard/dist/app.js"],
+      dashboard: ["app.js", "config.js", "ai/anthropic-co-gm.js"].map(f => "packages/cogm-dashboard/dist/" + f),
       shared: ["shared/dist/index.js"],
     };
     let failed = false;

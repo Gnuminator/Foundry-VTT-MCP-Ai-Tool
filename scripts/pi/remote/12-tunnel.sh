@@ -205,7 +205,7 @@ else
     }
     trap restore_foundry EXIT
     # Copied and written by the foundry user (lib.sh), so root never writes in its Config folder.
-    foundry_can_write "${options%/*}" || die "the $FOUNDRY_USER user cannot write in ${options%/*}, where options.json is changed. Nothing was changed"
+    foundry_can_write "${options%/*}" || die "the $FOUNDRY_USER user cannot write in ${options%/*}, where options.json is changed. Foundry was not stopped (the tunnel service above is already set up)"
     foundry_copy_file "$options" "$run_backup"
     in_edit=1
     if have_systemd; then systemctl stop foundry.service; fi

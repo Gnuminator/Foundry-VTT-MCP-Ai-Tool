@@ -8,10 +8,7 @@ import { EnvError, KitToolError } from './errors.mjs';
 const READ_RE = /^(get|list|search|measure|plan|suggest)-/;
 const READ_EXTRA = new Set(['check-secret-terms', 'open-in-foundry', 'mark-play-session']);
 /** Tools whose class is destructive in the dashboard's tool policy: both confirmations. */
-const DESTRUCTIVE = new Set([
-  'undo-change',
-  'clear-module-errors',
-]);
+const DESTRUCTIVE = new Set(['undo-change', 'clear-module-errors']);
 
 /** @param {string} name */
 export function isReadTool(name) {
@@ -87,7 +84,13 @@ export function createDashboardClient({ base, token = process.env.COGM_TOKEN || 
   /** @returns {Promise<{ok: boolean, controlChannel: any}>} */
   async function health() {
     const { status, data } = await http('/api/health');
-    if (status !== 200 || !data) throw new EnvError(`${base}/api/health answered HTTP ${status}`);
+    if (status !== 200 || !data) {
+      const hint =
+        status === 421
+          ? " (host-not-allowed: the dashboard only answers the host names in its DASHBOARD_ALLOWED_HOSTS; for the Pi target set pi.host in the targets file to the Pi's full Tailscale name)"
+          : '';
+      throw new EnvError(`${base}/api/health answered HTTP ${status}${hint}`);
+    }
     return data;
   }
 

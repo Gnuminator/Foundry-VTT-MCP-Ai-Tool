@@ -56,7 +56,8 @@ say "kit session"
 kit_state="$TOOL_DATA/kit-session.env"
 if [ -f "$kit_state" ]; then
   kit_stamp="$(sed -n 's/^STAMP=\([0-9]\{8\}-[0-9]\{6\}\)$/\1/p' "$kit_state" | head -n1)"
-  warn "kit session up since ${kit_stamp:-an unknown time} (kit-session.sh MODE=up): Foundry launches strahd-kit; run MODE=down before the game"
+  kit_launch="$(sed -n 's/^ *"world": *"\([^"]*\)".*/\1/p' "$FOUNDRY_DATA/Config/options.json" 2>/dev/null | head -n1)" || kit_launch=""
+  warn "kit session up since ${kit_stamp:-an unknown time} (kit-session.sh MODE=up): Foundry launches ${kit_launch:-an unknown world}; run kit-session.sh MODE=down before the game"
 else
   ok "no kit session up"
 fi

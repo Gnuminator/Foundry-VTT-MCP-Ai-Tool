@@ -242,7 +242,7 @@ test('the container suite has Docker when CI asks for it', { skip: !noDockerInCi
 });
 
 describe('13-player-creation.sh in an ARM64 container', { skip: containerReason }, () => {
-  /** @type {Map<string, {output: string, exit: number, rerunOutput: string, rerunExit: number, calls: string[], world: string, version: string, prev: string[]}>} */
+  /** @type {Map<string, {output: string, exit: number, rerunOutput: string, rerunExit: number, calls: string[], world: string, files: string[], version: string, prev: string[]}>} */
   const runs = new Map();
   before(
     () => {
@@ -261,6 +261,7 @@ describe('13-player-creation.sh in an ARM64 container', { skip: containerReason 
           rerunExit: Number(block.match(/^--- rerun exit (\d+)$/m)?.[1]),
           calls: part('calls').split('\n').filter(Boolean),
           world: part('options.json'),
+          files: part('files').split('\n').filter(Boolean),
           version: part('module version'),
           prev: part('prev').split('\n').filter(Boolean),
         });
@@ -305,6 +306,7 @@ describe('13-player-creation.sh in an ARM64 container', { skip: containerReason 
     assert.match(r.output, /ok: every world's Gamemaster and Assistant GM users have a password/);
     assert.doesNotMatch(r.output, /FOUND:/);
     assert.equal(r.world, 'curse-of-strahd');
+    assert.deepEqual(r.files, ['options mode 644 owner foundry tmp absent'], r.files.join('\n'));
     assert.equal(r.version, PINNED);
     assert.deepEqual(r.prev, [
       'worlds/curse-of-strahd/settings/000001.log',
@@ -451,5 +453,52 @@ describe('13-player-creation.sh in an ARM64 container', { skip: containerReason 
     assert.doesNotMatch(r.output, /WORLD=(strahd-kit|curse-of-strahd) HAS_PW/);
     assert.doesNotMatch(r.output, /secret123/);
     assert.equal(r.world, 'curse-of-strahd');
+  });
+
+  // set_world is done by the foundry user through a temp file and a rename (review M1/M2/M3).
+  test('options.json keeps mode 600 and the foundry user as owner, and no temp file is left', () => {
+    const r = run('options-600');
+    assert.equal(r.exit, 0, r.output);
+    assert.equal(r.world, 'curse-of-strahd');
+    assert.deepEqual(r.files, ['options mode 600 owner foundry tmp absent'], r.files.join('\n'));
+    assert.deepEqual(
+      r.calls.filter(c => !c.startsWith('journalctl')),
+      GOOD_CALLS
+    );
+  });
+
+  test('options-readonly: the foundry user cannot write the Config folder: refused up front, nothing stopped', () => {
+    const r = run('options-readonly');
+    assert.equal(r.exit, 1, r.output);
+    assert.match(r.output, /the foundry user cannot write in .*\/Config, where options\.json is changed/);
+    assert.match(r.output, /Nothing was changed/);
+    assert.deepEqual(r.calls, [], r.calls.join('\n')); // no stop, no restart, no is-active
+    assert.equal(r.world, 'curse-of-strahd');
+    assert.deepEqual(r.files, ['options mode 644 owner foundry tmp absent'], r.files.join('\n'));
+    assert.deepEqual(r.prev, []);
+  });
+
+  test('plant-link: a link at the temp name is replaced, root writes nothing through it', () => {
+    const r = run('plant-link');
+    assert.equal(r.exit, 0, r.output);
+    assert.ok(r.files.includes('victim root:root:644 victim'), r.files.join('\n'));
+    assert.ok(r.files.includes('options mode 644 owner foundry tmp absent'), r.files.join('\n'));
+    assert.equal(r.world, 'curse-of-strahd');
+    assert.match(r.output, /options\.json launches curse-of-strahd/);
+    assert.deepEqual(
+      r.calls.filter(c => !c.startsWith('journalctl')),
+      GOOD_CALLS
+    );
+  });
+
+  test('kit-session-up: a kit session is up: refused up front, Foundry and the Assistant GM browser untouched', () => {
+    const r = run('kit-session-up');
+    assert.equal(r.exit, 1, r.output);
+    assert.match(r.output, /a kit session is up .*kit-session\.env exists.*MODE=down/);
+    assert.match(r.output, /Nothing was changed/);
+    assert.deepEqual(r.calls, [], r.calls.join('\n'));
+    assert.equal(r.world, 'curse-of-strahd');
+    assert.deepEqual(r.files, ['options mode 644 owner foundry tmp absent'], r.files.join('\n'));
+    assert.deepEqual(r.prev, []);
   });
 });

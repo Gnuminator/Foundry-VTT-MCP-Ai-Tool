@@ -177,3 +177,22 @@ test('a refused connection is an EnvError', async () => {
   await assert.rejects(c.health(), EnvError);
   await assert.rejects(c.tool('get-world-info'), EnvError);
 });
+
+test('HTTP 421 from the health probe names the host allow-list and the targets file', async () => {
+  const srv = http.createServer((req, res) => {
+    res.writeHead(421, { 'content-type': 'application/json' });
+    res.end(JSON.stringify({ error: 'host-not-allowed' }));
+  });
+  await new Promise(r => srv.listen(0, '127.0.0.1', r));
+  const c = createDashboardClient({ base: `http://127.0.0.1:${srv.address().port}`, token: '' });
+  try {
+    await assert.rejects(
+      c.health(),
+      err =>
+        err instanceof EnvError &&
+        /HTTP 421 \(host-not-allowed:.*pi\.host.*Tailscale name\)/.test(err.message)
+    );
+  } finally {
+    await new Promise(r => srv.close(r));
+  }
+});

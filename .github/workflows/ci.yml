@@ -129,6 +129,11 @@ jobs:
         # user can read, is never printed, and a wrong answer or a bad host or path changes nothing.
         run: node --test scripts/pi/fetch-kit-login.test.mjs
 
+      - name: Pi health check kit-session line
+        # The "kit session" section of 1-health.sh in bash: a forgotten kit-session.env is a warning with its stamp
+        # and the world Foundry launches.
+        run: node --test scripts/pi/health-kit-line.test.mjs
+
       - name: Pi runtime imports
         # The services on the Pi run from a build that stage 5 prunes of its dev packages (#310): every package the bridge,
         # the dashboard server, the Discord bot and shared import at run time must be a dependency of its workspace, and

@@ -20,6 +20,7 @@ import {
 } from './components/Drawer';
 import { CombatStrip, type StripToolRequest } from './components/CombatStrip';
 import { FoldScope } from './components/Folds';
+import { StreamState } from './components/StreamState';
 import { HelpProvider } from './components/Help';
 import { useHelp } from './components/HelpButton';
 import {
@@ -222,6 +223,7 @@ function Dashboard(): JSX.Element {
         </div>
         <MomentTabs moment={moment} onPick={pick} />
         <div className="controls">
+          <StreamState />
           <PreflightButton
             open={shown('preflight')}
             onToggle={() => {

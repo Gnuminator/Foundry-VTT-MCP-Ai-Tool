@@ -1,8 +1,10 @@
 // The Live Feed (D-092), ported from the old page: the session events as they happen, newest
 // first, in the During view's feed slot. It only reads: the events come from the stream (the
 // server replays its recent ones on every connect), the newest 120 stay on screen, and the head
-// counts every event since the page loaded. The rules are in lib/feed.ts; styles.css draws the
-// rows (.event, .sev-*) and moments.css sizes the card per During layout.
+// counts every event since the page loaded ("120 of 340 events" once the cap has pushed some out).
+// An event from another day than today shows a short date before its time. The rules are in
+// lib/feed.ts; styles.css draws the rows (.event, .sev-*) and moments.css sizes the card per
+// During layout.
 //
 // The old pane has no controls (no filter, clear or pause), and none was added. What is new: the
 // list is a real list that can be scrolled with the keyboard, new events are announced (one short
@@ -17,6 +19,8 @@ import {
   FEED_EMPTY_TEXT,
   FEED_LOADING_TEXT,
   announcement,
+  dayKey,
+  eventDate,
   eventIso,
   eventTime,
   feedFace,
@@ -32,15 +36,28 @@ import { Panel } from '../ui';
 
 import { FoldButton, type DuringFolds } from './Folds';
 
-/** One event: its line, the kind as a chip and the time. Memoised: 120 rows, one new at a time. */
-const EventRow = memo(function EventRow({ event }: { event: FeedEvent }): JSX.Element {
+/**
+ * One event: its line, the kind as a chip and the time, with a short date before it when the event
+ * is from another day than `today` (a dayKey). Memoised: 120 rows, one new at a time.
+ */
+const EventRow = memo(function EventRow({
+  event,
+  today,
+}: {
+  event: FeedEvent;
+  today: string;
+}): JSX.Element {
+  const date = eventDate(event.timestampMs, today);
   return (
     <div role="listitem" className={`event ${severityClass(event.eventType)}`}>
       <div className="event-desc">{event.text}</div>
       <div className="event-meta">
         <span className="event-type">{event.eventType}</span>
         <span>
-          <time dateTime={eventIso(event.timestampMs)}>{eventTime(event.timestampMs)}</time>
+          <time dateTime={eventIso(event.timestampMs)}>
+            {date ? `${date}, ` : ''}
+            {eventTime(event.timestampMs)}
+          </time>
         </span>
       </div>
     </div>
@@ -83,6 +100,8 @@ export function LiveFeed({ folds }: { folds?: DuringFolds }): JSX.Element {
   const face = feedFace(log, away);
   const folded = folds?.isFolded('feed') === true;
   const entries = log?.entries ?? [];
+  // Read on every render: a new event brings one, and a row only changes when its day does.
+  const today = dayKey(Date.now());
 
   return (
     <Panel
@@ -92,7 +111,7 @@ export function LiveFeed({ folds }: { folds?: DuringFolds }): JSX.Element {
       titleId="feed-title"
       aria-labelledby="feed-title"
       help="dashboard#live-feed"
-      status={<span id="feed-meta">{feedMeta(log?.total ?? 0)}</span>}
+      status={<span id="feed-meta">{feedMeta(log?.total ?? 0, entries.length)}</span>}
       {...(folds
         ? {
             headStart: <FoldButton card="feed" folds={folds} />,
@@ -122,7 +141,7 @@ export function LiveFeed({ folds }: { folds?: DuringFolds }): JSX.Element {
       }}
     >
       {entries.map(event => (
-        <EventRow key={event.id} event={event} />
+        <EventRow key={event.id} event={event} today={today} />
       ))}
     </Panel>
   );

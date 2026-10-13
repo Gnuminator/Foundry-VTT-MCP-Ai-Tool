@@ -238,3 +238,13 @@ main.moment-views #moment-during.during-no-bar {
     order: 3;
   }
 }
+
+/* The stream mark in the header: the status element takes no box of its own, so with nothing to
+   say it adds no gap between the header controls. */
+.stream-state {
+  display: contents;
+}
+.stream-state .status-pill {
+  align-self: center;
+  white-space: normal;
+}

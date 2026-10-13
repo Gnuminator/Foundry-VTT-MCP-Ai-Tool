@@ -68,6 +68,20 @@ export const COMBAT_KEY = ['stream', 'combat'] as const;
  */
 export const FEED_KEY = ['stream', 'events'] as const;
 
+/**
+ * The stream itself (the EventSource), not the bridge behind it: 'open' while it is connected,
+ * 'dropped' while the browser is trying to reconnect (the server restarted, the network blinked),
+ * 'closed' when the browser gave up (the server refused the stream, e.g. a link that is no longer
+ * valid). Absent before the first answer. The header reads it for every panel at once.
+ */
+export interface StreamLink {
+  state: 'open' | 'dropped' | 'closed';
+  /** When the stream got into this state (ms since the epoch). */
+  since: number;
+}
+
+export const STREAM_LINK_KEY = ['stream', 'link'] as const;
+
 /** The old page keeps 150 entries on screen; the server keeps the newest 100. */
 export const MAX_ERROR_ENTRIES = 150;
 
@@ -139,6 +153,16 @@ export function useDashboardStream(): void {
   const queryClient = useQueryClient();
   useEffect(() => {
     const source = new EventSource(streamUrl());
+    const setLink = (state: StreamLink['state']): void => {
+      queryClient.setQueryData<StreamLink>(STREAM_LINK_KEY, link =>
+        // A second error while still down keeps the time the stream first went down.
+        link?.state === state ? link : { state, since: Date.now() }
+      );
+    };
+    source.onopen = (): void => setLink('open');
+    // The browser reconnects by itself while the source is CONNECTING; CLOSED means it gave up.
+    source.onerror = (): void =>
+      setLink(source.readyState === EventSource.CLOSED ? 'closed' : 'dropped');
     for (const [event, handle] of Object.entries(HANDLERS)) {
       source.addEventListener(event, e => {
         try {
@@ -179,6 +203,54 @@ export function useFeed(): FeedLog | null {
     gcTime: Infinity,
   });
   return data ?? null;
+}
+
+/** The stream's own state; undefined before it first connects. */
+export function useStreamLink(): StreamLink | undefined {
+  const queryClient = useQueryClient();
+  const { data } = useQuery({
+    queryKey: STREAM_LINK_KEY,
+    queryFn: () => queryClient.getQueryData<StreamLink>(STREAM_LINK_KEY) ?? null,
+    staleTime: Infinity,
+    gcTime: Infinity,
+  });
+  return data ?? undefined;
+}
+
+/**
+ * How long the stream has to stay down before the header says so: a restart of the dashboard
+ * server or a blink of the network reconnects within a few seconds, and a mark that comes and
+ * goes in that time only worries the GM. A stream the browser gave up on shows at once.
+ */
+export const STREAM_DROP_GRACE_MS = 5000;
+
+/**
+ * What the header shows about the stream at `now`: null while it is fine or has not answered yet,
+ * 'dropped' once it has been down for STREAM_DROP_GRACE_MS, 'closed' at once.
+ */
+export function streamTrouble(
+  link: StreamLink | undefined,
+  now: number
+): 'dropped' | 'closed' | null {
+  if (!link || link.state === 'open') return null;
+  if (link.state === 'closed') return 'closed';
+  return now - link.since >= STREAM_DROP_GRACE_MS ? 'dropped' : null;
+}
+
+/** What the header shows about the stream; back is shown at once, down after the grace. */
+export function useStreamTrouble(): 'dropped' | 'closed' | null {
+  const link = useStreamLink();
+  // Only here to render again when the grace is over: the answer itself comes from the clock.
+  const [, wake] = useState(0);
+  const since = link?.state === 'dropped' ? link.since : null;
+  useEffect(() => {
+    if (since === null) return;
+    const wait = since + STREAM_DROP_GRACE_MS - Date.now();
+    if (wait <= 0) return;
+    const timer = setTimeout(() => wake(n => n + 1), wait);
+    return (): void => clearTimeout(timer);
+  }, [since]);
+  return streamTrouble(link, Date.now());
 }
 
 /** The bridge link as the stream last reported it; undefined until the first status event. */

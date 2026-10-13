@@ -8,6 +8,8 @@ import {
   MAX_SEEN_IDS,
   addFeedEvents,
   announcement,
+  dayKey,
+  eventDate,
   eventIso,
   eventTime,
   feedFace,
@@ -201,6 +203,25 @@ describe('feedMeta', () => {
     expect(feedMeta(2)).toBe('2 events');
     expect(feedMeta(340)).toBe('340 events');
   });
+
+  it('says how many are on screen once the cap has pushed some out', () => {
+    expect(feedMeta(340, 120)).toBe('120 of 340 events');
+    expect(feedMeta(121, 120)).toBe('120 of 121 events');
+  });
+
+  it('is the plain count while everything is on screen', () => {
+    expect(feedMeta(120, 120)).toBe('120 events');
+    expect(feedMeta(1, 1)).toBe('1 event');
+    expect(feedMeta(0, 0)).toBe('0 events');
+  });
+
+  it('follows the cap of a real log', () => {
+    const batch = Array.from({ length: MAX_FEED_ENTRIES + 20 }, (_, i) => ev(`e${i}`, i));
+    const log = addFeedEvents(EMPTY_FEED, batch);
+    expect(feedMeta(log.total, log.entries.length)).toBe(
+      `${MAX_FEED_ENTRIES} of ${MAX_FEED_ENTRIES + 20} events`
+    );
+  });
 });
 
 describe('severityClass', () => {
@@ -223,6 +244,46 @@ describe('event times', () => {
     const ms = Date.UTC(2026, 9, 10, 20, 5, 9);
     expect(eventIso(ms)).toBe('2026-10-10T20:05:09.000Z');
     expect(eventTime(ms)).toBe(new Date(ms).toLocaleTimeString());
+  });
+});
+
+describe('event dates', () => {
+  // Local times: the page shows the date of the machine it runs on.
+  const local = (y: number, mo: number, d: number, h = 12): number =>
+    new Date(y, mo - 1, d, h, 30, 0).getTime();
+  const today = dayKey(local(2026, 10, 10));
+
+  it('keys a day by the local calendar day, whatever the hour', () => {
+    expect(dayKey(local(2026, 10, 10, 0))).toBe(dayKey(local(2026, 10, 10, 23)));
+    expect(dayKey(local(2026, 10, 10))).not.toBe(dayKey(local(2026, 10, 11)));
+    expect(dayKey(local(2026, 1, 5))).not.toBe(dayKey(local(2026, 11, 5)));
+  });
+
+  it('shows no date for an event from today', () => {
+    expect(eventDate(local(2026, 10, 10, 0), today)).toBe('');
+    expect(eventDate(local(2026, 10, 10, 23), today)).toBe('');
+  });
+
+  it('shows a short date for an event from another day', () => {
+    const ms = local(2026, 10, 9, 23);
+    expect(eventDate(ms, today)).toBe(
+      new Date(ms).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+    );
+    expect(eventDate(ms, today)).not.toContain('2026');
+    // A day ahead (a clock that is off) is another day too.
+    expect(eventDate(local(2026, 10, 11, 0), today)).not.toBe('');
+  });
+
+  it('adds the year for an event from another year', () => {
+    const ms = local(2025, 12, 31);
+    expect(eventDate(ms, today)).toContain('2025');
+    expect(eventDate(ms, today)).toBe(
+      new Date(ms).toLocaleDateString(undefined, {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+      })
+    );
   });
 });
 

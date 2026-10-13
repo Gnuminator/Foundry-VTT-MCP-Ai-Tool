@@ -7,14 +7,7 @@ import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
 import test from 'node:test';
 
-import {
-  Skip,
-  Sweep,
-  answerNo,
-  answerYes,
-  escapeRegExp,
-  runAll,
-} from '../lib/foundry-sweep.mjs';
+import { Skip, Sweep, answerNo, answerYes, escapeRegExp, runAll } from '../lib/foundry-sweep.mjs';
 
 /** A page that only has the console events and the waits a row uses. */
 function fakePage() {
@@ -103,6 +96,13 @@ test('an error outside every row is stray, also when its text matches a pattern 
   assert.equal(stray.length, 2);
   assert.match(stray[0], /setup noise/);
   assert.match(stray[1], /announced/);
+});
+
+test('an announced error that arrives just after its row ended is excused', async () => {
+  const { sweep, gm } = sweepOf();
+  await sweep.row('a', 'gm', async () => {}, { expectErrors: [/announced/] });
+  gm.logError('announced');
+  assert.deepEqual(sweep.strayErrors(), []);
 });
 
 test('a failed row closes the dialogs of both pages', async () => {

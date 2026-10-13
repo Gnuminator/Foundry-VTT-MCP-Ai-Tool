@@ -489,9 +489,12 @@ not taken for a lock. The two Tarokka offer dialogs ("Offer this reading to the 
 No) run in every kit world: the kit worlds do not carry the `tarokka-reading` module, so for the length of
 those two rows the sweep makes the GM client see an active 1.x module with a client setting `secret`, sets the
 setting to a new dealt reading (which is what makes the module ask) and removes the stand-in again. When the
-module is active in the world its own setting is used and put back to empty. Yes must say the reading was
-offered, No must say nothing. At the end of the Tarokka area the journals of the world are compared with the
-start, and a reveal journal that undo left behind fails the cleanup. The Changes window undoes a change that also wrote the AI
+module is active in the world its own setting is used and emptied again; a world whose module already has a
+reading dealt in the browser skips the two rows rather than overwrite it. The stand-ins are removed as soon as
+the two rows are done. Yes must say the reading was offered, No must not say so (the module keeps a Yes offer in
+memory on the active GM clients until the page is reloaded). At the end of the scenario, in the Tarokka cleanup,
+the journals of the world are compared with the start, and a reveal journal that undo left behind fails that
+cleanup. The Changes window undoes a change that also wrote the AI
 Tool's own data (a reveal does) with the plain `undo-change`, not a planned undo; the reveal rows fail if the window refuses it.
 The report gets three attachments: `foundry-controls` (one row per control and role: pass, fail or skip with the
 reason), `foundry-timings` (milliseconds for opening each window and for the guarded round trip: the I-098

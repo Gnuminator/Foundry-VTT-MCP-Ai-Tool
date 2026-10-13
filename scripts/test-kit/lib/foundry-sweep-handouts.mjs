@@ -351,9 +351,12 @@ export async function tarokkaRows(sweep, { t, gm, player }) {
           // reported, so the next run does not meet it as "a reading from an earlier run".
           const left = [...(await journalIds(gm))].filter(([id]) => !journalsAtStart.has(id));
           if (!left.length) return;
-          await gm.evaluate(async ids => {
-            for (const id of ids) await game.journal.get(id)?.delete();
-          }, left.map(([id]) => id));
+          await gm.evaluate(
+            async ids => {
+              for (const id of ids) await game.journal.get(id)?.delete();
+            },
+            left.map(([id]) => id)
+          );
           throw new Error(
             `undo left ${left.length} journal(s) behind (deleted now): ${left.map(([, name]) => name).join(', ')}`
           );
@@ -466,61 +469,93 @@ export async function tarokkaRows(sweep, { t, gm, player }) {
 const PROVIDER = 'tarokka-reading';
 const OFFER_TITLE = 'AI Tool: Tarokka reading';
 const OFFERED = /offered to the AI Tool/i;
+const BUSY =
+  "the world's tarokka-reading module has a reading dealt in this browser; the sweep will not overwrite it";
 // Card ids in the shape the module accepts (the reading is never imported, so they need not exist).
 const OFFER_CARDS = ['the-tower', 'the-ghost', 'the-seer', 'the-marionette', 'the-darklord'];
 
 /**
  * Make the Tarokka deck module look dealt-capable to the GM client: when `tarokka-reading` 1.x is
  * active in the world its own `secret` setting is used, else a stub stands in for the module and the
- * setting for the length of the sweep (the kit worlds do not carry the module). Returns the put-back.
+ * setting until `restore()` (the kit worlds do not carry the module). `restore` is safe to call twice
+ * and tries every step. A world whose own module has a reading dealt is left alone: `busy` says so.
  * @param {import('playwright-core').Page} gm
- * @returns {Promise<{how: 'module' | 'stub', restore: () => Promise<void>}>}
+ * @returns {Promise<{how: 'module' | 'stub', busy: boolean, restore: () => Promise<void>}>}
  */
 async function provideTarokkaDeck(gm) {
-  const how = await gm.evaluate(mod => {
+  const state = await gm.evaluate(mod => {
     const real = game.modules.get(mod);
     const usable = !!real?.active && /^1\./.test(String(real.version ?? ''));
-    // @ts-ignore a stub only has to answer what the module's reader asks: active and version
-    window.__kitTarokka = { original: real, usable, registered: false };
+    const key = `${mod}.secret`;
+    const registered = !game.settings.settings.has(key);
+    let busy = false;
+    let stored = null;
+    try {
+      stored = localStorage.getItem(key);
+    } catch {
+      // no storage: nothing to keep
+    }
+    if (usable && !registered) busy = game.settings.get(mod, 'secret') != null;
+    // @ts-ignore only what the module's reader asks of a module: active and version
+    window.__kitTarokka = { original: real, usable, registered, stored, busy };
+    if (busy) return { how: 'module', busy };
     if (!usable) game.modules.set(mod, { id: mod, active: true, version: '1.0.5', stub: true });
-    if (!game.settings.settings.has(`${mod}.secret`)) {
+    if (registered) {
       game.settings.register(mod, 'secret', {
         scope: 'client',
         config: false,
         type: Object,
         default: null,
       });
-      // @ts-ignore
-      window.__kitTarokka.registered = true;
     }
-    return usable ? 'module' : 'stub';
+    return { how: usable ? 'module' : 'stub', busy };
   }, PROVIDER);
   return {
-    how,
-    async restore() {
-      await gm.evaluate(async mod => {
-        // @ts-ignore
-        const state = window.__kitTarokka;
-        if (!state) return;
-        // The reading goes first (a null secret is never offered), then the stub.
-        await game.settings.set(mod, 'secret', null);
-        if (state.registered) {
-          game.settings.settings.delete(`${mod}.secret`);
-          try {
-            localStorage.removeItem(`${mod}.secret`);
-          } catch {
-            // no storage, nothing was kept
-          }
-        }
-        if (!state.usable) {
-          if (state.original) game.modules.set(mod, state.original);
-          else game.modules.delete(mod);
-        }
-        // @ts-ignore
-        delete window.__kitTarokka;
-      }, PROVIDER);
-    },
+    how: /** @type {'module' | 'stub'} */ (state.how),
+    busy: state.busy,
+    restore: () => restoreTarokkaDeck(gm),
   };
+}
+
+/**
+ * Put the Tarokka deck stand-ins back (idempotent; every step is tried, the failures come as one error).
+ * @param {import('playwright-core').Page} page
+ */
+async function restoreTarokkaDeck(page) {
+  const errors = await page.evaluate(async mod => {
+    // @ts-ignore
+    const kept = window.__kitTarokka;
+    if (!kept) return [];
+    const errs = [];
+    const attempt = async (label, fn) => {
+      try {
+        await fn();
+      } catch (err) {
+        errs.push(`${label}: ${err?.message ?? err}`);
+      }
+    };
+    const key = `${mod}.secret`;
+    // The reading first (an empty secret is never offered), then the stand-ins.
+    if (!kept.busy && !kept.registered)
+      await attempt('secret', () => game.settings.set(mod, 'secret', null));
+    if (kept.registered) {
+      await attempt('setting', () => game.settings.settings.delete(key));
+      await attempt('storage', () => {
+        if (kept.stored === null) localStorage.removeItem(key);
+        else localStorage.setItem(key, kept.stored);
+      });
+    }
+    if (!kept.usable) {
+      await attempt('module', () => {
+        if (kept.original) game.modules.set(mod, kept.original);
+        else game.modules.delete(mod);
+      });
+    }
+    // @ts-ignore
+    delete window.__kitTarokka;
+    return errs;
+  }, PROVIDER);
+  if (errors.length) throw new Error(errors.join('; '));
 }
 
 /**
@@ -532,13 +567,15 @@ async function provideTarokkaDeck(gm) {
  */
 export async function tarokkaOfferRows(sweep, { t, gm }) {
   const { before } = await t.gm('setFeatureSwitches', { switches: { tarokka: true } });
-  const deck = await provideTarokkaDeck(gm);
+  // Registered before the stand-ins are made, so a throw halfway still gets them put back; the rows
+  // put them back as soon as they are done (restore does nothing the second time).
   t.cleanup(async () => {
     await runAll([
-      ['put the Tarokka deck setting back', () => deck.restore()],
+      ['put the Tarokka deck setting back', () => restoreTarokkaDeck(gm)],
       ['put the feature switch back', () => t.gm('setFeatureSwitches', { switches: before })],
     ]);
   });
+  const deck = await provideTarokkaDeck(gm);
   let n = 0;
   const deal = () => {
     n += 1;
@@ -547,10 +584,10 @@ export async function tarokkaOfferRows(sweep, { t, gm }) {
       cards: OFFER_CARDS,
       stages: OFFER_CARDS.map(() => 'hidden'),
     };
-    return gm.evaluate(([mod, value]) => game.settings.set(mod, 'secret', value), [
-      PROVIDER,
-      secret,
-    ]);
+    return gm.evaluate(
+      ([mod, value]) => game.settings.set(mod, 'secret', value),
+      [PROVIDER, secret]
+    );
   };
   const askedDialog = async () => {
     const dialog = await readDialog(gm);
@@ -562,24 +599,34 @@ export async function tarokkaOfferRows(sweep, { t, gm }) {
     return dialog;
   };
 
-  await sweep.row('module.tarokka.offer-decline', 'gm', async () => {
-    await deal();
-    await askedDialog();
-    await answerNo(gm);
-    // The module answers a Yes with a notification at once; give a No the same time to say nothing.
-    await gm.waitForTimeout(1200);
-    if ((await notifications(gm)).some(x => OFFERED.test(x)))
-      throw new Error('No still offered the reading to the AI Tool');
-    return `a dealt reading asks once; No keeps nothing (deck: ${deck.how})`;
-  });
+  const rows = async () => {
+    await sweep.row('module.tarokka.offer-decline', 'gm', async () => {
+      if (deck.busy) throw new Skip(BUSY);
+      await deal();
+      await askedDialog();
+      await answerNo(gm);
+      // The module answers a Yes with a notification at once; give a No the same time to say nothing.
+      await gm.waitForTimeout(1200);
+      if ((await notifications(gm)).some(x => OFFERED.test(x)))
+        throw new Error('No still offered the reading to the AI Tool');
+      return `a dealt reading asks once; No keeps nothing (deck: ${deck.how})`;
+    });
 
-  await sweep.row('module.tarokka.offer-confirm', 'gm', async () => {
-    await deal();
-    await askedDialog();
-    await answerYes(gm, 'Yes');
-    await waitNotification(gm, OFFERED);
-    return `a dealt reading asks once; Yes offers it to the AI Tool (deck: ${deck.how})`;
-  });
+    await sweep.row('module.tarokka.offer-confirm', 'gm', async () => {
+      if (deck.busy) throw new Skip(BUSY);
+      await deal();
+      await askedDialog();
+      await answerYes(gm, 'Yes');
+      await waitNotification(gm, OFFERED);
+      return `a dealt reading asks once; Yes offers it to the AI Tool (deck: ${deck.how})`;
+    });
+  };
+  try {
+    await rows();
+  } finally {
+    // As soon as the two rows are done, not at the end of the scenario.
+    await deck.restore();
+  }
 }
 
 /**

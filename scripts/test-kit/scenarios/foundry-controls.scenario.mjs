@@ -153,8 +153,17 @@ export default {
       }
     } finally {
       const catalog = readUsageCatalog();
+      // Rows the table lists as skipped for a reason (none today besides the error counters).
+      const skipped = FOUNDRY_CONTROLS.filter(r => r.how === 'skip').map(r => ({
+        name: r.name,
+        who: /** @type {const} */ ('gm'),
+        status: /** @type {const} */ ('skip'),
+        ms: 0,
+        note: r.why ?? '',
+      }));
       const attached = [
         ...sweep.results,
+        ...skipped,
         ...errorCounterRows(catalog).map(r => ({
           name: r.name,
           who: /** @type {const} */ ('gm'),

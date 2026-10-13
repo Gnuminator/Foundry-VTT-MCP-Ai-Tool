@@ -365,7 +365,8 @@ const FEED_EVENTS = [
   ['gm-roll', 'GM roll for Miller Grim: Stealth 22 (secret)'],
   ['resource-spent', 'Aldric used a level 1 spell slot'],
 ].map(([eventType, description], i) => {
-  const timestampMs = at(18, 30 + i);
+  // On the day of NOW, so the Live Feed shows times only (an event from another day shows a date).
+  const timestampMs = Date.UTC(2026, 9, 10, 18, 30 + i);
   return {
     id: `feed-${i + 1}`,
     timestamp: iso(timestampMs),

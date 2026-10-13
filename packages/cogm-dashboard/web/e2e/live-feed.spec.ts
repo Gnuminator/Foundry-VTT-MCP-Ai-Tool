@@ -290,7 +290,8 @@ test.describe('the cap', () => {
     await load(page);
 
     await expect(rows(page)).toHaveCount(120);
-    await expect(meta(page)).toHaveText('130 events');
+    // Once the cap is hit, the head says how many of them are on screen.
+    await expect(meta(page)).toHaveText('120 of 130 events');
     await expect(rows(page).first().locator('.event-desc')).toHaveText('Event 130');
     await expect(rows(page).last().locator('.event-desc')).toHaveText('Event 11');
 
@@ -298,7 +299,53 @@ test.describe('the cap', () => {
     await expect(rows(page).first().locator('.event-desc')).toHaveText('The newest event');
     await expect(rows(page)).toHaveCount(120);
     await expect(rows(page).last().locator('.event-desc')).toHaveText('Event 12');
-    await expect(meta(page)).toHaveText('131 events');
+    await expect(meta(page)).toHaveText('120 of 131 events');
+  });
+
+  test('up to the cap the head is the plain count', async ({ page }) => {
+    const { push } = await setup(page, { initial: [events(many(119), true)] });
+    await load(page);
+    await expect(meta(page)).toHaveText('119 events');
+    push([events([raw('x120', 500, 'damage', 'The 120th event')])]);
+    await expect(meta(page)).toHaveText('120 events');
+    push([events([raw('x121', 501, 'damage', 'The 121st event')])]);
+    await expect(meta(page)).toHaveText('120 of 121 events');
+  });
+});
+
+test.describe('dates', () => {
+  // The browser prints the date and time of its own zone and language; fix both.
+  test.use({ locale: 'en-US', timezoneId: 'UTC' });
+
+  test('an event from another day shows a short date before its time', async ({ page }) => {
+    // 21:00 UTC on the day of T0 (10 October 2026).
+    await page.clock.setFixedTime(T0 + 3600_000);
+    await setup(page, {
+      initial: [
+        events(
+          [
+            {
+              ...raw('last-year', 0, 'death', 'Last year'),
+              timestampMs: Date.UTC(2025, 11, 20, 19, 40, 0),
+            },
+            { ...raw('yesterday', 0, 'roll', 'Yesterday'), timestampMs: T0 - 24 * 3600_000 },
+            raw('today', 1, 'damage', 'Today'),
+          ],
+          true
+        ),
+      ],
+    });
+    await load(page);
+
+    await expect(rows(page).locator('.event-desc')).toHaveText(['Today', 'Yesterday', 'Last year']);
+    const times = rows(page).locator('time');
+    // Today: the time alone. Another day: a short date, a comma and the time.
+    await expect(times.nth(0)).toHaveText('8:00:01 PM');
+    await expect(times.nth(1)).toHaveText('Oct 9, 8:00:00 PM');
+    // Another year also says which.
+    await expect(times.nth(2)).toHaveText('Dec 20, 2025, 7:40:00 PM');
+    // The machine time stays the full moment.
+    await expect(times.nth(1)).toHaveAttribute('datetime', '2026-10-09T20:00:00.000Z');
   });
 });
 

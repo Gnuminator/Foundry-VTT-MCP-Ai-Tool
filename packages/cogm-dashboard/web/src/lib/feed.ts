@@ -98,8 +98,12 @@ export function addFeedEvents(log: FeedLog, batch: readonly FeedEvent[]): FeedLo
   return { entries, total: log.total + fresh.length, seen };
 }
 
-/** The pane's count: every event since the page loaded. */
-export function feedMeta(total: number): string {
+/**
+ * The pane's count: every event since the page loaded. Once the cap has pushed events out, the
+ * head says how many of them are on screen: "120 of 340 events".
+ */
+export function feedMeta(total: number, shown: number = total): string {
+  if (shown < total) return `${shown} of ${total} events`;
   return `${total} ${total === 1 ? 'event' : 'events'}`;
 }
 
@@ -116,6 +120,27 @@ export function severityClass(eventType: string): string {
 /** The time an event shows: the browser's own time format, as the old page did. */
 export function eventTime(timestampMs: number): string {
   return new Date(timestampMs).toLocaleTimeString();
+}
+
+/** A local calendar day as `YYYY-M-D`: two moments of the same day give the same key. */
+export function dayKey(ms: number): string {
+  const d = new Date(ms);
+  return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
+}
+
+/**
+ * The short date an event shows before its time, or '' for an event from today (`today` is the
+ * dayKey of now): "Oct 8", and with the year ("Oct 8, 2025") when it is from another year. The
+ * browser's own date format, as the time is.
+ */
+export function eventDate(timestampMs: number, today: string): string {
+  if (dayKey(timestampMs) === today) return '';
+  const sameYear = dayKey(timestampMs).split('-')[0] === today.split('-')[0];
+  return new Date(timestampMs).toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    ...(sameYear ? {} : { year: 'numeric' }),
+  });
 }
 
 /** The event's time in the machine format of a <time> element. */

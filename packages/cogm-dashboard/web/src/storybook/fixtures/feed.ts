@@ -3,7 +3,11 @@
 // no campaign text. Times are absolute and the shots run in UTC, so the clock column is fixed.
 import { EMPTY_FEED, addFeedEvents, type FeedEvent, type FeedLog } from '../../lib/feed';
 
-import { at } from './common';
+import { at as earlier } from './common';
+
+// "Today" is the day the screenshots freeze the clock on (visual/fixtures.ts NOW: 10 October 2026),
+// so most events show a time and no date; `earlier` (common.ts, 8 October) is another day.
+const at = (hour: number, minute = 0): number => Date.UTC(2026, 9, 10, hour, minute);
 
 /** A log from events listed oldest first, as the server sends them. */
 export function feedLog(events: readonly FeedEvent[]): FeedLog {
@@ -75,3 +79,16 @@ export const FEED_CAPPED: FeedLog = feedLog(
     return ev(`m${i + 1}`, at(18, 0) + i * 60_000, kind, `Event number ${i + 1} of the evening`);
   })
 );
+
+/**
+ * Events from other days, oldest first: another year, an earlier day this year and today. The
+ * ones from today show only a time, the others a short date before it.
+ */
+export const FEED_OLDER_DAYS: FeedLog = feedLog([
+  ev('d1', Date.UTC(2025, 11, 20, 19, 40), 'combat-end', 'Combat ended after 3 rounds'),
+  ev('d2', earlier(19, 5), 'scene-change', 'The scene is now Harbor Market'),
+  ev('d3', earlier(19, 30), 'roll', 'Mira rolls Perception: 17'),
+  ev('d4', Date.UTC(2026, 9, 9, 22, 15), 'stabilize', 'Mira is stable'),
+  ev('d5', at(18, 2), 'healing', 'Brannoc heals 6 hit points'),
+  ev('d6', at(18, 9), 'condition-applied', 'Goblin Archer gained "Prone"'),
+]);

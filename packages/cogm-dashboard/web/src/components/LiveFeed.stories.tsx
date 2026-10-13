@@ -11,6 +11,7 @@ import {
   FEED_KINDS,
   FEED_LONG,
   FEED_NONE,
+  FEED_OLDER_DAYS,
 } from '../storybook/fixtures/feed';
 import { PHONE_VIEW, VEIL } from '../storybook/modes';
 import type { DashboardParameters } from '../storybook/withDashboard';
@@ -89,10 +90,17 @@ export const EveryKind: Story = { parameters: seed({ log: FEED_KINDS }), render 
 
 export const LongLines: Story = { parameters: seed({ log: FEED_LONG }), render };
 
-/** 130 events came in; the newest 120 are on screen, the count says 130. */
+/** 130 events came in; the newest 120 are on screen, the head says "120 of 130 events". */
 export const ManyAtTheCap: Story = {
   name: 'Many events, at the cap',
   parameters: seed({ log: FEED_CAPPED }),
+  render,
+};
+
+/** An event from another day shows a short date before its time (and the year, from another year). */
+export const OlderDays: Story = {
+  name: 'Events from other days',
+  parameters: seed({ log: FEED_OLDER_DAYS }),
   render,
 };
 

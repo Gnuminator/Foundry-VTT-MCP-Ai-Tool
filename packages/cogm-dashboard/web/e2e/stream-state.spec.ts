@@ -31,7 +31,7 @@ test('says nothing at first, then one mark in the header once the stream stays d
   // A drop is not shown at once: a restart of the server reconnects within a few seconds.
   await expect(pill(page)).toHaveCount(0);
 
-  await expect(pill(page)).toHaveText('Connection lost, reconnecting…', { timeout: 10_000 });
+  await expect(pill(page)).toContainText('Connection lost, reconnecting…', { timeout: 10_000 });
   await expect(pill(page)).toHaveAttribute('title', /out of date/);
   // Once, in the header, for every panel: it is in the status region of the header controls and
   // no panel carries a second one.
@@ -54,7 +54,7 @@ test('goes away as soon as the stream is back', async ({ page }) => {
     });
   });
   await load(page);
-  await expect(pill(page)).toHaveText('Connection lost, reconnecting…', { timeout: 10_000 });
+  await expect(pill(page)).toContainText('Connection lost, reconnecting…', { timeout: 10_000 });
 
   release();
   await expect(pill(page)).toHaveCount(0);
@@ -65,7 +65,7 @@ test('a quick reconnect is never shown', async ({ page }) => {
   let requests = 0;
   await page.route('**/api/stream**', async route => {
     requests += 1;
-    // The first connection ends, the second is up right away and stays.
+    // The first connection ends, the second answers right away (and ends too, with a long wait).
     await route.fulfill({
       status: 200,
       contentType: 'text/event-stream',
@@ -74,7 +74,7 @@ test('a quick reconnect is never shown', async ({ page }) => {
   });
   await load(page);
   await expect.poll(() => requests).toBeGreaterThan(1);
-  // Past where the first drop would have shown if it were not for the grace.
+  // Well inside the grace (the pill needs 5 s of the stream being down).
   await page.waitForTimeout(500);
   await expect(pill(page)).toHaveCount(0);
 });
@@ -86,6 +86,6 @@ test('says to reload when the browser gave up on the stream', async ({ page }) =
   );
   await load(page);
   // At once, with no grace.
-  await expect(pill(page)).toHaveText('Connection closed: reload the page', { timeout: 3000 });
+  await expect(pill(page)).toContainText('Connection closed: reload the page', { timeout: 3000 });
   await expect(pill(page)).toHaveAttribute('data-stream', 'closed');
 });

@@ -30,6 +30,8 @@ export function StreamState(): JSX.Element {
         <span className="status-pill" data-stream={trouble} title={STREAM_TEXT[trouble].detail}>
           <span className="dot dot-red" aria-hidden="true" />
           {STREAM_TEXT[trouble].label}
+          {/* The title is for the mouse; this is for a screen reader and a touch screen. */}
+          <span className="visually-hidden"> {STREAM_TEXT[trouble].detail}</span>
         </span>
       ) : null}
     </span>

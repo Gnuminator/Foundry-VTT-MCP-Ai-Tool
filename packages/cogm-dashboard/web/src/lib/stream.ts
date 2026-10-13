@@ -240,17 +240,18 @@ export function streamTrouble(
 /** What the header shows about the stream; back is shown at once, down after the grace. */
 export function useStreamTrouble(): 'dropped' | 'closed' | null {
   const link = useStreamLink();
-  // Only here to render again when the grace is over: the answer itself comes from the clock.
-  const [, wake] = useState(0);
   const since = link?.state === 'dropped' ? link.since : null;
+  // The `since` of the drop whose grace is over. A timer that fires a millisecond early would
+  // find the clock still short, so the timer itself says when the grace is over.
+  const [over, setOver] = useState<number | null>(null);
   useEffect(() => {
     if (since === null) return;
     const wait = since + STREAM_DROP_GRACE_MS - Date.now();
     if (wait <= 0) return;
-    const timer = setTimeout(() => wake(n => n + 1), wait);
+    const timer = setTimeout(() => setOver(since), wait);
     return (): void => clearTimeout(timer);
   }, [since]);
-  return streamTrouble(link, Date.now());
+  return streamTrouble(link, over === since ? Number.MAX_SAFE_INTEGER : Date.now());
 }
 
 /** The bridge link as the stream last reported it; undefined until the first status event. */

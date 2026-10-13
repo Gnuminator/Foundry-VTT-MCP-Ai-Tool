@@ -14,7 +14,7 @@
 // and the old Strahd default (the kit copy reset and marked, no extra GM), the kit-copy rule (an installed
 // KIT_WORLD that is not a kit copy of WORLD is refused unless REPLACE_KIT=1; a second world's own kit copy resets twice)
 // and suffix-only module versions (-aitool.n compared as a number), and how options.json is written (by the foundry
-// user through options.json.world-tmp and a rename: mode and owner stay, a link at the temp name is never followed)
+// user through options.json.foundry-tmp and a rename: mode and owner stay, a link at the temp name is never followed)
 // with the up-front refusals for a kit session that is up, a Config folder the foundry user cannot write, and no Node. Without PI_STAGE11_CONTAINER the file skips.
 // PI_STAGE11_OUTPUT=<file> checks a saved stage11-scenarios.sh output instead of starting Docker.
 import assert from 'node:assert/strict';
@@ -84,6 +84,7 @@ describe('11-world.sh in an ARM64 container', { skip: containerReason }, () => {
           world: part('options.json'),
           optstate: part('options state'),
           victim: part('victim'),
+          assets: part('assets'),
           before: part('env before'),
           first: part('first run'),
           after: part('env after'),
@@ -520,7 +521,7 @@ describe('11-world.sh in an ARM64 container', { skip: containerReason }, () => {
     assert.equal(r.leak, 'no');
   });
 
-  // set_world writes options.json as the foundry user through options.json.world-tmp and a rename (like
+  // set_world writes options.json as the foundry user through options.json.foundry-tmp and a rename (like
   // kit-session.sh), and the request checks refuse three setups before anything stops.
   test('world-switch: options.json changes to the launch world, keeps its mode and owner, leaves no temp file', () => {
     const r = run('world-switch');
@@ -544,6 +545,20 @@ describe('11-world.sh in an ARM64 container', { skip: containerReason }, () => {
     assert.equal(r.victim, 'victim root:root:644 victim');
     assert.equal(r.world, 'strahd-kit', 'options.json has the right world');
     assert.equal(r.optstate, 'options mode 644 owner foundry tmp absent');
+  });
+
+  test('assets-merge: a changed asset is replaced, a new one added, both owned by the foundry user', () => {
+    const r = run('assets-merge');
+    assert.equal(r.exit, '0', r.output);
+    assert.deepEqual(lines(r.assets).slice(0, 2), ['pic.png file foundry bundle pic', 'new.png file foundry bundle new']);
+    assert.match(r.output, /ddb-images merged \(1 changed files saved to /);
+  });
+
+  test('assets-link: a link at an asset name is replaced by the bundle file, root writes through nothing', () => {
+    const r = run('assets-link');
+    assert.equal(r.exit, '0', r.output);
+    assert.equal(r.victim, 'victim root:root:644 victim');
+    assert.deepEqual(lines(r.assets).slice(0, 2), ['pic.png file foundry bundle pic', 'new.png file foundry bundle new']);
   });
 
   test('options-readonly: a Config folder the foundry user cannot write is refused before anything stops', () => {

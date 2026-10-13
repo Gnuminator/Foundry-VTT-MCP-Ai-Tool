@@ -140,6 +140,16 @@ jobs:
         # the lock keeps one copy of playwright-core (scripts/pi/runtime-imports.mjs).
         run: node --test scripts/pi/runtime-imports.test.mjs
 
+      - name: Pi foundry-user write helpers
+        # lib.sh's foundry_edit_json, foundry_copy_file and foundry_can_write (temp file + rename as the foundry user) with
+        # a stand-in runuser, and a check that stages 5 check, 11, 12, 13 and the kit session use them (#332 review L3).
+        run: node --test scripts/pi/runuser-helper.test.mjs
+
+      - name: Pi stage 5 load check
+        # Stage 5 loads one module of each package from the pruned build before any service stops (#310 review M1): a fake
+        # build with a missing runtime package fails it, this repository's own build passes it.
+        run: node --test scripts/pi/stage5-load-check.test.mjs
+
       - name: Plan B scripts
         # scripts/plan-b (docs/dev/PLAN-B.md, D-097 item 6): every script parses; ports and refusals, the
         # newest-backup choice, the version match, the module port flag, the stop and clean decisions and

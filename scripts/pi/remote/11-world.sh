@@ -122,7 +122,7 @@ login_re='^[A-Za-z0-9._-]([A-Za-z0-9._ -]*[A-Za-z0-9._-])?$'
 [ -f "$options" ] || die "no $options: has Foundry started once (stage 3)?"
 [ -x "$NODE_DIR/bin/node" ] || die "no Node at $NODE_DIR: run stage 2 first. Nothing was changed"
 [ ! -e "$TOOL_DATA/kit-session.env" ] || die "a kit session is up ($TOOL_DATA/kit-session.env exists): run kit-session.sh MODE=down first. Nothing was changed"
-runuser -u "$FOUNDRY_USER" -- test -w "${options%/*}" || die "the $FOUNDRY_USER user cannot write in ${options%/*}, where options.json is changed. Nothing was changed"
+foundry_can_write "${options%/*}" || die "the $FOUNDRY_USER user cannot write in ${options%/*}, where options.json is changed. Nothing was changed"
 # One login name from an env file: $1 the file, $2 GM_USER or EXTRA_GM_USER (never a password key). Prints the
 # file's value, empty when the file has no such line or does not exist. Sourced in a subshell, so nothing else
 # from the file (the passwords) reaches this shell. world-refs.test.mjs cuts it out and tests it.
@@ -170,11 +170,8 @@ bundle_size="$(stat -c %s "$BUNDLE")"
 # options.json "world" is what Foundry launches. It is changed while worlds are provisioned, so the first
 # value is saved here and put back if the run fails (see on_exit).
 set_world() {
-  # Written by the foundry user, who owns the Config folder and the file: to a temp file next to it (same mode) and
-  # renamed, so a failure never leaves a half file. Root must not write there: a link the foundry user left at the temp
-  # name would make root write over any file, and a chown would hand it to the foundry user. No chown is needed:
-  # the file is the foundry user's own (same as kit-session.sh).
-  runuser -u "$FOUNDRY_USER" -- "$NODE_DIR/bin/node" -e 'const fs=require("fs");const p=process.argv[1];const st=fs.statSync(p);const o=JSON.parse(fs.readFileSync(p,"utf8"));o.world=process.argv[2]||null;const t=p+".world-tmp";fs.rmSync(t,{force:true});fs.writeFileSync(t,JSON.stringify(o,null,2)+"\n",{mode:st.mode&0o777});fs.chmodSync(t,st.mode&0o777);fs.renameSync(t,p)' "$options" "$1"
+  # Written by the foundry user (foundry_edit_json in lib.sh: temp file + rename, no root write in its folder).
+  foundry_edit_json "$options" 'o.world = a[0] || null' "$1"
   world_changed=1
 }
 orig_world="$(node -e 'const o=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));process.stdout.write(o.world||"")' "$options")"
@@ -642,7 +639,8 @@ for a in "${assets[@]}"; do
       saved=$((saved + 1))
     fi
   done < <(cd "$work/extract/Data" && find "$a" -type f -print0)
-  cp -a "$work/extract/Data/$a/." "$data/$a/"
+  # --remove-destination: a link already at a destination name is replaced, never written through (the files are the foundry user's, as extracted and chowned above)
+  cp -a --remove-destination "$work/extract/Data/$a/." "$data/$a/"
   ok "$a merged ($saved changed files saved to $prev first)"
 done
 
@@ -652,8 +650,8 @@ todo=()
 if [ -n "$KIT_WORLD" ]; then
   store_prev "$data/worlds/$KIT_WORLD" "worlds/$KIT_WORLD"
   cp -a "$work/extract/Data/worlds/$WORLD" "$data/worlds/$KIT_WORLD"
-  node -e 'const fs=require("fs");const p=process.argv[1];const o=JSON.parse(fs.readFileSync(p,"utf8"));o.id=process.argv[2];o.title=process.argv[3];o.flags=o.flags||{};o.flags["foundry-ai-tool"]=Object.assign({},o.flags["foundry-ai-tool"],{kitOf:process.argv[4]});fs.writeFileSync(p,JSON.stringify(o,null,2)+"\n")' \
-    "$data/worlds/$KIT_WORLD/world.json" "$KIT_WORLD" "$KIT_TITLE" "$WORLD"
+  foundry_edit_json "$data/worlds/$KIT_WORLD/world.json" 'o.id = a[0]; o.title = a[1]; o.flags = o.flags || {}; o.flags["foundry-ai-tool"] = Object.assign({}, o.flags["foundry-ai-tool"], { kitOf: a[2] })' \
+    "$KIT_WORLD" "$KIT_TITLE" "$WORLD"
   ok "kit world $KIT_WORLD reset from the bundle"
   todo+=("$KIT_WORLD")
 fi

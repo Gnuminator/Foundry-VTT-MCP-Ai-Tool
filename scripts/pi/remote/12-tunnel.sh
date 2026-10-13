@@ -197,26 +197,19 @@ else
       local rc=$?
       trap - EXIT
       if [ "$rc" -ne 0 ] && [ "$in_edit" = 1 ]; then
-        cp -a "$run_backup" "$options" || true
+        foundry_copy_file "$run_backup" "$options" || true
         if have_systemd; then systemctl start foundry.service || true; fi
         printf 'ERROR: stage 12 failed while Foundry was stopped: options.json put back from %s and Foundry started again\n' "$run_backup" >&2
       fi
       exit "$rc"
     }
     trap restore_foundry EXIT
-    cp -a "$options" "$run_backup"
+    # Copied and written by the foundry user (lib.sh), so root never writes in its Config folder.
+    foundry_can_write "${options%/*}" || die "the $FOUNDRY_USER user cannot write in ${options%/*}, where options.json is changed. Foundry was not stopped (the tunnel service above is already set up)"
+    foundry_copy_file "$options" "$run_backup"
     in_edit=1
     if have_systemd; then systemctl stop foundry.service; fi
-    node -e '
-      const fs = require("fs");
-      const [p, host] = process.argv.slice(1);
-      const o = JSON.parse(fs.readFileSync(p, "utf8"));
-      o.hostname = host;
-      o.proxySSL = true;
-      o.proxyPort = 443;
-      fs.writeFileSync(p, JSON.stringify(o, null, 2) + "\n");
-    ' "$options" "$public_host"
-    chown --reference="$run_backup" "$options"
+    foundry_edit_json "$options" 'o.hostname = a[0]; o.proxySSL = true; o.proxyPort = 443' "$public_host"
     ok "options.json: hostname $public_host, proxySSL true, proxyPort 443 (old file: $run_backup)"
     if have_systemd; then
       systemctl start foundry.service

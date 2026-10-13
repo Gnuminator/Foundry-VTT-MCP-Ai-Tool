@@ -91,7 +91,7 @@ local_zip() {
 # Gamemaster without one, "twice" runs the whole stage a second time on the same fake Pi and
 # prints that run as "--- rerun output" and "--- rerun exit", the calls of both runs together; "options600" gives
 # options.json mode 600; "options-readonly" makes the Config folder root's; "plant-link" leaves a link at the temp
-# name options.json.world-tmp pointing to /tmp/victim-file; "kit-session-up" leaves a kit-session.env in the tool's
+# name options.json.foundry-tmp pointing to /tmp/victim-file; "kit-session-up" leaves a kit-session.env in the tool's
 # data folder). The "--- files" block says what mode and owner options.json has and whether the temp name is left.
 scenario() {
   local name="$1" status="$2" rc="$3" installed="$4" inactive="$5"
@@ -122,7 +122,7 @@ scenario() {
       plant-link)
         # A link left at the temp name set_world uses, pointing at a file root must never touch.
         echo victim >/tmp/victim-file && chmod 644 /tmp/victim-file
-        ln -s /tmp/victim-file "$FOUNDRY_DATA/Config/options.json.world-tmp"
+        ln -s /tmp/victim-file "$FOUNDRY_DATA/Config/options.json.foundry-tmp"
         ;;
       kit-session-up) echo STAMP=20261013-074544 >"$TOOL_DATA/kit-session.env" ;;
       *) env_words+=("$w") ;;
@@ -143,7 +143,7 @@ scenario() {
   node -e 'process.stdout.write(JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")).world+"\n")' "$FOUNDRY_DATA/Config/options.json"
   echo "--- files"
   cfg="$FOUNDRY_DATA/Config"
-  echo "options mode $(stat -c %a "$cfg/options.json") owner $(stat -c %U "$cfg/options.json") tmp $([ -e "$cfg/options.json.world-tmp" ] || [ -L "$cfg/options.json.world-tmp" ] && echo present || echo absent)"
+  echo "options mode $(stat -c %a "$cfg/options.json") owner $(stat -c %U "$cfg/options.json") tmp $([ -e "$cfg/options.json.foundry-tmp" ] || [ -L "$cfg/options.json.foundry-tmp" ] && echo present || echo absent)"
   if [ -e /tmp/victim-file ]; then echo "victim $(stat -c %U:%G:%a /tmp/victim-file) $(cat /tmp/victim-file)"; fi
   echo "--- module version"
   node -e 'try{process.stdout.write(JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")).version+"\n")}catch{console.log("none")}' "$FOUNDRY_DATA/Data/modules/foundryvtt-actor-studio/module.json"

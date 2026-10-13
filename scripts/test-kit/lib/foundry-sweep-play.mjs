@@ -145,29 +145,38 @@ export async function chatRows(sweep, { t, gm, player }) {
     const button = player.locator('.mcp-roll-button', { hasText: 'STR Ability Check' }).last();
     await button.waitFor({ state: 'visible', timeout: 15000 });
     const before = (await messageIds()).length;
+    // Counted before the click: a card or a roll left by an earlier run must not pass for this one.
+    const completedCards = () =>
+      player.evaluate(
+        () =>
+          [...document.querySelectorAll('.message-content')].filter(e =>
+            /Completed by/.test(e.textContent ?? '')
+          ).length
+      );
+    const rollMessages = () =>
+      gm.evaluate(
+        () =>
+          game.messages.contents.filter(m => m.isRoll && /Ability Check/i.test(m.flavor ?? ''))
+            .length
+      );
+    const cardsBefore = await completedCards();
+    const rollsBefore = await rollMessages();
     const started = Date.now();
     await button.click();
     await until(
-      () =>
-        player.evaluate(() =>
-          [...document.querySelectorAll('.mcp-roll-request, .message-content')].some(el =>
-            /Completed by/.test(el.textContent ?? '')
-          )
-        ),
+      async () => (await completedCards()) > cardsBefore,
       'the card to say who rolled'
     );
     const ms = Date.now() - started;
     const text = await player.evaluate(() => {
-      const el = [...document.querySelectorAll('.message-content')].find(e =>
-        /Completed by/.test(e.textContent ?? '')
-      );
+      const el = [...document.querySelectorAll('.message-content')]
+        .filter(e => /Completed by/.test(e.textContent ?? ''))
+        .pop();
       return (el?.textContent ?? '').replace(/\s+/g, ' ').trim();
     });
     if (!/Kit Player/.test(text)) throw new Error(`the card says "${text.slice(0, 120)}"`);
-    const rolled = await gm.evaluate(() =>
-      game.messages.contents.some(m => m.isRoll && /Ability Check/i.test(m.flavor ?? ''))
-    );
-    if (!rolled) throw new Error('no roll message was posted to the chat');
+    if ((await rollMessages()) <= rollsBefore)
+      throw new Error('no new roll message was posted to the chat');
     if ((await messageIds()).length < before) throw new Error('the request card is gone');
     return {
       note: `the player rolled; the card now reads "${text.slice(0, 80)}"`,

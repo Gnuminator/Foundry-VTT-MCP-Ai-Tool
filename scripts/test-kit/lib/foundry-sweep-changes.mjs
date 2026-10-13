@@ -268,7 +268,10 @@ export async function changesRows(sweep, { t, gm }) {
   await sweep.row('foundry.changes.more', 'gm', async () => {
     const more = gm.locator(`${CHANGES} button[data-action="more"]`);
     if (!(await more.count()))
-      throw new Skip('fewer rows than one page, so Show more is not offered');
+      throw new Skip(
+        'the list is one page or less (the window shows 20 rows first), so Show more is not offered; ' +
+          'it runs in a world with more changes than that'
+      );
     const before = (await readRows(gm)).length;
     await more.click();
     await waitRows(gm, rows => rows.length > before, 'more rows');

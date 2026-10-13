@@ -468,7 +468,8 @@ dies in the middle can still leave a change behind, so a kit world is not guaran
 
 Console errors: a row fails when either page (the GM's or the player's) logs a console error or a page error while
 it runs, with the page named in the note. Errors that land between rows (setup, a late error) are judged by the
-last step, "no control failed". Foundry logs every error notification as a console error, so a row that is meant
+last step, "no control failed". An announced error (`expectErrors`) is excused outside its row only within
+that row's time plus a short grace, and a skipped row hands the errors it saw to the last step. Foundry logs every error notification as a console error, so a row that is meant
 to provoke one names it (`expectErrors`, one narrow text per row) and the scenario lists those texts in
 `knownConsoleErrors` (the runner applies that list to the module errors of the GM page), with a comment on which
 row owns which text. After a failed row the sweep closes the dialogs it left open (the tool windows stay), and it
@@ -479,12 +480,18 @@ The GM guide link is not followed: the sweep replaces the page's `window.open` d
 address, the target and the features (it must be the `gnuminator.github.io` guide, `_blank`, `noopener`) and no
 tab opens. It also sends one HEAD request for that address from the kit PC to the public docs page; offline, or a
 page that is not published yet, is only a note in the row. The Handouts and Tarokka reveals are found in the
-Changes window by their change id (the ids listed before the reveal are not candidates). When the world already
+Changes window by their change id (the row ids the window itself listed before the reveal, the people's own
+changes included, are not candidates). When the world already
 has a Tarokka reading the five Tarokka rows are skipped, and they fail instead when the reading carries the
 sweep's own reveal text (a leftover of an earlier run). The queries-locked row first checks that the GM client
 registers the helper query, then needs the player's refusal to say "not registered" or "GM-only", so a timeout is
-not taken for a lock. The two Tarokka offer dialogs are skipped, because the
-`tarokka-reading` module is not in the kit worlds. The Changes window undoes a change that also wrote the AI
+not taken for a lock. The two Tarokka offer dialogs ("Offer this reading to the AI Tool?", answered Yes and
+No) run in every kit world: the kit worlds do not carry the `tarokka-reading` module, so for the length of
+those two rows the sweep makes the GM client see an active 1.x module with a client setting `secret`, sets the
+setting to a new dealt reading (which is what makes the module ask) and removes the stand-in again. When the
+module is active in the world its own setting is used and put back to empty. Yes must say the reading was
+offered, No must say nothing. At the end of the Tarokka area the journals of the world are compared with the
+start, and a reveal journal that undo left behind fails the cleanup. The Changes window undoes a change that also wrote the AI
 Tool's own data (a reveal does) with the plain `undo-change`, not a planned undo; the reveal rows fail if the window refuses it.
 The report gets three attachments: `foundry-controls` (one row per control and role: pass, fail or skip with the
 reason), `foundry-timings` (milliseconds for opening each window and for the guarded round trip: the I-098

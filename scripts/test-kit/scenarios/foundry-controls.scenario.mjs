@@ -21,7 +21,7 @@
 import { readUsageCatalog } from '../lib/dashboard-controls.mjs';
 import { FOUNDRY_CONTROLS, countHows, errorCounterRows, rowsOf } from '../lib/foundry-controls.mjs';
 import { changesRows, sceneRows } from '../lib/foundry-sweep-changes.mjs';
-import { handoutsRows, tarokkaRows } from '../lib/foundry-sweep-handouts.mjs';
+import { handoutsRows, tarokkaOfferRows, tarokkaRows } from '../lib/foundry-sweep-handouts.mjs';
 import {
   chatRows,
   journalRows,
@@ -122,6 +122,7 @@ export default {
       if (wanted('tarokka')) {
         await t.step('Tarokka window, with a reveal undone', async () => {
           await tarokkaRows(sweep, pages);
+          await tarokkaOfferRows(sweep, pages);
           return summary(sweep, rowsOf('tarokka'));
         });
       }
@@ -140,15 +141,6 @@ export default {
       if (wanted('chat')) {
         await t.step('chat: the roll request card', async () => {
           await chatRows(sweep, pages);
-          for (const control of rowsOf('chat').filter(r => r.how === 'skip')) {
-            sweep.results.push({
-              name: control.name,
-              who: 'gm',
-              status: 'skip',
-              ms: 0,
-              note: control.why ?? '',
-            });
-          }
           return summary(sweep, rowsOf('chat'));
         });
       }

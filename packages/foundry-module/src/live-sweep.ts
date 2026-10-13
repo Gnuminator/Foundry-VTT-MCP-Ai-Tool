@@ -1,3 +1,6 @@
+import { MODULE_ID } from './constants.js';
+import { featureSettingKey, isKnownFeature } from './guarded-features.js';
+
 /**
  * Test-world helper for the live write sweep (I-016, `scripts/live-write-sweep.mjs`).
  *
@@ -12,7 +15,13 @@
  * - `concentration`: a concentration effect on one sweep actor with a dependent effect on
  *   another, linked as dnd5e links them, for the undo and redo check of an AI-ended
  *   concentration.
- * - `cleanup` (the default): delete the world documents and tokens the sweep named with
+ * - `switches`: turn guarded feature switches on or off (the Obsidian mirror's is not one of
+ *   the session switches) and give back what they were, so the sweep can put them back.
+ * - `fixture`: the world documents the party, playlist and handout tools need and no tool makes
+ *   (a party group, a playlist with one sound, a journal that players can open with a page
+ *   they cannot), and `playlist-state` to read whether a sweep playlist is playing.
+ * - `cleanup` (the default): close the dialogs that `use-item` leaves open on a sweep actor's item
+ *   (Foundry keeps them after the actor is gone), then delete the world documents and tokens the sweep named with
  *   {@link SWEEP_PREFIX} (NPCs, journals, items, folders, its wolf token), plus the chat
  *   messages and combats created since the run started.
  *
@@ -74,11 +83,40 @@ export interface SweepConcentrationResult {
   dependentUuid: string;
 }
 
+/** The feature switches as they were before a `switches` call, by feature id. */
+export interface SweepSwitchesResult {
+  mode: 'switches';
+  before: Record<string, boolean>;
+}
+
+/** A fixture the helper made (`fixture`): its kind, id and the names the sweep looks up. */
+export interface SweepFixtureResult {
+  mode: 'fixture';
+  kind: string;
+  id: string;
+  name: string;
+  /** handout: the page's uuid. */
+  pageUuid?: string;
+  /** playlist: the playlist's sound id. */
+  soundId?: string;
+}
+
+/** Whether a sweep playlist is playing (`playlist-state`). */
+export interface SweepPlaylistStateResult {
+  mode: 'playlist-state';
+  id: string;
+  name: string;
+  playing: boolean;
+}
+
 export type LiveSweepResult =
   | SweepCleanupResult
   | SweepSnapshotResult
   | SweepCombatResult
-  | SweepConcentrationResult;
+  | SweepConcentrationResult
+  | SweepSwitchesResult
+  | SweepFixtureResult
+  | SweepPlaylistStateResult;
 
 interface LiveSweepRequest {
   mode?: unknown;
@@ -86,8 +124,14 @@ interface LiveSweepRequest {
   since?: unknown;
   /** combat: token ids on the active scene. */
   tokenIds?: unknown;
-  /** concentration: the caster's and the target's actor ids. */
+  /** concentration: the caster's and the target's actor ids; fixture party: the members. */
   actorIds?: unknown;
+  /** switches: feature id -> on or off. */
+  switches?: unknown;
+  /** fixture: playlist, party or handout. */
+  kind?: unknown;
+  /** playlist-state: the playlist id. */
+  id?: unknown;
 }
 
 interface SweepActor {
@@ -107,6 +151,7 @@ const NAMED_COLLECTIONS: ReadonlyArray<readonly [string, string]> = [
   ['journal', 'JournalEntry'],
   ['scenes', 'Scene'],
   ['tables', 'RollTable'],
+  ['playlists', 'Playlist'],
 ];
 
 /** World collections whose sweep-made documents are found by creation time. */
@@ -181,6 +226,12 @@ export async function liveSweep(data: unknown): Promise<LiveSweepResult> {
       return startCombat(request.tokenIds);
     case 'concentration':
       return concentration(request.actorIds);
+    case 'switches':
+      return setSwitches(request.switches);
+    case 'fixture':
+      return makeFixture(request.kind, request.actorIds);
+    case 'playlist-state':
+      return playlistState(request.id);
     case 'cleanup':
       return cleanup(worldId, request.since);
     default:
@@ -254,6 +305,154 @@ async function concentration(actorIds: unknown): Promise<SweepConcentrationResul
   return { mode: 'concentration', effectUuid: effect.uuid, dependentUuid: dependent.uuid };
 }
 
+interface SweepSettings {
+  get(module: string, key: string): unknown;
+  set(module: string, key: string, value: unknown): Promise<unknown>;
+}
+
+/** Turn feature switches on or off; `before` has what each was, for the sweep to put back. */
+async function setSwitches(wanted: unknown): Promise<SweepSwitchesResult> {
+  const entries =
+    wanted && typeof wanted === 'object' && !Array.isArray(wanted) ? Object.entries(wanted) : [];
+  if (entries.length === 0) throw new Error('switches needs { featureId: true | false }');
+  const settings = (game as unknown as { settings: SweepSettings }).settings;
+  // Check every entry before setting any, so a bad id leaves no switch changed.
+  for (const [id, on] of entries) {
+    if (typeof on !== 'boolean' || !/^[a-z][a-z0-9-]*$/.test(id)) {
+      throw new Error(`switches: "${id}" must be a feature id with true or false`);
+    }
+    if (!isKnownFeature(id)) throw new Error(`switches: "${id}" is not a guarded feature`);
+  }
+  const before: Record<string, boolean> = {};
+  for (const [id, on] of entries) {
+    const key = featureSettingKey(id);
+    before[id] = settings.get(MODULE_ID, key) === true;
+    await settings.set(MODULE_ID, key, on);
+  }
+  return { mode: 'switches', before };
+}
+
+interface SweepCreated {
+  id: string;
+  name?: string;
+  uuid?: string;
+  playing?: boolean;
+  pages?: { contents: Array<{ uuid: string }> };
+  sounds?: { contents: Array<{ id: string }> };
+  system?: { addMember?(actor: unknown): Promise<unknown> };
+}
+
+function creator(documentName: string): (data: object) => Promise<SweepCreated> {
+  const cls = (globalThis as unknown as Record<string, unknown>)[documentName] as
+    | { create(data: object): Promise<SweepCreated> }
+    | undefined;
+  if (!cls || typeof cls.create !== 'function') throw new Error(`${documentName} is not available`);
+  return data => cls.create(data);
+}
+
+/**
+ * The documents the party, playlist and handout tools need and no tool makes. Every one carries
+ * the sweep prefix, so `cleanup` removes it.
+ */
+async function makeFixture(kind: unknown, actorIds: unknown): Promise<SweepFixtureResult> {
+  if (kind === 'playlist') {
+    const name = `${SWEEP_PREFIX} Playlist`;
+    const playlist = await creator('Playlist')({
+      name,
+      sounds: [{ name: `${SWEEP_PREFIX} Sound`, path: 'sounds/drums.wav', volume: 0.1 }],
+    });
+    const sound = playlist.sounds?.contents[0];
+    return {
+      mode: 'fixture',
+      kind,
+      id: playlist.id,
+      name,
+      ...(sound ? { soundId: sound.id } : {}),
+    };
+  }
+  if (kind === 'party') {
+    const name = `${SWEEP_PREFIX} Party`;
+    const group = await creator('Actor')({
+      name,
+      type: 'group',
+      system: { type: { value: 'party' } },
+    });
+    const actors = sweepGame().actors as { get(id: string): unknown } | undefined;
+    const ids = Array.isArray(actorIds) ? actorIds.map(String) : [];
+    for (const actorId of ids) {
+      const actor = actors?.get(actorId);
+      if (!actor) throw new Error(`party: no actor ${actorId}`);
+      if (!group.system?.addMember) throw new Error('party: this system has no group members');
+      await group.system.addMember(actor);
+    }
+    return { mode: 'fixture', kind, id: group.id, name };
+  }
+  if (kind === 'handout') {
+    // Players can open the journal; its one page they cannot, so a reveal without a copy has
+    // something to open up.
+    const name = `${SWEEP_PREFIX} Handout`;
+    const journal = await creator('JournalEntry')({
+      name,
+      ownership: { default: 2 },
+      pages: [
+        {
+          name: `${SWEEP_PREFIX} Handout page`,
+          type: 'text',
+          text: { content: '<p>The sweep handout.</p>', format: 1 },
+          ownership: { default: 0 },
+        },
+      ],
+    });
+    const pageUuid = journal.pages?.contents[0]?.uuid;
+    if (!pageUuid) throw new Error('handout: the page was not created');
+    return { mode: 'fixture', kind, id: journal.id, name, pageUuid };
+  }
+  throw new Error(`Unknown fixture kind: ${String(kind)}`);
+}
+
+function playlistState(id: unknown): SweepPlaylistStateResult {
+  const playlists = sweepGame().playlists as
+    | { get(id: string): SweepCreated | undefined }
+    | undefined;
+  const playlist = typeof id === 'string' ? playlists?.get(id) : undefined;
+  if (!playlist) throw new Error(`playlist-state: no playlist ${String(id)}`);
+  return {
+    mode: 'playlist-state',
+    id: playlist.id,
+    name: String(playlist.name ?? ''),
+    playing: playlist.playing === true,
+  };
+}
+
+interface SweepApp {
+  item?: { actor?: { name?: unknown } };
+  close(): Promise<unknown>;
+}
+
+/**
+ * `use-item` opens the item's activity dialog on the GM's screen and answers at once; the dialog
+ * outlives the actor it belongs to. Close the ones that belong to a sweep actor.
+ */
+async function closeSweepDialogs(): Promise<number> {
+  const instances = (
+    globalThis as unknown as {
+      foundry?: { applications?: { instances?: Map<string, SweepApp> } };
+    }
+  ).foundry?.applications?.instances;
+  if (!instances) return 0;
+  const open = [...instances.values()].filter(app => {
+    // An application whose `item` getter throws is not ours; it must not stop the clean-up.
+    try {
+      const name = app.item?.actor?.name;
+      return (typeof name === 'string' ? name : '').startsWith(SWEEP_PREFIX);
+    } catch {
+      return false;
+    }
+  });
+  for (const app of open) await app.close();
+  return open.length;
+}
+
 /**
  * Delete what the sweep made. Folders go last, with their contents (a folder delete in
  * Foundry keeps its contents unless asked otherwise).
@@ -262,6 +461,9 @@ async function cleanup(worldId: string, sinceValue: unknown): Promise<SweepClean
   const since = typeof sinceValue === 'number' && sinceValue > 0 ? sinceValue : null;
   const deleted: Record<string, number> = {};
   const names: string[] = [];
+
+  const dialogs = await closeSweepDialogs();
+  if (dialogs > 0) deleted.dialogs = dialogs;
 
   for (const [key, type] of NAMED_COLLECTIONS) {
     const docs = collection(key)?.filter(hasSweepName);

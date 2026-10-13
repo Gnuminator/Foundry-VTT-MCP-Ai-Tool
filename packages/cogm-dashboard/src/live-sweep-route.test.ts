@@ -105,6 +105,22 @@ describe('POST /api/test/live-sweep (I-016)', () => {
     ]);
   });
 
+  it('passes the switches, fixture and playlist-state requests of the write tools sweep', async () => {
+    const { base, calls } = await start(true);
+    await post(base, '/api/control', { action: 'set-gm-actions', value: true });
+    await post(base, '/api/test/live-sweep', { mode: 'switches', switches: { party: true } });
+    await post(base, '/api/test/live-sweep', { mode: 'fixture', kind: 'party', actorIds: ['a1'] });
+    await post(base, '/api/test/live-sweep', { mode: 'playlist-state', id: 'p1' });
+    // A switches list or a kind of the wrong type is dropped, not forwarded.
+    await post(base, '/api/test/live-sweep', { mode: 'switches', switches: ['party'], kind: 3 });
+    expect(calls).toEqual([
+      { mode: 'switches', switches: { party: true } },
+      { mode: 'fixture', kind: 'party', actorIds: ['a1'] },
+      { mode: 'playlist-state', id: 'p1' },
+      { mode: 'switches' },
+    ]);
+  });
+
   it('answers 501 when the bridge cannot clean up', async () => {
     const { base } = await start(false);
     await post(base, '/api/control', { action: 'set-gm-actions', value: true });

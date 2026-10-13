@@ -35,9 +35,18 @@
  * Output: one PASS / FAIL / SKIP line per step, then a summary. Exit code 0 when nothing
  * failed (skips are fine), 1 when a step failed, 2 when the environment is not ready.
  *
- * Not run: `use-item` opens a dialog in the GM's browser that needs a click (pass
- * `--with-dialogs` to run it anyway and click it yourself). The `request-*` tools need the
- * target player logged in (SWEEP_PLAYER, default "Player"); they are skipped when not.
+ * `use-item` opens the item's activity dialog on the GM's screen and answers at once ("initiated");
+ * nobody clicks it, and the clean-up closes it. The `request-*` tools need the target player
+ * logged in (SWEEP_PLAYER, default "Player"); they are skipped, with the reason, when not.
+ *
+ * Write tools covered: every tool of tool-sets.ts that classifyTool (packages/cogm-dashboard/src/
+ * tool-policy.ts) calls a write, plus every guarded `plan-*` tool; a vitest
+ * (live-sweep-coverage.test.ts) fails when a new one has no step here. See "Coverage" in
+ * docs/dev/RUNTIME-TEST-PLAN.md. The guarded plan tools run as plan, apply, check, undo, check;
+ * the party, Tarokka, handout and Obsidian mirror features need their switches on, which the
+ * sweep turns on and puts back. A step that fails between an apply and its undo leaves the
+ * change in the pending list; the clean-up undoes what is left, newest first, before it deletes
+ * the sweep's documents, and then compares the Tarokka reading with the one from before the run.
  *
  * Environment: COGM_BASE (default http://127.0.0.1:3100; only port 3100 on this machine is
  * accepted), COGM_TOKEN (GM token, only when the test dashboard runs with the player/GM
@@ -58,7 +67,6 @@ const LIVE_BRIDGE_PORTS = [31414, 31415, 31416];
 const PREFIX = 'AI Tool Sweep';
 const FOLDER = `${PREFIX} (safe to delete)`;
 const PLAYER = process.env.SWEEP_PLAYER || 'Player';
-const WITH_DIALOGS = process.argv.includes('--with-dialogs');
 
 const EXIT_FAIL = 1;
 const EXIT_ENV = 2;
@@ -66,14 +74,13 @@ const EXIT_ENV = 2;
 if (process.argv.includes('--help') || process.argv.includes('-h')) {
   console.log(`live-write-sweep: run the direct-write tools once on the TEST world, then clean up.
 
-Usage: node scripts/live-write-sweep.mjs [--with-dialogs] [--world <id>] [--help]
+Usage: node scripts/live-write-sweep.mjs [--world <id>] [--help]
 
 Only talks to the test dashboard on 127.0.0.1:${TEST_DASHBOARD_PORT} (COGM_BASE may name
 localhost, 127.0.0.1 or [::1], but only port ${TEST_DASHBOARD_PORT}). Never the live bridge (31414-31416).
 Start the test environment first: pwsh scripts/test-env/start.ps1 (see the foundry-test-env skill)
 and join the world as "Claude". Everything it makes is named "${PREFIX} ..." and deleted at the end.
 
-  --with-dialogs   also run use-item, which opens a dialog in the GM's browser (click it)
   --world <id>     the test world to run in: ${TEST_WORLDS.join(', ')} (default ai-tool-test)
 
 Exit codes: 0 nothing failed (skips are fine), 1 a step failed, 2 environment not ready.
@@ -254,6 +261,7 @@ async function planAndApply(args, planTool = 'plan-actor-change') {
 async function undo(change) {
   const r = await tool('undo-change', { changeId: change.changeId });
   assert(r && r.mode === 'undo', `undo: ${brief(r)}`);
+  ctx.pending = ctx.pending.filter(c => c.changeId !== change.changeId);
   return r;
 }
 
@@ -292,6 +300,11 @@ const ctx = {
   templateIds: new Set(), // every template Region the sweep placed (the clean-up clears what is left)
   templatesBefore: 0, // this tool's templates on the starting scene (so the clean-up knows what is not ours)
   switchedScene: false,
+  groupId: null, // the sweep's party group (a test-helper fixture)
+  switchesBefore: null, // the feature switches as they were, put back at the end
+  pending: [], // changes applied and not yet undone (a failed step leaves them; the clean-up undoes them)
+  queuedPage: null, // uuid of a handout page the sweep queued and has not unqueued
+  tarokkaBefore: null, // get-tarokka-reading before the run (reading, archive, reveal journal)
 };
 
 async function setGmActions(value) {
@@ -676,7 +689,7 @@ async function tokenTools() {
       const undone = await planAndApply({ id: ended.change.changeId }, 'plan-undo-changes');
       const planNotes = (undone.plan.diff || [])
         .filter(d => d && d.kind === 'note')
-        .map(d => String(d.text || ""));
+        .map(d => String(d.text || ''));
       assert(
         planNotes.some(n => /Also restored with /.test(n)),
         `no "Also restored" note in ${brief(undone.plan.diff)}`
@@ -734,6 +747,33 @@ async function tokenTools() {
     const back = await wolfHp();
     assert(back === start, `hp ${back} after both undos, expected ${start}`);
     return `hp ${start} -> ${afterDamage} -> ${afterHealing} -> undone to ${back} (${hurt.plan.targets[0].line})`;
+  });
+  await step('plan-undo-changes (just this, applied; its undo is the redo)', async () => {
+    needWolf();
+    const start = await wolfHp();
+    const hurt = await planAndApply({
+      action: 'damage',
+      targets: [ctx.wolfTokenId],
+      amount: 2,
+      damageType: 'slashing',
+    });
+    assert((await wolfHp()) === start - 2, 'the 2 damage did not land');
+    // The window's undo: a plan of its own, applied with apply-planned-change.
+    const plan = await tool('plan-undo-changes', { id: hurt.change.changeId, scope: 'just-this' });
+    assert(plan && plan.planId, `no undo plan: ${brief(plan)}`);
+    const undone = await tool(
+      'apply-planned-change',
+      { planId: plan.planId },
+      { destructive: plan.risk === 'destructive' }
+    );
+    assert(undone && undone.changeId, `the undo plan was not applied: ${brief(undone)}`);
+    assert((await wolfHp()) === start, 'the planned undo did not put the hit points back');
+    // Undoing that undo is the redo: the damage comes back.
+    await undo(undone);
+    assert((await wolfHp()) === start - 2, 'undoing the undo did not bring the damage back');
+    await undo(hurt.change);
+    assert((await wolfHp()) === start, 'the last undo did not put the hit points back');
+    return `hp ${start} -> ${start - 2} -> planned undo -> redo -> undone to ${start}`;
   });
   await step('roll-saving-throws (dex save, whisper)', async () => {
     needWolf();
@@ -998,6 +1038,265 @@ async function restoreScene() {
   ctx.switchedScene = false;
 }
 
+// --- 7b. Guarded features and the playlist: party, Tarokka, handouts, Obsidian mirror ------------
+
+/** Same JSON, whatever the key order the tools answered in. */
+function sameJson(a, b) {
+  const sort = v =>
+    Array.isArray(v)
+      ? v.map(sort)
+      : v && typeof v === 'object'
+        ? Object.fromEntries(
+            Object.keys(v)
+              .sort()
+              .map(k => [k, sort(v[k])])
+          )
+        : v;
+  return JSON.stringify(sort(a)) === JSON.stringify(sort(b));
+}
+
+/** One revealed page of `list-revealed-pages`, by uuid, or null. */
+async function revealedPage(uuid) {
+  const r = await tool('list-revealed-pages', {});
+  return ((r && r.pages) || []).find(p => p.uuid === uuid) || null;
+}
+
+/** The sweep's group in `get-party`, or null. */
+async function sweepGroup() {
+  const r = await tool('get-party', {});
+  return ((r && r.groups) || []).find(g => g.actorId === ctx.groupId) || null;
+}
+
+/** A token on the viewed scene by name (get-token-positions), or null. */
+async function tokenNamed(name) {
+  const positions = await tool('get-token-positions', {});
+  return ((positions && positions.tokens) || []).find(t => t.name === name) || null;
+}
+
+/**
+ * A guarded write with the plan's risk class honoured (destructive plans get both confirmations),
+ * undone with the plain undo-change. Returns { plan, change } like planAndApply.
+ */
+async function guardedWrite(planTool, args) {
+  const applied = await planAndApply(args, planTool);
+  // Not undone yet: if a later assert throws, the clean-up undoes it (undo() takes it off).
+  ctx.pending.push(applied.change);
+  return applied;
+}
+
+async function guardedFeatureTools() {
+  await step(
+    'feature switches on for the run (party, Tarokka, handouts, Obsidian mirror)',
+    async () => {
+      const r = await helper({
+        mode: 'switches',
+        switches: { party: true, tarokka: true, handouts: true, 'obsidian-mirror': true },
+      });
+      ctx.switchesBefore = r.before;
+      ctx.tarokkaBefore = await tool('get-tarokka-reading', {});
+      return `was ${brief(r.before, 100)}; put back at the end`;
+    }
+  );
+
+  await step('play-playlist (play, stop)', async () => {
+    const fixture = await helper({ mode: 'fixture', kind: 'playlist' });
+    const state = async () => (await helper({ mode: 'playlist-state', id: fixture.id })).playing;
+    assert((await state()) === false, 'the new playlist already plays');
+    await tool('play-playlist', { playlistName: fixture.name, action: 'play' });
+    assert((await state()) === true, 'play did not start the playlist');
+    await tool('play-playlist', { playlistName: fixture.name, action: 'stop' });
+    assert((await state()) === false, 'stop did not stop the playlist');
+    return `${fixture.name}: playing, then stopped`;
+  });
+
+  await partySteps();
+  await tarokkaSteps();
+  await handoutSteps();
+  await obsidianSteps();
+}
+
+async function partySteps() {
+  const needGroup = () => {
+    if (!ctx.groupId) skip('no sweep party group');
+  };
+  await step('set-up: a sweep party group with the wolf and the NPC (test helper)', async () => {
+    if (!ctx.wolfActorId || !ctx.npcId) skip('no sweep wolf or NPC');
+    const fixture = await helper({
+      mode: 'fixture',
+      kind: 'party',
+      actorIds: [ctx.wolfActorId, ctx.npcId],
+    });
+    ctx.groupId = fixture.id;
+    const group = await sweepGroup();
+    assert(
+      group && group.members.length === 2,
+      `the group has ${brief(group && group.members, 80)}`
+    );
+    return `${fixture.name}: ${group.members.map(m => m.name).join(', ')}`;
+  });
+
+  await step('plan-party-change pace (slow, undo)', async () => {
+    needGroup();
+    const before = (await sweepGroup()).pace.value;
+    const { change } = await guardedWrite('plan-party-change', {
+      action: 'pace',
+      groupId: ctx.groupId,
+      pace: before === 'slow' ? 'fast' : 'slow',
+    });
+    const changed = (await sweepGroup()).pace.value;
+    assert(changed !== before, `the pace stayed ${before}`);
+    await undo(change);
+    const after = (await sweepGroup()).pace.value;
+    assert(after === before, `after the undo the pace is ${after}, not ${before}`);
+    return `${before} -> ${changed} -> undone to ${after}`;
+  });
+
+  await step('plan-party-change rest-request (long, undo)', async () => {
+    needGroup();
+    const since = Date.now();
+    const { plan, change } = await guardedWrite('plan-party-change', {
+      action: 'rest-request',
+      groupId: ctx.groupId,
+      rest: 'long',
+    });
+    await undo(change);
+    return `${brief(plan.summary, 90)}; undone (the card is deleted with the run's chat messages) ${Date.now() - since} ms`;
+  });
+
+  await step('plan-party-change place (the NPC without a token, undo)', async () => {
+    needGroup();
+    assert(!(await tokenNamed(ctx.npcName)), 'the NPC already has a token on the scene');
+    const { plan, change } = await guardedWrite('plan-party-change', {
+      action: 'place',
+      groupId: ctx.groupId,
+    });
+    const placed = await tokenNamed(ctx.npcName);
+    assert(placed, `no token for ${ctx.npcName} after the place: ${brief(plan.summary)}`);
+    await undo(change);
+    assert(!(await tokenNamed(ctx.npcName)), 'the token stayed after the undo');
+    return `${brief(plan.summary, 90)}; undone, the token is gone`;
+  });
+
+  await step('plan-party-change add-to-combat (the wolf token, undo)', async () => {
+    needGroup();
+    if (!ctx.wolfTokenId) skip('no sweep token on the scene');
+    const inCombat = async () => {
+      const group = await sweepGroup();
+      const wolf = group.members.find(m => m.actorId === ctx.wolfActorId);
+      return !!(wolf && wolf.tokens.some(t => t.inCombat));
+    };
+    assert(!(await inCombat()), 'the wolf token is already in an encounter');
+    const { plan, change } = await guardedWrite('plan-party-change', {
+      action: 'add-to-combat',
+      groupId: ctx.groupId,
+    });
+    assert(await inCombat(), `the wolf is not in the encounter: ${brief(plan.summary)}`);
+    await undo(change);
+    assert(!(await inCombat()), 'the wolf stayed in the encounter after the undo');
+    return `${brief(plan.summary, 90)}; undone`;
+  });
+}
+
+async function tarokkaSteps() {
+  await step(
+    'plan-tarokka-import, -links and -reveal (apply each, undo all, the reading comes back)',
+    async () => {
+      const original = ctx.tarokkaBefore || (await tool('get-tarokka-reading', {}));
+      const imported = await guardedWrite('plan-tarokka-import', { source: 'builtin-roll' });
+      const dealt = await tool('get-tarokka-reading', {});
+      assert(dealt.reading, `no reading after the import: ${brief(dealt)}`);
+      assert(
+        !original.reading || dealt.reading.readingId !== original.reading.readingId,
+        'the import kept the old reading'
+      );
+
+      // Link the "ally" card to the sweep's own NPC.
+      let links = null;
+      if (ctx.npcId) {
+        links = await guardedWrite('plan-tarokka-links', {
+          position: 'ally',
+          actorUuid: `Actor.${ctx.npcId}`,
+        });
+        const linked = (await tool('get-tarokka-reading', {})).reading.positions.find(
+          p => p.position === 'ally'
+        );
+        assert(linked && linked.linked, `the ally card is not linked: ${brief(linked)}`);
+      }
+
+      const reveal = await guardedWrite('plan-tarokka-reveal', {
+        position: 'holySymbol',
+        text: `${PREFIX} reveal: the sweep reads this sentence aloud.`,
+      });
+      const revealed = (await tool('get-tarokka-reading', {})).reading.positions.find(
+        p => p.position === 'holySymbol'
+      );
+      assert(revealed && revealed.revealed, `holySymbol is not revealed: ${brief(revealed)}`);
+
+      // Newest first.
+      await undo(reveal.change);
+      if (links) await undo(links.change);
+      await undo(imported.change);
+      const after = await tool('get-tarokka-reading', {});
+      assert(
+        sameJson(after.reading, original.reading),
+        `the reading is not the one from before the run: ${brief(after.reading, 160)}`
+      );
+      return `${links ? 'import, links, reveal' : 'import, reveal (no sweep NPC to link)'} applied and undone; the reading from before is back`;
+    }
+  );
+}
+
+async function handoutSteps() {
+  await step('plan-page-reveal queue, unqueue, reveal, hide (undo each)', async () => {
+    const fixture = await helper({ mode: 'fixture', kind: 'handout' });
+    const uuid = fixture.pageUuid;
+    const queued = async () =>
+      (((await tool('list-revealed-pages', {})) || {}).queue || []).some(q => q.uuid === uuid);
+
+    ctx.queuedPage = uuid;
+    await tool('plan-page-reveal', { action: 'queue', pageUuid: uuid });
+    assert(await queued(), 'queue did not list the page');
+    await tool('plan-page-reveal', { action: 'unqueue', pageUuid: uuid });
+    ctx.queuedPage = null;
+    assert(!(await queued()), 'unqueue left the page in the queue');
+
+    // The journal is open to players and the page is not: no copy, the page itself is raised.
+    const reveal = await guardedWrite('plan-page-reveal', {
+      action: 'reveal',
+      pageUuid: uuid,
+      copy: false,
+    });
+    const shown = await revealedPage(uuid);
+    assert(shown && shown.observable, `the page is not revealed: ${brief(shown)}`);
+    const hide = await guardedWrite('plan-page-reveal', { action: 'hide', pageUuid: uuid });
+    assert(!(await revealedPage(uuid)), 'hide left the page revealed');
+    await undo(hide.change);
+    assert((await revealedPage(uuid))?.observable, 'undoing the hide did not reveal the page');
+    await undo(reveal.change);
+    assert(!(await revealedPage(uuid)), 'undoing the reveal left the page revealed');
+    return `${brief(reveal.plan.summary, 70)}: revealed, hidden, hide undone, reveal undone`;
+  });
+}
+
+async function obsidianSteps() {
+  await step('plan-obsidian-mirror (story item types, undo)', async () => {
+    const before = (await tool('get-obsidian-mirror', {})).settings;
+    if (before.enabled)
+      skip('the Obsidian mirror is on; a story-item-type change would rewrite notes');
+    const { change } = await guardedWrite('plan-obsidian-mirror', { storyItemTypes: ['loot'] });
+    const changed = (await tool('get-obsidian-mirror', {})).settings;
+    assert(
+      sameJson(changed.storyItemTypes, ['loot']),
+      `story item types are ${brief(changed.storyItemTypes)}`
+    );
+    assert(changed.enabled === before.enabled, 'the plan switched the mirror on or off');
+    await undo(change);
+    const after = (await tool('get-obsidian-mirror', {})).settings;
+    assert(sameJson(after, before), `the settings are not back: ${brief(after, 160)}`);
+    return `${before.storyItemTypes.length} types -> loot -> undone`;
+  });
+}
+
 // --- 8. Chat and roll requests ---------------------------------------------------
 
 async function chatTools() {
@@ -1181,16 +1480,18 @@ async function actorTools() {
     assert(back === start, `after undoing the assign: ${back}, was ${start}`);
     return `${assigned.plan.targets[0].line}; removed; both undone (back to ${back})`;
   });
-  await step('use-item (opens a dialog in the GM browser)', async () => {
-    if (!WITH_DIALOGS) skip('needs a click in the GM browser; run with --with-dialogs');
-    if (!ctx.wolfActorId) skip('no sweep wolf');
-    const r = await tool('use-item', {
-      actorIdentifier: ctx.wolfActorId,
-      itemIdentifier: 'Bite',
-      consume: false,
-    });
-    return brief(r, 80);
-  });
+  await step(
+    'use-item (opens the activity dialog in the GM browser, closed at the end)',
+    async () => {
+      if (!ctx.wolfActorId) skip('no sweep wolf');
+      const r = await tool('use-item', {
+        actorIdentifier: ctx.wolfActorId,
+        itemIdentifier: 'Bite',
+        consume: false,
+      });
+      return brief(r, 80);
+    }
+  );
 }
 
 // --- 10. Session log and diagnostics -------------------------------------------------
@@ -1214,6 +1515,26 @@ async function logTools() {
 
 async function cleanUp() {
   const quiet = p => p.catch(e => console.log(`  note: clean-up step failed: ${e.message}`));
+  // Guarded changes a failed step left applied go first, newest first: an undo needs the
+  // features still on and the pages and actors still there.
+  if (ctx.pending.length > 0 || ctx.queuedPage) {
+    await step('clean up: changes a failed step left applied are undone', async () => {
+      const left = ctx.pending.length;
+      for (const change of [...ctx.pending].reverse()) await quiet(undo(change));
+      if (ctx.queuedPage) {
+        await quiet(
+          tool('plan-page-reveal', { action: 'unqueue', pageUuid: ctx.queuedPage }).then(() => {
+            ctx.queuedPage = null;
+          })
+        );
+      }
+      assert(
+        ctx.pending.length === 0 && !ctx.queuedPage,
+        `${ctx.pending.length} changes and ${ctx.queuedPage ? 'a queued page' : 'no queued page'} could not be undone`
+      );
+      return `${left} change${left === 1 ? '' : 's'} undone${left ? ' (newest first)' : ''}`;
+    });
+  }
   await step('clean up: scene put back, sweep token and documents deleted', async () => {
     // Back on the starting scene first: notes and templates are removed from the viewed scene.
     await quiet(restoreScene());
@@ -1250,6 +1571,24 @@ async function cleanUp() {
       return ctx.scene.name;
     });
   }
+  if (ctx.tarokkaBefore) {
+    await step(
+      'the Tarokka reading, its archive and reveal journal are as before the run',
+      async () => {
+        const now = await tool('get-tarokka-reading', {});
+        const was = ctx.tarokkaBefore;
+        for (const key of ['reading', 'archivedReadings', 'revealJournalUuid'])
+          assert(sameJson(now[key], was[key]), `${key} is not as before: ${brief(now[key], 160)}`);
+        return 'reading, archivedReadings, revealJournalUuid';
+      }
+    );
+  }
+  if (ctx.switchesBefore) {
+    await step('feature switches back to how they were', async () => {
+      await helper({ mode: 'switches', switches: ctx.switchesBefore });
+      return brief(ctx.switchesBefore, 100);
+    });
+  }
   if (ctx.gmActionsBefore !== null) {
     await step('GM Actions back to their previous state', async () => {
       await setGmActions(ctx.gmActionsBefore);
@@ -1279,6 +1618,7 @@ async function main() {
     await buildTools();
     await itemAndJournalTools();
     await tokenTools();
+    await guardedFeatureTools();
     await combatTools();
     await sceneTools();
     await chatTools();

@@ -1101,9 +1101,9 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
   });
 
   // Live write sweep helper (I-016, scripts/live-write-sweep.mjs): scene snapshot, a sweep
-  // combat and the clean-up. The module refuses outside the test worlds (SWEEP_WORLD_IDS:
-  // ai-tool-test, ai-tool-walkthrough). Not a
-  // tool.
+  // combat or concentration, feature switches, fixtures (playlist, party, handout), the
+  // playlist state and the clean-up. The module refuses outside the test worlds
+  // (SWEEP_WORLD_IDS: ai-tool-test, ai-tool-walkthrough). Not a tool.
   app.post('/api/test/live-sweep', requireGm, (req: Request, res: Response) => {
     if (!settings.gmActionsEnabled) {
       res.status(403).json({ code: 'gm-actions-disabled', error: 'GM Actions are off.' });
@@ -1118,6 +1118,11 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
     if (typeof body.since === 'number') request.since = body.since;
     if (Array.isArray(body.tokenIds)) request.tokenIds = body.tokenIds.map(String);
     if (Array.isArray(body.actorIds)) request.actorIds = body.actorIds.map(String);
+    if (typeof body.kind === 'string') request.kind = body.kind;
+    if (typeof body.id === 'string') request.id = body.id;
+    if (body.switches && typeof body.switches === 'object' && !Array.isArray(body.switches)) {
+      request.switches = body.switches;
+    }
     client
       .liveSweep(request)
       .then(result => res.json({ ok: true, result }))

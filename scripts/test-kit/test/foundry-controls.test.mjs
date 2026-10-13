@@ -44,7 +44,6 @@ test('the areas are unique and every area but the error counters has a row', () 
 
 test('a skip row says why', () => {
   const skips = FOUNDRY_CONTROLS.filter(r => r.how === 'skip');
-  assert.ok(skips.length > 0);
   for (const r of skips) assert.ok(r.why, `${r.name}: a skip row needs a why`);
 });
 
@@ -79,7 +78,7 @@ test('the counts per how add up to the row count', () => {
     Object.values(counts).reduce((a, b) => a + b, 0),
     FOUNDRY_CONTROLS.length
   );
-  assert.ok(counts.write > 0 && counts.open > 0 && counts.skip > 0);
+  assert.ok(counts.write > 0 && counts.open > 0 && counts.click > 0);
 });
 
 test('every module.error.* name of the catalog becomes one skip row', () => {
@@ -111,14 +110,18 @@ test('every control of the table is named in the sweep or the scenario, so a new
   assert.ok(files.length >= 2, 'no sweep files found');
   const source = files.map(f => readFileSync(f, 'utf8')).join('\n');
   // A skip row is listed by the scenario from the table itself. A name built in a template literal
-  // (`foundry.scene.${tool}`) counts when the tool's last part is named in the source as well.
+  // (`foundry.scene.${tool}`) counts when the tool's last part is named in the source as a quoted
+  // string too ('changes'), not merely as a word in a comment or an identifier.
   const escapeRe = (/** @type {string} */ text) => text.replace(/[\\^$.*+?()[\]{}|]/g, '\\$&');
   const named = (/** @type {string} */ name) => {
     if (new RegExp(`['"\`]${escapeRe(name)}['"\`]`).test(source)) return true;
     const cut = name.lastIndexOf('.');
     const prefix = escapeRe(name.slice(0, cut + 1));
     const last = name.slice(cut + 1);
-    return new RegExp(`\`${prefix}\\$\\{`).test(source) && source.includes(last);
+    return (
+      new RegExp(`\`${prefix}\\$\\{`).test(source) &&
+      new RegExp(`['"]${escapeRe(last)}['"]`).test(source)
+    );
   };
   const missing = FOUNDRY_CONTROLS.filter(r => r.how !== 'skip' && !named(r.name)).map(r => r.name);
   assert.deepEqual(missing, [], `rows no sweep file names: ${missing.join(', ')}`);

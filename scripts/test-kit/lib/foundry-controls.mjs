@@ -40,9 +40,6 @@ export const AREAS = [
   ['errors', 'Error counters'],
 ];
 
-const SKIP_TAROKKA_MODULE =
-  'needs the Tarokka deck module (tarokka-reading) active in the world; the kit worlds do not have it';
-
 /** @type {FoundryControl[]} */
 export const FOUNDRY_CONTROLS = [
   // --- Scene controls ----------------------------------------------------------------------------
@@ -293,19 +290,17 @@ export const FOUNDRY_CONTROLS = [
   },
   {
     name: 'module.tarokka.offer-confirm',
-    area: 'chat',
+    area: 'tarokka',
     label: 'Dialog: offer a dealt Tarokka reading to the AI Tool (Yes)',
-    how: 'skip',
+    how: 'click',
     player: 'none',
-    why: SKIP_TAROKKA_MODULE,
   },
   {
     name: 'module.tarokka.offer-decline',
-    area: 'chat',
+    area: 'tarokka',
     label: 'Dialog: offer a dealt Tarokka reading to the AI Tool (No)',
-    how: 'skip',
+    how: 'click',
     player: 'none',
-    why: SKIP_TAROKKA_MODULE,
   },
 
   // --- A player -----------------------------------------------------------------------------------

@@ -14,6 +14,8 @@ import { listOf } from './helpers.mjs';
 
 const SETTLE_MS = 300;
 const WAIT_MS = 10000;
+/** How long after a row ended an error it announced (`expectErrors`) may still arrive. */
+const GRACE_MS = 600;
 
 /** @typedef {'gm' | 'player'} Who */
 /** @typedef {{name: string, who: Who, status: 'pass' | 'fail' | 'skip', ms: number, note: string}} FoundryResult */
@@ -22,23 +24,31 @@ const WAIT_MS = 10000;
 export class Skip extends Error {}
 
 /**
- * Collect console errors and page errors of a page (a live array).
+ * Collect console errors and page errors of a page (live arrays; `times[i]` is when `errors[i]` came).
  * @param {import('playwright-core').Page} page
- * @returns {{errors: string[], stop: () => void}}
+ * @returns {{errors: string[], times: number[], stop: () => void}}
  */
 export function watchErrors(page) {
   /** @type {string[]} */
   const errors = [];
+  /** @type {number[]} */
+  const times = [];
+  /** @param {string} text */
+  const add = text => {
+    errors.push(text);
+    times.push(Date.now());
+  };
   /** @param {import('playwright-core').ConsoleMessage} msg */
   const onConsole = msg => {
-    if (msg.type() === 'error') errors.push(msg.text());
+    if (msg.type() === 'error') add(msg.text());
   };
   /** @param {Error} err */
-  const onPageError = err => errors.push(`page error: ${err?.message ?? err}`);
+  const onPageError = err => add(`page error: ${err?.message ?? err}`);
   page.on('console', onConsole);
   page.on('pageerror', onPageError);
   return {
     errors,
+    times,
     stop() {
       page.off('console', onConsole);
       page.off('pageerror', onPageError);
@@ -64,8 +74,12 @@ export class Sweep {
     this.attachShot = null;
     /** The error index ranges [from, to) that rows judged, by page. @type {Record<Who, Array<[number, number]>>} */
     this.judged = { gm: [], player: [] };
-    /** Every `expectErrors` pattern a row named: a late error of such a row may land between rows. @type {RegExp[]} */
-    this.expected = [];
+    /**
+     * The time window of each row that named `expectErrors`: such an error is excused outside any row only
+     * when it came inside that window (the row's run plus its settle time), not anywhere in the run.
+     * @type {Array<{patterns: RegExp[], from: number, to: number}>}
+     */
+    this.expectedWindows = [];
   }
 
   /**
@@ -100,7 +114,6 @@ export class Sweep {
   async row(name, who, fn, opts = {}) {
     const page = this.pages[who];
     const expect = opts.expectErrors ?? [];
-    this.expected.push(...expect);
     const before = {
       gm: this.watch.gm.errors.length,
       player: this.watch.player.errors.length,
@@ -130,12 +143,16 @@ export class Sweep {
     result.ms = Date.now() - started - SETTLE_MS;
     /** @type {Array<{who: Who, text: string}>} */
     const fresh = [];
+    if (expect.length)
+      this.expectedWindows.push({ patterns: expect, from: started, to: Date.now() + GRACE_MS });
     for (const w of /** @type {Who[]} */ (['gm', 'player'])) {
       const errors = this.watch[w].errors;
-      this.judged[w].push([before[w], errors.length]);
       for (const text of errors.slice(before[w])) {
         if (!expect.some(re => re.test(text))) fresh.push({ who: w, text });
       }
+      // A skipped row did not look at its errors: they stay for strayErrors() to report.
+      if (!(result.status === 'skip' && fresh.some(f => f.who === w)))
+        this.judged[w].push([before[w], errors.length]);
     }
     if (fresh.length && result.status !== 'skip') {
       result.status = 'fail';
@@ -164,7 +181,13 @@ export class Sweep {
     for (const w of /** @type {Who[]} */ (['gm', 'player'])) {
       this.watch[w].errors.forEach((text, i) => {
         if (this.judged[w].some(([from, to]) => i >= from && i < to)) return;
-        if (this.expected.some(re => re.test(text))) return;
+        const at = this.watch[w].times[i];
+        if (
+          this.expectedWindows.some(
+            win => at >= win.from && at <= win.to && win.patterns.some(re => re.test(text))
+          )
+        )
+          return;
         out.push(`${w} page, outside a row: ${text.replace(/\s+/g, ' ').slice(0, 300)}`);
       });
     }

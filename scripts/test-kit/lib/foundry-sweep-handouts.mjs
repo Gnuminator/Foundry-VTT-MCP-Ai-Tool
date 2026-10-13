@@ -69,6 +69,20 @@ async function changeIds(t) {
 }
 
 /**
+ * The ids of the rows the Changes window lists now (AI changes and people's own, which the bridge's
+ * `list-recent-changes` does not hold), read from the window itself and closed again.
+ * @param {import('playwright-core').Page} gm
+ * @returns {Promise<Set<string>>}
+ */
+async function windowIds(gm) {
+  await openTool(gm, 'aiChanges', 'fmb-ai-changes');
+  const ids = new Set((await readRows(gm)).map(r => r.id));
+  await closeWindow(gm, 'fmb-ai-changes');
+  await resetControls(gm);
+  return ids;
+}
+
+/**
  * Put-back: undo the undoable changes that appeared since `known` and whose summary matches (a reveal
  * that a failed row did not undo), newest first, each in its own try.
  * @param {any} t
@@ -89,12 +103,12 @@ async function undoNewChanges(t, known, hint) {
 }
 
 /**
- * Undo the change a reveal just made, found by its id (the ids that were listed before the reveal are
- * not candidates), the way a GM does from the Changes window. A change that also wrote to the AI
+ * Undo the change a reveal just made, found by its id (the ids the window listed before the reveal
+ * are not candidates, human rows included), the way a GM does from the Changes window. A change that also wrote to the AI
  * Tool's own data (a reveal records who may read it) is undone there with the plain undo, so the
  * window must open its confirm dialog and say "Undone", not refuse.
  * @param {import('playwright-core').Page} gm
- * @param {Set<string>} known  the change ids listed before the reveal
+ * @param {Set<string>} known  the row ids the Changes window listed before the reveal ({@link windowIds})
  * @param {RegExp} hint  the summary of the reveal, to choose when several new changes appeared
  * @returns {Promise<string>} what happened
  */
@@ -266,7 +280,7 @@ export async function handoutsRows(sweep, { t, gm, player }) {
     if (!dialog.text.includes(PAGE_NAME)) throw new Error('the dialog does not name the page');
     await answerNo(gm);
     if (await seenByPlayer()) throw new Error('Cancel revealed the page to the player');
-    const known = await changeIds(t);
+    const known = await windowIds(gm);
     await button.click();
     await readDialog(gm);
     const started = Date.now();
@@ -323,12 +337,31 @@ export async function tarokkaRows(sweep, { t, gm, player }) {
     return;
   }
   const knownAtStart = await changeIds(t);
+  const journalsAtStart = await journalIds(gm);
   const imported = await t.guarded.planApply('plan-tarokka-import', { source: 'builtin-roll' });
   t.cleanup(async () => {
     // The reveal comes after the import, so a reveal a failed row left goes first.
     await runAll([
       ['undo a reveal a failed row left', () => undoNewChanges(t, knownAtStart, TAROKKA_REVEAL)],
       ['undo the Tarokka import', () => undoIfOpen(t, imported.changeId)],
+      [
+        'the journals the reveal and the import made',
+        async () => {
+          // Undoing both must take the reveal journal with it; one that stays is deleted here and
+          // reported, so the next run does not meet it as "a reading from an earlier run".
+          const left = [...(await journalIds(gm))].filter(([id]) => !journalsAtStart.has(id));
+          if (!left.length) return;
+          await gm.evaluate(
+            async ids => {
+              for (const id of ids) await game.journal.get(id)?.delete();
+            },
+            left.map(([id]) => id)
+          );
+          throw new Error(
+            `undo left ${left.length} journal(s) behind (deleted now): ${left.map(([, name]) => name).join(', ')}`
+          );
+        },
+      ],
     ]);
   });
   const openMs = await openTool(gm, 'tarokka', 'fmb-tarokka');
@@ -393,7 +426,7 @@ export async function tarokkaRows(sweep, { t, gm, player }) {
     if (dialog.title !== 'Reveal Tarokka card')
       throw new Error(`the dialog is titled "${dialog.title}"`);
     await answerNo(gm);
-    const known = await changeIds(t);
+    const known = await windowIds(gm);
     const started = Date.now();
     await gm.locator(`${TK} button[data-action="revealGo"]`).click();
     await readDialog(gm);
@@ -406,16 +439,11 @@ export async function tarokkaRows(sweep, { t, gm, player }) {
     );
     if (!playerText.includes(REVEAL_TEXT)) throw new Error('the player page lacks the typed text');
     await sweep.row('foundry.tarokka.open-doc', 'gm', async () => {
+      // A sheet that is open already does not count: wait for one more than before the click.
+      const sheetsBefore = await journalSheetCount(gm);
       await gm.locator(`${TK} li[data-position] button[data-action="openDoc"]`).first().click();
       await until(
-        () =>
-          gm.evaluate(() =>
-            [...foundry.applications.instances.values()].some(
-              a =>
-                /JournalEntry|journal/i.test(a.constructor?.name ?? '') ||
-                a.element?.classList?.contains('journal-sheet')
-            )
-          ),
+        async () => (await journalSheetCount(gm)) > sheetsBefore,
         'the revealed page to open in a journal window'
       );
       await closeAllJournalSheets(gm);
@@ -434,6 +462,192 @@ export async function tarokkaRows(sweep, { t, gm, player }) {
 
   await closeWindow(gm, 'fmb-tarokka');
   await resetControls(gm);
+}
+
+// --- The offer dialog -----------------------------------------------------------------------------
+
+const PROVIDER = 'tarokka-reading';
+const OFFER_TITLE = 'AI Tool: Tarokka reading';
+const OFFERED = /offered to the AI Tool/i;
+const BUSY =
+  "the world's tarokka-reading module has a reading dealt in this browser; the sweep will not overwrite it";
+// Card ids in the shape the module accepts (the reading is never imported, so they need not exist).
+const OFFER_CARDS = ['the-tower', 'the-ghost', 'the-seer', 'the-marionette', 'the-darklord'];
+
+/**
+ * Make the Tarokka deck module look dealt-capable to the GM client: when `tarokka-reading` 1.x is
+ * active in the world its own `secret` setting is used, else a stub stands in for the module and the
+ * setting until `restore()` (the kit worlds do not carry the module). `restore` is safe to call twice
+ * and tries every step. A world whose own module has a reading dealt is left alone: `busy` says so.
+ * @param {import('playwright-core').Page} gm
+ * @returns {Promise<{how: 'module' | 'stub', busy: boolean, restore: () => Promise<void>}>}
+ */
+async function provideTarokkaDeck(gm) {
+  const state = await gm.evaluate(mod => {
+    const real = game.modules.get(mod);
+    const usable = !!real?.active && /^1\./.test(String(real.version ?? ''));
+    const key = `${mod}.secret`;
+    const registered = !game.settings.settings.has(key);
+    let busy = false;
+    let stored = null;
+    try {
+      stored = localStorage.getItem(key);
+    } catch {
+      // no storage: nothing to keep
+    }
+    if (usable && !registered) busy = game.settings.get(mod, 'secret') != null;
+    // @ts-ignore only what the module's reader asks of a module: active and version
+    window.__kitTarokka = { original: real, usable, registered, stored, busy };
+    if (busy) return { how: 'module', busy };
+    if (!usable) game.modules.set(mod, { id: mod, active: true, version: '1.0.5', stub: true });
+    if (registered) {
+      game.settings.register(mod, 'secret', {
+        scope: 'client',
+        config: false,
+        type: Object,
+        default: null,
+      });
+    }
+    return { how: usable ? 'module' : 'stub', busy };
+  }, PROVIDER);
+  return {
+    how: /** @type {'module' | 'stub'} */ (state.how),
+    busy: state.busy,
+    restore: () => restoreTarokkaDeck(gm),
+  };
+}
+
+/**
+ * Put the Tarokka deck stand-ins back (idempotent; every step is tried, the failures come as one error).
+ * @param {import('playwright-core').Page} page
+ */
+async function restoreTarokkaDeck(page) {
+  const errors = await page.evaluate(async mod => {
+    // @ts-ignore
+    const kept = window.__kitTarokka;
+    if (!kept) return [];
+    const errs = [];
+    const attempt = async (label, fn) => {
+      try {
+        await fn();
+      } catch (err) {
+        errs.push(`${label}: ${err?.message ?? err}`);
+      }
+    };
+    const key = `${mod}.secret`;
+    // The reading first (an empty secret is never offered), then the stand-ins.
+    if (!kept.busy && !kept.registered)
+      await attempt('secret', () => game.settings.set(mod, 'secret', null));
+    if (kept.registered) {
+      await attempt('setting', () => game.settings.settings.delete(key));
+      await attempt('storage', () => {
+        if (kept.stored === null) localStorage.removeItem(key);
+        else localStorage.setItem(key, kept.stored);
+      });
+    }
+    if (!kept.usable) {
+      await attempt('module', () => {
+        if (kept.original) game.modules.set(mod, kept.original);
+        else game.modules.delete(mod);
+      });
+    }
+    // @ts-ignore
+    delete window.__kitTarokka;
+    return errs;
+  }, PROVIDER);
+  if (errors.length) throw new Error(errors.join('; '));
+}
+
+/**
+ * The two answers to "Offer this reading to the AI Tool?": a new reading is dealt in the GM's browser
+ * (the deck module's `secret` setting changes) and the module asks once. Yes keeps the offer and says
+ * so; No keeps nothing and says nothing.
+ * @param {import('./foundry-sweep.mjs').Sweep} sweep
+ * @param {{t: any, gm: import('playwright-core').Page}} ctx
+ */
+export async function tarokkaOfferRows(sweep, { t, gm }) {
+  const { before } = await t.gm('setFeatureSwitches', { switches: { tarokka: true } });
+  // Registered before the stand-ins are made, so a throw halfway still gets them put back; the rows
+  // put them back as soon as they are done (restore does nothing the second time).
+  t.cleanup(async () => {
+    await runAll([
+      ['put the Tarokka deck setting back', () => restoreTarokkaDeck(gm)],
+      ['put the feature switch back', () => t.gm('setFeatureSwitches', { switches: before })],
+    ]);
+  });
+  const deck = await provideTarokkaDeck(gm);
+  let n = 0;
+  const deal = () => {
+    n += 1;
+    const secret = {
+      id: `kit-sweep-offer-${Date.now().toString(36)}-${n}`,
+      cards: OFFER_CARDS,
+      stages: OFFER_CARDS.map(() => 'hidden'),
+    };
+    return gm.evaluate(
+      ([mod, value]) => game.settings.set(mod, 'secret', value),
+      [PROVIDER, secret]
+    );
+  };
+  const askedDialog = async () => {
+    const dialog = await readDialog(gm);
+    if (dialog.title !== OFFER_TITLE) throw new Error(`the dialog is titled "${dialog.title}"`);
+    if (!/Offer this reading to the AI Tool/.test(dialog.text))
+      throw new Error(`the dialog asks "${dialog.text.slice(0, 120)}"`);
+    if (!dialog.actions.includes('yes') || !dialog.actions.includes('no'))
+      throw new Error(`the dialog offers ${dialog.actions.join(', ') || 'no answer'}`);
+    return dialog;
+  };
+
+  const rows = async () => {
+    await sweep.row('module.tarokka.offer-decline', 'gm', async () => {
+      if (deck.busy) throw new Skip(BUSY);
+      await deal();
+      await askedDialog();
+      await answerNo(gm);
+      // The module answers a Yes with a notification at once; give a No the same time to say nothing.
+      await gm.waitForTimeout(1200);
+      if ((await notifications(gm)).some(x => OFFERED.test(x)))
+        throw new Error('No still offered the reading to the AI Tool');
+      return `a dealt reading asks once; No keeps nothing (deck: ${deck.how})`;
+    });
+
+    await sweep.row('module.tarokka.offer-confirm', 'gm', async () => {
+      if (deck.busy) throw new Skip(BUSY);
+      await deal();
+      await askedDialog();
+      await answerYes(gm, 'Yes');
+      await waitNotification(gm, OFFERED);
+      return `a dealt reading asks once; Yes offers it to the AI Tool (deck: ${deck.how})`;
+    });
+  };
+  try {
+    await rows();
+  } finally {
+    // As soon as the two rows are done, not at the end of the scenario.
+    await deck.restore();
+  }
+}
+
+/**
+ * The journals of the world: id to name.
+ * @param {import('playwright-core').Page} page
+ * @returns {Promise<Map<string, string>>}
+ */
+async function journalIds(page) {
+  return new Map(await page.evaluate(() => game.journal.contents.map(j => [j.id, j.name])));
+}
+
+/** How many journal sheets are open on the page. @param {import('playwright-core').Page} page */
+function journalSheetCount(page) {
+  return page.evaluate(
+    () =>
+      [...foundry.applications.instances.values()].filter(
+        a =>
+          /JournalEntry|journal/i.test(a.constructor?.name ?? '') ||
+          a.element?.classList?.contains('journal-sheet')
+      ).length
+  );
 }
 
 /** @param {import('playwright-core').Page} page */

@@ -96,6 +96,16 @@ async function closeAll(page) {
  * @param {import('playwright-core').Page} player
  */
 async function playerSettings(player) {
+  try {
+    return await readPlayerSettings(player);
+  } finally {
+    // Also when the read threw: the window must not stay open for the later player rows.
+    await closeAll(player).catch(() => {});
+  }
+}
+
+/** @param {import('playwright-core').Page} player */
+async function readPlayerSettings(player) {
   await openSettings(player);
   const info = await player.evaluate(
     ([id, labels]) => {
@@ -141,8 +151,8 @@ export async function settingsRows(sweep, { t, gm, player }) {
   // --- The section, as a player sees Game Settings and as the GM does -----------------------------
   // The player's window is read inside its own row: Foundry core's SettingsConfig search filter logs
   // "reading 'querySelector'" on the player page when that window closes quickly after opening.
-  /** @type {Awaited<ReturnType<typeof playerSettings>>} */
-  let seen = { tabs: [], moduleTab: false, labelsSeen: [], menus: [] };
+  /** @type {Awaited<ReturnType<typeof playerSettings>> | null} */
+  let seen = null;
   await sweep.row(
     'foundry.settings.section',
     'player',
@@ -219,6 +229,9 @@ export async function settingsRows(sweep, { t, gm, player }) {
     return `${found.length} switches shown, ticked as the world has them, with the documented defaults`;
   });
   await sweep.row('foundry.settings.feature-switches', 'player', async () => {
+    // Nothing was read when the section row failed early: a skip, not a pass on empty lists.
+    if (!seen)
+      throw new Skip('the player settings window was not read (see foundry.settings.section)');
     if (seen.labelsSeen.some(l => l.startsWith('AI Tool:')))
       throw new Error('a player sees an AI Tool switch');
     return 'no switch on a player screen';

@@ -105,7 +105,9 @@ test('the fake implements every GM action and every tool the scenarios and the b
     'create-actor-from-compendium',
   ]);
   // A scenario that drives dashboard pages (t.browser) or the Foundry client (t.joinFoundry) in a real
-  // browser skips itself against the fake, so the fake does not need the tools it clicks.
+  // browser skips itself against the fake, so the fake does not need the tools it clicks. Both
+  // scenarios that join Foundry (foundry-controls and player-character-creation) skip themselves in
+  // a first step when `t.joinFoundry` is missing; a third one has to do the same to be exempt.
   for (const { scenario, file, dir } of scenarios) {
     const source = readFileSync(path.join(dir, file), 'utf8');
     if (source.includes('t.browser') || source.includes('t.joinFoundry')) continue;

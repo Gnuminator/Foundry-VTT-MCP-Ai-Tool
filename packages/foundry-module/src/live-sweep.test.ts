@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { createTestWorld, makeToken, type TestWorld } from './test-support/foundry-mock/index.js';
+import { registerGuardedFeature, resetGuardedFeaturesForTests } from './guarded-features.js';
 import { liveSweep, SWEEP_PREFIX, SWEEP_WORLD_ID, SWEEP_WORLD_IDS } from './live-sweep.js';
 
 let restore: (() => void) | undefined;
@@ -12,6 +13,7 @@ function install(worldId: string): TestWorld {
 }
 
 afterEach(() => {
+  resetGuardedFeaturesForTests();
   restore?.();
   restore = undefined;
 });
@@ -27,10 +29,24 @@ describe('liveSweep (I-016)', () => {
 
   it('refuses every mode outside the test world', async () => {
     install('curse-of-strahd');
-    await expect(liveSweep({ mode: 'snapshot' })).rejects.toThrow(/only in the test world/);
-    await expect(liveSweep({ mode: 'combat', tokenIds: ['t1'] })).rejects.toThrow(
-      /only in the test world/
-    );
+    const requests: object[] = [
+      { mode: 'snapshot' },
+      { mode: 'combat', tokenIds: ['t1'] },
+      { mode: 'concentration', actorIds: ['a', 'b'] },
+      { mode: 'switches', switches: { party: true } },
+      { mode: 'fixture', kind: 'playlist' },
+      { mode: 'fixture', kind: 'party', actorIds: [] },
+      { mode: 'fixture', kind: 'handout' },
+      { mode: 'playlist-state', id: 'p1' },
+      { mode: 'cleanup', since: 1 },
+      {},
+      { mode: 'unknown-mode' },
+    ];
+    for (const request of requests) {
+      await expect(liveSweep(request), JSON.stringify(request)).rejects.toThrow(
+        /only in the test world/
+      );
+    }
   });
 
   it('runs in each listed test world and refuses any third world, ai-tool-kit included', async () => {
@@ -68,6 +84,10 @@ describe('liveSweep (I-016)', () => {
 
   it('switches turns guarded features on or off and gives back what they were', async () => {
     const world = install(SWEEP_WORLD_ID);
+    const g = globalThis as unknown as { game: { settings: { register: () => void } } };
+    g.game.settings.register = (): void => undefined;
+    registerGuardedFeature({ id: 'party', name: 'Party', hint: 'Test.' });
+    registerGuardedFeature({ id: 'obsidian-mirror', name: 'Mirror', hint: 'Test.' });
     world.setSetting('foundry-mcp-bridge', 'feature.party.enabled', true);
     world.setSetting('foundry-mcp-bridge', 'feature.obsidian-mirror.enabled', false);
 
@@ -89,6 +109,27 @@ describe('liveSweep (I-016)', () => {
     await expect(liveSweep({ mode: 'switches', switches: { party: 'yes' } })).rejects.toThrow(
       /true or false/
     );
+  });
+
+  it('switches reaches only feature.<id>.enabled and sets nothing when one id is bad', async () => {
+    const world = install(SWEEP_WORLD_ID);
+    const g = globalThis as unknown as { game: { settings: { register: () => void } } };
+    g.game.settings.register = (): void => undefined;
+    registerGuardedFeature({ id: 'party', name: 'Party', hint: 'Test.' });
+    world.setSetting('foundry-mcp-bridge', 'feature.party.enabled', false);
+
+    // A dotted id would reach feature.<id>.autoApply or another key.
+    for (const id of ['party.enabled', 'x.autoApply', 'party.autoApply']) {
+      await expect(liveSweep({ mode: 'switches', switches: { [id]: true } })).rejects.toThrow(
+        /must be a feature id/
+      );
+    }
+    // A known id first and an unregistered one after it: neither is set.
+    await expect(
+      liveSweep({ mode: 'switches', switches: { party: true, 'not-a-feature': true } })
+    ).rejects.toThrow(/not a guarded feature/);
+    expect(world.settings.get('foundry-mcp-bridge.feature.party.enabled')).toBe(false);
+    expect(world.settings.has('foundry-mcp-bridge.feature.not-a-feature.enabled')).toBe(false);
   });
 
   it('switches refuses outside the test world', async () => {
@@ -130,6 +171,41 @@ describe('liveSweep (I-016)', () => {
     try {
       const result = await liveSweep({});
       expect(closed).toEqual(['a']);
+      expect(result.deleted).toMatchObject({ dialogs: 1 });
+    } finally {
+      g.foundry = hadFoundry;
+    }
+  });
+
+  it('cleanup goes on when an open application throws on its item getter', async () => {
+    install(SWEEP_WORLD_ID);
+    const g = globalThis as unknown as { foundry?: unknown };
+    const hadFoundry = g.foundry;
+    const closed: string[] = [];
+    const broken = {
+      get item(): never {
+        throw new Error('half-rendered');
+      },
+      close: (): Promise<void> => Promise.resolve(),
+    };
+    const ours = {
+      item: { actor: { name: `${SWEEP_PREFIX} Wolf` } },
+      close: (): Promise<void> => {
+        closed.push('ours');
+        return Promise.resolve();
+      },
+    };
+    g.foundry = {
+      applications: {
+        instances: new Map([
+          ['x', broken],
+          ['y', ours],
+        ]),
+      },
+    };
+    try {
+      const result = await liveSweep({});
+      expect(closed).toEqual(['ours']);
       expect(result.deleted).toMatchObject({ dialogs: 1 });
     } finally {
       g.foundry = hadFoundry;

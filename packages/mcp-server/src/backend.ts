@@ -700,8 +700,8 @@ async function startBackend(): Promise<void> {
           }
 
           // Live write sweep helper (I-016): the dashboard's test route passes a scene snapshot,
-          // combat or clean-up request for scripts/live-write-sweep.mjs to the module, which
-          // refuses outside the test world. Not a tool, never listed to Claude, and the stdio
+          // combat, concentration, switches, fixture, playlist-state or clean-up request for
+          // scripts/live-write-sweep.mjs to the module, which refuses outside the test worlds. Not a tool, never listed to Claude, and the stdio
           // wrapper never forwards it.
           if (msg.method === 'live_sweep') {
             try {

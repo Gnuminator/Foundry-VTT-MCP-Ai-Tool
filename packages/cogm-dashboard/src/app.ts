@@ -1101,9 +1101,9 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
   });
 
   // Live write sweep helper (I-016, scripts/live-write-sweep.mjs): scene snapshot, a sweep
-  // combat and the clean-up. The module refuses outside the test worlds (SWEEP_WORLD_IDS:
-  // ai-tool-test, ai-tool-walkthrough). Not a
-  // tool.
+  // combat or concentration, feature switches, fixtures (playlist, party, handout), the
+  // playlist state and the clean-up. The module refuses outside the test worlds
+  // (SWEEP_WORLD_IDS: ai-tool-test, ai-tool-walkthrough). Not a tool.
   app.post('/api/test/live-sweep', requireGm, (req: Request, res: Response) => {
     if (!settings.gmActionsEnabled) {
       res.status(403).json({ code: 'gm-actions-disabled', error: 'GM Actions are off.' });

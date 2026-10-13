@@ -1,5 +1,5 @@
 import { MODULE_ID } from './constants.js';
-import { featureSettingKey } from './guarded-features.js';
+import { featureSettingKey, isKnownFeature } from './guarded-features.js';
 
 /**
  * Test-world helper for the live write sweep (I-016, `scripts/live-write-sweep.mjs`).
@@ -316,11 +316,15 @@ async function setSwitches(wanted: unknown): Promise<SweepSwitchesResult> {
     wanted && typeof wanted === 'object' && !Array.isArray(wanted) ? Object.entries(wanted) : [];
   if (entries.length === 0) throw new Error('switches needs { featureId: true | false }');
   const settings = (game as unknown as { settings: SweepSettings }).settings;
-  const before: Record<string, boolean> = {};
+  // Check every entry before setting any, so a bad id leaves no switch changed.
   for (const [id, on] of entries) {
     if (typeof on !== 'boolean' || !/^[a-z][a-z0-9-]*$/.test(id)) {
       throw new Error(`switches: "${id}" must be a feature id with true or false`);
     }
+    if (!isKnownFeature(id)) throw new Error(`switches: "${id}" is not a guarded feature`);
+  }
+  const before: Record<string, boolean> = {};
+  for (const [id, on] of entries) {
     const key = featureSettingKey(id);
     before[id] = settings.get(MODULE_ID, key) === true;
     await settings.set(MODULE_ID, key, on);
@@ -436,9 +440,15 @@ async function closeSweepDialogs(): Promise<number> {
     }
   ).foundry?.applications?.instances;
   if (!instances) return 0;
-  const open = [...instances.values()].filter(app =>
-    (typeof app.item?.actor?.name === 'string' ? app.item.actor.name : '').startsWith(SWEEP_PREFIX)
-  );
+  const open = [...instances.values()].filter(app => {
+    // An application whose `item` getter throws is not ours; it must not stop the clean-up.
+    try {
+      const name = app.item?.actor?.name;
+      return (typeof name === 'string' ? name : '').startsWith(SWEEP_PREFIX);
+    } catch {
+      return false;
+    }
+  });
   for (const app of open) await app.close();
   return open.length;
 }

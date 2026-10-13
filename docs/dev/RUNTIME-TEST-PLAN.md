@@ -23,13 +23,15 @@ each time the bridge/module/dashboard changes.
   rest (a test-world-only helper behind `POST /api/test/live-sweep`). `use-item` opens its
   activity dialog on the GM's screen (nobody clicks it; the clean-up closes it); the three `request-*`
   tools need the "Player" user logged in (a second browser origin), else they are skipped.
-  Coverage (I-016): every direct write tool and every guarded `plan-*` tool runs, undone where it
-  can be (plan, apply, check, undo, check); `plan-undo-changes` runs as the window's undo and
+  Coverage (I-016): every tool `classifyTool` calls a write and every guarded `plan-*` tool runs,
+  undone where it can be (plan, apply, check, undo, check); a vitest
+  (`packages/cogm-dashboard/src/live-sweep-coverage.test.ts`) fails when a new one has no step; `plan-undo-changes` runs as the window's undo and
   its redo. The party, Tarokka, handout and Obsidian mirror features run with their switches turned
   on and put back; the Tarokka steps import, link and reveal a fresh reading and check that the
-  reading from before is back after the undos. Recorded skips: the three `request-*` tools
-  without a logged-in Player; the sweep never raises the mirror's `enabled` flag, so no note is
-  written. New write tools get a step in the sweep (or a skip with its reason) in the same PR.
+  reading from before is back after the undos (a failed step's leftovers are undone by the
+  clean-up, which then compares the reading, its archive and reveal journal). Recorded skips:
+  the three `request-*` tools without a logged-in Player; the Obsidian mirror step when the mirror
+  is on; the sweep never raises the mirror's `enabled` flag, so no note is written. New write tools get a step in the sweep (or a skip with its reason) in the same PR.
   `npm run live:roundtrip` covers one guarded write and its undo.
 - **Record** every run's pass/skip/fail + notes back into
   `docs/LIVE-VERIFICATION-<date>.md`. A failure report must include the exact

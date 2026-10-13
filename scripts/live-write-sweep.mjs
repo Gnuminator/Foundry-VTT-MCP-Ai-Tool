@@ -39,10 +39,14 @@
  * nobody clicks it, and the clean-up closes it. The `request-*` tools need the target player
  * logged in (SWEEP_PLAYER, default "Player"); they are skipped, with the reason, when not.
  *
- * Write tools covered (every tool of tool-sets.ts that does not start with get-, list-, search-,
- * measure- or suggest-, besides the guarded `plan-*` tools): see "Coverage" in docs/dev/RUNTIME-TEST-PLAN.md.
- * The guarded plan tools run as plan, apply, check, undo, check; the party, Tarokka, handout and
- * Obsidian mirror features need their switches on, which the sweep turns on and puts back.
+ * Write tools covered: every tool of tool-sets.ts that classifyTool (packages/cogm-dashboard/src/
+ * tool-policy.ts) calls a write, plus every guarded `plan-*` tool; a vitest
+ * (live-sweep-coverage.test.ts) fails when a new one has no step here. See "Coverage" in
+ * docs/dev/RUNTIME-TEST-PLAN.md. The guarded plan tools run as plan, apply, check, undo, check;
+ * the party, Tarokka, handout and Obsidian mirror features need their switches on, which the
+ * sweep turns on and puts back. A step that fails between an apply and its undo leaves the
+ * change in the pending list; the clean-up undoes what is left, newest first, before it deletes
+ * the sweep's documents, and then compares the Tarokka reading with the one from before the run.
  *
  * Environment: COGM_BASE (default http://127.0.0.1:3100; only port 3100 on this machine is
  * accepted), COGM_TOKEN (GM token, only when the test dashboard runs with the player/GM
@@ -257,6 +261,7 @@ async function planAndApply(args, planTool = 'plan-actor-change') {
 async function undo(change) {
   const r = await tool('undo-change', { changeId: change.changeId });
   assert(r && r.mode === 'undo', `undo: ${brief(r)}`);
+  ctx.pending = ctx.pending.filter(c => c.changeId !== change.changeId);
   return r;
 }
 
@@ -297,6 +302,9 @@ const ctx = {
   switchedScene: false,
   groupId: null, // the sweep's party group (a test-helper fixture)
   switchesBefore: null, // the feature switches as they were, put back at the end
+  pending: [], // changes applied and not yet undone (a failed step leaves them; the clean-up undoes them)
+  queuedPage: null, // uuid of a handout page the sweep queued and has not unqueued
+  tarokkaBefore: null, // get-tarokka-reading before the run (reading, archive, reveal journal)
 };
 
 async function setGmActions(value) {
@@ -1070,7 +1078,10 @@ async function tokenNamed(name) {
  * undone with the plain undo-change. Returns { plan, change } like planAndApply.
  */
 async function guardedWrite(planTool, args) {
-  return planAndApply(args, planTool);
+  const applied = await planAndApply(args, planTool);
+  // Not undone yet: if a later assert throws, the clean-up undoes it (undo() takes it off).
+  ctx.pending.push(applied.change);
+  return applied;
 }
 
 async function guardedFeatureTools() {
@@ -1082,6 +1093,7 @@ async function guardedFeatureTools() {
         switches: { party: true, tarokka: true, handouts: true, 'obsidian-mirror': true },
       });
       ctx.switchesBefore = r.before;
+      ctx.tarokkaBefore = await tool('get-tarokka-reading', {});
       return `was ${brief(r.before, 100)}; put back at the end`;
     }
   );
@@ -1189,7 +1201,7 @@ async function tarokkaSteps() {
   await step(
     'plan-tarokka-import, -links and -reveal (apply each, undo all, the reading comes back)',
     async () => {
-      const original = await tool('get-tarokka-reading', {});
+      const original = ctx.tarokkaBefore || (await tool('get-tarokka-reading', {}));
       const imported = await guardedWrite('plan-tarokka-import', { source: 'builtin-roll' });
       const dealt = await tool('get-tarokka-reading', {});
       assert(dealt.reading, `no reading after the import: ${brief(dealt)}`);
@@ -1241,9 +1253,11 @@ async function handoutSteps() {
     const queued = async () =>
       (((await tool('list-revealed-pages', {})) || {}).queue || []).some(q => q.uuid === uuid);
 
+    ctx.queuedPage = uuid;
     await tool('plan-page-reveal', { action: 'queue', pageUuid: uuid });
     assert(await queued(), 'queue did not list the page');
     await tool('plan-page-reveal', { action: 'unqueue', pageUuid: uuid });
+    ctx.queuedPage = null;
     assert(!(await queued()), 'unqueue left the page in the queue');
 
     // The journal is open to players and the page is not: no copy, the page itself is raised.
@@ -1267,6 +1281,8 @@ async function handoutSteps() {
 async function obsidianSteps() {
   await step('plan-obsidian-mirror (story item types, undo)', async () => {
     const before = (await tool('get-obsidian-mirror', {})).settings;
+    if (before.enabled)
+      skip('the Obsidian mirror is on; a story-item-type change would rewrite notes');
     const { change } = await guardedWrite('plan-obsidian-mirror', { storyItemTypes: ['loot'] });
     const changed = (await tool('get-obsidian-mirror', {})).settings;
     assert(
@@ -1499,6 +1515,26 @@ async function logTools() {
 
 async function cleanUp() {
   const quiet = p => p.catch(e => console.log(`  note: clean-up step failed: ${e.message}`));
+  // Guarded changes a failed step left applied go first, newest first: an undo needs the
+  // features still on and the pages and actors still there.
+  if (ctx.pending.length > 0 || ctx.queuedPage) {
+    await step('clean up: changes a failed step left applied are undone', async () => {
+      const left = ctx.pending.length;
+      for (const change of [...ctx.pending].reverse()) await quiet(undo(change));
+      if (ctx.queuedPage) {
+        await quiet(
+          tool('plan-page-reveal', { action: 'unqueue', pageUuid: ctx.queuedPage }).then(() => {
+            ctx.queuedPage = null;
+          })
+        );
+      }
+      assert(
+        ctx.pending.length === 0 && !ctx.queuedPage,
+        `${ctx.pending.length} changes and ${ctx.queuedPage ? 'a queued page' : 'no queued page'} could not be undone`
+      );
+      return `${left} change${left === 1 ? '' : 's'} undone${left ? ' (newest first)' : ''}`;
+    });
+  }
   await step('clean up: scene put back, sweep token and documents deleted', async () => {
     // Back on the starting scene first: notes and templates are removed from the viewed scene.
     await quiet(restoreScene());
@@ -1534,6 +1570,18 @@ async function cleanUp() {
       assert(now && now.id === ctx.scene.id, `it views "${now && now.name}"`);
       return ctx.scene.name;
     });
+  }
+  if (ctx.tarokkaBefore) {
+    await step(
+      'the Tarokka reading, its archive and reveal journal are as before the run',
+      async () => {
+        const now = await tool('get-tarokka-reading', {});
+        const was = ctx.tarokkaBefore;
+        for (const key of ['reading', 'archivedReadings', 'revealJournalUuid'])
+          assert(sameJson(now[key], was[key]), `${key} is not as before: ${brief(now[key], 160)}`);
+        return 'reading, archivedReadings, revealJournalUuid';
+      }
+    );
   }
   if (ctx.switchesBefore) {
     await step('feature switches back to how they were', async () => {

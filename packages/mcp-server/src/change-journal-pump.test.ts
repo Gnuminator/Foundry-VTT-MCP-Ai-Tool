@@ -103,6 +103,8 @@ function makePump(
     store,
     logger,
     intervalMs: 5000,
+    // The records sit on T0; the real clock would let retention remove their day once T0 is 7 days old.
+    now: () => T0 + 5000,
     ...extra,
   });
 }

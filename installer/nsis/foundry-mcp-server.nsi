@@ -6,6 +6,9 @@
 ; where the bridge is and points Claude Desktop's five Foundry AI Tool entries at it.
 ;
 ; Silent install:  FoundryMCPServer-Setup-vX.Y.Z.exe /S /HOST=<name or IP> [/PORT=31414] [/D=<folder>]
+; Through the Cloudflare tunnel (D-095), instead of /HOST:
+;                   FoundryMCPServer-Setup-vX.Y.Z.exe /S /TUNNEL=<tunnel name> [/PORT=31414]
+;                   [/TUNNELTOKENFILE=<file: Client ID, then Client Secret, one per line>] [/D=<folder>]
 
 SetCompressor /SOLID lzma
 
@@ -76,7 +79,7 @@ VIAddVersionKey "LegalCopyright" "(c) 2024 Foundry MCP Bridge"
 
 ; Finish page
 !define MUI_FINISHPAGE_TITLE "Installation Complete"
-!define MUI_FINISHPAGE_TEXT "The client is installed and Claude Desktop has five Foundry AI Tool connectors (Core, Play, Prep, Build, Admin).$\r$\n$\r$\nNext steps:$\r$\n$\r$\n1. Start Claude Desktop (it must have been closed while this ran)$\r$\n2. Make sure your private network (for example Tailscale) is connected$\r$\n3. Open the Search and tools menu and switch the connectors on$\r$\n$\r$\nFor help, see the GitHub repository."
+!define MUI_FINISHPAGE_TEXT "The client is installed and Claude Desktop has five Foundry AI Tool connectors (Core, Play, Prep, Build, Admin).$\r$\n$\r$\nNext steps:$\r$\n$\r$\n1. Start Claude Desktop (it must have been closed while this ran)$\r$\n2. Make sure your private network (for example Tailscale) is connected. With the Cloudflare tunnel there is nothing to do: it starts by itself when you sign in to Windows$\r$\n3. Open the Search and tools menu and switch the connectors on$\r$\n$\r$\nFor help, see the GitHub repository."
 !define MUI_FINISHPAGE_RUN
 !define MUI_FINISHPAGE_RUN_TEXT "Open the Foundry AI Tool GitHub page"
 !define MUI_FINISHPAGE_RUN_FUNCTION "OpenGitHub"
@@ -104,12 +107,20 @@ Var HostCtl
 Var PortCtl
 Var BridgeHost
 Var BridgePort
+Var TunnelChk
+Var TunnelCtl
+Var UseTunnel
+Var TunnelHost
+Var TunnelTokenFile
 
 ;--------------------------------
 ; Initialization: defaults, the previous answer, then the command line
 Function .onInit
   StrCpy $BridgeHost ""
   StrCpy $BridgePort "31414"
+  StrCpy $UseTunnel "0"
+  StrCpy $TunnelHost ""
+  StrCpy $TunnelTokenFile ""
 
   ; Remember the previous answer so a reinstall or upgrade only needs Next
   ReadRegStr $0 HKCU "Software\FoundryMCPServer" "BridgeHost"
@@ -119,6 +130,11 @@ Function .onInit
   ReadRegStr $0 HKCU "Software\FoundryMCPServer" "BridgePort"
   ${If} $0 != ""
     StrCpy $BridgePort $0
+  ${EndIf}
+  ReadRegStr $0 HKCU "Software\FoundryMCPServer" "TunnelHost"
+  ${If} $0 != ""
+    StrCpy $TunnelHost $0
+    StrCpy $UseTunnel "1"
   ${EndIf}
 
   ; /HOST= and /PORT= work for normal and silent installs
@@ -134,9 +150,36 @@ Function .onInit
     StrCpy $BridgePort $0
   ${EndIf}
   ClearErrors
+  ; /TUNNEL= switches to the Cloudflare tunnel: the client then talks to 127.0.0.1
+  ${GetOptions} $R0 "/TUNNEL=" $0
+  ${IfNot} ${Errors}
+    StrCpy $TunnelHost $0
+    StrCpy $UseTunnel "1"
+  ${Else}
+    ; /HOST= on the command line means "no tunnel this time", whatever was remembered
+    ClearErrors
+    ${GetOptions} $R0 "/HOST=" $0
+    ${IfNot} ${Errors}
+      StrCpy $UseTunnel "0"
+    ${EndIf}
+  ${EndIf}
+  ClearErrors
+  ${GetOptions} $R0 "/TUNNELTOKENFILE=" $0
+  ${IfNot} ${Errors}
+    StrCpy $TunnelTokenFile $0
+  ${EndIf}
+  ClearErrors
 
   ; A silent install has no address page, so the address must be right already
   IfSilent 0 init_done
+    ${If} $UseTunnel == "1"
+      StrCpy $BridgeHost "127.0.0.1"
+      Call ValidateTunnel
+      ${If} $0 != ""
+        SetErrorLevel 2
+        Abort
+      ${EndIf}
+    ${EndIf}
     Call ValidateBridge
     ${If} $0 != ""
       SetErrorLevel 2
@@ -236,6 +279,39 @@ Function ValidateBridge
   ${EndIf}
 FunctionEnd
 
+; Checks $TunnelHost. Out: $0 = "" when fine, otherwise the message to show.
+Function ValidateTunnel
+  StrCpy $0 ""
+  StrLen $1 "$TunnelHost"
+  ${If} $1 == 0
+    StrCpy $0 "Enter the tunnel name you were given, for example mcp.example.com."
+    Return
+  ${EndIf}
+  StrCpy $R0 "$TunnelHost"
+  StrCpy $R1 "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.-"
+  Call CharsAllowed
+  ; At least one dot, and not at either end
+  StrCpy $3 0
+  StrCpy $4 0
+  dot_loop:
+    StrCpy $5 "$TunnelHost" 1 $3
+    StrCmp $5 "" dot_done
+    StrCmp $5 "." 0 +2
+      StrCpy $4 1
+    IntOp $3 $3 + 1
+    Goto dot_loop
+  dot_done:
+  StrCpy $5 "$TunnelHost" 1
+  StrCpy $6 "$TunnelHost" 1 -1
+  ${If} $R2 != "1"
+  ${OrIf} $4 != "1"
+  ${OrIf} $5 == "."
+  ${OrIf} $6 == "."
+    StrCpy $0 "The tunnel name must be a host name such as mcp.example.com: letters, digits, dots and dashes only."
+    Return
+  ${EndIf}
+FunctionEnd
+
 ; The bridge address page
 Function BridgePageCreate
   !insertmacro MUI_HEADER_TEXT "Bridge address" "Where does your Foundry AI Tool bridge run?"
@@ -246,18 +322,28 @@ Function BridgePageCreate
     Abort
   ${EndIf}
 
-  ${NSD_CreateLabel} 0 0 100% 36u "Enter the name or IP address of the machine that runs the bridge, for example the server's name on your private network (Tailscale). The port is almost always 31414."
+  ${NSD_CreateLabel} 0 0 100% 24u "Enter the name or IP address of the machine that runs the bridge, for example the server's name on your private network (Tailscale). The port is almost always 31414."
   Pop $0
 
-  ${NSD_CreateLabel} 0 44u 100% 10u "Bridge address (host name or IP address):"
+  ${NSD_CreateLabel} 0 28u 100% 10u "Bridge address (host name or IP address):"
   Pop $0
-  ${NSD_CreateText} 0 56u 100% 12u "$BridgeHost"
+  ${NSD_CreateText} 0 39u 100% 12u "$BridgeHost"
   Pop $HostCtl
 
-  ${NSD_CreateLabel} 0 78u 100% 10u "Port:"
+  ${NSD_CreateLabel} 0 56u 100% 10u "Port (with the tunnel: the port on this PC):"
   Pop $0
-  ${NSD_CreateText} 0 90u 40u 12u "$BridgePort"
+  ${NSD_CreateText} 0 67u 40u 12u "$BridgePort"
   Pop $PortCtl
+
+  ${NSD_CreateCheckbox} 0 86u 100% 10u "Reach the bridge through the Cloudflare tunnel (the address above is then ignored)"
+  Pop $TunnelChk
+  ${If} $UseTunnel == "1"
+    ${NSD_Check} $TunnelChk
+  ${EndIf}
+  ${NSD_CreateLabel} 0 101u 100% 10u "Tunnel name (you will be asked for the service token next):"
+  Pop $0
+  ${NSD_CreateText} 0 112u 100% 12u "$TunnelHost"
+  Pop $TunnelCtl
 
   nsDialogs::Show
 FunctionEnd
@@ -265,6 +351,18 @@ FunctionEnd
 Function BridgePageLeave
   ${NSD_GetText} $HostCtl $BridgeHost
   ${NSD_GetText} $PortCtl $BridgePort
+  ${NSD_GetText} $TunnelCtl $TunnelHost
+  ${NSD_GetState} $TunnelChk $UseTunnel
+  ${If} $UseTunnel == "1"
+    StrCpy $BridgeHost "127.0.0.1"
+    Call ValidateTunnel
+    ${If} $0 != ""
+      MessageBox MB_ICONEXCLAMATION|MB_OK "$0"
+      Abort
+    ${EndIf}
+  ${Else}
+    StrCpy $UseTunnel "0"
+  ${EndIf}
   Call ValidateBridge
   ${If} $0 != ""
     MessageBox MB_ICONEXCLAMATION|MB_OK "$0"
@@ -313,6 +411,71 @@ Function UpdateClaudeConfig
     MessageBox MB_ICONEXCLAMATION|MB_OK "The client was installed, but Claude Desktop could not be configured (code $0).$\r$\n$\r$\nDetails: $TEMP\foundry-mcp-claude-config.log$\r$\n$\r$\nRun this installer again, or ask for help." /SD IDOK
 FunctionEnd
 
+; Sets up (or, when the tunnel is not wanted, removes) the Cloudflare Access tunnel client (D-095):
+; cloudflared.exe starts at logon through tunnel-client.ps1 and listens on 127.0.0.1:$BridgePort.
+; The service token is typed into a console window (or read from /TUNNELTOKENFILE= in a silent
+; install); it is never on a command line and the installer never sees it.
+Function SetupTunnel
+  ${If} $UseTunnel != "1"
+    ; Not wanted this time: take down a tunnel an earlier run set up
+    IfFileExists "$INSTDIR\tunnel-client.ps1" 0 tunnel_none
+      DetailPrint "Removing the Cloudflare tunnel client..."
+      nsExec::ExecToStack 'powershell.exe -inputformat none -NoProfile -ExecutionPolicy Bypass -File "$INSTDIR\tunnel-client.ps1" -Action Uninstall'
+      Pop $0
+      Pop $1
+      DetailPrint "$1"
+      Delete "$INSTDIR\tunnel-client.ps1"
+      Delete "$INSTDIR\cloudflared.exe"
+    tunnel_none:
+    Return
+  ${EndIf}
+
+  DetailPrint "Setting up the Cloudflare tunnel ($TunnelHost -> 127.0.0.1:$BridgePort)..."
+  ; An upgrade: stop the running tunnel so cloudflared.exe can be replaced
+  IfFileExists "$INSTDIR\tunnel-client.ps1" 0 tunnel_stopped
+    nsExec::ExecToStack 'powershell.exe -inputformat none -NoProfile -ExecutionPolicy Bypass -File "$INSTDIR\tunnel-client.ps1" -Action Stop'
+    Pop $0
+    Pop $1
+  tunnel_stopped:
+  SetOutPath $INSTDIR
+  File "cloudflared.exe"
+  File "tunnel-client.ps1"
+
+  StrCpy $2 '-Action Install -TunnelHost "$TunnelHost" -Port "$BridgePort" -CloudflaredPath "$INSTDIR\cloudflared.exe"'
+  ; Reinstall or upgrade: the token stored earlier is kept unless a new one is given
+  IfFileExists "$LOCALAPPDATA\FoundryMCPServer\tunnel\token.dpapi" 0 tunnel_no_stored
+    StrCpy $2 '$2 -KeepToken'
+  tunnel_no_stored:
+
+  ${If} ${Silent}
+    ${If} $TunnelTokenFile != ""
+      StrCpy $2 '$2 -TokenFile "$TunnelTokenFile"'
+    ${EndIf}
+    nsExec::ExecToStack 'powershell.exe -inputformat none -NoProfile -ExecutionPolicy Bypass -File "$INSTDIR\tunnel-client.ps1" $2'
+    Pop $0
+    Pop $1
+    DetailPrint "$1"
+  ${Else}
+    MessageBox MB_ICONINFORMATION|MB_OK "A window opens next and asks for the service token you were given: the Client ID, then the Client Secret (the secret is not shown while you type or paste it)."
+    ExecWait 'powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$INSTDIR\tunnel-client.ps1" $2 -Pause' $0
+  ${EndIf}
+
+  ${If} $0 == 0
+    DetailPrint "The Cloudflare tunnel is set up and answers."
+    Return
+  ${EndIf}
+  ; 4: set up, but the bridge did not answer (wrong token, or not added to the Access policy yet)
+  ${If} $0 == 4
+    SetErrorLevel 4
+    DetailPrint "The tunnel is set up but the bridge did not answer (exit code 4)."
+    MessageBox MB_ICONEXCLAMATION|MB_OK "The tunnel client was installed, but the bridge did not answer through it.$\r$\n$\r$\nThe usual causes are a mistyped service token, or the server's owner has not added the token yet. Run this installer again to enter the token again." /SD IDOK
+    Return
+  ${EndIf}
+  SetErrorLevel 1
+  DetailPrint "Setting up the Cloudflare tunnel failed (exit code $0)."
+  MessageBox MB_ICONEXCLAMATION|MB_OK "The Cloudflare tunnel could not be set up (code $0).$\r$\n$\r$\nRun this installer again, or ask for help." /SD IDOK
+FunctionEnd
+
 ;--------------------------------
 ; Installer Section
 Section "Foundry AI Tool Client" SecMain
@@ -349,8 +512,14 @@ Section "Foundry AI Tool Client" SecMain
   File "icon.ico"
   File "configure-claude.ps1"
 
-  ; Remember the address for the next run
-  WriteRegStr HKCU "Software\FoundryMCPServer" "BridgeHost" "$BridgeHost"
+  ; Remember the address for the next run. With the tunnel the bridge host is always 127.0.0.1, so
+  ; the one typed earlier is kept for when the tunnel is switched off again.
+  ${If} $UseTunnel == "1"
+    WriteRegStr HKCU "Software\FoundryMCPServer" "TunnelHost" "$TunnelHost"
+  ${Else}
+    WriteRegStr HKCU "Software\FoundryMCPServer" "BridgeHost" "$BridgeHost"
+    DeleteRegValue HKCU "Software\FoundryMCPServer" "TunnelHost"
+  ${EndIf}
   WriteRegStr HKCU "Software\FoundryMCPServer" "BridgePort" "$BridgePort"
 
   ; Create uninstaller
@@ -368,6 +537,7 @@ Section "Foundry AI Tool Client" SecMain
   WriteRegDWORD HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\FoundryMCPServer" "NoModify" 1
   WriteRegDWORD HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\FoundryMCPServer" "NoRepair" 1
 
+  Call SetupTunnel
   Call UpdateClaudeConfig
   DetailPrint "Done."
 SectionEnd
@@ -412,7 +582,18 @@ Section "Uninstall"
     Call un.RemoveClaudeConfig
   skip_config:
 
+  ; The Cloudflare tunnel client (if it was set up): stops it, removes its logon task and the stored token
+  IfFileExists "$INSTDIR\tunnel-client.ps1" 0 skip_tunnel
+    DetailPrint "Removing the Cloudflare tunnel client..."
+    nsExec::ExecToStack 'powershell.exe -inputformat none -NoProfile -ExecutionPolicy Bypass -File "$INSTDIR\tunnel-client.ps1" -Action Uninstall'
+    Pop $0
+    Pop $1
+    DetailPrint "$1"
+  skip_tunnel:
+
   DetailPrint "Removing files..."
+  Delete "$INSTDIR\cloudflared.exe"
+  Delete "$INSTDIR\tunnel-client.ps1"
   Delete "$INSTDIR\node.exe"
   Delete "$INSTDIR\node-LICENSE.txt"
   RMDir /r "$INSTDIR\foundry-mcp-client"

@@ -34,7 +34,8 @@ ssh-keygen -q -t ed25519 -N '' -C second-key -f /root/k2
 
 # systemctl stand-in: logs the call; "cat" finds ssh.service only (/tmp/no-unit: nothing); the revert timer is active
 # while /tmp/timer-armed exists; ssh.socket while /tmp/socket-active exists; ssh.service is inactive while /tmp/ssh-dead
-# exists (a reload sets it when /tmp/ssh-dies-on-reload exists, "start" clears it); a reload sends SIGHUP to a real
+# exists (a reload sets it when /tmp/ssh-dies-on-reload exists, "start" clears it unless /tmp/start-fails exists); stopping
+# the timer removes the stage's drop-in when /tmp/stop-fires-timer exists (the timer fired meanwhile); a reload sends SIGHUP to a real
 # sshd when /tmp/live-sshd exists (and not /tmp/reload-noop).
 install -d /usr/local/sbin /usr/local/shim
 cat >/usr/local/sbin/systemctl <<'EOF'
@@ -48,8 +49,8 @@ case "${1:-}" in
       ssh.socket) [ -f /tmp/socket-active ] || exit 3 ;;
       *) [ ! -f /tmp/ssh-dead ] || exit 3 ;;
     esac ;;
-  start) rm -f /tmp/ssh-dead ;;
-  stop) case "$*" in *foundry-ssh-keys-only-revert.timer*) rm -f /tmp/timer-armed ;; esac ;;
+  start) [ -f /tmp/start-fails ] || rm -f /tmp/ssh-dead ;;
+  stop) case "$*" in *foundry-ssh-keys-only-revert.timer*) rm -f /tmp/timer-armed; [ ! -f /tmp/stop-fires-timer ] || rm -f /etc/ssh/sshd_config.d/00-foundry-keys-only.conf ;; esac ;;
   reload | reload-or-restart)
     [ ! -f /tmp/reloadfail ] || exit 1
     [ ! -f /tmp/ssh-dies-on-reload ] || touch /tmp/ssh-dead
@@ -85,7 +86,7 @@ KEY2="$(cat /root/k2.pub)"
 fresh_pi() {
   pkill -x sshd 2>/dev/null || true
   rm -f /tmp/calls /tmp/timer-armed /tmp/revert-cmd /tmp/reloadfail /tmp/timerfail /tmp/sshd-t-fail /tmp/no-unit \
-    /tmp/socket-active /tmp/ssh-dead /tmp/ssh-dies-on-reload /tmp/live-sshd /tmp/reload-noop /run/sshd.pid \
+    /tmp/socket-active /tmp/ssh-dead /tmp/ssh-dies-on-reload /tmp/live-sshd /tmp/reload-noop /run/sshd.pid /tmp/start-fails /tmp/stop-fires-timer \
     /etc/ssh/foundry-keys-only.confirmed
   rm -rf /etc/ssh/sshd_config.d
   mkdir -p /etc/ssh/sshd_config.d
@@ -435,6 +436,62 @@ if selected live-stale; then
   sleep 1
   run_stage
   block live-stale
+fi
+
+# CONFIRM while the running sshd still has the old settings: refused, the timer stays armed, no marker.
+if selected confirm-live-stale; then
+  fresh_pi
+  touch /tmp/live-sshd /tmp/reload-noop
+  /usr/sbin/sshd
+  sleep 1
+  run_stage
+  : >/tmp/calls
+  run_stage CONFIRM=1
+  block confirm-live-stale
+fi
+
+# The timer fires while CONFIRM stops it (the drop-in is gone afterwards): no marker.
+if selected confirm-dropin-gone; then
+  fresh_pi
+  run_stage
+  touch /tmp/stop-fires-timer
+  run_stage CONFIRM=1
+  block confirm-dropin-gone
+fi
+
+# A Match line written as Keyword=value (sshd accepts it) is found too.
+if selected match-equals; then
+  fresh_pi
+  printf '\nMatch User root\n    PasswordAuthentication=yes\n' >>/etc/ssh/sshd_config
+  run_stage
+  block match-equals
+fi
+
+# ssh dies on the reload of a rerun (the drop-in is unchanged): ssh is started, the timer stays armed, nothing is rolled back.
+if selected rerun-dies-on-reload; then
+  fresh_pi
+  run_stage
+  rm -f /tmp/timer-armed
+  touch /tmp/ssh-dies-on-reload
+  : >/tmp/calls
+  run_stage
+  block rerun-dies-on-reload
+fi
+
+# ssh dies and "start" does not bring it back: the stage says so and the timer stays armed (a fresh run, drop-in rolled back).
+if selected dead-start-fails; then
+  fresh_pi
+  touch /tmp/ssh-dies-on-reload /tmp/start-fails
+  run_stage
+  block dead-start-fails
+fi
+
+# The reload command fails and ssh is down: the same dead-sshd path, not a bare die.
+if selected reload-fails-dead; then
+  fresh_pi
+  touch /tmp/reloadfail /tmp/ssh-dead
+  run_stage
+  block reload-fails-dead
 fi
 
 pkill -x sshd 2>/dev/null || true

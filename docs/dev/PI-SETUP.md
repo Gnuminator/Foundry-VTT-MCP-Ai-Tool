@@ -598,8 +598,9 @@ turns password login off for SSH: only a key opens the door, for root too.
   address and from a public one, and compares the three values: if an earlier line or file
   overrides them, the drop-in is rolled back and the lines that win are listed. Then it arms the
   safety timer and **reloads** ssh (a reload, not a restart: the session running the stage stays
-  up). If ssh is not active after the reload, the old drop-in is put back and the service is
-  started. At the end it asks the running sshd, as a client without a key, what it offers (a
+  up). If ssh is not active after the reload (also when the reload itself failed), the service is
+  started again; where this run changed the drop-in the old one is put back first, and the
+  safety timer is cancelled only once ssh is active again (otherwise it stays armed). At the end it asks the running sshd, as a client without a key, what it offers (a
   `live:` line: `Permission denied (publickey)` means keys only has really taken effect; a line
   that still names `password` is a warning) and prints the three effective values.
 - **Safety timer:** like stage 9, the run arms a 5-minute timer that removes the drop-in again
@@ -617,7 +618,9 @@ turns password login off for SSH: only a key opens the door, for root too.
   ```
 
   The second line must print nothing and exit 0 (key login works); the third cancels the timer
-  and leaves a marker (`/etc/ssh/foundry-keys-only.confirmed`). `UNDO=1 bash -s` in the first
+  and leaves a marker (`/etc/ssh/foundry-keys-only.confirmed`; the confirm refuses, and leaves the
+  timer armed, when the running sshd still offers a password, and it writes no marker when the
+  drop-in is gone). `UNDO=1 bash -s` in the first
   line's place removes the drop-in and the marker again.
 
 - **Running it again is safe:** with the drop-in already in place it reloads and looks at the
@@ -944,10 +947,12 @@ scp scripts/pi/remote/kit-session.mjs foundry-pi:/root/ && cat scripts/pi/remote
   anyway). It stops the Kit GM browser first (it would count as online) and the Assistant GM browser
   too, because a reboot during the session starts that one on `strahd-kit`, where it would count as
   a user. With `strahd-kit` still running it runs `kit-session.mjs` with `ACTION=teardown`: the
-  actors that `Kit Player` owns are listed by name and id and deleted, then the user; then the
-  Bridge User goes back to "Any GM" if it is `Kit GM`, and `Kit GM` is deleted. At most 5
+  actors that `Kit Player` owns and that were made after `up` (the state file's `STAMP`, passed on as
+  `SINCE_STAMP`) are listed by name and id and deleted, then the user; then the
+  Bridge User goes back to "Any GM" if it is `Kit GM`, and `Kit GM` is deleted. An owned actor from
+  before `up` (or one with no creation time) is kept and listed as kept. At most 5
   actors are deleted; more than that stops the run (`MAX_DELETE=<n>` raises the limit after you have
-  looked at them), and nothing else is deleted and no setting is touched. Any actor you give
+  looked at them), and nothing else is deleted and no setting is touched. Any actor created for
   `Kit Player` during the session is deleted too; the copy from before the session is in
   `prev-<time>`. If the teardown fails,
   nothing else changes: Foundry stays on `strahd-kit`, the state file and the Kit GM password file

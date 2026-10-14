@@ -23,9 +23,9 @@ const roots = [];
 after(() => roots.forEach(d => rmSync(d, { recursive: true, force: true })));
 
 /** Runs the function on `tree` (a folder); returns { status, out }. */
-function check(tree) {
+function check(tree, env = {}) {
   const script = ['set -euo pipefail', fn, `check_build_loads "${posix(tree)}"`].join('\n');
-  const r = spawnSync('bash', ['-c', script], { encoding: 'utf8' });
+  const r = spawnSync('bash', ['-c', script], { encoding: 'utf8', env: { ...process.env, ...env } });
   return { status: r.status, out: `${r.stdout}${r.stderr}` };
 }
 
@@ -43,12 +43,14 @@ function fakeBuild(imports = {}) {
     ].map(f => `packages/mcp-server/dist/${f}`),
     ...['app.js', 'config.js', 'ai/anthropic-co-gm.js'].map(f => `packages/cogm-dashboard/dist/${f}`),
     'shared/dist/index.js',
+    'packages/discord-bot/dist/rec/voice.js',
   ];
   for (const f of files) {
     mkdirSync(dirname(join(root, f)), { recursive: true });
     const body = (imports[f] ?? []).map(p => `import ${JSON.stringify(p)};`).join('\n');
     writeFileSync(join(root, f), `${body}\nexport const loaded = true;\n`);
   }
+  writeFileSync(join(root, 'packages/discord-bot/package.json'), '{}');
   return root;
 }
 
@@ -115,6 +117,47 @@ describe('check_build_loads on fake builds', () => {
     const r = check(root);
     assert.equal(r.status, 1, r.out);
     assert.match(r.out, /dashboard: none of /);
+  });
+
+  test('the Discord recorder is loaded too (a pruned @discordjs/voice fails and names the file)', () => {
+    const root = fakeBuild({ 'packages/discord-bot/dist/rec/voice.js': ['@discordjs/voice'] });
+    const r = check(root);
+    assert.equal(r.status, 1, r.out);
+    assert.match(r.out, /discord: packages\/discord-bot\/dist\/rec\/voice\.js: .*@discordjs\/voice/);
+    install(root, '@discordjs/voice');
+    assert.equal(check(root).status, 0);
+  });
+
+  test('a Discord package without its build fails; a ref without the package has no Discord group', () => {
+    const root = fakeBuild();
+    rmSync(join(root, 'packages/discord-bot/dist'), { recursive: true });
+    const r = check(root);
+    assert.equal(r.status, 1, r.out);
+    assert.match(r.out, /discord: none of packages\/discord-bot\/dist\/rec\/voice\.js exists/);
+    rmSync(join(root, 'packages/discord-bot'), { recursive: true });
+    assert.equal(check(root).status, 0, 'an older ref has no packages/discord-bot at all');
+  });
+
+  test('a module that leaves a timer running after its import fails the check', () => {
+    const root = fakeBuild();
+    writeFileSync(
+      join(root, 'packages/mcp-server/dist/logger.js'),
+      'setInterval(() => {}, 100000);\nexport const loaded = true;\n'
+    );
+    const r = check(root);
+    assert.equal(r.status, 1, r.out);
+    assert.match(r.out, /after the imports still running: Timeout/);
+  });
+
+  test('a run that takes too long says "timed out" (exit code 124)', () => {
+    const root = fakeBuild();
+    writeFileSync(
+      join(root, 'shared/dist/index.js'),
+      'await new Promise(r => setTimeout(r, 60000));\nexport const loaded = true;\n'
+    );
+    const r = check(root, { LOAD_CHECK_TIMEOUT: '2' });
+    assert.equal(r.status, 124, r.out);
+    assert.match(r.out, /the load check timed out after 2 seconds/);
   });
 
   test('a module that throws on import fails', () => {

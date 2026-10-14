@@ -431,6 +431,11 @@ fi
 assets=()
 for d in Data/ddb-images Data/tokenizer; do [ -d "$d" ] && assets+=("${d#Data/}"); done
 cd /
+# An asset folder on the Pi that is itself a link (the foundry user can make one) would take the merge, which runs as
+# root, into whatever it points at: refused here, before anything stops.
+for a in "${assets[@]}"; do
+  [ ! -L "$data/$a" ] || die "$data/$a is a link: the asset merge would write into whatever it points at. Replace it with a real folder (or remove the link) first. Nothing was changed"
+done
 
 say "free space"
 free_data="$(df --output=avail -B1 "$FOUNDRY_DATA" | tail -n1 | tr -d ' ')"

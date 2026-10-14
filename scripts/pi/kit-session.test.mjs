@@ -46,6 +46,7 @@ import {
   mismatches,
   originalBridgeUser,
   parseKitGmPassword,
+  parseSinceStamp,
   parseMaxDelete,
   parseOrigBridgeUser,
   playerUserProblems,
@@ -53,6 +54,7 @@ import {
   readState,
   redact,
   settingsDiff,
+  splitOwnedActors,
   teardownMismatches,
   teardownProblems,
 } from './remote/kit-session.mjs';
@@ -185,7 +187,13 @@ function fakeGame({
 }
 
 const kitUser = (over = {}) => ({ id: 'userKit', name: PLAYER_NAME, role: 1, ...over });
-const actor = (id, name, ownership = {}) => ({ id, name, type: 'character', ownership });
+const actor = (id, name, ownership = {}, createdTime) => ({
+  id,
+  name,
+  type: 'character',
+  ownership,
+  ...(createdTime === undefined ? {} : { _stats: { createdTime } }),
+});
 
 function installGlobals(game) {
   globalThis.game = game;
@@ -461,6 +469,20 @@ describe('kit-session.mjs teardown (the in-browser part)', () => {
     assert.deepEqual(state.users, [{ id: 'userKit', name: PLAYER_NAME, role: 1 }]);
   });
 
+  test('the creation time of an owned actor is read, null when it has none', () => {
+    globalThis.game = fakeGame({
+      users: [kitUser()],
+      actors: [
+        actor('a1', 'New', { userKit: OWNER }, 1700000000000),
+        actor('a2', 'Old', { userKit: OWNER }),
+      ],
+    });
+    assert.deepEqual(
+      readState(ARGS).ownedActors.map(a => a.createdTime),
+      [1700000000000, null]
+    );
+  });
+
   test('without a Kit Player there are no users and no actors to find', () => {
     globalThis.game = fakeGame({
       users: [{ id: 'userGm', name: 'Gamemaster', role: 4 }],
@@ -526,6 +548,75 @@ describe('kit-session.mjs teardown (the in-browser part)', () => {
     assert.match(
       teardownMismatches(before, blind).join('; '),
       /did not look up the deleted actors/
+    );
+  });
+
+  test('the stage hands the state file STAMP to the teardown driver as SINCE_STAMP', () => {
+    const sh = readFileSync(path.join(repo, 'scripts', 'pi', 'remote', 'kit-session.sh'), 'utf8');
+    assert.ok(
+      sh.includes(
+        'ACTION="$1" MAX_DELETE="$MAX_DELETE" SINCE_STAMP="${state_stamp:-}" \\\n        node "$driver"\n'
+      ),
+      'the non-setup driver call carries SINCE_STAMP'
+    );
+  });
+
+  test('SINCE_STAMP is read as local time; empty is null; anything else is refused', () => {
+    assert.equal(parseSinceStamp(undefined), null);
+    assert.equal(parseSinceStamp(''), null);
+    assert.equal(parseSinceStamp('20261014-093005'), new Date(2026, 9, 14, 9, 30, 5).getTime());
+    for (const bad of [
+      '2026-10-14',
+      '20261014',
+      '20261014-0930',
+      '20261314-093005',
+      '20261014-250000',
+      'x',
+    ]) {
+      assert.throws(() => parseSinceStamp(bad), /SINCE_STAMP/, bad);
+    }
+  });
+
+  test('only actors made at or after the stamp are split off to delete; older and undated are kept', () => {
+    const since = new Date(2026, 9, 14, 9, 30, 0).getTime();
+    const actors = [
+      { id: 'old', createdTime: since - 1 },
+      { id: 'edge', createdTime: since },
+      { id: 'new', createdTime: since + 5000 },
+      { id: 'undated', createdTime: null },
+    ];
+    const split = splitOwnedActors(actors, since);
+    assert.deepEqual(
+      split.mine.map(a => a.id),
+      ['edge', 'new']
+    );
+    assert.deepEqual(
+      split.older.map(a => a.id),
+      ['old', 'undated']
+    );
+    // Without a stamp every owned actor is the kit session's (the old behaviour).
+    assert.deepEqual(
+      splitOwnedActors(actors, null).mine.map(a => a.id),
+      ['old', 'edge', 'new', 'undated']
+    );
+    assert.deepEqual(splitOwnedActors(actors, null).older, []);
+  });
+
+  test('the limit counts only the actors that would be deleted', () => {
+    const since = 1700000000000;
+    const many = Array.from({ length: 8 }, (_, i) =>
+      actor(`m${i}`, `Hero ${i}`, { userKit: OWNER }, i < 6 ? since - 1000 : since + 1000)
+    );
+    globalThis.game = fakeGame({ users: [kitUser()], actors: many });
+    const state = readState(ARGS);
+    const { mine } = splitOwnedActors(state.ownedActors, since);
+    assert.equal(mine.length, 2);
+    assert.deepEqual(teardownProblems({ ...state, ownedActors: mine }, 5), []);
+    assert.match(teardownProblems(state, 5).join('; '), /owns 8 actors/);
+    // The read-back after deleting only the new ones is checked against those ids.
+    assert.deepEqual(
+      teardownMismatches({ ...state, ownedActors: mine }, { users: [], leftActors: [] }),
+      []
     );
   });
 
@@ -1188,10 +1279,16 @@ describe('kit-session.mjs, the browser side and the script', () => {
     assert.match(bad.stdout + bad.stderr, /ACTION must be setup or teardown/);
     const direct = spawnSync(process.execPath, [script], {
       encoding: 'utf8',
-      env: { ...env, ACTION: 'teardown' },
+      env: { ...env, ACTION: 'teardown', SINCE_STAMP: '20261014-093000' },
     });
     assert.equal(direct.status, 1, direct.stdout + direct.stderr);
     assert.match(direct.stdout + direct.stderr, /TOOL_APP is not set/);
+    const noStamp = spawnSync(process.execPath, [script], {
+      encoding: 'utf8',
+      env: { ...env, ACTION: 'teardown', TOOL_APP: repo },
+    });
+    assert.equal(noStamp.status, 1, noStamp.stdout + noStamp.stderr);
+    assert.match(noStamp.stdout + noStamp.stderr, /SINCE_STAMP is not set/);
     const maxDelete = spawnSync(process.execPath, [script], {
       encoding: 'utf8',
       env: { ...env, ACTION: 'teardown', MAX_DELETE: 'lots' },
@@ -1868,7 +1965,7 @@ describe('kit-session.sh in an ARM64 container', { skip: containerReason }, () =
     assert.deepEqual(r.state, ['absent']);
     assert.deepEqual(kit(r), KIT_GONE);
     assert.match(r.output, /removed the Kit GM password file and browser profile/);
-    assert.match(r.output, /Kit Player, its actors and Kit GM are gone from strahd-kit/);
+    assert.match(r.output, /Kit Player, its new actors and Kit GM are gone from strahd-kit/);
     assert.match(r.output, /the Assistant GM browser joined the world/);
     assert.match(r.output, /Foundry launches: curse-of-strahd/);
     assert.doesNotMatch(r.output, /secret123/);

@@ -11,8 +11,8 @@
 # Take a snapshot first (dietpi-backup 1) and get the user's OK: this stops Foundry for a few minutes.
 # Env: MODE (required: up or down; anything else stops before anything changes), FORCE (1 goes on even when people
 #   are online or /api/status cannot be read; default 0 refuses), SESSION_DRIVER (the uploaded .mjs, default
-#   /root/kit-session.mjs), MAX_DELETE (down only: more than 5 actors owned by Kit Player are refused; this raises
-#   the limit). The world (strahd-kit) and the player (Kit Player) are fixed in this script and in the driver.
+#   /root/kit-session.mjs), MAX_DELETE (down only: more than 5 actors owned by Kit Player and made after "up" are
+#   refused; this raises the limit). The world (strahd-kit) and the player (Kit Player) are fixed in this script and in the driver.
 # What MODE=up does:
 #   Before anything stops: the world, its GM login (/etc/foundry-ai-tool/world-strahd-kit.env, never printed), the
 #   tool's build, the Assistant GM driver (stage 5: /opt/foundry-ai-tool/gm-browser/assistant-gm.mjs) and the bridge
@@ -48,8 +48,8 @@
 #   Needs the state file, strahd-kit running, and nobody online (the Kit Player must have left the game; FORCE=1
 #   overrides). The Kit GM browser (when the state file says there is one) and the Assistant GM browser are stopped
 #   first (a reboot during the session starts the Assistant GM browser on strahd-kit; the Kit GM browser would count
-#   as online). It runs kit-session.mjs ACTION=teardown while strahd-kit still runs: the actors Kit Player owns (at
-#   most 5) and the user are deleted, the bridge user goes back to "Any GM" when it is the Kit GM, and the user Kit GM
+#   as online). It runs kit-session.mjs ACTION=teardown while strahd-kit still runs: the actors Kit Player owns that
+#   were made after "up" (the state file's STAMP; at most 5; older ones are kept and listed) and the user are deleted, the bridge user goes back to "Any GM" when it is the Kit GM, and the user Kit GM
 #   is deleted, nothing else. The bridge user goes back to the one the state file names (ORIG_BRIDGE_USER) when
 #   that user still exists and is a GM, else to "Any GM"; a state file without that line means "Any GM". If that
 #   fails, nothing else changes (the state file and the Kit GM password file stay,
@@ -217,7 +217,7 @@ run_driver() { # $1 setup or teardown
     else
       runuser -u "$FOUNDRY_USER" -- env HOME="$TOOL_DATA" TOOL_APP="$TOOL_DIR/app" \
         FOUNDRY_URL=http://127.0.0.1:30000 CHROMIUM=/usr/bin/chromium \
-        ACTION="$1" MAX_DELETE="$MAX_DELETE" \
+        ACTION="$1" MAX_DELETE="$MAX_DELETE" SINCE_STAMP="${state_stamp:-}" \
         node "$driver"
     fi
   )
@@ -494,7 +494,7 @@ if [ "$MODE" = up ]; then
   echo "    Its password is in $KIT_GM_ENV (root only, mode 600): the PC reads it with a file read over ssh; it is never printed here."
   echo "    The Assistant GM browser is stopped until MODE=down (it would join $KIT_WORLD and move the bridge link to the test world)."
   echo "    A reboot drops the Kit GM browser (nothing starts it again); MODE=down still cleans up."
-  echo "    When the player is done and has left the game, run MODE=down: it deletes $PLAYER_NAME and the actors it owns,"
+  echo "    When the player is done and has left the game, run MODE=down: it deletes $PLAYER_NAME and the actors it owns that were made after MODE=up,"
   echo "    stops the Kit GM browser, deletes $KIT_GM_USER and its password file (the bridge user goes back to what it was),"
   echo "    puts options.json back on ${orig_world:-no world} and starts Foundry and the Assistant GM browser again."
   echo "    $prev_note"
@@ -548,12 +548,12 @@ say "the in-browser part"
 install_driver
 
 # The teardown runs while strahd-kit still runs. If it fails nothing else has changed and this can run again.
-say "deleting $PLAYER_NAME, the actors it owns and $KIT_GM_USER in $KIT_WORLD"
+say "deleting $PLAYER_NAME, the actors it owns that were made after MODE=up, and $KIT_GM_USER in $KIT_WORLD"
 run_driver teardown || die "the teardown in $KIT_WORLD failed or did not verify (see the lines above): nothing else was changed; Foundry still runs $KIT_WORLD, the state file and the Kit GM password file stay and the Kit GM browser stays stopped, so run MODE=down again"
 # Only now, with the teardown verified, the Kit GM password file and profile folder go (without them MODE=up would find
 # a leftover). Removed before the next line is printed: a dropped ssh session must not stop the removal.
 if [ "$kit_gm_session" = 1 ]; then remove_kit_gm_files; fi
-ok "$PLAYER_NAME, its actors and $KIT_GM_USER are gone from $KIT_WORLD, read back"
+ok "$PLAYER_NAME, its new actors and $KIT_GM_USER are gone from $KIT_WORLD, read back"
 if [ "$kit_gm_session" = 1 ]; then ok "removed the Kit GM password file and browser profile"; fi
 
 # From here on the kit session ends. halted: Foundry was stopped by this run; restored: options.json launches

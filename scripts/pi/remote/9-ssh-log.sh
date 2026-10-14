@@ -44,7 +44,7 @@ if [ "${CONFIRM:-}" = 1 ]; then
   say "confirm"
   grep -qF "$prefix" "$keys" || die "$keys has no log prefix: the safety timer already restored the old file, or the stage never ran; run it again, then confirm within 5 minutes"
   [ "${SSH_ORIGINAL_COMMAND:-}" != "" ] || warn "this connection did not come through the wrapper (no SSH_ORIGINAL_COMMAND): is the prefix in place?"
-  if have_systemd && systemctl list-timers --all --no-legend 2>/dev/null | grep -q "$revert_unit"; then
+  if have_systemd && systemctl is-active --quiet "$revert_unit.timer"; then
     systemctl stop "$revert_unit.timer"
     ok "revert timer cancelled: the new key line stays"
   else

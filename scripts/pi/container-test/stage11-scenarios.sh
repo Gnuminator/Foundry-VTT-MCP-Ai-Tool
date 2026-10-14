@@ -176,6 +176,13 @@ assets_link() {
   ln -s /tmp/victim-file "$data/ddb-images/pic.png"
   chown -R -h "$FOUNDRY_USER:$FOUNDRY_USER" "$data/ddb-images"
 }
+# The Pi's asset folder itself is a link (to a folder outside the data tree): refused before anything stops.
+assets_dirlink() {
+  bundle_assets=1
+  mkdir -p /tmp/elsewhere
+  ln -s /tmp/elsewhere "$data/ddb-images"
+  chown -h "$FOUNDRY_USER:$FOUNDRY_USER" "$data/ddb-images"
+}
 # A kit session is up (kit-session.sh wrote its state file): this stage must not switch the world under it.
 kit_session_up() { printf 'STAMP=20261013-074544\n' >"$TOOL_DATA/kit-session.env"; }
 # No Node where stage 2 puts it. fresh_pi links it again for the next scenario.
@@ -376,6 +383,7 @@ scenario plant-link curse-of-strahd plant_link LAUNCH=strahd-kit
 # replaced by the bundle's file and its target is not written.
 scenario assets-merge curse-of-strahd assets_file LAUNCH=strahd-kit
 scenario assets-link curse-of-strahd assets_link LAUNCH=strahd-kit
+scenario assets-dirlink curse-of-strahd assets_dirlink LAUNCH=strahd-kit
 scenario kit-session-up curse-of-strahd kit_session_up LAUNCH=strahd-kit
 scenario no-node curse-of-strahd no_node LAUNCH=strahd-kit
 echo "=== ALL DONE"

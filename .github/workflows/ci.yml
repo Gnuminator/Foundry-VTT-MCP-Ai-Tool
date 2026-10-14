@@ -150,6 +150,11 @@ jobs:
         # build with a missing runtime package fails it, this repository's own build passes it.
         run: node --test scripts/pi/stage5-load-check.test.mjs
 
+      - name: Pi stage 15 static checks
+        # 15-ssh-keys-only.sh (D-123): valid bash, reload and never restart, the three values in a drop-in, the main sshd_config
+        # only read, the checks before the first write. The stage itself runs in a container on the ARM runner (build-test-arm).
+        run: node --test scripts/pi/ssh-keys-only.test.mjs
+
       - name: Plan B scripts
         # scripts/plan-b (docs/dev/PLAN-B.md, D-097 item 6): every script parses; ports and refusals, the
         # newest-backup choice, the version match, the module port flag, the stop and clean decisions and
@@ -472,6 +477,13 @@ jobs:
         env:
           PI_STAGE11_CONTAINER: 1
         run: node --test scripts/pi/stage11-world.test.mjs
+
+      - name: Pi stage 15 in an ARM64 container
+        # scripts/pi/container-test/ssh-keys-only-scenarios.sh: stage 15 on Debian 13 ARM64 with the real OpenSSH server (sshd -t,
+        # sshd -T) and stand-ins for systemd (the drop-in, every refusal and rollback, the reload and the safety timer).
+        env:
+          PI_SSH_KEYS_ONLY_CONTAINER: 1
+        run: node --test scripts/pi/ssh-keys-only.test.mjs
 
       - name: MCP schema smoke test
         run: node scripts/mcp-schema-smoke-test.mjs

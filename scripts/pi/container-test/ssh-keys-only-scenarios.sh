@@ -32,17 +32,28 @@ cp /etc/ssh/sshd_config /root/sshd_config.pristine
 ssh-keygen -q -t ed25519 -N '' -C pc-key -f /root/k1
 ssh-keygen -q -t ed25519 -N '' -C second-key -f /root/k2
 
-# systemctl stand-in: logs the call; "cat" finds ssh.service only; a timer is "armed" while /tmp/timer-armed exists.
+# systemctl stand-in: logs the call; "cat" finds ssh.service only (/tmp/no-unit: nothing); the revert timer is active
+# while /tmp/timer-armed exists; ssh.socket while /tmp/socket-active exists; ssh.service is inactive while /tmp/ssh-dead
+# exists (a reload sets it when /tmp/ssh-dies-on-reload exists, "start" clears it); a reload sends SIGHUP to a real
+# sshd when /tmp/live-sshd exists (and not /tmp/reload-noop).
 install -d /usr/local/sbin /usr/local/shim
 cat >/usr/local/sbin/systemctl <<'EOF'
 #!/usr/bin/env bash
 echo "systemctl $*" >>/tmp/calls
 case "${1:-}" in
-  cat) [ "${2:-}" = ssh.service ] || exit 1 ;;
-  is-active) exit 0 ;;
-  list-timers) [ ! -f /tmp/timer-armed ] || echo "Thu 2026-10-15 10:05:00 UTC 4min left - - foundry-ssh-keys-only-revert.timer foundry-ssh-keys-only-revert.service" ;;
+  cat) [ ! -f /tmp/no-unit ] || exit 1; [ "${2:-}" = ssh.service ] || exit 1 ;;
+  is-active)
+    case "${@: -1}" in
+      foundry-ssh-keys-only-revert.timer) [ -f /tmp/timer-armed ] || exit 3 ;;
+      ssh.socket) [ -f /tmp/socket-active ] || exit 3 ;;
+      *) [ ! -f /tmp/ssh-dead ] || exit 3 ;;
+    esac ;;
+  start) rm -f /tmp/ssh-dead ;;
   stop) case "$*" in *foundry-ssh-keys-only-revert.timer*) rm -f /tmp/timer-armed ;; esac ;;
-  reload) [ ! -f /tmp/reloadfail ] || exit 1 ;;
+  reload | reload-or-restart)
+    [ ! -f /tmp/reloadfail ] || exit 1
+    [ ! -f /tmp/ssh-dies-on-reload ] || touch /tmp/ssh-dead
+    if [ -f /tmp/live-sshd ] && [ ! -f /tmp/reload-noop ] && [ -f /run/sshd.pid ]; then kill -HUP "$(cat /run/sshd.pid)"; sleep 1; fi ;;
 esac
 exit 0
 EOF
@@ -72,7 +83,10 @@ KEY1="$(cat /root/k1.pub)"
 KEY2="$(cat /root/k2.pub)"
 
 fresh_pi() {
-  rm -f /tmp/calls /tmp/timer-armed /tmp/revert-cmd /tmp/reloadfail /tmp/timerfail /tmp/sshd-t-fail
+  pkill -x sshd 2>/dev/null || true
+  rm -f /tmp/calls /tmp/timer-armed /tmp/revert-cmd /tmp/reloadfail /tmp/timerfail /tmp/sshd-t-fail /tmp/no-unit \
+    /tmp/socket-active /tmp/ssh-dead /tmp/ssh-dies-on-reload /tmp/live-sshd /tmp/reload-noop /run/sshd.pid \
+    /etc/ssh/foundry-keys-only.confirmed
   rm -rf /etc/ssh/sshd_config.d
   mkdir -p /etc/ssh/sshd_config.d
   cp /root/sshd_config.pristine /etc/ssh/sshd_config
@@ -113,6 +127,8 @@ block() {
   cat /tmp/calls 2>/dev/null || true
   echo "--- timer"
   if [ -f /tmp/timer-armed ]; then echo armed; else echo none; fi
+  echo "--- marker"
+  if [ -f /etc/ssh/foundry-keys-only.confirmed ]; then echo confirmed; else echo none; fi
   echo "--- extra"
   [ -z "${EXTRA:-}" ] || printf '%s\n' "$EXTRA"
   EXTRA=""
@@ -132,14 +148,6 @@ if selected fresh; then
   run_stage
   EXTRA="stray: $(ls /etc/ssh/sshd_config.d | tr '\n' ' ')"
   block fresh
-fi
-
-if selected rerun; then
-  fresh_pi
-  run_stage
-  : >/tmp/calls
-  run_stage
-  block rerun
 fi
 
 if selected confirm; then
@@ -244,8 +252,7 @@ if selected later-file; then
   block later-file
 fi
 
-# A Match block that does not apply to a root login from the machine itself. sshd re-reads the configuration with the
-# Match conditions; what that gives for the three values is recorded, whichever way it goes.
+# A Match block that sets none of the login values (X11Forwarding) is no reason to stop.
 if selected unrelated-match; then
   fresh_pi
   printf '\nMatch Address 10.99.0.0/16\n    X11Forwarding no\n' >>/etc/ssh/sshd_config
@@ -299,4 +306,136 @@ if selected reload-fails; then
   block reload-fails
 fi
 
+# Within the 5 minutes, the first run's timer is still armed: a rerun reloads, leaves it armed and says so.
+if selected rerun-timer-armed; then
+  fresh_pi
+  run_stage
+  : >/tmp/calls
+  run_stage
+  block rerun-timer-armed
+fi
+
+# After CONFIRM=1 a rerun only reloads: no timer, no systemd-run.
+if selected rerun-confirmed; then
+  fresh_pi
+  run_stage
+  run_stage CONFIRM=1
+  : >/tmp/calls
+  run_stage
+  block rerun-confirmed
+fi
+
+# The first run stopped (or the Pi rebooted) after the drop-in was written: no timer, no confirmation. The rerun finds
+# the drop-in unchanged and must arm the timer before it reloads.
+if selected rerun-lost-timer; then
+  fresh_pi
+  run_stage
+  rm -f /tmp/timer-armed
+  : >/tmp/calls
+  run_stage
+  block rerun-lost-timer
+fi
+
+# A confirmed drop-in that is then replaced is unconfirmed again: the marker goes and a new timer is armed.
+if selected changed-after-confirm; then
+  fresh_pi
+  run_stage
+  run_stage CONFIRM=1
+  printf '# a changed version\nPasswordAuthentication no\n' >/etc/ssh/sshd_config.d/00-foundry-keys-only.conf
+  : >/tmp/calls
+  run_stage
+  block changed-after-confirm
+fi
+
+# ssh dies on the reload: the drop-in is rolled back, ssh is started, the timer is cancelled.
+if selected dead-after-reload; then
+  fresh_pi
+  touch /tmp/ssh-dies-on-reload
+  run_stage
+  block dead-after-reload
+fi
+
+# Same with an older drop-in in place: it comes back.
+if selected dead-after-reload-old; then
+  fresh_pi
+  printf '# an older version\nPasswordAuthentication no\n' >/etc/ssh/sshd_config.d/00-foundry-keys-only.conf
+  touch /tmp/ssh-dies-on-reload
+  run_stage
+  block dead-after-reload-old
+fi
+
+# No ssh or sshd service: refused before anything is written.
+if selected no-unit; then
+  fresh_pi
+  touch /tmp/no-unit
+  run_stage
+  block no-unit
+fi
+
+if selected socket-activated; then
+  fresh_pi
+  touch /tmp/socket-active
+  run_stage
+  block socket-activated
+fi
+
+# A Match block for another address turns passwords on: the global values look right, the stage still refuses.
+if selected lan-match; then
+  fresh_pi
+  printf '\nMatch Address 192.168.0.0/16\n    PasswordAuthentication yes\n' >>/etc/ssh/sshd_config
+  run_stage
+  block lan-match
+fi
+
+# The same in a drop-in file that sorts after ours.
+if selected lan-match-dropin; then
+  fresh_pi
+  printf 'Match Address 10.0.0.0/8\n    PermitRootLogin yes\n' >/etc/ssh/sshd_config.d/90-lan.conf
+  run_stage
+  block lan-match-dropin
+fi
+
+# Key login that would not work: refused before anything is written.
+if selected pubkey-off; then
+  fresh_pi
+  printf '\nPubkeyAuthentication no\n' >>/etc/ssh/sshd_config
+  run_stage
+  block pubkey-off
+fi
+
+if selected keys-file-elsewhere; then
+  fresh_pi
+  printf '\nAuthorizedKeysFile /etc/ssh/keys/%%u\n' >>/etc/ssh/sshd_config
+  run_stage
+  block keys-file-elsewhere
+fi
+
+if selected two-methods; then
+  fresh_pi
+  printf '\nAuthenticationMethods publickey,password\n' >>/etc/ssh/sshd_config
+  run_stage
+  block two-methods
+fi
+
+# A real sshd on port 22, reloaded by SIGHUP: the live check sees keys only after the reload...
+if selected live-keys-only; then
+  fresh_pi
+  touch /tmp/live-sshd
+  /usr/sbin/sshd
+  sleep 1
+  run_stage
+  block live-keys-only
+fi
+
+# ...and warns when the daemon still has the old settings (a reload that did nothing).
+if selected live-stale; then
+  fresh_pi
+  touch /tmp/live-sshd /tmp/reload-noop
+  /usr/sbin/sshd
+  sleep 1
+  run_stage
+  block live-stale
+fi
+
+pkill -x sshd 2>/dev/null || true
 echo "=== ALL DONE"

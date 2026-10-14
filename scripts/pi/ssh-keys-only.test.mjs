@@ -41,6 +41,12 @@ describe('15-ssh-keys-only.sh as written', () => {
     assert.doesNotMatch(stage, /\bservice ssh/);
   });
 
+  test('the timer revives a dead sshd (reload-or-restart), and a dead one after the reload is started', () => {
+    assert.match(stage, /--on-active=300 \/bin\/sh -c/);
+    assert.match(stage, /\/bin\/systemctl reload-or-restart \$unit/);
+    assert.match(stage, /systemctl start "\$unit"/);
+  });
+
   test('sets exactly the three values of D-123 in a drop-in, and no other file is edited', () => {
     assert.match(stage, /^PasswordAuthentication no$/m);
     assert.match(stage, /^KbdInteractiveAuthentication no$/m);
@@ -66,11 +72,22 @@ describe('15-ssh-keys-only.sh as written', () => {
       at('sshd_config\\.d') > 0 && at('sshd_config\\.d') < at('printf \'%s\\n\' "$body" >"$new"')
     );
     assert.ok(at('sshd -t || die') < at('printf \'%s\\n\' "$body" >"$new"'));
+    // The service lookup, the key-login settings and the Match refusal all precede the first write (M1, M3, L1, L6).
+    for (const check of [
+      'if have_systemd; then need_unit; fi',
+      'systemctl is-active --quiet ssh.socket',
+      "grep -qx 'pubkeyauthentication yes'",
+      'match_hits="$(match_overrides)"',
+    ]) {
+      assert.ok(at(check) > 0 && at(check) < at('printf \'%s\\n\' "$body" >"$new"'), check);
+    }
     assert.ok(at('if ! sshd -t; then') > at('mv -f "$new" "$drop"'));
     assert.ok(at('values_are_wanted; then') > at('if ! sshd -t; then'));
+    // Arm the timer, then reload: arm_timer is called before the last reload_ssh.
+    assert.ok(at('if ! arm_timer; then') > 0);
     assert.ok(
-      stage.lastIndexOf('reload_ssh\n') > at('systemd-run --quiet'),
-      'the last reload follows the timer'
+      stage.lastIndexOf('reload_ssh\n') > at('if ! arm_timer; then'),
+      'the reload follows the timer'
     );
   });
 });
@@ -120,6 +137,7 @@ describe('15-ssh-keys-only.sh in an ARM64 container', { skip: containerReason },
           values: part('values'),
           calls: part('calls'),
           timer: part('timer'),
+          marker: part('marker'),
           extra: part('extra'),
         });
       }
@@ -133,6 +151,8 @@ describe('15-ssh-keys-only.sh in an ARM64 container', { skip: containerReason },
   };
   const lines = text => text.split('\n').filter(Boolean);
   const calls = r => lines(r.calls);
+  /** Calls that change something or reload; looking the service up (cat, is-active) is allowed in a refusal. */
+  const mutating = r => calls(r).filter(c => !/^systemctl (cat|is-active) /.test(c));
 
   // What sshd reports for root once the stage has run (OpenSSH 10 prints prohibit-password as without-password).
   const KEYS_ONLY = [
@@ -156,13 +176,14 @@ describe('15-ssh-keys-only.sh in an ARM64 container', { skip: containerReason },
       DROPIN_VALUES
     );
   };
-  /** A refusal before anything is written: exit 1, the reason, sshd as it was, no systemctl call. */
+  /** A refusal before anything is written: exit 1, the reason, sshd as it was, no reload, no timer. */
   const assertRefused = (r, reason) => {
     assert.equal(r.exit, '1', r.output);
     assert.match(r.output, reason);
     assert.equal(r.dropin, '(none)');
-    assert.equal(r.calls, '', `nothing may be reloaded:\n${r.calls}`);
+    assert.deepEqual(mutating(r), [], `nothing may be reloaded:\n${r.calls}`);
     assert.equal(r.timer, 'none');
+    assert.equal(r.marker, 'none');
   };
 
   test('fresh: the drop-in, the real sshd -T values, a reload and a safety timer', () => {
@@ -185,21 +206,62 @@ describe('15-ssh-keys-only.sh in an ARM64 container', { skip: containerReason },
     );
     const armed = calls(r).findIndex(c => c.startsWith('systemd-run '));
     assert.ok(armed >= 0 && armed < calls(r).indexOf('systemctl reload ssh'), r.calls);
+    assert.match(calls(r)[armed], /--on-active=300 \/bin\/sh -c /);
     assert.equal(r.timer, 'armed');
+    assert.equal(r.marker, 'none');
+    assert.match(
+      r.output,
+      /live: could not ask the running sshd/,
+      'no daemon runs in this scenario'
+    );
     assert.match(r.output, /CONFIRM=1/);
     assert.match(r.output, /console login with the root password/);
   });
 
-  test('rerun: nothing is written, ssh reloads again, no new timer', () => {
-    const r = run('rerun');
+  test('rerun while the first run timer is armed: reloads, leaves the timer, says CONFIRM=1 is still needed', () => {
+    const r = run('rerun-timer-armed');
     assert.equal(r.exit, '0', r.output);
     assert.match(r.output, /unchanged/);
-    assert.match(r.output, /drop-in was already there/);
+    assert.match(r.output, /safety timer of the earlier run is still armed/);
+    assert.match(r.output, /CONFIRM=1/);
+    assert.doesNotMatch(r.output, /SSH is keys only/, 'it must not claim a finished state');
     assertDropIn(r);
     assert.equal(r.values, KEYS_ONLY);
     assert.equal(r.before, '(none)', 'an unchanged drop-in leaves no copy');
+    assert.equal(r.timer, 'armed');
     assert.ok(calls(r).includes('systemctl reload ssh'), r.calls);
     assert.ok(!calls(r).some(c => c.startsWith('systemd-run')), 'no second timer');
+  });
+
+  test('rerun after CONFIRM=1: only a reload, no timer, keys only is reported', () => {
+    const r = run('rerun-confirmed');
+    assert.equal(r.exit, '0', r.output);
+    assert.match(r.output, /SSH is keys only \(the drop-in was already there and confirmed\)/);
+    assert.equal(r.timer, 'none');
+    assert.equal(r.marker, 'confirmed');
+    assert.ok(calls(r).includes('systemctl reload ssh'), r.calls);
+    assert.ok(!calls(r).some(c => c.startsWith('systemd-run')), 'no timer after a confirmation');
+  });
+
+  test('rerun with no timer and no confirmation (a stopped first run, a reboot): arms the timer before the reload', () => {
+    const r = run('rerun-lost-timer');
+    assert.equal(r.exit, '0', r.output);
+    assert.match(r.output, /unchanged/);
+    assert.match(r.output, /safety net: the old SSH settings come back in 5 minutes/);
+    assert.equal(r.timer, 'armed');
+    const armed = calls(r).findIndex(c => c.startsWith('systemd-run '));
+    assert.ok(armed >= 0 && armed < calls(r).indexOf('systemctl reload ssh'), r.calls);
+    assert.match(r.output, /confirm from a NEW key-only connection within 5 minutes/);
+  });
+
+  test('a confirmed drop-in that changes is unconfirmed again and gets a new timer', () => {
+    const r = run('changed-after-confirm');
+    assert.equal(r.exit, '0', r.output);
+    assertDropIn(r);
+    assert.match(r.before, /a changed version/);
+    assert.equal(r.marker, 'none');
+    assert.equal(r.timer, 'armed');
+    assert.match(r.output, /confirm from a NEW key-only connection/);
   });
 
   test('replaces an older drop-in: a copy is kept and the timer puts it back', () => {
@@ -210,7 +272,7 @@ describe('15-ssh-keys-only.sh in an ARM64 container', { skip: containerReason },
     assert.equal(r.values, KEYS_ONLY);
     assert.match(
       r.extra,
-      /mv -f .*00-foundry-keys-only\.conf\.before .*00-foundry-keys-only\.conf; \/bin\/systemctl reload ssh/
+      /mv -f .*00-foundry-keys-only\.conf\.before .*00-foundry-keys-only\.conf; \/bin\/rm -f \/etc\/ssh\/foundry-keys-only\.confirmed; \/bin\/systemctl reload-or-restart ssh/
     );
   });
 
@@ -226,10 +288,10 @@ describe('15-ssh-keys-only.sh in an ARM64 container', { skip: containerReason },
     assert.equal(r.exit, '0', r.output);
     assert.equal(r.dropin, '(none)');
     assert.equal(r.values, AS_FOUND);
-    assert.ok(calls(r).includes('systemctl reload ssh'), r.calls);
+    assert.ok(calls(r).includes('systemctl reload-or-restart ssh'), r.calls);
     assert.match(
       r.extra,
-      /revert-cmd: \/bin\/rm -f \/etc\/ssh\/sshd_config\.d\/00-foundry-keys-only\.conf; \/bin\/systemctl reload ssh/
+      /revert-cmd: \/bin\/rm -f \/etc\/ssh\/sshd_config\.d\/00-foundry-keys-only\.conf; \/bin\/rm -f \/etc\/ssh\/foundry-keys-only\.confirmed; \/bin\/systemctl reload-or-restart ssh/
     );
   });
 
@@ -237,6 +299,7 @@ describe('15-ssh-keys-only.sh in an ARM64 container', { skip: containerReason },
     const r = run('confirm');
     assert.equal(r.exit, '0', r.output);
     assert.equal(r.timer, 'none');
+    assert.equal(r.marker, 'confirmed');
     assertDropIn(r);
     assert.match(r.output, /revert timer cancelled/);
   });
@@ -246,6 +309,7 @@ describe('15-ssh-keys-only.sh in an ARM64 container', { skip: containerReason },
     assert.equal(r.exit, '1', r.output);
     assert.match(r.output, /is not there/);
     assert.equal(r.values, AS_FOUND);
+    assert.equal(r.marker, 'none');
   });
 
   test('UNDO=1 removes the drop-in, cancels the timer, reloads and shows the old values', () => {
@@ -254,7 +318,9 @@ describe('15-ssh-keys-only.sh in an ARM64 container', { skip: containerReason },
     assert.equal(r.dropin, '(none)');
     assert.equal(r.values, AS_FOUND);
     assert.equal(r.timer, 'none');
+    assert.equal(r.marker, 'none');
     assert.equal(calls(r).filter(c => c === 'systemctl reload ssh').length, 2, r.calls);
+    assert.match(r.output, /is not put back/, 'UNDO says it does not restore a .before copy');
   });
 
   test('refuses without a key file, and with a key file that holds no key', () => {
@@ -274,30 +340,45 @@ describe('15-ssh-keys-only.sh in an ARM64 container', { skip: containerReason },
   });
 
   test('rolls the drop-in back when something earlier overrides a value, and says which lines win', () => {
-    for (const name of ['overridden-above', 'overridden-match', 'overridden-earlier-file']) {
+    for (const name of ['overridden-above', 'overridden-earlier-file']) {
       const r = run(name);
       assert.equal(r.exit, '1', `${name}: ${r.output}`);
       assert.equal(r.dropin, '(none)', name);
       assert.match(r.output, /something overrides the drop-in/, name);
       assert.match(r.output, /ssh was not reloaded/, name);
-      assert.equal(r.calls, '', `${name}: no reload, no timer:\n${r.calls}`);
+      assert.deepEqual(mutating(r), [], `${name}: no reload, no timer:\n${r.calls}`);
       assert.equal(r.timer, 'none');
     }
     assert.match(run('overridden-above').output, /sshd_config:1:PasswordAuthentication yes/);
     assert.match(run('overridden-earlier-file').output, /00-a-earlier\.conf:1:PermitRootLogin yes/);
-    assert.match(run('overridden-match').output, /Match User root/);
   });
 
-  test('a Match block that does not apply to root: the outcome is recorded either way, and never half applied', () => {
-    const r = run('unrelated-match');
-    if (r.exit === '0') {
-      assertDropIn(r);
-      assert.equal(r.values, KEYS_ONLY);
-    } else {
-      assert.equal(r.exit, '1', r.output);
-      assert.equal(r.dropin, '(none)');
-      assert.equal(r.calls, '');
+  test('refuses before any write when a Match block sets a login value, for root or for any other address', () => {
+    for (const name of ['overridden-match', 'lan-match', 'lan-match-dropin']) {
+      assertRefused(run(name), /remove or change those Match lines first; nothing changed/);
     }
+    assert.match(run('overridden-match').output, /sshd_config:\d+:\s+PasswordAuthentication yes/);
+    assert.match(run('lan-match').output, /sshd_config:\d+:\s+PasswordAuthentication yes/);
+    assert.match(run('lan-match-dropin').output, /90-lan\.conf:2:\s+PermitRootLogin yes/);
+  });
+
+  test('refuses before any write when key login would not work (PubkeyAuthentication, AuthorizedKeysFile, AuthenticationMethods)', () => {
+    assertRefused(run('pubkey-off'), /does not accept public keys/);
+    assertRefused(run('keys-file-elsewhere'), /does not read root's \.ssh\/authorized_keys/);
+    assertRefused(run('two-methods'), /AuthenticationMethods asks for more than a key/);
+  });
+
+  test('refuses without an ssh service, and with socket-activated ssh', () => {
+    assertRefused(run('no-unit'), /found no ssh or sshd service to reload; nothing changed/);
+    assertRefused(run('socket-activated'), /ssh is socket-activated/);
+  });
+
+  test('a Match block that sets none of the login values does not stop the stage', () => {
+    const r = run('unrelated-match');
+    assert.equal(r.exit, '0', r.output);
+    assertDropIn(r);
+    assert.equal(r.values, KEYS_ONLY);
+    assert.match(r.output, /no Match block sets a login value/);
   });
 
   test('sshd -t failing after the write: the drop-in is removed, or the old one comes back, and ssh is not touched', () => {
@@ -305,12 +386,12 @@ describe('15-ssh-keys-only.sh in an ARM64 container', { skip: containerReason },
     assert.equal(fresh.exit, '1', fresh.output);
     assert.match(fresh.output, /sshd -t fails with the new drop-in; rolled back/);
     assert.equal(fresh.dropin, '(none)');
-    assert.equal(fresh.calls, '');
+    assert.deepEqual(mutating(fresh), []);
     const old = run('sshd-t-fails-old');
     assert.equal(old.exit, '1', old.output);
     assert.match(old.dropin, /an older version/);
     assert.equal(old.before, '(none)', 'the saved copy was moved back');
-    assert.equal(old.calls, '');
+    assert.deepEqual(mutating(old), []);
   });
 
   test('a safety timer that cannot be armed rolls the drop-in back before any reload', () => {
@@ -327,6 +408,38 @@ describe('15-ssh-keys-only.sh in an ARM64 container', { skip: containerReason },
     assert.equal(r.exit, '1', r.output);
     assert.match(r.output, /systemctl reload ssh failed/);
     assert.equal(r.timer, 'armed');
+  });
+
+  test('ssh not active after the reload: the drop-in is rolled back, ssh is started, the timer is cancelled', () => {
+    const fresh = run('dead-after-reload');
+    assert.equal(fresh.exit, '1', fresh.output);
+    assert.match(fresh.output, /was not active after the reload; rolled back/);
+    assert.equal(fresh.dropin, '(none)');
+    assert.equal(fresh.values, AS_FOUND);
+    assert.equal(fresh.timer, 'none');
+    assert.ok(calls(fresh).includes('systemctl start ssh'), fresh.calls);
+    const old = run('dead-after-reload-old');
+    assert.equal(old.exit, '1', old.output);
+    assert.match(old.dropin, /an older version/);
+    assert.equal(old.before, '(none)', 'the saved copy was moved back');
+    assert.equal(old.timer, 'none');
+    assert.ok(calls(old).includes('systemctl start ssh'), old.calls);
+  });
+
+  test('live check against a real sshd: keys only after the reload took, a warning when it did not', () => {
+    const ok = run('live-keys-only');
+    assert.equal(ok.exit, '0', ok.output);
+    assert.match(
+      ok.output,
+      /live: the running sshd offers keys only \(Permission denied \(publickey\)\)/
+    );
+    const stale = run('live-stale');
+    assert.equal(stale.exit, '0', stale.output);
+    assert.match(
+      stale.output,
+      /live: the running sshd still offers a password \(Permission denied \(publickey,password\)\)/
+    );
+    assert.equal(stale.timer, 'armed', 'the net stays while the daemon has the old settings');
   });
 
   test('without systemd the files are written and checked, nothing is reloaded or scheduled', () => {

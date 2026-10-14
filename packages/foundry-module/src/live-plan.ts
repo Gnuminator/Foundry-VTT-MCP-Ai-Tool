@@ -145,7 +145,11 @@ function resolveTargets(identifiers: string[]): Target[] {
       targets.push({ name: str(token.name) ?? tokenActor.name, actor: tokenActor });
       continue;
     }
-    const combatant = fightCombatants().find(c => (str(c.tokenId) ?? str(rec(c.token)?.id)) === id);
+    // Only a combatant whose token still exists: without one Foundry falls back to the world
+    // actor (the sidebar template), and damaging that would hit every unlinked token of it.
+    const combatant = fightCombatants().find(
+      c => (str(c.tokenId) ?? str(rec(c.token)?.id)) === id && rec(c.token) !== null
+    );
     const combatantActor = asActor(combatant?.actor);
     if (combatant && combatantActor) {
       targets.push({

@@ -268,7 +268,7 @@ describe('target resolution', () => {
   });
 
   describe('a combatant of a fight on another scene', () => {
-    function fightElsewhere(): void {
+    function fightElsewhere(tokenExists = true): void {
       const synthetic = addActor({
         id: 'a',
         name: 'Wolf',
@@ -285,7 +285,7 @@ describe('target resolution', () => {
             id: 'cb1',
             name: 'Wolf',
             tokenId: 'far',
-            token: { id: 'far', name: 'Wolf 1' },
+            token: tokenExists ? { id: 'far', name: 'Wolf 1' } : null,
             actor: synthetic,
           },
         ],
@@ -308,6 +308,13 @@ describe('target resolution', () => {
           changes: { 'system.attributes.hp.value': 7 },
         },
       ]);
+    });
+
+    it('refuses a combatant whose token was deleted (it would fall back to the world actor)', async () => {
+      fightElsewhere(false);
+      await expect(
+        planLiveChange(hpRequest({ action: 'damage', amount: 4, targets: ['far'] }))
+      ).rejects.toThrow('named "far"');
     });
 
     it('does not match a name there, nor the combatant id', async () => {

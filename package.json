@@ -54,6 +54,7 @@
     "demo:obs-setup": "node scripts/demo/demo.mjs obs-setup",
     "demo:take": "node scripts/demo/demo.mjs take",
     "demo:export": "node scripts/demo/export.mjs",
+    "demo:compose": "node scripts/demo/compose.mjs",
     "format": "prettier --write \"**/*.{ts,js,json,md}\"",
     "format:check": "prettier --check \"**/*.{ts,js,json,md}\"",
     "typecheck": "npm run build:shared && npm run typecheck --workspaces --if-present",

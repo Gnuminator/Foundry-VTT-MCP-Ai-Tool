@@ -110,6 +110,90 @@ that folder's `export\`:
 `--to` pick seconds instead, `--max-mb` changes the size limit and `--no-copy` skips the
 1080p copy. It needs `ffmpeg` and `ffprobe` on `PATH`.
 
+## Compose finished videos
+
+`demo:export` trims one take. `demo:compose` builds the finished cuts (a master, a day-one cut, the
+feature clips) from take folders and the narration tool's output (`tools/narration`), all at 1440p60
+with ffmpeg:
+
+```powershell
+npm run demo:compose -- C:\path\to\manifest.json              # draft, stills, then the 1440p cuts
+npm run demo:compose -- C:\path\to\manifest.json --draft-only # the review loop
+npm run demo:compose -- C:\path\to\manifest.json --final-only --cut master
+```
+
+Options: `--cut a,b` limits the cuts, `--res 1080|1440|2160` (default 1440), `--out <dir>` (default
+`compose-out` next to the manifest), `--cpu` to skip NVENC. Needs `ffmpeg` and `ffprobe` on `PATH`.
+Keep the manifest, takes, narration and output outside the repo (campaign content and audio never
+go in).
+
+The manifest is JSON; paths are relative to its folder:
+
+```json
+{
+  "brand": "Foundry AI Tool",
+  "fontsDir": "fonts",
+  "music": { "file": "bed.wav", "gainDb": -14 },
+  "chapters": [
+    {
+      "id": "02",
+      "title": "Before the session",
+      "take": "takes/before-session",
+      "narration": "voice/02-before"
+    },
+    {
+      "id": "03",
+      "title": "Prep",
+      "video": "raw/03.mp4",
+      "steps": "raw/03.steps.json",
+      "cursor": true
+    }
+  ],
+  "cuts": { "master": ["02", "03"], "day-one": ["02"] },
+  "clips": true
+}
+```
+
+- `take` is a take folder (one `.mp4` next to `steps.json`); `video` and `steps` name the files
+  instead. `narration` is the narration output without extension: `<name>.wav` and
+  `<name>.timing.json`. A chapter without narration plays at the recording's own pace, without
+  sound. `cuts` lists chapters per cut; `clips: true` adds one `clip-<id>` cut per chapter.
+- A narration sentence belongs to the step whose name or title equals its `# heading` in the
+  narration script, so write one heading per step. `"map": { "step": [firstIndex, lastIndex] }`
+  picks sentences by their number instead.
+- `cursor: true` draws a cursor dot and a click ring at each step's `focus` box. Takes recorded with
+  `demo:take` already show both (the page draws them), so leave it off for those.
+- `fontsDir` holds `space-grotesk-600.ttf` and `space-grotesk-500.ttf` for the chapter cards and
+  captions; without it Segoe UI is used.
+
+What it does, in order:
+
+1. **Draft first.** Every cut at 960x540, plus a still at the start of every step in `stills\`.
+   Look at the stills (overflow, contrast, a caption over the thing being shown), then the draft.
+2. **Step length from the narration.** A step lasts its narration (first sentence start to last end)
+   plus one second of air. A step with more than 1.5 s to spare gets its dead time sped up (4x,
+   ramped through 2x). A shorter step is slowed to at most 1.3x and then held on a gentle push-in;
+   there are no frozen frames.
+3. **Camera.** An eased zoom (1.3 to 1.6x, 0.5 s in and out) on each step's `focus` box, started
+   0.3 s before `focus.at`.
+4. **Chapters.** A 1.5 s card cross-fades into each chapter; chapters cross-fade into each other.
+5. **Audio.** The narration pieces are placed at their steps, the optional music is ducked under
+   them (sidechain compression), and the sum is normalised to -16 LUFS (single pass; a ten-second
+   cut can land a LU off).
+6. **Captions.** `<cut>.srt` and `<cut>.vtt` from the narration's real sentence times, and
+   `<cut>.burned.mp4`, the same video with the captions burned in (second export).
+
+Output in `compose-out\`: `draft\<cut>.draft.mp4`, `stills\<chapter>-<step>.png`, `<cut>.mp4`,
+`<cut>.burned.mp4`, `<cut>.srt`, `<cut>.vtt`, `<cut>.chapters.txt` (YouTube chapters; the MP4 also
+carries them as chapter marks). `work\` holds the per-chapter intermediates, reused on the next run
+when the take and settings did not change. Frames the recorder glitched (the page drawn in the
+top-left quarter while a screenshot is taken) are replaced by the frame before. The pure timing and
+filter-graph code is `scripts/demo/lib/compose-plan.mjs` (tests in
+`packages/cogm-dashboard/src/demo-compose.test.ts`).
+
+Titles and callouts stay in ffmpeg (`drawtext`, `drawbox`); Remotion or HyperFrames would only
+come in if a card needs more than that.
+
 ## How it works
 
 ### The demo world

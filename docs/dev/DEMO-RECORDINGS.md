@@ -123,7 +123,7 @@ npm run demo:compose -- C:\path\to\manifest.json --final-only --cut master
 ```
 
 Options: `--cut a,b` limits the cuts, `--res 1080|1440|2160` (default 1440), `--out <dir>` (default
-`compose-out` next to the manifest), `--cpu` to skip NVENC. Needs `ffmpeg` and `ffprobe` on `PATH`.
+`compose-out` next to the manifest), `--cpu` to skip NVENC. Needs ffmpeg 7 or newer and `ffprobe` on `PATH`; takes must be 60 fps. The output folder must be outside the repo (the command refuses one inside it). Stills come from the draft pass only, so `--final-only` makes none; options are `--opt value` (not `--opt=value`), and an unknown option or cut name is an error.
 Keep the manifest, takes, narration and output outside the repo (campaign content and audio never
 go in).
 

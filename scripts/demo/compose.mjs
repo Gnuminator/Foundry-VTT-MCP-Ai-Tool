@@ -15,12 +15,21 @@
 //   <cut>.srt, <cut>.vtt, <cut>.chapters.txt
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
-import { basename, dirname, join, resolve } from 'node:path';
-import { pathToFileURL } from 'node:url';
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
+import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { cuesFor, toAss, toSrt, toVtt } from './lib/captions.mjs';
 import {
   FPS,
+  XFADE,
   assembleGraph,
   audioGraph,
   cardFilter,
@@ -32,8 +41,14 @@ import {
   youtubeChapters,
 } from './lib/compose-plan.mjs';
 
-/** ffmpeg filter-argument path: forward slashes, the drive colon escaped. */
-export const esc = p => p.replaceAll('\\', '/').replace(':', '\\:');
+/** ffmpeg filter-argument path: forward slashes, colons escaped; a single quote cannot be quoted. */
+export const esc = p => {
+  if (p.includes("'")) throw new Error(`a single quote in the path breaks ffmpeg filters: ${p}`);
+  return p.replaceAll('\\', '/').replaceAll(':', '\\:');
+};
+
+const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
+const SAFE = /^[\w.-]+$/;
 
 /** Find the recording in a take folder: the one .mp4 next to steps.json (export/ is skipped). */
 function takeFiles(dir) {
@@ -65,6 +80,12 @@ export function resolveManifest(file) {
   });
   const ids = new Set(chapters.map(c => c.id));
   if (ids.size !== chapters.length) throw new Error('manifest: chapter ids must be unique');
+  for (const c of chapters)
+    if (!SAFE.test(c.id))
+      throw new Error(`manifest: chapter id "${c.id}" may only use letters, digits, . _ -`);
+  for (const name of Object.keys(m.cuts ?? {}))
+    if (!SAFE.test(name))
+      throw new Error(`manifest: cut name "${name}" may only use letters, digits, . _ -`);
   const cuts = Object.entries(m.cuts ?? {}).map(([name, list]) => ({
     name,
     ids: list.map(String),
@@ -99,27 +120,85 @@ function run(cmd, args, o = {}) {
   return r.stdout;
 }
 
+const USAGE =
+  'usage: compose.mjs <manifest.json> [--cut a,b] [--draft-only|--final-only] [--res 1080|1440|2160] [--out dir] [--cpu]';
+
+/** The command line as an options object; unknown options and missing values are errors. */
+export function parseArgs(argv) {
+  const o = {
+    manifest: null,
+    cut: null,
+    res: 1440,
+    out: null,
+    draftOnly: false,
+    finalOnly: false,
+    cpu: false,
+  };
+  for (let i = 0; i < argv.length; i++) {
+    const a = argv[i];
+    if (!a.startsWith('--')) {
+      if (o.manifest) throw new Error(`more than one manifest: ${o.manifest}, ${a}`);
+      o.manifest = a;
+    } else if (a === '--draft-only') o.draftOnly = true;
+    else if (a === '--final-only') o.finalOnly = true;
+    else if (a === '--cpu') o.cpu = true;
+    else if (a === '--cut' || a === '--res' || a === '--out') {
+      const v = argv[++i];
+      if (v === undefined || v.startsWith('--')) throw new Error(`${a} needs a value`);
+      if (a === '--cut') o.cut = v.split(',').filter(Boolean);
+      else if (a === '--res') o.res = Number(v);
+      else o.out = v;
+    } else throw new Error(`Unknown option ${a} (use --opt value, not --opt=value)`);
+  }
+  if (!o.manifest) throw new Error(USAGE);
+  if (o.draftOnly && o.finalOnly)
+    throw new Error('--draft-only and --final-only together build nothing');
+  if (!o.draftOnly) sizeFor(false, o.res);
+  return o;
+}
+
+/** Everything the selected cuts read must exist before the first (long) encode. */
+function preflight(man, cuts) {
+  const ids = new Set(cuts.flatMap(c => c.ids));
+  const need = (file, what, ch) => {
+    if (!existsSync(file)) throw new Error(`chapter ${ch}: missing ${what} ${file}`);
+  };
+  for (const ch of man.chapters.filter(c => ids.has(c.id))) {
+    need(ch.video, 'video', ch.id);
+    need(ch.steps, 'steps file', ch.id);
+    if (!JSON.parse(readFileSync(ch.steps, 'utf8')).length)
+      throw new Error(`chapter ${ch.id}: steps.json has no steps`);
+    if (ch.narration) {
+      need(ch.narration.wav, 'narration WAV', ch.id);
+      need(ch.narration.timing, 'narration timing.json', ch.id);
+    }
+  }
+  if (man.music) need(man.music.file, 'music file', '(all)');
+  const v = /ffmpeg version (?:n|N-)?(\d+)/.exec(run('ffmpeg', ['-version']));
+  if (v && Number(v[1]) < 7) throw new Error(`ffmpeg 7 or newer is needed (found ${v[1]})`);
+}
+
 function main() {
-  const argv = process.argv.slice(2);
-  const flag = n => argv.includes(`--${n}`);
-  const opt = n => (flag(n) ? argv[argv.indexOf(`--${n}`) + 1] : undefined);
-  const manifestFile = argv.find(
-    a => !a.startsWith('--') && a !== opt('cut') && a !== opt('res') && a !== opt('out')
-  );
-  if (!manifestFile)
+  const o = parseArgs(process.argv.slice(2));
+  const man = resolveManifest(o.manifest);
+  const outDir = resolve(o.out ?? join(dirname(resolve(o.manifest)), 'compose-out'));
+  const rel = relative(repoRoot, outDir);
+  if (rel === '' || (!rel.startsWith('..') && !isAbsolute(rel)))
     throw new Error(
-      'usage: compose.mjs <manifest.json> [--cut a,b] [--draft-only|--final-only] [--res 1440] [--out dir] [--cpu]'
+      `the output folder ${outDir} is inside the repo; videos and audio never go in. Use --out elsewhere.`
     );
-  const man = resolveManifest(manifestFile);
-  const outDir = resolve(opt('out') ?? join(dirname(resolve(manifestFile)), 'compose-out'));
-  const res = Number(opt('res')) || 1440;
-  const wanted = opt('cut')?.split(',');
-  const cuts = wanted ? man.cuts.filter(c => wanted.includes(c.name)) : man.cuts;
-  if (!cuts.length) throw new Error('no cut to build (check the manifest "cuts" or --cut)');
-  const ctx = { man, outDir, res, cpu: flag('cpu') };
+  const unknown = (o.cut ?? []).filter(n => !man.cuts.some(c => c.name === n));
+  if (unknown.length)
+    throw new Error(
+      `unknown cut: ${unknown.join(', ')} (manifest has ${man.cuts.map(c => c.name).join(', ')})`
+    );
+  const cuts = o.cut ? man.cuts.filter(c => o.cut.includes(c.name)) : man.cuts;
+  if (!cuts.length) throw new Error('no cut to build (check the manifest "cuts")');
+  preflight(man, cuts);
+  const ctx = { man, outDir, res: o.res, cpu: o.cpu };
   mkdirSync(outDir, { recursive: true });
-  if (!flag('final-only')) pass(ctx, cuts, true);
-  if (!flag('draft-only')) pass(ctx, cuts, false);
+  if (!o.finalOnly) pass(ctx, cuts, true);
+  if (!o.draftOnly) pass(ctx, cuts, false);
 }
 
 function nvencWorks() {
@@ -237,6 +316,11 @@ const probeFrames = file =>
     ]).trim()
   );
 
+const hasFonts = man =>
+  !!man.fontsDir &&
+  existsSync(join(man.fontsDir, 'space-grotesk-600.ttf')) &&
+  existsSync(join(man.fontsDir, 'space-grotesk-500.ttf'));
+
 function buildChapter(ch, { man, W, H, draft, work, inter, ff }) {
   if (!existsSync(ch.video) || !existsSync(ch.steps))
     throw new Error(`chapter ${ch.id}: missing ${ch.video} or ${ch.steps}`);
@@ -248,18 +332,27 @@ function buildChapter(ch, { man, W, H, draft, work, inter, ff }) {
       '-select_streams',
       'v:0',
       '-show_entries',
-      'stream=nb_frames,duration',
+      'stream=nb_frames,duration,r_frame_rate',
       '-of',
       'json',
       ch.video,
     ])
   ).streams[0];
+  const [fn, fd] = String(probe.r_frame_rate).split('/').map(Number);
+  if (Math.abs(fn / (fd || 1) - FPS) > 0.5)
+    throw new Error(
+      `chapter ${ch.id}: the video is ${(fn / (fd || 1)).toFixed(2)} fps; takes must be ${FPS} fps`
+    );
   const rawFrames = Number(probe.nb_frames) || Math.floor(Number(probe.duration) * FPS);
 
-  let narr = { byStep: {}, unmatchedHeadings: [] };
+  let narr = { byStep: {}, unmatchedHeadings: [], scattered: [] };
   if (ch.narration) {
     const timing = JSON.parse(readFileSync(ch.narration.timing, 'utf8'));
     narr = mapNarration(steps, timing.sentences ?? [], ch.map);
+    if (narr.scattered.length)
+      throw new Error(
+        `chapter ${ch.id}: narration for step(s) ${narr.scattered.join(', ')} is not one block (a heading used twice); use "map" or one heading per step`
+      );
     if (narr.unmatchedHeadings.length)
       console.warn(
         `  chapter ${ch.id}: narration headings with no step: ${narr.unmatchedHeadings.join(', ')}`
@@ -275,10 +368,7 @@ function buildChapter(ch, { man, W, H, draft, work, inter, ff }) {
     })
   );
 
-  const fontsOk =
-    man.fontsDir &&
-    existsSync(join(man.fontsDir, 'space-grotesk-600.ttf')) &&
-    existsSync(join(man.fontsDir, 'space-grotesk-500.ttf'));
+  const fontsOk = hasFonts(man);
   const segoe = 'C:/Windows/Fonts/segoeui.ttf'.replace(':', '\\:');
   const titleFile = join(work, `title-${ch.id}.txt`);
   writeFileSync(titleFile, ch.title);
@@ -309,6 +399,9 @@ function buildChapter(ch, { man, W, H, draft, work, inter, ff }) {
     .update(String(statSync(ch.video).mtimeMs))
     .update(String(statSync(ch.video).size))
     .update(inter.join())
+    .update(ch.title)
+    .update(man.brand)
+    .update(String(fontsOk))
     .digest('hex');
   const keyFile = `${file}.key`;
   let frames;
@@ -316,6 +409,7 @@ function buildChapter(ch, { man, W, H, draft, work, inter, ff }) {
     frames = Number(readFileSync(keyFile, 'utf8').split(' ')[1]);
     console.log(`${ch.id} ${ch.title}: cached`);
   } else {
+    rmSync(keyFile, { force: true });
     const gfile = join(work, `graph-${ch.id}.txt`);
     writeFileSync(gfile, graph);
     const t0 = Date.now();
@@ -336,8 +430,10 @@ function buildChapter(ch, { man, W, H, draft, work, inter, ff }) {
     ]);
     frames = probeFrames(file);
     const expected = Math.round(offset * FPS) + bodyFrames;
+    if (frames !== expected)
+      throw new Error(`chapter ${ch.id}: expected ${expected} frames, got ${frames}`);
     console.log(
-      `${ch.id} ${ch.title}: ${plans.length} steps, ${(frames / FPS).toFixed(1)} s${frames === expected ? '' : ` (EXPECTED ${expected} frames, got ${frames})`}, ${glitches.length} glitch runs fixed, ${((Date.now() - t0) / 1000).toFixed(0)} s`
+      `${ch.id} ${ch.title}: ${plans.length} steps, ${(frames / FPS).toFixed(1)} s, ${glitches.length} glitch runs fixed, ${((Date.now() - t0) / 1000).toFixed(0)} s`
     );
     writeFileSync(keyFile, `${key} ${frames}`);
   }
@@ -356,7 +452,8 @@ function makeStills(built, outDir, ff) {
   for (const b of built.values()) {
     const tl = timeline([{ frames: b.frames, steps: b.plans.map(p => ({ len: p.outLen })) }]);
     b.steps.forEach((s, i) => {
-      const t = tl.stepInfo[0][i].start + 0.15;
+      // The first step starts under the card's cross fade: look past it.
+      const t = tl.stepInfo[0][i].start + (i === 0 ? XFADE : 0) + 0.15;
       ff(
         [
           '-ss',
@@ -451,7 +548,7 @@ function composeCut({ cut, parts, man, outDir, work, W, H, draft, fin, ff }) {
   writeFileSync(join(outDir, `${cut.name}.vtt`), toVtt(cues));
   writeFileSync(join(outDir, `${cut.name}.chapters.txt`), youtubeChapters(marks));
   if (!cues.length) return;
-  const fontsOk = man.fontsDir && existsSync(man.fontsDir);
+  const fontsOk = hasFonts(man);
   writeFileSync(
     join(work, `${cut.name}.ass`),
     toAss(cues, { W, H, font: fontsOk ? 'Space Grotesk Light Medium' : 'Segoe UI' })

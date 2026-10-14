@@ -41,7 +41,10 @@ function balanced(words, width = LINE) {
  * the time by characters.
  */
 export function cuesFor(text, start, end) {
-  const words = text.split(/\s+/).filter(Boolean);
+  const words = String(text ?? '')
+    .split(/\s+/)
+    .filter(Boolean);
+  if (!words.length) return [];
   const chars = words.join(' ').length;
   for (let n = Math.max(1, Math.ceil(chars / (LINE * MAX_LINES * 0.9))); n <= words.length; n++) {
     const target = chars / n;
@@ -121,7 +124,8 @@ export function toAss(cues, { W, H, font = 'Segoe UI' }) {
     'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
   ];
   const ev = cues.map(
-    c => `Dialogue: 0,${assTime(c.start)},${assTime(c.end)},Cap,,0,0,0,,${c.lines.join('\\N')}`
+    c =>
+      `Dialogue: 0,${assTime(c.start)},${assTime(c.end)},Cap,,0,0,0,,${c.lines.join('\\N').replace(/[{}]/g, m => (m === '{' ? '(' : ')'))}`
   );
   return [...head, ...ev, ''].join('\n');
 }

@@ -106,7 +106,9 @@ describe('compose: step timing', () => {
     const focus = { x: 0.2, y: 0.4, w: 0.2, h: 0.1, at: 12 };
     const p = plan.planStep({ st: { ...st, focus }, index: 1, next, rawFrames: 3600 });
     expect(plan.zoomExpr(p)).toContain('0.4*');
-    expect(plan.zoomCenter(p)).toEqual({ cx: 0.30000000000000004, cy: 0.45 });
+    const c = plan.zoomCenter(p);
+    expect(c.cx).toBeCloseTo(0.3, 6);
+    expect(c.cy).toBeCloseTo(0.45, 6);
     expect(plan.focusZoom({ x: 0, y: 0, w: 0.9, h: 0.9 })).toBe(plan.ZOOM_MIN);
     expect(plan.focusZoom({ x: 0, y: 0, w: 0.1, h: 0.1, zoom: 9 })).toBe(plan.ZOOM_MAX);
   });
@@ -210,6 +212,65 @@ describe('compose: filter graphs', () => {
     ];
     expect(plan.chapterMetadata(marks, 100)).toContain('START=65500\nEND=100000\ntitle=Two');
     expect(plan.youtubeChapters(marks)).toBe('0:00 One\n1:05 Two\n');
+  });
+});
+
+describe('compose: command line and guards', () => {
+  it('parses options and rejects mistakes before any encode', () => {
+    expect(compose.parseArgs(['m.json', '--cut', 'a,b', '--res', '1080', '--cpu'])).toMatchObject({
+      manifest: 'm.json',
+      cut: ['a', 'b'],
+      res: 1080,
+      cpu: true,
+    });
+    expect(() => compose.parseArgs(['m.json', '--cut=a'])).toThrow(/Unknown option/);
+    expect(() => compose.parseArgs(['m.json', '--bogus'])).toThrow(/Unknown option/);
+    expect(() => compose.parseArgs(['m.json', '--cut'])).toThrow(/needs a value/);
+    expect(() => compose.parseArgs(['m.json', '--res', '720'])).toThrow(/--res/);
+    expect(() => compose.parseArgs(['m.json', '--draft-only', '--final-only'])).toThrow(/nothing/);
+    expect(() => compose.parseArgs(['a.json', 'b.json'])).toThrow(/more than one/);
+    expect(() => compose.parseArgs([])).toThrow(/usage/);
+    expect(compose.parseArgs(['m.json', '--draft-only', '--res', '720']).draftOnly).toBe(true);
+  });
+
+  it('escapes every colon in a filter path and refuses a single quote', () => {
+    expect(compose.esc('C:\\Users\\a b\\f:g.ttf')).toBe('C\\:/Users/a b/f\\:g.ttf');
+    expect(() => compose.esc("C:\\Users\\O'Neil")).toThrow(/single quote/);
+  });
+
+  it('flags narration for a step that is not one block of sentences', () => {
+    const steps = [{ step: 'a' }, { step: 'b' }];
+    const s = [sentence(1, 0, 1, 'a'), sentence(2, 1, 2, 'b'), sentence(3, 2, 3, 'a')];
+    expect(plan.mapNarration(steps, s).scattered).toEqual(['a']);
+  });
+
+  it('uses focus.at, or the step start, for the zoom and the cursor alike', () => {
+    const st = { step: 'a', start: 10, end: 20, focus: { x: 0.2, y: 0.2, w: 0.1, h: 0.1 } };
+    const p = plan.planStep({ st, index: 1, next: null, rawFrames: 3600 });
+    expect(p.focusAt).toBe(10);
+  });
+
+  it('escapes chapter titles for the metadata file', () => {
+    expect(plan.escMeta('A=B; C#D\\E\nF')).toBe('A\\=B\\; C\\#D\\\\E F');
+  });
+
+  it('writes no cue for an empty sentence and no ASS override from braces', () => {
+    expect(captions.cuesFor('', 0, 1)).toEqual([]);
+    expect(captions.cuesFor(undefined, 0, 1)).toEqual([]);
+    const ass = captions.toAss([{ start: 0, end: 1, lines: ['a {b} c'] }], { W: 960, H: 540 });
+    expect(ass).toContain('a (b) c');
+  });
+
+  it('keeps cues to two lines of 42 characters inside the sentence time', () => {
+    const text = 'word '.repeat(60).trim();
+    const cues = captions.cuesFor(text, 5, 15);
+    expect(cues.length).toBeGreaterThan(1);
+    for (const c of cues) {
+      expect(c.lines.length).toBeLessThanOrEqual(2);
+      for (const l of c.lines) expect(l.length).toBeLessThanOrEqual(42);
+      expect(c.start).toBeGreaterThanOrEqual(5);
+      expect(c.end).toBeLessThanOrEqual(15.0001);
+    }
   });
 });
 

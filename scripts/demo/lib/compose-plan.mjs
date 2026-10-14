@@ -42,7 +42,8 @@ export const slug = s =>
  * Tie narration sentences (timing.json `sentences`) to steps (steps.json). A sentence belongs to
  * a step when its `heading` is that step's name or title (compared as slugs); `override` maps a
  * step name to [firstIndex, lastIndex] of sentences and wins. Steps without narration are left
- * out. Returns {byStep: {step: {from, to, sentences}}, unmatchedHeadings: string[]}.
+ * out. Returns {byStep: {step: {from, to, sentences}}, unmatchedHeadings, scattered} (scattered: steps whose
+ * sentences are not consecutive).
  */
 export function mapNarration(steps, sentences, override = {}) {
   const byStep = {};
@@ -74,7 +75,11 @@ export function mapNarration(steps, sentences, override = {}) {
   const unmatchedHeadings = [
     ...new Set(sentences.filter(s => s.heading && !used.has(s.index)).map(s => s.heading)),
   ];
-  return { byStep, unmatchedHeadings };
+  // A heading used in two places would play the audio between them twice.
+  const scattered = Object.entries(byStep)
+    .filter(([, v]) => v.sentences.some((x, i, a) => i > 0 && x.index !== a[i - 1].index + 1))
+    .map(([k]) => k);
+  return { byStep, unmatchedHeadings, scattered };
 }
 
 /** Zoom factor for a focus box (fractions of the frame): 1.4 unless the box does not fit. */
@@ -101,7 +106,8 @@ export function planStep({ st, index, next, narrationS = 0, rawFrames }) {
   const have = (toF - fromF) / FPS;
   const need = narrationS > 0 ? narrationS + BREATH : 0;
   const focus = st.focus ?? null;
-  const atF = focus ? Math.round((focus.at ?? st.start) * FPS) : null;
+  const focusAt = focus ? (focus.at ?? st.start) : null;
+  const atF = focus ? Math.round(focusAt * FPS) : null;
 
   /** @type {{a: number, b: number, speed: number}[]} raw frame ranges [a, b) and their speed */
   let segs = [{ a: fromF, b: toF, speed: 1 }];
@@ -169,6 +175,7 @@ export function planStep({ st, index, next, narrationS = 0, rawFrames }) {
     outLen: outFrames / FPS,
     rawToOut,
     focus,
+    focusAt,
   };
 }
 
@@ -198,7 +205,7 @@ export function zoomExpr(plan) {
   const f = plan.focus;
   if (f) {
     const zt = focusZoom(f);
-    const t0 = Math.max(0, plan.rawToOut(f.at ?? 0) - LEAD);
+    const t0 = Math.max(0, plan.rawToOut(plan.focusAt) - LEAD);
     const t1 = Math.max(t0 + EASE, len - EASE);
     terms.push(
       `(1+${r3(zt - 1)}*(${ease(`(t-${r3(t0)})/${EASE}`)}-${ease(`(t-${r3(t1)})/${EASE}`)}))`
@@ -269,7 +276,7 @@ export function stepFilter(
 
   if (needsOverlay) {
     const { cx, cy } = zoomCenter(plan);
-    const tClick = plan.rawToOut(plan.focus.at ?? 0);
+    const tClick = plan.rawToOut(plan.focusAt);
     const ringSize = Math.round(H / 7);
     const dotSize = Math.round(H / 45);
     const x1 = cx * W;
@@ -452,6 +459,12 @@ export function audioGraph({ clips, music = null, total }) {
   return g.join(';\n');
 }
 
+/** A value in an FFMETADATA1 file: = ; # and backslash are escaped, line breaks become spaces. */
+export const escMeta = s =>
+  String(s)
+    .replace(/[\r\n]+/g, ' ')
+    .replace(/[=;#\\]/g, c => `\\${c}`);
+
 /** FFMETADATA1 chapter marks; END of a chapter is the start of the next (the last one: total). */
 export function chapterMetadata(marks, total) {
   const meta = [';FFMETADATA1'];
@@ -462,7 +475,7 @@ export function chapterMetadata(marks, total) {
       'TIMEBASE=1/1000',
       `START=${Math.round(m.at * 1000)}`,
       `END=${Math.round(end * 1000)}`,
-      `title=${m.title}`
+      `title=${escMeta(m.title)}`
     );
   });
   return meta.join('\n');

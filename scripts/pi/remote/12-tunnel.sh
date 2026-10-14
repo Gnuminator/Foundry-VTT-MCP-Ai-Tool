@@ -14,7 +14,9 @@
 #     user (DynamicUser): no user is created. The unit refuses to start while the token file is missing.
 #   - optional: FOUNDRY_PUBLIC_HOST=play.example.com sets Foundry's proxy options (hostname, proxySSL,
 #     proxyPort 443) so invitation links and A/V use the public name; Foundry restarts if that changes them.
-#   - a check: the service is active and cloudflared reports a connection to Cloudflare.
+#   - a check: the service is active and cloudflared reports a connection to Cloudflare, and the origins
+#     answer on loopback (Foundry 30000, the dashboard 3000, the bridge control port 31414 for the
+#     TCP route mcp.<domain>, D-095; the routes themselves live in the Cloudflare dashboard).
 # Before any of that, the stage refuses to go on while Foundry has no administrator password (/setup would be
 # open), or while any world on the Pi has a Gamemaster or Assistant GM with no password (#273; gm_password_check in lib-gm-passwords.sh, read-only; gm-passwords.sh runs it on its own):
 # through the tunnel, anyone past Cloudflare Access could pick that user on the join page.
@@ -246,6 +248,15 @@ else
   else
     ok "cloudflared listens only on $metrics (loopback); the tunnel itself is outbound"
   fi
+  # The bridge's control port, the origin of the TCP route mcp.<domain> (D-095). No login of its own:
+  # Cloudflare Access is its only gate, so it must stay on loopback.
+  cp_rc=0
+  control_port_check 31414 || cp_rc=$?
+  case "$cp_rc" in
+    0) ok "the bridge control port answers on loopback and listens nowhere else (the origin of the mcp TCP route)" ;;
+    2) warn "the bridge control port 31414 listens beyond loopback: with the TCP route that bypasses nothing, but it must not be reachable from the home network (ss -ltn | grep 31414)" ;;
+    *) warn "the bridge control port 31414 does not answer a ping on 127.0.0.1: a TCP route to it would fail (journalctl -u foundry-ai-tool-bridge -n 30)" ;;
+  esac
   # The two local origins the Cloudflare dashboard routes to (a dead one gives players a 502).
   for origin in "30000 Foundry" "3000 the dashboard"; do
     port="${origin%% *}"

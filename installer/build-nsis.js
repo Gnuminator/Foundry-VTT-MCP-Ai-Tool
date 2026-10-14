@@ -3,18 +3,20 @@
 /**
  * Build the Foundry AI Tool client installer (NSIS) for a GM's Windows PC.
  *
- * The installer holds only what Claude Desktop needs: a portable Node.js (node.exe) and the bundled
- * MCP client (packages/mcp-server/dist/index.bundle.cjs). The bridge, Foundry and the Foundry
- * module run on another machine, so none of them ships here.
+ * The installer holds only what Claude Desktop needs: a portable Node.js (node.exe), the bundled
+ * MCP client (packages/mcp-server/dist/index.bundle.cjs) and cloudflared.exe (for the Cloudflare
+ * Access tunnel to the bridge, D-095). The bridge, Foundry and the Foundry module run on another
+ * machine, so none of them ships here.
  *
  * Steps:
  * - downloads the portable Node.js runtime and keeps node.exe
+ * - downloads cloudflared.exe from its GitHub release and checks it against a pinned SHA-256
  * - stages the bundled MCP client
  * - stages the installer scripts
  * - runs makensis
  *
  * Needs `npm run build:shared && npm run bundle:server` first.
- * Flags: --version vX.Y.Z, --skip-download (no Node), --skip-nsis (stage only).
+ * Flags: --version vX.Y.Z, --skip-download (no Node, no cloudflared), --skip-nsis (stage only).
  */
 
 const fs = require('fs');
@@ -58,6 +60,12 @@ const config = {
   nodeArchive: 'node-v22.23.3-win-x64.zip',
   nodeUrl: 'https://nodejs.org/dist/v22.23.3/node-v22.23.3-win-x64.zip',
   nodeSha256: '2b0ff57b049cda1bbcea2240eec20467018713c1efe1f7360c2681859b90ed71',
+  // cloudflared (Cloudflare's own release; the SHA-256 is the digest GitHub lists for this asset).
+  // To bump: change the version, the URL and the hash together.
+  cloudflaredVersion: '2026.10.0',
+  cloudflaredUrl:
+    'https://github.com/cloudflare/cloudflared/releases/download/2026.10.0/cloudflared-windows-amd64.exe',
+  cloudflaredSha256: '86aee4017b26625cee8484c113558f48effa4cd47f7aa05fcf425604e5d2b23c',
   buildDir: path.join(__dirname, 'build'),
   nsisDir: path.join(__dirname, 'nsis'),
   outputDir: path.join(__dirname, 'build', 'installer-files'),
@@ -65,7 +73,13 @@ const config = {
 };
 
 // Files copied from installer/nsis into the staging folder
-const installerFiles = ['LICENSE.txt', 'README.txt', 'icon.ico', 'configure-claude.ps1'];
+const installerFiles = [
+  'LICENSE.txt',
+  'README.txt',
+  'icon.ico',
+  'configure-claude.ps1',
+  'tunnel-client.ps1',
+];
 
 // Helper functions
 function ensureDir(dir) {
@@ -139,6 +153,42 @@ function downloadAndExtractNode() {
     console.error('   Failed to extract Node.js:', error.message);
     process.exit(1);
   }
+}
+
+function downloadCloudflared() {
+  console.log('Preparing cloudflared...');
+
+  const exePath = path.join(
+    config.tempDir,
+    `cloudflared-${config.cloudflaredVersion}-windows-amd64.exe`
+  );
+  if (fs.existsSync(exePath)) {
+    console.log('   cloudflared already downloaded, skipping download');
+  } else {
+    console.log(`   Downloading: ${config.cloudflaredUrl}`);
+    try {
+      execSync(
+        `powershell -Command "Invoke-WebRequest -Uri '${config.cloudflaredUrl}' -OutFile '${exePath}'"`,
+        { stdio: 'inherit' }
+      );
+    } catch (error) {
+      console.error('   Failed to download cloudflared:', error.message);
+      process.exit(1);
+    }
+  }
+
+  const actualSha256 = crypto.createHash('sha256').update(fs.readFileSync(exePath)).digest('hex');
+  if (actualSha256 !== config.cloudflaredSha256) {
+    console.error(`   cloudflared checksum mismatch for version ${config.cloudflaredVersion}`);
+    console.error(`   expected ${config.cloudflaredSha256}`);
+    console.error(`   actual   ${actualSha256}`);
+    console.error('   Delete the file in installer/build/temp and try again, or update the pin.');
+    process.exit(1);
+  }
+  console.log('   cloudflared checksum OK (SHA-256)');
+
+  fs.copyFileSync(exePath, path.join(config.outputDir, 'cloudflared.exe'));
+  console.log(`   cloudflared ${config.cloudflaredVersion} prepared`);
 }
 
 function copyMcpClient() {
@@ -273,6 +323,13 @@ async function build() {
       console.log();
     } else {
       console.log('   Skipping Node.js runtime download (staging-only)\n');
+    }
+
+    if (!skipDownload) {
+      downloadCloudflared();
+      console.log();
+    } else {
+      console.log('   Skipping cloudflared download (staging-only)\n');
     }
 
     copyMcpClient();

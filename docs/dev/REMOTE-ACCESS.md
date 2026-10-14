@@ -1,10 +1,9 @@
 # Remote Access — Operational Setup Guide
 
-> **Status: scaffold / not deployed.** This document describes the target remote-access
-> topology for Phase 6 and provides step-by-step instructions you fill in when you have
-> the infrastructure in hand. Every account ID, domain, UUID, email address, and secret
-> is a `<PLACEHOLDER>` you replace. Nothing in this guide has been executed against live
-> infrastructure.
+> **Status:** Part C below (the Orange Pi through Cloudflare) was set up for real on 2026-10-14
+> and is the tested path. Sections 1 to 6 are the older scaffold: they describe the target
+> topology for Phase 6 and have not been executed against live infrastructure. Every account ID,
+> domain, UUID, email address, and secret is a `<PLACEHOLDER>` you replace.
 >
 > For the big-picture roadmap that Phase 6 fits into, see `docs/history/PHASE6-DESIGN.md`
 > (written in parallel). For the existing Windows-local deployment, see `docs/dev/DEPLOYMENT.md`
@@ -31,34 +30,57 @@ The bridge ports (31414 and 31415), SSH, Syncthing and the Assistant GM browser 
 Tailscale stays for your own admin access. Foundry's own login (a user per player, as today) still
 applies behind Access: Access decides who may reach the page, Foundry decides who they are.
 
-Pick the names yourself; `play` and `cogm` are examples. Below, `<domain>` is your domain.
+Pick the names yourself; `play` and `cogm` are examples, any name works (the Pi's real Foundry name is
+different, and the real domain stays out of this repo). Below, `<domain>` is your domain and
+`play.<domain>` is whatever name you chose for Foundry.
+
+Cloudflare renamed its Zero Trust dashboard to **Cloudflare One** (`one.dash.cloudflare.com`), and
+the menus move now and then. The paths below were walked on 2026-10-14; if a name has changed, look
+for the same word nearby.
 
 ### What you do
 
 1. **Domain.** In the Cloudflare dashboard (`dash.cloudflare.com`) buy a domain under Domain
    Registration, or add one you own and point its nameservers at Cloudflare as the page tells you.
-2. **Team.** Open Zero Trust (`one.dash.cloudflare.com`) and pick a team name when asked. The free
-   plan covers up to 50 people. Cloudflare may ask for a payment method even for the free plan;
-   that is yours to enter.
-3. **Tunnel.** Zero Trust, Networks, Connectors (or Tunnels), Create a tunnel, type `Cloudflared`,
-   name it `foundry-pi`. On the next page pick Debian and 64-bit ARM. **Do not run the command it
-   shows.** It contains the token (the long text after `install`). Leave the page open: you copy the
-   token in step 8. Never paste the token into a chat, a file in the repo or the vault.
-4. **Who may open Foundry (do this before the name exists).** Zero Trust, Access controls,
-   Applications, Add an application, Self-hosted. Name `Foundry players`, domain `play.<domain>`,
-   session duration 30 days. Add a policy named `Players`: action Allow, include Emails, then the
-   email of each player, the GM and you. Under login methods keep only One-time PIN. Save. Players
-   will get a code by email the first time and about once a month after.
+2. **Team and the login method.** Open Cloudflare One (`one.dash.cloudflare.com`) and pick a team
+   name when asked (you need it in step 5). The free plan covers up to 50 people. Cloudflare may ask
+   for a payment method even for the free plan; that is yours to enter. Then switch on the email
+   code login, which new accounts do not have: Integrations, Identity providers, Add an identity
+   provider, **One-time PIN**, Save. Without it the Access application in step 4 has no way to let
+   anyone in.
+3. **Tunnel.** Networks, Connectors (or Tunnels), Create a tunnel, type `Cloudflared`, name it
+   `foundry-pi`. On the next page pick Debian and 64-bit ARM. **Do not run the command it shows.**
+   It contains the token (the long text after `install`). Leave the page open: you copy the token in
+   step 8. Never paste the token into a chat, a file in the repo or the vault. The tunnel says
+   Inactive until the Pi connects in step 8; that is expected.
+4. **Who may open Foundry (do this before the name exists).** Access controls, Applications, Add an
+   application, Self-hosted. Name `Foundry players`, domain `play.<domain>`, session duration 30
+   days. Add a policy named `Players`: action Allow, include Emails, then the email of each player,
+   the GM and you. Under login methods keep only One-time PIN. Save. Players will get a code by
+   email the first time and about once a month after. Open the saved application and copy its
+   **Application Audience (AUD) Tag**; you need it in step 5.
 5. **The Foundry name.** Back in the tunnel, Published application routes (or Public hostname),
-   add: subdomain `play`, your domain, service type `HTTP`, URL `localhost:30000`. Leave every
-   option under Additional settings as it is (WebSockets work by default); in particular **never
-   set "HTTP Host Header"**, because the dashboard's host check (a `421` for names it does not
-   know) is what keeps an unconfigured name closed. Save the tunnel.
-6. **Pi: install the tunnel (Claude, with your OK).** Claude takes a `dietpi-backup 1` snapshot, then
-   runs stage 12 (`12-tunnel.sh`, see [Orange Pi setup](PI-SETUP.md)). It installs Cloudflare's
-   `cloudflared` from Cloudflare's own signed package source and sets it up as a service that stays
-   off until the token is there. Before anything else it checks two things and stops while either
-   fails, because anyone past Cloudflare Access reaches what is behind them:
+   add: subdomain `play`, your domain, service type `HTTP`, URL `http://localhost:30000` (keep the
+   `http://`; the bare `localhost:30000` does not work). Leave every option under Additional
+   settings as it is (WebSockets work by default); in particular **never set "HTTP Host Header"**,
+   because the dashboard's host check (a `421` for names it does not know) is what keeps an
+   unconfigured name closed.
+
+   One option is worth setting: **Validate the Access JWT at the tunnel** (under Access in the
+   route's additional settings). The tunnel then refuses any request that did not come through
+   your Access application, so a name that someone points at the tunnel by another path stays
+   shut. It asks for your **team name** (step 2) and the **AUD tag** of the `Foundry players`
+   application (step 4), not the AUD tag of another application. A wrong AUD tag shows up as a
+   **403** right after the email code (the login worked, the tunnel turned the request down): copy
+   the AUD tag again from the application and save the route. Save the tunnel.
+
+6. **Pi: install the tunnel and Foundry's public name (Claude, with your OK).** Claude takes a
+   `dietpi-backup 1` snapshot, then runs stage 12 (`12-tunnel.sh`, see [Orange Pi setup](PI-SETUP.md))
+   once with `FOUNDRY_PUBLIC_HOST=play.<domain>`: one snapshot, one run, and it sets Foundry's public
+   name in the same pass (step 7). It installs Cloudflare's `cloudflared` from Cloudflare's own
+   signed package source and sets it up as a service that stays off until the token is there. Before
+   anything else it checks two things and stops while either fails, because anyone past Cloudflare
+   Access reaches what is behind them:
    - **Foundry's administrator password** is set (without it `/setup` is open, and anyone could
      launch, delete or reinstall worlds). Set it on Foundry's setup screen: the Configure gear
      (Application Configuration), Administrator Password (the button reads Change Password once one is set).
@@ -74,10 +96,12 @@ Pick the names yourself; `play` and `cogm` are examples. Below, `<domain>` is yo
    nothing:
    `cat scripts/pi/remote/lib.sh scripts/pi/remote/lib-gm-passwords.sh scripts/pi/remote/gm-passwords.sh | ssh foundry-pi 'bash -s'`.
 
-7. **Pi: Foundry's public name (Claude, with your OK).** Claude runs the stage again with
-   `FOUNDRY_PUBLIC_HOST=play.<domain>`. That sets three Foundry options so invitation links and
-   audio and video use the public name: `hostname` = `play.<domain>`, `proxySSL` = true,
-   `proxyPort` = 443. Foundry restarts for a moment.
+7. **What `FOUNDRY_PUBLIC_HOST` does.** It sets three Foundry options so invitation links and audio
+   and video use the public name: `hostname` = `play.<domain>`, `proxySSL` = true, `proxyPort` =
+   443 (the old `options.json` is kept beside it as `options.json.before-tunnel.<time>`). Foundry
+   restarts for a moment, and the running world is launched again. The stage can also be run
+   first without the variable and a second time with it, but that costs a second snapshot and run
+   for nothing.
 8. **Pi: the token (you, in your own SSH session).** Claude never types or sees it. In PowerShell on
    this PC, from the repo folder:
 
@@ -93,15 +117,17 @@ Pick the names yourself; `play` and `cogm` are examples. Below, `<domain>` is yo
 
 9. **Test from a phone off Wi-Fi.** Switch the phone to mobile data and open `https://play.<domain>`.
    Expected: a Cloudflare page asking for an email; an address not on the policy gets no code; an
-   address on it gets a code by email, then Foundry's login page. Then check that Foundry loads and
-   a token can be moved, which proves WebSockets work. Test with one player's real address before
-   telling the others.
+   address on it gets a code by email, then Foundry's join page. While the world has no player
+   users yet, seeing the join page with its user list is the test. Once players exist, also log in
+   as one and move a token, which proves WebSockets work (that token-move test waits for the
+   player users). A **403** after the code is a wrong AUD tag on the route (step 5). Test with one
+   player's real address before telling the others.
 10. **The dashboard, for the GM (later). The order matters: Access first, the name last.** The
     dashboard checks Cloudflare's signed login token (idea I-022, built) and, once it has GM
     emails, shows everyone else the read-only player view. Until the Access application exists
     that view would be open to the internet, so the `cogm` name is added last. The four parts are
     under "Step 10 in detail" below.
-11. **Service token for the GM's Obsidian plugin (D-094).** Zero Trust, Access controls, Service
+11. **Service token for the GM's Obsidian plugin (D-094).** Cloudflare One, Access controls, Service
     credentials, Service Tokens, Create. Name it `obsidian-gm-plugin`, duration 1 year. Copy the
     Client ID and Client Secret now; the secret is shown once. On the `Foundry dashboard`
     application add a second policy named `Obsidian plugin` with action **Service Auth** and
@@ -154,14 +180,16 @@ scripts, and the two that touch secrets are run by you.
    answer; add `--rotate-token` for a new token (the GM then opens the new link once).
 
 4. **The name last.** In the tunnel, Published application routes, add subdomain `cogm`, service
-   `HTTP`, URL `localhost:3000` (again no "HTTP Host Header"). Test: `https://cogm.<domain>` must
+   `HTTP`, URL `http://localhost:3000` (again no "HTTP Host Header"; set "Validate the Access JWT
+   at the tunnel" here too, with your team name and the AUD tag of the `Foundry dashboard`
+   application from part 1). Test: `https://cogm.<domain>` must
    ask for a Cloudflare login, and only the listed emails reach the dashboard as GM.
 
 ### Removing a player
 
-Zero Trust, Access controls, Applications, `Foundry players`, Policies, edit `Players`, delete the
-person's email, Save. Their old login stays valid until its 30 days run out, so also open Zero
-Trust, Team and resources (or Users), find them and choose Revoke. They can no longer reach
+Cloudflare One, Access controls, Applications, `Foundry players`, Policies, edit `Players`, delete
+the person's email, Save. Their old login stays valid until its 30 days run out, so also open
+Team and resources (or Users), find them and choose Revoke. They can no longer reach
 Foundry. Their Foundry user in the world stays until the GM removes it in Foundry.
 
 ### If something goes wrong

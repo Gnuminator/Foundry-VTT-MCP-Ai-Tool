@@ -142,6 +142,7 @@ listed).
 | 11. World           | `11-world.sh` installs the bundle `push-world.ps1` built on this PC, after checking the tar and every checksum: the campaign world, its private modules and image folders. An existing campaign world is kept unless `REPLACE_WORLD=1`; a test copy `strahd-kit` is reset every time; old copies go to `/var/lib/foundry-import/prev-<time>`, never deleted. Each world gets a generated GM password (`/etc/foundry-ai-tool/world-<id>.env`) and is provisioned like stage 5. A Plan B push-back keeps the Pi's GM password and needs `REPLACE_WORLD=1 KIT_WORLD=` ([Plan B](PLAN-B.md#after-the-night)). See "Licensed content"                                                                                                                                                                                                                                                                                                                                                                      | **yes:** your OK (Foundry stops for a few minutes), after a `dietpi-backup 1` snapshot                                                                                                                                             |
 | 12. Tunnel          | Part C (D-075): Cloudflare Tunnel, so players reach Foundry and the GM the dashboard through Cloudflare Access with no router port open (`12-tunnel.sh`). `cloudflared` from Cloudflare's signed apt repository (key pinned), service `foundry-ai-tool-cloudflared` in token mode: a root-only token file read through systemd `LoadCredential`, never an argument or environment variable; no token, no start. `FOUNDRY_PUBLIC_HOST=play.<domain>` sets Foundry's `hostname`, `proxySSL`, `proxyPort` 443. No firewall, SSH, network or Tailscale change. Stops first, before it installs anything, while Foundry has no administrator password, or any world has a Gamemaster or Assistant GM with no password or no Gamemaster at all (a never-launched world counts); `gm-passwords.sh` runs that read-only check on its own, again after adding worlds or GM users                                                                                                                               | **yes:** your OK and a snapshot; then run `set-tunnel-token.sh` yourself over SSH                                                                                                                                                  |
 | 13. Player creation | D-112, D-113: players make level-1 characters in Actor Studio at session 0 (`13-player-creation.sh`). Installs our Actor Studio fork build (`2.10.5-aitool.4`) from its GitHub release, checked against a pinned sha256, and sets the world settings creation needs (Player and Trusted Player may create actors; equipment selection on, from the Player's Handbook pack). See "Player character creation"                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | **yes:** your OK (Foundry stops for a few minutes), after a `dietpi-backup 1` snapshot                                                                                                                                             |
+| 15. SSH keys only   | D-123, before Part C goes live (`15-ssh-keys-only.sh`; 14 is held elsewhere): a drop-in `/etc/ssh/sshd_config.d/00-foundry-keys-only.conf` with `PasswordAuthentication no`, `KbdInteractiveAuthentication no` and `PermitRootLogin prohibit-password`, so SSH takes a key and never a password, root included. Refuses unless root has a valid key or the main config includes the drop-in folder; `sshd -t` before the reload and `sshd -T` after, and either one failing rolls the drop-in back; a reload, not a restart (open sessions stay up); a 5-minute safety timer removes the drop-in unless a new key-only connection confirms. **The console login with the root password still works** (a screen and keyboard on the Pi): the way back in if a key is ever lost. `UNDO=1` removes the drop-in. See "SSH keys only (stage 15)"                                                                                                                                                           | **yes:** your OK (an SSH change), after a `dietpi-backup 1` snapshot, in default permission mode, never on a game-night day                                                                                                        |
 
 Stage 5 in more detail, because it changes how Claude Desktop reaches the game: each entry in
 `%APPDATA%\Claude\claude_desktop_config.json` gets `MCP_CONTROL_HOST` set to the Pi's Tailscale name
@@ -368,7 +369,8 @@ foundry`; the restore refuses to run while Foundry runs. Stage 4 (Tailscale) can
    `ssh-log` folder goes back to root only).
 5. Stages 5, 6, 7 and 8 in that order, then stage 9 (the SSH command log; it changes the SSH login
    key line, so it needs its own OK, a `dietpi-backup 1` first, and the 5-minute confirmation from a
-   new connection described in its header), then `systemctl start foundry`. The worlds (with their
+   new connection described in its header), then stage 15 if it had run on the old Pi (SSH keys only,
+   same kind of OK and confirmation), then `systemctl start foundry`. The worlds (with their
    users), `assistant-gm.env` and, if the snapshot is newer than its stage, the Discord bot's token
    come back from the snapshot.
 
@@ -562,6 +564,47 @@ with its current signing key); routes `foundry.<your domain>` to
 Foundry and `cogm.<your domain>` to the dashboard (GM emails only); sets Access to email one-time
 codes; sets Foundry's proxy options for the domain; and tests both from outside before anyone gets
 the address. Templates: `deploy/cloudflare/`; background: [Remote access](REMOTE-ACCESS.md).
+
+## SSH keys only (stage 15)
+
+Until stage 15 ran, the Pi's SSH server listened on every address and took the root password as well
+as a key (the 2026-10-14 network review, D-123). Before the tunnel in Part C goes live, stage 15
+turns password login off for SSH: only a key opens the door, for root too.
+
+- **What changes:** one new file, `/etc/ssh/sshd_config.d/00-foundry-keys-only.conf`, with
+  `PasswordAuthentication no`, `KbdInteractiveAuthentication no` and
+  `PermitRootLogin prohibit-password`. The main `sshd_config` is not edited. The name starts with
+  `00-` so it is read before any other drop-in (sshd keeps the first value it reads).
+- **Your console login with the root password still works.** Plug a screen and keyboard into the Pi
+  and log in as root with the password, as before; this stage only closes the password door of the
+  network login. Keep the root password where you keep the others: it is the way back in if the PC's
+  key is ever lost. (The stage warns if root has no usable password.)
+- **What it checks before and after:** it stops without changing anything unless root's key file
+  holds at least one valid key (the PC's key; stage 9's command prefix is read correctly) and the
+  main `sshd_config` includes the drop-in folder. After writing the file it runs `sshd -t`; if that
+  fails, the old drop-in is put back (or the new one removed) and ssh is not touched. Then it asks
+  `sshd -T` what root would get and compares the three values: if an earlier line or file
+  overrides them, the drop-in is rolled back and the lines that win are listed. Only then it
+  **reloads** ssh (a reload, not a restart: the session running the stage stays up) and prints the
+  three effective values.
+- **Safety timer:** like stage 9, the run arms a 5-minute timer that removes the drop-in again unless
+  a new connection confirms, so a key that does not work can never lock you out for good. From
+  the repo folder on this PC, after a `dietpi-backup 1` snapshot and your OK, in default
+  permission mode and not on a game-night day:
+
+  ```powershell
+  cat scripts/pi/remote/lib.sh scripts/pi/remote/15-ssh-keys-only.sh | ssh foundry-pi 'bash -s'
+  ssh -o ControlPath=none -o PasswordAuthentication=no foundry-pi true
+  cat scripts/pi/remote/lib.sh scripts/pi/remote/15-ssh-keys-only.sh | ssh -o ControlPath=none -o PasswordAuthentication=no foundry-pi 'CONFIRM=1 bash -s'
+  ```
+
+  The second line must print nothing and exit 0 (key login works); the third cancels the timer.
+  `UNDO=1 bash -s` in the first line's place removes the drop-in again.
+
+- It is safe to run again: with the drop-in already in place it only reloads and prints the values.
+  Tested in the ARM64 container (`scripts/pi/container-test/ssh-keys-only-scenarios.sh`,
+  `node --test scripts/pi/ssh-keys-only.test.mjs`; Docker needed, `PI_SSH_KEYS_ONLY_CONTAINER=1`)
+  with the real `sshd -t` and `sshd -T`.
 
 ## Licensed content (the books and Curse of Strahd)
 

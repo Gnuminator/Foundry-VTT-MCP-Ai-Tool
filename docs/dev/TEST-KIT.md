@@ -147,6 +147,24 @@ Foundry's "Disable Canvas", does not have). It is a first slice: no clicking, no
    point; the report lists which tools failed. The same scenario also runs in a normal local kit run,
    where the canvas exists, so that report is the baseline to compare with.
 
+4. **A player builds a character (standard array).** While the kit session is up, a headless browser
+   can join as `Kit Player` and make a level 1 character in Actor Studio, the way a player at the
+   table does, with the standard array arranged by the row arrows (the kit's own player flow types
+   scores into manual-input fields, which a standard-array-only table setup turns off). The kit's
+   sheet checks (`judgeSheet`) judge the result:
+
+   ```powershell
+   node scripts/test-kit/player-run.mjs http://<pi-host>:30000 "Kit Player" Wizard "Elf, High" Sage --out $env:TEMP\player-run
+   ```
+
+   Class, species and background are optional (those are the defaults). It refuses a GM user, the
+   `curse-of-strahd` world and the live bridge ports; `result.json` and `sheet.png` go to `--out`
+   (or a new temp folder), never into the repo, and the exit code is 1 when the sheet has problems.
+   A Player may not delete actors, so the `Pi Test <class>` actor stays until `kit-session.sh
+MODE=down` (which deletes the actors made after `up`). Unit tests cover the argument parsing,
+   the arrow moves and the refusals; the live run needs a running kit session (the next Pi day) or
+   the PC test world with Actor Studio set to standard array only.
+
 ### Two test servers
 
 This PC has two test servers with the same Foundry install and licence

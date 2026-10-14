@@ -11,8 +11,8 @@
 # Take a snapshot first (dietpi-backup 1) and get the user's OK: this stops Foundry for a few minutes.
 # Env: MODE (required: up or down; anything else stops before anything changes), FORCE (1 goes on even when people
 #   are online or /api/status cannot be read; default 0 refuses), SESSION_DRIVER (the uploaded .mjs, default
-#   /root/kit-session.mjs), MAX_DELETE (down only: more than 5 actors owned by Kit Player are refused; this raises
-#   the limit). The world (strahd-kit) and the player (Kit Player) are fixed in this script and in the driver.
+#   /root/kit-session.mjs), MAX_DELETE (down only: more than 5 actors owned by Kit Player and made after "up" are
+#   refused; this raises the limit). The world (strahd-kit) and the player (Kit Player) are fixed in this script and in the driver.
 # What MODE=up does:
 #   Before anything stops: the world, its GM login (/etc/foundry-ai-tool/world-strahd-kit.env, never printed), the
 #   tool's build, the Assistant GM driver (stage 5: /opt/foundry-ai-tool/gm-browser/assistant-gm.mjs) and the bridge
@@ -48,8 +48,8 @@
 #   Needs the state file, strahd-kit running, and nobody online (the Kit Player must have left the game; FORCE=1
 #   overrides). The Kit GM browser (when the state file says there is one) and the Assistant GM browser are stopped
 #   first (a reboot during the session starts the Assistant GM browser on strahd-kit; the Kit GM browser would count
-#   as online). It runs kit-session.mjs ACTION=teardown while strahd-kit still runs: the actors Kit Player owns (at
-#   most 5) and the user are deleted, the bridge user goes back to "Any GM" when it is the Kit GM, and the user Kit GM
+#   as online). It runs kit-session.mjs ACTION=teardown while strahd-kit still runs: the actors Kit Player owns that
+#   were made after "up" (the state file's STAMP; at most 5; older ones are kept and listed) and the user are deleted, the bridge user goes back to "Any GM" when it is the Kit GM, and the user Kit GM
 #   is deleted, nothing else. The bridge user goes back to the one the state file names (ORIG_BRIDGE_USER) when
 #   that user still exists and is a GM, else to "Any GM"; a state file without that line means "Any GM". If that
 #   fails, nothing else changes (the state file and the Kit GM password file stay,
@@ -217,7 +217,7 @@ run_driver() { # $1 setup or teardown
     else
       runuser -u "$FOUNDRY_USER" -- env HOME="$TOOL_DATA" TOOL_APP="$TOOL_DIR/app" \
         FOUNDRY_URL=http://127.0.0.1:30000 CHROMIUM=/usr/bin/chromium \
-        ACTION="$1" MAX_DELETE="$MAX_DELETE" \
+        ACTION="$1" MAX_DELETE="$MAX_DELETE" SINCE_STAMP="${state_stamp:-}" \
         node "$driver"
     fi
   )

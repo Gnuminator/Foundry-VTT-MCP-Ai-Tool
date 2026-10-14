@@ -21,7 +21,8 @@
 //     It prints the values before and after, reloads the world and reads them back, and exits 1 on any mismatch.
 //     A second run changes nothing but the Kit GM password. When it has verified everything it prints one line,
 //     "ORIG_BRIDGE_USER=<id or empty>": the bridge user it replaced, which the stage keeps for the teardown.
-//   ACTION=teardown  deletes the actors that Kit Player owns (at most 5; MAX_DELETE raises the limit; their names
+//   ACTION=teardown  deletes the actors that Kit Player owns and that were made after the session started (SINCE_STAMP;
+//                    at most 5; MAX_DELETE raises the limit; older ones are kept and listed; their names
 //                    and ids are printed first) and then the user Kit Player; then, when Kit GM is the bridge user,
 //                    the bridge user goes back to what setup found (ORIG_BRIDGE_USER, when that user still exists
 //                    and is a GM, role 3 or above) or else to "Any GM" (the empty value), and the user Kit GM is
@@ -33,8 +34,8 @@
 //
 // Environment: ACTION, TOOL_APP (the built tool, for playwright-core), FOUNDRY_URL (default
 // http://127.0.0.1:30000), CHROMIUM (default /usr/bin/chromium), GM_USER, GM_PASSWORD, WORLD (the world id
-// that must be running), KIT_GM_PASSWORD (setup only: 32 lowercase hex characters), MAX_DELETE and ORIG_BRIDGE_USER (teardown
-// only; the latter is a 16 character user id or empty, and when it is not set at all the bridge user goes back to Any GM).
+// that must be running), KIT_GM_PASSWORD (setup only: 32 lowercase hex characters), MAX_DELETE, SINCE_STAMP (YYYYMMDD-HHMMSS, the state file's STAMP: without it every owned actor is deleted) and
+// ORIG_BRIDGE_USER (teardown only; the latter is a 16 character user id or empty, and when it is not set at all the bridge user goes back to Any GM).
 
 import { createRequire } from 'node:module';
 import { mkdtempSync, realpathSync, rmSync } from 'node:fs';
@@ -102,7 +103,8 @@ const log = msg => console.log(`[kit-session] ${redact(msg)}`);
 // The values this script cares about, plus what must exist for them to work.
 // trackingOn: how many users have Actor Studio's usage-tracking saved as anything but false (a saved
 // per-user value overrides the off default); null when the module does not register the setting.
-// ownedActors: for the user named playerName, the actors where that user is an explicit OWNER.
+// ownedActors: for the user named playerName, the actors where that user is an explicit OWNER (createdTime: the
+// actor's _stats.createdTime in ms, null when it has none).
 // leftActors: the ids in actorIds that are still in game.actors (the teardown's read-back: once the user is gone,
 // ownedActors can no longer find its actors, so the ids found before the delete are looked up one by one).
 // gmIds: the ids of the users with role 3 or above; assistantGms: those of them named assistantName; kitGm: the users named gmName (online or not); userId: the user this page joined as; bridgeModuleInstalled and
@@ -141,7 +143,12 @@ export function readState({
   const ownedActors = users.length
     ? game.actors
         .filter(a => users.some(u => a.ownership?.[u.id] === owner))
-        .map(a => ({ id: a.id, name: a.name, type: a.type }))
+        .map(a => ({
+          id: a.id,
+          name: a.name,
+          type: a.type,
+          createdTime: a._stats?.createdTime ?? null,
+        }))
     : [];
   // The users that can hold the bridge link: the roles Assistant GM (3) and Game Master (4).
   const gmIds = game.users.filter(u => u.role >= CONST.USER_ROLES.ASSISTANT).map(u => u.id);
@@ -432,7 +439,42 @@ export function parseMaxDelete(value) {
   return Number(value);
 }
 
-// What stops the teardown: a user that is not a Player, or more actors than the sanity limit.
+// SINCE_STAMP: the state file's STAMP (YYYYMMDD-HHMMSS, the host's local time when "up" ran) as milliseconds since the
+// epoch, or null when it is not set (then every owned actor counts as the kit session's). The Pi's clock and
+// timezone are the ones that wrote the stamp and that stamp the actors, so the local-time reading is the right one.
+export function parseSinceStamp(value) {
+  if (value === undefined || value === '') return null;
+  const m = /^(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})(\d{2})$/.exec(value);
+  if (!m) throw new Error(`SINCE_STAMP must look like 20261014-093000 (got "${value}")`);
+  const [y, mo, d, h, mi, sec] = m.slice(1).map(Number);
+  const date = new Date(y, mo - 1, d, h, mi, sec);
+  if (
+    date.getFullYear() !== y ||
+    date.getMonth() !== mo - 1 ||
+    date.getDate() !== d ||
+    date.getHours() !== h ||
+    date.getMinutes() !== mi ||
+    date.getSeconds() !== sec
+  ) {
+    throw new Error(`SINCE_STAMP is not a real date and time (got "${value}")`);
+  }
+  return date.getTime();
+}
+
+// Only the actors made after "up" go; an owned actor from before it (the world's own, or one Kit Player was given by
+// hand) is kept, and so is one with no creation time. sinceMs null: all owned actors are the kit session's.
+export function splitOwnedActors(actors, sinceMs) {
+  if (sinceMs === null || sinceMs === undefined) return { mine: [...actors], older: [] };
+  const mine = [];
+  const older = [];
+  for (const actor of actors) {
+    (Number.isFinite(actor.createdTime) && actor.createdTime >= sinceMs ? mine : older).push(actor);
+  }
+  return { mine, older };
+}
+
+// What stops the teardown: a user that is not a Player, or more actors than the sanity limit. Only the actors that
+// will be deleted count (state.ownedActors is the list of those; main() hands over the split).
 export function teardownProblems(state, maxDelete) {
   const problems = [];
   const [user] = state.users;
@@ -617,6 +659,7 @@ async function main() {
     throw new Error(`ACTION must be setup or teardown (got "${action}")`);
   }
   const maxDelete = action === 'teardown' ? parseMaxDelete(process.env.MAX_DELETE) : 0;
+  const sinceMs = action === 'teardown' ? parseSinceStamp(process.env.SINCE_STAMP) : null;
   const origBridge =
     action === 'teardown' ? parseOrigBridgeUser(process.env.ORIG_BRIDGE_USER) : undefined;
   const toolApp = env('TOOL_APP');
@@ -758,12 +801,21 @@ async function main() {
       if (!gm) log(`no user named ${GM_NAME}: nothing to delete`);
       if (!kit && !gm) return;
       // Everything that can refuse is checked before the first delete.
-      const bad = [...teardownProblems(before, maxDelete), ...kitGmTeardownProblems(before)];
+      const { mine, older } = splitOwnedActors(before.ownedActors, sinceMs);
+      const bad = [
+        ...teardownProblems({ ...before, ownedActors: mine }, maxDelete),
+        ...kitGmTeardownProblems(before),
+      ];
       if (bad.length) throw new Error(bad.join('; '));
-      const actorIds = before.ownedActors.map(a => a.id);
+      const actorIds = mine.map(a => a.id);
       let bridgeTo;
       if (kit) {
-        for (const actor of before.ownedActors) {
+        for (const actor of older) {
+          log(
+            `keeping actor ${actor.name} (${actor.type}, ${actor.id}): not made after the session started`
+          );
+        }
+        for (const actor of mine) {
           log(`deleting actor ${actor.name} (${actor.type}, ${actor.id})`);
         }
         log(`deleting user ${kit.name} (${kit.id})`);
@@ -789,7 +841,7 @@ async function main() {
       const after = await page.evaluate(readState, { ...args, actorIds });
       log(`after:  ${show(after)}`);
       const wrong = [
-        ...(kit ? teardownMismatches(before, after) : []),
+        ...(kit ? teardownMismatches({ ...before, ownedActors: mine }, after) : []),
         ...kitGmTeardownMismatches(before, after, bridgeTo),
       ];
       if (wrong.length) throw new Error(`read-back does not match: ${wrong.join('; ')}`);

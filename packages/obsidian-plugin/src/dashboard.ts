@@ -112,6 +112,16 @@ export function normalizeBaseUrl(raw: string): string {
   return raw.trim().replace(/\/+$/, '');
 }
 
+/**
+ * Cloudflare's copy buttons copy the header line (`CF-Access-Client-Id: abc.access`), not just the
+ * value. A pasted line works too: a leading header name, its colon and any spaces are dropped.
+ */
+export function stripHeaderName(value: string, headerName: string): string {
+  const trimmed = value.trim();
+  const prefix = `${headerName.toLowerCase()}:`;
+  return trimmed.toLowerCase().startsWith(prefix) ? trimmed.slice(prefix.length).trim() : trimmed;
+}
+
 const PLAN_ID = /^plan-[a-z0-9-]{1,80}$/;
 
 /** The dashboard address that shows a plan's confirm window, or null for a malformed plan id. */
@@ -133,9 +143,11 @@ export class DashboardClient {
     const token = this.token();
     if (token) headers[TOKEN_HEADER] = token;
     const access = /^https:\/\//i.test(base) ? this.access() : null;
-    if (access?.clientId && access.clientSecret) {
-      headers[ACCESS_ID_HEADER] = access.clientId;
-      headers[ACCESS_SECRET_HEADER] = access.clientSecret;
+    const clientId = access ? stripHeaderName(access.clientId, ACCESS_ID_HEADER) : '';
+    const clientSecret = access ? stripHeaderName(access.clientSecret, ACCESS_SECRET_HEADER) : '';
+    if (clientId && clientSecret) {
+      headers[ACCESS_ID_HEADER] = clientId;
+      headers[ACCESS_SECRET_HEADER] = clientSecret;
     }
     return headers;
   }

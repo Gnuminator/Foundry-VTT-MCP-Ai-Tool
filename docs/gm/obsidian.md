@@ -59,14 +59,24 @@ Changes you make in Obsidian never reach Foundry by themselves. Things that chan
 
 The AI Tool plugin adds **Open in Foundry**, the reveal status of handouts and the shared theme. It
 talks only to the dashboard. When the dashboard runs on the server, Cloudflare guards it, and the
-plugin needs three values to get through. The builder gives them to you through a password
-manager, never in chat or in a note.
+plugin needs three values to get through. The builder pastes them in with you during setup, on
+your PC; they never go in chat or in a note.
 
 1. In Obsidian: Settings, Community plugins, **Foundry AI Tool**, the gear icon.
 2. **Dashboard address:** the dashboard's https address.
-3. **GM token:** click it, create a secret, paste the dashboard's GM token.
-4. **Cloudflare Access Client ID:** create a secret, paste the Client ID.
-5. **Cloudflare Access Client Secret:** create another secret, paste the Client Secret.
+3. **GM token:** click it, then **Add secret** (below), and paste the dashboard's GM token.
+4. **Cloudflare Access Client ID:** add a secret and paste the Client ID.
+5. **Cloudflare Access Client Secret:** add another secret and paste the Client Secret.
+
+**Obsidian's Add secret dialog** has two fields. **ID** is only a name for you to pick the secret by
+later, never the value itself; use `foundry-gm-token`, `cf-access-client-id` and
+`cf-access-client-secret`. **Secret** is the value. Paste only the value: Cloudflare's copy buttons
+copy the header name too (`CF-Access-Client-Id: ...`), and the plugin drops that for you, but
+cleaner is better. Back in the plugin's settings, pick each secret by its ID.
+
+**Where the GM token comes from:** it is the `token=` part of the link the dashboard setup script
+printed (`http://<name>:3000/?token=<token>`: everything after `token=`), or the builder reads it
+from `dashboard-access.env` on the server in their own SSH window.
 
 The three values stay in Obsidian's secret storage on your PC. They are not in the vault, so
 Syncthing never copies them anywhere. The Cloudflare values are sent only to https addresses.

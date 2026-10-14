@@ -17,7 +17,7 @@ How the work is split:
 - **Part B, Claude (over SSH from this PC):** the system, Node.js, Foundry, private admin access,
   the tool, backups and vault sync, in stages. Claude stops before each stage and at the few steps
   only you can do (licence key, logins in your browser).
-- **Part C: players and the GM from outside** through Cloudflare (live since 2026-10-14). Your steps:
+- **Part C: players and the GM from outside** through Cloudflare (Foundry and the dashboard live since 2026-10-14). Your steps:
   [Remote access, Part C](REMOTE-ACCESS.md#part-c-players-and-the-gm-reach-the-orange-pi-through-cloudflare);
   Claude's side is stage 12, in the stage table and in Part C below.
 
@@ -545,8 +545,8 @@ with a one-time code about once a month. Foundry's login page is never open to t
 router ports are opened (the tunnel dials out).
 
 The dashboard checks Cloudflare Access's signed token instead of trusting the email header (vault
-idea I-022, built), which is why its public name is added last. Part C went live for Foundry on
-2026-10-14; the dashboard name is still to come.
+idea I-022, built). Its public name is added last, after its Access application exists. Part C
+went live for Foundry on 2026-10-14, and the dashboard name was added later the same day.
 
 What you do:
 

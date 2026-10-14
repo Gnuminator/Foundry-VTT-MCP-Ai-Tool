@@ -27,6 +27,9 @@ const OTHER_NAMES: Readonly<Record<string, string>> = {
   'host-not-allowed': 'a dashboard error code',
   'obsidian-mirror': 'a guarded-write feature id',
   'live-play': 'a guarded-write feature id',
+  'foundry-gm-token': 'an example Obsidian secret ID (docs/gm/obsidian.md)',
+  'cf-access-client-id': 'an example Obsidian secret ID (docs/gm/obsidian.md)',
+  'cf-access-client-secret': 'an example Obsidian secret ID (docs/gm/obsidian.md)',
 };
 
 function markdownFiles(dir: string): string[] {

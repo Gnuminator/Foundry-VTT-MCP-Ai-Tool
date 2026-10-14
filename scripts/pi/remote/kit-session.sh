@@ -494,7 +494,7 @@ if [ "$MODE" = up ]; then
   echo "    Its password is in $KIT_GM_ENV (root only, mode 600): the PC reads it with a file read over ssh; it is never printed here."
   echo "    The Assistant GM browser is stopped until MODE=down (it would join $KIT_WORLD and move the bridge link to the test world)."
   echo "    A reboot drops the Kit GM browser (nothing starts it again); MODE=down still cleans up."
-  echo "    When the player is done and has left the game, run MODE=down: it deletes $PLAYER_NAME and the actors it owns,"
+  echo "    When the player is done and has left the game, run MODE=down: it deletes $PLAYER_NAME and the actors it owns that were made after MODE=up,"
   echo "    stops the Kit GM browser, deletes $KIT_GM_USER and its password file (the bridge user goes back to what it was),"
   echo "    puts options.json back on ${orig_world:-no world} and starts Foundry and the Assistant GM browser again."
   echo "    $prev_note"
@@ -548,12 +548,12 @@ say "the in-browser part"
 install_driver
 
 # The teardown runs while strahd-kit still runs. If it fails nothing else has changed and this can run again.
-say "deleting $PLAYER_NAME, the actors it owns and $KIT_GM_USER in $KIT_WORLD"
+say "deleting $PLAYER_NAME, the actors it owns that were made after MODE=up, and $KIT_GM_USER in $KIT_WORLD"
 run_driver teardown || die "the teardown in $KIT_WORLD failed or did not verify (see the lines above): nothing else was changed; Foundry still runs $KIT_WORLD, the state file and the Kit GM password file stay and the Kit GM browser stays stopped, so run MODE=down again"
 # Only now, with the teardown verified, the Kit GM password file and profile folder go (without them MODE=up would find
 # a leftover). Removed before the next line is printed: a dropped ssh session must not stop the removal.
 if [ "$kit_gm_session" = 1 ]; then remove_kit_gm_files; fi
-ok "$PLAYER_NAME, its actors and $KIT_GM_USER are gone from $KIT_WORLD, read back"
+ok "$PLAYER_NAME, its new actors and $KIT_GM_USER are gone from $KIT_WORLD, read back"
 if [ "$kit_gm_session" = 1 ]; then ok "removed the Kit GM password file and browser profile"; fi
 
 # From here on the kit session ends. halted: Foundry was stopped by this run; restored: options.json launches

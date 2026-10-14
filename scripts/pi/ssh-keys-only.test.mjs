@@ -57,8 +57,13 @@ describe('15-ssh-keys-only.sh as written', () => {
   test('CONFIRM asks the running sshd before it stops the timer, and looks for the drop-in again before the marker', () => {
     const confirm = stage.slice(stage.indexOf('if [ "${CONFIRM:-}" = 1 ]'));
     const at = s => confirm.indexOf(s);
-    assert.ok(at('live_check || die') > 0 && at('live_check || die') < at('systemctl stop "$revert_unit.timer"'));
-    assert.ok(at('[ -f "$drop" ] || die "$drop is gone') > at('systemctl stop "$revert_unit.timer"'));
+    assert.ok(
+      at('live_check || die') > 0 &&
+        at('live_check || die') < at('systemctl stop "$revert_unit.timer"')
+    );
+    assert.ok(
+      at('[ -f "$drop" ] || die "$drop is gone') > at('systemctl stop "$revert_unit.timer"')
+    );
     assert.ok(at('[ -f "$drop" ] || die "$drop is gone') < at("printf 'confirmed"));
   });
 
@@ -463,7 +468,10 @@ describe('15-ssh-keys-only.sh in an ARM64 container', { skip: containerReason },
     assert.match(stale.output, /the running sshd still offers a password: the reload did not take/);
     assert.equal(stale.timer, 'armed');
     assert.equal(stale.marker, 'none');
-    assert.ok(!calls(stale).includes('systemctl stop foundry-ssh-keys-only-revert.timer'), stale.calls);
+    assert.ok(
+      !calls(stale).includes('systemctl stop foundry-ssh-keys-only-revert.timer'),
+      stale.calls
+    );
     const gone = run('confirm-dropin-gone');
     assert.equal(gone.exit, '1', gone.output);
     assert.match(gone.output, /is gone \(the safety timer fired while confirming\)/);
@@ -483,11 +491,18 @@ describe('15-ssh-keys-only.sh in an ARM64 container', { skip: containerReason },
       rerun.output,
       /was not active after the reload; rolled back where this run changed the drop-in and started ssh again/
     );
-    assert.equal(rerun.timer, 'armed', 'an unchanged drop-in has nothing to roll back; the net stays');
+    assert.equal(
+      rerun.timer,
+      'armed',
+      'an unchanged drop-in has nothing to roll back; the net stays'
+    );
     assert.ok(calls(rerun).includes('systemctl start ssh'), rerun.calls);
     const stuck = run('dead-start-fails');
     assert.equal(stuck.exit, '1', stuck.output);
-    assert.match(stuck.output, /is NOT active after the reload and systemctl start did not bring it back/);
+    assert.match(
+      stuck.output,
+      /is NOT active after the reload and systemctl start did not bring it back/
+    );
     assert.equal(stuck.dropin, '(none)');
     assert.equal(stuck.timer, 'armed', 'the timer is not cancelled while ssh is down');
     const failedReload = run('reload-fails-dead');
@@ -495,6 +510,7 @@ describe('15-ssh-keys-only.sh in an ARM64 container', { skip: containerReason },
     assert.match(failedReload.output, /was not active after the reload/);
     assert.ok(calls(failedReload).includes('systemctl start ssh'), failedReload.calls);
     assert.equal(failedReload.timer, 'none');
+    assert.equal(failedReload.dropin, '(none)', 'the drop-in was rolled back');
   });
 
   test('without systemd the files are written and checked, nothing is reloaded or scheduled', () => {

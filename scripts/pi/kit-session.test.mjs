@@ -551,7 +551,17 @@ describe('kit-session.mjs teardown (the in-browser part)', () => {
     );
   });
 
-  test('SINCE_STAMP is read as local time; empty means no limit; anything else is refused', () => {
+  test('the stage hands the state file STAMP to the teardown driver as SINCE_STAMP', () => {
+    const sh = readFileSync(path.join(repo, 'scripts', 'pi', 'remote', 'kit-session.sh'), 'utf8');
+    assert.ok(
+      sh.includes(
+        'ACTION="$1" MAX_DELETE="$MAX_DELETE" SINCE_STAMP="${state_stamp:-}" \\\n        node "$driver"\n'
+      ),
+      'the non-setup driver call carries SINCE_STAMP'
+    );
+  });
+
+  test('SINCE_STAMP is read as local time; empty is null; anything else is refused', () => {
     assert.equal(parseSinceStamp(undefined), null);
     assert.equal(parseSinceStamp(''), null);
     assert.equal(parseSinceStamp('20261014-093005'), new Date(2026, 9, 14, 9, 30, 5).getTime());
@@ -1269,10 +1279,16 @@ describe('kit-session.mjs, the browser side and the script', () => {
     assert.match(bad.stdout + bad.stderr, /ACTION must be setup or teardown/);
     const direct = spawnSync(process.execPath, [script], {
       encoding: 'utf8',
-      env: { ...env, ACTION: 'teardown' },
+      env: { ...env, ACTION: 'teardown', SINCE_STAMP: '20261014-093000' },
     });
     assert.equal(direct.status, 1, direct.stdout + direct.stderr);
     assert.match(direct.stdout + direct.stderr, /TOOL_APP is not set/);
+    const noStamp = spawnSync(process.execPath, [script], {
+      encoding: 'utf8',
+      env: { ...env, ACTION: 'teardown', TOOL_APP: repo },
+    });
+    assert.equal(noStamp.status, 1, noStamp.stdout + noStamp.stderr);
+    assert.match(noStamp.stdout + noStamp.stderr, /SINCE_STAMP is not set/);
     const maxDelete = spawnSync(process.execPath, [script], {
       encoding: 'utf8',
       env: { ...env, ACTION: 'teardown', MAX_DELETE: 'lots' },
@@ -1949,7 +1965,7 @@ describe('kit-session.sh in an ARM64 container', { skip: containerReason }, () =
     assert.deepEqual(r.state, ['absent']);
     assert.deepEqual(kit(r), KIT_GONE);
     assert.match(r.output, /removed the Kit GM password file and browser profile/);
-    assert.match(r.output, /Kit Player, its actors and Kit GM are gone from strahd-kit/);
+    assert.match(r.output, /Kit Player, its new actors and Kit GM are gone from strahd-kit/);
     assert.match(r.output, /the Assistant GM browser joined the world/);
     assert.match(r.output, /Foundry launches: curse-of-strahd/);
     assert.doesNotMatch(r.output, /secret123/);

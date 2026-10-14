@@ -34,7 +34,7 @@
 //
 // Environment: ACTION, TOOL_APP (the built tool, for playwright-core), FOUNDRY_URL (default
 // http://127.0.0.1:30000), CHROMIUM (default /usr/bin/chromium), GM_USER, GM_PASSWORD, WORLD (the world id
-// that must be running), KIT_GM_PASSWORD (setup only: 32 lowercase hex characters), MAX_DELETE, SINCE_STAMP (YYYYMMDD-HHMMSS, the state file's STAMP: without it every owned actor is deleted) and
+// that must be running), KIT_GM_PASSWORD (setup only: 32 lowercase hex characters), MAX_DELETE, SINCE_STAMP (YYYYMMDD-HHMMSS, the state file's STAMP; required) and
 // ORIG_BRIDGE_USER (teardown only; the latter is a 16 character user id or empty, and when it is not set at all the bridge user goes back to Any GM).
 
 import { createRequire } from 'node:module';
@@ -440,7 +440,7 @@ export function parseMaxDelete(value) {
 }
 
 // SINCE_STAMP: the state file's STAMP (YYYYMMDD-HHMMSS, the host's local time when "up" ran) as milliseconds since the
-// epoch, or null when it is not set (then every owned actor counts as the kit session's). The Pi's clock and
+// epoch, or null when it is not set (main() refuses a teardown without it). The Pi's clock and
 // timezone are the ones that wrote the stamp and that stamp the actors, so the local-time reading is the right one.
 export function parseSinceStamp(value) {
   if (value === undefined || value === '') return null;
@@ -662,6 +662,11 @@ async function main() {
   const sinceMs = action === 'teardown' ? parseSinceStamp(process.env.SINCE_STAMP) : null;
   const origBridge =
     action === 'teardown' ? parseOrigBridgeUser(process.env.ORIG_BRIDGE_USER) : undefined;
+  if (action === 'teardown' && sinceMs === null) {
+    throw new Error(
+      'SINCE_STAMP is not set: the teardown deletes only actors made after the session started'
+    );
+  }
   const toolApp = env('TOOL_APP');
   // Checked before the browser is even loaded; the error never holds the value.
   const kitGmPassword = action === 'setup' ? parseKitGmPassword(process.env.KIT_GM_PASSWORD) : '';

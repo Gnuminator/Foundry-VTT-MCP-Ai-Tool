@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict';
+import os from 'node:os';
+import path from 'node:path';
 import { test } from 'node:test';
 
 import {
@@ -9,6 +11,7 @@ import {
   nextArrayMove,
   parseArgs,
   planArrayMoves,
+  insideRepo,
   refusals,
 } from '../player-run.mjs';
 
@@ -94,4 +97,19 @@ test('refusals: the Curse of Strahd world, a GM and a user that cannot create ac
 
 test('main refuses a live bridge port before it opens a browser', async () => {
   await assert.rejects(() => main(['http://127.0.0.1:31415', 'Kit Player']), /live bridge/);
+});
+
+test('insideRepo: the repo and anything under it, not a sibling or a temp folder', () => {
+  const root = path.resolve('some', 'repo');
+  assert.equal(insideRepo(root, root), true);
+  assert.equal(insideRepo(path.join(root, 'out'), root), true);
+  assert.equal(insideRepo(path.join(root, '..', 'repo-out'), root), false);
+  assert.equal(insideRepo(os.tmpdir(), root), false);
+});
+
+test('main refuses an --out folder inside the repo before it opens a browser', async () => {
+  await assert.rejects(
+    () => main(['http://127.0.0.1:30000', 'Kit Player', '--out', 'scripts/test-kit/out']),
+    /inside the repo/
+  );
 });

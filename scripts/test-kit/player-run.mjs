@@ -85,6 +85,14 @@ export function planArrayMoves(cur, want) {
   throw new Error('standard array did not settle');
 }
 
+const REPO_ROOT = path.resolve(import.meta.dirname, '..', '..');
+
+/** True when `dir` is the repo or inside it: the run's files (a sheet screenshot) never go there. */
+export function insideRepo(dir, repoRoot = REPO_ROOT) {
+  const rel = path.relative(repoRoot, path.resolve(dir));
+  return rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel));
+}
+
 /** Refusals that need the page: the world and the user. @returns {string[]} */
 export function refusals(who) {
   const problems = [];
@@ -267,6 +275,8 @@ export async function main(argv = process.argv.slice(2)) {
   const outDir = options.out
     ? path.resolve(options.out)
     : mkdtempSync(path.join(tmpdir(), 'player-run-'));
+  if (insideRepo(outDir))
+    throw new Error(`--out ${outDir} is inside the repo: pick a folder outside it`);
   mkdirSync(outDir, { recursive: true });
   const [gm, studio, flow, pc, pump] = await Promise.all([
     import('./lib/gm.mjs'),

@@ -45,6 +45,9 @@
   --warn-soft: color-mix(in srgb, var(--warn) 14%, transparent);
   --bad: #e63946;
   --bad-soft: color-mix(in srgb, var(--bad) 14%, transparent);
+  /* Danger text on its own tint or a panel: the plain red is 3.4 to 3.9:1 there, so text takes a
+     lighter red (the same mix as the Enemy tag). Use --bad for borders and fills. */
+  --bad-text: color-mix(in srgb, var(--bad) 62%, var(--text));
   --grey: #5a6276;
 
   /* ---- HP gradient bar stops ---- */
@@ -181,7 +184,7 @@ body {
 .link-banner.space-banner.is-critical {
   background: var(--bad-soft);
   border-bottom-color: var(--bad);
-  color: var(--bad);
+  color: var(--bad-text);
   font-weight: 600;
 }
 .diag-note {
@@ -668,7 +671,7 @@ body {
   margin-top: 0.35rem;
   font-size: var(--fs-2xs);
   font-weight: 600;
-  color: var(--bad);
+  color: var(--bad-text);
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.02em;
 }
@@ -813,7 +816,7 @@ body {
 .event.sev-death .event-type {
   background: var(--bad-soft);
   border-color: color-mix(in srgb, var(--bad) 30%, transparent);
-  color: var(--bad);
+  color: var(--bad-text);
 }
 .event.sev-healing .event-type,
 .event.sev-stabilize .event-type {
@@ -972,7 +975,7 @@ body {
   background: var(--bad);
 }
 .comment.errored .comment-body {
-  color: var(--bad);
+  color: var(--bad-text);
 }
 
 /* =============================================================================
@@ -1061,7 +1064,7 @@ body {
   border: 1px solid transparent;
 }
 .diag-entry.lvl-error .diag-level {
-  color: var(--bad);
+  color: var(--bad-text);
   background: var(--bad-soft);
   border-color: color-mix(in srgb, var(--bad) 30%, transparent);
 }
@@ -1538,7 +1541,7 @@ body {
 }
 .tool-kind.destructive {
   background: var(--bad-soft);
-  color: var(--bad);
+  color: var(--bad-text);
   border-color: color-mix(in srgb, var(--bad) 35%, transparent);
 }
 
@@ -1751,7 +1754,7 @@ body {
   background: var(--warn-soft);
 }
 .ref-warn {
-  color: var(--bad);
+  color: var(--bad-text);
   background: var(--bad-soft);
 }
 .ref-empty {
@@ -1767,7 +1770,7 @@ body {
 }
 .form-error {
   font-size: var(--fs-xs);
-  color: var(--bad);
+  color: var(--bad-text);
 }
 .tool-result {
   border-radius: var(--r-md);
@@ -1855,7 +1858,7 @@ body {
   margin-top: 0.8rem;
   padding: 0.55rem 0.65rem;
   font-size: var(--fs-xs);
-  color: var(--bad);
+  color: var(--bad-text);
   background: var(--bad-soft);
   border: 1px solid color-mix(in srgb, var(--bad) 35%, transparent);
   border-radius: var(--r-md);
@@ -2080,7 +2083,7 @@ body {
 }
 .btn-danger {
   border-color: color-mix(in srgb, var(--bad) 55%, transparent);
-  color: var(--bad);
+  color: var(--bad-text);
 }
 
 /* --- Tarokka drawer ------------------------------------------------------ */
@@ -2166,7 +2169,7 @@ body {
   border: 1px solid var(--border-soft);
 }
 .tarokka-badge.revealed {
-  color: var(--bad);
+  color: var(--bad-text);
   border-color: var(--bad);
 }
 .tarokka-badge.warn {
@@ -2211,7 +2214,7 @@ body {
 .preflight-summary.pf-fail {
   background: var(--bad-soft);
   border-color: var(--bad);
-  color: var(--bad);
+  color: var(--bad-text);
 }
 .preflight-h {
   margin: 0.9rem 0 0.4rem;
@@ -2309,7 +2312,7 @@ body {
 }
 #btn-preflight.preflight-bad {
   border-color: var(--bad);
-  color: var(--bad);
+  color: var(--bad-text);
 }
 
 /* --- Boss prompts (I-070) ------------------------------------------------ */
@@ -2367,7 +2370,7 @@ body {
 .reaction-btn.used {
   background: var(--bad-soft);
   border-color: var(--bad);
-  color: var(--bad);
+  color: var(--bad-text);
   text-decoration: line-through;
 }
 

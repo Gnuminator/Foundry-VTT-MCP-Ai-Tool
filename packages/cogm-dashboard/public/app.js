@@ -4430,7 +4430,7 @@ function onCombatEvent(combat) {
 
 for (const b of layoutButtons) {
   b.addEventListener('click', () => {
-    if (tour) endTour(null);
+    if (tour) endTour(null, true);
     void savePrefs({ duringLayout: b.dataset.layoutPick, layoutPicked: true });
   });
 }
@@ -4527,17 +4527,29 @@ function showTourStep() {
 }
 
 function startTour() {
-  if (!tour) tour = { step: 0, realCombat: lastCombat, sample: null };
+  if (!tour) {
+    tour = { step: 0, realCombat: lastCombat, sample: null, wasPinned: momentPinned, from: moment };
+  }
   setMoment('during', { pinned: true });
   showTourStep();
   usage.trackView('dash.trial.view');
 }
 
-/** End the trial; with a layout, keep it. A real fight that started meanwhile stays shown. */
-function endTour(keep) {
+/**
+ * End the trial; with a layout, keep it. A real fight that started meanwhile stays shown. The
+ * trial pinned the page to During: Stop and Escape give the page back (and go to where the trial
+ * started); Use and picking a layout (`stay`) keep the GM on During, pinned as before.
+ */
+function endTour(keep, stay = !!keep) {
   if (!tour) return;
-  const { sample, realCombat } = tour;
+  const { sample, realCombat, wasPinned, from } = tour;
   tour = null;
+  // Back to the session's moment unless the GM had picked one. A tab the GM clicked meanwhile is
+  // theirs and stays.
+  if (!stay && moment === 'during') {
+    momentPinned = wasPinned;
+    setMoment(wasPinned ? from : momentFromSession());
+  }
   tourEls.box.hidden = true;
   usage.endView('dash.trial.view');
   if (sample && lastCombat === sample) renderCombat(realCombat);

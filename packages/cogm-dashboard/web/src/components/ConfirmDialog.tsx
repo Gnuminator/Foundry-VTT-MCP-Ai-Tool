@@ -132,6 +132,15 @@ export function ConfirmProvider({ children }: { children: ReactNode }): JSX.Elem
                 id="modal"
                 onEscapeKeyDown={escape}
                 onCloseAutoFocus={restoreFocus}
+                onOpenAutoFocus={event => {
+                  // The change list is a tab stop (it can scroll) but not where focus starts: the
+                  // tick box of a destructive change, else Cancel, as before.
+                  event.preventDefault();
+                  const first = document.getElementById(
+                    destructive ? 'modal-destructive-check' : 'modal-cancel'
+                  );
+                  first?.focus();
+                }}
               >
                 {/* No ids of their own here: Radix names and describes the window by its ids. */}
                 <Dialog.Title asChild>
@@ -140,7 +149,8 @@ export function ConfirmProvider({ children }: { children: ReactNode }): JSX.Elem
                 <Dialog.Description asChild>
                   <div className="modal-body">
                     {request.summary && <p className="modal-summary">{request.summary}</p>}
-                    <ul className="change-diff">
+                    {/* A long list scrolls inside the window and nothing in it takes the Tab key. */}
+                    <ul className="change-diff" tabIndex={0} aria-label="Changes">
                       {request.diff.length > 0 ? (
                         request.diff.map((line, i) => <li key={i}>{line}</li>)
                       ) : (

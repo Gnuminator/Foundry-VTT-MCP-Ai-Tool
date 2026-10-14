@@ -429,6 +429,8 @@ test('a plan typed by hand always asks: Cancel, then Confirm, the result and Und
   const confirm = confirmWindow(page);
   await expect(confirm.locator('.modal-summary')).toHaveText('Damage: 5 to Wolf');
   await expect(confirm.locator('.change-diff li')).toHaveText(['Wolf: 5 damage']);
+  // The list can scroll, so the keyboard can reach it.
+  await expect(confirm.getByRole('list', { name: 'Changes' })).toHaveAttribute('tabindex', '0');
   await confirm.getByRole('button', { name: 'Cancel' }).click();
   await expect(confirm).toBeHidden();
   // Nothing applied, no result, the form as it was, focus back on Run.
@@ -842,8 +844,11 @@ test('a compendium picker waits for two letters', async ({ page }) => {
   await expect(menu.locator('.ref-note')).toHaveText('Type at least 2 letters to search.');
   await menu.locator('.ref-search').fill('a');
   await expect(menu.locator('.ref-empty')).toHaveText('Type at least 2 letters.');
+  // With no rows the list is not a listbox (a listbox needs options).
+  await expect(menu.getByRole('listbox')).toHaveCount(0);
   await menu.locator('.ref-search').fill('ash');
   await expect(menu.locator('.ref-name')).toHaveText(['Sword of ash']);
+  await expect(menu.getByRole('listbox', { name: 'Choices' })).toBeVisible();
   expect(named(calls, 'list-ref-choices').map(c => c.args)).toEqual([
     { kind: 'compendium-entry', query: 'ash', limit: 200 },
   ]);

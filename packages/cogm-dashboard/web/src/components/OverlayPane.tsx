@@ -1,5 +1,5 @@
 import { Dialog } from 'radix-ui';
-import type { JSX, ReactNode } from 'react';
+import type { ComponentProps, JSX, ReactNode } from 'react';
 
 import { closeTopPanel, useEscapeClose } from '../lib/escape';
 import { IconButton, Panel, type PanelState } from '../ui';
@@ -17,6 +17,8 @@ interface OverlayPaneProps {
   /** Extra classes on the pane and on its body (e.g. help-pane, help-body). */
   className?: string;
   bodyClassName?: string;
+  /** Attributes on the scrolling body (a name and a tab stop for a body that scrolls). */
+  bodyProps?: ComponentProps<typeof Panel>['bodyProps'];
   /** The guide page and heading the "?" after the title opens (help-links.json on the old page). */
   help?: string;
   /** A line between the head and the body (e.g. the diagnostics space note). */
@@ -42,6 +44,7 @@ export function OverlayPane({
   id,
   className,
   bodyClassName,
+  bodyProps,
   help,
   note,
   state,
@@ -71,6 +74,7 @@ export function OverlayPane({
           status={meta}
           lead={note}
           bodyClassName={bodyClassName}
+          bodyProps={bodyProps}
           state={state}
           stateMessage={stateMessage}
           actions={

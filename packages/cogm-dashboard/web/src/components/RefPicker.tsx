@@ -280,11 +280,16 @@ export function RefPicker({
               Show all actors
             </Button>
           )}
+          {/* A listbox needs options: with no rows the list is a plain block holding the message. */}
           <div
             className="ref-list"
-            role="listbox"
-            aria-label="Choices"
-            aria-multiselectable={multiple || undefined}
+            {...(shown.length > 0
+              ? {
+                  role: 'listbox',
+                  'aria-label': 'Choices',
+                  'aria-multiselectable': multiple || undefined,
+                }
+              : {})}
           >
             {shown.length === 0 ? (
               <p className="ref-empty">{empty}</p>

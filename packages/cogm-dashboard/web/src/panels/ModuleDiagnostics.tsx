@@ -76,6 +76,9 @@ export function ModuleDiagnosticsPane({
       note={<SpaceNote />}
       state={log.entries.length === 0 ? 'empty' : 'ready'}
       stateMessage="No module errors captured."
+      // A long list scrolls inside the pane and nothing in it takes the Tab key: the keyboard
+      // scrolls the body itself.
+      bodyProps={{ role: 'group', 'aria-label': 'Module errors, scrollable', tabIndex: 0 }}
     >
       <div role="list" aria-label="Module errors">
         {log.entries.map(e => (

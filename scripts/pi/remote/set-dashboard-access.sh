@@ -53,7 +53,7 @@ done
 id "$FOUNDRY_USER" >/dev/null 2>&1 || die "the $FOUNDRY_USER user is missing: run stage 1 first"
 [ -f "/etc/systemd/system/$unit" ] || die "$unit is missing: run stage 5 first"
 grep -q "^EnvironmentFile=-$file\$" "/etc/systemd/system/$unit" ||
-  die "the dashboard service does not read $file yet: run stage 5 again first (with TOOL_REF set to the build already on the Pi; see Part C, step 10)"
+  die "the dashboard service does not read $file yet: run stage 5 again first (with TOOL_REF set to the build already on the Pi; see Part C, step 10 in detail, part 1)"
 
 # True when a terminal can really be opened (the file exists even without one).
 have_tty() { { : </dev/tty >/dev/tty; } 2>/dev/null; }
@@ -183,4 +183,4 @@ if [ "$new_token" = 1 ]; then
     warn "no terminal to show the token on; read it with: grep GM_DASHBOARD_TOKEN $file"
   fi
 fi
-say "done. Next: add the cogm route in the Cloudflare tunnel (Part C, step 10 in detail, part 4)"
+say "done. Next: add the cogm route in the Cloudflare tunnel (Part C, step 10 in detail, part 3)"

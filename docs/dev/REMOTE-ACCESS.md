@@ -35,8 +35,7 @@ different, and the real domain stays out of this repo). Below, `<domain>` is you
 `play.<domain>` is whatever name you chose for Foundry.
 
 Cloudflare renamed its Zero Trust dashboard to **Cloudflare One** (`one.dash.cloudflare.com`), and
-the menus move now and then. The paths in steps 1 to 5 and the dashboard application in step 10
-were walked on 2026-10-14; the service token path in step 11 and the Revoke path under "Removing a
+the menus move now and then. The paths in steps 1 to 5 were walked on 2026-10-14; the service token path in step 11 and the Revoke path under "Removing a
 player" were not walked and may have moved. If a name has changed, look for the same word nearby.
 
 ### What you do
@@ -58,7 +57,7 @@ player" were not walked and may have moved. If a name has changed, look for the 
    application, Self-hosted. Name `Foundry players`, domain `play.<domain>`, session duration 30
    days. Add a policy named `Players`: action Allow, include Emails, then the email of each player,
    the GM and you. Make it a reusable policy (the dashboard application in step 10 uses it too).
-   Under login methods keep only One-time PIN. Save. Players will get a code by
+   Under login methods keep only One-time PIN. Choose the **Instant auth** setting now and use the same one for the dashboard application in step 10. Save. Players will get a code by
    email the first time and about once a month after. Open the saved application and copy its
    **Application Audience (AUD) Tag**; you need it in step 5.
 5. **The Foundry name.** Back in the tunnel, Published application routes (or Public hostname),
@@ -126,7 +125,7 @@ player" were not walked and may have moved. If a name has changed, look for the 
    as one and move a token, which proves WebSockets work (that token-move test waits for the
    player users). A **403** after the code is a wrong AUD tag or team name on the route (step 5). Test with one
    player's real address before telling the others.
-10. **The dashboard, for the GM (later). The order matters: Access first, the name last.** The
+10. **The dashboard, for the GM. The order matters: Access first, the name last.** The
     dashboard checks Cloudflare's signed login token (idea I-022, built) and, once it has GM
     emails, shows everyone else the read-only player view. Until the Access application exists
     that view would be open to the internet, so the `cogm` name is added last. The three parts are
@@ -134,7 +133,7 @@ player" were not walked and may have moved. If a name has changed, look for the 
 11. **Service token for the GM's Obsidian plugin (D-094).** Cloudflare One, Access controls, Service
     credentials, Service Tokens, Create. Name it `obsidian-gm-plugin`, duration 1 year. Copy the
     Client ID and Client Secret now: Cloudflare shows the secret **once**. If it is lost, open the
-    token and choose **Rotate**, which makes a new secret (and stops the old one). Cloudflare's copy
+    token and choose **Rotate**, which makes a new secret. Cloudflare's copy
     buttons copy the header name too (`CF-Access-Client-Id: ...`, `CF-Access-Client-Secret: ...`);
     the plugin accepts that, but [the GM's vault guide](../gm/obsidian.md) says to paste only the
     value. On the `Foundry dashboard`
@@ -167,7 +166,10 @@ scripts, and the two that touch secrets are run by you.
 
    No stage 5 rerun is needed: stage 5 already put the line into the dashboard's service that reads
    `/etc/foundry-ai-tool/dashboard-access.env`, so the file you make in part 2 is read at the
-   dashboard's next restart, which the script does.
+   dashboard's next restart, which the script does. Only if the script refuses with "the dashboard service does not read ... yet" (a Pi
+   on a stage 5 build from before that line), take a `dietpi-backup 1` snapshot and ask Claude to run
+   stage 5 once more, with `TOOL_REF` set to the contents of `/opt/foundry-ai-tool/app/.tool-ref` so it
+   does not build another version.
 
 2. **The access settings (you, in your own SSH session).** Claude does not type these. From the
    repo folder in PowerShell:

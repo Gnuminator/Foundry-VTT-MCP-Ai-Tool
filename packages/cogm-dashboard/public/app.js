@@ -515,8 +515,6 @@ async function loadPlaySession({ quiet = true } = {}) {
   } catch (err) {
     // Polls stay quiet (Foundry may simply be offline); a click reports the error.
     els.sessionStatus.textContent = 'Session: unknown';
-    // A first read that fails still shows a moment (Before, the closed default), as the React page does.
-    if (moment === null) onSessionState();
     if (!quiet) toast(`✗ get-play-session: ${String(err.message || err)}`, 'err');
   }
 }
@@ -4432,7 +4430,7 @@ function onCombatEvent(combat) {
 
 for (const b of layoutButtons) {
   b.addEventListener('click', () => {
-    if (tour) endTour(null);
+    if (tour) endTour(null, true);
     void savePrefs({ duringLayout: b.dataset.layoutPick, layoutPicked: true });
   });
 }
@@ -4537,17 +4535,20 @@ function startTour() {
   usage.trackView('dash.trial.view');
 }
 
-/** End the trial; with a layout, keep it. A real fight that started meanwhile stays shown. */
-function endTour(keep) {
+/**
+ * End the trial; with a layout, keep it. A real fight that started meanwhile stays shown. The
+ * trial pinned the page to During: Stop and Escape give the page back (and go to where the trial
+ * started); Use and picking a layout (`stay`) keep the GM on During, pinned as before.
+ */
+function endTour(keep, stay = !!keep) {
   if (!tour) return;
   const { sample, realCombat, wasPinned, from } = tour;
   tour = null;
-  // The trial pinned the page to During; give the page back. Stop goes back to where the trial
-  // started (the session's moment unless the GM had picked one); Use stays on During, unpinned.
-  // A tab the GM clicked meanwhile is theirs and stays.
-  if (moment === 'during') {
+  // Back to the session's moment unless the GM had picked one. A tab the GM clicked meanwhile is
+  // theirs and stays.
+  if (!stay && moment === 'during') {
     momentPinned = wasPinned;
-    if (!keep) setMoment(wasPinned ? from : momentFromSession());
+    setMoment(wasPinned ? from : momentFromSession());
   }
   tourEls.box.hidden = true;
   usage.endView('dash.trial.view');

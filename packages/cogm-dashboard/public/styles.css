@@ -183,7 +183,7 @@ body {
 
 .link-banner.space-banner.is-critical {
   background: var(--bad-soft);
-  border-bottom-color: var(--bad-text);
+  border-bottom-color: var(--bad);
   color: var(--bad-text);
   font-weight: 600;
 }
@@ -1896,7 +1896,7 @@ body {
   border-left-color: var(--good);
 }
 .toast.err {
-  border-left-color: var(--bad-text);
+  border-left-color: var(--bad);
 }
 .toast.warn {
   border-left-color: var(--warn);
@@ -1943,7 +1943,7 @@ body {
   border-radius: var(--r-md);
 }
 .change-entry.state-destructive {
-  border-left-color: var(--bad-text);
+  border-left-color: var(--bad);
 }
 .change-entry.state-undone,
 .change-entry.state-undo {
@@ -2170,7 +2170,7 @@ body {
 }
 .tarokka-badge.revealed {
   color: var(--bad-text);
-  border-color: var(--bad-text);
+  border-color: var(--bad);
 }
 .tarokka-badge.warn {
   color: var(--warn);
@@ -2213,7 +2213,7 @@ body {
 }
 .preflight-summary.pf-fail {
   background: var(--bad-soft);
-  border-color: var(--bad-text);
+  border-color: var(--bad);
   color: var(--bad-text);
 }
 .preflight-h {
@@ -2311,7 +2311,7 @@ body {
   overflow-wrap: anywhere;
 }
 #btn-preflight.preflight-bad {
-  border-color: var(--bad-text);
+  border-color: var(--bad);
   color: var(--bad-text);
 }
 
@@ -2369,7 +2369,7 @@ body {
 }
 .reaction-btn.used {
   background: var(--bad-soft);
-  border-color: var(--bad-text);
+  border-color: var(--bad);
   color: var(--bad-text);
   text-decoration: line-through;
 }

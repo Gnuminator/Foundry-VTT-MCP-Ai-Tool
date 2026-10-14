@@ -332,3 +332,72 @@ describe('stage 12, Foundry proxy options (backup, edit, put back)', () => {
     assert.deepEqual(r.backups, []);
   });
 });
+
+describe('stage 5 check world, the options.json switch (stop, edit by the foundry user, start)', () => {
+  const stage = read('5-check-world.sh');
+  const from = stage.indexOf('say "Foundry launches $world by itself"');
+  const to = stage.indexOf('if have_systemd; then\n  systemctl is-active --quiet foundry.service');
+  assert.ok(from > 0 && to > from, '5-check-world.sh sections moved');
+  const section = stage.slice(from, to);
+  const jsonGet = stage.split('\n').find(l => l.startsWith('json_get()'));
+  assert.ok(jsonGet, '5-check-world.sh has no json_get');
+
+  /** Runs the section with stand-ins; `override` is bash that runs after the helpers load. */
+  function check(json, override = '', env = '') {
+    const o = options(json);
+    const calls = join(o.d, 'calls');
+    const body = [
+      `FOUNDRY_DATA=${JSON.stringify(posix(o.d))}`,
+      `options=${JSON.stringify(o.p)}`,
+      'world=pi-check',
+      env,
+      'say() { :; }; ok() { :; }; warn() { :; }',
+      'die() { echo "ERROR: $*" >&2; exit 1; }',
+      'have_systemd() { return 0; }',
+      `systemctl() { echo "$*" >>"${posix(calls)}"; }`,
+      jsonGet,
+      'export PATH="$NODE_DIR/bin:$PATH"',
+      override,
+      section,
+    ].join('\n');
+    const r = sh(body);
+    return {
+      ...r,
+      options: JSON.parse(readFileSync(o.f, 'utf8')),
+      calls: existsSync(calls) ? readFileSync(calls, 'utf8').trim().split('\n') : [],
+      tmp: readdirSync(o.d).filter(f => f.endsWith('.foundry-tmp')),
+    };
+  }
+
+  test('success: Foundry stops, options.json launches the check world, Foundry starts', () => {
+    const r = check('{"world":null,"port":30000}');
+    assert.equal(r.status, 0, r.out);
+    assert.deepEqual(r.options, { world: 'pi-check', port: 30000 });
+    assert.deepEqual(r.calls, ['stop foundry.service', 'start foundry.service']);
+    assert.deepEqual(r.tmp, []);
+  });
+
+  test('a Config folder the foundry user cannot write is refused before Foundry stops', () => {
+    const r = check('{"world":null}', 'foundry_can_write() { return 1; }');
+    assert.notEqual(r.status, 0);
+    assert.match(r.out, /cannot write in .*Foundry was not stopped/);
+    assert.deepEqual(r.calls, []);
+    assert.deepEqual(r.options, { world: null });
+  });
+
+  test('another world in options.json is refused without FORCE_WORLD=1, nothing stops', () => {
+    const r = check('{"world":"curse-of-strahd"}');
+    assert.notEqual(r.status, 0);
+    assert.match(r.out, /launches 'curse-of-strahd'; this script never replaces another world/);
+    assert.deepEqual(r.calls, []);
+    assert.deepEqual(r.options, { world: 'curse-of-strahd' });
+  });
+
+  test('a failed edit starts Foundry again and stops the stage', () => {
+    const r = check('{"world":null}', 'foundry_edit_json() { return 1; }');
+    assert.notEqual(r.status, 0);
+    assert.match(r.out, /options\.json could not be changed; Foundry was started again/);
+    assert.deepEqual(r.calls, ['stop foundry.service', 'start foundry.service']);
+    assert.deepEqual(r.options, { world: null });
+  });
+});

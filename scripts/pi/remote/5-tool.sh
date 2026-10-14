@@ -34,13 +34,16 @@ tool_prunable() {
   (cd "$1" && node -e 'process.exit(require("./package.json").dependencies?.["playwright-core"] ? 0 : 1)')
 }
 
-# Loads one side-effect-free module of each package from the build in $1 (the bridge, the dashboard app and the shared
-# package), so a runtime package the prune took away stops the stage before any service stops, not as a restart loop
-# after the swap (#310 review M1). Nothing is started: the entry files (standalone.js, server.js) listen on import and
-# are not touched. A listed file this ref does not have is skipped; a package with none left fails. The failures go to
-# stderr, one line each.
+# Loads one side-effect-free module of each package from the build in $1 (the bridge, the dashboard app, the shared
+# package and the Discord recorder), so a runtime package the prune took away stops the stage before any service
+# stops, not as a restart loop after the swap (#310 review M1). Nothing is started: the entry files (standalone.js,
+# server.js) listen on import and are not touched, and a module that leaves a timer, a socket or a child process
+# running after its import fails the check too. A listed file this ref does not have is skipped; a package with none
+# left fails (a ref without packages/discord-bot has no Discord group). The failures go to stderr, one line each; a run
+# that takes longer than LOAD_CHECK_TIMEOUT seconds (120) says "timed out".
 check_build_loads() {
-  (cd "$1" && timeout 120 node --input-type=module -e '
+  local rc=0
+  (cd "$1" && timeout "${LOAD_CHECK_TIMEOUT:-120}" node --input-type=module -e '
     import { existsSync } from "node:fs";
     import path from "node:path";
     import { pathToFileURL } from "node:url";
@@ -49,6 +52,7 @@ check_build_loads() {
       dashboard: ["app.js", "config.js", "ai/anthropic-co-gm.js"].map(f => "packages/cogm-dashboard/dist/" + f),
       shared: ["shared/dist/index.js"],
     };
+    if (existsSync("packages/discord-bot/package.json")) groups.discord = ["packages/discord-bot/dist/rec/voice.js"];
     let failed = false;
     for (const [group, files] of Object.entries(groups)) {
       const present = files.filter(f => existsSync(f));
@@ -65,8 +69,18 @@ check_build_loads() {
         }
       }
     }
+    // Only the stdio handles may be open now: anything else (a timer, a socket, a child) was started by an import.
+    const extra = process.getActiveResourcesInfo().filter(r => r !== "TTYWrap" && r !== "PipeWrap");
+    if (extra.length > 0) {
+      console.error(`after the imports still running: ${[...new Set(extra)].join(", ")} (a module starts something on import)`);
+      failed = true;
+    }
     process.exit(failed ? 1 : 0);
-  ')
+  ') || rc=$?
+  if [ "$rc" = 124 ]; then
+    echo "the load check timed out after ${LOAD_CHECK_TIMEOUT:-120} seconds (a module that does not finish loading?)" >&2
+  fi
+  return "$rc"
 }
 
 say "the tool at $ref"
@@ -123,7 +137,7 @@ else
   loads_out="$(check_build_loads "$build" 2>&1)" ||
     die "the pruned build of $ref does not load (a runtime package is missing?); nothing was stopped, the services and $app are as they were:
 $loads_out"
-  ok "the pruned build loads (bridge, dashboard app, shared)"
+  ok "the pruned build loads (bridge, dashboard app, shared, Discord recorder)"
   printf '%s\n' "$ref" >"$build/.tool-ref"
   if have_systemd; then
     for unit in foundry-ai-tool-gm-browser foundry-ai-tool-dashboard foundry-ai-tool-bridge; do

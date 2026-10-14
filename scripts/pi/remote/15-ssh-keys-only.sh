@@ -109,7 +109,7 @@ show_values() {
 
 # Lines in the SSH settings that decide the three values, for the message when something overrides ours.
 show_winners() {
-  grep -HniE '^[[:space:]]*(PasswordAuthentication|KbdInteractiveAuthentication|ChallengeResponseAuthentication|PermitRootLogin|Match)[[:space:]]' \
+  grep -HniE '^[[:space:]]*(PasswordAuthentication|KbdInteractiveAuthentication|ChallengeResponseAuthentication|PermitRootLogin|Match)[[:space:]=]' \
     "$sshd_main" "$drop_dir"/*.conf 2>/dev/null | sed 's/^/    /' >&2 || true
 }
 
@@ -120,8 +120,9 @@ match_overrides() {
     [ -f "$f" ] || continue
     awk -v f="$f" '
       FNR == 1 { inmatch = 0 }
-      tolower($1) == "match" { inmatch = 1; next }
-      inmatch && tolower($1) ~ /^(passwordauthentication|kbdinteractiveauthentication|challengeresponseauthentication|permitrootlogin|pubkeyauthentication|authenticationmethods)$/ { print f ":" FNR ":" $0 }
+      { k = tolower($1); sub(/=.*/, "", k) }
+      k == "match" { inmatch = 1; next }
+      inmatch && k ~ /^(passwordauthentication|kbdinteractiveauthentication|challengeresponseauthentication|permitrootlogin|pubkeyauthentication|authenticationmethods)$/ { print f ":" FNR ":" $0 }
     ' "$f"
   done
 }
@@ -164,18 +165,22 @@ arm_timer() {
 reload_ssh() {
   if have_systemd; then
     [ -n "$unit" ] || need_unit
-    systemctl reload "$unit" || die "systemctl reload $unit failed; the drop-in is in place and the running sshd still has the old settings (a safety timer, if armed, takes the drop-in away); look at: journalctl -u $unit -n 30"
+    local reload_rc=0
+    systemctl reload "$unit" || reload_rc=$?
     sleep 1
     if ! systemctl is-active --quiet "$unit"; then
-      # A dead sshd is the one thing the timer's reload cannot fix by itself; put the old drop-in back and start it
-      # (a start, not a restart: no open session is touched).
-      if [ "$changed" = 1 ]; then
-        rollback
-        cancel_timer
-      fi
+      # A dead sshd (after a failed or a successful reload) is what the timer's reload cannot always fix by itself:
+      # put the old drop-in back where this run changed it and start ssh (a start, not a restart: no open session is
+      # touched). The timer is cancelled only once ssh is active again; otherwise it stays armed.
+      [ "$changed" = 0 ] || rollback
       systemctl start "$unit" || true
-      die "$unit was not active after the reload; rolled back where this run changed the drop-in and tried to start $unit; see: journalctl -u $unit -n 30"
+      if systemctl is-active --quiet "$unit"; then
+        [ "$changed" = 0 ] || cancel_timer
+        die "$unit was not active after the reload; rolled back where this run changed the drop-in and started $unit again; see: journalctl -u $unit -n 30"
+      fi
+      die "$unit is NOT active after the reload and systemctl start did not bring it back (the safety timer, if armed, tries again in 5 minutes): log in at the console; see: journalctl -u $unit -n 30"
     fi
+    [ "$reload_rc" = 0 ] || die "systemctl reload $unit failed (rc $reload_rc) but $unit is still active; the drop-in is in place and the running sshd may still have the old settings (a safety timer, if armed, takes the drop-in away); look at: journalctl -u $unit -n 30"
     ok "$unit reloaded (a reload: open sessions stay up)"
   else
     warn "no systemd here (a test container?): configuration written and checked, ssh not reloaded"
@@ -191,13 +196,16 @@ live_check() {
     return 0
   fi
   local port out methods
-  port="$(sshd -T 2>/dev/null | awk '$1 == "port" { print $2; exit }')"
+  # awk reads all of sshd -T (an early exit would close the pipe: SIGPIPE, exit 141 under pipefail, set -e ends the stage).
+  port="$(sshd -T 2>/dev/null | awk '$1 == "port" && p == "" { p = $2 } END { print p }' || true)"
   out="$(ssh -o BatchMode=yes -o PubkeyAuthentication=no -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
     -o LogLevel=ERROR -o ConnectTimeout=5 -p "${port:-22}" root@127.0.0.1 true 2>&1 || true)"
   methods="$(printf '%s\n' "$out" | grep -o 'Permission denied ([^)]*)' | head -1 || true)"
   case "$methods" in
     '') warn "live: could not ask the running sshd what it offers (ssh said: $(printf '%s' "$out" | head -c 160)); check from the PC with the CONFIRM line" ;;
-    *password* | *keyboard-interactive*) warn "live: the running sshd still offers a password ($methods): the reload may not have taken; the safety timer, if armed, will put the old settings back" ;;
+    *password* | *keyboard-interactive*)
+      warn "live: the running sshd still offers a password ($methods): the reload may not have taken; the safety timer, if armed, will put the old settings back"
+      return 1 ;;
     *) ok "live: the running sshd offers keys only ($methods)" ;;
   esac
 }
@@ -225,6 +233,8 @@ if [ "${CONFIRM:-}" = 1 ]; then
   [ -f "$drop" ] || die "$drop is not there: the safety timer already took it away, or the stage never ran; run it again, then confirm within 5 minutes"
   [ -n "${SSH_CONNECTION:-}" ] || warn "this does not look like an SSH session: confirm from a NEW connection that uses the key only"
   values_are_wanted || die "sshd does not use the wanted values any more; see: sshd -T"
+  # The files say keys only; the running sshd has to say it too before the timer goes (the timer stays armed on a refusal).
+  live_check || die "the running sshd still offers a password: the reload did not take; the timer stays armed (if it is); run the stage again, then confirm"
   if have_systemd; then
     if systemctl is-active --quiet "$revert_unit.timer"; then
       systemctl stop "$revert_unit.timer"
@@ -236,6 +246,8 @@ if [ "${CONFIRM:-}" = 1 ]; then
       ok "no revert timer armed (nothing to cancel)"
     fi
   fi
+  # The timer may have fired since the checks above: no marker for a drop-in that is gone.
+  [ -f "$drop" ] || die "$drop is gone (the safety timer fired while confirming): keys only is not in place; run the stage again, then confirm within 5 minutes"
   printf 'confirmed %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >"$confirmed"
   show_values
   exit 0
@@ -358,7 +370,7 @@ else
   warn "no systemd here (a test container?): no safety timer"
 fi
 reload_ssh
-live_check
+live_check || true
 show_values
 case "$state" in
   armed) say "stage 15: the drop-in was already there and the safety timer of the earlier run is still armed: confirm from a NEW key-only connection (CONFIRM=1, see the header) before it fires" ;;

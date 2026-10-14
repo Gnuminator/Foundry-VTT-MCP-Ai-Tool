@@ -561,6 +561,17 @@ describe('11-world.sh in an ARM64 container', { skip: containerReason }, () => {
     assert.deepEqual(lines(r.assets).slice(0, 2), ['pic.png file foundry bundle pic', 'new.png file foundry bundle new']);
   });
 
+  test('assets-dirlink: an asset folder that is itself a link is refused before anything stops', () => {
+    const r = run('assets-dirlink');
+    assertRefused(r, /ddb-images is a link: the asset merge would write into whatever it points at/);
+    assert.match(r.output, /Nothing was changed/);
+    assert.deepEqual(stops(r), []);
+    assert.deepEqual(lines(r.worlds), [
+      'curse-of-strahd=curse-of-strahd (on the Pi)',
+      'strahd-kit=strahd-kit (on the Pi)',
+    ]);
+  });
+
   test('options-readonly: a Config folder the foundry user cannot write is refused before anything stops', () => {
     const r = run('options-readonly');
     assertRefused(r, /the foundry user cannot write in \/var\/lib\/foundry\/Config/);

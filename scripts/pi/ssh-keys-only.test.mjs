@@ -47,6 +47,21 @@ describe('15-ssh-keys-only.sh as written', () => {
     assert.match(stage, /systemctl start "\$unit"/);
   });
 
+  test('the port lookup reads all of sshd -T (an awk exit would SIGPIPE it under pipefail)', () => {
+    const line = stage.split('\n').find(l => /sshd -T 2>\/dev\/null \| awk/.test(l)) ?? '';
+    assert.ok(line, 'the lookup is there');
+    assert.doesNotMatch(line, /\bexit\b/);
+    assert.match(line, /END \{ print p \}/);
+  });
+
+  test('CONFIRM asks the running sshd before it stops the timer, and looks for the drop-in again before the marker', () => {
+    const confirm = stage.slice(stage.indexOf('if [ "${CONFIRM:-}" = 1 ]'));
+    const at = s => confirm.indexOf(s);
+    assert.ok(at('live_check || die') > 0 && at('live_check || die') < at('systemctl stop "$revert_unit.timer"'));
+    assert.ok(at('[ -f "$drop" ] || die "$drop is gone') > at('systemctl stop "$revert_unit.timer"'));
+    assert.ok(at('[ -f "$drop" ] || die "$drop is gone') < at("printf 'confirmed"));
+  });
+
   test('sets exactly the three values of D-123 in a drop-in, and no other file is edited', () => {
     assert.match(stage, /^PasswordAuthentication no$/m);
     assert.match(stage, /^KbdInteractiveAuthentication no$/m);
@@ -440,6 +455,46 @@ describe('15-ssh-keys-only.sh in an ARM64 container', { skip: containerReason },
       /live: the running sshd still offers a password \(Permission denied \(publickey,password\)\)/
     );
     assert.equal(stale.timer, 'armed', 'the net stays while the daemon has the old settings');
+  });
+
+  test('CONFIRM refuses while the running sshd still offers a password, and writes no marker for a drop-in that is gone', () => {
+    const stale = run('confirm-live-stale');
+    assert.equal(stale.exit, '1', stale.output);
+    assert.match(stale.output, /the running sshd still offers a password: the reload did not take/);
+    assert.equal(stale.timer, 'armed');
+    assert.equal(stale.marker, 'none');
+    assert.ok(!calls(stale).includes('systemctl stop foundry-ssh-keys-only-revert.timer'), stale.calls);
+    const gone = run('confirm-dropin-gone');
+    assert.equal(gone.exit, '1', gone.output);
+    assert.match(gone.output, /is gone \(the safety timer fired while confirming\)/);
+    assert.equal(gone.marker, 'none');
+  });
+
+  test('a Match line written Keyword=value is found as well', () => {
+    assertRefused(run('match-equals'), /remove or change those Match lines first; nothing changed/);
+    assert.match(run('match-equals').output, /sshd_config:\d+:\s+PasswordAuthentication=yes/);
+  });
+
+  test('ssh dead on a rerun, or after a failed reload: ssh is started, the timer is cancelled only once ssh is back', () => {
+    const rerun = run('rerun-dies-on-reload');
+    assert.equal(rerun.exit, '1', rerun.output);
+    assertDropIn(rerun);
+    assert.match(
+      rerun.output,
+      /was not active after the reload; rolled back where this run changed the drop-in and started ssh again/
+    );
+    assert.equal(rerun.timer, 'armed', 'an unchanged drop-in has nothing to roll back; the net stays');
+    assert.ok(calls(rerun).includes('systemctl start ssh'), rerun.calls);
+    const stuck = run('dead-start-fails');
+    assert.equal(stuck.exit, '1', stuck.output);
+    assert.match(stuck.output, /is NOT active after the reload and systemctl start did not bring it back/);
+    assert.equal(stuck.dropin, '(none)');
+    assert.equal(stuck.timer, 'armed', 'the timer is not cancelled while ssh is down');
+    const failedReload = run('reload-fails-dead');
+    assert.equal(failedReload.exit, '1', failedReload.output);
+    assert.match(failedReload.output, /was not active after the reload/);
+    assert.ok(calls(failedReload).includes('systemctl start ssh'), failedReload.calls);
+    assert.equal(failedReload.timer, 'none');
   });
 
   test('without systemd the files are written and checked, nothing is reloaded or scheduled', () => {

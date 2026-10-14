@@ -445,6 +445,7 @@ if selected confirm-live-stale; then
   /usr/sbin/sshd
   sleep 1
   run_stage
+  : >/tmp/calls
   run_stage CONFIRM=1
   block confirm-live-stale
 fi

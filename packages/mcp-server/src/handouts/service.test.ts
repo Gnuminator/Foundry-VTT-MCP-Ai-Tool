@@ -360,7 +360,7 @@ describe('planPageReveal: hide', () => {
 
     expect(foundry.docs.get(PAGE1)?.source.ownership).toMatchObject({ default: 0 });
     const data = await revealsData();
-    expect(data.pages).toEqual({});
+    expect(data.pages).toBeUndefined();
   });
 
   it('does not touch ownership when setOwnership is false', async () => {
@@ -388,7 +388,7 @@ describe('planPageReveal: hide', () => {
     expect(plan.target).toBe('vault');
     await apply(plan.planId, true);
     const data = await revealsData();
-    expect(data.pages).toEqual({});
+    expect(data.pages).toBeUndefined();
   });
 
   it('refuses to hide a page that is not allowlisted', async () => {
@@ -733,7 +733,7 @@ describe('planPageReveal: hide a copied handout', () => {
     expect(foundry.docs.has(copyUuid)).toBe(false);
     expect(foundry.docs.get(journalUuid)?.source.name).toBe('Handouts');
     const data = await revealsData();
-    expect(data.pages).toEqual({});
+    expect(data.pages).toBeUndefined();
     expect(data.handoutsJournal).toEqual({
       uuid: journalUuid,
       lastCopy: copyUuid.split('.').pop(),
@@ -752,7 +752,7 @@ describe('planPageReveal: hide a copied handout', () => {
     expect(plan.risk).toBe('destructive');
     await apply(plan.planId, true);
     expect(foundry.docs.has(copyUuid)).toBe(false);
-    expect((await revealsData()).pages).toEqual({});
+    expect((await revealsData()).pages).toBeUndefined();
   });
 
   it('a copy already deleted in Foundry only loses its entry', async () => {
@@ -763,7 +763,7 @@ describe('planPageReveal: hide a copied handout', () => {
     expect(plan.summary).toBe('Hide page "Wine Cellar Notes" from players');
     expect(plan.copiesDeleted).toBeUndefined();
     await apply(plan.planId, true);
-    expect((await revealsData()).pages).toEqual({});
+    expect((await revealsData()).pages).toBeUndefined();
   });
 });
 

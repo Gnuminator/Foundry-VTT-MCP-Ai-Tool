@@ -214,12 +214,14 @@ describe('reading and import', () => {
     expect(await tarokka.getReading()).toEqual(before);
   });
 
-  // Found in the live test: undoing the first import unsets the leaves and
-  // leaves `current: {positions: {}}` behind, which crashed the read.
+  // Found in the live test: undoing the first import used to leave `current: {positions: {}}`
+  // behind, which crashed the read. The undo now prunes it, and the read still copes with a file
+  // an older version left like that.
   it('treats what an undone first import leaves behind as no reading', async () => {
     const changeId = await apply((await tarokka.planImport({ source: 'builtin-roll' })).planId);
     await guarded.undo(changeId, { confirm: true });
-    expect((await vaultData(TAROKKA_FILE)).current).toEqual({ positions: {} });
+    expect((await vaultData(TAROKKA_FILE))?.current).toBeUndefined();
+    await store.write(WORLD, 'gm', TAROKKA_FILE, { current: { positions: {} } }, 1);
     expect(await tarokka.getReading()).toMatchObject({ available: false, archivedReadings: 0 });
     await expect(tarokka.planReveal({ position: 'tome', text: 'x' })).rejects.toThrow(
       /No current reading/
@@ -284,7 +286,8 @@ describe('links', () => {
     const clear = await tarokka.planLinks({ position: 'ally', cardId: 'raven', clear: true });
     expect(clear.risk).toBe('destructive');
     await apply(clear.planId, true);
-    expect((await vaultData(TAROKKA_CONFIG_FILE)).links.ally).toEqual({});
+    // No empty `links: { ally: { raven: {} } }` is left behind.
+    expect((await vaultData(TAROKKA_CONFIG_FILE)).links).toBeUndefined();
   });
 
   it('validates position, card, uuids and that something changes', async () => {
@@ -390,7 +393,7 @@ describe('reveal', () => {
     await guarded.undo(changeId, { confirm: true });
     expect(foundry.docs.has(first.pageUuid)).toBe(false);
     expect((await tarokka.getReading()).reading!.positions[0].revealed).toBe(false);
-    expect((await vaultData(REVEALS_FILE)).pages).toEqual({});
+    expect((await vaultData(REVEALS_FILE)).pages).toBeUndefined();
 
     await apply((await tarokka.planReveal({ position: 'tome', text: 'One.' })).planId, true);
     const journalUuid = (await vaultData(TAROKKA_FILE)).revealJournal.uuid as string;

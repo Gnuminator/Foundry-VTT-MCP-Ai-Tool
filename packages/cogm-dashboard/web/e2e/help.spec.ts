@@ -92,6 +92,8 @@ test('a link inside a guide opens that guide in the same pane, and the wiki link
     'href',
     'https://gnuminator.github.io/Foundry-VTT-MCP-Ai-Tool/gm/getting-started/'
   );
+  // The clicked link is gone with the old page; focus stays in the pane, not on the body.
+  await expect(pane).toBeFocused();
 });
 
 test('a link to a heading scrolls to it every time, also on the page that is open', async ({
@@ -117,8 +119,9 @@ test('a link out of the guide is left alone', async ({ page }) => {
   await fromMenu(page, 'btn-guides');
   const pane = helpPane(page);
   await expect(pane.locator('.help-body h1')).toBeVisible();
-  // Any link without data-help (an external one, or a heading link of the page), clicked with the
-  // default action stopped after the pane's own handler: the pane must not have claimed it.
+  // Any link without data-help (an external one: the guide's own links and its heading links all
+  // carry data-help), clicked with the default action stopped after the pane's own handler: the
+  // pane must not have claimed it.
   const claimed = await page.evaluate(() => {
     const link = document.querySelector<HTMLElement>('#pane-help .help-body a:not([data-help])');
     if (!link) return null;

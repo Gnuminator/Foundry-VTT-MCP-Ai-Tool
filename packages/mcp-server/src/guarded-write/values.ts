@@ -40,11 +40,21 @@ export function readDataPath(data: unknown, path: string): PathValue {
 /**
  * A copy of `data` with the value at `path` set (`present`) or removed.
  * Intermediate objects are created; a non-object in the way is an error.
+ *
+ * `pruneEmpty` (vault files): removing a value also removes the parent objects it leaves empty, so
+ * undoing a write that created `links.a.b.c` leaves no `{}` behind. Every reader of the vault
+ * files treats a missing object like an empty one (`pages ?? {}`, `links?.[position]`), so the
+ * result is the same to them. Not for a Foundry document source, where an empty object is data.
  */
-export function writeDataPath(data: unknown, target: PathValue): Record<string, unknown> {
+export function writeDataPath(
+  data: unknown,
+  target: PathValue,
+  options: { pruneEmpty?: boolean } = {}
+): Record<string, unknown> {
   const segments = parseDataPath(target.path);
   const root: Record<string, unknown> = isPlainObject(data) ? structuredClone(data) : {};
   let node = root;
+  const trail: Array<Record<string, unknown>> = [root];
   for (const key of segments.slice(0, -1)) {
     const next = node[key];
     if (next === undefined) {
@@ -54,10 +64,21 @@ export function writeDataPath(data: unknown, target: PathValue): Record<string, 
       throw new Error(`Cannot write ${target.path}: "${key}" is not an object`);
     }
     node = node[key] as Record<string, unknown>;
+    trail.push(node);
   }
   const last = segments[segments.length - 1];
-  if (target.present) node[last] = structuredClone(target.value);
-  else delete node[last];
+  if (target.present) {
+    node[last] = structuredClone(target.value);
+    return root;
+  }
+  const existed = Object.prototype.hasOwnProperty.call(node, last);
+  delete node[last];
+  // Only parents this removal emptied: an empty object that was already there is left alone.
+  if (options.pruneEmpty && existed) {
+    for (let i = trail.length - 1; i > 0 && Object.keys(trail[i]).length === 0; i -= 1) {
+      delete trail[i - 1][segments[i - 1]];
+    }
+  }
   return root;
 }
 

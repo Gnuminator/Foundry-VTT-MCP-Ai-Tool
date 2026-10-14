@@ -107,9 +107,24 @@ function asActor(value: unknown): LiveActor | null {
 }
 
 /**
+ * The combatants of the fight the dashboard shows (the active one, else the latest), as the
+ * combat strip lists them: a fight can run on another scene than the one being viewed.
+ */
+function fightCombatants(): Rec[] {
+  const g = rec(game);
+  const combats = contentsOf(g?.combats);
+  const fight = rec(g?.combat) ?? rec(combats[combats.length - 1]);
+  return contentsOf(fight?.combatants)
+    .map(rec)
+    .filter((c): c is Rec => c !== null);
+}
+
+/**
  * Resolve the targets: a token on the current scene (by id or name, so an
- * unlinked token uses its own synthetic actor), else a world actor by id,
- * exact name or a unique partial name. Unknown names fail the whole plan.
+ * unlinked token uses its own synthetic actor), else a combatant of the running fight by its
+ * token id (the combat strip sends ids, and its fight may be on another scene; a name is not
+ * matched there, since two scenes can hold the same name), else a world actor by id, exact name
+ * or a unique partial name. Unknown names fail the whole plan.
  */
 function resolveTargets(identifiers: string[]): Target[] {
   if (identifiers.length === 0) throw new Error('Name at least one target (a token or an actor)');
@@ -128,6 +143,15 @@ function resolveTargets(identifiers: string[]): Target[] {
     const tokenActor = asActor(token?.actor);
     if (token && tokenActor) {
       targets.push({ name: str(token.name) ?? tokenActor.name, actor: tokenActor });
+      continue;
+    }
+    const combatant = fightCombatants().find(c => (str(c.tokenId) ?? str(rec(c.token)?.id)) === id);
+    const combatantActor = asActor(combatant?.actor);
+    if (combatant && combatantActor) {
+      targets.push({
+        name: str(rec(combatant.token)?.name) ?? str(combatant.name) ?? combatantActor.name,
+        actor: combatantActor,
+      });
       continue;
     }
     const exact = actors

@@ -43,6 +43,9 @@ function HelpHtml({
     if (!link?.dataset.help || !body.current?.contains(link)) return;
     e.preventDefault();
     onLink(link.dataset.help);
+    // A link to another guide swaps the page and drops the clicked link; focus stays in the pane
+    // (not on the body) so the keyboard and a screen reader keep their place.
+    body.current.closest<HTMLElement>('.help-pane')?.focus({ preventScroll: true });
   };
   return <div ref={body} onClick={follow} dangerouslySetInnerHTML={{ __html: html }} />;
 }

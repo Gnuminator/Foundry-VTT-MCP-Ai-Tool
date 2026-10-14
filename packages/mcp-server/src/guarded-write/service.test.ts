@@ -699,10 +699,10 @@ describe('vault ops', () => {
     });
 
     await service.undo(applied.changeId, { confirm: true });
+    // The undo leaves no empty `regions: { krezk: {} }` behind.
     expect((await store.read('curse-of-strahd', 'gm', 'attention.json'))?.data).toEqual({
       vallaki: 1,
       secret: 'x',
-      regions: { krezk: {} },
     });
   });
 
@@ -857,9 +857,7 @@ describe('mixed plans', () => {
 
     await service.undo(applied.changeId, { confirm: true });
     expect(foundry.docs.get('Actor.ireena')!.source.system.hp).toBe(10);
-    expect((await store.read('curse-of-strahd', 'gm', 'reveals.json'))?.data).toEqual({
-      pages: {},
-    });
+    expect((await store.read('curse-of-strahd', 'gm', 'reveals.json'))?.data).toEqual({});
   });
 
   it('writes nothing in Foundry when the vault part conflicts', async () => {

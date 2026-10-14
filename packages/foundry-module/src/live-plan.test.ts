@@ -267,6 +267,59 @@ describe('target resolution', () => {
     expect(byId.targets[0]?.target).toBe('Wolf 1');
   });
 
+  describe('a combatant of a fight on another scene', () => {
+    function fightElsewhere(): void {
+      const synthetic = addActor({
+        id: 'a',
+        name: 'Wolf',
+        hp: { value: 11, max: 11 },
+        uuid: 'Scene.other.Token.far.Actor.a',
+      });
+      world.actors.delete('a');
+      // The viewed scene holds no token of this fight.
+      world.addScene({ id: 'here', name: 'Here', active: true, tokens: [] });
+      world.setCombat({
+        turns: [],
+        combatants: [
+          {
+            id: 'cb1',
+            name: 'Wolf',
+            tokenId: 'far',
+            token: { id: 'far', name: 'Wolf 1' },
+            actor: synthetic,
+          },
+        ],
+      });
+    }
+
+    it('resolves by the token id the combat strip sends', async () => {
+      fightElsewhere();
+      const plan = await planLiveChange(
+        hpRequest({ action: 'damage', amount: 4, targets: ['far'] })
+      );
+      expect(plan.targets[0]).toMatchObject({
+        target: 'Wolf 1',
+        actorUuid: 'Scene.other.Token.far.Actor.a',
+      });
+      expect(plan.ops).toEqual([
+        {
+          kind: 'update',
+          uuid: 'Scene.other.Token.far.Actor.a',
+          changes: { 'system.attributes.hp.value': 7 },
+        },
+      ]);
+    });
+
+    it('does not match a name there, nor the combatant id', async () => {
+      fightElsewhere();
+      for (const target of ['Wolf 1', 'cb1']) {
+        await expect(
+          planLiveChange(hpRequest({ action: 'damage', amount: 4, targets: [target] }))
+        ).rejects.toThrow(`named "${target}"`);
+      }
+    });
+  });
+
   it('plans one change when a token and its actor are both named', async () => {
     const actor = addActor({ id: 'a1', name: 'Wolf', hp: { value: 10, max: 10 } });
     world.addScene({

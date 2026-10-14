@@ -28,6 +28,34 @@ describe('vault data paths', () => {
     );
   });
 
+  it('leaves emptied parents unless pruneEmpty is set, and then removes only those it emptied', () => {
+    const data = { links: { ally: { raven: { actorUuid: 'A' } } }, keep: {}, pages: { p1: 1 } };
+    const gone = { path: 'links.ally.raven.actorUuid', present: false } as const;
+    expect(writeDataPath(data, gone).links).toEqual({ ally: { raven: {} } });
+    // The whole chain goes, a sibling or an object that was already empty stays.
+    expect(writeDataPath(data, gone, { pruneEmpty: true })).toEqual({ keep: {}, pages: { p1: 1 } });
+    expect(writeDataPath(data, { path: 'pages.p1', present: false }, { pruneEmpty: true })).toEqual(
+      {
+        links: data.links,
+        keep: {},
+      }
+    );
+    // Removing what is not there touches nothing, not even an empty parent that was already there.
+    expect(writeDataPath(data, { path: 'keep.x', present: false }, { pruneEmpty: true })).toEqual(
+      data
+    );
+    const shared = { a: { b: { c: 1 }, d: 2 } };
+    expect(writeDataPath(shared, { path: 'a.b.c', present: false }, { pruneEmpty: true })).toEqual({
+      a: { d: 2 },
+    });
+    // Writing never prunes.
+    expect(
+      writeDataPath({ a: {} }, { path: 'a.b', present: true, value: 1 }, { pruneEmpty: true })
+    ).toEqual({
+      a: { b: 1 },
+    });
+  });
+
   it('rejects unsafe or malformed paths', () => {
     for (const bad of [
       '',

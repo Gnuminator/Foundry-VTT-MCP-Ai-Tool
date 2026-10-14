@@ -436,6 +436,19 @@ test.describe('keyboard and screen reader', () => {
     await expect.poll(() => list.evaluate(el => el.scrollTop)).toBeGreaterThan(0);
   });
 
+  test('a list that fits is no tab stop, and becomes one when it grows past the card', async ({
+    page,
+  }) => {
+    const { push } = await setup(page, { initial: [events(THREE, true)] });
+    await load(page);
+    const list = page.getByRole('list', { name: 'Live feed events, newest first' });
+    await expect(list.getByRole('listitem')).toHaveCount(3);
+    expect(await list.evaluate(el => el.scrollHeight > el.clientHeight)).toBe(false);
+    await expect(list).not.toHaveAttribute('tabindex', /.*/);
+    push([events(many(60))]);
+    await expect(list).toHaveAttribute('tabindex', '0');
+  });
+
   test('a new event is announced once, a burst as one message, the first load not at all', async ({
     page,
   }) => {

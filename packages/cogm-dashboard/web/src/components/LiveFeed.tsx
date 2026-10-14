@@ -31,6 +31,7 @@ import {
   type FeedFace,
   type FeedLog,
 } from '../lib/feed';
+import { useScrolls } from '../lib/scrolls';
 import { useBridgeAway, useFeed } from '../lib/stream';
 import { Panel } from '../ui';
 
@@ -100,6 +101,7 @@ export function LiveFeed({ folds }: { folds?: DuringFolds }): JSX.Element {
   const face = feedFace(log, away);
   const folded = folds?.isFolded('feed') === true;
   const entries = log?.entries ?? [];
+  const [listRef, scrolls] = useScrolls(entries);
   // Read on every render: a new event brings one, and a row only changes when its day does.
   const today = dayKey(Date.now());
 
@@ -135,9 +137,10 @@ export function LiveFeed({ folds }: { folds?: DuringFolds }): JSX.Element {
       bodyProps={{
         role: 'list',
         'aria-label': 'Live feed events, newest first',
-        // The list scrolls and nothing in it takes the Tab key: the keyboard scrolls the list
-        // itself.
-        tabIndex: 0,
+        ref: listRef,
+        // Nothing in the list takes the Tab key, so once it scrolls the list itself is the tab stop
+        // that lets the keyboard scroll it; a list that fits is not one.
+        ...(scrolls ? { tabIndex: 0 } : {}),
       }}
     >
       {entries.map(event => (

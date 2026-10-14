@@ -580,7 +580,10 @@ export class GuardedWriteService {
       const simulated = vaultOps
         .slice(0, i)
         .filter(prev => prev.file === op.file)
-        .reduce<unknown>((data, prev) => writeDataPath(data, vaultTarget(prev)), current?.data);
+        .reduce<unknown>(
+          (data, prev) => writeDataPath(data, vaultTarget(prev), { pruneEmpty: true }),
+          current?.data
+        );
       const before = readDataPath(simulated, op.path);
       if (op.kind === 'vault-delete' && !before.present) {
         throw new Error(`Vault op ${i}: nothing to delete at ${op.file} ${op.path}`);
@@ -1110,7 +1113,10 @@ export class GuardedWriteService {
       }
       if (blocked.has(record.file)) continue;
       try {
-        simulated.set(record.file, writeDataPath(simulated.get(record.file), targetOf(record)));
+        simulated.set(
+          record.file,
+          writeDataPath(simulated.get(record.file), targetOf(record), { pruneEmpty: true })
+        );
       } catch (error) {
         conflicts.push(
           `${record.file} ${record.path}: ${error instanceof Error ? error.message : String(error)}`

@@ -17,10 +17,9 @@ How the work is split:
 - **Part B, Claude (over SSH from this PC):** the system, Node.js, Foundry, private admin access,
   the tool, backups and vault sync, in stages. Claude stops before each stage and at the few steps
   only you can do (licence key, logins in your browser).
-- **Part C, later: players and the GM from outside** through Cloudflare. Only after the dashboard
-  checks Cloudflare's signed login token (vault idea I-022). Your steps:
+- **Part C: players and the GM from outside** through Cloudflare (live since 2026-10-14). Your steps:
   [Remote access, Part C](REMOTE-ACCESS.md#part-c-players-and-the-gm-reach-the-orange-pi-through-cloudflare);
-  Claude's side is stage 12 below.
+  Claude's side is stage 12, in the stage table and in Part C below.
 
 Day-to-day development and testing stay on this PC's test server; the Pi only runs released builds
 and the campaign world.
@@ -538,32 +537,40 @@ put them in slightly different places.
    blocking on: look in the gateway's threat log for blocked Cloudflare (`*.argotunnel.com`,
    `*.cloudflare.com`) or Tailscale addresses and allow them. Normally nothing is needed.
 
-## Part C: players and the GM from outside (later)
+## Part C: players and the GM from outside
 
 Players reach Foundry through a Cloudflare Tunnel with Cloudflare Access in front (D-075). They
 install nothing and join no private network: they open a normal web address and confirm their email
 with a one-time code about once a month. Foundry's login page is never open to the internet, and no
 router ports are opened (the tunnel dials out).
 
-**Before Part C:** the dashboard must check Cloudflare Access's signed token instead of trusting the
-email header (vault idea I-022). Claude builds that first.
+The dashboard checks Cloudflare Access's signed token instead of trusting the email header (vault
+idea I-022, built), which is why its public name is added last. Part C went live for Foundry on
+2026-10-14; the dashboard name is still to come.
 
 What you do:
 
 1. **Buy a domain** you like through Cloudflare Registrar (sold at cost, about 10 USD a year), so its
    DNS is at Cloudflare from the start. Claude never handles payment or logins.
-2. **Create a free Cloudflare account** (Access is free for small teams), and in Zero Trust,
-   Settings, Authentication, **add "One-time PIN"** as a login method (new accounts no longer have
-   it switched on).
-3. **Enter the players' and the GM's email addresses** in the Access policy (they stay out of the repo
-   and the vault).
-4. **Log in once** when Claude creates the tunnel on the Pi (a browser link).
+2. **Create a free Cloudflare account** (Access is free for small teams) and open its Zero Trust
+   dashboard, now called Cloudflare One. Add **One-time PIN** as a login method (Integrations,
+   Identity providers; new accounts no longer have it switched on).
+3. **Make the tunnel, the Access application and the route** in the Cloudflare dashboard, with the
+   players' and the GM's email addresses in the Access policy (they stay out of the repo and the
+   vault). The tunnel is managed remotely: every public name and login rule lives in the dashboard.
+   Click-by-click, including the `http://` in the route's Service URL and the "Validate the Access
+   JWT at the tunnel" option: [Remote access, Part C](REMOTE-ACCESS.md#part-c-players-and-the-gm-reach-the-orange-pi-through-cloudflare).
+4. **Set the tunnel token yourself.** The Pi never logs in to Cloudflare. The tunnel page shows a
+   token; you paste it into `set-tunnel-token.sh` in your own SSH session, which asks without showing
+   it and stores it in a root-only file. Claude never sees it.
 
-What Claude does: installs `cloudflared` on the Pi as a service (from Cloudflare's apt repository,
-with its current signing key); routes `foundry.<your domain>` to
-Foundry and `cogm.<your domain>` to the dashboard (GM emails only); sets Access to email one-time
-codes; sets Foundry's proxy options for the domain; and tests both from outside before anyone gets
-the address. Templates: `deploy/cloudflare/`; background: [Remote access](REMOTE-ACCESS.md).
+What Claude does: after a `dietpi-backup 1` snapshot and your OK, runs stage 12 once with
+`FOUNDRY_PUBLIC_HOST=<Foundry's public name>`. That installs `cloudflared` on the Pi as a service
+(from Cloudflare's apt repository, with its current signing key, started once the token is there) and
+sets Foundry's proxy options for the public name. Which name goes to Foundry and which to the
+dashboard (GM emails only) is set in the Cloudflare dashboard, not on the Pi. Then the phone test from
+outside before anyone gets the address. Templates: `deploy/cloudflare/`; background:
+[Remote access](REMOTE-ACCESS.md).
 
 ## SSH keys only (stage 15)
 

@@ -8,6 +8,8 @@ machine, so none of them is installed here. This PC gets:
   - node.exe, the Node.js runtime that runs the client
   - foundry-mcp-client\index.cjs, the MCP client Claude Desktop starts
   - configure-claude.ps1, which edits Claude Desktop's settings
+  - with the Cloudflare tunnel option: cloudflared.exe and tunnel-client.ps1, which keep a locked
+    tunnel to the server open (the key is stored for your Windows user only)
 
 QUICK START
 -----------
@@ -15,9 +17,13 @@ QUICK START
    again if it is still running; it never closes Claude Desktop for you.
 2. Run the installer and enter the bridge address: the name or IP address of the server on your
    private network (for example its Tailscale name). The port is 31414 unless you were told
-   otherwise. A Cloudflare route for players and GMs outside the private network is planned.
-3. Start Claude Desktop. Make sure your private network (Tailscale) is connected, then switch
-   the connectors on in the "Search and tools" menu.
+   otherwise. Or use the Cloudflare tunnel (below) when you are not on that network.
+   With the Cloudflare tunnel instead: tick "Reach the bridge through the Cloudflare tunnel", type
+   the tunnel name you were given (mcp.<your domain>) and paste the Client ID and the secret when a
+   window asks. There is nothing to connect on this PC: the tunnel starts by itself when you sign
+   in to Windows.
+3. Start Claude Desktop. Without the tunnel, make sure your private network (Tailscale) is
+   connected. Then switch the connectors on in the "Search and tools" menu.
 
 Claude Desktop gets five connectors, one per tool set: foundry-mcp (Core), foundry-mcp-play,
 foundry-mcp-prep, foundry-mcp-build and foundry-mcp-admin. Each one only connects to the bridge
@@ -26,6 +32,10 @@ and never starts a bridge on this PC (MCP_NO_SPAWN=1).
 SILENT INSTALL
 --------------
   FoundryMCPServer-Setup-vX.Y.Z.exe /S /HOST=<name or IP> [/PORT=31414] [/D=<folder>]
+  FoundryMCPServer-Setup-vX.Y.Z.exe /S /TUNNEL=<mcp.domain> /TUNNELTOKENFILE=<file> [/PORT=31414]
+
+The token file holds the Client ID on line 1 and the secret on line 2; delete it yourself after the
+install. On an upgrade /TUNNEL alone reuses the stored token.
 
 /HOST is required on a first silent install (a later one can reuse the address the installer
 remembered). The installer waits up to two minutes for Claude Desktop to quit; if it is still
@@ -53,6 +63,9 @@ TROUBLESHOOTING
 - The log is %TEMP%\foundry-mcp-claude-config.log.
 - "The bridge is not reachable" in Claude: check that Tailscale is connected and that the
   address is right (run the installer again to change it).
+- With the tunnel: run "powershell -ExecutionPolicy Bypass -File tunnel-client.ps1 -Action Status"
+  in the install folder; it checks the logon task, the stored key and the connection, and prints
+  no secret. The log is %LOCALAPPDATA%\FoundryMCPServer\tunnel\tunnel.log.
 - The connectors are missing after the install: Claude Desktop was probably still running and
   rewrote its settings when it closed. Quit it completely and run the installer again.
 

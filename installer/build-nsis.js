@@ -325,6 +325,13 @@ async function build() {
       console.log('   Skipping Node.js runtime download (staging-only)\n');
     }
 
+    if (!skipDownload) {
+      downloadCloudflared();
+      console.log();
+    } else {
+      console.log('   Skipping cloudflared download (staging-only)\n');
+    }
+
     copyMcpClient();
     console.log();
 

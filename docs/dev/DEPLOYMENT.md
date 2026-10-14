@@ -59,9 +59,16 @@ For a GM's PC when the bridge runs on a home server there is a small installer,
 and the bundled client, and writes the five entries above with `MCP_CONTROL_HOST`,
 `MCP_CONTROL_PORT` and `MCP_NO_SPAWN=1` (see the next section). It does not install Foundry, the
 Foundry module or a local bridge. It asks for the bridge address, which for now is the server's
-name on your private network (for example its Tailscale name); a Cloudflare route is planned.
+name on your private network (for example its Tailscale name), or, with the **Cloudflare tunnel**
+box (D-095), the tunnel name (`mcp.<domain>`) and a service token that the owner hands over. With the
+tunnel the installer also puts `cloudflared.exe` and `tunnel-client.ps1` next to the client, registers
+a logon task that keeps `cloudflared access tcp` running on `127.0.0.1:<port>`, and writes
+`MCP_CONTROL_HOST=127.0.0.1`. The token is stored per Windows user (DPAPI). Setup and checks:
+[Remote access](REMOTE-ACCESS.md); the GM's side: [docs/gm](../gm/connect-claude-desktop.md).
 
-- **Silent install:** `FoundryMCPServer-Setup-vX.Y.Z.exe /S /HOST=<name or IP> [/PORT=31414]`.
+- **Silent install:** `FoundryMCPServer-Setup-vX.Y.Z.exe /S /HOST=<name or IP> [/PORT=31414]`, or
+  through the tunnel `/S /TUNNEL=<mcp.domain> /TUNNELTOKENFILE=<file> [/PORT=31414]` (line 1 of the
+  file is the Client ID, line 2 the secret; the installer does not delete the file, you do).
   `/HOST` is required on a first silent install (a later one reuses the remembered address).
   Exit code 3 means Claude Desktop was still running after two minutes, 2 means the address was
   missing or invalid, and 1 means Claude Desktop could not be configured (log:

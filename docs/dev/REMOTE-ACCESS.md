@@ -21,12 +21,15 @@ month.
 
 What goes through the tunnel, and nothing else:
 
-| Public name     | Goes to on the Pi           | Who gets in                                     |
-| --------------- | --------------------------- | ----------------------------------------------- |
-| `play.<domain>` | Foundry, `localhost:30000`  | The players, the GM and you (Cloudflare Access) |
-| `cogm.<domain>` | Dashboard, `localhost:3000` | The GM and you as GM; the players see `/player` |
+| Public name     | Goes to on the Pi                            | Who gets in                                                                                       |
+| --------------- | -------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `play.<domain>` | Foundry, `localhost:30000`                   | The players, the GM and you (Cloudflare Access)                                                   |
+| `cogm.<domain>` | Dashboard, `localhost:3000`                  | The GM and you as GM; the players see `/player`                                                   |
+| `mcp.<domain>`  | Bridge control port, `tcp://localhost:31414` | The GM's and your Claude Desktop only, with a service token (see "The GM's Claude Desktop" below) |
 
-The bridge ports (31414 and 31415), SSH, Syncthing and the Assistant GM browser are never published.
+The module port (31415), SSH, Syncthing and the Assistant GM browser are never published. The control
+port 31414 has no login of its own, so it is published only behind the Access application of the
+`mcp` name, never as an open route (D-095).
 Tailscale stays for your own admin access. Foundry's own login (a user per player, as today) still
 applies behind Access: Access decides who may reach the page, Foundry decides who they are.
 
@@ -213,6 +216,49 @@ Foundry. Their Foundry user in the world stays until the GM removes it in Foundr
 `Players` policy is shared with the `Foundry dashboard` application (a reusable policy is), the
 same edit also takes their email off `cogm`, and Revoke covers both names; if the dashboard
 application has its own copy of the policy, edit that one too.
+
+### The GM's Claude Desktop reaches the bridge (D-095)
+
+Claude Desktop on a GM's PC talks to the bridge's control port (31414). That port has **no login of
+its own**, so the Access application is the only gate. The order below keeps the route from ever
+existing without its gate.
+
+1. **Service token, made by you.** Cloudflare One, Access controls, Service credentials, Create
+   service token, name `gm-claude-desktop` (one per person, for example `gm-claude-desktop-<name>`,
+   so each can be revoked alone), duration 12 months or more. Copy the **Client ID** and the
+   **secret** now: the secret is shown once. Keep both yourself; never paste them into a chat, the
+   repo or the vault, and never create the token through the API (the response holds the secret).
+2. **The Access application first.** Access controls, Applications, Add an application, Self-hosted,
+   name `Bridge control`, domain `mcp.<domain>`, session duration 1 hour. Policies: the reusable
+   `Dashboard GMs` (Allow, the GM and you by email) and a new reusable policy `MCP client` of the
+   non-identity kind (Service Auth) that includes the service token from step 1. No Everyone, no
+   email-domain rule, no Bypass. Save.
+3. **Then the route.** In the tunnel `foundry-pi`, Published application routes, add subdomain
+   `mcp`, service type **TCP**, URL `localhost:31414` (the bridge listens on `127.0.0.1:31414` since
+   stage 5). The dashboard creates the proxied DNS record. If the tunnel is edited through the API,
+   keep the existing rules unchanged and put the new rule before the final catch-all.
+4. **Test from a PC with cloudflared** (a spare local port, never 31414 to 31416 on a PC that runs
+   its own bridge): `installer\nsis\tunnel-client.ps1 -Action Install -TunnelHost mcp.<domain> -Port
+31914`, paste the Client ID and the secret when asked, then `-Action Status` (it pings the bridge
+   through the tunnel and prints no secret), then `-Action Uninstall`.
+5. **Danni or another GM:** the installer in `installer/` has a tunnel option
+   ([the GM's page](../gm/connect-claude-desktop.md)). You hand over the Client ID and the secret
+   outside the chat (in person or a password manager), never in the repo.
+
+What the PC keeps: `%LOCALAPPDATA%\FoundryMCPServer\tunnel\` with the token stored per Windows user
+(DPAPI), a logon task `Foundry AI Tool tunnel` and `cloudflared.exe` in the install folder.
+`cloudflared access tcp` listens on `127.0.0.1:<port>` only; Claude Desktop's five entries use that
+address with `MCP_NO_SPAWN=1`.
+
+**Check (I-023).** Without the token the name must refuse: `cloudflared access tcp --hostname
+mcp.<domain> --url 127.0.0.1:31914` asks for a browser login and gives nothing to a script; with a
+wrong token it is refused; `https://mcp.<domain>/` shows the Access page, never the bridge;
+`foundry.<domain>:31414`, `cogm.<domain>:31414` and the Pi's public address on 31414 do not answer.
+Stage 12 also checks on the Pi that 31414 answers on loopback and nothing listens beyond it.
+
+**Rotation and removing a GM.** Rotate: create a new token, add it to `MCP client`, run the installer
+again with the new one, then delete the old. Remove a GM: Service credentials, delete (or revoke)
+that GM's token; the next connection is refused. A lost laptop is the same step.
 
 ### If something goes wrong
 

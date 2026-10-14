@@ -18,12 +18,6 @@ export interface KnownStoryViolation {
 export const KNOWN_STORY_VIOLATIONS: KnownStoryViolation[] = [
   {
     rule: 'color-contrast',
-    target: '.btn-danger',
-    reason: 'Danger red #e63946 on the button #1d212b is 3.86:1 (needs 4.5:1), neutral theme.',
-    stories: ['ui-button--all-variants', 'ui-button--danger'],
-  },
-  {
-    rule: 'color-contrast',
     target: '.menu-label',
     reason: 'Muted text #6b7385 on the menu #1d212b is 3.38:1 (needs 4.5:1), neutral theme.',
     stories: [
@@ -34,13 +28,6 @@ export const KNOWN_STORY_VIOLATIONS: KnownStoryViolation[] = [
       'components-during-layouts--menu-open-phone',
       'components-during-layouts--menu-waiting-for-the-world',
     ],
-  },
-  {
-    rule: 'scrollable-region-focusable',
-    target: '.change-diff',
-    reason:
-      'A long list of changes scrolls inside the confirm window and has nothing focusable in it, so the keyboard cannot scroll it. A fix needs tabindex 0 on the list.',
-    stories: ['components-confirmdialog--many-long-lines'],
   },
   {
     rule: 'color-contrast',
@@ -60,96 +47,10 @@ export const KNOWN_STORY_VIOLATIONS: KnownStoryViolation[] = [
     stories: ['components-refpicker--bridge-down', 'components-refpicker--loading'],
   },
   {
-    rule: 'aria-required-children',
-    target: '.ref-list',
-    reason:
-      'The picker menu is a listbox even when it has no rows (nothing to pick, or only a note), so it has no option children. A fix belongs in RefPicker (the role only with rows).',
-    stories: ['components-refpicker--bridge-down', 'components-refpicker--nothing-to-pick'],
-  },
-  {
     rule: 'color-contrast',
     target: '.ref-empty',
     reason: 'Muted text #6b7385 on the picker menu #1d212b is 3.38:1 (needs 4.5:1), neutral theme.',
     stories: ['components-refpicker--bridge-down', 'components-refpicker--nothing-to-pick'],
-  },
-  {
-    rule: 'color-contrast',
-    target: '.diag-level',
-    reason:
-      'Danger red #e63946 on the error badge tint #39242f is 3.43:1 (needs 4.5:1), neutral theme.',
-    stories: [
-      'panels-modulediagnostics--errors-and-warnings',
-      'panels-modulediagnostics--many-entries',
-      'panels-modulediagnostics--phone',
-      'panels-modulediagnostics--space-check-overdue',
-    ],
-  },
-  {
-    rule: 'scrollable-region-focusable',
-    target: '.pane-body',
-    reason:
-      'A long list of module errors scrolls inside the pane and has nothing focusable in it, so the keyboard cannot scroll it. A fix needs tabindex 0 on the scrolling body.',
-    stories: ['panels-modulediagnostics--many-entries'],
-  },
-  {
-    rule: 'color-contrast',
-    target: '.death-saves',
-    reason: 'Danger red #e63946 on the panel #1d212b is 3.86:1 (needs 4.5:1), neutral theme.',
-    stories: [
-      'components-during-folds--auto-in-combat',
-      'components-during-folds--auto-in-combat-open-feed',
-      'components-during-folds--cards-open-party',
-      'components-during-folds--full-everything-open',
-      'components-during-layouts--page-auto-in-combat',
-      'components-during-layouts--page-auto-in-combat-phone',
-      'components-during-layouts--page-full',
-      'components-combat-strip--death-saves',
-      'panels-party--eight-characters',
-      'panels-party--loaded',
-      'panels-party--long-names',
-      'panels-party--phone-eight-characters',
-    ],
-  },
-  {
-    rule: 'color-contrast',
-    target: '.sev-damage .event-type, .sev-death .event-type',
-    reason:
-      'Danger red #e63946 on the Damage and Death chip tint #39242f is 3.43:1 (needs 4.5:1), neutral theme: the same danger red and tint as the module error badge above.',
-    stories: [
-      'components-during-folds--auto-in-combat-open-feed',
-      'components-during-folds--cards-default',
-      'components-during-folds--cards-open-handouts',
-      'components-during-folds--cards-open-party',
-      'components-during-folds--cards-phone-open-party',
-      'components-during-folds--full-everything-open',
-      'components-during-folds--full-party-folded',
-      'components-during-layouts--page-auto-calm',
-      'components-during-layouts--page-cards',
-      'components-during-layouts--page-full',
-      'components-during-layouts--page-simple',
-      'components-live-feed--bridge-away',
-      'components-live-feed--bridge-away-phone',
-      'components-live-feed--every-kind',
-      'components-live-feed--few-events',
-      'components-live-feed--few-events-phone',
-      'components-live-feed--many-at-the-cap',
-      'components-live-feed--not-a-fold-card',
-      'components-moments--page-during',
-      'components-moments--page-during-phone',
-    ],
-  },
-  {
-    rule: 'color-contrast',
-    target: '.preflight-summary.pf-fail',
-    reason:
-      'Danger red #e63946 on the Not ready tint #341e26 is 3.7:1 (needs 4.5:1), neutral theme.',
-    stories: ['panels-preflight--versions-do-not-match'],
-  },
-  {
-    rule: 'color-contrast',
-    target: '#btn-preflight',
-    reason: 'Danger red #e63946 on the button #1d212b is 3.86:1 (needs 4.5:1), neutral theme.',
-    stories: ['panels-preflight--header-button-to-fix'],
   },
   {
     rule: 'color-contrast',
@@ -171,12 +72,6 @@ export const KNOWN_STORY_VIOLATIONS: KnownStoryViolation[] = [
   },
   {
     rule: 'color-contrast',
-    target: '.destructive',
-    reason: 'Danger red #e63946 on the badge tint #39242f is 3.43:1 (needs 4.5:1), neutral theme.',
-    stories: ['panels-tools--gm-actions-off', 'panels-tools--tool-list'],
-  },
-  {
-    rule: 'color-contrast',
     target: '.field-hint',
     reason: 'Muted text #6b7385 on the drawer #171a21 is 3.66:1 (needs 4.5:1), neutral theme.',
     stories: [
@@ -186,11 +81,5 @@ export const KNOWN_STORY_VIOLATIONS: KnownStoryViolation[] = [
       'panels-tools--phone',
       'panels-tools--read-result',
     ],
-  },
-  {
-    rule: 'color-contrast',
-    target: '#tool-form-error',
-    reason: 'Danger red #e63946 on the drawer #171a21 is 4.17:1 (needs 4.5:1), neutral theme.',
-    stories: ['panels-tools--missing-required-field'],
   },
 ];

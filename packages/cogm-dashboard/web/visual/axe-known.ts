@@ -23,29 +23,6 @@ export interface KnownViolation {
 export const KNOWN_VIOLATIONS: KnownViolation[] = [
   {
     rule: 'color-contrast',
-    target: '.diag-level',
-    reason:
-      'Danger red #e63946 on the error badge tint #39242f is 3.43:1 (needs 4.5:1), neutral theme.',
-    screens: ['diagnostics'],
-    theme: 'neutral',
-  },
-  {
-    rule: 'color-contrast',
-    target: '.sev-damage .event-type, .sev-death .event-type',
-    reason:
-      'Danger red #e63946 on the Damage and Death chip tint #39242f is 3.43:1 (needs 4.5:1), neutral theme: the same danger red and tint as the module error badge above.',
-    screens: ['during', 'preflight', 'prep'],
-    theme: 'neutral',
-  },
-  {
-    rule: 'color-contrast',
-    target: '.death-saves',
-    reason: 'Danger red #e63946 on the panel #1d212b is 3.86:1 (needs 4.5:1), neutral theme.',
-    screens: ['party'],
-    theme: 'neutral',
-  },
-  {
-    rule: 'color-contrast',
     target: '.tarokka-card.veiled',
     reason: 'Muted text #6b7385 on the panel #1d212b is 3.38:1 (needs 4.5:1), neutral theme.',
     screens: ['tarokka'],
@@ -63,21 +40,6 @@ export const KNOWN_VIOLATIONS: KnownViolation[] = [
     target: '#advanced-menu .menu-label',
     reason: 'Muted text #6b7385 on the menu #1d212b is 3.38:1 (needs 4.5:1), neutral theme.',
     screens: ['advanced-menu'],
-    theme: 'neutral',
-  },
-  {
-    rule: 'color-contrast',
-    target: '#btn-preflight',
-    reason: 'Danger red #e63946 on the button #1d212b is 3.86:1 (needs 4.5:1), neutral theme.',
-    screens: ['version-banner'],
-    theme: 'neutral',
-  },
-  {
-    rule: 'color-contrast',
-    target: '.preflight-summary.pf-fail',
-    reason:
-      'Danger red #e63946 on the Not ready tint #341e26 is 3.7:1 (needs 4.5:1), neutral theme.',
-    screens: ['version-banner'],
     theme: 'neutral',
   },
 ];

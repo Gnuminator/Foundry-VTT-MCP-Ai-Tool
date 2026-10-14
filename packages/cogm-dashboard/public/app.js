@@ -515,6 +515,8 @@ async function loadPlaySession({ quiet = true } = {}) {
   } catch (err) {
     // Polls stay quiet (Foundry may simply be offline); a click reports the error.
     els.sessionStatus.textContent = 'Session: unknown';
+    // A first read that fails still shows a moment (Before, the closed default), as the React page does.
+    if (moment === null) onSessionState();
     if (!quiet) toast(`✗ get-play-session: ${String(err.message || err)}`, 'err');
   }
 }
@@ -4527,7 +4529,9 @@ function showTourStep() {
 }
 
 function startTour() {
-  if (!tour) tour = { step: 0, realCombat: lastCombat, sample: null };
+  if (!tour) {
+    tour = { step: 0, realCombat: lastCombat, sample: null, wasPinned: momentPinned, from: moment };
+  }
   setMoment('during', { pinned: true });
   showTourStep();
   usage.trackView('dash.trial.view');
@@ -4536,8 +4540,15 @@ function startTour() {
 /** End the trial; with a layout, keep it. A real fight that started meanwhile stays shown. */
 function endTour(keep) {
   if (!tour) return;
-  const { sample, realCombat } = tour;
+  const { sample, realCombat, wasPinned, from } = tour;
   tour = null;
+  // The trial pinned the page to During; give the page back. Stop goes back to where the trial
+  // started (the session's moment unless the GM had picked one); Use stays on During, unpinned.
+  // A tab the GM clicked meanwhile is theirs and stays.
+  if (moment === 'during') {
+    momentPinned = wasPinned;
+    if (!keep) setMoment(wasPinned ? from : momentFromSession());
+  }
   tourEls.box.hidden = true;
   usage.endView('dash.trial.view');
   if (sample && lastCombat === sample) renderCombat(realCombat);

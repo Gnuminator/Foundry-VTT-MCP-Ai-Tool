@@ -57,6 +57,11 @@ test('shows the streamed errors newest first, with the counter', async ({ page }
   await expect(pane.locator('.pane-meta')).toHaveText('2 errors · 1 warns');
   const entries = pane.getByRole('listitem');
   await expect(entries).toHaveCount(3);
+  // The list scrolls inside the pane, so the body takes the Tab key.
+  await expect(pane.getByRole('group', { name: 'Module errors, scrollable' })).toHaveAttribute(
+    'tabindex',
+    '0'
+  );
   await expect(entries.locator('.diag-msg')).toHaveText([
     'No stack to tell',
     'Deprecated since v13',

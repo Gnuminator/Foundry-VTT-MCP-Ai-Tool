@@ -84,6 +84,28 @@ describe('control_port_check', { skip: noBash }, () => {
     }
   });
 
+  test('2: a wildcard IPv6 or star listener is refused too', async () => {
+    const { server, port } = await fakeBridge(PONG);
+    try {
+      for (const local of [`[::]:${port}`, `*:${port}`]) {
+        const r = await check(port, `LISTEN 0 511 ${local} 0.0.0.0:*\n`);
+        assert.match(r.stdout, /rc=2/, local + r.stdout + r.stderr);
+      }
+    } finally {
+      server.close();
+    }
+  });
+
+  test('0: an IPv6 loopback listener is fine', async () => {
+    const { server, port } = await fakeBridge(PONG);
+    try {
+      const r = await check(port, `LISTEN 0 511 [::1]:${port} [::]:*\n`);
+      assert.match(r.stdout, /rc=0/, r.stdout + r.stderr);
+    } finally {
+      server.close();
+    }
+  });
+
   test('1: nothing answers', async () => {
     const { server, port } = await fakeBridge('');
     server.close();

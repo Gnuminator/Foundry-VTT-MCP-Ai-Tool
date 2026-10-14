@@ -179,6 +179,12 @@ Function .onInit
         SetErrorLevel 2
         Abort
       ${EndIf}
+      ; No console to type a token into: it must come from /TUNNELTOKENFILE= or an earlier install
+      ${If} $TunnelTokenFile == ""
+        IfFileExists "$LOCALAPPDATA\FoundryMCPServer\tunnel\token.dpapi" +3 0
+          SetErrorLevel 2
+          Abort
+      ${EndIf}
     ${EndIf}
     Call ValidateBridge
     ${If} $0 != ""
@@ -293,20 +299,37 @@ Function ValidateTunnel
   ; At least one dot, and not at either end
   StrCpy $3 0
   StrCpy $4 0
+  StrCpy $7 ""
+  StrCpy $8 0
   dot_loop:
     StrCpy $5 "$TunnelHost" 1 $3
     StrCmp $5 "" dot_done
-    StrCmp $5 "." 0 +2
+    StrCmp $5 "." 0 +4
       StrCpy $4 1
+      StrCmp $7 "." 0 +2
+        StrCpy $8 1
+    StrCpy $7 $5
     IntOp $3 $3 + 1
     Goto dot_loop
   dot_done:
   StrCpy $5 "$TunnelHost" 1
   StrCpy $6 "$TunnelHost" 1 -1
+  ; The last two characters must be letters (a top-level name is at least two letters)
+  StrCpy $R0 "$TunnelHost" 2 -2
+  StrCpy $R1 "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+  Call CharsAllowed
+  StrCpy $9 $R2
+  StrCpy $R0 "$TunnelHost"
+  StrCpy $R1 "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.-"
+  Call CharsAllowed
   ${If} $R2 != "1"
   ${OrIf} $4 != "1"
   ${OrIf} $5 == "."
+  ${OrIf} $5 == "-"
   ${OrIf} $6 == "."
+  ${OrIf} $6 == "-"
+  ${OrIf} $8 == 1
+  ${OrIf} $9 != "1"
     StrCpy $0 "The tunnel name must be a host name such as mcp.example.com: letters, digits, dots and dashes only."
     Return
   ${EndIf}
@@ -335,7 +358,7 @@ Function BridgePageCreate
   ${NSD_CreateText} 0 67u 40u 12u "$BridgePort"
   Pop $PortCtl
 
-  ${NSD_CreateCheckbox} 0 86u 100% 10u "Reach the bridge through the Cloudflare tunnel (the address above is then ignored)"
+  ${NSD_CreateCheckbox} 0 86u 100% 10u "Use the Cloudflare tunnel (the address above is ignored)"
   Pop $TunnelChk
   ${If} $UseTunnel == "1"
     ${NSD_Check} $TunnelChk
@@ -442,14 +465,13 @@ Function SetupTunnel
   File "tunnel-client.ps1"
 
   StrCpy $2 '-Action Install -TunnelHost "$TunnelHost" -Port "$BridgePort" -CloudflaredPath "$INSTDIR\cloudflared.exe"'
-  ; Reinstall or upgrade: the token stored earlier is kept unless a new one is given
-  IfFileExists "$LOCALAPPDATA\FoundryMCPServer\tunnel\token.dpapi" 0 tunnel_no_stored
-    StrCpy $2 '$2 -KeepToken'
-  tunnel_no_stored:
-
   ${If} ${Silent}
     ${If} $TunnelTokenFile != ""
+      ; A token file replaces whatever was stored (a mistyped or rotated token)
       StrCpy $2 '$2 -TokenFile "$TunnelTokenFile"'
+    ${Else}
+      ; A silent upgrade keeps the stored token (.onInit stopped the run when there is none)
+      StrCpy $2 '$2 -KeepToken'
     ${EndIf}
     nsExec::ExecToStack 'powershell.exe -inputformat none -NoProfile -ExecutionPolicy Bypass -File "$INSTDIR\tunnel-client.ps1" $2'
     Pop $0

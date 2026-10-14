@@ -238,9 +238,11 @@ existing without its gate.
    stage 5). The dashboard creates the proxied DNS record. If the tunnel is edited through the API,
    keep the existing rules unchanged and put the new rule before the final catch-all.
 4. **Test from a PC with cloudflared** (a spare local port, never 31414 to 31416 on a PC that runs
-   its own bridge): `installer\nsis\tunnel-client.ps1 -Action Install -TunnelHost mcp.<domain> -Port
-31914`, paste the Client ID and the secret when asked, then `-Action Status` (it pings the bridge
-   through the tunnel and prints no secret), then `-Action Uninstall`.
+   its own bridge): run `installer\nsis\tunnel-client.ps1` with `-Action Install -TunnelHost
+mcp.<domain> -Port 31914 -CloudflaredPath "<path to your cloudflared.exe>"` (the installer puts
+   `cloudflared.exe` next to the script; in the repo you point at your own copy), paste the Client ID
+   and the secret when asked, then `-Action Status` (it pings the bridge through the tunnel and
+   prints no secret), then `-Action Uninstall`.
 5. **Danni or another GM:** the installer in `installer/` has a tunnel option
    ([the GM's page](../gm/connect-claude-desktop.md)). You hand over the Client ID and the secret
    outside the chat (in person or a password manager), never in the repo.
@@ -257,7 +259,8 @@ wrong token it is refused; `https://mcp.<domain>/` shows the Access page, never 
 Stage 12 also checks on the Pi that 31414 answers on loopback and nothing listens beyond it.
 
 **Rotation and removing a GM.** Rotate: create a new token, add it to `MCP client`, run the installer
-again with the new one, then delete the old. Remove a GM: Service credentials, delete (or revoke)
+again (or `tunnel-client.ps1 -Action Install`) and paste the new Client ID and secret: a new token
+replaces the stored one (Enter alone at the Client ID prompt keeps the old one). Then delete the old. Remove a GM: Service credentials, delete (or revoke)
 that GM's token; the next connection is refused. A lost laptop is the same step.
 
 ### If something goes wrong

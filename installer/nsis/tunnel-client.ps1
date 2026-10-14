@@ -124,17 +124,41 @@ function Read-Token {
   return @{ Id = (& $plain $idSecure); Secret = (& $plain $secretSecure) }
 }
 
-function Stop-Tunnel {
+# Stops this tunnel: the scheduled task, its launcher and its cloudflared. A process counts as ours
+# only when it matches exactly: the launcher by this StateDir, cloudflared by `access tcp` with the
+# host name and local port of the stored config (and of the one being installed, the two arguments).
+# Any other `cloudflared access tcp` the user runs is left alone.
+function Stop-Tunnel([string]$extraHost = '', [int]$extraPort = 0) {
   try { Stop-ScheduledTask -TaskName $TaskName -ErrorAction Stop } catch { }
-  # The launcher first (so it does not restart cloudflared), then cloudflared. Only processes that
-  # are ours: this script's Run action, and cloudflared started as an `access tcp` client.
   $own = $PID
+  $stateMatch = [regex]::Escape($StateDir)
+  # The launcher first (so it does not restart cloudflared), then cloudflared.
   $procs = @(Get-CimInstance Win32_Process -Filter "Name = 'powershell.exe' OR Name = 'pwsh.exe'" -ErrorAction SilentlyContinue |
-      Where-Object { $_.ProcessId -ne $own -and $_.CommandLine -match 'tunnel-client\.ps1' -and $_.CommandLine -match '-Action\s+Run' })
+      Where-Object { $_.ProcessId -ne $own -and $_.CommandLine -match 'tunnel-client\.ps1' -and $_.CommandLine -match '-Action\s+Run' -and $_.CommandLine -match $stateMatch })
   foreach ($p in $procs) { Stop-Process -Id $p.ProcessId -Force -ErrorAction SilentlyContinue }
-  $procs = @(Get-CimInstance Win32_Process -Filter "Name = 'cloudflared.exe'" -ErrorAction SilentlyContinue |
-      Where-Object { $_.CommandLine -match 'access\s+tcp' -and $_.CommandLine -match '--url\s+127\.0\.0\.1:' })
-  foreach ($p in $procs) { Stop-Process -Id $p.ProcessId -Force -ErrorAction SilentlyContinue }
+  $targets = @()
+  if ($extraHost -and $extraPort) { $targets += , @($extraHost, $extraPort) }
+  if (Test-Path -LiteralPath $configPath) {
+    try {
+      $old = Get-Content -LiteralPath $configPath -Raw | ConvertFrom-Json
+      $targets += , @([string]$old.host, [int]$old.port)
+    } catch { }
+  }
+  foreach ($t in $targets) {
+    $hostMatch = '--hostname\s+' + [regex]::Escape($t[0]) + '(\s|$)'
+    $urlMatch = '--url\s+127\.0\.0\.1:' + $t[1] + '(\s|$)'
+    $procs = @(Get-CimInstance Win32_Process -Filter "Name = 'cloudflared.exe'" -ErrorAction SilentlyContinue |
+        Where-Object { $_.CommandLine -match 'access\s+tcp' -and $_.CommandLine -match $hostMatch -and $_.CommandLine -match $urlMatch })
+    foreach ($p in $procs) { Stop-Process -Id $p.ProcessId -Force -ErrorAction SilentlyContinue }
+  }
+}
+
+# The name of the process listening on 127.0.0.1:<port>, or $null when it cannot be told.
+function Get-ListenerName([int]$port) {
+  try {
+    $c = Get-NetTCPConnection -State Listen -LocalPort $port -ErrorAction Stop | Select-Object -First 1
+    return (Get-Process -Id $c.OwningProcess -ErrorAction Stop).ProcessName
+  } catch { return $null }
 }
 
 function Get-TaskState {
@@ -152,7 +176,15 @@ switch ($Action) {
 
     $secretSecure = $null
     $clientId = $null
-    $haveStored = $KeepToken -and (Test-Path -LiteralPath $tokenPath)
+    $storedExists = Test-Path -LiteralPath $tokenPath
+    # A token file always wins (a mistyped or rotated token is replaced by running Install again);
+    # -KeepToken reuses the stored one only when no file is given.
+    $haveStored = $false
+    if ($TokenFile) {
+      $haveStored = $false
+    } elseif ($KeepToken -and $storedExists) {
+      $haveStored = $true
+    }
     if ($haveStored) {
       Write-Host 'Keeping the service token stored earlier.'
     } elseif ($TokenFile) {
@@ -162,11 +194,18 @@ switch ($Action) {
       $clientId = $lines[0].Trim()
       $secretSecure = ConvertTo-SecureString -String $lines[1].Trim() -AsPlainText -Force
     } else {
-      if (-not [Environment]::UserInteractive) { Fail 'no terminal to ask for the token: give -TokenFile' 2 }
+      # Under the installer's silent mode stdin is a pipe nobody writes to: never wait on it.
+      if (-not [Environment]::UserInteractive -or [Console]::IsInputRedirected) { Fail 'no terminal to ask for the token: give -TokenFile' 2 }
       Write-Host ''
       Write-Host 'Paste the service token you were given. Nothing you type for the secret is shown.'
+      if ($storedExists) { Write-Host 'A token is already stored: press Enter at the Client ID to keep it.' }
       $clientId = (Read-Host 'Client ID').Trim()
-      $secretSecure = Read-Host 'Client Secret' -AsSecureString
+      if ($clientId -eq '' -and $storedExists) {
+        $haveStored = $true
+        Write-Host 'Keeping the service token stored earlier.'
+      } else {
+        $secretSecure = Read-Host 'Client Secret' -AsSecureString
+      }
     }
     New-Item -ItemType Directory -Force -Path $StateDir | Out-Null
     if (-not $haveStored) {
@@ -197,7 +236,11 @@ switch ($Action) {
     }
 
     if (-not $NoStart) {
-      Stop-Tunnel
+      Stop-Tunnel $TunnelHost $Port
+      $holder = if (Test-PortListening $Port) { Get-ListenerName $Port } else { $null }
+      if (Test-PortListening $Port) {
+        Fail "127.0.0.1:$Port is already in use$(if ($holder) { " by $holder" }): pick another -Port, or stop that program" 2
+      }
       if ($NoTask) {
         Start-Process -FilePath (Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe') -WindowStyle Hidden `
           -ArgumentList @('-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', $PSCommandPath, '-Action', 'Run', '-StateDir', $StateDir)
@@ -226,7 +269,18 @@ switch ($Action) {
   'Uninstall' {
     Stop-Tunnel
     try { Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false -ErrorAction Stop; Write-Host "Removed the task '$TaskName'." } catch { }
-    if (Test-Path -LiteralPath $StateDir) { Remove-Item -LiteralPath $StateDir -Recurse -Force; Write-Host "Removed $StateDir (the stored token with it)." }
+    # The token first, so a failure further down never leaves it behind
+    Remove-Item -LiteralPath $tokenPath -Force -ErrorAction SilentlyContinue
+    if (Test-Path -LiteralPath $StateDir) {
+      Start-Sleep -Milliseconds 500  # the just-killed cloudflared may still hold the log
+      try { Remove-Item -LiteralPath $StateDir -Recurse -Force -ErrorAction Stop }
+      catch {
+        Start-Sleep -Seconds 2
+        try { Remove-Item -LiteralPath $StateDir -Recurse -Force -ErrorAction Stop }
+        catch { Write-Warning "Could not remove $StateDir ($($_.Exception.Message)); the stored token is gone, delete the folder by hand." }
+      }
+      if (-not (Test-Path -LiteralPath $StateDir)) { Write-Host "Removed $StateDir (the stored token with it)." }
+    }
     exit 0
   }
 
@@ -244,7 +298,14 @@ switch ($Action) {
     if ($state) { Write-Host "task '$TaskName': $state" } else { Write-Host "task '$TaskName': not registered"; $problems++ }
     if (Test-Path -LiteralPath $tokenPath) { Write-Host "token: stored for $env:USERNAME (not shown)" } else { Write-Host 'token: missing'; $problems++ }
     Write-Host "tunnel: $($cfg.host) -> 127.0.0.1:$listenPort"
-    if (Test-PortListening $listenPort) { Write-Host "local port $listenPort`: listening" } else { Write-Host "local port $listenPort`: not listening"; $problems++ }
+    if (Test-PortListening $listenPort) {
+      $holder = Get-ListenerName $listenPort
+      if ($holder -and $holder -ne 'cloudflared') {
+        Write-Host "local port $listenPort`: held by $holder, not by the tunnel"; $problems++
+      } else {
+        Write-Host "local port $listenPort`: listening"
+      }
+    } else { Write-Host "local port $listenPort`: not listening"; $problems++ }
     if (Test-Ping $listenPort) { Write-Host 'ping through the tunnel: ok' } else { Write-Host 'ping through the tunnel: no answer'; $problems++ }
     if ($problems -gt 0) { exit 4 }
     exit 0
@@ -261,14 +322,21 @@ switch ($Action) {
     try {
       $backoff = 5
       while ($true) {
-        if ((Test-Path -LiteralPath $logPath) -and ((Get-Item -LiteralPath $logPath).Length -gt 1MB)) { Remove-Item -LiteralPath $logPath -Force }
+        foreach ($f in @($logPath, "$logPath.out")) {
+          if ((Test-Path -LiteralPath $f) -and ((Get-Item -LiteralPath $f).Length -gt 1MB)) { Remove-Item -LiteralPath $f -Force -ErrorAction SilentlyContinue }
+        }
         $env:TUNNEL_SERVICE_TOKEN_ID = $token.Id
         $env:TUNNEL_SERVICE_TOKEN_SECRET = $token.Secret
         $started = Get-Date
-        $proc = Start-Process -FilePath $exe -WindowStyle Hidden -PassThru -RedirectStandardError $logPath -RedirectStandardOutput "$logPath.out" `
-          -ArgumentList @('access', 'tcp', '--hostname', [string]$cfg.host, '--url', "127.0.0.1:$([int]$cfg.port)", '--loglevel', 'info')
+        $proc = $null
+        try {
+          $proc = Start-Process -FilePath $exe -WindowStyle Hidden -PassThru -RedirectStandardError $logPath -RedirectStandardOutput "$logPath.out" `
+            -ArgumentList @('access', 'tcp', '--hostname', [string]$cfg.host, '--url', "127.0.0.1:$([int]$cfg.port)", '--loglevel', 'info')
+        } catch {
+          # A start error (antivirus, a locked log) must not end the loop: back off and try again.
+        }
         Remove-Item Env:\TUNNEL_SERVICE_TOKEN_ID, Env:\TUNNEL_SERVICE_TOKEN_SECRET -ErrorAction SilentlyContinue
-        $proc.WaitForExit()
+        if ($proc) { $proc.WaitForExit() }
         # A run that lasted a minute was a good one: start the back-off over.
         if (((Get-Date) - $started).TotalSeconds -gt 60) { $backoff = 5 } else { $backoff = [Math]::Min($backoff * 2, 120) }
         Start-Sleep -Seconds $backoff

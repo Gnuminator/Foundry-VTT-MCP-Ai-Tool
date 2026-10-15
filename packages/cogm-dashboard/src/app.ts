@@ -16,7 +16,7 @@ import { ErrorCommentaryEngine } from './ai/error-commentary.js';
 import { buildAskUserMessage } from './ai/prompt.js';
 import { SseHub } from './sse.js';
 import { AccessJwtVerifier, accessTokenFrom } from './access-jwt.js';
-import { resolveRole, isGm, type AuthRequest } from './auth.js';
+import { resolveRole, isGm, presentedUnknownToken, type AuthRequest } from './auth.js';
 import { classifyTool, toolArgs, type ToolKind } from './tool-policy.js';
 import { jsonErrorHandler } from './error-handler.js';
 import { gmOnly } from './redact.js';
@@ -646,8 +646,13 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
       return;
     }
     if (role === 'player') {
-      // The player role gets exactly what /api/player/state serves.
-      res.json({ role, ...currentPlayerState() });
+      // The player role gets exactly what /api/player/state serves, plus whether the token it
+      // sent is unknown: then it is a GM's stale link, and the GM page stays (web/src/lib/role.ts).
+      res.json({
+        role,
+        ...(presentedUnknownToken(req, config.auth) ? { unknownToken: true } : {}),
+        ...currentPlayerState(),
+      });
       return;
     }
     res.json({

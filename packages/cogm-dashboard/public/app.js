@@ -55,6 +55,39 @@ const authHeaders = () => (COGM_TOKEN ? { 'X-CoGM-Token': COGM_TOKEN } : {});
 const streamUrl = () =>
   '/api/stream' + (COGM_TOKEN ? '?token=' + encodeURIComponent(COGM_TOKEN) : '');
 
+// A player on the GM page (2026-10-15): with the split on, anyone the server does not call the GM
+// (a player token, or a Cloudflare Access email outside GM_EMAILS) gets the player state and
+// stream from this page's routes, so the page would stay empty. Send them to the read-only player
+// view; a token they hold is then the player token of a deployment that asks for one, so it is
+// copied to the player page's own key (player.js), or goes along in the address when storage is
+// refused. A visitor turned away who brings no token here but has the player page's own is a
+// player too. The GM never leaves, nor does a token the server does not know (`unknownToken`: a
+// GM's stale or mistyped link). The new dashboard does the same (web/src/lib/role.ts).
+(async () => {
+  let answer;
+  try {
+    const res = await fetch('/api/state', { headers: authHeaders() });
+    if (res.status === 401 && !COGM_TOKEN && localStorage.getItem('cogm_player_token')) {
+      location.replace('/player');
+      return;
+    }
+    if (!res.ok) return;
+    answer = await res.json();
+  } catch {
+    return;
+  }
+  if (answer.role !== 'player' || answer.unknownToken === true) return;
+  let url = '/player';
+  if (COGM_TOKEN) {
+    try {
+      localStorage.setItem('cogm_player_token', COGM_TOKEN);
+    } catch {
+      url += '?token=' + encodeURIComponent(COGM_TOKEN);
+    }
+  }
+  location.replace(url);
+})();
+
 const $ = id => document.getElementById(id);
 
 // Usage log (I-084, usage.js): fixed control names only, never typed text or messages. The

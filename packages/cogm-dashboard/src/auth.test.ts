@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { resolveRole, extractToken, isGm, type AuthRequest } from './auth.js';
+import {
+  resolveRole,
+  extractToken,
+  isGm,
+  presentedUnknownToken,
+  type AuthRequest,
+} from './auth.js';
 import type { AuthConfig } from './config.js';
 
 function authConfig(overrides: Partial<AuthConfig> = {}): AuthConfig {
@@ -104,6 +110,25 @@ describe('extractToken precedence', () => {
     expect(extractToken(req({ cookie: 'cogm_token=c' }, { token: 'q' }))).toBe('q');
     expect(extractToken(req({ cookie: 'cogm_token=c' }))).toBe('c');
     expect(extractToken(req())).toBeUndefined();
+  });
+});
+
+describe('presentedUnknownToken', () => {
+  it('flags a token that is not the GM token when no player token is set', () => {
+    expect(presentedUnknownToken(req({ 'x-cogm-token': 'stale' }), authConfig())).toBe(true);
+    expect(presentedUnknownToken(req({}, { token: 'stale' }), authConfig())).toBe(true);
+  });
+
+  it('never flags the GM token, no token, or a deployment with a player token', () => {
+    expect(presentedUnknownToken(req({ 'x-cogm-token': 'gm-secret' }), authConfig())).toBe(false);
+    expect(presentedUnknownToken(req(), authConfig())).toBe(false);
+    const withPlayer = authConfig({ playerToken: 'player-secret' });
+    expect(presentedUnknownToken(req({ 'x-cogm-token': 'player-secret' }), withPlayer)).toBe(false);
+  });
+
+  it('never flags in single-user mode', () => {
+    const auth = authConfig({ splitEnabled: false, gmToken: '' });
+    expect(presentedUnknownToken(req({ 'x-cogm-token': 'anything' }), auth)).toBe(false);
   });
 });
 

@@ -93,6 +93,19 @@ export function resolveRole(req: AuthRequest, auth: AuthConfig): Role | null {
   return 'player';
 }
 
+/**
+ * True when the caller presented a token the server does not know: neither the GM's nor a
+ * player's. Only possible without a player token, where such a caller still gets the player role
+ * (step 4 above) and a real player brings no token at all. The GM page uses it to keep a GM
+ * whose saved GM token is stale or mistyped on the GM page instead of sending them to /player.
+ */
+export function presentedUnknownToken(req: AuthRequest, auth: AuthConfig): boolean {
+  if (!auth.splitEnabled || auth.playerToken !== '') return false;
+  const token = extractToken(req);
+  if (!token) return false;
+  return !(auth.gmToken !== '' && safeEqual(token, auth.gmToken));
+}
+
 /** True if the role may use the write/AI/control surface. */
 export function isGm(role: Role | null): role is 'gm' {
   return role === 'gm';

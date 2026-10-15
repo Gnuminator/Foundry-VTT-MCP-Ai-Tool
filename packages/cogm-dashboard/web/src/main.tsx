@@ -4,12 +4,15 @@ import { createRoot } from 'react-dom/client';
 
 import { App } from './App';
 import { ToastProvider } from './components/Toasts';
+import { sendPlayersToPlayerPage } from './lib/role';
 import { applyCachedTheme } from './lib/theme';
 import { TooltipProvider } from './ui';
 import './next.css';
 
 // Before the first paint: the last theme this browser saw.
 applyCachedTheme();
+// A player who opened this page lands on the player view (lib/role.ts).
+void sendPlayersToPlayerPage();
 
 const queryClient = new QueryClient({
   defaultOptions: {

@@ -4,6 +4,8 @@
 // needed. The server enforces the role; this only forwards the credential.
 
 const TOKEN_KEY = 'cogm_token';
+/** The player page's own key (public/player.js). */
+const PLAYER_TOKEN_KEY = 'cogm_player_token';
 
 function readToken(): string {
   const fromUrl = new URL(location.href).searchParams.get('token');
@@ -44,4 +46,30 @@ export function streamUrl(): string {
 /** The header the REST routes read the GM token from (none without the split). */
 export function authHeaders(): Record<string, string> {
   return token ? { 'X-CoGM-Token': token } : {};
+}
+
+/**
+ * The player page's address for a visitor the server calls a player. The token this page holds
+ * is then a player token: it is copied to the player page's key, so the player page has it too
+ * (it stays here as well, so the next visit sends the player on again). Storage refused: it goes
+ * along in the address instead.
+ */
+export function playerPageUrl(): string {
+  if (!token) return '/player';
+  try {
+    localStorage.setItem(PLAYER_TOKEN_KEY, token);
+    return '/player';
+  } catch {
+    return `/player?token=${encodeURIComponent(token)}`;
+  }
+}
+
+/** True when this page has no token but the player page has one: a player, not a GM. */
+export function onlyPlayerToken(): boolean {
+  if (token) return false;
+  try {
+    return Boolean(localStorage.getItem(PLAYER_TOKEN_KEY));
+  } catch {
+    return false;
+  }
 }

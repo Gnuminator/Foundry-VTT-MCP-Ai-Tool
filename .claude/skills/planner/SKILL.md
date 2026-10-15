@@ -25,10 +25,21 @@ a turn after the answer.
 
 ## Backlog upkeep
 
-Each item in `Backlog.md`: `## <size S/M/L> <title>` then lines `- done when: ...`,
-`- area: <files or folder>`, optional `- gate:`, `- blocked by:`, `- source:`, and `- claimed:`
-once a lane takes it. Order is priority; G0 critical path first. Remove items when merged (the PR
-is the record). Lows from reviews become S items.
+Each item in `Backlog.md`: `## <size S/M/L> <title>` then lines `- id: <slug>`, `- board: <area>`,
+`- done when: ...`, `- area: <files or folder>`, optional `- gate:`, `- blocked by:`, `- pi: yes`,
+`- source:`, and `- claimed:` once a lane takes it. Order is priority; G0 critical path first.
+Every new item gets an `- id:` (short, lowercase, stable, never changed or reused, because the
+live board at board.spennerit.com, D-124, links items by it) and a `- board:` line (its area on
+the board); `- pi: yes` where it needs a Pi day and the user's OK. Write a blocker in `blocked by`
+as `W21` for a Waiting item or `item:<id>` for another Backlog item (anything else is free text).
+Remove items when merged (the PR is the record) and add a line to `## Done`; if a go / no-go light
+in `Board.md` names the removed item's id, repoint or drop that light, because an id no longer on
+the Backlog shows as "Check". Lows from reviews become S items. The board's Capture and Promote
+(phase 2, live 2026-10-15) add items under `## Captured on the board (triage)` with a
+`- captured: <date>` line; triage that chapter whenever you update the Backlog: sort each item into
+the chapter where it belongs, fill `- board:` and `- done when:` (and `area`, `blocked by`, size),
+then drop its `- captured:` line. The board rewrites `Backlog.md` in place, so pull first and
+keep each item's lines together when you move it.
 
 ## Starting lanes
 

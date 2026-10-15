@@ -49,8 +49,9 @@ export function authHeaders(): Record<string, string> {
 }
 
 /**
- * The player page's address for a visitor the server calls a player. The token this page holds
- * is then a player token: it is copied to the player page's key, so the player page has it too
+ * The player page's address for a visitor the server calls a player. A token this page holds is
+ * then the player token of a deployment that asks for one (role.ts never sends on a token the
+ * server does not know): it is copied to the player page's key, so the player page has it too
  * (it stays here as well, so the next visit sends the player on again). Storage refused: it goes
  * along in the address instead.
  */

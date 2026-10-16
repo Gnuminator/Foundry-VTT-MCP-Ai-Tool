@@ -46,4 +46,18 @@ describe('tunnel-client.ps1 Install', () => {
     assert.ok(args.includes('-File `"$PSCommandPath`"'), 'the script path is quoted');
     assert.ok(args.includes('-StateDir `"$StateDir`"'), 'the state folder is quoted');
   });
+
+  test('a failing Register-ScheduledTask ends with a Fail line, not the PowerShell error', () => {
+    const reg = install.match(/try \{\s*Register-ScheduledTask [\s\S]*?\} catch \{\s*Fail "([^\n]*)"\s*\}/);
+    assert.ok(reg, 'Register-ScheduledTask sits in a try with a catch that calls Fail');
+    assert.ok(reg[1].includes('$($_.Exception.Message)'), 'the Fail line carries the cause');
+  });
+
+  test('a -StateDir ending in a backslash is trimmed after the param block, before any path is built', () => {
+    const trim = src.indexOf("$StateDir = $StateDir.TrimEnd('\\')");
+    assert.ok(trim > 0, 'StateDir is trimmed');
+    assert.ok(trim > src.indexOf('[switch]$NoStart'), 'after the param block');
+    assert.ok(trim < src.indexOf('$configPath = Join-Path $StateDir'), 'before $configPath is built');
+    assert.ok(src.includes('$StateDir.Length -gt 3'), 'a bare drive root is left alone');
+  });
 });

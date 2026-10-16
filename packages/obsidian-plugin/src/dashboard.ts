@@ -114,12 +114,20 @@ export function normalizeBaseUrl(raw: string): string {
 
 /**
  * Cloudflare's copy buttons copy the header line (`CF-Access-Client-Id: abc.access`), not just the
- * value. A pasted line works too: a leading header name, its colon and any spaces are dropped.
+ * value. A pasted line works too: a leading header name, its colon and any spaces are dropped. When
+ * both pasted lines land in one field, the line for this header is used; a field holding only the
+ * other header's line (the Secret line in the Id field) gives nothing, so no wrong value is sent.
  */
 export function stripHeaderName(value: string, headerName: string): string {
-  const trimmed = value.trim();
-  const prefix = `${headerName.toLowerCase()}:`;
-  return trimmed.toLowerCase().startsWith(prefix) ? trimmed.slice(prefix.length).trim() : trimmed;
+  const own = `${headerName.toLowerCase()}:`;
+  const lines = value
+    .split(/\r?\n/)
+    .map(line => line.trim())
+    .filter(Boolean);
+  const mine = lines.find(line => line.toLowerCase().startsWith(own));
+  if (mine) return mine.slice(own.length).trim();
+  const first = lines[0] ?? '';
+  return /^cf-access-client-(id|secret):/i.test(first) ? '' : first;
 }
 
 const PLAN_ID = /^plan-[a-z0-9-]{1,80}$/;

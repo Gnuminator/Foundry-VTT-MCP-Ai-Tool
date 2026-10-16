@@ -48,6 +48,10 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+# A trailing backslash before a closing quote reads as an escaped quote on the powershell.exe command
+# line (the task and -NoTask arguments quote $StateDir). A bare drive root is left as it is.
+if ($StateDir.Length -gt 3) { $StateDir = $StateDir.TrimEnd('\') }
+
 $configPath = Join-Path $StateDir 'tunnel.json'
 $tokenPath = Join-Path $StateDir 'token.dpapi'
 $logPath = Join-Path $StateDir 'tunnel.log'
@@ -235,8 +239,12 @@ switch ($Action) {
       $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries `
         -ExecutionTimeLimit (New-TimeSpan -Seconds 0) -MultipleInstances IgnoreNew -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1)
       $principal = New-ScheduledTaskPrincipal -UserId $user -LogonType Interactive -RunLevel Limited
-      Register-ScheduledTask -TaskName $TaskName -Action $taskAction -Trigger $logon -Settings $settings -Principal $principal `
-        -Description 'Keeps the Cloudflare Access tunnel to the Foundry AI Tool bridge open (tunnel-client.ps1).' -Force | Out-Null
+      try {
+        Register-ScheduledTask -TaskName $TaskName -Action $taskAction -Trigger $logon -Settings $settings -Principal $principal `
+          -Description 'Keeps the Cloudflare Access tunnel to the Foundry AI Tool bridge open (tunnel-client.ps1).' -Force | Out-Null
+      } catch {
+        Fail "could not register the task '$TaskName' ($($_.Exception.Message)); the old tunnel was stopped, so run Install again or sign out and in"
+      }
       Write-Host "Registered the task '$TaskName': it starts the tunnel when you sign in."
     }
 

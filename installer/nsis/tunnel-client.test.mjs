@@ -30,6 +30,18 @@ describe('tunnel-client.ps1 Install', () => {
     assert.equal(install.split('Stop-Tunnel $TunnelHost $Port').length - 1, 1, 'one Stop-Tunnel call in Install');
   });
 
+  test('the register-failure text claims the old tunnel was stopped only when -NoStart is off', () => {
+    const line = install.split(/\r?\n/).find(l => l.includes('could not register the task'));
+    assert.ok(line, 'the register failure message moved');
+    // Stop-Tunnel runs only when -not $NoStart, so only that branch may say the old tunnel was stopped.
+    assert.match(
+      line,
+      /\$\(if \(\$NoStart\) \{ '[^']*' \} else \{ '[^']*the old tunnel was stopped[^']*' \}\)/,
+      'the "old tunnel was stopped" claim has to sit in the else branch of an $NoStart check',
+    );
+    assert.equal(line.split('the old tunnel was stopped').length - 1, 1, 'the claim appears once, inside that branch');
+  });
+
   test('L2: waits up to about 3 seconds for the old listener before the port-in-use refusal', () => {
     const wait = install.match(/for \(\$i = 0; \$i -lt (\d+) -and \(Test-PortListening \$Port\); \$i\+\+\) \{ Start-Sleep -Milliseconds (\d+) \}/);
     assert.ok(wait, 'a bounded wait on Test-PortListening');

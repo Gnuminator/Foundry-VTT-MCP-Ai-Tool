@@ -77,6 +77,11 @@ jobs:
         # .claude/hooks/context-alert.mjs (D-122): one line at the 350k and 400k handover marks.
         run: node --test .claude/hooks/context-alert.test.mjs
 
+      - name: Edit guard hooks
+        # .claude/hooks/guard-shell-edits.mjs (no shell edits of source files) and
+        # warn-control-bytes.mjs (control bytes in changed files); the second makes temp git repos.
+        run: node --test .claude/hooks/guard-shell-edits.test.mjs .claude/hooks/warn-control-bytes.test.mjs
+
       - name: Merge gate and keep-green scripts
         # scripts/green.mjs (parity with this job) and scripts/lane-merge.mjs (D-122 merge gate).
         run: node --test scripts/green.test.mjs scripts/lane-merge.test.mjs

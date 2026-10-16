@@ -25,11 +25,26 @@
             "type": "command",
             "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard-remote-commands.mjs\"",
             "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard-shell-edits.mjs\"",
+            "timeout": 10
           }
         ]
       }
     ],
     "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit|Bash|PowerShell",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/warn-control-bytes.mjs\"",
+            "timeout": 5
+          }
+        ]
+      },
       {
         "matcher": "*",
         "hooks": [

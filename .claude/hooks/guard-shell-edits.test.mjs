@@ -228,10 +228,105 @@ test('splitBodies separates heredoc and here-string bodies from the command', ()
   assert.equal(b.bodies[0].kind, 'herestring');
 });
 
+const VAULT_BACKLOG = String.raw`C:\Users\chris\Documents\Obsidian\vault\Dev\Foundry AI Tool\Backlog.md`;
+
+test('M1: python and node writes to the vault or TEMP pass even when repo paths appear in the script', () => {
+  for (const c of [
+    // the planner's Backlog claim: Path(r'...') with repo paths in the replaced text
+    `python - <<'EOF'\nfrom pathlib import Path\np = Path(r'${VAULT_BACKLOG}')\nt = p.read_text(encoding='utf-8')\nt = t.replace('- claimed: none', '- claimed: x; files: scripts/green.mjs')\np.write_text(t, encoding='utf-8')\nEOF`,
+    // a variable assigned an r'...' path, then open(p, 'w')
+    `python - <<'EOF'\np = r'${VAULT_BACKLOG}'\nt = open(p, encoding='utf-8').read()\nt = t.replace('a', 'scripts/green.mjs')\nopen(p, 'w', encoding='utf-8').write(t)\nEOF`,
+    // dump a repo file to TEMP
+    String.raw`python - <<'EOF'
+with open(r'C:\Users\chris\AppData\Local\Temp\out.md', 'w') as f:
+    f.write(open('docs/dev/ARCHITECTURE.md').read())
+EOF`,
+    `python -c "import json,os,tempfile; d=json.load(open('package.json')); open(os.path.join(tempfile.gettempdir(),'x.json'),'w').write(json.dumps(d))"`,
+    `node -e "const fs=require('fs'),path=require('path'),os=require('os'); const out=path.join(os.tmpdir(),'x.json'); fs.writeFileSync(out, fs.readFileSync(path.join('packages','shared','package.json')))"`,
+  ]) {
+    assert.ok(allowed(c), c);
+  }
+});
+
+test('M1: a repo target held in a variable or Path() is still found', () => {
+  for (const c of [
+    `python - <<'PY'\nfrom pathlib import Path\np = Path('packages/a/src/b.ts')\np.write_text(p.read_text().replace('a','b'))\nPY`,
+    `python - <<'PY'\nfrom pathlib import Path\nPath(r'scripts\\green.mjs').write_text('x')\nPY`,
+    `python - <<'PY'\np = r'scripts\\green.mjs'\nopen(p, 'w').write('x')\nPY`,
+    `node -e "const f='scripts/x.mjs'; require('fs').writeFileSync(f, 'x')"`,
+  ]) {
+    assert.ok(denied(c), c);
+  }
+});
+
+test('M2: sed -i is found when its script holds ; or |, and quoted message text is not a command', () => {
+  for (const c of [
+    "sed -i 's/a/b/; s/c/d/' scripts/green.mjs",
+    'sed -i "s/a/b/;s/c/d/" packages/shared/src/a.ts',
+    "sed -i 's|a|b|' scripts/green.mjs",
+  ]) {
+    assert.ok(denied(c), c);
+  }
+  for (const c of [
+    'git commit -m "Guard: deny (sed -i on a.ts) edits"',
+    "git commit -m 'Deny `sed -i x.ts` in hooks'",
+    'git commit -m "subject\n\nsed -i scripts/green.mjs is now blocked"',
+    'git commit -m "python -c \\"open(\'a.ts\',\'w\')\\" is blocked"',
+  ]) {
+    assert.ok(allowed(c), c);
+  }
+});
+
+test('M3: a PowerShell writer is read only up to the next ; or |', () => {
+  for (const c of [
+    "$r = (Get-Content CHANGELOG.md -Raw) -replace \"`r\",''; $r | Out-File $env:TEMP\\c.md; git diff -- CHANGELOG.md",
+    "git log -1 --format=%B | Out-File $env:TEMP\\msg.txt; (Get-Content package.json -Raw) -replace 'x','y' | Measure-Object",
+  ]) {
+    assert.ok(allowed(c), c);
+  }
+  assert.ok(denied("(Get-Content CHANGELOG.md -Raw) -replace 'a','b' | Set-Content CHANGELOG.md; git diff"));
+  assert.ok(denied('(Get-Content CHANGELOG.md) -replace "a","b;c" | Set-Content CHANGELOG.md'));
+});
+
+test('M4: a 100 KB single token or minified command is answered fast (and over the cap, unread)', () => {
+  const slow = [
+    'a'.repeat(99_000),
+    `sed -i ${'a.a'.repeat(33_000)}`,
+    `node -e "${'f(a,b);'.repeat(14_000)}"`,
+    `python -c "${'a.b(c);'.repeat(14_000)}"`,
+    `python -c "${'open('.repeat(15_000)}"`,
+    `sed ${'/x'.repeat(49_000)}`,
+    `${'a'.repeat(200_000)}`,
+  ];
+  for (const c of slow) {
+    const t = Date.now();
+    assert.equal(decide(c, CWD, ROOT), null);
+    assert.ok(Date.now() - t < 500, `${c.slice(0, 20)}... took ${Date.now() - t} ms`);
+  }
+});
+
+test('L2: a redirect on a later line belongs to that command, not to the heredoc before it', () => {
+  assert.ok(allowed("git commit -F - <<'EOF'\nmsg\nEOF\nnpm run docs:tools > docs/dev/tools.md"));
+  assert.ok(denied("git commit -F - <<'EOF'\nmsg\nEOF\ncat > docs/dev/a.md <<'EOF'\nx\nEOF"));
+});
+
+test('L3: <<\\EOF bodies are data; Push-Location moves the working directory', () => {
+  assert.ok(allowed("cat <<\\EOF\nsed -i 's/a/b/' scripts/green.mjs\nEOF"));
+  assert.ok(
+    allowed(
+      "Push-Location 'C:\\Users\\chris\\Documents\\Obsidian\\vault'; (Get-Content Waiting.md) -replace 'a','b' | Set-Content Waiting.md"
+    )
+  );
+});
+
+test('an empty working directory falls back to the repo root passed in', () => {
+  assert.ok(decide("sed -i 's/a/b/' src/x.ts", '', ROOT) !== null);
+});
+
 test('the hook entry point: stdin payload in, deny JSON or nothing out, junk allowed', () => {
   const go = input => spawnSync(process.execPath, [HOOK], { input, encoding: 'utf8' });
   const repoFile = path.resolve(path.dirname(HOOK), '..', '..', 'package.json');
-  const bad = go(JSON.stringify({ tool_input: { command: `sed -i 's/a/b/' ${repoFile}` } }));
+  const bad = go(JSON.stringify({ tool_input: { command: `sed -i 's/a/b/' "${repoFile}"` } }));
   assert.equal(bad.status, 0);
   assert.equal(JSON.parse(bad.stdout).hookSpecificOutput.permissionDecision, 'deny');
   assert.equal(go(JSON.stringify({ tool_input: { command: 'git status' } })).stdout, '');

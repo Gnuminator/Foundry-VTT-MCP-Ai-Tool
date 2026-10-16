@@ -98,6 +98,58 @@ test('Bash: a tracked file modified in the last minute is found by git, even whe
   put('tracked.mjs', CLEAN);
 });
 
+test('L1: the HEAD lookup works from a subdirectory cwd and from another repo', () => {
+  put('sub/deep.ts', `const a = "${ESC}[31m";\n`);
+  put('sub/clean.ts', CLEAN);
+  git('add', '-A');
+  git('commit', '-q', '-m', 'sub');
+  // already had the byte at HEAD: quiet with the session cwd at the root or in the subdirectory
+  assert.equal(run(write('sub/deep.ts')), '');
+  assert.equal(run({ ...write('sub/deep.ts'), cwd: path.join(repo, 'sub') }), '');
+  // a second repo (the vault) is looked up in its own repo, not the session's
+  const other = mkdtempSync(path.join(os.tmpdir(), 'warn-control-bytes-other-'));
+  try {
+    const og = (...args) =>
+      execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', ...args], { cwd: other, stdio: 'ignore' });
+    og('init', '-q');
+    writeFileSync(path.join(other, 'note.md'), `x${ESC}\n`);
+    og('add', '-A');
+    og('commit', '-q', '-m', 'n');
+    assert.equal(run({ tool_name: 'Write', cwd: repo, tool_input: { file_path: path.join(other, 'note.md') } }), '');
+    writeFileSync(path.join(other, 'note.md'), `x${ESC}${BS}\n`);
+    assert.match(
+      JSON.parse(run({ tool_name: 'Write', cwd: repo, tool_input: { file_path: path.join(other, 'note.md') } })).systemMessage,
+      /note\.md: 2 /
+    );
+  } finally {
+    rmSync(other, { recursive: true, force: true });
+  }
+  put('sub/deep.ts', `const a = "${ESC}[31m";\nconst b = /${BS}/;\n`);
+  assert.match(JSON.parse(run({ ...write('sub/deep.ts'), cwd: path.join(repo, 'sub') })).systemMessage, /deep\.ts: 2 /);
+  put('sub/deep.ts', `const a = "${ESC}[31m";\n`);
+});
+
+test('M4: a 200 KB single token or minified command is answered fast, and long tokens are not paths', () => {
+  const cmds = [
+    'a'.repeat(200_000),
+    `python -c "${'f(a,b);'.repeat(30_000)}"`,
+    `echo ${'a.a'.repeat(60_000)}`,
+    `sed -i ${'x'.repeat(100_000)}.ts`,
+  ];
+  for (const command of cmds) {
+    const t = Date.now();
+    assert.equal(run({ tool_name: 'Bash', cwd: repo, tool_input: { command } }), '');
+    assert.ok(Date.now() - t < 500, `${command.slice(0, 20)}... took ${Date.now() - t} ms`);
+  }
+});
+
+test('a command naming many files checks only the first 200', () => {
+  put('many.ts', MANGLED);
+  const filler = Array.from({ length: 300 }, (_, i) => `f${i}.ts`).join(' ');
+  assert.equal(run({ tool_name: 'Bash', cwd: repo, tool_input: { command: `cat ${filler} many.ts` } }), '');
+  assert.match(JSON.parse(run({ tool_name: 'Bash', cwd: repo, tool_input: { command: 'cat many.ts' } })).systemMessage, /many\.ts/);
+});
+
 test('PowerShell commands are checked like Bash', () => {
   put('ps.ps1', `Write-Host '${BS}'\n`);
   const out = JSON.parse(

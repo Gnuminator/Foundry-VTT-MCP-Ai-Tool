@@ -193,7 +193,7 @@ function callArgs(text, start) {
   let depth = 0;
   let cur = '';
   let q = null;
-  for (let i = start; i < text.length && i < start + 2000; i++) {
+  for (let i = start; i < text.length && i < start + 600; i++) {
     const c = text[i];
     if (q) {
       cur += c;

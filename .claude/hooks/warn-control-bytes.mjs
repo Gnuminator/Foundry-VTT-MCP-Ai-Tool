@@ -11,6 +11,16 @@
 // "Gains" means more control bytes than the file has at HEAD, so a file that legitimately contains
 // one (a test fixture with an ESC byte) stays quiet until it gets another.
 //
+// Limits (it is a best-effort warning, not a gate):
+//   - the git fallback uses `git diff --name-only`, which lists tracked, unstaged
+//     changes only; an untracked file a script writes without naming it is not checked;
+//   - a file an Edit already warned about is warned again on each later writing shell command
+//     within 60 seconds (repeat message, harmless);
+//   - worst case is three sequential 3 s git timeouts against the 5 s hook timeout; the hook then
+//     fails open and prints nothing;
+//   - command tokens over 1024 characters are not read as paths, and at most 200 named files are
+//     checked per command.
+//
 // Output: JSON with `systemMessage` and `hookSpecificOutput.additionalContext`, or nothing.
 // Any failure prints nothing and exits 0.
 
@@ -20,7 +30,9 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const SOURCE_EXT = /\.(?:ts|tsx|js|mjs|ps1|sh|json|yml|md)$/i;
-const PATH_TOKEN = /[^\s"'=;|&<>()`,]+\.(?:json|tsx|ts|mjs|js|ps1|sh|yml|md)(?=$|[\s"'`;|&)<>,\]])/gi;
+const TOKEN_SPLIT = /[\s"'=;|&<>()`,]+/;
+const MAX_TOKEN = 1024; // longer tokens (base64, minified code) are not paths
+const MAX_NAMED = 200; // named files checked per command
 const WRITEY =
   /\b(?:sed|perl|python\d*|py|node|tee|patch|awk|ruby|cp|copy|mv|move|git\s+(?:apply|checkout|restore|merge|pull|rebase|stash|cherry-pick))\b|Set-Content|Add-Content|Out-File|WriteAll|-replace|<<|>>?\s*[^&\s]/i;
 const MAX_BYTES = 2 * 1024 * 1024;
@@ -46,10 +58,11 @@ function describe(buf, hits) {
   return `${hits.length} (${spots.join(', ')}${hits.length > 3 ? ', ...' : ''})`;
 }
 
-function headCount(rel, cwd) {
+/** Control bytes in the committed version; `./<name>` resolves from the file's own directory (any repo). */
+function headCount(file) {
   try {
-    const out = execFileSync('git', ['show', `HEAD:${rel}`], {
-      cwd,
+    const out = execFileSync('git', ['show', `HEAD:./${path.basename(file)}`], {
+      cwd: path.dirname(file),
       maxBuffer: MAX_BYTES * 2,
       stdio: ['ignore', 'pipe', 'ignore'],
       timeout: 3000,
@@ -70,8 +83,7 @@ export function checkFile(file, cwd = REPO_ROOT) {
     const hits = controlBytes(buf);
     if (hits.length === 0) return null;
     const rel = path.relative(cwd, file).replace(/\\/g, '/');
-    const before = rel.startsWith('..') ? 0 : headCount(rel, cwd);
-    if (hits.length <= before) return null;
+    if (hits.length <= headCount(file)) return null;
     return `${rel || file}: ${describe(buf, hits)}`;
   } catch {
     return null;
@@ -80,8 +92,11 @@ export function checkFile(file, cwd = REPO_ROOT) {
 
 function changedByCommand(command, cwd, now) {
   const files = new Set();
-  for (const t of command.match(PATH_TOKEN) ?? []) {
-    if (/^[$~%]/.test(t)) continue;
+  for (const raw of command.split(TOKEN_SPLIT)) {
+    if (files.size >= MAX_NAMED) break;
+    if (raw.length > MAX_TOKEN) continue;
+    const t = raw.replace(/[\]}]+$/, '');
+    if (!SOURCE_EXT.test(t) || /^[$~%]/.test(t)) continue;
     files.add(path.resolve(cwd, t.replace(/^\/([a-zA-Z])\//, '$1:/')));
   }
   if (WRITEY.test(command)) {

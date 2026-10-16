@@ -68,6 +68,7 @@ for (const [name, path] of PAGES) {
     const body = (await settled(page, `${path}?token=stale-gm-token`)) as Record<string, unknown>;
 
     expect(body).toMatchObject({ role: 'player', unknownToken: true });
+    await expect(page.getByText("This browser's GM link is not accepted any more.")).toBeVisible();
     expect(new URL(page.url()).pathname).toBe(path);
     expect(await page.evaluate(() => localStorage.getItem('cogm_player_token'))).toBeNull();
   });

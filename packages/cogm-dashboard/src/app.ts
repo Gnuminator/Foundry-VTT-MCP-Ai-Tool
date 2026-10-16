@@ -16,7 +16,13 @@ import { ErrorCommentaryEngine } from './ai/error-commentary.js';
 import { buildAskUserMessage } from './ai/prompt.js';
 import { SseHub } from './sse.js';
 import { AccessJwtVerifier, accessTokenFrom } from './access-jwt.js';
-import { resolveRole, isGm, presentedUnknownToken, type AuthRequest } from './auth.js';
+import {
+  resolveRole,
+  isGm,
+  presentedUnknownToken,
+  presentedUnverifiedAccess,
+  type AuthRequest,
+} from './auth.js';
 import { classifyTool, toolArgs, type ToolKind } from './tool-policy.js';
 import { jsonErrorHandler } from './error-handler.js';
 import { gmOnly } from './redact.js';
@@ -515,19 +521,31 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
       logger: logger.child('host'),
     })
   );
-  if (accessVerifier) {
+  // A token that does not verify (or cannot be checked) is marked, not just ignored: a GM behind
+  // it would otherwise be told they are a player (presentedUnverifiedAccess, /api/state).
+  if (accessVerifier || config.auth.gmEmails.length > 0) {
     app.use((req: Request, _res: Response, next: () => void) => {
       const token = accessTokenFrom(req.headers);
       if (!token) {
         next();
         return;
       }
+      const request = req as Request & AuthRequest;
+      if (!accessVerifier) {
+        request.accessTokenUnverified = true;
+        next();
+        return;
+      }
       accessVerifier.verify(token).then(
         identity => {
-          if (identity) (req as Request & AuthRequest).accessEmail = identity.email;
+          if (identity) request.accessEmail = identity.email;
+          else request.accessTokenUnverified = true;
           next();
         },
-        () => next()
+        () => {
+          request.accessTokenUnverified = true;
+          next();
+        }
       );
     });
   }
@@ -648,9 +666,11 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
     if (role === 'player') {
       // The player role gets exactly what /api/player/state serves, plus whether the token it
       // sent is unknown: then it is a GM's stale link, and the GM page stays (web/src/lib/role.ts).
+      // `accessUnverified`: an Access token the dashboard could not verify; the same page stays.
       res.json({
         role,
         ...(presentedUnknownToken(req, config.auth) ? { unknownToken: true } : {}),
+        ...(presentedUnverifiedAccess(req, config.auth) ? { accessUnverified: true } : {}),
         ...currentPlayerState(),
       });
       return;

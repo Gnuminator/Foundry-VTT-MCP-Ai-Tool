@@ -28,6 +28,11 @@ export interface AuthRequest {
   query?: Record<string, unknown>;
   /** The email of a verified Cloudflare Access token (access-jwt.ts), if any. */
   accessEmail?: string;
+  /**
+   * The request carried a Cloudflare Access token that was not checked or did not verify, on a
+   * deployment that has GM emails: a GM may be behind it (see presentedUnverifiedAccess).
+   */
+  accessTokenUnverified?: boolean;
 }
 
 const GM_TOKEN_HEADER = 'x-cogm-token';
@@ -104,6 +109,20 @@ export function presentedUnknownToken(req: AuthRequest, auth: AuthConfig): boole
   const token = extractToken(req);
   if (!token) return false;
   return !(auth.gmToken !== '' && safeEqual(token, auth.gmToken));
+}
+
+/**
+ * True when the request carried a Cloudflare Access token the dashboard could not turn into an
+ * identity (the keys did not load, they rotated, or GM_EMAILS is set without the CF_ACCESS
+ * settings) and no GM email resolved. Such a GM gets the player role here, so the GM page must not
+ * send them to /player: a reload heals a rotated key, a missing CF_ACCESS setting needs the fix. Never for a verified token (a player behind Access is a
+ * real player), on a deployment without GM emails, or where a player token is asked for (the
+ * caller is then turned away, not given the player role).
+ */
+export function presentedUnverifiedAccess(req: AuthRequest, auth: AuthConfig): boolean {
+  // With a player token, a caller without it is turned away (401), not given the player role.
+  if (!auth.splitEnabled || auth.gmEmails.length === 0 || auth.playerToken !== '') return false;
+  return req.accessTokenUnverified === true && req.accessEmail === undefined;
 }
 
 /** True if the role may use the write/AI/control surface. */

@@ -243,7 +243,7 @@ switch ($Action) {
         Register-ScheduledTask -TaskName $TaskName -Action $taskAction -Trigger $logon -Settings $settings -Principal $principal `
           -Description 'Keeps the Cloudflare Access tunnel to the Foundry AI Tool bridge open (tunnel-client.ps1).' -Force | Out-Null
       } catch {
-        Fail "could not register the task '$TaskName' ($($_.Exception.Message)); the old tunnel was stopped, so run Install again or sign out and in"
+        Fail "could not register the task '$TaskName' ($($_.Exception.Message)); $(if ($NoStart) { 'run Install again' } else { 'the old tunnel was stopped, so run Install again or sign out and in' })"
       }
       Write-Host "Registered the task '$TaskName': it starts the tunnel when you sign in."
     }

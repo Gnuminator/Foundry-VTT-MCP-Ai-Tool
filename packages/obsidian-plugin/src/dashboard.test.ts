@@ -274,6 +274,17 @@ describe('Cloudflare Access service token (D-094 R1)', () => {
     expect(calls[0]?.headers['CF-Access-Client-Secret']).toBe('shh-456');
   });
 
+  it('splits two header lines that were pasted with no newline between them', async () => {
+    const joined = 'CF-Access-Client-Id: id-123.accessCF-Access-Client-Secret: shh-456';
+    const { client: c, calls } = accessClient('https://cogm.example.org', {
+      clientId: joined,
+      clientSecret: joined,
+    });
+    await c.theme();
+    expect(calls[0]?.headers['CF-Access-Client-Id']).toBe('id-123.access');
+    expect(calls[0]?.headers['CF-Access-Client-Secret']).toBe('shh-456');
+  });
+
   it('sends no Id when the Secret line was pasted into the Id field', async () => {
     const { client: c, calls } = accessClient('https://cogm.example.org', {
       clientId: 'CF-Access-Client-Secret: shh-456',

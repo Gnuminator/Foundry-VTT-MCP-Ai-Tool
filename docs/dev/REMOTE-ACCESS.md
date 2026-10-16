@@ -68,16 +68,16 @@ player" were not walked and may have moved. If a name has changed, look for the 
    `http://`; the bare `localhost:30000` does not work). Leave every option under Additional
    settings as it is (WebSockets work by default); in particular **never set "HTTP Host Header"**,
    because the dashboard's host check (a `421` for names it does not know) is what keeps an
-   unconfigured name closed.
+   unconfigured name closed. Save the route.
 
    One option is worth setting: **Validate the Access JWT at the tunnel** (under Access in the
    route's additional settings). The tunnel then refuses any request that did not come through
    your Access application, so a name that someone points at the tunnel by another path stays
    shut. It asks for your **team name** (step 2) and the **AUD tag** of the `Foundry players`
-   application (step 4), not the AUD tag of another application. Save the route. A wrong AUD tag (or team name)
-   shows up as a **403** right after the email code (the login worked, the tunnel turned the
-   request down): copy the AUD tag again from the application, check the team name and save the
-   route.
+   application (step 4), not the AUD tag of another application. Save the route again. A wrong
+   AUD tag (or team name) shows up as a **403** right after the email code (the login worked, the
+   tunnel turned the request down): copy the AUD tag again from the application, check the team
+   name and save the route.
 
 6. **Pi: install the tunnel and Foundry's public name (Claude, with your OK).** Claude takes a
    `dietpi-backup 1` snapshot, then runs stage 12 (`12-tunnel.sh`, see [Orange Pi setup](PI-SETUP.md))

@@ -63,9 +63,14 @@ keep each item's lines together when you move it.
 
 ## Merges
 
-Lanes merge their own PRs through `npm run lane:merge -- <PR>` (CI on the head commit, review note
-for that sha, changelog, drift, merge train). Merge train: the gate refuses a module, bridge link
-or guarded-write PR once 4 such merges wait; then run `npm run live:roundtrip` (plus `live:sweep`
+The planner merges (the user, 2026-10-16); lanes stop at "ready to merge" with the PR number, head
+sha and review note. Once the review says Merge, start main's copy of the gate with
+`--wait-ci` and `run_in_background` (command in the `lane` skill, without `--dry-run`), run in the
+lane's worktree (the gate needs the PR head checked out and clean): one process waits for CI on the head, then runs the gate (review note for that sha, changelog, drift, merge
+train) and merges or refuses with the reason; the app wakes you when it exits. Only a `lane:merge: merged #<PR>` line means merged. Exit 0 merged,
+1 refused, 3 a check failed, 4 head moved (re-review the new head), 5 timed out.
+Merge train: the gate refuses a module, bridge link or guarded-write PR once 4 such merges wait;
+then run `npm run live:roundtrip` (plus `live:sweep`
 when write handlers changed) on main through the test server lock, and on green
 `npm run lane:merge -- --train-reset <main sha>`; bisect if red. `--train` shows the count. Run
 the roundtrip before any Pi deploy too. Tell the user what was merged.

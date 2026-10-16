@@ -8,6 +8,8 @@
  *
  *   npm run lane:merge -- <PR>                         check, then merge
  *   npm run lane:merge -- <PR> --dry-run               all checks, no merge, no train write
+ *   npm run lane:merge -- <PR> --wait-ci               first wait (up to 30 minutes) until every CI check
+ *                                                      on the head commit has finished, then the gate
  *   npm run lane:merge -- <PR> --no-changelog "reason" no changelog.d fragment on purpose
  *   npm run lane:merge -- --vault DIR                  Obsidian vault (default: env
  *                                                      FOUNDRY_AI_OBSIDIAN_DIR, else ~/Documents/Obsidian/vault)
@@ -26,6 +28,11 @@
  * script runs main's copy instead (a temp file, same arguments), and drift-check runs from main's
  * copy too. The changed files come from `git diff` against the merge base, not from gh (which stops
  * at 100 files). All gh, git, node and npm calls go through one injectable `run(cmd, args)`.
+ *
+ * --wait-ci (waitForCi) polls the PR in this one process, so nobody has to come back once CI is done.
+ * It ends the run at once when a check fails (exit 3, the check named), when the head commit
+ * changes (exit 4, "head moved"), or after WAIT_TIMEOUT_MS (exit 5). When every check has finished
+ * green it runs the gate above, unchanged, which merges or refuses with the reason (exit 0 or 1).
  *
  * The merge train is per PC: its state file lives in ~/.foundry-ai-tool, so lanes on another PC
  * count their own merges. A lock file next to it serialises the read-check-merge-write.
@@ -47,6 +54,18 @@ export const REPO = 'Gnuminator/Foundry-VTT-MCP-Ai-Tool';
 
 /** Lines of a failed log that are printed. */
 const TAIL_LINES = 30;
+
+/** --wait-ci: how long to wait for CI, and how often to ask GitHub. */
+export const WAIT_TIMEOUT_MS = 30 * 60 * 1000;
+export const WAIT_POLL_MS = 30 * 1000;
+/** --wait-ci: GitHub answering with an error this many polls in a row ends the wait. */
+const WAIT_MAX_ERRORS = 3;
+/** A single gh call (spawnSync timeout). */
+const GH_TIMEOUT_MS = 120_000;
+/** Exit codes of the wait (the gate itself: 0 merged or OK, 1 refused, 2 usage). */
+export const EXIT_CI_FAILED = 3;
+export const EXIT_HEAD_MOVED = 4;
+export const EXIT_WAIT_TIMEOUT = 5;
 
 /** The relaunched copy (from main) must not relaunch again; it also knows main was just fetched. */
 const ENV_FROM_MAIN = 'LANE_MERGE_FROM_MAIN';
@@ -394,6 +413,98 @@ export function rollupProblems(rollup, required = []) {
   return { failing, pending, missing: required.filter(r => !names.has(r)) };
 }
 
+/**
+ * --wait-ci: poll the PR until every CI check on its head commit has finished, in this one process.
+ * A check the branch ruleset requires that is not reported yet counts as pending (CI may not have
+ * started). Ends at once on a failing check (names it), when the head commit differs from the first
+ * one seen ("head moved"), when the PR is no longer open, after `timeoutMs`, or after
+ * WAIT_MAX_ERRORS gh failures in a row. The gate's own CI check still runs afterwards; this only
+ * waits. `log` gets one line when the set of pending checks changes.
+ * @param {{ pr: number, run: Run, log: (line: string) => void, sleep: (ms: number) => void,
+ *   clock: () => number, pollMs: number, timeoutMs: number }} o
+ * @returns {{ ok: true, head: string } | { ok: false, code: number, reason: string }}
+ */
+export function waitForCi(o) {
+  const { pr: n, run, log, sleep, clock, pollMs, timeoutMs } = o;
+  const rules = run('gh', ['api', `repos/${REPO}/rules/branches/main`]);
+  const required = (rules.status === 0 ? requiredContexts(rules.stdout) : null) ?? [];
+  const started = clock();
+  /** @type {string | null} */
+  let firstHead = null;
+  let errors = 0;
+  let lastReport = '';
+  let waitingFor = 'the first poll';
+  /** @param {number} code @param {string} reason */
+  const stop = (code, reason) => ({ ok: /** @type {const} */ (false), code, reason });
+  for (;;) {
+    const view = run('gh', [
+      'pr',
+      'view',
+      String(n),
+      '--json',
+      'state,headRefOid,mergeable,statusCheckRollup',
+    ]);
+    /** @type {any} */
+    let pr = null;
+    if (view.status === 0) {
+      try {
+        pr = JSON.parse(view.stdout);
+      } catch {
+        /* counted as an error below */
+      }
+    }
+    if (!pr) {
+      errors += 1;
+      if (errors >= WAIT_MAX_ERRORS) {
+        return stop(
+          1,
+          `wait-ci: gh pr view ${n} failed ${errors} times in a row: ${firstLine(view.stderr || view.stdout) || 'no output'}`
+        );
+      }
+    } else {
+      errors = 0;
+      const head = String(pr.headRefOid ?? '').toLowerCase();
+      firstHead ??= head;
+      if (head !== firstHead) {
+        return stop(
+          EXIT_HEAD_MOVED,
+          `wait-ci: head moved from ${firstHead.slice(0, 7)} to ${head.slice(0, 7)} while waiting; the checks and the review no longer match, start again`
+        );
+      }
+      if (pr.state !== 'OPEN') return stop(1, `wait-ci: #${n} is ${pr.state}, not OPEN`);
+      if (pr.mergeable === 'CONFLICTING') {
+        return stop(
+          1,
+          `wait-ci: #${n} has merge conflicts, so CI will not run; merge main into the branch and resolve them`
+        );
+      }
+      const rollup = pr.statusCheckRollup ?? [];
+      const { failing, pending, missing } = rollupProblems(rollup, required);
+      if (failing.length > 0) {
+        return stop(
+          EXIT_CI_FAILED,
+          `wait-ci: CI failed on ${head.slice(0, 7)}: ${failing.join(', ')}`
+        );
+      }
+      const open = [...pending, ...missing.map(m => `${m} (not reported yet)`)];
+      if (rollup.length === 0) open.push('no checks reported yet');
+      if (open.length === 0) return { ok: true, head };
+      waitingFor = open.join(', ');
+      if (waitingFor !== lastReport) {
+        lastReport = waitingFor;
+        log(`lane:merge: waiting for CI on #${n} at ${head.slice(0, 7)}: ${waitingFor}`);
+      }
+    }
+    if (clock() - started >= timeoutMs) {
+      return stop(
+        EXIT_WAIT_TIMEOUT,
+        `wait-ci: timed out after ${Math.round(timeoutMs / 60000)} minutes; still waiting for ${waitingFor}`
+      );
+    }
+    sleep(pollMs);
+  }
+}
+
 /** Does the PR add or change a `changelog.d/*.md` fragment (not the README)? @param {{ path: string, changeType?: string }[]} files */
 export function hasChangelogFragment(files) {
   return files.some(
@@ -521,7 +632,12 @@ export function defaultRun(cmd, args) {
           shell: true,
           maxBuffer: 256 * 1024 * 1024,
         })
-      : spawnSync(cmd, args, { encoding: 'utf8', maxBuffer: 256 * 1024 * 1024 });
+      : spawnSync(cmd, args, {
+          encoding: 'utf8',
+          maxBuffer: 256 * 1024 * 1024,
+          // one hung gh call must not hang a background --wait-ci forever
+          ...(cmd === 'gh' ? { timeout: GH_TIMEOUT_MS } : {}),
+        });
   return {
     status: r.status ?? 1,
     stdout: r.stdout ?? '',
@@ -532,7 +648,8 @@ export function defaultRun(cmd, args) {
 /**
  * @param {string[]} argv
  * @returns {{ pr: number | null, dryRun: boolean, noChangelog: string | null, vault: string | null,
- *   trainReset: string | null, train: boolean, state: string | null, error: string | null }}
+ *   trainReset: string | null, train: boolean, state: string | null, waitCi: boolean,
+ *   error: string | null }}
  */
 export function parseArgs(argv) {
   const out = {
@@ -543,6 +660,7 @@ export function parseArgs(argv) {
     trainReset: null,
     train: false,
     state: null,
+    waitCi: false,
     error: null,
   };
   for (let i = 0; i < argv.length; i++) {
@@ -555,6 +673,7 @@ export function parseArgs(argv) {
     };
     if (a === '--dry-run') out.dryRun = true;
     else if (a === '--train') out.train = true;
+    else if (a === '--wait-ci') out.waitCi = true;
     else if (
       a === '--no-changelog' ||
       a === '--vault' ||
@@ -578,8 +697,9 @@ export function parseArgs(argv) {
   }
   if (!out.error && out.pr === null && !out.train && out.trainReset === null) {
     out.error =
-      'usage: npm run lane:merge -- <PR> [--dry-run] [--no-changelog "reason"] [--vault DIR]';
+      'usage: npm run lane:merge -- <PR> [--dry-run] [--wait-ci] [--no-changelog "reason"] [--vault DIR]';
   }
+  if (!out.error && out.waitCi && out.pr === null) out.error = '--wait-ci needs a PR number';
   return out;
 }
 
@@ -717,7 +837,8 @@ export function entryDecision(argv1, self) {
  * Runs the gate.
  * @param {{
  *   argv?: string[], run?: Run, log?: (line: string) => void, env?: Record<string, string | undefined>,
- *   home?: string, tmpdir?: string, now?: () => Date, fetched?: boolean, lockTimeoutMs?: number,
+ *   home?: string, tmpdir?: string, now?: () => Date, fetched?: boolean, selfPath?: string, lockTimeoutMs?: number,
+ *   sleep?: (ms: number) => void, clock?: () => number, waitPollMs?: number, waitTimeoutMs?: number,
  * }} [options]
  * @returns {number} the process exit code
  */
@@ -730,14 +851,20 @@ export function main(options = {}) {
     home = os.homedir(),
     tmpdir = os.tmpdir(),
     now = () => new Date(),
-    fetched = env[ENV_FETCHED] === '1',
+    fetched: fetchedBefore = env[ENV_FETCHED] === '1',
+    selfPath = self,
     lockTimeoutMs = 20_000,
+    sleep: pause = sleep,
+    clock = Date.now,
+    waitPollMs = WAIT_POLL_MS,
+    waitTimeoutMs = WAIT_TIMEOUT_MS,
   } = options;
   const args = parseArgs(argv);
   if (args.error) {
     log(`lane:merge: ${args.error}`);
     return 2;
   }
+  let fetched = fetchedBefore;
   const statePath = args.state ?? path.join(home, '.foundry-ai-tool', 'merge-train.json');
   const short = (/** @type {string} */ sha) => sha.slice(0, 7);
   /** git fetch aitool main, once per run. @returns {string | null} an error, or null */
@@ -806,13 +933,61 @@ export function main(options = {}) {
   const details = [];
   /** @type {string[]} */
   const notes = [];
-  const finish = () => {
+  const finish = (code = 1) => {
     log(`lane:merge: NOT merged #${n}`);
     for (const f of failures) log(f);
     for (const line of notes) log(`lane:merge: ${line}`);
     for (const d of details) log(d);
-    return 1;
+    return code;
   };
+
+  // --wait-ci: wait for every CI check on the head commit, then run the gate below unchanged.
+  /** @type {string | null} */
+  let waitedHead = null;
+  if (args.waitCi) {
+    log(
+      `lane:merge: --wait-ci: waiting up to ${Math.round(waitTimeoutMs / 60000)} minutes for CI on #${n}`
+    );
+    const waited = waitForCi({
+      pr: n,
+      run,
+      log,
+      sleep: pause,
+      clock,
+      pollMs: waitPollMs,
+      timeoutMs: waitTimeoutMs,
+    });
+    if (!waited.ok) {
+      failures.push(waited.reason);
+      return finish(waited.code);
+    }
+    waitedHead = waited.head;
+    // The wait can take half an hour: main may have moved, and with it the merge base, drift-check
+    // and the gate itself. Fetch again, and refuse when the gate on main is no longer this file.
+    const refetch = run('git', ['fetch', REMOTE, 'main']);
+    if (refetch.status !== 0) {
+      failures.push(
+        `wait-ci: git fetch ${REMOTE} main failed after the wait (${firstLine(refetch.stderr || refetch.stdout) || 'failed'})`
+      );
+      return finish();
+    }
+    fetched = true;
+    const onMain = run('git', ['show', `${MAIN}:scripts/lane-merge.mjs`]);
+    if (onMain.status === 0) {
+      let mine = null;
+      try {
+        mine = fs.readFileSync(selfPath, 'utf8');
+      } catch {
+        /* refused below */
+      }
+      if (mine === null || lf(onMain.stdout) !== lf(mine)) {
+        failures.push(
+          `wait-ci: the gate on ${MAIN} changed during the wait (or this copy cannot be read); start again`
+        );
+        return finish();
+      }
+    }
+  }
 
   // a. The PR itself.
   const view = run('gh', ['pr', 'view', String(n), '--json', PR_FIELDS]);
@@ -832,6 +1007,12 @@ export function main(options = {}) {
     return finish();
   }
   const head = String(pr.headRefOid ?? '').toLowerCase();
+  if (waitedHead !== null && head !== waitedHead) {
+    failures.push(
+      `wait-ci: head moved from ${short(waitedHead)} to ${short(head)} after the wait; start again`
+    );
+    return finish(EXIT_HEAD_MOVED);
+  }
   if (pr.state !== 'OPEN') failures.push(`pr: #${n} is ${pr.state}, not OPEN`);
   if (pr.isDraft) failures.push(`pr: #${n} is a draft; mark it ready for review`);
   if (pr.baseRefName !== 'main') failures.push(`pr: base is ${pr.baseRefName}, not main`);

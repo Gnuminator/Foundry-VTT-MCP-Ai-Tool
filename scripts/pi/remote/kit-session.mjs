@@ -440,7 +440,7 @@ export function parseMaxDelete(value) {
 }
 
 // SINCE_EPOCH: the state file's STAMP_EPOCH (whole seconds since the epoch) as milliseconds, or null when it is not set.
-// It wins over SINCE_STAMP because it does not shift with a DST change or a clock step on the Pi.
+// It wins over SINCE_STAMP because it does not shift with a DST change or a timezone change on the Pi.
 export function parseSinceEpoch(value) {
   if (value === undefined || value === '') return null;
   if (!/^\d{9,11}$/.test(value)) {

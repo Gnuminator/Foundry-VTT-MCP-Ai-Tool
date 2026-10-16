@@ -477,17 +477,26 @@ test('a narrow screen shows one column, with no sideways scroll', async ({ page 
   let session = closed();
   await fakeBridge(page, () => session);
   await load(page);
-  const preflight = await docked(page, '✈ Pre-flight').boundingBox();
-  const prep = await docked(page, '📋 Prep').boundingBox();
-  expect(prep!.x).toBe(preflight!.x);
-  expect(prep!.y).toBeGreaterThan(preflight!.y);
+  // The boxes are read again until the layout has settled: one read right after load can land
+  // mid-layout on a loaded CPU (the first column of the two panels not yet equal).
+  const stacked = async (above: Locator, below: Locator): Promise<boolean> => {
+    const [a, b] = [await above.boundingBox(), await below.boundingBox()];
+    return a !== null && b !== null && b.x === a.x && b.y > a.y;
+  };
+  await expect
+    .poll(() => stacked(docked(page, '✈ Pre-flight'), docked(page, '📋 Prep')), {
+      timeout: 10_000,
+    })
+    .toBe(true);
 
   session = OPEN;
   await load(page);
-  const feed = await page.getByRole('region', { name: 'Live Feed' }).boundingBox();
-  const party = await docked(page, '🛡 Party').boundingBox();
-  expect(party!.x).toBe(feed!.x);
-  expect(party!.y).toBeGreaterThan(feed!.y);
+  await expect
+    .poll(
+      () => stacked(page.getByRole('region', { name: 'Live Feed' }), docked(page, '🛡 Party')),
+      { timeout: 10_000 }
+    )
+    .toBe(true);
   const sideways = await page.evaluate(
     () => document.documentElement.scrollWidth - document.documentElement.clientWidth
   );

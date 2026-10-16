@@ -4,7 +4,7 @@
 import * as http from 'http';
 import type { AddressInfo } from 'net';
 
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { CoGm } from './ai/anthropic-co-gm.js';
 import { createDashboard, type Dashboard } from './app.js';
@@ -87,8 +87,22 @@ async function start(): Promise<Harness> {
   return harness;
 }
 
+/**
+ * The last event each stream writes on connect (app.ts writes the whole snapshot in one handler).
+ * Once it is in the text, everything the stream says on connect has arrived, so a test needs no
+ * fixed wait that a loaded CPU can outrun.
+ */
+const SNAPSHOT_END: Record<string, string> = {
+  '/api/stream': 'event: errors',
+  '/api/player/stream': 'event: theme',
+};
+
 /** Everything a stream sends, collected as text while the test runs. */
-function listen(h: Harness, path: string, token: string): { text: () => string } {
+function listen(
+  h: Harness,
+  path: string,
+  token: string
+): { text: () => string; snapshot: () => Promise<void> } {
   let text = '';
   const req = http.get(
     { host: '127.0.0.1', port: h.port, path, headers: { 'x-cogm-token': token }, agent: false },
@@ -101,16 +115,17 @@ function listen(h: Harness, path: string, token: string): { text: () => string }
   );
   req.on('error', () => undefined);
   streams.push(req);
-  return { text: () => text };
+  return {
+    text: () => text,
+    snapshot: () => vi.waitFor(() => expect(text).toContain(SNAPSHOT_END[path]), { timeout: 5000 }),
+  };
 }
-
-const settle = (): Promise<void> => new Promise(resolve => setTimeout(resolve, 60));
 
 describe('the fight on a GM stream that connects', () => {
   it('is null when no fight runs, so a page that missed the end clears its strip', async () => {
     const h = await start();
     const gm = listen(h, '/api/stream', GM_TOKEN);
-    await settle();
+    await gm.snapshot();
     expect(gm.text()).toContain('event: combat\ndata: {"combat":null}');
   });
 
@@ -118,7 +133,7 @@ describe('the fight on a GM stream that connects', () => {
     const h = await start();
     h.dashboard.handlers.onCombat(FIGHT);
     const gm = listen(h, '/api/stream', GM_TOKEN);
-    await settle();
+    await gm.snapshot();
     expect(gm.text()).toContain('event: combat');
     expect(gm.text()).toContain('"combat":{"active":true,"round":2');
     expect(gm.text()).not.toContain('{"combat":null}');
@@ -129,7 +144,7 @@ describe('the fight on a GM stream that connects', () => {
     h.dashboard.handlers.onCombat(FIGHT);
     h.dashboard.handlers.onCombat(null);
     const gm = listen(h, '/api/stream', GM_TOKEN);
-    await settle();
+    await gm.snapshot();
     expect(gm.text()).toContain('event: combat\ndata: {"combat":null}');
   });
 
@@ -137,7 +152,7 @@ describe('the fight on a GM stream that connects', () => {
     const h = await start();
     h.dashboard.handlers.onCombat(FIGHT);
     const player = listen(h, '/api/player/stream', PLAYER_TOKEN);
-    await settle();
+    await player.snapshot();
     expect(player.text()).not.toContain('event: combat');
   });
 });

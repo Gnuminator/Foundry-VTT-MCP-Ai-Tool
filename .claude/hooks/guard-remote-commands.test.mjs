@@ -10,6 +10,22 @@ import { decide, finalDecision } from './guard-remote-commands.mjs';
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const kind = command => decide(command, repo)?.decision ?? 'allow';
 
+/**
+ * The fastest of up to three runs of `fn`, in ms, stopping early once a run is under `limitMs`. A
+ * check that is really slow (the old regexes took 100 ms to 30 s) is slow on every run; a loaded
+ * CPU (the ARM64 container suite under QEMU) only delays one of them, so the best run measures the
+ * check and not the scheduler. A single timed run failed at 207 ms against a 200 ms bound.
+ */
+function bestMs(fn, limitMs) {
+  let best = Infinity;
+  for (let run = 0; run < 3 && best >= limitMs; run++) {
+    const t = performance.now();
+    fn();
+    best = Math.min(best, performance.now() - t);
+  }
+  return best;
+}
+
 test('local commands are not this hook’s business', () => {
   assert.equal(kind('rm -rf /'), 'allow');
   assert.equal(kind('git status'), 'allow');
@@ -193,11 +209,12 @@ test('a fed file whose quoted name holds ; or & is still read', () => {
 });
 
 test('a remote cat with no pipe after it returns at once (it used to backtrack forever)', () => {
-  const t = performance.now();
-  assert.equal(kind('ssh foundry-pi cat /var/lib/foundry-ai-tool/space/status.json'), 'allow');
-  assert.equal(kind("ssh foundry-pi 'cat /var/lib/foundry-ai-tool/space/status.json'"), 'allow');
-  assert.equal(kind('ssh foundry-pi cat /a /b "/c d"'), 'allow');
-  assert.ok(performance.now() - t < 1000);
+  const ms = bestMs(() => {
+    assert.equal(kind('ssh foundry-pi cat /var/lib/foundry-ai-tool/space/status.json'), 'allow');
+    assert.equal(kind("ssh foundry-pi 'cat /var/lib/foundry-ai-tool/space/status.json'"), 'allow');
+    assert.equal(kind('ssh foundry-pi cat /a /b "/c d"'), 'allow');
+  }, 1000);
+  assert.ok(ms < 1000, `${ms.toFixed(0)} ms`);
   // A local cat piped into ssh still feeds the script file to the checks.
   assert.equal(
     kind('cat scripts/pi/remote/lib.sh scripts/pi/remote/9-ssh-log.sh | ssh foundry-pi bash'),
@@ -218,9 +235,7 @@ test('long adversarial commands are checked in linear time', () => {
     ('# x\n' + 'ssh foundry-pi cat a\n').repeat(80),
   ];
   for (const c of long) {
-    const t = performance.now();
-    decide(c, repo);
-    const ms = performance.now() - t;
+    const ms = bestMs(() => decide(c, repo), 100);
     assert.ok(ms < 100, `${ms.toFixed(0)} ms for ${c.slice(0, 40)}...`);
   }
 });
@@ -312,9 +327,7 @@ test('50,000-character crafted commands are checked in well under 200 ms', () =>
     rep('# x\nssh foundry-pi cat a\n'),
   ];
   for (const c of long) {
-    const t = performance.now();
-    decide(c, repo);
-    const ms = performance.now() - t;
+    const ms = bestMs(() => decide(c, repo), 200);
     assert.ok(ms < 200, `${ms.toFixed(0)} ms for ${JSON.stringify(c.slice(0, 40))}...`);
   }
 });

@@ -22,6 +22,7 @@ import {
   parseArgs,
   selectSteps,
   formatDuration,
+  portableNode22Dir,
   main,
 } from './green.mjs';
 
@@ -360,4 +361,33 @@ test('started through a junction, green still runs (exit code and output, not a 
   });
   assert.equal(r.status, 0, r.stderr);
   assert.match(r.stdout, /^typecheck\n/);
+});
+
+test('portableNode22Dir: on Windows under Node 24 the newest portable Node 22 comes first; elsewhere nothing changes', () => {
+  const localAppData = path.join('C:', 'Users', 'u', 'AppData', 'Local');
+  const base = {
+    platform: 'win32',
+    localAppData,
+    major: 24,
+    readdir: () => ['node-v22.9.1-win-x64', 'node-v22.22.2-win-x64', 'node-v20.1.0-win-x64', 'x'],
+    exists: () => true,
+  };
+  assert.equal(
+    portableNode22Dir(base),
+    path.join(localAppData, 'node22', 'node-v22.22.2-win-x64')
+  );
+  assert.equal(portableNode22Dir({ ...base, major: 22 }), null, 'already Node 22');
+  assert.equal(portableNode22Dir({ ...base, platform: 'linux' }), null, 'not Windows');
+  assert.equal(portableNode22Dir({ ...base, localAppData: '' }), null, 'no LOCALAPPDATA');
+  assert.equal(portableNode22Dir({ ...base, exists: () => false }), null, 'no node.exe in it');
+  assert.equal(
+    portableNode22Dir({
+      ...base,
+      readdir: () => {
+        throw new Error('ENOENT');
+      },
+    }),
+    null,
+    'no node22 folder'
+  );
 });

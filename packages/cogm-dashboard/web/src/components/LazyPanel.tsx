@@ -40,9 +40,10 @@ export function panelChunk<F extends PanelFn>(load: () => Promise<{ default: F }
 /**
  * Catches a chunk that failed to load (the dashboard server was restarted, the network dropped), so
  * one missing panel does not blank the page. It draws nothing, tells the GM once and closes the
- * drawer (so the backdrop does not stay up and the next click on its button opens it again); the
- * rest of the page goes on, and a reload brings the panel back (React keeps a failed import's
- * answer).
+ * drawer, so the backdrop does not stay up after the failure. The guard stays failed until a
+ * reload (React keeps a failed import's answer), so a later click on the same button opens a
+ * backdrop with nothing under it and no second toast. It also catches a render error of a loaded
+ * panel, which gets the same toast and close.
  */
 class ChunkGuard extends Component<
   { onFail: () => void; children: ReactNode },

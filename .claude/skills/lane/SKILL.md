@@ -87,6 +87,9 @@ one PR. Vault paths below are under `C:\Users\chris\Documents\Obsidian\vault\Dev
 - Handover: half a page to vault `Handoff/<lane> prompt <date>.md` and in full in the chat in a
   fenced block: task, state, open PRs, links, done-when, "follow CLAUDE.md". Findings a successor
   needs go in the vault, not side-session notes (archiving a session deletes those).
+- Keep that note current at each milestone (green passes, PR opened, a review says Merge): done,
+  left, branch, PR and head sha, the next command. A lane that hits the limit then hands over
+  at once.
 - Before saying a session can be closed: no background run it owns is still going.
 - Never leave a user to-do only in chat: add it to vault `Waiting.md` (what to do, minutes, what it
   settles, a `- due:` line).

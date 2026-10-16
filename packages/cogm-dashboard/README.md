@@ -301,8 +301,9 @@ checks it and every lazy chunk against a gzip limit recorded in `scripts/bundle-
 size on 2026-10-10 plus 10 percent, rounded up to the next KB (the first-load limit is a ratchet
 since 2026-10-16: the measured size plus a few KB, lowered when a split wins room). The drawers
 and panes that float (Tools, Tarokka, Player links, Module diagnostics) and the ones that dock
-(Prep, Party, Handouts) load from their own chunks, started right after the first render
-(`web/src/components/LazyPanel.tsx`); a new panel does the same. A lazy chunk is matched by its name
+(Prep, Party, Handouts) load from their own chunks (`web/src/components/LazyPanel.tsx`): the
+docked ones start downloading right after the first render, the floating ones when the browser is
+idle; a new panel does the same. A lazy chunk is matched by its name
 without the hash; an unlisted one gets a default limit. It fails when one is over, and CI runs it
 after the build and writes the table to the job summary. To raise a limit on purpose, change the
 constant in the same pull request and say why.

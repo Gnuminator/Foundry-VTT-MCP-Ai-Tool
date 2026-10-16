@@ -1,4 +1,5 @@
 import {
+  Component,
   lazy,
   Suspense,
   useEffect,
@@ -7,6 +8,8 @@ import {
   type JSX,
   type ReactNode,
 } from 'react';
+
+import { useToast } from './Toasts';
 
 /** A panel component as the lazy chunk exports it, whatever its props. */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- a JSX component type needs `any` props
@@ -34,6 +37,27 @@ export function panelChunk<F extends PanelFn>(load: () => Promise<{ default: F }
 }
 
 /**
+ * Catches a chunk that failed to load (the dashboard server was restarted, the network dropped), so
+ * one missing panel does not blank the page. It draws nothing and tells the GM once; the rest of
+ * the page goes on, and a reload brings the panel back (React keeps a failed import's answer).
+ */
+class ChunkGuard extends Component<
+  { onFail: () => void; children: ReactNode },
+  { failed: boolean }
+> {
+  override state = { failed: false };
+  static getDerivedStateFromError(): { failed: boolean } {
+    return { failed: true };
+  }
+  override componentDidCatch(): void {
+    this.props.onFail();
+  }
+  override render(): ReactNode {
+    return this.state.failed ? null : this.props.children;
+  }
+}
+
+/**
  * Mounts a lazy panel the first time `show` is true and keeps it mounted after that, so a closed
  * drawer keeps its state and fades out as before. Nothing is drawn while the chunk loads.
  */
@@ -42,13 +66,20 @@ export function LazyPanel<F extends PanelFn>({
   show,
   ...props
 }: { chunk: PanelChunk<F>; show: boolean } & PropsOf<F>): JSX.Element | null {
+  const toast = useToast();
   const [seen, setSeen] = useState<boolean>(show as boolean);
   if (show && !seen) setSeen(true);
   if (!seen) return null;
   return (
-    <Suspense fallback={null}>
-      <chunk.Panel {...props} />
-    </Suspense>
+    <ChunkGuard
+      onFail={() =>
+        toast('✗ Could not load part of the page. Reload the page to try again.', 'err')
+      }
+    >
+      <Suspense fallback={null}>
+        <chunk.Panel {...props} />
+      </Suspense>
+    </ChunkGuard>
   );
 }
 

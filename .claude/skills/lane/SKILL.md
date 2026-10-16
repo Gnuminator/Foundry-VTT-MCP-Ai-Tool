@@ -24,6 +24,10 @@ one PR. Vault paths below are under `C:\Users\chris\Documents\Obsidian\vault\Dev
   reading and simple mechanical edits; Opus only for design. Partition workers by file, lock shared
   contracts first, tell them to write big files in parts of at most about 250 lines per call and
   to keep downloads out of the repo. Workers never build, sync or commit; you integrate.
+- **Set `model` on every Agent call, Workflow `agent()` call and `start_session`** (successors and
+  `own_initiative` cards too). An unset model inherits the caller's: an Opus session starts Opus
+  workers and lanes (measured 2026-10-16: 110 unset subagents all ran Opus). A Sonnet lane's unset
+  child stays Sonnet, but set it anyway.
 - **Test server:** load `foundry-test-env`; take the lock (`scripts/test-env/lock.ps1 take`) before
   any live check and release it after. Verify a feature live before calling it done. Standalone
   bridge on test ports: `node packages/mcp-server/dist/standalone.js --port 31514 --control-only`;
@@ -49,7 +53,9 @@ one PR. Vault paths below are under `C:\Users\chris\Documents\Obsidian\vault\Dev
 
 - Risky categories (guarded writes, bridge link, write gate, security, Pi scripts, wire contracts,
   the merge gate and CI: `scripts/lane-merge.mjs`, `green.mjs`, `drift-check.mjs`, `.github/`,
-  `.claude/hooks/`): an Opus review subagent. Everything else: a Sonnet review subagent. Give it the PR number, the
+  `.claude/hooks/`): an Opus review subagent. Everything else: a Sonnet review subagent (check
+  `gh pr view <PR> --json files` against the list; docs, tests, dashboard UI and kit scripts are
+  Sonnet, and so is a delta round on lows). Give it the PR number, the
   head sha and the area; it is read-only and writes the note.
 - **Review note format** (the merge gate reads it):
   - path: vault `Handoff/Reviews <YYYY-MM-DD>/<PR>-review.md`, round 2 `<PR>-review-round2.md`;

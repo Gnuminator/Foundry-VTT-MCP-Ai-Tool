@@ -34,19 +34,14 @@ import {
   type Moment,
 } from './components/Moments';
 import { RoleNotice } from './components/RoleNotice';
-import { HandoutsDrawer } from './panels/Handouts';
-import { ModuleDiagnosticsPane } from './panels/ModuleDiagnostics';
-import { PartyDrawer } from './panels/Party';
-import { PlayerLinksPane } from './panels/PlayerLinks';
-import { PrepDrawer } from './panels/Prep';
+import { panelChunk, LazyPanel, usePreloadPanels } from './components/LazyPanel';
 import {
   PreflightButton,
   PreflightDrawer,
   VersionBanner,
   usePreflightOnReconnect,
 } from './panels/Preflight';
-import { TarokkaDrawer } from './panels/Tarokka';
-import { ToolsDrawer, type ToolRequest } from './panels/Tools';
+import type { ToolRequest } from './panels/Tools';
 import { api } from './lib/api';
 import { GmActionsGateContext } from './lib/guarded';
 import { showsSampleFight } from './lib/duringTrial';
@@ -69,6 +64,30 @@ function BrandMark(): JSX.Element {
     </svg>
   );
 }
+
+// Panels that load from their own chunk (the first load budget); they download once the page is idle.
+const handoutsChunk = panelChunk(() =>
+  import('./panels/Handouts').then(m => ({ default: m.HandoutsDrawer }))
+);
+const prepChunk = panelChunk(() => import('./panels/Prep').then(m => ({ default: m.PrepDrawer })));
+const tarokkaChunk = panelChunk(() =>
+  import('./panels/Tarokka').then(m => ({ default: m.TarokkaDrawer }))
+);
+const toolsChunk = panelChunk(() =>
+  import('./panels/Tools').then(m => ({ default: m.ToolsDrawer }))
+);
+const linksChunk = panelChunk(() =>
+  import('./panels/PlayerLinks').then(m => ({ default: m.PlayerLinksPane }))
+);
+const diagChunk = panelChunk(() =>
+  import('./panels/ModuleDiagnostics').then(m => ({ default: m.ModuleDiagnosticsPane }))
+);
+const partyChunk = panelChunk(() =>
+  import('./panels/Party').then(m => ({ default: m.PartyDrawer }))
+);
+// The ones that dock into a view load at once; the floating ones when the browser is idle.
+const DOCKED_CHUNKS = [partyChunk, prepChunk, handoutsChunk];
+const FLOATING_CHUNKS = [tarokkaChunk, toolsChunk, linksChunk, diagChunk];
 
 /** The world's theme (/api/theme); until it answers, the cached one from main.tsx shows. */
 function useWorldTheme(): void {
@@ -128,6 +147,7 @@ function Dashboard(): JSX.Element {
   useWorldTheme();
   useDashboardStream();
   usePreflightOnReconnect();
+  usePreloadPanels(DOCKED_CHUNKS, FLOATING_CHUNKS);
   const { moment, pick } = useMoment();
   const during = useDuringLayout(moment, () => pick('during'));
   const { slotRefs, dockOf } = useDocks(moment);
@@ -337,8 +357,8 @@ function Dashboard(): JSX.Element {
         }
       />
       <LayoutTourGuide during={during} />
-      <PlayerLinksPane open={linksOpen} onOpenChange={setLinksOpen} />
-      <ModuleDiagnosticsPane open={diagOpen} onOpenChange={setDiagOpen} />
+      <LazyPanel chunk={linksChunk} show={linksOpen} open={linksOpen} onOpenChange={setLinksOpen} />
+      <LazyPanel chunk={diagChunk} show={diagOpen} open={diagOpen} onOpenChange={setDiagOpen} />
       <DrawerBackdrop
         shown={(Object.keys(drawers) as DrawerName[]).some(n => drawers[n] && !docked(n))}
         onClose={() => setDrawers(NO_DRAWERS)}
@@ -354,7 +374,9 @@ function Dashboard(): JSX.Element {
       )}
       {dock(
         'prep',
-        <PrepDrawer
+        <LazyPanel
+          chunk={prepChunk}
+          show={shown('prep')}
           open={shown('prep')}
           onOpenChange={open => setDrawer('prep', open)}
           onOpenPreflight={openPreflightFromPrep}
@@ -362,11 +384,18 @@ function Dashboard(): JSX.Element {
       )}
       {dock(
         'party',
-        <PartyDrawer open={shown('party')} onOpenChange={open => setDrawer('party', open)} />
+        <LazyPanel
+          chunk={partyChunk}
+          show={shown('party')}
+          open={shown('party')}
+          onOpenChange={open => setDrawer('party', open)}
+        />
       )}
       {dock(
         'handouts',
-        <HandoutsDrawer
+        <LazyPanel
+          chunk={handoutsChunk}
+          show={shown('handouts')}
           open={shown('handouts')}
           onOpenChange={open => setDrawer('handouts', open)}
           onQueuePage={sceneId => {
@@ -379,13 +408,17 @@ function Dashboard(): JSX.Element {
           }}
         />
       )}
-      <TarokkaDrawer
+      <LazyPanel
+        chunk={tarokkaChunk}
+        show={drawers.tarokka}
         open={drawers.tarokka}
         onOpenChange={open => setDrawer('tarokka', open)}
         showCards={tarokkaShown}
         onShowCardsChange={setTarokkaShown}
       />
-      <ToolsDrawer
+      <LazyPanel
+        chunk={toolsChunk}
+        show={drawers.tools}
         open={drawers.tools}
         onOpenChange={open => setDrawer('tools', open)}
         request={toolRequest}

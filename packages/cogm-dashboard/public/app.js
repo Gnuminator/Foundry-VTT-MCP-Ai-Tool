@@ -4088,6 +4088,8 @@ function momentFromSession() {
 function onSessionState() {
   if (lastSessionOpen !== null && lastSessionOpen !== playSession.open) {
     momentPinned = false;
+    // The pin the page had before the trial belongs to the old session; Stop must not bring it back.
+    if (tour) tour.wasPinned = false;
   }
   lastSessionOpen = playSession.open;
   if (!momentPinned) setMoment(momentFromSession());

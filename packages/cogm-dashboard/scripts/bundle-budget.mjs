@@ -19,15 +19,26 @@ import { gzipSync } from 'node:zlib';
  * Limits in KB of gzip. Measured 2026-10-10 on the build of that day: today's gzip size plus 10
  * percent, rounded up to the next KB.
  */
-// 151 on 2026-10-14: the entry chunk measured 150.1 KB with the Live Feed tab-stop hook; no split yet.
-export const FIRST_LOAD_LIMIT_KB = 151; // measured 136.2 KB on 2026-10-10 (one entry chunk, no modulepreload)
+// 143 on 2026-10-16, a ratchet and not the 10 percent rule: the panels Tools, Tarokka, Prep, Party,
+// Handouts, Player links and Module diagnostics moved to their own chunks (App.tsx, LazyPanel) and
+// the first load measured 140.2 KB (entry plus the shared ui chunk; it was 150.5 KB in one entry
+// chunk, 136.2 KB on 2026-10-10). A new panel starts as a lazy chunk, not in the entry.
+export const FIRST_LOAD_LIMIT_KB = 143;
 
 /**
  * Lazy chunks by name stem (the file name without its hash and extension: `Tarokka-Cx9aB1zQ.js`
- * is `Tarokka`). There are none yet: the whole dashboard is one entry chunk. Add `Stem: limitKB`
- * when a split is made, measured the same way (size plus 10 percent, rounded up).
+ * is `Tarokka`). Add `Stem: limitKB` when a split is made, measured the same way (size plus 10
+ * percent, rounded up). Measured 2026-10-16.
  */
-export const LAZY_LIMITS_KB = {};
+export const LAZY_LIMITS_KB = {
+  Handouts: 3, // 2.2 KB
+  ModuleDiagnostics: 1, // 0.8 KB
+  Party: 4, // 3.0 KB
+  PlayerLinks: 2, // 1.2 KB
+  Prep: 4, // 3.2 KB
+  Tarokka: 4, // 2.8 KB
+  Tools: 8, // 6.8 KB
+};
 
 /** A lazy chunk whose stem is not listed above gets this: a new split is fine, a big one is not. */
 export const DEFAULT_LAZY_LIMIT_KB = 40;

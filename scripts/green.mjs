@@ -60,6 +60,11 @@ export const STEPS = [
   nodeTest('hook-start-alerts', '.claude/hooks/start-alerts.test.mjs'),
   nodeTest('drift-check-test', 'scripts/drift-check.test.mjs'),
   nodeTest('hook-context-alert', '.claude/hooks/context-alert.test.mjs'),
+  nodeTest(
+    'hook-edit-guard',
+    '.claude/hooks/guard-shell-edits.test.mjs',
+    '.claude/hooks/warn-control-bytes.test.mjs'
+  ),
   nodeTest('gate-scripts', 'scripts/green.test.mjs', 'scripts/lane-merge.test.mjs'),
   nodeTest('usage-week', 'scripts/dev/usage-week.test.mjs'),
   nodeTest('pi-space-check', 'scripts/pi/space-check.test.mjs'),

@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { mkdtempSync, readdirSync, rmSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
@@ -138,6 +139,26 @@ test('main refuses the live world through /api/status before it opens a browser'
     /refused: the world is curse-of-strahd/
   );
   assert.deepEqual(seen, ['http://127.0.0.1:30000/api/status']);
+});
+
+test('main makes no temp folder when the world is refused', async () => {
+  const sandbox = mkdtempSync(path.join(os.tmpdir(), 'pr-tmp-'));
+  const saved = { TMPDIR: process.env.TMPDIR, TMP: process.env.TMP, TEMP: process.env.TEMP };
+  process.env.TMPDIR = process.env.TMP = process.env.TEMP = sandbox;
+  try {
+    const fetchImpl = async () => ({ json: async () => ({ world: 'curse-of-strahd' }) });
+    await assert.rejects(
+      () => main(['http://127.0.0.1:30000', 'Kit Player'], { fetchImpl }),
+      /refused: the world is curse-of-strahd/
+    );
+    assert.deepEqual(readdirSync(sandbox), []);
+  } finally {
+    for (const [k, v] of Object.entries(saved)) {
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+    }
+    rmSync(sandbox, { recursive: true, force: true });
+  }
 });
 
 test('main refuses an --out folder inside the repo before it opens a browser', async () => {

@@ -112,9 +112,9 @@ export async function worldRefusals(url, fetchImpl = fetch) {
   if (typeof world !== 'string' || world === '') {
     return [`${url} reports no world on /api/status: start the test world first`];
   }
-  return refusals({ world, isGM: false, canCreate: true }).filter(p =>
-    p.startsWith('the world is')
-  );
+  return REFUSED_WORLDS.includes(world)
+    ? [`the world is ${world}: this run only ever builds test characters`]
+    : [];
 }
 
 /** Refusals that need the page: the world and the user. @returns {string[]} */
@@ -296,13 +296,13 @@ export async function main(argv = process.argv.slice(2), { fetchImpl = fetch } =
   const { guardUrl } = await import('./lib/guard-url.mjs');
   // The Pi is the usual target, so a remote host is allowed; the live bridge ports are still refused.
   const url = guardUrl(options.url, { label: 'Foundry URL', loopbackOnly: false });
-  const outDir = options.out
-    ? path.resolve(options.out)
-    : mkdtempSync(path.join(tmpdir(), 'player-run-'));
-  if (insideRepo(outDir))
-    throw new Error(`--out ${outDir} is inside the repo: pick a folder outside it`);
+  const outOption = options.out ? path.resolve(options.out) : null;
+  if (outOption && insideRepo(outOption))
+    throw new Error(`--out ${outOption} is inside the repo: pick a folder outside it`);
   const worldProblems = await worldRefusals(url, fetchImpl);
   if (worldProblems.length) throw new Error(`refused: ${worldProblems.join('; ')}`);
+  // The temp folder is made only after every refusal, so a refused run leaves nothing behind.
+  const outDir = outOption ?? mkdtempSync(path.join(tmpdir(), 'player-run-'));
   mkdirSync(outDir, { recursive: true });
   const [gm, studio, flow, pc, pump] = await Promise.all([
     import('./lib/gm.mjs'),

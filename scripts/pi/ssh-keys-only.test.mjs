@@ -486,6 +486,15 @@ describe('15-ssh-keys-only.sh in an ARM64 container', { skip: containerReason },
     assert.equal(r.marker, 'none');
   });
 
+  test('CONFIRM refuses when the revert service starts while it stops the timer, and writes no marker', () => {
+    const r = run('confirm-revert-starts');
+    assert.equal(r.exit, '1', r.output);
+    assert.match(r.output, /the safety revert started while confirming/);
+    assert.doesNotMatch(r.output, /is gone \(the safety timer fired/);
+    assert.ok(calls(r).includes('systemctl stop foundry-ssh-keys-only-revert.timer'), r.calls);
+    assert.equal(r.marker, 'none');
+  });
+
   test('a Match line written Keyword=value is found as well', () => {
     assertRefused(run('match-equals'), /remove or change those Match lines first; nothing changed/);
     assert.match(run('match-equals').output, /sshd_config:\d+:\s+PasswordAuthentication=yes/);

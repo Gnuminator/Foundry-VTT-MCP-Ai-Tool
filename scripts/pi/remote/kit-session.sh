@@ -89,7 +89,7 @@ KIT_GM_ENV="$TOOL_ETC/kit-gm.env"
 KIT_GM_PROFILE="$TOOL_DATA/kit-gm-browser"
 envf="$TOOL_ETC/world-$KIT_WORLD.env"
 # STAMP_EPOCH (seconds since the epoch) goes in the state file next to STAMP: the teardown cutoff uses it, so a DST change or a
-# clock step on the Pi between "up" and "down" cannot move it. STAMP stays the readable name and the fallback.
+# timezone change on the Pi between "up" and "down" cannot move it. STAMP stays the readable name and the fallback.
 stamp_epoch="$(date +%s)"
 stamp="$(date -d "@$stamp_epoch" +%Y%m%d-%H%M%S)"
 export PATH="$NODE_DIR/bin:$PATH"

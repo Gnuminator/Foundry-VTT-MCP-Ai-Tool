@@ -35,8 +35,8 @@ ssh-keygen -q -t ed25519 -N '' -C second-key -f /root/k2
 # systemctl stand-in: logs the call; "cat" finds ssh.service only (/tmp/no-unit: nothing); the revert timer is active
 # while /tmp/timer-armed exists; ssh.socket while /tmp/socket-active exists; ssh.service is inactive while /tmp/ssh-dead
 # exists (a reload sets it when /tmp/ssh-dies-on-reload exists, "start" clears it unless /tmp/start-fails exists); stopping
-# the timer removes the stage's drop-in when /tmp/stop-fires-timer exists (the timer fired meanwhile; its service is then active while
-# /tmp/revert-running exists); a reload sends SIGHUP to a real
+# the timer removes the stage's drop-in when /tmp/stop-fires-timer exists (the timer fired meanwhile), and starts the revert
+# service (creates /tmp/revert-running, drop-in kept) when /tmp/stop-starts-revert exists; a reload sends SIGHUP to a real
 # sshd when /tmp/live-sshd exists (and not /tmp/reload-noop).
 install -d /usr/local/sbin /usr/local/shim
 cat >/usr/local/sbin/systemctl <<'EOF'
@@ -52,7 +52,7 @@ case "${1:-}" in
       *) [ ! -f /tmp/ssh-dead ] || exit 3 ;;
     esac ;;
   start) [ -f /tmp/start-fails ] || rm -f /tmp/ssh-dead ;;
-  stop) case "$*" in *foundry-ssh-keys-only-revert.timer*) rm -f /tmp/timer-armed; [ ! -f /tmp/stop-fires-timer ] || rm -f /etc/ssh/sshd_config.d/00-foundry-keys-only.conf ;; esac ;;
+  stop) case "$*" in *foundry-ssh-keys-only-revert.timer*) rm -f /tmp/timer-armed; [ ! -f /tmp/stop-fires-timer ] || rm -f /etc/ssh/sshd_config.d/00-foundry-keys-only.conf; [ ! -f /tmp/stop-starts-revert ] || touch /tmp/revert-running ;; esac ;;
   reload | reload-or-restart)
     [ ! -f /tmp/reloadfail ] || exit 1
     [ ! -f /tmp/ssh-dies-on-reload ] || touch /tmp/ssh-dead
@@ -88,7 +88,7 @@ KEY2="$(cat /root/k2.pub)"
 fresh_pi() {
   pkill -x sshd 2>/dev/null || true
   rm -f /tmp/calls /tmp/timer-armed /tmp/revert-cmd /tmp/reloadfail /tmp/timerfail /tmp/sshd-t-fail /tmp/no-unit \
-    /tmp/socket-active /tmp/ssh-dead /tmp/ssh-dies-on-reload /tmp/live-sshd /tmp/reload-noop /run/sshd.pid /tmp/start-fails /tmp/stop-fires-timer /tmp/revert-running \
+    /tmp/socket-active /tmp/ssh-dead /tmp/ssh-dies-on-reload /tmp/live-sshd /tmp/reload-noop /run/sshd.pid /tmp/start-fails /tmp/stop-fires-timer /tmp/stop-starts-revert /tmp/revert-running \
     /etc/ssh/foundry-keys-only.confirmed
   rm -rf /etc/ssh/sshd_config.d
   mkdir -p /etc/ssh/sshd_config.d
@@ -471,6 +471,16 @@ if selected confirm-revert-running; then
   : >/tmp/calls
   run_stage CONFIRM=1
   block confirm-revert-running
+fi
+
+# The timer fires while CONFIRM stops it and its revert service starts (the drop-in is still there): the second revert_running
+# check refuses and writes no marker.
+if selected confirm-revert-starts; then
+  fresh_pi
+  run_stage
+  touch /tmp/stop-starts-revert
+  run_stage CONFIRM=1
+  block confirm-revert-starts
 fi
 
 # A Match line written as Keyword=value (sshd accepts it) is found too.

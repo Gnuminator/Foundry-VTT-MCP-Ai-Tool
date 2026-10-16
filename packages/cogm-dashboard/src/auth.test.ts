@@ -4,6 +4,7 @@ import {
   extractToken,
   isGm,
   presentedUnknownToken,
+  presentedUnverifiedAccess,
   type AuthRequest,
 } from './auth.js';
 import type { AuthConfig } from './config.js';
@@ -129,6 +130,32 @@ describe('presentedUnknownToken', () => {
   it('never flags in single-user mode', () => {
     const auth = authConfig({ splitEnabled: false, gmToken: '' });
     expect(presentedUnknownToken(req({ 'x-cogm-token': 'anything' }), auth)).toBe(false);
+  });
+});
+
+describe('presentedUnverifiedAccess', () => {
+  const access = { teamDomain: 'team.cloudflareaccess.com', audiences: ['aud-1'] };
+  const auth = authConfig({ gmToken: '', gmEmails: ['gm@example.com'], access });
+  const marked = (extra: Partial<AuthRequest> = {}): AuthRequest => ({
+    headers: {},
+    query: {},
+    accessTokenUnverified: true,
+    ...extra,
+  });
+
+  it('flags a request whose Access token did not verify', () => {
+    expect(presentedUnverifiedAccess(marked(), auth)).toBe(true);
+  });
+
+  it('never flags an unmarked request or one that resolved an email', () => {
+    expect(presentedUnverifiedAccess(req(), auth)).toBe(false);
+    expect(presentedUnverifiedAccess(marked({ accessEmail: 'a@example.com' }), auth)).toBe(false);
+  });
+
+  it('never flags without GM emails, with a player token, or in single-user mode', () => {
+    expect(presentedUnverifiedAccess(marked(), { ...auth, gmEmails: [] })).toBe(false);
+    expect(presentedUnverifiedAccess(marked(), { ...auth, playerToken: 'p' })).toBe(false);
+    expect(presentedUnverifiedAccess(marked(), { ...auth, splitEnabled: false })).toBe(false);
   });
 });
 

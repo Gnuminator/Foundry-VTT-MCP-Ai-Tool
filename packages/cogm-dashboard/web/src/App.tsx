@@ -33,6 +33,7 @@ import {
   type DockName,
   type Moment,
 } from './components/Moments';
+import { RoleNotice } from './components/RoleNotice';
 import { HandoutsDrawer } from './panels/Handouts';
 import { ModuleDiagnosticsPane } from './panels/ModuleDiagnostics';
 import { PartyDrawer } from './panels/Party';
@@ -322,6 +323,7 @@ function Dashboard(): JSX.Element {
         This is the new dashboard, still being built. Panels move here one at a time; the full
         dashboard is still at the main address.
       </div>
+      <RoleNotice />
       <VersionBanner />
       <MomentViews
         moment={moment}

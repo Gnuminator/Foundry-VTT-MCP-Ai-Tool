@@ -62,7 +62,8 @@ const streamUrl = () =>
 // copied to the player page's own key (player.js), or goes along in the address when storage is
 // refused. A visitor turned away who brings no token here but has the player page's own is a
 // player too. The GM never leaves, nor does a token the server does not know (`unknownToken`: a
-// GM's stale or mistyped link). The new dashboard does the same (web/src/lib/role.ts).
+// GM's stale or mistyped link) or an Access token it could not verify (`accessUnverified`); the
+// page then says why it is empty. The new dashboard does the same (web/src/lib/role.ts).
 (async () => {
   let answer;
   try {
@@ -76,7 +77,16 @@ const streamUrl = () =>
   } catch {
     return;
   }
-  if (answer.role !== 'player' || answer.unknownToken === true) return;
+  if (answer.role !== 'player') return;
+  if (answer.unknownToken === true || answer.accessUnverified === true) {
+    const banner = document.getElementById('role-banner');
+    banner.textContent =
+      answer.unknownToken === true
+        ? "This browser's GM link is not accepted any more. Open the GM link again."
+        : 'The Cloudflare sign-in could not be checked just now. Reload the page.';
+    banner.hidden = false;
+    return;
+  }
   let url = '/player';
   if (COGM_TOKEN) {
     try {

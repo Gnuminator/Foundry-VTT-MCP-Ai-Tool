@@ -47,14 +47,20 @@ afterEach(async () => {
   await Promise.all(closers.splice(0).map(c => c()));
 });
 
-async function start(): Promise<number> {
+type KeyFetch = NonNullable<Parameters<typeof createDashboard>[0]['accessFetch']>;
+const goodKeys: KeyFetch = () =>
+  Promise.resolve({ ok: true, json: () => Promise.resolve({ keys }) });
+
+async function start(
+  options: { accessFetch?: KeyFetch; access?: AuthConfig['access'] } = {}
+): Promise<number> {
   const auth: AuthConfig = {
     ...config.auth,
     splitEnabled: true,
     gmToken: 'gm-token-not-used-here',
     playerToken: '',
     gmEmails: ['gm@example.com'],
-    access: { teamDomain: TEAM, audiences: [AUD] },
+    access: 'access' in options ? (options.access ?? null) : { teamDomain: TEAM, audiences: [AUD] },
   };
   const testConfig: Config = {
     ...config,
@@ -67,7 +73,7 @@ async function start(): Promise<number> {
     logger: new Logger('error', 'access-test'),
     client: bridge,
     coGm: fakeCoGm,
-    accessFetch: () => Promise.resolve({ ok: true, json: () => Promise.resolve({ keys }) }),
+    accessFetch: options.accessFetch ?? goodKeys,
   });
   const server = dashboard.app.listen(0, '127.0.0.1');
   await new Promise<void>(resolve => server.once('listening', () => resolve()));
@@ -104,5 +110,42 @@ describe('Cloudflare Access in the app (I-022)', () => {
     expect(
       await status(port, { 'cf-access-jwt-assertion': token('gm@example.com', 'other') })
     ).toBe(403);
+  });
+});
+
+describe('/api/state for a token Access could not verify (#346 L1)', () => {
+  const state = async (port: number, headers: Record<string, string>): Promise<unknown> =>
+    (await fetch(`http://127.0.0.1:${port}/api/state`, { headers })).json();
+
+  it('marks a token that does not verify, so the GM page stays', async () => {
+    const port = await start();
+    const answer = await state(port, { 'cf-access-jwt-assertion': 'not.a.token' });
+    expect(answer).toMatchObject({ role: 'player', accessUnverified: true });
+    expect(
+      await state(port, { cookie: `CF_Authorization=${token('gm@example.com', 'other')}` })
+    ).toMatchObject({ role: 'player', accessUnverified: true });
+  });
+
+  it('marks a token when the keys cannot be fetched', async () => {
+    const port = await start({ accessFetch: () => Promise.reject(new Error('offline')) });
+    const answer = await state(port, { 'cf-access-jwt-assertion': token('gm@example.com') });
+    expect(answer).toMatchObject({ role: 'player', accessUnverified: true });
+  });
+
+  it('marks a token when GM_EMAILS is set without the CF_ACCESS settings', async () => {
+    const port = await start({ access: null });
+    const answer = await state(port, { 'cf-access-jwt-assertion': token('gm@example.com') });
+    expect(answer).toMatchObject({ role: 'player', accessUnverified: true });
+  });
+
+  it('does not mark a verified GM, a verified player, or a request without a token', async () => {
+    const port = await start();
+    const gm = await state(port, { 'cf-access-jwt-assertion': token('gm@example.com') });
+    expect(gm).toMatchObject({ role: 'gm' });
+    expect(gm).not.toHaveProperty('accessUnverified');
+    const player = await state(port, { 'cf-access-jwt-assertion': token('player@example.com') });
+    expect(player).toMatchObject({ role: 'player' });
+    expect(player).not.toHaveProperty('accessUnverified');
+    expect(await state(port, {})).not.toHaveProperty('accessUnverified');
   });
 });

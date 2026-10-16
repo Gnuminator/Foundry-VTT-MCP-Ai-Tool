@@ -7,4 +7,4 @@
   on Node 22.22.2, with either vitest pool. The 50,000-character timing check of the
   remote-command guard takes the best of three runs instead of one wall-clock sample (the ARM64
   container suite delayed one run to 207 ms against a 200 ms bound), and the co-GM stream tests
-  wait for the last event of the connect snapshot instead of a fixed 30 to 60 ms.
+  wait for the last event of the connect snapshot instead of a fixed 30 to 60 ms; the narrow-screen e2e layout test polls until the panels have settled (it failed once under ARM64 container load).

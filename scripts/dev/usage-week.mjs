@@ -21,7 +21,8 @@
 //                  a drop of more than 3 points is a weekly reset (the new value counts from 0),
 //                  a smaller drop is noise and ignored
 //   cost/pt        weighted cost per weekly point
-// The last line compares the window with the D-122 targets.
+// A line after the table compares the window with the D-122 targets, the next one splits the
+// turns per model (main-thread + subagent) with each model's share of the cost.
 //
 // Overrides (tests and checks): USAGE_WEEK_ROOT (the projects folder), USAGE_WEEK_VAULT,
 // USAGE_WEEK_NOW (ISO time), USAGE_WEEK_GH=off (skip the merged-PR lookup).
@@ -59,6 +60,13 @@ export function median(values) {
   const v = [...values].sort((a, b) => a - b);
   const mid = Math.floor(v.length / 2);
   return v.length % 2 ? v[mid] : Math.round((v[mid - 1] + v[mid]) / 2);
+}
+
+// The model family a response ran on, for the per-model split.
+export function familyOf(model) {
+  const m = String(model || '');
+  for (const f of ['opus', 'sonnet', 'haiku', 'fable', 'mythos']) if (m.includes(f)) return f;
+  return 'other';
 }
 
 export function priceOf(model) {
@@ -322,6 +330,7 @@ export async function buildReport({ root, now, days, prs = null, usageLog = null
   const files = findTranscripts(root, startMs);
   const { responses, sessions } = await readTranscripts(files, startMs);
   const byDay = new Map(keys.map(k => [k, newDay(k)]));
+  const models = {};
 
   for (const r of responses) {
     const d = byDay.get(dayKey(new Date(r.t)));
@@ -329,6 +338,10 @@ export async function buildReport({ root, now, days, prs = null, usageLog = null
     d.tokens += r.ctx;
     d.cost += r.cost;
     if (/opus/.test(r.model)) d.opusCost += r.cost;
+    const m = (models[familyOf(r.model)] ||= { turns: 0, mainTurns: 0, subTurns: 0, cost: 0 });
+    m.turns++;
+    m[r.main ? 'mainTurns' : 'subTurns']++;
+    m.cost += r.cost;
   }
 
   const qualifying = sessions.filter(
@@ -391,6 +404,7 @@ export async function buildReport({ root, now, days, prs = null, usageLog = null
     responses: responses.length,
     days: rows,
     total,
+    models,
     targets: targetsFor(total, days),
   };
 }
@@ -452,6 +466,18 @@ export function formatTargets(targets) {
   return `Targets (D-122): ${targets.map(t => text[t.name](t)).join(' | ')}`;
 }
 
+// Turns per model family with their share of the weighted cost; "main" and "sub" split the
+// turns between main-thread sessions and subagents. CLAUDE.md "Models": lanes on Sonnet.
+export function formatModels(models) {
+  const list = Object.entries(models || {}).sort((a, b) => b[1].cost - a[1].cost);
+  const cost = list.reduce((a, [, m]) => a + m.cost, 0);
+  if (!list.length || !cost) return 'Models: none in the window';
+  const name = f => f[0].toUpperCase() + f.slice(1);
+  return `Models (turns main+sub, share of cost): ${list
+    .map(([f, m]) => `${name(f)} ${m.mainTurns}+${m.subTurns} ${Math.round((100 * m.cost) / cost)}%`)
+    .join(' | ')}`;
+}
+
 export function formatReport(report, notes = []) {
   const header = COLUMNS.map(([name, w], i) => (i === 0 ? name.padEnd(w) : name.padStart(w))).join(
     ' '
@@ -465,6 +491,7 @@ export function formatReport(report, notes = []) {
     '-'.repeat(header.length),
     row({ ...report.total, day: 'Window' }),
     formatTargets(report.targets),
+    formatModels(report.models),
     ...notes.map(n => `Note: ${n}`),
   ];
   return lines.join('\n');

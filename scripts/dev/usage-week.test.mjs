@@ -9,7 +9,9 @@ import {
   PROJECT_DIR,
   buildReport,
   dayKey,
+  familyOf,
   findTranscripts,
+  formatModels,
   formatReport,
   formatTargets,
   isProjectDir,
@@ -364,6 +366,38 @@ test('targets line: every figure marked ok or over', async () => {
   } finally {
     f.cleanup();
   }
+});
+
+test('familyOf and formatModels: turns per model, main thread and subagents, with the cost share', async () => {
+  assert.deepEqual(
+    ['claude-opus-5-5', 'claude-sonnet-5', 'claude-haiku-4-5-20251001', 'claude-fable-5-1', 'claude-mythos-5-1', '', undefined].map(familyOf),
+    ['opus', 'sonnet', 'haiku', 'fable', 'mythos', 'other', 'other']
+  );
+  const f = fixture();
+  try {
+    const r = await buildReport({ root: f.projects, now: NOW, days: 7, prs, usageLog: LOG });
+    // Duplicate ids and the folders that are not this project do not count.
+    assert.equal(r.models.opus.mainTurns, 3);
+    assert.equal(r.models.opus.subTurns, 0);
+    assert.equal(r.models.sonnet.mainTurns, 6);
+    assert.equal(r.models.sonnet.subTurns, 1); // the sidechain line
+    assert.equal(r.models.haiku.subTurns, 2);
+    assert.equal(r.models.haiku.mainTurns, 0);
+    assert.equal(
+      r.models.opus.turns + r.models.sonnet.turns + r.models.haiku.turns,
+      r.responses
+    );
+    const share = Object.values(r.models).reduce((a, m) => a + m.cost, 0);
+    assert.ok(Math.abs(share - r.total.cost) < 1e-9);
+    const line = formatReport(r).split('\n')[12];
+    assert.match(line, /^Models \(turns main\+sub, share of cost\): /);
+    assert.match(line, /Sonnet 6\+1 \d+%/);
+    assert.match(line, /Haiku 0\+2 \d+%/);
+    assert.match(line, /Opus 3\+0 \d+%/);
+  } finally {
+    f.cleanup();
+  }
+  assert.equal(formatModels({}), 'Models: none in the window');
 });
 
 test('formatReport: a fixed-width row per day, a window total row and the targets line', async () => {

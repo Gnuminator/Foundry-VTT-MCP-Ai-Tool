@@ -99,6 +99,7 @@ write_state() {
   case "${3:-kit}" in
     old) ;;
     *)
+      echo 'STAMP_EPOCH=1792000000' >>"$STATE"
       echo 'KIT_GM_BROWSER=1' >>"$STATE"
       make_kit_files 0123456789abcdef0123456789abcdef
       ;;&
@@ -117,7 +118,7 @@ write_state() {
 #                (no KIT_GM_BROWSER line, no password file, no profile, no browser)
 #                down-state-noorig / down-state-emptyorig: without the ORIG_BRIDGE_USER line / with it empty
 #   bad-state    a state file that holds a world id the stage must not trust; bad-kit-flag: a KIT_GM_BROWSER line that
-#                does not say 1; bad-orig-state: an ORIG_BRIDGE_USER line that is not a user id
+#                does not say 1; bad-epoch: a STAMP_EPOCH line that is not seconds; bad-orig-state: an ORIG_BRIDGE_USER line that is not a user id
 #   origbridge-empty / origbridge-bad / origbridge-none   the fake setup driver reports no bridge user (Any GM), one that
 #                is not a user id, or does not report one at all (default: AbCdEfGh01234567)
 #   kit-activating   a Kit GM browser unit between restarts ("activating"), nothing else left behind
@@ -152,9 +153,9 @@ scenario() {
   local w
   for w in "$@"; do
     case "$w" in
-      down-state* | on-kit | bad-state | bad-kit-flag | bad-orig-state) first=strahd-kit ;;
+      down-state* | on-kit | bad-state | bad-kit-flag | bad-epoch | bad-orig-state) first=strahd-kit ;;
     esac
-    case "$w" in down-state* | bad-state | bad-kit-flag | bad-orig-state) driver=installed ;; esac
+    case "$w" in down-state* | bad-state | bad-kit-flag | bad-epoch | bad-orig-state) driver=installed ;; esac
   done
   fresh_pi "$first" "$driver"
   printf '%s' "$status" >/tmp/status
@@ -202,6 +203,7 @@ scenario() {
         ;;
       bad-state) printf 'ORIG_WORLD=../../etc\nWAS_GM_BROWSER=1\nSTAMP=20261012-101010\n' >"$STATE" ;;
       bad-kit-flag) printf 'ORIG_WORLD=curse-of-strahd\nWAS_GM_BROWSER=1\nSTAMP=20261012-101010\nKIT_GM_BROWSER=maybe\n' >"$STATE" ;;
+      bad-epoch) printf 'ORIG_WORLD=curse-of-strahd\nWAS_GM_BROWSER=1\nSTAMP=20261012-101010\nSTAMP_EPOCH=soon\nKIT_GM_BROWSER=1\n' >"$STATE" ;;
       leftover)
         make_kit_files fedcba9876543210fedcba9876543210
         echo stale >"$TOOL_ETC/.kit-gm.stale1"
@@ -251,7 +253,7 @@ scenario() {
   echo "--- state"
   if [ -e "$STATE" ]; then
     echo "mode $(stat -c %a "$STATE") owner $(stat -c %U "$STATE")"
-    sed 's/^STAMP=[0-9-]*$/STAMP=<stamp>/' "$STATE"
+    sed -e 's/^STAMP=[0-9-]*$/STAMP=<stamp>/' -e 's/^STAMP_EPOCH=[0-9]*$/STAMP_EPOCH=<epoch>/' "$STATE"
   else
     echo absent
   fi
@@ -355,6 +357,7 @@ scenario down-no-orig-bridge "$U0" 0 "gm" down down-state-noorig
 scenario down-empty-orig-bridge "$U0" 0 "gm" down down-state-emptyorig
 scenario down-bad-orig-bridge "$U0" 0 "gm" down bad-orig-state
 scenario down-bad-kit-flag "$U0" 0 "gm" down bad-kit-flag
+scenario down-bad-epoch "$U0" 0 "gm" down bad-epoch
 scenario down-kit-active "$U0" 0 "gm" down down-state kit-counts
 scenario down-kit-active-users-online '{"active":true,"users":2}' 0 "gm" down down-state kit-counts
 scenario down-kit-stop-fails "$U0" 0 "gm" down down-state kitstopfail

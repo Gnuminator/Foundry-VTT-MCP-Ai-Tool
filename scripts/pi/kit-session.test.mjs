@@ -46,6 +46,7 @@ import {
   mismatches,
   originalBridgeUser,
   parseKitGmPassword,
+  parseSinceEpoch,
   parseSinceStamp,
   parseMaxDelete,
   parseOrigBridgeUser,
@@ -555,10 +556,19 @@ describe('kit-session.mjs teardown (the in-browser part)', () => {
     const sh = readFileSync(path.join(repo, 'scripts', 'pi', 'remote', 'kit-session.sh'), 'utf8');
     assert.ok(
       sh.includes(
-        'ACTION="$1" MAX_DELETE="$MAX_DELETE" SINCE_STAMP="${state_stamp:-}" \\\n        node "$driver"\n'
+        'ACTION="$1" MAX_DELETE="$MAX_DELETE" SINCE_STAMP="${state_stamp:-}" SINCE_EPOCH="${state_epoch:-}" \\\n        node "$driver"\n'
       ),
       'the non-setup driver call carries SINCE_STAMP'
     );
+  });
+
+  test('SINCE_EPOCH is whole seconds as milliseconds; empty is null; anything else is refused', () => {
+    assert.equal(parseSinceEpoch(undefined), null);
+    assert.equal(parseSinceEpoch(''), null);
+    assert.equal(parseSinceEpoch('1792000000'), 1792000000000);
+    for (const bad of ['soon', '-5', '1.5', '20261014-093005', '12345678', '123456789012']) {
+      assert.throws(() => parseSinceEpoch(bad), /SINCE_EPOCH/, bad);
+    }
   });
 
   test('SINCE_STAMP is read as local time; empty is null; anything else is refused', () => {
@@ -1429,6 +1439,7 @@ describe('kit-session.sh in an ARM64 container', { skip: containerReason }, () =
     'ORIG_WORLD=curse-of-strahd',
     'WAS_GM_BROWSER=1',
     'STAMP=<stamp>',
+    'STAMP_EPOCH=<epoch>',
     'KIT_GM_BROWSER=1',
     'ORIG_BRIDGE_USER=AbCdEfGh01234567',
   ];
@@ -1587,6 +1598,7 @@ describe('kit-session.sh in an ARM64 container', { skip: containerReason }, () =
       'ORIG_WORLD=curse-of-strahd',
       'WAS_GM_BROWSER=0',
       'STAMP=<stamp>',
+      'STAMP_EPOCH=<epoch>',
       'KIT_GM_BROWSER=1',
       'ORIG_BRIDGE_USER=AbCdEfGh01234567',
     ]);
@@ -1949,6 +1961,7 @@ describe('kit-session.sh in an ARM64 container', { skip: containerReason }, () =
       r.output,
       /DRIVER ACTION=teardown WORLD=strahd-kit .* MAX_DELETE= HAS_USER=true HAS_PW=true HAS_KITPW=false KITPW_SHAPE=false/
     );
+    assert.match(r.output, /since_stamp=20261012-101010 since_epoch=1792000000 orig_bridge/);
     assert.match(r.output, /DRIVER_SEES options=strahd-kit foundry_runs=true kit_env=600/);
     assert.deepEqual(notJournal(r.calls), [
       'is-active --quiet foundry.service',
@@ -1993,6 +2006,11 @@ describe('kit-session.sh in an ARM64 container', { skip: containerReason }, () =
   test('down with a state file from before the Kit GM existed: no Kit GM step, the teardown still runs', () => {
     const r = run('down-old-state');
     assert.equal(r.exit, 0, r.output);
+    assert.match(
+      r.output,
+      /since_stamp=20261012-101010 since_epoch= orig_bridge/,
+      'an older state file falls back to the STAMP'
+    );
     assert.deepEqual(notJournal(r.calls), [
       'is-active --quiet foundry.service',
       `stop ${GM}`,
@@ -2061,6 +2079,14 @@ describe('kit-session.sh in an ARM64 container', { skip: containerReason }, () =
     assert.match(r.output, /Nothing was changed/);
     assert.deepEqual(r.calls, []);
     assert.ok(r.state.includes('KIT_GM_BROWSER=maybe'), 'the state file is left as it was');
+  });
+
+  test('down refused when the STAMP_EPOCH line is not seconds (a missing line is fine, a wrong one is not)', () => {
+    const r = run('down-bad-epoch');
+    untouched(r, 'strahd-kit');
+    assert.match(r.output, /holds no valid STAMP_EPOCH/);
+    assert.match(r.output, /Nothing was changed/);
+    assert.deepEqual(r.calls, []);
   });
 
   test('down with the driver failing changes nothing else: Foundry stays on strahd-kit, the state and the Kit GM file stay, the Kit GM browser stays stopped', () => {

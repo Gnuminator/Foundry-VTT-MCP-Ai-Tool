@@ -90,7 +90,31 @@ const REPO_ROOT = path.resolve(import.meta.dirname, '..', '..');
 /** True when `dir` is the repo or inside it: the run's files (a sheet screenshot) never go there. */
 export function insideRepo(dir, repoRoot = REPO_ROOT) {
   const rel = path.relative(repoRoot, path.resolve(dir));
-  return rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel));
+  // A repo folder named `..out` is inside; only `..` itself or `..` plus a separator leaves the repo.
+  return rel === '' || (rel !== '..' && !rel.startsWith(`..${path.sep}`) && !path.isAbsolute(rel));
+}
+
+/**
+ * Refusal that needs no browser: the world Foundry serves right now, from /api/status, so the user never joins the
+ * live world first. A server that does not answer with a world is refused too (the in-page checks stay as the second line).
+ * @returns {Promise<string[]>}
+ */
+export async function worldRefusals(url, fetchImpl = fetch) {
+  let world;
+  try {
+    const res = await fetchImpl(new URL('api/status', url.endsWith('/') ? url : `${url}/`), {
+      signal: AbortSignal.timeout(10_000),
+    });
+    world = (await res.json())?.world;
+  } catch (e) {
+    return [`${url} did not answer on /api/status (${e?.message ?? e})`];
+  }
+  if (typeof world !== 'string' || world === '') {
+    return [`${url} reports no world on /api/status: start the test world first`];
+  }
+  return refusals({ world, isGM: false, canCreate: true }).filter(p =>
+    p.startsWith('the world is')
+  );
 }
 
 /** Refusals that need the page: the world and the user. @returns {string[]} */
@@ -267,7 +291,7 @@ async function playerRun(page, errors, options, result, outDir, libs) {
   return verdict.problems;
 }
 
-export async function main(argv = process.argv.slice(2)) {
+export async function main(argv = process.argv.slice(2), { fetchImpl = fetch } = {}) {
   const options = parseArgs(argv);
   const { guardUrl } = await import('./lib/guard-url.mjs');
   // The Pi is the usual target, so a remote host is allowed; the live bridge ports are still refused.
@@ -277,6 +301,8 @@ export async function main(argv = process.argv.slice(2)) {
     : mkdtempSync(path.join(tmpdir(), 'player-run-'));
   if (insideRepo(outDir))
     throw new Error(`--out ${outDir} is inside the repo: pick a folder outside it`);
+  const worldProblems = await worldRefusals(url, fetchImpl);
+  if (worldProblems.length) throw new Error(`refused: ${worldProblems.join('; ')}`);
   mkdirSync(outDir, { recursive: true });
   const [gm, studio, flow, pc, pump] = await Promise.all([
     import('./lib/gm.mjs'),

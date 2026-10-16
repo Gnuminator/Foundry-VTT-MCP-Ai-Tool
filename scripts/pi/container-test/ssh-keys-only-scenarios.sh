@@ -35,7 +35,8 @@ ssh-keygen -q -t ed25519 -N '' -C second-key -f /root/k2
 # systemctl stand-in: logs the call; "cat" finds ssh.service only (/tmp/no-unit: nothing); the revert timer is active
 # while /tmp/timer-armed exists; ssh.socket while /tmp/socket-active exists; ssh.service is inactive while /tmp/ssh-dead
 # exists (a reload sets it when /tmp/ssh-dies-on-reload exists, "start" clears it unless /tmp/start-fails exists); stopping
-# the timer removes the stage's drop-in when /tmp/stop-fires-timer exists (the timer fired meanwhile); a reload sends SIGHUP to a real
+# the timer removes the stage's drop-in when /tmp/stop-fires-timer exists (the timer fired meanwhile; its service is then active while
+# /tmp/revert-running exists); a reload sends SIGHUP to a real
 # sshd when /tmp/live-sshd exists (and not /tmp/reload-noop).
 install -d /usr/local/sbin /usr/local/shim
 cat >/usr/local/sbin/systemctl <<'EOF'
@@ -47,6 +48,7 @@ case "${1:-}" in
     case "${@: -1}" in
       foundry-ssh-keys-only-revert.timer) [ -f /tmp/timer-armed ] || exit 3 ;;
       ssh.socket) [ -f /tmp/socket-active ] || exit 3 ;;
+      foundry-ssh-keys-only-revert.service) [ -f /tmp/revert-running ] || exit 3 ;;
       *) [ ! -f /tmp/ssh-dead ] || exit 3 ;;
     esac ;;
   start) [ -f /tmp/start-fails ] || rm -f /tmp/ssh-dead ;;
@@ -86,7 +88,7 @@ KEY2="$(cat /root/k2.pub)"
 fresh_pi() {
   pkill -x sshd 2>/dev/null || true
   rm -f /tmp/calls /tmp/timer-armed /tmp/revert-cmd /tmp/reloadfail /tmp/timerfail /tmp/sshd-t-fail /tmp/no-unit \
-    /tmp/socket-active /tmp/ssh-dead /tmp/ssh-dies-on-reload /tmp/live-sshd /tmp/reload-noop /run/sshd.pid /tmp/start-fails /tmp/stop-fires-timer \
+    /tmp/socket-active /tmp/ssh-dead /tmp/ssh-dies-on-reload /tmp/live-sshd /tmp/reload-noop /run/sshd.pid /tmp/start-fails /tmp/stop-fires-timer /tmp/revert-running \
     /etc/ssh/foundry-keys-only.confirmed
   rm -rf /etc/ssh/sshd_config.d
   mkdir -p /etc/ssh/sshd_config.d
@@ -457,6 +459,18 @@ if selected confirm-dropin-gone; then
   touch /tmp/stop-fires-timer
   run_stage CONFIRM=1
   block confirm-dropin-gone
+fi
+
+# The timer has elapsed (no timer armed) but its revert service is still running: CONFIRM refuses and writes no marker, instead
+# of saying "nothing to cancel".
+if selected confirm-revert-running; then
+  fresh_pi
+  run_stage
+  rm -f /tmp/timer-armed
+  touch /tmp/revert-running
+  : >/tmp/calls
+  run_stage CONFIRM=1
+  block confirm-revert-running
 fi
 
 # A Match line written as Keyword=value (sshd accepts it) is found too.

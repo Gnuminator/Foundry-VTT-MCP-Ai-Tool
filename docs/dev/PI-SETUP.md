@@ -947,8 +947,9 @@ scp scripts/pi/remote/kit-session.mjs foundry-pi:/root/ && cat scripts/pi/remote
   anyway). It stops the Kit GM browser first (it would count as online) and the Assistant GM browser
   too, because a reboot during the session starts that one on `strahd-kit`, where it would count as
   a user. With `strahd-kit` still running it runs `kit-session.mjs` with `ACTION=teardown`: the
-  actors that `Kit Player` owns and that were made after `up` (the state file's `STAMP`, passed on as
-  `SINCE_STAMP`) are listed by name and id and deleted, then the user; then the
+  actors that `Kit Player` owns and that were made after `up` (the state file's `STAMP_EPOCH`, passed on as
+  `SINCE_EPOCH`, so a DST change or a clock step cannot move the cutoff; an older state file without it
+  falls back to `STAMP` as `SINCE_STAMP`) are listed by name and id and deleted, then the user; then the
   Bridge User goes back to "Any GM" if it is `Kit GM`, and `Kit GM` is deleted. An owned actor from
   before `up` (or one with no creation time) is kept and listed as kept. At most 5
   actors are deleted; more than that stops the run (`MAX_DELETE=<n>` raises the limit after you have

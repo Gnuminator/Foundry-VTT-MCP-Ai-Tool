@@ -21,7 +21,7 @@
 //     It prints the values before and after, reloads the world and reads them back, and exits 1 on any mismatch.
 //     A second run changes nothing but the Kit GM password. When it has verified everything it prints one line,
 //     "ORIG_BRIDGE_USER=<id or empty>": the bridge user it replaced, which the stage keeps for the teardown.
-//   ACTION=teardown  deletes the actors that Kit Player owns and that were made after the session started (SINCE_STAMP;
+//   ACTION=teardown  deletes the actors that Kit Player owns and that were made after the session started (SINCE_EPOCH or SINCE_STAMP;
 //                    at most 5; MAX_DELETE raises the limit; older ones are kept and listed; their names
 //                    and ids are printed first) and then the user Kit Player; then, when Kit GM is the bridge user,
 //                    the bridge user goes back to what setup found (ORIG_BRIDGE_USER, when that user still exists
@@ -34,7 +34,7 @@
 //
 // Environment: ACTION, TOOL_APP (the built tool, for playwright-core), FOUNDRY_URL (default
 // http://127.0.0.1:30000), CHROMIUM (default /usr/bin/chromium), GM_USER, GM_PASSWORD, WORLD (the world id
-// that must be running), KIT_GM_PASSWORD (setup only: 32 lowercase hex characters), MAX_DELETE, SINCE_STAMP (YYYYMMDD-HHMMSS, the state file's STAMP; required) and
+// that must be running), KIT_GM_PASSWORD (setup only: 32 lowercase hex characters), MAX_DELETE, SINCE_EPOCH (seconds, the state file's STAMP_EPOCH; wins when set), SINCE_STAMP (YYYYMMDD-HHMMSS, the state file's STAMP; the fallback; one of the two is required) and
 // ORIG_BRIDGE_USER (teardown only; the latter is a 16 character user id or empty, and when it is not set at all the bridge user goes back to Any GM).
 
 import { createRequire } from 'node:module';
@@ -439,6 +439,18 @@ export function parseMaxDelete(value) {
   return Number(value);
 }
 
+// SINCE_EPOCH: the state file's STAMP_EPOCH (whole seconds since the epoch) as milliseconds, or null when it is not set.
+// It wins over SINCE_STAMP because it does not shift with a DST change or a clock step on the Pi.
+export function parseSinceEpoch(value) {
+  if (value === undefined || value === '') return null;
+  if (!/^\d{9,11}$/.test(value)) {
+    throw new Error(
+      `SINCE_EPOCH must be whole seconds since 1970, like 1792000000 (got "${value}")`
+    );
+  }
+  return Number(value) * 1000;
+}
+
 // SINCE_STAMP: the state file's STAMP (YYYYMMDD-HHMMSS, the host's local time when "up" ran) as milliseconds since the
 // epoch, or null when it is not set (main() refuses a teardown without it). The Pi's clock and
 // timezone are the ones that wrote the stamp and that stamp the actors, so the local-time reading is the right one.
@@ -659,12 +671,15 @@ async function main() {
     throw new Error(`ACTION must be setup or teardown (got "${action}")`);
   }
   const maxDelete = action === 'teardown' ? parseMaxDelete(process.env.MAX_DELETE) : 0;
-  const sinceMs = action === 'teardown' ? parseSinceStamp(process.env.SINCE_STAMP) : null;
+  const sinceMs =
+    action === 'teardown'
+      ? (parseSinceEpoch(process.env.SINCE_EPOCH) ?? parseSinceStamp(process.env.SINCE_STAMP))
+      : null;
   const origBridge =
     action === 'teardown' ? parseOrigBridgeUser(process.env.ORIG_BRIDGE_USER) : undefined;
   if (action === 'teardown' && sinceMs === null) {
     throw new Error(
-      'SINCE_STAMP is not set: the teardown deletes only actors made after the session started'
+      'SINCE_STAMP is not set (and no SINCE_EPOCH): the teardown deletes only actors made after the session started'
     );
   }
   const toolApp = env('TOOL_APP');

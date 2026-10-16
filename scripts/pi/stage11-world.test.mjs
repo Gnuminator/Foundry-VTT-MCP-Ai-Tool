@@ -446,7 +446,10 @@ describe('11-world.sh in an ARM64 container', { skip: containerReason }, () => {
 
   test('kit-names-installed: a campaign run never resets an installed world that is not its kit copy', () => {
     const r = run('kit-names-installed');
-    assertRefused(r, /the installed world frostmaiden-training is not a kit copy of curse-of-strahd/);
+    assertRefused(
+      r,
+      /the installed world frostmaiden-training is not a kit copy of curse-of-strahd/
+    );
     assert.match(r.output, /REPLACE_KIT=1/);
     assert.match(r.output, /Nothing was changed/);
     assert.ok(sentinel(r, 'frostmaiden-training'), 'the training world must be untouched');
@@ -550,7 +553,10 @@ describe('11-world.sh in an ARM64 container', { skip: containerReason }, () => {
   test('assets-merge: a changed asset is replaced, a new one added, both owned by the foundry user', () => {
     const r = run('assets-merge');
     assert.equal(r.exit, '0', r.output);
-    assert.deepEqual(lines(r.assets).slice(0, 2), ['pic.png file foundry bundle pic', 'new.png file foundry bundle new']);
+    assert.deepEqual(lines(r.assets).slice(0, 2), [
+      'pic.png file foundry bundle pic',
+      'new.png file foundry bundle new',
+    ]);
     assert.match(r.output, /ddb-images merged \(1 changed files saved to /);
   });
 
@@ -558,18 +564,34 @@ describe('11-world.sh in an ARM64 container', { skip: containerReason }, () => {
     const r = run('assets-link');
     assert.equal(r.exit, '0', r.output);
     assert.equal(r.victim, 'victim root:root:644 victim');
-    assert.deepEqual(lines(r.assets).slice(0, 2), ['pic.png file foundry bundle pic', 'new.png file foundry bundle new']);
+    assert.deepEqual(lines(r.assets).slice(0, 2), [
+      'pic.png file foundry bundle pic',
+      'new.png file foundry bundle new',
+    ]);
   });
 
   test('assets-dirlink: an asset folder that is itself a link is refused before anything stops', () => {
     const r = run('assets-dirlink');
-    assertRefused(r, /ddb-images is a link: the asset merge would write into whatever it points at/);
+    assertRefused(
+      r,
+      /ddb-images is a link: the asset merge would write into whatever it points at/
+    );
     assert.match(r.output, /Nothing was changed/);
     assert.deepEqual(stops(r), []);
     assert.deepEqual(lines(r.worlds), [
       'curse-of-strahd=curse-of-strahd (on the Pi)',
       'strahd-kit=strahd-kit (on the Pi)',
     ]);
+  });
+
+  test('assets-deeplink: a link to a folder below the asset folder is refused before anything stops', () => {
+    const r = run('assets-deeplink');
+    assertRefused(
+      r,
+      /ddb-images\/adventures is a link to a folder: the asset merge would write into whatever it points at/
+    );
+    assert.match(r.output, /Nothing was changed/);
+    assert.deepEqual(stops(r), []);
   });
 
   test('options-readonly: a Config folder the foundry user cannot write is refused before anything stops', () => {
@@ -586,7 +608,10 @@ describe('11-world.sh in an ARM64 container', { skip: containerReason }, () => {
 
   test('kit-session-up: a kit session that is up refuses the run before anything stops', () => {
     const r = run('kit-session-up');
-    assertRefused(r, /a kit session is up \(\/var\/lib\/foundry-ai-tool\/kit-session\.env exists\)/);
+    assertRefused(
+      r,
+      /a kit session is up \(\/var\/lib\/foundry-ai-tool\/kit-session\.env exists\)/
+    );
     assert.match(r.output, /kit-session\.sh MODE=down/);
     assert.match(r.output, /Nothing was changed/);
     assert.equal(r.optstate, 'options mode 644 owner foundry tmp absent');

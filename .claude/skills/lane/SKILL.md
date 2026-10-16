@@ -63,20 +63,21 @@ one PR. Vault paths below are under `C:\Users\chris\Documents\Obsidian\vault\Dev
   for one delta round. Lows may go to the Backlog instead.
 - **Push:** `git push -u aitool claude/<topic>:claude/<topic>` (explicit refspec, never a bare
   push from a branch made off `aitool/main`).
-- **Merge:** from the PR branch, clean and pushed, run main's copy of the gate (never the branch's
-  own, so a PR cannot judge itself):
+- **Ready to merge (the planner merges, 2026-10-16):** once every review for the head says Merge,
+  stop: report the PR number, the full head sha and the review note path, and leave the PR open.
+  Don't run the gate without `--dry-run` and don't offer the app's PR Auto-fix. To check the gate
+  first, from the PR branch, clean and pushed, run main's copy (never the branch's own, so a PR
+  cannot judge itself):
 
   ```bash
   g=$(cygpath -m "$(mktemp --suffix=.mjs)") && git fetch -q aitool main && git show aitool/main:scripts/lane-merge.mjs > "$g" && test -s "$g" && node "$g" <PR> --dry-run
   ```
 
-  Then the same line without `--dry-run`. One `&&` chain, so an empty or failed copy never runs.
-  Only a `lane:merge: OK #<PR>` line (dry run) or `lane:merge: merged #<PR>` line means success;
-  anything else, or no output, is a refusal.
-  It checks CI on the head commit, a review note for that sha (Opus
-  for risky paths), the changelog fragment, `drift:check` and the merge train, then merges with
-  `--match-head-commit`. If the train is full, the planner runs `live:roundtrip` on main first.
-  Never merge by hand around it. Don't offer the app's PR Auto-fix.
+  One `&&` chain, so an empty or failed copy never runs. Only a `lane:merge: OK #<PR>` line means
+  the checks pass; anything else, or no output, is a refusal. The gate checks CI on the head commit,
+  a review note for that sha (Opus for risky paths), the changelog fragment, `drift:check` and the
+  merge train. Add `--wait-ci` to wait for CI first; exit codes: 0 ok or merged, 1 refused, 2 usage,
+  3 a check failed, 4 head moved, 5 timed out.
 
 ## Context and handover
 

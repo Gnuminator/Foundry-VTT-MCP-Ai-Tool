@@ -32,6 +32,7 @@ import {
   requiredContexts,
   riskyHits,
   rollupProblems,
+  waitForCi,
 } from './lane-merge.mjs';
 
 const HEAD = '3d24f70a1b2c3d4e5f60718293a4b5c6d7e8f901';
@@ -77,7 +78,10 @@ const FAKE_DRIFT_SOURCE = `import fs from 'node:fs';\nexport function runDriftCh
  * @param {{ vault?: string, files?: string[], ghFiles?: string[], rollup?: any[], pr?: object,
  *   localHead?: string, dirty?: boolean, drift?: number, argv?: string[], train?: object,
  *   merge?: number, rules?: any, rulesFail?: boolean, fetchFail?: boolean, driftSource?: string | null,
- *   lockTimeoutMs?: number, onDrift?: (stateFile: string) => void }} o
+ *   lockTimeoutMs?: number, onDrift?: (stateFile: string) => void,
+ *   prFor?: (viewIndex: number) => object }} o. `prFor` overrides fields of the PR for each
+ *   successive `gh pr view` (the first calls are --wait-ci's polls, the last one is the gate's);
+ *   time is fake: the polls' sleeps advance a clock, `sleeps` lists them.
  */
 function gate(o = {}) {
   const vault = o.vault ?? vaultWith([{ name: '312-review.md', text: note() }]);
@@ -104,10 +108,16 @@ function gate(o = {}) {
   /** @type {string[][]} */
   const calls = [];
   const ok = (stdout = '') => ({ status: 0, stdout, stderr: '' });
+  let views = 0;
+  let clockMs = 0;
+  /** @type {number[]} */
+  const sleeps = [];
   const run = (cmd, args) => {
     calls.push([cmd, ...args]);
     const key = `${cmd} ${args.slice(0, 2).join(' ')}`;
-    if (key === 'gh pr view') return ok(JSON.stringify(pr));
+    if (key === 'gh pr view') {
+      return ok(JSON.stringify({ ...pr, ...o.prFor?.(views++) }));
+    }
     if (cmd === 'gh' && args[0] === 'api') {
       return o.rulesFail
         ? { status: 1, stdout: '', stderr: 'HTTP 403' }
@@ -154,9 +164,15 @@ function gate(o = {}) {
     tmpdir: home,
     now: () => new Date('2026-10-10T12:00:00Z'),
     lockTimeoutMs: o.lockTimeoutMs ?? 300,
+    clock: () => clockMs,
+    sleep: ms => {
+      sleeps.push(ms);
+      clockMs += ms;
+    },
   });
   return {
     code,
+    sleeps,
     lines,
     calls,
     state,
@@ -1123,4 +1139,242 @@ test('L6: started through a junction the gate still runs, and a mismatch exits n
   );
   assert.equal(imported.status, 0, imported.stderr);
   assert.equal(imported.stdout.trim(), 'imported', 'importing the module does not run it');
+});
+
+// ---- --wait-ci ----
+
+const cr = (name, status, conclusion = null) => ({
+  __typename: 'CheckRun',
+  name,
+  status,
+  conclusion,
+});
+const GREEN = [cr('build-test', 'COMPLETED', 'SUCCESS'), cr('codeql', 'COMPLETED', 'SKIPPED')];
+const RUNNING = [cr('build-test', 'IN_PROGRESS'), cr('codeql', 'COMPLETED', 'SKIPPED')];
+
+/**
+ * waitForCi against a faked gh: `views` are the successive `gh pr view` answers (the last repeats),
+ * a string is a gh failure. Time is a fake clock that the sleeps advance.
+ */
+function waitRun(views, { rules = RULES, pollMs = 30_000, timeoutMs = 120_000 } = {}) {
+  let i = 0;
+  let clockMs = 0;
+  const sleeps = [];
+  const logs = [];
+  const calls = [];
+  const run = (cmd, args) => {
+    calls.push([cmd, ...args]);
+    if (cmd === 'gh' && args[0] === 'api') {
+      return { status: 0, stdout: JSON.stringify(rules), stderr: '' };
+    }
+    const v = views[Math.min(i++, views.length - 1)];
+    if (typeof v === 'string') return { status: 1, stdout: '', stderr: v };
+    const pr = { state: 'OPEN', headRefOid: HEAD, ...v };
+    return { status: 0, stdout: JSON.stringify(pr), stderr: '' };
+  };
+  const result = waitForCi({
+    pr: 312,
+    run,
+    log: l => logs.push(l),
+    sleep: ms => {
+      sleeps.push(ms);
+      clockMs += ms;
+    },
+    clock: () => clockMs,
+    pollMs,
+    timeoutMs,
+  });
+  return { result, sleeps, logs, calls, polls: i };
+}
+
+test('parseArgs: --wait-ci', () => {
+  assert.equal(parseArgs(['312', '--wait-ci']).waitCi, true);
+  assert.equal(parseArgs(['312']).waitCi, false);
+  assert.equal(parseArgs(['312', '--wait-ci', '--dry-run']).error, null);
+  assert.match(parseArgs(['--wait-ci']).error, /usage/);
+  assert.match(parseArgs(['--train', '--wait-ci']).error, /needs a PR number/);
+});
+
+test('waitForCi: green at once returns the head without sleeping', () => {
+  const r = waitRun([{ statusCheckRollup: GREEN }]);
+  assert.deepEqual(r.result, { ok: true, head: HEAD });
+  assert.deepEqual(r.sleeps, []);
+  assert.deepEqual(r.logs, []);
+});
+
+test('waitForCi: polls until the running check finishes, logs a change once', () => {
+  const r = waitRun([
+    { statusCheckRollup: RUNNING },
+    { statusCheckRollup: RUNNING },
+    { statusCheckRollup: GREEN },
+  ]);
+  assert.equal(r.result.ok, true);
+  assert.deepEqual(r.sleeps, [30_000, 30_000]);
+  assert.equal(r.logs.length, 1, 'the same pending set is reported once');
+  assert.match(r.logs[0], /waiting for CI on #312 at 3d24f70: build-test \(IN_PROGRESS\)/);
+});
+
+test('waitForCi: a required check that is not reported yet counts as pending', () => {
+  const r = waitRun([
+    { statusCheckRollup: [cr('codeql', 'COMPLETED', 'SUCCESS')] },
+    { statusCheckRollup: GREEN },
+  ]);
+  assert.equal(r.result.ok, true);
+  assert.equal(r.polls, 2);
+  assert.match(r.logs[0], /build-test \(not reported yet\)/);
+});
+
+test('waitForCi: no checks reported yet waits', () => {
+  const r = waitRun([{ statusCheckRollup: [] }, { statusCheckRollup: GREEN }]);
+  assert.equal(r.result.ok, true);
+  assert.match(r.logs[0], /no checks reported yet/);
+});
+
+test('waitForCi: a failing check ends the wait at once, naming it, while others still run', () => {
+  const r = waitRun([
+    { statusCheckRollup: RUNNING },
+    { statusCheckRollup: [cr('build-test', 'IN_PROGRESS'), cr('lint', 'COMPLETED', 'FAILURE')] },
+    { statusCheckRollup: GREEN },
+  ]);
+  assert.equal(r.result.ok, false);
+  assert.equal(r.result.code, 3);
+  assert.match(r.result.reason, /CI failed on 3d24f70: lint \(FAILURE\)/);
+  assert.equal(r.polls, 2, 'no further poll after the failure');
+});
+
+test('waitForCi: a failing commit status is named too', () => {
+  const r = waitRun([{ statusCheckRollup: [{ context: 'ci/deploy', state: 'FAILURE' }] }]);
+  assert.equal(r.result.code, 3);
+  assert.match(r.result.reason, /ci\/deploy \(FAILURE\)/);
+});
+
+test('waitForCi: head moved while waiting refuses with code 4', () => {
+  const r = waitRun([
+    { statusCheckRollup: RUNNING },
+    { headRefOid: OTHER, statusCheckRollup: GREEN },
+  ]);
+  assert.equal(r.result.ok, false);
+  assert.equal(r.result.code, 4);
+  assert.match(r.result.reason, /head moved from 3d24f70 to fffffff/);
+});
+
+test('waitForCi: a PR closed or merged while waiting ends the wait', () => {
+  const r = waitRun([
+    { statusCheckRollup: RUNNING },
+    { state: 'MERGED', statusCheckRollup: RUNNING },
+  ]);
+  assert.equal(r.result.code, 1);
+  assert.match(r.result.reason, /#312 is MERGED, not OPEN/);
+});
+
+test('waitForCi: times out with code 5 and names what is pending', () => {
+  const r = waitRun([{ statusCheckRollup: RUNNING }], { pollMs: 30_000, timeoutMs: 120_000 });
+  assert.equal(r.result.ok, false);
+  assert.equal(r.result.code, 5);
+  assert.match(
+    r.result.reason,
+    /timed out after 2 minutes; still waiting for build-test \(IN_PROGRESS\)/
+  );
+  assert.equal(r.sleeps.length, 4);
+});
+
+test('waitForCi: a gh blip is retried, three in a row end the wait', () => {
+  const blip = waitRun(['HTTP 502', { statusCheckRollup: GREEN }]);
+  assert.equal(blip.result.ok, true);
+  assert.deepEqual(blip.sleeps, [30_000]);
+  const down = waitRun(['HTTP 502', 'HTTP 502', 'HTTP 502', { statusCheckRollup: GREEN }]);
+  assert.equal(down.result.ok, false);
+  assert.equal(down.result.code, 1);
+  assert.match(down.result.reason, /failed 3 times in a row: HTTP 502/);
+  const reset = waitRun(
+    ['x', 'x', { statusCheckRollup: RUNNING }, 'x', 'x', { statusCheckRollup: GREEN }],
+    { timeoutMs: 600_000 }
+  );
+  assert.equal(reset.result.ok, true, 'a good answer resets the error count');
+});
+
+test('waitForCi: unreadable ruleset still waits for the checks that exist', () => {
+  const r = waitRun([{ statusCheckRollup: RUNNING }, { statusCheckRollup: GREEN }], { rules: {} });
+  assert.equal(r.result.ok, true);
+});
+
+test('gate --wait-ci: waits for CI, then runs the normal gate and merges', () => {
+  const r = gate({
+    argv: ['--wait-ci'],
+    prFor: i => ({ statusCheckRollup: i < 2 ? RUNNING : GREEN }),
+  });
+  assert.equal(r.code, 0, r.text);
+  assert.ok(r.merged);
+  assert.deepEqual(r.sleeps, [30_000, 30_000]);
+  assert.match(r.text, /--wait-ci: waiting up to 30 minutes for CI on #312/);
+  assert.match(r.text, /lane:merge: merged #312 at 3d24f70/);
+});
+
+test('gate --wait-ci: the gate still refuses after the wait (no review note for the head)', () => {
+  const r = gate({
+    argv: ['--wait-ci'],
+    vault: vaultWith([{ name: '312-review.md', text: note({ head: OTHER }) }]),
+    prFor: i => ({ statusCheckRollup: i < 1 ? RUNNING : GREEN }),
+  });
+  assert.equal(r.code, 1);
+  assert.ok(!r.merged);
+  assert.match(r.text, /NOT merged #312/);
+  assert.match(r.text, /review: no review note for head 3d24f70/);
+});
+
+test('gate --wait-ci: --dry-run waits too and merges nothing', () => {
+  const r = gate({
+    argv: ['--wait-ci', '--dry-run'],
+    prFor: i => ({ statusCheckRollup: i < 1 ? RUNNING : GREEN }),
+  });
+  assert.equal(r.code, 0, r.text);
+  assert.ok(!r.merged);
+  assert.match(r.text, /OK #312 at 3d24f70 \(dry run/);
+});
+
+test('gate --wait-ci: a failing check exits 3 with the check named, and the gate does not run', () => {
+  const r = gate({
+    argv: ['--wait-ci'],
+    prFor: () => ({ statusCheckRollup: [cr('build-test', 'COMPLETED', 'FAILURE')] }),
+  });
+  assert.equal(r.code, 3);
+  assert.match(r.text, /NOT merged #312\nwait-ci: CI failed on 3d24f70: build-test \(FAILURE\)/);
+  assert.ok(!r.calls.some(c => c[0] === 'git'), 'no git call: the gate never started');
+  assert.ok(!r.merged);
+});
+
+test('gate --wait-ci: head moved during the wait exits 4', () => {
+  const r = gate({
+    argv: ['--wait-ci'],
+    prFor: i =>
+      i === 0 ? { statusCheckRollup: RUNNING } : { headRefOid: OTHER, statusCheckRollup: GREEN },
+  });
+  assert.equal(r.code, 4);
+  assert.match(r.text, /wait-ci: head moved from 3d24f70 to fffffff/);
+  assert.ok(!r.merged);
+});
+
+test('gate --wait-ci: head moved between the wait and the gate exits 4', () => {
+  const r = gate({
+    argv: ['--wait-ci'],
+    prFor: i => (i === 0 ? { statusCheckRollup: GREEN } : { headRefOid: OTHER }),
+  });
+  assert.equal(r.code, 4);
+  assert.match(r.text, /wait-ci: head moved from 3d24f70 to fffffff after the wait/);
+  assert.ok(!r.merged);
+});
+
+test('gate --wait-ci: timeout exits 5', () => {
+  const r = gate({ argv: ['--wait-ci'], prFor: () => ({ statusCheckRollup: RUNNING }) });
+  assert.equal(r.code, 5);
+  assert.match(r.text, /wait-ci: timed out after 30 minutes; still waiting for build-test/);
+  assert.equal(r.sleeps.length, 60);
+  assert.ok(!r.merged);
+});
+
+test('gate without --wait-ci: pending CI still refuses at once, no sleeping', () => {
+  const r = gate({ prFor: () => ({ statusCheckRollup: RUNNING }) });
+  assert.equal(r.code, 1);
+  assert.deepEqual(r.sleeps, []);
+  assert.match(r.text, /ci: pending: build-test/);
 });

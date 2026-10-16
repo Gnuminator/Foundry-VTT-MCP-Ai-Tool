@@ -22,7 +22,7 @@
 #   browser unit that is not inactive (running, restarting, failed) without a state file (an earlier run that was
 #   cut off) is removed, and what was removed is printed: nothing else uses those names. Then the Assistant GM browser stops, /api/status must
 #   answer and count no one online (FORCE=1 overrides), and Foundry stops. The state file
-#   /var/lib/foundry-ai-tool/kit-session.env (ORIG_WORLD, WAS_GM_BROWSER, STAMP, KIT_GM_BROWSER=1; mode 600) is
+#   /var/lib/foundry-ai-tool/kit-session.env (ORIG_WORLD, WAS_GM_BROWSER, STAMP, STAMP_EPOCH, KIT_GM_BROWSER=1; mode 600) is
 #   written before options.json changes (through a temp file in /etc/foundry-ai-tool and a rename, so root never
 #   writes through a path the foundry user owns); once the setup has verified, ORIG_BRIDGE_USER=<id or empty>, the
 #   bridge user the setup replaced, is added to it. strahd-kit's settings, users and actors are copied to
@@ -49,7 +49,7 @@
 #   overrides). The Kit GM browser (when the state file says there is one) and the Assistant GM browser are stopped
 #   first (a reboot during the session starts the Assistant GM browser on strahd-kit; the Kit GM browser would count
 #   as online). It runs kit-session.mjs ACTION=teardown while strahd-kit still runs: the actors Kit Player owns that
-#   were made after "up" (the state file's STAMP; at most 5; older ones are kept and listed) and the user are deleted, the bridge user goes back to "Any GM" when it is the Kit GM, and the user Kit GM
+#   were made after "up" (the state file's STAMP_EPOCH, or its STAMP in an older state file; at most 5; older ones are kept and listed) and the user are deleted, the bridge user goes back to "Any GM" when it is the Kit GM, and the user Kit GM
 #   is deleted, nothing else. The bridge user goes back to the one the state file names (ORIG_BRIDGE_USER) when
 #   that user still exists and is a GM, else to "Any GM"; a state file without that line means "Any GM". If that
 #   fails, nothing else changes (the state file and the Kit GM password file stay,
@@ -88,7 +88,10 @@ gm_driver="$driver_dir/assistant-gm.mjs" # stage 5's Assistant GM driver; the Ki
 KIT_GM_ENV="$TOOL_ETC/kit-gm.env"
 KIT_GM_PROFILE="$TOOL_DATA/kit-gm-browser"
 envf="$TOOL_ETC/world-$KIT_WORLD.env"
-stamp="$(date +%Y%m%d-%H%M%S)"
+# STAMP_EPOCH (seconds since the epoch) goes in the state file next to STAMP: the teardown cutoff uses it, so a DST change or a
+# clock step on the Pi between "up" and "down" cannot move it. STAMP stays the readable name and the fallback.
+stamp_epoch="$(date +%s)"
+stamp="$(date -d "@$stamp_epoch" +%Y%m%d-%H%M%S)"
 export PATH="$NODE_DIR/bin:$PATH"
 
 say "checking the request ($MODE)"
@@ -217,7 +220,7 @@ run_driver() { # $1 setup or teardown
     else
       runuser -u "$FOUNDRY_USER" -- env HOME="$TOOL_DATA" TOOL_APP="$TOOL_DIR/app" \
         FOUNDRY_URL=http://127.0.0.1:30000 CHROMIUM=/usr/bin/chromium \
-        ACTION="$1" MAX_DELETE="$MAX_DELETE" SINCE_STAMP="${state_stamp:-}" \
+        ACTION="$1" MAX_DELETE="$MAX_DELETE" SINCE_STAMP="${state_stamp:-}" SINCE_EPOCH="${state_epoch:-}" \
         node "$driver"
     fi
   )
@@ -261,7 +264,7 @@ write_kit_state() {
   local t
   t="$(umask 077 && mktemp "$TOOL_ETC/.kit-gm.XXXXXX")"
   {
-    printf 'ORIG_WORLD=%s\nWAS_GM_BROWSER=%s\nSTAMP=%s\nKIT_GM_BROWSER=1\n' "$orig_world" "$was_gm_browser" "$stamp"
+    printf 'ORIG_WORLD=%s\nWAS_GM_BROWSER=%s\nSTAMP=%s\nSTAMP_EPOCH=%s\nKIT_GM_BROWSER=1\n' "$orig_world" "$was_gm_browser" "$stamp" "$stamp_epoch"
     if [ "${1:-}" = orig ]; then printf 'ORIG_BRIDGE_USER=%s\n' "$orig_bridge"; fi
   } >"$t"
   chmod 600 "$t"
@@ -506,9 +509,14 @@ fi
 orig_world="$(state_value ORIG_WORLD)"
 was_gm_browser="$(state_value WAS_GM_BROWSER)"
 state_stamp="$(state_value STAMP)"
+state_epoch="$(state_value STAMP_EPOCH)"
 [[ "$orig_world" =~ ^[a-z0-9-]*$ ]] || die "$STATE holds a world id I do not trust (ORIG_WORLD): check the file by hand. Nothing was changed"
 [[ "$was_gm_browser" =~ ^[01]$ ]] || die "$STATE holds no valid WAS_GM_BROWSER (0 or 1): check the file by hand. Nothing was changed"
 [[ "$state_stamp" =~ ^[0-9]{8}-[0-9]{6}$ ]] || die "$STATE holds no valid STAMP: check the file by hand. Nothing was changed"
+# STAMP_EPOCH is missing in a state file from before it existed (then STAMP is the cutoff); a line that is there must be seconds.
+if grep -q '^STAMP_EPOCH=' "$STATE"; then
+  [[ "$state_epoch" =~ ^[0-9]{9,11}$ ]] || die "$STATE holds no valid STAMP_EPOCH (seconds since 1970): check the file by hand. Nothing was changed"
+fi
 # KIT_GM_BROWSER=1 when this session made a Kit GM (user, password file, profile folder, browser). A state file from
 # a session started before the Kit GM existed has no such line: then there is no file and no browser to remove, and
 # the teardown finds no Kit GM. A line that is there must say 1.

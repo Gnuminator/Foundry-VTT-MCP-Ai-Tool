@@ -230,6 +230,12 @@ fi
 # ---- CONFIRM ------------------------------------------------------------------------------------------------------
 if [ "${CONFIRM:-}" = 1 ]; then
   say "confirm"
+  # The timer has elapsed and its service is undoing keys only right now: confirming would only write a marker for a change
+  # that is being taken back. Checked again below, for a timer that fires while this confirm stops it.
+  revert_running() {
+    have_systemd && systemctl is-active --quiet "$revert_unit.service"
+  }
+  revert_running && die "the safety revert is running right now ($revert_unit.service): keys only is being taken back, so there is nothing to confirm. Wait for it to finish, then run the stage again and confirm within 5 minutes"
   [ -f "$drop" ] || die "$drop is not there: the safety timer already took it away, or the stage never ran; run it again, then confirm within 5 minutes"
   [ -n "${SSH_CONNECTION:-}" ] || warn "this does not look like an SSH session: confirm from a NEW connection that uses the key only"
   values_are_wanted || die "sshd does not use the wanted values any more; see: sshd -T"
@@ -246,7 +252,8 @@ if [ "${CONFIRM:-}" = 1 ]; then
       ok "no revert timer armed (nothing to cancel)"
     fi
   fi
-  # The timer may have fired since the checks above: no marker for a drop-in that is gone.
+  # The timer may have fired since the checks above: no marker for a drop-in that is gone or being removed.
+  revert_running && die "the safety revert started while confirming ($revert_unit.service): keys only is being taken back. Wait for it to finish, then run the stage again and confirm within 5 minutes"
   [ -f "$drop" ] || die "$drop is gone (the safety timer fired while confirming): keys only is not in place; run the stage again, then confirm within 5 minutes"
   printf 'confirmed %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >"$confirmed"
   show_values

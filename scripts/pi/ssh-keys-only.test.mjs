@@ -478,6 +478,14 @@ describe('15-ssh-keys-only.sh in an ARM64 container', { skip: containerReason },
     assert.equal(gone.marker, 'none');
   });
 
+  test('CONFIRM while the revert service is running is refused, not "nothing to cancel"', () => {
+    const r = run('confirm-revert-running');
+    assert.equal(r.exit, '1', r.output);
+    assert.match(r.output, /the safety revert is running right now/);
+    assert.doesNotMatch(r.output, /nothing to cancel/);
+    assert.equal(r.marker, 'none');
+  });
+
   test('a Match line written Keyword=value is found as well', () => {
     assertRefused(run('match-equals'), /remove or change those Match lines first; nothing changed/);
     assert.match(run('match-equals').output, /sshd_config:\d+:\s+PasswordAuthentication=yes/);

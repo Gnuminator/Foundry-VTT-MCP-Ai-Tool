@@ -435,6 +435,9 @@ cd /
 # root, into whatever it points at: refused here, before anything stops.
 for a in "${assets[@]}"; do
   [ ! -L "$data/$a" ] || die "$data/$a is a link: the asset merge would write into whatever it points at. Replace it with a real folder (or remove the link) first. Nothing was changed"
+  # A link to a folder deeper in the tree is followed just the same (the save-to-prev loop reads through it, cp -a copies into it).
+  deep_link="$(find "$data/$a" -type l -xtype d -print -quit 2>/dev/null || true)"
+  [ -z "$deep_link" ] || die "$deep_link is a link to a folder: the asset merge would write into whatever it points at. Replace it with a real folder (or remove the link) first. Nothing was changed"
 done
 
 say "free space"

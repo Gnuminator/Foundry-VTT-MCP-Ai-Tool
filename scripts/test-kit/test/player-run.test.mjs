@@ -13,6 +13,7 @@ import {
   planArrayMoves,
   insideRepo,
   refusals,
+  worldRefusals,
 } from '../player-run.mjs';
 
 const WANT = ABILITY_KEYS.map(key => TARGET[key]);
@@ -104,12 +105,50 @@ test('insideRepo: the repo and anything under it, not a sibling or a temp folder
   assert.equal(insideRepo(root, root), true);
   assert.equal(insideRepo(path.join(root, 'out'), root), true);
   assert.equal(insideRepo(path.join(root, '..', 'repo-out'), root), false);
+  assert.equal(insideRepo(path.join(root, '..out'), root), true);
+  assert.equal(insideRepo(path.join(root, '..', '..out'), root), false);
+  assert.equal(insideRepo(path.join(root, '..'), root), false);
   assert.equal(insideRepo(os.tmpdir(), root), false);
+});
+
+const statusOf = body => async () => ({ json: async () => body });
+
+test('worldRefusals: the live world, a server with no world and a server that is down are refused; a test world passes', async () => {
+  const url = 'http://pi:30000';
+  assert.deepEqual(await worldRefusals(url, statusOf({ world: 'strahd-kit' })), []);
+  assert.match(
+    (await worldRefusals(url, statusOf({ world: 'curse-of-strahd' }))).join(),
+    /the world is curse-of-strahd/
+  );
+  assert.match((await worldRefusals(url, statusOf({ active: false }))).join(), /reports no world/);
+  const down = async () => {
+    throw new Error('ECONNREFUSED');
+  };
+  assert.match((await worldRefusals(url, down)).join(), /did not answer.*ECONNREFUSED/);
+});
+
+test('main refuses the live world through /api/status before it opens a browser', async () => {
+  const seen = [];
+  const fetchImpl = async u => {
+    seen.push(String(u));
+    return { json: async () => ({ world: 'curse-of-strahd' }) };
+  };
+  await assert.rejects(
+    () => main(['http://127.0.0.1:30000', 'Kit Player', '--out', os.tmpdir()], { fetchImpl }),
+    /refused: the world is curse-of-strahd/
+  );
+  assert.deepEqual(seen, ['http://127.0.0.1:30000/api/status']);
 });
 
 test('main refuses an --out folder inside the repo before it opens a browser', async () => {
   await assert.rejects(
-    () => main(['http://127.0.0.1:30000', 'Kit Player', '--out', 'scripts/test-kit/out']),
+    () =>
+      main([
+        'http://127.0.0.1:30000',
+        'Kit Player',
+        '--out',
+        path.join(import.meta.dirname, '..', 'out'),
+      ]),
     /inside the repo/
   );
 });

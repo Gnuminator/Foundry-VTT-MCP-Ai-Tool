@@ -76,6 +76,7 @@ export const STEPS = [
   nodeTest('pi-stage5-load-check', 'scripts/pi/stage5-load-check.test.mjs'),
   nodeTest('pi-ssh-keys-only', 'scripts/pi/ssh-keys-only.test.mjs'),
   nodeTest('pi-control-port-check', 'scripts/pi/control-port-check.test.mjs'),
+  nodeTest('tunnel-client', 'installer/nsis/tunnel-client.test.mjs'),
   nodeTest('plan-b', 'scripts/plan-b/plan-b.test.mjs'),
   { name: 'changelog', cmd: 'npm', args: ['run', 'changelog:check'] },
   nodeTest('gm-coach-test', 'tools/gm-coach/build.test.mjs'),

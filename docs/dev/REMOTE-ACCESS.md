@@ -74,7 +74,7 @@ player" were not walked and may have moved. If a name has changed, look for the 
    route's additional settings). The tunnel then refuses any request that did not come through
    your Access application, so a name that someone points at the tunnel by another path stays
    shut. It asks for your **team name** (step 2) and the **AUD tag** of the `Foundry players`
-   application (step 4), not the AUD tag of another application. A wrong AUD tag (or team name)
+   application (step 4), not the AUD tag of another application. Save the route. A wrong AUD tag (or team name)
    shows up as a **403** right after the email code (the login worked, the tunnel turned the
    request down): copy the AUD tag again from the application, check the team name and save the
    route.

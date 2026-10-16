@@ -2,9 +2,9 @@
 # Writes /etc/foundry-ai-tool/dashboard-access.env (the dashboard's Cloudflare Access settings and the
 # GM token) and restarts the dashboard. docs/dev/REMOTE-ACCESS.md, Part C, step 10.
 #
-# YOU run this, in your own SSH session, AFTER the `cogm` Access application exists (you need its AUD tag)
-# and AFTER stage 5 was run again (it adds the line that makes the dashboard read this file). Claude does
-# not run it. It stands alone (no lib.sh), so copy it over and run it with a terminal:
+# YOU run this, in your own SSH session, AFTER the `cogm` Access application exists (you need its AUD tag).
+# Stage 5 already adds the line that makes the dashboard read this file; on an older Pi the check below
+# stops and says so. Claude does not run it. It stands alone (no lib.sh), so copy it over and run it with a terminal:
 #   scp scripts\pi\remote\set-dashboard-access.sh foundry-pi:/tmp/set-dashboard-access.sh
 #   ssh -t foundry-pi bash /tmp/set-dashboard-access.sh
 # It asks for what it needs; each can also be given as an option (--team, --aud, --emails, --host,

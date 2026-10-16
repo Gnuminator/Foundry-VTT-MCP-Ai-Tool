@@ -14,7 +14,8 @@ import { authHeaders, onlyPlayerToken, playerPageUrl } from './auth';
 
 const NOTICES = {
   unknownToken: "This browser's GM link is not accepted any more. Open the GM link again.",
-  accessUnverified: 'The Cloudflare sign-in could not be checked just now. Reload the page.',
+  accessUnverified:
+    'The Cloudflare sign-in could not be checked. Reload the page; if it stays like this, check the Access setup of the dashboard.',
 };
 
 let notice: string | null = null;

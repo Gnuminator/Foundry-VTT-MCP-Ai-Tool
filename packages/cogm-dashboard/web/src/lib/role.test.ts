@@ -47,22 +47,27 @@ describe('sendPlayersToPlayerPage', () => {
   });
 
   it('keeps a token the server does not know (a stale GM link) and says so', async () => {
+    answer(200, { role: 'gm' });
+    await wentTo();
     const seen = vi.fn();
     const unsubscribe = subscribeRoleNotice(seen);
-    answer(200, { role: 'player', unknownToken: true });
-    expect(await wentTo()).toBeNull();
-    expect(getRoleNotice()).toBe(
-      "This browser's GM link is not accepted any more. Open the GM link again."
-    );
-    expect(seen).toHaveBeenCalledTimes(1);
-    unsubscribe();
+    try {
+      answer(200, { role: 'player', unknownToken: true });
+      expect(await wentTo()).toBeNull();
+      expect(getRoleNotice()).toBe(
+        "This browser's GM link is not accepted any more. Open the GM link again."
+      );
+      expect(seen).toHaveBeenCalledTimes(1);
+    } finally {
+      unsubscribe();
+    }
   });
 
   it('keeps an Access token the server could not verify and says so', async () => {
     answer(200, { role: 'player', accessUnverified: true });
     expect(await wentTo()).toBeNull();
     expect(getRoleNotice()).toBe(
-      'The Cloudflare sign-in could not be checked just now. Reload the page.'
+      'The Cloudflare sign-in could not be checked. Reload the page; if it stays like this, check the Access setup of the dashboard.'
     );
   });
 

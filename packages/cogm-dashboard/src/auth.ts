@@ -115,7 +115,7 @@ export function presentedUnknownToken(req: AuthRequest, auth: AuthConfig): boole
  * True when the request carried a Cloudflare Access token the dashboard could not turn into an
  * identity (the keys did not load, they rotated, or GM_EMAILS is set without the CF_ACCESS
  * settings) and no GM email resolved. Such a GM gets the player role here, so the GM page must not
- * send them to /player: a reload heals it. Never for a verified token (a player behind Access is a
+ * send them to /player: a reload heals a rotated key, a missing CF_ACCESS setting needs the fix. Never for a verified token (a player behind Access is a
  * real player), on a deployment without GM emails, or where a player token is asked for (the
  * caller is then turned away, not given the player role).
  */

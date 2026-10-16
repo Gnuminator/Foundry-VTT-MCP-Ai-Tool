@@ -80,10 +80,11 @@ const streamUrl = () =>
   if (answer.role !== 'player') return;
   if (answer.unknownToken === true || answer.accessUnverified === true) {
     const banner = document.getElementById('role-banner');
+    if (!banner) return;
     banner.textContent =
       answer.unknownToken === true
         ? "This browser's GM link is not accepted any more. Open the GM link again."
-        : 'The Cloudflare sign-in could not be checked just now. Reload the page.';
+        : 'The Cloudflare sign-in could not be checked. Reload the page; if it stays like this, check the Access setup of the dashboard.';
     banner.hidden = false;
     return;
   }

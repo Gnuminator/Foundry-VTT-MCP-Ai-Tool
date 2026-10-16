@@ -126,7 +126,7 @@ describe('/api/state for a token Access could not verify (#346 L1)', () => {
     ).toMatchObject({ role: 'player', accessUnverified: true });
   });
 
-  it('marks a token when the keys cannot be fetched', async () => {
+  it('marks a token when the signing key cannot be found (the key fetch fails)', async () => {
     const port = await start({ accessFetch: () => Promise.reject(new Error('offline')) });
     const answer = await state(port, { 'cf-access-jwt-assertion': token('gm@example.com') });
     expect(answer).toMatchObject({ role: 'player', accessUnverified: true });

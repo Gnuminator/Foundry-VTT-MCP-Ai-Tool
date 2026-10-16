@@ -30,7 +30,8 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const SOURCE_EXT = /\.(?:ts|tsx|js|mjs|ps1|sh|json|yml|md)$/i;
-const TOKEN_SPLIT = /[\s"'=;|&<>()`,]+/;
+const QUOTED_PATH = /(["'])([^"'\n]{1,1024}\.(?:json|tsx|ts|mjs|js|ps1|sh|yml|md))\1/gi;
+const TOKEN_SPLIT =/[\s"'=;|&<>()`,]+/;
 const MAX_TOKEN = 1024; // longer tokens (base64, minified code) are not paths
 const MAX_NAMED = 200; // named files checked per command
 const WRITEY =
@@ -92,11 +93,16 @@ export function checkFile(file, cwd = REPO_ROOT) {
 
 function changedByCommand(command, cwd, now) {
   const files = new Set();
-  for (const raw of command.split(TOKEN_SPLIT)) {
+  const named = [];
+  // Quoted paths may hold spaces ("Foundry AI Tool"): take them whole, then split what is left.
+  const rest = command.replace(QUOTED_PATH, (_m, _q, inner) => {
+    named.push(inner);
+    return ' ';
+  });
+  for (const raw of rest.split(TOKEN_SPLIT)) named.push(raw.replace(/[\]}]+$/, ''));
+  for (const t of named) {
     if (files.size >= MAX_NAMED) break;
-    if (raw.length > MAX_TOKEN) continue;
-    const t = raw.replace(/[\]}]+$/, '');
-    if (!SOURCE_EXT.test(t) || /^[$~%]/.test(t)) continue;
+    if (t.length > MAX_TOKEN || !SOURCE_EXT.test(t) || /^[$~%]/.test(t)) continue;
     files.add(path.resolve(cwd, t.replace(/^\/([a-zA-Z])\//, '$1:/')));
   }
   if (WRITEY.test(command)) {

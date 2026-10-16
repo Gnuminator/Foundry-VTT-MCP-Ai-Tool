@@ -143,6 +143,17 @@ test('M4: a 200 KB single token or minified command is answered fast, and long t
   }
 });
 
+test('a quoted path with spaces is found whole; many quotes stay fast', () => {
+  put('with space/spaced file.md', `x${BS}\n`);
+  const q = path.join(repo, 'with space', 'spaced file.md');
+  const out = JSON.parse(run({ tool_name: 'Bash', cwd: repo, tool_input: { command: `sed -i 's/a/b/' "${q}"` } }));
+  assert.match(out.systemMessage, /spaced file\.md/);
+  const t = Date.now();
+  assert.equal(run({ tool_name: 'Bash', cwd: repo, tool_input: { command: `echo ${"'a\"".repeat(60_000)}` } }), '');
+  assert.equal(run({ tool_name: 'Bash', cwd: repo, tool_input: { command: `echo ${'"a b '.repeat(40_000)}` } }), '');
+  assert.ok(Date.now() - t < 1000, `quotes took ${Date.now() - t} ms`);
+});
+
 test('a command naming many files checks only the first 200', () => {
   put('many.ts', MANGLED);
   const filler = Array.from({ length: 300 }, (_, i) => `f${i}.ts`).join(' ');

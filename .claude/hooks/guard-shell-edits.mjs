@@ -19,8 +19,12 @@
 // or through a path it cannot resolve.
 //
 // A false deny stops every lane, so every doubt allows: unparseable payloads, `$VAR` or `~` paths,
-// scripts run from a file (`python fix.py`), `bash -c "..."`, commands over 100 KB. Quoted spans are
-// masked before command words are looked for, so quotes hide text from the command patterns.
+// scripts run from a file (`python fix.py`), `bash -c "..."`, commands over 100 KB, a python or node
+// write whose target is not a literal (`os.path.join(tempfile.gettempdir(), ...)`; only a loop
+// variable over literals is followed). Quoted spans and `#` comments are masked before command words
+// are looked for, so quotes hide text from the command patterns. The working directory is tracked
+// per position: only the `cd`/`pushd`/`Push-Location`/`Set-Location` before a write count (a `popd`
+// or more than 50 directory changes make it unknown).
 // Reads the hook payload (JSON) on stdin; prints a deny decision or nothing.
 
 import path from 'node:path';
@@ -104,9 +108,12 @@ export function splitBodies(command) {
   const lines = String(command).split(/\r?\n/);
   const outer = [];
   const bodies = [];
+  let len = 0; // length of `outer` so far, newlines included: the offset of the next line
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
+    const at = len + line.length; // end of the introducing line: a `cd` earlier on it has already run
     outer.push(line);
+    len += line.length + 1;
     const doc = /<<(?!<)-?\s*\\?(['"]?)([A-Za-z_][\w-]*)\1/.exec(line);
     const hs = /@(['"])\s*$/.exec(line);
     if (!doc && !hs) continue;
@@ -119,19 +126,33 @@ export function splitBodies(command) {
       body.push(l);
     }
     const closing = hs && j < lines.length ? lines[j] : undefined;
-    bodies.push({ intro: line, body: body.join('\n'), kind: doc ? 'heredoc' : 'herestring', closing });
-    if (closing !== undefined) outer.push(closing);
+    bodies.push({ intro: line, body: body.join('\n'), kind: doc ? 'heredoc' : 'herestring', closing, at });
+    if (closing !== undefined) {
+      outer.push(closing);
+      len += closing.length + 1;
+    }
     i = j;
   }
   return { outer: outer.join('\n'), bodies };
 }
 
-/** Same-length copy of `s` with the inside of '...' and "..." spans replaced by `_`. */
+/**
+ * Same-length copy of `s` with the inside of '...' and "..." spans replaced by `_`. A `#` that starts
+ * a word outside quotes is a comment: the rest of its line is masked too (an apostrophe in
+ * `# Don't push` must not open a quote).
+ */
 export function maskQuotes(s) {
   let out = '';
   let i = 0;
   while (i < s.length) {
     const c = s[i];
+    if (c === '#' && (i === 0 || /\s/.test(s[i - 1]))) {
+      let j = s.indexOf('\n', i);
+      if (j < 0) j = s.length;
+      out += '_'.repeat(j - i);
+      i = j;
+      continue;
+    }
     if (c !== "'" && c !== '"') {
       out += c;
       i++;
@@ -154,7 +175,7 @@ function scan(re, orig, masked) {
   const res = [];
   for (const m of masked.matchAll(re)) {
     const groups = (m.indices ?? []).slice(1).map(ix => (ix ? orig.slice(ix[0], ix[1]) : undefined));
-    res.push({ whole: m[0], args: groups, margs: m.slice(1) });
+    res.push({ whole: m[0], args: groups, margs: m.slice(1), index: m.index });
   }
   return res;
 }
@@ -167,18 +188,33 @@ const cmdRe = (name, tail) => new RegExp(`${CMD_START}${name}${tail}`, 'gd');
 const SED_INPLACE = /(?:^|\s)(?:-[nEesrzub]*i\S*|--in-place(?:=\S*)?)(?=\s|$)/;
 const PERL_INPLACE = /(?:^|\s)-[plnaws0-9]*i[A-Za-z.]*(?=\s|$)/;
 
-function checkInPlace(outer, masked, cwd, repoRoot) {
+/** Directory a `find ... -exec` before `index` searches, or undefined when it cannot be read. */
+function findDir(outer, index) {
+  let dir;
+  for (const m of outer.slice(0, index).matchAll(/\bfind\s+(?:-[HLP]\s+)?("[^"\n]*"|'[^'\n]*'|[^\s-][^\s]{0,500})/g)) {
+    dir = m[1].replace(/^["']|["']$/g, '');
+  }
+  return dir;
+}
+
+function checkInPlace(outer, masked, cwdAt, repoRoot) {
   for (const [tool, flagRe] of [
     ['sed', SED_INPLACE],
     ['perl', PERL_INPLACE],
   ]) {
     for (const hit of scan(cmdRe(tool, String.raw`(?:\.exe)?(?=\s)([^;&|\n]*)`), outer, masked)) {
       if (!flagRe.test(hit.margs[0])) continue; // the flag must be outside any quoted script
+      const cwd = cwdAt(hit.index);
       if (repoSources(hit.args[0], cwd, repoRoot).length > 0) {
         return `\`${tool} -i\` rewrites a repo source file in place.${DENY_SUFFIX}`;
       }
-      if (/xargs|-exec/.test(hit.whole) && cwdInRepo(cwd, repoRoot)) {
-        return `\`${tool} -i\` over a file list (xargs or find -exec) rewrites repo files in place.${DENY_SUFFIX}`;
+      if (/xargs|-exec/.test(hit.whole)) {
+        // find DIR ... -exec: only when DIR is in the repo; xargs (no directory to read): the cwd
+        const dir = /-exec/.test(hit.whole) ? findDir(outer, hit.index) : undefined;
+        const inRepo = dir === undefined ? cwdInRepo(cwd, repoRoot) : isRepoSource(`${dir}/x.md`, cwd, repoRoot);
+        if (inRepo) {
+          return `\`${tool} -i\` over a file list (xargs or find -exec) rewrites repo files in place.${DENY_SUFFIX}`;
+        }
       }
     }
   }
@@ -230,7 +266,7 @@ const unquote = s => {
   return m ? m[2] : null;
 };
 
-/** A literal path, a variable assigned a literal, or Path(<either>); null when unknown. */
+/** A literal path, a variable assigned a literal, Path(<either>) or a join of those; null when unknown. */
 function resolveExpr(expr, vars) {
   const e = String(expr ?? '').trim();
   const lit = unquote(e);
@@ -238,26 +274,52 @@ function resolveExpr(expr, vars) {
   const p = /^Path\((.*)\)$/s.exec(e);
   if (p) return resolveExpr(p[1], vars);
   if (/^[A-Za-z_$][\w$]*$/.test(e)) return vars.get(e) ?? null;
+  const j = /^(?:os\.path|path(?:\.posix|\.win32)?)\.(?:join|resolve)\(/.exec(e);
+  if (j && e.endsWith(')')) {
+    const parts = callArgs(e, j[0].length).map(a => resolveExpr(a, vars));
+    return parts.length > 0 && parts.every(s => s !== null) ? parts.join('/') : null;
+  }
   return null;
 }
 
-/** Literals worth treating as write candidates when a target stays unknown: assigned or listed. */
-function candidateLiterals(text, vars) {
-  const lits = [...vars.values()];
-  for (const m of text.matchAll(/\bin\s*[[(]([^\])\n]{0,2000})[\])]/g)) {
-    for (const s of m[1].matchAll(/(['"])([^'"\n]+)\1/g)) lits.push(s[2]);
+/** A write target: its resolved path (null when unknown) and the variable name it came from, if bare. */
+const target = (expr, vars) => ({
+  path: resolveExpr(expr, vars),
+  name: /^[A-Za-z_$][\w$]*$/.test(String(expr ?? '').trim()) ? String(expr).trim() : null,
+});
+
+/**
+ * Literals a loop variable ranges over: `for X in [...]`, `for X in glob(...)`, `for (const X of [...])`.
+ * This is the only fallback for a target that stays unknown; any other unknown target allows.
+ */
+function loopLiterals(text, name) {
+  const lits = [];
+  const id = name.replace(/\$/g, '\\$');
+  const heads = [
+    new RegExp(`\\bfor\\s+${id}\\s+in\\s+([^:]{0,1500}):`, 'g'),
+    new RegExp(`\\bfor\\s*\\(\\s*(?:const|let|var)\\s+${id}\\s+of\\s+([^{]{0,1500})\\{`, 'g'),
+  ];
+  for (const re of heads) {
+    for (const m of text.matchAll(re)) {
+      for (const s of m[1].matchAll(/(['"`])([^'"`\n]+)\1/g)) lits.push(s[2]);
+    }
   }
-  for (const m of text.matchAll(/\b(?:glob|rglob|iglob)\(\s*(['"])([^'"\n]+)\1/g)) lits.push(m[2]);
   return lits;
 }
 
-function decideTargets(targets, lits, cwd, repoRoot) {
-  let unknown = false;
-  for (const t of targets) {
-    if (t === null) unknown = true;
-    else if (isRepoSource(t, cwd, repoRoot)) return true;
+const MAX_CHECKED = 200; // write targets / PowerShell writers examined per command
+
+function decideTargets(targets, text, cwd, repoRoot) {
+  const loops = new Map(); // variable name -> does its loop range over a repo source
+  for (const t of targets.slice(0, MAX_CHECKED)) {
+    if (t.path !== null) {
+      if (isRepoSource(t.path, cwd, repoRoot)) return true;
+    } else if (t.name) {
+      if (!loops.has(t.name)) loops.set(t.name, loopLiterals(text, t.name).some(l => isRepoSource(l, cwd, repoRoot)));
+      if (loops.get(t.name)) return true;
+    }
   }
-  return unknown && lits.some(l => isRepoSource(l, cwd, repoRoot));
+  return false;
 }
 
 export function pythonWritesRepo(rawText, cwd, repoRoot) {
@@ -269,25 +331,25 @@ export function pythonWritesRepo(rawText, cwd, repoRoot) {
   for (const m of text.matchAll(/(?<![\w.])open\(/g)) {
     const args = callArgs(text, m.index + m[0].length);
     const mode = unquote(args[1]) ?? unquote((args.find(a => /^mode\s*=/.test(a)) ?? '').replace(/^mode\s*=\s*/, ''));
-    if (mode !== null && /[wax+]/.test(mode)) targets.push(resolveExpr(args[0], vars));
+    if (mode !== null && /[wax+]/.test(mode)) targets.push(target(args[0], vars));
   }
   for (const m of text.matchAll(/\b([A-Za-z_]\w*)\.open\(/g)) {
+    // a file mode, not `webbrowser.open('http://...')` or `Image.open('x.png')`
     const mode = unquote(callArgs(text, m.index + m[0].length)[0]);
-    if (mode !== null && /[wax+]/.test(mode)) targets.push(resolveExpr(m[1], vars));
+    if (mode !== null && /^[rwxabt+U]{1,3}$/.test(mode) && /[wax+]/.test(mode)) targets.push(target(m[1], vars));
   }
-  for (const m of text.matchAll(/\b([A-Za-z_]\w*)\.write_(?:text|bytes)\(/g)) targets.push(resolveExpr(m[1], vars));
+  for (const m of text.matchAll(/\b([A-Za-z_]\w*)\.write_(?:text|bytes)\(/g)) targets.push(target(m[1], vars));
   for (const m of text.matchAll(/\bPath\(/g)) {
     const args = callArgs(text, m.index + m[0].length);
     const after = text.slice((args.end ?? m.index + m[0].length) + 1);
     if (/^\s*\.write_(?:text|bytes)\(/.test(after) || /^\s*\.open\(\s*['"][wax+]/.test(after)) {
-      targets.push(resolveExpr(args[0], vars));
+      targets.push(target(args[0], vars));
     }
   }
   for (const m of text.matchAll(/\b(?:os\.(?:replace|rename)|shutil\.(?:copy|copyfile|copy2|move))\(/g)) {
-    targets.push(resolveExpr(callArgs(text, m.index + m[0].length)[1], vars));
+    targets.push(target(callArgs(text, m.index + m[0].length)[1], vars));
   }
-  if (targets.length === 0) return false;
-  return decideTargets(targets, candidateLiterals(text, vars), cwd, repoRoot);
+  return decideTargets(targets, text, cwd, repoRoot);
 }
 
 export function nodeWritesRepo(text, cwd, repoRoot) {
@@ -300,35 +362,36 @@ export function nodeWritesRepo(text, cwd, repoRoot) {
   for (const m of text.matchAll(call)) {
     const args = callArgs(text, m.index + m[0].length);
     const moves = /^(?:rename|copyFile|cpSync|renameSync|copyFileSync)/.test(m[0]);
-    targets.push(resolveExpr(moves ? args[1] : args[0], vars));
+    targets.push(target(moves ? args[1] : args[0], vars));
   }
-  if (targets.length === 0) return false;
-  return decideTargets(targets, candidateLiterals(text, vars), cwd, repoRoot);
+  return decideTargets(targets, text, cwd, repoRoot);
 }
 
 const PY_RE = cmdRe('(?:py|python\\d*(?:\\.\\d+)?)', String.raw`(?:\.exe)?(?=\s)([^;&|\n]*)`);
 const NODE_RE = cmdRe('node', String.raw`(?:\.exe)?(?=\s)([^;&|\n]*)`);
 
+/** Scripts a python or node command line carries, each with the offset where its command starts. */
 function scriptTexts(outer, masked, bodies, re, inlineFlag) {
   const texts = [];
   for (const hit of scan(re, outer, masked)) {
-    if (inlineFlag.test(hit.margs[0])) texts.push(outer); // inline script: the quoted text is part of the command
+    // inline script: the quoted text is part of the command
+    if (inlineFlag.test(hit.margs[0])) texts.push({ text: outer, at: hit.index });
   }
   // script on stdin: the heredoc body that a python or node line introduces
   for (const b of bodies) {
     if (b.kind !== 'heredoc') continue;
     const intro = b.intro;
-    if (scan(re, intro, maskQuotes(intro)).some(h => /<</.test(h.margs[0]))) texts.push(b.body);
+    if (scan(re, intro, maskQuotes(intro)).some(h => /<</.test(h.margs[0]))) texts.push({ text: b.body, at: b.at });
   }
   return texts;
 }
 
-function checkScripts(outer, masked, bodies, cwd, repoRoot) {
-  for (const t of scriptTexts(outer, masked, bodies, PY_RE, /(?:^|\s)-[A-Za-z]*c(?=\s|$|["'])/)) {
-    if (pythonWritesRepo(t, cwd, repoRoot)) return `A python script writes a repo source file.${DENY_SUFFIX}`;
+function checkScripts(outer, masked, bodies, cwdAt, repoRoot) {
+  for (const s of scriptTexts(outer, masked, bodies, PY_RE, /(?:^|\s)-[A-Za-z]*c(?=\s|$|["'])/)) {
+    if (pythonWritesRepo(s.text, cwdAt(s.at), repoRoot)) return `A python script writes a repo source file.${DENY_SUFFIX}`;
   }
-  for (const t of scriptTexts(outer, masked, bodies, NODE_RE, /(?:^|\s)(?:-e|--eval|-p|--print)(?=\s|$|["'])/)) {
-    if (nodeWritesRepo(t, cwd, repoRoot)) return `A node script writes a repo source file.${DENY_SUFFIX}`;
+  for (const s of scriptTexts(outer, masked, bodies, NODE_RE, /(?:^|\s)(?:-e|--eval|-p|--print)(?=\s|$|["'])/)) {
+    if (nodeWritesRepo(s.text, cwdAt(s.at), repoRoot)) return `A node script writes a repo source file.${DENY_SUFFIX}`;
   }
   return null;
 }
@@ -371,27 +434,32 @@ function psTarget(segment) {
   return null;
 }
 
-function checkRedirects(text, outer, masked, bodies, cwd, repoRoot) {
-  const isRepo = t => isRepoSource(t, cwd, repoRoot);
-  const targets = [];
+function checkRedirects(text, outer, masked, bodies, cwdAt, repoRoot) {
+  const targets = []; // { path, at }: where the write is, so the working directory at that point applies
   // A heredoc or here-string written onto a path: the redirect sits on the line that opens or closes it.
   for (const b of bodies) {
-    for (const line of [b.intro, b.closing]) if (line) targets.push(...redirectTargetsIn(line));
+    for (const line of [b.intro, b.closing]) if (line) for (const t of redirectTargetsIn(line)) targets.push({ path: t, at: b.at });
   }
-  for (const m of scan(ECHO_RE, outer, masked)) targets.push(...redirectTargetsIn(`echo ${m.args[0]}`));
-  const hit = targets.find(isRepo);
-  if (hit) return `A heredoc, echo or printf is written onto the repo source file ${hit}.${DENY_SUFFIX}`;
+  for (const m of scan(ECHO_RE, outer, masked)) {
+    for (const t of redirectTargetsIn(`echo ${m.args[0]}`)) targets.push({ path: t, at: m.index });
+  }
+  const hit = targets.find(t => isRepoSource(t.path, cwdAt(t.at), repoRoot));
+  if (hit) return `A heredoc, echo or printf is written onto the repo source file ${hit.path}.${DENY_SUFFIX}`;
   if (PS_MANGLE.test(text)) {
+    let lineAt = 0;
+    let writers = 0;
     for (const line of outer.split('\n')) {
+      const start = lineAt;
+      lineAt += line.length + 1;
       const lm = maskQuotes(line);
-      const w = PS_WRITER.exec(lm);
-      if (!w) continue;
-      const rest = lm.slice(w.index);
-      const end = rest.search(/[;|]/);
-      const segment = line.slice(w.index, end < 0 ? line.length : w.index + end);
-      const target = psTarget(segment);
-      if (target && isRepo(target)) {
-        return `A PowerShell write (Set-Content, Out-File, WriteAllText) rewrites the repo source file ${target}.${DENY_SUFFIX}`;
+      for (const w of lm.matchAll(new RegExp(PS_WRITER.source, 'gi'))) {
+        if (++writers > MAX_CHECKED) return null;
+        const end = lm.slice(w.index).search(/[;|]/);
+        const segment = line.slice(w.index, end < 0 ? line.length : w.index + end);
+        const dest = psTarget(segment);
+        if (dest && isRepoSource(dest, cwdAt(start + w.index), repoRoot)) {
+          return `A PowerShell write (Set-Content, Out-File, WriteAllText) rewrites the repo source file ${dest}.${DENY_SUFFIX}`;
+        }
       }
     }
   }
@@ -405,18 +473,32 @@ const CD_RE = cmdRe(
   String.raw`(?=\s)\s+(?:-\S{1,40}\s+){0,3}(?:"([^"\n]+)"|'([^'\n]+)'|([^\s;&|]+))`
 );
 
-/** Working directory after the command's `cd` segments (the last one wins); null when unresolvable. */
-export function effectiveCwd(outer, masked, cwd, repoRoot = REPO_ROOT) {
-  let cur = cwd;
-  for (const m of scan(CD_RE, outer, masked)) {
-    const dir = m.args[0] ?? m.args[1] ?? m.args[2];
-    if (!dir || /^[$~%-]|\$|%[A-Za-z_]+%/.test(dir)) return null;
-    const d = normalize(dir.replace(/\\ /g, ' '));
-    if (/^([a-zA-Z]:)?\//.test(d)) cur = d;
-    else if (cur === null) return null;
-    else cur = path.posix.normalize(`${cur ? normalize(cur) : normalize(repoRoot)}/${d}`);
-  }
-  return cur;
+const POP_RE = cmdRe('(?:popd|Pop-Location)', String.raw`(?![\w-])`);
+const MAX_CDS = 50; // more directory changes than this are not a real command: cwd unknown
+
+/**
+ * Returns `cwdAt(offset)`: the working directory where the command text at `offset` runs, after the
+ * `cd` segments before it (null when unresolvable, for a `popd` or a `$VAR` directory).
+ */
+export function cwdResolver(outer, masked, cwd, repoRoot = REPO_ROOT) {
+  const moves = [
+    ...scan(CD_RE, outer, masked).map(m => ({ index: m.index, dir: m.args[0] ?? m.args[1] ?? m.args[2] })),
+    ...scan(POP_RE, outer, masked).map(m => ({ index: m.index, dir: null })),
+  ].sort((a, b) => a.index - b.index);
+  return offset => {
+    let cur = cwd;
+    let n = 0;
+    for (const mv of moves) {
+      if (mv.index >= offset) break;
+      const dir = mv.dir;
+      if (++n > MAX_CDS || !dir || /^[$~%-]|\$|%[A-Za-z_]+%/.test(dir)) return null;
+      const d = normalize(dir.replace(/\\ /g, ' '));
+      if (/^([a-zA-Z]:)?\//.test(d)) cur = d;
+      else if (cur === null) return null;
+      else cur = path.posix.normalize(`${cur ? normalize(cur) : normalize(repoRoot)}/${d}`);
+    }
+    return cur;
+  };
 }
 
 // --- decision --------------------------------------------------------------------------------
@@ -428,11 +510,11 @@ export function decide(command, startCwd = '', repoRoot = REPO_ROOT) {
     if (!text.trim() || text.length > MAX_ANALYZE) return null;
     const { outer, bodies } = splitBodies(text);
     const masked = maskQuotes(outer);
-    const cwd = effectiveCwd(outer, masked, startCwd, repoRoot);
+    const cwdAt = cwdResolver(outer, masked, startCwd, repoRoot);
     return (
-      checkInPlace(outer, masked, cwd, repoRoot) ??
-      checkScripts(outer, masked, bodies, cwd, repoRoot) ??
-      checkRedirects(text, outer, masked, bodies, cwd, repoRoot)
+      checkInPlace(outer, masked, cwdAt, repoRoot) ??
+      checkScripts(outer, masked, bodies, cwdAt, repoRoot) ??
+      checkRedirects(text, outer, masked, bodies, cwdAt, repoRoot)
     );
   } catch {
     return null;

@@ -297,6 +297,9 @@ test('M4: a 100 KB single token or minified command is answered fast (and over t
     `python -c "${'open('.repeat(15_000)}"`,
     `sed ${'/x'.repeat(49_000)}`,
     `${'a'.repeat(200_000)}`,
+    `python - <<'EOF'\n${"open(p,'w')\n".repeat(7_500)}EOF`,
+    `${'-replace Set-Content a b c d e f g h '.repeat(2_600)}`,
+    `-replace x; ${'Out-File '.repeat(11_000)}`,
   ];
   for (const c of slow) {
     const t = Date.now();
@@ -320,7 +323,77 @@ test('L3: <<\\EOF bodies are data; Push-Location moves the working directory', (
 });
 
 test('an empty working directory falls back to the repo root passed in', () => {
+  assert.ok(decide("cd packages && sed -i 's/a/b/' src/x.ts", '', ROOT) !== null);
   assert.ok(decide("sed -i 's/a/b/' src/x.ts", '', ROOT) !== null);
+});
+
+const VAULT = 'C:\\Users\\chris\\Documents\\Obsidian\\vault';
+
+test('round 2 M1: an unknown write target allows; only a loop variable falls back to its literals', () => {
+  for (const c of [
+    // vault edit with replacement text in variables
+    `python - <<'EOF'\nimport os\np = os.path.join(VAULT, 'Dev', 'Foundry AI Tool', 'Backlog.md')\nold = '- files: none'\nnew = '- files: scripts/green.mjs'\nt = open(p).read().replace(old, new)\nopen(p, 'w', encoding='utf-8').write(t)\nEOF`,
+    `python - <<'EOF'\nline = 'see changelog.d/edit-guard.md'\nopen(os.path.join(VAULT, 'Waiting.md'), 'a').write(line)\nEOF`,
+    // read repo files, write to TEMP
+    `python - <<'EOF'\nimport os, tempfile\nout = os.path.join(tempfile.gettempdir(), 'dump.txt')\nwith open(out, 'w') as o:\n    for f in ['package.json', 'docs/dev/ARCHITECTURE.md']:\n        o.write(open(f).read())\nEOF`,
+    `python - <<'EOF'\nfrom pathlib import Path\nimport os, glob\nfor f in glob.glob('docs/**/*.md'):\n    (Path(os.environ['TEMP']) / 'x.txt').write_text(open(f).read())\nEOF`,
+    `python - <<'EOF'\nimport shutil, os, tempfile\nsrc = 'package.json'\nshutil.copy(src, os.path.join(tempfile.gettempdir(), 'p.json'))\nEOF`,
+    `node -e "const f='package.json'; const out=path.join(os.tmpdir(),'x.json'); fs.writeFileSync(out, fs.readFileSync(f))"`,
+    // a script that writes nothing: `.open(` that is not a file mode
+    `python - <<'EOF'\nf = 'docs/dev/ARCHITECTURE.md'\nprint(open(f).read()[:100])\nwebbrowser.open('http://localhost:3100')\nImage.open('a.png')\nEOF`,
+  ]) {
+    assert.ok(allowed(c), c);
+  }
+  for (const c of [
+    `python - <<'PY'\nfor f in ['scripts/a.mjs', 'scripts/b.mjs']:\n    open(f, 'w').write('x')\nPY`,
+    `python - <<'PY'\nimport glob\nfor f in glob.glob('docs/*.md'):\n    open(f, 'w').write('x')\nPY`,
+    `node -e "for (const f of ['scripts/a.mjs']) { require('fs').writeFileSync(f, 'x'); }"`,
+    `python - <<'PY'\nimport os\nopen(os.path.join('scripts', 'green.mjs'), 'w').write('x')\nPY`,
+    `python - <<'PY'\nimport os\nx = r'C:/Users/test/repo'\nopen(os.path.join(x, 'a.ts'), 'w').write('x')\nPY`,
+    `node -e "fs.writeFileSync(path.join('packages','a','b.ts'), 'x')"`,
+  ]) {
+    assert.ok(denied(c), c);
+  }
+});
+
+test('round 2 M2: the working directory is the one before the write, not the last cd in the command', () => {
+  for (const c of [
+    `cd "${VAULT}" && sed -i 's/a/b/' Waiting.md && git commit -am x && cd "${CWD}"`,
+    `Set-Location '${VAULT}'; (Get-Content Waiting.md) -replace 'a','b' | Set-Content Waiting.md; Set-Location '${CWD}'`,
+    `pushd "${VAULT}" && sed -i 's/a/b/' Waiting.md && popd`,
+  ]) {
+    assert.ok(allowed(c), c);
+  }
+  assert.ok(denied(`cd "${VAULT}" && cd "${CWD}" && sed -i 's/a/b/' scripts/x.mjs`));
+  assert.ok(denied(`sed -i 's/a/b/' scripts/x.mjs; cd /tmp`));
+  assert.ok(denied(`cd "${VAULT}" && sed -i 's/a/b/' w.md; cd "${CWD}" && sed -i 's/a/b/' scripts/x.mjs`));
+  // a heredoc on the same line as the cd
+  assert.ok(allowed(`cd "${VAULT}" && cat > Waiting.md <<'EOF'\nx\nEOF`));
+});
+
+test('round 2 L1: an apostrophe in a # comment does not open a quote', () => {
+  assert.ok(allowed("# Don't push yet\ngit commit -m 'Guard: deny; sed -i x.ts edits'"));
+  assert.ok(
+    allowed(`# Don't touch the live ports\nSet-Location '${VAULT}'\n(Get-Content Waiting.md) -replace 'a','b' | Set-Content Waiting.md`)
+  );
+  assert.ok(denied("# don't\nsed -i 's/a/b/' scripts/green.mjs"));
+  assert.ok(denied("sed -i 's/a/b/' scripts/green.mjs # it's fine"));
+  assert.ok(allowed("echo 'a # b' && git status"));
+});
+
+test('round 2 L2: find over a directory outside the repo is not a repo rewrite', () => {
+  assert.ok(allowed(`find "${VAULT}" -name '*.md' -exec sed -i 's/a/b/' {} +`));
+  assert.ok(denied("find packages -name '*.ts' -exec sed -i 's/a/b/' {} +"));
+  assert.ok(denied("find . -name '*.ts' -exec sed -i 's/a/b/' {} +"));
+});
+
+test('round 2 L4: every PowerShell writer on a line is checked; endless cd chains are not analysed', () => {
+  assert.ok(
+    denied("'x' | Out-File $env:TEMP\\a.txt; (Get-Content CHANGELOG.md) -replace 'a','b' | Set-Content CHANGELOG.md")
+  );
+  const t = Date.now();
+  assert.equal(decide(`${'cd a;'.repeat(19_000)} sed -i 's/a/b/' x.ts`, CWD, ROOT), null);
+  assert.ok(Date.now() - t < 500, `cd chain took ${Date.now() - t} ms`);
 });
 
 test('the hook entry point: stdin payload in, deny JSON or nothing out, junk allowed', () => {

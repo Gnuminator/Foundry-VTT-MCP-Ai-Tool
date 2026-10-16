@@ -60,6 +60,8 @@ export const WAIT_TIMEOUT_MS = 30 * 60 * 1000;
 export const WAIT_POLL_MS = 30 * 1000;
 /** --wait-ci: GitHub answering with an error this many polls in a row ends the wait. */
 const WAIT_MAX_ERRORS = 3;
+/** A single gh call (spawnSync timeout). */
+const GH_TIMEOUT_MS = 120_000;
 /** Exit codes of the wait (the gate itself: 0 merged or OK, 1 refused, 2 usage). */
 export const EXIT_CI_FAILED = 3;
 export const EXIT_HEAD_MOVED = 4;
@@ -440,7 +442,7 @@ export function waitForCi(o) {
       'view',
       String(n),
       '--json',
-      'state,headRefOid,statusCheckRollup',
+      'state,headRefOid,mergeable,statusCheckRollup',
     ]);
     /** @type {any} */
     let pr = null;
@@ -470,6 +472,12 @@ export function waitForCi(o) {
         );
       }
       if (pr.state !== 'OPEN') return stop(1, `wait-ci: #${n} is ${pr.state}, not OPEN`);
+      if (pr.mergeable === 'CONFLICTING') {
+        return stop(
+          1,
+          `wait-ci: #${n} has merge conflicts, so CI will not run; merge main into the branch and resolve them`
+        );
+      }
       const rollup = pr.statusCheckRollup ?? [];
       const { failing, pending, missing } = rollupProblems(rollup, required);
       if (failing.length > 0) {
@@ -624,7 +632,12 @@ export function defaultRun(cmd, args) {
           shell: true,
           maxBuffer: 256 * 1024 * 1024,
         })
-      : spawnSync(cmd, args, { encoding: 'utf8', maxBuffer: 256 * 1024 * 1024 });
+      : spawnSync(cmd, args, {
+          encoding: 'utf8',
+          maxBuffer: 256 * 1024 * 1024,
+          // one hung gh call must not hang a background --wait-ci forever
+          ...(cmd === 'gh' ? { timeout: GH_TIMEOUT_MS } : {}),
+        });
   return {
     status: r.status ?? 1,
     stdout: r.stdout ?? '',
@@ -824,7 +837,7 @@ export function entryDecision(argv1, self) {
  * Runs the gate.
  * @param {{
  *   argv?: string[], run?: Run, log?: (line: string) => void, env?: Record<string, string | undefined>,
- *   home?: string, tmpdir?: string, now?: () => Date, fetched?: boolean, lockTimeoutMs?: number,
+ *   home?: string, tmpdir?: string, now?: () => Date, fetched?: boolean, selfPath?: string, lockTimeoutMs?: number,
  *   sleep?: (ms: number) => void, clock?: () => number, waitPollMs?: number, waitTimeoutMs?: number,
  * }} [options]
  * @returns {number} the process exit code
@@ -838,7 +851,8 @@ export function main(options = {}) {
     home = os.homedir(),
     tmpdir = os.tmpdir(),
     now = () => new Date(),
-    fetched = env[ENV_FETCHED] === '1',
+    fetched: fetchedBefore = env[ENV_FETCHED] === '1',
+    selfPath = self,
     lockTimeoutMs = 20_000,
     sleep: pause = sleep,
     clock = Date.now,
@@ -850,6 +864,7 @@ export function main(options = {}) {
     log(`lane:merge: ${args.error}`);
     return 2;
   }
+  let fetched = fetchedBefore;
   const statePath = args.state ?? path.join(home, '.foundry-ai-tool', 'merge-train.json');
   const short = (/** @type {string} */ sha) => sha.slice(0, 7);
   /** git fetch aitool main, once per run. @returns {string | null} an error, or null */
@@ -947,6 +962,31 @@ export function main(options = {}) {
       return finish(waited.code);
     }
     waitedHead = waited.head;
+    // The wait can take half an hour: main may have moved, and with it the merge base, drift-check
+    // and the gate itself. Fetch again, and refuse when the gate on main is no longer this file.
+    const refetch = run('git', ['fetch', REMOTE, 'main']);
+    if (refetch.status !== 0) {
+      failures.push(
+        `wait-ci: git fetch ${REMOTE} main failed after the wait (${firstLine(refetch.stderr || refetch.stdout) || 'failed'})`
+      );
+      return finish();
+    }
+    fetched = true;
+    const onMain = run('git', ['show', `${MAIN}:scripts/lane-merge.mjs`]);
+    if (onMain.status === 0) {
+      let mine = null;
+      try {
+        mine = fs.readFileSync(selfPath, 'utf8');
+      } catch {
+        /* refused below */
+      }
+      if (mine === null || lf(onMain.stdout) !== lf(mine)) {
+        failures.push(
+          `wait-ci: the gate on ${MAIN} changed during the wait (or this copy cannot be read); start again`
+        );
+        return finish();
+      }
+    }
   }
 
   // a. The PR itself.

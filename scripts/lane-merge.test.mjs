@@ -79,7 +79,8 @@ const FAKE_DRIFT_SOURCE = `import fs from 'node:fs';\nexport function runDriftCh
  *   localHead?: string, dirty?: boolean, drift?: number, argv?: string[], train?: object,
  *   merge?: number, rules?: any, rulesFail?: boolean, fetchFail?: boolean, driftSource?: string | null,
  *   lockTimeoutMs?: number, onDrift?: (stateFile: string) => void,
- *   prFor?: (viewIndex: number) => object }} o. `prFor` overrides fields of the PR for each
+ *   mainGate?: string | null, prFor?: (viewIndex: number) => object }} o. `mainGate` is what
+ *   aitool/main holds as lane-merge.mjs (default: this very file; null: none yet). `prFor` overrides fields of the PR for each
  *   successive `gh pr view` (the first calls are --wait-ci's polls, the last one is the gate's);
  *   time is fake: the polls' sleeps advance a clock, `sleeps` lists them.
  */
@@ -134,6 +135,11 @@ function gate(o = {}) {
     }
     if (key === 'git rev-parse HEAD') return ok(`${o.localHead ?? HEAD}\n`);
     if (key === 'git status --porcelain') return ok(o.dirty ? ' M a.txt\n?? b.txt\n' : '');
+    if (key === 'git show aitool/main:scripts/lane-merge.mjs') {
+      return o.mainGate === null
+        ? { status: 128, stdout: '', stderr: 'fatal: path not in aitool/main' }
+        : ok(o.mainGate ?? fs.readFileSync(SELF, 'utf8'));
+    }
     if (key === 'git show aitool/main:scripts/drift-check.mjs') {
       return o.driftSource === null
         ? { status: 128, stdout: '', stderr: 'fatal: path not in aitool/main' }
@@ -164,6 +170,7 @@ function gate(o = {}) {
     tmpdir: home,
     now: () => new Date('2026-10-10T12:00:00Z'),
     lockTimeoutMs: o.lockTimeoutMs ?? 300,
+    selfPath: SELF,
     clock: () => clockMs,
     sleep: ms => {
       sleeps.push(ms);
@@ -1377,4 +1384,45 @@ test('gate without --wait-ci: pending CI still refuses at once, no sleeping', ()
   assert.equal(r.code, 1);
   assert.deepEqual(r.sleeps, []);
   assert.match(r.text, /ci: pending: build-test/);
+});
+
+test('waitForCi: merge conflicts end the wait at once (CI will not run)', () => {
+  const r = waitRun([{ mergeable: 'CONFLICTING', statusCheckRollup: [] }]);
+  assert.equal(r.result.ok, false);
+  assert.equal(r.result.code, 1);
+  assert.match(r.result.reason, /#312 has merge conflicts/);
+  assert.equal(r.polls, 1);
+});
+
+test('gate --wait-ci: fetches main again after the wait', () => {
+  const r = gate({
+    argv: ['--wait-ci'],
+    prFor: i => ({ statusCheckRollup: i < 1 ? RUNNING : GREEN }),
+  });
+  assert.equal(r.code, 0, r.text);
+  const fetches = r.calls.filter(c => c[0] === 'git' && c[1] === 'fetch');
+  assert.equal(fetches.length, 1, 'once after the wait; the gate does not fetch a second time');
+});
+
+test('gate --wait-ci: refuses when the gate on main changed during the wait', () => {
+  const r = gate({
+    argv: ['--wait-ci'],
+    mainGate: '// a newer gate',
+    prFor: i => ({ statusCheckRollup: i < 1 ? RUNNING : GREEN }),
+  });
+  assert.equal(r.code, 1);
+  assert.ok(!r.merged);
+  assert.match(r.text, /wait-ci: the gate on aitool\/main changed during the wait/);
+});
+
+test('gate --wait-ci: refuses when main cannot be fetched after the wait', () => {
+  const r = gate({ argv: ['--wait-ci'], fetchFail: true });
+  assert.equal(r.code, 1);
+  assert.ok(!r.merged);
+  assert.match(r.text, /wait-ci: git fetch aitool main failed after the wait \(no network\)/);
+});
+
+test('gate --wait-ci: main without a gate yet (bootstrap) does not block', () => {
+  const r = gate({ argv: ['--wait-ci'], mainGate: null });
+  assert.equal(r.code, 0, r.text);
 });

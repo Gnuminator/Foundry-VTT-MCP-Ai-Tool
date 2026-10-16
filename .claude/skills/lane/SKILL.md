@@ -64,7 +64,7 @@ one PR. Vault paths below are under `C:\Users\chris\Documents\Obsidian\vault\Dev
 - **Push:** `git push -u aitool claude/<topic>:claude/<topic>` (explicit refspec, never a bare
   push from a branch made off `aitool/main`).
 - **Ready to merge (the planner merges, 2026-10-16):** once every review for the head says Merge,
-  stop: report the PR number, the full head sha and the review note path, and leave the PR open.
+  stop: report the PR number, the full head sha and the review note path, and leave the PR open and keep the worktree, clean and pushed, until the planner has merged.
   Don't run the gate without `--dry-run` and don't offer the app's PR Auto-fix. To check the gate
   first, from the PR branch, clean and pushed, run main's copy (never the branch's own, so a PR
   cannot judge itself):

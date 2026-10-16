@@ -217,6 +217,11 @@ switch ($Action) {
       [System.IO.File]::WriteAllLines($tokenPath, [string[]]@($idLine, $secretLine))
       Write-Host "Stored the token for $env:USERNAME only ($tokenPath)."
     }
+    if (-not $NoStart) {
+      # Before tunnel.json is overwritten, so the old host and port are still read from it: a
+      # cloudflared for the old target is stopped too, not left running until sign-out.
+      Stop-Tunnel $TunnelHost $Port
+    }
     $cfg = [ordered]@{ host = $TunnelHost; port = $Port; cloudflared = $CloudflaredPath; script = $PSCommandPath }
     ($cfg | ConvertTo-Json) | Set-Content -LiteralPath $configPath -Encoding UTF8
 
@@ -236,14 +241,15 @@ switch ($Action) {
     }
 
     if (-not $NoStart) {
-      Stop-Tunnel $TunnelHost $Port
+      # Termination is asynchronous: give the old listener up to about 3 seconds to go.
+      for ($i = 0; $i -lt 6 -and (Test-PortListening $Port); $i++) { Start-Sleep -Milliseconds 500 }
       $holder = if (Test-PortListening $Port) { Get-ListenerName $Port } else { $null }
       if (Test-PortListening $Port) {
         Fail "127.0.0.1:$Port is already in use$(if ($holder) { " by $holder" }): pick another -Port, or stop that program" 2
       }
       if ($NoTask) {
         Start-Process -FilePath (Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe') -WindowStyle Hidden `
-          -ArgumentList @('-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', $PSCommandPath, '-Action', 'Run', '-StateDir', $StateDir)
+          -ArgumentList "-NoProfile -NonInteractive -ExecutionPolicy Bypass -File `"$PSCommandPath`" -Action Run -StateDir `"$StateDir`""
       } else {
         Start-ScheduledTask -TaskName $TaskName
       }

@@ -42,6 +42,8 @@ one PR. Vault paths below are under `C:\Users\chris\Documents\Obsidian\vault\Dev
 - `git status --short`: add explicit paths; no binaries, archives, audio, `.env` or downloads.
 - PR description = the handover: what changed, how it was verified (commands, live checks, kit
   report with its `run.gitSha`), what is open, follow-ups.
+- Put a line `Backlog: <id>` (the item's `- id:`, several comma separated) in the PR body: the live PM board
+  shows the open PR on your lane card from it.
 
 ## Review and merge
 

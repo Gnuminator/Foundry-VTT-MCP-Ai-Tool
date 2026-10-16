@@ -376,6 +376,7 @@ function Dashboard(): JSX.Element {
         'prep',
         <LazyPanel
           chunk={prepChunk}
+          shell={{ id: 'prep-drawer', title: '📋 Prep' }}
           show={shown('prep')}
           open={shown('prep')}
           onOpenChange={open => setDrawer('prep', open)}
@@ -386,6 +387,7 @@ function Dashboard(): JSX.Element {
         'party',
         <LazyPanel
           chunk={partyChunk}
+          shell={{ id: 'party-drawer', title: '🛡 Party' }}
           show={shown('party')}
           open={shown('party')}
           onOpenChange={open => setDrawer('party', open)}
@@ -395,6 +397,7 @@ function Dashboard(): JSX.Element {
         'handouts',
         <LazyPanel
           chunk={handoutsChunk}
+          shell={{ id: 'handouts-drawer', title: '📜 Handouts' }}
           show={shown('handouts')}
           open={shown('handouts')}
           onOpenChange={open => setDrawer('handouts', open)}
@@ -410,6 +413,7 @@ function Dashboard(): JSX.Element {
       )}
       <LazyPanel
         chunk={tarokkaChunk}
+        shell={{ id: 'tarokka-drawer', title: '🃏 Tarokka' }}
         show={drawers.tarokka}
         open={drawers.tarokka}
         onOpenChange={open => setDrawer('tarokka', open)}
@@ -418,6 +422,7 @@ function Dashboard(): JSX.Element {
       />
       <LazyPanel
         chunk={toolsChunk}
+        shell={{ id: 'tools-drawer', title: '🛠 Tool Runner' }}
         show={drawers.tools}
         open={drawers.tools}
         onOpenChange={open => setDrawer('tools', open)}

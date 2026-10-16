@@ -137,6 +137,62 @@ export function DrawerClose(props: ComponentProps<'button'>): JSX.Element {
   );
 }
 
+/** What makes a Panel a docked drawer: a labelled region, and a fold card in During. */
+function dockedProps(
+  id: string,
+  fold: ReturnType<typeof useCardFold>
+): Partial<ComponentProps<typeof Panel>> {
+  return {
+    titleId: `${id}-title`,
+    className: cx('docked', fold?.folded && 'is-folded'),
+    role: 'region',
+    'aria-labelledby': `${id}-title`,
+    // tabIndex -1: showDocked and the moment change can hand it the focus.
+    tabIndex: -1,
+    ...(fold
+      ? {
+          headStart: fold.button,
+          bodyId: `${id}-body`,
+          onTitleClick: fold.folded ? fold.toggle : undefined,
+        }
+      : {}),
+  };
+}
+
+/**
+ * What a drawer shows while its panel's chunk loads (LazyPanel): the real drawer's id and title
+ * over a loading body, in the dock slot it will take or floating with a ✕. A plain panel, not a
+ * dialog: it takes no place in the Escape order or the stacking of open drawers, which start when
+ * the real drawer mounts.
+ */
+export function LoadingDrawer({
+  open,
+  onClose,
+  id,
+  title,
+}: {
+  open: boolean;
+  onClose: () => void;
+  id: string;
+  title: ReactNode;
+}): JSX.Element | null {
+  const dockSlot = useContext(DockContext);
+  const fold = useCardFold();
+  if (!open) return null;
+  const shell = { as: 'aside', variant: 'drawer', id, title, state: 'loading' } as const;
+  if (dockSlot) return createPortal(<Panel {...shell} {...dockedProps(id, fold)} />, dockSlot);
+  return (
+    <Panel
+      {...shell}
+      actions={
+        <IconButton label="Close" tip="Close" onClick={onClose}>
+          ✕
+        </IconButton>
+      }
+    />
+  );
+}
+
 /**
  * A drawer from the right (the old aside.drawer: Pre-flight, Prep, Party, ...). A non-modal Radix
  * dialog: several can be open, Escape closes the top one (escape.ts), ✕ closes this one, and a click on the
@@ -197,21 +253,7 @@ export function Drawer({
   if (slot) {
     // tabIndex -1: showDocked and the moment change can hand it the focus.
     return createPortal(
-      <Panel
-        {...shell}
-        titleId={`${id}-title`}
-        className={cx('docked', fold?.folded && 'is-folded')}
-        role="region"
-        aria-labelledby={`${id}-title`}
-        tabIndex={-1}
-        {...(fold
-          ? {
-              headStart: fold.button,
-              bodyId: `${id}-body`,
-              onTitleClick: fold.folded ? fold.toggle : undefined,
-            }
-          : {})}
-      >
+      <Panel {...shell} {...dockedProps(id, fold)}>
         {children}
       </Panel>,
       host

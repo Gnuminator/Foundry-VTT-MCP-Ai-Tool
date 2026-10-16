@@ -15,7 +15,9 @@
  *   npm run green -- --skip a,b         leave these steps out
  *
  * The steps run in the repository the command is started in (the git top level of the current
- * directory). scripts/green.test.mjs compares the list below with ci.yml: a CI command that is
+ * directory). On Windows, when this process is not Node 22 (the global Node 24 crashes natively
+ * in the socket tests), every step runs with the portable Node 22 first on PATH (see
+ * portableNode22Dir). scripts/green.test.mjs compares the list below with ci.yml: a CI command that is
  * neither covered by a step nor in CI_ONLY (with a reason) fails the test, which keeps green and CI
  * in step.
  */
@@ -339,6 +341,50 @@ export function isEntryModule(argv1, self) {
 }
 
 /**
+ * The folder of the newest portable Node 22 (`%LOCALAPPDATA%\node22\node-v22.*`, the toolchain the
+ * project uses on Windows), or null. Node 24.15 on Windows crashes natively (exit code 0xC0000409,
+ * no message) in 20 to 40 percent of the co-GM dashboard socket test runs, which showed up as
+ * vitest "Channel closed" on the fork pool; the same tests passed 60 of 60 runs on Node 22.22.2.
+ * @param {{ platform?: string, localAppData?: string, major?: number,
+ *   readdir?: (dir: string) => string[], exists?: (file: string) => boolean }} [o]
+ * @returns {string | null} the folder to put first on PATH, or null (not Windows, already Node 22,
+ *   or no portable Node 22 found)
+ */
+export function portableNode22Dir(o = {}) {
+  const {
+    platform = process.platform,
+    localAppData = process.env.LOCALAPPDATA,
+    major = Number(process.versions.node.split('.')[0]),
+    readdir = (/** @type {string} */ d) => fs.readdirSync(d),
+    exists = (/** @type {string} */ f) => fs.existsSync(f),
+  } = o;
+  if (platform !== 'win32' || major === 22 || !localAppData) return null;
+  const root = path.join(localAppData, 'node22');
+  let names;
+  try {
+    names = readdir(root);
+  } catch {
+    return null;
+  }
+  const version = (/** @type {string} */ n) => n.split('-')[1]?.split('.').map(Number) ?? [];
+  const newest = names
+    .filter(n => /^node-v22\.\d+\.\d+-win-x64$/.test(n))
+    .sort((a, b) => {
+      const [x, y] = [version(a), version(b)];
+      return (y[1] ?? 0) - (x[1] ?? 0) || (y[2] ?? 0) - (x[2] ?? 0);
+    })
+    .find(n => exists(path.join(root, n, 'node.exe')));
+  return newest ? path.join(root, newest) : null;
+}
+
+/** PATH for the steps: the portable Node 22 first when `portableNode22Dir` finds one. */
+const NODE22_DIR = portableNode22Dir();
+const PATH_KEY = Object.keys(process.env).find(k => k.toLowerCase() === 'path') ?? 'PATH';
+const STEP_PATH = NODE22_DIR
+  ? `${NODE22_DIR}${path.delimiter}${process.env[PATH_KEY] ?? ''}`
+  : null;
+
+/**
  * The default step runner: stdout and stderr of the step go straight to the log file.
  * @param {Step} step @param {number} fd @param {string} cwd
  * @returns {number} exit status (1 when the process could not start or was killed)
@@ -349,7 +395,13 @@ function spawnStep(step, fd, cwd) {
     cwd,
     shell: true,
     stdio: ['ignore', fd, fd],
-    env: { ...process.env, FORCE_COLOR: '0', NO_COLOR: '1', ...step.env },
+    env: {
+      ...process.env,
+      ...(STEP_PATH ? { [PATH_KEY]: STEP_PATH } : {}),
+      FORCE_COLOR: '0',
+      NO_COLOR: '1',
+      ...step.env,
+    },
   });
   return r.status ?? 1;
 }

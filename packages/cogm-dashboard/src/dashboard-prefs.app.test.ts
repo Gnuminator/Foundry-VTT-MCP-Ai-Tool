@@ -6,7 +6,7 @@
 import * as http from 'http';
 import type { AddressInfo } from 'net';
 
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { CoGm } from './ai/anthropic-co-gm.js';
 import { createDashboard, type Dashboard } from './app.js';
@@ -91,7 +91,16 @@ async function loadWorld(h: Harness): Promise<void> {
     lastPollAt: null,
     foundryDownSince: null,
   });
-  await new Promise(resolve => setTimeout(resolve, 30));
+  // The world loads asynchronously; /api/state has prefs (not null) once it is known.
+  await vi.waitFor(
+    async () => {
+      const res = await fetch(`http://127.0.0.1:${h.port}/api/state`, {
+        headers: { 'x-cogm-token': GM_TOKEN },
+      });
+      expect(((await res.json()) as { prefs: unknown }).prefs).not.toBeNull();
+    },
+    { timeout: 5000 }
+  );
 }
 
 async function setPrefs(
@@ -110,8 +119,22 @@ async function setPrefs(
   return { status: res.status, json: (await res.json()) as Record<string, unknown> };
 }
 
+/**
+ * The last event each stream writes on connect (app.ts writes the whole snapshot in one handler).
+ * Once it is in the text, everything the stream says on connect has arrived, so a test needs no
+ * fixed wait that a loaded CPU can outrun.
+ */
+const SNAPSHOT_END: Record<string, string> = {
+  '/api/stream': 'event: errors',
+  '/api/player/stream': 'event: theme',
+};
+
 /** Everything a stream sends, collected as text while the test runs. */
-function listen(h: Harness, path: string, token: string): { text: () => string } {
+function listen(
+  h: Harness,
+  path: string,
+  token: string
+): { text: () => string; snapshot: () => Promise<void> } {
   let text = '';
   const req = http.get(
     { host: '127.0.0.1', port: h.port, path, headers: { 'x-cogm-token': token }, agent: false },
@@ -124,7 +147,10 @@ function listen(h: Harness, path: string, token: string): { text: () => string }
   );
   req.on('error', () => undefined);
   streams.push(req);
-  return { text: () => text };
+  return {
+    text: () => text,
+    snapshot: () => vi.waitFor(() => expect(text).toContain(SNAPSHOT_END[path]), { timeout: 5000 }),
+  };
 }
 
 describe('set-prefs on /api/control', () => {
@@ -152,15 +178,17 @@ describe('set-prefs on /api/control', () => {
     await loadWorld(h);
     const gm = listen(h, '/api/stream', GM_TOKEN);
     const player = listen(h, '/api/player/stream', PLAYER_TOKEN);
-    await new Promise(resolve => setTimeout(resolve, 50));
+    await Promise.all([gm.snapshot(), player.snapshot()]);
 
     const answer = await setPrefs(h, GM_TOKEN, { duringLayout: 'toggle', combatButtons: true });
     expect(answer.status).toBe(200);
     expect(answer.json).toMatchObject({ duringLayout: 'toggle', combatButtons: true });
-    await new Promise(resolve => setTimeout(resolve, 50));
-
+    // The prefs event goes out with the answer; the GM stream is the one that must show it, and the
+    // player stream is written by the same broadcast, so it has had its turn by then.
+    await vi.waitFor(() => expect(gm.text()).toContain('"duringLayout":"toggle"'), {
+      timeout: 5000,
+    });
     expect(gm.text()).toContain('event: prefs');
-    expect(gm.text()).toContain('"duringLayout":"toggle"');
     expect(player.text()).not.toContain('event: prefs');
     expect(player.text()).not.toContain('duringLayout');
   });

@@ -5,26 +5,11 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { bestMs } from './best-ms.mjs';
 import { decide, finalDecision } from './guard-remote-commands.mjs';
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const kind = command => decide(command, repo)?.decision ?? 'allow';
-
-/**
- * The fastest of up to three runs of `fn`, in ms, stopping early once a run is under `limitMs`. A
- * check that is really slow (the old regexes took 100 ms to 30 s) is slow on every run; a loaded
- * CPU (the ARM64 container suite under QEMU) only delays one of them, so the best run measures the
- * check and not the scheduler. A single timed run failed at 207 ms against a 200 ms bound.
- */
-function bestMs(fn, limitMs) {
-  let best = Infinity;
-  for (let run = 0; run < 3 && best >= limitMs; run++) {
-    const t = performance.now();
-    fn();
-    best = Math.min(best, performance.now() - t);
-  }
-  return best;
-}
 
 test('local commands are not this hook’s business', () => {
   assert.equal(kind('rm -rf /'), 'allow');

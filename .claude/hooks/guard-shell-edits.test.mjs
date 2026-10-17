@@ -5,6 +5,7 @@ import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { bestMs } from './best-ms.mjs';
 import { REPO_ROOT, decide, isRepoSource, pathTokens, run, splitBodies } from './guard-shell-edits.mjs';
 
 const ROOT = 'C:/Users/test/repo';
@@ -430,9 +431,11 @@ test('round 2 L4: every PowerShell writer on a line is checked; endless cd chain
   assert.ok(
     denied("'x' | Out-File $env:TEMP\\a.txt; (Get-Content CHANGELOG.md) -replace 'a','b' | Set-Content CHANGELOG.md")
   );
-  const t = Date.now();
-  assert.equal(decide(`${'cd a;'.repeat(19_000)} sed -i 's/a/b/' x.ts`, CWD, ROOT), null);
-  assert.ok(Date.now() - t < 500, `cd chain took ${Date.now() - t} ms`);
+  const ms = bestMs(
+    () => assert.equal(decide(`${'cd a;'.repeat(19_000)} sed -i 's/a/b/' x.ts`, CWD, ROOT), null),
+    500
+  );
+  assert.ok(ms < 500, `cd chain took ${ms.toFixed(0)} ms`);
 });
 
 test('the hook entry point: stdin payload in, deny JSON or nothing out, junk allowed', () => {

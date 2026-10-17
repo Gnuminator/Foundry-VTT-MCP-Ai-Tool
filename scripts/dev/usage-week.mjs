@@ -457,10 +457,11 @@ const COLUMNS = [
 export function formatTargets(targets) {
   const mark = t => (t.ok === null ? 'n/a' : t.ok ? 'ok' : 'over');
   const text = {
-    startup: t => `startup ${kilo(t.value)} ${mark(t)} (<=75k)`,
-    'M tokens per PR': t => `M/PR ${num(t.value, 1)} ${mark(t)} (<=18)`,
-    'sessions a day': t => `sessions/day ${num(t.value, 1)} ${mark(t)} (~15)`,
-    'weekly % a day': t => `weekly %/day ${num(t.value, 1)} ${mark(t)} (~14)`,
+    startup: t => `startup ${kilo(t.value)} ${mark(t)} (<=${kilo(TARGETS.startup)})`,
+    'M tokens per PR': t => `M/PR ${num(t.value, 1)} ${mark(t)} (<=${TARGETS.tokensPerPrM})`,
+    'sessions a day': t =>
+      `sessions/day ${num(t.value, 1)} ${mark(t)} (~${TARGETS.sessionsPerDay})`,
+    'weekly % a day': t => `weekly %/day ${num(t.value, 1)} ${mark(t)} (~${TARGETS.weeklyPerDay})`,
   };
   return `Targets (D-122): ${targets.map(t => text[t.name](t)).join(' | ')}`;
 }
@@ -473,7 +474,9 @@ export function formatModels(models) {
   if (!list.length || !cost) return 'Models: none in the window';
   const name = f => f[0].toUpperCase() + f.slice(1);
   return `Models (turns main+sub, share of cost): ${list
-    .map(([f, m]) => `${name(f)} ${m.mainTurns}+${m.subTurns} ${Math.round((100 * m.cost) / cost)}%`)
+    .map(
+      ([f, m]) => `${name(f)} ${m.mainTurns}+${m.subTurns} ${Math.round((100 * m.cost) / cost)}%`
+    )
     .join(' | ')}`;
 }
 

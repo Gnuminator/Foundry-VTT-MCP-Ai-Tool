@@ -267,9 +267,17 @@ allowed to post in the channel. Tune with `--interval`, `--slow-ms`, `--timeout-
 `scripts/test-env/stop.ps1 -Only foundry`.
 
 The message includes the Foundry address (without any user name or password). A message that Discord
-refuses is kept and tried again every minute, so a short Discord outage does not lose the "down" message.
-A Foundry that stays slow gets no second reminder, and a link that flaps posts a down and back pair each
-time. `--once` makes one check and exits (useful for a test).
+refuses is kept and tried again at every check, so a short Discord outage does not lose the "down"
+message; a late message says when the problem was noticed. With `--post` the watch first asks Discord
+whether the bot can see the channel and stops with an error if not. Foundry counts as up only when
+`/api/status` answers 200 with a running world (`active: true`); a redirect, the setup screen or a login
+page counts as a miss. Use the Pi's own address (`http://<pi-address>:30000`): the players' Cloudflare
+address is not checked. A Foundry that stays slow gets no second reminder, and a link that flaps posts a
+down and back pair each time.
+
+`--once` makes one check and exits with 1 if Foundry is not healthy or a post is unsent. One check
+alone never posts "down" (it takes `--fail` misses in a row), so to test posting use
+`--once --post --fail 1` against a stopped test server.
 
 The watch only works while this PC is on and can reach the Pi. A copy that runs on the Pi itself would be
 a stage script and needs your OK (not done).

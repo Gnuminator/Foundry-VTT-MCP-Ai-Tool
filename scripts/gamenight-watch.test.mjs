@@ -10,6 +10,8 @@ import {
   parseEnv,
   postToChannel,
   flushPending,
+  withLateNote,
+  checkChannel,
   parseArgs,
   safeUrl,
 } from './gamenight-watch.mjs';
@@ -67,8 +69,16 @@ test('slow turning into down posts "down" and still recovers', () => {
   ]);
 });
 
-test('slow answers while down do not post "slow" or recover', () => {
-  assert.deepEqual(run([FAIL, FAIL, SLOW, SLOW, SLOW, SLOW]).alerts, ['down']);
+test('back but slow after down: one "slow-after-down", then "recovered" on fast answers', () => {
+  assert.deepEqual(run([FAIL, FAIL, SLOW, SLOW]).alerts, ['down']);
+  const { alerts, state } = run([FAIL, FAIL, SLOW, SLOW, SLOW, SLOW]);
+  assert.deepEqual(alerts, ['down', 'slow-after-down']);
+  assert.equal(state.mode, 'slow');
+  assert.deepEqual(run([FAIL, FAIL, SLOW, SLOW, SLOW, GOOD, GOOD]).alerts, [
+    'down',
+    'slow-after-down',
+    'recovered',
+  ]);
 });
 
 test('thresholds come from the config', () => {
@@ -96,12 +106,29 @@ test('formatAlert names the address and pings the given users', () => {
   assert.ok(formatAlert('down', 'u', FAIL, DEFAULTS, ['1', '2']).startsWith('<@1> <@2> '));
 });
 
-test('probeFoundry: ok, HTTP error, refused, timeout', async () => {
-  const ok = await probeFoundry('http://x:1', 1000, async url => {
+test('probeFoundry: ok, redirect, no world, HTTP error, refused, timeout', async () => {
+  const ok = await probeFoundry('http://x:1', 1000, async (url, init) => {
     assert.equal(String(url), 'http://x:1/api/status');
-    return { ok: true, status: 200 };
+    assert.equal(init.redirect, 'manual');
+    return { ok: true, status: 200, json: async () => ({ active: true }) };
   });
   assert.equal(ok.ok, true);
+  const redirect = await probeFoundry('http://x:1', 1000, async () => ({ ok: false, status: 302 }));
+  assert.deepEqual([redirect.ok, redirect.error], [false, 'HTTP 302']);
+  const noWorld = await probeFoundry('http://x:1', 1000, async () => ({
+    ok: true,
+    status: 200,
+    json: async () => ({ active: false }),
+  }));
+  assert.deepEqual([noWorld.ok, noWorld.error], [false, 'no world running']);
+  const html = await probeFoundry('http://x:1', 1000, async () => ({
+    ok: true,
+    status: 200,
+    json: async () => {
+      throw new SyntaxError('not json');
+    },
+  }));
+  assert.equal(html.ok, false);
   const bad = await probeFoundry('http://x:1', 1000, async () => ({ ok: false, status: 502 }));
   assert.deepEqual([bad.ok, bad.error], [false, 'HTTP 502']);
   const refused = await probeFoundry('http://x:1', 1000, async () => {
@@ -112,6 +139,25 @@ test('probeFoundry: ok, HTTP error, refused, timeout', async () => {
     throw Object.assign(new Error('t'), { name: 'TimeoutError' });
   });
   assert.equal(timeout.error, 'timed out');
+});
+
+test('withLateNote adds the notice time only to late posts', () => {
+  const at = Date.parse('2026-10-17T19:05:09Z');
+  assert.equal(withLateNote({ text: 'x', at }, at + 5000), 'x');
+  assert.equal(withLateNote({ text: 'x', at }, at + 120000), 'x (noticed 19:05:09 UTC)');
+});
+
+test('checkChannel refuses on 401/403/404 and shrugs off other trouble', async () => {
+  const t = { token: 'SECRET', channelId: '1' };
+  assert.match(await checkChannel(t, async () => ({ ok: false, status: 403 })), /HTTP 403/);
+  assert.equal(await checkChannel(t, async () => ({ ok: true })), null);
+  assert.equal(await checkChannel(t, async () => ({ ok: false, status: 503 })), null);
+  assert.equal(
+    await checkChannel(t, async () => {
+      throw new Error('net');
+    }),
+    null
+  );
 });
 
 test('flushPending keeps unsent alerts in order and retries them', async () => {

@@ -57,6 +57,10 @@ export function step(state, probe, cfg = DEFAULTS) {
   if (next.failRun >= cfg.failCount && state.mode !== 'down') {
     return { state: { ...next, mode: 'down' }, alert: 'down' };
   }
+  // Back from "down" but too slow to call it recovered: say so once, then wait for fast answers.
+  if (next.slowRun >= cfg.slowCount && state.mode === 'down') {
+    return { state: { ...next, mode: 'slow' }, alert: 'slow-after-down' };
+  }
   if (next.slowRun >= cfg.slowCount && state.mode === 'up') {
     return { state: { ...next, mode: 'slow' }, alert: 'slow' };
   }
@@ -72,8 +76,8 @@ export function formatAlert(alert, url, probe, cfg = DEFAULTS, mentions = []) {
   const body =
     alert === 'down'
       ? `Foundry does not answer at ${url} (${probe.error ?? 'no answer'}).`
-      : alert === 'slow'
-        ? `Foundry answers slowly at ${url}: ${probe.ms} ms, the limit is ${cfg.slowMs} ms.`
+      : alert === 'slow' || alert === 'slow-after-down'
+        ? `Foundry ${alert === 'slow-after-down' ? 'answers again, but slowly' : 'answers slowly'} at ${url}: ${probe.ms} ms, the limit is ${cfg.slowMs} ms.`
         : `Foundry answers again at ${url} (${probe.ms} ms).`;
   return ping ? `${ping} ${body}` : body;
 }
@@ -82,11 +86,16 @@ export function formatAlert(alert, url, probe, cfg = DEFAULTS, mentions = []) {
 export async function probeFoundry(url, timeoutMs, fetchImpl = fetch) {
   const started = Date.now();
   try {
+    // A redirect (for example a login page in front of Foundry) is a miss, not a healthy answer.
     const res = await fetchImpl(new URL('/api/status', url), {
+      redirect: 'manual',
       signal: AbortSignal.timeout(timeoutMs),
     });
+    if (!res.ok) return { ok: false, ms: Date.now() - started, error: `HTTP ${res.status}` };
+    // Foundry answers 200 with active:false on the setup screen, when no world is running.
+    const body = await res.json().catch(() => null);
     const ms = Date.now() - started;
-    if (!res.ok) return { ok: false, ms, error: `HTTP ${res.status}` };
+    if (!body || body.active !== true) return { ok: false, ms, error: 'no world running' };
     return { ok: true, ms };
   } catch (err) {
     const timedOut =
@@ -187,6 +196,29 @@ export async function flushPending(pending, post, log = () => {}) {
   return rest;
 }
 
+/** Ask Discord whether the bot can see the channel. Returns an error text, or null when fine. */
+export async function checkChannel({ token, channelId }, fetchImpl = fetch) {
+  try {
+    const res = await fetchImpl(`https://discord.com/api/v10/channels/${channelId}`, {
+      headers: { Authorization: `Bot ${token}` },
+      signal: AbortSignal.timeout(15000),
+    });
+    if (res.ok) return null;
+    if ([401, 403, 404].includes(res.status)) {
+      return `Discord answered HTTP ${res.status}: check the bot token, that the bot is in the server and the channel id.`;
+    }
+    return null; // a passing Discord problem: the posts retry on their own
+  } catch {
+    return null;
+  }
+}
+
+/** Adds the time the alert was noticed when the post goes out late (after a Discord outage). */
+export function withLateNote({ text, at }, now = Date.now()) {
+  if (now - at < 30_000) return text;
+  return `${text} (noticed ${new Date(at).toISOString().slice(11, 19)} UTC)`;
+}
+
 const stamp = () => new Date().toISOString().replace('T', ' ').slice(0, 19);
 
 async function main() {
@@ -227,6 +259,11 @@ async function main() {
       process.exit(2);
     }
     target = { token, channelId };
+    const refused = await checkChannel(target);
+    if (refused) {
+      console.error(refused);
+      process.exit(2);
+    }
   }
   console.log(
     `${stamp()} watching ${url} every ${cfg.intervalSec}s (${target ? 'posting to Discord' : 'dry run, log only'})`
@@ -245,16 +282,20 @@ async function main() {
     if (result.alert) {
       const text = formatAlert(result.alert, url, probe, cfg, mentions);
       console.log(`${stamp()} alert ${result.alert}: ${text}`);
-      if (target) pending.push(text);
+      if (target) pending.push({ text, at: Date.now() });
     }
     if (target && pending.length > 0) {
       pending = await flushPending(
         pending,
-        t => postToChannel(target, t),
+        a => postToChannel(target, withLateNote(a)),
         m => console.error(`${stamp()} ${m}`)
       );
     }
-    if (args.once) return;
+    if (args.once) {
+      // Exit 1 when Foundry is not healthy or a post is still unsent, so a test can tell.
+      if (!probe.ok || pending.length > 0) process.exitCode = 1;
+      return;
+    }
     await new Promise(r => setTimeout(r, cfg.intervalSec * 1000));
   }
 }

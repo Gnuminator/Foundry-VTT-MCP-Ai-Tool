@@ -20,6 +20,7 @@ import {
 } from './components/Drawer';
 import { CombatStrip, type StripToolRequest } from './components/CombatStrip';
 import { FoldScope } from './components/Folds';
+import { SessionMarker } from './components/SessionMarker';
 import { StreamState } from './components/StreamState';
 import { HelpProvider } from './components/Help';
 import { useHelp } from './components/HelpButton';
@@ -248,6 +249,7 @@ function Dashboard(): JSX.Element {
         </div>
         <MomentTabs moment={moment} onPick={pick} />
         <div className="controls">
+          <SessionMarker />
           <StreamState />
           <PreflightButton
             open={shown('preflight')}

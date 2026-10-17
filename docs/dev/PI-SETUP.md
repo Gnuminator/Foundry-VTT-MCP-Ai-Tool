@@ -246,6 +246,29 @@ this PC.
 Copy a restored world to the Pi only with Foundry stopped, and keep the owner `foundry:foundry`
 (`chown -R foundry:foundry` on the world folder); both steps need your OK under the Pi safety rule.
 
+## Game-night watch (I-145)
+
+`scripts/gamenight-watch.mjs` runs on this PC (nothing is installed on the Pi). Every minute it calls
+Foundry's `/api/status` and posts to a Discord channel when Foundry does not answer, answers slowly, or
+is back. One message when it goes down or slow, one when it recovers; a single miss or slow answer
+posts nothing (defaults: 2 misses in a row for "down", 3 slow answers in a row for "slow", over 3 s;
+2 good answers in a row for "back").
+
+```powershell
+node scripts/gamenight-watch.mjs --url http://<pi-address>:30000            # dry run: log only
+node scripts/gamenight-watch.mjs --url http://<pi-address>:30000 --post     # post to Discord
+```
+
+Posting is opt-in (`--post`). It uses the bot token already in `%APPDATA%\foundry-ai-tool\discord-bot.env`
+(never printed) plus `GAMENIGHT_WATCH_CHANNEL_ID=<channel>` in the same file, and optionally
+`GAMENIGHT_WATCH_MENTION_IDS=<your id>,<GM id>` to ping you both. The bot must be in that server and
+allowed to post in the channel. Tune with `--interval`, `--slow-ms`, `--timeout-ms`, `--fail`, `--slow`,
+`--recover`. For a test, point `--url` at the test server (`http://localhost:30001`) and stop it with
+`scripts/test-env/stop.ps1 -Only foundry`.
+
+The watch only works while this PC is on and can reach the Pi. A copy that runs on the Pi itself would be
+a stage script and needs your OK (not done).
+
 ## Stale backup copies
 
 The copies on this PC are only worth something while they keep arriving. If this PC stays off (or

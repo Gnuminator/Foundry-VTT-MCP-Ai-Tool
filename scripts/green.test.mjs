@@ -376,10 +376,7 @@ test('portableNode22Dir: on Windows under Node 24 the newest portable Node 22 co
     readdir: () => ['node-v22.9.1-win-x64', 'node-v22.22.2-win-x64', 'node-v20.1.0-win-x64', 'x'],
     exists: () => true,
   };
-  assert.equal(
-    portableNode22Dir(base),
-    path.join(localAppData, 'node22', 'node-v22.22.2-win-x64')
-  );
+  assert.equal(portableNode22Dir(base), path.join(localAppData, 'node22', 'node-v22.22.2-win-x64'));
   assert.equal(portableNode22Dir({ ...base, major: 22 }), null, 'already Node 22');
   assert.equal(portableNode22Dir({ ...base, platform: 'linux' }), null, 'not Windows');
   assert.equal(portableNode22Dir({ ...base, localAppData: '' }), null, 'no LOCALAPPDATA');
@@ -403,7 +400,11 @@ test('stepEnvironment: one PATH key with the pin first, even when the parent hol
   assert.deepEqual(pathKeys, ['PATH']);
   assert.equal(env.PATH, 'C:\\n22;a');
   assert.equal(env.Other, 'x');
-  assert.deepEqual(stepEnvironment({ Path: 'b' }, dir, ';'), { Path: 'C:\\n22;b' }, 'the real casing is kept');
+  assert.deepEqual(
+    stepEnvironment({ Path: 'b' }, dir, ';'),
+    { Path: 'C:\\n22;b' },
+    'the real casing is kept'
+  );
   assert.deepEqual(stepEnvironment({}, dir, ';'), { PATH: 'C:\\n22;' }, 'no PATH at all');
   const base = { Path: 'b', PATH: 'a' };
   assert.deepEqual(stepEnvironment(base, null), base, 'no pin: untouched');
@@ -426,8 +427,43 @@ test('nodeNote: Windows says which Node the steps run on, other systems say noth
   assert.equal(nodeNote({ platform: 'linux', major: 24, version: '24.1.0', dir: null }), null);
 });
 
+test('docs:lint: markdown in .gitignore folders (playwright-report, test-results) is not linted', () => {
+  const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'green-mdlint-'));
+  try {
+    fs.copyFileSync(
+      path.join(root, '.markdownlint-cli2.jsonc'),
+      path.join(dir, '.markdownlint-cli2.jsonc')
+    );
+    fs.writeFileSync(
+      path.join(dir, '.gitignore'),
+      'playwright-report/\ntest-results/\nfresh-reports/\n'
+    );
+    fs.writeFileSync(path.join(dir, 'ok.md'), '# Fine\n\nText.\n');
+    const bad = '# One\n\n# Two\n\n\n\nno final newline';
+    for (const d of ['packages/web/playwright-report', 'test-results', 'fresh-reports']) {
+      fs.mkdirSync(path.join(dir, d), { recursive: true });
+      fs.writeFileSync(path.join(dir, d, 'bad.md'), bad);
+    }
+    const bin = path.join(root, 'node_modules', 'markdownlint-cli2', 'markdownlint-cli2-bin.mjs');
+    const lint = () => spawnSync(process.execPath, [bin], { cwd: dir, encoding: 'utf8' });
+    const ok = lint();
+    assert.equal(ok.status, 0, ok.stdout + ok.stderr);
+    // The check has teeth: the same bad file outside an ignored folder fails.
+    fs.writeFileSync(path.join(dir, 'bad.md'), bad);
+    assert.notEqual(lint().status, 0);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test('main: the Node note is the first line, before the steps', () => {
   const r = run([], {}, undefined, 'green: steps on Node 22 (x)');
   assert.deepEqual(r.lines, ['green: steps on Node 22 (x)', 'green: OK, 3 steps in 1m2s']);
-  assert.equal(run(['--list'], {}, undefined, 'green: steps on Node 22 (x)').lines.includes('green: steps on Node 22 (x)'), false);
+  assert.equal(
+    run(['--list'], {}, undefined, 'green: steps on Node 22 (x)').lines.includes(
+      'green: steps on Node 22 (x)'
+    ),
+    false
+  );
 });

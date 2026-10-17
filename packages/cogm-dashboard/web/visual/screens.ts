@@ -49,6 +49,11 @@ export const SCREENS: Screen[] = [
     show: async (page): Promise<void> => {
       await page.locator('[data-fold="handouts"]').click();
       await inPage('during', 'Torn ledger page')(page);
+      // The clicked fold button was in the loading shell: when the chunk is slow the loaded drawer
+      // takes the focus on a timer and shows its ring, when it is fast it does not. Let that timer
+      // pass, then drop the focus, so the shot is the same either way.
+      await page.evaluate(() => new Promise<void>(done => setTimeout(done, 150)));
+      await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
       // The Live Feed has its events (on a phone it starts folded: the head and the count show).
       await expect(page.locator('#feed-meta')).toHaveText('8 events');
       await expect(

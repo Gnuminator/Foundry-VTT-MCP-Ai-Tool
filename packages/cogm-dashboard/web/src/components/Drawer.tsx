@@ -204,7 +204,12 @@ export function LoadingDrawer({
     () => (): void => {
       // Runs before the shell leaves the page: a focused one hands the focus on, or it is lost.
       if (!document.getElementById(id)?.contains(document.activeElement)) return;
-      setTimeout(() => document.getElementById(id)?.focus({ preventScroll: true }), 0);
+      setTimeout(() => {
+        // Only when nothing took the focus meanwhile (a drawer's own first control, Radix).
+        if (document.activeElement === document.body) {
+          document.getElementById(id)?.focus({ preventScroll: true });
+        }
+      }, 0);
     },
     [id]
   );

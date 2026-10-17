@@ -279,3 +279,107 @@ test('a branch that changed package-lock.json itself is not refused', () => {
     fs.rmSync(tmp, { recursive: true, force: true });
   }
 });
+
+/** A lane with a built `shared` (src v1, dist v1) linked as a workspace package, as after `npm ci`. */
+function lanesShared() {
+  const r = repos();
+  const { lane, other } = r;
+  fs.mkdirSync(path.join(other, 'shared', 'src'), { recursive: true });
+  fs.writeFileSync(path.join(other, 'shared', 'package.json'), '{"name":"@gnuminator/shared"}\n');
+  fs.writeFileSync(path.join(other, 'shared', 'src', 'api.txt'), 'v1\n');
+  git(other, 'add', 'shared');
+  git(other, 'commit', '-q', '-m', 'shared package');
+  git(other, 'push', '-q', 'origin', 'HEAD:main');
+  git(lane, 'fetch', '-q', 'origin');
+  git(lane, 'merge', '-q', '--no-edit', 'origin/main');
+  fs.mkdirSync(path.join(lane, 'shared', 'dist'));
+  fs.writeFileSync(path.join(lane, 'shared', 'dist', 'api.txt'), 'v1\n');
+  const scope = path.join(lane, 'node_modules', '@gnuminator');
+  fs.mkdirSync(scope);
+  fs.symlinkSync(path.join(lane, 'shared'), path.join(scope, 'shared'), 'junction');
+  return r;
+}
+
+/** Main changes shared/src, as #397 did. */
+function mainChangesShared(other) {
+  fs.writeFileSync(path.join(other, 'shared', 'src', 'api.txt'), 'v2\n');
+  git(other, 'commit', '-q', '-am', 'main adds a shared export');
+  git(other, 'push', '-q', 'origin', 'HEAD:main');
+}
+
+const readsSharedDist = v => ({
+  name: 'shared build',
+  command: `node -e "process.exit(require('fs').readFileSync('node_modules/@gnuminator/shared/dist/api.txt','utf8').trim()==='${v}'?0:3)"`,
+});
+const buildShared =
+  "node -e \"const f=require('fs');f.mkdirSync('dist',{recursive:true});f.copyFileSync('src/api.txt','dist/api.txt')\"";
+
+/** @param {string} lane @param {object} opts */
+function runWith(lane, opts) {
+  const lines = [];
+  const code = runDriftCheck({ cwd: lane, log: l => lines.push(l), ...opts });
+  return { code, out: lines.join('\n') };
+}
+
+test('main changed shared/ (the #397 then #399 case): the merged tree gets its own shared build', () => {
+  const { tmp, lane, other } = lanesShared();
+  try {
+    mainChangesShared(other);
+    const head = git(lane, 'rev-parse', 'HEAD');
+    // The guard sees v2 only through a worktree-local link to a shared built from the merged tree.
+    const { code, out } = runWith(lane, {
+      checks: [readsSharedDist('v2')],
+      sharedBuild: buildShared,
+    });
+    assert.equal(code, 0, out);
+    assert.match(out, /merge changed shared\/; building shared/);
+    assert.equal(git(lane, 'rev-parse', 'HEAD'), head);
+    assert.equal(
+      fs.readFileSync(path.join(lane, 'shared', 'dist', 'api.txt'), 'utf8'),
+      'v1\n',
+      "the lane's own build is not touched"
+    );
+    assert.equal(fs.readdirSync(path.join(lane, 'node_modules', '@gnuminator')).join(), 'shared');
+    assert.equal(git(lane, 'worktree', 'list').split('\n').length, 1, 'the worktree is removed');
+    assert.equal(
+      fs.readFileSync(path.join(lane, 'node_modules', 'marker.txt'), 'utf8'),
+      'installed\n'
+    );
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('main left shared/ alone: no build runs and the borrowed workspace is used', () => {
+  const { tmp, lane, other } = lanesShared();
+  try {
+    commit(other, 'main.txt', 'from another lane\n', 'other lane merged');
+    git(other, 'push', '-q', 'origin', 'HEAD:main');
+    const { code, out } = runWith(lane, {
+      checks: [readsSharedDist('v1')],
+      sharedBuild: 'node -e "process.exit(9)"',
+    });
+    assert.equal(code, 0, out);
+    assert.doesNotMatch(out, /building shared/);
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('a failing shared build fails the check with its output, and the lane is untouched', () => {
+  const { tmp, lane, other } = lanesShared();
+  try {
+    mainChangesShared(other);
+    const { code, out } = runWith(lane, {
+      checks: [passes('never')],
+      sharedBuild: 'node -e "console.error(\'tsc exploded\');process.exit(2)"',
+    });
+    assert.equal(code, 1, out);
+    assert.match(out, /building shared from the merged tree failed:\r?\ntsc exploded/);
+    assert.doesNotMatch(out, /never/);
+    assert.equal(git(lane, 'worktree', 'list').split('\n').length, 1, 'the worktree is removed');
+    assert.equal(fs.readdirSync(path.join(lane, 'node_modules', '@gnuminator')).join(), 'shared');
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});

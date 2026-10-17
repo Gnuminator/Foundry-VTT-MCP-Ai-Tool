@@ -28,7 +28,7 @@ jobs:
     name: verify (version, types, lint, build, tests)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
@@ -70,7 +70,7 @@ jobs:
     needs: verify
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
@@ -149,7 +149,7 @@ jobs:
     needs: verify
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
@@ -210,7 +210,7 @@ jobs:
     needs: verify
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
@@ -248,7 +248,9 @@ jobs:
         shell: pwsh
         run: |
           $env:PATH = "C:\Program Files (x86)\NSIS;$env:PATH"
-          makensis /VERSION
+          $nsisVersion = (& makensis /VERSION | Out-String).Trim()
+          Write-Host "makensis $nsisVersion"
+          if ($nsisVersion -ne 'v3.10') { Write-Error "Expected makensis v3.10, got $nsisVersion"; exit 1 }
           Set-Location installer
           node build-nsis.js --version $env:TAG
 
@@ -331,7 +333,7 @@ jobs:
 
             **Manual bridge:** download `foundry-mcp-server-${{ github.ref_name }}.zip` and run it with Node 22 or later.
 
-            **Check a download:** `SHA256SUMS.txt` lists the SHA-256 of every file here. In PowerShell: `Get-FileHash <file>`; compare it with the line for that file.
+            **Check a download:** `SHA256SUMS.txt` lists the SHA-256 of every file here. In PowerShell: `Get-FileHash <file>`; compare it with the line for that file (case does not matter).
 
             **Obsidian plugin (optional, desktop):** unzip `foundry-ai-tool-obsidian.zip` into your vault's `.obsidian/plugins/` folder, then turn on "Foundry AI Tool" under Community plugins.
 

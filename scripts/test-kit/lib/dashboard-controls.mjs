@@ -240,7 +240,8 @@ export const DASHBOARD_CONTROLS = [
   {
     name: 'dash.during.fold-party',
     how: 'toggle',
-    reach: [MOMENT_DURING],
+    // The rows above leave the layout on "toggle" (Simple), which has no Party card at all: pick Cards first.
+    reach: [MOMENT_DURING, 'dash.during.layout-layered'],
     selector: '.fold-btn[data-fold="party"]',
     changes: true,
   },

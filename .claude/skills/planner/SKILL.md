@@ -32,6 +32,10 @@ Every new item gets an `- id:` (short, lowercase, stable, never changed or reuse
 live board at board.spennerit.com, D-124, links items by it) and a `- board:` line (its area on
 the board); `- pi: yes` where it needs a Pi day and the user's OK. Write a blocker in `blocked by`
 as `W21` for a Waiting item or `item:<id>` for another Backlog item (anything else is free text).
+Add `- touches: path, folder/` (what the item writes; a trailing "(about lines 5 to 9)" is ignored) and
+`- depends on: #380, item:<id>` (PRs and items that must merge or finish first) where they apply: the board's
+Lanes zone warns when two claimed items in different lanes touch the same path (or a folder and a file in it),
+and when an item is claimed before what it depends on is done or merged. Check those warnings before starting a lane.
 Remove items when merged (the PR is the record) and add a line to `## Done`; if a go / no-go light
 in `Board.md` names the removed item's id, repoint or drop that light, because an id no longer on
 the Backlog shows as "Check". Lows from reviews become S items. The board's Capture and Promote

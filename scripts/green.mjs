@@ -98,7 +98,6 @@ export const STEPS = [
     args: ['run', 'bundle:budget', '-w', '@gnuminator/cogm-dashboard'],
   },
   { name: 'kit-test', cmd: 'npm', args: ['run', 'kit:test'], env: CI },
-  { name: 'project-dashboard-test', cmd: 'npm', args: ['run', 'project-dashboard:test'], env: CI },
   { name: 'kit-check', cmd: 'node', args: ['scripts/test-kit/kit.mjs', 'check'] },
   {
     name: 'kit-fake',

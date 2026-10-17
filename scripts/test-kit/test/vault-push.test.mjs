@@ -4,7 +4,7 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { pushPaths, normalizePaths, parsePorcelain, otherChanges, defaultRun } from '../vault.mjs';
+import { pushPaths, normalizePaths, parsePorcelain, otherChanges, defaultRun } from '../lib/vault-push.mjs';
 
 function git(cwd, ...args) {
   return execFileSync('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
@@ -310,6 +310,48 @@ test('the command-line form reports an autostash that did not apply again', asyn
   assert.equal(r.state, 'error');
   assert.match(r.detail, /git stash/);
   assert.equal(hasStash(a), true);
+});
+
+test('a rejected push whose autostash does not apply again names the autostash and loses nothing', async () => {
+  const { a, b, remote } = makeVault();
+  // An uncommitted edit of a tracked file that the other PC's push will conflict with.
+  fs.writeFileSync(path.join(a, 'Note.md'), 'a session edit\n');
+  fs.writeFileSync(path.join(a, 'Mine.md'), 'mine\n');
+  let bHead = null;
+  const { run } = hooked(once('push', () => (bHead = pushFrom(b, 'Note.md', 'from b\n'))));
+  const r = await pushPaths({ dir: a, paths: ['Mine.md'], message: 'add mine', run });
+  assert.equal(r.state, 'error');
+  assert.match(r.detail, /autostash did not apply/);
+  assert.match(r.detail, /git stash/);
+  assert.doesNotMatch(r.detail, /rebase failed/);
+  assert.equal(hasStash(a), true);
+  assert.match(git(a, 'stash', 'show', '-p'), /a session edit/);
+  assert.equal(fs.readFileSync(path.join(a, 'Mine.md'), 'utf8'), 'mine\n');
+  // Nothing was force-pushed: the other PC's commit is still the remote's tip.
+  assert.equal(git(remote, 'rev-parse', 'main').trim(), bHead);
+});
+
+test('the strict form never stashes, even when merge.autoStash is set', async () => {
+  const { a, b } = makeVault();
+  git(a, 'config', 'merge.autoStash', 'true');
+  pushFrom(b, 'Note.md', 'from b\n');
+  const start = git(a, 'rev-parse', 'HEAD').trim();
+  const { run } = hooked(
+    once('fetch', () => fs.writeFileSync(path.join(a, 'Note.md'), 'a session edit\n'))
+  );
+  const r = await pushPaths({
+    dir: a,
+    paths: [OWN],
+    message: 'm',
+    requireClean: true,
+    run,
+    write: dir => writeOwn(dir, 'rows\n'),
+  });
+  assert.equal(r.state, 'waiting');
+  assert.match(r.detail, /the pull waits/);
+  assert.equal(fs.readFileSync(path.join(a, 'Note.md'), 'utf8'), 'a session edit\n');
+  assert.equal(hasStash(a), false);
+  assert.equal(git(a, 'rev-parse', 'HEAD').trim(), start);
 });
 
 test('pushPaths reports a missing repository and bad paths as errors', async () => {

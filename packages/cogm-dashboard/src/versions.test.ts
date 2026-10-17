@@ -139,6 +139,9 @@ describe('isPrivateHost and the url guard', () => {
   it('refuses this machine and private networks', () => {
     for (const h of [
       'localhost',
+      'localhost.',
+      'printer.local.',
+      'foundry-pi',
       'foo.localhost',
       'printer.local',
       '127.0.0.1',

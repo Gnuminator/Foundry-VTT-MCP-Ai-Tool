@@ -213,7 +213,12 @@ const MAX_REDIRECTS = 3;
  * a name that resolves to a private address is not caught.
  */
 export function isPrivateHost(hostname: string): boolean {
-  const h = hostname.toLowerCase().replace(/^\[|\]$/g, '');
+  const h = hostname
+    .toLowerCase()
+    .replace(/^\[|\]$/g, '')
+    .replace(/\.+$/, '');
+  // A name without a dot (and not an address) is a machine on the local network.
+  if (!h.includes('.') && !h.includes(':')) return true;
   if (h === 'localhost' || h.endsWith('.localhost') || h.endsWith('.local')) return true;
   if (h === '::1' || h === '::' || /^f[cd][0-9a-f]{2}:/.test(h) || /^fe[89ab][0-9a-f]:/.test(h)) {
     return true;
@@ -399,6 +404,16 @@ export class VersionTracker {
   private newest: NewestVersions | null = null;
   private checkedAt: number | null = null;
   private inFlight: Promise<void> | null = null;
+  /** Checks in a row that had a failed lookup; a manifest that never answers backs the retry off. */
+  private failedChecks = 0;
+
+  /** Ten minutes after the first failed check, doubling each time, never past the six hours. */
+  private retryAfter(): number {
+    return Math.min(
+      VERSIONS_RETRY_MS * 2 ** Math.max(0, this.failedChecks - 1),
+      VERSIONS_REFRESH_MS
+    );
+  }
   private readonly fetchImpl: FetchLike;
   private readonly now: () => number;
 
@@ -428,12 +443,17 @@ export class VersionTracker {
       const retry = this.newest !== null && (this.newest.errors > 0 || this.missing(installed));
       const due =
         this.checkedAt === null ||
-        age >= (retry ? VERSIONS_RETRY_MS : VERSIONS_REFRESH_MS) ||
+        age >= (retry ? this.retryAfter() : VERSIONS_REFRESH_MS) ||
         (force && age >= VERSIONS_FORCE_MIN_MS);
       if (due) {
         const started = this.refresh(installed);
         if (this.checkedAt === null) {
-          await Promise.race([started, new Promise<void>(r => setTimeout(r, FIRST_WAIT_MS))]);
+          let timer: NodeJS.Timeout | undefined;
+          const wait = new Promise<void>(r => {
+            timer = setTimeout(r, FIRST_WAIT_MS);
+          });
+          await Promise.race([started, wait]);
+          clearTimeout(timer);
         }
       }
     }
@@ -458,6 +478,7 @@ export class VersionTracker {
     this.inFlight ??= fetchNewest(installed, this.fetchImpl)
       .then(found => {
         this.newest = found;
+        this.failedChecks = found.errors > 0 || this.missing(installed) ? this.failedChecks + 1 : 0;
         this.checkedAt = this.now();
       })
       .catch(() => {

@@ -85,7 +85,7 @@ function publicManifestUrl(value: unknown): string | null {
   if (typeof value !== 'string' || value.length > 500) return null;
   try {
     const url = new URL(value);
-    if (url.protocol !== 'https:' && url.protocol !== 'http:') return null;
+    if (url.protocol !== 'https:') return null;
     if (url.username || url.password || url.search) return null;
     return url.href;
   } catch {

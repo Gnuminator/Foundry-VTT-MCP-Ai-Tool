@@ -3,8 +3,11 @@
 // adds only the given paths, commits them and pushes (the push also carries any other local
 // commits not pushed yet, as a plain `git push` would):
 //
-//   npm run vault:sync -- push -m "message" <path in the vault>...   [--dir <vault>]
-//   npm run vault:sync -- status                                      [--dir <vault>]
+//   node scripts/test-kit/lib/vault-push.mjs push -m "message" <path in the vault>...   [--dir <vault>]
+//   node scripts/test-kit/lib/vault-push.mjs status                                      [--dir <vault>]
+//
+// Copied from the Control Center repo's vault.mjs (Gnuminator/control-center) when the in-repo
+// project dashboard was deleted; the test kit's `kit:run` writes its vault note through it.
 //
 //   pushPaths({ dir, paths, message, requireClean, write, run }) ->
 //     { state: 'pushed'|'nothing'|'waiting'|'error', detail, at }
@@ -122,16 +125,20 @@ async function pullRebase(git, dir) {
   if (pull.code !== 0) {
     const conflict = /could not apply|CONFLICT/.test(`${pull.stdout}\n${pull.stderr}`);
     if (!rebaseBefore && rebaseRunning(dir) && conflict) await git(['rebase', '--abort']);
-    return firstLine(pull.stderr, 'git pull failed');
+    return { text: firstLine(pull.stderr, 'git pull failed'), stash: false };
   }
   const stashAfter = await stashTop(git);
   if (stashAfter && stashAfter !== stashBefore)
-    return `the other local edits did not apply again after the pull; they are in git stash ${stashAfter.slice(0, 10)}`;
+    return {
+      text: `the other local edits did not apply again after the pull; they are in git stash ${stashAfter.slice(0, 10)}`,
+      stash: true,
+    };
   return null;
 }
 
 // The strict form never stashes: fetch, then fast-forward only. git refuses, and changes
-// nothing, when an incoming change touches a file edited here; a vault holding commits nobody
+// nothing, when an incoming change touches a file edited here (`--no-autostash` keeps a user's
+// `merge.autoStash=true` from stashing anyway); a vault holding commits nobody
 // pushed yet waits, so the page never pushes another session's commits.
 async function syncClean(git) {
   const fetch = await git(['fetch', '--quiet']);
@@ -149,7 +156,7 @@ async function syncClean(git) {
       state: 'waiting',
       detail: `the vault has ${n} local commit${n === 1 ? '' : 's'} not pushed yet`,
     };
-  const ff = await git(['merge', '--ff-only', '--quiet', '@{u}']);
+  const ff = await git(['merge', '--ff-only', '--no-autostash', '--quiet', '@{u}']);
   if (ff.code !== 0)
     return {
       state: 'waiting',
@@ -205,7 +212,7 @@ export async function pushPaths({
     if (sync) return result(sync.state, sync.detail);
   } else {
     const failed = await pullRebase(git, dir);
-    if (failed) return result('error', `pull failed: ${failed}`);
+    if (failed) return result('error', `pull failed: ${failed.text}`);
   }
 
   // Write, add and commit only our files: null once committed, else the result to return.
@@ -244,24 +251,36 @@ export async function pushPaths({
   } else {
     const failed = await pullRebase(git, dir);
     if (failed) {
-      await undoOwnCommit(git, message, own);
-      return result('error', `push rejected and the rebase failed: ${failed}`);
+      const undo = await undoOwnCommit(git, message, own);
+      const cause = failed.stash
+        ? `push rejected and the autostash did not apply again after the rebase: ${failed.text}`
+        : `push rejected and the rebase failed: ${failed.text}`;
+      return result('error', undo.ok ? cause : `${cause}; ${undo.detail}`);
     }
   }
   const push = await git(['push', '--quiet']);
   if (push.code === 0) return pushed();
-  await undoOwnCommit(git, message, own);
-  return result('error', `push failed: ${firstLine(push.stderr, 'git push failed')}`);
+  const undo = await undoOwnCommit(git, message, own);
+  const cause = `push failed: ${firstLine(push.stderr, 'git push failed')}`;
+  return result('error', undo.ok ? cause : `${cause}; ${undo.detail}`);
 }
 
-// Take back our unpushed commit (only when HEAD is it), keeping the files as local edits.
+// Take back our unpushed commit (only when HEAD is it), keeping the files as local edits. Says so
+// when it cannot: { ok: false, detail } (the commit then stays local, never forced anywhere).
 async function undoOwnCommit(git, message, own) {
+  const stays = why => ({
+    ok: false,
+    detail: `the commit could not be taken back (${why}) and stays local, unpushed`,
+  });
   const head = await git(['log', '-1', '--format=%s']);
   const ahead = await git(['rev-list', '--count', '@{u}..HEAD']);
-  if (head.code !== 0 || head.stdout.trim() !== message.split('\n')[0]) return;
-  if (ahead.code !== 0 || Number(ahead.stdout.trim()) < 1) return;
-  await git(['reset', '--soft', 'HEAD~1']);
+  if (head.code !== 0 || head.stdout.trim() !== message.split('\n')[0])
+    return stays('HEAD is not it');
+  if (ahead.code !== 0 || Number(ahead.stdout.trim()) < 1) return stays('it is not ahead');
+  const reset = await git(['reset', '--soft', 'HEAD~1']);
+  if (reset.code !== 0) return stays(firstLine(reset.stderr, 'git reset failed'));
   await git(['restore', '--staged', '--', ...own]);
+  return { ok: true, detail: '' };
 }
 
 async function cli(argv) {

@@ -41,7 +41,7 @@ Game night uses the Pi's own ports, so the world, the module and the tunnel need
 network: two copies of the world must never run at once. There is no switch past that: unplug the
 Pi. The check needs this PC's Tailscale connected (away from home it is the only way to see the
 Pi); with Tailscale off, unplug the Pi and add `-PiUnplugged`. Every start refuses a port that is taken, or one that belongs to the test server
-(30001, 31514 to 31516, 3100) or the project dashboard (3200). The game-night ports include the
+(30001, 31514 to 31516, 3100) or the Control Center (3200). The game-night ports include the
 live bridge ports 31414 and 31415, an exception to the PC rule that the user granted for
 `-GameNight` only (2026-10-09).
 

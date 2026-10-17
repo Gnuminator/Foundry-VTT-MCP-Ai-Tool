@@ -23,7 +23,7 @@ import { EnvError } from './lib/errors.mjs';
 import { loadProfile } from './lib/profiles.mjs';
 import { kitHome, TEST_SERVERS, testServer } from './lib/targets.mjs';
 import { newConsoleGroups, newRunDir } from './lib/report.mjs';
-import { pushPaths, vaultDirFrom } from '../dev/project-dashboard/vault.mjs';
+import { pushPaths, vaultDirFrom } from './lib/vault-push.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(here, '..', '..');

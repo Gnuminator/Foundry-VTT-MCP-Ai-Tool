@@ -2,7 +2,7 @@
 // paths, against a fake of the /api/player-links routes (me-route.ts) in the browser.
 import { expect, test, type Locator, type Page, type Request } from '@playwright/test';
 
-import { GM_TOKEN, fakeCommonRoutes, toast, fromMenu } from './support';
+import { GM_TOKEN, fakeCommonRoutes, fakeStream, toast, fromMenu } from './support';
 
 interface FakePlayer {
   userId: string;
@@ -84,6 +84,8 @@ test.beforeEach(async ({ page, context }) => {
 test('the page loads on /next/ with the old look and keeps the token out of the address bar', async ({
   page,
 }) => {
+  // The real stream would send its own theme on connect and replace the faked world theme.
+  await fakeStream(page, []);
   const styles = page.waitForResponse(res => res.url().endsWith('/styles.css'));
   await page.goto(`/next/?token=${GM_TOKEN}`);
   expect((await styles).status()).toBe(200);

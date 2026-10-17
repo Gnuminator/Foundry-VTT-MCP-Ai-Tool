@@ -46,6 +46,12 @@ export interface DashboardSettings {
   obsidian?: { vault: string } | null;
 }
 
+/** The world's theme in the query cache: /api/theme on load, the stream's `theme` event after. */
+export const THEME_KEY = ['theme'] as const;
+export interface WorldTheme {
+  theme: string;
+}
+
 export const SETTINGS_KEY = ['stream', 'settings'] as const;
 
 /** The Foundry world (app.ts world event, GM only); null while Foundry is not reachable. */
@@ -183,6 +189,14 @@ const HANDLERS: Record<string, (queryClient: QueryClient, data: unknown) => void
     queryClient.setQueryData<DashboardSettings>(SETTINGS_KEY, data as DashboardSettings),
   world: (queryClient, data) =>
     queryClient.setQueryData<WorldInfo | null>(WORLD_KEY, (data as WorldInfo | null) ?? null),
+  // The world's theme, sent on connect and whenever any page changes it (lib/theme.ts applies it).
+  theme: (queryClient, data) => {
+    const theme = (data as { theme?: unknown } | null)?.theme;
+    if (typeof theme !== 'string') return;
+    // A load of /api/theme still on its way is older than this event: it must not overwrite it.
+    void queryClient.cancelQueries({ queryKey: THEME_KEY }, { revert: false });
+    queryClient.setQueryData<WorldTheme>(THEME_KEY, { theme });
+  },
   // The GM's screen choices for this world (lib/prefs.ts).
   prefs: onPrefs,
   // The whole fight (lib/combat.ts), null when none runs: the During layouts and the strip read it.

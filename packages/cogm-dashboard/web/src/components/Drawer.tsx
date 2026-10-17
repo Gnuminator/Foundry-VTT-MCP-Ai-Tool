@@ -2,6 +2,7 @@ import { Dialog } from 'radix-ui';
 import {
   createContext,
   useContext,
+  useEffect,
   useLayoutEffect,
   useState,
   useSyncExternalStore,
@@ -162,8 +163,11 @@ function dockedProps(
 /**
  * What a drawer shows while its panel's chunk loads (LazyPanel): the real drawer's id and title
  * over a loading body, in the dock slot it will take or floating with a ✕. A plain panel, not a
- * dialog: it takes no place in the Escape order or the stacking of open drawers, which start when
- * the real drawer mounts.
+ * dialog: it takes no place in the stacking of open drawers, which starts when the real drawer
+ * mounts. Floating, Escape closes it (it is listed under the id the real drawer takes over). A
+ * docked one that has the focus hands it to the real panel when that replaces it. `failed` is the
+ * chunk that did not load: the same drawer with an error in the body, so a later click on its
+ * button shows why nothing opened.
  */
 export function LoadingDrawer({
   open,
@@ -171,6 +175,7 @@ export function LoadingDrawer({
   id,
   title,
   pane = false,
+  failed = false,
 }: {
   open: boolean;
   onClose: () => void;
@@ -178,13 +183,41 @@ export function LoadingDrawer({
   title: ReactNode;
   /** A pane that only docks (Recent Changes), not a drawer: it has no floating form. */
   pane?: boolean;
+  failed?: boolean;
 }): JSX.Element | null {
   const dockSlot = useContext(DockContext);
   const fold = useCardFold();
+  const floating = open && !dockSlot && !pane;
+  useEscapeClose(floating, onClose, id);
+  useEffect(() => {
+    if (!floating) return;
+    // Not a Radix dialog, so nothing hands it the key: the same order as the drawers (escape.ts).
+    const onKey = (event: KeyboardEvent): void => {
+      if (event.key !== 'Escape' || event.defaultPrevented) return;
+      event.preventDefault();
+      closeTopPanel();
+    };
+    document.addEventListener('keydown', onKey);
+    return (): void => document.removeEventListener('keydown', onKey);
+  }, [floating]);
+  useLayoutEffect(
+    () => (): void => {
+      // Runs before the shell leaves the page: a focused one hands the focus on, or it is lost.
+      if (!document.getElementById(id)?.contains(document.activeElement)) return;
+      setTimeout(() => document.getElementById(id)?.focus({ preventScroll: true }), 0);
+    },
+    [id]
+  );
   if (!open) return null;
+  const faces = failed
+    ? ({
+        state: 'error',
+        stateMessage: 'Could not load this panel. Reload the page to try again.',
+      } as const)
+    : ({ state: 'loading' } as const);
   const shell = pane
-    ? ({ as: 'section', variant: 'pane', id, title, state: 'loading' } as const)
-    : ({ as: 'aside', variant: 'drawer', id, title, state: 'loading' } as const);
+    ? ({ as: 'section', variant: 'pane', id, title, ...faces } as const)
+    : ({ as: 'aside', variant: 'drawer', id, title, ...faces } as const);
   if (dockSlot) return createPortal(<Panel {...shell} {...dockedProps(id, fold)} />, dockSlot);
   return (
     <Panel

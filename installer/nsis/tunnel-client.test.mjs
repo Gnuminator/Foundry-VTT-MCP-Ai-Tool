@@ -72,4 +72,28 @@ describe('tunnel-client.ps1 Install', () => {
     assert.ok(trim < src.indexOf('$configPath = Join-Path $StateDir'), 'before $configPath is built');
     assert.ok(src.includes('$StateDir.Length -gt 3'), 'a bare drive root is left alone');
   });
+
+  test('audit L2: the plain-text token file is deleted after the DPAPI copy is written', () => {
+    const write = install.indexOf('[System.IO.File]::WriteAllLines($tokenPath');
+    const del = install.indexOf('Remove-Item -LiteralPath $TokenFile');
+    assert.ok(write > 0 && del > write, 'Remove-Item on the token file comes after the DPAPI write');
+    assert.ok(!install.includes('Delete $TokenFile now'), 'no more "delete it yourself" line');
+  });
+
+  test('audit L4: a folder others can write to is refused before anything is stored or registered', () => {
+    const check = install.indexOf('Get-SharedWriters $f');
+    assert.ok(check > 0, 'Install checks the script and cloudflared folders');
+    assert.ok(check < install.indexOf('WriteAllLines($tokenPath'), 'before the token is stored');
+    assert.ok(check < install.indexOf('Register-ScheduledTask'), 'before the logon task is registered');
+    assert.ok(src.includes('catch {') && src.includes('could not be read'), 'an unreadable ACL fails closed');
+    assert.match(src, /\[int64\]\$write = 0x500D0046/, 'the mask covers GENERIC_WRITE and GENERIC_ALL');
+    const refusal = install.slice(check, install.indexOf('$secretSecure = $null'));
+    assert.ok(refusal.includes('Unregister-ScheduledTask'), 'a refusal removes the logon task of an earlier install');
+    assert.ok(refusal.indexOf('Unregister-ScheduledTask') < refusal.indexOf('Fail "$f can be changed'), 'before the Fail');
+  });
+
+  test('the installer script holds no raw carriage returns (NSIS string escapes must stay $\\r$\\n)', () => {
+    const nsi = readFileSync(path.join(here, 'foundry-mcp-server.nsi'), 'utf8');
+    assert.ok(!nsi.includes('\r'), 'a raw CR in a MessageBox string breaks makensis');
+  });
 });

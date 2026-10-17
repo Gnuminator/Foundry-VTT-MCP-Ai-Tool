@@ -63,6 +63,23 @@ function Test-BridgeHost {
     return ($Value -match '^[A-Za-z0-9.-]+$') -or ($Value -match '^\[[0-9A-Fa-f:.]+\]$')
 }
 
+# True for loopback, private LAN, Tailscale (100.64/10), IPv6 loopback/unique-local and names that are
+# not dotted (a LAN name) or end in .local, .lan, .internal, .ts.net. False means "may be the open internet".
+function Test-PrivateBridgeHost {
+    param([string]$Value)
+    $v = $Value.Trim('[', ']').ToLowerInvariant()
+    # A bare number or 0x... is an IPv4 address in disguise to the Windows resolver; a leading zero reads as octal.
+    if ($v -match '^(0x[0-9a-f]+|\d+)$' -or $v -match '(^|\.)0\d') { return $false }
+    if ($v -match '^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$') {
+        $a = [int]$Matches[1]; $b = [int]$Matches[2]
+        return ($a -eq 127) -or ($a -eq 10) -or ($a -eq 192 -and $b -eq 168) -or ($a -eq 172 -and $b -ge 16 -and $b -le 31) -or ($a -eq 100 -and $b -ge 64 -and $b -le 127)
+    }
+    if ($v.Contains(':')) { return ($v -eq '::1') -or ($v -match '^f[cd][0-9a-f]{2}:') }
+    if ($v -eq 'localhost') { return $true }
+    if ($v -notmatch '\.') { return $true }
+    return $v -match '\.(local|lan|internal|home\.arpa|ts\.net)$'
+}
+
 function Test-BridgePort {
     param([string]$Value)
     # No leading zero (some tools read it as octal), 1 to 65535.
@@ -347,6 +364,9 @@ try {
         if (-not (Test-BridgePort $BridgePort)) {
             Write-LogMessage "Invalid bridge port: '$BridgePort' (1 to 65535)" 'ERROR'
             exit 4
+        }
+        if (-not (Test-PrivateBridgeHost $BridgeHost)) {
+            Write-LogMessage "The bridge address '$BridgeHost' is not on this PC, a private network or Tailscale. The bridge port has no login and the traffic is not encrypted: use the Cloudflare tunnel option instead (see the README), and do not open the bridge port to the internet." 'WARN'
         }
         $nodeExe = Join-Path $InstallDir 'node.exe'
         $clientScript = Join-Path $InstallDir 'foundry-mcp-client\index.cjs'

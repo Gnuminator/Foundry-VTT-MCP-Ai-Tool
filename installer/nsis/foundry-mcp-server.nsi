@@ -493,6 +493,13 @@ Function SetupTunnel
     MessageBox MB_ICONEXCLAMATION|MB_OK "The tunnel client was installed, but the bridge did not answer through it.$\r$\n$\r$\nThe usual causes are a mistyped service token, or the server's owner has not added the token yet. Run this installer again to enter the token again." /SD IDOK
     Return
   ${EndIf}
+  ; 2: refused, the install folder can be changed by other accounts (or a bad argument)
+  ${If} $0 == 2
+    SetErrorLevel 2
+    DetailPrint "Setting up the Cloudflare tunnel was refused (exit code 2): the install folder is writable by others."
+    MessageBox MB_ICONEXCLAMATION|MB_OK "The Cloudflare tunnel was not set up.$\r$\n$\r$\nThe install folder can be changed by other accounts on this PC, and the tunnel starts programs from it at every logon. Install again into the default folder (under your own user profile). Any tunnel from an earlier install was switched off." /SD IDOK
+    Return
+  ${EndIf}
   SetErrorLevel 1
   DetailPrint "Setting up the Cloudflare tunnel failed (exit code $0)."
   MessageBox MB_ICONEXCLAMATION|MB_OK "The Cloudflare tunnel could not be set up (code $0).$\r$\n$\r$\nRun this installer again, or ask for help." /SD IDOK

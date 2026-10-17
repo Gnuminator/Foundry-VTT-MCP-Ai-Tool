@@ -838,6 +838,51 @@ test('M2: a fresh lock held by another lane refuses, a stale one is taken over',
   assert.ok(!fs.existsSync(`${state}.lock`));
 });
 
+test('M2 (#314 L4): two runs that both saw the same stale lock do not both get in', () => {
+  const dir = tmpDir();
+  const state = path.join(dir, 'merge-train.json');
+  const lock = `${state}.lock`;
+  fs.writeFileSync(lock, '{"pid":1,"at":"killed run"}');
+  const old = new Date(Date.now() - 11 * 60 * 1000);
+  fs.utimesSync(lock, old, old);
+  let releaseA = null;
+  let contentA = '';
+  let fired = false;
+  // Run B has seen the stale lock; before B takes it over, run A takes it over and creates its own.
+  const errorB = acquireLockSafely(state, {
+    timeoutMs: 50,
+    wait: () => {},
+    afterStaleSeen: () => {
+      if (fired) return;
+      fired = true;
+      releaseA = acquireLock(state, { timeoutMs: 50 });
+      contentA = fs.readFileSync(lock, 'utf8');
+    },
+  });
+  assert.ok(releaseA, 'run A got the lock');
+  assert.match(errorB, /another lane:merge holds/, 'run B must not also get in');
+  assert.equal(fs.readFileSync(lock, 'utf8'), contentA, "run A's lock is still the one in place");
+  assert.deepEqual(
+    fs.readdirSync(dir).filter(n => n.includes('.stale-')),
+    [],
+    'no renamed stale locks are left behind'
+  );
+  releaseA();
+  assert.ok(!fs.existsSync(lock));
+});
+
+test('M2 (#314 L4): a taken-over stale lock leaves no renamed file behind', () => {
+  const dir = tmpDir();
+  const state = path.join(dir, 'merge-train.json');
+  fs.writeFileSync(`${state}.lock`, '{}');
+  const old = new Date(Date.now() - 11 * 60 * 1000);
+  fs.utimesSync(`${state}.lock`, old, old);
+  const release = acquireLock(state, { timeoutMs: 50 });
+  assert.deepEqual(fs.readdirSync(dir), ['merge-train.json.lock']);
+  release();
+  assert.deepEqual(fs.readdirSync(dir), []);
+});
+
 /** The error message of acquireLock, or '' when it got the lock. */
 function acquireLockSafely(file, opts) {
   try {

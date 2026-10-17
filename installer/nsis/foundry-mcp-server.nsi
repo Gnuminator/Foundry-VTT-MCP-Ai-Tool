@@ -497,9 +497,7 @@ Function SetupTunnel
   ${If} $0 == 2
     SetErrorLevel 2
     DetailPrint "Setting up the Cloudflare tunnel was refused (exit code 2): the install folder is writable by others."
-    MessageBox MB_ICONEXCLAMATION|MB_OK "The Cloudflare tunnel was not set up.$$
-$$
-The install folder can be changed by other accounts on this PC, and the tunnel starts programs from it at every logon. Install again into the default folder (under your own user profile). Any tunnel from an earlier install was switched off." /SD IDOK
+    MessageBox MB_ICONEXCLAMATION|MB_OK "The Cloudflare tunnel was not set up.$\r$\n$\r$\nThe install folder can be changed by other accounts on this PC, and the tunnel starts programs from it at every logon. Install again into the default folder (under your own user profile). Any tunnel from an earlier install was switched off." /SD IDOK
     Return
   ${EndIf}
   SetErrorLevel 1

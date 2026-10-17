@@ -91,4 +91,9 @@ describe('tunnel-client.ps1 Install', () => {
     assert.ok(refusal.includes('Unregister-ScheduledTask'), 'a refusal removes the logon task of an earlier install');
     assert.ok(refusal.indexOf('Unregister-ScheduledTask') < refusal.indexOf('Fail "$f can be changed'), 'before the Fail');
   });
+
+  test('the installer script holds no raw carriage returns (NSIS string escapes must stay $\\r$\\n)', () => {
+    const nsi = readFileSync(path.join(here, 'foundry-mcp-server.nsi'), 'utf8');
+    assert.ok(!nsi.includes('\r'), 'a raw CR in a MessageBox string breaks makensis');
+  });
 });

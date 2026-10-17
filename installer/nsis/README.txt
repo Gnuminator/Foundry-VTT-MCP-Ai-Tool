@@ -34,8 +34,8 @@ SILENT INSTALL
   FoundryMCPServer-Setup-vX.Y.Z.exe /S /HOST=<name or IP> [/PORT=31414] [/D=<folder>]
   FoundryMCPServer-Setup-vX.Y.Z.exe /S /TUNNEL=<mcp.domain> /TUNNELTOKENFILE=<file> [/PORT=31414]
 
-The token file holds the Client ID on line 1 and the secret on line 2; delete it yourself after the
-install. On an upgrade /TUNNEL alone reuses the stored token.
+The token file holds the Client ID on line 1 and the secret on line 2. The installer deletes it once
+the token is stored (encrypted, for your Windows user only). On an upgrade /TUNNEL alone reuses the stored token.
 
 /HOST is required on a first silent install (a later one can reuse the address the installer
 remembered). The installer waits up to two minutes for Claude Desktop to quit; if it is still

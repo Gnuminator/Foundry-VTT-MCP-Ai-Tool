@@ -68,7 +68,7 @@ a logon task that keeps `cloudflared access tcp` running on `127.0.0.1:<port>`, 
 
 - **Silent install:** `FoundryMCPServer-Setup-vX.Y.Z.exe /S /HOST=<name or IP> [/PORT=31414]`, or
   through the tunnel `/S /TUNNEL=<mcp.domain> /TUNNELTOKENFILE=<file> [/PORT=31414]` (line 1 of the
-  file is the Client ID, line 2 the secret; the installer does not delete the file, you do).
+  file is the Client ID, line 2 the secret; the installer deletes the file once the token is stored).
   `/HOST` is required on a first silent install (a later one reuses the remembered address).
   Exit code 3 means Claude Desktop was still running after two minutes, 2 means the address was
   missing or invalid, and 1 means Claude Desktop could not be configured (log:

@@ -169,6 +169,28 @@ function Get-TaskState {
   try { return (Get-ScheduledTask -TaskName $TaskName -ErrorAction Stop).State.ToString() } catch { return $null }
 }
 
+# Names (other than this user, SYSTEM and Administrators) that an allow rule lets change files in $folder.
+# Empty when the folder is private. An unreadable ACL counts as shared (fails closed).
+function Get-SharedWriters([string]$folder) {
+  $write = [System.Security.AccessControl.FileSystemRights]'WriteData, AppendData, Delete, DeleteSubdirectoriesAndFiles, ChangePermissions, TakeOwnership'
+  $me = [System.Security.Principal.WindowsIdentity]::GetCurrent().User
+  $ok = @($me.Value, 'S-1-5-18', 'S-1-5-32-544', 'S-1-3-0', 'S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464')
+  try {
+    $acl = Get-Acl -LiteralPath $folder -ErrorAction Stop
+    $out = @()
+    foreach ($r in $acl.Access) {
+      if ($r.AccessControlType -ne 'Allow') { continue }
+      if (($r.FileSystemRights -band $write) -eq 0) { continue }
+      $sid = $r.IdentityReference.Translate([System.Security.Principal.SecurityIdentifier]).Value
+      if ($sid -in $ok) { continue }
+      $out += $r.IdentityReference.Value
+    }
+    return @($out | Select-Object -Unique)
+  } catch {
+    return @("(the access list could not be read: $($_.Exception.Message))")
+  }
+}
+
 switch ($Action) {
   'Install' {
     if (-not (Test-HostName $TunnelHost)) { Fail '-TunnelHost must be a plain host name such as mcp.example.com' 2 }
@@ -177,6 +199,13 @@ switch ($Action) {
     if (-not $CloudflaredPath) { $CloudflaredPath = Join-Path $PSScriptRoot 'cloudflared.exe' }
     if (-not (Test-Path -LiteralPath $CloudflaredPath -PathType Leaf)) { Fail "cloudflared.exe is not at $CloudflaredPath (-CloudflaredPath)" 2 }
     $CloudflaredPath = (Resolve-Path -LiteralPath $CloudflaredPath).Path
+    # The logon task runs this script and cloudflared.exe with the token: refuse folders others can change.
+    foreach ($f in @((Split-Path -Parent $PSCommandPath), (Split-Path -Parent $CloudflaredPath)) | Select-Object -Unique) {
+      $bad = @(Get-SharedWriters $f)
+      if ($bad.Count -gt 0) {
+        Fail "the folder $f can be changed by $($bad -join ', '); what runs at every logon lives there. Install into a folder only you can write to (the default is under %LOCALAPPDATA%)." 2
+      }
+    }
 
     $secretSecure = $null
     $clientId = $null
@@ -220,6 +249,15 @@ switch ($Action) {
       $secretLine = ConvertFrom-SecureString -SecureString $secretSecure
       [System.IO.File]::WriteAllLines($tokenPath, [string[]]@($idLine, $secretLine))
       Write-Host "Stored the token for $env:USERNAME only ($tokenPath)."
+      # The DPAPI copy is the only one that should exist: remove the plain-text file the token came from.
+      if ($TokenFile) {
+        try {
+          Remove-Item -LiteralPath $TokenFile -Force -ErrorAction Stop
+          Write-Host "Deleted $TokenFile (the token is now stored for this Windows user only)."
+        } catch {
+          Write-Warning "Could not delete $TokenFile ($($_.Exception.Message)). Delete it yourself: it still holds the token in plain text."
+        }
+      }
     }
     if (-not $NoStart) {
       # Before tunnel.json is overwritten, so the old host and port are still read from it: a
@@ -275,7 +313,6 @@ switch ($Action) {
         exit 4
       }
     }
-    if ($TokenFile) { Write-Host "Delete $TokenFile now: it still holds the token in plain text." }
     if ($Pause) { Read-Host 'Press Enter to close this window' | Out-Null }
     exit 0
   }

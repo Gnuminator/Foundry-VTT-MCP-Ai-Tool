@@ -14,17 +14,47 @@ const read = (relative: string): string =>
  */
 const RECORDED_SKIPS: Record<string, string> = {};
 
+/** Source text without `//` and block comments (a `]` in a comment must not end an array). */
+export function stripComments(source: string): string {
+  return source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:'"`])\/\/.*$/gm, '$1');
+}
+
 /** Every tool name listed in a `tools: [...]` array of tool-sets.ts. */
-function toolSetNames(): string[] {
-  const source = read('../../mcp-server/src/tool-sets.ts');
+export function toolSetNamesOf(source: string): string[] {
   const names = new Set<string>();
-  for (const block of source.matchAll(/tools:\s*\[([^\]]*)\]/g)) {
+  for (const block of stripComments(source).matchAll(/tools:\s*\[([^\]]*)\]/g)) {
     for (const name of block[1].matchAll(/'([a-z][a-z0-9-]*)'/g)) names.add(name[1]);
   }
   return [...names];
 }
 
+function toolSetNames(): string[] {
+  return toolSetNamesOf(read('../../mcp-server/src/tool-sets.ts'));
+}
+
 describe('live sweep coverage (I-016)', () => {
+  it('reads the names after a comment that holds a closing bracket', () => {
+    const source = [
+      "tools: ['alpha-one', // see [I-016]",
+      "  'beta-two', /* [x] */ 'gamma-three',",
+      '],',
+    ].join('\n');
+    expect(toolSetNamesOf(source)).toEqual(['alpha-one', 'beta-two', 'gamma-three']);
+  });
+
+  it('finds every quoted tool entry between TOOL_SETS and TOOL_SETS_ENV', () => {
+    const source = read('../../mcp-server/src/tool-sets.ts');
+    const start = source.indexOf('export const TOOL_SETS:');
+    const end = source.indexOf('export const TOOL_SETS_ENV');
+    const quoted = new Set<string>();
+    for (const block of stripComments(source.slice(start, end)).matchAll(
+      /tools:\s*\[([\s\S]*?)\n\s*\],/g
+    )) {
+      for (const name of block[1].matchAll(/'([a-z][a-z0-9-]*)'/g)) quoted.add(name[1]);
+    }
+    expect(toolSetNames().sort()).toEqual([...quoted].sort());
+  });
+
   it('runs every write tool and every guarded plan tool, or records why not', () => {
     const names = toolSetNames();
     expect(names.length).toBeGreaterThan(50);

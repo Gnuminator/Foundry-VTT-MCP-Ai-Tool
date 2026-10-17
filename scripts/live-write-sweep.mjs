@@ -1522,11 +1522,22 @@ async function cleanUp() {
       const left = ctx.pending.length;
       for (const change of [...ctx.pending].reverse()) await quiet(undo(change));
       if (ctx.queuedPage) {
-        await quiet(
-          tool('plan-page-reveal', { action: 'unqueue', pageUuid: ctx.queuedPage }).then(() => {
-            ctx.queuedPage = null;
-          })
+        // A page that is not in the queue (the queue call never ran, or the unqueue worked and
+        // only its answer was lost) is already clean: unqueueing it would only add a FAIL line.
+        const uuid = ctx.queuedPage;
+        const listed = await tool('list-revealed-pages', {}).then(
+          r => ((r || {}).queue || []).some(q => q.uuid === uuid),
+          () => true // cannot tell: try the unqueue
         );
+        if (listed) {
+          await quiet(
+            tool('plan-page-reveal', { action: 'unqueue', pageUuid: uuid }).then(() => {
+              ctx.queuedPage = null;
+            })
+          );
+        } else {
+          ctx.queuedPage = null;
+        }
       }
       assert(
         ctx.pending.length === 0 && !ctx.queuedPage,

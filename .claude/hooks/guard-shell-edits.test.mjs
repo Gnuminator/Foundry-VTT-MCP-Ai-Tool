@@ -301,10 +301,16 @@ test('M4: a 100 KB single token or minified command is answered fast (and over t
     `${'-replace Set-Content a b c d e f g h '.repeat(2_600)}`,
     `-replace x; ${'Out-File '.repeat(11_000)}`,
   ];
+  // Best of 3: a busy machine (a parallel `npm run green`) can stall one run past the cap, but a
+  // hook that really backtracks is slow on every run, so the fastest run still exceeds it.
   for (const c of slow) {
-    const t = Date.now();
-    assert.equal(decide(c, CWD, ROOT), null);
-    assert.ok(Date.now() - t < 500, `${c.slice(0, 20)}... took ${Date.now() - t} ms`);
+    let best = Infinity;
+    for (let i = 0; i < 3 && best >= 500; i++) {
+      const t = performance.now();
+      assert.equal(decide(c, CWD, ROOT), null);
+      best = Math.min(best, performance.now() - t);
+    }
+    assert.ok(best < 500, `${c.slice(0, 20)}... took ${Math.round(best)} ms at best of 3`);
   }
 });
 
@@ -370,6 +376,8 @@ test('round 2 L1 (lows): a loop variable name that is reused for something else 
     // #366 L1: an assignment from the same variable is not a reuse
     `python - <<'PY'\nfor p in ['scripts/a.mjs']:\n    p = Path(p)\n    open(p, 'w').write('x')\nPY`,
     `node -e "for (const f of ['scripts/a.mjs']) { f = f.trim(); fs.writeFileSync(f, 'x'); }"`,
+    // #389 L2: a method call on the same variable is not a reuse either
+    `python - <<'PY'\nfor p in ['scripts/a.mjs']:\n    p = p.replace('\\\\', '/')\n    open(p, 'w').write('x')\nPY`,
   ]) {
     assert.ok(denied(c), c);
   }

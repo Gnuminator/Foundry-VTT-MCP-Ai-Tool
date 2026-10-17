@@ -49,6 +49,8 @@ const render = (): JSX.Element => <Header />;
 async function settle(button: HTMLElement): Promise<void> {
   await waitFor(() => expect(button).toBeEnabled());
   button.blur();
+  await waitFor(() => expect(document.activeElement).toBe(document.body));
+  await expect(button.matches(':focus, :focus-visible, :hover')).toBe(false);
 }
 
 const seed = (

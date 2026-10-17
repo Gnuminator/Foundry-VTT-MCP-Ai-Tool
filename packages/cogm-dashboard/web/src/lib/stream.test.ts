@@ -9,6 +9,7 @@ import {
   FEED_KEY,
   STREAM_DROP_GRACE_MS,
   onEvents,
+  onStatus,
   streamTrouble,
   type StreamLink,
 } from './stream';
@@ -78,6 +79,26 @@ describe('the events handler and Recent Changes', () => {
     onEvents(queryClient, { events: [event('a', 'damage'), event('b', 'gm-roll')] });
     await vi.advanceTimersByTimeAsync(CHANGES_RELOAD_MS * 2);
     expect(reloaded()).toBe(false);
+  });
+
+  it('reloads the lists when Foundry becomes reachable again, not on a first or repeated status', async () => {
+    const status = (foundry: string): unknown => ({
+      controlChannel: 'connected',
+      foundry,
+      lastError: null,
+      lastPollAt: null,
+      foundryDownSince: null,
+    });
+    onStatus(queryClient, status('reachable'));
+    onStatus(queryClient, status('reachable'));
+    await vi.advanceTimersByTimeAsync(CHANGES_RELOAD_MS * 2);
+    expect(reloaded()).toBe(false);
+    onStatus(queryClient, status('unreachable'));
+    await vi.advanceTimersByTimeAsync(CHANGES_RELOAD_MS * 2);
+    expect(reloaded()).toBe(false);
+    onStatus(queryClient, status('reachable'));
+    await vi.advanceTimersByTimeAsync(CHANGES_RELOAD_MS);
+    expect(reloaded()).toBe(true);
   });
 
   it('leaves the lists alone for a replay of events it has seen, as after a reconnect', async () => {

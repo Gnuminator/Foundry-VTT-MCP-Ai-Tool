@@ -155,6 +155,20 @@ export function onEvents(queryClient: QueryClient, data: unknown): void {
   if (hasNewGmChange(before ?? EMPTY_FEED, batch)) scheduleChangesReload(queryClient);
 }
 
+/**
+ * The bridge link status. Foundry turning reachable again (a restart, a dropped link) reloads
+ * Recent Changes as the old page did: a change made while the link was down sent no `gm-change`,
+ * and a load that failed meanwhile would stay failed.
+ */
+export function onStatus(queryClient: QueryClient, data: unknown): void {
+  const before = queryClient.getQueryData<BridgeStatus>(BRIDGE_STATUS_KEY);
+  const next = data as BridgeStatus;
+  queryClient.setQueryData<BridgeStatus>(BRIDGE_STATUS_KEY, next);
+  if (before?.foundry === 'unreachable' && next?.foundry === 'reachable') {
+    scheduleChangesReload(queryClient);
+  }
+}
+
 /** One handler per event this page uses; each puts the event into the query cache. */
 const HANDLERS: Record<string, (queryClient: QueryClient, data: unknown) => void> = {
   errors: onErrors,
@@ -163,8 +177,7 @@ const HANDLERS: Record<string, (queryClient: QueryClient, data: unknown) => void
   // A player opened a handout for the first time (GM only, no payload): the drawer reloads its
   // seen ticks when it is open. A closed drawer loads afresh on its next opening anyway.
   'handouts-seen': queryClient => void queryClient.invalidateQueries({ queryKey: HANDOUTS_KEY }),
-  status: (queryClient, data) =>
-    queryClient.setQueryData<BridgeStatus>(BRIDGE_STATUS_KEY, data as BridgeStatus),
+  status: onStatus,
   settings: (queryClient, data) =>
     queryClient.setQueryData<DashboardSettings>(SETTINGS_KEY, data as DashboardSettings),
   world: (queryClient, data) =>

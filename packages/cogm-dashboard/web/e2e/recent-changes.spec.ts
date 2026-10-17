@@ -98,6 +98,8 @@ interface Setup {
   everyone?: () => unknown;
   /** The answer of plan-undo-changes for these arguments. */
   plan?: (args: Record<string, unknown>) => { status?: number; json: unknown };
+  /** The answer of apply-planned-change (default: it applies). */
+  apply?: () => { status?: number; json: unknown };
   stream?: { event: string; data: unknown }[];
 }
 
@@ -132,7 +134,7 @@ async function setup(page: Page, s: Setup = {}): Promise<ToolCall[]> {
         case 'plan-undo-changes':
           return s.plan ? s.plan(call.args) : ok(plan());
         case 'apply-planned-change':
-          return ok({ changeId: 'new-1', summary: 'Undid: sample' });
+          return s.apply ? s.apply() : ok({ changeId: 'new-1', summary: 'Undid: sample' });
         case 'undo-change':
           return ok({ summary: 'Undid: sample' });
         default:
@@ -242,9 +244,10 @@ test('the Obsidian link opens the month of a change once the vault and the world
 });
 
 test('a gm-change event from Foundry reloads the list once', async ({ page }) => {
-  let list = AI_LIST;
+  // The first load shows the list the page starts with; only a reload can show the new one.
+  let loads = 0;
   const calls = await setup(page, {
-    ai: () => list,
+    ai: () => (++loads === 1 ? AI_LIST : { changes: [aiChange(9, { summary: 'Moved a token' })] }),
     stream: [
       GM_ON,
       {
@@ -262,11 +265,12 @@ test('a gm-change event from Foundry reloads the list once', async ({ page }) =>
       },
     ],
   });
-  list = { changes: [aiChange(9, { summary: 'Moved a token' })] };
   const c = await load(page);
+  // The reload is what shows the new list.
   await expect(c.getByText('Moved a token')).toBeVisible();
-  // The first load and the one gm-change started; the replay of the same event adds none.
-  await expect.poll(() => callsOf(calls, 'list-recent-changes').length).toBeLessThanOrEqual(2);
+  // The first load and the one gm-change started; nothing more follows.
+  await page.waitForTimeout(1000);
+  expect(callsOf(calls, 'list-recent-changes')).toHaveLength(2);
 });
 
 test('the Everyone tab loads on its first open, filters by person and shows undone and redo', async ({
@@ -578,6 +582,55 @@ test.describe('Undo on the Everyone tab', () => {
     await expect(toast(page, '✗ Nothing to undo.')).toBeVisible();
     await expect(page.getByRole('dialog')).toHaveCount(0);
     expect(names(calls)).not.toContain('apply-planned-change');
+  });
+
+  test('an apply that fails after the window shows the error, no Undo toast, and reloads the list', async ({
+    page,
+  }) => {
+    const calls = await setup(page, {
+      apply: () => ({ status: 422, json: { error: 'The plan has expired.' } }),
+    });
+    const c = await openEveryone(page);
+    const before = callsOf(calls, 'list-changes').length;
+    await c.getByRole('button', { name: 'Undo: Human h1' }).click();
+    await undoWindow(page).getByRole('button', { name: 'Undo', exact: true }).click();
+
+    await expect(toast(page, '✗ apply-planned-change: The plan has expired.')).toBeVisible();
+    await expect(page.locator('.toast-stack').getByRole('button', { name: 'Undo' })).toHaveCount(0);
+    await expect.poll(() => callsOf(calls, 'list-changes').length).toBeGreaterThan(before);
+    expect(callsOf(calls, 'apply-planned-change')).toHaveLength(1);
+  });
+
+  test('a destructive plan waits for the tick in the first window and applies with both flags', async ({
+    page,
+  }) => {
+    const calls = await setup(page, {
+      plan: () =>
+        ok(
+          plan({
+            planId: 'plan-d',
+            risk: 'destructive',
+            requires: { confirm: true, confirmDestructive: true },
+          })
+        ),
+    });
+    const c = await openEveryone(page);
+    await c.getByRole('button', { name: 'Undo: Human h1' }).click();
+
+    const dialog = undoWindow(page);
+    await expect(dialog.getByRole('heading', { name: 'Undo this change?' })).toBeVisible();
+    const apply = dialog.getByRole('button', { name: 'Undo', exact: true });
+    await expect(apply).toBeDisabled();
+    expect(names(calls)).not.toContain('apply-planned-change');
+    await dialog.getByRole('checkbox').check();
+    await apply.click();
+    await expect.poll(() => callsOf(calls, 'apply-planned-change').length).toBe(1);
+    expect(callsOf(calls, 'apply-planned-change')[0]).toEqual({
+      name: 'apply-planned-change',
+      args: { planId: 'plan-d' },
+      confirm: true,
+      confirmDestructive: true,
+    });
   });
 
   test('with GM Actions off nothing is planned', async ({ page }) => {

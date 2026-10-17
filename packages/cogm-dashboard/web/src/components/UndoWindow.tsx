@@ -105,7 +105,7 @@ export function useUndoWindow(): { ask: AskUndo; close: () => void; element: JSX
   }, []);
 
   const open = model !== null;
-  const escape = (): void => usage().track('shortcut', 'dash.shortcut.escape-modal');
+  const escape = (): void => usage().track('shortcut', 'dash.shortcut.escape-undo');
   // With a toast up, the toast hands Escape on to the newest open panel: this window.
   useEscapeClose(open, () => {
     escape();

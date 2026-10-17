@@ -24,6 +24,7 @@ const PAGE_READS = new Set([
   'list-revealed-pages',
   'list-scenes',
   'list-ref-choices',
+  'list-recent-changes',
 ]);
 const beyondReads = (calls: ToolCall[]): ToolCall[] =>
   calls.filter(c => !PAGE_READS.has(c.name) || c.confirm === true || c.confirmDestructive === true);

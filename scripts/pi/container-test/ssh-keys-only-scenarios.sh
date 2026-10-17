@@ -479,6 +479,7 @@ if selected confirm-revert-starts; then
   fresh_pi
   run_stage
   touch /tmp/stop-starts-revert
+  : >/tmp/calls
   run_stage CONFIRM=1
   block confirm-revert-starts
 fi

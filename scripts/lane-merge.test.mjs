@@ -1603,6 +1603,112 @@ test('acquireLock (#378 L1): a failed link back is reported, or the lock is move
   );
 });
 
+/** Runs fn with fs.linkSync failing as on a file system without hard links (EPERM). */
+function withoutHardLinks(fn) {
+  const origLink = fs.linkSync;
+  fs.linkSync = () => {
+    throw Object.assign(new Error('EPERM: operation not permitted, link'), { code: 'EPERM' });
+  };
+  try {
+    return fn();
+  } finally {
+    fs.linkSync = origLink;
+  }
+}
+
+/** A stale lock next to a state file, plus the hook that swaps in a live one just before the rename. */
+function staleLockRace(dir) {
+  const state = path.join(dir, 'merge-train.json');
+  const lock = `${state}.lock`;
+  fs.writeFileSync(lock, '{"pid":1,"at":"killed run"}');
+  const old = new Date(Date.now() - 11 * 60 * 1000);
+  fs.utimesSync(lock, old, old);
+  let fired = false;
+  const afterStaleSeen = () => {
+    if (fired) return;
+    fired = true;
+    fs.unlinkSync(lock);
+    fs.writeFileSync(lock, '{"pid":2,"token":"A"}');
+  };
+  return { state, lock, afterStaleSeen };
+}
+
+test('acquireLock (#385): no hard links and the slot is free: the lock is moved back by rename', () => {
+  const dir = tmpDir();
+  const { state, lock, afterStaleSeen } = staleLockRace(dir);
+  const written = [];
+  const origWrite = process.stderr.write;
+  process.stderr.write = chunk => (written.push(String(chunk)), true);
+  let error;
+  try {
+    error = withoutHardLinks(() =>
+      acquireLockSafely(state, { timeoutMs: 50, wait: () => {}, afterStaleSeen })
+    );
+  } finally {
+    process.stderr.write = origWrite;
+  }
+  assert.match(error, /another lane:merge holds/);
+  assert.equal(written.join(''), '', 'no race warning when nobody took the slot');
+  assert.equal(fs.readFileSync(lock, 'utf8'), '{"pid":2,"token":"A"}', "A's lock is back");
+  assert.deepEqual(
+    fs.readdirSync(dir).filter(n => n.includes('.stale-')),
+    []
+  );
+});
+
+test('acquireLock (#385): no hard links and a third run took the slot: warns and keeps its lock', () => {
+  const dir = tmpDir();
+  const { state, lock, afterStaleSeen } = staleLockRace(dir);
+  const third = '{"pid":3,"token":"C"}';
+  const written = [];
+  const origWrite = process.stderr.write;
+  process.stderr.write = chunk => (written.push(String(chunk)), true);
+  let error;
+  try {
+    error = withoutHardLinks(() =>
+      acquireLockSafely(state, {
+        timeoutMs: 50,
+        wait: () => {},
+        afterStaleSeen,
+        afterTaken: () => fs.writeFileSync(lock, third),
+      })
+    );
+  } finally {
+    process.stderr.write = origWrite;
+  }
+  assert.match(error, /another lane:merge holds/);
+  assert.match(written.join(''), /lock race: a run may be in the merge train without the lock/);
+  assert.equal(fs.readFileSync(lock, 'utf8'), third, "the third run's lock is not overwritten");
+  assert.deepEqual(
+    fs.readdirSync(dir).filter(n => n.includes('.stale-')),
+    []
+  );
+});
+
+test('acquireLock (#385): no hard links and the moved lock vanished (rename ENOENT): retries, no crash', () => {
+  const dir = tmpDir();
+  const { state, lock, afterStaleSeen } = staleLockRace(dir);
+  let removed = false;
+  const release = withoutHardLinks(() =>
+    acquireLock(state, {
+      timeoutMs: 500,
+      wait: () => {},
+      afterStaleSeen,
+      afterTaken: () => {
+        // the run that owns the moved lock deletes it before we can rename it back
+        if (removed) return;
+        removed = true;
+        for (const n of fs.readdirSync(dir)) {
+          if (n.includes('.stale-')) fs.unlinkSync(path.join(dir, n));
+        }
+      },
+    })
+  );
+  assert.ok(removed, 'the takeover path ran');
+  assert.ok(fs.existsSync(lock), 'the retry took the free lock');
+  release();
+});
+
 test('acquireLock (#378 L3): release removes only the lock this run wrote', () => {
   const dir = tmpDir();
   const state = path.join(dir, 'merge-train.json');

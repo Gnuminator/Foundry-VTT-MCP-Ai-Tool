@@ -700,14 +700,20 @@ export function acquireLock(file, opts = {}) {
         // The lock was replaced by a live one between our stat and rename: we moved someone's fresh
         // lock. Put it back (link fails if another run already took the free slot) and wait.
         opts.afterTaken?.();
+        const raceWarning = () =>
+          process.stderr.write(
+            'lane:merge: lock race: a run may be in the merge train without the lock; check merge-train.json\n'
+          );
         try {
           fs.linkSync(taken, lock);
         } catch (e) {
           if (/** @type {NodeJS.ErrnoException} */ (e).code === 'EEXIST') {
             // Another run took the free slot: both it and the run whose lock we moved may be in.
-            process.stderr.write(
-              'lane:merge: lock race: a run may be in the merge train without the lock; check merge-train.json\n'
-            );
+            raceWarning();
+          } else if (fs.existsSync(lock)) {
+            // No hard links here either, and a third run already took the free slot: a rename
+            // would silently overwrite its lock, so warn like the EEXIST case and drop ours.
+            raceWarning();
           } else {
             // No hard links here (FAT32, some network shares): move the lock back instead.
             fs.renameSync(taken, lock);

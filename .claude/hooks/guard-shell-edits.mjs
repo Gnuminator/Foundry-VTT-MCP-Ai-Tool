@@ -293,6 +293,8 @@ const target = (expr, vars) => ({
  * Literals a loop variable ranges over: `for X in [...]`, `for X in glob(...)`, `for (const X of [...])`.
  * This is the only fallback for a target that stays unknown; any other unknown target allows.
  * A name that is also assigned a (non-literal) value elsewhere is reused, so the write may not be in the loop: allow.
+ * An assignment that mentions the name itself (`p = p.replace(...)`) only rewrites the loop value, so the
+ * literals still apply and the write is denied (accepted strictness).
  */
 function loopLiterals(text, name) {
   const lits = [];

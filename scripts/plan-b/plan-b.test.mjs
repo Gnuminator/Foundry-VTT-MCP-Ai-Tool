@@ -137,6 +137,11 @@ describe('Plan B', { skip: !hasPwsh && 'PowerShell 7 (pwsh) is not available' },
     });
   });
 
+  test('the scenes extract restores one world scenes database only', () => {
+    const r = ps(`Get-PlanBSceneInclude 'curse-of-strahd'`);
+    assert.equal(r, '/var/lib/foundry/Data/worlds/curse-of-strahd/data/scenes');
+  });
+
   test('Foundry version must match the world exactly (no migration the Pi could not undo)', () => {
     const r = ps(`
       @{

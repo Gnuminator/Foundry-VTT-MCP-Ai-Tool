@@ -322,6 +322,6 @@ describe('plan-scene-restore', () => {
     const { tools } = makeTools();
     await expect(
       tools.handleToolCall('plan-scene-restore', { backupPath: join(dir, 'gone') })
-    ).rejects.toThrow(/No backup copy.*restore\.ps1/);
+    ).rejects.toThrow(/No backup copy.*extract-scenes\.ps1/);
   });
 });

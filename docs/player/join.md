@@ -1,6 +1,6 @@
 ---
 title: Join the game
-description: What you need to play from home, the web address, the one-time email code, logging in to Foundry, and Discord.
+description: Step by step with pictures, the game's web address, the one-time email code, logging in to Foundry, leaving, and Discord.
 ---
 
 # Join the game
@@ -9,9 +9,8 @@ We play in two places at once: **Foundry** in your web browser (the map, your ch
 the dice) and **Discord** (voice). This page gets you into both. Do it once before session 0, so
 any problem shows up before the game.
 
-> **Walkthrough to come.** The steps on this page describe the plan. The step-by-step version with
-> pictures is added once the game server is online and has been tried from outside the GM's own home
-> network. Until then, follow the GM's message if it differs from this page.
+It takes about ten minutes the first time. After that, joining is the address, your name and your
+password.
 
 ## What you need
 
@@ -22,36 +21,64 @@ any problem shows up before the game.
 - **A headset or earbuds with a microphone**, so the others don't hear themselves through your
   speakers.
 - **Discord**, the app or in the browser, and an invite to our server.
-- **From the GM:** the game's web address, your Foundry user name and password. Give the GM the
-  email address you want to log in with.
+- **From the GM:** the game's web address, your Foundry user name and your password.
+- **An email address you can open right now.** Tell the GM which one before session 0. Only
+  addresses the GM has added to the list can get in, so a different address than the one you gave
+  will not work.
 
 ## 1. Open the game's address
 
-Open the address the GM sends you. It looks like `https://play.<our domain>` (the real one is in
-the GM's message).
+Open the address the GM sends you. It starts with `https://` and ends in the game's own name. We
+don't print it here, because this page is public. Paste it from the GM's message into your
+browser's address bar.
 
-The first time, and about once a month after that, a Cloudflare page asks for your email address:
+The first time, and about once a month after that, a plain white page from **Cloudflare Access**
+opens instead of the game. It is the lock on the front door. You don't need a Cloudflare account.
 
-1. Type the email address you gave the GM and click to send a code.
-2. Copy the code from the email (check spam if it doesn't arrive in a minute) and enter it.
+![The Cloudflare Access page: "Log in to foundry", an Email box and a blue Send login code button](../images/guides/join-access-email.png)
 
-Only email addresses the GM added get a code. This page keeps the game private; you don't need a
-Cloudflare account.
+1. Type the email address you gave the GM into the **Email** box.
+2. Click **Send login code**. The page now asks for a code.
+3. Open your email. A message from Cloudflare has a code of six digits. If it isn't there after a
+   minute, look in spam.
+4. Type the code into the page and confirm.
+
+<!-- Pictures still to add (vault Waiting.md W25): the page that asks for the code, and the code email with the digits blurred. -->
+
+The page now takes you on to Foundry. If you typed an address that isn't on the GM's list, Cloudflare
+does not say so: it just never sends a code. That is the first thing to check if nothing arrives.
 
 ## 2. Log in to Foundry
 
-Foundry's join page opens.
+Foundry's join page opens. It shows the game's name at the top and three boxes on the left.
 
-1. In the first box, type your **user name** exactly as the GM wrote it.
-2. Type your **password**.
+![Foundry's join page: user name Player and a password typed in, the orange Join Game Session button below, and further down the Return to Setup box](../images/guides/join-form.png)
+
+1. In the first box, type your **user name** exactly as the GM wrote it. Capital letters count.
+2. Type your **password** in the box below it. The eye icon on the right shows what you typed.
 3. Click **Join Game Session**.
+
+Ignore the **Return to Setup** box at the bottom. It is for the person who runs the server, and
+it does nothing for you.
 
 The game loads. The first time, two windows open by themselves: the Actor Studio welcome window
 and Foundry's **User Configuration**. Close both for now. User Configuration comes back every time
-you join until you have a character and have picked it there (see [Make your character](make-a-character.md)).
+you join until you have a character and have picked it there (see
+[Make your character](make-a-character.md)).
 
-To leave, close the browser tab. To switch user on the same computer, press **Esc** and choose
-**Log Out**.
+<!-- Picture still to add (W25): the two first-join windows on the real world. -->
+
+If the screen says **Game Paused**, the GM has paused the game. Nothing is wrong. It goes away when
+the GM starts again.
+
+### Leaving, or switching user
+
+To leave, close the browser tab. To switch user on the same computer, press **Esc** (twice if a
+window is open) and choose **Log Out**.
+
+![Foundry's menu after pressing Esc: Reload Application and Log Out](../images/guides/join-log-out.png)
+
+**Reload Application** in the same menu is the first thing to try if the game looks stuck.
 
 ## 3. Join Discord voice
 
@@ -61,13 +88,22 @@ down, and mute when you step away.
 Sessions may be recorded for notes. Your voice is only kept if you said yes in writing, and the bot
 always posts a notice when it starts. What is recorded and what happens with it: [player guide](README.md).
 
+## The read-only player page
+
+The GM may also send you a second address: the **player page**. It is a read-only web page for
+phone or laptop with the combat order, the session feed and the handouts the GM has shown you. It
+uses the same email code as the game, so the first visit works as in step 1. You don't need it to
+play. More in the [player guide](README.md).
+
 ## If it doesn't work
 
-| What you see                                  | What to do                                                                      |
-| --------------------------------------------- | ------------------------------------------------------------------------------- |
-| No email code arrives                         | Check spam. Check you typed the address you gave the GM. Otherwise tell the GM. |
-| The Cloudflare page asks for your email again | Normal about once a month, or in a new browser. Get a new code.                 |
-| "The requested User does not exist"           | The user name is spelled differently. Copy it from the GM's message.            |
-| A warning about screen resolution             | Make the browser window bigger, or use a computer with a bigger screen.         |
-| The page loads but stays black or very slow   | Close other tabs, check hardware acceleration is on, reload the page (F5).      |
-| The page can't be reached at all              | The server may be down. Tell the GM on Discord; the GM has a plan B.            |
+| What you see                                  | What to do                                                                                                              |
+| --------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| No email code arrives                         | Wait a minute and check spam. Check you typed the address you gave the GM, with no extra spaces. Otherwise tell the GM. |
+| The Cloudflare page asks for your email again | Normal about once a month, or in a new browser. Get a new code.                                                         |
+| The code is refused                           | Codes run out after a short while. Go back to the first page, click **Send login code** again and use the newest email. |
+| "The requested User does not exist"           | The user name is spelled differently. Copy it from the GM's message.                                                    |
+| The password is refused                       | Copy it from the GM's message, and check the eye icon to see what was typed. Still no? Ask the GM to reset it.          |
+| A warning about screen resolution             | Make the browser window bigger, or use a computer with a bigger screen.                                                 |
+| The page loads but stays black or very slow   | Close other tabs, check hardware acceleration is on, reload the page (F5).                                              |
+| The page can't be reached at all              | The server may be down. Tell the GM on Discord; the GM has a plan B.                                                    |

@@ -327,6 +327,57 @@ describe('target resolution', () => {
     });
   });
 
+  describe('a duplicated scene shares token ids', () => {
+    function twoCopies(sameActor: boolean): void {
+      const make = (uuid: string): ReturnType<typeof addActor> => {
+        const a = addActor({ id: 'a', name: 'Wolf', hp: { value: 11, max: 11 }, uuid });
+        world.actors.delete('a');
+        return a;
+      };
+      const fought = make('Scene.A.Token.t.Actor.a');
+      const viewed = sameActor ? fought : make('Scene.B.Token.t.Actor.a');
+      world.addScene({
+        id: 'B',
+        name: 'Arena (copy)',
+        active: true,
+        tokens: [makeToken({ id: 't', name: 'Wolf 1', actor: viewed })],
+      });
+      world.setCombat({
+        turns: [],
+        combatants: [
+          {
+            id: 'cb1',
+            name: 'Wolf',
+            tokenId: 't',
+            token: { id: 't', name: 'Wolf 1', parent: { name: 'Arena' } },
+            actor: fought,
+          },
+        ],
+      });
+    }
+
+    it('refuses an id that is a different token on the fight scene, naming both scenes', async () => {
+      twoCopies(false);
+      await expect(
+        planLiveChange(hpRequest({ action: 'damage', amount: 4, targets: ['t'] }))
+      ).rejects.toThrow('scene "Arena (copy)" and scene "Arena"');
+    });
+
+    it('still resolves the viewed token by name', async () => {
+      twoCopies(false);
+      const plan = await planLiveChange(
+        hpRequest({ action: 'damage', amount: 4, targets: ['Wolf 1'] })
+      );
+      expect(plan.targets[0]?.actorUuid).toBe('Scene.B.Token.t.Actor.a');
+    });
+
+    it('accepts the id when both copies reach the same actor', async () => {
+      twoCopies(true);
+      const plan = await planLiveChange(hpRequest({ action: 'damage', amount: 4, targets: ['t'] }));
+      expect(plan.targets[0]?.actorUuid).toBe('Scene.A.Token.t.Actor.a');
+    });
+  });
+
   it('plans one change when a token and its actor are both named', async () => {
     const actor = addActor({ id: 'a1', name: 'Wolf', hp: { value: 10, max: 10 } });
     world.addScene({

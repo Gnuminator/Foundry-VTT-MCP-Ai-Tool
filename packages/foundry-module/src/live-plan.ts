@@ -120,6 +120,26 @@ function fightCombatants(): Rec[] {
 }
 
 /**
+ * Foundry keeps embedded ids when a scene is duplicated, so the id the combat strip sends can
+ * also exist on the viewed scene's copy. Refuse when the fight holds a token with this id whose
+ * actor is a different one (an unlinked copy), instead of damaging the copy's token.
+ */
+function assertNotShadowing(id: string, viewedScene: string | null, viewed: LiveActor): void {
+  const clash = fightCombatants().find(
+    c =>
+      (str(c.tokenId) ?? str(rec(c.token)?.id)) === id &&
+      rec(c.token) !== null &&
+      (asActor(c.actor)?.uuid ?? viewed.uuid) !== viewed.uuid
+  );
+  if (!clash) return;
+  const other = str(rec(rec(clash.token)?.parent)?.name) ?? 'another scene';
+  throw new Error(
+    `Two tokens have the id "${id}" (scene "${viewedScene ?? 'the viewed scene'}" and scene ` +
+      `"${other}"); pick the target by name on the scene instead`
+  );
+}
+
+/**
  * Resolve the targets: a token on the current scene (by id or name, so an
  * unlinked token uses its own synthetic actor), else a combatant of the running fight by its
  * token id (the combat strip sends ids, and its fight may be on another scene; a name is not
@@ -142,6 +162,7 @@ function resolveTargets(identifiers: string[]): Target[] {
       .find(t => t && (t.id === id || str(t.name)?.toLowerCase() === lower));
     const tokenActor = asActor(token?.actor);
     if (token && tokenActor) {
+      if (token.id === id) assertNotShadowing(id, str(scene?.name), tokenActor);
       targets.push({ name: str(token.name) ?? tokenActor.name, actor: tokenActor });
       continue;
     }

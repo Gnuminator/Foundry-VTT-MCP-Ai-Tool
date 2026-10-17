@@ -45,7 +45,8 @@ export function readDataPath(data: unknown, path: string): PathValue {
  * undoing a write that created `links.a.b.c` leaves no `{}` behind. Every reader of the vault
  * files treats a missing object like an empty one (`pages ?? {}`, `links?.[position]`), so the
  * result is the same to them. Per removal: an undo can also drop an empty parent that existed
- * before the apply, which readers cannot tell apart. Not for a Foundry document source, where an empty object is data.
+ * before the apply, which readers cannot tell apart. Not for a Foundry document source, where an
+ * empty object is data.
  */
 export function writeDataPath(
   data: unknown,
@@ -74,7 +75,8 @@ export function writeDataPath(
   }
   const existed = Object.prototype.hasOwnProperty.call(node, last);
   delete node[last];
-  // Only parents this removal emptied: an empty object next to it, or above a leaf that was absent, is left alone.
+  // Only parents this removal emptied: an empty object next to it, or above a leaf that was
+  // absent, is left alone.
   if (options.pruneEmpty && existed) {
     for (let i = trail.length - 1; i > 0 && Object.keys(trail[i]).length === 0; i -= 1) {
       delete trail[i - 1][segments[i - 1]];

@@ -1,13 +1,10 @@
-import { useMutation } from '@tanstack/react-query';
 import type { JSX } from 'react';
 
-import { callTool, errorText } from '../lib/api';
+import { usePlaySessionMark } from '../lib/playSessionMark';
 import { usePlaySession } from '../lib/session';
 import { sessionLabel } from '../lib/sessionLabel';
 import { useObsidianFileUrl } from '../lib/stream';
 import { Button } from '../ui';
-
-import { useToast } from './Toasts';
 
 /**
  * The play session marker in the header (the old page's #session-control): the status, a button
@@ -16,20 +13,10 @@ import { useToast } from './Toasts';
  * no GM Actions switch and no confirm (tool-policy.ts LOG_ONLY_TOOLS on the server).
  */
 export function SessionMarker(): JSX.Element {
-  const toast = useToast();
-  const { session, failed, refetch } = usePlaySession();
+  const { session, failed } = usePlaySession();
+  const { mark, pending } = usePlaySessionMark();
   const home = useObsidianFileUrl('Home');
   const open = session?.open === true;
-  const mark = useMutation({
-    mutationFn: (action: 'start' | 'end') => callTool('mark-play-session', { action }),
-    onSuccess: (_, action) =>
-      toast(action === 'start' ? '✓ Play session started' : '✓ Play session ended', 'ok'),
-    onError: err => toast(`✗ mark-play-session: ${errorText(err)}`, 'err'),
-    onSettled: async () => {
-      const outcome = (await refetch()) as { error?: unknown };
-      if (outcome.error) toast(`✗ get-play-session: ${errorText(outcome.error)}`, 'err');
-    },
-  });
   return (
     <div
       className="session-control"
@@ -42,8 +29,8 @@ export function SessionMarker(): JSX.Element {
       <Button
         id="btn-session"
         data-track="dash.session.toggle"
-        disabled={mark.isPending}
-        onClick={() => mark.mutate(open ? 'end' : 'start')}
+        disabled={pending}
+        onClick={() => mark(open ? 'end' : 'start')}
       >
         {open ? 'End session' : 'Start session'}
       </Button>
@@ -55,7 +42,6 @@ export function SessionMarker(): JSX.Element {
           href={home}
           target="_blank"
           rel="noopener"
-          title="Open the campaign Home note in Obsidian"
           aria-label="Open the campaign Home note in Obsidian"
         >
           📓

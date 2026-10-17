@@ -13,13 +13,20 @@ import {
 } from './support';
 
 /** A bridge whose play session starts closed; mark-play-session flips it, like the real one. */
-async function fakeBridge(page: Page, { markFails = false } = {}): Promise<ToolCall[]> {
+async function fakeBridge(
+  page: Page,
+  { markFails = false, readFailsAfterMark = false } = {}
+): Promise<ToolCall[]> {
   let open = false;
+  let marked = false;
   return fakeTools(
     page,
     call => {
       switch (call.name) {
         case 'get-play-session':
+          if (readFailsAfterMark && marked) {
+            return { status: 502, json: { ok: false, error: 'bridge went away' } };
+          }
           return ok({
             success: true,
             worldId: 'w',
@@ -31,6 +38,7 @@ async function fakeBridge(page: Page, { markFails = false } = {}): Promise<ToolC
         case 'mark-play-session':
           if (markFails) return { status: 502, json: { ok: false, error: 'bridge is away' } };
           open = (call.args as { action?: string }).action === 'start';
+          marked = true;
           return ok({ success: true });
         default:
           return ok({});
@@ -52,6 +60,7 @@ test('Start session marks the log, then the header reads Session since and End s
   page,
 }) => {
   const calls = await fakeBridge(page);
+  await fakeSwitches(page, false);
   await page.goto(`/next/?token=${GM_TOKEN}`);
 
   const status = page.locator('#session-status');
@@ -71,6 +80,85 @@ test('Start session marks the log, then the header reads Session since and End s
   await expect(toast(page, '✓ Play session ended')).toBeVisible();
   await expect(status).toHaveText('No session');
   await expect(page.locator('#btn-session')).toHaveText('Start session');
+});
+
+interface SwitchCalls {
+  posts: unknown[];
+}
+
+/** The module's switches: `readyOn` has Ready for session on (a write switch and GM Actions). */
+async function fakeSwitches(page: Page, readyOn: boolean): Promise<SwitchCalls> {
+  const calls: SwitchCalls = { posts: [] };
+  const list = (on: boolean): unknown[] => [
+    { id: 'handouts', name: 'AI Tool: Handouts (writes)', on },
+  ];
+  await page.route('**/api/session/switches', route => {
+    if (route.request().method() === 'POST') {
+      calls.posts.push(route.request().postDataJSON());
+      return route.fulfill({
+        json: {
+          ok: true,
+          switches: { switches: list(false), ready: null, changed: ['handouts'], failed: [] },
+          gmActionsEnabled: false,
+          gmActionsChanged: true,
+        },
+      });
+    }
+    return route.fulfill({
+      json: {
+        switches: {
+          switches: list(readyOn),
+          ready: readyOn ? { at: Date.now(), turnedOn: ['handouts'] } : null,
+          changed: [],
+          failed: [],
+        },
+        gmActionsEnabled: readyOn,
+        error: null,
+      },
+    });
+  });
+  return calls;
+}
+
+test('End session also turns off what Ready for session turned on', async ({ page }) => {
+  await fakeBridge(page);
+  const switches = await fakeSwitches(page, true);
+  await page.goto(`/next/?token=${GM_TOKEN}`);
+
+  await expect(page.locator('#session-status')).toHaveText('No session');
+  await page.locator('#btn-session').click();
+  await expect(page.locator('#btn-session')).toHaveText('End session');
+  await page.locator('#btn-session').click();
+
+  await expect(toast(page, '✓ Play session ended')).toBeVisible();
+  await expect(toast(page, '✓ Turned off again: Handouts (writes), GM Actions')).toBeVisible();
+  expect(switches.posts).toEqual([{ action: 'end' }]);
+});
+
+test('End session leaves the switches alone when Ready is not on', async ({ page }) => {
+  await fakeBridge(page);
+  const switches = await fakeSwitches(page, false);
+  await page.goto(`/next/?token=${GM_TOKEN}`);
+
+  await page.locator('#btn-session').click();
+  await expect(page.locator('#btn-session')).toHaveText('End session');
+  await page.locator('#btn-session').click();
+
+  await expect(toast(page, '✓ Play session ended')).toBeVisible();
+  await expect(page.locator('#btn-session')).toHaveText('Start session');
+  expect(switches.posts).toEqual([]);
+});
+
+test('a mark that worked shows at once when the next read fails, and says so', async ({ page }) => {
+  await fakeBridge(page, { readFailsAfterMark: true });
+  await page.goto(`/next/?token=${GM_TOKEN}`);
+
+  await page.locator('#btn-session').click();
+
+  await expect(toast(page, '✓ Play session started')).toBeVisible();
+  await expect(toast(page, '✗ get-play-session: bridge went away')).toBeVisible();
+  await expect(page.locator('#session-status')).toHaveText(/^Session since/);
+  await expect(page.locator('#btn-session')).toHaveText('End session');
 });
 
 test('a failed mark says why and leaves the status alone', async ({ page }) => {

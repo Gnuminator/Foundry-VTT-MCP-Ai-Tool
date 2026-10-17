@@ -4,7 +4,7 @@ import { expect, userEvent, waitFor, within } from 'storybook/test';
 
 import { SETTINGS_KEY } from '../lib/stream';
 import { PHONE_VIEW, VEIL } from '../storybook/modes';
-import { fail, toolOk, type Handler } from '../storybook/fakeApi';
+import { fail, reply, toolOk, type Handler } from '../storybook/fakeApi';
 import { PLAY_SESSION_CLOSED, PLAY_SESSION_OPEN } from '../storybook/fixtures/common';
 import type { DashboardParameters } from '../storybook/withDashboard';
 
@@ -113,6 +113,80 @@ export const StartsTheSession: Story = {
     await waitFor(() =>
       expect(within(document.body).getAllByText('✓ Play session started')).not.toHaveLength(0)
     );
+  },
+};
+
+/** A session with its start time known: "Session since" and the time, in the viewer's locale. */
+export const SessionSince: Story = {
+  parameters: seed(
+    toolOk({
+      ...PLAY_SESSION_OPEN,
+      startedAt: new Date(2026, 9, 8, 19, 30).toISOString(),
+    })
+  ),
+  render,
+  play: async ({ canvasElement }) => {
+    await expect(await within(canvasElement).findByText(/^Session since /)).toBeVisible();
+  },
+};
+
+/** End session ends the log and turns off what Ready for session turned on. */
+export const EndsTheSession: Story = {
+  parameters: {
+    dashboard: {
+      api: {
+        tools: {
+          'get-play-session': toolOk(PLAY_SESSION_OPEN),
+          'mark-play-session': toolOk({ success: true }),
+        },
+        routes: {
+          '/api/session/switches': reply({
+            ok: true,
+            switches: null,
+            gmActionsEnabled: false,
+            gmActionsChanged: true,
+          }),
+        },
+      },
+    },
+  },
+  render,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(await canvas.findByRole('button', { name: 'End session' }));
+    await waitFor(() =>
+      expect(within(document.body).getAllByText('✓ Play session ended')).not.toHaveLength(0)
+    );
+    await waitFor(() =>
+      expect(within(document.body).getAllByText('✓ Turned off again: GM Actions')).not.toHaveLength(
+        0
+      )
+    );
+  },
+};
+
+/** The bridge refuses the mark: the toast says why and the status stays. */
+export const MarkFails: Story = {
+  parameters: {
+    dashboard: {
+      api: {
+        tools: {
+          'get-play-session': toolOk(PLAY_SESSION_CLOSED),
+          'mark-play-session': fail(502, 'The Foundry bridge is not connected.', {
+            kind: 'channel',
+          }),
+        },
+      },
+    },
+  },
+  render,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(await canvas.findByRole('button', { name: 'Start session' }));
+    await waitFor(() =>
+      expect(within(document.body).getAllByText(/^✗ mark-play-session: /)).not.toHaveLength(0)
+    );
+    await expect(canvas.getByText('No session')).toBeVisible();
   },
 };
 

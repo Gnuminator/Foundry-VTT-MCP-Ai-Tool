@@ -6,52 +6,23 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, type JSX } from 'react';
 
 import { useToast } from '../components/Toasts';
-import { api, callTool, errorText } from '../lib/api';
+import { api, errorText } from '../lib/api';
+import { usePlaySessionMark } from '../lib/playSessionMark';
 import { usePlaySession } from '../lib/session';
+import {
+  SWITCHES_KEY,
+  applySwitchesWrite,
+  shortName,
+  type SessionSwitch,
+  type SwitchAction,
+  type SwitchesRead,
+  type SwitchesWrite,
+} from '../lib/sessionSwitches';
 import { SETTINGS_KEY, useDashboardSettings, type DashboardSettings } from '../lib/stream';
 import { Button } from '../ui';
 
-interface SessionSwitch {
-  id: string;
-  name: string;
-  on: boolean;
-}
-
-/** The module's answer (session-switches.ts SessionSwitches on the server). */
-interface SessionSwitches {
-  switches: SessionSwitch[];
-  /** What Ready turned on and when, or null when the world is not "ready". */
-  ready: { at: number; turnedOn: string[] } | null;
-  changed: string[];
-  failed: string[];
-}
-
-interface SwitchesRead {
-  switches: SessionSwitches | null;
-  gmActionsEnabled: boolean;
-  error: string | null;
-}
-
-interface SwitchesWrite {
-  ok: boolean;
-  switches: SessionSwitches | null;
-  gmActionsEnabled: boolean;
-  gmActionsChanged: boolean;
-}
-
-type SwitchAction = 'ready' | 'end';
-
-const SWITCHES_KEY = ['session-switches'] as const;
-
 const DEFAULT_NOTE =
   'Turns on, for tonight only: changes from the tool, handouts, live play (damage, conditions), the party, Tarokka and GM Actions. End session turns them off again. Every change can still be undone.';
-
-/** "AI Tool: Handouts (writes)" reads "Handouts (writes)" on the chips and in toasts. */
-const shortName = (name: string): string => name.replace(/^AI Tool: /, '');
-
-function switchNames(list: SessionSwitch[], ids: string[]): string[] {
-  return ids.map(id => shortName(list.find(s => s.id === id)?.name ?? id));
-}
 
 export function ReadyBlock({ onChanged }: { onChanged: () => void }): JSX.Element {
   const queryClient = useQueryClient();
@@ -91,34 +62,7 @@ export function ReadyBlock({ onChanged }: { onChanged: () => void }): JSX.Elemen
         method: 'POST',
         body: JSON.stringify({ action }),
       }),
-    onSuccess: (data, action) => {
-      queryClient.setQueryData<SwitchesRead>(SWITCHES_KEY, old => ({
-        switches: data.switches ?? old?.switches ?? null,
-        gmActionsEnabled: data.gmActionsEnabled,
-        error: null,
-      }));
-      queryClient.setQueryData<DashboardSettings>(SETTINGS_KEY, old => ({
-        ...old,
-        gmActionsEnabled: data.gmActionsEnabled,
-      }));
-      const all = data.switches?.switches ?? list;
-      const changed = switchNames(all, data.switches?.changed ?? []);
-      if (data.gmActionsChanged) changed.push('GM Actions');
-      const failed = switchNames(all, data.switches?.failed ?? []);
-      if (action === 'ready') {
-        toast(
-          changed.length > 0
-            ? `✓ Ready for session. Turned on: ${changed.join(', ')}`
-            : '✓ Already on',
-          'ok'
-        );
-      } else if (changed.length > 0) {
-        toast(`✓ Turned off again: ${changed.join(', ')}`, 'ok');
-      }
-      if (failed.length > 0) {
-        toast(`✗ Foundry did not change: ${failed.join(', ')}. Check the module settings.`, 'err');
-      }
-    },
+    onSuccess: (data, action) => applySwitchesWrite(queryClient, toast, data, action),
     onError: (err, action) => {
       toast(
         `✗ ${action === 'ready' ? 'Ready for session' : 'Turning off'}: ${errorText(err)}`,
@@ -135,15 +79,8 @@ export function ReadyBlock({ onChanged }: { onChanged: () => void }): JSX.Elemen
     },
   });
 
-  const startLog = useMutation({
-    mutationFn: () => callTool('mark-play-session', { action: 'start' }),
-    onSuccess: () => toast('✓ Play session started', 'ok'),
-    onError: err => toast(`✗ mark-play-session: ${errorText(err)}`, 'err'),
-    onSettled: async () => {
-      const outcome = (await playSession.refetch()) as { error?: unknown };
-      if (outcome.error) toast(`✗ get-play-session: ${errorText(outcome.error)}`, 'err');
-    },
-  });
+  // The header's Start session button shares this: one pending state for both.
+  const startLog = usePlaySessionMark();
 
   const busy = write.isPending;
   const send = (action: SwitchAction): void => {
@@ -195,8 +132,8 @@ export function ReadyBlock({ onChanged }: { onChanged: () => void }): JSX.Elemen
             variant="quiet"
             id="btn-ready-log"
             data-track="dash.ready.start-log"
-            disabled={startLog.isPending}
-            onClick={() => startLog.mutate()}
+            disabled={startLog.pending}
+            onClick={() => startLog.mark('start')}
           >
             Start the session log
           </Button>

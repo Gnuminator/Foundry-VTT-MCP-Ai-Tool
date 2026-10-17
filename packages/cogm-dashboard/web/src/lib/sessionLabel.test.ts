@@ -22,13 +22,11 @@ describe('sessionLabel', () => {
     expect(sessionLabel({ open: true, startedAt: null, endedAt: null }, false)).toBe(
       'Session active'
     );
-    expect(
-      sessionLabel(
-        { open: true, startedAt: '2026-10-08T19:30:00.000Z', endedAt: null },
-        false,
-        'en-GB'
-      )
-    ).toMatch(/^Session since \d{2}:\d{2}$/);
+    // A local 19:30, so the answer does not depend on the machine's time zone.
+    const startedAt = new Date(2026, 9, 8, 19, 30).toISOString();
+    expect(sessionLabel({ open: true, startedAt, endedAt: null }, false, 'en-GB')).toBe(
+      'Session since 19:30'
+    );
   });
 
   it('does not show a time it cannot read', () => {

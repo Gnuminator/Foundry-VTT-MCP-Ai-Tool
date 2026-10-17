@@ -32,6 +32,10 @@ Every new item gets an `- id:` (short, lowercase, stable, never changed or reuse
 live board at board.spennerit.com, D-124, links items by it) and a `- board:` line (its area on
 the board); `- pi: yes` where it needs a Pi day and the user's OK. Write a blocker in `blocked by`
 as `W21` for a Waiting item or `item:<id>` for another Backlog item (anything else is free text).
+Add `- touches: path, folder/` (what the item writes; a trailing "(about lines 5 to 9)" is ignored) and
+`- depends on: #380, item:<id>` (PRs and items that must merge or finish first) where they apply: the board's
+Lanes zone warns when two claimed items in different lanes touch the same path (or a folder and a file in it),
+and when an item is claimed before what it depends on is done or merged. Check those warnings before starting a lane.
 Remove items when merged (the PR is the record) and add a line to `## Done`; if a go / no-go light
 in `Board.md` names the removed item's id, repoint or drop that light, because an id no longer on
 the Backlog shows as "Check". Lows from reviews become S items. The board's Capture and Promote
@@ -47,8 +51,9 @@ keep each item's lines together when you move it.
 - Brief (half a page): the Backlog item, state, open PRs, links, done-when, "load the `lane`
   skill, follow CLAUDE.md". Work outside this repo (the Pi, another folder) carries the rules that
   apply there (`pi-work`).
-- `start_session` with `model` set: Sonnet 5.5 for coding, Haiku 5.5 for read-only or simple
-  mechanical work, Opus only for risky design. Every call sets it, `own_initiative` cards and
+- `start_session` with `model` set as a full id (`claude-sonnet-5-5`, `claude-haiku-5-5`,
+  `claude-opus-5-5`; the hook refuses a short name): Sonnet 5.5 for coding, Haiku 5.5 for read-only
+  or simple mechanical work, Opus only for risky design. Every call sets it, `own_initiative` cards and
   successors included: an unset model inherits the caller's, so this Opus planner starts Opus
   lanes (since D-122 two lanes ran Opus that way: the unset cards). Same for the Agent calls and
   Workflow `agent()` calls a planner makes: `model` on each. If the app refuses the start

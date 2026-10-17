@@ -297,7 +297,12 @@ const target = (expr, vars) => ({
 function loopLiterals(text, name) {
   const lits = [];
   const id = name.replace(/\$/g, '\\$');
-  if (new RegExp(`(?<![\\w$.])${id}\\s*=(?![=>])`).test(text)) return lits;
+  // An assignment whose right side names the same variable (`p = Path(p)`, `f = f.strip()`) only
+  // rewrites the loop value, so it is not a reuse.
+  const mention = new RegExp(`(?<![\\w$.])${id}(?![\\w$])`);
+  for (const m of text.matchAll(new RegExp(`(?<![\\w$.])${id}\\s*=(?![=>])([^\\n;]*)`, 'g'))) {
+    if (!mention.test(m[1])) return lits;
+  }
   const heads = [
     new RegExp(`\\bfor\\s+${id}\\s+in\\s+([^:]{0,1500}):`, 'g'),
     new RegExp(`\\bfor\\s*\\(\\s*(?:const|let|var)\\s+${id}\\s+of\\s+([^{]{0,1500})\\{`, 'g'),

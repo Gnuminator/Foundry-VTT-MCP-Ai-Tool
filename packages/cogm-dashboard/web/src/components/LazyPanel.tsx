@@ -39,14 +39,14 @@ export function panelChunk<F extends PanelFn>(load: () => Promise<{ default: F }
 
 /**
  * Catches a chunk that failed to load (the dashboard server was restarted, the network dropped), so
- * one missing panel does not blank the page. It draws nothing, tells the GM once and closes the
- * drawer, so the backdrop does not stay up after the failure. The guard stays failed until a
- * reload (React keeps a failed import's answer), so a later click on the same button opens a
- * backdrop with nothing under it and no second toast. It also catches a render error of a loaded
- * panel, which gets the same toast and close.
+ * one missing panel does not blank the page. It tells the GM once and closes the drawer, so the
+ * backdrop does not stay up after the failure. The guard stays failed until a reload (React keeps
+ * a failed import's answer), so it draws `failedView` from then on: the loading drawer in its
+ * error state, which a later click on the same button shows (no second toast). It also catches a
+ * render error of a loaded panel, which gets the same toast, close and error view.
  */
 class ChunkGuard extends Component<
-  { onFail: () => void; children: ReactNode },
+  { onFail: () => void; failedView: ReactNode; children: ReactNode },
   { failed: boolean }
 > {
   override state = { failed: false };
@@ -57,7 +57,7 @@ class ChunkGuard extends Component<
     this.props.onFail();
   }
   override render(): ReactNode {
-    return this.state.failed ? null : this.props.children;
+    return this.state.failed ? this.props.failedView : this.props.children;
   }
 }
 
@@ -94,6 +94,18 @@ export function LazyPanel<F extends PanelFn>({
         toast('✗ Could not load part of the page. Reload the page to try again.', 'err');
         onOpenChange?.(false);
       }}
+      failedView={
+        loadingShell ? (
+          <LoadingDrawer
+            open={show as boolean}
+            onClose={() => onOpenChange?.(false)}
+            id={loadingShell.id}
+            title={loadingShell.title}
+            pane={loadingShell.pane === true}
+            failed
+          />
+        ) : null
+      }
     >
       <Suspense
         fallback={

@@ -88,6 +88,20 @@ describe('FoundryDataAccess — getModules basic envelope', () => {
       active: true,
       manifest: 'file:///x',
     });
+    world.addModule({
+      id: 'mod-t',
+      title: 'T',
+      version: '1',
+      active: true,
+      manifest: 'https://example.test/module.json?token=secret',
+    });
+    world.addModule({
+      id: 'mod-u',
+      title: 'U',
+      version: '1',
+      active: true,
+      manifest: 'https://user:pw@example.test/module.json',
+    });
 
     const result = await da.getModules({});
     const manifest = (id: string): unknown =>
@@ -96,6 +110,9 @@ describe('FoundryDataAccess — getModules basic envelope', () => {
     expect(manifest('mod-m')).toBe('https://example.test/module.json');
     expect(manifest('mod-n')).toBeNull();
     expect(manifest('mod-o')).toBeNull();
+    // A token in the query or a password in the url never reaches the tool output.
+    expect(manifest('mod-t')).toBeNull();
+    expect(manifest('mod-u')).toBeNull();
   });
 
   it('reports null for all compatibility fields when compatibility is absent', async () => {

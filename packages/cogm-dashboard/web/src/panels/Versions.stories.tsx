@@ -39,6 +39,7 @@ const view = (patch: Partial<Extract<VersionsView, { enabled: true }>> = {}): Ve
   enabled: true,
   rows: ROWS,
   checkedAt: '2026-10-18T19:30:00Z',
+  checking: false,
   lookupErrors: 0,
   kit: { state: 'passed', at: '2026-10-18T03:10:00Z', text: '212 passed, 0 failed' },
   ...patch,

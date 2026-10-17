@@ -202,6 +202,10 @@ function Dashboard(): JSX.Element {
   const [diagOpen, setDiagOpen] = useState(false);
   const [versionsOpen, setVersionsOpen] = useState(false);
   const versionTrackerOn = during.prefs?.versionTracker === true;
+  // Switching the tracker off closes its panel for good: it does not come back when it is on again.
+  useEffect(() => {
+    if (!versionTrackerOn && during.prefs) setVersionsOpen(false);
+  }, [versionTrackerOn, during.prefs]);
   // Tarokka's Show cards, here so Pre-flight can warn while it is on (both drawers can be open).
   const [tarokkaShown, setTarokkaShown] = useState(false);
   // A guarded change refused for GM Actions opens Pre-flight, whose Ready for session turns them

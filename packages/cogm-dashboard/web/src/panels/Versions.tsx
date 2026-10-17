@@ -33,11 +33,13 @@ export type VersionsView =
       enabled: true;
       rows: VersionRow[] | null;
       checkedAt: string | null;
+      checking: boolean;
       lookupErrors: number;
       kit: KitResult | null;
     };
 
 export const VERSIONS_KEY = ['versions'] as const;
+const CHECKING_POLL_MS = 3000;
 
 const STATUS_TEXT: Record<VersionStatus, string> = {
   ok: 'Up to date',
@@ -87,6 +89,11 @@ export function VersionsPane({
     queryKey: VERSIONS_KEY,
     queryFn: () => api<VersionsView>('/api/versions'),
     enabled: open,
+    // The server checks online in the background: ask again until it has finished.
+    refetchInterval: query => {
+      const answer = query.state.data;
+      return answer?.enabled && answer.checking ? CHECKING_POLL_MS : false;
+    },
   });
   const queryClient = useQueryClient();
   const recheckNow = useMutation({
@@ -98,7 +105,16 @@ export function VersionsPane({
   const view = data?.enabled ? data : null;
   const rows = view?.rows ?? null;
   const behind = behindCount(rows);
-  const meta = !view ? '' : behind === 0 ? 'all up to date' : `${behind} to update`;
+  const checked = rows?.some(r => r.status !== 'unknown') === true;
+  const meta = !view
+    ? ''
+    : view.checking && !checked
+      ? 'checking…'
+      : !checked
+        ? 'not checked'
+        : behind === 0
+          ? 'all up to date'
+          : `${behind} to update`;
 
   let state: 'loading' | 'error' | 'empty' | 'ready' = 'ready';
   let stateMessage: string | undefined;
@@ -158,6 +174,7 @@ export function VersionsPane({
             >
               Check again
             </Button>
+            {recheckNow.isError ? ` ${errorText(recheckNow.error)}` : ''}
           </p>
         </>
       ) : null}

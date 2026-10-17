@@ -15,6 +15,9 @@ import * as path from 'path';
 import type { Express, Request, Response } from 'express';
 
 export const VERSIONS_REFRESH_MS = 6 * 3600 * 1000;
+export const VERSIONS_RETRY_MS = 10 * 60 * 1000;
+const VERSIONS_FORCE_MIN_MS = 60 * 1000;
+const FIRST_WAIT_MS = 12_000;
 const FETCH_TIMEOUT_MS = 10_000;
 const MAX_BODY = 1024 * 1024;
 const MAX_IN_FLIGHT = 6;
@@ -49,6 +52,8 @@ export type VersionsView =
       /** null until the bridge has answered once */
       rows: VersionRow[] | null;
       checkedAt: string | null;
+      /** The online check is still running; the page asks again shortly. */
+      checking: boolean;
       /** Lookups that failed in the last online check (the rows show "unknown" for those). */
       lookupErrors: number;
       kit: KitResult | null;
@@ -58,6 +63,7 @@ export type VersionsView =
 export function compareVersions(a: string, b: string): number {
   const parts = (v: string): number[] =>
     v
+      .replace(/^v/i, '')
       .split(/[-+]/)[0]
       .split('.')
       .map(p => {
@@ -187,30 +193,102 @@ export function buildRows(
 
 type FetchLike = (
   url: string,
-  init: { headers?: Record<string, string>; redirect: 'follow'; signal: AbortSignal }
+  init: { headers?: Record<string, string>; redirect: 'manual'; signal: AbortSignal }
 ) => Promise<{
   ok: boolean;
   status: number;
   headers: { get(name: string): string | null };
+  body?: {
+    getReader(): { read(): Promise<{ done: boolean; value?: Uint8Array }>; cancel(): unknown };
+  } | null;
   text(): Promise<string>;
 }>;
 
+const MAX_REDIRECTS = 3;
+
+/**
+ * Hosts a module manifest may not point at: this machine and private or link-local networks
+ * (the manifest urls come from the Foundry host, and this server may sit next to the live
+ * ports). Checked on the name or address literal in the url, and again on every redirect;
+ * a name that resolves to a private address is not caught.
+ */
+export function isPrivateHost(hostname: string): boolean {
+  const h = hostname.toLowerCase().replace(/^\[|\]$/g, '');
+  if (h === 'localhost' || h.endsWith('.localhost') || h.endsWith('.local')) return true;
+  if (h === '::1' || h === '::' || /^f[cd][0-9a-f]{2}:/.test(h) || /^fe[89ab][0-9a-f]:/.test(h)) {
+    return true;
+  }
+  if (h.startsWith('::ffff:')) return true;
+  const m = /^(\d+)\.(\d+)\.(\d+)\.(\d+)$/.exec(h);
+  if (!m) return false;
+  const [a, b] = [Number(m[1]), Number(m[2])];
+  return (
+    a === 0 ||
+    a === 10 ||
+    a === 127 ||
+    (a === 169 && b === 254) ||
+    (a === 172 && b >= 16 && b <= 31) ||
+    (a === 192 && b === 168) ||
+    (a === 100 && b >= 64 && b <= 127)
+  );
+}
+
+/** Only https, no user or password, no private host. Throws otherwise. */
+function checkUrl(raw: string): URL {
+  const url = new URL(raw);
+  if (url.protocol !== 'https:') throw new Error('only https urls are fetched');
+  if (url.username || url.password) throw new Error('urls with a login are not fetched');
+  if (isPrivateHost(url.hostname)) throw new Error('private hosts are not fetched');
+  return url;
+}
+
+async function readCapped(res: Awaited<ReturnType<FetchLike>>): Promise<string> {
+  const reader = res.body?.getReader();
+  if (!reader) {
+    const whole = await res.text();
+    if (whole.length > MAX_BODY) throw new Error('response too large');
+    return whole;
+  }
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    if (!value) continue;
+    size += value.byteLength;
+    if (size > MAX_BODY) {
+      void reader.cancel();
+      throw new Error('response too large');
+    }
+    chunks.push(value);
+  }
+  return Buffer.concat(chunks).toString('utf8');
+}
+
 async function fetchText(
   fetchImpl: FetchLike,
-  url: string,
+  start: string,
   headers?: Record<string, string>
 ): Promise<string> {
-  const res = await fetchImpl(url, {
-    ...(headers ? { headers } : {}),
-    redirect: 'follow',
-    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-  });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  const length = Number(res.headers.get('content-length'));
-  if (Number.isFinite(length) && length > MAX_BODY) throw new Error('response too large');
-  const body = await res.text();
-  if (body.length > MAX_BODY) throw new Error('response too large');
-  return body;
+  const signal = AbortSignal.timeout(FETCH_TIMEOUT_MS);
+  let url = checkUrl(start);
+  for (let hop = 0; ; hop += 1) {
+    const res = await fetchImpl(url.href, {
+      ...(headers ? { headers } : {}),
+      redirect: 'manual',
+      signal,
+    });
+    if (res.status >= 300 && res.status < 400) {
+      const location = res.headers.get('location');
+      if (!location || hop >= MAX_REDIRECTS) throw new Error('too many redirects');
+      url = checkUrl(new URL(location, url).href);
+      continue;
+    }
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const length = Number(res.headers.get('content-length'));
+    if (Number.isFinite(length) && length > MAX_BODY) throw new Error('response too large');
+    return readCapped(res);
+  }
 }
 
 function versionOf(json: unknown): string | null {
@@ -329,6 +407,14 @@ export class VersionTracker {
     this.now = options.now ?? Date.now;
   }
 
+  /**
+   * What the route answers. The online check runs in the background: the first answer waits for
+   * it at most FIRST_WAIT_MS (rows then show what is known, `checking` stays true and the page
+   * asks again), later answers come straight from the cache. A check is due after six hours, or
+   * after ten minutes when a lookup failed or a package has no entry (Pi offline at boot, a module
+   * installed since). `force` (the "Check again" button) is ignored within a minute of the last
+   * check, so GitHub's anonymous limit is not burnt.
+   */
   async view(force = false): Promise<VersionsView> {
     if (!this.options.enabled()) return { enabled: false };
     let installed: InstalledPackage[] | null;
@@ -338,23 +424,44 @@ export class VersionTracker {
       installed = null;
     }
     if (installed) {
+      const age = this.checkedAt === null ? Infinity : this.now() - this.checkedAt;
+      const retry = this.newest !== null && (this.newest.errors > 0 || this.missing(installed));
       const due =
-        this.checkedAt === null || force || this.now() - this.checkedAt >= VERSIONS_REFRESH_MS;
-      if (due) await this.refresh(installed);
+        this.checkedAt === null ||
+        age >= (retry ? VERSIONS_RETRY_MS : VERSIONS_REFRESH_MS) ||
+        (force && age >= VERSIONS_FORCE_MIN_MS);
+      if (due) {
+        const started = this.refresh(installed);
+        if (this.checkedAt === null) {
+          await Promise.race([started, new Promise<void>(r => setTimeout(r, FIRST_WAIT_MS))]);
+        }
+      }
     }
     return {
       enabled: true,
       rows: installed ? buildRows(installed, this.newest) : null,
       checkedAt: this.checkedAt === null ? null : new Date(this.checkedAt).toISOString(),
+      checking: this.inFlight !== null,
       lookupErrors: this.newest?.errors ?? 0,
       kit: readKitResult(this.options.kitFile ?? null),
     };
+  }
+
+  /** A module with a manifest url but no looked-up version (installed after the last check). */
+  private missing(installed: InstalledPackage[]): boolean {
+    return installed.some(
+      p => p.kind === 'module' && p.manifest !== null && this.newest?.byId[p.id] === undefined
+    );
   }
 
   private refresh(installed: InstalledPackage[]): Promise<void> {
     this.inFlight ??= fetchNewest(installed, this.fetchImpl)
       .then(found => {
         this.newest = found;
+        this.checkedAt = this.now();
+      })
+      .catch(() => {
+        // fetchNewest counts its own failures; this only keeps a surprise from going unhandled
         this.checkedAt = this.now();
       })
       .finally(() => {

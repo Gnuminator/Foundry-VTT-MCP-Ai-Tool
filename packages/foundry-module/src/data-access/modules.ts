@@ -76,6 +76,23 @@ interface ModuleManifestFields extends FoundryModule {
   readonly url?: unknown;
 }
 
+/**
+ * A module's manifest url for the tool output, or null. Only plain http(s) urls without a user,
+ * password or query string: private or paid modules often carry a token there, and this output
+ * reaches Claude and its transcripts.
+ */
+function publicManifestUrl(value: unknown): string | null {
+  if (typeof value !== 'string' || value.length > 500) return null;
+  try {
+    const url = new URL(value);
+    if (url.protocol !== 'https:' && url.protocol !== 'http:') return null;
+    if (url.username || url.password || url.search) return null;
+    return url.href;
+  } catch {
+    return null;
+  }
+}
+
 /** The `compatibility` block of a package as the declaration types it. */
 type ModuleCompatibility = NonNullable<FoundryModule['compatibility']>;
 
@@ -280,7 +297,7 @@ export class ModulesDataAccess {
       title: m.title,
       version: m.version,
       active: m.active,
-      manifest: typeof manifest === 'string' && /^https?:\/\//.test(manifest) ? manifest : null,
+      manifest: publicManifestUrl(manifest),
       compatibility: {
         minimum: comp.minimum ?? null,
         verified: comp.verified ?? null,

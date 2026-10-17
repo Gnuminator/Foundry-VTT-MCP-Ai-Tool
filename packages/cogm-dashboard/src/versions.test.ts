@@ -6,6 +6,8 @@ import { describe, expect, it } from 'vitest';
 
 import {
   VERSIONS_REFRESH_MS,
+  VERSIONS_RETRY_MS,
+  isPrivateHost,
   VersionTracker,
   type VersionTrackerOptions,
   buildRows,
@@ -131,6 +133,78 @@ describe('defaultKitLastRunFile', () => {
   });
 });
 
+const settle = (): Promise<void> => new Promise(resolve => setImmediate(resolve));
+
+describe('isPrivateHost and the url guard', () => {
+  it('refuses this machine and private networks', () => {
+    for (const h of [
+      'localhost',
+      'foo.localhost',
+      'printer.local',
+      '127.0.0.1',
+      '10.1.2.3',
+      '172.16.0.1',
+      '192.168.1.5',
+      '169.254.1.1',
+      '100.64.0.1',
+      '[::1]',
+      'fd00::1',
+    ]) {
+      expect(isPrivateHost(h), h).toBe(true);
+    }
+    for (const h of ['example.com', '8.8.8.8', '172.32.0.1', 'github.com']) {
+      expect(isPrivateHost(h), h).toBe(false);
+    }
+  });
+
+  it('does not fetch a private, http or login url, nor follow a redirect into one', async () => {
+    const f = fakeFetch({
+      'https://foundryvtt.com/releases/': RELEASES,
+      'https://api.github.com/repos/foundryvtt/dnd5e/releases/latest': '{"tag_name":"6.0.6"}',
+    });
+    const bad = {
+      ...MODULES,
+      modules: [
+        { id: 'p1', title: 'P1', version: '1', active: true, manifest: 'https://127.0.0.1/m.json' },
+        { id: 'p2', title: 'P2', version: '1', active: true, manifest: 'http://x.test/m.json' },
+        {
+          id: 'p3',
+          title: 'P3',
+          version: '1',
+          active: true,
+          manifest: 'https://u:p@x.test/m.json',
+        },
+        {
+          id: 'p4',
+          title: 'P4',
+          version: '1',
+          active: true,
+          manifest: 'https://x.test/redir.json',
+        },
+      ],
+    };
+    const redirecting: typeof f.impl = (url, init) =>
+      url.endsWith('/redir.json')
+        ? Promise.resolve({
+            ok: false,
+            status: 302,
+            headers: { get: (n: string) => (n === 'location' ? 'https://192.168.0.9/x' : null) },
+            text: () => Promise.resolve(''),
+          })
+        : f.impl(url, init);
+    const t = new VersionTracker({
+      enabled: (): boolean => true,
+      getModules: (): Promise<unknown> => Promise.resolve(bad),
+      fetchImpl: redirecting,
+    });
+    await t.view();
+    await settle();
+    expect(f.calls.some(u => /127\.0\.0\.1|192\.168|u:p|http:\/\/x\.test/.test(u))).toBe(false);
+    const v = await t.view();
+    expect(v.enabled && v.lookupErrors).toBe(4);
+  });
+});
+
 describe('VersionTracker', () => {
   const online = {
     'https://foundryvtt.com/releases/': RELEASES,
@@ -164,11 +238,53 @@ describe('VersionTracker', () => {
     const n = f.calls.length;
     await t.view();
     expect(f.calls.length).toBe(n);
+    // Six hours on, the next answer is still the cache; the check runs in the background.
     clock += VERSIONS_REFRESH_MS;
-    await t.view();
+    const stale = await t.view();
+    expect(stale.enabled && stale.checking).toBe(true);
+    await settle();
     expect(f.calls.length).toBe(n * 2);
+    // "Check again" within a minute of the last check is ignored.
     await t.view(true);
+    await settle();
+    expect(f.calls.length).toBe(n * 2);
+    clock += 61_000;
+    await t.view(true);
+    await settle();
     expect(f.calls.length).toBe(n * 3);
+  });
+
+  it('shares one lookup between answers that come while it runs', async () => {
+    const f = fakeFetch(online);
+    const t = new VersionTracker({
+      enabled: (): boolean => true,
+      getModules: (): Promise<unknown> => Promise.resolve(MODULES),
+      fetchImpl: f.impl,
+    });
+    await Promise.all([t.view(), t.view(), t.view()]);
+    await settle();
+    expect(f.calls.filter(u => u === 'https://x.test/a.json')).toHaveLength(1);
+  });
+
+  it('tries again after ten minutes when a lookup failed, not after six hours', async () => {
+    const f = fakeFetch({ ...online, 'https://x.test/a.json': 500 });
+    let clock = 1_000_000;
+    const t = new VersionTracker({
+      enabled: (): boolean => true,
+      getModules: (): Promise<unknown> => Promise.resolve(MODULES),
+      fetchImpl: f.impl,
+      now: (): number => clock,
+    });
+    await t.view();
+    const n = f.calls.length;
+    clock += VERSIONS_RETRY_MS - 1000;
+    await t.view();
+    await settle();
+    expect(f.calls.length).toBe(n);
+    clock += 2000;
+    await t.view();
+    await settle();
+    expect(f.calls.length).toBe(n * 2);
   });
 
   it('counts failed lookups and keeps the rest', async () => {

@@ -244,26 +244,44 @@ test('the Obsidian link opens the month of a change once the vault and the world
 });
 
 test('a gm-change event from Foundry reloads the list once', async ({ page }) => {
-  // The first load shows the list the page starts with; only a reload can show the new one.
+  // The first load shows the list the page starts with; only a reload can show the new one. The
+  // stream answers once that first load has been asked for: an event that came before the card
+  // had a list to reload would (rightly) reload nothing, and the first load is fresh anyway.
   let loads = 0;
+  let firstLoad: () => void = () => undefined;
+  const firstLoadAsked = new Promise<void>(resolve => (firstLoad = resolve));
   const calls = await setup(page, {
-    ai: () => (++loads === 1 ? AI_LIST : { changes: [aiChange(9, { summary: 'Moved a token' })] }),
-    stream: [
-      GM_ON,
-      {
-        event: 'events',
-        data: {
-          events: [
-            {
-              id: 'e1',
-              timestampMs: Date.now(),
-              eventType: 'gm-change',
-              description: 'Applied: moved a token',
-            },
-          ],
-        },
+    ai: () => {
+      firstLoad();
+      return ++loads === 1 ? AI_LIST : { changes: [aiChange(9, { summary: 'Moved a token' })] };
+    },
+  });
+  const events = [
+    GM_ON,
+    {
+      event: 'events',
+      data: {
+        events: [
+          {
+            id: 'e1',
+            timestampMs: Date.now(),
+            eventType: 'gm-change',
+            description: 'Applied: moved a token',
+          },
+        ],
       },
-    ],
+    },
+  ];
+  await page.route('**/api/stream**', async route => {
+    await firstLoadAsked;
+    // Past the first answer, so the list is on screen when the event lands.
+    await new Promise(resolve => setTimeout(resolve, 300));
+    const lines = events.map(e => `event: ${e.event}\ndata: ${JSON.stringify(e.data)}\n\n`);
+    await route.fulfill({
+      status: 200,
+      contentType: 'text/event-stream',
+      body: `retry: 600000\n\n${lines.join('')}`,
+    });
   });
   const c = await load(page);
   // The reload is what shows the new list.

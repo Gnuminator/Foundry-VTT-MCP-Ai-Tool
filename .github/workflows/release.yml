@@ -28,9 +28,9 @@ jobs:
     name: verify (version, types, lint, build, tests)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: '22'
           cache: 'npm'
@@ -39,9 +39,16 @@ jobs:
         run: npm ci
 
       - name: One version number (root package.json, tag and every stamped file agree)
+        env:
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
         run: |
-          if [ "${{ github.ref_type }}" = "tag" ]; then
-            node scripts/sync-version.mjs --check --tag "${{ github.ref_name }}"
+          if [ "$REF_TYPE" = "tag" ]; then
+            if ! printf '%s' "$REF_NAME" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.]+)?$'; then
+              echo "Refusing tag name: $REF_NAME" >&2
+              exit 1
+            fi
+            node scripts/sync-version.mjs --check --tag "$REF_NAME"
           else
             node scripts/sync-version.mjs --check
           fi
@@ -63,9 +70,9 @@ jobs:
     needs: verify
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: '22'
           cache: 'npm'
@@ -74,9 +81,16 @@ jobs:
         run: npm ci
 
       - name: Work out the tag
+        env:
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
         run: |
-          if [ "${{ github.ref_type }}" = "tag" ]; then
-            echo "TAG=${{ github.ref_name }}" >> "$GITHUB_ENV"
+          if [ "$REF_TYPE" = "tag" ]; then
+            if ! printf '%s' "$REF_NAME" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.]+)?$'; then
+              echo "Refusing tag name: $REF_NAME" >&2
+              exit 1
+            fi
+            echo "TAG=$REF_NAME" >> "$GITHUB_ENV"
           else
             echo "TAG=v$(node -p "require('./package.json').version")" >> "$GITHUB_ENV"
           fi
@@ -121,7 +135,7 @@ jobs:
           unzip -l build/foundry-ai-tool-obsidian.zip | grep -q 'foundry-ai-tool/manifest.json$'
           ls -lh build/foundry-ai-tool-obsidian.zip
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: release-module
           path: |
@@ -135,9 +149,9 @@ jobs:
     needs: verify
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: '22'
           cache: 'npm'
@@ -146,9 +160,16 @@ jobs:
         run: npm ci
 
       - name: Work out the tag
+        env:
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
         run: |
-          if [ "${{ github.ref_type }}" = "tag" ]; then
-            echo "TAG=${{ github.ref_name }}" >> "$GITHUB_ENV"
+          if [ "$REF_TYPE" = "tag" ]; then
+            if ! printf '%s' "$REF_NAME" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.]+)?$'; then
+              echo "Refusing tag name: $REF_NAME" >&2
+              exit 1
+            fi
+            echo "TAG=$REF_NAME" >> "$GITHUB_ENV"
           else
             echo "TAG=v$(node -p "require('./package.json').version")" >> "$GITHUB_ENV"
           fi
@@ -178,7 +199,7 @@ jobs:
           zip -r "foundry-mcp-server-${TAG}.zip" standalone-mcp-server >/dev/null
           ls -lh "foundry-mcp-server-${TAG}.zip"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: release-bridge
           path: foundry-mcp-server-${{ env.TAG }}.zip
@@ -189,9 +210,9 @@ jobs:
     needs: verify
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: '22'
           cache: 'npm'
@@ -201,9 +222,16 @@ jobs:
 
       - name: Work out the tag
         shell: pwsh
+        env:
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
         run: |
-          if ("${{ github.ref_type }}" -eq "tag") {
-            $tag = "${{ github.ref_name }}"
+          if ($env:REF_TYPE -eq "tag") {
+            if ($env:REF_NAME -cnotmatch '^v[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.]+)?$') {
+              Write-Error "Refusing tag name: $env:REF_NAME"
+              exit 1
+            }
+            $tag = $env:REF_NAME
           } else {
             $tag = "v" + (Get-Content package.json -Raw | ConvertFrom-Json).version
           }
@@ -213,12 +241,14 @@ jobs:
         run: npm run build:shared && npm run bundle:server
 
       - name: Install NSIS
-        run: choco install nsis -y
+        # Pinned: the compiler that produces the installer must not float with the Chocolatey feed.
+        run: choco install nsis --version 3.10 -y --no-progress
 
       - name: Build the installer
         shell: pwsh
         run: |
           $env:PATH = "C:\Program Files (x86)\NSIS;$env:PATH"
+          makensis /VERSION
           Set-Location installer
           node build-nsis.js --version $env:TAG
 
@@ -229,7 +259,7 @@ jobs:
           if (-not (Test-Path $exe)) { Write-Error "Installer not found: $exe"; exit 1 }
           "{0:N1} MB" -f ((Get-Item $exe).Length / 1MB)
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: release-installer
           path: installer/build/FoundryMCPServer-Setup-${{ env.TAG }}.exe
@@ -243,17 +273,36 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           pattern: release-*
           merge-multiple: true
           path: release-files
 
+      - name: Check the tag name
+        env:
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          if ! printf '%s' "$REF_NAME" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.]+)?$'; then
+            echo "Refusing tag name: $REF_NAME" >&2
+            exit 1
+          fi
+
       - name: List the release files
         run: ls -lh release-files
 
+      - name: Write SHA256SUMS.txt for the release files
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -e
+          cd release-files
+          sha256sum module.json foundry-mcp-bridge.zip foundry-ai-tool-obsidian.zip \
+            "foundry-mcp-server-${TAG}.zip" "FoundryMCPServer-Setup-${TAG}.exe" > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
       - name: Create the GitHub release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
         with:
           tag_name: ${{ github.ref_name }}
           name: Foundry AI Tool ${{ github.ref_name }}
@@ -267,6 +316,7 @@ jobs:
             release-files/foundry-ai-tool-obsidian.zip
             release-files/foundry-mcp-server-${{ github.ref_name }}.zip
             release-files/FoundryMCPServer-Setup-${{ github.ref_name }}.exe
+            release-files/SHA256SUMS.txt
           body: |
             ## Foundry AI Tool ${{ github.ref_name }}
 
@@ -280,6 +330,8 @@ jobs:
             `${{ github.server_url }}/${{ github.repository }}/releases/download/${{ github.ref_name }}/module.json`
 
             **Manual bridge:** download `foundry-mcp-server-${{ github.ref_name }}.zip` and run it with Node 22 or later.
+
+            **Check a download:** `SHA256SUMS.txt` lists the SHA-256 of every file here. In PowerShell: `Get-FileHash <file>`; compare it with the line for that file.
 
             **Obsidian plugin (optional, desktop):** unzip `foundry-ai-tool-obsidian.zip` into your vault's `.obsidian/plugins/` folder, then turn on "Foundry AI Tool" under Community plugins.
 

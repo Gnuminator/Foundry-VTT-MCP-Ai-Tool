@@ -177,6 +177,9 @@ export async function showScreen(page: Page, screen: Screen, theme: Theme): Prom
   await page.goto(`/next/?token=${GM_TOKEN}`);
   await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
   await expect(page.locator('html')).toHaveAttribute('data-mist', 'calm');
+  // The header's session label starts as "Session: …" and changes width when the session arrives,
+  // which moves the tabs by a pixel or two: shoot after it settled.
+  await expect(page.locator('#session-status')).not.toHaveText('Session: …');
   await screen.show(page);
   await page.evaluate(() => document.fonts.ready);
   await page.waitForLoadState('networkidle');

@@ -9,12 +9,21 @@
 //
 // Exempt, because the model is not a choice there:
 //   - Agent/Task with `subagent_type: "fork"` (a fork always inherits the parent model).
-//   - start_session with `context: "fork"`.
+//   - start_session with `context: "fork"`, or `target: "cloud"` (the model does not apply there).
 //   - start_session with a `proposal_id` and no `prompt` (starting a card; its model was set when
 //     the card was proposed).
 //   - start_session with `initiation: "offer"` and no `prompt` (the title-only offer card).
 //
-// Reads the hook payload (JSON) on stdin; prints a deny decision or nothing.
+// Still denied on purpose:
+//   - An agent type whose definition sets its own model: the call's `model` wins over it, and
+//     CLAUDE.md asks for one on every call. (The deny text then says "inherits"; read it as "not set".)
+//   - start_session with a `preset`: a preset may not set a model.
+//
+// The two tools take different forms: Agent takes the aliases "sonnet", "haiku", "opus"; start_session
+// takes a model id ("claude-sonnet-5-5"), so an alias there is denied (it may be ignored by the app).
+//
+// Reads the hook payload (JSON) on stdin; prints a deny decision or nothing. Like the sibling
+// hooks it fails open on an unparseable payload; a matched tool without `tool_input` is denied.
 
 import path from 'node:path';
 import { readFileSync } from 'node:fs';
@@ -34,12 +43,18 @@ export function decide(toolName, input) {
     return 'this Agent call has no `model`, so it inherits the caller\'s (an Opus session starts Opus workers). Set `model` ("sonnet" for code, "haiku" for reading and simple edits, "opus" only for design and risky reviews).';
   }
   if (SESSION_TOOLS.has(toolName)) {
-    if (!blank(args.model)) return null;
     if (String(args.context ?? '').trim() === 'fork') return null;
+    if (String(args.target ?? '').trim() === 'cloud') return null;
     const noPrompt = blank(args.prompt);
     if (noPrompt && !blank(args.proposal_id)) return null;
     if (noPrompt && String(args.initiation ?? '').trim() === 'offer') return null;
-    return 'this start_session call has no `model`, so the new session inherits the caller\'s (an Opus session starts Opus lanes). Set `model` (coding lanes "sonnet", reading and mechanical work "haiku", "opus" only for the planner, design and risky reviews).';
+    if (blank(args.model)) {
+      return 'this start_session call has no `model`, so the new session inherits the caller\'s (an Opus session starts Opus lanes). Set `model` to a full model id: "claude-sonnet-5-5" for coding lanes, "claude-haiku-5-5" for reading and mechanical work, "claude-opus-5-5" only for the planner, design and risky reviews.';
+    }
+    if (!/^claude-/.test(args.model.trim())) {
+      return `this start_session call sets \`model: "${args.model.trim()}"\`, but the tool takes a model id, and an alias it does not know may be ignored (the session then inherits the caller's). Use "claude-sonnet-5-5", "claude-haiku-5-5" or "claude-opus-5-5".`;
+    }
+    return null;
   }
   return null;
 }

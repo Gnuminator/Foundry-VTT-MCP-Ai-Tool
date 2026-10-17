@@ -39,15 +39,37 @@ test('start_session without a model is denied (new sessions, cards and successor
   assert.ok(decide(START, { title: 't', initiation: 'user_asked' }), 'title-only but not an offer');
 });
 
-test('start_session with a model passes', () => {
-  assert.equal(decide(START, { title: 't', prompt: 'p', initiation: 'user_asked', model: 'sonnet' }), null);
-  assert.equal(decide(START, { title: 't', prompt: 'p', initiation: 'own_initiative', model: 'opus' }), null);
+test('start_session with a model id passes', () => {
+  for (const model of ['claude-sonnet-5-5', 'claude-haiku-5-5', 'claude-opus-5-5']) {
+    assert.equal(decide(START, { title: 't', prompt: 'p', initiation: 'user_asked', model }), null, model);
+    assert.equal(decide(START, { title: 't', prompt: 'p', initiation: 'own_initiative', model }), null, model);
+  }
 });
 
-test('start_session exemptions: fork, starting a proposal, the title-only offer', () => {
+test('start_session with an alias is denied: the tool takes ids and may ignore an alias', () => {
+  for (const model of ['sonnet', 'haiku', 'opus', ' sonnet ']) {
+    const reason = decide(START, { title: 't', prompt: 'p', initiation: 'user_asked', model });
+    assert.match(reason, /claude-sonnet-5-5/, model);
+  }
+});
+
+test('a model that is not a string counts as none', () => {
+  assert.ok(decide('Agent', { prompt: 'x', model: 5 }));
+  assert.ok(decide('Agent', { prompt: 'x', model: ['sonnet'] }));
+  assert.ok(decide(START, { title: 't', prompt: 'p', model: 5 }));
+  assert.ok(decide(START, { title: 't', prompt: 'p', model: ['claude-sonnet-5-5'] }));
+});
+
+test('start_session exemptions: fork, cloud, starting a proposal, the title-only offer', () => {
   assert.equal(decide(START, { title: 't', prompt: 'p', context: 'fork' }), null);
+  assert.equal(decide(START, { title: 't', context: 'fork' }), null, 'a fork needs no prompt either');
+  assert.equal(decide(START, { title: 't', prompt: 'p', initiation: 'user_asked', target: 'cloud' }), null);
   assert.equal(decide(START, { proposal_id: 'p1' }), null);
   assert.equal(decide(START, { title: 't', initiation: 'offer' }), null);
+});
+
+test('a preset does not stand in for a model', () => {
+  assert.ok(decide(START, { title: 't', prompt: 'p', initiation: 'user_asked', preset: 'usual' }));
 });
 
 test('other tools are not this hook’s business', () => {
@@ -68,6 +90,9 @@ test('run never throws on a malformed payload', () => {
   for (const input of [null, undefined, {}, { tool_name: 5 }, { tool_name: 'Agent' }]) {
     assert.doesNotThrow(() => run(input));
   }
+  // On purpose: a matched tool with no tool_input is denied (no model), while unparseable JSON on
+  // stdin is allowed (see the process test).
+  assert.ok(run({ tool_name: 'Agent' }));
 });
 
 test('as a process: deny JSON on a blank model, nothing otherwise or on bad input', () => {
@@ -75,7 +100,7 @@ test('as a process: deny JSON on a blank model, nothing otherwise or on bad inpu
   const deny = go(JSON.stringify({ tool_name: 'Agent', tool_input: { prompt: 'x' } }));
   assert.equal(deny.status, 0);
   assert.equal(JSON.parse(deny.stdout).hookSpecificOutput.permissionDecision, 'deny');
-  const ok = go(JSON.stringify({ tool_name: START, tool_input: { title: 't', prompt: 'p', model: 'sonnet' } }));
+  const ok = go(JSON.stringify({ tool_name: START, tool_input: { title: 't', prompt: 'p', model: 'claude-sonnet-5-5' } }));
   assert.equal(ok.status, 0);
   assert.equal(ok.stdout, '');
   assert.equal(go('not json').stdout, '');

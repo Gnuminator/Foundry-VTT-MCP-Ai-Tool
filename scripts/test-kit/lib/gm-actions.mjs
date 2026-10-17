@@ -1606,6 +1606,83 @@ async function exerciseActor(args) {
 }
 
 /**
+ * Spends one legendary action on a token's actor the way the table does: the first legendary
+ * activity the system lets be used, with action consumption on (dnd5e 6 spends resources.legact for
+ * a legendary activation then). Nothing is put back: restoreLegendary does that, so the dashboard
+ * has a spent pool to show in between.
+ * @param {{sceneId: string, tokenId: string}} args
+ */
+async function spendLegendary(args) {
+  const actor = game.scenes.get(args.sceneId)?.tokens.get(args.tokenId)?.actor;
+  if (!actor) throw new Error(`spendLegendary: no token ${args.tokenId} on ${args.sceneId}`);
+  const pool = () => {
+    const p = actor.system.resources?.legact;
+    return { max: Number(p?.max) || 0, spent: Number(p?.spent) || 0 };
+  };
+  const before = pool();
+  if (before.max <= 0) throw new Error(`spendLegendary: ${actor.name} has no legendary actions`);
+  let found = null;
+  for (const item of actor.items) {
+    for (const activity of Array.from(item.system.activities?.values?.() ?? [])) {
+      if (!found && activity.activation?.type === 'legendary' && activity.canUse) {
+        found = { item, activity };
+      }
+    }
+  }
+  if (!found) throw new Error(`spendLegendary: ${actor.name} has no legendary activity to use`);
+  // A use that still opens a dialog would wait for ever: give it 20 s, then close what it opened.
+  const openBefore = new Set(foundry.applications.instances.keys());
+  let results;
+  let timer;
+  try {
+    const use = found.activity.use(
+      {
+        consume: { action: true },
+        create: { measuredTemplate: false, summons: false },
+        concentration: { begin: false },
+        subsequentActions: false,
+      },
+      { configure: false },
+      {}
+    );
+    use.catch(() => {});
+    const limit = new Promise((_, reject) => {
+      timer = setTimeout(
+        () => reject(new Error('timed out after 20 s, probably waiting for a dialog')),
+        20000
+      );
+    });
+    results = await Promise.race([use, limit]);
+  } finally {
+    clearTimeout(timer);
+    for (const [id, app] of [...foundry.applications.instances.entries()]) {
+      if (!openBefore.has(id)) await app.close({ skipConfirmation: true }).catch(() => {});
+    }
+  }
+  return {
+    name: actor.name,
+    item: found.item.name,
+    before,
+    after: pool(),
+    messageId: results?.message?.id ?? null,
+  };
+}
+
+/**
+ * Puts a token's legendary pool back to `spent` and deletes the chat card of a spendLegendary.
+ * @param {{sceneId: string, tokenId: string, spent: number, messageId?: string | null}} args
+ */
+async function restoreLegendary(args) {
+  const actor = game.scenes.get(args.sceneId)?.tokens.get(args.tokenId)?.actor;
+  if (!actor) throw new Error(`restoreLegendary: no token ${args.tokenId} on ${args.sceneId}`);
+  await actor.update({ 'system.resources.legact.spent': args.spent });
+  if (args.messageId && game.messages.has(args.messageId)) {
+    await game.messages.get(args.messageId).delete();
+  }
+  return { spent: Number(actor.system.resources?.legact?.spent) || 0 };
+}
+
+/**
  * Wait for the module's enhanced creature index to be current (see GM_ACTIONS.ensureCreatureIndex).
  * The module shares one build, so this joins the rebuild it started at `ready`.
  * @param {object} _args
@@ -1877,6 +1954,8 @@ export const GM_ACTION_FUNCTIONS = {
   placeToken,
   startCombat,
   endCombats,
+  spendLegendary,
+  restoreLegendary,
   readActor,
   setFeatureSwitches,
   ensurePartyGroup,

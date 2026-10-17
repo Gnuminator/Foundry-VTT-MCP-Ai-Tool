@@ -464,6 +464,37 @@ const ACTIONS = {
     return { ended: 1 };
   },
 
+  spendLegendary: (w, args) => {
+    const token = w.tokens.get(args.tokenId);
+    if (!token || token.sceneId !== args.sceneId) {
+      throw new ToolFailure(`spendLegendary: no token ${args.tokenId} on ${args.sceneId}`);
+    }
+    const actor = /** @type {any} */ (w.actors.get(token.actorId));
+    const legact = (actor?.resources ?? actor?.sheet?.monster?.resources)?.legact;
+    if (!legact) throw new ToolFailure(`spendLegendary: ${actor?.name} has no legendary actions`);
+    const before = { max: legact.max, spent: legact.spent };
+    legact.spent = Math.min(legact.max, legact.spent + 1);
+    return {
+      name: actor.name,
+      item: 'Legendary Action',
+      before,
+      after: { max: legact.max, spent: legact.spent },
+      messageId: null,
+    };
+  },
+
+  restoreLegendary: (w, args) => {
+    const token = w.tokens.get(args.tokenId);
+    if (!token || token.sceneId !== args.sceneId) {
+      throw new ToolFailure(`restoreLegendary: no token ${args.tokenId} on ${args.sceneId}`);
+    }
+    const actor = /** @type {any} */ (w.actors.get(token.actorId));
+    const legact = (actor?.resources ?? actor?.sheet?.monster?.resources)?.legact;
+    if (!legact) throw new ToolFailure('restoreLegendary: no legendary pool');
+    legact.spent = args.spent;
+    return { spent: legact.spent };
+  },
+
   readActor: (w, args) => {
     let actor = w.actors.get(args.actorId);
     let hp = actor?.hp;

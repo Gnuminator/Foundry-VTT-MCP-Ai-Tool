@@ -443,7 +443,7 @@ look at (no pixel comparison). A control that depends on data (a boss in the com
 AI on) is skipped with a note when it is not on the screen, never failed; a console error during a row fails
 it even so (the sweep waits a moment after each row so a late error lands on the row that caused it). The boss is provided: when the kit has its scene and a `legendary` monster, the sweep starts a
 combat of that monster and a hero with Combat buttons on (both put back afterwards), and the six combat strip
-rows (Boss prompts, reaction, select a combatant, the selection's Clear, Condition and Damage) must then pass. A
+rows (Boss prompts, reaction, select a combatant, the selection's Clear, Condition and Damage) must then pass. Before the rows, one step spends a legendary action on the boss in Foundry itself (the GM actions `spendLegendary` and `restoreLegendary`: the boss's first legendary activity, used with action consumption on, then the pool put back) and waits for the Legendary pips on the page to follow, then to come back (I-070, liveplay-g2). A
 dashboard API request that answers 400 or more is recorded as `HTTP <status> <method> <path> <tool>:
 <error>` (the tool's name and the server's error, never its arguments) in place of the browser's bare
 "Failed to load resource" line. A row whose drawer starts its own run on opening (Prep, Pre-flight) waits

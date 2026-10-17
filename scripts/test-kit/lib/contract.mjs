@@ -185,6 +185,14 @@ export const GM_ACTIONS = {
   /** () => {ended: number} ends every combat on kit scenes */
   endCombats: 'endCombats',
   /**
+   * ({sceneId, tokenId}) => {name, item, before: {max, spent}, after: {max, spent}, messageId} the token's
+   * actor uses its first usable legendary activity with action consumption on, so the system spends the
+   * pool (what a GM does at the table). Nothing is put back: restoreLegendary does.
+   */
+  spendLegendary: 'spendLegendary',
+  /** ({sceneId, tokenId, spent, messageId?}) => {spent} sets the token's legendary pool to `spent` again and deletes the chat card */
+  restoreLegendary: 'restoreLegendary',
+  /**
    * ({actorId, sceneId?, tokenId?}) => {hp:{value,max,temp}, conditions:[...], name} straight from the
    * document. With sceneId and tokenId it reads that token's actor: an unlinked token has its own HP,
    * and a guarded damage change lands there, not on the world actor.

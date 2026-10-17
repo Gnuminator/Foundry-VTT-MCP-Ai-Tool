@@ -4,7 +4,12 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { SceneRestoreTools } from '../tools/scene-restore.js';
-import { findScenesDir, readBackupScene, type LevelOpener } from './backup-reader.js';
+import {
+  findScenesDir,
+  readBackupScene,
+  runningWorldReason,
+  type LevelOpener,
+} from './backup-reader.js';
 import { buildRestoreDiff, describePart, flatten } from './diff.js';
 
 /**
@@ -299,23 +304,47 @@ describe('plan-scene-restore', () => {
     expect(createPlan).not.toHaveBeenCalled();
   });
 
-  it('says how to split a restore that is larger than one plan holds', async () => {
-    const walls = Array.from({ length: 250 }, (_, i) => ({ _id: `x${i}`, c: [i, 0, i, 1] }));
-    const { tools, createPlan } = makeTools({
-      live: {
-        sceneId: 's1',
-        name: 'Arena',
-        viewed: true,
-        walls,
-        lights: [],
-        tiles: [],
-        tokens: [],
-      },
+  it('plans a restore larger than one plan holds as a chain of batches', async () => {
+    const walls = Array.from({ length: 450 }, (_, i) => ({ _id: `x${i}`, c: [i, 0, i, 1] }));
+    const live = {
+      sceneId: 's1',
+      name: 'Arena',
+      viewed: true,
+      walls,
+      lights: [],
+      tiles: [],
+      tokens: [],
+    };
+    const { tools, createPlan } = makeTools({ live });
+    const first = await tools.handleToolCall('plan-scene-restore', { backupPath: scenes });
+    expect(createPlan.mock.calls[0][0].ops).toHaveLength(200);
+    expect(first.batch).toEqual({
+      size: 200,
+      remaining: first.batch!.total - 200,
+      total: first.batch!.total,
     });
-    await expect(
-      tools.handleToolCall('plan-scene-restore', { backupPath: scenes })
-    ).rejects.toThrow(/at most 200.*parts/);
-    expect(createPlan).not.toHaveBeenCalled();
+    expect(first.batch!.total).toBeGreaterThan(200);
+    expect(createPlan.mock.calls[0][0].summary).toMatch(/batch of 200 of \d+ changes/);
+  });
+
+  it('does not mark a restore that fits one plan as a batch', async () => {
+    const { tools } = makeTools();
+    const plan = await tools.handleToolCall('plan-scene-restore', { backupPath: scenes });
+    expect(plan.batch).toBeUndefined();
+  });
+
+  it('lets recentCopyOk skip only the recent-files rule', async () => {
+    const now = new Date();
+    await utimes(join(scenes, 'CURRENT'), now, now);
+    const { tools, createPlan } = makeTools();
+    await tools.handleToolCall('plan-scene-restore', { backupPath: scenes, recentCopyOk: true });
+    expect(createPlan).toHaveBeenCalledTimes(1);
+  });
+
+  it('recentCopyOk only turns off the time rule in runningWorldReason', async () => {
+    const recent = Date.now();
+    await expect(runningWorldReason(scenes, recent)).resolves.toMatch(/minutes ago/);
+    await expect(runningWorldReason(scenes, recent, { recentCopyOk: true })).resolves.toBeNull();
   });
 
   it('reports a missing backup folder with the way to get one', async () => {

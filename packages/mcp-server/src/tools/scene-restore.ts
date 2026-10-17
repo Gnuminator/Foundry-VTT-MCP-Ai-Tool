@@ -33,6 +33,7 @@ const planParams = z.object({
   scene: z.string().min(1).optional(),
   backupPath: z.string().min(1).optional(),
   parts: z.array(z.enum(SCENE_RESTORE_PARTS)).min(1).optional(),
+  recentCopyOk: z.boolean().optional(),
 });
 
 /** What `plan-scene-restore` returns beside the guarded plan. */
@@ -42,6 +43,8 @@ export interface SceneRestorePlanResult extends PlanView {
   counts: Record<SceneRestorePart, PartCounts>;
   /** Names of tokens that would be put back / taken off the map. */
   tokens: { added: string[]; removed: string[] };
+  /** Set when the restore is larger than one plan holds: this plan is the first batch. */
+  batch?: { size: number; remaining: number; total: number };
   autoApply: false;
 }
 
@@ -84,7 +87,7 @@ export class SceneRestoreTools {
       {
         name: 'plan-scene-restore',
         description:
-          'Plan putting a scene\'s walls, lights, tiles and tokens back from a backup copy of the world, after the map was broken by hand. Counts what is added back, removed, moved or changed. Apply with apply-planned-change, revert with undo-change. Needs the module switch "Scene restore" on (off by default).',
+          'Plan putting a scene\'s walls, lights, tiles and tokens back from a backup copy of the world, after the map was broken by hand. Counts what is added back, removed, moved or changed. A restore larger than one plan holds (200 changes) is planned in batches: apply the plan, then plan again for the next batch. Apply with apply-planned-change, revert with undo-change. Needs the module switch "Scene restore" on (off by default).',
         inputSchema: {
           type: 'object',
           properties: {
@@ -100,6 +103,11 @@ export class SceneRestoreTools {
             parts: {
               type: 'array',
               items: { type: 'string', enum: [...SCENE_RESTORE_PARTS] },
+            },
+            recentCopyOk: {
+              type: 'boolean',
+              description:
+                'Set true only for a copy of the world made by hand a few minutes ago: skips the "changed under 5 minutes ago" refusal. A copy Foundry has open is still refused.',
             },
           },
         },
@@ -159,10 +167,12 @@ export class SceneRestoreTools {
       open: this.openLevel,
     });
 
-    const running = await runningWorldReason(backup.scenesDir, backup.modifiedMs);
+    const running = await runningWorldReason(backup.scenesDir, backup.modifiedMs, {
+      recentCopyOk: params.recentCopyOk,
+    });
     if (running) {
       throw new Error(
-        `${backup.scenesDir} looks like a running world, not a backup: ${running}. Extract only the scenes of the newest snapshot into its own folder (scripts/plan-b/extract-scenes.ps1) and give the folder it prints as backupPath.`
+        `${backup.scenesDir} looks like a running world, not a backup: ${running}. Extract only the scenes of the newest snapshot into its own folder (scripts/plan-b/extract-scenes.ps1) and give the folder it prints as backupPath. For a hand-made copy of the world that is not open in Foundry, set recentCopyOk.`
       );
     }
 
@@ -172,17 +182,16 @@ export class SceneRestoreTools {
         `Nothing to restore: ${live.name} already matches the backup (${parts.join(', ')}).`
       );
     }
-    if (diff.ops.length > MAX_OPS) {
-      const sizes = parts
-        .map(
-          p =>
-            `${p}: ${diff.counts[p].added + diff.counts[p].removed + diff.counts[p].moved + diff.counts[p].changed}`
-        )
-        .join(', ');
-      throw new Error(
-        `This restore has ${diff.ops.length} changes (${sizes}) and one plan holds at most ${MAX_OPS}. Restore one part at a time with "parts" (for example just walls).`
-      );
-    }
+    // A restore over the plan limit goes in as a chain: this plan holds the first MAX_OPS changes;
+    // once it is applied the next call finds only what is left and plans the next batch.
+    const ops = diff.ops.slice(0, MAX_OPS);
+    const batch =
+      diff.ops.length > MAX_OPS
+        ? { size: ops.length, remaining: diff.ops.length - ops.length, total: diff.ops.length }
+        : undefined;
+    const batchNote = batch
+      ? ` (batch of ${batch.size} of ${batch.total} changes; ${batch.remaining} more after this: apply it, then plan again)`
+      : '';
     const lines = parts
       .map(p => [p, describePart(p, diff.counts[p])] as const)
       .filter(([, text]) => text.length > 0)
@@ -191,8 +200,8 @@ export class SceneRestoreTools {
     const ageHours = Math.round((Date.now() - backup.modifiedMs) / 3_600_000);
     const plan = await this.guardedWrites.createPlan({
       feature: SCENE_RESTORE_FEATURE_ID,
-      summary: `Restore ${live.name} from the backup of ${takenAt.slice(0, 16).replace('T', ' ')}: ${lines.join('; ')}`,
-      ops: diff.ops,
+      summary: `Restore ${live.name} from the backup of ${takenAt.slice(0, 16).replace('T', ' ')}: ${lines.join('; ')}${batchNote}`,
+      ops,
     });
     return {
       ...plan,
@@ -200,6 +209,7 @@ export class SceneRestoreTools {
       backup: { path: backup.scenesDir, takenAt, ageHours },
       counts: diff.counts,
       tokens: diff.tokenNames,
+      ...(batch ? { batch } : {}),
       autoApply: false,
     };
   }

@@ -62,3 +62,17 @@ test('a refused click toasts the reason and leaves the switch as it was', async 
   await expect(button).toHaveText('⚔ GM Actions: off');
   await expect(button).toBeEnabled();
 });
+
+test('the keyboard focus is still on the button once the click has settled', async ({ page }) => {
+  await fakeStream(page, [{ event: 'settings', data: { gmActionsEnabled: false } }]);
+  await fakeControl(page);
+  await page.goto(`/next/?token=${GM_TOKEN}`);
+
+  const button = page.locator('#btn-gm');
+  await expect(button).toHaveText('⚔ GM Actions: off');
+  await button.focus();
+  await page.keyboard.press('Enter');
+  await expect(button).toHaveText('⚔ GM Actions: on');
+  await expect(button).toBeEnabled();
+  await expect(button).toBeFocused();
+});

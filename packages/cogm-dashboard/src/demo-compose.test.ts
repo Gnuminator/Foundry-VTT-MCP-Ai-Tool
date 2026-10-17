@@ -311,6 +311,86 @@ describe('compose: captions and manifest', () => {
     }
   });
 
+  it('accepts only chapter ids and cut names of letters, digits, dot, underscore and dash', () => {
+    const dir = mkdtempSync(path.join(os.tmpdir(), 'compose-names-'));
+    try {
+      const file = path.join(dir, 'm.json');
+      const write = (m: unknown): void => writeFileSync(file, JSON.stringify(m));
+      const chapter = (id: string): object => ({ id, video: 'v.mp4', steps: 's.json' });
+      write({ chapters: [chapter('intro 1')] });
+      expect(() => compose.resolveManifest(file)).toThrow(/chapter id "intro 1"/);
+      write({ chapters: [chapter("a'b")] });
+      expect(() => compose.resolveManifest(file)).toThrow(/chapter id/);
+      write({ chapters: [chapter('a')], cuts: { 'x/y': ['a'] } });
+      expect(() => compose.resolveManifest(file)).toThrow(/cut name "x\/y"/);
+      write({ chapters: [chapter('a.b_c-1')], cuts: { 'master-2.0': ['a.b_c-1'] } });
+      expect(compose.resolveManifest(file).cuts).toEqual([
+        { name: 'master-2.0', ids: ['a.b_c-1'] },
+      ]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('refuses an output folder inside the repo and allows one outside it', () => {
+    expect(() => compose.assertOutsideRepo(repoRoot)).toThrow(/inside the repo/);
+    expect(() => compose.assertOutsideRepo(path.join(repoRoot, 'docs', 'out'))).toThrow(
+      /inside the repo/
+    );
+    expect(() => compose.assertOutsideRepo(path.join(os.tmpdir(), 'compose-out'))).not.toThrow();
+    expect(() => compose.assertOutsideRepo(path.dirname(repoRoot))).not.toThrow();
+  });
+
+  it('refuses a take that is not 60 fps, and one whose rate cannot be read', () => {
+    expect(() => compose.checkFps('a', '60/1')).not.toThrow();
+    expect(() => compose.checkFps('a', '60000/1001')).not.toThrow(); // 59.94 is within half a frame
+    expect(() => compose.checkFps('a', '50/1')).toThrow(/50\.00 fps/);
+    expect(() => compose.checkFps('a', '30/1')).toThrow(/chapter a: the video is 30\.00 fps/);
+    expect(() => compose.checkFps('a', undefined)).toThrow(/fps/);
+    expect(() => compose.checkFps('a', '0/0')).toThrow(/fps/);
+  });
+
+  it('checks the files of the selected chapters before any encode', () => {
+    const dir = mkdtempSync(path.join(os.tmpdir(), 'compose-preflight-'));
+    try {
+      const at = (f: string): string => path.join(dir, f);
+      const chapter = (id: string, extra: object = {}): object => ({
+        id,
+        video: at(`${id}.mp4`),
+        steps: at(`${id}.json`),
+        narration: null,
+        ...extra,
+      });
+      const man = (chapters: object[]): object => ({ chapters, music: null });
+      const cuts = [{ name: 'master', ids: ['a'] }];
+      expect(() => compose.preflight(man([chapter('a')]), cuts)).toThrow(
+        /chapter a: missing video/
+      );
+      writeFileSync(at('a.mp4'), '');
+      expect(() => compose.preflight(man([chapter('a')]), cuts)).toThrow(/missing steps file/);
+      writeFileSync(at('a.json'), '[]');
+      expect(() => compose.preflight(man([chapter('a')]), cuts)).toThrow(/no steps/);
+      writeFileSync(at('a.json'), '[{"step":"x"}]');
+      const narration = { wav: at('a.wav'), timing: at('a.timing.json') };
+      expect(() => compose.preflight(man([chapter('a', { narration })]), cuts)).toThrow(
+        /missing narration WAV/
+      );
+      writeFileSync(at('a.wav'), '');
+      expect(() => compose.preflight(man([chapter('a', { narration })]), cuts)).toThrow(
+        /missing narration timing\.json/
+      );
+      // A chapter no selected cut uses is not checked; a missing music file is named.
+      const unused = chapter('b');
+      expect(() =>
+        compose.preflight({ chapters: [unused], music: { file: at('m.mp3') } }, [
+          { name: 'x', ids: [] },
+        ])
+      ).toThrow(/missing music file/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it('knows the output sizes', () => {
     expect(compose.sizeFor(true, 1440)).toEqual({ W: 960, H: 540 });
     expect(compose.sizeFor(false, 1440)).toEqual({ W: 2560, H: 1440 });

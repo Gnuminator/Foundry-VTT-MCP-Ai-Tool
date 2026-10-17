@@ -219,25 +219,27 @@ export default {
           if (!wasOn) await pressSwitch();
           /** @type {any} */
           let spent = null;
+          // Cleared only once the pool is back, so a failed restore is tried again in the finally.
           const putBack = async () => {
-            const done = spent;
-            spent = null;
-            if (!done) return null;
-            return t.gm('restoreLegendary', {
+            if (!spent) return null;
+            const restored = await t.gm('restoreLegendary', {
               ...token,
-              spent: done.before.spent,
-              messageId: done.messageId,
+              spent: spent.before.spent,
+              messageId: spent.messageId,
             });
+            spent = null;
+            return restored;
           };
           try {
             const shown = await waitFor(readPips, {
               label: 'the boss line with its legendary pips',
             });
+            // A failed spend puts the pool back itself (the action knows what it started from).
             spent = await t.gm('spendLegendary', token);
             const { before, after } = spent;
             t.check(
-              after.spent === before.spent + 1,
-              `${spent.name}: ${spent.item} spent one legendary action in Foundry`,
+              after.spent > before.spent,
+              `${spent.name}: ${spent.item} spent ${after.spent - before.spent} legendary action(s) in Foundry`,
               spent
             );
             t.check(
@@ -258,10 +260,13 @@ export default {
             const restored = await putBack();
             t.check(restored?.spent === before.spent, 'the legendary pool was put back', restored);
             await pipsAre(before.max - before.spent);
-            return `${name} spent one legendary action in Foundry: the pips went ${shown.remaining}/${shown.max} to ${after.max - after.spent}/${after.max} within ${seconds} s, and back once it was put back`;
+            return `${name} spent a legendary action in Foundry: the pips went ${shown.remaining}/${shown.max} to ${after.max - after.spent}/${after.max} within ${seconds} s, and back once it was put back`;
           } finally {
-            await putBack();
-            if (!wasOn && /:\s*on/i.test(await switchText())) await pressSwitch();
+            try {
+              await putBack();
+            } finally {
+              if (!wasOn && /:\s*on/i.test(await switchText())) await pressSwitch();
+            }
           }
         });
       }

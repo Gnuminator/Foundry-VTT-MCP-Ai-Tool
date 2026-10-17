@@ -1621,11 +1621,16 @@ async function spendLegendary(args) {
   };
   const before = pool();
   if (before.max <= 0) throw new Error(`spendLegendary: ${actor.name} has no legendary actions`);
+  // The cheapest usable legendary activity, so the pool drops by as little as the actor allows.
   let found = null;
+  let cost = Infinity;
   for (const item of actor.items) {
     for (const activity of Array.from(item.system.activities?.values?.() ?? [])) {
-      if (!found && activity.activation?.type === 'legendary' && activity.canUse) {
+      if (activity.activation?.type !== 'legendary' || !activity.canUse) continue;
+      const c = Number(activity.activation?.value) || 1;
+      if (c < cost) {
         found = { item, activity };
+        cost = c;
       }
     }
   }
@@ -1653,6 +1658,10 @@ async function spendLegendary(args) {
       );
     });
     results = await Promise.race([use, limit]);
+  } catch (err) {
+    // The system may have spent the action before the use failed: a failed spend leaves the pool as it was.
+    await actor.update({ 'system.resources.legact.spent': before.spent }).catch(() => {});
+    throw err;
   } finally {
     clearTimeout(timer);
     for (const [id, app] of [...foundry.applications.instances.entries()]) {

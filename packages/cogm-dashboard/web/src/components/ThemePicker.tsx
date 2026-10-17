@@ -2,6 +2,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState, type JSX } from 'react';
 
 import { api, errorText } from '../lib/api';
+import { useKeepFocus } from '../lib/keepFocus';
 import { THEME_KEY, type WorldTheme } from '../lib/stream';
 
 import { useToast } from './Toasts';
@@ -30,7 +31,10 @@ export function ThemePicker(): JSX.Element {
   const [choice, setChoice] = useState<string | null>(null);
   const shown = choice ?? (world === 'veil' ? 'veil' : 'neutral');
 
+  const { ref, remember } = useKeepFocus<HTMLSelectElement>(choice !== null);
+
   const pick = (theme: string): void => {
+    remember();
     setChoice(theme);
     api<WorldTheme>('/api/control', {
       method: 'POST',
@@ -47,6 +51,7 @@ export function ThemePicker(): JSX.Element {
     <label className="control-label" title="The look for this world; the players' page follows it">
       Theme
       <select
+        ref={ref}
         id="select-theme"
         className="select"
         data-track="dash.header.theme"

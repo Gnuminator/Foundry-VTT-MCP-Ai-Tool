@@ -85,6 +85,7 @@ test('the page loads on /next/ with the old look and keeps the token out of the 
   page,
 }) => {
   // The real stream would send its own theme on connect and replace the faked world theme.
+  await fakeCommonRoutes(page, 'veil');
   await fakeStream(page, []);
   const styles = page.waitForResponse(res => res.url().endsWith('/styles.css'));
   await page.goto(`/next/?token=${GM_TOKEN}`);

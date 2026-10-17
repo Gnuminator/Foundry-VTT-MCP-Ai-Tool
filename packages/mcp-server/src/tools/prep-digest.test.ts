@@ -165,7 +165,12 @@ interface Setup {
   scene?: unknown;
   /** Give the tool the temp Obsidian vault. */
   vault?: boolean;
+  /** The prep notes deadline; default PREP_TEST_TIMEOUT_MS. Only the hang test wants it short. */
+  prepTimeoutMs?: number;
 }
+
+/** Generous: a loaded machine can take over 200 ms to read a few small notes; only the hang test expects the timeout. */
+const PREP_TEST_TIMEOUT_MS = 30_000;
 
 function makeTools(setup: Setup = {}): PrepDigestTools {
   const settle = (value: unknown): Promise<any> =>
@@ -197,7 +202,9 @@ function makeTools(setup: Setup = {}): PrepDigestTools {
     tarokka: { getReading: () => settle(setup.tarokka ?? { available: false }) },
     logger: logger(),
     now: () => 1234,
-    ...(setup.vault ? { vaultDir: obsidianDir, prepNotesTimeoutMs: 200 } : {}),
+    ...(setup.vault
+      ? { vaultDir: obsidianDir, prepNotesTimeoutMs: setup.prepTimeoutMs ?? PREP_TEST_TIMEOUT_MS }
+      : {}),
   };
   return new PrepDigestTools(options);
 }
@@ -580,7 +587,11 @@ describe('get-prep-digest', () => {
     it('a vault that hangs becomes a warning and the rest of the digest still comes back', async () => {
       await seedSessions();
       vaultHang.on = true;
-      const digest = await makeTools({ vault: true, scene: SCENE }).handleGetPrepDigest({});
+      const digest = await makeTools({
+        vault: true,
+        scene: SCENE,
+        prepTimeoutMs: 200,
+      }).handleGetPrepDigest({});
       expect(digest.prep).toBeNull();
       expect(digest.lastSession?.number).toBe(2);
       expect(digest.warnings).toHaveLength(1);

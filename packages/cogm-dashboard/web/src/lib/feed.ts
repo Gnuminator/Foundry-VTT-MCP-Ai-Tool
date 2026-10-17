@@ -98,6 +98,14 @@ export function addFeedEvents(log: FeedLog, batch: readonly FeedEvent[]): FeedLo
   return { entries, total: log.total + fresh.length, seen };
 }
 
+/** The event kind a guarded change made in Foundry leaves (Recent Changes reloads on it). */
+export const GM_CHANGE_EVENT = 'gm-change';
+
+/** Whether a batch has a gm-change event the log has not seen: a replay after a reconnect has none. */
+export function hasNewGmChange(log: FeedLog, batch: readonly FeedEvent[]): boolean {
+  return batch.some(ev => ev.eventType === GM_CHANGE_EVENT && !log.seen.has(ev.id));
+}
+
 /**
  * The pane's count: every event since the page loaded. Once the cap has pushed events out, the
  * head says how many of them are on screen: "120 of 340 events".

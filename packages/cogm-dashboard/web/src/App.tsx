@@ -31,6 +31,7 @@ import {
   useFocusAfterMoment,
   useMoment,
   type DockName,
+  type DrawerDockName,
   type Moment,
 } from './components/Moments';
 import { RoleNotice } from './components/RoleNotice';
@@ -85,8 +86,9 @@ const diagChunk = panelChunk(() =>
 const partyChunk = panelChunk(() =>
   import('./panels/Party').then(m => ({ default: m.PartyDrawer }))
 );
+const changesChunk = panelChunk(() => import('./panels/RecentChanges'));
 // The ones that dock into a view load at once; the floating ones when the browser is idle.
-const DOCKED_CHUNKS = [partyChunk, prepChunk, handoutsChunk];
+const DOCKED_CHUNKS = [partyChunk, prepChunk, handoutsChunk, changesChunk];
 const FLOATING_CHUNKS = [tarokkaChunk, toolsChunk, linksChunk, diagChunk];
 
 /** The world's theme (/api/theme); until it answers, the cached one from main.tsx shows. */
@@ -138,7 +140,9 @@ const DRAWER_IDS: Record<DrawerName, string> = {
 
 /** A drawer open over the page is closed when its moment docks it: it sits in the page now. */
 function undock(drawers: Record<DrawerName, boolean>, moment: Moment): Record<DrawerName, boolean> {
-  const docked = DOCKS[moment].filter(name => drawers[name]);
+  const docked = DOCKS[moment].filter(
+    (name): name is DrawerDockName => name !== 'changes' && drawers[name]
+  );
   if (docked.length === 0) return drawers;
   return { ...drawers, ...Object.fromEntries(docked.map(name => [name, false])) };
 }
@@ -178,7 +182,7 @@ function Dashboard(): JSX.Element {
   const shown = (name: DrawerName): boolean => drawers[name] || docked(name);
   const dock = (name: DockName, panel: ReactNode): JSX.Element => (
     <DockContext.Provider value={dockOf(name)}>
-      {name === 'party' || name === 'handouts' ? (
+      {name === 'party' || name === 'handouts' || name === 'changes' ? (
         <FoldScope card={name} folds={during.folds} active={moment === 'during'}>
           {panel}
         </FoldScope>
@@ -409,6 +413,14 @@ function Dashboard(): JSX.Element {
             }));
             setDrawers(d => ({ ...d, handouts: false, tools: true }));
           }}
+        />
+      )}
+      {dock(
+        'changes',
+        <LazyPanel
+          chunk={changesChunk}
+          shell={{ id: 'pane-changes', title: 'Recent Changes', pane: true }}
+          show={dockOf('changes') !== null}
         />
       )}
       <LazyPanel

@@ -53,8 +53,17 @@ keep each item's lines together when you move it.
   lanes (since D-122 two lanes ran Opus that way: the unset cards). Same for the Agent calls and
   Workflow `agent()` calls a planner makes: `model` on each. If the app refuses the start
   (automated turn, phone, session started by a session), propose it as a card and say so.
-- The weekly check reads `npm run usage:week`: its Models line must show Sonnet carrying most
-  turns; a planner or a user chat on Opus is fine, a lane is not.
+- The weekly check reads `npm run usage:week`: its Models line must show Sonnet with more turns
+  than Opus (turns, not cost: the line is sorted by cost, so Sonnet can be listed second and still
+  pass) in a window that starts after 2026-10-12; a window reaching before that will not pass
+  (every session ran Opus until 2026-10-10). Read the Opus main turns against the planner and user
+  chats of the week: a planner or a user chat on Opus is fine, a lane is not.
+- **These planner steps go to a Haiku 5.5 subagent (`model: "haiku"`)**, read-only, with the
+  question to answer: reading a long vault note (a Decisions log, a design or handoff note of more
+  than about 100 lines), reading CI and test logs (`gh run view --log-failed`), and summarising a
+  review note (verdict, head sha, findings by ID) before a merge. Lanes do the same (lane skill,
+  Work). The weekly check counts Haiku turns on the Models line: near zero two weeks running
+  (checked 2026-10-17: 2 turns) means the rule is not followed or not worth having.
 
 ## Decisions and holds
 
@@ -93,7 +102,9 @@ the roundtrip before any Pi deploy too. Tell the user what was merged.
 ## Weekly check
 
 `npm run usage:week` (`--days N`, `--json`) against the D-122 targets: startup 75k or less
-(Claude Desktop's floor; the share is the lever), startup share under 20%, 18M tokens or less per
-merged PR, about 15 sessions a day, about 14% of the weekly limit per day. First check 2026-10-17. A rule or tool that does not move them is removed.
+(Claude Desktop's floor), 18M tokens or less per merged PR, about 15 sessions a day, about 14% of
+the weekly limit per day. The startup share (Share column) is information only: its 20% target was
+dropped on 2026-10-17 because the 350k/400k hand-over rule makes it unreachable. First check
+2026-10-17, next 2026-10-24. A rule or tool that does not move them is removed.
 While weekly usage is above 50%, write `~/.foundry-ai-tool/context-thresholds.json` as
 `{ "plan": 200000, "out": 250000 }` (the context hook's low mode); delete it below 50%.

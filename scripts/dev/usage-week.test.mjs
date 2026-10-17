@@ -351,18 +351,17 @@ test('targets line: every figure marked ok or over', async () => {
     const line = formatTargets(r.targets);
     assert.match(line, /^Targets \(D-122\): /);
     assert.match(line, /startup 45k ok \(<=75k\)/);
-    assert.match(line, /share 78% over \(<20%\)/);
+    assert.doesNotMatch(line, /share/); // the startup share target was dropped (D-122 log, 2026-10-17)
     assert.match(line, /M\/PR 0\.5 ok \(<=18\)/);
     assert.match(line, /sessions\/day 0\.3 ok \(~15\)/);
     assert.match(line, /weekly %\/day 13.3 ok \(~14\)/);
     const over = formatTargets([
       { name: 'startup', value: 52_000, ok: false },
-      { name: 'startup share', value: 0.31, ok: false },
       { name: 'M tokens per PR', value: 22, ok: false },
       { name: 'sessions a day', value: 20, ok: false },
       { name: 'weekly % a day', value: 18, ok: false },
     ]);
-    assert.equal((over.match(/over/g) || []).length, 5);
+    assert.equal((over.match(/over/g) || []).length, 4);
   } finally {
     f.cleanup();
   }
@@ -391,13 +390,55 @@ test('familyOf and formatModels: turns per model, main thread and subagents, wit
     assert.ok(Math.abs(share - r.total.cost) < 1e-9);
     const line = formatReport(r).split('\n')[12];
     assert.match(line, /^Models \(turns main\+sub, share of cost\): /);
-    assert.match(line, /Sonnet 6\+1 \d+%/);
-    assert.match(line, /Haiku 0\+2 \d+%/);
-    assert.match(line, /Opus 3\+0 \d+%/);
+    // Sorted by cost: Sonnet (1M sidechain line), Opus, Haiku. The 99k response before the window
+    // (old.jsonl) is not counted anywhere.
+    assert.equal(
+      line,
+      'Models (turns main+sub, share of cost): Sonnet 6+1 83% | Opus 3+0 16% | Haiku 0+2 1%'
+    );
   } finally {
     f.cleanup();
   }
   assert.equal(formatModels({}), 'Models: none in the window');
+  assert.equal(
+    formatModels({ opus: { mainTurns: 0, subTurns: 0, cost: 0 } }),
+    'Models: none in the window'
+  );
+  // A model of no known family is listed as Other (weighted 3); Mythos is weighted 3 too.
+  assert.equal(priceOf('claude-mythos-5-1'), 3);
+  assert.equal(
+    formatModels({
+      haiku: { mainTurns: 0, subTurns: 4, cost: 1 },
+      other: { mainTurns: 2, subTurns: 1, cost: 6 },
+      opus: { mainTurns: 1, subTurns: 0, cost: 3 },
+    }),
+    'Models (turns main+sub, share of cost): Other 2+1 60% | Opus 1+0 30% | Haiku 0+4 10%'
+  );
+});
+
+test('buildReport: a response outside the window is not counted in the models', async () => {
+  const f = fixture();
+  try {
+    // One day (10 Oct): session B (opus 3) and C (sonnet 2); 9 Oct and the old response are out.
+    const r = await buildReport({ root: f.projects, now: NOW, days: 1, prs, usageLog: LOG });
+    assert.equal(r.models.opus.mainTurns, 3);
+    assert.equal(r.models.sonnet.mainTurns, 2);
+    assert.equal(r.models.sonnet.subTurns, 0);
+    assert.equal(r.models.haiku, undefined);
+    assert.equal(r.responses, 5);
+    // A window that holds none of the fixture's responses.
+    const none = await buildReport({
+      root: f.projects,
+      now: new Date(2026, 8, 25, 12),
+      days: 1,
+      prs,
+      usageLog: LOG,
+    });
+    assert.deepEqual(none.models, {});
+    assert.equal(formatModels(none.models), 'Models: none in the window');
+  } finally {
+    f.cleanup();
+  }
 });
 
 test('formatReport: a fixed-width row per day, a window total row and the targets line', async () => {
@@ -437,7 +478,7 @@ test('main --json prints the raw numbers; the text form ends with the run time',
     assert.equal(j.total.sessions, 2);
     assert.equal(j.total.weeklyPoints, 40);
     assert.equal(j.total.prs, null);
-    assert.equal(j.targets.length, 5);
+    assert.equal(j.targets.length, 4);
     assert.ok(j.notes.some(n => /merged PRs skipped/.test(n)));
     assert.equal(typeof j.runMs, 'number');
     assert.equal(dayKey(NOW), '2026-10-10');

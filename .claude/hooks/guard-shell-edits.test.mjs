@@ -367,6 +367,9 @@ test('round 2 L1 (lows): a loop variable name that is reused for something else 
   for (const c of [
     `python - <<'PY'\nfor f in ['scripts/a.mjs']:\n    if f == 'x': pass\n    open(f, 'w').write('x')\nPY`,
     `node -e "for (const f of ['scripts/a.mjs']) { [1].map(x => f); fs.writeFileSync(f, 'x'); }"`,
+    // #366 L1: an assignment from the same variable is not a reuse
+    `python - <<'PY'\nfor p in ['scripts/a.mjs']:\n    p = Path(p)\n    open(p, 'w').write('x')\nPY`,
+    `node -e "for (const f of ['scripts/a.mjs']) { f = f.trim(); fs.writeFileSync(f, 'x'); }"`,
   ]) {
     assert.ok(denied(c), c);
   }

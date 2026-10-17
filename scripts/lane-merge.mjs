@@ -246,7 +246,10 @@ const verdictKey = text =>
  * The order is part of the format: each `## Verdict` needs a `Head reviewed:` line between it and the
  * previous verdict (or the top of the note), and no `Head reviewed:` line may follow the last
  * verdict. Otherwise a verdict would tie to an older round's sha, so the note is `malformed` (and
- * the entry ties to nothing).
+ * the entry ties to nothing). More rules: a `Head reviewed:` line counts only at the start of a
+ * line (an optional bullet and bold markers allowed), never inside prose; `Head reviewed:` on
+ * the `## Verdict` line itself is malformed; a section with no verdict text is an entry that is not
+ * a Merge; and two distinct full shas on `Head reviewed:` lines before one verdict are malformed.
  * @param {string} name @param {string} text @param {number} prNumber
  * @returns {ReviewNote}
  */
@@ -647,10 +650,12 @@ function sleep(ms) {
  * An exclusive lock next to the train file (`<file>.lock`, created with `wx`). A lock older than
  * `staleMs` (default 10 minutes) belongs to a killed run and is taken over by a rename to a unique
  * name (one rename wins), then `wx` again. Waits up to `timeoutMs`. `afterStaleSeen` is a test hook
- * that runs between seeing a stale lock and taking it over.
+ * that runs between seeing a stale lock and taking it over; `afterTaken` runs between the rename
+ * and the link back. The lock file holds a random token and the release removes only a lock with
+ * its own token.
  * @param {string} file
  * @param {{ staleMs?: number, timeoutMs?: number, now?: () => number, wait?: (ms: number) => void,
- *   afterStaleSeen?: () => void }} [opts]
+ *   afterStaleSeen?: () => void, afterTaken?: () => void }} [opts]
  * @returns {() => void} release
  */
 export function acquireLock(file, opts = {}) {
@@ -658,16 +663,23 @@ export function acquireLock(file, opts = {}) {
   const lock = `${file}.lock`;
   fs.mkdirSync(path.dirname(file), { recursive: true });
   const started = now();
+  let lastError = '';
   for (;;) {
     try {
       const fd = fs.openSync(lock, 'wx');
-      fs.writeSync(fd, JSON.stringify({ pid: process.pid, at: new Date(now()).toISOString() }));
+      const token = randomBytes(8).toString('hex');
+      fs.writeSync(
+        fd,
+        JSON.stringify({ pid: process.pid, token, at: new Date(now()).toISOString() })
+      );
       fs.closeSync(fd);
+      // Release removes only the lock this run wrote: if the lock was displaced and another run
+      // holds the path now, its token differs and it stays.
       return () => {
         try {
-          fs.unlinkSync(lock);
+          if (JSON.parse(fs.readFileSync(lock, 'utf8')).token === token) fs.unlinkSync(lock);
         } catch {
-          /* already gone */
+          /* already gone, or not ours */
         }
       };
     } catch (e) {
@@ -687,18 +699,33 @@ export function acquireLock(file, opts = {}) {
         }
         // The lock was replaced by a live one between our stat and rename: we moved someone's fresh
         // lock. Put it back (link fails if another run already took the free slot) and wait.
+        opts.afterTaken?.();
         try {
           fs.linkSync(taken, lock);
-        } catch {
-          /* another run holds the lock path now */
+        } catch (e) {
+          if (/** @type {NodeJS.ErrnoException} */ (e).code === 'EEXIST') {
+            // Another run took the free slot: both it and the run whose lock we moved may be in.
+            process.stderr.write(
+              'lane:merge: lock race: a run may be in the merge train without the lock; check merge-train.json\n'
+            );
+          } else {
+            // No hard links here (FAT32, some network shares): move the lock back instead.
+            fs.renameSync(taken, lock);
+            continue;
+          }
         }
         fs.unlinkSync(taken);
       }
-    } catch {
-      continue; // the holder released it between our two calls: try again
+    } catch (e) {
+      // The holder released it between our two calls: try again. Any other error is kept for the
+      // timeout message and waits like a busy lock, so it can never spin at full speed.
+      if (/** @type {NodeJS.ErrnoException} */ (e).code === 'ENOENT') continue;
+      lastError = /** @type {NodeJS.ErrnoException} */ (e).code ?? 'error';
     }
     if (now() - started >= timeoutMs) {
-      throw new Error(`another lane:merge holds ${lock} (delete it if no merge is running)`);
+      throw new Error(
+        `another lane:merge holds ${lock} (delete it if no merge is running)${lastError ? ` [last error ${lastError}]` : ''}`
+      );
     }
     wait(200);
   }

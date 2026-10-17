@@ -357,7 +357,7 @@ function ChangesCard({ active }: { active: boolean }): JSX.Element {
   });
   const state = shown === 'ai' ? aiState : everyoneState;
   const count = shown === 'ai' ? (ai.data?.length ?? 0) : rows.length;
-  const meta = state === 'ready' || state === 'empty' ? `${count} shown` : '—';
+  const meta = state === 'ready' || state === 'empty' ? `${count} shown` : '-';
   const emptyText =
     shown === 'ai'
       ? 'No guarded changes yet.'

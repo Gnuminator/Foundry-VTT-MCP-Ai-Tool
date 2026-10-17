@@ -216,7 +216,7 @@ test('an empty list and a failed one say so; the failed one can try again', asyn
   });
   const c = await load(page);
   await expect(c).toContainText("Couldn't load changes: The bridge answered with an error.");
-  await expect(c.locator('#changes-meta')).toHaveText('—');
+  await expect(c.locator('#changes-meta')).toHaveText('-');
   fail = false;
   await c.getByRole('button', { name: 'Try again' }).click();
   await expect(c).toContainText('No guarded changes yet.');

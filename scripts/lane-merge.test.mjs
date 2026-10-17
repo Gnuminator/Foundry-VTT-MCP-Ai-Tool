@@ -1553,6 +1553,93 @@ test('gate --wait-ci: a run that already fetched (fetched: true, as every real r
     fetchAt > polls.filter(i => i >= 0)[2],
     'the fetch comes after the polls that waited, not before'
   );
+  const isView = c => c[0] === 'gh' && c[1] === 'pr' && c[2] === 'view';
+  const after = r.calls.slice(fetchAt + 1);
+  assert.ok(after.some(isView), "the gate's own gh pr view comes after the fetch");
+  const mergeBaseAt = r.calls.findIndex(c => c[0] === 'git' && c[1] === 'merge-base');
+  assert.ok(mergeBaseAt > fetchAt, 'git merge-base comes after the fetch');
+});
+
+test('acquireLock (#378 L1): a failed link back is reported, or the lock is moved back', () => {
+  const dir = tmpDir();
+  const state = path.join(dir, 'merge-train.json');
+  const lock = `${state}.lock`;
+  fs.writeFileSync(lock, '{"pid":1,"at":"killed run"}');
+  const old = new Date(Date.now() - 11 * 60 * 1000);
+  fs.utimesSync(lock, old, old);
+  // The lock is replaced by a live one between stat and rename (A did its takeover), then a third
+  // run takes the free slot before B links back: EEXIST, reported on stderr, B does not get in.
+  let fired = false;
+  let third = '';
+  const written = [];
+  const origWrite = process.stderr.write;
+  process.stderr.write = chunk => (written.push(String(chunk)), true);
+  let errorB;
+  try {
+    errorB = acquireLockSafely(state, {
+      timeoutMs: 50,
+      wait: () => {},
+      afterStaleSeen: () => {
+        if (fired) return;
+        fired = true;
+        // a fresh live lock replaces the stale one just before B's rename
+        fs.unlinkSync(lock);
+        fs.writeFileSync(lock, '{"pid":2,"token":"A"}');
+      },
+      afterTaken: () => {
+        third = '{"pid":3,"token":"C"}';
+        fs.writeFileSync(lock, third);
+      },
+    });
+  } finally {
+    process.stderr.write = origWrite;
+  }
+  assert.match(errorB, /another lane:merge holds/);
+  assert.match(written.join(''), /lock race: a run may be in the merge train without the lock/);
+  assert.equal(fs.readFileSync(lock, 'utf8'), third, "the third run's lock stays");
+  assert.deepEqual(
+    fs.readdirSync(dir).filter(n => n.includes('.stale-')),
+    []
+  );
+});
+
+test('acquireLock (#378 L3): release removes only the lock this run wrote', () => {
+  const dir = tmpDir();
+  const state = path.join(dir, 'merge-train.json');
+  const lock = `${state}.lock`;
+  const release = acquireLock(state, { timeoutMs: 50 });
+  fs.writeFileSync(lock, '{"pid":9,"token":"someone else"}');
+  release();
+  assert.ok(fs.existsSync(lock), "another run's lock is not removed");
+  fs.unlinkSync(lock);
+  const mine = acquireLock(state, { timeoutMs: 50 });
+  mine();
+  assert.ok(!fs.existsSync(lock), 'its own lock is removed');
+});
+
+test('acquireLock (#378 L2): a persistent takeover error ends at the timeout and names the code', () => {
+  const dir = tmpDir();
+  const state = path.join(dir, 'merge-train.json');
+  const lock = `${state}.lock`;
+  fs.writeFileSync(lock, '{}');
+  const old = new Date(Date.now() - 11 * 60 * 1000);
+  fs.utimesSync(lock, old, old);
+  let waits = 0;
+  let clock = Date.now();
+  const err = acquireLockSafely(state, {
+    timeoutMs: 1000,
+    now: () => clock,
+    wait: ms => {
+      waits++;
+      clock += ms;
+    },
+    afterStaleSeen: () => {
+      // a takeover that keeps failing with something other than ENOENT
+      throw Object.assign(new Error('busy'), { code: 'EBUSY' });
+    },
+  });
+  assert.match(err, /another lane:merge holds .* \[last error EBUSY\]/);
+  assert.ok(waits > 0, 'it waited between tries instead of spinning');
 });
 
 test('gate without --wait-ci: fetched: true means no fetch at all', () => {

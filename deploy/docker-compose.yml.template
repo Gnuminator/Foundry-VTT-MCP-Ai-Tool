@@ -47,7 +47,9 @@ services:
     # module can dial in. The dashboard port (3000) is intentionally NOT mapped
     # to the host — it is only reachable via the cloudflared tunnel.
     ports:
-      - "31415:31415"   # Foundry WebSocket connector
+      # Loopback only: the link is unauthenticated. To reach it from the Foundry host,
+      # use the tailnet IP ("100.x.y.z:31415:31415") or an SSH tunnel, never "31415:31415".
+      - "127.0.0.1:31415:31415"   # Foundry WebSocket connector
 
     # Bridge vault: GM-only data, audit log, session event log. Back it up
     # (npm run vault -- export <worldId> <file>); Foundry's backup does not have it.
@@ -79,7 +81,7 @@ services:
       # ── Bridge / backend ───────────────────────────────────────────────────
       MCP_CONTROL_HOST: "127.0.0.1"    # keep loopback — internal to container
       MCP_CONTROL_PORT: "31414"
-      FOUNDRY_LINK_HOST: "0.0.0.0"     # the GM's browser dials in from another machine
+      FOUNDRY_LINK_HOST: "0.0.0.0"     # container-side only; the host side is published on 127.0.0.1 above
       FOUNDRY_REMOTE_MODE: "true"
       FOUNDRY_AI_DATA_DIR: "/data/vault"
 
@@ -99,7 +101,7 @@ services:
 
   # ── cloudflared: Cloudflare Tunnel sidecar ─────────────────────────────────
   cloudflared:
-    image: cloudflare/cloudflared:latest
+    image: cloudflare/cloudflared:2026.10.1@sha256:a15a3b50b8dabd57ac2090e9484c0247dba9dfa1f0df4d298d4317f9d69eb2d5
     restart: unless-stopped
     command: tunnel --no-autoupdate run
 

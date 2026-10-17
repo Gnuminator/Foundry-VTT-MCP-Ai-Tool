@@ -43,6 +43,7 @@ import { CampaignManagementTools } from './tools/campaign-management.js';
 
 import { OwnershipTools } from './tools/ownership.js';
 import { SceneRestoreTools } from './tools/scene-restore.js';
+import { RoomSetupTools } from './tools/room-setup.js';
 
 import { TokenManipulationTools } from './tools/token-manipulation.js';
 
@@ -420,6 +421,7 @@ async function startBackend(): Promise<void> {
   });
   const partyTools = new PartyTools({ foundryClient, guardedWrites, logger });
   const ownershipTools = new OwnershipTools({ foundryClient, guardedWrites, logger });
+  const roomSetupTools = new RoomSetupTools({ foundryClient, guardedWrites, logger });
   const sceneRestoreTools = new SceneRestoreTools({
     foundryClient,
     guardedWrites,
@@ -466,6 +468,7 @@ async function startBackend(): Promise<void> {
     tokenManipulationTools,
     ownershipTools,
     sceneRestoreTools,
+    roomSetupTools,
     dnd5eAddFeatureTool,
     dnd5eNpcTools,
     dnd5eFeaturesFromCompendiumTools,

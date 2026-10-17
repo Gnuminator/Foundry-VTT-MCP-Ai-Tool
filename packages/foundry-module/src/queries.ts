@@ -43,6 +43,7 @@ import { getPrepScan, PREP_SCAN_QUERY } from './prep-scan.js';
 import { LIVE_PLAN_QUERY, planLiveChange } from './live-plan.js';
 import { planSceneChange, SCENE_PLAN_QUERY } from './scene-plan.js';
 import { getSceneState, SCENE_STATE_QUERY } from './scene-state.js';
+import { planRoomSetup, ROOM_SETUP_QUERY } from './room-setup.js';
 import { LIVE_SWEEP_QUERY, liveSweep } from './live-sweep.js';
 import { SESSION_SWITCHES_QUERY, sessionSwitches } from './session-switches.js';
 import { CHARACTER_SHEET_QUERY, characterSheets } from './character-sheet.js';
@@ -256,6 +257,11 @@ export class QueryHandlers {
     // data, compared with a backup copy by the backend. GM client only.
     handlers.on(`${modulePrefix}.${SCENE_STATE_QUERY}`, (data: unknown) =>
       this.withGmGate('Failed to read the scene', () => Promise.resolve(getSceneState(data)))
+    );
+
+    // Room setup (I-133, read-only): turns one request into Region and Token create ops. GM only.
+    handlers.on(`${modulePrefix}.${ROOM_SETUP_QUERY}`, (data: unknown) =>
+      this.withGmGate('Failed to plan the room setup', () => planRoomSetup(data))
     );
 
     // Live write sweep helper (I-016): scene snapshot, a sweep combat and the clean-up for

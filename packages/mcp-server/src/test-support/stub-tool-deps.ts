@@ -27,6 +27,7 @@ import { MovementTools } from '../tools/movement.js';
 import { ObsidianMirrorTools } from '../tools/obsidian-mirror.js';
 import { OwnershipTools } from '../tools/ownership.js';
 import { SceneRestoreTools } from '../tools/scene-restore.js';
+import { RoomSetupTools } from '../tools/room-setup.js';
 import { PlaySessionTools } from '../tools/play-session.js';
 import { PlayStatsTools } from '../tools/play-stats.js';
 import { PlayerViewTools } from '../tools/player-view.js';
@@ -79,6 +80,7 @@ export function stubToolRouterDeps(): ToolRouterDeps {
       logger,
     }),
     ownershipTools: new OwnershipTools({ ...base, guardedWrites: {} as any }),
+    roomSetupTools: new RoomSetupTools({ ...base, guardedWrites: {} as any }),
     sceneRestoreTools: new SceneRestoreTools({
       ...base,
       guardedWrites: {} as any,

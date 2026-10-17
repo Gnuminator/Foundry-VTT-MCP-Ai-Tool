@@ -134,6 +134,7 @@ export const NON_WRITE_METHODS: readonly string[] = [
   'ping',
   'planLiveChange',
   'planPartyPlacement',
+  'planRoomSetup',
   'planSceneChange',
   'searchCharacterItems',
   'searchCompendium',

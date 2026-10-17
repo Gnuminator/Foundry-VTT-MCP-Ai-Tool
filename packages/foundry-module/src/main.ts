@@ -20,6 +20,7 @@ import { registerGuardedFeature } from './guarded-features.js';
 import { LIVE_PLAY_FEATURE_ID } from './live-plan.js';
 import { OWNERSHIP_FEATURE_ID } from './data-access/ownership-players.js';
 import { SCENE_RESTORE_FEATURE_ID } from './scene-state.js';
+import { ROOM_SETUP_FEATURE_ID } from './room-setup.js';
 import { PARTY_FEATURE_ID } from './party-scan.js';
 import { registerSessionSwitchSettings } from './session-switches.js';
 import { registerDiceThemes } from './dice-themes.js';
@@ -134,6 +135,11 @@ class FoundryMCPBridge {
         id: SCENE_RESTORE_FEATURE_ID,
         name: 'AI Tool: Scene restore (writes)',
         hint: "Lets the AI put a scene's walls, lights, tiles and tokens back from a backup copy of the world, after you confirm the plan. Each restore shows in Recent Changes with an Undo.",
+      });
+      registerGuardedFeature({
+        id: ROOM_SETUP_FEATURE_ID,
+        name: 'AI Tool: Room setup (writes)',
+        hint: 'Lets the AI add teleport regions and fill a room with tokens, after you confirm the plan. Each setup shows in Recent Changes with an Undo.',
       });
       registerGuardedFeature({
         id: 'change-undo',

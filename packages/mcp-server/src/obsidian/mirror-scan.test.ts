@@ -854,7 +854,8 @@ describe('scanCampaign: output', () => {
       expect(found.name).toBe(uuid.slice('Actor.'.length));
       expect(found.owned).toBe(true);
     }
-  });
+    // 150 files written and read back: slow on a loaded machine, so it gets its own timeout.
+  }, 60_000);
 });
 
 describe('parseScalar', () => {

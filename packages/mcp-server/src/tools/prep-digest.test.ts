@@ -167,6 +167,9 @@ interface Setup {
   vault?: boolean;
 }
 
+/** Generous: a loaded machine can take over 200 ms to read a few small notes, and no test here expects the timeout. */
+const PREP_TEST_TIMEOUT_MS = 30_000;
+
 function makeTools(setup: Setup = {}): PrepDigestTools {
   const settle = (value: unknown): Promise<any> =>
     value instanceof Error ? Promise.reject(value) : Promise.resolve(value);
@@ -197,7 +200,7 @@ function makeTools(setup: Setup = {}): PrepDigestTools {
     tarokka: { getReading: () => settle(setup.tarokka ?? { available: false }) },
     logger: logger(),
     now: () => 1234,
-    ...(setup.vault ? { vaultDir: obsidianDir, prepNotesTimeoutMs: 200 } : {}),
+    ...(setup.vault ? { vaultDir: obsidianDir, prepNotesTimeoutMs: PREP_TEST_TIMEOUT_MS } : {}),
   };
   return new PrepDigestTools(options);
 }

@@ -12,6 +12,7 @@
 //   startup        median first-turn context of those sessions
 //   share          sum(first-turn context * turns) / sum(context of every main-thread turn) over the
 //                  same sessions: the part of the tokens that is the starting context re-read
+//                  (information only; the target was dropped 2026-10-17, D-122 log)
 //   tokens (M)     context of all turns (main + subagents) on that day
 //   cost           price ratio (opus 5, sonnet 3, haiku 1, fable 5, other 3) * (input + 0.1 cache
 //                  read + 2 cache creation + 5 output) / 1e6, summed; Opus% is Opus's part of it
@@ -40,7 +41,6 @@ export const MIN_TURNS = 3;
 export const RESET_DROP = 3;
 export const TARGETS = {
   startup: 75_000, // Claude Desktop floor about 74k (D-122 phase 3 log); headless starts are about 38k
-  share: 0.2,
   tokensPerPrM: 18,
   sessionsPerDay: 15,
   weeklyPerDay: 14,
@@ -75,6 +75,7 @@ export function priceOf(model) {
   if (/sonnet/.test(m)) return 3;
   if (/haiku/.test(m)) return 1;
   if (/fable/.test(m)) return 5;
+  // Mythos and any unknown model are weighted 3, like Sonnet: no measured price for them.
   return 3;
 }
 
@@ -420,7 +421,6 @@ export function targetsFor(total, days) {
   });
   return [
     check('startup', total.startup, TARGETS.startup, 'tokens'),
-    check('startup share', total.share, TARGETS.share, 'fraction'),
     check('M tokens per PR', total.tokensPerPr, TARGETS.tokensPerPrM, 'M'),
     check('sessions a day', total.sessions / days, TARGETS.sessionsPerDay, 'sessions'),
     check(
@@ -458,7 +458,6 @@ export function formatTargets(targets) {
   const mark = t => (t.ok === null ? 'n/a' : t.ok ? 'ok' : 'over');
   const text = {
     startup: t => `startup ${kilo(t.value)} ${mark(t)} (<=75k)`,
-    'startup share': t => `share ${pct(t.value)} ${mark(t)} (<20%)`,
     'M tokens per PR': t => `M/PR ${num(t.value, 1)} ${mark(t)} (<=18)`,
     'sessions a day': t => `sessions/day ${num(t.value, 1)} ${mark(t)} (~15)`,
     'weekly % a day': t => `weekly %/day ${num(t.value, 1)} ${mark(t)} (~14)`,

@@ -16,14 +16,27 @@ one PR. Vault paths below are under `C:\Users\chris\Documents\Obsidian\vault\Dev
 2. `git branch --show-current` (an app restart resets a worktree to its own branch). New work:
    `git fetch aitool && git checkout --no-track -b claude/<topic> aitool/main`, then `npm ci`.
    Before building on an old base, check `git branch -r --list 'aitool/claude/*'` for the same work.
-3. Read only what the item names. Long notes, logs or docs: a Haiku subagent returns a summary.
+3. Read only what the item names. Long notes, logs or docs go to a Haiku subagent (list under
+   Work); you read its summary.
 
 ## Work
 
 - **Subagents:** `model: "sonnet"` for code, tests, scripts and sweeps; `model: "haiku"` for
-  reading and simple mechanical edits; Opus only for design. Partition workers by file, lock shared
-  contracts first, tell them to write big files in parts of at most about 250 lines per call and
-  to keep downloads out of the repo. Workers never build, sync or commit; you integrate.
+  reading and simple mechanical edits; Opus only for design and risky-PR reviews. Partition workers
+  by file, lock shared contracts first, tell them to write big files in parts of at most about 250
+  lines per call and to keep downloads out of the repo. Workers never build, sync or commit; you
+  integrate.
+- **These steps go to a Haiku 5.5 subagent (`model: "haiku"`), not to you** (D-122 weekly check
+  2026-10-17: Haiku had 2 turns in a week; the rule is checked again 2026-10-24):
+  - reading a vault note of more than about 100 lines (a Decisions log, a design note, an old
+    review or handoff note): ask for the parts your item needs, with line numbers;
+  - reading CI and test logs (`gh run view --log-failed`, a long `npm run green` or test output):
+    ask for the failing step, the first error and the files it names;
+  - summarising a review note, or a PR diff for the handover: findings by ID with file:line;
+  - sweeps that only read ("where is X used", listing files that mention Y) and mechanical edits
+    that need no judgement (renames, reflowing text, adding a changelog fragment from your text).
+    Short files you will edit anyway, and anything where a wrong summary would change your fix, you
+    read yourself. Brief it with the question to answer and say it is read-only.
 - **Set `model` on every Agent call, Workflow `agent()` call and `start_session`** (successors and
   `own_initiative` cards too). An unset model inherits the caller's: an Opus session starts Opus
   workers and lanes (measured 2026-10-16: 110 unset subagents all ran Opus). A Sonnet lane's unset
@@ -55,8 +68,9 @@ one PR. Vault paths below are under `C:\Users\chris\Documents\Obsidian\vault\Dev
   the merge gate and CI: `scripts/lane-merge.mjs`, `green.mjs`, `drift-check.mjs`, `.github/`,
   `.claude/hooks/`): an Opus review subagent. Everything else: a Sonnet review subagent (check
   `gh pr view <PR> --json files` against the list; docs, tests, dashboard UI and kit scripts are
-  Sonnet, and so is a delta round on lows). Give it the PR number, the
-  head sha and the area; it is read-only and writes the note.
+  Sonnet, and so is a delta round on lows, for a non-risky PR only: a risky PR's fixes go back to
+  its Opus reviewer). Give it the PR number, the head sha and the area; it is read-only and writes
+  the note.
 - **Review note format** (the merge gate reads it):
   - path: vault `Handoff/Reviews <YYYY-MM-DD>/<PR>-review.md`, round 2 `<PR>-review-round2.md`;
     Opus: `<PR>-opus-review.md`, `<PR>-opus-review-round2.md`, with the heading

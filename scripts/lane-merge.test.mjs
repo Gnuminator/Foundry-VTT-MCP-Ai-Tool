@@ -246,6 +246,94 @@ test('parseReviewNote: every Verdict section counts, tied to the Head reviewed a
   );
 });
 
+test('parseReviewNote: a Head reviewed line after the last Verdict makes the note malformed (#314 L3)', () => {
+  // Round 1 is in order; round 2 puts its Do not merge above its own Head line.
+  const text = `# t\n\nHead reviewed: ${OTHER}\n\n## Verdict\n\n**Merge after fixes.**\n\n## Round 2\n\n## Verdict\n\n**Do not merge.**\n\nHead reviewed: ${HEAD}\n`;
+  const p = parseReviewNote('312-review.md', text, 312);
+  assert.equal(p.malformed.length, 2, p.malformed.join(' | '));
+  assert.match(p.malformed[0], /the ## Verdict on line 11 has no "Head reviewed:" line above it/);
+  assert.match(p.malformed[1], /the "Head reviewed:" on line 15 comes after the last ## Verdict/);
+  // The Do not merge ties to no sha, and a separate Merge note for the new head cannot rescue it.
+  assert.equal(p.entries[1].head, null);
+  const sonnet = parseReviewNote('312-sonnet-review.md', note(), 312);
+  const r = judgeReviews([p, sonnet], HEAD, false);
+  assert.ok(!r.ok);
+  assert.match(r.detail, /312-review.md is malformed: /);
+});
+
+test('parseReviewNote: a Verdict with no Head reviewed since the previous verdict is malformed', () => {
+  // Probe E shape: the second round says nothing about its sha, so it would tie to the first.
+  const same = `# t\n\nHead reviewed: ${HEAD}\n\n## Verdict\n\n**Merge.**\n\n## Verdict\n\n**Do not merge.**\n`;
+  const p = parseReviewNote('312-review.md', same, 312);
+  assert.equal(p.malformed.length, 1);
+  assert.match(p.malformed[0], /the ## Verdict on line 9 has no "Head reviewed:"/);
+  // The very first verdict needs a Head line above it too.
+  const first = `# t\n\n## Verdict\n\n**Merge.**\n\nHead reviewed: ${HEAD}\n`;
+  assert.equal(parseReviewNote('312-review.md', first, 312).malformed.length, 2);
+});
+
+test('parseReviewNote: notes in the right order are not malformed', () => {
+  assert.deepEqual(parseReviewNote('312-review.md', note(), 312).malformed, []);
+  const rounds = `# t\n\nHead reviewed: ${OTHER}\n\n## Verdict\n\n**Merge after fixes.**\n\n## Round 2\n\nHead reviewed: ${HEAD}\n\n## Verdict\n\n**Merge.**\n`;
+  assert.deepEqual(parseReviewNote('312-review.md', rounds, 312).malformed, []);
+  // A short sha is still a Head reviewed line (it fails elsewhere, in shortHeads).
+  assert.deepEqual(parseReviewNote('312-review.md', note({ head: '3d24f70a' }), 312).malformed, []);
+  // Bullet and bold forms of the Head line count.
+  const bullet = `# t\n\n- **Head reviewed:** \`${HEAD}\`\n\n## Verdict\n\n**Merge.**\n`;
+  assert.deepEqual(
+    parseReviewNote('312-review.md', bullet, 312).entries.map(e => e.head),
+    [HEAD]
+  );
+});
+
+test('parseReviewNote: shapes that would lose a Do not merge are malformed (review M1, L1, L2)', () => {
+  const bad = text => parseReviewNote('312-review.md', text, 312);
+  // M1a: the sha sits in the verdict heading itself.
+  const inHeading = bad(`# t\n\n## Verdict: Do not merge (Head reviewed: ${HEAD})\n`);
+  assert.ok(
+    inHeading.malformed.some(m => /also carries "Head reviewed:"/.test(m)),
+    inHeading.malformed.join('|')
+  );
+  assert.equal(inHeading.entries.length, 1, 'the verdict still counts');
+  assert.ok(!inHeading.entries[0].merge);
+  // M1b: a Head line and no ## Verdict (a ### heading does not count).
+  const wrongLevel = bad(`# t\n\nHead reviewed: ${HEAD}\n\n### Verdict\n\n**Do not merge.**\n`);
+  assert.match(wrongLevel.malformed[0], /has no ## Verdict/);
+  assert.match(bad(`# t\n\nHead reviewed: ${HEAD}\n`).malformed[0], /has no ## Verdict/);
+  // L1: a mention in prose does not move the tie, and two shas before one verdict are refused.
+  const prose = bad(
+    `# t\n\nHead reviewed: ${OTHER}\n\n## Verdict\n\n**Merge after fixes.**\n\nThe earlier Head reviewed: ${HEAD} was stale.\n\n## Verdict\n\n**Do not merge.**\n`
+  );
+  assert.match(prose.malformed.join('|'), /the ## Verdict on line 11 has no "Head reviewed:"/);
+  assert.equal(prose.entries[1].head, null);
+  const two = bad(
+    `# t\n\nHead reviewed: ${OTHER}\n\nHead reviewed: ${HEAD}\n\n## Verdict\n\n**Merge.**\n`
+  );
+  assert.match(two.malformed.join('|'), /more than one full sha/);
+  // L2: a verdict under a short sha of this head cannot be set aside by a Merge note for it.
+  const shortNo = bad(
+    `# t\n\nHead reviewed: ${HEAD.slice(0, 8)}\n\n## Verdict\n\n**Do not merge.**\n`
+  );
+  const merge = parseReviewNote('312-sonnet-review.md', note(), 312);
+  const r = judgeReviews([shortNo, merge], HEAD, false);
+  assert.ok(!r.ok);
+  assert.match(
+    r.detail,
+    /312-review.md reviewed 3d24f70a \(Head reviewed needs the full 40-character sha\)/
+  );
+  // A short sha of another head is only an old note.
+  const elsewhere = bad(`# t\n\nHead reviewed: deadbeef\n\n## Verdict\n\n**Do not merge.**\n`);
+  assert.ok(judgeReviews([elsewhere, merge], HEAD, false).ok);
+});
+
+test('review: a malformed note refuses the gate and names the fix', () => {
+  const text = `# t\n\n## Verdict\n\n**Merge.**\n\nHead reviewed: ${HEAD}\n`;
+  const r = gate({ vault: vaultWith([{ name: '312-review.md', text }]) });
+  assert.equal(r.code, 1);
+  assert.match(r.text, /review: 312-review.md is malformed: the ## Verdict on line 3 has no/);
+  assert.match(r.text, /put "Head reviewed:" before each "## Verdict"/);
+});
+
 test('parseReviewNote: text after Verdict on the heading line is the verdict (probe F)', () => {
   const text = `# t\n\nHead reviewed: ${HEAD}\n\n## Verdict: Do not merge\n\nSome prose quoting **Merge.** from the old round.\n`;
   const e = parseReviewNote('312-review.md', text, 312).entries[0];

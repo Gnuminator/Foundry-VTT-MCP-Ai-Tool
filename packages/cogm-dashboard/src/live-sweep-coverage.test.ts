@@ -10,9 +10,12 @@ const read = (relative: string): string =>
 
 /**
  * Tools of tool-sets.ts the live sweep (scripts/live-write-sweep.mjs) does not run, each with
- * the reason. Empty today: a new write tool gets a sweep step in the same PR, or an entry here.
+ * the reason. A new write tool gets a sweep step in the same PR, or an entry here.
  */
-const RECORDED_SKIPS: Record<string, string> = {};
+const RECORDED_SKIPS: Record<string, string> = {
+  'plan-scene-restore':
+    'needs a backup copy of the world on disk and Foundry app files (I-128); checked by hand on server A (break a scene, restore, undo), see the PR',
+};
 
 /** Source text without `//` and block comments (a `]` in a comment must not end an array). */
 export function stripComments(source: string): string {

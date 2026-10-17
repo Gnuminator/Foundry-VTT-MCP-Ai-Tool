@@ -212,6 +212,37 @@ Not rehearsed: a person logging in (Claude has no credentials, and the backup ha
 accounts yet), `-GameNight` (game night only), `-Tunnel` (Part C is not live), changing Claude
 Desktop's connectors for real, and the rollback on the Pi itself (a snapshot and your OK first).
 
+## Restoring one scene from the backup (I-128, off by default)
+
+For a map the GM broke by hand: walls, lights, tiles and tokens of one scene go back to how the
+last backup had them. Foundry's Undo covers AI changes only; this is the step for the rest.
+
+- **Where the backups are:** the Pi's nightly restic backup (04:30) is copied to
+  `E:\PiBackup\restic` every day. `scripts/plan-b/restore.ps1` restores it into
+  `C:\FoundryPlanB\data`, and the world is then in
+  `C:\FoundryPlanB\data\Data\worlds\<world>`; a scene's documents are in its `data\scenes` LevelDB
+  folder. Any copy of a world folder works the same way.
+- **Switch on:** module setting "AI Tool: Scene restore (writes)" (off by default).
+- **Use:** ask Claude to plan a scene restore (tool `plan-scene-restore`, play set; the scene id
+  defaults to the scene being viewed; `backupPath` defaults to `FOUNDRY_AI_SCENE_BACKUP_DIR`, else
+  the Plan B folder; `parts` narrows it). The plan counts what is added back, removed, moved and
+  changed. Apply it with `apply-planned-change` (deleting needs the second confirmation); take it
+  back with `undo-change`.
+- **How it works:** the backend copies the backup's `scenes` folder to a temp folder (the backup is
+  never opened in place), reads it with the `classic-level` package inside Foundry's app folder
+  (`FOUNDRY_AI_FOUNDRY_APP_DIR`, else `C:\FoundryPlanB\app`, `C:\FoundryTest\app`), compares by
+  document id and plans create (old id kept), delete or update ops. Nothing in the backup or on
+  the Pi is changed.
+- **Size and the Plan B folder:** one plan holds at most 200 changes; a bigger restore (a whole
+  castle map) is refused with the counts, and is done one part at a time with `parts`. A folder
+  Foundry has open, or that changed in the last 5 minutes, is refused: on a Plan B night the
+  default folder is the running world, so restore a snapshot into its own folder
+  (`restore.ps1 -Root <other>`) and give that world folder as `backupPath`.
+- **Limits:** an update only sets fields the backup holds and never unsets one; a token's own
+  hit points, effects and items (its `delta`) are not restored, and a token put back comes with
+  its world actor's current stats; other embedded documents (drawings, notes, regions, sounds)
+  and the scene's own settings are left as they are.
+
 ## Spare tunnel (finished once Part C is live)
 
 > **Not set up yet.** This step needs your domain in Cloudflare (Waiting item 13, Part C in

@@ -26,6 +26,7 @@ import type { GuardedChangeTools } from './tools/guarded-changes.js';
 import type { MovementTools } from './tools/movement.js';
 import type { ObsidianMirrorTools } from './tools/obsidian-mirror.js';
 import type { OwnershipTools } from './tools/ownership.js';
+import type { SceneRestoreTools } from './tools/scene-restore.js';
 import type { PlaySessionTools } from './tools/play-session.js';
 import type { PlayStatsTools } from './tools/play-stats.js';
 import type { PlayerViewTools } from './tools/player-view.js';
@@ -65,6 +66,7 @@ export interface ToolRouterDeps {
   movementTools: MovementTools;
   obsidianMirrorTools: ObsidianMirrorTools;
   ownershipTools: OwnershipTools;
+  sceneRestoreTools: SceneRestoreTools;
   partyTools: PartyTools;
   playSessionTools: PlaySessionTools;
   playStatsTools: PlayStatsTools;
@@ -189,6 +191,7 @@ export function buildToolRouter(deps: ToolRouterDeps): Record<string, ToolHandle
     'plan-actor-change': args => deps.livePlayTools.handlePlanActorChange(args),
     'plan-token-change': args => deps.livePlayTools.handlePlanTokenChange(args),
     'plan-scene-change': args => deps.sceneChangeTools.handlePlanSceneChange(args),
+    'plan-scene-restore': args => deps.sceneRestoreTools.handleToolCall('plan-scene-restore', args),
     'play-playlist': args => deps.sceneChangeTools.handlePlayPlaylist(args),
     'list-ref-choices': args => deps.refChoiceTools.handleListRefChoices(args),
     'get-token-details': args => deps.tokenManipulationTools.handleGetTokenDetails(args),
@@ -227,6 +230,7 @@ export function collectToolDefinitions(deps: ToolRouterDeps): ToolDefinitionLike
     ...deps.diceRollTools.getToolDefinitions(),
     ...deps.campaignManagementTools.getToolDefinitions(),
     ...deps.ownershipTools.getToolDefinitions(),
+    ...deps.sceneRestoreTools.getToolDefinitions(),
     ...deps.tokenManipulationTools.getToolDefinitions(),
     ...deps.chatLogTools.getToolDefinitions(),
     ...deps.resourceTools.getToolDefinitions(),

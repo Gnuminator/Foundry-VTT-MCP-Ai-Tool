@@ -112,6 +112,7 @@ export const NON_WRITE_METHODS: readonly string[] = [
   'getPreflightScan',
   'getPrepScan',
   'getRecentEvents',
+  'getSceneState',
   'getSessionLog',
   'getTargets',
   'getTarokkaReading',

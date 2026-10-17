@@ -2,10 +2,9 @@
  * @module protocol
  *
  * The TWO wire contracts that connect the three processes, codified once as
- * types + Zod schemas so every implementation validates against a single source
- * of truth instead of re-declaring the frame shapes inline (as the backend, the
- * stdio wrapper, the dashboard client, the Foundry connector, and the socket
- * bridge currently each do).
+ * types and frozen strings, so every implementation shares one source of truth
+ * instead of re-declaring the frame shapes inline. Only the module-hello and
+ * module-request frames also have Zod schemas (the backend parses those two).
  *
  * See ARCHITECTURE.md §3 ("The two wire contracts") for the prose rationale.
  *

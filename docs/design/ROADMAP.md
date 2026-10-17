@@ -144,7 +144,8 @@ Everything else outstanding is below, roughly in priority order.
 **Tests (High-risk untested files):**
 
 - [x] (done 2026-10-17 for `socket-bridge.ts`, `queries.ts`, `foundry-connector.ts`, `mcp-control-client.ts`
-      and `polling-feed.ts`, which have test files; `main.ts` and `index.ts` are still untested entry points)
+      and `polling-feed.ts`, which have test files, and the module's `main.ts`, covered by `main-bridge.test.ts`; the
+      MCP server's `index.ts` is still untested)
       Add coverage for `socket-bridge.ts`, `queries.ts`, `foundry-connector.ts`, `main.ts`, `index.ts`,
       and the dashboard feed (`mcp-control-client.ts`, `polling-feed.ts`).
 

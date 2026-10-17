@@ -189,4 +189,15 @@ export async function showScreen(page: Page, screen: Screen, theme: Theme): Prom
   await page.evaluate(() => document.fonts.ready);
   await page.waitForLoadState('networkidle');
   await page.mouse.move(0, 0);
+  // Let every running CSS transition end (the tab pill's border colour was still a few units off in
+  // the advanced-menu shot on a loaded runner): `toHaveScreenshot` only finishes them on its own
+  // capture, not the ones the mouse move above just started.
+  await page.evaluate(() =>
+    Promise.all(
+      document
+        .getAnimations()
+        .filter(a => Number.isFinite(a.effect?.getComputedTiming().endTime))
+        .map(a => a.finished)
+    )
+  );
 }

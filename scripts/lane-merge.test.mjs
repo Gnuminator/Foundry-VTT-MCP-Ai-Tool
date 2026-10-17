@@ -1633,7 +1633,7 @@ function staleLockRace(dir) {
   return { state, lock, afterStaleSeen };
 }
 
-test('acquireLock (#385): no hard links and the slot is free: the lock is moved back by rename', () => {
+test('acquireLock (#385): no hard links and the slot is free: the lock is copied back', () => {
   const dir = tmpDir();
   const { state, lock, afterStaleSeen } = staleLockRace(dir);
   const written = [];
@@ -1685,25 +1685,34 @@ test('acquireLock (#385): no hard links and a third run took the slot: warns and
   );
 });
 
-test('acquireLock (#385): no hard links and the moved lock vanished (rename ENOENT): retries, no crash', () => {
+test('acquireLock (#385): no hard links and the moved lock vanished (copy ENOENT): retries, no crash', () => {
   const dir = tmpDir();
   const { state, lock, afterStaleSeen } = staleLockRace(dir);
   let removed = false;
-  const release = withoutHardLinks(() =>
-    acquireLock(state, {
-      timeoutMs: 500,
-      wait: () => {},
-      afterStaleSeen,
-      afterTaken: () => {
-        // the run that owns the moved lock deletes it before we can rename it back
-        if (removed) return;
-        removed = true;
-        for (const n of fs.readdirSync(dir)) {
-          if (n.includes('.stale-')) fs.unlinkSync(path.join(dir, n));
-        }
-      },
-    })
-  );
+  const written = [];
+  const origWrite = process.stderr.write;
+  process.stderr.write = chunk => (written.push(String(chunk)), true);
+  let release;
+  try {
+    release = withoutHardLinks(() =>
+      acquireLock(state, {
+        timeoutMs: 500,
+        wait: () => {},
+        afterStaleSeen,
+        afterTaken: () => {
+          // the run that owns the moved lock deletes it before we can copy it back
+          if (removed) return;
+          removed = true;
+          for (const n of fs.readdirSync(dir)) {
+            if (n.includes('.stale-')) fs.unlinkSync(path.join(dir, n));
+          }
+        },
+      })
+    );
+  } finally {
+    process.stderr.write = origWrite;
+  }
+  assert.equal(written.join(''), '', 'no warning for a vanished lock');
   assert.ok(removed, 'the takeover path ran');
   assert.ok(fs.existsSync(lock), 'the retry took the free lock');
   release();

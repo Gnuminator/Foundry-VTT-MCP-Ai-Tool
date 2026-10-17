@@ -1,3 +1,3 @@
 ### Fixes
 
-- **Merge gate lock without hard links:** when hard links are missing, the rename back in `acquireLock` first checks that the lock is free and otherwise prints the same lock-race warning instead of overwriting a third run's lock (#385).
+- **Merge gate lock without hard links:** when hard links are missing, `acquireLock` now copies a moved lock back with an exclusive create and prints the lock-race warning if a third run took the slot, instead of renaming over that run's lock (#385).

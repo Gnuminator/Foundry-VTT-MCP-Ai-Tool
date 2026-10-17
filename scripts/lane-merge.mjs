@@ -710,14 +710,16 @@ export function acquireLock(file, opts = {}) {
           if (/** @type {NodeJS.ErrnoException} */ (e).code === 'EEXIST') {
             // Another run took the free slot: both it and the run whose lock we moved may be in.
             raceWarning();
-          } else if (fs.existsSync(lock)) {
-            // No hard links here either, and a third run already took the free slot: a rename
-            // would silently overwrite its lock, so warn like the EEXIST case and drop ours.
-            raceWarning();
           } else {
-            // No hard links here (FAT32, some network shares): move the lock back instead.
-            fs.renameSync(taken, lock);
-            continue;
+            // No hard links here (FAT32, some network shares): copy the lock back with an exclusive
+            // create (a rename would silently overwrite a third run's lock). EEXIST means a third
+            // run took the free slot: warn like above. A vanished source is ENOENT: retry.
+            try {
+              fs.copyFileSync(taken, lock, fs.constants.COPYFILE_EXCL);
+            } catch (e2) {
+              if (/** @type {NodeJS.ErrnoException} */ (e2).code !== 'EEXIST') throw e2;
+              raceWarning();
+            }
           }
         }
         fs.unlinkSync(taken);

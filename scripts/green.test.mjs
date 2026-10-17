@@ -23,6 +23,8 @@ import {
   selectSteps,
   formatDuration,
   portableNode22Dir,
+  stepEnvironment,
+  nodeNote,
   main,
 } from './green.mjs';
 
@@ -160,7 +162,7 @@ test('formatDuration', () => {
 });
 
 /** Runs main() with fake steps; `behaviour` maps a step name to its exit status and log text. */
-function run(argv, behaviour = {}, steps = undefined) {
+function run(argv, behaviour = {}, steps = undefined, note = null) {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'green-test-'));
   const lines = [];
   const ran = [];
@@ -172,6 +174,7 @@ function run(argv, behaviour = {}, steps = undefined) {
     cwd: tmp,
     tmpdir: tmp,
     isTTY: false,
+    note,
     now: () => (t += 62_000),
     log: l => lines.push(l),
     runStep: (step, fd) => {
@@ -264,6 +267,7 @@ test('the real runner writes a step output into its log', () => {
     cwd: tmp,
     tmpdir: tmp,
     isTTY: false,
+    note: null,
     log: l => lines.push(l),
   });
   assert.equal(code, 1);
@@ -327,7 +331,7 @@ test('commandLine joins plain words; every step is shell safe so nothing is ever
 test('the real runner starts steps without a deprecation warning (shell plus args array)', () => {
   const here = path.dirname(fileURLToPath(import.meta.url));
   const script = `import { main } from ${JSON.stringify(new URL('./green.mjs', import.meta.url).href)};
-process.exit(main({ argv: [], steps: [{ name: 'ok', cmd: 'node', args: ['-e', '1'] }], isTTY: false, log: l => console.log(l), tmpdir: ${JSON.stringify(os.tmpdir())}, cwd: ${JSON.stringify(here)} }));`;
+process.exit(main({ argv: [], steps: [{ name: 'ok', cmd: 'node', args: ['-e', '1'] }], isTTY: false, note: null, log: l => console.log(l), tmpdir: ${JSON.stringify(os.tmpdir())}, cwd: ${JSON.stringify(here)} }));`;
   const r = spawnSync(
     process.execPath,
     ['--throw-deprecation', '--input-type=module', '-e', script],
@@ -390,4 +394,40 @@ test('portableNode22Dir: on Windows under Node 24 the newest portable Node 22 co
     null,
     'no node22 folder'
   );
+});
+
+test('stepEnvironment: one PATH key with the pin first, even when the parent holds PATH and Path', () => {
+  const dir = 'C:\\n22';
+  const env = stepEnvironment({ PATH: 'a', Path: 'b', Other: 'x' }, dir, ';');
+  const pathKeys = Object.keys(env).filter(k => k.toLowerCase() === 'path');
+  assert.deepEqual(pathKeys, ['PATH']);
+  assert.equal(env.PATH, 'C:\\n22;a');
+  assert.equal(env.Other, 'x');
+  assert.deepEqual(stepEnvironment({ Path: 'b' }, dir, ';'), { Path: 'C:\\n22;b' }, 'the real casing is kept');
+  assert.deepEqual(stepEnvironment({}, dir, ';'), { PATH: 'C:\\n22;' }, 'no PATH at all');
+  const base = { Path: 'b', PATH: 'a' };
+  assert.deepEqual(stepEnvironment(base, null), base, 'no pin: untouched');
+  assert.deepEqual(base, { Path: 'b', PATH: 'a' }, 'the input is not changed');
+});
+
+test('nodeNote: Windows says which Node the steps run on, other systems say nothing', () => {
+  assert.equal(
+    nodeNote({ platform: 'win32', major: 24, version: '24.15.0', dir: 'C:\\n22' }),
+    'green: steps on Node 22 (C:\\n22)'
+  );
+  assert.equal(
+    nodeNote({ platform: 'win32', major: 24, version: '24.15.0', dir: null }),
+    'green: no portable Node 22 found; steps run on Node 24.15.0'
+  );
+  assert.equal(
+    nodeNote({ platform: 'win32', major: 22, version: '22.22.2', dir: null }),
+    'green: steps on Node 22.22.2'
+  );
+  assert.equal(nodeNote({ platform: 'linux', major: 24, version: '24.1.0', dir: null }), null);
+});
+
+test('main: the Node note is the first line, before the steps', () => {
+  const r = run([], {}, undefined, 'green: steps on Node 22 (x)');
+  assert.deepEqual(r.lines, ['green: steps on Node 22 (x)', 'green: OK, 3 steps in 1m2s']);
+  assert.equal(run(['--list'], {}, undefined, 'green: steps on Node 22 (x)').lines.includes('green: steps on Node 22 (x)'), false);
 });

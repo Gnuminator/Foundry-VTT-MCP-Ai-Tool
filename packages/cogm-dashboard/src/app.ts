@@ -337,6 +337,8 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
     const { handouts, ...rest } = currentPlayerState();
     playerHub.send(res, 'state', rest);
     playerHub.send(res, 'handouts', { handouts });
+    // The stream tests wait for this as the last snapshot event of the player stream (SNAPSHOT_END
+    // in the two *.app.test.ts files): keep it last, or update both.
     playerHub.send(res, 'theme', themePayload());
   }
 
@@ -712,6 +714,8 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
     // otherwise keep showing it as live (the broadcast of the end went to nobody).
     sse.send(res, 'combat', { combat: state.combat });
     sse.send(res, 'events', { events: state.recentEvents, initial: true });
+    // The stream tests wait for this as the last snapshot event of the GM stream (SNAPSHOT_END in
+    // stream-combat.app.test.ts and dashboard-prefs.app.test.ts): keep it last, or update both.
     sse.send(res, 'errors', { errors: state.recentErrors, initial: true });
   });
 

@@ -86,5 +86,9 @@ describe('tunnel-client.ps1 Install', () => {
     assert.ok(check < install.indexOf('WriteAllLines($tokenPath'), 'before the token is stored');
     assert.ok(check < install.indexOf('Register-ScheduledTask'), 'before the logon task is registered');
     assert.ok(src.includes('catch {') && src.includes('could not be read'), 'an unreadable ACL fails closed');
+    assert.match(src, /\[int64\]\$write = 0x500D0046/, 'the mask covers GENERIC_WRITE and GENERIC_ALL');
+    const refusal = install.slice(check, install.indexOf('$secretSecure = $null'));
+    assert.ok(refusal.includes('Unregister-ScheduledTask'), 'a refusal removes the logon task of an earlier install');
+    assert.ok(refusal.indexOf('Unregister-ScheduledTask') < refusal.indexOf('Fail "$f can be changed'), 'before the Fail');
   });
 });

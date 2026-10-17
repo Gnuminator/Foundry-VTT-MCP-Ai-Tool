@@ -12,7 +12,8 @@
     Install    asks for the service token (Client ID, then the secret, typed hidden), stores it for
                this Windows user only (DPAPI), registers a scheduled task that starts the tunnel at
                logon, and starts it now. -TokenFile <file> (line 1 = Client ID, line 2 = secret) is for
-               a silent install; the file is not deleted, delete it yourself. -KeepToken reuses the
+               a silent install; the file is deleted once the token is stored (a silent re-run after a wrong
+               token needs a new file). -KeepToken reuses the
                token stored earlier (an upgrade), -Pause waits for Enter before the window closes.
     Uninstall  stops the tunnel, removes the task and the stored token.
     Run        what the logon task runs: keeps cloudflared running and restarts it if it stops.
@@ -172,18 +173,22 @@ function Get-TaskState {
 # Names (other than this user, SYSTEM and Administrators) that an allow rule lets change files in $folder.
 # Empty when the folder is private. An unreadable ACL counts as shared (fails closed).
 function Get-SharedWriters([string]$folder) {
-  $write = [System.Security.AccessControl.FileSystemRights]'WriteData, AppendData, Delete, DeleteSubdirectoriesAndFiles, ChangePermissions, TakeOwnership'
+  # WriteData, AppendData, Delete, DeleteSubdirectoriesAndFiles, ChangePermissions, TakeOwnership, plus the
+  # raw GENERIC_WRITE and GENERIC_ALL bits that inherit-only entries often carry.
+  [int64]$write = 0x500D0046
   $me = [System.Security.Principal.WindowsIdentity]::GetCurrent().User
   $ok = @($me.Value, 'S-1-5-18', 'S-1-5-32-544', 'S-1-3-0', 'S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464')
   try {
     $acl = Get-Acl -LiteralPath $folder -ErrorAction Stop
     $out = @()
-    foreach ($r in $acl.Access) {
+    foreach ($r in $acl.GetAccessRules($true, $true, [System.Security.Principal.SecurityIdentifier])) {
       if ($r.AccessControlType -ne 'Allow') { continue }
-      if (($r.FileSystemRights -band $write) -eq 0) { continue }
-      $sid = $r.IdentityReference.Translate([System.Security.Principal.SecurityIdentifier]).Value
+      if (([int64]$r.FileSystemRights -band $write) -eq 0) { continue }
+      $sid = $r.IdentityReference.Value
       if ($sid -in $ok) { continue }
-      $out += $r.IdentityReference.Value
+      $name = $sid
+      try { $name = $r.IdentityReference.Translate([System.Security.Principal.NTAccount]).Value } catch { }
+      $out += $name
     }
     return @($out | Select-Object -Unique)
   } catch {
@@ -200,10 +205,16 @@ switch ($Action) {
     if (-not (Test-Path -LiteralPath $CloudflaredPath -PathType Leaf)) { Fail "cloudflared.exe is not at $CloudflaredPath (-CloudflaredPath)" 2 }
     $CloudflaredPath = (Resolve-Path -LiteralPath $CloudflaredPath).Path
     # The logon task runs this script and cloudflared.exe with the token: refuse folders others can change.
-    foreach ($f in @((Split-Path -Parent $PSCommandPath), (Split-Path -Parent $CloudflaredPath)) | Select-Object -Unique) {
+    foreach ($f in @((Split-Path -Parent $PSCommandPath), (Split-Path -Parent $CloudflaredPath), $PSCommandPath, $CloudflaredPath) | Select-Object -Unique) {
       $bad = @(Get-SharedWriters $f)
       if ($bad.Count -gt 0) {
-        Fail "the folder $f can be changed by $($bad -join ', '); what runs at every logon lives there. Install into a folder only you can write to (the default is under %LOCALAPPDATA%)." 2
+        # An earlier install's logon task would still run from this folder: remove it (the stored token stays).
+        $removed = ''
+        if (Get-TaskState) {
+          Stop-Tunnel
+          try { Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false -ErrorAction Stop; $removed = " The logon task from the earlier install was removed." } catch { }
+        }
+        Fail "$f can be changed by $($bad -join ', '); what runs at every logon lives there. Install into a folder only you can write to (the default is under %LOCALAPPDATA%).$removed" 2
       }
     }
 

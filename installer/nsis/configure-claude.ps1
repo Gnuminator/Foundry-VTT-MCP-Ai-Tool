@@ -68,6 +68,8 @@ function Test-BridgeHost {
 function Test-PrivateBridgeHost {
     param([string]$Value)
     $v = $Value.Trim('[', ']').ToLowerInvariant()
+    # A bare number or 0x... is an IPv4 address in disguise to the Windows resolver; a leading zero reads as octal.
+    if ($v -match '^(0x[0-9a-f]+|\d+)$' -or $v -match '(^|\.)0\d') { return $false }
     if ($v -match '^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$') {
         $a = [int]$Matches[1]; $b = [int]$Matches[2]
         return ($a -eq 127) -or ($a -eq 10) -or ($a -eq 192 -and $b -eq 168) -or ($a -eq 172 -and $b -ge 16 -and $b -le 31) -or ($a -eq 100 -and $b -ge 64 -and $b -le 127)

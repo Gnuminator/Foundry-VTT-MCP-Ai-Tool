@@ -50,7 +50,7 @@ does not say so: it just never sends a code. That is the first thing to check if
 
 ## 2. Log in to Foundry
 
-Foundry's join page opens. It shows the game's name at the top and three boxes on the left.
+Foundry's join page opens. It shows the game's name at the top and three panels on the left.
 
 ![Foundry's join page: user name Player and a password typed in, the orange Join Game Session button below, and further down the Return to Setup box](../images/guides/join-form.png)
 
@@ -73,8 +73,8 @@ the GM starts again.
 
 ### Leaving, or switching user
 
-To leave, close the browser tab. To switch user on the same computer, press **Esc** (twice if a
-window is open) and choose **Log Out**.
+To leave, close the browser tab. To switch user on the same computer, press **Esc** (press it again if
+a window closed first) and choose **Log Out**.
 
 ![Foundry's menu after pressing Esc: Reload Application and Log Out](../images/guides/join-log-out.png)
 
@@ -92,8 +92,8 @@ always posts a notice when it starts. What is recorded and what happens with it:
 
 The GM may also send you a second address: the **player page**. It is a read-only web page for
 phone or laptop with the combat order, the session feed and the handouts the GM has shown you. It
-uses the same email code as the game, so the first visit works as in step 1. You don't need it to
-play. More in the [player guide](README.md).
+asks for an email code too, the same kind as in step 1 but a separate login, so the first visit
+works the same way. You don't need it to play. More in the [player guide](README.md).
 
 ## If it doesn't work
 
@@ -101,8 +101,8 @@ play. More in the [player guide](README.md).
 | --------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
 | No email code arrives                         | Wait a minute and check spam. Check you typed the address you gave the GM, with no extra spaces. Otherwise tell the GM. |
 | The Cloudflare page asks for your email again | Normal about once a month, or in a new browser. Get a new code.                                                         |
-| The code is refused                           | Codes run out after a short while. Go back to the first page, click **Send login code** again and use the newest email. |
-| "The requested User does not exist"           | The user name is spelled differently. Copy it from the GM's message.                                                    |
+| The code is refused                           | Codes run out after a short while. Reload the address, click **Send login code** again and use the newest email.        |
+| "The requested User ... does not exist"       | The user name is spelled differently. Copy it from the GM's message.                                                    |
 | The password is refused                       | Copy it from the GM's message, and check the eye icon to see what was typed. Still no? Ask the GM to reset it.          |
 | A warning about screen resolution             | Make the browser window bigger, or use a computer with a bigger screen.                                                 |
 | The page loads but stays black or very slow   | Close other tabs, check hardware acceleration is on, reload the page (F5).                                              |

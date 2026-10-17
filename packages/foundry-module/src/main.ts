@@ -131,6 +131,12 @@ class FoundryMCPBridge {
         defaultEnabled: true,
       });
       registerGuardedFeature({
+        id: 'table-viewer',
+        name: 'AI Tool: Table viewer (writes)',
+        hint: 'Lets the AI create the Table user that the TV at the table signs in as (Player role, no password, owns nothing), after you confirm the plan. It shows in Recent Changes with an Undo.',
+        defaultEnabled: true,
+      });
+      registerGuardedFeature({
         id: SCENE_RESTORE_FEATURE_ID,
         name: 'AI Tool: Scene restore (writes)',
         hint: "Lets the AI put a scene's walls, lights, tiles and tokens back from a backup copy of the world, after you confirm the plan. Each restore shows in Recent Changes with an Undo.",

@@ -43,8 +43,9 @@ services:
     networks:
       - internal
 
-    # Expose the Foundry connector ports to the host so the hosted Foundry
-    # module can dial in. The dashboard port (3000) is intentionally NOT mapped
+    # Publish the Foundry connector on the host's loopback (same host, or an SSH tunnel).
+    # For a Foundry on another machine use the tailnet IP instead.
+    # The dashboard port (3000) is intentionally NOT mapped
     # to the host — it is only reachable via the cloudflared tunnel.
     ports:
       # Loopback only: the link is unauthenticated. To reach it from the Foundry host,

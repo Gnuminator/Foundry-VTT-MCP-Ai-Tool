@@ -564,8 +564,9 @@ at it.
 
 ### Port reachability for remote Foundry
 
-Your always-on host's firewall / VPS security group must allow inbound TCP on 31415 from
-the Foundry browser client's network (or from the internet if the source IPs vary).
+Never open 31415 to the internet: the Foundry link has no login. Reach it over the tailnet
+(publish it on the host's tailnet IP) or an SSH tunnel to the bridge host. In Docker, published
+ports skip ufw, so the mapping itself must be `127.0.0.1:31415:31415` or `<tailnet IP>:31415:31415`.
 
 ---
 
@@ -583,7 +584,7 @@ changing.
 | 4   | GM email allow-list        | `GM_EMAILS=you@example.com,cogm@example.com` in env/.env          |
 | 5   | `GM_DASHBOARD_TOKEN`       | A random secret (e.g. `openssl rand -hex 32`) in env/.env         |
 | 6   | `ANTHROPIC_API_KEY`        | Runtime secret / Docker secret / systemd EnvironmentFile          |
-| 7   | Bridge host firewall rules | Open 31415 TCP (WS)                                               |
+| 7   | Bridge host firewall rules | Keep 31415 off the internet: tailnet IP or SSH tunnel only        |
 | 8   | `FOUNDRY_REMOTE_MODE=true` | Set in backend env when bridge and Foundry are different machines |
 
 ---
@@ -645,7 +646,7 @@ Work through this list top-to-bottom when you're ready to go remote.
 
 ### Foundry module
 
-- [ ] Bridge's 31415 is reachable from the Foundry host (firewall rules).
+- [ ] Bridge's 31415 is reachable from the Foundry host over the tailnet or an SSH tunnel, not the open internet.
 - [ ] Foundry module settings: bridge host = `<BRIDGE_HOST_IP_OR_HOSTNAME>`, port = `31415`.
 - [ ] Module shows "Connected" in the Foundry UI.
 - [ ] Dashboard shows Foundry reachable.

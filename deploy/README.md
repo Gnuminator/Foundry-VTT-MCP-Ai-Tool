@@ -70,7 +70,7 @@ value. The complete list is in `docs/dev/REMOTE-ACCESS.md §5 (seams list)`. Sho
 
 ## What is not here (intentional gaps)
 
-- **Reverse-proxy / TLS for the Foundry connector** — port 31415 is exposed directly;
+- **Reverse-proxy / TLS for the Foundry connector** — port 31415 is published on the host's loopback only (use the tailnet IP or an SSH tunnel to reach it);
   TLS termination for it is future work.
 - **Auth middleware code** — the player/GM split is live in the dashboard config
   (`GM_EMAILS`, `GM_DASHBOARD_TOKEN`), but the middleware that enforces it per-route

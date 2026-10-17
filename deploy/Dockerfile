@@ -119,7 +119,7 @@ EXPOSE 31415
 # DASHBOARD_HOST / FOUNDRY_LINK_HOST are 0.0.0.0 because a container must listen
 # on its own interface for port mapping and the tunnel sidecar (tested: with
 # FOUNDRY_LINK_HOST=127.0.0.1 inside the container, a published port gets no answer).
-# This is not an exposure: the Foundry link (31415) has no login, so the compose
+# The Foundry link (31415) has no login, so it is only safe because the compose
 # template publishes it on the host's 127.0.0.1 only. To expose it on purpose, change
 # the host side of the mapping (tailnet IP or SSH tunnel), never to a bare "31415:31415".
 # With plain `docker run`, use -p 127.0.0.1:31415:31415. The dashboard

@@ -21,6 +21,8 @@ export interface DashboardPrefs {
   duringFull: boolean;
   /** Damage / Heal, Condition and Clear in the strip; off by default (D-092, Advanced). */
   combatButtons: boolean;
+  /** The version tracker panel (I-127); off by default (D-098). */
+  versionTracker: boolean;
   /** The GM picked a layout in the trial (or with the switcher); the Before card goes away. */
   layoutPicked: boolean;
   /** The During hint was dismissed. */
@@ -33,6 +35,7 @@ export const DEFAULT_PREFS: DashboardPrefs = {
   duringLayout: 'layered',
   duringFull: false,
   combatButtons: false,
+  versionTracker: false,
   layoutPicked: false,
   hintDismissed: false,
   hintSessions: [],
@@ -50,6 +53,7 @@ export interface PrefsChange {
   duringLayout?: DuringLayout;
   duringFull?: boolean;
   combatButtons?: boolean;
+  versionTracker?: boolean;
   layoutPicked?: boolean;
   hintDismissed?: boolean;
   hintSession?: string;
@@ -60,7 +64,13 @@ export function parsePrefsChange(raw: unknown): PrefsChange | null {
   const r = raw as Record<string, unknown>;
   const change: PrefsChange = {};
   if (isDuringLayout(r.duringLayout)) change.duringLayout = r.duringLayout;
-  for (const key of ['duringFull', 'combatButtons', 'layoutPicked', 'hintDismissed'] as const) {
+  for (const key of [
+    'duringFull',
+    'combatButtons',
+    'versionTracker',
+    'layoutPicked',
+    'hintDismissed',
+  ] as const) {
     if (typeof r[key] === 'boolean') change[key] = r[key];
   }
   if (typeof r.hintSession === 'string' && r.hintSession.trim() !== '') {
@@ -76,6 +86,7 @@ function readPrefs(raw: unknown): DashboardPrefs {
     duringLayout: isDuringLayout(r.duringLayout) ? r.duringLayout : DEFAULT_PREFS.duringLayout,
     duringFull: r.duringFull === true,
     combatButtons: r.combatButtons === true,
+    versionTracker: r.versionTracker === true,
     layoutPicked: r.layoutPicked === true,
     hintDismissed: r.hintDismissed === true,
     hintSessions: Array.isArray(r.hintSessions)
@@ -135,6 +146,7 @@ export class DashboardPrefsStore {
     if (change.duringLayout !== undefined) next.duringLayout = change.duringLayout;
     if (change.duringFull !== undefined) next.duringFull = change.duringFull;
     if (change.combatButtons !== undefined) next.combatButtons = change.combatButtons;
+    if (change.versionTracker !== undefined) next.versionTracker = change.versionTracker;
     if (change.layoutPicked !== undefined) next.layoutPicked = change.layoutPicked;
     if (change.hintDismissed !== undefined) next.hintDismissed = change.hintDismissed;
     if (

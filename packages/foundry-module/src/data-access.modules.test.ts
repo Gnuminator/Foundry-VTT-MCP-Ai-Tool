@@ -72,6 +72,32 @@ describe('FoundryDataAccess — getModules basic envelope', () => {
     });
   });
 
+  it('lists the manifest url for the version tracker, and null for a missing or odd one', async () => {
+    world.addModule({
+      id: 'mod-m',
+      title: 'M',
+      version: '1',
+      active: true,
+      manifest: 'https://example.test/module.json',
+    });
+    world.addModule({ id: 'mod-n', title: 'N', version: '1', active: true });
+    world.addModule({
+      id: 'mod-o',
+      title: 'O',
+      version: '1',
+      active: true,
+      manifest: 'file:///x',
+    });
+
+    const result = await da.getModules({});
+    const manifest = (id: string): unknown =>
+      result.modules.find((m: any) => m.id === id)?.manifest;
+
+    expect(manifest('mod-m')).toBe('https://example.test/module.json');
+    expect(manifest('mod-n')).toBeNull();
+    expect(manifest('mod-o')).toBeNull();
+  });
+
   it('reports null for all compatibility fields when compatibility is absent', async () => {
     world.addModule({ id: 'mod-c', title: 'Mod C', version: '1.0.0', active: true });
     // No compatibility property at all on makeModule's defaults

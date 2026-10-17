@@ -44,6 +44,7 @@ import { mountSessionNotesRoute, type SessionNotesAction } from './session-notes
 import { mountHelpRoute } from './help-route.js';
 import { mountMeRoute } from './me-route.js';
 import { mountSpaceRoute } from './space-route.js';
+import { VersionTracker, defaultKitLastRunFile, mountVersionsRoute } from './versions.js';
 import { PlayerLinkStore } from './player-links.js';
 import { DashboardPrefsStore, parsePrefsChange } from './dashboard-prefs.js';
 import { THEMES, ThemeStore, isTheme } from './theme.js';
@@ -107,6 +108,8 @@ export interface DashboardDeps {
   spaceStatusFile?: string;
   /** Test clock for the space check's age. */
   spaceNow?: () => number;
+  /** The test kit's last-run.json for the version tracker; default env or the PC's kit home. */
+  kitLastRunFile?: string | null;
 }
 
 export interface Dashboard {
@@ -630,6 +633,16 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
       ...(deps.spaceStatusFile ? { path: deps.spaceStatusFile } : {}),
       ...(deps.spaceNow ? { now: deps.spaceNow } : {}),
       log: message => spaceLogger.info(message),
+    }),
+  });
+
+  // The version tracker (I-127): GM only, off until the GM switches it on in the Advanced menu.
+  mountVersionsRoute(app, {
+    requireGm,
+    tracker: new VersionTracker({
+      enabled: (): boolean => prefs.get(world?.id).versionTracker,
+      getModules: (): Promise<unknown> => client.callTool('get-modules', {}),
+      kitFile: deps.kitLastRunFile ?? defaultKitLastRunFile(),
     }),
   });
 

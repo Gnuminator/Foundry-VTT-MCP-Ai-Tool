@@ -86,13 +86,16 @@ const linksChunk = panelChunk(() =>
 const diagChunk = panelChunk(() =>
   import('./panels/ModuleDiagnostics').then(m => ({ default: m.ModuleDiagnosticsPane }))
 );
+const versionsChunk = panelChunk(() =>
+  import('./panels/Versions').then(m => ({ default: m.VersionsPane }))
+);
 const partyChunk = panelChunk(() =>
   import('./panels/Party').then(m => ({ default: m.PartyDrawer }))
 );
 const changesChunk = panelChunk(() => import('./panels/RecentChanges'));
 // The ones that dock into a view load at once; the floating ones when the browser is idle.
 const DOCKED_CHUNKS = [partyChunk, prepChunk, handoutsChunk, changesChunk];
-const FLOATING_CHUNKS = [tarokkaChunk, toolsChunk, linksChunk, diagChunk];
+const FLOATING_CHUNKS = [tarokkaChunk, toolsChunk, linksChunk, diagChunk, versionsChunk];
 
 /** The world's theme (/api/theme); until it answers, the cached one from main.tsx shows. */
 function useWorldTheme(): void {
@@ -197,6 +200,8 @@ function Dashboard(): JSX.Element {
   const openHelp = useHelp();
   const [linksOpen, setLinksOpen] = useState(false);
   const [diagOpen, setDiagOpen] = useState(false);
+  const [versionsOpen, setVersionsOpen] = useState(false);
+  const versionTrackerOn = during.prefs?.versionTracker === true;
   // Tarokka's Show cards, here so Pre-flight can warn while it is on (both drawers can be open).
   const [tarokkaShown, setTarokkaShown] = useState(false);
   // A guarded change refused for GM Actions opens Pre-flight, whose Ready for session turns them
@@ -343,6 +348,39 @@ function Dashboard(): JSX.Element {
                 🔗 Player links
               </Button>
             </AdvancedItem>
+            {versionTrackerOn ? (
+              <AdvancedItem
+                onSelect={() => {
+                  setVersionsOpen(!versionsOpen);
+                  return !versionsOpen;
+                }}
+              >
+                <Button
+                  id="btn-show-versions"
+                  data-track="dash.header.show-versions"
+                  title="Installed against newest: Foundry, dnd5e, modules and the last test (GM only)"
+                >
+                  📦 Versions
+                </Button>
+              </AdvancedItem>
+            ) : null}
+            <AdvancedItem
+              disabled={!during.prefs}
+              onSelect={() => {
+                during.actions.toggleVersionTracker();
+                return false;
+              }}
+            >
+              <Button
+                id="btn-version-tracker"
+                className={versionTrackerOn ? 'on' : undefined}
+                data-track="dash.header.version-tracker"
+                disabled={!during.prefs}
+                title="Show a Versions panel with what is installed against the newest releases. Off by default."
+              >
+                {`Version tracker: ${versionTrackerOn ? 'on' : 'off'}`}
+              </Button>
+            </AdvancedItem>
           </AdvancedMenu>
           <a className="btn" href="/">
             Full dashboard
@@ -369,6 +407,12 @@ function Dashboard(): JSX.Element {
       <LayoutTourGuide during={during} />
       <LazyPanel chunk={linksChunk} show={linksOpen} open={linksOpen} onOpenChange={setLinksOpen} />
       <LazyPanel chunk={diagChunk} show={diagOpen} open={diagOpen} onOpenChange={setDiagOpen} />
+      <LazyPanel
+        chunk={versionsChunk}
+        show={versionsOpen && versionTrackerOn}
+        open={versionsOpen}
+        onOpenChange={setVersionsOpen}
+      />
       <DrawerBackdrop
         shown={(Object.keys(drawers) as DrawerName[]).some(n => drawers[n] && !docked(n))}
         onClose={() => setDrawers(NO_DRAWERS)}

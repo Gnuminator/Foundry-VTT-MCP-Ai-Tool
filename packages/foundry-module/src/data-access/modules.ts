@@ -20,6 +20,8 @@ interface ModuleSummary {
   title: string;
   version: string;
   active: boolean;
+  /** The manifest url the module installs from (the version tracker checks it); null when none. */
+  manifest: string | null;
   compatibility: { minimum: string | null; verified: string | null; maximum: string | null };
   requires: RequiredDep[];
   issues: string[];
@@ -68,6 +70,7 @@ interface ModuleManifestResult {
 
 /** Manifest members the Foundry declaration does not list yet (`FoundryPackage`). */
 interface ModuleManifestFields extends FoundryModule {
+  readonly manifest?: unknown;
   readonly authors?: unknown;
   readonly description?: unknown;
   readonly url?: unknown;
@@ -271,11 +274,13 @@ export class ModulesDataAccess {
     this.collectCompatIssues(m.compatibility, coreVer, isNewer, issues);
 
     const comp: ModuleCompatibility = m.compatibility ?? {};
+    const manifest = (m as ModuleManifestFields).manifest;
     return {
       id: m.id,
       title: m.title,
       version: m.version,
       active: m.active,
+      manifest: typeof manifest === 'string' && /^https?:\/\//.test(manifest) ? manifest : null,
       compatibility: {
         minimum: comp.minimum ?? null,
         verified: comp.verified ?? null,

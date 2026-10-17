@@ -246,6 +246,42 @@ this PC.
 Copy a restored world to the Pi only with Foundry stopped, and keep the owner `foundry:foundry`
 (`chown -R foundry:foundry` on the world folder); both steps need your OK under the Pi safety rule.
 
+## Game-night watch (I-145)
+
+`scripts/gamenight-watch.mjs` runs on this PC (nothing is installed on the Pi). Every minute it calls
+Foundry's `/api/status` and posts to a Discord channel when Foundry does not answer, answers slowly, or
+is back. One message when it goes down or slow, one when it recovers; a single miss or slow answer
+posts nothing (defaults: 2 misses in a row for "down", 3 slow answers in a row for "slow", over 3 s;
+2 good answers in a row for "back").
+
+```powershell
+node scripts/gamenight-watch.mjs --url http://<pi-address>:30000            # dry run: log only
+node scripts/gamenight-watch.mjs --url http://<pi-address>:30000 --post     # post to Discord
+```
+
+Posting is opt-in (`--post`). It uses the bot token already in `%APPDATA%\foundry-ai-tool\discord-bot.env`
+(never printed) plus `GAMENIGHT_WATCH_CHANNEL_ID=<channel>` in the same file, and optionally
+`GAMENIGHT_WATCH_MENTION_IDS=<your id>,<GM id>` to ping you both. The bot must be in that server and
+allowed to post in the channel. Tune with `--interval`, `--slow-ms`, `--timeout-ms`, `--fail`, `--slow`,
+`--recover`. For a test, point `--url` at the test server (`http://localhost:30001`) and stop it with
+`scripts/test-env/stop.ps1 -Only foundry`.
+
+The message includes the Foundry address (without any user name or password). A message that Discord
+refuses is kept and tried again at every check, so a short Discord outage does not lose the "down"
+message; a late message says when the problem was noticed. With `--post` the watch first asks Discord
+whether the bot can see the channel and stops with an error if not. Foundry counts as up only when
+`/api/status` answers 200 with a running world (`active: true`); a redirect, the setup screen or a login
+page counts as a miss. Use the Pi's own address (`http://<pi-address>:30000`): the players' Cloudflare
+address is not checked. A Foundry that stays slow gets no second reminder, and a link that flaps posts a
+down and back pair each time.
+
+`--once` makes one check and exits with 1 if Foundry is not healthy or a post is unsent. One check
+alone never posts "down" (it takes `--fail` misses in a row), so to test posting use
+`--once --post --fail 1` against a stopped test server.
+
+The watch only works while this PC is on and can reach the Pi. A copy that runs on the Pi itself would be
+a stage script and needs your OK (not done).
+
 ## Stale backup copies
 
 The copies on this PC are only worth something while they keep arriving. If this PC stays off (or

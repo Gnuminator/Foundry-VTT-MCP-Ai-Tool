@@ -42,6 +42,15 @@ function Header(): JSX.Element {
 
 const render = (): JSX.Element => <Header />;
 
+/**
+ * The button is disabled while a click is on its way and loses the focus then: wait until it is
+ * back and drop the focus, so the shot is the same whichever way that race went.
+ */
+async function settle(button: HTMLElement): Promise<void> {
+  await waitFor(() => expect(button).toBeEnabled());
+  button.blur();
+}
+
 const seed = (
   gmActionsEnabled: boolean,
   control?: DashboardParameters['api']
@@ -83,9 +92,7 @@ export const TurnsOn: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await userEvent.click(await canvas.findByRole('button', { name: '⚔ GM Actions: off' }));
-    await waitFor(() =>
-      expect(canvas.getByRole('button', { name: '⚔ GM Actions: on' })).toBeVisible()
-    );
+    await settle(await canvas.findByRole('button', { name: '⚔ GM Actions: on' }));
   },
 };
 
@@ -101,7 +108,7 @@ export const ClickFails: Story = {
     await waitFor(() =>
       expect(within(document.body).getAllByText(/^✗ GM Actions: /)).not.toHaveLength(0)
     );
-    await expect(canvas.getByRole('button', { name: '⚔ GM Actions: off' })).toBeEnabled();
+    await settle(canvas.getByRole('button', { name: '⚔ GM Actions: off' }));
   },
 };
 

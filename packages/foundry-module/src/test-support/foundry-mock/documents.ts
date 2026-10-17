@@ -674,6 +674,8 @@ export function resetIdCounter(): void {
  */
 export function randomId(prefix = 'doc'): string {
   idCounter += 1;
-  const base = `${prefix}${idCounter}`;
+  // A long prefix is cut so the counter always survives and two ids never collide.
+  const counter = String(idCounter);
+  const base = `${prefix.slice(0, Math.max(0, 16 - counter.length))}${counter}`;
   return `${base}xxxxxxxxxxxxxxxx`.slice(0, 16);
 }

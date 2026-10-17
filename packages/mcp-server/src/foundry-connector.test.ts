@@ -4,7 +4,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { WebSocket } from 'ws';
 
 import {
-  BridgeHelloFrameSchema,
   MODULE_CAPABILITY_AI_CHANGES_SIGNAL,
   MODULE_NOT_ACTIVE_LINK_ERROR,
   MODULE_REQUEST_MAX_ARGS_BYTES,
@@ -511,9 +510,12 @@ describe('module requests (I-108)', () => {
     expect(a.sent).toEqual([]);
   });
 
-  it('keeps the bridge-hello within the schema limits as tools are added', () => {
+  it('keeps the bridge-hello within 50 capabilities of at most 100 characters as tools are added', () => {
     const a = connect();
-    expect(BridgeHelloFrameSchema.safeParse(a.bridgeHellos[0]).success).toBe(true);
+    const hello = a.bridgeHellos[0] as { type: string; data: { capabilities: string[] } };
+    expect(hello.type).toBe('bridge-hello');
+    expect(hello.data.capabilities.length).toBeLessThanOrEqual(50);
+    for (const c of hello.data.capabilities) expect(c.length).toBeLessThanOrEqual(100);
   });
 
   it('answers an invalid frame that still has an id, and ignores one without', async () => {

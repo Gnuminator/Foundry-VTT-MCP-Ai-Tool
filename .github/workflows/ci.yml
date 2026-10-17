@@ -91,6 +91,10 @@ jobs:
         # scripts/dev/usage-week.mjs (D-122 targets) against fixture transcripts.
         run: node --test scripts/dev/usage-week.test.mjs
 
+      - name: Game-night watch
+        # scripts/gamenight-watch.mjs (I-145): the down/slow/recovered state machine, the probe and the message text.
+        run: node --test scripts/gamenight-watch.test.mjs
+
       - name: Pi space check
         # The storage space check (stage 10, the nightly backup's pre-check, scripts/pi/space-check.ps1):
         # bash -n on the stage scripts, the checker's JSON against a fake df, the PC helper's levels

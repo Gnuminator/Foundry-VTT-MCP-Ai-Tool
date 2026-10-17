@@ -270,9 +270,9 @@ describe('the switch, the buttons and the windows', () => {
     await vi.advanceTimersByTimeAsync(PANEL_REFRESH_DEBOUNCE_MS + 10);
     expect(w.content.innerHTML).toContain('Wolf');
 
-    const actions = (w.constructor as any).DEFAULT_OPTIONS.actions;
-    actions.nextTurn.call(w, new Event('click'), {} as HTMLElement);
-    actions.previousTurn.call(w, new Event('click'), {} as HTMLElement);
+    const actions = w.constructor.DEFAULT_OPTIONS.actions;
+    actions.nextTurn.call(w, new Event('click'), {});
+    actions.previousTurn.call(w, new Event('click'), {});
     await vi.advanceTimersByTimeAsync(0);
     expect(combat.nextTurn).toHaveBeenCalledOnce();
     expect(combat.previousTurn).toHaveBeenCalledOnce();

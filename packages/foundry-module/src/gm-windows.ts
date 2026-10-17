@@ -137,7 +137,7 @@ export function createPanelWindow(spec: PanelSpec): PanelOpener {
       _onRender(): void {
         if (this.hookIds.length > 0) return;
         for (const name of spec.hooks) {
-          const id = Hooks.on(name, () => this.scheduleRedraw()) as unknown as number;
+          const id = Hooks.on(name, () => this.scheduleRedraw());
           this.hookIds.push([name, id]);
         }
       }
@@ -157,7 +157,7 @@ export function createPanelWindow(spec: PanelSpec): PanelOpener {
         }, PANEL_REFRESH_DEBOUNCE_MS);
       }
     }
-    return PanelWindow as unknown as new () => AppV2Instance;
+    return PanelWindow;
   };
 
   return {

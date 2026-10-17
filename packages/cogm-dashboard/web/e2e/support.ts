@@ -4,8 +4,18 @@ import type { Locator, Page } from '@playwright/test';
 
 export const GM_TOKEN = 'e2e-gm-token';
 
-/** The world's theme and the usage log, so a page load never depends on a bridge. */
-export async function fakeCommonRoutes(page: Page, theme = 'veil'): Promise<void> {
+/**
+ * The theme the real test server sends on its stream when there is no world (themes.get(undefined)).
+ * A spec that fakes /api/theme but rides the real stream (no `fakeStream`) gets this theme event
+ * right after the faked answer, so the fake must say the same or the page flips to it.
+ */
+export const SERVER_THEME = 'neutral';
+
+/**
+ * The world's theme and the usage log, so a page load never depends on a bridge. Pass another
+ * `theme` only together with a `fakeStream` that sends the same theme.
+ */
+export async function fakeCommonRoutes(page: Page, theme = SERVER_THEME): Promise<void> {
   await page.route('**/api/theme', route => route.fulfill({ json: { theme } }));
   await page.route('**/api/usage', route => route.fulfill({ status: 204 }));
 }

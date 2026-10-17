@@ -30,6 +30,8 @@
     },
   },
   "globs": ["**/*.md"],
+  // Skip whatever .gitignore skips (playwright-report/, test-results/, coverage/, new report folders).
+  "gitignore": true,
   "ignores": [
     "**/node_modules/**",
     "**/dist/**",

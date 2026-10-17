@@ -2,6 +2,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useState, type JSX } from 'react';
 
 import { api, errorText } from '../lib/api';
+import { useKeepFocus } from '../lib/keepFocus';
 import { SETTINGS_KEY, useDashboardSettings, type DashboardSettings } from '../lib/stream';
 import { Button } from '../ui';
 
@@ -19,8 +20,10 @@ export function GmActionsSwitch(): JSX.Element {
   const queryClient = useQueryClient();
   const on = useDashboardSettings()?.gmActionsEnabled === true;
   const [pending, setPending] = useState(false);
+  const { ref, remember } = useKeepFocus<HTMLButtonElement>(pending);
 
   const toggle = (): void => {
+    remember();
     setPending(true);
     api<DashboardSettings>('/api/control', {
       method: 'POST',
@@ -39,6 +42,7 @@ export function GmActionsSwitch(): JSX.Element {
 
   return (
     <Button
+      ref={ref}
       id="btn-gm"
       className={on ? 'on' : undefined}
       data-track="dash.header.gm-actions"

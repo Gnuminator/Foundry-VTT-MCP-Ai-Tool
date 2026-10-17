@@ -42,6 +42,7 @@ import { DiceRollTools } from './tools/dice-roll.js';
 import { CampaignManagementTools } from './tools/campaign-management.js';
 
 import { OwnershipTools } from './tools/ownership.js';
+import { SceneRestoreTools } from './tools/scene-restore.js';
 
 import { TokenManipulationTools } from './tools/token-manipulation.js';
 
@@ -419,6 +420,12 @@ async function startBackend(): Promise<void> {
   });
   const partyTools = new PartyTools({ foundryClient, guardedWrites, logger });
   const ownershipTools = new OwnershipTools({ foundryClient, guardedWrites, logger });
+  const sceneRestoreTools = new SceneRestoreTools({
+    foundryClient,
+    guardedWrites,
+    worldIds,
+    logger,
+  });
   const livePlayTools = new LivePlayTools({ foundryClient, guardedWrites, logger });
   const sceneChangeTools = new SceneChangeTools({ foundryClient, guardedWrites, logger });
   // O4 Foundry mirror: the pump starts with the Foundry link below (vault dir set only).
@@ -458,6 +465,7 @@ async function startBackend(): Promise<void> {
     campaignManagementTools,
     tokenManipulationTools,
     ownershipTools,
+    sceneRestoreTools,
     dnd5eAddFeatureTool,
     dnd5eNpcTools,
     dnd5eFeaturesFromCompendiumTools,

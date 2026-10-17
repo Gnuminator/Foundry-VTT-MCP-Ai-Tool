@@ -94,3 +94,20 @@ test('a refused save toasts the reason and the picker goes back', async ({ page 
   await expect(picker).toHaveValue('neutral');
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'neutral');
 });
+
+test('the keyboard focus is still on the picker once the save has settled', async ({ page }) => {
+  await fakeCommonRoutes(page, 'neutral');
+  await fakeStream(page, []);
+  await page.route('**/api/control', route =>
+    route.fulfill({ json: { theme: 'veil', themes: ['neutral', 'veil'] } })
+  );
+  await page.goto(`/next/?token=${GM_TOKEN}`);
+
+  const picker = page.locator('#select-theme');
+  await expect(picker).toHaveValue('neutral');
+  await picker.focus();
+  await picker.selectOption('veil');
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'veil');
+  await expect(picker).toBeEnabled();
+  await expect(picker).toBeFocused();
+});

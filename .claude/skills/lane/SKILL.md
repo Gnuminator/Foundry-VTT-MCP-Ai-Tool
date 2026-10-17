@@ -12,7 +12,9 @@ one PR. Vault paths below are under `C:\Users\chris\Documents\Obsidian\vault\Dev
 ## Start
 
 1. Pull the vault. Open `Backlog.md`, take the top item with no `claimed:` line that fits your
-   brief, write `claimed: <session title> <date>` under it, commit and push the vault.
+   brief, write `claimed: <session title> <date>` under it, commit and push the vault. If the item has
+   `- touches:` or `- depends on:` lines, look at the board's lane warnings first: another lane on the same
+   paths, or an unmerged dependency, means wait or ask the planner.
 2. `git branch --show-current` (an app restart resets a worktree to its own branch). New work:
    `git fetch aitool && git checkout --no-track -b claude/<topic> aitool/main`, then `npm ci`.
    Before building on an old base, check `git branch -r --list 'aitool/claude/*'` for the same work.

@@ -78,7 +78,7 @@ const FAKE_DRIFT_SOURCE = `import fs from 'node:fs';\nexport function runDriftCh
  * @param {{ vault?: string, files?: string[], ghFiles?: string[], rollup?: any[], pr?: object,
  *   localHead?: string, dirty?: boolean, drift?: number, argv?: string[], train?: object,
  *   merge?: number, rules?: any, rulesFail?: boolean, fetchFail?: boolean, driftSource?: string | null,
- *   lockTimeoutMs?: number, onDrift?: (stateFile: string) => void,
+ *   lockTimeoutMs?: number, onDrift?: (stateFile: string) => void, fetched?: boolean,
  *   mainGate?: string | null, prFor?: (viewIndex: number) => object }} o. `mainGate` is what
  *   aitool/main holds as lane-merge.mjs (default: this very file; null: none yet). `prFor` overrides fields of the PR for each
  *   successive `gh pr view` (the first calls are --wait-ci's polls, the last one is the gate's);
@@ -171,6 +171,7 @@ function gate(o = {}) {
     now: () => new Date('2026-10-10T12:00:00Z'),
     lockTimeoutMs: o.lockTimeoutMs ?? 300,
     selfPath: SELF,
+    ...(o.fetched === undefined ? {} : { fetched: o.fetched }),
     clock: () => clockMs,
     sleep: ms => {
       sleeps.push(ms);
@@ -1402,6 +1403,29 @@ test('gate --wait-ci: fetches main again after the wait', () => {
   assert.equal(r.code, 0, r.text);
   const fetches = r.calls.filter(c => c[0] === 'git' && c[1] === 'fetch');
   assert.equal(fetches.length, 1, 'once after the wait; the gate does not fetch a second time');
+});
+
+test('gate --wait-ci: a run that already fetched (fetched: true, as every real run) fetches once, after the wait', () => {
+  const r = gate({
+    argv: ['--wait-ci'],
+    fetched: true,
+    prFor: i => ({ statusCheckRollup: i < 2 ? RUNNING : GREEN }),
+  });
+  assert.equal(r.code, 0, r.text);
+  const fetches = r.calls.filter(c => c[0] === 'git' && c[1] === 'fetch');
+  assert.equal(fetches.length, 1, 'the re-fetch after the wait, and no other');
+  const polls = r.calls.map((c, i) => (c[0] === 'gh' && c[1] === 'pr' && c[2] === 'view' ? i : -1));
+  const fetchAt = r.calls.findIndex(c => c[0] === 'git' && c[1] === 'fetch');
+  assert.ok(
+    fetchAt > polls.filter(i => i >= 0)[2],
+    'the fetch comes after the polls that waited, not before'
+  );
+});
+
+test('gate without --wait-ci: fetched: true means no fetch at all', () => {
+  const r = gate({ fetched: true });
+  assert.equal(r.code, 0, r.text);
+  assert.equal(r.calls.filter(c => c[0] === 'git' && c[1] === 'fetch').length, 0);
 });
 
 test('gate --wait-ci: refuses when the gate on main changed during the wait', () => {

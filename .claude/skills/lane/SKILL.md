@@ -59,8 +59,8 @@ one PR. Vault paths below are under `C:\Users\chris\Documents\Obsidian\vault\Dev
 - `git status --short`: add explicit paths; no binaries, archives, audio, `.env` or downloads.
 - PR description = the handover: what changed, how it was verified (commands, live checks, kit
   report with its `run.gitSha`), what is open, follow-ups.
-- Put a line `Backlog: <id>` (the item's `- id:`, several comma separated) in the PR body: the live PM board
-  shows the open PR on your lane card from it.
+- Put a line `Backlog: <id>` (the item's `- id:`, several comma separated) in the PR body: the live
+  PM board shows the open PR on your lane card from it.
 
 ## Review and merge
 
@@ -84,7 +84,8 @@ one PR. Vault paths below are under `C:\Users\chris\Documents\Obsidian\vault\Dev
 - **Push:** `git push -u aitool claude/<topic>:claude/<topic>` (explicit refspec, never a bare
   push from a branch made off `aitool/main`).
 - **Ready to merge (the planner merges, 2026-10-16):** once every review for the head says Merge,
-  stop: report the PR number, the full head sha and the review note path, and leave the PR open and keep the worktree, clean and pushed, until the planner has merged.
+  stop: report the PR number, the full head sha and the review note path, and leave the PR open
+  and keep the worktree, clean and pushed, until the planner has merged.
   Don't run the gate without `--dry-run` and don't offer the app's PR Auto-fix. To check the gate
   first, from the PR branch, clean and pushed, run main's copy (never the branch's own, so a PR
   cannot judge itself):

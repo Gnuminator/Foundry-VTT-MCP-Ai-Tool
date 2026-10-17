@@ -94,6 +94,9 @@ export function insideRepo(dir, repoRoot = REPO_ROOT) {
   return rel === '' || (rel !== '..' && !rel.startsWith(`..${path.sep}`) && !path.isAbsolute(rel));
 }
 
+/** The refusal for a world this run must never touch; shared by `worldRefusals` and `refusals`. */
+const worldMessage = world => `the world is ${world}: this run only ever builds test characters`;
+
 /**
  * Refusal that needs no browser: the world Foundry serves right now, from /api/status, so the user never joins the
  * live world first. A server that does not answer with a world is refused too (the in-page checks stay as the second line).
@@ -112,16 +115,14 @@ export async function worldRefusals(url, fetchImpl = fetch) {
   if (typeof world !== 'string' || world === '') {
     return [`${url} reports no world on /api/status: start the test world first`];
   }
-  return REFUSED_WORLDS.includes(world)
-    ? [`the world is ${world}: this run only ever builds test characters`]
-    : [];
+  return REFUSED_WORLDS.includes(world) ? [worldMessage(world)] : [];
 }
 
 /** Refusals that need the page: the world and the user. @returns {string[]} */
 export function refusals(who) {
   const problems = [];
   if (REFUSED_WORLDS.includes(who.world)) {
-    problems.push(`the world is ${who.world}: this run only ever builds test characters`);
+    problems.push(worldMessage(who.world));
   }
   if (who.isGM) problems.push('the user is a GM: this run needs a Player');
   else if (!who.canCreate) problems.push('the user may not create actors');
@@ -301,7 +302,7 @@ export async function main(argv = process.argv.slice(2), { fetchImpl = fetch } =
     throw new Error(`--out ${outOption} is inside the repo: pick a folder outside it`);
   const worldProblems = await worldRefusals(url, fetchImpl);
   if (worldProblems.length) throw new Error(`refused: ${worldProblems.join('; ')}`);
-  // The temp folder is made only after every refusal, so a refused run leaves nothing behind.
+  // The temp folder is made after the refusals that need no browser, so a run refused on those leaves nothing behind.
   const outDir = outOption ?? mkdtempSync(path.join(tmpdir(), 'player-run-'));
   mkdirSync(outDir, { recursive: true });
   const [gm, studio, flow, pc, pump] = await Promise.all([

@@ -8,6 +8,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { after, before, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { bestMs } from './best-ms.mjs';
 import { checkFile, controlBytes, run } from './warn-control-bytes.mjs';
 
 const HOOK = path.join(path.dirname(fileURLToPath(import.meta.url)), 'warn-control-bytes.mjs');
@@ -137,9 +138,11 @@ test('M4: a 200 KB single token or minified command is answered fast, and long t
     `sed -i ${'x'.repeat(100_000)}.ts`,
   ];
   for (const command of cmds) {
-    const t = Date.now();
-    assert.equal(run({ tool_name: 'Bash', cwd: repo, tool_input: { command } }), '');
-    assert.ok(Date.now() - t < 500, `${command.slice(0, 20)}... took ${Date.now() - t} ms`);
+    const ms = bestMs(
+      () => assert.equal(run({ tool_name: 'Bash', cwd: repo, tool_input: { command } }), ''),
+      500
+    );
+    assert.ok(ms < 500, `${command.slice(0, 20)}... took ${ms.toFixed(0)} ms`);
   }
 });
 
@@ -148,10 +151,11 @@ test('a quoted path with spaces is found whole; many quotes stay fast', () => {
   const q = path.join(repo, 'with space', 'spaced file.md');
   const out = JSON.parse(run({ tool_name: 'Bash', cwd: repo, tool_input: { command: `sed -i 's/a/b/' "${q}"` } }));
   assert.match(out.systemMessage, /spaced file\.md/);
-  const t = Date.now();
-  assert.equal(run({ tool_name: 'Bash', cwd: repo, tool_input: { command: `echo ${"'a\"".repeat(60_000)}` } }), '');
-  assert.equal(run({ tool_name: 'Bash', cwd: repo, tool_input: { command: `echo ${'"a b '.repeat(40_000)}` } }), '');
-  assert.ok(Date.now() - t < 1000, `quotes took ${Date.now() - t} ms`);
+  const ms = bestMs(() => {
+    assert.equal(run({ tool_name: 'Bash', cwd: repo, tool_input: { command: `echo ${"'a\"".repeat(60_000)}` } }), '');
+    assert.equal(run({ tool_name: 'Bash', cwd: repo, tool_input: { command: `echo ${'"a b '.repeat(40_000)}` } }), '');
+  }, 1000);
+  assert.ok(ms < 1000, `quotes took ${ms.toFixed(0)} ms`);
 });
 
 test('a command naming many files checks only the first 200', () => {

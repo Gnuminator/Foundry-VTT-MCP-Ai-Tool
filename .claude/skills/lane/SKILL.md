@@ -40,7 +40,11 @@ one PR. Vault paths below are under `C:\Users\chris\Documents\Obsidian\vault\Dev
 - **Set `model` on every Agent call, Workflow `agent()` call and `start_session`** (successors and
   `own_initiative` cards too). An unset model inherits the caller's: an Opus session starts Opus
   workers and lanes (measured 2026-10-16: 110 unset subagents all ran Opus). A Sonnet lane's unset
-  child stays Sonnet, but set it anyway.
+  child stays Sonnet, but set it anyway. The hook `.claude/hooks/guard-model.mjs` denies an Agent
+  or `start_session` call with no `model` (forks, cloud starts and the title-only offer are exempt).
+  Agent takes the aliases `sonnet`, `haiku`, `opus` (also for an agent type whose definition sets a
+  model: the call's `model` wins); `start_session` takes a model id (`claude-sonnet-5-5`,
+  `claude-haiku-5-5`), and the hook denies an alias there.
 - **Test server:** load `foundry-test-env`; take the lock (`scripts/test-env/lock.ps1 take`) before
   any live check and release it after. Verify a feature live before calling it done. Standalone
   bridge on test ports: `node packages/mcp-server/dist/standalone.js --port 31514 --control-only`;
@@ -59,8 +63,8 @@ one PR. Vault paths below are under `C:\Users\chris\Documents\Obsidian\vault\Dev
 - `git status --short`: add explicit paths; no binaries, archives, audio, `.env` or downloads.
 - PR description = the handover: what changed, how it was verified (commands, live checks, kit
   report with its `run.gitSha`), what is open, follow-ups.
-- Put a line `Backlog: <id>` (the item's `- id:`, several comma separated) in the PR body: the live PM board
-  shows the open PR on your lane card from it.
+- Put a line `Backlog: <id>` (the item's `- id:`, several comma separated) in the PR body: the live
+  PM board shows the open PR on your lane card from it.
 
 ## Review and merge
 
@@ -75,7 +79,8 @@ one PR. Vault paths below are under `C:\Users\chris\Documents\Obsidian\vault\Dev
   - path: vault `Handoff/Reviews <YYYY-MM-DD>/<PR>-review.md`, round 2 `<PR>-review-round2.md`;
     Opus: `<PR>-opus-review.md`, `<PR>-opus-review-round2.md`, with the heading
     `# PR #<PR> Opus review: ...`;
-  - a line `Head reviewed: <full 40-character sha>`;
+  - a line `Head reviewed: <full 40-character sha>` above each `## Verdict` and none after the last
+    one (the gate refuses a note in any other order as malformed);
   - a `## Verdict` section whose first bold text is exactly `**Merge.**`, `**Merge after fixes.**`
     or `**Do not merge.**` (every note for the head must say Merge);
   - findings as H1, M1, L1 with file:line and a fix.
@@ -84,7 +89,8 @@ one PR. Vault paths below are under `C:\Users\chris\Documents\Obsidian\vault\Dev
 - **Push:** `git push -u aitool claude/<topic>:claude/<topic>` (explicit refspec, never a bare
   push from a branch made off `aitool/main`).
 - **Ready to merge (the planner merges, 2026-10-16):** once every review for the head says Merge,
-  stop: report the PR number, the full head sha and the review note path, and leave the PR open and keep the worktree, clean and pushed, until the planner has merged.
+  stop: report the PR number, the full head sha and the review note path, and leave the PR open
+  and keep the worktree, clean and pushed, until the planner has merged.
   Don't run the gate without `--dry-run` and don't offer the app's PR Auto-fix. To check the gate
   first, from the PR branch, clean and pushed, run main's copy (never the branch's own, so a PR
   cannot judge itself):

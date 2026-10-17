@@ -29,6 +29,21 @@ export function markTurn(w) {
   combat.timeline.push({ round: combat.round, combatant: who ? who.name : 'Unknown', actions: [] });
 }
 
+/**
+ * The boss resources of a monster actor as get-combat-state reports them (null for any other
+ * actor). @param {any} actor
+ */
+function bossOf(actor) {
+  const res = actor?.resources ?? actor?.sheet?.monster?.resources;
+  if (!res) return null;
+  const counter = (/** @type {any} */ c) =>
+    c ? { max: c.max, spent: c.spent, remaining: c.max - c.spent } : null;
+  const legendary = counter(res.legact);
+  const resistances = counter(res.legres);
+  const lair = res.lair?.value ? { inside: res.lair.inside === true, initiative: null } : null;
+  return legendary || resistances || lair ? { legendary, resistances, lair } : null;
+}
+
 /** @param {World} w @param {number} index @param {import('./state.mjs').FakeCombatant} c */
 function view(w, index, c) {
   const combat = needCombat(w);
@@ -50,7 +65,7 @@ function view(w, index, c) {
     defeated: hp.value <= 0,
     deathSaves: null,
     hidden: c.hidden,
-    boss: null,
+    boss: bossOf(w.actors.get(c.actorId)),
   };
 }
 

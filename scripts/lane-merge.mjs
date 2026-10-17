@@ -38,6 +38,7 @@
  * count their own merges. A lock file next to it serialises the read-check-merge-write.
  */
 import { spawnSync } from 'node:child_process';
+import { randomBytes } from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -224,7 +225,7 @@ export function isTrainRelevant(files) {
 
 /**
  * @typedef {{ head: string | null, verdict: string | null, merge: boolean }} VerdictEntry
- * @typedef {{ name: string, entries: VerdictEntry[], shortHeads: string[], opus: boolean }} ReviewNote
+ * @typedef {{ name: string, entries: VerdictEntry[], shortHeads: string[], opus: boolean, malformed: string[] }} ReviewNote
  */
 
 /** The verdict text, without bold markers, a trailing full stop or case. @param {string} text */
@@ -242,6 +243,10 @@ const verdictKey = text =>
  * nothing. The verdict is the text after `Verdict` on the heading line (`## Verdict: Do not merge`),
  * else the first bold text of the section. `opus` is true only for a file named
  * `<N>-opus-review...` or a first `# ` heading that starts `PR #<N> Opus review`.
+ * The order is part of the format: each `## Verdict` needs a `Head reviewed:` line between it and the
+ * previous verdict (or the top of the note), and no `Head reviewed:` line may follow the last
+ * verdict. Otherwise a verdict would tie to an older round's sha, so the note is `malformed` (and
+ * the entry ties to nothing).
  * @param {string} name @param {string} text @param {number} prNumber
  * @returns {ReviewNote}
  */
@@ -253,19 +258,50 @@ export function parseReviewNote(name, text, prNumber) {
   const entries = [];
   /** @type {string[]} */
   const shortHeads = [];
+  /** @type {string[]} */
+  const malformed = [];
+  /** Line number (1-based) of the first Head reviewed line since the last verdict, else 0. */
+  let headSince = 0;
+  /** The full shas named since the last verdict. @type {Set<string>} */
+  let headsSince = new Set();
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
-    const h = /Head reviewed:\s*`?([0-9a-f]+)(?![0-9a-z])/i.exec(line);
-    if (h) {
-      if (h[1].length === 40) head = h[1].toLowerCase();
-      else {
+    const v = /^##\s+Verdict\b(.*)$/i.exec(line);
+    // A Head reviewed line starts the line (a bullet or bold marker may come first); a mention in
+    // prose does not move the tie.
+    const h = /^\s*(?:[-*]\s+)?(?:\*\*)?Head reviewed:(?:\*\*)?\s*`?([0-9a-f]+)(?![0-9a-z])/i.exec(
+      line
+    );
+    if (h && !v) {
+      headSince ||= i + 1;
+      if (h[1].length === 40) {
+        head = h[1].toLowerCase();
+        headsSince.add(head);
+      } else {
         head = null;
         shortHeads.push(h[1].toLowerCase());
       }
       continue;
     }
-    const v = /^##\s+Verdict\b(.*)$/i.exec(line);
     if (!v) continue;
+    if (/Head reviewed:/i.test(line)) {
+      malformed.push(
+        `the ## Verdict on line ${i + 1} also carries "Head reviewed:"; put it on its own line above`
+      );
+    }
+    if (headsSince.size > 1) {
+      malformed.push(
+        `more than one full sha is named by "Head reviewed:" above the ## Verdict on line ${i + 1}`
+      );
+    }
+    headsSince = new Set();
+    if (headSince === 0) {
+      malformed.push(
+        `the ## Verdict on line ${i + 1} has no "Head reviewed:" line above it since the previous verdict`
+      );
+      head = null;
+    }
+    headSince = 0;
     let verdict = v[1].replace(/^[\s:\-\u2013]+/, '').trim() || null;
     if (verdict === null) {
       const section = [];
@@ -278,11 +314,22 @@ export function parseReviewNote(name, text, prNumber) {
     }
     entries.push({ head, verdict, merge: verdict !== null && verdictKey(verdict) === 'merge' });
   }
+  if (headSince > 0) {
+    malformed.push(
+      entries.length > 0
+        ? `the "Head reviewed:" on line ${headSince} comes after the last ## Verdict`
+        : `the "Head reviewed:" on line ${headSince} has no ## Verdict (a ### heading does not count)`
+    );
+  }
+  if (headsSince.size > 1) {
+    malformed.push('more than one full sha is named by "Head reviewed:" after the last verdict');
+  }
   const heading = lines.find(l => /^#\s+/.test(l)) ?? '';
   return {
     name,
     entries,
     shortHeads,
+    malformed,
     opus:
       new RegExp(`^${prNumber}-opus-review`, 'i').test(name) ||
       new RegExp(`^#\\s+PR\\s+#${prNumber}\\s+Opus review`, 'i').test(heading),
@@ -323,6 +370,26 @@ export function findReviewNotes(vault, prNumber) {
 export function judgeReviews(notes, headSha, needOpus) {
   const head = headSha.toLowerCase();
   const short = head.slice(0, 7);
+  const bad = notes.filter(n => n.malformed.length > 0);
+  if (bad.length > 0) {
+    const said = bad.map(n => `${n.name} is malformed: ${n.malformed.join('; ')}`);
+    return {
+      ok: false,
+      detail: `${said.join('; ')} (put "Head reviewed:" before each "## Verdict", nothing after the last)`,
+    };
+  }
+  // A verdict under a short sha ties to nothing, so it could hide a Do not merge for this head.
+  const shortHit = notes.flatMap(n =>
+    n.shortHeads
+      .filter(s => head.startsWith(s))
+      .map(s => `${n.name} reviewed ${s} (Head reviewed needs the full 40-character sha)`)
+  );
+  if (shortHit.length > 0) {
+    return {
+      ok: false,
+      detail: `${shortHit.join('; ')}; it could hide a verdict for head ${short}`,
+    };
+  }
   const forHead = notes.flatMap(note =>
     note.entries.filter(e => e.head === head).map(entry => ({ note, entry }))
   );
@@ -578,9 +645,12 @@ function sleep(ms) {
 
 /**
  * An exclusive lock next to the train file (`<file>.lock`, created with `wx`). A lock older than
- * `staleMs` (default 10 minutes) belongs to a killed run and is taken over. Waits up to `timeoutMs`.
+ * `staleMs` (default 10 minutes) belongs to a killed run and is taken over by a rename to a unique
+ * name (one rename wins), then `wx` again. Waits up to `timeoutMs`. `afterStaleSeen` is a test hook
+ * that runs between seeing a stale lock and taking it over.
  * @param {string} file
- * @param {{ staleMs?: number, timeoutMs?: number, now?: () => number, wait?: (ms: number) => void }} [opts]
+ * @param {{ staleMs?: number, timeoutMs?: number, now?: () => number, wait?: (ms: number) => void,
+ *   afterStaleSeen?: () => void }} [opts]
  * @returns {() => void} release
  */
 export function acquireLock(file, opts = {}) {
@@ -605,8 +675,24 @@ export function acquireLock(file, opts = {}) {
     }
     try {
       if (now() - fs.statSync(lock).mtimeMs > staleMs) {
-        fs.unlinkSync(lock);
-        continue;
+        opts.afterStaleSeen?.();
+        // Take over by renaming the stale lock to a name only this run uses: of several runs that
+        // saw the same stale lock, one rename wins and the others get ENOENT and retry. (A plain
+        // unlink let the second run delete the first run's fresh lock, and both went in.)
+        const taken = `${lock}.stale-${process.pid}-${randomBytes(4).toString('hex')}`;
+        fs.renameSync(lock, taken);
+        if (now() - fs.statSync(taken).mtimeMs > staleMs) {
+          fs.unlinkSync(taken);
+          continue;
+        }
+        // The lock was replaced by a live one between our stat and rename: we moved someone's fresh
+        // lock. Put it back (link fails if another run already took the free slot) and wait.
+        try {
+          fs.linkSync(taken, lock);
+        } catch {
+          /* another run holds the lock path now */
+        }
+        fs.unlinkSync(taken);
       }
     } catch {
       continue; // the holder released it between our two calls: try again

@@ -7,6 +7,7 @@ import os from 'node:os';
 import path from 'node:path';
 import {
   PROJECT_DIR,
+  TARGETS,
   buildReport,
   dayKey,
   familyOf,
@@ -21,6 +22,7 @@ import {
   parseResponse,
   parseUsageLog,
   priceOf,
+  targetsFor,
   usageLogFile,
   weeklyPoints,
 } from './usage-week.mjs';
@@ -367,9 +369,54 @@ test('targets line: every figure marked ok or over', async () => {
   }
 });
 
+test('targets: a figure exactly on its target is ok, and every label reads its number from TARGETS', () => {
+  const on = {
+    startup: TARGETS.startup,
+    tokensPerPr: TARGETS.tokensPerPrM,
+    sessions: TARGETS.sessionsPerDay * 7,
+    weeklyPoints: TARGETS.weeklyPerDay * 7,
+    coveredDays: 7,
+  };
+  const targets = targetsFor(on, 7);
+  assert.deepEqual(
+    targets.map(t => t.ok),
+    [true, true, true, true],
+    'on the target counts as ok'
+  );
+  assert.equal(
+    formatTargets(targets),
+    `Targets (D-122): startup ${TARGETS.startup / 1000}k ok (<=${TARGETS.startup / 1000}k) | M/PR ${TARGETS.tokensPerPrM}.0 ok (<=${TARGETS.tokensPerPrM}) | sessions/day ${TARGETS.sessionsPerDay}.0 ok (~${TARGETS.sessionsPerDay}) | weekly %/day ${TARGETS.weeklyPerDay}.0 ok (~${TARGETS.weeklyPerDay})`
+  );
+  // Changing a target changes its label: nothing in the text is hard-coded.
+  const saved = { ...TARGETS };
+  try {
+    Object.assign(TARGETS, {
+      startup: 60_000,
+      tokensPerPrM: 12,
+      sessionsPerDay: 9,
+      weeklyPerDay: 11,
+    });
+    const line = formatTargets(targetsFor(on, 7));
+    assert.match(line, /startup 75k over \(<=60k\)/);
+    assert.match(line, /M\/PR 18\.0 over \(<=12\)/);
+    assert.match(line, /\(~9\)/);
+    assert.match(line, /\(~11\)/);
+  } finally {
+    Object.assign(TARGETS, saved);
+  }
+});
+
 test('familyOf and formatModels: turns per model, main thread and subagents, with the cost share', async () => {
   assert.deepEqual(
-    ['claude-opus-5-5', 'claude-sonnet-5', 'claude-haiku-4-5-20251001', 'claude-fable-5-1', 'claude-mythos-5-1', '', undefined].map(familyOf),
+    [
+      'claude-opus-5-5',
+      'claude-sonnet-5',
+      'claude-haiku-4-5-20251001',
+      'claude-fable-5-1',
+      'claude-mythos-5-1',
+      '',
+      undefined,
+    ].map(familyOf),
     ['opus', 'sonnet', 'haiku', 'fable', 'mythos', 'other', 'other']
   );
   const f = fixture();
@@ -382,10 +429,7 @@ test('familyOf and formatModels: turns per model, main thread and subagents, wit
     assert.equal(r.models.sonnet.subTurns, 1); // the sidechain line
     assert.equal(r.models.haiku.subTurns, 2);
     assert.equal(r.models.haiku.mainTurns, 0);
-    assert.equal(
-      r.models.opus.turns + r.models.sonnet.turns + r.models.haiku.turns,
-      r.responses
-    );
+    assert.equal(r.models.opus.turns + r.models.sonnet.turns + r.models.haiku.turns, r.responses);
     const share = Object.values(r.models).reduce((a, m) => a + m.cost, 0);
     assert.ok(Math.abs(share - r.total.cost) < 1e-9);
     const line = formatReport(r).split('\n')[12];

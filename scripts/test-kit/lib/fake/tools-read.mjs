@@ -9,6 +9,7 @@ import {
   SIZE_CODE,
   compendiumEntry,
   findCreature,
+  monsterResources,
 } from './compendium.mjs';
 import { fakeMonsterStats } from './monsters.mjs';
 import { ToolFailure, newId } from './state.mjs';
@@ -213,6 +214,7 @@ export const READ_TOOLS = {
         level: 0,
         sourcePack: c.pack,
         sourceId: c.id,
+        resources: monsterResources(c),
       });
       return { id, name };
     });

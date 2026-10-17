@@ -80,7 +80,8 @@ jobs:
       - name: Edit guard hooks
         # .claude/hooks/guard-shell-edits.mjs (no shell edits of source files) and
         # warn-control-bytes.mjs (control bytes in changed files); the second makes temp git repos.
-        run: node --test .claude/hooks/guard-shell-edits.test.mjs .claude/hooks/warn-control-bytes.test.mjs
+        # guard-model.mjs refuses Agent and start_session calls without a `model`.
+        run: node --test .claude/hooks/guard-shell-edits.test.mjs .claude/hooks/warn-control-bytes.test.mjs .claude/hooks/guard-model.test.mjs
 
       - name: Merge gate and keep-green scripts
         # scripts/green.mjs (parity with this job) and scripts/lane-merge.mjs (D-122 merge gate).

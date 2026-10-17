@@ -239,32 +239,6 @@ export async function changesRows(sweep, { t, gm }) {
     return { note: `${rows.length} rows`, timings: { refreshMs: Date.now() - started } };
   });
 
-  await sweep.row('foundry.changes.filter', 'gm', async () => {
-    const options = await gm.evaluate(() =>
-      [...document.querySelectorAll('#fmb-ai-changes select[data-fmb-filter] option')].map(
-        o => /** @type {HTMLOptionElement} */ (o).value
-      )
-    );
-    if (!options.includes('all') || !options.includes('ai')) {
-      throw new Error(`the filter offers ${options.join(', ')}`);
-    }
-    const select = gm.locator(`${CHANGES} select[data-fmb-filter]`);
-    await select.selectOption('ai');
-    await waitLoaded(gm, 'fmb-ai-changes');
-    await gm.waitForTimeout(400);
-    const rows = await readRows(gm);
-    const wrong = rows.filter(r => !/^AI/.test(r.meta));
-    if (wrong.length) throw new Error(`the AI filter lists a row by ${wrong[0].meta}`);
-    if (!rows.some(r => r.id === change.changeId))
-      throw new Error('the AI change is not in the AI filter');
-    await select.selectOption('all');
-    await waitLoaded(gm, 'fmb-ai-changes');
-    await gm.waitForTimeout(400);
-    const all = await readRows(gm);
-    if (all.length < rows.length) throw new Error('All lists fewer rows than AI');
-    return `${options.length} options; AI lists ${rows.length} rows, All ${all.length}`;
-  });
-
   await sweep.row('foundry.changes.more', 'gm', async () => {
     const more = gm.locator(`${CHANGES} button[data-action="more"]`);
     if (!(await more.count()))
@@ -402,6 +376,51 @@ export async function changesRows(sweep, { t, gm }) {
       note: `${monster.name} ${hpPre} -> ${hpPre - 1} HP; Cancel changed nothing`,
       timings: { redoMs: ms },
     };
+  });
+
+  // After the window's own Undo and Redo, so a person (the GM) has changed something too: the filter
+  // then has a person's rows to pick, not only the AI's.
+  await sweep.row('foundry.changes.filter', 'gm', async () => {
+    await refresh(gm);
+    const options = await gm.evaluate(() =>
+      [...document.querySelectorAll('#fmb-ai-changes select[data-fmb-filter] option')].map(o => ({
+        value: /** @type {HTMLOptionElement} */ (o).value,
+        label: o.textContent?.trim() ?? '',
+      }))
+    );
+    const values = options.map(o => o.value);
+    if (!values.includes('all') || !values.includes('ai')) {
+      throw new Error(`the filter offers ${values.join(', ')}`);
+    }
+    const select = gm.locator(`${CHANGES} select[data-fmb-filter]`);
+    const pick = async (/** @type {string} */ value) => {
+      await select.selectOption(value);
+      await waitLoaded(gm, 'fmb-ai-changes');
+      await gm.waitForTimeout(400);
+      return readRows(gm);
+    };
+    const rows = await pick('ai');
+    const wrong = rows.filter(r => !/^AI/.test(r.meta));
+    if (wrong.length) throw new Error(`the AI filter lists a row by ${wrong[0].meta}`);
+    if (!rows.some(r => r.id === change.changeId))
+      throw new Error('the AI change is not in the AI filter');
+    // The person who ran the Undo and Redo above: only their own rows, none of the AI's.
+    const me = await gm.evaluate(() => game.user?.name ?? '');
+    const mine = options.find(o => o.label === me && o.value.startsWith('user:'));
+    if (!mine)
+      throw new Error(`the filter has no entry for ${me || 'the GM'} (${values.join(', ')})`);
+    const own = await pick(mine.value);
+    if (!own.length)
+      throw new Error(`the ${me} filter lists nothing after ${me} undid and redid a change`);
+    const foreign = own.find(r => /^AI/.test(r.meta) || !r.meta.includes(me));
+    if (foreign) throw new Error(`the ${me} filter lists a row by ${foreign.meta}`);
+    if (own.some(r => r.id === change.changeId))
+      throw new Error(`the ${me} filter lists the AI change`);
+    await pick('all');
+    const all = await readRows(gm);
+    if (all.length < rows.length || all.length < own.length)
+      throw new Error('All lists fewer rows than AI or the person');
+    return `${options.length} options; AI lists ${rows.length} rows, ${me} ${own.length}, All ${all.length}`;
   });
 
   // A window that will not close is a failure of the step, not something to hide.

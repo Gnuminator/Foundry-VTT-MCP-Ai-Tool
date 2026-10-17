@@ -443,7 +443,7 @@ look at (no pixel comparison). A control that depends on data (a boss in the com
 AI on) is skipped with a note when it is not on the screen, never failed; a console error during a row fails
 it even so (the sweep waits a moment after each row so a late error lands on the row that caused it). The boss is provided: when the kit has its scene and a `legendary` monster, the sweep starts a
 combat of that monster and a hero with Combat buttons on (both put back afterwards), and the six combat strip
-rows (Boss prompts, reaction, select a combatant, the selection's Clear, Condition and Damage) must then pass. A
+rows (Boss prompts, reaction, select a combatant, the selection's Clear, Condition and Damage) must then pass. Before the rows, one step spends a legendary action on the boss in Foundry itself and waits for the Legendary pips on the page to follow, then to come back. The GM action `spendLegendary` uses the boss's cheapest usable legendary activity with action consumption on; `restoreLegendary` sets the pool back (it does not restore item or activity uses) and deletes the chat card. A
 dashboard API request that answers 400 or more is recorded as `HTTP <status> <method> <path> <tool>:
 <error>` (the tool's name and the server's error, never its arguments) in place of the browser's bare
 "Failed to load resource" line. A row whose drawer starts its own run on opening (Prep, Pre-flight) waits
@@ -466,7 +466,8 @@ fails the test); the drivers are `lib/foundry-sweep.mjs` and `foundry-sweep-chan
   which loads without an error and closes again.
 - **Changes window:** Refresh, the Show filter, Show more, the row details and the Undo choices for an older
   change (Cancel is checked first). One guarded damage change is planned, applied, found in the window, undone
-  and redone from the window, and put back.
+  and redone from the window, and put back. The Show filter is checked last, so it can also pick the GM, who has
+  just run an Undo and a Redo, and see only that person's rows.
 - **Handouts and Tarokka windows:** the reveals are done through the windows' own buttons, checked from the kit
   player's side and then undone.
 - **Settings:** the "Foundry AI Tool" section, the nine feature switches, the three settings menus (GM guide,

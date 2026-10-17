@@ -65,7 +65,8 @@ export const STEPS = [
   nodeTest(
     'hook-edit-guard',
     '.claude/hooks/guard-shell-edits.test.mjs',
-    '.claude/hooks/warn-control-bytes.test.mjs'
+    '.claude/hooks/warn-control-bytes.test.mjs',
+    '.claude/hooks/guard-model.test.mjs'
   ),
   nodeTest('gate-scripts', 'scripts/green.test.mjs', 'scripts/lane-merge.test.mjs'),
   nodeTest('usage-week', 'scripts/dev/usage-week.test.mjs'),

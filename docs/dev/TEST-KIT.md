@@ -466,7 +466,8 @@ fails the test); the drivers are `lib/foundry-sweep.mjs` and `foundry-sweep-chan
   which loads without an error and closes again.
 - **Changes window:** Refresh, the Show filter, Show more, the row details and the Undo choices for an older
   change (Cancel is checked first). One guarded damage change is planned, applied, found in the window, undone
-  and redone from the window, and put back.
+  and redone from the window, and put back. The Show filter is checked last, so it can also pick the GM, who has
+  just run an Undo and a Redo, and see only that person's rows.
 - **Handouts and Tarokka windows:** the reveals are done through the windows' own buttons, checked from the kit
   player's side and then undone.
 - **Settings:** the "Foundry AI Tool" section, the nine feature switches, the three settings menus (GM guide,

@@ -21,7 +21,15 @@ export const DIRTY_STAMP_DEBOUNCE_MS = 1_000;
 /** After a failed build, stale reads start no new background build for this long. */
 export const BUILD_RETRY_COOLDOWN_MS = 60_000;
 
-/** Bounds of the adaptive chunk size (see {@link nextChunkSize}). */
+/**
+ * Bounds of the adaptive chunk size (see {@link nextChunkSize}). Measured on the
+ * test server (2026-10-17, `dnd5e.actors24` at about 70 ms per creature, two or
+ * three runs each): a minimum of 5 gives a longest freeze of 267-310 ms and a build
+ * of 8.7-9.5 s in 24 chunks; 3 gives 284-320 ms and 10-11 s (31 chunks); 2 gives
+ * 309-413 ms and about 10 s. A lower minimum does not shorten the freeze (the
+ * main-thread work per creature, not the chunk count, sets it) and only adds round
+ * trips, so 5 stays.
+ */
 export const PACK_LOAD_MIN_CHUNK = 5;
 export const PACK_LOAD_MAX_CHUNK = 100;
 

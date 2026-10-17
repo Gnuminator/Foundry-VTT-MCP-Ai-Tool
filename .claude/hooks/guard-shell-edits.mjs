@@ -111,6 +111,7 @@ export function splitBodies(command) {
   let len = 0; // length of `outer` so far, newlines included: the offset of the next line
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
+    const start = len; // offset of the introducing line in `outer`
     const at = len + line.length; // end of the introducing line: a `cd` earlier on it has already run
     outer.push(line);
     len += line.length + 1;
@@ -126,7 +127,7 @@ export function splitBodies(command) {
       body.push(l);
     }
     const closing = hs && j < lines.length ? lines[j] : undefined;
-    bodies.push({ intro: line, body: body.join('\n'), kind: doc ? 'heredoc' : 'herestring', closing, at });
+    bodies.push({ intro: line, body: body.join('\n'), kind: doc ? 'heredoc' : 'herestring', closing, at, start });
     if (closing !== undefined) {
       outer.push(closing);
       len += closing.length + 1;
@@ -291,10 +292,12 @@ const target = (expr, vars) => ({
 /**
  * Literals a loop variable ranges over: `for X in [...]`, `for X in glob(...)`, `for (const X of [...])`.
  * This is the only fallback for a target that stays unknown; any other unknown target allows.
+ * A name that is also assigned a (non-literal) value elsewhere is reused, so the write may not be in the loop: allow.
  */
 function loopLiterals(text, name) {
   const lits = [];
   const id = name.replace(/\$/g, '\\$');
+  if (new RegExp(`(?<![\\w$.])${id}\\s*=(?![=>])`).test(text)) return lits;
   const heads = [
     new RegExp(`\\bfor\\s+${id}\\s+in\\s+([^:]{0,1500}):`, 'g'),
     new RegExp(`\\bfor\\s*\\(\\s*(?:const|let|var)\\s+${id}\\s+of\\s+([^{]{0,1500})\\{`, 'g'),
@@ -405,12 +408,12 @@ const PS_WRITER = /\b(?:Set-Content|Add-Content|Out-File|WriteAllText|WriteAllLi
 const PS_MANGLE = /(?:-replace\b|\.Replace\(|@['"])/i;
 const PS_VALUE_PARAMS = /^-(?:Encoding|Value|Width|Stream|Delimiter|InputObject|Filter|Include|Exclude)$/i;
 
-/** Redirect (`> path`) and `tee path` targets on one line; quoted `>` is not a redirect. */
+/** Redirect (`> path`) and `tee path` targets on one line, each with its offset in the line; quoted `>` is not a redirect. */
 function redirectTargetsIn(line) {
   const masked = maskQuotes(line);
   const targets = [];
-  for (const m of scan(REDIRECT, line, masked)) targets.push(m.args[0] ?? m.args[1] ?? m.args[2]);
-  for (const m of scan(TEE_RE, line, masked)) targets.push(...pathTokens(m.args[0]));
+  for (const m of scan(REDIRECT, line, masked)) targets.push({ path: m.args[0] ?? m.args[1] ?? m.args[2], index: m.index });
+  for (const m of scan(TEE_RE, line, masked)) for (const p of pathTokens(m.args[0])) targets.push({ path: p, index: m.index });
   return targets;
 }
 
@@ -437,11 +440,13 @@ function psTarget(segment) {
 function checkRedirects(text, outer, masked, bodies, cwdAt, repoRoot) {
   const targets = []; // { path, at }: where the write is, so the working directory at that point applies
   // A heredoc or here-string written onto a path: the redirect sits on the line that opens or closes it.
+  // The redirect on the introducing line is placed where it stands, so a `cd` after it on that line has not run yet.
   for (const b of bodies) {
-    for (const line of [b.intro, b.closing]) if (line) for (const t of redirectTargetsIn(line)) targets.push({ path: t, at: b.at });
+    for (const t of redirectTargetsIn(b.intro)) targets.push({ path: t.path, at: b.start + t.index });
+    if (b.closing) for (const t of redirectTargetsIn(b.closing)) targets.push({ path: t.path, at: b.at });
   }
   for (const m of scan(ECHO_RE, outer, masked)) {
-    for (const t of redirectTargetsIn(`echo ${m.args[0]}`)) targets.push({ path: t, at: m.index });
+    for (const t of redirectTargetsIn(`echo ${m.args[0]}`)) targets.push({ path: t.path, at: m.index });
   }
   const hit = targets.find(t => isRepoSource(t.path, cwdAt(t.at), repoRoot));
   if (hit) return `A heredoc, echo or printf is written onto the repo source file ${hit.path}.${DENY_SUFFIX}`;

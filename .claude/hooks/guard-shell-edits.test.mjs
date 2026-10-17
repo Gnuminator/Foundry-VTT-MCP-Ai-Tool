@@ -356,6 +356,34 @@ test('round 2 M1: an unknown write target allows; only a loop variable falls bac
   }
 });
 
+test('round 2 L1 (lows): a loop variable name that is reused for something else does not fall back to the loop', () => {
+  for (const c of [
+    `python - <<'PY'\nfor f in ['package.json']:\n    print(open(f).read())\nf = os.path.join(tempfile.gettempdir(), 'x.txt')\nopen(f, 'w').write('x')\nPY`,
+    `node -e "for (const f of ['package.json']) { console.log(fs.readFileSync(f)); } const g = 1; let f = path.join(os.tmpdir(), 'x.txt'); fs.writeFileSync(f, 'x')"`,
+  ]) {
+    assert.ok(allowed(c), c);
+  }
+  // an unreused name still falls back to the loop's literals, and a comparison or lambda is not a reuse
+  for (const c of [
+    `python - <<'PY'\nfor f in ['scripts/a.mjs']:\n    if f == 'x': pass\n    open(f, 'w').write('x')\nPY`,
+    `node -e "for (const f of ['scripts/a.mjs']) { [1].map(x => f); fs.writeFileSync(f, 'x'); }"`,
+  ]) {
+    assert.ok(denied(c), c);
+  }
+});
+
+test('round 2 L2 (lows): a heredoc redirect target is placed where it stands, not at the end of its line', () => {
+  const at = (cmd, cwd) => decide(cmd, cwd, ROOT);
+  // the session is in the vault; the cd back to the repo comes after the redirect on the same line
+  assert.equal(at(`cat >> Waiting.md <<'EOF' && cd "${CWD}"\nx\nEOF`, VAULT), null);
+  assert.equal(at(`cat >> Waiting.md <<'EOF' | tee Backlog.md && cd "${CWD}"\nx\nEOF`, VAULT), null);
+  // a cd before the redirect on the same line still counts, in both directions
+  assert.notEqual(at(`cd "${CWD}" && cat >> scripts/x.mjs <<'EOF'\nx\nEOF`, VAULT), null);
+  assert.equal(at(`cd "${VAULT}" && cat >> Waiting.md <<'EOF'\nx\nEOF`, CWD), null);
+  // a repo path stays denied wherever the cd sits
+  assert.notEqual(at(`cat >> scripts/x.mjs <<'EOF' && cd "${VAULT}"\nx\nEOF`, CWD), null);
+});
+
 test('round 2 M2: the working directory is the one before the write, not the last cd in the command', () => {
   for (const c of [
     `cd "${VAULT}" && sed -i 's/a/b/' Waiting.md && git commit -am x && cd "${CWD}"`,

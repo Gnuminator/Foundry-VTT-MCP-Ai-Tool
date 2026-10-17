@@ -71,6 +71,20 @@ if ($DryRun) {
 
 New-Item -ItemType Directory -Force -Path $cmd.Profile | Out-Null
 $portFile = Join-Path $cmd.Profile 'DevToolsActivePort'
+if (Test-Path -LiteralPath $portFile) {
+  # A browser still running on this profile would swallow the new window and never write a new port.
+  $old = 0
+  try { $old = [int](Get-Content -LiteralPath $portFile -TotalCount 1) } catch { $old = 0 }
+  if ($old) {
+    try {
+      Invoke-RestMethod -Uri "http://127.0.0.1:$old/json/version" -TimeoutSec 2 | Out-Null
+      throw "The TV browser is already running on this profile ($($cmd.Profile)). Close it first, then run this again."
+    }
+    catch {
+      if ($_.Exception.Message -like 'The TV browser is already running*') { throw }
+    }
+  }
+}
 Remove-Item -LiteralPath $portFile -ErrorAction SilentlyContinue
 Start-Process -FilePath $cmd.Exe -ArgumentList $cmd.Arguments
 if ($Setup) { Write-Host 'Enter the email code if asked. Foundry then joins as the Table user by itself. Close the window when the map shows.' }
@@ -83,7 +97,15 @@ $seenUp = $false
 while ($true) {
   Start-Sleep -Seconds 3
   if (-not $port) {
-    if (Test-Path -LiteralPath $portFile) { $port = [int](Get-Content -LiteralPath $portFile -TotalCount 1) }
+    try {
+      if (Test-Path -LiteralPath $portFile) { $port = [int](Get-Content -LiteralPath $portFile -TotalCount 1) }
+    }
+    catch { $port = 0 }
+    if ($port) { $misses = 0 }
+    else {
+      $misses++
+      if ($misses -ge 20) { Write-Warning 'The browser never opened its debug port, so the join page is not watched. Close the TV browser and run this again.'; break }
+    }
     continue
   }
   try {

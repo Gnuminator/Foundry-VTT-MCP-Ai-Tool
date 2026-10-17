@@ -6,12 +6,14 @@ description: Show the map on a TV at an in-person session. The TV signs in once 
 # The TV at the table
 
 For a session where everyone sits in the same room: a TV (or a second screen) shows the map to the
-whole table. It joins the game as its own player called **Table**. It is not a GM, it owns no
-characters and it sees only what a player without a character sees: the scene you show, with the
-fog and hidden things working as for any player. Nothing from the dashboard or from your notes is
-on it.
+whole table. It joins the game as its own player called **Table**. It is not a GM and it owns no
+characters. It sees the scene you show, with hidden things working as for any player. Nothing from
+the dashboard or from your notes is on it.
 
 You set it up once. After that the TV opens on the map by itself, also after a restart.
+
+**What you need:** a Windows PC at the TV with PowerShell 7 (`pwsh`), Edge or Chrome, and a copy
+of the tool's folder (it holds the `scripts\tv` files). Ask the tool admin to set that up.
 
 ## One time: make the Table player
 
@@ -21,6 +23,11 @@ You set it up once. After that the TV opens on the map by itself, also after a r
 3. Read it, then confirm. It shows in **Recent Changes**, with an **Undo** if you change your mind.
 
 If a player called Table already exists, Claude says so and plans nothing.
+
+**If the map is dark on the TV:** on a scene with token vision on, a player only sees what their
+own characters can see, and Table has none. Give Table the same view as the party: ask Claude
+"Give Table Observer on the party characters." (Claude plans it with the ownership tool, you
+confirm.) Check this once on your real map before the session, with the TV connected.
 
 ## One time: sign the TV in
 
@@ -49,8 +56,13 @@ The browser opens full screen on the map. Foundry's own sign-in lasts only 24 ho
 new day the script sees Foundry's join page and joins as Table again by itself. It does this only
 on the join page of your game, never on another page. Leave the script's window open (it can be
 minimised); closing the TV's browser ends it. To make all of this happen when the TV's computer
-starts, put a shortcut to that line in the Windows Startup folder (press **Win + R**, type
-`shell:startup`).
+starts, put a shortcut in the Windows Startup folder (press **Win + R**, type `shell:startup`)
+whose target is `pwsh -File "C:\full\path\to\scripts\tv\start-table-viewer.ps1" -Url https://your-game-address`.
+If it says the TV browser is already running, close that browser (for example the window from the
+setup step) and run it again.
+
+While the TV runs, the browser opens a control port that only this computer can reach. Anyone
+signed in to this Windows account could use it, so use a TV PC that only the table uses.
 
 The email code from Cloudflare is only asked for again after the Access session ends (weeks).
 When the TV shows Cloudflare's sign-in page, do "sign the TV in" above once more.

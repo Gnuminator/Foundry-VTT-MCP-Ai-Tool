@@ -52,9 +52,11 @@ function Test-FoundryJoinPage {
 
 <# The page script that fills Foundry's join form for one user and clicks Join (no password). #>
 function Get-JoinScript {
-  param([string]$UserName)
+  param([string]$UserName, [string]$Origin = '')
   $name = ConvertTo-Json -InputObject $UserName -Compress
-  return "(() => { const u = document.querySelector('#join-username'); const b = document.querySelector('#join-game-form button[name=join]'); if (!u || !b) return 'no-form'; u.value = $name; b.click(); return 'joined'; })()"
+  $origin = ConvertTo-Json -InputObject $Origin -Compress
+  # Checked again in the page: it may have moved on since the address was read.
+  return "(() => { if (location.pathname.replace(/\/+$/, '') !== '/join' || ($origin && location.origin !== $origin)) return 'wrong-page'; const u = document.querySelector('#join-username'); const b = document.querySelector('#join-game-form button[name=join]'); if (!u || !b) return 'no-form'; u.value = $name; b.click(); return 'joined'; })()"
 }
 
 <# Runs one Runtime.evaluate on a page target over the DevTools WebSocket (127.0.0.1 only). #>
@@ -81,7 +83,7 @@ function Invoke-AutoJoinOnce {
   $targets = Invoke-RestMethod -Uri "http://127.0.0.1:$Port/json" -TimeoutSec 5
   foreach ($t in $targets) {
     if ($t.type -ne 'page' -or -not (Test-FoundryJoinPage -PageUrl $t.url -BaseUrl $BaseUrl)) { continue }
-    $reply = Invoke-PageScript -WebSocketUrl $t.webSocketDebuggerUrl -Script (Get-JoinScript -UserName $UserName)
+    $reply = Invoke-PageScript -WebSocketUrl $t.webSocketDebuggerUrl -Script (Get-JoinScript -UserName $UserName -Origin ([Uri]$t.url).GetLeftPart([UriPartial]::Authority))
     if ($reply -match '"joined"') { $joined++ }
   }
   return $joined

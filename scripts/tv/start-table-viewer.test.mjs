@@ -119,6 +119,9 @@ describe('start-table-viewer.ps1', { skip: !hasPwsh && 'pwsh 7 not installed' },
     assert.equal(r.status, 0, r.stderr);
     assert.match(r.stdout, /u\.value = "Ta\\"ble"/);
     assert.match(r.stdout, /#join-game-form button\[name=join\]/);
+    // The page re-checks where it is before typing (the page may have moved on).
+    assert.match(r.stdout, /location\.pathname/);
+    assert.match(r.stdout, /wrong-page/);
   });
 
   test(

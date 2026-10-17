@@ -36,7 +36,9 @@ function findFreePort() {
     srv.on('error', reject);
     srv.listen(0, '127.0.0.1', () => {
       const { port } = srv.address();
-      srv.close(() => (LIVE_PORTS.has(port) ? findFreePort().then(resolve, reject) : resolve(port)));
+      srv.close(() =>
+        LIVE_PORTS.has(port) ? findFreePort().then(resolve, reject) : resolve(port)
+      );
     });
   });
 }
@@ -71,6 +73,30 @@ function controlRequest(host, port, request, timeoutMs = 1500) {
     socket.on('error', err => {
       clearTimeout(timer);
       done(err);
+    });
+  });
+}
+
+/** Send raw bytes; resolve with whatever came back and whether the server closed the socket. */
+function rawExchange(host, port, payload, timeoutMs = 2000) {
+  return new Promise(resolve => {
+    const socket = net.createConnection({ host, port });
+    let received = '';
+    let closed = false;
+    const finish = () => {
+      clearTimeout(timer);
+      socket.destroy();
+      resolve({ received, closed });
+    };
+    const timer = setTimeout(finish, timeoutMs);
+    socket.on('connect', () => socket.write(payload));
+    socket.on('data', chunk => (received += chunk.toString('utf8')));
+    socket.on('close', () => {
+      closed = true;
+      finish();
+    });
+    socket.on('error', () => {
+      closed = true;
     });
   });
 }
@@ -110,17 +136,37 @@ async function main() {
     const result = await controlRequest(host, port, { id: 'list', method: 'list_tools' }, 5000);
     const tools = (result && result.tools) || [];
     if (!Array.isArray(tools) || tools.length === 0) {
-      return fail(`list_tools returned no tools (got ${JSON.stringify(result).slice(0, 200)})`, childErr);
+      return fail(
+        `list_tools returned no tools (got ${JSON.stringify(result).slice(0, 200)})`,
+        childErr
+      );
     }
     const names = tools.map(t => t.name);
     if (!names.includes('get-world-info')) {
-      return fail(`tool catalog missing a known tool 'get-world-info' (have ${names.length} tools)`, childErr);
+      return fail(
+        `tool catalog missing a known tool 'get-world-info' (have ${names.length} tools)`,
+        childErr
+      );
     }
     console.error(`[standalone-smoke] list_tools ok (${tools.length} tools, incl. get-world-info)`);
 
+    // A web page can POST to the control port (no preflight): the socket must close with no reply
+    // and the JSON body line must not run (review of PR #344, M1).
+    const body = `\n${JSON.stringify({ id: 'blind', method: 'call_tool', params: { name: 'get-world-info', args: {} } })}\n`;
+    const post = `POST / HTTP/1.1\r\nHost: ${host}:${port}\r\nContent-Type: text/plain\r\nContent-Length: ${Buffer.byteLength(body)}\r\n\r\n${body}`;
+    const postOutcome = await rawExchange(host, port, post);
+    if (!postOutcome.closed || postOutcome.received !== '') {
+      return fail(
+        `HTTP POST to the control port was not refused (closed=${postOutcome.closed}, reply=${JSON.stringify(postOutcome.received.slice(0, 200))})`,
+        childErr
+      );
+    }
+    console.error('[standalone-smoke] HTTP POST refused (socket closed, no reply)');
+
     // Every tool the MCP prompts tell Claude to call must exist in this real catalog.
     const { PROMPTS, getPrompt } = await import(
-      pathToFileURL(path.join(repoRoot, 'packages', 'mcp-server', 'dist', 'prompts', 'index.js')).href
+      pathToFileURL(path.join(repoRoot, 'packages', 'mcp-server', 'dist', 'prompts', 'index.js'))
+        .href
     );
     const known = new Set(names);
     for (const prompt of PROMPTS) {
@@ -136,7 +182,9 @@ async function main() {
         );
       }
     }
-    console.error(`[standalone-smoke] prompts ok (${PROMPTS.length} prompts name only tools in the live catalog)`);
+    console.error(
+      `[standalone-smoke] prompts ok (${PROMPTS.length} prompts name only tools in the live catalog)`
+    );
   } finally {
     if (!exited) child.kill('SIGTERM');
   }
@@ -149,7 +197,9 @@ async function main() {
     return fail('child did not exit on SIGTERM within 5s', childErr);
   }
 
-  console.error('[standalone-smoke] PASS: standalone backend serves the control channel and exits cleanly.');
+  console.error(
+    '[standalone-smoke] PASS: standalone backend serves the control channel and exits cleanly.'
+  );
   process.exit(0);
 }
 

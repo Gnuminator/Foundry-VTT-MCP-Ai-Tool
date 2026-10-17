@@ -168,6 +168,13 @@ dashboard) and the **backend**. It is a plain TCP socket carrying **newline-deli
 JSON**. One JSON object per line, request and response correlated by an `id` the caller
 generates.
 
+The channel has no login, so a client must start with a JSON object on its first line.
+`control-reader.ts` closes the socket without a reply when the first non-empty line is not a JSON
+object (an HTTP `Host:` header line is not one), or when a later line that is not JSON looks like an
+HTTP request line (`POST / HTTP/1.1`), or when a line grows past 8 MiB without a newline. A web
+page can POST to `127.0.0.1:31414` without a preflight, and without this the JSON body line would
+run as a `call_tool`.
+
 **Request:**
 
 ```json

@@ -20,8 +20,9 @@ import { createAiChangesAnnouncer, createModuleRequestHandler } from './module-r
 import { config } from './config.js';
 
 import { MAX_REQUESTER_LENGTH } from '@gnuminator/shared';
-import type { ControlRequest, ToolResultPayload } from '@gnuminator/shared';
+import type { ToolResultPayload } from '@gnuminator/shared';
 
+import { createControlReader } from './control-reader.js';
 import { Logger } from './logger.js';
 
 import { FoundryClient } from './foundry-client.js';
@@ -601,23 +602,14 @@ async function startBackend(): Promise<void> {
   const server = net.createServer(socket => {
     socket.setEncoding('utf8');
 
-    let buffer = '';
+    // Closes the socket on anything that is not a JSON-lines client (an HTTP POST from a web page).
+    const reader = createControlReader(socket, logger);
 
     const onControlData = async (chunk: string): Promise<void> => {
-      buffer += chunk;
-
-      let idx: number;
-
-      while ((idx = buffer.indexOf('\n')) >= 0) {
-        const line = buffer.slice(0, idx).trim();
-
-        buffer = buffer.slice(idx + 1);
-
-        if (!line) continue;
-
+      for (const msg of reader.read(chunk)) {
+        // A later chunk was refused (HTTP, junk) while this one was still being dispatched.
+        if (socket.destroyed) break;
         try {
-          const msg = JSON.parse(line) as ControlRequest;
-
           if (msg.method === 'ping') {
             socket.write(`${JSON.stringify({ id: msg.id, result: { ok: true } })}\n`);
 

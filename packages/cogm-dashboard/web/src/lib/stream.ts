@@ -164,7 +164,8 @@ export function onStatus(queryClient: QueryClient, data: unknown): void {
   const before = queryClient.getQueryData<BridgeStatus>(BRIDGE_STATUS_KEY);
   const next = data as BridgeStatus;
   queryClient.setQueryData<BridgeStatus>(BRIDGE_STATUS_KEY, next);
-  if (before?.foundry === 'unreachable' && next?.foundry === 'reachable') {
+  // `unknown` counts too: a dropped or restarted bridge link reports it, not `unreachable`.
+  if (before !== undefined && before.foundry !== 'reachable' && next?.foundry === 'reachable') {
     scheduleChangesReload(queryClient);
   }
 }

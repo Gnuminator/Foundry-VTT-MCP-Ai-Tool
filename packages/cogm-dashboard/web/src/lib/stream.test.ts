@@ -99,6 +99,14 @@ describe('the events handler and Recent Changes', () => {
     onStatus(queryClient, status('reachable'));
     await vi.advanceTimersByTimeAsync(CHANGES_RELOAD_MS);
     expect(reloaded()).toBe(true);
+    // A dropped bridge link reports unknown, not unreachable.
+    queryClient.setQueryData(AI, []);
+    onStatus(queryClient, status('unknown'));
+    await vi.advanceTimersByTimeAsync(CHANGES_RELOAD_MS * 2);
+    expect(reloaded()).toBe(false);
+    onStatus(queryClient, status('reachable'));
+    await vi.advanceTimersByTimeAsync(CHANGES_RELOAD_MS);
+    expect(reloaded()).toBe(true);
   });
 
   it('leaves the lists alone for a replay of events it has seen, as after a reconnect', async () => {

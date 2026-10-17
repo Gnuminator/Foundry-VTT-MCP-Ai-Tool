@@ -19,6 +19,7 @@ import {
 import { registerGuardedFeature } from './guarded-features.js';
 import { LIVE_PLAY_FEATURE_ID } from './live-plan.js';
 import { OWNERSHIP_FEATURE_ID } from './data-access/ownership-players.js';
+import { SCENE_RESTORE_FEATURE_ID } from './scene-state.js';
 import { PARTY_FEATURE_ID } from './party-scan.js';
 import { registerSessionSwitchSettings } from './session-switches.js';
 import { registerDiceThemes } from './dice-themes.js';
@@ -128,6 +129,11 @@ class FoundryMCPBridge {
         name: 'AI Tool: Ownership (writes)',
         hint: 'Lets the dashboard and the AI change which players own or can see an actor.',
         defaultEnabled: true,
+      });
+      registerGuardedFeature({
+        id: SCENE_RESTORE_FEATURE_ID,
+        name: 'AI Tool: Scene restore (writes)',
+        hint: "Lets the AI put a scene's walls, lights, tiles and tokens back from a backup copy of the world, after you confirm the plan. Each restore shows in Recent Changes with an Undo.",
       });
       registerGuardedFeature({
         id: 'change-undo',

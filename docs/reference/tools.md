@@ -6,12 +6,12 @@ description: Every tool the bridge serves, by tool set, with its description and
 
 # Tool reference
 
-The bridge serves 86 tools in five sets. [Tool sets](TOOL-SETS.md) explains the sets and how Claude Desktop loads them; this page lists every tool with the description and parameters Claude reads.
+The bridge serves 87 tools in five sets. [Tool sets](TOOL-SETS.md) explains the sets and how Claude Desktop loads them; this page lists every tool with the description and parameters Claude reads.
 
 | Set | Claude Desktop entry | Tools | For |
 | --- | --- | --- | --- |
 | [Core](#core) | `foundry-mcp` | 22 | Look things up (world, characters, scenes, journals, compendiums, combat) and review, apply or undo planned changes. Always on. |
-| [Play](#play) | `foundry-mcp-play` | 29 | Run the table live: tokens, combat turns, rolls, damage, conditions, resources, chat, scene mood, map notes and loot. |
+| [Play](#play) | `foundry-mcp-play` | 30 | Run the table live: tokens, combat turns, rolls, damage, conditions, resources, chat, scene mood, map notes and loot. |
 | [Prep](#prep) | `foundry-mcp-prep` | 20 | Prepare sessions and write recaps: quests and journals, encounter budgets, the Tarokka reading, handouts, the session log, play stats and the pre-flight check. |
 | [Build](#build) | `foundry-mcp-build` | 7 | Make and change NPCs, monsters and items: from a compendium or from scratch, with features, attacks and spells. |
 | [Admin](#admin) | `foundry-mcp-admin` | 8 | Set up and troubleshoot: installed modules and their errors, who owns which actor, and the Obsidian mirror settings. |
@@ -645,6 +645,18 @@ Parameters:
   - `cp` (integer): Range: at least 0.
 - `itemUuids` (array of string): loot: compendium item UUIDs to add (from search-compendium).
 - `announce` (boolean): loot: post a loot summary to chat (default true).
+
+### plan-scene-restore
+
+Plan putting a scene's walls, lights, tiles and tokens back from a backup copy of the world, after the map was broken by hand. Counts what is added back, removed, moved or changed. Apply with apply-planned-change, revert with undo-change. Needs the module switch "Scene restore" on (off by default).
+
+Kind: read-only. Title: Plan scene restore from backup.
+
+Parameters:
+
+- `scene` (string): Default: the viewed scene.
+- `backupPath` (string): Restored world folder. Default: the Plan B folder.
+- `parts` (array of string): One of: `walls`, `lights`, `tiles`, `tokens`.
 
 ### play-playlist
 

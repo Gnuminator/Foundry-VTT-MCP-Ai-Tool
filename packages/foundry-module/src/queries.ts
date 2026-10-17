@@ -42,6 +42,7 @@ import { PARTY_PLACE_QUERY, planPartyPlacement } from './party-place.js';
 import { getPrepScan, PREP_SCAN_QUERY } from './prep-scan.js';
 import { LIVE_PLAN_QUERY, planLiveChange } from './live-plan.js';
 import { planSceneChange, SCENE_PLAN_QUERY } from './scene-plan.js';
+import { getSceneState, SCENE_STATE_QUERY } from './scene-state.js';
 import { LIVE_SWEEP_QUERY, liveSweep } from './live-sweep.js';
 import { SESSION_SWITCHES_QUERY, sessionSwitches } from './session-switches.js';
 import { CHARACTER_SHEET_QUERY, characterSheets } from './character-sheet.js';
@@ -249,6 +250,12 @@ export class QueryHandlers {
     // as guarded ops. GM client only.
     handlers.set(`${modulePrefix}.${SCENE_PLAN_QUERY}`, (data: unknown) =>
       this.withGmGate('Failed to plan the scene change', () => planSceneChange(data))
+    );
+
+    // Scene restore (I-128, read-only): one scene's walls, lights, tiles and tokens as source
+    // data, compared with a backup copy by the backend. GM client only.
+    handlers.on(`${modulePrefix}.${SCENE_STATE_QUERY}`, (data: unknown) =>
+      this.withGmGate('Failed to read the scene', () => Promise.resolve(getSceneState(data)))
     );
 
     // Live write sweep helper (I-016): scene snapshot, a sweep combat and the clean-up for

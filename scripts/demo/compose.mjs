@@ -157,8 +157,41 @@ export function parseArgs(argv) {
   return o;
 }
 
+/** Takes must run at {@link FPS}; a missing or unparsable `r_frame_rate` (NaN) fails too. */
+export function checkFps(id, rate) {
+  const [fn, fd] = String(rate).split('/').map(Number);
+  const fps = fn / (fd || 1);
+  if (!(Math.abs(fps - FPS) <= 0.5))
+    throw new Error(`chapter ${id}: the video is ${fps.toFixed(2)} fps; takes must be ${FPS} fps`);
+}
+
+/** A take's frame rate: one cheap ffprobe per chapter, so a bad take fails before any encode. */
+function probeRate(video) {
+  const out = run('ffprobe', [
+    '-v',
+    'error',
+    '-select_streams',
+    'v:0',
+    '-show_entries',
+    'stream=r_frame_rate',
+    '-of',
+    'json',
+    video,
+  ]);
+  return JSON.parse(out).streams?.[0]?.r_frame_rate;
+}
+
+/** The output folder must be outside the repo: videos and audio never go in. */
+export function assertOutsideRepo(outDir) {
+  const rel = relative(repoRoot, outDir);
+  if (rel === '' || (!rel.startsWith('..') && !isAbsolute(rel)))
+    throw new Error(
+      `the output folder ${outDir} is inside the repo; videos and audio never go in. Use --out elsewhere.`
+    );
+}
+
 /** Everything the selected cuts read must exist before the first (long) encode. */
-function preflight(man, cuts) {
+export function preflight(man, cuts) {
   const ids = new Set(cuts.flatMap(c => c.ids));
   const need = (file, what, ch) => {
     if (!existsSync(file)) throw new Error(`chapter ${ch}: missing ${what} ${file}`);
@@ -172,6 +205,7 @@ function preflight(man, cuts) {
       need(ch.narration.wav, 'narration WAV', ch.id);
       need(ch.narration.timing, 'narration timing.json', ch.id);
     }
+    checkFps(ch.id, probeRate(ch.video));
   }
   if (man.music) need(man.music.file, 'music file', '(all)');
   const v = /ffmpeg version (?:n|N-)?(\d+)/.exec(run('ffmpeg', ['-version']));
@@ -182,11 +216,7 @@ function main() {
   const o = parseArgs(process.argv.slice(2));
   const man = resolveManifest(o.manifest);
   const outDir = resolve(o.out ?? join(dirname(resolve(o.manifest)), 'compose-out'));
-  const rel = relative(repoRoot, outDir);
-  if (rel === '' || (!rel.startsWith('..') && !isAbsolute(rel)))
-    throw new Error(
-      `the output folder ${outDir} is inside the repo; videos and audio never go in. Use --out elsewhere.`
-    );
+  assertOutsideRepo(outDir);
   const unknown = (o.cut ?? []).filter(n => !man.cuts.some(c => c.name === n));
   if (unknown.length)
     throw new Error(
@@ -338,11 +368,7 @@ function buildChapter(ch, { man, W, H, draft, work, inter, ff }) {
       ch.video,
     ])
   ).streams[0];
-  const [fn, fd] = String(probe.r_frame_rate).split('/').map(Number);
-  if (Math.abs(fn / (fd || 1) - FPS) > 0.5)
-    throw new Error(
-      `chapter ${ch.id}: the video is ${(fn / (fd || 1)).toFixed(2)} fps; takes must be ${FPS} fps`
-    );
+  checkFps(ch.id, probe.r_frame_rate);
   const rawFrames = Number(probe.nb_frames) || Math.floor(Number(probe.duration) * FPS);
 
   let narr = { byStep: {}, unmatchedHeadings: [], scattered: [] };

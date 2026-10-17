@@ -7,7 +7,7 @@ import { useEffect, useState } from 'react';
 
 import { streamUrl } from './auth';
 import { bridgeAway, bridgeBlip, readCombat, type CombatState } from './combat';
-import { EMPTY_FEED, addFeedEvents, readFeedEvents, type FeedLog } from './feed';
+import { EMPTY_FEED, addFeedEvents, hasNewGmChange, readFeedEvents, type FeedLog } from './feed';
 import { onPrefs } from './prefs';
 
 /** One Foundry module error or warning (feed/types.ts ModuleError on the server). */
@@ -122,19 +122,63 @@ export const HANDOUTS_KEY = ['game', 'handouts'] as const;
 /** The Tarokka drawer's reading, under GAME_STATE_KEY for the same reason. */
 export const TAROKKA_KEY = ['game', 'tarokka'] as const;
 
+/**
+ * Recent Changes' lists (the AI tab and the Everyone tab are the two keys under it), under
+ * GAME_STATE_KEY so an apply or an undo from this page reloads them, and the `gm-change` handler
+ * below reloads them for a change made in Foundry.
+ */
+export const CHANGES_KEY = ['game', 'changes'] as const;
+
+/** How long a burst of gm-change events waits before Recent Changes reloads once (as the old page). */
+export const CHANGES_RELOAD_MS = 400;
+let changesReload: ReturnType<typeof setTimeout> | null = null;
+
+/** Reloads the Recent Changes lists a panel is showing, once for a burst of changes. */
+function scheduleChangesReload(queryClient: QueryClient): void {
+  if (changesReload) clearTimeout(changesReload);
+  changesReload = setTimeout(() => {
+    changesReload = null;
+    void queryClient.invalidateQueries({ queryKey: CHANGES_KEY });
+  }, CHANGES_RELOAD_MS);
+}
+
+/**
+ * The session events (oldest first; the same ones come again on a reconnect, and the log adds each
+ * id once). A guarded change made in Foundry (the AI changes window, a token the GM moved, ...) is
+ * a `gm-change` event: Recent Changes reloads. An event seen before, as the server replays on every
+ * reconnect, does not.
+ */
+export function onEvents(queryClient: QueryClient, data: unknown): void {
+  const batch = readFeedEvents((data as { events?: unknown } | null)?.events);
+  const before = queryClient.getQueryData<FeedLog>(FEED_KEY);
+  queryClient.setQueryData<FeedLog>(FEED_KEY, log => addFeedEvents(log ?? EMPTY_FEED, batch));
+  if (hasNewGmChange(before ?? EMPTY_FEED, batch)) scheduleChangesReload(queryClient);
+}
+
+/**
+ * The bridge link status. Foundry turning reachable again (a restart, a dropped link) reloads
+ * Recent Changes as the old page did: a change made while the link was down sent no `gm-change`,
+ * and a load that failed meanwhile would stay failed.
+ */
+export function onStatus(queryClient: QueryClient, data: unknown): void {
+  const before = queryClient.getQueryData<BridgeStatus>(BRIDGE_STATUS_KEY);
+  const next = data as BridgeStatus;
+  queryClient.setQueryData<BridgeStatus>(BRIDGE_STATUS_KEY, next);
+  // `unknown` counts too: a dropped or restarted bridge link reports it, not `unreachable`.
+  if (before !== undefined && before.foundry !== 'reachable' && next?.foundry === 'reachable') {
+    scheduleChangesReload(queryClient);
+  }
+}
+
 /** One handler per event this page uses; each puts the event into the query cache. */
 const HANDLERS: Record<string, (queryClient: QueryClient, data: unknown) => void> = {
   errors: onErrors,
   // Oldest first; the same events come again on a reconnect, and the log adds each id once.
-  events: (queryClient, data) => {
-    const batch = readFeedEvents((data as { events?: unknown } | null)?.events);
-    queryClient.setQueryData<FeedLog>(FEED_KEY, log => addFeedEvents(log ?? EMPTY_FEED, batch));
-  },
+  events: onEvents,
   // A player opened a handout for the first time (GM only, no payload): the drawer reloads its
   // seen ticks when it is open. A closed drawer loads afresh on its next opening anyway.
   'handouts-seen': queryClient => void queryClient.invalidateQueries({ queryKey: HANDOUTS_KEY }),
-  status: (queryClient, data) =>
-    queryClient.setQueryData<BridgeStatus>(BRIDGE_STATUS_KEY, data as BridgeStatus),
+  status: onStatus,
   settings: (queryClient, data) =>
     queryClient.setQueryData<DashboardSettings>(SETTINGS_KEY, data as DashboardSettings),
   world: (queryClient, data) =>

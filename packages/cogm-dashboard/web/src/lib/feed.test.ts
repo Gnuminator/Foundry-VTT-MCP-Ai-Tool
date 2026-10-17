@@ -15,6 +15,7 @@ import {
   feedFace,
   feedMeta,
   freshEntries,
+  hasNewGmChange,
   readFeedEvent,
   readFeedEvents,
   severityClass,
@@ -306,6 +307,30 @@ describe('feedFace', () => {
   it('says the bridge is away when there is nothing to show', () => {
     expect(feedFace(null, true)).toBe('bridge-down');
     expect(feedFace(EMPTY_FEED, true)).toBe('bridge-down');
+  });
+});
+
+describe('hasNewGmChange', () => {
+  const gm = (id: string): FeedEvent => ev(id, 1, { eventType: 'gm-change' });
+
+  it('is true for a gm-change event the log has not seen', () => {
+    expect(hasNewGmChange(EMPTY_FEED, [ev('a', 1), gm('b')])).toBe(true);
+  });
+
+  it('is false for other kinds of event', () => {
+    expect(hasNewGmChange(EMPTY_FEED, [ev('a', 1), ev('b', 2, { eventType: 'gm-roll' })])).toBe(
+      false
+    );
+  });
+
+  it('is false for a replay of events the log has already seen, as after a reconnect', () => {
+    const log = addFeedEvents(EMPTY_FEED, [gm('b')]);
+    expect(hasNewGmChange(log, [gm('b')])).toBe(false);
+    expect(hasNewGmChange(log, [gm('b'), gm('c')])).toBe(true);
+  });
+
+  it('is false for an empty batch', () => {
+    expect(hasNewGmChange(EMPTY_FEED, [])).toBe(false);
   });
 });
 

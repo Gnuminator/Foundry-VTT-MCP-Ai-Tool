@@ -111,6 +111,8 @@ export interface GuardedOptions {
   gateText?: string;
   /** The confirm window's lines for a write that is not a plan (default: the args as key: value). */
   lines?: string[];
+  /** The confirm window's summary for a write that is not a plan (default: "Run <tool> ..."). */
+  summary?: string;
 }
 
 export interface GuardedTools {
@@ -129,6 +131,21 @@ export interface GuardedTools {
     name: string,
     args: Record<string, unknown>,
     kind: 'write' | 'destructive',
+    options?: GuardedOptions
+  ) => Promise<GuardedOutcome>;
+  /**
+   * True when GM Actions are off, after saying so (the toast, the gate): the caller stops. For a
+   * flow that plans before it applies (Recent Changes' Undo), so it asks before it plans.
+   */
+  gated: (name: string, options?: GuardedOptions) => boolean;
+  /**
+   * Applies a plan the GM already approved in a window of their own (the undo window: the choice
+   * and the tick for a destructive plan were the confirmation). The gate, then apply-planned-change
+   * with its confirm flags, then the Undo toast. The plan came from a plan-* tool here.
+   */
+  applyApproved: (
+    planId: string,
+    destructive: boolean,
     options?: GuardedOptions
   ) => Promise<GuardedOutcome>;
 }
@@ -340,7 +357,7 @@ export function useGuardedTools(): GuardedTools {
       }
       const destructive = kind === 'destructive';
       const ok = await askConfirm({
-        summary: `Run ${name} against the live game?`,
+        summary: options.summary ?? `Run ${name} against the live game?`,
         diff: options.lines ?? argLines(args),
         destructive,
         returnTo: startedFrom,
@@ -357,7 +374,23 @@ export function useGuardedTools(): GuardedTools {
       return { status: 'done', result: sent.result };
     };
 
-    return { plan, write };
+    const gated: GuardedTools['gated'] = (name, options = {}) => {
+      if (!gmActionsOff) return false;
+      refuse(name, 'gm-actions-off', options);
+      return true;
+    };
+
+    const applyApproved: GuardedTools['applyApproved'] = async (
+      planId,
+      destructive,
+      options = {}
+    ) => {
+      if (gmActionsOff) return refuse('apply-planned-change', 'gm-actions-off', options);
+      const flags = destructive ? { confirm: true, confirmDestructive: true } : { confirm: true };
+      return apply({ planId }, flags, options);
+    };
+
+    return { plan, write, gated, applyApproved };
   }, [toast, queryClient, openGate, gmActionsOff, askConfirm]);
 }
 

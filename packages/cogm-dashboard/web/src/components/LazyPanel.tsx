@@ -65,6 +65,8 @@ class ChunkGuard extends Component<
 export interface PanelShell {
   id: string;
   title: ReactNode;
+  /** A card that only docks in a view (Recent Changes), not a drawer. */
+  pane?: boolean;
 }
 
 /**
@@ -101,6 +103,7 @@ export function LazyPanel<F extends PanelFn>({
               onClose={() => onOpenChange?.(false)}
               id={loadingShell.id}
               title={loadingShell.title}
+              pane={loadingShell.pane === true}
             />
           ) : null
         }

@@ -14,23 +14,28 @@ import {
   type ReactNode,
 } from 'react';
 
-import { FOLD_IDS, foldBodyId, type FoldCard } from '../lib/duringFolds';
 import type { DuringScreen } from '../lib/duringTrial';
 import { usePlaySession, type PlaySession } from '../lib/session';
 
-import { FoldButton, type DuringFolds } from './Folds';
+import type { DuringFolds } from './Folds';
 import { LiveFeed } from './LiveFeed';
 
 export type Moment = 'before' | 'during' | 'after';
-export type DockName = 'preflight' | 'prep' | 'party' | 'handouts';
+/** The drawers that dock into a view (Drawer.tsx); the others float over the page. */
+export type DrawerDockName = 'preflight' | 'prep' | 'party' | 'handouts';
+/** Everything that docks: the drawers and the Recent Changes card (a pane, not a drawer). */
+export type DockName = DrawerDockName | 'changes';
 
 const ORDER: readonly Moment[] = ['before', 'during', 'after'];
 
-/** The panels docked in each moment, as on the old page. Tarokka and the Tool runner never dock. */
+/**
+ * The panels docked in each moment, as on the old page. Tarokka and the Tool runner never dock.
+ * Recent Changes is in During and After only; over Before it is not on the page.
+ */
 export const DOCKS: Record<Moment, readonly DockName[]> = {
   before: ['preflight', 'prep'],
-  during: ['handouts', 'party'],
-  after: ['prep', 'handouts'],
+  during: ['handouts', 'party', 'changes'],
+  after: ['prep', 'handouts', 'changes'],
 };
 
 /** After shows for this long after a session ended. */
@@ -177,38 +182,16 @@ export function MomentTabs({
   );
 }
 
-/**
- * A slot whose panel is not in the new dashboard yet. In During, the Recent Changes placeholder
- * is a fold card already, so the layout and the folds work around it.
- */
-function NotHereYet({
-  title,
-  wide = false,
-  fold,
-}: {
-  title: string;
-  wide?: boolean;
-  fold?: { card: FoldCard; folds: DuringFolds };
-}): JSX.Element {
-  const folded = fold?.folds.isFolded(fold.card) === true;
+/** A slot whose panel is not in the new dashboard yet. */
+function NotHereYet({ title, wide = false }: { title: string; wide?: boolean }): JSX.Element {
   const classes = ['pane', 'not-here-yet'];
   if (wide) classes.push('not-here-yet-wide');
-  if (folded) classes.push('is-folded');
   return (
-    <section
-      className={classes.join(' ')}
-      aria-label={title}
-      {...(fold ? { id: FOLD_IDS[fold.card] } : {})}
-    >
+    <section className={classes.join(' ')} aria-label={title}>
       <div className="pane-head">
-        {fold && <FoldButton card={fold.card} folds={fold.folds} />}
-        {/* A click on a folded card's title opens it: a pointer shortcut, the button is the
-            keyboard path. */}
-        <h2 {...(fold && folded ? { onClick: () => fold.folds.toggle(fold.card) } : {})}>
-          {title}
-        </h2>
+        <h2>{title}</h2>
       </div>
-      <p className="not-here-yet-text" {...(fold ? { id: foldBodyId(fold.card) } : {})}>
+      <p className="not-here-yet-text">
         Not in the new dashboard yet. It is on the <a href="/">full dashboard</a>.
       </p>
     </section>
@@ -276,12 +259,7 @@ export function MomentViews({
         <div className="slot slot-feed" data-slot="feed">
           <LiveFeed {...(duringFolds ? { folds: duringFolds } : {})} />
         </div>
-        <div className="slot slot-changes" data-slot="changes">
-          <NotHereYet
-            title="Recent Changes"
-            {...(duringFolds ? { fold: { card: 'changes', folds: duringFolds } } : {})}
-          />
-        </div>
+        <div className="slot slot-changes" data-slot="changes" ref={slotRefs['during-changes']} />
         <div
           className="slot slot-handouts"
           data-slot="handouts"
@@ -300,9 +278,7 @@ export function MomentViews({
         <div className="slot" data-slot="prep" ref={slotRefs['after-prep']} />
         <div className="moment-side">
           <div className="slot" data-slot="handouts" ref={slotRefs['after-handouts']} />
-          <div className="slot" data-slot="changes">
-            <NotHereYet title="Recent Changes" />
-          </div>
+          <div className="slot" data-slot="changes" ref={slotRefs['after-changes']} />
         </div>
       </section>
     </main>

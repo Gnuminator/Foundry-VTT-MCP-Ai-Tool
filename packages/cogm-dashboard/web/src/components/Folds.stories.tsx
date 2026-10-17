@@ -8,6 +8,8 @@ import { COMBAT_KEY, FEED_KEY } from '../lib/stream';
 import { FIGHT } from '../storybook/fixtures/combat';
 import { FEED_FEW } from '../storybook/fixtures/feed';
 import { HandoutsDrawer } from '../panels/Handouts';
+import RecentChangesPane from '../panels/RecentChanges';
+import { AI_CHANGES, TOOLS_WITH_EVERYONE } from '../storybook/fixtures/changes';
 import { PartyDrawer } from '../panels/Party';
 import { reply, toolOk } from '../storybook/fakeApi';
 import { PICKED, PLAY_SESSION_STARTED, setPrefsEcho } from '../storybook/fixtures/during';
@@ -50,10 +52,12 @@ function bridge(prefs: DuringPrefs, combat = false): { dashboard: DashboardParam
           'POST /api/control': setPrefsEcho(prefs),
           '/api/preflight': reply({ ready: true, checks: [], scan: null }),
           '/api/player/names': reply(PLAYERS),
+          '/api/tools': reply(TOOLS_WITH_EVERYONE),
         },
         tools: {
           'get-play-session': toolOk(PLAY_SESSION_STARTED),
           'get-party': toolOk(PARTY_OF_EIGHT),
+          'list-recent-changes': toolOk(AI_CHANGES),
           'list-revealed-pages': toolOk(HANDOUTS),
           'list-scenes': toolOk(SCENES),
         },
@@ -66,7 +70,7 @@ function bridge(prefs: DuringPrefs, combat = false): { dashboard: DashboardParam
 function Page(): JSX.Element {
   const during = useDuringLayout('during', noop);
   const { slotRefs, dockOf } = useDocks('during');
-  const dock = (name: 'party' | 'handouts', panel: JSX.Element): JSX.Element => (
+  const dock = (name: 'party' | 'handouts' | 'changes', panel: JSX.Element): JSX.Element => (
     <DockContext.Provider value={dockOf(name)}>
       <FoldScope card={name} folds={during.folds} active>
         {panel}
@@ -91,6 +95,7 @@ function Page(): JSX.Element {
       />
       {dock('party', <PartyDrawer open onOpenChange={noop} />)}
       {dock('handouts', <HandoutsDrawer open onOpenChange={noop} onQueuePage={noop} />)}
+      {dock('changes', <RecentChangesPane />)}
     </div>
   );
 }

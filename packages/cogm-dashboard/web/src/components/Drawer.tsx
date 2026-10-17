@@ -64,7 +64,7 @@ export const DockContext = createContext<HTMLElement | null>(null);
  * portals into the same element all along, so a drawer docked in two moments (Prep in Before and
  * After) keeps its state and its data when the moment changes; only the wrapper moves.
  */
-function useDockHost(slot: HTMLElement | null): HTMLElement {
+export function useDockHost(slot: HTMLElement | null): HTMLElement {
   const [host] = useState(() => {
     const el = document.createElement('div');
     el.className = 'dock-host';
@@ -170,16 +170,21 @@ export function LoadingDrawer({
   onClose,
   id,
   title,
+  pane = false,
 }: {
   open: boolean;
   onClose: () => void;
   id: string;
   title: ReactNode;
+  /** A pane that only docks (Recent Changes), not a drawer: it has no floating form. */
+  pane?: boolean;
 }): JSX.Element | null {
   const dockSlot = useContext(DockContext);
   const fold = useCardFold();
   if (!open) return null;
-  const shell = { as: 'aside', variant: 'drawer', id, title, state: 'loading' } as const;
+  const shell = pane
+    ? ({ as: 'section', variant: 'pane', id, title, state: 'loading' } as const)
+    : ({ as: 'aside', variant: 'drawer', id, title, state: 'loading' } as const);
   if (dockSlot) return createPortal(<Panel {...shell} {...dockedProps(id, fold)} />, dockSlot);
   return (
     <Panel

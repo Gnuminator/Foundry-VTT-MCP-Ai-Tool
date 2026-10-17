@@ -2,6 +2,8 @@ import type { Meta, StoryObj } from '@storybook/react-vite';
 import { useState, type JSX } from 'react';
 
 import { HandoutsDrawer } from '../panels/Handouts';
+import RecentChangesPane from '../panels/RecentChanges';
+import { AI_CHANGES, TOOLS_WITH_EVERYONE } from '../storybook/fixtures/changes';
 import { PartyDrawer } from '../panels/Party';
 import { PreflightDrawer } from '../panels/Preflight';
 import { PrepDrawer } from '../panels/Prep';
@@ -87,6 +89,9 @@ function Page({ initial }: { initial: Moment | null }): JSX.Element {
       {dock('handouts', open => (
         <HandoutsDrawer open={open} onOpenChange={noop} onQueuePage={noop} />
       ))}
+      {dock('changes', () => (
+        <RecentChangesPane />
+      ))}
     </div>
   );
 }
@@ -98,10 +103,12 @@ const bridge = {
       '/api/preflight': reply(PREFLIGHT_OK),
       '/api/session/switches': reply(SWITCHES_READY),
       '/api/player/names': reply(PLAYERS),
+      '/api/tools': reply(TOOLS_WITH_EVERYONE),
     },
     tools: {
       'get-prep-digest': toolOk(PREP),
       'get-party': toolOk(PARTY_OF_EIGHT),
+      'list-recent-changes': toolOk(AI_CHANGES),
       'list-revealed-pages': toolOk(HANDOUTS),
       'list-scenes': toolOk(SCENES),
     },

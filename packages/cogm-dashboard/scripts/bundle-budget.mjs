@@ -36,6 +36,7 @@ export const LAZY_LIMITS_KB = {
   Party: 4, // 3.0 KB
   PlayerLinks: 2, // 1.2 KB
   Prep: 4, // 3.2 KB
+  RecentChanges: 7, // 5.6 KB, measured 2026-10-17
   Tarokka: 4, // 2.8 KB
   Tools: 8, // 6.8 KB
 };

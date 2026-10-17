@@ -266,6 +266,11 @@ allowed to post in the channel. Tune with `--interval`, `--slow-ms`, `--timeout-
 `--recover`. For a test, point `--url` at the test server (`http://localhost:30001`) and stop it with
 `scripts/test-env/stop.ps1 -Only foundry`.
 
+The message includes the Foundry address (without any user name or password). A message that Discord
+refuses is kept and tried again every minute, so a short Discord outage does not lose the "down" message.
+A Foundry that stays slow gets no second reminder, and a link that flaps posts a down and back pair each
+time. `--once` makes one check and exits (useful for a test).
+
 The watch only works while this PC is on and can reach the Pi. A copy that runs on the Pi itself would be
 a stage script and needs your OK (not done).
 

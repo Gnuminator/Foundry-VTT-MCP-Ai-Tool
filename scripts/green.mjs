@@ -71,7 +71,7 @@ export const STEPS = [
   nodeTest('gate-scripts', 'scripts/green.test.mjs', 'scripts/lane-merge.test.mjs'),
   nodeTest('usage-week', 'scripts/dev/usage-week.test.mjs'),
   nodeTest('gamenight-watch', 'scripts/gamenight-watch.test.mjs'),
-  nodeTest('pi-space-check','scripts/pi/space-check.test.mjs'),
+  nodeTest('pi-space-check', 'scripts/pi/space-check.test.mjs'),
   nodeTest('pi-backup-record', 'scripts/pi/backup-pull-record.test.mjs'),
   nodeTest('pi-world-refs', 'scripts/pi/world-refs.test.mjs'),
   nodeTest('pi-assistant-gm', 'scripts/pi/assistant-gm.test.mjs'),

@@ -16,7 +16,7 @@
  *
  * One message when it goes down or slow, one when it is back; nothing in between.
  */
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, realpathSync } from 'node:fs';
 import { homedir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -82,13 +82,20 @@ export function formatAlert(alert, url, probe, cfg = DEFAULTS, mentions = []) {
 export async function probeFoundry(url, timeoutMs, fetchImpl = fetch) {
   const started = Date.now();
   try {
-    const res = await fetchImpl(new URL('/api/status', url), { signal: AbortSignal.timeout(timeoutMs) });
+    const res = await fetchImpl(new URL('/api/status', url), {
+      signal: AbortSignal.timeout(timeoutMs),
+    });
     const ms = Date.now() - started;
     if (!res.ok) return { ok: false, ms, error: `HTTP ${res.status}` };
     return { ok: true, ms };
   } catch (err) {
-    const timedOut = err instanceof Error && (err.name === 'TimeoutError' || err.name === 'AbortError');
-    return { ok: false, ms: Date.now() - started, error: timedOut ? 'timed out' : 'connection failed' };
+    const timedOut =
+      err instanceof Error && (err.name === 'TimeoutError' || err.name === 'AbortError');
+    return {
+      ok: false,
+      ms: Date.now() - started,
+      error: timedOut ? 'timed out' : 'connection failed',
+    };
   }
 }
 
@@ -109,7 +116,11 @@ export function parseEnv(text) {
 }
 
 export function defaultEnvFile() {
-  return path.join(process.env.APPDATA ?? path.join(homedir(), '.config'), 'foundry-ai-tool', 'discord-bot.env');
+  return path.join(
+    process.env.APPDATA ?? path.join(homedir(), '.config'),
+    'foundry-ai-tool',
+    'discord-bot.env'
+  );
 }
 
 /** Post one message through the bot. Never logs the token. */
@@ -123,21 +134,57 @@ export async function postToChannel({ token, channelId }, content, fetchImpl = f
   if (!res.ok) throw new Error(`Discord answered HTTP ${res.status}`);
 }
 
-function parseArgs(argv) {
+const SWITCHES = new Set(['post', 'once']);
+
+/** `--post` and `--once` are switches (no value); every other flag takes a value. */
+export function parseArgs(argv) {
   /** @type {Record<string, string|boolean>} */
   const o = {};
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (!a.startsWith('--')) continue;
     const key = a.slice(2);
-    const nextVal = argv[i + 1];
-    if (nextVal === undefined || nextVal.startsWith('--')) o[key] = true;
-    else {
-      o[key] = nextVal;
-      i++;
+    if (SWITCHES.has(key)) {
+      o[key] = true;
+      continue;
     }
+    const nextVal = argv[i + 1];
+    if (nextVal === undefined || nextVal.startsWith('--')) {
+      throw new Error(`--${key} needs a value.`);
+    }
+    o[key] = nextVal;
+    i++;
   }
   return o;
+}
+
+/** The address to show and post: http or https only, without a user name or password. */
+export function safeUrl(raw) {
+  const u = new URL(raw);
+  if (u.protocol !== 'http:' && u.protocol !== 'https:')
+    throw new Error('The address must start with http:// or https://.');
+  u.username = '';
+  u.password = '';
+  return u.toString().replace(/\/$/, '');
+}
+
+/**
+ * Post the queued alerts in order; stops at the first failure and returns what is still unsent, so a
+ * Discord outage does not lose the "down" message (it is tried again on the next probe).
+ * @param {string[]} pending @param {(text:string)=>Promise<void>} post @param {(msg:string)=>void} log
+ */
+export async function flushPending(pending, post, log = () => {}) {
+  const rest = [...pending];
+  while (rest.length > 0) {
+    try {
+      await post(rest[0]);
+      rest.shift();
+    } catch (err) {
+      log(`could not post (will retry): ${err instanceof Error ? err.message : err}`);
+      break;
+    }
+  }
+  return rest;
 }
 
 const stamp = () => new Date().toISOString().replace('T', ' ').slice(0, 19);
@@ -148,14 +195,17 @@ async function main() {
   const fromFile = existsSync(envFile) ? parseEnv(readFileSync(envFile, 'utf8')) : {};
   const get = key => [process.env[key], fromFile[key]].find(v => v);
   const num = (name, dflt) => {
+    if (args[name] === undefined) return dflt;
     const v = Number(args[name]);
-    return Number.isFinite(v) && v > 0 ? v : dflt;
+    if (!Number.isFinite(v) || v <= 0) throw new Error(`--${name} must be a positive number.`);
+    return v;
   };
-  const url = typeof args.url === 'string' ? args.url : get('GAMENIGHT_WATCH_URL');
-  if (!url) {
+  const rawUrl = typeof args.url === 'string' ? args.url : get('GAMENIGHT_WATCH_URL');
+  if (!rawUrl) {
     console.error('Give the Foundry address: --url http://host:port (or GAMENIGHT_WATCH_URL).');
     process.exit(2);
   }
+  const url = safeUrl(rawUrl);
   const cfg = {
     intervalSec: num('interval', DEFAULTS.intervalSec),
     slowMs: num('slow-ms', DEFAULTS.slowMs),
@@ -164,7 +214,10 @@ async function main() {
     slowCount: num('slow', DEFAULTS.slowCount),
     recoverCount: num('recover', DEFAULTS.recoverCount),
   };
-  const mentions = (get('GAMENIGHT_WATCH_MENTION_IDS') ?? '').split(',').map(s => s.trim()).filter(Boolean);
+  const mentions = (get('GAMENIGHT_WATCH_MENTION_IDS') ?? '')
+    .split(',')
+    .map(s => s.trim())
+    .filter(Boolean);
   let target = null;
   if (args.post) {
     const token = get('DISCORD_TOKEN');
@@ -175,31 +228,49 @@ async function main() {
     }
     target = { token, channelId };
   }
-  console.log(`${stamp()} watching ${url} every ${cfg.intervalSec}s (${target ? 'posting to Discord' : 'dry run, log only'})`);
+  console.log(
+    `${stamp()} watching ${url} every ${cfg.intervalSec}s (${target ? 'posting to Discord' : 'dry run, log only'})`
+  );
 
   let state = initialState();
+  /** @type {string[]} */
+  let pending = [];
   for (;;) {
     const probe = await probeFoundry(url, cfg.timeoutMs);
     const result = step(state, probe, cfg);
     state = result.state;
-    console.log(`${stamp()} ${probe.ok ? 'ok' : 'FAIL'} ${probe.ms} ms${probe.error ? ` (${probe.error})` : ''} -> ${state.mode}`);
+    console.log(
+      `${stamp()} ${probe.ok ? 'ok' : 'FAIL'} ${probe.ms} ms${probe.error ? ` (${probe.error})` : ''} -> ${state.mode}`
+    );
     if (result.alert) {
       const text = formatAlert(result.alert, url, probe, cfg, mentions);
       console.log(`${stamp()} alert ${result.alert}: ${text}`);
-      if (target) {
-        try {
-          await postToChannel(target, text);
-        } catch (err) {
-          console.error(`${stamp()} could not post: ${err instanceof Error ? err.message : err}`);
-        }
-      }
+      if (target) pending.push(text);
+    }
+    if (target && pending.length > 0) {
+      pending = await flushPending(
+        pending,
+        t => postToChannel(target, t),
+        m => console.error(`${stamp()} ${m}`)
+      );
     }
     if (args.once) return;
     await new Promise(r => setTimeout(r, cfg.intervalSec * 1000));
   }
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+const isMain = () => {
+  try {
+    return (
+      !!process.argv[1] &&
+      realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url))
+    );
+  } catch {
+    return false;
+  }
+};
+
+if (isMain()) {
   main().catch(err => {
     console.error(err instanceof Error ? err.message : err);
     process.exit(1);

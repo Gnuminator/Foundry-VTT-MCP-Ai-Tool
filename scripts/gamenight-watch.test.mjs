@@ -1,7 +1,18 @@
 /** scripts/gamenight-watch.mjs: the alert state machine, the probe and the message text. No network. */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { DEFAULTS, initialState, step, formatAlert, probeFoundry, parseEnv, postToChannel } from './gamenight-watch.mjs';
+import {
+  DEFAULTS,
+  initialState,
+  step,
+  formatAlert,
+  probeFoundry,
+  parseEnv,
+  postToChannel,
+  flushPending,
+  parseArgs,
+  safeUrl,
+} from './gamenight-watch.mjs';
 
 const GOOD = { ok: true, ms: 100 };
 const SLOW = { ok: true, ms: 5000 };
@@ -49,7 +60,11 @@ test('slow then fast again posts "recovered"', () => {
 });
 
 test('slow turning into down posts "down" and still recovers', () => {
-  assert.deepEqual(run([SLOW, SLOW, SLOW, FAIL, FAIL, GOOD, GOOD]).alerts, ['slow', 'down', 'recovered']);
+  assert.deepEqual(run([SLOW, SLOW, SLOW, FAIL, FAIL, GOOD, GOOD]).alerts, [
+    'slow',
+    'down',
+    'recovered',
+  ]);
 });
 
 test('slow answers while down do not post "slow" or recover', () => {
@@ -58,12 +73,24 @@ test('slow answers while down do not post "slow" or recover', () => {
 
 test('thresholds come from the config', () => {
   const cfg = { ...DEFAULTS, failCount: 1, slowMs: 50, slowCount: 1, recoverCount: 1 };
-  assert.deepEqual(run([{ ok: true, ms: 60 }, { ok: true, ms: 10 }], cfg).alerts, ['slow', 'recovered']);
+  assert.deepEqual(
+    run(
+      [
+        { ok: true, ms: 60 },
+        { ok: true, ms: 10 },
+      ],
+      cfg
+    ).alerts,
+    ['slow', 'recovered']
+  );
   assert.deepEqual(run([FAIL, { ok: true, ms: 10 }], cfg).alerts, ['down', 'recovered']);
 });
 
 test('formatAlert names the address and pings the given users', () => {
-  assert.match(formatAlert('down', 'http://pi:30000', FAIL), /does not answer at http:\/\/pi:30000 \(timed out\)/);
+  assert.match(
+    formatAlert('down', 'http://pi:30000', FAIL),
+    /does not answer at http:\/\/pi:30000 \(timed out\)/
+  );
   assert.match(formatAlert('slow', 'u', SLOW), /5000 ms, the limit is 3000 ms/);
   assert.match(formatAlert('recovered', 'u', GOOD), /answers again/);
   assert.ok(formatAlert('down', 'u', FAIL, DEFAULTS, ['1', '2']).startsWith('<@1> <@2> '));
@@ -87,6 +114,38 @@ test('probeFoundry: ok, HTTP error, refused, timeout', async () => {
   assert.equal(timeout.error, 'timed out');
 });
 
+test('flushPending keeps unsent alerts in order and retries them', async () => {
+  const sent = [];
+  let fail = true;
+  const post = async t => {
+    if (fail) throw new Error('Discord answered HTTP 500');
+    sent.push(t);
+  };
+  const logs = [];
+  let pending = await flushPending(['down'], post, m => logs.push(m));
+  assert.deepEqual(pending, ['down']);
+  assert.match(logs[0], /will retry/);
+  fail = false;
+  pending = await flushPending([...pending, 'recovered'], post);
+  assert.deepEqual(pending, []);
+  assert.deepEqual(sent, ['down', 'recovered']);
+});
+
+test('parseArgs: switches take no value, other flags need one', () => {
+  assert.deepEqual(parseArgs(['--post', '--interval', '5', '--once']), {
+    post: true,
+    interval: '5',
+    once: true,
+  });
+  assert.throws(() => parseArgs(['--interval']), /needs a value/);
+  assert.throws(() => parseArgs(['--url', '--post']), /needs a value/);
+});
+
+test('safeUrl drops credentials and refuses other schemes', () => {
+  assert.equal(safeUrl('http://u:p@pi:30000/'), 'http://pi:30000');
+  assert.throws(() => safeUrl('ftp://pi'), /http/);
+});
+
 test('parseEnv reads KEY=value, strips quotes and skips comments', () => {
   assert.deepEqual(parseEnv('# c\nA=1\nB="two"\n\nC = x y\n'), { A: '1', B: 'two', C: 'x y' });
 });
@@ -100,7 +159,10 @@ test('postToChannel sends the bot header and fails on a bad status without leaki
   assert.equal(seen.url, 'https://discord.com/api/v10/channels/42/messages');
   assert.equal(seen.init.headers.Authorization, 'Bot SECRET');
   await assert.rejects(
-    postToChannel({ token: 'SECRET', channelId: '42' }, 'hi', async () => ({ ok: false, status: 403 })),
+    postToChannel({ token: 'SECRET', channelId: '42' }, 'hi', async () => ({
+      ok: false,
+      status: 403,
+    })),
     err => /HTTP 403/.test(err.message) && !err.message.includes('SECRET')
   );
 });

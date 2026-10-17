@@ -81,13 +81,6 @@ export const FOUNDRY_CONTROLS = [
     player: 'hidden',
   },
   {
-    name: 'foundry.changes.filter',
-    area: 'changes',
-    label: 'Changes: Show (filter by person)',
-    how: 'toggle',
-    player: 'hidden',
-  },
-  {
     name: 'foundry.changes.more',
     area: 'changes',
     label: 'Changes: Show more',
@@ -127,6 +120,13 @@ export const FOUNDRY_CONTROLS = [
     area: 'changes',
     label: 'Changes: Redo',
     how: 'write',
+    player: 'hidden',
+  },
+  {
+    name: 'foundry.changes.filter',
+    area: 'changes',
+    label: 'Changes: Show (filter by person)',
+    how: 'toggle',
     player: 'hidden',
   },
 

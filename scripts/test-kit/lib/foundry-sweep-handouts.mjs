@@ -438,17 +438,6 @@ export async function tarokkaRows(sweep, { t, gm, player }) {
       'the kit player to see the revealed text'
     );
     if (!playerText.includes(REVEAL_TEXT)) throw new Error('the player page lacks the typed text');
-    await sweep.row('foundry.tarokka.open-doc', 'gm', async () => {
-      // A sheet that is open already does not count: wait for one more than before the click.
-      const sheetsBefore = await journalSheetCount(gm);
-      await gm.locator(`${TK} li[data-position] button[data-action="openDoc"]`).first().click();
-      await until(
-        async () => (await journalSheetCount(gm)) > sheetsBefore,
-        'the revealed page to open in a journal window'
-      );
-      await closeAllJournalSheets(gm);
-      return 'Open page opens the revealed page in a journal window (a card linked to a document is not in the dealt reading)';
-    });
     const undoNote = await undoFromWindow(gm, known, TAROKKA_REVEAL);
     await until(
       async () => (await playerReads(player, { text: REVEAL_TEXT })) === '',
@@ -458,6 +447,40 @@ export async function tarokkaRows(sweep, { t, gm, player }) {
       note: `Cancel changed nothing; Reveal showed exactly the typed text to the kit player; ${undoNote}`,
       timings: { revealMs },
     };
+  });
+
+  // Its own row, after the first reveal was undone: a second reveal gives it a page to open, so the
+  // errors of the two rows are never counted twice.
+  await sweep.row('foundry.tarokka.open-doc', 'gm', async () => {
+    await gm
+      .locator(`${TK} li[data-position]`)
+      .first()
+      .locator('button[data-action="revealOpen"]')
+      .click();
+    await gm.locator(`${TK} textarea[data-field="revealText"]`).fill(REVEAL_TEXT);
+    const known = await windowIds(gm);
+    await gm.locator(`${TK} button[data-action="revealGo"]`).click();
+    await readDialog(gm);
+    await answerYes(gm, 'Reveal');
+    await waitNotification(gm, /Revealed/);
+    await until(
+      () => playerReads(player, { text: REVEAL_TEXT }),
+      'the kit player to see the revealed text'
+    );
+    // A sheet that is open already does not count: wait for one more than before the click.
+    const sheetsBefore = await journalSheetCount(gm);
+    await gm.locator(`${TK} li[data-position] button[data-action="openDoc"]`).first().click();
+    await until(
+      async () => (await journalSheetCount(gm)) > sheetsBefore,
+      'the revealed page to open in a journal window'
+    );
+    await closeAllJournalSheets(gm);
+    const undoNote = await undoFromWindow(gm, known, TAROKKA_REVEAL);
+    await until(
+      async () => (await playerReads(player, { text: REVEAL_TEXT })) === '',
+      'the revealed text to leave the player view'
+    );
+    return `Open page opens the revealed page in a journal window (a card linked to a document is not in the dealt reading); a second reveal was needed and was ${undoNote}`;
   });
 
   await closeWindow(gm, 'fmb-tarokka');

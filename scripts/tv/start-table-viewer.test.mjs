@@ -68,6 +68,60 @@ describe('start-table-viewer.ps1', { skip: !hasPwsh && 'pwsh 7 not installed' },
   );
 
   test(
+    'auto-join asks the browser for a local debug port; -NoAutoJoin does not',
+    { skip: !hasBrowser && 'no Edge or Chrome installed' },
+    () => {
+      const on = run('-Url', 'https://foundry.example.com', '-DryRun');
+      assert.match(on.stdout, /--remote-debugging-port=0/);
+      const off = run('-Url', 'https://foundry.example.com', '-NoAutoJoin', '-DryRun');
+      assert.doesNotMatch(off.stdout, /remote-debugging/);
+    }
+  );
+
+  test('the join page matcher accepts only /join of the configured game', () => {
+    const lib = path.join(here, 'table-viewer-lib.ps1').replace(/'/g, "''");
+    const base = 'https://foundry.example.com';
+    const cases = [
+      ['https://foundry.example.com/join', true],
+      ['https://foundry.example.com/join/', true],
+      ['https://foundry.example.com/join?x=1', true],
+      ['https://foundry.example.com/game', false],
+      ['https://foundry.example.com/', false],
+      ['https://foundry.example.com/join/extra', false],
+      ['https://evil.example.net/join', false],
+      ['http://foundry.example.com/join', false],
+      ['https://foundry.example.com:8443/join', false],
+      ['https://gnuen.cloudflareaccess.com/cdn-cgi/access/login/foundry.example.com', false],
+      ['not a url', false],
+    ];
+    const body = cases
+      .map(([u]) => `(Test-FoundryJoinPage -PageUrl '${u}' -BaseUrl '${base}')`)
+      .join(', ');
+    const r = spawnSync(
+      'pwsh',
+      ['-NoProfile', '-Command', `. '${lib}'; (@(${body}) | ConvertTo-Json -Compress)`],
+      { encoding: 'utf8' }
+    );
+    assert.equal(r.status, 0, r.stderr);
+    assert.deepEqual(
+      JSON.parse(r.stdout),
+      cases.map(([, ok]) => ok)
+    );
+  });
+
+  test('the join script puts the user name in as a JSON string and clicks Join', () => {
+    const lib = path.join(here, 'table-viewer-lib.ps1').replace(/'/g, "''");
+    const r = spawnSync(
+      'pwsh',
+      ['-NoProfile', '-Command', `. '${lib}'; Get-JoinScript -UserName 'Ta"ble'`],
+      { encoding: 'utf8' }
+    );
+    assert.equal(r.status, 0, r.stderr);
+    assert.match(r.stdout, /u\.value = "Ta\\"ble"/);
+    assert.match(r.stdout, /#join-game-form button\[name=join\]/);
+  });
+
+  test(
     'setup mode: a normal window, no kiosk flag',
     { skip: !hasBrowser && 'no Edge or Chrome installed' },
     () => {

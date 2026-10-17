@@ -34,7 +34,7 @@ email address first: the code that proves "this is the TV" is sent there.
    ```
 
 2. A normal browser window opens. Type the TV's email address, then the code that arrives there.
-3. On Foundry's join page pick **Table** and click **Join Game**. The map appears.
+3. Foundry's join page follows and the script joins as **Table** for you. The map appears.
 4. Close the window.
 
 ## Every time after
@@ -45,17 +45,21 @@ Run the same line without `-Setup`:
 pwsh scripts\tv\start-table-viewer.ps1 -Url https://your-game-address
 ```
 
-The browser opens full screen on the map, already signed in. To make that happen when the TV's
-computer starts, put a shortcut to that line in the Windows Startup folder (press **Win + R**,
-type `shell:startup`).
+The browser opens full screen on the map. Foundry's own sign-in lasts only 24 hours, so on a
+new day the script sees Foundry's join page and joins as Table again by itself. It does this only
+on the join page of your game, never on another page. Leave the script's window open (it can be
+minimised); closing the TV's browser ends it. To make all of this happen when the TV's computer
+starts, put a shortcut to that line in the Windows Startup folder (press **Win + R**, type
+`shell:startup`).
+
+The email code from Cloudflare is only asked for again after the Access session ends (weeks).
+When the TV shows Cloudflare's sign-in page, do "sign the TV in" above once more.
 
 ## During the session
 
 - Show the players the scene you want on the TV with **Activate** on that scene. The TV follows
   the active scene.
 - To leave full screen, press **Alt + F4** on the TV's keyboard.
-- If the TV shows a sign-in page again, the saved sign-in ran out: do "sign the TV in" above once
-  more.
 
 ## What the TV can never show
 

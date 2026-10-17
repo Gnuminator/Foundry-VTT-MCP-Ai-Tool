@@ -75,7 +75,8 @@ one PR. Vault paths below are under `C:\Users\chris\Documents\Obsidian\vault\Dev
   - path: vault `Handoff/Reviews <YYYY-MM-DD>/<PR>-review.md`, round 2 `<PR>-review-round2.md`;
     Opus: `<PR>-opus-review.md`, `<PR>-opus-review-round2.md`, with the heading
     `# PR #<PR> Opus review: ...`;
-  - a line `Head reviewed: <full 40-character sha>`;
+  - a line `Head reviewed: <full 40-character sha>` above each `## Verdict` and none after the last
+    one (the gate refuses a note in any other order as malformed);
   - a `## Verdict` section whose first bold text is exactly `**Merge.**`, `**Merge after fixes.**`
     or `**Do not merge.**` (every note for the head must say Merge);
   - findings as H1, M1, L1 with file:line and a fix.

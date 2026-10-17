@@ -224,7 +224,7 @@ export function isTrainRelevant(files) {
 
 /**
  * @typedef {{ head: string | null, verdict: string | null, merge: boolean }} VerdictEntry
- * @typedef {{ name: string, entries: VerdictEntry[], shortHeads: string[], opus: boolean }} ReviewNote
+ * @typedef {{ name: string, entries: VerdictEntry[], shortHeads: string[], opus: boolean, malformed: string[] }} ReviewNote
  */
 
 /** The verdict text, without bold markers, a trailing full stop or case. @param {string} text */
@@ -242,6 +242,10 @@ const verdictKey = text =>
  * nothing. The verdict is the text after `Verdict` on the heading line (`## Verdict: Do not merge`),
  * else the first bold text of the section. `opus` is true only for a file named
  * `<N>-opus-review...` or a first `# ` heading that starts `PR #<N> Opus review`.
+ * The order is part of the format: each `## Verdict` needs a `Head reviewed:` line between it and the
+ * previous verdict (or the top of the note), and no `Head reviewed:` line may follow the last
+ * verdict. Otherwise a verdict would tie to an older round's sha, so the note is `malformed` (and
+ * the entry ties to nothing).
  * @param {string} name @param {string} text @param {number} prNumber
  * @returns {ReviewNote}
  */
@@ -253,10 +257,15 @@ export function parseReviewNote(name, text, prNumber) {
   const entries = [];
   /** @type {string[]} */
   const shortHeads = [];
+  /** @type {string[]} */
+  const malformed = [];
+  /** Line number (1-based) of the first Head reviewed line since the last verdict, else 0. */
+  let headSince = 0;
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     const h = /Head reviewed:\s*`?([0-9a-f]+)(?![0-9a-z])/i.exec(line);
     if (h) {
+      headSince ||= i + 1;
       if (h[1].length === 40) head = h[1].toLowerCase();
       else {
         head = null;
@@ -266,6 +275,13 @@ export function parseReviewNote(name, text, prNumber) {
     }
     const v = /^##\s+Verdict\b(.*)$/i.exec(line);
     if (!v) continue;
+    if (headSince === 0) {
+      malformed.push(
+        `the ## Verdict on line ${i + 1} has no "Head reviewed:" line above it since the previous verdict`
+      );
+      head = null;
+    }
+    headSince = 0;
     let verdict = v[1].replace(/^[\s:\-\u2013]+/, '').trim() || null;
     if (verdict === null) {
       const section = [];
@@ -278,11 +294,15 @@ export function parseReviewNote(name, text, prNumber) {
     }
     entries.push({ head, verdict, merge: verdict !== null && verdictKey(verdict) === 'merge' });
   }
+  if (entries.length > 0 && headSince > 0) {
+    malformed.push(`the "Head reviewed:" on line ${headSince} comes after the last ## Verdict`);
+  }
   const heading = lines.find(l => /^#\s+/.test(l)) ?? '';
   return {
     name,
     entries,
     shortHeads,
+    malformed,
     opus:
       new RegExp(`^${prNumber}-opus-review`, 'i').test(name) ||
       new RegExp(`^#\\s+PR\\s+#${prNumber}\\s+Opus review`, 'i').test(heading),
@@ -323,6 +343,14 @@ export function findReviewNotes(vault, prNumber) {
 export function judgeReviews(notes, headSha, needOpus) {
   const head = headSha.toLowerCase();
   const short = head.slice(0, 7);
+  const bad = notes.filter(n => n.malformed.length > 0);
+  if (bad.length > 0) {
+    const said = bad.map(n => `${n.name} is malformed: ${n.malformed.join('; ')}`);
+    return {
+      ok: false,
+      detail: `${said.join('; ')} (put "Head reviewed:" before each "## Verdict", nothing after the last)`,
+    };
+  }
   const forHead = notes.flatMap(note =>
     note.entries.filter(e => e.head === head).map(entry => ({ note, entry }))
   );

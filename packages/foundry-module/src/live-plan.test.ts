@@ -328,7 +328,7 @@ describe('target resolution', () => {
   });
 
   describe('a duplicated scene shares token ids', () => {
-    function twoCopies(sameActor: boolean): void {
+    function twoCopies(sameActor: boolean, fightActor = true): void {
       const make = (uuid: string): ReturnType<typeof addActor> => {
         const a = addActor({ id: 'a', name: 'Wolf', hp: { value: 11, max: 11 }, uuid });
         world.actors.delete('a');
@@ -350,7 +350,7 @@ describe('target resolution', () => {
             name: 'Wolf',
             tokenId: 't',
             token: { id: 't', name: 'Wolf 1', parent: { name: 'Arena' } },
-            actor: fought,
+            actor: fightActor ? fought : null,
           },
         ],
       });
@@ -358,9 +358,46 @@ describe('target resolution', () => {
 
     it('refuses an id that is a different token on the fight scene, naming both scenes', async () => {
       twoCopies(false);
+      const pick = planLiveChange(hpRequest({ action: 'damage', amount: 4, targets: ['t'] }));
+      await expect(pick).rejects.toThrow('scene "Arena (copy)" and scene "Arena"');
+      await expect(pick).rejects.toThrow('view scene "Arena"');
+    });
+
+    it('refuses the id when the fight token has no actor to compare', async () => {
+      twoCopies(false, false);
       await expect(
         planLiveChange(hpRequest({ action: 'damage', amount: 4, targets: ['t'] }))
-      ).rejects.toThrow('scene "Arena (copy)" and scene "Arena"');
+      ).rejects.toThrow('Two tokens have the id "t"');
+    });
+
+    it('accepts the id while viewing the fight scene itself', async () => {
+      const actor = addActor({
+        id: 'a',
+        name: 'Wolf',
+        hp: { value: 11, max: 11 },
+        uuid: 'Scene.A.Token.t.Actor.a',
+      });
+      world.actors.delete('a');
+      world.addScene({
+        id: 'A',
+        name: 'Arena',
+        active: true,
+        tokens: [makeToken({ id: 't', name: 'Wolf 1', actor })],
+      });
+      world.setCombat({
+        turns: [],
+        combatants: [
+          {
+            id: 'cb1',
+            name: 'Wolf',
+            tokenId: 't',
+            token: { id: 't', name: 'Wolf 1', parent: { name: 'Arena' } },
+            actor,
+          },
+        ],
+      });
+      const plan = await planLiveChange(hpRequest({ action: 'damage', amount: 4, targets: ['t'] }));
+      expect(plan.targets[0]?.actorUuid).toBe('Scene.A.Token.t.Actor.a');
     });
 
     it('still resolves the viewed token by name', async () => {

@@ -122,20 +122,21 @@ function fightCombatants(): Rec[] {
 /**
  * Foundry keeps embedded ids when a scene is duplicated, so the id the combat strip sends can
  * also exist on the viewed scene's copy. Refuse when the fight holds a token with this id whose
- * actor is a different one (an unlinked copy), instead of damaging the copy's token.
+ * actor is a different one (an unlinked copy) or none, instead of damaging the copy's token.
  */
 function assertNotShadowing(id: string, viewedScene: string | null, viewed: LiveActor): void {
   const clash = fightCombatants().find(
     c =>
       (str(c.tokenId) ?? str(rec(c.token)?.id)) === id &&
       rec(c.token) !== null &&
-      (asActor(c.actor)?.uuid ?? viewed.uuid) !== viewed.uuid
+      asActor(c.actor)?.uuid !== viewed.uuid
   );
   if (!clash) return;
   const other = str(rec(rec(clash.token)?.parent)?.name) ?? 'another scene';
   throw new Error(
     `Two tokens have the id "${id}" (scene "${viewedScene ?? 'the viewed scene'}" and scene ` +
-      `"${other}"); pick the target by name on the scene instead`
+      `"${other}"). To hit the one in the fight, view scene "${other}" and pick it again; to hit ` +
+      `the one on the viewed scene, name it instead`
   );
 }
 
@@ -144,7 +145,8 @@ function assertNotShadowing(id: string, viewedScene: string | null, viewed: Live
  * unlinked token uses its own synthetic actor), else a combatant of the running fight by its
  * token id (the combat strip sends ids, and its fight may be on another scene; a name is not
  * matched there, since two scenes can hold the same name), else a world actor by id, exact name
- * or a unique partial name. Unknown names fail the whole plan.
+ * or a unique partial name. Unknown names fail the whole plan. A token id that is also a
+ * different token in the fight (a duplicated scene) is refused, see `assertNotShadowing`.
  */
 function resolveTargets(identifiers: string[]): Target[] {
   if (identifiers.length === 0) throw new Error('Name at least one target (a token or an actor)');

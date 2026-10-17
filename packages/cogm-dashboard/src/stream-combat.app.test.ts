@@ -90,7 +90,8 @@ async function start(): Promise<Harness> {
 /**
  * The last event each stream writes on connect (app.ts writes the whole snapshot in one handler).
  * Once it is in the text, everything the stream says on connect has arrived, so a test needs no
- * fixed wait that a loaded CPU can outrun.
+ * fixed wait that a loaded CPU can outrun. app.ts must keep these events last (it says so there);
+ * dashboard-prefs.app.test.ts holds a copy of this table.
  */
 const SNAPSHOT_END: Record<string, string> = {
   '/api/stream': 'event: errors',

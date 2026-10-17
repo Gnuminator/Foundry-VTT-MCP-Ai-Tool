@@ -382,12 +382,45 @@ export function portableNode22Dir(o = {}) {
   return newest ? path.join(root, newest) : null;
 }
 
-/** PATH for the steps: the portable Node 22 first when `portableNode22Dir` finds one. */
 const NODE22_DIR = portableNode22Dir();
-const PATH_KEY = Object.keys(process.env).find(k => k.toLowerCase() === 'path') ?? 'PATH';
-const STEP_PATH = NODE22_DIR
-  ? `${NODE22_DIR}${path.delimiter}${process.env[PATH_KEY] ?? ''}`
-  : null;
+
+/**
+ * The environment for the steps: `base`, with the portable Node 22 first on PATH when `node22Dir` is set.
+ * Every PATH key is dropped and one is set (a parent that is an MSYS or Cygwin process can hand over both
+ * `PATH` and `Path`, and Windows would then pick one of them, which could be the one without the pin).
+ * @param {Record<string, string | undefined>} base @param {string | null} node22Dir
+ * @param {string} [delimiter]
+ */
+export function stepEnvironment(base, node22Dir, delimiter = path.delimiter) {
+  const env = { ...base };
+  if (!node22Dir) return env;
+  const keys = Object.keys(env).filter(k => k.toLowerCase() === 'path');
+  const key = keys[0] ?? 'PATH';
+  const old = env[key] ?? '';
+  for (const k of keys) delete env[k];
+  env[key] = `${node22Dir}${delimiter}${old}`;
+  return env;
+}
+
+/**
+ * The one line that says which Node the steps run on (Windows only, where the pin matters), or null.
+ * Without it a missing portable Node 22 silently brings the native crashes back looking like flakes.
+ * @param {{ platform?: string, major?: number, version?: string, dir?: string | null }} [o]
+ * @returns {string | null}
+ */
+export function nodeNote(o = {}) {
+  const {
+    platform = process.platform,
+    major = Number(process.versions.node.split('.')[0]),
+    version = process.versions.node,
+    dir = NODE22_DIR,
+  } = o;
+  if (platform !== 'win32') return null;
+  if (dir) return `green: steps on Node 22 (${dir})`;
+  return major === 22
+    ? `green: steps on Node ${version}`
+    : `green: no portable Node 22 found; steps run on Node ${version}`;
+}
 
 /**
  * The default step runner: stdout and stderr of the step go straight to the log file.
@@ -401,8 +434,7 @@ function spawnStep(step, fd, cwd) {
     shell: true,
     stdio: ['ignore', fd, fd],
     env: {
-      ...process.env,
-      ...(STEP_PATH ? { [PATH_KEY]: STEP_PATH } : {}),
+      ...stepEnvironment(process.env, NODE22_DIR),
       FORCE_COLOR: '0',
       NO_COLOR: '1',
       ...step.env,
@@ -415,7 +447,7 @@ function spawnStep(step, fd, cwd) {
  * @param {{
  *   argv?: string[], steps?: Step[], cwd?: string, tmpdir?: string, now?: () => number,
  *   isTTY?: boolean, log?: (line: string) => void, write?: (text: string) => void,
- *   runStep?: (step: Step, fd: number, cwd: string) => number,
+ *   runStep?: (step: Step, fd: number, cwd: string) => number, note?: string | null,
  * }} [options]
  * @returns {number} the process exit code
  */
@@ -430,6 +462,7 @@ export function main(options = {}) {
     log = console.log,
     write = text => process.stdout.write(text),
     runStep = spawnStep,
+    note = nodeNote(),
   } = options;
 
   const opts = parseArgs(argv);
@@ -451,6 +484,7 @@ export function main(options = {}) {
     return 2;
   }
 
+  if (note) log(note);
   const logDir = path.join(tmpdir, `green-${stamp(new Date(now()))}`);
   fs.mkdirSync(logDir, { recursive: true });
   const started = now();

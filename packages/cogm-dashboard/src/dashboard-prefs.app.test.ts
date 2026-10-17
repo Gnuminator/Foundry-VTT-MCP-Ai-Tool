@@ -122,7 +122,8 @@ async function setPrefs(
 /**
  * The last event each stream writes on connect (app.ts writes the whole snapshot in one handler).
  * Once it is in the text, everything the stream says on connect has arrived, so a test needs no
- * fixed wait that a loaded CPU can outrun.
+ * fixed wait that a loaded CPU can outrun. app.ts must keep these events last (it says so there);
+ * stream-combat.app.test.ts holds a copy of this table.
  */
 const SNAPSHOT_END: Record<string, string> = {
   '/api/stream': 'event: errors',
@@ -183,12 +184,14 @@ describe('set-prefs on /api/control', () => {
     const answer = await setPrefs(h, GM_TOKEN, { duringLayout: 'toggle', combatButtons: true });
     expect(answer.status).toBe(200);
     expect(answer.json).toMatchObject({ duringLayout: 'toggle', combatButtons: true });
-    // The prefs event goes out with the answer; the GM stream is the one that must show it, and the
-    // player stream is written by the same broadcast, so it has had its turn by then.
+    // The prefs event goes out with the answer. Waiting for the toggled value on the GM stream is the
+    // assertion that counts (the connect snapshot already holds a `prefs` event, so that line alone
+    // proves nothing). The player stream is another hub: a leak would be a write in the same handler,
+    // which arrives over loopback by the time the GM stream shows the value, so the checks below look
+    // right after that wait rather than after a sleep.
     await vi.waitFor(() => expect(gm.text()).toContain('"duringLayout":"toggle"'), {
       timeout: 5000,
     });
-    expect(gm.text()).toContain('event: prefs');
     expect(player.text()).not.toContain('event: prefs');
     expect(player.text()).not.toContain('duringLayout');
   });

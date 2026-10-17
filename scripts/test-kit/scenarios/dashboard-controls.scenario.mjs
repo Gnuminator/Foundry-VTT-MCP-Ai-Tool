@@ -45,7 +45,7 @@ export default {
   tags: ['dashboard', 'player'],
   needs: [],
   tools: [],
-  gmActions: ['startCombat', 'endCombats'],
+  gmActions: ['startCombat', 'endCombats', 'spendLegendary', 'restoreLegendary'],
   timeoutMs: 600000,
 
   async run(t) {
@@ -183,6 +183,93 @@ export default {
           });
         return `${boss.name} (legendary) and ${hero.name} in combat; Combat buttons ${buttonsWereOn ? 'were on' : 'turned on (put back at the end)'}`;
       });
+
+      if (!combatNote) {
+        await t.step('a legendary action spent in Foundry moves the boss pips', async () => {
+          const boss = t.kit?.monsters?.find(m => m.cell === 'legendary' && m.tokenId);
+          const sceneId = t.kit?.scene?.sceneId;
+          if (!boss || !sceneId) throw new Error('the boss combat step ran without a boss');
+          const token = { sceneId, tokenId: boss.tokenId };
+          const readPips = () =>
+            page.evaluate(() => {
+              const text = document.querySelector('.boss-line')?.textContent ?? '';
+              const m = /Legendary\s+[◆◇]*\s*(\d+)\/(\d+)/.exec(text);
+              return m ? { remaining: Number(m[1]), max: Number(m[2]) } : null;
+            });
+          const pipsAre = (/** @type {number} */ remaining) =>
+            page.waitForFunction(
+              want => {
+                const text = document.querySelector('.boss-line')?.textContent ?? '';
+                const m = /Legendary\s+[◆◇]*\s*(\d+)\/\d+/.exec(text);
+                return m !== null && Number(m[1]) === want;
+              },
+              remaining,
+              { timeout: 20000 }
+            );
+          // Boss prompts is a per-browser switch; the control sweep expects it as it found it.
+          const switchText = () =>
+            page.evaluate(() => document.querySelector('#boss-toggle')?.textContent ?? '');
+          const wasOn = /:\s*on/i.test(await switchText());
+          // The page may not show the During view yet (the sweep switches to it itself), so the
+          // switch is pressed by script, not by a click that waits for it to be visible.
+          const pressSwitch = () =>
+            page.evaluate(() =>
+              /** @type {HTMLElement | null} */ (document.querySelector('#boss-toggle'))?.click()
+            );
+          if (!wasOn) await pressSwitch();
+          /** @type {any} */
+          let spent = null;
+          // Cleared only once the pool is back, so a failed restore is tried again in the finally.
+          const putBack = async () => {
+            if (!spent) return null;
+            const restored = await t.gm('restoreLegendary', {
+              ...token,
+              spent: spent.before.spent,
+              messageId: spent.messageId,
+            });
+            spent = null;
+            return restored;
+          };
+          try {
+            const shown = await waitFor(readPips, {
+              label: 'the boss line with its legendary pips',
+            });
+            // A failed spend puts the pool back itself (the action knows what it started from).
+            spent = await t.gm('spendLegendary', token);
+            const { before, after } = spent;
+            t.check(
+              after.spent > before.spent,
+              `${spent.name}: ${spent.item} spent ${after.spent - before.spent} legendary action(s) in Foundry`,
+              spent
+            );
+            t.check(
+              shown.remaining === before.max - before.spent,
+              'the pips matched the pool before the spend',
+              { shown, before }
+            );
+            const began = Date.now();
+            try {
+              await pipsAre(after.max - after.spent);
+            } catch {
+              throw new Error(
+                `the dashboard still shows ${JSON.stringify(await readPips())} 20 s after a legendary action was spent in Foundry (${after.max - after.spent} left)`
+              );
+            }
+            const seconds = Math.round((Date.now() - began) / 100) / 10;
+            const name = spent.name;
+            const restored = await putBack();
+            t.check(restored?.spent === before.spent, 'the legendary pool was put back', restored);
+            await pipsAre(before.max - before.spent);
+            return `${name} spent a legendary action in Foundry: the pips went ${shown.remaining}/${shown.max} to ${after.max - after.spent}/${after.max} within ${seconds} s, and back once it was put back`;
+          } finally {
+            try {
+              await putBack();
+            } finally {
+              if (!wasOn && /:\s*on/i.test(await switchText())) await pressSwitch();
+            }
+          }
+        });
+      }
 
       await sweepGroups({
         t,

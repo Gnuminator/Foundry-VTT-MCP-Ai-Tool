@@ -607,6 +607,8 @@ async function startBackend(): Promise<void> {
 
     const onControlData = async (chunk: string): Promise<void> => {
       for (const msg of reader.read(chunk)) {
+        // A later chunk was refused (HTTP, junk) while this one was still being dispatched.
+        if (socket.destroyed) break;
         try {
           if (msg.method === 'ping') {
             socket.write(`${JSON.stringify({ id: msg.id, result: { ok: true } })}\n`);

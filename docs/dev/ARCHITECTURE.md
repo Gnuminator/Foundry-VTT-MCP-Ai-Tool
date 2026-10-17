@@ -170,7 +170,8 @@ generates.
 
 The channel has no login, so a client must start with a JSON object on its first line.
 `control-reader.ts` closes the socket without a reply when the first non-empty line is not a JSON
-object, or when any line that is not JSON looks like HTTP (`POST / HTTP/1.1`, `Host:` headers). A web
+object (an HTTP `Host:` header line is not one), or when a later line that is not JSON looks like an
+HTTP request line (`POST / HTTP/1.1`), or when a line grows past 8 MiB without a newline. A web
 page can POST to `127.0.0.1:31414` without a preflight, and without this the JSON body line would
 run as a `call_tool`.
 

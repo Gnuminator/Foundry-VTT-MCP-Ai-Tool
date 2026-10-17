@@ -6,11 +6,15 @@
  * request, no preflight): the request line and headers fail to parse, but a body line holding a
  * `call_tool` request would run. Every real client (stdio wrapper, dashboard, tunnel ping, test
  * kit) starts with a JSON object on its first line, so the reader closes the socket when the first
- * non-empty line is not a JSON object, or when any line looks like an HTTP request. Redis does the
- * same for `POST` and `Host:` (review of PR #344, M1).
+ * non-empty line is not a JSON object, or when a line that is not JSON looks like an HTTP request
+ * line. Redis does the same for `POST` and `Host:` (review of PR #344, M1). A header line such as
+ * `Host:` is not JSON either, so it closes the socket when it is the first line.
  */
 import type { Socket } from 'net';
 import type { ControlRequest } from '@gnuminator/shared';
+
+/** Largest unterminated line kept in memory (characters). Tool results are not requests: 8 MiB is generous. */
+const MAX_LINE_LENGTH = 8 * 1024 * 1024;
 
 const HTTP_REQUEST_LINE = /^(GET|POST|PUT|HEAD|OPTIONS|DELETE|PATCH|CONNECT|TRACE) /i;
 const HTTP_VERSION = / HTTP\/\d/i;
@@ -51,6 +55,12 @@ export function createControlReader(socket: Socket, logger?: ControlReaderLogger
     read(chunk: string): ControlRequest[] {
       if (rejected) return [];
       buffer += chunk;
+
+      // No JSON-lines request is anywhere near this size; a longer unterminated line is not a client.
+      if (buffer.length > MAX_LINE_LENGTH && buffer.indexOf('\n') < 0) {
+        reject('line too long');
+        return [];
+      }
 
       const requests: ControlRequest[] = [];
       let idx: number;

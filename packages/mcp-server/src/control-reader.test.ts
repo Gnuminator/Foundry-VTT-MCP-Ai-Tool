@@ -193,6 +193,17 @@ describe('control channel reader', () => {
     expect(written).toHaveLength(1);
     expect(JSON.parse(written[0]).error.message).toBeTruthy();
   });
+
+  it('closes a line that grows past the cap without a newline', () => {
+    let destroyed = false;
+    const socket = { destroy: () => (destroyed = true), write() {} } as unknown as net.Socket;
+    const reader = createControlReader(socket);
+    const piece = 'x'.repeat(1024 * 1024);
+    for (let i = 0; i < 8; i++) expect(reader.read(piece)).toEqual([]);
+    expect(destroyed).toBe(false);
+    expect(reader.read(piece)).toEqual([]);
+    expect(destroyed).toBe(true);
+  });
 });
 
 describe('looksLikeHttp', () => {

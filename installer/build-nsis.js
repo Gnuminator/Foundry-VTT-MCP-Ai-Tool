@@ -22,7 +22,7 @@
 const fs = require('fs');
 const crypto = require('crypto');
 const path = require('path');
-const { execSync } = require('child_process');
+const { execSync, execFileSync } = require('child_process');
 
 // Parse command line arguments
 const args = process.argv.slice(2);
@@ -279,8 +279,10 @@ function buildInstaller() {
     const originalCwd = process.cwd();
     process.chdir(config.outputDir);
     try {
-      execSync(
-        `makensis /V2 /DVERSION=${version} /DOUTFILE="${outputPath}" "foundry-mcp-server.nsi"`,
+      // An argument list, no shell: the tag never reaches a command line as text.
+      execFileSync(
+        'makensis',
+        ['/V2', `/DVERSION=${version}`, `/DOUTFILE=${outputPath}`, 'foundry-mcp-server.nsi'],
         { stdio: 'inherit' }
       );
     } finally {

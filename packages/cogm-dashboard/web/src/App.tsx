@@ -22,6 +22,7 @@ import { CombatStrip, type StripToolRequest } from './components/CombatStrip';
 import { FoldScope } from './components/Folds';
 import { GmActionsSwitch } from './components/GmActionsSwitch';
 import { SessionMarker } from './components/SessionMarker';
+import { ThemePicker } from './components/ThemePicker';
 import { StreamState } from './components/StreamState';
 import { HelpProvider } from './components/Help';
 import { useHelp } from './components/HelpButton';
@@ -48,7 +49,7 @@ import type { ToolRequest } from './panels/Tools';
 import { api } from './lib/api';
 import { GmActionsGateContext } from './lib/guarded';
 import { showsSampleFight } from './lib/duringTrial';
-import { useDashboardStream } from './lib/stream';
+import { THEME_KEY, useDashboardStream, type WorldTheme } from './lib/stream';
 import { applyTheme } from './lib/theme';
 import { Button } from './ui';
 
@@ -96,8 +97,8 @@ const FLOATING_CHUNKS = [tarokkaChunk, toolsChunk, linksChunk, diagChunk];
 /** The world's theme (/api/theme); until it answers, the cached one from main.tsx shows. */
 function useWorldTheme(): void {
   const theme = useQuery({
-    queryKey: ['theme'],
-    queryFn: () => api<{ theme: string }>('/api/theme'),
+    queryKey: THEME_KEY,
+    queryFn: () => api<WorldTheme>('/api/theme'),
     retry: false,
   });
   useEffect(() => {
@@ -252,6 +253,7 @@ function Dashboard(): JSX.Element {
         <div className="controls">
           <SessionMarker />
           <GmActionsSwitch />
+          <ThemePicker />
           <StreamState />
           <PreflightButton
             open={shown('preflight')}

@@ -40,7 +40,11 @@ one PR. Vault paths below are under `C:\Users\chris\Documents\Obsidian\vault\Dev
 - **Set `model` on every Agent call, Workflow `agent()` call and `start_session`** (successors and
   `own_initiative` cards too). An unset model inherits the caller's: an Opus session starts Opus
   workers and lanes (measured 2026-10-16: 110 unset subagents all ran Opus). A Sonnet lane's unset
-  child stays Sonnet, but set it anyway.
+  child stays Sonnet, but set it anyway. The hook `.claude/hooks/guard-model.mjs` denies an Agent
+  or `start_session` call with no `model` (forks, cloud starts and the title-only offer are exempt).
+  Agent takes the aliases `sonnet`, `haiku`, `opus` (also for an agent type whose definition sets a
+  model: the call's `model` wins); `start_session` takes a model id (`claude-sonnet-5-5`,
+  `claude-haiku-5-5`), and the hook denies an alias there.
 - **Test server:** load `foundry-test-env`; take the lock (`scripts/test-env/lock.ps1 take`) before
   any live check and release it after. Verify a feature live before calling it done. Standalone
   bridge on test ports: `node packages/mcp-server/dist/standalone.js --port 31514 --control-only`;

@@ -180,6 +180,17 @@ export async function showScreen(page: Page, screen: Screen, theme: Theme): Prom
   };
   await fakeDashboard(page, setup);
   await page.goto(`/next/?token=${GM_TOKEN}`);
+  // The selected moment tab has a blurred glow (box-shadow) whose rounded-corner pixels came out a
+  // few colour units different on about one run in ten between identical runs (5 of 60 on the
+  // advanced-menu shot; the cause of CI runs 39055187989, 39050484155 and three more). It is not
+  // focus and not a transition, so nothing to wait for: the shots are taken without the glow.
+  // (A constructed stylesheet, not a <style> tag: the page's Content-Security-Policy refuses an
+  // inline tag when the server answers with its error page under load.)
+  await page.evaluate(() => {
+    const sheet = new CSSStyleSheet();
+    sheet.replaceSync('.moment-tab { box-shadow: none !important; }');
+    document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
+  });
   await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
   await expect(page.locator('html')).toHaveAttribute('data-mist', 'calm');
   // The header's session label starts as "Session: …" and changes width when the session arrives,

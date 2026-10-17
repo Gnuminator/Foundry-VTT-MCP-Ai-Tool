@@ -261,20 +261,39 @@ export function parseReviewNote(name, text, prNumber) {
   const malformed = [];
   /** Line number (1-based) of the first Head reviewed line since the last verdict, else 0. */
   let headSince = 0;
+  /** The full shas named since the last verdict. @type {Set<string>} */
+  let headsSince = new Set();
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
-    const h = /Head reviewed:\s*`?([0-9a-f]+)(?![0-9a-z])/i.exec(line);
-    if (h) {
+    const v = /^##\s+Verdict\b(.*)$/i.exec(line);
+    // A Head reviewed line starts the line (a bullet or bold marker may come first); a mention in
+    // prose does not move the tie.
+    const h = /^\s*(?:[-*]\s+)?(?:\*\*)?Head reviewed:(?:\*\*)?\s*`?([0-9a-f]+)(?![0-9a-z])/i.exec(
+      line
+    );
+    if (h && !v) {
       headSince ||= i + 1;
-      if (h[1].length === 40) head = h[1].toLowerCase();
-      else {
+      if (h[1].length === 40) {
+        head = h[1].toLowerCase();
+        headsSince.add(head);
+      } else {
         head = null;
         shortHeads.push(h[1].toLowerCase());
       }
       continue;
     }
-    const v = /^##\s+Verdict\b(.*)$/i.exec(line);
     if (!v) continue;
+    if (/Head reviewed:/i.test(line)) {
+      malformed.push(
+        `the ## Verdict on line ${i + 1} also carries "Head reviewed:"; put it on its own line above`
+      );
+    }
+    if (headsSince.size > 1) {
+      malformed.push(
+        `more than one full sha is named by "Head reviewed:" above the ## Verdict on line ${i + 1}`
+      );
+    }
+    headsSince = new Set();
     if (headSince === 0) {
       malformed.push(
         `the ## Verdict on line ${i + 1} has no "Head reviewed:" line above it since the previous verdict`
@@ -294,8 +313,15 @@ export function parseReviewNote(name, text, prNumber) {
     }
     entries.push({ head, verdict, merge: verdict !== null && verdictKey(verdict) === 'merge' });
   }
-  if (entries.length > 0 && headSince > 0) {
-    malformed.push(`the "Head reviewed:" on line ${headSince} comes after the last ## Verdict`);
+  if (headSince > 0) {
+    malformed.push(
+      entries.length > 0
+        ? `the "Head reviewed:" on line ${headSince} comes after the last ## Verdict`
+        : `the "Head reviewed:" on line ${headSince} has no ## Verdict (a ### heading does not count)`
+    );
+  }
+  if (headsSince.size > 1) {
+    malformed.push('more than one full sha is named by "Head reviewed:" after the last verdict');
   }
   const heading = lines.find(l => /^#\s+/.test(l)) ?? '';
   return {
@@ -349,6 +375,18 @@ export function judgeReviews(notes, headSha, needOpus) {
     return {
       ok: false,
       detail: `${said.join('; ')} (put "Head reviewed:" before each "## Verdict", nothing after the last)`,
+    };
+  }
+  // A verdict under a short sha ties to nothing, so it could hide a Do not merge for this head.
+  const shortHit = notes.flatMap(n =>
+    n.shortHeads
+      .filter(s => head.startsWith(s))
+      .map(s => `${n.name} reviewed ${s} (Head reviewed needs the full 40-character sha)`)
+  );
+  if (shortHit.length > 0) {
+    return {
+      ok: false,
+      detail: `${shortHit.join('; ')}; it could hide a verdict for head ${short}`,
     };
   }
   const forHead = notes.flatMap(note =>

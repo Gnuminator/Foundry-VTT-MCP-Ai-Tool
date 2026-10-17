@@ -33,7 +33,7 @@
 # Use a full node image for the build stage (needs npm workspace resolution and
 # TypeScript compilation). The result is copied to the lean runtime stage.
 
-FROM node:22-slim AS build
+FROM node:22.23.3-slim@sha256:c3de60bf2f9dd0ac6370e6117950ff62d6e339527e7472301c9c78a017978392 AS build
 
 WORKDIR /app
 
@@ -65,7 +65,7 @@ RUN npm run build
 #
 # Lean runtime image — no devDependencies, no TypeScript compiler.
 
-FROM node:22-slim AS runtime
+FROM node:22.23.3-slim@sha256:c3de60bf2f9dd0ac6370e6117950ff62d6e339527e7472301c9c78a017978392 AS runtime
 
 # Run as a non-root user for basic container hygiene.
 RUN groupadd --gid 1001 nodeapp && \
@@ -102,7 +102,7 @@ USER nodeapp
 #         NOT exposed via EXPOSE; it is internal to the container network.
 #
 # 31415 — Foundry WebSocket connector. The Foundry module dials this.
-#         Expose it if the Foundry host needs to reach the bridge directly.
+#         Unauthenticated: publish it on the host's loopback or tailnet IP only.
 #         (Alternatively, run bridge and dashboard as separate services; see compose template.)
 #
 EXPOSE 3000
@@ -117,7 +117,12 @@ EXPOSE 31415
 #    Inject them at runtime. Baking them into the image is a security risk.
 
 # DASHBOARD_HOST / FOUNDRY_LINK_HOST are 0.0.0.0 because a container must listen
-# on its own interface for port mapping and the tunnel sidecar. The dashboard
+# on its own interface for port mapping and the tunnel sidecar (tested: with
+# FOUNDRY_LINK_HOST=127.0.0.1 inside the container, a published port gets no answer).
+# The Foundry link (31415) has no login, so it is only safe because the compose
+# template publishes it on the host's 127.0.0.1 only. To expose it on purpose, change
+# the host side of the mapping (tailnet IP or SSH tunnel), never to a bare "31415:31415".
+# With plain `docker run`, use -p 127.0.0.1:31415:31415. The dashboard
 # refuses that bind unless GM_DASHBOARD_TOKEN is set at runtime.
 ENV NODE_ENV=production \
     PORT=3000 \

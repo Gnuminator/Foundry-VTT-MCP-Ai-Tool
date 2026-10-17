@@ -40,6 +40,17 @@ function Header(): JSX.Element {
 
 const render = (): JSX.Element => <Header />;
 
+/**
+ * The picker is disabled while a save is on its way and loses the focus then: wait until it is
+ * back and drop the focus, so the shot is the same whichever way that race went.
+ */
+async function settle(picker: HTMLElement): Promise<void> {
+  await waitFor(() => expect(picker).toBeEnabled());
+  picker.blur();
+  await waitFor(() => expect(document.activeElement).toBe(document.body));
+  await expect(picker.matches(':focus, :focus-visible, :hover')).toBe(false);
+}
+
 /** The world uses the neutral look. */
 export const Neutral: Story = {
   parameters: { dashboard: { api: { routes: { '/api/theme': reply({ theme: 'neutral' }) } } } },
@@ -79,6 +90,7 @@ export const PicksTheVeil: Story = {
     const picker = await within(canvasElement).findByRole('combobox', { name: /Theme/ });
     await userEvent.selectOptions(picker, 'veil');
     await waitFor(() => expect(picker).toHaveValue('veil'));
+    await settle(picker);
   },
 };
 
@@ -104,6 +116,7 @@ export const SaveFails: Story = {
       ).not.toHaveLength(0)
     );
     await waitFor(() => expect(picker).toHaveValue('neutral'));
+    await settle(picker);
   },
 };
 

@@ -51,6 +51,7 @@ export function ThemePicker(): JSX.Element {
         className="select"
         data-track="dash.header.theme"
         value={shown}
+        disabled={choice !== null}
         onChange={e => pick(e.target.value)}
       >
         {THEMES.map(t => (

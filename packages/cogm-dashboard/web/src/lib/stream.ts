@@ -193,9 +193,10 @@ const HANDLERS: Record<string, (queryClient: QueryClient, data: unknown) => void
   theme: (queryClient, data) => {
     const theme = (data as { theme?: unknown } | null)?.theme;
     if (typeof theme !== 'string') return;
-    // A load of /api/theme still on its way is older than this event: it must not overwrite it.
-    void queryClient.cancelQueries({ queryKey: THEME_KEY }, { revert: false });
     queryClient.setQueryData<WorldTheme>(THEME_KEY, { theme });
+    // A load of /api/theme still on its way is older than this event: it must not overwrite it.
+    // Cancelled after the set, so the revert goes back to the event's theme, not to the old state.
+    void queryClient.cancelQueries({ queryKey: THEME_KEY });
   },
   // The GM's screen choices for this world (lib/prefs.ts).
   prefs: onPrefs,

@@ -32,6 +32,7 @@ export * from './ownership.js';
 export * from './character-sheet.js';
 export * from './scene-change.js';
 export * from './scene-restore.js';
+export * from './table-viewer.js';
 export * from './space-status.js';
 export * from './change-journal.js';
 export * from './character-entity.js';

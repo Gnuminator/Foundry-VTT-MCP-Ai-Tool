@@ -27,8 +27,27 @@ const IGNORED: Record<SceneRestorePart, ReadonlySet<string>> = {
   walls: new Set(['_id', '_stats']),
   lights: new Set(['_id', '_stats']),
   tiles: new Set(['_id', '_stats']),
-  tokens: new Set(['_id', '_stats', 'delta']),
+  tokens: new Set(['_id', '_stats', 'delta', '_movementHistory', '_regions']),
 };
+
+/** A document's data for a `create`: the backup copy without the fields never restored. */
+function createData(part: SceneRestorePart, doc: Doc): Doc {
+  const data: Doc = {};
+  for (const [key, value] of Object.entries(doc)) {
+    if (key === '_id' || !IGNORED[part].has(key)) data[key] = value;
+  }
+  return data;
+}
+
+/** The value at a dot path of a document, or undefined. */
+function valueAt(doc: Doc, path: string): unknown {
+  let node: unknown = doc;
+  for (const key of path.split('.')) {
+    if (!isPlainObject(node)) return undefined;
+    node = node[key];
+  }
+  return node;
+}
 
 /** Fields whose change counts as a move. */
 const POSITION = new Set(['x', 'y', 'c', 'elevation', 'rotation']);
@@ -91,7 +110,24 @@ function differingPaths(part: SceneRestorePart, live: Doc, backup: Doc): Map<str
   const changes = new Map<string, unknown>();
   for (const [path, value] of flatten(backup)) {
     if (path === '' || IGNORED[part].has(path.split('.')[0] ?? '')) continue;
+    // An empty object says nothing a field-by-field update could set (and would never settle).
+    if (isPlainObject(value) && Object.keys(value).length === 0) continue;
     if (!liveLeaves.has(path) || !same(liveLeaves.get(path), value)) changes.set(path, value);
+  }
+  // Where the live value at a parent field is not an object (null), set the whole subtree so an
+  // undo puts the original back exactly, not an empty object.
+  for (const path of [...changes.keys()]) {
+    const keys = path.split('.');
+    for (let i = 1; i < keys.length; i++) {
+      const parent = keys.slice(0, i).join('.');
+      if (liveLeaves.has(parent) && !isPlainObject(liveLeaves.get(parent))) {
+        for (const other of [...changes.keys()]) {
+          if (other === parent || other.startsWith(`${parent}.`)) changes.delete(other);
+        }
+        changes.set(parent, valueAt(backup, parent));
+        break;
+      }
+    }
   }
   return changes;
 }
@@ -122,13 +158,11 @@ function diffPart(
     const now = liveById.get(id);
     if (!now) {
       counts.added += 1;
-      const data = { ...doc };
-      delete data._stats;
       ops.push({
         kind: 'create',
         documentName: name,
         parentUuid: `Scene.${sceneId}`,
-        data,
+        data: createData(part, doc),
         keepId: true,
       });
       if (part === 'tokens') tokenNames.added.push(text(doc.name, id));

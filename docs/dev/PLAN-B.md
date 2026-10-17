@@ -233,6 +233,11 @@ last backup had them. Foundry's Undo covers AI changes only; this is the step fo
   (`FOUNDRY_AI_FOUNDRY_APP_DIR`, else `C:\FoundryPlanB\app`, `C:\FoundryTest\app`), compares by
   document id and plans create (old id kept), delete or update ops. Nothing in the backup or on
   the Pi is changed.
+- **Size and the Plan B folder:** one plan holds at most 200 changes; a bigger restore (a whole
+  castle map) is refused with the counts, and is done one part at a time with `parts`. A folder
+  Foundry has open, or that changed in the last 5 minutes, is refused: on a Plan B night the
+  default folder is the running world, so restore a snapshot into its own folder
+  (`restore.ps1 -Root <other>`) and give that world folder as `backupPath`.
 - **Limits:** an update only sets fields the backup holds and never unsets one; a token's own
   hit points, effects and items (its `delta`) are not restored, and a token put back comes with
   its world actor's current stats; other embedded documents (drawings, notes, regions, sounds)

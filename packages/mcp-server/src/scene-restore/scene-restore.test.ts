@@ -1,4 +1,4 @@
-import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, rm, utimes, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -95,6 +95,34 @@ describe('diff', () => {
     ]);
   });
 
+  it('leaves out a token delta (a string id in real backups) and movement fields on create', () => {
+    const diff = buildRestoreDiff('s1', ['tokens'], none, {
+      ...none,
+      tokens: [
+        { _id: 't1', name: 'Wolf', x: 1, delta: 'abc', _movementHistory: [1], _regions: ['r'] },
+      ],
+    });
+    expect(diff.ops).toEqual([
+      expect.objectContaining({ kind: 'create', data: { _id: 't1', name: 'Wolf', x: 1 } }),
+    ]);
+  });
+
+  it('skips empty objects in the backup and sets a whole subtree over a null parent', () => {
+    const diff = buildRestoreDiff(
+      's1',
+      ['tiles'],
+      { ...none, tiles: [{ _id: 'a', flags: { m: 1 }, texture: null }] },
+      { ...none, tiles: [{ _id: 'a', flags: {}, texture: { src: 'x.png', tint: '#fff' } }] }
+    );
+    expect(diff.ops).toEqual([
+      {
+        kind: 'update',
+        uuid: 'Scene.s1.Tile.a',
+        changes: { texture: { src: 'x.png', tint: '#fff' } },
+      },
+    ]);
+  });
+
   it('flattens objects to dot paths and keeps arrays whole', () => {
     expect([...flatten({ a: { b: 1, c: [1, 2] }, d: {} })]).toEqual([
       ['a.b', 1],
@@ -142,6 +170,10 @@ beforeEach(async () => {
   await mkdir(scenes, { recursive: true });
   await writeFile(join(scenes, 'CURRENT'), 'MANIFEST-000001\n');
   await writeFile(join(scenes, 'LOCK'), '');
+  // A backup is old; fresh files would read as a running world.
+  const old = new Date(Date.now() - 3_600_000);
+  await utimes(join(scenes, 'CURRENT'), old, old);
+  await utimes(join(scenes, 'LOCK'), old, old);
 });
 afterEach(async () => {
   await rm(dir, { recursive: true, force: true });
@@ -255,6 +287,35 @@ describe('plan-scene-restore', () => {
     await expect(
       tools.handleToolCall('plan-scene-restore', { backupPath: scenes })
     ).rejects.toThrow(/Nothing to restore/);
+  });
+
+  it('refuses a folder that changed minutes ago: that is a running world, not a backup', async () => {
+    const now = new Date();
+    await utimes(join(scenes, 'CURRENT'), now, now);
+    const { tools, createPlan } = makeTools();
+    await expect(
+      tools.handleToolCall('plan-scene-restore', { backupPath: scenes })
+    ).rejects.toThrow(/looks like a running world.*minutes ago/);
+    expect(createPlan).not.toHaveBeenCalled();
+  });
+
+  it('says how to split a restore that is larger than one plan holds', async () => {
+    const walls = Array.from({ length: 250 }, (_, i) => ({ _id: `x${i}`, c: [i, 0, i, 1] }));
+    const { tools, createPlan } = makeTools({
+      live: {
+        sceneId: 's1',
+        name: 'Arena',
+        viewed: true,
+        walls,
+        lights: [],
+        tiles: [],
+        tokens: [],
+      },
+    });
+    await expect(
+      tools.handleToolCall('plan-scene-restore', { backupPath: scenes })
+    ).rejects.toThrow(/at most 200.*parts/);
+    expect(createPlan).not.toHaveBeenCalled();
   });
 
   it('reports a missing backup folder with the way to get one', async () => {

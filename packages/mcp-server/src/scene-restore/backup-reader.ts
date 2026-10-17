@@ -10,7 +10,7 @@
  * byte for byte as it was. Read only; nothing in the copy is changed.
  */
 import { createRequire } from 'node:module';
-import { cp, mkdtemp, readdir, rm, stat } from 'node:fs/promises';
+import { cp, mkdtemp, open, readdir, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve, sep } from 'node:path';
 
@@ -90,7 +90,12 @@ export function levelOpenerFromFoundry(appDirs: string[]): LevelOpener {
       );
     }
     const db = new ClassicLevel(dir, { valueEncoding: 'utf8', createIfMissing: false });
-    await db.open();
+    try {
+      await db.open();
+    } catch (error) {
+      await db.close().catch(() => undefined);
+      throw error;
+    }
     return {
       async *entries(prefix: string): AsyncGenerator<[string, string]> {
         for await (const pair of db.iterator({ gte: prefix, lt: `${prefix}\uffff` })) {
@@ -133,6 +138,34 @@ export async function findScenesDir(backupPath: string, worldId?: string): Promi
   throw new Error(
     `No scenes database found at ${backupPath}. Point it at the restored world folder (for example C:\\FoundryPlanB\\data\\Data\\worlds\\<world>) or a copy of it.`
   );
+}
+
+/** A copy changed within this long is taken for a world that is running, not a backup. */
+export const BACKUP_QUIET_MS = 5 * 60_000;
+
+/**
+ * Why a `scenes` folder looks like a running world rather than a backup, or null. Plan B runs
+ * Foundry from the very folder this tool reads by default, and on that night the "backup" is the
+ * live, already broken world. A held `LOCK` file (Windows) or files changed minutes ago say so.
+ */
+export async function runningWorldReason(
+  scenesDir: string,
+  modifiedMs: number,
+  now = Date.now()
+): Promise<string | null> {
+  try {
+    const handle = await open(join(scenesDir, 'LOCK'), 'r+');
+    await handle.close();
+  } catch (error) {
+    const code = (error as { code?: string }).code;
+    if (code === 'EBUSY' || code === 'EPERM' || code === 'EACCES') {
+      return 'its database is open in a running Foundry';
+    }
+  }
+  if (now - modifiedMs < BACKUP_QUIET_MS) {
+    return `its files changed ${Math.max(0, Math.round((now - modifiedMs) / 60_000))} minutes ago`;
+  }
+  return null;
 }
 
 async function newestFileMs(dir: string): Promise<number> {

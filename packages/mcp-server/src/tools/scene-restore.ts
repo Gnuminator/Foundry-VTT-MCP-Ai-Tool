@@ -8,12 +8,13 @@ import {
   type SceneRestorePart,
 } from '@gnuminator/shared';
 import { FoundryClient } from '../foundry-client.js';
-import type { GuardedWriteService, PlanView } from '../guarded-write/service.js';
+import { MAX_OPS, type GuardedWriteService, type PlanView } from '../guarded-write/service.js';
 import { Logger } from '../logger.js';
 import {
   defaultFoundryAppDirs,
   levelOpenerFromFoundry,
   readBackupScene,
+  runningWorldReason,
   type LevelOpener,
 } from '../scene-restore/backup-reader.js';
 import { buildRestoreDiff, describePart, type PartCounts } from '../scene-restore/diff.js';
@@ -158,10 +159,28 @@ export class SceneRestoreTools {
       open: this.openLevel,
     });
 
+    const running = await runningWorldReason(backup.scenesDir, backup.modifiedMs);
+    if (running) {
+      throw new Error(
+        `${backup.scenesDir} looks like a running world, not a backup: ${running}. Restore a snapshot into its own folder (scripts/plan-b/restore.ps1 with another -Root) and give that folder as backupPath.`
+      );
+    }
+
     const diff = buildRestoreDiff(live.sceneId, parts, live, backup);
     if (diff.ops.length === 0) {
       throw new Error(
         `Nothing to restore: ${live.name} already matches the backup (${parts.join(', ')}).`
+      );
+    }
+    if (diff.ops.length > MAX_OPS) {
+      const sizes = parts
+        .map(
+          p =>
+            `${p}: ${diff.counts[p].added + diff.counts[p].removed + diff.counts[p].moved + diff.counts[p].changed}`
+        )
+        .join(', ');
+      throw new Error(
+        `This restore has ${diff.ops.length} changes (${sizes}) and one plan holds at most ${MAX_OPS}. Restore one part at a time with "parts" (for example just walls).`
       );
     }
     const lines = parts

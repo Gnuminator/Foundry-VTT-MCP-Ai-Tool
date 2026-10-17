@@ -38,6 +38,7 @@
  * count their own merges. A lock file next to it serialises the read-check-merge-write.
  */
 import { spawnSync } from 'node:child_process';
+import { randomBytes } from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -578,9 +579,12 @@ function sleep(ms) {
 
 /**
  * An exclusive lock next to the train file (`<file>.lock`, created with `wx`). A lock older than
- * `staleMs` (default 10 minutes) belongs to a killed run and is taken over. Waits up to `timeoutMs`.
+ * `staleMs` (default 10 minutes) belongs to a killed run and is taken over by a rename to a unique
+ * name (one rename wins), then `wx` again. Waits up to `timeoutMs`. `afterStaleSeen` is a test hook
+ * that runs between seeing a stale lock and taking it over.
  * @param {string} file
- * @param {{ staleMs?: number, timeoutMs?: number, now?: () => number, wait?: (ms: number) => void }} [opts]
+ * @param {{ staleMs?: number, timeoutMs?: number, now?: () => number, wait?: (ms: number) => void,
+ *   afterStaleSeen?: () => void }} [opts]
  * @returns {() => void} release
  */
 export function acquireLock(file, opts = {}) {
@@ -605,8 +609,24 @@ export function acquireLock(file, opts = {}) {
     }
     try {
       if (now() - fs.statSync(lock).mtimeMs > staleMs) {
-        fs.unlinkSync(lock);
-        continue;
+        opts.afterStaleSeen?.();
+        // Take over by renaming the stale lock to a name only this run uses: of several runs that
+        // saw the same stale lock, one rename wins and the others get ENOENT and retry. (A plain
+        // unlink let the second run delete the first run's fresh lock, and both went in.)
+        const taken = `${lock}.stale-${process.pid}-${randomBytes(4).toString('hex')}`;
+        fs.renameSync(lock, taken);
+        if (now() - fs.statSync(taken).mtimeMs > staleMs) {
+          fs.unlinkSync(taken);
+          continue;
+        }
+        // The lock was replaced by a live one between our stat and rename: we moved someone's fresh
+        // lock. Put it back (link fails if another run already took the free slot) and wait.
+        try {
+          fs.linkSync(taken, lock);
+        } catch {
+          /* another run holds the lock path now */
+        }
+        fs.unlinkSync(taken);
       }
     } catch {
       continue; // the holder released it between our two calls: try again

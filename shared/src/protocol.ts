@@ -28,7 +28,6 @@ import { z } from 'zod';
 
 import { SOCKET_EVENTS } from './constants.js';
 import type { MCPQuery, MCPResponse } from './types.js';
-import { MCPQuerySchema, MCPResponseSchema } from './schemas.js';
 
 // ===========================================================================
 // §3a — Control channel (JSON-lines TCP, 127.0.0.1:31414)
@@ -103,28 +102,6 @@ export interface PingResult {
   ok: boolean;
 }
 
-export const ControlRequestSchema = z.object({
-  id: z.string(),
-  method: z.string(),
-  params: z.unknown().optional(),
-});
-
-export const ControlResponseSchema = z.object({
-  id: z.string().optional(),
-  result: z.unknown().optional(),
-  error: z.object({ message: z.string(), code: z.string().optional() }).optional(),
-});
-
-export const CallToolParamsSchema = z.object({
-  name: z.string(),
-  args: z.record(z.unknown()).optional(),
-});
-
-export const ToolResultPayloadSchema = z.object({
-  content: z.array(z.object({ type: z.literal('text'), text: z.string() })),
-  isError: z.boolean().optional(),
-});
-
 // ===========================================================================
 // §3b — Foundry link (WebSocket :31415)
 // ===========================================================================
@@ -179,29 +156,6 @@ export type FoundryFrame =
   | FoundryResponseFrame
   | FoundryPingFrame
   | FoundryPongFrame;
-
-export const FoundryQueryFrameSchema = z.object({
-  type: z.literal(SOCKET_EVENTS.MCP_QUERY),
-  id: z.string(),
-  data: MCPQuerySchema,
-});
-
-export const FoundryResponseFrameSchema = z.object({
-  type: z.literal(SOCKET_EVENTS.MCP_RESPONSE),
-  id: z.string(),
-  data: MCPResponseSchema,
-});
-
-export const FoundryPingFrameSchema = z.object({
-  type: z.literal(SOCKET_EVENTS.PING),
-  id: z.string(),
-});
-
-export const FoundryPongFrameSchema = z.object({
-  type: z.literal(SOCKET_EVENTS.PONG),
-  id: z.string(),
-  data: z.object({ timestamp: z.number(), status: z.string() }).optional(),
-});
 
 /**
  * Module → backend, sent once right after the link opens (lane 1, PB-02). It
@@ -325,11 +279,6 @@ export interface BridgeHelloFrame {
   data: BridgeHelloData;
 }
 
-export const BridgeHelloFrameSchema = z.object({
-  type: z.literal(BRIDGE_HELLO_TYPE),
-  data: z.object({ capabilities: z.array(z.string().max(100)).max(50) }),
-});
-
 export interface ModuleRequestData {
   tool: string;
   args: Record<string, unknown>;
@@ -367,21 +316,3 @@ export const ModuleRequestFrameSchema = z.object({
     }),
   }),
 });
-
-export const ModuleReplyFrameSchema = z.object({
-  type: z.literal(MODULE_REPLY_TYPE),
-  id: z.string().min(1).max(100),
-  data: z.object({
-    success: z.boolean(),
-    data: z.unknown().optional(),
-    error: z.string().optional(),
-  }),
-});
-
-/** Discriminated union over the core frame `type`s. */
-export const FoundryFrameSchema = z.discriminatedUnion('type', [
-  FoundryQueryFrameSchema,
-  FoundryResponseFrameSchema,
-  FoundryPingFrameSchema,
-  FoundryPongFrameSchema,
-]);

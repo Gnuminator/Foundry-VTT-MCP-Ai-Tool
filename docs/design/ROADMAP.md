@@ -139,18 +139,21 @@ Everything else outstanding is below, roughly in priority order.
 - [ ] Fix `link-quest-to-npc` silent no-op fallback (`tools/quest-creation.ts:888`) + real post-write verify.
 - [ ] Reject negative currency in `plan-scene-change` loot (`scene-plan.ts`).
 - [ ] `system-detection` — retry/expire the `'other'` cache instead of poisoning it forever (`utils/system-detection.ts:32`).
-- [ ] Fix the Foundry-mock 16-char-type id collision (`test-support/foundry-mock/documents.ts:88`).
+- [x] (done 2026-10-17) Fix the Foundry-mock 16-char-type id collision (`test-support/foundry-mock/documents.ts`, `randomId`).
 
 **Tests (High-risk untested files):**
 
-- [ ] Add coverage for `socket-bridge.ts`, `queries.ts`, `foundry-connector.ts`, `main.ts`, `index.ts`,
+- [x] (done 2026-10-17 for `socket-bridge.ts`, `queries.ts`, `foundry-connector.ts`, `mcp-control-client.ts`
+      and `polling-feed.ts`, which have test files; `main.ts` and `index.ts` are still untested entry points)
+      Add coverage for `socket-bridge.ts`, `queries.ts`, `foundry-connector.ts`, `main.ts`, `index.ts`,
       and the dashboard feed (`mcp-control-client.ts`, `polling-feed.ts`).
 
 **Housekeeping / drift:**
 
-- [ ] Decide the dead runtime Zod schemas in `shared/src/protocol.ts` — wire the validation or drop them.
+- [x] (done 2026-10-17: dropped; only `ModuleHelloFrameSchema` and `ModuleRequestFrameSchema` are parsed in
+      production) Decide the dead runtime Zod schemas in `shared/src/protocol.ts` — wire the validation or drop them.
 - [x] (done 2026-09-29 with the ComfyUI removal) Drop unused dep `axios` from `mcp-server`.
-- [ ] Resolve the `tslib` reference in `tsconfig.json`.
+- [x] (done 2026-10-17: no `tslib` reference is left in any tsconfig or package.json) Resolve the `tslib` reference in `tsconfig.json`.
 - [x] (done: one version in the root `package.json` since PR #2; `TOOL_INVENTORY.md` replaced by the
       generated `docs/reference/tools.md` in F4, I-081) Sync workspace `package.json` versions to root;
       regenerate the tool inventory.

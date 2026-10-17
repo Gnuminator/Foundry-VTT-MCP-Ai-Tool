@@ -13,10 +13,12 @@
  * The remote is --remote, else the one local main tracks, else `aitool`, else a remote whose URL
  * is this repository. It checks the last commit, so it needs a clean working tree (commit first).
  * A merge conflict names the files: merge main into the branch yourself, resolve, push, and run it
- * again. The worktree borrows this checkout's node_modules (junctions), so workspace packages
- * resolve to this checkout's build; when main changed package-lock.json those would not match, so
- * it asks for the real merge and `npm ci` first (a lockfile change made by the branch itself does
- * not count). A worktree left by a killed run is removed by the next run; one whose run is still
+ * again. The worktree borrows this checkout's node_modules (junctions); when main changed
+ * package-lock.json those would not match, so it asks for the real merge and `npm ci` first (a
+ * lockfile change made by the branch itself does not count). The workspace links (`@gnuminator/*`)
+ * point at this checkout's own packages, and `@gnuminator/shared` is consumed through its build
+ * (`shared/dist`): when the merge changed `shared/`, the worktree gets its own workspace links and
+ * builds its own `shared`, so the guards test the merged tree against a shared built from it. A worktree left by a killed run is removed by the next run; one whose run is still
  * alive (another lane's, same repository) and younger than an hour is left alone.
  */
 import { spawnSync } from 'node:child_process';
@@ -52,6 +54,8 @@ const WORKTREE_PREFIX = 'drift-check-';
 const PID_FILE = '.drift-check-pid';
 /** A drift-check worktree older than this is abandoned even if its pid was reused. */
 const STALE_MS = 60 * 60 * 1000;
+/** How the merged tree's `shared` is built, run in its `shared` folder. */
+const SHARED_BUILD = 'npm run build';
 /** Windows reports a child stopped by Ctrl+C as STATUS_CONTROL_C_EXIT, not as a signal. */
 const CTRL_C_EXIT = 3221225786;
 
@@ -102,9 +106,28 @@ function removeWorktree(cwd, dir) {
       // not there
     }
   }
+  unlinkOwnModules(path.join(dir, 'node_modules'));
   git(cwd, ['worktree', 'remove', '--force', dir]);
   fs.rmSync(dir, { recursive: true, force: true, maxRetries: 3 });
   git(cwd, ['worktree', 'prune']);
+}
+
+/**
+ * A worktree's own root node_modules (see `linkOwnWorkspace`) holds only junctions: unlinks them,
+ * and those of its `@gnuminator` folder, so removing the folder never reaches a target.
+ * @param {string} modules
+ */
+function unlinkOwnModules(modules) {
+  try {
+    if (fs.lstatSync(modules).isSymbolicLink()) return;
+    for (const entry of fs.readdirSync(modules)) {
+      const p = path.join(modules, entry);
+      if (fs.lstatSync(p).isSymbolicLink()) fs.unlinkSync(p);
+      else if (entry === '@gnuminator') unlinkOwnModules(p);
+    }
+  } catch {
+    // not there
+  }
 }
 
 /** @param {string} dir */
@@ -148,6 +171,52 @@ function isStale(dir) {
   }
 }
 
+/**
+ * Points the worktree's `@gnuminator/*` workspace links at the worktree's own packages, not this
+ * checkout's: its root node_modules becomes a real folder of junctions to this checkout's entries,
+ * except `@gnuminator`. @param {string} cwd @param {string} dir
+ */
+function linkOwnWorkspace(cwd, dir) {
+  const own = path.join(dir, 'node_modules');
+  const borrowed = path.join(cwd, 'node_modules');
+  fs.unlinkSync(own); // the junction to the borrowed folder
+  fs.mkdirSync(own);
+  for (const entry of fs.readdirSync(borrowed)) {
+    if (entry === '@gnuminator') continue;
+    const from = path.join(borrowed, entry);
+    if (fs.statSync(from).isDirectory()) fs.symlinkSync(from, path.join(own, entry), 'junction');
+  }
+  const scope = path.join(own, '@gnuminator');
+  fs.mkdirSync(scope);
+  for (const name of fs.readdirSync(path.join(borrowed, '@gnuminator'))) {
+    const target = [
+      path.join(dir, name === 'shared' ? 'shared' : path.join('packages', name)),
+    ].find(d => fs.existsSync(path.join(d, 'package.json')));
+    if (target) fs.symlinkSync(target, path.join(scope, name), 'junction');
+  }
+}
+
+/**
+ * The guards read `@gnuminator/shared` through its build. When the merge changed `shared/`, the
+ * borrowed build is out of date (a PR that added an export, merged under one that did not), so the
+ * worktree gets its own workspace links and builds its own shared. Returns an error text, or null.
+ * @param {string} cwd @param {string} dir @param {string} buildCommand
+ * @param {(line: string) => void} log
+ */
+function buildMergedShared(cwd, dir, buildCommand, log) {
+  if (git(dir, ['diff', '--quiet', 'HEAD', '--', 'shared']).ok) return null;
+  if (!fs.existsSync(path.join(cwd, 'node_modules', '@gnuminator'))) return null;
+  linkOwnWorkspace(cwd, dir);
+  log('drift-check: the merge changed shared/; building shared in the worktree.');
+  const r = spawnSync(buildCommand, {
+    cwd: path.join(dir, 'shared'),
+    shell: true,
+    encoding: 'utf8',
+  });
+  if (r.status === 0) return null;
+  return `${r.stdout ?? ''}${r.stderr ?? ''}`.trim().split('\n').slice(-15).join('\n');
+}
+
 /** Worktrees a killed run left behind. @param {string} cwd */
 function staleWorktrees(cwd) {
   return git(cwd, ['worktree', 'list', '--porcelain'])
@@ -161,9 +230,15 @@ function staleWorktrees(cwd) {
 /**
  * Runs the drift check for the repo at `cwd`. Returns the exit code (0 all green, 1 a guard failed
  * or a conflict, 2 it could not start, 130 stopped). `checks` and `log` are replaceable for tests.
- * @param {{ cwd: string, remote?: string, checks?: typeof CHECKS, log?: (line: string) => void }} opts
+ * @param {{ cwd: string, remote?: string, checks?: typeof CHECKS, log?: (line: string) => void, sharedBuild?: string }} opts
  */
-export function runDriftCheck({ cwd, remote, checks = CHECKS, log = console.log }) {
+export function runDriftCheck({
+  cwd,
+  remote,
+  checks = CHECKS,
+  log = console.log,
+  sharedBuild = SHARED_BUILD,
+}) {
   const dirty = git(cwd, ['status', '--porcelain', '--untracked-files=no']);
   if (!dirty.ok) {
     log(`drift-check: not a git repository (${dirty.err})`);
@@ -247,6 +322,12 @@ export function runDriftCheck({ cwd, remote, checks = CHECKS, log = console.log 
       const link = path.join(dir, rel);
       if (!fs.existsSync(path.dirname(link)) || fs.existsSync(link)) continue;
       fs.symlinkSync(path.join(cwd, rel), link, 'junction');
+    }
+    const buildError = buildMergedShared(cwd, dir, sharedBuild, log);
+    if (buildError !== null) {
+      log('drift-check: building shared from the merged tree failed:');
+      log(buildError);
+      return 1;
     }
     log(`drift-check: trial merge of ${main} (${mainSha.out}) in a throwaway worktree.`);
     return runChecks(dir, checks, log, main, mainSha.out, true);

@@ -641,7 +641,7 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
     requireGm,
     tracker: new VersionTracker({
       enabled: (): boolean => prefs.get(world?.id).versionTracker,
-      getModules: (): Promise<unknown> => client.callTool('get-modules', {}),
+      getModules: (): Promise<unknown> => client.callTool('get-modules', { includeManifest: true }),
       kitFile: deps.kitLastRunFile ?? defaultKitLastRunFile(),
     }),
   });

@@ -227,6 +227,100 @@ describe('music', () => {
       delete (globalThis as any).CONST;
     }
   });
+
+  it('keeps the track a sequential playlist is already on instead of starting a second one', () => {
+    const tavern = (game as any).playlists.contents[0];
+    tavern.sounds.contents[1].playing = true; // on track 2 of 2
+    tavern.playing = true;
+    expect(() => planSceneMood({ action: 'music', playlist: 'Tavern', mode: 'play' })).toThrow(
+      /already playing/
+    );
+    // switching to it only stops the other playlist, no second track on Tavern
+    const plan = planSceneMood({ action: 'music', playlist: 'Tavern' });
+    expect(plan.ops.map((o: any) => o.uuid)).toEqual([
+      'Playlist.pl2.PlaylistSound.c',
+      'Playlist.pl2',
+    ]);
+  });
+
+  it('sets only the playlist flag when a track plays but the playlist flag is off', () => {
+    const tavern = (game as any).playlists.contents[0];
+    tavern.sounds.contents[1].playing = true;
+    tavern.playing = false;
+    const plan = planSceneMood({ action: 'music', playlist: 'Tavern', mode: 'play' });
+    expect(plan.ops).toEqual([
+      { kind: 'update', uuid: 'Playlist.pl1', changes: { playing: true } },
+    ]);
+  });
+
+  it('refuses a soundboard playlist for play, switch, set and save, but may stop it', () => {
+    (game as any).playlists.contents[0].mode = -1;
+    for (const mode of ['play', 'switch'] as const) {
+      expect(() => planSceneMood({ action: 'music', playlist: 'Tavern', mode })).toThrow(
+        /soundboard/
+      );
+    }
+    expect(() => planSceneMood({ action: 'set', playlist: 'Tavern' })).toThrow(/soundboard/);
+    expect(() => planSceneMood({ action: 'save', preset: 'x', playlist: 'Tavern' })).toThrow(
+      /soundboard/
+    );
+    (game as any).playlists.contents[0].sounds.contents[0].playing = true;
+    expect(() =>
+      planSceneMood({ action: 'music', playlist: 'Tavern', mode: 'stop' })
+    ).not.toThrow();
+  });
+});
+
+describe('fromCurrent and old presets', () => {
+  it('fromCurrent ignores a soundboard that plays a sound effect', () => {
+    const board = playlist('pl3', 'Effects', [sound('e', true)], { mode: -1 });
+    (game as any).playlists.contents.unshift(board);
+    const plan = planSceneMood({ action: 'save', preset: 'now', fromCurrent: true });
+    const saved = JSON.parse(Object.values((plan.ops[0] as any).changes)[0] as string);
+    expect(saved.playlist).toBe('Crypt');
+  });
+
+  it('names the preset when a saved one can no longer be applied', () => {
+    (globalThis as any).CONFIG = { weatherEffects: { rain: {} } };
+    scene.flags[MODULE_ID] = {
+      moods: { storm: JSON.stringify({ name: 'Storm', weather: 'sandstorm' }) },
+    };
+    try {
+      expect(() => planSceneMood({ action: 'apply', preset: 'storm' })).toThrow(
+        /Preset "Storm" cannot be applied: .*Unknown weather.*Save it again or remove it/
+      );
+    } finally {
+      delete (globalThis as any).CONFIG;
+    }
+  });
+});
+
+describe('weather ids', () => {
+  it('matches a weather id in any case and stores the Foundry spelling', () => {
+    (globalThis as any).CONFIG = { weatherEffects: { rainStorm: {} } };
+    try {
+      const plan = planSceneMood({ action: 'set', weather: 'RAINSTORM' });
+      expect(plan.ops[0]).toMatchObject({ changes: { weather: 'rainStorm' } });
+    } finally {
+      delete (globalThis as any).CONFIG;
+    }
+  });
+
+  afterEach(() => {
+    delete (globalThis as any).CONFIG;
+  });
+
+  it('refuses an unknown weather id and lists the valid ones; accepts known ids and "none"', () => {
+    (globalThis as any).CONFIG = { weatherEffects: { rain: {}, snow: {} } };
+    expect(() => planSceneMood({ action: 'set', weather: 'sandstorm' })).toThrow(
+      /Unknown weather "sandstorm".*rain, snow/
+    );
+    expect(planSceneMood({ action: 'set', weather: 'rain' }).ops).toHaveLength(1);
+    expect(planSceneMood({ action: 'set', weather: 'none' }).ops).toHaveLength(1);
+    expect(() => planSceneMood({ action: 'save', preset: 'x', weather: 'sandstorm' })).toThrow(
+      /Unknown weather/
+    );
+  });
 });
 
 describe('locked audio', () => {

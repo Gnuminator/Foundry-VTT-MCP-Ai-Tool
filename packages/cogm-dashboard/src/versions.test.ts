@@ -90,6 +90,7 @@ describe('buildRows', () => {
     const rows = buildRows(parseInstalled(MODULES)!, {
       foundry: '14.368',
       byId: { dnd5e: '6.0.6', 'a-mod': '1.0.0' },
+      minCoreById: {},
       errors: 1,
     });
     expect(rows.map(r => [r.id, r.status])).toEqual([
@@ -152,10 +153,26 @@ describe('isPrivateHost and the url guard', () => {
       '100.64.0.1',
       '[::1]',
       'fd00::1',
+      '[::7f00:1]',
+      '64:ff9b::7f00:1',
+      'nas.lan',
+      'router.home.arpa',
+      'fritz.box',
+      '198.18.0.1',
+      '198.19.255.1',
+      '224.0.0.1',
+      'ff02::1',
     ]) {
       expect(isPrivateHost(h), h).toBe(true);
     }
-    for (const h of ['example.com', '8.8.8.8', '172.32.0.1', 'github.com']) {
+    for (const h of [
+      'example.com',
+      '8.8.8.8',
+      '172.32.0.1',
+      'github.com',
+      '198.20.0.1',
+      '223.1.1.1',
+    ]) {
       expect(isPrivateHost(h), h).toBe(false);
     }
   });
@@ -288,6 +305,118 @@ describe('VersionTracker', () => {
     await t.view();
     await settle();
     expect(f.calls.length).toBe(n * 2);
+  });
+
+  it('backs the retry off 10, 20, 40 minutes and never past six hours', async () => {
+    const f = fakeFetch({ ...online, 'https://x.test/a.json': 500 });
+    let clock = 1_000_000;
+    const t = new VersionTracker({
+      enabled: (): boolean => true,
+      getModules: (): Promise<unknown> => Promise.resolve(MODULES),
+      fetchImpl: f.impl,
+      now: (): number => clock,
+    });
+    await t.view();
+    const waits = [VERSIONS_RETRY_MS, 2 * VERSIONS_RETRY_MS, 4 * VERSIONS_RETRY_MS];
+    for (const wait of waits) {
+      const n = f.calls.length;
+      clock += wait - 1000;
+      await t.view();
+      await settle();
+      expect(f.calls.length, `too early for ${wait}`).toBe(n);
+      clock += 2000;
+      await t.view();
+      await settle();
+      expect(f.calls.length, `due at ${wait}`).toBeGreaterThan(n);
+    }
+    // after many failures the wait stops at the six-hour refresh
+    for (let i = 0; i < 6; i += 1) {
+      clock += VERSIONS_REFRESH_MS;
+      await t.view();
+      await settle();
+    }
+    const n = f.calls.length;
+    clock += VERSIONS_REFRESH_MS - 1000;
+    await t.view();
+    await settle();
+    expect(f.calls.length).toBe(n);
+    clock += 2000;
+    await t.view();
+    await settle();
+    expect(f.calls.length).toBeGreaterThan(n);
+  });
+
+  it('notes when the newest release needs a newer Foundry than the installed one', async () => {
+    const f = fakeFetch({
+      ...online,
+      'https://x.test/a.json': '{"version":"1.1.0","compatibility":{"minimum":"15"}}',
+    });
+    const t = new VersionTracker({
+      enabled: (): boolean => true,
+      getModules: (): Promise<unknown> => Promise.resolve(MODULES),
+      fetchImpl: f.impl,
+    });
+    await t.view();
+    await settle();
+    const v = await t.view();
+    const row = v.enabled && v.rows?.find(r => r.id === 'a-mod');
+    expect(row && row.status).toBe('behind');
+    expect(row && row.needsCore).toBe('15');
+  });
+
+  it('drops the #fragment from a manifest url', () => {
+    const got = parseInstalled({
+      ...MODULES,
+      modules: [{ id: 'z', version: '1', manifest: 'https://x.test/m.json#frag' }],
+    });
+    expect(got?.find(p => p.id === 'z')?.manifest).toBe('https://x.test/m.json');
+  });
+
+  it('cancels the body of an error, redirect or oversize reply', async () => {
+    let cancelled = 0;
+    const body = {
+      getReader: (): {
+        read(): Promise<{ done: boolean }>;
+        cancel(): number;
+      } => ({
+        read: (): Promise<{ done: boolean }> => Promise.resolve({ done: true }),
+        cancel: (): number => 0,
+      }),
+      cancel: (): void => {
+        cancelled += 1;
+      },
+    };
+    const mk = (status: number, headers: Record<string, string> = {}): ReturnType<FetchImpl> =>
+      Promise.resolve({
+        ok: status < 300,
+        status,
+        headers: { get: (n: string) => headers[n] ?? null },
+        body,
+        text: () => Promise.resolve(''),
+      });
+    const impl: FetchImpl = url =>
+      url.endsWith('/err.json')
+        ? mk(500)
+        : url.endsWith('/big.json')
+          ? mk(200, { 'content-length': '99999999' })
+          : mk(302, { location: 'https://x.test/err.json' });
+    const t = new VersionTracker({
+      enabled: (): boolean => true,
+      getModules: (): Promise<unknown> =>
+        Promise.resolve({
+          ...MODULES,
+          modules: ['err', 'big', 'redir'].map(id => ({
+            id,
+            version: '1',
+            active: true,
+            manifest: `https://x.test/${id}.json`,
+          })),
+        }),
+      fetchImpl: impl,
+    });
+    await t.view();
+    await settle();
+    expect(cancelled).toBeGreaterThanOrEqual(4);
   });
 
   it('counts failed lookups and keeps the rest', async () => {

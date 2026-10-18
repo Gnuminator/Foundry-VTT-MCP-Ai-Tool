@@ -593,7 +593,7 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
   const pageLimit = (_req: Request, res: Response, next: NextFunction): void => {
     const now = Date.now();
     while (pageHits.length > 0 && now - (pageHits[0] ?? now) > 10_000) pageHits.shift();
-    if (pageHits.length >= 100) {
+    if (pageHits.length >= 1000) {
       res.status(429).type('text/plain').send('Too many requests');
       return;
     }

@@ -179,7 +179,7 @@ describe('the page routes are rate limited', () => {
     const app = await start(dir);
     try {
       let last = 0;
-      for (let i = 0; i < 101; i++) last = (await get(app.port, '/')).status;
+      for (let i = 0; i < 1001; i++) last = (await get(app.port, '/')).status;
       expect(last).toBe(429);
     } finally {
       await app.stop();

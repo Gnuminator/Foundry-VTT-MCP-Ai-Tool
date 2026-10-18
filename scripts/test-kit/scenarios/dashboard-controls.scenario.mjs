@@ -63,7 +63,7 @@ export default {
       /** @type {import('playwright-core').Page} */
       let page;
       await t.step('open the dashboard', async () => {
-        // The old page (D-126): these steps use its controls; React is at / since 2026-11-01.
+        // The old page (D-126): these steps use its controls; React is at / (D-126).
         page = await browser.open('/legacy/', { viewport: VIEWPORT });
         await page
           .waitForFunction(

@@ -99,11 +99,13 @@ built server), `npm run typecheck`, `npm run lint`.
 ## The React dashboard (the page at `/`)
 
 The dashboard pages moved to React + TypeScript (D-109), one panel at a time. The page lives in
-`web/` and has been served at **`/`** since 2026-11-01 (D-126). The old page stays at
+`web/` and is served at **`/`** (D-126, the default from 2026-11-01). The old page stays at
 **`/legacy/`** until after G1 (its files are `public/index.html` and `public/app.js`); `/next/`
 (the old preview address) redirects to `/`, and the React build's own files still load from
 `/next/assets/`. `/?plan=<planId>` (the Obsidian plugin's plan link) opens the plan's confirm
-window. `/player`, `/me` and `/open` are separate pages and did not move. It uses Radix UI primitives (unstyled), TanStack Query for the
+window. `/player`, `/me` and `/open` are separate pages and did not move.
+
+The React page uses Radix UI primitives (unstyled), TanStack Query for the
 data, and the old stylesheets and themes as they are (it links `styles.css`, `moments.css` and
 `themes/` from `public/`), so it looks the same. It talks to the same routes with the same GM
 token. Ported so far: Player links, Module diagnostics, Pre-flight (with Ready for session),

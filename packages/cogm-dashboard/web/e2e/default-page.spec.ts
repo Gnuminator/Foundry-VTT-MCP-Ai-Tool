@@ -42,7 +42,9 @@ test('/ is the React dashboard', async ({ page }) => {
   await page.goto(`/?token=${GM_TOKEN}`);
   await expect(page.getByRole('tablist', { name: 'Moment of the evening' })).toBeVisible();
   // The header button and the banner's link.
-  for (const link of await page.getByRole('link', { name: 'Old dashboard' }).all()) {
+  const links = await page.getByRole('link', { name: 'Old dashboard' }).all();
+  expect(links.length).toBeGreaterThan(0);
+  for (const link of links) {
     await expect(link).toHaveAttribute('href', '/legacy/');
   }
   await expect(

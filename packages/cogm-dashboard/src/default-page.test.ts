@@ -132,6 +132,25 @@ describe('the default page', () => {
     expect(asset.headers['cache-control']).toContain('immutable');
   });
 
+  it('gives the player and open pages under /legacy/ the same headers as at the root', async () => {
+    for (const name of ['player.html', 'open.html']) {
+      const root = await get(app.port, `/${name}`);
+      const legacy = await get(app.port, `/legacy/${name}`);
+      expect([name, legacy.status]).toEqual([name, 200]);
+      expect(legacy.headers['content-security-policy']).toBe(
+        root.headers['content-security-policy']
+      );
+      expect(legacy.headers['cache-control']).toBe(root.headers['cache-control']);
+    }
+  });
+
+  it('does not redirect /next// or a query to another host', async () => {
+    for (const from of ['/next//evil.example', '/next/?//evil.example']) {
+      const answer = await get(app.port, from);
+      expect(String(answer.headers['location'] ?? '/')).toMatch(/^\/(?!\/)/);
+    }
+  });
+
   it('leaves the player and open pages where they were', async () => {
     for (const p of ['/player', '/player.html', '/open', '/open.html']) {
       const answer = await get(app.port, p);

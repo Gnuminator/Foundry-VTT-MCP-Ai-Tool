@@ -49,6 +49,7 @@ import {
   SCENE_MOODS_QUERY,
 } from './scene-mood.js';
 import { getSceneState, SCENE_STATE_QUERY } from './scene-state.js';
+import { NPC_TURN_QUERY, planNpcTurn } from './npc-turn.js';
 import { planRoomSetup, ROOM_SETUP_QUERY } from './room-setup.js';
 import { LIVE_SWEEP_QUERY, liveSweep } from './live-sweep.js';
 import { SESSION_SWITCHES_QUERY, sessionSwitches } from './session-switches.js';
@@ -272,6 +273,12 @@ export class QueryHandlers {
     // data, compared with a backup copy by the backend. GM client only.
     handlers.on(`${modulePrefix}.${SCENE_STATE_QUERY}`, (data: unknown) =>
       this.withGmGate('Failed to read the scene', () => Promise.resolve(getSceneState(data)))
+    );
+
+    // NPC turn assistant (I-125, read-only): the fight, the NPC's actions and targets, and the
+    // ops of a validated move. GM client only.
+    handlers.on(`${modulePrefix}.${NPC_TURN_QUERY}`, (data: unknown) =>
+      this.withGmGate('Failed to plan the NPC turn', () => Promise.resolve(planNpcTurn(data)))
     );
 
     // Room setup (I-133, read-only): turns one request into Region and Token create ops. GM only.

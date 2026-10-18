@@ -109,7 +109,11 @@ describe('createModuleRequestHandler', () => {
       await handler('mark-play-session', { action: 'start', note: 'Session 1', extra: 1 }, danni);
       await handler('mark-play-session', { action: 'end' }, danni);
       expect(markSession).toHaveBeenNthCalledWith(1, { action: 'start', note: 'Session 1' });
-      expect(markSession).toHaveBeenNthCalledWith(2, { action: 'end' });
+      // No note from the window: the marker records which GM clicked.
+      expect(markSession).toHaveBeenNthCalledWith(2, {
+        action: 'end',
+        note: 'Marked in Foundry by Danni',
+      });
     });
 
     it('refuses a mark without a start or end action', async () => {

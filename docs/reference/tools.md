@@ -6,12 +6,12 @@ description: Every tool the bridge serves, by tool set, with its description and
 
 # Tool reference
 
-The bridge serves 92 tools in five sets. [Tool sets](TOOL-SETS.md) explains the sets and how Claude Desktop loads them; this page lists every tool with the description and parameters Claude reads.
+The bridge serves 93 tools in five sets. [Tool sets](TOOL-SETS.md) explains the sets and how Claude Desktop loads them; this page lists every tool with the description and parameters Claude reads.
 
 | Set | Claude Desktop entry | Tools | For |
 | --- | --- | --- | --- |
 | [Core](#core) | `foundry-mcp` | 22 | Look things up (world, characters, scenes, journals, compendiums, combat) and review, apply or undo planned changes. Always on. |
-| [Play](#play) | `foundry-mcp-play` | 33 | Run the table live: tokens, combat turns, rolls, damage, conditions, resources, chat, scene mood, map notes and loot. |
+| [Play](#play) | `foundry-mcp-play` | 34 | Run the table live: tokens, combat turns, rolls, damage, conditions, resources, chat, scene mood, map notes and loot. |
 | [Prep](#prep) | `foundry-mcp-prep` | 20 | Prepare sessions and write recaps: quests and journals, encounter budgets, the Tarokka reading, handouts, the session log, play stats and the pre-flight check. |
 | [Build](#build) | `foundry-mcp-build` | 8 | Make and change NPCs, monsters and items: from a compendium or from scratch, with features, attacks and spells. Set up rooms: teleports and tokens in a room. |
 | [Admin](#admin) | `foundry-mcp-admin` | 9 | Set up and troubleshoot: installed modules and their errors, who owns which actor, and the Obsidian mirror settings. |
@@ -658,6 +658,22 @@ Parameters:
 - `backupPath` (string): Restored world folder. Default: the Plan B folder.
 - `parts` (array of string): One of: `walls`, `lights`, `tiles`, `tokens`.
 - `recentCopyOk` (boolean): True for a hand-made copy: skips the changed-under-5-minutes refusal.
+
+### plan-npc-turn
+
+Plan a monster's turn. Without moveTo it only reads the fight: the NPC whose turn it is, its speed and attacks, each enemy's distance, AC and HP. With moveTo (a grid square) it checks the square and plans the move (apply-planned-change, undo-change); with itemName and target it also checks the reach. The attack step names the tools that roll it (use-npc-activity, then plan-actor-change). One move and one attack; no multiattack, spells or legendary actions. Needs the "NPC turn assistant" switch (off by default).
+
+Kind: read-only. Title: Plan NPC turn.
+
+Parameters:
+
+- `token` (string): The NPC token on the current scene. Default: whose turn it is.
+- `moveTo` (object): Move the NPC to this grid square (its top-left square).
+  - `gridX` (integer, required): Range: at least 0.
+  - `gridY` (integer, required): Range: at least 0.
+- `itemName` (string): The attack or action it will use (checked against its items).
+- `target` (string): The token it will attack (checked for reach after the move).
+- `reason` (string): One line on why (shown in the plan and Recent Changes).
 
 ### plan-scene-mood
 

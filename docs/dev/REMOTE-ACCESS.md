@@ -124,9 +124,9 @@ player" were not walked and may have moved. If a name has changed, look for the 
 9. **Test from a phone off Wi-Fi.** Switch the phone to mobile data and open `https://play.<domain>`.
    Expected: a Cloudflare page asking for an email; an address not on the policy gets no code; an
    address on it gets a code by email, then Foundry's join page. While the world has no player
-   users yet, seeing the join page with its user list is the test. Once players exist, also log in
-   as one and move a token, which proves WebSockets work (that token-move test waits for the
-   player users). A **403** after the code is a wrong AUD tag or team name on the route (step 5). Test with one
+   users yet, seeing the join page with its user list is the test. The player users exist since 2026-10-18
+   (`Ask`, `David`, `Sebastian`, Player role, no password: Access is the lock since the router
+   forward went, D-123). Also log in as one and move a token, which proves WebSockets work. A **403** after the code is a wrong AUD tag or team name on the route (step 5). Test with one
    player's real address before telling the others.
 10. **The dashboard, for the GM. The order matters: Access first, the name last.** The
     dashboard checks Cloudflare's signed login token (idea I-022, built) and, once it has GM

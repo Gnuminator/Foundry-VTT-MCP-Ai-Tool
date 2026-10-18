@@ -87,6 +87,7 @@ export const STEPS = [
   nodeTest('pi-control-port-check', 'scripts/pi/control-port-check.test.mjs'),
   nodeTest('tunnel-client', 'installer/nsis/tunnel-client.test.mjs'),
   nodeTest('plan-b', 'scripts/plan-b/plan-b.test.mjs'),
+  nodeTest('tv-table-viewer', 'scripts/tv/start-table-viewer.test.mjs'),
   { name: 'changelog', cmd: 'npm', args: ['run', 'changelog:check'] },
   nodeTest('gm-coach-test', 'tools/gm-coach/build.test.mjs'),
   { name: 'gm-coach-build', cmd: 'node', args: ['tools/gm-coach/build.mjs'] },

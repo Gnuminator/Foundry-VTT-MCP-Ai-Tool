@@ -13,6 +13,8 @@ const read = (relative: string): string =>
  * the reason. A new write tool gets a sweep step in the same PR, or an entry here.
  */
 const RECORDED_SKIPS: Record<string, string> = {
+  'plan-table-viewer':
+    'creates a Foundry user; checked by hand on server A (plan, apply, join as Table, undo), see the PR',
   'plan-scene-restore':
     'needs a backup copy of the world on disk and Foundry app files (I-128); checked by hand on server A (break a scene, restore, undo), see the PR',
   'plan-room-setup':

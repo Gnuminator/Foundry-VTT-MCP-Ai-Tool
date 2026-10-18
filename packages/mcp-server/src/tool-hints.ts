@@ -139,6 +139,7 @@ export const TOOL_HINTS: Readonly<Record<string, ToolHintSpec>> = {
   'get-module-manifest': { title: 'Get module manifest', kind: 'read' },
   'list-actor-ownership': { title: 'List actor ownership', kind: 'read' },
   'plan-ownership-change': { title: 'Plan ownership change', kind: 'read' },
+  'plan-table-viewer': { title: 'Plan the TV table viewer user', kind: 'read' },
   'get-obsidian-mirror': { title: 'Get Obsidian mirror settings', kind: 'read' },
   'plan-obsidian-mirror': { title: 'Plan Obsidian mirror change', kind: 'read' },
 };

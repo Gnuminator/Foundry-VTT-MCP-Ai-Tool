@@ -206,6 +206,24 @@ describe('music', () => {
   });
 });
 
+describe('locked audio', () => {
+  it('refuses music changes until the browser unlocked audio, but not looks or presets', () => {
+    (game as any).audio = { locked: true };
+    try {
+      expect(() => planSceneMood({ action: 'music', playlistName: 'Tavern' })).toThrow(
+        /unlocked audio/
+      );
+      expect(() => planSceneMood({ action: 'set', playlist: 'Tavern' })).toThrow(/unlocked audio/);
+      expect(planSceneMood({ action: 'set', weather: 'rain' }).ops).toHaveLength(1);
+      expect(planSceneMood({ action: 'save', preset: 'X', playlist: 'Tavern' }).ops).toHaveLength(
+        1
+      );
+    } finally {
+      delete (game as any).audio;
+    }
+  });
+});
+
 describe('getSceneMoods', () => {
   it('reports the look and the playlists', () => {
     expect(getSceneMoods()).toMatchObject({

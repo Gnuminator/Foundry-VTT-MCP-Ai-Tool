@@ -332,6 +332,20 @@ function planMusic(scene: SceneLike, request: SceneMoodPlanRequest): SceneMoodPl
 
 /** `planSceneMood`: one request into one plan. Writes nothing. */
 export function planSceneMood(request: unknown): SceneMoodPlan {
+  const plan = buildPlan(request);
+  // Foundry refuses to start or stop a sound until the browser has unlocked audio (one click in
+  // the window); the apply would fail half way, so refuse while planning instead.
+  const audio = (game as unknown as { audio?: { locked?: boolean } }).audio;
+  const touchesMusic = plan.ops.some(op => 'uuid' in op && op.uuid.startsWith('Playlist.'));
+  if (touchesMusic && audio?.locked) {
+    throw new Error(
+      'Foundry has not unlocked audio in the GM browser yet. Click anywhere in the Foundry window once, then ask again.'
+    );
+  }
+  return plan;
+}
+
+function buildPlan(request: unknown): SceneMoodPlan {
   const req = request as SceneMoodPlanRequest | null;
   if (!req || typeof req !== 'object') throw new Error('A request is required.');
   const scene = requireCurrentScene() as SceneLike;

@@ -91,7 +91,10 @@ function quoted(name: unknown): string {
 function newId(): string {
   const randomID = globals().foundry?.utils?.randomID;
   if (typeof randomID === 'function') return randomID(16);
-  return Math.random().toString(36).slice(2, 18).padEnd(16, '0');
+  // Foundry always has randomID; this fallback is for the test harness and uses the platform CSPRNG.
+  const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  const bytes = globalThis.crypto.getRandomValues(new Uint8Array(16));
+  return Array.from(bytes, b => chars[b % chars.length]).join('');
 }
 
 function requireGm(): void {

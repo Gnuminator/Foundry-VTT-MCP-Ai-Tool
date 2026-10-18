@@ -96,6 +96,8 @@ export const TOOL_HINTS: Readonly<Record<string, ToolHintSpec>> = {
   'get-party': { title: 'Get party', kind: 'read' },
   'plan-party-change': { title: 'Plan party change', kind: 'read' },
   'plan-scene-change': { title: 'Plan scene dressing', kind: 'read' },
+  'plan-scene-mood': { title: 'Plan scene mood or music', kind: 'read' },
+  'list-scene-moods': { title: 'List scene moods and playlists', kind: 'read' },
   'plan-scene-restore': { title: 'Plan scene restore from backup', kind: 'read' },
   'plan-room-setup': { title: 'Plan room setup (teleports, tokens in a room)', kind: 'read' },
   'play-playlist': { title: 'Play or stop playlist', kind: 'write' },

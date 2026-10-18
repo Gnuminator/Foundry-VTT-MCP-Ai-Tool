@@ -20,6 +20,8 @@ interface ModuleSummary {
   title: string;
   version: string;
   active: boolean;
+  /** The manifest url the module installs from (the version tracker checks it); null when none. */
+  manifest: string | null;
   compatibility: { minimum: string | null; verified: string | null; maximum: string | null };
   requires: RequiredDep[];
   issues: string[];
@@ -68,9 +70,27 @@ interface ModuleManifestResult {
 
 /** Manifest members the Foundry declaration does not list yet (`FoundryPackage`). */
 interface ModuleManifestFields extends FoundryModule {
+  readonly manifest?: unknown;
   readonly authors?: unknown;
   readonly description?: unknown;
   readonly url?: unknown;
+}
+
+/**
+ * A module's manifest url for the tool output, or null. Only plain http(s) urls without a user,
+ * password or query string: private or paid modules often carry a token there, and this output
+ * reaches Claude and its transcripts.
+ */
+function publicManifestUrl(value: unknown): string | null {
+  if (typeof value !== 'string' || value.length > 500) return null;
+  try {
+    const url = new URL(value);
+    if (url.protocol !== 'https:') return null;
+    if (url.username || url.password || url.search) return null;
+    return url.href;
+  } catch {
+    return null;
+  }
 }
 
 /** The `compatibility` block of a package as the declaration types it. */
@@ -271,11 +291,13 @@ export class ModulesDataAccess {
     this.collectCompatIssues(m.compatibility, coreVer, isNewer, issues);
 
     const comp: ModuleCompatibility = m.compatibility ?? {};
+    const manifest = (m as ModuleManifestFields).manifest;
     return {
       id: m.id,
       title: m.title,
       version: m.version,
       active: m.active,
+      manifest: publicManifestUrl(manifest),
       compatibility: {
         minimum: comp.minimum ?? null,
         verified: comp.verified ?? null,

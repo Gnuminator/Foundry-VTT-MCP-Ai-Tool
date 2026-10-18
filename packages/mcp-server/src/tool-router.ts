@@ -26,6 +26,7 @@ import type { GuardedChangeTools } from './tools/guarded-changes.js';
 import type { MovementTools } from './tools/movement.js';
 import type { ObsidianMirrorTools } from './tools/obsidian-mirror.js';
 import type { OwnershipTools } from './tools/ownership.js';
+import type { SceneMoodTools } from './tools/scene-mood.js';
 import type { SceneRestoreTools } from './tools/scene-restore.js';
 import type { RoomSetupTools } from './tools/room-setup.js';
 import type { TableViewerTools } from './tools/table-viewer.js';
@@ -70,6 +71,7 @@ export interface ToolRouterDeps {
   ownershipTools: OwnershipTools;
   sceneRestoreTools: SceneRestoreTools;
   roomSetupTools: RoomSetupTools;
+  sceneMoodTools: SceneMoodTools;
   tableViewerTools: TableViewerTools;
   partyTools: PartyTools;
   playSessionTools: PlaySessionTools;
@@ -195,6 +197,8 @@ export function buildToolRouter(deps: ToolRouterDeps): Record<string, ToolHandle
     'plan-actor-change': args => deps.livePlayTools.handlePlanActorChange(args),
     'plan-token-change': args => deps.livePlayTools.handlePlanTokenChange(args),
     'plan-scene-change': args => deps.sceneChangeTools.handlePlanSceneChange(args),
+    'plan-scene-mood': args => deps.sceneMoodTools.handleToolCall('plan-scene-mood', args),
+    'list-scene-moods': args => deps.sceneMoodTools.handleToolCall('list-scene-moods', args),
     'plan-table-viewer': args => deps.tableViewerTools.handleToolCall('plan-table-viewer', args),
     'plan-scene-restore': args => deps.sceneRestoreTools.handleToolCall('plan-scene-restore', args),
     'plan-room-setup': args => deps.roomSetupTools.handleToolCall('plan-room-setup', args),
@@ -238,6 +242,7 @@ export function collectToolDefinitions(deps: ToolRouterDeps): ToolDefinitionLike
     ...deps.ownershipTools.getToolDefinitions(),
     ...deps.sceneRestoreTools.getToolDefinitions(),
     ...deps.roomSetupTools.getToolDefinitions(),
+    ...deps.sceneMoodTools.getToolDefinitions(),
     ...deps.tableViewerTools.getToolDefinitions(),
     ...deps.tokenManipulationTools.getToolDefinitions(),
     ...deps.chatLogTools.getToolDefinitions(),

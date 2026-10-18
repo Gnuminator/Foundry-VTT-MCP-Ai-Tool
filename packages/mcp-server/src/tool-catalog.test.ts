@@ -26,8 +26,8 @@ const deps = stubToolRouterDeps();
 const tools = collectToolDefinitions(deps);
 
 describe('tool catalog', () => {
-  it('lists exactly 89 tools; control methods such as record_usage are not tools', () => {
-    expect(tools).toHaveLength(89);
+  it('lists exactly 91 tools; control methods such as record_usage are not tools', () => {
+    expect(tools).toHaveLength(91);
     for (const method of [
       'record_usage',
       'session_switches',
@@ -65,7 +65,7 @@ describe('tool catalog', () => {
     // I-124 raised core and prep by 2,000 for the tool hints (title, readOnlyHint, destructiveHint).
     const budget = {
       core: 17_000,
-      play: 30_000, // about 29,100 with the I-124 hints: close
+      play: 32_000, // about 31,200 with plan-scene-mood and list-scene-moods (I-034): close
       prep: 22_000,
       build: 29_000, // about 28,100 with plan-room-setup (I-133)
       admin: 8_000,

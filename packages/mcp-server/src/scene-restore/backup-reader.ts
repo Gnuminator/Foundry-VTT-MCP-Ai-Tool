@@ -1,6 +1,6 @@
 /**
  * Reads one scene's walls, lights, tiles and tokens out of a copy of a Foundry world (I-128): the
- * Pi's nightly backup restored by `scripts/plan-b/restore.ps1`, or any copy of the world folder.
+ * Pi's nightly backup extracted by `scripts/plan-b/extract-scenes.ps1`, or any copy of the world folder.
  *
  * Foundry keeps a world's scenes in a LevelDB folder (`<world>/data/scenes`); the embedded
  * documents are separate keys (`!scenes.walls!<sceneId>.<wallId>`). The browser module cannot

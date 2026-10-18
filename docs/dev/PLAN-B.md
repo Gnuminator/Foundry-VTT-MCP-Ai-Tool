@@ -218,7 +218,8 @@ For a map the GM broke by hand: walls, lights, tiles and tokens of one scene go 
 last backup had them. Foundry's Undo covers AI changes only; this is the step for the rest.
 
 - **Where the backups are:** the Pi's nightly restic backup (04:30) is copied to
-  `E:\PiBackup\restic` every day. `scripts/plan-b/restore.ps1` restores it into
+  `E:\PiBackup\restic` every day. `scripts/plan-b/extract-scenes.ps1` pulls out just one world's
+  scenes (the quick way for this tool); `scripts/plan-b/restore.ps1` restores everything into
   `C:\FoundryPlanB\data`, and the world is then in
   `C:\FoundryPlanB\data\Data\worlds\<world>`; a scene's documents are in its `data\scenes` LevelDB
   folder. Any copy of a world folder works the same way.
@@ -236,8 +237,10 @@ last backup had them. Foundry's Undo covers AI changes only; this is the step fo
 - **Size and the Plan B folder:** one plan holds at most 200 changes; a bigger restore (a whole
   castle map) is refused with the counts, and is done one part at a time with `parts`. A folder
   Foundry has open, or that changed in the last 5 minutes, is refused: on a Plan B night the
-  default folder is the running world, so restore a snapshot into its own folder
-  (`restore.ps1 -Root <other>`) and give that world folder as `backupPath`.
+  default folder is the running world, so run `.\scripts\plan-b\extract-scenes.ps1`: it restores
+  only that world's scenes database from the newest snapshot into a folder of its own (read-only
+  on restic, a few megabytes), says how old the snapshot is and prints the folder to give as
+  `backupPath`. Its folders in `C:\FoundrySceneBackup` can be deleted when you are done.
 - **Limits:** an update only sets fields the backup holds and never unsets one; a token's own
   hit points, effects and items (its `delta`) are not restored, and a token put back comes with
   its world actor's current stats; other embedded documents (drawings, notes, regions, sounds)

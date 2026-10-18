@@ -248,3 +248,38 @@ main.moment-views #moment-during.during-no-bar {
   align-self: center;
   white-space: normal;
 }
+
+/* Version tracker pane (I-127, panels/Versions.tsx). */
+.ver-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--fs-sm);
+}
+.ver-table th,
+.ver-table td {
+  text-align: left;
+  padding: 0.35rem 0.6rem;
+  border-bottom: 1px solid var(--border-soft);
+}
+.ver-row.inactive {
+  opacity: 0.65;
+}
+.ver-row.st-behind .ver-status {
+  color: var(--warn);
+  font-weight: 700;
+}
+.ver-row.st-ok .ver-status {
+  color: var(--ok-text, var(--text));
+}
+.ver-kit,
+.ver-foot {
+  font-size: var(--fs-sm);
+  margin: 0.4rem 0.6rem;
+}
+.ver-kit.kit-failed {
+  color: var(--bad-text);
+}
+.ver-off {
+  font-weight: 400;
+  color: var(--text-dim, inherit);
+}

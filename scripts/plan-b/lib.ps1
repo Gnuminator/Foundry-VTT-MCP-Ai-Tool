@@ -112,6 +112,19 @@ $PlanBRestoreIncludes = @(
   '/etc/foundry-ai-tool/assistant-gm.env'
 )
 
+# The one path extract-scenes.ps1 restores: a world's scenes database inside the Pi's data folder.
+function Get-PlanBSceneInclude([string]$World) {
+  return "/var/lib/foundry/Data/worlds/$World/data/scenes"
+}
+
+# Whether extract-scenes.ps1 may write into a folder: not Plan B's root (restore.ps1 and stop -Clean
+# delete whole folders there), the test server, the restic repository, or what Test-PlanBRoot refuses.
+function Test-PlanBSceneOut([string]$Out, [string]$Repo) {
+  $r = Test-PlanBRoot $Out (@($PlanBDefaults.ForbiddenRoots) + @($PlanBDefaults.Root, $Repo))
+  if (-not $r.Ok) { $r.Message = $r.Message -replace 'give Plan B a folder of its own \(default [^)]*\)','give -Out a folder of its own' }
+  return $r
+}
+
 # Whether a folder may be Plan B's root: the scripts delete whole folders under it (restore and
 # stop -Clean), so it must be a folder of its own. Not a drive root, not the user's home, not the
 # test server or the repo, nor a folder inside them, nor one that holds them. Paths are compared

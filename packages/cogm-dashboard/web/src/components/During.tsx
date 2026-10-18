@@ -65,6 +65,8 @@ export interface DuringActions {
   useStep: () => void;
   stopTrial: () => void;
   toggleCombatButtons: () => void;
+  /** The version tracker switch (I-127); lives here because this controller owns the prefs. */
+  toggleVersionTracker: () => void;
 }
 
 /** Everything the During components show, and what they can do. */
@@ -179,6 +181,9 @@ export function useDuringLayout(moment: Moment | null, pinDuring: () => void): D
           'ok'
         );
       });
+    },
+    toggleVersionTracker: () => {
+      void save({ versionTracker: prefs?.versionTracker !== true });
     },
   };
   return { prefs, screen, trial, hintVisible, folds, actions };

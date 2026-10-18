@@ -42,6 +42,7 @@ import { DiceRollTools } from './tools/dice-roll.js';
 import { CampaignManagementTools } from './tools/campaign-management.js';
 
 import { OwnershipTools } from './tools/ownership.js';
+import { SceneMoodTools } from './tools/scene-mood.js';
 import { SceneRestoreTools } from './tools/scene-restore.js';
 import { RoomSetupTools } from './tools/room-setup.js';
 import { TableViewerTools } from './tools/table-viewer.js';
@@ -429,6 +430,7 @@ async function startBackend(): Promise<void> {
     worldIds,
     logger,
   });
+  const sceneMoodTools = new SceneMoodTools({ foundryClient, guardedWrites, logger });
   const tableViewerTools = new TableViewerTools({ foundryClient, guardedWrites, logger });
   const livePlayTools = new LivePlayTools({ foundryClient, guardedWrites, logger });
   const sceneChangeTools = new SceneChangeTools({ foundryClient, guardedWrites, logger });
@@ -471,6 +473,7 @@ async function startBackend(): Promise<void> {
     ownershipTools,
     sceneRestoreTools,
     roomSetupTools,
+    sceneMoodTools,
     tableViewerTools,
     dnd5eAddFeatureTool,
     dnd5eNpcTools,

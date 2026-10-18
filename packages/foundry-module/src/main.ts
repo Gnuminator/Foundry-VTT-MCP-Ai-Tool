@@ -19,6 +19,7 @@ import {
 import { registerGuardedFeature } from './guarded-features.js';
 import { LIVE_PLAY_FEATURE_ID } from './live-plan.js';
 import { OWNERSHIP_FEATURE_ID } from './data-access/ownership-players.js';
+import { SCENE_MOOD_FEATURE_ID } from './scene-mood.js';
 import { SCENE_RESTORE_FEATURE_ID } from './scene-state.js';
 import { ROOM_SETUP_FEATURE_ID } from './room-setup.js';
 import { PARTY_FEATURE_ID } from './party-scan.js';
@@ -148,6 +149,11 @@ class FoundryMCPBridge {
         id: ROOM_SETUP_FEATURE_ID,
         name: 'AI Tool: Room setup (writes)',
         hint: 'Lets the AI add teleport regions and fill a room with tokens, after you confirm the plan. Each setup shows in Recent Changes with an Undo.',
+      });
+      registerGuardedFeature({
+        id: SCENE_MOOD_FEATURE_ID,
+        name: 'AI Tool: Scene mood and music (writes)',
+        hint: "Lets the AI set a scene's darkness, light and weather, save and apply mood presets, and start, stop or switch playlists, after you confirm the plan. Each change shows in Recent Changes with an Undo.",
       });
       registerGuardedFeature({
         id: 'change-undo',

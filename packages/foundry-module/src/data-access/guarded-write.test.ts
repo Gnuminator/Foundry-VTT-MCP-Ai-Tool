@@ -380,6 +380,20 @@ describe('op validation', () => {
 // Apply
 // ---------------------------------------------------------------------------
 
+describe('applyGuardedOps: locked audio', () => {
+  it('refuses a plan that touches a playlist while Foundry audio is locked, before any write', async () => {
+    const req = await request([
+      { kind: 'update', uuid: 'Playlist.p1', changes: { playing: true } },
+    ]);
+    (game as any).audio = { locked: true };
+    try {
+      await expect(applyGuardedOps(req)).rejects.toThrow(/unlocked audio/);
+    } finally {
+      delete (game as any).audio;
+    }
+  });
+});
+
 describe('applyGuardedOps: apply', () => {
   it('applies an update, records before/after with the rules tag, and logs gm-change', async () => {
     const actor = addActor();

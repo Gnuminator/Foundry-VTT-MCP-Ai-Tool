@@ -29,6 +29,8 @@ test('the menu lists the panels and tools in the old page order', async ({ page 
     '🛠 Tools',
     '🩺 Module diagnostics',
     '🔗 Player links',
+    // The Versions panel itself shows only once this switch is on (I-127, off by default).
+    'Version tracker: off',
   ]);
   await expect(menu.locator('.menu-label')).toHaveText(['Panels', 'During screen', 'Tools']);
   // The page's own header keeps Pre-flight (with its status) outside the menu.

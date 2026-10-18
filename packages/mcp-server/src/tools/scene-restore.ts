@@ -54,7 +54,7 @@ function defaultBackupPath(env: NodeJS.ProcessEnv, worldId: string): string {
 
 /**
  * Scene restore (I-128). `plan-scene-restore` compares a scene's walls, lights, tiles and tokens
- * with a copy of the world (the Pi's nightly backup restored by `scripts/plan-b/restore.ps1`) and
+ * with a copy of the world (the Pi's nightly backup, extracted by `scripts/plan-b/extract-scenes.ps1`) and
  * plans the difference as one guarded change (feature `scene-restore`, off by default): created
  * back, deleted, or updated. Apply it with apply-planned-change, revert it with undo-change.
  */
@@ -149,7 +149,7 @@ export class SceneRestoreTools {
       await stat(backupPath);
     } catch {
       throw new Error(
-        `No backup copy at ${backupPath}. Restore the Pi's backup first (scripts/plan-b/restore.ps1) or give backupPath.`
+        `No backup copy at ${backupPath}. Extract the Pi's backup first (scripts/plan-b/extract-scenes.ps1) and give the folder it prints as backupPath (or set FOUNDRY_AI_SCENE_BACKUP_DIR).`
       );
     }
     const backup = await readBackupScene({
@@ -162,7 +162,7 @@ export class SceneRestoreTools {
     const running = await runningWorldReason(backup.scenesDir, backup.modifiedMs);
     if (running) {
       throw new Error(
-        `${backup.scenesDir} looks like a running world, not a backup: ${running}. Restore a snapshot into its own folder (scripts/plan-b/restore.ps1 with another -Root) and give that folder as backupPath.`
+        `${backup.scenesDir} looks like a running world, not a backup: ${running}. Extract only the scenes of the newest snapshot into its own folder (scripts/plan-b/extract-scenes.ps1) and give the folder it prints as backupPath.`
       );
     }
 

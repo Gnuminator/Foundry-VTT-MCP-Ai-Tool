@@ -1,6 +1,8 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { useState, type JSX } from 'react';
 
+import AfterTop from '../panels/After';
+import { NOTES_IN_FOUNDRY, PLAY_STATS } from '../storybook/fixtures/after';
 import { HandoutsDrawer } from '../panels/Handouts';
 import RecentChangesPane from '../panels/RecentChanges';
 import { AI_CHANGES, TOOLS_WITH_EVERYONE } from '../storybook/fixtures/changes';
@@ -71,7 +73,11 @@ function Page({ initial }: { initial: Moment | null }): JSX.Element {
         </div>
         <MomentTabs moment={moment} onPick={pick} />
       </header>
-      <MomentViews moment={moment} slotRefs={slotRefs} />
+      <MomentViews
+        moment={moment}
+        slotRefs={slotRefs}
+        afterTop={<AfterTop active={moment === 'after'} />}
+      />
       {dock('preflight', open => (
         <PreflightDrawer
           open={open}
@@ -100,6 +106,7 @@ const bridge = {
   cache: [[FEED_KEY, FEED_FEW] as const],
   api: {
     routes: {
+      '/api/session-notes': reply({ items: [NOTES_IN_FOUNDRY] }),
       '/api/preflight': reply(PREFLIGHT_OK),
       '/api/session/switches': reply(SWITCHES_READY),
       '/api/player/names': reply(PLAYERS),
@@ -107,6 +114,7 @@ const bridge = {
     },
     tools: {
       'get-prep-digest': toolOk(PREP),
+      'get-play-stats': toolOk(PLAY_STATS),
       'get-party': toolOk(PARTY_OF_EIGHT),
       'list-recent-changes': toolOk(AI_CHANGES),
       'list-revealed-pages': toolOk(HANDOUTS),

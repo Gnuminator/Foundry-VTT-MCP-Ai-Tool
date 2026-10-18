@@ -93,9 +93,17 @@ const partyChunk = panelChunk(() =>
   import('./panels/Party').then(m => ({ default: m.PartyDrawer }))
 );
 const changesChunk = panelChunk(() => import('./panels/RecentChanges'));
+const afterChunk = panelChunk(() => import('./panels/After'));
 // The ones that dock into a view load at once; the floating ones when the browser is idle.
 const DOCKED_CHUNKS = [partyChunk, prepChunk, handoutsChunk, changesChunk];
-const FLOATING_CHUNKS = [tarokkaChunk, toolsChunk, linksChunk, diagChunk, versionsChunk];
+const FLOATING_CHUNKS = [
+  afterChunk,
+  tarokkaChunk,
+  toolsChunk,
+  linksChunk,
+  diagChunk,
+  versionsChunk,
+];
 
 /** The world's theme (/api/theme); until it answers, the cached one from main.tsx shows. */
 function useWorldTheme(): void {
@@ -403,6 +411,9 @@ function Dashboard(): JSX.Element {
         duringScreen={during.screen}
         duringBar={<DuringBar during={during} />}
         duringFolds={during.folds}
+        afterTop={
+          <LazyPanel chunk={afterChunk} show={moment === 'after'} active={moment === 'after'} />
+        }
         beforeTop={<LayoutTrialCard during={during} />}
         duringStrip={
           <CombatStrip sample={showsSampleFight(during.trial)} onOpenTool={openToolFromStrip} />

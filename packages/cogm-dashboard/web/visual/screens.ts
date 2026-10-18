@@ -65,7 +65,13 @@ export const SCREENS: Screen[] = [
     name: 'after',
     moment: 'after',
     fullPage: true,
-    show: inPage('after', 'Find the missing ferry', 'Torn ledger page'),
+    show: inPage(
+      'after',
+      'Find the missing ferry',
+      'Torn ledger page',
+      'Most damage',
+      'Session notes: Session 3'
+    ),
   },
   {
     name: 'player-links',

@@ -44,6 +44,7 @@ import { CampaignManagementTools } from './tools/campaign-management.js';
 import { OwnershipTools } from './tools/ownership.js';
 import { SceneMoodTools } from './tools/scene-mood.js';
 import { SceneRestoreTools } from './tools/scene-restore.js';
+import { NpcTurnTools } from './tools/npc-turn.js';
 import { RoomSetupTools } from './tools/room-setup.js';
 import { TableViewerTools } from './tools/table-viewer.js';
 
@@ -424,6 +425,7 @@ async function startBackend(): Promise<void> {
   const partyTools = new PartyTools({ foundryClient, guardedWrites, logger });
   const ownershipTools = new OwnershipTools({ foundryClient, guardedWrites, logger });
   const roomSetupTools = new RoomSetupTools({ foundryClient, guardedWrites, logger });
+  const npcTurnTools = new NpcTurnTools({ foundryClient, guardedWrites, logger });
   const sceneRestoreTools = new SceneRestoreTools({
     foundryClient,
     guardedWrites,
@@ -472,6 +474,7 @@ async function startBackend(): Promise<void> {
     tokenManipulationTools,
     ownershipTools,
     sceneRestoreTools,
+    npcTurnTools,
     roomSetupTools,
     sceneMoodTools,
     tableViewerTools,

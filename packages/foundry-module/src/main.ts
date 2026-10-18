@@ -21,6 +21,7 @@ import { LIVE_PLAY_FEATURE_ID } from './live-plan.js';
 import { OWNERSHIP_FEATURE_ID } from './data-access/ownership-players.js';
 import { SCENE_MOOD_FEATURE_ID } from './scene-mood.js';
 import { SCENE_RESTORE_FEATURE_ID } from './scene-state.js';
+import { NPC_TURN_FEATURE_ID } from './npc-turn.js';
 import { ROOM_SETUP_FEATURE_ID } from './room-setup.js';
 import { PARTY_FEATURE_ID } from './party-scan.js';
 import { registerGmWindowsSetting } from './gm-windows.js';
@@ -154,6 +155,11 @@ class FoundryMCPBridge {
         id: SCENE_MOOD_FEATURE_ID,
         name: 'AI Tool: Scene mood and music (writes)',
         hint: "Lets the AI set a scene's darkness, light and weather, save and apply mood presets, and start, stop or switch playlists, after you confirm the plan. Each change shows in Recent Changes with an Undo.",
+      });
+      registerGuardedFeature({
+        id: NPC_TURN_FEATURE_ID,
+        name: 'AI Tool: NPC turn assistant (writes)',
+        hint: 'Lets the AI move a monster on its turn, after you confirm the plan. Each move shows in Recent Changes with an Undo. The attack is rolled separately.',
       });
       registerGuardedFeature({
         id: 'change-undo',

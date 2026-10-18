@@ -440,6 +440,43 @@ const TOOLS = [
   },
 ];
 
+/** get-play-stats for the latest session: the After view's stat cards. */
+const PLAY_STATS = {
+  pcs: [{ name: 'Brenna' }, { name: 'Tobias' }, { name: 'Mara' }],
+  session: {
+    label: 'Session 3',
+    durationMin: 185,
+    endedAt: '2026-10-08T21:30:00.000Z',
+    rolls: 142,
+    crits: 3,
+    fumbles: 2,
+    highestRoll: { total: 27, name: 'Mara', label: 'Perception' },
+    combats: [
+      { damageDealt: { Brenna: 31, Tobias: 12, 'Harbor thug': 40 }, downs: ['Brenna'] },
+      { damageDealt: { Brenna: 8, Mara: 22 }, downs: [] },
+    ],
+    pcDownsByName: { Brenna: 2 },
+  },
+};
+
+/** GET /api/session-notes: the notes are in Foundry and the Recap waits for its reveal. */
+const SESSION_NOTES = {
+  items: [
+    {
+      sessionId: '2026-10-08-session-3',
+      title: 'Session 3',
+      date: '2026-10-08',
+      status: 'in-foundry',
+      autoPut: true,
+      waitingFor: [],
+      putAt: '2026-10-08T21:45:00.000Z',
+      changeId: 'change-notes-1',
+      journalUuid: 'JournalEntry.notes1',
+      recapRevealed: false,
+    },
+  ],
+};
+
 /** Answers POST /api/tool for the screen's moment. */
 function bridge(moment: Moment): (call: ToolCall) => { json: unknown } {
   return call => {
@@ -448,6 +485,8 @@ function bridge(moment: Moment): (call: ToolCall) => { json: unknown } {
         return ok({ success: true, worldId: 'harbor-test', ...SESSIONS[moment] });
       case 'get-prep-digest':
         return ok(PREP);
+      case 'get-play-stats':
+        return ok(PLAY_STATS);
       case 'get-party':
         return ok(PARTY);
       case 'list-revealed-pages':
@@ -496,6 +535,7 @@ export async function fakeDashboard(page: Page, setup: Setup): Promise<void> {
     })
   );
   await page.route('**/api/session/switches', route => route.fulfill({ json: SWITCHES }));
+  await page.route('**/api/session-notes', route => route.fulfill({ json: SESSION_NOTES }));
   await page.route('**/api/tools', route =>
     route.fulfill({ json: { tools: TOOLS, gmActionsEnabled: true } })
   );

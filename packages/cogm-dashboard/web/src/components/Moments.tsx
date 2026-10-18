@@ -210,6 +210,7 @@ export function MomentViews({
   duringFolds,
   beforeTop,
   duringStrip,
+  afterTop,
 }: {
   moment: Moment | null;
   slotRefs: SlotRefs;
@@ -226,6 +227,8 @@ export function MomentViews({
   beforeTop?: ReactNode;
   /** The combat strip (components/CombatStrip.tsx), in the strip slot. */
   duringStrip?: ReactNode;
+  /** Tonight's stats and the session notes (panels/After.tsx), the top of the After view. */
+  afterTop?: ReactNode;
 }): JSX.Element {
   return (
     <main className="moment-views" id="moment-views" aria-busy={moment === null}>
@@ -274,7 +277,7 @@ export function MomentViews({
         aria-labelledby="tab-after"
         hidden={moment !== 'after'}
       >
-        <NotHereYet title="Tonight's stats and session notes" wide />
+        {afterTop}
         <div className="slot" data-slot="prep" ref={slotRefs['after-prep']} />
         <div className="moment-side">
           <div className="slot" data-slot="handouts" ref={slotRefs['after-handouts']} />

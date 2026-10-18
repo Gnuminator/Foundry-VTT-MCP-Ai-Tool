@@ -164,9 +164,7 @@ test('a session that ended in the last 12 hours: After; an older one: Before', a
   await expect(after.getByRole('region', { name: '📋 Prep' })).toBeVisible();
   await expect(after.getByRole('region', { name: '📜 Handouts' })).toBeVisible();
   await expect(after.getByRole('region', { name: 'Recent Changes' })).toBeVisible();
-  await expect(
-    after.getByRole('region', { name: "Tonight's stats and session notes" })
-  ).toBeVisible();
+  await expect(after.getByRole('region', { name: "Tonight's stats" })).toBeVisible();
 
   session = closed(13 * HOUR);
   await load(page);

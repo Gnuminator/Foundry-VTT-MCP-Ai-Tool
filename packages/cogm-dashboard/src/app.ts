@@ -1,4 +1,5 @@
 import express, { type Express, type NextFunction, type Request, type Response } from 'express';
+import rateLimit from 'express-rate-limit';
 import {
   createSpaceStatusReader,
   type RecordUsageResult,
@@ -589,17 +590,16 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
     });
   }
   // A page load is a few requests a minute; this only stops a runaway loop on the file reads.
-  const pageHits: number[] = [];
-  const pageLimit = (_req: Request, res: Response, next: NextFunction): void => {
-    const now = Date.now();
-    while (pageHits.length > 0 && now - (pageHits[0] ?? now) > 10_000) pageHits.shift();
-    if (pageHits.length >= 1000) {
-      res.status(429).type('text/plain').send('Too many requests');
-      return;
-    }
-    pageHits.push(now);
-    next();
-  };
+  // The limiter is the library's so that CodeQL and the next reader recognise it; one bucket per
+  // client address (the dashboard may sit behind a proxy, so the forwarded-for check is off).
+  const pageLimit = rateLimit({
+    windowMs: 10_000,
+    limit: 1000,
+    standardHeaders: false,
+    legacyHeaders: false,
+    message: 'Too many requests',
+    validate: { xForwardedForHeader: false },
+  });
   app.get('/', pageLimit, (_req: Request, res: Response, next: NextFunction) => {
     if (!fs.existsSync(reactIndex)) return next();
     res.setHeader('Cache-Control', 'no-cache');

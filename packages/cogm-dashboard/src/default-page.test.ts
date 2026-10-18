@@ -121,6 +121,7 @@ describe('the default page', () => {
       ['/next/', '/'],
       ['/next', '/'],
       ['/next/?token=a%20b', '/?token=a%20b'],
+      ['/next/?token=abc_DEF-123&plan=plan-abc-1', '/?token=abc_DEF-123&plan=plan-abc-1'],
     ] as const) {
       const answer = await get(app.port, from);
       expect([from, answer.status, answer.headers['location']]).toEqual([from, 302, to]);

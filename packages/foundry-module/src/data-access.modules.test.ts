@@ -103,7 +103,11 @@ describe('FoundryDataAccess — getModules basic envelope', () => {
       manifest: 'https://user:pw@example.test/module.json',
     });
 
-    const result = await da.getModules({});
+    // Off by default: Claude's output stays small.
+    const plain = await da.getModules({});
+    expect(plain.modules.every((m: any) => m.manifest === null)).toBe(true);
+
+    const result = await da.getModules({ includeManifest: true });
     const manifest = (id: string): unknown =>
       result.modules.find((m: any) => m.id === id)?.manifest;
 

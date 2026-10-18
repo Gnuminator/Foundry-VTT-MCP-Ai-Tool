@@ -70,6 +70,8 @@ describe('module-request / module-reply contract', () => {
       'plan-tarokka-reveal',
       'list-changes',
       'plan-undo-changes',
+      'get-play-session',
+      'mark-play-session',
     ]);
     expect(MODULE_REQUEST_MAX_ARGS_BYTES).toBe(20_000);
   });

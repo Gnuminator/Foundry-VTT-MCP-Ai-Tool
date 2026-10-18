@@ -19,6 +19,7 @@ export interface VersionRow {
   newest: string | null;
   status: VersionStatus;
   active: boolean;
+  needsCore?: string | null;
 }
 
 export interface KitResult {
@@ -73,6 +74,7 @@ function Row({ row }: { row: VersionRow }): JSX.Element {
       <td>{row.newest ?? '-'}</td>
       <td>
         <span className="ver-status">{STATUS_TEXT[row.status]}</span>
+        {row.needsCore ? <span className="ver-needs"> (needs Foundry {row.needsCore})</span> : null}
       </td>
     </tr>
   );

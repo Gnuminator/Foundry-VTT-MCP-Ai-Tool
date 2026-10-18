@@ -661,7 +661,7 @@ Parameters:
 
 ### plan-scene-mood
 
-Plan the viewed scene's mood and music: set darkness/light/weather/playlist, save or apply a named preset ("save" with fromCurrent copies the scene as it is), remove-preset, or music (play, stop or switch a playlist). Apply with apply-planned-change, revert with undo-change. Off until the module switch "Scene mood and music" is on.
+Plan the viewed scene's mood and music: set darkness/light/weather/playlist, save or apply a named preset ("save" with fromCurrent copies the scene as it is), remove-preset, or music (play, stop or switch a playlist). Apply with apply-planned-change, revert with undo-change (music undo is refused once a sequential or shuffle playlist has moved on to its next track by itself: undo soon after, or stop the music with a new plan). Off until the module switch "Scene mood and music" is on.
 
 Kind: read-only. Title: Plan scene mood or music.
 
@@ -1259,6 +1259,7 @@ Parameters:
 
 - `activeOnly` (boolean): Only return active modules.
 - `withIssuesOnly` (boolean): Only return modules that have detected issues.
+- `includeManifest` (boolean): Include each module's manifest url (long; off by default to keep the answer small).
 
 ### get-module-errors
 

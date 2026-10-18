@@ -762,7 +762,11 @@ export class FoundryDataAccess {
   // Diagnostics (module troubleshooting)
   // ===========================================================================
 
-  async getModules(data: { activeOnly?: boolean; withIssuesOnly?: boolean }): Promise<any> {
+  async getModules(data: {
+    activeOnly?: boolean;
+    withIssuesOnly?: boolean;
+    includeManifest?: boolean;
+  }): Promise<any> {
     return this.modules.getModules(data);
   }
 

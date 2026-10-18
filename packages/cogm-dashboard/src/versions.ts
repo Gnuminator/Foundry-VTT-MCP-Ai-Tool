@@ -36,6 +36,8 @@ export interface VersionRow {
   newest: string | null;
   status: VersionStatus;
   active: boolean;
+  /** Set on a behind module whose newest release needs a newer Foundry than the installed one. */
+  needsCore: string | null;
 }
 
 export interface KitResult {
@@ -148,7 +150,7 @@ export function parseInstalled(raw: unknown): InstalledPackage[] | null {
       title: text(o.title, 120) || id,
       version,
       active: o.active === true,
-      manifest: isHttpUrl(o.manifest) ? o.manifest : null,
+      manifest: isHttpUrl(o.manifest) ? o.manifest.split('#')[0] : null,
     });
   }
   return out;
@@ -157,6 +159,8 @@ export function parseInstalled(raw: unknown): InstalledPackage[] | null {
 export interface NewestVersions {
   foundry: string | null;
   byId: Record<string, string>;
+  /** The Foundry version a module's newest release declares as its minimum core. */
+  minCoreById: Record<string, string>;
   errors: number;
 }
 
@@ -165,6 +169,7 @@ export function buildRows(
   newest: NewestVersions | null
 ): VersionRow[] {
   const rank: Record<VersionKind, number> = { core: 0, system: 1, module: 2 };
+  const core = installed.find(p => p.kind === 'core')?.version ?? null;
   const rows = installed.map((p): VersionRow => {
     const latest = newest
       ? p.kind === 'core'
@@ -173,6 +178,9 @@ export function buildRows(
       : null;
     let status: VersionStatus = 'unknown';
     if (latest) status = compareVersions(p.version, latest) < 0 ? 'behind' : 'ok';
+    const minCore = newest?.minCoreById[p.id] ?? null;
+    const needsCore =
+      status === 'behind' && minCore && core && compareVersions(core, minCore) < 0 ? minCore : null;
     return {
       id: p.id,
       kind: p.kind,
@@ -181,6 +189,7 @@ export function buildRows(
       newest: latest,
       status,
       active: p.active,
+      needsCore,
     };
   });
   return rows.sort(
@@ -200,6 +209,7 @@ type FetchLike = (
   headers: { get(name: string): string | null };
   body?: {
     getReader(): { read(): Promise<{ done: boolean; value?: Uint8Array }>; cancel(): unknown };
+    cancel?(): unknown;
   } | null;
   text(): Promise<string>;
 }>;
@@ -223,7 +233,19 @@ export function isPrivateHost(hostname: string): boolean {
   if (h === '::1' || h === '::' || /^f[cd][0-9a-f]{2}:/.test(h) || /^fe[89ab][0-9a-f]:/.test(h)) {
     return true;
   }
-  if (h.startsWith('::ffff:')) return true;
+  if (h.startsWith('::ffff:') || h.startsWith('64:ff9b:')) return true;
+  // IPv4 loopback written as ::7f00:1 (the url parser already folds 0:0:0:0:0:0:0:1 into ::1); multicast ff00::/8
+  if (/^::7f[0-9a-f]{2}:[0-9a-f]{1,4}$/.test(h)) return true;
+  if (/^ff[0-9a-f]{2}:/.test(h)) return true;
+  // Home-network names that do contain a dot.
+  if (
+    h.endsWith('.lan') ||
+    h.endsWith('.home.arpa') ||
+    h === 'fritz.box' ||
+    h.endsWith('.internal')
+  ) {
+    return true;
+  }
   const m = /^(\d+)\.(\d+)\.(\d+)\.(\d+)$/.exec(h);
   if (!m) return false;
   const [a, b] = [Number(m[1]), Number(m[2])];
@@ -234,7 +256,9 @@ export function isPrivateHost(hostname: string): boolean {
     (a === 169 && b === 254) ||
     (a === 172 && b >= 16 && b <= 31) ||
     (a === 192 && b === 168) ||
-    (a === 100 && b >= 64 && b <= 127)
+    (a === 100 && b >= 64 && b <= 127) ||
+    (a === 198 && (b === 18 || b === 19)) ||
+    a >= 224
   );
 }
 
@@ -284,22 +308,37 @@ async function fetchText(
       signal,
     });
     if (res.status >= 300 && res.status < 400) {
+      void res.body?.cancel?.();
       const location = res.headers.get('location');
       if (!location || hop >= MAX_REDIRECTS) throw new Error('too many redirects');
       url = checkUrl(new URL(location, url).href);
       continue;
     }
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    if (!res.ok) {
+      void res.body?.cancel?.();
+      throw new Error(`HTTP ${res.status}`);
+    }
     const length = Number(res.headers.get('content-length'));
-    if (Number.isFinite(length) && length > MAX_BODY) throw new Error('response too large');
+    if (Number.isFinite(length) && length > MAX_BODY) {
+      void res.body?.cancel?.();
+      throw new Error('response too large');
+    }
     return readCapped(res);
   }
 }
 
-function versionOf(json: unknown): string | null {
+const VERSION_RE = /^[0-9A-Za-z.+_-]{1,40}$/;
+
+function versionOf(json: unknown): { version: string; minCore: string | null } | null {
   if (!json || typeof json !== 'object') return null;
-  const v = (json as Record<string, unknown>).version;
-  return typeof v === 'string' && /^[0-9A-Za-z.+_-]{1,40}$/.test(v) ? v : null;
+  const o = json as Record<string, unknown>;
+  const v = o.version;
+  if (typeof v !== 'string' || !VERSION_RE.test(v)) return null;
+  // v11 and later: compatibility.minimum; older manifests: minimumCoreVersion
+  const comp = o.compatibility as Record<string, unknown> | undefined;
+  const raw = comp?.minimum ?? o.minimumCoreVersion;
+  const min = typeof raw === 'string' || typeof raw === 'number' ? String(raw) : '';
+  return { version: v, minCore: VERSION_RE.test(min) ? min : null };
 }
 
 /** The online check. Every lookup that fails counts in `errors`; the others still fill in. */
@@ -307,7 +346,7 @@ export async function fetchNewest(
   installed: InstalledPackage[],
   fetchImpl: FetchLike
 ): Promise<NewestVersions> {
-  const result: NewestVersions = { foundry: null, byId: {}, errors: 0 };
+  const result: NewestVersions = { foundry: null, byId: {}, minCoreById: {}, errors: 0 };
   const tasks: Array<() => Promise<void>> = [];
   tasks.push(async () => {
     try {
@@ -344,7 +383,8 @@ export async function fetchNewest(
       try {
         const v = versionOf(JSON.parse(await fetchText(fetchImpl, url)));
         if (!v) throw new Error('not a manifest');
-        result.byId[p.id] = v;
+        result.byId[p.id] = v.version;
+        if (v.minCore) result.minCoreById[p.id] = v.minCore;
       } catch {
         result.errors += 1;
       }

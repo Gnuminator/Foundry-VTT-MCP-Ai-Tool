@@ -66,10 +66,14 @@ export interface PanelSpec {
   render(): string;
   /** `data-action` handlers: `target` is the clicked element. */
   actions?: Record<string, (target: HTMLElement) => void | Promise<void>>;
+  /** Called each time the window is opened (or brought to the front): a panel that loads data starts it here. */
+  onOpen?: () => void;
 }
 
 /** What the window needs from `ApplicationV2` (the full class is in Foundry, not in our types). */
 interface AppV2Instance {
+  /** False while the window is closed (ApplicationV2 sets it). */
+  rendered?: boolean;
   render(options?: { force?: boolean }): Promise<unknown>;
   bringToFront?(): void;
   close?(): Promise<unknown>;
@@ -79,6 +83,8 @@ type AppV2Constructor = new (options?: Record<string, unknown>) => AppV2Instance
 export interface PanelOpener {
   /** Open (or bring to the front) the window; false when the switch is off or this is not a GM. */
   open(): Promise<boolean>;
+  /** Draw again now (a panel whose data arrived later); does nothing while the window is closed. */
+  redraw(): void;
   /** Forget the window (tests). */
   reset(): void;
 }
@@ -174,7 +180,14 @@ export function createPanelWindow(spec: PanelSpec): PanelOpener {
       instance ??= new windowClass();
       await instance.render({ force: true });
       instance.bringToFront?.();
+      spec.onOpen?.();
       return true;
+    },
+    redraw(): void {
+      if (!instance || instance.rendered === false || !canOpenGmWindow()) return;
+      instance.render().catch((e: unknown): void => {
+        console.warn(`${MODULE_ID} | window redraw failed`, e);
+      });
     },
     reset(): void {
       windowClass = null;

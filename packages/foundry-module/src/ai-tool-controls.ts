@@ -14,6 +14,8 @@ import { MODULE_ID } from './constants.js';
 import { gmWindowsEnabled } from './gm-windows.js';
 import { openHandoutsWindow } from './handouts-window.js';
 import { openPartyWindow } from './party-window.js';
+import { openSceneWindow } from './scene-window.js';
+import { openSessionWindow } from './session-window.js';
 import { openTarokkaWindow } from './tarokka-window.js';
 
 /** One button of the group. */
@@ -58,6 +60,20 @@ export const AI_TOOL_BUTTONS: readonly AiToolButton[] = [
     title: 'Party',
     icon: 'fa-solid fa-users',
     open: () => openPartyWindow(),
+    gmWindow: true,
+  },
+  {
+    name: 'session',
+    title: 'Session',
+    icon: 'fa-solid fa-flag',
+    open: () => openSessionWindow(),
+    gmWindow: true,
+  },
+  {
+    name: 'scene',
+    title: 'Scene',
+    icon: 'fa-solid fa-image',
+    open: () => openSceneWindow(),
     gmWindow: true,
   },
 ];

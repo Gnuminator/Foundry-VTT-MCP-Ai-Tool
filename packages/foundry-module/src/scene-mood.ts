@@ -132,6 +132,22 @@ function isPlaying(playlist: PlaylistLike): boolean {
   return Boolean(playlist.playing) || contentsOf(playlist.sounds).some((s: SoundLike) => s.playing);
 }
 
+/** A playlist `play` and `switch` can start: a soundboard playlist (mode -1) cannot play as a whole. */
+function isSoundboard(playlist: PlaylistLike): boolean {
+  const consts = (globalThis as { CONST?: { PLAYLIST_MODES?: { DISABLED?: number } } }).CONST;
+  return playlist.mode === (consts?.PLAYLIST_MODES?.DISABLED ?? -1);
+}
+
+function findPlayablePlaylist(name: string): PlaylistLike {
+  const playlist = findPlaylist(name);
+  if (isSoundboard(playlist)) {
+    throw new Error(
+      `Playlist ${quoted(playlist.name)} is a soundboard: its sounds are played one by one, not as a playlist. Pick another playlist.`
+    );
+  }
+  return playlist;
+}
+
 /** The sounds `play` starts: all in a simultaneous playlist, else the first of the play order. */
 function soundsToStart(playlist: PlaylistLike): SoundLike[] {
   const sounds = contentsOf(playlist.sounds);
@@ -158,7 +174,12 @@ function stopOps(playlist: PlaylistLike): GuardedOp[] {
 }
 
 function startOps(playlist: PlaylistLike): GuardedOp[] {
-  const ops: GuardedOp[] = soundsToStart(playlist)
+  const consts = (globalThis as { CONST?: { PLAYLIST_MODES?: { SIMULTANEOUS?: number } } }).CONST;
+  const simultaneous = playlist.mode === (consts?.PLAYLIST_MODES?.SIMULTANEOUS ?? 2);
+  // A sequential or shuffle playlist that is already on some track keeps it: starting the first
+  // sound too would play two tracks at once.
+  const alreadyOnTrack = !simultaneous && contentsOf(playlist.sounds).some(s => s.playing);
+  const ops: GuardedOp[] = (alreadyOnTrack ? [] : soundsToStart(playlist))
     .filter((s: SoundLike) => !s.playing)
     .map(
       (s: SoundLike): GuardedOp => ({
@@ -184,6 +205,21 @@ function switchOps(target: PlaylistLike | null): GuardedOp[] {
   return ops;
 }
 
+/** Refuse a weather id Foundry does not know (it would be stored and show nothing). */
+function checkWeather(id: string): string {
+  const effects = (globalThis as { CONFIG?: { weatherEffects?: Record<string, unknown> } }).CONFIG
+    ?.weatherEffects;
+  if (!effects || typeof effects !== 'object') return id;
+  const known = Object.keys(effects);
+  const found = known.find(k => k.toLowerCase() === id.toLowerCase());
+  if (!found) {
+    throw new Error(
+      `Unknown weather ${quoted(id)}. Valid: ${known.join(', ')}, or "none" to clear.`
+    );
+  }
+  return found;
+}
+
 function validated(settings: SceneMoodSettings): SceneMoodSettings {
   const out: SceneMoodSettings = {};
   if (settings.darkness != null) {
@@ -194,6 +230,7 @@ function validated(settings: SceneMoodSettings): SceneMoodSettings {
   if (typeof settings.weather === 'string') {
     const weather = settings.weather.trim();
     out.weather = weather.toLowerCase() === 'none' ? '' : weather;
+    if (out.weather) out.weather = checkWeather(out.weather);
   }
   if (typeof settings.playlist === 'string' && settings.playlist.trim()) {
     out.playlist = settings.playlist.trim();
@@ -228,7 +265,7 @@ function moodOps(scene: SceneLike, settings: SceneMoodSettings): GuardedOp[] {
   if (Object.keys(changes).length > 0) ops.push({ kind: 'update', uuid: scene.uuid, changes });
   if (settings.playlist != null) {
     const none = settings.playlist.toLowerCase() === 'none';
-    ops.push(...switchOps(none ? null : findPlaylist(settings.playlist)));
+    ops.push(...switchOps(none ? null : findPlayablePlaylist(settings.playlist)));
   }
   return ops;
 }
@@ -239,7 +276,8 @@ function currentSettings(scene: SceneLike): SceneMoodSettings {
     globalLight: Boolean(scene.environment?.globalLight?.enabled),
     weather: typeof scene.weather === 'string' ? scene.weather : '',
   };
-  const playing = playlists().find(isPlaying);
+  // A soundboard cannot be a preset's playlist, so it never counts as "the music".
+  const playing = playlists().find(p => !isSoundboard(p) && isPlaying(p));
   out.playlist = playing ? String(playing.name) : 'none';
   return out;
 }
@@ -255,8 +293,18 @@ function settingsOf(request: SceneMoodPlanRequest): SceneMoodSettings {
 function planApply(scene: SceneLike, request: SceneMoodPlanRequest): SceneMoodPlan {
   if (!request.preset) throw new Error('Give the preset name.');
   const { preset } = findPreset(scene, request.preset);
-  const settings = validated(preset);
-  const ops = moodOps(scene, settings);
+  let settings: SceneMoodSettings;
+  let ops: GuardedOp[];
+  try {
+    settings = validated(preset);
+    ops = moodOps(scene, settings);
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+    throw new Error(
+      `Preset ${quoted(preset.name)} cannot be applied: ${reason} Save it again or remove it.`,
+      { cause: error }
+    );
+  }
   if (ops.length === 0) throw new Error(`Preset ${quoted(preset.name)} changes nothing right now.`);
   return {
     summary: `Apply mood ${quoted(preset.name)} on ${quoted(scene.name)}: ${describe(settings).join(', ')}`,
@@ -283,7 +331,7 @@ function planSave(scene: SceneLike, request: SceneMoodPlanRequest): SceneMoodPla
   const key = presetKey(request.preset);
   const settings = request.fromCurrent ? validated(currentSettings(scene)) : settingsOf(request);
   if (settings.playlist && settings.playlist.toLowerCase() !== 'none') {
-    findPlaylist(settings.playlist);
+    findPlayablePlaylist(settings.playlist);
   }
   const parts = describe(settings);
   if (parts.length === 0)
@@ -324,7 +372,7 @@ function planMusic(scene: SceneLike, request: SceneMoodPlanRequest): SceneMoodPl
   const mode = request.mode ?? 'switch';
   const name = request.playlist;
   if (!name) throw new Error('Give the playlist.');
-  const playlist = findPlaylist(name);
+  const playlist = mode === 'stop' ? findPlaylist(name) : findPlayablePlaylist(name);
   const ops =
     mode === 'stop'
       ? stopOps(playlist)

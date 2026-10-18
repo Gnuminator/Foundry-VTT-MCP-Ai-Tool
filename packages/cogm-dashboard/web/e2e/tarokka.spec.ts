@@ -1036,10 +1036,7 @@ test('an apply that times out says it may have applied, reloads and keeps the dr
   await confirm.getByRole('checkbox').check();
   await confirm.getByRole('button', { name: 'Run destructive action' }).click();
   await expect(
-    toast(
-      page,
-      '✗ apply-planned-change timed out. It may have applied; check Recent Changes on the full dashboard.'
-    )
+    toast(page, '✗ apply-planned-change timed out. It may have applied; check Recent Changes.')
   ).toBeVisible();
   // The reload shows whether it went in; the form stays, as nothing says it did.
   await expect.poll(() => loads(calls)).toBeGreaterThan(loaded);

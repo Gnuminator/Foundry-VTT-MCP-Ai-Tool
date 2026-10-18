@@ -212,11 +212,14 @@ Foundry's module settings, or all at once with **Ready for session**.
 Every panel has a small **?** next to its title. It opens this guide at that panel's section, in a
 side panel over the dashboard; links inside it open the other guide pages there too. **📖 GM
 guides** in the **Advanced** menu opens the list of guides. The help is built into the dashboard,
-so it works without internet and always matches the installed version. The page you
-normally open has no link to the website yet. The new dashboard preview (the same address with
-`/next/` added) has one at the top of its side panel, **Open this page on the wiki**. It opens the
-same page on the website (needs internet), which is easier to read on a second screen and has
-search.
+so it works without internet and always matches the installed version. The side panel has a link
+at the top, **Open this page on the wiki**. It opens the same page on the website (needs
+internet), which is easier to read on a second screen and has search.
+
+> **The old dashboard page.** Until after the first session, the previous version of the dashboard
+> is still there at the same address with `/legacy/` added (also the **Old dashboard** button in the
+> header). Use it only if something you need is missing on the main page; the wiki link above is not
+> on it.
 
 ### Tonight's stats (After)
 

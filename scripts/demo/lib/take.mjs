@@ -86,8 +86,11 @@ export class Take {
     return win;
   }
 
-  /** The co-GM dashboard (local mode: every caller is GM). */
-  async dashboard(path = '/') {
+  /**
+   * The co-GM dashboard (local mode: every caller is GM). The takes use the old page's controls,
+   * so they open it at /legacy/ (React has been at / since 2026-11-01, D-126).
+   */
+  async dashboard(path = '/legacy/') {
     const win = await this.#open('Dashboard', `${this.env.dashboardUrl}${path}`);
     await waitForDashboard(win.page);
     await this.#crop('Dashboard');

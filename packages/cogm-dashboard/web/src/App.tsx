@@ -4,6 +4,7 @@ import { flushSync } from 'react-dom';
 
 import { AdvancedItem, AdvancedLabel, AdvancedMenu } from './components/AdvancedMenu';
 import { ConfirmProvider } from './components/ConfirmDialog';
+import { PlanLink } from './components/PlanLink';
 import {
   DuringBar,
   DuringMenuItems,
@@ -118,8 +119,8 @@ function useWorldTheme(): void {
 }
 
 /**
- * The new dashboard (D-109), served at /next/ next to the old page at /. Panels move here one
- * at a time; until the default switches, the old page stays the full dashboard.
+ * The dashboard (D-109): the page at / since 2026-11-01 (D-126). The old page is at /legacy/ until
+ * after G1 for the few panels that have not moved here.
  */
 export function App(): JSX.Element {
   return (
@@ -263,7 +264,7 @@ function Dashboard(): JSX.Element {
             <h1>
               Foundry <span className="wordmark-ai">AI</span> Tool
             </h1>
-            <p className="subtitle">New dashboard (preview)</p>
+            <p className="subtitle">Live AI dungeon master&apos;s assistant</p>
           </div>
         </div>
         <MomentTabs moment={moment} onPick={pick} />
@@ -394,15 +395,15 @@ function Dashboard(): JSX.Element {
               </Button>
             </AdvancedItem>
           </AdvancedMenu>
-          <a className="btn" href="/">
-            Full dashboard
+          <a className="btn" href="/legacy/" title="The old dashboard page, kept until after G1">
+            Old dashboard
           </a>
         </div>
       </header>
       <div className="link-banner" role="note">
-        This is the new dashboard, still being built. Panels move here one at a time; the full
-        dashboard is still at the main address.
+        A few panels are not on this page yet. They are on the <a href="/legacy/">old dashboard</a>.
       </div>
+      <PlanLink />
       <RoleNotice />
       <VersionBanner />
       <MomentViews

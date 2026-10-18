@@ -192,7 +192,7 @@ function NotHereYet({ title, wide = false }: { title: string; wide?: boolean }):
         <h2>{title}</h2>
       </div>
       <p className="not-here-yet-text">
-        Not in the new dashboard yet. It is on the <a href="/">full dashboard</a>.
+        Not on this page yet. It is on the <a href="/legacy/">old dashboard</a>.
       </p>
     </section>
   );

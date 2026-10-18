@@ -76,7 +76,12 @@ describe('evaluateAction', () => {
   });
 
   it('fails a target out of range, warns at long range, passes touch within 5 ft', () => {
-    expect(line({ ...base, distance: { feet: 10 } }, 'range')?.status).toBe('fail');
+    expect(line({ ...base, distance: { feet: 30 } }, 'range')?.status).toBe('fail');
+    // Centre to centre: a large token can still be in reach of a 5 ft attack.
+    expect(line({ ...base, distance: { feet: 10 } }, 'range')?.status).toBe('warn');
+    expect(line({ ...base, range: '60 Feet', distance: { feet: 70 } }, 'range')?.status).toBe(
+      'fail'
+    );
     const bow = { ...base, range: '80/320 Feet' };
     expect(line({ ...bow, distance: { feet: 120 } }, 'range')?.status).toBe('warn');
     expect(line({ ...bow, distance: { feet: 400 } }, 'range')?.status).toBe('fail');
@@ -113,6 +118,61 @@ describe('evaluateAction', () => {
     ).toBe('fail');
     expect(line(slots({}), 'slots')?.status).toBe('unknown');
     expect(evaluateAction(slots({ level3: { current: 0, max: 3 } })).verdict).toBe('problem');
+  });
+
+  it('uses no slot for at-will and innate spells, and the right slot for pact magic', () => {
+    const spell = { ...base, item: 'Misty Step', spellLevel: 2, slots: {} };
+    expect(line({ ...spell, spellMethod: 'atwill' }, 'slots')?.status).toBe('info');
+    expect(line({ ...spell, spellMethod: 'innate' }, 'slots')?.reason).toMatch(/innately/);
+    const pact = (level: number | null, current = 1): RulesFacts['slots'] => ({
+      pact: { current, max: 2, level },
+    });
+    const cast = { ...spell, spellMethod: 'pact' };
+    expect(line({ ...cast, slots: pact(3) }, 'slots')?.status).toBe('pass');
+    expect(line({ ...cast, slots: pact(null) }, 'slots')?.status).toBe('unknown');
+    expect(line({ ...cast, slots: pact(1) }, 'slots')?.status).toBe('fail');
+    expect(line({ ...cast, slots: pact(3, 0) }, 'slots')?.status).toBe('fail');
+    expect(line({ ...cast, slots: pact(3), castLevel: 2 }, 'slots')?.status).toBe('fail');
+    // A pact slot does not stand in for a lower cast level or an unreadable level.
+    const plain = { ...spell, spellMethod: 'spell', slots: pact(3), castLevel: 2 };
+    expect(line(plain, 'slots')?.status).toBe('fail');
+    expect(line({ ...plain, castLevel: null, slots: pact(null) }, 'slots')?.status).toBe('fail');
+  });
+
+  it('warns instead of failing for a ritual with no slot', () => {
+    const spell = {
+      ...base,
+      item: 'Detect Magic',
+      spellLevel: 1,
+      slots: { level1: { current: 0, max: 2 } },
+    };
+    expect(line({ ...spell, ritual: true }, 'slots')?.status).toBe('warn');
+    expect(line(spell, 'slots')?.status).toBe('fail');
+  });
+
+  it('cannot tell the turn when several tokens share the actor', () => {
+    const several = {
+      active: true,
+      round: 1,
+      inCombat: true,
+      ambiguous: true,
+      isCurrentTurn: false,
+      currentName: 'Wolf 2',
+    } as const;
+    expect(line({ ...base, combat: several }, 'turn')?.status).toBe('unknown');
+  });
+
+  it('only calls a long activation a combat problem for a combatant', () => {
+    const out = {
+      active: true,
+      round: 1,
+      inCombat: false,
+      isCurrentTurn: false,
+      currentName: 'X',
+    } as const;
+    expect(line({ ...base, activation: '1 Minute', combat: out }, 'action-cost')?.status).toBe(
+      'info'
+    );
   });
 
   it('needs no slot for a cantrip and adds no slot line for a weapon', () => {

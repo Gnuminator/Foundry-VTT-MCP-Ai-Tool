@@ -159,7 +159,8 @@ class FoundryMCPBridge {
       registerGuardedFeature({
         id: RULES_CHECK_FEATURE_ID,
         name: 'AI Tool: Rules check',
-        hint: 'Lets the AI check whether an attack, spell or item looks legal right now (turn, cost, range, spell slots, uses left) and say why. It only reads; it changes nothing.',
+        hint: 'Lets the AI check whether an attack, spell or item looks legal right now (turn, cost, range, spell slots, uses left) and say why.',
+        readOnly: true,
       });
       registerGuardedFeature({
         id: 'change-undo',

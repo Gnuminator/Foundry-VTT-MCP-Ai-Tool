@@ -59,6 +59,17 @@ describe('registerGuardedFeature', () => {
     expect(isKnownFeature('npc-attitudes')).toBe(true);
   });
 
+  it('words the hint of a read-only switch without the confirm and undo promise', () => {
+    registerGuardedFeature({
+      id: 'rules-check',
+      name: 'AI Tool: Rules check',
+      hint: 'Checks.',
+      readOnly: true,
+    });
+    const config = vi.mocked(game.settings.register).mock.calls.at(-1)?.[2] as { hint: string };
+    expect(config.hint).toBe('Checks. Off by default; it only reads and changes nothing.');
+  });
+
   it('registers a switch that starts on with defaultEnabled (D-082)', () => {
     registerGuardedFeature({ ...ATTITUDES, id: 'live-play', defaultEnabled: true });
     const [, key, config] = register.mock.calls[0];

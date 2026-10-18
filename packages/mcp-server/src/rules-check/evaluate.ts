@@ -24,6 +24,8 @@ export type CombatFact =
       round: number;
       /** The actor is a combatant of the encounter. */
       inCombat: boolean;
+      /** Several combatants share the actor (unlinked tokens), so the turn cannot be told. */
+      ambiguous?: boolean;
       isCurrentTurn: boolean;
       currentName: string | null;
     };
@@ -43,6 +45,10 @@ export interface RulesFacts {
   target: string | undefined;
   /** Feet between actor and target; null when it could not be measured (with the reason). */
   distance: { feet: number | null; error?: string } | undefined;
+  /** dnd5e 6 spell preparation method (`spell`, `pact`, `atwill`, `innate`, `ritual`), if a spell. */
+  spellMethod?: string | null;
+  /** The spell has the ritual property. */
+  ritual?: boolean;
   /** Keyed `level1`..`level9` and `pact`, as `get-character-resources` reports them. */
   slots: Record<string, SlotFact> | undefined;
   /** The item's own uses, then the chosen activity's. */
@@ -52,7 +58,11 @@ export interface RulesFacts {
 const LIMITS = [
   'Foundry does not record which actions, bonus actions or reactions a creature has already spent this turn, so that part is never confirmed.',
   'Cover, conditions, spell components and special cases (for example a bonus action spell limiting the main action) are not checked yet.',
+  'Ammunition and resources an item consumes are not checked, and distance is measured between token centres.',
 ];
+
+/** The most a token size can add to a centre to centre distance in a melee reach check (feet). */
+const SIZE_SLACK = 15;
 
 export type Cost = 'action' | 'bonus' | 'reaction' | 'long' | 'other' | 'none';
 
@@ -103,6 +113,13 @@ function turnCheck(f: RulesFacts, cost: Cost): RulesCheckLine {
       reason: `${f.actor} is not in the encounter, so turn order is not checked.`,
     };
   }
+  if (c.ambiguous) {
+    return {
+      check: 'turn',
+      status: 'unknown',
+      reason: `Several tokens of ${f.actor} are in the encounter, so whose turn it is cannot be told.`,
+    };
+  }
   if (c.isCurrentTurn) {
     return { check: 'turn', status: 'pass', reason: `It is ${f.actor}'s turn (round ${c.round}).` };
   }
@@ -129,6 +146,7 @@ function turnCheck(f: RulesFacts, cost: Cost): RulesCheckLine {
 
 function costCheck(f: RulesFacts, cost: Cost): RulesCheckLine {
   const label = f.activation ? `"${f.activation}"` : 'no activation';
+  const inRound = f.combat.active && f.combat.inCombat;
   switch (cost) {
     case 'action':
     case 'bonus':
@@ -144,8 +162,8 @@ function costCheck(f: RulesFacts, cost: Cost): RulesCheckLine {
     case 'long':
       return {
         check: 'action-cost',
-        status: f.combat.active ? 'warn' : 'info',
-        reason: `Takes longer than a turn (${label})${f.combat.active ? ', so it cannot be done in a combat round' : ''}.`,
+        status: inRound ? 'warn' : 'info',
+        reason: `Takes longer than a turn (${label})${inRound ? ', so it cannot be done in a combat round' : ''}.`,
       };
     case 'other':
       return {
@@ -204,10 +222,18 @@ function rangeCheck(f: RulesFacts): RulesCheckLine {
       reason: `${f.target} is ${feet} ft away: past the normal ${normal} ft but within the long range of ${range.long} ft (attacks at long range have disadvantage).`,
     };
   }
+  const limit = range.long ?? normal;
+  if (limit <= 10 && feet <= limit + SIZE_SLACK) {
+    return {
+      check: 'range',
+      status: 'warn',
+      reason: `${f.target} is ${feet} ft away centre to centre, past ${limit} ft. A large token can still be within reach; check the edges.`,
+    };
+  }
   return {
     check: 'range',
     status: 'fail',
-    reason: `${f.target} is ${feet} ft away, beyond ${range.long ?? normal} ft.`,
+    reason: `${f.target} is ${feet} ft away, beyond ${limit} ft.`,
   };
 }
 
@@ -222,6 +248,37 @@ function slotCheck(f: RulesFacts): RulesCheckLine | null {
       status: 'fail',
       reason: `A level ${f.spellLevel} spell cannot be cast at level ${wanted}.`,
     };
+  }
+  if (f.spellMethod === 'atwill' || f.spellMethod === 'innate') {
+    return {
+      check: 'slots',
+      status: 'info',
+      reason: `Cast ${f.spellMethod === 'atwill' ? 'at will' : 'innately'}, so it uses no spell slot (any uses are checked below).`,
+    };
+  }
+  if (f.spellMethod === 'pact') {
+    const pact = f.slots?.pact;
+    if (!pact || pact.level == null) {
+      return {
+        check: 'slots',
+        status: 'unknown',
+        reason: 'A pact magic spell, but the pact slot level could not be read.',
+      };
+    }
+    if (pact.level < f.spellLevel || (f.castLevel !== null && f.castLevel !== pact.level)) {
+      return {
+        check: 'slots',
+        status: 'fail',
+        reason: `Pact slots are level ${pact.level}; they cannot cast this at level ${wanted}.`,
+      };
+    }
+    return pact.current > 0
+      ? {
+          check: 'slots',
+          status: 'pass',
+          reason: `${pact.current} of ${pact.max} pact slots left (level ${pact.level}).`,
+        }
+      : { check: 'slots', status: 'fail', reason: 'No pact slot left.' };
   }
   if (!f.slots || Object.keys(f.slots).length === 0) {
     return {
@@ -239,7 +296,13 @@ function slotCheck(f: RulesFacts): RulesCheckLine | null {
     };
   }
   const pact = f.slots.pact;
-  if (pact && pact.current > 0 && (pact.level ?? 0) >= wanted) {
+  if (
+    pact &&
+    pact.current > 0 &&
+    pact.level != null &&
+    pact.level >= wanted &&
+    (f.castLevel === null || f.castLevel === pact.level)
+  ) {
     return {
       check: 'slots',
       status: 'pass',
@@ -258,11 +321,15 @@ function slotCheck(f: RulesFacts): RulesCheckLine | null {
       }
     }
   }
-  return {
-    check: 'slots',
-    status: 'fail',
-    reason: `No level ${wanted}${f.castLevel === null ? ' or higher' : ''} spell slot left.`,
-  };
+  const none = `No level ${wanted}${f.castLevel === null ? ' or higher' : ''} spell slot left`;
+  if (f.ritual || f.spellMethod === 'ritual') {
+    return {
+      check: 'slots',
+      status: 'warn',
+      reason: `${none}, but it can be cast as a ritual (longer, and not in a combat round).`,
+    };
+  }
+  return { check: 'slots', status: 'fail', reason: `${none}.` };
 }
 
 function usesCheck(f: RulesFacts): RulesCheckLine | null {

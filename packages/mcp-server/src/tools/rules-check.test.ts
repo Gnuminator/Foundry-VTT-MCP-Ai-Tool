@@ -77,6 +77,62 @@ describe('itemRangeLabel', () => {
 });
 
 describe('check-action', () => {
+  it('takes the reach for a melee attack with a thrown weapon, and skips slots for innate spells', async () => {
+    const dagger = {
+      success: true,
+      entityType: 'item',
+      entity: {
+        name: 'Dagger',
+        type: 'weapon',
+        activities: [{ id: 'a', name: 'Attack', activation: 'Action', range: '60 ft' }],
+        system: {
+          range: { value: 20, long: 60, reach: 5, units: 'ft' },
+          activities: { a: { attack: { type: { value: 'melee' } } } },
+        },
+      },
+    };
+    const far = { success: true, distance: 30, units: 'ft' };
+    const { t } = tools({ entity: dagger, distance: far });
+    const r = await t.handleToolCall('check-action', {
+      actor: 'Ireena',
+      item: 'Dagger',
+      target: 'Z',
+    });
+    expect(r.checks.find(c => c.check === 'range')?.status).toBe('fail');
+
+    const innate = {
+      success: true,
+      entityType: 'item',
+      entity: {
+        name: 'Misty Step',
+        type: 'spell',
+        level: 2,
+        activities: [{ id: 'a', name: 'Cast', activation: 'Bonus Action' }],
+        system: { method: 'innate' },
+      },
+    };
+    const r2 = await tools({ entity: innate }).t.handleToolCall('check-action', {
+      actor: 'Ireena',
+      item: 'Misty Step',
+    });
+    expect(r2.checks.find(c => c.check === 'slots')?.status).toBe('info');
+  });
+
+  it('cannot tell the turn when unlinked tokens share the actor', async () => {
+    const twins = {
+      ...combat,
+      combatants: [
+        { name: 'Wolf 1', actorId: 'a1', isCurrentTurn: true },
+        { name: 'Wolf 2', actorId: 'a1', isCurrentTurn: false },
+      ],
+    };
+    const r = await tools({ combat: twins }).t.handleToolCall('check-action', {
+      actor: 'Ireena',
+      item: 'Magic Missile',
+    });
+    expect(r.checks[0]?.status).toBe('unknown');
+  });
+
   it('warns between normal and long range of a bow', async () => {
     const bow = {
       success: true,

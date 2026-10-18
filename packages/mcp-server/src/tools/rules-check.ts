@@ -39,10 +39,14 @@ const text = (v: unknown): string | undefined => (typeof v === 'string' && v ? v
  * The item's own range as a label ("150/600 ft", "5 ft", "Self"), else null. A ranged weapon's
  * activity label shows only the long range, so the item's `system.range` wins when it has numbers.
  */
-export function itemRangeLabel(system: Rec): string | null {
+export function itemRangeLabel(system: Rec, attack?: 'melee' | 'ranged' | null): string | null {
   const range = rec(system.range);
   const units = text(range.units);
   if (units === 'self' || units === 'touch') return units;
+  // A melee attack uses the reach even when the item can also be thrown (value/long).
+  if (attack === 'melee' && typeof range.reach === 'number' && range.reach > 0) {
+    return `${range.reach} ft`;
+  }
   if (typeof range.value === 'number' && range.value > 0) {
     const long = typeof range.long === 'number' && range.long > 0 ? `/${range.long}` : '';
     return `${range.value}${long} ${units ?? 'ft'}`;
@@ -167,6 +171,11 @@ export class RulesCheckTools {
 
     const system = rec(entity.system);
     const isSpell = entity.type === 'spell';
+    const properties: unknown[] = Array.isArray(system.properties) ? system.properties : [];
+    const attackValue = text(
+      rec(rec(rec(rec(system.activities)[text(activity?.id) ?? '']).attack).type).value
+    );
+    const attackType = attackValue === 'melee' || attackValue === 'ranged' ? attackValue : null;
     const { combat, tokenName } = await this.combatFact(actorId, actorName);
     const distance = p.target ? await this.distanceFact(tokenName, p.target) : undefined;
 
@@ -188,7 +197,9 @@ export class RulesCheckTools {
       spellLevel: isSpell ? (typeof entity.level === 'number' ? entity.level : 0) : null,
       castLevel: p.castLevel ?? null,
       activation: text(activity?.activation) ?? text(rec(system.activation).type),
-      range: itemRangeLabel(system) ?? text(activity?.range),
+      spellMethod: isSpell ? (text(system.method) ?? null) : null,
+      ritual: isSpell && properties.includes('ritual'),
+      range: itemRangeLabel(system, attackType) ?? text(activity?.range),
       combat,
       target: p.target,
       distance,
@@ -221,12 +232,18 @@ export class RulesCheckTools {
       return { combat: { active: false }, tokenName: actorName };
     }
     const combatants = Array.isArray(state.combatants) ? state.combatants.map(rec) : [];
-    const mine = combatants.find(c => (actorId && c.actorId === actorId) || c.name === actorName);
+    // Unlinked tokens share an actor id: take the one named like the actor, else give up on turns.
+    const byActor = combatants.filter(c => actorId !== undefined && c.actorId === actorId);
+    const pool = byActor.length > 0 ? byActor : combatants.filter(c => c.name === actorName);
+    const exact = pool.find(c => c.name === actorName);
+    const mine = exact ?? (pool.length === 1 ? pool[0] : undefined);
+    const ambiguous = mine === undefined && pool.length > 1;
     return {
       combat: {
         active: true,
         round: typeof state.round === 'number' ? state.round : 0,
-        inCombat: mine !== undefined,
+        inCombat: mine !== undefined || ambiguous,
+        ...(ambiguous ? { ambiguous: true } : {}),
         isCurrentTurn: mine?.isCurrentTurn === true,
         currentName: text(rec(state.current).name) ?? null,
       },

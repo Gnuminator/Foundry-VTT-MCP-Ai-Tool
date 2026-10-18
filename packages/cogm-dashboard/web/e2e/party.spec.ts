@@ -361,10 +361,7 @@ test('an apply that times out says it may have applied and reloads the party', a
 
   await drawer.locator('#party-pace').getByRole('button', { name: 'Fast' }).click();
   await expect(
-    toast(
-      page,
-      '✗ apply-planned-change timed out. It may have applied; check Recent Changes on the full dashboard.'
-    )
+    toast(page, '✗ apply-planned-change timed out. It may have applied; check Recent Changes.')
   ).toBeVisible();
   await expect
     .poll(() => names(calls))
@@ -402,7 +399,7 @@ test('an apply whose answer got lost says it may have applied; a tool error does
   });
   const drawer = await openParty(page);
   const fast = drawer.locator('#party-pace').getByRole('button', { name: 'Fast' });
-  const hint = 'It may have applied; check Recent Changes on the full dashboard.';
+  const hint = 'It may have applied; check Recent Changes.';
 
   await fast.click();
   await expect(

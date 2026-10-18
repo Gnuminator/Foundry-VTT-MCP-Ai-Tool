@@ -10,8 +10,8 @@ import { GM_TOKEN, fakeCommonRoutes } from './support';
 const PLAYER_TOKEN = 'e2e-player-token';
 
 const PAGES = [
-  ['the new dashboard', '/next/'],
-  ['the old page at the root', '/'],
+  ['the main dashboard', '/'],
+  ['the old page', '/legacy/'],
 ] as const;
 
 /** Waits for the page's /api/state answer, then long enough for a redirect to have happened. */

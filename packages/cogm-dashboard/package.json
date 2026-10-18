@@ -29,6 +29,7 @@
     "@gnuminator/shared": "*",
     "dotenv": "^16.3.0",
     "express": "^4.19.0",
+    "express-rate-limit": "8.5.2",
     "htmlparser2": "^10.1.0"
   },
   "devDependencies": {

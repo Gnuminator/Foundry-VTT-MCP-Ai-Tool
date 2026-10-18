@@ -155,7 +155,7 @@ export default {
           );
         }
         // The page is meant to fail (401s): its console errors stay out of the run's report and are attached here.
-        const page = await browser.open('/', {
+        const page = await browser.open('/legacy/', {
           fresh: true,
           viewport: VIEWPORT,
           expectErrors: true,
@@ -295,7 +295,7 @@ export default {
       guard(async () => {
         const gmApi = await call('/api/tools', { token: gmToken });
         t.check(gmApi.status === 200, `/api/tools with the GM token answers ${gmApi.status}`);
-        const page = await browser.open(`/?token=${gmToken}`, { fresh: true, viewport: VIEWPORT });
+        const page = await browser.open(`/legacy/?token=${gmToken}`, { fresh: true, viewport: VIEWPORT });
         await page.locator('#btn-gm').waitFor({ state: 'visible', timeout: 15000 });
         await page
           .waitForFunction(

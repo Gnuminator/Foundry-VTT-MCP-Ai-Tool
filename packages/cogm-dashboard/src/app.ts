@@ -1,4 +1,5 @@
-import express, { type Express, type Request, type Response } from 'express';
+import express, { type Express, type NextFunction, type Request, type Response } from 'express';
+import rateLimit from 'express-rate-limit';
 import {
   createSpaceStatusReader,
   type RecordUsageResult,
@@ -577,19 +578,57 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
   // The player page and the /open confirm page get their headers from inside express.static,
   // by file name and file identity, so no URL spelling (`/player%2Ehtml`, `/Player.html`,
   // `/x/../player.html`) serves them without.
+  // The React dashboard is the default at / (D-126, from 2026-11-01): a static shell like the old
+  // index.html; its data comes from the same routes, with the same token. Its files are served
+  // under /next/ (Vite's base), where the old name of the page also redirects, keeping the query
+  // (a saved link with ?token=). It is registered before the static files below, which would
+  // answer / with the old page. A build that is missing falls back to the old page.
+  const reactIndex = path.join(config.webDir, 'index.html');
+  if (!fs.existsSync(reactIndex)) {
+    logger.warn('The React dashboard is not built: / shows the old page', {
+      webDir: config.webDir,
+    });
+  }
+  // A page load is a few requests a minute; this only stops a runaway loop on the file reads.
+  // The limiter is the library's so that CodeQL and the next reader recognise it; one bucket per
+  // client address (the dashboard may sit behind a proxy, so the forwarded-for check is off).
+  const pageLimit = rateLimit({
+    windowMs: 10_000,
+    limit: 1000,
+    standardHeaders: false,
+    legacyHeaders: false,
+    message: 'Too many requests',
+    validate: { xForwardedForHeader: false },
+  });
+  app.get('/', pageLimit, (_req: Request, res: Response, next: NextFunction) => {
+    if (!fs.existsSync(reactIndex)) return next();
+    res.setHeader('Cache-Control', 'no-cache');
+    res.sendFile(reactIndex);
+  });
+  // Only a plain query string is carried over (a saved ?token= or ?plan= link); anything else is
+  // dropped, and the target is always "/" plus that, so it can never leave this origin.
+  app.get(['/next', '/next/'], pageLimit, (req: Request, res: Response) => {
+    const raw = req.originalUrl.includes('?')
+      ? req.originalUrl.slice(req.originalUrl.indexOf('?'))
+      : '';
+    res.redirect(302, /^\?[A-Za-z0-9%=&._~+-]*$/.test(raw) ? `/${raw}` : '/');
+  });
+  // The old page stays here until after G1 (D-126). Its files use relative paths (./app.js), so it
+  // is a static folder of its own; a request for /legacy redirects to /legacy/ with the query.
+  app.use(
+    '/legacy',
+    express.static(config.publicDir, {
+      setHeaders: staticHeaders(config.publicDir, [OPEN_PAGE_HEADERS, PLAYER_PAGE_HEADERS]),
+    })
+  );
   app.use(
     express.static(config.publicDir, {
       setHeaders: staticHeaders(config.publicDir, [OPEN_PAGE_HEADERS, PLAYER_PAGE_HEADERS]),
     })
   );
 
-  // The React dashboard (D-109), next to the old pages until the default switches: a static
-  // shell like index.html; its data comes from the same routes, with the same token. Vite puts a
-  // content hash in every file name under assets/, so those are cached for good; index.html is
-  // checked on every load so a new build shows up at once.
-  if (!fs.existsSync(path.join(config.webDir, 'index.html'))) {
-    logger.warn('The new dashboard is not built: /next/ will not load', { webDir: config.webDir });
-  }
+  // The React dashboard's files: Vite puts a content hash in every file name under assets/, so
+  // those are cached for good; index.html is checked on every load so a new build shows up at once.
   app.use(
     '/next',
     express.static(config.webDir, {

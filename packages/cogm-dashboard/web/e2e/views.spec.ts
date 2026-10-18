@@ -123,10 +123,13 @@ test('no session: Before, with Pre-flight and Prep in the page', async ({ page }
   await expect(page.locator('.drawer-backdrop')).toHaveCount(0);
   await expect(preflight.getByRole('button', { name: 'Close' })).toHaveCount(0);
   await expect(prep.getByRole('button', { name: 'Close' })).toHaveCount(0);
-  // A panel not in React yet points to the full dashboard.
+  // A panel not in React yet points to the old dashboard.
   const features = view(page, 'before').getByRole('region', { name: 'Features' });
-  await expect(features).toContainText('Not in the new dashboard yet.');
-  await expect(features.getByRole('link', { name: 'full dashboard' })).toHaveAttribute('href', '/');
+  await expect(features).toContainText('Not on this page yet.');
+  await expect(features.getByRole('link', { name: 'old dashboard' })).toHaveAttribute(
+    'href',
+    '/legacy/'
+  );
   await expect.poll(() => count(calls, 'get-prep-digest')).toBe(1);
   // A later poll as the sync point: a late get-party call would have landed by then.
   await nextPoll(page, calls);

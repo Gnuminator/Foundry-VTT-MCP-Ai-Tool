@@ -795,7 +795,7 @@ test('an apply that timed out says it may have applied', async ({ page }) => {
   await drawer.locator('#tool-run').click();
   await confirmWindow(page).getByRole('button', { name: 'Confirm' }).click();
   await expect(drawer.locator('#tool-result pre')).toHaveText(
-    'Timed out. It may have applied; check Recent Changes on the full dashboard.'
+    'Timed out. It may have applied; check Recent Changes.'
   );
 });
 

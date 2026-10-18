@@ -4,6 +4,9 @@
  * `put` and `approve` through (`stage` and `status` stay with the pipeline on the control port).
  *
  * - `GET  /api/session-notes`               -> `{items}` (GM)
+ * - `GET  /api/session-notes/pipeline`      -> `{pipeline}`: how the last notes pass for the newest
+ *                                              recorded session ended (its `notes/status.json`,
+ *                                              read from `FVTT_SESSIONS_DIR`), or null (GM)
  * - `GET  /api/session-notes/:id`           -> the item with page HTML (GM; the page sanitizes
  *                                              the preview again before showing it)
  * - `POST /api/session-notes/:id/put`       -> the applied change plus `item` (GM + GM Actions)
@@ -13,6 +16,10 @@
  * 403 feature-off, writes-off or gm-actions-disabled, 400 bad-request or no-world, 503
  * not-connected (no GM Foundry client), 502 when the bridge cannot be reached.
  */
+import { readdir, readFile } from 'node:fs/promises';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
+
 import express, { type Express, type Request, type Response } from 'express';
 
 export type SessionNotesAction = 'list' | 'get' | 'put' | 'approve';
@@ -26,6 +33,62 @@ export interface SessionNotesRouteOptions {
   requireGm: (req: Request, res: Response, next: () => void) => void;
   /** The GM Actions switch (put and approve need it on). */
   gmActionsEnabled: () => boolean;
+  /** Where recordings go (default `FVTT_SESSIONS_DIR`, else `Documents/FoundrySessions`). */
+  sessionsDir?: string;
+}
+
+export const PIPELINE_STATES = [
+  'done',
+  'paused',
+  'incomplete',
+  'failed',
+  'waiting',
+  'published',
+] as const;
+
+export interface PipelineStatus {
+  session: string;
+  state: (typeof PIPELINE_STATES)[number];
+  message: string;
+  at?: string;
+}
+
+/**
+ * The newest session folder's `notes/status.json` (written by the notes pipeline,
+ * tools/session-notes). Newest = last by name (folders start with the date). Null when there is
+ * none or it is unreadable. The sessions folder sits on this PC next to the bridge, which is why
+ * this reads it directly instead of the pipeline copying the status into the staged notes (a
+ * failed or paused pass has nothing staged to carry it).
+ */
+export async function readPipelineStatus(dir: string): Promise<PipelineStatus | null> {
+  let names: string[];
+  try {
+    names = (await readdir(dir, { withFileTypes: true }))
+      .filter(e => e.isDirectory())
+      .map(e => e.name)
+      .sort()
+      .reverse();
+  } catch {
+    return null;
+  }
+  for (const session of names) {
+    let raw: unknown;
+    try {
+      raw = JSON.parse(await readFile(join(dir, session, 'notes', 'status.json'), 'utf-8'));
+    } catch {
+      continue;
+    }
+    const r = (raw ?? {}) as { state?: unknown; message?: unknown; at?: unknown };
+    const state = PIPELINE_STATES.find(s => s === r.state);
+    if (!state) continue;
+    return {
+      session,
+      state,
+      message: typeof r.message === 'string' ? r.message.slice(0, 300) : '',
+      ...(typeof r.at === 'string' ? { at: r.at } : {}),
+    };
+  }
+  return null;
 }
 
 const SESSION_ID = /^[A-Za-z0-9][A-Za-z0-9_-]{0,79}$/;
@@ -101,6 +164,14 @@ export function mountSessionNotesRoute(app: Express, options: SessionNotesRouteO
   }
 
   app.get('/api/session-notes', requireGm, (_req: Request, res: Response) => run(res, 'list'));
+
+  app.get('/api/session-notes/pipeline', requireGm, (_req: Request, res: Response) => {
+    const dir =
+      options.sessionsDir ??
+      process.env.FVTT_SESSIONS_DIR ??
+      join(homedir(), 'Documents', 'FoundrySessions');
+    void readPipelineStatus(dir).then(pipeline => res.json({ pipeline }));
+  });
 
   app.get('/api/session-notes/:id', requireGm, (req: Request, res: Response) => {
     const sessionId = sessionIdOf(req, res);

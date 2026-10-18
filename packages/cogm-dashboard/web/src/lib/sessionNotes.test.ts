@@ -1,7 +1,7 @@
 // The notes card's words and buttons. sanitizeNotesHtml needs a DOM, so e2e/after.spec.ts covers it.
 import { describe, expect, it } from 'vitest';
 
-import { notesView, type SessionNotes } from './sessionNotes';
+import { notesView, pipelineView, type SessionNotes } from './sessionNotes';
 
 const base: SessionNotes = { sessionId: 's1', title: 'Session 3', status: 'staged', autoPut: true };
 
@@ -61,6 +61,19 @@ describe('notesView', () => {
     expect(v.line).toContain('audio is kept');
     expect(v.line).toContain('not in Foundry now');
     expect(v.actions).toEqual(['read', 'put']);
+  });
+
+  it('says how the last pass ended and flags problems', () => {
+    const at = '2026-10-18T09:00:00+02:00';
+    expect(pipelineView({ session: 's', state: 'published', message: 'x', at }).problem).toBe(
+      false
+    );
+    const failed = pipelineView({ session: 's', state: 'failed', message: 'exit 3', at });
+    expect(failed.problem).toBe(true);
+    expect(failed.line).toContain('failed');
+    expect(failed.line).toContain('exit 3');
+    expect(pipelineView({ session: 's', state: 'incomplete', message: '' }).line).toContain('raw');
+    expect(pipelineView({ session: 's', state: 'waiting', message: '' }).problem).toBe(false);
   });
 
   it('shows the last error', () => {

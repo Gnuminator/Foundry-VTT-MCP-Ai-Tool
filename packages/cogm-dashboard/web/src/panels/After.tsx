@@ -22,9 +22,11 @@ import {
 import { GAME_STATE_KEY, useGuardedTools } from '../lib/guarded';
 import {
   notesView,
+  pipelineView,
   sanitizeNotesHtml,
   type NotesAction,
   type NotesPage,
+  type PipelineStatus,
   type SessionNotes,
 } from '../lib/sessionNotes';
 import { useObsidianFileUrl } from '../lib/stream';
@@ -235,8 +237,44 @@ function SessionNotesCard({ active }: { active: boolean }): JSX.Element | null {
     },
     enabled: active,
   });
+  // The last pass's outcome comes from the sessions folder, so it shows even when nothing is staged.
+  const pipelineQuery = useQuery({
+    queryKey: [...NOTES_KEY, 'pipeline'],
+    queryFn: async () => {
+      try {
+        const data = await api<{ pipeline?: PipelineStatus | null }>('/api/session-notes/pipeline');
+        return data.pipeline ?? null;
+      } catch {
+        return null;
+      }
+    },
+    enabled: active,
+  });
   const n = query.data ?? null;
-  if (!n) return null;
+  const pipeline = pipelineQuery.data ? pipelineView(pipelineQuery.data) : null;
+  const pipelineLine = pipeline && (
+    <p
+      className={`notes-line${pipeline.problem ? ' notes-warn' : ''}`}
+      id="notes-pipeline"
+      data-state={pipelineQuery.data?.state}
+    >
+      {pipeline.line}
+    </p>
+  );
+  if (!n) {
+    if (!pipelineQuery.data) return null;
+    return (
+      <section className="notes-card" id="notes-card" aria-label="Session notes">
+        <div className="notes-card-head">
+          <h3>
+            <span id="notes-title">{`Session notes: ${pipelineQuery.data.session}`}</span>
+          </h3>
+          <Pill tone="off">Waiting</Pill>
+        </div>
+        {pipelineLine}
+      </section>
+    );
+  }
   const view = notesView(n);
 
   const reload = (): void => {
@@ -300,6 +338,7 @@ function SessionNotesCard({ active }: { active: boolean }): JSX.Element | null {
         <p className="notes-line" id="notes-line">
           {view.line}
         </p>
+        {pipelineLine}
         {view.warn && (
           <p className="notes-line notes-warn" id="notes-warn">
             {view.warn}

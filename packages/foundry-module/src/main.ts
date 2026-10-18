@@ -21,6 +21,7 @@ import { LIVE_PLAY_FEATURE_ID } from './live-plan.js';
 import { OWNERSHIP_FEATURE_ID } from './data-access/ownership-players.js';
 import { SCENE_RESTORE_FEATURE_ID } from './scene-state.js';
 import { PARTY_FEATURE_ID } from './party-scan.js';
+import { registerGmWindowsSetting } from './gm-windows.js';
 import { registerSessionSwitchSettings } from './session-switches.js';
 import { registerDiceThemes } from './dice-themes.js';
 import { TAROKKA_FEATURE_ID, onTarokkaSettingChanged } from './tarokka.js';
@@ -85,6 +86,7 @@ class FoundryMCPBridge {
       this.settings.registerSettings();
       registerSettingsUsageHooks();
       registerSessionSwitchSettings();
+      registerGmWindowsSetting();
       // Themed dice (I-085): every client, players included; silent without Dice So Nice.
       registerDiceThemes();
 
@@ -128,6 +130,12 @@ class FoundryMCPBridge {
         id: OWNERSHIP_FEATURE_ID,
         name: 'AI Tool: Ownership (writes)',
         hint: 'Lets the dashboard and the AI change which players own or can see an actor.',
+        defaultEnabled: true,
+      });
+      registerGuardedFeature({
+        id: 'table-viewer',
+        name: 'AI Tool: Table viewer (writes)',
+        hint: 'Lets the AI create the Table user that the TV at the table signs in as (Player role, no password, owns nothing), after you confirm the plan. It shows in Recent Changes with an Undo.',
         defaultEnabled: true,
       });
       registerGuardedFeature({

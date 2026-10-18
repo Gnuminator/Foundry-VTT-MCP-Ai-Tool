@@ -179,6 +179,10 @@ jobs:
         # the Claude Desktop connector switch (the PowerShell part is skipped where pwsh 7 is missing).
         run: node --test scripts/plan-b/plan-b.test.mjs
 
+      - name: TV table viewer script
+        # scripts/tv/start-table-viewer.ps1 (tv-login, G1): the kiosk command and its refusals (needs pwsh 7; the command tests also need Edge or Chrome and are skipped where missing).
+        run: node --test scripts/tv/start-table-viewer.test.mjs
+
       - name: Changelog fragments
         # Each PR adds its CHANGELOG entry as a file in changelog.d/ (D-089); this checks the format.
         run: npm run changelog:check

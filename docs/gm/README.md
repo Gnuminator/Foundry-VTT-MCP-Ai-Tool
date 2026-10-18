@@ -31,6 +31,7 @@ play.
 | [When a character dies](death-and-new-characters.md)              | The moment of death, a death log, and bringing in a new character.                        |
 | [Never do this, only do this if](never-and-only-if.md)            | Short rules, each with its reason.                                                        |
 | [Game night runbook](game-night-runbook.md)                       | One page for the night: what to do when something fails, and when to call for help.       |
+| [The TV at the table](tv-table-viewer.md)                         | Show the map on a TV at an in-person session; it signs in once as a player called Table.  |
 | [Troubleshooting](troubleshooting.md)                             | Symptom, likely cause and fix.                                                            |
 | [Connect Claude Desktop to the server](connect-claude-desktop.md) | Install the small Windows client and the tunnel key so Claude Desktop reaches the server. |
 | [Claude Free or Pro](claude-plans.md)                             | What works on the free Claude plan, its limits, and what Pro adds.                        |

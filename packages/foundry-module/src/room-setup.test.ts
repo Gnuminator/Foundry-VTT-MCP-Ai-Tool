@@ -222,6 +222,110 @@ describe('spawn', () => {
   });
 });
 
+describe('review fixes', () => {
+  function actor(id: string, name: string): any {
+    const a = world.addActor({ id, name, type: 'npc' });
+    (a as any).prototypeToken = { width: 1, height: 1 };
+    (a as any).getTokenDocument = async (
+      data: Record<string, unknown>
+    ): Promise<{ toObject(): Record<string, unknown> }> => ({
+      toObject: (): Record<string, unknown> => ({ _id: 'tmp', name, actorId: id, ...data }),
+    });
+    return a;
+  }
+
+  it('makes every region GM-only, so players see no box round hidden monsters', async () => {
+    world.setActiveScene(scene('a', 'Hall').id);
+    actor('wolf', 'Wolf');
+    const tp = await planRoomSetup({
+      action: 'teleport',
+      from: { x: 0, y: 0, width: 1, height: 1 },
+      to: { x: 5, y: 5, width: 1, height: 1 },
+    });
+    const sp = await planRoomSetup({
+      action: 'spawn',
+      name: 'Den',
+      area: { x: 4, y: 4, width: 3, height: 3 },
+      creatures: [{ actor: 'Wolf' }],
+    });
+    for (const op of [...tp.ops, sp.ops[0]] as any[]) expect(op.data.visibility).toBe(1);
+  });
+
+  it('does not guess between actors whose names contain the text', async () => {
+    world.setActiveScene(scene('a', 'Hall').id);
+    actor('dw', 'Dire Wolf');
+    actor('ww', 'Werewolf');
+    actor('w', 'Wolf');
+    const exact = await planRoomSetup({
+      action: 'spawn',
+      name: 'Den',
+      area: { x: 4, y: 4, width: 3, height: 3 },
+      creatures: [{ actor: 'wolf' }],
+    });
+    expect((exact.ops[1] as any).data.actorId).toBe('w');
+    await expect(
+      planRoomSetup({
+        action: 'spawn',
+        name: 'Den',
+        area: { x: 4, y: 4, width: 3, height: 3 },
+        creatures: [{ actor: 'were' }, { actor: 'dire' }],
+      })
+    ).resolves.toMatchObject({ tokens: [{ name: 'Werewolf' }, { name: 'Dire Wolf' }] });
+  });
+
+  it('lists several partial matches as skipped', async () => {
+    world.setActiveScene(scene('a', 'Hall').id);
+    actor('dw', 'Dire Wolf');
+    actor('ww', 'Werewolf');
+    actor('g', 'Goblin');
+    const plan = await planRoomSetup({
+      action: 'spawn',
+      name: 'Den',
+      area: { x: 4, y: 4, width: 3, height: 3 },
+      creatures: [{ actor: 'wolf' }, { actor: 'Goblin' }],
+    });
+    expect(plan.skipped?.[0]).toMatchObject({ name: 'wolf' });
+    expect(plan.skipped?.[0].reason).toMatch(/several actors match/);
+    expect(plan.tokens).toHaveLength(1);
+  });
+
+  it('refuses two scenes with the same name and a hex grid', async () => {
+    world.setActiveScene(scene('a', 'Hall').id);
+    scene('b', 'Twin');
+    scene('c', 'Twin');
+    scene('h', 'Hexes', { grid: { size: 100, type: 2 } });
+    const area = { x: 0, y: 0, width: 1, height: 1 };
+    await expect(
+      planRoomSetup({
+        action: 'teleport',
+        from: area,
+        to: { x: 5, y: 5, width: 1, height: 1, scene: 'Twin' },
+      })
+    ).rejects.toThrow(/2 scenes are named "Twin"/);
+    await expect(
+      planRoomSetup({
+        action: 'teleport',
+        from: area,
+        to: { x: 5, y: 5, width: 1, height: 1, scene: 'Hexes' },
+      })
+    ).rejects.toThrow(/hex grid/);
+  });
+
+  it('puts regions of the viewed scene on its current level, other scenes on every level', async () => {
+    const a = scene('a', 'Hall', { levels: { contents: [{ id: 'lv1' }] }, initialLevel: 'lv1' });
+    world.setActiveScene(a.id);
+    scene('b', 'Crypt', { levels: { contents: [{ id: 'lv9' }] }, initialLevel: 'lv9' });
+    const plan = await planRoomSetup({
+      action: 'teleport',
+      from: { x: 0, y: 0, width: 1, height: 1 },
+      to: { x: 5, y: 5, width: 1, height: 1, scene: 'Crypt' },
+    });
+    const [entry, arrival] = plan.ops as any[];
+    expect(entry.data.levels).toEqual(['lv1']);
+    expect(arrival.data.levels).toBeUndefined();
+  });
+});
+
 it('refuses a non-GM and an unknown action', async () => {
   world.setActiveScene(scene('a', 'Hall').id);
   await expect(planRoomSetup({ action: 'dance' })).rejects.toThrow(/Unknown action "dance"/);

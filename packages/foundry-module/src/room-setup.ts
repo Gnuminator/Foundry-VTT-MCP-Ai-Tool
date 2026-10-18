@@ -26,7 +26,6 @@ import type {
 
 import { MODULE_ID } from './constants.js';
 import { findSpots, type GridLike, type Rect } from './party-place.js';
-import * as shared from './data-access/shared.js';
 import { currentLevelId, sceneHasLevels } from './systems/core.js';
 
 /** Query name (mirror of the shared `ROOM_SETUP_QUERY`). */
@@ -46,7 +45,7 @@ interface SceneLike {
   id: string;
   name: string;
   uuid: string;
-  grid?: { size?: number; isGridless?: boolean };
+  grid?: { size?: number; isGridless?: boolean; type?: number };
   dimensions?: { sceneRect?: { x?: number; y?: number; width?: number; height?: number } };
   tokens?: unknown;
 }
@@ -61,9 +60,10 @@ interface ActorLike {
 
 interface Globals {
   foundry?: { utils?: { randomID?: (length: number) => string } };
-  CONST?: { REGION_VISIBILITY?: { ALWAYS?: number } };
+  CONST?: { REGION_VISIBILITY?: { GAMEMASTER?: number } };
   game: {
     user?: { isGM?: boolean };
+    actors?: { get?: (id: string) => ActorLike | undefined; contents?: ActorLike[] };
     scenes?: {
       get?: (id: string) => SceneLike | undefined;
       current?: SceneLike;
@@ -104,12 +104,17 @@ function resolveScene(ref: string | undefined): SceneLike {
   let scene: SceneLike | undefined;
   if (ref) {
     const wanted = ref.toLowerCase();
-    scene =
-      scenes?.get?.(ref) ??
-      (Array.isArray(scenes?.contents)
+    scene = scenes?.get?.(ref);
+    if (!scene) {
+      const all = Array.isArray(scenes?.contents)
         ? scenes.contents
-        : (contentsOf(scenes) as unknown as SceneLike[])
-      ).find(s => String(s.name ?? '').toLowerCase() === wanted);
+        : (contentsOf(scenes) as unknown as SceneLike[]);
+      const named = all.filter(s => String(s.name ?? '').toLowerCase() === wanted);
+      if (named.length > 1) {
+        throw new Error(`${named.length} scenes are named "${ref}": give the scene id instead`);
+      }
+      scene = named[0];
+    }
     if (!scene) throw new Error(`No scene "${ref}"`);
   } else {
     scene = scenes?.current;
@@ -123,7 +128,37 @@ function sceneGrid(scene: SceneLike): GridLike & { isGridless?: boolean } {
   if (!grid || typeof grid.size !== 'number' || grid.size <= 0) {
     throw new Error(`The scene ${quoted(scene.name)} has no grid size`);
   }
+  if (typeof grid.type === 'number' && grid.type > 1) {
+    throw new Error(
+      `${quoted(scene.name)} has a hex grid: room setup counts square grid cells, so it supports square and gridless scenes only`
+    );
+  }
   return grid as unknown as GridLike & { isGridless?: boolean };
+}
+
+/**
+ * An actor by id, then exact name (any case), then a name that contains the text when only one
+ * does. Several partial matches are listed instead of picking one ("wolf" must not become "Dire
+ * Wolf" or "Werewolf" by luck).
+ */
+function resolveActor(ref: string): { actor: ActorLike } | { reason: string } {
+  const actors = globals().game.actors;
+  const byId = actors?.get?.(ref);
+  if (byId) return { actor: byId };
+  const all = Array.isArray(actors?.contents) ? actors.contents : [];
+  const wanted = ref.toLowerCase();
+  const exact = all.filter(a => (a.name ?? '').toLowerCase() === wanted);
+  if (exact.length === 1) return { actor: exact[0] };
+  if (exact.length > 1) {
+    return { reason: `${exact.length} actors are named exactly that: give the actor id` };
+  }
+  const partial = all.filter(a => (a.name ?? '').toLowerCase().includes(wanted));
+  if (partial.length === 1) return { actor: partial[0] };
+  if (partial.length > 1) {
+    const names = partial.map(a => a.name ?? a.id).slice(0, 5);
+    return { reason: `several actors match (${names.join(', ')}): give the exact name or id` };
+  }
+  return { reason: 'no actor with that id or name' };
 }
 
 function checkArea(area: unknown, label: string): RoomArea {
@@ -177,8 +212,9 @@ function levelsFor(scene: SceneLike): string[] | undefined {
   return id ? [id] : undefined;
 }
 
-function visibilityAlways(): number {
-  return globals().CONST?.REGION_VISIBILITY?.ALWAYS ?? 2;
+/** Room and teleport regions are for the GM: players must not see a box round hidden monsters. */
+function visibilityGm(): number {
+  return globals().CONST?.REGION_VISIBILITY?.GAMEMASTER ?? 1;
 }
 
 /** `create` data of a rectangle room Region (id fixed so a teleport can name it). */
@@ -199,7 +235,7 @@ function regionData(
     ],
     elevation: { bottom: null, top: null },
     restriction: { enabled: false, type: 'move', priority: 0 },
-    visibility: visibilityAlways(),
+    visibility: visibilityGm(),
     highlightMode: 'shapes',
     displayMeasurements: false,
     hidden: false,
@@ -338,11 +374,12 @@ async function planSpawn(request: RoomSpawnRequest): Promise<RoomSetupPlan> {
     if (!Number.isInteger(count) || count < 1 || count > 20) {
       throw new Error(`Creature "${ref}": count must be 1 to 20`);
     }
-    const actor = shared.findActorByIdentifier(ref) as unknown as ActorLike | undefined;
-    if (!actor) {
-      skipped.push({ name: ref, reason: 'no actor with that id or name' });
+    const found = resolveActor(ref);
+    if (!('actor' in found)) {
+      skipped.push({ name: ref, reason: found.reason });
       continue;
     }
+    const actor = found.actor;
     for (let i = 0; i < count; i++) wanted.push({ actor, name: actor.name ?? ref });
   }
   if (wanted.length === 0)

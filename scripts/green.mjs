@@ -85,6 +85,7 @@ export const STEPS = [
   nodeTest('pi-stage5-load-check', 'scripts/pi/stage5-load-check.test.mjs'),
   nodeTest('pi-ssh-keys-only', 'scripts/pi/ssh-keys-only.test.mjs'),
   nodeTest('pi-control-port-check', 'scripts/pi/control-port-check.test.mjs'),
+  nodeTest('pi-stage-safety', 'scripts/pi/pi-stage-safety.test.mjs'),
   nodeTest('tunnel-client', 'installer/nsis/tunnel-client.test.mjs'),
   nodeTest('plan-b', 'scripts/plan-b/plan-b.test.mjs'),
   nodeTest('tv-table-viewer', 'scripts/tv/start-table-viewer.test.mjs'),

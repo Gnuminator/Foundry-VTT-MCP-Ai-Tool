@@ -11,6 +11,7 @@
 # its own (vault idea I-023).
 
 require_root
+require_recent_snapshot
 require_arm64
 [ -x "$NODE_DIR/bin/node" ] || die "Node is missing: run stage 2 first"
 [ -f "$FOUNDRY_APP/main.js" ] || die "Foundry is missing: run stage 3 first"
@@ -139,6 +140,7 @@ else
 $loads_out"
   ok "the pruned build loads (bridge, dashboard app, shared, Discord recorder)"
   printf '%s\n' "$ref" >"$build/.tool-ref"
+  require_quiet "swapping in the new build (it stops the bridge, dashboard and Assistant GM)"
   if have_systemd; then
     for unit in foundry-ai-tool-gm-browser foundry-ai-tool-dashboard foundry-ai-tool-bridge; do
       systemctl stop "$unit.service" 2>/dev/null || true
@@ -285,7 +287,7 @@ write_file /etc/systemd/system/foundry-ai-tool-gm-browser.service 0644 "$browser
 enable_unit foundry-ai-tool-bridge.service
 enable_unit foundry-ai-tool-dashboard.service
 if [ -f "$TOOL_ETC/assistant-gm.env" ]; then
-  enable_unit foundry-ai-tool-gm-browser.service
+  enable_unit foundry-ai-tool-gm-browser.service "$TOOL_ETC/assistant-gm.env"
 else
   warn "no $TOOL_ETC/assistant-gm.env yet: the Assistant GM browser starts once it exists (5-check-world.sh writes it for the check world)"
 fi
@@ -308,6 +310,8 @@ if [ -n "$ts_name" ]; then
 else
   warn "Tailscale is not running here: nothing shared (a test container?)"
 fi
+
+warn_dashboard_split || true
 
 if have_systemd; then
   say "checks"

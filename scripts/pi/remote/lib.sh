@@ -52,7 +52,20 @@ apt_install() {
   fi
 }
 
-# Write a file only when its content changes; prints whether it did.
+# Files write_file changed in this run (space separated, a space on both sides), so enable_unit can tell a unit
+# whose files changed from one that is only being "set up again".
+LIB_CHANGED=" "
+file_changed() {
+  case "$LIB_CHANGED" in *" $1 "*) return 0 ;; esac
+  return 1
+}
+# mark_changed PATH...: for a file a stage changed another way than write_file (an installed build, a copied file).
+mark_changed() {
+  local p
+  for p in "$@"; do LIB_CHANGED="$LIB_CHANGED$p "; done
+}
+
+# Write a file only when its content changes; returns 0 when it did, 1 when it was already like that.
 write_file() {
   local path="$1" mode="$2" content="$3"
   if [ -f "$path" ] && [ "$(cat "$path")" = "$content" ]; then
@@ -61,23 +74,140 @@ write_file() {
   fi
   printf '%s\n' "$content" >"$path"
   chmod "$mode" "$path"
+  LIB_CHANGED="$LIB_CHANGED$path "
   ok "wrote $path"
   return 0
 }
 
-# Enable and (re)start a systemd unit when systemd runs; otherwise only report.
+# enable_unit UNIT [DEPENDENCY_FILE...]: enable the unit and make sure it runs, when systemd runs (otherwise only
+# report). A unit that already runs is restarted ONLY when its own unit file changed in this run (write_file or
+# mark_changed), when one of the DEPENDENCY_FILEs did (its EnvironmentFile, say), or when RESTART_UNITS=1. A rerun
+# that changed nothing leaves a running service alone: a restart drops the players (Foundry) or the GM link (bridge,
+# dashboard, Assistant GM) and ends a recording. A stopped unit is started.
 enable_unit() {
-  local unit="$1"
+  local unit="$1" f restart=0 reason=""
+  shift
   if have_systemd; then
     systemctl daemon-reload
     systemctl enable "$unit" >/dev/null 2>&1
-    systemctl restart "$unit"
+    if ! systemctl is-active --quiet "$unit"; then
+      systemctl start "$unit"
+    else
+      if file_changed "/etc/systemd/system/$unit"; then restart=1 reason="its unit file changed"; fi
+      for f in "$@"; do
+        if file_changed "$f"; then restart=1 reason="$f changed"; fi
+      done
+      if [ "${RESTART_UNITS:-0}" = 1 ]; then restart=1 reason="RESTART_UNITS=1"; fi
+      if [ "$restart" = 1 ]; then
+        require_quiet "restarting $unit ($reason)"
+        say "restarting $unit ($reason)"
+        systemctl restart "$unit"
+      fi
+    fi
     sleep 2
     systemctl is-active --quiet "$unit" || die "$unit did not start; see: journalctl -u $unit -n 50"
-    ok "$unit running"
+    if [ "$restart" = 1 ]; then ok "$unit restarted"; else ok "$unit running (not restarted: nothing it uses changed)"; fi
   else
     warn "no systemd here (a test container?): $unit written, not started"
   fi
+}
+
+# ---- Game-night guards ----------------------------------------------------------------------------------------
+# A stage that stops or restarts a service must not do it while players are online or a recording runs, and no stage
+# changes the Pi without a dietpi-backup snapshot from today (pi-work rule; r37 S1 to S4, R8). FORCE=1 (in front of
+# bash on the ssh line: ... | ssh foundry-pi 'FORCE=1 bash -s') overrides a refusal, with a warning.
+FORCE="${FORCE:-0}"
+
+# refuse MESSAGE: die with MESSAGE and how to override; with FORCE=1 only warn.
+refuse() {
+  if [ "$FORCE" = 1 ]; then
+    warn "$1 (FORCE=1: going on)"
+  else
+    die "$1. Run this when it is quiet, or put FORCE=1 in front of bash to go on anyway"
+  fi
+}
+
+# users_online: prints how many users Foundry's /api/status counts ("0" on the setup screen, which has no users
+# field) and "?" when it cannot be read. Read-only.
+users_online() {
+  local out
+  out="$(curl -fs --max-time 5 http://127.0.0.1:30000/api/status 2>/dev/null |
+    "$NODE_DIR/bin/node" -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{const u=JSON.parse(s).users;process.stdout.write(String(Number.isInteger(u)?u:0))}catch{process.stdout.write("?")}})' 2>/dev/null)" || out="?"
+  printf '%s' "${out:-?}"
+}
+
+# recording_active [DIR]: 0 when a Discord recording seems to run: a session folder under DIR (default
+# $TOOL_DATA/recordings) whose raw/ has no session.json yet (the bot writes it when the recording stops) and has a
+# file changed in the last 10 minutes. Read-only; a crashed session older than that does not count.
+recording_active() {
+  local dir="${1:-$TOOL_DATA/recordings}" raw
+  [ -d "$dir" ] || return 1
+  for raw in "$dir"/*/raw; do
+    [ -d "$raw" ] || continue
+    [ -f "$raw/session.json" ] && continue
+    if [ -n "$(find "$raw" -type f -mmin -10 -print -quit 2>/dev/null)" ]; then return 0; fi
+  done
+  return 1
+}
+
+# require_no_recording WHAT: refuses while a Discord recording runs (stopping or restarting the bot ends it).
+require_no_recording() {
+  have_systemd || return 0
+  if recording_active; then
+    refuse "a Discord recording is in progress (a session folder in $TOOL_DATA/recordings without session.json, written to in the last 10 minutes): $1 would end it"
+  fi
+}
+
+# require_quiet WHAT: call before a stage stops or restarts Foundry (WHAT names the action). Refuses while players are
+# online (the Assistant GM browser counts as one user while its service runs) or a recording runs. Does nothing
+# without systemd; Foundry not running means no one to drop.
+require_quiet() {
+  local what="$1" online assistant=0
+  have_systemd || return 0
+  if systemctl is-active --quiet foundry.service; then
+    online="$(users_online)"
+    systemctl is-active --quiet foundry-ai-tool-gm-browser.service && assistant=1
+    if [ "$online" = "?" ]; then
+      refuse "cannot read who is online in Foundry (/api/status on port 30000), so $what is not safe"
+    elif [ "$online" -gt "$assistant" ]; then
+      refuse "$((online - assistant)) player(s) are online in Foundry: $what would drop them"
+    fi
+  fi
+  require_no_recording "$what"
+}
+
+# require_recent_snapshot: refuses unless a dietpi-backup snapshot finished today (the mtime of
+# /mnt/dietpi-backup/.dietpi-backup_stats, which dietpi-backup writes at the end of a run; the nightly one at 01:25
+# counts). Skipped off DietPi (a test container). Take one with: /boot/dietpi/dietpi-backup 1
+require_recent_snapshot() {
+  local stats="${DIETPI_BACKUP_STATS:-/mnt/dietpi-backup/.dietpi-backup_stats}" ts
+  if [ ! -d "${DIETPI_DIR:-/boot/dietpi}" ]; then
+    warn "not DietPi (a test container?): the snapshot check is skipped"
+    return 0
+  fi
+  if [ ! -f "$stats" ]; then
+    refuse "no dietpi-backup snapshot found ($stats is missing). Take one first: /boot/dietpi/dietpi-backup 1"
+    return 0
+  fi
+  ts="$(stat -c %Y "$stats")"
+  if [ "$(date -d "@$ts" +%F)" != "$(date +%F)" ]; then
+    refuse "the newest dietpi-backup snapshot is from $(date -d "@$ts" '+%F %H:%M'), not from today. Take one first: /boot/dietpi/dietpi-backup 1"
+    return 0
+  fi
+  ok "dietpi-backup snapshot from today ($(date -d "@$ts" +%H:%M))"
+}
+
+# warn_dashboard_split: the co-GM dashboard treats every caller as the GM until GM_DASHBOARD_TOKEN or GM_EMAILS is set
+# (by set-dashboard-access.sh, in $TOOL_ETC/dashboard-access.env). Without them everyone who reaches port 3000 (over
+# Tailscale or the tunnel) sees the GM view. Reads names only, never values. Returns 0 when the split is on.
+warn_dashboard_split() {
+  local f="$TOOL_ETC/dashboard-access.env"
+  if [ -f "$f" ] && grep -Eq '^(GM_DASHBOARD_TOKEN|GM_EMAILS)=.+' "$f"; then
+    ok "dashboard player/GM split is on ($f sets a GM token or GM emails)"
+    return 0
+  fi
+  warn "the dashboard player/GM split is OFF: $f has no GM_DASHBOARD_TOKEN or GM_EMAILS, so everyone who reaches port 3000 (Tailscale, the tunnel) is treated as the GM and sees spoilers. Run scripts/pi/remote/set-dashboard-access.sh in your own SSH session (docs/dev/REMOTE-ACCESS.md, Part C, step 10)"
+  return 1
 }
 
 # ---- Writes into folders the foundry user owns --------------------------------------------------------

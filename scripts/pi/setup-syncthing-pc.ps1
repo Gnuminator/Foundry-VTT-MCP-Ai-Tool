@@ -181,7 +181,7 @@ if ($addresses -notcontains $PiAddress) {
 # The vault folder, and the ignore file (Syncthing does not sync .stignore, so each PC writes it).
 New-Item -ItemType Directory -Force -Path $VaultPath | Out-Null
 $ignoreFile = Join-Path $VaultPath '.stignore'
-$ignoreLines = @('.obsidian/workspace*.json', '.obsidian/cache', '.trash')
+$ignoreLines = @('.obsidian/workspace*.json', '.obsidian/cache', '.obsidian/plugins', '.obsidian/community-plugins.json', '.trash')
 # @() around the whole if: an empty array returned from an if unrolls to $null, and StrictMode
 # then rejects $have.Count (seen on the first real run, 2026-10-04).
 $have = @(if (Test-Path -LiteralPath $ignoreFile) { Get-Content -LiteralPath $ignoreFile })

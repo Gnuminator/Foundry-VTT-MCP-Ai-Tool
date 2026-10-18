@@ -19,6 +19,7 @@
 # root password. Undo later: the same pipe with 'UNDO=1 bash -s'.
 
 require_root
+require_recent_snapshot
 keys=/root/.ssh/authorized_keys
 backup="$keys.before-ssh-log"
 wrapper=/usr/local/sbin/foundry-ssh-log

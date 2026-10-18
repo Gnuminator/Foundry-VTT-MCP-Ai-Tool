@@ -6,6 +6,7 @@
 # FOUNDRY_ZIP overrides the zip path.
 
 require_root
+require_recent_snapshot
 require_arm64
 [ -x "$NODE_DIR/bin/node" ] || die "Node is missing: run stage 2 first"
 
@@ -18,15 +19,26 @@ if [ -f "$zip" ]; then
   unzip -q "$zip" -d "$tmp"
   [ -f "$tmp/main.js" ] || die "$zip is not the Linux/Node.js build (no main.js at its top level)"
   version="$(awk -F'"' '/"version"/ { print $4; exit }' "$tmp/package.json" 2>/dev/null || true)"
+  require_quiet "installing a new Foundry program (it stops Foundry)"
+  # The new program is staged next to the old one and swapped in with two renames (never `rm -rf dir/*`
+  # first, which left an empty program folder when the copy failed). The old one stays as
+  # $FOUNDRY_APP.prev for a quick rollback; the data is in $FOUNDRY_DATA and is not touched.
+  new="${FOUNDRY_APP:?}.new"
+  rm -rf "${new:?}"
+  mkdir -p "$new"
+  cp -a "$tmp"/. "$new"/
+  chown -R root:root "$new"
+  # `cp -a "$tmp"/.` also copies mktemp's 0700 mode onto the folder, which locked the foundry user
+  # out of its own program folder on the real Pi (2026-10-04).
+  chmod 755 "$new"
+  [ -f "$new/main.js" ] || die "the staged Foundry in $new has no main.js; $FOUNDRY_APP was not touched"
   if have_systemd && systemctl is-active --quiet foundry.service; then
     systemctl stop foundry.service
   fi
-  rm -rf "${FOUNDRY_APP:?}"/*
-  cp -a "$tmp"/. "$FOUNDRY_APP"/
-  chown -R root:root "$FOUNDRY_APP"
-  # `cp -a "$tmp"/.` also copies mktemp's 0700 mode onto the folder, which locked the foundry user
-  # out of its own program folder on the real Pi (2026-10-04).
-  chmod 755 "$FOUNDRY_APP"
+  rm -rf "${FOUNDRY_APP:?}.prev"
+  [ -d "$FOUNDRY_APP" ] && mv "$FOUNDRY_APP" "$FOUNDRY_APP.prev"
+  mv "$new" "$FOUNDRY_APP"
+  mark_changed /etc/systemd/system/foundry.service
   ok "installed Foundry ${version:-?} in $FOUNDRY_APP (data stays in $FOUNDRY_DATA)"
   rm -f "$zip"
 elif [ -f "$FOUNDRY_APP/main.js" ]; then

@@ -38,6 +38,7 @@
 # the root password. Undo later: the same pipe with 'UNDO=1 bash -s' (removes the drop-in, reloads ssh).
 
 require_root
+require_recent_snapshot
 sshd_main=/etc/ssh/sshd_config
 drop_dir=/etc/ssh/sshd_config.d
 drop="$drop_dir/00-foundry-keys-only.conf"

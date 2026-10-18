@@ -4,6 +4,7 @@
 # `tailscale up` prints a login link for the user; Claude never logs in.
 
 require_root
+require_recent_snapshot
 require_arm64
 
 say "Tailscale"

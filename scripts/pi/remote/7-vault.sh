@@ -14,6 +14,7 @@
 # are written whenever FOUNDRY_AI_OBSIDIAN_DIR is set, mirror or not.
 
 require_root
+require_recent_snapshot
 [ -d "$TOOL_DIR/app" ] || die "the tool is missing: run stage 5 first"
 id "$FOUNDRY_USER" >/dev/null 2>&1 || die "the $FOUNDRY_USER user is missing: run stage 1 first"
 
@@ -78,6 +79,9 @@ if write_file "$TOOL_ETC/dashboard.env" 0640 "$dashboard_env"; then dashboard_ch
 # Root writes them, the services (user foundry) read them.
 chown "root:$FOUNDRY_USER" "$TOOL_ETC/bridge.env" "$TOOL_ETC/dashboard.env"
 if have_systemd; then
+  if [ "$bridge_changed$dashboard_changed" != 00 ]; then
+    require_quiet "restarting the bridge or dashboard with new settings"
+  fi
   if [ "$bridge_changed" = 1 ] && [ -f /etc/systemd/system/foundry-ai-tool-bridge.service ]; then
     systemctl restart foundry-ai-tool-bridge.service
     ok "bridge restarted with the new settings"
@@ -176,6 +180,8 @@ say "the GM vault folder"
 stignore="// Per-device Obsidian state: each PC keeps its own (written by 7-vault.sh and setup-syncthing-pc.ps1).
 .obsidian/workspace*.json
 .obsidian/cache
+.obsidian/plugins
+.obsidian/community-plugins.json
 .trash"
 write_file "$gm_dir/.stignore" 0640 "$stignore" || true
 chown "$FOUNDRY_USER:$FOUNDRY_USER" "$gm_dir/.stignore"

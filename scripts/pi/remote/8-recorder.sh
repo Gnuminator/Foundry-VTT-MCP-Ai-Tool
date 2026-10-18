@@ -10,6 +10,7 @@
 # Until the env file has a token, this stage installs everything but leaves the service stopped.
 
 require_root
+require_recent_snapshot
 require_arm64
 [ -x "$NODE_DIR/bin/node" ] || die "Node is missing: run stage 2 first"
 app="$TOOL_DIR/app"
@@ -66,6 +67,7 @@ else
   if have_systemd && systemctl is-active --quiet "$unit"; then
     was_active=1
     # SIGINT (the unit's KillSignal) ends a running recording cleanly and converts it.
+    require_no_recording "stopping the bot for the update"
     say "stopping the running bot for the update (a recording in progress is closed and converted)"
     systemctl stop "$unit"
   fi
@@ -88,6 +90,21 @@ say "the recordings folder"
 # and delete sessions also when its SSH user is a group member rather than root.
 install -d -m 2770 -o "$FOUNDRY_USER" -g "$FOUNDRY_USER" "$rec_dir"
 ok "$rec_dir (foundry:foundry, 2770)"
+
+# dietpi-backup must not copy the voice recordings into its nightly full snapshots (D-126 q26: they are pulled
+# to the PC separately and the Pi deletes them after 7 days; restic already leaves them out). The filter is
+# processed top to bottom and the first match wins; the default rules only touch /mnt and /media, so one more
+# line at the end is enough. Written only when missing, so a rerun changes nothing.
+dietpi_filter=/boot/dietpi/.dietpi-backup_inc_exc
+exclude_line="- $rec_dir/"
+if [ ! -f "$dietpi_filter" ]; then
+  warn "no $dietpi_filter (not DietPi, or dietpi-backup never ran): the recordings are not excluded from its snapshots; run this stage again after the first snapshot"
+elif grep -qxF -- "$exclude_line" "$dietpi_filter"; then
+  ok "dietpi-backup already leaves $rec_dir out"
+else
+  printf '%s\n' "$exclude_line" >>"$dietpi_filter"
+  ok "dietpi-backup now leaves $rec_dir out ($dietpi_filter)"
+fi
 
 say "the settings file"
 mkdir -p "$TOOL_ETC"

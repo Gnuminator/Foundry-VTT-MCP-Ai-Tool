@@ -169,6 +169,11 @@ jobs:
         # control_port_check in remote/lib.sh (D-095): the bridge's 31414 answers on loopback and nothing listens beyond it.
         run: node --test scripts/pi/control-port-check.test.mjs
 
+      - name: Pi stage safety
+        # lib.sh's game-night guards (enable_unit restarts only on change, players online, active recording, snapshot from
+        # today, dashboard split warning) with stand-in systemctl and curl, and the stages' pins, swaps and ignore lists.
+        run: node --test scripts/pi/pi-stage-safety.test.mjs
+
       - name: Tunnel client script
         # installer/nsis/tunnel-client.ps1 (D-095): the order of the Install steps and the quoted -NoTask start.
         run: node --test installer/nsis/tunnel-client.test.mjs

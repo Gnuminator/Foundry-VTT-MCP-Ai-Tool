@@ -181,7 +181,7 @@ function rangeCheck(f: RulesFacts): RulesCheckLine {
   if (range.kind === 'self') {
     return { check: 'range', status: 'info', reason: 'Range is self; the target is not measured.' };
   }
-  if (!f.distance || f.distance.feet === null) {
+  if (f.distance?.feet == null) {
     return {
       check: 'range',
       status: 'unknown',
@@ -276,7 +276,7 @@ function usesCheck(f: RulesFacts): RulesCheckLine | null {
       reason: `No uses left (0 of ${empty.max}${empty.recovery ? `, recovers on ${empty.recovery}` : ''}).`,
     };
   }
-  const first = limited[0] as UsesFact;
+  const first = limited[0];
   return { check: 'uses', status: 'pass', reason: `${first.value} of ${first.max} uses left.` };
 }
 

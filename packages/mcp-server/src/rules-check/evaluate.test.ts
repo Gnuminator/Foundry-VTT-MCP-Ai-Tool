@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import type { RulesCheckLine } from '@gnuminator/shared';
 import { classifyActivation, evaluateAction, parseRange, type RulesFacts } from './evaluate.js';
 
 const base: RulesFacts = {
@@ -15,7 +16,7 @@ const base: RulesFacts = {
   uses: [],
 };
 
-const line = (f: RulesFacts, check: string) =>
+const line = (f: RulesFacts, check: string): RulesCheckLine | undefined =>
   evaluateAction(f).checks.find(c => c.check === check);
 
 describe('classifyActivation', () => {
@@ -99,7 +100,7 @@ describe('evaluateAction', () => {
       range: '150 Feet',
       distance: { feet: 30 },
     };
-    const slots = (s: RulesFacts['slots']) => ({ ...spell, slots: s });
+    const slots = (s: RulesFacts['slots']): RulesFacts => ({ ...spell, slots: s });
     expect(line(slots({ level3: { current: 1, max: 3 } }), 'slots')?.status).toBe('pass');
     expect(
       line(slots({ level3: { current: 0, max: 3 }, level4: { current: 1, max: 2 } }), 'slots')

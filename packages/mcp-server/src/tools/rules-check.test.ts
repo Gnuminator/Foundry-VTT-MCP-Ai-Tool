@@ -44,7 +44,7 @@ function tools(opts: {
   entity?: unknown;
   combat?: unknown;
   distance?: unknown;
-}) {
+}): { t: RulesCheckTools; query: ReturnType<typeof vi.fn> } {
   const query = vi.fn(async (method: string) => {
     switch (method) {
       case 'foundry-mcp-bridge.listGuardedFeatures':
@@ -62,7 +62,7 @@ function tools(opts: {
         throw new Error(`unexpected ${method}`);
     }
   });
-  return { t: new RulesCheckTools({ foundryClient: { query } as any, logger }), query };
+  return { t: new RulesCheckTools({ foundryClient: { query }, logger }), query };
 }
 
 describe('check-action', () => {

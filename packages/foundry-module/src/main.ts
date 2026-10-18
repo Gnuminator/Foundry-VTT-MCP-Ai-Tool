@@ -22,7 +22,7 @@ import { OWNERSHIP_FEATURE_ID } from './data-access/ownership-players.js';
 import { SCENE_MOOD_FEATURE_ID } from './scene-mood.js';
 import { SCENE_RESTORE_FEATURE_ID } from './scene-state.js';
 import { ROOM_SETUP_FEATURE_ID } from './room-setup.js';
-import { RULES_CHECK_FEATURE_ID } from '@gnuminator/shared';
+import { RULES_CHECK_FEATURE_ID } from './rules-check.js';
 import { PARTY_FEATURE_ID } from './party-scan.js';
 import { registerGmWindowsSetting } from './gm-windows.js';
 import { registerSessionSwitchSettings } from './session-switches.js';

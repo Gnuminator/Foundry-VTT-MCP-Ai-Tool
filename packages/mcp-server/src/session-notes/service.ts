@@ -59,7 +59,7 @@ function stableDocumentId(seed: string): string {
   const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
   const digest = createHash('sha256').update(seed).digest();
   let id = '';
-  for (let i = 0; i < 16; i++) id += alphabet[digest[i]! % alphabet.length];
+  for (let i = 0; i < 16; i++) id += alphabet[digest[i] % alphabet.length];
   return id;
 }
 

@@ -92,6 +92,8 @@ export const TOOL_SETS: Readonly<Record<ToolSetName, ToolSetSpec>> = {
       'plan-party-change',
       'plan-scene-change',
       'plan-scene-restore',
+      'plan-scene-mood',
+      'list-scene-moods',
       'play-playlist',
       'mark-play-session',
     ],

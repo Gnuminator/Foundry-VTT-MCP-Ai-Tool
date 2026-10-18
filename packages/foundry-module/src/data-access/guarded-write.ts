@@ -378,6 +378,19 @@ function requireWriteAccess(req: GuardedApplyRequest): void {
     writesAllowed = false;
   }
   if (!writesAllowed) throw new Error('Write operations are disabled in the module settings');
+  // Foundry refuses sound changes until the browser has unlocked audio (a click); a reload locks
+  // it again, so an apply or undo of music would fail half way.
+  const audio = (game as unknown as { audio?: { locked?: boolean } }).audio;
+  if (
+    audio?.locked &&
+    req.ops.some(
+      op => 'uuid' in op && typeof op.uuid === 'string' && op.uuid.startsWith('Playlist.')
+    )
+  ) {
+    throw new Error(
+      'Foundry has not unlocked audio in the GM browser yet. Click anywhere in the Foundry window once, then try again.'
+    );
+  }
   if (req.mode === 'apply') {
     if (!isKnownFeature(req.feature)) {
       throw new Error(`Unknown feature "${req.feature}" (not installed in this module version)`);

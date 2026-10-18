@@ -339,6 +339,12 @@ export const USAGE_CATALOG: readonly UsageCatalogEntry[] = [
     file: 'packages/cogm-dashboard/public/index.html',
   },
   {
+    name: 'dash.header.show-versions',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/web/src/App.tsx',
+  },
+  {
     name: 'dash.header.tarokka',
     kind: 'action',
     surface: 'dashboard',
@@ -361,6 +367,12 @@ export const USAGE_CATALOG: readonly UsageCatalogEntry[] = [
     kind: 'action',
     surface: 'dashboard',
     file: 'packages/cogm-dashboard/public/index.html',
+  },
+  {
+    name: 'dash.header.version-tracker',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/web/src/App.tsx',
   },
   {
     name: 'dash.help.during-layouts',
@@ -943,6 +955,12 @@ export const USAGE_CATALOG: readonly UsageCatalogEntry[] = [
     kind: 'action',
     surface: 'dashboard',
     file: 'packages/cogm-dashboard/public/app.js',
+  },
+  {
+    name: 'dash.versions.recheck',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/web/src/panels/Versions.tsx',
   },
   {
     name: 'module.campaign.status-toggle',

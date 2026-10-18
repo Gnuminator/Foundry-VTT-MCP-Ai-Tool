@@ -3,7 +3,7 @@
  * On startup the bot converts these (the same converter `/record stop` uses) and tells the owner.
  */
 
-import { existsSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { convertSession } from '../convert/convert.js';
 
@@ -20,9 +20,12 @@ export interface RecoverOutcome {
 export interface RecoverOptions {
   now?: number;
   minAgeMs?: number;
-  /** The folder of a recording running right now. */
-  skipDir?: string;
+  /** True for the folder of a recording running right now (asked again before each folder). */
+  isActive?: (dir: string) => boolean;
 }
+
+/** Written into `raw/` when conversion failed, so a restart does not retry (and DM) forever. */
+export const FAILED_MARKER = 'convert-failed.json';
 
 /** Session folders under `sessionsDir` that have raw tracks and were never converted. */
 export function findOrphans(sessionsDir: string, opts: RecoverOptions = {}): string[] {
@@ -32,11 +35,12 @@ export function findOrphans(sessionsDir: string, opts: RecoverOptions = {}): str
   const found: string[] = [];
   for (const name of readdirSync(sessionsDir).sort()) {
     const dir = join(sessionsDir, name);
-    if (opts.skipDir && dir === opts.skipDir) continue;
+    if (opts.isActive?.(dir)) continue;
     const raw = join(dir, 'raw');
     try {
       if (!statSync(dir).isDirectory() || !existsSync(raw)) continue;
       if (existsSync(join(raw, 'convert-report.json'))) continue;
+      if (existsSync(join(raw, FAILED_MARKER))) continue; // already tried and reported
       const files = readdirSync(raw);
       if (!files.some(f => f.endsWith('.rec'))) continue;
       const newest = Math.max(...files.map(f => statSync(join(raw, f)).mtimeMs));
@@ -49,20 +53,37 @@ export function findOrphans(sessionsDir: string, opts: RecoverOptions = {}): str
   return found;
 }
 
-/** Convert every orphan; one failing folder does not stop the others. */
-export function recoverOrphans(
+/**
+ * Convert every orphan; one failing folder does not stop the others. The converter is
+ * synchronous, so the loop yields to the event loop between folders (gateway heartbeats, a
+ * `/record start`), and a folder that became the active recording meanwhile is left alone.
+ */
+export async function recoverOrphans(
   sessionsDir: string,
   opts: RecoverOptions = {},
   convert: typeof convertSession = convertSession
-): RecoverOutcome[] {
-  return findOrphans(sessionsDir, opts).map(dir => {
+): Promise<RecoverOutcome[]> {
+  const outcomes: RecoverOutcome[] = [];
+  for (const dir of findOrphans(sessionsDir, opts)) {
+    await new Promise<void>(resolve => setImmediate(resolve));
+    if (opts.isActive?.(dir)) continue;
     try {
       const result = convert(dir);
-      return { dir, ok: true, tracks: result.tracks.length };
+      outcomes.push({ dir, ok: true, tracks: result.tracks.length });
     } catch (err) {
-      return { dir, ok: false, tracks: 0, error: (err as Error).message };
+      const error = (err as Error).message;
+      try {
+        writeFileSync(
+          join(dir, 'raw', FAILED_MARKER),
+          `${JSON.stringify({ at: new Date().toISOString(), error })}\n`
+        );
+      } catch {
+        // the report goes out anyway; a restart may try (and report) again
+      }
+      outcomes.push({ dir, ok: false, tracks: 0, error });
     }
-  });
+  }
+  return outcomes;
 }
 
 /** One message for the owner, or undefined when nothing was found. */

@@ -179,8 +179,8 @@ export class RecorderBot {
   /** Convert raw recordings a crashed run left behind and tell the owner (or the log). */
   private async recoverOrphans(): Promise<void> {
     try {
-      const outcomes = recoverOrphans(this.config.sessionsDir, {
-        ...(this.active ? { skipDir: this.active.session.dir } : {}),
+      const outcomes = await recoverOrphans(this.config.sessionsDir, {
+        isActive: dir => this.active?.session.dir === dir,
       });
       const text = recoverMessage(outcomes);
       if (!text) return;
@@ -191,10 +191,20 @@ export class RecorderBot {
     }
   }
 
-  /** A recording file could not be written (disk full, no permission): log it, tell the channel and the owner. */
-  private onStreamError(channel: VoiceBasedChannel, what: string, err: Error): void {
-    const text = `Recording problem: ${what} could not be written (${err.message}). Check the disk space on the recorder host.`;
+  /**
+   * A recording file could not be written (disk full, no permission): log every one, but tell the
+   * channel and the owner only once per recording (`told` is that recording's flag).
+   */
+  private onStreamError(
+    channel: VoiceBasedChannel,
+    told: { value: boolean },
+    what: string,
+    err: Error
+  ): void {
+    const text = `Recording problem: ${what} could not be written (${err.message}). Check the disk space on the recorder host; other files of this recording may be affected too.`;
     log.error(text, err);
+    if (told.value) return;
+    told.value = true;
     void channel.send(text).catch(() => undefined);
     if (this.notifyOwner) void this.notifyOwner(text);
   }
@@ -250,6 +260,7 @@ export class RecorderBot {
     mkdirSync(this.config.sessionsDir, { recursive: true });
     const dir = uniqueSessionDir(this.config.sessionsDir, new Date());
     mkdirSync(dir);
+    const told = { value: false };
     const session = new RecordingSession(
       dir,
       hrtimeClock(),
@@ -260,7 +271,7 @@ export class RecorderBot {
         startedBy: i.user.id,
       },
       new Date(),
-      (what, err) => this.onStreamError(channel, what, err)
+      (what, err) => this.onStreamError(channel, told, what, err)
     );
     for (const [id, m] of channel.members) {
       session.log({ type: 'present', userId: id, username: m.user.username, bot: m.user.bot });

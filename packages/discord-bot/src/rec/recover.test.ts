@@ -55,7 +55,7 @@ describe('orphan recovery', () => {
     const dir = await crashedSession(parent, '2026-10-04_1930-discord');
     age(dir, 3_600_000);
     expect(findOrphans(parent)).toEqual([dir]);
-    const outcomes = recoverOrphans(parent);
+    const outcomes = await recoverOrphans(parent);
     expect(outcomes).toEqual([{ dir, ok: true, tracks: 1 }]);
     expect(existsSync(join(dir, '1-anna.ogg'))).toBe(true);
     expect(recoverMessage(outcomes)).toContain('converted 1 track');
@@ -70,7 +70,7 @@ describe('orphan recovery', () => {
     mkdirSync(join(parent, 'empty', 'raw'), { recursive: true });
     writeFileSync(join(parent, 'note.txt'), 'x');
     expect(findOrphans(parent)).toEqual([old]);
-    expect(findOrphans(parent, { skipDir: old })).toEqual([]);
+    expect(findOrphans(parent, { isActive: dir => dir === old })).toEqual([]);
     expect(fresh).toBeTruthy();
   });
 
@@ -80,12 +80,22 @@ describe('orphan recovery', () => {
     const b = await crashedSession(parent, 'b');
     age(a, 3_600_000);
     age(b, 3_600_000);
-    const outcomes = recoverOrphans(parent, {}, dir => {
+    const outcomes = await recoverOrphans(parent, {}, dir => {
       if (dir === a) throw new Error('bad track');
       return { dir, tracks: [], speakersWritten: false };
     });
     expect(outcomes.map(o => o.ok)).toEqual([false, true]);
     expect(recoverMessage(outcomes)).toContain('could not convert (bad track)');
     expect(recoverMessage([])).toBeUndefined();
+    // The failed one is not tried (and reported) again at the next start.
+    expect(findOrphans(parent)).toEqual([b]);
+  });
+
+  it('skips a folder that became the active recording while it waited', async () => {
+    const parent = tempDir();
+    const a = await crashedSession(parent, 'a');
+    age(a, 3_600_000);
+    const outcomes = await recoverOrphans(parent, { isActive: () => true });
+    expect(outcomes).toEqual([]);
   });
 });

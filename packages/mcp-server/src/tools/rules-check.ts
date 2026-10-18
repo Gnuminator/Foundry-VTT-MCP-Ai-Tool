@@ -234,7 +234,9 @@ export class RulesCheckTools {
   private async isNpc(identifier: string): Promise<boolean> {
     try {
       const info = rec(
-        await this.foundryClient.query('foundry-mcp-bridge.getCharacterInfo', { identifier })
+        await this.foundryClient.query('foundry-mcp-bridge.getCharacterInfo', {
+          characterName: identifier,
+        })
       );
       return info.type === 'npc';
     } catch (error) {

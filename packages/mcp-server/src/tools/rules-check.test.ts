@@ -145,21 +145,34 @@ describe('check-action', () => {
   });
 
   it('does not trust the slots of an NPC, which may live on its token', async () => {
-    const npcInfo = { type: 'npc' };
-    const query = vi.fn(async (method: string) =>
-      method === 'foundry-mcp-bridge.getCharacterInfo'
-        ? npcInfo
-        : method === 'foundry-mcp-bridge.listGuardedFeatures'
-          ? [{ id: 'rules-check', enabled: true }]
-          : method === 'foundry-mcp-bridge.getCharacterResources'
-            ? resources
-            : method === 'foundry-mcp-bridge.getCharacterEntity'
-              ? spell
-              : combat
-    );
+    const npcSpell = {
+      ...spell,
+      entity: { ...spell.entity, system: { method: 'spell', prepared: 0 } },
+    };
+    const query = vi.fn(async (method: string, args?: Record<string, unknown>) => {
+      // The module reads characterName or characterId only; anything else throws like the real query.
+      if (method === 'foundry-mcp-bridge.getCharacterInfo') {
+        if (!args?.characterName && !args?.characterId) {
+          throw new Error('characterName or characterId is required');
+        }
+        return { type: 'npc' };
+      }
+      if (method === 'foundry-mcp-bridge.listGuardedFeatures') {
+        return [{ id: 'rules-check', enabled: true }];
+      }
+      if (method === 'foundry-mcp-bridge.getCharacterResources') return resources;
+      if (method === 'foundry-mcp-bridge.getCharacterEntity') return npcSpell;
+      return combat;
+    });
     const t = new RulesCheckTools({ foundryClient: { query }, logger });
     const r = await t.handleToolCall('check-action', { actor: 'Ireena', item: 'Magic Missile' });
-    expect(r.checks.find(c => c.check === 'slots')?.status).toBe('unknown');
+    // An NPC's prepared 0 is not "unprepared", and its slots are not trusted.
+    const slots = r.checks.find(c => c.check === 'slots');
+    expect(slots?.status).toBe('unknown');
+    expect(slots?.reason).not.toMatch(/not prepared/);
+    expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.getCharacterInfo', {
+      characterName: 'a1',
+    });
   });
 
   it('finds an activity in a map by id as well as in an array', () => {

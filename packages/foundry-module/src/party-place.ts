@@ -8,6 +8,9 @@
  *   square. Without a drawn canvas the view falls back to the middle of the scene.
  * - Squares: the scene's own grid (`scene.grid`), so square, hex and gridless scenes all work
  *   (gridless steps one grid size at a time); grid sizes vary, nothing assumes 100 px.
+ * - Scale (place-party-scale): on a scene whose grid is not 5 ft per square a token is sized like
+ *   `fit-scale` (creature footprint in feet over the grid distance, `fitSquares`), so a party on a
+ *   40 ft town map is not house-sized; a 5 ft scene keeps each prototype token as it is.
  * - Room: each token at its own width and height, inside the scene rectangle, never over another
  *   token or an earlier member; when the map is drawn, not behind a wall from the spot (maps
  *   without walls simply never block).
@@ -16,6 +19,7 @@
  * the browser cannot import runtime values from it.
  */
 import type { PartyPlacement, PartyPlaceRequest } from '@gnuminator/shared';
+import { SIZE_FEET, fitSquares } from './live-plan-token.js';
 
 /** Query name (prefixed with the module id on the wire). GM client only. */
 export const PARTY_PLACE_QUERY = 'planPartyPlacement';
@@ -287,7 +291,16 @@ export async function planPartyPlacement(data: unknown): Promise<PartyPlacement>
     else toPlace.push(actor);
   }
 
+  const distance = num(rec(scene.grid)?.distance) ?? 5;
+  const scaled = distance !== 5 && distance > 0 && grid.size > 0;
+  const edgeOf = (actor: Rec): number | null => {
+    if (!scaled) return null;
+    const sizeKey = str(rec(rec(rec(actor.system)?.traits))?.size);
+    return fitSquares((sizeKey ? SIZE_FEET[sizeKey] : undefined) ?? 5, distance, grid.size);
+  };
   const footprints = toPlace.map(actor => {
+    const edge = edgeOf(actor);
+    if (edge !== null) return { w: edge, h: edge };
     const proto = rec(actor.prototypeToken);
     return { w: num(proto?.width) ?? 1, h: num(proto?.height) ?? 1 };
   });
@@ -308,9 +321,13 @@ export async function planPartyPlacement(data: unknown): Promise<PartyPlacement>
       skipped.push({ name, reason: 'Foundry gave no token for this actor' });
       continue;
     }
+    const edge = edgeOf(actor);
+    // lockSize: dnd5e's Autosize would otherwise write the actor's size back on create.
+    const scale: Rec =
+      edge !== null ? { width: edge, height: edge, 'flags.dnd5e.lockSize': true } : {};
     const doc = await getDoc.call(
       actor,
-      { x: spot.x, y: spot.y, hidden: request.hidden === true },
+      { x: spot.x, y: spot.y, hidden: request.hidden === true, ...scale },
       { parent: scene }
     );
     const tokenData = doc.toObject();

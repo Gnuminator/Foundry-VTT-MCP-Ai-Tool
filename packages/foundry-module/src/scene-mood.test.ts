@@ -144,7 +144,11 @@ describe('presets', () => {
         kind: 'update',
         uuid: 'Scene.s1',
         changes: {
-          [`flags.${MODULE_ID}.moods.crypt`]: { name: 'Crypt', darkness: 0.9, playlist: 'Crypt' },
+          [`flags.${MODULE_ID}.moods.crypt`]: JSON.stringify({
+            name: 'Crypt',
+            darkness: 0.9,
+            playlist: 'Crypt',
+          }),
         },
       },
     ]);
@@ -153,7 +157,7 @@ describe('presets', () => {
   it('saves the current look with fromCurrent', () => {
     const plan = planSceneMood({ action: 'save', preset: 'As is', fromCurrent: true });
     const saved = (plan.ops[0] as any).changes[`flags.${MODULE_ID}.moods.as-is`];
-    expect(saved).toEqual({
+    expect(JSON.parse(saved as string)).toEqual({
       name: 'As is',
       darkness: 0.2,
       globalLight: false,
@@ -162,8 +166,27 @@ describe('presets', () => {
     });
   });
 
+  it('replaces a preset whole: stored as one string, so no old field survives the merge', () => {
+    scene.flags[MODULE_ID] = {
+      moods: { crypt: JSON.stringify({ name: 'Crypt', darkness: 0.9, playlist: 'Crypt' }) },
+    };
+    const plan = planSceneMood({ action: 'save', preset: 'Crypt', darkness: 0.5 });
+    expect(plan.summary).toMatch(/^Replace/);
+    const value = (plan.ops[0] as any).changes[`flags.${MODULE_ID}.moods.crypt`];
+    expect(typeof value).toBe('string');
+    expect(JSON.parse(value as string)).toEqual({ name: 'Crypt', darkness: 0.5 });
+  });
+
+  it('does not find inherited names such as "constructor" as presets', () => {
+    expect(() => planSceneMood({ action: 'apply', preset: 'constructor' })).toThrow(
+      /No mood preset/
+    );
+  });
+
   it('applies a saved preset, lists it and removes it', () => {
-    scene.flags[MODULE_ID] = { moods: { crypt: { name: 'Crypt', darkness: 0.9 } } };
+    scene.flags[MODULE_ID] = {
+      moods: { crypt: JSON.stringify({ name: 'Crypt', darkness: 0.9 }) },
+    };
     const apply = planSceneMood({ action: 'apply', preset: 'crypt' });
     expect(apply.ops[0]).toMatchObject({ changes: { 'environment.darknessLevel': 0.9 } });
     expect(getSceneMoods().presets).toEqual([{ name: 'Crypt', darkness: 0.9 }]);
@@ -177,19 +200,19 @@ describe('presets', () => {
 
 describe('music', () => {
   it('stops a playing playlist and refuses when nothing plays', () => {
-    const stop = planSceneMood({ action: 'music', playlistName: 'Crypt', mode: 'stop' });
+    const stop = planSceneMood({ action: 'music', playlist: 'Crypt', mode: 'stop' });
     expect(stop.ops).toHaveLength(2);
-    expect(() => planSceneMood({ action: 'music', playlistName: 'Tavern', mode: 'stop' })).toThrow(
+    expect(() => planSceneMood({ action: 'music', playlist: 'Tavern', mode: 'stop' })).toThrow(
       /not playing/
     );
   });
 
   it('play adds to what plays, switch replaces it', () => {
-    expect(
-      planSceneMood({ action: 'music', playlistName: 'tavern', mode: 'play' }).ops
-    ).toHaveLength(2);
-    expect(planSceneMood({ action: 'music', playlistName: 'tavern' }).ops).toHaveLength(4);
-    expect(() => planSceneMood({ action: 'music', playlistName: 'Crypt', mode: 'play' })).toThrow(
+    expect(planSceneMood({ action: 'music', playlist: 'tavern', mode: 'play' }).ops).toHaveLength(
+      2
+    );
+    expect(planSceneMood({ action: 'music', playlist: 'tavern' }).ops).toHaveLength(4);
+    expect(() => planSceneMood({ action: 'music', playlist: 'Crypt', mode: 'play' })).toThrow(
       /already playing/
     );
   });
@@ -198,7 +221,7 @@ describe('music', () => {
     (game as any).playlists.contents[0].mode = 2;
     (globalThis as any).CONST = { PLAYLIST_MODES: { SIMULTANEOUS: 2 } };
     try {
-      const plan = planSceneMood({ action: 'music', playlistName: 'Tavern', mode: 'play' });
+      const plan = planSceneMood({ action: 'music', playlist: 'Tavern', mode: 'play' });
       expect(plan.ops).toHaveLength(3);
     } finally {
       delete (globalThis as any).CONST;
@@ -210,7 +233,7 @@ describe('locked audio', () => {
   it('refuses music changes until the browser unlocked audio, but not looks or presets', () => {
     (game as any).audio = { locked: true };
     try {
-      expect(() => planSceneMood({ action: 'music', playlistName: 'Tavern' })).toThrow(
+      expect(() => planSceneMood({ action: 'music', playlist: 'Tavern' })).toThrow(
         /unlocked audio/
       );
       expect(() => planSceneMood({ action: 'set', playlist: 'Tavern' })).toThrow(/unlocked audio/);

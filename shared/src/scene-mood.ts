@@ -58,8 +58,7 @@ export interface SceneMoodPlanRequest extends SceneMoodSettings {
   preset?: string;
   /** save: take the values from what the scene looks like now (and what plays). */
   fromCurrent?: boolean;
-  /** music: the playlist, and what to do with it. */
-  playlistName?: string;
+  /** music: what to do with `playlist`. */
   mode?: SceneMusicMode;
 }
 

@@ -98,13 +98,25 @@ function findPlaylist(name: string): PlaylistLike {
 function savedPresets(scene: SceneLike): Record<string, SceneMoodPreset> {
   const raw =
     scene.getFlag?.(MODULE_ID, SCENE_MOOD_FLAG) ?? scene.flags?.[MODULE_ID]?.[SCENE_MOOD_FLAG];
-  return raw && typeof raw === 'object' ? (raw as Record<string, SceneMoodPreset>) : {};
+  const out: Record<string, SceneMoodPreset> = {};
+  if (!raw || typeof raw !== 'object') return out;
+  // Each preset is stored as a JSON string: Foundry merges object updates, so a saved object
+  // would keep the fields of the preset it replaces (and undo would not restore it exactly).
+  for (const [key, value] of Object.entries(raw)) {
+    try {
+      const parsed: unknown = typeof value === 'string' ? JSON.parse(value) : value;
+      if (parsed && typeof parsed === 'object') out[key] = parsed as SceneMoodPreset;
+    } catch {
+      // an unreadable entry is skipped
+    }
+  }
+  return out;
 }
 
 function findPreset(scene: SceneLike, name: string): { key: string; preset: SceneMoodPreset } {
   const presets = savedPresets(scene);
   const key = presetKey(name);
-  const preset = presets[key];
+  const preset = Object.hasOwn(presets, key) ? presets[key] : undefined;
   if (!preset) {
     const names = Object.values(presets)
       .map(p => quoted(p.name))
@@ -276,7 +288,7 @@ function planSave(scene: SceneLike, request: SceneMoodPlanRequest): SceneMoodPla
   const parts = describe(settings);
   if (parts.length === 0)
     throw new Error('Give darkness, globalLight, weather and/or playlist, or fromCurrent.');
-  const replacing = key in savedPresets(scene);
+  const replacing = Object.hasOwn(savedPresets(scene), key);
   const preset: SceneMoodPreset = { name: request.preset.trim(), ...settings };
   return {
     summary: `${replacing ? 'Replace' : 'Save'} mood preset ${quoted(preset.name)} on ${quoted(scene.name)}: ${parts.join(', ')}`,
@@ -284,7 +296,7 @@ function planSave(scene: SceneLike, request: SceneMoodPlanRequest): SceneMoodPla
       {
         kind: 'update',
         uuid: scene.uuid,
-        changes: { [`flags.${MODULE_ID}.${SCENE_MOOD_FLAG}.${key}`]: preset },
+        changes: { [`flags.${MODULE_ID}.${SCENE_MOOD_FLAG}.${key}`]: JSON.stringify(preset) },
       },
     ],
     sceneId: scene.id,
@@ -310,7 +322,7 @@ function planRemove(scene: SceneLike, request: SceneMoodPlanRequest): SceneMoodP
 
 function planMusic(scene: SceneLike, request: SceneMoodPlanRequest): SceneMoodPlan {
   const mode = request.mode ?? 'switch';
-  const name = request.playlist ?? request.playlistName;
+  const name = request.playlist;
   if (!name) throw new Error('Give the playlist.');
   const playlist = findPlaylist(name);
   const ops =

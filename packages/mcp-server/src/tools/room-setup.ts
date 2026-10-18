@@ -1,5 +1,7 @@
 import { z } from 'zod';
 import {
+  ROOM_DARKNESS_MODES,
+  ROOM_HAZARD_KINDS,
   ROOM_SETUP_ACTIONS,
   ROOM_SETUP_FEATURE_ID,
   ROOM_SETUP_QUERY,
@@ -26,6 +28,7 @@ const area = z.object({
   width: z.number().int().min(1).max(100),
   height: z.number().int().min(1).max(100),
   scene: z.string().min(1).optional(),
+  level: z.string().min(1).optional(),
 });
 
 const planParams = z.discriminatedUnion('action', [
@@ -52,11 +55,44 @@ const planParams = z.discriminatedUnion('action', [
       .min(1),
     hidden: z.boolean().optional(),
   }),
+  z.object({
+    action: z.literal('levels'),
+    scene: z.string().min(1).optional(),
+    levels: z
+      .array(
+        z.object({
+          name: z.string().min(1),
+          bottom: z.number(),
+          top: z.number().nullable().optional(),
+          background: z.string().min(1).optional(),
+        })
+      )
+      .min(1)
+      .max(10),
+  }),
+  z.object({
+    action: z.literal('stairs'),
+    name: z.string().min(1),
+    area,
+    levels: z.array(z.string().min(1)).min(2).optional(),
+    movementActions: z.array(z.string().min(1)).optional(),
+  }),
+  z.object({
+    action: z.literal('hazard'),
+    name: z.string().min(1),
+    area,
+    kind: z.enum(ROOM_HAZARD_KINDS),
+    cost: z.number().min(1.25).max(5).optional(),
+    darknessMode: z.enum(ROOM_DARKNESS_MODES).optional(),
+    modifier: z.number().min(0).max(1).optional(),
+    effectUuid: z.string().min(1).optional(),
+  }),
 ]);
 
 /** What `plan-room-setup` returns beside the guarded plan. */
 export interface RoomSetupPlanResult extends PlanView {
   regions: RoomRegionSummary[];
+  levels?: RoomSetupPlan['levels'];
   tokens?: RoomSetupPlan['tokens'];
   skipped?: RoomSetupPlan['skipped'];
   warnings: string[];
@@ -73,6 +109,7 @@ const areaSchema = (what: string): Record<string, unknown> => ({
     width: { type: 'integer' },
     height: { type: 'integer' },
     scene: { type: 'string' },
+    level: { type: 'string' },
   },
   required: ['x', 'y', 'width', 'height'],
 });
@@ -102,7 +139,7 @@ export class RoomSetupTools {
       {
         name: 'plan-room-setup',
         description:
-          'Plan Region-based scene parts: "teleport" moves tokens entering one rectangle to another (same or other scene); "spawn" makes a room rectangle plus tokens from actors on free squares in it. Apply with apply-planned-change, undo with undo-change. Needs the module switch "Room setup" (off by default).',
+          'Plan Region-based scene parts: "teleport" moves tokens entering one rectangle to another (same or other scene); "spawn" makes a room rectangle plus tokens from actors on free squares in it; "levels" adds Scene Levels; "stairs" joins levels; "hazard" makes difficult terrain, darkness or an existing effect. Apply with apply-planned-change, undo with undo-change. Needs the module switch "Room setup" (off by default).',
         inputSchema: {
           type: 'object',
           properties: {
@@ -135,6 +172,18 @@ export class RoomSetupTools {
               type: 'boolean',
               description: 'spawn: tokens hidden from players (default true).',
             },
+            scene: { type: 'string', description: 'levels: scene.' },
+            levels: {
+              type: 'array',
+              description: 'levels: [{name, bottom, top?, background?}]. stairs: level names.',
+              items: {},
+            },
+            movementActions: { type: 'array', items: { type: 'string' } },
+            kind: { type: 'string', enum: [...ROOM_HAZARD_KINDS] },
+            cost: { type: 'number', description: 'difficult: 1.25 to 5.' },
+            darknessMode: { type: 'string', enum: [...ROOM_DARKNESS_MODES] },
+            modifier: { type: 'number', description: 'darkness: 0 to 1.' },
+            effectUuid: { type: 'string', ...freeText('An existing ActiveEffect uuid') },
           },
           required: ['action'],
         },
@@ -183,6 +232,7 @@ export class RoomSetupTools {
     return {
       ...plan,
       regions: built.regions,
+      ...(built.levels ? { levels: built.levels } : {}),
       ...(built.tokens ? { tokens: built.tokens } : {}),
       ...(built.skipped ? { skipped: built.skipped } : {}),
       warnings: built.warnings,

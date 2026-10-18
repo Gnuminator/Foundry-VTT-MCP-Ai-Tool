@@ -415,7 +415,8 @@ export function fitSquares(feet: number, distance: number, gridSize: number): nu
 
 function planFitScale(
   scene: SceneInfo,
-  tokens: TokenRef[]
+  tokens: TokenRef[],
+  wholeScene: boolean
 ): { ops: GuardedOp[]; previews: LiveTargetPreview[]; summary: string } {
   if (!(scene.distance > 0) || !(scene.size > 0)) {
     throw new Error(`${scene.name} has no usable grid size or distance; set the scale first`);
@@ -431,7 +432,8 @@ function planFitScale(
     const w = num(source?.width) ?? num(token.doc.width) ?? 1;
     const h = num(source?.height) ?? num(token.doc.height) ?? 1;
     const note = known ? '' : ' (size unknown, treated as medium)';
-    if (w === edge && h === edge) {
+    const locked = getPath(token.doc._source, 'flags.dnd5e.lockSize') === true;
+    if (w === edge && h === edge && locked) {
       previews.push({
         target: token.name,
         actorUuid: token.uuid,
@@ -440,15 +442,16 @@ function planFitScale(
       });
       continue;
     }
-    ops.push({ kind: 'update', uuid: token.uuid, changes: { width: edge, height: edge } });
+    // lockSize: dnd5e's Autosize would otherwise write the actor's size back after the apply.
+    const changes: Rec = { width: edge, height: edge, 'flags.dnd5e.lockSize': true };
+    ops.push({ kind: 'update', uuid: token.uuid, changes });
     previews.push({
       target: token.name,
       actorUuid: token.uuid,
       line: `${token.name}: ${w}x${h} to ${edge}x${edge} squares${note}`,
     });
   }
-  const which =
-    tokens.length === scene.tokens.length ? 'every token' : tokens.map(t => t.name).join(', ');
+  const which = wholeScene ? 'every creature' : tokens.map(t => t.name).join(', ');
   return {
     ops,
     previews,
@@ -466,11 +469,14 @@ export function planTokenChange(request: LiveTokenRequest): LiveChangePlan {
   const named = Array.isArray(request.tokens) ? request.tokens : [];
   let tokens: TokenRef[];
   if (request.action === 'fit-scale' && named.length === 0) {
+    // Whole scene: only creatures. Tokens without an actor (loot, markers) are left alone.
     tokens = scene.tokens.flatMap(doc => {
       const uuid = str(doc.uuid);
-      return uuid ? [{ doc, id: String(doc.id), uuid, name: str(doc.name) ?? String(doc.id) }] : [];
+      return uuid && rec(doc.actor)
+        ? [{ doc, id: String(doc.id), uuid, name: str(doc.name) ?? String(doc.id) }]
+        : [];
     });
-    if (tokens.length === 0) throw new Error(`${scene.name} has no tokens to fit`);
+    if (tokens.length === 0) throw new Error(`${scene.name} has no creature tokens to fit`);
   } else {
     tokens = resolveTokens(scene, named);
   }
@@ -485,7 +491,7 @@ export function planTokenChange(request: LiveTokenRequest): LiveChangePlan {
       if (scene.distance === 5) {
         throw new Error(`${scene.name} is already at 5 ${scene.units} per square: nothing to fit`);
       }
-      built = planFitScale(scene, tokens);
+      built = planFitScale(scene, tokens, named.length === 0);
       break;
     case 'move':
       built = planMove(scene, tokens, request);

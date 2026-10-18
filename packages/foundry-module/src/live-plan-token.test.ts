@@ -509,7 +509,7 @@ describe('planTokenChange: fit-scale', () => {
       const t = makeTok({ id, name });
       t.width = w;
       t.height = w;
-      if (size) t.actor = { system: { traits: { size } } };
+      if (size !== undefined) t.actor = { system: { traits: size ? { size } : {} } };
       return t;
     };
     const scene = setScene([
@@ -517,7 +517,8 @@ describe('planTokenChange: fit-scale', () => {
       withSize('t2', 'Ogre', 'lg', 2),
       withSize('t3', 'Dragon', 'grg', 4),
       withSize('t4', 'Rat', 'tiny', 0.5),
-      withSize('t5', 'Mystery'),
+      withSize('t5', 'Mystery', ''),
+      withSize('t6', 'Marker'),
     ]);
     scene.grid = { size: 100, distance: 5, units: 'ft', ...grid };
   }
@@ -531,23 +532,31 @@ describe('planTokenChange: fit-scale', () => {
     expect(plan.ops[1]).toEqual({
       kind: 'update',
       uuid: 'Scene.s1.Token.t2',
-      changes: { width: 0.5, height: 0.5 },
+      changes: { width: 0.5, height: 0.5, 'flags.dnd5e.lockSize': true },
     });
     expect(plan.targets[1]?.line).toBe('Ogre: 2x2 to 0.5x0.5 squares');
     expect(plan.targets[4]?.line).toContain('size unknown, treated as medium');
-    expect(plan.summary).toContain('every token');
+    expect(plan.summary).toContain('every creature');
   });
 
   it('applies the floor: 200 ft squares do not shrink a token below 0.25', () => {
     townScene({ distance: 200 });
     const plan = planTokenChange(fit(['Hero']));
-    expect((plan.ops[0] as any).changes).toEqual({ width: 0.25, height: 0.25 });
+    expect((plan.ops[0] as any).changes).toEqual({
+      width: 0.25,
+      height: 0.25,
+      'flags.dnd5e.lockSize': true,
+    });
   });
 
   it('uses a pixel floor on small grids (50 px: 24 px = 0.48)', () => {
     townScene({ distance: 200, size: 50 });
     const plan = planTokenChange(fit(['Hero']));
-    expect((plan.ops[0] as any).changes).toEqual({ width: 0.48, height: 0.48 });
+    expect((plan.ops[0] as any).changes).toEqual({
+      width: 0.48,
+      height: 0.48,
+      'flags.dnd5e.lockSize': true,
+    });
   });
 
   it('rounds to two decimals for odd distances (16.66 ft)', () => {
@@ -572,6 +581,7 @@ describe('planTokenChange: fit-scale', () => {
     const first = planTokenChange(fit(['Hero']));
     const hero = g.game.scenes.current.tokens.contents[0];
     hero.width = hero.height = (first.ops[0] as any).changes.width;
+    hero._source = { flags: { dnd5e: { lockSize: true } } };
     expect(() => planTokenChange(fit(['Hero']))).toThrow(/Nothing to change: Hero: already/);
   });
 

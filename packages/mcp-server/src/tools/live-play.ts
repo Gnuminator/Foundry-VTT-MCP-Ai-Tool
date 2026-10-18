@@ -217,7 +217,7 @@ export class LivePlayTools {
       {
         name: 'plan-token-change',
         description:
-          'Plan moving, changing or deleting tokens on the current scene; apply it with apply-planned-change, revert it with undo-change. "move": one token to gridX/gridY (a square) or x/y (pixels), or any tokens by dx/dy squares. "update": set the listed fields (vision and light too). "delete": removes the tokens and their place in the encounter (destructive; undo restores both). "fit-scale": size tokens to the scene\'s scale (a medium creature covers 5 ft; town and overland maps with 16 to 200 ft squares get small tokens); every token on the scene, or only the named ones; a 5 ft scene is no change. If the request says "go ahead", apply it in the same turn (a delete still needs the destructive confirm).',
+          'Plan moving, changing or deleting tokens on the current scene; apply it with apply-planned-change, revert it with undo-change. "move": one token to gridX/gridY (a square) or x/y (pixels), or any tokens by dx/dy squares. "update": set the listed fields (vision and light too). "delete": removes the tokens and their place in the encounter (destructive; undo restores both). "fit-scale": size tokens to the scene\'s scale (a medium creature covers 5 ft; any scene whose squares are not 5 ft, such as a town or overland map at 16 to 200 ft, gets smaller tokens); every token on the scene, or only the named ones; a 5 ft scene is no change. If the request says "go ahead", apply it in the same turn (a delete still needs the destructive confirm).',
         inputSchema: {
           type: 'object',
           properties: {

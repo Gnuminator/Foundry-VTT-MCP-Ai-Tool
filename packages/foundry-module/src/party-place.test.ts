@@ -194,7 +194,7 @@ describe('planPartyPlacement', () => {
       [1, 1],
       [2, 2],
     ]);
-    expect(five.tokens[0]!.data['flags.dnd5e.lockSize']).toBeUndefined();
+    expect(five.tokens[0].data['flags.dnd5e.lockSize']).toBeUndefined();
 
     world({ viewed: true, distance: 40 });
     const town = await planPartyPlacement({ groupId: 'g1' });
@@ -203,7 +203,7 @@ describe('planPartyPlacement', () => {
       [0.25, 0.25],
       [0.25, 0.25],
     ]);
-    expect(town.tokens[0]!.data['flags.dnd5e.lockSize']).toBe(true);
+    expect(town.tokens[0].data['flags.dnd5e.lockSize']).toBe(true);
 
     world({ viewed: true, distance: 2.5 });
     const fine = await planPartyPlacement({ groupId: 'g1' });

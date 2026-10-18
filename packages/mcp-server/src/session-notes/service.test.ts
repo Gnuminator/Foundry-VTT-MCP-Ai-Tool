@@ -362,6 +362,69 @@ describe('undo', () => {
     expect(again.item.autoPut).toBe(true);
   });
 
+  it('a planned undo from the Changes window refuses when the GM edited a page', async () => {
+    await stageAndSettle();
+    const [item] = (await notes.list()).items;
+    foundry.edit(item.recapPageUuid!, {
+      path: 'text.content',
+      present: true,
+      value: '<p>edited</p>',
+    });
+    const undoPlan = await guarded.createPlan({
+      feature: 'change-undo',
+      summary: 'Undo the session notes',
+      ops: [{ kind: 'delete', uuid: item.journalUuid! }],
+      undoes: { changes: [item.changeId!] },
+    });
+    await expect(
+      guarded.applyPlan(undoPlan.planId, { confirm: true, confirmDestructive: true })
+    ).rejects.toThrow(/^Conflict, nothing was written: the page "Recap"/);
+    expect(journal()).toBeDefined();
+  });
+
+  it('a planned undo sends the notes back to staged and stops the automatic put', async () => {
+    foundry.features.push({ id: 'change-undo', name: '', hint: '', enabled: true });
+    await stageAndSettle();
+    const [item] = (await notes.list()).items;
+    const undoPlan = await guarded.createPlan({
+      feature: 'change-undo',
+      summary: 'Undo the session notes',
+      ops: [{ kind: 'delete', uuid: item.journalUuid! }],
+      undoes: { changes: [item.changeId!] },
+    });
+    await guarded.applyPlan(undoPlan.planId, { confirm: true, confirmDestructive: true });
+    const after = (await notes.list()).items[0];
+    expect(after.status).toBe('staged');
+    expect(after.autoPut).toBe(false);
+    expect(after.lastError).toBeUndefined();
+  });
+
+  it('puts the same journal id again after an undo (ids come from the session id)', async () => {
+    await stageAndSettle();
+    const [first] = (await notes.list()).items;
+    await guarded.undo(first.changeId!, { confirm: true });
+    const again = await notes.put({ sessionId: first.sessionId });
+    expect(again.item.journalUuid).toBe(first.journalUuid);
+    expect(again.item.recapPageUuid).toBe(first.recapPageUuid);
+  });
+
+  it('meets the journal an earlier put made instead of making a second one', async () => {
+    await stageAndSettle();
+    const [first] = (await notes.list()).items;
+    await guarded.undo(first.changeId!, { confirm: true });
+    // Foundry kept the journal after all: the earlier put reached it but its answer was lost.
+    foundry.add(first.journalUuid!, 'JournalEntry', { name: 'lost put' });
+    const refusal = notes.put({ sessionId: first.sessionId });
+    expect(await code(refusal)).toBe('conflict');
+    const [after] = (await notes.list()).items;
+    expect(after.status).toBe('staged');
+    expect(after.autoPut).toBe(false);
+    expect(after.lastError).toMatch(/may already be in Foundry/);
+    expect([...foundry.docs.values()].filter(d => d.documentName === 'JournalEntry')).toHaveLength(
+      1
+    );
+  });
+
   it('refuses with a conflict when the GM edited a page', async () => {
     await stageAndSettle();
     const [item] = (await notes.list()).items;

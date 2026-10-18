@@ -98,11 +98,23 @@ describe('apply timeout and outcome polling (PB-04)', () => {
     expect(foundry.docs.get('Actor.ireena')!.source.system.hp).toBe(10);
   });
 
-  it('also recovers after "Connection closed" and "not connected"', async () => {
+  it('fails at once, without polling, when the apply was never sent', async () => {
     for (const message of [
-      'Query x failed: Connection closed',
       'Foundry VTT module not connected. Please ensure Foundry is running',
+      'Not connected to Foundry VTT module',
     ]) {
+      applyImpl = (): Promise<any> => Promise.reject(new Error(message));
+      const spy = vi.fn();
+      outcomeImpl = spy;
+      const started = Date.now();
+      await expect(planAndApply()).rejects.toThrow(/not sent and nothing was applied/);
+      expect(Date.now() - started).toBeLessThan(75);
+      expect(spy).not.toHaveBeenCalled();
+    }
+  });
+
+  it('also recovers after "Connection closed" and a query timeout', async () => {
+    for (const message of ['Query x failed: Connection closed', 'Query timeout: x']) {
       foundry.edit('Actor.ireena', { path: 'system.hp', present: true, value: 10 });
       let applied: any;
       applyImpl = async (data): Promise<any> => {

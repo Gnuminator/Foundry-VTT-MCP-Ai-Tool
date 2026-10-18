@@ -107,7 +107,7 @@ describe('apply timeout and outcome polling (PB-04)', () => {
       const spy = vi.fn();
       outcomeImpl = spy;
       const started = Date.now();
-      await expect(planAndApply()).rejects.toThrow(/not sent and nothing was applied/);
+      await expect(planAndApply()).rejects.toThrow(/this request was not sent to Foundry/);
       expect(Date.now() - started).toBeLessThan(75);
       expect(spy).not.toHaveBeenCalled();
     }

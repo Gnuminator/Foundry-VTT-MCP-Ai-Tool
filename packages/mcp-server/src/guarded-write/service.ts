@@ -751,7 +751,15 @@ export class GuardedWriteService {
   private async runPlannedUndoGuards(worldId: string, plan: StoredPlan): Promise<void> {
     for (const changeId of plan.undoes?.changes ?? []) {
       const entry = await this.audit.get(worldId, changeId);
-      if (!entry || entry.mode === 'undo') continue;
+      if (!entry) {
+        // Dropped out of the history: its feature's guard cannot be asked, so do not guess.
+        throw new Error(
+          `Conflict, nothing was written: change ${changeId} is no longer in the history, so its undo cannot be checked`
+        );
+      }
+      // An undo entry has no guard of its own (a redo puts the original back); only the
+      // original changes carry their feature's guard.
+      if (entry.mode === 'undo') continue;
       const guard = this.undoGuards.get(entry.feature);
       const reason = guard ? await guard(worldId, entry) : null;
       if (reason) throw new Error(`Conflict, nothing was written: ${reason}`);
@@ -1065,7 +1073,7 @@ export class GuardedWriteService {
     } catch (error) {
       if (isNeverSent(error)) {
         throw new Error(
-          'Foundry is not connected, so the change was not sent and nothing was applied. Reconnect Foundry and apply the plan again.',
+          'Foundry is not connected, so this request was not sent to Foundry. Reconnect Foundry and try again.',
           { cause: error }
         );
       }

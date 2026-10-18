@@ -437,7 +437,7 @@ export class SessionNotesService {
       applied = await this.guardedWrites.applyPlan(plan.planId, { confirm: true });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      if (/already exists/i.test(message)) {
+      if (/a document with that id already exists/i.test(message)) {
         // An earlier put probably reached Foundry but its answer was lost. Stop the automatic
         // retries: two journals for one session would be worse than waiting for the GM.
         const hint = `A journal for these notes may already be in Foundry (an earlier put whose answer was lost). Look in the "${NOTES_FOLDER}" folder; delete it if it is wrong, then put again.`;

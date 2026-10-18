@@ -465,6 +465,21 @@ describe('recorded listeners and undo guards', () => {
   });
 });
 
+describe('a planned undo of a change that left the history', () => {
+  it('is refused, because its guard cannot be asked', async () => {
+    foundry.features.push({ id: 'change-undo', name: '', hint: '', enabled: true });
+    const undoPlan = await service.createPlan({
+      feature: 'change-undo',
+      summary: 'Undo something old',
+      ops: [{ kind: 'update', uuid: 'Actor.ireena', changes: { 'system.hp': 10 } }],
+      undoes: { changes: ['chg-gone'] },
+    });
+    await expect(service.applyPlan(undoPlan.planId, { confirm: true })).rejects.toThrow(
+      /no longer in the history/
+    );
+  });
+});
+
 describe('a second apply of the same plan', () => {
   it('says it was already applied, not that the plan expired', async () => {
     const p = await plan([HP_UPDATE]);

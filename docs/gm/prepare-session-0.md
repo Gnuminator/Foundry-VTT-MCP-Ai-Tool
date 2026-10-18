@@ -22,6 +22,13 @@ All of it is normal Foundry settings, done as Gamemaster in your browser. Nothin
 command line or Claude. What session 0 itself holds is yours to plan; [Prep and
 expectations](prep-and-expectations.md) has an agenda you can change.
 
+## 0. Collect the players' emails
+
+Before anything else, ask each player in Discord for the email address they will use, and send the
+list to the tool admin. Only addresses on the admin's Cloudflare list get a login code. An address
+that is not on it never gets an error, just no code, so this is the likeliest thing to go wrong on
+the first night. Tell the players to use exactly the address they gave you.
+
 ## 1. One user per player
 
 1. Press **Esc** and choose **User Management** (or Settings tab, **User Management**).

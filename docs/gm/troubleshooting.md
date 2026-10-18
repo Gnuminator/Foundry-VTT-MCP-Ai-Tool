@@ -49,9 +49,9 @@ undo. Fix it by hand in Foundry.
 
 | You see                                                  | Likely cause and fix                                                                                                                  |
 | -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| The browser cannot connect to `http://localhost:3000`.   | The dashboard is not running. Start it (today: `npm run dev:cogm` in a terminal in the tool's folder) and leave that window open.     |
+| The browser cannot connect to the dashboard address.     | The dashboard is not running. Tell the tool admin (on the admin's own PC: `npm run dev:cogm` in the tool's folder, window left open). |
 | **Bridge: reconnecting…**.                               | The page lost the dashboard program. Its terminal window was closed or it restarted; start it again if needed, then reload the page.  |
-| A short error with `host-not-allowed`.                   | You opened it under another name. Use `http://localhost:3000`, or add that name to `DASHBOARD_ALLOWED_HOSTS`.                         |
+| A short error with `host-not-allowed`.                   | You opened it under another name. Use the address the admin gave you, or add that name to `DASHBOARD_ALLOWED_HOSTS`.                  |
 | The page loads, but **Bridge: disconnected**.            | The bridge is not running. Start Claude Desktop.                                                                                      |
 | **Foundry: unreachable**.                                | See "The bridge does not connect" above.                                                                                              |
 | The tool runner says "Couldn't load tools".              | The bridge is not connected, or this browser is not signed in as the GM (see the next row).                                           |

@@ -8,8 +8,7 @@ description: Short how-tos for players, covering the player page, picking your n
 Short how-tos for the extra bits around Foundry. Everything in Foundry itself works as usual. What
 the tool records and which parts reach an AI is in the [player guide](README.md).
 
-The player page opens only on the GM's PC today. These recipes are ready for when it reaches your
-computer, once the table's home server is set up.
+The player page is live behind the email-code login. The GM sends you its address.
 
 ## Pick your name on the player page
 

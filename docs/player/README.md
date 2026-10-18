@@ -14,9 +14,9 @@ New to the table? Start with [Join the game](join.md) (the address, logging in, 
 
 ## What you see
 
-**The player page.** A read-only web page. It is not available to you yet: today it only opens on
-the GM's own PC, and it comes to your computer once the table's home server (an Orange Pi) is set
-up. It has three parts:
+**The player page.** A read-only web page. It is live on the table's home server, behind the same
+kind of email-code login as the game (Cloudflare Access), so only addresses on the GM's list get
+in. The GM sends you its address. It has three parts:
 
 - **Combat order:** who acts when, the current turn, and the round. Player characters have an HP
   bar. Monsters and NPCs show no HP numbers, only standard conditions (like prone or frightened),
@@ -34,8 +34,8 @@ during play. Your GM sends you a private link; open it once and the page remembe
 device (bookmark it or add it to your home screen). Keep the link to yourself: anyone with it can
 read your sheet. It shows only the characters your Foundry user owns. Pick a view at the top:
 **At the table** (HP, AC, slots, conditions and resources at a glance), **Paper 2024** or
-**Paper 2014** (the printed sheet's order, to copy or print). Like the player page, it reaches
-your device once the home server is set up.
+**Paper 2014** (the printed sheet's order, to copy or print). Like the player page, it is live
+behind the email-code login.
 
 **Handouts in Foundry.** When the GM reveals a handout, you can also open that page in Foundry's
 Journal tab.

@@ -14,7 +14,7 @@ needed.
 - Claude Desktop is running. Today it also starts the bridge.
 - Foundry is open in your browser and you are logged in as the GM. Without a GM in Foundry, Claude
   cannot reach the game.
-- The dashboard shows **Bridge: connected** and **Foundry: live**.
+- The dashboard's **✈ Pre-flight** line says "Foundry connected", and no "Connection lost" mark shows.
 
 Claude does not watch the game on its own. It reads what it needs at the moment you ask.
 

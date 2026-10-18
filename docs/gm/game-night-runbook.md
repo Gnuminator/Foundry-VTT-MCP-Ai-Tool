@@ -60,7 +60,7 @@ Keep playing: do the change by hand in Foundry.
 ## The dashboard does not load or says disconnected
 
 Keep playing in Foundry. At the break, reload the dashboard page. If it still says
-**disconnected**, call for help after the session. Changes made meanwhile can still be undone
+"Connection lost, reconnecting…" or "Connection closed: reload the page", call for help after the session. Changes made meanwhile can still be undone
 later from **Recent Changes**.
 
 ## The recording bot left or stopped

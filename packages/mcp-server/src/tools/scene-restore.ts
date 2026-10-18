@@ -204,8 +204,10 @@ export class SceneRestoreTools {
     const signature = createHash('sha1').update(JSON.stringify(ops)).digest('hex');
     const previous = this.lastBatch.get(live.sceneId);
     if (batch && previous?.signature === signature && !this.isPending(previous.planId)) {
+      // Cleared, so a plan that merely expired unapplied is not refused again.
+      this.lastBatch.delete(live.sceneId);
       throw new Error(
-        `These changes did not stick after the last batch was applied (first: ${JSON.stringify(ops[0])}). Foundry probably rewrites a field the backup holds; restore the rest with "parts" or look at that field.`
+        `These changes did not stick after the last batch was applied (first: ${ops[0]?.kind} ${(ops[0] as { uuid?: string } | undefined)?.uuid ?? ''}). Foundry probably rewrites a field the backup holds; look at that field. If you did not apply the last plan (a plan expires after 15 minutes), plan again.`
       );
     }
     const batchNote = batch

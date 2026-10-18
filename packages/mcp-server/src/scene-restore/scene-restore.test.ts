@@ -394,6 +394,9 @@ describe('plan-scene-restore', () => {
     await expect(
       tools.handleToolCall('plan-scene-restore', { backupPath: scenes })
     ).rejects.toThrow(/did not stick/);
+    // The refusal is cleared: a plan that only expired is planned normally on the next call.
+    const next = await tools.handleToolCall('plan-scene-restore', { backupPath: scenes });
+    expect(next.batch).toEqual(first.batch);
   });
 
   it('does not mark a restore that fits one plan as a batch', async () => {

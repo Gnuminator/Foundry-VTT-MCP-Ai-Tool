@@ -62,31 +62,36 @@ const planParams = z.object({
   value: z.number().int().min(0).optional(),
 });
 
-const tokenParams = z.object({
-  action: z.enum(LIVE_TOKEN_ACTIONS),
-  tokens: z.array(z.string().min(1)).min(1),
-  x: z.number().optional(),
-  y: z.number().optional(),
-  gridX: z.number().int().optional(),
-  gridY: z.number().int().optional(),
-  dx: z.number().int().optional(),
-  dy: z.number().int().optional(),
-  name: z.string().min(1).optional(),
-  hidden: z.boolean().optional(),
-  disposition: z.number().int().optional(),
-  elevation: z.number().optional(),
-  rotation: z.number().optional(),
-  lockRotation: z.boolean().optional(),
-  width: z.number().positive().optional(),
-  height: z.number().positive().optional(),
-  sightEnabled: z.boolean().optional(),
-  sightRange: z.number().min(0).optional(),
-  visionMode: z.string().min(1).optional(),
-  lightDim: z.number().min(0).optional(),
-  lightBright: z.number().min(0).optional(),
-  lightColor: z.string().optional(),
-  lightAnimation: z.string().optional(),
-});
+const tokenParams = z
+  .object({
+    action: z.enum(LIVE_TOKEN_ACTIONS),
+    tokens: z.array(z.string().min(1)).min(1).optional(),
+    x: z.number().optional(),
+    y: z.number().optional(),
+    gridX: z.number().int().optional(),
+    gridY: z.number().int().optional(),
+    dx: z.number().int().optional(),
+    dy: z.number().int().optional(),
+    name: z.string().min(1).optional(),
+    hidden: z.boolean().optional(),
+    disposition: z.number().int().optional(),
+    elevation: z.number().optional(),
+    rotation: z.number().optional(),
+    lockRotation: z.boolean().optional(),
+    width: z.number().positive().optional(),
+    height: z.number().positive().optional(),
+    sightEnabled: z.boolean().optional(),
+    sightRange: z.number().min(0).optional(),
+    visionMode: z.string().min(1).optional(),
+    lightDim: z.number().min(0).optional(),
+    lightBright: z.number().min(0).optional(),
+    lightColor: z.string().optional(),
+    lightAnimation: z.string().optional(),
+  })
+  .refine(p => p.action === 'fit-scale' || (p.tokens?.length ?? 0) > 0, {
+    message: 'tokens: name at least one token (only fit-scale may omit it)',
+    path: ['tokens'],
+  });
 
 /** The update fields, as tool parameters (one per entry of LIVE_TOKEN_FIELDS). */
 const TOKEN_FIELD_SCHEMA: Record<LiveTokenField, Record<string, unknown>> = {
@@ -212,19 +217,20 @@ export class LivePlayTools {
       {
         name: 'plan-token-change',
         description:
-          'Plan moving, changing or deleting tokens on the current scene; apply it with apply-planned-change, revert it with undo-change. "move": one token to gridX/gridY (a square) or x/y (pixels), or any tokens by dx/dy squares. "update": set the listed fields (vision and light too). "delete": removes the tokens and their place in the encounter (destructive; undo restores both). If the request says "go ahead", apply it in the same turn (a delete still needs the destructive confirm).',
+          'Plan moving, changing or deleting tokens on the current scene; apply it with apply-planned-change, revert it with undo-change. "move": one token to gridX/gridY (a square) or x/y (pixels), or any tokens by dx/dy squares. "update": set the listed fields (vision and light too). "delete": removes the tokens and their place in the encounter (destructive; undo restores both). "fit-scale": size tokens to the scene\'s scale (a medium creature covers 5 ft; town and overland maps with 16 to 200 ft squares get small tokens); every token on the scene, or only the named ones; a 5 ft scene is no change. If the request says "go ahead", apply it in the same turn (a delete still needs the destructive confirm).',
         inputSchema: {
           type: 'object',
           properties: {
             action: {
               type: 'string',
               enum: [...LIVE_TOKEN_ACTIONS],
-              description: 'move, update or delete.',
+              description: 'move, update, delete or fit-scale.',
             },
             tokens: {
               type: 'array',
               items: { type: 'string' },
-              description: 'Token names or ids on the current scene.',
+              description:
+                'Token names or ids on the current scene. Required except for fit-scale (omit it there for every token).',
               ...toolRef('token', 'name'),
             },
             gridX: { type: 'integer', description: 'move: grid column.' },
@@ -235,7 +241,7 @@ export class LivePlayTools {
             dy: { type: 'integer', description: 'move: squares down (negative: up).' },
             ...TOKEN_FIELD_SCHEMA,
           },
-          required: ['action', 'tokens'],
+          required: ['action'],
         },
       },
     ];

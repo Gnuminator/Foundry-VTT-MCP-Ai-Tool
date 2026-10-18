@@ -387,15 +387,106 @@ function planDelete(
 }
 
 // ---------------------------------------------------------------------------
+// fit-scale
+// ---------------------------------------------------------------------------
+
+/** Footprint in feet of the dnd5e creature sizes (tiny is a 2.5 ft square). */
+export const SIZE_FEET: Record<string, number> = {
+  tiny: 2.5,
+  sm: 5,
+  med: 5,
+  lg: 10,
+  huge: 15,
+  grg: 20,
+};
+
+/** The smallest token edge, in grid squares. 0.25 of a 100 px square is 25 px: still clickable. */
+export const FIT_FLOOR_SQUARES = 0.25;
+/** ... and in pixels, so a 50 px grid does not get 12 px tokens. */
+export const FIT_FLOOR_PIXELS = 24;
+
+/** Token edge in squares for a footprint of `feet` on a scene with `distance` feet per square. */
+export function fitSquares(feet: number, distance: number, gridSize: number): number {
+  const floor = Math.max(FIT_FLOOR_SQUARES, FIT_FLOOR_PIXELS / gridSize);
+  const raw = feet / distance;
+  // Two decimals: keeps Undo and the preview readable (5 / 16.66 = 0.3).
+  return Math.round(Math.max(raw, floor) * 100) / 100;
+}
+
+function planFitScale(
+  scene: SceneInfo,
+  tokens: TokenRef[]
+): { ops: GuardedOp[]; previews: LiveTargetPreview[]; summary: string } {
+  if (!(scene.distance > 0) || !(scene.size > 0)) {
+    throw new Error(`${scene.name} has no usable grid size or distance; set the scale first`);
+  }
+  const ops: GuardedOp[] = [];
+  const previews: LiveTargetPreview[] = [];
+  for (const token of tokens) {
+    const sizeKey = str(getPath(token.doc, 'actor.system.traits.size'));
+    const feet = sizeKey ? SIZE_FEET[sizeKey] : undefined;
+    const known = feet !== undefined;
+    const edge = fitSquares(feet ?? 5, scene.distance, scene.size);
+    const source = rec(token.doc._source);
+    const w = num(source?.width) ?? num(token.doc.width) ?? 1;
+    const h = num(source?.height) ?? num(token.doc.height) ?? 1;
+    const note = known ? '' : ' (size unknown, treated as medium)';
+    if (w === edge && h === edge) {
+      previews.push({
+        target: token.name,
+        actorUuid: token.uuid,
+        line: `${token.name}: already ${edge} squares${note}`,
+        skipped: true,
+      });
+      continue;
+    }
+    ops.push({ kind: 'update', uuid: token.uuid, changes: { width: edge, height: edge } });
+    previews.push({
+      target: token.name,
+      actorUuid: token.uuid,
+      line: `${token.name}: ${w}x${h} to ${edge}x${edge} squares${note}`,
+    });
+  }
+  const which =
+    tokens.length === scene.tokens.length ? 'every token' : tokens.map(t => t.name).join(', ');
+  return {
+    ops,
+    previews,
+    summary: `Fit ${which} on ${scene.name} to the map scale (${scene.distance} ${scene.units} per square)`,
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Entry point
 // ---------------------------------------------------------------------------
 
 /** Build a token plan. Throws when nothing would change. */
 export function planTokenChange(request: LiveTokenRequest): LiveChangePlan {
   const scene = currentScene();
-  const tokens = resolveTokens(scene, Array.isArray(request.tokens) ? request.tokens : []);
+  const named = Array.isArray(request.tokens) ? request.tokens : [];
+  let tokens: TokenRef[];
+  if (request.action === 'fit-scale' && named.length === 0) {
+    tokens = scene.tokens.flatMap(doc => {
+      const uuid = str(doc.uuid);
+      return uuid ? [{ doc, id: String(doc.id), uuid, name: str(doc.name) ?? String(doc.id) }] : [];
+    });
+    if (tokens.length === 0) throw new Error(`${scene.name} has no tokens to fit`);
+  } else {
+    tokens = resolveTokens(scene, named);
+  }
   let built: { ops: GuardedOp[]; previews: LiveTargetPreview[]; summary: string };
   switch (request.action) {
+    case 'fit-scale':
+      if (!/^(ft\.?|feet|foot|')?$/i.test(scene.units.trim())) {
+        throw new Error(
+          `${scene.name} measures in "${scene.units}", not feet: set the grid units to ft first`
+        );
+      }
+      if (scene.distance === 5) {
+        throw new Error(`${scene.name} is already at 5 ${scene.units} per square: nothing to fit`);
+      }
+      built = planFitScale(scene, tokens);
+      break;
     case 'move':
       built = planMove(scene, tokens, request);
       break;

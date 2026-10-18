@@ -497,6 +497,104 @@ describe('planTokenChange: delete', () => {
   });
 });
 
+describe('planTokenChange: fit-scale', () => {
+  const fit = (tokens?: string[]): any => ({
+    scope: 'token',
+    action: 'fit-scale',
+    ...(tokens ? { tokens } : {}),
+  });
+
+  function townScene(grid: Record<string, unknown>): void {
+    const withSize = (id: string, name: string, size?: string, w = 1): any => {
+      const t = makeTok({ id, name });
+      t.width = w;
+      t.height = w;
+      if (size) t.actor = { system: { traits: { size } } };
+      return t;
+    };
+    const scene = setScene([
+      withSize('t1', 'Hero', 'med'),
+      withSize('t2', 'Ogre', 'lg', 2),
+      withSize('t3', 'Dragon', 'grg', 4),
+      withSize('t4', 'Rat', 'tiny', 0.5),
+      withSize('t5', 'Mystery'),
+    ]);
+    scene.grid = { size: 100, distance: 5, units: 'ft', ...grid };
+  }
+
+  it('sizes every token from its actor size at 20 ft per square', () => {
+    townScene({ distance: 20 });
+    const plan = planTokenChange(fit());
+    const sizes = plan.ops.map(o => (o as any).changes.width);
+    // med 5/20, lg 10/20, grg 20/20, tiny floored at 0.25, unknown treated as medium
+    expect(sizes).toEqual([0.25, 0.5, 1, 0.25, 0.25]);
+    expect(plan.ops[1]).toEqual({
+      kind: 'update',
+      uuid: 'Scene.s1.Token.t2',
+      changes: { width: 0.5, height: 0.5 },
+    });
+    expect(plan.targets[1]?.line).toBe('Ogre: 2x2 to 0.5x0.5 squares');
+    expect(plan.targets[4]?.line).toContain('size unknown, treated as medium');
+    expect(plan.summary).toContain('every token');
+  });
+
+  it('applies the floor: 200 ft squares do not shrink a token below 0.25', () => {
+    townScene({ distance: 200 });
+    const plan = planTokenChange(fit(['Hero']));
+    expect((plan.ops[0] as any).changes).toEqual({ width: 0.25, height: 0.25 });
+  });
+
+  it('uses a pixel floor on small grids (50 px: 24 px = 0.48)', () => {
+    townScene({ distance: 200, size: 50 });
+    const plan = planTokenChange(fit(['Hero']));
+    expect((plan.ops[0] as any).changes).toEqual({ width: 0.48, height: 0.48 });
+  });
+
+  it('rounds to two decimals for odd distances (16.66 ft)', () => {
+    townScene({ distance: 16.66 });
+    const plan = planTokenChange(fit(['Ogre']));
+    expect((plan.ops[0] as any).changes.width).toBe(0.6);
+  });
+
+  it('scales up on a finer grid (2.5 ft squares)', () => {
+    townScene({ distance: 2.5 });
+    const plan = planTokenChange(fit(['Hero']));
+    expect((plan.ops[0] as any).changes.width).toBe(2);
+  });
+
+  it('is a no-op on a 5 ft scene', () => {
+    townScene({});
+    expect(() => planTokenChange(fit())).toThrow(/already at 5 ft per square/);
+  });
+
+  it('skips tokens that already fit and refuses when none change', () => {
+    townScene({ distance: 20 });
+    const first = planTokenChange(fit(['Hero']));
+    const hero = g.game.scenes.current.tokens.contents[0];
+    hero.width = hero.height = (first.ops[0] as any).changes.width;
+    expect(() => planTokenChange(fit(['Hero']))).toThrow(/Nothing to change: Hero: already/);
+  });
+
+  it('refuses a scene measured in miles', () => {
+    townScene({ distance: 6, units: 'mi' });
+    expect(() => planTokenChange(fit())).toThrow(/not feet/);
+  });
+
+  it('treats a scene without units as feet, and works on hex and gridless scenes', () => {
+    townScene({ distance: 50, units: '', type: 2 });
+    expect(planTokenChange(fit(['Hero'])).ops).toHaveLength(1);
+    townScene({ distance: 50, type: 0 });
+    expect(planTokenChange(fit(['Hero'])).ops).toHaveLength(1);
+  });
+
+  it('still needs a token name for other actions', () => {
+    townScene({ distance: 20 });
+    expect(() => planTokenChange({ scope: 'token', action: 'update' } as any)).toThrow(
+      /at least one token/
+    );
+  });
+});
+
 describe('planLiveChange routing', () => {
   it('sends scope "token" to the token planner', async () => {
     standardScene();

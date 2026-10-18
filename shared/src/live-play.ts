@@ -71,7 +71,7 @@ export interface LiveActorRequest {
 }
 
 /** What `plan-token-change` can do (F5 L2). */
-export const LIVE_TOKEN_ACTIONS = ['move', 'update', 'delete'] as const;
+export const LIVE_TOKEN_ACTIONS = ['move', 'update', 'delete', 'fit-scale'] as const;
 export type LiveTokenAction = (typeof LIVE_TOKEN_ACTIONS)[number];
 
 /**
@@ -101,8 +101,8 @@ export type LiveTokenField = keyof typeof LIVE_TOKEN_FIELDS;
 export interface LiveTokenRequest {
   scope: 'token';
   action: LiveTokenAction;
-  /** Token names or ids on the current scene. */
-  tokens: string[];
+  /** Token names or ids on the current scene. fit-scale: omit for every token on the scene. */
+  tokens?: string[];
   /** move, one token: the new top-left position in pixels. */
   x?: number;
   y?: number;

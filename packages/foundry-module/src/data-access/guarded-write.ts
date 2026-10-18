@@ -486,7 +486,7 @@ async function executeUpdate(
   if (Object.keys(update).length > 0) await doc.update(update, writeMarker(req, changeMode));
   await removeOwnershipKeys(doc, ownershipKeys, writeMarker(req, changeMode));
   const afterSource = sourceOf(doc);
-  return {
+  const result: GuardedOpResult = {
     index,
     kind: 'update',
     uuid: doc.uuid,
@@ -496,6 +496,53 @@ async function executeUpdate(
     before,
     after: paths.map(path => readPath(afterSource, path)),
   };
+  const dropped = droppedPaths(changes, afterSource);
+  if (dropped.length > 0) {
+    // This op is not in the caller's rollback list yet: put back what did land.
+    try {
+      const undoOp = inverseOf(result);
+      if (undoOp.kind === 'update') {
+        const restore: Record<string, unknown> = { ...undoOp.changes };
+        for (const path of undoOp.unset ?? []) Object.assign(restore, unsetKeyUpdate(path));
+        await doc.update(restore, writeMarker(req, 'rollback'));
+      }
+    } catch {
+      // The caller reports the dropped paths either way.
+    }
+    throw new Error(
+      `Foundry did not keep ${dropped.map(path => `"${path}"`).join(', ')} (a constrained move, a hook or a region refused it); the change was undone`
+    );
+  }
+  return result;
+}
+
+/**
+ * Paths whose plain value (text, number, true/false) Foundry did not store as asked.
+ * Foundry 14 drops size and position changes without an error when a constrained
+ * move, a `preMoveToken` hook or a region says no. Objects, null and the case of
+ * text are not compared: Foundry may normalise those on the way in.
+ */
+function droppedPaths(
+  changes: Record<string, unknown>,
+  afterSource: Record<string, unknown>
+): string[] {
+  const dropped: string[] = [];
+  for (const [path, asked] of Object.entries(changes)) {
+    if (typeof asked !== 'string' && typeof asked !== 'number' && typeof asked !== 'boolean') {
+      continue;
+    }
+    const have = readPath(afterSource, path);
+    if (!have.present) {
+      dropped.push(path);
+      continue;
+    }
+    const same =
+      typeof asked === 'string' && typeof have.value === 'string'
+        ? asked.toLowerCase() === have.value.toLowerCase()
+        : asked === have.value;
+    if (!same) dropped.push(path);
+  }
+  return dropped;
 }
 
 /** The user key of a single-key `ownership.<key>` path, or null for any other path. */

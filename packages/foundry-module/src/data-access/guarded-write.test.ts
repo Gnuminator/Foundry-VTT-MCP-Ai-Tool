@@ -691,6 +691,27 @@ describe('applyGuardedOps: rollback', () => {
     expect(gmChangeEvents(req.changeId)).toHaveLength(0);
   });
 
+  it('throws and restores when Foundry silently drops part of an update (constrained move, hook, region)', async () => {
+    const a = addActor({ name: 'A' });
+    const tok = addActor({ name: 'Tok' });
+    const req = await request([
+      { kind: 'update', uuid: a.uuid, changes: { name: 'A2' } },
+      { kind: 'update', uuid: tok.uuid, changes: { name: 'Tok2', 'system.size': 3 } },
+    ]);
+    const realUpdate = tok.update.bind(tok);
+    tok.update = (changes): Promise<FakeDoc> => {
+      const { 'system.size': _dropped, ...kept } = changes;
+      return realUpdate(kept);
+    };
+
+    await expect(applyGuardedOps(req)).rejects.toThrow(
+      /Op 1 \(update\) failed: Foundry did not keep "system.size".*; the 1 earlier op\(s\) were rolled back/
+    );
+    expect(a.name).toBe('A');
+    expect(tok.name).toBe('Tok');
+    expect(gmChangeEvents(req.changeId)).toHaveLength(0);
+  });
+
   it('reports an incomplete rollback', async () => {
     const a = addActor({ name: 'A' });
     const b = addActor({ name: 'B' });

@@ -527,15 +527,15 @@ describe('planTokenChange: fit-scale', () => {
     townScene({ distance: 20 });
     const plan = planTokenChange(fit());
     const sizes = plan.ops.map(o => (o as any).changes.width);
-    // med 5/20, lg 10/20, grg 20/20, tiny floored at 0.25, unknown treated as medium
-    expect(sizes).toEqual([0.25, 0.5, 1, 0.25, 0.25]);
+    // med 5/20, lg 10/20, grg 20/20, tiny floored at 0.25; Mystery (no size) is left alone
+    expect(sizes).toEqual([0.25, 0.5, 1, 0.25]);
     expect(plan.ops[1]).toEqual({
       kind: 'update',
       uuid: 'Scene.s1.Token.t2',
-      changes: { width: 0.5, height: 0.5, 'flags.dnd5e.lockSize': true },
+      changes: { width: 0.5, height: 0.5, depth: 0.5, 'flags.dnd5e.lockSize': true },
     });
     expect(plan.targets[1]?.line).toBe('Ogre: 2x2 to 0.5x0.5 squares');
-    expect(plan.targets[4]?.line).toContain('size unknown, treated as medium');
+    expect(plan.targets).toHaveLength(4);
     expect(plan.summary).toContain('every creature');
   });
 
@@ -545,6 +545,7 @@ describe('planTokenChange: fit-scale', () => {
     expect((plan.ops[0] as any).changes).toEqual({
       width: 0.25,
       height: 0.25,
+      depth: 0.25,
       'flags.dnd5e.lockSize': true,
     });
   });
@@ -555,6 +556,7 @@ describe('planTokenChange: fit-scale', () => {
     expect((plan.ops[0] as any).changes).toEqual({
       width: 0.48,
       height: 0.48,
+      depth: 0.48,
       'flags.dnd5e.lockSize': true,
     });
   });
@@ -569,6 +571,22 @@ describe('planTokenChange: fit-scale', () => {
     townScene({ distance: 2.5 });
     const plan = planTokenChange(fit(['Hero']));
     expect((plan.ops[0] as any).changes.width).toBe(2);
+  });
+
+  it('treats a named token without a size as medium', () => {
+    townScene({ distance: 20 });
+    const plan = planTokenChange(fit(['Mystery']));
+    expect(plan.targets[0]?.line).toContain('size unknown, treated as medium');
+  });
+
+  it('says so when only the size lock is missing', () => {
+    townScene({ distance: 20 });
+    const hero = g.game.scenes.current.tokens.contents[0];
+    hero.width = hero.height = 0.25;
+    hero._source = { depth: 0.25 };
+    const plan = planTokenChange(fit(['Hero']));
+    expect(plan.targets[0]?.line).toBe('Hero: already 0.25 squares, size locked');
+    expect(plan.ops).toHaveLength(1);
   });
 
   it('is a no-op on a 5 ft scene', () => {

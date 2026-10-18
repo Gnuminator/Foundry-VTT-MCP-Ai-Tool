@@ -431,9 +431,11 @@ function planFitScale(
     const source = rec(token.doc._source);
     const w = num(source?.width) ?? num(token.doc.width) ?? 1;
     const h = num(source?.height) ?? num(token.doc.height) ?? 1;
+    const d = num(source?.depth) ?? num(token.doc.depth);
     const note = known ? '' : ' (size unknown, treated as medium)';
     const locked = getPath(token.doc._source, 'flags.dnd5e.lockSize') === true;
-    if (w === edge && h === edge && locked) {
+    const sized = w === edge && h === edge && (d === null || d === edge);
+    if (sized && locked) {
       previews.push({
         target: token.name,
         actorUuid: token.uuid,
@@ -443,12 +445,14 @@ function planFitScale(
       continue;
     }
     // lockSize: dnd5e's Autosize would otherwise write the actor's size back after the apply.
-    const changes: Rec = { width: edge, height: edge, 'flags.dnd5e.lockSize': true };
+    const changes: Rec = { width: edge, height: edge, depth: edge, 'flags.dnd5e.lockSize': true };
     ops.push({ kind: 'update', uuid: token.uuid, changes });
     previews.push({
       target: token.name,
       actorUuid: token.uuid,
-      line: `${token.name}: ${w}x${h} to ${edge}x${edge} squares${note}`,
+      line: sized
+        ? `${token.name}: already ${edge} squares, size locked${note}`
+        : `${token.name}: ${w}x${h} to ${edge}x${edge} squares${note}`,
     });
   }
   const which = wholeScene ? 'every creature' : tokens.map(t => t.name).join(', ');
@@ -469,10 +473,11 @@ export function planTokenChange(request: LiveTokenRequest): LiveChangePlan {
   const named = Array.isArray(request.tokens) ? request.tokens : [];
   let tokens: TokenRef[];
   if (request.action === 'fit-scale' && named.length === 0) {
-    // Whole scene: only creatures. Tokens without an actor (loot, markers) are left alone.
+    // Whole scene: only creatures. Tokens without an actor (loot, markers) and actors without a
+    // size (party, encounter) are left alone.
     tokens = scene.tokens.flatMap(doc => {
       const uuid = str(doc.uuid);
-      return uuid && rec(doc.actor)
+      return uuid && str(getPath(doc, 'actor.system.traits.size'))
         ? [{ doc, id: String(doc.id), uuid, name: str(doc.name) ?? String(doc.id) }]
         : [];
     });

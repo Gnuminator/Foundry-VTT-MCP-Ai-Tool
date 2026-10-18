@@ -64,6 +64,8 @@ export interface OpSnapshot {
   modifiedTime?: number | null;
   /** create with keepId: a document with that id already exists. */
   idTaken?: boolean;
+  /** delete of a Scene Level: things on it that Foundry would delete too (refused above 0). */
+  levelContents?: number;
   /**
    * delete of an embedded document, create with a parent: the parent document, so the diff can
    * say `on Actor "Wolf 2"` instead of a uuid. Never compared (labels only).

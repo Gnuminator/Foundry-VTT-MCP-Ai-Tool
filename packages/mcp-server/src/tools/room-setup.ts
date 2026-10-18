@@ -206,7 +206,17 @@ export class RoomSetupTools {
   }
 
   private async planRoomSetup(args: unknown): Promise<RoomSetupPlanResult> {
-    const params = planParams.parse(args ?? {}) as RoomSetupRequest;
+    const parsed = planParams.parse(args ?? {});
+    // zod drops keys it does not know: a misplaced `level` would silently plan on the wrong level.
+    const unknown = Object.keys((args ?? {}) as Record<string, unknown>).filter(
+      k => !(k in parsed)
+    );
+    if (unknown.length > 0) {
+      throw new Error(
+        `Unknown parameter(s) for this action: ${unknown.join(', ')} (level belongs inside area)`
+      );
+    }
+    const params = parsed as RoomSetupRequest;
 
     // Fail early and plainly while the switch is off (the module would refuse the apply anyway).
     const features = unwrapBridgeReply(

@@ -556,7 +556,17 @@ function planLevels(request: RoomLevelsRequest): RoomSetupPlan {
       }
     }
     const data: Rec = { name, elevation: { bottom, top } };
-    if (spec.background) data.background = { src: String(spec.background) };
+    if (spec.background) {
+      const src = String(spec.background).trim();
+      if (!/\.(webp|png|jpe?g|avif|gif|svg|webm|mp4)$/i.test(src)) {
+        throw new Error(
+          `Level "${name}": background must be an image or video path (.webp, .png, .jpg, .webm)`
+        );
+      }
+      data.background = { src };
+    } else {
+      warnings.push(`"${name}" has no background image; set one in Foundry`);
+    }
     ops.push({ kind: 'create', documentName: 'Level', parentUuid: String(scene.uuid), data });
     made.push({ name, bottom, top });
   }
@@ -606,6 +616,9 @@ function planStairs(request: RoomStairsRequest): RoomSetupPlan {
   const levelNames = sceneLevels(scene)
     .filter(l => ids.includes(l.id))
     .map(l => l.name);
+  warnings.push(
+    `Players see these level names (${levelNames.join(', ')}) in the stairs dialog when they step on it`
+  );
   return {
     summary: `Add stairs ${quoted(name)} on ${quoted(scene.name)} joining ${levelNames.join(', ')}`,
     ops: [
@@ -642,7 +655,7 @@ async function planHazard(request: RoomHazardRequest): Promise<RoomSetupPlan> {
     case 'difficult': {
       // Foundry's own movement cost behavior cannot be built next to dnd5e (its schema comes up
       // empty when walk has no terrain rule, seen live on 14.368 + dnd5e 6.0.5), so this uses the
-      // system's own difficult terrain behavior (x2 cost, magical ignores nothing special).
+      // system's own difficult terrain behavior (x2 cost, the magical flag decides which creatures can ignore it).
       const models = globals().CONFIG?.RegionBehavior?.dataModels;
       if (models && !(DIFFICULT_TERRAIN in models)) {
         throw new Error(

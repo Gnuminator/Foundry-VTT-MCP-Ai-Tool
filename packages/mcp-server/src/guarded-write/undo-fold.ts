@@ -250,6 +250,7 @@ const COLLECTIONS: Record<string, string> = {
   AmbientSound: 'sounds',
   MeasuredTemplate: 'templates',
   Region: 'regions',
+  Level: 'levels',
   RegionBehavior: 'behaviors',
   JournalEntryPage: 'pages',
   Combatant: 'combatants',

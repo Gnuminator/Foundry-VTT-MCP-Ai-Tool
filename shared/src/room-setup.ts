@@ -117,7 +117,7 @@ export interface RoomHazardRequest {
   name: string;
   area: RoomArea;
   kind: RoomHazardKind;
-  /** difficult: dnd5e difficult terrain (movement costs double); magical ignores nothing special. */
+  /** difficult: dnd5e difficult terrain (movement costs double); magical terrain is told apart by which creatures can ignore it. */
   magical?: boolean;
   /** darkness: how it changes the scene darkness, and by how much (0 to 1). */
   darknessMode?: (typeof ROOM_DARKNESS_MODES)[number];

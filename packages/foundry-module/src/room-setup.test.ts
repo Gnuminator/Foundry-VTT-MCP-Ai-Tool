@@ -483,6 +483,43 @@ describe('hazard', () => {
   });
 });
 
+describe('levels follow-ups', () => {
+  const levels = { contents: [lv('d', 'Ground', 0, 10), lv('u', 'Upstairs', 10, 20)] };
+
+  it('a teleport and a spawn area can name their level', async () => {
+    world.setActiveScene(scene('a', 'Tower', { levels }).id);
+    const plan = await planRoomSetup({
+      action: 'teleport',
+      from: { x: 0, y: 0, width: 1, height: 1, level: 'Ground' },
+      to: { x: 5, y: 5, width: 1, height: 1, level: 'Upstairs' },
+    });
+    const [entry, arrival] = plan.ops as any[];
+    expect(entry.data.levels).toEqual(['d']);
+    expect(arrival.data.levels).toEqual(['u']);
+  });
+
+  it('refuses an unknown movement action on stairs and a bad background', async () => {
+    world.setActiveScene(scene('a', 'Tower', { levels }).id);
+    (globalThis as any).CONFIG.Token = { movement: { actions: { walk: {}, fly: {} } } };
+    await expect(
+      planRoomSetup({
+        action: 'stairs',
+        name: 'S',
+        area: { x: 0, y: 0, width: 1, height: 1 },
+        movementActions: ['teleport'],
+      })
+    ).rejects.toThrow(/Unknown movement action/);
+    await expect(
+      planRoomSetup({
+        action: 'levels',
+        levels: [{ name: 'Roof', bottom: 20, background: 'x.txt' }],
+      })
+    ).rejects.toThrow(/background must be/);
+    const plan = await planRoomSetup({ action: 'levels', levels: [{ name: 'Roof', bottom: 20 }] });
+    expect(plan.warnings.join(' ')).toMatch(/no background image/);
+  });
+});
+
 it('refuses a non-GM and an unknown action', async () => {
   world.setActiveScene(scene('a', 'Hall').id);
   await expect(planRoomSetup({ action: 'dance' })).rejects.toThrow(/Unknown action "dance"/);

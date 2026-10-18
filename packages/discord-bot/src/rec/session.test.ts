@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -122,6 +122,37 @@ describe('RecordingSession + convertSession', () => {
     expect(result.speakersWritten).toBe(false);
     expect(result.tracks[0]).toMatchObject({ truncatedBytes: 7, stats: { packets: 1 } });
     expect(readFileSync(join(dir, 'speakers.json'), 'utf8')).toContain('Ireena');
+  });
+
+  it('reports a failing file once, keeps the other tracks and still stops cleanly', async () => {
+    const dir = tempDir();
+    mkdirSync(join(dir, 'raw', '1-anna.b.rec'), { recursive: true }); // opening it fails (EISDIR)
+    const errors: string[] = [];
+    const s = new RecordingSession(dir, fakeClock(), {}, new Date(), (what, err) =>
+      errors.push(`${what}: ${err.message}`)
+    );
+    s.packet(anna, frame(1), undefined);
+    s.packet(anna, frame(2), undefined);
+    s.packet(bo, frame(3), undefined);
+    await new Promise(r => setTimeout(r, 50));
+    expect(errors).toHaveLength(1);
+    expect(errors[0]).toContain('1-anna.b.rec');
+    expect(s.failedFiles).toEqual(['1-anna.b.rec']);
+    await s.stop('test');
+    const sessionJson = JSON.parse(readFileSync(join(dir, 'raw', 'session.json'), 'utf8')) as {
+      failedFiles?: string[];
+    };
+    expect(sessionJson.failedFiles).toEqual(['1-anna.b.rec']);
+    expect(existsSync(join(dir, 'raw', '2-bo_ø.rec'))).toBe(true);
+  });
+
+  it('reports a session.json that cannot be written instead of throwing', async () => {
+    const dir = tempDir();
+    mkdirSync(join(dir, 'raw', 'session.json'), { recursive: true });
+    const errors: string[] = [];
+    const s = new RecordingSession(dir, fakeClock(), {}, new Date(), what => errors.push(what));
+    await expect(s.stop('test')).resolves.toEqual([]);
+    expect(errors).toEqual(['session.json']);
   });
 
   it('ignores packets after stop', async () => {

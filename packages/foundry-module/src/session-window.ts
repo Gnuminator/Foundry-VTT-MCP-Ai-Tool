@@ -85,7 +85,7 @@ export class SessionController {
   /** Forget what was shown (the window was reopened), so the old state is not drawn before the read. */
   clear(): void {
     this.seq++;
-    this.view = { status: 'loading', error: '', session: null, busy: false };
+    this.view = { status: 'loading', error: '', session: null, busy: this.view.busy };
   }
 
   async load(): Promise<void> {
@@ -114,6 +114,8 @@ export class SessionController {
     try {
       await this.request('mark-play-session', { action });
     } catch (error) {
+      // A poll that started during the mark must not overwrite this error with a "ready" view.
+      this.seq++;
       this.view = {
         ...this.view,
         busy: false,
@@ -149,7 +151,7 @@ const panel = createPanelWindow({
     panel.redraw();
     void controller.load();
     pollTimer ??= setInterval(() => {
-      void controller.load();
+      if (!controller.view.busy) void controller.load();
     }, SESSION_POLL_MS);
   },
   onClose: () => {
@@ -169,6 +171,7 @@ export const openSessionWindow = (): Promise<boolean> => panel.open();
 /** Forget the window and its state (tests). */
 export const resetSessionWindowForTests = (): void => {
   panel.reset();
+  controller.view.busy = false;
   controller.clear();
   if (pollTimer !== null) clearInterval(pollTimer);
   pollTimer = null;

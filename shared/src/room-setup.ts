@@ -17,7 +17,9 @@
  * - `spawn`: Foundry 14 has no "spawn token" Region behavior, so a spawn is a labelled room
  *   Region plus Tokens made from actors and set on free squares inside it, hidden by default.
  *
- * Scene Levels and further behaviors are a follow-up (Backlog `room-setup-levels`). GM only.
+ * Part 2 (Backlog `room-setup-levels`): `levels` makes Scene Levels, `stairs` a Region with a
+ * `changeLevel` behavior, `hazard` a Region with difficult terrain, darkness or an existing
+ * ActiveEffect (I-122, core behaviors only, never code). GM only.
  */
 import type { GuardedOp } from './guarded-write.js';
 
@@ -27,7 +29,7 @@ export const ROOM_SETUP_FEATURE_ID = 'room-setup';
 /** Module query name (prefixed with the module id on the wire). GM client only, read-only. */
 export const ROOM_SETUP_QUERY = 'planRoomSetup';
 
-export const ROOM_SETUP_ACTIONS = ['teleport', 'spawn'] as const;
+export const ROOM_SETUP_ACTIONS = ['teleport', 'spawn', 'levels', 'stairs', 'hazard'] as const;
 export type RoomSetupAction = (typeof ROOM_SETUP_ACTIONS)[number];
 
 /** Where teleported tokens land inside the destination (Foundry's own choices). */
@@ -42,7 +44,16 @@ export interface RoomArea {
   height: number;
   /** A scene id or name; default the scene the GM is viewing. */
   scene?: string;
+  /** Confine the Region to one Scene Level (name or id); default the viewed level. */
+  level?: string;
 }
+
+/** Hazard kinds: Foundry's own Region behaviors, no code. */
+export const ROOM_HAZARD_KINDS = ['difficult', 'darkness', 'effect'] as const;
+export type RoomHazardKind = (typeof ROOM_HAZARD_KINDS)[number];
+
+/** adjustDarknessLevel modes (Foundry's own 0, 1, 2). */
+export const ROOM_DARKNESS_MODES = ['override', 'brighten', 'darken'] as const;
 
 export interface RoomTeleportRequest {
   action: 'teleport';
@@ -74,7 +85,53 @@ export interface RoomSpawnRequest {
   hidden?: boolean;
 }
 
-export type RoomSetupRequest = RoomTeleportRequest | RoomSpawnRequest;
+/** One Scene Level to create. Elevations are in the scene's distance units; top null is open ended. */
+export interface RoomLevelSpec {
+  name: string;
+  bottom: number;
+  top?: number | null;
+  /** A background image path in Foundry's data folder. */
+  background?: string;
+}
+
+export interface RoomLevelsRequest {
+  action: 'levels';
+  /** A scene id or name; default the viewed scene. */
+  scene?: string;
+  levels: RoomLevelSpec[];
+}
+
+/** A staircase: a Region whose `changeLevel` behavior offers the listed levels. */
+export interface RoomStairsRequest {
+  action: 'stairs';
+  name: string;
+  area: RoomArea;
+  /** Level names or ids it joins (at least 2); default every level of the scene. */
+  levels?: string[];
+  /** Movement actions that trigger it (e.g. walk, climb); default all. */
+  movementActions?: string[];
+}
+
+export interface RoomHazardRequest {
+  action: 'hazard';
+  name: string;
+  area: RoomArea;
+  kind: RoomHazardKind;
+  /** difficult: dnd5e difficult terrain (movement costs double); magical terrain is told apart by which creatures can ignore it. */
+  magical?: boolean;
+  /** darkness: how it changes the scene darkness, and by how much (0 to 1). */
+  darknessMode?: (typeof ROOM_DARKNESS_MODES)[number];
+  modifier?: number;
+  /** effect: the uuid of an existing ActiveEffect to apply while a token is inside. */
+  effectUuid?: string;
+}
+
+export type RoomSetupRequest =
+  | RoomTeleportRequest
+  | RoomSpawnRequest
+  | RoomLevelsRequest
+  | RoomStairsRequest
+  | RoomHazardRequest;
 
 /** A Region the plan creates, for the dashboard and Claude's answer. */
 export interface RoomRegionSummary {
@@ -82,7 +139,7 @@ export interface RoomRegionSummary {
   sceneName: string;
   /** Grid squares: x, y, width, height. */
   squares: [number, number, number, number];
-  role: 'entry' | 'arrival' | 'room';
+  role: 'entry' | 'arrival' | 'room' | 'stairs' | 'hazard';
 }
 
 /** The module's answer: the ops of one plan plus what the planner worked out. */
@@ -90,6 +147,8 @@ export interface RoomSetupPlan {
   summary: string;
   ops: GuardedOp[];
   regions: RoomRegionSummary[];
+  /** levels: the Scene Levels that will be made. */
+  levels?: { name: string; bottom: number; top: number | null }[];
   /** spawn: the tokens that will be made. */
   tokens?: { name: string; actorId: string; x: number; y: number }[];
   /** spawn: creatures left out, each with the reason. */

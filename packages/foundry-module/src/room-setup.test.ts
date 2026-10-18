@@ -326,6 +326,200 @@ describe('review fixes', () => {
   });
 });
 
+const lv = (id: string, name: string, bottom: number, top: number | null): any => ({
+  id,
+  name,
+  elevation: { bottom, top },
+});
+
+describe('levels', () => {
+  it('makes one Level create per entry and warns about existing ones', async () => {
+    const a = scene('a', 'Tower', { levels: { contents: [lv('d', 'Ground', 0, 10)] } });
+    world.setActiveScene(a.id);
+    const plan = await planRoomSetup({
+      action: 'levels',
+      levels: [
+        { name: 'Upstairs', bottom: 10, top: 20 },
+        { name: 'Roof', bottom: 20, background: 'maps/roof.webp' },
+      ],
+    });
+    expect(plan.ops).toHaveLength(2);
+    expect(plan.ops[0]).toMatchObject({
+      kind: 'create',
+      documentName: 'Level',
+      parentUuid: 'Scene.a',
+      data: { name: 'Upstairs', elevation: { bottom: 10, top: 20 } },
+    });
+    expect((plan.ops[1] as any).data).toMatchObject({
+      elevation: { bottom: 20, top: null },
+      background: { src: 'maps/roof.webp' },
+    });
+    expect(plan.levels).toHaveLength(2);
+    expect(plan.warnings.join(' ')).toMatch(/already has 1 level/);
+  });
+
+  it('refuses duplicates, bad ranges and scenes without levels', async () => {
+    world.setActiveScene(
+      scene('a', 'Tower', { levels: { contents: [lv('d', 'Ground', 0, 10)] } }).id
+    );
+    await expect(
+      planRoomSetup({ action: 'levels', levels: [{ name: 'ground', bottom: 5 }] })
+    ).rejects.toThrow(/already a level/);
+    await expect(
+      planRoomSetup({ action: 'levels', levels: [{ name: 'X', bottom: 5, top: 1 }] })
+    ).rejects.toThrow(/not below bottom/);
+    world.setActiveScene(scene('b', 'Flat').id);
+    await expect(
+      planRoomSetup({ action: 'levels', levels: [{ name: 'X', bottom: 0 }] })
+    ).rejects.toThrow(/no Scene Levels/);
+  });
+});
+
+describe('stairs', () => {
+  const levels = { contents: [lv('d', 'Ground', 0, 10), lv('u', 'Upstairs', 10, 20)] };
+
+  it('makes a changeLevel Region that lists the levels', async () => {
+    world.setActiveScene(scene('a', 'Tower', { levels }).id);
+    const plan = await planRoomSetup({
+      action: 'stairs',
+      name: 'Spiral',
+      area: { x: 1, y: 1, width: 2, height: 2 },
+      levels: ['Ground', 'upstairs'],
+      movementActions: ['walk'],
+    });
+    const op = plan.ops[0] as any;
+    expect(op.data.levels).toEqual(['d', 'u']);
+    expect(op.data.behaviors[0]).toMatchObject({
+      type: 'changeLevel',
+      system: { movementActions: ['walk'] },
+    });
+    expect(plan.regions[0].role).toBe('stairs');
+  });
+
+  it('refuses a scene with one level and an unknown level', async () => {
+    world.setActiveScene(
+      scene('a', 'Tower', { levels: { contents: [lv('d', 'Ground', 0, 10)] } }).id
+    );
+    const base = { action: 'stairs', name: 'S', area: { x: 0, y: 0, width: 1, height: 1 } };
+    await expect(planRoomSetup(base)).rejects.toThrow(/fewer than two levels/);
+    world.setActiveScene(scene('b', 'Tower2', { levels }).id);
+    await expect(planRoomSetup({ ...base, levels: ['Ground', 'Attic'] })).rejects.toThrow(
+      /No level "Attic"/
+    );
+  });
+});
+
+describe('hazard', () => {
+  const area = { x: 0, y: 0, width: 2, height: 2 };
+
+  it('difficult terrain uses the dnd5e behavior and needs the system', async () => {
+    world.setActiveScene(scene('a', 'Hall').id);
+    const plan = await planRoomSetup({
+      action: 'hazard',
+      kind: 'difficult',
+      name: 'Mud',
+      area,
+      magical: true,
+    });
+    const b = (plan.ops[0] as any).data.behaviors[0];
+    expect(b).toMatchObject({ type: 'dnd5e.difficultTerrain', system: { magical: true } });
+    expect(plan.regions[0].role).toBe('hazard');
+    (globalThis as any).CONFIG.RegionBehavior = { dataModels: { teleportToken: {} } };
+    await expect(
+      planRoomSetup({ action: 'hazard', kind: 'difficult', name: 'Mud', area })
+    ).rejects.toThrow(/needs the dnd5e system/);
+    delete (globalThis as any).CONFIG.RegionBehavior;
+  });
+
+  it('darkness maps the mode to Foundry numbers', async () => {
+    world.setActiveScene(scene('a', 'Hall').id);
+    const plan = await planRoomSetup({
+      action: 'hazard',
+      kind: 'darkness',
+      name: 'Gloom',
+      area,
+      darknessMode: 'brighten',
+      modifier: 0.25,
+    });
+    expect((plan.ops[0] as any).data.behaviors[0]).toMatchObject({
+      type: 'adjustDarknessLevel',
+      system: { mode: 1, modifier: 0.25 },
+    });
+  });
+
+  it('effect needs an existing ActiveEffect uuid', async () => {
+    world.setActiveScene(scene('a', 'Hall').id);
+    (globalThis as any).fromUuid = async (u: string): Promise<unknown> =>
+      u === 'Actor.x.ActiveEffect.e' ? { documentName: 'ActiveEffect', name: 'Poisoned' } : null;
+    const plan = await planRoomSetup({
+      action: 'hazard',
+      kind: 'effect',
+      name: 'Gas',
+      area,
+      effectUuid: 'Actor.x.ActiveEffect.e',
+    });
+    expect((plan.ops[0] as any).data.behaviors[0].system.effects).toEqual([
+      'Actor.x.ActiveEffect.e',
+    ]);
+    await expect(
+      planRoomSetup({ action: 'hazard', kind: 'effect', name: 'Gas', area, effectUuid: 'nope' })
+    ).rejects.toThrow(/No ActiveEffect/);
+    delete (globalThis as any).fromUuid;
+  });
+
+  it('an area level confines the Region to that level', async () => {
+    world.setActiveScene(
+      scene('a', 'Tower', {
+        levels: { contents: [lv('d', 'Ground', 0, 10), lv('u', 'Up', 10, 20)] },
+      }).id
+    );
+    const plan = await planRoomSetup({
+      action: 'hazard',
+      kind: 'difficult',
+      name: 'Rubble',
+      area: { ...area, level: 'Up' },
+    });
+    expect((plan.ops[0] as any).data.levels).toEqual(['u']);
+  });
+});
+
+describe('levels follow-ups', () => {
+  const levels = { contents: [lv('d', 'Ground', 0, 10), lv('u', 'Upstairs', 10, 20)] };
+
+  it('a teleport and a spawn area can name their level', async () => {
+    world.setActiveScene(scene('a', 'Tower', { levels }).id);
+    const plan = await planRoomSetup({
+      action: 'teleport',
+      from: { x: 0, y: 0, width: 1, height: 1, level: 'Ground' },
+      to: { x: 5, y: 5, width: 1, height: 1, level: 'Upstairs' },
+    });
+    const [entry, arrival] = plan.ops as any[];
+    expect(entry.data.levels).toEqual(['d']);
+    expect(arrival.data.levels).toEqual(['u']);
+  });
+
+  it('refuses an unknown movement action on stairs and a bad background', async () => {
+    world.setActiveScene(scene('a', 'Tower', { levels }).id);
+    (globalThis as any).CONFIG.Token = { movement: { actions: { walk: {}, fly: {} } } };
+    await expect(
+      planRoomSetup({
+        action: 'stairs',
+        name: 'S',
+        area: { x: 0, y: 0, width: 1, height: 1 },
+        movementActions: ['teleport'],
+      })
+    ).rejects.toThrow(/Unknown movement action/);
+    await expect(
+      planRoomSetup({
+        action: 'levels',
+        levels: [{ name: 'Roof', bottom: 20, background: 'x.txt' }],
+      })
+    ).rejects.toThrow(/background must be/);
+    const plan = await planRoomSetup({ action: 'levels', levels: [{ name: 'Roof', bottom: 20 }] });
+    expect(plan.warnings.join(' ')).toMatch(/no background image/);
+  });
+});
+
 it('refuses a non-GM and an unknown action', async () => {
   world.setActiveScene(scene('a', 'Hall').id);
   await expect(planRoomSetup({ action: 'dance' })).rejects.toThrow(/Unknown action "dance"/);

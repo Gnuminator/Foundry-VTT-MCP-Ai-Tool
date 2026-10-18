@@ -9,7 +9,7 @@
 // setScene has nothing to do here.
 
 import { spawn, spawnSync } from 'node:child_process';
-import { mkdirSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, rmSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
 /** The ffmpeg arguments for one recording. Exported for tests. */
@@ -58,25 +58,58 @@ export class FfmpegRecorder {
     this.ts = join(directory, 'recording.ts');
     this.child = spawn(
       'ffmpeg',
-      ffmpegArgs({ width: this.width, height: this.height, outputIdx: this.outputIdx, file: this.ts }),
+      ffmpegArgs({
+        width: this.width,
+        height: this.height,
+        outputIdx: this.outputIdx,
+        file: this.ts,
+      }),
       { stdio: ['pipe', 'ignore', 'inherit'], windowsHide: true }
     );
-    this.exited = new Promise(resolve => this.child.once('exit', resolve));
-    // ddagrab fails at once when NVENC or the monitor is not there.
-    await new Promise(r => setTimeout(r, 1500));
-    if (this.child.exitCode !== null) throw new Error('ffmpeg ddagrab recording did not start.');
+    // A missing ffmpeg is an 'error' event; a dead ffmpeg closes stdin with EPIPE.
+    this.spawnError = null;
+    this.child.once('error', err => (this.spawnError = err));
+    this.child.stdin.on('error', () => {});
+    this.exited = new Promise(resolve => this.child.once('close', resolve));
+    // Wait for the first frames to land in the file, so the recording starts when the take's
+    // clock does (a fixed sleep would put every step about a second and a half early). ddagrab
+    // fails at once when NVENC or the monitor is not there.
+    for (let i = 0; i < 50; i++) {
+      if (this.spawnError) throw new Error(`ffmpeg could not start: ${this.spawnError.message}`);
+      if (this.child.exitCode !== null) break;
+      if (existsSync(this.ts) && statSync(this.ts).size > 0) return;
+      await new Promise(r => setTimeout(r, 100));
+    }
+    this.close();
+    throw new Error(
+      'ffmpeg ddagrab recording did not start (needs ffmpeg with NVENC on PATH and a primary monitor at least as large as the output).'
+    );
   }
 
   /** Stop recording; resolves with the finished MP4's path. */
   async stopRecord() {
     // "q" on stdin lets ffmpeg finish the file cleanly.
-    this.child.stdin.write('q');
-    this.child.stdin.end();
-    await Promise.race([this.exited, new Promise(r => setTimeout(r, 10000))]);
+    try {
+      this.child.stdin.write('q');
+      this.child.stdin.end();
+    } catch {
+      /* already gone */
+    }
+    let timer;
+    await Promise.race([this.exited, new Promise(r => (timer = setTimeout(r, 10000)))]);
+    clearTimeout(timer);
     if (this.child.exitCode === null) this.child.kill();
     const mp4 = this.ts.replace(/\.ts$/, '.mp4');
-    const r = spawnSync('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-y', '-i', this.ts, '-c', 'copy', mp4]);
-    if (r.status !== 0) throw new Error(`ffmpeg remux failed: ${String(r.stderr)}`);
+    const r = spawnSync(
+      'ffmpeg',
+      ['-hide_banner', '-loglevel', 'error', '-y', '-i', this.ts, '-c', 'copy', mp4],
+      {
+        encoding: 'utf8',
+      }
+    );
+    // Keep the raw file when the remux fails; the take still gets its steps.json.
+    if (r.status !== 0)
+      throw new Error(`ffmpeg remux failed (raw file kept at ${this.ts}): ${r.stderr || r.error}`);
     rmSync(this.ts, { force: true });
     return mp4;
   }

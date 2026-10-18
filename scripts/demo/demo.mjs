@@ -33,13 +33,13 @@ function parseArgs(argv) {
     if (a === '--res') opts.res = Number(argv[++i]);
     else if (a === '--no-reset') opts.reset = false;
     else if (a === '--no-record') opts.record = false;
-    else if (a === '--recorder') opts.recorder = argv[++i];
+    else if (a === '--recorder') opts.recorder = argv[++i] ?? '';
     else if (a === '--keep-open') opts.keepOpen = true;
     else if (a === '--world') process.env.DEMO_WORLD_ID = argv[++i] ?? '';
     else if (a.startsWith('--')) throw new Error(`Unknown option ${a}`);
     else opts._.push(a);
   }
-  if (opts.recorder && opts.recorder !== 'ffmpeg' && opts.recorder !== 'obs')
+  if (opts.recorder !== undefined && opts.recorder !== 'ffmpeg' && opts.recorder !== 'obs')
     throw new Error(`--recorder must be ffmpeg or obs (got ${opts.recorder}).`);
   demoWorld(); // checks --world
   if (!RESOLUTIONS[opts.res])
@@ -97,7 +97,9 @@ function probe(file) {
 async function cmdTake(opts) {
   const arg = opts._[1];
   if (!arg)
-    throw new Error('Usage: npm run demo:take -- <take> [--res 2160] [--no-reset] [--no-record]');
+    throw new Error(
+      'Usage: npm run demo:take -- <take> [--res 2160] [--no-reset] [--no-record] [--recorder ffmpeg|obs]'
+    );
   // A name is a take in scripts/demo/takes; a path to a .mjs file is a take kept elsewhere.
   const file = arg.endsWith('.mjs') ? resolve(arg) : join(DEMO_DIR, 'takes', `${arg}.mjs`);
   const name = basename(file, '.mjs');
@@ -141,13 +143,19 @@ async function cmdTake(opts) {
     console.error(`Take failed: ${err.message || err}`);
   } finally {
     if (recording) {
-      const raw = await obs.stopRecord();
-      take.markStop();
-      const video = join(outDir, `${name}${extname(raw) || '.mp4'}`);
-      renameSync(raw, video);
-      report.video = video;
-      report.probe = probe(video);
-      take.extractShots(video);
+      try {
+        const raw = await obs.stopRecord();
+        take.markStop();
+        const video = join(outDir, `${name}${extname(raw) || '.mp4'}`);
+        renameSync(raw, video);
+        report.video = video;
+        report.probe = probe(video);
+        take.extractShots(video);
+      } catch (err) {
+        // Still write steps.json and take.json, and close the windows, below.
+        report.error ??= String(err.stack || err);
+        console.error(`Stopping the recording failed: ${err.message || err}`);
+      }
     }
     obs?.close();
     report.steps = take.steps;
@@ -185,7 +193,7 @@ try {
   else if (cmd === 'take') await cmdTake(opts);
   else {
     console.log(
-      'Usage: node scripts/demo/demo.mjs obs-setup | take <name|path.mjs> [--res 2160] [--no-reset] [--no-record] [--keep-open] [--world <id>]'
+      'Usage: node scripts/demo/demo.mjs obs-setup | take <name|path.mjs> [--res 2160] [--no-reset] [--no-record] [--recorder ffmpeg|obs] [--keep-open] [--world <id>]'
     );
     process.exitCode = cmd ? 1 : 0;
   }

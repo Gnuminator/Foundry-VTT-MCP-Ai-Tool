@@ -12,6 +12,7 @@
 # The repository password is generated here, kept in a root-only file and never printed.
 
 require_root
+require_recent_snapshot
 [ -f "$FOUNDRY_APP/main.js" ] || die "Foundry is missing: run stage 3 first"
 
 backup_root=/var/lib/foundry-backup
@@ -210,6 +211,7 @@ enable_unit foundry-backup.timer
 
 if have_systemd; then
   say "one backup now (Foundry stops for a minute or two)"
+  require_quiet "the first backup (it stops Foundry)"
   systemctl start foundry-backup.service </dev/null ||
     die "the backup failed; see: journalctl -u foundry-backup -n 50"
   ok "first backup done"

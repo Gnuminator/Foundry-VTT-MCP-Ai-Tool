@@ -4,6 +4,7 @@
 # (Claude concatenates lib.sh and the stage into one stream.)
 
 require_root
+require_recent_snapshot
 require_arm64
 
 say "system"

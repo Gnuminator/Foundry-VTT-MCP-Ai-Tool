@@ -29,6 +29,7 @@
 # Safe to run again. Test container: the stage skips what needs systemd.
 
 require_root
+require_recent_snapshot
 require_arm64
 
 # ---- no GM without a password (#273) ----------------------------------------------------------------
@@ -165,11 +166,9 @@ if ! have_systemd; then
 elif [ "$has_token" = 0 ]; then
   systemctl daemon-reload
   systemctl disable --now "$unit" >/dev/null 2>&1 || true
-elif [ "$unit_changed" = 1 ] || ! systemctl is-active --quiet "$unit"; then
-  enable_unit "$unit"
 else
-  systemctl enable "$unit" >/dev/null 2>&1
-  ok "$unit already running"
+  # Every run: enable_unit restarts only when the unit file or the token file is new.
+  enable_unit "$unit" "$token_file"
 fi
 
 # ---- Foundry behind the proxy (optional) ------------------------------------------------------------
@@ -208,6 +207,7 @@ else
     trap restore_foundry EXIT
     # Copied and written by the foundry user (lib.sh), so root never writes in its Config folder.
     foundry_can_write "${options%/*}" || die "the $FOUNDRY_USER user cannot write in ${options%/*}, where options.json is changed. Foundry was not stopped (the tunnel service above is already set up)"
+    require_quiet "restarting Foundry for the public hostname"
     foundry_copy_file "$options" "$run_backup"
     in_edit=1
     if have_systemd; then systemctl stop foundry.service; fi
@@ -248,6 +248,8 @@ else
   else
     ok "cloudflared listens only on $metrics (loopback); the tunnel itself is outbound"
   fi
+  # The dashboard is routed publicly here: without the player/GM split everyone behind the tunnel is the GM.
+  warn_dashboard_split || true
   # The bridge's control port, the origin of the TCP route mcp.<domain> (D-095). No login of its own:
   # Cloudflare Access is its only gate, so it must stay on loopback.
   cp_rc=0

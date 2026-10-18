@@ -280,6 +280,7 @@ describe('stage 12, Foundry proxy options (backup, edit, put back)', () => {
       'say() { :; }; ok() { :; }; warn() { :; }',
       'die() { echo "ERROR: $*" >&2; exit 1; }',
       'have_systemd() { return 0; }',
+      'require_quiet() { :; }', // lib.sh's game-night guard has its own tests
       `systemctl() { echo "$*" >>"${posix(calls)}"; }`,
       override,
       section,
@@ -354,6 +355,7 @@ describe('stage 5 check world, the options.json switch (stop, edit by the foundr
       'say() { :; }; ok() { :; }; warn() { :; }',
       'die() { echo "ERROR: $*" >&2; exit 1; }',
       'have_systemd() { return 0; }',
+      'require_quiet() { :; }', // lib.sh's game-night guard has its own tests
       `systemctl() { echo "$*" >>"${posix(calls)}"; }`,
       jsonGet,
       'export PATH="$NODE_DIR/bin:$PATH"',

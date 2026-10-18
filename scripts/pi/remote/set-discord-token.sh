@@ -44,7 +44,9 @@ fi
 say "the bot"
 [ -f "/etc/systemd/system/$unit" ] || die "$unit is missing: run stage 8 (8-recorder.sh) first"
 since="$(date '+%Y-%m-%d %H:%M:%S')"
-enable_unit "$unit"
+# The new token only takes effect after a restart (enable_unit restarts a running unit when a listed file changed).
+mark_changed "$env_file"
+enable_unit "$unit" "$env_file"
 # Only the bot's own login line; never the whole journal (a library could print the token).
 for _ in $(seq 1 30); do
   journalctl -u "$unit" --since "$since" --no-pager -o cat 2>/dev/null | grep -q 'Logged in as' && break

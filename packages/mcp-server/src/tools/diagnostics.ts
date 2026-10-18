@@ -37,6 +37,11 @@ export class DiagnosticsTools {
               type: 'boolean',
               description: 'Only return modules that have detected issues.',
             },
+            includeManifest: {
+              type: 'boolean',
+              description:
+                "Include each module's manifest url (long; off by default to keep the answer small).",
+            },
           },
         },
       },
@@ -92,6 +97,7 @@ export class DiagnosticsTools {
     const schema = z.object({
       activeOnly: z.boolean().optional(),
       withIssuesOnly: z.boolean().optional(),
+      includeManifest: z.boolean().optional(),
     });
     try {
       return await this.run('getModules', schema.parse(args ?? {}), 'Failed to get modules');

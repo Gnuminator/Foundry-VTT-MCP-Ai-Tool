@@ -1259,6 +1259,7 @@ Parameters:
 
 - `activeOnly` (boolean): Only return active modules.
 - `withIssuesOnly` (boolean): Only return modules that have detected issues.
+- `includeManifest` (boolean): Include each module's manifest url (long; off by default to keep the answer small).
 
 ### get-module-errors
 

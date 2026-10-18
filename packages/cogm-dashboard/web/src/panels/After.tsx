@@ -214,21 +214,6 @@ function NotesReader({
   );
 }
 
-const BUTTON_TEXT: Record<NotesAction, string> = {
-  read: 'Read',
-  put: 'Put in Foundry',
-  approve: 'Approve without revealing',
-  undo: 'Undo',
-};
-
-// Literal names, so the usage catalog (scripts/usage-catalog.mjs) sees every one.
-const TRACK: Record<NotesAction, string> = {
-  read: 'dash.notes.read',
-  put: 'dash.notes.put',
-  approve: 'dash.notes.approve',
-  undo: 'dash.notes.undo',
-};
-
 /** The latest session's notes, if the bridge has any. */
 function SessionNotesCard({ active }: { active: boolean }): JSX.Element | null {
   const toast = useToast();
@@ -321,18 +306,45 @@ function SessionNotesCard({ active }: { active: boolean }): JSX.Element | null {
           </p>
         )}
         <div className="ready-actions" id="notes-actions">
-          {view.actions.map(action => (
+          {/* One tag each with a literal data-track, which the usage catalog can read. */}
+          <Button
+            variant={view.readQuiet ? 'quiet' : 'default'}
+            className={view.readQuiet ? undefined : 'lamp'}
+            data-track="dash.notes.read"
+            onClick={() => void act('read')}
+          >
+            Read
+          </Button>
+          {view.actions.includes('put') && (
             <Button
-              key={action}
-              variant={action === 'read' && !view.readQuiet ? 'default' : 'quiet'}
-              className={action === 'read' && !view.readQuiet ? 'lamp' : undefined}
-              data-track={TRACK[action]}
-              disabled={busy && action !== 'read'}
-              onClick={() => void act(action)}
+              variant="quiet"
+              data-track="dash.notes.put"
+              disabled={busy}
+              onClick={() => void act('put')}
             >
-              {BUTTON_TEXT[action]}
+              Put in Foundry
             </Button>
-          ))}
+          )}
+          {view.actions.includes('approve') && (
+            <Button
+              variant="quiet"
+              data-track="dash.notes.approve"
+              disabled={busy}
+              onClick={() => void act('approve')}
+            >
+              Approve without revealing
+            </Button>
+          )}
+          {view.actions.includes('undo') && (
+            <Button
+              variant="quiet"
+              data-track="dash.notes.undo"
+              disabled={busy}
+              onClick={() => void act('undo')}
+            >
+              Undo
+            </Button>
+          )}
           {view.aboutSwitch && (
             <button
               type="button"

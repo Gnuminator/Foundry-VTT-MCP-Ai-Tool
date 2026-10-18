@@ -999,10 +999,13 @@ export class GuardedWriteService {
         throw new Error(
           `The vault write failed (${message}) and the Foundry part could not be rolled back: ${
             rollbackError instanceof Error ? rollbackError.message : String(rollbackError)
-          }`
+          }`,
+          { cause: rollbackError }
         );
       }
-      throw new Error(`The vault write failed (${message}); the Foundry part was rolled back`);
+      throw new Error(`The vault write failed (${message}); the Foundry part was rolled back`, {
+        cause: error,
+      });
     }
   }
 
@@ -1197,7 +1200,8 @@ export class GuardedWriteService {
       throw new Error(
         `Cannot check the "${feature}" switch in Foundry, so the change was refused: ${
           error instanceof Error ? error.message : String(error)
-        }`
+        }`,
+        { cause: error }
       );
     }
     const list = Array.isArray(features) ? features : [];
@@ -1245,7 +1249,8 @@ export class GuardedWriteService {
         error: message,
       });
       throw new Error(
-        `Change ${entry.changeId} was ${entry.mode === 'undo' ? 'undone' : 'applied'} but could not be recorded in the vault audit log (so it cannot be undone from here): ${message}`
+        `Change ${entry.changeId} was ${entry.mode === 'undo' ? 'undone' : 'applied'} but could not be recorded in the vault audit log (so it cannot be undone from here): ${message}`,
+        { cause: error }
       );
     }
   }

@@ -88,7 +88,7 @@ export async function forgetUser(
     let removed = 0;
     for (const line of text.split('\n')) {
       if (!line.trim()) continue;
-      let record: Record<string, unknown> | null = null;
+      let record: Record<string, unknown> | null;
       try {
         record = asRecord(JSON.parse(line));
       } catch {

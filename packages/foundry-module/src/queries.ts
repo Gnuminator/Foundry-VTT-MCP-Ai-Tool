@@ -108,7 +108,8 @@ export class QueryHandlers {
       return await body();
     } catch (error) {
       throw new Error(
-        `${errorPrefix}: ${error instanceof Error ? error.message : 'Unknown error'}`
+        `${errorPrefix}: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        { cause: error }
       );
     }
   }
@@ -808,7 +809,8 @@ export class QueryHandlers {
       });
     } catch (error) {
       throw new Error(
-        `Failed to create journal entry: ${error instanceof Error ? error.message : 'Unknown error'}`
+        `Failed to create journal entry: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        { cause: error }
       );
     }
   }

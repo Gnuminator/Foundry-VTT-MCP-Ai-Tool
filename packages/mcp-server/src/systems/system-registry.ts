@@ -108,9 +108,7 @@ let registryInstance: SystemRegistry | null = null;
  * Get the global system registry instance
  */
 export function getSystemRegistry(logger?: Logger): SystemRegistry {
-  if (!registryInstance) {
-    registryInstance = new SystemRegistry(logger);
-  }
+  registryInstance ??= new SystemRegistry(logger);
   return registryInstance;
 }
 

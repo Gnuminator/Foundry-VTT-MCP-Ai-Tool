@@ -125,11 +125,9 @@ export class PlayerVaultService {
 
   /** One pass over every player; concurrent calls share the pass in flight. */
   rebuild(): Promise<PlayerVaultRebuild> {
-    if (!this.running) {
-      this.running = this.rebuildOnce().finally(() => {
-        this.running = null;
-      });
-    }
+    this.running ??= this.rebuildOnce().finally(() => {
+      this.running = null;
+    });
     return this.running;
   }
 

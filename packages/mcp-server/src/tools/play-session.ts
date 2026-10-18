@@ -214,9 +214,7 @@ export class PlaySessionTools {
         .filter(isLoggedEvent)
         .filter(e => Number.isFinite(eventTimeOf(e)));
       if (events.length === 0) continue;
-      if (lastEventAtMs === null) {
-        lastEventAtMs = Math.max(...events.map(eventTimeOf));
-      }
+      lastEventAtMs ??= Math.max(...events.map(eventTimeOf));
       const markers = events.filter(isMarker);
       if (markers.length > 0) {
         newestMarker = markers.reduce((a, b) => (eventTimeOf(b) > eventTimeOf(a) ? b : a));

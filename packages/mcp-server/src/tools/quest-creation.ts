@@ -618,7 +618,7 @@ export class QuestCreationTools {
             const content = await this.foundryClient.query('foundry-mcp-bridge.getJournalContent', {
               journalId: journal.id,
             });
-            journal.contentPreview = `${content?.content?.substring(0, 150)}...` || '';
+            journal.contentPreview = `${content?.content?.substring(0, 150)}...`;
           } catch (error) {
             journal.contentPreview = 'Error loading content';
           }
@@ -1094,7 +1094,7 @@ export class QuestCreationTools {
    * Generate background text using separate quest giver and NPC parameters
    */
   private generateBackgroundText(request: QuestJournalRequest): string {
-    let backgroundText = '';
+    let backgroundText: string;
 
     if (request.questGiver && request.location) {
       backgroundText = `This quest is provided by ${request.questGiver} and takes place in ${request.location}. `;

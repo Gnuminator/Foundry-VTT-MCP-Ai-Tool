@@ -168,7 +168,8 @@ export class SceneTools {
     } catch (error) {
       this.logger.error('Failed to get current scene', error);
       throw new Error(
-        `Failed to get current scene: ${error instanceof Error ? error.message : 'Unknown error'}`
+        `Failed to get current scene: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        { cause: error }
       );
     }
   }
@@ -188,7 +189,8 @@ export class SceneTools {
     } catch (error) {
       this.logger.error('Failed to get world information', error);
       throw new Error(
-        `Failed to get world information: ${error instanceof Error ? error.message : 'Unknown error'}`
+        `Failed to get world information: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        { cause: error }
       );
     }
   }

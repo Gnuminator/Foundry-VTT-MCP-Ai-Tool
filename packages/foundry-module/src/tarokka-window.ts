@@ -100,7 +100,7 @@ export class TarokkaController {
     if (position === undefined) return;
     const form = this.view.forms[position];
     if (!form) return;
-    let next = form;
+    let next: typeof form;
     if (field === 'revealText') next = { ...form, text: String(value) };
     else if (field === 'revealTitle') next = { ...form, title: String(value) };
     else if (field === 'revealShowNow') next = { ...form, showNow: value === true };

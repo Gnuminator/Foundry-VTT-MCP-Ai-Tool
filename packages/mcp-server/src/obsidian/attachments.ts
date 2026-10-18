@@ -438,7 +438,7 @@ export class AttachmentStore {
   private async loadManifest(): Promise<void> {
     if (this.manifestLoaded) return;
     this.manifestLoaded = true;
-    let entries: unknown[] = [];
+    let entries: unknown[];
     try {
       const raw: unknown = JSON.parse(await fsp.readFile(this.manifestPath(), 'utf8'));
       const images = (raw as { images?: unknown })?.images;

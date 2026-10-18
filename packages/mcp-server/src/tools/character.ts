@@ -21,7 +21,7 @@ export class CharacterTools {
   constructor({ foundryClient, logger, systemRegistry }: CharacterToolsOptions) {
     this.foundryClient = foundryClient;
     this.logger = logger.child({ component: 'CharacterTools' });
-    this.systemRegistry = systemRegistry || null;
+    this.systemRegistry = systemRegistry ?? null;
   }
 
   /**
@@ -303,7 +303,8 @@ export class CharacterTools {
     } catch (error) {
       this.logger.error('Failed to get character information', error);
       throw new Error(
-        `Failed to retrieve character "${identifier}": ${error instanceof Error ? error.message : 'Unknown error'}`
+        `Failed to retrieve character "${identifier}": ${error instanceof Error ? error.message : 'Unknown error'}`,
+        { cause: error }
       );
     }
   }
@@ -331,7 +332,8 @@ export class CharacterTools {
         ? ' The Foundry AI Tool module in this world is older than the bridge; update the module.'
         : '';
       throw new Error(
-        `Failed to retrieve entity "${entityIdentifier}" from character "${characterIdentifier}": ${message}${hint}`
+        `Failed to retrieve entity "${entityIdentifier}" from character "${characterIdentifier}": ${message}${hint}`,
+        { cause: error }
       );
     }
   }
@@ -364,7 +366,8 @@ export class CharacterTools {
     } catch (error) {
       this.logger.error('Failed to list characters', error);
       throw new Error(
-        `Failed to list characters: ${error instanceof Error ? error.message : 'Unknown error'}`
+        `Failed to list characters: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        { cause: error }
       );
     }
   }
@@ -413,7 +416,8 @@ export class CharacterTools {
     } catch (error) {
       this.logger.error('Failed to use item', error);
       throw new Error(
-        `Failed to use item "${itemIdentifier}": ${error instanceof Error ? error.message : 'Unknown error'}`
+        `Failed to use item "${itemIdentifier}": ${error instanceof Error ? error.message : 'Unknown error'}`,
+        { cause: error }
       );
     }
   }
@@ -454,7 +458,8 @@ export class CharacterTools {
     } catch (error) {
       this.logger.error('Failed to add actor items', error);
       throw new Error(
-        `Failed to add items to "${actorIdentifier}": ${error instanceof Error ? error.message : 'Unknown error'}`
+        `Failed to add items to "${actorIdentifier}": ${error instanceof Error ? error.message : 'Unknown error'}`,
+        { cause: error }
       );
     }
   }
@@ -490,7 +495,8 @@ export class CharacterTools {
     } catch (error) {
       this.logger.error('Failed to update world items', error);
       throw new Error(
-        `Failed to update world items: ${error instanceof Error ? error.message : 'Unknown error'}`
+        `Failed to update world items: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        { cause: error }
       );
     }
   }
@@ -526,7 +532,8 @@ export class CharacterTools {
     } catch (error) {
       this.logger.error('Failed to list world items', error);
       throw new Error(
-        `Failed to list world items: ${error instanceof Error ? error.message : 'Unknown error'}`
+        `Failed to list world items: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        { cause: error }
       );
     }
   }
@@ -567,7 +574,8 @@ export class CharacterTools {
     } catch (error) {
       this.logger.error('Failed to create world items', error);
       throw new Error(
-        `Failed to create world items: ${error instanceof Error ? error.message : 'Unknown error'}`
+        `Failed to create world items: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        { cause: error }
       );
     }
   }
@@ -626,7 +634,8 @@ export class CharacterTools {
     } catch (error) {
       this.logger.error('Failed to search character items', error);
       throw new Error(
-        `Failed to search items for "${characterIdentifier}": ${error instanceof Error ? error.message : 'Unknown error'}`
+        `Failed to search items for "${characterIdentifier}": ${error instanceof Error ? error.message : 'Unknown error'}`,
+        { cause: error }
       );
     }
   }

@@ -294,7 +294,7 @@ export class PlayerLogStore {
       }
       for (const line of text.split('\n')) {
         if (line.trim() === '') continue;
-        let event: PlayerEvent | null = null;
+        let event: PlayerEvent | null;
         try {
           event = cleanEvent(JSON.parse(line));
         } catch {

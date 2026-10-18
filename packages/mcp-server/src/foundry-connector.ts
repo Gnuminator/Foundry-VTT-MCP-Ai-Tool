@@ -412,7 +412,7 @@ export class FoundryConnector {
       }
       return;
     }
-    if (this.linkDownSince === null) this.linkDownSince = Date.now();
+    this.linkDownSince ??= Date.now();
     if (!this.linkDownLogged && !this.linkDownTimer) {
       const remaining = Math.max(0, LINK_DOWN_WARN_MS - (Date.now() - this.linkDownSince));
       this.linkDownTimer = setTimeout(() => {

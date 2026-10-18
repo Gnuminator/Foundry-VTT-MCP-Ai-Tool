@@ -43,7 +43,7 @@ export class CompendiumTools {
   constructor({ foundryClient, logger, systemRegistry }: CompendiumToolsOptions) {
     this.foundryClient = foundryClient;
     this.logger = logger.child({ component: 'CompendiumTools' });
-    this.systemRegistry = systemRegistry || null;
+    this.systemRegistry = systemRegistry ?? null;
   }
 
   /**
@@ -333,7 +333,8 @@ export class CompendiumTools {
     } catch (error) {
       this.logger.error('Failed to search compendium', error);
       throw new Error(
-        `Failed to search compendium: ${error instanceof Error ? error.message : 'Unknown error'}`
+        `Failed to search compendium: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        { cause: error }
       );
     }
   }
@@ -398,7 +399,8 @@ export class CompendiumTools {
     } catch (error) {
       this.logger.error('Failed to get compendium item', error);
       throw new Error(
-        `Failed to retrieve item: ${error instanceof Error ? error.message : 'Unknown error'}`
+        `Failed to retrieve item: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        { cause: error }
       );
     }
   }
@@ -502,7 +504,8 @@ export class CompendiumTools {
           .map(err => `${err.path.join('.')}: ${err.message}`)
           .join('; ');
         throw new Error(
-          `Parameter validation failed: ${errorDetails}. Received args: ${JSON.stringify(args)}`
+          `Parameter validation failed: ${errorDetails}. Received args: ${JSON.stringify(args)}`,
+          { cause: parseError }
         );
       }
       throw parseError;
@@ -555,7 +558,8 @@ export class CompendiumTools {
     } catch (error) {
       this.logger.error('Failed to list creatures by criteria', error);
       throw new Error(
-        `Failed to list creatures: ${error instanceof Error ? error.message : 'Unknown error'}`
+        `Failed to list creatures: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        { cause: error }
       );
     }
   }
@@ -595,7 +599,8 @@ export class CompendiumTools {
     } catch (error) {
       this.logger.error('Failed to list compendium packs', error);
       throw new Error(
-        `Failed to list compendium packs: ${error instanceof Error ? error.message : 'Unknown error'}`
+        `Failed to list compendium packs: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        { cause: error }
       );
     }
   }

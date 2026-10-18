@@ -128,7 +128,7 @@ const http: HttpClient = async request => {
     ...(request.body !== undefined ? { body: request.body } : {}),
     throw: false,
   });
-  let json: unknown = null;
+  let json: unknown;
   try {
     json = response.json as unknown;
   } catch {

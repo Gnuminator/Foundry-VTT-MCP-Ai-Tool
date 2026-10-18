@@ -128,7 +128,9 @@ class BackendClient {
           error: initialError instanceof Error ? initialError.message : String(initialError),
         });
 
-        throw new Error(bridgeUnreachableMessage(CONTROL_HOST, CONTROL_PORT));
+        throw new Error(bridgeUnreachableMessage(CONTROL_HOST, CONTROL_PORT), {
+          cause: initialError,
+        });
       }
 
       this.log('connectWithRetry(): starting backend');
@@ -162,13 +164,15 @@ class BackendClient {
       const errorMessage = lastError instanceof Error ? lastError.message : 'Unknown error';
 
       throw new Error(
-        `Unable to connect to Foundry MCP backend after ${maxAttempts} attempts: ${errorMessage}`
+        `Unable to connect to Foundry MCP backend after ${maxAttempts} attempts: ${errorMessage}`,
+        // eslint-disable-next-line preserve-caught-error -- the cause is the last retry error, not the first
+        { cause: lastError }
       );
     }
   }
 
   private async startBackend(): Promise<void> {
-    let backendPath: string | null = null;
+    let backendPath: string;
 
     try {
       const backendUrl = new URL('./backend.js', import.meta.url);
@@ -294,7 +298,7 @@ class BackendClient {
         } catch (e) {
           this.log('send(): ensure failed', { error: (e as any)?.message });
 
-          return reject(e);
+          return reject(e instanceof Error ? e : new Error(String(e)));
         }
 
         const id = Math.random().toString(36).slice(2);
@@ -312,7 +316,7 @@ class BackendClient {
 
           this.log('send(): write error', { error: (e as any)?.message });
 
-          reject(e);
+          reject(e instanceof Error ? e : new Error(String(e)));
         }
       })();
     });

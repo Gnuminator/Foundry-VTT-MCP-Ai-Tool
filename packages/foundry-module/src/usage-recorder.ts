@@ -392,9 +392,7 @@ export class UsageRecorder {
 
   /** Start the 10 s flush timer and flush when the page is hidden (safe to call twice). */
   start(): void {
-    if (this.timer === null) {
-      this.timer = setInterval(() => this.flush(), USAGE_FLUSH_INTERVAL_MS);
-    }
+    this.timer ??= setInterval(() => this.flush(), USAGE_FLUSH_INTERVAL_MS);
     if (!this.pageListenersAdded && typeof window !== 'undefined' && window.addEventListener) {
       this.pageListenersAdded = true;
       window.addEventListener('pagehide', () => this.flush());

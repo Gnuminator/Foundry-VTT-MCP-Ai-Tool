@@ -149,7 +149,7 @@ export class AccessJwtVerifier {
 
     const key = await this.keyFor(header.kid);
     if (!key) return null;
-    let signed = false;
+    let signed: boolean;
     try {
       signed = crypto.verify(
         'RSA-SHA256',

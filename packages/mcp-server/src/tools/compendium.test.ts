@@ -861,6 +861,7 @@ describe('CompendiumTools.handleListCompendiumPacks', () => {
 
   it('throws with Unknown error message when client throws a non-Error', async () => {
     const { tools } = makeTools(() => {
+      // eslint-disable-next-line @typescript-eslint/only-throw-error -- the test throws a non-Error on purpose
       throw 'something bad';
     });
     await expect(tools.handleListCompendiumPacks({})).rejects.toThrow(

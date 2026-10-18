@@ -97,7 +97,7 @@ export class RecordingSession {
     if (this.stopped) return;
     const arrival = this.clock.now();
     let open = this.tracks.get(speaker.userId);
-    if (!open) open = this.openTrack(speaker);
+    open ??= this.openTrack(speaker);
     const buf = encodeRecord({
       arrival,
       seq: rtp?.seq ?? 0,

@@ -101,10 +101,12 @@ export function createModuleRequestHandler(deps: ModuleRequestDeps): ModuleReque
       }
       const route = deps.toolRouter[tool];
       if (!route) throw new Error(`Unknown tool: ${tool}`);
-      const result: unknown = await route({
-        action: args.action,
-        ...(typeof args.note === 'string' ? { note: args.note } : {}),
-      });
+      // The marker line records who clicked: the GM's name when the window sent no note.
+      const note =
+        typeof args.note === 'string' && args.note.trim() !== ''
+          ? args.note
+          : `Marked in Foundry by ${requesterLabel(requestedBy)}`.slice(0, 200);
+      const result: unknown = await route({ action: args.action, note });
       return result;
     }
     const planner = Object.hasOwn(MODULE_PLANNERS, tool) ? MODULE_PLANNERS[tool] : undefined;

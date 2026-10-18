@@ -82,6 +82,12 @@ export class SessionController {
     private readonly changed: () => void
   ) {}
 
+  /** Forget what was shown (the window was reopened), so the old state is not drawn before the read. */
+  clear(): void {
+    this.seq++;
+    this.view = { status: 'loading', error: '', session: null, busy: false };
+  }
+
   async load(): Promise<void> {
     const seq = ++this.seq;
     try {
@@ -101,6 +107,8 @@ export class SessionController {
 
   async mark(action: 'start' | 'end'): Promise<void> {
     if (this.view.busy) return;
+    // A read already on its way is older than this mark: drop it, so it cannot hide a mark's error.
+    this.seq++;
     this.view = { ...this.view, busy: true };
     this.changed();
     try {
@@ -120,6 +128,10 @@ export class SessionController {
   }
 }
 
+/** How often an open Session window reads the state again. */
+export const SESSION_POLL_MS = 15_000;
+let pollTimer: ReturnType<typeof setInterval> | null = null;
+
 const controller = new SessionController(aiToolRequest, () => panel.redraw());
 
 const panel = createPanelWindow({
@@ -131,7 +143,18 @@ const panel = createPanelWindow({
   hooks: [],
   render: () => renderSessionHtml(controller.view),
   onOpen: () => {
+    // The state can change from Claude or the dashboard while this window is open, and there is
+    // no hook for it: read again every so often, only while the window is open.
+    controller.clear();
+    panel.redraw();
     void controller.load();
+    pollTimer ??= setInterval(() => {
+      void controller.load();
+    }, SESSION_POLL_MS);
+  },
+  onClose: () => {
+    if (pollTimer !== null) clearInterval(pollTimer);
+    pollTimer = null;
   },
   actions: {
     refresh: () => controller.load(),
@@ -146,5 +169,7 @@ export const openSessionWindow = (): Promise<boolean> => panel.open();
 /** Forget the window and its state (tests). */
 export const resetSessionWindowForTests = (): void => {
   panel.reset();
-  controller.view = { status: 'loading', error: '', session: null, busy: false };
+  controller.clear();
+  if (pollTimer !== null) clearInterval(pollTimer);
+  pollTimer = null;
 };

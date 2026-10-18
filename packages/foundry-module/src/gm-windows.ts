@@ -68,6 +68,8 @@ export interface PanelSpec {
   actions?: Record<string, (target: HTMLElement) => void | Promise<void>>;
   /** Called each time the window is opened (or brought to the front): a panel that loads data starts it here. */
   onOpen?: () => void;
+  /** Called when the window closes: a panel that started a timer in `onOpen` stops it here. */
+  onClose?: () => void;
 }
 
 /** What the window needs from `ApplicationV2` (the full class is in Foundry, not in our types). */
@@ -153,6 +155,7 @@ export function createPanelWindow(spec: PanelSpec): PanelOpener {
         this.hookIds = [];
         if (this.timer !== null) clearTimeout(this.timer);
         this.timer = null;
+        spec.onClose?.();
       }
 
       private scheduleRedraw(): void {

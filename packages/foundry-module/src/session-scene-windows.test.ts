@@ -89,6 +89,29 @@ describe('the Session controller', () => {
     expect(c.view).toMatchObject({ busy: false, status: 'error', error: 'refused' });
   });
 
+  it('a read on its way when a mark fails cannot hide the mark error (L2)', async () => {
+    const resolvers: Array<(v: unknown) => void> = [];
+    const request = vi.fn((tool: string) =>
+      tool === 'mark-play-session'
+        ? Promise.reject(new Error('refused'))
+        : new Promise(r => resolvers.push(r))
+    );
+    const c = new SessionController(request, () => {});
+    const late = c.load();
+    await c.mark('start');
+    resolvers[0]({ success: true, ...closed });
+    await late;
+    expect(c.view).toMatchObject({ status: 'error', error: 'refused' });
+  });
+
+  it('clear() forgets the old state and drops a read on its way (L4)', async () => {
+    const request = vi.fn(async () => ({ success: true, ...open }));
+    const c = new SessionController(request, () => {});
+    await c.load();
+    c.clear();
+    expect(c.view).toMatchObject({ status: 'loading', session: null });
+  });
+
   it('drops a load that a newer one has replaced', async () => {
     const resolvers: Array<(v: unknown) => void> = [];
     const request = vi.fn(() => new Promise(r => resolvers.push(r)));

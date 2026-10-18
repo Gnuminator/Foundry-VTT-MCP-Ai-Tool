@@ -14,6 +14,7 @@ import type { CoGm } from './ai/anthropic-co-gm.js';
 import { createDashboard, type Dashboard } from './app.js';
 import { config, type Config } from './config.js';
 import { Logger } from './logger.js';
+import { OPEN_PAGE_CSP } from './open-route.js';
 
 const fakeCoGm = {
   enabled: false,
@@ -137,6 +138,10 @@ describe('the default page', () => {
       const root = await get(app.port, `/${name}`);
       const legacy = await get(app.port, `/legacy/${name}`);
       expect([name, legacy.status]).toEqual([name, 200]);
+      expect(legacy.headers['content-security-policy']).toBeTruthy();
+      if (name === 'open.html') {
+        expect(legacy.headers['content-security-policy']).toBe(OPEN_PAGE_CSP);
+      }
       expect(legacy.headers['content-security-policy']).toBe(
         root.headers['content-security-policy']
       );

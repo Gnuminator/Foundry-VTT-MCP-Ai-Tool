@@ -23,8 +23,10 @@ You need: a Windows PC, Claude Desktop installed and signed in, and the tunnel k
 4. Go on. A small window asks for the **Client ID**, then the **secret**. Paste each one and press
    Enter. The secret is hidden while you type; that is normal. Nothing you paste is shown or saved
    anywhere except in a locked store that only your Windows user can open.
-5. Finish. Start Claude Desktop. In the **Search and tools** menu switch on the connectors you want
-   (Core is always on; Play and Prep are the ones you will use most).
+5. Finish. Start Claude Desktop. Click the **+** in the chat box, choose **Connectors**, and switch
+   on the ones you want (`foundry-mcp` is Core; Play and Prep are the ones you will use most).
+   A connector that is switched off is not available in that chat. Do the next section once
+   after this, so Claude does not ask "Allow?" for every reading tool.
 
 ## Check that it works
 

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { RulesCheckTools } from './rules-check.js';
+import { RulesCheckTools, itemRangeLabel } from './rules-check.js';
 
 const logger: any = {
   child: () => logger,
@@ -65,7 +65,38 @@ function tools(opts: {
   return { t: new RulesCheckTools({ foundryClient: { query }, logger }), query };
 }
 
+describe('itemRangeLabel', () => {
+  it('prefers the item range over the activity label and reads reach, self and touch', () => {
+    expect(itemRangeLabel({ range: { value: 150, long: 600, units: 'ft' } })).toBe('150/600 ft');
+    expect(itemRangeLabel({ range: { value: 120, units: 'ft' } })).toBe('120 ft');
+    expect(itemRangeLabel({ range: { value: null, reach: 5, units: 'ft' } })).toBe('5 ft');
+    expect(itemRangeLabel({ range: { units: 'self' } })).toBe('self');
+    expect(itemRangeLabel({ range: { units: 'touch' } })).toBe('touch');
+    expect(itemRangeLabel({})).toBeNull();
+  });
+});
+
 describe('check-action', () => {
+  it('warns between normal and long range of a bow', async () => {
+    const bow = {
+      success: true,
+      entityType: 'item',
+      entity: {
+        name: 'Longbow',
+        type: 'weapon',
+        activities: [{ id: 'a', name: 'Shoot', activation: 'Action', range: '600 ft' }],
+        system: { range: { value: 150, long: 600, units: 'ft' } },
+      },
+    };
+    const { t } = tools({ entity: bow, distance: { success: true, distance: 300, units: 'ft' } });
+    const r = await t.handleToolCall('check-action', {
+      actor: 'Ireena',
+      item: 'Longbow',
+      target: 'Z',
+    });
+    expect(r.checks.find(c => c.check === 'range')?.status).toBe('warn');
+  });
+
   it('is one read-only tool', () => {
     const defs = tools({}).t.getToolDefinitions();
     expect(defs.map(d => d.name)).toEqual(['check-action']);

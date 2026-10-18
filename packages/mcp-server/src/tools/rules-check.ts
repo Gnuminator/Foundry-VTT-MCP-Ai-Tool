@@ -35,6 +35,22 @@ type Rec = Record<string, unknown>;
 const rec = (v: unknown): Rec => (v !== null && typeof v === 'object' ? (v as Rec) : {});
 const text = (v: unknown): string | undefined => (typeof v === 'string' && v ? v : undefined);
 
+/**
+ * The item's own range as a label ("150/600 ft", "5 ft", "Self"), else null. A ranged weapon's
+ * activity label shows only the long range, so the item's `system.range` wins when it has numbers.
+ */
+export function itemRangeLabel(system: Rec): string | null {
+  const range = rec(system.range);
+  const units = text(range.units);
+  if (units === 'self' || units === 'touch') return units;
+  if (typeof range.value === 'number' && range.value > 0) {
+    const long = typeof range.long === 'number' && range.long > 0 ? `/${range.long}` : '';
+    return `${range.value}${long} ${units ?? 'ft'}`;
+  }
+  if (typeof range.reach === 'number' && range.reach > 0) return `${range.reach} ft`;
+  return null;
+}
+
 function usesFrom(v: unknown): UsesFact | null {
   const u = rec(v);
   return typeof u.max === 'number' && typeof u.value === 'number'
@@ -172,7 +188,7 @@ export class RulesCheckTools {
       spellLevel: isSpell ? (typeof entity.level === 'number' ? entity.level : 0) : null,
       castLevel: p.castLevel ?? null,
       activation: text(activity?.activation) ?? text(rec(system.activation).type),
-      range: text(activity?.range),
+      range: itemRangeLabel(system) ?? text(activity?.range),
       combat,
       target: p.target,
       distance,

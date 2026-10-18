@@ -80,6 +80,11 @@ export function isKnownFeature(id: string): boolean {
   return features.has(id);
 }
 
+/** Whether a feature is a read-only switch: it never takes a plan. */
+export function isReadOnlyFeature(id: string): boolean {
+  return features.get(id)?.readOnly === true;
+}
+
 /** Whether a feature's switch is on (unknown features are off). */
 export function isFeatureEnabled(id: string): boolean {
   if (!features.has(id)) return false;
@@ -122,6 +127,7 @@ export function listGuardedFeatures(): Array<{
   enabled: boolean;
   writesAllowed: boolean;
   autoApply?: boolean;
+  readOnly?: boolean;
 }> {
   const writesAllowed = writeOperationsAllowed();
   return [...features.values()].map(({ autoApply, ...f }) => ({

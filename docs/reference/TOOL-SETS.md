@@ -4,7 +4,7 @@ description: The five tool sets Claude Desktop loads (core, play, prep, build, a
 
 # Tool sets
 
-The bridge has 92 tools. Their definitions are about 101,400 characters of JSON, about 24,000 to
+The bridge has 92 tools. Their definitions are about 102,600 characters of JSON, about 24,000 to
 31,000 tokens that Claude reads at the start of every conversation, before anyone types. Many
 tools also look alike, which makes Claude pick the wrong one more often.
 
@@ -20,7 +20,7 @@ what the conversation needs. The switches are remembered for new chats.
 | **build** | `foundry-mcp-build`  | 8     | about 28,100      | Making NPCs, monsters and items, from a compendium or from scratch; room setup.              |
 | **admin** | `foundry-mcp-admin`  | 9     | about 7,700       | Modules and their errors, actor ownership, the Obsidian mirror.                              |
 
-A prep chat with core and prep on carries about 37,900 characters instead of 101,400. Core alone is
+A prep chat with core and prep on carries about 37,900 characters instead of 102,600. Core alone is
 about 16% of everything.
 
 The dashboard is not affected: it reads the bridge directly and always has every tool.

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { RulesCheckTools, itemRangeLabel } from './rules-check.js';
+import { RulesCheckTools, findActivityData, itemRangeLabel } from './rules-check.js';
 
 const logger: any = {
   child: () => logger,
@@ -87,7 +87,7 @@ describe('check-action', () => {
         activities: [{ id: 'a', name: 'Attack', activation: 'Action', range: '60 ft' }],
         system: {
           range: { value: 20, long: 60, reach: 5, units: 'ft' },
-          activities: { a: { attack: { type: { value: 'melee' } } } },
+          activities: [{ _id: 'a', attack: { type: { value: 'melee' } } }],
         },
       },
     };
@@ -116,6 +116,57 @@ describe('check-action', () => {
       item: 'Misty Step',
     });
     expect(r2.checks.find(c => c.check === 'slots')?.status).toBe('info');
+  });
+
+  it('fails an unprepared spell, but not one that never prepares or reports nothing', async () => {
+    const spellWith = (system: Record<string, unknown>): unknown => ({
+      success: true,
+      entityType: 'item',
+      entity: {
+        name: 'Shield',
+        type: 'spell',
+        level: 1,
+        activities: [{ id: 'a', name: 'Cast', activation: 'Reaction' }],
+        system,
+      },
+    });
+    const status = async (system: Record<string, unknown>): Promise<string | undefined> => {
+      const r = await tools({ entity: spellWith(system) }).t.handleToolCall('check-action', {
+        actor: 'Ireena',
+        item: 'Shield',
+      });
+      return r.checks.find(c => c.check === 'slots')?.status;
+    };
+    expect(await status({ method: 'spell', prepared: 0 })).toBe('fail');
+    expect(await status({ method: 'spell', prepared: 1 })).toBe('pass');
+    expect(await status({ method: 'spell', prepared: 2 })).toBe('pass');
+    expect(await status({ method: 'innate', prepared: 0 })).toBe('info');
+    expect(await status({})).toBe('pass');
+  });
+
+  it('does not trust the slots of an NPC, which may live on its token', async () => {
+    const npcInfo = { type: 'npc' };
+    const query = vi.fn(async (method: string) =>
+      method === 'foundry-mcp-bridge.getCharacterInfo'
+        ? npcInfo
+        : method === 'foundry-mcp-bridge.listGuardedFeatures'
+          ? [{ id: 'rules-check', enabled: true }]
+          : method === 'foundry-mcp-bridge.getCharacterResources'
+            ? resources
+            : method === 'foundry-mcp-bridge.getCharacterEntity'
+              ? spell
+              : combat
+    );
+    const t = new RulesCheckTools({ foundryClient: { query }, logger });
+    const r = await t.handleToolCall('check-action', { actor: 'Ireena', item: 'Magic Missile' });
+    expect(r.checks.find(c => c.check === 'slots')?.status).toBe('unknown');
+  });
+
+  it('finds an activity in a map by id as well as in an array', () => {
+    expect(findActivityData({ a: { x: 1 } }, 'a')).toEqual({ x: 1 });
+    expect(findActivityData([{ _id: 'a', x: 2 }], 'a')).toEqual({ _id: 'a', x: 2 });
+    expect(findActivityData([], 'a')).toEqual({});
+    expect(findActivityData({ a: {} }, undefined)).toEqual({});
   });
 
   it('cannot tell the turn when unlinked tokens share the actor', async () => {

@@ -151,6 +151,8 @@ export interface GuardedFeatureState {
    * so a plan of risk `write` is applied at once by its caller. Needs the feature switch on.
    */
   autoApply?: boolean;
+  /** A switch for a read-only tool (the rules check): it writes nothing and takes no plans. */
+  readOnly?: boolean;
 }
 
 /** `write` needs `confirm`; `destructive` (any delete) also needs `confirmDestructive`. */

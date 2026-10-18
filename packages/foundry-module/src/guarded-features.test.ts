@@ -55,7 +55,9 @@ describe('registerGuardedFeature', () => {
       type: Boolean,
       default: false,
     });
-    expect(config.hint).toMatch(/^Writes attitudes\. Off by default/);
+    expect(config.hint).toBe(
+      'Writes attitudes. Off by default; every change still asks for confirmation and can be undone.'
+    );
     expect(isKnownFeature('npc-attitudes')).toBe(true);
   });
 

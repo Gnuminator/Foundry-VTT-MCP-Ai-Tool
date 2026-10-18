@@ -49,6 +49,10 @@ export interface RulesFacts {
   spellMethod?: string | null;
   /** The spell has the ritual property. */
   ritual?: boolean;
+  /** The spell is not prepared (false); true or missing when ready, or when it never prepares. */
+  prepared?: boolean;
+  /** The actor is an NPC: its slots come from the world actor, not the token in the encounter. */
+  npc?: boolean;
   /** Keyed `level1`..`level9` and `pact`, as `get-character-resources` reports them. */
   slots: Record<string, SlotFact> | undefined;
   /** The item's own uses, then the chosen activity's. */
@@ -237,7 +241,20 @@ function rangeCheck(f: RulesFacts): RulesCheckLine {
   };
 }
 
+/** The slot line; an NPC's slots are read from the world actor, which its token may have outrun. */
 function slotCheck(f: RulesFacts): RulesCheckLine | null {
+  const line = slotCheckCore(f);
+  if (line && f.npc && (line.status === 'pass' || line.status === 'fail')) {
+    return {
+      ...line,
+      status: 'unknown',
+      reason: `${line.reason} (Read from the world actor; an NPC token keeps its own slots, so this may be out of date.)`,
+    };
+  }
+  return line;
+}
+
+function slotCheckCore(f: RulesFacts): RulesCheckLine | null {
   if (f.spellLevel === null) return null;
   if (f.spellLevel === 0)
     return { check: 'slots', status: 'info', reason: 'A cantrip needs no spell slot.' };
@@ -247,6 +264,14 @@ function slotCheck(f: RulesFacts): RulesCheckLine | null {
       check: 'slots',
       status: 'fail',
       reason: `A level ${f.spellLevel} spell cannot be cast at level ${wanted}.`,
+    };
+  }
+  if (f.prepared === false && f.spellLevel > 0) {
+    const ritual = f.ritual || f.spellMethod === 'ritual';
+    return {
+      check: 'slots',
+      status: ritual ? 'warn' : 'fail',
+      reason: `${f.item} is not prepared${ritual ? ', but it can be cast as a ritual (longer, and not in a combat round)' : ''}.`,
     };
   }
   if (f.spellMethod === 'atwill' || f.spellMethod === 'innate') {

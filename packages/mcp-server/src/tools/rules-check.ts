@@ -55,6 +55,24 @@ export function itemRangeLabel(system: Rec, attack?: 'melee' | 'ranged' | null):
   return null;
 }
 
+/** One activity's source data from `system.activities`: an array (as the bridge sends it) or a map by id. */
+export function findActivityData(activities: unknown, id: string | undefined): Rec {
+  if (!id) return {};
+  const list = Array.isArray(activities) ? activities : Object.values(rec(activities));
+  const found = list.map(rec).find(a => a._id === id || a.id === id);
+  return found ?? rec(rec(activities)[id]);
+}
+
+/** Whether a spell is ready to cast (the module's `spellPrepared` rule, for the sanitized system data). */
+export function spellPrepared(system: Rec, level: unknown): boolean {
+  if (typeof level !== 'number' || level === 0) return true;
+  const method = text(system.method);
+  if (method && method !== 'spell' && method !== 'pact') return true;
+  if (typeof system.prepared === 'boolean') return system.prepared;
+  // Not reported at all: do not call it unprepared.
+  return typeof system.prepared === 'number' ? system.prepared >= 1 : true;
+}
+
 function usesFrom(v: unknown): UsesFact | null {
   const u = rec(v);
   return typeof u.max === 'number' && typeof u.value === 'number'
@@ -172,9 +190,9 @@ export class RulesCheckTools {
     const system = rec(entity.system);
     const isSpell = entity.type === 'spell';
     const properties: unknown[] = Array.isArray(system.properties) ? system.properties : [];
-    const attackValue = text(
-      rec(rec(rec(rec(system.activities)[text(activity?.id) ?? '']).attack).type).value
-    );
+    const activityData = findActivityData(system.activities, text(activity?.id));
+    const attackValue = text(rec(rec(activityData.attack).type).value);
+    const npc = isSpell ? await this.isNpc(actorId ?? p.actor) : false;
     const attackType = attackValue === 'melee' || attackValue === 'ranged' ? attackValue : null;
     const { combat, tokenName } = await this.combatFact(actorId, actorName);
     const distance = p.target ? await this.distanceFact(tokenName, p.target) : undefined;
@@ -199,6 +217,8 @@ export class RulesCheckTools {
       activation: text(activity?.activation) ?? text(rec(system.activation).type),
       spellMethod: isSpell ? (text(system.method) ?? null) : null,
       ritual: isSpell && properties.includes('ritual'),
+      prepared: !isSpell || npc || spellPrepared(system, entity.level),
+      npc,
       range: itemRangeLabel(system, attackType) ?? text(activity?.range),
       combat,
       target: p.target,
@@ -208,6 +228,19 @@ export class RulesCheckTools {
         (u): u is UsesFact => u !== null
       ),
     });
+  }
+
+  /** Whether the actor is an NPC (false when it cannot be read). */
+  private async isNpc(identifier: string): Promise<boolean> {
+    try {
+      const info = rec(
+        await this.foundryClient.query('foundry-mcp-bridge.getCharacterInfo', { identifier })
+      );
+      return info.type === 'npc';
+    } catch (error) {
+      this.logger.warn('Rules check: actor type unavailable', error);
+      return false;
+    }
   }
 
   private refused(reply: Rec, what: string): void {

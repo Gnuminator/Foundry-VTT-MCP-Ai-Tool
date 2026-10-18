@@ -17,7 +17,7 @@
 #>
 [CmdletBinding()]
 param(
-  [ValidatePattern('^[a-z0-9][a-z0-9-]{0,63}$')] [string]$World = '',
+  [ValidatePattern('^[a-z0-9][a-z0-9_-]{0,63}$')] [string]$World = '',
   [string]$Repo = '',
   [string]$PassFile = '',
   [string]$Snapshot = 'latest',
@@ -32,7 +32,7 @@ if (-not $World) { $World = $PlanBDefaults.World }
 if (-not $Repo) { $Repo = $PlanBDefaults.Repo }
 if (-not $PassFile) { $PassFile = $PlanBDefaults.PassFile }
 if (-not $Out) { $Out = if ($IsWindows) { 'C:\FoundrySceneBackup' } else { Join-Path $HOME 'foundry-scene-backup' } }
-$outOk = Test-PlanBRoot $Out $PlanBDefaults.ForbiddenRoots
+$outOk = Test-PlanBSceneOut $Out $Repo
 if (-not $outOk.Ok) { throw "refused: $($outOk.Message)" }
 
 if (-not (Test-Path -LiteralPath (Join-Path $Repo 'config'))) { throw "$Repo is not a restic repository (is drive E: connected?)" }
@@ -55,11 +55,15 @@ if ($ageHours -gt 36) {
 $target = Join-Path $Out ('{0}-{1}' -f $pick.short_id, (Get-Date -Format 'yyyyMMdd-HHmmss'))
 New-Item -ItemType Directory -Force -Path $target | Out-Null
 & $resticExe restore $pick.id @resticBase --target $target --include (Get-PlanBSceneInclude $World)
-if ($LASTEXITCODE -ne 0) { throw "restic restore failed (exit $LASTEXITCODE); $target is left for a look" }
+if ($LASTEXITCODE -ne 0) {
+  if (-not (Get-ChildItem -LiteralPath $target -Recurse -File -ErrorAction SilentlyContinue)) { Remove-Item -LiteralPath $target -Recurse -Force }
+  throw "restic restore failed (exit $LASTEXITCODE)"
+}
 
 $worldDir = Join-Path $target 'var' 'lib' 'foundry' 'Data' 'worlds' $World
 if (-not (Test-Path -LiteralPath (Join-Path $worldDir 'data' 'scenes'))) {
-  throw "the snapshot has no scenes database for world '$World'; $target is left for a look"
+  if (-not (Get-ChildItem -LiteralPath $target -Recurse -File -ErrorAction SilentlyContinue)) { Remove-Item -LiteralPath $target -Recurse -Force }
+  throw "the snapshot has no scenes database for world '$World'"
 }
 Write-Host ''
 Write-Host "Scenes of '$World' from $($pickTime.ToString('yyyy-MM-dd HH\:mm')) ($ageHours hours old) are in:"

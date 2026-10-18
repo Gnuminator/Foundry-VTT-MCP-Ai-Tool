@@ -443,6 +443,55 @@ describe('recorded listeners and undo guards', () => {
     );
     expect(foundry.docs.get('Actor.ireena')!.source.system.hp).toBe(4);
   });
+
+  it('a planned undo (Changes window, dashboard) goes through the undo guard too', async () => {
+    const first = await service.applyPlan((await plan([HP_UPDATE])).planId, { confirm: true });
+    foundry.features.push({ id: 'change-undo', name: '', hint: '', enabled: true });
+    service.setUndoGuard('test-feature', () => Promise.resolve('the GM edited it'));
+    const undoPlan = await service.createPlan({
+      feature: 'change-undo',
+      summary: 'Undo Hurt Ireena',
+      ops: [{ kind: 'update', uuid: 'Actor.ireena', changes: { 'system.hp': 10 } }],
+      undoes: { changes: [first.changeId] },
+    });
+    await expect(service.applyPlan(undoPlan.planId, { confirm: true })).rejects.toThrow(
+      'Conflict, nothing was written: the GM edited it'
+    );
+    expect(foundry.docs.get('Actor.ireena')!.source.system.hp).toBe(4);
+    // The plan is still pending, and goes through once the guard agrees.
+    service.setUndoGuard('test-feature', () => Promise.resolve(null));
+    await service.applyPlan(undoPlan.planId, { confirm: true });
+    expect(foundry.docs.get('Actor.ireena')!.source.system.hp).toBe(10);
+  });
+});
+
+describe('a planned undo of a change that left the history', () => {
+  it('is refused, because its guard cannot be asked', async () => {
+    foundry.features.push({ id: 'change-undo', name: '', hint: '', enabled: true });
+    const undoPlan = await service.createPlan({
+      feature: 'change-undo',
+      summary: 'Undo something old',
+      ops: [{ kind: 'update', uuid: 'Actor.ireena', changes: { 'system.hp': 10 } }],
+      undoes: { changes: ['chg-gone'] },
+    });
+    await expect(service.applyPlan(undoPlan.planId, { confirm: true })).rejects.toThrow(
+      /no longer in the history/
+    );
+  });
+});
+
+describe('a second apply of the same plan', () => {
+  it('says it was already applied, not that the plan expired', async () => {
+    const p = await plan([HP_UPDATE]);
+    const applied = await service.applyPlan(p.planId, { confirm: true });
+    await expect(service.applyPlan(p.planId, { confirm: true })).rejects.toThrow(
+      `already applied as change ${applied.changeId}`
+    );
+    // A plan that never existed keeps the old answer.
+    await expect(service.applyPlan('plan-nope', { confirm: true })).rejects.toThrow(
+      /No pending plan/
+    );
+  });
 });
 
 describe('undo (Foundry ops)', () => {

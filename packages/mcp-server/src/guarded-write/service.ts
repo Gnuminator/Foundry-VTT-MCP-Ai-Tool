@@ -269,7 +269,18 @@ export type UndoGuard = (worldId: string, entry: AuditEntry) => Promise<string |
 /** Errors that mean "no answer arrived", as opposed to Foundry refusing the change. */
 function isLostAnswer(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error);
-  return /query timeout|connection closed|not connected/i.test(message);
+  return /query timeout|connection closed/i.test(message);
+}
+
+/**
+ * The link was down before anything was sent (`foundry-client.ts` and the connector refuse
+ * first), so the change certainly did not run: no outcome polling, fail at once.
+ */
+function isNeverSent(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return /^(Query \S+ failed: )?(Foundry VTT module not connected|Not connected to Foundry VTT module)/i.test(
+    message
+  );
 }
 
 function sleep(ms: number): Promise<void> {
@@ -690,7 +701,13 @@ export class GuardedWriteService {
   /** `requestedBy`: the person who asked, from a GM's window in Foundry; absent for the control channel (Claude or the dashboard); recorded on the apply's audit entry. */
   applyPlan(planId: string, flags: ConfirmFlags, requestedBy?: string): Promise<AppliedChange> {
     return this.exclusive(async () => {
-      const plan = this.requirePlan(planId);
+      let plan: StoredPlan;
+      try {
+        plan = this.requirePlan(planId);
+      } catch (error) {
+        await this.refuseIfAlreadyApplied(planId);
+        throw error;
+      }
       if (flags.confirm !== true) {
         throw new Error('Applying a planned change needs confirm: true');
       }
@@ -704,11 +721,49 @@ export class GuardedWriteService {
       if (worldId !== plan.worldId) {
         throw new Error(`This plan was made for world "${plan.worldId}", not "${worldId}"`);
       }
+      // A planned undo (Changes window, dashboard) takes back recorded changes: their feature's
+      // undo guard speaks here too, as it does for `undo()`.
+      if (plan.feature === UNDO_FEATURE) await this.runPlannedUndoGuards(worldId, plan);
       const changeId = newId('chg', this.now());
       const applied = await this.applyChange(worldId, changeId, plan, requestedBy);
       this.plans.delete(plan.planId);
       return applied;
     });
+  }
+
+  /** An unknown plan that was in fact applied (a second click or retry) says so. */
+  private async refuseIfAlreadyApplied(planId: string): Promise<void> {
+    if (typeof planId !== 'string') return;
+    let entry: AuditEntry | undefined;
+    try {
+      const ring = await this.audit.ring(await this.worldIds.current());
+      entry = ring.find(e => e.planId === planId && e.mode === 'apply');
+    } catch {
+      return; // the plain "no pending plan" answer still holds
+    }
+    if (entry) {
+      throw new Error(
+        `Plan ${planId} was already applied as change ${entry.changeId} (${entry.appliedAt}); nothing was changed again`
+      );
+    }
+  }
+
+  private async runPlannedUndoGuards(worldId: string, plan: StoredPlan): Promise<void> {
+    for (const changeId of plan.undoes?.changes ?? []) {
+      const entry = await this.audit.get(worldId, changeId);
+      if (!entry) {
+        // Dropped out of the history: its feature's guard cannot be asked, so do not guess.
+        throw new Error(
+          `Conflict, nothing was written: change ${changeId} is no longer in the history, so its undo cannot be checked`
+        );
+      }
+      // An undo entry has no guard of its own (a redo puts the original back); only the
+      // original changes carry their feature's guard.
+      if (entry.mode === 'undo') continue;
+      const guard = this.undoGuards.get(entry.feature);
+      const reason = guard ? await guard(worldId, entry) : null;
+      if (reason) throw new Error(`Conflict, nothing was written: ${reason}`);
+    }
   }
 
   /**
@@ -1016,6 +1071,12 @@ export class GuardedWriteService {
         timeoutMs: this.applyTimeoutMs,
       });
     } catch (error) {
+      if (isNeverSent(error)) {
+        throw new Error(
+          'Foundry is not connected, so this request was not sent to Foundry. Reconnect Foundry and try again.',
+          { cause: error }
+        );
+      }
       if (!isLostAnswer(error)) throw error;
       // The apply may still have run in Foundry: ask the module how it went (PB-04).
       this.logger.warn('Apply answer lost, asking Foundry for the outcome', {

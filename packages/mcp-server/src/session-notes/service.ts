@@ -10,6 +10,8 @@
  * revealed. The Recap page is queued for reveal; revealing it stays the GM's (destructive,
  * confirmed) action and marks the session approved (the audio is kept, D-097).
  */
+import { createHash } from 'node:crypto';
+
 import { type GuardedOp, MODULE_ID, type OpSnapshot, unwrapBridgeReply } from '@gnuminator/shared';
 
 import type { FoundryClient } from '../foundry-client.js';
@@ -17,7 +19,7 @@ import type { AppliedChange, GuardedWriteService } from '../guarded-write/servic
 import type { HandoutsService } from '../handouts/service.js';
 import type { Logger } from '../logger.js';
 import { handleFeatureSwitches } from '../session-control.js';
-import { REVEALS_FILE, newDocumentId } from '../tarokka/service.js';
+import { REVEALS_FILE } from '../tarokka/service.js';
 import type { AuditEntry, AuditLog } from '../vault/audit.js';
 import { isValidWorldId } from '../vault/paths.js';
 import type { VaultStore } from '../vault/store.js';
@@ -50,6 +52,15 @@ const DEFAULT_RETRY_MS = 3 * 60_000;
 
 function fileFor(sessionId: string): string {
   return `${FILE_PREFIX}${sessionId}.json`;
+}
+
+/** A Foundry document id (16 letters and digits) that is the same for the same seed. */
+function stableDocumentId(seed: string): string {
+  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  const digest = createHash('sha256').update(seed).digest();
+  let id = '';
+  for (let i = 0; i < 16; i++) id += alphabet[digest[i] % alphabet.length];
+  return id;
 }
 
 function messageOf(error: unknown): string {
@@ -388,9 +399,13 @@ export class SessionNotesService {
     if (typeof folder?.folderId !== 'string') {
       throw new Error(`Foundry did not give the "${NOTES_FOLDER}" folder`);
     }
-    const entryId = newDocumentId();
+    // The ids come from the session id, so a put whose answer was lost and is tried again meets
+    // the journal it made (an "id already exists" refusal below) instead of making a second one.
+    const entryId = stableDocumentId(`${sessionId}:journal`);
     const journalUuid = `JournalEntry.${entryId}`;
-    const pageIds = new Map<PageKey, string>(notes.pages.map(p => [p.key, newDocumentId()]));
+    const pageIds = new Map<PageKey, string>(
+      notes.pages.map(p => [p.key, stableDocumentId(`${sessionId}:page:${p.key}`)])
+    );
     const name = `${notes.date}: ${notes.title}`;
     const op: GuardedOp = {
       kind: 'create',
@@ -412,12 +427,28 @@ export class SessionNotesService {
       },
     };
     const pageList = notes.pages.map(p => p.title).join(', ');
-    const plan = await this.guardedWrites.createPlan({
-      feature: SESSION_NOTES_FEATURE,
-      summary: `Put the session notes "${name}" into Foundry (GM-only journal in "${NOTES_FOLDER}": ${pageList}; the Recap is queued for reveal)${auto ? ', automatically' : ''}`,
-      ops: [op],
-    });
-    const applied = await this.guardedWrites.applyPlan(plan.planId, { confirm: true });
+    let applied: AppliedChange;
+    try {
+      const plan = await this.guardedWrites.createPlan({
+        feature: SESSION_NOTES_FEATURE,
+        summary: `Put the session notes "${name}" into Foundry (GM-only journal in "${NOTES_FOLDER}": ${pageList}; the Recap is queued for reveal)${auto ? ', automatically' : ''}`,
+        ops: [op],
+      });
+      applied = await this.guardedWrites.applyPlan(plan.planId, { confirm: true });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (/a document with that id already exists/i.test(message)) {
+        // An earlier put probably reached Foundry but its answer was lost. Stop the automatic
+        // retries: two journals for one session would be worse than waiting for the GM.
+        const hint = `A journal for these notes may already be in Foundry (an earlier put whose answer was lost). Look in the "${NOTES_FOLDER}" folder; delete it if it is wrong, then put again.`;
+        await this.mutate(worldId, sessionId, n => {
+          n.autoPut = false;
+          n.lastError = hint;
+        });
+        throw new SessionNotesError('conflict', hint);
+      }
+      throw error;
+    }
 
     const pageUuids: Partial<Record<PageKey, string>> = {};
     for (const [key, id] of pageIds) pageUuids[key] = `${journalUuid}.JournalEntryPage.${id}`;
@@ -482,17 +513,26 @@ export class SessionNotesService {
   private async onRecorded(worldId: string, changeId: string): Promise<void> {
     const entry = await this.audit.get(worldId, changeId);
     if (!entry) return;
+    // Undone through `undo` (mode 'undo') or through a planned undo from the Changes window or
+    // the dashboard (a `change-undo` apply that lists the changes it takes back).
+    const undone: string[] = [];
     if (entry.feature === SESSION_NOTES_FEATURE && entry.mode === 'undo' && entry.undoOf) {
-      const notes = (await this.loadAll(worldId)).find(n => n.put?.changeId === entry.undoOf);
-      if (!notes?.put) return;
-      const recap = notes.put.recapPageUuid;
-      await this.mutate(worldId, notes.sessionId, n => {
-        delete n.put;
-        // The GM took it back: no automatic put again until a manual one.
-        n.autoPut = false;
-        delete n.lastError;
-      });
-      await this.handouts.unqueuePage({ pageUuid: recap }).catch(() => undefined);
+      undone.push(entry.undoOf);
+    } else if (entry.mode === 'apply' && entry.undoes?.changes?.length) {
+      undone.push(...entry.undoes.changes);
+    }
+    if (undone.length > 0) {
+      for (const notes of await this.loadAll(worldId)) {
+        if (!notes.put || !undone.includes(notes.put.changeId)) continue;
+        const recap = notes.put.recapPageUuid;
+        await this.mutate(worldId, notes.sessionId, n => {
+          delete n.put;
+          // The GM took it back: no automatic put again until a manual one.
+          n.autoPut = false;
+          delete n.lastError;
+        });
+        await this.handouts.unqueuePage({ pageUuid: recap }).catch(() => undefined);
+      }
       return;
     }
     if (entry.feature === 'handouts' && entry.mode === 'apply') {

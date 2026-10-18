@@ -71,24 +71,25 @@ export async function readPipelineStatus(dir: string): Promise<PipelineStatus | 
   } catch {
     return null;
   }
-  for (const session of names) {
-    let raw: unknown;
-    try {
-      raw = JSON.parse(await readFile(join(dir, session, 'notes', 'status.json'), 'utf-8'));
-    } catch {
-      continue;
-    }
-    const r = (raw ?? {}) as { state?: unknown; message?: unknown; at?: unknown };
-    const state = PIPELINE_STATES.find(s => s === r.state);
-    if (!state) continue;
-    return {
-      session,
-      state,
-      message: typeof r.message === 'string' ? r.message.slice(0, 300) : '',
-      ...(typeof r.at === 'string' ? { at: r.at } : {}),
-    };
+  // Only the newest folder: an older session's "published" must not stand in for a pass that has
+  // not written anything yet.
+  const session = names[0];
+  if (!session) return null;
+  let raw: unknown;
+  try {
+    raw = JSON.parse(await readFile(join(dir, session, 'notes', 'status.json'), 'utf-8'));
+  } catch {
+    return null;
   }
-  return null;
+  const r = (raw ?? {}) as { state?: unknown; message?: unknown; at?: unknown };
+  const state = PIPELINE_STATES.find(s => s === r.state);
+  if (!state) return null;
+  return {
+    session,
+    state,
+    message: typeof r.message === 'string' ? r.message.slice(0, 300) : '',
+    ...(typeof r.at === 'string' ? { at: r.at } : {}),
+  };
 }
 
 const SESSION_ID = /^[A-Za-z0-9][A-Za-z0-9_-]{0,79}$/;
@@ -170,7 +171,9 @@ export function mountSessionNotesRoute(app: Express, options: SessionNotesRouteO
       options.sessionsDir ??
       process.env.FVTT_SESSIONS_DIR ??
       join(homedir(), 'Documents', 'FoundrySessions');
-    void readPipelineStatus(dir).then(pipeline => res.json({ pipeline }));
+    readPipelineStatus(dir)
+      .then(pipeline => res.json({ pipeline }))
+      .catch(() => res.json({ pipeline: null }));
   });
 
   app.get('/api/session-notes/:id', requireGm, (req: Request, res: Response) => {

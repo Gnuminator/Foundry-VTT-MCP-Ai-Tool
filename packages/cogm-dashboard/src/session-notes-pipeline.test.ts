@@ -23,7 +23,7 @@ afterEach(() => {
 });
 
 describe('readPipelineStatus', () => {
-  it('reads the newest session that has a status file', () => {
+  it('reads the newest session folder', () => {
     const root = sessions();
     put(root, '2026-10-03_0913-a', '{"state":"done","message":"old"}');
     put(
@@ -31,7 +31,6 @@ describe('readPipelineStatus', () => {
       '2026-10-10_1900-b',
       '{"state":"incomplete","message":"2 scenes raw","at":"2026-10-11T08:00:00+02:00"}'
     );
-    mkdirSync(join(root, '2026-10-17_1900-c'));
     return expect(readPipelineStatus(root)).resolves.toEqual({
       session: '2026-10-10_1900-b',
       state: 'incomplete',
@@ -40,12 +39,19 @@ describe('readPipelineStatus', () => {
     });
   });
 
-  it('skips unreadable files and unknown states', async () => {
+  it('does not fall back to an older session when the newest has no status', async () => {
     const root = sessions();
-    put(root, '2026-10-03_0913-a', '{"state":"failed","message":"x"}');
+    put(root, '2026-10-03_0913-a', '{"state":"published","message":"old"}');
+    mkdirSync(join(root, '2026-10-17_1900-c'));
+    expect(await readPipelineStatus(root)).toBeNull();
+  });
+
+  it('is null for an unreadable file or an unknown state', async () => {
+    const root = sessions();
     put(root, '2026-10-10_1900-b', '{not json');
+    expect(await readPipelineStatus(root)).toBeNull();
     put(root, '2026-10-17_1900-c', '{"state":"exploded"}');
-    expect((await readPipelineStatus(root))?.session).toBe('2026-10-03_0913-a');
+    expect(await readPipelineStatus(root)).toBeNull();
   });
 
   it('is null for a missing folder', async () => {

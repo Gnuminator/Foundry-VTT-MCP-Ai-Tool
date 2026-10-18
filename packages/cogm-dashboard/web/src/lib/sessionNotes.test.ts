@@ -1,7 +1,7 @@
 // The notes card's words and buttons. sanitizeNotesHtml needs a DOM, so e2e/after.spec.ts covers it.
 import { describe, expect, it } from 'vitest';
 
-import { notesView, pipelineView, type SessionNotes } from './sessionNotes';
+import { notesView, pipelineView, samePipelineSession, type SessionNotes } from './sessionNotes';
 
 const base: SessionNotes = { sessionId: 's1', title: 'Session 3', status: 'staged', autoPut: true };
 
@@ -74,6 +74,12 @@ describe('notesView', () => {
     expect(failed.line).toContain('exit 3');
     expect(pipelineView({ session: 's', state: 'incomplete', message: '' }).line).toContain('raw');
     expect(pipelineView({ session: 's', state: 'waiting', message: '' }).problem).toBe(false);
+    expect(failed.pill).toBe('Failed');
+    expect(samePipelineSession('2026-10-03_0913-rehearsal', '2026-10-03_0913-rehearsal')).toBe(
+      true
+    );
+    expect(samePipelineSession('a-b', 'a b')).toBe(true);
+    expect(samePipelineSession('x', '2026-10-03_0913-rehearsal')).toBe(false);
   });
 
   it('shows the last error', () => {

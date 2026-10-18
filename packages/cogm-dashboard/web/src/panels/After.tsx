@@ -23,6 +23,7 @@ import { GAME_STATE_KEY, useGuardedTools } from '../lib/guarded';
 import {
   notesView,
   pipelineView,
+  samePipelineSession,
   sanitizeNotesHtml,
   type NotesAction,
   type NotesPage,
@@ -251,25 +252,30 @@ function SessionNotesCard({ active }: { active: boolean }): JSX.Element | null {
     enabled: active,
   });
   const n = query.data ?? null;
-  const pipeline = pipelineQuery.data ? pipelineView(pipelineQuery.data) : null;
+  // Only for the session the card is about (the notes' id is the folder name made id-safe).
+  const forThisCard =
+    pipelineQuery.data && (!n || samePipelineSession(n.sessionId, pipelineQuery.data.session))
+      ? pipelineQuery.data
+      : null;
+  const pipeline = forThisCard ? pipelineView(forThisCard) : null;
   const pipelineLine = pipeline && (
     <p
       className={`notes-line${pipeline.problem ? ' notes-warn' : ''}`}
       id="notes-pipeline"
-      data-state={pipelineQuery.data?.state}
+      data-state={forThisCard?.state}
     >
       {pipeline.line}
     </p>
   );
   if (!n) {
-    if (!pipelineQuery.data) return null;
+    if (!forThisCard || !pipeline) return null;
     return (
       <section className="notes-card" id="notes-card" aria-label="Session notes">
         <div className="notes-card-head">
           <h3>
-            <span id="notes-title">{`Session notes: ${pipelineQuery.data.session}`}</span>
+            <span id="notes-title">{`Session notes: ${forThisCard.session}`}</span>
           </h3>
-          <Pill tone="off">Waiting</Pill>
+          <Pill tone={pipeline.problem ? 'off' : 'on'}>{pipeline.pill}</Pill>
         </div>
         {pipelineLine}
       </section>

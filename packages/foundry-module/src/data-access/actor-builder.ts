@@ -1565,7 +1565,7 @@ export class ActorBuilderDataAccess {
     if (major >= 4) {
       const activities = item.system?.activities;
       const attackAct =
-        activities?.getByType?.('attack')?.[0] ||
+        activities?.getByType?.('attack')?.[0] ??
         (activities?.contents ?? []).find(a => a.type === 'attack');
       // Public unless asked otherwise; dnd5e's message config names the visibility `rollMode`.
       const message = { create: true, rollMode: shared.rollModeFor(data.isPublic !== false) };

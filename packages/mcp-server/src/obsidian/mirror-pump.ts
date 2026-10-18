@@ -360,7 +360,8 @@ async function realpathOfDeepest(target: string): Promise<string> {
         () => true,
         () => false
       );
-      if (isLink) throw new Error(`Refusing a link that leads nowhere: ${current}`);
+      if (isLink)
+        throw new Error(`Refusing a link that leads nowhere: ${current}`, { cause: error });
       const parent = path.dirname(current);
       if (parent === current) throw error;
       tail.unshift(path.basename(current));

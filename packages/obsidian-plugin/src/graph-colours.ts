@@ -211,7 +211,7 @@ export async function applyGraphColoursTo(
     return saved;
   };
   let live: boolean;
-  let reopened = 0;
+  let reopened: number;
   try {
     await host.parkGraphViews();
     options = host.graphOptions();

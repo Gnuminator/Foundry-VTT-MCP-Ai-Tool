@@ -151,7 +151,7 @@ function request(
           text += chunk;
         });
         res.on('end', () => {
-          let json: Record<string, unknown> | null = null;
+          let json: Record<string, unknown> | null;
           try {
             json = JSON.parse(text) as Record<string, unknown>;
           } catch {

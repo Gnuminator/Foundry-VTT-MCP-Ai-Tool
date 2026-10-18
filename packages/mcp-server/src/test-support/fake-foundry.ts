@@ -68,7 +68,7 @@ export class FakeFoundry {
     try {
       return Promise.resolve(this.handle(method, data));
     } catch (error) {
-      return Promise.reject(error);
+      return Promise.reject(error instanceof Error ? error : new Error(String(error)));
     }
   });
 

@@ -660,7 +660,8 @@ export class HandoutsService {
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       throw new Error(
-        `${message} (the next queued page is ${entry.uuid}; remove it with action "unqueue" to go on)`
+        `${message} (the next queued page is ${entry.uuid}; remove it with action "unqueue" to go on)`,
+        { cause: error }
       );
     }
   }

@@ -176,7 +176,7 @@ export class CampaignManagementTools {
     const campaignId = `campaign-${Date.now()}`;
     const timestamp = Date.now();
 
-    let parts: CampaignPart[] = [];
+    let parts: CampaignPart[];
 
     if (request.template === 'custom' && request.customParts) {
       parts = request.customParts.map((part: any, index: number) => ({

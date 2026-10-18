@@ -268,7 +268,7 @@ describe('pre-hooks: the stash', () => {
     // starts a new one.
     vi.setSystemTime((t += 100));
     expect(idOf(simulateUpdate(actor, { name: 'follow-up' }))).toBe(first);
-    vi.setSystemTime((t += 100));
+    vi.setSystemTime(t + 100);
     expect(idOf(simulateUpdate(actor, { name: 'plain' }))).not.toBe(first);
   });
 

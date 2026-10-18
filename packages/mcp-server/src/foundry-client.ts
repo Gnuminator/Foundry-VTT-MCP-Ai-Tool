@@ -53,7 +53,7 @@ export class FoundryClient {
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown connection error';
       this.logger.error('Failed to start Foundry connector', { error: errorMessage });
-      throw new Error(`Failed to start Foundry connector: ${errorMessage}`);
+      throw new Error(`Failed to start Foundry connector: ${errorMessage}`, { cause: error });
     }
   }
 
@@ -95,7 +95,7 @@ export class FoundryClient {
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown query error';
       this.logger.error('Query failed', { method, error: errorMessage });
-      throw new Error(`Query ${method} failed: ${errorMessage}`);
+      throw new Error(`Query ${method} failed: ${errorMessage}`, { cause: error });
     }
   }
 

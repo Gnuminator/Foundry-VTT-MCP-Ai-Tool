@@ -411,7 +411,7 @@ function conflictReason(op: GuardedOp, expected: OpSnapshot, current: OpSnapshot
 
 function requireWriteAccess(req: GuardedApplyRequest): void {
   if (!game.user?.isGM) throw new Error('Guarded writes run on a GM client only');
-  let writesAllowed = false;
+  let writesAllowed: boolean;
   try {
     writesAllowed = game.settings.get(MODULE_ID, 'allowWriteOperations') === true;
   } catch {
@@ -782,7 +782,9 @@ async function runGuardedApply(
         failures.length === 0
           ? `the ${done.length} earlier op(s) were rolled back`
           : `rollback incomplete: ${failures.join('; ')}`;
-      throw new Error(`Op ${index} (${op.kind}) failed: ${message}; ${rolled}`);
+      throw new Error(`Op ${index} (${op.kind}) failed: ${message}; ${rolled}`, {
+        cause: error,
+      });
     }
   }
 

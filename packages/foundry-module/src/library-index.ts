@@ -593,7 +593,7 @@ function speciesFacts(doc: Rec): LibraryFact[] {
 }
 
 function factsOf(doc: Rec): LibraryFact[] {
-  let facts: LibraryFact[] = [];
+  let facts: LibraryFact[];
   switch (doc.type) {
     case 'spell':
       facts = spellFacts(doc);

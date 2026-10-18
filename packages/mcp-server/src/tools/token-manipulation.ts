@@ -73,7 +73,8 @@ export class TokenManipulationTools {
     } catch (error) {
       this.logger.error('Failed to get token details', error);
       throw new Error(
-        `Failed to get token details: ${error instanceof Error ? error.message : 'Unknown error'}`
+        `Failed to get token details: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        { cause: error }
       );
     }
   }
@@ -148,7 +149,8 @@ export class TokenManipulationTools {
     } catch (error) {
       this.logger.error('Failed to get available conditions', error);
       throw new Error(
-        `Failed to get available conditions: ${error instanceof Error ? error.message : 'Unknown error'}`
+        `Failed to get available conditions: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        { cause: error }
       );
     }
   }

@@ -391,6 +391,7 @@ describe('SceneTools.handleGetCurrentScene', () => {
 
   it('throws with Unknown error message when client throws a non-Error', async () => {
     const { tools } = makeTools(() => {
+      // eslint-disable-next-line @typescript-eslint/only-throw-error -- the test throws a non-Error on purpose
       throw 'oops';
     });
     await expect(tools.handleGetCurrentScene({})).rejects.toThrow(
@@ -495,6 +496,7 @@ describe('SceneTools.handleGetWorldInfo', () => {
 
   it('throws with Unknown error message when client throws a non-Error', async () => {
     const { tools } = makeTools(() => {
+      // eslint-disable-next-line @typescript-eslint/only-throw-error -- the test throws a non-Error on purpose
       throw 42;
     });
     await expect(tools.handleGetWorldInfo({})).rejects.toThrow(

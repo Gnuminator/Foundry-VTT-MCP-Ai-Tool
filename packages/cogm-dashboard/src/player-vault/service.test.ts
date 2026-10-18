@@ -165,7 +165,7 @@ function makeRig(): Rig {
       try {
         return Promise.resolve(state.sheetFor(userId));
       } catch (error) {
-        return Promise.reject(error);
+        return Promise.reject(error instanceof Error ? error : new Error(String(error)));
       }
     },
   };

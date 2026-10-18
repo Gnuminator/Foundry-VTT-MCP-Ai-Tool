@@ -172,7 +172,7 @@ export class SocketBridge {
         this.ws = null;
         this.connectionState = CONNECTION_STATES.DISCONNECTED;
         this.scheduleReconnect();
-        reject(error);
+        reject(error instanceof Error ? error : new Error(String(error)));
       }
     });
   }

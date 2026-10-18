@@ -44,6 +44,7 @@ export const CHANGE_JOURNAL_DOCUMENTS = [
   'Drawing',
   'Note',
   'Region',
+  'Level',
   'MeasuredTemplate',
   'JournalEntry',
   'JournalEntryPage',

@@ -293,6 +293,23 @@ describe('snapshotGuardedOps', () => {
     });
   });
 
+  it('counts what sits on a Scene Level and refuses to delete a used one', async () => {
+    const scene: any = makeDoc('Scene', { name: 'Tower' });
+    const level = makeDoc('Level', { name: 'Upper' }, scene, { keepId: true });
+    scene.tokens = {
+      contents: [{ _source: { level: level.id } }, { _source: { level: 'other' } }],
+    };
+    scene.regions = { contents: [{ _source: { levels: [level.id, 'x'] } }] };
+    const [snap] = await snapshotGuardedOps([{ kind: 'delete', uuid: level.uuid }]);
+    expect(snap).toMatchObject({ documentName: 'Level', levelContents: 2 });
+    const req = await request([{ kind: 'delete', uuid: level.uuid }]);
+    await expect(applyGuardedOps(req)).rejects.toThrow(/2 thing\(s\) sit on this level/);
+    scene.tokens = { contents: [] };
+    scene.regions = { contents: [] };
+    const [empty] = await snapshotGuardedOps([{ kind: 'delete', uuid: level.uuid }]);
+    expect(empty.levelContents).toBe(0);
+  });
+
   it('checks the parent and a kept id for a create', async () => {
     const actor = addActor();
     const item = makeDoc('Item', { _id: 'item000000000001', name: 'Dagger' }, actor, {

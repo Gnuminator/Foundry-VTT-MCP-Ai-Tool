@@ -89,6 +89,57 @@ describe('the Session controller', () => {
     expect(c.view).toMatchObject({ busy: false, status: 'error', error: 'refused' });
   });
 
+  it('a read on its way when a mark fails cannot hide the mark error (L2)', async () => {
+    const resolvers: Array<(v: unknown) => void> = [];
+    const request = vi.fn((tool: string) =>
+      tool === 'mark-play-session'
+        ? Promise.reject(new Error('refused'))
+        : new Promise(r => resolvers.push(r))
+    );
+    const c = new SessionController(request, () => {});
+    const late = c.load();
+    await c.mark('start');
+    resolvers[0]({ success: true, ...closed });
+    await late;
+    expect(c.view).toMatchObject({ status: 'error', error: 'refused' });
+  });
+
+  it('a read that starts while a mark is failing cannot hide the error either (poll)', async () => {
+    let failMark: () => void = () => {};
+    const resolvers: Array<(v: unknown) => void> = [];
+    const request = vi.fn((tool: string) =>
+      tool === 'mark-play-session'
+        ? new Promise((_, reject): void => {
+            failMark = (): void => reject(new Error('refused'));
+          })
+        : new Promise(r => resolvers.push(r))
+    );
+    const c = new SessionController(request, () => {});
+    const marking = c.mark('start');
+    const poll = c.load();
+    failMark();
+    await marking;
+    resolvers[0]({ success: true, ...closed });
+    await poll;
+    expect(c.view).toMatchObject({ status: 'error', error: 'refused' });
+  });
+
+  it('clear() keeps a mark that is on its way busy', async () => {
+    const request = vi.fn(() => new Promise<never>(() => {}));
+    const c = new SessionController(request, () => {});
+    void c.mark('end');
+    c.clear();
+    expect(c.view.busy).toBe(true);
+  });
+
+  it('clear() forgets the old state and drops a read on its way (L4)', async () => {
+    const request = vi.fn(async () => ({ success: true, ...open }));
+    const c = new SessionController(request, () => {});
+    await c.load();
+    c.clear();
+    expect(c.view).toMatchObject({ status: 'loading', session: null });
+  });
+
   it('drops a load that a newer one has replaced', async () => {
     const resolvers: Array<(v: unknown) => void> = [];
     const request = vi.fn(() => new Promise(r => resolvers.push(r)));

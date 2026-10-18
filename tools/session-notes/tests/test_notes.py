@@ -199,3 +199,67 @@ def test_cli_parse_success_and_errors() -> None:
         cli.parse(1, "not json", "crash", "sonnet")
     with pytest.raises(ClaudeError):
         cli.parse(0, json.dumps({"subtype": "success", "is_error": False}), "", "sonnet")
+
+
+def _all_fail(upto: int = 60) -> dict[int, str]:
+    return {i: "error" for i in range(1, upto)}
+
+
+def test_raw_fallback_scene_is_not_cached_and_blocks_the_session_part(session: Path) -> None:
+    # Scene 1 fails on every call (4 calls), scene 2 is fine.
+    fake = FakeClaude(fail={1: "error", 2: "error", 3: "error", 4: "error"})
+    result = Writer(session, fake, Options(workers=1)).run()
+    assert result.fallbacks == 1 and result.pending == 1
+    assert [kind for kind, _ in fake.calls].count("session") == 0  # no session summary yet
+    assert not (session / "notes" / ".work" / "scene-001.json").exists()
+    assert (session / "notes" / ".work" / "scene-002.json").exists()
+    data = json.loads((session / "notes" / "notes.json").read_text(encoding="utf-8"))
+    assert data["session"] is None
+
+    # The next run asks about scene 1 again, and now it works.
+    again = FakeClaude()
+    result2 = Writer(session, again, Options(workers=1)).run()
+    assert result2.fallbacks == 0 and result2.pending == 0
+    assert [kind for kind, _ in again.calls] == ["scene", "session"]
+    data = json.loads((session / "notes" / "notes.json").read_text(encoding="utf-8"))
+    assert data["session"] is not None
+
+
+def test_a_scene_that_keeps_failing_is_accepted_raw_after_three_runs(session: Path) -> None:
+    for run_no in (1, 2, 3):
+        fake = FakeClaude(fail=_all_fail())
+        result = Writer(session, fake, Options(workers=1, only_scene=1)).run()
+        assert result.fallbacks == 1
+        assert result.pending == (1 if run_no < 3 else 0)
+    assert (session / "notes" / ".work" / "scene-001.json").exists()
+
+
+def test_old_cached_raw_scene_is_tried_again(session: Path) -> None:
+    Writer(session, FakeClaude(), Options(workers=1)).run()
+    cache = session / "notes" / ".work" / "scene-001.json"
+    data = json.loads(cache.read_text(encoding="utf-8"))
+    data["notes"]["fallback"] = True  # what the old code left behind
+    cache.write_text(json.dumps(data), encoding="utf-8")
+    fake = FakeClaude()
+    Writer(session, fake, Options(workers=1)).run()
+    assert [kind for kind, _ in fake.calls][0] == "scene"
+
+
+def test_speakers_json_and_names_with_a_bom(session: Path) -> None:
+    (session / "speakers.json").write_bytes(
+        b"\xef\xbb\xbf" + json.dumps({"bo": {"character": "Vorn"}}).encode("utf-8")
+    )
+    (session / "names.txt").write_bytes(b"\xef\xbb\xbfMadam Eva\n")
+    fake = FakeClaude()
+    Writer(session, fake, Options(workers=1)).run()
+    assert "Bo plays Vorn" in fake.calls[0][1]
+    lines = load_timeline(session / "timeline" / "timeline.jsonl")
+    assert load_roster(session, lines).names == ["Madam Eva"]
+
+
+def test_status_file_records_the_outcome(session: Path) -> None:
+    from session_notes.status import write_status
+
+    path = write_status(session, "paused", "limit", scenes=1)
+    data = json.loads(path.read_text(encoding="utf-8"))
+    assert data["state"] == "paused" and data["scenes"] == 1 and data["at"]

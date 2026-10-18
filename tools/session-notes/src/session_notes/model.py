@@ -63,7 +63,7 @@ def clock(seconds: float) -> str:
 
 def load_timeline(path: Path) -> list[Line]:
     lines: list[Line] = []
-    with path.open(encoding="utf-8") as fh:
+    with path.open(encoding="utf-8-sig") as fh:
         for raw in fh:
             raw = raw.strip()
             if not raw:
@@ -107,7 +107,7 @@ def apply_speakers(lines: list[Line], session: Path) -> list[Line]:
     path = session / "speakers.json"
     if not path.exists():
         return lines
-    table = json.loads(path.read_text(encoding="utf-8"))
+    table = json.loads(path.read_text(encoding="utf-8-sig"))
     out = []
     for line in lines:
         entry = table.get(line.speaker) or {}
@@ -127,7 +127,7 @@ def load_roster(session: Path, lines: list[Line]) -> Roster:
         roster.players.setdefault(line.player, line.character)
     names_file = session / "names.txt"
     if names_file.exists():
-        for raw in names_file.read_text(encoding="utf-8").splitlines():
+        for raw in names_file.read_text(encoding="utf-8-sig").splitlines():
             name = raw.strip()
             if name and not name.startswith("#") and not name.startswith("==="):
                 roster.names.append(name)

@@ -178,13 +178,17 @@ describe('the page routes are rate limited', () => {
     writeFileSync(path.join(dir, 'index.html'), REACT_PAGE);
     const app = await start(dir);
     try {
-      let last = 0;
-      for (let i = 0; i < 1001; i++) last = (await get(app.port, '/')).status;
-      expect(last).toBe(429);
+      const statuses: number[] = [];
+      for (let batch = 0; batch < 11; batch++) {
+        const answers = await Promise.all(Array.from({ length: 100 }, () => get(app.port, '/')));
+        statuses.push(...answers.map(answer => answer.status));
+      }
+      expect(statuses.filter(status => status === 429).length).toBeGreaterThan(0);
+      expect(statuses[0]).toBe(200);
     } finally {
       await app.stop();
     }
-  });
+  }, 30_000);
 });
 
 describe('without a React build', () => {

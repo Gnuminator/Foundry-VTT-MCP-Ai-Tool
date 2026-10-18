@@ -293,11 +293,11 @@ function tokenPlan(extra: Partial<LiveChangePlan> = {}): LiveChangePlan {
 describe('plan-token-change definition', () => {
   const def = (): any => tools.getToolDefinitions().find(d => d.name === 'plan-token-change');
 
-  it('requires action and tokens, with the action enum', () => {
+  it('requires action (tokens except for fit-scale), with the action enum', () => {
     expect(def().inputSchema.type).toBe('object');
-    expect(def().inputSchema.required).toEqual(['action', 'tokens']);
+    expect(def().inputSchema.required).toEqual(['action']);
     expect(def().inputSchema.properties.action.enum).toEqual([...LIVE_TOKEN_ACTIONS]);
-    expect(LIVE_TOKEN_ACTIONS).toEqual(['move', 'update', 'delete']);
+    expect(LIVE_TOKEN_ACTIONS).toEqual(['move', 'update', 'delete', 'fit-scale']);
     expect(def().inputSchema.properties.tokens).toMatchObject({ type: 'array' });
   });
 
@@ -323,6 +323,12 @@ describe('plan-token-change definition', () => {
 describe('plan-token-change', () => {
   beforeEach(() => {
     query.mockImplementation(() => Promise.resolve(tokenPlan()));
+  });
+
+  it('fit-scale may omit tokens (the whole scene); other actions may not', async () => {
+    await tools.handlePlanTokenChange({ action: 'fit-scale' });
+    expect(query.mock.calls[0][1]).toEqual({ scope: 'token', action: 'fit-scale' });
+    await expect(tools.handlePlanTokenChange({ action: 'update', hidden: true })).rejects.toThrow();
   });
 
   it('asks the module with scope token, no undefined keys and no changes without fields', async () => {

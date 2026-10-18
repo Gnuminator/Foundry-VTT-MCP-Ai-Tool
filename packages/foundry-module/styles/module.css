@@ -609,3 +609,64 @@
   gap: 0.5rem;
   align-items: center;
 }
+
+/* GM windows (I-134): the Combat and Party panels. */
+.fmb-gm-list {
+  gap: 0.3rem;
+}
+
+.fmb-gm-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 0.3rem 0.5rem;
+  border-radius: 4px;
+  background: color-mix(in srgb, currentColor 6%, transparent);
+}
+
+.fmb-gm-row.fmb-gm-current {
+  outline: 2px solid var(--color-border-highlight, #ff6400);
+}
+
+.fmb-gm-row.fmb-gm-defeated {
+  opacity: 0.55;
+}
+
+.fmb-gm-init {
+  min-width: 2rem;
+  text-align: right;
+  font-weight: bold;
+}
+
+.fmb-gm-main {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  gap: 0.15rem;
+}
+
+.fmb-gm-sub {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.fmb-gm-muted {
+  color: var(--color-text-secondary);
+}
+
+.fmb-gm-bar {
+  display: inline-block;
+  width: 6rem;
+  height: 0.6rem;
+  border-radius: 3px;
+  background: color-mix(in srgb, currentColor 15%, transparent);
+  overflow: hidden;
+}
+
+.fmb-gm-bar > span {
+  display: block;
+  height: 100%;
+  background: var(--color-level-success, #2e9d4a);
+}

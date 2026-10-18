@@ -708,17 +708,17 @@ Parameters:
 
 ### check-action
 
-Rules check, read-only (off by default; the GM turns it on in Foundry settings). Before an attack, spell or item is used, say whether it looks legal and why: whose turn it is, what it costs (action, bonus action, reaction), the distance to a target against its range, and the spell slots or uses left. Reports each check as pass, warn, fail, unknown or info with a reason. It cannot see which actions were already spent this turn. Changes nothing; use-item and the roll tools still do the doing.
+Rules check (off by default). Says whether an attack, spell or item looks legal and why: turn, cost, range to a target, spell slots and uses left. Cannot see actions already spent this turn. Read-only.
 
 Kind: read-only. Title: Check an action against the rules.
 
 Parameters:
 
-- `actor` (string, required): Character or NPC name or actor ID.
-- `item` (string, required): Item, weapon, feature or spell name or ID.
-- `target` (string): Optional name of the target token on the viewed scene, for the range check.
-- `activity` (string): Optional activity name or ID when the item has several (default: the first).
-- `castLevel` (integer): Optional level to cast a spell at (default: its own level, or the lowest slot left). Range: 1 to 9.
+- `actor` (string, required): Actor name or ID.
+- `item` (string, required): Item or spell name or ID.
+- `target` (string): Target token name, for range.
+- `activity` (string): Activity name or ID (default: first).
+- `castLevel` (integer): Level to cast at (default: its own or lowest slot left). Range: 1 to 9.
 
 ## Prep
 

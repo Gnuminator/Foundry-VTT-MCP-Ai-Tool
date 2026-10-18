@@ -66,33 +66,30 @@ export class RulesCheckTools {
       {
         name: 'check-action',
         description:
-          'Rules check, read-only (off by default; the GM turns it on in Foundry settings). Before an attack, spell or item is used, say whether it looks legal and why: whose turn it is, what it costs (action, bonus action, reaction), the distance to a target against its range, and the spell slots or uses left. Reports each check as pass, warn, fail, unknown or info with a reason. It cannot see which actions were already spent this turn. Changes nothing; use-item and the roll tools still do the doing.',
+          'Rules check (off by default). Says whether an attack, spell or item looks legal and why: turn, cost, range to a target, spell slots and uses left. Cannot see actions already spent this turn. Read-only.',
         inputSchema: {
           type: 'object',
           properties: {
             actor: {
               type: 'string',
-              description: 'Character or NPC name or actor ID.',
+              description: 'Actor name or ID.',
               ...toolRef('actor', 'id', { filter: AT_THE_TABLE }),
             },
-            item: { type: 'string', description: 'Item, weapon, feature or spell name or ID.' },
+            item: { type: 'string', description: 'Item or spell name or ID.' },
             target: {
               type: 'string',
-              description:
-                'Optional name of the target token on the viewed scene, for the range check.',
+              description: 'Target token name, for range.',
               ...toolRef('token', 'name'),
             },
             activity: {
               type: 'string',
-              description:
-                'Optional activity name or ID when the item has several (default: the first).',
+              description: 'Activity name or ID (default: first).',
             },
             castLevel: {
               type: 'integer',
               minimum: 1,
               maximum: 9,
-              description:
-                'Optional level to cast a spell at (default: its own level, or the lowest slot left).',
+              description: 'Level to cast at (default: its own or lowest slot left).',
             },
           },
           required: ['actor', 'item'],

@@ -34,6 +34,9 @@ export interface TrackSummary extends SpeakerInfo {
   bytes: number;
 }
 
+/** Called once per failing file with a short name for the file and the error. */
+export type StreamErrorHandler = (what: string, err: Error) => void;
+
 export type SessionEvent = Record<string, unknown> & { type: string };
 
 export interface RtpInfo {
@@ -57,23 +60,62 @@ export function slug(text: string): string {
   return s || 'speaker';
 }
 
+/** End a stream and wait for it; a stream that already failed is closed without waiting for a flush. */
+function closeStream(stream: WriteStream): Promise<void> {
+  return new Promise<void>(resolve => {
+    if (stream.destroyed) {
+      resolve();
+      return;
+    }
+    stream.once('close', () => resolve());
+    stream.end();
+  });
+}
+
 export class RecordingSession {
   readonly startedAt: Date;
   private readonly tracks = new Map<string, OpenTrack>();
   private readonly events: WriteStream;
   private debugLog: WriteStream | undefined;
   private stopped = false;
+  private readonly failed = new Set<string>();
 
+  /**
+   * `onStreamError` hears about a disk problem (full disk, no permission) once per file. A failed
+   * file stops taking data; the others keep recording, and nothing crashes the process.
+   */
   constructor(
     readonly dir: string,
     private readonly clock: Clock,
     private readonly meta: Record<string, unknown> = {},
-    now: Date = new Date()
+    now: Date = new Date(),
+    private readonly onStreamError: StreamErrorHandler = () => undefined
   ) {
     this.startedAt = now;
     mkdirSync(join(dir, 'raw'), { recursive: true });
-    this.events = createWriteStream(join(dir, 'raw', 'events.jsonl'), { flags: 'a' });
+    this.events = this.guard(
+      createWriteStream(join(dir, 'raw', 'events.jsonl'), { flags: 'a' }),
+      'events.jsonl'
+    );
     this.log({ type: 'session_start', wallClock: now.toISOString(), ...meta });
+  }
+
+  /** Files that failed to write so far (names relative to `raw/`). */
+  get failedFiles(): string[] {
+    return [...this.failed];
+  }
+
+  private guard(stream: WriteStream, what: string): WriteStream {
+    stream.on('error', err => {
+      if (this.failed.has(what)) return;
+      this.failed.add(what);
+      try {
+        this.onStreamError(what, err);
+      } catch {
+        // the report must never take the recorder down
+      }
+    });
+    return stream;
   }
 
   get isStopped(): boolean {
@@ -88,7 +130,10 @@ export class RecordingSession {
   /** Append a (redacted) library debug line to `raw/voice-debug.log`. */
   debug(line: string): void {
     if (this.stopped) return;
-    this.debugLog ??= createWriteStream(join(this.dir, 'raw', 'voice-debug.log'), { flags: 'a' });
+    this.debugLog ??= this.guard(
+      createWriteStream(join(this.dir, 'raw', 'voice-debug.log'), { flags: 'a' }),
+      'voice-debug.log'
+    );
     this.debugLog.write(`${this.clock.now()} ${line}\n`);
   }
 
@@ -113,7 +158,7 @@ export class RecordingSession {
   private openTrack(speaker: SpeakerInfo): OpenTrack {
     const track = this.tracks.size + 1;
     const file = `${track}-${slug(speaker.username)}.rec`;
-    const stream = createWriteStream(join(this.dir, 'raw', file));
+    const stream = this.guard(createWriteStream(join(this.dir, 'raw', file)), file);
     stream.write(
       encodeTrackHeader({
         v: 1,
@@ -141,31 +186,35 @@ export class RecordingSession {
     this.log({ type: 'session_stop', reason });
     const endSamples = this.clock.now();
     this.stopped = true;
-    const closes = [...this.tracks.values()].map(
-      t => new Promise<void>(resolve => t.stream.end(resolve))
-    );
-    closes.push(new Promise<void>(resolve => this.events.end(resolve)));
-    const debugLog = this.debugLog;
-    if (debugLog) closes.push(new Promise<void>(resolve => debugLog.end(resolve)));
+    const closes = [...this.tracks.values()].map(t => closeStream(t.stream));
+    closes.push(closeStream(this.events));
+    if (this.debugLog) closes.push(closeStream(this.debugLog));
     await Promise.all(closes);
     const tracks = this.summaries();
-    writeFileSync(
-      join(this.dir, 'raw', 'session.json'),
-      `${JSON.stringify(
-        {
-          v: 1,
-          startedAt: this.startedAt.toISOString(),
-          stoppedAt: new Date().toISOString(),
-          endSamples,
-          sampleRate: 48000,
-          stopReason: reason,
-          ...this.meta,
-          tracks,
-        },
-        null,
-        2
-      )}\n`
-    );
+    try {
+      writeFileSync(
+        join(this.dir, 'raw', 'session.json'),
+        `${JSON.stringify(
+          {
+            v: 1,
+            startedAt: this.startedAt.toISOString(),
+            stoppedAt: new Date().toISOString(),
+            endSamples,
+            sampleRate: 48000,
+            stopReason: reason,
+            ...this.meta,
+            ...(this.failed.size ? { failedFiles: [...this.failed] } : {}),
+            tracks,
+          },
+          null,
+          2
+        )}\n`
+      );
+    } catch (err) {
+      // The .rec headers still carry the ids, so conversion works without session.json.
+      this.failed.add('session.json');
+      this.onStreamError('session.json', err as Error);
+    }
     return tracks;
   }
 }

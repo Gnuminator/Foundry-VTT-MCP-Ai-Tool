@@ -18,13 +18,14 @@ import {
   type Guild,
   type VoiceBasedChannel,
 } from 'discord.js';
-import { mkdirSync } from 'node:fs';
+import { existsSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import type { BotConfig } from './config.js';
 import * as log from './log.js';
 import { convertSession } from './convert/convert.js';
 import { RecordingSession, hrtimeClock, type SpeakerInfo } from './rec/session.js';
 import { VoiceRecorder } from './rec/voice.js';
+import { recoverMessage, recoverOrphans } from './rec/recover.js';
 import {
   SPACE_CHECK_INTERVAL_MS,
   LogThrottle,
@@ -61,12 +62,22 @@ export function sessionFolderName(d: Date): string {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}-discord`;
 }
 
+/** A folder under `sessionsDir` that does not exist yet: the base name, then `-2`, `-3` and so on. */
+export function uniqueSessionDir(sessionsDir: string, d: Date): string {
+  const base = sessionFolderName(d);
+  let name = base;
+  for (let n = 2; existsSync(join(sessionsDir, name)); n++) name = `${base}-${n}`;
+  return join(sessionsDir, name);
+}
+
 export class RecorderBot {
   readonly client = new Client({
     intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildVoiceStates],
   });
   private active: Active | undefined;
   private spaceTimer: NodeJS.Timeout | undefined;
+  /** DM to the owner; set once the owner is known. */
+  private notifyOwner: ((text: string) => Promise<boolean>) | undefined;
 
   constructor(private readonly config: BotConfig) {}
 
@@ -82,9 +93,9 @@ export class RecorderBot {
         where => log.info(`Registered /record ${where}`),
         (err: unknown) => log.error('Registering /record failed', err)
       );
-      void this.startSpaceNotices(c).catch((err: unknown) =>
-        log.error('Space notices could not start', err)
-      );
+      void this.startSpaceNotices(c)
+        .catch((err: unknown) => log.error('Space notices could not start', err))
+        .then(() => this.recoverOrphans());
     });
     this.client.on('interactionCreate', i => {
       if (i.isChatInputCommand() && i.commandName === 'record') {
@@ -140,6 +151,7 @@ export class RecorderBot {
         return false;
       }
     };
+    this.notifyOwner = send;
     const notifier = new SpaceNotifier({ send });
     const readPulls = createBackupPullReader({
       ...(this.config.backupPullsDir ? { dir: this.config.backupPullsDir } : {}),
@@ -162,6 +174,39 @@ export class RecorderBot {
     log.info(
       `Space and backup copy notices: checking every ${SPACE_CHECK_INTERVAL_MS / 60000} minutes (backup copies are stale after ${this.config.backupStaleDays ?? DEFAULT_BACKUP_STALE_DAYS} days).`
     );
+  }
+
+  /** Convert raw recordings a crashed run left behind and tell the owner (or the log). */
+  private async recoverOrphans(): Promise<void> {
+    try {
+      const outcomes = await recoverOrphans(this.config.sessionsDir, {
+        isActive: dir => this.active?.session.dir === dir,
+      });
+      const text = recoverMessage(outcomes);
+      if (!text) return;
+      log.info(text);
+      if (this.notifyOwner) await this.notifyOwner(text);
+    } catch (err) {
+      log.error('Looking for unconverted recordings failed', err);
+    }
+  }
+
+  /**
+   * A recording file could not be written (disk full, no permission): log every one, but tell the
+   * channel and the owner only once per recording (`told` is that recording's flag).
+   */
+  private onStreamError(
+    channel: VoiceBasedChannel,
+    told: { value: boolean },
+    what: string,
+    err: Error
+  ): void {
+    const text = `Recording problem: ${what} could not be written (${err.message}). Check the disk space on the recorder host; other files of this recording may be affected too.`;
+    log.error(text, err);
+    if (told.value) return;
+    told.value = true;
+    void channel.send(text).catch(() => undefined);
+    if (this.notifyOwner) void this.notifyOwner(text);
   }
 
   private speakerResolver(guild: Guild): (userId: string) => SpeakerInfo {
@@ -212,14 +257,22 @@ export class RecorderBot {
       return;
     }
     await i.deferReply();
-    const dir = join(this.config.sessionsDir, sessionFolderName(new Date()));
-    mkdirSync(dir, { recursive: true });
-    const session = new RecordingSession(dir, hrtimeClock(), {
-      guildId: guild.id,
-      channelId: channel.id,
-      channelName: channel.name,
-      startedBy: i.user.id,
-    });
+    mkdirSync(this.config.sessionsDir, { recursive: true });
+    const dir = uniqueSessionDir(this.config.sessionsDir, new Date());
+    mkdirSync(dir);
+    const told = { value: false };
+    const session = new RecordingSession(
+      dir,
+      hrtimeClock(),
+      {
+        guildId: guild.id,
+        channelId: channel.id,
+        channelName: channel.name,
+        startedBy: i.user.id,
+      },
+      new Date(),
+      (what, err) => this.onStreamError(channel, told, what, err)
+    );
     for (const [id, m] of channel.members) {
       session.log({ type: 'present', userId: id, username: m.user.username, bot: m.user.bot });
     }
@@ -261,7 +314,11 @@ export class RecorderBot {
             t.stats.droppedDave ? `, ${t.stats.droppedDave} undecrypted dropped` : ''
           }`
       );
-      return `Recording stopped and converted (${a.session.dir}):\n${lines.join('\n')}`;
+      const failed = a.session.failedFiles;
+      const warn = failed.length
+        ? `\nWarning: ${failed.join(', ')} could not be written, so the recording may be incomplete.`
+        : '';
+      return `Recording stopped and converted (${a.session.dir}):\n${lines.join('\n')}${warn}`;
     } catch (err) {
       return `Recording stopped, but converting failed: ${(err as Error).message}. The raw files are kept in ${a.session.dir}.`;
     }

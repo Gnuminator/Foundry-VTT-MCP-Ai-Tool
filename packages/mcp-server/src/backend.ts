@@ -44,6 +44,7 @@ import { CampaignManagementTools } from './tools/campaign-management.js';
 import { OwnershipTools } from './tools/ownership.js';
 import { SceneMoodTools } from './tools/scene-mood.js';
 import { SceneRestoreTools } from './tools/scene-restore.js';
+import { TableViewerTools } from './tools/table-viewer.js';
 
 import { TokenManipulationTools } from './tools/token-manipulation.js';
 
@@ -428,6 +429,7 @@ async function startBackend(): Promise<void> {
     logger,
   });
   const sceneMoodTools = new SceneMoodTools({ foundryClient, guardedWrites, logger });
+  const tableViewerTools = new TableViewerTools({ foundryClient, guardedWrites, logger });
   const livePlayTools = new LivePlayTools({ foundryClient, guardedWrites, logger });
   const sceneChangeTools = new SceneChangeTools({ foundryClient, guardedWrites, logger });
   // O4 Foundry mirror: the pump starts with the Foundry link below (vault dir set only).
@@ -469,6 +471,7 @@ async function startBackend(): Promise<void> {
     ownershipTools,
     sceneRestoreTools,
     sceneMoodTools,
+    tableViewerTools,
     dnd5eAddFeatureTool,
     dnd5eNpcTools,
     dnd5eFeaturesFromCompendiumTools,

@@ -4,7 +4,7 @@ description: The five tool sets Claude Desktop loads (core, play, prep, build, a
 
 # Tool sets
 
-The bridge has 89 tools. Their definitions are about 101,400 characters of JSON, about 24,000 to
+The bridge has 90 tools. Their definitions are about 101,400 characters of JSON, about 24,000 to
 31,000 tokens that Claude reads at the start of every conversation, before anyone types. Many
 tools also look alike, which makes Claude pick the wrong one more often.
 
@@ -18,7 +18,7 @@ what the conversation needs. The switches are remembered for new chats.
 | **play**  | `foundry-mcp-play`   | 32    | about 31,200      | Running the table live: tokens, combat, rolls, damage, conditions, chat, mood, loot.         |
 | **prep**  | `foundry-mcp-prep`   | 20    | about 21,400      | Prep and recaps: quests, journals, encounter budgets, Tarokka, handouts, session log, stats. |
 | **build** | `foundry-mcp-build`  | 7     | about 25,800      | Making NPCs, monsters and items, from a compendium or from scratch.                          |
-| **admin** | `foundry-mcp-admin`  | 8     | about 7,100       | Modules and their errors, actor ownership, the Obsidian mirror.                              |
+| **admin** | `foundry-mcp-admin`  | 9     | about 7,700       | Modules and their errors, actor ownership, the Obsidian mirror.                              |
 
 A prep chat with core and prep on carries about 37,900 characters instead of 101,400. Core alone is
 about 16% of everything.
@@ -52,7 +52,8 @@ code disagree. Each tool's description and parameters are in the [tool reference
   `create-actor-from-compendium`, `dnd5e-create-npc`, `dnd5e-add-feature`,
   `dnd5e-add-features-from-compendium`, `manage-world-items`
 - **admin:** `get-modules`, `get-module-errors`, `clear-module-errors`, `get-module-manifest`,
-  `list-actor-ownership`, `plan-ownership-change`, `get-obsidian-mirror`, `plan-obsidian-mirror`
+  `list-actor-ownership`, `plan-ownership-change`, `plan-table-viewer`, `get-obsidian-mirror`,
+  `plan-obsidian-mirror`
 
 ## Prompts
 

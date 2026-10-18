@@ -9,7 +9,10 @@
  * entry in {@link AI_TOOL_BUTTONS}.
  */
 import { openAiChangesWindow } from './ai-changes-window.js';
+import { openCombatWindow } from './combat-window.js';
 import { MODULE_ID } from './constants.js';
+import { gmWindowsEnabled } from './gm-windows.js';
+import { openPartyWindow } from './party-window.js';
 import { openHandoutsWindow } from './handouts-window.js';
 import { openTarokkaWindow } from './tarokka-window.js';
 
@@ -18,7 +21,9 @@ export interface AiToolButton {
   name: string;
   title: string;
   icon: string;
-  open: () => void | Promise<void>;
+  open: () => void | Promise<unknown>;
+  /** A button of the GM windows (I-134): added only while the world switch is on. */
+  gmWindow?: boolean;
 }
 
 /** The group's buttons, in toolbar order. */
@@ -41,6 +46,20 @@ export const AI_TOOL_BUTTONS: readonly AiToolButton[] = [
     icon: 'fa-solid fa-cards',
     open: () => openTarokkaWindow(),
   },
+  {
+    name: 'combat',
+    title: 'Combat',
+    icon: 'fa-solid fa-swords',
+    open: () => openCombatWindow(),
+    gmWindow: true,
+  },
+  {
+    name: 'party',
+    title: 'Party',
+    icon: 'fa-solid fa-users',
+    open: () => openPartyWindow(),
+    gmWindow: true,
+  },
 ];
 
 /** The group's key in the controls record; after the core groups, which use orders 1 to 10. */
@@ -57,24 +76,27 @@ export function addAiToolControls(
 ): void {
   if (!game.user?.isGM) return;
   const tools: Record<string, unknown> = {};
-  buttons.forEach((button, index) => {
-    tools[button.name] = {
-      name: button.name,
-      title: button.title,
-      icon: button.icon,
-      order: index + 1,
-      button: true,
-      visible: true,
-      onChange: (): void => {
-        void Promise.resolve(button.open()).catch((error: unknown) => {
-          console.error(`[${MODULE_ID}] Could not open "${button.title}":`, error);
-          ui.notifications.error(
-            `Could not open "${button.title}": ${error instanceof Error ? error.message : String(error)}`
-          );
-        });
-      },
-    };
-  });
+  const windowsOn = gmWindowsEnabled();
+  buttons
+    .filter(button => !button.gmWindow || windowsOn)
+    .forEach((button, index) => {
+      tools[button.name] = {
+        name: button.name,
+        title: button.title,
+        icon: button.icon,
+        order: index + 1,
+        button: true,
+        visible: true,
+        onChange: (): void => {
+          void Promise.resolve(button.open()).catch((error: unknown) => {
+            console.error(`[${MODULE_ID}] Could not open "${button.title}":`, error);
+            ui.notifications.error(
+              `Could not open "${button.title}": ${error instanceof Error ? error.message : String(error)}`
+            );
+          });
+        },
+      };
+    });
   controls[AI_TOOL_CONTROL] = {
     name: AI_TOOL_CONTROL,
     title: 'AI Tool',

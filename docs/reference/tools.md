@@ -6,7 +6,7 @@ description: Every tool the bridge serves, by tool set, with its description and
 
 # Tool reference
 
-The bridge serves 89 tools in five sets. [Tool sets](TOOL-SETS.md) explains the sets and how Claude Desktop loads them; this page lists every tool with the description and parameters Claude reads.
+The bridge serves 90 tools in five sets. [Tool sets](TOOL-SETS.md) explains the sets and how Claude Desktop loads them; this page lists every tool with the description and parameters Claude reads.
 
 | Set | Claude Desktop entry | Tools | For |
 | --- | --- | --- | --- |
@@ -14,7 +14,7 @@ The bridge serves 89 tools in five sets. [Tool sets](TOOL-SETS.md) explains the 
 | [Play](#play) | `foundry-mcp-play` | 32 | Run the table live: tokens, combat turns, rolls, damage, conditions, resources, chat, scene mood, map notes and loot. |
 | [Prep](#prep) | `foundry-mcp-prep` | 20 | Prepare sessions and write recaps: quests and journals, encounter budgets, the Tarokka reading, handouts, the session log, play stats and the pre-flight check. |
 | [Build](#build) | `foundry-mcp-build` | 7 | Make and change NPCs, monsters and items: from a compendium or from scratch, with features, attacks and spells. |
-| [Admin](#admin) | `foundry-mcp-admin` | 8 | Set up and troubleshoot: installed modules and their errors, who owns which actor, and the Obsidian mirror settings. |
+| [Admin](#admin) | `foundry-mcp-admin` | 9 | Set up and troubleshoot: installed modules and their errors, who owns which actor, and the Obsidian mirror settings. |
 
 ## Core
 
@@ -1277,6 +1277,16 @@ Parameters:
 - `actorIdentifier` (string, required): Actor name or ID, "all friendly NPCs" or "party characters".
 - `playerIdentifier` (string, required): Player or character name, or "party" for all connected players.
 - `permissionLevel` (string): assign: NONE, LIMITED, OBSERVER (sees the sheet) or OWNER (controls it). One of: `NONE`, `LIMITED`, `OBSERVER`, `OWNER`.
+
+### plan-table-viewer
+
+Plan a Foundry user for the TV at the table (default name "Table"): Player role, no password, owns nothing. Apply it with apply-planned-change, revert it with undo-change. The TV signs in as this user once (see the TV table viewer guide). Refuses if a user with that name already exists.
+
+Kind: read-only. Title: Plan the TV table viewer user.
+
+Parameters:
+
+- `name` (string): The user's name on Foundry's join page. Default "Table".
 
 ### get-obsidian-mirror
 

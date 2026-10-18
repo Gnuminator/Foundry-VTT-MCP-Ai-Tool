@@ -28,6 +28,7 @@ import type { ObsidianMirrorTools } from './tools/obsidian-mirror.js';
 import type { OwnershipTools } from './tools/ownership.js';
 import type { SceneMoodTools } from './tools/scene-mood.js';
 import type { SceneRestoreTools } from './tools/scene-restore.js';
+import type { TableViewerTools } from './tools/table-viewer.js';
 import type { PlaySessionTools } from './tools/play-session.js';
 import type { PlayStatsTools } from './tools/play-stats.js';
 import type { PlayerViewTools } from './tools/player-view.js';
@@ -69,6 +70,7 @@ export interface ToolRouterDeps {
   ownershipTools: OwnershipTools;
   sceneRestoreTools: SceneRestoreTools;
   sceneMoodTools: SceneMoodTools;
+  tableViewerTools: TableViewerTools;
   partyTools: PartyTools;
   playSessionTools: PlaySessionTools;
   playStatsTools: PlayStatsTools;
@@ -195,6 +197,7 @@ export function buildToolRouter(deps: ToolRouterDeps): Record<string, ToolHandle
     'plan-scene-change': args => deps.sceneChangeTools.handlePlanSceneChange(args),
     'plan-scene-mood': args => deps.sceneMoodTools.handleToolCall('plan-scene-mood', args),
     'list-scene-moods': args => deps.sceneMoodTools.handleToolCall('list-scene-moods', args),
+    'plan-table-viewer': args => deps.tableViewerTools.handleToolCall('plan-table-viewer', args),
     'plan-scene-restore': args => deps.sceneRestoreTools.handleToolCall('plan-scene-restore', args),
     'play-playlist': args => deps.sceneChangeTools.handlePlayPlaylist(args),
     'list-ref-choices': args => deps.refChoiceTools.handleListRefChoices(args),
@@ -236,6 +239,7 @@ export function collectToolDefinitions(deps: ToolRouterDeps): ToolDefinitionLike
     ...deps.ownershipTools.getToolDefinitions(),
     ...deps.sceneRestoreTools.getToolDefinitions(),
     ...deps.sceneMoodTools.getToolDefinitions(),
+    ...deps.tableViewerTools.getToolDefinitions(),
     ...deps.tokenManipulationTools.getToolDefinitions(),
     ...deps.chatLogTools.getToolDefinitions(),
     ...deps.resourceTools.getToolDefinitions(),

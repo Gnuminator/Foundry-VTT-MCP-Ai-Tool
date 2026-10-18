@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import { stat } from 'node:fs/promises';
 import {
@@ -21,7 +22,7 @@ import { buildRestoreDiff, describePart, type PartCounts } from '../scene-restor
 
 export interface SceneRestoreToolsOptions {
   foundryClient: Pick<FoundryClient, 'query'>;
-  guardedWrites: Pick<GuardedWriteService, 'createPlan'>;
+  guardedWrites: Pick<GuardedWriteService, 'createPlan' | 'getPlan'>;
   worldIds: { current(): Promise<string> };
   logger: Logger;
   /** Tests supply a fake; production opens the copy with Foundry's own classic-level. */
@@ -63,11 +64,13 @@ function defaultBackupPath(env: NodeJS.ProcessEnv, worldId: string): string {
  */
 export class SceneRestoreTools {
   private readonly foundryClient: Pick<FoundryClient, 'query'>;
-  private readonly guardedWrites: Pick<GuardedWriteService, 'createPlan'>;
+  private readonly guardedWrites: Pick<GuardedWriteService, 'createPlan' | 'getPlan'>;
   private readonly worldIds: { current(): Promise<string> };
   private readonly logger: Logger;
   private readonly env: NodeJS.ProcessEnv;
   private readonly openLevel: LevelOpener;
+  /** Per scene: the last batch planned, to stop a chain whose changes do not stick. */
+  private readonly lastBatch = new Map<string, { signature: string; planId: string }>();
 
   constructor(options: SceneRestoreToolsOptions) {
     this.foundryClient = options.foundryClient;
@@ -125,6 +128,16 @@ export class SceneRestoreTools {
     } catch (error) {
       this.logger.error(`Error in scene restore tool ${name}:`, error);
       throw error;
+    }
+  }
+
+  /** A plan still waiting for its apply; an applied, cancelled or expired one is gone. */
+  private isPending(planId: string): boolean {
+    try {
+      this.guardedWrites.getPlan(planId);
+      return true;
+    } catch {
+      return false;
     }
   }
 
@@ -188,8 +201,15 @@ export class SceneRestoreTools {
       diff.ops.length > MAX_OPS
         ? { size: ops.length, remaining: diff.ops.length - ops.length, total: diff.ops.length }
         : undefined;
+    const signature = createHash('sha1').update(JSON.stringify(ops)).digest('hex');
+    const previous = this.lastBatch.get(live.sceneId);
+    if (batch && previous?.signature === signature && !this.isPending(previous.planId)) {
+      throw new Error(
+        `These changes did not stick after the last batch was applied (first: ${JSON.stringify(ops[0])}). Foundry probably rewrites a field the backup holds; restore the rest with "parts" or look at that field.`
+      );
+    }
     const batchNote = batch
-      ? ` (batch of ${batch.size} of ${batch.total} changes; ${batch.remaining} more after this: apply it, then plan again)`
+      ? ` (batch of ${batch.size} of ${batch.total} changes; the counts cover the whole restore; ${batch.remaining} more after this: apply it, then plan again)`
       : '';
     const lines = parts
       .map(p => [p, describePart(p, diff.counts[p])] as const)
@@ -202,6 +222,8 @@ export class SceneRestoreTools {
       summary: `Restore ${live.name} from the backup of ${takenAt.slice(0, 16).replace('T', ' ')}: ${lines.join('; ')}${batchNote}`,
       ops,
     });
+    if (batch) this.lastBatch.set(live.sceneId, { signature, planId: plan.planId });
+    else this.lastBatch.delete(live.sceneId);
     return {
       ...plan,
       scene: { id: live.sceneId, name: live.name },

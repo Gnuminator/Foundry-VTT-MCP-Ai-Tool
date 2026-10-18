@@ -216,6 +216,8 @@ describe('plan-scene-restore', () => {
     tools: SceneRestoreTools;
     query: ReturnType<typeof vi.fn>;
     createPlan: ReturnType<typeof vi.fn>;
+    /** Marks a plan applied: it is no longer pending. */
+    settle: (planId: string) => void;
   } {
     const query = vi.fn((method: string) => {
       if (method === 'foundry-mcp-bridge.listGuardedFeatures') {
@@ -236,18 +238,28 @@ describe('plan-scene-restore', () => {
         }
       );
     });
-    const createPlan = vi.fn((input: any) => Promise.resolve({ planId: 'p1', ...input, diff: [] }));
+    const pending = new Set<string>();
+    let planCount = 0;
+    const createPlan = vi.fn((input: any) => {
+      const planId = `p${++planCount}`;
+      pending.add(planId);
+      return Promise.resolve({ planId, ...input, diff: [] });
+    });
+    const getPlan = vi.fn((planId: string) => {
+      if (!pending.has(planId)) throw new Error('gone');
+      return { planId };
+    });
     const logger: any = { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() };
     logger.child = (): unknown => logger;
     const tools = new SceneRestoreTools({
       foundryClient: { query } as any,
-      guardedWrites: { createPlan },
+      guardedWrites: { createPlan, getPlan } as any,
       worldIds: { current: (): Promise<string> => Promise.resolve('w') },
       logger,
       openLevel: fakeOpener(BACKUP_DATA),
       env: {},
     });
-    return { tools, query, createPlan };
+    return { tools, query, createPlan, settle: (id: string): void => void pending.delete(id) };
   }
 
   it('plans the difference as one guarded change under the scene-restore feature', async () => {
@@ -325,6 +337,63 @@ describe('plan-scene-restore', () => {
     });
     expect(first.batch!.total).toBeGreaterThan(200);
     expect(createPlan.mock.calls[0][0].summary).toMatch(/batch of 200 of \d+ changes/);
+  });
+
+  it('walks a chain: batch, batch, rest, then nothing to restore', async () => {
+    const walls = Array.from({ length: 450 }, (_, i) => ({ _id: `x${i}`, c: [i, 0, i, 1] }));
+    const live = {
+      sceneId: 's1',
+      name: 'Arena',
+      viewed: true,
+      walls,
+      lights: [],
+      tiles: [],
+      tokens: [],
+    };
+    const { tools, createPlan, settle } = makeTools({ live });
+    const sizes: number[] = [];
+    for (let i = 0; i < 4; i++) {
+      let plan;
+      try {
+        plan = await tools.handleToolCall('plan-scene-restore', { backupPath: scenes });
+      } catch (error) {
+        expect(String(error)).toMatch(/Nothing to restore/);
+        break;
+      }
+      const ops = createPlan.mock.calls[i][0].ops as Array<{ kind: string; uuid: string }>;
+      sizes.push(ops.length);
+      // Apply: the fake scene loses (or gains) what the plan changed.
+      const gone = new Set(ops.filter(o => o.kind === 'delete').map(o => o.uuid.split('.').pop()));
+      live.walls = live.walls.filter(w => !gone.has(w._id));
+      settle(plan.planId);
+    }
+    expect(sizes[0]).toBe(200);
+    expect(sizes[1]).toBe(200);
+    expect(sizes.slice(2).every(n => n <= 200)).toBe(true);
+  });
+
+  it('refuses a chain whose changes did not stick after the batch was applied', async () => {
+    const walls = Array.from({ length: 450 }, (_, i) => ({ _id: `x${i}`, c: [i, 0, i, 1] }));
+    const live = {
+      sceneId: 's1',
+      name: 'Arena',
+      viewed: true,
+      walls,
+      lights: [],
+      tiles: [],
+      tokens: [],
+    };
+    const { tools, settle } = makeTools({ live });
+    const first = await tools.handleToolCall('plan-scene-restore', { backupPath: scenes });
+    // Asked again before the plan was applied: the same batch again is fine.
+    const again = await tools.handleToolCall('plan-scene-restore', { backupPath: scenes });
+    expect(again.batch).toEqual(first.batch);
+    settle(first.planId);
+    settle(again.planId);
+    // Applied, but the live scene did not change: the same batch would loop forever.
+    await expect(
+      tools.handleToolCall('plan-scene-restore', { backupPath: scenes })
+    ).rejects.toThrow(/did not stick/);
   });
 
   it('does not mark a restore that fits one plan as a batch', async () => {

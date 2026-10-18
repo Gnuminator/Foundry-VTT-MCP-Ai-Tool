@@ -238,7 +238,7 @@ last backup had them. Foundry's Undo covers AI changes only; this is the step fo
   castle map has over 2,000 walls) is planned as a chain: the plan holds the first 200 changes and
   says how many are left (`batch`); apply it, then ask for the plan again and it holds the next
   200, until nothing is left. Each batch is its own plan and is undone on its own with
-  `undo-change`. A folder Foundry has open is always refused. A folder that changed in the last 5
+  `undo-change`. On Windows a folder Foundry has open is always refused. A folder that changed in the last 5
   minutes is refused too, unless it is a copy of the world you made by hand a moment ago and
   Foundry does not have open: then set `recentCopyOk`. On a Plan B night the
   default folder is the running world, so run `.\scripts\plan-b\extract-scenes.ps1`: it restores

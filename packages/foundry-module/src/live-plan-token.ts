@@ -405,6 +405,11 @@ export const FIT_FLOOR_SQUARES = 0.25;
 /** ... and in pixels, so a 50 px grid does not get 12 px tokens. */
 export const FIT_FLOOR_PIXELS = 24;
 
+/** The scene's grid units are feet (or unset, which Foundry reads as feet). */
+export function isFeetUnit(units: string): boolean {
+  return /^(ft\.?|feet|foot|')?$/i.test(units.trim());
+}
+
 /** Token edge in squares for a footprint of `feet` on a scene with `distance` feet per square. */
 export function fitSquares(feet: number, distance: number, gridSize: number): number {
   const floor = Math.max(FIT_FLOOR_SQUARES, FIT_FLOOR_PIXELS / gridSize);
@@ -483,7 +488,7 @@ export function planTokenChange(request: LiveTokenRequest): LiveChangePlan {
   let built: { ops: GuardedOp[]; previews: LiveTargetPreview[]; summary: string };
   switch (request.action) {
     case 'fit-scale':
-      if (!/^(ft\.?|feet|foot|')?$/i.test(scene.units.trim())) {
+      if (!isFeetUnit(scene.units)) {
         throw new Error(
           `${scene.name} measures in "${scene.units}", not feet: set the grid units to ft first`
         );

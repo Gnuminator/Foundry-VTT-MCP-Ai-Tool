@@ -19,7 +19,7 @@
  * the browser cannot import runtime values from it.
  */
 import type { PartyPlacement, PartyPlaceRequest } from '@gnuminator/shared';
-import { SIZE_FEET, fitSquares } from './live-plan-token.js';
+import { SIZE_FEET, fitSquares, isFeetUnit } from './live-plan-token.js';
 
 /** Query name (prefixed with the module id on the wire). GM client only. */
 export const PARTY_PLACE_QUERY = 'planPartyPlacement';
@@ -292,7 +292,12 @@ export async function planPartyPlacement(data: unknown): Promise<PartyPlacement>
   }
 
   const distance = num(rec(scene.grid)?.distance) ?? 5;
-  const scaled = distance !== 5 && distance > 0 && grid.size > 0;
+  const units = str(rec(scene.grid)?.units) ?? 'ft';
+  const feetScene = isFeetUnit(units);
+  const scaled = distance !== 5 && distance > 0 && grid.size > 0 && feetScene;
+  if (distance !== 5 && !feetScene) {
+    warnings.push(`The scene measures in "${units}", not feet, so tokens keep their own size`);
+  }
   const edgeOf = (actor: Rec): number | null => {
     if (!scaled) return null;
     const sizeKey = str(rec(rec(rec(actor.system)?.traits))?.size);

@@ -67,7 +67,7 @@ export class Take {
 
   // Once a window shows its page (and so its pinned title), OBS can find and crop it.
   async #crop(sceneName) {
-    if (!this.obs) return;
+    if (!this.obs || this.obs.noCrop) return;
     const { css, scale } = this.windows[sceneName];
     const size = { width: Math.round(css.width * scale), height: Math.round(css.height * scale) };
     await cropToPage(this.obs, sceneName, this.res, 10000, size);

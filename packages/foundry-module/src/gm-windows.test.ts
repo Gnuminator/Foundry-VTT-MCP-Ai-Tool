@@ -148,6 +148,7 @@ describe('the Party model', () => {
     expect(renderPartyHtml([])).toContain('No player characters');
     const html = renderPartyHtml(buildPartyView([pc({ name: '<script>x</script>' })]));
     expect(html).not.toContain('<script>');
+    expect(html).toContain('&lt;script&gt;');
   });
 });
 
@@ -276,6 +277,30 @@ describe('the switch, the buttons and the windows', () => {
     await vi.advanceTimersByTimeAsync(0);
     expect(combat.nextTurn).toHaveBeenCalledOnce();
     expect(combat.previousTurn).toHaveBeenCalledOnce();
+  });
+
+  it('removes its hooks on close, so a later hook draws nothing', async () => {
+    install(true, true);
+    const off = vi.spyOn(g.Hooks, 'off');
+    await openCombatWindow();
+    const w = rendered[0];
+    w._onClose();
+    expect(off).toHaveBeenCalled();
+    const before = w.content.innerHTML;
+    combat.turns.push({ id: 'c', name: 'Strahd' });
+    g.Hooks.callAll('updateCombatant');
+    await vi.advanceTimersByTimeAsync(PANEL_REFRESH_DEBOUNCE_MS + 10);
+    expect(w.content.innerHTML).toBe(before);
+  });
+
+  it('the turn buttons do nothing once the switch is off', async () => {
+    install(true, true);
+    await openCombatWindow();
+    const w = rendered[0];
+    world.settings.set(`${MODULE_ID}.${GM_WINDOWS_SETTING}`, false);
+    w.constructor.DEFAULT_OPTIONS.actions.nextTurn.call(w, new Event('click'), {});
+    await vi.advanceTimersByTimeAsync(0);
+    expect(combat.nextTurn).not.toHaveBeenCalled();
   });
 
   it('draws nothing if the switch is turned off while the window is open', async () => {

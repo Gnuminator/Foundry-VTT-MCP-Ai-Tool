@@ -153,7 +153,9 @@ export function createPanelWindow(spec: PanelSpec): PanelOpener {
         if (this.timer !== null) clearTimeout(this.timer);
         this.timer = setTimeout(() => {
           this.timer = null;
-          void this.render();
+          this.render().catch((e: unknown): void => {
+            console.warn(`${MODULE_ID} | window redraw failed`, e);
+          });
         }, PANEL_REFRESH_DEBOUNCE_MS);
       }
     }

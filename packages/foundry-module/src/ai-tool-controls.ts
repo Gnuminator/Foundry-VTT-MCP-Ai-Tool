@@ -12,8 +12,8 @@ import { openAiChangesWindow } from './ai-changes-window.js';
 import { openCombatWindow } from './combat-window.js';
 import { MODULE_ID } from './constants.js';
 import { gmWindowsEnabled } from './gm-windows.js';
-import { openPartyWindow } from './party-window.js';
 import { openHandoutsWindow } from './handouts-window.js';
+import { openPartyWindow } from './party-window.js';
 import { openTarokkaWindow } from './tarokka-window.js';
 
 /** One button of the group. */

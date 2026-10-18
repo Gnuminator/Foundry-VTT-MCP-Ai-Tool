@@ -3,7 +3,7 @@
 ``session-notes scenes <session>`` only shows how the session would be split (no Claude call).
 ``session-notes publish <session>`` hands the notes to the bridge, which puts them into Foundry.
 Exit codes: 0 done, 1 error, 3 the bridge cannot take the notes now (publish; try again later),
-75 paused by a usage limit (run the same command again later).
+75 paused by a usage limit (run the same command again later), 76 some scenes are still raw (run again).
 """
 
 from __future__ import annotations
@@ -19,8 +19,10 @@ from .publish import publish
 from .retention import approve, cleanup
 from .run import Options, Writer
 from .scenes import split_scenes
+from .status import write_status
 
 EXIT_PAUSED = 75
+EXIT_INCOMPLETE = 76
 
 
 def sessions_root() -> Path:
@@ -133,6 +135,7 @@ def main(argv: list[str] | None = None) -> int:
         runner = ClaudeCli()
     except ClaudeError as exc:
         print(exc, file=sys.stderr)
+        write_status(session, "failed", f"Claude could not be started: {exc}")
         return 1
     opts = Options(
         scene_model=args.scene_model,
@@ -143,16 +146,31 @@ def main(argv: list[str] | None = None) -> int:
         only_scene=args.only_scene,
         workers=args.workers,
     )
-    result = Writer(session, runner, opts).run()
+    try:
+        result = Writer(session, runner, opts).run()
+    except Exception as exc:
+        write_status(session, "failed", f"The notes run crashed: {exc}")
+        raise
     tokens_in = sum(r.input_tokens for r in runner.records)
     tokens_out = sum(r.output_tokens for r in runner.records)
     print(
         f"{result.scenes} scene(s) written to {session / 'notes'}, {result.fallbacks} kept raw; "
         f"{len(runner.records)} Claude call(s), {tokens_in} tokens in, {tokens_out} out."
     )
+    counts = {"scenes": result.scenes, "fallbacks": result.fallbacks, "pending": result.pending}
     if result.paused:
         print(f"Paused by a usage limit: {result.paused}\nRun the same command again later.")
+        write_status(session, "paused", f"Paused by a usage limit: {result.paused}", **counts)
         return EXIT_PAUSED
+    if result.pending:
+        msg = f"{result.pending} scene(s) could not be written and are kept raw for now."
+        print(f"{msg} Run the same command again to try them again.")
+        write_status(session, "incomplete", msg, **counts)
+        return EXIT_INCOMPLETE
+    msg = "Notes written."
+    if result.fallbacks:
+        msg = f"Notes written, but {result.fallbacks} scene(s) stayed raw after repeated tries."
+    write_status(session, "done", msg, **counts)
     return 0
 
 

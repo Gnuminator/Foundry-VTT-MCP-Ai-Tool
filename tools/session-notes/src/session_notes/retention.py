@@ -48,7 +48,7 @@ def approved_at(session: Path) -> datetime | None:
     path = session / "notes" / APPROVED
     if not path.exists():
         return None
-    return datetime.fromisoformat(json.loads(path.read_text(encoding="utf-8"))["approved_at"])
+    return datetime.fromisoformat(json.loads(path.read_text(encoding="utf-8-sig"))["approved_at"])
 
 
 def audio_files(session: Path) -> list[Path]:

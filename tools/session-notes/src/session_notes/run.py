@@ -23,6 +23,9 @@ from .scenes import split_scenes
 from .validate import check_lines, combine, raw_fallback, repair
 
 MIN_SPLIT_LINES = 6
+# A scene that fell back to raw text is tried again on the next runs (a sleeping PC or a dropped
+# network makes every call fail). After this many runs the raw scene is accepted and cached.
+MAX_FALLBACK_RUNS = 3
 
 
 @dataclass(slots=True)
@@ -34,6 +37,9 @@ class Options:
     scene_gap: float = 90.0
     only_scene: int | None = None
     workers: int = 3  # scenes written at the same time
+    # A raw scene counts as one more failed run only if the last count is older than this, so
+    # three quick passes during one outage do not accept hollow scenes (tests set 0).
+    fallback_gap_s: float = 1800.0
 
 
 @dataclass(slots=True)
@@ -41,6 +47,7 @@ class RunResult:
     scenes: int
     fallbacks: int
     paused: str | None = None  # the usage-limit message when the run had to stop
+    pending: int = 0  # raw fallback scenes that the next run tries again
     audit: list[dict[str, Any]] = field(default_factory=list)
 
 
@@ -122,7 +129,12 @@ class Writer:
             cached = self.work / f"scene-{scene.index:03d}.json"
             if cached.exists():
                 data = json.loads(cached.read_text(encoding="utf-8"))
-                if data.get("ids") == scene.ids:  # same timeline, same split
+                # same timeline, same split; a raw fallback counts only once it has been accepted
+                # (an older run cached raw scenes as done, so they are tried again here)
+                raw = bool(data["notes"].get("fallback"))
+                if data.get("ids") == scene.ids and (
+                    not raw or self._fallback_tries(scene) >= MAX_FALLBACK_RUNS
+                ):
                     done[scene.index] = data["notes"]
                     continue
             todo.append(scene)
@@ -130,6 +142,7 @@ class Writer:
         # Several scenes at once; after a usage limit no new scene starts, the ones already
         # running finish, and every finished scene is saved on its own.
         paused: list[str] = []
+        retry: list[int] = []
         lock = threading.Lock()
 
         def work(scene: Scene) -> None:
@@ -145,6 +158,12 @@ class Writer:
             result["index"] = scene.index
             result["start"] = scene.start
             result["end"] = scene.end
+            if result.get("fallback") and not self._accept_fallback(scene):
+                # Not cached: the next run asks Claude about this scene again.
+                with lock:
+                    done[scene.index] = result
+                    retry.append(scene.index)
+                return
             (self.work / f"scene-{scene.index:03d}.json").write_text(
                 json.dumps({"ids": scene.ids, "notes": result}, ensure_ascii=False),
                 encoding="utf-8",
@@ -158,7 +177,7 @@ class Writer:
         paused_reason = paused[0] if paused else None
 
         session_notes: dict[str, Any] | None = None
-        complete = paused_reason is None and len(notes) == len(scenes)
+        complete = paused_reason is None and len(notes) == len(scenes) and not retry
         if complete:
             session_notes = self._session_notes(notes, roster)
         # Written even when the session summary is missing: the scene notes are useful alone.
@@ -168,8 +187,35 @@ class Writer:
             scenes=len(notes),
             fallbacks=sum(1 for n in notes if n.get("fallback")),
             paused=paused_reason,
+            pending=len(retry),
             audit=self.audit,
         )
+
+    def _fallback_tries(self, scene: Scene) -> int:
+        marker = self.work / f"scene-{scene.index:03d}.fallback.json"
+        try:
+            data = json.loads(marker.read_text(encoding="utf-8"))
+            return int(data.get("tries", 0)) if data.get("ids") == scene.ids else 0
+        except (ValueError, OSError):
+            return 0
+
+    def _accept_fallback(self, scene: Scene) -> bool:
+        """Count this run for a raw scene; True once it has failed ``MAX_FALLBACK_RUNS`` runs."""
+        marker = self.work / f"scene-{scene.index:03d}.fallback.json"
+        tries = self._fallback_tries(scene)
+        now = time.time()
+        last = 0.0
+        try:
+            last = float(json.loads(marker.read_text(encoding="utf-8")).get("at", 0))
+        except (ValueError, OSError):
+            pass
+        if tries == 0 or now - last >= self.opts.fallback_gap_s:
+            tries += 1
+            marker.write_text(
+                json.dumps({"ids": scene.ids, "tries": tries, "at": now}), encoding="utf-8"
+            )
+        self._log("scene_fallback_run", scene=scene.index, tries=tries)
+        return tries >= MAX_FALLBACK_RUNS
 
     def _session_notes(self, notes: list[dict[str, Any]], roster: Roster) -> dict[str, Any] | None:
         cached = self.work / "session.json"

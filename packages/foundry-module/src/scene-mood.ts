@@ -301,7 +301,8 @@ function planApply(scene: SceneLike, request: SceneMoodPlanRequest): SceneMoodPl
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error);
     throw new Error(
-      `Preset ${quoted(preset.name)} cannot be applied: ${reason} Save it again or remove it.`
+      `Preset ${quoted(preset.name)} cannot be applied: ${reason} Save it again or remove it.`,
+      { cause: error }
     );
   }
   if (ops.length === 0) throw new Error(`Preset ${quoted(preset.name)} changes nothing right now.`);

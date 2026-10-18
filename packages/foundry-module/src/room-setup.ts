@@ -19,8 +19,11 @@ import type {
   RoomArea,
   RoomRegionSummary,
   RoomSetupPlan,
+  RoomHazardRequest,
+  RoomLevelsRequest,
   RoomSetupRequest,
   RoomSpawnRequest,
+  RoomStairsRequest,
   RoomTeleportRequest,
 } from '@gnuminator/shared';
 
@@ -48,6 +51,7 @@ interface SceneLike {
   grid?: { size?: number; isGridless?: boolean; type?: number };
   dimensions?: { sceneRect?: { x?: number; y?: number; width?: number; height?: number } };
   tokens?: unknown;
+  levels?: unknown;
 }
 
 /** The parts of an Actor the spawn reads. */
@@ -61,6 +65,10 @@ interface ActorLike {
 interface Globals {
   foundry?: { utils?: { randomID?: (length: number) => string } };
   CONST?: { REGION_VISIBILITY?: { GAMEMASTER?: number } };
+  CONFIG?: {
+    Token?: { movement?: { actions?: unknown } };
+    RegionBehavior?: { dataModels?: Record<string, unknown> };
+  };
   game: {
     user?: { isGM?: boolean };
     actors?: { get?: (id: string) => ActorLike | undefined; contents?: ActorLike[] };
@@ -208,8 +216,40 @@ function areaRect(scene: SceneLike, area: RoomArea, label: string, warnings: str
   return rect;
 }
 
-function levelsFor(scene: SceneLike): string[] | undefined {
-  if (!sceneHasLevels(scene as unknown as Scene)) return undefined;
+/** The Levels of a scene as plain records (empty on a world without Scene Levels). */
+function sceneLevels(
+  scene: SceneLike
+): { id: string; name: string; bottom: number; top: number }[] {
+  return contentsOf(scene.levels).map(l => {
+    const elevation = rec(l.elevation);
+    return {
+      id: typeof l.id === 'string' ? l.id : '',
+      name: typeof l.name === 'string' ? l.name : '',
+      bottom: typeof elevation?.bottom === 'number' ? elevation.bottom : -Infinity,
+      top: typeof elevation?.top === 'number' ? elevation.top : Infinity,
+    };
+  });
+}
+
+/** A Level of the scene by id or name (any case). Throws on none or several. */
+function resolveLevel(scene: SceneLike, ref: string): string {
+  const all = sceneLevels(scene);
+  const byId = all.find(l => l.id === ref);
+  if (byId) return byId.id;
+  const named = all.filter(l => l.name.toLowerCase() === ref.toLowerCase());
+  if (named.length === 1) return named[0].id;
+  if (named.length > 1)
+    throw new Error(`${named.length} levels are named "${ref}": give the level id`);
+  const have = all.map(l => l.name).join(', ');
+  throw new Error(`No level "${ref}" on ${quoted(scene.name)}${have ? ` (it has: ${have})` : ''}`);
+}
+
+function levelsFor(scene: SceneLike, levelRef?: string): string[] | undefined {
+  if (!sceneHasLevels(scene as unknown as Scene)) {
+    if (levelRef) throw new Error(`${quoted(scene.name)} has no Scene Levels`);
+    return undefined;
+  }
+  if (levelRef) return [resolveLevel(scene, levelRef)];
   if (globals().game.scenes?.current?.id !== scene.id) return undefined; // every level
   const id = currentLevelId(scene as unknown as Scene);
   return id ? [id] : undefined;
@@ -227,7 +267,9 @@ function regionData(
   name: string,
   rect: Rect,
   color: string,
-  behaviors: Rec[]
+  behaviors: Rec[],
+  levelRef?: string,
+  levelIds?: string[]
 ): Rec {
   const data: Rec = {
     _id: id,
@@ -246,7 +288,7 @@ function regionData(
     behaviors,
     flags: { [MODULE_ID]: { roomSetup: true } },
   };
-  const levels = levelsFor(scene);
+  const levels = levelIds ?? levelsFor(scene, levelRef);
   if (levels) data.levels = levels;
   return data;
 }
@@ -297,16 +339,23 @@ function planTeleport(request: RoomTeleportRequest): RoomSetupPlan {
   const entryUuid = `${String(fromScene.uuid)}.Region.${entryId}`;
   const arrivalUuid = `${String(toScene.uuid)}.Region.${arrivalId}`;
 
-  const entry = regionData(fromScene, entryId, name, fromRect, '#4488ff', [
-    teleportBehavior([arrivalUuid], request, `${name} (teleport)`),
-  ]);
+  const entry = regionData(
+    fromScene,
+    entryId,
+    name,
+    fromRect,
+    '#4488ff',
+    [teleportBehavior([arrivalUuid], request, `${name} (teleport)`)],
+    from.level
+  );
   const arrival = regionData(
     toScene,
     arrivalId,
     `${name} (arrival)`,
     toRect,
     '#44cc88',
-    request.twoWay ? [teleportBehavior([entryUuid], request, `${name} (back)`)] : []
+    request.twoWay ? [teleportBehavior([entryUuid], request, `${name} (back)`)] : [],
+    to.level
   );
   if (request.twoWay) {
     warnings.push(
@@ -408,7 +457,11 @@ async function planSpawn(request: RoomSpawnRequest): Promise<RoomSetupPlan> {
   const spots = findSpots(grid, rect, occupied, anchor, footprints);
 
   const asScene = scene as unknown as Scene;
-  const level = sceneHasLevels(asScene) ? currentLevelId(asScene) : undefined;
+  const level = area.level
+    ? levelsFor(scene, area.level)?.[0]
+    : sceneHasLevels(asScene)
+      ? currentLevelId(asScene)
+      : undefined;
   const hidden = request.hidden !== false;
   const roomId = newId();
   const ops: GuardedOp[] = [
@@ -416,7 +469,7 @@ async function planSpawn(request: RoomSpawnRequest): Promise<RoomSetupPlan> {
       kind: 'create',
       documentName: 'Region',
       parentUuid: String(scene.uuid),
-      data: regionData(scene, roomId, name, rect, '#cc8844', []),
+      data: regionData(scene, roomId, name, rect, '#cc8844', [], area.level),
       keepId: true,
     },
   ];
@@ -461,6 +514,225 @@ async function planSpawn(request: RoomSpawnRequest): Promise<RoomSetupPlan> {
   };
 }
 
+const MAX_LEVELS = 10;
+const DIFFICULT_TERRAIN = 'dnd5e.difficultTerrain';
+const DARKNESS_MODES = ['override', 'brighten', 'darken'];
+
+function planLevels(request: RoomLevelsRequest): RoomSetupPlan {
+  const scene = resolveScene(request.scene);
+  if (!sceneHasLevels(scene as unknown as Scene)) {
+    throw new Error(
+      `${quoted(scene.name)} has no Scene Levels (Foundry 14 scenes do; is this an older world?)`
+    );
+  }
+  const specs = request.levels;
+  if (!Array.isArray(specs) || specs.length === 0 || specs.length > MAX_LEVELS) {
+    throw new Error(`Give 1 to ${MAX_LEVELS} levels: { name, bottom, top }`);
+  }
+  const existing = sceneLevels(scene);
+  const warnings: string[] = [];
+  const names = new Set(existing.map(l => l.name.toLowerCase()));
+  const made: NonNullable<RoomSetupPlan['levels']> = [];
+  const ops: GuardedOp[] = [];
+  for (const spec of specs) {
+    const name = String(spec?.name ?? '').trim();
+    if (!name) throw new Error('Each level needs a name');
+    if (names.has(name.toLowerCase())) {
+      throw new Error(`There is already a level named "${name}" (or it is listed twice)`);
+    }
+    names.add(name.toLowerCase());
+    const bottom = spec.bottom;
+    const top = spec.top ?? null;
+    if (typeof bottom !== 'number' || !Number.isFinite(bottom)) {
+      throw new Error(`Level "${name}": bottom must be a number (the floor's elevation)`);
+    }
+    if (top !== null && (typeof top !== 'number' || !Number.isFinite(top) || top < bottom)) {
+      throw new Error(`Level "${name}": top must be a number that is not below bottom`);
+    }
+    for (const other of [...existing, ...made.map(m => ({ ...m, top: m.top ?? Infinity }))]) {
+      const otherName = (other as { name: string }).name;
+      if (bottom < other.top && (top ?? Infinity) > other.bottom) {
+        warnings.push(`"${name}" overlaps the elevation range of "${otherName}"`);
+      }
+    }
+    const data: Rec = { name, elevation: { bottom, top } };
+    if (spec.background) {
+      const src = String(spec.background).trim();
+      if (!/\.(webp|png|jpe?g|avif|gif|svg|webm|mp4)$/i.test(src)) {
+        throw new Error(
+          `Level "${name}": background must be an image or video path (.webp, .png, .jpg, .webm)`
+        );
+      }
+      data.background = { src };
+    } else {
+      warnings.push(`"${name}" has no background image; set one in Foundry`);
+    }
+    ops.push({ kind: 'create', documentName: 'Level', parentUuid: String(scene.uuid), data });
+    made.push({ name, bottom, top });
+  }
+  if (existing.length > 0) {
+    warnings.push(
+      `${quoted(scene.name)} already has ${existing.length} level(s): ${existing.map(l => l.name).join(', ')}. The new ones are added, none are changed`
+    );
+  }
+  return {
+    summary: `Add ${made.length} Scene Level${made.length === 1 ? '' : 's'} (${made.map(m => m.name).join(', ')}) to ${quoted(scene.name)}`,
+    ops,
+    regions: [],
+    levels: made,
+    warnings,
+  };
+}
+
+function planStairs(request: RoomStairsRequest): RoomSetupPlan {
+  const name = (request.name ?? '').trim();
+  if (!name) throw new Error('Stairs need a name');
+  const area = checkArea(request.area, 'area');
+  const scene = resolveScene(area.scene);
+  if (!sceneHasLevels(scene as unknown as Scene) || sceneLevels(scene).length < 2) {
+    throw new Error(`${quoted(scene.name)} has fewer than two levels: plan the levels first`);
+  }
+  const warnings: string[] = [];
+  const rect = areaRect(scene, area, 'area', warnings);
+  const ids = request.levels?.length
+    ? [...new Set(request.levels.map(ref => resolveLevel(scene, String(ref))))]
+    : sceneLevels(scene).map(l => l.id);
+  if (ids.length < 2) throw new Error('Stairs join at least two different levels');
+  const actions = request.movementActions ?? [];
+  const known = Object.keys(
+    (globals().CONFIG?.Token?.movement?.actions as Rec | undefined) ?? {}
+  ).filter(a => a !== 'displace');
+  for (const action of actions) {
+    if (known.length > 0 && !known.includes(action)) {
+      throw new Error(`Unknown movement action "${action}" (${known.join(', ')})`);
+    }
+  }
+  const behavior: Rec = {
+    _id: newId(),
+    type: 'changeLevel',
+    name: `${name} (change level)`,
+    system: { movementActions: actions },
+  };
+  const levelNames = sceneLevels(scene)
+    .filter(l => ids.includes(l.id))
+    .map(l => l.name);
+  warnings.push(
+    `Players see these level names (${levelNames.join(', ')}) in the stairs dialog when they step on it`
+  );
+  return {
+    summary: `Add stairs ${quoted(name)} on ${quoted(scene.name)} joining ${levelNames.join(', ')}`,
+    ops: [
+      {
+        kind: 'create',
+        documentName: 'Region',
+        parentUuid: String(scene.uuid),
+        data: regionData(scene, newId(), name, rect, '#aa66ff', [behavior], undefined, ids),
+        keepId: true,
+      },
+    ],
+    regions: [
+      {
+        name,
+        sceneName: String(scene.name),
+        squares: [area.x, area.y, area.width, area.height],
+        role: 'stairs',
+      },
+    ],
+    warnings,
+  };
+}
+
+async function planHazard(request: RoomHazardRequest): Promise<RoomSetupPlan> {
+  const name = (request.name ?? '').trim();
+  if (!name) throw new Error('A hazard needs a name');
+  const area = checkArea(request.area, 'area');
+  const scene = resolveScene(area.scene);
+  const warnings: string[] = [];
+  const rect = areaRect(scene, area, 'area', warnings);
+  let behavior: Rec;
+  let what: string;
+  switch (request.kind) {
+    case 'difficult': {
+      // Foundry's own movement cost behavior cannot be built next to dnd5e (its schema comes up
+      // empty when walk has no terrain rule, seen live on 14.368 + dnd5e 6.0.5), so this uses the
+      // system's own difficult terrain behavior (x2 cost, the magical flag decides which creatures can ignore it).
+      const models = globals().CONFIG?.RegionBehavior?.dataModels;
+      if (models && !(DIFFICULT_TERRAIN in models)) {
+        throw new Error(
+          'Difficult terrain needs the dnd5e system (its Region behavior is missing)'
+        );
+      }
+      behavior = {
+        _id: newId(),
+        type: DIFFICULT_TERRAIN,
+        name: `${name} (difficult terrain)`,
+        system: { magical: request.magical === true },
+      };
+      what = request.magical === true ? 'magical difficult terrain' : 'difficult terrain';
+      break;
+    }
+    case 'darkness': {
+      const mode = request.darknessMode ?? 'darken';
+      const index = DARKNESS_MODES.indexOf(mode);
+      if (index < 0) throw new Error(`darknessMode must be one of ${DARKNESS_MODES.join(', ')}`);
+      const modifier = request.modifier ?? 0.5;
+      if (typeof modifier !== 'number' || modifier < 0 || modifier > 1) {
+        throw new Error('modifier must be 0 to 1');
+      }
+      behavior = {
+        _id: newId(),
+        type: 'adjustDarknessLevel',
+        name: `${name} (darkness)`,
+        system: { mode: index, modifier },
+      };
+      what = `darkness (${mode} ${modifier})`;
+      break;
+    }
+    case 'effect': {
+      const uuid = String(request.effectUuid ?? '').trim();
+      if (!uuid)
+        throw new Error('kind effect needs effectUuid: the uuid of an existing ActiveEffect');
+      const fromUuid = (globalThis as unknown as { fromUuid?: (u: string) => Promise<Rec | null> })
+        .fromUuid;
+      const found = fromUuid ? await fromUuid(uuid).catch(() => null) : null;
+      if (found?.documentName !== 'ActiveEffect') {
+        throw new Error(`No ActiveEffect at ${uuid}`);
+      }
+      behavior = {
+        _id: newId(),
+        type: 'applyActiveEffect',
+        name: `${name} (effect)`,
+        system: { effects: [uuid] },
+      };
+      what = `effect ${quoted(found.name)}`;
+      break;
+    }
+    default:
+      throw new Error(`kind must be one of difficult, darkness, effect`);
+  }
+  return {
+    summary: `Add the hazard ${quoted(name)} (${what}) on ${quoted(scene.name)}`,
+    ops: [
+      {
+        kind: 'create',
+        documentName: 'Region',
+        parentUuid: String(scene.uuid),
+        data: regionData(scene, newId(), name, rect, '#dd4444', [behavior], area.level),
+        keepId: true,
+      },
+    ],
+    regions: [
+      {
+        name,
+        sceneName: String(scene.name),
+        squares: [area.x, area.y, area.width, area.height],
+        role: 'hazard',
+      },
+    ],
+    warnings,
+  };
+}
+
 /** Build the plan for one request. Throws when nothing would change. */
 export async function planRoomSetup(data: unknown): Promise<RoomSetupPlan> {
   requireGm();
@@ -470,6 +742,12 @@ export async function planRoomSetup(data: unknown): Promise<RoomSetupPlan> {
       return planTeleport(request);
     case 'spawn':
       return await planSpawn(request);
+    case 'levels':
+      return planLevels(request);
+    case 'stairs':
+      return planStairs(request);
+    case 'hazard':
+      return await planHazard(request);
     default:
       throw new Error(`Unknown action "${String(rec(data)?.action)}"`);
   }

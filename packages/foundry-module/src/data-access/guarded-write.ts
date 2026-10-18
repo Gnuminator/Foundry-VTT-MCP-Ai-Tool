@@ -80,6 +80,12 @@ export interface OpSnapshot {
   modifiedTime?: number | null;
   /** create with keepId: a document with that id already exists. */
   idTaken?: boolean;
+  /**
+   * delete of a Scene Level: how many tokens, tiles, walls, lights, sounds, notes, drawings and
+   * regions sit on it. Foundry deletes them with the Level, and undo would bring back only the
+   * empty Level, so a delete is refused while this is above 0.
+   */
+  levelContents?: number;
 }
 
 export interface GuardedApplyRequest {
@@ -267,6 +273,35 @@ function createName(op: GuardedCreateOp): string | null {
   return typeof label === 'string' ? label : null;
 }
 
+const LEVEL_COLLECTIONS = [
+  'tokens',
+  'tiles',
+  'walls',
+  'lights',
+  'sounds',
+  'notes',
+  'drawings',
+  'regions',
+] as const;
+
+/** Things in the parent scene that name this Level (`level` or `levels`); 0 when unknown. */
+function countOnLevel(level: FoundryDocument): number {
+  const id = (level as { id?: unknown }).id;
+  const scene = (level as { parent?: unknown }).parent as Record<string, unknown> | null;
+  if (typeof id !== 'string' || !scene) return 0;
+  let count = 0;
+  for (const key of LEVEL_COLLECTIONS) {
+    const collection = scene[key] as { contents?: unknown } | undefined;
+    const docs = Array.isArray(collection?.contents) ? (collection.contents as unknown[]) : [];
+    for (const d of docs) {
+      const src = (d as { _source?: Record<string, unknown> })._source ?? {};
+      const levels = src.levels;
+      if (src.level === id || (Array.isArray(levels) && levels.includes(id))) count++;
+    }
+  }
+  return count;
+}
+
 async function snapshotOp(op: GuardedOp): Promise<OpSnapshot> {
   switch (op.kind) {
     case 'update': {
@@ -284,12 +319,14 @@ async function snapshotOp(op: GuardedOp): Promise<OpSnapshot> {
       const doc = await resolve(op.uuid);
       if (!doc) return { exists: false };
       const parent = parentOf((doc as { parent?: FoundryDocument | null }).parent ?? null);
+      const levelContents = doc.documentName === 'Level' ? countOnLevel(doc) : undefined;
       return {
         exists: true,
         documentName: doc.documentName,
         name: nameOf(doc),
         modifiedTime: modifiedTimeOf(sourceOf(doc)),
         ...(parent ? { parent } : {}),
+        ...(levelContents === undefined ? {} : { levelContents }),
       };
     }
     case 'create': {
@@ -352,6 +389,9 @@ function conflictReason(op: GuardedOp, expected: OpSnapshot, current: OpSnapshot
     return current.exists ? 'the document exists again' : 'the document no longer exists';
   }
   if (op.kind === 'delete') {
+    if ((current.levelContents ?? 0) > 0) {
+      return `${current.levelContents} thing(s) sit on this level and Foundry would delete them with it`;
+    }
     if (
       expected.modifiedTime !== undefined &&
       expected.modifiedTime !== null &&

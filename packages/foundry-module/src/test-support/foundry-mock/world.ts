@@ -357,7 +357,10 @@ export function installFoundryGlobals(world: TestWorld): () => void {
   g.Hooks = {
     on: (name: string, cb: (...a: any[]) => void): number => (hooks[name] ??= []).push(cb),
     once: (): undefined => undefined,
-    off: (): undefined => undefined,
+    // `on` returns the 1-based slot; `off` blanks it so a removed hook stops firing.
+    off: (name: string, id: number): void => {
+      if (hooks[name]?.[id - 1]) hooks[name][id - 1] = (): void => undefined;
+    },
     call: (name: string, ...args: any[]): void => (hooks[name] ?? []).forEach(cb => cb(...args)),
     callAll: (name: string, ...args: any[]): void => (hooks[name] ?? []).forEach(cb => cb(...args)),
   };

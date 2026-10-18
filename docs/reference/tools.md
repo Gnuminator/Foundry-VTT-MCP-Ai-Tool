@@ -1225,13 +1225,13 @@ Parameters:
 
 ### plan-room-setup
 
-Plan Region-based scene parts: "teleport" moves tokens entering one rectangle to another (same or other scene); "spawn" makes a room rectangle plus tokens from actors on free squares in it. Apply with apply-planned-change, undo with undo-change. Needs the module switch "Room setup" (off by default).
+Plan Region-based scene parts: "teleport" moves tokens entering one rectangle to another (same or other scene); "spawn" makes a room rectangle plus tokens from actors on free squares in it; "levels" adds Scene Levels; "stairs" joins levels; "hazard" makes difficult terrain, darkness or an existing effect. Apply with apply-planned-change, undo with undo-change. Needs the module switch "Room setup" (off by default).
 
-Kind: read-only. Title: Plan room setup (teleports, tokens in a room).
+Kind: read-only. Title: Plan room setup (teleports, rooms, levels, stairs, hazards).
 
 Parameters:
 
-- `action` (string, required): One of: `teleport`, `spawn`.
+- `action` (string, required): One of: `teleport`, `spawn`, `levels`, `stairs`, `hazard`.
 - `name` (string): teleport: entry name (arrival "&lt;name> (arrival)"). spawn: room name.
 - `from` (object): teleport: the entry: grid squares, x/y top-left from 0; scene id or name (default viewed).
   - `x` (integer, required)
@@ -1239,12 +1239,14 @@ Parameters:
   - `width` (integer, required)
   - `height` (integer, required)
   - `scene` (string)
+  - `level` (string)
 - `to` (object): teleport: the arrival: grid squares, x/y top-left from 0; scene id or name (default viewed).
   - `x` (integer, required)
   - `y` (integer, required)
   - `width` (integer, required)
   - `height` (integer, required)
   - `scene` (string)
+  - `level` (string)
 - `twoWay` (boolean): teleport: also back from the arrival.
 - `choice` (boolean): teleport: player confirms each teleport.
 - `placement` (string): teleport: landing spot (default center). One of: `random`, `center`, `relative`.
@@ -1254,10 +1256,19 @@ Parameters:
   - `width` (integer, required)
   - `height` (integer, required)
   - `scene` (string)
+  - `level` (string)
 - `creatures` (array of object): spawn: actors (id or name) and count, 40 tokens at most.
   - `actor` (string, required)
   - `count` (integer)
 - `hidden` (boolean): spawn: tokens hidden from players (default true).
+- `scene` (string): levels: scene.
+- `levels` (array of any): levels: [{name, bottom, top?, background?}]. stairs: level names.
+- `movementActions` (array of string)
+- `kind` (string): One of: `difficult`, `darkness`, `effect`.
+- `magical` (boolean): difficult: magical terrain.
+- `darknessMode` (string): One of: `override`, `brighten`, `darken`.
+- `modifier` (number): darkness: 0 to 1.
+- `effectUuid` (string)
 
 ## Admin
 

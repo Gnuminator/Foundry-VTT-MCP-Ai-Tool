@@ -269,7 +269,7 @@ export class PreflightTools {
     }
     const list = Array.isArray(features) ? features : [];
     const writesOff = list.some(f => f.writesAllowed === false);
-    const on = list.filter(f => f.enabled === true).map(f => f.name);
+    const on = list.filter(f => f.enabled === true && f.readOnly !== true).map(f => f.name);
     const switchedOn =
       on.length > 0 ? `Feature switches on: ${on.join(', ')}.` : 'No feature switch is on.';
     return {

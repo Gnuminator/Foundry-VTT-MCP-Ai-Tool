@@ -586,6 +586,17 @@ describe('applyGuardedOps: refusals', () => {
     expect(actor.name).toBe('Ireena');
   });
 
+  it('refuses a read-only feature even when its switch is on', async () => {
+    const actor = addActor();
+    registerGuardedFeature({ id: 'read-only-test', name: 'Read only', hint: 'R.', readOnly: true });
+    world.setSetting(MODULE_ID, 'feature.read-only-test.enabled', true);
+    const req = await request([{ kind: 'update', uuid: actor.uuid, changes: { name: 'X' } }], {
+      feature: 'read-only-test',
+    });
+    await expectRefused(req, /read-only and takes no plans/);
+    expect(actor.name).toBe('Ireena');
+  });
+
   it('refuses a feature that is switched off, but allows undo', async () => {
     const actor = addActor();
     const applied = await applyGuardedOps(

@@ -24,6 +24,8 @@ export interface GuardedFeature {
    * step (the bridge reports `autoApply` with the plan and the caller applies it at once).
    */
   autoApply?: { name: string; hint: string };
+  /** A switch for a read-only tool: the hint says it changes nothing instead of "asks to confirm". */
+  readOnly?: boolean;
 }
 
 const features = new Map<string, GuardedFeature>();
@@ -51,7 +53,11 @@ export function registerGuardedFeature(feature: GuardedFeature): void {
   const on = feature.defaultEnabled === true;
   game.settings.register(MODULE_ID, featureSettingKey(feature.id), {
     name: feature.name,
-    hint: `${feature.hint} ${on ? 'On' : 'Off'} by default; every change still asks for confirmation and can be undone.`,
+    hint: `${feature.hint} ${on ? 'On' : 'Off'} by default; ${
+      feature.readOnly
+        ? 'it only reads and changes nothing.'
+        : 'every change still asks for confirmation and can be undone.'
+    }`,
     scope: 'world',
     config: true,
     type: Boolean,
@@ -72,6 +78,11 @@ export function registerGuardedFeature(feature: GuardedFeature): void {
 /** Whether a feature is known here. */
 export function isKnownFeature(id: string): boolean {
   return features.has(id);
+}
+
+/** Whether a feature is a read-only switch: it never takes a plan. */
+export function isReadOnlyFeature(id: string): boolean {
+  return features.get(id)?.readOnly === true;
 }
 
 /** Whether a feature's switch is on (unknown features are off). */
@@ -116,6 +127,7 @@ export function listGuardedFeatures(): Array<{
   enabled: boolean;
   writesAllowed: boolean;
   autoApply?: boolean;
+  readOnly?: boolean;
 }> {
   const writesAllowed = writeOperationsAllowed();
   return [...features.values()].map(({ autoApply, ...f }) => ({

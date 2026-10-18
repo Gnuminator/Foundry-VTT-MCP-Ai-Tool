@@ -6,12 +6,12 @@ description: Every tool the bridge serves, by tool set, with its description and
 
 # Tool reference
 
-The bridge serves 92 tools in five sets. [Tool sets](TOOL-SETS.md) explains the sets and how Claude Desktop loads them; this page lists every tool with the description and parameters Claude reads.
+The bridge serves 93 tools in five sets. [Tool sets](TOOL-SETS.md) explains the sets and how Claude Desktop loads them; this page lists every tool with the description and parameters Claude reads.
 
 | Set | Claude Desktop entry | Tools | For |
 | --- | --- | --- | --- |
 | [Core](#core) | `foundry-mcp` | 22 | Look things up (world, characters, scenes, journals, compendiums, combat) and review, apply or undo planned changes. Always on. |
-| [Play](#play) | `foundry-mcp-play` | 33 | Run the table live: tokens, combat turns, rolls, damage, conditions, resources, chat, scene mood, map notes and loot. |
+| [Play](#play) | `foundry-mcp-play` | 34 | Run the table live: tokens, combat turns, rolls, damage, conditions, resources, chat, scene mood, map notes and loot. |
 | [Prep](#prep) | `foundry-mcp-prep` | 20 | Prepare sessions and write recaps: quests and journals, encounter budgets, the Tarokka reading, handouts, the session log, play stats and the pre-flight check. |
 | [Build](#build) | `foundry-mcp-build` | 8 | Make and change NPCs, monsters and items: from a compendium or from scratch, with features, attacks and spells. Set up rooms: teleports and tokens in a room. |
 | [Admin](#admin) | `foundry-mcp-admin` | 9 | Set up and troubleshoot: installed modules and their errors, who owns which actor, and the Obsidian mirror settings. |
@@ -721,6 +721,20 @@ Parameters:
 
 - `action` (string, required): Mark the table starting or ending a play session. One of: `start`, `end`.
 - `note` (string): Optional note kept with the marker (up to 200 characters).
+
+### check-action
+
+Rules check (off by default). Says whether an attack, spell or item looks legal and why: turn, cost, range to a target, spell slots and uses left. Cannot see actions already spent this turn. Read-only.
+
+Kind: read-only. Title: Check an action against the rules.
+
+Parameters:
+
+- `actor` (string, required): Actor name or ID.
+- `item` (string, required): Item or spell name or ID.
+- `target` (string): Target token name, for range.
+- `activity` (string): Activity name or ID (default: first).
+- `castLevel` (integer): Level to cast at (default: its own or lowest slot left). Range: 1 to 9.
 
 ## Prep
 

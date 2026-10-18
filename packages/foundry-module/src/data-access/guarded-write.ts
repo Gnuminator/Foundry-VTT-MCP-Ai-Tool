@@ -21,7 +21,7 @@
 import type { ChangeWriteMode } from '../change-journal-types.js';
 import { MODULE_ID } from '../constants.js';
 import { eventTracker } from '../session-events.js';
-import { isFeatureEnabled, isKnownFeature } from '../guarded-features.js';
+import { isFeatureEnabled, isKnownFeature, isReadOnlyFeature } from '../guarded-features.js';
 import { unsetKeyUpdate } from '../systems/core.js';
 import {
   RULES_FLAG_PATH,
@@ -434,6 +434,9 @@ function requireWriteAccess(req: GuardedApplyRequest): void {
   if (req.mode === 'apply') {
     if (!isKnownFeature(req.feature)) {
       throw new Error(`Unknown feature "${req.feature}" (not installed in this module version)`);
+    }
+    if (isReadOnlyFeature(req.feature)) {
+      throw new Error(`The "${req.feature}" feature is read-only and takes no plans`);
     }
     if (!isFeatureEnabled(req.feature)) {
       throw new Error(`The "${req.feature}" feature is switched off in the module settings`);

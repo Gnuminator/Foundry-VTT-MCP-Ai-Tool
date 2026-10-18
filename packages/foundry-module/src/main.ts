@@ -23,6 +23,7 @@ import { SCENE_MOOD_FEATURE_ID } from './scene-mood.js';
 import { SCENE_RESTORE_FEATURE_ID } from './scene-state.js';
 import { NPC_TURN_FEATURE_ID } from './npc-turn.js';
 import { ROOM_SETUP_FEATURE_ID } from './room-setup.js';
+import { RULES_CHECK_FEATURE_ID } from './rules-check.js';
 import { PARTY_FEATURE_ID } from './party-scan.js';
 import { registerGmWindowsSetting } from './gm-windows.js';
 import { registerSessionSwitchSettings } from './session-switches.js';
@@ -160,6 +161,12 @@ class FoundryMCPBridge {
         id: NPC_TURN_FEATURE_ID,
         name: 'AI Tool: NPC turn assistant (writes)',
         hint: 'Lets the AI move a monster on its turn, after you confirm the plan. Each move shows in Recent Changes with an Undo. The attack is rolled separately.',
+      });
+      registerGuardedFeature({
+        id: RULES_CHECK_FEATURE_ID,
+        name: 'AI Tool: Rules check',
+        hint: 'Lets the AI check whether an attack, spell or item looks legal right now (turn, cost, range, spell slots, uses left) and say why.',
+        readOnly: true,
       });
       registerGuardedFeature({
         id: 'change-undo',

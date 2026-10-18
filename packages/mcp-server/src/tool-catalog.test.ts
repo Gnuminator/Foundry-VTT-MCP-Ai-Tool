@@ -26,8 +26,8 @@ const deps = stubToolRouterDeps();
 const tools = collectToolDefinitions(deps);
 
 describe('tool catalog', () => {
-  it('lists exactly 92 tools; control methods such as record_usage are not tools', () => {
-    expect(tools).toHaveLength(92);
+  it('lists exactly 93 tools; control methods such as record_usage are not tools', () => {
+    expect(tools).toHaveLength(93);
     for (const method of [
       'record_usage',
       'session_switches',
@@ -65,7 +65,7 @@ describe('tool catalog', () => {
     // I-124 raised core and prep by 2,000 for the tool hints (title, readOnlyHint, destructiveHint).
     const budget = {
       core: 17_000,
-      play: 33_000, // about 32,600 with plan-npc-turn and plan-scene-mood and list-scene-moods (I-034); raised 1,000 on purpose for plan-npc-turn (I-125)
+      play: 34_500, // about 33,700 with plan-npc-turn (I-125) and check-action (I-126); raised 1,500 on purpose for check-action
       prep: 22_000,
       build: 29_000, // about 28,100 with plan-room-setup (I-133)
       admin: 8_000,

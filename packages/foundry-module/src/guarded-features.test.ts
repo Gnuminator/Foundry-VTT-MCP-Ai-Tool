@@ -55,8 +55,21 @@ describe('registerGuardedFeature', () => {
       type: Boolean,
       default: false,
     });
-    expect(config.hint).toMatch(/^Writes attitudes\. Off by default/);
+    expect(config.hint).toBe(
+      'Writes attitudes. Off by default; every change still asks for confirmation and can be undone.'
+    );
     expect(isKnownFeature('npc-attitudes')).toBe(true);
+  });
+
+  it('words the hint of a read-only switch without the confirm and undo promise', () => {
+    registerGuardedFeature({
+      id: 'rules-check',
+      name: 'AI Tool: Rules check',
+      hint: 'Checks.',
+      readOnly: true,
+    });
+    const config = register.mock.calls.at(-1)?.[2];
+    expect(config.hint).toBe('Checks. Off by default; it only reads and changes nothing.');
   });
 
   it('registers a switch that starts on with defaultEnabled (D-082)', () => {

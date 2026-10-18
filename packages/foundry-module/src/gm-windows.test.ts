@@ -241,6 +241,8 @@ describe('the switch, the buttons and the windows', () => {
       'tarokka',
       'combat',
       'party',
+      'session',
+      'scene',
     ]);
     expect(controls[AI_TOOL_CONTROL].tools.party).toMatchObject({ order: 5, button: true });
     restore();

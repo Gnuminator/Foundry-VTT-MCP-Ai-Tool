@@ -56,6 +56,8 @@ export const MODULE_REQUEST_TOOLS = [
   'plan-tarokka-reveal',
   'list-changes',
   'plan-undo-changes',
+  'get-play-session',
+  'mark-play-session',
 ] as const;
 export type ModuleRequestTool = (typeof MODULE_REQUEST_TOOLS)[number];
 

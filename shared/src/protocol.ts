@@ -229,6 +229,10 @@ export const MODULE_REQUEST_TOOLS = [
   // The Changes window (I-109 part 4). `plan-undo-changes` is narrowed by `MODULE_PLANNERS`.
   'list-changes',
   'plan-undo-changes',
+  // The Session window (I-134 part 2). `mark-play-session` only writes a start or end line to the
+  // bridge's own session log; the backend narrows its arguments (`module-requests.ts`).
+  'get-play-session',
+  'mark-play-session',
 ] as const;
 
 export type ModuleRequestTool = (typeof MODULE_REQUEST_TOOLS)[number];

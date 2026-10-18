@@ -21,6 +21,8 @@ function makeHandler(planFeature = 'handouts') {
   const readTarokka = vi.fn(async () => ({ available: false }));
   const listChanges = vi.fn(async () => ({ changes: [] }));
   const planUndo = vi.fn(async () => ({ planId: 'plan-undo' }));
+  const getSession = vi.fn(async () => ({ open: false }));
+  const markSession = vi.fn(async () => ({ success: true }));
   const revealed = new Set<string>();
   const tarokkaPositionRevealed = vi.fn(async (position: string) => revealed.has(position));
   const getPlan = vi.fn((planId: string) => {
@@ -39,6 +41,8 @@ function makeHandler(planFeature = 'handouts') {
       'get-tarokka-reading': readTarokka,
       'list-changes': listChanges,
       'plan-undo-changes': planUndo,
+      'get-play-session': getSession,
+      'mark-play-session': markSession,
       'plan-tarokka-links': vi.fn(async () => ({ planId: 'plan-links' })),
       'plan-tarokka-import': vi.fn(async () => ({ planId: 'plan-import' })),
     },
@@ -59,6 +63,8 @@ function makeHandler(planFeature = 'handouts') {
     readTarokka,
     listChanges,
     planUndo,
+    getSession,
+    markSession,
     revealed,
     tarokkaPositionRevealed,
   };
@@ -89,6 +95,30 @@ describe('createModuleRequestHandler', () => {
       );
     }
     await expect(handler('toString', {}, danni)).rejects.toThrow(/not allowed/);
+  });
+
+  describe('the Session window', () => {
+    it('reads the session state through the router', async () => {
+      const { handler, getSession } = makeHandler();
+      await expect(handler('get-play-session', {}, danni)).resolves.toEqual({ open: false });
+      expect(getSession).toHaveBeenCalledOnce();
+    });
+
+    it('marks a start or end and passes on only the action and the note', async () => {
+      const { handler, markSession } = makeHandler();
+      await handler('mark-play-session', { action: 'start', note: 'Session 1', extra: 1 }, danni);
+      await handler('mark-play-session', { action: 'end' }, danni);
+      expect(markSession).toHaveBeenNthCalledWith(1, { action: 'start', note: 'Session 1' });
+      expect(markSession).toHaveBeenNthCalledWith(2, { action: 'end' });
+    });
+
+    it('refuses a mark without a start or end action', async () => {
+      const { handler, markSession } = makeHandler();
+      for (const args of [{}, { action: 'pause' }, { action: 7 }]) {
+        await expect(handler('mark-play-session', args, danni)).rejects.toThrow(/"start" or "end"/);
+      }
+      expect(markSession).not.toHaveBeenCalled();
+    });
   });
 
   describe('the Tarokka window', () => {

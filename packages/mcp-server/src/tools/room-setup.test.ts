@@ -10,7 +10,11 @@ const logger: any = {
   debug: vi.fn(),
 };
 
-function tools(opts: { enabled: boolean; planReply?: unknown }) {
+function tools(opts: { enabled: boolean; planReply?: unknown }): {
+  t: RoomSetupTools;
+  query: ReturnType<typeof vi.fn>;
+  createPlan: ReturnType<typeof vi.fn>;
+} {
   const query = vi.fn(async (method: string) => {
     if (method === 'foundry-mcp-bridge.listGuardedFeatures') {
       return [{ id: 'room-setup', enabled: opts.enabled }];
@@ -23,7 +27,7 @@ function tools(opts: { enabled: boolean; planReply?: unknown }) {
     summary: p.summary,
   }));
   const t = new RoomSetupTools({
-    foundryClient: { query } as any,
+    foundryClient: { query },
     guardedWrites: { createPlan } as any,
     logger,
   });

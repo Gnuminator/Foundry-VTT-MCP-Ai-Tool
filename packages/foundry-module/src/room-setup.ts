@@ -39,7 +39,40 @@ const MAX_SQUARES = 100;
 const MAX_TOKENS = 40;
 const PLACEMENTS = ['random', 'center', 'relative'];
 
-type Rec = Record<string, any>;
+type Rec = Record<string, unknown>;
+
+/** The parts of a Scene this planner reads (the Foundry classes are typed for the full API). */
+interface SceneLike {
+  id: string;
+  name: string;
+  uuid: string;
+  grid?: { size?: number; isGridless?: boolean };
+  dimensions?: { sceneRect?: { x?: number; y?: number; width?: number; height?: number } };
+  tokens?: unknown;
+}
+
+/** The parts of an Actor the spawn reads. */
+interface ActorLike {
+  id: string;
+  name?: string;
+  prototypeToken?: { width?: number; height?: number };
+  getTokenDocument?: (data: Rec, options: Rec) => Promise<{ toObject(): Rec }>;
+}
+
+interface Globals {
+  foundry?: { utils?: { randomID?: (length: number) => string } };
+  CONST?: { REGION_VISIBILITY?: { ALWAYS?: number } };
+  game: {
+    user?: { isGM?: boolean };
+    scenes?: {
+      get?: (id: string) => SceneLike | undefined;
+      current?: SceneLike;
+      contents?: SceneLike[];
+    };
+  };
+}
+
+const globals = (): Globals => globalThis as unknown as Globals;
 
 function rec(value: unknown): Rec | null {
   return value !== null && typeof value === 'object' ? (value as Rec) : null;
@@ -56,38 +89,41 @@ function quoted(name: unknown): string {
 }
 
 function newId(): string {
-  const randomID = (foundry as any)?.utils?.randomID;
-  if (typeof randomID === 'function') return randomID(16) as string;
+  const randomID = globals().foundry?.utils?.randomID;
+  if (typeof randomID === 'function') return randomID(16);
   return Math.random().toString(36).slice(2, 18).padEnd(16, '0');
 }
 
 function requireGm(): void {
-  if ((game.user as any)?.isGM !== true) throw new Error('Only a GM can plan room setup');
+  if (globals().game.user?.isGM !== true) throw new Error('Only a GM can plan room setup');
 }
 
 /** A scene by id or name; the viewed scene when none is given. */
-function resolveScene(ref: string | undefined): Rec {
-  const scenes = game.scenes as any;
-  let scene: Rec | undefined;
+function resolveScene(ref: string | undefined): SceneLike {
+  const scenes = globals().game.scenes;
+  let scene: SceneLike | undefined;
   if (ref) {
     const wanted = ref.toLowerCase();
     scene =
       scenes?.get?.(ref) ??
-      contentsOf(scenes).find(s => String(s.name ?? '').toLowerCase() === wanted);
+      (Array.isArray(scenes?.contents)
+        ? scenes.contents
+        : (contentsOf(scenes) as unknown as SceneLike[])
+      ).find(s => String(s.name ?? '').toLowerCase() === wanted);
     if (!scene) throw new Error(`No scene "${ref}"`);
   } else {
-    scene = scenes?.current ?? undefined;
+    scene = scenes?.current;
     if (!scene) throw new Error('No scene is being viewed: open the scene in Foundry first');
   }
   return scene;
 }
 
-function sceneGrid(scene: Rec): GridLike & Rec {
-  const grid = rec(scene.grid);
+function sceneGrid(scene: SceneLike): GridLike & { isGridless?: boolean } {
+  const grid = scene.grid;
   if (!grid || typeof grid.size !== 'number' || grid.size <= 0) {
     throw new Error(`The scene ${quoted(scene.name)} has no grid size`);
   }
-  return grid as GridLike & Rec;
+  return grid as unknown as GridLike & { isGridless?: boolean };
 }
 
 function checkArea(area: unknown, label: string): RoomArea {
@@ -97,19 +133,20 @@ function checkArea(area: unknown, label: string): RoomArea {
     if (!Number.isInteger(a[key]))
       throw new Error(`${label}.${key} must be a whole number of squares`);
   }
-  if (a.x < 0 || a.y < 0) throw new Error(`${label}: x and y count from 0 at the top left`);
-  if (a.width < 1 || a.height < 1 || a.width > MAX_SQUARES || a.height > MAX_SQUARES) {
+  const { x, y, width, height } = a as unknown as RoomArea;
+  if (x < 0 || y < 0) throw new Error(`${label}: x and y count from 0 at the top left`);
+  if (width < 1 || height < 1 || width > MAX_SQUARES || height > MAX_SQUARES) {
     throw new Error(`${label}: width and height must be 1 to ${MAX_SQUARES} squares`);
   }
   return a as unknown as RoomArea;
 }
 
 /** The pixel rectangle of an area on a scene, and a warning when it leaves the map. */
-function areaRect(scene: Rec, area: RoomArea, label: string, warnings: string[]): Rect {
+function areaRect(scene: SceneLike, area: RoomArea, label: string, warnings: string[]): Rect {
   const grid = sceneGrid(scene);
   const size = grid.size;
   // Square 0,0 is the top left of the map (the scene rectangle), not of Foundry's padded canvas.
-  const sceneRect = rec(rec(scene.dimensions)?.sceneRect);
+  const sceneRect = scene.dimensions?.sceneRect;
   const origin = {
     x: (sceneRect?.x ?? 0) + area.x * size,
     y: (sceneRect?.y ?? 0) + area.y * size,
@@ -120,7 +157,7 @@ function areaRect(scene: Rec, area: RoomArea, label: string, warnings: string[])
     w: area.width * size,
     h: area.height * size,
   };
-  const sr = rec(rec(scene.dimensions)?.sceneRect);
+  const sr = sceneRect;
   if (sr && typeof sr.width === 'number' && typeof sr.height === 'number') {
     const right = (sr.x ?? 0) + sr.width;
     const bottom = (sr.y ?? 0) + sr.height;
@@ -133,21 +170,20 @@ function areaRect(scene: Rec, area: RoomArea, label: string, warnings: string[])
   return rect;
 }
 
-function levelsFor(scene: Rec): string[] | undefined {
-  if (!sceneHasLevels(scene as any)) return undefined;
-  const scenes = game.scenes as any;
-  if (scenes?.current?.id !== scene.id) return undefined; // every level
-  const id = currentLevelId(scene as any);
+function levelsFor(scene: SceneLike): string[] | undefined {
+  if (!sceneHasLevels(scene as unknown as Scene)) return undefined;
+  if (globals().game.scenes?.current?.id !== scene.id) return undefined; // every level
+  const id = currentLevelId(scene as unknown as Scene);
   return id ? [id] : undefined;
 }
 
 function visibilityAlways(): number {
-  return (CONST as any)?.REGION_VISIBILITY?.ALWAYS ?? 2;
+  return globals().CONST?.REGION_VISIBILITY?.ALWAYS ?? 2;
 }
 
 /** `create` data of a rectangle room Region (id fixed so a teleport can name it). */
 function regionData(
-  scene: Rec,
+  scene: SceneLike,
   id: string,
   name: string,
   rect: Rect,
@@ -293,40 +329,46 @@ async function planSpawn(request: RoomSpawnRequest): Promise<RoomSetupPlan> {
   const rect = areaRect(scene, area, 'area', warnings);
   const grid = sceneGrid(scene);
 
-  const wanted: { actor: Rec; name: string }[] = [];
+  const wanted: { actor: ActorLike; name: string }[] = [];
   const skipped: NonNullable<RoomSetupPlan['skipped']> = [];
   for (const entry of request.creatures) {
     const ref = String(entry?.actor ?? '').trim();
-    const count = entry?.count === undefined ? 1 : entry.count;
+    const count = entry?.count ?? 1;
     if (!ref) throw new Error('Each creature needs an actor id or name');
     if (!Number.isInteger(count) || count < 1 || count > 20) {
       throw new Error(`Creature "${ref}": count must be 1 to 20`);
     }
-    const actor = shared.findActorByIdentifier(ref) as unknown as Rec | undefined;
+    const actor = shared.findActorByIdentifier(ref) as unknown as ActorLike | undefined;
     if (!actor) {
       skipped.push({ name: ref, reason: 'no actor with that id or name' });
       continue;
     }
-    for (let i = 0; i < count; i++) wanted.push({ actor, name: String(actor.name ?? ref) });
+    for (let i = 0; i < count; i++) wanted.push({ actor, name: actor.name ?? ref });
   }
   if (wanted.length === 0)
-    throw new Error('None of the creatures exist: ' + skipped.map(s => s.name).join(', '));
+    throw new Error(`None of the creatures exist: ${skipped.map(s => s.name).join(', ')}`);
   if (wanted.length > MAX_TOKENS) throw new Error(`One plan places at most ${MAX_TOKENS} tokens`);
 
   const occupied: Rect[] = contentsOf(scene.tokens).flatMap(t => {
-    const src = rec(t._source) ?? t;
+    const src = (rec(t._source) ?? t) as {
+      x?: unknown;
+      y?: unknown;
+      width?: number;
+      height?: number;
+    };
     return typeof src.x === 'number' && typeof src.y === 'number'
       ? [{ x: src.x, y: src.y, w: (src.width ?? 1) * grid.size, h: (src.height ?? 1) * grid.size }]
       : [];
   });
-  const footprints = wanted.map(w => {
-    const proto = rec(w.actor.prototypeToken);
-    return { w: Number(proto?.width) || 1, h: Number(proto?.height) || 1 };
-  });
+  const footprints = wanted.map(w => ({
+    w: Number(w.actor.prototypeToken?.width) || 1,
+    h: Number(w.actor.prototypeToken?.height) || 1,
+  }));
   const anchor = { x: rect.x + rect.w / 2, y: rect.y + rect.h / 2 };
   const spots = findSpots(grid, rect, occupied, anchor, footprints);
 
-  const level = sceneHasLevels(scene as any) ? currentLevelId(scene as any) : undefined;
+  const asScene = scene as unknown as Scene;
+  const level = sceneHasLevels(asScene) ? currentLevelId(asScene) : undefined;
   const hidden = request.hidden !== false;
   const roomId = newId();
   const ops: GuardedOp[] = [
@@ -345,9 +387,7 @@ async function planSpawn(request: RoomSpawnRequest): Promise<RoomSetupPlan> {
       skipped.push({ name: entry.name, reason: 'no free square left in the room' });
       continue;
     }
-    const getDoc = entry.actor.getTokenDocument as
-      | ((d: Rec, o: Rec) => Promise<{ toObject(): Rec }>)
-      | undefined;
+    const getDoc = entry.actor.getTokenDocument;
     if (typeof getDoc !== 'function') {
       skipped.push({ name: entry.name, reason: 'Foundry gave no token for this actor' });
       continue;
@@ -357,7 +397,7 @@ async function planSpawn(request: RoomSpawnRequest): Promise<RoomSetupPlan> {
     delete data._id;
     if (level) data.level = level;
     ops.push({ kind: 'create', documentName: 'Token', parentUuid: String(scene.uuid), data });
-    tokens.push({ name: entry.name, actorId: String(entry.actor.id), x: spot.x, y: spot.y });
+    tokens.push({ name: entry.name, actorId: entry.actor.id, x: spot.x, y: spot.y });
   }
   if (tokens.length === 0) {
     throw new Error('No creature fits in the room: make the area bigger or clear some tokens');

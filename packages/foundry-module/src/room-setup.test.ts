@@ -43,7 +43,7 @@ function scene(id: string, name: string, extra: Record<string, any> = {}): any {
     },
     dimensions: { sceneRect: { x: 0, y: 0, width: 2000, height: 2000 } },
     ...extra,
-  } as any);
+  });
   return s;
 }
 
@@ -150,10 +150,17 @@ describe('teleport', () => {
 
 describe('spawn', () => {
   function wolf(): any {
-    const actor = world.addActor({ id: 'wolf', name: 'Wolf', type: 'npc' } as any);
+    const actor = world.addActor({ id: 'wolf', name: 'Wolf', type: 'npc' });
     (actor as any).prototypeToken = { width: 1, height: 1 };
-    (actor as any).getTokenDocument = async (data: any) => ({
-      toObject: () => ({ _id: 'tmp', name: 'Wolf', actorId: 'wolf', ...data }),
+    (actor as any).getTokenDocument = async (
+      data: Record<string, unknown>
+    ): Promise<{ toObject(): Record<string, unknown> }> => ({
+      toObject: (): Record<string, unknown> => ({
+        _id: 'tmp',
+        name: 'Wolf',
+        actorId: 'wolf',
+        ...data,
+      }),
     });
     return actor;
   }

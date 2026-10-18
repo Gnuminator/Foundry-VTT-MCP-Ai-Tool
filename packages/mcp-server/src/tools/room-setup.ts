@@ -171,10 +171,10 @@ export class RoomSetupTools {
       );
     }
 
-    const built = unwrapBridgeReply(
+    const built: RoomSetupPlan = unwrapBridgeReply(
       await this.foundryClient.query(`foundry-mcp-bridge.${ROOM_SETUP_QUERY}`, params),
       'Could not plan the room setup'
-    ) as RoomSetupPlan;
+    );
     const plan = await this.guardedWrites.createPlan({
       feature: ROOM_SETUP_FEATURE_ID,
       summary: built.summary,

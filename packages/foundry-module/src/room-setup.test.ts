@@ -412,27 +412,23 @@ describe('stairs', () => {
 describe('hazard', () => {
   const area = { x: 0, y: 0, width: 2, height: 2 };
 
-  it('difficult terrain sets the cost on every movement action', async () => {
+  it('difficult terrain uses the dnd5e behavior and needs the system', async () => {
     world.setActiveScene(scene('a', 'Hall').id);
-    (globalThis as any).CONFIG.Token = {
-      movement: { actions: { walk: {}, fly: {}, blink: { terrainAction: 'walk' } } },
-    };
     const plan = await planRoomSetup({
       action: 'hazard',
       kind: 'difficult',
       name: 'Mud',
       area,
-      cost: 3,
+      magical: true,
     });
     const b = (plan.ops[0] as any).data.behaviors[0];
-    expect(b).toMatchObject({
-      type: 'increaseMovementCost',
-      system: { difficulties: { walk: 3, fly: 3 } },
-    });
+    expect(b).toMatchObject({ type: 'dnd5e.difficultTerrain', system: { magical: true } });
     expect(plan.regions[0].role).toBe('hazard');
+    (globalThis as any).CONFIG.RegionBehavior = { dataModels: { teleportToken: {} } };
     await expect(
-      planRoomSetup({ action: 'hazard', kind: 'difficult', name: 'Mud', area, cost: 9 })
-    ).rejects.toThrow(/cost must be/);
+      planRoomSetup({ action: 'hazard', kind: 'difficult', name: 'Mud', area })
+    ).rejects.toThrow(/needs the dnd5e system/);
+    delete (globalThis as any).CONFIG.RegionBehavior;
   });
 
   it('darkness maps the mode to Foundry numbers', async () => {
@@ -477,7 +473,6 @@ describe('hazard', () => {
         levels: { contents: [lv('d', 'Ground', 0, 10), lv('u', 'Up', 10, 20)] },
       }).id
     );
-    (globalThis as any).CONFIG.Token = { movement: { actions: { walk: {} } } };
     const plan = await planRoomSetup({
       action: 'hazard',
       kind: 'difficult',

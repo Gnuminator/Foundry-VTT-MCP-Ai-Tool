@@ -1251,7 +1251,7 @@ Parameters:
 - `levels` (array of any): levels: [{name, bottom, top?, background?}]. stairs: level names.
 - `movementActions` (array of string)
 - `kind` (string): One of: `difficult`, `darkness`, `effect`.
-- `cost` (number): difficult: 1.25 to 5.
+- `magical` (boolean): difficult: magical terrain.
 - `darknessMode` (string): One of: `override`, `brighten`, `darken`.
 - `modifier` (number): darkness: 0 to 1.
 - `effectUuid` (string)

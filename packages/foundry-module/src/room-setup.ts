@@ -65,7 +65,10 @@ interface ActorLike {
 interface Globals {
   foundry?: { utils?: { randomID?: (length: number) => string } };
   CONST?: { REGION_VISIBILITY?: { GAMEMASTER?: number } };
-  CONFIG?: { Token?: { movement?: { actions?: unknown } } };
+  CONFIG?: {
+    Token?: { movement?: { actions?: unknown } };
+    RegionBehavior?: { dataModels?: Record<string, unknown> };
+  };
   game: {
     user?: { isGM?: boolean };
     actors?: { get?: (id: string) => ActorLike | undefined; contents?: ActorLike[] };
@@ -512,6 +515,7 @@ async function planSpawn(request: RoomSpawnRequest): Promise<RoomSetupPlan> {
 }
 
 const MAX_LEVELS = 10;
+const DIFFICULT_TERRAIN = 'dnd5e.difficultTerrain';
 const DARKNESS_MODES = ['override', 'brighten', 'darken'];
 
 function planLevels(request: RoomLevelsRequest): RoomSetupPlan {
@@ -636,23 +640,22 @@ async function planHazard(request: RoomHazardRequest): Promise<RoomSetupPlan> {
   let what: string;
   switch (request.kind) {
     case 'difficult': {
-      const cost = request.cost ?? 2;
-      if (typeof cost !== 'number' || !(cost >= 1.25 && cost <= 5)) {
-        throw new Error('cost must be 1.25 to 5 (2 doubles the movement cost)');
+      // Foundry's own movement cost behavior cannot be built next to dnd5e (its schema comes up
+      // empty when walk has no terrain rule, seen live on 14.368 + dnd5e 6.0.5), so this uses the
+      // system's own difficult terrain behavior (x2 cost, magical ignores nothing special).
+      const models = globals().CONFIG?.RegionBehavior?.dataModels;
+      if (models && !(DIFFICULT_TERRAIN in models)) {
+        throw new Error(
+          'Difficult terrain needs the dnd5e system (its Region behavior is missing)'
+        );
       }
-      const actions = Object.entries(
-        (globals().CONFIG?.Token?.movement?.actions as Record<string, Rec> | undefined) ?? {}
-      )
-        .filter(([, c]) => c.terrainAction === undefined && c.deriveTerrainDifficulty === undefined)
-        .map(([key]) => key);
-      if (actions.length === 0) throw new Error('This Foundry version lists no movement actions');
       behavior = {
         _id: newId(),
-        type: 'increaseMovementCost',
+        type: DIFFICULT_TERRAIN,
         name: `${name} (difficult terrain)`,
-        system: { difficulties: Object.fromEntries(actions.map(a => [a, cost])) },
+        system: { magical: request.magical === true },
       };
-      what = `difficult terrain x${cost}`;
+      what = request.magical === true ? 'magical difficult terrain' : 'difficult terrain';
       break;
     }
     case 'darkness': {

@@ -117,8 +117,8 @@ export interface RoomHazardRequest {
   name: string;
   area: RoomArea;
   kind: RoomHazardKind;
-  /** difficult: movement cost multiplier, 1.25 to 5 (default 2). */
-  cost?: number;
+  /** difficult: dnd5e difficult terrain (movement costs double); magical ignores nothing special. */
+  magical?: boolean;
   /** darkness: how it changes the scene darkness, and by how much (0 to 1). */
   darknessMode?: (typeof ROOM_DARKNESS_MODES)[number];
   modifier?: number;

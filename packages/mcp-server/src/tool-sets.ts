@@ -96,6 +96,7 @@ export const TOOL_SETS: Readonly<Record<ToolSetName, ToolSetSpec>> = {
       'list-scene-moods',
       'play-playlist',
       'mark-play-session',
+      'check-action',
     ],
   },
   prep: {

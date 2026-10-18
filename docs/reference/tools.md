@@ -6,12 +6,12 @@ description: Every tool the bridge serves, by tool set, with its description and
 
 # Tool reference
 
-The bridge serves 91 tools in five sets. [Tool sets](TOOL-SETS.md) explains the sets and how Claude Desktop loads them; this page lists every tool with the description and parameters Claude reads.
+The bridge serves 92 tools in five sets. [Tool sets](TOOL-SETS.md) explains the sets and how Claude Desktop loads them; this page lists every tool with the description and parameters Claude reads.
 
 | Set | Claude Desktop entry | Tools | For |
 | --- | --- | --- | --- |
 | [Core](#core) | `foundry-mcp` | 22 | Look things up (world, characters, scenes, journals, compendiums, combat) and review, apply or undo planned changes. Always on. |
-| [Play](#play) | `foundry-mcp-play` | 32 | Run the table live: tokens, combat turns, rolls, damage, conditions, resources, chat, scene mood, map notes and loot. |
+| [Play](#play) | `foundry-mcp-play` | 33 | Run the table live: tokens, combat turns, rolls, damage, conditions, resources, chat, scene mood, map notes and loot. |
 | [Prep](#prep) | `foundry-mcp-prep` | 20 | Prepare sessions and write recaps: quests and journals, encounter budgets, the Tarokka reading, handouts, the session log, play stats and the pre-flight check. |
 | [Build](#build) | `foundry-mcp-build` | 8 | Make and change NPCs, monsters and items: from a compendium or from scratch, with features, attacks and spells. Set up rooms: teleports and tokens in a room. |
 | [Admin](#admin) | `foundry-mcp-admin` | 9 | Set up and troubleshoot: installed modules and their errors, who owns which actor, and the Obsidian mirror settings. |
@@ -705,6 +705,20 @@ Parameters:
 
 - `action` (string, required): Mark the table starting or ending a play session. One of: `start`, `end`.
 - `note` (string): Optional note kept with the marker (up to 200 characters).
+
+### check-action
+
+Rules check, read-only (off by default; the GM turns it on in Foundry settings). Before an attack, spell or item is used, say whether it looks legal and why: whose turn it is, what it costs (action, bonus action, reaction), the distance to a target against its range, and the spell slots or uses left. Reports each check as pass, warn, fail, unknown or info with a reason. It cannot see which actions were already spent this turn. Changes nothing; use-item and the roll tools still do the doing.
+
+Kind: read-only. Title: Check an action against the rules.
+
+Parameters:
+
+- `actor` (string, required): Character or NPC name or actor ID.
+- `item` (string, required): Item, weapon, feature or spell name or ID.
+- `target` (string): Optional name of the target token on the viewed scene, for the range check.
+- `activity` (string): Optional activity name or ID when the item has several (default: the first).
+- `castLevel` (integer): Optional level to cast a spell at (default: its own level, or the lowest slot left). Range: 1 to 9.
 
 ## Prep
 

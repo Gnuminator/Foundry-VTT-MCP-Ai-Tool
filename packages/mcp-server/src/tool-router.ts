@@ -27,6 +27,7 @@ import type { MovementTools } from './tools/movement.js';
 import type { ObsidianMirrorTools } from './tools/obsidian-mirror.js';
 import type { OwnershipTools } from './tools/ownership.js';
 import type { SceneMoodTools } from './tools/scene-mood.js';
+import type { RulesCheckTools } from './tools/rules-check.js';
 import type { SceneRestoreTools } from './tools/scene-restore.js';
 import type { RoomSetupTools } from './tools/room-setup.js';
 import type { TableViewerTools } from './tools/table-viewer.js';
@@ -72,6 +73,7 @@ export interface ToolRouterDeps {
   sceneRestoreTools: SceneRestoreTools;
   roomSetupTools: RoomSetupTools;
   sceneMoodTools: SceneMoodTools;
+  rulesCheckTools: RulesCheckTools;
   tableViewerTools: TableViewerTools;
   partyTools: PartyTools;
   playSessionTools: PlaySessionTools;
@@ -199,6 +201,7 @@ export function buildToolRouter(deps: ToolRouterDeps): Record<string, ToolHandle
     'plan-scene-change': args => deps.sceneChangeTools.handlePlanSceneChange(args),
     'plan-scene-mood': args => deps.sceneMoodTools.handleToolCall('plan-scene-mood', args),
     'list-scene-moods': args => deps.sceneMoodTools.handleToolCall('list-scene-moods', args),
+    'check-action': args => deps.rulesCheckTools.handleToolCall('check-action', args),
     'plan-table-viewer': args => deps.tableViewerTools.handleToolCall('plan-table-viewer', args),
     'plan-scene-restore': args => deps.sceneRestoreTools.handleToolCall('plan-scene-restore', args),
     'plan-room-setup': args => deps.roomSetupTools.handleToolCall('plan-room-setup', args),
@@ -243,6 +246,7 @@ export function collectToolDefinitions(deps: ToolRouterDeps): ToolDefinitionLike
     ...deps.sceneRestoreTools.getToolDefinitions(),
     ...deps.roomSetupTools.getToolDefinitions(),
     ...deps.sceneMoodTools.getToolDefinitions(),
+    ...deps.rulesCheckTools.getToolDefinitions(),
     ...deps.tableViewerTools.getToolDefinitions(),
     ...deps.tokenManipulationTools.getToolDefinitions(),
     ...deps.chatLogTools.getToolDefinitions(),

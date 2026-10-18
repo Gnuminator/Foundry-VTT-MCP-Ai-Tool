@@ -27,6 +27,7 @@ import { MovementTools } from '../tools/movement.js';
 import { ObsidianMirrorTools } from '../tools/obsidian-mirror.js';
 import { OwnershipTools } from '../tools/ownership.js';
 import { SceneMoodTools } from '../tools/scene-mood.js';
+import { RulesCheckTools } from '../tools/rules-check.js';
 import { SceneRestoreTools } from '../tools/scene-restore.js';
 import { RoomSetupTools } from '../tools/room-setup.js';
 import { TableViewerTools } from '../tools/table-viewer.js';
@@ -84,6 +85,7 @@ export function stubToolRouterDeps(): ToolRouterDeps {
     ownershipTools: new OwnershipTools({ ...base, guardedWrites: {} as any }),
     roomSetupTools: new RoomSetupTools({ ...base, guardedWrites: {} as any }),
     sceneMoodTools: new SceneMoodTools({ ...base, guardedWrites: {} as any }),
+    rulesCheckTools: new RulesCheckTools(base),
     sceneRestoreTools: new SceneRestoreTools({
       ...base,
       guardedWrites: {} as any,

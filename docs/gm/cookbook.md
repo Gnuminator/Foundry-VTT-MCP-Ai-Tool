@@ -175,6 +175,16 @@ These need the **play** set switched on.
 - **Tip:** deleting a token asks twice. Its place in the encounter goes with it, and **Undo** in
   **Recent Changes** brings both back, initiative included.
 
+### Make tokens fit a town or overland map
+
+- **Say:** "Fit the tokens to this map's scale." or "Shrink the party to the map."
+  (`plan-token-change`)
+- **What happens:** town and overland maps often have squares of 20 to 200 ft, so a normal token
+  looks as big as a house. Claude sizes every token (or only the ones you name) so a creature covers
+  its real footprint at that scale, but never smaller than a quarter square so you can still see it.
+  A normal 5 ft battle map is left as it is.
+- **Tip:** **Undo** in **Recent Changes** puts the old sizes back.
+
 ### A character died
 
 - **Say** (play set on): "Mark Kasimir as dead, go ahead." (`plan-actor-change`) Or click the

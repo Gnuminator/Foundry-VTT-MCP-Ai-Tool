@@ -149,10 +149,17 @@ describe('the default page', () => {
     }
   });
 
-  it('does not redirect /next// or a query to another host', async () => {
-    for (const from of ['/next//evil.example', '/next/?//evil.example']) {
+  it('drops a query that is not plain text, so /next never redirects to another host', async () => {
+    for (const from of [
+      '/next/?//evil.example',
+      '/next/?/%5Cevil',
+      '/next/?/\\evil',
+      '/next/?x=//evil.example',
+      '/next//evil.example',
+    ]) {
       const answer = await get(app.port, from);
-      expect(String(answer.headers['location'] ?? '/')).toMatch(/^\/(?!\/)/);
+      const to = answer.headers['location'];
+      expect([from, to === undefined || /^\/(\?[^\\/]*)?$/.test(String(to))]).toEqual([from, true]);
     }
   });
 
@@ -161,6 +168,21 @@ describe('the default page', () => {
       const answer = await get(app.port, p);
       expect([p, answer.status]).toEqual([p, 200]);
       expect(answer.body).not.toContain('React dashboard');
+    }
+  });
+});
+
+describe('the page routes are rate limited', () => {
+  it('answers 429 to a runaway loop of loads', async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'cogm-web-'));
+    writeFileSync(path.join(dir, 'index.html'), REACT_PAGE);
+    const app = await start(dir);
+    try {
+      let last = 0;
+      for (let i = 0; i < 101; i++) last = (await get(app.port, '/')).status;
+      expect(last).toBe(429);
+    } finally {
+      await app.stop();
     }
   });
 });

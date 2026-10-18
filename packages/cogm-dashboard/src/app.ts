@@ -588,16 +588,30 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
       webDir: config.webDir,
     });
   }
-  app.get('/', (_req: Request, res: Response, next: NextFunction) => {
+  // A page load is a few requests a minute; this only stops a runaway loop on the file reads.
+  const pageHits: number[] = [];
+  const pageLimit = (_req: Request, res: Response, next: NextFunction): void => {
+    const now = Date.now();
+    while (pageHits.length > 0 && now - (pageHits[0] ?? now) > 10_000) pageHits.shift();
+    if (pageHits.length >= 100) {
+      res.status(429).type('text/plain').send('Too many requests');
+      return;
+    }
+    pageHits.push(now);
+    next();
+  };
+  app.get('/', pageLimit, (_req: Request, res: Response, next: NextFunction) => {
     if (!fs.existsSync(reactIndex)) return next();
     res.setHeader('Cache-Control', 'no-cache');
     res.sendFile(reactIndex);
   });
-  app.get(['/next', '/next/'], (req: Request, res: Response) => {
-    const query = req.originalUrl.includes('?')
+  // Only a plain query string is carried over (a saved ?token= or ?plan= link); anything else is
+  // dropped, and the target is always "/" plus that, so it can never leave this origin.
+  app.get(['/next', '/next/'], pageLimit, (req: Request, res: Response) => {
+    const raw = req.originalUrl.includes('?')
       ? req.originalUrl.slice(req.originalUrl.indexOf('?'))
       : '';
-    res.redirect(302, `/${query}`);
+    res.redirect(302, /^\?[A-Za-z0-9%=&._~+-]*$/.test(raw) ? `/${raw}` : '/');
   });
   // The old page stays here until after G1 (D-126). Its files use relative paths (./app.js), so it
   // is a static folder of its own; a request for /legacy redirects to /legacy/ with the query.

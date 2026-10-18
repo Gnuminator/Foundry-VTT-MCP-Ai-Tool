@@ -79,16 +79,13 @@ if write_file "$TOOL_ETC/dashboard.env" 0640 "$dashboard_env"; then dashboard_ch
 # Root writes them, the services (user foundry) read them.
 chown "root:$FOUNDRY_USER" "$TOOL_ETC/bridge.env" "$TOOL_ETC/dashboard.env"
 if have_systemd; then
-  if [ "$bridge_changed$dashboard_changed" != 00 ]; then
-    require_quiet "restarting the bridge or dashboard with new settings"
+  # enable_unit restarts a running service whose settings file is new (checked, and again on a later run when this
+  # one was refused); the units only exist once stage 5 has run.
+  if [ -f /etc/systemd/system/foundry-ai-tool-bridge.service ]; then
+    enable_unit foundry-ai-tool-bridge.service "$TOOL_ETC/bridge.env"
   fi
-  if [ "$bridge_changed" = 1 ] && [ -f /etc/systemd/system/foundry-ai-tool-bridge.service ]; then
-    systemctl restart foundry-ai-tool-bridge.service
-    ok "bridge restarted with the new settings"
-  fi
-  if [ "$dashboard_changed" = 1 ] && [ -f /etc/systemd/system/foundry-ai-tool-dashboard.service ]; then
-    systemctl restart foundry-ai-tool-dashboard.service
-    ok "dashboard restarted with the new settings"
+  if [ -f /etc/systemd/system/foundry-ai-tool-dashboard.service ]; then
+    enable_unit foundry-ai-tool-dashboard.service "$TOOL_ETC/dashboard.env"
   fi
 else
   warn "no systemd here (a test container?): the services were not restarted"
@@ -130,12 +127,7 @@ st() { runuser -u "$FOUNDRY_USER" -- env HOME="$TOOL_DATA" syncthing cli --home=
 st_up() { st show system >/dev/null 2>&1; }
 
 if have_systemd; then
-  if [ "$unit_changed" = 1 ] || ! systemctl is-active --quiet foundry-ai-tool-syncthing.service; then
-    enable_unit foundry-ai-tool-syncthing.service
-  else
-    systemctl enable foundry-ai-tool-syncthing.service >/dev/null 2>&1
-    ok "foundry-ai-tool-syncthing.service already running"
-  fi
+  enable_unit foundry-ai-tool-syncthing.service
 elif st_up; then
   ok "Syncthing already runs by hand (no systemd here)"
 else

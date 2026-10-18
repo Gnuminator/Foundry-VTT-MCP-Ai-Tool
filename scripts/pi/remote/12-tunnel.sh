@@ -166,11 +166,9 @@ if ! have_systemd; then
 elif [ "$has_token" = 0 ]; then
   systemctl daemon-reload
   systemctl disable --now "$unit" >/dev/null 2>&1 || true
-elif [ "$unit_changed" = 1 ] || ! systemctl is-active --quiet "$unit"; then
-  enable_unit "$unit"
 else
-  systemctl enable "$unit" >/dev/null 2>&1
-  ok "$unit already running"
+  # Every run: enable_unit restarts only when the unit file or the token file is new.
+  enable_unit "$unit" "$token_file"
 fi
 
 # ---- Foundry behind the proxy (optional) ------------------------------------------------------------

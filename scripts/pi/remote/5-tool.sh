@@ -286,8 +286,8 @@ WantedBy=multi-user.target"
 write_file /etc/systemd/system/foundry-ai-tool-bridge.service 0644 "$bridge_unit" || true
 write_file /etc/systemd/system/foundry-ai-tool-dashboard.service 0644 "$dashboard_unit" || true
 write_file /etc/systemd/system/foundry-ai-tool-gm-browser.service 0644 "$browser_unit" || true
-enable_unit foundry-ai-tool-bridge.service
-enable_unit foundry-ai-tool-dashboard.service
+enable_unit foundry-ai-tool-bridge.service "$TOOL_ETC/bridge.env"
+enable_unit foundry-ai-tool-dashboard.service "$TOOL_ETC/dashboard.env" "$TOOL_ETC/dashboard-access.env"
 if [ -f "$TOOL_ETC/assistant-gm.env" ]; then
   enable_unit foundry-ai-tool-gm-browser.service "$TOOL_ETC/assistant-gm.env"
 else

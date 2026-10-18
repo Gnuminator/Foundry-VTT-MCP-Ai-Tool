@@ -164,7 +164,10 @@ recording_active() {
   fi
   for raw in "$dir"/*/raw; do
     [ -d "$raw" ] || continue
+    # Finished: stopped cleanly (session.json), or converted after a crash (convert-report.json / convert-failed.json).
     [ -f "$raw/session.json" ] && continue
+    [ -f "$raw/convert-report.json" ] && continue
+    [ -f "$raw/convert-failed.json" ] && continue
     if [ -n "$(find "$raw" -type f -mmin -10 -print -quit 2>/dev/null)" ]; then return 0; fi
     if [ -n "$since" ] && [ -n "$(find "$raw" -maxdepth 0 -newermt "@$since" -print 2>/dev/null)" ]; then return 0; fi
   done

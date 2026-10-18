@@ -137,11 +137,10 @@ elif [ "$has_token" = 0 ]; then
   systemctl daemon-reload
   systemctl disable "$unit" >/dev/null 2>&1 || true
   warn "no token in $env_file yet: the service stays off. Run scripts/pi/set-discord-token.ps1 on the PC; it starts the bot."
-elif [ "$unit_changed" = 1 ] || ! systemctl is-active --quiet "$unit"; then
-  enable_unit "$unit"
 else
-  systemctl enable "$unit" >/dev/null 2>&1
-  ok "$unit already running"
+  # Every run: enable_unit restarts only when the unit file or the settings file is new (also from an earlier run
+  # whose restart a guard refused).
+  enable_unit "$unit" "$env_file"
 fi
 if have_systemd && systemctl is-active --quiet "$unit"; then
   # Only the bot's own login line; never the whole journal (a library could print the token).

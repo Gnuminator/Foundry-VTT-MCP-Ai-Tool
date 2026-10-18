@@ -224,6 +224,13 @@ describe('require_quiet: players online and active recordings (S2, R8)', () => {
     assert.match(leftover.out, /QUIET/, leftover.out);
     const stopped = run(`recording_active ${mk()} && echo ACTIVE || echo QUIET`, {}, { SHOW_TS: before });
     assert.match(stopped.out, /QUIET/, stopped.out);
+    // A session the bot converted after a crash (or failed to) is finished, whatever it changed after the start.
+    for (const marker of ['convert-report.json', 'convert-failed.json']) {
+      const d = mk();
+      writeFileSync(join(d, 'night', 'raw', marker), '{}');
+      const done = run(`recording_active ${d} && echo ACTIVE || echo QUIET`, { active: bot }, { SHOW_TS: before });
+      assert.match(done.out, /QUIET/, `${marker}: ${done.out}`);
+    }
   });
 
   test('a running recording refuses a stop or restart, FORCE=1 goes on', () => {
@@ -339,7 +346,7 @@ describe('the stages', () => {
       '5-tool': 'require_quiet',
       '5-check-world': 'require_quiet',
       '6-backup': 'require_quiet',
-      '7-vault': 'require_quiet',
+      '7-vault': 'enable_unit foundry-ai-tool-bridge.service', // enable_unit calls require_quiet before a restart
       '8-recorder': 'require_no_recording',
       '11-world': 'require_quiet',
       '12-tunnel': 'require_quiet',

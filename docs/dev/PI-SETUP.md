@@ -137,8 +137,9 @@ listed).
   reads the last "Backup completed" line, so a started or cancelled run does not count).
 - **A stage that stops or restarts a service refuses while players are online** (Foundry's `/api/status`; the
   Assistant GM browser counts as one user while it runs, an unreadable answer counts as "not safe") **or a Discord
-  recording runs** (a session folder in `recordings` without `session.json` and written to in the last 10
-  minutes). Put `FORCE=1` in front of `bash` on the ssh line to go on anyway: `... | ssh foundry-pi 'FORCE=1 bash -s'`.
+  recording runs** (a session folder in `recordings` whose `raw/` has no `session.json`, `convert-report.json` or
+  `convert-failed.json` and was written to in the last 10 minutes, or, while the bot runs, changed since the bot
+  last started: the bot writes nothing while nobody speaks). Put `FORCE=1` in front of `bash` on the ssh line to go on anyway: `... | ssh foundry-pi 'FORCE=1 bash -s'`.
 - **Stages 5 and 12 warn when the dashboard player/GM split is off** (`dashboard-access.env` has neither
   `GM_DASHBOARD_TOKEN` nor `GM_EMAILS`): everyone who reaches port 3000 is then the GM.
 - **Stage 2 pins Node** (`NODE_VERSION`, default `v24.21.0`; change the pin in the script to move). Stages 2 and 3

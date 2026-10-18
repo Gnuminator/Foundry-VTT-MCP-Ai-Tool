@@ -648,7 +648,7 @@ Parameters:
 
 ### plan-scene-restore
 
-Plan putting a scene's walls, lights, tiles and tokens back from a backup copy of the world, after the map was broken by hand. Counts what is added back, removed, moved or changed. Apply with apply-planned-change, revert with undo-change. Needs the module switch "Scene restore" on (off by default).
+Plan putting a scene's walls, lights, tiles and tokens back from a backup copy of the world, after the map was broken by hand. Counts what is added back, removed, moved or changed. Over 200 changes: plans a batch, apply and plan again. Apply with apply-planned-change, revert with undo-change. Needs the module switch "Scene restore" on (off by default).
 
 Kind: read-only. Title: Plan scene restore from backup.
 
@@ -657,6 +657,7 @@ Parameters:
 - `scene` (string): Default: the viewed scene.
 - `backupPath` (string): Restored world folder. Default: the Plan B folder.
 - `parts` (array of string): One of: `walls`, `lights`, `tiles`, `tokens`.
+- `recentCopyOk` (boolean): True for a hand-made copy: skips the changed-under-5-minutes refusal.
 
 ### plan-scene-mood
 

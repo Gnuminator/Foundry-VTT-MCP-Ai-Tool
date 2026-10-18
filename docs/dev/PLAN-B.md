@@ -234,9 +234,13 @@ last backup had them. Foundry's Undo covers AI changes only; this is the step fo
   (`FOUNDRY_AI_FOUNDRY_APP_DIR`, else `C:\FoundryPlanB\app`, `C:\FoundryTest\app`), compares by
   document id and plans create (old id kept), delete or update ops. Nothing in the backup or on
   the Pi is changed.
-- **Size and the Plan B folder:** one plan holds at most 200 changes; a bigger restore (a whole
-  castle map) is refused with the counts, and is done one part at a time with `parts`. A folder
-  Foundry has open, or that changed in the last 5 minutes, is refused: on a Plan B night the
+- **Size and the Plan B folder:** one plan holds at most 200 changes. A bigger restore (a whole
+  castle map has over 2,000 walls) is planned as a chain: the plan holds the first 200 changes and
+  says how many are left (`batch`); apply it, then ask for the plan again and it holds the next
+  200, until nothing is left. Each batch is its own plan and is undone on its own with
+  `undo-change`. On Windows a folder Foundry has open is always refused. A folder that changed in the last 5
+  minutes is refused too, unless it is a copy of the world you made by hand a moment ago and
+  Foundry does not have open: then set `recentCopyOk`. On a Plan B night the
   default folder is the running world, so run `.\scripts\plan-b\extract-scenes.ps1`: it restores
   only that world's scenes database from the newest snapshot into a folder of its own (read-only
   on restic, a few megabytes), says how old the snapshot is and prints the folder to give as

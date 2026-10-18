@@ -151,8 +151,9 @@ export const BACKUP_QUIET_MS = 5 * 60_000;
 export async function runningWorldReason(
   scenesDir: string,
   modifiedMs: number,
-  now = Date.now()
+  options: { now?: number; recentCopyOk?: boolean | undefined } = {}
 ): Promise<string | null> {
+  const now = options.now ?? Date.now();
   try {
     const handle = await open(join(scenesDir, 'LOCK'), 'r+');
     await handle.close();
@@ -162,7 +163,7 @@ export async function runningWorldReason(
       return 'its database is open in a running Foundry';
     }
   }
-  if (now - modifiedMs < BACKUP_QUIET_MS) {
+  if (!options.recentCopyOk && now - modifiedMs < BACKUP_QUIET_MS) {
     return `its files changed ${Math.max(0, Math.round((now - modifiedMs) / 60_000))} minutes ago`;
   }
   return null;

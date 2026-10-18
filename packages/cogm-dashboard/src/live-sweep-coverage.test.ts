@@ -15,8 +15,6 @@ const read = (relative: string): string =>
 const RECORDED_SKIPS: Record<string, string> = {
   'plan-scene-mood':
     'ships off (feature scene-mood) and needs a playlist in the world (I-034, I-129); checked by hand on server A (save, apply, music switch, undo), see the PR',
-  'check-action':
-    'read-only and ships off (feature rules-check, I-126); checked by hand on a test server (legal cast, empty slots, out of range, switch off), see the PR',
   'plan-table-viewer':
     'creates a Foundry user; checked by hand on server A (plan, apply, join as Table, undo), see the PR',
   'plan-scene-restore':

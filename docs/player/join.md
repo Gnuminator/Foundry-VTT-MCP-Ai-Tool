@@ -94,8 +94,8 @@ always posts a notice when it starts. What is recorded and what happens with it:
 
 ## The read-only player page
 
-The GM may also send you a second address: the **player page**. It is a read-only web page for
-phone or laptop with the combat order, the session feed and the handouts the GM has shown you. It
+The GM may also send you a second address: the **player page**. It is a read-only web page, handy
+on a phone or laptop, with the combat order, the session feed and the handouts the GM has shown you. It
 is live now. It asks for an email code too, the same kind as in step 1 but a separate login, so the first visit
 works the same way. You don't need it to play. More in the [player guide](README.md).
 

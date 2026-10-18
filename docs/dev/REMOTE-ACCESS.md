@@ -226,7 +226,8 @@ existing without its gate.
 
 The `Bridge control` application has two ways in, by design (D-126): the service token below, and
 the `Dashboard GMs` policy, so a GM's email code (a one-hour session) also opens Bridge control.
-The token is not the only door. To make it so, remove `Dashboard GMs` from this application.
+So the token is not the only door. To make it the only one, remove `Dashboard GMs` from this
+application.
 
 1. **Service token, made by you.** Cloudflare One, Access controls, Service credentials, Create
    service token, name `gm-claude-desktop` (one per person, for example `gm-claude-desktop-<name>`,

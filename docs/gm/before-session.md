@@ -11,7 +11,7 @@ terminal to open. You need two addresses from the tool admin: the game's and the
 
 ## Start everything
 
-- [ ] Start **Claude Desktop**. It starts the bridge.
+- [ ] Start **Claude Desktop**. It connects to the bridge on the Pi.
 - [ ] Open Foundry in your browser, launch the world, and join as your GM user.
 - [ ] Wait for the Foundry message "MCP Bridge connected successfully" (top of the screen).
 - [ ] Open the dashboard address on your second screen. Cloudflare may ask for an emailed code

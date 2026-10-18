@@ -124,8 +124,9 @@ Tool words:
 
 ## Setup today (Windows)
 
-> **Note: setup moves to the Orange Pi before the campaign starts.** Foundry, the bridge and the
-> dashboard will run on the Orange Pi home server. This section then changes. The Pi setup is in
+> **Note: this section is for the tool admin's own Windows PC.** For the campaign, Foundry and the
+> dashboard run on the Orange Pi home server and you start nothing yourself: use the
+> [before-session checklist](before-session.md). The Pi setup is in
 > [docs/dev/PI-SETUP.md](../dev/PI-SETUP.md).
 
 Today everything runs on one Windows PC: Claude Desktop, the bridge, the dashboard, and the browser
@@ -188,9 +189,10 @@ This is book content you bought, so it stays on your computer:
 - If the bridge runs on another computer than Foundry, set `FOUNDRY_AI_FOUNDRY_URL` to
   Foundry's address so the pictures can be fetched.
 
-Each time you play, the order is simple: start Claude Desktop, start the dashboard
-(`npm run dev:cogm`), open Foundry and join as the GM, open the dashboard in your browser. The
-[before-session checklist](before-session.md) has the details.
+Each time you play on the Pi, the order is simple: start Claude Desktop, open Foundry and join as
+the GM, open the dashboard in your browser. The [before-session checklist](before-session.md) has
+the details. (On the admin's own PC the dashboard is also started by hand, with
+`npm run dev:cogm`.)
 
 ## Next
 

@@ -6,8 +6,8 @@ description: A tour of every panel and button on the dashboard, what each does a
 # The dashboard
 
 The dashboard is your control panel. Open it in a browser on a second screen next to
-Foundry. Today its address is `http://localhost:3000` (it changes when the tool moves to the
-Orange Pi).
+Foundry. Its address is the one the tool admin gave you (on the admin's own PC it is
+`http://localhost:3000`).
 
 Watching is always safe. Apart from **→ Post to chat** (AI comments, which need an API key) and the
 session marks, nothing on the dashboard changes the game until you turn on **GM Actions** and
@@ -601,7 +601,7 @@ card in Foundry's chat). Claude uses the same actions with `get-party` and `plan
 
 ## The player page (/player)
 
-The page players look at: `http://localhost:3000/player` today. Open it yourself before a session
+The page players look at: the dashboard address with `/player` at the end. Open it yourself before a session
 to check what they see. Its parts:
 
 - **Combat order**: initiative and names as players know them. PCs have an HP bar; enemies and NPCs
@@ -673,8 +673,8 @@ The page has three views, and each player picks theirs (remembered on their devi
 
 What the page leaves out: the GM's secret sections in descriptions, the true names of
 unidentified items (it shows what the player sees in Foundry), and any actor the player does not
-own. Like the player page, it only answers on this PC today; how players reach it from their own
-devices is set up with the Orange Pi.
+own. Like the player page, it is live on the Pi behind the email-code login, so players reach it from
+their own devices.
 
 ## Open in Obsidian (📓)
 

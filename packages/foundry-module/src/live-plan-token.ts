@@ -445,13 +445,15 @@ function planFitScale(
       continue;
     }
     // lockSize: dnd5e's Autosize would otherwise write the actor's size back after the apply.
-    const changes: Rec = { width: edge, height: edge, depth: edge, 'flags.dnd5e.lockSize': true };
+    const changes: Rec = sized
+      ? { 'flags.dnd5e.lockSize': true }
+      : { width: edge, height: edge, depth: edge, 'flags.dnd5e.lockSize': true };
     ops.push({ kind: 'update', uuid: token.uuid, changes });
     previews.push({
       target: token.name,
       actorUuid: token.uuid,
       line: sized
-        ? `${token.name}: already ${edge} squares, size locked${note}`
+        ? `${token.name}: already ${edge} squares; locks the size${note}`
         : `${token.name}: ${w}x${h} to ${edge}x${edge} squares${note}`,
     });
   }

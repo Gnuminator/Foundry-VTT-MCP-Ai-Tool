@@ -585,7 +585,8 @@ describe('planTokenChange: fit-scale', () => {
     hero.width = hero.height = 0.25;
     hero._source = { depth: 0.25 };
     const plan = planTokenChange(fit(['Hero']));
-    expect(plan.targets[0]?.line).toBe('Hero: already 0.25 squares, size locked');
+    expect(plan.targets[0]?.line).toBe('Hero: already 0.25 squares; locks the size');
+    expect((plan.ops[0] as any).changes).toEqual({ 'flags.dnd5e.lockSize': true });
     expect(plan.ops).toHaveLength(1);
   });
 

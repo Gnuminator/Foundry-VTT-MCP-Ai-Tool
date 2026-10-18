@@ -691,25 +691,74 @@ describe('applyGuardedOps: rollback', () => {
     expect(gmChangeEvents(req.changeId)).toHaveLength(0);
   });
 
-  it('throws and restores when Foundry silently drops part of an update (constrained move, hook, region)', async () => {
+  function addToken(): FakeDoc {
+    return makeDoc('Token', { name: 'Tok', x: 100, y: 100, width: 1, height: 1, rotation: 0 });
+  }
+
+  it('throws and restores when Foundry silently drops a token size (constrained move, hook, region)', async () => {
     const a = addActor({ name: 'A' });
-    const tok = addActor({ name: 'Tok' });
+    const tok = addToken();
     const req = await request([
       { kind: 'update', uuid: a.uuid, changes: { name: 'A2' } },
-      { kind: 'update', uuid: tok.uuid, changes: { name: 'Tok2', 'system.size': 3 } },
+      { kind: 'update', uuid: tok.uuid, changes: { name: 'Tok2', width: 3, height: 3 } },
     ]);
     const realUpdate = tok.update.bind(tok);
     tok.update = (changes): Promise<FakeDoc> => {
-      const { 'system.size': _dropped, ...kept } = changes;
+      const { width: _dropped, ...kept } = changes;
       return realUpdate(kept);
     };
 
     await expect(applyGuardedOps(req)).rejects.toThrow(
-      /Op 1 \(update\) failed: Foundry did not keep "system.size".*; the 1 earlier op\(s\) were rolled back/
+      /Op 1 \(update\) failed: Foundry did not keep "width".*the change was undone; the 1 earlier op\(s\) were rolled back/
     );
     expect(a.name).toBe('A');
     expect(tok.name).toBe('Tok');
+    expect(tok.source.height).toBe(1);
     expect(gmChangeEvents(req.changeId)).toHaveLength(0);
+  });
+
+  it('does not call a value Foundry normalises (rotation wrap, trimmed name) a dropped write', async () => {
+    const tok = addToken();
+    const req = await request([
+      { kind: 'update', uuid: tok.uuid, changes: { name: ' Bob ', rotation: -90, x: 200 } },
+    ]);
+    const realUpdate = tok.update.bind(tok);
+    tok.update = (changes): Promise<FakeDoc> =>
+      realUpdate({ ...changes, name: 'Bob', rotation: 270 });
+    await applyGuardedOps(req);
+    expect(tok.source.rotation).toBe(270);
+    expect(tok.source.x).toBe(200);
+  });
+
+  it('says so when putting the earlier values back fails too', async () => {
+    const tok = addToken();
+    const req = await request([{ kind: 'update', uuid: tok.uuid, changes: { x: 500 } }]);
+    const realUpdate = tok.update.bind(tok);
+    let calls = 0;
+    tok.update = (): Promise<FakeDoc> =>
+      ++calls === 1 ? realUpdate({}) : Promise.reject(new Error('locked'));
+    await expect(applyGuardedOps(req)).rejects.toThrow(
+      /Foundry did not keep "x".*putting the earlier values back failed too/
+    );
+  });
+
+  it('does not write an applied value again when a drop happens inside a rollback', async () => {
+    const a = addActor({ name: 'A' });
+    const tok = addToken();
+    const req = await request([
+      { kind: 'update', uuid: tok.uuid, changes: { width: 3 } },
+      { kind: 'update', uuid: a.uuid, changes: { name: 'A2' } },
+    ]);
+    a.failUpdates = true;
+    const realUpdate = tok.update.bind(tok);
+    let calls = 0;
+    // The apply lands; the rollback's write of width 1 is dropped.
+    tok.update = (changes): Promise<FakeDoc> =>
+      ++calls === 1 ? realUpdate(changes) : realUpdate({});
+    await expect(applyGuardedOps(req)).rejects.toThrow(
+      /rollback incomplete: op 0: Foundry did not keep "width".*not written again/
+    );
+    expect(calls).toBe(2);
   });
 
   it('reports an incomplete rollback', async () => {

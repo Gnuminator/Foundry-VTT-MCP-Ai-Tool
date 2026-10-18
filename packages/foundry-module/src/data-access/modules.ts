@@ -20,7 +20,7 @@ interface ModuleSummary {
   title: string;
   version: string;
   active: boolean;
-  /** The manifest url the module installs from (the version tracker checks it); null when none. */
+  /** The manifest url the module installs from; only with `includeManifest` (the version tracker asks), else null. */
   manifest: string | null;
   compatibility: { minimum: string | null; verified: string | null; maximum: string | null };
   requires: RequiredDep[];
@@ -77,8 +77,8 @@ interface ModuleManifestFields extends FoundryModule {
 }
 
 /**
- * A module's manifest url for the tool output, or null. Only plain http(s) urls without a user,
- * password or query string: private or paid modules often carry a token there, and this output
+ * A module's manifest url for the tool output, or null. Only plain https urls without a user,
+ * password, query string or #fragment: private or paid modules often carry a token there, and this output
  * reaches Claude and its transcripts.
  */
 function publicManifestUrl(value: unknown): string | null {
@@ -87,6 +87,7 @@ function publicManifestUrl(value: unknown): string | null {
     const url = new URL(value);
     if (url.protocol !== 'https:') return null;
     if (url.username || url.password || url.search) return null;
+    url.hash = '';
     return url.href;
   } catch {
     return null;
@@ -137,6 +138,7 @@ export class ModulesDataAccess {
   async getModules(data: {
     activeOnly?: boolean;
     withIssuesOnly?: boolean;
+    includeManifest?: boolean;
   }): Promise<ModulesResult> {
     shared.validateFoundryState();
 
@@ -149,7 +151,7 @@ export class ModulesDataAccess {
 
     // Build the full (unfiltered) inventory.
     const all: ModuleSummary[] = Array.from(game.modules.values()).map(m =>
-      this.summarizeModule(m, sys, coreVer, isNewer)
+      this.summarizeModule(m, sys, coreVer, isNewer, data.includeManifest === true)
     );
 
     // Apply optional filters to the returned list only.
@@ -283,7 +285,8 @@ export class ModulesDataAccess {
     m: FoundryModule,
     sys: FoundrySystem,
     coreVer: string,
-    isNewer: (a: unknown, b: unknown) => boolean
+    isNewer: (a: unknown, b: unknown) => boolean,
+    includeManifest: boolean
   ): ModuleSummary {
     const issues: string[] = [];
     const requires = this.resolveRequires(m, sys, issues);
@@ -297,7 +300,7 @@ export class ModulesDataAccess {
       title: m.title,
       version: m.version,
       active: m.active,
-      manifest: publicManifestUrl(manifest),
+      manifest: includeManifest ? publicManifestUrl(manifest) : null,
       compatibility: {
         minimum: comp.minimum ?? null,
         verified: comp.verified ?? null,

@@ -65,7 +65,7 @@ Two things to know from the start:
 - The module runs inside a **GM's** Foundry browser tab. If no GM is logged in to Foundry, the tool
   cannot reach the game.
 - Players never use the bridge. They see Foundry as usual. Once the Orange Pi is set up, they can
-  also open the player page; today it only opens on the PC that runs the dashboard.
+  also open the player page; it is live behind the email-code login.
 
 ## What is special for Curse of Strahd
 

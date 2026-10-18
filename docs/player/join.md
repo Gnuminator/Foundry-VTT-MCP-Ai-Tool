@@ -5,6 +5,10 @@ description: Step by step with pictures, the game's web address, the one-time em
 
 # Join the game
 
+**Phones are for reading, not playing.** Use a laptop or desktop computer to play. And **give Danni
+your email first**: until he adds it to the list, no login code ever arrives and Cloudflare shows
+no error.
+
 We play in two places at once: **Foundry** in your web browser (the map, your character sheet,
 the dice) and **Discord** (voice). This page gets you into both. Do it once before session 0, so
 any problem shows up before the game.
@@ -22,8 +26,8 @@ It takes about ten minutes the first time. After that, joining is the address an
 - **Discord**, the app or in the browser, and an invite to our server.
 - **From the GM:** the game's web address and your Foundry user name (your first name). Your user has no
   password: the emailed login code is the lock.
-- **An email address you can open right now.** Tell the GM which one before session 0. Only
-  addresses the GM has added to the list can get in, so a different address than the one you gave
+- **An email address you can open right now.** Give it to Danni before session 0. Only
+  addresses on the list can get in, so a different address than the one you gave
   will not work.
 
 ## 1. Open the game's address
@@ -92,7 +96,7 @@ always posts a notice when it starts. What is recorded and what happens with it:
 
 The GM may also send you a second address: the **player page**. It is a read-only web page for
 phone or laptop with the combat order, the session feed and the handouts the GM has shown you. It
-asks for an email code too, the same kind as in step 1 but a separate login, so the first visit
+is live now. It asks for an email code too, the same kind as in step 1 but a separate login, so the first visit
 works the same way. You don't need it to play. More in the [player guide](README.md).
 
 ## If it doesn't work

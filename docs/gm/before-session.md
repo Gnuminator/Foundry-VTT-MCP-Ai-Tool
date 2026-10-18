@@ -6,16 +6,16 @@ description: A short checklist for the GM before a play session starts.
 # Before each session
 
 Do these in order, about 15 minutes before the players join. Each item is one action. The
-addresses are today's Windows setup; they change when the tool moves to the Orange Pi.
+dashboard runs on the table's home server (the Orange Pi), so there is nothing to start and no
+terminal to open. You need two addresses from the tool admin: the game's and the dashboard's.
 
 ## Start everything
 
 - [ ] Start **Claude Desktop**. It starts the bridge.
-- [ ] Start the dashboard: open a terminal in the tool's folder, run `npm run dev:cogm`, and leave
-      that window open (closing it stops the dashboard and turns GM Actions off).
 - [ ] Open Foundry in your browser, launch the world, and join as your GM user.
 - [ ] Wait for the Foundry message "MCP Bridge connected successfully" (top of the screen).
-- [ ] Open the dashboard on your second screen: `http://localhost:3000`.
+- [ ] Open the dashboard address on your second screen. Cloudflare may ask for an emailed code
+      first, the same as when you join the game.
 - [ ] Check the dashboard header says **Bridge: connected** and **Foundry: live**. If not, see
       [Troubleshooting](troubleshooting.md).
 
@@ -48,7 +48,7 @@ addresses are today's Windows setup; they change when the tool moves to the Oran
       there too.
 - [ ] Hide tokens players should not know about yet: right-click the token, click the eye button
       (tooltip **Hide**).
-- [ ] Open the player page in a second tab, `http://localhost:3000/player`, and check the combat
+- [ ] Open the player page in a second tab (the dashboard address with `/player` at the end), and check the combat
       order, feed and handouts show nothing you want to keep secret.
 - [ ] Handouts: check that every page in your handouts journal is set to **None** unless you
       revealed it (open the journal, right-click a page, **Configure Ownership**). The steps are in

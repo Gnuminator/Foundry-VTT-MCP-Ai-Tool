@@ -25,7 +25,7 @@ afterEach(() => restore());
 function item(
   name: string,
   opts: { melee?: boolean; reach?: number; value?: number; long?: number }
-) {
+): any {
   return {
     name,
     system: {
@@ -48,7 +48,7 @@ function token(
   x: number,
   y: number,
   extra: Record<string, unknown> = {}
-) {
+): any {
   return {
     id,
     uuid: `Scene.s1.Token.${id}`,
@@ -63,7 +63,7 @@ function token(
   };
 }
 
-function npcActor(items: any[], walk = 30) {
+function npcActor(items: any[], walk = 30): any {
   return {
     id: 'a-wolf',
     name: 'Wolf',
@@ -74,7 +74,7 @@ function npcActor(items: any[], walk = 30) {
   };
 }
 
-function heroActor() {
+function heroActor(): any {
   return {
     id: 'a-hero',
     name: 'Hero',

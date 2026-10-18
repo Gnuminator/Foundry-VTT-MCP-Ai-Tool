@@ -208,7 +208,7 @@ export function planNpcTurn(data: unknown): NpcTurnPlan {
   const request = rec(data) ?? {};
   const scene = currentScene();
   const combat = fight();
-  if (!combat || combat.started !== true) {
+  if (combat?.started !== true) {
     throw new Error('No running combat: start the encounter first');
   }
   const combatants = contentsOf(combat.combatants)

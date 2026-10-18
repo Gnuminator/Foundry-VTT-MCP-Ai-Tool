@@ -149,7 +149,7 @@ export class SceneRestoreTools {
       await stat(backupPath);
     } catch {
       throw new Error(
-        `No backup copy at ${backupPath}. Extract the Pi's backup first (scripts/plan-b/extract-scenes.ps1) or give backupPath.`
+        `No backup copy at ${backupPath}. Extract the Pi's backup first (scripts/plan-b/extract-scenes.ps1) and give the folder it prints as backupPath (or set FOUNDRY_AI_SCENE_BACKUP_DIR).`
       );
     }
     const backup = await readBackupScene({

@@ -240,7 +240,7 @@ last backup had them. Foundry's Undo covers AI changes only; this is the step fo
   default folder is the running world, so run `.\scripts\plan-b\extract-scenes.ps1`: it restores
   only that world's scenes database from the newest snapshot into a folder of its own (read-only
   on restic, a few megabytes), says how old the snapshot is and prints the folder to give as
-  `backupPath`.
+  `backupPath`. Its folders in `C:\FoundrySceneBackup` can be deleted when you are done.
 - **Limits:** an update only sets fields the backup holds and never unsets one; a token's own
   hit points, effects and items (its `delta`) are not restored, and a token put back comes with
   its world actor's current stats; other embedded documents (drawings, notes, regions, sounds)

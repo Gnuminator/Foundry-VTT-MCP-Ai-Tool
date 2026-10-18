@@ -142,6 +142,17 @@ describe('Plan B', { skip: !hasPwsh && 'PowerShell 7 (pwsh) is not available' },
     assert.equal(r, '/var/lib/foundry/Data/worlds/curse-of-strahd/data/scenes');
   });
 
+  test('the scenes extract folder stays out of Plan B, the test server and the restic repo', () => {
+    const r = ps(`
+      $f = @($PlanBDefaults.ForbiddenRoots) + @($PlanBDefaults.Root, $PlanBDefaults.Repo)
+      @{
+        planB = (Test-PlanBRoot 'C:\\FoundryPlanB\\scenes' $f).Ok
+        repo = (Test-PlanBRoot 'E:\\PiBackup\\restic\\x' $f).Ok
+        own = (Test-PlanBRoot 'C:\\FoundrySceneBackup' $f).Ok
+      }`);
+    assert.deepEqual(r, { planB: false, repo: false, own: true });
+  });
+
   test('Foundry version must match the world exactly (no migration the Pi could not undo)', () => {
     const r = ps(`
       @{

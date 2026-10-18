@@ -152,7 +152,11 @@ in Recent Changes, and the tool cannot undo them; you fix them by hand in Foundr
 - Depending on its settings, Claude Desktop asks for your OK before Claude uses a tool. Keep that
   asking on for tools that change the game, and for `apply-planned-change`: then nothing is
   applied without your click. "Always allow" is fine for tools that only read (their names start
-  with `get-`, `list-` or `search-`).
+  with `get-`, `list-` or `search-`). To set it for all of them at once, open **Customize**,
+  **Connectors**, pick a Foundry connector, and under **Tool permissions** set **Read-only tools**
+  to **Always allow** and leave **Write/delete tools** on **Needs approval**. Do this for each of
+  the five connectors. To undo it, set **Read-only tools** back to **Needs approval**. Step by step
+  in [Connect Claude Desktop](connect-claude-desktop.md).
 - When Claude uses an item or a spell, Foundry opens the usage dialog on your screen, and you
   finish it there.
 

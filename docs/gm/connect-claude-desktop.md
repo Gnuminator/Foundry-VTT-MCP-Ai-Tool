@@ -31,6 +31,28 @@ You need: a Windows PC, Claude Desktop installed and signed in, and the tunnel k
 Ask Claude: _"What world is open in Foundry?"_ A normal answer with the world's name means you are
 connected. If Claude says it cannot reach the bridge, go to the list below.
 
+## Stop the "Allow" questions for reading tools
+
+Without this step Claude Desktop asks "Allow?" on almost every Foundry tool call, in every new chat.
+Claude Desktop keeps this choice in your account, not in a file, so the installer cannot set it for
+you. It takes about two minutes, once, and it sticks for all later chats.
+
+1. In Claude Desktop open **Customize**, then **Connectors**.
+2. Click one of the Foundry connectors (`foundry-mcp`, `foundry-mcp-play`, `foundry-mcp-prep`,
+   `foundry-mcp-build`, `foundry-mcp-admin`).
+3. Under **Tool permissions**, click the drop-down on the right of the **Read-only tools** line
+   (it may say **Blocked** or **Needs approval** now) and choose **Always allow** (the check mark).
+4. Set the drop-down on the **Write/delete tools** line to **Needs approval** (the hand). Those are
+   the tools that change the game, and you want to be asked. Do not leave it on **Blocked**: then
+   Claude cannot use them at all.
+5. Repeat for the other four connectors.
+
+Each Foundry tool is marked as reading or changing, so the two groups sort themselves. Changes to the
+game still go through Claude's plan and your confirmation, whatever you pick here. Details in
+[Asking Claude](asking-claude.md).
+
+To go back, set **Read-only tools** to **Needs approval** again on each connector.
+
 ## If something does not work
 
 - **"The bridge is not reachable":** the tunnel may be stopped. Open PowerShell and run the status

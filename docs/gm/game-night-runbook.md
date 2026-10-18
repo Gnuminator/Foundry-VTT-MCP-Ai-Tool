@@ -52,7 +52,7 @@ Keep playing: do the change by hand in Foundry.
 
 - **"Usage limit" message:** the free plan has a limit per five hours. It resets by itself; until
   then, play without Claude. See [Claude Free or Pro](claude-plans.md).
-- **Claude says a tool set is off:** switch it on in Claude Desktop's **Search and tools** menu
+- **Claude says a tool set is off:** switch it on in Claude Desktop's **+** menu, **Connectors**
   (see [Asking Claude](asking-claude.md#tool-sets-which-switches-to-turn-on)).
 - **Every tool call fails:** Claude has lost its link to the game. At the break, quit Claude Desktop
   fully and start it again. If that doesn't help, call for help after the session.

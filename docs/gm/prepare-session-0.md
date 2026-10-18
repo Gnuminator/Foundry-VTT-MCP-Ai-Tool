@@ -25,11 +25,11 @@ expectations](prep-and-expectations.md) has an agenda you can change.
 ## 1. One user per player
 
 1. Press **Esc** and choose **User Management** (or Settings tab, **User Management**).
-2. For each player, click **Create Additional User**, type their name in **User Name**, a
-   password in **Password**, and keep the role **Player**.
+2. For each player, click **Create Additional User**, type their name in **User Name**, leave
+   **Password** empty (Cloudflare Access and its emailed code are the lock), and keep the role **Player**.
 3. Click **Save and Return**.
 
-Send each player their user name and password privately (a Discord direct message), with the link
+Send each player their user name privately (a Discord direct message), with the link
 to [Join the game](../player/join.md).
 
 ## 2. Let players create characters (a check on our server)

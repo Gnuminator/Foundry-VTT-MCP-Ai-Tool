@@ -52,7 +52,7 @@ does not say so: it just never sends a code. That is the first thing to check if
 
 Foundry's join page opens. It shows the game's name at the top and three panels on the left.
 
-![Foundry's join page: user name Player and a password typed in, the orange Join Game Session button below, and further down the Return to Setup box](../images/guides/join-form.png)
+![Foundry's join page: user name Player and the password box, the orange Join Game Session button below, and further down the Return to Setup box](../images/guides/join-form.png)
 
 1. In the first box, pick your **user name** from the list, exactly as the GM wrote it.
 2. Leave the password box empty. Your user has no password.

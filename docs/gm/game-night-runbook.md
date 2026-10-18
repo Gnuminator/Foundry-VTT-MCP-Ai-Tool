@@ -34,8 +34,8 @@ solve technical problems yourself.
 
 1. Send them [Join the game](../player/join.md); its table at the bottom covers most cases (no
    email code, wrong user name, small screen).
-2. Wrong password: press **Esc**, **User Management**, type a new password in their row, **Save
-   and Return**, and tell them in a direct message.
+2. Asked for a password: they picked the wrong user. Player users have no password; tell them to
+   pick their own name.
 3. Their email never gets a code: their address is not on the access list. Call for help; that
    list lives in Cloudflare, not in Foundry.
 4. While they wait, the others play on. The player can follow in voice and roll real dice; you
@@ -79,7 +79,7 @@ gives you a new address.
 1. Tell the players in Discord: "The server is down, we take a 15-minute break."
 2. Call the tool admin right away. They start plan B.
 3. When the tool admin posts the new address, everyone opens it and logs in as usual: same user
-   names, same passwords. The first visit may ask for an email code again, as on the first night.
+   names. The first visit may ask for an email code again, as on the first night.
 4. Anything that happened tonight before the crash is not in last night's backup. Check
    hit points, spell slots and items with the players and set them by hand. Your chat log and
    the players' memories are the record.

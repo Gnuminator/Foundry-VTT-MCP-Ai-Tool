@@ -258,7 +258,7 @@ function slotCheck(f: RulesFacts): RulesCheckLine | null {
   }
   if (f.spellMethod === 'pact') {
     const pact = f.slots?.pact;
-    if (!pact || pact.level == null) {
+    if (pact?.level == null) {
       return {
         check: 'slots',
         status: 'unknown',

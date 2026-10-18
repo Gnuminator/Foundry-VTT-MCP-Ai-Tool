@@ -66,7 +66,7 @@ describe('registerGuardedFeature', () => {
       hint: 'Checks.',
       readOnly: true,
     });
-    const config = vi.mocked(game.settings.register).mock.calls.at(-1)?.[2] as { hint: string };
+    const config = register.mock.calls.at(-1)?.[2];
     expect(config.hint).toBe('Checks. Off by default; it only reads and changes nothing.');
   });
 

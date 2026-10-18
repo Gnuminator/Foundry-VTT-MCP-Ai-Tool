@@ -25,35 +25,44 @@ You need: a Windows PC, Claude Desktop installed and signed in, and the tunnel k
    anywhere except in a locked store that only your Windows user can open.
 5. Finish. Start Claude Desktop. Click the **+** in the chat box, choose **Connectors**, and switch
    on the ones you want (`foundry-mcp` is Core; Play and Prep are the ones you will use most).
-   A connector that is switched off is not available in that chat. Do the next section once
-   after this, so Claude does not ask "Allow?" for every reading tool.
+   A connector that is switched off is not available in that chat. Then do "Stop the Allow
+   questions" below once, so Claude does not ask "Allow?" on every tool call.
 
 ## Check that it works
 
 Ask Claude: _"What world is open in Foundry?"_ A normal answer with the world's name means you are
 connected. If Claude says it cannot reach the bridge, go to the list below.
 
-## Stop the "Allow" questions for reading tools
+## Stop the "Allow" questions
 
 Without this step Claude Desktop asks "Allow?" on almost every Foundry tool call, in every new chat.
 Claude Desktop keeps this choice in your account, not in a file, so the installer cannot set it for
-you. It takes about two minutes, once, and it sticks for all later chats.
+you. You do it once per connector.
 
 1. In Claude Desktop open **Customize**, then **Connectors**.
 2. Click one of the Foundry connectors (`foundry-mcp`, `foundry-mcp-play`, `foundry-mcp-prep`,
    `foundry-mcp-build`, `foundry-mcp-admin`).
 3. Under **Tool permissions**, click the drop-down on the right of the **Read-only tools** line
    (it may say **Blocked** or **Needs approval** now) and choose **Always allow** (the check mark).
-4. Set the drop-down on the **Write/delete tools** line to **Needs approval** (the hand). Those are
-   the tools that change the game, and you want to be asked. Do not leave it on **Blocked**: then
-   Claude cannot use them at all.
-5. Repeat for the other four connectors.
+4. Do the same on the **Write/delete tools** line. We suggest **Always allow** there too, because
+   the tool already shows you a plan and asks you to confirm before it changes anything, so you
+   see one question, not two. Do not leave either line on **Blocked**: then Claude cannot use
+   those tools at all.
+5. Repeat for the other connectors you use. At the table that is `foundry-mcp` (Core),
+   `foundry-mcp-play` and `foundry-mcp-prep`; do `foundry-mcp-build` and `foundry-mcp-admin` too if
+   you switch them on.
 
-Each Foundry tool is marked as reading or changing, so the two groups sort themselves. Changes to the
-game still go through Claude's plan and your confirmation, whatever you pick here. Details in
+On a new install every Foundry connector may show **Blocked** for both groups. Set each connector
+you use; a connector you never set stays as it is.
+
+Each Foundry tool is marked as reading or changing, so the two groups sort themselves. A few Play
+tools act at once without a plan (rolls, chat messages, moving or deleting tokens); with **Always
+allow** on writes, Claude Desktop will not stop for those either. Details in
 [Asking Claude](asking-claude.md).
 
-To go back, set **Read-only tools** to **Needs approval** again on each connector.
+**To go back:** on the connector's **Tool permissions** screen, set the **Write/delete tools**
+drop-down to **Needs approval** (the hand). Do the same for **Read-only tools** if you want to be
+asked for reading too.
 
 ## If something does not work
 

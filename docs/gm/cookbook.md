@@ -244,7 +244,7 @@ These need the **play** set switched on.
 ## When a recipe goes wrong
 
 - **"Switch on the play set"** (or another set): Claude needs a tool that is off. Switch it on in
-  the **Search and tools** menu and ask again.
+  the **+** menu, **Connectors**, and ask again.
 - **Claude picks the wrong token:** name it exactly ("Wolf 2") or pick it in the tool runner.
 - **A plan is refused:** its feature switch is off, the plan is older than 15 minutes, or the thing
   changed in Foundry since. Ask for a new plan.

@@ -57,8 +57,10 @@ Short rules. Each has its reason on the next line.
 - **Turn off "Allow Write Operations" only if you want the tool to change nothing.**
   It stops every change from Claude and from the dashboard, chat messages and Undo included;
   reading still works.
-- **Choose "Always allow" for a tool in Claude Desktop only if the tool only reads.**
-  For tools that change the game, you want to be asked each time.
+- **Choose "Always allow" for the tools that change the game only if you are happy not to be asked
+  by Claude Desktop.** Changes through the plan are still confirmed and can be undone; direct
+  actions (rolls, chat messages, moving or deleting tokens) are not. Set **Write/delete tools** to
+  **Needs approval** to be asked each time.
 - **Set an Anthropic API key on the dashboard only if you want the AI commentary panel and accept
   the cost.**
   It is the paid API, billed per use, and it sends game events to Anthropic automatically.

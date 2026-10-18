@@ -5,12 +5,13 @@
 //
 // The take windows are fullscreen with the page in the top-left corner at css * scale pixels
 // (browser.mjs), so recording the top-left width x height of the monitor shows exactly the page.
-// The window on air is the one in front: Take.scene() already calls page.bringToFront(), so
-// setScene has nothing to do here.
+// The window on air is the one in front: Take.scene() calls setScene, which raises the scene's
+// window by its pinned title (Playwright's bringToFront does not raise the OS window).
 
 import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, rmSync, statSync } from 'node:fs';
 import { join } from 'node:path';
+import { SCENES } from './scenes.mjs';
 
 /** The ffmpeg arguments for one recording. Exported for tests. */
 export function ffmpegArgs({ width, height, outputIdx = 0, file }) {
@@ -51,7 +52,31 @@ export class FfmpegRecorder {
     this.ts = null;
   }
 
-  async setScene() {}
+  /**
+   * Put the scene's window in front of the others. OBS shows one window per scene; a screen
+   * recording shows whatever is on top, and Playwright's bringToFront does not raise the
+   * operating system window. Finds the window by its pinned title (scenes.mjs).
+   */
+  async setScene(sceneName) {
+    const title = SCENES[sceneName];
+    if (!title) return;
+    const ps = [
+      'Add-Type -Name W -Namespace U -MemberDefinition \'[DllImport("user32.dll")] public static extern bool ShowWindow(System.IntPtr h,int c); [DllImport("user32.dll")] public static extern bool SetForegroundWindow(System.IntPtr h); [DllImport("user32.dll")] public static extern void keybd_event(byte k,byte s,int f,int e); [DllImport("user32.dll")] public static extern bool IsIconic(System.IntPtr h);\'',
+      `$p = Get-Process msedge -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowTitle -eq '${title}' } | Select-Object -First 1`,
+      'if (-not $p) { exit 3 }',
+      // A tap on Alt lets SetForegroundWindow through the foreground lock.
+      '[U.W]::keybd_event(0x12,0,0,0); [U.W]::keybd_event(0x12,0,2,0)',
+      'if ([U.W]::IsIconic($p.MainWindowHandle)) { [U.W]::ShowWindow($p.MainWindowHandle, 9) | Out-Null }',
+      '[U.W]::SetForegroundWindow($p.MainWindowHandle) | Out-Null',
+    ].join('; ');
+    const r = spawnSync('pwsh', ['-NoProfile', '-Command', ps], { encoding: 'utf8' });
+    if (r.status === 3)
+      console.warn(`ffmpeg recorder: no window titled "${title}" to bring forward.`);
+    else if (r.status !== 0)
+      console.warn(`ffmpeg recorder: could not raise "${title}": ${r.stderr}`);
+    // Let the window repaint before the take goes on.
+    await new Promise(r => setTimeout(r, 400));
+  }
 
   async startRecord(directory) {
     mkdirSync(directory, { recursive: true });

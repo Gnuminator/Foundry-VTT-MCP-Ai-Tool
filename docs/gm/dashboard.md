@@ -219,7 +219,7 @@ so it works without internet and always matches the installed version. The side 
 at the top, **Open this page on the wiki**. It opens the same page on the website (needs
 internet), which is easier to read on a second screen and has search.
 
-> **The old dashboard page.** Until after the first online session (session 1, 29 November), the
+> **The old dashboard page.** Until after the first online session on 29 November (session 1, not session 0), the
 > previous version of the dashboard is still there at the same address with `/legacy/` added (also
 > the **Old dashboard** button in the header). Use it only if something you need is missing on the
 > main page. Only the old page has: the three status lights and the world line, the Features cards,

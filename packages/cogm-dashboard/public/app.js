@@ -1079,6 +1079,12 @@ function connect() {
 
   es.onerror = () => {
     setDot(els.statusBridge, 'dot-red', 'Bridge: reconnecting…');
+    // The browser gives up for good on a non-200 answer (a 502 while the dashboard restarts):
+    // make a new stream after a wait. The server replays the status on connect.
+    if (es.readyState === EventSource.CLOSED) {
+      es.close();
+      setTimeout(connect, 2000 + Math.random() * 3000);
+    }
   };
 }
 

@@ -77,8 +77,8 @@ export const FEED_KEY = ['stream', 'events'] as const;
 /**
  * The stream itself (the EventSource), not the bridge behind it: 'open' while it is connected,
  * 'dropped' while the browser is trying to reconnect (the server restarted, the network blinked),
- * 'closed' when the browser gave up (the server refused the stream, e.g. a link that is no longer
- * valid). Absent before the first answer. The header reads it for every panel at once.
+ * 'closed' when the browser gave up and the new connections (startStream) keep failing too, e.g. a
+ * link that is no longer valid. Absent before the first answer. The header reads it for every panel at once.
  */
 export interface StreamLink {
   state: 'open' | 'dropped' | 'closed';
@@ -207,23 +207,76 @@ const HANDLERS: Record<string, (queryClient: QueryClient, data: unknown) => void
   },
 };
 
-/** Opens the stream while the page is open. Mounted once, in App. */
-export function useDashboardStream(): void {
-  const queryClient = useQueryClient();
-  useEffect(() => {
-    const source = new EventSource(streamUrl());
-    const setLink = (state: StreamLink['state']): void => {
-      queryClient.setQueryData<StreamLink>(STREAM_LINK_KEY, link =>
-        // A second error while still down keeps the time the stream first went down.
-        link?.state === state ? link : { state, since: Date.now() }
-      );
+/** The wait before the first new connection after the browser gave up on the stream, then doubling. */
+export const STREAM_RETRY_MIN_MS = 2000;
+/** The longest wait between two new connections. */
+export const STREAM_RETRY_MAX_MS = 10_000;
+/**
+ * How many answers in a row the browser must give up on before the header says to reload. A
+ * dashboard restart or a tunnel 502 ends in one or two (the retry lands in the gap) and the next
+ * new connection gets through; a link that is no longer valid fails every time.
+ */
+export const STREAM_GIVE_UP_AFTER = 3;
+
+/** The wait before new connection number `failures` (1 is the first): 2, 4, 8, 10, 10, ... s. */
+export function streamRetryDelay(failures: number): number {
+  return Math.min(STREAM_RETRY_MAX_MS, STREAM_RETRY_MIN_MS * 2 ** Math.max(0, failures - 1));
+}
+
+/** What startStream needs from the page; the tests give it fakes. */
+export interface StreamEnv {
+  create: () => EventSource;
+  schedule: (fn: () => void, ms: number) => () => void;
+}
+
+const realEnv = (): StreamEnv => ({
+  create: () => new EventSource(streamUrl()),
+  schedule: (fn, ms) => {
+    const timer = setTimeout(fn, ms);
+    return (): void => clearTimeout(timer);
+  },
+});
+
+/**
+ * Opens the stream and keeps it open. The browser reconnects by itself after a network error, but
+ * an answer that is not 200 (a 502 from the tunnel, a dashboard that is restarting) sets the source
+ * to CLOSED for good. A closed source is dropped and a new one made after a growing wait. Returns
+ * what stops it.
+ */
+export function startStream(queryClient: QueryClient, env: StreamEnv = realEnv()): () => void {
+  let source: EventSource | null = null;
+  let cancelRetry: (() => void) | null = null;
+  let stopped = false;
+  let failures = 0;
+  const setLink = (state: StreamLink['state']): void => {
+    queryClient.setQueryData<StreamLink>(STREAM_LINK_KEY, link =>
+      // A second error while still down keeps the time the stream first went down.
+      link?.state === state ? link : { state, since: Date.now() }
+    );
+  };
+  const connect = (): void => {
+    cancelRetry = null;
+    const current = env.create();
+    source = current;
+    current.onopen = (): void => {
+      failures = 0;
+      setLink('open');
     };
-    source.onopen = (): void => setLink('open');
     // The browser reconnects by itself while the source is CONNECTING; CLOSED means it gave up.
-    source.onerror = (): void =>
-      setLink(source.readyState === EventSource.CLOSED ? 'closed' : 'dropped');
+    current.onerror = (): void => {
+      if (stopped || source !== current) return;
+      if (current.readyState !== EventSource.CLOSED) {
+        setLink('dropped');
+        return;
+      }
+      failures += 1;
+      current.close();
+      // Down for a moment is a drop; a link that keeps failing is closed (reload the page).
+      setLink(failures >= STREAM_GIVE_UP_AFTER ? 'closed' : 'dropped');
+      cancelRetry = env.schedule(connect, streamRetryDelay(failures));
+    };
     for (const [event, handle] of Object.entries(HANDLERS)) {
-      source.addEventListener(event, e => {
+      current.addEventListener(event, e => {
         try {
           handle(queryClient, JSON.parse((e as MessageEvent<string>).data));
         } catch {
@@ -231,8 +284,19 @@ export function useDashboardStream(): void {
         }
       });
     }
-    return () => source.close();
-  }, [queryClient]);
+  };
+  connect();
+  return () => {
+    stopped = true;
+    cancelRetry?.();
+    source?.close();
+  };
+}
+
+/** Opens the stream while the page is open. Mounted once, in App. */
+export function useDashboardStream(): void {
+  const queryClient = useQueryClient();
+  useEffect(() => startStream(queryClient), [queryClient]);
 }
 
 /**

@@ -178,6 +178,13 @@ function connect() {
   on('theme', p => renderTheme(p.theme));
   es.onerror = () => {
     elStatus.textContent = 'reconnecting…';
+    // The browser retries a dropped connection by itself, but gives up for good on a non-200 answer
+    // (a 502 while the dashboard restarts): make a new one after a wait. The server sends the
+    // state again on connect, which sets the label.
+    if (es.readyState === EventSource.CLOSED) {
+      es.close();
+      setTimeout(connect, 2000 + Math.random() * 3000);
+    }
   };
 }
 

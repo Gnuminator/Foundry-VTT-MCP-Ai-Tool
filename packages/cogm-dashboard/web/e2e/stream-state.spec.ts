@@ -80,12 +80,41 @@ test('a quick reconnect is never shown', async ({ page }) => {
 });
 
 test('says to reload when the browser gave up on the stream', async ({ page }) => {
-  // A refused stream (a link that is no longer valid) is not retried by the browser.
-  await page.route('**/api/stream**', route =>
-    route.fulfill({ status: 401, contentType: 'application/json', body: '{"error":"no"}' })
-  );
+  // A refused stream (a link that is no longer valid) is not retried by the browser; the page
+  // makes new connections (2, 4 s apart) and says so once the third has failed too.
+  let requests = 0;
+  await page.route('**/api/stream**', route => {
+    requests += 1;
+    return route.fulfill({
+      status: 401,
+      contentType: 'application/json',
+      body: '{"error":"no"}',
+    });
+  });
   await load(page);
-  // At once, with no grace.
-  await expect(pill(page)).toContainText('Connection closed: reload the page', { timeout: 3000 });
+  await expect(pill(page)).toContainText('Connection closed: reload the page', { timeout: 15_000 });
   await expect(pill(page)).toHaveAttribute('data-stream', 'closed');
+  expect(requests).toBeGreaterThanOrEqual(3);
+});
+
+test('comes back by itself after the stream was refused once (a 502 while the server restarts)', async ({
+  page,
+}) => {
+  let requests = 0;
+  await page.route('**/api/stream**', route => {
+    requests += 1;
+    if (requests === 1) {
+      return route.fulfill({ status: 502, contentType: 'text/plain', body: 'Bad gateway' });
+    }
+    return route.fulfill({
+      status: 200,
+      contentType: 'text/event-stream',
+      body: body(600_000),
+    });
+  });
+  await load(page);
+  // The second connection is made after about 2 s and gets through; the header never complains.
+  await expect.poll(() => requests, { timeout: 8000 }).toBeGreaterThan(1);
+  await page.waitForTimeout(500);
+  await expect(pill(page)).toHaveCount(0);
 });

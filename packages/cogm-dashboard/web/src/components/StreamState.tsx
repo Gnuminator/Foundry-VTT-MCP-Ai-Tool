@@ -16,7 +16,7 @@ export const STREAM_TEXT = {
   closed: {
     label: 'Connection closed: reload the page',
     detail:
-      'The dashboard server closed the live link and this page will not reconnect by itself. Reload the page to get it back.',
+      'The dashboard server keeps refusing the live link. This page still tries now and then; reload the page to get it back at once.',
   },
 } as const;
 

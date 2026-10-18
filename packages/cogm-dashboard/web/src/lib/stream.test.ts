@@ -8,8 +8,13 @@ import {
   CHANGES_RELOAD_MS,
   FEED_KEY,
   STREAM_DROP_GRACE_MS,
+  STREAM_GIVE_UP_AFTER,
+  STREAM_LINK_KEY,
+  STREAM_RETRY_MAX_MS,
   onEvents,
   onStatus,
+  startStream,
+  streamRetryDelay,
   streamTrouble,
   type StreamLink,
 } from './stream';
@@ -38,6 +43,102 @@ describe('streamTrouble', () => {
 
   it('says so at once when the browser gave up', () => {
     expect(streamTrouble({ state: 'closed', since: T }, T)).toBe('closed');
+  });
+});
+
+/** An EventSource the test drives: the browser's states, and the calls the stream makes. */
+class FakeSource {
+  static readonly CLOSED = 2;
+  static all: FakeSource[] = [];
+  readyState = 0;
+  closed = false;
+  onopen: (() => void) | null = null;
+  onerror: (() => void) | null = null;
+  constructor() {
+    FakeSource.all.push(this);
+  }
+  addEventListener(): void {}
+  close(): void {
+    this.closed = true;
+    this.readyState = FakeSource.CLOSED;
+  }
+  /** The browser gave up (a non-200 answer). */
+  giveUp(): void {
+    this.readyState = FakeSource.CLOSED;
+    this.onerror?.();
+  }
+}
+
+describe('startStream', () => {
+  let queryClient: QueryClient;
+  let stop: () => void;
+  const link = (): StreamLink | undefined => queryClient.getQueryData<StreamLink>(STREAM_LINK_KEY);
+  const last = (): FakeSource => FakeSource.all[FakeSource.all.length - 1];
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.stubGlobal('EventSource', FakeSource);
+    FakeSource.all = [];
+    queryClient = new QueryClient();
+    stop = startStream(queryClient, {
+      create: () => new FakeSource() as unknown as EventSource,
+      schedule: (fn, ms) => {
+        const timer = setTimeout(fn, ms);
+        return (): void => clearTimeout(timer);
+      },
+    });
+  });
+  afterEach(() => {
+    stop();
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+
+  it('waits 2, 4, 8, then 10 seconds between new connections', () => {
+    expect([1, 2, 3, 4, 5].map(streamRetryDelay)).toEqual([2000, 4000, 8000, 10_000, 10_000]);
+  });
+
+  it('makes a new connection after the browser gave up, and is open again when it answers', async () => {
+    last().onopen?.();
+    expect(link()?.state).toBe('open');
+    const first = last();
+    first.giveUp();
+    expect(first.closed).toBe(true);
+    expect(link()?.state).toBe('dropped');
+    expect(FakeSource.all).toHaveLength(1);
+    await vi.advanceTimersByTimeAsync(streamRetryDelay(1));
+    expect(FakeSource.all).toHaveLength(2);
+    last().onopen?.();
+    expect(link()?.state).toBe('open');
+  });
+
+  it('says closed only after the new connections keep failing, and keeps trying', async () => {
+    for (let i = 1; i <= STREAM_GIVE_UP_AFTER; i += 1) {
+      expect(link()?.state).not.toBe('closed');
+      last().giveUp();
+      await vi.advanceTimersByTimeAsync(streamRetryDelay(i));
+    }
+    expect(link()?.state).toBe('closed');
+    const before = FakeSource.all.length;
+    last().giveUp();
+    await vi.advanceTimersByTimeAsync(STREAM_RETRY_MAX_MS);
+    expect(FakeSource.all.length).toBe(before + 1);
+    last().onopen?.();
+    expect(link()?.state).toBe('open');
+  });
+
+  it('leaves a drop the browser retries by itself alone', () => {
+    last().readyState = 0;
+    last().onerror?.();
+    expect(link()?.state).toBe('dropped');
+    expect(FakeSource.all).toHaveLength(1);
+  });
+
+  it('stops for good when the page goes', async () => {
+    last().giveUp();
+    stop();
+    await vi.advanceTimersByTimeAsync(STREAM_RETRY_MAX_MS * 2);
+    expect(FakeSource.all).toHaveLength(1);
   });
 });
 

@@ -26,6 +26,7 @@ import type { GuardedChangeTools } from './tools/guarded-changes.js';
 import type { MovementTools } from './tools/movement.js';
 import type { ObsidianMirrorTools } from './tools/obsidian-mirror.js';
 import type { OwnershipTools } from './tools/ownership.js';
+import type { SceneMoodTools } from './tools/scene-mood.js';
 import type { SceneRestoreTools } from './tools/scene-restore.js';
 import type { PlaySessionTools } from './tools/play-session.js';
 import type { PlayStatsTools } from './tools/play-stats.js';
@@ -67,6 +68,7 @@ export interface ToolRouterDeps {
   obsidianMirrorTools: ObsidianMirrorTools;
   ownershipTools: OwnershipTools;
   sceneRestoreTools: SceneRestoreTools;
+  sceneMoodTools: SceneMoodTools;
   partyTools: PartyTools;
   playSessionTools: PlaySessionTools;
   playStatsTools: PlayStatsTools;
@@ -191,6 +193,8 @@ export function buildToolRouter(deps: ToolRouterDeps): Record<string, ToolHandle
     'plan-actor-change': args => deps.livePlayTools.handlePlanActorChange(args),
     'plan-token-change': args => deps.livePlayTools.handlePlanTokenChange(args),
     'plan-scene-change': args => deps.sceneChangeTools.handlePlanSceneChange(args),
+    'plan-scene-mood': args => deps.sceneMoodTools.handleToolCall('plan-scene-mood', args),
+    'list-scene-moods': args => deps.sceneMoodTools.handleToolCall('list-scene-moods', args),
     'plan-scene-restore': args => deps.sceneRestoreTools.handleToolCall('plan-scene-restore', args),
     'play-playlist': args => deps.sceneChangeTools.handlePlayPlaylist(args),
     'list-ref-choices': args => deps.refChoiceTools.handleListRefChoices(args),
@@ -231,6 +235,7 @@ export function collectToolDefinitions(deps: ToolRouterDeps): ToolDefinitionLike
     ...deps.campaignManagementTools.getToolDefinitions(),
     ...deps.ownershipTools.getToolDefinitions(),
     ...deps.sceneRestoreTools.getToolDefinitions(),
+    ...deps.sceneMoodTools.getToolDefinitions(),
     ...deps.tokenManipulationTools.getToolDefinitions(),
     ...deps.chatLogTools.getToolDefinitions(),
     ...deps.resourceTools.getToolDefinitions(),

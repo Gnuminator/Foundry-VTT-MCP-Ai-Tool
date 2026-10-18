@@ -13,6 +13,8 @@ const read = (relative: string): string =>
  * the reason. A new write tool gets a sweep step in the same PR, or an entry here.
  */
 const RECORDED_SKIPS: Record<string, string> = {
+  'plan-scene-mood':
+    'ships off (feature scene-mood) and needs a playlist in the world (I-034, I-129); checked by hand on server A (save, apply, music switch, undo), see the PR',
   'plan-scene-restore':
     'needs a backup copy of the world on disk and Foundry app files (I-128); checked by hand on server A (break a scene, restore, undo), see the PR',
 };

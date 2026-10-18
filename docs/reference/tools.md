@@ -6,12 +6,12 @@ description: Every tool the bridge serves, by tool set, with its description and
 
 # Tool reference
 
-The bridge serves 87 tools in five sets. [Tool sets](TOOL-SETS.md) explains the sets and how Claude Desktop loads them; this page lists every tool with the description and parameters Claude reads.
+The bridge serves 89 tools in five sets. [Tool sets](TOOL-SETS.md) explains the sets and how Claude Desktop loads them; this page lists every tool with the description and parameters Claude reads.
 
 | Set | Claude Desktop entry | Tools | For |
 | --- | --- | --- | --- |
 | [Core](#core) | `foundry-mcp` | 22 | Look things up (world, characters, scenes, journals, compendiums, combat) and review, apply or undo planned changes. Always on. |
-| [Play](#play) | `foundry-mcp-play` | 30 | Run the table live: tokens, combat turns, rolls, damage, conditions, resources, chat, scene mood, map notes and loot. |
+| [Play](#play) | `foundry-mcp-play` | 32 | Run the table live: tokens, combat turns, rolls, damage, conditions, resources, chat, scene mood, map notes and loot. |
 | [Prep](#prep) | `foundry-mcp-prep` | 20 | Prepare sessions and write recaps: quests and journals, encounter budgets, the Tarokka reading, handouts, the session log, play stats and the pre-flight check. |
 | [Build](#build) | `foundry-mcp-build` | 7 | Make and change NPCs, monsters and items: from a compendium or from scratch, with features, attacks and spells. |
 | [Admin](#admin) | `foundry-mcp-admin` | 8 | Set up and troubleshoot: installed modules and their errors, who owns which actor, and the Obsidian mirror settings. |
@@ -657,6 +657,31 @@ Parameters:
 - `scene` (string): Default: the viewed scene.
 - `backupPath` (string): Restored world folder. Default: the Plan B folder.
 - `parts` (array of string): One of: `walls`, `lights`, `tiles`, `tokens`.
+
+### plan-scene-mood
+
+Plan the viewed scene's mood and music: set darkness/light/weather/playlist, save or apply a named preset ("save" with fromCurrent copies the scene as it is), remove-preset, or music (play, stop or switch a playlist). Apply with apply-planned-change, revert with undo-change. Off until the module switch "Scene mood and music" is on.
+
+Kind: read-only. Title: Plan scene mood or music.
+
+Parameters:
+
+- `action` (string, required): One of: `apply`, `set`, `save`, `remove-preset`, `music`.
+- `preset` (string): Preset name.
+- `fromCurrent` (boolean): save: copy the current look and music.
+- `darkness` (number): 0 bright to 1 dark.
+- `globalLight` (boolean)
+- `weather` (string): Effect id (rain, snow, fog) or "none".
+- `playlist` (string): Playlist ("none" stops all music); set, save and music.
+- `mode` (string): music: play adds, switch (default) stops the others first. One of: `play`, `stop`, `switch`.
+
+### list-scene-moods
+
+List the scene's mood presets, its look now and the playlists with what plays.
+
+Kind: read-only. Title: List scene moods and playlists.
+
+No parameters.
 
 ### play-playlist
 

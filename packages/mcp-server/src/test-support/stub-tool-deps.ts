@@ -26,6 +26,7 @@ import { GuardedChangeTools } from '../tools/guarded-changes.js';
 import { MovementTools } from '../tools/movement.js';
 import { ObsidianMirrorTools } from '../tools/obsidian-mirror.js';
 import { OwnershipTools } from '../tools/ownership.js';
+import { SceneMoodTools } from '../tools/scene-mood.js';
 import { SceneRestoreTools } from '../tools/scene-restore.js';
 import { PlaySessionTools } from '../tools/play-session.js';
 import { PlayStatsTools } from '../tools/play-stats.js';
@@ -79,6 +80,7 @@ export function stubToolRouterDeps(): ToolRouterDeps {
       logger,
     }),
     ownershipTools: new OwnershipTools({ ...base, guardedWrites: {} as any }),
+    sceneMoodTools: new SceneMoodTools({ ...base, guardedWrites: {} as any }),
     sceneRestoreTools: new SceneRestoreTools({
       ...base,
       guardedWrites: {} as any,

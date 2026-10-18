@@ -42,6 +42,12 @@ import { PARTY_PLACE_QUERY, planPartyPlacement } from './party-place.js';
 import { getPrepScan, PREP_SCAN_QUERY } from './prep-scan.js';
 import { LIVE_PLAN_QUERY, planLiveChange } from './live-plan.js';
 import { planSceneChange, SCENE_PLAN_QUERY } from './scene-plan.js';
+import {
+  getSceneMoods,
+  planSceneMood,
+  SCENE_MOOD_PLAN_QUERY,
+  SCENE_MOODS_QUERY,
+} from './scene-mood.js';
 import { getSceneState, SCENE_STATE_QUERY } from './scene-state.js';
 import { LIVE_SWEEP_QUERY, liveSweep } from './live-sweep.js';
 import { SESSION_SWITCHES_QUERY, sessionSwitches } from './session-switches.js';
@@ -250,6 +256,15 @@ export class QueryHandlers {
     // as guarded ops. GM client only.
     handlers.set(`${modulePrefix}.${SCENE_PLAN_QUERY}`, (data: unknown) =>
       this.withGmGate('Failed to plan the scene change', () => planSceneChange(data))
+    );
+
+    // Scene mood presets and music (I-034, I-129, read-only): moods and playlists as guarded
+    // ops, and the list of presets and playlists. GM client only.
+    handlers.on(`${modulePrefix}.${SCENE_MOOD_PLAN_QUERY}`, (data: unknown) =>
+      this.withGmGate('Failed to plan the mood', () => Promise.resolve(planSceneMood(data)))
+    );
+    handlers.on(`${modulePrefix}.${SCENE_MOODS_QUERY}`, () =>
+      this.withGmGate('Failed to read the moods', () => Promise.resolve(getSceneMoods()))
     );
 
     // Scene restore (I-128, read-only): one scene's walls, lights, tiles and tokens as source

@@ -6,14 +6,14 @@ description: Every tool the bridge serves, by tool set, with its description and
 
 # Tool reference
 
-The bridge serves 90 tools in five sets. [Tool sets](TOOL-SETS.md) explains the sets and how Claude Desktop loads them; this page lists every tool with the description and parameters Claude reads.
+The bridge serves 91 tools in five sets. [Tool sets](TOOL-SETS.md) explains the sets and how Claude Desktop loads them; this page lists every tool with the description and parameters Claude reads.
 
 | Set | Claude Desktop entry | Tools | For |
 | --- | --- | --- | --- |
 | [Core](#core) | `foundry-mcp` | 22 | Look things up (world, characters, scenes, journals, compendiums, combat) and review, apply or undo planned changes. Always on. |
 | [Play](#play) | `foundry-mcp-play` | 32 | Run the table live: tokens, combat turns, rolls, damage, conditions, resources, chat, scene mood, map notes and loot. |
 | [Prep](#prep) | `foundry-mcp-prep` | 20 | Prepare sessions and write recaps: quests and journals, encounter budgets, the Tarokka reading, handouts, the session log, play stats and the pre-flight check. |
-| [Build](#build) | `foundry-mcp-build` | 7 | Make and change NPCs, monsters and items: from a compendium or from scratch, with features, attacks and spells. |
+| [Build](#build) | `foundry-mcp-build` | 8 | Make and change NPCs, monsters and items: from a compendium or from scratch, with features, attacks and spells. Set up rooms: teleports and tokens in a room. |
 | [Admin](#admin) | `foundry-mcp-admin` | 9 | Set up and troubleshoot: installed modules and their errors, who owns which actor, and the Obsidian mirror settings. |
 
 ## Core
@@ -970,7 +970,7 @@ Parameters:
 
 ## Build
 
-Make and change NPCs, monsters and items: from a compendium or from scratch, with features, attacks and spells.
+Make and change NPCs, monsters and items: from a compendium or from scratch, with features, attacks and spells. Set up rooms: teleports and tokens in a room.
 
 ### list-creatures-by-criteria
 
@@ -1208,6 +1208,42 @@ Parameters:
 - `type` (string): For "list": filter by item type (e.g. "action", "talent"). Omit to return all types.
 - `nameFilter` (string): For "list": case-insensitive substring match on item name.
 - `actorIdentifier` (string): For "add-to-actor": actor name or ID to receive the items.
+
+### plan-room-setup
+
+Plan Region-based scene parts: "teleport" moves tokens entering one rectangle to another (same or other scene); "spawn" makes a room rectangle plus tokens from actors on free squares in it. Apply with apply-planned-change, undo with undo-change. Needs the module switch "Room setup" (off by default).
+
+Kind: read-only. Title: Plan room setup (teleports, tokens in a room).
+
+Parameters:
+
+- `action` (string, required): One of: `teleport`, `spawn`.
+- `name` (string): teleport: entry name (arrival "&lt;name> (arrival)"). spawn: room name.
+- `from` (object): teleport: the entry: grid squares, x/y top-left from 0; scene id or name (default viewed).
+  - `x` (integer, required)
+  - `y` (integer, required)
+  - `width` (integer, required)
+  - `height` (integer, required)
+  - `scene` (string)
+- `to` (object): teleport: the arrival: grid squares, x/y top-left from 0; scene id or name (default viewed).
+  - `x` (integer, required)
+  - `y` (integer, required)
+  - `width` (integer, required)
+  - `height` (integer, required)
+  - `scene` (string)
+- `twoWay` (boolean): teleport: also back from the arrival.
+- `choice` (boolean): teleport: player confirms each teleport.
+- `placement` (string): teleport: landing spot (default center). One of: `random`, `center`, `relative`.
+- `area` (object): spawn: the room: grid squares, x/y top-left from 0; scene id or name (default viewed).
+  - `x` (integer, required)
+  - `y` (integer, required)
+  - `width` (integer, required)
+  - `height` (integer, required)
+  - `scene` (string)
+- `creatures` (array of object): spawn: actors (id or name) and count, 40 tokens at most.
+  - `actor` (string, required)
+  - `count` (integer)
+- `hidden` (boolean): spawn: tokens hidden from players (default true).
 
 ## Admin
 

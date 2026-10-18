@@ -34,6 +34,7 @@ import type {
 } from './library-index.js';
 import type { PlayRecordsResponse } from './play-log.js';
 import type { PageForPlayers } from './player-view.js';
+import type { RoomSetupPlan, RoomSetupRequest } from './room-setup.js';
 import type { SceneMoodPlan, SceneMoodPlanRequest, SceneMoodsReply } from './scene-mood.js';
 import type { SceneStateReply, SceneStateRequest } from './scene-restore.js';
 import type { UsageRecordsResponse } from './usage.js';
@@ -166,6 +167,7 @@ export interface BridgeQueryMap {
   'foundry-mcp-bridge.planSceneMood': { request: SceneMoodPlanRequest; reply: SceneMoodPlan };
   'foundry-mcp-bridge.getSceneMoods': { request: undefined; reply: SceneMoodsReply };
   'foundry-mcp-bridge.getSceneState': { request: SceneStateRequest; reply: SceneStateReply };
+  'foundry-mcp-bridge.planRoomSetup': { request: RoomSetupRequest; reply: RoomSetupPlan };
   'foundry-mcp-bridge.characterSheet': {
     request: { userId: string };
     reply: CharacterSheetsResult;

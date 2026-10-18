@@ -26,8 +26,8 @@ const deps = stubToolRouterDeps();
 const tools = collectToolDefinitions(deps);
 
 describe('tool catalog', () => {
-  it('lists exactly 90 tools; control methods such as record_usage are not tools', () => {
-    expect(tools).toHaveLength(90);
+  it('lists exactly 91 tools; control methods such as record_usage are not tools', () => {
+    expect(tools).toHaveLength(91);
     for (const method of [
       'record_usage',
       'session_switches',
@@ -67,7 +67,7 @@ describe('tool catalog', () => {
       core: 17_000,
       play: 32_000, // about 31,200 with plan-scene-mood and list-scene-moods (I-034): close
       prep: 22_000,
-      build: 28_000,
+      build: 29_000, // about 28,100 with plan-room-setup (I-133)
       admin: 8_000,
     } as const;
     for (const set of TOOL_SET_NAMES) {

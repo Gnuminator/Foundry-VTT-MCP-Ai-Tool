@@ -128,7 +128,7 @@ export const TOOL_SETS: Readonly<Record<ToolSetName, ToolSetSpec>> = {
   build: {
     title: 'Build',
     purpose:
-      'Make and change NPCs, monsters and items: from a compendium or from scratch, with features, attacks and spells.',
+      'Make and change NPCs, monsters and items: from a compendium or from scratch, with features, attacks and spells. Set up rooms: teleports and tokens in a room.',
     tools: [
       'list-creatures-by-criteria',
       'get-compendium-entry-full',
@@ -137,6 +137,7 @@ export const TOOL_SETS: Readonly<Record<ToolSetName, ToolSetSpec>> = {
       'dnd5e-add-feature',
       'dnd5e-add-features-from-compendium',
       'manage-world-items',
+      'plan-room-setup',
     ],
   },
   admin: {

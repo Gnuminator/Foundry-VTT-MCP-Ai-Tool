@@ -4,7 +4,7 @@ description: The five tool sets Claude Desktop loads (core, play, prep, build, a
 
 # Tool sets
 
-The bridge has 90 tools. Their definitions are about 101,400 characters of JSON, about 24,000 to
+The bridge has 91 tools. Their definitions are about 101,400 characters of JSON, about 24,000 to
 31,000 tokens that Claude reads at the start of every conversation, before anyone types. Many
 tools also look alike, which makes Claude pick the wrong one more often.
 
@@ -17,7 +17,7 @@ what the conversation needs. The switches are remembered for new chats.
 | **core**  | `foundry-mcp`        | 22    | about 16,500      | Looking things up, and reviewing, applying or undoing planned changes. Always on.            |
 | **play**  | `foundry-mcp-play`   | 32    | about 31,200      | Running the table live: tokens, combat, rolls, damage, conditions, chat, mood, loot.         |
 | **prep**  | `foundry-mcp-prep`   | 20    | about 21,400      | Prep and recaps: quests, journals, encounter budgets, Tarokka, handouts, session log, stats. |
-| **build** | `foundry-mcp-build`  | 7     | about 25,800      | Making NPCs, monsters and items, from a compendium or from scratch.                          |
+| **build** | `foundry-mcp-build`  | 8     | about 28,100      | Making NPCs, monsters and items, from a compendium or from scratch; room setup.              |
 | **admin** | `foundry-mcp-admin`  | 9     | about 7,700       | Modules and their errors, actor ownership, the Obsidian mirror.                              |
 
 A prep chat with core and prep on carries about 37,900 characters instead of 101,400. Core alone is
@@ -50,7 +50,7 @@ code disagree. Each tool's description and parameters are in the [tool reference
   `list-ref-choices`, `get-session-log`, `get-play-session`, `get-play-stats`, `get-preflight`, `get-prep-digest`
 - **build:** `list-creatures-by-criteria`, `get-compendium-entry-full`,
   `create-actor-from-compendium`, `dnd5e-create-npc`, `dnd5e-add-feature`,
-  `dnd5e-add-features-from-compendium`, `manage-world-items`
+  `dnd5e-add-features-from-compendium`, `manage-world-items`, `plan-room-setup`
 - **admin:** `get-modules`, `get-module-errors`, `clear-module-errors`, `get-module-manifest`,
   `list-actor-ownership`, `plan-ownership-change`, `plan-table-viewer`, `get-obsidian-mirror`,
   `plan-obsidian-mirror`

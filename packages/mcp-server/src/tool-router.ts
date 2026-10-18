@@ -28,6 +28,7 @@ import type { ObsidianMirrorTools } from './tools/obsidian-mirror.js';
 import type { OwnershipTools } from './tools/ownership.js';
 import type { SceneMoodTools } from './tools/scene-mood.js';
 import type { SceneRestoreTools } from './tools/scene-restore.js';
+import type { RoomSetupTools } from './tools/room-setup.js';
 import type { TableViewerTools } from './tools/table-viewer.js';
 import type { PlaySessionTools } from './tools/play-session.js';
 import type { PlayStatsTools } from './tools/play-stats.js';
@@ -69,6 +70,7 @@ export interface ToolRouterDeps {
   obsidianMirrorTools: ObsidianMirrorTools;
   ownershipTools: OwnershipTools;
   sceneRestoreTools: SceneRestoreTools;
+  roomSetupTools: RoomSetupTools;
   sceneMoodTools: SceneMoodTools;
   tableViewerTools: TableViewerTools;
   partyTools: PartyTools;
@@ -199,6 +201,7 @@ export function buildToolRouter(deps: ToolRouterDeps): Record<string, ToolHandle
     'list-scene-moods': args => deps.sceneMoodTools.handleToolCall('list-scene-moods', args),
     'plan-table-viewer': args => deps.tableViewerTools.handleToolCall('plan-table-viewer', args),
     'plan-scene-restore': args => deps.sceneRestoreTools.handleToolCall('plan-scene-restore', args),
+    'plan-room-setup': args => deps.roomSetupTools.handleToolCall('plan-room-setup', args),
     'play-playlist': args => deps.sceneChangeTools.handlePlayPlaylist(args),
     'list-ref-choices': args => deps.refChoiceTools.handleListRefChoices(args),
     'get-token-details': args => deps.tokenManipulationTools.handleGetTokenDetails(args),
@@ -238,6 +241,7 @@ export function collectToolDefinitions(deps: ToolRouterDeps): ToolDefinitionLike
     ...deps.campaignManagementTools.getToolDefinitions(),
     ...deps.ownershipTools.getToolDefinitions(),
     ...deps.sceneRestoreTools.getToolDefinitions(),
+    ...deps.roomSetupTools.getToolDefinitions(),
     ...deps.sceneMoodTools.getToolDefinitions(),
     ...deps.tableViewerTools.getToolDefinitions(),
     ...deps.tokenManipulationTools.getToolDefinitions(),

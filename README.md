@@ -136,7 +136,7 @@ The bridge and the dashboard are decoupled, so they can run where it suits the t
 ## MCP tools
 
 92 tools in five sets. Each set is its own entry in Claude Desktop, with its own switch in the
-**Search and tools** menu; all 92 tools are about 101,400 characters of definitions that Claude
+**Search and tools** menu; all 92 tools are about 102,800 characters of definitions that Claude
 would otherwise read at the start of every chat. The dashboard always has every tool. Details and
 the full lists: [docs/reference/TOOL-SETS.md](docs/reference/TOOL-SETS.md).
 

@@ -244,3 +244,51 @@ describe('planNpcTurn: attack', () => {
     expect(() => planNpcTurn({ itemName: 'Bite' })).toThrow(/both itemName and target/);
   });
 });
+
+describe('planNpcTurn: review fixes', () => {
+  const wolfItems = (items: any[]): void => {
+    setFight();
+    const wolf = g.game.scenes.current.tokens.contents[0];
+    wolf.actor.items = { contents: items };
+  };
+
+  it('does not tell Claude to double a critical hit (use-npc-activity already does)', () => {
+    setFight();
+    const plan = planNpcTurn({ itemName: 'Bite', target: 'Hero' });
+    expect(plan.attack?.damageWith).not.toMatch(/"multiplier":2/);
+    expect(plan.attack?.damageWith).toMatch(/do not add a multiplier/);
+  });
+
+  it('builds valid JSON for an item name with a quote', () => {
+    wolfItems([item('Jaws "of" Doom', { reach: 5 })]);
+    const plan = planNpcTurn({ itemName: 'Jaws "of" Doom', target: 'Hero' });
+    const json = plan.attack!.rollWith.replace(/^use-npc-activity /, '');
+    expect(JSON.parse(json).itemName).toBe('Jaws "of" Doom');
+  });
+
+  it('gives a thrown weapon its throwing range', () => {
+    const javelin = item('Javelin', { value: 30, long: 120 });
+    javelin.system.properties = new Set(['thr']);
+    wolfItems([javelin]);
+    const plan = planNpcTurn({ itemName: 'Javelin', target: 'Hero' });
+    expect(plan.context.actions[0]).toMatchObject({ melee: true, rangeFt: 5, longRangeFt: 120 });
+    expect(plan.attack?.inReach).toBe(true);
+  });
+
+  it('reads the range of a feat from its activity', () => {
+    const spit = item('Acid Spit', { melee: false });
+    spit.system.activities.contents[0].range = { value: 60, units: 'ft' };
+    wolfItems([spit]);
+    const plan = planNpcTurn({ itemName: 'Acid Spit', target: 'Hero' });
+    expect(plan.context.actions[0]).toMatchObject({ melee: false, rangeFt: 60 });
+  });
+
+  it('reads speed from movement.speeds.walk and refuses a player-owned actor', () => {
+    setFight();
+    const wolf = g.game.scenes.current.tokens.contents[0];
+    wolf.actor.system.attributes.movement = { speeds: { walk: 50 } };
+    expect(planNpcTurn({}).context.speed).toBe(50);
+    wolf.actor.hasPlayerOwner = true;
+    expect(() => planNpcTurn({})).toThrow(/player character/);
+  });
+});

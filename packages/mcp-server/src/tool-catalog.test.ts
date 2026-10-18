@@ -65,7 +65,7 @@ describe('tool catalog', () => {
     // I-124 raised core and prep by 2,000 for the tool hints (title, readOnlyHint, destructiveHint).
     const budget = {
       core: 17_000,
-      play: 33_000, // about 31,200 with plan-scene-mood and list-scene-moods (I-034); raised 1,000 on purpose for plan-npc-turn (I-125)
+      play: 33_000, // about 32,600 with plan-npc-turn and plan-scene-mood and list-scene-moods (I-034); raised 1,000 on purpose for plan-npc-turn (I-125)
       prep: 22_000,
       build: 29_000, // about 28,100 with plan-room-setup (I-133)
       admin: 8_000,

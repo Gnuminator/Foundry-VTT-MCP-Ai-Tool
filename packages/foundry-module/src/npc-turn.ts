@@ -136,6 +136,11 @@ function findToken(scene: SceneInfo, identifier: string): Rec {
   return byName[0];
 }
 
+/** A player-owned actor (a familiar, a companion): the table moves it, not the assistant. */
+function hasPlayerOwner(actor: Rec): boolean {
+  return actor.hasPlayerOwner === true;
+}
+
 function actorOf(token: Rec): Rec | null {
   return rec(token.actor);
 }
@@ -154,12 +159,27 @@ function actionsOf(actor: Rec, scene: SceneInfo): NpcTurnAction[] {
     if (!types.some(t => ['attack', 'save', 'damage'].includes(t))) continue;
     const range = rec(path(item, 'system.range'));
     const reach = num(range?.reach);
-    const value = num(range?.value);
+    // dnd5e 6 feats keep the range on the activity, weapons on the item.
+    const activityRange = activities
+      .filter(a => ['attack', 'save', 'damage'].includes(str(a.type) ?? ''))
+      .map(a => rec(a.range))
+      .find(r => num(r?.value) !== null && (str(r?.units) ?? 'ft') === 'ft');
+    const value = num(activityRange?.value) ?? num(range?.value);
     const long = num(range?.long);
+    const properties = path(item, 'system.properties');
+    const thrown =
+      properties !== null &&
+      typeof properties === 'object' &&
+      (Array.isArray(properties)
+        ? properties
+        : Array.from(properties as Iterable<unknown>)
+      ).includes('thr');
     const meleeActivity = activities.some(a => path(a, 'attack.type.value') === 'melee');
-    const melee = meleeActivity || (reach !== null && value === null);
-    const rangeFt = melee ? (reach ?? value ?? scene.distance) : (value ?? reach);
-    out.push({ name, activityTypes: types, rangeFt, longRangeFt: melee ? null : long, melee });
+    const melee = meleeActivity || thrown || (reach !== null && value === null);
+    const rangeFt = melee ? (reach ?? (thrown ? null : value) ?? scene.distance) : (value ?? reach);
+    // A thrown weapon also reaches its throwing range.
+    const longRangeFt = thrown ? (long ?? value) : melee ? null : long;
+    out.push({ name, activityTypes: types, rangeFt, longRangeFt, melee });
   }
   return out;
 }
@@ -224,7 +244,7 @@ export function planNpcTurn(data: unknown): NpcTurnPlan {
   if (!token) throw new Error('The current combatant has no token on this scene');
   const actor = actorOf(token);
   if (!actor) throw new Error(`${str(token.name) ?? 'The token'} has no actor`);
-  if (actor.type === 'character') {
+  if (actor.type === 'character' || hasPlayerOwner(actor)) {
     throw new Error(
       `${str(token.name) ?? 'That token'} is a player character: the assistant plans monster turns only`
     );
@@ -232,7 +252,10 @@ export function planNpcTurn(data: unknown): NpcTurnPlan {
 
   const tokenName = str(token.name) ?? String(token.id);
   const here = rectOf(scene, token);
-  const speed = num(path(actor, 'system.attributes.movement.walk'));
+  const speed = num(
+    path(actor, 'system.attributes.movement.speeds.walk') ??
+      path(actor, 'system.attributes.movement.walk')
+  );
   const notes = [
     'Distances count whole squares, diagonals as one. Walls, doors and difficult terrain are not checked: look at the map.',
     'The attack roll is not part of the plan (a roll cannot be undone); the attack step names the tools to run after applying the move.',
@@ -319,8 +342,8 @@ export function planNpcTurn(data: unknown): NpcTurnPlan {
       target: target.name,
       targetAC: target.ac,
       inReach,
-      rollWith: `use-npc-activity {"actorName":"${context.token.id}","itemName":"${action.name}"${target.ac !== null ? `,"targetAC":${target.ac}` : ''}}`,
-      damageWith: `plan-actor-change {"action":"damage","targets":["${target.tokenId}"],"amount":<the damage the roll reported>,"damageType":"<its type>"} (a critical: "multiplier":2)`,
+      rollWith: `use-npc-activity ${JSON.stringify({ actorName: context.token.id, itemName: action.name, ...(target.ac !== null ? { targetAC: target.ac } : {}) })}`,
+      damageWith: `plan-actor-change {"action":"damage","targets":[${JSON.stringify(target.tokenId)}],"amount":<the damage the roll reported>,"damageType":"<its type>"} (use-npc-activity already doubles a critical hit's dice: do not add a multiplier)`,
     };
   }
 

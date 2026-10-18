@@ -37,6 +37,9 @@ class Options:
     scene_gap: float = 90.0
     only_scene: int | None = None
     workers: int = 3  # scenes written at the same time
+    # A raw scene counts as one more failed run only if the last count is older than this, so
+    # three quick passes during one outage do not accept hollow scenes (tests set 0).
+    fallback_gap_s: float = 1800.0
 
 
 @dataclass(slots=True)
@@ -199,8 +202,18 @@ class Writer:
     def _accept_fallback(self, scene: Scene) -> bool:
         """Count this run for a raw scene; True once it has failed ``MAX_FALLBACK_RUNS`` runs."""
         marker = self.work / f"scene-{scene.index:03d}.fallback.json"
-        tries = self._fallback_tries(scene) + 1
-        marker.write_text(json.dumps({"ids": scene.ids, "tries": tries}), encoding="utf-8")
+        tries = self._fallback_tries(scene)
+        now = time.time()
+        last = 0.0
+        try:
+            last = float(json.loads(marker.read_text(encoding="utf-8")).get("at", 0))
+        except (ValueError, OSError):
+            pass
+        if tries == 0 or now - last >= self.opts.fallback_gap_s:
+            tries += 1
+            marker.write_text(
+                json.dumps({"ids": scene.ids, "tries": tries, "at": now}), encoding="utf-8"
+            )
         self._log("scene_fallback_run", scene=scene.index, tries=tries)
         return tries >= MAX_FALLBACK_RUNS
 

@@ -48,17 +48,25 @@ if (Test-Path $lock) {
   # stale at once, not after 6 h. An unreadable PID falls back to the age test alone.
   $lockPid = 0
   [void][int]::TryParse(((Get-Content $lock -ErrorAction SilentlyContinue) -join '').Trim(), [ref]$lockPid)
-  $alive = ($lockPid -gt 0) -and ($null -ne (Get-Process -Id $lockPid -ErrorAction SilentlyContinue))
-  if ($age.TotalHours -lt 6 -and ($alive -or $lockPid -le 0)) { Write-Host "Another pass is running (lock from $([int]$age.TotalMinutes) min ago)."; exit 0 }
+  # A PID can be reused after a reboot: the process must have started before the lock was written.
+  $holder = if ($lockPid -gt 0) { Get-Process -Id $lockPid -ErrorAction SilentlyContinue } else { $null }
+  $alive = ($null -ne $holder) -and ($holder.StartTime -le (Get-Item $lock).LastWriteTime.AddMinutes(1))
+  # No readable PID (empty or junk lock): trust it for 10 minutes only.
+  $unknownHolder = ($lockPid -le 0) -and ($age.TotalMinutes -lt 10)
+  if ($age.TotalHours -lt 6 -and ($alive -or $unknownHolder)) { Write-Host "Another pass is running (lock from $([int]$age.TotalMinutes) min ago)."; exit 0 }
   Say "Removing a stale lock ($([int]$age.TotalMinutes) min old, pass $lockPid $(if ($alive) { 'still listed' } else { 'gone' }))."
 }
 if (-not $DryRun) { Set-Content -Path $lock -Value $PID }
 
-function Write-Status([string]$folder, [string]$state, [string]$message) {
+$passStart = Get-Date
+function Write-Status([string]$folder, [string]$state, [string]$message, [switch]$KeepFresh) {
   # notes\status.json, the same file `session_notes run` writes: how the last pass ended.
+  # -KeepFresh leaves a status the notes run wrote in this pass (it is more specific).
   if ($DryRun) { return }
   try {
     $notesDir = Join-Path $folder 'notes'
+    $existing = Join-Path $notesDir 'status.json'
+    if ($KeepFresh -and (Test-Path $existing) -and (Get-Item $existing).LastWriteTime -ge $passStart) { return }
     New-Item -ItemType Directory -Force -Path $notesDir | Out-Null
     $at = (Get-Date).ToString('yyyy-MM-ddTHH:mm:sszzz')
     $json = [ordered]@{ state = $state; message = $message; at = $at } | ConvertTo-Json
@@ -113,7 +121,7 @@ try {
           76 { Say "$($dir.Name): some scenes are still raw; the next pass tries them again" }
           default {
             Say "$($dir.Name): notes failed (exit $code), see notes\audit.jsonl"
-            Write-Status $folder 'failed' "The notes run failed (exit $code); the next pass tries again."
+            Write-Status $folder 'failed' "The notes run failed (exit $code); the next pass tries again." -KeepFresh
           }
         }
         if ($code -eq 75) { break }
@@ -125,6 +133,7 @@ try {
       else {
         $code = Invoke-Notes @('publish', $folder)
         if ($code -eq 1) { Say "$($dir.Name): publish failed"; Write-Status $folder 'failed' 'Publishing the notes to Foundry failed; the next pass tries again.' }
+        elseif ($code -eq 0) { Write-Status $folder 'published' 'The notes are in Foundry.' }
         elseif ($code -eq 3) { Say "$($dir.Name): publish: bridge not reachable, will retry"; Write-Status $folder 'waiting' 'The notes are written but Foundry cannot take them yet (bridge not reachable); the next pass tries again.' }
       }
     }

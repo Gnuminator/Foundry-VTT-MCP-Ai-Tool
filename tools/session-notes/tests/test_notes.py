@@ -228,10 +228,21 @@ def test_raw_fallback_scene_is_not_cached_and_blocks_the_session_part(session: P
 def test_a_scene_that_keeps_failing_is_accepted_raw_after_three_runs(session: Path) -> None:
     for run_no in (1, 2, 3):
         fake = FakeClaude(fail=_all_fail())
-        result = Writer(session, fake, Options(workers=1, only_scene=1)).run()
+        opts = Options(workers=1, only_scene=1, fallback_gap_s=0)
+        result = Writer(session, fake, opts).run()
         assert result.fallbacks == 1
         assert result.pending == (1 if run_no < 3 else 0)
     assert (session / "notes" / ".work" / "scene-001.json").exists()
+
+
+def test_quick_reruns_do_not_use_up_the_retries(session: Path) -> None:
+    # Default gap (30 min): three passes in a row during one outage still leave the scene pending.
+    for _ in range(4):
+        result = Writer(
+            session, FakeClaude(fail=_all_fail()), Options(workers=1, only_scene=1)
+        ).run()
+        assert result.pending == 1
+    assert not (session / "notes" / ".work" / "scene-001.json").exists()
 
 
 def test_old_cached_raw_scene_is_tried_again(session: Path) -> None:

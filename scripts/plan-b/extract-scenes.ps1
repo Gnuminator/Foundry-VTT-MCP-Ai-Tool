@@ -32,7 +32,7 @@ if (-not $World) { $World = $PlanBDefaults.World }
 if (-not $Repo) { $Repo = $PlanBDefaults.Repo }
 if (-not $PassFile) { $PassFile = $PlanBDefaults.PassFile }
 if (-not $Out) { $Out = if ($IsWindows) { 'C:\FoundrySceneBackup' } else { Join-Path $HOME 'foundry-scene-backup' } }
-$outOk = Test-PlanBRoot $Out (@($PlanBDefaults.ForbiddenRoots) + @($PlanBDefaults.Root, $Repo))
+$outOk = Test-PlanBSceneOut $Out $Repo
 if (-not $outOk.Ok) { throw "refused: $($outOk.Message)" }
 
 if (-not (Test-Path -LiteralPath (Join-Path $Repo 'config'))) { throw "$Repo is not a restic repository (is drive E: connected?)" }

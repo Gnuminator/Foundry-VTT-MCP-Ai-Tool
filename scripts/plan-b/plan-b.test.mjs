@@ -144,13 +144,14 @@ describe('Plan B', { skip: !hasPwsh && 'PowerShell 7 (pwsh) is not available' },
 
   test('the scenes extract folder stays out of Plan B, the test server and the restic repo', () => {
     const r = ps(`
-      $f = @($PlanBDefaults.ForbiddenRoots) + @($PlanBDefaults.Root, $PlanBDefaults.Repo)
+      $repo = Join-Path ([System.IO.Path]::GetTempPath()) 'restic-repo'
+      $inPlanB = Test-PlanBSceneOut (Join-Path $PlanBDefaults.Root 'scenes') $repo
       @{
-        planB = (Test-PlanBRoot 'C:\\FoundryPlanB\\scenes' $f).Ok
-        repo = (Test-PlanBRoot 'E:\\PiBackup\\restic\\x' $f).Ok
-        own = (Test-PlanBRoot 'C:\\FoundrySceneBackup' $f).Ok
+        planB = $inPlanB.Ok
+        repo = (Test-PlanBSceneOut (Join-Path $repo 'x') $repo).Ok
+        pointsAtPlanB = [bool]($inPlanB.Message -match 'default')
       }`);
-    assert.deepEqual(r, { planB: false, repo: false, own: true });
+    assert.deepEqual(r, { planB: false, repo: false, pointsAtPlanB: false });
   });
 
   test('Foundry version must match the world exactly (no migration the Pi could not undo)', () => {

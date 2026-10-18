@@ -94,6 +94,19 @@ export function createModuleRequestHandler(deps: ModuleRequestDeps): ModuleReque
     if (tool === 'undo-change') {
       return deps.guardedChangeTools.handleUndoChange(args, requesterLabel(requestedBy));
     }
+    if (tool === 'mark-play-session') {
+      // The Session window starts or ends the play session: only the action and a short note.
+      if (args.action !== 'start' && args.action !== 'end') {
+        throw new Error('mark-play-session from the Foundry window needs action "start" or "end"');
+      }
+      const route = deps.toolRouter[tool];
+      if (!route) throw new Error(`Unknown tool: ${tool}`);
+      const result: unknown = await route({
+        action: args.action,
+        ...(typeof args.note === 'string' ? { note: args.note } : {}),
+      });
+      return result;
+    }
     const planner = Object.hasOwn(MODULE_PLANNERS, tool) ? MODULE_PLANNERS[tool] : undefined;
     if (planner) {
       if (

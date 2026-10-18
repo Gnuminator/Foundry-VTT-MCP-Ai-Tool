@@ -8,7 +8,7 @@
  * tested without Foundry; {@link openCombatWindow} wires them to the window shell.
  */
 import { escapeHtml } from './ai-changes-model.js';
-import { createPanelWindow } from './gm-windows.js';
+import { canOpenGmWindow, createPanelWindow } from './gm-windows.js';
 
 /** The parts of a combatant the strip reads (Foundry's `Combatant`, structurally). */
 export interface CombatantLike {
@@ -167,9 +167,11 @@ const panel = createPanelWindow({
   render: () => renderCombatHtml(buildCombatView(activeCombat())),
   actions: {
     nextTurn: async () => {
+      if (!canOpenGmWindow()) return;
       await activeCombat()?.nextTurn?.();
     },
     previousTurn: async () => {
+      if (!canOpenGmWindow()) return;
       await activeCombat()?.previousTurn?.();
     },
   },

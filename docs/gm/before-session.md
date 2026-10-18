@@ -16,8 +16,9 @@ terminal to open. You need two addresses from the tool admin: the game's and the
 - [ ] Wait for the Foundry message "MCP Bridge connected successfully" (top of the screen).
 - [ ] Open the dashboard address on your second screen. Cloudflare may ask for an emailed code
       first, the same as when you join the game.
-- [ ] Check the dashboard header says **Bridge: connected** and **Foundry: live**. If not, see
-      [Troubleshooting](troubleshooting.md).
+- [ ] Look at the header of the dashboard: the **✈ Pre-flight** button should say "ready" or "N to fix", and no
+      "Connection lost" mark should show. If there is one, or Pre-flight's first line says Foundry is
+      not connected, see [Troubleshooting](troubleshooting.md).
 
 ## Run the pre-flight check
 

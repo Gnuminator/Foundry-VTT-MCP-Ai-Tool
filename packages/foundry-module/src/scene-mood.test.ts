@@ -271,7 +271,41 @@ describe('music', () => {
   });
 });
 
+describe('fromCurrent and old presets', () => {
+  it('fromCurrent ignores a soundboard that plays a sound effect', () => {
+    const board = playlist('pl3', 'Effects', [sound('e', true)], { mode: -1 });
+    (game as any).playlists.contents.unshift(board);
+    const plan = planSceneMood({ action: 'save', preset: 'now', fromCurrent: true });
+    const saved = JSON.parse(Object.values((plan.ops[0] as any).changes)[0] as string);
+    expect(saved.playlist).toBe('Crypt');
+  });
+
+  it('names the preset when a saved one can no longer be applied', () => {
+    (globalThis as any).CONFIG = { weatherEffects: { rain: {} } };
+    scene.flags[MODULE_ID] = {
+      moods: { storm: JSON.stringify({ name: 'Storm', weather: 'sandstorm' }) },
+    };
+    try {
+      expect(() => planSceneMood({ action: 'apply', preset: 'storm' })).toThrow(
+        /Preset "Storm" cannot be applied: .*Unknown weather.*Save it again or remove it/
+      );
+    } finally {
+      delete (globalThis as any).CONFIG;
+    }
+  });
+});
+
 describe('weather ids', () => {
+  it('matches a weather id in any case and stores the Foundry spelling', () => {
+    (globalThis as any).CONFIG = { weatherEffects: { rainStorm: {} } };
+    try {
+      const plan = planSceneMood({ action: 'set', weather: 'RAINSTORM' });
+      expect(plan.ops[0]).toMatchObject({ changes: { weather: 'rainStorm' } });
+    } finally {
+      delete (globalThis as any).CONFIG;
+    }
+  });
+
   afterEach(() => {
     delete (globalThis as any).CONFIG;
   });

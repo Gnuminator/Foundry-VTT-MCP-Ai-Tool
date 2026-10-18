@@ -133,10 +133,14 @@ function isPlaying(playlist: PlaylistLike): boolean {
 }
 
 /** A playlist `play` and `switch` can start: a soundboard playlist (mode -1) cannot play as a whole. */
+function isSoundboard(playlist: PlaylistLike): boolean {
+  const consts = (globalThis as { CONST?: { PLAYLIST_MODES?: { DISABLED?: number } } }).CONST;
+  return playlist.mode === (consts?.PLAYLIST_MODES?.DISABLED ?? -1);
+}
+
 function findPlayablePlaylist(name: string): PlaylistLike {
   const playlist = findPlaylist(name);
-  const consts = (globalThis as { CONST?: { PLAYLIST_MODES?: { DISABLED?: number } } }).CONST;
-  if (playlist.mode === (consts?.PLAYLIST_MODES?.DISABLED ?? -1)) {
+  if (isSoundboard(playlist)) {
     throw new Error(
       `Playlist ${quoted(playlist.name)} is a soundboard: its sounds are played one by one, not as a playlist. Pick another playlist.`
     );
@@ -202,15 +206,18 @@ function switchOps(target: PlaylistLike | null): GuardedOp[] {
 }
 
 /** Refuse a weather id Foundry does not know (it would be stored and show nothing). */
-function checkWeather(id: string): void {
+function checkWeather(id: string): string {
   const effects = (globalThis as { CONFIG?: { weatherEffects?: Record<string, unknown> } }).CONFIG
     ?.weatherEffects;
-  if (!effects || typeof effects !== 'object') return;
-  if (!Object.hasOwn(effects, id)) {
+  if (!effects || typeof effects !== 'object') return id;
+  const known = Object.keys(effects);
+  const found = known.find(k => k.toLowerCase() === id.toLowerCase());
+  if (!found) {
     throw new Error(
-      `Unknown weather ${quoted(id)}. Valid: ${Object.keys(effects).join(', ')}, or "none" to clear.`
+      `Unknown weather ${quoted(id)}. Valid: ${known.join(', ')}, or "none" to clear.`
     );
   }
+  return found;
 }
 
 function validated(settings: SceneMoodSettings): SceneMoodSettings {
@@ -223,7 +230,7 @@ function validated(settings: SceneMoodSettings): SceneMoodSettings {
   if (typeof settings.weather === 'string') {
     const weather = settings.weather.trim();
     out.weather = weather.toLowerCase() === 'none' ? '' : weather;
-    if (out.weather) checkWeather(out.weather);
+    if (out.weather) out.weather = checkWeather(out.weather);
   }
   if (typeof settings.playlist === 'string' && settings.playlist.trim()) {
     out.playlist = settings.playlist.trim();
@@ -269,7 +276,8 @@ function currentSettings(scene: SceneLike): SceneMoodSettings {
     globalLight: Boolean(scene.environment?.globalLight?.enabled),
     weather: typeof scene.weather === 'string' ? scene.weather : '',
   };
-  const playing = playlists().find(isPlaying);
+  // A soundboard cannot be a preset's playlist, so it never counts as "the music".
+  const playing = playlists().find(p => !isSoundboard(p) && isPlaying(p));
   out.playlist = playing ? String(playing.name) : 'none';
   return out;
 }
@@ -285,8 +293,17 @@ function settingsOf(request: SceneMoodPlanRequest): SceneMoodSettings {
 function planApply(scene: SceneLike, request: SceneMoodPlanRequest): SceneMoodPlan {
   if (!request.preset) throw new Error('Give the preset name.');
   const { preset } = findPreset(scene, request.preset);
-  const settings = validated(preset);
-  const ops = moodOps(scene, settings);
+  let settings: SceneMoodSettings;
+  let ops: GuardedOp[];
+  try {
+    settings = validated(preset);
+    ops = moodOps(scene, settings);
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+    throw new Error(
+      `Preset ${quoted(preset.name)} cannot be applied: ${reason} Save it again or remove it.`
+    );
+  }
   if (ops.length === 0) throw new Error(`Preset ${quoted(preset.name)} changes nothing right now.`);
   return {
     summary: `Apply mood ${quoted(preset.name)} on ${quoted(scene.name)}: ${describe(settings).join(', ')}`,

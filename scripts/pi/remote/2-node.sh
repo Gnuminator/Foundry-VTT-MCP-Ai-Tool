@@ -12,7 +12,7 @@ require_recent_snapshot
 require_arm64
 
 NODE_VERSION="${NODE_VERSION:-v24.21.0}"
-case "$NODE_VERSION" in v24.[0-9]*.[0-9]*) ;; *) die "NODE_VERSION must look like v24.21.0, got '$NODE_VERSION'" ;; esac
+printf '%s' "$NODE_VERSION" | grep -Eq '^v24\.[0-9]+\.[0-9]+$' || die "NODE_VERSION must look like v24.21.0, got '$NODE_VERSION'"
 
 say "Node.js $NODE_VERSION"
 base="https://nodejs.org/dist/$NODE_VERSION"

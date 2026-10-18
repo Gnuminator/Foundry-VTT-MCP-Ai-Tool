@@ -102,6 +102,8 @@ if [ ! -f "$dietpi_filter" ]; then
 elif grep -qxF -- "$exclude_line" "$dietpi_filter"; then
   ok "dietpi-backup already leaves $rec_dir out"
 else
+  # A filter whose last line has no newline would otherwise glue the rule onto it.
+  if [ -n "$(tail -c 1 "$dietpi_filter")" ]; then printf '\n' >>"$dietpi_filter"; fi
   printf '%s\n' "$exclude_line" >>"$dietpi_filter"
   ok "dietpi-backup now leaves $rec_dir out ($dietpi_filter)"
 fi

@@ -150,6 +150,8 @@ $loads_out"
   rm -rf "${app:?}.prev"
   [ -d "$app" ] && mv "$app" "$app.prev"
   mv "$build" "$app"
+  # A stop above that failed silently must still end in a restart onto the new build.
+  mark_changed /etc/systemd/system/foundry-ai-tool-bridge.service /etc/systemd/system/foundry-ai-tool-dashboard.service /etc/systemd/system/foundry-ai-tool-gm-browser.service
   trap - EXIT
   chown -R root:root "$app"
   chmod 755 "$app"

@@ -81,11 +81,12 @@ write_file() {
 
 # enable_unit UNIT [DEPENDENCY_FILE...]: enable the unit and make sure it runs, when systemd runs (otherwise only
 # report). A unit that already runs is restarted ONLY when its own unit file changed in this run (write_file or
-# mark_changed), when one of the DEPENDENCY_FILEs did (its EnvironmentFile, say), or when RESTART_UNITS=1. A rerun
+# mark_changed) or is newer than the running service, likewise one of the DEPENDENCY_FILEs (its EnvironmentFile,
+# say), or when RESTART_UNITS=1. A rerun
 # that changed nothing leaves a running service alone: a restart drops the players (Foundry) or the GM link (bridge,
 # dashboard, Assistant GM) and ends a recording. A stopped unit is started.
 enable_unit() {
-  local unit="$1" f restart=0 reason=""
+  local unit="$1" f restart=0 reason="" started=""
   shift
   if have_systemd; then
     systemctl daemon-reload
@@ -93,9 +94,15 @@ enable_unit() {
     if ! systemctl is-active --quiet "$unit"; then
       systemctl start "$unit"
     else
-      if file_changed "/etc/systemd/system/$unit"; then restart=1 reason="its unit file changed"; fi
-      for f in "$@"; do
-        if file_changed "$f"; then restart=1 reason="$f changed"; fi
+      # "Changed" is this run's write_file/mark_changed, or a file written after the unit last started: a refused
+      # restart (require_quiet) leaves the new file on disk, and the rerun later must still restart the service.
+      started="$(unit_started_epoch "$unit")"
+      for f in "/etc/systemd/system/$unit" "$@"; do
+        if file_changed "$f"; then
+          restart=1 reason="$f changed"
+        elif [ -n "$started" ] && [ -f "$f" ] && [ "$(stat -c %Y "$f")" -gt "$started" ]; then
+          restart=1 reason="$f is newer than the running service"
+        fi
       done
       if [ "${RESTART_UNITS:-0}" = 1 ]; then restart=1 reason="RESTART_UNITS=1"; fi
       if [ "$restart" = 1 ]; then
@@ -136,16 +143,30 @@ users_online() {
   printf '%s' "${out:-?}"
 }
 
+# unit_started_epoch UNIT: prints when the unit last became active (epoch seconds), or nothing when unknown.
+unit_started_epoch() {
+  local ts
+  ts="$(systemctl show -p ActiveEnterTimestamp --value "$1" 2>/dev/null || true)"
+  [ -n "$ts" ] || return 0
+  date -d "$ts" +%s 2>/dev/null || true
+}
+
 # recording_active [DIR]: 0 when a Discord recording seems to run: a session folder under DIR (default
-# $TOOL_DATA/recordings) whose raw/ has no session.json yet (the bot writes it when the recording stops) and has a
-# file changed in the last 10 minutes. Read-only; a crashed session older than that does not count.
+# $TOOL_DATA/recordings) whose raw/ has no session.json yet (the bot writes it when the recording stops) and either
+# has a file changed in the last 10 minutes or, while the bot service runs, was last changed after the bot last
+# started (the bot writes nothing while nobody speaks, so a long break must not look like "no recording"; a crashed
+# session from before the last start does not count). Read-only.
 recording_active() {
-  local dir="${1:-$TOOL_DATA/recordings}" raw
+  local dir="${1:-$TOOL_DATA/recordings}" raw since=""
   [ -d "$dir" ] || return 1
+  if have_systemd && systemctl is-active --quiet foundry-ai-tool-discord-bot.service; then
+    since="$(unit_started_epoch foundry-ai-tool-discord-bot.service)"
+  fi
   for raw in "$dir"/*/raw; do
     [ -d "$raw" ] || continue
     [ -f "$raw/session.json" ] && continue
     if [ -n "$(find "$raw" -type f -mmin -10 -print -quit 2>/dev/null)" ]; then return 0; fi
+    if [ -n "$since" ] && [ -n "$(find "$raw" -maxdepth 0 -newermt "@$since" -print 2>/dev/null)" ]; then return 0; fi
   done
   return 1
 }
@@ -176,25 +197,32 @@ require_quiet() {
   require_no_recording "$what"
 }
 
-# require_recent_snapshot: refuses unless a dietpi-backup snapshot finished today (the mtime of
-# /mnt/dietpi-backup/.dietpi-backup_stats, which dietpi-backup writes at the end of a run; the nightly one at 01:25
-# counts). Skipped off DietPi (a test container). Take one with: /boot/dietpi/dietpi-backup 1
+# require_recent_snapshot: refuses unless a dietpi-backup snapshot COMPLETED today: the last "Backup completed" line
+# in /mnt/dietpi-backup/.dietpi-backup_stats (format "2026-10-18_09:46:24  Backup completed"; the file's mtime is not
+# used, a started, cancelled or restore run touches it too). The nightly one at 01:25 counts. Skipped off DietPi (a
+# test container). Take one with: /boot/dietpi/dietpi-backup 1
+# It has its own switch, NO_SNAPSHOT=1, so a new Pi (stages 1 to 4, no snapshot yet) does not need FORCE=1, which
+# would also switch off the players and recording checks. FORCE=1 does not skip this check.
 require_recent_snapshot() {
-  local stats="${DIETPI_BACKUP_STATS:-/mnt/dietpi-backup/.dietpi-backup_stats}" ts
+  local stats="${DIETPI_BACKUP_STATS:-/mnt/dietpi-backup/.dietpi-backup_stats}" last="" last_when day
   if [ ! -d "${DIETPI_DIR:-/boot/dietpi}" ]; then
     warn "not DietPi (a test container?): the snapshot check is skipped"
     return 0
   fi
-  if [ ! -f "$stats" ]; then
-    refuse "no dietpi-backup snapshot found ($stats is missing). Take one first: /boot/dietpi/dietpi-backup 1"
+  if [ -f "$stats" ]; then last="$(grep 'Backup completed' "$stats" | tail -n 1 || true)"; fi
+  day="$(date +%F)"
+  last_when="${last%% *}"
+  case "$last" in
+    "${day}_"*)
+      ok "dietpi-backup snapshot from today ($last_when)"
+      return 0
+      ;;
+  esac
+  if [ "${NO_SNAPSHOT:-0}" = 1 ]; then
+    warn "no dietpi-backup snapshot from today (last completed: ${last_when:-none}); NO_SNAPSHOT=1: going on without one"
     return 0
   fi
-  ts="$(stat -c %Y "$stats")"
-  if [ "$(date -d "@$ts" +%F)" != "$(date +%F)" ]; then
-    refuse "the newest dietpi-backup snapshot is from $(date -d "@$ts" '+%F %H:%M'), not from today. Take one first: /boot/dietpi/dietpi-backup 1"
-    return 0
-  fi
-  ok "dietpi-backup snapshot from today ($(date -d "@$ts" +%H:%M))"
+  die "no dietpi-backup snapshot completed today (last: ${last_when:-none}). Take one first: /boot/dietpi/dietpi-backup 1 (a brand-new Pi with nothing to lose: put NO_SNAPSHOT=1 in front of bash)"
 }
 
 # warn_dashboard_split: the co-GM dashboard treats every caller as the GM until GM_DASHBOARD_TOKEN or GM_EMAILS is set

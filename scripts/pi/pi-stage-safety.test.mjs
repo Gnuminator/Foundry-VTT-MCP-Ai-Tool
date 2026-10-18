@@ -37,6 +37,7 @@ systemctl() {
   case "$1" in
     is-active) case "$ACTIVE" in *" \${@: -1} "*) return 0 ;; esac; return 1 ;;
     start | restart) ACTIVE="$ACTIVE\${@: -1} " ;;
+    show) printf '%s\\n' "\${SHOW_TS:-}" ;;
   esac
   return 0
 }
@@ -97,6 +98,19 @@ describe('enable_unit restarts only when something changed (S1)', () => {
     assert.match(r.out, /FIRST_CHANGED/);
     assert.match(r.out, /SECOND_SAME/);
     assert.doesNotMatch(r.out, /SECOND_CHANGED/);
+  });
+
+  test('a file written after the service started still restarts it on a later run (H1)', () => {
+    const d = tmp();
+    const env = posix(join(d, 'x.env'));
+    writeFileSync(join(d, 'x.env'), 'A=1\n'); // written now, e.g. by an earlier run whose restart was refused
+    const past = new Date(Date.now() - 3600_000).toISOString();
+    const newer = run(`enable_unit ${unit} ${env}; echo "CALLS:$CALLS"`, { active: unit }, { SHOW_TS: past });
+    assert.equal(restarts(calls(newer.out)), 1, newer.out);
+    assert.match(newer.out, /newer than the running service/);
+    const future = new Date(Date.now() + 3600_000).toISOString();
+    const older = run(`enable_unit ${unit} ${env}; echo "CALLS:$CALLS"`, { active: unit }, { SHOW_TS: future });
+    assert.equal(restarts(calls(older.out)), 0, older.out);
   });
 
   test('a stopped unit is started, and RESTART_UNITS=1 restarts a running one', () => {
@@ -190,6 +204,28 @@ describe('require_quiet: players online and active recordings (S2, R8)', () => {
     assert.match(probe(posix(join(d, 'nothing-here'))), /QUIET/);
   });
 
+  test('a long break in a recording still counts while the bot runs since before the session (M2)', () => {
+    const mk = () => {
+      const d = tmp();
+      const raw = join(d, 'night', 'raw');
+      mkdirSync(raw, { recursive: true });
+      writeFileSync(join(raw, '1-gnu.rec'), 'x');
+      const t = new Date(Date.now() - 30 * 60_000); // quiet for 30 minutes
+      utimesSync(join(raw, '1-gnu.rec'), t, t);
+      utimesSync(raw, t, t);
+      return posix(d);
+    };
+    const bot = 'foundry-ai-tool-discord-bot.service';
+    const before = new Date(Date.now() - 3600_000).toISOString(); // the bot started an hour ago, session 30 minutes ago
+    const running = run(`recording_active ${mk()} && echo ACTIVE || echo QUIET`, { active: bot }, { SHOW_TS: before });
+    assert.match(running.out, /ACTIVE/, running.out);
+    const after = new Date(Date.now() - 10 * 60_000).toISOString(); // bot restarted after the folder: a crash leftover
+    const leftover = run(`recording_active ${mk()} && echo ACTIVE || echo QUIET`, { active: bot }, { SHOW_TS: after });
+    assert.match(leftover.out, /QUIET/, leftover.out);
+    const stopped = run(`recording_active ${mk()} && echo ACTIVE || echo QUIET`, {}, { SHOW_TS: before });
+    assert.match(stopped.out, /QUIET/, stopped.out);
+  });
+
   test('a running recording refuses a stop or restart, FORCE=1 goes on', () => {
     const d = tmp();
     mkdirSync(join(d, 'night', 'raw'), { recursive: true });
@@ -209,40 +245,47 @@ describe('require_quiet: players online and active recordings (S2, R8)', () => {
 });
 
 describe('require_recent_snapshot (S4)', () => {
-  const snap = (mtime, env = {}) => {
+  // `lines` are the stats file's content, in dietpi-backup's format: "2026-10-18_09:46:24  Backup completed".
+  const snap = (lines, env = {}) => {
     const d = tmp();
     const dir = join(d, 'dietpi');
     mkdirSync(dir);
     const stats = join(d, 'stats');
-    if (mtime) {
-      writeFileSync(stats, 's');
-      utimesSync(stats, mtime, mtime);
-    }
+    if (lines !== null) writeFileSync(stats, lines);
     return run('require_recent_snapshot; echo PASSED', {}, { DIETPI_DIR: posix(dir), DIETPI_BACKUP_STATS: posix(stats), ...env });
   };
+  const day = offsetDays => {
+    const t = new Date(Date.now() - offsetDays * 86400_000);
+    const p = n => String(n).padStart(2, '0');
+    return `${t.getFullYear()}-${p(t.getMonth() + 1)}-${p(t.getDate())}`;
+  };
 
-  test('a snapshot from today passes', () => {
-    const now = new Date();
-    // Same local day for any time of day the test runs: a few minutes ago, or midnight today if that crosses it.
-    const when = new Date(Math.max(now.getTime() - 60_000, new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()));
-    const r = snap(when);
+  test('a snapshot that completed today passes', () => {
+    const r = snap(`${day(0)}_01:25:19  Backup starting\n${day(0)}_01:25:28  Backup completed\n`);
     assert.equal(r.status, 0, r.out);
     assert.match(r.out, /snapshot from today/);
   });
 
   test('yesterday refuses and says how to take one', () => {
-    const r = snap(new Date(Date.now() - 36 * 3600 * 1000));
+    const r = snap(`${day(1)}_01:25:19  Backup starting\n${day(1)}_01:25:28  Backup completed\n`);
     assert.notEqual(r.status, 0);
-    assert.match(r.out, /not from today/);
+    assert.match(r.out, /no dietpi-backup snapshot completed today/);
     assert.match(r.out, /dietpi-backup 1/);
   });
 
-  test('no snapshot at all refuses; FORCE=1 goes on', () => {
+  test('a backup that started or was cancelled today does not count (M1)', () => {
+    const r = snap(`${day(1)}_01:25:28  Backup completed\n${day(0)}_09:00:00  Backup starting\n${day(0)}_09:00:01  Backup cancelled: Insufficient free space\n`);
+    assert.notEqual(r.status, 0, r.out);
+  });
+
+  test('no snapshot at all refuses; only NO_SNAPSHOT=1 goes on, FORCE=1 does not (M3)', () => {
     const none = snap(null);
     assert.notEqual(none.status, 0);
-    assert.match(none.out, /no dietpi-backup snapshot found/);
-    const forced = snap(null, { FORCE: '1' });
-    assert.equal(forced.status, 0, forced.out);
+    assert.match(none.out, /no dietpi-backup snapshot completed today/);
+    assert.notEqual(snap(null, { FORCE: '1' }).status, 0);
+    const skipped = snap(null, { NO_SNAPSHOT: '1' });
+    assert.equal(skipped.status, 0, skipped.out);
+    assert.match(skipped.out, /NO_SNAPSHOT=1/);
   });
 
   test('off DietPi (a test container) the check is skipped', () => {

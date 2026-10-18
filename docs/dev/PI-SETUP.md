@@ -133,7 +133,8 @@ listed).
   `bash`; a stopped service is started.
 - **Every stage refuses without a `dietpi-backup` snapshot from today** (the nightly 01:25 one counts; the check
   reads `/mnt/dietpi-backup/.dietpi-backup_stats`). Take one with `/boot/dietpi/dietpi-backup 1`. Stages 1 to 4 on
-  a brand-new Pi need `FORCE=1`, as there is no snapshot yet.
+  a brand-new Pi need `NO_SNAPSHOT=1`, as there is no snapshot yet (`FORCE=1` does not skip this check; the check
+  reads the last "Backup completed" line, so a started or cancelled run does not count).
 - **A stage that stops or restarts a service refuses while players are online** (Foundry's `/api/status`; the
   Assistant GM browser counts as one user while it runs, an unreadable answer counts as "not safe") **or a Discord
   recording runs** (a session folder in `recordings` without `session.json` and written to in the last 10

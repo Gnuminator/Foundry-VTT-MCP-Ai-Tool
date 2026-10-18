@@ -9,8 +9,7 @@ We play in two places at once: **Foundry** in your web browser (the map, your ch
 the dice) and **Discord** (voice). This page gets you into both. Do it once before session 0, so
 any problem shows up before the game.
 
-It takes about ten minutes the first time. After that, joining is the address, your name and your
-password.
+It takes about ten minutes the first time. After that, joining is the address and your name.
 
 ## What you need
 
@@ -21,7 +20,8 @@ password.
 - **A headset or earbuds with a microphone**, so the others don't hear themselves through your
   speakers.
 - **Discord**, the app or in the browser, and an invite to our server.
-- **From the GM:** the game's web address, your Foundry user name and your password.
+- **From the GM:** the game's web address and your Foundry user name (your first name). Your user has no
+  password: the emailed login code is the lock.
 - **An email address you can open right now.** Tell the GM which one before session 0. Only
   addresses the GM has added to the list can get in, so a different address than the one you gave
   will not work.
@@ -52,10 +52,10 @@ does not say so: it just never sends a code. That is the first thing to check if
 
 Foundry's join page opens. It shows the game's name at the top and three panels on the left.
 
-![Foundry's join page: user name Player and a password typed in, the orange Join Game Session button below, and further down the Return to Setup box](../images/guides/join-form.png)
+![Foundry's join page: user name Player and the password box, the orange Join Game Session button below, and further down the Return to Setup box](../images/guides/join-form.png)
 
-1. In the first box, type your **user name** exactly as the GM wrote it. Capital letters count.
-2. Type your **password** in the box below it. The eye icon on the right shows what you typed.
+1. In the first box, pick your **user name** from the list, exactly as the GM wrote it.
+2. Leave the password box empty. Your user has no password.
 3. Click **Join Game Session**.
 
 Ignore the **Return to Setup** box at the bottom. It is for the person who runs the server, and
@@ -103,7 +103,7 @@ works the same way. You don't need it to play. More in the [player guide](README
 | The Cloudflare page asks for your email again | Normal about once a month, or in a new browser. Get a new code.                                                         |
 | The code is refused                           | Codes run out after a short while. Reload the address, click **Send login code** again and use the newest email.        |
 | "The requested User ... does not exist"       | The user name is spelled differently. Copy it from the GM's message.                                                    |
-| The password is refused                       | Copy it from the GM's message, and check the eye icon to see what was typed. Still no? Ask the GM to reset it.          |
+| Foundry asks for a password                   | You picked the wrong user, or the GM's. Pick your own name; yours has no password. Still asked? Tell the GM.            |
 | A warning about screen resolution             | Make the browser window bigger, or use a computer with a bigger screen.                                                 |
 | The page loads but stays black or very slow   | Close other tabs, check hardware acceleration is on, reload the page (F5).                                              |
 | The page can't be reached at all              | The server may be down. Tell the GM on Discord; the GM has a plan B.                                                    |

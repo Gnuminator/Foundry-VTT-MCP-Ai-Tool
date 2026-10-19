@@ -20,8 +20,8 @@ confirm.
 The tabs **Before**, **During** and **After** in the header switch what the page shows. They
 follow your evening, and you can click any of them at any time.
 
-- **Before**: the Pre-flight check and the Prep panel, the **Pick your During layout** card and
-  a Features slot that says "Not on this page yet" (the cards are on the old dashboard).
+- **Before**: the Pre-flight check and the Prep panel, the **Pick your During layout** card
+  (until you have picked a layout) and a Features slot that says "Not on this page yet" (the cards are on the old dashboard).
 - **During**: the turn-order strip, the Live Feed, and Handouts, Party and Recent Changes.
 - **After**: Tonight's stats and the Session notes, with Prep, Handouts and Recent Changes.
 

@@ -108,13 +108,13 @@ set says so.
   Village'." Add "only for Anna" to reveal it to one player.
 - **What happens:** the page goes into the handout queue (`plan-page-reveal` with the action queue).
   Nothing changes in Foundry and players see nothing yet.
-- **Tip:** open **📜 Handouts** on the dashboard to see the queue in order. **Remove** takes one
+- **Tip:** open **📜 Handouts** (under **Advanced ▾**) on the dashboard to see the queue in order. **Remove** takes one
   off.
 
 ### Deal the Tarokka reading
 
 - **Say:** "Deal a new Tarokka reading with the built-in roll. Show me the plan first."
-- **What happens:** a plan (`plan-tarokka-import`); applied after your yes, then in **🃏 Tarokka**.
+- **What happens:** a plan (`plan-tarokka-import`); applied after your yes, then in **🃏 Tarokka** (under **Advanced ▾**).
 - **Tip:** keep **Show cards** unticked on the dashboard while players can see your screen.
 
 ## During the session

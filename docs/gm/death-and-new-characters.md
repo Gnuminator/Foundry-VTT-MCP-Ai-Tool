@@ -34,7 +34,7 @@ The tool follows hit points, not life and death:
 
 - **Dropping to 0 HP** is logged ("Kasimir dropped to 0 HP") and shows in the dashboard's
   **Live Feed** and on the players' page. Getting back above 0 is logged too ("is back up").
-- **Death saving throws** show in the **Combat Tracker** and in the **🛡 Party** drawer while a
+- **Death saving throws** show in Foundry's Combat Tracker, the dashboard's turn-order strip and in the **🛡 Party** drawer while a
   character is at 0 HP ("Death saves: 1 saved, 2 failed"). They are recorded in the play log.
 - **Death itself is not detected.** Three failed death saves, massive damage or a disintegrate
   look the same to the tool as any other 0 HP. Whether a character is dead is your call, and you

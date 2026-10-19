@@ -17,6 +17,7 @@
 # pull scripts (scripts/pi/space-check.ps1, over read-only SSH).
 
 require_root
+require_recent_snapshot
 
 checker_dir="$TOOL_DIR/space"
 checker="$checker_dir/space-check.sh"

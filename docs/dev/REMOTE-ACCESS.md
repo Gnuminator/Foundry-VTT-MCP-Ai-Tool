@@ -21,11 +21,11 @@ month.
 
 What goes through the tunnel, and nothing else:
 
-| Public name     | Goes to on the Pi                            | Who gets in                                                                                       |
-| --------------- | -------------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| `play.<domain>` | Foundry, `localhost:30000`                   | The players, the GM and you (Cloudflare Access)                                                   |
-| `cogm.<domain>` | Dashboard, `localhost:3000`                  | The GM and you as GM; the players see `/player`                                                   |
-| `mcp.<domain>`  | Bridge control port, `tcp://localhost:31414` | The GM's and your Claude Desktop only, with a service token (see "The GM's Claude Desktop" below) |
+| Public name     | Goes to on the Pi                            | Who gets in                                                                                                                        |
+| --------------- | -------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `play.<domain>` | Foundry, `localhost:30000`                   | The players, the GM and you (Cloudflare Access)                                                                                    |
+| `cogm.<domain>` | Dashboard, `localhost:3000`                  | The GM and you as GM; the players see `/player`                                                                                    |
+| `mcp.<domain>`  | Bridge control port, `tcp://localhost:31414` | The GM's and your Claude Desktop only: a service token, or a GM email code (one-hour session). See "The GM's Claude Desktop" below |
 
 The module port (31415), SSH, Syncthing and the Assistant GM browser are never published. The control
 port 31414 has no login of its own, so it is published only behind the Access application of the
@@ -223,6 +223,11 @@ application has its own copy of the policy, edit that one too.
 Claude Desktop on a GM's PC talks to the bridge's control port (31414). That port has **no login of
 its own**, so the Access application is the only gate. The order below keeps the route from ever
 existing without its gate.
+
+The `Bridge control` application has two ways in, by design (D-126): the service token below, and
+the `Dashboard GMs` policy, so a GM's email code (a one-hour session) also opens Bridge control.
+So the token is not the only door. To make it the only one, remove `Dashboard GMs` from this
+application.
 
 1. **Service token, made by you.** Cloudflare One, Access controls, Service credentials, Create
    service token, name `gm-claude-desktop` (one per person, for example `gm-claude-desktop-<name>`,

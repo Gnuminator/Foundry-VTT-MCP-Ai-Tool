@@ -52,15 +52,15 @@ Keep playing: do the change by hand in Foundry.
 
 - **"Usage limit" message:** the free plan has a limit per five hours. It resets by itself; until
   then, play without Claude. See [Claude Free or Pro](claude-plans.md).
-- **Claude says a tool set is off:** switch it on in Claude Desktop's **Search and tools** menu
+- **Claude says a tool set is off:** switch it on in Claude Desktop's **+** menu, **Connectors**
   (see [Asking Claude](asking-claude.md#tool-sets-which-switches-to-turn-on)).
 - **Every tool call fails:** Claude has lost its link to the game. At the break, quit Claude Desktop
   fully and start it again. If that doesn't help, call for help after the session.
 
-## The dashboard does not load or says disconnected
+## The dashboard does not load or loses its connection
 
 Keep playing in Foundry. At the break, reload the dashboard page. If it still says
-**disconnected**, call for help after the session. Changes made meanwhile can still be undone
+"Connection lost, reconnecting…" or "Connection closed: reload the page", call for help after the session. Changes made meanwhile can still be undone
 later from **Recent Changes**.
 
 ## The recording bot left or stopped

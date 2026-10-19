@@ -10,6 +10,7 @@
 # Nothing is printed. CHECK_WORLD and DND5E_VERSION override the defaults below.
 
 require_root
+require_recent_snapshot
 require_arm64
 [ -x "$NODE_DIR/bin/node" ] || die "Node is missing: run stage 2 first"
 [ -f "$TOOL_DIR/gm-browser/assistant-gm.mjs" ] || die "run 5-tool.sh first"
@@ -96,6 +97,7 @@ else
   # Written by the foundry user (lib.sh), checked before Foundry stops: a Config folder or file it cannot reach would leave Foundry down.
   foundry_can_write "${options%/*}" || die "the $FOUNDRY_USER user cannot write in ${options%/*}, where options.json is changed. Foundry was not stopped"
   runuser -u "$FOUNDRY_USER" -- test -r "$options" || die "the $FOUNDRY_USER user cannot read $options. Foundry was not stopped"
+  require_quiet "switching the launched world (it stops Foundry)"
   if have_systemd; then systemctl stop foundry.service; fi
   if ! foundry_edit_json "$options" 'o.world = a[0]' "$world"; then
     if have_systemd; then systemctl start foundry.service || true; fi
@@ -118,6 +120,7 @@ world_up || die "$world is not running on port 30000: Foundry shows no active ga
 ok "$world is running"
 
 say "provision: the module, the Assistant GM user, the bridge user"
+require_quiet "stopping the Assistant GM browser to provision it"
 if have_systemd; then systemctl stop foundry-ai-tool-gm-browser.service 2>/dev/null || true; fi
 (
   set -a
@@ -135,7 +138,7 @@ if have_systemd; then systemctl stop foundry-ai-tool-gm-browser.service 2>/dev/n
 ) || die "provisioning failed (see the lines above)"
 
 if have_systemd; then
-  enable_unit foundry-ai-tool-gm-browser.service
+  enable_unit foundry-ai-tool-gm-browser.service "$assistant_env"
   for _ in $(seq 1 45); do
     journalctl -u foundry-ai-tool-gm-browser --since '-3 min' | grep -q 'joined world' && break
     sleep 2

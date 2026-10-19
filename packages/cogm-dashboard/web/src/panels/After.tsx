@@ -22,9 +22,12 @@ import {
 import { GAME_STATE_KEY, useGuardedTools } from '../lib/guarded';
 import {
   notesView,
+  pipelineView,
+  samePipelineSession,
   sanitizeNotesHtml,
   type NotesAction,
   type NotesPage,
+  type PipelineStatus,
   type SessionNotes,
 } from '../lib/sessionNotes';
 import { useObsidianFileUrl } from '../lib/stream';
@@ -235,8 +238,49 @@ function SessionNotesCard({ active }: { active: boolean }): JSX.Element | null {
     },
     enabled: active,
   });
+  // The last pass's outcome comes from the sessions folder, so it shows even when nothing is staged.
+  const pipelineQuery = useQuery({
+    queryKey: [...NOTES_KEY, 'pipeline'],
+    queryFn: async () => {
+      try {
+        const data = await api<{ pipeline?: PipelineStatus | null }>('/api/session-notes/pipeline');
+        return data.pipeline ?? null;
+      } catch {
+        return null;
+      }
+    },
+    enabled: active,
+  });
   const n = query.data ?? null;
-  if (!n) return null;
+  // Only for the session the card is about (the notes' id is the folder name made id-safe).
+  const forThisCard =
+    pipelineQuery.data && (!n || samePipelineSession(n.sessionId, pipelineQuery.data.session))
+      ? pipelineQuery.data
+      : null;
+  const pipeline = forThisCard ? pipelineView(forThisCard) : null;
+  const pipelineLine = pipeline && (
+    <p
+      className={`notes-line${pipeline.problem ? ' notes-warn' : ''}`}
+      id="notes-pipeline"
+      data-state={forThisCard?.state}
+    >
+      {pipeline.line}
+    </p>
+  );
+  if (!n) {
+    if (!forThisCard || !pipeline) return null;
+    return (
+      <section className="notes-card" id="notes-card" aria-label="Session notes">
+        <div className="notes-card-head">
+          <h3>
+            <span id="notes-title">{`Session notes: ${forThisCard.session}`}</span>
+          </h3>
+          <Pill tone={pipeline.problem ? 'off' : 'on'}>{pipeline.pill}</Pill>
+        </div>
+        {pipelineLine}
+      </section>
+    );
+  }
   const view = notesView(n);
 
   const reload = (): void => {
@@ -300,6 +344,7 @@ function SessionNotesCard({ active }: { active: boolean }): JSX.Element | null {
         <p className="notes-line" id="notes-line">
           {view.line}
         </p>
+        {pipelineLine}
         {view.warn && (
           <p className="notes-line notes-warn" id="notes-warn">
             {view.warn}

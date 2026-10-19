@@ -263,7 +263,7 @@ export const DASHBOARD_CONTROLS = [
   {
     name: 'dash.help.wiki',
     how: 'skip',
-    why: 'a link in the help pane of the React dashboard (/next/); the old page the sweep drives has none',
+    why: 'a link in the help pane of the React dashboard (/); the old page the sweep drives has none',
   },
   { name: 'dash.help.during-layouts', how: 'open', reach: [MOMENT_DURING], expect: '#pane-help' },
   // The "?" app.js adds to each panel heading (help-links.json); the diagnostics one stands for all.
@@ -551,7 +551,7 @@ export const DASHBOARD_CONTROLS = [
   {
     name: 'dash.preflight.hide-tarokka',
     how: 'skip',
-    why: 'only on the new dashboard (/next/), while Show cards is ticked; e2e tarokka.spec covers it',
+    why: 'only on the React dashboard (/), while Show cards is ticked; e2e tarokka.spec covers it',
   },
   { name: 'dash.ready.turn-on', how: 'write', why: 'turns the module switches and GM Actions on' },
   {

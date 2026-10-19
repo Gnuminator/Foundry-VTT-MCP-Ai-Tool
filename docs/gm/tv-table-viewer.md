@@ -17,7 +17,7 @@ of the tool's folder (it holds the `scripts\tv` files). Ask the tool admin to se
 
 ## One time: make the Table player
 
-1. Open Claude with the **Admin** tools on (Search and tools menu, switch on **Admin**).
+1. Open Claude with the **Admin** tools on (the **+** in the chat box, **Connectors**, switch on **foundry-mcp-admin**).
 2. Ask: "Plan a Table user for the TV." Claude shows a plan: one new player named Table, no
    password.
 3. Read it, then confirm. It shows in **Recent Changes**, with an **Undo** if you change your mind.

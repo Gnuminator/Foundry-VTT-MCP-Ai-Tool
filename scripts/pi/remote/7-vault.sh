@@ -14,6 +14,7 @@
 # are written whenever FOUNDRY_AI_OBSIDIAN_DIR is set, mirror or not.
 
 require_root
+require_recent_snapshot
 [ -d "$TOOL_DIR/app" ] || die "the tool is missing: run stage 5 first"
 id "$FOUNDRY_USER" >/dev/null 2>&1 || die "the $FOUNDRY_USER user is missing: run stage 1 first"
 
@@ -78,13 +79,13 @@ if write_file "$TOOL_ETC/dashboard.env" 0640 "$dashboard_env"; then dashboard_ch
 # Root writes them, the services (user foundry) read them.
 chown "root:$FOUNDRY_USER" "$TOOL_ETC/bridge.env" "$TOOL_ETC/dashboard.env"
 if have_systemd; then
-  if [ "$bridge_changed" = 1 ] && [ -f /etc/systemd/system/foundry-ai-tool-bridge.service ]; then
-    systemctl restart foundry-ai-tool-bridge.service
-    ok "bridge restarted with the new settings"
+  # enable_unit restarts a running service whose settings file is new (checked, and again on a later run when this
+  # one was refused); the units only exist once stage 5 has run.
+  if [ -f /etc/systemd/system/foundry-ai-tool-bridge.service ]; then
+    enable_unit foundry-ai-tool-bridge.service "$TOOL_ETC/bridge.env"
   fi
-  if [ "$dashboard_changed" = 1 ] && [ -f /etc/systemd/system/foundry-ai-tool-dashboard.service ]; then
-    systemctl restart foundry-ai-tool-dashboard.service
-    ok "dashboard restarted with the new settings"
+  if [ -f /etc/systemd/system/foundry-ai-tool-dashboard.service ]; then
+    enable_unit foundry-ai-tool-dashboard.service "$TOOL_ETC/dashboard.env"
   fi
 else
   warn "no systemd here (a test container?): the services were not restarted"
@@ -126,12 +127,7 @@ st() { runuser -u "$FOUNDRY_USER" -- env HOME="$TOOL_DATA" syncthing cli --home=
 st_up() { st show system >/dev/null 2>&1; }
 
 if have_systemd; then
-  if [ "$unit_changed" = 1 ] || ! systemctl is-active --quiet foundry-ai-tool-syncthing.service; then
-    enable_unit foundry-ai-tool-syncthing.service
-  else
-    systemctl enable foundry-ai-tool-syncthing.service >/dev/null 2>&1
-    ok "foundry-ai-tool-syncthing.service already running"
-  fi
+  enable_unit foundry-ai-tool-syncthing.service
 elif st_up; then
   ok "Syncthing already runs by hand (no systemd here)"
 else
@@ -176,6 +172,8 @@ say "the GM vault folder"
 stignore="// Per-device Obsidian state: each PC keeps its own (written by 7-vault.sh and setup-syncthing-pc.ps1).
 .obsidian/workspace*.json
 .obsidian/cache
+.obsidian/plugins
+.obsidian/community-plugins.json
 .trash"
 write_file "$gm_dir/.stignore" 0640 "$stignore" || true
 chown "$FOUNDRY_USER:$FOUNDRY_USER" "$gm_dir/.stignore"

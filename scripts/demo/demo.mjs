@@ -9,6 +9,8 @@
 //   --res 1080|1440|2160   output size, always 60 fps MP4 (default 2160)
 //   --no-reset             skip reset-demo-world.ps1 (the world must already run)
 //   --no-record            drive the take without OBS (rehearsal; still saves screenshots)
+//   --recorder ffmpeg      record with ffmpeg ddagrab + NVENC (top-left of the primary monitor)
+//                          instead of OBS (OBS 32.2.2 froze on window captures)
 //   --keep-open            leave the browser windows open afterwards
 //   --world <id>           another demo world (ai-tool-demo-<name>); default ai-tool-demo
 //
@@ -20,6 +22,7 @@ import { existsSync, mkdirSync, renameSync, writeFileSync } from 'node:fs';
 import { basename, extname, join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { DEMO_DIR, REPO_ROOT, RESOLUTIONS, demoWorld, testEnv } from './lib/env.mjs';
+import { FfmpegRecorder } from './lib/ffmpeg-recorder.mjs';
 import { ensureObs } from './lib/obs-setup.mjs';
 import { Take } from './lib/take.mjs';
 
@@ -30,11 +33,14 @@ function parseArgs(argv) {
     if (a === '--res') opts.res = Number(argv[++i]);
     else if (a === '--no-reset') opts.reset = false;
     else if (a === '--no-record') opts.record = false;
+    else if (a === '--recorder') opts.recorder = argv[++i] ?? '';
     else if (a === '--keep-open') opts.keepOpen = true;
     else if (a === '--world') process.env.DEMO_WORLD_ID = argv[++i] ?? '';
     else if (a.startsWith('--')) throw new Error(`Unknown option ${a}`);
     else opts._.push(a);
   }
+  if (opts.recorder !== undefined && opts.recorder !== 'ffmpeg' && opts.recorder !== 'obs')
+    throw new Error(`--recorder must be ffmpeg or obs (got ${opts.recorder}).`);
   demoWorld(); // checks --world
   if (!RESOLUTIONS[opts.res])
     throw new Error(`--res must be 1080, 1440 or 2160 (got ${opts.res}).`);
@@ -91,7 +97,9 @@ function probe(file) {
 async function cmdTake(opts) {
   const arg = opts._[1];
   if (!arg)
-    throw new Error('Usage: npm run demo:take -- <take> [--res 2160] [--no-reset] [--no-record]');
+    throw new Error(
+      'Usage: npm run demo:take -- <take> [--res 2160] [--no-reset] [--no-record] [--recorder ffmpeg|obs]'
+    );
   // A name is a take in scripts/demo/takes; a path to a .mjs file is a take kept elsewhere.
   const file = arg.endsWith('.mjs') ? resolve(arg) : join(DEMO_DIR, 'takes', `${arg}.mjs`);
   const name = basename(file, '.mjs');
@@ -102,7 +110,11 @@ async function cmdTake(opts) {
   mkdirSync(outDir, { recursive: true });
 
   if (opts.reset) resetWorld();
-  const obs = opts.record ? await ensureObs({ res: opts.res, recordDir: outDir }) : undefined;
+  const obs = !opts.record
+    ? undefined
+    : opts.recorder === 'ffmpeg'
+      ? new FfmpegRecorder(RESOLUTIONS[opts.res])
+      : await ensureObs({ res: opts.res, recordDir: outDir });
   const take = new Take({ name, outDir, res: opts.res, env, obs });
   take.lib = await import('./lib/index.mjs');
   const report = {
@@ -131,13 +143,19 @@ async function cmdTake(opts) {
     console.error(`Take failed: ${err.message || err}`);
   } finally {
     if (recording) {
-      const raw = await obs.stopRecord();
-      take.markStop();
-      const video = join(outDir, `${name}${extname(raw) || '.mp4'}`);
-      renameSync(raw, video);
-      report.video = video;
-      report.probe = probe(video);
-      take.extractShots(video);
+      try {
+        const raw = await obs.stopRecord();
+        take.markStop();
+        const video = join(outDir, `${name}${extname(raw) || '.mp4'}`);
+        renameSync(raw, video);
+        report.video = video;
+        report.probe = probe(video);
+        take.extractShots(video);
+      } catch (err) {
+        // Still write steps.json and take.json, and close the windows, below.
+        report.error ??= String(err.stack || err);
+        console.error(`Stopping the recording failed: ${err.message || err}`);
+      }
     }
     obs?.close();
     report.steps = take.steps;
@@ -175,7 +193,7 @@ try {
   else if (cmd === 'take') await cmdTake(opts);
   else {
     console.log(
-      'Usage: node scripts/demo/demo.mjs obs-setup | take <name|path.mjs> [--res 2160] [--no-reset] [--no-record] [--keep-open] [--world <id>]'
+      'Usage: node scripts/demo/demo.mjs obs-setup | take <name|path.mjs> [--res 2160] [--no-reset] [--no-record] [--recorder ffmpeg|obs] [--keep-open] [--world <id>]'
     );
     process.exitCode = cmd ? 1 : 0;
   }

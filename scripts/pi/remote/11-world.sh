@@ -48,6 +48,7 @@
 # the old WORLD is in prev). Safe to run again with the same bundle.
 
 require_root
+require_recent_snapshot
 require_arm64
 BUNDLE="${BUNDLE:-}"
 WORLD="${WORLD:-curse-of-strahd}"
@@ -469,6 +470,7 @@ if have_systemd; then
   was_gm_browser=0
   systemctl is-active --quiet foundry.service && was_foundry=1
   systemctl is-active --quiet foundry-ai-tool-gm-browser.service && was_gm_browser=1
+  require_quiet "installing the world (it stops Foundry)"
   say "stopping the Assistant GM browser and Foundry"
   systemctl stop foundry-ai-tool-gm-browser.service 2>/dev/null || true
   systemctl stop foundry.service

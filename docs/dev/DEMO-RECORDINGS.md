@@ -35,13 +35,14 @@ all of that when it is missing.
 
 Options for `demo:take`:
 
-| Option                                   | What it does                                                |
-| ---------------------------------------- | ----------------------------------------------------------- |
-| `--res 1080`, `--res 1440`, `--res 2160` | Output size. Default 2160. Always 60 fps, MP4 (never GIF).  |
-| `--no-reset`                             | Skip the world reset; the demo world must already run.      |
-| `--no-record`                            | Rehearse without OBS. Screenshots are still saved.          |
-| `--keep-open`                            | Leave the browser windows open afterwards.                  |
-| `--world <id>`                           | Another demo world (see [Private videos](#private-videos)). |
+| Option                                   | What it does                                                                                                                                                                                                                                                    |
+| ---------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--res 1080`, `--res 1440`, `--res 2160` | Output size. Default 2160. Always 60 fps, MP4 (never GIF).                                                                                                                                                                                                      |
+| `--no-reset`                             | Skip the world reset; the demo world must already run.                                                                                                                                                                                                          |
+| `--no-record`                            | Rehearse without recording. Screenshots are still saved.                                                                                                                                                                                                        |
+| `--recorder ffmpeg`                      | Record with ffmpeg (ddagrab, NVENC) of the top-left of the primary monitor instead of OBS, which froze on window captures on 2026-10-18. Needs ffmpeg with NVENC on PATH, a primary monitor at least as large as `--res`, and the take windows on that monitor. |
+| `--keep-open`                            | Leave the browser windows open afterwards.                                                                                                                                                                                                                      |
+| `--world <id>`                           | Another demo world (see [Private videos](#private-videos)).                                                                                                                                                                                                     |
 
 Every take writes a folder `C:\FoundryTest\demo\takes\<take>-<date>-<time>\`:
 

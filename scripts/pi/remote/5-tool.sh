@@ -11,6 +11,7 @@
 # its own (vault idea I-023).
 
 require_root
+require_recent_snapshot
 require_arm64
 [ -x "$NODE_DIR/bin/node" ] || die "Node is missing: run stage 2 first"
 [ -f "$FOUNDRY_APP/main.js" ] || die "Foundry is missing: run stage 3 first"
@@ -139,6 +140,7 @@ else
 $loads_out"
   ok "the pruned build loads (bridge, dashboard app, shared, Discord recorder)"
   printf '%s\n' "$ref" >"$build/.tool-ref"
+  require_quiet "swapping in the new build (it stops the bridge, dashboard and Assistant GM)"
   if have_systemd; then
     for unit in foundry-ai-tool-gm-browser foundry-ai-tool-dashboard foundry-ai-tool-bridge; do
       systemctl stop "$unit.service" 2>/dev/null || true
@@ -148,6 +150,8 @@ $loads_out"
   rm -rf "${app:?}.prev"
   [ -d "$app" ] && mv "$app" "$app.prev"
   mv "$build" "$app"
+  # A stop above that failed silently must still end in a restart onto the new build.
+  mark_changed /etc/systemd/system/foundry-ai-tool-bridge.service /etc/systemd/system/foundry-ai-tool-dashboard.service /etc/systemd/system/foundry-ai-tool-gm-browser.service
   trap - EXIT
   chown -R root:root "$app"
   chmod 755 "$app"
@@ -282,10 +286,10 @@ WantedBy=multi-user.target"
 write_file /etc/systemd/system/foundry-ai-tool-bridge.service 0644 "$bridge_unit" || true
 write_file /etc/systemd/system/foundry-ai-tool-dashboard.service 0644 "$dashboard_unit" || true
 write_file /etc/systemd/system/foundry-ai-tool-gm-browser.service 0644 "$browser_unit" || true
-enable_unit foundry-ai-tool-bridge.service
-enable_unit foundry-ai-tool-dashboard.service
+enable_unit foundry-ai-tool-bridge.service "$TOOL_ETC/bridge.env"
+enable_unit foundry-ai-tool-dashboard.service "$TOOL_ETC/dashboard.env" "$TOOL_ETC/dashboard-access.env"
 if [ -f "$TOOL_ETC/assistant-gm.env" ]; then
-  enable_unit foundry-ai-tool-gm-browser.service
+  enable_unit foundry-ai-tool-gm-browser.service "$TOOL_ETC/assistant-gm.env"
 else
   warn "no $TOOL_ETC/assistant-gm.env yet: the Assistant GM browser starts once it exists (5-check-world.sh writes it for the check world)"
 fi
@@ -308,6 +312,8 @@ if [ -n "$ts_name" ]; then
 else
   warn "Tailscale is not running here: nothing shared (a test container?)"
 fi
+
+warn_dashboard_split || true
 
 if have_systemd; then
   say "checks"

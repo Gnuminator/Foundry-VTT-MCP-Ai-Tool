@@ -486,7 +486,7 @@ async function executeUpdate(
   if (Object.keys(update).length > 0) await doc.update(update, writeMarker(req, changeMode));
   await removeOwnershipKeys(doc, ownershipKeys, writeMarker(req, changeMode));
   const afterSource = sourceOf(doc);
-  return {
+  const result: GuardedOpResult = {
     index,
     kind: 'update',
     uuid: doc.uuid,
@@ -496,6 +496,54 @@ async function executeUpdate(
     before,
     after: paths.map(path => readPath(afterSource, path)),
   };
+  const dropped = droppedPaths(doc.documentName, changes, afterSource);
+  if (dropped.length > 0) {
+    // This op is not in the caller's rollback list yet: put back what did land. Not during a
+    // rollback, where "before" is the state the rollback is undoing.
+    let restored = 'the change was undone';
+    if ((changeMode ?? req.mode) === 'rollback') {
+      restored = 'it was not written again';
+    } else {
+      try {
+        const undoOp = inverseOf(result);
+        if (undoOp.kind === 'update') {
+          const restore: Record<string, unknown> = { ...undoOp.changes };
+          for (const path of undoOp.unset ?? []) Object.assign(restore, unsetKeyUpdate(path));
+          await doc.update(restore, writeMarker(req, 'rollback'));
+        }
+      } catch {
+        restored = 'putting the earlier values back failed too: check the token by hand';
+      }
+    }
+    throw new Error(
+      `Foundry did not keep ${dropped.map(path => `"${path}"`).join(', ')} (a constrained move, a hook or a region refused it); ${restored}`
+    );
+  }
+  return result;
+}
+
+/** Token geometry: the paths Foundry 14 can drop without an error. */
+const VERIFIED_TOKEN_PATHS = new Set(['x', 'y', 'width', 'height', 'depth']);
+
+/**
+ * Token position and size paths that Foundry did not store as asked. Foundry 14 drops these
+ * silently when a constrained move, a `preMoveToken` hook or a region says no. Nothing else is
+ * compared: Foundry normalises many other values on the way in (rotation wraps, empty colours
+ * become null, text is trimmed, numbers are rounded or clamped).
+ */
+function droppedPaths(
+  documentName: string,
+  changes: Record<string, unknown>,
+  afterSource: Record<string, unknown>
+): string[] {
+  if (documentName !== 'Token') return [];
+  const dropped: string[] = [];
+  for (const [path, asked] of Object.entries(changes)) {
+    if (!VERIFIED_TOKEN_PATHS.has(path) || typeof asked !== 'number') continue;
+    const have = readPath(afterSource, path);
+    if (!have.present || have.value !== asked) dropped.push(path);
+  }
+  return dropped;
 }
 
 /** The user key of a single-key `ownership.<key>` path, or null for any other path. */

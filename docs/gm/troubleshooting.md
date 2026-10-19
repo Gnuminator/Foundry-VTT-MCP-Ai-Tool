@@ -11,8 +11,8 @@ setup; they change when the tool moves to the Orange Pi.
 ## The bridge does not connect
 
 **You see:** no "MCP Bridge connected successfully" message in Foundry, or the warning "MCP Server
-not found". The dashboard says **Foundry: unreachable**, or **Bridge: disconnected** (with
-**Foundry: unknown**).
+not found". The dashboard's **✈ Pre-flight** says Foundry is not connected, or shows
+"Connection lost, reconnecting…".
 
 | Likely cause                                                                           | Fix                                                                                                     |
 | -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
@@ -47,24 +47,24 @@ undo. Fix it by hand in Foundry.
 
 ## The dashboard does not load
 
-| You see                                                  | Likely cause and fix                                                                                                                  |
-| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| The browser cannot connect to `http://localhost:3000`.   | The dashboard is not running. Start it (today: `npm run dev:cogm` in a terminal in the tool's folder) and leave that window open.     |
-| **Bridge: reconnecting…**.                               | The page lost the dashboard program. Its terminal window was closed or it restarted; start it again if needed, then reload the page.  |
-| A short error with `host-not-allowed`.                   | You opened it under another name. Use `http://localhost:3000`, or add that name to `DASHBOARD_ALLOWED_HOSTS`.                         |
-| The page loads, but **Bridge: disconnected**.            | The bridge is not running. Start Claude Desktop.                                                                                      |
-| **Foundry: unreachable**.                                | See "The bridge does not connect" above.                                                                                              |
-| The tool runner says "Couldn't load tools".              | The bridge is not connected, or this browser is not signed in as the GM (see the next row).                                           |
-| GM buttons are refused although everything is connected. | The setup uses a GM token. Open the dashboard once with the address you were given (it ends in `?token=…`); the browser remembers it. |
-| **AI: disabled**.                                        | Normal. The AI commentary panel needs an API key, which the normal setup does not use.                                                |
-| GM Actions turned itself off.                            | The dashboard restarted. Turn it on again when you need it.                                                                           |
+| You see                                                                   | Likely cause and fix                                                                                                                  |
+| ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| The browser cannot connect to the dashboard address.                      | The dashboard is not running. Tell the tool admin (on the admin's own PC: `npm run dev:cogm` in the tool's folder, window left open). |
+| "Connection lost, reconnecting…" or "Connection closed: reload the page". | The page lost the dashboard program. Its terminal window was closed or it restarted; start it again if needed, then reload the page.  |
+| A short error with `host-not-allowed`.                                    | You opened it under another name. Use the address the admin gave you, or add that name to `DASHBOARD_ALLOWED_HOSTS`.                  |
+| The page loads, but Pre-flight and the panels cannot read the game.       | The bridge is not running. Start Claude Desktop.                                                                                      |
+| Pre-flight's "Foundry connected" line is marked as failing.               | See "The bridge does not connect" above.                                                                                              |
+| The tool runner says "Couldn't load tools".                               | The bridge is not connected, or this browser is not signed in as the GM (see the next row).                                           |
+| GM buttons are refused although everything is connected.                  | The setup uses a GM token. Open the dashboard once with the address you were given (it ends in `?token=…`); the browser remembers it. |
+| No AI commentary on the page.                                             | Normal. The AI commentary is only on the old dashboard (`/legacy/`) and needs an API key, which the normal setup does not use.        |
+| GM Actions turned itself off.                                             | The dashboard restarted. Turn it on again when you need it.                                                                           |
 
 ## Claude Desktop does not see the tools
 
 | Likely cause                                                     | Fix                                                                                                                                                                               |
 | ---------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | The tool is not in Claude Desktop's configuration.               | `%APPDATA%\Claude\claude_desktop_config.json` needs the `foundry-mcp` entries (see the [README](../../README.md#installation)).                                                   |
-| The tool set is switched off.                                    | Claude says which set a request needs. Switch that entry on in the **Search and tools** menu (see [Asking Claude](asking-claude.md#tool-sets-which-switches-to-turn-on)).         |
+| The tool set is switched off.                                    | Claude says which set a request needs. Switch that entry on under **+**, **Connectors** (see [Asking Claude](asking-claude.md#tool-sets-which-switches-to-turn-on)).              |
 | Claude Desktop was not restarted after the change.               | Quit it fully (also from the icon in the system tray), then start it again.                                                                                                       |
 | The bridge failed to start. Claude then gets an empty tool list. | Claude Desktop's settings list local MCP servers and their status (in current versions under **Settings**, **Developer**). Check the log `%TEMP%\foundry-mcp-server\wrapper.log`. |
 | The tools are there, but every call fails.                       | Foundry is not connected. See "The bridge does not connect" above.                                                                                                                |

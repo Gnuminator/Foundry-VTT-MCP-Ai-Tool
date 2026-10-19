@@ -1,4 +1,4 @@
-// The layout trial on the old page at the root (public/app.js): the pin the page had before the
+// The layout trial on the old page at /legacy/ (public/app.js): the pin the page had before the
 // trial belongs to the play session that was open then. The bridge and the stream are faked in
 // the browser; the React dashboard's own trial is in during-layouts.spec.ts.
 import { expect, test } from '@playwright/test';
@@ -33,7 +33,7 @@ test('Stop after the session opened mid-trial lands on During, unpinned', async 
     },
     { playSession: true }
   );
-  await page.goto(`/?token=${GM_TOKEN}`);
+  await page.goto(`/legacy/?token=${GM_TOKEN}`);
   await expect(page.locator('#btn-session')).toHaveText('Start session');
 
   // The GM pinned Before, then started the trial: both belong to the session that was open.

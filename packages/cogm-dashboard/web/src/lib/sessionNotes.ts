@@ -54,6 +54,45 @@ export interface NotesView {
   aboutSwitch: boolean;
 }
 
+/** How the last notes pass ended (GET /api/session-notes/pipeline: notes/status.json). */
+export interface PipelineStatus {
+  session: string;
+  state: 'done' | 'paused' | 'incomplete' | 'failed' | 'waiting' | 'published';
+  message: string;
+  at?: string;
+}
+
+const PIPELINE_WORDS: Record<PipelineStatus['state'], string> = {
+  done: 'The notes are written.',
+  paused: 'Paused (usage limit); the next pass continues.',
+  incomplete: 'Some scenes are still raw; the next pass tries them again.',
+  failed: 'The last pass failed; the next pass tries again.',
+  waiting: 'Written, waiting for Foundry to take them; the next pass tries again.',
+  published: 'The notes went to Foundry.',
+};
+
+/** Whether a staged notes id belongs to this session folder (the pipeline's id-safe folder name). */
+export function samePipelineSession(sessionId: string, folder: string): boolean {
+  return (
+    sessionId ===
+    folder
+      .replace(/[^A-Za-z0-9_-]+/g, '-')
+      .replace(/^[-_]+|[-_]+$/g, '')
+      .slice(0, 80)
+  );
+}
+
+/** The card's line about the last pass, and whether it is a problem (amber). */
+export function pipelineView(p: PipelineStatus): { line: string; problem: boolean; pill: string } {
+  const when = notesTime(p.at);
+  const detail = p.message && p.state !== 'published' && p.state !== 'done' ? ` ${p.message}` : '';
+  return {
+    pill: p.state === 'failed' ? 'Failed' : p.state === 'published' ? 'Published' : 'Waiting',
+    line: `Last notes pass${when ? ` (${when})` : ''}: ${PIPELINE_WORDS[p.state]}${detail}`,
+    problem: p.state === 'failed' || p.state === 'incomplete' || p.state === 'paused',
+  };
+}
+
 export function notesTime(iso: string | undefined): string {
   return iso
     ? new Date(iso).toLocaleString([], {

@@ -35,6 +35,7 @@
 #   free warns, under 5% stops). Without systemd (a test container) part B is skipped with a warning.
 
 require_root
+require_recent_snapshot
 require_arm64
 
 # The pinned build: the fork's 2.10.5-aitool.4 release (tag on aitool/fixes 852f7c55), sha256sum of its

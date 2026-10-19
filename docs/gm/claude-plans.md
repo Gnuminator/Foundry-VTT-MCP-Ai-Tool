@@ -33,7 +33,7 @@ creation**. If you don't see a way to upload a skill, check that first.
   Claude says so and tells you when it resets. On Free you can't buy extra usage.
 - **Tools are expensive.** Every tool set that is switched on costs usage in every message, even
   when Claude doesn't use it. On game night switch on only the sets you need (core and play), and
-  switch off the rest in the **Search and tools** menu. See
+  switch off the rest under **+**, **Connectors**. See
   [Asking Claude](asking-claude.md#tool-sets-which-switches-to-turn-on).
 - **Start new chats.** A long chat costs more with every message. Start a new chat for each prep
   task and for each game night.

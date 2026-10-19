@@ -221,7 +221,7 @@ export default {
     await t.step('open the dashboard on the During screen with GM Actions on', async () => {
       const tools = await t.http('/api/tools');
       const gmWasOn = tools.status === 200 && tools.data?.gmActionsEnabled === true;
-      page = await browser.open('/', { viewport: VIEWPORT });
+      page = await browser.open('/legacy/', { viewport: VIEWPORT });
       await waitReady(page);
       if (!gmWasOn) {
         // Registered first, so it runs after the undo below (undo needs GM Actions on).

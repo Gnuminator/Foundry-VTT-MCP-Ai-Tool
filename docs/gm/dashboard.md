@@ -6,11 +6,10 @@ description: A tour of every panel and button on the dashboard, what each does a
 # The dashboard
 
 The dashboard is your control panel. Open it in a browser on a second screen next to
-Foundry. Today its address is `http://localhost:3000` (it changes when the tool moves to the
-Orange Pi).
+Foundry. Its address is the one the tool admin gave you (on the admin's own PC it is
+`http://localhost:3000`).
 
-Watching is always safe. Apart from **→ Post to chat** (AI comments, which need an API key) and the
-session marks, nothing on the dashboard changes the game until you turn on **GM Actions** and
+Watching is always safe. Apart from the session marks, nothing on the dashboard changes the game until you turn on **GM Actions** and
 confirm.
 
 > Keep the dashboard off any screen the players can see, and never share its window in Discord or
@@ -18,18 +17,21 @@ confirm.
 
 ## The header
 
-### Status lights
+### The connection mark and Pre-flight
 
-Three lights at the top tell you if everything is connected:
+The page at `/` has no row of status lights. Two things tell you about the connection:
 
-| Light       | Good           | Other values and what they mean                                                                                                                                                                  |
-| ----------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **Bridge**  | `connected`    | `disconnected`: the dashboard cannot reach the bridge. Is Claude Desktop running? `reconnecting…`: this page lost its connection to the dashboard program. Is the dashboard's window still open? |
-| **Foundry** | `live`         | `unreachable`: the bridge runs, but no GM's Foundry tab is connected. `unknown`: not checked yet, or the bridge is down.                                                                         |
-| **AI**      | `on`, `paused` | `disabled`: no Anthropic API key is set. This is normal; see "AI commentary" below.                                                                                                              |
+- **The connection mark.** Next to the buttons, a small mark appears only when something is wrong:
+  "Connection lost, reconnecting…" means this page lost its link to the dashboard program (is its
+  window still open?). The page keeps trying by itself. "Connection closed: reload the page" means
+  it gave up; reload the page. No mark means the link is fine.
+- **✈ Pre-flight.** The button reads "✈ Pre-flight: ready" or "✈ Pre-flight: N to fix". Its first
+  lines say whether Foundry is connected ("Foundry connected"). If it is not, open the world in your
+  browser and join as your GM user. Each panel also shows its own message when it cannot read the
+  game.
 
-The line under the title shows your world, the game system and the Foundry version once Foundry is
-live.
+The lights (Bridge, Foundry, AI) and the line with your world, game system and Foundry version are
+only on the old dashboard (see "The old dashboard page" below).
 
 ### Session: Start session / End session
 
@@ -124,10 +126,10 @@ Two entries under **Advanced**, in the **During screen** group:
   this world.
 - **▦ Try the During layouts** starts the short layout trial again (see During layouts below).
 
-### ⏸ Pause, 🩺 Diag AI, Tone, Model
+### ⏸ Pause, 🩺 Diag AI, Tone, Model (old dashboard only)
 
-These control the AI commentary panel. They only work when an Anthropic API key is set, so with
-the normal setup they are greyed out or have no effect.
+These control the AI commentary panel, which is only on the old dashboard (`/legacy/`). The page at
+`/` has none of them. On the old page they only work when an Anthropic API key is set.
 
 - **⏸ Pause / ▶ Resume**: stops and restarts automatic comments.
 - **🩺 Diag AI: on / off**: whether the AI comments on module errors.
@@ -199,9 +201,10 @@ first boss fight. It shows:
 
 The player page never shows any of this.
 
-### Features (Before)
+### Features (Before) (old dashboard only)
 
-At the bottom of the **Before** view: one card per feature, the ones still off first. Each card says
+The **Before** view on the page at `/` has a "Features" slot that says "Not on this page yet". The
+cards are only on the old dashboard (`/legacy/`). There, at the bottom of **Before**, is one card per feature, the ones still off first. Each card says
 what the feature does, whether it is on, and **when to turn it on** (for example Boss prompts:
 "before the first boss fight"). **Read more** opens its section of
 [Features and when to turn them on](features.md). The cards only show; you switch features in
@@ -212,11 +215,16 @@ Foundry's module settings, or all at once with **Ready for session**.
 Every panel has a small **?** next to its title. It opens this guide at that panel's section, in a
 side panel over the dashboard; links inside it open the other guide pages there too. **📖 GM
 guides** in the **Advanced** menu opens the list of guides. The help is built into the dashboard,
-so it works without internet and always matches the installed version. The page you
-normally open has no link to the website yet. The new dashboard preview (the same address with
-`/next/` added) has one at the top of its side panel, **Open this page on the wiki**. It opens the
-same page on the website (needs internet), which is easier to read on a second screen and has
-search.
+so it works without internet and always matches the installed version. The side panel has a link
+at the top, **Open this page on the wiki**. It opens the same page on the website (needs
+internet), which is easier to read on a second screen and has search.
+
+> **The old dashboard page.** Until after the first online session on 29 November (session 1, not session 0), the
+> previous version of the dashboard is still there at the same address with `/legacy/` added (also
+> the **Old dashboard** button in the header). Use it only if something you need is missing on the
+> main page. Only the old page has: the three status lights and the world line, the Features cards,
+> the AI commentary with its **Ask** box, **→ Post to chat** and **⏸ Pause**, **🩺 Diag AI**, **Tone**
+> and **Model**, and the storage space banner. The wiki link above is not on it.
 
 ### Tonight's stats (After)
 
@@ -266,11 +274,11 @@ scene changes and more. Each line shows its type and the time.
 
 ### AI commentary
 
-Optional AI comments on the fight and an **Ask** box ("who's in trouble?").
+Not on the page at `/`. On the old dashboard (`/legacy/`) there are optional AI comments on the fight
+and an **Ask** box ("who's in trouble?").
 
 It needs an Anthropic API key on the dashboard. That is the paid Anthropic API, billed per use and
-separate from a Claude subscription. The normal setup has no key, so this panel stays empty and the
-AI light says `disabled`. Use Claude Desktop instead (see [Asking Claude](asking-claude.md)).
+separate from a Claude subscription. The normal setup has no key, so this panel stays empty. Use Claude Desktop instead (see [Asking Claude](asking-claude.md)).
 
 With a key, each comment has **→ Post to chat**, which whispers it to the GM users in Foundry. If
 the text names a secret (a dealt Tarokka card), the dashboard asks first: a whisper's text reaches
@@ -285,10 +293,11 @@ reload.
 At the top, a yellow line says when the server's storage space check has not run for over 3 hours.
 Nothing is wrong yet, but nobody is watching the space: tell the person who runs the server.
 
-### The storage space banner
+### The storage space banner (old dashboard only)
 
-The server (the Orange Pi) checks its own free disk space every hour. The dashboard shows a banner
-under the header, for you only (players never see it):
+The server (the Orange Pi) checks its own free disk space every hour. The old dashboard (`/legacy/`)
+shows a banner under the header, for you only (players never see it). The page at `/` has no banner;
+it only has the yellow line in Module Diagnostics described above. On the old page:
 
 - **Yellow, "Storage space is low":** under 20% free. Backups still run. Tell the person who runs the
   server; the banner names the disk and which jobs use it.
@@ -598,7 +607,7 @@ card in Foundry's chat). Claude uses the same actions with `get-party` and `plan
 
 ## The player page (/player)
 
-The page players look at: `http://localhost:3000/player` today. Open it yourself before a session
+The page players look at: the dashboard address with `/player` at the end. Open it yourself before a session
 to check what they see. Its parts:
 
 - **Combat order**: initiative and names as players know them. PCs have an HP bar; enemies and NPCs
@@ -670,8 +679,8 @@ The page has three views, and each player picks theirs (remembered on their devi
 
 What the page leaves out: the GM's secret sections in descriptions, the true names of
 unidentified items (it shows what the player sees in Foundry), and any actor the player does not
-own. Like the player page, it only answers on this PC today; how players reach it from their own
-devices is set up with the Orange Pi.
+own. Like the player page, it is live on the Pi behind the email-code login, so players reach it from
+their own devices.
 
 ## Open in Obsidian (📓)
 

@@ -511,14 +511,14 @@ Parameters:
 
 ### plan-token-change
 
-Plan moving, changing or deleting tokens on the current scene; apply it with apply-planned-change, revert it with undo-change. "move": one token to gridX/gridY (a square) or x/y (pixels), or any tokens by dx/dy squares. "update": set the listed fields (vision and light too). "delete": removes the tokens and their place in the encounter (destructive; undo restores both). "fit-scale": size tokens to the scene's scale (a medium creature covers 5 ft; any scene whose squares are not 5 ft, such as a town or overland map at 16 to 200 ft, gets smaller tokens); every token on the scene, or only the named ones; a 5 ft scene is no change. If the request says "go ahead", apply it in the same turn (a delete still needs the destructive confirm).
+Plan moving, changing or deleting tokens on the current scene; apply it with apply-planned-change, revert it with undo-change. "move": one token to gridX/gridY (a square) or x/y (pixels), or any tokens by dx/dy squares. "update": set the listed fields (vision and light too). "delete": removes the tokens and their place in the encounter (destructive; undo restores both). "fit-scale": size tokens to the scene's scale (a medium creature covers 5 ft; a scene whose squares are more than 5 ft, such as a town or overland map at 16 to 200 ft, gets smaller tokens, and one with less, such as 2.5 ft, gets larger ones); every creature on the scene (tokens with no creature size are skipped), or only the named ones; a 5 ft scene is no change. If the request says "go ahead", apply it in the same turn (a delete still needs the destructive confirm).
 
 Kind: read-only. Title: Plan token change.
 
 Parameters:
 
 - `action` (string, required): move, update, delete or fit-scale. One of: `move`, `update`, `delete`, `fit-scale`.
-- `tokens` (array of string): Token names or ids on the current scene. Required except for fit-scale (omit it there for every token).
+- `tokens` (array of string): Token names or ids on the current scene. Required except for fit-scale (omit it there for every creature).
 - `gridX` (integer): move: grid column.
 - `gridY` (integer): move: grid row.
 - `x` (number): move: pixels from the left.

@@ -88,7 +88,7 @@ export function mayHaveApplied(err: unknown): boolean {
   return err.kind === undefined && err.status >= 500;
 }
 
-const RECENT_CHANGES_HINT = 'It may have applied; check Recent Changes on the full dashboard.';
+const RECENT_CHANGES_HINT = 'It may have applied; check Recent Changes.';
 
 /** How a guarded change ended; the Tool runner shows done and failed under its form. */
 export type GuardedOutcome =

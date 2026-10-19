@@ -71,6 +71,9 @@ fresh_pi() {
   chmod 600 "$TOOL_ETC"/*.env
   chown -R "$FOUNDRY_USER:$FOUNDRY_USER" "$TOOL_DATA"
   : >/tmp/calls
+  # lib.sh's require_quiet reads /api/status before the stage stops Foundry: nobody is online here.
+  printf '%s' '{"active":true,"users":0}' >/tmp/status
+  printf '%s' 0 >/tmp/status_rc
   : >/tmp/out.first
   : >/tmp/out.last
   : >/tmp/provision

@@ -90,10 +90,14 @@ Spot-check that tool output matches what Foundry shows:
 
 ## 5. Dashboard UI review
 
-**GM view (`/`):**
+> Legacy page: the Commentary, Ask and Settings lines below, and the `public/styles.css`
+> breakpoints, describe the old dashboard at `/legacy/`. The page at `/` is the React dashboard
+> (`packages/cogm-dashboard/web`); it has no commentary, Ask box, pause, tone or model.
+
+**GM view (`/legacy/`; the Live feed, Combat, Tool Runner and SSE lines also apply to `/`):**
 
 - [ ] Live feed: events render correctly, in order, **no duplicates** (fix A), buffer cap respected.
-- [ ] Combat panel: initiative/turn/HP track the game; quick-actions (roll-init) work when GM Actions on.
+- [ ] Combat panel: initiative/turn/HP track the game. `/legacy/` only: quick-actions (roll-init) work when GM Actions on. At `/` the strip has Damage / Heal, Condition and Clear (GM Actions and Combat buttons on).
 - [ ] Commentary: auto-comments trigger on event bursts, respect min-interval + debounce + pause; tone/model switches apply.
 - [ ] Ask: question → streamed answer; latest-wins preempt; "Post to chat" works; (fix C: can it see character data?).
 - [ ] Tool Runner: search, schema-driven forms, read vs write vs destructive gating, confirm + destructive double-confirm, results in drawer, error display.
@@ -107,7 +111,7 @@ Spot-check that tool output matches what Foundry shows:
 - [ ] Player view layout on tablet/phone widths.
 - [ ] Visual polish: spacing, contrast, truncation, long names (705-actor world has long names), empty states.
 
-## 6. AI commentary behavior
+## 6. AI commentary behavior (legacy page only)
 
 - [ ] Commentary is useful + grounded in the snapshot (no hallucinated state).
 - [ ] Ask answers are accurate; when it lacks data it says so (today it can't see inventory — fix C).

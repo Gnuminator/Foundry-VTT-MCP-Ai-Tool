@@ -89,13 +89,16 @@ A live session control surface that runs in a browser tab on a second screen.
 - **Recent Changes:** every guarded change, with Undo.
 - **Play sessions:** Start and End session in the header; Obsidian notes follow these markers.
 - **Tarokka drawer:** the reading (cards hidden until you choose to show them), links, reveals.
-- **AI commentary (optional):** streaming call-outs and an Ask box. This uses the paid Anthropic API
-  and only runs when an `ANTHROPIC_API_KEY` is set; everything else works without it.
+- **AI commentary (optional, old dashboard page only):** streaming call-outs and an Ask box, on
+  `/legacy/`, not yet on the page at `/`. This uses the paid Anthropic API and only runs when an
+  `ANTHROPIC_API_KEY` is set; everything else works without it.
 
 ![Multi-select combatants and act on them as a group](docs/images/cogm/combat-control.png)
 
-**Run the game from the dashboard:** multi-select combatants and act on them as a group: roll
-initiative for NPCs, advance the turn, apply damage or healing, roll saving throws.
+**Damage and conditions from the dashboard:** with **GM Actions** and **⚔ Combat buttons** on
+(both off by default), select combatants in the turn-order strip and apply damage, healing or a
+condition to them as a group. Turns, initiative and saving throws stay in Foundry. (The screenshot
+above shows the old page's wider controls.)
 
 ![The Tool Runner exposes every Foundry bridge tool](docs/images/cogm/tool-runner.png)
 
@@ -225,7 +228,7 @@ npm run dev:cogm              # → http://localhost:3000 (the player page is /p
 ```
 
 The dashboard works without an API key: live feed, combat tracker, tool runner, Recent Changes,
-Tarokka and the player page all function. Only the optional AI commentary needs
+Tarokka and the player page all function. Only the optional AI commentary (old page only) needs
 `ANTHROPIC_API_KEY` (see `packages/cogm-dashboard/.env.example`). For the dashboard's Open in
 Obsidian links, set `OBSIDIAN_VAULT_NAME` (or `FOUNDRY_AI_OBSIDIAN_DIR`) in
 `packages/cogm-dashboard/.env`. To run it with Claude Desktop

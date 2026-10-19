@@ -22,8 +22,9 @@ terminal to open. You need two addresses from the tool admin: the game's and the
 
 ## Run the pre-flight check
 
-- [ ] In the dashboard header, click **✈ Pre-flight**. Fix everything marked ✗ and look at each
-      **!**. The rest of this page is also in the drawer's "Check by hand" list.
+- [ ] In the dashboard header, click **✈ Pre-flight** (in the Before view the panel is
+      already on the page). Fix everything marked ✗ and look at each **!**. The rest of this page
+      is also in the Pre-flight panel's "Check by hand" list.
 
 ## Turn on what tonight needs
 
@@ -54,7 +55,7 @@ terminal to open. You need two addresses from the tool admin: the game's and the
 - [ ] Handouts: check that every page in your handouts journal is set to **None** unless you
       revealed it (open the journal, right-click a page, **Configure Ownership**). The steps are in
       [Revealing a handout](dashboard.md#revealing-a-handout).
-- [ ] In the Tarokka drawer (🃏 **Tarokka**), make sure **Show cards** is not ticked.
+- [ ] In the Tarokka drawer (🃏 **Tarokka**, under **Advanced ▾**), make sure **Show cards** is not ticked.
 
 ## Prepare
 

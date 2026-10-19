@@ -14,7 +14,7 @@ is one action.
 - [ ] Look through **Recent Changes** in the dashboard. If a change should not stay, click its
       **Undo** (GM Actions must be on for that).
 - [ ] If the dashboard header says **⚔ GM Actions: on**, click it so it says **off**.
-- [ ] In the Tarokka drawer (🃏 **Tarokka**), untick **Show cards** if it is ticked.
+- [ ] In the Tarokka drawer (🃏 **Tarokka**, under **Advanced ▾**), untick **Show cards** if it is ticked.
 
 ## Switch features off
 

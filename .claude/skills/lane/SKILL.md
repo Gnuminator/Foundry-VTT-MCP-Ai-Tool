@@ -81,6 +81,13 @@ one PR. Vault paths below are under `C:\Users\chris\Documents\Obsidian\vault\Dev
   Sonnet, and so is a delta round on lows, for a non-risky PR only: a risky PR's fixes go back to
   its Opus reviewer). Give it the PR number, the head sha and the area; it is read-only and writes
   the note.
+- **Pick the reviewer with the gate, before the first review:** once the PR is pushed, run the
+  gate's `--dry-run` (command under "Ready to merge" below). If it prints `risky (...): <file>; an
+Opus review is required`, the review is Opus, whatever your own reading of the file list says
+  (the gate's list is the one that counts: `shared/src/player-view.ts` is a wire contract,
+  `scripts/plan-b/` counts as Pi scripts). Its other refusals at this point (no review note yet,
+  CI pending) are expected. A Sonnet note on a PR the gate calls risky is wasted: on 2026-10-19
+  #435 and #438 each needed a fresh Opus round after two Sonnet rounds.
 - **Review note format** (the merge gate reads it):
   - path: vault `Handoff/Reviews <YYYY-MM-DD>/<PR>-review.md`, round 2 `<PR>-review-round2.md`;
     Opus: `<PR>-opus-review.md`, `<PR>-opus-review-round2.md`, with the heading

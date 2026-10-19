@@ -37,7 +37,7 @@ const QUEUE = [
   {
     entryId: 'e1',
     uuid: page_(1),
-    title: 'Letter from Kolyan',
+    title: 'Letter from a courier',
     exists: true,
     sceneId: 's2',
     players: ['u1'],
@@ -134,7 +134,7 @@ const bridge: Answer = call => {
       ? ok({
           queued: false,
           pageUuid: call.args['pageUuid'],
-          note: 'Took "Letter from Kolyan" off the queue.',
+          note: 'Took "Letter from a courier" off the queue.',
         })
       : ok(REVEAL_PLAN);
   }
@@ -180,7 +180,7 @@ test('loads the queue and the seen log on open, with the next page marked', asyn
   );
   const rows = queueRows(drawer);
   await expect(rows.locator('.pf-label')).toHaveText([
-    'Letter from Kolyan',
+    'Letter from a courier',
     'Map of Barovia',
     'Untitled (page deleted)',
     'Old note',
@@ -299,7 +299,7 @@ test('a first load that fails says why; scenes and names that fail are left out'
     'another scene · for every player',
   ]);
   await expect(queueRows(drawer).nth(0)).toHaveClass('preflight-item pf-info');
-  await expect(drawer.locator('#handouts-next')).toHaveText('Reveal next: Letter from Kolyan');
+  await expect(drawer.locator('#handouts-next')).toHaveText('Reveal next: Letter from a courier');
   await expect(revealedRows(drawer).nth(1).locator('.seen-tick')).toHaveText(['· u2', '✓ u3']);
 
   // With no active scene known, Reveal next asks for any scene.
@@ -331,7 +331,7 @@ test('Remove takes a page off the queue with GM Actions off; Reveal next stays g
   await expect(queueRows(drawer)).toHaveCount(4);
 
   await queueRows(drawer).nth(0).getByRole('button', { name: 'Remove' }).click();
-  await expect(toast(page, '✓ Took "Letter from Kolyan" off the queue.')).toBeVisible();
+  await expect(toast(page, '✓ Took "Letter from a courier" off the queue.')).toBeVisible();
   expect(calls.find(c => c.name === 'plan-page-reveal')).toEqual({
     name: 'plan-page-reveal',
     args: { action: 'unqueue', pageUuid: page_(1) },
@@ -561,7 +561,7 @@ test('a failed reveal reloads the queue; with nothing left, focus stays in the d
   view = { pages: PAGES, queue: [QUEUE[0]] };
   await drawer.locator('#handouts-next').click();
   await expect(toast(page, '✗ plan-page-reveal: Nothing queued for this scene')).toBeVisible();
-  await expect(queueRows(drawer).locator('.pf-label')).toHaveText(['Letter from Kolyan']);
+  await expect(queueRows(drawer).locator('.pf-label')).toHaveText(['Letter from a courier']);
   await expect(drawer.locator('#handouts-next')).toHaveText('Reveal next');
   await expect(drawer.locator('#handouts-next')).toBeDisabled();
   await expect(drawer).toBeFocused();

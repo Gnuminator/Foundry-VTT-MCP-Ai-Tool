@@ -184,14 +184,14 @@ describe('collectPlayerVisibleNames', () => {
       id: 'j1',
       name: 'Handouts',
       ownership: { default: 2 },
-      pages: [{ id: 'pg1', name: 'Letter from Kolyan', ownership: { default: -1 } }],
+      pages: [{ id: 'pg1', name: 'Letter from a courier', ownership: { default: -1 } }],
     });
     world.addJournal({ id: 'j2', name: 'Chapter 4 secrets', ownership: { default: 1 } });
     world.addActor({ id: 'a1', name: 'Ireena', ownership: { default: 1 } });
     world.addActor({ id: 'a2', name: 'Strahd', ownership: { default: 0 } });
     const names = collectPlayerVisibleNames().map(n => `${n.kind}:${n.name}`);
     expect(names).toEqual(
-      expect.arrayContaining(['journal:Handouts', 'page:Letter from Kolyan', 'actor:Ireena'])
+      expect.arrayContaining(['journal:Handouts', 'page:Letter from a courier', 'actor:Ireena'])
     );
     expect(names).not.toContain('journal:Chapter 4 secrets');
     expect(names).not.toContain('actor:Strahd');

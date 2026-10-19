@@ -228,7 +228,7 @@ describe('buildActions', () => {
     const other = hpChange(7, 6, {
       actionId: 'B',
       userId: 'u2',
-      userName: 'Strahd',
+      userName: 'Count Dorn',
       userIsGM: true,
     });
     const a2 = rec({
@@ -290,8 +290,8 @@ describe('buildActions', () => {
       actionId: 'B',
       uuid: 'Actor.a2',
       rootUuid: 'Actor.a2',
-      name: 'Strahd',
-      rootName: 'Strahd',
+      name: 'Count Dorn',
+      rootName: 'Count Dorn',
       userName: 'Gamemaster',
       userIsGM: true,
     });
@@ -302,8 +302,8 @@ describe('buildActions', () => {
     expect(actions[1]).toMatchObject({
       records: [own],
       userName: 'Gamemaster',
-      summary: 'Strahd: HP 20 -> 18',
-      things: [{ uuid: 'Actor.a2', name: 'Strahd' }],
+      summary: 'Count Dorn: HP 20 -> 18',
+      things: [{ uuid: 'Actor.a2', name: 'Count Dorn' }],
     });
     expect(actions[1]?.changeId).toBeUndefined();
     expect(undoBlocker(actions[1])).toBeNull();
@@ -348,8 +348,8 @@ describe('buildActions', () => {
       actionId: 'D',
       uuid: 'Actor.a2',
       rootUuid: 'Actor.a2',
-      name: 'Strahd',
-      rootName: 'Strahd',
+      name: 'Count Dorn',
+      rootName: 'Count Dorn',
     });
     const actions = buildActions([ai, combatant, turn, own]);
     expect(actions.map(a => a.actionId)).toEqual(['D', `D${OWN_ACTION_SUFFIX}`]);
@@ -358,7 +358,7 @@ describe('buildActions', () => {
   });
 
   it("keeps dnd5e's dependent deletes with the AI change that deleted an effect or an item", () => {
-    // The AI ends concentration on Strahd: dnd5e removes the effect it put on Ireena, the spell's
+    // The AI ends concentration on Count Dorn: dnd5e removes the effect it put on Ireena, the spell's
     // template, its region and the summoned token, in the GM browser that is the bridge's.
     const dependentsOf = (...uuids: string[]): Record<string, unknown> => ({
       flags: { dnd5e: { dependents: uuids.map(uuid => ({ uuid })) } },
@@ -373,7 +373,7 @@ describe('buildActions', () => {
       parentUuid: 'Actor.a2',
       name: 'Concentrating: Hold Person',
       rootUuid: 'Actor.a2',
-      rootName: 'Strahd',
+      rootName: 'Count Dorn',
       data: dependentsOf(
         'Actor.a1.ActiveEffect.e2',
         'Scene.s1.MeasuredTemplate.m1',
@@ -484,7 +484,7 @@ describe('buildActions', () => {
       parentUuid: 'Actor.a2',
       name: 'Concentrating: Hold Person',
       rootUuid: 'Actor.a2',
-      rootName: 'Strahd',
+      rootName: 'Count Dorn',
       data: dependentsOf('Actor.a1.ActiveEffect.e2'),
     });
     const held = rec({
@@ -506,7 +506,7 @@ describe('buildActions', () => {
       parentUuid: 'Actor.a2',
       name: 'Bloodied',
       rootUuid: 'Actor.a2',
-      rootName: 'Strahd',
+      rootName: 'Count Dorn',
       data: { name: 'Bloodied' },
     });
     const [action] = buildActions([ai, bloodied, held]);
@@ -542,7 +542,7 @@ describe('buildActions', () => {
       parentUuid: 'Actor.a2',
       name: 'Wand of Hold Person',
       rootUuid: 'Actor.a2',
-      rootName: 'Strahd',
+      rootName: 'Count Dorn',
       data: { name: 'Wand of Hold Person' },
     });
     const concentration = {
@@ -574,7 +574,7 @@ describe('buildActions', () => {
       parentUuid: 'Actor.a2',
       name: 'Concentrating: Hold Person',
       rootUuid: 'Actor.a2',
-      rootName: 'Strahd',
+      rootName: 'Count Dorn',
       data: { flags: { dnd5e: { dependents: [{ uuid: 'Actor.a1.ActiveEffect.e2' }] } } },
     });
     const firstDependent = rec({
@@ -653,7 +653,7 @@ describe('buildActions', () => {
       parentUuid: 'Actor.a2',
       name: 'Concentrating: Hold Person',
       rootUuid: 'Actor.a2',
-      rootName: 'Strahd',
+      rootName: 'Count Dorn',
       data: { flags: { dnd5e: { dependents: [{ uuid: 'Actor.a1.ActiveEffect.e9' }] } } },
     });
     const hpB = hpChange(20, 18, {
@@ -704,9 +704,9 @@ describe('buildActions', () => {
   });
 
   describe('two AI changes on one actor in one burst', () => {
-    const strahd = { parentUuid: 'Actor.a2', rootUuid: 'Actor.a2', rootName: 'Strahd' };
+    const dorn = { parentUuid: 'Actor.a2', rootUuid: 'Actor.a2', rootName: 'Count Dorn' };
     const ai = (changeId: string, o: Partial<ChangeRecord>): ChangeRecord =>
-      rec({ actionId: 'P', changeId, changeMode: 'apply', op: 'delete', ...strahd, ...o });
+      rec({ actionId: 'P', changeId, changeMode: 'apply', op: 'delete', ...dorn, ...o });
     const spellA = (): ChangeRecord =>
       ai('chg-a', {
         documentName: 'Item',
@@ -728,7 +728,7 @@ describe('buildActions', () => {
         documentName: 'ActiveEffect',
         uuid: 'Actor.a2.ActiveEffect.c1',
         name: 'Concentrating: Hold Person',
-        ...strahd,
+        ...dorn,
         data: {
           statuses: ['concentrating'],
           flags: { dnd5e: { dependents: [{ uuid: 'Actor.a1.ActiveEffect.e2' }] } },
@@ -746,7 +746,7 @@ describe('buildActions', () => {
       });
 
     it("files another change's concentration chain to that change, not to an earlier condition removal", () => {
-      // (a) A removes a condition on Strahd; B deletes his concentration spell.
+      // (a) A removes a condition on Count Dorn; B deletes his concentration spell.
       const condition = ai('chg-a', {
         documentName: 'ActiveEffect',
         uuid: 'Actor.a2.ActiveEffect.x1',
@@ -765,7 +765,7 @@ describe('buildActions', () => {
     });
 
     it('files the concentration chain to the later item delete that ended it, not the first item delete', () => {
-      // (b) A deletes an item on Strahd; B deletes his concentration spell.
+      // (b) A deletes an item on Count Dorn; B deletes his concentration spell.
       const a = spellA();
       const b = spellB();
       const conc = concentration();
@@ -867,7 +867,7 @@ describe('buildActions', () => {
         documentName: 'Item',
         uuid: 'Actor.a2.Item.k1',
         name: 'Hold Person',
-        ...strahd,
+        ...dorn,
         data: { name: 'Hold Person' },
       });
       const viaWand = named('Actor.a2.Item.k1');
@@ -916,7 +916,7 @@ describe('buildActions', () => {
         documentName: 'Item',
         uuid: 'Actor.a2.Item.k1',
         name: 'Hold Person',
-        ...strahd,
+        ...dorn,
         data: { name: 'Hold Person', flags: { dnd5e: { cachedFor: '.Item.w1.Activity.act1' } } },
       });
       const viaWand = named('Actor.a2.Item.k1');
@@ -1514,8 +1514,8 @@ describe('ChangeHistory.list', () => {
         actionId: 'ai',
         uuid: 'Actor.a2',
         rootUuid: 'Actor.a2',
-        name: 'Strahd',
-        rootName: 'Strahd',
+        name: 'Count Dorn',
+        rootName: 'Count Dorn',
         userName: 'Gamemaster',
         userIsGM: true,
       }),
@@ -1561,7 +1561,7 @@ describe('ChangeHistory.list', () => {
       parentUuid: 'Actor.a2',
       name: 'Concentrating: Hold Person',
       rootUuid: 'Actor.a2',
-      rootName: 'Strahd',
+      rootName: 'Count Dorn',
       data: { flags: { dnd5e: { dependents: [{ uuid: 'Actor.a1.ActiveEffect.e2' }] } } },
     });
     const dependent = rec({
@@ -1597,15 +1597,15 @@ describe('ChangeHistory.list', () => {
     audit = [
       aiChange({
         changeId: 'chg-f',
-        summary: 'End concentration: Strahd',
-        diff: ['Strahd: effect "Concentrating: Hold Person" removed'],
+        summary: 'End concentration: Count Dorn',
+        diff: ['Count Dorn: effect "Concentrating: Hold Person" removed'],
       }),
     ];
     const history = makeHistory();
     const { changes } = await history.list();
     expect(changes.map(c => c.id)).toEqual(['chg-f']);
     expect(changes[0].lines).toEqual([
-      'Strahd: effect "Concentrating: Hold Person" removed',
+      'Count Dorn: effect "Concentrating: Hold Person" removed',
       'Ireena: effect "Hold Person" removed',
       'Ireena: effect "Bless" removed',
     ]);
@@ -1617,10 +1617,10 @@ describe('ChangeHistory.list', () => {
     await writeDay([
       hpChange(10, 5, { actionId: 'ireena', t: NOW - 30 * MIN }),
       rec({
-        actionId: 'strahd',
+        actionId: 'dorn',
         t: NOW - 20 * MIN,
         userId: 'u2',
-        userName: 'Strahd',
+        userName: 'Count Dorn',
         userIsGM: true,
         documentName: 'Item',
         uuid: 'Actor.a2.Item.i9',
@@ -1638,16 +1638,16 @@ describe('ChangeHistory.list', () => {
       (await history.list(o)).changes.map(c => c.id);
 
     expect(await ids({ source: 'ai' })).toEqual(['chg-1']);
-    expect(await ids({ source: 'human' })).toEqual(['act:strahd', 'act:ireena']);
-    expect(await ids({ userName: 'STRAHD' })).toEqual(['act:strahd']);
+    expect(await ids({ source: 'human' })).toEqual(['act:dorn', 'act:ireena']);
+    expect(await ids({ userName: 'COUNT DORN' })).toEqual(['act:dorn']);
     expect(await ids({ userId: 'u1', userName: 'u1' })).toEqual(['act:ireena']);
     expect(await ids({ userName: 'danni' })).toEqual(['chg-1']);
-    expect(await ids({ thingUuid: 'Actor.a2' })).toEqual(['act:strahd']);
-    expect(await ids({ thingUuid: 'Actor.a2.Item.i9' })).toEqual(['act:strahd']);
+    expect(await ids({ thingUuid: 'Actor.a2' })).toEqual(['act:dorn']);
+    expect(await ids({ thingUuid: 'Actor.a2.Item.i9' })).toEqual(['act:dorn']);
     expect(await ids({ thingUuid: 'Actor.wolf2' })).toEqual(['chg-1']);
     expect(await ids({ sinceIso: new Date(NOW - 25 * MIN).toISOString() })).toEqual([
       'chg-1',
-      'act:strahd',
+      'act:dorn',
     ]);
     expect(await ids({ limit: 1 })).toEqual(['chg-1']);
   });

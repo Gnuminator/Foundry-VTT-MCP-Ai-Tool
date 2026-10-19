@@ -12,7 +12,7 @@ co-GM dashboard came out of.
 See also: [BUILT.md](../history/BUILT.md), [FIXES.md](../history/FIXES.md), [FEATURE-IDEAS.md](../history/FEATURE-IDEAS.md).
 
 > **Next up (2026-09-27):** the Curse of Strahd extension plan in
-> [CURSE-OF-STRAHD-PLAN.md](CURSE-OF-STRAHD-PLAN.md) (awaiting GM review). Decisions recorded there:
+> campaign plan (it lives in the private vault, not in this repo). Decisions recorded there:
 > ComfyUI map generation was dropped (and removed from the code on 2026-09-29), and the remote host is an **Orange Pi 5 Pro** (supersedes
 > "Raspberry Pi" below).
 

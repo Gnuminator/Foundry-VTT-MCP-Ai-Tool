@@ -24,7 +24,7 @@
 
 .EXAMPLE
   .\scripts\pi\rebuild-drill.ps1
-  .\scripts\pi\rebuild-drill.ps1 -HostPort 30090 -ToolRef pi-build-2026-10-12
+  .\scripts\pi\rebuild-drill.ps1 -HostPort 30090 -ToolRef v0.22.0
 #>
 [CmdletBinding()]
 param(
@@ -33,7 +33,8 @@ param(
   [string]$Repo = 'E:\PiBackup\restic',
   [string]$PassFile = (Join-Path $env:APPDATA 'foundry-ai-tool\restic-pc.pass'),
   [string]$Scratch = ('E:\Restore\' + (Get-Date -Format 'yyyy-MM-dd') + '-drill'),
-  [string]$ToolRef = 'pi-build-2026-10-12',
+  # Empty = the newest release tag (stage 5 finds it); set it to build a specific tag, branch or commit.
+  [string]$ToolRef = '',
   [string]$Snapshot = 'latest',
   [string]$Image = 'debian:trixie',
   [int]$Cpus = 4,
@@ -131,7 +132,7 @@ $run += @($Image, 'sleep', 'infinity')
 Invoke-Timed 'container start' { Invoke-Native docker $run | Out-Null }
 
 function Invoke-Stage([string]$File) {
-  Invoke-Timed "stage $File" { Invoke-InContainer "TOOL_REF=$ToolRef bash /drill-scripts/stage.sh $File" }
+  Invoke-Timed "stage $File" { Invoke-InContainer "$(if ($ToolRef) { "TOOL_REF=$ToolRef " })bash /drill-scripts/stage.sh $File" }
 }
 
 $checkOk = $true

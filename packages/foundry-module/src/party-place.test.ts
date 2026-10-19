@@ -131,16 +131,35 @@ describe('planPartyPlacement', () => {
     delete g.CONFIG;
   });
 
-  function world(opts: { viewed?: boolean; walls?: boolean } = {}): void {
-    const grid = squareGrid(100);
+  function world(
+    opts: { viewed?: boolean; walls?: boolean; distance?: number; units?: string } = {}
+  ): void {
+    const grid = {
+      ...squareGrid(100),
+      ...(opts.distance ? { distance: opts.distance } : {}),
+      ...(opts.units ? { units: opts.units } : {}),
+    };
     const actor = (id: string, name: string, w = 1): Record<string, unknown> => ({
       id,
       name,
+      system: { traits: { size: w === 2 ? 'lg' : 'med' } },
       type: 'character',
       prototypeToken: { width: w, height: w },
       getTokenDocument: (data: Record<string, unknown>) =>
         Promise.resolve({
-          toObject: () => ({ _id: 'tmp', name, actorId: id, width: w, height: w, ...data }),
+          // Like mergeObject in Foundry: dotted keys are expanded into nested objects.
+          toObject: (): Record<string, unknown> => {
+            const { 'flags.dnd5e.lockSize': lock, ...rest } = data;
+            return {
+              _id: 'tmp',
+              name,
+              actorId: id,
+              width: w,
+              height: w,
+              ...rest,
+              ...(lock === undefined ? {} : { flags: { dnd5e: { lockSize: lock } } }),
+            };
+          },
         }),
     });
     const hero = actor('a1', 'Test Hero');
@@ -184,6 +203,38 @@ describe('planPartyPlacement', () => {
     }
     // The Large horse packs onto the spot first.
     expect(result.tokens.find(t => t.name === 'Warhorse')?.data).toMatchObject({ x: 1000, y: 900 });
+  });
+
+  it('sizes tokens to the map scale like fit-scale; a 5 ft scene is unchanged', async () => {
+    world({ viewed: true, distance: 5 });
+    const five = await planPartyPlacement({ groupId: 'g1' });
+    expect(five.tokens.map(t => [t.data.width, t.data.height])).toEqual([
+      [1, 1],
+      [2, 2],
+    ]);
+    expect(five.tokens[0].data.flags).toBeUndefined();
+
+    world({ viewed: true, distance: 40 });
+    const town = await planPartyPlacement({ groupId: 'g1' });
+    // 5 ft / 40 ft = 0.125, floored to 0.25 squares; Large 10 / 40 = 0.25.
+    expect(town.tokens.map(t => [t.data.width, t.data.height])).toEqual([
+      [0.25, 0.25],
+      [0.25, 0.25],
+    ]);
+    expect(town.tokens[0].data.flags).toEqual({ dnd5e: { lockSize: true } });
+
+    world({ viewed: true, distance: 2.5 });
+    const fine = await planPartyPlacement({ groupId: 'g1' });
+    expect(fine.tokens.map(t => t.data.width)).toEqual([2, 4]);
+  });
+
+  it('keeps the prototype size on a scene that is not measured in feet, with a warning', async () => {
+    world({ viewed: true, distance: 1.5, units: 'm' });
+    const metric = await planPartyPlacement({ groupId: 'g1' });
+    expect(metric.tokens.map(t => t.data.width)).toEqual([1, 2]);
+    expect(metric.warnings).toEqual([
+      'The scene measures in "m", not feet, so tokens keep their own size',
+    ]);
   });
 
   it('without a drawn map goes to the middle of the scene and says so; walls are then not checked', async () => {

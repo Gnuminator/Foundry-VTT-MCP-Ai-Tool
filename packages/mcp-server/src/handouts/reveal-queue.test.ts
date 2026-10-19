@@ -96,7 +96,7 @@ beforeEach(async () => {
     now: (): number => now,
   });
   foundry.add(PAGE1, 'JournalEntryPage', {
-    name: 'Letter from Kolyan',
+    name: 'Letter from a courier',
     ownership: { default: 0 },
     text: { content: '<p>Come to Barovia.</p>' },
   });
@@ -135,7 +135,7 @@ describe('reveal queue', () => {
     expect(ownershipOf(PAGE1)).toEqual({ default: 0 });
     const queue = await handouts.listQueue();
     expect(queue.map(q => [q.title, q.sceneId, q.players])).toEqual([
-      ['Letter from Kolyan', SCENE, [ANNA]],
+      ['Letter from a courier', SCENE, [ANNA]],
       ['Map of Vallaki', null, undefined],
     ]);
   });

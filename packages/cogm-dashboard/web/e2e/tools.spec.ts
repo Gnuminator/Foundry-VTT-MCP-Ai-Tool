@@ -137,7 +137,7 @@ const SCENES = [
 const CHOICES: Record<string, unknown[]> = {
   scene: SCENES.map(s => ({ id: s.id, name: s.name })),
   'journal-page': [
-    { id: 'p1', uuid: PAGE_UUID, name: 'Letter from Kolyan', group: 'Handouts' },
+    { id: 'p1', uuid: PAGE_UUID, name: 'Letter from a courier', group: 'Handouts' },
     { id: 'p2', uuid: 'JournalEntry.j1.JournalEntryPage.p2', name: 'Map', group: 'Handouts' },
   ],
   user: [
@@ -161,8 +161,8 @@ const WRITE_PLAN = {
 const REVEAL_PLAN = {
   planId: 'rp1',
   risk: 'destructive',
-  summary: 'Reveal "Letter from Kolyan" to every player',
-  diff: [{ text: 'Letter from Kolyan: visible to every player' }],
+  summary: 'Reveal "Letter from a courier" to every player',
+  diff: [{ text: 'Letter from a courier: visible to every player' }],
 };
 const APPLIED = { changeId: 'ch1', summary: 'Damage: 5 to Wolf' };
 
@@ -187,7 +187,8 @@ const bridge = (call: ToolCall): ToolAnswer => {
   if (call.name === 'measure-distance') return ok({ feet: 10 });
   if (call.name === 'plan-actor-change') return ok(WRITE_PLAN);
   if (call.name === 'plan-page-reveal') {
-    if (a['action'] === 'queue') return ok({ queued: true, note: 'Queued "Letter from Kolyan".' });
+    if (a['action'] === 'queue')
+      return ok({ queued: true, note: 'Queued "Letter from a courier".' });
     return ok(REVEAL_PLAN);
   }
   if (call.name === 'get-planned-change') {
@@ -633,11 +634,11 @@ test('a destructive plan waits for the tick and applies with both flags', async 
   await drawer.locator('#tool-field-pageUuid-pick').click();
   const menu = drawer.locator('#tool-field-pageUuid-menu');
   await expect(menu.locator('.ref-group')).toHaveText(['Handouts']);
-  await menu.getByRole('option', { name: /Letter from Kolyan/ }).click();
+  await menu.getByRole('option', { name: /Letter from a courier/ }).click();
   await expect(menu).toBeHidden();
   await expect(field(drawer, 'pageUuid')).toHaveValue(PAGE_UUID);
   await expect(field(drawer, 'pageUuid')).toBeFocused();
-  await expect(drawer.locator('#tool-field-pageUuid-hint')).toHaveText('Letter from Kolyan');
+  await expect(drawer.locator('#tool-field-pageUuid-hint')).toHaveText('Letter from a courier');
   // Players by id, named in the hint.
   await drawer.locator('#tool-field-players-pick').click();
   await drawer.locator('#tool-field-players-menu').getByRole('option', { name: /Bo/ }).click();
@@ -651,7 +652,7 @@ test('a destructive plan waits for the tick and applies with both flags', async 
   await drawer.locator('#tool-run').click();
   const confirm = confirmWindow(page, 'Destructive action');
   await expect(confirm.locator('.change-diff li')).toHaveText([
-    'Letter from Kolyan: visible to every player',
+    'Letter from a courier: visible to every player',
   ]);
   const run = confirm.getByRole('button', { name: 'Run destructive action' });
   await expect(run).toBeDisabled();
@@ -885,10 +886,10 @@ test('+ Queue a page opens the Tool runner filled in, names shown, and queues on
   await drawer.locator('#tool-field-pageUuid-pick').click();
   await drawer
     .locator('#tool-field-pageUuid-menu')
-    .getByRole('option', { name: /Letter from Kolyan/ })
+    .getByRole('option', { name: /Letter from a courier/ })
     .click();
   await drawer.locator('#tool-run').click();
-  await expect(toast(page, '✓ Queued "Letter from Kolyan".')).toBeVisible();
+  await expect(toast(page, '✓ Queued "Letter from a courier".')).toBeVisible();
   expect(named(calls, 'plan-page-reveal')).toEqual([
     {
       name: 'plan-page-reveal',

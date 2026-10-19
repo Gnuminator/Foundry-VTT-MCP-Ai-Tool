@@ -11,7 +11,7 @@ Status: **O1, O2 and O3 done (2026-09-28), O4 done (2026-09-29); see "As built".
 platform, game data, dev project); plugin facts re-checked on GitHub the same day. The GM handed
 Claude ownership of everything Obsidian on 2026-09-28 (structure, plugins, automations, formatting);
 section 12 is recorded on that basis. Later phases run in their own session (prompt in section 13). Related:
-`CURSE-OF-STRAHD-PLAN.md` 0.3, 0.6, 2.1, feature 2 and 10. GM setup today: Obsidian 1.13.7, one vault
+the campaign plan (a private vault note, not in the repo) 0.3, 0.6, 2.1, feature 2 and 10. GM setup today: Obsidian 1.13.7, one vault
 `C:\Users\chris\Documents\Obsidian\vault` (only `Welcome.md`), core plugins, no community plugins.
 
 ## As built (2026-09-28)
@@ -564,7 +564,7 @@ is paid), and the Claude Code deny rule for `Campaigns/` in dev sessions (a perm
 You are working on the Foundry AI Tool repo at
 C:\Users\chris\Documents\Claude Code\Projects\Foundry VTT AI Tool. This session builds the Obsidian
 integration planned in docs/design/OBSIDIAN-PLAN.md. Read first: CLAUDE.md, docs/design/OBSIDIAN-PLAN.md (all of
-it), docs/design/CURSE-OF-STRAHD-PLAN.md sections 0.3, 0.6, 2.1, feature 2 and 10. Use the foundry-test-env
+it), the campaign plan in the private vault, sections 0.3, 0.6, 2.1, feature 2 and 10. Use the foundry-test-env
 and foundry-ai-tool skills for live checks.
 
 Rules:

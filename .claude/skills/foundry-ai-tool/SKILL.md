@@ -101,7 +101,7 @@ Last full pass: 2026-09-28, all green (see CLAUDE.md). For each item record evid
 
 ## Player view checks (M2)
 
-Last full pass: 2026-09-28 (see `docs/design/CURSE-OF-STRAHD-PLAN.md` "M2 as built"). The proof is the
+Last full pass: 2026-09-28 (see the campaign plan in the private vault, "M2 as built"). The proof is the
 canary suite (`packages/cogm-dashboard/src/player/canary.test.ts`); this pass checks the real
 Foundry data behind it.
 

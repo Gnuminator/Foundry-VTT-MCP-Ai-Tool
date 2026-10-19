@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { dataDir, readCalls, render, summarize } from './usage-calls.mjs';
 import {
   PROJECT_DIR,
   TARGETS,
@@ -569,4 +570,66 @@ test('a forked file that repeats the parent message ids keeps its own first turn
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
+});
+
+// --- usage-calls.mjs (`npm run usage:calls`, D-126): fixture day files in a temp dir ---
+const line = (tool, set, ms, size, ok = true) =>
+  JSON.stringify({ t: '2026-10-19T10:00:00.000Z', tool, set, ms, size, ok });
+
+test('counts per tool and per set, errors, slowest, skips torn lines and old days', () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), 'usage-calls-'));
+  try {
+    writeFileSync(
+      path.join(dir, '2026-10-19.calls.jsonl'),
+      [
+        line('get-world-info', 'core', 10, 100),
+        line('get-world-info', 'core', 30, 300),
+        line('get-party', 'play', 900, 50, false),
+        '{"torn',
+      ].join('\n') + '\n'
+    );
+    writeFileSync(path.join(dir, '2026-09-01.calls.jsonl'), line('old', 'core', 1, 1) + '\n');
+    const calls = readCalls(dir, 7, new Date('2026-10-19T12:00:00'));
+    assert.equal(calls.length, 3);
+    const s = summarize(calls);
+    assert.equal(s.total, 3);
+    assert.equal(s.errors, 1);
+    assert.deepEqual(
+      s.sets.map(x => [x.set, x.calls, x.errors]),
+      [
+        ['core', 2, 0],
+        ['play', 1, 1],
+      ]
+    );
+    assert.equal(s.tools[0].tool, 'get-world-info');
+    assert.equal(s.tools[0].maxSize, 300);
+    assert.equal(s.slowest[0].tool, 'get-party');
+    assert.match(render(s, 7), /get-world-info/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('lists catalog tools that were never called and computes percentiles', () => {
+  const calls = [10, 20, 30, 40, 1000].map(ms => JSON.parse(line('a', 'core', ms, 1)));
+  const s = summarize(calls, { core: ['a', 'b'], play: ['c'] });
+  assert.deepEqual(s.never, [
+    { tool: 'b', set: 'core' },
+    { tool: 'c', set: 'play' },
+  ]);
+  assert.equal(s.tools[0].medianMs, 30);
+  assert.equal(s.tools[0].p95Ms, 1000);
+  assert.equal(summarize(calls).never, null);
+  assert.match(render(s, 7), /Never called in the window \(2\)/);
+});
+
+test('the default data dir follows XDG_DATA_HOME off Windows like the server', () => {
+  const dir = dataDir({ FOUNDRY_AI_DATA_DIR: '', XDG_DATA_HOME: '', APPDATA: 'C:\\x' });
+  assert.match(dir, /foundry-ai-tool[\\/]vault$/);
+  assert.equal(dataDir({ FOUNDRY_AI_DATA_DIR: path.resolve('custom') }), path.resolve('custom'));
+});
+
+test('a missing folder reads as no calls', () => {
+  assert.deepEqual(readCalls(path.join(os.tmpdir(), 'no-such-usage-dir')), []);
+  assert.match(render(summarize([]), 7), /No tool calls/);
 });

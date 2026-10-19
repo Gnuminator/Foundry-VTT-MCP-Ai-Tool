@@ -20,6 +20,9 @@
   name starts with pi-drill-), publishes no port unless -HostPort is given, and needs no
   administrator rights.
 
+  Without -ToolRef it builds the newest release tag, which proves the newest release rebuilds, not the exact build the
+  Pi runs (the backup does not hold .tool-ref): pass -ToolRef <tag> for an exact rebuild.
+
   Run it from the repo folder. Takes about 10 minutes (measured 611 s; most of it the build in stage 5), plus Docker's first image pull.
 
 .EXAMPLE

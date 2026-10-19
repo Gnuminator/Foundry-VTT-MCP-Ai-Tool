@@ -18,7 +18,7 @@ Start from a clean, up-to-date checkout of `main` (the main checkout, or a workt
 
    ```bash
    git fetch aitool main
-   git tag -a vX.Y.Z -m "vX.Y.Z" aitool/main
+   git tag -a vX.Y.Z -m "vX.Y.Z" <sha of the release PR's merge commit>
    git push aitool vX.Y.Z
    ```
 
@@ -40,6 +40,9 @@ cat scripts/pi/remote/lib.sh scripts/pi/remote/5-tool.sh | ssh foundry-pi 'TOOL_
 Stage 5 prints which tag it chose (`no TOOL_REF: building the newest release tag, vX.Y.Z`), and the build records
 it in `/opt/foundry-ai-tool/app/.tool-ref`. The usual Pi rules apply (`dietpi-backup 1` first, the user's OK, never
 on a game-night day); see [PI-SETUP](PI-SETUP.md).
+
+Stage 5 refuses a default older than v0.22.0 (v0.21.0 is behind what the Pi runs) and refuses to go back from a
+newer release tag on the Pi; a deliberate rollback needs `TOOL_REF`. The refusals are in `5-tool.sh` (`min_tag`).
 
 A build of a tag that lists `playwright-core` as a runtime dependency drops its dev packages; v0.21.0 and older do
 not, so the first release built on the Pi with the pruned layout is v0.22.0.

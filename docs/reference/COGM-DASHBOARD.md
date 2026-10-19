@@ -24,8 +24,8 @@ The first screen follows the evening (the tabs in the header show where you are;
 look ahead or back):
 
 - **Before** (no session running): Pre-flight's checks next to Prep (last session, open quests,
-  next session notes, handouts waiting), and below them a card per feature (on or off, what it
-  does, when to turn it on, a link to its guide section). **Ready for session** at the top of Pre-flight turns on,
+  next session notes, handouts waiting), and a Features slot that says "Not on this page yet"
+  (the per-feature cards are on the old dashboard at `/legacy/`). **Ready for session** at the top of Pre-flight turns on,
   in one click, what tonight needs ("Allow Write Operations", the Handouts, Live play, Party
   and Tarokka switches, GM Actions); **End session** turns off again what it turned on. Only the dashboard's
   GM route can do this (the bridge's control method `session_switches`, never an MCP tool), so
@@ -44,10 +44,11 @@ Every panel has a **?** that opens its section of the GM guide in a side panel; 
 are built into the dashboard (`npm run build` renders `docs/gm` into `dist/help.json`), so the
 help works offline and matches the installed version.
 
-**Advanced** (top right) holds the rest: the Pre-flight, Prep, Party, Handouts and Tarokka panels
-(a panel already on the screen is scrolled to; otherwise it opens over the page), the Tool Runner,
-the AI commentary and module diagnostics, the player links, and the AI settings (pause, diagnostics
-AI, tone, model).
+**Advanced** (top right) holds the rest: the Prep, Party, Handouts and Tarokka panels (a panel
+already on the screen is scrolled to; otherwise it opens over the page), the Tool Runner, module
+diagnostics, the player links, the Combat buttons and During layouts entries, and the optional
+Version tracker. The AI commentary and its settings (pause, diagnostics AI, tone, model) are not on
+this page; they are on the old dashboard.
 
 ### My character, one page per player
 
@@ -74,7 +75,9 @@ with secret sections and unidentified items' true names left out.
   `~/.foundry-ai-tool`). Until the dashboard knows the world (a GM in Foundry), each screen keeps
   the theme it showed last.
 
-### AI commentary that watches with you
+### AI commentary that watches with you (old dashboard page only)
+
+Not on the page at `/` yet. It is on the old dashboard at `/legacy/`, and needs an Anthropic API key.
 
 - **Streaming commentary** — tactical or narrative call-outs when something significant happens
   ("the Goblin Boss is bloodied and prone — press the attack").

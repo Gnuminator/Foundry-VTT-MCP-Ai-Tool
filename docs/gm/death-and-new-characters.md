@@ -49,7 +49,7 @@ The tool follows hit points, not life and death:
    is yours; Claude can look up the rule ("What happens on a third failed death save? Use only my
    books.") but does not decide.
 2. **Mark the character dead.** In a fight, click the skull (**Mark Defeated**) on the character's
-   row in the **Combat Tracker**: it dims the row and puts the **Dead** status on the character.
+   row in Foundry's Combat Tracker: it dims the row and puts the **Dead** status on the character.
    Outside a fight, right-click the token and pick **Dead** among the status icons. With the **play**
    set on in Claude Desktop you can also say: "Mark Kasimir as dead, go ahead." (`plan-actor-change`,
    a condition change; **Undo** in **Recent Changes** takes it back if you were too quick).

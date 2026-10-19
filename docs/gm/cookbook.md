@@ -28,7 +28,7 @@ set says so.
 
 ### Get ready for next session
 
-- **Click:** **📋 Prep** in the dashboard header for the facts without AI: last session (scenes,
+- **Click:** **📋 Prep** (under **Advanced ▾**, Panels, or docked in the Before view) for the facts without AI: last session (scenes,
   fights, who went down, what happened), open quests and campaign parts, your notes, the handouts you
   queued, the bosses on your scenes and the pre-flight result.
 - **Or say:** use the ready-made prompt `prep-next-session` (in the message box's **+** menu). Add a
@@ -58,7 +58,7 @@ set says so.
 - **What happens:** the tool checks the Foundry link, the versions, the switches, secrets in world
   settings, names players can see and module conflicts (`get-preflight`). The dashboard also checks
   GM Actions, the player page and the Tarokka cards.
-- **Tip:** the dashboard's drawer has the hand checks too; tick them as you go.
+- **Tip:** the Pre-flight panel has the hand checks too; tick them as you go.
 
 ### Check an encounter
 
@@ -188,7 +188,7 @@ These need the **play** set switched on.
 ### A character died
 
 - **Say** (play set on): "Mark Kasimir as dead, go ahead." (`plan-actor-change`) Or click the
-  skull (**Mark Defeated**) on his row in the **Combat Tracker**.
+  skull (**Mark Defeated**) on his row in Foundry's Combat Tracker.
 - **What happens:** the character gets the **Dead** status. The tool tracks 0 HP and death saves
   but never decides that someone is dead; that is your call.
 - **Tip:** keep the actor; never delete it. The rest (Observer access for the player, the death

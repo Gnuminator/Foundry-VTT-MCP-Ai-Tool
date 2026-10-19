@@ -38,7 +38,7 @@ Short rules. Each has its reason on the next line.
 - **Turn on a feature switch ("AI Tool: … (writes)") only if you use that feature tonight.**
   With it off, neither Claude nor the dashboard can apply changes for it. "AI Tool: Live play
   (writes)" is the exception: it starts on, since damage and conditions come up every session.
-- **Tick "Show cards" in the Tarokka drawer only if nobody else can see your screen.**
+- **Tick "Show cards" in the Tarokka drawer (under **Advanced ▾**) only if nobody else can see your screen.**
   The card names are the campaign's biggest secret.
 - **Raise a journal to Observer only after every page in it is set to None.**
   Pages inherit the journal's ownership, so every page left on Inherit becomes readable at once.

@@ -15,6 +15,20 @@ confirm.
 > Keep the dashboard off any screen the players can see, and never share its window in Discord or
 > a video call. It shows true names, exact HP, private rolls and, when you ask, Tarokka cards.
 
+## The three views
+
+The tabs **Before**, **During** and **After** in the header switch what the page shows. They
+follow your evening, and you can click any of them at any time.
+
+- **Before**: the Pre-flight check and the Prep panel, the **Pick your During layout** card and
+  a Features slot that says "Not on this page yet" (the cards are on the old dashboard).
+- **During**: the turn-order strip, the Live Feed, and Handouts, Party and Recent Changes.
+- **After**: Tonight's stats and the Session notes, with Prep, Handouts and Recent Changes.
+
+The page picks a view for you: **During** while a session is open, **After** for 12 hours after
+you click **End session**, otherwise **Before**. A tab you click stays until a session starts or
+ends, or you reload the page.
+
 ## The header
 
 ### The connection mark and Pre-flight
@@ -61,13 +75,13 @@ The master switch for changing the game from the dashboard. Click it to turn it 
 Turn it on when you are about to act, and off again after. **Ready for session** turns it on
 for you, together with the module switches.
 
-### 🛠 Tools
+### 🛠 Tools (Advanced)
 
-Opens the tool runner. See "The tool runner" below.
+Under **Advanced ▾**, Tools. Opens the tool runner. See "The tool runner" below.
 
 ### ✈ Pre-flight
 
-Opens the pre-flight check: run it before the players join. The tool ticks what it can check by
+In the header, next to **Advanced ▾**. Opens the pre-flight check: run it before the players join. The tool ticks what it can check by
 itself (Foundry connected, module and bridge versions match, the write switches, secrets in world
 settings, names players can see that give away a secret, module conflicts, Obsidian notes, the
 play session, Ready for session, the player page, Tarokka cards hidden). Below that are the things to
@@ -95,26 +109,37 @@ Only the dashboard can do this, from the GM's login. Claude has no tool for it, 
 switch on its own writes. **Start the session log** next to it is the same as **Start session** in
 the header.
 
-### 📜 Handouts
+### 📜 Handouts (Advanced)
 
-Opens the handout drawer. See "The handout drawer" below.
+Under **Advanced ▾**, Panels. Opens the handout drawer. See "The handout drawer" below.
 
-### 📋 Prep
+### 📋 Prep (Advanced)
 
-Opens the prep drawer. See "The prep drawer" below.
+Under **Advanced ▾**, Panels (Prep is also docked in the Before and After views). Opens the prep
+drawer. See "The prep drawer" below.
 
-### 🛡 Party
+### 🛡 Party (Advanced)
 
-Opens the party drawer. See "The party drawer" below.
+Under **Advanced ▾**, Panels. Opens the party drawer. See "The party drawer" below.
 
-### 🃏 Tarokka
+### 🃏 Tarokka (Advanced)
 
-Opens the Tarokka drawer. See "The Tarokka drawer" below.
+Under **Advanced ▾**, Panels. Opens the Tarokka drawer. See "The Tarokka drawer" below.
 
-### 🔗 Player links
+### 🔗 Player links (Advanced)
 
-Each player's private link to their own character page. See "Player links and My character"
-below.
+Under **Advanced ▾**, Tools. Each player's private link to their own character page. See "Player
+links and My character" below.
+
+### 🩺 Module diagnostics, 📦 Versions and Version tracker (Advanced)
+
+More entries under **Advanced ▾**, Tools:
+
+- **🩺 Module diagnostics** shows or hides the Module Diagnostics panel (see below).
+- **Version tracker: off / on** is off by default. Turn it on and a **📦 Versions** entry appears
+  in the same menu. It opens a table of what is installed (Foundry, the game system and the
+  modules) next to the newest release, with a status for each. It only tells you what is out of
+  date; it never updates anything.
 
 ### ⚔ Combat buttons and ▦ Try the During layouts
 

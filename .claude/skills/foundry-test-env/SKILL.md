@@ -52,7 +52,7 @@ one again; it skips a world A has open, so stop A or copy from a quiet moment). 
 them at `http://localhost:30002` / `30003` (join as `Claude` or `Kit GM`, passwordless).
 **Licence:** only one instance may be reachable by users other than the licence owner at a time
 (the Pi is that one), so B and C are owner-only on localhost. RAM for three servers running:
-see `docs/dev/TEST-KIT.md`, "Two test servers".
+see `docs/dev/TEST-KIT.md`, "Three test servers".
 
 This environment is per PC: the Foundry licence is per owner, so each PC gets its own copy set up
 separately with the GM. World data, users and test data are not shared between machines, even

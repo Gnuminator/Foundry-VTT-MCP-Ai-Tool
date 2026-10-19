@@ -1,6 +1,6 @@
 # Shared settings for the local test environment (dot-source this file).
 #
-# A personal-only test setup, separate from the live campaign in every way. Two test servers
+# A personal-only test setup, separate from the live campaign in every way. Three test servers
 # share this PC's Foundry install and licence (scripts/test-env/servers.json has their ports):
 #   server A (the default, quick checks and live:roundtrip)
 #     Foundry (Node.js build)  http://localhost:30001, data C:\FoundryTest\data

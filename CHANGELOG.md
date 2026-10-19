@@ -2,7 +2,20 @@
 
 ## Unreleased
 
-## v0.22.0 (released 2026-10-19): undo for everything, the pruned Pi build, remote access, scene mood and the NPC turn assistant, Obsidian and test kit work
+## v0.22.0 (released 2026-10-20): undo for everything, scene mood and restore, the NPC turn assistant, remote access, the pruned Pi build that follows release tags, Obsidian and test kit work
+
+**Wire contracts are unchanged** (module id, ports, `foundry-mcp-bridge.*` method prefix, settings
+namespace); the additions are new bridge queries (`planSceneMood`, `getSceneMoods` and others listed
+below), new tools and new feature switches (scene mood and the NPC turn assistant ship off). The bridge serves 93 tools. Update the
+module and the bridge together. The Orange Pi builds the newest release tag, not `main` (D-126).
+
+### Docs (campaign plan, D-126)
+
+- **Campaign plan moved out of the public repo:** the Curse of Strahd plan now lives in the private vault, and links to it in the docs and code comments point to a note saying so. Test fixtures use neutral names. Older commits still hold the file.
+
+### Development (tool call log)
+
+- **Tool call log (D-126, I-113):** every MCP tool call writes one line (time, tool, tool set, ms, result size, ok or error, no arguments) to `<data folder>/_usage/<date>.calls.jsonl`. `npm run usage:calls` counts calls per tool and set, errors, slowest calls and the tools never called, so the tool sets can be trimmed on data. `FOUNDRY_AI_USAGE_LOG=off` turns it off.
 
 ### Dashboard
 

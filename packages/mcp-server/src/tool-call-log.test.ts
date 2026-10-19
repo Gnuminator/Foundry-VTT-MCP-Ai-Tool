@@ -4,7 +4,13 @@ import * as path from 'path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { TOOL_CALL_LOG_DIR, ToolCallLog, buildCallLine, resultSize } from './tool-call-log.js';
+import {
+  TOOL_CALL_LOG_DIR,
+  ToolCallLog,
+  buildCallLine,
+  resultSize,
+  runLoggedCall,
+} from './tool-call-log.js';
 import { TOOL_SETS } from './tool-sets.js';
 
 let dataDir: string;
@@ -45,6 +51,46 @@ describe('tool call log', () => {
     expect(files[0]).toMatch(/^\d{4}-\d{2}-\d{2}\.calls\.jsonl$/);
     const lines = (await fsp.readFile(path.join(dir, files[0]), 'utf8')).trim().split('\n');
     expect(lines.map(l => JSON.parse(l).tool)).toEqual(['x', 'x']);
+  });
+
+  it('cuts a very long client-supplied tool name', () => {
+    expect(buildCallLine('x'.repeat(500), 0, undefined, 5).tool).toHaveLength(80);
+  });
+
+  it('runLoggedCall logs the result it returns and survives a failing log', async () => {
+    const seen: unknown[] = [];
+    const log = {
+      record: (line: unknown): Promise<boolean> => {
+        seen.push(line);
+        return Promise.reject(new Error('disk full'));
+      },
+    };
+    const ok = await runLoggedCall(
+      log,
+      'get-world-info',
+      () => Promise.resolve({ content: [{ type: 'text', text: 'abc' }] }),
+      () => ({ content: [], isError: true })
+    );
+    expect(ok.content[0].text).toBe('abc');
+    expect(seen[0]).toMatchObject({ tool: 'get-world-info', set: 'core', size: 3, ok: true });
+  });
+
+  it('runLoggedCall logs a throwing run as an error with the error result', async () => {
+    const seen: Array<{ ok: boolean; size: number }> = [];
+    const log = {
+      record: (line: { ok: boolean; size: number }): Promise<boolean> => {
+        seen.push(line);
+        return Promise.resolve(true);
+      },
+    };
+    const res = await runLoggedCall(
+      log,
+      'get-party',
+      () => Promise.reject(new Error('cap failed')),
+      () => ({ content: [{ type: 'text', text: 'Error: x' }], isError: true })
+    );
+    expect(res.isError).toBe(true);
+    expect(seen[0]).toMatchObject({ ok: false, size: 8 });
   });
 
   it('writes nothing when off and never throws on a write failure', async () => {

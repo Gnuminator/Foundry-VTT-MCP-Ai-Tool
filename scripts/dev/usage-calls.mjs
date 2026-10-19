@@ -21,7 +21,23 @@ export function dataDir(env = process.env) {
     const appData = env.APPDATA?.trim() || path.join(os.homedir(), 'AppData', 'Roaming');
     return path.join(appData, 'foundry-ai-tool', 'vault');
   }
-  return path.join(os.homedir(), '.local', 'share', 'foundry-ai-tool', 'vault');
+  const xdg = env.XDG_DATA_HOME?.trim();
+  const base = xdg && path.isAbsolute(xdg) ? xdg : path.join(os.homedir(), '.local', 'share');
+  return path.join(base, 'foundry-ai-tool', 'vault');
+}
+
+/**
+ * The tools of every tool set, { set: [tool, ...] }, from the built server
+ * (packages/mcp-server/dist/tool-sets.js); null when the server is not built.
+ */
+export async function loadCatalog(root = path.resolve(import.meta.dirname, '..', '..')) {
+  try {
+    const file = path.join(root, 'packages', 'mcp-server', 'dist', 'tool-sets.js');
+    const { TOOL_SETS } = await import(pathToFileURL(file).href);
+    return Object.fromEntries(Object.entries(TOOL_SETS).map(([set, spec]) => [set, spec.tools]));
+  } catch {
+    return null;
+  }
 }
 
 const pad2 = n => String(n).padStart(2, '0');
@@ -30,7 +46,9 @@ const dayKey = d => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDa
 /** Parse the call lines of the day files in the last `days` days (0 = all). */
 export function readCalls(dir, days = 7, now = new Date()) {
   if (!existsSync(dir)) return [];
-  const first = days > 0 ? dayKey(new Date(now.getTime() - (days - 1) * 86_400_000)) : '';
+  // Calendar days, so a daylight-saving change never shifts the window by a day.
+  const first =
+    days > 0 ? dayKey(new Date(now.getFullYear(), now.getMonth(), now.getDate() - (days - 1))) : '';
   const calls = [];
   for (const file of readdirSync(dir).sort()) {
     const m = /^(\d{4}-\d{2}-\d{2})\.calls\.jsonl$/.exec(file);
@@ -53,7 +71,16 @@ function quantile(sorted, q) {
   return sorted[Math.min(sorted.length - 1, Math.floor(q * sorted.length))];
 }
 
-export function summarize(calls) {
+/** Tools in the catalog that no call in the window names: [{ tool, set }, ...]. */
+export function neverCalled(calls, catalog) {
+  if (!catalog) return null;
+  const called = new Set(calls.map(c => c.tool));
+  return Object.entries(catalog).flatMap(([set, tools]) =>
+    tools.filter(tool => !called.has(tool)).map(tool => ({ tool, set }))
+  );
+}
+
+export function summarize(calls, catalog = null) {
   const perTool = new Map();
   const perSet = new Map();
   for (const c of calls) {
@@ -100,6 +127,7 @@ export function summarize(calls) {
     sets,
     tools,
     slowest,
+    never: neverCalled(calls, catalog),
   };
 }
 
@@ -125,21 +153,31 @@ export function render(summary, days) {
   out.push('', 'Slowest calls:');
   for (const c of summary.slowest)
     out.push(`  ${c.ms} ms  ${c.tool}  ${c.t}${c.ok === false ? '  (error)' : ''}`);
+  if (summary.never === null) {
+    out.push('', 'Never called: unknown (build the server first: npm run build).');
+  } else {
+    out.push('', `Never called in the window (${summary.never.length}):`);
+    for (const n of summary.never) out.push(`  ${n.set.padEnd(8)} ${n.tool}`);
+  }
   return out.join('\n') + '\n';
 }
 
-function main(argv) {
+async function main(argv) {
   const arg = name => {
     const i = argv.indexOf(name);
     return i >= 0 ? argv[i + 1] : undefined;
   };
   const days = arg('--days') !== undefined ? Number(arg('--days')) : 7;
+  if (!Number.isInteger(days) || days < 0) {
+    process.stderr.write('usage:calls: --days needs a whole number (0 = all days).\n');
+    process.exit(2);
+  }
   const dir = arg('--dir') ?? path.join(dataDir(), '_usage');
-  const summary = summarize(readCalls(dir, days));
+  const summary = summarize(readCalls(dir, days), await loadCatalog());
   process.stdout.write(
     argv.includes('--json') ? JSON.stringify(summary, null, 2) + '\n' : render(summary, days)
   );
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href)
-  main(process.argv.slice(2));
+  await main(process.argv.slice(2));

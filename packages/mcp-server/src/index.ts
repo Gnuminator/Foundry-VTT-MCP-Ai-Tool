@@ -21,7 +21,7 @@ import {
 
 import { PROMPTS_CAPABILITY, registerPromptHandlers } from './prompts/register.js';
 
-import { ToolCallLog, buildCallLine } from './tool-call-log.js';
+import { ToolCallLog, runLoggedCall } from './tool-call-log.js';
 
 import { type ToolDefinitionLike, type ToolResultLike, capToolResult } from './tool-router.js';
 
@@ -445,25 +445,24 @@ async function startWrapper(): Promise<void> {
   mcp.setRequestHandler(CallToolRequestSchema, async request => {
     const { name, arguments: args } = request.params as any;
     const toolName = String(name);
-    const startedAt = Date.now();
-    let outcome: ToolResultLike | undefined;
 
-    try {
-      const res = (await backend.send('call_tool', { name, args: args ?? {} })) as ToolResultLike;
-      outcome = res;
+    return (await runLoggedCall(
+      callLog,
+      toolName,
+      async () => {
+        const res = (await backend.send('call_tool', {
+          name,
+          args: args ?? {},
+        })) as ToolResultLike;
 
-      // One size cap for every tool result Claude gets (D-109); the dashboard reads them in full.
-      return capToolResult(res, toolName, listedTools.get(toolName)) as unknown as CallToolResult;
-    } catch (e: any) {
-      return {
+        // One size cap for every tool result Claude gets (D-109); the dashboard reads them in full.
+        return capToolResult(res, toolName, listedTools.get(toolName));
+      },
+      (e: any): ToolResultLike => ({
         content: [{ type: 'text', text: `Error: ${e?.message || 'Backend unavailable'}` }],
         isError: true,
-      };
-    } finally {
-      try {
-        void callLog.record(buildCallLine(toolName, startedAt, outcome));
-      } catch {}
-    }
+      })
+    )) as unknown as CallToolResult;
   });
 
   const transport = new StdioServerTransport();

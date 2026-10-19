@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { readCalls, render, summarize } from './usage-calls.mjs';
+import { dataDir, readCalls, render, summarize } from './usage-calls.mjs';
 import {
   PROJECT_DIR,
   TARGETS,
@@ -608,6 +608,25 @@ test('counts per tool and per set, errors, slowest, skips torn lines and old day
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test('lists catalog tools that were never called and computes percentiles', () => {
+  const calls = [10, 20, 30, 40, 1000].map(ms => JSON.parse(line('a', 'core', ms, 1)));
+  const s = summarize(calls, { core: ['a', 'b'], play: ['c'] });
+  assert.deepEqual(s.never, [
+    { tool: 'b', set: 'core' },
+    { tool: 'c', set: 'play' },
+  ]);
+  assert.equal(s.tools[0].medianMs, 30);
+  assert.equal(s.tools[0].p95Ms, 1000);
+  assert.equal(summarize(calls).never, null);
+  assert.match(render(s, 7), /Never called in the window \(2\)/);
+});
+
+test('the default data dir follows XDG_DATA_HOME off Windows like the server', () => {
+  const dir = dataDir({ FOUNDRY_AI_DATA_DIR: '', XDG_DATA_HOME: '', APPDATA: 'C:\\x' });
+  assert.match(dir, /foundry-ai-tool[\\/]vault$/);
+  assert.equal(dataDir({ FOUNDRY_AI_DATA_DIR: path.resolve('custom') }), path.resolve('custom'));
 });
 
 test('a missing folder reads as no calls', () => {

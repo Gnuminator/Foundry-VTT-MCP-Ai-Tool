@@ -19,6 +19,9 @@ import { resolveDataDir } from './vault/paths.js';
 
 export const TOOL_CALL_LOG_DIR = '_usage';
 
+/** The client names the tool; a name longer than this is cut in the line. */
+const MAX_TOOL_NAME = 80;
+
 export interface ToolCallLine {
   t: string;
   tool: string;
@@ -45,7 +48,7 @@ export function buildCallLine(
 ): ToolCallLine {
   return {
     t: new Date(now).toISOString(),
-    tool,
+    tool: tool.slice(0, MAX_TOOL_NAME),
     set: toolSetOf(tool) ?? 'unknown',
     ms: Math.max(0, Math.round(now - startedAt)),
     size: resultSize(result),
@@ -56,6 +59,7 @@ export function buildCallLine(
 export class ToolCallLog {
   readonly enabled: boolean;
   private readonly dir: string;
+  private dirReady = false;
 
   constructor(options: { dataDir?: string; enabled?: boolean } = {}) {
     this.enabled = options.enabled ?? usageLogEnabled();
@@ -67,13 +71,44 @@ export class ToolCallLog {
     if (!this.enabled) return Promise.resolve(false);
     return (async (): Promise<boolean> => {
       try {
-        await fsp.mkdir(this.dir, { recursive: true });
+        if (!this.dirReady) {
+          await fsp.mkdir(this.dir, { recursive: true });
+          this.dirReady = true;
+        }
         const file = path.join(this.dir, `${localDateKey(Date.parse(line.t))}.calls.jsonl`);
         await fsp.appendFile(file, `${JSON.stringify(line)}\n`, 'utf8');
         return true;
       } catch {
+        this.dirReady = false;
         return false;
       }
     })();
   }
+}
+
+/**
+ * Run one tool call, log what it returned (the final result Claude gets, an error result
+ * included), and return that result. `run` is expected to turn its own failures into an error
+ * result; if it throws anyway the call is logged as an error and `onError` builds the result.
+ * Logging never changes or delays the result.
+ */
+export async function runLoggedCall<T extends ToolResultLike>(
+  log: Pick<ToolCallLog, 'record'>,
+  tool: string,
+  run: () => Promise<T>,
+  onError: (error: unknown) => T
+): Promise<T> {
+  const startedAt = Date.now();
+  let result: T;
+  try {
+    result = await run();
+  } catch (error) {
+    result = onError(error);
+  }
+  try {
+    void Promise.resolve(log.record(buildCallLine(tool, startedAt, result))).catch(() => undefined);
+  } catch {
+    // logging never breaks a tool call
+  }
+  return result;
 }

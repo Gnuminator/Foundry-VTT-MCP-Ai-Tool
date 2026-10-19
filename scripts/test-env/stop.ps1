@@ -16,7 +16,7 @@
 # Resolve-StopAction in config.ps1.
 param(
   [ValidateSet('all', 'foundry', 'bridge', 'dashboard')] [string]$Only = 'all',
-  [ValidateSet('A', 'B')] [string]$Server
+  [ValidateSet('A', 'B', 'C')] [string]$Server
 )
 
 . (Join-Path $PSScriptRoot 'config.ps1')

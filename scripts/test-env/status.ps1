@@ -1,7 +1,7 @@
 # Show the test environment's state, and (read-only) whether the live bridge is up.
 #
-#   pwsh scripts/test-env/status.ps1 [-Server A|B]
-param([ValidateSet('A', 'B')] [string]$Server)
+#   pwsh scripts/test-env/status.ps1 [-Server A|B|C]
+param([ValidateSet('A', 'B', 'C')] [string]$Server)
 . (Join-Path $PSScriptRoot 'config.ps1')
 Assert-SafePorts
 $pids = Read-Pids

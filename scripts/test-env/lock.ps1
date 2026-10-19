@@ -23,7 +23,7 @@ param(
   [string]$Purpose,
   [switch]$Force,
   [string]$Root,
-  [ValidateSet('A', 'B')] [string]$Server
+  [ValidateSet('A', 'B', 'C')] [string]$Server
 )
 . (Join-Path $PSScriptRoot 'config.ps1')
 

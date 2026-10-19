@@ -48,8 +48,12 @@ one PR. Vault paths below are under `C:\Users\chris\Documents\Obsidian\vault\Dev
   model: the call's `model` wins); `start_session` takes a model id (`claude-sonnet-5-5`,
   `claude-haiku-5-5`), and the hook denies an alias there.
 - **Test server:** load `foundry-test-env`; take the lock (`scripts/test-env/lock.ps1 take`) before
-  any live check and release it after. Verify a feature live before calling it done. Standalone
-  bridge on test ports: `node packages/mcp-server/dist/standalone.js --port 31514 --control-only`;
+  any live check and release it after. There are three servers (A, B, C, same `ai-tool-test`
+  world): run `lock.ps1 status -Server B` (and C) and take a free one with `-Server X`; use that
+  server's ports and pass `-Server X` to start, stop, sync and status. Queue on A only when all
+  three are taken. Kit runs default to B. Verify a feature live before calling it done. Standalone
+  bridge on test ports: `node packages/mcp-server/dist/standalone.js --port 31514 --control-only`
+  (B 31524, C 31534);
   `Get-NetTCPConnection -State Listen -LocalPort 31414,31415,31416` shows nothing else bound.
   Stopping a background task may leave its node child running on Windows: check the PID.
 - **Commands over 2 minutes** run in the background (`run_in_background`); never poll in a loop.

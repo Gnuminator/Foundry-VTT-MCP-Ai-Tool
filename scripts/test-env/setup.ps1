@@ -3,7 +3,7 @@
 # test Foundry, and says what is still missing. Safe to re-run.
 #
 #   pwsh scripts/test-env/setup.ps1
-param([switch]$Rebuild, [ValidateSet('A', 'B')] [string]$Server)
+param([switch]$Rebuild, [ValidateSet('A', 'B', 'C')] [string]$Server)
 
 . (Join-Path $PSScriptRoot 'config.ps1')
 Assert-SafePorts

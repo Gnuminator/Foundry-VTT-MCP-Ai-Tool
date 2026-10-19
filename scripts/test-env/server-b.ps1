@@ -1,8 +1,10 @@
-# Create or refresh test server B from server A. B runs kit runs and soak runs, so A stays free
+# Create or refresh test server B (or C, with -Server C) from server A. B runs kit runs and soak runs, so A stays free
 # for quick checks and live:roundtrip. Both run A's Foundry install and licence; nobody plays on B.
 #
 #   pwsh scripts/test-env/server-b.ps1                    first setup, or refresh B's packages
 #   pwsh scripts/test-env/server-b.ps1 -World strahd-kit  copy one world from A again (replaces B's)
+#   pwsh scripts/test-env/server-b.ps1 -Server C          the same for server C (C:\FoundryTestC); everything below
+#                                                         says B for C as well
 #
 # Copies from A (C:\FoundryTest) to B (C:\FoundryTestB, ports in servers.json):
 #   Config  license.json and admin.txt as they are; options.json with B's data path and port
@@ -15,10 +17,10 @@
 # Refuses while B's Foundry runs, and does not copy a world A's Foundry has open. Never prints
 # the licence or the admin password (it copies the files, it does not read them).
 param(
+  [ValidateSet('B', 'C')] [string]$Server = 'B',
   [ValidatePattern('^[a-z0-9][a-z0-9-]{0,63}$')] [string]$World = ''
 )
 
-$Server = 'B'
 . (Join-Path $PSScriptRoot 'config.ps1')
 Assert-SafePorts
 
@@ -29,11 +31,11 @@ $fromRoot = [string]$settingsA.Root
 $fromData = Join-Path $fromRoot 'data'
 $toData = $TestEnv.DataDir
 if ([IO.Path]::GetFullPath($fromRoot).TrimEnd('\', '/') -eq [IO.Path]::GetFullPath($TestEnv.Root).TrimEnd('\', '/')) {
-  throw "Server B's root is server A's ($fromRoot); give B its own Root in local.B.json."
+  throw "Server $Server's root is server A's ($fromRoot); give $Server its own Root in local.$Server.json."
 }
 if (-not (Test-Path (Join-Path $fromData 'Data' 'worlds'))) { throw "Server A has no data folder at $fromData; set up A first (setup.ps1)." }
 if (Test-PortOpen $TestEnv.FoundryPort) {
-  throw "Server B's Foundry runs (port $($TestEnv.FoundryPort)); stop it first: pwsh scripts/test-env/stop.ps1 -Server B"
+  throw "Server $Server's Foundry runs (port $($TestEnv.FoundryPort)); stop it first: pwsh scripts/test-env/stop.ps1 -Server $Server"
 }
 
 # The world A's Foundry has open, or $null (A is down, or at the setup screen).
@@ -133,7 +135,7 @@ $built = Test-Path (Join-Path $RepoRoot 'packages' 'foundry-module' 'dist' 'main
 if ($built) {
   & (Join-Path $PSScriptRoot 'sync-module.ps1') -NoBuild -Server $TestEnv.Server
 } else {
-  Write-Host "Module: no build in this checkout; run pwsh scripts/test-env/sync-module.ps1 -Server B"
+  Write-Host "Module: no build in this checkout; run pwsh scripts/test-env/sync-module.ps1 -Server $Server"
 }
 Write-Host ''
-Write-Host "Server B ready at $($TestEnv.Root): pwsh scripts/test-env/start.ps1 -Server B [-World <id>]"
+Write-Host "Server $Server ready at $($TestEnv.Root): pwsh scripts/test-env/start.ps1 -Server $Server [-World <id>]"

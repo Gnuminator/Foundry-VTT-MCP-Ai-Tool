@@ -4,10 +4,14 @@
 
 ## v0.22.0 (released 2026-10-20): undo for everything, scene mood and restore, the NPC turn assistant, remote access, the pruned Pi build that follows release tags, Obsidian and test kit work
 
-**Wire contracts are unchanged** (module id, ports, `foundry-mcp-bridge.*` method prefix, settings
-namespace); the additions are new bridge queries (`planSceneMood`, `getSceneMoods` and others listed
-below), new tools and new feature switches (scene mood and the NPC turn assistant ship off). The bridge serves 93 tools. Update the
-module and the bridge together. The Orange Pi builds the newest release tag, not `main` (D-126).
+**Unchanged:** the module id, the socket channel, the `foundry-mcp-bridge.*` method prefix, the settings
+namespace and the WebSocket port 31415. **Removed:** the WebRTC path (port 31416, test 31516, and the
+`FOUNDRY_CONNECTION_TYPE`, `FOUNDRY_STUN_SERVERS` and `FOUNDRY_WEBRTC_PORT` settings; the module's
+"Connection Type" setting). **Added:** new bridge queries (`planSceneMood`, `getSceneMoods` and others listed
+below), `module-request` and `module-reply` messages and a capabilities list in the bridge's handshake, new
+tools (the bridge serves 93) and new feature switches: scene mood and the NPC turn assistant ship off, the
+table viewer and undo for everything ship on. Update the module and the bridge together. The Orange Pi builds
+the newest release tag, not `main` (D-126).
 
 ### Docs (campaign plan, D-126)
 

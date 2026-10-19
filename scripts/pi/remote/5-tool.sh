@@ -5,7 +5,8 @@
 # online (the module's "bridge user" setting names that user).
 # Claude copies the browser driver first:  scp scripts/pi/remote/assistant-gm.mjs foundry-pi:/root/
 # then runs:  cat scripts/pi/remote/lib.sh scripts/pi/remote/5-tool.sh | ssh foundry-pi 'bash -s'
-# TOOL_REF picks the git tag, branch or commit to build (default below).
+# TOOL_REF picks the git tag, branch or commit to build. Without it the stage builds the newest release tag
+# (vX.Y.Z, found with git ls-remote), never main: game nights run a known version (D-126; docs/dev/RELEASING.md).
 # Everything listens on loopback only; Tailscale serve shares the control port (31414) and the dashboard (3000) with the
 # tailnet, never with the home network or the internet. The bridge's control port has no login of
 # its own (vault idea I-023).
@@ -16,7 +17,7 @@ require_arm64
 [ -x "$NODE_DIR/bin/node" ] || die "Node is missing: run stage 2 first"
 [ -f "$FOUNDRY_APP/main.js" ] || die "Foundry is missing: run stage 3 first"
 
-ref="${TOOL_REF:-pi-build-2026-10-12}"
+ref="${TOOL_REF:-}"
 repo="${TOOL_REPO:-https://github.com/Gnuminator/Foundry-VTT-MCP-Ai-Tool.git}"
 app="$TOOL_DIR/app"
 driver_src="${ASSISTANT_GM_DRIVER:-/root/assistant-gm.mjs}"
@@ -84,6 +85,26 @@ check_build_loads() {
   return "$rc"
 }
 
+if [ -z "$ref" ]; then
+  # Newest release tag by version, not by date; only plain vX.Y.Z (no -rc or other suffixes).
+  tags="$(git ls-remote --tags --refs "$repo" 'v*')" || die "cannot list the tags of $repo (network?)"
+  ref="$(printf '%s\n' "$tags" | sed 's#.*refs/tags/##' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n 1 || true)"
+  [ -n "$ref" ] || die "no release tag (vX.Y.Z) found in $repo: tag a release first, or set TOOL_REF"
+  # v0.21.0 and older are behind what the Pi runs (no pruned build, no dashboard access env): never default to them.
+  min_tag=v0.22.0
+  [ "$(printf '%s\n%s\n' "$min_tag" "$ref" | sort -V | head -n 1)" = "$min_tag" ] ||
+    die "the newest release tag is $ref, older than $min_tag: tag $min_tag first, or set TOOL_REF"
+  if [ -f "$app/.tool-ref" ]; then
+    cur="$(cat "$app/.tool-ref")"
+    if printf '%s' "$cur" | grep -qE '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
+      [ "$(printf '%s\n%s\n' "$cur" "$ref" | sort -V | head -n 1)" = "$cur" ] ||
+        die "$app runs $cur, newer than the newest release tag $ref: set TOOL_REF to go back on purpose"
+    elif [ "$cur" != "$ref" ]; then
+      warn "$app runs $cur (not a release tag); building $ref over it"
+    fi
+  fi
+  ok "no TOOL_REF: building the newest release tag, $ref"
+fi
 say "the tool at $ref"
 # The same ref is not built again, unless its build still has the dev packages although this stage can drop them
 # (an earlier stage 5 did not, or the ref moved past the prune since): then it is built once more, pruned. A pruned

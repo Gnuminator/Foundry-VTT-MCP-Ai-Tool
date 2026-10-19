@@ -1,7 +1,7 @@
 ### Orange Pi (D-068)
 
 - **Stage 5, the tool on the Pi** (`scripts/pi/remote/5-tool.sh`): builds a tag on the Pi
-  (default `pi-build-2026-10-12`), copies the module into Foundry from the same build, and runs the bridge, the
+  (default: the newest release tag, see the release-tags entry), copies the module into Foundry from the same build, and runs the bridge, the
   dashboard and a headless Chromium logged in as the Assistant GM user (`assistant-gm.mjs`, role
   Assistant, no canvas) as services. Everything listens on loopback; Tailscale serve shares the
   control port and the dashboard with the tailnet only. `5-check-world.sh` proves the chain in a

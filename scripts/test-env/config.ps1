@@ -10,11 +10,15 @@
 #     Foundry                  http://localhost:30002, data C:\FoundryTestB\data
 #     test bridge              control 31524, Foundry link 31525
 #     co-GM dashboard          http://localhost:3101
+#   server C (a third parallel live check; same shape as B)
+#     Foundry                  http://localhost:30003, data C:\FoundryTestC\data
+#     test bridge              control 31534, Foundry link 31535
+#     co-GM dashboard          http://localhost:3102
 #   bridge vault               <Root>/vault; the lock is <Root>/lock.json, one per server
 # The live bridge ports 31414-31416 are never used; every script refuses to run
 # if a test port collides with them or with the other server's ports.
 #
-# Which server: the calling script's -Server A|B (a $Server variable in the scope that
+# Which server: the calling script's -Server A|B|C (a $Server variable in the scope that
 # dot-sources this file), else the environment variable FOUNDRY_TEST_SERVER, else A.
 # Override any value in scripts/test-env/local.json (server A) or local.B.json (server B), both
 # gitignored, e.g.

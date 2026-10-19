@@ -188,7 +188,7 @@ test('FOUNDRY_TEST_SERVER=B points the kit at server B; an unknown server is ref
     e => e instanceof EnvError && /Only port 3101/.test(e.message)
   );
   assert.equal(testServerName({}), 'A');
-  assert.throws(() => testServerName({ FOUNDRY_TEST_SERVER: 'C' }), EnvError);
+  assert.throws(() => testServerName({ FOUNDRY_TEST_SERVER: 'D' }), EnvError);
   assert.equal(testServer('b').linkPort, 31525);
 });
 

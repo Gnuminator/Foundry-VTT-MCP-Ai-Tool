@@ -14,7 +14,7 @@ param(
   [ValidateSet('all', 'foundry', 'bridge', 'dashboard')] [string]$Only = 'all',
   [switch]$NoWorld,
   [ValidatePattern('^[a-z0-9][a-z0-9-]{0,63}$')] [string]$World = '',
-  [ValidateSet('A', 'B')] [string]$Server
+  [ValidateSet('A', 'B', 'C')] [string]$Server
 )
 
 . (Join-Path $PSScriptRoot 'config.ps1')

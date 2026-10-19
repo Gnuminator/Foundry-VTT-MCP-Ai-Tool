@@ -27,7 +27,7 @@ param(
   [string]$World = 'ai-tool-demo',
   [string]$Source = 'ai-tool-test',
   [string]$Title = '',
-  [ValidateSet('A', 'B')] [string]$Server
+  [ValidateSet('A', 'B', 'C')] [string]$Server
 )
 
 if ($World -notmatch '^ai-tool-demo(-[a-z0-9]+)*$') {

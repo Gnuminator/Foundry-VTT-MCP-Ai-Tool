@@ -111,7 +111,7 @@ test('parseArgs: on-demand defaults and the nightly preset', () => {
 test('parseArgs: kit runs go to test server B unless --server says otherwise', () => {
   assert.equal(parseArgs([]).server, 'B');
   assert.equal(parseArgs(['--server', 'a']).server, 'A');
-  assert.throws(() => parseArgs(['--server', 'C']), /--server must be one of A, B/);
+  assert.throws(() => parseArgs(['--server', 'D']), /--server must be one of A, B/);
 });
 
 test('every test-env script gets -Server and every child FOUNDRY_TEST_SERVER', async () => {

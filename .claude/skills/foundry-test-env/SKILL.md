@@ -21,25 +21,38 @@ hosting service and is driven by Claude Desktop's bridge on 31414-31416.
 | Obsidian    | `C:\FoundryTest\obsidian` (throwaway vault the test bridge renders notes into; `ObsidianDir`)                                                                                                                                                                   |
 | Logs, PIDs  | `C:\FoundryTest\logs` (`<service>.out.log`, `.err.log`, `pids.json`)                                                                                                                                                                                            |
 
-### Two test servers (A and B)
+### Three test servers (A, B and C)
 
 The table above is **server A**, the default: quick checks, `live:roundtrip`, manual tests in the
-browser pane. **Server B** runs kit runs and soak runs, so a long kit run never blocks A:
+browser pane. **B** and **C** are the same thing on other ports (same `ai-tool-test` world,
+same system and module versions, copied from A); B also runs kit runs and soak runs
+(`npm run kit:run` defaults to B), so a long kit run never blocks A:
 
-| Part      | Server B                                                                              |
-| --------- | ------------------------------------------------------------------------------------- |
-| Foundry   | `http://localhost:30002`, A's app (`C:\FoundryTest\app`), data `C:\FoundryTestB\data` |
-| Bridge    | control `31524`, Foundry link `31525`                                                 |
-| Dashboard | `http://localhost:3101`                                                               |
-| Rest      | vault, obsidian, logs and lock under `C:\FoundryTestB`                                |
+| Part      | Server B                                              | Server C                                              |
+| --------- | ----------------------------------------------------- | ----------------------------------------------------- |
+| Foundry   | `http://localhost:30002`, data `C:\FoundryTestB\data` | `http://localhost:30003`, data `C:\FoundryTestC\data` |
+| Bridge    | control `31524`, Foundry link `31525`                 | control `31534`, Foundry link `31535`                 |
+| Dashboard | `http://localhost:3101`                               | `http://localhost:3102`                               |
+| Rest      | vault, obsidian, logs, lock under the root            | the same under `C:\FoundryTestC`                      |
 
-Ports live in `scripts/test-env/servers.json` (read by the scripts and the kit). Every script takes
-`-Server A|B` (default A, or the `FOUNDRY_TEST_SERVER` environment variable), and each server has
-its own lock: take B's with `lock.ps1 take -Server B ...`. `npm run kit:run` uses B by default.
-`pwsh scripts/test-env/server-b.ps1` creates or refreshes B from A (licence and admin login files,
-packages mirrored, the everyday and kit worlds B lacks; `-World <id>` copies one again). Overrides
-for B go in `scripts/test-env/local.B.json`. Nobody plays on B; the browser pane can open it at
-`http://localhost:30002` (join as `Claude` or `Kit GM`, passwordless).
+All use A's Foundry app (`C:\FoundryTest\app`). Ports live in `scripts/test-env/servers.json`
+(read by the scripts and the kit). Every script takes `-Server A|B|C` (default A, or the
+`FOUNDRY_TEST_SERVER` environment variable), and each server has its own lock.
+
+**Picking a server:** a lane needing a live check runs `lock.ps1 status -Server A`, then B, then C
+and takes the first free one (`lock.ps1 take -Server B ...`), starting with A if free. Then every
+call carries `-Server X` (start, stop, status, sync-module, lock) and the lane uses that server's
+bridge and dashboard ports. Never stop or start a server whose lock another lane holds. Queue
+(`lock.ps1 queue`) only when all three are taken.
+
+`pwsh scripts/test-env/server-b.ps1 [-Server B|C]` creates or refreshes B or C from A (licence and
+admin login files, packages mirrored, the everyday and kit worlds it lacks; `-World <id>` copies
+one again; it skips a world A has open, so stop A or copy from a quiet moment). Overrides go in
+`scripts/test-env/local.B.json` / `local.C.json`. Nobody plays on B or C; the browser pane opens
+them at `http://localhost:30002` / `30003` (join as `Claude` or `Kit GM`, passwordless).
+**Licence:** only one instance may be reachable by users other than the licence owner at a time
+(the Pi is that one), so B and C are owner-only on localhost. RAM for three servers running:
+see `docs/dev/TEST-KIT.md`, "Two test servers".
 
 This environment is per PC: the Foundry licence is per owner, so each PC gets its own copy set up
 separately with the GM. World data, users and test data are not shared between machines, even

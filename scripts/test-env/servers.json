@@ -14,5 +14,13 @@
     "ControlPort": 31524,
     "LinkPort": 31525,
     "DashboardPort": 3101
+  },
+  "C": {
+    "Root": "C:\\FoundryTestC",
+    "HomeRoot": "foundry-test-c",
+    "FoundryPort": 30003,
+    "ControlPort": 31534,
+    "LinkPort": 31535,
+    "DashboardPort": 3102
   }
 }

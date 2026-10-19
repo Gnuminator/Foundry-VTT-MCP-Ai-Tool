@@ -165,16 +165,24 @@ MODE=down` (which deletes the actors made after `up`). Unit tests cover the argu
    the arrow moves and the refusals; the live run needs a running kit session (the next Pi day) or
    the PC test world with Actor Studio set to standard array only.
 
-### Two test servers
+### Three test servers
 
-This PC has two test servers with the same Foundry install and licence
+This PC has three test servers (C is described below) with the same Foundry install and licence
 (`scripts/test-env/servers.json`). Server A (`C:\FoundryTest`, Foundry 30001, bridge 31514 and
 31515, dashboard 3100) is for quick checks and `npm run live:roundtrip`. Server B
 (`C:\FoundryTestB`, Foundry 30002, bridge 31524 and 31525, dashboard 3101) is for kit runs and
 soak runs, so a 70-minute kit run never blocks a roundtrip. Each has its own data folder, module
 copy, vault, logs and lock (`<Root>\lock.json`). Nobody plays on B.
 
-Every test-env script takes `-Server A|B` (default A, or the `FOUNDRY_TEST_SERVER` environment
+Server C (`C:\FoundryTestC`, Foundry 30003, bridge 31534 and 31535, dashboard 3102) is B's twin
+for a third parallel live check: `pwsh scripts/test-env/server-b.ps1 -Server C` sets it up from A.
+B and C stay owner-only on localhost (the licence allows one instance reachable by others, and
+that is the Pi). Measured 2026-10-19 with A, B and C all running `ai-tool-test` (idle, one browser
+client): per server the Foundry node process is about 130 MB, the test bridge about 70 MB and the
+dashboard about 63 MB (about 265 MB each, about 0.8 GB for three) on a 32 GB PC; each browser
+client adds more on top.
+
+Every test-env script takes `-Server A|B|C` (default A, or the `FOUNDRY_TEST_SERVER` environment
 variable); the kit (`kit.mjs`) reads `FOUNDRY_TEST_SERVER` and talks to that server's dashboard and
 Foundry. `npm run kit:run` uses B unless `--server A`. The kit home stays shared (reports,
 `last-run.json`, licensed profiles); the kit manifests are per server (`<kit home>\worlds` for A,

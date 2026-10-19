@@ -32,10 +32,11 @@ test("provisioning is allowed on the PC's test Foundry, however loopback is spel
   }
 });
 
-test('provisioning is allowed on test server B too, and only on the two servers.json ports', () => {
+test('provisioning is allowed on test server B and C too, and only on the servers.json ports', () => {
   assert.doesNotThrow(() => assertLocalProvision('http://127.0.0.1:30002', win));
   assert.doesNotThrow(() => assertLocalProvision('http://localhost:30002', win));
-  refused('http://127.0.0.1:30003');
+  assert.doesNotThrow(() => assertLocalProvision('http://127.0.0.1:30003', win));
+  refused('http://127.0.0.1:30004');
   refused('http://127.0.0.1:30002', { platform: 'linux' });
 });
 

@@ -372,7 +372,7 @@ scenario ship-campaign-launch-kit curse-of-strahd ship_module LAUNCH=strahd-kit
 scenario ship-second-launch-self frostmaiden-training ship_module WORLD=frostmaiden-training KIT_WORLD= LAUNCH=frostmaiden-training
 scenario provision-fails-campaign curse-of-strahd provision_fails_once REPLACE_WORLD=1 RERUN:REPLACE_WORLD=0 rerun
 scenario provision-fails-then-rerun frostmaiden-training provision_fails_once WORLD=frostmaiden-training KIT_WORLD= LAUNCH=curse-of-strahd EXTRA_GM_USER=Claude rerun
-scenario strahd-default curse-of-strahd - REPLACE_WORLD=1
+scenario campaign-default curse-of-strahd - REPLACE_WORLD=1
 scenario kit-names-installed curse-of-strahd training_installed KIT_WORLD=frostmaiden-training KIT_TITLE=x
 scenario kit-names-installed-replace curse-of-strahd training_installed KIT_WORLD=frostmaiden-training KIT_TITLE=x REPLACE_KIT=1
 scenario kit-copy-rerun frostmaiden-training - WORLD=frostmaiden-training KIT_WORLD=frost-kit "KIT_TITLE=Frost kit" LAUNCH=curse-of-strahd rerun

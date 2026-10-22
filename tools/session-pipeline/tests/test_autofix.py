@@ -98,11 +98,11 @@ def test_several_fixes_in_one_line_keep_positions_right():
 
 
 def test_name_tokens_are_not_blocked_even_if_they_are_ordinary_words():
-    s = NameSuggester(["Castle Ravenloft"], block_words={"castle"})
+    s = NameSuggester(["Castle Greywatch"], block_words={"castle"})
     assert "castle" not in s.block
-    assert s.fix("Castle Ravenlofd")[0] == "Castle Ravenloft"
-    t = NameSuggester(["Castle Ravenloft"], block_words={"ravenlofd"})
-    assert t.fix("Ravenlofd")[2][0].blocked == "ordinary_word"
+    assert s.fix("Castle Greywatcd")[0] == "Castle Greywatch"
+    t = NameSuggester(["Castle Greywatch"], block_words={"greywatcd"})
+    assert t.fix("Greywatcd")[2][0].blocked == "ordinary_word"
 
 
 def test_blocked_reason_is_written_to_the_suggestion_dict():

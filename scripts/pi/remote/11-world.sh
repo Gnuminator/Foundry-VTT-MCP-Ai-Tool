@@ -52,7 +52,7 @@ require_recent_snapshot
 require_arm64
 BUNDLE="${BUNDLE:-}"
 WORLD="${WORLD:-curse-of-strahd}"
-# The strahd-kit default is only for the Strahd world: any other WORLD would reset strahd-kit from its own bundle.
+# The strahd-kit default is only for the campaign world: any other WORLD would reset strahd-kit from its own bundle.
 if [ "$WORLD" = curse-of-strahd ]; then
   KIT_WORLD="${KIT_WORLD-strahd-kit}"
   KIT_TITLE="${KIT_TITLE:-Curse of Strahd (test copy for kit runs)}"

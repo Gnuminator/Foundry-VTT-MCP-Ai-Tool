@@ -32,7 +32,7 @@ def setup_session(tmp_path):
     src = tmp_path / "in"
     src.mkdir()
     dump_track(src, "S1__anna.json", "anna", [
-        mk_segment(mk_words("Vi ser Strad ved døren.", start=3725.0)),
+        mk_segment(mk_words("Vi ser Sorva ved døren.", start=3725.0)),
         mk_segment(mk_words("Thanks for watching", start=3800.0)),
     ])
     dump_track(src, "S1__bo.json", "bo", [mk_segment(mk_words("Okay, jeg er med.", start=3727.0))])
@@ -40,8 +40,8 @@ def setup_session(tmp_path):
         json.dumps({"anna": {"player": "PlayerOne", "character": "Vera"}, "bo": {"player": "PlayerTwo", "character": "Gus"}}),
         encoding="utf-8",
     )
-    (tmp_path / "vocab.txt").write_text("Strahd, Ireena\n", encoding="utf-8")
-    (tmp_path / "rules.json").write_text(json.dumps({"Strahd": ["Strad"]}), encoding="utf-8")
+    (tmp_path / "vocab.txt").write_text("Sorvan, Ilvara\n", encoding="utf-8")
+    (tmp_path / "rules.json").write_text(json.dumps({"Sorvan": ["Sorva"]}), encoding="utf-8")
     return src
 
 
@@ -55,7 +55,7 @@ def test_cli_writes_all_five_files(tmp_path, capsys):
         assert (out / name).exists(), name
     md = (out / "timeline.md").read_text(encoding="utf-8").splitlines()
     assert md == [
-        "[01:02:05] Vera [PlayerOne]: Vi ser Strahd ved døren.",
+        "[01:02:05] Vera [PlayerOne]: Vi ser Sorvan ved døren.",
         "[01:02:07] Gus [PlayerTwo]: Okay, jeg er med.",
     ]
     rows = [json.loads(x) for x in (out / "timeline.jsonl").read_text(encoding="utf-8").splitlines()]
@@ -65,7 +65,7 @@ def test_cli_writes_all_five_files(tmp_path, capsys):
     dropped = [json.loads(x) for x in (out / "dropped.jsonl").read_text(encoding="utf-8").splitlines()]
     assert [d["reason"] for d in dropped] == ["stock_caption"]
     fixes = json.loads((out / "fixes.json").read_text(encoding="utf-8"))
-    assert fixes["applied"][0]["correct"] == "Strahd"
+    assert fixes["applied"][0]["correct"] == "Sorvan"
     assert "dropped: stock_caption 1" in capsys.readouterr().out
 
 
@@ -75,10 +75,10 @@ def test_cli_no_auto_fix_only_suggests(tmp_path):
     assert main(["merge", str(src), "--out", str(out), "--vocab", str(tmp_path / "vocab.txt"),
                  "--ordinary-min-count", "0", "--no-auto-fix"]) == 0
     text = (out / "timeline.md").read_text(encoding="utf-8")
-    assert "Strad" in text and "Strahd" not in text
+    assert "Sorva" in text and "Sorvan" not in text
     fixes = json.loads((out / "fixes.json").read_text(encoding="utf-8"))
     assert fixes["applied"] == []
-    assert [(s["heard"], s["suggested"]) for s in fixes["suggestions"]] == [("Strad", "Strahd")]
+    assert [(s["heard"], s["suggested"]) for s in fixes["suggestions"]] == [("Sorva", "Sorvan")]
     assert "[01:02:05] anna [anna]:" in text  # no speakers.json: the track id stands in
 
 
@@ -98,20 +98,20 @@ def test_cli_reports_missing_files(tmp_path, capsys):
 def test_low_confidence_sidecar_is_written(tmp_path):
     src = tmp_path / "in"
     src.mkdir()
-    words = mk_words("Vi ser Strod nu.")
+    words = mk_words("Vi ser Sorvon nu.")
     words[2] = words[2].__class__(words[2].start, words[2].end, words[2].word, 0.2)
     dump_track(src, "x.json", "x", [mk_segment(words)])
     out = tmp_path / "out"
     assert main(["merge", str(src), "--out", str(out)]) == 0
     rows = [json.loads(x) for x in (out / "low_confidence.jsonl").read_text(encoding="utf-8").splitlines()]
-    assert [(r["speaker"], r["word"]) for r in rows] == [("x", "Strod")]
+    assert [(r["speaker"], r["word"]) for r in rows] == [("x", "Sorvon")]
 
 
 def test_run_pipeline_end_to_end_in_memory():
-    a = Track("a", [mk_segment(mk_words("Strad står der.", start=1.0))])
-    res = run_pipeline([a], rules=NameRules({"Strahd": ["Strad"]}))
-    assert res.entries[0].text == "Strahd står der."
-    assert res.entries[0].words[0].text == "Strad"  # words stay as heard
+    a = Track("a", [mk_segment(mk_words("Sorva står der.", start=1.0))])
+    res = run_pipeline([a], rules=NameRules({"Sorvan": ["Sorva"]}))
+    assert res.entries[0].text == "Sorvan står der."
+    assert res.entries[0].words[0].text == "Sorva"  # words stay as heard
 
 
 def test_cli_auto_fix_is_on_by_default_and_logged(tmp_path, capsys):
@@ -120,12 +120,12 @@ def test_cli_auto_fix_is_on_by_default_and_logged(tmp_path, capsys):
     assert main(["merge", str(src), "--out", str(out), "--vocab", str(tmp_path / "vocab.txt"),
                  "--speakers", str(tmp_path / "speakers.json"), "--ordinary-min-count", "0"]) == 0
     text = (out / "timeline.md").read_text(encoding="utf-8")
-    assert "Vi ser Strahd ved døren." in text
+    assert "Vi ser Sorvan ved døren." in text
     fixes = json.loads((out / "fixes.json").read_text(encoding="utf-8"))
     assert fixes["suggestions"] == []
     (fix,) = fixes["applied"]
     assert (fix["kind"], fix["before"], fix["after"], fix["speaker"], fix["time"]) == (
-        "auto", "Strad", "Strahd", "anna", "01:02:05")
+        "auto", "Sorva", "Sorvan", "anna", "01:02:05")
     assert fix["score"] >= 0.88 and fix["start"] == 3725.0
     assert fixes["summary"]["auto"] == 1
     assert "(1 automatic)" in capsys.readouterr().out
@@ -138,4 +138,4 @@ def test_cli_auto_fix_threshold_option(tmp_path):
                  "--ordinary-min-count", "0", "--auto-fix-threshold", "0.95"]) == 0
     fixes = json.loads((out / "fixes.json").read_text(encoding="utf-8"))
     assert fixes["applied"] == []
-    assert [(s["heard"], s["blocked"]) for s in fixes["suggestions"]] == [("Strad", "below_threshold")]
+    assert [(s["heard"], s["blocked"]) for s in fixes["suggestions"]] == [("Sorva", "below_threshold")]

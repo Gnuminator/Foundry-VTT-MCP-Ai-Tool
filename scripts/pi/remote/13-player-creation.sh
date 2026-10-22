@@ -48,7 +48,7 @@ RELEASE_BASE=https://github.com/Gnuminator/foundryvtt-actor-studio/releases/down
 MAX_ZIP_BYTES=209715200 # 200 MiB, far above the real module (about 7 MB unpacked)
 
 WORLD="${WORLD:-curse-of-strahd}"
-# The strahd-kit default is only for the Strahd world, as in stage 11: another WORLD would set strahd-kit's settings too.
+# The strahd-kit default is only for the campaign world, as in stage 11: another WORLD would set strahd-kit's settings too.
 if [ "$WORLD" = curse-of-strahd ]; then
   KIT_WORLD="${KIT_WORLD-strahd-kit}"
 else

@@ -108,10 +108,10 @@ const CANDIDATES = [
     uuid: 'JournalEntry.j2.JournalEntryPage.p9',
     documentName: 'JournalEntryPage',
     name: 'Cellar',
-    parentName: 'Vallaki',
+    parentName: 'Valmere',
   },
-  { uuid: 'JournalEntry.j3', documentName: 'JournalEntry', name: 'Vallaki notes' },
-  { uuid: 'Scene.s7', documentName: 'Scene', name: 'Vallaki' },
+  { uuid: 'JournalEntry.j3', documentName: 'JournalEntry', name: 'Valmere notes' },
+  { uuid: 'Scene.s7', documentName: 'Scene', name: 'Valmere' },
   { uuid: 'Actor.a7', documentName: 'Actor', name: 'Vallakovich' },
 ];
 
@@ -441,9 +441,9 @@ test('Link searches, picks in one click with Undo, and keeps an open form across
   await input.press('Enter');
   const rows = tome.locator('.tarokka-candidate');
   await expect(rows.locator('span')).toHaveText([
-    'JournalEntryPage: Cellar (Vallaki)',
-    'JournalEntry: Vallaki notes',
-    'Scene: Vallaki',
+    'JournalEntryPage: Cellar (Valmere)',
+    'JournalEntry: Valmere notes',
+    'Scene: Valmere',
     'Actor: Vallakovich',
   ]);
   expect(calls.find(c => c.name === 'suggest-tarokka-links')?.args).toEqual({

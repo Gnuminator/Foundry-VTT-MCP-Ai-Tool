@@ -11,7 +11,7 @@
 // module without SHIP_MODULES=1 while the campaign's own bundle with LAUNCH=strahd-kit does not need it, a LAUNCH world
 // that is not installed, a pi-modules module whose Pi copy is older than the PC version the bundle records), a failed provisioning followed by a plain rerun that provisions again (also for the campaign with its kit copy,
 // where every world of the run is marked), no password in the output,
-// and the old Strahd default (the kit copy reset and marked, no extra GM), the kit-copy rule (an installed
+// and the old campaign default (the kit copy reset and marked, no extra GM), the kit-copy rule (an installed
 // KIT_WORLD that is not a kit copy of WORLD is refused unless REPLACE_KIT=1; a second world's own kit copy resets twice)
 // and suffix-only module versions (-aitool.n compared as a number), and how options.json is written (by the foundry
 // user through options.json.foundry-tmp and a rename: mode and owner stay, a link at the temp name is never followed)
@@ -147,7 +147,7 @@ describe('11-world.sh in an ARM64 container', { skip: containerReason }, () => {
       'PROVISION world=frostmaiden-training gm=Gamemaster new_pw=true extra=Claude extra_pw=true assistant=Assistant GM'
     );
     assert.equal(r.world, 'curse-of-strahd', 'Foundry keeps launching the real world');
-    assert.ok(sentinel(r, 'strahd-kit'), 'the Strahd kit world must not be reset');
+    assert.ok(sentinel(r, 'strahd-kit'), 'the strahd-kit world must not be reset');
     assert.ok(sentinel(r, 'curse-of-strahd'));
     assert.deepEqual(lines(r.worlds), [
       'curse-of-strahd=curse-of-strahd (on the Pi)',
@@ -243,7 +243,7 @@ describe('11-world.sh in an ARM64 container', { skip: containerReason }, () => {
     assertRefused(run('extra-is-assistant'), /EXTRA_GM_USER must differ from the Assistant GM/);
   });
 
-  test('kit-default-refused: another world without KIT_WORLD never resets the Strahd kit world', () => {
+  test('kit-default-refused: another world without KIT_WORLD never resets the strahd-kit world', () => {
     const r = run('kit-default-refused');
     assertRefused(r, /WORLD=frostmaiden-training needs KIT_WORLD set/);
     assert.match(r.output, /Nothing was changed/);
@@ -626,8 +626,8 @@ describe('11-world.sh in an ARM64 container', { skip: containerReason }, () => {
     assert.deepEqual(stops(r), []);
   });
 
-  test('strahd-default: the old behaviour: kit copy reset, both worlds provisioned, no extra GM anywhere', () => {
-    const r = run('strahd-default');
+  test('campaign-default: the old behaviour: kit copy reset, both worlds provisioned, no extra GM anywhere', () => {
+    const r = run('campaign-default');
     assert.equal(r.exit, '0', r.output);
     assert.match(r.output, /kit world strahd-kit reset from the bundle/);
     assert.match(r.output, /world curse-of-strahd installed/);

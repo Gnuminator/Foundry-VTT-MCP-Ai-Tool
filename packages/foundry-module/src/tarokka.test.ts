@@ -310,31 +310,31 @@ describe('searchLinkCandidates', () => {
     world.journal.add(
       makeJournal({
         id: 'j1',
-        name: 'Chapter 5: Vallaki',
+        name: 'Chapter 5: Valmere',
         uuid: 'JournalEntry.j1',
         pages: [
           makeJournalPage({
             id: 'p1',
-            name: 'Vallaki Overview',
+            name: 'Valmere Overview',
             uuid: 'JournalEntry.j1.JournalEntryPage.p1',
           }),
           makeJournalPage({ id: 'p2', name: 'Other', uuid: 'JournalEntry.j1.JournalEntryPage.p2' }),
         ],
       }) as never
     );
-    world.addScene({ id: 's1', name: 'Vallaki Town', uuid: 'Scene.s1' });
-    world.addActor({ id: 'a1', name: 'Baron of Vallaki', uuid: 'Actor.a1' });
+    world.addScene({ id: 's1', name: 'Valmere Town', uuid: 'Scene.s1' });
+    world.addActor({ id: 'a1', name: 'Baron of Valmere', uuid: 'Actor.a1' });
     world.addActor({ id: 'a2', name: 'Someone Else', uuid: 'Actor.a2' });
 
-    const { candidates } = searchLinkCandidates({ query: 'vallaki' });
+    const { candidates } = searchLinkCandidates({ query: 'valmere' });
     expect(candidates.map(c => [c.documentName, c.uuid])).toEqual([
       ['JournalEntry', 'JournalEntry.j1'],
       ['JournalEntryPage', 'JournalEntry.j1.JournalEntryPage.p1'],
       ['Scene', 'Scene.s1'],
       ['Actor', 'Actor.a1'],
     ]);
-    expect(candidates[1].parentName).toBe('Chapter 5: Vallaki');
-    expect(searchLinkCandidates({ query: 'vallaki', limit: 2 }).candidates).toHaveLength(2);
+    expect(candidates[1].parentName).toBe('Chapter 5: Valmere');
+    expect(searchLinkCandidates({ query: 'valmere', limit: 2 }).candidates).toHaveLength(2);
     expect(() => searchLinkCandidates({ query: 'v' })).toThrow(/2 to 100/);
     expect(() => searchLinkCandidates(undefined)).toThrow(/2 to 100/);
   });

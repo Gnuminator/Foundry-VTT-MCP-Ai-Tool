@@ -376,7 +376,7 @@ interface ModuleRule {
 
 /**
  * The conflict list (vault `Research/Integrations.md`). Finished once the
- * Strahd world's module list exists (I-067); ids are matched first, then titles.
+ * campaign world's module list exists (I-067); ids are matched first, then titles.
  */
 export const MODULE_RULES: readonly ModuleRule[] = [
   {

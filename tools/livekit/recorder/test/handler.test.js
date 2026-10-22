@@ -9,14 +9,15 @@ function setup(envExtra = {}, egressImpl) {
   const files = new Map();
   const dirs = [];
   const fs = {
-    mkdir: vi.fn(async (p) => void dirs.push(p)),
+    mkdir: vi.fn(async p => void dirs.push(p)),
     chmod: vi.fn(async () => {}),
     appendFile: vi.fn(async (p, text) => void files.set(p, (files.get(p) ?? '') + text)),
     writeFile: vi.fn(async (p, text) => void files.set(p, text)),
   };
   const egress = {
     startTrackEgress: vi.fn(
-      egressImpl ?? (async (room, output, sid) => ({ egressId: `EG_${sid}`, status: 0, startedAt: 123n })),
+      egressImpl ??
+        (async (room, output, sid) => ({ egressId: `EG_${sid}`, status: 0, startedAt: 123n }))
     ),
   };
   const handler = createHandler({
@@ -28,18 +29,18 @@ function setup(envExtra = {}, egressImpl) {
     sleep: async () => {},
     log: { error() {}, warn() {}, info() {} },
   });
-  const lines = (file) =>
+  const lines = file =>
     (files.get(file) ?? '')
       .split('\n')
       .filter(Boolean)
-      .map((l) => JSON.parse(l));
+      .map(l => JSON.parse(l));
   return { handler, egress, fs, files, dirs, lines };
 }
 
 const audioEvent = (sid = 'TR_A1', identity = 'id1') => ({
   event: 'track_published',
   createdAt: 1762452330,
-  room: { name: 'strahd' },
+  room: { name: 'sorvan' },
   participant: { identity, name: 'Display One' },
   track: { sid, type: 0, source: 2, mimeType: 'audio/opus' },
 });
@@ -48,7 +49,7 @@ const videoEvent = (sid = 'TR_V1', source = 1) => ({
   track: { sid, type: 1, source, mimeType: 'video/VP8' },
 });
 
-const journal = '/out/strahd/2026-11-06_1805/session.jsonl';
+const journal = '/out/sorvan/2026-11-06_1805/session.jsonl';
 
 describe('track_published', () => {
   it('starts a track egress into the session folder and logs it', async () => {
@@ -56,13 +57,13 @@ describe('track_published', () => {
     const result = await handler.handleEvent(audioEvent());
     expect(result.action).toBe('started');
     expect(egress.startTrackEgress).toHaveBeenCalledWith(
-      'strahd',
-      { filepath: '/out/strahd/2026-11-06_1805/id1__microphone__TR_A1.ogg' },
-      'TR_A1',
+      'sorvan',
+      { filepath: '/out/sorvan/2026-11-06_1805/id1__microphone__TR_A1.ogg' },
+      'TR_A1'
     );
-    expect(dirs).toContain('/out/strahd/2026-11-06_1805');
+    expect(dirs).toContain('/out/sorvan/2026-11-06_1805');
     const entries = lines(journal);
-    expect(entries.map((e) => e.type)).toEqual(['session_started', 'egress_started']);
+    expect(entries.map(e => e.type)).toEqual(['session_started', 'egress_started']);
     expect(entries[1]).toMatchObject({
       label: 'Player One',
       egressId: 'EG_TR_A1',
@@ -124,9 +125,9 @@ describe('track_published', () => {
 
   it('ignores events missing the track, participant or room', async () => {
     const { handler, egress } = setup();
-    expect((await handler.handleEvent({ event: 'track_published', room: { name: 'r' } })).action).toBe(
-      'ignored',
-    );
+    expect(
+      (await handler.handleEvent({ event: 'track_published', room: { name: 'r' } })).action
+    ).toBe('ignored');
     expect(egress.startTrackEgress).not.toHaveBeenCalled();
   });
 
@@ -134,8 +135,8 @@ describe('track_published', () => {
     const { handler, egress } = setup();
     await handler.handleEvent(audioEvent('TR_A1', 'id1'));
     await handler.handleEvent(audioEvent('TR_A2', 'id2'));
-    const paths = egress.startTrackEgress.mock.calls.map((c) => c[1].filepath);
-    expect(new Set(paths.map((p) => p.split('/').slice(0, -1).join('/'))).size).toBe(1);
+    const paths = egress.startTrackEgress.mock.calls.map(c => c[1].filepath);
+    expect(new Set(paths.map(p => p.split('/').slice(0, -1).join('/'))).size).toBe(1);
   });
 });
 
@@ -143,10 +144,10 @@ describe('room_finished', () => {
   it('writes done.json and starts a new folder afterwards', async () => {
     const { handler, files, lines } = setup();
     await handler.handleEvent(audioEvent());
-    const result = await handler.handleEvent({ event: 'room_finished', room: { name: 'strahd' } });
+    const result = await handler.handleEvent({ event: 'room_finished', room: { name: 'sorvan' } });
     expect(result.action).toBe('done');
-    const done = JSON.parse(files.get('/out/strahd/2026-11-06_1805/done.json'));
-    expect(done.room).toBe('strahd');
+    const done = JSON.parse(files.get('/out/sorvan/2026-11-06_1805/done.json'));
+    expect(done.room).toBe('sorvan');
     expect(done.participants.id1.label).toBe('Player One');
     expect(done.tracks).toHaveLength(1);
     expect(lines(journal).at(-1).type).toBe('room_finished');
@@ -155,9 +156,9 @@ describe('room_finished', () => {
 
   it('ignores a finished room that was never recorded', async () => {
     const { handler, fs } = setup();
-    expect((await handler.handleEvent({ event: 'room_finished', room: { name: 'x' } })).action).toBe(
-      'ignored',
-    );
+    expect(
+      (await handler.handleEvent({ event: 'room_finished', room: { name: 'x' } })).action
+    ).toBe('ignored');
     expect(fs.writeFile).not.toHaveBeenCalled();
   });
 });
@@ -166,13 +167,13 @@ describe('egress_ended', () => {
   it('logs file results and the error of a failed egress', async () => {
     const { handler, fs, lines } = setup();
     await handler.handleEvent(audioEvent());
-    expect(fs.chmod).toHaveBeenCalledWith('/out/strahd/2026-11-06_1805', 0o777);
-    expect(fs.chmod).toHaveBeenCalledWith('/out/strahd', 0o777);
+    expect(fs.chmod).toHaveBeenCalledWith('/out/sorvan/2026-11-06_1805', 0o777);
+    expect(fs.chmod).toHaveBeenCalledWith('/out/sorvan', 0o777);
     const ok = await handler.handleEvent({
       event: 'egress_ended',
       egressInfo: {
         egressId: 'EG_TR_A1',
-        roomName: 'strahd',
+        roomName: 'sorvan',
         status: 3,
         fileResults: [{ filename: 'a.ogg', size: 1000n, duration: 20000000000n }],
       },
@@ -180,10 +181,10 @@ describe('egress_ended', () => {
     expect(ok.action).toBe('egress_ended');
     const bad = await handler.handleEvent({
       event: 'egress_ended',
-      egressInfo: { egressId: 'EG_X', roomName: 'strahd', status: 4, error: 'permission denied' },
+      egressInfo: { egressId: 'EG_X', roomName: 'sorvan', status: 4, error: 'permission denied' },
     });
     expect(bad.action).toBe('egress_error');
-    const entries = lines(journal).filter((e) => e.type === 'egress_ended');
+    const entries = lines(journal).filter(e => e.type === 'egress_ended');
     expect(entries[0].files[0]).toMatchObject({ size: 1000, durationNs: '20000000000' });
     expect(entries[1].error).toBe('permission denied');
   });
@@ -194,17 +195,17 @@ describe('other events', () => {
     const { handler, lines } = setup();
     await handler.handleEvent({
       event: 'participant_joined',
-      room: { name: 'strahd' },
+      room: { name: 'sorvan' },
       participant: { identity: 'id1' },
     });
     await handler.handleEvent({
       event: 'participant_joined',
-      room: { name: 'strahd' },
+      room: { name: 'sorvan' },
       participant: { identity: 'EG_abc' },
     });
-    await handler.handleEvent({ event: 'egress_updated', room: { name: 'strahd' } });
+    await handler.handleEvent({ event: 'egress_updated', room: { name: 'sorvan' } });
     const entries = lines(journal);
-    expect(entries.map((e) => e.type)).toEqual(['session_started', 'participant_joined']);
+    expect(entries.map(e => e.type)).toEqual(['session_started', 'participant_joined']);
   });
 });
 

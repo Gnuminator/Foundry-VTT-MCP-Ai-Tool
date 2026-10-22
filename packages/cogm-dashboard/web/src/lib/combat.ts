@@ -309,7 +309,7 @@ export function toggleReaction(state: Reactions, round: number, id: string): Rea
   return { round, used };
 }
 
-/** The R button's name: "Reaction used: Strahd" or "Reaction ready: Strahd". */
+/** The R button's name: "Reaction used: Sorvan" or "Reaction ready: Sorvan". */
 export function reactionLabel(name: string, used: boolean): string {
   return `${used ? 'Reaction used' : 'Reaction ready'}: ${name}`;
 }

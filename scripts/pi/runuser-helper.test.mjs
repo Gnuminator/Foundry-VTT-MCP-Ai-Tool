@@ -89,12 +89,12 @@ describe('foundry_edit_json', () => {
   test('several arguments and a nested edit (the kit world.json)', () => {
     const o = options('{"id":"x","title":"X","flags":{"other":{"k":1}}}');
     const r = sh(
-      `foundry_edit_json "${o.p}" 'o.id = a[0]; o.title = a[1]; o.flags = o.flags || {}; o.flags["foundry-ai-tool"] = Object.assign({}, o.flags["foundry-ai-tool"], { kitOf: a[2] })' "strahd-kit" "Strahd (kit)" "curse-of-strahd"`
+      `foundry_edit_json "${o.p}" 'o.id = a[0]; o.title = a[1]; o.flags = o.flags || {}; o.flags["foundry-ai-tool"] = Object.assign({}, o.flags["foundry-ai-tool"], { kitOf: a[2] })' "strahd-kit" "Sorvan (kit)" "curse-of-strahd"`
     );
     assert.equal(r.status, 0, r.out);
     assert.deepEqual(JSON.parse(readFileSync(o.f, 'utf8')), {
       id: 'strahd-kit',
-      title: 'Strahd (kit)',
+      title: 'Sorvan (kit)',
       flags: { other: { k: 1 }, 'foundry-ai-tool': { kitOf: 'curse-of-strahd' } },
     });
   });

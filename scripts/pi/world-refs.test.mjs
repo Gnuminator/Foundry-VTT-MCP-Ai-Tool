@@ -351,8 +351,8 @@ test('summarize with allowMissing: matching paths are no problem anywhere, only 
   const paths = new Set([
     'ddb-images/other/monster/gone.webp',
     'ddb-images/other/monster/here.webp',
-    'ddb-images/adventures/Strahd/assets/gone.png',
-    'ddb-images/adventures/Strahd/assets/case.png',
+    'ddb-images/adventures/Sorvan/assets/gone.png',
+    'ddb-images/adventures/Sorvan/assets/case.png',
     'modules/JB2A_DnD5e/a.webm',
     'modules/aitool-content/miss.png',
     'assets/cos1302.jpg',
@@ -372,7 +372,7 @@ test('summarize with allowMissing: matching paths are no problem anywhere, only 
     ...base,
     allowMissing: [
       'ddb-images/other/monster/*',
-      'ddb-images/adventures/Strahd/assets/*',
+      'ddb-images/adventures/Sorvan/assets/*',
       'modules/JB2A_DnD5e/a.webm',
       'modules/aitool-content/miss.png',
       'assets/cos1302.jpg',
@@ -382,7 +382,7 @@ test('summarize with allowMissing: matching paths are no problem anywhere, only 
   // here.webp exists, so it is not "allowed missing"; icons are core and never checked
   assert.deepEqual(s.allowedMissing, [
     'assets/cos1302.jpg',
-    'ddb-images/adventures/Strahd/assets/gone.png',
+    'ddb-images/adventures/Sorvan/assets/gone.png',
     'ddb-images/other/monster/gone.webp',
     'modules/JB2A_DnD5e/a.webm',
     'modules/aitool-content/miss.png',
@@ -390,13 +390,13 @@ test('summarize with allowMissing: matching paths are no problem anywhere, only 
   assert.deepEqual(s.problems.missing, []);
   // a wrong-case path stays a problem even when the list matches it (a rename fixes it)
   assert.deepEqual(s.problems.caseMismatch, [
-    'case differs: ddb-images/adventures/Strahd/assets/case.png vs x',
+    'case differs: ddb-images/adventures/Sorvan/assets/case.png vs x',
   ]);
   assert.deepEqual([...s.problems.foreignModules], []);
   assert.deepEqual(s.problems.other, ['weird/b.png']);
   assert.deepEqual(s.problems.otherPresent, []);
   // an allowed missing path leaves no folder to copy; files that exist (or need a rename) still do
-  assert.deepEqual(s.folders, ['ddb-images/adventures/Strahd', 'ddb-images/other/monster']);
+  assert.deepEqual(s.folders, ['ddb-images/adventures/Sorvan', 'ddb-images/other/monster']);
   // an exact entry matches only that path
   const one = summarize(new Set(['a/b.png', 'a/b.png.bak.png']), {
     ...base,
@@ -619,12 +619,12 @@ test(
         _stats: { createdTime: created, modifiedTime: modified },
       });
       await put(path.join(dir, 'world', 'data', 'actors'), [
-        ['!actors!a1', { _id: 'a1', name: 'Old Ireena', ...stats(since - 9e6, since - 1e6) }],
+        ['!actors!a1', { _id: 'a1', name: 'Old Ilvara', ...stats(since - 9e6, since - 1e6) }],
         [
           '!actors!a2',
           {
             _id: 'a2',
-            name: 'Changed Ismark',
+            name: 'Changed Ivarro',
             secret: 'SECRET-HP',
             ...stats(since - 9e6, since + 2000),
           },
@@ -668,10 +668,10 @@ test(
       assert.deepEqual(lines.slice(1), [
         `pack:lore/journal Pack page?with a newline ${new Date(since + 9000).toISOString()}`,
         `actors.items New dagger ${new Date(since + 5000).toISOString()}`,
-        `actors Changed Ismark ${new Date(since + 2000).toISOString()}`,
+        `actors Changed Ivarro ${new Date(since + 2000).toISOString()}`,
         `settings core.time ${new Date(since + 1).toISOString()}`,
       ]);
-      assert.ok(!r.stdout.includes('SECRET-HP') && !r.stdout.includes('Old Ireena'));
+      assert.ok(!r.stdout.includes('SECRET-HP') && !r.stdout.includes('Old Ilvara'));
 
       const later = run('2026-10-09T02:30:09.000Z');
       assert.equal(later.status, 0, later.stderr);
@@ -692,7 +692,7 @@ test(
         ],
       ]);
       await put(path.join(dir, 'bundle', 'data', 'actors'), [
-        ['!actors!a2', { _id: 'a2', name: 'Changed Ismark', ...stats(since - 9e6, since + 2000) }],
+        ['!actors!a2', { _id: 'a2', name: 'Changed Ivarro', ...stats(since - 9e6, since + 2000) }],
         // same key, other time: the Pi's copy changed again after the push-back
         [
           '!actors.items!a1.i1',

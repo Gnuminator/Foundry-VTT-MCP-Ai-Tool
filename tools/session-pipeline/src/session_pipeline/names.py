@@ -1,7 +1,7 @@
 """Deterministic name fixing.
 
 * Rules ``correct: [wrong, ...]`` are applied whole-word, case-insensitively, keeping the case style
-  of what was heard ("strad" -> "strahd", "Strad" -> "Strahd", "STRAD" -> "STRAHD"). A rule never
+  of what was heard ("sorva" -> "sorvan", "Sorva" -> "Sorvan", "SORVA" -> "SORVAN"). A rule never
   touches a longer word: "Dag" does not change "Dagstorp".
 * A near-name suggester compares words that are not ordinary words with a known-name list
   (difflib ratio). ``suggest`` only reports; ``fix`` also applies the confident hits (auto-fix, see
@@ -30,7 +30,7 @@ class Fix:
     wrong: str  # the rule's wrong spelling (lower case)
     correct: str
     count: int = 1
-    heard: str = ""  # the text as it was found, e.g. "Strad"
+    heard: str = ""  # the text as it was found, e.g. "Sorva"
 
     def to_dict(self) -> dict[str, Any]:
         d: dict[str, Any] = {"wrong": self.wrong, "correct": self.correct, "count": self.count}
@@ -117,7 +117,7 @@ class NameRules:
 
 
 def parse_rules(data: Mapping[str, Any]) -> NameRules:
-    """Rules from a decoded JSON object ``{"Strahd": ["Strad", "Strod"], ...}``."""
+    """Rules from a decoded JSON object ``{"Sorvan": ["Sorva", "Sorvon"], ...}``."""
     clean: dict[str, list[str]] = {}
     for correct, wrongs in data.items():
         if not isinstance(correct, str) or not isinstance(wrongs, list):
@@ -136,11 +136,11 @@ class NameSuggester:
     other known name scores almost as well (ambiguity). Every other hit stays a suggestion.
 
     Glued names: the recogniser sometimes writes a name and its neighbouring word as one word
-    ("stratser" for "Strahd ser"). A word that is neither a name nor an ordinary word is split
+    ("sorfser" for "Sorvan ser"). A word that is neither a name nor an ordinary word is split
     into a name part and an ordinary word (either order). It is fixed automatically only when
     the name part is a known name or a rule's wrong spelling exactly (``aliases``) and the other
-    part is not a Danish ending or prefix that would turn a real word apart ("Barovianer" is not
-    "Barovia ner"); every other glued hit stays a suggestion.
+    part is not a Danish ending or prefix that would turn a real word apart ("Maravianer" is not
+    "Maravia ner"); every other glued hit stays a suggestion.
     """
 
     # Short words a name is often glued to. The shipped lists only hold words of 4 letters or
@@ -337,7 +337,7 @@ class NameSuggester:
                 hit = self._best(low)
                 glued = self._glued(window[0][0], window[0][2], window[0][3]) if n == 1 else None
                 # A split with an exact name beats a fuzzy match of the whole word, which would
-                # swallow the neighbour ("ogvallaki" is close to "Vallaki", but it is "og Vallaki").
+                # swallow the neighbour ("ogvalmere" is close to "Valmere", but it is "og Valmere").
                 if glued is not None and (hit is None or glued.score >= 1.0):
                     if every or not any(o.heard == glued.heard for o in out):
                         out.append(glued)

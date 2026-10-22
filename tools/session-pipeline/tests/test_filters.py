@@ -2,7 +2,7 @@ from factory import mk_segment, mk_track, mk_words, say
 
 from session_pipeline.filters import FilterConfig, filter_track, parse_vocab
 
-VOCAB = ["Strahd", "Ireena", "Castle Ravenloft", "Barovia", "Vasili"]
+VOCAB = ["Sorvan", "Ilvara", "Castle Greywatch", "Maravia", "Vasili"]
 
 
 def run(track, vocab=(), cfg=None):
@@ -103,33 +103,33 @@ def test_identical_segments_twice_are_kept():
 
 
 def test_recited_vocabulary_list_is_dropped():
-    r = run(say("a", "Strahd, Ireena, Castle Ravenloft, Barovia."), VOCAB)
+    r = run(say("a", "Sorvan, Ilvara, Castle Greywatch, Maravia."), VOCAB)
     assert reasons(r) == ["recited_vocab"]
 
 
 def test_vocabulary_list_with_glue_word_is_dropped():
-    r = run(say("a", "Strahd Ireena og Vasili"), VOCAB)
+    r = run(say("a", "Sorvan Ilvara og Vasili"), VOCAB)
     assert reasons(r) == ["recited_vocab"]
 
 
 def test_single_name_and_normal_sentence_with_names_are_kept():
-    assert run(say("a", "Strahd."), VOCAB).dropped == []
-    assert run(say("a", "Vi skal møde Strahd og Ireena i morgen."), VOCAB).dropped == []
-    assert run(say("a", "Strahd Ireena"), VOCAB).dropped == []  # two terms is speech
+    assert run(say("a", "Sorvan."), VOCAB).dropped == []
+    assert run(say("a", "Vi skal møde Sorvan og Ilvara i morgen."), VOCAB).dropped == []
+    assert run(say("a", "Sorvan Ilvara"), VOCAB).dropped == []  # two terms is speech
 
 
 def test_one_name_repeated_four_times_is_dropped():
-    r = run(say("a", "Strahd Strahd Strahd Strahd"), VOCAB)
+    r = run(say("a", "Sorvan Sorvan Sorvan Sorvan"), VOCAB)
     assert reasons(r) == ["recited_vocab"]
 
 
 def test_name_repeated_inside_a_mostly_name_segment_is_dropped():
-    r = run(say("a", "Ireena Ireena Ireena Ireena hvad"), VOCAB)
+    r = run(say("a", "Ilvara Ilvara Ilvara Ilvara hvad"), VOCAB)
     assert reasons(r) == ["recited_vocab"]
 
 
 def test_no_vocabulary_means_no_recitation_rule():
-    assert run(say("a", "Strahd, Ireena, Barovia, Vasili")).dropped == []
+    assert run(say("a", "Sorvan, Ilvara, Maravia, Vasili")).dropped == []
 
 
 def test_short_segment_is_dropped():
@@ -152,11 +152,11 @@ def test_short_words_are_kept_by_default_because_real_speech_has_many():
 
 
 def test_low_confidence_words_go_to_the_sidecar_and_stay_in_the_text():
-    words = mk_words("Vi møder Strod nu")
+    words = mk_words("Vi møder Sorvon nu")
     words[2] = words[2].__class__(words[2].start, words[2].end, words[2].word, 0.3)
     r = run(mk_track("a", mk_segment(words)))
-    assert texts(r) == ["Vi møder Strod nu"]
-    assert [(w.word.strip(), w.speaker) for w in r.low_confidence] == [("Strod", "a")]
+    assert texts(r) == ["Vi møder Sorvon nu"]
+    assert [(w.word.strip(), w.speaker) for w in r.low_confidence] == [("Sorvon", "a")]
     assert r.low_confidence[0].start == words[2].start
 
 
@@ -172,5 +172,5 @@ def test_dropped_record_keeps_text_and_time():
 
 
 def test_parse_vocab_handles_commas_lines_headings_and_comments():
-    text = "# comment\n=== NPCs ===\nStrahd, Ireena\nCastle Ravenloft\n\nStrahd\n"
-    assert parse_vocab(text) == ["Strahd", "Ireena", "Castle Ravenloft"]
+    text = "# comment\n=== NPCs ===\nSorvan, Ilvara\nCastle Greywatch\n\nSorvan\n"
+    assert parse_vocab(text) == ["Sorvan", "Ilvara", "Castle Greywatch"]

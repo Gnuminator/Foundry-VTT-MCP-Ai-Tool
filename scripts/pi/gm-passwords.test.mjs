@@ -177,37 +177,37 @@ const tmpEntries = () => {
 describe('gm_password_check', { skip: noBash }, () => {
   test('a GM and an Assistant GM with real passwords pass', () => {
     const env = makeRoot();
-    addWorld(env, 'strahd', [
+    addWorld(env, 'sorvan', [
       user('Gamemaster', 4, 'hunter2'),
       user('Helper', 3, 'swordfish'),
       user('Anna', 1, ''),
     ]);
     const r = runCheck(env);
     assert.equal(r.rc, 0, r.out + r.err);
-    assert.match(r.out, /ok: strahd:/);
+    assert.match(r.out, /ok: sorvan:/);
     assert.doesNotMatch(r.out, /FOUND/);
   });
 
   test('a Gamemaster with the empty password is found', () => {
     const env = makeRoot();
-    addWorld(env, 'strahd', [user('Chris', 4, '')]);
+    addWorld(env, 'sorvan', [user('Chris', 4, '')]);
     const r = runCheck(env);
     assert.equal(r.rc, 3, r.out + r.err);
-    assert.match(r.out, /FOUND: strahd: Gamemaster "Chris" has no password/);
+    assert.match(r.out, /FOUND: sorvan: Gamemaster "Chris" has no password/);
   });
 
   test('an Assistant GM with the empty password is found', () => {
     const env = makeRoot();
-    addWorld(env, 'strahd', [user('Chris', 4, 'pw'), user('Sidekick', 3, '')]);
+    addWorld(env, 'sorvan', [user('Chris', 4, 'pw'), user('Sidekick', 3, '')]);
     const r = runCheck(env);
     assert.equal(r.rc, 3, r.out + r.err);
-    assert.match(r.out, /FOUND: strahd: Assistant GM "Sidekick" has no password/);
+    assert.match(r.out, /FOUND: sorvan: Assistant GM "Sidekick" has no password/);
     assert.doesNotMatch(r.out, /Gamemaster "Chris"/);
   });
 
   test('a player with the empty password is ignored', () => {
     const env = makeRoot();
-    addWorld(env, 'strahd', [user('Chris', 4, 'pw'), user('Anna', 1, '')]);
+    addWorld(env, 'sorvan', [user('Chris', 4, 'pw'), user('Anna', 1, '')]);
     const r = runCheck(env);
     assert.equal(r.rc, 0, r.out + r.err);
     assert.doesNotMatch(r.out, /FOUND/);
@@ -310,7 +310,7 @@ describe('gm_password_check', { skip: noBash }, () => {
       user('Anna', 1, 'pw3'),
       user('Empty', 3, ''),
     ];
-    addWorld(env, 'strahd', users);
+    addWorld(env, 'sorvan', users);
     const r = runCheck(env);
     assert.equal(r.rc, 3, r.out + r.err);
     const all = r.out + r.err;
@@ -323,7 +323,7 @@ describe('gm_password_check', { skip: noBash }, () => {
   test('the /tmp work folder is removed afterwards', () => {
     const before = tmpEntries();
     const env = makeRoot();
-    addWorld(env, 'strahd', [user('Chris', 4, 'pw')]);
+    addWorld(env, 'sorvan', [user('Chris', 4, 'pw')]);
     addWorld(env, 'broken', [], { raw: [['k', 'nope']] });
     runCheck(env);
     const added = [...tmpEntries()].filter(p => !before.has(p));
@@ -332,7 +332,7 @@ describe('gm_password_check', { skip: noBash }, () => {
 
   test('a missing classic-level returns 1', () => {
     const env = makeRoot({ withLevel: false });
-    addWorld(env, 'strahd', [user('Chris', 4, 'pw')]);
+    addWorld(env, 'sorvan', [user('Chris', 4, 'pw')]);
     const r = runCheck(env);
     assert.equal(r.rc, 1, r.out + r.err);
     assert.match(r.err, /classic-level is missing/);
@@ -409,14 +409,14 @@ describe('admin_password_set', { skip: noBash }, () => {
 describe('gm-passwords.sh', { skip: noBash }, () => {
   test('exits 3 on a found world and 0 on a clean one', () => {
     const bad = makeRoot();
-    addWorld(bad, 'strahd', [user('Chris', 4, '')]);
+    addWorld(bad, 'sorvan', [user('Chris', 4, '')]);
     const a = runPiped(bad, override(), wrapper);
     assert.equal(a.status, 3, a.stdout + a.stderr);
-    assert.match(a.stdout, /FOUND: strahd: Gamemaster "Chris" has no password/);
+    assert.match(a.stdout, /FOUND: sorvan: Gamemaster "Chris" has no password/);
     assert.match(a.stdout, /found: set a password/);
 
     const good = makeRoot();
-    addWorld(good, 'strahd', [user('Chris', 4, 'pw')]);
+    addWorld(good, 'sorvan', [user('Chris', 4, 'pw')]);
     const b = runPiped(good, override(), wrapper);
     assert.equal(b.status, 0, b.stdout + b.stderr);
     assert.match(b.stdout, /none: every world's Gamemaster/);
@@ -425,16 +425,16 @@ describe('gm-passwords.sh', { skip: noBash }, () => {
 
   test('clean worlds but no administrator password: exit 3 and a FOUND line', () => {
     const env = makeRoot({ withAdmin: false });
-    addWorld(env, 'strahd', [user('Chris', 4, 'pw')]);
+    addWorld(env, 'sorvan', [user('Chris', 4, 'pw')]);
     const r = runPiped(env, override(), wrapper);
     assert.equal(r.status, 3, r.stdout + r.stderr);
     assert.match(r.stdout, /FOUND: no administrator password/);
-    assert.match(r.stdout, /ok: strahd:/);
+    assert.match(r.stdout, /ok: sorvan:/);
   });
 
   test('clean worlds and an administrator password: exit 0', () => {
     const env = makeRoot();
-    addWorld(env, 'strahd', [user('Chris', 4, 'pw')]);
+    addWorld(env, 'sorvan', [user('Chris', 4, 'pw')]);
     const r = runPiped(env, override(), wrapper);
     assert.equal(r.status, 0, r.stdout + r.stderr);
     assert.doesNotMatch(r.stdout, /FOUND/);
@@ -462,7 +462,7 @@ describe('12-tunnel.sh', { skip: noBash }, () => {
 
   test('refuses while a world has a GM with no password', () => {
     const env = makeRoot();
-    addWorld(env, 'strahd', [user('Chris', 4, '')]);
+    addWorld(env, 'sorvan', [user('Chris', 4, '')]);
     const r = runPiped(env, override(stubs), stage12);
     assert.notEqual(r.status, 0, r.stdout + r.stderr);
     assert.match(r.stderr, /no password/);
@@ -472,13 +472,13 @@ describe('12-tunnel.sh', { skip: noBash }, () => {
 
   test('refuses without an administrator password, even on clean worlds, before the GM check', () => {
     const env = makeRoot({ withAdmin: false });
-    addWorld(env, 'strahd', [user('Chris', 4, 'pw')]);
+    addWorld(env, 'sorvan', [user('Chris', 4, 'pw')]);
     const r = runPiped(env, override(stubs), stage12);
     assert.notEqual(r.status, 0, r.stdout + r.stderr);
     assert.match(r.stderr, /no administrator password/);
     assert.match(r.stderr, /Nothing was changed/);
     assert.doesNotMatch(r.stdout, /APT-CALLED/);
-    assert.doesNotMatch(r.stdout, /ok: strahd:/, 'the GM check ran before the admin check');
+    assert.doesNotMatch(r.stdout, /ok: sorvan:/, 'the GM check ran before the admin check');
   });
 
   test('refuses when a world cannot be read', () => {
@@ -492,7 +492,7 @@ describe('12-tunnel.sh', { skip: noBash }, () => {
 
   test('passes the GM check on a clean world and goes on to the install step', () => {
     const env = makeRoot();
-    addWorld(env, 'strahd', [user('Chris', 4, 'pw')]);
+    addWorld(env, 'sorvan', [user('Chris', 4, 'pw')]);
     const r = runPiped(env, override(stubs), stage12);
     assert.equal(r.status, 0, r.stdout + r.stderr);
     assert.match(r.stdout, /every world's Gamemaster and Assistant GM users have a password/);
@@ -513,11 +513,11 @@ describe('gm_passwords_notice (the closing step of stages 11 and 13)', { skip: n
 
   test('clean: ok lines, no warning, the traps are cleared and the script goes on', () => {
     const env = makeRoot();
-    addWorld(env, 'strahd', [user('Chris', 4, 'pw')]);
+    addWorld(env, 'sorvan', [user('Chris', 4, 'pw')]);
     const r = runNotice(env);
     assert.equal(r.status, 0, r.stdout + r.stderr);
     assert.match(r.stdout, /ok: Foundry has an administrator password/);
-    assert.match(r.stdout, /ok: strahd:/);
+    assert.match(r.stdout, /ok: sorvan:/);
     assert.match(r.stdout, /ok: every world's Gamemaster and Assistant GM users have a password/);
     assert.doesNotMatch(r.stdout + r.stderr, /WARNING|FOUND/);
     assert.match(r.stdout, /traps=\[\]/);
@@ -526,12 +526,12 @@ describe('gm_passwords_notice (the closing step of stages 11 and 13)', { skip: n
 
   test('no administrator password and a GM without one: warnings only, still exit 0', () => {
     const env = makeRoot({ withAdmin: false });
-    addWorld(env, 'strahd', [user('Chris', 4, '')]);
+    addWorld(env, 'sorvan', [user('Chris', 4, '')]);
     const r = runNotice(env);
     assert.equal(r.status, 0, r.stdout + r.stderr);
     assert.match(r.stderr, /WARNING: Foundry has no administrator password/);
     assert.match(r.stderr, /Configure gear \(Application Configuration\)/);
-    assert.match(r.stdout, /FOUND: strahd: Gamemaster "Chris" has no password/);
+    assert.match(r.stdout, /FOUND: sorvan: Gamemaster "Chris" has no password/);
     assert.match(r.stderr, /WARNING: a Gamemaster or Assistant GM user has no password/);
     assert.match(r.stdout, /AFTER/);
   });

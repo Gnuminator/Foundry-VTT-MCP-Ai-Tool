@@ -242,7 +242,12 @@ function hitDiceBlock(s) {
   const left = `${s.hitDice.value} of ${s.hitDice.max} left at print`;
   if (classes.length <= 1) {
     const die = classes[0]?.hitDie ? ` ${classes[0].hitDie}` : '';
-    return `<div class="wi-row"><span class="wi-name">${esc(classes[0]?.name || 'Hit dice')}${esc(die)}</span><span class="sqs">${squares(s.hitDice.max, spent)}</span><span class="wi-print">${left}</span></div>`;
+    return countRow(
+      `${classes[0]?.name || 'Hit dice'}${die}`,
+      s.hitDice.value,
+      s.hitDice.max,
+      spent > 0 ? `${spent} spent at print` : ''
+    );
   }
   // The sheet knows the total spent, not which class spent it: the boxes start empty.
   return `${classes
@@ -254,7 +259,8 @@ function hitDiceBlock(s) {
 }
 
 function resourceRows(s) {
-  return [...s.features, ...s.inventory.filter(i => i.uses?.recovery)]
+  // Every item with charges, not only those that recharge: the paper sync reads back item uses.
+  return [...s.features, ...s.inventory]
     .filter(f => f.uses && f.uses.max > 0)
     .map(f => countRow(f.name, f.uses.value, f.uses.max, f.uses.recovery || ''))
     .join('');
@@ -264,7 +270,7 @@ function coinRow(s) {
   return `<div class="coins">${['cp', 'sp', 'ep', 'gp', 'pp']
     .map(
       k =>
-        `<div class="box"><div class="k">${k.toUpperCase()} at print ${s.currency[k] ?? 0}</div><div class="v">${blank('wi-big')}</div></div>`
+        `<div class="box"><div class="k">${k.toUpperCase()} at print ${esc(s.currency[k] ?? 0)}</div><div class="v">${blank('wi-big')}</div></div>`
     )
     .join('')}</div>`;
 }
@@ -277,7 +283,7 @@ function inventoryTable(s) {
   const rows = s.inventory
     .map(
       i =>
-        `<tr><td>${esc(i.name)}${i.equipped ? ' <small>(equipped)</small>' : ''}${i.attuned ? ' <small>(attuned)</small>' : ''}</td><td class="num">${i.quantity}</td><td>${blank('wi-qty')}</td></tr>`
+        `<tr><td>${esc(i.name)}${i.equipped ? ' <small>(equipped)</small>' : ''}${i.attuned ? ' <small>(attuned)</small>' : ''}</td><td class="num">${esc(i.quantity)}</td><td>${blank('wi-qty')}</td></tr>`
     )
     .join('');
   return `<table class="inv"><thead><tr><th>Item</th><th class="num">At print</th><th>Now</th></tr></thead><tbody>${rows}${blanks}</tbody></table>`;

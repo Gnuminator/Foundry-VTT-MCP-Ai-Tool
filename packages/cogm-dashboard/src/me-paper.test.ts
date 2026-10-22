@@ -111,7 +111,8 @@ describe('renderPaperNight', () => {
     // 2 of 5 hit dice spent, the one Second Wind use, exhaustion 1.
     expect(count(html, '<i class="sq used">×</i>')).toBe(2 + 1 + 1);
     expect(html).toContain('had it at print');
-    expect(html).toContain('3 of 5 left at print');
+    expect(html).toContain('3/5 at print');
+    expect(html).toContain('2 spent at print');
     expect(html).toContain('Second Wind');
     expect(html).toContain('0/1 at print');
   });
@@ -183,6 +184,29 @@ describe('renderPaperNight', () => {
     expect(html).toContain('Rope (50 ft)');
     expect(count(html, '<tr class="free">')).toBe(6);
     expect(count(html, 'wi-qty')).toBe(1 + 6);
+  });
+
+  it('lists an item with charges that never recharge, and writes a number in for 20 hit dice', () => {
+    const base = sheet();
+    const html = renderPaperNight(
+      sheet({
+        classes: [{ name: 'Fighter', levels: 20, subclass: null, hitDie: 'd10' }],
+        hitDice: { value: 12, max: 20 },
+        inventory: [
+          {
+            ...base.inventory[0],
+            id: 'i2',
+            name: 'Wand of Magic Missiles',
+            uses: { value: 5, max: 7, recovery: null },
+          },
+        ],
+      })
+    );
+    expect(html).toContain('Wand of Magic Missiles');
+    expect(html).toContain('5/7 at print');
+    expect(html).toContain('Fighter d10');
+    expect(html).toContain('12/20 at print');
+    expect(html).toContain('of 20');
   });
 
   it('has a write-in box for each of the five coins', () => {

@@ -27,6 +27,7 @@ function readToken() {
 const token = readToken();
 const left = new Set();
 let sheets = [];
+let unreadable = [];
 
 function render() {
   const printedAt = new Date().toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
@@ -38,7 +39,9 @@ function render() {
     )
     .join('');
   const shown = sheets.filter(s => !left.has(s.id));
-  $('party-sub').textContent = `${shown.length} of ${sheets.length} sheets, two pages each`;
+  $('party-sub').textContent =
+    `${shown.length} of ${sheets.length} sheets, two pages each` +
+    (unreadable.length ? `; could not read ${unreadable.join(', ')}` : '');
   $('party-main').innerHTML = shown.length
     ? `<div class="party">${shown.map(s => renderPaperNight(s, printedAt)).join('')}</div>`
     : '<p class="me-empty">No sheets to print.</p>';
@@ -58,11 +61,8 @@ async function load() {
       );
     }
     sheets = body.sheets || [];
-    const unread = body.unreadable || [];
+    unreadable = body.unreadable || [];
     render();
-    if (unread.length) {
-      $('party-sub').textContent += `; could not read ${unread.join(', ')}`;
-    }
   } catch (err) {
     $('party-main').innerHTML = `<p class="me-empty">${esc(String(err.message || err))}</p>`;
     $('party-sub').textContent = '';
@@ -77,5 +77,8 @@ document.addEventListener('click', e => {
   else left.add(id);
   render();
 });
-$('party-print').addEventListener('click', () => window.print());
+// Fresh values and print time: read again just before the print dialog opens.
+$('party-print').addEventListener('click', () => {
+  void load().then(() => window.print());
+});
 void load();

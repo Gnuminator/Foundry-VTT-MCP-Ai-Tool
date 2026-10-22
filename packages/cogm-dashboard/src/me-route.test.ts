@@ -7,7 +7,7 @@ import type { AddressInfo } from 'net';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { createDashboard, type Dashboard } from './app.js';
+import { createDashboard, PLAYER_CSP, type Dashboard } from './app.js';
 import { config, type Config } from './config.js';
 import { Logger } from './logger.js';
 
@@ -183,6 +183,16 @@ describe('/api/me and the player links', () => {
     const key = keyOf(await makeLink(base, PLAYER));
     const withKey = await fetch(`${base}/api/party-sheets`, { headers: { 'X-CoGM-Me': key } });
     expect(withKey.status).toBe(401);
+  });
+
+  it('serves the party print page under the strict page CSP, with no inline script', async () => {
+    const { base } = await start();
+    const res = await fetch(`${base}/party-print.html`);
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-security-policy')).toBe(PLAYER_CSP);
+    const html = await res.text();
+    expect(html).not.toMatch(/<script(?![^>]*\ssrc=)/i);
+    expect(html).not.toMatch(/\son\w+\s*=/i);
   });
 
   it('a player whose sheet cannot be read is named, the others still print', async () => {

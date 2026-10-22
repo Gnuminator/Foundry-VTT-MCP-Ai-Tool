@@ -434,7 +434,7 @@ assembly and the shared rules), one file per prompt, and `index.ts` (`PROMPTS`, 
 The seven prompt names are locked, because the GM docs refer to them (descriptions may change,
 names may not): `prep-next-session` (optional `focus`), `rules-question` (required `question`),
 `session-recap` (optional `audience` gm or players, default gm; optional `session`, a number or
-`latest`), `npc-improv` (required `npc`), `encounter-check` (optional `scene`) and
+`latest`), `npc-improv` (required `npc`), `encounter-check` (optional `scene`),
 `reveal-handout` (required `page`) and `paper-sync-photos` (optional `characters`, play set).
 
 Each `get` returns exactly one user message written as the GM speaking to Claude: a goal, what the

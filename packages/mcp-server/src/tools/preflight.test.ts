@@ -36,6 +36,8 @@ interface Setup {
   terms?: string[];
   open?: boolean;
   vaultDirSet?: boolean;
+  paperNights?: Array<{ date: string; startedAt: string }>;
+  paperNightsError?: string;
 }
 
 function tools(setup: Setup = {}): { tools: PreflightTools; query: ReturnType<typeof vi.fn> } {
@@ -77,6 +79,10 @@ function tools(setup: Setup = {}): { tools: PreflightTools; query: ReturnType<ty
           startedAt: setup.open ? '2026-09-30T19:00:00.000Z' : null,
           lastEventAt: null,
         }) as never,
+      unsyncedPaperNights: () => {
+        if (setup.paperNightsError) return Promise.reject(new Error(setup.paperNightsError));
+        return Promise.resolve(setup.paperNights ?? []);
+      },
     },
     obsidianVaultDirSet: setup.vaultDirSet ?? true,
     logger: logger(),
@@ -118,6 +124,42 @@ describe('get-preflight', () => {
     expect(c['play-session']?.status).toBe('info');
     expect(result.moduleVersion).toBe('1.2.3');
     expect(result.bridgeVersion).toBe('1.2.3');
+  });
+
+  it('warns on the play-session line about a paper night with no paper sync', async () => {
+    const night = { date: '2026-11-29', startedAt: '2026-11-29T11:00:00.000Z' };
+    const result = (await tools({ paperNights: [night] }).tools.handleGetPreflight(
+      {}
+    )) as PreflightChecksResult;
+    expect(result.ready).toBe(true);
+    expect(byId(result)['play-session']).toMatchObject({ status: 'warn' });
+    expect(byId(result)['play-session']?.detail).toContain(
+      'The paper night on 2026-11-29 has no paper sync yet'
+    );
+    expect(result.checks.map(c => c.id).filter(id => id === 'play-session')).toHaveLength(1);
+  });
+
+  it('names every unsynced paper night and keeps an open session in the detail', async () => {
+    const result = (await tools({
+      open: true,
+      paperNights: [
+        { date: '2026-11-29', startedAt: '2026-11-29T11:00:00.000Z' },
+        { date: '2026-12-06', startedAt: '2026-12-06T11:00:00.000Z' },
+      ],
+    }).tools.handleGetPreflight({})) as PreflightChecksResult;
+    const check = byId(result)['play-session'];
+    expect(check?.status).toBe('warn');
+    expect(check?.detail).toContain('Started 2026-09-30T19:00:00.000Z.');
+    expect(check?.detail).toContain(
+      'The paper nights on 2026-11-29, 2026-12-06 have no paper sync yet'
+    );
+  });
+
+  it('keeps the play-session line as it was when the paper nights cannot be read', async () => {
+    const result = (await tools({ paperNightsError: 'boom' }).tools.handleGetPreflight(
+      {}
+    )) as PreflightChecksResult;
+    expect(byId(result)['play-session']?.status).toBe('info');
   });
 
   it('fails on a version mismatch and names both versions', async () => {

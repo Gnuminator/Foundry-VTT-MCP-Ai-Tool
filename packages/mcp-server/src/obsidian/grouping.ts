@@ -16,6 +16,13 @@
 import type { PlayRecord } from '@gnuminator/shared';
 
 import { SESSION_GAP_MS } from '../event-pump.js';
+import {
+  isPaperStartMarker,
+  isPaperSyncEvent,
+  isPaperSyncRecord,
+  nightForSync,
+  paperSyncChangeIds,
+} from '../paper-night.js';
 
 export { SESSION_GAP_MS };
 
@@ -120,6 +127,51 @@ export function sessionLabel(n: number): string {
  * each still sorted oldest first. */
 export interface UnionSessionGroup extends SessionGroup {
   playRecords: PlayRecord[];
+  /** Started with `mark-play-session` `mode: "paper"` (sheets and dice on paper). */
+  paper: boolean;
+  /**
+   * What the paper syncs after this night wrote (`paper-night.ts`): never boundaries of a session
+   * and never in `events` or `playRecords`, so a sync a day later is not a session of its own.
+   * Empty unless the group is a paper night.
+   */
+  paperSync: PaperSyncShare;
+}
+
+export interface PaperSyncShare {
+  events: SessionEvent[];
+  records: PlayRecord[];
+}
+
+/** Paper-sync events and records split off the logs (`paper-night.ts`). */
+export interface PaperSyncSplit {
+  logEvents: SessionEvent[];
+  playRecords: PlayRecord[];
+  syncEvents: SessionEvent[];
+  syncRecords: PlayRecord[];
+}
+
+/** Take the paper syncs out of the logs: they are not play, so they open no session. */
+export function splitPaperSync(
+  logEvents: SessionEvent[],
+  playRecords: PlayRecord[]
+): PaperSyncSplit {
+  const ids = paperSyncChangeIds(logEvents);
+  if (ids.size === 0) return { logEvents, playRecords, syncEvents: [], syncRecords: [] };
+  const split: PaperSyncSplit = { logEvents: [], playRecords: [], syncEvents: [], syncRecords: [] };
+  for (const event of logEvents) {
+    const id = event.details?.changeId;
+    const sync = isPaperSyncEvent(event) && typeof id === 'string' && ids.has(id);
+    (sync ? split.syncEvents : split.logEvents).push(event);
+  }
+  for (const record of playRecords) {
+    (isPaperSyncRecord(record, ids) ? split.syncRecords : split.playRecords).push(record);
+  }
+  return split;
+}
+
+/** A group started by a paper start marker. */
+export function isPaperGroup(group: SessionGroup): boolean {
+  return group.startedBy === 'marker' && group.events.some(isPaperStartMarker);
 }
 
 function playRecordEventId(record: PlayRecord): string {
@@ -173,11 +225,12 @@ export function groupWithPlayRecords(
   logEvents: SessionEvent[],
   playRecords: PlayRecord[]
 ): UnionSessionGroup[] {
+  const split = splitPaperSync(logEvents, playRecords);
   const byEventId = new Map<string, PlayRecord>();
-  for (const record of playRecords) byEventId.set(playRecordEventId(record), record);
-  const union = [...logEvents, ...playRecords.map(playRecordAsEvent)];
-  return groupSessionEvents(union)
-    .map(group => {
+  for (const record of split.playRecords) byEventId.set(playRecordEventId(record), record);
+  const union = [...split.logEvents, ...split.playRecords.map(playRecordAsEvent)];
+  const groups = groupSessionEvents(union)
+    .map((group): UnionSessionGroup => {
       const events: SessionEvent[] = [];
       const records: PlayRecord[] = [];
       for (const event of group.events) {
@@ -186,7 +239,48 @@ export function groupWithPlayRecords(
         else events.push(event);
       }
       records.sort((a, b) => a.t - b.t || a.key.localeCompare(b.key));
-      return { events, playRecords: records, startedBy: group.startedBy, endedBy: group.endedBy };
+      return {
+        events,
+        playRecords: records,
+        startedBy: group.startedBy,
+        endedBy: group.endedBy,
+        paper: isPaperGroup(group),
+        paperSync: { events: [], records: [] },
+      };
     })
     .filter(group => !isAmbientOnly(group));
+
+  // A sync belongs to the newest paper night that started before it.
+  const nights = groups
+    .filter(group => group.paper)
+    .map(group => ({ group, startMs: groupStartMs(group) }))
+    .sort((a, b) => a.startMs - b.startMs);
+  const starts = nights.map(night => night.startMs);
+  const nightFor = (timeMs: number): UnionSessionGroup | null =>
+    nights[nightForSync(starts, timeMs)]?.group ?? null;
+  for (const event of split.syncEvents) {
+    nightFor(eventTimeMs(event))?.paperSync.events.push(event);
+  }
+  for (const record of split.syncRecords) nightFor(record.t)?.paperSync.records.push(record);
+  return groups;
+}
+
+function groupStartMs(group: UnionSessionGroup): number {
+  let min = Infinity;
+  for (const event of group.events) min = Math.min(min, eventTimeMs(event));
+  for (const record of group.playRecords) min = Math.min(min, record.t);
+  return Number.isFinite(min) ? min : 0;
+}
+
+/**
+ * The paper-sync records no paper night claims (a sync with no paper marker before it). Stats
+ * still keep them out of the play numbers and add them to the campaign net change.
+ */
+export function unclaimedPaperSync(
+  groups: readonly UnionSessionGroup[],
+  split: Pick<PaperSyncSplit, 'syncRecords'>
+): PlayRecord[] {
+  const claimed = new Set<string>();
+  for (const group of groups) for (const record of group.paperSync.records) claimed.add(record.key);
+  return split.syncRecords.filter(record => !claimed.has(record.key));
 }

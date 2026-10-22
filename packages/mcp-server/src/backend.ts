@@ -304,7 +304,7 @@ async function startBackend(): Promise<void> {
 
   // Bridge vault (GM-only data off Foundry) + guarded writes (plan/apply/undo).
   const vaultStore = new VaultStore({ dataDir: resolveDataDir() });
-  const worldIds = new WorldIdResolver(foundryClient);
+  const worldIds = new WorldIdResolver(foundryClient, { dataDir: vaultStore.dataDir });
   const auditLog = new AuditLog(vaultStore);
   // Obsidian notes, re-rendered after data changes (FOUNDRY_AI_OBSIDIAN_DIR; unset = off).
   const obsidianVaultDir = obsidianAutoRenderSettings().vaultDir;

@@ -46,6 +46,7 @@ import { SceneMoodTools } from './tools/scene-mood.js';
 import { RulesCheckTools } from './tools/rules-check.js';
 import { SceneRestoreTools } from './tools/scene-restore.js';
 import { NpcTurnTools } from './tools/npc-turn.js';
+import { PaperSyncTools } from './tools/paper-sync.js';
 import { RoomSetupTools } from './tools/room-setup.js';
 import { TableViewerTools } from './tools/table-viewer.js';
 
@@ -427,6 +428,7 @@ async function startBackend(): Promise<void> {
   const ownershipTools = new OwnershipTools({ foundryClient, guardedWrites, logger });
   const roomSetupTools = new RoomSetupTools({ foundryClient, guardedWrites, logger });
   const npcTurnTools = new NpcTurnTools({ foundryClient, guardedWrites, logger });
+  const paperSyncTools = new PaperSyncTools({ foundryClient, guardedWrites, logger });
   const sceneRestoreTools = new SceneRestoreTools({
     foundryClient,
     guardedWrites,
@@ -477,6 +479,7 @@ async function startBackend(): Promise<void> {
     ownershipTools,
     sceneRestoreTools,
     npcTurnTools,
+    paperSyncTools,
     roomSetupTools,
     sceneMoodTools,
     rulesCheckTools,

@@ -19,6 +19,8 @@ const RECORDED_SKIPS: Record<string, string> = {
     'creates a Foundry user; checked by hand on server A (plan, apply, join as Table, undo), see the PR',
   'plan-npc-turn':
     'ships off behind the "NPC turn assistant" switch (I-125); checked by hand on server A (small combat: read, plan a move, apply, undo), see the PR',
+  'plan-paper-sync':
+    'ships off behind the "Paper sync" switch (Paper nights A); checked by hand on a test server (plan, apply, undo, a refused value above the maximum, an item removal with its second confirm), see the PR',
   'plan-scene-restore':
     'needs a backup copy of the world on disk and Foundry app files (I-128); checked by hand on server A (break a scene, restore, undo), see the PR',
   'plan-room-setup':

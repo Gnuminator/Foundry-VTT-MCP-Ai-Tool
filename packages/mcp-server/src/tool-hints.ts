@@ -101,6 +101,7 @@ export const TOOL_HINTS: Readonly<Record<string, ToolHintSpec>> = {
   'check-action': { title: 'Check an action against the rules', kind: 'read' },
   'plan-scene-restore': { title: 'Plan scene restore from backup', kind: 'read' },
   'plan-npc-turn': { title: 'Plan NPC turn', kind: 'read' },
+  'plan-paper-sync': { title: 'Plan paper sheet sync', kind: 'read' },
   'plan-room-setup': {
     title: 'Plan room setup (teleports, rooms, levels, stairs, hazards)',
     kind: 'read',

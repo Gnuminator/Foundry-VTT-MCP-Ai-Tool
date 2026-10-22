@@ -45,21 +45,22 @@ export const LIVE_PLAY_FEATURE_ID = 'live-play';
 /** Marks our own dry run in `applyDamage`'s options, so the hook ignores real damage. */
 const DRY_RUN_OPTION = 'foundryMcpDryRun';
 
-type Rec = Record<string, unknown>;
+// The helpers below are shared with the paper sync planner (paper-sync-plan.ts).
+export type Rec = Record<string, unknown>;
 
-function rec(value: unknown): Rec | null {
+export function rec(value: unknown): Rec | null {
   return value !== null && typeof value === 'object' ? (value as Rec) : null;
 }
 
-function num(value: unknown): number | null {
+export function num(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) ? value : null;
 }
 
-function str(value: unknown): string | null {
+export function str(value: unknown): string | null {
   return typeof value === 'string' && value.length > 0 ? value : null;
 }
 
-function getPath(source: unknown, path: string): unknown {
+export function getPath(source: unknown, path: string): unknown {
   let cur: unknown = source;
   for (const key of path.split('.')) {
     const r = rec(cur);
@@ -69,7 +70,7 @@ function getPath(source: unknown, path: string): unknown {
   return cur;
 }
 
-function contentsOf(collection: unknown): unknown[] {
+export function contentsOf(collection: unknown): unknown[] {
   if (Array.isArray(collection)) return collection;
   const r = rec(collection);
   if (Array.isArray(r?.contents)) return r.contents as unknown[];
@@ -86,8 +87,10 @@ function localize(key: string): string {
 }
 
 /** The actor API this file uses (dnd5e's Actor5e on a real client). */
-interface LiveActor {
+export interface LiveActor {
   readonly uuid: string;
+  readonly id?: string;
+  readonly type?: string;
   readonly name: string;
   readonly system: unknown;
   readonly statuses?: Set<string>;
@@ -96,7 +99,7 @@ interface LiveActor {
   applyDamage?(damages: unknown[], options?: Rec): Promise<unknown>;
 }
 
-interface Target {
+export interface Target {
   name: string;
   actor: LiveActor;
 }
@@ -148,7 +151,7 @@ function assertNotShadowing(id: string, viewedScene: string | null, viewed: Live
  * or a unique partial name. Unknown names fail the whole plan. A token id that is also a
  * different token in the fight (a duplicated scene) is refused, see `assertNotShadowing`.
  */
-function resolveTargets(identifiers: string[]): Target[] {
+export function resolveTargets(identifiers: string[]): Target[] {
   if (identifiers.length === 0) throw new Error('Name at least one target (a token or an actor)');
   const g = rec(game);
   const scene = rec(rec(g?.scenes)?.current);
@@ -204,13 +207,13 @@ function resolveTargets(identifiers: string[]): Target[] {
 // Hit points
 // ---------------------------------------------------------------------------
 
-interface Hp {
+export interface Hp {
   value: number;
   max: number;
   temp: number;
 }
 
-function hpOf(actor: LiveActor): Hp | null {
+export function hpOf(actor: LiveActor): Hp | null {
   const hp = rec(getPath(actor.system, 'attributes.hp'));
   const value = num(hp?.value);
   if (!hp || value === null) return null;
@@ -365,7 +368,7 @@ async function planHp(
 // Conditions
 // ---------------------------------------------------------------------------
 
-interface StatusInfo {
+export interface StatusInfo {
   id: string;
   name: string;
   levels: number | null;
@@ -373,7 +376,7 @@ interface StatusInfo {
   exclusiveGroup: string | null;
 }
 
-function statusInfo(idOrName: string): StatusInfo {
+export function statusInfo(idOrName: string): StatusInfo {
   const status = findStatusEffect(idOrName.trim());
   if (!status) {
     const known = statusEffectList()
@@ -394,20 +397,20 @@ function statusInfo(idOrName: string): StatusInfo {
   };
 }
 
-function effectsOf(actor: LiveActor): Rec[] {
+export function effectsOf(actor: LiveActor): Rec[] {
   return contentsOf(actor.effects)
     .map(rec)
     .filter((e): e is Rec => e !== null);
 }
 
-function effectStatuses(effect: Rec): string[] {
+export function effectStatuses(effect: Rec): string[] {
   const statuses = effect.statuses;
   if (statuses instanceof Set)
     return [...statuses].filter((s): s is string => typeof s === 'string');
   return Array.isArray(statuses) ? statuses.filter((s): s is string => typeof s === 'string') : [];
 }
 
-function hasStatus(actor: LiveActor, id: string): boolean {
+export function hasStatus(actor: LiveActor, id: string): boolean {
   if (actor.statuses instanceof Set) return actor.statuses.has(id);
   return effectsOf(actor).some(e => effectStatuses(e).includes(id));
 }
@@ -417,7 +420,7 @@ function effectUuid(effect: Rec): string | null {
 }
 
 /** The data of a status effect, as `ActiveEffect.fromStatusEffect` builds it (id kept). */
-async function statusEffectData(id: string): Promise<Rec> {
+export async function statusEffectData(id: string): Promise<Rec> {
   const cls = rec(rec(rec(CONFIG)?.ActiveEffect)?.documentClass);
   const from = cls?.fromStatusEffect;
   if (typeof from === 'function') {
@@ -432,7 +435,7 @@ async function statusEffectData(id: string): Promise<Rec> {
   return data;
 }
 
-async function planCondition(
+export async function planCondition(
   targets: Target[],
   request: LiveActorRequest
 ): Promise<{ ops: GuardedOp[]; previews: LiveTargetPreview[]; label: string }> {
@@ -588,7 +591,7 @@ function spellSlotLevel(name: string): number | null {
   return m ? Number(m[1]) : null;
 }
 
-interface ResourcePlan {
+export interface ResourcePlan {
   uuid: string;
   path: string;
   label: string;
@@ -597,7 +600,7 @@ interface ResourcePlan {
   value: unknown;
 }
 
-function resourcePlan(actor: LiveActor, resource: string, value: number): ResourcePlan {
+export function resourcePlan(actor: LiveActor, resource: string, value: number): ResourcePlan {
   const name = resource.toLowerCase().trim();
   const sys = rec(actor.system);
   const spells = rec(sys?.spells);

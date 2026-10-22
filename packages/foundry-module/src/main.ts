@@ -22,6 +22,7 @@ import { OWNERSHIP_FEATURE_ID } from './data-access/ownership-players.js';
 import { SCENE_MOOD_FEATURE_ID } from './scene-mood.js';
 import { SCENE_RESTORE_FEATURE_ID } from './scene-state.js';
 import { NPC_TURN_FEATURE_ID } from './npc-turn.js';
+import { PAPER_SYNC_FEATURE_ID } from './paper-sync-plan.js';
 import { ROOM_SETUP_FEATURE_ID } from './room-setup.js';
 import { RULES_CHECK_FEATURE_ID } from './rules-check.js';
 import { PARTY_FEATURE_ID } from './party-scan.js';
@@ -161,6 +162,11 @@ class FoundryMCPBridge {
         id: NPC_TURN_FEATURE_ID,
         name: 'AI Tool: NPC turn assistant (writes)',
         hint: 'Lets the AI move a monster on its turn, after you confirm the plan. Each move shows in Recent Changes with an Undo. The attack is rolled separately.',
+      });
+      registerGuardedFeature({
+        id: PAPER_SYNC_FEATURE_ID,
+        name: 'AI Tool: Paper sync (writes)',
+        hint: 'Lets the AI write the numbers from a paper sheet back into a character after a night played on paper (hit points, spell slots, hit dice, class resources, item uses, coins, exhaustion, conditions, inspiration, death saves and item quantities), one plan per character after you confirm. Removing an item asks for a second confirm. Each one shows in Recent Changes with an Undo. XP, level and class are never changed.',
       });
       registerGuardedFeature({
         id: RULES_CHECK_FEATURE_ID,

@@ -30,6 +30,7 @@ import type { SceneMoodTools } from './tools/scene-mood.js';
 import type { RulesCheckTools } from './tools/rules-check.js';
 import type { SceneRestoreTools } from './tools/scene-restore.js';
 import type { NpcTurnTools } from './tools/npc-turn.js';
+import type { PaperSyncTools } from './tools/paper-sync.js';
 import type { RoomSetupTools } from './tools/room-setup.js';
 import type { TableViewerTools } from './tools/table-viewer.js';
 import type { PlaySessionTools } from './tools/play-session.js';
@@ -73,6 +74,7 @@ export interface ToolRouterDeps {
   ownershipTools: OwnershipTools;
   sceneRestoreTools: SceneRestoreTools;
   npcTurnTools: NpcTurnTools;
+  paperSyncTools: PaperSyncTools;
   roomSetupTools: RoomSetupTools;
   sceneMoodTools: SceneMoodTools;
   rulesCheckTools: RulesCheckTools;
@@ -207,6 +209,7 @@ export function buildToolRouter(deps: ToolRouterDeps): Record<string, ToolHandle
     'plan-table-viewer': args => deps.tableViewerTools.handleToolCall('plan-table-viewer', args),
     'plan-scene-restore': args => deps.sceneRestoreTools.handleToolCall('plan-scene-restore', args),
     'plan-npc-turn': args => deps.npcTurnTools.handleToolCall('plan-npc-turn', args),
+    'plan-paper-sync': args => deps.paperSyncTools.handleToolCall('plan-paper-sync', args),
     'plan-room-setup': args => deps.roomSetupTools.handleToolCall('plan-room-setup', args),
     'play-playlist': args => deps.sceneChangeTools.handlePlayPlaylist(args),
     'list-ref-choices': args => deps.refChoiceTools.handleListRefChoices(args),
@@ -248,6 +251,7 @@ export function collectToolDefinitions(deps: ToolRouterDeps): ToolDefinitionLike
     ...deps.ownershipTools.getToolDefinitions(),
     ...deps.sceneRestoreTools.getToolDefinitions(),
     ...deps.npcTurnTools.getToolDefinitions(),
+    ...deps.paperSyncTools.getToolDefinitions(),
     ...deps.roomSetupTools.getToolDefinitions(),
     ...deps.sceneMoodTools.getToolDefinitions(),
     ...deps.rulesCheckTools.getToolDefinitions(),

@@ -19,7 +19,7 @@ let store: VaultStore;
 let logger: any;
 
 const WORLD = 'w1';
-const PC: PlayActorRef = { uuid: 'Actor.pc1', isPC: true, name: 'Ireena' };
+const PC: PlayActorRef = { uuid: 'Actor.pc1', isPC: true, name: 'Ilvara' };
 const T0 = Date.parse('2026-10-01T12:00:00.000Z');
 
 function makeTools(worldId = WORLD): PlayStatsTools {
@@ -95,7 +95,7 @@ describe('get-play-stats', () => {
     expect(result.session?.number).toBe(2); // "latest" by default
     expect(result.campaign.sessions).toBe(2);
     expect(result.pcs).toHaveLength(1);
-    expect(result.pcs[0]).toMatchObject({ name: 'Ireena', damageTaken: 14 });
+    expect(result.pcs[0]).toMatchObject({ name: 'Ilvara', damageTaken: 14 });
   });
 
   it('returns a specific session by number', async () => {
@@ -116,8 +116,8 @@ describe('get-play-stats', () => {
 
   it('filters PCs by a partial, case-insensitive name match', async () => {
     await store.appendLines(WORLD, 'sessions', '2026-10-01.play.jsonl', [hp('hp:1', T0, 20, 12)]);
-    const match = await makeTools().handleGetPlayStats({ pcName: 'reen' });
-    expect(match.pcs.map(p => p.name)).toEqual(['Ireena']);
+    const match = await makeTools().handleGetPlayStats({ pcName: 'lvar' });
+    expect(match.pcs.map(p => p.name)).toEqual(['Ilvara']);
     const noMatch = await makeTools().handleGetPlayStats({ pcName: 'nobody' });
     expect(noMatch.pcs).toEqual([]);
   });

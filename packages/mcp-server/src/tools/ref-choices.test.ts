@@ -55,7 +55,7 @@ describe('list-ref-choices', () => {
       kind: 'token',
       choices: [{ id: 't1', name: 'Goblin' }],
       truncated: false,
-      note: 'Tokens on "Barovia"',
+      note: 'Tokens on "Maravia"',
     });
     const result = await tools.handleListRefChoices({ kind: 'token', parent: 'scene-1', limit: 5 });
     expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.listRefChoices', {
@@ -67,7 +67,7 @@ describe('list-ref-choices', () => {
       kind: 'token',
       choices: [{ id: 't1', name: 'Goblin' }],
       truncated: false,
-      note: 'Tokens on "Barovia"',
+      note: 'Tokens on "Maravia"',
     });
   });
 

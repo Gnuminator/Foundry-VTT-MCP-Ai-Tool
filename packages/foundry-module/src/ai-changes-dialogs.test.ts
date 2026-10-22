@@ -23,14 +23,14 @@ const row = buildChangeRow({
   id: 'act:a1',
   kind: 'human',
   at,
-  by: 'Ireena',
+  by: 'Ilvara',
   userId: 'u1',
-  summary: 'Ireena: HP 10 -> 5',
+  summary: 'Ilvara: HP 10 -> 5',
   lines: [],
   feature: '',
   mode: 'apply',
   requestedBy: '',
-  thing: 'Ireena',
+  thing: 'Ilvara',
   canUndo: true,
   undone: false,
   undoneBy: '',
@@ -40,9 +40,9 @@ const row = buildChangeRow({
 function plan(over: Partial<UndoPlan> = {}): UndoPlan {
   return {
     planId: 'p1',
-    summary: 'Undo: Ireena: HP 10 -> 5',
+    summary: 'Undo: Ilvara: HP 10 -> 5',
     count: 1,
-    lines: ['Actor "Ireena": HP 5 -> 10'],
+    lines: ['Actor "Ilvara": HP 5 -> 10'],
     notes: [],
     later: [],
     confirmDestructive: false,
@@ -57,8 +57,8 @@ describe('parsePlan', () => {
       summary: 'Rewind the table to 09:05: 3 changes',
       scope: 'world-since',
       diff: [
-        { kind: 'update', text: 'Actor "Ireena": HP 5 -> 10' },
-        { kind: 'note', text: 'Kept, changed later: Ireena: HP stays 8' },
+        { kind: 'update', text: 'Actor "Ilvara": HP 5 -> 10' },
+        { kind: 'note', text: 'Kept, changed later: Ilvara: HP stays 8' },
         { kind: 'update', text: '   ' },
         null,
       ],
@@ -69,8 +69,8 @@ describe('parsePlan', () => {
       planId: 'p9',
       summary: 'Rewind the table to 09:05: 3 changes',
       count: 3,
-      lines: ['Actor "Ireena": HP 5 -> 10'],
-      notes: ['Kept, changed later: Ireena: HP stays 8'],
+      lines: ['Actor "Ilvara": HP 5 -> 10'],
+      notes: ['Kept, changed later: Ilvara: HP stays 8'],
       later: [{ id: 'act:b', at, by: 'Danni', summary: 'Wolf: 2 damage' }],
       confirmDestructive: true,
     });
@@ -90,8 +90,8 @@ describe('parsePlan', () => {
 describe('the dialogs', () => {
   it('undo: names the change, lists its lines and notes, Undo and Cancel', () => {
     const d = undoPlanDialog(row, plan({ notes: ['Kept, changed later: HP stays 8'] }));
-    expect(d.content).toContain('Ireena: HP 10 -&gt; 5');
-    expect(d.content).toContain('<li>Actor &quot;Ireena&quot;: HP 5 -&gt; 10</li>');
+    expect(d.content).toContain('Ilvara: HP 10 -&gt; 5');
+    expect(d.content).toContain('<li>Actor &quot;Ilvara&quot;: HP 5 -&gt; 10</li>');
     expect(d.content).toContain('Kept, changed later: HP stays 8');
     expect(d.buttons.map(b => [b.action, b.label])).toEqual([
       [ACTION_YES, 'Undo'],
@@ -102,7 +102,7 @@ describe('the dialogs', () => {
   it('redo: says what comes back', () => {
     const d = redoDialog(row);
     expect(d.content).toContain('Bring this change back?');
-    expect(d.content).toContain('Ireena: HP 10 -&gt; 5');
+    expect(d.content).toContain('Ilvara: HP 10 -&gt; 5');
     expect(d.buttons.map(b => b.label)).toEqual(['Redo', 'Cancel']);
     expect(d.content).not.toContain('brings back all');
   });
@@ -111,12 +111,12 @@ describe('the dialogs', () => {
     const undo = {
       ...row,
       id: 'u1',
-      summary: 'Undo since 10:20: 6 changes on Ireena',
+      summary: 'Undo since 10:20: 6 changes on Ilvara',
       diff: ['a', 'b', 'c'],
       coversSeveral: true,
     };
     const d = redoDialog(row, undo);
-    expect(d.content).toContain('Undo since 10:20: 6 changes on Ireena');
+    expect(d.content).toContain('Undo since 10:20: 6 changes on Ilvara');
     expect(d.content).toContain('The redo brings all of them back.');
     // A plain undo of one change with two lines (HP and Bloodied) says nothing of the kind.
     expect(redoDialog(row, { ...undo, coversSeveral: false }).content).not.toContain(
@@ -126,11 +126,11 @@ describe('the dialogs', () => {
 
   it('later changes: "not the latest", who and what came after, three buttons, rewind under Advanced', () => {
     const d = laterChoiceDialog(row, [
-      { id: 'act:b', at, by: 'Danni', summary: 'Ireena: HP 5 -> 3' },
+      { id: 'act:b', at, by: 'Danni', summary: 'Ilvara: HP 5 -> 3' },
       { id: 'chg', at, by: 'AI', summary: '<b>Heal</b>' },
     ]);
-    expect(d.content).toContain('This is not the latest change to Ireena.');
-    expect(d.content).toContain('<li>Danni: Ireena: HP 5 -&gt; 3 (09:05)</li>');
+    expect(d.content).toContain('This is not the latest change to Ilvara.');
+    expect(d.content).toContain('<li>Danni: Ilvara: HP 5 -&gt; 3 (09:05)</li>');
     expect(d.content).toContain('&lt;b&gt;Heal&lt;/b&gt;');
     expect(d.buttons.map(b => b.label)).toEqual(['Just this', 'Everything since', 'Cancel']);
     // The fourth choice is a button inside a collapsed (no `open`) Advanced disclosure.
@@ -148,7 +148,7 @@ describe('the dialogs', () => {
 
   it('everything since: the count and the full list', () => {
     const d = everythingSinceDialog(row, plan({ count: 3, lines: ['a', 'b', 'c'] }));
-    expect(d.content).toContain('This undoes 3 changes to Ireena');
+    expect(d.content).toContain('This undoes 3 changes to Ilvara');
     expect(d.content.match(/<li>/g)).toHaveLength(3);
     expect(d.buttons[0]).toMatchObject({ action: ACTION_YES, label: 'Undo everything since' });
   });

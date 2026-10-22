@@ -17,7 +17,7 @@ beforeEach(() => {
   const entry = world.addJournal({ id: 'jjjjjjjjjjjjjjjj', pages: [page] });
   entryUuid = `JournalEntry.${entry.id}`;
   pageUuid = `${entryUuid}.JournalEntryPage.pppppppppppppppp`;
-  world.addActor({ id: 'aaaaaaaaaaaaaaaa', name: 'Ireena' });
+  world.addActor({ id: 'aaaaaaaaaaaaaaaa', name: 'Ilvara' });
   restore = world.install();
 });
 

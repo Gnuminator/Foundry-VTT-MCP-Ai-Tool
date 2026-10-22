@@ -98,10 +98,10 @@ beforeEach(async () => {
   foundry.add(PAGE1, 'JournalEntryPage', {
     name: 'Letter from a courier',
     ownership: { default: 0 },
-    text: { content: '<p>Come to Barovia.</p>' },
+    text: { content: '<p>Come to Maravia.</p>' },
   });
   foundry.add(PAGE2, 'JournalEntryPage', {
-    name: 'Map of Vallaki',
+    name: 'Map of Valmere',
     ownership: { default: 0 },
     text: { content: '<p>A map.</p>' },
   });
@@ -136,7 +136,7 @@ describe('reveal queue', () => {
     const queue = await handouts.listQueue();
     expect(queue.map(q => [q.title, q.sceneId, q.players])).toEqual([
       ['Letter from a courier', SCENE, [ANNA]],
-      ['Map of Vallaki', null, undefined],
+      ['Map of Valmere', null, undefined],
     ]);
   });
 

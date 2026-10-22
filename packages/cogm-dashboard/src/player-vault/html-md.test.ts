@@ -53,9 +53,9 @@ describe('htmlToMarkdown: the sanitizer allowlist', () => {
   it('a regular table becomes a pipe table', () => {
     const html =
       '<table><thead><tr><th>Name</th><th>HP</th></tr></thead>' +
-      '<tbody><tr><td>Ireena</td><td>9</td></tr><tr><td>Ismark</td><td>12</td></tr></tbody></table>';
+      '<tbody><tr><td>Ilvara</td><td>9</td></tr><tr><td>Ivarro</td><td>12</td></tr></tbody></table>';
     expect(htmlToMarkdown(html)).toBe(
-      ['| Name | HP |', '| --- | --- |', '| Ireena | 9 |', '| Ismark | 12 |'].join('\n')
+      ['| Name | HP |', '| --- | --- |', '| Ilvara | 9 |', '| Ivarro | 12 |'].join('\n')
     );
   });
 
@@ -223,7 +223,7 @@ describe('neutralizeMarkdownText', () => {
   });
 
   it('leaves ordinary text readable', () => {
-    expect(neutralizeMarkdownText('Ireena Kolyana')).toBe('Ireena Kolyana');
+    expect(neutralizeMarkdownText('Ilvara Dunmere')).toBe('Ilvara Dunmere');
     expect(neutralizeMarkdownText('  padded  ')).toBe('padded');
   });
 

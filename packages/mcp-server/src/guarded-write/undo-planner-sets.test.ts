@@ -35,14 +35,14 @@ function rec(min: number, overrides: Partial<ChangeRecord> = {}): ChangeRecord {
     actionId: `a${counter}`,
     op: 'update',
     userId: 'u1',
-    userName: 'Ireena',
+    userName: 'Ilvara',
     userIsGM: false,
     documentName: 'Actor',
     uuid: 'Actor.a',
     parentUuid: null,
-    name: 'Ireena',
+    name: 'Ilvara',
     rootUuid: 'Actor.a',
-    rootName: 'Ireena',
+    rootName: 'Ilvara',
     sceneId: null,
     ...overrides,
   };
@@ -74,7 +74,7 @@ function actorUpdate(before: PathValue[], after: PathValue[]): GuardedOpResult {
     kind: 'update',
     uuid: 'Actor.a',
     documentName: 'Actor',
-    name: 'Ireena',
+    name: 'Ilvara',
     parentUuid: null,
     before,
     after,
@@ -130,7 +130,7 @@ beforeEach((): void => {
   records = [];
   foundry = new FakeFoundry();
   foundry.add('Actor.a', 'Actor', {
-    name: 'Ireena',
+    name: 'Ilvara',
     system: { attributes: { hp: { value: 5, max: 12 } } },
   });
   createPlan = vi.fn(
@@ -199,7 +199,7 @@ describe('everything-since', () => {
       { kind: 'update', uuid: 'Actor.a.Item.i', changes: { 'system.quantity': 4 }, unset: [] },
     ]);
     expect(planInput().undoes).toEqual({ actions: ['first', 'second'], changes: ['chg-item'] });
-    expect(planInput().summary).toMatch(/^Undo since \d\d:\d\d: 3 changes on Ireena$/);
+    expect(planInput().summary).toMatch(/^Undo since \d\d:\d\d: 3 changes on Ilvara$/);
   });
 
   it('turns a create plus a later update into one delete', async () => {
@@ -238,7 +238,7 @@ describe('everything-since', () => {
       rec(2, {
         actionId: 'd',
         op: 'delete',
-        data: { _id: 'a', name: 'Ireena', system: { attributes: { hp: { value: 8, max: 12 } } } },
+        data: { _id: 'a', name: 'Ilvara', system: { attributes: { hp: { value: 8, max: 12 } } } },
       })
     );
     await plan('act:u', 'everything-since');
@@ -246,7 +246,7 @@ describe('everything-since', () => {
       {
         kind: 'create',
         documentName: 'Actor',
-        data: { _id: 'a', name: 'Ireena', system: { attributes: { hp: { value: 10, max: 12 } } } },
+        data: { _id: 'a', name: 'Ilvara', system: { attributes: { hp: { value: 10, max: 12 } } } },
         keepId: true,
       },
     ]);
@@ -273,7 +273,7 @@ describe('everything-since', () => {
     foundry.add('Actor.a.Item.n', 'Item', { name: 'Rope', system: { quantity: 2 } });
     ring.push(
       entry('chg-c', 1, {
-        results: [{ ...itemResult('create', 'Actor.a', 'Ireena'), documentName: 'Actor' }],
+        results: [{ ...itemResult('create', 'Actor.a', 'Ilvara'), documentName: 'Actor' }],
       })
     );
     records.push(
@@ -354,7 +354,7 @@ describe('undone changes inside a since-set (live check 2026-10-07)', () => {
       })
     );
     const view = await plan('act:wolf', 'world-since', true);
-    // Ireena is back at 10 and the rope is back: only the wolf's own change is left to undo.
+    // Ilvara is back at 10 and the rope is back: only the wolf's own change is left to undo.
     expect(opsOf()).toEqual([{ kind: 'update', uuid: 'Actor.b', changes: { [HP]: 3 }, unset: [] }]);
     // The undone changes and their undos cancel out: the count is what the GM sees as live.
     expect(view.count).toBe(3);
@@ -453,7 +453,7 @@ describe('a deleted token with changes inside it (#187 review)', () => {
 
 describe('a live rewind inside the set (#187 review)', () => {
   it("does not claim the rewind's other targets as undone, so their switch is checked", async () => {
-    // T and C change Ireena; B (ownership) changes the Wolf; P0 rewinds C and B.
+    // T and C change Ilvara; B (ownership) changes the Wolf; P0 rewinds C and B.
     foundry.add('Actor.b', 'Actor', { name: 'Wolf', ownership: { u1: 0 } });
     foundry.edit('Actor.a', num(HP, 8));
     const wolf = (before: number, after: number): GuardedOpResult => ({
@@ -485,7 +485,7 @@ describe('a live rewind inside the set (#187 review)', () => {
 
 describe('guards on one change', () => {
   it('refuses to restore a document whose id exists again', async () => {
-    records.push(rec(1, { actionId: 'd', op: 'delete', data: { _id: 'a', name: 'Ireena' } }));
+    records.push(rec(1, { actionId: 'd', op: 'delete', data: { _id: 'a', name: 'Ilvara' } }));
     await expect(plan('act:d', 'just-this')).rejects.toThrow(/id exists again/);
   });
 
@@ -518,7 +518,7 @@ describe('guards on one change', () => {
   it('skips a document that no longer exists', async () => {
     foundry.docs.delete('Actor.a');
     records.push(hp(1, 10, 5, 'x'));
-    await expect(plan('act:x', 'just-this')).rejects.toThrow(/Ireena no longer exists/);
+    await expect(plan('act:x', 'just-this')).rejects.toThrow(/Ilvara no longer exists/);
   });
 });
 
@@ -596,7 +596,7 @@ describe('plan, apply, redo with the real service', () => {
     records.push(hp(1, 10, 5, 'x'));
 
     const view = await real.plan({ id: 'act:x' });
-    expect(view.diff.map(d => d.text)).toEqual(['Actor "Ireena": HP 5 → 10']);
+    expect(view.diff.map(d => d.text)).toEqual(['Actor "Ilvara": HP 5 → 10']);
     const applied = await service.applyPlan(view.planId, { confirm: true });
     expect(foundry.docs.get('Actor.a')!.source.system.attributes.hp.value).toBe(10);
     const stored = await audit.get('curse-of-strahd', applied.changeId);

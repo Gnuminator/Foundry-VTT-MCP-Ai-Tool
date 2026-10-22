@@ -1537,7 +1537,7 @@ describe('Seen in presence and hidden tokens', () => {
     const awayRecord = recorder
       .getPlayRecords({})
       .records.find(r => r.kind === 'hp' && r.actor?.uuid === 'Actor.away');
-    // No token on the active scene: the players cannot see it (Strahd's sheet edited elsewhere).
+    // No token on the active scene: the players cannot see it (Sorvan's sheet edited elsewhere).
     expect(awayRecord?.data).toEqual({ hidden: true });
   });
 

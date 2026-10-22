@@ -57,18 +57,18 @@ describe('prepKindsFor', () => {
 
 describe('campaignRootOf', () => {
   it('is the world campaign folder the note sits in, else null', () => {
-    expect(campaignRootOf('Campaigns/w1/AI Tool/World/NPCs/Ismark.md', 'w1')).toBe('Campaigns/w1');
-    expect(campaignRootOf('Campaigns/w2/Ismark.md', 'w1')).toBeNull();
-    expect(campaignRootOf('Elsewhere/Ismark.md', 'w1')).toBeNull();
-    expect(campaignRootOf('Campaigns/w1/Ismark.md', null)).toBeNull();
+    expect(campaignRootOf('Campaigns/w1/AI Tool/World/NPCs/Ivarro.md', 'w1')).toBe('Campaigns/w1');
+    expect(campaignRootOf('Campaigns/w2/Ivarro.md', 'w1')).toBeNull();
+    expect(campaignRootOf('Elsewhere/Ivarro.md', 'w1')).toBeNull();
+    expect(campaignRootOf('Campaigns/w1/Ivarro.md', null)).toBeNull();
     expect(campaignRootOf('Campaigns/a/b/x.md', 'a/b')).toBeNull();
   });
 });
 
 describe('prepFileName and prepPathCandidates', () => {
   it('makes a safe file name', () => {
-    expect(prepFileName('Ismark the Lesser')).toBe('Ismark the Lesser');
-    expect(prepFileName('Who? [Strahd]: #1 / 2')).toBe('Who Strahd 1 2');
+    expect(prepFileName('Ivarro the Lesser')).toBe('Ivarro the Lesser');
+    expect(prepFileName('Who? [Sorvan]: #1 / 2')).toBe('Who Sorvan 1 2');
     expect(prepFileName('...')).toBe('Untitled');
     expect(prepFileName(null)).toBe('Untitled');
     expect(prepFileName('x'.repeat(300))).toHaveLength(100);
@@ -92,25 +92,25 @@ describe('prepFileName and prepPathCandidates', () => {
 });
 
 describe('findPrepNote', () => {
-  const root = 'Campaigns/strahd';
+  const root = 'Campaigns/sorvan';
   const note = (path: string, type: string, uuid: string): PrepLookupNote => ({
     path,
     frontmatter: { type, fvtt_uuid: uuid },
   });
   it('finds a moved or renamed note by uuid and type under Prep, never a template', () => {
     const notes = [
-      note('Campaigns/strahd/Prep/Templates/NPC.md', 'npc-prep', 'Actor.a1'),
-      note('Campaigns/other/Prep/NPCs/Ismark.md', 'npc-prep', 'Actor.a1'),
-      note('Campaigns/strahd/Prep/Quests/Ismark.md', 'quest-prep', 'Actor.a1'),
-      note('Campaigns/strahd/prep/Old/Ismark the Lesser.md', 'npc-prep', 'Actor.a1'),
+      note('Campaigns/sorvan/Prep/Templates/NPC.md', 'npc-prep', 'Actor.a1'),
+      note('Campaigns/other/Prep/NPCs/Ivarro.md', 'npc-prep', 'Actor.a1'),
+      note('Campaigns/sorvan/Prep/Quests/Ivarro.md', 'quest-prep', 'Actor.a1'),
+      note('Campaigns/sorvan/prep/Old/Ivarro the Lesser.md', 'npc-prep', 'Actor.a1'),
     ];
     expect(findPrepNote(notes, root, 'Actor.a1', 'npc-prep')).toBe(
-      'Campaigns/strahd/prep/Old/Ismark the Lesser.md'
+      'Campaigns/sorvan/prep/Old/Ivarro the Lesser.md'
     );
     expect(findPrepNote(notes.slice(0, 3), root, 'Actor.a1', 'npc-prep')).toBeNull();
     expect(
       findPrepNote(
-        [{ path: 'Campaigns/strahd/Prep/x.md', frontmatter: undefined }],
+        [{ path: 'Campaigns/sorvan/Prep/x.md', frontmatter: undefined }],
         root,
         'Actor.a1',
         'npc-prep'
@@ -145,7 +145,7 @@ describe('isPrepType', () => {
 });
 
 describe('fillPrepNote', () => {
-  const fill = { type: 'npc-prep', uuid: 'Actor.a1', link: '[[Ismark]]' };
+  const fill = { type: 'npc-prep', uuid: 'Actor.a1', link: '[[Ivarro]]' };
 
   it('fills fvtt_uuid in the template and adds the link back first in the body', () => {
     expect(fillPrepNote(NPC_TEMPLATE, fill)).toBe(
@@ -158,7 +158,7 @@ describe('fillPrepNote', () => {
         'voice:',
         'wants:',
         '---',
-        'Prep for [[Ismark]].',
+        'Prep for [[Ivarro]].',
         '',
         '%% NPC prep hint. %%',
         '',
@@ -174,39 +174,39 @@ describe('fillPrepNote', () => {
     const template =
       '\uFEFF---\r\ntype: villain-prep\r\nfvtt_uuid:\r\n- Actor.old\r\n  - Actor.x\r\nmood: grim\r\n---\r\nBody\r\n';
     expect(fillPrepNote(template, fill)).toBe(
-      "---\ntype: villain-prep\nfvtt_uuid: 'Actor.a1'\nmood: grim\n---\nPrep for [[Ismark]].\n\nBody\n"
+      "---\ntype: villain-prep\nfvtt_uuid: 'Actor.a1'\nmood: grim\n---\nPrep for [[Ivarro]].\n\nBody\n"
     );
   });
 
   it('adds type and fvtt_uuid when the template has neither, and makes a bare note without one', () => {
     expect(fillPrepNote('---\nsecret:\n---\n', fill)).toBe(
-      "---\ntype: npc-prep\nfvtt_uuid: 'Actor.a1'\nsecret:\n---\nPrep for [[Ismark]].\n"
+      "---\ntype: npc-prep\nfvtt_uuid: 'Actor.a1'\nsecret:\n---\nPrep for [[Ivarro]].\n"
     );
     expect(fillPrepNote('Just a body', fill)).toBe(
-      "---\ntype: npc-prep\nfvtt_uuid: 'Actor.a1'\nai_context: true\nsecret:\n---\nPrep for [[Ismark]].\n\nJust a body\n"
+      "---\ntype: npc-prep\nfvtt_uuid: 'Actor.a1'\nai_context: true\nsecret:\n---\nPrep for [[Ivarro]].\n\nJust a body\n"
     );
     expect(fillPrepNote(null, fill)).toBe(
-      "---\ntype: npc-prep\nfvtt_uuid: 'Actor.a1'\nai_context: true\nsecret:\n---\nPrep for [[Ismark]].\n"
+      "---\ntype: npc-prep\nfvtt_uuid: 'Actor.a1'\nai_context: true\nsecret:\n---\nPrep for [[Ivarro]].\n"
     );
   });
 
   it('reads an empty frontmatter block and fills a session plan date (R2 review)', () => {
     expect(fillPrepNote('---\n---\nBody', fill)).toBe(
-      "---\ntype: npc-prep\nfvtt_uuid: 'Actor.a1'\n---\nPrep for [[Ismark]].\n\nBody\n"
+      "---\ntype: npc-prep\nfvtt_uuid: 'Actor.a1'\n---\nPrep for [[Ivarro]].\n\nBody\n"
     );
     expect(fillPrepNote('---\n---\nAbove\n\n---\n\nBelow', fill)).toBe(
-      "---\ntype: npc-prep\nfvtt_uuid: 'Actor.a1'\n---\nPrep for [[Ismark]].\n\nAbove\n\n---\n\nBelow\n"
+      "---\ntype: npc-prep\nfvtt_uuid: 'Actor.a1'\n---\nPrep for [[Ivarro]].\n\nAbove\n\n---\n\nBelow\n"
     );
     const plan = '---\ntype: session-plan\nfvtt_uuid:\ndate:\n---\n## Opening scene\n';
     expect(
       fillPrepNote(plan, {
         type: 'session-plan',
         uuid: 'Scene.s1',
-        link: '[[Barovia]]',
+        link: '[[Maravia]]',
         date: '2026-10-06',
       })
     ).toBe(
-      "---\ntype: session-plan\nfvtt_uuid: 'Scene.s1'\ndate: 2026-10-06\n---\nPrep for [[Barovia]].\n\n## Opening scene\n"
+      "---\ntype: session-plan\nfvtt_uuid: 'Scene.s1'\ndate: 2026-10-06\n---\nPrep for [[Maravia]].\n\n## Opening scene\n"
     );
   });
 });

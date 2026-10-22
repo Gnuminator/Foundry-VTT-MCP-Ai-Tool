@@ -45,14 +45,14 @@ describe('openInFoundry', () => {
     const { client: c, calls } = client(
       () => ({
         status: 200,
-        json: { opened: true, documentName: 'Actor', name: 'Ireena', userId: 'u1' },
+        json: { opened: true, documentName: 'Actor', name: 'Ilvara', userId: 'u1' },
       }),
       'secret-token'
     );
     await expect(c.openInFoundry('Actor.abc')).resolves.toEqual({
       kind: 'opened',
       documentName: 'Actor',
-      name: 'Ireena',
+      name: 'Ilvara',
     });
     expect(calls[0]).toEqual({
       url: 'http://localhost:3000/api/open',

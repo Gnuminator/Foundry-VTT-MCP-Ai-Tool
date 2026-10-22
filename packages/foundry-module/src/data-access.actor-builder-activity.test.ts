@@ -227,7 +227,7 @@ describe('FoundryDataAccess: useNpcActivity on an unlinked token', () => {
     tokenName = 'Boss'
   ): { worldAttack: any; tokenAttacks: any[] } {
     const world_ = attackItem({ id: 'w1', name: 'Bite' });
-    world.addActor({ id: 'strahd', name: 'Boss', type: 'npc', items: [world_.item] });
+    world.addActor({ id: 'sorvan', name: 'Boss', type: 'npc', items: [world_.item] });
     const tokenAttacks: any[] = [];
     const tokens = Array.from({ length: tokenCount }, (_, i) => {
       const own = attackItem({ id: `t${i}bite`, name: 'Bite' });
@@ -235,9 +235,9 @@ describe('FoundryDataAccess: useNpcActivity on an unlinked token', () => {
       return makeToken({
         id: `tok${i}`,
         name: tokenCount === 1 ? tokenName : `${tokenName} ${i + 1}`,
-        actorId: 'strahd',
+        actorId: 'sorvan',
         actorLink: false,
-        actor: makeActor({ id: 'strahd', name: 'Boss', type: 'npc', items: [own.item] }),
+        actor: makeActor({ id: 'sorvan', name: 'Boss', type: 'npc', items: [own.item] }),
       });
     });
     world.addScene({ id: 's1', active: true, tokens });
@@ -256,7 +256,7 @@ describe('FoundryDataAccess: useNpcActivity on an unlinked token', () => {
   it('uses the only token made from a world actor id (the dashboard picker sends ids)', async () => {
     const { worldAttack, tokenAttacks } = bossOnScene();
 
-    await da.useNpcActivity({ actorName: 'strahd', itemName: 'Bite' });
+    await da.useNpcActivity({ actorName: 'sorvan', itemName: 'Bite' });
 
     expect(tokenAttacks[0]).toHaveBeenCalledTimes(1);
     expect(worldAttack).not.toHaveBeenCalled();
@@ -274,7 +274,7 @@ describe('FoundryDataAccess: useNpcActivity on an unlinked token', () => {
   it('keeps the world actor when several tokens share that actor id', async () => {
     const { worldAttack, tokenAttacks } = bossOnScene(2);
 
-    await da.useNpcActivity({ actorName: 'strahd', itemName: 'Bite' });
+    await da.useNpcActivity({ actorName: 'sorvan', itemName: 'Bite' });
 
     expect(worldAttack).toHaveBeenCalledTimes(1);
     for (const t of tokenAttacks) expect(t).not.toHaveBeenCalled();

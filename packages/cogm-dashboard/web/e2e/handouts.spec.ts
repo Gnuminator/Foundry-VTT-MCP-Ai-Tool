@@ -26,14 +26,14 @@ const PLAYERS = [
 ];
 
 const SCENES = [
-  { id: 's1', name: 'Barovia', active: true },
-  { id: 's2', name: 'Vallaki', active: false },
+  { id: 's1', name: 'Maravia', active: true },
+  { id: 's2', name: 'Valmere', active: false },
 ];
 
 const page_ = (n: number): string => `JournalEntry.j1.JournalEntryPage.p${n}`;
 
 const QUEUE = [
-  // For another known scene: not next while Barovia is active.
+  // For another known scene: not next while Maravia is active.
   {
     entryId: 'e1',
     uuid: page_(1),
@@ -47,7 +47,7 @@ const QUEUE = [
   {
     entryId: 'e2',
     uuid: page_(2),
-    title: 'Map of Barovia',
+    title: 'Map of Maravia',
     exists: true,
     sceneId: 's1',
     addedAt: '2026-10-01T11:00:00Z',
@@ -76,7 +76,7 @@ const PAGES = [
   {
     pageId: 'p5',
     uuid: page_(5),
-    title: 'The Tome of Strahd',
+    title: 'The Tome of Sorvan',
     exists: true,
     observable: true,
     feature: 'tarokka',
@@ -114,13 +114,13 @@ const REVEAL_PLAN = {
   planId: 'rp1',
   feature: 'handouts',
   risk: 'destructive',
-  summary: 'Reveal "Map of Barovia" to every player',
-  diff: [{ text: 'Map of Barovia: visible to every player' }, { text: 'Taken off the queue' }],
+  summary: 'Reveal "Map of Maravia" to every player',
+  diff: [{ text: 'Map of Maravia: visible to every player' }, { text: 'Taken off the queue' }],
   requires: { confirm: true, confirmDestructive: true },
   pageUuid: page_(2),
 };
-const APPLIED = { changeId: 'ch9', summary: 'Revealed "Map of Barovia" to every player' };
-const UNDONE = { changeId: 'ch9', summary: 'Undid: Revealed "Map of Barovia" to every player' };
+const APPLIED = { changeId: 'ch9', summary: 'Revealed "Map of Maravia" to every player' };
+const UNDONE = { changeId: 'ch9', summary: 'Undid: Revealed "Map of Maravia" to every player' };
 
 type ToolAnswer = { status?: number; json: unknown };
 type Answer = (call: ToolCall) => ToolAnswer;
@@ -181,19 +181,19 @@ test('loads the queue and the seen log on open, with the next page marked', asyn
   const rows = queueRows(drawer);
   await expect(rows.locator('.pf-label')).toHaveText([
     'Letter from a courier',
-    'Map of Barovia',
+    'Map of Maravia',
     'Untitled (page deleted)',
     'Old note',
   ]);
   await expect(rows.locator('.pf-text > .pf-detail')).toHaveText([
-    'Vallaki · for Anna',
-    'Barovia · for every player',
+    'Valmere · for Anna',
+    'Maravia · for every player',
     'any scene · for every player',
     'another scene · for every player',
   ]);
   await expect(rows.nth(1)).toHaveClass('preflight-item pf-info');
   await expect(drawer.locator('#handouts-queue .pf-info')).toHaveCount(1);
-  await expect(drawer.locator('#handouts-next')).toHaveText('Reveal next: Map of Barovia');
+  await expect(drawer.locator('#handouts-next')).toHaveText('Reveal next: Map of Maravia');
   await expect(drawer.locator('#handouts-next')).toBeEnabled();
   await expect(drawer.locator('#handouts-show-now')).not.toBeChecked();
 
@@ -251,7 +251,7 @@ test('shows the empty states, and a failed load says why and keeps the last rows
 
   view = VIEW;
   await drawer.getByRole('button', { name: '↻ Refresh' }).click();
-  await expect(drawer.locator('#handouts-next')).toHaveText('Reveal next: Map of Barovia');
+  await expect(drawer.locator('#handouts-next')).toHaveText('Reveal next: Map of Maravia');
 
   fail = true;
   await drawer.getByRole('button', { name: '↻ Refresh' }).click();
@@ -366,10 +366,10 @@ test('Reveal next asks first; the tick unlocks Confirm, which applies with both 
   const confirm = page.getByRole('dialog', { name: 'Destructive action' });
   await expect(confirm).toBeVisible();
   await expect(confirm.locator('.modal-summary')).toHaveText(
-    'Reveal "Map of Barovia" to every player'
+    'Reveal "Map of Maravia" to every player'
   );
   await expect(confirm.locator('.change-diff li')).toHaveText([
-    'Map of Barovia: visible to every player',
+    'Map of Maravia: visible to every player',
     'Taken off the queue',
   ]);
   // The modal window hides the drawer from the accessibility tree, so by id: one reveal at a time.
@@ -398,7 +398,7 @@ test('Reveal next asks first; the tick unlocks Confirm, which applies with both 
   await run.click();
 
   await expect(confirm).toBeHidden();
-  await expect(toast(page, '✓ Applied: Revealed "Map of Barovia" to every player')).toBeVisible();
+  await expect(toast(page, '✓ Applied: Revealed "Map of Maravia" to every player')).toBeVisible();
   // Focus waits in the drawer while the button is disabled, then goes back to it.
   await expect(page.locator('#handouts-next')).toBeFocused();
   expect(calls.find(c => c.name === 'apply-planned-change')).toEqual({
@@ -410,7 +410,7 @@ test('Reveal next asks first; the tick unlocks Confirm, which applies with both 
   // The apply reloads the drawer once (the reload after the attempt joins it), and so does Undo.
   expect(loads(calls)).toBe(loaded + 1);
   await page.locator('.toast-stack .toast-undo .toast-action').click();
-  await expect(toast(page, '✓ Undid: Revealed "Map of Barovia" to every player')).toBeVisible();
+  await expect(toast(page, '✓ Undid: Revealed "Map of Maravia" to every player')).toBeVisible();
   expect(calls.find(c => c.name === 'undo-change')).toEqual({
     name: 'undo-change',
     args: { changeId: 'ch9' },
@@ -504,13 +504,13 @@ test('a plan answer without its lines is read again before the window opens', as
   await drawer.locator('#handouts-next').click();
   const confirm = page.getByRole('dialog', { name: 'Destructive action' });
   await expect(confirm.locator('.change-diff li')).toHaveText([
-    'Map of Barovia: visible to every player',
+    'Map of Maravia: visible to every player',
     'Taken off the queue',
   ]);
   expect(calls.find(c => c.name === 'get-planned-change')?.args).toEqual({ planId: 'rp1' });
   await confirm.getByRole('checkbox').check();
   await confirm.getByRole('button', { name: 'Run destructive action' }).click();
-  await expect(toast(page, '✓ Applied: Revealed "Map of Barovia" to every player')).toBeVisible();
+  await expect(toast(page, '✓ Applied: Revealed "Map of Maravia" to every player')).toBeVisible();
 });
 
 test('a handouts-seen event reloads the open drawer', async ({ page }) => {
@@ -577,7 +577,7 @@ test('a failed reveal reloads the queue; with nothing left, focus stays in the d
   await confirm.getByRole('checkbox').check();
   view = { pages: PAGES, queue: [] };
   await confirm.getByRole('button', { name: 'Run destructive action' }).click();
-  await expect(toast(page, '✓ Applied: Revealed "Map of Barovia" to every player')).toBeVisible();
+  await expect(toast(page, '✓ Applied: Revealed "Map of Maravia" to every player')).toBeVisible();
   await expect(queueRows(drawer)).toHaveCount(0);
   await expect(drawer.locator('#handouts-next')).toBeDisabled();
   await expect(drawer).toBeFocused();

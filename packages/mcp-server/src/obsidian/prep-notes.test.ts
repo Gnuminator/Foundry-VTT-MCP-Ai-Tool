@@ -50,7 +50,7 @@ function input(wanted: WantedUuid[] | null = null): ReadPrepNotesInput {
 
 const WANTED: WantedUuid[] = [
   { uuid: 'Scene.s1', reason: 'scene', matched: 'Village' },
-  { uuid: 'Actor.a1', reason: 'actor', matched: 'Ismark' },
+  { uuid: 'Actor.a1', reason: 'actor', matched: 'Ivarro' },
   { uuid: 'JournalEntry.q1', reason: 'quest', matched: 'Find the Sunsword' },
 ];
 
@@ -72,24 +72,24 @@ describe('prepNoteLines', () => {
       'tags: [campaign/w1, npc]',
       'voice: "Low, tired"',
       'want: ',
-      'secret: Knows where Ireena hides',
-      'allies: ["[[Ireena]]", Donavich]',
+      'secret: Knows where Ilvara hides',
+      'allies: ["[[Ilvara]]", Donavich]',
       'fears:',
-      '  - Strahd',
+      '  - Sorvan',
       '  - wolves',
       '---',
       '',
-      '# Ismark',
+      '# Ivarro',
       '',
       'Meets the party at the tavern.',
     ].join('\r\n');
     expect(prepNoteLines(text)).toEqual({
       lines: [
         'voice: Low, tired',
-        'secret: Knows where Ireena hides',
-        'allies: [[Ireena]], Donavich',
-        'fears: Strahd, wolves',
-        '# Ismark',
+        'secret: Knows where Ilvara hides',
+        'allies: [[Ilvara]], Donavich',
+        'fears: Sorvan, wolves',
+        '# Ivarro',
         'Meets the party at the tavern.',
       ],
       truncated: false,
@@ -112,13 +112,13 @@ describe('prepNoteLines', () => {
       'fvtt_uuid:',
       '- Actor.a1',
       'fears:',
-      '- Strahd',
+      '- Sorvan',
       '- wolves',
       'voice: Low',
       '---',
       'Body.',
     ].join('\n');
-    expect(prepNoteLines(text).lines).toEqual(['fears: Strahd, wolves', 'voice: Low', 'Body.']);
+    expect(prepNoteLines(text).lines).toEqual(['fears: Sorvan, wolves', 'voice: Low', 'Body.']);
   });
 
   it('leaves out Obsidian %% comments, also an unclosed one', () => {
@@ -147,7 +147,7 @@ describe('prepNoteLines', () => {
 describe('normalizeUuid', () => {
   it('accepts a bare uuid or a pasted @UUID link', () => {
     expect(normalizeUuid(' Actor.a1 ')).toBe('Actor.a1');
-    expect(normalizeUuid('@UUID[Actor.a1]{Ismark}')).toBe('Actor.a1');
+    expect(normalizeUuid('@UUID[Actor.a1]{Ivarro}')).toBe('Actor.a1');
   });
 });
 
@@ -232,8 +232,8 @@ describe('readPrepNotes', () => {
       fm({ type: 'quest-prep', fvtt_uuid: 'JournalEntry.q1' }, 'Q')
     );
     await note(
-      'Prep/Ismark.md',
-      fm({ type: 'npc-prep', fvtt_uuid: '"@UUID[Actor.a1]{Ismark}"' }, 'A')
+      'Prep/Ivarro.md',
+      fm({ type: 'npc-prep', fvtt_uuid: '"@UUID[Actor.a1]{Ivarro}"' }, 'A')
     );
     await note('Prep/Village.md', fm({ type: 'location-prep', fvtt_uuid: 'Scene.s1' }, 'S'));
     await note('Prep/Other.md', fm({ type: 'npc-prep', fvtt_uuid: 'Actor.zz' }, 'not here'));
@@ -243,17 +243,17 @@ describe('readPrepNotes', () => {
     );
     await note('Prep/Not prep.md', fm({ type: 'npc', fvtt_uuid: 'Actor.a1' }, 'mirror-like'));
     await note(
-      'Prep/Ismark.sync-conflict-20261006-ABC.md',
+      'Prep/Ivarro.sync-conflict-20261006-ABC.md',
       fm({ type: 'npc-prep', fvtt_uuid: 'Actor.a1' }, 'C')
     );
     await note(
-      'AI Tool/Foundry/NPCs/Ismark.md',
+      'AI Tool/Foundry/NPCs/Ivarro.md',
       fm({ type: 'npc-prep', fvtt_uuid: 'Actor.a1' }, 'T')
     );
     const { part } = await readPrepNotes(input(WANTED));
     expect(part.notes.map(n => [n.path, n.reason, n.matched])).toEqual([
       ['Prep/Village.md', 'scene', 'Village'],
-      ['Prep/Ismark.md', 'actor', 'Ismark'],
+      ['Prep/Ivarro.md', 'actor', 'Ivarro'],
       ['Prep/Quests/Sunsword.md', 'quest', 'Find the Sunsword'],
     ]);
     expect(part.notes[1]?.fvttUuid).toBe('Actor.a1');
@@ -304,7 +304,7 @@ describe('readPrepNotes', () => {
       input([...WANTED, { uuid: 'Scene.s1.Token.t2', reason: 'actor', matched: 'Guard' }])
     );
     expect(part.notes.map(n => [n.path, n.matched, n.fvttUuid])).toEqual([
-      ['Prep/Goblin.md', 'Ismark', 'Scene.s9.Token.t9.Actor.a1'],
+      ['Prep/Goblin.md', 'Ivarro', 'Scene.s9.Token.t9.Actor.a1'],
       ['Prep/Guard.md', 'Guard', 'Scene.s1.Token.t2.Actor.a7'],
     ]);
   });
@@ -319,7 +319,7 @@ describe('readPrepNotes', () => {
   });
 
   it('reads an unquoted @UUID link, a flow list and a block list of uuids', async () => {
-    await note('Prep/Link.md', fm({ type: 'npc-prep', fvtt_uuid: '@UUID[Actor.a1]{Ismark}' }));
+    await note('Prep/Link.md', fm({ type: 'npc-prep', fvtt_uuid: '@UUID[Actor.a1]{Ivarro}' }));
     await note(
       'Prep/Flow.md',
       fm({ type: 'quest-prep', fvtt_uuid: '[Actor.zz, JournalEntry.q1]' })

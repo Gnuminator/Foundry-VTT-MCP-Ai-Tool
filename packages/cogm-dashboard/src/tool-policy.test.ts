@@ -10,7 +10,7 @@ describe('classifyTool', () => {
       'search-compendium',
       'measure-distance',
       'plan-tarokka-reveal',
-      'suggest-strahd-reaction',
+      'suggest-sorvan-reaction',
       'suggest-balanced-encounter',
       'get-planned-change',
       'open-in-foundry',

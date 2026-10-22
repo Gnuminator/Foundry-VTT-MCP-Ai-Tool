@@ -66,7 +66,7 @@ export interface HubMember {
 }
 
 export interface AdventureHub {
-  /** The adventure's Foundry folder name (`Curse of Strahd`). */
+  /** The adventure's Foundry folder name (`Curse of Sorvan`). */
   name: string;
   /** Campaign-relative path of the hub note. */
   path: string;

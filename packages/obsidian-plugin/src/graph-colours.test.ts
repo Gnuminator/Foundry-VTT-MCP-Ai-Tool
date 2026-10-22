@@ -15,9 +15,9 @@ import {
   type HubInfo,
 } from './graph-colours.js';
 
-const strahd: HubInfo = {
-  path: 'Campaigns/w1/AI Tool/Foundry/Adventures/Curse of Strahd.md',
-  folders: ['AI Tool/Foundry/Journals/Curse of Strahd', 'AI Tool/Foundry/Scenes/Curse of Strahd/'],
+const sorvan: HubInfo = {
+  path: 'Campaigns/w1/AI Tool/Foundry/Adventures/Curse of Sorvan.md',
+  folders: ['AI Tool/Foundry/Journals/Curse of Sorvan', 'AI Tool/Foundry/Scenes/Curse of Sorvan/'],
 };
 const rime: HubInfo = {
   path: 'Campaigns/w1/AI Tool/Foundry/Adventures/Rime.md',
@@ -32,7 +32,7 @@ const userGroup = { query: 'tag:#npc', color: { a: 1, rgb: 123 } };
 
 describe('campaignRootOf', () => {
   it('returns the part before AI Tool/Foundry/Adventures/', () => {
-    expect(campaignRootOf(strahd.path)).toBe('Campaigns/w1');
+    expect(campaignRootOf(sorvan.path)).toBe('Campaigns/w1');
   });
   it('returns an empty string at the vault root', () => {
     expect(campaignRootOf(rootHub.path)).toBe('');
@@ -56,11 +56,11 @@ describe('libraryRootOf', () => {
 
 describe('ourGroups', () => {
   it('makes one group per hub, sorted by hub path, then a grey Library group per root', () => {
-    const groups = ourGroups([strahd, rime], []);
+    const groups = ourGroups([sorvan, rime], []);
     expect(groups).toEqual([
       {
         query:
-          'path:"Campaigns/w1/AI Tool/Foundry/Adventures/Curse of Strahd.md" OR path:"Campaigns/w1/AI Tool/Foundry/Journals/Curse of Strahd/" OR path:"Campaigns/w1/AI Tool/Foundry/Scenes/Curse of Strahd/"',
+          'path:"Campaigns/w1/AI Tool/Foundry/Adventures/Curse of Sorvan.md" OR path:"Campaigns/w1/AI Tool/Foundry/Journals/Curse of Sorvan/" OR path:"Campaigns/w1/AI Tool/Foundry/Scenes/Curse of Sorvan/"',
         color: { a: 1, rgb: ADVENTURE_PALETTE[0] },
       },
       {
@@ -87,9 +87,9 @@ describe('ourGroups', () => {
   });
 
   it('does not let a folder match a longer folder name', () => {
-    const [group] = ourGroups([strahd], []);
-    expect(group?.query).toContain('Journals/Curse of Strahd/"');
-    expect(group?.query).not.toContain('Journals/Curse of Strahd"');
+    const [group] = ourGroups([sorvan], []);
+    expect(group?.query).toContain('Journals/Curse of Sorvan/"');
+    expect(group?.query).not.toContain('Journals/Curse of Sorvan"');
   });
 
   it('handles a vault root campaign (no leading slash)', () => {
@@ -101,7 +101,7 @@ describe('ourGroups', () => {
   });
 
   it('adds Library roots from the library notes and does not repeat a root', () => {
-    const groups = ourGroups([strahd], ['Campaigns/w1', 'Campaigns/w2', '']);
+    const groups = ourGroups([sorvan], ['Campaigns/w1', 'Campaigns/w2', '']);
     const queries = groups.map(g => g.query);
     expect(queries.filter(q => q.includes('AI Tool/Library/'))).toEqual([
       'path:"AI Tool/Library/"',
@@ -117,7 +117,7 @@ describe('ourGroups', () => {
 
 describe('isOurGroup', () => {
   it('recognises hub and library queries only', () => {
-    const [hub, , lib] = ourGroups([strahd, rime], []);
+    const [hub, , lib] = ourGroups([sorvan, rime], []);
     expect(isOurGroup(hub)).toBe(true);
     expect(isOurGroup(lib)).toBe(true);
     expect(isOurGroup({ query: 'path:"AI Tool/Library/"', color: { a: 1, rgb: 1 } })).toBe(true);
@@ -131,7 +131,7 @@ describe('isOurGroup', () => {
 });
 
 describe('mergeGraphColourGroups', () => {
-  const groups = ourGroups([strahd, rime], []);
+  const groups = ourGroups([sorvan, rime], []);
 
   it('puts the user groups first and keeps every other key', () => {
     const graph = { search: 'x', showTags: true, colorGroups: [userGroup] };
@@ -149,7 +149,7 @@ describe('mergeGraphColourGroups', () => {
     const list = second.colorGroups as { query: string }[];
     expect(list).toHaveLength(3);
     expect(list[0]).toEqual(userGroup);
-    expect(list.some(g => g.query.includes('Curse of Strahd'))).toBe(false);
+    expect(list.some(g => g.query.includes('Curse of Sorvan'))).toBe(false);
   });
 
   it('keeps the user groups ahead of ours even when ours were first in the file', () => {
@@ -169,7 +169,7 @@ describe('mergeGraphColourGroups', () => {
   it('keeps the colour when the hub gains a folder (same hub path)', () => {
     const recoloured = [{ ...groups[0], color: { a: 1, rgb: 7 } }];
     const wider = ourGroups(
-      [{ ...strahd, folders: [...strahd.folders, 'AI Tool/Foundry/Actors'] }],
+      [{ ...sorvan, folders: [...sorvan.folders, 'AI Tool/Foundry/Actors'] }],
       []
     );
     const { json } = mergeGraphColourGroups({ colorGroups: recoloured }, wider);
@@ -290,7 +290,7 @@ const groupsOf = (json: unknown): unknown[] =>
 describe('applyGraphColoursTo', () => {
   it('parks the graph views before it reads the options, and puts every one back', async () => {
     const host = fakeHost({ openViews: 2, live: { colorGroups: [] } });
-    const result = await applyGraphColoursTo(host, [strahd], []);
+    const result = await applyGraphColoursTo(host, [sorvan], []);
     expect(host.calls).toEqual(['park', 'options', 'set', 'restore', 'wait', 'options']);
     expect(host.waits).toEqual([GRAPH_SETTLE_MS]);
     expect(result).toEqual({ adventures: 1, kept: 0, reopened: 2, live: true, reapplied: false });
@@ -303,7 +303,7 @@ describe('applyGraphColoursTo', () => {
       live: { showTags: true, colorGroups: [userGroup, justAdded] },
       disk: { colorGroups: [userGroup] },
     });
-    const result = await applyGraphColoursTo(host, [strahd, rime], []);
+    const result = await applyGraphColoursTo(host, [sorvan, rime], []);
     expect(host.calls).not.toContain('read');
     expect(host.calls).not.toContain('write');
     const saved = host.saved[0] ?? {};
@@ -324,7 +324,7 @@ describe('applyGraphColoursTo', () => {
         live.colorGroups = old;
       },
     });
-    const result = await applyGraphColoursTo(host, [strahd], []);
+    const result = await applyGraphColoursTo(host, [sorvan], []);
     expect(host.calls).toEqual(['park', 'options', 'set', 'restore', 'wait', 'options', 'set']);
     expect(host.saved).toHaveLength(2);
     expect(host.saved[1]).toEqual(host.saved[0]);
@@ -334,7 +334,7 @@ describe('applyGraphColoursTo', () => {
 
   it('falls back to graph.json when the graph plugin has no instance', async () => {
     const host = fakeHost({ live: null, disk: { scale: 2, colorGroups: [userGroup] } });
-    const result = await applyGraphColoursTo(host, [strahd], []);
+    const result = await applyGraphColoursTo(host, [sorvan], []);
     expect(host.calls).toEqual(['park', 'options', 'read', 'write', 'restore']);
     const json = host.written[0] as Record<string, unknown>;
     expect(json.scale).toBe(2);
@@ -345,7 +345,7 @@ describe('applyGraphColoursTo', () => {
   it('writes graph.json when the live options could not be saved', async () => {
     const live: Record<string, unknown> = { colorGroups: [userGroup] };
     const host = fakeHost({ live, setWorks: false });
-    const result = await applyGraphColoursTo(host, [strahd], []);
+    const result = await applyGraphColoursTo(host, [sorvan], []);
     expect(host.calls).toEqual(['park', 'options', 'set', 'write', 'restore', 'wait', 'options']);
     expect(groupsOf(host.written[0])[0]).toEqual(userGroup);
     // The live options hold the new groups too, so they cannot write the old ones back.
@@ -355,13 +355,13 @@ describe('applyGraphColoursTo', () => {
 
   it('puts no graph view back when none was open', async () => {
     const host = fakeHost({ openViews: 0, live: {} });
-    const result = await applyGraphColoursTo(host, [strahd], []);
+    const result = await applyGraphColoursTo(host, [sorvan], []);
     expect(result.reopened).toBe(0);
   });
 
   it('puts the parked views back when saving fails', async () => {
     const host = fakeHost({ openViews: 2, live: null, writeFails: true });
-    await expect(applyGraphColoursTo(host, [strahd], [])).rejects.toThrow('graph.json is locked');
+    await expect(applyGraphColoursTo(host, [sorvan], [])).rejects.toThrow('graph.json is locked');
     expect(host.calls).toEqual(['park', 'options', 'read', 'write', 'restore']);
     expect(host.calls).not.toContain('wait');
   });

@@ -17,10 +17,10 @@ import {
   fromMenu,
 } from './support';
 
-const IREENA = {
+const ILVARA = {
   actorId: 'a1',
   uuid: 'Actor.a1',
-  name: 'Ireena',
+  name: 'Ilvara',
   type: 'character',
   level: 3,
   hp: { value: 5, max: 20, temp: 3 },
@@ -31,13 +31,13 @@ const IREENA = {
   deathSaves: null,
   conditions: ['Poisoned'],
   inspiration: true,
-  tokens: [{ tokenId: 't1', name: 'Ireena', hidden: true, inCombat: false }],
+  tokens: [{ tokenId: 't1', name: 'Ilvara', hidden: true, inCombat: false }],
 };
 
-const ISMARK = {
+const IVARRO = {
   actorId: 'a2',
   uuid: 'Actor.a2',
-  name: 'Ismark',
+  name: 'Ivarro',
   type: 'character',
   level: 3,
   hp: { value: 0, max: 30, temp: 0 },
@@ -58,7 +58,7 @@ const GROUP = {
   primary: true,
   level: 3,
   pace: { value: 'normal', label: 'Normal', slowed: false },
-  members: [IREENA, ISMARK],
+  members: [ILVARA, IVARRO],
   restCards: { short: { type: 'request' } },
 };
 
@@ -69,7 +69,7 @@ const STATE = {
     { value: 'normal', label: 'Normal' },
     { value: 'fast', label: 'Fast' },
   ],
-  scene: { sceneId: 's1', name: 'Barovia' },
+  scene: { sceneId: 's1', name: 'Maravia' },
   encounter: { combatId: 'c1', uuid: 'Combat.c1', round: 2, started: true },
   warnings: ['One actor could not be read.'],
 };
@@ -131,17 +131,17 @@ test('loads the party on open and shows each member and section', async ({ page 
   await expect(drawer.locator('#party-group')).toHaveCount(0);
 
   const rows = drawer.getByRole('list', { name: 'Members' }).locator('.party-member');
-  await expect(rows.locator('.pf-label')).toHaveText(['Ireena ★', 'Ismark']);
+  await expect(rows.locator('.pf-label')).toHaveText(['Ilvara ★', 'Ivarro']);
   await expect(rows.nth(0).locator('.party-inspiration')).toHaveAttribute('title', 'Inspiration');
   await expect(rows.nth(0).locator('.pf-detail')).toHaveText([
     'Level 3 · AC 15 · Passive Perception 13 · Hit dice 2/3',
-    'On Barovia, hidden',
+    'On Maravia, hidden',
   ]);
   await expect(rows.nth(0).locator('.condition-chip')).toHaveText(['Exhaustion 2', 'Poisoned']);
   await expect(rows.nth(0).locator('.hp-text')).toHaveText('5/20 +3');
   await expect(rows.nth(0).locator('.hp-fill')).toHaveClass('hp-fill low');
   await expect(rows.nth(0).locator('.hp-fill')).toHaveAttribute('style', 'width: 25%;');
-  await expect(rows.nth(1).locator('.pf-detail')).toHaveText(['Level 3', 'No token on Barovia']);
+  await expect(rows.nth(1).locator('.pf-detail')).toHaveText(['Level 3', 'No token on Maravia']);
   await expect(rows.nth(1).locator('.death-saves')).toHaveText('Death saves: 1 saved, 2 failed');
   await expect(rows.nth(1).locator('.hp-text')).toHaveText('0/30');
 
@@ -151,7 +151,7 @@ test('loads the party on open and shows each member and section', async ({ page 
   await expect(pace.getByRole('button', { name: 'Fast' })).toBeEnabled();
 
   const combat = drawer.locator('#party-combat');
-  await expect(combat.locator('p').first()).toHaveText('Encounter on Barovia, round 2.');
+  await expect(combat.locator('p').first()).toHaveText('Encounter on Maravia, round 2.');
   await expect(combat.getByRole('button', { name: 'Add 1 to the encounter' })).toBeEnabled();
   await expect(combat.getByRole('button', { name: 'Place the party here' })).toBeEnabled();
 
@@ -170,11 +170,11 @@ test('the combat and pace lines follow the encounter, the tokens and a slowed me
   const combat = drawer.locator('#party-combat');
 
   await expect(combat.locator('p').first()).toHaveText(
-    'No encounter. The button starts one on Barovia.'
+    'No encounter. The button starts one on Maravia.'
   );
   await expect(combat.getByRole('button', { name: 'Start an encounter with 1' })).toBeEnabled();
 
-  const allIn = { ...IREENA, tokens: [{ ...IREENA.tokens[0], inCombat: true }] };
+  const allIn = { ...ILVARA, tokens: [{ ...ILVARA.tokens[0], inCombat: true }] };
   state = {
     ...STATE,
     encounter: { ...STATE.encounter, started: false },
@@ -182,30 +182,30 @@ test('the combat and pace lines follow the encounter, the tokens and a slowed me
       {
         ...GROUP,
         pace: { value: 'normal', label: 'Slow', slowed: true },
-        members: [allIn, ISMARK],
+        members: [allIn, IVARRO],
       },
     ],
   };
   await drawer.getByRole('button', { name: '↻ Refresh' }).click();
   await expect(combat.locator('p').first()).toHaveText(
-    'Encounter on Barovia, round 2 (not started).'
+    'Encounter on Maravia, round 2 (not started).'
   );
   await expect(combat.getByRole('button', { name: 'Everyone is in the encounter' })).toBeDisabled();
   await expect(drawer.locator('.party-member').first().locator('.pf-detail').last()).toHaveText(
-    'On Barovia, hidden, in the encounter'
+    'On Maravia, hidden, in the encounter'
   );
   await expect(drawer.locator('#party-pace p')).toHaveText(
     'Now: Slow. A slowed member holds the party to slow pace.'
   );
   await expect(drawer.locator('#party-pace').getByRole('button', { name: 'Normal' })).toBeEnabled();
 
-  state = { ...STATE, groups: [{ ...GROUP, members: [ISMARK], pace: null }] };
+  state = { ...STATE, groups: [{ ...GROUP, members: [IVARRO], pace: null }] };
   await drawer.getByRole('button', { name: '↻ Refresh' }).click();
-  await expect(combat.getByRole('button', { name: 'No party tokens on Barovia' })).toBeDisabled();
+  await expect(combat.getByRole('button', { name: 'No party tokens on Maravia' })).toBeDisabled();
   await expect(drawer.locator('#party-pace')).toHaveText('This group has no travel pace.');
 
   // Without a scene the bridge reads no tokens, and the rows say nothing about them.
-  state = { ...STATE, scene: null, groups: [{ ...GROUP, members: [ISMARK] }] };
+  state = { ...STATE, scene: null, groups: [{ ...GROUP, members: [IVARRO] }] };
   await drawer.getByRole('button', { name: '↻ Refresh' }).click();
   await expect(combat).toHaveText('No active scene.');
   await expect(drawer.locator('.party-member .pf-detail')).toHaveText(['Level 3']);
@@ -213,7 +213,7 @@ test('the combat and pace lines follow the encounter, the tokens and a slowed me
 
 test('the group picker shows with two groups and switches without a load', async ({ page }) => {
   await fakeStream(page, []);
-  const other = { ...GROUP, actorId: 'g2', name: 'Scouts', primary: false, members: [ISMARK] };
+  const other = { ...GROUP, actorId: 'g2', name: 'Scouts', primary: false, members: [IVARRO] };
   const calls = await fakeTools(page, () => ok({ ...STATE, groups: [GROUP, other] }));
   const drawer = await openParty(page);
 
@@ -223,7 +223,7 @@ test('the group picker shows with two groups and switches without a load', async
   await expect(drawer.locator('.drawer-sub')).toHaveText(
     'GM only. Scouts, level 3, 1 member. Not the primary party.'
   );
-  await expect(drawer.locator('.party-member .pf-label')).toHaveText('Ismark');
+  await expect(drawer.locator('.party-member .pf-label')).toHaveText('Ivarro');
   expect(names(calls)).toEqual(['get-party']);
 });
 

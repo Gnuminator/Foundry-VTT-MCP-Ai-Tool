@@ -42,15 +42,15 @@ describe('list-changes', () => {
     const { tools, list } = makeTools();
     await tools.handleListChanges({
       limit: 5,
-      person: ' Ireena ',
+      person: ' Ilvara ',
       thing: 'Actor.a1',
       source: 'human',
       since: '2026-10-06T19:00:00Z',
     });
     expect(list).toHaveBeenCalledWith({
       limit: 5,
-      userId: 'Ireena',
-      userName: 'Ireena',
+      userId: 'Ilvara',
+      userName: 'Ilvara',
       thingUuid: 'Actor.a1',
       source: 'human',
       sinceIso: '2026-10-06T19:00:00Z',

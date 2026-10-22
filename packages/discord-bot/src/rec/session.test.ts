@@ -115,13 +115,13 @@ describe('RecordingSession + convertSession', () => {
     writeFileSync(rec, Buffer.concat([readFileSync(rec), partial.subarray(0, 7)]));
     writeFileSync(
       join(dir, 'speakers.json'),
-      '{"anna.b":{"player":"Anna","character":"Ireena"}}\n'
+      '{"anna.b":{"player":"Anna","character":"Ilvara"}}\n'
     );
 
     const result = convertSession(dir);
     expect(result.speakersWritten).toBe(false);
     expect(result.tracks[0]).toMatchObject({ truncatedBytes: 7, stats: { packets: 1 } });
-    expect(readFileSync(join(dir, 'speakers.json'), 'utf8')).toContain('Ireena');
+    expect(readFileSync(join(dir, 'speakers.json'), 'utf8')).toContain('Ilvara');
   });
 
   it('reports a failing file once, keeps the other tracks and still stops cleanly', async () => {

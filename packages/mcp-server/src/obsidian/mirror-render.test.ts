@@ -59,7 +59,7 @@ beforeEach(() => {
 // Fixtures
 // ---------------------------------------------------------------------------
 
-const W = 'strahd-test';
+const W = 'sorvan-test';
 const OPEN = 'http://localhost:3000';
 const MODIFIED = Date.UTC(2026, 8, 29, 10, 30, 0);
 const HOSTILE =
@@ -81,13 +81,13 @@ const ITEM_UUID = `Item.${fid('item1')}`;
 const PATHS: Record<string, string> = {
   [PC_UUID]: 'AI Tool/Foundry/PCs/Test Hero.md',
   [NPC_UUID]: 'AI Tool/Foundry/NPCs/Wolf.md',
-  [SCENE_UUID]: 'AI Tool/Foundry/Scenes/Castle Ravenloft.md',
-  [JOURNAL_UUID]: 'AI Tool/Foundry/Journals/Barovia.md',
+  [SCENE_UUID]: 'AI Tool/Foundry/Scenes/Castle Greywatch.md',
+  [JOURNAL_UUID]: 'AI Tool/Foundry/Journals/Maravia.md',
   [ITEM_UUID]: 'AI Tool/Foundry/Items/Sun Blade.md',
 };
 const PAGE_PATHS: Record<string, string> = {
-  [PAGE1_UUID]: 'AI Tool/Foundry/Journals/Barovia/Village.md',
-  [PAGE2_UUID]: 'AI Tool/Foundry/Journals/Barovia/Vallaki.md',
+  [PAGE1_UUID]: 'AI Tool/Foundry/Journals/Maravia/Village.md',
+  [PAGE2_UUID]: 'AI Tool/Foundry/Journals/Maravia/Valmere.md',
 };
 
 interface CtxOptions {
@@ -218,7 +218,7 @@ function npc(over: Partial<ExportActorEntry> = {}): ExportActorEntry {
 
 function scene(over: Partial<ExportSceneEntry> = {}): ExportSceneEntry {
   return {
-    ...baseFields(SCENE_UUID, 'Castle Ravenloft'),
+    ...baseFields(SCENE_UUID, 'Castle Greywatch'),
     kind: 'scene',
     navName: null,
     navigation: true,
@@ -249,7 +249,7 @@ function page(uuid: string, over: Partial<ExportPageEntry> = {}): ExportPageEntr
 
 function journal(over: Partial<ExportJournalEntry> = {}): ExportJournalEntry {
   return {
-    ...baseFields(JOURNAL_UUID, 'Barovia'),
+    ...baseFields(JOURNAL_UUID, 'Maravia'),
     kind: 'journal',
     categories: [
       { id: 'cat1', name: 'Places', sort: 20 },
@@ -266,7 +266,7 @@ function journal(over: Partial<ExportJournalEntry> = {}): ExportJournalEntry {
         text: { format: 'html', content: '<p>Mist and fog.</p>', truncated: false },
       }),
       page(PAGE2_UUID, {
-        name: 'Vallaki',
+        name: 'Valmere',
         category: 'cat1',
         sort: 200,
         text: { format: 'markdown', content: 'The **festival** never ends.', truncated: false },
@@ -421,7 +421,7 @@ describe('renderMirrorNote snapshots', () => {
     expect(render(pc())).toMatchInlineSnapshot(`
       "---
       type: "pc"
-      fvtt_world: "strahd-test"
+      fvtt_world: "sorvan-test"
       fvtt_uuid: "Actor.pc10000000000000"
       fvtt_type: "Actor"
       name: "Test Hero"
@@ -434,7 +434,7 @@ describe('renderMirrorNote snapshots', () => {
       background: "Soldier"
       hp_max: 28
       ac: 18
-      stats: "[[Campaigns/strahd-test/AI Tool/Stats/PCs/Test Hero|Test Hero stats]]"
+      stats: "[[Campaigns/sorvan-test/AI Tool/Stats/PCs/Test Hero|Test Hero stats]]"
       prep: null
       aliases:
         - "Test Hero"
@@ -445,10 +445,10 @@ describe('renderMirrorNote snapshots', () => {
       rules: "2024"
       schema: 1
       tags:
-        - "campaign/strahd-test"
+        - "campaign/sorvan-test"
         - "pc"
       generated_by: "foundry-ai-tool"
-      generated_hash: "4ef708ae590b6445"
+      generated_hash: "b84555179fb04faa"
       ---
       # Test Hero
 
@@ -486,7 +486,7 @@ describe('renderMirrorNote snapshots', () => {
     expect(render(npc())).toMatchInlineSnapshot(`
       "---
       type: "npc"
-      fvtt_world: "strahd-test"
+      fvtt_world: "sorvan-test"
       fvtt_uuid: "Actor.npc1000000000000"
       fvtt_type: "Actor"
       name: "Wolf"
@@ -502,7 +502,7 @@ describe('renderMirrorNote snapshots', () => {
       ac: 13
       source_book: "MM 2014"
       last_seen: null
-      prep: "[[Campaigns/strahd-test/Prep/NPCs/Wolf|Wolf prep]]"
+      prep: "[[Campaigns/sorvan-test/Prep/NPCs/Wolf|Wolf prep]]"
       aliases:
         - "Wolf"
       fvtt_modified: "2026-09-29T10:30:00.000Z"
@@ -512,10 +512,10 @@ describe('renderMirrorNote snapshots', () => {
       rules: "2014"
       schema: 1
       tags:
-        - "campaign/strahd-test"
+        - "campaign/sorvan-test"
         - "npc"
       generated_by: "foundry-ai-tool"
-      generated_hash: "8c9b6808bf3f2211"
+      generated_hash: "00bf3a04b83bbbb8"
       ---
       # Wolf
 
@@ -548,21 +548,21 @@ describe('renderMirrorNote snapshots', () => {
     expect(render(scene())).toMatchInlineSnapshot(`
       "---
       type: "scene"
-      fvtt_world: "strahd-test"
+      fvtt_world: "sorvan-test"
       fvtt_uuid: "Scene.scene10000000000"
       fvtt_type: "Scene"
-      name: "Castle Ravenloft"
+      name: "Castle Greywatch"
       folder: null
       nav_name: null
-      player_name: "Castle Ravenloft"
+      player_name: "Castle Greywatch"
       navigation: true
-      journal: "[[Campaigns/strahd-test/AI Tool/Foundry/Journals/Barovia|Journal]]"
+      journal: "[[Campaigns/sorvan-test/AI Tool/Foundry/Journals/Maravia|Journal]]"
       pins: 3
       tokens: null
       last_seen: null
       prep: null
       aliases:
-        - "Castle Ravenloft"
+        - "Castle Greywatch"
       fvtt_modified: "2026-09-29T10:30:00.000Z"
       fvtt_sig: "sig-1"
       player_access: "none"
@@ -570,12 +570,12 @@ describe('renderMirrorNote snapshots', () => {
       rules: null
       schema: 1
       tags:
-        - "campaign/strahd-test"
+        - "campaign/sorvan-test"
         - "scene"
       generated_by: "foundry-ai-tool"
-      generated_hash: "dcc7cb459f7931ad"
+      generated_hash: "eff79e35ad3bf50d"
       ---
-      # Castle Ravenloft
+      # Castle Greywatch
 
       > [!info] Mirrored from Foundry by the AI Tool
       > The AI Tool rewrites this note when the document changes in Foundry. If you edit it here, the tool stops updating it and lists it in \`AI Tool/Foundry/_status.md\`. Write your own notes in \`Prep/\`.
@@ -585,15 +585,15 @@ describe('renderMirrorNote snapshots', () => {
       The active scene is always visible to players, whatever the navigation settings say.
 
       > [!warning] Players see the true name
-      > This scene is in the navigation bar and has no navigation name, so players see "Castle Ravenloft" there.
+      > This scene is in the navigation bar and has no navigation name, so players see "Castle Greywatch" there.
 
       ## Journal
 
-      - [A journal page](../Journals/Barovia/Village.md)
+      - [A journal page](../Journals/Maravia/Village.md)
 
       ## Map pins
 
-      - [The crypt](../Journals/Barovia/Village.md)
+      - [The crypt](../Journals/Maravia/Village.md)
       - A journal (no longer in this world)
       - Unlinked note
       "
@@ -661,18 +661,18 @@ describe('renderMirrorNote snapshots', () => {
     const notes = renderMirrorNote(W, journal(), makeCtx());
     expect(notes.map(n => n.path)).toMatchInlineSnapshot(`
       [
-        "AI Tool/Foundry/Journals/Barovia.md",
-        "AI Tool/Foundry/Journals/Barovia/Village.md",
-        "AI Tool/Foundry/Journals/Barovia/Vallaki.md",
+        "AI Tool/Foundry/Journals/Maravia.md",
+        "AI Tool/Foundry/Journals/Maravia/Village.md",
+        "AI Tool/Foundry/Journals/Maravia/Valmere.md",
       ]
     `);
     expect(notes[0]?.text).toMatchInlineSnapshot(`
       "---
       type: "journal"
-      fvtt_world: "strahd-test"
+      fvtt_world: "sorvan-test"
       fvtt_uuid: "JournalEntry.jr10000000000000"
       fvtt_type: "JournalEntry"
-      name: "Barovia"
+      name: "Maravia"
       folder: null
       pages: 4
       pages_player_visible: 1
@@ -683,7 +683,7 @@ describe('renderMirrorNote snapshots', () => {
         - "Places"
       prep: null
       aliases:
-        - "Barovia"
+        - "Maravia"
       fvtt_modified: "2026-09-29T10:30:00.000Z"
       fvtt_sig: "sig-1"
       player_access: "none"
@@ -691,12 +691,12 @@ describe('renderMirrorNote snapshots', () => {
       rules: null
       schema: 1
       tags:
-        - "campaign/strahd-test"
+        - "campaign/sorvan-test"
         - "journal"
       generated_by: "foundry-ai-tool"
-      generated_hash: "bf0de82d674ac1c2"
+      generated_hash: "43293f72371d3ca6"
       ---
-      # Barovia
+      # Maravia
 
       > [!info] Mirrored from Foundry by the AI Tool
       > The AI Tool rewrites this note when the document changes in Foundry. If you edit it here, the tool stops updating it and lists it in \`AI Tool/Foundry/_status.md\`. Write your own notes in \`Prep/\`.
@@ -711,8 +711,8 @@ describe('renderMirrorNote snapshots', () => {
 
       ### Places
 
-      - [Village](Barovia/Village.md) (text, access observer, players can open) ^p-pg10000000000000
-      - [Vallaki](Barovia/Vallaki.md) (text, access none, revealed) ^p-pg20000000000000
+      - [Village](Maravia/Village.md) (text, access observer, players can open) ^p-pg10000000000000
+      - [Valmere](Maravia/Valmere.md) (text, access none, revealed) ^p-pg20000000000000
 
       ### No category
 
@@ -722,13 +722,13 @@ describe('renderMirrorNote snapshots', () => {
     expect(notes[1]?.text).toMatchInlineSnapshot(`
       "---
       type: "journal-page"
-      fvtt_world: "strahd-test"
+      fvtt_world: "sorvan-test"
       fvtt_uuid: "JournalEntry.jr10000000000000.JournalEntryPage.pg10000000000000"
       fvtt_type: "JournalEntryPage"
       name: "Village"
       folder: null
       fvtt_journal: "JournalEntry.jr10000000000000"
-      journal: "[[Campaigns/strahd-test/AI Tool/Foundry/Journals/Barovia|Barovia]]"
+      journal: "[[Campaigns/sorvan-test/AI Tool/Foundry/Journals/Maravia|Maravia]]"
       page_type: "text"
       revealed: false
       sort: 100
@@ -740,10 +740,10 @@ describe('renderMirrorNote snapshots', () => {
       rules: null
       schema: 1
       tags:
-        - "campaign/strahd-test"
+        - "campaign/sorvan-test"
         - "journal-page"
       generated_by: "foundry-ai-tool"
-      generated_hash: "3707fa135eed89ea"
+      generated_hash: "5cf6b422c9c3b41f"
       ---
       # Village
 
@@ -752,47 +752,47 @@ describe('renderMirrorNote snapshots', () => {
 
       [Open in Foundry](http://localhost:3000/open?uuid=JournalEntry.jr10000000000000.JournalEntryPage.pg10000000000000)
 
-      Back to journal: [Barovia](../Barovia.md#^p-pg10000000000000)
+      Back to journal: [Maravia](../Maravia.md#^p-pg10000000000000)
 
-      [html AI Tool/Foundry/Journals/Barovia/Village.md] <p>Mist and fog.</p>
+      [html AI Tool/Foundry/Journals/Maravia/Village.md] <p>Mist and fog.</p>
       "
     `);
     expect(notes[2]?.text).toMatchInlineSnapshot(`
       "---
       type: "journal-page"
-      fvtt_world: "strahd-test"
+      fvtt_world: "sorvan-test"
       fvtt_uuid: "JournalEntry.jr10000000000000.JournalEntryPage.pg20000000000000"
       fvtt_type: "JournalEntryPage"
-      name: "Vallaki"
+      name: "Valmere"
       folder: null
       fvtt_journal: "JournalEntry.jr10000000000000"
-      journal: "[[Campaigns/strahd-test/AI Tool/Foundry/Journals/Barovia|Barovia]]"
+      journal: "[[Campaigns/sorvan-test/AI Tool/Foundry/Journals/Maravia|Maravia]]"
       page_type: "text"
       revealed: true
       sort: 200
       aliases:
-        - "Vallaki"
+        - "Valmere"
       fvtt_modified: "2026-09-29T10:30:00.000Z"
       player_access: "none"
       player_visible: false
       rules: null
       schema: 1
       tags:
-        - "campaign/strahd-test"
+        - "campaign/sorvan-test"
         - "journal-page"
       generated_by: "foundry-ai-tool"
-      generated_hash: "1df2215d2956ca07"
+      generated_hash: "38f84453999763f8"
       ---
-      # Vallaki
+      # Valmere
 
       > [!info] Mirrored from Foundry by the AI Tool
       > The AI Tool rewrites this note when the document changes in Foundry. If you edit it here, the tool stops updating it and lists it in \`AI Tool/Foundry/_status.md\`. Write your own notes in \`Prep/\`.
 
       [Open in Foundry](http://localhost:3000/open?uuid=JournalEntry.jr10000000000000.JournalEntryPage.pg20000000000000)
 
-      Back to journal: [Barovia](../Barovia.md#^p-pg20000000000000)
+      Back to journal: [Maravia](../Maravia.md#^p-pg20000000000000)
 
-      [markdown AI Tool/Foundry/Journals/Barovia/Vallaki.md] The **festival** never ends.
+      [markdown AI Tool/Foundry/Journals/Maravia/Valmere.md] The **festival** never ends.
       "
     `);
   });
@@ -801,7 +801,7 @@ describe('renderMirrorNote snapshots', () => {
     expect(render(item())).toMatchInlineSnapshot(`
       "---
       type: "story-item"
-      fvtt_world: "strahd-test"
+      fvtt_world: "sorvan-test"
       fvtt_uuid: "Item.item100000000000"
       fvtt_type: "Item"
       name: "Sun Blade"
@@ -813,8 +813,8 @@ describe('renderMirrorNote snapshots', () => {
       identified: true
       player_name: "Sun Blade"
       holders:
-        - "[[Campaigns/strahd-test/AI Tool/Foundry/PCs/Test Hero|Test Hero]]"
-        - "[[Campaigns/strahd-test/AI Tool/Foundry/NPCs/Wolf|Wolf]]"
+        - "[[Campaigns/sorvan-test/AI Tool/Foundry/PCs/Test Hero|Test Hero]]"
+        - "[[Campaigns/sorvan-test/AI Tool/Foundry/NPCs/Wolf|Wolf]]"
         - "Ghost"
       aliases:
         - "Sun Blade"
@@ -825,10 +825,10 @@ describe('renderMirrorNote snapshots', () => {
       rules: "2024"
       schema: 1
       tags:
-        - "campaign/strahd-test"
+        - "campaign/sorvan-test"
         - "story-item"
       generated_by: "foundry-ai-tool"
-      generated_hash: "81dea794778b7be3"
+      generated_hash: "f9d5fb442dae7d39"
       ---
       # Sun Blade
 
@@ -970,11 +970,11 @@ describe('renderMirrorNote behavior', () => {
   it('uses wikilinks in properties only for notes that exist', () => {
     const text = render(pc());
     expect(text).toContain(
-      'stats: "[[Campaigns/strahd-test/AI Tool/Stats/PCs/Test Hero|Test Hero stats]]"'
+      'stats: "[[Campaigns/sorvan-test/AI Tool/Stats/PCs/Test Hero|Test Hero stats]]"'
     );
     expect(text).toContain('prep: null');
     const wolf = render(npc());
-    expect(wolf).toContain('prep: "[[Campaigns/strahd-test/Prep/NPCs/Wolf|Wolf prep]]"');
+    expect(wolf).toContain('prep: "[[Campaigns/sorvan-test/Prep/NPCs/Wolf|Wolf prep]]"');
   });
 
   it('falls back to plain text for a wikilink target the syntax cannot carry', () => {
@@ -1007,10 +1007,10 @@ describe('scene notes', () => {
 
   it('links a journal to its quest prep note, from the index note only (I-121)', () => {
     expect(renderIndex(journal())).toContain('prep: null');
-    const ctx = makeCtx({ prep: { [JOURNAL_UUID]: 'Prep/Quests/Barovia.md' } });
+    const ctx = makeCtx({ prep: { [JOURNAL_UUID]: 'Prep/Quests/Maravia.md' } });
     const text = renderIndex(journal(), ctx);
-    expect(text).toContain('prep: "[[Campaigns/strahd-test/Prep/Quests/Barovia|Barovia prep]]"');
-    expect(text).toMatch(/## Related notes\n\n- \[Prep\]\(.*Prep\/Quests\/Barovia\.md\)/);
+    expect(text).toContain('prep: "[[Campaigns/sorvan-test/Prep/Quests/Maravia|Maravia prep]]"');
+    expect(text).toMatch(/## Related notes\n\n- \[Prep\]\(.*Prep\/Quests\/Maravia\.md\)/);
     const pages = renderMirrorNote(W, journal(), ctx).slice(1);
     expect(pages.length).toBeGreaterThan(0);
     for (const page of pages) expect(page.text).not.toContain('Prep/Quests');
@@ -1022,7 +1022,7 @@ describe('scene notes', () => {
     expect(plain).not.toContain('## Related notes');
     const text = render(scene(), makeCtx({ prep: { [SCENE_UUID]: 'Prep/Places/Castle.md' } }));
     expect(text).toContain(
-      'prep: "[[Campaigns/strahd-test/Prep/Places/Castle|Castle Ravenloft prep]]"'
+      'prep: "[[Campaigns/sorvan-test/Prep/Places/Castle|Castle Greywatch prep]]"'
     );
     expect(text).toContain('## Related notes');
     expect(text).toMatch(/- \[Prep\]\(.*Prep\/Places\/Castle\.md\)/);
@@ -1049,7 +1049,7 @@ describe('scene notes', () => {
 
   it('gives the name players see', () => {
     expect(render(scene({ navName: 'The Keep' }))).toContain('player_name: "The Keep"');
-    expect(render(scene())).toContain('player_name: "Castle Ravenloft"');
+    expect(render(scene())).toContain('player_name: "Castle Greywatch"');
     expect(render(scene())).toContain('nav_name: null');
   });
 
@@ -1079,30 +1079,30 @@ describe('scene notes', () => {
             name: 'Village',
             blockId: 'p-pg1',
           },
-          [JOURNAL_UUID]: { notePath: PATHS[JOURNAL_UUID] ?? null, name: 'Barovia' },
+          [JOURNAL_UUID]: { notePath: PATHS[JOURNAL_UUID] ?? null, name: 'Maravia' },
         },
       })
     );
-    expect(text).toContain('[Village](../Journals/Barovia.md#^p-pg1)');
-    expect(text).toContain('[The crypt](../Journals/Barovia.md#^p-pg1)');
+    expect(text).toContain('[Village](../Journals/Maravia.md#^p-pg1)');
+    expect(text).toContain('[The crypt](../Journals/Maravia.md#^p-pg1)');
     expect(text).toContain(
-      'journal: "[[Campaigns/strahd-test/AI Tool/Foundry/Journals/Barovia|Barovia]]"'
+      'journal: "[[Campaigns/sorvan-test/AI Tool/Foundry/Journals/Maravia|Maravia]]"'
     );
   });
 
   it('links the journal named like its folder when its own journal is unset or gone', () => {
     const chapter = `JournalEntry.${fid('chapter')}`;
     const ctx = makeCtx({
-      notes: { ...PATHS, [chapter]: 'AI Tool/Foundry/Journals/Strahd/Chapter 4.md' },
+      notes: { ...PATHS, [chapter]: 'AI Tool/Foundry/Journals/Sorvan/Chapter 4.md' },
       targets: {
-        [chapter]: { notePath: 'AI Tool/Foundry/Journals/Strahd/Chapter 4.md', name: 'Chapter 4' },
+        [chapter]: { notePath: 'AI Tool/Foundry/Journals/Sorvan/Chapter 4.md', name: 'Chapter 4' },
       },
       findByName: (kind, name) =>
         kind === 'JournalEntry' && name === 'Chapter 4' ? chapter : null,
     });
-    const inFolder = { id: 'f2', path: ['Strahd', 'Chapter 4'] };
+    const inFolder = { id: 'f2', path: ['Sorvan', 'Chapter 4'] };
     const byFolder =
-      "- [Chapter 4](../Journals/Strahd/Chapter%204.md) (by the scene's folder name; the scene has no journal note of its own)";
+      "- [Chapter 4](../Journals/Sorvan/Chapter%204.md) (by the scene's folder name; the scene has no journal note of its own)";
     const dead = `JournalEntry.${fid('dead')}`;
     for (const journal of [null, { uuid: dead, pageUuid: null }]) {
       const text = render(scene({ folder: inFolder, journal, pins: [] }), ctx);
@@ -1116,11 +1116,11 @@ describe('scene notes', () => {
     const early = render(
       scene({ folder: inFolder, journal: { uuid: dead, pageUuid: null }, pins: [] }),
       makeCtx({
-        notes: { ...PATHS, [chapter]: 'AI Tool/Foundry/Journals/Strahd/Chapter 4.md' },
+        notes: { ...PATHS, [chapter]: 'AI Tool/Foundry/Journals/Sorvan/Chapter 4.md' },
         targets: {
           [dead]: { notePath: null, name: null },
           [chapter]: {
-            notePath: 'AI Tool/Foundry/Journals/Strahd/Chapter 4.md',
+            notePath: 'AI Tool/Foundry/Journals/Sorvan/Chapter 4.md',
             name: 'Chapter 4',
           },
         },
@@ -1134,11 +1134,11 @@ describe('scene notes', () => {
     const unmirrored = render(
       scene({ folder: inFolder, journal: { uuid: dead, pageUuid: null }, pins: [] }),
       makeCtx({
-        notes: { ...PATHS, [chapter]: 'AI Tool/Foundry/Journals/Strahd/Chapter 4.md' },
+        notes: { ...PATHS, [chapter]: 'AI Tool/Foundry/Journals/Sorvan/Chapter 4.md' },
         targets: {
           [dead]: { notePath: null, name: 'Side notes' },
           [chapter]: {
-            notePath: 'AI Tool/Foundry/Journals/Strahd/Chapter 4.md',
+            notePath: 'AI Tool/Foundry/Journals/Sorvan/Chapter 4.md',
             name: 'Chapter 4',
           },
         },
@@ -1170,7 +1170,7 @@ describe('scene notes', () => {
         },
       })
     );
-    expect(text).toContain('[Village](../Journals/Barovia.md)');
+    expect(text).toContain('[Village](../Journals/Maravia.md)');
     expect(text).not.toContain('x y^z');
   });
 });
@@ -1239,7 +1239,7 @@ describe('journal notes', () => {
   it('gives every page line a block id that page links can jump to', () => {
     const notes = renderMirrorNote(W, journal(), makeCtx());
     expect(notes[0]?.text).toContain(` ^p-${fid('pg1')}`);
-    expect(notes[1]?.text).toContain(`Back to journal: [Barovia](../Barovia.md#^p-${fid('pg1')})`);
+    expect(notes[1]?.text).toContain(`Back to journal: [Maravia](../Maravia.md#^p-${fid('pg1')})`);
   });
 
   it('counts pages, player-visible pages and revealed pages', () => {
@@ -1267,11 +1267,11 @@ describe('journal notes', () => {
     const one = renderMirrorNote(
       W,
       journal(),
-      makeCtx({ pages: { [PAGE2_UUID]: 'AI Tool/Foundry/Journals/Barovia/Vallaki.md' } })
+      makeCtx({ pages: { [PAGE2_UUID]: 'AI Tool/Foundry/Journals/Maravia/Valmere.md' } })
     );
     expect(one.map(n => n.path)).toEqual([
-      'AI Tool/Foundry/Journals/Barovia.md',
-      'AI Tool/Foundry/Journals/Barovia/Vallaki.md',
+      'AI Tool/Foundry/Journals/Maravia.md',
+      'AI Tool/Foundry/Journals/Maravia/Valmere.md',
     ]);
   });
 
@@ -1283,14 +1283,14 @@ describe('journal notes', () => {
     const [html, htmlCtx] = converter.html.mock.calls[0] ?? [];
     expect(html).toBe('<p>Mist and fog.</p>');
     expect(htmlCtx?.pageUuid).toBe(PAGE1_UUID);
-    expect(htmlCtx?.fromPath).toBe('AI Tool/Foundry/Journals/Barovia/Village.md');
+    expect(htmlCtx?.fromPath).toBe('AI Tool/Foundry/Journals/Maravia/Village.md');
     expect(htmlCtx?.openBase).toBe(OPEN);
     expect(htmlCtx && 'findByName' in htmlCtx).toBe(true);
     expect(notes[1]?.text).toContain(
-      '[html AI Tool/Foundry/Journals/Barovia/Village.md] <p>Mist and fog.</p>'
+      '[html AI Tool/Foundry/Journals/Maravia/Village.md] <p>Mist and fog.</p>'
     );
     expect(notes[2]?.text).toContain(
-      '[markdown AI Tool/Foundry/Journals/Barovia/Vallaki.md] The **festival** never ends.'
+      '[markdown AI Tool/Foundry/Journals/Maravia/Valmere.md] The **festival** never ends.'
     );
     renderMirrorNote(W, journal(), makeCtx());
     const [, plain] = converter.html.mock.calls[1] ?? [];
@@ -1328,7 +1328,7 @@ describe('journal notes', () => {
     expect(text).toContain('player_visible: true');
     expect(text).toContain('rules: null');
     expect(text).toContain(
-      'journal: "[[Campaigns/strahd-test/AI Tool/Foundry/Journals/Barovia|Barovia]]"'
+      'journal: "[[Campaigns/sorvan-test/AI Tool/Foundry/Journals/Maravia|Maravia]]"'
     );
     expect(notes[2]?.text).toContain('revealed: true');
     expect(text).toContain('revealed: false');
@@ -1342,7 +1342,7 @@ describe('story item notes', () => {
     expect(text).toContain('- [Wolf](../NPCs/Wolf.md) (same name)');
     expect(text).toContain('- Ghost (same name)');
     expect(text).toContain(
-      '  - "[[Campaigns/strahd-test/AI Tool/Foundry/PCs/Test Hero|Test Hero]]"'
+      '  - "[[Campaigns/sorvan-test/AI Tool/Foundry/PCs/Test Hero|Test Hero]]"'
     );
     expect(text).toContain('  - "Ghost"');
   });
@@ -1358,7 +1358,7 @@ describe('story item notes', () => {
 // Canary: hostile Foundry data stays inert
 // ---------------------------------------------------------------------------
 
-const WIKILINK_VALUE = /^\[\[Campaigns\/strahd-test\/[^[\]|#^]+(\|[^[\]|#^]*)?\]\]$/;
+const WIKILINK_VALUE = /^\[\[Campaigns\/sorvan-test\/[^[\]|#^]+(\|[^[\]|#^]*)?\]\]$/;
 
 function assertInert(text: string): void {
   const { head, body } = split(text);
@@ -1402,7 +1402,7 @@ describe('hostile Foundry data', () => {
     expect(text).toMatchInlineSnapshot(`
       "---
       type: "pc"
-      fvtt_world: "strahd-test"
+      fvtt_world: "sorvan-test"
       fvtt_uuid: "Actor.pc10000000000000"
       fvtt_type: "Actor"
       name: "Evil &lt;%= tp.system.prompt() %> [ [Secret|link] ] #tag ^blk # Injected heading --- Injected: true"
@@ -1415,7 +1415,7 @@ describe('hostile Foundry data', () => {
       background: "Evil &lt;%= tp.system.prompt() %> [ [Secret|link] ] #tag ^blk # Injected heading --- Injected: true"
       hp_max: 28
       ac: 18
-      stats: "[[Campaigns/strahd-test/AI Tool/Stats/PCs/Test Hero|Evil &lt;%= tp.system.prompt() %> Secret link tag blk Injected heading --- Injected: true stats]]"
+      stats: "[[Campaigns/sorvan-test/AI Tool/Stats/PCs/Test Hero|Evil &lt;%= tp.system.prompt() %> Secret link tag blk Injected heading --- Injected: true stats]]"
       prep: null
       aliases:
         - "Evil &lt;%= tp.system.prompt() %> [ [Secret|link] ] #tag ^blk # Injected heading --- Injected: true"
@@ -1426,10 +1426,10 @@ describe('hostile Foundry data', () => {
       rules: "2024"
       schema: 1
       tags:
-        - "campaign/strahd-test"
+        - "campaign/sorvan-test"
         - "pc"
       generated_by: "foundry-ai-tool"
-      generated_hash: "1b543ddb6facaae1"
+      generated_hash: "1bc5f75746745c2a"
       ---
       # Evil &lt;\\%\\= tp.system.prompt() \\%\\> \\[\\[Secret\\|link\\]\\] \\#tag \\^blk \\# Injected heading --- Injected: true
 
@@ -1574,7 +1574,7 @@ describe('renderMirrorBases', () => {
     expect(base('PCs.base')).toMatchInlineSnapshot(`
       "filters:
         and:
-          - file.inFolder("Campaigns/strahd-test/AI Tool/Foundry")
+          - file.inFolder("Campaigns/sorvan-test/AI Tool/Foundry")
           - file.hasTag("pc")
       views:
         - type: table
@@ -1600,7 +1600,7 @@ describe('renderMirrorBases', () => {
     expect(base('NPCs.base')).toMatchInlineSnapshot(`
       "filters:
         and:
-          - file.inFolder("Campaigns/strahd-test/AI Tool/Foundry")
+          - file.inFolder("Campaigns/sorvan-test/AI Tool/Foundry")
           - file.hasTag("npc")
       views:
         - type: table
@@ -1624,7 +1624,7 @@ describe('renderMirrorBases', () => {
     expect(base('Scenes.base')).toMatchInlineSnapshot(`
       "filters:
         and:
-          - file.inFolder("Campaigns/strahd-test/AI Tool/Foundry")
+          - file.inFolder("Campaigns/sorvan-test/AI Tool/Foundry")
           - file.hasTag("scene")
       views:
         - type: table
@@ -1647,7 +1647,7 @@ describe('renderMirrorBases', () => {
     expect(base('Journals.base')).toMatchInlineSnapshot(`
       "filters:
         and:
-          - file.inFolder("Campaigns/strahd-test/AI Tool/Foundry")
+          - file.inFolder("Campaigns/sorvan-test/AI Tool/Foundry")
           - file.hasTag("journal")
       views:
         - type: table
@@ -1670,7 +1670,7 @@ describe('renderMirrorBases', () => {
     expect(base('Story items.base')).toMatchInlineSnapshot(`
       "filters:
         and:
-          - file.inFolder("Campaigns/strahd-test/AI Tool/Foundry")
+          - file.inFolder("Campaigns/sorvan-test/AI Tool/Foundry")
           - file.hasTag("story-item")
       views:
         - type: table
@@ -1694,7 +1694,7 @@ describe('renderMirrorBases', () => {
     expect(base('Player visible.base')).toMatchInlineSnapshot(`
       "filters:
         and:
-          - file.inFolder("Campaigns/strahd-test/AI Tool/Foundry")
+          - file.inFolder("Campaigns/sorvan-test/AI Tool/Foundry")
           - player_visible == true
       views:
         - type: table
@@ -1767,7 +1767,7 @@ describe('renderMirrorBases', () => {
   it('filters by the mirror folder only, so notes at any Foundry folder depth match (I-100)', () => {
     // `file.inFolder(f)` matches notes in `f` and in every folder below it; no base may name a
     // kind folder or a depth, or nested notes would drop out.
-    const nested = `Campaigns/${W}/AI Tool/Foundry/Journals/Act 1/Vallaki/Town/Lore/Page.md`;
+    const nested = `Campaigns/${W}/AI Tool/Foundry/Journals/Act 1/Valmere/Town/Lore/Page.md`;
     for (const note of renderMirrorBases(W)) {
       const folders = [...note.text.matchAll(/file\.inFolder\("([^"]+)"\)/g)].map(m => m[1]);
       expect(folders).toEqual([`Campaigns/${W}/AI Tool/Foundry`]);
@@ -1841,7 +1841,7 @@ function fullStatus(): MirrorStatus {
     duplicates: [{ path: 'AI Tool/Foundry/NPCs/Wolf copy.md', uuid: NPC_UUID }],
     keptDeleted: [{ path: 'AI Tool/Foundry/Items/Old.md', uuid: `Item.${fid('old')}` }],
     truncated: [{ kind: 'actor', total: 6000, cap: 5000 }],
-    errors: [{ path: 'AI Tool/Foundry/Journals/Barovia/Village.md', error: 'bad markup `x`' }],
+    errors: [{ path: 'AI Tool/Foundry/Journals/Maravia/Village.md', error: 'bad markup `x`' }],
   };
 }
 
@@ -1855,7 +1855,7 @@ describe('renderMirrorStatusNote', () => {
     expect(note.text).toMatchInlineSnapshot(`
       "---
       type: "mirror-status"
-      fvtt_world: "strahd-test"
+      fvtt_world: "sorvan-test"
       notes_managed: 0
       notes_pc: 0
       notes_npc: 0
@@ -1869,10 +1869,10 @@ describe('renderMirrorStatusNote', () => {
       player_visible: false
       schema: 1
       tags:
-        - "campaign/strahd-test"
+        - "campaign/sorvan-test"
         - "mirror-status"
       generated_by: "foundry-ai-tool"
-      generated_hash: "04f0d1b8ad9c8d1b"
+      generated_hash: "8f5c781e3ff26244"
       ---
       # Foundry mirror status
 
@@ -1925,7 +1925,7 @@ describe('renderMirrorStatusNote', () => {
     expect(renderMirrorStatusNote(W, fullStatus()).text).toMatchInlineSnapshot(`
       "---
       type: "mirror-status"
-      fvtt_world: "strahd-test"
+      fvtt_world: "sorvan-test"
       notes_managed: 10
       notes_pc: 1
       notes_npc: 3
@@ -1939,10 +1939,10 @@ describe('renderMirrorStatusNote', () => {
       player_visible: false
       schema: 1
       tags:
-        - "campaign/strahd-test"
+        - "campaign/sorvan-test"
         - "mirror-status"
       generated_by: "foundry-ai-tool"
-      generated_hash: "f3b2f6ae3929c2d9"
+      generated_hash: "38836df45ce17e08"
       ---
       # Foundry mirror status
 
@@ -1987,7 +1987,7 @@ describe('renderMirrorStatusNote', () => {
 
       ## Errors
 
-      - \`AI Tool/Foundry/Journals/Barovia/Village.md\`: bad markup \\\`x\\\`
+      - \`AI Tool/Foundry/Journals/Maravia/Village.md\`: bad markup \\\`x\\\`
       "
     `);
   });

@@ -315,13 +315,13 @@ describe('readMirrorSettings', () => {
   });
 
   it('gives the defaults and their hash when the file does not exist', async () => {
-    const result = await readMirrorSettings(store, 'strahd');
+    const result = await readMirrorSettings(store, 'sorvan');
     expect(result.settings).toEqual(DEFAULT_MIRROR_SETTINGS);
     expect(result.hash).toBe(hashMirrorSettings(DEFAULT_MIRROR_SETTINGS));
   });
 
   it('reads gm/obsidian-mirror.json key settings, normalized', async () => {
-    await store.write('strahd', 'gm', MIRROR_SETTINGS_FILE, {
+    await store.write('sorvan', 'gm', MIRROR_SETTINGS_FILE, {
       settings: {
         enabled: true,
         kinds: ['scene', 'pc', 'bogus'],
@@ -330,7 +330,7 @@ describe('readMirrorSettings', () => {
         storyItemTypes: ['loot', 'Bad Type'],
       },
     });
-    const result = await readMirrorSettings(store, 'strahd');
+    const result = await readMirrorSettings(store, 'sorvan');
     expect(result.settings).toEqual({
       schema: 1,
       enabled: true,
@@ -344,32 +344,32 @@ describe('readMirrorSettings', () => {
   });
 
   it('is per world', async () => {
-    await store.write('strahd', 'gm', MIRROR_SETTINGS_FILE, { settings: { enabled: true } });
-    expect((await readMirrorSettings(store, 'strahd')).settings.enabled).toBe(true);
+    await store.write('sorvan', 'gm', MIRROR_SETTINGS_FILE, { settings: { enabled: true } });
+    expect((await readMirrorSettings(store, 'sorvan')).settings.enabled).toBe(true);
     expect((await readMirrorSettings(store, 'other')).settings.enabled).toBe(false);
   });
 
   it('takes a file without settings, or with junk data, as the defaults', async () => {
-    await store.write('strahd', 'gm', MIRROR_SETTINGS_FILE, {});
-    expect((await readMirrorSettings(store, 'strahd')).settings).toEqual(DEFAULT_MIRROR_SETTINGS);
-    await store.write('strahd', 'gm', MIRROR_SETTINGS_FILE, ['enabled']);
-    expect((await readMirrorSettings(store, 'strahd')).settings).toEqual(DEFAULT_MIRROR_SETTINGS);
-    await store.write('strahd', 'gm', MIRROR_SETTINGS_FILE, null);
-    expect((await readMirrorSettings(store, 'strahd')).settings).toEqual(DEFAULT_MIRROR_SETTINGS);
+    await store.write('sorvan', 'gm', MIRROR_SETTINGS_FILE, {});
+    expect((await readMirrorSettings(store, 'sorvan')).settings).toEqual(DEFAULT_MIRROR_SETTINGS);
+    await store.write('sorvan', 'gm', MIRROR_SETTINGS_FILE, ['enabled']);
+    expect((await readMirrorSettings(store, 'sorvan')).settings).toEqual(DEFAULT_MIRROR_SETTINGS);
+    await store.write('sorvan', 'gm', MIRROR_SETTINGS_FILE, null);
+    expect((await readMirrorSettings(store, 'sorvan')).settings).toEqual(DEFAULT_MIRROR_SETTINGS);
   });
 
   it('changes the hash when the stored settings change', async () => {
-    const before = await readMirrorSettings(store, 'strahd');
-    await store.write('strahd', 'gm', MIRROR_SETTINGS_FILE, { settings: { enabled: true } });
-    const after = await readMirrorSettings(store, 'strahd');
+    const before = await readMirrorSettings(store, 'sorvan');
+    await store.write('sorvan', 'gm', MIRROR_SETTINGS_FILE, { settings: { enabled: true } });
+    const after = await readMirrorSettings(store, 'sorvan');
     expect(after.hash).not.toBe(before.hash);
   });
 
   it('throws on a file that is not valid JSON (the vault never overwrites it)', async () => {
-    const file = store.filePath('strahd', 'gm', MIRROR_SETTINGS_FILE);
+    const file = store.filePath('sorvan', 'gm', MIRROR_SETTINGS_FILE);
     await fsp.mkdir(path.dirname(file), { recursive: true });
     await fsp.writeFile(file, '{ not json', 'utf8');
-    await expect(readMirrorSettings(store, 'strahd')).rejects.toThrow();
+    await expect(readMirrorSettings(store, 'sorvan')).rejects.toThrow();
   });
 });
 

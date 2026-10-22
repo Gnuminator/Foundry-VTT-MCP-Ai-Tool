@@ -158,7 +158,7 @@ describe('the Scene model', () => {
   it('reads the name, light, weather and what is playing', () => {
     const view = buildSceneView(
       {
-        name: 'Barovia',
+        name: 'Maravia',
         environment: { darknessLevel: 0.7, globalLight: { enabled: true } },
         weather: 'fog',
       },
@@ -169,7 +169,7 @@ describe('the Scene model', () => {
     );
     expect(view).toMatchObject({
       empty: false,
-      name: 'Barovia',
+      name: 'Maravia',
       darkness: 'Dark (70%)',
       globalLight: true,
       weather: 'fog',

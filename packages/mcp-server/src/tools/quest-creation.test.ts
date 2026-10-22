@@ -492,19 +492,19 @@ describe('QuestCreationTools.handleLinkQuestToNPC — dispatch', () => {
       '</section>',
     ].join('\n');
     const { tools, page } = makeLinker(saved);
-    await tools.handleLinkQuestToNPC({ journalId: 'j', npcName: 'Ireena', relationship: 'ally' });
+    await tools.handleLinkQuestToNPC({ journalId: 'j', npcName: 'Ilvara', relationship: 'ally' });
     expect(page()).toContain(
-      '<h3>Related NPCs</h3><ul><li><strong>Ireena:</strong> ally</li></ul></div>\n</section>'
+      '<h3>Related NPCs</h3><ul><li><strong>Ilvara:</strong> ally</li></ul></div>\n</section>'
     );
   });
 
   it('adds a second NPC to the existing Related NPCs list', async () => {
     const { tools, page } = makeLinker();
-    await tools.handleLinkQuestToNPC({ journalId: 'j', npcName: 'Ireena', relationship: 'ally' });
+    await tools.handleLinkQuestToNPC({ journalId: 'j', npcName: 'Ilvara', relationship: 'ally' });
     await tools.handleLinkQuestToNPC({ journalId: 'j', npcName: 'Izek', relationship: 'enemy' });
     expect(page().match(/Related NPCs/g)).toHaveLength(1);
     expect(page()).toContain(
-      '<li><strong>Ireena:</strong> ally</li><li><strong>Izek:</strong> enemy</li></ul>'
+      '<li><strong>Ilvara:</strong> ally</li><li><strong>Izek:</strong> enemy</li></ul>'
     );
   });
 
@@ -512,11 +512,11 @@ describe('QuestCreationTools.handleLinkQuestToNPC — dispatch', () => {
     const { tools, page } = makeLinker('<p>Loose notes</p>');
     await tools.handleLinkQuestToNPC({
       journalId: 'j',
-      npcName: 'Ismark',
+      npcName: 'Ivarro',
       relationship: 'contact',
     });
     expect(page()).toBe(
-      '<p>Loose notes</p><h3>Related NPCs</h3><ul><li><strong>Ismark:</strong> contact</li></ul>'
+      '<p>Loose notes</p><h3>Related NPCs</h3><ul><li><strong>Ivarro:</strong> contact</li></ul>'
     );
   });
 
@@ -567,7 +567,7 @@ describe('QuestCreationTools.handleLinkQuestToNPC — failure handling', () => {
       method === 'foundry-mcp-bridge.getJournalContent' ? { content: page } : { success: true }
     );
     await expect(
-      tools.handleLinkQuestToNPC({ journalId: 'j', npcName: 'Ireena', relationship: 'ally' })
+      tools.handleLinkQuestToNPC({ journalId: 'j', npcName: 'Ilvara', relationship: 'ally' })
     ).rejects.toThrow();
     expect(page).toBe('<p>Notes</p>');
   });

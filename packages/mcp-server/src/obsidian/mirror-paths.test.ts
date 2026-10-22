@@ -142,11 +142,11 @@ describe('allocateNotePaths', () => {
   });
 
   it('does not let folders collide with each other', () => {
-    const npc = req('a000000000000001', 'Strahd');
-    const pc = req('a000000000000002', 'Strahd', { folder: 'AI Tool/Foundry/PCs' });
+    const npc = req('a000000000000001', 'Sorvan');
+    const pc = req('a000000000000002', 'Sorvan', { folder: 'AI Tool/Foundry/PCs' });
     const out = allocateNotePaths([npc, pc], NONE, EMPTY);
-    expect(out.get(npc.uuid)).toBe(`${NPCS}/Strahd.md`);
-    expect(out.get(pc.uuid)).toBe('AI Tool/Foundry/PCs/Strahd.md');
+    expect(out.get(npc.uuid)).toBe(`${NPCS}/Sorvan.md`);
+    expect(out.get(pc.uuid)).toBe('AI Tool/Foundry/PCs/Sorvan.md');
   });
 
   it('ignores a repeated uuid and is stable across runs', () => {
@@ -253,7 +253,7 @@ describe('Foundry folder paths (I-100)', () => {
 
   it('joins a folder path below its base, and leaves a short one alone', () => {
     expect(folderPath(JOURNALS, [])).toBe(JOURNALS);
-    expect(folderPath(JOURNALS, ['Act 1', 'Vallaki: Town'])).toBe(`${JOURNALS}/Act 1/Vallaki Town`);
+    expect(folderPath(JOURNALS, ['Act 1', 'Valmere: Town'])).toBe(`${JOURNALS}/Act 1/Valmere Town`);
   });
 
   it('shortens deep folder segments before the stem, and never the fixed base', () => {
@@ -310,14 +310,14 @@ describe('Foundry folder paths (I-100)', () => {
 
 describe('pageNoteFolder', () => {
   it('is the index note path without .md', () => {
-    expect(pageNoteFolder('AI Tool/Foundry/Journals/Barovia.md')).toBe(
-      'AI Tool/Foundry/Journals/Barovia'
+    expect(pageNoteFolder('AI Tool/Foundry/Journals/Maravia.md')).toBe(
+      'AI Tool/Foundry/Journals/Maravia'
     );
   });
 
   it('leaves a path without the extension unchanged', () => {
-    expect(pageNoteFolder('AI Tool/Foundry/Journals/Barovia')).toBe(
-      'AI Tool/Foundry/Journals/Barovia'
+    expect(pageNoteFolder('AI Tool/Foundry/Journals/Maravia')).toBe(
+      'AI Tool/Foundry/Journals/Maravia'
     );
   });
 });

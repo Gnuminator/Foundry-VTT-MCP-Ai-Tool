@@ -153,7 +153,7 @@ function records(): any[] {
   return journal.getChangeJournal({}).records;
 }
 
-function makeActor(id = 'act1', name = 'Ireena'): any {
+function makeActor(id = 'act1', name = 'Ilvara'): any {
   return fixture({
     documentName: 'Actor',
     id,
@@ -194,7 +194,7 @@ describe('pre-hooks: the stash', () => {
     const actor = makeActor();
     const options = simulateUpdate(actor, { name: 'Mine' }, { userId: 'p1' });
     expect(options[MODULE_ID].journal.before[actor.id]).toEqual([
-      { path: 'name', present: true, value: 'Ireena' },
+      { path: 'name', present: true, value: 'Ilvara' },
     ]);
     simulateCreate(fixture({ documentName: 'Item', id: 'i1', name: 'Rope', parent: actor }), {
       userId: 'p1',
@@ -370,9 +370,9 @@ describe('update records: values', () => {
       op: 'update',
       documentName: 'Actor',
       uuid: 'Actor.act1',
-      name: 'Ireena',
+      name: 'Ilvara',
       rootUuid: 'Actor.act1',
-      rootName: 'Ireena',
+      rootName: 'Ilvara',
       parentUuid: null,
       sceneId: null,
       userId: 'gm',
@@ -567,7 +567,7 @@ describe('create and delete records', () => {
   });
 
   it('records a map note by its text and the author of an unknown user as null', () => {
-    const scene = fixture({ documentName: 'Scene', id: 'sc1', name: 'Barovia' });
+    const scene = fixture({ documentName: 'Scene', id: 'sc1', name: 'Maravia' });
     const note = fixture({
       documentName: 'Note',
       id: 'n1',
@@ -595,7 +595,7 @@ describe('rootUuid', () => {
     simulateUpdate(item, { name: 'Rope+1' });
     expect(records()[0]).toMatchObject({
       rootUuid: 'Actor.act1',
-      rootName: 'Ireena',
+      rootName: 'Ilvara',
       parentUuid: 'Actor.act1',
     });
   });
@@ -614,7 +614,7 @@ describe('rootUuid', () => {
       uuid: 'Actor.act1.Item.it1.ActiveEffect.ef1',
       parentUuid: 'Actor.act1.Item.it1',
       rootUuid: 'Actor.act1',
-      rootName: 'Ireena',
+      rootName: 'Ilvara',
     });
   });
 

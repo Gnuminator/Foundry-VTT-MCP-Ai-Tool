@@ -23,7 +23,7 @@ function event(over: Partial<SessionEvent>): SessionEvent {
   };
 }
 
-const pc = { subject: 'pc', tokenVisible: true, playerName: 'Ireena' } as const;
+const pc = { subject: 'pc', tokenVisible: true, playerName: 'Ilvara' } as const;
 const seenNpc = { subject: 'npc', tokenVisible: true, playerName: 'Hooded figure' } as const;
 const unseenNpc = { subject: 'npc', tokenVisible: false, playerName: null } as const;
 
@@ -41,7 +41,7 @@ describe('projectEvent', () => {
       id: 'e1',
       timestampMs: 1000,
       type: 'damage',
-      text: 'Ireena took 7 damage.',
+      text: 'Ilvara took 7 damage.',
     });
     expect(JSON.stringify(out)).not.toContain(SECRET);
   });
@@ -64,16 +64,16 @@ describe('projectEvent', () => {
   it('shows conditions only by core status id, never the effect name', () => {
     const custom = event({
       eventType: 'condition-applied',
-      description: `Ireena gained "${SECRET}"`,
+      description: `Ilvara gained "${SECRET}"`,
       details: { effectName: SECRET },
       visibility: { ...pc, statuses: [] },
     });
     expect(projectEvent(custom)).toBeNull();
     const core = projectEvent({
       ...custom,
-      visibility: { ...pc, statuses: ['prone', 'strahd-mark', 'poisoned'] },
+      visibility: { ...pc, statuses: ['prone', 'sorvan-mark', 'poisoned'] },
     });
-    expect(core?.text).toBe('Ireena is now Prone, Poisoned.');
+    expect(core?.text).toBe('Ilvara is now Prone, Poisoned.');
     expect(JSON.stringify(core)).not.toContain(SECRET);
   });
 
@@ -101,7 +101,7 @@ describe('projectEvent', () => {
       details: { resource: 'spell3' },
       visibility: pc,
     });
-    expect(projectEvent(slot)?.text).toBe('Ireena used a level 3 spell slot.');
+    expect(projectEvent(slot)?.text).toBe('Ilvara used a level 3 spell slot.');
     const legendary = event({
       eventType: 'resource-spent',
       details: { resource: 'legact' },
@@ -144,11 +144,11 @@ describe('projectEvent', () => {
     // A PC's own line is kept as is.
     expect(
       line({
-        actorName: 'Ireena',
-        description: 'Ireena, Initiative: 1d20 (16) +2 DEX = 18',
+        actorName: 'Ilvara',
+        description: 'Ilvara, Initiative: 1d20 (16) +2 DEX = 18',
         visibility: pc,
       })
-    ).toBe('Ireena, Initiative: 1d20 (16) +2 DEX = 18');
+    ).toBe('Ilvara, Initiative: 1d20 (16) +2 DEX = 18');
   });
 
   it('keeps the newest events up to the limit', () => {
@@ -184,7 +184,7 @@ const visibility: PlayerVisibility = {
   scene: { id: 's1', name: 'Village' },
   tokens: [
     { tokenId: 't1', actorId: 'a-npc', name: 'Hooded figure', pc: false },
-    { tokenId: 't-pc', actorId: 'a-pc', name: 'Ireena', pc: true },
+    { tokenId: 't-pc', actorId: 'a-pc', name: 'Ilvara', pc: true },
   ],
 };
 
@@ -200,7 +200,7 @@ describe('projectCombat', () => {
       combatant({ id: 'c3', tokenId: 't1', hidden: true }), // GM-hidden combatant
       combatant({
         id: 'c4',
-        name: 'Ireena',
+        name: 'Ilvara',
         tokenId: 't-pc',
         actorId: 'a-pc',
         isPC: true,
@@ -215,7 +215,7 @@ describe('projectCombat', () => {
     const out = projectCombat(combat, visibility, opts);
     expect(out?.combatants.map(c => [c.id, c.name])).toEqual([
       ['c1', 'Hooded figure'],
-      ['c4', 'Ireena'],
+      ['c4', 'Ilvara'],
     ]);
     const npc = out?.combatants[0];
     expect(npc).toMatchObject({
@@ -237,7 +237,7 @@ describe('projectCombat', () => {
     expect(out?.combatants.map(c => c.name)).toEqual([
       'Unknown creature',
       'Unknown creature',
-      'Ireena',
+      'Ilvara',
     ]);
     expect(JSON.stringify(out)).not.toContain(SECRET);
   });
@@ -279,7 +279,7 @@ describe('buildPlayerState', () => {
       },
       world: {
         id: SECRET,
-        title: 'Barovia',
+        title: 'Maravia',
         systemId: 'dnd5e',
         systemVersion: '6.0.5',
         foundryVersion: '14.368',
@@ -293,10 +293,10 @@ describe('buildPlayerState', () => {
     });
     expect(state).toEqual({
       status: 'live',
-      world: { title: 'Barovia', systemId: 'dnd5e' },
+      world: { title: 'Maravia', systemId: 'dnd5e' },
       scene: 'Village',
       combat: null,
-      events: [{ id: 'e1', timestampMs: 1000, type: 'damage', text: 'Ireena took 7 damage.' }],
+      events: [{ id: 'e1', timestampMs: 1000, type: 'damage', text: 'Ilvara took 7 damage.' }],
       handouts: [],
     });
   });

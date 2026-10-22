@@ -581,7 +581,7 @@ describe('getExportIndex: actor entries', () => {
 
   it('a PC without a prototype token is named by its own name, an NPC is unknown', () => {
     world.addActor({ id: id16('pc'), name: 'Kestrel', type: 'character', ownership: { p1: 3 } });
-    world.addActor({ id: id16('npc'), name: 'Ismark', type: 'npc' });
+    world.addActor({ id: id16('npc'), name: 'Ivarro', type: 'npc' });
     const response = ok({ kinds: ['actor'] });
     expect(actorRow(response, id16('pc'))).toMatchObject({
       playerName: 'Kestrel',
@@ -794,7 +794,7 @@ const PAGE_ID = id16('pg01');
 function addScene(overrides: Record<string, unknown> = {}): Doc {
   return world.addScene({
     id: id16('scene'),
-    name: 'Vallaki',
+    name: 'Valmere',
     navName: 'The Town',
     navigation: true,
     ownership: { default: 1 },
@@ -836,7 +836,7 @@ describe('getExportIndex: scene entries', () => {
     expect(entry).toMatchObject({
       kind: 'scene',
       uuid: `Scene.${id16('scene')}`,
-      name: 'Vallaki',
+      name: 'Valmere',
       navName: 'The Town',
       navigation: true,
       folder: null,
@@ -902,7 +902,7 @@ describe('getExportIndex: scene entries', () => {
           text: 'Church',
           entryId: entry,
           pageId: PAGE_ID,
-          entry: { name: 'Vallaki' },
+          entry: { name: 'Valmere' },
           page: { name: 'Ignored' },
         }),
         makeNote({ id: id16('n4'), text: '' }),
@@ -935,7 +935,7 @@ describe('getExportIndex: scene entries', () => {
 
   it('folds tokens by world actor, name, disposition and hidden, without positions', () => {
     world.addActor({ id: id16('wolf'), name: 'Wolf', type: 'npc' });
-    world.addActor({ id: id16('strahd'), name: 'Strahd von Zarovich', type: 'npc' });
+    world.addActor({ id: id16('sorvan'), name: 'Sorvan von Zarovich', type: 'npc' });
     addScene({
       tokens: [
         makeToken({ id: id16('t1'), name: 'Wolf', actorId: id16('wolf'), disposition: -1, x: 1 }),
@@ -950,7 +950,7 @@ describe('getExportIndex: scene entries', () => {
         makeToken({
           id: id16('t4'),
           name: 'The Stranger',
-          actorId: id16('strahd'),
+          actorId: id16('sorvan'),
           actorLink: true,
           disposition: 0,
         }),
@@ -970,7 +970,7 @@ describe('getExportIndex: scene entries', () => {
       },
       {
         name: 'The Stranger',
-        actorUuid: `Actor.${id16('strahd')}`,
+        actorUuid: `Actor.${id16('sorvan')}`,
         actorType: 'npc',
         actorLink: true,
         disposition: 'neutral',
@@ -1035,7 +1035,7 @@ function page(id: string, overrides: Record<string, unknown> = {}): Doc {
 function addJournal(overrides: Record<string, unknown> = {}): Doc {
   return world.addJournal({
     id: JOURNAL_ID,
-    name: 'Barovia',
+    name: 'Maravia',
     ownership: { default: 2 },
     ...stats(400, 60),
     pages: [
@@ -1058,7 +1058,7 @@ describe('getExportIndex: compendium actor links', () => {
       type: 'Actor',
       documents: [
         world.addActor({ id: id16('cwolf'), name: 'Wolf', type: 'npc' }),
-        world.addActor({ id: id16('cstrahd'), name: 'Strahd', type: 'npc' }),
+        world.addActor({ id: id16('csorvan'), name: 'Sorvan', type: 'npc' }),
         world.addActor({ id: id16('czombie'), name: 'Zombie', type: 'npc' }),
         world.addActor({ id: id16('cguard'), name: 'Guard', type: 'npc' }),
       ].map(doc => {
@@ -1077,7 +1077,7 @@ describe('getExportIndex: compendium actor links', () => {
       type: 'npc',
       _stats: { compendiumSource: actorLink(id16('cwolf')) },
     });
-    world.addActor({ id: id16('wstrahd'), name: 'strahd ', type: 'npc' });
+    world.addActor({ id: id16('wsorvan'), name: 'sorvan ', type: 'npc' });
     world.addActor({ id: id16('wzomb1'), name: 'Zombie', type: 'npc' });
     world.addActor({ id: id16('wzomb2'), name: 'Zombie', type: 'npc' });
     world.addActor({
@@ -1093,7 +1093,7 @@ describe('getExportIndex: compendium actor links', () => {
           text: {
             content: [
               `<p>@UUID[${actorLink(id16('cwolf'))}]{wolves}`,
-              `@UUID[${actorLink(id16('cstrahd'))}]{the Devil}`,
+              `@UUID[${actorLink(id16('csorvan'))}]{the Devil}`,
               `@UUID[${actorLink(id16('czombie'))}]{zombies}`,
               `@Compendium[${PACK}.${id16('cguard')}]{guards}`,
               `@UUID[Compendium.aitool-content.items.Item.${id16('csword')}]{a sword}</p>`,
@@ -1115,8 +1115,8 @@ describe('getExportIndex: compendium actor links', () => {
         match: 'source',
       },
       {
-        compendiumUuid: actorLink(id16('cstrahd')),
-        actorUuid: `Actor.${id16('wstrahd')}`,
+        compendiumUuid: actorLink(id16('csorvan')),
+        actorUuid: `Actor.${id16('wsorvan')}`,
         match: 'name',
       },
       {
@@ -1189,7 +1189,7 @@ describe('getExportIndex: journal entries', () => {
     expect(entry).toMatchObject({
       kind: 'journal',
       uuid: `JournalEntry.${JOURNAL_ID}`,
-      name: 'Barovia',
+      name: 'Maravia',
       playerAccess: 'observer',
       playerVisible: true,
       textIncluded: false,
@@ -1366,7 +1366,7 @@ describe('getExportIndex: journal page text', () => {
           sort: 2,
           type: 'image',
           src: 'maps/x.webp',
-          image: { caption: 'A "map" <of> Vallaki & more' },
+          image: { caption: 'A "map" <of> Valmere & more' },
         }),
         page(id16('pg03'), { sort: 3, type: 'video', src: 'clips/x.webm' }),
         page(id16('pg04'), { sort: 4, type: 'image', src: 'icons/svg/mystery-man.svg' }),
@@ -1379,8 +1379,8 @@ describe('getExportIndex: journal page text', () => {
     expect(entry.pages[1]?.text).toEqual({
       format: 'html',
       content:
-        '<figure><img src="maps/x.webp" alt="A &quot;map&quot; &lt;of&gt; Vallaki &amp; more">' +
-        '<figcaption>A &quot;map&quot; &lt;of&gt; Vallaki &amp; more</figcaption></figure>',
+        '<figure><img src="maps/x.webp" alt="A &quot;map&quot; &lt;of&gt; Valmere &amp; more">' +
+        '<figcaption>A &quot;map&quot; &lt;of&gt; Valmere &amp; more</figcaption></figure>',
       truncated: false,
     });
     // A video page and an image page whose picture is only a placeholder icon: no text key.
@@ -1669,11 +1669,11 @@ describe('getExportIndex: item entries', () => {
 
   it('carries the folder with its path from the root', () => {
     const root = addFolder('Treasure');
-    const child = addFolder('Vallaki', root);
+    const child = addFolder('Valmere', root);
     addWorldItem({ folder: child });
     expect(itemRow(ok({ kinds: ['item'] }), ITEM_ID).folder).toEqual({
       id: child.id,
-      path: ['Treasure', 'Vallaki'],
+      path: ['Treasure', 'Valmere'],
     });
   });
 });
@@ -2802,7 +2802,7 @@ describe('getExportIndex: canary', () => {
     addScene({
       img: 'CANARY_MAP.webp',
       flags: { canary: 'CANARY_SCENE_FLAG' },
-      background: { src: 'maps/vallaki.webp' },
+      background: { src: 'maps/valmere.webp' },
       _source: { background: { src: 'CANARY_SOURCE_BACKGROUND.webp' } },
       description: 'CANARY_SCENE_DESCRIPTION',
       tokens: [
@@ -3062,8 +3062,8 @@ describe('getExportIndex: stat block, portrait, map and origin', () => {
   });
 
   it('exports the scene map path from the background, else from the first level', () => {
-    addScene({ background: { src: 'maps/vallaki.webp' } });
-    expect(sceneRow(ok({ kinds: ['scene'] }), SCENE_ID).map).toBe('maps/vallaki.webp');
+    addScene({ background: { src: 'maps/valmere.webp' } });
+    expect(sceneRow(ok({ kinds: ['scene'] }), SCENE_ID).map).toBe('maps/valmere.webp');
     world.scenes.delete(SCENE_ID);
     addScene({
       background: { src: '' },

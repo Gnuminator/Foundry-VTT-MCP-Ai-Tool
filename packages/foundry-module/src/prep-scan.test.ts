@@ -135,7 +135,7 @@ describe('next session', () => {
         {
           id: 'pg1',
           ...page(
-            '<h2>Plan</h2><p>Ireena &amp; Ismark&nbsp;arrive.</p><ul><li>Fight</li><li>Dinner</li></ul>',
+            '<h2>Plan</h2><p>Ilvara &amp; Ivarro&nbsp;arrive.</p><ul><li>Fight</li><li>Dinner</li></ul>',
             'Plan'
           ),
         },
@@ -148,7 +148,7 @@ describe('next session', () => {
       {
         pageId: 'pg1',
         name: 'Plan',
-        text: 'Plan Ireena & Ismark arrive. Fight Dinner',
+        text: 'Plan Ilvara & Ivarro arrive. Fight Dinner',
         truncated: false,
       },
     ]);

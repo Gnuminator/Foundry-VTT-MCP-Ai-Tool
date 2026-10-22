@@ -12,7 +12,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { campaignDir, NoteWriter } from './note-writer.js';
 import { checkMarkdownOwnership, withGeneratedHash } from './ownership.js';
 
-const WORLD = 'strahd-test';
+const WORLD = 'sorvan-test';
 let tmp: string;
 let vault: string;
 let outside: string;

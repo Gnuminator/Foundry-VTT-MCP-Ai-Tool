@@ -105,9 +105,9 @@ describe('feature detection', () => {
 
 describe('scene levels and background', () => {
   it('v13 scene: no level, background from background.src', () => {
-    const scene: any = { id: 's1', background: { src: 'maps/barovia.webp' }, _source: {} };
+    const scene: any = { id: 's1', background: { src: 'maps/maravia.webp' }, _source: {} };
     expect(currentLevelId(scene)).toBeUndefined();
-    expect(sceneBackgroundSrc(scene)).toBe('maps/barovia.webp');
+    expect(sceneBackgroundSrc(scene)).toBe('maps/maravia.webp');
   });
 
   it('v14 scene: the viewed level when the canvas shows this scene', () => {

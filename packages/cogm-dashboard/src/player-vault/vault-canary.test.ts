@@ -71,10 +71,10 @@ const ALICE_ONLY_TEXT = 'ALICE_ONLY_LETTER_TEXT_5f08';
 const PUBLIC_LETTER = 'PUBLIC_LETTER_TEXT_9b12';
 const PUBLIC_NOTICE = 'PUBLIC_NOTICE_TEXT_61c0';
 const PUBLIC_LINK_LABEL = 'Open Door';
-const PUBLIC_EVENT_TEXT = 'Ireena, Attack: 1d20+5 = 17';
-const PUBLIC_EVENT_TEXT_2 = 'Ireena, Perception: 1d20+3 = 12';
+const PUBLIC_EVENT_TEXT = 'Ilvara, Attack: 1d20+5 = 17';
+const PUBLIC_EVENT_TEXT_2 = 'Ilvara, Perception: 1d20+3 = 12';
 const PUBLIC_NPC_LINE = 'Hooded Stranger was hit.';
-const ALICE_SHEET_NAME = 'Ireena Kolyana';
+const ALICE_SHEET_NAME = 'Ilvara Dunmere';
 
 function sheet(name: string, biography = ''): CharacterSheet {
   return {
@@ -144,10 +144,10 @@ function makeEvents(prefix: string, offset: number): SessionEvent[] {
       `${prefix}-pc-roll`,
       {
         eventType: 'roll',
-        actorName: 'Ireena',
+        actorName: 'Ilvara',
         actorId: 'actor-pc',
         description: PUBLIC_EVENT_TEXT,
-        visibility: { subject: 'pc', tokenVisible: true, playerName: 'Ireena' },
+        visibility: { subject: 'pc', tokenVisible: true, playerName: 'Ilvara' },
       },
       offset
     ),
@@ -258,8 +258,8 @@ function makeEvents(prefix: string, offset: number): SessionEvent[] {
       `${prefix}-unstamped`,
       {
         eventType: 'roll',
-        actorName: 'Ireena',
-        description: `Ireena, ${GM_CANARIES.unstampedEvent}: 1d20 = 3`,
+        actorName: 'Ilvara',
+        description: `Ilvara, ${GM_CANARIES.unstampedEvent}: 1d20 = 3`,
       },
       offset + 8
     ),
@@ -312,7 +312,7 @@ function makeSource(): {
     schema: 1,
     computedAt: T0,
     pcActorIds: ['actor-pc'],
-    scene: { id: 's1', name: 'Village of Barovia' },
+    scene: { id: 's1', name: 'Village of Maravia' },
     tokens: [{ tokenId: 't1', actorId: 'actor-npc', name: 'Hooded Stranger', pc: false }],
   };
   const sheets: Record<string, unknown> = {
@@ -354,10 +354,10 @@ function makeSource(): {
         'late-public-roll',
         {
           eventType: 'roll',
-          actorName: 'Ireena',
+          actorName: 'Ilvara',
           actorId: 'actor-pc',
           description: PUBLIC_EVENT_TEXT_2,
-          visibility: { subject: 'pc', tokenVisible: true, playerName: 'Ireena' },
+          visibility: { subject: 'pc', tokenVisible: true, playerName: 'Ilvara' },
         },
         120
       ),
@@ -458,7 +458,7 @@ describe('O7 player vault spoiler canary (real createDashboard path)', () => {
             case 'get-world-info':
               return Promise.resolve({
                 id: 'w-canary',
-                title: 'Barovia',
+                title: 'Maravia',
                 system: { id: 'dnd5e', version: '6.0.5' },
                 foundry: { version: '14.368' },
                 playerUsers: [

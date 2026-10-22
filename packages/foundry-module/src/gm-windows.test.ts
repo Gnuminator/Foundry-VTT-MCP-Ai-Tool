@@ -38,7 +38,7 @@ describe('the Combat model', () => {
       turns: [
         {
           id: 'a',
-          name: 'Ireena',
+          name: 'Ilvara',
           initiative: 18,
           actor: { system: { attributes: { hp: { value: 30, max: 40, temp: 5 } } } },
         },
@@ -57,7 +57,7 @@ describe('the Combat model', () => {
     });
     expect(view).toMatchObject({ empty: false, started: true, round: 2, sceneName: 'Village' });
     expect(view.rows[0]).toMatchObject({
-      name: 'Ireena',
+      name: 'Ilvara',
       initiative: '18',
       current: false,
       hp: '30/40 (+5)',
@@ -105,7 +105,7 @@ describe('the Combat model', () => {
 describe('the Party model', () => {
   const pc = (over: Record<string, unknown>): any => ({
     id: 'p',
-    name: 'Ireena',
+    name: 'Ilvara',
     type: 'character',
     hasPlayerOwner: true,
     ...over,
@@ -125,7 +125,7 @@ describe('the Party model', () => {
         statuses: new Set(['poisoned']),
       }),
       pc({ id: '1', name: 'Alva' }),
-      { id: '3', name: 'Strahd', type: 'npc', hasPlayerOwner: false },
+      { id: '3', name: 'Sorvan', type: 'npc', hasPlayerOwner: false },
       { id: '4', name: 'Unowned', type: 'character', hasPlayerOwner: false },
     ]);
     expect(rows.map(r => r.name)).toEqual(['Alva', 'Zed']);
@@ -184,7 +184,7 @@ describe('the switch, the buttons and the windows', () => {
       started: true,
       round: 1,
       turn: 0,
-      turns: [{ id: 'a', name: 'Ireena' }],
+      turns: [{ id: 'a', name: 'Ilvara' }],
       nextTurn: vi.fn().mockResolvedValue(undefined),
       previousTurn: vi.fn().mockResolvedValue(undefined),
     };
@@ -265,7 +265,7 @@ describe('the switch, the buttons and the windows', () => {
     expect(await openCombatWindow()).toBe(true);
     expect(rendered).toHaveLength(1);
     const w = rendered[0];
-    expect(w.content.innerHTML).toContain('Ireena');
+    expect(w.content.innerHTML).toContain('Ilvara');
 
     combat.turns.push({ id: 'b', name: 'Wolf' });
     g.Hooks.callAll('updateCombatant');
@@ -289,7 +289,7 @@ describe('the switch, the buttons and the windows', () => {
     w._onClose();
     expect(off).toHaveBeenCalled();
     const before = w.content.innerHTML;
-    combat.turns.push({ id: 'c', name: 'Strahd' });
+    combat.turns.push({ id: 'c', name: 'Sorvan' });
     g.Hooks.callAll('updateCombatant');
     await vi.advanceTimersByTimeAsync(PANEL_REFRESH_DEBOUNCE_MS + 10);
     expect(w.content.innerHTML).toBe(before);

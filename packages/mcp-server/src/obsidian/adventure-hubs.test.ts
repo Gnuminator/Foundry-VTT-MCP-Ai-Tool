@@ -119,26 +119,26 @@ describe('collectAdventureHubs: which folders count', () => {
 describe('collectAdventureHubs: grouping', () => {
   it('groups the kind folders of one adventure case-insensitively', () => {
     const hubs = collectAdventureHubs([
-      note('journal', `${J}/Curse of Strahd/Intro.md`, 'Intro'),
-      note('scene', `${S}/curse of strahd/Hall.md`, 'Hall'),
-      note('npc', `${N}/CURSE OF STRAHD/Strahd.md`, 'Strahd'),
+      note('journal', `${J}/Curse of Sorvan/Intro.md`, 'Intro'),
+      note('scene', `${S}/curse of sorvan/Hall.md`, 'Hall'),
+      note('npc', `${N}/CURSE OF SORVAN/Sorvan.md`, 'Sorvan'),
     ]);
     expect(hubs).toHaveLength(1);
     // The journals' spelling names the hub.
-    expect(hubs[0]?.name).toBe('Curse of Strahd');
-    expect(hubs[0]?.members.npc.map(m => m.name)).toEqual(['Strahd']);
+    expect(hubs[0]?.name).toBe('Curse of Sorvan');
+    expect(hubs[0]?.members.npc.map(m => m.name)).toEqual(['Sorvan']);
   });
 
   it('names a hub the same way whatever the note order (case-only differences)', () => {
     const notes = [
-      note('scene', `${S}/curse of strahd/Hall.md`, 'Hall'),
-      note('journal', `${J}/CURSE OF STRAHD/Map.md`, 'Map'),
-      note('journal', `${J}/Curse of Strahd/Intro.md`, 'Intro'),
+      note('scene', `${S}/curse of sorvan/Hall.md`, 'Hall'),
+      note('journal', `${J}/CURSE OF SORVAN/Map.md`, 'Map'),
+      note('journal', `${J}/Curse of Sorvan/Intro.md`, 'Intro'),
     ];
     const forward = collectAdventureHubs(notes);
     const backward = collectAdventureHubs([...notes].reverse());
     expect(forward.map(h => [h.name, h.path])).toEqual([
-      ['CURSE OF STRAHD', `${ADVENTURES_FOLDER}/CURSE OF STRAHD.md`],
+      ['CURSE OF SORVAN', `${ADVENTURES_FOLDER}/CURSE OF SORVAN.md`],
     ]);
     expect(backward).toEqual(forward);
   });
@@ -162,10 +162,10 @@ describe('collectAdventureHubs: grouping', () => {
 
   it('names the hub file through the safe folder name and the title with the full name', () => {
     const hubs = collectAdventureHubs([
-      { ...note('journal', `${J}/Strahd_ Revamped/Intro.md`, 'Intro'), folder: 'Strahd: Revamped' },
-      { ...note('scene', `${S}/Strahd_ Revamped/Hall.md`, 'Hall'), folder: 'Strahd: Revamped' },
+      { ...note('journal', `${J}/Sorvan_ Revamped/Intro.md`, 'Intro'), folder: 'Sorvan: Revamped' },
+      { ...note('scene', `${S}/Sorvan_ Revamped/Hall.md`, 'Hall'), folder: 'Sorvan: Revamped' },
     ]);
-    expect(hubs.map(h => h.name)).toEqual(['Strahd: Revamped']);
+    expect(hubs.map(h => h.name)).toEqual(['Sorvan: Revamped']);
     expect(hubs[0]?.path).not.toContain(':');
   });
 
@@ -315,24 +315,24 @@ describe('collectAdventureHubs: names, order and folders', () => {
 
 describe('matchBookNote', () => {
   const BOOKS = new Map([
-    ['Curse of Strahd', 'AI Tool/Library/Books/Curse of Strahd.md'],
+    ['Curse of Sorvan', 'AI Tool/Library/Books/Curse of Sorvan.md'],
     ["Player's Handbook (2024)", "AI Tool/Library/Books/Player's Handbook (2024).md"],
   ]);
 
   it('finds a book with the same title', () => {
-    expect(matchBookNote('Curse of Strahd', BOOKS)).toEqual({
-      title: 'Curse of Strahd',
-      path: 'AI Tool/Library/Books/Curse of Strahd.md',
+    expect(matchBookNote('Curse of Sorvan', BOOKS)).toEqual({
+      title: 'Curse of Sorvan',
+      path: 'AI Tool/Library/Books/Curse of Sorvan.md',
     });
   });
 
   it('ignores case', () => {
-    expect(matchBookNote('CURSE OF STRAHD', BOOKS)?.title).toBe('Curse of Strahd');
-    expect(matchBookNote('curse of strahd', BOOKS)?.title).toBe('Curse of Strahd');
+    expect(matchBookNote('CURSE OF SORVAN', BOOKS)?.title).toBe('Curse of Sorvan');
+    expect(matchBookNote('curse of sorvan', BOOKS)?.title).toBe('Curse of Sorvan');
   });
 
   it('ignores punctuation and spacing', () => {
-    expect(matchBookNote('Curse-of  Strahd!', BOOKS)?.title).toBe('Curse of Strahd');
+    expect(matchBookNote('Curse-of  Sorvan!', BOOKS)?.title).toBe('Curse of Sorvan');
     expect(matchBookNote("Player's  handbook, 2024", BOOKS)?.title).toBe(
       "Player's Handbook (2024)"
     );
@@ -349,7 +349,7 @@ describe('matchBookNote', () => {
 
   it('does not match a partial title', () => {
     expect(matchBookNote('Curse', BOOKS)).toBeNull();
-    expect(matchBookNote('Curse of Strahd Expanded', BOOKS)).toBeNull();
+    expect(matchBookNote('Curse of Sorvan Expanded', BOOKS)).toBeNull();
   });
 
   it('misses on an empty or punctuation-only name, even against an empty title', () => {
@@ -359,6 +359,6 @@ describe('matchBookNote', () => {
   });
 
   it('misses with no books', () => {
-    expect(matchBookNote('Curse of Strahd', new Map())).toBeNull();
+    expect(matchBookNote('Curse of Sorvan', new Map())).toBeNull();
   });
 });

@@ -74,11 +74,11 @@ function pcRoll(id: string, line: string, timestampMs = T0): SessionEvent {
     timestamp: new Date(timestampMs).toISOString(),
     timestampMs,
     eventType: 'roll',
-    actorName: 'Ireena',
+    actorName: 'Ilvara',
     actorId: 'a1',
     description: line,
     details: {},
-    visibility: { subject: 'pc', tokenVisible: true, playerName: 'Ireena' },
+    visibility: { subject: 'pc', tokenVisible: true, playerName: 'Ilvara' },
   };
 }
 
@@ -131,7 +131,7 @@ function makeRig(): Rig {
   const calls: string[] = [];
   const sheetCalls: string[] = [];
   const state: Rig['state'] = {
-    world: { id: 'w1', title: 'Barovia' },
+    world: { id: 'w1', title: 'Maravia' },
     players: [ALICE, BOB],
     handouts: [],
     handoutsReady: true,
@@ -142,7 +142,7 @@ function makeRig(): Rig {
     sheetFor: userId => ({
       userId,
       userName: userId === ALICE.userId ? 'Alice' : 'Bob',
-      sheets: [sheet(userId === ALICE.userId ? 'Ireena' : 'Ismark')],
+      sheets: [sheet(userId === ALICE.userId ? 'Ilvara' : 'Ivarro')],
     }),
   };
   const client: PlayerVaultClient = {
@@ -237,8 +237,8 @@ describe('PlayerVaultService: writing', () => {
       };
       expect(marker.userId).toBe(player.userId);
     }
-    expect(await read(rig.root, 'Alice', 'My character.md')).toContain('# Ireena');
-    expect(await read(rig.root, 'Bob', 'My character.md')).toContain('# Ismark');
+    expect(await read(rig.root, 'Alice', 'My character.md')).toContain('# Ilvara');
+    expect(await read(rig.root, 'Bob', 'My character.md')).toContain('# Ivarro');
   });
 
   it('a second rebuild with unchanged inputs writes nothing', async () => {
@@ -264,7 +264,7 @@ describe('PlayerVaultService: writing', () => {
   it('a new projected event rewrites every player vault', async () => {
     const rig = makeRig();
     await rig.svc.rebuild();
-    rig.svc.onEvents([pcRoll('r1', 'Ireena, Longsword attack: 1d20 (15) +5 = 20')]);
+    rig.svc.onEvents([pcRoll('r1', 'Ilvara, Longsword attack: 1d20 (15) +5 = 20')]);
     const result = await rig.svc.rebuild();
     expect(result.written.sort()).toEqual(['Alice', 'Bob']);
     const sessions = (await listFiles(path.join(rig.root, 'Alice'))).filter(f =>
@@ -301,7 +301,7 @@ describe('PlayerVaultService: waits for the handouts', () => {
     const rig = makeRig();
     rig.state.handoutsReady = false;
     rig.state.handouts = [handout({ title: 'A letter' })];
-    rig.svc.onEvents([pcRoll('r1', 'Ireena, Perception: 1d20 = 12')]);
+    rig.svc.onEvents([pcRoll('r1', 'Ilvara, Perception: 1d20 = 12')]);
     const early = await rig.svc.rebuild();
     expect(early).toEqual({ written: [], unchanged: [], failed: [], waiting: true });
     expect(await exists(rig.root)).toBe(false);
@@ -349,10 +349,10 @@ describe('PlayerVaultService: a player whose sheet cannot be read', () => {
     const before = await read(rig.root, 'Alice', 'Home.md');
     const aliceFilesBefore = await listFiles(path.join(rig.root, 'Alice'));
 
-    rig.svc.onEvents([pcRoll('r1', 'Ireena, Stealth check: 1d20 (9) +3 = 12')]);
+    rig.svc.onEvents([pcRoll('r1', 'Ilvara, Stealth check: 1d20 (9) +3 = 12')]);
     rig.state.sheetFor = (userId: string): unknown => {
       if (userId === ALICE.userId) throw new Error('character_sheet failed');
-      return { userId, userName: 'Bob', sheets: [sheet('Ismark')] };
+      return { userId, userName: 'Bob', sheets: [sheet('Ivarro')] };
     };
     const result = await rig.svc.rebuild();
     expect(result.failed).toEqual(['Alice']);
@@ -372,7 +372,7 @@ describe('PlayerVaultService: a player whose sheet cannot be read', () => {
       // Alice's call answers with Bob's sheets: it must not be written into Alice's vault.
       userId: userId === ALICE.userId ? BOB.userId : userId,
       userName: 'x',
-      sheets: [sheet(userId === ALICE.userId ? 'BOB-SECRET-CHARACTER' : 'Ismark')],
+      sheets: [sheet(userId === ALICE.userId ? 'BOB-SECRET-CHARACTER' : 'Ivarro')],
     });
     const result = await rig.svc.rebuild();
     expect(result.failed).toEqual(['Alice']);
@@ -404,7 +404,7 @@ describe('PlayerVaultService: a player whose sheet cannot be read', () => {
     rig.state.sheetFor = (userId: string): unknown => ({
       userId,
       userName: 'x',
-      sheets: [sheet('Ireena')],
+      sheets: [sheet('Ilvara')],
     });
     expect((await rig.svc.rebuild()).written.sort()).toEqual(['Alice', 'Bob']);
   });

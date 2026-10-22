@@ -42,7 +42,7 @@ const human = (id: string, by: string, extra: Partial<EveryoneChange> = {}): Eve
   at: '2026-10-06T19:00:00Z',
   by,
   summary: `${by} did something`,
-  lines: ['Ireena: HP 10 -> 5'],
+  lines: ['Ilvara: HP 10 -> 5'],
   canUndo: true,
   ownData: false,
   undone: false,
@@ -60,7 +60,7 @@ const ai = (id: string, extra: Partial<EveryoneChange> = {}): EveryoneChange => 
   id,
   at: '2026-10-06T19:05:00Z',
   by: 'AI',
-  summary: 'Damage Ireena',
+  summary: 'Damage Ilvara',
   lines: [],
   canUndo: true,
   ownData: false,
@@ -80,7 +80,7 @@ const plan = (extra: Partial<UndoPlan> = {}): UndoPlan => ({
   scope: 'just-this',
   risk: 'write',
   requires: { confirmDestructive: false },
-  diff: [{ kind: 'update', text: 'Ireena: HP 5 -> 10' }],
+  diff: [{ kind: 'update', text: 'Ilvara: HP 5 -> 10' }],
   later: [],
   count: null,
   ...extra,
@@ -100,7 +100,7 @@ describe('readAiChanges', () => {
       changes: [
         {
           changeId: 'c1',
-          summary: 'Damage Ireena',
+          summary: 'Damage Ilvara',
           feature: 'actor-change',
           target: 'Actor.1',
           appliedAt: '2026-10-06T19:05:00Z',
@@ -108,7 +108,7 @@ describe('readAiChanges', () => {
           undoneBy: 'c2',
           risk: 'destructive',
           canUndo: true,
-          diff: ['Ireena: HP 10 -> 5', 7, 'more'],
+          diff: ['Ilvara: HP 10 -> 5', 7, 'more'],
           requestedBy: 'Danni',
         },
       ],
@@ -116,7 +116,7 @@ describe('readAiChanges', () => {
     expect(readAiChanges(raw)).toEqual([
       {
         changeId: 'c1',
-        summary: 'Damage Ireena',
+        summary: 'Damage Ilvara',
         feature: 'actor-change',
         target: 'Actor.1',
         appliedAt: '2026-10-06T19:05:00Z',
@@ -124,7 +124,7 @@ describe('readAiChanges', () => {
         undoneBy: 'c2',
         risk: 'destructive',
         canUndo: true,
-        diff: ['Ireena: HP 10 -> 5', 'more'],
+        diff: ['Ilvara: HP 10 -> 5', 'more'],
         requestedBy: 'Danni',
       },
     ]);
@@ -233,7 +233,7 @@ describe('readEveryoneChanges', () => {
           at: '2026-10-06T19:00:00Z',
           by: 'Anna',
           summary: 'Anna did something',
-          lines: ['Ireena: HP 10 -> 5', 3],
+          lines: ['Ilvara: HP 10 -> 5', 3],
           canUndo: true,
           ownData: true,
           undone: true,
@@ -242,7 +242,7 @@ describe('readEveryoneChanges', () => {
           mode: 'undo',
           feature: 'change-undo',
           covers: 3,
-          things: [{ uuid: 'Actor.1', name: 'Ireena' }, { uuid: 'Actor.2', name: null }, 'junk'],
+          things: [{ uuid: 'Actor.1', name: 'Ilvara' }, { uuid: 'Actor.2', name: null }, 'junk'],
         },
       ],
     };
@@ -255,7 +255,7 @@ describe('readEveryoneChanges', () => {
           at: '2026-10-06T19:00:00Z',
           by: 'Anna',
           summary: 'Anna did something',
-          lines: ['Ireena: HP 10 -> 5'],
+          lines: ['Ilvara: HP 10 -> 5'],
           canUndo: true,
           ownData: true,
           undone: true,
@@ -265,7 +265,7 @@ describe('readEveryoneChanges', () => {
           feature: 'change-undo',
           covers: 3,
           things: [
-            { uuid: 'Actor.1', name: 'Ireena' },
+            { uuid: 'Actor.1', name: 'Ilvara' },
             { uuid: 'Actor.2', name: null },
           ],
         },
@@ -341,7 +341,7 @@ describe('readUndoPlan', () => {
     scope: 'world-since',
     risk: 'destructive',
     requires: { confirm: true, confirmDestructive: true },
-    diff: [{ kind: 'update', text: 'Ireena: HP 5 -> 10' }, { kind: 'note' }, 'junk'],
+    diff: [{ kind: 'update', text: 'Ilvara: HP 5 -> 10' }, { kind: 'note' }, 'junk'],
     later: [{ id: 'act:9', at: '2026-10-06T19:30:00Z', by: 'Anna', summary: 'HP 5 -> 3' }, null],
     count: 12,
   };
@@ -354,7 +354,7 @@ describe('readUndoPlan', () => {
       risk: 'destructive',
       requires: { confirmDestructive: true },
       diff: [
-        { kind: 'update', text: 'Ireena: HP 5 -> 10' },
+        { kind: 'update', text: 'Ilvara: HP 5 -> 10' },
         { kind: 'note', text: '' },
       ],
       later: [{ id: 'act:9', at: '2026-10-06T19:30:00Z', by: 'Anna', summary: 'HP 5 -> 3' }],
@@ -492,15 +492,15 @@ describe('rows, badge and redo', () => {
 
   it('carries the time, the lines and the thing through', () => {
     const row = rowView(
-      human('act:1', 'Anna', { things: [{ uuid: 'Actor.1', name: 'Ireena' }] }),
+      human('act:1', 'Anna', { things: [{ uuid: 'Actor.1', name: 'Ilvara' }] }),
       []
     );
     expect(row).toMatchObject({
       id: 'act:1',
       at: '2026-10-06T19:00:00Z',
       summary: 'Anna did something',
-      lines: ['Ireena: HP 10 -> 5'],
-      thing: 'Ireena',
+      lines: ['Ilvara: HP 10 -> 5'],
+      thing: 'Ilvara',
       undone: false,
       undoneText: '',
       redoId: null,
@@ -567,12 +567,12 @@ describe('rows, badge and redo', () => {
 
   it('Redo confirms with what really comes back: all the changes one undo covered', () => {
     const row = human('act:1', 'Anna', { undone: true, undoneBy: 'u1' });
-    const single = ai('u1', { summary: 'Undo: Anna did something', lines: ['Ireena: HP 5 -> 10'] });
+    const single = ai('u1', { summary: 'Undo: Anna did something', lines: ['Ilvara: HP 5 -> 10'] });
     expect(redoConfirm(row, [row, single])).toEqual({
       summary: 'Redo: Anna did something',
-      lines: ['Ireena: HP 10 -> 5'],
+      lines: ['Ilvara: HP 10 -> 5'],
     });
-    const lines = ['Ireena: HP 5 -> 10', 'Ireena: Poisoned removed', 'Wolf: moved back'];
+    const lines = ['Ilvara: HP 5 -> 10', 'Ilvara: Poisoned removed', 'Wolf: moved back'];
     const since = ai('u1', { summary: 'Undo since 19:00: 3 changes', lines, covers: 3 });
     const many = redoConfirm(row, [row, since]);
     expect(many.summary).toContain('brings all of them back');
@@ -590,29 +590,29 @@ describe('rows, badge and redo', () => {
     const row = human('act:1', 'Anna', { undone: true, undoneBy: 'u1' });
     expect(redoConfirm(row, [row])).toEqual({
       summary: 'Redo: Anna did something',
-      lines: ['Ireena: HP 10 -> 5'],
+      lines: ['Ilvara: HP 10 -> 5'],
     });
   });
 
   it('names the thing a change touched', () => {
     expect(thingLabel(human('a', 'Anna'))).toBe('this thing');
-    const one = human('a', 'Anna', { things: [{ uuid: 'Actor.1', name: 'Ireena' }] });
-    expect(thingLabel(one)).toBe('Ireena');
+    const one = human('a', 'Anna', { things: [{ uuid: 'Actor.1', name: 'Ilvara' }] });
+    expect(thingLabel(one)).toBe('Ilvara');
     const two = human('a', 'Anna', {
       things: [
-        { uuid: 'Actor.1', name: 'Ireena' },
+        { uuid: 'Actor.1', name: 'Ilvara' },
         { uuid: 'Actor.2', name: null },
-        { uuid: 'Actor.3', name: 'Strahd' },
+        { uuid: 'Actor.3', name: 'Sorvan' },
       ],
     });
-    expect(thingLabel(two)).toBe('Ireena and 1 more');
+    expect(thingLabel(two)).toBe('Ilvara and 1 more');
     const nameless = human('a', 'Anna', { things: [{ uuid: 'Actor.2', name: null }] });
     expect(thingLabel(nameless)).toBe('this thing');
   });
 });
 
 describe('the undo choice', () => {
-  const thing = 'Ireena';
+  const thing = 'Ilvara';
   const later: LaterChange[] = [
     { id: 'act:9', at: '2026-10-06T19:30:00Z', by: 'Anna', summary: 'HP 5 -> 3' },
   ];
@@ -632,7 +632,7 @@ describe('the undo choice', () => {
     expect(d.stage).toBe('confirm');
     expect(d.title).toBe('Undo this change?');
     expect(d.intro).toBe('Undo: Anna did something');
-    expect(d.lines).toEqual([{ text: 'Ireena: HP 5 -> 10', note: false }]);
+    expect(d.lines).toEqual([{ text: 'Ilvara: HP 5 -> 10', note: false }]);
     expect(d.buttons.map(b => b.key)).toEqual(['cancel', 'apply']);
     expect(d.destructive).toBe(false);
     expect(d.buttons[1]?.needsCheck).toBe(false);
@@ -661,8 +661,8 @@ describe('the undo choice', () => {
   it('flags the notes of a plan so they read as notes, not changes', () => {
     const p = plan({
       diff: [
-        { kind: 'update', text: 'Ireena: HP 5 -> 10' },
-        { kind: 'note', text: 'Kept as it is: Ireena: name (changed since)' },
+        { kind: 'update', text: 'Ilvara: HP 5 -> 10' },
+        { kind: 'note', text: 'Kept as it is: Ilvara: name (changed since)' },
         { kind: 'update', text: '' },
       ],
     });
@@ -676,7 +676,7 @@ describe('the undo choice', () => {
     expect(firstStage(p)).toBe('choose');
     const d = dialogFor('choose', p, thing);
     expect(d.title).toBe('Undo this change?');
-    expect(d.intro).toBe('This is not the latest change to Ireena.');
+    expect(d.intro).toBe('This is not the latest change to Ilvara.');
     expect(d.laterTitle).toBe('Changed since then:');
     expect(d.later).toEqual(later);
     expect(d.lines).toEqual([]);
@@ -691,8 +691,8 @@ describe('the undo choice', () => {
   });
 
   it('uses the thing label the caller gives for a multi-thing change', () => {
-    const d = dialogFor('choose', plan({ later }), 'Ireena and 1 more');
-    expect(d.intro).toBe('This is not the latest change to Ireena and 1 more.');
+    const d = dialogFor('choose', plan({ later }), 'Ilvara and 1 more');
+    expect(d.intro).toBe('This is not the latest change to Ilvara and 1 more.');
   });
 
   it('just this reuses the plan; everything since plans again with that scope', () => {
@@ -704,7 +704,7 @@ describe('the undo choice', () => {
     expect(nextStep('choose', 'cancel')).toEqual({ done: true });
     const since = plan({
       scope: 'everything-since',
-      summary: 'Undo since 19:00: 2 changes on Ireena',
+      summary: 'Undo since 19:00: 2 changes on Ilvara',
     });
     expect(dialogFor('confirm', since, thing).title).toBe('Undo everything since?');
   });
@@ -740,7 +740,7 @@ describe('the undo choice', () => {
       summary: 'Rewind the table to 19:00: 12 changes',
       requires: { confirmDestructive: true },
       diff: [
-        { kind: 'update', text: 'Ireena: HP 5 -> 10' },
+        { kind: 'update', text: 'Ilvara: HP 5 -> 10' },
         { kind: 'delete', text: 'Delete Token "Wolf"' },
       ],
     });
@@ -760,7 +760,7 @@ describe('the undo choice', () => {
       const d = dialogFor('rewind-1', rewind, thing);
       expect(d.title).toBe('Rewind the whole table?');
       expect(d.intro).toContain('12 changes');
-      expect(d.lines.map(l => l.text)).toEqual(['Ireena: HP 5 -> 10', 'Delete Token "Wolf"']);
+      expect(d.lines.map(l => l.text)).toEqual(['Ilvara: HP 5 -> 10', 'Delete Token "Wolf"']);
       expect(d.buttons.map(b => b.key)).toEqual(['cancel', 'next']);
       expect(d.destructive).toBe(false);
     });

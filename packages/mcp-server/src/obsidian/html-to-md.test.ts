@@ -240,8 +240,8 @@ describe('html structure', () => {
   });
 
   it('turns section.secret into a collapsed callout', () => {
-    expect(md('<p>Open.</p><section class="secret"><p>Strahd waits.</p></section>')).toBe(
-      'Open.\n\n> [!secret]- GM secret\n> Strahd waits.'
+    expect(md('<p>Open.</p><section class="secret"><p>Sorvan waits.</p></section>')).toBe(
+      'Open.\n\n> [!secret]- GM secret\n> Sorvan waits.'
     );
   });
 

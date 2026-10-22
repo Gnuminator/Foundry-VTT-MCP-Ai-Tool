@@ -13,7 +13,7 @@ function handout(over: Partial<PlayerHandout> & { title: string }): PlayerHandou
 function sheet(over: Partial<CharacterSheet> = {}): CharacterSheet {
   return {
     id: 'a1',
-    name: 'Ireena',
+    name: 'Ilvara',
     level: 0,
     classes: [],
     species: null,
@@ -57,7 +57,7 @@ function sheet(over: Partial<CharacterSheet> = {}): CharacterSheet {
 
 function input(over: Partial<PlayerVaultInput> = {}): PlayerVaultInput {
   return {
-    worldTitle: 'Curse of Strahd',
+    worldTitle: 'Curse of Sorvan',
     player: PLAYER,
     handouts: [],
     sheets: [],
@@ -92,7 +92,7 @@ describe('renderPlayerVault: handouts and recaps', () => {
           handout({
             title: 'A Letter',
             revealedAt: '2026-11-29T20:00:00.000Z',
-            html: '<p>Dear <b>Ireena</b></p>',
+            html: '<p>Dear <b>Ilvara</b></p>',
           }),
         ],
       })
@@ -100,7 +100,7 @@ describe('renderPlayerVault: handouts and recaps', () => {
     expect(files.has('Recaps/Session 1 Recap.md')).toBe(true);
     expect(files.has('Handouts/A Letter.md')).toBe(true);
     expect(get(files, 'Handouts/A Letter.md')).toBe(
-      '# A Letter\n\nRevealed: 2026-11-29\n\nDear **Ireena**\n'
+      '# A Letter\n\nRevealed: 2026-11-29\n\nDear **Ilvara**\n'
     );
   });
 
@@ -203,24 +203,24 @@ describe('renderPlayerVault: characters', () => {
     const files = renderPlayerVault(input({ sheets: [sheet()] }));
     expect(files.has('My character.md')).toBe(true);
     expect([...files.keys()].some(p => p.startsWith('My characters/'))).toBe(false);
-    expect(get(files, 'My character.md').startsWith('# Ireena\n')).toBe(true);
+    expect(get(files, 'My character.md').startsWith('# Ilvara\n')).toBe(true);
   });
 
   it('several sheets go to My characters/<name>.md, duplicate names made unique', () => {
     const files = renderPlayerVault(
       input({
         sheets: [
-          sheet({ id: '1', name: 'Ireena' }),
-          sheet({ id: '2', name: 'Ismark' }),
-          sheet({ id: '3', name: 'Ireena' }),
+          sheet({ id: '1', name: 'Ilvara' }),
+          sheet({ id: '2', name: 'Ivarro' }),
+          sheet({ id: '3', name: 'Ilvara' }),
         ],
       })
     );
     expect(files.has('My character.md')).toBe(false);
     expect([...files.keys()].filter(p => p.startsWith('My characters/'))).toEqual([
-      'My characters/Ireena.md',
-      'My characters/Ismark.md',
-      'My characters/Ireena (2).md',
+      'My characters/Ilvara.md',
+      'My characters/Ivarro.md',
+      'My characters/Ilvara (2).md',
     ]);
   });
 
@@ -459,8 +459,8 @@ describe('renderPlayerVault: sessions', () => {
     {
       label: '2026-11-29',
       events: [
-        { id: 'e1', timestampMs: at(9, 5), type: 'chat', text: 'The party enters Vallaki' },
-        { id: 'e2', timestampMs: at(21, 30), type: 'roll', text: 'Ismark rolls [[1d20]] <% x %>' },
+        { id: 'e1', timestampMs: at(9, 5), type: 'chat', text: 'The party enters Valmere' },
+        { id: 'e2', timestampMs: at(21, 30), type: 'roll', text: 'Ivarro rolls [[1d20]] <% x %>' },
       ],
     },
     {
@@ -484,9 +484,9 @@ describe('renderPlayerVault: sessions', () => {
     const md = get(files, 'Session log/2026-11-29.md');
     expect(md.startsWith('# Session 2026-11-29\n\n')).toBe(true);
     expect(md).toContain(
-      `- ${pad(d1.getHours())}:${pad(d1.getMinutes())} The party enters Vallaki`
+      `- ${pad(d1.getHours())}:${pad(d1.getMinutes())} The party enters Valmere`
     );
-    expect(md).toContain(`- ${pad(d2.getHours())}:${pad(d2.getMinutes())} Ismark rolls`);
+    expect(md).toContain(`- ${pad(d2.getHours())}:${pad(d2.getMinutes())} Ivarro rolls`);
     expect(md).toContain('09:05');
     expect(md).not.toContain('[[');
     expect(md).not.toContain('<%');
@@ -517,12 +517,12 @@ describe('renderPlayerVault: Home', () => {
       })
     );
     const home = get(files, 'Home.md');
-    expect(home.startsWith('# Curse of Strahd\n')).toBe(true);
+    expect(home.startsWith('# Curse of Sorvan\n')).toBe(true);
     expect(home).toContain('Player: Alice');
     expect(home).toContain('Edits you make here are overwritten');
     expect(home).toContain('[My Note](Handouts/My%20Note.md)');
     expect(home).toContain('[Session 1 Recap](Recaps/Session%201%20Recap.md)');
-    expect(home).toContain('[Ireena](My%20character.md)');
+    expect(home).toContain('[Ilvara](My%20character.md)');
     expect(home).not.toContain('[[');
   });
 

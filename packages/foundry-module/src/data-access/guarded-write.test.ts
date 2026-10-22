@@ -240,7 +240,7 @@ function gmChangeEvents(changeId: string): SessionLogEntry[] {
 
 function addActor(data: Record<string, any> = {}): FakeDoc {
   return makeDoc('Actor', {
-    name: 'Ireena',
+    name: 'Ilvara',
     type: 'npc',
     system: { attributes: { hp: { value: 10, max: 10 } }, source: { rules: '2024' } },
     flags: {},
@@ -266,7 +266,7 @@ describe('snapshotGuardedOps', () => {
     expect(snap).toEqual({
       exists: true,
       documentName: 'Actor',
-      name: 'Ireena',
+      name: 'Ilvara',
       values: [
         { path: 'system.attributes.hp.value', present: true, value: 10 },
         { path: 'flags.x.y', present: false },
@@ -289,7 +289,7 @@ describe('snapshotGuardedOps', () => {
     expect(snap).toEqual({
       exists: true,
       documentName: 'Actor',
-      name: 'Ireena',
+      name: 'Ilvara',
       modifiedTime: actor.source._stats.modifiedTime,
     });
   });
@@ -390,7 +390,7 @@ describe('op validation', () => {
     await expect(applyGuardedOps({ ...req, feature: 3 })).rejects.toThrow(/feature/);
     await expect(applyGuardedOps({ ...req, expected: [] })).rejects.toThrow(/one expected/);
     await expect(applyGuardedOps(null)).rejects.toThrow(/changeId/);
-    expect(actor.name).toBe('Ireena');
+    expect(actor.name).toBe('Ilvara');
   });
 });
 
@@ -468,7 +468,7 @@ describe('applyGuardedOps: apply', () => {
       kind: 'update',
       uuid: actor.uuid,
       documentName: 'Actor',
-      name: 'Ireena',
+      name: 'Ilvara',
       parentUuid: null,
     });
     expect(op.before).toEqual([
@@ -574,8 +574,8 @@ describe('applyGuardedOps: apply', () => {
     const actor = addActor();
     const result = await applyGuardedOps(await request([{ kind: 'delete', uuid: actor.uuid }]));
     expect(registry.has(actor.uuid)).toBe(false);
-    expect(result.results[0]).toMatchObject({ kind: 'delete', uuid: actor.uuid, name: 'Ireena' });
-    expect(result.results[0].deleted).toMatchObject({ _id: actor.id, name: 'Ireena' });
+    expect(result.results[0]).toMatchObject({ kind: 'delete', uuid: actor.uuid, name: 'Ilvara' });
+    expect(result.results[0].deleted).toMatchObject({ _id: actor.id, name: 'Ilvara' });
   });
 });
 
@@ -594,7 +594,7 @@ describe('applyGuardedOps: refusals', () => {
     const req = await request([{ kind: 'update', uuid: actor.uuid, changes: { name: 'X' } }]);
     g.game.user = { ...g.game.user, isGM: false };
     await expectRefused(req, /GM client only/);
-    expect(actor.name).toBe('Ireena');
+    expect(actor.name).toBe('Ilvara');
   });
 
   it('refuses when write operations are off (apply and undo)', async () => {
@@ -603,7 +603,7 @@ describe('applyGuardedOps: refusals', () => {
     world.setSetting(MODULE_ID, 'allowWriteOperations', false);
     await expectRefused(req, /Write operations are disabled/);
     await expectRefused({ ...req, mode: 'undo' }, /Write operations are disabled/);
-    expect(actor.name).toBe('Ireena');
+    expect(actor.name).toBe('Ilvara');
   });
 
   it('refuses when reading the write setting throws', async () => {
@@ -621,7 +621,7 @@ describe('applyGuardedOps: refusals', () => {
       feature: 'not-installed',
     });
     await expectRefused(req, /Unknown feature "not-installed"/);
-    expect(actor.name).toBe('Ireena');
+    expect(actor.name).toBe('Ilvara');
   });
 
   it('refuses a read-only feature even when its switch is on', async () => {
@@ -632,7 +632,7 @@ describe('applyGuardedOps: refusals', () => {
       feature: 'read-only-test',
     });
     await expectRefused(req, /read-only and takes no plans/);
-    expect(actor.name).toBe('Ireena');
+    expect(actor.name).toBe('Ilvara');
   });
 
   it('refuses a feature that is switched off, but allows undo', async () => {
@@ -646,7 +646,7 @@ describe('applyGuardedOps: refusals', () => {
     expect(actor.name).toBe('X');
 
     await applyGuardedOps(undoRequest(applied));
-    expect(actor.name).toBe('Ireena');
+    expect(actor.name).toBe('Ilvara');
   });
 
   it('writes nothing when any target changed since the plan', async () => {
@@ -910,7 +910,7 @@ describe('applyGuardedOps: undo', () => {
   });
 
   /**
-   * Two actors: Strahd concentrates (an effect that names its dependent), Ireena holds the
+   * Two actors: Sorvan concentrates (an effect that names its dependent), Ilvara holds the
    * dependent effect. The fake plays dnd5e's part: deleting the concentration effect deletes
    * its dependent too, as the system does in the active GM's browser.
    */
@@ -919,16 +919,16 @@ describe('applyGuardedOps: undo', () => {
     held: FakeDoc;
     deletions: string[];
   } {
-    const strahd = addActor({ name: 'Strahd' });
-    const ireena = addActor();
-    const held = makeDoc('ActiveEffect', { name: 'Hold Person' }, ireena);
+    const sorvan = addActor({ name: 'Sorvan' });
+    const ilvara = addActor();
+    const held = makeDoc('ActiveEffect', { name: 'Hold Person' }, ilvara);
     const conc = makeDoc(
       'ActiveEffect',
       {
         name: 'Concentrating',
         ...(withLink ? { flags: { dnd5e: { dependents: [{ uuid: held.uuid }] } } } : {}),
       },
-      strahd
+      sorvan
     );
     const deletions: string[] = [];
     const heldDelete = held.delete.bind(held);
@@ -1037,7 +1037,7 @@ describe('applyGuardedOps: undo', () => {
   it('takes the concentration effect dnd5e ends with an item delete as deleted in a redo (no link to read)', async () => {
     // The item names no dependents, so `executionOrder` keeps the plan's order: the item goes
     // first and dnd5e ends the concentration with it; the effect is gone when its turn comes.
-    const caster = addActor({ name: 'Strahd' });
+    const caster = addActor({ name: 'Sorvan' });
     const spell = makeDoc('Item', { name: 'Hold Person' }, caster);
     const conc = makeDoc(
       'ActiveEffect',
@@ -1103,8 +1103,8 @@ describe('applyGuardedOps: undo', () => {
     expect(actor.flags[MODULE_ID].rules).toBeDefined();
     const updateSpy = vi.spyOn(actor, 'update');
     await applyGuardedOps(undoRequest(applied));
-    expect(updateSpy.mock.calls[0][0]).toEqual({ name: 'Ireena', [RULES_PATH]: g._del });
-    expect(actor.name).toBe('Ireena');
+    expect(updateSpy.mock.calls[0][0]).toEqual({ name: 'Ilvara', [RULES_PATH]: g._del });
+    expect(actor.name).toBe('Ilvara');
     expect(actor.flags[MODULE_ID]).not.toHaveProperty('rules');
   });
 

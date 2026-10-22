@@ -8,7 +8,7 @@ const FORBIDDEN_KEYS = new Set(['__proto__', 'prototype', 'constructor']);
 const SEGMENT = /^[A-Za-z0-9_-][A-Za-z0-9_ -]{0,99}$/;
 const MAX_DEPTH = 12;
 
-/** Split and validate a vault data path (`regions.vallaki.level`). */
+/** Split and validate a vault data path (`regions.valmere.level`). */
 export function parseDataPath(path: unknown): string[] {
   if (typeof path !== 'string' || !path) throw new Error('A vault op needs a path');
   const segments = path.split('.');

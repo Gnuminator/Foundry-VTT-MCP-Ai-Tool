@@ -130,8 +130,8 @@ const TOOLS = [
 ];
 
 const SCENES = [
-  { id: 's1', name: 'Barovia', active: true },
-  { id: 's2', name: 'Vallaki', active: false },
+  { id: 's1', name: 'Maravia', active: true },
+  { id: 's2', name: 'Valmere', active: false },
 ];
 
 const CHOICES: Record<string, unknown[]> = {
@@ -147,9 +147,9 @@ const CHOICES: Record<string, unknown[]> = {
   token: [
     { id: 't1', name: 'Wolf', detail: 'hostile' },
     { id: 't2', name: 'Wolf', detail: 'hostile', hidden: true },
-    { id: 't3', name: 'Ireena', detail: 'friendly' },
+    { id: 't3', name: 'Ilvara', detail: 'friendly' },
   ],
-  plan: [{ id: 'pl7', name: 'Rename Ireena' }],
+  plan: [{ id: 'pl7', name: 'Rename Ilvara' }],
 };
 
 const WRITE_PLAN = {
@@ -183,7 +183,7 @@ const bridge = (call: ToolCall): ToolAnswer => {
     }
     return ok({ kind, choices: CHOICES[kind] ?? [], truncated: false });
   }
-  if (call.name === 'get-world-info') return ok({ title: 'Curse of Strahd', system: 'dnd5e' });
+  if (call.name === 'get-world-info') return ok({ title: 'Curse of Sorvan', system: 'dnd5e' });
   if (call.name === 'measure-distance') return ok({ feet: 10 });
   if (call.name === 'plan-actor-change') return ok(WRITE_PLAN);
   if (call.name === 'plan-page-reveal') {
@@ -195,13 +195,13 @@ const bridge = (call: ToolCall): ToolAnswer => {
     return ok({
       planId: 'pl7',
       risk: 'write',
-      summary: 'Rename Ireena',
+      summary: 'Rename Ilvara',
       diff: [{ text: 'a → b' }],
     });
   }
   if (call.name === 'apply-planned-change') return ok(APPLIED);
   if (call.name === 'undo-change') return ok({ changeId: 'ch1', summary: 'Undid: Damage' });
-  if (call.name === 'create-quest-journal') return ok({ summary: 'Made "Find Ireena"' });
+  if (call.name === 'create-quest-journal') return ok({ summary: 'Made "Find Ilvara"' });
   return ok({});
 };
 
@@ -307,7 +307,7 @@ test('a read runs at once with GM Actions off and shows its result', async ({ pa
   await expect(drawer.locator('#tool-result')).toHaveClass('tool-result ok');
   await expect(drawer.locator('#tool-result strong')).toHaveText('Result');
   await expect(drawer.locator('#tool-result pre')).toHaveText(
-    JSON.stringify({ title: 'Curse of Strahd', system: 'dnd5e' }, null, 2)
+    JSON.stringify({ title: 'Curse of Sorvan', system: 'dnd5e' }, null, 2)
   );
   expect(named(calls, 'get-world-info')).toEqual([{ name: 'get-world-info', args: {} }]);
   await expect(confirmWindow(page)).toBeHidden();
@@ -415,12 +415,12 @@ test('a plan typed by hand always asks: Cancel, then Confirm, the result and Und
   await expect(menu.locator('.ref-item')).toHaveCount(3);
   await expect(menu.locator('.ref-warn')).toHaveText(['same name ×2', 'same name ×2']);
   await expect(menu.locator('.ref-flag')).toHaveText(['hidden']);
-  await menu.locator('.ref-search').fill('iree');
-  await expect(menu.locator('.ref-name')).toHaveText(['Ireena']);
+  await menu.locator('.ref-search').fill('lvar');
+  await expect(menu.locator('.ref-name')).toHaveText(['Ilvara']);
   await menu.locator('.ref-item').click();
   await menu.locator('.ref-search').fill('');
   await menu.locator('.ref-item').first().click();
-  await expect(field(drawer, 'targets')).toHaveValue('Ireena\nWolf');
+  await expect(field(drawer, 'targets')).toHaveValue('Ilvara\nWolf');
   await expect(drawer.locator('#tool-field-targets-hint')).toHaveText('2 selected');
   // A click outside closes the list.
   await drawer.locator('#tool-detail-desc').click();
@@ -438,14 +438,14 @@ test('a plan typed by hand always asks: Cancel, then Confirm, the result and Und
   expect(named(calls, 'apply-planned-change')).toEqual([]);
   await expect(drawer.locator('#tool-result')).toBeHidden();
   await expect(drawer.locator('#tool-run')).toBeFocused();
-  await expect(field(drawer, 'targets')).toHaveValue('Ireena\nWolf');
+  await expect(field(drawer, 'targets')).toHaveValue('Ilvara\nWolf');
 
   await drawer.locator('#tool-run').click();
   await confirm.getByRole('button', { name: 'Confirm' }).click();
   await expect(toast(page, '✓ Applied: Damage: 5 to Wolf')).toBeVisible();
   expect(named(calls, 'plan-actor-change').map(c => c.args)).toEqual([
-    { action: 'damage', targets: ['Ireena', 'Wolf'], amount: 5 },
-    { action: 'damage', targets: ['Ireena', 'Wolf'], amount: 5 },
+    { action: 'damage', targets: ['Ilvara', 'Wolf'], amount: 5 },
+    { action: 'damage', targets: ['Ilvara', 'Wolf'], amount: 5 },
   ]);
   expect(named(calls, 'apply-planned-change')).toEqual([
     { name: 'apply-planned-change', args: { planId: 'p1' }, confirm: true },
@@ -569,7 +569,7 @@ test('a gate request the bar never answers expires: GM Actions going off later k
 }) => {
   const setGmActions = await liveGmActions(page);
   const drawer = await refusedForAnotherReason(page);
-  await field(drawer, 'targets').fill('Wolf, Ireena');
+  await field(drawer, 'targets').fill('Wolf, Ilvara');
   await expect(field(drawer, 'targets')).toBeFocused();
   setGmActions(false);
   await expect(drawer.locator('#gm-gate')).toBeVisible();
@@ -680,11 +680,11 @@ test('a write that is not a plan asks with its args, names shown with their ids'
   const calls = await fakeTools(page, bridge);
   const drawer = await openTools(page);
   await openTool(drawer, 'create-quest-journal');
-  await field(drawer, 'title').fill('Find Ireena');
+  await field(drawer, 'title').fill('Find Ilvara');
   await drawer.locator('#tool-field-sceneId-pick').click();
   await drawer
     .locator('#tool-field-sceneId-menu')
-    .getByRole('option', { name: /Vallaki/ })
+    .getByRole('option', { name: /Valmere/ })
     .click();
   await drawer.locator('#tool-run').click();
 
@@ -693,15 +693,15 @@ test('a write that is not a plan asks with its args, names shown with their ids'
     'Run create-quest-journal against the live game?'
   );
   await expect(confirm.locator('.change-diff li')).toHaveText([
-    'title: Find Ireena',
-    'sceneId: Vallaki (s2)',
+    'title: Find Ilvara',
+    'sceneId: Valmere (s2)',
   ]);
   await confirm.getByRole('button', { name: 'Confirm' }).click();
   await expect(toast(page, '✓ create-quest-journal')).toBeVisible();
   expect(named(calls, 'create-quest-journal')).toEqual([
     {
       name: 'create-quest-journal',
-      args: { title: 'Find Ireena', sceneId: 's2' },
+      args: { title: 'Find Ilvara', sceneId: 's2' },
       confirm: true,
     },
   ]);
@@ -714,9 +714,9 @@ test('a write that is not a plan asks with its args, names shown with their ids'
     .locator('#tool-field-planId-menu')
     .getByRole('option', { name: /Rename/ })
     .click();
-  await expect(drawer.locator('#tool-field-planId-hint')).toHaveText('Rename Ireena');
+  await expect(drawer.locator('#tool-field-planId-hint')).toHaveText('Rename Ilvara');
   await drawer.locator('#tool-run').click();
-  await expect(confirm.locator('.modal-summary')).toHaveText('Rename Ireena');
+  await expect(confirm.locator('.modal-summary')).toHaveText('Rename Ilvara');
   await expect(confirm.locator('.change-diff li')).toHaveText(['a → b']);
   await confirm.getByRole('button', { name: 'Confirm' }).click();
   await expect(toast(page, '✓ Applied: Damage: 5 to Wolf')).toBeVisible();
@@ -878,7 +878,7 @@ test('+ Queue a page opens the Tool runner filled in, names shown, and queues on
   await expect(field(drawer, 'action')).toHaveValue('queue');
   await expect(field(drawer, 'sceneId')).toHaveValue('s1');
   // The prefilled scene id is named, not left as a bare id.
-  await expect(drawer.locator('#tool-field-sceneId-hint')).toHaveText('Barovia');
+  await expect(drawer.locator('#tool-field-sceneId-hint')).toHaveText('Maravia');
   await expect(field(drawer, 'pageUuid')).toBeFocused();
   // It only fills the form in: nothing ran.
   expect(named(calls, 'plan-page-reveal')).toEqual([]);

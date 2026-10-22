@@ -24,7 +24,7 @@ export interface ChangeEntry {
   mode: 'apply' | 'undo';
   /** Who asked, when a GM did it from a window in Foundry or the dashboard (absent for Claude). */
   requestedBy: string;
-  /** The first thing it touched, by name ("Ireena"), or empty. */
+  /** The first thing it touched, by name ("Ilvara"), or empty. */
   thing: string;
   canUndo: boolean;
   /** The change also wrote the AI Tool's own data (a reveal): undone with the plain `undo-change`, not a planned undo. */

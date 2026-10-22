@@ -31,7 +31,7 @@ import { createTestWorld, type TestWorld } from './test-support/foundry-mock/ind
 const MODULE_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const g = globalThis as any;
 
-const DESCRIPTION = '<p>Welcome to <strong>Barovia</strong>.</p>';
+const DESCRIPTION = '<p>Welcome to <strong>Maravia</strong>.</p>';
 const BLOCK = veilBlock(DEFAULT_TAGLINE);
 
 /**
@@ -71,10 +71,10 @@ function foundryCleanHtml(html: string): string {
 
 describe('planJoinPage', () => {
   it('puts the block on top of the description and sets The Veil picture', () => {
-    const change = planJoinPage({ id: 'strahd', description: DESCRIPTION }, 'veil');
+    const change = planJoinPage({ id: 'sorvan', description: DESCRIPTION }, 'veil');
     expect(change).toEqual({
       action: 'editWorld',
-      id: 'strahd',
+      id: 'sorvan',
       description: `${BLOCK}\n${DESCRIPTION}`,
       background: VEIL_BACKGROUND,
     });
@@ -270,7 +270,7 @@ describe('lostFromReply', () => {
     const veil = planJoinPage({ id: 'w', description: DESCRIPTION }, 'veil');
     const tidied = {
       id: 'w',
-      description: `${BLOCK}<p>Welcome to <strong>Barovia</strong>.</p>`,
+      description: `${BLOCK}<p>Welcome to <strong>Maravia</strong>.</p>`,
       background: `/${VEIL_BACKGROUND}`,
     };
     expect(lostFromReply(veil, tidied)).toBeNull();

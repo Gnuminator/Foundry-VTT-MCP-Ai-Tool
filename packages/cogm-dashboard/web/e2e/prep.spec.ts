@@ -17,13 +17,13 @@ const DIGEST = {
     startedAt: '',
     endedAt: '',
     durationMin: 185,
-    scenes: ['Village of Barovia', 'Church'],
+    scenes: ['Village of Maravia', 'Church'],
     combats: 1,
     combatRounds: 4,
     pcDowns: 2,
     npcKills: 0,
     spellsCast: 0,
-    wentDown: { pcs: ['Ireena'], others: [] },
+    wentDown: { pcs: ['Ilvara'], others: [] },
     beats: [{ at: '2026-10-01T19:05:00Z', kind: 'scene-change', text: 'Church', actorName: null }],
     beatsTruncated: true,
     handoutsRevealed: [
@@ -35,7 +35,7 @@ const DIGEST = {
   openCampaignParts: [
     {
       journalId: 'c1',
-      name: 'Curse of Strahd',
+      name: 'Curse of Sorvan',
       parts: [{ partId: 'p', title: 'Death House', status: 'in_progress' }],
     },
   ],
@@ -43,7 +43,7 @@ const DIGEST = {
     journalId: 'n1',
     name: 'Next session',
     playerVisible: true,
-    pages: [{ pageId: 'pg', name: 'Plan', text: 'Meet Ismark', truncated: true }],
+    pages: [{ pageId: 'pg', name: 'Plan', text: 'Meet Ivarro', truncated: true }],
   },
   handoutQueue: [
     { title: 'Diary', uuid: 'd', sceneId: null, sceneName: null, players: ['Anna'] },
@@ -54,8 +54,8 @@ const DIGEST = {
       sceneId: 's',
       sceneName: 'Castle',
       tokenId: 't',
-      tokenName: 'Strahd',
-      actorName: 'Strahd',
+      tokenName: 'Sorvan',
+      actorName: 'Sorvan',
       hidden: true,
       legendary: { max: 3, spent: 1, remaining: 2 },
       resistances: null,
@@ -104,10 +104,10 @@ test('loads the digest on open and shows every section', async ({ page }) => {
   ]);
   await expect(last.locator('.pf-detail')).toHaveText([
     '2026-10-01 · 3 h 5 min',
-    'Village of Barovia, then Church',
+    'Village of Maravia, then Church',
     '1 fight, 4 rounds',
     '2 player character downs',
-    'Ireena',
+    'Ilvara',
     'None',
   ]);
   await expect(
@@ -123,11 +123,11 @@ test('loads the digest on open and shows every section', async ({ page }) => {
     'Open'
   );
   await expect(
-    drawer.getByRole('list', { name: 'Curse of Strahd' }).locator('.pf-detail')
+    drawer.getByRole('list', { name: 'Curse of Sorvan' }).locator('.pf-detail')
   ).toHaveText('in progress');
 
   await expect(drawer.getByText('Players can see this journal')).toBeVisible();
-  await expect(drawer.locator('.prep-note-text')).toHaveText('Meet Ismark …');
+  await expect(drawer.locator('.prep-note-text')).toHaveText('Meet Ivarro …');
 
   await expect(drawer.locator('.prep-sub-h', { hasText: 'Any scene' })).toBeVisible();
   await expect(
@@ -137,7 +137,7 @@ test('loads the digest on open and shows every section', async ({ page }) => {
     drawer.getByRole('list', { name: 'Queued: Church' }).locator('.pf-detail')
   ).toHaveCount(0);
   await expect(drawer.getByRole('list', { name: 'Bosses' }).locator('.preflight-item')).toHaveText(
-    'Strahd (hidden)Castle · Legendary 2/3 · Lair: inside'
+    'Sorvan (hidden)Castle · Legendary 2/3 · Lair: inside'
   );
   await expect(drawer.getByRole('list', { name: 'Pre-flight items' }).locator('li')).toHaveClass(
     /pf-fail/

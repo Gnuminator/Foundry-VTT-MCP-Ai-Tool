@@ -13,8 +13,8 @@ import { groupWithPlayRecords, type SessionEvent } from '../obsidian/grouping.js
 import { buildStats } from './build.js';
 import type { StatsModel } from './types.js';
 
-const PC: PlayActorRef = { uuid: 'Actor.pc1', isPC: true, name: 'Ireena' };
-const NPC: PlayActorRef = { uuid: 'Actor.npc1', isPC: false, name: 'Rahadin' };
+const PC: PlayActorRef = { uuid: 'Actor.pc1', isPC: true, name: 'Ilvara' };
+const NPC: PlayActorRef = { uuid: 'Actor.npc1', isPC: false, name: 'Ravelin' };
 const T0 = Date.parse('2026-10-01T12:00:00.000Z');
 
 function roll(
@@ -106,7 +106,7 @@ describe('buildStats: the highest roll', () => {
     ]);
     expect(stats.sessions[0]?.highestRoll).toEqual({
       total: 27,
-      name: 'Ireena',
+      name: 'Ilvara',
       label: 'Athletics check',
       rollType: 'skill',
       natural: 20,
@@ -169,7 +169,7 @@ describe('buildStats', () => {
     const owned: PlayActorRef = {
       uuid: 'Actor.pc2',
       isPC: true,
-      name: 'Ismark',
+      name: 'Ivarro',
       playerOwned: true,
     };
     const spare: PlayActorRef = {
@@ -229,7 +229,7 @@ describe('buildStats', () => {
       hp('hp:npc', T0 + 300, NPC, 3, 0),
     ]);
     expect(stats.sessions[0]?.combats).toEqual([]);
-    expect(stats.sessions[0]?.pcDownsByName).toEqual({ Ireena: 2 });
+    expect(stats.sessions[0]?.pcDownsByName).toEqual({ Ilvara: 2 });
   });
 
   it('attributes an HP loss to the roll sharing its messageId, preferring the matching rollType', () => {
@@ -304,8 +304,8 @@ describe('buildStats', () => {
     expect(stats.sessions[0]?.combats).toHaveLength(1);
     const combat = stats.sessions[0]?.combats[0];
     expect(combat?.rounds).toBe(3);
-    expect(combat?.participants).toEqual(['Ireena', 'Rahadin']);
-    expect(combat?.kills).toEqual(['Rahadin']);
+    expect(combat?.participants).toEqual(['Ilvara', 'Ravelin']);
+    expect(combat?.kills).toEqual(['Ravelin']);
     expect(stats.sessions[0]?.combatRounds).toBe(3);
   });
 
@@ -327,13 +327,13 @@ describe('buildStats', () => {
     });
     const bystander: PlayActorRef = { uuid: 'Actor.b', isPC: false, name: 'Bystander' };
     const records: PlayRecord[] = [
-      lifecycle('combat-start', T0, ['Ireena', 'Wolf 1', 'Wolf 2']),
+      lifecycle('combat-start', T0, ['Ilvara', 'Wolf 1', 'Wolf 2']),
       // Only Wolf 1 ever took a turn; a reinforcement joined; the bystander got hit.
       { ...hp('hp:b', T0 + 10, bystander, 5, 2), combat: { id: 'c2', round: 1, turn: 0 } },
-      lifecycle('combat-end', T0 + 20, ['Ireena', 'Wolf 1', 'Wolf 2', 'Wolf 3', 7]),
+      lifecycle('combat-end', T0 + 20, ['Ilvara', 'Wolf 1', 'Wolf 2', 'Wolf 3', 7]),
     ];
     const combat = build(records).sessions[0]?.combats[0];
-    expect(combat?.participants).toEqual(['Bystander', 'Ireena', 'Wolf 1', 'Wolf 2', 'Wolf 3']);
+    expect(combat?.participants).toEqual(['Bystander', 'Ilvara', 'Wolf 1', 'Wolf 2', 'Wolf 3']);
   });
 
   it('tallies spell slots, resources (new and legacy), hit dice, loot, currency and xp for a PC', () => {

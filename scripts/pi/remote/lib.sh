@@ -182,15 +182,30 @@ require_no_recording() {
   fi
 }
 
+# assistant_gm_joined: 0 when the Assistant GM browser service runs AND has joined the world since it last started
+# (its log has the "joined world" line; the browser exits and systemd starts it again when the game is left, so the
+# line belongs to the current run). A service that is active but still waiting for a world, or whose login fails,
+# holds no Foundry user, so it must not be subtracted from the count of users online. Read-only. Anything that
+# cannot be read counts as "not joined": the count then errs towards refusing.
+assistant_gm_joined() {
+  local unit=foundry-ai-tool-gm-browser.service started since
+  systemctl is-active --quiet "$unit" || return 1
+  started="$(unit_started_epoch "$unit")"
+  [ -n "$started" ] || return 1
+  since="$(date -d "@$started" '+%Y-%m-%d %H:%M:%S' 2>/dev/null)" || return 1
+  # grep -c reads everything: with pipefail, grep -q could stop early and make journalctl's SIGPIPE fail the pipeline.
+  [ "$(journalctl -u "$unit" --since "$since" --no-pager -o cat 2>/dev/null | grep -c '\[assistant-gm\] joined world' || true)" -gt 0 ]
+}
+
 # require_quiet WHAT: call before a stage stops or restarts Foundry (WHAT names the action). Refuses while players are
-# online (the Assistant GM browser counts as one user while its service runs) or a recording runs. Does nothing
-# without systemd; Foundry not running means no one to drop.
+# online (the Assistant GM browser counts as one user once it has joined, see assistant_gm_joined) or a recording
+# runs. Does nothing without systemd; Foundry not running means no one to drop.
 require_quiet() {
   local what="$1" online assistant=0
   have_systemd || return 0
   if systemctl is-active --quiet foundry.service; then
     online="$(users_online)"
-    systemctl is-active --quiet foundry-ai-tool-gm-browser.service && assistant=1
+    assistant_gm_joined && assistant=1
     if [ "$online" = "?" ]; then
       refuse "cannot read who is online in Foundry (/api/status on port 30000), so $what is not safe"
     elif [ "$online" -gt "$assistant" ]; then
@@ -198,6 +213,15 @@ require_quiet() {
     fi
   fi
   require_no_recording "$what"
+}
+
+# require_quiet_if_active UNIT WHAT: require_quiet, but only when UNIT runs (a stopped unit is just started, which
+# drops no one). For the helper scripts the user runs, which restart one service after writing a settings file: they
+# call it before asking for anything, so a refusal comes before a token is pasted.
+require_quiet_if_active() {
+  have_systemd || return 0
+  systemctl is-active --quiet "$1" || return 0
+  require_quiet "$2"
 }
 
 # require_recent_snapshot: refuses unless a dietpi-backup snapshot COMPLETED today: the last "Backup completed" line

@@ -4,9 +4,13 @@
 #
 # YOU run this, in your own SSH session, AFTER the `cogm` Access application exists (you need its AUD tag).
 # Stage 5 already adds the line that makes the dashboard read this file; on an older Pi the check below
-# stops and says so. Claude does not run it. It stands alone (no lib.sh), so copy it over and run it with a terminal:
-#   scp scripts\pi\remote\set-dashboard-access.sh foundry-pi:/tmp/set-dashboard-access.sh
+# stops and says so. Claude does not run it. It needs lib.sh beside it (for the players-online and recording
+# checks), so copy both over and run it with a terminal:
+#   scp scripts\pi\remote\lib.sh scripts\pi\remote\set-dashboard-access.sh foundry-pi:/tmp/
 #   ssh -t foundry-pi bash /tmp/set-dashboard-access.sh
+# Restarting a running dashboard drops the GM's and the players' dashboard pages, so it refuses while players are
+# online in Foundry or a Discord recording runs (before it asks for anything). To go on anyway:
+#   ssh -t foundry-pi FORCE=1 bash /tmp/set-dashboard-access.sh
 # It asks for what it needs; each can also be given as an option (--team, --aud, --emails, --host,
 # --ts-name). The GM token is made here (under umask 077) and shown once, on the terminal only. An
 # existing token is kept unless you add --rotate-token (the GM then opens the one-time link again).
@@ -18,22 +22,18 @@
 #   DASHBOARD_ALLOWED_HOSTS  <the Pi's Tailscale name>,<cogm host>  (this file's value replaces the unit's)
 #   GM_DASHBOARD_TOKEN     lets the GM in over Tailscale, where there is no Cloudflare login
 
-set -euo pipefail
-umask 077
-
-TOOL_ETC=/etc/foundry-ai-tool
-NODE_DIR=/opt/node24
-FOUNDRY_USER=foundry
-file="$TOOL_ETC/dashboard-access.env"
-unit=foundry-ai-tool-dashboard.service
-
-say() { printf '==> %s\n' "$*"; }
-ok() { printf '    ok: %s\n' "$*"; }
-warn() { printf '    WARNING: %s\n' "$*" >&2; }
-die() {
-  printf 'ERROR: %s\n' "$*" >&2
+lib="$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+[ -f "$lib" ] || {
+  echo "ERROR: $lib is missing: copy lib.sh next to this script (see the top of this file)" >&2
   exit 1
 }
+# shellcheck source=lib.sh
+. "$lib"
+# lib.sh sets umask 022; this script writes the GM token, so it is strict again (the settings file gets its mode below).
+umask 077
+
+file="$TOOL_ETC/dashboard-access.env"
+unit=foundry-ai-tool-dashboard.service
 
 team="" aud="" emails="" host="" ts_name="" rotate=0
 while [ "$#" -gt 0 ]; do
@@ -48,7 +48,9 @@ while [ "$#" -gt 0 ]; do
   esac
 done
 
-[ "$(id -u)" -eq 0 ] || die "run as root (the Pi's SSH login is root)"
+require_root
+# Before anything is asked or checked: a refusal costs nothing then (a stopped dashboard needs no check).
+require_quiet_if_active "$unit" "restarting the dashboard (it drops the dashboard pages that are open)"
 [ -d "$TOOL_ETC" ] || die "$TOOL_ETC is missing: run stage 1 first"
 id "$FOUNDRY_USER" >/dev/null 2>&1 || die "the $FOUNDRY_USER user is missing: run stage 1 first"
 [ -f "/etc/systemd/system/$unit" ] || die "$unit is missing: run stage 5 first"

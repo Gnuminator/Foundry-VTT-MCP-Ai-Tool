@@ -72,10 +72,8 @@ fi
 dashboard_env="# Written by scripts/pi/remote/7-vault.sh; edit it there (the file is rewritten whole).
 OBSIDIAN_VAULT_NAME=\"$vault_name\""
 mkdir -p "$TOOL_ETC"
-bridge_changed=0
-dashboard_changed=0
-if write_file "$TOOL_ETC/bridge.env" 0640 "$bridge_env"; then bridge_changed=1; fi
-if write_file "$TOOL_ETC/dashboard.env" 0640 "$dashboard_env"; then dashboard_changed=1; fi
+write_file "$TOOL_ETC/bridge.env" 0640 "$bridge_env" || true
+write_file "$TOOL_ETC/dashboard.env" 0640 "$dashboard_env" || true
 # Root writes them, the services (user foundry) read them.
 chown "root:$FOUNDRY_USER" "$TOOL_ETC/bridge.env" "$TOOL_ETC/dashboard.env"
 if have_systemd; then

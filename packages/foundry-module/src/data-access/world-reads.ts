@@ -1,6 +1,7 @@
 import * as shared from './shared.js';
 import { ERROR_MESSAGES } from '../constants.js';
-import type { SceneInfo, SceneToken, WorldInfo } from './types.js';
+import type { SceneInfo, SceneToken, WorldInfo, WorldUser } from './types.js';
+import { isTableViewerUser } from '../table-viewer-user.js';
 import { sceneBackgroundSrc } from '../systems/core.js';
 
 /**
@@ -156,12 +157,13 @@ export class WorldReadsDataAccess {
   }
 
   /** Map a Foundry user document to the lightweight roster entry. */
-  private summarizeUser(user: User): { id: string; name: string; active: boolean; isGM: boolean } {
+  private summarizeUser(user: User): WorldUser {
     return {
       id: user.id || '',
       name: user.name || '',
       active: user.active,
       isGM: user.isGM,
+      ...(isTableViewerUser(user) ? { tableViewer: true } : {}),
     };
   }
 }

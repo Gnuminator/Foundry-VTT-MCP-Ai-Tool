@@ -22,6 +22,7 @@ import type { ChangeWriteMode } from '../change-journal-types.js';
 import { MODULE_ID } from '../constants.js';
 import { eventTracker } from '../session-events.js';
 import { isFeatureEnabled, isKnownFeature, isReadOnlyFeature } from '../guarded-features.js';
+import { assertUserCreateAllowed } from '../table-viewer-user.js';
 import { unsetKeyUpdate } from '../systems/core.js';
 import {
   RULES_FLAG_PATH,
@@ -588,6 +589,7 @@ async function executeCreate(
   req: GuardedApplyRequest,
   changeMode?: ChangeWriteMode
 ): Promise<GuardedOpResult> {
+  if (op.documentName === 'User') assertUserCreateAllowed(req.feature, op.data);
   const data = foundry.utils.deepClone(op.data);
   if (req.mode === 'apply' && isRulesTagged(op.documentName)) {
     const tag = rulesTagForCreate(data, req.rulesVersion);

@@ -22,7 +22,11 @@ of the tool's folder (it holds the `scripts\tv` files). Ask the tool admin to se
    password.
 3. Read it, then confirm. It shows in **Recent Changes**, with an **Undo** if you change your mind.
 
-If a player called Table already exists, Claude says so and plans nothing.
+If a user called Table already exists (a player or a GM), or Claude cannot read the list of users,
+it says so and plans nothing. (A Table player made before this change is not marked: undo its plan
+in Recent Changes and plan it again, or the handout receipts and the player count keep counting
+it.) The Table player is marked as the TV, so the handout receipts, the
+player count and the session attendance leave it out.
 
 **If the map is dark on the TV:** on a scene with token vision on, a player only sees what their
 own characters can see, and Table has none. Give Table the same view as the party: ask Claude
@@ -57,9 +61,14 @@ new day the script sees Foundry's join page and joins as Table again by itself. 
 on the join page of your game, never on another page. Leave the script's window open (it can be
 minimised); closing the TV's browser ends it. To make all of this happen when the TV's computer
 starts, put a shortcut in the Windows Startup folder (press **Win + R**, type `shell:startup`)
-whose target is `pwsh -File "C:\full\path\to\scripts\tv\start-table-viewer.ps1" -Url https://your-game-address`.
-If it says the TV browser is already running, close that browser (for example the window from the
-setup step) and run it again.
+whose target is `pwsh -NoExit -WindowStyle Minimized -File "C:\full\path\to\scripts\tv\start-table-viewer.ps1" -Url https://your-game-address`.
+The `-NoExit` keeps the window open after a warning, so you can read it. If it says the TV browser
+is already running, close that browser (for example the window from the setup step) and run it
+again.
+
+If your game sits behind a reverse proxy at a sub-path, such as `https://host/foundry`, give that
+address (`-Url https://host/foundry`); the script then looks for the join page at
+`https://host/foundry/join`.
 
 While the TV runs, the browser opens a control port that only this computer can reach. Anyone
 signed in to this Windows account could use it, so use a TV PC that only the table uses.

@@ -1,4 +1,5 @@
 import { MODULE_ID } from '../constants.js';
+import { isTablePlayer } from '../table-viewer-user.js';
 import * as shared from './shared.js';
 
 /**
@@ -95,7 +96,7 @@ export class OwnershipPlayersDataAccess {
           game.users?.getName(data.playerIdentifier) ?? game.users?.get(data.playerIdentifier);
         users = resolved && !resolved.isGM ? [resolved] : [];
       } else {
-        users = Array.from(game.users || []).filter(u => !u.isGM);
+        users = Array.from(game.users || []).filter(isTablePlayer);
       }
 
       return actors.map(actor => ({
@@ -174,7 +175,7 @@ export class OwnershipPlayersDataAccess {
 
     try {
       return Array.from(game.users || [])
-        .filter(user => user.active && !user.isGM)
+        .filter(user => user.active && isTablePlayer(user))
         .map(user => ({ id: user.id || '', name: user.name || 'Unknown' }))
         .filter((u: { id: string }) => u.id);
     } catch (error) {

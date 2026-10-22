@@ -17,7 +17,8 @@
 
   Every time after (no keyboard):
     pwsh scripts\tv\start-table-viewer.ps1 -Url https://foundry.example.com
-  Put that line in a shortcut in the Startup folder and the TV opens on the map after a restart.
+  Put that line in a shortcut in the Startup folder and the TV opens on the map after a restart;
+  start pwsh with -NoExit there, so a refusal or warning of the script stays on screen to read.
   Leave the script's window open: it keeps watching for the join page. Closing the browser ends it.
 
   Nothing secret is stored by this script: the Table user has no password. The browser listens for
@@ -26,7 +27,9 @@
   cookies, so keep it on the TV PC. To sign the TV out, delete the folder (-Profile, default below).
 
 .PARAMETER Url
-  Foundry's address, http or https, without a user name or password in it.
+  Foundry's address, http or https, without a user name or password in it. Behind a reverse proxy
+  at a sub-path, give the address with that path (https://host/foundry or https://host/foundry/join):
+  the join page is then https://host/foundry/join.
 .PARAMETER Setup
   Open a normal window instead of full screen, for the first sign-in.
 .PARAMETER UserName
@@ -70,6 +73,14 @@ if ($DryRun) {
 }
 
 New-Item -ItemType Directory -Force -Path $cmd.Profile | Out-Null
+if (-not $NoAutoJoin) {
+  Write-Host "Watching for the join page at $(([Uri]$Url).GetLeftPart([UriPartial]::Authority))$(Get-FoundryPrefix -BaseUrl $Url)/join"
+}
+# A browser that runs on this profile without a debug port (-NoAutoJoin, or opened by hand) writes
+# no port file, but Chromium keeps the profile's lockfile open for as long as it runs.
+if (Test-ProfileInUse -Profile $cmd.Profile) {
+  throw "The TV browser is already running on this profile ($($cmd.Profile)). Close it first, then run this again."
+}
 $portFile = Join-Path $cmd.Profile 'DevToolsActivePort'
 if (Test-Path -LiteralPath $portFile) {
   # A browser still running on this profile would swallow the new window and never write a new port.

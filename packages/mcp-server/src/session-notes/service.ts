@@ -173,8 +173,10 @@ export class SessionNotesService {
       this.track(work);
       return work;
     });
-    this.guardedWrites.setUndoGuard(SESSION_NOTES_FEATURE, (worldId, entry) =>
-      this.undoConflict(worldId, entry)
+    this.guardedWrites.setUndoGuard(
+      SESSION_NOTES_FEATURE,
+      (worldId, entry) => this.undoConflict(worldId, entry),
+      { redo: true } // a redo puts the put back under its own change id
     );
   }
 
@@ -514,10 +516,11 @@ export class SessionNotesService {
   private async onRecorded(worldId: string, changeId: string): Promise<void> {
     const entry = await this.audit.get(worldId, changeId);
     if (!entry) return;
-    // Undone through `undo` (mode 'undo') or through a planned undo from the Changes window or
-    // the dashboard (a `change-undo` apply that lists the changes it takes back).
+    // Undone through `undo` (mode 'undo', of any feature: the undo of a planned undo or redo is a
+    // `change-undo` entry) or through a planned undo from the Changes window or the dashboard (a
+    // `change-undo` apply that lists the changes it takes back). The change ids match exactly.
     const undone: string[] = [];
-    if (entry.feature === SESSION_NOTES_FEATURE && entry.mode === 'undo' && entry.undoOf) {
+    if (entry.mode === 'undo' && entry.undoOf) {
       undone.push(entry.undoOf);
     } else if (entry.mode === 'apply' && entry.undoes?.changes?.length) {
       undone.push(...entry.undoes.changes);
@@ -567,20 +570,33 @@ export class SessionNotesService {
       const kept = notes.undonePut;
       if (!kept || notes.put || !undone.includes(kept.undoneBy)) continue;
       const pageTimes: Record<string, number | null> = {};
-      const uuids = Object.keys(kept.pageTimes);
+      // The page list comes from the uuids of the put, not from the times (empty when the
+      // read-back after the put failed); the journal goes first, to tell whether it came back.
+      const uuids = Object.values(kept.pageUuids).filter((u): u is string => typeof u === 'string');
       for (const uuid of uuids) pageTimes[uuid] = null; // unknown: the Undo's edit check skips it
+      let gone = false;
       try {
         const snaps = unwrapBridgeReply(
           await this.foundry.query('foundry-mcp-bridge.snapshotGuardedOps', {
-            ops: uuids.map(uuid => ({ kind: 'delete', uuid })),
+            ops: [kept.journalUuid, ...uuids].map(uuid => ({ kind: 'delete', uuid })),
           }),
           'Read-back refused'
         );
+        // The journal was deleted by hand before the undo: the redo had nothing to bring back.
+        gone =
+          snaps[0]?.exists === false ||
+          snaps[uuids.indexOf(kept.recapPageUuid) + 1]?.exists === false;
         uuids.forEach((uuid, i) => {
-          pageTimes[uuid] = snaps[i]?.modifiedTime ?? null;
+          pageTimes[uuid] = snaps[i + 1]?.modifiedTime ?? null;
         });
       } catch (error) {
         this.logger.warn('Could not read the redone notes pages back', { error: messageOf(error) });
+      }
+      if (gone) {
+        await this.mutate(worldId, notes.sessionId, n => {
+          delete n.undonePut;
+        });
+        continue;
       }
       const { undoneBy: _undoneBy, ...put } = kept;
       await this.mutate(worldId, notes.sessionId, n => {

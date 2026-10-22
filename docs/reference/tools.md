@@ -1359,7 +1359,7 @@ Parameters:
 
 ### plan-table-viewer
 
-Plan a Foundry user for the TV at the table (default name "Table"): Player role, no password, owns nothing. Apply it with apply-planned-change, revert it with undo-change. The TV signs in as this user once (see the TV table viewer guide). Refuses if a user with that name already exists.
+Plan a Foundry user for the TV at the table (default name "Table"): Player role, no password, owns nothing. Apply it with apply-planned-change, revert it with undo-change. The TV signs in as this user once (see the TV table viewer guide). Refuses if a user (player or GM) with that name already exists, or if the users cannot be checked.
 
 Kind: read-only. Title: Plan the TV table viewer user.
 

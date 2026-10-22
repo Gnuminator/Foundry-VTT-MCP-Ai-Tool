@@ -12,3 +12,11 @@ export const TABLE_VIEWER_DEFAULT_NAME = 'Table';
 
 /** Foundry's CONST.USER_ROLES.PLAYER. The Table user is never given a higher role. */
 export const TABLE_VIEWER_ROLE = 1;
+
+/**
+ * The flag (`flags.foundry-mcp-bridge.tableViewer`) `plan-table-viewer` sets on the user it creates.
+ * The tool's own player lists (handout receipts, the player visibility check, "all players"
+ * ownership, play attendance, the player count) skip a user with it: the TV is a screen, not a
+ * person at the table.
+ */
+export const TABLE_VIEWER_FLAG = 'tableViewer';

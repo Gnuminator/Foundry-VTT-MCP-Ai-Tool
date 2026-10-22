@@ -465,6 +465,69 @@ describe('recorded listeners and undo guards', () => {
   });
 });
 
+describe('undo guards and redos', () => {
+  async function undoPlanOf(changeId: string): Promise<{ planId: string }> {
+    return service.createPlan({
+      feature: 'change-undo',
+      summary: 'Undo Hurt Ireena',
+      ops: [{ kind: 'update', uuid: 'Actor.ireena', changes: { 'system.hp': 10 } }],
+      undoes: { changes: [changeId] },
+    });
+  }
+
+  it('a guard that opted in to redos also guards the undo of an undo, planned or not', async () => {
+    foundry.features.push({ id: 'change-undo', name: '', hint: '', enabled: true });
+    const first = await service.applyPlan((await plan([HP_UPDATE])).planId, { confirm: true });
+    const undone = await service.undo(first.changeId, { confirm: true });
+    const seen: string[] = [];
+    service.setUndoGuard(
+      'test-feature',
+      (_world, entry) => {
+        seen.push(`${entry.feature}/${entry.mode}`);
+        return Promise.resolve('the Recap was revealed');
+      },
+      { redo: true }
+    );
+    // The undo entry (a redo is its undo) and a planned undo of it both ask the guard.
+    const redoPlan = await undoPlanOf(undone.changeId);
+    await expect(service.applyPlan(redoPlan.planId, { confirm: true })).rejects.toThrow(
+      'Conflict, nothing was written: the Recap was revealed'
+    );
+    await expect(service.undo(undone.changeId, { confirm: true })).rejects.toThrow(
+      'Conflict, nothing was written: the Recap was revealed'
+    );
+    expect(seen).toEqual(['test-feature/undo', 'test-feature/undo']);
+  });
+
+  it('a guard that did not opt in is not asked about an undo entry in a planned undo', async () => {
+    foundry.features.push({ id: 'change-undo', name: '', hint: '', enabled: true });
+    const first = await service.applyPlan((await plan([HP_UPDATE])).planId, { confirm: true });
+    const undone = await service.undo(first.changeId, { confirm: true });
+    service.setUndoGuard('test-feature', () => Promise.resolve('the GM edited it'));
+    const redoPlan = await undoPlanOf(undone.changeId);
+    await expect(service.applyPlan(redoPlan.planId, { confirm: true })).resolves.toBeDefined();
+  });
+
+  it('an opted-in guard is asked about a planned undo or redo (a change-undo entry)', async () => {
+    foundry.features.push({ id: 'change-undo', name: '', hint: '', enabled: true });
+    const first = await service.applyPlan((await plan([HP_UPDATE])).planId, { confirm: true });
+    const planned = await service.applyPlan((await undoPlanOf(first.changeId)).planId, {
+      confirm: true,
+    });
+    expect(planned.feature).toBe('change-undo');
+    service.setUndoGuard('test-feature', () => Promise.resolve('the Recap was revealed'), {
+      redo: true,
+    });
+    await expect(service.undo(planned.changeId, { confirm: true })).rejects.toThrow(
+      'Conflict, nothing was written: the Recap was revealed'
+    );
+    const again = await undoPlanOf(planned.changeId);
+    await expect(service.applyPlan(again.planId, { confirm: true })).rejects.toThrow(
+      'Conflict, nothing was written: the Recap was revealed'
+    );
+  });
+});
+
 describe('a planned undo of a change that left the history', () => {
   it('is refused, because its guard cannot be asked', async () => {
     foundry.features.push({ id: 'change-undo', name: '', hint: '', enabled: true });
@@ -602,7 +665,7 @@ describe('undo (Foundry ops)', () => {
     expect(foundry.docs.has(lamp)).toBe(false);
     expect(foundry.docs.has(rope)).toBe(false);
     expect(undone.diff).toContain(
-      `Left alone: Rope (${rope.split('.').slice(-2).join(' ')}; it was already gone when the undo ran)`
+      `Left alone: Rope (${rope.split('.').slice(-2).join(' ')}; it was already gone when the undo reached it)`
     );
     expect(undone.diff.filter(line => line.startsWith('Left alone'))).toHaveLength(1);
 

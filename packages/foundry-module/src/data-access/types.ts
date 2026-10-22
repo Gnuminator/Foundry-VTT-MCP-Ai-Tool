@@ -182,6 +182,8 @@ export interface WorldUser {
   name: string;
   active: boolean;
   isGM: boolean;
+  /** Set only for the TV's Table user. */
+  tableViewer?: boolean;
 }
 
 // Phase 2: Write Operation Interfaces

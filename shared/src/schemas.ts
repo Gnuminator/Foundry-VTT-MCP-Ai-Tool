@@ -235,6 +235,8 @@ export const WorldUserSchema = z.object({
   name: z.string(),
   active: z.boolean(),
   isGM: z.boolean(),
+  /** The TV's Table user (flag set by plan-table-viewer): not counted as a player. */
+  tableViewer: z.boolean().optional(),
 });
 
 export const WorldInfoSchema = z.object({

@@ -72,6 +72,22 @@ describe('FoundryDataAccess — getActorOwnership', () => {
     expect(result[0].ownership).toHaveLength(1);
   });
 
+  it("leaves the TV's Table user out of the list of all players, but not when asked for by name", async () => {
+    makeOwnershipActor({ id: 'a1', name: 'Silvera', type: 'character', ownership: { tv: 2 } });
+    world.addUser({ id: 'p1', name: 'Alice', isGM: false });
+    world.addUser({
+      id: 'tv',
+      name: 'Table',
+      isGM: false,
+      flags: { 'foundry-mcp-bridge': { tableViewer: true } },
+    });
+
+    const all = await da.getActorOwnership({});
+    expect(all[0].ownership.map((o: any) => o.userName)).toEqual(['Alice']);
+    const named = await da.getActorOwnership({ playerIdentifier: 'Table' });
+    expect(named[0].ownership.map((o: any) => o.userName)).toEqual(['Table']);
+  });
+
   it('excludes GM users from the ownership list', async () => {
     makeOwnershipActor({ id: 'a1', name: 'Silvera', type: 'character', ownership: {} });
     world.addUser({ id: 'gm', name: 'Gamemaster', isGM: true });

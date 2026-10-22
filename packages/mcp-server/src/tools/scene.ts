@@ -13,14 +13,22 @@ interface WorldUserLike {
   name?: unknown;
   isGM?: unknown;
   active?: unknown;
+  tableViewer?: unknown;
 }
 
-/** Non-GM users of a world-info answer as `{ id, name, active }`. */
+/** Non-GM users (not the TV's Table user) of a world-info answer as `{ id, name, active }`. */
 function playerUsersOf(worldData: unknown): { id: string; name: string; active: boolean }[] {
   const users = (worldData as { users?: unknown } | null)?.users;
   if (!Array.isArray(users)) return [];
   return (users as WorldUserLike[])
-    .filter(u => u && u.isGM !== true && typeof u.id === 'string' && typeof u.name === 'string')
+    .filter(
+      u =>
+        u &&
+        u.isGM !== true &&
+        u.tableViewer !== true &&
+        typeof u.id === 'string' &&
+        typeof u.name === 'string'
+    )
     .map(u => ({ id: u.id as string, name: u.name as string, active: u.active === true }));
 }
 
@@ -303,7 +311,9 @@ export class SceneTools {
         total: worldData.users?.length || 0,
         active: worldData.users?.filter((u: any) => u.active).length || 0,
         gms: worldData.users?.filter((u: any) => u.isGM).length || 0,
-        players: worldData.users?.filter((u: any) => !u.isGM).length || 0,
+        // The TV's Table user is a screen, not a player.
+        players:
+          worldData.users?.filter((u: WorldUserLike) => !u.isGM && !u.tableViewer).length || 0,
       },
       activeUsers:
         worldData.users

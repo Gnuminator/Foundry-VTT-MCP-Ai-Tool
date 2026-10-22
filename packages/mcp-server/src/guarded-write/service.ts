@@ -509,6 +509,7 @@ export class GuardedWriteService {
   private readonly onRecorded: GuardedWriteServiceOptions['onRecorded'];
   private readonly recordedListeners: RecordedListener[] = [];
   private readonly undoGuards = new Map<string, UndoGuard>();
+  private readonly redoGuardFeatures = new Set<string>();
   private readonly applyTimeoutMs: number;
   private readonly outcomePollIntervalMs: number;
   private readonly outcomeDeadlineMs: number;
@@ -757,11 +758,7 @@ export class GuardedWriteService {
           `Conflict, nothing was written: change ${changeId} is no longer in the history, so its undo cannot be checked`
         );
       }
-      // An undo entry has no guard of its own (a redo puts the original back); only the
-      // original changes carry their feature's guard.
-      if (entry.mode === 'undo') continue;
-      const guard = this.undoGuards.get(entry.feature);
-      const reason = guard ? await guard(worldId, entry) : null;
+      const reason = await this.undoConflict(worldId, entry, true);
       if (reason) throw new Error(`Conflict, nothing was written: ${reason}`);
     }
   }
@@ -775,9 +772,42 @@ export class GuardedWriteService {
     this.recordedListeners.push(listener);
   }
 
-  /** Run `guard` before any change of `feature` is undone (one guard per feature). */
-  setUndoGuard(feature: string, guard: UndoGuard): void {
+  /**
+   * Run `guard` before any change of `feature` is undone (one guard per feature). `redo: true`
+   * also runs it before a redo of the feature is undone (the undo entry, or a planned undo or
+   * redo, which is a `change-undo` entry): for a guard that finds its record by change id and
+   * answers null for a change it does not know.
+   */
+  setUndoGuard(feature: string, guard: UndoGuard, options: { redo?: boolean } = {}): void {
     this.undoGuards.set(feature, guard);
+    if (options.redo) this.redoGuardFeatures.add(feature);
+    else this.redoGuardFeatures.delete(feature);
+  }
+
+  /**
+   * Why `entry` cannot be undone now, or null. A planned undo skips an undo entry's own feature
+   * guard (a redo puts the original back; only the original changes carry it), except for the
+   * guards that opted in to redos.
+   */
+  private async undoConflict(
+    worldId: string,
+    entry: AuditEntry,
+    planned: boolean
+  ): Promise<string | null> {
+    const own = this.undoGuards.get(entry.feature);
+    const guards = new Set<UndoGuard>();
+    if (own && !(planned && entry.mode === 'undo')) guards.add(own);
+    if (entry.mode === 'undo' || entry.feature === UNDO_FEATURE) {
+      for (const feature of this.redoGuardFeatures) {
+        const guard = this.undoGuards.get(feature);
+        if (guard) guards.add(guard);
+      }
+    }
+    for (const guard of guards) {
+      const reason = await guard(worldId, entry);
+      if (reason) return reason;
+    }
+    return null;
   }
 
   /** `requestedBy`: the person who asked, from a GM's window in Foundry; absent for the control channel (Claude or the dashboard); recorded on the undo's audit entry. */
@@ -793,8 +823,7 @@ export class GuardedWriteService {
       if (undone) throw new Error(`Change ${changeId} was already undone (${undone.undoneBy})`);
       // A redo puts the original change back: its feature's switch must be on.
       await this.requireRedoSwitches(ring, [changeId]);
-      const guard = this.undoGuards.get(entry.feature);
-      const reason = guard ? await guard(worldId, entry) : null;
+      const reason = await this.undoConflict(worldId, entry, false);
       if (reason) throw new Error(`Conflict, nothing was written: ${reason}`);
       const undoId = newId('chg', this.now());
       return this.undoChange(worldId, undoId, entry, requestedBy);
@@ -973,7 +1002,7 @@ export class GuardedWriteService {
       // Several spawned tokens share a name: the id tells them apart.
       const id = r.uuid.split('.').slice(-2).join(' ');
       leftAlone.push(
-        `Left alone: ${r.name ?? r.uuid} (${id}; it was already gone when the undo ran)`
+        `Left alone: ${r.name ?? r.uuid} (${id}; it was already gone when the undo reached it)`
       );
     }
 

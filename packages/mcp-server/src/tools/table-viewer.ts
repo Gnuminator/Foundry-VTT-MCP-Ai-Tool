@@ -1,8 +1,10 @@
 import { z } from 'zod';
 import {
   freeText,
+  MODULE_ID,
   TABLE_VIEWER_DEFAULT_NAME,
   TABLE_VIEWER_FEATURE_ID,
+  TABLE_VIEWER_FLAG,
   TABLE_VIEWER_ROLE,
   type GuardedOp,
 } from '@gnuminator/shared';
@@ -25,7 +27,8 @@ const planParams = z.object({
  * with no password and no characters, as a guarded change (feature "table-viewer", on by default).
  * Applied with apply-planned-change, reverted with undo-change (which deletes the user again).
  * The user is only a Foundry login: the TV browser signs in as it once (docs/gm/tv-table-viewer.md)
- * and sees what any player without a character sees. Refuses when a user of that name exists.
+ * and sees what any player without a character sees. Refuses when a user of that name exists
+ * (GMs too) or the users cannot be listed.
  */
 export class TableViewerTools {
   private foundryClient: FoundryClient;
@@ -42,7 +45,7 @@ export class TableViewerTools {
     return [
       {
         name: 'plan-table-viewer',
-        description: `Plan a Foundry user for the TV at the table (default name "${TABLE_VIEWER_DEFAULT_NAME}"): Player role, no password, owns nothing. Apply it with apply-planned-change, revert it with undo-change. The TV signs in as this user once (see the TV table viewer guide). Refuses if a user with that name already exists.`,
+        description: `Plan a Foundry user for the TV at the table (default name "${TABLE_VIEWER_DEFAULT_NAME}"): Player role, no password, owns nothing. Apply it with apply-planned-change, revert it with undo-change. The TV signs in as this user once (see the TV table viewer guide). Refuses if a user (player or GM) with that name already exists, or if the users cannot be checked.`,
         inputSchema: {
           type: 'object',
           properties: {
@@ -71,20 +74,56 @@ export class TableViewerTools {
     const params = planParams.parse(args ?? {});
     const name = params.name ?? TABLE_VIEWER_DEFAULT_NAME;
 
-    // Exact name match among non-GM users (findPlayers skips GMs; a GM user cannot be the Table).
-    const existing = (await this.foundryClient.query('foundry-mcp-bridge.findPlayers', {
-      identifier: name,
-      allowPartialMatch: false,
-      includeCharacterOwners: false,
-    })) as Array<{ id: string; name: string }> | undefined;
-    if (existing && existing.length > 0) {
+    // Every user of the world, GMs too (the join page picks by name, so a GM called Table would
+    // clash as well). A lookup that fails or comes back cut short is a refusal, not "none".
+    let reply: {
+      choices?: Array<{ name?: unknown }>;
+      truncated?: unknown;
+      success?: unknown;
+      error?: unknown;
+    } | null;
+    try {
+      reply = (await this.foundryClient.query('foundry-mcp-bridge.listRefChoices', {
+        kind: 'user',
+        limit: 500,
+      })) as typeof reply;
+    } catch (error) {
       throw new Error(
-        `A user named "${existing[0]?.name ?? name}" already exists; nothing to create. Use it as is, or pick another name.`
+        `Could not check the existing users, so nothing was planned: ${error instanceof Error ? error.message : String(error)}`,
+        { cause: error }
+      );
+    }
+    if (
+      !reply ||
+      reply.success === false ||
+      !Array.isArray(reply.choices) ||
+      reply.truncated === true
+    ) {
+      throw new Error(
+        `Could not check the existing users, so nothing was planned${typeof reply?.error === 'string' ? `: ${reply.error}` : ''}`
+      );
+    }
+    const taken = reply.choices.find(
+      c => typeof c.name === 'string' && c.name.toLowerCase() === name.toLowerCase()
+    );
+    if (taken) {
+      throw new Error(
+        `A user named "${String(taken.name)}" already exists; nothing to create. Use it as is, or pick another name.`
       );
     }
 
     const ops: GuardedOp[] = [
-      { kind: 'create', documentName: 'User', data: { name, role: TABLE_VIEWER_ROLE } },
+      {
+        kind: 'create',
+        documentName: 'User',
+        // The flag keeps the TV out of the tool's own player lists (handout receipts, the player
+        // visibility check, "all players" ownership, play attendance, the player count).
+        data: {
+          name,
+          role: TABLE_VIEWER_ROLE,
+          flags: { [MODULE_ID]: { [TABLE_VIEWER_FLAG]: true } },
+        },
+      },
     ];
     const plan = await this.guardedWrites.createPlan({
       feature: TABLE_VIEWER_FEATURE_ID,

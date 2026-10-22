@@ -154,6 +154,12 @@ export class NpcTurnTools {
       } as NpcTurnRequest),
       'Could not plan the NPC turn'
     );
+    // An older module ignores `attacks` and `dash` and answers without `attacks`.
+    if ((params.attacks?.length || params.dash) && built.attacks === undefined) {
+      throw new Error(
+        'The Foundry module is older than this server and does not check attacks or a Dash: update the module and reload Foundry.'
+      );
+    }
     const result = {
       context: built.context,
       steps: built.steps,

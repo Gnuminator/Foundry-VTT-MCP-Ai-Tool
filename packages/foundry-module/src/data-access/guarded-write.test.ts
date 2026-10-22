@@ -759,6 +759,14 @@ describe('applyGuardedOps: rollback', () => {
       expect(move.options[MODULE_ID].changeId).toBe(req.changeId);
     }
     expect(moves[1]?.options[MODULE_ID].changeMode).toBe('rollback');
+    // Placed, not walked: one displace waypoint, so no wall is crossed and no region along the
+    // straight line fires (the apply and the write that puts the old position back).
+    expect(moves[0]?.options.movement[tok.id].waypoints).toEqual([
+      { action: 'displace', x: 500, y: 300 },
+    ]);
+    expect(moves[1]?.options.movement[tok.id].waypoints).toEqual([
+      { action: 'displace', x: 100, y: 100 },
+    ]);
     // A write that moves nothing carries no movement option.
     const rename = seen.find(s => s.changes.name === 'Tok2');
     expect(rename?.options.movement).toBeUndefined();

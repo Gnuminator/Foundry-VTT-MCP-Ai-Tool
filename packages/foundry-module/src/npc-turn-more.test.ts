@@ -188,6 +188,20 @@ describe('multiattack', () => {
     );
   });
 
+  it('also cleans &Reference, unlabelled @UUID and HTML entities', () => {
+    arena({
+      items: [
+        multiattackFeat(
+          '<p>Two bites; the target is &Reference[prone] and @UUID[Item.x.y] hurts &amp; it&#39;s &quot;mean&quot;.</p>'
+        ),
+        weapon('Claw', { reach: 5 }),
+      ],
+    });
+    expect(planNpcTurn({}).context.multiattack).toBe(
+      `Two bites; the target is prone and Item.x.y hurts & it's "mean".`
+    );
+  });
+
   it('adds itemName and target to the list, and flags several attacks without a Multiattack feature', () => {
     arena();
     const plan = planNpcTurn({
@@ -326,6 +340,70 @@ describe('difficult terrain', () => {
   it('stacks overlapping regions', () => {
     arena({ regions: [mud(2), mud(2)], walk: 60 });
     expect(planNpcTurn({ moveTo: { gridX: 6, gridY: 2 } }).moveCost).toBe(50);
+  });
+
+  // dnd5e's own Difficult Terrain behavior (also what Spike Growth and Web create): +1 once.
+  const thorns = (
+    system: Record<string, unknown> = {},
+    extra: Record<string, unknown> = {}
+  ): any => ({
+    behaviors: {
+      contents: [{ type: 'dnd5e.difficultTerrain', disabled: false, system, ...extra }],
+    },
+    testPoint: ({ x }: { x: number }) => x >= 300 && x <= 500,
+  });
+  const toSix = (): any => planNpcTurn({ moveTo: { gridX: 6, gridY: 2 } });
+
+  it("counts dnd5e's Difficult Terrain behavior as double cost, once however many overlap", () => {
+    arena({ regions: [thorns()] });
+    const plan = toSix();
+    expect(plan.moveCost).toBe(30);
+    expect(plan.steps[0]).toMatch(/through difficult terrain/);
+    expect(plan.context.notes.join(' ')).toMatch(/Difficult terrain/);
+    arena({ regions: [thorns(), thorns()] });
+    expect(toSix().moveCost).toBe(30);
+    arena({ regions: [thorns({}, { disabled: true })] });
+    expect(toSix().moveCost).toBe(20);
+  });
+
+  it('adds one to a core movement-cost region (2x and Difficult Terrain make 3x)', () => {
+    arena({ regions: [mud(2), thorns()], walk: 60 });
+    expect(toSix().moveCost).toBe(40);
+  });
+
+  it('skips Difficult Terrain the region or the creature ignores', () => {
+    arena({ regions: [thorns({ ignoredDispositions: new Set([-1]) })] });
+    expect(toSix().moveCost).toBe(20);
+    arena({ regions: [thorns({ ignoredDispositions: new Set([1]) })] });
+    expect(toSix().moveCost).toBe(30);
+    const ignores = (...kinds: string[]): void => {
+      const { wolf } = arena({ regions: [thorns({ magical: false, types: new Set(['plants']) })] });
+      wolf.actor.system.attributes.movement.ignoredDifficultTerrain = new Set(kinds);
+    };
+    ignores('all');
+    expect(toSix().moveCost).toBe(20);
+    ignores('nonmagical');
+    expect(toSix().moveCost).toBe(20);
+    ignores('magical');
+    expect(toSix().moveCost).toBe(30);
+    ignores('plants');
+    expect(toSix().moveCost).toBe(20);
+  });
+
+  it('ignores Difficult Terrain when the dnd5e movement automation is off, but not core regions', () => {
+    world.settings.set('dnd5e.movementAutomation', 'none');
+    arena({ regions: [thorns()] });
+    expect(toSix().moveCost).toBe(20);
+    arena({ regions: [thorns(), mud(2)] });
+    expect(toSix().moveCost).toBe(30);
+  });
+
+  it("leaves out a region that is not on the NPC's level", () => {
+    const onLevel2 = { ...mud(2), includedInLevel: (id: string): boolean => id === 'l2' };
+    arena({ regions: [onLevel2], wolfExtra: { level: 'l1' } });
+    expect(toSix().moveCost).toBe(20);
+    arena({ regions: [onLevel2], wolfExtra: { level: 'l2' } });
+    expect(toSix().moveCost).toBe(30);
   });
 });
 

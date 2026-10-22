@@ -269,12 +269,31 @@ function multiattackOf(actor: Rec): string | null {
     const html = str(path(item, 'system.description.value'));
     if (!html) return 'Multiattack (no description)';
     // Foundry enrichers ([[/item .id]]{Label}, @UUID[...]{Label}) keep their label only.
+    // `@UUID[...]{Label}` and `&Reference[prone]` keep their label, or the text in the brackets.
+    const entities: Record<string, string> = {
+      nbsp: ' ',
+      amp: '&',
+      lt: '<',
+      gt: '>',
+      quot: '"',
+      apos: "'",
+    };
     const text = html
       .replace(/\[\[[^\]]*\]\]\{([^}]*)\}/g, '$1')
-      .replace(/@\w+\[[^\]]*\]\{([^}]*)\}/g, '$1')
+      .replace(
+        /[@&]\w+\[([^\]]*)\](?:\{([^}]*)\})?/g,
+        (_m, inner: string, label?: string) => label ?? inner
+      )
       .replace(/\[\[[^\]]*\]\]/g, '')
       .replace(/<[^>]*>/g, ' ')
-      .replace(/&nbsp;/g, ' ')
+      .replace(
+        /&(?:#(\d{1,6})|#x([0-9a-f]{1,5})|(\w+));/gi,
+        (m, dec?: string, hex?: string, name?: string) => {
+          if (dec || hex)
+            return String.fromCodePoint(dec ? Number(dec) : parseInt(hex as string, 16));
+          return entities[(name as string).toLowerCase()] ?? m;
+        }
+      )
       .replace(/\s+/g, ' ')
       .trim();
     return text.length > 700 ? `${text.slice(0, 697)}...` : text;
@@ -378,34 +397,82 @@ interface Terrain {
   any: boolean;
 }
 
-function terrainOf(scene: SceneInfo): Terrain {
+/** A Set, an array or a collection of strings, as strings. */
+function stringsOf(value: unknown): string[] {
+  return contentsOf(value).filter((v): v is string => typeof v === 'string');
+}
+
+/** The dnd5e movement automation setting is "none": its Difficult Terrain no longer costs extra. */
+function dnd5eMovementAutomationOff(): boolean {
+  try {
+    const settings = rec(rec(game)?.settings) as { get?: (m: string, k: string) => unknown } | null;
+    return settings?.get?.('dnd5e', 'movementAutomation') === 'none';
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * What it costs this token to walk. Core movement-cost behaviors multiply (as Foundry does);
+ * dnd5e's own Difficult Terrain behavior (`dnd5e.difficultTerrain`, also what Spike Growth or Web
+ * create) adds 1 to that product once however many such regions overlap (so 2x core plus it is 3x),
+ * unless the region ignores this disposition or the actor ignores its kind of difficult terrain.
+ */
+function terrainOf(scene: SceneInfo, token: Rec, actor: Rec): Terrain {
   const regions = contentsOf(scene.raw.regions)
     .map(rec)
     .filter((r): r is Rec => r !== null);
+  const level = str(token.level);
+  const disposition = num(token.disposition);
+  const ignored = stringsOf(path(actor, 'system.attributes.movement.ignoredDifficultTerrain'));
+  const dndOn = !dnd5eMovementAutomationOff() && disposition !== -2 && !ignored.includes('all');
   const costly: Array<{ region: Rec; factor: number }> = [];
+  const difficult: Rec[] = [];
   for (const region of regions) {
+    if (level !== null && typeof region.includedInLevel === 'function') {
+      try {
+        if (!(region.includedInLevel as (id: string) => unknown).call(region, level)) continue;
+      } catch {
+        // A region that cannot say counts as on this level.
+      }
+    }
     for (const raw of contentsOf(region.behaviors)) {
       const behavior = rec(raw);
-      if (behavior?.type !== 'modifyMovementCost' || behavior.disabled === true) continue;
-      const factor = num(path(behavior, 'system.difficulties.walk')) ?? 1;
-      if (factor !== 1) costly.push({ region, factor });
+      if (!behavior || behavior.disabled === true) continue;
+      if (behavior.type === 'modifyMovementCost') {
+        const factor = num(path(behavior, 'system.difficulties.walk')) ?? 1;
+        if (factor !== 1) costly.push({ region, factor });
+      } else if (behavior.type === 'dnd5e.difficultTerrain' && dndOn) {
+        const types = stringsOf(path(behavior, 'system.types'));
+        const magical = path(behavior, 'system.magical') === true;
+        const skipped =
+          (disposition !== null &&
+            contentsOf(path(behavior, 'system.ignoredDispositions')).includes(disposition)) ||
+          (types.length > 0 && types.every(t => ignored.includes(t))) ||
+          (magical && ignored.includes('magical')) ||
+          (!magical && ignored.includes('nonmagical'));
+        if (!skipped) difficult.push(region);
+      }
     }
   }
+  const inside = (region: Rec, point: Point, elevation: number): boolean => {
+    try {
+      const test = region.testPoint as ((p: Point & { elevation: number }) => unknown) | undefined;
+      return typeof test === 'function' && Boolean(test.call(region, { ...point, elevation }));
+    } catch {
+      // A region that cannot be tested counts as flat ground.
+      return false;
+    }
+  };
   return {
-    any: costly.length > 0,
+    any: costly.length > 0 || difficult.length > 0,
     at(point, elevation): number {
       let total = 1;
       for (const { region, factor } of costly) {
-        try {
-          const test = region.testPoint as
-            | ((p: Point & { elevation: number }) => unknown)
-            | undefined;
-          if (typeof test === 'function' && test.call(region, { ...point, elevation })) {
-            total *= factor;
-          }
-        } catch {
-          // A region that cannot be tested counts as flat ground.
-        }
+        if (inside(region, point, elevation)) total *= factor;
+      }
+      if (difficult.some(region => inside(region, point, elevation))) {
+        total += 1;
       }
       return total;
     },
@@ -487,10 +554,10 @@ export function planNpcTurn(data: unknown): NpcTurnPlan {
     (num(t.disposition) ?? -1) !== myDisposition && !defeated.has(String(t.id));
 
   const walls = wallsOf(scene);
-  const terrain = terrainOf(scene);
+  const terrain = terrainOf(scene, token, actor);
   if (walls.source) {
     notes.push(
-      `Walls and closed doors are counted${walls.source === 'foundry' ? " (Foundry's own check)" : " (read from the scene's wall data: the map is not drawn)"}; a one-way wall counts as a wall.`
+      `Walls and closed doors are counted${walls.source === 'foundry' ? " (Foundry's own check)" : " (read from the scene's wall data: the map is not drawn, so a one-way wall counts as a wall)"}.`
     );
   }
   if (terrain.any) {
@@ -697,7 +764,7 @@ export function planNpcTurn(data: unknown): NpcTurnPlan {
   }
   attacks.forEach((a, i) => {
     steps.push(
-      `${attacks.length > 1 ? `Attack ${i + 1} of ${attacks.length}: ` : 'Then '}${a.itemName} on ${a.target}${a.targetAC !== null ? ` (AC ${a.targetAC})` : ''}${a.inReach ? '' : ' (out of reach from here)'}${a.blockedByWall ? ' (a wall is in the way)' : ''}`
+      `${attacks.length > 1 ? `Attack ${i + 1} of ${attacks.length}: ` : 'Then '}${a.itemName} on ${a.target}${a.targetAC !== null ? ` (AC ${a.targetAC})` : ''}${a.inReach ? '' : ' (out of reach from here)'}${a.blockedByWall ? ' (a wall is in the way)' : ''}${dash ? ' (only with a bonus-action Dash)' : ''}`
     );
   });
   if (ops) {

@@ -20,10 +20,18 @@
   in other units than the scene (metres, miles) is converted, or refused when it cannot be;
   `dash: true` plans twice the speed; a weapon keeps its normal range when its activity holds the
   long range; a familiar is refused as player-owned, not as a player character.
-- **A planned token move can cross walls and creatures:** Foundry 14 stops an `x`/`y` update at the
-  first wall, and dnd5e stops it at a hostile creature, so a move planned round a wall was refused
-  ("Foundry did not keep x, y") when applied. Guarded writes of a token's position now say the move
-  may cross walls, terrain and creatures (also in a rollback and in undo), which fixes
-  `plan-token-change` moves across a wall too. Found live on test server C.
+- **A planned token move is a placement:** Foundry 14 stops an `x`/`y` update at the first wall,
+  and dnd5e stops it at a hostile creature, so a move planned round a wall was refused ("Foundry
+  did not keep x, y") when applied. Guarded writes of a token's position (or size, elevation,
+  level) now place the token with one teleport (`displace`) step, also in a rollback and in undo:
+  no wall is crossed, no trap, teleport or pause region along a straight line fires (undo cannot
+  take those back), and a region at the destination still reacts. This applies to every guarded
+  token move, `plan-token-change` included. Found live on test server C.
+- **dnd5e Difficult Terrain:** the path search also counts dnd5e's own Difficult Terrain region
+  behavior (Spike Growth, Web): one extra step of cost, not stacked, skipped for creatures that
+  ignore it. Regions on another level of the scene are left out.
+- **Smaller fixes:** Multiattack text also loses `&Reference[...]`, unlabelled `@UUID[...]` and HTML
+  entities; a Dash lists its attacks as "only with a bonus-action Dash"; a newer server says so when
+  the Foundry module is too old to check `attacks` or `dash`.
 - **Tool budget:** the play tool set budget in `tool-catalog.test.ts` is raised by 1,000
   characters for the new fields.

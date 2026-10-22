@@ -471,12 +471,17 @@ function writeMarker(
   return { [MODULE_ID]: { changeId: req.changeId, changeMode } };
 }
 
+/** The token fields Foundry 14 treats as movement (`TokenDocument.MOVEMENT_FIELDS`). */
+const TOKEN_MOVEMENT_FIELDS = ['x', 'y', 'elevation', 'width', 'height', 'depth', 'shape', 'level'];
+
 /**
- * The options of one update write: the marker, plus, for a token's position, permission to cross
- * walls, terrain and (dnd5e's own constraint option) hostile creatures. Foundry 14 treats an
- * `x`/`y` update as a straight move and stops it at the first wall or blocking token ("Foundry
- * did not keep x, y"); a planned move was checked when it was planned (the NPC turn assistant
- * paths round walls and creatures) and the GM confirmed it, and its undo must be able to go back.
+ * The options of one update write: the marker, plus, for a token's position or size, a placement.
+ * Foundry 14 treats such an update as a straight move that stops at the first wall or blocking
+ * token ("Foundry did not keep x, y") and fires every region behaviour along the line (a trap, a
+ * teleport, a pause) that undo cannot take back. A planned move was checked when it was planned
+ * (the NPC turn assistant paths round walls and creatures) and the GM confirmed it, and its undo
+ * must be able to go back, so the token is placed: one `displace` waypoint (a teleport: no walls,
+ * no cost, nothing along the way). A region at the destination still reacts, as it should.
  */
 function writeOptions(
   doc: FoundryDocument,
@@ -485,9 +490,16 @@ function writeOptions(
   changeMode?: ChangeWriteMode
 ): Record<string, unknown> {
   const options = writeMarker(req, changeMode);
-  if (doc.documentName === 'Token' && ('x' in update || 'y' in update) && doc.id) {
+  if (doc.documentName === 'Token' && doc.id && TOKEN_MOVEMENT_FIELDS.some(f => f in update)) {
+    const waypoint: Record<string, unknown> = { action: 'displace' };
+    for (const field of TOKEN_MOVEMENT_FIELDS) {
+      if (field in update) waypoint[field] = update[field];
+    }
     options.movement = {
-      [doc.id]: { constrainOptions: { ignoreWalls: true, ignoreCost: true, ignoreTokens: true } },
+      [doc.id]: {
+        waypoints: [waypoint],
+        constrainOptions: { ignoreWalls: true, ignoreCost: true, ignoreTokens: true },
+      },
     };
   }
   return options;

@@ -146,6 +146,17 @@ describe('plan-npc-turn', () => {
     expect(result.attacks).toEqual([one]);
   });
 
+  it('says so when an older module answers a request for attacks or a Dash without checking them', async () => {
+    planReply = { ...reply(), attacks: undefined as never };
+    await expect(
+      tools.handleToolCall('plan-npc-turn', { attacks: [{ itemName: 'Bite', target: 'Hero' }] })
+    ).rejects.toThrow(/module is older than this server/);
+    await expect(tools.handleToolCall('plan-npc-turn', { dash: true })).rejects.toThrow(
+      /module is older/
+    );
+    expect(createPlan).not.toHaveBeenCalled();
+  });
+
   it('rejects bad input and unknown tool names', async () => {
     await expect(
       tools.handleToolCall('plan-npc-turn', { attacks: [{ itemName: 'Bite' }] })

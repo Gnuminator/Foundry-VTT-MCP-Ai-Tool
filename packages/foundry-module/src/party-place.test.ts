@@ -31,6 +31,87 @@ const gridless = (size: number): GridLike => ({
 const bounds: Rect = { x: 0, y: 0, w: 2000, h: 2000 };
 
 describe('findSpots', () => {
+  it('steps tokens smaller than a square by their own size from the spot', () => {
+    const grid = squareGrid(100);
+    const small = { w: 0.25, h: 0.25 };
+    const spots = findSpots(grid, bounds, [], { x: 1050, y: 1050 }, [small, small, small, small]);
+    const rects = spots.map(s => ({ x: s!.x, y: s!.y, w: 25, h: 25 }));
+    for (const [a, ra] of rects.entries()) {
+      for (const [b, rb] of rects.entries()) if (a !== b) expect(overlaps(ra, rb)).toBe(false);
+      expect(Math.hypot(ra.x + 12.5 - 1050, ra.y + 12.5 - 1050)).toBeLessThanOrEqual(40);
+    }
+    expect(spots[0]).toEqual({ x: 1038, y: 1038 });
+  });
+
+  it('keeps small tokens off a bigger token and out of a wall shadow', () => {
+    const grid = squareGrid(100);
+    const small = { w: 0.25, h: 0.25 };
+    const big: Rect = { x: 1000, y: 1000, w: 100, h: 100 };
+    const spots = findSpots(grid, bounds, [big], { x: 1050, y: 1050 }, [small, small]);
+    for (const s of spots) expect(overlaps({ x: s!.x, y: s!.y, w: 25, h: 25 }, big)).toBe(false);
+    // Everything above y = 1040 is behind a wall. Unblocked, the second token goes straight up.
+    const feet = [small, small, small];
+    const open = findSpots(grid, bounds, [], { x: 1050, y: 1050 }, feet);
+    expect(open.some(s => s!.y + 12.5 < 1040)).toBe(true);
+    const walled = findSpots(
+      grid,
+      bounds,
+      [],
+      { x: 1050, y: 1050 },
+      feet,
+      (_from, to) => to.y < 1040
+    );
+    for (const s of walled) {
+      expect(s).not.toBeNull();
+      expect(s!.y + 12.5).toBeGreaterThanOrEqual(1040);
+    }
+  });
+
+  it('packs small and large tokens together without overlap, the large one first', () => {
+    const grid = squareGrid(100);
+    const feet = [
+      { w: 0.25, h: 0.25 },
+      { w: 1, h: 1 },
+      { w: 0.25, h: 0.25 },
+    ];
+    const spots = findSpots(grid, bounds, [], { x: 1050, y: 1050 }, feet);
+    expect(spots[1]).toEqual({ x: 1000, y: 1000 });
+    const rects = spots.map((s, i) => ({
+      x: s!.x,
+      y: s!.y,
+      w: feet[i].w * 100,
+      h: feet[i].h * 100,
+    }));
+    for (const [a, ra] of rects.entries()) {
+      for (const [b, rb] of rects.entries()) if (a !== b) expect(overlaps(ra, rb)).toBe(false);
+    }
+  });
+
+  it('a token narrow but not short keeps to the grid squares', () => {
+    const grid = squareGrid(100);
+    const [spot] = findSpots(grid, bounds, [], { x: 1050, y: 1050 }, [{ w: 0.5, h: 1 }]);
+    expect(spot).toEqual({ x: 1000, y: 1000 });
+  });
+
+  it('on a gridless scene small tokens step by their own size around the spot', () => {
+    const small = { w: 0.25, h: 0.25 };
+    const spots = findSpots(gridless(100), bounds, [], { x: 1000, y: 1000 }, [small, small, small]);
+    expect(spots[0]).toEqual({ x: 988, y: 988 });
+    const rects = spots.map(s => ({ x: s!.x, y: s!.y, w: 25, h: 25 }));
+    for (const [a, ra] of rects.entries()) {
+      for (const [b, rb] of rects.entries()) if (a !== b) expect(overlaps(ra, rb)).toBe(false);
+    }
+  });
+
+  it('a zero or tiny footprint finishes quickly and still finds a spot', () => {
+    const grid = squareGrid(100);
+    const spots = findSpots(grid, bounds, [], { x: 1050, y: 1050 }, [
+      { w: 0, h: 0 },
+      { w: 0.01, h: 0.01 },
+    ]);
+    expect(spots.every(s => s !== null)).toBe(true);
+  });
+
   it('puts the first token on the spot and the rest on the nearest free squares, none overlapping', () => {
     const grid = squareGrid(100);
     const spots = findSpots(grid, bounds, [], { x: 1050, y: 1050 }, [
@@ -132,17 +213,24 @@ describe('planPartyPlacement', () => {
   });
 
   function world(
-    opts: { viewed?: boolean; walls?: boolean; distance?: number; units?: string } = {}
+    opts: {
+      viewed?: boolean;
+      walls?: boolean;
+      distance?: number;
+      units?: string;
+      gridSize?: number;
+      noSize?: boolean;
+    } = {}
   ): void {
     const grid = {
-      ...squareGrid(100),
-      ...(opts.distance ? { distance: opts.distance } : {}),
+      ...squareGrid(opts.gridSize ?? 100),
+      ...(opts.distance !== undefined ? { distance: opts.distance } : {}),
       ...(opts.units ? { units: opts.units } : {}),
     };
     const actor = (id: string, name: string, w = 1): Record<string, unknown> => ({
       id,
       name,
-      system: { traits: { size: w === 2 ? 'lg' : 'med' } },
+      system: { traits: opts.noSize ? {} : { size: w === 2 ? 'lg' : 'med' } },
       type: 'character',
       prototypeToken: { width: w, height: w },
       getTokenDocument: (data: Record<string, unknown>) =>
@@ -222,10 +310,70 @@ describe('planPartyPlacement', () => {
       [0.25, 0.25],
     ]);
     expect(town.tokens[0].data.flags).toEqual({ dnd5e: { lockSize: true } });
+    // Depth follows width and height, like fit-scale.
+    expect(town.tokens.map(t => t.data.depth)).toEqual([0.25, 0.25]);
 
     world({ viewed: true, distance: 2.5 });
     const fine = await planPartyPlacement({ groupId: 'g1' });
     expect(fine.tokens.map(t => t.data.width)).toEqual([2, 4]);
+  });
+
+  it('packs tokens smaller than a square close together on the spot, none overlapping', async () => {
+    world({ viewed: true, distance: 40 });
+    const town = await planPartyPlacement({ groupId: 'g1' });
+    // Hero and horse are 25 px tokens on a 100 px grid; Silvera's token stays where it was.
+    const rects = town.tokens.map(t => ({
+      x: t.data.x as number,
+      y: t.data.y as number,
+      w: 25,
+      h: 25,
+    }));
+    expect(overlaps(rects[0], rects[1])).toBe(false);
+    for (const r of rects) {
+      // Within one square of the centre of the view (1050, 950), not a square each.
+      expect(Math.hypot(r.x + 12.5 - 1050, r.y + 12.5 - 950)).toBeLessThanOrEqual(50);
+    }
+    // The first token is centred on the spot.
+    expect(rects[0]).toMatchObject({ x: 1038, y: 938 });
+  });
+
+  it('floors the token edge at 24 px on a 50 px grid (0.48 squares), packed by that step', async () => {
+    world({ viewed: true, distance: 40, gridSize: 50 });
+    const town = await planPartyPlacement({ groupId: 'g1' });
+    expect(town.tokens.map(t => [t.data.width, t.data.height, t.data.depth])).toEqual([
+      [0.48, 0.48, 0.48],
+      [0.48, 0.48, 0.48],
+    ]);
+    const [a, b] = town.tokens.map(t => ({
+      x: t.data.x as number,
+      y: t.data.y as number,
+      w: 24,
+      h: 24,
+    }));
+    expect(overlaps(a, b)).toBe(false);
+    expect(Math.hypot(b.x - a.x, b.y - a.y)).toBeLessThanOrEqual(24 * Math.SQRT2 + 1);
+  });
+
+  it('with distance 0 the scene is not scaled and tokens keep their prototype size', async () => {
+    world({ viewed: true, distance: 0 });
+    const result = await planPartyPlacement({ groupId: 'g1' });
+    expect(result.tokens.map(t => [t.data.width, t.data.height])).toEqual([
+      [1, 1],
+      [2, 2],
+    ]);
+    expect(result.tokens.every(t => t.data.depth === undefined && t.data.flags === undefined)).toBe(
+      true
+    );
+  });
+
+  it('treats an actor with no size set as medium (5 ft) when scaling', async () => {
+    world({ viewed: true, distance: 20, noSize: true });
+    const result = await planPartyPlacement({ groupId: 'g1' });
+    // 5 ft / 20 ft = 0.25 squares for every member, the horse too.
+    expect(result.tokens.map(t => [t.data.width, t.data.height, t.data.depth])).toEqual([
+      [0.25, 0.25, 0.25],
+      [0.25, 0.25, 0.25],
+    ]);
   });
 
   it('keeps the prototype size on a scene that is not measured in feet, with a warning', async () => {

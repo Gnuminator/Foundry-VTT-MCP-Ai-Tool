@@ -7,10 +7,13 @@
  * - The spot: the centre of the GM's view (default), a token or map note by name, or a grid
  *   square. Without a drawn canvas the view falls back to the middle of the scene.
  * - Squares: the scene's own grid (`scene.grid`), so square, hex and gridless scenes all work
- *   (gridless steps one grid size at a time); grid sizes vary, nothing assumes 100 px.
+ *   (gridless steps one grid size at a time for tokens of a square or more); grid sizes vary,
+ *   nothing assumes 100 px.
  * - Scale (place-party-scale): on a scene whose grid is not 5 ft per square a token is sized like
  *   `fit-scale` (creature footprint in feet over the grid distance, `fitSquares`), so a party on a
  *   40 ft town map is not house-sized; a 5 ft scene keeps each prototype token as it is.
+ * - Packing: tokens of a square or more take grid squares; smaller ones (0.25 squares on a 40 ft
+ *   map) step by their own size from the spot, so the party stands close together.
  * - Room: each token at its own width and height, inside the scene rectangle, never over another
  *   token or an earlier member; when the map is drawn, not behind a wall from the spot (maps
  *   without walls simply never block).
@@ -26,6 +29,9 @@ export const PARTY_PLACE_QUERY = 'planPartyPlacement';
 
 /** How many rings of squares around the spot are searched for room. */
 export const MAX_RINGS = 12;
+
+/** The smallest step, in squares, when small tokens are packed by their own size. */
+const MIN_STEP_SQUARES = 0.05;
 
 type Rec = Record<string, unknown>;
 
@@ -95,23 +101,46 @@ function centre(r: Rect): Point {
   return { x: r.x + r.w / 2, y: r.y + r.h / 2 };
 }
 
-/** The candidate rectangles for one footprint, nearest the spot first. */
+/** A footprint smaller than a square on both sides (a token on a 40 ft map). */
+function isSmall(foot: Footprint): boolean {
+  return foot.w < 1 && foot.h < 1;
+}
+
+/**
+ * The candidate rectangles for one footprint, nearest the spot first. A token of a square or more
+ * snaps to the grid squares around the spot. A smaller one steps by its own size from the spot
+ * instead (the first token centred on it), so a party on a 40 ft map stands close together
+ * rather than one token per 100 px square.
+ */
 function candidates(grid: GridLike, anchor: Point, foot: Footprint): Rect[] {
   const w = foot.w * grid.size;
   const h = foot.h * grid.size;
   const out: Rect[] = [];
-  const origin = grid.isGridless ? null : grid.getOffset(anchor);
-  for (let r = 0; r <= MAX_RINGS; r++) {
-    for (let di = -r; di <= r; di++) {
-      for (let dj = -r; dj <= r; dj++) {
-        if (Math.max(Math.abs(di), Math.abs(dj)) !== r) continue;
-        if (origin) {
-          const tl = grid.getTopLeftPoint({ i: origin.i + di, j: origin.j + dj });
-          out.push({ x: tl.x, y: tl.y, w, h });
-        } else {
-          const cx = anchor.x + dj * grid.size;
-          const cy = anchor.y + di * grid.size;
-          out.push({ x: cx - w / 2, y: cy - h / 2, w, h });
+  if (isSmall(foot)) {
+    // The step is the token's size, but never under 5% of a square, so a tiny or zero footprint
+    // cannot make the list huge. Rings reach as far as MAX_RINGS squares would at that step.
+    const stepX = Math.max(w, grid.size * MIN_STEP_SQUARES);
+    const stepY = Math.max(h, grid.size * MIN_STEP_SQUARES);
+    const rings = Math.ceil((MAX_RINGS * grid.size) / Math.min(stepX, stepY));
+    for (let di = -rings; di <= rings; di++) {
+      for (let dj = -rings; dj <= rings; dj++) {
+        out.push({ x: anchor.x - w / 2 + dj * stepX, y: anchor.y - h / 2 + di * stepY, w, h });
+      }
+    }
+  } else {
+    const origin = grid.isGridless ? null : grid.getOffset(anchor);
+    for (let r = 0; r <= MAX_RINGS; r++) {
+      for (let di = -r; di <= r; di++) {
+        for (let dj = -r; dj <= r; dj++) {
+          if (Math.max(Math.abs(di), Math.abs(dj)) !== r) continue;
+          if (origin) {
+            const tl = grid.getTopLeftPoint({ i: origin.i + di, j: origin.j + dj });
+            out.push({ x: tl.x, y: tl.y, w, h });
+          } else {
+            const cx = anchor.x + dj * grid.size;
+            const cy = anchor.y + di * grid.size;
+            out.push({ x: cx - w / 2, y: cy - h / 2, w, h });
+          }
         }
       }
     }
@@ -139,12 +168,14 @@ export function findSpots(
     .map((foot, index) => ({ foot, index }))
     .sort((a, b) => b.foot.w * b.foot.h - a.foot.w * a.foot.h || a.index - b.index);
   for (const { foot, index } of order) {
-    for (const rect of candidates(grid, anchor, foot)) {
+    for (const candidate of candidates(grid, anchor, foot)) {
+      // Whole pixels, as they are written, so the checks see the rect that will exist.
+      const rect = { ...candidate, x: Math.round(candidate.x), y: Math.round(candidate.y) };
       if (!inside(rect, bounds)) continue;
       if (taken.some(t => overlaps(rect, t))) continue;
       if (blocked(anchor, centre(rect))) continue;
       taken.push(rect);
-      result[index] = { x: Math.round(rect.x), y: Math.round(rect.y) };
+      result[index] = { x: rect.x, y: rect.y };
       break;
     }
   }
@@ -329,7 +360,7 @@ export async function planPartyPlacement(data: unknown): Promise<PartyPlacement>
     const edge = edgeOf(actor);
     // lockSize: dnd5e's Autosize would otherwise write the actor's size back on create.
     const scale: Rec =
-      edge !== null ? { width: edge, height: edge, 'flags.dnd5e.lockSize': true } : {};
+      edge !== null ? { width: edge, height: edge, depth: edge, 'flags.dnd5e.lockSize': true } : {};
     const doc = await getDoc.call(
       actor,
       { x: spot.x, y: spot.y, hidden: request.hidden === true, ...scale },

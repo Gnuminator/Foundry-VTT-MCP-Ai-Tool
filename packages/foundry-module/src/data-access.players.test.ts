@@ -164,6 +164,22 @@ describe('FoundryDataAccess — getConnectedPlayers', () => {
     expect(result).toEqual([{ id: 'p1', name: 'Alice' }]);
   });
 
+  it("leaves out the TV's Table user (it is a screen, not a person at the table)", async () => {
+    world.addUser({ id: 'p1', name: 'Alice', active: true, isGM: false });
+    world.addUser({
+      id: 'tv',
+      name: 'Table',
+      active: true,
+      isGM: false,
+      flags: { 'foundry-mcp-bridge': { tableViewer: true } },
+    });
+    expect(await da.getConnectedPlayers()).toEqual([{ id: 'p1', name: 'Alice' }]);
+    // Found by its exact name all the same: Claude can still give it Observer on the party.
+    expect(await da.findPlayers({ identifier: 'Table', allowPartialMatch: false })).toEqual([
+      { id: 'tv', name: 'Table' },
+    ]);
+  });
+
   it('excludes GM users even when they are active', async () => {
     // createTestWorld already adds an active GM; confirm it is excluded.
     const result = await da.getConnectedPlayers();

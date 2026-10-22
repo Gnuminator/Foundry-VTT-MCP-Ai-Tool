@@ -4,7 +4,8 @@
 //   node --test scripts/tv/start-table-viewer.test.mjs
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
@@ -107,6 +108,123 @@ describe('start-table-viewer.ps1', { skip: !hasPwsh && 'pwsh 7 not installed' },
       JSON.parse(r.stdout),
       cases.map(([, ok]) => ok)
     );
+  });
+
+  test('the join page matcher follows the path prefix of the address (reverse proxy)', () => {
+    const lib = path.join(here, 'table-viewer-lib.ps1').replace(/'/g, "''");
+    const cases = [
+      // [base address, page, accepted]
+      ['https://host.example.com/foundry', 'https://host.example.com/foundry/join', true],
+      ['https://host.example.com/foundry/', 'https://host.example.com/foundry/join/', true],
+      ['https://host.example.com/foundry/join', 'https://host.example.com/foundry/join', true],
+      ['https://host.example.com/foundry', 'https://host.example.com/join', false],
+      ['https://host.example.com/foundry', 'https://host.example.com/foundry/game', false],
+      ['https://host.example.com/foundry', 'https://host.example.com/other/join', false],
+      ['https://host.example.com/foundry', 'https://host.example.com/foundry/join/extra', false],
+      ['https://host.example.com/join', 'https://host.example.com/join', true],
+      ['https://host.example.com', 'https://host.example.com/foundry/join', false],
+    ];
+    const body = cases
+      .map(([b, u]) => `(Test-FoundryJoinPage -PageUrl '${u}' -BaseUrl '${b}')`)
+      .join(', ');
+    const r = spawnSync(
+      'pwsh',
+      ['-NoProfile', '-Command', `. '${lib}'; (@(${body}) | ConvertTo-Json -Compress)`],
+      { encoding: 'utf8' }
+    );
+    assert.equal(r.status, 0, r.stderr);
+    assert.deepEqual(
+      JSON.parse(r.stdout),
+      cases.map(([, , ok]) => ok)
+    );
+  });
+
+  test('the join script checks the prefixed join path in the page too', () => {
+    const lib = path.join(here, 'table-viewer-lib.ps1').replace(/'/g, "''");
+    const r = spawnSync(
+      'pwsh',
+      [
+        '-NoProfile',
+        '-Command',
+        `. '${lib}'; Get-JoinScript -UserName 'Table' -Prefix '/foundry'; Get-JoinScript -UserName 'Table'`,
+      ],
+      { encoding: 'utf8' }
+    );
+    assert.equal(r.status, 0, r.stderr);
+    const [withPrefix, without] = r.stdout.trim().split(/\r?\n/);
+    assert.match(withPrefix, /!== "\/foundry\/join"/);
+    assert.match(without, /!== "\/join"/);
+  });
+
+  test('the profile is in use while a browser holds its lockfile', () => {
+    const lib = path.join(here, 'table-viewer-lib.ps1').replace(/'/g, "''");
+    const dir = mkdtempSync(path.join(os.tmpdir(), 'tv-profile-'));
+    try {
+      const probe = d =>
+        spawnSync(
+          'pwsh',
+          [
+            '-NoProfile',
+            '-Command',
+            `. '${lib}'; Test-ProfileInUse -Profile '${d.replace(/'/g, "''")}'`,
+          ],
+          { encoding: 'utf8' }
+        ).stdout.trim();
+      assert.equal(probe(dir), 'False', 'no lockfile');
+      writeFileSync(path.join(dir, 'lockfile'), '');
+      assert.equal(probe(dir), 'False', 'a leftover lockfile nobody holds');
+      // One process holds the file open (no sharing) while another asks.
+      const holder = path.join(dir, 'lockfile').replace(/'/g, "''");
+      const r = spawnSync(
+        'pwsh',
+        [
+          '-NoProfile',
+          '-Command',
+          `. '${lib}'; $f = [IO.File]::Open('${holder}', 'Open', 'ReadWrite', 'None'); try { Test-ProfileInUse -Profile '${dir.replace(/'/g, "''")}' } finally { $f.Dispose() }`,
+        ],
+        { encoding: 'utf8' }
+      );
+      assert.equal(r.status, 0, r.stderr);
+      assert.equal(r.stdout.trim(), 'True');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test(
+    'refuses to start while a browser holds the profile, before it opens another',
+    { skip: !hasBrowser && 'no Edge or Chrome installed' },
+    () => {
+      const dir = mkdtempSync(path.join(os.tmpdir(), 'tv-profile-'));
+      try {
+        writeFileSync(path.join(dir, 'lockfile'), '');
+        const holder = path.join(dir, 'lockfile').replace(/'/g, "''");
+        // The holder runs this very script (-NonInteractive) while it holds the lockfile.
+        const r = spawnSync(
+          'pwsh',
+          [
+            '-NoProfile',
+            '-NonInteractive',
+            '-Command',
+            `$f = [IO.File]::Open('${holder}', 'Open', 'ReadWrite', 'None'); try { & '${script.replace(/'/g, "''")}' -Url https://foundry.example.com -NoAutoJoin -Profile '${dir.replace(/'/g, "''")}' } finally { $f.Dispose() }`,
+          ],
+          { encoding: 'utf8' }
+        );
+        assert.notEqual(r.status, 0);
+        assert.match(r.stderr, /already running on this profile/);
+      } finally {
+        rmSync(dir, { recursive: true, force: true });
+      }
+    }
+  );
+
+  test('the guide puts -NoExit in the Startup shortcut and explains the path prefix', () => {
+    const guide = readFileSync(
+      path.join(here, '..', '..', 'docs', 'gm', 'tv-table-viewer.md'),
+      'utf8'
+    );
+    assert.match(guide, /pwsh -NoExit [^\n]*start-table-viewer\.ps1/);
+    assert.match(guide, /https:\/\/host\/foundry\/join/);
   });
 
   test('the join script puts the user name in as a JSON string and clicks Join', () => {

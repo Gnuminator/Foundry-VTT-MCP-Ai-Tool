@@ -22,6 +22,7 @@ import {
   type RevealPlan,
 } from './handouts-model.js';
 import { aiToolRequest } from './gm-helper-queries.js';
+import { isTablePlayer } from './table-viewer-user.js';
 import { bindFields, replaceKeepingFocus } from './window-fields.js';
 
 /** The pieces of Foundry the controller needs; tests pass fakes. */
@@ -188,7 +189,8 @@ function worldContext(): HandoutsContext {
     activeSceneId: scenes?.active?.id ?? null,
     sceneName: id => scenes?.get?.(id)?.name ?? null,
     playerName: id => users.get(id)?.name ?? null,
-    playerIds: users.filter(u => !u.isGM).map(u => u.id),
+    // The TV's Table user is no one to wait for on a receipt.
+    playerIds: users.filter(isTablePlayer).map(u => u.id),
   };
 }
 

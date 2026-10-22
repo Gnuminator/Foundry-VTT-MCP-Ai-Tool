@@ -456,6 +456,17 @@ describe('SceneTools.handleGetWorldInfo', () => {
     expect(result.users).toEqual({ total: 3, active: 2, gms: 1, players: 2 });
   });
 
+  it("does not count the TV's Table user as a player or offer it as a name to pick", async () => {
+    const users = [
+      ...worldPayload.users,
+      { id: 'u9', name: 'Table', active: true, isGM: false, tableViewer: true },
+    ];
+    const { tools } = makeTools(() => ({ ...worldPayload, users }));
+    const result = await tools.handleGetWorldInfo({});
+    expect(result.users).toEqual({ total: 4, active: 3, gms: 1, players: 2 });
+    expect(result.playerUsers.map((u: { name: string }) => u.name)).not.toContain('Table');
+  });
+
   it('computes activeUsers list filtered to active users only', async () => {
     const { tools } = makeTools(() => worldPayload);
     const result = await tools.handleGetWorldInfo({});

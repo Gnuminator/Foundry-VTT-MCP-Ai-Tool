@@ -277,6 +277,8 @@ export interface WorldUser {
   name: string;
   active: boolean;
   isGM: boolean;
+  /** The TV's Table user (flag set by plan-table-viewer): not counted as a player. */
+  tableViewer?: boolean;
 }
 
 /**

@@ -428,35 +428,170 @@ describe('undo', () => {
     foundry.features.push({ id: 'change-undo', name: '', hint: '', enabled: true });
     await stageAndSettle();
     const [item] = (await notes.list()).items;
-    const undoPlan = await guarded.createPlan({
+    const pages = pagesOf(item.journalUuid!);
+    const planned = await plannedUndo(item.journalUuid!, item.changeId!);
+    expect((await notes.list()).items[0].status).toBe('staged');
+    const redone = await plannedRedo(item.journalUuid!, planned.changeId, pages);
+    const [after] = (await notes.list()).items;
+    expect(after.status).toBe('in-foundry');
+    expect(after.changeId).toBe(redone.changeId);
+    expect(after.autoPut).toBe(true);
+  });
+
+  /** A planned undo (`change-undo` apply) of `changeId`, which deleted the notes journal. */
+  async function plannedUndo(journalUuid: string, changeId: string): Promise<{ changeId: string }> {
+    const plan = await guarded.createPlan({
       feature: 'change-undo',
       summary: 'Undo the session notes',
-      ops: [{ kind: 'delete', uuid: item.journalUuid! }],
-      undoes: { changes: [item.changeId!] },
+      ops: [{ kind: 'delete', uuid: journalUuid }],
+      undoes: { changes: [changeId] },
     });
-    const planned = await guarded.applyPlan(undoPlan.planId, {
-      confirm: true,
-      confirmDestructive: true,
-    });
-    expect((await notes.list()).items[0].status).toBe('staged');
-    const redoPlan = await guarded.createPlan({
+    return guarded.applyPlan(plan.planId, { confirm: true, confirmDestructive: true });
+  }
+
+  /** The pages of the journal, as the redo of a delete would create them again. */
+  function pagesOf(journalUuid: string): Array<Record<string, unknown>> {
+    return [...foundry.docs.entries()]
+      .filter(([uuid]) => uuid.startsWith(`${journalUuid}.JournalEntryPage.`))
+      .map(([, doc]) => structuredClone(doc.source));
+  }
+
+  /** A planned redo that puts the journal back with its `pages`, undoing `changeId`. */
+  async function plannedRedo(
+    journalUuid: string,
+    changeId: string,
+    pages: Array<Record<string, unknown>>
+  ): Promise<{ changeId: string }> {
+    const plan = await guarded.createPlan({
       feature: 'change-undo',
       summary: 'Redo the session notes',
       ops: [
         {
           kind: 'create',
           documentName: 'JournalEntry',
-          data: { _id: item.journalUuid!.split('.').pop(), name: 'Notes' },
+          data: { _id: journalUuid.split('.').pop(), name: 'Notes', pages },
           keepId: true,
         },
       ],
-      undoes: { changes: [planned.changeId] },
+      undoes: { changes: [changeId] },
     });
-    const redone = await guarded.applyPlan(redoPlan.planId, { confirm: true });
+    return guarded.applyPlan(plan.planId, { confirm: true });
+  }
+
+  it('undoing a planned undo (undo-change) puts the notes back to in Foundry', async () => {
+    foundry.features.push({ id: 'change-undo', name: '', hint: '', enabled: true });
+    await stageAndSettle();
+    const [item] = (await notes.list()).items;
+    const planned = await plannedUndo(item.journalUuid!, item.changeId!);
+    expect((await notes.list()).items[0].status).toBe('staged');
+
+    const redone = await guarded.undo(planned.changeId, { confirm: true });
+    expect(journal()).toBeDefined();
     const [after] = (await notes.list()).items;
     expect(after.status).toBe('in-foundry');
     expect(after.changeId).toBe(redone.changeId);
     expect(after.autoPut).toBe(true);
+    expect(after.lastError).toBeUndefined();
+  });
+
+  it('undoing a planned redo (undo-change) sends the notes back to staged', async () => {
+    foundry.features.push({ id: 'change-undo', name: '', hint: '', enabled: true });
+    await stageAndSettle();
+    const [item] = (await notes.list()).items;
+    const pages = pagesOf(item.journalUuid!);
+    const planned = await plannedUndo(item.journalUuid!, item.changeId!);
+    const redone = await plannedRedo(item.journalUuid!, planned.changeId, pages);
+    expect((await notes.list()).items[0].status).toBe('in-foundry');
+
+    await guarded.undo(redone.changeId, { confirm: true });
+    expect([...foundry.docs.values()].some(d => d.documentName === 'JournalEntry')).toBe(false);
+    // Followed at once by the undo itself, not found out later by the reconcile (no lastError).
+    const [after] = (await notes.list()).items;
+    expect(after.status).toBe('staged');
+    expect(after.autoPut).toBe(false);
+    expect(after.lastError).toBeUndefined();
+    const queue = await store.read<{ entries: Record<string, unknown> }>(WORLD, 'gm', QUEUE_FILE);
+    expect(Object.keys(queue!.data.entries)).toEqual([]);
+  });
+
+  it('a redo of a journal deleted by hand brings nothing back and stays staged', async () => {
+    await stageAndSettle();
+    const [first] = (await notes.list()).items;
+    for (const key of [...foundry.docs.keys()]) {
+      if (key.startsWith(first.journalUuid!)) foundry.docs.delete(key);
+    }
+    // Undone before any list could notice the missing journal.
+    const undone = await guarded.undo(first.changeId!, { confirm: true });
+    await guarded.undo(undone.changeId, { confirm: true });
+    const [after] = (await notes.list()).items;
+    expect(after.status).toBe('staged');
+    expect(after.autoPut).toBe(false);
+    expect(after.lastError).toBeUndefined();
+    const queue = await store.read<{ entries: Record<string, unknown> }>(WORLD, 'gm', QUEUE_FILE);
+    expect(Object.keys(queue!.data.entries)).toEqual([]);
+  });
+
+  it('a redo takes the page list from the put, not from the page times', async () => {
+    await stageAndSettle();
+    const [first] = (await notes.list()).items;
+    const undone = await guarded.undo(first.changeId!, { confirm: true });
+    // The read-back after the put had failed: no page times were kept.
+    await store.update<any>(WORLD, 'gm', `session-notes.${first.sessionId}.json`, 1, current => {
+      const data = structuredClone(current!.data);
+      data.undonePut.pageTimes = {};
+      return data;
+    });
+    await guarded.undo(undone.changeId, { confirm: true });
+    const queue = await store.read<{ entries: Record<string, unknown> }>(WORLD, 'gm', QUEUE_FILE);
+    expect(Object.keys(queue!.data.entries)).toHaveLength(1);
+    // The restored put knows its pages, so the next Undo guards them.
+    const [after] = (await notes.list()).items;
+    expect(after.status).toBe('in-foundry');
+    foundry.edit(after.recapPageUuid!, { path: 'text.content', present: true, value: '<p>x</p>' });
+    await expect(guarded.undo(after.changeId!, { confirm: true })).rejects.toThrow(
+      /^Conflict, nothing was written: the page "Recap"/
+    );
+  });
+
+  it('refuses to undo a redo once the Recap was revealed (undo, planned undo)', async () => {
+    foundry.features.push({ id: 'change-undo', name: '', hint: '', enabled: true });
+    await stageAndSettle();
+    const [first] = (await notes.list()).items;
+    const undone = await guarded.undo(first.changeId!, { confirm: true });
+    const redone = await guarded.undo(undone.changeId, { confirm: true });
+    const plan = await handouts.planPageReveal({ action: 'reveal-next' });
+    await guarded.applyPlan(plan.planId, { confirm: true, confirmDestructive: true });
+    await notes.idle();
+    expect((await notes.list()).items[0].recapRevealed).toBe(true);
+
+    await expect(guarded.undo(redone.changeId, { confirm: true })).rejects.toThrow(
+      /Recap was revealed/
+    );
+    await expect(plannedUndo(first.journalUuid!, redone.changeId)).rejects.toThrow(
+      /^Conflict, nothing was written: the Recap was revealed/
+    );
+    expect(journal()).toBeDefined();
+  });
+
+  it('refuses to undo a planned redo once the Recap was revealed (undo, planned undo)', async () => {
+    foundry.features.push({ id: 'change-undo', name: '', hint: '', enabled: true });
+    await stageAndSettle();
+    const [first] = (await notes.list()).items;
+    const pages = pagesOf(first.journalUuid!);
+    const planned = await plannedUndo(first.journalUuid!, first.changeId!);
+    const redone = await plannedRedo(first.journalUuid!, planned.changeId, pages);
+    const plan = await handouts.planPageReveal({ action: 'reveal-next' });
+    await guarded.applyPlan(plan.planId, { confirm: true, confirmDestructive: true });
+    await notes.idle();
+    expect((await notes.list()).items[0].recapRevealed).toBe(true);
+
+    await expect(guarded.undo(redone.changeId, { confirm: true })).rejects.toThrow(
+      /Recap was revealed/
+    );
+    await expect(plannedUndo(first.journalUuid!, redone.changeId)).rejects.toThrow(
+      /^Conflict, nothing was written: the Recap was revealed/
+    );
+    expect(journal()).toBeDefined();
   });
 
   it('puts the same journal id again after an undo (ids come from the session id)', async () => {

@@ -1,6 +1,7 @@
 import { MODULE_ID } from './constants.js';
 import { EffectEventDeduper } from './effect-dedupe.js';
 import { hpChangeFitsRoll, originatingMessageId } from './hp-credit.js';
+import { isTablePlayer } from './table-viewer-user.js';
 import {
   chatRollKind,
   dnd5eMessageItemRef,
@@ -353,11 +354,11 @@ function activeSceneId(): string | null {
   }
 }
 
-/** Ids of the non-GM users online now, sorted. */
+/** Ids of the non-GM users online now (not the TV's Table user), sorted. */
 function onlinePlayerIds(): string[] {
   try {
     return game.users.contents
-      .filter(user => user.active && !user.isGM)
+      .filter(user => user.active && isTablePlayer(user))
       .map(user => str(user.id))
       .filter((id): id is string => id !== undefined)
       .sort();

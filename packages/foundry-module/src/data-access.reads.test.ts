@@ -77,6 +77,26 @@ describe('FoundryDataAccess — getWorldInfo', () => {
   });
 });
 
+describe('FoundryDataAccess getWorldInfo, the TV user', () => {
+  it("marks the TV's Table user so the tool does not count it as a player", async () => {
+    world.addUser({
+      id: 'tv',
+      name: 'Table',
+      active: true,
+      isGM: false,
+      flags: { 'foundry-mcp-bridge': { tableViewer: true } },
+    });
+    const info = await da.getWorldInfo();
+    expect(info.users).toContainEqual({
+      id: 'tv',
+      name: 'Table',
+      active: true,
+      isGM: false,
+      tableViewer: true,
+    });
+  });
+});
+
 describe('FoundryDataAccess — getActiveScene', () => {
   it('throws SCENE_NOT_FOUND when there is no current scene', async () => {
     await expect(da.getActiveScene()).rejects.toThrow(ERROR_MESSAGES.SCENE_NOT_FOUND);

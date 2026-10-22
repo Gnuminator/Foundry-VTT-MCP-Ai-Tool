@@ -689,6 +689,21 @@ describe('scene token snapshots', () => {
     expect(record?.data?.players).toEqual(['p1', 'p2']);
   });
 
+  it("leaves the TV's Table user out of the players online", () => {
+    setupScene();
+    world.addScene({ id: 'sceneB', tokens: [] });
+    world.setActiveScene('sceneB');
+    world.addUser({ id: 'p1', name: 'Alice', isGM: false, active: true });
+    world.addUser({
+      id: 'tv',
+      name: 'Table',
+      isGM: false,
+      active: true,
+      flags: { 'foundry-mcp-bridge': { tableViewer: true } },
+    });
+    expect(sceneRecord()?.data?.players).toEqual(['p1']);
+  });
+
   it('records the same scene again when the GM activates the scene they preview', () => {
     setupScene();
     world.addScene({ id: 'sceneB', tokens: [] });

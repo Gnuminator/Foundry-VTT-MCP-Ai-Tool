@@ -177,6 +177,7 @@ function install(foundryVersion = '13.351'): void {
   g.CONFIG.Actor = fakeDocumentClass('Actor');
   g.CONFIG.Item = fakeDocumentClass('Item');
   g.CONFIG.JournalEntry = fakeDocumentClass('JournalEntry');
+  g.CONFIG.User = fakeDocumentClass('User');
   g.game.settings.register = vi.fn();
   resetGuardedFeaturesForTests();
   registerGuardedFeature({ id: FEATURE, name: 'Test feature', hint: 'Test.' });
@@ -408,6 +409,43 @@ describe('applyGuardedOps: locked audio', () => {
     } finally {
       delete (game as any).audio;
     }
+  });
+});
+
+describe('applyGuardedOps: creating a User', () => {
+  const create = (data: Record<string, unknown>): GuardedOp => ({
+    kind: 'create',
+    documentName: 'User',
+    data,
+  });
+
+  beforeEach(() => {
+    registerGuardedFeature({ id: 'table-viewer', name: 'Table viewer', hint: 'Test.' });
+    world.setSetting(MODULE_ID, 'feature.table-viewer.enabled', true);
+  });
+
+  it('creates the Table user for the table-viewer feature', async () => {
+    const req = await request([create({ name: 'Table', role: 1 })], { feature: 'table-viewer' });
+    const result = await applyGuardedOps(req);
+    expect(result.results[0]).toMatchObject({
+      kind: 'create',
+      documentName: 'User',
+      name: 'Table',
+    });
+  });
+
+  it('refuses a User from any other feature, above Player, or with a password, writing nothing', async () => {
+    const spy = vi.spyOn(g.CONFIG.User.documentClass, 'create');
+    for (const [feature, data, message] of [
+      [FEATURE, { name: 'Table', role: 1 }, /only allowed for the "table-viewer"/],
+      ['table-viewer', { name: 'Boss', role: 4 }, /role/],
+      ['table-viewer', { name: 'Boss', role: 3 }, /role/],
+      ['table-viewer', { name: 'Table', role: 1, password: 'secret' }, /password/],
+    ] as const) {
+      const req = await request([create({ ...data })], { feature });
+      await expect(applyGuardedOps(req)).rejects.toThrow(message);
+    }
+    expect(spy).not.toHaveBeenCalled();
   });
 });
 

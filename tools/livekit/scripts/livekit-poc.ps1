@@ -12,7 +12,7 @@
   test    Publish a generated 20 second tone as a fake participant and check the recording.
 
   Refuses to run if .env points any host port at a Foundry or bridge port
-  (Foundry test 30000-30001, test bridge 31514-31516, dashboard 3100, live bridge 31414-31416).
+  (Foundry test 30000-30001, test bridge 31514-31516, dashboard 3100, live bridge 31414-31416; test servers B and C: 30002-30003, 3101-3102, 31524-31525, 31534-31535).
 #>
 [CmdletBinding()]
 param(
@@ -28,7 +28,7 @@ $ErrorActionPreference = 'Stop'
 $Root = Split-Path -Parent $PSScriptRoot
 $EnvFile = Join-Path $Root '.env'
 $Project = 'fvtt-livekit'
-$ForbiddenPorts = @(30000, 30001, 3100, 31414, 31415, 31416, 31514, 31515, 31516)
+$ForbiddenPorts = @(30000, 30001, 30002, 30003, 3100, 3101, 3102, 31414, 31415, 31416, 31514, 31515, 31516, 31524, 31525, 31534, 31535)
 
 function Read-DotEnv {
   $map = @{}

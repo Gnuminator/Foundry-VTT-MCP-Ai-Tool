@@ -16,6 +16,8 @@ import {
   mainCheckout,
   parseWaiting,
   readLockFile,
+  testEnvRootBFor,
+  testEnvRootCFor,
   waitingAlert,
   watchdogAlert,
 } from './start-alerts.mjs';
@@ -97,6 +99,55 @@ test('test server B: its own lock alerts under its own name', async () => {
     const lines = await collectAlerts(opts(f, { testEnvRootB: rootB }));
     assert.equal(lines.length, 1);
     assert.match(lines[0], /^Test server B lock: held by kit run/);
+  } finally {
+    f.cleanup();
+  }
+});
+
+test('test server C: its own lock alerts under its own name, next to B', async () => {
+  const f = fixture();
+  const rootB = path.join(f.root, 'test-env-b');
+  const rootC = path.join(f.root, 'test-env-c');
+  try {
+    mkdirSync(rootB, { recursive: true });
+    mkdirSync(rootC, { recursive: true });
+    const both = { testEnvRootB: rootB, testEnvRootC: rootC };
+    assert.deepEqual(await collectAlerts(opts(f, both)), []);
+    writeFileSync(
+      path.join(rootC, 'lock.json'),
+      JSON.stringify({ holder: 'server C check', since: NOW.toISOString(), queue: [] })
+    );
+    let lines = await collectAlerts(opts(f, both));
+    assert.equal(lines.length, 1);
+    assert.match(lines[0], /^Test server C lock: held by server C check/);
+    writeFileSync(path.join(rootB, 'lock.json'), JSON.stringify({ holder: 'kit run', queue: [] }));
+    lines = await collectAlerts(opts(f, both));
+    assert.equal(lines.length, 2);
+    assert.match(lines[0], /^Test server B lock: held by kit run/);
+    assert.match(lines[1], /^Test server C lock: held by server C check/);
+    // A server C root that is not given is not read.
+    assert.equal((await collectAlerts(opts(f, { testEnvRootB: rootB }))).length, 1);
+  } finally {
+    f.cleanup();
+  }
+});
+
+test('test server B and C roots: env var, none under START_ALERTS_TEST_ROOT, local file, default', () => {
+  const f = fixture();
+  try {
+    assert.equal(testEnvRootCFor(f.repo, { START_ALERTS_TEST_ROOT_C: 'X:\\c' }), 'X:\\c');
+    assert.equal(testEnvRootBFor(f.repo, { START_ALERTS_TEST_ROOT_B: 'X:\\b' }), 'X:\\b');
+    assert.equal(testEnvRootCFor(f.repo, { START_ALERTS_TEST_ROOT: f.testEnv }), null);
+    assert.equal(testEnvRootBFor(f.repo, { START_ALERTS_TEST_ROOT: f.testEnv }), null);
+    const defaultC = testEnvRootCFor(f.repo, {});
+    assert.match(defaultC, /foundry-?test-?c$/i);
+    mkdirSync(path.join(f.repo, 'scripts', 'test-env'), { recursive: true });
+    writeFileSync(
+      path.join(f.repo, 'scripts', 'test-env', 'local.C.json'),
+      JSON.stringify({ Root: 'D:\\FoundryTestC2' })
+    );
+    assert.equal(testEnvRootCFor(f.repo, {}), 'D:\\FoundryTestC2');
+    assert.match(testEnvRootBFor(f.repo, {}), /foundry-?test-?b$/i); // B ignores local.C.json
   } finally {
     f.cleanup();
   }

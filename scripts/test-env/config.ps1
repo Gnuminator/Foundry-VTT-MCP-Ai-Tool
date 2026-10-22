@@ -20,11 +20,12 @@
 #
 # Which server: the calling script's -Server A|B|C (a $Server variable in the scope that
 # dot-sources this file), else the environment variable FOUNDRY_TEST_SERVER, else A.
-# Override any value in scripts/test-env/local.json (server A) or local.B.json (server B), both
-# gitignored, e.g.
-#   { "Root": "D:\\FoundryTest", "FoundryPort": 30003 }
-# Server B runs A's Foundry install (AppDir) unless local.B.json names another, and uses A's
-# AdminUser/AdminPassword unless local.B.json has its own (its admin.txt is a copy of A's).
+# Override any value in scripts/test-env/local.json (server A), local.B.json (server B) or
+# local.C.json (server C), all gitignored, e.g.
+#   { "Root": "D:\\FoundryTest", "FoundryPort": 30050 }
+# (a port the other servers and the live bridge do not use; Root must differ from the others').
+# Servers B and C run A's Foundry install (AppDir) unless their local file names another, and use
+# A's AdminUser/AdminPassword unless their local file has its own (admin.txt is a copy of A's).
 # Works with PowerShell 7 on Windows and Linux (for the later Orange Pi move).
 
 Set-StrictMode -Version Latest
@@ -90,6 +91,33 @@ foreach ($name in @($TestServers.PSObject.Properties.Name | Where-Object { $_ -n
   $o = if ($name -eq 'A') { $settingsA } else { Get-TestServerSettings $name }
   $OtherServerPorts += @([int]$o.FoundryPort, [int]$o.ControlPort, [int]$o.LinkPort, [int]$o.DashboardPort)
 }
+
+# Why a server's Root cannot be used next to the others': the same folder, or one inside the other,
+# would share data and one lock.json (server-b.ps1 mirrors A's data with robocopy /MIR). Pure: the
+# roots come in as a name-to-path table. Empty when fine.
+function Get-RootProblems([string]$Name, $Roots) {
+  $norm = { param($p) [IO.Path]::GetFullPath([string]$p).TrimEnd('\', '/') }
+  $cmp = if ($IsWindows) { [StringComparison]::OrdinalIgnoreCase } else { [StringComparison]::Ordinal }
+  $mine = & $norm $Roots[$Name]
+  $problems = @()
+  foreach ($other in @($Roots.Keys | Where-Object { $_ -ne $Name } | Sort-Object)) {
+    $theirs = & $norm $Roots[$other]
+    $sep = [string][IO.Path]::DirectorySeparatorChar
+    if ($mine.Equals($theirs, $cmp)) {
+      $problems += "Root $mine is also server $other's Root; each server needs its own folder (fix Root in scripts/test-env/local.json for A or local.<name>.json for B and C, or in servers.json)."
+    } elseif (($mine + $sep).StartsWith($theirs + $sep, $cmp) -or ($theirs + $sep).StartsWith($mine + $sep, $cmp)) {
+      $problems += "Root $mine overlaps server $other's Root $theirs; each server needs its own folder, not one inside another (fix Root in scripts/test-env/local.json for A or local.<name>.json for B and C, or in servers.json)."
+    }
+  }
+  return , $problems
+}
+
+$allRoots = [ordered]@{}
+foreach ($name in @($TestServers.PSObject.Properties.Name)) {
+  $allRoots[$name] = if ($name -eq 'A') { $settingsA.Root } elseif ($name -eq $TestServerName) { $settings.Root } else { (Get-TestServerSettings $name).Root }
+}
+$rootProblems = Get-RootProblems $TestServerName $allRoots
+if ($rootProblems.Count) { throw "Test server ${TestServerName}: $($rootProblems -join ' ')" }
 
 $TestEnv = [pscustomobject]@{
   Server        = $TestServerName

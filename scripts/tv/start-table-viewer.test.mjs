@@ -126,6 +126,12 @@ describe('start-table-viewer.ps1', { skip: !hasPwsh && 'pwsh 7 not installed' },
       ['https://host.example.com/game', 'https://host.example.com/join', true],
       ['https://host.example.com/foundry/game', 'https://host.example.com/foundry/join', true],
       ['https://host.example.com', 'https://host.example.com/foundry/join', false],
+      // The page check in the browser is case-sensitive, so this matcher is too.
+      ['https://host.example.com/foundry', 'https://host.example.com/FOUNDRY/join', false],
+      ['https://host.example.com/foundry', 'https://host.example.com/foundry/JOIN', false],
+      ['https://host.example.com/foundry/JOIN', 'https://host.example.com/foundry/join', true],
+      // A doubled slash is no prefix.
+      ['https://host.example.com//join', 'https://host.example.com/join', true],
     ];
     const body = cases
       .map(([b, u]) => `(Test-FoundryJoinPage -PageUrl '${u}' -BaseUrl '${b}')`)

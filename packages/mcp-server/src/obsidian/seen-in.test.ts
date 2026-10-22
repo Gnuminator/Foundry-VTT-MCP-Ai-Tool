@@ -102,6 +102,21 @@ describe('buildSeenIndex', () => {
     expect(index).toEqual({ v: 1, actors: {}, scenes: {} });
   });
 
+  it("does not count the TV's Table user joining as a player online", () => {
+    const index = buildSeenIndex(
+      [
+        group([
+          // The TV left on while the GM preps: no player, so nothing below counts.
+          join('j', 1, 'tv', { tableViewer: true }),
+          rec({ key: 'a', t: 2, kind: 'roll', actor: npc('Actor.ravelin') }),
+          rec({ key: 'b', t: 3, kind: 'chat', actor: npc('Actor.ravelin') }),
+        ]),
+      ],
+      sessions
+    );
+    expect(index).toEqual({ v: 1, actors: {}, scenes: {} });
+  });
+
   it('never counts GM lifecycle work (create, delete, items, token moves), even with players online', () => {
     const lifecycle = [
       'actor-create',

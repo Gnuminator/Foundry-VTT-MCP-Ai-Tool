@@ -22,7 +22,7 @@ import type { ChangeWriteMode } from '../change-journal-types.js';
 import { MODULE_ID } from '../constants.js';
 import { eventTracker } from '../session-events.js';
 import { isFeatureEnabled, isKnownFeature, isReadOnlyFeature } from '../guarded-features.js';
-import { assertUserCreateAllowed } from '../table-viewer-user.js';
+import { assertUserCreateAllowed, assertUserUpdateAllowed } from '../table-viewer-user.js';
 import { unsetKeyUpdate } from '../systems/core.js';
 import {
   RULES_FLAG_PATH,
@@ -515,6 +515,9 @@ async function executeUpdate(
 ): Promise<GuardedOpResult> {
   const doc = await resolve(op.uuid);
   if (!doc) throw new Error(`Document not found: ${op.uuid}`);
+  if (doc.documentName === 'User') {
+    assertUserUpdateAllowed(Object.keys(op.changes ?? {}), op.unset ?? []);
+  }
   const changes: Record<string, unknown> = { ...op.changes };
   if (req.mode === 'apply' && isRulesTagged(doc.documentName) && !(RULES_FLAG_PATH in changes)) {
     Object.assign(changes, rulesTagUpdateIfChanged(doc as Actor | Item, req.rulesVersion));

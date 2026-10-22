@@ -65,4 +65,36 @@ export function assertUserCreateAllowed(feature: string, data: Record<string, un
       throw new Error(`A created User may not carry a ${key}`);
     }
   }
+  // Permission overrides (for example SETTINGS_MODIFY) are not a Table viewer's; the recorded
+  // source of a deleted Table user holds an empty object.
+  const permissions = data.permissions;
+  if (permissions !== undefined && permissions !== null) {
+    if (typeof permissions !== 'object' || Array.isArray(permissions)) {
+      throw new Error('A created User may not carry permissions');
+    }
+    if (Object.values(permissions).some(value => value === true)) {
+      throw new Error('A created User may not carry a permission override');
+    }
+  }
+}
+
+/** User fields no guarded write may change: who counts as a GM, what they may do, how they log in. */
+const USER_UPDATE_REFUSED = ['role', 'permissions', 'password', 'passwordSalt'];
+
+/**
+ * Throws if an `update` of a User touches its role, permissions or password (a path under one of
+ * them counts, as does an unset of it). The Table user's undo and redo never update a User.
+ */
+export function assertUserUpdateAllowed(
+  changePaths: readonly string[],
+  unsetPaths: readonly string[] = []
+): void {
+  for (const path of [...changePaths, ...unsetPaths]) {
+    const field = path.replace(/^-=/, '').split('.')[0] ?? '';
+    if (USER_UPDATE_REFUSED.includes(field)) {
+      throw new Error(
+        `A User's ${field} cannot be changed through a guarded write (got "${path}")`
+      );
+    }
+  }
 }

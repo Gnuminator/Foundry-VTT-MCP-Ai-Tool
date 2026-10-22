@@ -478,6 +478,26 @@ describe('buildStats', () => {
     expect(Object.keys(stats.dice.byUser).sort()).toEqual(['Anna', 'u2']);
   });
 
+  it("leaves the TV's Table user out of the session's users", () => {
+    const presence = (key: string, kind: 'user-join' | 'user-leave', t: number): PlayRecord => ({
+      v: 2,
+      key,
+      t,
+      seq: t - T0 + 10,
+      kind,
+      userId: 'tv',
+      userName: 'Table',
+      sceneId: null,
+      data: { name: 'Table', isGM: false, tableViewer: true },
+    });
+    const stats = build([
+      roll('roll:n1', T0, PC, 'mn1', {}, { userId: 'u1', userName: 'Anna' }),
+      presence('user-join:tv:1', 'user-join', T0 + 1000),
+      presence('user-leave:tv:2', 'user-leave', T0 + 2000),
+    ]);
+    expect(stats.sessions[0]?.users).toEqual(['Anna']);
+  });
+
   it('splits session time by the scene each record was made in', () => {
     const scene = (key: string, t: number, sceneId: string, name: string): PlayRecord => ({
       v: 2,

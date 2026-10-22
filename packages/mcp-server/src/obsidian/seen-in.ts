@@ -93,12 +93,13 @@ function isTableRecord(record: PlayRecord): boolean {
   return CHAT_KINDS.has(record.kind) || record.data?.hidden !== true;
 }
 
-/** A `user-join` or `user-leave` record of a player (not a GM). */
+/** A `user-join` or `user-leave` record of a player (not a GM, not the TV's Table user). */
 function isPlayerPresence(record: PlayRecord): boolean {
   return (
     (record.kind === 'user-join' || record.kind === 'user-leave') &&
     record.userId !== null &&
-    record.data?.isGM === false
+    record.data?.isGM === false &&
+    record.data?.tableViewer !== true
   );
 }
 

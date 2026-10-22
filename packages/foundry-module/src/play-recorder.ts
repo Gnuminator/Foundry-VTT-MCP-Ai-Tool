@@ -1,7 +1,7 @@
 import { MODULE_ID } from './constants.js';
 import { EffectEventDeduper } from './effect-dedupe.js';
 import { hpChangeFitsRoll, originatingMessageId } from './hp-credit.js';
-import { isTablePlayer } from './table-viewer-user.js';
+import { isTablePlayer, isTableViewerUser } from './table-viewer-user.js';
 import {
   chatRollKind,
   dnd5eMessageItemRef,
@@ -1909,10 +1909,13 @@ export class PlayRecorder {
     const key =
       connected === true ? playRecordKeys.userJoin(userId, t) : playRecordKeys.userLeave(userId, t);
     const name = str(user?.name);
-    // A player joining lands on the active scene: snapshot who is on it (not for a GM joining).
+    // A player joining lands on the active scene: snapshot who is on it (not for a GM joining, nor
+    // for the TV's Table user: a screen, not a person; readers skip a record marked `tableViewer`).
     const isGM = user?.isGM === true;
+    const isTv = isTableViewerUser(rawUser);
     const data: Record<string, unknown> = { name: name ?? null, isGM };
-    if (kind === 'user-join' && !isGM) {
+    if (isTv) data.tableViewer = true;
+    if (kind === 'user-join' && !isGM && !isTv) {
       const sceneId = activeSceneId();
       data.activeSceneId = sceneId;
       data.tokens = sceneTokensOf(sceneId);

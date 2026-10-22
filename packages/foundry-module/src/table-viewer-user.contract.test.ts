@@ -10,6 +10,7 @@ import {
 } from '../../../shared/src/table-viewer.js';
 import {
   assertUserCreateAllowed,
+  assertUserUpdateAllowed,
   isTablePlayer,
   isTableViewerUser,
   TABLE_VIEWER_FEATURE_ID,
@@ -81,5 +82,43 @@ describe('assertUserCreateAllowed', () => {
     expect(() =>
       assertUserCreateAllowed('table-viewer', { ...table, passwordSalt: 'abc' })
     ).toThrow(/passwordSalt/);
+  });
+
+  it('accepts empty permissions and false overrides, refuses a true override', () => {
+    expect(() =>
+      assertUserCreateAllowed('change-undo', { ...table, permissions: {} })
+    ).not.toThrow();
+    expect(() =>
+      assertUserCreateAllowed('change-undo', { ...table, permissions: { SETTINGS_MODIFY: false } })
+    ).not.toThrow();
+    expect(() =>
+      assertUserCreateAllowed('table-viewer', { ...table, permissions: { SETTINGS_MODIFY: true } })
+    ).toThrow(/permission override/);
+    expect(() => assertUserCreateAllowed('table-viewer', { ...table, permissions: 'x' })).toThrow(
+      /permissions/
+    );
+  });
+});
+
+describe('assertUserUpdateAllowed', () => {
+  it('refuses a change of role, permissions, password or passwordSalt, also by path or unset', () => {
+    for (const path of [
+      'role',
+      'permissions',
+      'permissions.SETTINGS_MODIFY',
+      'permissions.-=SETTINGS_MODIFY',
+      '-=permissions',
+      'password',
+      'passwordSalt',
+    ]) {
+      expect(() => assertUserUpdateAllowed([path])).toThrow(/cannot be changed/);
+      expect(() => assertUserUpdateAllowed([], [path])).toThrow(/cannot be changed/);
+    }
+  });
+
+  it('accepts other fields (name, flags)', () => {
+    expect(() =>
+      assertUserUpdateAllowed(['name', 'flags.foundry-mcp-bridge.tableViewer', 'roleNote'])
+    ).not.toThrow();
   });
 });

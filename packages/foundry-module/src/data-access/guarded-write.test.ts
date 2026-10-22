@@ -730,6 +730,41 @@ describe('applyGuardedOps: rollback', () => {
     expect(tok.source.x).toBe(200);
   });
 
+  it('lets a token position write cross walls, terrain and creatures, in the apply and in a rollback', async () => {
+    // Foundry 14 stops an x/y update at the first wall unless the move says it may cross.
+    const a = addActor({ name: 'A' });
+    const tok = addToken();
+    const seen: Array<Record<string, any>> = [];
+    const realUpdate = tok.update.bind(tok);
+    tok.update = (changes: Record<string, unknown>, options?: unknown): Promise<FakeDoc> => {
+      seen.push({ changes, options });
+      return realUpdate(changes);
+    };
+    const req = await request([
+      { kind: 'update', uuid: tok.uuid, changes: { x: 500, y: 300 } },
+      { kind: 'update', uuid: tok.uuid, changes: { name: 'Tok2' } },
+      { kind: 'update', uuid: a.uuid, changes: { name: 'A2' } },
+    ]);
+    a.failUpdates = true;
+    await expect(applyGuardedOps(req)).rejects.toThrow(/database refused the update/);
+    const moves = seen.filter(s => 'x' in s.changes);
+    // The apply of the move and the write that puts the old position back.
+    expect(moves).toHaveLength(2);
+    for (const move of moves) {
+      expect(move.options.movement[tok.id].constrainOptions).toEqual({
+        ignoreWalls: true,
+        ignoreCost: true,
+        ignoreTokens: true,
+      });
+      expect(move.options[MODULE_ID].changeId).toBe(req.changeId);
+    }
+    expect(moves[1]?.options[MODULE_ID].changeMode).toBe('rollback');
+    // A write that moves nothing carries no movement option.
+    const rename = seen.find(s => s.changes.name === 'Tok2');
+    expect(rename?.options.movement).toBeUndefined();
+    expect(tok.source.x).toBe(100);
+  });
+
   it('says so when putting the earlier values back fails too', async () => {
     const tok = addToken();
     const req = await request([{ kind: 'update', uuid: tok.uuid, changes: { x: 500 } }]);

@@ -471,6 +471,28 @@ function writeMarker(
   return { [MODULE_ID]: { changeId: req.changeId, changeMode } };
 }
 
+/**
+ * The options of one update write: the marker, plus, for a token's position, permission to cross
+ * walls, terrain and (dnd5e's own constraint option) hostile creatures. Foundry 14 treats an
+ * `x`/`y` update as a straight move and stops it at the first wall or blocking token ("Foundry
+ * did not keep x, y"); a planned move was checked when it was planned (the NPC turn assistant
+ * paths round walls and creatures) and the GM confirmed it, and its undo must be able to go back.
+ */
+function writeOptions(
+  doc: FoundryDocument,
+  update: Record<string, unknown>,
+  req: GuardedApplyRequest,
+  changeMode?: ChangeWriteMode
+): Record<string, unknown> {
+  const options = writeMarker(req, changeMode);
+  if (doc.documentName === 'Token' && ('x' in update || 'y' in update) && doc.id) {
+    options.movement = {
+      [doc.id]: { constrainOptions: { ignoreWalls: true, ignoreCost: true, ignoreTokens: true } },
+    };
+  }
+  return options;
+}
+
 async function executeUpdate(
   op: GuardedUpdateOp,
   index: number,
@@ -492,7 +514,9 @@ async function executeUpdate(
   for (const path of unset) {
     if (ownershipKeyOf(path) === null) Object.assign(update, unsetKeyUpdate(path));
   }
-  if (Object.keys(update).length > 0) await doc.update(update, writeMarker(req, changeMode));
+  if (Object.keys(update).length > 0) {
+    await doc.update(update, writeOptions(doc, update, req, changeMode));
+  }
   await removeOwnershipKeys(doc, ownershipKeys, writeMarker(req, changeMode));
   const afterSource = sourceOf(doc);
   const result: GuardedOpResult = {
@@ -518,7 +542,7 @@ async function executeUpdate(
         if (undoOp.kind === 'update') {
           const restore: Record<string, unknown> = { ...undoOp.changes };
           for (const path of undoOp.unset ?? []) Object.assign(restore, unsetKeyUpdate(path));
-          await doc.update(restore, writeMarker(req, 'rollback'));
+          await doc.update(restore, writeOptions(doc, restore, req, 'rollback'));
         }
       } catch {
         restored = 'putting the earlier values back failed too: check the token by hand';

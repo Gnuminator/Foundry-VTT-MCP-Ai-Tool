@@ -174,6 +174,20 @@ describe('multiattack', () => {
     );
   });
 
+  it('keeps only the labels of Foundry enrichers in the Multiattack text', () => {
+    arena({
+      items: [
+        multiattackFeat(
+          '<p>The [[lookup @name lowercase]]{monster} makes two [[/item .abc123]]{Claw} attacks and uses @UUID[Item.x.y]{Bite}.</p>'
+        ),
+        weapon('Claw', { reach: 5 }),
+      ],
+    });
+    expect(planNpcTurn({}).context.multiattack).toBe(
+      'The monster makes two Claw attacks and uses Bite.'
+    );
+  });
+
   it('adds itemName and target to the list, and flags several attacks without a Multiattack feature', () => {
     arena();
     const plan = planNpcTurn({

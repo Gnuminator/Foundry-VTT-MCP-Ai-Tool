@@ -268,7 +268,11 @@ function multiattackOf(actor: Rec): string | null {
     if (!item || !/^multiattack/i.test(str(item.name) ?? '')) continue;
     const html = str(path(item, 'system.description.value'));
     if (!html) return 'Multiattack (no description)';
+    // Foundry enrichers ([[/item .id]]{Label}, @UUID[...]{Label}) keep their label only.
     const text = html
+      .replace(/\[\[[^\]]*\]\]\{([^}]*)\}/g, '$1')
+      .replace(/@\w+\[[^\]]*\]\{([^}]*)\}/g, '$1')
+      .replace(/\[\[[^\]]*\]\]/g, '')
       .replace(/<[^>]*>/g, ' ')
       .replace(/&nbsp;/g, ' ')
       .replace(/\s+/g, ' ')

@@ -20,5 +20,10 @@
   in other units than the scene (metres, miles) is converted, or refused when it cannot be;
   `dash: true` plans twice the speed; a weapon keeps its normal range when its activity holds the
   long range; a familiar is refused as player-owned, not as a player character.
+- **A planned token move can cross walls and creatures:** Foundry 14 stops an `x`/`y` update at the
+  first wall, and dnd5e stops it at a hostile creature, so a move planned round a wall was refused
+  ("Foundry did not keep x, y") when applied. Guarded writes of a token's position now say the move
+  may cross walls, terrain and creatures (also in a rollback and in undo), which fixes
+  `plan-token-change` moves across a wall too. Found live on test server C.
 - **Tool budget:** the play tool set budget in `tool-catalog.test.ts` is raised by 1,000
   characters for the new fields.

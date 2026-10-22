@@ -14,8 +14,8 @@
 // Output: JSON with `systemMessage` (shown to the user) and `additionalContext` (for Claude), or
 // nothing at all. A failure inside the hook prints nothing: a start hook must never block a start.
 //
-// Overrides (tests and checks): START_ALERTS_REPO, START_ALERTS_VAULT, START_ALERTS_TEST_ROOT,
-// START_ALERTS_SNAPSHOT_URL (or "off"), START_ALERTS_SNAPSHOT_FILE, START_ALERTS_CC_DIR.
+// Overrides (tests and checks): START_ALERTS_REPO, START_ALERTS_VAULT, START_ALERTS_TEST_ROOT
+// (and _B, _C for those servers), START_ALERTS_SNAPSHOT_URL (or "off"), START_ALERTS_SNAPSHOT_FILE, START_ALERTS_CC_DIR.
 
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import os from 'node:os';
@@ -84,22 +84,31 @@ export function testEnvRootFor(repoRoot, env = process.env) {
   return process.platform === 'win32' ? 'C:\\FoundryTest' : path.join(os.homedir(), 'foundry-test');
 }
 
-// Test server B's root: START_ALERTS_TEST_ROOT_B, else none when START_ALERTS_TEST_ROOT is set (a
-// test), else Root from local.B.json, else the default.
-export function testEnvRootBFor(repoRoot, env = process.env) {
-  if (env.START_ALERTS_TEST_ROOT_B) return env.START_ALERTS_TEST_ROOT_B;
+// Root of test server B or C: START_ALERTS_TEST_ROOT_<name>, else none when START_ALERTS_TEST_ROOT
+// is set (a test), else Root from local.<name>.json, else the default.
+function testEnvRootOf(name, repoRoot, env) {
+  const fromEnv = env[`START_ALERTS_TEST_ROOT_${name}`];
+  if (fromEnv) return fromEnv;
   if (env.START_ALERTS_TEST_ROOT) return null;
   try {
     const root = JSON.parse(
-      readFileSync(path.join(repoRoot, 'scripts', 'test-env', 'local.B.json'), 'utf8')
+      readFileSync(path.join(repoRoot, 'scripts', 'test-env', `local.${name}.json`), 'utf8')
     )?.Root;
     if (typeof root === 'string' && root) return root;
   } catch {
-    // no local.B.json: the default
+    // no local file: the default
   }
   return process.platform === 'win32'
-    ? 'C:\\FoundryTestB'
-    : path.join(os.homedir(), 'foundry-test-b');
+    ? `C:\\FoundryTest${name}`
+    : path.join(os.homedir(), `foundry-test-${name.toLowerCase()}`);
+}
+
+export function testEnvRootBFor(repoRoot, env = process.env) {
+  return testEnvRootOf('B', repoRoot, env);
+}
+
+export function testEnvRootCFor(repoRoot, env = process.env) {
+  return testEnvRootOf('C', repoRoot, env);
 }
 
 export function vaultDirFor(env = process.env) {
@@ -294,6 +303,7 @@ export async function collectAlerts({
   vaultDir,
   testEnvRoot,
   testEnvRootB = null,
+  testEnvRootC = null,
   snapshotUrl,
   snapshotFile,
   ccDir,
@@ -307,11 +317,14 @@ export async function collectAlerts({
   add(claudeMdAlert({ repoRoot, vaultDir }));
   add(waitingAlert({ vaultDir, now }));
   add(lockAlert(readLockFile(testEnvRoot), now));
-  // Test server B (kit runs, scripts/test-env/servers.json) has a lock of its own.
-  if (testEnvRootB)
-    add(
-      lockAlert(readLockFile(testEnvRootB), now)?.replace(/^Test server lock/, 'Test server B lock')
-    );
+  // Test servers B (kit runs) and C (scripts/test-env/servers.json) have a lock of their own.
+  for (const [name, root] of [
+    ['B', testEnvRootB],
+    ['C', testEnvRootC],
+  ]) {
+    if (root)
+      add(lockAlert(readLockFile(root), now)?.replace(/^Test server lock/, `Test server ${name} lock`));
+  }
   const { snap } = await loadSnapshot({ url: snapshotUrl, file: snapshotFile, now, fetchImpl });
   const part = foundryPart(snap);
   if (part) {
@@ -347,6 +360,7 @@ export function optionsFrom(env = process.env) {
     vaultDir: vaultDirFor(env),
     testEnvRoot: testEnvRootFor(repoRoot, env),
     testEnvRootB: testEnvRootBFor(repoRoot, env),
+    testEnvRootC: testEnvRootCFor(repoRoot, env),
     snapshotUrl: url === 'off' ? null : url,
     snapshotFile: env.START_ALERTS_SNAPSHOT_FILE || path.join(dataDir, 'snapshot.json'),
     ccDir:

@@ -41,7 +41,7 @@ param(
   [string]$Snapshot = 'latest',
   [string]$Image = 'debian:trixie',
   [int]$Cpus = 4,
-  # Publish Foundry on 127.0.0.1:<port> (30090 is free; never 30001, 3100 or 31414 to 31416).
+  # Publish Foundry on 127.0.0.1:<port> (30090 is free; never a test server's port in scripts/test-env/servers.json, or 31414 to 31416).
   [int]$HostPort = 0,
   [switch]$SkipPcRestore,
   # Test hook: the restic program to call (default: found automatically).
@@ -128,7 +128,7 @@ $run = @('run', '-d', '--name', $Name, '--hostname', 'foundry-pi', '--platform',
   '-v', "${remoteDir}:/stages:ro", '-v', "${drillDir}:/drill-scripts:ro",
   '-v', "${Repo}:/drill/pc-repo:ro", '-v', "${PassFile}:/drill/restic-pc.pass:ro")
 if ($HostPort -gt 0) {
-  if ($HostPort -in 3000, 3100, 3190, 30000, 30001, 31414, 31415, 31416, 31514, 31515, 31516) { throw "port $HostPort is not free to use" }
+  if ($HostPort -in 3000, 3100, 3101, 3102, 3190, 30000, 30001, 30002, 30003, 31414, 31415, 31416, 31514, 31515, 31516, 31524, 31525, 31534, 31535) { throw "port $HostPort is not free to use" }
   $run += @('-p', "127.0.0.1:${HostPort}:30000")
 }
 $run += @($Image, 'sleep', 'infinity')

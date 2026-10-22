@@ -44,7 +44,7 @@ export const HELP = `kit:run: take the test server lock, run the test kit, recor
 Usage: npm run kit:run -- [options]
 
   --server A|B|C           the test server (default B, so A stays free for quick checks;
-                           scripts/test-env/servers.json has the ports, server-b.ps1 sets B up)
+                           scripts/test-env/servers.json has the ports, server-b.ps1 sets B or C up)
   --size smoke|full|long   kit size (default smoke; --nightly makes it full)
   --profile <id>           content profile (default srd); it picks the kit world
   --wait <minutes>         when the lock is taken: queue and wait this long (default 0: give up)

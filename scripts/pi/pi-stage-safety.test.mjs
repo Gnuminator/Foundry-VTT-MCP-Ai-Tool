@@ -38,11 +38,16 @@ systemctl() {
     is-active) case "$ACTIVE" in *" \${@: -1} "*) return 0 ;; esac; return 1 ;;
     stop) ACTIVE="\${ACTIVE/ \${@: -1} / }" ;;
     start | restart) ACTIVE="$ACTIVE\${@: -1} " ;;
-    show) printf '%s\\n' "\${SHOW_TS:-}" ;;
+    show)
+      case "$*" in
+        *InvocationID*) printf '%s\\n' "\${INVOCATION:-}" ;;
+        *) printf '%s\\n' "\${SHOW_TS:-}" ;;
+      esac ;;
   esac
   return 0
 }
-journalctl() { printf '%s\\n' "\${JOURNAL:-}"; }
+# JOURNAL is the log of the run with invocation id JOURNAL_ID; asking for any other run gives nothing.
+journalctl() { case "$*" in *"_SYSTEMD_INVOCATION_ID=\${JOURNAL_ID:-none}"*) printf '%s\\n' "\${JOURNAL:-}" ;; esac; }
 curl() { ${readable ? `echo '{"active":true,"users":${users}}'` : 'return 22'}; }
 NODE_DIR="${posix(process.execPath.replace(/[\\/]node(\.exe)?$/, ''))}/.."
 mkdir -p "$NODE_DIR/bin" 2>/dev/null || true
@@ -149,15 +154,17 @@ describe('require_quiet: players online and active recordings (S2, R8)', () => {
     assert.doesNotMatch(r.out, /PASSED/);
   });
 
-  // The Assistant GM user is subtracted only once it has joined: its journal has "[assistant-gm] joined world" since
-  // the service last started (backlog pi-stage-safety-2, PR #432 L6).
+  // The Assistant GM user is subtracted only once it has joined in its current run: the journal of the unit's current
+  // systemd invocation has "[assistant-gm] joined world" (backlog pi-stage-safety-2, PR #432 L6; PR #446 L5). The
+  // Kit GM browser of a kit session is the same program and counts the same way.
   const gmActive = 'foundry.service foundry-ai-tool-gm-browser.service';
-  const startedAnHourAgo = () => ({ SHOW_TS: new Date(Date.now() - 3600_000).toISOString() });
+  const kitActive = 'foundry.service foundry-ai-tool-kit-gm-browser.service';
+  const thisRun = { INVOCATION: 'run-2', JOURNAL_ID: 'run-2' };
   const joinedLine = '[assistant-gm] joined world curse-of-strahd as Assistant GM (GM: true, module active: true)';
-  const quiet = (users, env) => run('require_quiet "the test"; echo PASSED', { active: gmActive, users }, env);
+  const quiet = (users, env, active = gmActive) => run('require_quiet "the test"; echo PASSED', { active, users }, env);
 
   test('the Assistant GM browser counts as one user once it has joined', () => {
-    const env = { ...startedAnHourAgo(), JOURNAL: joinedLine };
+    const env = { ...thisRun, JOURNAL: joinedLine };
     const only = quiet(1, env);
     assert.equal(only.status, 0, only.out);
     const plusPlayer = quiet(2, env);
@@ -165,22 +172,39 @@ describe('require_quiet: players online and active recordings (S2, R8)', () => {
     assert.match(plusPlayer.out, /1 player\(s\) are online/);
   });
 
+  test('the Kit GM browser counts the same way, and both together are two users', () => {
+    const env = { ...thisRun, JOURNAL: joinedLine };
+    assert.equal(quiet(1, env, kitActive).status, 0);
+    const both = 'foundry.service foundry-ai-tool-gm-browser.service foundry-ai-tool-kit-gm-browser.service';
+    assert.equal(quiet(2, env, both).status, 0);
+    const three = quiet(3, env, both);
+    assert.notEqual(three.status, 0);
+    assert.match(three.out, /1 player\(s\) are online/);
+  });
+
   test('an Assistant GM that runs but has not joined (no world, login failing) is not subtracted', () => {
-    const waiting = quiet(1, { ...startedAnHourAgo(), JOURNAL: '[assistant-gm] no world is running at http://127.0.0.1:30000; trying again in 30 s' });
+    const waiting = quiet(1, { ...thisRun, JOURNAL: '[assistant-gm] no world is running at http://127.0.0.1:30000; trying again in 30 s' });
     assert.notEqual(waiting.status, 0, waiting.out);
     assert.match(waiting.out, /1 player\(s\) are online/);
-    const empty = quiet(1, startedAnHourAgo());
+    const empty = quiet(1, thisRun);
     assert.notEqual(empty.status, 0, empty.out);
   });
 
-  test('when the service start time cannot be read the Assistant GM is not subtracted (errs towards refusing)', () => {
-    const r = quiet(1, { JOURNAL: joinedLine });
+  test('a join from an earlier run of the service does not count: only the current invocation does', () => {
+    // The browser left the game and systemd started it again (invocation run-2); the line belongs to run-1.
+    const r = quiet(1, { INVOCATION: 'run-2', JOURNAL_ID: 'run-1', JOURNAL: joinedLine });
+    assert.notEqual(r.status, 0, r.out);
+    assert.match(r.out, /1 player\(s\) are online/);
+  });
+
+  test('when the invocation id cannot be read the Assistant GM is not subtracted (errs towards refusing)', () => {
+    const r = quiet(1, { JOURNAL_ID: 'run-2', JOURNAL: joinedLine });
     assert.notEqual(r.status, 0, r.out);
     assert.match(r.out, /1 player\(s\) are online/);
   });
 
   test('a service that is stopped is not subtracted even if its journal once said it joined', () => {
-    const r = run('require_quiet "the test"; echo PASSED', { active: 'foundry.service', users: 1 }, { ...startedAnHourAgo(), JOURNAL: joinedLine });
+    const r = run('require_quiet "the test"; echo PASSED', { active: 'foundry.service', users: 1 }, { ...thisRun, JOURNAL: joinedLine });
     assert.notEqual(r.status, 0, r.out);
   });
 
@@ -438,6 +462,13 @@ describe('the stages', () => {
 // fails (PR #432 Opus review L3, L8). The stage text runs after lib.sh in bash, with the things that need a Pi replaced.
 describe('the swaps in stages 2 and 3 survive a failing mv', () => {
   const failMv = `
+rm() {
+  case "$*" in
+    *"$FOUNDRY_APP.prev"*) if [ "\${FAIL_RM_PREV:-0}" = 1 ]; then return 1; fi ;;
+    *"$FOUNDRY_APP.failed"*) if [ "\${FAIL_RM_FAILED:-0}" = 1 ]; then return 1; fi ;;
+  esac
+  command rm "$@"
+}
 mv() {
   if [ "\${FAIL_MV:-0}" = 1 ] && [ "$1" = "$NEW_PATH" ] && [ "$2" = "$TARGET_PATH" ]; then echo "mv: simulated failure" >&2; return 1; fi
   command mv "$@"
@@ -565,6 +596,34 @@ ${failMv}
       assert.ok(existsSync(join(root, 'foundryvtt.zip')));
       // stop (the swap), start (the new one, fails), stop (the rollback), start (the old one, works)
       assert.match(r.out, /the old Foundry program is back/);
+      assert.match(r.calls, /\|stop foundry\.service.*\|start foundry\.service\|stop foundry\.service\|start foundry\.service\s*$/);
+    });
+
+    test('a failing rm inside the rollback does not end it halfway (no set -e in the trap)', () => {
+      const { root, prelude } = setup();
+      const r = go(root, prelude, { FAIL_MV: '1', FAIL_RM_FAILED: '1' });
+      assert.notEqual(r.status, 0, r.out);
+      assert.equal(readFileSync(join(root, 'foundry', 'main.js'), 'utf8'), 'old', r.out);
+      assert.match(r.calls, /\|start foundry\.service\s*$/, 'Foundry is started again');
+    });
+
+    test('.prev that cannot be removed: the running program stays and is not swapped for a half-deleted .prev', () => {
+      const { root, prelude } = setup();
+      mkdirSync(join(root, 'foundry.prev'));
+      writeFileSync(join(root, 'foundry.prev', 'main.js'), 'stale prev');
+      const r = go(root, prelude, { FAIL_RM_PREV: '1' });
+      assert.notEqual(r.status, 0, r.out);
+      assert.equal(readFileSync(join(root, 'foundry', 'main.js'), 'utf8'), 'old', r.out);
+      assert.equal(readFileSync(join(root, 'foundry.prev', 'main.js'), 'utf8'), 'stale prev');
+      assert.match(r.calls, /\|start foundry\.service\s*$/, 'Foundry is started again');
+    });
+
+    test('the zip is kept when Foundry has started but does not answer yet', () => {
+      const { root, prelude } = setup();
+      const r = go(root, prelude.replace('write_file() { return 0; }', `write_file() { return 0; }; curl() { case "$*" in *api/status*) echo '{"active":true,"users":0}' ;; *) return 22 ;; esac; }`), {});
+      assert.equal(r.status, 0, r.out);
+      assert.match(r.out, /the zip is kept until it answers/);
+      assert.ok(existsSync(join(root, 'foundryvtt.zip')));
     });
 
     test('a failure before Foundry was stopped changes nothing (no rollback, no stop)', () => {
@@ -585,10 +644,14 @@ describe('the nightly backup waits while players are online (r37 S7)', () => {
   const body = stage6.match(/<<'BACKUP_SCRIPT'\n([\s\S]*?)\nBACKUP_SCRIPT\n/)?.[1];
 
   // users: the number curl reports per look (the list is consumed by each sleep; the last one stays).
-  function nightly({ users = [0], active = 'foundry.service', env = {}, curlFails = false } = {}) {
+  function nightly({ users = [0], active = 'foundry.service', env = {}, curlFails = false, markerExists = false } = {}) {
     const d = tmp();
     const bin = join(d, 'bin');
     mkdirSync(bin);
+    if (markerExists) {
+      mkdirSync(join(d, 'marker'));
+      writeFileSync(join(d, 'marker', 'skipped-last-night'), '');
+    }
     const log = join(d, 'calls.log');
     const seq = join(d, 'users.seq');
     writeFileSync(seq, users.join('\n') + '\n');
@@ -597,7 +660,7 @@ describe('the nightly backup waits while players are online (r37 S7)', () => {
     tool('systemctl', `echo "systemctl $*" >>"$LOG"
 case "$1" in
   is-active) case " $ACTIVE " in *" \${@: -1} "*) exit 0 ;; esac; exit 1 ;;
-  show) echo "$SHOW_TS" ;;
+  show) case "$*" in *InvocationID*) echo "\${INVOCATION:-}" ;; *) echo "\${SHOW_TS:-}" ;; esac ;;
 esac
 exit 0`);
     tool('curl', `if [ "\${CURL_FAILS:-0}" = 1 ]; then exit 22; fi
@@ -605,7 +668,8 @@ echo "{\\"active\\":true,\\"users\\":$(head -n 1 "$SEQ")}"`);
     tool('sleep', `echo "sleep $*" >>"$LOG"
 tail -n +2 "$SEQ" >"$SEQ.next"; if [ -s "$SEQ.next" ]; then mv "$SEQ.next" "$SEQ"; else rm -f "$SEQ.next"; fi`);
     tool('restic', 'echo "restic $*" >>"$LOG"');
-    tool('journalctl', 'printf "%s\\n" "${JOURNAL:-}"');
+    // JOURNAL is the log of the run with invocation id JOURNAL_ID; any other run has nothing.
+    tool('journalctl', 'case "$*" in *"_SYSTEMD_INVOCATION_ID=${JOURNAL_ID:-none}"*) printf "%s\\n" "${JOURNAL:-}" ;; esac');
     const script = join(d, 'foundry-backup.sh');
     writeFileSync(script, body, { mode: 0o755 });
     const r = spawnSync('bash', ['-c', 'export PATH="$BIN:$PATH"; exec bash "$SCRIPT"'], {
@@ -620,11 +684,18 @@ tail -n +2 "$SEQ" >"$SEQ.next"; if [ -s "$SEQ.next" ]; then mv "$SEQ.next" "$SEQ
         ACTIVE: active,
         CURL_FAILS: curlFails ? '1' : '0',
         FOUNDRY_BACKUP_SYSTEMD_DIR: posix(d),
+        FOUNDRY_BACKUP_SKIP_MARKER: posix(join(d, 'marker', 'skipped-last-night')),
         ...env,
       },
     });
     const calls = readFileSync(log, 'utf8');
-    return { status: r.status, out: `${r.stdout}${r.stderr}`, calls, sleeps: (calls.match(/^sleep /gm) || []).length };
+    return {
+      status: r.status,
+      out: `${r.stdout}${r.stderr}`,
+      calls,
+      sleeps: (calls.match(/^sleep /gm) || []).length,
+      marker: existsSync(join(d, 'marker', 'skipped-last-night')),
+    };
   }
 
   test('the script was found in the stage', () => {
@@ -648,13 +719,30 @@ tail -n +2 "$SEQ" >"$SEQ.next"; if [ -s "$SEQ.next" ]; then mv "$SEQ.next" "$SEQ
     assert.ok(r.calls.indexOf('sleep') < r.calls.indexOf('systemctl stop foundry.service'), 'the stop comes after the waiting');
   });
 
-  test('players still there after six waits: the night is skipped with an ERROR, Foundry never stopped, no backup', () => {
+  test('players still there after six waits: the night is skipped with an ERROR, Foundry never stopped, no backup, a marker is left', () => {
     const r = nightly({ users: [2] });
     assert.notEqual(r.status, 0, r.out);
     assert.equal(r.sleeps, 6, r.calls);
     assert.match(r.out, /ERROR: backup skipped for tonight: 2 player\(s\) were still online/);
     assert.doesNotMatch(r.calls, /systemctl stop foundry\.service/);
     assert.doesNotMatch(r.calls, /restic/);
+    assert.ok(r.marker, 'the skipped night is recorded');
+  });
+
+  test('never two skipped nights in a row: with last night skipped too it backs up anyway after the waits, and the marker goes', () => {
+    const r = nightly({ users: [2], markerExists: true });
+    assert.equal(r.status, 0, r.out);
+    assert.equal(r.sleeps, 6, r.calls);
+    assert.match(r.out, /last night's backup was skipped too: backing up anyway/);
+    assert.match(r.calls, /systemctl stop foundry\.service/);
+    assert.match(r.calls, /restic backup/);
+    assert.ok(!r.marker, 'a finished backup removes the marker');
+  });
+
+  test('a backup that finds nobody online also removes an old marker', () => {
+    const r = nightly({ users: [0], markerExists: true });
+    assert.equal(r.status, 0, r.out);
+    assert.ok(!r.marker);
   });
 
   test('FOUNDRY_BACKUP_ANYWAY=1 (the stage with FORCE=1) skips the waiting', () => {
@@ -664,11 +752,13 @@ tail -n +2 "$SEQ" >"$SEQ.next"; if [ -s "$SEQ.next" ]; then mv "$SEQ.next" "$SEQ
     assert.match(r.calls, /systemctl stop foundry\.service/);
   });
 
-  test('an unreadable /api/status does not hold the backup back, but warns', () => {
+  test('an unreadable /api/status is looked at three times a minute apart, then does not hold the backup back (warns)', () => {
     const r = nightly({ curlFails: true });
     assert.equal(r.status, 0, r.out);
-    assert.equal(r.sleeps, 0);
-    assert.match(r.out, /could not read who is online/);
+    assert.equal(r.sleeps, 2);
+    assert.match(r.calls, /sleep 60/);
+    assert.match(r.out, /could not read who is online in Foundry \(1 of 2 looks\)/);
+    assert.match(r.out, /WARNING: could not read who is online in Foundry; backing up anyway/);
     assert.match(r.calls, /restic backup/);
   });
 
@@ -680,15 +770,21 @@ tail -n +2 "$SEQ" >"$SEQ.next"; if [ -s "$SEQ.next" ]; then mv "$SEQ.next" "$SEQ
     assert.match(r.calls, /restic backup/);
   });
 
-  test('the Assistant GM is not a player once it has joined, and is one before', () => {
-    const active = 'foundry.service foundry-ai-tool-gm-browser.service';
-    const started = new Date(Date.now() - 3600_000).toISOString();
-    const joined = nightly({ users: [1], active, env: { SHOW_TS: started, JOURNAL: '[assistant-gm] joined world w as Assistant GM (GM: true, module active: true)' } });
-    assert.equal(joined.status, 0, joined.out);
-    assert.equal(joined.sleeps, 0);
-    const waiting = nightly({ users: [1], active, env: { SHOW_TS: started, JOURNAL: '[assistant-gm] no world is running', FOUNDRY_BACKUP_MAX_WAITS: '1' } });
-    assert.notEqual(waiting.status, 0, waiting.out);
-    assert.equal(waiting.sleeps, 1);
+  test('the Assistant GM and the Kit GM are not players once they have joined, and are before', () => {
+    const joinedLine = '[assistant-gm] joined world w as Assistant GM (GM: true, module active: true)';
+    const thisRun = { INVOCATION: 'run-2', JOURNAL_ID: 'run-2' };
+    for (const unit of ['foundry-ai-tool-gm-browser.service', 'foundry-ai-tool-kit-gm-browser.service']) {
+      const active = `foundry.service ${unit}`;
+      const joined = nightly({ users: [1], active, env: { ...thisRun, JOURNAL: joinedLine } });
+      assert.equal(joined.status, 0, joined.out);
+      assert.equal(joined.sleeps, 0, unit);
+      const waiting = nightly({ users: [1], active, env: { ...thisRun, JOURNAL: '[assistant-gm] no world is running', FOUNDRY_BACKUP_MAX_WAITS: '1' } });
+      assert.notEqual(waiting.status, 0, waiting.out);
+      assert.equal(waiting.sleeps, 1);
+      // A join that belongs to an earlier run of the service (it left the game and was started again) does not count.
+      const earlier = nightly({ users: [1], active, env: { INVOCATION: 'run-2', JOURNAL_ID: 'run-1', JOURNAL: joinedLine, FOUNDRY_BACKUP_MAX_WAITS: '1' } });
+      assert.notEqual(earlier.status, 0, earlier.out);
+    }
   });
 
   test('the service allows for the waiting, and the stage runs the first backup without it under FORCE=1', () => {

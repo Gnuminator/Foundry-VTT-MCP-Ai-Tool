@@ -185,6 +185,10 @@ scripts, and the two that touch secrets are run by you.
    ssh -t foundry-pi bash /tmp/set-dashboard-access.sh
    ```
 
+   Restarting a running dashboard drops the pages that are open, so the script refuses while
+   players are online in Foundry or a recording runs; `FORCE=1` in front of `bash` (`ssh -t
+foundry-pi FORCE=1 bash /tmp/set-dashboard-access.sh`) goes on anyway.
+
    It asks for your Cloudflare team name, the AUD tag from part 1, the GM's and your emails, and
    the `cogm.<domain>` name, and reads the Pi's Tailscale name by itself. It checks every answer,
    makes the GM token, writes `/etc/foundry-ai-tool/dashboard-access.env` (root, group `foundry`,

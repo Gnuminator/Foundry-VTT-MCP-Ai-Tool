@@ -223,7 +223,7 @@ describe('plan-party-change', () => {
 
 describe('plan-party-change: place (I-097)', () => {
   const placement = (extra: Record<string, unknown> = {}): Record<string, unknown> => ({
-    scene: { sceneId: 's2', uuid: 'Scene.s2', name: 'Vallaki' },
+    scene: { sceneId: 's2', uuid: 'Scene.s2', name: 'Valmere' },
     anchor: { x: 1050, y: 950, label: 'around the centre of your view' },
     tokens: [
       { actorId: 'a1', name: 'Ana', data: { name: 'Ana', actorId: 'a1', x: 1000, y: 900 } },
@@ -249,7 +249,7 @@ describe('plan-party-change: place (I-097)', () => {
     });
     expect(createPlan).toHaveBeenCalledWith({
       feature: 'party',
-      summary: 'Place Ana, Bo on "Vallaki" around the centre of your view',
+      summary: 'Place Ana, Bo on "Valmere" around the centre of your view',
       ops: [
         {
           kind: 'create',
@@ -284,14 +284,14 @@ describe('plan-party-change: place (I-097)', () => {
     });
     const input = createPlan.mock.calls[0]?.[0] as { summary: string };
     expect(input.summary).toBe(
-      'Place Ana on "Vallaki" at the note "Inn door"; not placed: Bo (already on this scene). Walls were not checked (Foundry\'s map is not drawn)'
+      'Place Ana on "Valmere" at the note "Inn door"; not placed: Bo (already on this scene). Walls were not checked (Foundry\'s map is not drawn)'
     );
   });
 
   it('refuses when nobody can be placed, with the reasons', async () => {
     answer(placement({ tokens: [], skipped: [{ name: 'Ana', reason: 'already on this scene' }] }));
     await expect(tools.handlePlanPartyChange({ action: 'place' })).rejects.toThrow(
-      'Nobody to place from The Party on "Vallaki" (Ana: already on this scene)'
+      'Nobody to place from The Party on "Valmere" (Ana: already on this scene)'
     );
     expect(createPlan).not.toHaveBeenCalled();
   });

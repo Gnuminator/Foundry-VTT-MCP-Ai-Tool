@@ -15,7 +15,7 @@ const APPLY = 'foundry-mcp-bridge.applyGuardedOps';
 const OUTCOME = 'foundry-mcp-bridge.guardedApplyOutcome';
 const LOST = 'Query foundry-mcp-bridge.applyGuardedOps failed: Query timeout: applyGuardedOps';
 
-const HP_UPDATE: GuardedOp = { kind: 'update', uuid: 'Actor.ireena', changes: { 'system.hp': 4 } };
+const HP_UPDATE: GuardedOp = { kind: 'update', uuid: 'Actor.ilvara', changes: { 'system.hp': 4 } };
 
 let dataDir: string;
 let foundry: FakeFoundry;
@@ -29,7 +29,7 @@ const applyOptions: unknown[] = [];
 beforeEach(async () => {
   dataDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'guarded-outcome-'));
   foundry = new FakeFoundry();
-  foundry.add('Actor.ireena', 'Actor', { name: 'Ireena', system: { hp: 10 } });
+  foundry.add('Actor.ilvara', 'Actor', { name: 'Ilvara', system: { hp: 10 } });
   logger = { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() };
   logger.child = (): unknown => logger;
   applyOptions.length = 0;
@@ -63,7 +63,7 @@ afterEach(async () => {
 async function planAndApply(): Promise<Awaited<ReturnType<GuardedWriteService['applyPlan']>>> {
   const p = await service.createPlan({
     feature: 'test-feature',
-    summary: 'Hurt Ireena',
+    summary: 'Hurt Ilvara',
     ops: [HP_UPDATE],
   });
   return service.applyPlan(p.planId, { confirm: true });
@@ -89,13 +89,13 @@ describe('apply timeout and outcome polling (PB-04)', () => {
     });
     const change = await planAndApply();
     expect(change.mode).toBe('apply');
-    expect(foundry.docs.get('Actor.ireena')!.source.system.hp).toBe(4);
+    expect(foundry.docs.get('Actor.ilvara')!.source.system.hp).toBe(4);
     const [row] = await service.listRecentChanges();
     expect(row).toMatchObject({ changeId: change.changeId, canUndo: true });
 
     applyImpl = (data): Promise<any> => foundry.query(APPLY, data);
     await service.undo(change.changeId, { confirm: true });
-    expect(foundry.docs.get('Actor.ireena')!.source.system.hp).toBe(10);
+    expect(foundry.docs.get('Actor.ilvara')!.source.system.hp).toBe(10);
   });
 
   it('fails at once, without polling, when the apply was never sent', async () => {
@@ -115,7 +115,7 @@ describe('apply timeout and outcome polling (PB-04)', () => {
 
   it('also recovers after "Connection closed" and a query timeout', async () => {
     for (const message of ['Query x failed: Connection closed', 'Query timeout: x']) {
-      foundry.edit('Actor.ireena', { path: 'system.hp', present: true, value: 10 });
+      foundry.edit('Actor.ilvara', { path: 'system.hp', present: true, value: 10 });
       let applied: any;
       applyImpl = async (data): Promise<any> => {
         applied = await foundry.query(APPLY, data);

@@ -91,10 +91,10 @@ describe('buildSeenIndex', () => {
             [],
             [{ actorUuid: 'Actor.gob', name: 'Goblin', isPC: false }]
           ),
-          rec({ key: 'a', t: 2, kind: 'roll', actor: npc('Actor.rahadin') }),
-          rec({ key: 'b', t: 3, kind: 'hp', actor: npc('Actor.rahadin') }),
+          rec({ key: 'a', t: 2, kind: 'roll', actor: npc('Actor.ravelin') }),
+          rec({ key: 'b', t: 3, kind: 'hp', actor: npc('Actor.ravelin') }),
           rec({ key: 'g', t: 4, kind: 'user-join', userId: 'gm2', data: { isGM: true } }),
-          rec({ key: 'c', t: 5, kind: 'chat', actor: npc('Actor.rahadin') }),
+          rec({ key: 'c', t: 5, kind: 'chat', actor: npc('Actor.ravelin') }),
         ]),
       ],
       sessions
@@ -157,15 +157,15 @@ describe('buildSeenIndex', () => {
     const index = buildSeenIndex(
       [
         group([
-          sceneRec('a', 1, 'vallaki', true, ['p1']),
+          sceneRec('a', 1, 'valmere', true, ['p1']),
           sceneRec('b', 2, 'amber', false, ['p1'], [gob]),
           rec({ key: 'r', t: 3, kind: 'roll', actor: npc('Actor.pc'), sceneId: 'amber' }),
-          sceneRec('c', 4, 'vallaki', true, ['p1']),
+          sceneRec('c', 4, 'valmere', true, ['p1']),
         ]),
       ],
       sessions
     );
-    expect(index.scenes).toEqual({ 'Scene.vallaki': [S1] });
+    expect(index.scenes).toEqual({ 'Scene.valmere': [S1] });
     expect(index.actors).toEqual({ 'Actor.pc': [S1] });
   });
 

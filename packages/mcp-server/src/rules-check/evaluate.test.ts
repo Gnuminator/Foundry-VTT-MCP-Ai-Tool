@@ -3,13 +3,13 @@ import type { RulesCheckLine } from '@gnuminator/shared';
 import { classifyActivation, evaluateAction, parseRange, type RulesFacts } from './evaluate.js';
 
 const base: RulesFacts = {
-  actor: 'Ireena',
+  actor: 'Ilvara',
   item: 'Longsword',
   spellLevel: null,
   castLevel: null,
   activation: 'Action',
   range: '5 Feet',
-  combat: { active: true, round: 2, inCombat: true, isCurrentTurn: true, currentName: 'Ireena' },
+  combat: { active: true, round: 2, inCombat: true, isCurrentTurn: true, currentName: 'Ilvara' },
   target: 'Zombie',
   distance: { feet: 5 },
   slots: {},

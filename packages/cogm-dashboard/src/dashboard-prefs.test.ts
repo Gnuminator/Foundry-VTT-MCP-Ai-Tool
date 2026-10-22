@@ -38,14 +38,14 @@ describe('DashboardPrefsStore', () => {
   it('starts on layout A with the combat buttons off', () => {
     const store = new DashboardPrefsStore(null);
     expect(store.get(null)).toEqual(DEFAULT_PREFS);
-    expect(store.get('strahd').duringLayout).toBe('layered');
-    expect(store.get('strahd').combatButtons).toBe(false);
+    expect(store.get('sorvan').duringLayout).toBe('layered');
+    expect(store.get('sorvan').combatButtons).toBe(false);
   });
 
   it('keeps choices per world', async () => {
     const store = new DashboardPrefsStore(null);
-    await store.update('strahd', { duringLayout: 'toggle', duringFull: true });
-    expect(store.get('strahd')).toMatchObject({ duringLayout: 'toggle', duringFull: true });
+    await store.update('sorvan', { duringLayout: 'toggle', duringFull: true });
+    expect(store.get('sorvan')).toMatchObject({ duringLayout: 'toggle', duringFull: true });
     expect(store.get('other').duringLayout).toBe('layered');
   });
 
@@ -69,8 +69,8 @@ describe('DashboardPrefsStore', () => {
   it('saves to the file and reads it back, dropping bad fields', async () => {
     const file = path.join(dir, 'state', 'dashboard-prefs.json');
     const store = new DashboardPrefsStore(file);
-    await store.update('strahd', { duringLayout: 'auto', combatButtons: true, layoutPicked: true });
-    expect(new DashboardPrefsStore(file).get('strahd')).toMatchObject({
+    await store.update('sorvan', { duringLayout: 'auto', combatButtons: true, layoutPicked: true });
+    expect(new DashboardPrefsStore(file).get('sorvan')).toMatchObject({
       duringLayout: 'auto',
       combatButtons: true,
       layoutPicked: true,

@@ -34,12 +34,12 @@ function human(overrides: Partial<HumanChangeItem> = {}): HumanChangeItem {
     kind: 'human',
     id: 'act:a1',
     at: AT,
-    by: 'Ireena',
+    by: 'Ilvara',
     userId: 'u1',
     isGM: false,
-    summary: 'Ireena: HP 10 -> 5',
-    lines: ['Ireena: HP 10 -> 5'],
-    things: [{ uuid: 'Actor.a1', name: 'Ireena' }],
+    summary: 'Ilvara: HP 10 -> 5',
+    lines: ['Ilvara: HP 10 -> 5'],
+    things: [{ uuid: 'Actor.a1', name: 'Ilvara' }],
     records: 1,
     canUndo: true,
     undone: false,
@@ -53,8 +53,8 @@ function ai(overrides: Partial<AiChangeItem> = {}): AiChangeItem {
     id: 'chg-1',
     at: LATER,
     by: 'AI',
-    summary: 'Strahd: HP 50 -> 40',
-    lines: ['Strahd: HP 50 -> 40', 'Strahd: effect "Bloodied" added'],
+    summary: 'Sorvan: HP 50 -> 40',
+    lines: ['Sorvan: HP 50 -> 40', 'Sorvan: effect "Bloodied" added'],
     mode: 'apply',
     feature: 'live-play',
     canUndo: true,
@@ -94,21 +94,21 @@ describe('renderEveryoneNote', () => {
     expect(text).toContain('by_ai: 1');
     expect(text).toContain('undone: 2');
     expect(text).toContain(
-      'people:\n  - "AI, asked by GM (dashboard)"\n  - "Gamemaster (GM)"\n  - "Ireena"'
+      'people:\n  - "AI, asked by GM (dashboard)"\n  - "Gamemaster (GM)"\n  - "Ilvara"'
     );
     expect(text).toContain("# Everyone's changes 2026-10-07");
-    expect(text).toContain('- **19:42** Ireena · Ireena: HP 10 -> 5 ^act-a1');
+    expect(text).toContain('- **19:42** Ilvara · Ilvara: HP 10 -> 5 ^act-a1');
     expect(text).toContain(
-      '- **19:50** AI, asked by GM (dashboard) · Strahd: HP 50 -> 40 · undone 19:50 by GM (dashboard) ^chg-1'
+      '- **19:50** AI, asked by GM (dashboard) · Sorvan: HP 50 -> 40 · undone 19:50 by GM (dashboard) ^chg-1'
     );
-    expect(text).toContain('  - Strahd: HP 50 -> 40\n  - Strahd: effect "Bloodied" added');
+    expect(text).toContain('  - Sorvan: HP 50 -> 40\n  - Sorvan: effect "Bloodied" added');
     // The undo entry chg-9 is not among the day's changes: it lies on another day.
     expect(text).toContain(
       'Gamemaster (GM) · Token "Wolf 2" moved and 1 more change · undone later ^act-a2-own'
     );
     expect(text).toContain('  - Deleted Combatant "Wolf 2" from Combat');
     // A one-line change does not repeat its summary below.
-    expect(text).not.toContain('  - Ireena: HP 10 -> 5');
+    expect(text).not.toContain('  - Ilvara: HP 10 -> 5');
     expect(checkMarkdownOwnership(text)).toEqual({ owned: true, legacy: false });
   });
 
@@ -122,7 +122,7 @@ describe('renderEveryoneNote', () => {
   });
 
   it('escapes Markdown in names, summaries and lines (no wikilinks, tags, HTML or tables from Foundry)', () => {
-    const nasty = '[[Strahd]] #tag <b>x</b> a|b';
+    const nasty = '[[Sorvan]] #tag <b>x</b> a|b';
     const text = renderEveryoneNote('w1', {
       date: '2026-10-07',
       changes: [
@@ -132,13 +132,13 @@ describe('renderEveryoneNote', () => {
     });
     // The body is inert Markdown; the `people` property keeps the user name as the GM set it.
     const body = text.slice(text.indexOf("\n# Everyone's changes"));
-    expect(body).not.toContain('[[Strahd]]');
+    expect(body).not.toContain('[[Sorvan]]');
     expect(body).not.toContain('<b>');
     expect(body).not.toMatch(/\s#tag/);
-    expect(body).toContain('\\[\\[Strahd\\]\\] \\#tag &lt;b>x&lt;/b> a\\|b');
+    expect(body).toContain('\\[\\[Sorvan\\]\\] \\#tag &lt;b>x&lt;/b> a\\|b');
     expect(text).toContain('  - \\# not a heading');
     expect(text).toContain('  - \\- not a list');
-    expect(text).toContain('undone by \\[\\[Strahd\\]\\]');
+    expect(text).toContain('undone by \\[\\[Sorvan\\]\\]');
   });
 
   it('keeps a name with a newline on one line, and no link in the people property', () => {
@@ -149,20 +149,20 @@ describe('renderEveryoneNote', () => {
     expect(text).toContain('- **19:42** Ire ena · line one line two ^act-a1');
     const linked = renderEveryoneNote('w1', {
       date: '2026-10-07',
-      changes: [human({ by: '[[Strahd]]' })],
+      changes: [human({ by: '[[Sorvan]]' })],
     });
-    expect(linked).toContain('people:\n  - "Strahd"');
-    expect(linked).not.toContain('[[Strahd]]');
+    expect(linked).toContain('people:\n  - "Sorvan"');
+    expect(linked).not.toContain('[[Sorvan]]');
   });
 
   it('reads the list items of a note back (carriedBlocks)', () => {
     const day: ChangeDay = {
       date: '2026-10-07',
-      changes: [human({ by: '[[Strahd]] <b>' }), ai({ undone: true, undoneBy: 'GM' })],
+      changes: [human({ by: '[[Sorvan]] <b>' }), ai({ undone: true, undoneBy: 'GM' })],
     };
     const blocks = carriedBlocks(renderEveryoneNote('w1', day));
     expect(blocks.map(b => [b.id, b.time, b.who, b.isAi, b.undone, b.text.length])).toEqual([
-      ['act-a1', '19:42', '[[Strahd]] <b>', false, false, 1],
+      ['act-a1', '19:42', '[[Sorvan]] <b>', false, false, 1],
       ['chg-1', '19:50', 'AI', true, true, 3],
     ]);
     expect(blocks[1].text[0]).toMatch(/^- \*\*19:50\*\* AI · .* \^chg-1$/);
@@ -172,23 +172,23 @@ describe('renderEveryoneNote', () => {
     const day: ChangeDay = {
       date: '2026-10-07',
       changes: [
-        human({ by: 'Ana · Bo', summary: 'Ireena: HP 10 -> 5 · undone?' }),
+        human({ by: 'Ana · Bo', summary: 'Ilvara: HP 10 -> 5 · undone?' }),
         human({ id: 'act:a2', by: 'AI' }),
         human({ id: 'act:a3', by: 'AI', isGM: true }),
         ai({ requestedBy: 'GM (dashboard)' }),
       ],
     };
     const text = renderEveryoneNote('w1', day);
-    expect(text).toContain('Ana &middot; Bo · Ireena: HP 10 -> 5 &middot; undone? ^act-a1');
+    expect(text).toContain('Ana &middot; Bo · Ilvara: HP 10 -> 5 &middot; undone? ^act-a1');
     expect(text).toContain(
       'people:\n  - "AI (GM)"\n  - "AI (player)"\n  - "AI, asked by GM (dashboard)"\n  - "Ana · Bo"'
     );
     const blocks = carriedBlocks(text);
     expect(blocks.map(b => [b.who, b.summary, b.isAi, b.undone])).toEqual([
-      ['Ana · Bo', 'Ireena: HP 10 -> 5 &middot; undone?', false, false],
-      ['AI (player)', 'Ireena: HP 10 -> 5', false, false],
-      ['AI (GM)', 'Ireena: HP 10 -> 5', false, false],
-      ['AI, asked by GM (dashboard)', 'Strahd: HP 50 -> 40', true, false],
+      ['Ana · Bo', 'Ilvara: HP 10 -> 5 &middot; undone?', false, false],
+      ['AI (player)', 'Ilvara: HP 10 -> 5', false, false],
+      ['AI (GM)', 'Ilvara: HP 10 -> 5', false, false],
+      ['AI, asked by GM (dashboard)', 'Sorvan: HP 50 -> 40', true, false],
     ]);
   });
 
@@ -197,10 +197,10 @@ describe('renderEveryoneNote', () => {
       date: '2026-10-07',
       changes: [
         human({ undone: true, undoneBy: 'chg-9' }),
-        ai({ id: 'chg-9', mode: 'undo', requestedBy: 'GM (dashboard)', summary: 'Undo: Ireena' }),
+        ai({ id: 'chg-9', mode: 'undo', requestedBy: 'GM (dashboard)', summary: 'Undo: Ilvara' }),
       ],
     });
-    expect(text).toContain('Ireena · Ireena: HP 10 -> 5 · undone 19:50 by GM (dashboard) ^act-a1');
+    expect(text).toContain('Ilvara · Ilvara: HP 10 -> 5 · undone 19:50 by GM (dashboard) ^act-a1');
   });
 
   it('says from when a partial day is complete', () => {
@@ -274,7 +274,7 @@ describe('EveryoneNotes', () => {
     expect(second.written).toEqual([]);
     expect(second.unchanged.length).toBe(2);
 
-    days[1].changes.push(ai({ id: 'chg-2', summary: 'Strahd: HP 40 -> 30' }));
+    days[1].changes.push(ai({ id: 'chg-2', summary: 'Sorvan: HP 40 -> 30' }));
     const third = await notes.renderNow('w1');
     expect(third.written).toEqual([everyoneNotePath('2026-10-07')]);
     expect(await note('2026-10-07')).toContain('^chg-2');
@@ -353,14 +353,14 @@ describe('EveryoneNotes', () => {
     expect((await notes.renderNow('w1')).written).toEqual([everyoneNotePath('2026-10-07')]);
     let text = await note('2026-10-07');
     expect(text).toContain('Changes before 19:45 may be missing');
-    expect(text).toContain('- **19:42** Ireena · Ireena: HP 10 -> 5 ^act-a1');
+    expect(text).toContain('- **19:42** Ilvara · Ilvara: HP 10 -> 5 ^act-a1');
     expect(text).toContain('undone 19:50 by GM (dashboard) ^chg-1');
     expect(text.indexOf('^act-a1')).toBeLessThan(text.indexOf('^chg-1'));
     expect(text).toContain('changes: 2');
     expect(text).toContain('by_people: 1');
     expect(text).toContain('by_ai: 1');
     expect(text).toContain('undone: 1');
-    expect(text).toContain('people:\n  - "AI"\n  - "Ireena"');
+    expect(text).toContain('people:\n  - "AI"\n  - "Ilvara"');
     // More changes later: the carried item survives every render, in order.
     days[1].changes.push(ai({ id: 'chg-2', at: new Date(2026, 9, 7, 19, 42).toISOString() }));
     expect((await notes.renderNow('w1')).written).toEqual([everyoneNotePath('2026-10-07')]);
@@ -369,7 +369,7 @@ describe('EveryoneNotes', () => {
     expect(text).toContain('by_ai: 2');
     expect(text.indexOf('^act-a1')).toBeLessThan(text.indexOf('^chg-2'));
     expect(text.indexOf('^chg-2')).toBeLessThan(text.indexOf('^chg-1'));
-    expect(text).toContain('  - Strahd: effect "Bloodied" added\n- **19:50**');
+    expect(text).toContain('  - Sorvan: effect "Bloodied" added\n- **19:50**');
     expect(checkMarkdownOwnership(text)).toEqual({ owned: true, legacy: false });
     // The history regroups the lost change under a longer id (its records split from an AI
     // burst), then under a new id with the same minute and summary: the note holds it once.
@@ -386,17 +386,17 @@ describe('EveryoneNotes', () => {
     expect(text).not.toContain('^act-a1-own');
     expect(text).toContain('changes: 3');
     // Someone else made the same change in the same minute: two items, the carried one stays.
-    days[1].changes[days[1].changes.length - 1] = human({ id: 'act:c9', by: 'Ismark' });
+    days[1].changes[days[1].changes.length - 1] = human({ id: 'act:c9', by: 'Ivarro' });
     await notes.renderNow('w1');
     text = await note('2026-10-07');
     expect(text).toContain('^act-b7');
-    expect(text).toContain('- **19:42** Ismark · Ireena: HP 10 -> 5 ^act-c9');
+    expect(text).toContain('- **19:42** Ivarro · Ilvara: HP 10 -> 5 ^act-c9');
     expect(text).toContain('changes: 4');
     // The same minute and summary under the AI's name is the attribution changing: held once.
     days[1].changes[days[1].changes.length - 1] = ai({
       id: 'chg-9',
       at: AT,
-      summary: 'Ireena: HP 10 -> 5',
+      summary: 'Ilvara: HP 10 -> 5',
     });
     await notes.renderNow('w1');
     text = await note('2026-10-07');
@@ -449,14 +449,14 @@ describe('EveryoneNotes with the real history', () => {
       actionId,
       op: 'update',
       userId: 'u1',
-      userName: 'Ireena',
+      userName: 'Ilvara',
       userIsGM: false,
       documentName: 'Actor',
       uuid: 'Actor.a1',
       parentUuid: null,
-      name: 'Ireena',
+      name: 'Ilvara',
       rootUuid: 'Actor.a1',
-      rootName: 'Ireena',
+      rootName: 'Ilvara',
       sceneId: null,
       before: [{ path: 'system.attributes.hp.value', present: true, value: 10 + seq }],
       after: [{ path: 'system.attributes.hp.value', present: true, value: 9 + seq }],

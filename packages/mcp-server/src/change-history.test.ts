@@ -44,14 +44,14 @@ function rec(overrides: Partial<ChangeRecord> = {}): ChangeRecord {
     actionId: `act-${counter}`,
     op: 'update',
     userId: 'u1',
-    userName: 'Ireena',
+    userName: 'Ilvara',
     userIsGM: false,
     documentName: 'Actor',
     uuid: 'Actor.a1',
     parentUuid: null,
-    name: 'Ireena',
+    name: 'Ilvara',
     rootUuid: 'Actor.a1',
-    rootName: 'Ireena',
+    rootName: 'Ilvara',
     sceneId: null,
     ...overrides,
   };
@@ -95,7 +95,7 @@ describe('historyStartLabel', () => {
 
 describe('describeRecord', () => {
   it('reads an HP change with its label', () => {
-    expect(describeRecord(hpChange(10, 5))).toEqual(['Ireena: HP 10 -> 5']);
+    expect(describeRecord(hpChange(10, 5))).toEqual(['Ilvara: HP 10 -> 5']);
   });
 
   it('names a nameless root (a Combat) by its kind', () => {
@@ -120,12 +120,12 @@ describe('describeRecord', () => {
       before: [val('system.attributes.hp.temp', null), val('system.attributes.hp.value', 11)],
       after: [val('system.attributes.hp.temp', 0), val('system.attributes.hp.value', 6)],
     });
-    expect(describeRecord(r)).toEqual(['Ireena: HP 11 -> 6']);
+    expect(describeRecord(r)).toEqual(['Ilvara: HP 11 -> 6']);
     const only = rec({
       before: [val('system.attributes.hp.temp', null)],
       after: [val('system.attributes.hp.temp', 0)],
     });
-    expect(describeRecord(only)).toEqual(['Ireena changed']);
+    expect(describeRecord(only)).toEqual(['Ilvara changed']);
   });
 
   it('names a plain path when it has no label, and says "now" without a before value', () => {
@@ -133,7 +133,7 @@ describe('describeRecord', () => {
       describeRecord(
         rec({ before: [val('flags.x.y', 1)], after: [val('flags.x.y', 2), val('flags.x.z', 3)] })
       )
-    ).toEqual(['Ireena: flags.x.y 1 -> 2', 'Ireena: flags.x.z now 3']);
+    ).toEqual(['Ilvara: flags.x.y 1 -> 2', 'Ilvara: flags.x.z now 3']);
   });
 
   it('labels item quantity and uses on the owning actor', () => {
@@ -148,8 +148,8 @@ describe('describeRecord', () => {
       })
     );
     expect(lines).toEqual([
-      'Ireena: Item "Dagger" quantity 3 -> 2',
-      'Ireena: Item "Dagger" uses spent 0 -> 1',
+      'Ilvara: Item "Dagger" quantity 3 -> 2',
+      'Ilvara: Item "Dagger" uses spent 0 -> 1',
     ]);
   });
 
@@ -161,10 +161,10 @@ describe('describeRecord', () => {
       name: 'Poisoned',
     };
     expect(describeRecord(rec({ ...effect, op: 'delete' }))).toEqual([
-      'Ireena: effect "Poisoned" removed',
+      'Ilvara: effect "Poisoned" removed',
     ]);
     expect(describeRecord(rec({ ...effect, op: 'create' }))).toEqual([
-      'Ireena: effect "Poisoned" added',
+      'Ilvara: effect "Poisoned" added',
     ]);
   });
 
@@ -179,7 +179,7 @@ describe('describeRecord', () => {
           name: 'Dagger',
         })
       )
-    ).toEqual(['Created Item "Dagger" on Ireena']);
+    ).toEqual(['Created Item "Dagger" on Ilvara']);
     expect(
       describeRecord(
         rec({
@@ -214,10 +214,10 @@ describe('describeRecord', () => {
 
   it('shows an oversize record and a record with unknown before values', () => {
     expect(describeRecord(rec({ oversize: true }))).toEqual([
-      'Ireena changed (the details were too large to keep)',
+      'Ilvara changed (the details were too large to keep)',
     ]);
     expect(describeRecord(rec({ unknownBefore: ['system.attributes.hp.temp'] }))).toEqual([
-      'Ireena: temp HP changed',
+      'Ilvara: temp HP changed',
     ]);
   });
 });
@@ -246,11 +246,11 @@ describe('buildActions', () => {
     expect(first?.records).toEqual([a1, a2]);
     expect(first?.t).toBe(a1.t);
     expect(first?.tEnd).toBe(a2.t);
-    expect(first?.userName).toBe('Ireena');
+    expect(first?.userName).toBe('Ilvara');
     expect(first?.userIsGM).toBe(false);
-    expect(first?.things).toEqual([{ uuid: 'Actor.a1', name: 'Ireena' }]);
-    expect(first?.summary).toBe('Ireena: HP 10 -> 5 and 1 more change');
-    expect(first?.lines).toEqual(['Ireena: HP 10 -> 5', 'Created Item "Dagger" on Ireena']);
+    expect(first?.things).toEqual([{ uuid: 'Actor.a1', name: 'Ilvara' }]);
+    expect(first?.summary).toBe('Ilvara: HP 10 -> 5 and 1 more change');
+    expect(first?.lines).toEqual(['Ilvara: HP 10 -> 5', 'Created Item "Dagger" on Ilvara']);
   });
 
   it('caps the lines and says how many more there were', () => {
@@ -258,7 +258,7 @@ describe('buildActions', () => {
     const [action] = buildActions(records);
     expect(action?.lines).toHaveLength(MAX_ACTION_LINES);
     expect(action?.lines.at(-1)).toBe('and 5 more changes');
-    expect(action?.summary).toBe('Ireena: HP 0 -> 1 and 11 more changes');
+    expect(action?.summary).toBe('Ilvara: HP 0 -> 1 and 11 more changes');
   });
 
   it('hides a failed apply and its rollback, and marks an AI action with its changeId', () => {
@@ -358,7 +358,7 @@ describe('buildActions', () => {
   });
 
   it("keeps dnd5e's dependent deletes with the AI change that deleted an effect or an item", () => {
-    // The AI ends concentration on Count Dorn: dnd5e removes the effect it put on Ireena, the spell's
+    // The AI ends concentration on Count Dorn: dnd5e removes the effect it put on Ilvara, the spell's
     // template, its region and the summoned token, in the GM browser that is the bridge's.
     const dependentsOf = (...uuids: string[]): Record<string, unknown> => ({
       flags: { dnd5e: { dependents: uuids.map(uuid => ({ uuid })) } },
@@ -421,7 +421,7 @@ describe('buildActions', () => {
         rootName: 'Castle',
       }),
     ];
-    // The GM's own HP edit of Ireena in the same burst still splits off, and so does a delete
+    // The GM's own HP edit of Ilvara in the same burst still splits off, and so does a delete
     // the AI's effect does not name as a dependent (the GM removed another token just then).
     const own = hpChange(20, 18, { actionId: 'E' });
     const unrelated = rec({
@@ -603,7 +603,7 @@ describe('buildActions', () => {
       parentUuid: 'Actor.a3',
       name: 'Concentrating: Bless',
       rootUuid: 'Actor.a3',
-      rootName: 'Ismark',
+      rootName: 'Ivarro',
       data: { flags: { dnd5e: { dependents: [{ uuid: 'Actor.a1.ActiveEffect.e4' }] } } },
     });
     const secondDependent = rec({
@@ -662,8 +662,8 @@ describe('buildActions', () => {
       changeMode: 'apply',
       uuid: 'Actor.a3',
       rootUuid: 'Actor.a3',
-      rootName: 'Ismark',
-      name: 'Ismark',
+      rootName: 'Ivarro',
+      name: 'Ivarro',
     });
     const combatantA = rec({
       actionId: 'M',
@@ -791,8 +791,8 @@ describe('buildActions', () => {
         changeMode: 'apply',
         uuid: 'Actor.a3',
         rootUuid: 'Actor.a3',
-        rootName: 'Ismark',
-        name: 'Ismark',
+        rootName: 'Ivarro',
+        name: 'Ivarro',
       });
       const conc = concentration();
       const dep = dependent();
@@ -1000,9 +1000,9 @@ describe('buildActions', () => {
       after: [val('ownership.u2', 3)],
     });
     const users = new Map([['u2', 'Anna']]);
-    expect(describeRecord(owner)).toEqual(['Ireena: ownership for user u2 0 -> 3']);
-    expect(describeRecord(owner, users)).toEqual(['Ireena: ownership for Anna 0 -> 3']);
-    expect(buildActions([owner], users)[0]?.lines).toEqual(['Ireena: ownership for Anna 0 -> 3']);
+    expect(describeRecord(owner)).toEqual(['Ilvara: ownership for user u2 0 -> 3']);
+    expect(describeRecord(owner, users)).toEqual(['Ilvara: ownership for Anna 0 -> 3']);
+    expect(buildActions([owner], users)[0]?.lines).toEqual(['Ilvara: ownership for Anna 0 -> 3']);
     expect(labelOf('ownership.default', users)).toBe('default ownership');
   });
 });
@@ -1088,10 +1088,10 @@ describe('ChangeHistory.list', () => {
     expect(changes.map(c => c.id)).toEqual(['act:new', 'act:old']);
     expect(changes[0]).toMatchObject({
       kind: 'human',
-      by: 'Ireena',
+      by: 'Ilvara',
       userId: 'u1',
       isGM: false,
-      summary: 'Ireena: HP 5 -> 3',
+      summary: 'Ilvara: HP 5 -> 3',
       records: 1,
       canUndo: true,
       undone: false,
@@ -1606,8 +1606,8 @@ describe('ChangeHistory.list', () => {
     expect(changes.map(c => c.id)).toEqual(['chg-f']);
     expect(changes[0].lines).toEqual([
       'Count Dorn: effect "Concentrating: Hold Person" removed',
-      'Ireena: effect "Hold Person" removed',
-      'Ireena: effect "Bless" removed',
+      'Ilvara: effect "Hold Person" removed',
+      'Ilvara: effect "Bless" removed',
     ]);
     expect(await history.aiFollowUps('chg-f')).toEqual([dependent, dependent2]);
     expect(await history.aiFollowUps('chg-nope')).toEqual([]);
@@ -1615,7 +1615,7 @@ describe('ChangeHistory.list', () => {
 
   it('filters by source, person, thing and since', async () => {
     await writeDay([
-      hpChange(10, 5, { actionId: 'ireena', t: NOW - 30 * MIN }),
+      hpChange(10, 5, { actionId: 'ilvara', t: NOW - 30 * MIN }),
       rec({
         actionId: 'dorn',
         t: NOW - 20 * MIN,
@@ -1638,9 +1638,9 @@ describe('ChangeHistory.list', () => {
       (await history.list(o)).changes.map(c => c.id);
 
     expect(await ids({ source: 'ai' })).toEqual(['chg-1']);
-    expect(await ids({ source: 'human' })).toEqual(['act:dorn', 'act:ireena']);
+    expect(await ids({ source: 'human' })).toEqual(['act:dorn', 'act:ilvara']);
     expect(await ids({ userName: 'COUNT DORN' })).toEqual(['act:dorn']);
-    expect(await ids({ userId: 'u1', userName: 'u1' })).toEqual(['act:ireena']);
+    expect(await ids({ userId: 'u1', userName: 'u1' })).toEqual(['act:ilvara']);
     expect(await ids({ userName: 'danni' })).toEqual(['chg-1']);
     expect(await ids({ thingUuid: 'Actor.a2' })).toEqual(['act:dorn']);
     expect(await ids({ thingUuid: 'Actor.a2.Item.i9' })).toEqual(['act:dorn']);

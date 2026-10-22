@@ -29,14 +29,14 @@ function rec(min: number, overrides: Partial<ChangeRecord> = {}): ChangeRecord {
     actionId: `a${counter}`,
     op: 'update',
     userId: 'u1',
-    userName: 'Ireena',
+    userName: 'Ilvara',
     userIsGM: false,
     documentName: 'Actor',
     uuid: 'Actor.a',
     parentUuid: null,
-    name: 'Ireena',
+    name: 'Ilvara',
     rootUuid: 'Actor.a',
-    rootName: 'Ireena',
+    rootName: 'Ilvara',
     sceneId: null,
     ...overrides,
   };
@@ -68,7 +68,7 @@ function update(uuid: string, before: PathValue[], after: PathValue[]): GuardedO
     kind: 'update',
     uuid,
     documentName: 'Actor',
-    name: 'Ireena',
+    name: 'Ilvara',
     parentUuid: null,
     before,
     after,
@@ -105,7 +105,7 @@ beforeEach((): void => {
   leftOut = new Set();
   foundry = new FakeFoundry();
   foundry.add('Actor.a', 'Actor', {
-    name: 'Ireena',
+    name: 'Ilvara',
     system: { attributes: { hp: { value: 5, max: 12 } } },
     flags: {},
   });
@@ -252,7 +252,7 @@ describe('just-this', () => {
     expect(createPlan).toHaveBeenCalledTimes(1);
     const input = planInput();
     expect(input.feature).toBe('change-undo');
-    expect(input.summary).toBe('Undo: Ireena: HP 10 -> 5');
+    expect(input.summary).toBe('Undo: Ilvara: HP 10 -> 5');
     expect(input.ops).toEqual([
       { kind: 'update', uuid: 'Actor.a', changes: { [HP]: 10 }, unset: [] },
     ]);
@@ -382,7 +382,7 @@ describe('just-this', () => {
         name: 'Concentrating',
         data: { ...deleted, flags: { dnd5e: { dependents: [{ uuid: 'Scene.s1.Token.t9' }] } } },
       }),
-      // dnd5e took Bloodied off Ireena in the same burst: not replayed (dnd5e makes it again).
+      // dnd5e took Bloodied off Ilvara in the same burst: not replayed (dnd5e makes it again).
       rec(1, {
         actionId: 'F',
         op: 'delete',
@@ -711,7 +711,7 @@ describe('just-this', () => {
       { kind: 'update', uuid: 'Actor.a', changes: { [HP]: 8 }, unset: [] },
     ]);
     expect(view.later.map(l => l.id)).toEqual(['act:later']);
-    expect(view.later[0]).toMatchObject({ by: 'Ireena', summary: 'Ireena: HP 5 -> 3' });
+    expect(view.later[0]).toMatchObject({ by: 'Ilvara', summary: 'Ilvara: HP 5 -> 3' });
   });
 
   it('clamps an adjusted number to 0 and to the max beside it', async () => {
@@ -754,7 +754,7 @@ describe('just-this', () => {
       (e: Error) => e.message
     );
     expect(error).toMatch(/^There is nothing to undo: /);
-    expect(error).toContain('Kept, changed later: Ireena: flags.door.ds stays 2');
+    expect(error).toContain('Kept, changed later: Ilvara: flags.door.ds stays 2');
     expect(error).toMatch(/stays -5/);
   });
 
@@ -771,7 +771,7 @@ describe('just-this', () => {
     expect(planInput().ops).toEqual([
       { kind: 'update', uuid: 'Actor.a', changes: { [HP]: 10 }, unset: [] },
     ]);
-    expect(planInput().notes).toEqual(['Kept, changed later: Ireena: flags.mood stays "scared"']);
+    expect(planInput().notes).toEqual(['Kept, changed later: Ilvara: flags.mood stays "scared"']);
   });
 
   it('lists paths that were not recorded as kept, and still undoes the recorded ones', async () => {
@@ -785,7 +785,7 @@ describe('just-this', () => {
     );
     await plan('act:x');
     expect(planInput().notes).toEqual([
-      'Not recorded, kept: Ireena: system.details.xp, flags.mood',
+      'Not recorded, kept: Ilvara: system.details.xp, flags.mood',
     ]);
     expect((planInput().ops as GuardedOp[])[0]).toMatchObject({ changes: { [HP]: 10 } });
   });

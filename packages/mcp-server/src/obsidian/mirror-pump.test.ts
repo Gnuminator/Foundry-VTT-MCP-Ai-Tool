@@ -905,11 +905,11 @@ describe('ObsidianMirrorPump: notes follow the Foundry folder tree (I-100)', () 
   const MAP = journalEntry('map', 'Map', [], { folder: inFolder('lorefolder', 'Lore') });
 
   it('places notes in their Foundry folders, page notes beside their journal', async () => {
-    fake.edit(WOLF.uuid, e => (e.folder = inFolder('barovia', 'Villains', 'Barovia')));
+    fake.edit(WOLF.uuid, e => (e.folder = inFolder('maravia', 'Villains', 'Maravia')));
     fake.edit(LORE.uuid, e => (e.folder = inFolder('campaign', 'Campaign')));
     fake.edit(SWORD.uuid, e => (e.folder = inFolder('odd', 'CON', '.hidden', 'a:b?')));
     const pump = await started();
-    expect(await read('AI Tool/Foundry/NPCs/Villains/Barovia/Wolf.md')).toContain(WOLF.uuid);
+    expect(await read('AI Tool/Foundry/NPCs/Villains/Maravia/Wolf.md')).toContain(WOLF.uuid);
     expect(await read('AI Tool/Foundry/Journals/Campaign/Lore.md')).toContain(LORE.uuid);
     expect(await read('AI Tool/Foundry/Journals/Campaign/Lore/Village.md')).toContain(
       'Village text'

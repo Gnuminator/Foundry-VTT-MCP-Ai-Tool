@@ -147,7 +147,7 @@ describe('resolveGmTarget / openDocumentForGm', () => {
     const render = vi.fn();
     g.fromUuid = vi
       .fn()
-      .mockResolvedValue({ documentName: 'Actor', name: 'Ireena', sheet: { render } });
+      .mockResolvedValue({ documentName: 'Actor', name: 'Ilvara', sheet: { render } });
 
     const res = await openDocumentForGm({ uuid: 'Actor.abcdefghijklmnop' });
 

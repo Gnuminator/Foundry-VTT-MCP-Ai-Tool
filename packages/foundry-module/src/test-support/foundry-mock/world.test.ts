@@ -41,8 +41,8 @@ describe('fromUuid in the mock', () => {
   });
 
   it('resolves world documents asynchronously too', async () => {
-    world.addActor({ id: 'a1', name: 'Ireena' });
-    await expect(g.fromUuid('Actor.a1')).resolves.toMatchObject({ name: 'Ireena' });
+    world.addActor({ id: 'a1', name: 'Ilvara' });
+    await expect(g.fromUuid('Actor.a1')).resolves.toMatchObject({ name: 'Ilvara' });
     await expect(g.fromUuid('Actor.missing')).resolves.toBeNull();
   });
 });

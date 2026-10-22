@@ -21,7 +21,7 @@ import { VaultStore } from '../vault/store.js';
 import { PrepDigestTools, type PrepDigestToolsOptions } from './prep-digest.js';
 
 const WORLD = 'w1';
-const PC: PlayActorRef = { uuid: 'Actor.pc1', isPC: true, name: 'Ireena' };
+const PC: PlayActorRef = { uuid: 'Actor.pc1', isPC: true, name: 'Ilvara' };
 const S1 = Date.parse('2026-10-01T12:00:00.000Z');
 const S2 = S1 + 4 * 60 * 60 * 1000; // over the 3h gap: a second session
 const MIN = 60_000;
@@ -31,7 +31,7 @@ const SCENE = {
   id: 's2',
   name: 'Village',
   tokens: [
-    { id: 't9', name: 'Ismark the Lesser', actorId: 'a1' },
+    { id: 't9', name: 'Ivarro the Lesser', actorId: 'a1' },
     { id: 't8', name: 'Unlinked wolf' },
   ],
 };
@@ -118,8 +118,8 @@ const SCAN: PrepScan = {
   campaigns: [
     {
       journalId: 'c1',
-      name: 'Barovia',
-      campaignId: 'barovia',
+      name: 'Maravia',
+      campaignId: 'maravia',
       parts: [
         { partId: 'p1', title: 'Arrival', status: 'completed' },
         { partId: 'p2', title: 'The Village', status: 'in_progress' },
@@ -219,7 +219,7 @@ async function seedSessions(extraBeats = 0): Promise<void> {
     event('b3', S2 + 10 * MIN, 'combat-start', 'Zombies attack'),
     event('b4', S2 + 20 * MIN, 'death', 'Zombie dies', 'Zombie'),
     event('b5', S2 + 21 * MIN, 'death', 'Zombie dies', 'Zombie'),
-    event('b6', S2 + 22 * MIN, 'death', 'Ireena dies', 'Ireena'),
+    event('b6', S2 + 22 * MIN, 'death', 'Ilvara dies', 'Ilvara'),
     event('b7', S2 + 30 * MIN, 'combat-end', 'The fight is over'),
     event('b8', S2 + 40 * MIN, 'journal-updated', 'Notes changed', 'Gamemaster'),
   ];
@@ -261,7 +261,7 @@ async function seedPrep(): Promise<void> {
     { type: 'location-prep', fvtt_uuid: 'Scene.s2' },
     'Fog everywhere.'
   );
-  await prepNote('Prep/Ismark.md', { type: 'npc-prep', fvtt_uuid: 'Actor.a1' }, 'Asks for help.');
+  await prepNote('Prep/Ivarro.md', { type: 'npc-prep', fvtt_uuid: 'Actor.a1' }, 'Asks for help.');
   await prepNote(
     'Prep/Sunsword.md',
     { type: 'quest-prep', fvtt_uuid: 'JournalEntry.q1' },
@@ -315,8 +315,8 @@ describe('get-prep-digest', () => {
       number: 2,
       label: expect.stringMatching(/ S02$/),
       startedAt: new Date(S2).toISOString(),
-      // Dropped to 0 HP, split by the play log's PC flag: Ireena is a PC, the zombie is not.
-      wentDown: { pcs: ['Ireena'], others: ['Zombie'] },
+      // Dropped to 0 HP, split by the play log's PC flag: Ilvara is a PC, the zombie is not.
+      wentDown: { pcs: ['Ilvara'], others: ['Zombie'] },
       beatsTruncated: false,
     });
     expect(last?.scenes).toEqual(['Village', 'Crypt']);
@@ -393,7 +393,7 @@ describe('get-prep-digest', () => {
     expect(digest.openCampaignParts).toEqual([
       {
         journalId: 'c1',
-        name: 'Barovia',
+        name: 'Maravia',
         parts: [{ partId: 'p2', title: 'The Village', status: 'in_progress' }],
       },
     ]);
@@ -530,7 +530,7 @@ describe('get-prep-digest', () => {
       expect(digest.prep?.notes.map(n => [n.path, n.reason, n.matched])).toEqual([
         ['Prep/Session 3.md', 'session-plan', null],
         ['Prep/Village.md', 'scene', 'Village'],
-        ['Prep/Ismark.md', 'actor', 'Ismark the Lesser'],
+        ['Prep/Ivarro.md', 'actor', 'Ivarro the Lesser'],
         ['Prep/Sunsword.md', 'quest', 'Find the Sunsword'],
       ]);
       expect(digest.prep?.matchedAgainst).toEqual({ scene: 'Village', tokens: 2, openQuests: 1 });

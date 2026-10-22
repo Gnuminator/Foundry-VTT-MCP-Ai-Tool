@@ -170,12 +170,12 @@ describe('LicensedGuard inside a repository (real git)', () => {
     );
     await write('AI Tool/Library/Books/Monster Manual (2024).base', 'filters:\n');
     // A world note in nested Foundry folders, with a page note below its journal.
-    await write('AI Tool/Foundry/Journals/Act 1/Vallaki/Town/Lore.md', 'a mirror note\n');
-    await write('AI Tool/Foundry/Journals/Act 1/Vallaki/Town/Lore/Page.md', 'a page note\n');
+    await write('AI Tool/Foundry/Journals/Act 1/Valmere/Town/Lore.md', 'a mirror note\n');
+    await write('AI Tool/Foundry/Journals/Act 1/Valmere/Town/Lore/Page.md', 'a page note\n');
     const status = git(vault, 'status', '--porcelain', '-uall');
     expect(status).not.toContain('Library');
     expect(status).not.toContain('Monster Manual');
-    expect(status).toContain('Vallaki/Town/Lore/Page.md');
+    expect(status).toContain('Valmere/Town/Lore/Page.md');
     // Ignoring the whole mirror folder covers the nested world notes too (licensed text allowed).
     await write('.gitignore', 'Campaigns/*/AI Tool/\n.trash/\n', vault);
     const open = await new LicensedGuard(campaign, runGit).check();

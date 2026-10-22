@@ -366,7 +366,7 @@ describe('PlayLogPump into buildStats (no double counting)', () => {
   // (already covered above: "a second client sending the same keys writes
   // nothing new") is what makes this true; this test carries that guarantee
   // through to the stats built from the resulting file.
-  const PC: PlayActorRef = { uuid: 'Actor.actor1', isPC: true, name: 'Ireena' };
+  const PC: PlayActorRef = { uuid: 'Actor.actor1', isPC: true, name: 'Ilvara' };
   const HP_KEY = 'hp:Actor.actor1:system.attributes.hp.value:123';
   const hpOverrides: Partial<PlayRecord> = {
     key: HP_KEY,

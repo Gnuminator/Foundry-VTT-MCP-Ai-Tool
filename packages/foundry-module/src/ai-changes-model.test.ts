@@ -32,8 +32,8 @@ function entry(over: Partial<ChangeEntry> = {}): ChangeEntry {
     at: new Date(2026, 9, 6, 9, 5, 30).toISOString(),
     by: 'AI',
     userId: '',
-    summary: 'Ireena: 5 damage',
-    lines: ['Ireena hp 20 -> 15'],
+    summary: 'Ilvara: 5 damage',
+    lines: ['Ilvara hp 20 -> 15'],
     feature: 'live-play',
     mode: 'apply',
     requestedBy: '',
@@ -52,12 +52,12 @@ function humanItem(over: Record<string, unknown> = {}): Record<string, unknown> 
     kind: 'human',
     id: 'act:a1',
     at: new Date(2026, 9, 6, 9, 5).toISOString(),
-    by: 'Ireena',
-    userId: 'u-ireena',
+    by: 'Ilvara',
+    userId: 'u-ilvara',
     isGM: false,
-    summary: 'Ireena: HP 10 -> 5',
-    lines: ['Ireena: HP 10 -> 5'],
-    things: [{ uuid: 'Actor.a', name: 'Ireena' }],
+    summary: 'Ilvara: HP 10 -> 5',
+    lines: ['Ilvara: HP 10 -> 5'],
+    things: [{ uuid: 'Actor.a', name: 'Ilvara' }],
     records: 1,
     canUndo: true,
     undone: false,
@@ -177,10 +177,10 @@ describe('parseChanges', () => {
     expect(list.map(e => e.id)).toEqual(['act:a1', 'chg-1']);
     expect(list[0]).toMatchObject({
       kind: 'human',
-      by: 'Ireena',
-      userId: 'u-ireena',
-      thing: 'Ireena',
-      lines: ['Ireena: HP 10 -> 5'],
+      by: 'Ilvara',
+      userId: 'u-ilvara',
+      thing: 'Ilvara',
+      lines: ['Ilvara: HP 10 -> 5'],
       canUndo: true,
       undone: false,
     });
@@ -188,7 +188,7 @@ describe('parseChanges', () => {
   });
 
   it('reads whether an undo took back several changes: the covers count, else the lines', () => {
-    const lines = ['Ireena: HP 5 -> 10', 'Ireena: effect "Bloodied" removed'];
+    const lines = ['Ilvara: HP 5 -> 10', 'Ilvara: effect "Bloodied" removed'];
     const [counted, one, old] = parseChanges({
       changes: [
         aiItem({ id: 'u1', mode: 'undo', lines, covers: 3 }),
@@ -242,7 +242,7 @@ describe('buildChangeRow', () => {
       id: 'c1',
       time: '09:05',
       at: entry().at,
-      summary: 'Ireena: 5 damage',
+      summary: 'Ilvara: 5 damage',
       feature: 'live play',
       isUndo: false,
       isAi: true,
@@ -251,7 +251,7 @@ describe('buildChangeRow', () => {
       thing: '',
       state: '',
       undoneByWho: '',
-      diff: ['Ireena hp 20 -> 15'],
+      diff: ['Ilvara hp 20 -> 15'],
       canUndo: true,
       redoId: '',
       coversSeveral: false,
@@ -262,9 +262,9 @@ describe('buildChangeRow', () => {
     const [row] = buildRows({ changes: [humanItem()] });
     expect(row).toMatchObject({
       isAi: false,
-      who: 'Ireena',
+      who: 'Ilvara',
       feature: '',
-      thing: 'Ireena',
+      thing: 'Ilvara',
       canUndo: true,
     });
   });
@@ -327,9 +327,9 @@ describe('buildChangeRow', () => {
 
   it('shows an undo entry as "Undo of ..." without a second Undo', () => {
     const row = buildChangeRow(
-      entry({ mode: 'undo', summary: 'Undo: Ireena: 5 damage', canUndo: true })
+      entry({ mode: 'undo', summary: 'Undo: Ilvara: 5 damage', canUndo: true })
     );
-    expect(row.summary).toBe('Undo of Ireena: 5 damage');
+    expect(row.summary).toBe('Undo of Ilvara: 5 damage');
     expect(row.isUndo).toBe(true);
     expect(row.canUndo).toBe(false);
   });
@@ -421,7 +421,7 @@ describe('renderChangesHtml', () => {
 
   it("draws a person's row as by NAME", () => {
     const html = renderChangesHtml(view({ rows: ui(humanItem()) }));
-    expect(html).toContain('<span class="fmb-ai-tag">by Ireena</span>');
+    expect(html).toContain('<span class="fmb-ai-tag">by Ilvara</span>');
     expect(html).not.toContain('<span class="fmb-ai-tag">AI</span>');
     expect(html).toContain('data-change-id="act:a1"');
   });

@@ -39,30 +39,30 @@ describe('tokens', () => {
     const goblin = world.addActor({ id: 'a-goblin', name: 'Goblin', type: 'npc' });
     const scene = world.addScene({
       id: 'scene-1',
-      name: 'Barovia',
+      name: 'Maravia',
       tokens: [
         makeToken({ id: 't1', name: 'Goblin', disposition: -1, hidden: true, actorId: goblin.id }),
-        makeToken({ id: 't2', name: 'Ireena', disposition: 1 }),
+        makeToken({ id: 't2', name: 'Ilvara', disposition: 1 }),
       ],
     });
     world.addScene({
       id: 'scene-2',
-      name: 'Vallaki',
+      name: 'Valmere',
       tokens: [makeToken({ id: 't3', name: 'Guard' })],
     });
     world.setActiveScene(scene.id);
     install();
 
     const result = await listRefChoices({ kind: 'token' });
-    expect(result.note).toBe('Tokens on "Barovia"');
+    expect(result.note).toBe('Tokens on "Maravia"');
     expect(result.choices.map(c => [c.id, c.name, c.group, c.hidden ?? false])).toEqual([
-      ['t2', 'Ireena', 'Friendly', false],
+      ['t2', 'Ilvara', 'Friendly', false],
       ['t1', 'Goblin', 'Hostile', true],
     ]);
     expect(result.choices[1].detail).toContain('hidden');
     expect(result.choices[1].detail).toMatch(/at \d+, \d+$/);
 
-    const other = await listRefChoices({ kind: 'token', parent: 'Vallaki' });
+    const other = await listRefChoices({ kind: 'token', parent: 'Valmere' });
     expect(other.choices.map(c => c.id)).toEqual(['t3']);
     expect((await listRefChoices({ kind: 'token', parent: 'nope' })).note).toBe('No scene "nope"');
   });
@@ -81,10 +81,10 @@ describe('tokens', () => {
 describe('actors and their items', () => {
   it('filters actors by type and player ownership', async () => {
     world.addActor({ id: 'pc', name: 'Aria', type: 'character', hasPlayerOwner: true });
-    world.addActor({ id: 'npc', name: 'Strahd', type: 'npc' });
+    world.addActor({ id: 'npc', name: 'Sorvan', type: 'npc' });
     install();
     const all = await listRefChoices({ kind: 'actor' });
-    expect(all.choices.map(c => c.name).sort()).toEqual(['Aria', 'Strahd']);
+    expect(all.choices.map(c => c.name).sort()).toEqual(['Aria', 'Sorvan']);
     const npcs = await listRefChoices({ kind: 'actor', filter: { types: ['npc'] } });
     expect(npcs.choices.map(c => c.id)).toEqual(['npc']);
     const pcs = await listRefChoices({ kind: 'actor', filter: { playerOwned: true } });
@@ -98,7 +98,7 @@ describe('actors and their items', () => {
     world.addActor({ id: 'b', name: 'Bat', type: 'npc' });
     const scene = world.addScene({
       id: 'scene-1',
-      name: 'Barovia',
+      name: 'Maravia',
       tokens: [makeToken({ id: 't1', name: 'Zombie', actorId: zombie.id })],
     });
     world.setActiveScene(scene.id);
@@ -120,7 +120,7 @@ describe('actors and their items', () => {
   it("lists the parent actor's items by type", async () => {
     world.addActor({
       id: 'npc',
-      name: 'Strahd',
+      name: 'Sorvan',
       type: 'npc',
       items: [
         makeItem({ id: 'i1', name: 'Bite', type: 'weapon' }),
@@ -131,7 +131,7 @@ describe('actors and their items', () => {
     expect((await listRefChoices({ kind: 'actor-item' })).note).toBe('Choose the actor first');
     const weapons = await listRefChoices({
       kind: 'actor-item',
-      parent: 'Strahd',
+      parent: 'Sorvan',
       filter: { types: ['weapon'] },
     });
     expect(weapons.choices.map(c => c.name)).toEqual(['Bite']);
@@ -145,7 +145,7 @@ describe('journals, pages, compendiums', () => {
     world.addJournal({
       id: 'j1',
       name: 'Quests',
-      pages: [makeJournalPage({ id: 'p1', name: 'Find Ireena' })],
+      pages: [makeJournalPage({ id: 'p1', name: 'Find Ilvara' })],
     });
     world.addJournal({
       id: 'j2',
@@ -155,7 +155,7 @@ describe('journals, pages, compendiums', () => {
     install();
     const all = await listRefChoices({ kind: 'journal-page' });
     expect(all.choices.map(c => [c.name, c.group])).toEqual([
-      ['Find Ireena', 'Quests'],
+      ['Find Ilvara', 'Quests'],
       ['Mists', 'Lore'],
     ]);
     const one = await listRefChoices({ kind: 'journal-page', parent: 'j2' });
@@ -348,21 +348,21 @@ describe('request handling', () => {
   });
 
   it('searches any world document by name for uuid pickers', async () => {
-    world.addActor({ id: 'a1', name: 'Ismark' });
+    world.addActor({ id: 'a1', name: 'Ivarro' });
     world.addJournal({
       id: 'j1',
-      name: 'Ismark notes',
-      pages: [makeJournalPage({ id: 'p1', name: 'Ismark' })],
+      name: 'Ivarro notes',
+      pages: [makeJournalPage({ id: 'p1', name: 'Ivarro' })],
     });
     install();
     expect((await listRefChoices({ kind: 'document', query: 'i' })).note).toMatch(/2 letters/);
-    const found = await listRefChoices({ kind: 'document', query: 'ismark' });
+    const found = await listRefChoices({ kind: 'document', query: 'ivarro' });
     expect(found.choices.map(c => c.group)).toEqual(['JournalEntry', 'Actor', 'JournalEntryPage']);
     const pagesOnly = await listRefChoices({
       kind: 'document',
-      query: 'ismark',
+      query: 'ivarro',
       filter: { documentName: 'JournalEntryPage' },
     });
-    expect(pagesOnly.choices.map(c => c.detail)).toEqual(['Ismark notes']);
+    expect(pagesOnly.choices.map(c => c.detail)).toEqual(['Ivarro notes']);
   });
 });

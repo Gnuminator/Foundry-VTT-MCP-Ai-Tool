@@ -14,10 +14,10 @@ describe('foundryNoteFrom', () => {
       foundryNoteFrom({
         fvtt_uuid: 'Actor.abc123',
         fvtt_type: 'Actor',
-        fvtt_world: 'strahd',
-        name: 'Ireena',
+        fvtt_world: 'sorvan',
+        name: 'Ilvara',
       })
-    ).toEqual({ uuid: 'Actor.abc123', type: 'Actor', world: 'strahd', name: 'Ireena' });
+    ).toEqual({ uuid: 'Actor.abc123', type: 'Actor', world: 'sorvan', name: 'Ilvara' });
   });
 
   it('guesses the type from the uuid when fvtt_type is missing', () => {

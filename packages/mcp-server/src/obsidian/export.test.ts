@@ -27,7 +27,7 @@ import { allocateNotePaths } from './mirror-paths.js';
 import { SEEN_INDEX_FILE, type SeenIndex } from './seen-in.js';
 import { cell, frontmatter, renderCampaignHome, safeFileName } from './render.js';
 
-const WORLD = 'strahd-test';
+const WORLD = 'sorvan-test';
 let dataDir: string;
 let vaultDir: string;
 let store: VaultStore;
@@ -60,7 +60,7 @@ async function seed(): Promise<void> {
       id: 'e1',
       timestamp: '2026-09-28T09:10:00.000Z',
       eventType: 'journal-created',
-      actorName: 'Ireena',
+      actorName: 'Ilvara',
       description: 'Journal entry created: "Tarokka reading"',
     },
     {
@@ -68,8 +68,8 @@ async function seed(): Promise<void> {
       timestamp: '2026-09-28T09:20:00.000Z',
       eventType: 'scene-change',
       actorName: null,
-      description: 'Scene changed to "Village of Barovia"',
-      details: { sceneId: 's1', sceneName: 'Village of Barovia' },
+      description: 'Scene changed to "Village of Maravia"',
+      details: { sceneId: 's1', sceneName: 'Village of Maravia' },
     },
     {
       id: 'e3',
@@ -268,7 +268,7 @@ describe('exportWorldToObsidian', () => {
     expect(s1).toContain('started_by: "marker"');
     expect(s1).toContain('ended_by: "marker"');
     expect(s1).toContain('events: 5');
-    expect(s1).toContain('scenes:\n  - "Village of Barovia"');
+    expect(s1).toContain('scenes:\n  - "Village of Maravia"');
     expect(s1).toContain('[chg-1](../Changes/2026-09.md#^chg-1)');
     // O3: no play records were seeded, so every play-log property is zero and
     // the Stats section says so plainly, but the properties are still there.
@@ -493,7 +493,7 @@ describe('exportWorldToObsidian', () => {
     const legacy = [
       '---',
       'type: "tarokka-reading"',
-      'world: "strahd-test"',
+      'world: "sorvan-test"',
       'generated: true',
       '---',
       '# Tarokka reading',
@@ -543,7 +543,7 @@ describe('exportWorldToObsidian', () => {
         [
           '---',
           'type: "session"',
-          'fvtt_world: "strahd-test"',
+          'fvtt_world: "sorvan-test"',
           'generated_by: "foundry-ai-tool"',
           'generated_hash: ""',
           '---',
@@ -638,7 +638,7 @@ describe('session notes in Foundry (D-087)', () => {
     await store.write(WORLD, 'gm', 'session-notes.rec-1.json', {
       sessionId: 'rec-1',
       date,
-      title: 'Vejen til Barovia',
+      title: 'Vejen til Maravia',
       languages: ['da', 'en'],
       pages: [],
       stagedAt: '2026-09-29T06:00:00.000Z',
@@ -663,7 +663,7 @@ describe('session notes in Foundry (D-087)', () => {
 
     await run();
     expect(await note('AI Tool/Sessions/2026-09-28 S01.md')).toContain(
-      `## Session notes\n\n- Vejen til Barovia: in Foundry, journal "${date}: Vejen til Barovia" (no mirror note yet)`
+      `## Session notes\n\n- Vejen til Maravia: in Foundry, journal "${date}: Vejen til Maravia" (no mirror note yet)`
     );
 
     // The mirror follows Foundry's folders (I-100): the journal sits in the "Session notes"
@@ -671,7 +671,7 @@ describe('session notes in Foundry (D-087)', () => {
     const folder = 'AI Tool/Foundry/Journals/Session notes';
     const journals = path.join(campaignDir(vaultDir, WORLD), folder);
     await fsp.mkdir(journals, { recursive: true });
-    const stem = safeFileName(`${date}: Vejen til Barovia`);
+    const stem = safeFileName(`${date}: Vejen til Maravia`);
     await fsp.writeFile(
       path.join(journals, `${stem}.md`),
       '---\nfvtt_uuid: "JournalEntry.other"\n---\n'
@@ -682,7 +682,7 @@ describe('session notes in Foundry (D-087)', () => {
           uuid: JOURNAL,
           id: 'jjjjjjjjjjjjjjjj',
           folder,
-          name: `${date}: Vejen til Barovia`,
+          name: `${date}: Vejen til Maravia`,
           created: null,
         },
       ],
@@ -701,7 +701,7 @@ describe('session notes in Foundry (D-087)', () => {
       .split('/')
       .map(encodeURIComponent)
       .join('/');
-    expect(s1).toContain(`- [Vejen til Barovia](${rel})`);
+    expect(s1).toContain(`- [Vejen til Maravia](${rel})`);
     expect(rel).toMatch(/^\.\.\/Foundry\/Journals\/Session%20notes\/.+%20\([a-z0-9]{6}\)\.md$/);
   });
 
@@ -710,7 +710,7 @@ describe('session notes in Foundry (D-087)', () => {
     await run();
     const date = /\ndate: "([^"]+)"/.exec(await note('AI Tool/Sessions/2026-09-28 S01.md'))![1];
     await stageInFoundry(date);
-    const flat = `AI Tool/Foundry/Journals/${safeFileName(`${date}: Vejen til Barovia`)}.md`;
+    const flat = `AI Tool/Foundry/Journals/${safeFileName(`${date}: Vejen til Maravia`)}.md`;
     await fsp.mkdir(path.dirname(path.join(campaignDir(vaultDir, WORLD), flat)), {
       recursive: true,
     });
@@ -726,7 +726,7 @@ describe('session notes in Foundry (D-087)', () => {
       .map(encodeURIComponent)
       .join('/');
     expect(await note('AI Tool/Sessions/2026-09-28 S01.md')).toContain(
-      `- [Vejen til Barovia](${rel})`
+      `- [Vejen til Maravia](${rel})`
     );
     expect(rel).toMatch(/^\.\.\/Foundry\/Journals\/[^/]+\.md$/);
   });
@@ -754,7 +754,7 @@ describe('render helpers', () => {
   });
 
   it('makes file names safe (reserved names, link-breaking characters, collisions handled by callers)', () => {
-    expect(safeFileName('Castle Ravenloft: K1 #2')).toBe('Castle Ravenloft K1 2');
+    expect(safeFileName('Castle Greywatch: K1 #2')).toBe('Castle Greywatch K1 2');
     expect(safeFileName('con')).toBe('_con');
     expect(safeFileName('  ')).toBe('_untitled');
     expect(safeFileName('a/b\\c|d?e*f<g>h"i')).toBe('a b c d e f g h i');
@@ -774,7 +774,7 @@ describe('obsidian CLI', () => {
     expect(await runObsidianCli(['export'], io)).toBe(2);
     expect(err[0]).toMatch(/No Obsidian vault/);
     expect(await runObsidianCli(['export', '--vault', vaultDir], io)).toBe(0);
-    expect(out[0]).toMatch(/^strahd-test: 12 written, 0 unchanged, 7 created/);
+    expect(out[0]).toMatch(/^sorvan-test: 12 written, 0 unchanged, 7 created/);
     expect(await runObsidianCli(['nope'], io)).toBe(2);
   });
 
@@ -804,10 +804,10 @@ describe('obsidian CLI', () => {
 });
 
 describe('O3 play-log export (Stats/, session Stats section)', () => {
-  const PLAY_WORLD = 'strahd-play';
+  const PLAY_WORLD = 'sorvan-play';
   const T0 = Date.parse('2026-10-01T12:00:00.000Z');
-  const IREENA: PlayActorRef = { uuid: 'Actor.pc1', isPC: true, name: 'Ireena Kolyana' };
-  const RAHADIN: PlayActorRef = { uuid: 'Actor.npc1', isPC: false, name: 'Rahadin' };
+  const ILVARA: PlayActorRef = { uuid: 'Actor.pc1', isPC: true, name: 'Ilvara Dunmere' };
+  const RAVELIN: PlayActorRef = { uuid: 'Actor.npc1', isPC: false, name: 'Ravelin' };
 
   function richPlayLog(): PlayRecord[] {
     return [
@@ -829,7 +829,7 @@ describe('O3 play-log export (Stats/, session Stats section)', () => {
         kind: 'scene',
         userId: null,
         sceneId: 'scene1',
-        data: { sceneName: 'Village of Barovia', active: true },
+        data: { sceneName: 'Village of Maravia', active: true },
       },
       {
         v: 2,
@@ -849,7 +849,7 @@ describe('O3 play-log export (Stats/, session Stats section)', () => {
         kind: 'combat-turn',
         userId: null,
         sceneId: 'scene1',
-        actor: IREENA,
+        actor: ILVARA,
         combat: { id: 'combat1', round: 1, turn: 0 },
       },
       {
@@ -860,7 +860,7 @@ describe('O3 play-log export (Stats/, session Stats section)', () => {
         kind: 'roll',
         userId: 'user1',
         sceneId: 'scene1',
-        actor: IREENA,
+        actor: ILVARA,
         combat: { id: 'combat1', round: 1, turn: 0 },
         roll: {
           formula: '1d20+5',
@@ -883,7 +883,7 @@ describe('O3 play-log export (Stats/, session Stats section)', () => {
         kind: 'roll',
         userId: 'user1',
         sceneId: 'scene1',
-        actor: IREENA,
+        actor: ILVARA,
         combat: { id: 'combat1', round: 1, turn: 0 },
         roll: {
           formula: '2d6+3',
@@ -905,7 +905,7 @@ describe('O3 play-log export (Stats/, session Stats section)', () => {
         kind: 'hp',
         userId: null,
         sceneId: 'scene1',
-        actor: RAHADIN,
+        actor: RAVELIN,
         combat: { id: 'combat1', round: 1, turn: 0 },
         path: 'system.attributes.hp.value',
         before: 13,
@@ -921,7 +921,7 @@ describe('O3 play-log export (Stats/, session Stats section)', () => {
         kind: 'combat-turn',
         userId: null,
         sceneId: 'scene1',
-        actor: RAHADIN,
+        actor: RAVELIN,
         combat: { id: 'combat1', round: 1, turn: 1 },
       },
       {
@@ -932,7 +932,7 @@ describe('O3 play-log export (Stats/, session Stats section)', () => {
         kind: 'combat-turn',
         userId: null,
         sceneId: 'scene1',
-        actor: IREENA,
+        actor: ILVARA,
         combat: { id: 'combat1', round: 2, turn: 0 },
       },
       {
@@ -953,7 +953,7 @@ describe('O3 play-log export (Stats/, session Stats section)', () => {
         kind: 'roll',
         userId: 'user1',
         sceneId: 'scene1',
-        actor: IREENA,
+        actor: ILVARA,
         roll: {
           formula: '1d8+3',
           total: 7,
@@ -973,7 +973,7 @@ describe('O3 play-log export (Stats/, session Stats section)', () => {
         kind: 'hp',
         userId: null,
         sceneId: 'scene1',
-        actor: IREENA,
+        actor: ILVARA,
         path: 'system.attributes.hp.value',
         before: 5,
         after: 12,
@@ -988,7 +988,7 @@ describe('O3 play-log export (Stats/, session Stats section)', () => {
         kind: 'item-use',
         userId: 'user1',
         sceneId: 'scene1',
-        actor: IREENA,
+        actor: ILVARA,
         item: { uuid: 'Item.spell1', name: 'Cure Wounds', type: 'spell' },
         data: { spellLevel: 1 },
         source: { messageId: 'msg-spell-1' },
@@ -1001,7 +1001,7 @@ describe('O3 play-log export (Stats/, session Stats section)', () => {
         kind: 'slot',
         userId: null,
         sceneId: 'scene1',
-        actor: IREENA,
+        actor: ILVARA,
         path: 'system.spells.spell1.value',
         before: 4,
         after: 3,
@@ -1015,7 +1015,7 @@ describe('O3 play-log export (Stats/, session Stats section)', () => {
         kind: 'currency',
         userId: null,
         sceneId: 'scene1',
-        actor: IREENA,
+        actor: ILVARA,
         path: 'system.currency.gp',
         before: 10,
         after: 25,
@@ -1029,7 +1029,7 @@ describe('O3 play-log export (Stats/, session Stats section)', () => {
         kind: 'xp',
         userId: null,
         sceneId: 'scene1',
-        actor: IREENA,
+        actor: ILVARA,
         path: 'system.details.xp.value',
         before: 100,
         after: 250,
@@ -1043,7 +1043,7 @@ describe('O3 play-log export (Stats/, session Stats section)', () => {
         kind: 'item-create',
         userId: null,
         sceneId: 'scene1',
-        actor: IREENA,
+        actor: ILVARA,
         item: { uuid: 'Item.loot1', name: 'Ring of <%* app.vault.delete() %>', type: 'loot' },
         after: 1,
       },
@@ -1078,9 +1078,9 @@ describe('O3 play-log export (Stats/, session Stats section)', () => {
     expect(session).toContain('npc_kills: 1');
     expect(session).toContain('spells_cast: 1');
     expect(session).toContain('spell_slots_spent: 1');
-    expect(session).toContain('### Combat 1 (Village of Barovia)');
+    expect(session).toContain('### Combat 1 (Village of Maravia)');
     expect(session).toContain('Rounds: 2');
-    expect(session).toContain('Kills: Rahadin');
+    expect(session).toContain('Kills: Ravelin');
 
     const campaign = await fsp.readFile(
       path.join(campaignDir(vaultDir, PLAY_WORLD), 'AI Tool/Stats/Campaign.md'),
@@ -1089,15 +1089,15 @@ describe('O3 play-log export (Stats/, session Stats section)', () => {
     expect(campaign).toMatch(/^---\ntype: "campaign-stats"\n/);
     expect(campaign).toContain('sessions: 1');
     expect(campaign).toContain('npc_kills: 1');
-    expect(campaign).toContain('Ireena Kolyana');
+    expect(campaign).toContain('Ilvara Dunmere');
     // Each row links its note, so the stats, session and PC notes are not loose in the graph.
-    expect(campaign).toContain('| [Ireena Kolyana](PCs/Ireena%20Kolyana.md) |');
+    expect(campaign).toContain('| [Ilvara Dunmere](PCs/Ilvara%20Dunmere.md) |');
     const sessionLink = campaign.match(/\| \[(\S+) (S\d+)\]\(\.\.\/Sessions\/\1%20\2\.md\) \|/);
     expect(sessionLink).not.toBeNull();
     expect(result.written).toContain(`AI Tool/Sessions/${sessionLink?.[1]} ${sessionLink?.[2]}.md`);
 
     const pc = await fsp.readFile(
-      path.join(campaignDir(vaultDir, PLAY_WORLD), 'AI Tool/Stats/PCs/Ireena Kolyana.md'),
+      path.join(campaignDir(vaultDir, PLAY_WORLD), 'AI Tool/Stats/PCs/Ilvara Dunmere.md'),
       'utf8'
     );
     expect(pc).toMatch(/^---\ntype: "pc-stats"\n/);
@@ -1127,10 +1127,10 @@ describe('O3 play-log export (Stats/, session Stats section)', () => {
     expect(label).toBeDefined();
     const first = await store.read<SeenIndex>(PLAY_WORLD, 'gm', SEEN_INDEX_FILE);
     expect(first?.data.v).toBe(1);
-    expect(first?.data.actors[RAHADIN.uuid]).toEqual([label]);
+    expect(first?.data.actors[RAVELIN.uuid]).toEqual([label]);
     expect(first?.data.scenes['Scene.scene1']).toEqual([label]);
     // Every world actor is indexed (the mirror shows no list on PC notes).
-    expect(first?.data.actors[IREENA.uuid]).toEqual([label]);
+    expect(first?.data.actors[ILVARA.uuid]).toEqual([label]);
 
     const write = vi.spyOn(store, 'write');
     await run();
@@ -1189,7 +1189,7 @@ describe('O3 play-log export (Stats/, session Stats section)', () => {
         kind: 'item-create',
         userId: null,
         sceneId: null,
-        actor: IREENA,
+        actor: ILVARA,
         item: { uuid: 'Item.loot1', name: 'A Torch', type: 'loot' },
         after: 1,
       },
@@ -1202,14 +1202,14 @@ describe('O3 play-log export (Stats/, session Stats section)', () => {
     });
     expect(
       await fsp
-        .stat(path.join(campaignDir(vaultDir, PLAY_WORLD), 'AI Tool/Stats/PCs/Ireena Kolyana.md'))
+        .stat(path.join(campaignDir(vaultDir, PLAY_WORLD), 'AI Tool/Stats/PCs/Ilvara Dunmere.md'))
         .then(
           () => true,
           () => false
         )
     ).toBe(true);
 
-    // The play log now names a different PC; Ireena's own note is pruned.
+    // The play log now names a different PC; Ilvara's own note is pruned.
     await fsp.writeFile(
       store.filePath(PLAY_WORLD, 'sessions', '2026-10-01.play.jsonl'),
       `${JSON.stringify({
@@ -1232,7 +1232,7 @@ describe('O3 play-log export (Stats/, session Stats section)', () => {
       worldId: PLAY_WORLD,
       vaultDir,
     });
-    expect(again.trashed).toContain('AI Tool/Stats/PCs/Ireena Kolyana.md');
+    expect(again.trashed).toContain('AI Tool/Stats/PCs/Ilvara Dunmere.md');
     expect(
       await fsp
         .stat(
@@ -1241,7 +1241,7 @@ describe('O3 play-log export (Stats/, session Stats section)', () => {
             '.trash',
             'Campaigns',
             PLAY_WORLD,
-            'AI Tool/Stats/PCs/Ireena Kolyana.md'
+            'AI Tool/Stats/PCs/Ilvara Dunmere.md'
           )
         )
         .then(
@@ -1304,7 +1304,7 @@ describe('O3 play-log export (Stats/, session Stats section)', () => {
     // exporter loads every play-log file (`loadPlayRecords`) before grouping,
     // so the two records here (5 minutes apart, well under the 3h session gap)
     // must still land in the same session group and the same session note.
-    const MIDNIGHT_WORLD = 'strahd-midnight';
+    const MIDNIGHT_WORLD = 'sorvan-midnight';
     const midnightLocal = new Date(2026, 8, 29, 0, 0, 0).getTime(); // local midnight
     const beforeMidnight = midnightLocal - 5 * 60 * 1000; // 23:55, local Sep 28
     const afterMidnight = midnightLocal + 5 * 60 * 1000; // 00:05, local Sep 29

@@ -95,8 +95,8 @@ describe('getCharacterInfo — rules version (2014 vs 2024)', () => {
   it('reports the stored tag and the current detection', async () => {
     world.actors.add(
       makeActor({
-        id: 'strahd1',
-        name: 'Strahd',
+        id: 'sorvan1',
+        name: 'Sorvan',
         type: 'npc',
         system: { source: { rules: '2014' } },
         flags: {
@@ -107,7 +107,7 @@ describe('getCharacterInfo — rules version (2014 vs 2024)', () => {
       })
     );
 
-    const info = await da.getCharacterInfo('Strahd');
+    const info = await da.getCharacterInfo('Sorvan');
 
     expect(info.rulesVersion).toEqual({
       tagged: { version: '2014', source: 'system.source.rules', at: '2026-09-27T00:00:00Z' },
@@ -127,14 +127,14 @@ describe('getCharacterInfo — rules version (2014 vs 2024)', () => {
 describe('getCharacterInfo: a token on the current scene', () => {
   /** A world NPC plus `count` unlinked tokens from it, each with its own synthetic copy. */
   function bossOnScene(count: number, tokenName = 'Boss Token'): void {
-    world.actors.add(makeActor({ id: 'strahd', name: 'Boss', type: 'npc' }));
+    world.actors.add(makeActor({ id: 'sorvan', name: 'Boss', type: 'npc' }));
     const tokens = Array.from({ length: count }, (_, i) =>
       makeToken({
         id: `tok${i}`,
         name: count === 1 ? tokenName : `${tokenName} ${i + 1}`,
-        actorId: 'strahd',
+        actorId: 'sorvan',
         actorLink: false,
-        actor: makeActor({ id: 'strahd', name: `Boss copy ${i}`, type: 'npc' }),
+        actor: makeActor({ id: 'sorvan', name: `Boss copy ${i}`, type: 'npc' }),
       })
     );
     world.addScene({ id: 's1', active: true, tokens });

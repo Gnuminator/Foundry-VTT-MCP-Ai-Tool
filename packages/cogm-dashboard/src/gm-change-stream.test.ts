@@ -17,8 +17,8 @@ function gmChange(id: string): SessionEvent {
     eventType: 'gm-change',
     actorName: null,
     actorId: null,
-    description: 'Applied: Strahd attention in Vallaki 2 -> 3',
-    details: { changeId: 'chg-1', feature: 'strahd-attention', mode: 'apply' },
+    description: 'Applied: Sorvan attention in Valmere 2 -> 3',
+    details: { changeId: 'chg-1', feature: 'sorvan-attention', mode: 'apply' },
   };
 }
 
@@ -26,9 +26,9 @@ function damage(id: string): SessionEvent {
   return {
     ...gmChange(id),
     eventType: 'damage',
-    description: 'Ireena took 4 damage',
+    description: 'Ilvara took 4 damage',
     details: { amount: 4 },
-    visibility: { subject: 'pc', tokenVisible: true, playerName: 'Ireena' },
+    visibility: { subject: 'pc', tokenVisible: true, playerName: 'Ilvara' },
   };
 }
 
@@ -71,10 +71,10 @@ describe('gm-change events', () => {
     const gmText = gm.frames.join('');
     const playerText = player.frames.join('');
     expect(gmText).toContain('gm-change');
-    expect(gmText).toContain('Strahd attention');
-    expect(playerText).not.toContain('Ireena');
+    expect(gmText).toContain('Sorvan attention');
+    expect(playerText).not.toContain('Ilvara');
     expect(playerText).not.toContain('gm-change');
-    expect(playerText).not.toContain('Strahd');
+    expect(playerText).not.toContain('Sorvan');
     expect(playerText).not.toContain('chg-1');
   });
 });

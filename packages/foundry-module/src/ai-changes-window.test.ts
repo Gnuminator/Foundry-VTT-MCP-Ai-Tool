@@ -59,7 +59,7 @@ function planView(over: Record<string, unknown> = {}): Record<string, unknown> {
     summary: 'Undo: Change c1',
     scope: 'just-this',
     count: 1,
-    diff: [{ kind: 'update', text: 'Actor "Ireena": HP 5 -> 10' }],
+    diff: [{ kind: 'update', text: 'Actor "Ilvara": HP 5 -> 10' }],
     later: [],
     requires: { confirm: true, confirmDestructive: false },
     ...over,
@@ -101,7 +101,7 @@ function makeDeps(
     }),
     users: () => [
       { id: 'u1', name: 'Danni' },
-      { id: 'u2', name: 'Ireena' },
+      { id: 'u2', name: 'Ilvara' },
     ],
     ask: vi.fn((_spec: DialogSpec) => Promise.resolve(queue.shift() ?? 'cancel')),
     notifyInfo: vi.fn(),
@@ -124,7 +124,7 @@ describe('AiChangesController: loading', () => {
     expect(deps.request).toHaveBeenCalledWith('list-changes', { limit: 20 });
     expect(c.view).toMatchObject({ status: 'ready', legacy: false, filter: 'all' });
     expect(c.view.rows.map(r => r.id)).toEqual(['c1', 'c2']);
-    expect(c.view.users.map(u => u.name)).toEqual(['Danni', 'Ireena']);
+    expect(c.view.users.map(u => u.name)).toEqual(['Danni', 'Ilvara']);
     expect(changed).toHaveBeenCalledTimes(2); // loading, then ready
   });
 
@@ -375,7 +375,7 @@ describe('AiChangesController: undo', () => {
   it("shows the backend's conflict message as it is, then reloads", async () => {
     const deps = makeDeps(['yes'], {
       'apply-planned-change': () => {
-        throw new Error('Ireena was edited since the plan; nothing was changed');
+        throw new Error('Ilvara was edited since the plan; nothing was changed');
       },
     });
     const c = await loaded(deps);
@@ -383,7 +383,7 @@ describe('AiChangesController: undo', () => {
     await c.undo('c1');
 
     expect(deps.notifyError).toHaveBeenCalledWith(
-      'Ireena was edited since the plan; nothing was changed'
+      'Ilvara was edited since the plan; nothing was changed'
     );
     expect(deps.notifyInfo).not.toHaveBeenCalled();
     expect(deps.request).toHaveBeenLastCalledWith('list-changes', { limit: 20 });
@@ -405,7 +405,7 @@ describe('AiChangesController: undo', () => {
   });
 
   it('later changes: "Just this" shows the just-this diff, confirms, and applies that plan', async () => {
-    const later = [{ id: 'act:z', at, by: 'Danni', summary: 'Ireena: HP 5 -> 3' }];
+    const later = [{ id: 'act:z', at, by: 'Danni', summary: 'Ilvara: HP 5 -> 3' }];
     const deps = makeDeps(['just-this', 'yes'], {
       'plan-undo-changes': () => planView({ later }),
     });
@@ -415,7 +415,7 @@ describe('AiChangesController: undo', () => {
 
     const first = deps.ask.mock.calls[0]?.[0] as DialogSpec;
     expect(first.content).toContain('This is not the latest change');
-    expect(first.content).toContain('Danni: Ireena: HP 5 -&gt; 3');
+    expect(first.content).toContain('Danni: Ilvara: HP 5 -&gt; 3');
     expect(first.buttons.map(b => b.label)).toEqual(['Just this', 'Everything since', 'Cancel']);
     expect(first.content).toContain('data-choice="rewind"');
     expect((deps.ask.mock.calls[1]?.[0] as DialogSpec).content).toContain('HP 5 -&gt; 10');

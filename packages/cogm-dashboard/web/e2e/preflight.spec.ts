@@ -19,8 +19,8 @@ const CHECKS = [
 ];
 
 const SCAN = {
-  settings: [{ setting: 'core.worldTitle', masked: 'shown', reason: 'names Ravenloft' }],
-  names: [{ kind: 'Actor', name: 'Strahd', terms: ['Strahd', 'vampire'] }],
+  settings: [{ setting: 'core.worldTitle', masked: 'shown', reason: 'names Greywatch' }],
+  names: [{ kind: 'Actor', name: 'Sorvan', terms: ['Sorvan', 'vampire'] }],
   modules: [{ title: 'Spoiler Module', reason: 'shows hidden tokens' }],
 };
 
@@ -94,8 +94,8 @@ test('the findings fold away and stay open across a new run', async ({ page }) =
   const findings = drawer.locator('details.preflight-findings');
   await findings.getByText('3 finding(s)').click();
   await expect(findings.getByRole('listitem')).toHaveText([
-    'core.worldTitle shown: names Ravenloft',
-    'Actor "Strahd" names Strahd, vampire',
+    'core.worldTitle shown: names Greywatch',
+    'Actor "Sorvan" names Sorvan, vampire',
     'Spoiler Module: shows hidden tokens',
   ]);
   await expect(findings.locator('code')).toHaveText('core.worldTitle');

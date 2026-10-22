@@ -57,11 +57,11 @@ async function fakePlayerLinks(
 const twoPlayers = (): FakePlayer[] => [
   {
     userId: 'aaaaaaaaaaaaaaaa',
-    name: 'Ireena',
+    name: 'Ilvara',
     link: '/me?k=old',
     createdAt: Date.UTC(2026, 9, 1),
   },
-  { userId: 'bbbbbbbbbbbbbbbb', name: 'Ismark', link: null, createdAt: null },
+  { userId: 'bbbbbbbbbbbbbbbb', name: 'Ivarro', link: null, createdAt: null },
 ];
 
 async function openLinks(page: Page): Promise<void> {
@@ -101,14 +101,14 @@ test('lists the players with their link state, sending the GM token', async ({ p
   const seen = await fakePlayerLinks(page, twoPlayers());
   await openLinks(page);
 
-  await expect(row(page, 'Ireena')).toContainText('link made');
-  await expect(row(page, 'Ireena').getByRole('button')).toHaveText([
+  await expect(row(page, 'Ilvara')).toContainText('link made');
+  await expect(row(page, 'Ilvara').getByRole('button')).toHaveText([
     'Copy link',
     'New link',
     'Remove',
   ]);
-  await expect(row(page, 'Ismark')).toContainText('no link');
-  await expect(row(page, 'Ismark').getByRole('button')).toHaveText(['Make link']);
+  await expect(row(page, 'Ivarro')).toContainText('no link');
+  await expect(row(page, 'Ivarro').getByRole('button')).toHaveText(['Make link']);
   expect(seen[0]?.headers()['x-cogm-token']).toBe(GM_TOKEN);
 });
 
@@ -116,9 +116,9 @@ test('Make link makes one, copies it and updates the row', async ({ page }) => {
   const seen = await fakePlayerLinks(page, twoPlayers());
   await openLinks(page);
 
-  await row(page, 'Ismark').getByRole('button', { name: 'Make link' }).click();
+  await row(page, 'Ivarro').getByRole('button', { name: 'Make link' }).click();
   await expect(toast(page, '✓ Link copied. Send it to that player only.')).toBeVisible();
-  await expect(row(page, 'Ismark').getByRole('button', { name: 'Copy link' })).toBeVisible();
+  await expect(row(page, 'Ivarro').getByRole('button', { name: 'Copy link' })).toBeVisible();
   const post = seen.find(r => r.method() === 'POST');
   expect(post?.url()).toContain('/api/player-links/bbbbbbbbbbbbbbbb');
   expect(post?.headers()['x-cogm-token']).toBe(GM_TOKEN);
@@ -131,11 +131,11 @@ test('Copy link and New link copy the full address', async ({ page }) => {
   await fakePlayerLinks(page, twoPlayers());
   await openLinks(page);
 
-  await row(page, 'Ireena').getByRole('button', { name: 'Copy link' }).click();
+  await row(page, 'Ilvara').getByRole('button', { name: 'Copy link' }).click();
   await expect(toast(page, '✓ Link copied. Send it to that player only.')).toBeVisible();
   expect(await page.evaluate(() => navigator.clipboard.readText())).toMatch(/\/me\?k=old$/);
 
-  await row(page, 'Ireena').getByRole('button', { name: 'New link' }).click();
+  await row(page, 'Ilvara').getByRole('button', { name: 'New link' }).click();
   await expect
     .poll(() => page.evaluate(() => navigator.clipboard.readText()))
     .toMatch(/\/me\?k=key1$/);
@@ -145,9 +145,9 @@ test('Remove turns the link off', async ({ page }) => {
   const seen = await fakePlayerLinks(page, twoPlayers());
   await openLinks(page);
 
-  await row(page, 'Ireena').getByRole('button', { name: 'Remove' }).click();
+  await row(page, 'Ilvara').getByRole('button', { name: 'Remove' }).click();
   await expect(toast(page, '✓ Link removed. It no longer opens anything.')).toBeVisible();
-  await expect(row(page, 'Ireena')).toContainText('no link');
+  await expect(row(page, 'Ilvara')).toContainText('no link');
   expect(seen.some(r => r.method() === 'DELETE' && r.url().endsWith('/aaaaaaaaaaaaaaaa'))).toBe(
     true
   );
@@ -170,7 +170,7 @@ test('a failed list shows the server message', async ({ page }) => {
 test('a failed write shows an error toast', async ({ page }) => {
   await fakePlayerLinks(page, twoPlayers(), { failWrite: 'Not a player of this world.' });
   await openLinks(page);
-  await row(page, 'Ismark').getByRole('button', { name: 'Make link' }).click();
+  await row(page, 'Ivarro').getByRole('button', { name: 'Make link' }).click();
   await expect(toast(page, '✗ Not a player of this world.')).toBeVisible();
 });
 

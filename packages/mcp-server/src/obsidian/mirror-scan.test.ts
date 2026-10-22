@@ -21,7 +21,7 @@ import {
 import { campaignDir } from './note-writer.js';
 import { withGeneratedHash } from './ownership.js';
 
-const WORLD = 'strahd-test';
+const WORLD = 'sorvan-test';
 /** Built at run time so the source has no invisible or ambiguous characters. */
 const EACUTE = String.fromCharCode(0xe9);
 const EACUTE_UPPER = String.fromCharCode(0xc9);
@@ -114,7 +114,7 @@ describe('scanCampaign: mirror notes', () => {
       uuid: 'Actor.wolf',
       name: 'Wolf',
       sig: 's-wolf',
-      folder: 'Curse of Strahd/Wolves',
+      folder: 'Curse of Sorvan/Wolves',
     };
     const hero: NoteSpec = { type: 'pc', uuid: 'Actor.hero', name: 'Hero' };
     const bear: NoteSpec = { type: 'npc', uuid: 'Actor.bear', name: 'Bear' };
@@ -184,15 +184,15 @@ describe('scanCampaign: mirror notes', () => {
       name: 'Arrival',
       journal: 'JournalEntry.J1',
     };
-    const journal: NoteSpec = { type: 'journal', uuid: 'JournalEntry.J1', name: 'Barovia' };
-    await put('AI Tool/Foundry/Journals/Barovia.md', mirrorText(journal));
-    await put('AI Tool/Foundry/Journals/Barovia/Arrival.md', mirrorText(page));
+    const journal: NoteSpec = { type: 'journal', uuid: 'JournalEntry.J1', name: 'Maravia' };
+    await put('AI Tool/Foundry/Journals/Maravia.md', mirrorText(journal));
+    await put('AI Tool/Foundry/Journals/Maravia/Arrival.md', mirrorText(page));
     const scan = await scanCampaign(vault, WORLD);
     expect([...scan.mirror.keys()]).toEqual(['JournalEntry.J1']);
     expect([...scan.pages.entries()]).toEqual([
       [
         'JournalEntry.J1.JournalEntryPage.P1',
-        note('AI Tool/Foundry/Journals/Barovia/Arrival.md', page, { inside: true, owned: true }),
+        note('AI Tool/Foundry/Journals/Maravia/Arrival.md', page, { inside: true, owned: true }),
       ],
     ]);
     expect(scan.pages.get(page.uuid)?.journalUuid).toBe('JournalEntry.J1');

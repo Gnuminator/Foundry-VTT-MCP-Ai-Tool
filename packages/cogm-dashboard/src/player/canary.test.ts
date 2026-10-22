@@ -23,7 +23,7 @@ const GM_TOKEN = 'gm-token-for-the-canary-suite';
 
 /** Unique strings standing for GM secrets; none may reach a player. */
 const CANARY = {
-  trueName: 'CANARY-TRUE-NAME-strahd',
+  trueName: 'CANARY-TRUE-NAME-sorvan',
   hiddenToken: 'CANARY-HIDDEN-TOKEN',
   hiddenCombatant: 'CANARY-HIDDEN-COMBATANT',
   blindRoll: 'CANARY-BLIND-ROLL',
@@ -78,7 +78,7 @@ const visibility: PlayerVisibility = {
   scene: { id: 's1', name: 'Village square' },
   tokens: [
     { tokenId: 't-npc', actorId: 'a-npc', name: 'Hooded figure', pc: false },
-    { tokenId: 't-pc', actorId: 'a-pc', name: 'Ireena', pc: true },
+    { tokenId: 't-pc', actorId: 'a-pc', name: 'Ilvara', pc: true },
   ],
 };
 
@@ -91,7 +91,7 @@ const fakeClient = {
     const answers: Record<string, unknown> = {
       'get-world-info': {
         id: CANARY.worldId,
-        title: 'Barovia',
+        title: 'Maravia',
         system: { id: 'dnd5e', version: '6.0.5' },
         foundry: { version: '14.368' },
         activeUsers: [{ name: CANARY.gmName, isGM: true }],
@@ -141,7 +141,7 @@ function event(id: string, over: Partial<SessionEvent>): SessionEvent {
   };
 }
 
-const pcSeen = { subject: 'pc', tokenVisible: true, playerName: 'Ireena' } as const;
+const pcSeen = { subject: 'pc', tokenVisible: true, playerName: 'Ilvara' } as const;
 const npcSeen = { subject: 'npc', tokenVisible: true, playerName: 'Hooded figure' } as const;
 
 const events: SessionEvent[] = [
@@ -190,8 +190,8 @@ const events: SessionEvent[] = [
   }),
   event('effect', {
     eventType: 'condition-applied',
-    actorName: 'Ireena',
-    description: `Ireena gained "${CANARY.effect}"`,
+    actorName: 'Ilvara',
+    description: `Ilvara gained "${CANARY.effect}"`,
     details: { effectName: CANARY.effect },
     visibility: { ...pcSeen, statuses: [CANARY.effect] },
   }),
@@ -207,12 +207,12 @@ const events: SessionEvent[] = [
     },
   }),
   event('old-module', {
-    description: `Ireena took 2 damage ${CANARY.oldModule}`,
+    description: `Ilvara took 2 damage ${CANARY.oldModule}`,
     details: { note: CANARY.oldModule },
   }),
   event('pc-hit', {
-    actorName: 'Ireena',
-    description: 'Ireena took 4 damage',
+    actorName: 'Ilvara',
+    description: 'Ilvara took 4 damage',
     details: { amount: 4 },
     visibility: pcSeen,
   }),

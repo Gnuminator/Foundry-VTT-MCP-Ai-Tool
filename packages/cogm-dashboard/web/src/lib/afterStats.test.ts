@@ -10,7 +10,7 @@ import {
 } from './afterStats';
 
 const STATS: PlayStats = {
-  pcs: [{ name: 'Ireena' }, { name: 'Ismark' }],
+  pcs: [{ name: 'Ilvara' }, { name: 'Ivarro' }],
   session: {
     label: 'Session 3',
     durationMin: 185,
@@ -18,10 +18,10 @@ const STATS: PlayStats = {
     rolls: 142,
     crits: 3,
     fumbles: 1,
-    highestRoll: { total: 27, name: 'Ireena', label: 'Perception' },
+    highestRoll: { total: 27, name: 'Ilvara', label: 'Perception' },
     combats: [
-      { damageDealt: { Ireena: 20, Ismark: 8, Wolf: 99 }, downs: ['Ismark'] },
-      { damageDealt: { Ireena: 15 }, downs: [] },
+      { damageDealt: { Ilvara: 20, Ivarro: 8, Wolf: 99 }, downs: ['Ivarro'] },
+      { damageDealt: { Ilvara: 15 }, downs: [] },
     ],
   },
 };
@@ -34,18 +34,18 @@ describe('summarizeSession', () => {
 
   it('sums a hero’s damage over the fights and ignores monsters', () => {
     const s = summarizeSession(STATS);
-    expect(s?.mostDamage).toEqual({ name: 'Ireena', amount: 35, fights: 2 });
+    expect(s?.mostDamage).toEqual({ name: 'Ilvara', amount: 35, fights: 2 });
     expect(s?.fights).toBe(2);
     expect(s).toMatchObject({ rolls: 142, nat20: 3, nat1: 1, durationMin: 185 });
   });
 
   it('counts downs per fight on an older bridge, and uses pcDownsByName when it has it', () => {
-    expect(summarizeSession(STATS)?.downs).toEqual([['Ismark', 1]]);
+    expect(summarizeSession(STATS)?.downs).toEqual([['Ivarro', 1]]);
     const withMap = {
       ...STATS,
-      session: { ...STATS.session, pcDownsByName: { Ireena: 2, Ismark: 0 } },
+      session: { ...STATS.session, pcDownsByName: { Ilvara: 2, Ivarro: 0 } },
     };
-    expect(summarizeSession(withMap)?.downs).toEqual([['Ireena', 2]]);
+    expect(summarizeSession(withMap)?.downs).toEqual([['Ilvara', 2]]);
   });
 
   it('has no most damage when no hero dealt any', () => {
@@ -61,8 +61,8 @@ describe('statsForDiscord', () => {
       [
         '**Session 3** (3 h 5 min)',
         'Rolls: 142 (3 natural 20s, 1 natural 1)',
-        'Most damage: Ireena, 35 hp over 2 fights',
-        'Went down: Ismark once',
+        'Most damage: Ilvara, 35 hp over 2 fights',
+        'Went down: Ivarro once',
       ].join('\n')
     );
     expect(text).not.toContain('27');

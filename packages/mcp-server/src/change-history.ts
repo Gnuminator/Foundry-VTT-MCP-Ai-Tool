@@ -6,7 +6,7 @@
  * them in memory (read from the files on first use, then kept current from the pump's
  * appends) and turns them into ACTIONS: the records one user action made (they share an
  * `actionId`: a long rest writes the actor and every item), with who, when, the "things"
- * touched and readable lines such as `Ireena: HP 10 -> 5`.
+ * touched and readable lines such as `Ilvara: HP 10 -> 5`.
  *
  * `list()` merges those human actions with the AI changes of the guarded-write audit log
  * (`listRecentChanges`) into one newest-first list. The journal marks the records an AI
@@ -256,7 +256,7 @@ function quoted(name: string | null): string {
   return name ? ` "${name}"` : '';
 }
 
-/** Who the line is about (`Ireena`, `Token "Wolf 2"`) and, for an embedded document, what part (`Item "Dagger"`). */
+/** Who the line is about (`Ilvara`, `Token "Wolf 2"`) and, for an embedded document, what part (`Item "Dagger"`). */
 function subjectOf(r: ChangeRecord): { subject: string; inner: string } {
   const isRoot = r.uuid === r.rootUuid;
   if (r.documentName === 'Actor') {

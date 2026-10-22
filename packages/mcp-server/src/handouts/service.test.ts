@@ -123,7 +123,7 @@ beforeEach(async () => {
   foundry.add(PAGE2, 'JournalEntryPage', {
     name: 'Party Handout',
     ownership: { default: 2 },
-    text: { content: '<p>Welcome to Barovia.</p>' },
+    text: { content: '<p>Welcome to Maravia.</p>' },
   });
 });
 
@@ -512,7 +512,7 @@ describe('planPageReveal: copy into "Handouts"', () => {
     expect(plan.copy).toMatchObject({ action: 'create', sourceUuid: PAGE2 });
     expect(foundry.docs.get(plan.copy!.pageUuid)?.source).toMatchObject({
       name: 'Party Handout',
-      text: { content: '<p>Welcome to Barovia.</p>' },
+      text: { content: '<p>Welcome to Maravia.</p>' },
     });
     expect(foundry.docs.get(PAGE2)?.source.ownership).toEqual({ default: 2 });
     const data = await revealsData();

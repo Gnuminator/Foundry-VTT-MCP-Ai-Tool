@@ -95,7 +95,7 @@ const human = (id: string, by: string, extra: Partial<Change> = {}): Change => (
   at: '2026-10-06T19:00:00Z',
   by,
   summary: `${by} did something`,
-  lines: ['Ireena: HP 10 -> 5'],
+  lines: ['Ilvara: HP 10 -> 5'],
   canUndo: true,
   undone: false,
   ...extra,
@@ -105,7 +105,7 @@ const ai = (id: string, extra: Partial<Change> = {}): Change => ({
   id,
   at: '2026-10-06T19:05:00Z',
   by: 'AI',
-  summary: 'Damage Ireena',
+  summary: 'Damage Ilvara',
   lines: [],
   canUndo: true,
   undone: false,
@@ -117,7 +117,7 @@ const plan = (extra: Partial<Plan> = {}): Plan => ({
   scope: 'just-this',
   risk: 'write',
   requires: { confirm: true, confirmDestructive: false },
-  diff: [{ kind: 'update', text: 'Ireena: HP 5 -> 10' }],
+  diff: [{ kind: 'update', text: 'Ilvara: HP 5 -> 10' }],
   later: [],
   ...extra,
 });
@@ -192,12 +192,12 @@ describe('rows, badge and redo', () => {
 
   it('Redo confirms with what really comes back: all the changes one undo covered', () => {
     const row = human('act:1', 'Anna', { undone: true, undoneBy: 'u1' });
-    const single = ai('u1', { summary: 'Undo: Anna did something', lines: ['Ireena: HP 5 -> 10'] });
+    const single = ai('u1', { summary: 'Undo: Anna did something', lines: ['Ilvara: HP 5 -> 10'] });
     expect(h.redoConfirm(row, [row, single])).toEqual({
       summary: 'Redo: Anna did something',
-      diff: ['Ireena: HP 10 -> 5'],
+      diff: ['Ilvara: HP 10 -> 5'],
     });
-    const lines = ['Ireena: HP 5 -> 10', 'Ireena: Poisoned removed', 'Wolf: moved back'];
+    const lines = ['Ilvara: HP 5 -> 10', 'Ilvara: Poisoned removed', 'Wolf: moved back'];
     const since = ai('u1', { summary: 'Undo since 19:00: 3 changes', lines, covers: 3 });
     const many = h.redoConfirm(row, [row, since]);
     expect(many.summary).toContain('brings all of them back');
@@ -213,21 +213,21 @@ describe('rows, badge and redo', () => {
 
   it('names the thing a change touched', () => {
     expect(h.thingLabel(human('a', 'Anna'))).toBe('this thing');
-    const one = human('a', 'Anna', { things: [{ uuid: 'Actor.1', name: 'Ireena' }] });
-    expect(h.thingLabel(one)).toBe('Ireena');
+    const one = human('a', 'Anna', { things: [{ uuid: 'Actor.1', name: 'Ilvara' }] });
+    expect(h.thingLabel(one)).toBe('Ilvara');
     const two = human('a', 'Anna', {
       things: [
-        { uuid: 'Actor.1', name: 'Ireena' },
+        { uuid: 'Actor.1', name: 'Ilvara' },
         { uuid: 'Actor.2', name: null },
-        { uuid: 'Actor.3', name: 'Strahd' },
+        { uuid: 'Actor.3', name: 'Sorvan' },
       ],
     });
-    expect(h.thingLabel(two)).toBe('Ireena and 1 more');
+    expect(h.thingLabel(two)).toBe('Ilvara and 1 more');
   });
 });
 
 describe('the undo choice', () => {
-  const row = { thing: 'Ireena' };
+  const row = { thing: 'Ilvara' };
   const later = [{ id: 'act:9', at: '2026-10-06T19:30:00Z', by: 'Anna', summary: 'HP 5 -> 3' }];
 
   it('asks the plan for just this first and arguments follow the scope', () => {
@@ -247,7 +247,7 @@ describe('the undo choice', () => {
     const d = h.dialogFor('confirm', plan(), row);
     expect(d.title).toBe('Undo this change?');
     expect(d.intro).toBe('Undo: Anna did something');
-    expect(d.lines).toEqual([{ text: 'Ireena: HP 5 -> 10', note: false }]);
+    expect(d.lines).toEqual([{ text: 'Ilvara: HP 5 -> 10', note: false }]);
     expect(d.buttons.map(b => b.key)).toEqual(['cancel', 'apply']);
     expect(d.destructive).toBe(false);
     expect(d.buttons[1]?.needsCheck).toBe(false);
@@ -272,8 +272,8 @@ describe('the undo choice', () => {
   it('flags the notes of a plan so they read as notes, not changes', () => {
     const p = plan({
       diff: [
-        { kind: 'update', text: 'Ireena: HP 5 -> 10' },
-        { kind: 'note', text: 'Kept as it is: Ireena: name (changed since)' },
+        { kind: 'update', text: 'Ilvara: HP 5 -> 10' },
+        { kind: 'note', text: 'Kept as it is: Ilvara: name (changed since)' },
       ],
     });
     expect(h.planLines(p).map(l => l.note)).toEqual([false, true]);
@@ -283,7 +283,7 @@ describe('the undo choice', () => {
     const p = plan({ later });
     expect(h.firstStage(p)).toBe('choose');
     const d = h.dialogFor('choose', p, row);
-    expect(d.intro).toBe('This is not the latest change to Ireena.');
+    expect(d.intro).toBe('This is not the latest change to Ilvara.');
     expect(d.later).toEqual(later);
     expect(d.buttons.map(b => b.label)).toEqual(['Cancel', 'Just this', 'Everything since']);
     // The Advanced rewind is a separate, collapsed choice.
@@ -299,7 +299,7 @@ describe('the undo choice', () => {
     expect(h.nextStep('choose', 'cancel')).toEqual({ done: true });
     const since = plan({
       scope: 'everything-since',
-      summary: 'Undo since 19:00: 2 changes on Ireena',
+      summary: 'Undo since 19:00: 2 changes on Ilvara',
     });
     expect(h.dialogFor('confirm', since, row).title).toBe('Undo everything since?');
   });
@@ -320,7 +320,7 @@ describe('the undo choice', () => {
       summary: 'Rewind the table to 19:00: 12 changes',
       requires: { confirm: true, confirmDestructive: true },
       diff: [
-        { kind: 'update', text: 'Ireena: HP 5 -> 10' },
+        { kind: 'update', text: 'Ilvara: HP 5 -> 10' },
         { kind: 'delete', text: 'Delete Token "Wolf"' },
       ],
     });
@@ -339,7 +339,7 @@ describe('the undo choice', () => {
     it('step 1 shows the count and the full list, with no way to apply yet', () => {
       const d = h.dialogFor('rewind-1', rewind, row);
       expect(d.intro).toContain('12 changes');
-      expect(d.lines.map(l => l.text)).toEqual(['Ireena: HP 5 -> 10', 'Delete Token "Wolf"']);
+      expect(d.lines.map(l => l.text)).toEqual(['Ilvara: HP 5 -> 10', 'Delete Token "Wolf"']);
       expect(d.buttons.map(b => b.key)).toEqual(['cancel', 'next']);
     });
 

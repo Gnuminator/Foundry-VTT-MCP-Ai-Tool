@@ -117,7 +117,7 @@ describe('definition', () => {
       'pact',
     ]);
     expect(Object.keys(schema.properties.coins.properties)).toEqual(['pp', 'gp', 'ep', 'sp', 'cp']);
-    expect(def?.description).toMatch(/never changes XP/);
+    expect(def?.description).toMatch(/Never changes XP/);
   });
 });
 

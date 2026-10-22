@@ -963,6 +963,20 @@ export class GuardedWriteService {
     }
     if (vault) await this.commitVaultOrRollBack(worldId, vault, foundry, entry.feature);
 
+    // A created document the GM deleted since (a spawned token killed in play) is already as the
+    // undo wants it: the module reports it as gone and the rest went through. Say which.
+    const names = new Map(results.map(r => [r.uuid, r.name]));
+    for (const r of foundry?.results ?? []) {
+      if (!isNoOpResult(r)) continue;
+      // The module knows no name for a document it never saw; keep the one the apply recorded.
+      r.name ??= names.get(r.uuid) ?? null;
+      // Several spawned tokens share a name: the id tells them apart.
+      const id = r.uuid.split('.').slice(-2).join(' ');
+      leftAlone.push(
+        `Left alone: ${r.name ?? r.uuid} (${id}; it was already gone when the undo ran)`
+      );
+    }
+
     const undoEntry: AuditEntry = {
       changeId: undoId,
       planId: null,

@@ -77,6 +77,8 @@ export interface StoredNotes {
   /** The bridge puts it into Foundry by itself; false after an Undo until a manual put. */
   autoPut: boolean;
   put?: PutRecord;
+  /** The put an Undo took back, kept so that undoing the Undo (the redo) can restore it. */
+  undonePut?: PutRecord & { undoneBy: string };
   approvedAt?: string;
   approvedBy?: string;
   lastError?: string;

@@ -959,6 +959,43 @@ describe('applyGuardedOps: undo', () => {
     expect(registry.has(applyCase.conc.uuid)).toBe(true);
   });
 
+  it('undoes the rest when the GM deleted one created document since, and reports it as gone (not a conflict)', async () => {
+    const applied = await applyGuardedOps(
+      await request([
+        { kind: 'create', documentName: 'Actor', data: { name: 'Goblin 1', type: 'npc' } },
+        { kind: 'create', documentName: 'Actor', data: { name: 'Goblin 2', type: 'npc' } },
+      ])
+    );
+    const [first, second] = applied.results;
+    // The GM killed the first goblin in play.
+    await registry.get(first.uuid)!.delete();
+
+    const undoReq = undoRequest(applied);
+    const undone = await applyGuardedOps(undoReq);
+    expect(registry.has(second.uuid)).toBe(false);
+    expect(undone.results.map(r => [r.uuid, r.alreadyGone ?? false])).toEqual([
+      [second.uuid, false],
+      [first.uuid, true],
+    ]);
+    expect(undone.results[1].deleted).toBeUndefined();
+
+    // Not for an apply: a delete of a document that is not there still refuses.
+    const missing = await request([{ kind: 'delete', uuid: first.uuid }]);
+    await expect(applyGuardedOps({ ...missing, mode: 'apply' })).rejects.toThrow(
+      /no longer exists|Document not found/
+    );
+  });
+
+  it('still refuses an undo of a created document that was edited since', async () => {
+    const applied = await applyGuardedOps(
+      await request([
+        { kind: 'create', documentName: 'Actor', data: { name: 'Goblin', type: 'npc' } },
+      ])
+    );
+    await registry.get(applied.results[0].uuid)!.update({ name: 'Edited' });
+    await expect(applyGuardedOps(undoRequest(applied))).rejects.toThrow(/was modified since/);
+  });
+
   it('takes the concentration effect dnd5e ends with an item delete as deleted in a redo (no link to read)', async () => {
     // The item names no dependents, so `executionOrder` keeps the plan's order: the item goes
     // first and dnd5e ends the concentration with it; the effect is gone when its turn comes.

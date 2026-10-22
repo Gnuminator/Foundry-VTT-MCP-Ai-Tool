@@ -501,6 +501,7 @@ export class SessionNotesService {
         pageTimes,
         auto,
       };
+      delete n.undonePut;
       n.autoPut = true;
       if (readBackError) n.lastError = readBackError;
       else delete n.lastError;
@@ -526,6 +527,8 @@ export class SessionNotesService {
         if (!notes.put || !undone.includes(notes.put.changeId)) continue;
         const recap = notes.put.recapPageUuid;
         await this.mutate(worldId, notes.sessionId, n => {
+          // Kept for the redo: undoing this undo puts the journal back, and the notes with it.
+          if (n.put) n.undonePut = { ...n.put, undoneBy: changeId };
           delete n.put;
           // The GM took it back: no automatic put again until a manual one.
           n.autoPut = false;
@@ -533,6 +536,7 @@ export class SessionNotesService {
         });
         await this.handouts.unqueuePage({ pageUuid: recap }).catch(() => undefined);
       }
+      await this.restoreRedonePuts(worldId, entry, undone);
       return;
     }
     if (entry.feature === 'handouts' && entry.mode === 'apply') {
@@ -545,6 +549,52 @@ export class SessionNotesService {
           n.approvedBy ??= 'reveal';
         });
       }
+    }
+  }
+
+  /**
+   * A redo (an Undo of the Undo of a put, or a planned undo of it) brings the journal back, so the
+   * notes go back to "in Foundry" too: the put record returns under the redo's change id (a later
+   * Undo finds the put by it), the page times are read again (the pages are new documents), the
+   * Recap is queued for reveal again and the automatic put is on as after any put.
+   */
+  private async restoreRedonePuts(
+    worldId: string,
+    entry: AuditEntry,
+    undone: string[]
+  ): Promise<void> {
+    for (const notes of await this.loadAll(worldId)) {
+      const kept = notes.undonePut;
+      if (!kept || notes.put || !undone.includes(kept.undoneBy)) continue;
+      const pageTimes: Record<string, number | null> = {};
+      const uuids = Object.keys(kept.pageTimes);
+      for (const uuid of uuids) pageTimes[uuid] = null; // unknown: the Undo's edit check skips it
+      try {
+        const snaps = unwrapBridgeReply(
+          await this.foundry.query('foundry-mcp-bridge.snapshotGuardedOps', {
+            ops: uuids.map(uuid => ({ kind: 'delete', uuid })),
+          }),
+          'Read-back refused'
+        );
+        uuids.forEach((uuid, i) => {
+          pageTimes[uuid] = snaps[i]?.modifiedTime ?? null;
+        });
+      } catch (error) {
+        this.logger.warn('Could not read the redone notes pages back', { error: messageOf(error) });
+      }
+      const { undoneBy: _undoneBy, ...put } = kept;
+      await this.mutate(worldId, notes.sessionId, n => {
+        if (n.put) return;
+        n.put = { ...put, changeId: entry.changeId, putAt: entry.appliedAt, pageTimes };
+        delete n.undonePut;
+        n.autoPut = true;
+        delete n.lastError;
+      });
+      await this.handouts
+        .queuePage({ pageUuid: kept.recapPageUuid })
+        .catch(error =>
+          this.logger.warn('Could not queue the Recap for reveal', { error: messageOf(error) })
+        );
     }
   }
 

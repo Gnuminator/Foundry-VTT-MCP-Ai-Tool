@@ -234,6 +234,18 @@ describe('query timeout (PB-04)', () => {
     await vi.advanceTimersByTimeAsync(51);
     await rejected;
   });
+
+  it('drops the pending query and its timer when the send throws', async () => {
+    const ws = connect();
+    ws.send.mockImplementationOnce(() => {
+      throw new Error('socket write failed');
+    });
+    await expect(connector.query('write', {}, { timeoutMs: 120_000 })).rejects.toThrow(
+      'socket write failed'
+    );
+    expect((connector as any).pendingQueries.size).toBe(0);
+    expect(vi.getTimerCount()).toBe(0);
+  });
 });
 
 describe('link state (PB-03)', () => {

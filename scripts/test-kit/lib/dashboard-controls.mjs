@@ -91,6 +91,8 @@ const PREP_IDLE = '#prep-refresh:not([disabled])';
 const PREFLIGHT_IDLE = '#preflight-run:not([disabled])';
 const PARTY = [MOMENT_BEFORE, ADV, 'dash.header.party']; // overlay in Before and After
 const HANDOUTS = [MOMENT_BEFORE, ADV, 'dash.header.handouts']; // overlay in Before
+/** After a paper night is only in the new dashboard (/next); this sweep drives the old page. */
+const NEW_ONLY = 'only in the new dashboard (/next); checked by hand on a test server (paper-form)';
 const AI = [ADV, 'dash.header.show-ai'];
 const PLAYER_LINKS = [ADV, 'dash.header.player-links'];
 const EVERYONE = [MOMENT_DURING, 'dash.changes.tab-everyone'];
@@ -120,6 +122,7 @@ export const DASHBOARD_CONTROLS = [
   { name: 'dash.header.party', how: 'open', reach: [ADV], expect: '#party-drawer' },
   { name: 'dash.header.handouts', how: 'open', reach: [ADV], expect: '#handouts-drawer' },
   { name: 'dash.header.tarokka', how: 'open', reach: [ADV], expect: '#tarokka-drawer' },
+  { name: 'dash.header.paper', how: 'skip', why: NEW_ONLY },
   { name: 'dash.header.combat-buttons', how: 'toggle', reach: [ADV], changes: true },
   {
     name: 'dash.header.version-tracker',
@@ -497,6 +500,15 @@ export const DASHBOARD_CONTROLS = [
     why: 'only shown when the digest has a pre-flight result',
   },
 
+  // --- After a paper night (Paper nights B) ---
+  { name: 'dash.paper.close', how: 'skip', why: NEW_ONLY },
+  { name: 'dash.paper.refresh', how: 'skip', why: NEW_ONLY },
+  { name: 'dash.paper.add-item', how: 'skip', why: NEW_ONLY },
+  { name: 'dash.paper.remove-item', how: 'skip', why: NEW_ONLY },
+  { name: 'dash.paper.plan', how: 'skip', why: NEW_ONLY },
+  { name: 'dash.paper.reset', how: 'skip', why: NEW_ONLY },
+  { name: 'dash.paper.log-night', how: 'skip', why: NEW_ONLY },
+
   // --- Party ---
   { name: 'dash.party.view', how: 'view', reach: PARTY, expect: '#party-drawer' },
   { name: 'dash.party.close', how: 'open', reach: PARTY, gone: '#party-drawer' },
@@ -629,6 +641,7 @@ export const DASHBOARD_CONTROLS = [
 
   // --- the After screen ---
   { name: 'dash.after.refresh', how: 'read', reach: [MOMENT_AFTER], expect: '#stat-cards' },
+  { name: 'dash.after.paper', how: 'skip', why: NEW_ONLY },
   {
     name: 'dash.after.copy-stats',
     how: 'external',

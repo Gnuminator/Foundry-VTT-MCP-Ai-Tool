@@ -39,7 +39,7 @@ const notes = (item: unknown): Reply => reply({ items: [item] });
 const meta = {
   title: 'Panels/After',
   parameters: { layout: 'fullscreen', ...dashboard(toolOk(PLAY_STATS), notes(NOTES_IN_FOUNDRY)) },
-  render: (): JSX.Element => <AfterTop active />,
+  render: (): JSX.Element => <AfterTop active onOpenPaperSync={() => undefined} />,
 } satisfies Meta;
 
 export default meta;

@@ -407,12 +407,45 @@ function SessionNotesCard({ active }: { active: boolean }): JSX.Element | null {
   );
 }
 
-/** The After view's top: tonight's stats, then the session notes. `active` is After on screen. */
-export default function AfterTop({ active }: { active: boolean }): JSX.Element {
+/**
+ * Played on paper: the numbers on the paper sheets go back into Foundry through the After a paper
+ * night form (PaperSync.tsx), a drawer over the page.
+ */
+function PaperNightCard({ onOpen }: { onOpen: () => void }): JSX.Element {
+  return (
+    <section className="notes-card" id="paper-card" aria-label="After a paper night">
+      <div className="notes-card-head">
+        <h3>After a paper night</h3>
+      </div>
+      <p className="notes-line">
+        The table played on paper? Type each player&apos;s numbers from the paper sheet back into
+        Foundry, one character at a time, with a confirm and an Undo for each.
+      </p>
+      <div className="ready-actions">
+        <Button variant="quiet" data-track="dash.after.paper" onClick={onOpen}>
+          Open the paper sheets form
+        </Button>
+      </div>
+    </section>
+  );
+}
+
+/**
+ * The After view's top: tonight's stats, the session notes, then the paper night form. `active`
+ * is After on screen.
+ */
+export default function AfterTop({
+  active,
+  onOpenPaperSync,
+}: {
+  active: boolean;
+  onOpenPaperSync: () => void;
+}): JSX.Element {
   return (
     <>
       <AfterStats active={active} />
       <SessionNotesCard active={active} />
+      <PaperNightCard onOpen={onOpenPaperSync} />
     </>
   );
 }

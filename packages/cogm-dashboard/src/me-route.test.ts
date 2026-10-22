@@ -26,7 +26,9 @@ afterEach(async () => {
   server = null;
 });
 
-async function start(): Promise<{ base: string; asked: string[] }> {
+async function start(
+  options: { shared?: boolean; failFor?: string } = {}
+): Promise<{ base: string; asked: string[] }> {
   const asked: string[] = [];
   const client = {
     isConnected: true,
@@ -45,7 +47,13 @@ async function start(): Promise<{ base: string; asked: string[] }> {
         : Promise.reject(new Error('no tool')),
     characterSheet: (userId: string): Promise<unknown> => {
       asked.push(userId);
-      return Promise.resolve({ userId, userName: 'x', sheets: [{ name: `sheet of ${userId}` }] });
+      if (userId === options.failFor) return Promise.reject(new Error('gone'));
+      const own = { id: `own-${userId}`, name: `sheet of ${userId}` };
+      return Promise.resolve({
+        userId,
+        userName: 'x',
+        sheets: options.shared ? [own, { id: 'shared', name: 'Shared' }] : [{ name: own.name }],
+      });
     },
   };
   const testConfig: Config = {
@@ -155,6 +163,35 @@ describe('/api/me and the player links', () => {
     });
     expect(await del.json()).toEqual({ removed: true });
     expect((await me(base, key)).status).toBe(401);
+  });
+
+  it('the GM gets every player character for the paper night print; nobody else does', async () => {
+    const { base } = await start({ shared: true });
+    const res = await fetch(`${base}/api/party-sheets`, { headers: gm });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { sheets: Array<{ id: string; player: string }> };
+    // The character both players own shows once, under the first owner (sorted by name).
+    expect(body.sheets.map(s => [s.id, s.player])).toEqual([
+      [`own-${PLAYER}`, 'Player'],
+      ['shared', 'Player'],
+      [`own-${TAMSIN}`, 'Tamsin'],
+    ]);
+    const asPlayer = { 'X-CoGM-Token': PLAYER_TOKEN };
+    expect((await fetch(`${base}/api/party-sheets`, { headers: asPlayer })).status).toBe(403);
+    expect((await fetch(`${base}/api/party-sheets`)).status).toBe(401);
+    // A player's own link does not open it either.
+    const key = keyOf(await makeLink(base, PLAYER));
+    const withKey = await fetch(`${base}/api/party-sheets`, { headers: { 'X-CoGM-Me': key } });
+    expect(withKey.status).toBe(401);
+  });
+
+  it('a player whose sheet cannot be read is named, the others still print', async () => {
+    const { base } = await start({ failFor: PLAYER });
+    const res = await fetch(`${base}/api/party-sheets`, { headers: gm });
+    expect(await res.json()).toMatchObject({
+      sheets: [{ name: `sheet of ${TAMSIN}`, player: 'Tamsin' }],
+      unreadable: ['Player'],
+    });
   });
 
   it('refuses a link for someone who is not a player of the world', async () => {

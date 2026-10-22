@@ -7,6 +7,8 @@
  *                                          (the page moves it out of the address bar at once,
  *                                          so it never lands in a log or the browser history)
  * - `GET  /api/player-links`            -> GM: each player, with their link if they have one
+ * - `GET  /api/party-sheets`            -> GM: the sheets of every player's characters, for the paper
+ *                                          night print (`party-print.html`)
  * - `POST /api/player-links/:userId`    -> GM: make a new link (the old one stops working)
  * - `DELETE /api/player-links/:userId`  -> GM: remove the player's link
  *
@@ -89,6 +91,40 @@ export function mountMeRoute(app: Express, options: MeRouteOptions): void {
             };
           }),
         });
+      });
+  });
+
+  // The GM's party print (paper-print): the sheets of every player's characters in one answer.
+  // GM only; a player's own link still gets only their own sheets from /api/me. A character two
+  // players own shows once, under the first owner.
+  app.get('/api/party-sheets', requireGm, (_req: Request, res: Response) => {
+    if (typeof client.characterSheet !== 'function') {
+      res.status(501).json({ error: 'This bridge cannot read character sheets.' });
+      return;
+    }
+    const read = client.characterSheet.bind(client);
+    void directory
+      .refreshIfStale()
+      .catch(() => undefined)
+      .then(async () => {
+        const seen = new Set<string>();
+        const sheets: Array<Record<string, unknown> & { player: string }> = [];
+        const unreadable: string[] = [];
+        for (const player of directory.list()) {
+          try {
+            const result = (await read(player.userId)) as { sheets?: unknown };
+            for (const sheet of Array.isArray(result?.sheets) ? result.sheets : []) {
+              const s = sheet as Record<string, unknown>;
+              const id = typeof s.id === 'string' ? s.id : null;
+              if (id !== null && seen.has(id)) continue;
+              if (id !== null) seen.add(id);
+              sheets.push({ ...s, player: player.name });
+            }
+          } catch {
+            unreadable.push(player.name);
+          }
+        }
+        res.json({ sheets, unreadable });
       });
   });
 

@@ -53,6 +53,26 @@ describe('playerPageUrl', () => {
   });
 });
 
+describe('partyPrintUrl', () => {
+  it('is the bare page when the token is saved for it to read', async () => {
+    storage();
+    const auth = await load('http://127.0.0.1/?token=t1');
+    expect(auth.partyPrintUrl()).toBe('/party-print.html');
+  });
+
+  it('takes the token along in the address when storage is refused', async () => {
+    storage({}, true);
+    const auth = await load('http://127.0.0.1/?token=a%20b');
+    expect(auth.partyPrintUrl()).toBe('/party-print.html?token=a%20b');
+  });
+
+  it('is the bare page without a token', async () => {
+    storage();
+    const auth = await load('http://127.0.0.1/');
+    expect(auth.partyPrintUrl()).toBe('/party-print.html');
+  });
+});
+
 describe('onlyPlayerToken', () => {
   it('is true only without a token here and with one on the player page key', async () => {
     storage({ cogm_player_token: 'p1' });

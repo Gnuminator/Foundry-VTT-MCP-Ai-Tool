@@ -155,7 +155,7 @@ export const PLAYER_CSP =
 
 /** The player page file and its header, on every URL that reaches it (static-headers.ts). */
 export const PLAYER_PAGE_HEADERS: StaticHeaderGroup = {
-  files: ['player.html', 'me.html'],
+  files: ['player.html', 'me.html', 'party-print.html'],
   apply: res => res.setHeader('Content-Security-Policy', PLAYER_CSP),
 };
 /** How often the player view context (visibility, handouts) is refreshed. */

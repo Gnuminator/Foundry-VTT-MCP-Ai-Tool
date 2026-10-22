@@ -478,6 +478,15 @@
   padding: 0.6rem 0;
   border-bottom: 1px solid var(--border-soft);
 }
+.links-print {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+  margin-top: 1rem;
+  color: var(--text-dim);
+  font-size: 0.82rem;
+}
 .links-name {
   font-weight: 600;
 }

@@ -480,8 +480,9 @@ const TOKEN_MOVEMENT_FIELDS = ['x', 'y', 'elevation', 'width', 'height', 'depth'
  * token ("Foundry did not keep x, y") and fires every region behaviour along the line (a trap, a
  * teleport, a pause) that undo cannot take back. A planned move was checked when it was planned
  * (the NPC turn assistant paths round walls and creatures) and the GM confirmed it, and its undo
- * must be able to go back, so the token is placed: one `displace` waypoint (a teleport: no walls,
- * no cost, nothing along the way). A region at the destination still reacts, as it should.
+ * must be able to go back, so the token is placed: one `displace` waypoint (a teleport: walls and
+ * cost do not apply, nothing is entered along the way). Region behaviours that react to a plain
+ * enter or exit still see the destination; Teleport Token and Change Level ignore a displace move.
  */
 function writeOptions(
   doc: FoundryDocument,

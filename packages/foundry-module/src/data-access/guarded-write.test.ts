@@ -773,6 +773,24 @@ describe('applyGuardedOps: rollback', () => {
     expect(tok.source.x).toBe(100);
   });
 
+  it('places a token resize and an elevation change the same way, with only the fields it writes', async () => {
+    const tok = addToken();
+    const seen: Array<Record<string, any>> = [];
+    const realUpdate = tok.update.bind(tok);
+    tok.update = (changes: Record<string, unknown>, options?: unknown): Promise<FakeDoc> => {
+      seen.push({ changes, options });
+      return realUpdate(changes);
+    };
+    await applyGuardedOps(
+      await request([
+        { kind: 'update', uuid: tok.uuid, changes: { width: 2, height: 2, elevation: 10 } },
+      ])
+    );
+    expect(seen[0]?.options.movement[tok.id].waypoints).toEqual([
+      { action: 'displace', width: 2, height: 2, elevation: 10 },
+    ]);
+  });
+
   it('says so when putting the earlier values back fails too', async () => {
     const tok = addToken();
     const req = await request([{ kind: 'update', uuid: tok.uuid, changes: { x: 500 } }]);

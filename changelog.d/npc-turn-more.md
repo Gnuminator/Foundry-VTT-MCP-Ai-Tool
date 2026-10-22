@@ -24,9 +24,10 @@
   and dnd5e stops it at a hostile creature, so a move planned round a wall was refused ("Foundry
   did not keep x, y") when applied. Guarded writes of a token's position (or size, elevation,
   level) now place the token with one teleport (`displace`) step, also in a rollback and in undo:
-  no wall is crossed, no trap, teleport or pause region along a straight line fires (undo cannot
-  take those back), and a region at the destination still reacts. This applies to every guarded
-  token move, `plan-token-change` included. Found live on test server C.
+  walls and movement cost do not apply (the token can end up behind a wall), and no trap, teleport
+  or pause region along a straight line fires (undo cannot take those back). Teleport Token and
+  Change Level regions ignore such a move. This applies to every guarded token move,
+  `plan-token-change` included. Found live on test server C.
 - **dnd5e Difficult Terrain:** the path search also counts dnd5e's own Difficult Terrain region
   behavior (Spike Growth, Web): one extra step of cost, not stacked, skipped for creatures that
   ignore it. Regions on another level of the scene are left out.

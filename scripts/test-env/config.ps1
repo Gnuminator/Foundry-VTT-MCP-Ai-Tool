@@ -104,9 +104,9 @@ function Get-RootProblems([string]$Name, $Roots) {
     $theirs = & $norm $Roots[$other]
     $sep = [string][IO.Path]::DirectorySeparatorChar
     if ($mine.Equals($theirs, $cmp)) {
-      $problems += "Root $mine is also server $other's Root (servers.json or a local file); each server needs its own folder."
+      $problems += "Root $mine is also server $other's Root; each server needs its own folder (fix Root in scripts/test-env/local.json for A or local.<name>.json for B and C, or in servers.json)."
     } elseif (($mine + $sep).StartsWith($theirs + $sep, $cmp) -or ($theirs + $sep).StartsWith($mine + $sep, $cmp)) {
-      $problems += "Root $mine overlaps server $other's Root $theirs; each server needs its own folder, not one inside another."
+      $problems += "Root $mine overlaps server $other's Root $theirs; each server needs its own folder, not one inside another (fix Root in scripts/test-env/local.json for A or local.<name>.json for B and C, or in servers.json)."
     }
   }
   return , $problems

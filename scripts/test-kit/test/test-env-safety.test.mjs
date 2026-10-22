@@ -8,7 +8,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -72,7 +73,10 @@ function rootProblems(name, roots) {
       '-Command',
       `. '${config}'; $roots = [ordered]@{}; (ConvertFrom-Json $env:ROOTS_JSON).PSObject.Properties | ForEach-Object { $roots[$_.Name] = $_.Value }; $p = Get-RootProblems '${name}' $roots; ConvertTo-Json -InputObject @($p) -Compress`,
     ],
-    { encoding: 'utf8', env: { ...process.env, ROOTS_JSON: JSON.stringify(roots) } }
+    {
+      encoding: 'utf8',
+      env: { ...process.env, FOUNDRY_TEST_SERVER: 'A', ROOTS_JSON: JSON.stringify(roots) },
+    }
   );
   assert.equal(r.status, 0, r.stderr);
   return JSON.parse(r.stdout);
@@ -101,5 +105,44 @@ test(
     assert.deepEqual(rootProblems('A', { A: a, B: b, C: c }), []);
     // only this server's pairs count: B and C sharing a folder does not stop A
     assert.deepEqual(rootProblems('A', { A: a, B: b, C: b }), []);
+  }
+);
+
+test(
+  'loading config.ps1 throws when the server Root is another server Root, and names the file to fix',
+  { skip: !hasPwsh },
+  () => {
+    // A copy of config.ps1 and servers.json in a temp folder (two levels down, as RepoRoot expects)
+    // with local files that make B and C share one Root, so the real local files do not matter.
+    const tmp = mkdtempSync(path.join(os.tmpdir(), 'test-env-safety-'));
+    try {
+      const dir = path.join(tmp, 'scripts', 'test-env');
+      mkdirSync(dir, { recursive: true });
+      for (const f of ['config.ps1', 'servers.json'])
+        copyFileSync(path.join(root, 'scripts', 'test-env', f), path.join(dir, f));
+      const shared = JSON.stringify({ Root: path.join(tmp, 'shared') });
+      writeFileSync(path.join(dir, 'local.B.json'), shared);
+      writeFileSync(path.join(dir, 'local.C.json'), shared);
+      const load = server =>
+        spawnSync(
+          'pwsh',
+          [
+            '-NoProfile',
+            '-NonInteractive',
+            '-Command',
+            `. '${path.join(dir, 'config.ps1')}'; $TestEnv.Root`,
+          ],
+          { encoding: 'utf8', env: { ...process.env, FOUNDRY_TEST_SERVER: server } }
+        );
+      const c = load('C');
+      assert.notEqual(c.status, 0);
+      assert.match(c.stderr, /also server B's Root/);
+      assert.match(c.stderr, /local\.<name>\.json/);
+      // A is fine: only this server's pairs count
+      const a = load('A');
+      assert.equal(a.status, 0, a.stderr);
+    } finally {
+      rmSync(tmp, { recursive: true, force: true });
+    }
   }
 );

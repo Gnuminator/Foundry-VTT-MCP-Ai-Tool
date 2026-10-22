@@ -12,7 +12,7 @@
   test    Publish a generated 20 second tone as a fake participant and check the recording.
 
   Refuses to run if .env points any host port at a Foundry or bridge port
-  (Foundry test 30000-30001, test bridge 31514-31516, dashboard 3100, live bridge 31414-31416; test servers B and C: 30002-30003, 3101-3102, 31524-31535).
+  (Foundry test 30000-30001, test bridge 31514-31516, dashboard 3100, live bridge 31414-31416; test servers B and C: 30002-30003, 3101-3102, 31524-31525, 31534-31535).
 #>
 [CmdletBinding()]
 param(

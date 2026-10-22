@@ -323,16 +323,16 @@ export async function collectAlerts({
     ['C', testEnvRootC],
   ]) {
     if (root)
-      add(lockAlert(readLockFile(root), now)?.replace(/^Test server lock/, `Test server ${name} lock`));
+      add(
+        lockAlert(readLockFile(root), now)?.replace(/^Test server lock/, `Test server ${name} lock`)
+      );
   }
   const { snap } = await loadSnapshot({ url: snapshotUrl, file: snapshotFile, now, fetchImpl });
   const part = foundryPart(snap);
   if (part) {
     add(watchdogAlert(part.watchdog));
   } else if (ccDir && existsSync(ccDir)) {
-    add(
-      'Control center not answering on 127.0.0.1:3200: session notes not checked.'
-    );
+    add('Control center not answering on 127.0.0.1:3200: session notes not checked.');
   }
   return lines.slice(0, MAX_LINES);
 }

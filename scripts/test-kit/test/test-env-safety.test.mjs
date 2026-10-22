@@ -130,17 +130,18 @@ test(
             '-NoProfile',
             '-NonInteractive',
             '-Command',
-            `. '${path.join(dir, 'config.ps1')}'; $TestEnv.Root`,
+            // the thrown message as plain text on stdout (the error view wraps and colours it)
+            `try { . '${path.join(dir, 'config.ps1')}'; 'OK ' + $TestEnv.Root } catch { 'THREW ' + $_.Exception.Message }`,
           ],
           { encoding: 'utf8', env: { ...process.env, FOUNDRY_TEST_SERVER: server } }
         );
       const c = load('C');
-      assert.notEqual(c.status, 0);
-      assert.match(c.stderr, /also server B's Root/);
-      assert.match(c.stderr, /local\.<name>\.json/);
+      assert.match(c.stdout, /^THREW /);
+      assert.match(c.stdout, /also server B's Root/);
+      assert.match(c.stdout, /local\.<name>\.json/);
       // A is fine: only this server's pairs count
       const a = load('A');
-      assert.equal(a.status, 0, a.stderr);
+      assert.match(a.stdout, /^OK /, a.stdout + a.stderr);
     } finally {
       rmSync(tmp, { recursive: true, force: true });
     }

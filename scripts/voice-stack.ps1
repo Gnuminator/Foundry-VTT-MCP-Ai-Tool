@@ -73,12 +73,17 @@ function New-RandomString([int]$Length) {
   -join (1..$Length | ForEach-Object { $chars[[System.Security.Cryptography.RandomNumberGenerator]::GetInt32($chars.Length)] })
 }
 
+# The default sessions folder, the same as shared/src/sessions-dir.ts says for the dashboard and the bot.
+function Get-DefaultSessionsDir {
+  return Join-Path $env:USERPROFILE 'Documents/FoundrySessions'
+}
+
 function Initialize-Env {
   if (Test-Path $EnvFile) { return }
   $text = Get-Content (Join-Path $Root '.env.example') -Raw
   $text = $text -replace 'LIVEKIT_API_KEY=.*', "LIVEKIT_API_KEY=devkey$(New-RandomString 8)"
   $text = $text -replace 'LIVEKIT_API_SECRET=.*', "LIVEKIT_API_SECRET=$(New-RandomString 48)"
-  $sessions = Join-Path $env:USERPROFILE 'Documents/FoundrySessions'
+  $sessions = Get-DefaultSessionsDir
   $text = $text -replace 'FVTT_SESSIONS_DIR=.*', "FVTT_SESSIONS_DIR=$($sessions -replace '\\', '/')"
   Set-Content -Path $EnvFile -Value $text -NoNewline
   Write-Host "Wrote $EnvFile (random dev keys, gitignored). Check FVTT_SESSIONS_DIR in it."
@@ -96,7 +101,7 @@ function Assert-SafePorts($envMap) {
 
 function Get-SessionsDir($envMap) {
   $dir = $envMap['FVTT_SESSIONS_DIR']
-  if (-not $dir) { $dir = Join-Path $env:USERPROFILE 'Documents/FoundrySessions' }
+  if (-not $dir) { $dir = Get-DefaultSessionsDir }
   return $dir
 }
 

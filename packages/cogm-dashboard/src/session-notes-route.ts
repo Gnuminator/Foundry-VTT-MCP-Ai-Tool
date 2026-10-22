@@ -17,9 +17,9 @@
  * not-connected (no GM Foundry client), 502 when the bridge cannot be reached.
  */
 import { readdir, readFile } from 'node:fs/promises';
-import { homedir } from 'node:os';
 import { join } from 'node:path';
 
+import { sessionsDirFrom } from '@gnuminator/shared';
 import express, { type Express, type Request, type Response } from 'express';
 
 export type SessionNotesAction = 'list' | 'get' | 'put' | 'approve';
@@ -167,10 +167,7 @@ export function mountSessionNotesRoute(app: Express, options: SessionNotesRouteO
   app.get('/api/session-notes', requireGm, (_req: Request, res: Response) => run(res, 'list'));
 
   app.get('/api/session-notes/pipeline', requireGm, (_req: Request, res: Response) => {
-    const dir =
-      options.sessionsDir ??
-      process.env.FVTT_SESSIONS_DIR ??
-      join(homedir(), 'Documents', 'FoundrySessions');
+    const dir = options.sessionsDir ?? sessionsDirFrom(process.env.FVTT_SESSIONS_DIR);
     readPipelineStatus(dir)
       .then(pipeline => res.json({ pipeline }))
       .catch(() => res.json({ pipeline: null }));

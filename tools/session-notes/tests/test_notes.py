@@ -274,3 +274,148 @@ def test_status_file_records_the_outcome(session: Path) -> None:
     path = write_status(session, "paused", "limit", scenes=1)
     data = json.loads(path.read_text(encoding="utf-8"))
     assert data["state"] == "paused" and data["scenes"] == 1 and data["at"]
+
+
+def _session_cache(session: Path) -> Path:
+    return session / "notes" / ".work" / "session.json"
+
+
+def test_session_summary_is_not_reused_after_a_scene_changed(session: Path) -> None:
+    Writer(session, FakeClaude(), Options(workers=1)).run()
+    # Nothing changed: the summary comes from the cache, no Claude call at all.
+    same = FakeClaude()
+    Writer(session, same, Options(workers=1)).run()
+    assert same.calls == []
+
+    # A scene rewritten since (same indices): the summary is about old notes, so it is rewritten.
+    cache = session / "notes" / ".work" / "scene-001.json"
+    data = json.loads(cache.read_text(encoding="utf-8"))
+    data["notes"]["summary_en"] = "Rewritten later."
+    cache.write_text(json.dumps(data), encoding="utf-8")
+    again = FakeClaude()
+    Writer(session, again, Options(workers=1)).run()
+    assert [kind for kind, _ in again.calls] == ["session"]
+
+    # A cache from before the digest existed (scene indices only) is not trusted either.
+    old = json.loads(_session_cache(session).read_text(encoding="utf-8"))
+    del old["digest"]
+    _session_cache(session).write_text(json.dumps(old), encoding="utf-8")
+    third = FakeClaude()
+    Writer(session, third, Options(workers=1)).run()
+    assert [kind for kind, _ in third.calls] == ["session"]
+
+
+def test_incomplete_notes_say_so_until_the_run_finishes(session: Path) -> None:
+    notes = session / "notes"
+    Writer(session, FakeClaude(fail={1: "error", 2: "error", 3: "error", 4: "error"}),
+           Options(workers=1)).run()
+    for lang in ("da", "en"):
+        for name in ("transcript", "scenes"):
+            text = (notes / f"{name}.{lang}.md").read_text(encoding="utf-8")
+            assert "Ufærdige noter" in text or "Incomplete notes" in text
+    assert json.loads((notes / "notes.json").read_text(encoding="utf-8"))["complete"] is False
+
+    Writer(session, FakeClaude(), Options(workers=1)).run()
+    for lang in ("da", "en"):
+        for name in ("transcript", "scenes"):
+            text = (notes / f"{name}.{lang}.md").read_text(encoding="utf-8")
+            assert "Ufærdige noter" not in text and "Incomplete notes" not in text
+    assert json.loads((notes / "notes.json").read_text(encoding="utf-8"))["complete"] is True
+
+
+def test_fallback_tries_start_over_when_the_scene_changes(session: Path) -> None:
+    opts = Options(workers=1, only_scene=1, fallback_gap_s=0)
+    for _ in range(2):
+        assert Writer(session, FakeClaude(fail=_all_fail()), opts).run().pending == 1
+    marker = session / "notes" / ".work" / "scene-001.fallback.json"
+    assert json.loads(marker.read_text(encoding="utf-8"))["tries"] == 2
+
+    # A new line in scene 1 (the timeline was transcribed again): its ids differ, the count is 0.
+    row = {"start": 170.0, "end": 172.0, "speaker": "anna", "player": "Anna",
+           "character": "Ireena", "text": "Vent lidt.", "words": []}
+    with (session / "timeline" / "timeline.jsonl").open("a", encoding="utf-8") as fh:
+        fh.write(json.dumps(row) + "\n")
+    result = Writer(session, FakeClaude(fail=_all_fail()), opts).run()
+    assert result.pending == 1  # the third run of the old scene would have accepted it
+    assert json.loads(marker.read_text(encoding="utf-8"))["tries"] == 1
+
+
+def test_a_pause_and_a_fallback_in_the_same_run(session: Path) -> None:
+    # Scene 1 fails four calls and stays raw; the usage limit hits on scene 2's first call.
+    fail = {1: "error", 2: "error", 3: "error", 4: "error", 5: "limit"}
+    result = Writer(session, FakeClaude(fail=fail), Options(workers=1, fallback_gap_s=0)).run()
+    work = session / "notes" / ".work"
+    assert result.paused and result.pending == 1 and result.fallbacks == 1
+    assert json.loads((work / "scene-001.fallback.json").read_text(encoding="utf-8"))["tries"] == 1
+    assert not (work / "scene-001.json").exists() and not (work / "scene-002.json").exists()
+    assert not _session_cache(session).exists()
+    assert json.loads((session / "notes" / "notes.json").read_text(encoding="utf-8"))["session"] is None
+
+    # The next run asks about both scenes again and finishes.
+    again = FakeClaude()
+    result2 = Writer(session, again, Options(workers=1, fallback_gap_s=0)).run()
+    assert result2.paused is None and result2.pending == 0 and result2.fallbacks == 0
+    assert [kind for kind, _ in again.calls] == ["scene", "scene", "session"]
+
+
+class _CliRunner(FakeClaude):
+    """What `cli.main` expects from ClaudeCli: a runner with a `records` list."""
+
+    records: list[object] = []  # noqa: RUF012
+
+
+def _run_cli(monkeypatch: pytest.MonkeyPatch, session: Path, fake: FakeClaude) -> int:
+    from session_notes import cli
+
+    runner = _CliRunner(fake.fail, fake.bad_lines)
+    monkeypatch.setattr(cli, "ClaudeCli", lambda: runner)
+    return cli.main(["run", str(session), "--workers", "1"])
+
+
+def _status(session: Path) -> dict[str, object]:
+    return json.loads((session / "notes" / "status.json").read_text(encoding="utf-8"))
+
+
+def test_cli_exit_codes_and_status_file(
+    session: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from session_notes import cli
+
+    # 76: scene 1 stays raw, the run is incomplete and the status says so.
+    code = _run_cli(monkeypatch, session, FakeClaude(fail={1: "error", 2: "error", 3: "error", 4: "error"}))
+    assert code == cli.EXIT_INCOMPLETE == 76
+    assert _status(session)["state"] == "incomplete" and _status(session)["pending"] == 1
+
+    # 75: a usage limit on the first call pauses the run.
+    code = _run_cli(monkeypatch, session, FakeClaude(fail={1: "limit"}))
+    assert code == cli.EXIT_PAUSED == 75
+    assert _status(session)["state"] == "paused"
+    assert "Paused by a usage limit" in capsys.readouterr().out
+
+    # 0: everything written.
+    assert _run_cli(monkeypatch, session, FakeClaude()) == 0
+    assert _status(session)["state"] == "done"
+
+
+def test_cli_status_when_claude_cannot_start_or_the_run_crashes(
+    session: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from session_notes import cli
+
+    def no_claude() -> object:
+        raise ClaudeError("claude not found")
+
+    monkeypatch.setattr(cli, "ClaudeCli", no_claude)
+    assert cli.main(["run", str(session)]) == 1
+    assert _status(session)["state"] == "failed"
+    assert "claude not found" in str(_status(session)["message"])
+
+    class Crashing(_CliRunner):
+        def __call__(self, *args: object, **kwargs: object) -> dict[str, object]:
+            raise RuntimeError("disk full")
+
+    monkeypatch.setattr(cli, "ClaudeCli", Crashing)
+    monkeypatch.setattr(cli.Writer, "run", lambda self: (_ for _ in ()).throw(RuntimeError("disk full")))
+    with pytest.raises(RuntimeError):
+        cli.main(["run", str(session)])
+    assert _status(session)["state"] == "failed" and "disk full" in str(_status(session)["message"])

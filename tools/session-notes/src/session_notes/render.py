@@ -29,6 +29,8 @@ HEAD = {
         "recap": "Resumé til spillerne",
         "draft": "Kladde: venter på GM'ens godkendelse. Ikke til spillerne endnu.",
         "missing": "Ikke skrevet endnu (kør session-notes igen).",
+        "incomplete": "Ufærdige noter: nogle scener mangler eller er rå, og resuméet er ikke "
+        "skrevet. Kør session-notes igen.",
         "changed": "Hvad ændrede sig",
         "fallback": "Denne scene kunne ikke behandles; transskriptionen er rå.",
         "ooc": "uden for spillet",
@@ -50,6 +52,8 @@ HEAD = {
         "recap": "Recap for the players",
         "draft": "Draft: waiting for the GM's approval. Not for players yet.",
         "missing": "Not written yet (run session-notes again).",
+        "incomplete": "Incomplete notes: some scenes are missing or raw, and the summary is "
+        "not written. Run session-notes again.",
         "changed": "What changed",
         "fallback": "This scene could not be processed; the transcript is raw.",
         "ooc": "out of character",
@@ -72,10 +76,16 @@ def _cite(ids: list[str], lang: str, starts: dict[str, float]) -> str:
     return f" ({', '.join(links)})" if links else ""
 
 
-def render_transcript(lang: str, lines: list[Line], notes: list[dict[str, Any]]) -> str:
+def _banner(h: dict[str, Any], incomplete: bool) -> list[str]:
+    return [f"> **{h['incomplete']}**", ""] if incomplete else []
+
+
+def render_transcript(
+    lang: str, lines: list[Line], notes: list[dict[str, Any]], incomplete: bool = False
+) -> str:
     h = HEAD[lang]
     by_id = {ln.id: ln for ln in lines}
-    out = [f"# {h['transcript']}", ""]
+    out = [f"# {h['transcript']}", "", *_banner(h, incomplete)]
     for scene in notes:
         out += [f"## {scene['index']}. {scene[f'title_{lang}']}", ""]
         if scene.get("fallback"):
@@ -90,10 +100,12 @@ def render_transcript(lang: str, lines: list[Line], notes: list[dict[str, Any]])
     return "\n".join(out)
 
 
-def render_scenes(lang: str, lines: list[Line], notes: list[dict[str, Any]]) -> str:
+def render_scenes(
+    lang: str, lines: list[Line], notes: list[dict[str, Any]], incomplete: bool = False
+) -> str:
     h = HEAD[lang]
     starts = {ln.id: ln.start for ln in lines}
-    out = [f"# {h['scenes']}", ""]
+    out = [f"# {h['scenes']}", "", *_banner(h, incomplete)]
     for scene in notes:
         out += [
             f"## {scene['index']}. {scene[f'title_{lang}']}",
@@ -148,6 +160,9 @@ def write_outputs(
 ) -> list[Path]:
     notes_dir.mkdir(parents=True, exist_ok=True)
     written: list[Path] = []
+    # No session part means the run did not finish (pending raw scenes, a pause, a failed summary):
+    # the scene files say so at the top instead of reading like the final notes.
+    incomplete = session is None
 
     def put(name: str, text: str) -> None:
         path = notes_dir / name
@@ -155,14 +170,20 @@ def write_outputs(
         written.append(path)
 
     for lang in LANGS:
-        put(f"transcript.{lang}.md", render_transcript(lang, lines, notes))
-        put(f"scenes.{lang}.md", render_scenes(lang, lines, notes))
+        put(f"transcript.{lang}.md", render_transcript(lang, lines, notes, incomplete))
+        put(f"scenes.{lang}.md", render_scenes(lang, lines, notes, incomplete))
         put(f"summary.{lang}.md", render_summary(lang, session))
         put(f"recap.player.{lang}.md", render_recap(lang, session))
     put(
         "notes.json",
         json.dumps(
-            {"roster": roster.players, "names": roster.names, "scenes": notes, "session": session},
+            {
+                "roster": roster.players,
+                "names": roster.names,
+                "complete": not incomplete,
+                "scenes": notes,
+                "session": session,
+            },
             ensure_ascii=False,
             indent=1,
         ),

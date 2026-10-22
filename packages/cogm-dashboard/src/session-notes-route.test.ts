@@ -2,15 +2,20 @@
  * Session notes routes (recap lane, D-087): GM only, put and approve behind GM Actions, the
  * bridge's refusal codes passed through with a matching status.
  */
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import type { Server } from 'http';
 import type { AddressInfo } from 'net';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
-import { afterEach, describe, expect, it } from 'vitest';
+import express from 'express';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { createDashboard, type Dashboard } from './app.js';
 import { config, type Config } from './config.js';
 import { ChannelError } from './feed/mcp-control-client.js';
 import { Logger } from './logger.js';
+import { mountSessionNotesRoute } from './session-notes-route.js';
 
 const GM_TOKEN = 'gm-token-notes';
 const PLAYER_TOKEN = 'player-token-notes';
@@ -180,5 +185,70 @@ describe('/api/session-notes', () => {
     server = null;
     const old = await start(() => Promise.resolve(null), false);
     expect((await req(old.base, '/api/session-notes')).status).toBe(502);
+  });
+});
+
+describe('GET /api/session-notes/pipeline', () => {
+  const tmp: string[] = [];
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    for (const d of tmp.splice(0)) rmSync(d, { recursive: true, force: true });
+  });
+  function sessionsWith(name: string, status: string): string {
+    const root = mkdtempSync(join(tmpdir(), 'pipeline-route-'));
+    tmp.push(root);
+    mkdirSync(join(root, name, 'notes'), { recursive: true });
+    writeFileSync(join(root, name, 'notes', 'status.json'), status);
+    return root;
+  }
+
+  it('is GM only and answers before the :id route can take "pipeline" for a session id', async () => {
+    vi.stubEnv(
+      'FVTT_SESSIONS_DIR',
+      sessionsWith(ID, '{"state":"incomplete","message":"2 scenes raw"}')
+    );
+    const { base, calls } = await start(() => Promise.resolve({ sessionId: 'from-the-bridge' }));
+    expect((await req(base, '/api/session-notes/pipeline', { token: PLAYER_TOKEN })).status).toBe(
+      403
+    );
+    expect((await req(base, '/api/session-notes/pipeline', { token: 'wrong' })).status).toBe(401);
+    const res = await req(base, '/api/session-notes/pipeline');
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      pipeline: { session: ID, state: 'incomplete', message: '2 scenes raw' },
+    });
+    // "pipeline" is a valid session id: had `/:id` come first, the bridge would have been asked.
+    expect(calls).toEqual([]);
+  });
+
+  it('is {pipeline: null} when the sessions folder has nothing', async () => {
+    vi.stubEnv('FVTT_SESSIONS_DIR', join(tmpdir(), 'no-such-sessions-dir-route'));
+    const { base } = await start(() => Promise.resolve({ items: [] }));
+    expect(await (await req(base, '/api/session-notes/pipeline')).json()).toEqual({
+      pipeline: null,
+    });
+  });
+
+  it('reads the sessionsDir option before FVTT_SESSIONS_DIR', async () => {
+    vi.stubEnv('FVTT_SESSIONS_DIR', sessionsWith('2026-01-01_0000-env', '{"state":"done"}'));
+    const fromOption = sessionsWith('2026-02-02_0000-option', '{"state":"published"}');
+    const app = express();
+    mountSessionNotesRoute(app, {
+      client: {},
+      requireGm: (_req, _res, next) => next(),
+      gmActionsEnabled: () => false,
+      sessionsDir: fromOption,
+    });
+    const listener = app.listen(0, '127.0.0.1');
+    await new Promise<void>(resolve => listener.once('listening', () => resolve()));
+    try {
+      const { port } = listener.address() as AddressInfo;
+      const res = await fetch(`http://127.0.0.1:${port}/api/session-notes/pipeline`);
+      expect(await res.json()).toEqual({
+        pipeline: { session: '2026-02-02_0000-option', state: 'published', message: '' },
+      });
+    } finally {
+      await new Promise<void>(resolve => listener.close(() => resolve()));
+    }
   });
 });

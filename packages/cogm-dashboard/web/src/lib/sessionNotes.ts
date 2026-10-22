@@ -71,6 +71,16 @@ const PIPELINE_WORDS: Record<PipelineStatus['state'], string> = {
   published: 'The notes went to Foundry.',
 };
 
+/** The pill on the card without staged notes: one word per way the pass can end. */
+const PIPELINE_PILLS: Record<PipelineStatus['state'], string> = {
+  done: 'Done',
+  paused: 'Paused',
+  incomplete: 'Incomplete',
+  failed: 'Failed',
+  waiting: 'Waiting',
+  published: 'Published',
+};
+
 /** Whether a staged notes id belongs to this session folder (the pipeline's id-safe folder name). */
 export function samePipelineSession(sessionId: string, folder: string): boolean {
   return (
@@ -87,7 +97,7 @@ export function pipelineView(p: PipelineStatus): { line: string; problem: boolea
   const when = notesTime(p.at);
   const detail = p.message && p.state !== 'published' && p.state !== 'done' ? ` ${p.message}` : '';
   return {
-    pill: p.state === 'failed' ? 'Failed' : p.state === 'published' ? 'Published' : 'Waiting',
+    pill: PIPELINE_PILLS[p.state],
     line: `Last notes pass${when ? ` (${when})` : ''}: ${PIPELINE_WORDS[p.state]}${detail}`,
     problem: p.state === 'failed' || p.state === 'incomplete' || p.state === 'paused',
   };

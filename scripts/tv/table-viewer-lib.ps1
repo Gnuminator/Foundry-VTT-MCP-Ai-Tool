@@ -38,16 +38,15 @@ function Get-TableViewerCommand {
 <#
   The path in front of Foundry's own pages when it sits behind a reverse proxy at a sub-path:
   '/foundry' for https://host/foundry or https://host/foundry/join, '' for https://host. A trailing
-  /join on the address is the join page itself, not part of the prefix.
+  Foundry page name (/join, or /game from the address bar while in the game) is that page itself,
+  not part of the prefix.
 #>
 function Get-FoundryPrefix {
   param([string]$BaseUrl)
   $base = $null
   if (-not [Uri]::TryCreate($BaseUrl, [UriKind]::Absolute, [ref]$base)) { return '' }
   $path = $base.AbsolutePath.TrimEnd('/')
-  if ($path -eq '/join') { return '' }
-  if ($path.EndsWith('/join', [StringComparison]::Ordinal)) { $path = $path.Substring(0, $path.Length - 5) }
-  return $path
+  return ($path -replace '(?i)/(join|game|setup|auth|players|license|stream|config)$', '')
 }
 
 <#
@@ -81,6 +80,8 @@ function Test-ProfileInUse {
     $stream.Dispose()
     return $false
   }
+  catch [System.IO.FileNotFoundException] { return $false } # gone as the browser closed
+  catch [System.IO.DirectoryNotFoundException] { return $false }
   catch [System.IO.IOException] { return $true }
   catch [System.UnauthorizedAccessException] { return $true }
 }

@@ -73,6 +73,9 @@ if ($DryRun) {
 }
 
 New-Item -ItemType Directory -Force -Path $cmd.Profile | Out-Null
+if (-not $NoAutoJoin) {
+  Write-Host "Watching for the join page at $(([Uri]$Url).GetLeftPart([UriPartial]::Authority))$(Get-FoundryPrefix -BaseUrl $Url)/join"
+}
 # A browser that runs on this profile without a debug port (-NoAutoJoin, or opened by hand) writes
 # no port file, but Chromium keeps the profile's lockfile open for as long as it runs.
 if (Test-ProfileInUse -Profile $cmd.Profile) {

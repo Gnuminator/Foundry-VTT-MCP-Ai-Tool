@@ -15,7 +15,6 @@ import type {
   PlayerVisibility,
   PlayerVisibleToken,
 } from '@gnuminator/shared';
-import { isTablePlayer } from './table-viewer-user.js';
 
 /** Query names (mirror of the shared `PLAYER_VIEW_QUERIES`). */
 export const PLAYER_VIEW_QUERIES = {
@@ -255,7 +254,7 @@ function canObserve(doc: unknown, user: User): boolean {
  */
 export function pageAccessForPlayers(page: JournalEntryPage): { journal: boolean; page: boolean } {
   const journal = (page as unknown as { parent?: unknown }).parent ?? null;
-  const players = game.users.filter((user): boolean => isTablePlayer(user));
+  const players = game.users.filter((user): boolean => !user.isGM);
   return {
     journal: players.some((user): boolean => canObserve(journal, user)),
     page: players.some(

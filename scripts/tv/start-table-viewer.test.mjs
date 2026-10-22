@@ -122,6 +122,9 @@ describe('start-table-viewer.ps1', { skip: !hasPwsh && 'pwsh 7 not installed' },
       ['https://host.example.com/foundry', 'https://host.example.com/other/join', false],
       ['https://host.example.com/foundry', 'https://host.example.com/foundry/join/extra', false],
       ['https://host.example.com/join', 'https://host.example.com/join', true],
+      // The address bar of the game itself is not a prefix.
+      ['https://host.example.com/game', 'https://host.example.com/join', true],
+      ['https://host.example.com/foundry/game', 'https://host.example.com/foundry/join', true],
       ['https://host.example.com', 'https://host.example.com/foundry/join', false],
     ];
     const body = cases

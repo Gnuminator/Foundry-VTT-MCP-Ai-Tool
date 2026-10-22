@@ -661,7 +661,7 @@ Parameters:
 
 ### plan-npc-turn
 
-Plan a monster's turn. Without moveTo it only reads the fight: the NPC whose turn it is, its speed and attacks, each enemy's distance, AC and HP. With moveTo (a grid square) it checks the square and plans the move (apply-planned-change, undo-change); with itemName and target it also checks the reach. The attack step names the tools that roll it (use-npc-activity, then plan-actor-change). One move and one attack; no multiattack, spells or legendary actions. Needs the "NPC turn assistant" switch (off by default).
+Plan a monster's turn. Without moveTo it only reads the fight: whose turn, speed, attacks, Multiattack text, and each enemy's distance, AC, HP, state, square to attack from and score. With moveTo (a grid square) it paths round walls, doors and hostile creatures, counts difficult terrain and plans the move (apply-planned-change, undo-change). List a multiattack in attacks. The attack steps name the tools that roll them (use-npc-activity, then plan-actor-change). Square grids only; no spells, saves or legendary actions yet. Needs the "NPC turn assistant" switch (off by default).
 
 Kind: read-only. Title: Plan NPC turn.
 
@@ -673,6 +673,10 @@ Parameters:
   - `gridY` (integer, required): Range: at least 0.
 - `itemName` (string): The attack or action it will use (checked against its items).
 - `target` (string): The token it will attack (checked for reach after the move).
+- `attacks` (array of object): A multiattack: several attacks in order (see the Multiattack text). Items: at most 10.
+  - `itemName` (string, required)
+  - `target` (string, required)
+- `dash` (boolean): Dash: the move may use twice the speed.
 - `reason` (string): One line on why (shown in the plan and Recent Changes).
 
 ### plan-scene-mood

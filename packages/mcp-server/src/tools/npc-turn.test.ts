@@ -14,17 +14,21 @@ const CONTEXT: NpcTurnPlan['context'] = {
   token: { id: 't1', name: 'Wolf', gridX: 2, gridY: 2 },
   actor: { id: 'a1', name: 'Wolf' },
   speed: 30,
+  moveLimit: 30,
   units: 'ft',
   squareSize: 5,
   actions: [
     { name: 'Bite', activityTypes: ['attack'], rangeFt: 5, longRangeFt: null, melee: true },
   ],
+  multiattack: null,
+  engageWith: 'Bite',
   targets: [],
+  suggested: null,
   notes: [],
 };
 
 function reply(extra: Partial<NpcTurnPlan> = {}): NpcTurnPlan {
-  return { context: CONTEXT, steps: [], attack: null, ...extra };
+  return { context: CONTEXT, steps: [], attack: null, attacks: [], ...extra };
 }
 
 let query: ReturnType<typeof vi.fn>;
@@ -97,7 +101,71 @@ describe('plan-npc-turn', () => {
     expect(result.steps).toEqual(['Wolf: (2,2) to (6,2), 20 ft']);
   });
 
+  it('passes a multiattack and a Dash to the module and returns the path and cost', async () => {
+    const bite = {
+      itemName: 'Bite',
+      target: 'Hero',
+      targetAC: 16,
+      inReach: true,
+      blockedByWall: false,
+      rollWith: 'use-npc-activity {}',
+      damageWith: 'plan-actor-change {}',
+    };
+    planReply = reply({
+      summary: 'NPC turn: Wolf to (6,2), then Bite on Hero, Bite on Hero',
+      ops: [{ kind: 'update', uuid: 'Scene.s1.Token.t1', changes: { x: 600 } }],
+      steps: ['Wolf: (2,2) to (6,2), 25 ft, going round an obstacle'],
+      attack: bite,
+      attacks: [bite, bite],
+      path: [
+        { gridX: 2, gridY: 2 },
+        { gridX: 6, gridY: 2 },
+      ],
+      moveCost: 25,
+    });
+    const args = {
+      moveTo: { gridX: 6, gridY: 2 },
+      dash: true,
+      attacks: [
+        { itemName: 'Bite', target: 'Hero' },
+        { itemName: 'Bite', target: 'Hero' },
+      ],
+    };
+    const result = await tools.handleToolCall('plan-npc-turn', args);
+    expect(query.mock.calls[1]).toEqual(['foundry-mcp-bridge.planNpcTurn', args]);
+    expect(result.attacks).toHaveLength(2);
+    expect(result.moveCost).toBe(25);
+    expect(result.path?.at(-1)).toEqual({ gridX: 6, gridY: 2 });
+    expect(result.plan?.planId).toBe('plan-1');
+  });
+
+  it('keeps an older module reply working (one attack, no list)', async () => {
+    const one = { itemName: 'Bite', target: 'Hero' } as never;
+    planReply = { ...reply({ attack: one }), attacks: undefined as never };
+    const result = await tools.handleToolCall('plan-npc-turn', {});
+    expect(result.attacks).toEqual([one]);
+  });
+
+  it('says so when an older module answers a request for attacks or a Dash without checking them', async () => {
+    planReply = { ...reply(), attacks: undefined as never };
+    await expect(
+      tools.handleToolCall('plan-npc-turn', { attacks: [{ itemName: 'Bite', target: 'Hero' }] })
+    ).rejects.toThrow(/module is older than this server/);
+    await expect(tools.handleToolCall('plan-npc-turn', { dash: true })).rejects.toThrow(
+      /module is older/
+    );
+    expect(createPlan).not.toHaveBeenCalled();
+  });
+
   it('rejects bad input and unknown tool names', async () => {
+    await expect(
+      tools.handleToolCall('plan-npc-turn', { attacks: [{ itemName: 'Bite' }] })
+    ).rejects.toThrow();
+    await expect(
+      tools.handleToolCall('plan-npc-turn', {
+        attacks: Array.from({ length: 11 }, () => ({ itemName: 'Bite', target: 'Hero' })),
+      })
+    ).rejects.toThrow();
     await expect(
       tools.handleToolCall('plan-npc-turn', { moveTo: { gridX: -1, gridY: 2 } })
     ).rejects.toThrow();

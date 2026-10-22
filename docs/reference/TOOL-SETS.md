@@ -20,7 +20,7 @@ what the conversation needs. The switches are remembered for new chats.
 | **build** | `foundry-mcp-build`  | 8     | about 28,100      | Making NPCs, monsters and items, from a compendium or from scratch; room setup.              |
 | **admin** | `foundry-mcp-admin`  | 9     | about 7,700       | Modules and their errors, actor ownership, the Obsidian mirror.                              |
 
-A prep chat with core and prep on carries about 37,900 characters instead of 102,600. Core alone is
+A prep chat with core and prep on carries about 37,900 characters instead of 102,800. Core alone is
 about 16% of everything.
 
 The dashboard is not affected: it reads the bridge directly and always has every tool.

@@ -24,6 +24,11 @@ const planParams = z.object({
   moveTo: z.object({ gridX: z.number().int().min(0), gridY: z.number().int().min(0) }).optional(),
   itemName: z.string().min(1).optional(),
   target: z.string().min(1).optional(),
+  attacks: z
+    .array(z.object({ itemName: z.string().min(1), target: z.string().min(1) }))
+    .max(10)
+    .optional(),
+  dash: z.boolean().optional(),
   reason: z.string().min(1).max(300).optional(),
 });
 
@@ -32,6 +37,11 @@ export interface NpcTurnResult {
   context: NpcTurnContext;
   steps: string[];
   attack: NpcTurnPlan['attack'];
+  attacks: NpcTurnPlan['attacks'];
+  /** The squares walked, start first; set with a move. */
+  path?: NpcTurnPlan['path'];
+  /** What the move costs in the scene's units. */
+  moveCost?: number;
   /** The guarded plan of the move; absent when no move was asked for (context only). */
   plan?: PlanView;
   autoApply: false;
@@ -39,9 +49,10 @@ export interface NpcTurnResult {
 
 /**
  * NPC turn assistant (I-125). `plan-npc-turn` reads the running combat and the NPC whose turn it
- * is (speed, attacks, targets with distance and AC). With `moveTo` it plans the move as one
- * guarded change (feature `npc-turn`, off by default); apply it with apply-planned-change and
- * revert it with undo-change. The attack stays with use-npc-activity and plan-actor-change.
+ * is (speed, attacks, Multiattack text, targets with distance, AC, state and a score). With
+ * `moveTo` it finds the way (walls, doors, difficult terrain) and plans the move as one guarded
+ * change (feature `npc-turn`, off by default); apply it with apply-planned-change and revert it
+ * with undo-change. The attacks stay with use-npc-activity and plan-actor-change.
  */
 export class NpcTurnTools {
   constructor(private readonly options: NpcTurnToolsOptions) {
@@ -57,7 +68,7 @@ export class NpcTurnTools {
       {
         name: 'plan-npc-turn',
         description:
-          'Plan a monster\'s turn. Without moveTo it only reads the fight: the NPC whose turn it is, its speed and attacks, each enemy\'s distance, AC and HP. With moveTo (a grid square) it checks the square and plans the move (apply-planned-change, undo-change); with itemName and target it also checks the reach. The attack step names the tools that roll it (use-npc-activity, then plan-actor-change). One move and one attack; no multiattack, spells or legendary actions. Needs the "NPC turn assistant" switch (off by default).',
+          'Plan a monster\'s turn. Without moveTo it only reads the fight: whose turn, speed, attacks, Multiattack text, and each enemy\'s distance, AC, HP, state, square to attack from and score. With moveTo (a grid square) it paths round walls, doors and hostile creatures, counts difficult terrain and plans the move (apply-planned-change, undo-change). List a multiattack in attacks. The attack steps name the tools that roll them (use-npc-activity, then plan-actor-change). Square grids only; no spells, saves or legendary actions yet. Needs the "NPC turn assistant" switch (off by default).',
         inputSchema: {
           type: 'object',
           properties: {
@@ -85,6 +96,20 @@ export class NpcTurnTools {
               description: 'The token it will attack (checked for reach after the move).',
               ...toolRef('token', 'name'),
             },
+            attacks: {
+              type: 'array',
+              description: 'A multiattack: several attacks in order (see the Multiattack text).',
+              maxItems: 10,
+              items: {
+                type: 'object',
+                properties: {
+                  itemName: { type: 'string', ...freeText('An item name on the NPC') },
+                  target: { type: 'string', ...toolRef('token', 'name') },
+                },
+                required: ['itemName', 'target'],
+              },
+            },
+            dash: { type: 'boolean', description: 'Dash: the move may use twice the speed.' },
             reason: {
               type: 'string',
               description: 'One line on why (shown in the plan and Recent Changes).',
@@ -129,10 +154,19 @@ export class NpcTurnTools {
       } as NpcTurnRequest),
       'Could not plan the NPC turn'
     );
+    // An older module ignores `attacks` and `dash` and answers without `attacks`.
+    if ((params.attacks?.length || params.dash) && built.attacks === undefined) {
+      throw new Error(
+        'The Foundry module is older than this server and does not check attacks or a Dash: update the module and reload Foundry.'
+      );
+    }
     const result = {
       context: built.context,
       steps: built.steps,
       attack: built.attack,
+      attacks: built.attacks ?? (built.attack ? [built.attack] : []),
+      ...(built.path ? { path: built.path } : {}),
+      ...(built.moveCost !== undefined ? { moveCost: built.moveCost } : {}),
       autoApply: false as const,
     };
     if (!built.ops || built.ops.length === 0 || !built.summary) return result;

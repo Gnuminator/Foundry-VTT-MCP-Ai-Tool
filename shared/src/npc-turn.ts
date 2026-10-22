@@ -22,6 +22,12 @@ export const NPC_TURN_QUERY = 'planNpcTurn';
 /** The guarded feature switch ("AI Tool: NPC turn assistant (writes)"), off by default. */
 export const NPC_TURN_FEATURE_ID = 'npc-turn';
 
+/** One attack of the turn: the item and the token it is aimed at. */
+export interface NpcTurnAttackRequest {
+  itemName: string;
+  target: string;
+}
+
 /** `plan-npc-turn` parameters as the module's `planNpcTurn` query takes them. */
 export interface NpcTurnRequest {
   /** Token name or id of the NPC. Default: the combatant whose turn it is. */
@@ -32,6 +38,10 @@ export interface NpcTurnRequest {
   itemName?: string;
   /** Token name or id of the intended target (checked for reach after the move). */
   target?: string;
+  /** Several attacks in one turn (a multiattack), each checked on its own; with `itemName` it adds to it. */
+  attacks?: NpcTurnAttackRequest[];
+  /** Plan a Dash: the move may use twice the speed. */
+  dash?: boolean;
   /** Why this turn (shown in the plan summary). */
   reason?: string;
 }
@@ -62,6 +72,19 @@ export interface NpcTurnTarget {
   ac: number | null;
   hp: { value: number | null; max: number | null } | null;
   conditions: string[];
+  /** Concentrating on a spell (a hit may break it). */
+  concentrating: boolean;
+  prone: boolean;
+  /** At 0 hit points already. */
+  down: boolean;
+  /**
+   * The square to attack it from: the cheapest one the NPC can walk to this turn where
+   * `engageWith` reaches it. Null when it cannot be reached this turn.
+   */
+  engage: { gridX: number; gridY: number; cost: number } | null;
+  /** Higher is the better target for this NPC; `reasons` says why. */
+  score: number;
+  reasons: string[];
 }
 
 /** What the NPC and the table look like at the start of its turn. */
@@ -71,13 +94,33 @@ export interface NpcTurnContext {
   actor: { id: string; name: string };
   /** Walking speed in the scene's units; null when the actor has none. */
   speed: number | null;
+  /** What the NPC may walk this turn: the speed, doubled by a Dash. */
+  moveLimit: number | null;
   units: string;
   /** Squares the scene uses per move unit (distance per square). */
   squareSize: number;
   actions: NpcTurnAction[];
+  /** The text of the NPC's Multiattack feature, when it has one (how many attacks, with what). */
+  multiattack: string | null;
+  /** The action the `engage` squares were worked out for. */
+  engageWith: string | null;
   targets: NpcTurnTarget[];
-  /** Always set: the path is a straight count of squares, walls and difficult terrain are not checked. */
+  /** The target the scores favour; null when there is none. */
+  suggested: { tokenId: string; name: string; reasons: string[] } | null;
+  /** What was and was not checked (walls, terrain, levels, grid rules). */
   notes: string[];
+}
+
+/** One attack of the turn, spelled out for the existing tools. */
+export interface NpcTurnAttack {
+  itemName: string;
+  target: string;
+  targetAC: number | null;
+  inReach: boolean;
+  /** A melee attack with a wall or closed door between the NPC (after the move) and the target. */
+  blockedByWall: boolean;
+  rollWith: string;
+  damageWith: string;
 }
 
 /** The module's answer. `ops` and `summary` are set only when a move was asked for. */
@@ -87,13 +130,12 @@ export interface NpcTurnPlan {
   ops?: GuardedOp[];
   /** Readable lines, one per step of the turn. */
   steps: string[];
-  /** The attack step, spelled out for the existing tools; null when no attack was named. */
-  attack: {
-    itemName: string;
-    target: string;
-    targetAC: number | null;
-    inReach: boolean;
-    rollWith: string;
-    damageWith: string;
-  } | null;
+  /** The first attack step, spelled out for the existing tools; null when no attack was named. */
+  attack: NpcTurnAttack | null;
+  /** Every attack named, in order (a multiattack has several). */
+  attacks: NpcTurnAttack[];
+  /** The squares the NPC walks through, start first; set when a move was planned. */
+  path?: Array<{ gridX: number; gridY: number }>;
+  /** What the move costs in the scene's units (terrain and diagonals counted). */
+  moveCost?: number;
 }

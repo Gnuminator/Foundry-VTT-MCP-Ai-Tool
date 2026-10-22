@@ -472,6 +472,41 @@ function writeMarker(
   return { [MODULE_ID]: { changeId: req.changeId, changeMode } };
 }
 
+/** The token fields Foundry 14 treats as movement (`TokenDocument.MOVEMENT_FIELDS`). */
+const TOKEN_MOVEMENT_FIELDS = ['x', 'y', 'elevation', 'width', 'height', 'depth', 'shape', 'level'];
+
+/**
+ * The options of one update write: the marker, plus, for a token's position or size, a placement.
+ * Foundry 14 treats such an update as a straight move that stops at the first wall or blocking
+ * token ("Foundry did not keep x, y") and fires every region behaviour along the line (a trap, a
+ * teleport, a pause) that undo cannot take back. A planned move was checked when it was planned
+ * (the NPC turn assistant paths round walls and creatures) and the GM confirmed it, and its undo
+ * must be able to go back, so the token is placed: one `displace` waypoint (a teleport: walls and
+ * cost do not apply, nothing is entered along the way). Region behaviours that react to a plain
+ * enter or exit still see the destination; Teleport Token and Change Level ignore a displace move.
+ */
+function writeOptions(
+  doc: FoundryDocument,
+  update: Record<string, unknown>,
+  req: GuardedApplyRequest,
+  changeMode?: ChangeWriteMode
+): Record<string, unknown> {
+  const options = writeMarker(req, changeMode);
+  if (doc.documentName === 'Token' && doc.id && TOKEN_MOVEMENT_FIELDS.some(f => f in update)) {
+    const waypoint: Record<string, unknown> = { action: 'displace' };
+    for (const field of TOKEN_MOVEMENT_FIELDS) {
+      if (field in update) waypoint[field] = update[field];
+    }
+    options.movement = {
+      [doc.id]: {
+        waypoints: [waypoint],
+        constrainOptions: { ignoreWalls: true, ignoreCost: true, ignoreTokens: true },
+      },
+    };
+  }
+  return options;
+}
+
 async function executeUpdate(
   op: GuardedUpdateOp,
   index: number,
@@ -493,7 +528,9 @@ async function executeUpdate(
   for (const path of unset) {
     if (ownershipKeyOf(path) === null) Object.assign(update, unsetKeyUpdate(path));
   }
-  if (Object.keys(update).length > 0) await doc.update(update, writeMarker(req, changeMode));
+  if (Object.keys(update).length > 0) {
+    await doc.update(update, writeOptions(doc, update, req, changeMode));
+  }
   await removeOwnershipKeys(doc, ownershipKeys, writeMarker(req, changeMode));
   const afterSource = sourceOf(doc);
   const result: GuardedOpResult = {
@@ -519,7 +556,7 @@ async function executeUpdate(
         if (undoOp.kind === 'update') {
           const restore: Record<string, unknown> = { ...undoOp.changes };
           for (const path of undoOp.unset ?? []) Object.assign(restore, unsetKeyUpdate(path));
-          await doc.update(restore, writeMarker(req, 'rollback'));
+          await doc.update(restore, writeOptions(doc, restore, req, 'rollback'));
         }
       } catch {
         restored = 'putting the earlier values back failed too: check the token by hand';

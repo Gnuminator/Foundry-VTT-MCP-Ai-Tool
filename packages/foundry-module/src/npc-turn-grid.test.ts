@@ -60,6 +60,16 @@ describe('gapSquares', () => {
     expect(gapSquares(0, one(2, 2), one(2, 4))).toBe(2);
   });
 
+  it('keeps a diagonal neighbour at one square under every diagonal rule (review M1)', () => {
+    for (const rule of [0, 1, 2, 3, 4, 5, 6]) {
+      expect(gapSquares(rule, one(2, 2), one(3, 3))).toBe(1);
+      expect(gapSquares(rule, one(2, 2), one(1, 1))).toBe(1);
+      expect(gapSquares(rule, one(2, 2), one(3, 2))).toBe(1);
+    }
+    // Two squares away still follows the rule.
+    expect(gapSquares(DIAGONALS.EXACT, one(2, 2), one(4, 4))).toBeCloseTo(2.83, 2);
+  });
+
   it('uses the footprint edge of a large token', () => {
     expect(gapSquares(0, { x: 2, y: 2, w: 2, h: 2 }, one(4, 2))).toBe(1);
   });

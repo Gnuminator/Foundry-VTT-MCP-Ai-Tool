@@ -85,7 +85,11 @@ export function lineSquares(rule: number, dx: number, dy: number): number {
 export function gapSquares(rule: number, a: Footprint, b: Footprint): number {
   const gx = Math.max(b.x - (a.x + a.w), a.x - (b.x + b.w));
   const gy = Math.max(b.y - (a.y + a.h), a.y - (b.y + b.h));
-  return lineSquares(rule, gx >= 0 ? gx + 1 : 0, gy >= 0 ? gy + 1 : 0);
+  const dx = gx >= 0 ? gx + 1 : 0;
+  const dy = gy >= 0 ? gy + 1 : 0;
+  // Touching footprints, corner to corner included, are always one square apart (5 ft reach).
+  if (Math.max(dx, dy) === 1) return 1;
+  return lineSquares(rule, dx, dy);
 }
 
 export function overlaps(a: Footprint, b: Footprint): boolean {

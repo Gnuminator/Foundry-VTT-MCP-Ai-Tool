@@ -37,6 +37,35 @@ export interface CombatStats {
   fumbles: number;
 }
 
+/**
+ * What a paper sync (`plan-paper-sync`, `paper-night.ts`) changed on one character: sheet values
+ * copied in from paper, not play, so they never reach the damage, healing, slot or loot numbers.
+ */
+export interface PaperNetPc {
+  uuid: string;
+  name: string;
+  /** HP the sheet lost / regained over the night (sum of the sync's HP changes). */
+  hpLost: number;
+  hpGained: number;
+  /** Spell slots the sheet used / got back. */
+  slotsSpent: number;
+  slotsRegained: number;
+  /** Class resource and item uses, and hit dice, spent. */
+  resourcesSpent: number;
+  /** Net change per currency denomination (gold is `gp`). */
+  currency: Tally;
+  xpGained: number;
+  itemsGained: Tally;
+  itemsLost: Tally;
+}
+
+/** The "Paper night: net change" block: what the syncs after a paper night changed, per character. */
+export interface PaperNet {
+  /** Play records the syncs wrote. */
+  records: number;
+  characters: PaperNetPc[];
+}
+
 export interface SessionStats {
   /** 1-based, the same numbering as the session notes (O2 grouping over both logs). */
   number: number;
@@ -64,6 +93,14 @@ export interface SessionStats {
   resourcesSpent: number;
   itemsUsed: number;
   gmChanges: number;
+  /** `paper`: sheets and dice on paper, started with `mark-play-session` `mode: "paper"`. */
+  mode: 'live' | 'paper';
+  /**
+   * Paper night only: the net change of the paper syncs after it (null for a live session, or a
+   * paper night nobody has synced). Roll numbers of a paper night are 0 unless Foundry dice were
+   * used: physical dice are not tracked.
+   */
+  paperNet: PaperNet | null;
   /** Minutes per scene name (time between scene records), sorted by name. */
   sceneMinutes: Tally;
   /** User names seen joining or acting. */
@@ -147,6 +184,10 @@ export interface StatsModel {
     fumbles: number;
     spellsCast: number;
     gameSeconds: number;
+    /** Sessions played on paper (they are also in `sessions`). */
+    paperSessions: number;
+    /** Net change of every paper sync, including ones no paper night claims; null without any. */
+    paperNet: PaperNet | null;
     /** Time of the newest record in the logs (ISO), or null. */
     lastRecordAt: string | null;
   };

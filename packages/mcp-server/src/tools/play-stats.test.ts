@@ -24,7 +24,7 @@ const T0 = Date.parse('2026-10-01T12:00:00.000Z');
 
 function makeTools(worldId = WORLD): PlayStatsTools {
   return new PlayStatsTools({
-    worldIds: { current: (): Promise<string> => Promise.resolve(worldId) },
+    worldIds: { currentOrLastKnown: (): Promise<string> => Promise.resolve(worldId) },
     store,
     logger,
   });

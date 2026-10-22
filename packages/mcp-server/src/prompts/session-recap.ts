@@ -39,6 +39,17 @@ function statsStep(session: string, scope: string): string {
   return `Call \`get-play-stats\` ${how}. ${scope}`;
 }
 
+/**
+ * A night played on paper (`mark-play-session` with `mode: "paper"`): the dice were physical and
+ * the sheets reach Foundry afterwards through a paper sync, so the play numbers are thin on
+ * purpose and the sheet changes are in `paperNet`.
+ */
+const PAPER_GM_STEP =
+  'Look at the "mode" field in that result. If it is "paper", the night was played on paper: the dice were physical and are not tracked, so leave out rolls, crits, damage and fights from the numbers, and do not invent them. Take the story from my recorded session notes for that date (look for them with `search-journals` and read the page with `list-journals`) and from the session log if it covers the night. For "Per character" use "paperNet", which is what the paper sync changed on each sheet (HP lost and regained, spell slots, resources, coins, XP, items gained and lost). If "paperNet" is null the sheets have not been synced into Foundry yet: say so in the recap and offer to plan the sync.';
+
+const PAPER_PLAYER_STEP =
+  'Look at the "mode" field in that result. If it is "paper", the night was played on paper: the dice were physical and are not tracked, and you may not read journals for this recap, so do not invent a story. Write only a short "How the party did" from "paperNet", for player characters only: how hurt or healed they ended up, spell slots spent, XP and coins. Leave out item names, and say that I will add what happened. If "paperNet" is null the sheets are not synced yet: say that too.';
+
 function gmSteps(session: string): string[] {
   return [
     'Call `get-play-session`. If a session is open right now, the recap is "so far".',
@@ -46,6 +57,7 @@ function gmSteps(session: string): string[] {
       session,
       'Take the numbers for each character: damage, healing, downs, kills, spells, resources, loot and XP.'
     ),
+    PAPER_GM_STEP,
     'Call `get-session-log` with `limit` set to 500 for the story beats. It only holds events since my Foundry window last loaded and it does not know session numbers, so use it only if its timestamps fall inside the session you are recapping. If it does not, say the story part is missing and recap from the numbers alone. Do not invent the story.',
     'Call `list-recent-changes` for the AI changes applied around then.',
     'If the log names scenes, NPCs or places you need context for, call `search-journals` with `searchQuery` and read the page with `list-journals` (`journalId`, `pageId`). Use notes only to explain, never to add events that did not happen.',
@@ -61,6 +73,7 @@ function playerSteps(session: string): string[] {
       session,
       'Use only these numbers, and only for player characters: damage, healing, downs, spells cast, spell slots spent and XP. Leave out the names of looted items (at most say that a character picked up some items), the minutes per scene, the scene name and the participants of each fight, and every monster or NPC name in the result: they are the true names.'
     ),
+    PAPER_PLAYER_STEP,
     `Call \`get-session-log\` with \`limit\` set to 500. Keep only these event types: ${PLAYER_EVENT_TYPES}. Drop everything else, above all gm-roll, journal-created and journal-updated. It only holds events since my Foundry window last loaded and it does not know session numbers, so use it only if its timestamps fall inside the session you are recapping.`,
     'For every event you keep, read its "visibility" block, and drop the event if it has none. Never copy or reword the "description" or "details" text of an event and never use its "actorName": they hold true names, true scene names, effect names and numbers that are for me only. Write each line fresh from the event type and the "visibility" block. Name a player character by its "playerName". Name anything else only when its "subject" is npc and "tokenVisible" is true, and then only by its "playerName"; otherwise say "a creature". Take scene names only from the "sceneName" inside "visibility" and conditions only from its "statuses". The only numbers you may use are the "amount" in the "details" of a damage or healing event of a player character; for a non-player creature say only that it was hit, healed or went down. For spell slots, mention only a player character using a slot of some level. The one exception to the description rule is a roll or damage-roll of a player character: its "description" is already the public chat line and may be used as it is. Leave out every roll or damage-roll of anyone else.',
     'Call `list-revealed-pages` for the handouts I already gave the players. Use only the rows where "exists" and "observable" are both true, and mention titles only, never what the pages say.',

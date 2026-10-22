@@ -127,19 +127,19 @@ describe('length floor and the source registry seam', () => {
   });
 
   it('trims a term before matching and reporting it', async () => {
-    const service = new SecretTermsService({ store, sources: [stub(['  Barovia  '])] });
-    expect(await service.findSecretTerms(WORLD, 'Welcome to Barovia.')).toEqual({
-      matches: [{ category: 'test', term: 'Barovia' }],
+    const service = new SecretTermsService({ store, sources: [stub(['  Maravia  '])] });
+    expect(await service.findSecretTerms(WORLD, 'Welcome to Maravia.')).toEqual({
+      matches: [{ category: 'test', term: 'Maravia' }],
     });
   });
 
   it('composes several sources', async () => {
     const service = new SecretTermsService({
       store,
-      sources: [stub(['Barovia']), tarokkaCardNameSource(store)],
+      sources: [stub(['Maravia']), tarokkaCardNameSource(store)],
     });
     await store.write(WORLD, 'gm', TAROKKA_FILE, { current: READING });
-    const result = await service.findSecretTerms(WORLD, 'Barovia holds a Raven.');
+    const result = await service.findSecretTerms(WORLD, 'Maravia holds a Raven.');
     expect(result.matches.map(m => m.category).sort()).toEqual(['tarokka-card', 'test']);
   });
 });

@@ -270,6 +270,24 @@ describe('spoiler safety in the players recap', () => {
   });
 });
 
+describe('a session played on paper', () => {
+  const gm = getPrompt('session-recap', { audience: 'gm' }).messages[0].content.text;
+  const players = getPrompt('session-recap', { audience: 'players' }).messages[0].content.text;
+
+  it('tells the GM recap to read mode, skip untracked dice and use the sheet changes', () => {
+    expect(gm).toContain('If it is "paper"');
+    expect(gm).toContain('physical and are not tracked');
+    expect(gm).toContain('"paperNet"');
+    expect(gm).toContain('the sheets have not been synced into Foundry yet');
+  });
+
+  it('keeps the players recap to player-safe numbers, with no story and no item names', () => {
+    expect(players).toContain('If it is "paper"');
+    expect(players).toContain('you may not read journals for this recap');
+    expect(players).toContain('Leave out item names');
+  });
+});
+
 describe('writes need the GM to say yes', () => {
   it('has no prompt except reveal-handout tell Claude to apply anything', () => {
     for (const b of built.filter(x => x.name !== 'reveal-handout')) {

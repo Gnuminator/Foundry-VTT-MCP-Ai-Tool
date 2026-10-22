@@ -303,7 +303,12 @@ export async function exportWorldToObsidian(options: {
       relPath,
       renderSessionNote(
         worldId,
-        { events: group.events, startedBy: group.startedBy, endedBy: group.endedBy },
+        // A paper night's timeline also lists the paper syncs that followed it.
+        {
+          events: [...group.events, ...group.paperSync.events],
+          startedBy: group.startedBy,
+          endedBy: group.endedBy,
+        },
         sessionStats,
         sessionNotesLines(notesLinks.filter(link => link.date === sessionStats.date))
       ),

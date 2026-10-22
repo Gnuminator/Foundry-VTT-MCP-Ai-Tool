@@ -15,7 +15,7 @@ let nowMs: number;
 
 function makeTools(extra: Partial<PlaySessionToolsOptions> = {}): PlaySessionTools {
   return new PlaySessionTools({
-    worldIds: { current: (): Promise<string> => Promise.resolve(worldId) },
+    worldIds: { currentOrLastKnown: (): Promise<string> => Promise.resolve(worldId) },
     store,
     logger,
     now: (): number => nowMs,
@@ -56,6 +56,7 @@ describe('mark-play-session', () => {
       success: true,
       worldId: 'w1',
       action: 'start',
+      mode: 'live',
       markedAt: new Date(nowMs).toISOString(),
     });
 
@@ -110,6 +111,256 @@ describe('mark-play-session', () => {
       'onMarked listener failed',
       expect.objectContaining({ error: 'boom' })
     );
+  });
+});
+
+describe('mark-play-session, paper nights', () => {
+  async function lines(date: string): Promise<Array<Record<string, any>>> {
+    return (await store.readLines('w1', 'sessions', `${date}.jsonl`)) as Array<Record<string, any>>;
+  }
+
+  it('marks a paper start right now', async () => {
+    const result = await makeTools().handleMarkPlaySession({ action: 'start', mode: 'paper' });
+    expect(result).toMatchObject({ mode: 'paper', markedAt: new Date(nowMs).toISOString() });
+    const [line] = await lines(localDateKey(nowMs));
+    expect(line).toMatchObject({
+      eventType: 'session-start',
+      description: 'Paper session started',
+      details: { source: 'mark-play-session', mode: 'paper' },
+    });
+  });
+
+  it('puts a past date at local noon in that date file', async () => {
+    const result = await makeTools().handleMarkPlaySession({
+      action: 'start',
+      mode: 'paper',
+      date: '2026-09-20',
+    });
+    const at = new Date(2026, 8, 20, 12, 0).getTime();
+    expect(result.markedAt).toBe(new Date(at).toISOString());
+    const [line] = await lines('2026-09-20');
+    expect(line).toMatchObject({ timestampMs: at, eventType: 'session-start' });
+    expect(await lines(localDateKey(nowMs))).toEqual([]);
+  });
+
+  it('takes a time, so an end can follow a start on the same date', async () => {
+    const tools = makeTools();
+    await tools.handleMarkPlaySession({
+      action: 'start',
+      mode: 'paper',
+      date: '2026-09-20',
+      time: '19:00',
+    });
+    await tools.handleMarkPlaySession({
+      action: 'end',
+      mode: 'paper',
+      date: '2026-09-20',
+      time: '23:30',
+    });
+    const got = await lines('2026-09-20');
+    expect(got.map(l => l.eventType)).toEqual(['session-start', 'session-end']);
+    expect(got[1]?.timestampMs).toBe(new Date(2026, 8, 20, 23, 30).getTime());
+  });
+
+  it('puts a date-only end at 23:59, after a date-only start', async () => {
+    const tools = makeTools();
+    await tools.handleMarkPlaySession({ action: 'start', mode: 'paper', date: '2026-09-20' });
+    await tools.handleMarkPlaySession({ action: 'end', mode: 'paper', date: '2026-09-20' });
+    const got = await lines('2026-09-20');
+    expect(got.map(l => l.timestampMs)).toEqual([
+      new Date(2026, 8, 20, 12, 0).getTime(),
+      new Date(2026, 8, 20, 23, 59).getTime(),
+    ]);
+  });
+
+  it("uses now for today's date without a time", async () => {
+    const result = await makeTools().handleMarkPlaySession({
+      action: 'start',
+      mode: 'paper',
+      date: localDateKey(nowMs),
+    });
+    expect(result.markedAt).toBe(new Date(nowMs).toISOString());
+  });
+
+  it('refuses a future date, a time later today, a date that does not exist and a bare time', async () => {
+    const tools = makeTools();
+    const paper = { action: 'start', mode: 'paper' };
+    await expect(tools.handleMarkPlaySession({ ...paper, date: '2026-09-29' })).rejects.toThrow(
+      /future/
+    );
+    await expect(
+      tools.handleMarkPlaySession({ ...paper, date: localDateKey(nowMs), time: '23:00' })
+    ).rejects.toThrow(/future/);
+    await expect(tools.handleMarkPlaySession({ ...paper, date: '2026-02-31' })).rejects.toThrow(
+      /not a date/
+    );
+    await expect(tools.handleMarkPlaySession({ ...paper, time: '19:00' })).rejects.toThrow(
+      /needs a date/
+    );
+    await expect(tools.handleMarkPlaySession({ ...paper, date: '20-9-2026' })).rejects.toThrow();
+  });
+
+  it('keeps date, time and synced for paper nights only', async () => {
+    const tools = makeTools();
+    await expect(
+      tools.handleMarkPlaySession({ action: 'start', date: '2026-09-20' })
+    ).rejects.toThrow(/paper/);
+    await expect(tools.handleMarkPlaySession({ action: 'end', synced: true })).rejects.toThrow(
+      /paper/
+    );
+  });
+
+  it('works with Foundry closed through the last known world', async () => {
+    const tools = makeTools({
+      worldIds: { currentOrLastKnown: (): Promise<string> => Promise.resolve('last-world') },
+    });
+    const result = await tools.handleMarkPlaySession({
+      action: 'start',
+      mode: 'paper',
+      date: '2026-09-20',
+    });
+    expect(result.worldId).toBe('last-world');
+    expect(await store.readLines('last-world', 'sessions', '2026-09-20.jsonl')).toHaveLength(1);
+  });
+
+  it('fails clearly when Foundry is closed and no world is known', async () => {
+    const tools = makeTools({
+      worldIds: {
+        currentOrLastKnown: (): Promise<string> => Promise.reject(new Error('no world yet')),
+      },
+    });
+    await expect(tools.handleMarkPlaySession({ action: 'start', mode: 'paper' })).rejects.toThrow(
+      'no world yet'
+    );
+  });
+});
+
+describe('unsyncedPaperNights', () => {
+  const paperStart = (
+    day: number,
+    extra: Record<string, unknown> = {}
+  ): Record<string, unknown> => ({
+    id: `m${day}`,
+    timestamp: new Date(2026, 8, day, 12).toISOString(),
+    timestampMs: new Date(2026, 8, day, 12).getTime(),
+    eventType: 'session-start',
+    details: { source: 'mark-play-session', mode: 'paper', ...extra },
+  });
+  const syncEvent = (day: number, mode = 'apply'): Record<string, unknown> => ({
+    id: `s${day}`,
+    timestamp: new Date(2026, 8, day, 20).toISOString(),
+    timestampMs: new Date(2026, 8, day, 20).getTime(),
+    eventType: 'gm-change',
+    details: { changeId: `c${day}`, feature: 'paper-sync', mode },
+  });
+  const put = (day: number, lines: unknown[]): Promise<void> =>
+    store.appendLines('w1', 'sessions', `2026-09-${String(day).padStart(2, '0')}.jsonl`, lines);
+
+  it('is empty with no paper night', async () => {
+    await put(20, [
+      {
+        id: 'a',
+        timestamp: new Date(2026, 8, 20, 12).toISOString(),
+        eventType: 'session-start',
+        details: {},
+      },
+    ]);
+    expect(await makeTools().unsyncedPaperNights()).toEqual([]);
+  });
+
+  it('lists a paper night with no sync after it', async () => {
+    await put(20, [paperStart(20)]);
+    expect(await makeTools().unsyncedPaperNights()).toEqual([
+      { date: '2026-09-20', startedAt: new Date(2026, 8, 20, 12).toISOString() },
+    ]);
+  });
+
+  it('clears a night once a paper sync was applied after it', async () => {
+    await put(20, [paperStart(20)]);
+    await put(22, [syncEvent(22)]);
+    expect(await makeTools().unsyncedPaperNights()).toEqual([]);
+  });
+
+  it('counts a sync for the newest paper night before it only', async () => {
+    await put(10, [paperStart(10)]);
+    await put(20, [paperStart(20)]);
+    await put(22, [syncEvent(22)]);
+    expect((await makeTools().unsyncedPaperNights()).map(n => n.date)).toEqual(['2026-09-10']);
+  });
+
+  it('does not count an undo, or a sync before the night', async () => {
+    await put(18, [syncEvent(18)]);
+    await put(20, [paperStart(20)]);
+    await put(22, [syncEvent(22, 'undo')]);
+    expect((await makeTools().unsyncedPaperNights()).map(n => n.date)).toEqual(['2026-09-20']);
+  });
+
+  it('counts a sync that ran earlier the same day as a night marked afterwards', async () => {
+    // Sync at 10:00 on the 20th; the night was marked after it, at the default 12:00.
+    await put(20, [
+      { ...syncEvent(20), timestampMs: new Date(2026, 8, 20, 10).getTime() },
+      paperStart(20),
+    ]);
+    expect(await makeTools().unsyncedPaperNights()).toEqual([]);
+  });
+
+  it('gives a same-day sync to the night marked after it, leaving an older night unsynced', async () => {
+    await put(10, [paperStart(10)]);
+    await put(20, [
+      { ...syncEvent(20), timestampMs: new Date(2026, 8, 20, 10).getTime() },
+      paperStart(20),
+    ]);
+    expect((await makeTools().unsyncedPaperNights()).map(n => n.date)).toEqual(['2026-09-10']);
+  });
+
+  it('clears a night the GM marked done', async () => {
+    await put(20, [paperStart(20, { synced: true })]);
+    expect(await makeTools().unsyncedPaperNights()).toEqual([]);
+  });
+});
+
+describe('get-play-session after a paper night', () => {
+  it('does not report an old paper night as open because a sync ran later', async () => {
+    // Paper start on the 27th; the sync ran on the 28th, an hour before "now" (20:00).
+    await store.appendLines('w1', 'sessions', '2026-09-27.jsonl', [
+      {
+        id: 'p',
+        timestamp: new Date(2026, 8, 27, 12).toISOString(),
+        timestampMs: new Date(2026, 8, 27, 12).getTime(),
+        eventType: 'session-start',
+        details: { source: 'mark-play-session', mode: 'paper' },
+      },
+    ]);
+    const syncAt = new Date(2026, 8, 28, 19).getTime();
+    await store.appendLines('w1', 'sessions', '2026-09-28.jsonl', [
+      {
+        id: 's',
+        timestamp: new Date(syncAt).toISOString(),
+        timestampMs: syncAt,
+        eventType: 'gm-change',
+        details: { changeId: 'c1', feature: 'paper-sync', mode: 'apply' },
+      },
+    ]);
+    await store.appendLines('w1', 'sessions', '2026-09-28.play.jsonl', [
+      { ...playRecord(syncAt, 'r1'), source: { changeId: 'c1' } },
+    ]);
+    const result = await makeTools().handleGetPlaySession({});
+    expect(result.open).toBe(false);
+    expect(result.startedAt).toBeNull();
+  });
+
+  it('still counts ordinary activity after a paper start as open', async () => {
+    const start = new Date(2026, 8, 28, 19).getTime();
+    await store.appendLines('w1', 'sessions', '2026-09-28.jsonl', [
+      {
+        id: 'p',
+        timestamp: new Date(start).toISOString(),
+        timestampMs: start,
+        eventType: 'session-start',
+        details: { source: 'mark-play-session', mode: 'paper' },
+      },
+    ]);
+    expect((await makeTools().handleGetPlaySession({})).open).toBe(true);
   });
 });
 

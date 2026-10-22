@@ -22,8 +22,8 @@ describe('sanitizeNotesHtml', () => {
   });
 
   it('re-escapes text so decoded entities cannot become markup', () => {
-    expect(sanitizeNotesHtml('<p>&lt;script&gt;x&lt;/script&gt; &amp; Ireena</p>')).toBe(
-      '<p>&lt;script&gt;x&lt;/script&gt; &amp; Ireena</p>'
+    expect(sanitizeNotesHtml('<p>&lt;script&gt;x&lt;/script&gt; &amp; Ilvara</p>')).toBe(
+      '<p>&lt;script&gt;x&lt;/script&gt; &amp; Ilvara</p>'
     );
   });
 

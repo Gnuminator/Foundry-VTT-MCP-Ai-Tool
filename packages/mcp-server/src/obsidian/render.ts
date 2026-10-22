@@ -19,7 +19,15 @@
  * every note saying it is generated, and secrets (card names, diffs that may
  * contain them) inside collapsed callouts so they do not show at a glance.
  */
-import type { CombatStats, PcStats, SessionStats, StatsModel, Tally } from '../stats/types.js';
+import type {
+  CombatStats,
+  PaperNet,
+  PaperNetPc,
+  PcStats,
+  SessionStats,
+  StatsModel,
+  Tally,
+} from '../stats/types.js';
 
 import type { ChangeEntry } from './audit-merge.js';
 import {
@@ -219,6 +227,7 @@ export function renderSessionNote(
       spells_cast: stats.spellsCast,
       spell_slots_spent: stats.spellSlotsSpent,
       gm_changes: stats.gmChanges,
+      ...(stats.mode === 'paper' ? { session_mode: 'paper' } : {}),
     },
     stats.endedAt
   );
@@ -261,6 +270,34 @@ function tallyLine(tally: Tally): string {
   return entries.map(([name, n]) => `${neutralizeTemplater(name)} ${n}`).join(', ');
 }
 
+/**
+ * "Paper night: net change": one line per character of what the paper syncs changed. Names are
+ * player-chosen, so they go through `neutralizeTemplater`.
+ */
+function renderPaperNetBlock(net: PaperNet | null, title: string, level: number): string[] {
+  const heading = `${'#'.repeat(level)} ${title}`;
+  if (!net) return [heading, '', '(no paper sync yet)', ''];
+  const parts = (pc: PaperNetPc): string => {
+    const out: string[] = [];
+    if (pc.hpLost || pc.hpGained) out.push(`HP -${pc.hpLost} / +${pc.hpGained}`);
+    if (pc.slotsSpent || pc.slotsRegained) {
+      out.push(`slots -${pc.slotsSpent} / +${pc.slotsRegained}`);
+    }
+    if (pc.resourcesSpent) out.push(`${pc.resourcesSpent} resource use(s) spent`);
+    if (Object.keys(pc.currency).length) out.push(`coins ${tallyLine(pc.currency)}`);
+    if (pc.xpGained) out.push(`XP ${pc.xpGained > 0 ? '+' : ''}${pc.xpGained}`);
+    if (Object.keys(pc.itemsGained).length) out.push(`gained ${tallyLine(pc.itemsGained)}`);
+    if (Object.keys(pc.itemsLost).length) out.push(`lost ${tallyLine(pc.itemsLost)}`);
+    return out.length ? out.join('; ') : 'no change';
+  };
+  return [
+    heading,
+    '',
+    ...net.characters.map(pc => `- ${neutralizeTemplater(pc.name)}: ${parts(pc)}`),
+    '',
+  ];
+}
+
 function renderCombatStatsBlock(combat: CombatStats, index: number): string[] {
   return [
     `### Combat ${index + 1}${combat.sceneName ? ` (${neutralizeTemplater(combat.sceneName)})` : ''}`,
@@ -280,6 +317,16 @@ function renderCombatStatsBlock(combat: CombatStats, index: number): string[] {
 /** The session note's "Stats" section (O3): a one-line summary plus one block
  * per combat (rounds, damage taken/dealt, downs, kills). */
 function renderSessionStatsSection(stats: SessionStats): string[] {
+  if (stats.mode === 'paper') {
+    return [
+      '## Stats',
+      '',
+      'Paper night: sheets and dice were on paper. Rolls are physical dice and not tracked; ' +
+        `Foundry saw ${stats.rolls} roll(s) and ${stats.combats.length} combat(s).`,
+      '',
+      ...renderPaperNetBlock(stats.paperNet, 'Paper night: net change', 3),
+    ];
+  }
   return [
     '## Stats',
     '',
@@ -829,6 +876,13 @@ export function renderCampaignStatsNote(
       '| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |',
       ...(pcRows.length ? pcRows : ['| (none) | | | | | | | | | | | |']),
       '',
+      ...(c.paperNet
+        ? [
+            ...renderPaperNetBlock(c.paperNet, 'Paper nights: net change', 2),
+            'Changes from paper syncs, kept out of the numbers above.',
+            '',
+          ]
+        : []),
       '## d20 spread (1-20)',
       '',
       ...d20SpreadTable(stats.dice.d20),

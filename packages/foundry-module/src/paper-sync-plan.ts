@@ -28,6 +28,8 @@ import type {
 
 import {
   contentsOf,
+  effectsOf,
+  effectStatuses,
   getPath,
   hasStatus,
   hpOf,
@@ -36,6 +38,7 @@ import {
   rec,
   resolveTargets,
   resourcePlan,
+  statusEffectData,
   statusInfo,
   str,
   type LiveActor,
@@ -143,12 +146,31 @@ function pushUpdate(build: Build, uuid: string, changes: Rec): void {
   } else build.ops.push({ kind: 'update', uuid, changes });
 }
 
+/** True when `ops` already creates the document `op` creates (same parent and kept id). */
+function sameCreate(ops: GuardedOp[], op: GuardedOp): boolean {
+  if (op.kind !== 'create') return false;
+  const id = rec(op.data)?._id;
+  return (
+    typeof id === 'string' &&
+    ops.some(
+      o =>
+        o.kind === 'create' &&
+        o.parentUuid === op.parentUuid &&
+        o.documentName === op.documentName &&
+        rec(o.data)?._id === id
+    )
+  );
+}
+
 function pushOps(build: Build, ops: GuardedOp[]): void {
   for (const op of ops) {
     if (op.kind === 'update') pushUpdate(build, op.uuid, op.changes);
     // One effect can carry several conditions (Unconscious also carries Incapacitated): delete it once.
     else if (op.kind === 'delete' && build.ops.some(o => o.kind === 'delete' && o.uuid === op.uuid))
       continue;
+    // Two added conditions can bring the same rider (Unconscious and Prone both create Prone,
+    // with the same kept id): create it once.
+    else if (op.kind === 'create' && sameCreate(build.ops, op)) continue;
     else build.ops.push(op);
   }
 }
@@ -438,8 +460,27 @@ async function planConditions(build: Build, request: PaperSyncRequest): Promise<
     if (built.ops.length === 0) stuck.push(id);
     pushOps(build, built.ops);
   }
+  // A wanted condition that only shows because an effect we delete carries it (the sheet says
+  // Incapacitated, the character is Paralyzed) goes with that effect: create it again.
+  const effects = effectsOf(build.actor);
+  const deleted = new Set(build.ops.flatMap(op => (op.kind === 'delete' ? [op.uuid] : [])));
   for (const id of add) {
     pushOps(build, (await planCondition([build.target], conditionRequest(id, true))).ops);
+  }
+  for (const id of wanted.keys()) {
+    if (add.includes(id) || !present.includes(id)) continue;
+    const carriers = effects.filter(effect => effectStatuses(effect).includes(id));
+    if (carriers.length > 0 && carriers.every(effect => deleted.has(str(effect.uuid) ?? ''))) {
+      pushOps(build, [
+        {
+          kind: 'create',
+          documentName: 'ActiveEffect',
+          parentUuid: build.actor.uuid,
+          data: await statusEffectData(id),
+          keepId: true,
+        },
+      ]);
+    }
   }
   if (stuck.length > 0) {
     build.warnings.push(
@@ -450,7 +491,9 @@ async function planConditions(build: Build, request: PaperSyncRequest): Promise<
     build.unchanged.push(`Conditions already ${listOf(present)}`);
     return;
   }
-  const after = [...present.filter(id => !remove.includes(id) || stuck.includes(id)), ...add];
+  const after = [
+    ...new Set([...present.filter(id => !remove.includes(id) || stuck.includes(id)), ...add]),
+  ];
   record(
     build,
     'conditions',
@@ -652,7 +695,7 @@ export async function planPaperSync(data: unknown): Promise<PaperSyncPlan> {
   }
   if (!actor.uuid.startsWith('Actor.')) {
     throw new Error(
-      `${target.name} resolved to an unlinked token on this scene; give the character's name or id from the sidebar`
+      `${target.name} resolved to an unlinked token on this scene; give the character's actor id (Copy Document ID in the sidebar), not the name`
     );
   }
   const build: Build = {

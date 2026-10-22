@@ -855,6 +855,29 @@ describe('review round 1 fixes', () => {
       expect(deletes(plan)).toEqual(['Actor.a1.ActiveEffect.e1']);
     });
 
+    it('creates a rider once when two added conditions both bring it (round 2 M1)', async () => {
+      addMira();
+      for (const conditions of [
+        ['unconscious', 'prone'],
+        ['prone', 'unconscious'],
+      ]) {
+        const plan = await planPaperSync({ actor: 'Mira', conditions });
+        const ids = plan.ops.map(op => (op.kind === 'create' ? (op.data as any)._id : op.kind));
+        expect(ids.sort()).toEqual(['dnd5eprone000000', 'dnd5eunconscious']);
+      }
+    });
+
+    it('creates a wanted condition again when the effect that carried it is deleted (round 2 L1)', async () => {
+      addMira({
+        statuses: ['paralyzed', 'incapacitated'],
+        effects: [effect('e1', 'Paralyzed', ['paralyzed', 'incapacitated'])],
+      });
+      const plan = await planPaperSync({ actor: 'Mira', conditions: ['incapacitated'] });
+      expect(plan.ops.map(op => op.kind)).toEqual(['delete', 'create']);
+      expect(plan.ops[1]).toMatchObject({ data: { _id: 'dnd5eincapacitat' } });
+      expect(plan.changes[0]?.line).toBe('Conditions Incapacitated, Paralyzed to Incapacitated');
+    });
+
     it('says so when a status only comes from an item and cannot be removed', async () => {
       addMira({ statuses: ['poisoned', 'prone'], effects: [effect('e1', 'Prone', ['prone'])] });
       const plan = await planPaperSync({ actor: 'Mira', conditions: [] });

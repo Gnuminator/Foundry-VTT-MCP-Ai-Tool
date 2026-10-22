@@ -403,7 +403,7 @@ export function effectsOf(actor: LiveActor): Rec[] {
     .filter((e): e is Rec => e !== null);
 }
 
-function effectStatuses(effect: Rec): string[] {
+export function effectStatuses(effect: Rec): string[] {
   const statuses = effect.statuses;
   if (statuses instanceof Set)
     return [...statuses].filter((s): s is string => typeof s === 'string');
@@ -420,7 +420,7 @@ function effectUuid(effect: Rec): string | null {
 }
 
 /** The data of a status effect, as `ActiveEffect.fromStatusEffect` builds it (id kept). */
-async function statusEffectData(id: string): Promise<Rec> {
+export async function statusEffectData(id: string): Promise<Rec> {
   const cls = rec(rec(rec(CONFIG)?.ActiveEffect)?.documentClass);
   const from = cls?.fromStatusEffect;
   if (typeof from === 'function') {

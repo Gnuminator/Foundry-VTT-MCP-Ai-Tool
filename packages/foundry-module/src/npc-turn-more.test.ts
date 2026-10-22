@@ -570,3 +570,201 @@ describe('review lows from PR #414', () => {
     expect(planNpcTurn({}).context.actions[0]).toMatchObject({ rangeFt: 150, longRangeFt: 600 });
   });
 });
+
+describe('lows from the PR #447 Opus review', () => {
+  // Row 2 is a corridor from x=300 to 700; a creature in (4,2) is in the way to (6,2).
+  const corridor = (): any[] => [wall([300, 200, 700, 200]), wall([300, 300, 700, 300])];
+  const toSix = (): any => planNpcTurn({ moveTo: { gridX: 6, gridY: 2 } });
+  const creature = (
+    extra: Record<string, unknown> = {},
+    system: Record<string, unknown> = {}
+  ): any =>
+    token('t6', 'Stranger', 4, 2, {
+      disposition: 1,
+      actor: heroActor({ system: { ...system }, ...extra }),
+    });
+
+  afterEach(() => {
+    delete g.dnd5e;
+  });
+
+  describe('L1: the NPC level in the wall check', () => {
+    const tall = (levels: string[]): any => wall([500, 0, 500, 400], { levels: new Set(levels) });
+
+    it('leaves out the walls of other levels when it reads the scene data', () => {
+      arena({ walls: [tall(['L2'])], wolfExtra: { level: 'L1' } });
+      expect(toSix().moveCost).toBe(20);
+      arena({ walls: [tall(['L2'])], wolfExtra: { level: 'L2' } });
+      expect(toSix().moveCost).toBe(25);
+      // A wall with no level list is on every level.
+      arena({ walls: [tall([])], wolfExtra: { level: 'L1' } });
+      expect(toSix().moveCost).toBe(25);
+    });
+
+    it("hands Foundry's collision test the NPC's level and elevation", () => {
+      const { scene } = arena({
+        walls: [wall([500, 0, 500, 400])],
+        wolfExtra: { level: 'L1', elevation: 10 },
+      });
+      scene.levels = { get: (id: string): unknown => ({ id, name: `Level ${id}` }) };
+      const testCollision = vi.fn(() => false);
+      g.canvas = { ready: true, scene: { id: 's1' } };
+      g.CONFIG = { Canvas: { polygonBackends: { move: { testCollision } } } };
+      toSix();
+      expect(testCollision).toHaveBeenCalledWith(
+        expect.objectContaining({ elevation: 10 }),
+        expect.objectContaining({ elevation: 10 }),
+        { type: 'move', mode: 'any', level: { id: 'L1', name: 'Level L1' } }
+      );
+    });
+  });
+
+  describe('L2: who blocks and who slows, as dnd5e decides it', () => {
+    it('lets a hostile creature two sizes apart, a Tiny one and a non-creature be passed', () => {
+      arena({ walls: corridor(), tokens: [creature({}, { traits: { size: 'lg' } })] });
+      expect(() => toSix()).toThrow(/cannot be reached/);
+      arena({ walls: corridor(), tokens: [creature({}, { traits: { size: 'huge' } })] });
+      expect(toSix().moveCost).toBe(25);
+      arena({ walls: corridor(), tokens: [creature({}, { traits: { size: 'tiny' } })] });
+      expect(toSix().moveCost).toBe(20);
+      arena({ walls: corridor(), tokens: [creature({}, { isCreature: false })] });
+      expect(toSix().moveCost).toBe(20);
+    });
+
+    it('lets a dead or unconscious creature be passed, but its square still costs double', () => {
+      arena({ walls: corridor(), tokens: [creature({ statuses: new Set(['unconscious']) })] });
+      expect(toSix().moveCost).toBe(25);
+      g.CONFIG = { DND5E: { neverBlockStatuses: new Set(['petrified']) } };
+      arena({ walls: corridor(), tokens: [creature({ statuses: new Set(['petrified']) })] });
+      expect(toSix().moveCost).toBe(25);
+    });
+
+    it('does not count a hidden token, and a Tiny one blocks a Small creature under the legacy rules', () => {
+      const hidden = creature();
+      hidden.hidden = true;
+      arena({ walls: corridor(), tokens: [hidden] });
+      expect(toSix().moveCost).toBe(20);
+      const small = (): void => {
+        const { wolf } = arena({
+          walls: corridor(),
+          tokens: [creature({}, { traits: { size: 'tiny' } })],
+        });
+        wolf.actor.system.traits = { size: 'sm' };
+      };
+      small();
+      expect(toSix().moveCost).toBe(20);
+      g.dnd5e = { settings: { rulesVersion: 'legacy' } };
+      small();
+      expect(() => toSix()).toThrow(/cannot be reached/);
+    });
+
+    it("makes an ally's square difficult terrain under the legacy rules only", () => {
+      const ally = (): any =>
+        token('t5', 'Pack mate', 4, 2, {
+          actor: heroActor({ system: { traits: { size: 'med' } } }),
+        });
+      arena({ walls: corridor(), tokens: [ally()] });
+      expect(toSix().moveCost).toBe(20);
+      g.dnd5e = { settings: { rulesVersion: 'legacy' } };
+      arena({ walls: corridor(), tokens: [ally()] });
+      const plan = toSix();
+      expect(plan.moveCost).toBe(25);
+      expect(plan.steps[0]).toMatch(/through difficult terrain/);
+    });
+
+    it('follows the movement automation setting and what the creature ignores', () => {
+      world.settings.set('dnd5e.movementAutomation', 'partial');
+      arena({ walls: corridor(), tokens: [creature({}, { traits: { size: 'lg' } })] });
+      // Partial automation: creatures no longer block, and they still slow.
+      expect(toSix().moveCost).toBe(25);
+      world.settings.set('dnd5e.movementAutomation', 'none');
+      arena({ walls: corridor(), tokens: [creature({}, { traits: { size: 'lg' } })] });
+      expect(toSix().moveCost).toBe(20);
+      world.settings.set('dnd5e.movementAutomation', 'full');
+      const { wolf } = arena({
+        walls: corridor(),
+        tokens: [creature({}, { traits: { size: 'huge' } })],
+      });
+      wolf.actor.system.attributes.movement.ignoredDifficultTerrain = new Set(['all']);
+      expect(toSix().moveCost).toBe(20);
+    });
+
+    it('asks the drawn map when it shows the scene', () => {
+      const blocking = vi.fn((space: { i: number; j: number; k: number }) => space.j === 4);
+      const slowing = vi.fn(() => false);
+      arena({ walls: corridor(), walk: 60, tokens: [creature({}, { traits: { size: 'tiny' } })] });
+      g.canvas = {
+        ready: true,
+        scene: { id: 's1' },
+        tokens: {
+          get: (id: string): unknown => ({ id }),
+          isOccupiedGridSpaceBlocking: blocking,
+          isOccupiedGridSpaceDifficult: slowing,
+        },
+      };
+      // Tiny would pass under the rules, but the map says (4,2) is blocked: the map wins.
+      expect(() => toSix()).toThrow(/cannot be reached/);
+      expect(blocking).toHaveBeenCalledWith({ i: 2, j: 4, k: 0 }, { id: 't1' });
+      slowing.mockImplementation(() => true);
+      blocking.mockImplementation(() => false);
+      const plan = toSix();
+      expect(plan.moveCost).toBe(40);
+      expect(plan.context.notes.join(' ')).toMatch(/asked of the drawn map/);
+    });
+  });
+
+  describe('L3: a Dash takes the action', () => {
+    const bite = [{ itemName: 'Bite', target: 'Hero' }];
+
+    it('refuses attacks after a Dash unless the reason names a bonus-action Dash', () => {
+      arena();
+      expect(() =>
+        planNpcTurn({ moveTo: { gridX: 6, gridY: 2 }, dash: true, attacks: bite })
+      ).toThrow(/A Dash takes Wolf's action/);
+      expect(() =>
+        planNpcTurn({
+          moveTo: { gridX: 6, gridY: 2 },
+          dash: true,
+          itemName: 'Bite',
+          target: 'Hero',
+        })
+      ).toThrow(/A Dash takes Wolf's action/);
+      const plan = planNpcTurn({
+        moveTo: { gridX: 6, gridY: 2 },
+        dash: true,
+        attacks: bite,
+        reason: 'Nimble Escape: Dash as a bonus action',
+      });
+      expect(plan.steps.at(-1)).toMatch(/\(after a bonus-action Dash\)/);
+      expect(plan.context.notes.join(' ')).toMatch(/Dash as a bonus action/);
+    });
+
+    it('still plans a plain Dash move, and says attacks are given up', () => {
+      arena();
+      const plan = planNpcTurn({ moveTo: { gridX: 8, gridY: 3 }, dash: true });
+      expect(plan.moveCost).toBe(30);
+      expect(plan.context.notes.join(' ')).toMatch(/gives up its attacks/);
+    });
+  });
+
+  it('R2-L2: the move step says the token is placed, not walked', () => {
+    arena();
+    expect(toSix().steps[0]).toMatch(
+      /Wolf: \(2,2\) to \(6,2\), 20 ft; the token is placed, not walked \(Foundry's ruler does not count it\)/
+    );
+  });
+
+  it('R2-L3: &Reference options and named entities leave the Multiattack text', () => {
+    arena({
+      items: [
+        multiattackFeat(
+          '<p>Two bites; the target is &Reference[condition=prone] or &Reference[unconscious apply=false]&mdash;it&rsquo;s a &Reference[damage=fire type=x]&hellip;</p>'
+        ),
+        weapon('Claw', { reach: 5 }),
+      ],
+    });
+    expect(planNpcTurn({}).context.multiattack).toBe(
+      'Two bites; the target is prone or unconscious - it’s a fire…'
+    );
+  });
+});

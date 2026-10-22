@@ -676,7 +676,7 @@ Parameters:
 - `attacks` (array of object): A multiattack: several attacks in order (see the Multiattack text). Items: at most 10.
   - `itemName` (string, required)
   - `target` (string, required)
-- `dash` (boolean): Dash: the move may use twice the speed.
+- `dash` (boolean): Dash: the move may use twice the speed. A Dash takes the action, so attacks are refused unless reason names a bonus-action Dash.
 - `reason` (string): One line on why (shown in the plan and Recent Changes).
 
 ### plan-paper-sync

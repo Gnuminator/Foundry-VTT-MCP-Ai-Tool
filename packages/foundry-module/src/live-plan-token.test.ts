@@ -147,6 +147,9 @@ describe('planTokenChange: scene and tokens', () => {
   });
 });
 
+/** What every move preview says about how the token gets there. */
+const PLACED = ", placed, not walked (Foundry's ruler does not count it)";
+
 describe('planTokenChange: move', () => {
   beforeEach(standardScene);
 
@@ -159,10 +162,23 @@ describe('planTokenChange: move', () => {
       {
         target: 'Wolf 1',
         actorUuid: 'Scene.s1.Token.t1',
-        line: 'Wolf 1: (2,2) to (5,4), 15 ft',
+        line: `Wolf 1: (2,2) to (5,4), 15 ft${PLACED}`,
       },
     ]);
     expect(plan.summary).toBe('Move Wolf 1 to (5,4)');
+  });
+
+  it('warns when a wall or closed door lies between the old and the new square (R2-L2)', () => {
+    const scene = g.game.scenes.current;
+    scene.walls = { contents: [{ c: [400, 0, 400, 900], move: 20, door: 0, ds: 0 }] };
+    const across = planTokenChange(move({ gridX: 5, gridY: 2 }));
+    expect(across.targets[0]?.line).toBe(
+      `Wolf 1: (2,2) to (5,2), 15 ft${PLACED}; WARNING: a wall or closed door lies in between`
+    );
+    const same = planTokenChange(move({ gridX: 3, gridY: 2 }));
+    expect(same.targets[0]?.line).not.toMatch(/WARNING/);
+    // The wall still lets the move through: only the preview warns.
+    expect(across.ops).toHaveLength(1);
   });
 
   it('writes only the coordinate that changes', () => {
@@ -173,7 +189,7 @@ describe('planTokenChange: move', () => {
   it('moves one token to absolute pixels', () => {
     const plan = planTokenChange(move({ x: 700, y: 200 }));
     expect(plan.ops).toEqual([{ kind: 'update', uuid: 'Scene.s1.Token.t1', changes: { x: 700 } }]);
-    expect(plan.targets[0]?.line).toBe('Wolf 1: (2,2) to (7,2), 25 ft');
+    expect(plan.targets[0]?.line).toBe(`Wolf 1: (2,2) to (7,2), 25 ft${PLACED}`);
   });
 
   it('shifts several tokens by dx/dy squares, one op each', () => {
@@ -183,8 +199,8 @@ describe('planTokenChange: move', () => {
       { kind: 'update', uuid: 'Scene.s1.Token.t2', changes: { x: 400, y: 100 } },
     ]);
     expect(plan.targets.map(t => t.line)).toEqual([
-      'Wolf 1: (2,2) to (3,1), 5 ft',
-      'Wolf 2: (3,2) to (4,1), 5 ft',
+      `Wolf 1: (2,2) to (3,1), 5 ft${PLACED}`,
+      `Wolf 2: (3,2) to (4,1), 5 ft${PLACED}`,
     ]);
     expect(plan.summary).toBe('Move Wolf 1, Wolf 2 by 1 right, -1 down (squares)');
   });
@@ -237,7 +253,7 @@ describe('planTokenChange: move', () => {
       expect(plan.ops[0]).toMatchObject({ changes: { x: 600, y: 500 } });
       // Wolf 2 has no _source: it falls back to the document values.
       expect(plan.ops[1]).toMatchObject({ changes: { x: 400, y: 300 } });
-      expect(plan.targets[0]?.line).toBe('Wolf 1: (5,4) to (6,5), 5 ft');
+      expect(plan.targets[0]?.line).toBe(`Wolf 1: (5,4) to (6,5), 5 ft${PLACED}`);
     });
 
     it('measures a grid move from _source', () => {
@@ -245,7 +261,7 @@ describe('planTokenChange: move', () => {
       expect(plan.ops).toEqual([
         { kind: 'update', uuid: 'Scene.s1.Token.t1', changes: { x: 800 } },
       ]);
-      expect(plan.targets[0]?.line).toBe('Wolf 1: (5,4) to (8,4), 15 ft');
+      expect(plan.targets[0]?.line).toBe(`Wolf 1: (5,4) to (8,4), 15 ft${PLACED}`);
     });
 
     it('treats a move to the stored square as no move, whatever the document says', () => {
@@ -267,7 +283,7 @@ describe('planTokenChange: move', () => {
     scene.grid = { size: 50, distance: 10, units: 'm' };
     const plan = planTokenChange(move({ dx: 2 }));
     expect(plan.ops[0]).toMatchObject({ changes: { x: 100 } });
-    expect(plan.targets[0]?.line).toBe('Wolf 1: (0,0) to (2,0), 20 m');
+    expect(plan.targets[0]?.line).toBe(`Wolf 1: (0,0) to (2,0), 20 m${PLACED}`);
   });
 });
 

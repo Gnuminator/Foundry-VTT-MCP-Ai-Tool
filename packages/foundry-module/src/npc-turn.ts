@@ -35,6 +35,7 @@ import {
   type Footprint,
   type ReachNode,
 } from './npc-turn-grid.js';
+import { canvasShows, onLevel, wallsOf, type Point } from './scene-walls.js';
 
 /** Query name (mirror of the shared `NPC_TURN_QUERY`). */
 export const NPC_TURN_QUERY = 'planNpcTurn';
@@ -43,7 +44,6 @@ export const NPC_TURN_QUERY = 'planNpcTurn';
 export const NPC_TURN_FEATURE_ID = 'npc-turn';
 
 type Rec = Record<string, unknown>;
-type Point = { x: number; y: number };
 
 function rec(value: unknown): Rec | null {
   return value !== null && typeof value === 'object' ? (value as Rec) : null;
@@ -269,7 +269,8 @@ function multiattackOf(actor: Rec): string | null {
     const html = str(path(item, 'system.description.value'));
     if (!html) return 'Multiattack (no description)';
     // Foundry enrichers ([[/item .id]]{Label}, @UUID[...]{Label}) keep their label only.
-    // `@UUID[...]{Label}` and `&Reference[prone]` keep their label, or the text in the brackets.
+    // `@UUID[...]{Label}` and `&Reference[prone]` keep their label, or the text in the brackets
+    // without its `condition=` prefix and `apply=false` style options.
     const entities: Record<string, string> = {
       nbsp: ' ',
       amp: '&',
@@ -277,12 +278,20 @@ function multiattackOf(actor: Rec): string | null {
       gt: '>',
       quot: '"',
       apos: "'",
+      mdash: ' - ',
+      ndash: '-',
+      lsquo: '‘',
+      rsquo: '’',
+      ldquo: '“',
+      rdquo: '”',
+      hellip: '…',
     };
     const text = html
       .replace(/\[\[[^\]]*\]\]\{([^}]*)\}/g, '$1')
       .replace(
         /[@&]\w+\[([^\]]*)\](?:\{([^}]*)\})?/g,
-        (_m, inner: string, label?: string) => label ?? inner
+        (_m, inner: string, label?: string) =>
+          label ?? inner.replace(/\s+\w+=\S+/g, '').replace(/^\w+=/, '')
       )
       .replace(/\[\[[^\]]*\]\]/g, '')
       .replace(/<[^>]*>/g, ' ')
@@ -320,77 +329,6 @@ function speedOf(actor: Rec, scene: SceneInfo, tokenName: string): number | null
   return tidy((raw * a) / b);
 }
 
-interface Walls {
-  /** True when a wall or closed door lies between the two points. */
-  blocked(a: Point, b: Point): boolean;
-  /** How the walls were read, for the notes; null when the scene has none. */
-  source: 'foundry' | 'scene data' | null;
-}
-
-function canvasShows(scene: SceneInfo): boolean {
-  const c = rec((globalThis as Rec).canvas);
-  return c?.ready === true && rec(c.scene)?.id === scene.id;
-}
-
-/** The segments a-b and c-d meet, touching included (a step past a wall's end is not planned). */
-function crosses(a: Point, b: Point, c: Point, d: Point): boolean {
-  const side = (p: Point, q: Point, r: Point): number =>
-    Math.sign((q.x - p.x) * (r.y - p.y) - (q.y - p.y) * (r.x - p.x));
-  const within = (p: Point, q: Point, r: Point): boolean =>
-    Math.min(p.x, q.x) <= r.x &&
-    r.x <= Math.max(p.x, q.x) &&
-    Math.min(p.y, q.y) <= r.y &&
-    r.y <= Math.max(p.y, q.y);
-  const o1 = side(a, b, c);
-  const o2 = side(a, b, d);
-  const o3 = side(c, d, a);
-  const o4 = side(c, d, b);
-  if (o1 !== o2 && o3 !== o4) return true;
-  return (
-    (o1 === 0 && within(a, b, c)) ||
-    (o2 === 0 && within(a, b, d)) ||
-    (o3 === 0 && within(c, d, a)) ||
-    (o4 === 0 && within(c, d, b))
-  );
-}
-
-/** Walls that stop movement: Foundry's own collision test when the map is drawn, else the data. */
-function wallsOf(scene: SceneInfo): Walls {
-  const walls = contentsOf(scene.raw.walls)
-    .map(rec)
-    .filter((w): w is Rec => w !== null);
-  if (walls.length === 0) return { blocked: () => false, source: null };
-  const segments: Array<[Point, Point]> = [];
-  for (const w of walls) {
-    const c = Array.isArray(w.c) ? (w.c as unknown[]).map(num) : [];
-    if (c.length < 4 || c.some(v => v === null)) continue;
-    if (w.move === 0) continue;
-    // An open door lets movement through.
-    if ((num(w.door) ?? 0) > 0 && num(w.ds) === 1) continue;
-    segments.push([
-      { x: c[0] as number, y: c[1] as number },
-      { x: c[2] as number, y: c[3] as number },
-    ]);
-  }
-  const fromData = (a: Point, b: Point): boolean => segments.some(([c, d]) => crosses(a, b, c, d));
-  const backend = rec(rec(rec((globalThis as Rec).CONFIG)?.Canvas)?.polygonBackends)?.move as
-    | { testCollision?: (a: Point, b: Point, o: Rec) => unknown }
-    | undefined;
-  if (canvasShows(scene) && typeof backend?.testCollision === 'function') {
-    return {
-      blocked: (a, b): boolean => {
-        try {
-          return Boolean(backend.testCollision?.(a, b, { type: 'move', mode: 'any' }));
-        } catch {
-          return fromData(a, b);
-        }
-      },
-      source: 'foundry',
-    };
-  }
-  return { blocked: fromData, source: 'scene data' };
-}
-
 interface Terrain {
   /** Movement cost multiplier at a point (regions that modify the cost of walking stack). */
   at(point: Point, elevation: number): number;
@@ -402,13 +340,16 @@ function stringsOf(value: unknown): string[] {
   return contentsOf(value).filter((v): v is string => typeof v === 'string');
 }
 
-/** The dnd5e movement automation setting is "none": its Difficult Terrain no longer costs extra. */
-function dnd5eMovementAutomationOff(): boolean {
+/**
+ * The dnd5e movement automation setting: "none" turns its Difficult Terrain off, "full" is what
+ * makes other creatures block. Unreadable counts as "full" (the default).
+ */
+function movementAutomation(): string {
   try {
     const settings = rec(rec(game)?.settings) as { get?: (m: string, k: string) => unknown } | null;
-    return settings?.get?.('dnd5e', 'movementAutomation') === 'none';
+    return str(settings?.get?.('dnd5e', 'movementAutomation')) ?? 'full';
   } catch {
-    return false;
+    return 'full';
   }
 }
 
@@ -425,17 +366,11 @@ function terrainOf(scene: SceneInfo, token: Rec, actor: Rec): Terrain {
   const level = str(token.level);
   const disposition = num(token.disposition);
   const ignored = stringsOf(path(actor, 'system.attributes.movement.ignoredDifficultTerrain'));
-  const dndOn = !dnd5eMovementAutomationOff() && disposition !== -2 && !ignored.includes('all');
+  const dndOn = movementAutomation() !== 'none' && disposition !== -2 && !ignored.includes('all');
   const costly: Array<{ region: Rec; factor: number }> = [];
   const difficult: Rec[] = [];
   for (const region of regions) {
-    if (level !== null && typeof region.includedInLevel === 'function') {
-      try {
-        if (!(region.includedInLevel as (id: string) => unknown).call(region, level)) continue;
-      } catch {
-        // A region that cannot say counts as on this level.
-      }
-    }
+    if (!onLevel(region, level)) continue;
     for (const raw of contentsOf(region.behaviors)) {
       const behavior = rec(raw);
       if (!behavior || behavior.disabled === true) continue;
@@ -481,6 +416,145 @@ function terrainOf(scene: SceneInfo, token: Rec, actor: Rec): Terrain {
 
 function squareLabel(x: number, y: number): string {
   return `(${x},${y})`;
+}
+
+/** dnd5e's `actorSizes[..].numerical`, for when the config is not there. */
+const SIZE_NUMBER: Record<string, number> = { tiny: 0, sm: 1, med: 2, lg: 3, huge: 4, grg: 5 };
+
+/** 0 (tiny) to 5 (gargantuan); medium when the size is missing. */
+function sizeNumber(key: string | null): number {
+  if (key === null) return 2;
+  return (
+    num(path((globalThis as Rec).CONFIG, `DND5E.actorSizes.${key}.numerical`)) ??
+    SIZE_NUMBER[key] ??
+    2
+  );
+}
+
+/** Statuses that never block movement (dnd5e fills the config from its status effects). */
+function neverBlockStatuses(): string[] {
+  const configured = stringsOf(path((globalThis as Rec).CONFIG, 'DND5E.neverBlockStatuses'));
+  return configured.length > 0 ? configured : ['dead', 'unconscious'];
+}
+
+interface Occupancy {
+  /** True when a creature's square on this footprint stops the NPC. */
+  blocks(f: Footprint): boolean;
+  /** True when walking through a creature's square on this footprint costs extra. */
+  difficult(f: Footprint): boolean;
+  /** Where the verdicts come from, for the notes. */
+  source: 'dnd5e canvas' | 'dnd5e rules';
+}
+
+/**
+ * Which creatures stop the NPC and which only slow it, as dnd5e decides it
+ * (`TokenLayer5e#isOccupiedGridSpaceBlocking` and `...Difficult`): asked of the drawn map when it
+ * shows this scene, else worked out from the same rules. Blocking needs movement automation
+ * "full"; difficult terrain needs anything but "none".
+ */
+function occupancyOf(input: {
+  scene: SceneInfo;
+  token: Rec;
+  actor: Rec;
+  elevation: number;
+  others: Rec[];
+  defeated: Set<string>;
+}): Occupancy {
+  const { scene, token, actor, elevation, others, defeated } = input;
+  const automation = movementAutomation();
+  const status = (a: Rec | null): string[] => {
+    const raw = a?.statuses;
+    return raw ? Array.from(raw as Iterable<unknown>).map(String) : [];
+  };
+  const never = neverBlockStatuses();
+  const ignoredTerrain = stringsOf(
+    path(actor, 'system.attributes.movement.ignoredDifficultTerrain')
+  );
+  // dnd5e: ignoring all or nonmagical difficult terrain also ignores creatures' squares.
+  const slows =
+    automation !== 'none' && !['all', 'nonmagical'].some(i => ignoredTerrain.includes(i));
+  const isCreature = (a: Rec | null): boolean => path(a, 'system.isCreature') !== false;
+  // A creature that cannot block (or is no creature) is not stopped by anyone either.
+  const ignoresBlocking = !isCreature(actor) || status(actor).some(s => never.includes(s));
+  const squares = (f: Footprint, k: number): Array<{ i: number; j: number; k: number }> => {
+    const out: Array<{ i: number; j: number; k: number }> = [];
+    for (let dy = 0; dy < f.h; dy++) {
+      for (let dx = 0; dx < f.w; dx++) out.push({ i: f.y + dy, j: f.x + dx, k });
+    }
+    return out;
+  };
+
+  const layer = rec(rec((globalThis as Rec).canvas)?.tokens) as {
+    get?: (id: string) => unknown;
+    isOccupiedGridSpaceBlocking?: (space: Rec, token: unknown) => unknown;
+    isOccupiedGridSpaceDifficult?: (space: Rec, token: unknown) => unknown;
+  } | null;
+  const placeable = canvasShows(scene.id) ? layer?.get?.(String(token.id)) : undefined;
+  if (
+    placeable &&
+    typeof layer?.isOccupiedGridSpaceBlocking === 'function' &&
+    typeof layer.isOccupiedGridSpaceDifficult === 'function'
+  ) {
+    const k = Math.floor(elevation / scene.distance);
+    const ask = (method: 'isOccupiedGridSpaceBlocking' | 'isOccupiedGridSpaceDifficult') => {
+      const cache = new Map<string, boolean>();
+      return (f: Footprint): boolean =>
+        squares(f, k).some(space => {
+          const key = `${space.i},${space.j}`;
+          let hit = cache.get(key);
+          if (hit === undefined) {
+            try {
+              hit = Boolean(layer[method]?.(space, placeable));
+            } catch {
+              hit = false;
+            }
+            cache.set(key, hit);
+          }
+          return hit;
+        });
+    };
+    const blocking = ask('isOccupiedGridSpaceBlocking');
+    const difficult = ask('isOccupiedGridSpaceDifficult');
+    return {
+      blocks: f => automation === 'full' && !ignoresBlocking && blocking(f),
+      difficult: f => slows && difficult(f),
+      source: 'dnd5e canvas',
+    };
+  }
+
+  const modern = str(path((globalThis as Rec).dnd5e, 'settings.rulesVersion')) !== 'legacy';
+  const mine = sizeNumber(str(path(actor, 'system.traits.size')));
+  const nimble = path(actor, 'flags.dnd5e.halflingNimbleness') === true;
+  const myDisposition = num(token.disposition) ?? -1;
+  const counts = (t: Rec): boolean =>
+    t.hidden !== true && num(t.disposition) !== -2 && isCreature(actorOf(t));
+  const blockers = others
+    .filter(t => {
+      if (!counts(t) || (num(t.disposition) ?? -1) === myDisposition) return false;
+      if (defeated.has(String(t.id))) return false;
+      const theirs = actorOf(t);
+      if (status(theirs).some(s => never.includes(s))) return false;
+      const size = sizeNumber(
+        str(path(theirs, 'system.details.type.swarm')) ?? str(path(theirs, 'system.traits.size'))
+      );
+      if (modern && size === 0) return false;
+      if (nimble && size > mine) return false;
+      return Math.abs(mine - size) < 2;
+    })
+    .map(t => rectOf(scene, t));
+  const slowing = others
+    .filter(t => {
+      if (!counts(t)) return false;
+      const friendly = (num(t.disposition) ?? -1) === myDisposition;
+      if (modern && friendly) return false;
+      return !(modern && sizeNumber(str(path(actorOf(t), 'system.traits.size'))) === 0);
+    })
+    .map(t => rectOf(scene, t));
+  return {
+    blocks: f => automation === 'full' && !ignoresBlocking && blockers.some(b => overlaps(f, b)),
+    difficult: f => slows && slowing.some(b => overlaps(f, b)),
+    source: 'dnd5e rules',
+  };
 }
 
 /** Read the fight and, with `moveTo`, plan the NPC's move. Throws a plain message on a refusal. */
@@ -533,7 +607,15 @@ export function planNpcTurn(data: unknown): NpcTurnPlan {
   ) {
     notes.push(`It is not ${tokenName}'s turn in the tracker.`);
   }
-  if (dash) notes.push('Dash: the move may use twice the speed, and the NPC gives up its attacks.');
+  // A Dash takes the NPC's action; only a bonus-action Dash (named in `reason`) leaves attacks.
+  const bonusDash = dash && /bonus[- ]action/i.test(str(request.reason) ?? '');
+  if (dash) {
+    notes.push(
+      bonusDash
+        ? 'Dash as a bonus action: the move may use twice the speed.'
+        : 'Dash: the move may use twice the speed, and the NPC gives up its attacks (unless the Dash is a bonus action: say so in reason).'
+    );
+  }
 
   // Who is on the NPC's level: others cannot block it or be attacked.
   const levelTokens = scene.tokens.filter(t => t.id === token.id || sameLevel(token, t));
@@ -549,11 +631,8 @@ export function planNpcTurn(data: unknown): NpcTurnPlan {
       .map(c => str(c.tokenId) ?? str(rec(c.token)?.id))
       .filter((id): id is string => id !== null)
   );
-  const myDisposition = num(token.disposition) ?? -1;
-  const hostileTo = (t: Rec): boolean =>
-    (num(t.disposition) ?? -1) !== myDisposition && !defeated.has(String(t.id));
 
-  const walls = wallsOf(scene);
+  const walls = wallsOf(scene.raw, token);
   const terrain = terrainOf(scene, token, actor);
   if (walls.source) {
     notes.push(
@@ -576,8 +655,18 @@ export function planNpcTurn(data: unknown): NpcTurnPlan {
     return f.x >= b.x0 && f.y >= b.y0 && f.x + f.w <= b.x1 && f.y + f.h <= b.y1;
   };
   const others = levelTokens.filter(t => t.id !== token.id);
-  const blockers = others.filter(hostileTo).map(t => rectOf(scene, t));
+  const occupancy = occupancyOf({ scene, token, actor, elevation, others, defeated });
+  if (others.length > 0) {
+    notes.push(
+      `Other creatures follow dnd5e's rules (${occupancy.source === 'dnd5e canvas' ? 'asked of the drawn map' : 'worked out here: the map is not drawn'}): a hostile one blocks unless it is two sizes apart, Tiny (modern rules), dead or unconscious, and walking through a creature's square costs double (allies too under the legacy rules). Hidden tokens are left out.`
+    );
+  }
   const occupied = others.map(t => ({ t, rect: rectOf(scene, t) }));
+  // What entering a square costs: regions, and a creature's square when nothing else slows it already.
+  const costAt = (f: Footprint): number => {
+    const ground = terrain.at(centre(f), elevation);
+    return ground > 1 || !occupancy.difficult(f) ? ground : 2;
+  };
 
   // Every square the NPC can walk to this turn, with the cheapest way there.
   const budget = moveLimit === null ? 0 : moveLimit / scene.distance;
@@ -586,9 +675,9 @@ export function planNpcTurn(data: unknown): NpcTurnPlan {
     rule: scene.rule,
     budget,
     inBounds,
-    passable: f => !blockers.some(b => overlaps(f, b)),
+    passable: f => !occupancy.blocks(f),
     wallBetween,
-    terrain: f => terrain.at(centre(f), elevation),
+    terrain: costAt,
   });
 
   // The destination, validated.
@@ -643,6 +732,11 @@ export function planNpcTurn(data: unknown): NpcTurnPlan {
       if (!i || !t) throw new Error('Each attack needs an itemName and a target');
       requested.push({ itemName: i, target: t });
     }
+  }
+  if (dash && !bonusDash && requested.length > 0) {
+    throw new Error(
+      `A Dash takes ${tokenName}'s action, so it cannot attack this turn: drop the attacks, or name a bonus-action Dash in reason (a Cunning Action, Nimble Escape)`
+    );
   }
   const findAction = (name: string): NpcTurnAction => {
     const action = actions.find(a => a.name.toLowerCase() === name.toLowerCase());
@@ -755,16 +849,16 @@ export function planNpcTurn(data: unknown): NpcTurnPlan {
     moveCost = tidy(node.cost * scene.distance);
     const straightLine = Math.max(Math.abs(after.x - here.x), Math.abs(after.y - here.y));
     const detour = squares.length - 1 > straightLine;
-    const hard = squares.slice(1).some(s => terrain.at(centre({ ...here, ...s }), elevation) > 1);
+    const hard = squares.slice(1).some(s => costAt({ ...here, ...s }) > 1);
     steps.push(
-      `${tokenName}: ${squareLabel(here.x, here.y)} to ${squareLabel(after.x, after.y)}, ${moveCost} ${scene.units}${dash ? ' (Dash)' : ''}${detour ? ', going round an obstacle' : ''}${hard ? ', through difficult terrain' : ''}`
+      `${tokenName}: ${squareLabel(here.x, here.y)} to ${squareLabel(after.x, after.y)}, ${moveCost} ${scene.units}${dash ? ' (Dash)' : ''}${detour ? ', going round an obstacle' : ''}${hard ? ', through difficult terrain' : ''}; the token is placed, not walked (Foundry's ruler does not count it)`
     );
   } else if (after) {
     steps.push(`${tokenName} stays at ${squareLabel(here.x, here.y)}`);
   }
   attacks.forEach((a, i) => {
     steps.push(
-      `${attacks.length > 1 ? `Attack ${i + 1} of ${attacks.length}: ` : 'Then '}${a.itemName} on ${a.target}${a.targetAC !== null ? ` (AC ${a.targetAC})` : ''}${a.inReach ? '' : ' (out of reach from here)'}${a.blockedByWall ? ' (a wall is in the way)' : ''}${dash ? ' (only with a bonus-action Dash)' : ''}`
+      `${attacks.length > 1 ? `Attack ${i + 1} of ${attacks.length}: ` : 'Then '}${a.itemName} on ${a.target}${a.targetAC !== null ? ` (AC ${a.targetAC})` : ''}${a.inReach ? '' : ' (out of reach from here)'}${a.blockedByWall ? ' (a wall is in the way)' : ''}${bonusDash ? ' (after a bonus-action Dash)' : ''}`
     );
   });
   if (ops) {

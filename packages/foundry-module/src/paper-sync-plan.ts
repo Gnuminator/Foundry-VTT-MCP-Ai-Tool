@@ -43,6 +43,7 @@ import {
   type Target,
 } from './live-plan.js';
 import { itemData } from './scene-plan.js';
+import { findStatusEffect } from './systems/dnd5e/status-effects.js';
 
 /** Query name (mirror of the shared `PAPER_SYNC_QUERY`). */
 export const PAPER_SYNC_QUERY = 'planPaperSync';
@@ -134,13 +135,20 @@ async function guard(build: Build, label: string, run: () => void | Promise<void
 /** An update op; a second update of the same document joins the first. */
 function pushUpdate(build: Build, uuid: string, changes: Rec): void {
   const existing = build.ops.find(op => op.kind === 'update' && op.uuid === uuid);
-  if (existing?.kind === 'update') Object.assign(existing.changes, changes);
-  else build.ops.push({ kind: 'update', uuid, changes });
+  if (existing?.kind === 'update') {
+    // Two fields writing one path (slot "1" and resource "spell1") would silently overwrite.
+    const twice = Object.keys(changes).find(path => path in existing.changes);
+    if (twice) throw new Error(`${twice} is set by two fields of the sheet`);
+    Object.assign(existing.changes, changes);
+  } else build.ops.push({ kind: 'update', uuid, changes });
 }
 
 function pushOps(build: Build, ops: GuardedOp[]): void {
   for (const op of ops) {
     if (op.kind === 'update') pushUpdate(build, op.uuid, op.changes);
+    // One effect can carry several conditions (Unconscious also carries Incapacitated): delete it once.
+    else if (op.kind === 'delete' && build.ops.some(o => o.kind === 'delete' && o.uuid === op.uuid))
+      continue;
     else build.ops.push(op);
   }
 }
@@ -187,8 +195,9 @@ function planHp(build: Build, request: PaperSyncRequest): void {
   if (!before) throw new Error(`${actor.name} has no hit points`);
   if (request.hp !== undefined) {
     const value = whole(request.hp, 'HP');
-    const effectiveMax = num(getPath(actor.system, 'attributes.hp.effectiveMax'));
-    const max = effectiveMax !== null && effectiveMax > before.max ? effectiveMax : before.max;
+    // dnd5e clamps HP to effectiveMax (max plus the temporary max HP bonus, negative after a bite
+    // that lowers it), so that is the limit, not the larger of the two.
+    const max = num(getPath(actor.system, 'attributes.hp.effectiveMax')) ?? before.max;
     if (value > max) throw new Error(`HP ${value} is more than the maximum ${max}`);
     if (value === before.value) build.unchanged.push(`HP already ${value} of ${max}`);
     else {
@@ -234,11 +243,38 @@ function planSlots(build: Build, request: PaperSyncRequest): void {
   }
 }
 
+/**
+ * `resourcePlan` takes the first partial match; for an absolute-value sync that could write the
+ * wrong item, so a partial item name that fits several items (and no exact name) is refused.
+ */
+function assertOneResource(actor: LiveActor, name: string): void {
+  const needle = name.toLowerCase().trim();
+  const sys = rec(actor.system);
+  const resources = rec(sys?.resources);
+  const labelled = ['primary', 'secondary', 'tertiary'].some(key => {
+    const label = (str(rec(resources?.[key])?.label) ?? '').toLowerCase();
+    return key === needle || label.includes(needle);
+  });
+  if (labelled || /^(spell|slot|level|lvl)?\s*[1-9]/.test(needle) || needle.startsWith('pact'))
+    return;
+  const items = itemsOf(actor).filter(i => str(i.name)?.toLowerCase().includes(needle));
+  const exact = items.filter(i => str(i.name)?.toLowerCase() === needle);
+  if (exact.length === 0 && items.length > 1) {
+    throw new Error(
+      `"${name}" fits ${items.map(i => str(i.name) ?? '?').join(', ')}: give the full name`
+    );
+  }
+}
+
 function planResources(build: Build, request: PaperSyncRequest): void {
   for (const entry of request.resources ?? []) {
     guardSync(build, entry.name, () => {
-      const plan = resourcePlan(build.actor, entry.name, whole(entry.value, entry.name));
-      const of = plan.max !== null ? ` of ${plan.max}` : '';
+      const value = whole(entry.value, entry.name);
+      assertOneResource(build.actor, entry.name);
+      const plan = resourcePlan(build.actor, entry.name, value);
+      // An item without uses has no stored value to write (dnd5e leaves uses.max empty).
+      if (plan.max === null) throw new Error(`${plan.label} has no maximum to set`);
+      const of = ` of ${plan.max}`;
       if (plan.current === entry.value) {
         build.unchanged.push(`${plan.label} already ${entry.value}${of}`);
         return;
@@ -291,7 +327,9 @@ function planHitDice(build: Build, request: PaperSyncRequest): void {
       const uuid = str(found.uuid);
       if (!uuid) throw new Error(`the ${name} class has no uuid`);
       const left = whole(entry.left, 'hit dice left');
-      const levels = num(getPath(found.system, 'levels')) ?? 0;
+      // dnd5e: hd.max is the class levels plus extra hit dice; hd.value is max minus spent.
+      const levels =
+        num(getPath(found.system, 'hd.max')) ?? num(getPath(found.system, 'levels')) ?? 0;
       if (left > levels) throw new Error(`${left} is more than the ${levels} hit dice of ${name}`);
       const spent = num(getPath(found.system, 'hd.spent')) ?? 0;
       const now = Math.max(levels - spent, 0);
@@ -348,6 +386,14 @@ async function planExhaustion(build: Build, request: PaperSyncRequest): Promise<
   record(build, 'exhaustion', 'Exhaustion', current, level);
 }
 
+/** The other statuses a status effect carries with it (`statuses` on the effect config). */
+function impliedStatuses(id: string): string[] {
+  const implied = rec(findStatusEffect(id))?.statuses;
+  return Array.isArray(implied)
+    ? implied.filter((s): s is string => typeof s === 'string' && s !== id)
+    : [];
+}
+
 async function planConditions(build: Build, request: PaperSyncRequest): Promise<void> {
   if (request.conditions === undefined) return;
   const wanted = new Map<string, ReturnType<typeof statusInfo>>();
@@ -362,10 +408,14 @@ async function planConditions(build: Build, request: PaperSyncRequest): Promise<
     }
     wanted.set(info.id, info);
   }
-  // A rider (Unconscious brings Prone) comes with its condition and is not removed.
-  const riders = new Set([...wanted.values()].flatMap(info => info.riders));
+  // What stays with a wanted condition: its riders (Unconscious brings Prone) and the statuses
+  // dnd5e builds into it (Paralyzed, Petrified, Stunned and Unconscious all carry Incapacitated).
+  const keep = new Set<string>(wanted.keys());
+  for (const info of wanted.values()) {
+    for (const id of [...info.riders, ...impliedStatuses(info.id)]) keep.add(id);
+  }
   const present = SHEET_CONDITIONS.filter(id => hasStatus(build.actor, id));
-  const remove = present.filter(id => !wanted.has(id) && !riders.has(id));
+  const remove = present.filter(id => !keep.has(id));
   const add = [...wanted.keys()].filter(id => !present.includes(id));
   const labelOf = (id: string): string => statusInfo(id).name;
   const listOf = (ids: string[]): string => (ids.length ? ids.map(labelOf).join(', ') : 'none');
@@ -380,13 +430,27 @@ async function planConditions(build: Build, request: PaperSyncRequest): Promise<
     condition,
     active,
   });
+  const opsBefore = build.ops.length;
+  // A status no effect of the actor carries (it comes from an item) cannot be removed here.
+  const stuck: string[] = [];
   for (const id of remove) {
-    pushOps(build, (await planCondition([build.target], conditionRequest(id, false))).ops);
+    const built = await planCondition([build.target], conditionRequest(id, false));
+    if (built.ops.length === 0) stuck.push(id);
+    pushOps(build, built.ops);
   }
   for (const id of add) {
     pushOps(build, (await planCondition([build.target], conditionRequest(id, true))).ops);
   }
-  const after = [...present.filter(id => !remove.includes(id)), ...add];
+  if (stuck.length > 0) {
+    build.warnings.push(
+      `${listOf(stuck)} comes from an item or another effect and stays; remove it on the sheet`
+    );
+  }
+  if (build.ops.length === opsBefore) {
+    build.unchanged.push(`Conditions already ${listOf(present)}`);
+    return;
+  }
+  const after = [...present.filter(id => !remove.includes(id) || stuck.includes(id)), ...add];
   record(
     build,
     'conditions',
@@ -523,6 +587,10 @@ async function planInventory(build: Build, request: PaperSyncRequest): Promise<v
         if (before === quantity) {
           build.unchanged.push(`${name} already ${quantity}`);
         } else if (quantity === 0) {
+          // Updating and then deleting one item cannot be undone (the undo's update has no target).
+          if (build.ops.some(op => op.kind === 'update' && op.uuid === uuid)) {
+            throw new Error(`${name} is both changed (uses) and removed: give one of the two`);
+          }
           build.ops.push({ kind: 'delete', uuid });
           record(build, 'inventory', name, before, 0, `${name} removed (was ${before})`);
           if (existing.type === 'container') {
@@ -581,6 +649,11 @@ export async function planPaperSync(data: unknown): Promise<PaperSyncPlan> {
   const { actor } = target;
   if (actor.type !== undefined && actor.type !== 'character') {
     throw new Error(`${target.name} is not a player character (paper sync is for characters)`);
+  }
+  if (!actor.uuid.startsWith('Actor.')) {
+    throw new Error(
+      `${target.name} resolved to an unlinked token on this scene; give the character's name or id from the sidebar`
+    );
   }
   const build: Build = {
     actor,

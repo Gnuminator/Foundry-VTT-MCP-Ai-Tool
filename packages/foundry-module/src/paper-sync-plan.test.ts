@@ -36,12 +36,26 @@ const g = globalThis as any;
 const STATUS_EFFECTS = {
   prone: { _id: 'dnd5eprone000000', name: 'Prone', img: 'prone.svg' },
   poisoned: { _id: 'dnd5epoisoned000', name: 'Poisoned', img: 'poisoned.svg' },
-  stunned: { _id: 'dnd5estunned0000', name: 'Stunned', img: 'stunned.svg' },
+  stunned: {
+    _id: 'dnd5estunned0000',
+    name: 'Stunned',
+    img: 'stunned.svg',
+    statuses: ['incapacitated'],
+  },
+  // dnd5e 6: these four carry Incapacitated with them (`statuses` on the effect config).
+  incapacitated: { _id: 'dnd5eincapacitat', name: 'Incapacitated', img: 'inc.svg' },
   unconscious: {
     _id: 'dnd5eunconscious',
     name: 'Unconscious',
     img: 'unconscious.svg',
     riders: ['prone'],
+    statuses: ['incapacitated'],
+  },
+  paralyzed: {
+    _id: 'dnd5eparalyzed00',
+    name: 'Paralyzed',
+    img: 'par.svg',
+    statuses: ['incapacitated'],
   },
   concentrating: { _id: 'dnd5econcentrat0', name: 'Concentrating', img: 'conc.svg' },
   exhaustion: { _id: 'dnd5eexhaustion0', name: 'Exhaustion', img: 'exh.svg', levels: 6 },
@@ -780,5 +794,170 @@ describe('a whole sheet', () => {
       { kind: 'delete', uuid: 'Actor.a1.Item.i1' },
     ]);
     expect(plan.summary.length).toBeLessThanOrEqual(300);
+  });
+});
+
+describe('review round 1 fixes', () => {
+  const deletes = (plan: { ops: any[] }): string[] =>
+    plan.ops.filter(op => op.kind === 'delete').map(op => op.uuid);
+
+  // Foundry builds the effect with statuses [id, ...implied], so actor.statuses holds both.
+  const unconscious = (): Sheet => ({
+    statuses: ['unconscious', 'incapacitated', 'prone'],
+    effects: [
+      effect('e1', 'Unconscious', ['unconscious', 'incapacitated']),
+      effect('e2', 'Prone', ['prone']),
+    ],
+  });
+
+  describe('conditions with implied statuses (H1)', () => {
+    it('leaves an unconscious, paralyzed or stunned character alone when the list matches', async () => {
+      addMira(unconscious());
+      await expect(planPaperSync({ actor: 'Mira', conditions: ['unconscious'] })).rejects.toThrow(
+        /Nothing to change.*Conditions already/
+      );
+      world.actors.delete('a1');
+      addMira({
+        statuses: ['paralyzed', 'incapacitated'],
+        effects: [effect('e1', 'Paralyzed', ['paralyzed', 'incapacitated'])],
+      });
+      await expect(planPaperSync({ actor: 'Mira', conditions: ['paralyzed'] })).rejects.toThrow(
+        /Nothing to change/
+      );
+      world.actors.delete('a1');
+      addMira({
+        statuses: ['stunned', 'incapacitated'],
+        effects: [effect('e1', 'Stunned', ['stunned', 'incapacitated'])],
+      });
+      await expect(planPaperSync({ actor: 'Mira', conditions: ['stunned'] })).rejects.toThrow(
+        /Nothing to change/
+      );
+    });
+
+    it('deletes each effect once for an empty list', async () => {
+      addMira(unconscious());
+      const plan = await planPaperSync({ actor: 'Mira', conditions: [] });
+      expect(deletes(plan).sort()).toEqual([
+        'Actor.a1.ActiveEffect.e1',
+        'Actor.a1.ActiveEffect.e2',
+      ]);
+    });
+
+    it('removes a dropped condition once and keeps the others', async () => {
+      addMira({
+        statuses: ['stunned', 'incapacitated', 'poisoned'],
+        effects: [
+          effect('e1', 'Stunned', ['stunned', 'incapacitated']),
+          effect('e2', 'Poisoned', ['poisoned']),
+        ],
+      });
+      const plan = await planPaperSync({ actor: 'Mira', conditions: ['poisoned'] });
+      expect(deletes(plan)).toEqual(['Actor.a1.ActiveEffect.e1']);
+    });
+
+    it('says so when a status only comes from an item and cannot be removed', async () => {
+      addMira({ statuses: ['poisoned', 'prone'], effects: [effect('e1', 'Prone', ['prone'])] });
+      const plan = await planPaperSync({ actor: 'Mira', conditions: [] });
+      expect(deletes(plan)).toEqual(['Actor.a1.ActiveEffect.e1']);
+      expect(plan.warnings.join(' ')).toMatch(/Poisoned comes from an item or another effect/);
+    });
+  });
+
+  describe('one item or path changed twice (M1)', () => {
+    const wand = (): any =>
+      makeItem({
+        id: 'w1',
+        name: 'Wand',
+        type: 'equipment',
+        uuid: 'Actor.a1.Item.w1',
+        system: { quantity: 1, uses: { spent: 0, max: 7, value: 7 } },
+      });
+
+    it('refuses to update the uses of an item and remove it in one request', async () => {
+      addMira({ items: [wand()] });
+      await expect(
+        planPaperSync({
+          actor: 'Mira',
+          resources: [{ name: 'Wand', value: 3 }],
+          inventory: [{ item: 'Wand', quantity: 0 }],
+        })
+      ).rejects.toThrow(/Wand is both changed \(uses\) and removed/);
+    });
+
+    it('refuses a spell slot level set by a slot and a resource', async () => {
+      addMira();
+      await expect(
+        planPaperSync({
+          actor: 'Mira',
+          slots: { '1': 1 },
+          resources: [{ name: 'spell1', value: 2 }],
+        })
+      ).rejects.toThrow(/set by two fields/);
+    });
+  });
+
+  describe('maximums (M2, L1)', () => {
+    it('uses the reduced maximum after a negative temporary max HP', async () => {
+      addMira({ hp: { value: 15, max: 31, temp: 0, effectiveMax: 20 } });
+      await expect(planPaperSync({ actor: 'Mira', hp: 25 })).rejects.toThrow(
+        /HP 25 is more than the maximum 20/
+      );
+      const plan = await planPaperSync({ actor: 'Mira', hp: 20 });
+      expect(plan.changes[0]?.line).toBe('HP 15 to 20 of 20');
+    });
+
+    it('counts extra hit dice (hd.max) and writes spent from that maximum', async () => {
+      const extra = fighter(0);
+      extra.system.hd.max = 7;
+      extra.system.hd.additional = 2;
+      addMira({ items: [extra] });
+      const plan = await planPaperSync({
+        actor: 'Mira',
+        hitDice: [{ class: 'Fighter', left: 6 }],
+      });
+      expect(plan.ops).toEqual([
+        { kind: 'update', uuid: 'Actor.a1.Item.c1', changes: { 'system.hd.spent': 1 } },
+      ]);
+      await expect(
+        planPaperSync({ actor: 'Mira', hitDice: [{ class: 'Fighter', left: 8 }] })
+      ).rejects.toThrow(/8 is more than the 7 hit dice/);
+    });
+  });
+
+  describe('targets and resource names (L2, L3)', () => {
+    it('refuses an unlinked token target', async () => {
+      const mira = addMira();
+      mira.uuid = 'Scene.s1.Token.t1.Actor.a1';
+      await expect(planPaperSync({ actor: 'Mira', hp: 10 })).rejects.toThrow(/unlinked token/);
+    });
+
+    it('refuses an ambiguous partial resource name and lists the candidates', async () => {
+      const mk = (id: string, name: string): any =>
+        makeItem({
+          id,
+          name,
+          type: 'equipment',
+          uuid: `Actor.a1.Item.${id}`,
+          system: { quantity: 1, uses: { spent: 0, max: 3, value: 3 } },
+        });
+      addMira({ items: [mk('w1', 'Wand of Fire'), mk('w2', 'Wand of Frost')] });
+      await expect(
+        planPaperSync({ actor: 'Mira', resources: [{ name: 'Wand', value: 1 }] })
+      ).rejects.toThrow(/"Wand" fits Wand of Fire, Wand of Frost/);
+    });
+
+    it('refuses an item whose uses have no maximum', async () => {
+      const charm = makeItem({
+        id: 'ch1',
+        name: 'Charm',
+        type: 'equipment',
+        uuid: 'Actor.a1.Item.ch1',
+        system: { quantity: 1, uses: { spent: 0, max: '', value: null } },
+      });
+      addMira({ items: [charm] });
+      await expect(
+        planPaperSync({ actor: 'Mira', resources: [{ name: 'Charm', value: 1 }] })
+      ).rejects.toThrow(/Charm uses has no maximum to set/);
+    });
   });
 });

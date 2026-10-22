@@ -128,7 +128,7 @@ describe('collectPlayerVisibleNames', () => {
   it('lists scene navigation names the way Foundry shows them (real name without navName)', () => {
     world.addScene({
       id: 'nav',
-      name: 'Castle Ravenloft',
+      name: 'Castle Greywatch',
       navName: 'The Castle',
       ownership: { default: 1 },
     });
@@ -142,12 +142,12 @@ describe('collectPlayerVisibleNames', () => {
   it('lists the active scene even without navigation or permission', () => {
     world.addScene({
       id: 's',
-      name: 'Barovia',
+      name: 'Maravia',
       active: true,
       navigation: false,
       ownership: { default: 0 },
     });
-    expect(collectPlayerVisibleNames()).toContainEqual({ kind: 'scene', id: 's', name: 'Barovia' });
+    expect(collectPlayerVisibleNames()).toContainEqual({ kind: 'scene', id: 's', name: 'Maravia' });
   });
 
   it('lists playing playlists and sounds, and everything in a player-owned playlist', () => {
@@ -157,7 +157,7 @@ describe('collectPlayerVisibleNames', () => {
       playing: true,
       ownership: { default: 0 },
       sounds: new MockCollection([
-        makeDocument({ id: 's1', name: 'Strahd Theme', playing: true, ownership: { default: 0 } }),
+        makeDocument({ id: 's1', name: 'Sorvan Theme', playing: true, ownership: { default: 0 } }),
         makeDocument({ id: 's2', name: 'Silent Track', playing: false, ownership: { default: 0 } }),
       ]),
     });
@@ -173,7 +173,7 @@ describe('collectPlayerVisibleNames', () => {
     world.playlists.add(playing).add(quiet);
     const names = collectPlayerVisibleNames().map(n => `${n.kind}:${n.name}`);
     expect(names).toContain('playlist:Combat');
-    expect(names).toContain('sound:Strahd Theme');
+    expect(names).toContain('sound:Sorvan Theme');
     expect(names).not.toContain('sound:Silent Track');
     expect(names).not.toContain('playlist:GM Secrets');
     expect(names).not.toContain('sound:Vistani');
@@ -187,14 +187,14 @@ describe('collectPlayerVisibleNames', () => {
       pages: [{ id: 'pg1', name: 'Letter from a courier', ownership: { default: -1 } }],
     });
     world.addJournal({ id: 'j2', name: 'Chapter 4 secrets', ownership: { default: 1 } });
-    world.addActor({ id: 'a1', name: 'Ireena', ownership: { default: 1 } });
-    world.addActor({ id: 'a2', name: 'Strahd', ownership: { default: 0 } });
+    world.addActor({ id: 'a1', name: 'Ilvara', ownership: { default: 1 } });
+    world.addActor({ id: 'a2', name: 'Sorvan', ownership: { default: 0 } });
     const names = collectPlayerVisibleNames().map(n => `${n.kind}:${n.name}`);
     expect(names).toEqual(
-      expect.arrayContaining(['journal:Handouts', 'page:Letter from a courier', 'actor:Ireena'])
+      expect.arrayContaining(['journal:Handouts', 'page:Letter from a courier', 'actor:Ilvara'])
     );
     expect(names).not.toContain('journal:Chapter 4 secrets');
-    expect(names).not.toContain('actor:Strahd');
+    expect(names).not.toContain('actor:Sorvan');
   });
 
   it('lists token names players can read on the active scene only', () => {

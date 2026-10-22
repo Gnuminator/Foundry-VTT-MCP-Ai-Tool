@@ -46,8 +46,8 @@ beforeEach(async () => {
   logger = { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() };
   logger.child = (): unknown => logger;
   service = makeService();
-  foundry.add('Actor.ireena', 'Actor', {
-    name: 'Ireena',
+  foundry.add('Actor.ilvara', 'Actor', {
+    name: 'Ilvara',
     system: { hp: 10 },
     flags: { 'foundry-mcp-bridge': { attitude: 'friendly' } },
   });
@@ -59,13 +59,13 @@ afterEach(async () => {
 
 const HP_UPDATE: GuardedOp = {
   kind: 'update',
-  uuid: 'Actor.ireena',
+  uuid: 'Actor.ilvara',
   changes: { 'system.hp': 4 },
   unset: ['flags.foundry-mcp-bridge.attitude'],
 };
 
 function plan(ops: GuardedOp[], extra: Record<string, unknown> = {}): Promise<PlanView> {
-  return service.createPlan({ feature: 'test-feature', summary: 'Hurt Ireena', ops, ...extra });
+  return service.createPlan({ feature: 'test-feature', summary: 'Hurt Ilvara', ops, ...extra });
 }
 
 // ---------------------------------------------------------------------------
@@ -76,11 +76,11 @@ describe('createPlan (Foundry ops)', () => {
   it('snapshots the targets and returns a readable diff', async () => {
     const p = await plan([
       HP_UPDATE,
-      { kind: 'create', documentName: 'Item', parentUuid: 'Actor.ireena', data: { name: 'Rope' } },
+      { kind: 'create', documentName: 'Item', parentUuid: 'Actor.ilvara', data: { name: 'Rope' } },
     ]);
     expect(p).toMatchObject({
       feature: 'test-feature',
-      summary: 'Hurt Ireena',
+      summary: 'Hurt Ilvara',
       target: 'foundry',
       risk: 'write',
       worldId: 'curse-of-strahd',
@@ -90,26 +90,26 @@ describe('createPlan (Foundry ops)', () => {
     });
     expect(p.planId).toMatch(/^plan-[a-z0-9]+-[0-9a-f]{8}$/);
     expect(p.diff.map(d => d.text)).toEqual([
-      'Actor "Ireena": system.hp: 10 → 4',
-      'Actor "Ireena": flags.foundry-mcp-bridge.attitude: "friendly" → (unset)',
-      'Create Item "Rope" in Actor.ireena',
+      'Actor "Ilvara": system.hp: 10 → 4',
+      'Actor "Ilvara": flags.foundry-mcp-bridge.attitude: "friendly" → (unset)',
+      'Create Item "Rope" in Actor.ilvara',
     ]);
     expect(service.getPlan(p.planId)).toEqual(p);
     expect(service.listPlans()).toEqual([p]);
   });
 
   it('marks a plan with a delete as destructive', async () => {
-    const p = await plan([{ kind: 'delete', uuid: 'Actor.ireena' }]);
+    const p = await plan([{ kind: 'delete', uuid: 'Actor.ilvara' }]);
     expect(p.risk).toBe('destructive');
     expect(p.requires.confirmDestructive).toBe(true);
-    expect(p.diff[0].text).toBe('Delete Actor "Ireena" (Actor.ireena)');
+    expect(p.diff[0].text).toBe('Delete Actor "Ilvara" (Actor.ilvara)');
   });
 
   it('names known paths in the diff (F5): HP, temp HP, ownership, position', async () => {
     const p = await plan([
       {
         kind: 'update',
-        uuid: 'Actor.ireena',
+        uuid: 'Actor.ilvara',
         changes: {
           'system.attributes.hp.value': 5,
           'system.attributes.hp.temp': 3,
@@ -119,10 +119,10 @@ describe('createPlan (Foundry ops)', () => {
       },
     ]);
     expect(p.diff.map(d => d.text)).toEqual([
-      'Actor "Ireena": HP (unset) → 5',
-      'Actor "Ireena": temp HP (unset) → 3',
-      'Actor "Ireena": ownership for user u1 (unset) → 3',
-      'Actor "Ireena": death save failures (unset) → 1',
+      'Actor "Ilvara": HP (unset) → 5',
+      'Actor "Ilvara": temp HP (unset) → 3',
+      'Actor "Ilvara": ownership for user u1 (unset) → 3',
+      'Actor "Ilvara": death save failures (unset) → 1',
     ]);
   });
 
@@ -130,20 +130,20 @@ describe('createPlan (Foundry ops)', () => {
     const ops: GuardedOp[] = [
       {
         kind: 'update',
-        uuid: 'Actor.ireena',
+        uuid: 'Actor.ilvara',
         changes: { 'ownership.u1': 2, 'system.attributes.hp.value': 5 },
       },
     ];
     const labelled = await plan(ops, { pathLabels: { 'ownership.u1': 'ownership for Player' } });
     expect(labelled.diff.map(d => d.text)).toEqual([
-      'Actor "Ireena": ownership for Player (unset) → 2',
-      'Actor "Ireena": HP (unset) → 5',
+      'Actor "Ilvara": ownership for Player (unset) → 2',
+      'Actor "Ilvara": HP (unset) → 5',
     ]);
 
     const plain = await plan(ops);
     expect(plain.diff.map(d => d.text)).toEqual([
-      'Actor "Ireena": ownership for user u1 (unset) → 2',
-      'Actor "Ireena": HP (unset) → 5',
+      'Actor "Ilvara": ownership for user u1 (unset) → 2',
+      'Actor "Ilvara": HP (unset) → 5',
     ]);
   });
 
@@ -166,7 +166,7 @@ describe('createPlan (Foundry ops)', () => {
             {
               exists: true,
               documentName: 'Actor',
-              name: 'Ireena',
+              name: 'Ilvara',
               values: [{ path: 'system.currency.gp', present: true, value: 10 }],
             },
             {
@@ -209,7 +209,7 @@ describe('createPlan (Foundry ops)', () => {
           'environment.globalLight.enabled': true,
         },
       },
-      { kind: 'update', uuid: 'Actor.ireena', changes: { 'system.currency.gp': 15 } },
+      { kind: 'update', uuid: 'Actor.ilvara', changes: { 'system.currency.gp': 15 } },
       { kind: 'delete', uuid: 'Scene.s1.Region.r1' },
       { kind: 'delete', uuid: 'Scene.s1.Note.n1' },
       {
@@ -226,7 +226,7 @@ describe('createPlan (Foundry ops)', () => {
       'Scene "Field": darkness 0.2 → 0.8',
       'Scene "Field": darkness lock true → true',
       'Scene "Field": global light false → true',
-      'Actor "Ireena": gp 10 → 15',
+      'Actor "Ilvara": gp 10 → 15',
       'Delete Region "Circle Template" from Scene "Field"',
       'Delete Note "Trap" from Scene "Field"',
       'Create Region "Circle Template" on Scene "Field"',
@@ -236,13 +236,13 @@ describe('createPlan (Foundry ops)', () => {
   });
 
   it('keeps removing a status effect at one confirm, any other delete stays destructive (F5)', async () => {
-    foundry.add('Actor.ireena.ActiveEffect.prone', 'ActiveEffect', { name: 'Prone' });
-    const effect = await plan([{ kind: 'delete', uuid: 'Actor.ireena.ActiveEffect.prone' }]);
+    foundry.add('Actor.ilvara.ActiveEffect.prone', 'ActiveEffect', { name: 'Prone' });
+    const effect = await plan([{ kind: 'delete', uuid: 'Actor.ilvara.ActiveEffect.prone' }]);
     expect(effect.risk).toBe('write');
     expect(effect.requires.confirmDestructive).toBe(false);
     const both = await plan([
-      { kind: 'delete', uuid: 'Actor.ireena.ActiveEffect.prone' },
-      { kind: 'delete', uuid: 'Actor.ireena' },
+      { kind: 'delete', uuid: 'Actor.ilvara.ActiveEffect.prone' },
+      { kind: 'delete', uuid: 'Actor.ilvara' },
     ]);
     expect(both.risk).toBe('destructive');
   });
@@ -311,11 +311,11 @@ describe('applyPlan (Foundry ops)', () => {
   it('needs confirm, and confirmDestructive for a destructive plan', async () => {
     const p = await plan([HP_UPDATE]);
     await expect(service.applyPlan(p.planId, {})).rejects.toThrow(/needs confirm: true/);
-    const d = await plan([{ kind: 'delete', uuid: 'Actor.ireena' }]);
+    const d = await plan([{ kind: 'delete', uuid: 'Actor.ilvara' }]);
     await expect(service.applyPlan(d.planId, { confirm: true })).rejects.toThrow(
       /confirmDestructive/
     );
-    expect(foundry.docs.has('Actor.ireena')).toBe(true);
+    expect(foundry.docs.has('Actor.ilvara')).toBe(true);
     expect(service.listPlans()).toHaveLength(2);
   });
 
@@ -329,10 +329,10 @@ describe('applyPlan (Foundry ops)', () => {
       mode: 'apply',
       risk: 'write',
       appliedAt: '2026-09-28T12:00:00.000Z',
-      documents: ['Actor.ireena'],
+      documents: ['Actor.ilvara'],
     });
     expect(applied.changeId).toMatch(/^chg-/);
-    expect(foundry.docs.get('Actor.ireena')!.source.system.hp).toBe(4);
+    expect(foundry.docs.get('Actor.ilvara')!.source.system.hp).toBe(4);
 
     const request = foundry.calls.find(([m]) => m.endsWith('applyGuardedOps'))![1];
     expect(request).toMatchObject({
@@ -359,9 +359,9 @@ describe('applyPlan (Foundry ops)', () => {
     await expect(service.applyPlan(p.planId, { confirm: true })).rejects.toThrow(/switched off/);
     foundry.features[0].enabled = true;
 
-    foundry.edit('Actor.ireena', { path: 'system.hp', present: true, value: 9 });
+    foundry.edit('Actor.ilvara', { path: 'system.hp', present: true, value: 9 });
     await expect(service.applyPlan(p.planId, { confirm: true })).rejects.toThrow(/Conflict/);
-    expect(foundry.docs.get('Actor.ireena')!.source.system.hp).toBe(9);
+    expect(foundry.docs.get('Actor.ilvara')!.source.system.hp).toBe(9);
     expect(await service.listRecentChanges()).toEqual([]);
     expect(service.getPlan(p.planId).planId).toBe(p.planId);
   });
@@ -441,7 +441,7 @@ describe('recorded listeners and undo guards', () => {
     await expect(service.undo(applied.changeId, { confirm: true })).rejects.toThrow(
       'Conflict, nothing was written: the GM edited it'
     );
-    expect(foundry.docs.get('Actor.ireena')!.source.system.hp).toBe(4);
+    expect(foundry.docs.get('Actor.ilvara')!.source.system.hp).toBe(4);
   });
 
   it('a planned undo (Changes window, dashboard) goes through the undo guard too', async () => {
@@ -450,18 +450,18 @@ describe('recorded listeners and undo guards', () => {
     service.setUndoGuard('test-feature', () => Promise.resolve('the GM edited it'));
     const undoPlan = await service.createPlan({
       feature: 'change-undo',
-      summary: 'Undo Hurt Ireena',
-      ops: [{ kind: 'update', uuid: 'Actor.ireena', changes: { 'system.hp': 10 } }],
+      summary: 'Undo Hurt Ilvara',
+      ops: [{ kind: 'update', uuid: 'Actor.ilvara', changes: { 'system.hp': 10 } }],
       undoes: { changes: [first.changeId] },
     });
     await expect(service.applyPlan(undoPlan.planId, { confirm: true })).rejects.toThrow(
       'Conflict, nothing was written: the GM edited it'
     );
-    expect(foundry.docs.get('Actor.ireena')!.source.system.hp).toBe(4);
+    expect(foundry.docs.get('Actor.ilvara')!.source.system.hp).toBe(4);
     // The plan is still pending, and goes through once the guard agrees.
     service.setUndoGuard('test-feature', () => Promise.resolve(null));
     await service.applyPlan(undoPlan.planId, { confirm: true });
-    expect(foundry.docs.get('Actor.ireena')!.source.system.hp).toBe(10);
+    expect(foundry.docs.get('Actor.ilvara')!.source.system.hp).toBe(10);
   });
 });
 
@@ -469,8 +469,8 @@ describe('undo guards and redos', () => {
   async function undoPlanOf(changeId: string): Promise<{ planId: string }> {
     return service.createPlan({
       feature: 'change-undo',
-      summary: 'Undo Hurt Ireena',
-      ops: [{ kind: 'update', uuid: 'Actor.ireena', changes: { 'system.hp': 10 } }],
+      summary: 'Undo Hurt Ilvara',
+      ops: [{ kind: 'update', uuid: 'Actor.ilvara', changes: { 'system.hp': 10 } }],
       undoes: { changes: [changeId] },
     });
   }
@@ -534,7 +534,7 @@ describe('a planned undo of a change that left the history', () => {
     const undoPlan = await service.createPlan({
       feature: 'change-undo',
       summary: 'Undo something old',
-      ops: [{ kind: 'update', uuid: 'Actor.ireena', changes: { 'system.hp': 10 } }],
+      ops: [{ kind: 'update', uuid: 'Actor.ilvara', changes: { 'system.hp': 10 } }],
       undoes: { changes: ['chg-gone'] },
     });
     await expect(service.applyPlan(undoPlan.planId, { confirm: true })).rejects.toThrow(
@@ -565,7 +565,7 @@ describe('undo (Foundry ops)', () => {
 
     const undone = await service.undo(applied.changeId, { confirm: true });
     expect(undone).toMatchObject({ mode: 'undo', undoOf: applied.changeId, planId: null });
-    expect(foundry.docs.get('Actor.ireena')!.source).toMatchObject({
+    expect(foundry.docs.get('Actor.ilvara')!.source).toMatchObject({
       system: { hp: 10 },
       flags: { 'foundry-mcp-bridge': { attitude: 'friendly' } },
     });
@@ -589,11 +589,11 @@ describe('undo (Foundry ops)', () => {
   it('redoes a change by undoing its undo, and undoes it again', async () => {
     const applied = await service.applyPlan((await plan([HP_UPDATE])).planId, { confirm: true });
     const undone = await service.undo(applied.changeId, { confirm: true });
-    expect(foundry.docs.get('Actor.ireena')!.source.system.hp).toBe(10);
+    expect(foundry.docs.get('Actor.ilvara')!.source.system.hp).toBe(10);
 
     const redone = await service.undo(undone.changeId, { confirm: true });
     expect(redone).toMatchObject({ mode: 'undo', undoOf: undone.changeId });
-    expect(foundry.docs.get('Actor.ireena')!.source.system.hp).toBe(4);
+    expect(foundry.docs.get('Actor.ilvara')!.source.system.hp).toBe(4);
     await expect(service.undo(undone.changeId, { confirm: true })).rejects.toThrow(
       /already undone/
     );
@@ -609,7 +609,7 @@ describe('undo (Foundry ops)', () => {
 
     const again = await service.undo(applied.changeId, { confirm: true });
     expect(again.undoOf).toBe(applied.changeId);
-    expect(foundry.docs.get('Actor.ireena')!.source.system.hp).toBe(10);
+    expect(foundry.docs.get('Actor.ilvara')!.source.system.hp).toBe(10);
     expect((await service.undoState()).get(applied.changeId)?.undoneBy).toBe(again.changeId);
   });
 
@@ -617,20 +617,20 @@ describe('undo (Foundry ops)', () => {
     // The redo of an AI item delete: dnd5e ends the concentration effect by itself when the
     // item goes, so the module reports that delete as alreadyGone. Undoing the redo must bring
     // the item back and leave the effect alone instead of sending `create ActiveEffect {}`.
-    foundry.add('Actor.ireena.Item.spell', 'Item', { _id: 'spell', name: 'Bless' });
-    foundry.add('Actor.ireena.ActiveEffect.conc', 'ActiveEffect', {
+    foundry.add('Actor.ilvara.Item.spell', 'Item', { _id: 'spell', name: 'Bless' });
+    foundry.add('Actor.ilvara.ActiveEffect.conc', 'ActiveEffect', {
       _id: 'conc',
       name: 'Concentrating',
     });
     const p = await plan([
-      { kind: 'delete', uuid: 'Actor.ireena.ActiveEffect.conc' },
-      { kind: 'delete', uuid: 'Actor.ireena.Item.spell' },
+      { kind: 'delete', uuid: 'Actor.ilvara.ActiveEffect.conc' },
+      { kind: 'delete', uuid: 'Actor.ilvara.Item.spell' },
     ]);
     const applied = await service.applyPlan(p.planId, { confirm: true, confirmDestructive: true });
     const undone = await service.undo(applied.changeId, { confirm: true });
-    expect(foundry.docs.has('Actor.ireena.ActiveEffect.conc')).toBe(true);
+    expect(foundry.docs.has('Actor.ilvara.ActiveEffect.conc')).toBe(true);
 
-    foundry.docs.delete('Actor.ireena.ActiveEffect.conc'); // dnd5e ends the concentration first
+    foundry.docs.delete('Actor.ilvara.ActiveEffect.conc'); // dnd5e ends the concentration first
     const redone = await service.undo(undone.changeId, { confirm: true });
     const redoEntry = await audit.get('curse-of-strahd', redone.changeId);
     expect(redoEntry?.results?.map(r => [r.kind, r.alreadyGone ?? false])).toEqual([
@@ -644,7 +644,7 @@ describe('undo (Foundry ops)', () => {
     const lastOps = requests[3][1].ops as GuardedOp[];
     expect(lastOps).toHaveLength(1);
     expect(lastOps[0]).toMatchObject({ kind: 'create', documentName: 'Item', keepId: true });
-    expect(foundry.docs.get('Actor.ireena.Item.spell')?.source.name).toBe('Bless');
+    expect(foundry.docs.get('Actor.ilvara.Item.spell')?.source.name).toBe('Bless');
     expect([...foundry.docs.keys()].filter(k => k.includes('ActiveEffect'))).toEqual([]);
     const entry = await audit.get('curse-of-strahd', again.changeId);
     expect(entry?.diff).toContain(
@@ -654,8 +654,8 @@ describe('undo (Foundry ops)', () => {
 
   it('undoes the rest and names the one the GM deleted since (a spawned token killed in play)', async () => {
     const p = await plan([
-      { kind: 'create', documentName: 'Item', parentUuid: 'Actor.ireena', data: { name: 'Rope' } },
-      { kind: 'create', documentName: 'Item', parentUuid: 'Actor.ireena', data: { name: 'Lamp' } },
+      { kind: 'create', documentName: 'Item', parentUuid: 'Actor.ilvara', data: { name: 'Rope' } },
+      { kind: 'create', documentName: 'Item', parentUuid: 'Actor.ilvara', data: { name: 'Lamp' } },
     ]);
     const applied = await service.applyPlan(p.planId, { confirm: true });
     const [rope, lamp] = applied.documents!;
@@ -681,7 +681,7 @@ describe('undo (Foundry ops)', () => {
     foundry.features[0].enabled = false;
     // The undo itself works with the switch off.
     const undone = await service.undo(applied.changeId, { confirm: true });
-    expect(foundry.docs.get('Actor.ireena')!.source.system.hp).toBe(10);
+    expect(foundry.docs.get('Actor.ilvara')!.source.system.hp).toBe(10);
 
     await expect(service.undo(undone.changeId, { confirm: true })).rejects.toThrow(
       /"test-feature" feature is switched off/
@@ -694,26 +694,26 @@ describe('undo (Foundry ops)', () => {
     await expect(service.applyPlan(redoPlan.planId, { confirm: true })).rejects.toThrow(
       /"test-feature" feature is switched off/
     );
-    expect(foundry.docs.get('Actor.ireena')!.source.system.hp).toBe(10);
+    expect(foundry.docs.get('Actor.ilvara')!.source.system.hp).toBe(10);
 
     foundry.features[0].enabled = true;
     await service.undo(undone.changeId, { confirm: true });
-    expect(foundry.docs.get('Actor.ireena')!.source.system.hp).toBe(4);
+    expect(foundry.docs.get('Actor.ilvara')!.source.system.hp).toBe(4);
   });
 
   it('carries the undoes of a plan and notes onto the audit entry and the diff', async () => {
     const p = await plan([HP_UPDATE], {
-      notes: ['Kept, changed later: Ireena: HP stays 3'],
+      notes: ['Kept, changed later: Ilvara: HP stays 3'],
       undoes: { actions: ['x1'], changes: ['chg-old'] },
     });
     expect(p.diff.at(-1)).toMatchObject({
       kind: 'note',
-      text: 'Kept, changed later: Ireena: HP stays 3',
+      text: 'Kept, changed later: Ilvara: HP stays 3',
     });
     const applied = await service.applyPlan(p.planId, { confirm: true });
     const entry = await audit.get('curse-of-strahd', applied.changeId);
     expect(entry?.undoes).toEqual({ actions: ['x1'], changes: ['chg-old'] });
-    expect(entry?.diff.at(-1)).toBe('Kept, changed later: Ireena: HP stays 3');
+    expect(entry?.diff.at(-1)).toBe('Kept, changed later: Ilvara: HP stays 3');
     const state = await service.undoState();
     expect(state.get('act:x1')?.undoneBy).toBe(applied.changeId);
     // A plain apply has no undoes.
@@ -761,9 +761,9 @@ describe('undo (Foundry ops)', () => {
 
   it('reports a conflict instead of clobbering a later edit', async () => {
     const applied = await service.applyPlan((await plan([HP_UPDATE])).planId, { confirm: true });
-    foundry.edit('Actor.ireena', { path: 'system.hp', present: true, value: 1 });
+    foundry.edit('Actor.ilvara', { path: 'system.hp', present: true, value: 1 });
     await expect(service.undo(applied.changeId, { confirm: true })).rejects.toThrow(/Conflict/);
-    expect(foundry.docs.get('Actor.ireena')!.source.system.hp).toBe(1);
+    expect(foundry.docs.get('Actor.ilvara')!.source.system.hp).toBe(1);
     expect((await service.listRecentChanges())[0].canUndo).toBe(true);
     expect((await service.listRecentChanges())[0]).not.toHaveProperty('ownData');
   });
@@ -804,14 +804,14 @@ describe('vault ops', () => {
   }
 
   it('plans, applies, logs and undoes a vault change', async () => {
-    await store.write('curse-of-strahd', 'gm', 'attention.json', { vallaki: 1, secret: 'x' }, 2);
+    await store.write('curse-of-strahd', 'gm', 'attention.json', { valmere: 1, secret: 'x' }, 2);
     const p = await vaultPlan([
-      { kind: 'vault-set', file: 'attention.json', path: 'vallaki', value: 2 },
+      { kind: 'vault-set', file: 'attention.json', path: 'valmere', value: 2 },
       { kind: 'vault-set', file: 'attention.json', path: 'regions.krezk.level', value: 1 },
     ]);
     expect(p).toMatchObject({ target: 'vault', risk: 'write' });
     expect(p.diff.map(d => d.text)).toEqual([
-      'gm/attention.json: vallaki: 1 → 2',
+      'gm/attention.json: valmere: 1 → 2',
       'gm/attention.json: regions.krezk.level: (unset) → 1',
     ]);
 
@@ -825,7 +825,7 @@ describe('vault ops', () => {
     const file = await store.read('curse-of-strahd', 'gm', 'attention.json');
     expect(file).toMatchObject({
       schema: 2,
-      data: { vallaki: 2, secret: 'x', regions: { krezk: { level: 1 } } },
+      data: { valmere: 2, secret: 'x', regions: { krezk: { level: 1 } } },
     });
     expect(foundry.calls.find(([m]) => m.endsWith('logGmChange'))?.[1]).toEqual({
       changeId: applied.changeId,
@@ -837,18 +837,18 @@ describe('vault ops', () => {
     await service.undo(applied.changeId, { confirm: true });
     // The undo leaves no empty `regions: { krezk: {} }` behind.
     expect((await store.read('curse-of-strahd', 'gm', 'attention.json'))?.data).toEqual({
-      vallaki: 1,
+      valmere: 1,
       secret: 'x',
     });
   });
 
   it('creates a missing file, and a delete makes the plan destructive', async () => {
     const created = await vaultPlan([
-      { kind: 'vault-set', file: 'npc-secrets.json', path: 'strahd.note', value: 'watching' },
+      { kind: 'vault-set', file: 'npc-secrets.json', path: 'sorvan.note', value: 'watching' },
     ]);
     await service.applyPlan(created.planId, { confirm: true });
     const del = await vaultPlan([
-      { kind: 'vault-delete', file: 'npc-secrets.json', path: 'strahd' },
+      { kind: 'vault-delete', file: 'npc-secrets.json', path: 'sorvan' },
     ]);
     expect(del.risk).toBe('destructive');
     await expect(service.applyPlan(del.planId, { confirm: true })).rejects.toThrow(
@@ -970,8 +970,8 @@ describe('mixed plans', () => {
     const p = await service.createPlan({ ...MIXED, risk: 'destructive' } as never);
     expect(p).toMatchObject({ target: 'mixed', risk: 'destructive' });
     expect(p.diff.map(d => d.text)).toEqual([
-      'Actor "Ireena": system.hp: 10 → 4',
-      'Actor "Ireena": flags.foundry-mcp-bridge.attitude: "friendly" → (unset)',
+      'Actor "Ilvara": system.hp: 10 → 4',
+      'Actor "Ilvara": flags.foundry-mcp-bridge.attitude: "friendly" → (unset)',
       'gm/reveals.json: pages.p1: (unset) → {"at":"now"}',
       'gm/reveals.json: pages.p1.feature: (unset) → "tarokka"',
     ]);
@@ -984,7 +984,7 @@ describe('mixed plans', () => {
     const p = await service.createPlan(MIXED as never);
     const applied = await service.applyPlan(p.planId, { confirm: true });
     expect(applied.target).toBe('mixed');
-    expect(foundry.docs.get('Actor.ireena')!.source.system.hp).toBe(4);
+    expect(foundry.docs.get('Actor.ilvara')!.source.system.hp).toBe(4);
     expect((await store.read('curse-of-strahd', 'gm', 'reveals.json'))?.data).toEqual({
       pages: { p1: { at: 'now', feature: 'tarokka' } },
     });
@@ -992,7 +992,7 @@ describe('mixed plans', () => {
     expect(foundry.calls.some(([m]) => m.endsWith('logGmChange'))).toBe(false);
 
     await service.undo(applied.changeId, { confirm: true });
-    expect(foundry.docs.get('Actor.ireena')!.source.system.hp).toBe(10);
+    expect(foundry.docs.get('Actor.ilvara')!.source.system.hp).toBe(10);
     expect((await store.read('curse-of-strahd', 'gm', 'reveals.json'))?.data).toEqual({});
   });
 
@@ -1000,7 +1000,7 @@ describe('mixed plans', () => {
     const p = await service.createPlan(MIXED as never);
     await store.write('curse-of-strahd', 'gm', 'reveals.json', { pages: { p1: 'taken' } });
     await expect(service.applyPlan(p.planId, { confirm: true })).rejects.toThrow(/Conflict/);
-    expect(foundry.docs.get('Actor.ireena')!.source.system.hp).toBe(10);
+    expect(foundry.docs.get('Actor.ilvara')!.source.system.hp).toBe(10);
     expect(foundry.calls.some(([m]) => m.endsWith('applyGuardedOps'))).toBe(false);
   });
 
@@ -1010,7 +1010,7 @@ describe('mixed plans', () => {
     await expect(service.applyPlan(p.planId, { confirm: true })).rejects.toThrow(
       /vault write failed \(disk full\); the Foundry part was rolled back/
     );
-    expect(foundry.docs.get('Actor.ireena')!.source).toMatchObject({
+    expect(foundry.docs.get('Actor.ilvara')!.source).toMatchObject({
       system: { hp: 10 },
       flags: { 'foundry-mcp-bridge': { attitude: 'friendly' } },
     });
@@ -1018,17 +1018,17 @@ describe('mixed plans', () => {
   });
 
   it('rolls back without a blank create when the Foundry part only found things already gone', async () => {
-    foundry.add('Actor.ireena.ActiveEffect.conc', 'ActiveEffect', {
+    foundry.add('Actor.ilvara.ActiveEffect.conc', 'ActiveEffect', {
       _id: 'conc',
       name: 'Concentrating',
     });
     const p = await service.createPlan({
       ...MIXED,
-      ops: [{ kind: 'delete', uuid: 'Actor.ireena.ActiveEffect.conc' }],
+      ops: [{ kind: 'delete', uuid: 'Actor.ilvara.ActiveEffect.conc' }],
     } as never);
     const applied = await service.applyPlan(p.planId, { confirm: true, confirmDestructive: true });
     const undone = await service.undo(applied.changeId, { confirm: true });
-    foundry.docs.delete('Actor.ireena.ActiveEffect.conc'); // dnd5e took it first
+    foundry.docs.delete('Actor.ilvara.ActiveEffect.conc'); // dnd5e took it first
 
     vi.spyOn(store, 'update').mockRejectedValueOnce(new Error('disk full'));
     await expect(service.undo(undone.changeId, { confirm: true })).rejects.toThrow(
@@ -1076,12 +1076,12 @@ describe('vault checks', () => {
     const p = await pinned();
     expect(p.target).toBe('foundry');
     expect(p.diff.map(d => d.text)).toEqual([
-      'Actor "Ireena": system.hp: 10 → 4',
-      'Actor "Ireena": flags.foundry-mcp-bridge.attitude: "friendly" → (unset)',
+      'Actor "Ilvara": system.hp: 10 → 4',
+      'Actor "Ilvara": flags.foundry-mcp-bridge.attitude: "friendly" → (unset)',
     ]);
     const update = vi.spyOn(store, 'update');
     const applied = await service.applyPlan(p.planId, { confirm: true });
-    expect(foundry.docs.get('Actor.ireena')!.source.system.hp).toBe(4);
+    expect(foundry.docs.get('Actor.ilvara')!.source.system.hp).toBe(4);
     // A check-only file is compared, never rewritten (no Obsidian mirror churn).
     expect(update.mock.calls.some(([, , file]) => file === 'reading.json')).toBe(false);
     const entry = await audit.get(W, applied.changeId);
@@ -1089,7 +1089,7 @@ describe('vault checks', () => {
     expect(entry?.diff).toEqual(p.diff.map(d => d.text));
     // Undo takes back only the Foundry part.
     await service.undo(applied.changeId, { confirm: true });
-    expect(foundry.docs.get('Actor.ireena')!.source.system.hp).toBe(10);
+    expect(foundry.docs.get('Actor.ilvara')!.source.system.hp).toBe(10);
     expect((await store.read(W, 'gm', 'reading.json'))?.data).toEqual({
       current: { id: 'r1', seen: false },
     });
@@ -1105,7 +1105,7 @@ describe('vault checks', () => {
       /Conflict, nothing was written: reading.json current.id changed since/
     );
     expect(foundry.calls.some(([m]) => m.endsWith('applyGuardedOps'))).toBe(false);
-    expect(foundry.docs.get('Actor.ireena')!.source.system.hp).toBe(10);
+    expect(foundry.docs.get('Actor.ilvara')!.source.system.hp).toBe(10);
     expect((await store.read(W, 'gm', 'reading.json'))?.data).toEqual({
       current: { id: 'r2', seen: false },
     });
@@ -1134,7 +1134,7 @@ describe('vault checks', () => {
     const p = await pinned();
     foundry.features[0].enabled = false;
     await expect(service.applyPlan(p.planId, { confirm: true })).rejects.toThrow(/switched off/);
-    expect(foundry.docs.get('Actor.ireena')!.source.system.hp).toBe(10);
+    expect(foundry.docs.get('Actor.ilvara')!.source.system.hp).toBe(10);
   });
 
   it('rolls the Foundry part back when a pinned file changes during the apply', async () => {
@@ -1150,7 +1150,7 @@ describe('vault checks', () => {
     await expect(service.applyPlan(p.planId, { confirm: true })).rejects.toThrow(
       /reading.json changed during the write.*rolled back/
     );
-    expect(foundry.docs.get('Actor.ireena')!.source.system.hp).toBe(10);
+    expect(foundry.docs.get('Actor.ilvara')!.source.system.hp).toBe(10);
     expect(await service.listRecentChanges()).toEqual([]);
   });
 
@@ -1390,7 +1390,7 @@ describe('showToPlayers (Show it now, I-110)', () => {
   it('refuses a bad uuid or users list when planning', async () => {
     const bad = (showToPlayers: unknown): Promise<PlanView> => plan([REVEAL], { showToPlayers });
     await expect(bad({ uuid: '', users: [] })).rejects.toThrow(/journal page or journal/);
-    await expect(bad({ uuid: 'Actor.ireena', users: [] })).rejects.toThrow(
+    await expect(bad({ uuid: 'Actor.ilvara', users: [] })).rejects.toThrow(
       /journal page or journal/
     );
     await expect(bad({ uuid: 42, users: [] })).rejects.toThrow(/journal page or journal/);

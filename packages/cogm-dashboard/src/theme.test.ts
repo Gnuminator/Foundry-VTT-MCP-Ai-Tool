@@ -34,15 +34,15 @@ describe('ThemeStore', () => {
 
   it('keeps one theme per world, in memory without a file', async () => {
     const store = new ThemeStore(null);
-    await store.set('strahd', 'veil');
-    expect(store.get('strahd')).toBe('veil');
+    await store.set('sorvan', 'veil');
+    expect(store.get('sorvan')).toBe('veil');
     expect(store.get('other-world')).toBe('neutral');
   });
 
   it('survives a restart through its file', async () => {
     const file = path.join(dir, 'nested', 'dashboard-themes.json');
-    await new ThemeStore(file).set('strahd', 'veil');
-    expect(new ThemeStore(file).get('strahd')).toBe('veil');
+    await new ThemeStore(file).set('sorvan', 'veil');
+    expect(new ThemeStore(file).get('sorvan')).toBe('veil');
   });
 
   it('saves changes made at once without a race, every change kept', async () => {

@@ -61,7 +61,7 @@ function stageParams(overrides: Record<string, unknown> = {}): Record<string, un
   return {
     sessionId: '2026-10-03_0913-rehearsal',
     date: '2026-10-03',
-    title: 'The road to Barovia',
+    title: 'The road to Maravia',
     languages: ['da', 'en'],
     pages: [
       { key: 'scenes', html: '<h2>Scene 1</h2><p>Fog.</p>' },
@@ -226,7 +226,7 @@ describe('automatic put (D-087)', () => {
     expect(item.lastError).toBeUndefined();
 
     const entry = journal();
-    expect(entry.source.name).toBe('2026-10-03: The road to Barovia');
+    expect(entry.source.name).toBe('2026-10-03: The road to Maravia');
     expect(entry.source.folder).toBe(FOLDER);
     expect(entry.source.ownership).toEqual({ default: 0 });
     expect(entry.source.flags['foundry-mcp-bridge']).toEqual({

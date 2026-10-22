@@ -51,7 +51,7 @@ describe('computePlayerVisibility — pcActorIds', () => {
   it('includes an actor a non-GM user owns, excludes one only the GM owns', () => {
     world.addUser({ id: 'p1', name: 'Alice', isGM: false });
     world.addActor({ id: 'hero', name: 'Silvera', type: 'character', ownership: { p1: 3 } });
-    world.addActor({ id: 'villain', name: 'Strahd', type: 'npc', ownership: { default: 0 } });
+    world.addActor({ id: 'villain', name: 'Sorvan', type: 'npc', ownership: { default: 0 } });
 
     const result = computePlayerVisibility();
     expect(result.pcActorIds).toEqual(['hero']);
@@ -119,10 +119,10 @@ describe('computePlayerVisibility — tokens', () => {
     ['HOVER', HOVER, true],
     ['ALWAYS', ALWAYS, true],
   ] as const)('display mode %s reveals the name to non-owners: %s', (_label, mode, revealsName) => {
-    const npcActor = world.addActor({ id: 'npc1', name: 'Rahadin', type: 'npc' });
+    const npcActor = world.addActor({ id: 'npc1', name: 'Ravelin', type: 'npc' });
     const token = makeToken({
       id: 't1',
-      name: 'Rahadin',
+      name: 'Ravelin',
       hidden: false,
       displayName: mode,
       actorId: 'npc1',
@@ -131,7 +131,7 @@ describe('computePlayerVisibility — tokens', () => {
     world.addScene({ id: 's1', active: true, tokens: [token] });
 
     const [visible] = computePlayerVisibility().tokens;
-    expect(visible.name).toBe(revealsName ? 'Rahadin' : UNKNOWN_CREATURE);
+    expect(visible.name).toBe(revealsName ? 'Ravelin' : UNKNOWN_CREATURE);
     expect(visible.pc).toBe(false);
   });
 
@@ -263,10 +263,10 @@ describe('eventVisibilityFor', () => {
   });
 
   it('an NPC with a visible (ALWAYS) token: subject npc, playerName from the token', () => {
-    const actor = world.addActor({ id: 'npc1', name: 'Rahadin', type: 'npc' });
+    const actor = world.addActor({ id: 'npc1', name: 'Ravelin', type: 'npc' });
     const token = makeToken({
       id: 't1',
-      name: 'Rahadin',
+      name: 'Ravelin',
       hidden: false,
       displayName: ALWAYS,
       actorId: 'npc1',
@@ -276,14 +276,14 @@ describe('eventVisibilityFor', () => {
     const vis = eventVisibilityFor(actor);
     expect(vis.subject).toBe('npc');
     expect(vis.tokenVisible).toBe(true);
-    expect(vis.playerName).toBe('Rahadin');
+    expect(vis.playerName).toBe('Ravelin');
   });
 
   it('an NPC whose token does not reveal its name: playerName null even though the token is visible', () => {
-    const actor = world.addActor({ id: 'npc1', name: 'Rahadin', type: 'npc' });
+    const actor = world.addActor({ id: 'npc1', name: 'Ravelin', type: 'npc' });
     const token = makeToken({
       id: 't1',
-      name: 'Rahadin',
+      name: 'Ravelin',
       hidden: false,
       displayName: NONE,
       actorId: 'npc1',
@@ -297,10 +297,10 @@ describe('eventVisibilityFor', () => {
   });
 
   it('an NPC whose token is hidden: tokenVisible false, playerName null', () => {
-    const actor = world.addActor({ id: 'npc1', name: 'Rahadin', type: 'npc' });
+    const actor = world.addActor({ id: 'npc1', name: 'Ravelin', type: 'npc' });
     const token = makeToken({
       id: 't1',
-      name: 'Rahadin',
+      name: 'Ravelin',
       hidden: true,
       displayName: ALWAYS,
       actorId: 'npc1',
@@ -339,7 +339,7 @@ describe('pagesForPlayers', () => {
     world.addUser({ id: 'p1', name: 'Alice', isGM: false });
     const page = makeJournalPage({
       id: 'pg1',
-      name: 'Rumors of Barovia',
+      name: 'Rumors of Maravia',
       type: 'text',
       text: { content: '<p>The mists never lift.</p>' },
       ownership: { p1: 2 },
@@ -351,7 +351,7 @@ describe('pagesForPlayers', () => {
       {
         uuid: 'JournalEntry.j1.JournalEntryPage.pg1',
         exists: true,
-        name: 'Rumors of Barovia',
+        name: 'Rumors of Maravia',
         observable: true,
         journalObservable: true,
         html: '<p>The mists never lift.</p>',

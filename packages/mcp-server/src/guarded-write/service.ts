@@ -163,7 +163,7 @@ export interface DiffLine {
   kind: string;
   /** Document uuid, or `gm/<file>` for vault ops. */
   target: string;
-  /** Readable target, e.g. `Actor "Ireena"`. */
+  /** Readable target, e.g. `Actor "Ilvara"`. */
   label: string;
   path?: string;
   before?: PathValue;

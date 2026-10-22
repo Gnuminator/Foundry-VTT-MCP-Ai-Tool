@@ -112,7 +112,7 @@ const CANDIDATES = [
   },
   { uuid: 'JournalEntry.j3', documentName: 'JournalEntry', name: 'Valmere notes' },
   { uuid: 'Scene.s7', documentName: 'Scene', name: 'Valmere' },
-  { uuid: 'Actor.a7', documentName: 'Actor', name: 'Vallakovich' },
+  { uuid: 'Actor.a7', documentName: 'Actor', name: 'Valmerovich' },
 ];
 
 const plan = (id: string, risk: string, summary: string): Record<string, unknown> => ({
@@ -437,24 +437,24 @@ test('Link searches, picks in one click with Undo, and keeps an open form across
   expect(names(calls)).not.toContain('suggest-tarokka-links');
 
   // Enter searches too.
-  await input.fill(' Vall ');
+  await input.fill(' Val ');
   await input.press('Enter');
   const rows = tome.locator('.tarokka-candidate');
   await expect(rows.locator('span')).toHaveText([
     'JournalEntryPage: Cellar (Valmere)',
     'JournalEntry: Valmere notes',
     'Scene: Valmere',
-    'Actor: Vallakovich',
+    'Actor: Valmerovich',
   ]);
   expect(calls.find(c => c.name === 'suggest-tarokka-links')?.args).toEqual({
-    query: 'Vall',
+    query: 'Val',
     limit: 20,
   });
 
   // A reload keeps the open form, what was typed and the results (the old page lost them).
   await drawer.getByRole('button', { name: '↻ Refresh' }).click();
   await expect.poll(() => loads(calls)).toBe(2);
-  await expect(input).toHaveValue(' Vall ');
+  await expect(input).toHaveValue(' Val ');
   await expect(rows).toHaveCount(4);
 
   // A whole journal goes under the journal page field, as on the old page.
@@ -479,7 +479,7 @@ test('Link searches, picks in one click with Undo, and keeps an open form across
   // A scene and an actor go under their own fields, from one search at another position.
   const ally = pos(drawer, 'ally');
   await ally.getByRole('button', { name: 'Link…' }).click();
-  await ally.getByPlaceholder('Search journals, pages, scenes, actors…').fill('Vall');
+  await ally.getByPlaceholder('Search journals, pages, scenes, actors…').fill('Val');
   await ally.getByRole('button', { name: 'Search' }).click();
   await ally.locator('.tarokka-candidate').nth(2).getByRole('button', { name: 'Link' }).click();
   await expect.poll(() => applies(calls)).toBe(2);
@@ -751,7 +751,7 @@ test('with GM Actions off nothing is planned; the gate opens Pre-flight', async 
   // Searching is a read and still works; the pick is gated.
   const tome = pos(drawer, 'tome');
   await tome.getByRole('button', { name: 'Link…' }).click();
-  await tome.getByPlaceholder('Search journals, pages, scenes, actors…').fill('Vall');
+  await tome.getByPlaceholder('Search journals, pages, scenes, actors…').fill('Val');
   await tome.getByRole('button', { name: 'Search' }).click();
   await tome.locator('.tarokka-candidate').first().getByRole('button', { name: 'Link' }).click();
   await expect(toast(page, gate)).toHaveCount(3);
@@ -934,7 +934,7 @@ test('one change at a time: a reveal waiting on its plan or its confirm holds ev
   const tome = pos(drawer, 'tome');
   const ally = pos(drawer, 'ally');
   await ally.getByRole('button', { name: 'Link…' }).click();
-  await ally.getByPlaceholder('Search journals, pages, scenes, actors…').fill('Vall');
+  await ally.getByPlaceholder('Search journals, pages, scenes, actors…').fill('Val');
   await ally.getByRole('button', { name: 'Search' }).click();
   const allyLink = ally.locator('.tarokka-candidate').first().getByRole('button', { name: 'Link' });
   await expect(allyLink).toBeEnabled();

@@ -65,7 +65,7 @@ describe('tool catalog', () => {
     // I-124 raised core and prep by 2,000 for the tool hints (title, readOnlyHint, destructiveHint).
     const budget = {
       core: 17_000,
-      play: 37_500, // about 37,400 with plan-paper-sync (Paper nights A: eleven sheet fields in one schema, about 3,700 characters); raised 1,500 on purpose for check-action, 1,000 for the multiattack and path fields of plan-npc-turn, 2,000 for plan-paper-sync. The next Play tool needs another raise
+      play: 38_500, // about 38,000 with plan-paper-sync (Paper nights A: eleven sheet fields in one schema, about 3,700 characters) on top of Paper nights C's session fields; raised 1,500 on purpose for check-action, 1,000 for the multiattack and path fields of plan-npc-turn, 3,000 for plan-paper-sync. The next Play tool needs another raise
       prep: 22_000,
       build: 29_000, // about 28,100 with plan-room-setup (I-133)
       admin: 8_000,

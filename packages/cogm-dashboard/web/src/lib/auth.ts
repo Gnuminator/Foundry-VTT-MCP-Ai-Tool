@@ -65,22 +65,6 @@ export function playerPageUrl(): string {
   }
 }
 
-/**
- * The GM's party print page (public/party-print.html). It reads the GM token from the same
- * storage key as this page; when storage refuses, the token goes along in the address instead.
- */
-export function partyPrintUrl(): string {
-  const page = '/party-print.html';
-  if (!token) return page;
-  try {
-    return localStorage.getItem(TOKEN_KEY) === token
-      ? page
-      : `${page}?token=${encodeURIComponent(token)}`;
-  } catch {
-    return `${page}?token=${encodeURIComponent(token)}`;
-  }
-}
-
 /** True when this page has no token but the player page has one: a player, not a GM. */
 export function onlyPlayerToken(): boolean {
   if (token) return false;

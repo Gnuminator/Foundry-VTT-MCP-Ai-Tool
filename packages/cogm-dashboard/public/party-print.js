@@ -63,9 +63,17 @@ async function load() {
     sheets = body.sheets || [];
     unreadable = body.unreadable || [];
     render();
+    return true;
   } catch (err) {
-    $('party-main').innerHTML = `<p class="me-empty">${esc(String(err.message || err))}</p>`;
-    $('party-sub').textContent = '';
+    const message = String(err.message || err);
+    if (sheets.length) {
+      // A refresh that failed keeps the sheets already shown; only the note changes.
+      $('party-sub').textContent = `Could not refresh: ${message}`;
+    } else {
+      $('party-main').innerHTML = `<p class="me-empty">${esc(message)}</p>`;
+      $('party-sub').textContent = '';
+    }
+    return false;
   }
 }
 
@@ -79,6 +87,9 @@ document.addEventListener('click', e => {
 });
 // Fresh values and print time: read again just before the print dialog opens.
 $('party-print').addEventListener('click', () => {
-  void load().then(() => window.print());
+  // Not when the read failed: the page would print an error, or sheets that may be out of date.
+  void load().then(ok => {
+    if (ok) window.print();
+  });
 });
 void load();

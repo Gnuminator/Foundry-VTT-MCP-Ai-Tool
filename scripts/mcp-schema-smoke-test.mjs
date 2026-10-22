@@ -120,7 +120,7 @@ if (switchSceneSchema.additionalProperties === false) {
 
 console.log('[MCP Schema Smoke Test] PASS: tool schemas load, use object input, and do not enforce global additionalProperties=false.');
 
-// MCP prompts (the ready-made "/" prompts): the built module lists the six locked names and
+// MCP prompts (the ready-made "/" prompts): the built module lists the seven locked names and
 // serves each one as a single user message. (prompts.test.ts checks every tool name against the
 // full catalog; the standalone smoke test checks them against a running backend.)
 const { listPrompts, getPrompt } = await importDist('prompts/index.js');
@@ -132,6 +132,7 @@ const LOCKED_PROMPTS = [
   'npc-improv',
   'encounter-check',
   'reveal-handout',
+  'paper-sync-photos',
 ];
 const listed = listPrompts();
 if (JSON.stringify(listed.map((p) => p.name)) !== JSON.stringify(LOCKED_PROMPTS)) {

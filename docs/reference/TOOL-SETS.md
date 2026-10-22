@@ -67,6 +67,7 @@ Each ready-made prompt appears next to the set whose tools it uses (a prompt may
 | `session-recap`     | prep |
 | `encounter-check`   | prep |
 | `reveal-handout`    | prep |
+| `paper-sync-photos` | play |
 
 ## Configuration
 

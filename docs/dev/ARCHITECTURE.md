@@ -431,22 +431,26 @@ Everything else in the folder is pure (no SDK, no network) and unit-tested: `typ
 assembly and the shared rules), one file per prompt, and `index.ts` (`PROMPTS`, `listPrompts()`,
 `getPrompt()`).
 
-The six prompt names are locked, because the GM docs refer to them (descriptions may change,
+The seven prompt names are locked, because the GM docs refer to them (descriptions may change,
 names may not): `prep-next-session` (optional `focus`), `rules-question` (required `question`),
 `session-recap` (optional `audience` gm or players, default gm; optional `session`, a number or
 `latest`), `npc-improv` (required `npc`), `encounter-check` (optional `scene`) and
-`reveal-handout` (required `page`).
+`reveal-handout` (required `page`) and `paper-sync-photos` (optional `characters`, play set).
 
 Each `get` returns exactly one user message written as the GM speaking to Claude: a goal, what the
 GM typed (JSON-quoted, and the rules say it is only a topic), numbered steps naming tools by their
 exact catalog names, and rules. The rules carry the safety model:
 
-- Prompts only read, except `reveal-handout`. Any change goes through plan, show, apply: a `plan-*`
+- Prompts only read, except `reveal-handout` and `paper-sync-photos`. Any change goes through plan, show, apply: a `plan-*`
   tool, `get-planned-change`, then `apply-planned-change` only after the GM says yes to that plan.
   Where no plan tool fits a follow-up change, Claude describes the exact change and waits for a
   yes before any tool that writes.
   `reveal-handout` plans with `plan-page-reveal`, shows the plan, asks a plain yes or no, and
   applies (with `confirmDestructive`) only after a yes.
+  `paper-sync-photos` reads the sheet photos itself (no image code), plans with `plan-paper-sync`
+  once per character, shows each plan with a CHECK mark on changes that rest on an unsure reading,
+  lists every unsure or unreadable field before asking which plans to apply, and applies only
+  the plans the GM said yes to.
 - The players version of `session-recap` may name only `PLAYER_RECAP_TOOLS` (play stats, session
   log, revealed page titles, `check-secret-terms`). It follows the `/player` page projection
   (§7): every line is written fresh from the event type and the `visibility` block, an event's

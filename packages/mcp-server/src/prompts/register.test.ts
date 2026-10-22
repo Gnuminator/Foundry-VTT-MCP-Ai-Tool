@@ -40,7 +40,7 @@ describe('prompts over MCP', () => {
     expect(client.getServerCapabilities()?.prompts).toBeDefined();
   });
 
-  it('lists the six prompts with titles, descriptions and arguments', async () => {
+  it('lists the seven prompts with titles, descriptions and arguments', async () => {
     const { prompts } = await client.listPrompts();
     expect(prompts.map(p => p.name)).toEqual(PROMPTS.map(p => p.name));
     const rules = prompts.find(p => p.name === 'rules-question');

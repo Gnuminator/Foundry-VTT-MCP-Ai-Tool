@@ -21,6 +21,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 
 import { parseStaleDays } from './backup-pull-status.js';
+import { sessionsDirFrom } from './sessions-dir.js';
 
 export interface BotConfig {
   token: string;
@@ -78,7 +79,7 @@ export function loadConfig(envFile = defaultEnvFile(), requireToken = true): Bot
   return {
     token,
     guildId: get('DISCORD_GUILD_ID'),
-    sessionsDir: get('FVTT_SESSIONS_DIR') ?? join(homedir(), 'Documents', 'FoundrySessions'),
+    sessionsDir: sessionsDirFrom(get('FVTT_SESSIONS_DIR')),
     envFile,
     ownerId: get('DISCORD_OWNER_ID'),
     spaceStatusFile: get('FOUNDRY_AI_SPACE_STATUS'),

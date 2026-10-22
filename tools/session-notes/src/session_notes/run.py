@@ -8,6 +8,7 @@ a crash only pauses the run: the next run picks up where it stopped.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import threading
 import time
@@ -220,9 +221,14 @@ class Writer:
     def _session_notes(self, notes: list[dict[str, Any]], roster: Roster) -> dict[str, Any] | None:
         cached = self.work / "session.json"
         key = [n["index"] for n in notes]
+        # The summary is about the scene notes: a scene rewritten since (a raw one that now works)
+        # must not keep the old summary, so the cache also holds a digest of the notes it was for.
+        digest = hashlib.sha256(
+            json.dumps(notes, ensure_ascii=False, sort_keys=True).encode("utf-8")
+        ).hexdigest()
         if cached.exists():
             data = json.loads(cached.read_text(encoding="utf-8"))
-            if data.get("scenes") == key:
+            if data.get("scenes") == key and data.get("digest") == digest:
                 return data["notes"]
         out: dict[str, Any] | None = None
         for _attempt in range(2):  # seen once: error_max_structured_output_retries on a test clip
@@ -242,7 +248,8 @@ class Writer:
         if out is None:
             return None
         cached.write_text(
-            json.dumps({"scenes": key, "notes": out}, ensure_ascii=False), encoding="utf-8"
+            json.dumps({"scenes": key, "digest": digest, "notes": out}, ensure_ascii=False),
+            encoding="utf-8",
         )
         self._log("session_ok")
         return out

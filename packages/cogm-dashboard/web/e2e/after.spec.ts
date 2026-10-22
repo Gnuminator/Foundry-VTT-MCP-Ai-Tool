@@ -58,6 +58,8 @@ const PAGES = {
 interface Setup {
   gmActions?: boolean;
   notes?: unknown[];
+  /** The newest session's notes/status.json (GET /api/session-notes/pipeline); none by default. */
+  pipeline?: unknown;
   stats?: unknown;
   obsidian?: boolean;
   /** The session ended 13 hours ago: Before is on screen. */
@@ -85,6 +87,9 @@ async function fakeAfter(
     })
   );
   await page.route('**/api/session-notes', route => route.fulfill({ json: { items } }));
+  await page.route('**/api/session-notes/pipeline', route =>
+    route.fulfill({ json: { pipeline: setup.pipeline ?? null } })
+  );
   await page.route('**/api/session-notes/session-3', route => route.fulfill({ json: PAGES }));
   for (const action of ['put', 'approve']) {
     await page.route(`**/api/session-notes/session-3/${action}`, route => {
@@ -296,6 +301,28 @@ test('notes that wait show what they wait for and the switch link', async ({ pag
   await expect(notes(page).locator('#notes-line')).toContainText('a GM in Foundry');
   await expect(notes(page).getByRole('button', { name: 'About the switch' })).toBeVisible();
 });
+
+const PASS_PILLS: Record<string, string> = {
+  done: 'Done',
+  paused: 'Paused',
+  incomplete: 'Incomplete',
+  failed: 'Failed',
+  waiting: 'Waiting',
+  published: 'Published',
+};
+for (const [state, pill] of Object.entries(PASS_PILLS)) {
+  test(`without staged notes the pill says ${pill} when the last pass is ${state}`, async ({
+    page,
+  }) => {
+    await fakeAfter(page, {
+      notes: [],
+      pipeline: { session: '2026-10-08_2000-harbor', state, message: 'why' },
+    });
+    await load(page);
+    await expect(notes(page).locator('.feature-pill')).toHaveText(pill);
+    await expect(notes(page).locator('#notes-pipeline')).toHaveAttribute('data-state', state);
+  });
+}
 
 test('Put in Foundry after an Undo, with an Undo on the toast', async ({ page }) => {
   const { posts } = await fakeAfter(page, {

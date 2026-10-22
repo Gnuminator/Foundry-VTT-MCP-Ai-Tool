@@ -110,6 +110,32 @@ describe('grouping with a paper night', () => {
     expect(groups[0]?.events.map(e => e.id)).toEqual(['p1', 'p2']);
   });
 
+  it('gives a sync to a paper night marked after it on the same date', () => {
+    // The sync ran at 10:00; the night was marked afterwards, at the default 12:00 that day.
+    const marked = new Date(2026, 10, 29, 12).getTime();
+    const syncAt = marked - 2 * 60 * 60 * 1000;
+    const groups = groupWithPlayRecords(
+      [
+        marker('p1', 'session-start', marked, 'paper'),
+        gmChange('g1', syncAt, 'chg1', PAPER_SYNC_FEATURE),
+      ],
+      [hp('h1', syncAt, ILVARA, 30, 18, { source: { changeId: 'chg1' } })]
+    );
+    expect(groups).toHaveLength(1);
+    expect(groups[0]?.paperSync.records.map(r => r.key)).toEqual(['h1']);
+  });
+
+  it('does not give a sync to a paper night on another date that starts after it', () => {
+    const groups = groupWithPlayRecords(
+      [
+        marker('p1', 'session-start', NIGHT + 3 * DAY, 'paper'),
+        gmChange('g1', NIGHT, 'chg1', PAPER_SYNC_FEATURE),
+      ],
+      [hp('h1', NIGHT, ILVARA, 30, 18, { source: { changeId: 'chg1' } })]
+    );
+    expect(groups[0]?.paperSync.records).toEqual([]);
+  });
+
   it('keeps a sync of another feature as ordinary play', () => {
     const groups = groupWithPlayRecords(
       [gmChange('g1', NIGHT, 'chg1', 'actor-changes')],
@@ -198,6 +224,7 @@ describe('buildStats with a paper night', () => {
     expect(net?.records).toBe(6);
     expect(net?.characters).toEqual([
       {
+        uuid: 'Actor.pc2',
         name: 'Bram',
         hpLost: 0,
         hpGained: 12,
@@ -210,6 +237,7 @@ describe('buildStats with a paper night', () => {
         itemsLost: {},
       },
       {
+        uuid: 'Actor.pc1',
         name: 'Ilvara',
         hpLost: 12,
         hpGained: 0,
@@ -242,6 +270,16 @@ describe('buildStats with a paper night', () => {
     const ilvara = stats.campaign.paperNet?.characters.find(c => c.name === 'Ilvara');
     expect(ilvara).toMatchObject({ hpLost: 12, hpGained: 7, slotsSpent: 2 });
     expect(stats.campaign.paperNet?.records).toBe(7);
+  });
+
+  it('keeps two characters with the same name apart in the campaign block', () => {
+    const twin: PlayActorRef = { uuid: 'Actor.pc9', isPC: true, name: 'Ilvara', playerOwned: true };
+    const stats = buildStats({
+      worldId: 'w',
+      logEvents: events(),
+      playRecords: [...sync(), hp('h9', syncAt, twin, 10, 4, { source: { changeId: 'chg1' } })],
+    });
+    expect(stats.campaign.paperNet?.characters.filter(c => c.name === 'Ilvara')).toHaveLength(2);
   });
 
   it('keeps a sync with no paper night out of the play numbers but in the campaign block', () => {

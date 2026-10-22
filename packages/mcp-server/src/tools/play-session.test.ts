@@ -162,6 +162,17 @@ describe('mark-play-session, paper nights', () => {
     expect(got[1]?.timestampMs).toBe(new Date(2026, 8, 20, 23, 30).getTime());
   });
 
+  it('puts a date-only end at 23:59, after a date-only start', async () => {
+    const tools = makeTools();
+    await tools.handleMarkPlaySession({ action: 'start', mode: 'paper', date: '2026-09-20' });
+    await tools.handleMarkPlaySession({ action: 'end', mode: 'paper', date: '2026-09-20' });
+    const got = await lines('2026-09-20');
+    expect(got.map(l => l.timestampMs)).toEqual([
+      new Date(2026, 8, 20, 12, 0).getTime(),
+      new Date(2026, 8, 20, 23, 59).getTime(),
+    ]);
+  });
+
   it("uses now for today's date without a time", async () => {
     const result = await makeTools().handleMarkPlaySession({
       action: 'start',
@@ -284,9 +295,63 @@ describe('unsyncedPaperNights', () => {
     expect((await makeTools().unsyncedPaperNights()).map(n => n.date)).toEqual(['2026-09-20']);
   });
 
+  it('counts a sync that ran earlier the same day as a night marked afterwards', async () => {
+    // Sync at 10:00 on the 20th; the night was marked after it, at the default 12:00.
+    await put(20, [
+      { ...syncEvent(20), timestampMs: new Date(2026, 8, 20, 10).getTime() },
+      paperStart(20),
+    ]);
+    expect(await makeTools().unsyncedPaperNights()).toEqual([]);
+  });
+
   it('clears a night the GM marked done', async () => {
     await put(20, [paperStart(20, { synced: true })]);
     expect(await makeTools().unsyncedPaperNights()).toEqual([]);
+  });
+});
+
+describe('get-play-session after a paper night', () => {
+  it('does not report an old paper night as open because a sync ran later', async () => {
+    // Paper start on the 27th; the sync ran on the 28th, an hour before "now" (20:00).
+    await store.appendLines('w1', 'sessions', '2026-09-27.jsonl', [
+      {
+        id: 'p',
+        timestamp: new Date(2026, 8, 27, 12).toISOString(),
+        timestampMs: new Date(2026, 8, 27, 12).getTime(),
+        eventType: 'session-start',
+        details: { source: 'mark-play-session', mode: 'paper' },
+      },
+    ]);
+    const syncAt = new Date(2026, 8, 28, 19).getTime();
+    await store.appendLines('w1', 'sessions', '2026-09-28.jsonl', [
+      {
+        id: 's',
+        timestamp: new Date(syncAt).toISOString(),
+        timestampMs: syncAt,
+        eventType: 'gm-change',
+        details: { changeId: 'c1', feature: 'paper-sync', mode: 'apply' },
+      },
+    ]);
+    await store.appendLines('w1', 'sessions', '2026-09-28.play.jsonl', [
+      { ...playRecord(syncAt, 'r1'), source: { changeId: 'c1' } },
+    ]);
+    const result = await makeTools().handleGetPlaySession({});
+    expect(result.open).toBe(false);
+    expect(result.startedAt).toBeNull();
+  });
+
+  it('still counts ordinary activity after a paper start as open', async () => {
+    const start = new Date(2026, 8, 28, 19).getTime();
+    await store.appendLines('w1', 'sessions', '2026-09-28.jsonl', [
+      {
+        id: 'p',
+        timestamp: new Date(start).toISOString(),
+        timestampMs: start,
+        eventType: 'session-start',
+        details: { source: 'mark-play-session', mode: 'paper' },
+      },
+    ]);
+    expect((await makeTools().handleGetPlaySession({})).open).toBe(true);
   });
 });
 

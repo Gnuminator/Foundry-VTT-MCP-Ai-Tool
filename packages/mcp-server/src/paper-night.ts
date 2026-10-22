@@ -12,6 +12,8 @@
  */
 import type { PlayRecord } from '@gnuminator/shared';
 
+import { localDateKey } from './event-pump.js';
+
 /** The guarded feature name `plan-paper-sync` registers; the stats recognise a sync by it. */
 export const PAPER_SYNC_FEATURE = 'paper-sync';
 
@@ -41,6 +43,29 @@ export function paperSyncChangeIds(events: readonly PaperEventLike[]): Set<strin
     if (isPaperSyncEvent(event) && typeof id === 'string') ids.add(id);
   }
   return ids;
+}
+
+/**
+ * Which paper night a sync at `timeMs` belongs to, as an index into `starts` (the nights' start
+ * times in ms), or -1. The newest night that started before the sync; failing that, a night on
+ * the same local date, because a night is often marked after the fact (a marker made "now" or at
+ * the default noon can land after a sync run earlier the same day).
+ *
+ * A sync that fails halfway logs no `gm-change` event (the module logs it after every op
+ * succeeded), so its records are not recognised here and count as play; `plan-paper-sync` should
+ * keep that case rare.
+ */
+export function nightForSync(starts: readonly number[], timeMs: number): number {
+  let found = -1;
+  starts.forEach((start, i) => {
+    if (start <= timeMs && (found < 0 || start >= starts[found])) found = i;
+  });
+  if (found >= 0) return found;
+  const day = localDateKey(timeMs);
+  starts.forEach((start, i) => {
+    if (localDateKey(start) === day) found = i;
+  });
+  return found;
 }
 
 /** A play record a paper sync wrote. */

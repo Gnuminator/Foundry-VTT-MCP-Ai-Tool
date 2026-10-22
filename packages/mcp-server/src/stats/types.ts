@@ -42,6 +42,7 @@ export interface CombatStats {
  * copied in from paper, not play, so they never reach the damage, healing, slot or loot numbers.
  */
 export interface PaperNetPc {
+  uuid: string;
   name: string;
   /** HP the sheet lost / regained over the night (sum of the sync's HP changes). */
   hpLost: number;

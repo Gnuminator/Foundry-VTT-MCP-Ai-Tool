@@ -6,7 +6,7 @@ import { z } from 'zod';
 import { SESSION_GAP_MS, localDateKey } from '../event-pump.js';
 import type { Logger } from '../logger.js';
 import type { VaultStore } from '../vault/store.js';
-import { PAPER_SYNC_FEATURE } from '../paper-night.js';
+import { isPaperSyncEvent, nightForSync, paperSyncChangeIds } from '../paper-night.js';
 import type { WorldIdResolver } from '../vault/world-id.js';
 
 interface ToolDefinition {
@@ -114,7 +114,11 @@ function isMarker(event: LoggedEvent): boolean {
  * when there is none. Only the newest play-log file is read: since records
  * are filed by the local date of `t`, it always holds the most recent ones.
  */
-async function newestPlayRecordTime(store: VaultStore, worldId: string): Promise<number | null> {
+async function newestPlayRecordTime(
+  store: VaultStore,
+  worldId: string,
+  ignoreChangeIds: ReadonlySet<string> = new Set()
+): Promise<number | null> {
   const files = (await store.list(worldId, 'sessions'))
     .filter(name => PLAY_LOG_FILE.test(name))
     .sort()
@@ -123,7 +127,10 @@ async function newestPlayRecordTime(store: VaultStore, worldId: string): Promise
   if (!newest) return null;
   let max: number | null = null;
   for (const line of await store.readLines(worldId, 'sessions', newest)) {
-    const t = (line as { t?: unknown } | null)?.t;
+    const record = line as { t?: unknown; source?: { changeId?: unknown } } | null;
+    const changeId = record?.source?.changeId;
+    if (typeof changeId === 'string' && ignoreChangeIds.has(changeId)) continue;
+    const t = record?.t;
     if (typeof t === 'number' && Number.isFinite(t) && (max === null || t > max)) max = t;
   }
   return max;
@@ -236,7 +243,9 @@ export class PlaySessionTools {
     // Foundry may be closed on a paper night: fall back to the last world this bridge saw.
     const worldId = await this.worldIds.currentOrLastKnown();
     const nowMs = this.now();
-    const atMs = params.date ? this.markerTime(params.date, params.time, nowMs) : nowMs;
+    const atMs = params.date
+      ? this.markerTime(params.date, params.time, nowMs, params.action)
+      : nowMs;
     const paper = params.mode === 'paper';
     const noun = paper ? 'Paper session' : 'Play session';
     const marker: SessionMarker = {
@@ -265,19 +274,26 @@ export class PlaySessionTools {
   }
 
   /**
-   * When a dated marker is placed: `time` (local, default 12:00) on `date`, or right now for
+   * When a dated marker is placed: `time` (local) on `date`, by default 12:00 for a start and
+   * 23:59 for an end (so a date-only end never sorts before a date-only start), or right now for
    * today's date without a time. Never in the future, and the date has to exist.
    */
-  private markerTime(date: string, time: string | undefined, nowMs: number): number {
+  private markerTime(
+    date: string,
+    time: string | undefined,
+    nowMs: number,
+    action: 'start' | 'end'
+  ): number {
+    const fallback = action === 'start' ? '12:00' : '23:59';
     const [y, m, d] = date.split('-').map(Number) as [number, number, number];
-    const [hh, mm] = (time ?? '12:00').split(':').map(Number) as [number, number];
+    const [hh, mm] = (time ?? fallback).split(':').map(Number) as [number, number];
     const atMs = new Date(y, m - 1, d, hh, mm).getTime();
     if (!Number.isFinite(atMs) || localDateKey(atMs) !== date) {
       throw new Error(`${date} is not a date`);
     }
     if (date === localDateKey(nowMs) && !time) return nowMs;
     if (atMs > nowMs)
-      throw new Error(`${date} ${time ?? '12:00'} is in the future; give a past date`);
+      throw new Error(`${date} ${time ?? fallback} is in the future; give a past date`);
     return atMs;
   }
 
@@ -302,20 +318,12 @@ export class PlaySessionTools {
     const byTime = (a: LoggedEvent, b: LoggedEvent): number => eventTimeOf(a) - eventTimeOf(b);
     const starts = events.filter(isPaperStart).sort(byTime);
     if (starts.length === 0) return [];
-    const nightFor = (timeMs: number): number => {
-      let found = -1;
-      starts.forEach((start, i) => {
-        if (eventTimeOf(start) <= timeMs) found = i;
-      });
-      return found;
-    };
+    const startTimes = starts.map(eventTimeOf);
+    const nightFor = (timeMs: number): number => nightForSync(startTimes, timeMs);
     const done = new Set<number>();
     for (const event of events) {
       const marker = isMarker(event) && event.details?.synced === true;
-      const sync =
-        event.eventType === 'gm-change' &&
-        event.details?.feature === PAPER_SYNC_FEATURE &&
-        event.details?.mode !== 'undo';
+      const sync = isPaperSyncEvent(event) && event.details?.mode !== 'undo';
       if (!marker && !sync) continue;
       const night = nightFor(eventTimeOf(event));
       if (night >= 0) done.add(night);
@@ -344,10 +352,16 @@ export class PlaySessionTools {
     let lastEventAtMs: number | null = null;
     let newestMarker: LoggedEvent | null = null;
 
+    // A paper sync is sheet bookkeeping, often days after the night: it is not activity at the
+    // table, so it never keeps an old session open (nor does what it wrote in the play log).
+    const syncChangeIds = new Set<string>();
+
     for (const file of files) {
-      const events = (await this.store.readLines(worldId, 'sessions', file))
+      const all = (await this.store.readLines(worldId, 'sessions', file))
         .filter(isLoggedEvent)
         .filter(e => Number.isFinite(eventTimeOf(e)));
+      for (const id of paperSyncChangeIds(all)) syncChangeIds.add(id);
+      const events = all.filter(e => !isPaperSyncEvent(e));
       if (events.length === 0) continue;
       lastEventAtMs ??= Math.max(...events.map(eventTimeOf));
       const markers = events.filter(isMarker);
@@ -357,7 +371,7 @@ export class PlaySessionTools {
       }
     }
 
-    const playMs = await newestPlayRecordTime(this.store, worldId);
+    const playMs = await newestPlayRecordTime(this.store, worldId, syncChangeIds);
     if (playMs !== null && (lastEventAtMs === null || playMs > lastEventAtMs)) {
       lastEventAtMs = playMs;
     }

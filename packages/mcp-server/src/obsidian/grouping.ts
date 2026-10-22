@@ -20,6 +20,7 @@ import {
   isPaperStartMarker,
   isPaperSyncEvent,
   isPaperSyncRecord,
+  nightForSync,
   paperSyncChangeIds,
 } from '../paper-night.js';
 
@@ -254,11 +255,9 @@ export function groupWithPlayRecords(
     .filter(group => group.paper)
     .map(group => ({ group, startMs: groupStartMs(group) }))
     .sort((a, b) => a.startMs - b.startMs);
-  const nightFor = (timeMs: number): UnionSessionGroup | null => {
-    let found: UnionSessionGroup | null = null;
-    for (const night of nights) if (night.startMs <= timeMs) found = night.group;
-    return found;
-  };
+  const starts = nights.map(night => night.startMs);
+  const nightFor = (timeMs: number): UnionSessionGroup | null =>
+    nights[nightForSync(starts, timeMs)]?.group ?? null;
   for (const event of split.syncEvents) {
     nightFor(eventTimeMs(event))?.paperSync.events.push(event);
   }

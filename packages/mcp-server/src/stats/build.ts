@@ -412,6 +412,7 @@ export function buildPaperNet(
 ): PaperNet | null {
   if (records.length === 0) return null;
   interface Acc {
+    uuid: string;
     name: string;
     hpLost: number;
     hpGained: number;
@@ -430,6 +431,7 @@ export function buildPaperNet(
     let acc = byActor.get(actor.uuid);
     if (!acc) {
       acc = {
+        uuid: actor.uuid,
         name: actor.name,
         hpLost: 0,
         hpGained: 0,
@@ -488,6 +490,7 @@ export function buildPaperNet(
   }
   const characters: PaperNetPc[] = [...byActor.values()]
     .map(acc => ({
+      uuid: acc.uuid,
       name: acc.name,
       hpLost: acc.hpLost,
       hpGained: acc.hpGained,
@@ -499,7 +502,7 @@ export function buildPaperNet(
       itemsGained: tallyFromMap(acc.itemsGained),
       itemsLost: tallyFromMap(acc.itemsLost),
     }))
-    .sort((a, b) => a.name.localeCompare(b.name));
+    .sort((a, b) => a.name.localeCompare(b.name) || a.uuid.localeCompare(b.uuid));
   return { records: records.length, characters };
 }
 
@@ -507,7 +510,7 @@ export function buildPaperNet(
 function mergePaperNets(nets: ReadonlyArray<PaperNet | null>): PaperNet | null {
   const present = nets.filter((n): n is PaperNet => n !== null);
   if (present.length === 0) return null;
-  const byName = new Map<string, PaperNetPc>();
+  const byUuid = new Map<string, PaperNetPc>();
   const add = (into: Tally, from: Tally): Tally => {
     const out: Tally = { ...into };
     for (const [key, value] of Object.entries(from)) out[key] = (out[key] ?? 0) + value;
@@ -517,11 +520,12 @@ function mergePaperNets(nets: ReadonlyArray<PaperNet | null>): PaperNet | null {
   };
   for (const net of present) {
     for (const pc of net.characters) {
-      const prev = byName.get(pc.name);
-      byName.set(
-        pc.name,
+      const prev = byUuid.get(pc.uuid);
+      byUuid.set(
+        pc.uuid,
         prev
           ? {
+              uuid: pc.uuid,
               name: pc.name,
               hpLost: prev.hpLost + pc.hpLost,
               hpGained: prev.hpGained + pc.hpGained,
@@ -539,7 +543,9 @@ function mergePaperNets(nets: ReadonlyArray<PaperNet | null>): PaperNet | null {
   }
   return {
     records: present.reduce((sum, n) => sum + n.records, 0),
-    characters: [...byName.values()].sort((a, b) => a.name.localeCompare(b.name)),
+    characters: [...byUuid.values()].sort(
+      (a, b) => a.name.localeCompare(b.name) || a.uuid.localeCompare(b.uuid)
+    ),
   };
 }
 

@@ -304,6 +304,15 @@ describe('unsyncedPaperNights', () => {
     expect(await makeTools().unsyncedPaperNights()).toEqual([]);
   });
 
+  it('gives a same-day sync to the night marked after it, leaving an older night unsynced', async () => {
+    await put(10, [paperStart(10)]);
+    await put(20, [
+      { ...syncEvent(20), timestampMs: new Date(2026, 8, 20, 10).getTime() },
+      paperStart(20),
+    ]);
+    expect((await makeTools().unsyncedPaperNights()).map(n => n.date)).toEqual(['2026-09-10']);
+  });
+
   it('clears a night the GM marked done', async () => {
     await put(20, [paperStart(20, { synced: true })]);
     expect(await makeTools().unsyncedPaperNights()).toEqual([]);

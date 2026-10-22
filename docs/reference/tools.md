@@ -726,7 +726,7 @@ Parameters:
 - `action` (string, required): Mark the table starting or ending a play session. One of: `start`, `end`.
 - `mode` (string): "live" (default) or "paper" (played on paper, sheets synced afterwards). One of: `live`, `paper`.
 - `date` (string): Paper only: the night as YYYY-MM-DD (today or earlier). Default: now.
-- `time` (string): Paper only, with date: local HH:MM (default 12:00).
+- `time` (string): Paper only, with date: local HH:MM (default 12:00 start, 23:59 end).
 - `synced` (boolean): Paper only: true = sheets already in Foundry; stops the pre-flight warning.
 - `note` (string): Optional note kept with the marker (up to 200 characters).
 

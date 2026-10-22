@@ -47,23 +47,24 @@ export function paperSyncChangeIds(events: readonly PaperEventLike[]): Set<strin
 
 /**
  * Which paper night a sync at `timeMs` belongs to, as an index into `starts` (the nights' start
- * times in ms), or -1. The newest night that started before the sync; failing that, a night on
- * the same local date, because a night is often marked after the fact (a marker made "now" or at
- * the default noon can land after a sync run earlier the same day).
+ * times in ms), or -1. A night on the sync's own local date that starts after it, because a night
+ * is often marked after the fact (a marker made "now" or at the default noon can land after a sync
+ * run earlier the same day); otherwise the newest night that started before the sync.
  *
  * A sync that fails halfway logs no `gm-change` event (the module logs it after every op
  * succeeded), so its records are not recognised here and count as play; `plan-paper-sync` should
  * keep that case rare.
  */
 export function nightForSync(starts: readonly number[], timeMs: number): number {
+  const day = localDateKey(timeMs);
   let found = -1;
   starts.forEach((start, i) => {
-    if (start <= timeMs && (found < 0 || start >= starts[found])) found = i;
+    const sameDayLater = start > timeMs && localDateKey(start) === day;
+    if (sameDayLater && (found < 0 || start < starts[found])) found = i;
   });
   if (found >= 0) return found;
-  const day = localDateKey(timeMs);
   starts.forEach((start, i) => {
-    if (localDateKey(start) === day) found = i;
+    if (start <= timeMs && (found < 0 || start >= starts[found])) found = i;
   });
   return found;
 }

@@ -188,7 +188,7 @@ export class PlaySessionTools {
             },
             time: {
               type: 'string',
-              description: 'Paper only, with date: local HH:MM (default 12:00).',
+              description: 'Paper only, with date: local HH:MM (default 12:00 start, 23:59 end).',
             },
             synced: {
               type: 'boolean',

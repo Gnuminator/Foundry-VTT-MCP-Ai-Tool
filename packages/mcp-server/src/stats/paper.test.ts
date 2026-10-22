@@ -125,6 +125,21 @@ describe('grouping with a paper night', () => {
     expect(groups[0]?.paperSync.records.map(r => r.key)).toEqual(['h1']);
   });
 
+  it('gives a sync to the night marked after it on the same date, not to an older night', () => {
+    const older = new Date(2026, 10, 8, 12).getTime();
+    const marked = new Date(2026, 10, 15, 12).getTime();
+    const syncAt = new Date(2026, 10, 15, 10).getTime();
+    const groups = groupWithPlayRecords(
+      [
+        marker('a', 'session-start', older, 'paper'),
+        marker('b', 'session-start', marked, 'paper'),
+        gmChange('g1', syncAt, 'chg1', PAPER_SYNC_FEATURE),
+      ],
+      [hp('h1', syncAt, ILVARA, 30, 18, { source: { changeId: 'chg1' } })]
+    );
+    expect(groups.map(g => g.paperSync.records.length)).toEqual([0, 1]);
+  });
+
   it('does not give a sync to a paper night on another date that starts after it', () => {
     const groups = groupWithPlayRecords(
       [

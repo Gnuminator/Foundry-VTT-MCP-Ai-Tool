@@ -103,7 +103,7 @@ stays a suggestion in `fixes.json` with the reason in `blocked`:
 - no word of it is an ordinary word: the session's own frequent words (`--ordinary-min-count`),
   `--ordinary-words`, and the shipped Danish (30,000 words) and English (10,000 words) lists in
   `src/session_pipeline/data/`. Words that are part of a known name are exempt ("Castle" in "Castle
-  Ravenloft"). This is what stops the Danish word "handel" becoming the name "Handell" (regression test);
+  Greywatch"). This is what stops the Danish word "handel" becoming the name "Handell" (regression test);
 - no other name scores within 0.03 of the best (`ambiguous` otherwise);
 - a final "s" (Danish genitive, English plural) is kept: "Handells" stays, a misheard "Talindars" becomes
   "Talindors".
@@ -115,16 +115,16 @@ source, licence and attribution are in each file's header and in the repository'
 
 ### Glued names
 
-The recogniser sometimes writes a name and its neighbour as one word ("stratser" for "Strahd ser").
+The recogniser sometimes writes a name and its neighbour as one word ("sorfser" for "Sorvan ser").
 A word that is neither a name nor an ordinary word is split into a name part (at least 4 letters)
 and an ordinary word, in either order; besides the shipped lists, a short list of 2 and 3 letter
 Danish and English words counts here ("ser", "og", "har", "the"), because those are the neighbours
 that get swallowed. The split is fixed automatically only when the name part is exact: a known name,
-or a wrong spelling from `rules.json` ("strat" in `{"Strahd": ["strat"]}` turns "stratser" into
-"Strahd ser"). It stays a suggestion when the name part is only close (`blocked: glued`) or when the
-leftover looks like an ending or a prefix (`glued_affix`: "barovianer" is not "Barovia ner",
-"strahder" is suggested as "Strahd er"). A split with an exact name also beats a near match of the
-whole word, which used to swallow the neighbour ("ogvallaki" became "Vallaki"; now "og Vallaki").
+or a wrong spelling from `rules.json` ("sorf" in `{"Sorvan": ["sorf"]}` turns "sorfser" into
+"Sorvan ser"). It stays a suggestion when the name part is only close (`blocked: glued`) or when the
+leftover looks like an ending or a prefix (`glued_affix`: "maravianer" is not "Maravia ner",
+"sorvaner" is suggested as "Sorvan er"). A split with an exact name also beats a near match of the
+whole word, which used to swallow the neighbour ("ogvalmere" became "Valmere"; now "og Valmere").
 
 Feed the matcher proper names (characters, NPCs, places), not game terms: with game terms in the list
 the same run also "fixed" Danish verb forms of English words. `names.txt` from the next section is a

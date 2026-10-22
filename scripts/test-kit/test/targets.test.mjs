@@ -70,11 +70,11 @@ test('fake mode takes any loopback port', () => {
 
 test('only kit worlds are allowed', () => {
   assert.equal(resolveTarget({ world: 'ai-tool-kit-srd', env: {} }).world, 'ai-tool-kit-srd');
-  for (const w of ['ai-tool-test', 'ai-tool-kit', 'strahd', '']) {
+  for (const w of ['ai-tool-test', 'ai-tool-kit', 'sorvan', '']) {
     assert.throws(() => resolveTarget({ world: w, env: {} }), /not a kit world/, w);
   }
   assert.throws(
-    () => resolveTarget({ world: 'strahd', fake: true, fakeBase: 'http://127.0.0.1:4000' }),
+    () => resolveTarget({ world: 'sorvan', fake: true, fakeBase: 'http://127.0.0.1:4000' }),
     EnvError
   );
 });

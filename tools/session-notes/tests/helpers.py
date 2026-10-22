@@ -26,7 +26,7 @@ def write_session(tmp: Path, rows: list[tuple[float, float, str, str]]) -> Path:
                         "end": end,
                         "speaker": player.lower(),
                         "player": player,
-                        "character": "Ireena" if player == "Anna" else player,
+                        "character": "Ilvara" if player == "Anna" else player,
                         "text": text,
                         "words": words,
                     }

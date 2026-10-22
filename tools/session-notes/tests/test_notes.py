@@ -15,7 +15,7 @@ from session_notes.validate import check_lines, repair
 
 # Two scenes, each longer than the 2-minute minimum, split by a pause over 90 s.
 ROWS = [
-    (10.0, 14.0, "Anna", "Vi går mod Barovia."),
+    (10.0, 14.0, "Anna", "Vi går mod Maravia."),
     (40.0, 45.0, "Bo", "Jeg tjekker døren for fælder."),
     (70.0, 75.0, "GM", "Døren er låst. Madam Eva venter ved Sær Pool."),
     (100.0, 104.0, "Anna", "Hvem har snacks?"),
@@ -42,10 +42,10 @@ def test_timeline_ids_roster_and_uncertain_words(session: Path) -> None:
     assert [ln.id for ln in lines][:3] == ["u000001", "u000002", "u000003"]
     assert lines[2].uncertain == ("Sær",)
     roster = load_roster(session, lines)
-    assert roster.players == {"Anna": "Ireena", "Bo": "Bo", "GM": "GM"}
+    assert roster.players == {"Anna": "Ilvara", "Bo": "Bo", "GM": "GM"}
     assert roster.names == ["Madam Eva", "Tser Pool"]
     prompt = scene_prompt(Scene(1, lines[:3]), roster)
-    assert "- Anna plays Ireena" in prompt
+    assert "- Anna plays Ilvara" in prompt
     assert "u000003 [00:01:10] GM: Døren er låst." in prompt
     assert "[unsure: Sær]" in prompt
 
@@ -87,7 +87,7 @@ def test_full_run_writes_both_languages(session: Path) -> None:
     assert [k for k, _ in fake.calls] == ["scene", "scene", "session"]
     notes = session / "notes"
     t = (notes / "transcript.da.md").read_text(encoding="utf-8")
-    assert "**[00:00:10] Ireena (Anna):** Vi går mod Barovia. ^u000001" in t
+    assert "**[00:00:10] Ilvara (Anna):** Vi går mod Maravia. ^u000001" in t
     scenes_en = (notes / "scenes.en.md").read_text(encoding="utf-8")
     assert "[[transcript.en#^u000001|00:00:10]]" in scenes_en
     assert "### GM only" in scenes_en and "u999999" not in scenes_en
@@ -133,7 +133,7 @@ def test_speakers_json_overrides_and_marks_the_gm(session: Path) -> None:
     Writer(session, fake, Options(workers=1)).run()
     prompt = fake.calls[0][1]
     assert "- Rikke is the GM (narrates, rules, plays all NPCs)" in prompt
-    assert "- Bo plays Vorn" in prompt and "- Anna plays Ireena" in prompt
+    assert "- Bo plays Vorn" in prompt and "- Anna plays Ilvara" in prompt
     assert "u000002 [00:00:40] Bo (Vorn): Jeg tjekker" in prompt
     assert fake.efforts == ["medium", "medium", "medium"]
 
@@ -332,7 +332,7 @@ def test_fallback_tries_start_over_when_the_scene_changes(session: Path) -> None
 
     # A new line in scene 1 (the timeline was transcribed again): its ids differ, the count is 0.
     row = {"start": 170.0, "end": 172.0, "speaker": "anna", "player": "Anna",
-           "character": "Ireena", "text": "Vent lidt.", "words": []}
+           "character": "Ilvara", "text": "Vent lidt.", "words": []}
     with (session / "timeline" / "timeline.jsonl").open("a", encoding="utf-8") as fh:
         fh.write(json.dumps(row) + "\n")
     result = Writer(session, FakeClaude(fail=_all_fail()), opts).run()

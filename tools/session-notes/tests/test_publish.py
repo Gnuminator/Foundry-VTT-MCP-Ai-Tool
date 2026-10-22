@@ -12,12 +12,12 @@ from session_notes.cli import main
 from session_notes.publish import EXIT_LATER, blocks, build, inline, publish
 
 SESSION = {
-    "title_da": "Vejen til Barovia",
-    "title_en": "The road to Barovia",
+    "title_da": "Vejen til Maravia",
+    "title_en": "The road to Maravia",
     "summary_da": "Kort resumé.",
     "summary_en": "Short summary.",
-    "changed_da": ["Ireena følger med"],
-    "changed_en": ["Ireena joins"],
+    "changed_da": ["Ilvara følger med"],
+    "changed_en": ["Ilvara joins"],
     "recap_player_da": "I gik ind i *tågen*.\n\nSå kom **ulvene** <script>x</script>.",
     "recap_player_en": "You walked into the *fog*.",
 }
@@ -31,9 +31,9 @@ SCENES = [
         "summary_da": "Tåge.",
         "summary_en": "Fog.",
         "events": [{"da": "En ulv hylede", "en": "A wolf howled", "cites": ["u000001"]}],
-        "npcs": [{"name": "Ireena", "da": "bange", "en": "scared", "cites": []}],
+        "npcs": [{"name": "Ilvara", "da": "bange", "en": "scared", "cites": []}],
         "quotes": [{"id": "u000002", "da": "Løb!", "en": "Run!"}],
-        "gm_only": [{"da": "Strahd ser med", "en": "Strahd watches", "cites": []}],
+        "gm_only": [{"da": "Sorvan ser med", "en": "Sorvan watches", "cites": []}],
     }
 ]
 
@@ -109,16 +109,16 @@ def test_build_pages_danish_first(tmp_path: Path) -> None:
     staged = build(make_session(tmp_path))
     assert staged.session_id == "2026-10-03_0913-rehearsal"
     assert staged.date == "2026-10-03"
-    assert staged.title == "Vejen til Barovia"
+    assert staged.title == "Vejen til Maravia"
     pages = {p["key"]: p for p in staged.pages}
     assert [p["title"] for p in staged.pages] == ["Recap", "GM summary", "Scenes"]
     recap = pages["recap"]["html"]
     assert recap.index("tågen") < recap.index("<h2>English</h2>") < recap.index("fog")
     assert "<script>" not in recap and "&lt;script&gt;" in recap
-    assert "<h3>Hvad ændrede sig</h3><ul><li>Ireena følger med</li></ul>" in pages["summary"]["html"]
+    assert "<h3>Hvad ændrede sig</h3><ul><li>Ilvara følger med</li></ul>" in pages["summary"]["html"]
     scenes = pages["scenes"]["html"]
     assert "<h2>1. Tågen</h2><p><em>00:00:07 to 00:05:07</em></p>" in scenes
-    assert "<li><strong>Ireena</strong>: bange</li>" in scenes
+    assert "<li><strong>Ilvara</strong>: bange</li>" in scenes
     assert "<h3>Kun for GM</h3>" in scenes
     assert "transcript" not in scenes and "u000001" not in scenes
 

@@ -255,27 +255,27 @@ describe('who is a boss, and who gets a reaction button', () => {
 
 describe('the boss prompts', () => {
   it('reminds of the legendary actions left, except on the boss own turn', () => {
-    const boss = who({ id: 'boss', name: 'Strahd', initiative: 20, boss: legendary(2) });
+    const boss = who({ id: 'boss', name: 'Sorvan', initiative: 20, boss: legendary(2) });
     const pc = who({ id: 'pc', name: 'Alder', initiative: 10, isPC: true });
     expect(bossPrompts(fight([boss, pc], { turn: 1 })).map(p => p.text)).toEqual([
-      'Strahd: 2 legendary actions left, one after this turn.',
+      'Sorvan: 2 legendary actions left, one after this turn.',
     ]);
     expect(bossPrompts(fight([boss, pc], { turn: 0 }))).toEqual([]);
   });
 
   it('says one legendary action in the singular and says nothing at none', () => {
     const pc = who({ id: 'pc', initiative: 10 });
-    const one = who({ id: 'boss', name: 'Strahd', boss: legendary(1) });
+    const one = who({ id: 'boss', name: 'Sorvan', boss: legendary(1) });
     const none = who({ id: 'b2', name: 'Drake', boss: legendary(0) });
     expect(bossPrompts(fight([pc, one, none], { turn: 0 })).map(p => p.text)).toEqual([
-      'Strahd: 1 legendary action left, one after this turn.',
+      'Sorvan: 1 legendary action left, one after this turn.',
     ]);
   });
 
   it('reminds of a lair action before the turn just under the lair count', () => {
     const lairBoss = who({
       id: 'boss',
-      name: 'Strahd',
+      name: 'Sorvan',
       initiative: 25,
       boss: { legendary: null, resistances: null, lair: { inside: true, initiative: 20 } },
     });
@@ -286,7 +286,7 @@ describe('the boss prompts', () => {
     const prompts = bossPrompts(fight(combatants, { turn: 2 }));
     expect(prompts).toHaveLength(1);
     expect(prompts[0]).toMatchObject({ kind: 'lair', icon: '🏰' });
-    expect(prompts[0]?.text).toBe("Lair action for Strahd (initiative 20), before Slow's turn.");
+    expect(prompts[0]?.text).toBe("Lair action for Sorvan (initiative 20), before Slow's turn.");
     expect(bossPrompts(fight(combatants, { turn: 1 }))).toEqual([]);
   });
 
@@ -333,8 +333,8 @@ describe('the reaction ticks', () => {
   });
 
   it('names the button after the state and the combatant', () => {
-    expect(reactionLabel('Strahd', false)).toBe('Reaction ready: Strahd');
-    expect(reactionLabel('Strahd', true)).toBe('Reaction used: Strahd');
+    expect(reactionLabel('Sorvan', false)).toBe('Reaction ready: Sorvan');
+    expect(reactionLabel('Sorvan', true)).toBe('Reaction used: Sorvan');
   });
 });
 

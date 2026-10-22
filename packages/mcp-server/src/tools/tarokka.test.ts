@@ -68,8 +68,8 @@ describe('TarokkaTools', () => {
       tools.handlePlanTarokkaReveal({ position: 'tome', text: 'Hi', showNow: 'yes' })
     ).rejects.toThrow();
 
-    await tools.handleSuggestTarokkaLinks({ query: 'vallaki', limit: 3 });
-    expect(tarokka.suggestLinks).toHaveBeenLastCalledWith('vallaki', 3);
+    await tools.handleSuggestTarokkaLinks({ query: 'valmere', limit: 3 });
+    expect(tarokka.suggestLinks).toHaveBeenLastCalledWith('valmere', 3);
     await expect(tools.handleSuggestTarokkaLinks({ query: 'v' })).rejects.toThrow();
   });
 

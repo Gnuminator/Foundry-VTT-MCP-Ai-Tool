@@ -130,7 +130,7 @@ test('--target pi refuses everything it must, each with exit 2 and a clear messa
       [...pi, '--world', 'ai-tool-kit-licensed'],
       /REFUSED: --target pi runs only in strahd-kit/,
     ],
-    ['--profile other', [...pi, '--profile', 'strahd'], /REFUSED: --target pi takes no --profile/],
+    ['--profile other', [...pi, '--profile', 'sorvan'], /REFUSED: --target pi takes no --profile/],
     [
       '--scenarios',
       [...pi, '--scenarios', tmpdir()],

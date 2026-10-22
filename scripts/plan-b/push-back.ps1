@@ -18,10 +18,10 @@
 .PARAMETER PiHost    The SSH name of the Pi (default foundry-pi).
 .PARAMETER OutDir    Where the bundle is built (default a new folder under $env:TEMP).
 .PARAMETER AllowSettingKeys  Passed to push-world.ps1: reviewed ddb-importer.* setting keys. The default is the list the
-                     Strahd world needed (checked against the Pi backup of 2026-10-09): its ddb-importer settings
+                     campaign world needed (checked against the Pi backup of 2026-10-09): its ddb-importer settings
                      only name compendiums, a version and the import proxy's local address.
 .PARAMETER AllowMissing      Passed to push-world.ps1: reviewed known missing asset paths. The default is the list of the
-                     first push of the Strahd world (2026-10-06, vault "Licensed content import"): Tasha's and
+                     first push of the campaign world (2026-10-06, vault "Licensed content import"): Tasha's and
                      Xanathar's journal images (on no disk anywhere), tcoe/images/cover.jpg and two refs inside the
                      official PHB module. A push-back sends back the world that came from the Pi, so the same holds.
 #>

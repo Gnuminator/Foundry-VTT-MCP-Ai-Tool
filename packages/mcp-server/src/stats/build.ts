@@ -21,12 +21,20 @@
 import type { PlayActorRef, PlayRecord } from '@gnuminator/shared';
 
 import { localDateKey } from '../event-pump.js';
-import { eventTimeMs, groupWithPlayRecords, type SessionEvent } from '../obsidian/grouping.js';
+import {
+  eventTimeMs,
+  groupWithPlayRecords,
+  splitPaperSync,
+  unclaimedPaperSync,
+  type SessionEvent,
+} from '../obsidian/grouping.js';
 
 import type {
   CombatStats,
   DiceStats,
   HighestRoll,
+  PaperNet,
+  PaperNetPc,
   PcStats,
   SessionStats,
   StatsModel,
@@ -392,9 +400,157 @@ function pcFor(actor: PlayActorRef, ctx: SessionContext, sessionNumber: number):
   return pc;
 }
 
+/**
+ * The "Paper night: net change" block from the play records a paper sync wrote: per character,
+ * HP lost and regained, slots, resources and hit dice spent, coins, XP, items gained and lost.
+ * Null without records. Records are values copied from a paper sheet, so these are not play
+ * numbers: nothing here reaches the session, party or per-character totals.
+ */
+export function buildPaperNet(
+  records: readonly PlayRecord[],
+  spare: ReadonlySet<string>
+): PaperNet | null {
+  if (records.length === 0) return null;
+  interface Acc {
+    name: string;
+    hpLost: number;
+    hpGained: number;
+    slotsSpent: number;
+    slotsRegained: number;
+    resourcesSpent: number;
+    currency: Map<string, number>;
+    xpGained: number;
+    itemsGained: Map<string, number>;
+    itemsLost: Map<string, number>;
+  }
+  const byActor = new Map<string, Acc>();
+  for (const record of records) {
+    const actor = record.actor;
+    if (!actor?.isPC || spare.has(actor.uuid)) continue;
+    let acc = byActor.get(actor.uuid);
+    if (!acc) {
+      acc = {
+        name: actor.name,
+        hpLost: 0,
+        hpGained: 0,
+        slotsSpent: 0,
+        slotsRegained: 0,
+        resourcesSpent: 0,
+        currency: new Map(),
+        xpGained: 0,
+        itemsGained: new Map(),
+        itemsLost: new Map(),
+      };
+      byActor.set(actor.uuid, acc);
+    }
+    const delta = numDelta(record);
+    const itemName = record.item?.name ?? 'Unknown item';
+    switch (record.kind) {
+      case 'hp':
+        if (delta < 0) acc.hpLost += -delta;
+        else acc.hpGained += delta;
+        break;
+      case 'slot':
+        if (delta < 0) acc.slotsSpent += -delta;
+        else acc.slotsRegained += delta;
+        break;
+      case 'resource':
+        if (delta < 0) acc.resourcesSpent += -delta;
+        break;
+      case 'item-uses': {
+        const legacy = (record.path ?? '').endsWith('.value');
+        const spent = legacy ? (delta < 0 ? -delta : 0) : delta > 0 ? delta : 0;
+        acc.resourcesSpent += spent;
+        break;
+      }
+      case 'hit-dice':
+        if (delta > 0) acc.resourcesSpent += delta;
+        break;
+      case 'currency':
+        bump(acc.currency, currencyKeyFromPath(record.path), delta);
+        break;
+      case 'xp':
+        acc.xpGained += delta;
+        break;
+      case 'item-create':
+        bump(acc.itemsGained, itemName, typeof record.after === 'number' ? record.after : 1);
+        break;
+      case 'item-quantity':
+        if (delta > 0) bump(acc.itemsGained, itemName, delta);
+        else if (delta < 0) bump(acc.itemsLost, itemName, -delta);
+        break;
+      case 'item-delete':
+        bump(acc.itemsLost, itemName, typeof record.before === 'number' ? record.before : 1);
+        break;
+      default:
+        break;
+    }
+  }
+  const characters: PaperNetPc[] = [...byActor.values()]
+    .map(acc => ({
+      name: acc.name,
+      hpLost: acc.hpLost,
+      hpGained: acc.hpGained,
+      slotsSpent: acc.slotsSpent,
+      slotsRegained: acc.slotsRegained,
+      resourcesSpent: acc.resourcesSpent,
+      currency: tallyFromMap(acc.currency),
+      xpGained: acc.xpGained,
+      itemsGained: tallyFromMap(acc.itemsGained),
+      itemsLost: tallyFromMap(acc.itemsLost),
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+  return { records: records.length, characters };
+}
+
+/** Add the paper nets of several nights (the campaign block). */
+function mergePaperNets(nets: ReadonlyArray<PaperNet | null>): PaperNet | null {
+  const present = nets.filter((n): n is PaperNet => n !== null);
+  if (present.length === 0) return null;
+  const byName = new Map<string, PaperNetPc>();
+  const add = (into: Tally, from: Tally): Tally => {
+    const out: Tally = { ...into };
+    for (const [key, value] of Object.entries(from)) out[key] = (out[key] ?? 0) + value;
+    const sorted: Tally = {};
+    for (const key of Object.keys(out).sort()) sorted[key] = out[key];
+    return sorted;
+  };
+  for (const net of present) {
+    for (const pc of net.characters) {
+      const prev = byName.get(pc.name);
+      byName.set(
+        pc.name,
+        prev
+          ? {
+              name: pc.name,
+              hpLost: prev.hpLost + pc.hpLost,
+              hpGained: prev.hpGained + pc.hpGained,
+              slotsSpent: prev.slotsSpent + pc.slotsSpent,
+              slotsRegained: prev.slotsRegained + pc.slotsRegained,
+              resourcesSpent: prev.resourcesSpent + pc.resourcesSpent,
+              currency: add(prev.currency, pc.currency),
+              xpGained: prev.xpGained + pc.xpGained,
+              itemsGained: add(prev.itemsGained, pc.itemsGained),
+              itemsLost: add(prev.itemsLost, pc.itemsLost),
+            }
+          : pc
+      );
+    }
+  }
+  return {
+    records: present.reduce((sum, n) => sum + n.records, 0),
+    characters: [...byName.values()].sort((a, b) => a.name.localeCompare(b.name)),
+  };
+}
+
 function buildSession(
   number: number,
-  group: { events: SessionEvent[]; playRecords: PlayRecord[] },
+  group: {
+    events: SessionEvent[];
+    playRecords: PlayRecord[];
+    paper: boolean;
+    paperSync: { records: PlayRecord[] };
+  },
   ctx: SessionContext
 ): SessionStats {
   const records = group.playRecords;
@@ -714,6 +870,8 @@ function buildSession(
     resourcesSpent,
     itemsUsed,
     gmChanges,
+    mode: group.paper ? 'paper' : 'live',
+    paperNet: group.paper ? buildPaperNet(group.paperSync.records, ctx.spare) : null,
     sceneMinutes,
     users,
     gameSeconds,
@@ -732,6 +890,7 @@ function sessionLabelOf(n: number): string {
 /** Build the whole {@link StatsModel} from a world's logs. Pure, deterministic. */
 export function buildStats(input: BuildStatsInput): StatsModel {
   const groups = groupWithPlayRecords(input.logEvents, input.playRecords);
+  const split = splitPaperSync(input.logEvents, input.playRecords);
   const ctx: SessionContext = {
     sceneIndex: buildSceneNameIndex(input.playRecords),
     rollsByMessage: buildRollsByMessage(input.playRecords),
@@ -806,6 +965,11 @@ export function buildStats(input: BuildStatsInput): StatsModel {
       fumbles: sessions.reduce((sum, s) => sum + s.fumbles, 0),
       spellsCast: sessions.reduce((sum, s) => sum + s.spellsCast, 0),
       gameSeconds: sessions.reduce((sum, s) => sum + s.gameSeconds, 0),
+      paperSessions: sessions.filter(s => s.mode === 'paper').length,
+      paperNet: mergePaperNets([
+        ...sessions.map(s => s.paperNet),
+        buildPaperNet(unclaimedPaperSync(groups, split), ctx.spare),
+      ]),
       lastRecordAt,
     },
   };

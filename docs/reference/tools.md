@@ -717,13 +717,17 @@ Parameters:
 
 ### mark-play-session
 
-GM ONLY. Mark the start or end of a play session by appending a line to the bridge vault's own session log (sessions/&lt;date>.jsonl). Touches only that log, never game state or Foundry. Used to group session notes and stats.
+GM ONLY. Mark the start or end of a play session by appending a line to the bridge vault's own session log (sessions/&lt;date>.jsonl). Touches only that log, never game state or Foundry. Used to group session notes and stats. mode "paper" marks a night played on paper; a past date marks it afterwards. Works with Foundry closed.
 
 Kind: changes something. Title: Mark play session start or end.
 
 Parameters:
 
 - `action` (string, required): Mark the table starting or ending a play session. One of: `start`, `end`.
+- `mode` (string): "live" (default) or "paper" (played on paper, sheets synced afterwards). One of: `live`, `paper`.
+- `date` (string): Paper only: the night as YYYY-MM-DD (today or earlier). Default: now.
+- `time` (string): Paper only, with date: local HH:MM (default 12:00).
+- `synced` (boolean): Paper only: true = sheets already in Foundry; stops the pre-flight warning.
 - `note` (string): Optional note kept with the marker (up to 200 characters).
 
 ### check-action
@@ -973,7 +977,7 @@ No parameters.
 
 ### get-play-stats
 
-GM ONLY. Derived play statistics for the connected world (the same numbers as the AI Tool/Stats/ Obsidian notes): campaign totals, dice, one play session's stats (default the latest) and one PC's or every PC's totals (damage, healing, downs, kills, rolls, spells, resources, loot, currency, XP). Built fresh from the bridge vault's session and play logs; never returns raw play records.
+GM ONLY. Derived play statistics for the connected world (the same numbers as the AI Tool/Stats/ Obsidian notes): campaign totals, dice, one play session's stats (default the latest) and one PC's or every PC's totals (damage, healing, downs, kills, rolls, spells, resources, loot, currency, XP). Built fresh from the bridge vault's session and play logs; never returns raw play records. A session has a mode ("live", or "paper" for a night played on paper). Changes written by a paper sync are not counted as damage, healing or rolls: a paper night shows them as paperNet (HP lost and regained, slots, resources, coins, XP, items gained and lost per character), and the campaign has the sum. Works with Foundry closed (the last world this bridge saw).
 
 Kind: read-only. Title: Get play stats.
 
@@ -984,7 +988,7 @@ Parameters:
 
 ### get-preflight
 
-GM ONLY. Pre-flight check before a session. action "checks" (default): one checklist with ok, warn, fail or info per item: Foundry link, module and bridge versions match, "Allow Write Operations" and the feature switches, secrets in world settings (every player can read those), names players can see that match a secret term (playlists, sounds, scenes, tokens, journals, actors), module conflicts, Obsidian notes, play session; ready is true when nothing failed. action "scan": the findings behind those items. Secret values are masked, never returned. Read-only.
+GM ONLY. Pre-flight check before a session. action "checks" (default): one checklist with ok, warn, fail or info per item: Foundry link, module and bridge versions match, "Allow Write Operations" and the feature switches, secrets in world settings (every player can read those), names players can see that match a secret term (playlists, sounds, scenes, tokens, journals, actors), module conflicts, Obsidian notes, play session (with a warning for a paper night that has no paper sync yet); ready is true when nothing failed. action "scan": the findings behind those items. Secret values are masked, never returned. Read-only.
 
 Kind: read-only. Title: Run pre-flight check.
 

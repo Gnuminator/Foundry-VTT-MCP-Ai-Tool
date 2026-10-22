@@ -4,8 +4,8 @@ description: The five tool sets Claude Desktop loads (core, play, prep, build, a
 
 # Tool sets
 
-The bridge has 93 tools. Their definitions are about 102,800 characters of JSON, about 24,000 to
-31,000 tokens that Claude reads at the start of every conversation, before anyone types. Many
+The bridge has 93 tools. Their definitions are about 110,000 characters of JSON, about 26,000 to
+34,500 tokens that Claude reads at the start of every conversation, before anyone types. Many
 tools also look alike, which makes Claude pick the wrong one more often.
 
 So the tools are split into five sets. Each set is its own entry in Claude Desktop's

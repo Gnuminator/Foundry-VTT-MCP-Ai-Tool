@@ -13,7 +13,7 @@ import type { FoundryClient } from '../foundry-client.js';
 import type { Logger } from '../logger.js';
 import type { SecretTermsService } from '../secret-terms.js';
 import type { WorldIdResolver } from '../vault/world-id.js';
-import type { PlaySessionTools } from './play-session.js';
+import type { PlaySessionTools, UnsyncedPaperNight } from './play-session.js';
 
 interface ToolDefinition {
   name: string;
@@ -29,7 +29,7 @@ export interface PreflightToolsOptions {
   foundryClient: Pick<FoundryClient, 'query' | 'isConnected' | 'getConnectionInfo'>;
   secretTerms: Pick<SecretTermsService, 'findSecretTermsInMany'>;
   worldIds: Pick<WorldIdResolver, 'current'>;
-  playSession: Pick<PlaySessionTools, 'handleGetPlaySession'>;
+  playSession: Pick<PlaySessionTools, 'handleGetPlaySession' | 'unsyncedPaperNights'>;
   /** FOUNDRY_AI_OBSIDIAN_DIR is set (Obsidian notes render). */
   obsidianVaultDirSet: boolean;
   logger: Logger;
@@ -75,7 +75,7 @@ export class PreflightTools {
       {
         name: 'get-preflight',
         description:
-          'GM ONLY. Pre-flight check before a session. action "checks" (default): one checklist with ok, warn, fail or info per item: Foundry link, module and bridge versions match, "Allow Write Operations" and the feature switches, secrets in world settings (every player can read those), names players can see that match a secret term (playlists, sounds, scenes, tokens, journals, actors), module conflicts, Obsidian notes, play session; ready is true when nothing failed. action "scan": the findings behind those items. Secret values are masked, never returned. Read-only.',
+          'GM ONLY. Pre-flight check before a session. action "checks" (default): one checklist with ok, warn, fail or info per item: Foundry link, module and bridge versions match, "Allow Write Operations" and the feature switches, secrets in world settings (every player can read those), names players can see that match a secret term (playlists, sounds, scenes, tokens, journals, actors), module conflicts, Obsidian notes, play session (with a warning for a paper night that has no paper sync yet); ready is true when nothing failed. action "scan": the findings behind those items. Secret values are masked, never returned. Read-only.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -346,24 +346,54 @@ export class PreflightTools {
 
   private async playSessionCheck(): Promise<PreflightCheck> {
     const label = 'Play session';
+    let check: PreflightCheck;
     try {
       const session = await this.options.playSession.handleGetPlaySession({});
-      if (session.open) {
-        return {
-          id: 'play-session',
-          label,
-          status: 'ok',
-          detail: session.startedAt ? `Started ${session.startedAt}.` : 'Started.',
-        };
-      }
-      return {
-        id: 'play-session',
-        label,
-        status: 'info',
-        detail: 'Not started yet. Click Start session in the dashboard header when play begins.',
-      };
+      check = session.open
+        ? {
+            id: 'play-session',
+            label,
+            status: 'ok',
+            detail: session.startedAt ? `Started ${session.startedAt}.` : 'Started.',
+          }
+        : {
+            id: 'play-session',
+            label,
+            status: 'info',
+            detail:
+              'Not started yet. Click Start session in the dashboard header when play begins.',
+          };
     } catch (error) {
       return { id: 'play-session', label, status: 'unknown', detail: message(error) };
     }
+    return this.withUnsyncedPaperNights(check);
+  }
+
+  /**
+   * A paper night with no paper sync after it: the sheets in Foundry are from before the night.
+   * Shown on the play-session line as a warning; it clears once a sync has run or the night is
+   * marked done (`mark-play-session`, mode paper, synced true).
+   */
+  private async withUnsyncedPaperNights(check: PreflightCheck): Promise<PreflightCheck> {
+    let nights: UnsyncedPaperNight[];
+    try {
+      nights = await this.options.playSession.unsyncedPaperNights();
+    } catch (error) {
+      this.logger.warn('Pre-flight could not look for unsynced paper nights', {
+        error: message(error),
+      });
+      return check;
+    }
+    if (nights.length === 0) return check;
+    const dates = nights.map(n => n.date).join(', ');
+    const warning =
+      nights.length === 1
+        ? `The paper night on ${dates} has no paper sync yet, so the sheets in Foundry are from before it.`
+        : `The paper nights on ${dates} have no paper sync yet, so the sheets in Foundry are from before them.`;
+    return {
+      ...check,
+      status: 'warn',
+      detail: `${check.detail} ${warning} Sync the sheets, or mark the night done with mark-play-session (mode paper, synced true).`,
+    };
   }
 }

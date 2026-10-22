@@ -49,15 +49,67 @@ describe('findSpots', () => {
     const big: Rect = { x: 1000, y: 1000, w: 100, h: 100 };
     const spots = findSpots(grid, bounds, [big], { x: 1050, y: 1050 }, [small, small]);
     for (const s of spots) expect(overlaps({ x: s!.x, y: s!.y, w: 25, h: 25 }, big)).toBe(false);
+    // Everything above y = 1040 is behind a wall. Unblocked, the second token goes straight up.
+    const feet = [small, small, small];
+    const open = findSpots(grid, bounds, [], { x: 1050, y: 1050 }, feet);
+    expect(open.some(s => s!.y + 12.5 < 1040)).toBe(true);
     const walled = findSpots(
       grid,
       bounds,
       [],
       { x: 1050, y: 1050 },
-      [small, small],
-      (_from, to) => to.x > 1060
+      feet,
+      (_from, to) => to.y < 1040
     );
-    for (const s of walled) expect(s!.x + 12.5).toBeLessThanOrEqual(1060);
+    for (const s of walled) {
+      expect(s).not.toBeNull();
+      expect(s!.y + 12.5).toBeGreaterThanOrEqual(1040);
+    }
+  });
+
+  it('packs small and large tokens together without overlap, the large one first', () => {
+    const grid = squareGrid(100);
+    const feet = [
+      { w: 0.25, h: 0.25 },
+      { w: 1, h: 1 },
+      { w: 0.25, h: 0.25 },
+    ];
+    const spots = findSpots(grid, bounds, [], { x: 1050, y: 1050 }, feet);
+    expect(spots[1]).toEqual({ x: 1000, y: 1000 });
+    const rects = spots.map((s, i) => ({
+      x: s!.x,
+      y: s!.y,
+      w: feet[i].w * 100,
+      h: feet[i].h * 100,
+    }));
+    for (const [a, ra] of rects.entries()) {
+      for (const [b, rb] of rects.entries()) if (a !== b) expect(overlaps(ra, rb)).toBe(false);
+    }
+  });
+
+  it('a token narrow but not short keeps to the grid squares', () => {
+    const grid = squareGrid(100);
+    const [spot] = findSpots(grid, bounds, [], { x: 1050, y: 1050 }, [{ w: 0.5, h: 1 }]);
+    expect(spot).toEqual({ x: 1000, y: 1000 });
+  });
+
+  it('on a gridless scene small tokens step by their own size around the spot', () => {
+    const small = { w: 0.25, h: 0.25 };
+    const spots = findSpots(gridless(100), bounds, [], { x: 1000, y: 1000 }, [small, small, small]);
+    expect(spots[0]).toEqual({ x: 988, y: 988 });
+    const rects = spots.map(s => ({ x: s!.x, y: s!.y, w: 25, h: 25 }));
+    for (const [a, ra] of rects.entries()) {
+      for (const [b, rb] of rects.entries()) if (a !== b) expect(overlaps(ra, rb)).toBe(false);
+    }
+  });
+
+  it('a zero or tiny footprint finishes quickly and still finds a spot', () => {
+    const grid = squareGrid(100);
+    const spots = findSpots(grid, bounds, [], { x: 1050, y: 1050 }, [
+      { w: 0, h: 0 },
+      { w: 0.01, h: 0.01 },
+    ]);
+    expect(spots.every(s => s !== null)).toBe(true);
   });
 
   it('puts the first token on the spot and the rest on the nearest free squares, none overlapping', () => {

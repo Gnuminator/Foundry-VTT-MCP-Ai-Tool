@@ -7,7 +7,8 @@
  * - The spot: the centre of the GM's view (default), a token or map note by name, or a grid
  *   square. Without a drawn canvas the view falls back to the middle of the scene.
  * - Squares: the scene's own grid (`scene.grid`), so square, hex and gridless scenes all work
- *   (gridless steps one grid size at a time); grid sizes vary, nothing assumes 100 px.
+ *   (gridless steps one grid size at a time for tokens of a square or more); grid sizes vary,
+ *   nothing assumes 100 px.
  * - Scale (place-party-scale): on a scene whose grid is not 5 ft per square a token is sized like
  *   `fit-scale` (creature footprint in feet over the grid distance, `fitSquares`), so a party on a
  *   40 ft town map is not house-sized; a 5 ft scene keeps each prototype token as it is.
@@ -28,6 +29,9 @@ export const PARTY_PLACE_QUERY = 'planPartyPlacement';
 
 /** How many rings of squares around the spot are searched for room. */
 export const MAX_RINGS = 12;
+
+/** The smallest step, in squares, when small tokens are packed by their own size. */
+const MIN_STEP_SQUARES = 0.05;
 
 type Rec = Record<string, unknown>;
 
@@ -113,11 +117,14 @@ function candidates(grid: GridLike, anchor: Point, foot: Footprint): Rect[] {
   const h = foot.h * grid.size;
   const out: Rect[] = [];
   if (isSmall(foot)) {
-    // Rings reach as far as MAX_RINGS squares would, at this token's step.
-    const rings = Math.ceil(MAX_RINGS / Math.min(foot.w, foot.h));
+    // The step is the token's size, but never under 5% of a square, so a tiny or zero footprint
+    // cannot make the list huge. Rings reach as far as MAX_RINGS squares would at that step.
+    const stepX = Math.max(w, grid.size * MIN_STEP_SQUARES);
+    const stepY = Math.max(h, grid.size * MIN_STEP_SQUARES);
+    const rings = Math.ceil((MAX_RINGS * grid.size) / Math.min(stepX, stepY));
     for (let di = -rings; di <= rings; di++) {
       for (let dj = -rings; dj <= rings; dj++) {
-        out.push({ x: anchor.x - w / 2 + dj * w, y: anchor.y - h / 2 + di * h, w, h });
+        out.push({ x: anchor.x - w / 2 + dj * stepX, y: anchor.y - h / 2 + di * stepY, w, h });
       }
     }
   } else {
@@ -161,12 +168,14 @@ export function findSpots(
     .map((foot, index) => ({ foot, index }))
     .sort((a, b) => b.foot.w * b.foot.h - a.foot.w * a.foot.h || a.index - b.index);
   for (const { foot, index } of order) {
-    for (const rect of candidates(grid, anchor, foot)) {
+    for (const candidate of candidates(grid, anchor, foot)) {
+      // Whole pixels, as they are written, so the checks see the rect that will exist.
+      const rect = { ...candidate, x: Math.round(candidate.x), y: Math.round(candidate.y) };
       if (!inside(rect, bounds)) continue;
       if (taken.some(t => overlaps(rect, t))) continue;
       if (blocked(anchor, centre(rect))) continue;
       taken.push(rect);
-      result[index] = { x: Math.round(rect.x), y: Math.round(rect.y) };
+      result[index] = { x: rect.x, y: rect.y };
       break;
     }
   }

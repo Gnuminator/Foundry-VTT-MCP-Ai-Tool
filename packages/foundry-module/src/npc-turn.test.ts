@@ -150,7 +150,8 @@ describe('planNpcTurn: context', () => {
       hp: { value: 20, max: 24 },
       conditions: ['prone'],
     });
-    expect(plan.context.notes.join(' ')).toMatch(/Walls/);
+    expect(plan.context.notes.join(' ')).toMatch(/Walking only/);
+    expect(plan.context.multiattack).toBeNull();
   });
 
   it('refuses without a running combat', () => {
@@ -289,6 +290,6 @@ describe('planNpcTurn: review fixes', () => {
     wolf.actor.system.attributes.movement = { speeds: { walk: 50 } };
     expect(planNpcTurn({}).context.speed).toBe(50);
     wolf.actor.hasPlayerOwner = true;
-    expect(() => planNpcTurn({})).toThrow(/player character/);
+    expect(() => planNpcTurn({})).toThrow(/player-owned/);
   });
 });

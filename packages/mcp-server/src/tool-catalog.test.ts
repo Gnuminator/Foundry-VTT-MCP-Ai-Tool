@@ -65,7 +65,7 @@ describe('tool catalog', () => {
     // I-124 raised core and prep by 2,000 for the tool hints (title, readOnlyHint, destructiveHint).
     const budget = {
       core: 17_000,
-      play: 34_500, // about 33,700 with plan-npc-turn (I-125) and check-action (I-126); raised 1,500 on purpose for check-action
+      play: 35_500, // about 34,500 with plan-npc-turn (I-125) and check-action (I-126); raised 1,500 on purpose for check-action, 1,000 for the multiattack and path fields of plan-npc-turn
       prep: 22_000,
       build: 29_000, // about 28,100 with plan-room-setup (I-133)
       admin: 8_000,

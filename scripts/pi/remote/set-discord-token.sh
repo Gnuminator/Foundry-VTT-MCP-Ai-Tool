@@ -5,10 +5,14 @@
 # lib.sh, the two values (TOKEN_IN, GUILD_IN) and this file to `ssh foundry-pi 'bash -s -- no-log'` on stdin,
 # so the token never appears on a command line, in a file on the PC or in Claude's chat.
 # Other lines in the env file stay as they are. An empty GUILD_IN keeps the server id already there.
+# A running bot is restarted for the new token, which ends a recording and (like every restart here) is refused while
+# players are online or a recording runs; the check comes first, before anything is written. The ps1's -Force puts
+# FORCE=1 in front of bash on the ssh line to go on anyway.
 
 require_root
 env_file="$TOOL_ETC/discord-bot.env"
 unit=foundry-ai-tool-discord-bot.service
+require_quiet_if_active "$unit" "restarting the Discord bot for the new token (it would end a recording)"
 [ -f "$env_file" ] || die "$env_file is missing: run stage 8 (8-recorder.sh) first"
 [ -n "${TOKEN_IN:-}" ] || die "no token given"
 printf '%s' "$TOKEN_IN" | grep -Eq '^[A-Za-z0-9._-]{50,100}$' ||

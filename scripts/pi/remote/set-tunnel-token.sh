@@ -4,28 +4,31 @@
 #
 # YOU run this, in your own SSH session; Claude never types or sees the token. It asks for the token
 # on the terminal without showing it, so the token is on no command line, in no log and in no file
-# except the root-only one. It stands alone (no lib.sh), so copy it over and run it with a terminal:
-#   scp scripts\pi\remote\set-tunnel-token.sh foundry-pi:/tmp/set-tunnel-token.sh
+# except the root-only one. It needs lib.sh beside it (for the players-online and recording checks),
+# so copy both over and run it with a terminal:
+#   scp scripts\pi\remote\lib.sh scripts\pi\remote\set-tunnel-token.sh foundry-pi:/tmp/
 #   ssh -t foundry-pi bash /tmp/set-tunnel-token.sh
+# Restarting a running tunnel cuts the players' connection, so it refuses while players are online in Foundry
+# or a Discord recording runs (before it asks for anything). To go on anyway:
+#   ssh -t foundry-pi FORCE=1 bash /tmp/set-tunnel-token.sh
 # Run it again to change the token (after "Refresh token" on the tunnel's page in Cloudflare).
 # Paste either the token itself or the whole install command Cloudflare shows; the last word is used.
 
-set -euo pipefail
+lib="$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+[ -f "$lib" ] || {
+  echo "ERROR: $lib is missing: copy lib.sh next to this script (see the top of this file)" >&2
+  exit 1
+}
+# shellcheck source=lib.sh
+. "$lib"
 
-TOOL_ETC=/etc/foundry-ai-tool
 token_file="$TOOL_ETC/cloudflared-token"
 unit=foundry-ai-tool-cloudflared.service
 metrics=127.0.0.1:20241
 
-say() { printf '==> %s\n' "$*"; }
-ok() { printf '    ok: %s\n' "$*"; }
-warn() { printf '    WARNING: %s\n' "$*" >&2; }
-die() {
-  printf 'ERROR: %s\n' "$*" >&2
-  exit 1
-}
-
-[ "$(id -u)" -eq 0 ] || die "run as root (the Pi's SSH login is root)"
+require_root
+# Before anything is asked or checked: a refusal costs nothing then (a stopped tunnel needs no check).
+require_quiet_if_active "$unit" "restarting the tunnel (it cuts the players' connection)"
 [ -d "$TOOL_ETC" ] || die "$TOOL_ETC is missing: run stages 1 and 12 first"
 [ -f "/etc/systemd/system/$unit" ] || die "$unit is missing: run stage 12 (12-tunnel.sh) first"
 [ -r /dev/tty ] || die "no terminal: connect with ssh -t so the token can be typed without being shown"

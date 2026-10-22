@@ -37,8 +37,14 @@ else
   [ -x "$new/bin/node" ] || die "the unpacked Node has no bin/node; $NODE_DIR was not touched"
   [ "$("$new/bin/node" --version)" = "$NODE_VERSION" ] || die "the unpacked Node is not $NODE_VERSION; $NODE_DIR was not touched"
   rm -rf "${NODE_DIR:?}.prev"
-  [ -d "$NODE_DIR" ] && mv "$NODE_DIR" "$NODE_DIR.prev"
-  mv "$new" "$NODE_DIR"
+  if [ -d "$NODE_DIR" ]; then mv "$NODE_DIR" "$NODE_DIR.prev"; fi
+  if ! mv "$new" "$NODE_DIR"; then
+    # The second rename failed: put the old Node back, so /opt/node24 is never left missing or empty.
+    if [ -d "$NODE_DIR.prev" ] && mv "$NODE_DIR.prev" "$NODE_DIR"; then
+      die "could not move the new Node into $NODE_DIR; the old one is back in place"
+    fi
+    die "could not move the new Node into $NODE_DIR and could not put the old one back: restore it by hand (mv $NODE_DIR.prev $NODE_DIR)"
+  fi
   ok "installed Node $NODE_VERSION in $NODE_DIR (the old one: $NODE_DIR.prev)"
 fi
 

@@ -12,10 +12,47 @@ require_arm64
 
 zip="${FOUNDRY_ZIP:-/root/foundryvtt.zip}"
 
+# From the moment Foundry is stopped until the new program has started, a failure puts things back: the old program
+# (kept as $FOUNDRY_APP.prev) goes back in place once the swap moved it aside (prev_moved), and Foundry is started
+# again, so a failed run never leaves the Pi without a Foundry. A failure while .prev itself is being removed (before
+# prev_moved) leaves the running program alone and only starts Foundry. The zip stays until the new program answers,
+# so the stage can be run again. The trap runs without `set -e` (a failing command would otherwise end it halfway),
+# restores first, starts Foundry, and only then tidies up.
+foundry_stopped=0
+prev_moved=0
+zip_installed=0
+stage3_exit() {
+  local rc=$?
+  trap - EXIT
+  set +e
+  if [ "$rc" -ne 0 ] && { [ "$foundry_stopped" = 1 ] || [ "$prev_moved" = 1 ]; }; then
+    warn "stage 3 failed after Foundry was stopped: putting the old program back and starting Foundry again"
+    if have_systemd; then systemctl stop foundry.service; fi
+    if [ "$prev_moved" = 1 ] && [ -d "$FOUNDRY_APP.prev" ]; then
+      rm -rf "${FOUNDRY_APP:?}.failed"
+      if [ ! -d "$FOUNDRY_APP" ] || mv "$FOUNDRY_APP" "$FOUNDRY_APP.failed"; then
+        if mv "$FOUNDRY_APP.prev" "$FOUNDRY_APP"; then
+          ok "the old Foundry program is back in $FOUNDRY_APP (the zip is still there: run the stage again once the cause is fixed)"
+        else
+          warn "could not put $FOUNDRY_APP.prev back: restore it by hand (mv $FOUNDRY_APP.prev $FOUNDRY_APP)"
+        fi
+      else
+        warn "could not move the new program away from $FOUNDRY_APP; the old one is in $FOUNDRY_APP.prev"
+      fi
+    fi
+    if [ "$foundry_stopped" = 1 ] && have_systemd; then
+      systemctl start foundry.service || warn "could not start foundry.service; see: journalctl -u foundry -n 50"
+    fi
+    rm -rf "${FOUNDRY_APP:?}.failed" "${FOUNDRY_APP:?}.new"
+  fi
+  [ -z "${tmp:-}" ] || rm -rf "${tmp:?}"
+  exit "$rc"
+}
+
 say "Foundry program"
 if [ -f "$zip" ]; then
   tmp="$(mktemp -d)"
-  trap 'rm -rf "$tmp"' EXIT
+  trap stage3_exit EXIT
   unzip -q "$zip" -d "$tmp"
   [ -f "$tmp/main.js" ] || die "$zip is not the Linux/Node.js build (no main.js at its top level)"
   version="$(awk -F'"' '/"version"/ { print $4; exit }' "$tmp/package.json" 2>/dev/null || true)"
@@ -34,13 +71,17 @@ if [ -f "$zip" ]; then
   [ -f "$new/main.js" ] || die "the staged Foundry in $new has no main.js; $FOUNDRY_APP was not touched"
   if have_systemd && systemctl is-active --quiet foundry.service; then
     systemctl stop foundry.service
+    foundry_stopped=1
   fi
   rm -rf "${FOUNDRY_APP:?}.prev"
-  [ -d "$FOUNDRY_APP" ] && mv "$FOUNDRY_APP" "$FOUNDRY_APP.prev"
+  if [ -d "$FOUNDRY_APP" ]; then
+    mv "$FOUNDRY_APP" "$FOUNDRY_APP.prev"
+    prev_moved=1
+  fi
   mv "$new" "$FOUNDRY_APP"
   mark_changed /etc/systemd/system/foundry.service
   ok "installed Foundry ${version:-?} in $FOUNDRY_APP (data stays in $FOUNDRY_DATA)"
-  rm -f "$zip"
+  zip_installed=1
 elif [ -f "$FOUNDRY_APP/main.js" ]; then
   ok "Foundry already installed in $FOUNDRY_APP (no new zip given)"
 else
@@ -68,6 +109,9 @@ ReadWritePaths=$FOUNDRY_DATA
 WantedBy=multi-user.target"
 write_file /etc/systemd/system/foundry.service 0644 "$unit" || true
 enable_unit foundry.service
+# The new program runs: nothing to put back any more.
+foundry_stopped=0
+prev_moved=0
 
 if have_systemd; then
   for _ in $(seq 1 30); do
@@ -77,8 +121,11 @@ if have_systemd; then
   if curl -fs -o /dev/null http://127.0.0.1:30000/; then
     ok "Foundry answers on port 30000: open http://$(hostname).local:30000 on the PC"
   else
-    warn "Foundry did not answer on port 30000 yet; see: journalctl -u foundry -n 50"
+    warn "Foundry did not answer on port 30000 yet; see: journalctl -u foundry -n 50 (the zip is kept until it answers)"
+    zip_installed=0
   fi
 fi
+# The zip goes only once the new program has answered, so a crash after the start still leaves it to run the stage again.
+if [ "$zip_installed" = 1 ]; then rm -f "$zip"; fi
 
 say "stage 3 done: enter the licence key and an admin password in the browser"

@@ -112,14 +112,16 @@ player" were not walked and may have moved. If a name has changed, look for the 
    this PC, from the repo folder:
 
    ```powershell
-   scp scripts\pi\remote\set-tunnel-token.sh foundry-pi:/tmp/set-tunnel-token.sh
+   scp scripts\pi\remote\lib.sh scripts\pi\remote\set-tunnel-token.sh foundry-pi:/tmp/
    ssh -t foundry-pi bash /tmp/set-tunnel-token.sh
    ```
 
    It asks for the token without showing it. Copy it from the Cloudflare tunnel page (or the whole
    install command, it picks out the token) and paste, then Enter. It saves the token in a file only
    root can read and starts the tunnel; it ends with "connected to Cloudflare". In the Cloudflare
-   dashboard the tunnel now says Healthy.
+   dashboard the tunnel now says Healthy. Restarting a running tunnel cuts the players off, so the
+   script refuses while players are online in Foundry or a recording runs; `FORCE=1` in front of
+   `bash` (`ssh -t foundry-pi FORCE=1 bash /tmp/set-tunnel-token.sh`) goes on anyway.
 
 9. **Test from a phone off Wi-Fi.** Switch the phone to mobile data and open `https://play.<domain>`.
    Expected: a Cloudflare page asking for an email; an address not on the policy gets no code; an
@@ -179,9 +181,13 @@ scripts, and the two that touch secrets are run by you.
    repo folder in PowerShell:
 
    ```powershell
-   scp scripts\pi\remote\set-dashboard-access.sh foundry-pi:/tmp/set-dashboard-access.sh
+   scp scripts\pi\remote\lib.sh scripts\pi\remote\set-dashboard-access.sh foundry-pi:/tmp/
    ssh -t foundry-pi bash /tmp/set-dashboard-access.sh
    ```
+
+   Restarting a running dashboard drops the pages that are open, so the script refuses while
+   players are online in Foundry or a recording runs; `FORCE=1` in front of `bash` (`ssh -t
+foundry-pi FORCE=1 bash /tmp/set-dashboard-access.sh`) goes on anyway.
 
    It asks for your Cloudflare team name, the AUD tag from part 1, the GM's and your emails, and
    the `cogm.<domain>` name, and reads the Pi's Tailscale name by itself. It checks every answer,

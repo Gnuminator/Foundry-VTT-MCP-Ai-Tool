@@ -86,6 +86,82 @@ else
   echo "space check not installed (stage 10): backing up without it"
 fi
 
+# Foundry is stopped for the backup (below), which drops everyone who is playing. So while players are online the
+# backup is skipped for now and tried again: every 30 minutes, six times (04:30 to 07:30 for the timer). If they are
+# still there after that, the night is skipped with an ERROR line (run it when it is quiet:
+# systemctl start foundry-backup.service), but never two nights in a row: a user who stays connected all night (a tab
+# left open) must not stop the backup for good, so the night after a skip backs up anyway once the waits are over
+# (the marker file below says the last night was skipped; a finished backup removes it).
+# FOUNDRY_BACKUP_ANYWAY=1 in front of this script skips the wait (the stage's FORCE=1 uses it). A /api/status that
+# cannot be read is looked at again twice, a minute apart (one slow answer on a busy Pi is not "nobody"), then does
+# not hold the backup back: a hung Foundry has no players, and a backup that never runs is worse. The Assistant GM
+# and the Kit GM browsers are not players once they have joined (same rule as require_quiet in lib.sh; keep the two
+# in step).
+# For tests only: FOUNDRY_BACKUP_SYSTEMD_DIR, FOUNDRY_BACKUP_RETRY_SECONDS, FOUNDRY_BACKUP_MAX_WAITS,
+# FOUNDRY_BACKUP_UNKNOWN_SECONDS, FOUNDRY_BACKUP_SKIP_MARKER.
+systemd_dir="${FOUNDRY_BACKUP_SYSTEMD_DIR:-/run/systemd/system}"
+retry_seconds="${FOUNDRY_BACKUP_RETRY_SECONDS:-1800}"
+max_waits="${FOUNDRY_BACKUP_MAX_WAITS:-6}"
+unknown_seconds="${FOUNDRY_BACKUP_UNKNOWN_SECONDS:-60}"
+skip_marker="${FOUNDRY_BACKUP_SKIP_MARKER:-/var/lib/foundry-backup/skipped-last-night}"
+
+# browser_joined UNIT: 0 when the GM browser UNIT runs and has joined the world in its current run (matched on the
+# systemd invocation id, not on a time; the same as browser_joined in lib.sh).
+browser_joined() {
+  local unit="$1" id
+  systemctl is-active --quiet "$unit" || return 1
+  id="$(systemctl show -p InvocationID --value "$unit" 2>/dev/null || true)"
+  [ -n "$id" ] || return 1
+  [ "$(journalctl "_SYSTEMD_INVOCATION_ID=$id" --no-pager -o cat 2>/dev/null | grep -c '\[assistant-gm\] joined world' || true)" -gt 0 ]
+}
+
+# Prints how many players are online in Foundry ("0" on the setup screen, which has no users field), or "?".
+players_online() {
+  local json users unit
+  json="$(curl -fs --max-time 5 http://127.0.0.1:30000/api/status 2>/dev/null)" || {
+    printf '?'
+    return 0
+  }
+  users="$(printf '%s' "$json" | grep -o '"users" *: *[0-9]*' | grep -o '[0-9]*$' | head -n 1 || true)"
+  users="${users:-0}"
+  for unit in foundry-ai-tool-gm-browser.service foundry-ai-tool-kit-gm-browser.service; do
+    if [ "$users" -gt 0 ] && browser_joined "$unit"; then users=$((users - 1)); fi
+  done
+  printf '%s' "$users"
+}
+
+if [ -d "$systemd_dir" ] && [ "${FOUNDRY_BACKUP_ANYWAY:-0}" != 1 ] && systemctl is-active --quiet foundry.service; then
+  waits=0
+  unknown=0
+  while :; do
+    online="$(players_online)"
+    if [ "$online" = "?" ]; then
+      unknown=$((unknown + 1))
+      if [ "$unknown" -le 2 ]; then
+        echo "could not read who is online in Foundry ($unknown of 2 looks); looking again in $((unknown_seconds / 60)) minute(s)"
+        sleep "$unknown_seconds" </dev/null
+        continue
+      fi
+      echo "WARNING: could not read who is online in Foundry; backing up anyway" >&2
+      break
+    fi
+    [ "$online" -gt 0 ] || break
+    if [ "$waits" -ge "$max_waits" ]; then
+      if [ -e "$skip_marker" ]; then
+        echo "WARNING: $online player(s) are still online in Foundry, but last night's backup was skipped too: backing up anyway" >&2
+        break
+      fi
+      mkdir -p "$(dirname "$skip_marker")"
+      : >"$skip_marker"
+      echo "ERROR: backup skipped for tonight: $online player(s) were still online in Foundry after $max_waits waits of $((retry_seconds / 60)) minutes. Run it when it is quiet: systemctl start foundry-backup.service (if tomorrow night is busy too, it backs up anyway)" >&2
+      exit 1
+    fi
+    waits=$((waits + 1))
+    echo "$online player(s) online in Foundry: not stopping it for the backup; trying again in $((retry_seconds / 60)) minutes ($waits of $max_waits)"
+    sleep "$retry_seconds" </dev/null
+  done
+fi
+
 # Foundry keeps its worlds in LevelDB, which must not change while it is copied, so Foundry is
 # stopped for the backup. The trap starts it again whatever happens, including a failed backup.
 foundry_stopped=0
@@ -98,7 +174,7 @@ start_foundry() {
 }
 trap start_foundry EXIT
 
-if [ -d /run/systemd/system ] && systemctl is-active --quiet foundry.service; then
+if [ -d "$systemd_dir" ] && systemctl is-active --quiet foundry.service; then
   echo "stopping foundry.service for the backup"
   systemctl stop foundry.service </dev/null
   foundry_stopped=1
@@ -116,6 +192,7 @@ restic backup --tag nightly \
   /var/lib/foundry /var/lib/foundry-ai-tool /etc/foundry-ai-tool </dev/null
 
 start_foundry
+rm -f "$skip_marker"
 
 # Foundry is back up before the slow clean-up starts.
 restic forget --keep-daily 7 --prune </dev/null
@@ -191,7 +268,8 @@ Type=oneshot
 ExecStart=$backup_script
 Nice=10
 IOSchedulingClass=idle
-TimeoutStartSec=3h"
+# Up to 3 hours of waiting for the players to leave (see the backup script), then the backup itself.
+TimeoutStartSec=5h"
 
 timer_unit="[Unit]
 Description=Foundry nightly restic backup at 04:30 (dietpi-backup runs at 01:25, the PC copies at 12:30)
@@ -212,8 +290,14 @@ enable_unit foundry-backup.timer
 if have_systemd; then
   say "one backup now (Foundry stops for a minute or two)"
   require_quiet "the first backup (it stops Foundry)"
-  systemctl start foundry-backup.service </dev/null ||
-    die "the backup failed; see: journalctl -u foundry-backup -n 50"
+  if [ "$FORCE" = 1 ]; then
+    # Through systemd the script would wait for the players to leave (up to 3 hours): run it directly, without the wait.
+    FOUNDRY_BACKUP_ANYWAY=1 "$backup_script" </dev/null ||
+      die "the backup failed; see the lines above"
+  else
+    systemctl start foundry-backup.service </dev/null ||
+      die "the backup failed; see: journalctl -u foundry-backup -n 50"
+  fi
   ok "first backup done"
   systemctl list-timers foundry-backup.timer --no-pager </dev/null || true
 else

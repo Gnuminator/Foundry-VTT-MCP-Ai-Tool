@@ -14,13 +14,24 @@
   replaces DISCORD_TOKEN (and DISCORD_GUILD_ID when given) in /etc/foundry-ai-tool/discord-bot.env,
   keeps the other lines, and starts the bot. Stage 8 (8-recorder.sh) must have run first.
   Run it again to change the token (after Reset Token on the Discord page).
+  A running bot is restarted for the new token, which ends a recording: the Pi refuses while players
+  are online in Foundry or a recording runs (before anything is written). -Force goes on anyway.
+
+.PARAMETER Force
+  Puts FORCE=1 in front of bash on the Pi, so the players-online and recording checks only warn.
 
 .EXAMPLE
   .\scripts\pi\set-discord-token.ps1
+
+.EXAMPLE
+  .\scripts\pi\set-discord-token.ps1 -Force
 #>
 [CmdletBinding()]
 param(
-  [string]$PiHost = $(if ($env:FVTT_PI_HOST) { $env:FVTT_PI_HOST } else { 'foundry-pi' })
+  [string]$PiHost = $(if ($env:FVTT_PI_HOST) { $env:FVTT_PI_HOST } else { 'foundry-pi' }),
+  [switch]$Force,
+  # The ssh program (tests put a fake one here).
+  [string]$Ssh = 'ssh'
 )
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -45,7 +56,9 @@ if ($guild -and $guild -notmatch '^[0-9]{15,22}$') {
 $script = ($lib + "`nTOKEN_IN='$token'`nGUILD_IN='$guild'`n" + $body + "`nexit 0`n") -replace "`r`n", "`n"
 try {
   # `-- no-log`: the Pi's SSH log (stage 9) records this command by name but never saves its input.
-  $script | ssh $PiHost 'bash -s -- no-log'
+  # -Force: FORCE=1 in front of bash makes the Pi's players-online and recording checks only warn (lib.sh, refuse).
+  $remoteCommand = if ($Force) { 'FORCE=1 bash -s -- no-log' } else { 'bash -s -- no-log' }
+  $script | & $Ssh $PiHost $remoteCommand
   if ($LASTEXITCODE -ne 0) { throw "ssh $PiHost failed (exit $LASTEXITCODE); see the lines above" }
 } finally {
   $token = $null

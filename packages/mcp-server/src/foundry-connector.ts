@@ -565,7 +565,15 @@ export class FoundryConnector {
         data: { method, data },
       };
 
-      this.sendToFoundry(message);
+      try {
+        this.sendToFoundry(message);
+      } catch (error) {
+        // Nothing was sent, so no answer will come: drop the entry now instead of leaving it
+        // (and its timer) for up to `timeoutMs`.
+        clearTimeout(timeout);
+        this.pendingQueries.delete(queryId);
+        reject(error instanceof Error ? error : new Error(String(error)));
+      }
     });
   }
 

@@ -585,8 +585,32 @@ describe('undo (Foundry ops)', () => {
     expect([...foundry.docs.keys()].filter(k => k.includes('ActiveEffect'))).toEqual([]);
     const entry = await audit.get('curse-of-strahd', again.changeId);
     expect(entry?.diff).toContain(
-      'Left alone: Actor.ireena.ActiveEffect.conc (it was already gone when the change ran)'
+      'Left alone: Concentrating (it was already gone when the change ran)'
     );
+  });
+
+  it('undoes the rest and names the one the GM deleted since (a spawned token killed in play)', async () => {
+    const p = await plan([
+      { kind: 'create', documentName: 'Item', parentUuid: 'Actor.ireena', data: { name: 'Rope' } },
+      { kind: 'create', documentName: 'Item', parentUuid: 'Actor.ireena', data: { name: 'Lamp' } },
+    ]);
+    const applied = await service.applyPlan(p.planId, { confirm: true });
+    const [rope, lamp] = applied.documents!;
+    foundry.docs.delete(rope); // the GM deleted it by hand
+
+    const undone = await service.undo(applied.changeId, { confirm: true });
+    expect(foundry.docs.has(lamp)).toBe(false);
+    expect(foundry.docs.has(rope)).toBe(false);
+    expect(undone.diff).toContain(
+      `Left alone: Rope (${rope.split('.').slice(-2).join(' ')}; it was already gone when the undo ran)`
+    );
+    expect(undone.diff.filter(line => line.startsWith('Left alone'))).toHaveLength(1);
+
+    // The redo puts back only the one that was removed; the deleted one stays deleted.
+    const redone = await service.undo(undone.changeId, { confirm: true });
+    expect(redone.documents).toEqual([lamp]);
+    expect(foundry.docs.get(lamp)?.source.name).toBe('Lamp');
+    expect(foundry.docs.has(rope)).toBe(false);
   });
 
   it("refuses a redo while the original feature's switch is off (undo-change and a planned undo)", async () => {

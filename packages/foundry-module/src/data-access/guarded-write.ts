@@ -379,7 +379,16 @@ export async function snapshotGuardedOps(ops: unknown): Promise<OpSnapshot[]> {
 // ---------------------------------------------------------------------------
 
 /** Why `current` does not match `expected`, or null when it does. */
-function conflictReason(op: GuardedOp, expected: OpSnapshot, current: OpSnapshot): string | null {
+function conflictReason(
+  op: GuardedOp,
+  expected: OpSnapshot,
+  current: OpSnapshot,
+  mode: GuardedApplyRequest['mode']
+): string | null {
+  // An undo or redo that deletes a document someone else already removed (a spawned token the
+  // GM killed in play, an effect dnd5e ended) is as wanted: `executeDelete` reports it as
+  // `alreadyGone` and the rest of the change still goes through.
+  if (mode === 'undo' && op.kind === 'delete' && !current.exists) return null;
   if (op.kind === 'create') {
     if (!current.exists) return 'the parent document no longer exists';
     if (current.idTaken) return 'a document with that id already exists';
@@ -811,7 +820,7 @@ async function runGuardedApply(
   const current = await snapshotGuardedOps(ops);
   const conflicts: string[] = [];
   ops.forEach((op, i) => {
-    const reason = conflictReason(op, req.expected[i], current[i]);
+    const reason = conflictReason(op, req.expected[i], current[i], req.mode);
     if (reason) conflicts.push(`op ${i} (${op.kind}): ${reason}`);
   });
   if (conflicts.length > 0) {

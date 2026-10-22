@@ -34,6 +34,7 @@ export * from './scene-change.js';
 export * from './scene-mood.js';
 export * from './scene-restore.js';
 export * from './npc-turn.js';
+export * from './paper-sync.js';
 export * from './room-setup.js';
 export * from './rules-check.js';
 export * from './table-viewer.js';

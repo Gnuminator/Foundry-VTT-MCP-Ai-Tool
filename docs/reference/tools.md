@@ -6,12 +6,12 @@ description: Every tool the bridge serves, by tool set, with its description and
 
 # Tool reference
 
-The bridge serves 93 tools in five sets. [Tool sets](TOOL-SETS.md) explains the sets and how Claude Desktop loads them; this page lists every tool with the description and parameters Claude reads.
+The bridge serves 94 tools in five sets. [Tool sets](TOOL-SETS.md) explains the sets and how Claude Desktop loads them; this page lists every tool with the description and parameters Claude reads.
 
 | Set | Claude Desktop entry | Tools | For |
 | --- | --- | --- | --- |
 | [Core](#core) | `foundry-mcp` | 22 | Look things up (world, characters, scenes, journals, compendiums, combat) and review, apply or undo planned changes. Always on. |
-| [Play](#play) | `foundry-mcp-play` | 34 | Run the table live: tokens, combat turns, rolls, damage, conditions, resources, chat, scene mood, map notes and loot. |
+| [Play](#play) | `foundry-mcp-play` | 35 | Run the table live: tokens, combat turns, rolls, damage, conditions, resources, chat, scene mood, map notes and loot. |
 | [Prep](#prep) | `foundry-mcp-prep` | 20 | Prepare sessions and write recaps: quests and journals, encounter budgets, the Tarokka reading, handouts, the session log, play stats and the pre-flight check. |
 | [Build](#build) | `foundry-mcp-build` | 8 | Make and change NPCs, monsters and items: from a compendium or from scratch, with features, attacks and spells. Set up rooms: teleports and tokens in a room. |
 | [Admin](#admin) | `foundry-mcp-admin` | 9 | Set up and troubleshoot: installed modules and their errors, who owns which actor, and the Obsidian mirror settings. |
@@ -678,6 +678,49 @@ Parameters:
   - `target` (string, required)
 - `dash` (boolean): Dash: the move may use twice the speed.
 - `reason` (string): One line on why (shown in the plan and Recent Changes).
+
+### plan-paper-sync
+
+GM ONLY. After a paper night: plan the numbers on ONE paper sheet as one guarded change for that character (apply-planned-change, undo-change; the "AI Tool: Paper sync (writes)" switch must be on, off by default). Compare with get-character first. Every value is the absolute number on the sheet now. Only differing fields change; a value above the maximum refuses the whole request, listing every problem. Quantity 0 removes an item (destructive: second confirm). Never changes XP (milestones), level, class or max HP. D&D 5e only.
+
+Kind: read-only. Title: Plan paper sheet sync.
+
+Parameters:
+
+- `actor` (string, required): The player character: name or id.
+- `hp` (integer): Current hit points. Range: at least 0.
+- `tempHp` (integer): Range: at least 0.
+- `slots` (object): Spell slots left by level "1" to "9", and "pact".
+  - `1` (integer): Range: at least 0.
+  - `2` (integer): Range: at least 0.
+  - `3` (integer): Range: at least 0.
+  - `4` (integer): Range: at least 0.
+  - `5` (integer): Range: at least 0.
+  - `6` (integer): Range: at least 0.
+  - `7` (integer): Range: at least 0.
+  - `8` (integer): Range: at least 0.
+  - `9` (integer): Range: at least 0.
+  - `pact` (integer): Range: at least 0.
+- `hitDice` (array of object): Hit dice left per class (class may be left out with one class).
+  - `class` (string)
+  - `left` (integer, required): Range: at least 0.
+- `resources` (array of object): Class resources and item uses left ("Ki Points", "Wand of Fireballs").
+  - `name` (string, required)
+  - `value` (integer, required): Range: at least 0.
+- `coins` (object): Coins now; leave out the unchanged ones.
+  - `pp` (integer): Range: at least 0.
+  - `gp` (integer): Range: at least 0.
+  - `ep` (integer): Range: at least 0.
+  - `sp` (integer): Range: at least 0.
+  - `cp` (integer): Range: at least 0.
+- `exhaustion` (integer): Level 0 to 6. Range: at least 0.
+- `conditions` (array of string): The exact set now (empty clears them); leave out to keep them.
+- `inspiration` (boolean)
+- `resetDeathSaves` (boolean): true: successes and failures to 0.
+- `inventory` (array of object): Item quantities now; 0 removes. To add an item give its compendium uuid.
+  - `item` (string)
+  - `uuid` (string)
+  - `quantity` (integer, required): Range: at least 0.
 
 ### plan-scene-mood
 

@@ -381,7 +381,7 @@ function planRemoveNote(request: SceneRemoveNoteRequest): SceneChangePlan {
  * compendium document, records `_stats.compendiumSource`; fall back to a plain
  * `toObject()` minus those fields when it is not there.
  */
-function itemData(doc: { toObject(): Record<string, unknown> }): Record<string, unknown> {
+export function itemData(doc: { toObject(): Record<string, unknown> }): Record<string, unknown> {
   const items = game.items as unknown as {
     fromCompendium?: (doc: unknown) => Record<string, unknown>;
   };

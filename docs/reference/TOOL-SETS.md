@@ -4,8 +4,8 @@ description: The five tool sets Claude Desktop loads (core, play, prep, build, a
 
 # Tool sets
 
-The bridge has 93 tools. Their definitions are about 102,800 characters of JSON, about 24,000 to
-31,000 tokens that Claude reads at the start of every conversation, before anyone types. Many
+The bridge has 94 tools. Their definitions are about 112,300 characters of JSON, about 26,700 to
+35,100 tokens that Claude reads at the start of every conversation, before anyone types. Many
 tools also look alike, which makes Claude pick the wrong one more often.
 
 So the tools are split into five sets. Each set is its own entry in Claude Desktop's
@@ -15,13 +15,13 @@ what the conversation needs. The switches are remembered for new chats.
 | Set       | Claude Desktop entry | Tools | Size (characters) | For                                                                                          |
 | --------- | -------------------- | ----- | ----------------- | -------------------------------------------------------------------------------------------- |
 | **core**  | `foundry-mcp`        | 22    | about 16,500      | Looking things up, and reviewing, applying or undoing planned changes. Always on.            |
-| **play**  | `foundry-mcp-play`   | 34    | about 33,700      | Running the table live: tokens, combat, rolls, damage, conditions, chat, mood, loot.         |
+| **play**  | `foundry-mcp-play`   | 35    | about 37,400      | Running the table live: tokens, combat, rolls, damage, conditions, chat, mood, loot.         |
 | **prep**  | `foundry-mcp-prep`   | 20    | about 21,400      | Prep and recaps: quests, journals, encounter budgets, Tarokka, handouts, session log, stats. |
 | **build** | `foundry-mcp-build`  | 8     | about 28,100      | Making NPCs, monsters and items, from a compendium or from scratch; room setup.              |
 | **admin** | `foundry-mcp-admin`  | 9     | about 7,700       | Modules and their errors, actor ownership, the Obsidian mirror.                              |
 
-A prep chat with core and prep on carries about 37,900 characters instead of 102,800. Core alone is
-about 16% of everything.
+A prep chat with core and prep on carries about 37,900 characters instead of 112,300. Core alone is
+about 15% of everything.
 
 The dashboard is not affected: it reads the bridge directly and always has every tool.
 
@@ -42,7 +42,7 @@ code disagree. Each tool's description and parameters are in the [tool reference
   `get-active-effects`, `advance-combat-turn`, `set-initiative`, `roll-initiative-for-npcs`,
   `measure-distance`, `get-targets`, `get-recent-events`, `plan-actor-change`,
   `plan-token-change`, `roll-saving-throws`, `use-npc-activity`, `manage-rest`, `get-party`,
-  `plan-party-change`, `plan-scene-change`, `plan-scene-restore`, `plan-npc-turn`, `plan-scene-mood`, `list-scene-moods`, `play-playlist`, `mark-play-session`, `check-action`
+  `plan-party-change`, `plan-scene-change`, `plan-scene-restore`, `plan-npc-turn`, `plan-paper-sync`, `plan-scene-mood`, `list-scene-moods`, `play-playlist`, `mark-play-session`, `check-action`
 - **prep:** `create-quest-journal`, `update-quest-journal`, `link-quest-to-npc`,
   `create-campaign-dashboard`, `suggest-balanced-encounter`, `get-tarokka-reading`,
   `plan-tarokka-import`, `suggest-tarokka-links`, `plan-tarokka-links`, `plan-tarokka-reveal`,

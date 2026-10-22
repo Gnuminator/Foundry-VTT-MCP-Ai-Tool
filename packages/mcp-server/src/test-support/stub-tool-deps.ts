@@ -30,6 +30,7 @@ import { SceneMoodTools } from '../tools/scene-mood.js';
 import { RulesCheckTools } from '../tools/rules-check.js';
 import { SceneRestoreTools } from '../tools/scene-restore.js';
 import { NpcTurnTools } from '../tools/npc-turn.js';
+import { PaperSyncTools } from '../tools/paper-sync.js';
 import { RoomSetupTools } from '../tools/room-setup.js';
 import { TableViewerTools } from '../tools/table-viewer.js';
 import { PlaySessionTools } from '../tools/play-session.js';
@@ -88,6 +89,7 @@ export function stubToolRouterDeps(): ToolRouterDeps {
     sceneMoodTools: new SceneMoodTools({ ...base, guardedWrites: {} as any }),
     rulesCheckTools: new RulesCheckTools(base),
     npcTurnTools: new NpcTurnTools({ ...base, guardedWrites: {} as any }),
+    paperSyncTools: new PaperSyncTools({ ...base, guardedWrites: {} as any }),
     sceneRestoreTools: new SceneRestoreTools({
       ...base,
       guardedWrites: {} as any,

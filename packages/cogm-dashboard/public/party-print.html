@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="referrer" content="no-referrer" />
+    <title>Party sheets: paper night</title>
+    <link rel="icon" type="image/png" sizes="32x32" href="./favicon-32.png" />
+    <link rel="stylesheet" href="./me.css" />
+  </head>
+  <body class="paper">
+    <header class="me-head no-print">
+      <div class="me-who">
+        <h1>Party sheets: paper night</h1>
+        <span class="me-sub" id="party-sub">Loading…</span>
+      </div>
+      <button type="button" id="party-print">Print</button>
+    </header>
+    <nav class="me-chars no-print" id="party-chars" hidden aria-label="Characters to print"></nav>
+    <main id="party-main">
+      <p class="me-empty">Loading…</p>
+    </main>
+    <script type="module" src="./party-print.js"></script>
+  </body>
+</html>

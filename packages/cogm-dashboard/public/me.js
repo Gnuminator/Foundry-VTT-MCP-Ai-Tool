@@ -3,13 +3,13 @@
 // goes to the server in a header only. Read-only; refreshes during play.
 
 import { applyTheme } from './theme.js';
-import { esc, signed, renderPaper2014, renderPaper2024 } from './me-paper.js';
+import { esc, signed, renderPaper2014, renderPaper2024, renderPaperNight } from './me-paper.js';
 
 const KEY = 'cogm_me_key';
 const VIEW = 'cogm_me_view';
 const CHAR = 'cogm_me_char';
 const REFRESH_MS = 8000;
-const VIEWS = ['fancy', 'paper2024', 'paper2014'];
+const VIEWS = ['fancy', 'paper2024', 'paper2014', 'night'];
 
 const $ = id => document.getElementById(id);
 const store = {
@@ -172,7 +172,12 @@ function render() {
       ? renderPaper2024(s)
       : view === 'paper2014'
         ? renderPaper2014(s)
-        : renderFancy(s);
+        : view === 'night'
+          ? renderPaperNight(
+              s,
+              new Date().toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })
+            )
+          : renderFancy(s);
 }
 
 async function load() {

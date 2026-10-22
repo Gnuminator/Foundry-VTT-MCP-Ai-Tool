@@ -133,6 +133,16 @@ function LinksBody(): JSX.Element {
               <LinkRow key={p.userId} player={p} />
             ))}
           </ul>
+          <div className="links-print">
+            <Button
+              title="Opens every player character as a paper-night sheet with write-in boxes, ready to print"
+              // The page reads the GM token from the dashboard's own storage key.
+              onClick={() => window.open('/party-print.html', '_blank', 'noopener')}
+            >
+              Print all party sheets
+            </Button>
+            <span>For a paper night: one sheet per character, two pages each. GM only.</span>
+          </div>
         </>
       )}
     </QueryState>

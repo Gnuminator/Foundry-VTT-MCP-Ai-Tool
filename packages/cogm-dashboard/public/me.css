@@ -313,6 +313,210 @@ body.paper .me-views button[aria-pressed='true'] {
   justify-content: space-between;
   font-weight: 600;
 }
+/* ---- Paper night: the sheet with write-in boxes (paper-print) ---- */
+.night-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 1rem;
+  border-bottom: 2px solid #111;
+  padding-bottom: 0.3rem;
+}
+.night-head > div:first-child {
+  display: flex;
+  flex-direction: column;
+}
+.night-name {
+  font-size: 1.5rem;
+}
+.night-date small {
+  display: block;
+  color: #555;
+  font: 0.62rem/1.3 var(--font);
+}
+.night-ref {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.2rem 1.1rem;
+  margin: 0.4rem 0 0.2rem;
+  font-size: 0.95rem;
+}
+.night-ref small {
+  font: 600 0.6rem/1 var(--font);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #444;
+}
+.wi-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+@media (min-width: 760px) {
+  .wi-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 0 1.2rem;
+  }
+}
+.wi-block {
+  break-inside: avoid;
+}
+.wi-block h2 {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.wi-block h2 .n {
+  display: inline-grid;
+  place-items: center;
+  min-width: 1.25rem;
+  height: 1.25rem;
+  border: 1px solid #111;
+  border-radius: 50%;
+  font-size: 0.66rem;
+}
+.wi {
+  display: inline-block;
+  min-width: 3.6rem;
+  height: 1.5rem;
+  border: 1.5px solid #111;
+  border-radius: 3px;
+  vertical-align: middle;
+}
+.wi-big {
+  display: block;
+  width: 100%;
+  height: 2.1rem;
+}
+.wi-sm {
+  min-width: 2.4rem;
+  height: 1.2rem;
+}
+.wi-qty {
+  min-width: 3.2rem;
+  height: 1.1rem;
+}
+.wi-wide {
+  min-width: 11rem;
+  width: calc(100% - 3rem);
+}
+.wi-date {
+  min-width: 7rem;
+  height: 1.2rem;
+  border-width: 0 0 1.5px;
+  border-radius: 0;
+}
+.wi-pair,
+.coins {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(6.5rem, 1fr));
+  gap: 0.4rem;
+}
+.wi-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.15rem 0.6rem;
+  padding: 0.25rem 0;
+  border-bottom: 1px solid #ddd;
+}
+.wi-name {
+  min-width: 6rem;
+  font-weight: 600;
+}
+.wi-name small {
+  display: block;
+  font: 0.6rem/1.2 var(--font);
+  font-weight: 400;
+  color: #555;
+}
+.wi-print {
+  margin-left: auto;
+  font: 0.62rem/1.2 var(--font);
+  color: #555;
+}
+.sqs {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem;
+}
+.sq {
+  display: inline-grid;
+  place-items: center;
+  width: 1.1rem;
+  height: 1.1rem;
+  border: 1.5px solid #111;
+  border-radius: 2px;
+  font: 700 0.95rem/1 var(--font);
+  font-style: normal;
+}
+.sq.used {
+  color: #111;
+}
+.wi-note {
+  margin: 0.3rem 0 0;
+  font: 0.68rem/1.3 var(--font);
+  color: #444;
+}
+.wi-line {
+  margin: 0.25rem 0;
+}
+.paper-sheet td.num,
+.paper-sheet th.num {
+  text-align: right;
+  width: 4.5rem;
+}
+.inv td:last-child,
+.inv th:last-child {
+  width: 5rem;
+}
+.paper-sheet .inv td {
+  padding-top: 0.1rem;
+  padding-bottom: 0.1rem;
+}
+.inv tr.free td {
+  height: 1.5rem;
+  border-bottom: 1px solid #888;
+}
+/* The GM's party print (party-print.html): every sheet starts on a new page. */
+.party .paper-sheet {
+  break-after: page;
+}
+.party .paper-sheet:last-child {
+  break-after: auto;
+}
+.strip {
+  margin-top: 1.2rem;
+  border: 2px solid #111;
+  border-radius: 4px;
+  padding: 0.4rem 0.8rem 0.6rem;
+  break-inside: avoid;
+}
+.strip h2 {
+  border: 0;
+  margin: 0 0 0.3rem;
+}
+.strip ol {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+  gap: 0.3rem 1rem;
+  counter-reset: strip;
+}
+.strip li {
+  font-size: 0.92rem;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  counter-increment: strip;
+}
+.strip li::before {
+  content: counter(strip);
+  font: 600 0.68rem/1 var(--font);
+  min-width: 1rem;
+}
 @media (min-width: 760px) {
   .two {
     display: grid;
@@ -321,6 +525,10 @@ body.paper .me-views button[aria-pressed='true'] {
   }
 }
 @media print {
+  .wi-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 0 1.2rem;
+  }
   .no-print {
     display: none !important;
   }

@@ -100,6 +100,24 @@ describe('assertUserCreateAllowed', () => {
   });
 });
 
+describe('assertUserCreateAllowed: other spellings Foundry reads on create', () => {
+  const table = { name: 'Table', role: 1 };
+
+  it('refuses dotted and operator keys, also inside permissions', () => {
+    for (const extra of [
+      { 'permissions.SETTINGS_MODIFY': true },
+      { '==role': 4 },
+      { '-=role': null },
+      { '==permissions': { SETTINGS_MODIFY: true } },
+      { '==password': 'x' },
+      { permissions: { '==SETTINGS_MODIFY': false } },
+      { permissions: { 'A.B': false } },
+    ]) {
+      expect(() => assertUserCreateAllowed('table-viewer', { ...table, ...extra })).toThrow();
+    }
+  });
+});
+
 describe('assertUserUpdateAllowed', () => {
   it('refuses a change of role, permissions, password or passwordSalt, also by path or unset', () => {
     for (const path of [
@@ -108,6 +126,9 @@ describe('assertUserUpdateAllowed', () => {
       'permissions.SETTINGS_MODIFY',
       'permissions.-=SETTINGS_MODIFY',
       '-=permissions',
+      '==permissions',
+      '==role',
+      '==password',
       'password',
       'passwordSalt',
     ]) {

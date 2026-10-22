@@ -49,6 +49,12 @@ export function assertUserCreateAllowed(feature: string, data: Record<string, un
       `Creating a User is only allowed for the "${TABLE_VIEWER_FEATURE_ID}" feature (got "${feature}")`
     );
   }
+  // Foundry also reads a dotted key ("permissions.X") or an operator key ("==role", "-=role") on
+  // create; the checks below look at plain top-level fields, so refuse these spellings outright.
+  const odd = Object.keys(data).find(key => key.includes('.') || /^[-=]=/.test(key));
+  if (odd !== undefined) {
+    throw new Error(`A created User may not use the key "${odd}" (plain fields only)`);
+  }
   const role = data.role;
   if (
     role !== undefined &&
@@ -72,7 +78,8 @@ export function assertUserCreateAllowed(feature: string, data: Record<string, un
     if (typeof permissions !== 'object' || Array.isArray(permissions)) {
       throw new Error('A created User may not carry permissions');
     }
-    if (Object.values(permissions).some(value => value === true)) {
+    const entries = Object.entries(permissions);
+    if (entries.some(([key, value]) => value === true || key.includes('.') || /^[-=]=/.test(key))) {
       throw new Error('A created User may not carry a permission override');
     }
   }
@@ -90,7 +97,8 @@ export function assertUserUpdateAllowed(
   unsetPaths: readonly string[] = []
 ): void {
   for (const path of [...changePaths, ...unsetPaths]) {
-    const field = path.replace(/^-=/, '').split('.')[0] ?? '';
+    // "-=x" deletes and "==x" replaces a field in Foundry's update syntax.
+    const field = path.replace(/^[-=]=/, '').split('.')[0] ?? '';
     if (USER_UPDATE_REFUSED.includes(field)) {
       throw new Error(
         `A User's ${field} cannot be changed through a guarded write (got "${path}")`

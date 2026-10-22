@@ -180,11 +180,14 @@ export function buildRequest(sheet: SheetLike, draft: PaperDraft): BuiltRequest 
       problems.push(`${label}: type a whole number, 0 or more`);
       return null;
     }
+    // A field left at Foundry's value is not checked: dnd5e allows values above the sheet's
+    // maximum (temporary max HP from Aid), and an untouched field is never sent.
+    if (n === now) return null;
     if (max !== undefined && n > max) {
       problems.push(`${label}: ${n} is more than the maximum ${max}`);
       return null;
     }
-    return n === now ? null : n;
+    return n;
   };
 
   const hp = field('HP', draft.hp, sheet.hp.value, sheet.hp.max);

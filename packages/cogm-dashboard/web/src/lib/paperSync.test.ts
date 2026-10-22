@@ -176,6 +176,15 @@ describe('buildRequest', () => {
     expect(isEdited(s, draft)).toBe(true);
   });
 
+  it('does not check a field left at Foundry value (HP above max from temporary max HP)', () => {
+    const s = sheet({ hp: { value: 45, max: 40, temp: 0 } });
+    const draft = initialDraft(s);
+    expect(buildRequest(s, draft)).toEqual({ ok: true, request: { actor: 'a1' }, changed: 0 });
+    draft.coins = { ...draft.coins, gp: '90' };
+    const built = buildRequest(s, draft);
+    expect(built.ok && built.request).toEqual({ actor: 'a1', coins: { gp: 90 } });
+  });
+
   it('refuses a new item without a quantity', () => {
     const s = sheet();
     const draft = initialDraft(s);

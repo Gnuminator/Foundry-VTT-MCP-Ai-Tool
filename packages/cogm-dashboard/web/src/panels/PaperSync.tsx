@@ -125,7 +125,9 @@ function CharacterCard({ sheet }: { sheet: SheetLike }): JSX.Element {
         planned = await callTool<PaperPlan | null>('plan-paper-sync', { ...built.request });
       } catch (err) {
         usage().trackTool('plan-paper-sync', 'error');
-        setNotice({ kind: 'err', text: errorText(err) });
+        const text = errorText(err);
+        // The module answers an edit that matches Foundry with "Nothing to change ...": not a failure.
+        setNotice({ kind: /nothing to change/i.test(text) ? 'ok' : 'err', text });
         return;
       }
       usage().trackTool('plan-paper-sync', 'ok');
@@ -433,13 +435,27 @@ function NightBar({ date, onDate }: { date: string; onDate: (date: string) => vo
   const toast = useToast();
   const [logged, setLogged] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const askConfirm = useConfirm();
   const log = async (): Promise<void> => {
+    const startedFrom = focusedElement();
+    // The log is not read first, so the GM says whether the night is already in it: a second
+    // paper night on the same date is counted twice in the stats and Pre-flight asks for its sync.
+    const ok = await askConfirm({
+      summary: `Put a paper night on ${date} in the play log?`,
+      diff: [
+        'Skip this if the night was already started in the dashboard or by Claude: it would count as a second paper night.',
+      ],
+      destructive: false,
+      returnTo: startedFrom,
+    });
+    if (!ok) return;
     setBusy(true);
     try {
-      // A log-only call (no GM Actions): a paper session from that day, started and ended.
+      // A log-only call (no GM Actions): a paper session from that day, started and ended. The
+      // button stays used once the start is written, so a failed end is never retried as a new start.
       await callTool('mark-play-session', { action: 'start', mode: 'paper', date });
-      await callTool('mark-play-session', { action: 'end', mode: 'paper', date });
       setLogged(date);
+      await callTool('mark-play-session', { action: 'end', mode: 'paper', date });
       toast(`✓ Paper night ${date} is in the play log`, 'ok');
     } catch (err) {
       toast(`✗ mark-play-session: ${errorText(err)}`, 'err');

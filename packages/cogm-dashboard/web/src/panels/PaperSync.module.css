@@ -55,8 +55,10 @@
   overflow-wrap: anywhere;
 }
 
+/* --text-faint is 3.5:1 on the card, so the old value is set apart by italics, not by a paler colour. */
 .was {
-  color: var(--text-faint);
+  color: var(--text-dim);
+  font-style: italic;
 }
 
 .inventory {
@@ -97,7 +99,7 @@
 
 .noticeErr {
   composes: notice;
-  color: var(--bad, var(--text));
+  color: var(--bad-text, var(--text));
 }
 
 .actions {

@@ -37,6 +37,7 @@
     "drift:check": "node scripts/drift-check.mjs",
     "green": "node scripts/green.mjs",
     "lane:merge": "node scripts/lane-merge.mjs",
+    "lane:beat": "node scripts/lane-beat.mjs",
     "docs:lint": "markdownlint-cli2",
     "docs:links": "node scripts/check-links.mjs",
     "docs:tools": "node scripts/docs-tools.mjs",

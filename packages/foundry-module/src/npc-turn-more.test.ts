@@ -828,6 +828,15 @@ describe('lows from the PR #447 Opus review', () => {
       };
       expect(notes()).toMatch(/Tokens you have selected in Foundry are ignored/);
     });
+
+    it('the note says a creature square costs nothing extra when automation is none', () => {
+      arena({ walls: corridor(), tokens: [creature()] });
+      const notes = (): string => planNpcTurn({}).context.notes.join(' ');
+      expect(notes()).toMatch(/costs one square more/);
+      world.settings.set('dnd5e.movementAutomation', 'none');
+      expect(notes()).toMatch(/a creature's square costs nothing extra/);
+      expect(notes()).not.toMatch(/costs one square more/);
+    });
   });
 
   it('R2-L2: the move step says the token is placed, not walked', () => {

@@ -447,6 +447,46 @@ describe('applyGuardedOps: creating a User', () => {
     }
     expect(spy).not.toHaveBeenCalled();
   });
+
+  it('refuses a User with a permission override, but takes the empty permissions of a deleted one', async () => {
+    const spy = vi.spyOn(g.CONFIG.User.documentClass, 'create');
+    const bad = await request(
+      [create({ name: 'Table', role: 1, permissions: { SETTINGS_MODIFY: true } })],
+      {
+        feature: 'table-viewer',
+      }
+    );
+    await expect(applyGuardedOps(bad)).rejects.toThrow(/permission override/);
+    expect(spy).not.toHaveBeenCalled();
+    const ok = await request([create({ name: 'Table', role: 1, permissions: {} })], {
+      feature: 'table-viewer',
+    });
+    await expect(applyGuardedOps(ok)).resolves.toBeDefined();
+  });
+});
+
+describe('applyGuardedOps: updating a User', () => {
+  beforeEach(() => {
+    registerGuardedFeature({ id: 'table-viewer', name: 'Table viewer', hint: 'Test.' });
+    world.setSetting(MODULE_ID, 'feature.table-viewer.enabled', true);
+  });
+
+  it('refuses a change of role, permissions or password from any feature, changing nothing', async () => {
+    const user = makeDoc('User', { name: 'Table', role: 1, permissions: {}, flags: {} });
+    for (const feature of ['table-viewer', FEATURE]) {
+      for (const changes of [
+        { role: 4 },
+        { 'permissions.SETTINGS_MODIFY': true },
+        { password: 'x' },
+      ]) {
+        const req = await request([{ kind: 'update', uuid: user.uuid, changes }], { feature });
+        await expect(applyGuardedOps(req)).rejects.toThrow(/cannot be changed/);
+      }
+    }
+    expect(user.source.role).toBe(1);
+    expect(user.source.permissions).toEqual({});
+    expect(user.source.password).toBeUndefined();
+  });
 });
 
 describe('applyGuardedOps: apply', () => {

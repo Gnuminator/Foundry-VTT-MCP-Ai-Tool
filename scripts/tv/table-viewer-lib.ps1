@@ -46,7 +46,8 @@ function Get-FoundryPrefix {
   $base = $null
   if (-not [Uri]::TryCreate($BaseUrl, [UriKind]::Absolute, [ref]$base)) { return '' }
   $path = $base.AbsolutePath.TrimEnd('/')
-  return ($path -replace '(?i)/(join|game|setup|auth|players|license|stream|config)$', '')
+  # A doubled slash (https://host//join) leaves '/' behind: no prefix.
+  return (($path -replace '(?i)/(join|game|setup|auth|players|license|stream|config)$', '').TrimEnd('/'))
 }
 
 <#
@@ -63,7 +64,7 @@ function Test-FoundryJoinPage {
   if (-not [Uri]::TryCreate($BaseUrl, [UriKind]::Absolute, [ref]$base)) { return $false }
   $prefix = Get-FoundryPrefix -BaseUrl $BaseUrl
   return ($page.Scheme -eq $base.Scheme -and $page.Host -eq $base.Host -and $page.Port -eq $base.Port -and
-    $page.AbsolutePath.TrimEnd('/') -eq "$prefix/join")
+    $page.AbsolutePath.TrimEnd('/') -ceq "$prefix/join")  # case-sensitive, like the check in the page
 }
 
 <#

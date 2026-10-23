@@ -704,6 +704,28 @@ describe('scene token snapshots', () => {
     expect(sceneRecord()?.data?.players).toEqual(['p1']);
   });
 
+  it("marks the TV's Table user on its join and leave records and takes no snapshot", () => {
+    setupScene();
+    world.addScene({
+      id: 'sceneB',
+      tokens: [makeToken({ id: 'b1', name: 'Goblin B', actorId: 'gob' })],
+    });
+    world.setActiveScene('sceneB');
+    const tv = {
+      id: 'tv',
+      name: 'Table',
+      isGM: false,
+      flags: { 'foundry-mcp-bridge': { tableViewer: true } },
+    };
+    Hooks.callAll('userConnected', tv, true);
+    Hooks.callAll('userConnected', tv, false);
+    const [join, leave] = recorder
+      .getPlayRecords({})
+      .records.filter(r => r.kind === 'user-join' || r.kind === 'user-leave');
+    expect(join?.data).toEqual({ name: 'Table', isGM: false, tableViewer: true });
+    expect(leave?.data).toEqual({ name: 'Table', isGM: false, tableViewer: true });
+  });
+
   it('records the same scene again when the GM activates the scene they preview', () => {
     setupScene();
     world.addScene({ id: 'sceneB', tokens: [] });

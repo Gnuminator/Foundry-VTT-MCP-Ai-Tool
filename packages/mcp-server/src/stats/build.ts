@@ -808,7 +808,8 @@ function buildSession(
       }
       case 'user-join':
       case 'user-leave':
-        if (record.userId) userIds.add(record.userId);
+        // The TV's Table user is a screen, not a person at the table.
+        if (record.userId && record.data?.tableViewer !== true) userIds.add(record.userId);
         break;
       default:
         break;

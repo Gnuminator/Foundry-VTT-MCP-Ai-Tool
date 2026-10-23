@@ -405,10 +405,12 @@ test.describe('the layout trial', () => {
     await setup(page, { open: true, events: [prefs({ layoutPicked: true })] });
     await load(page);
     const button = page.locator('#btn-layout-tour-bar');
-    await expect(button).toHaveText('Try the layouts');
-    await button.click();
+    await expect(button).toHaveText('Try layouts');
+    await button.focus();
+    await page.keyboard.press('Enter');
     await expect(guide(page)).toBeVisible();
     await expect(button).toBeHidden();
+    await expect(page.locator('#layout-tour-next')).toBeFocused();
     await page.locator('#layout-tour-stop').click();
     await expect(button).toBeVisible();
   });

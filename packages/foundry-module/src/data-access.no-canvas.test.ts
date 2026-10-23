@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createTestWorld, makeToken, type TestWorld } from './test-support/foundry-mock/index.js';
 import { FoundryDataAccess } from './data-access.js';
 import { ERROR_MESSAGES } from './constants.js';
+import { resolveTargets } from './live-plan.js';
 import { viewedScene } from './viewed-scene.js';
 
 let world: TestWorld;
@@ -50,6 +51,8 @@ describe('no canvas', () => {
     expect(viewedScene({ current: null, active: null })).toBeUndefined();
     expect(viewedScene(undefined)).toBeUndefined();
     expect(viewedScene({ active: { id: 'b' } })?.id).toBe('b');
+    // with a canvas the viewed scene wins even when another scene is the active one
+    expect(viewedScene({ current: { id: 'viewed' }, active: { id: 'other' } })?.id).toBe('viewed');
   });
 
   it('getActiveScene reads the active scene', async () => {
@@ -66,7 +69,17 @@ describe('no canvas', () => {
 
   it('measureDistance finds tokens on the active scene', async () => {
     const result = await da.measureDistance({ fromTokenName: 'Hero', toTokenName: 'Foe' });
-    expect(result).toBeDefined();
+    expect(result).toMatchObject({ success: true, from: 'Hero' });
+  });
+
+  it('resolveTargets finds a token on the active scene', () => {
+    const scene = game.scenes.active;
+    scene.tokens.add(
+      makeToken({ id: 't3', name: 'Archer', actor: { uuid: 'Actor.a3', name: 'Archer' } } as never)
+    );
+    const targets = resolveTargets(['Archer']);
+    expect(targets).toHaveLength(1);
+    expect(targets[0]?.actor.uuid).toBe('Actor.a3');
   });
 
   it('still reports SCENE_NOT_FOUND when no scene is active either', async () => {

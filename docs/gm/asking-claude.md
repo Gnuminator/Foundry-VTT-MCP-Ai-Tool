@@ -150,7 +150,7 @@ the notes of a recorded session (pages Recap, GM summary and Scenes, Danish firs
 below) into a GM-only journal in the folder "Session notes" as soon as Foundry is open with
 writes on. It does not ask first. Each one is listed in Recent Changes with an Undo, which refuses
 once the Recap was revealed or you edited a page. Players see only the Recap, and only when you
-reveal it: it waits in the reveal queue. "Ready for session" does not turn this switch on.
+reveal it: it waits in the reveal queue. "Turn on for tonight" does not turn this switch on.
 
 **Direct actions** (rolls, new NPCs, journals, chat messages and others) happen as
 soon as Claude uses the tool. They are not listed

@@ -13,7 +13,7 @@ import { PHONE_VIEW, VEIL } from '../storybook/modes';
 
 import { ReadyBlock } from './ReadyForSession';
 
-// "Ready for session", the block at the top of Pre-flight: the AI Tool's write switches, turned on
+// "Turn on for tonight", the block at the top of Pre-flight: the AI Tool's write switches, turned on
 // for tonight and off again when the session ends. Read when it mounts (GET /api/session/switches).
 const switches = (answer: Reply): { dashboard: { api: { routes: Record<string, Reply> } } } => ({
   dashboard: { api: { routes: { '/api/session/switches': answer } } },

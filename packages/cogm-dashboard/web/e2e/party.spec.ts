@@ -318,7 +318,7 @@ test('with GM Actions off nothing is planned and Pre-flight opens', async ({ pag
 
   await drawer.getByRole('button', { name: 'Short rest request' }).click();
   await expect(
-    toast(page, 'GM Actions are off. Ready for session in Pre-flight turns them on.')
+    toast(page, 'GM Actions are off. Turn on for tonight in Pre-flight turns them on.')
   ).toBeVisible();
   await expect(page.getByRole('dialog', { name: '✈ Pre-flight' })).toBeVisible();
   // Pre-flight's Ready block reads get-play-session; nothing was planned or applied.
@@ -333,7 +333,7 @@ test('before the stream says GM Actions are on, a click plans nothing', async ({
 
   await drawer.locator('#party-pace').getByRole('button', { name: 'Fast' }).click();
   await expect(
-    toast(page, 'GM Actions are off. Ready for session in Pre-flight turns them on.')
+    toast(page, 'GM Actions are off. Turn on for tonight in Pre-flight turns them on.')
   ).toBeVisible();
   expect(names(calls).filter(n => n !== 'get-play-session')).toEqual(['get-party']);
 });
@@ -466,7 +466,7 @@ test('the stream saying GM Actions are off wins over the Pre-flight read', async
   const drawer = page.getByRole('dialog', { name: '🛡 Party' });
   await drawer.locator('#party-pace').getByRole('button', { name: 'Fast' }).click();
   await expect(
-    toast(page, 'GM Actions are off. Ready for session in Pre-flight turns them on.')
+    toast(page, 'GM Actions are off. Turn on for tonight in Pre-flight turns them on.')
   ).toBeVisible();
   expect(names(calls)).not.toContain('plan-party-change');
 });
@@ -515,11 +515,11 @@ test('a failed plan, a refused apply and a plan that needs a confirm all say so'
   await expect(fast).toBeEnabled();
   await fast.click();
   await expect(
-    toast(page, 'GM Actions are off. Ready for session in Pre-flight turns them on.')
+    toast(page, 'GM Actions are off. Turn on for tonight in Pre-flight turns them on.')
   ).toBeVisible();
   const preflight = page.getByRole('dialog', { name: '✈ Pre-flight' });
   await expect(preflight).toBeVisible();
-  // The page takes the server's word: GM Actions show as off until Ready for session turns them on.
+  // The page takes the server's word: GM Actions show as off until Turn on for tonight turns them on.
   await expect(preflight.locator('#ready-switches')).toHaveText('○ GM Actions');
   await page.route('**/api/session/switches', route =>
     route.fulfill({
@@ -527,7 +527,7 @@ test('a failed plan, a refused apply and a plan that needs a confirm all say so'
     })
   );
   await preflight.locator('#btn-ready').click();
-  await expect(toast(page, '✓ Ready for session. Turned on: GM Actions')).toBeVisible();
+  await expect(toast(page, '✓ Turn on for tonight. Turned on: GM Actions')).toBeVisible();
   await page.keyboard.press('Escape');
   await expect(preflight).toBeHidden();
 

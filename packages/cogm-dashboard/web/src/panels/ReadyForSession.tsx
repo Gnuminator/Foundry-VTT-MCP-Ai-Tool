@@ -1,4 +1,4 @@
-// Ready for session (D3, PB-17), inside Pre-flight: one click turns on what tonight needs (the
+// Turn on for tonight (D3, PB-17), inside Pre-flight: one click turns on what tonight needs (the
 // module's write switches and the dashboard's GM Actions), one turns it off again, and a third
 // starts the session log. The switches live in the module (`/api/session/switches`); GM Actions
 // come from the stream's `settings` event, which the server sends again after each change.
@@ -65,14 +65,14 @@ export function ReadyBlock({ onChanged }: { onChanged: () => void }): JSX.Elemen
     onSuccess: (data, action) => applySwitchesWrite(queryClient, toast, data, action),
     onError: (err, action) => {
       toast(
-        `✗ ${action === 'ready' ? 'Ready for session' : 'Turning off'}: ${errorText(err)}`,
+        `✗ ${action === 'ready' ? 'Turn on for tonight' : 'Turning off'}: ${errorText(err)}`,
         'err'
       );
       // A failed End may still have turned GM Actions off (the server does that first), and the
       // module may have changed some switches: read them again.
       void read.refetch();
     },
-    // The pre-flight row "Ready for session" follows.
+    // The pre-flight row "Turn on for tonight" follows.
     onSettled: () => {
       sending.current = false;
       onChanged();
@@ -115,7 +115,7 @@ export function ReadyBlock({ onChanged }: { onChanged: () => void }): JSX.Elemen
           disabled={allOn || busy}
           onClick={() => send('ready')}
         >
-          {allOn ? '✓ Ready for tonight' : 'Ready for session'}
+          {allOn ? '✓ On for tonight' : 'Turn on for tonight'}
         </Button>
         {readyIsOn && (
           <Button

@@ -130,7 +130,7 @@ export const SessionSince: Story = {
   },
 };
 
-/** End session ends the log and turns off what Ready for session turned on. */
+/** End session ends the log and turns off what Turn on for tonight turned on. */
 export const EndsTheSession: Story = {
   parameters: {
     dashboard: {

@@ -1,6 +1,6 @@
 /**
  * Dashboard pre-flight (I-068): the bridge's `get-preflight` checklist plus the
- * two checks only the dashboard can make: Ready for session (the module's session
+ * two checks only the dashboard can make: Turn on for tonight (the module's session
  * switches and GM Actions, D3) and the `/player` page free of secret terms. Read-only.
  */
 import type { PreflightCheck, PreflightChecksResult } from '@gnuminator/shared';

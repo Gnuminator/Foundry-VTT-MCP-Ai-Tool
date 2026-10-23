@@ -86,7 +86,7 @@ interface SwitchCalls {
   posts: unknown[];
 }
 
-/** The module's switches: `readyOn` has Ready for session on (a write switch and GM Actions). */
+/** The module's switches: `readyOn` has Turn on for tonight on (a write switch and GM Actions). */
 async function fakeSwitches(page: Page, readyOn: boolean): Promise<SwitchCalls> {
   const calls: SwitchCalls = { posts: [] };
   const list = (on: boolean): unknown[] => [
@@ -120,7 +120,7 @@ async function fakeSwitches(page: Page, readyOn: boolean): Promise<SwitchCalls> 
   return calls;
 }
 
-test('End session also turns off what Ready for session turned on', async ({ page }) => {
+test('End session also turns off what Turn on for tonight turned on', async ({ page }) => {
   await fakeBridge(page);
   const switches = await fakeSwitches(page, true);
   await page.goto(`/next/?token=${GM_TOKEN}`);
@@ -171,4 +171,37 @@ test('a failed mark says why and leaves the status alone', async ({ page }) => {
   await expect(toast(page, '✗ mark-play-session: bridge is away')).toBeVisible();
   await expect(page.locator('#session-status')).toHaveText('No session');
   await expect(page.locator('#btn-session')).toBeEnabled();
+});
+
+test('a session started in another window shows here without the minute poll', async ({ page }) => {
+  // The stream answers only when released: its play-session event lands after the first read.
+  let release!: () => void;
+  const released = new Promise<void>(resolve => {
+    release = resolve;
+  });
+  await page.route('**/api/stream**', async route => {
+    await released;
+    await route.fulfill({
+      status: 200,
+      contentType: 'text/event-stream',
+      body: 'retry: 600000\n\nevent: play-session\ndata: {}\n\n',
+    });
+  });
+  const calls = await fakeBridge(page);
+  await fakeSwitches(page, false);
+  await page.goto(`/next/?token=${GM_TOKEN}`);
+  await expect(page.locator('#session-status')).toHaveText('No session');
+
+  // The other window starts the session on the bridge; this one hears about it.
+  await page.evaluate(() =>
+    fetch('/api/tool', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name: 'mark-play-session', args: { action: 'start' } }),
+    })
+  );
+  release();
+  await expect(page.locator('#session-status')).toHaveText(/^Session since \d{1,2}:\d{2}/);
+  await expect(page.locator('#btn-session')).toHaveText('End session');
+  expect(calls.filter(c => c.name === 'get-play-session').length).toBeGreaterThanOrEqual(2);
 });

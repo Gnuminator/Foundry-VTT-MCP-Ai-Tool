@@ -83,7 +83,7 @@ export interface DashboardClient {
   recordHandoutSeen?(pageId: string, userId: string, name: string): Promise<{ recorded: boolean }>;
   /** The live write sweep's helper (I-016; test world only); absent on fakes. */
   liveSweep?(request: Record<string, unknown>): Promise<unknown>;
-  /** Ready for session (D3): read, turn on or turn back off tonight's switches; absent on fakes. */
+  /** Turn on for tonight (D3): read, turn on or turn back off tonight's switches; absent on fakes. */
   sessionSwitches?(action: SessionSwitchAction): Promise<unknown>;
   /** The feature cards (I-064): every feature switch, read-only; absent on fakes. */
   featureSwitches?(): Promise<unknown>;
@@ -980,7 +980,7 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
       });
   });
 
-  // --- Ready for session (D3, PB-17) --------------------------------------------
+  // --- Turn on for tonight (D3, PB-17) --------------------------------------------
   // One click turns on what tonight needs: the module's switches ("Allow Write Operations",
   // Handouts, Live play, Party) and GM Actions; End session turns off what Ready turned on.
   // The module side is the bridge's control method `session_switches`, never an MCP tool, so
@@ -1013,7 +1013,7 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
   });
 
   // The feature cards (I-064): every feature switch and its state, read-only. The bridge's
-  // control method feature_switches; switching stays in Foundry or Ready for session.
+  // control method feature_switches; switching stays in Foundry or Turn on for tonight.
   app.get('/api/features', requireGm, (_req: Request, res: Response) => {
     if (typeof client.featureSwitches !== 'function') {
       res.json({ features: null, writesAllowed: null, error: 'This bridge cannot list features.' });
@@ -1165,6 +1165,8 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
         res.json({ ok: true, name, mutates, result });
         // A reveal or hide may have changed the handouts: refresh the player view.
         if (name === 'apply-planned-change' || name === 'undo-change') void playerView.refresh();
+        // Another open dashboard window learns that the session started or ended at once.
+        if (name === 'mark-play-session') sse.broadcast('play-session', {}, gmOnly);
       })
       .catch((error: unknown) => {
         const kind =

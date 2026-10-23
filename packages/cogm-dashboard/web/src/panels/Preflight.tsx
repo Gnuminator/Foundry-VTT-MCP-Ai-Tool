@@ -1,5 +1,5 @@
 // Pre-flight (I-068): the checks before the players join. The tool's own checks come from
-// `GET /api/preflight` (preflight.ts: the bridge's get-preflight list plus Ready for session and
+// `GET /api/preflight` (preflight.ts: the bridge's get-preflight list plus Turn on for tonight and
 // the /player secret-terms check); the hand checklist stays in this browser, under the same
 // localStorage key as the old page, so ticks carry over between the two pages.
 import { useQuery, useQueryClient } from '@tanstack/react-query';

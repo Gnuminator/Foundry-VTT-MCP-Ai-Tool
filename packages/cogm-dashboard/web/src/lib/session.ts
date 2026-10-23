@@ -1,5 +1,5 @@
 // The play session (get-play-session on the bridge): whether the table is playing, and when the
-// last session ended. The moment tabs (Moments.tsx) follow it, and Ready for session offers to
+// last session ended. The moment tabs (Moments.tsx) follow it, and Turn on for tonight offers to
 // start the session log while none is open.
 import { useQuery } from '@tanstack/react-query';
 
@@ -20,7 +20,7 @@ export const PLAY_SESSION_KEY = ['play-session'] as const;
  * The play session, polled each minute as the old page does. A failed poll keeps the last answer
  * (a query keeps its data on error). `failed` stays true once a read failed with no answer yet,
  * also while the next poll runs. `checkedAt` is when the last poll came back, answered or failed. Another panel that
- * mounts (Ready for session) shares the last answer instead of asking again.
+ * mounts (Turn on for tonight) shares the last answer instead of asking again.
  */
 export function usePlaySession(): {
   session: PlaySession | undefined;

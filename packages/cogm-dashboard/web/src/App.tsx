@@ -235,7 +235,7 @@ function Dashboard(): JSX.Element {
   }, [versionTrackerOn, during.prefs]);
   // Tarokka's Show cards, here so Pre-flight can warn while it is on (both drawers can be open).
   const [tarokkaShown, setTarokkaShown] = useState(false);
-  // A guarded change refused for GM Actions opens Pre-flight, whose Ready for session turns them
+  // A guarded change refused for GM Actions opens Pre-flight, whose Turn on for tonight turns them
   // on (the old page opens the Tool runner's gate; the Tool runner points at its own gate bar).
   // Already open under another drawer, it comes to the top.
   // Docked in Before, the drawers over the page close so it shows, and it takes the focus once
@@ -428,7 +428,9 @@ function Dashboard(): JSX.Element {
         </div>
       </header>
       <div className="link-banner" role="note">
-        A few panels are not on this page yet. They are on the <a href="/legacy/">old dashboard</a>.
+        Everything for running a session is on this page. Only the Features cards, the status lights
+        and the AI commentary are missing here: they are on the <a href="/legacy/">old dashboard</a>
+        .
       </div>
       <PlanLink />
       <RoleNotice />

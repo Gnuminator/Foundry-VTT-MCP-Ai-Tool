@@ -28,7 +28,7 @@ terminal to open. You need two addresses from the tool admin: the game's and the
 
 ## Turn on what tonight needs
 
-- [ ] In the Pre-flight panel, click **Ready for session**. One click turns on "Allow Write
+- [ ] In the Pre-flight panel, click **Turn on for tonight**. One click turns on "Allow Write
       Operations", "AI Tool: Handouts (writes)", "AI Tool: Live play (writes)", "AI Tool: Party
       (writes)", "AI Tool: Tarokka (writes)" and **GM Actions**. The chips under the button show
       each switch; a message says what it turned on. **End session** turns off again what Ready

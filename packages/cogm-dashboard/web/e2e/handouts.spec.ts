@@ -348,7 +348,7 @@ test('Remove takes a page off the queue with GM Actions off; Reveal next stays g
   const before = calls.length;
   await drawer.locator('#handouts-next').click();
   await expect(
-    toast(page, 'GM Actions are off. Ready for session in Pre-flight turns them on.')
+    toast(page, 'GM Actions are off. Turn on for tonight in Pre-flight turns them on.')
   ).toBeVisible();
   await expect(page.getByRole('dialog', { name: '✈ Pre-flight' })).toBeVisible();
   expect(names(calls.slice(before)).filter(n => n === 'plan-page-reveal')).toEqual([]);

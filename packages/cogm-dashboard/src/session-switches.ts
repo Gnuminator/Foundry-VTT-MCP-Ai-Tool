@@ -1,5 +1,5 @@
 /**
- * Ready for session (D3, PB-17), the dashboard's half. The module keeps the switches and
+ * Turn on for tonight (D3, PB-17), the dashboard's half. The module keeps the switches and
  * what Ready turned on (`sessionSwitches` query, reached through the bridge's control method
  * `session_switches`, never an MCP tool); the dashboard adds its own GM Actions switch and
  * turns the result into the pre-flight row.
@@ -59,7 +59,7 @@ export function readyCheck(
   state: SessionSwitches | null,
   gmActionsEnabled: boolean
 ): DashboardPreflightCheck {
-  const label = 'Ready for session';
+  const label = 'Turn on for tonight';
   if (!state) {
     return {
       id: 'ready',
@@ -84,6 +84,6 @@ export function readyCheck(
     id: 'ready',
     label,
     status: 'warn',
-    detail: `The tool may not change anything yet (off: ${off.join(', ')}). Ready for session turns on what tonight needs.`,
+    detail: `The tool may not change anything yet (off: ${off.join(', ')}). Turn on for tonight turns on what tonight needs.`,
   };
 }

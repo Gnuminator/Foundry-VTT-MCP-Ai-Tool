@@ -211,7 +211,7 @@ export class McpControlClient extends EventEmitter {
   }
 
   /**
-   * Ready for session (D3, PB-17): read (`get`), turn on (`ready`) or turn back off (`end`)
+   * Turn on for tonight (D3, PB-17): read (`get`), turn on (`ready`) or turn back off (`end`)
    * the module's session switches. A control method, never an MCP tool. An old backend
    * answers "Unknown method" (a ChannelError).
    */

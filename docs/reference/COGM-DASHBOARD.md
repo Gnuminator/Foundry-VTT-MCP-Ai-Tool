@@ -25,7 +25,7 @@ look ahead or back):
 
 - **Before** (no session running): Pre-flight's checks next to Prep (last session, open quests,
   next session notes, handouts waiting), and a Features slot that says "Not on this page yet"
-  (the per-feature cards are on the old dashboard at `/legacy/`). **Ready for session** at the top of Pre-flight turns on,
+  (the per-feature cards are on the old dashboard at `/legacy/`). **Turn on for tonight** at the top of Pre-flight turns on,
   in one click, what tonight needs ("Allow Write Operations", the Handouts, Live play, Party
   and Tarokka switches, GM Actions); **End session** turns off again what it turned on. Only the dashboard's
   GM route can do this (the bridge's control method `session_switches`, never an MCP tool), so

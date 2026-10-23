@@ -531,6 +531,34 @@ describe('undo', () => {
     expect(Object.keys(queue!.data.entries)).toEqual([]);
   });
 
+  it('a redo whose journal came back without its Recap restores the put and says so', async () => {
+    await stageAndSettle();
+    const [first] = (await notes.list()).items;
+    const undone = await guarded.undo(first.changeId!, { confirm: true });
+    const original = foundry.query.getMockImplementation()!;
+    foundry.query.mockImplementation(async (method: string, data?: any) => {
+      const reply = await original(method, data);
+      if (method !== 'foundry-mcp-bridge.snapshotGuardedOps') return reply;
+      const ops = (data?.ops ?? []) as { uuid: string }[];
+      const body = reply?.data ?? reply;
+      const snaps = (Array.isArray(body) ? body : body?.snapshots) as any[] | undefined;
+      ops.forEach((op, i) => {
+        if (op.uuid === first.recapPageUuid && snaps?.[i]) snaps[i].exists = false;
+      });
+      return reply;
+    });
+    try {
+      await guarded.undo(undone.changeId, { confirm: true });
+    } finally {
+      foundry.query.mockImplementation(original);
+    }
+    const [after] = (await notes.list()).items;
+    expect(after.status).toBe('in-foundry');
+    expect(after.lastError).toMatch(/Recap page is missing/);
+    const queue = await store.read<{ entries: Record<string, unknown> }>(WORLD, 'gm', QUEUE_FILE);
+    expect(Object.keys(queue!.data.entries)).toEqual([]);
+  });
+
   it('a redo takes the page list from the put, not from the page times', async () => {
     await stageAndSettle();
     const [first] = (await notes.list()).items;

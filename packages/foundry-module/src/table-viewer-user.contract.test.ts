@@ -112,6 +112,17 @@ describe('assertUserCreateAllowed: other spellings Foundry reads on create', () 
       { '==password': 'x' },
       { permissions: { '==SETTINGS_MODIFY': false } },
       { permissions: { 'A.B': false } },
+      {
+        permissions: {
+          __$OPERATOR$__: 'ForcedReplacement',
+          value: { SETTINGS_MODIFY: true },
+        },
+      },
+      {
+        permissions: {
+          SETTINGS_MODIFY: { __$OPERATOR$__: 'ForcedReplacement', value: true },
+        },
+      },
     ]) {
       expect(() => assertUserCreateAllowed('table-viewer', { ...table, ...extra })).toThrow();
     }

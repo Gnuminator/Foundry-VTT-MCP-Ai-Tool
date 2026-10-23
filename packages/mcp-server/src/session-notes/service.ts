@@ -575,6 +575,7 @@ export class SessionNotesService {
       const uuids = Object.values(kept.pageUuids).filter((u): u is string => typeof u === 'string');
       for (const uuid of uuids) pageTimes[uuid] = null; // unknown: the Undo's edit check skips it
       let gone = false;
+      let recapMissing = false;
       try {
         const snaps = unwrapBridgeReply(
           await this.foundry.query('foundry-mcp-bridge.snapshotGuardedOps', {
@@ -583,9 +584,10 @@ export class SessionNotesService {
           'Read-back refused'
         );
         // The journal was deleted by hand before the undo: the redo had nothing to bring back.
-        gone =
-          snaps[0]?.exists === false ||
-          snaps[uuids.indexOf(kept.recapPageUuid) + 1]?.exists === false;
+        gone = snaps[0]?.exists === false;
+        const recapAt = uuids.indexOf(kept.recapPageUuid);
+        // Only the Recap page is gone: the journal is back, so the put is restored without it.
+        recapMissing = !gone && recapAt >= 0 && snaps[recapAt + 1]?.exists === false;
         uuids.forEach((uuid, i) => {
           pageTimes[uuid] = snaps[i + 1]?.modifiedTime ?? null;
         });
@@ -604,8 +606,11 @@ export class SessionNotesService {
         n.put = { ...put, changeId: entry.changeId, putAt: entry.appliedAt, pageTimes };
         delete n.undonePut;
         n.autoPut = true;
-        delete n.lastError;
+        if (recapMissing) {
+          n.lastError = 'The Recap page is missing from the restored journal (deleted by hand?)';
+        } else delete n.lastError;
       });
+      if (recapMissing) continue;
       await this.handouts
         .queuePage({ pageUuid: kept.recapPageUuid })
         .catch(error =>

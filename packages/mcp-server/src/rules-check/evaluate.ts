@@ -69,20 +69,26 @@ export interface RulesFacts {
   /** Rules versions ("2014" / "2024"): the item's own tag, and the actor's with where it came from. */
   rules?:
     | {
-        item: string | null;
+        item: { version: string; source: string } | null;
         actor: { version: string; source: string } | null;
       }
     | undefined;
 }
 
 export interface SpentFact {
-  uses: Array<{ item: string; itemType: string; activation: string }>;
+  uses: Array<{
+    item: string;
+    itemType: string;
+    activation: string;
+    /** Spell level (0 for a cantrip) when known. */
+    itemLevel?: number | null;
+  }>;
 }
 
 const LIMITS_UNTRACKED =
   'Foundry does not record which actions, bonus actions or reactions a creature has already spent this turn, so that part is never confirmed.';
 const LIMITS_TRACKED =
-  "Spent actions come from the activities used through Foundry since the creature's turn began. Dash, Dodge, Help, hand-rolled attacks and anything settled aloud are not seen, and extra actions (Action Surge, haste) are not modelled.";
+  "Spent actions come from the activities used through Foundry since the creature's turn began. Dash, Dodge, Help, hand-rolled attacks and anything settled aloud are not seen (an opportunity attack rolled with a weapon counts as an action, not the reaction), and extra actions (Action Surge, haste) are not modelled.";
 
 const LIMITS = [
   LIMITS_UNTRACKED,
@@ -191,6 +197,10 @@ function spentLine(
   if (!f.spent || !c.active || !c.inCombat || c.ambiguous) return null;
   if (cost !== 'reaction' && !c.isCurrentTurn) return null;
   const same = f.spent.uses.filter(u => classifyActivation(u.activation) === cost);
+  // Asked after the fact ("was that Healing Word fine?"): the use being checked is already in the
+  // ledger, so it does not count against itself.
+  const own = same.map(u => u.item).lastIndexOf(f.item);
+  if (own >= 0) same.splice(own, 1);
   const base = `Costs ${name} (${label}).`;
   if (same.length === 0) {
     return {
@@ -202,12 +212,18 @@ function spentLine(
   const used = names(same);
   if (cost === 'action') {
     // Several weapon attacks are one Attack action (Extra Attack); spells and other items are not.
-    const spellInvolved = f.spellLevel !== null || same.some(u => u.itemType === 'spell');
-    if (!spellInvolved) {
+    // A cantrip beside a weapon attack is a legal pairing (Booming Blade, True Strike, an attack
+    // swapped for a cantrip); two spells, or a levelled spell and anything else, are not.
+    const cantrip = (level: number | null | undefined): boolean => level === 0;
+    const spells = same.filter(u => u.itemType === 'spell');
+    const now = f.spellLevel !== null;
+    const levelled = (now && !cantrip(f.spellLevel)) || spells.some(u => !cantrip(u.itemLevel));
+    const twoSpells = now && spells.length > 0;
+    if (!levelled && !twoSpells) {
       return {
         check: 'action-cost',
         status: 'info',
-        reason: `${base} ${f.actor} already used ${used} as an action this turn; that is fine if it is the same Attack action (Extra Attack).`,
+        reason: `${base} ${f.actor} already used ${used} as an action this turn; that is fine if it is the same Attack action (Extra Attack) or a cantrip paired with a weapon attack.`,
       };
     }
     return {
@@ -229,27 +245,22 @@ function spentLine(
 /** Rules version of the item against the actor: a mismatch plays by different rules. */
 function rulesCheck(f: RulesFacts): RulesCheckLine | null {
   const r = f.rules;
-  if (!r?.item) return null;
-  const actor = r.actor;
-  // The world's default is a guess about the actor, not a statement: do not compare against it.
-  if (!actor || actor.source === 'world-setting') {
+  // The world's default is a guess, not a statement: compare only versions the documents carry,
+  // and say nothing when either side is unknown.
+  const stated = (v: { source: string } | null | undefined): boolean =>
+    v != null && v.source !== 'world-setting';
+  if (!r?.item || !r.actor || !stated(r.item) || !stated(r.actor)) return null;
+  if (r.actor.version === r.item.version) {
     return {
       check: 'rules-version',
       status: 'info',
-      reason: `${f.item} follows the ${r.item} rules.`,
-    };
-  }
-  if (actor.version === r.item) {
-    return {
-      check: 'rules-version',
-      status: 'info',
-      reason: `${f.item} and ${f.actor} both follow the ${r.item} rules.`,
+      reason: `${f.item} and ${f.actor} both follow the ${r.item.version} rules.`,
     };
   }
   return {
     check: 'rules-version',
     status: 'warn',
-    reason: `${f.item} follows the ${r.item} rules but ${f.actor} follows the ${actor.version} rules; the two rule sets differ (for example in features, weapon mastery and spell details), so check the item's text.`,
+    reason: `${f.item} follows the ${r.item.version} rules but ${f.actor} follows the ${r.actor.version} rules; the two rule sets differ (for example in features, weapon mastery and spell details), so check the item's text.`,
   };
 }
 

@@ -18,6 +18,10 @@ export interface SpentUse {
   itemType: string;
   /** The activity's raw activation type ("action", "bonus", "reaction"...). */
   activation: string;
+  /** Spell level (0 for a cantrip) when the item is a spell and the level could be read. */
+  itemLevel: number | null;
+  /** The usage card: deleting it takes the use back out. */
+  messageId: string | null;
   combatId: string | null;
   timestampMs: number;
 }
@@ -33,7 +37,12 @@ export interface SpentActionsResult {
   /** False when the module has not seen this combat's turns, so nothing can be said. */
   tracked: boolean;
   /** Uses since the actor's own turn began (its current turn, or the last one it took). */
-  sinceOwnTurn: Array<{ item: string; itemType: string; activation: string }>;
+  sinceOwnTurn: Array<{
+    item: string;
+    itemType: string;
+    activation: string;
+    itemLevel: number | null;
+  }>;
 }
 
 const MAX_USES = 400;
@@ -57,7 +66,12 @@ export function spentSinceOwnTurn(
     tracked: true,
     sinceOwnTurn: uses
       .filter(u => u.actorId === actorId && u.combatId === combatId && u.timestampMs >= since)
-      .map(u => ({ item: u.item, itemType: u.itemType, activation: u.activation })),
+      .map(u => ({
+        item: u.item,
+        itemType: u.itemType,
+        activation: u.activation,
+        itemLevel: u.itemLevel,
+      })),
   };
 }
 
@@ -74,6 +88,11 @@ class SpentLedger {
     return this.uses;
   }
 
+  /** A deleted usage card (a misclick) no longer counts. */
+  forgetMessage(messageId: string): void {
+    this.uses = this.uses.filter(u => u.messageId !== messageId);
+  }
+
   /** Listen for dnd5e usage messages on a GM client. Safe to call twice. */
   registerHooks(): void {
     if (this.registered) return;
@@ -81,13 +100,28 @@ class SpentLedger {
     Hooks.on('createChatMessage', (message: unknown) => {
       try {
         if (!game.user?.isGM) return;
-        const use = useFromMessage(message, str(game.combat?.id), Date.now());
+        const use = useFromMessage(message, str(game.combat?.id), Date.now(), spellLevelOf);
         if (use) this.record(use);
       } catch (error) {
         console.warn(`[${MODULE_ID}] Spent actions createChatMessage failed:`, error);
       }
     });
+    Hooks.on('deleteChatMessage', (message: unknown) => {
+      try {
+        const id = str((message as { id?: unknown } | null)?.id);
+        if (id) this.forgetMessage(id);
+      } catch (error) {
+        console.warn(`[${MODULE_ID}] Spent actions deleteChatMessage failed:`, error);
+      }
+    });
   }
+}
+
+/** The level of the spell behind an item uuid (0 for a cantrip); null when unknown. */
+function spellLevelOf(uuid: string): number | null {
+  const item = fromUuidSync(uuid) as { type?: unknown; system?: { level?: unknown } } | null;
+  const level = item?.system?.level;
+  return item?.type === 'spell' && typeof level === 'number' ? level : null;
 }
 
 function str(v: unknown): string | null {
@@ -101,9 +135,11 @@ function str(v: unknown): string | null {
 export function useFromMessage(
   message: unknown,
   combatId: string | null,
-  now: number
+  now: number,
+  levelOf: (itemUuid: string) => number | null = () => null
 ): SpentUse | null {
   const msg = message as {
+    id?: unknown;
     type?: unknown;
     speaker?: { actor?: unknown };
     system?: {
@@ -122,6 +158,8 @@ export function useFromMessage(
     item: str(item?.name) ?? 'an item',
     itemType: str(item?.type) ?? 'item',
     activation,
+    itemLevel: item?.type === 'spell' && str(item.uuid) ? levelOf(str(item.uuid) as string) : null,
+    messageId: str(msg.id),
     combatId,
     timestampMs: now,
   };

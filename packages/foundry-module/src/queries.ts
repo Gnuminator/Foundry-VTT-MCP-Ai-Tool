@@ -1413,12 +1413,14 @@ export class QueryHandlers {
   }
 
   /** Rules check: what an actor used since its own turn began, and its rules version (read-only). */
-  async handleGetSpentActions(data: { actorId?: unknown }): Promise<unknown> {
+  async handleGetSpentActions(data: { actorId?: unknown; itemId?: unknown }): Promise<unknown> {
     return this.withGmGate('Failed to read spent actions', async () => {
       const actorId = typeof data?.actorId === 'string' ? data.actorId : '';
       const combat = game.combat;
       const actor = actorId ? game.actors?.get(actorId) : undefined;
       const detected = actor ? detectRulesVersion(actor) : null;
+      const item = typeof data?.itemId === 'string' ? actor?.items?.get(data.itemId) : undefined;
+      const itemDetected = item ? detectRulesVersion(item) : null;
       return {
         ...spentSinceOwnTurn(
           actorId,
@@ -1427,6 +1429,9 @@ export class QueryHandlers {
           eventTracker.getCombatTimeline()
         ),
         actorRules: detected ? { version: detected.version, source: detected.source } : null,
+        itemRules: itemDetected
+          ? { version: itemDetected.version, source: itemDetected.source }
+          : null,
       };
     });
   }

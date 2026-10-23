@@ -368,8 +368,9 @@ describe('check-action', () => {
     const spent = {
       success: true,
       tracked: true,
-      sinceOwnTurn: [{ item: 'Fireball', itemType: 'spell', activation: 'action' }],
+      sinceOwnTurn: [{ item: 'Fireball', itemType: 'spell', activation: 'action', itemLevel: 3 }],
       actorRules: { version: '2024', source: 'system.source.rules' },
+      itemRules: { version: '2014', source: 'system.source.rules' },
     };
     const entity = {
       success: true,
@@ -378,7 +379,7 @@ describe('check-action', () => {
         name: 'Longsword',
         type: 'weapon',
         activities: [{ id: 'a', name: 'Attack', activation: 'Action', range: '5 ft' }],
-        system: { source: { rules: '2014' } },
+        system: {},
       },
     };
     const r = await tools({ entity, spent }).t.handleToolCall('check-action', {

@@ -78,6 +78,12 @@ export function spellPrepared(system: Rec, level: unknown): boolean {
   return typeof system.prepared === 'number' ? system.prepared >= 1 : true;
 }
 
+interface SpentReply {
+  spent: SpentFact | undefined;
+  actorRules: { version: string; source: string } | null;
+  itemRules: { version: string; source: string } | null;
+}
+
 /** "2014" or "2024", else null. */
 const rulesTag = (v: unknown): string | null => (v === '2014' || v === '2024' ? v : null);
 
@@ -91,7 +97,7 @@ function usesFrom(v: unknown): UsesFact | null {
 /**
  * Rules check (I-126). `check-action` reads whether an item, spell or attack looks legal right now
  * (turn, activation cost, range to a target, spell slots and uses left) and says why. It writes
- * nothing and composes existing read queries, so the module needs no handler of its own. Off by
+ * nothing and composes read queries (plus the module's `getSpentActions`, which an older module lacks). Off by
  * default (feature `rules-check`).
  */
 export class RulesCheckTools {
@@ -249,7 +255,11 @@ export class RulesCheckTools {
     const attackType = attackValue === 'melee' || attackValue === 'ranged' ? attackValue : null;
     const { combat, tokenName } = await this.combatFact(actorId, actorName);
     const distance = p.target ? await this.distanceFact(tokenName, p.target) : undefined;
-    const { spent: spentFact, actorRules } = await this.spentFact(actorId, combat);
+    const {
+      spent: spentFact,
+      actorRules,
+      itemRules,
+    } = await this.spentFact(actorId, text(entity.id), combat);
 
     const slots: Record<string, SlotFact> = {};
     for (const [key, raw] of Object.entries(rec(resources.spellSlots))) {
@@ -281,10 +291,7 @@ export class RulesCheckTools {
       needsConcentration: isSpell && properties.includes('concentration'),
       concentration: this.concentrationFact(resources.concentration),
       spent: spentFact,
-      rules: {
-        item: rulesTag(rec(system.source).rules),
-        actor: actorRules,
-      },
+      rules: { item: itemRules, actor: actorRules },
       uses: [usesFrom(entity.uses), usesFrom(activity?.uses)].filter(
         (u): u is UsesFact => u !== null
       ),
@@ -298,36 +305,46 @@ export class RulesCheckTools {
    */
   private async spentFact(
     actorId: string | undefined,
+    itemId: string | undefined,
     combat: CombatFact
-  ): Promise<{
-    spent: SpentFact | undefined;
-    actorRules: { version: string; source: string } | null;
-  }> {
-    if (!actorId) return { spent: undefined, actorRules: null };
+  ): Promise<SpentReply> {
+    const none: SpentReply = { spent: undefined, actorRules: null, itemRules: null };
+    if (!actorId) return none;
     try {
       const reply = rec(
-        await this.foundryClient.query('foundry-mcp-bridge.getSpentActions', { actorId })
+        await this.foundryClient.query('foundry-mcp-bridge.getSpentActions', { actorId, itemId })
       );
-      if (reply.success === false) return { spent: undefined, actorRules: null };
-      const rules = rec(reply.actorRules);
-      const version = rulesTag(rules.version);
-      const source = text(rules.source);
-      const actorRules = version && source ? { version, source } : null;
+      if (reply.success === false) return none;
+      const versionOf = (raw: unknown): { version: string; source: string } | null => {
+        const r = rec(raw);
+        const version = rulesTag(r.version);
+        const source = text(r.source);
+        return version && source ? { version, source } : null;
+      };
+      const actorRules = versionOf(reply.actorRules);
+      const itemRules = versionOf(reply.itemRules);
       const watched = combat.active && combat.inCombat && !combat.ambiguous;
       if (!watched || reply.tracked !== true || !Array.isArray(reply.sinceOwnTurn)) {
-        return { spent: undefined, actorRules };
+        return { spent: undefined, actorRules, itemRules };
       }
       const uses = reply.sinceOwnTurn.map(rec).flatMap(u => {
         const item = text(u.item);
         const activation = text(u.activation);
         return item && activation
-          ? [{ item, itemType: text(u.itemType) ?? 'item', activation }]
+          ? [
+              {
+                item,
+                itemType: text(u.itemType) ?? 'item',
+                activation,
+                itemLevel: typeof u.itemLevel === 'number' ? u.itemLevel : null,
+              },
+            ]
           : [];
       });
-      return { spent: { uses }, actorRules };
+      return { spent: { uses }, actorRules, itemRules };
     } catch (error) {
       this.logger.debug('Rules check: spent actions unavailable', error);
-      return { spent: undefined, actorRules: null };
+      return none;
     }
   }
 

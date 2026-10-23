@@ -17,11 +17,13 @@ describe('useFromMessage', () => {
   };
 
   it('reads a usage message', () => {
-    expect(useFromMessage(usage, 'c1', 5)).toEqual({
+    expect(useFromMessage({ ...usage, id: 'm1' }, 'c1', 5, () => 0)).toEqual({
       actorId: 'a1',
       item: 'Fire Bolt',
       itemType: 'spell',
       activation: 'action',
+      itemLevel: 0,
+      messageId: 'm1',
       combatId: 'c1',
       timestampMs: 5,
     });
@@ -39,6 +41,8 @@ const use = (actorId: string, t: number, activation = 'action', combatId = 'c1')
   actorId,
   item: `${actorId}-${t}`,
   itemType: 'weapon',
+  itemLevel: null,
+  messageId: null,
   activation,
   combatId,
   timestampMs: t,

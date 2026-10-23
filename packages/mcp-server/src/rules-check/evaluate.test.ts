@@ -265,6 +265,14 @@ describe('evaluateMovement', () => {
     expect(evaluateMovement([{ ...move, units: 'mi' }])?.checks[0]?.status).toBe('unknown');
   });
 
+  it('compares in metres when the scene and the speed agree', () => {
+    const r = evaluateMovement([
+      { ...move, units: 'm', speedUnits: 'meters', distance: 10, speed: 9 },
+    ]);
+    expect(r?.checks[0]?.status).toBe('warn');
+    expect(r?.checks[0]?.reason).toContain('10 m');
+  });
+
   it("notes another creature's turn without failing a move inside speed", () => {
     const combat = { ...inFight, isCurrentTurn: false, currentName: 'Zombie' };
     const r = evaluateMovement([{ ...move, combat }]);

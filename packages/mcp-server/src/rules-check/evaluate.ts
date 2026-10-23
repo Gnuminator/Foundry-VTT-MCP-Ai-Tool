@@ -415,25 +415,29 @@ const MOVE_LIMITS = [
   'Foundry places the token, so only the creature walking speed (or its best other speed) is compared.',
 ];
 
-const isFeet = (u: string | null): boolean => u === null || /^(ft|feet|foot)/i.test(u.trim());
+const unitOf = (u: string | null): string => {
+  const text = (u ?? 'ft').trim().toLowerCase();
+  return /^(ft|feet|foot)/.test(text) ? 'ft' : /^(m|meters?|metres?)$/.test(text) ? 'm' : text;
+};
 
 function moveLine(f: MoveFact): RulesCheckLine | null {
   const c = f.combat;
   // Moving a token outside a fight is the table's business, not a rules question.
   if (!c.active || !c.inCombat || c.ambiguous) return null;
   const check = 'movement' as const;
-  if (!isFeet(f.units) || !isFeet(f.speedUnits)) {
+  const unit = unitOf(f.units);
+  if (unit !== unitOf(f.speedUnits)) {
     return {
       check,
       status: 'unknown',
-      reason: `${f.name}: the scene or the speed is not measured in feet, so the move is not compared with speed.`,
+      reason: `${f.name}: the scene and the speed use different units, so the move is not compared with speed.`,
     };
   }
   if (f.speed === null) {
     return {
       check,
       status: 'unknown',
-      reason: `${f.name} has no speed on the sheet, so a ${f.distance} ft move is not compared with it.`,
+      reason: `${f.name} has no speed on the sheet, so a ${f.distance} ${unit} move is not compared with it.`,
     };
   }
   const where = c.isCurrentTurn
@@ -443,20 +447,20 @@ function moveLine(f: MoveFact): RulesCheckLine | null {
     return {
       check,
       status: c.isCurrentTurn ? 'pass' : 'info',
-      reason: `${f.name} moves ${f.distance} ft, within its speed of ${f.speed} ft.${where}`,
+      reason: `${f.name} moves ${f.distance} ${unit}, within its speed of ${f.speed} ${unit}.${where}`,
     };
   }
   if (f.distance <= f.speed * 2) {
     return {
       check,
       status: 'warn',
-      reason: `${f.name} moves ${f.distance} ft, past its speed of ${f.speed} ft: only possible with the Dash action.${where}`,
+      reason: `${f.name} moves ${f.distance} ${unit}, past its speed of ${f.speed} ${unit}: only possible with the Dash action.${where}`,
     };
   }
   return {
     check,
     status: 'fail',
-    reason: `${f.name} moves ${f.distance} ft, more than twice its speed of ${f.speed} ft, so not even a Dash covers it.${where}`,
+    reason: `${f.name} moves ${f.distance} ${unit}, more than twice its speed of ${f.speed} ${unit}, so not even a Dash covers it.${where}`,
   };
 }
 

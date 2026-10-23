@@ -94,6 +94,31 @@ describe('tryCheckMove', () => {
     move: { distance, units: 'ft', speed: 30, speedUnits: 'ft' },
   });
 
+  it('pins the combatant by token id when several share a name', async () => {
+    const zombies = {
+      success: true,
+      active: true,
+      round: 1,
+      current: { name: 'Zombie' },
+      combatants: [
+        { name: 'Zombie', tokenId: 't1', isCurrentTurn: true },
+        { name: 'Zombie', tokenId: 't2', isCurrentTurn: false },
+      ],
+    };
+    const mine = (id: string): LiveTargetPreview => ({
+      ...preview(20),
+      target: 'Zombie',
+      actorUuid: `Scene.s1.Token.${id}`,
+    });
+    const t2 = await tools({ combat: zombies }).t.tryCheckMove([mine('t2')]);
+    expect(t2?.checks[0]?.status).toBe('info');
+    expect(t2?.checks[0]?.reason).toContain("Zombie's turn, not Zombie's");
+    const t1 = await tools({ combat: zombies }).t.tryCheckMove([mine('t1')]);
+    expect(t1?.checks[0]?.status).toBe('pass');
+    // A token that is not in the fight gets no verdict, even if its name matches a combatant.
+    expect(await tools({ combat: zombies }).t.tryCheckMove([mine('t9')])).toBeNull();
+  });
+
   it('checks a planned move against speed in a fight; null when off, no move or no fight', async () => {
     expect((await tools({}).t.tryCheckMove([preview(65)]))?.verdict).toBe('problem');
     expect(await tools({ enabled: false }).t.tryCheckMove([preview(65)])).toBeNull();

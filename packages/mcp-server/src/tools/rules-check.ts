@@ -159,7 +159,8 @@ export class RulesCheckTools {
       return await this.checkAction(args);
     } catch (error) {
       if (!(error instanceof Error && error.message === SWITCH_OFF)) {
-        this.logger.warn('Rules pre-check skipped', error);
+        // Often just a player name that is not an actor, or a free-text weapon label.
+        this.logger.debug('Rules pre-check skipped', error);
       }
       return null;
     }
@@ -174,8 +175,11 @@ export class RulesCheckTools {
       if (moves.length === 0) return null;
       await this.requireOn();
       const facts: MoveFact[] = [];
+      const state = await this.combatState();
       for (const t of moves) {
-        const { combat } = await this.combatFact(undefined, t.target);
+        // The preview's uuid ends in the token id: "Scene.<id>.Token.<id>".
+        const tokenId = /\.Token\.([^.]+)$/.exec(t.actorUuid)?.[1];
+        const { combat } = this.combatFrom(state, undefined, t.target, tokenId);
         facts.push({ name: t.target, combat, ...t.move });
       }
       return evaluateMovement(facts);
@@ -310,23 +314,41 @@ export class RulesCheckTools {
     actorId: string | undefined,
     actorName: string
   ): Promise<{ combat: CombatFact; tokenName: string }> {
-    let state: Rec;
+    return this.combatFrom(await this.combatState(), actorId, actorName);
+  }
+
+  /** The running encounter as the bridge reports it; null when none runs or it cannot be read. */
+  private async combatState(): Promise<Rec | null> {
     try {
-      state = rec(await this.foundryClient.query('foundry-mcp-bridge.getCombatState', {}));
+      const state = rec(await this.foundryClient.query('foundry-mcp-bridge.getCombatState', {}));
+      return state.success === false || state.active !== true ? null : state;
     } catch (error) {
       this.logger.warn('Rules check: combat state unavailable', error);
-      return { combat: { active: false }, tokenName: actorName };
+      return null;
     }
-    if (state.success === false || state.active !== true) {
-      return { combat: { active: false }, tokenName: actorName };
-    }
+  }
+
+  /** `tokenId` (a planned token move) pins the combatant exactly; names are the fallback. */
+  private combatFrom(
+    state: Rec | null,
+    actorId: string | undefined,
+    actorName: string,
+    tokenId?: string
+  ): { combat: CombatFact; tokenName: string } {
+    if (!state) return { combat: { active: false }, tokenName: actorName };
     const combatants = Array.isArray(state.combatants) ? state.combatants.map(rec) : [];
-    // Unlinked tokens share an actor id: take the one named like the actor, else give up on turns.
-    const byActor = combatants.filter(c => actorId !== undefined && c.actorId === actorId);
-    const pool = byActor.length > 0 ? byActor : combatants.filter(c => c.name === actorName);
-    const exact = pool.find(c => c.name === actorName);
-    const mine = exact ?? (pool.length === 1 ? pool[0] : undefined);
-    const ambiguous = mine === undefined && pool.length > 1;
+    let mine: Rec | undefined;
+    let ambiguous = false;
+    if (tokenId !== undefined) {
+      mine = combatants.find(c => c.tokenId === tokenId);
+    } else {
+      // Unlinked tokens share an actor id: take the one named like the actor, else give up on turns.
+      const byActor = combatants.filter(c => actorId !== undefined && c.actorId === actorId);
+      const pool = byActor.length > 0 ? byActor : combatants.filter(c => c.name === actorName);
+      const exact = pool.find(c => c.name === actorName);
+      mine = exact ?? (pool.length === 1 ? pool[0] : undefined);
+      ambiguous = mine === undefined && pool.length > 1;
+    }
     return {
       combat: {
         active: true,

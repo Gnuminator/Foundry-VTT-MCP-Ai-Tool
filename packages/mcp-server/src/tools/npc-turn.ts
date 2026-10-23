@@ -25,8 +25,26 @@ const planParams = z.object({
   itemName: z.string().min(1).optional(),
   target: z.string().min(1).optional(),
   attacks: z
-    .array(z.object({ itemName: z.string().min(1), target: z.string().min(1) }))
+    .array(
+      z.object({
+        itemName: z.string().min(1),
+        target: z.string().min(1),
+        activity: z.string().min(1).optional(),
+      })
+    )
     .max(10)
+    .optional(),
+  results: z
+    .array(
+      z.object({
+        target: z.string().min(1),
+        amount: z.number().min(0).max(10000),
+        damageType: z.string().min(1).max(40).optional(),
+        multiplier: z.number().min(0).max(1).optional(),
+      })
+    )
+    .min(1)
+    .max(20)
     .optional(),
   dash: z.boolean().optional(),
   reason: z.string().min(1).max(300).optional(),
@@ -68,7 +86,7 @@ export class NpcTurnTools {
       {
         name: 'plan-npc-turn',
         description:
-          'Plan a monster\'s turn. Without moveTo it only reads the fight: whose turn, speed, attacks, Multiattack text, and each enemy\'s distance, AC, HP, state, square to attack from and score. With moveTo (a grid square) it paths round walls, doors and hostile creatures, counts difficult terrain and plans the move (apply-planned-change, undo-change). List a multiattack in attacks. The attack steps name the tools that roll them (use-npc-activity, then plan-actor-change). Square grids only; no spells, saves or legendary actions yet. Needs the "NPC turn assistant" switch (off by default).',
+          "Plan a monster's turn. Without moveTo it only reads the fight: whose turn, speed, attacks, Multiattack text, and each enemy's distance, AC, HP, state, square to attack from and score. With moveTo (a grid square) it paths round walls, doors and hostile creatures, counts difficult terrain and plans the move (apply-planned-change, undo-change). List a multiattack in attacks (name the activity for a save-based action; a legendary action is planned on another creature's turn and costs legendary actions). Rolls cannot be undone, so roll first with the tools the steps name (use-npc-activity, roll-saving-throws), then call again with moveTo and results (the damage each target takes): one plan covers the move and every hit point change, with one confirm and one undo. Square grids only. Needs the \"NPC turn assistant\" switch (off by default).",
         inputSchema: {
           type: 'object',
           properties: {
@@ -105,8 +123,39 @@ export class NpcTurnTools {
                 properties: {
                   itemName: { type: 'string', ...freeText('An item name on the NPC') },
                   target: { type: 'string', ...toolRef('token', 'name') },
+                  activity: {
+                    type: 'string',
+                    description:
+                      'Which activity of the item (an item can hold an attack, a save and a utility); named in the context. Default: its attack, else its save.',
+                    ...freeText('An activity name on the item, checked by the module'),
+                  },
                 },
                 required: ['itemName', 'target'],
+              },
+            },
+            results: {
+              type: 'array',
+              description:
+                "The damage the rolls dealt (roll first with use-npc-activity and roll-saving-throws, then call again with the move and these): planned together with the move as one change. Use multiplier 0.5 for half damage on a successful save, 0 for none. A critical hit's dice are already doubled.",
+              minItems: 1,
+              maxItems: 20,
+              items: {
+                type: 'object',
+                properties: {
+                  target: { type: 'string', ...toolRef('token', 'name') },
+                  amount: {
+                    type: 'number',
+                    minimum: 0,
+                    description: 'The damage the roll reported.',
+                  },
+                  damageType: {
+                    type: 'string',
+                    description: 'dnd5e damage type (slashing, fire...) so resistance applies.',
+                    ...freeText('A dnd5e damage type'),
+                  },
+                  multiplier: { type: 'number', minimum: 0, maximum: 1 },
+                },
+                required: ['target', 'amount'],
               },
             },
             dash: {
@@ -162,6 +211,14 @@ export class NpcTurnTools {
     if ((params.attacks?.length || params.dash) && built.attacks === undefined) {
       throw new Error(
         'The Foundry module is older than this server and does not check attacks or a Dash: update the module and reload Foundry.'
+      );
+    }
+    // An older module ignores `results` and `activity` and answers without the activity list.
+    const usesPartThree =
+      params.results !== undefined || params.attacks?.some(a => a.activity !== undefined);
+    if (usesPartThree && built.context.ownTurn === undefined) {
+      throw new Error(
+        'The Foundry module is older than this server and does not plan damage results, activities or legendary actions: update the module and reload Foundry.'
       );
     }
     const result = {

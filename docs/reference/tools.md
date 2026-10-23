@@ -566,6 +566,7 @@ Parameters:
 
 - `actorName` (string, required): NPC actor name or ID. A token on the current scene with this name or ID (or the only token made from this actor) is used first, so an unlinked token spends its own uses.
 - `itemName` (string, required): Name of the weapon/feature/spell to use (e.g. "Scimitar").
+- `activity` (string): Which activity of the item to run (name, id or type), for an item with several (an attack, a save, a utility). A save, utility or legendary activity is used (its card, its cost) and its damage rolled; the reply names the save to roll with roll-saving-throws. Default: the item's attack.
 - `targetAC` (integer): Optional target AC to compute hit/miss against.
 - `isPublic` (boolean): Public roll (true or omitted, the default) or whispered to the GM only (false).
 
@@ -661,7 +662,7 @@ Parameters:
 
 ### plan-npc-turn
 
-Plan a monster's turn. Without moveTo it only reads the fight: whose turn, speed, attacks, Multiattack text, and each enemy's distance, AC, HP, state, square to attack from and score. With moveTo (a grid square) it paths round walls, doors and hostile creatures, counts difficult terrain and plans the move (apply-planned-change, undo-change). List a multiattack in attacks. The attack steps name the tools that roll them (use-npc-activity, then plan-actor-change). Square grids only; no spells, saves or legendary actions yet. Needs the "NPC turn assistant" switch (off by default).
+Plan a monster's turn. Without moveTo it only reads the fight: whose turn, speed, attacks, Multiattack text, and each enemy's distance, AC, HP, state, square to attack from and score. With moveTo (a grid square) it paths round walls, doors and hostile creatures, counts difficult terrain and plans the move (apply-planned-change, undo-change). List a multiattack in attacks (name the activity for a save-based action; a legendary action is planned on another creature's turn and costs legendary actions). Rolls cannot be undone, so roll first with the tools the steps name (use-npc-activity, roll-saving-throws), then call again with moveTo and results (the damage each target takes): one plan covers the move and every hit point change, with one confirm and one undo. Square grids only. Needs the "NPC turn assistant" switch (off by default).
 
 Kind: read-only. Title: Plan NPC turn.
 
@@ -676,6 +677,12 @@ Parameters:
 - `attacks` (array of object): A multiattack: several attacks in order (see the Multiattack text). Items: at most 10.
   - `itemName` (string, required)
   - `target` (string, required)
+  - `activity` (string): Which activity of the item (an item can hold an attack, a save and a utility); named in the context. Default: its attack, else its save.
+- `results` (array of object): The damage the rolls dealt (roll first with use-npc-activity and roll-saving-throws, then call again with the move and these): planned together with the move as one change. Use multiplier 0.5 for half damage on a successful save, 0 for none. A critical hit's dice are already doubled. Items: 1 to 20.
+  - `target` (string, required)
+  - `amount` (number, required): The damage the roll reported. Range: at least 0.
+  - `damageType` (string): dnd5e damage type (slashing, fire...) so resistance applies.
+  - `multiplier` (number): Range: 0 to 1.
 - `dash` (boolean): Dash: the move may use twice the speed. A Dash takes the action, so attacks are refused unless reason names a bonus-action Dash.
 - `reason` (string): One line on why (shown in the plan and Recent Changes).
 

@@ -1,4 +1,4 @@
-import { toolRef } from '@gnuminator/shared';
+import { freeText, toolRef } from '@gnuminator/shared';
 import { z } from 'zod';
 import { FoundryClient } from '../foundry-client.js';
 import { Logger } from '../logger.js';
@@ -77,6 +77,12 @@ export class CombatResolutionTools {
               description: 'Name of the weapon/feature/spell to use (e.g. "Scimitar").',
               ...toolRef('actor-item', 'id', { parent: 'actorName' }),
             },
+            activity: {
+              type: 'string',
+              description:
+                "Which activity of the item to run (name, id or type), for an item with several (an attack, a save, a utility). A save, utility or legendary activity is used (its card, its cost) and its damage rolled; the reply names the save to roll with roll-saving-throws. Default: the item's attack.",
+              ...freeText('An activity name on the item'),
+            },
             targetAC: {
               type: 'integer',
               description: 'Optional target AC to compute hit/miss against.',
@@ -152,6 +158,7 @@ export class CombatResolutionTools {
     const schema = z.object({
       actorName: z.string(),
       itemName: z.string(),
+      activity: z.string().optional(),
       targetAC: z.number().int().optional(),
       isPublic: z.boolean().optional(),
     });

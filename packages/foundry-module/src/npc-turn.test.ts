@@ -137,9 +137,30 @@ describe('planNpcTurn: context', () => {
     expect(plan.ops).toBeUndefined();
     expect(plan.context.token).toMatchObject({ name: 'Wolf', gridX: 2, gridY: 2 });
     expect(plan.context.speed).toBe(30);
+    const attack = {
+      name: 'Attack',
+      type: 'attack',
+      legendaryCost: null,
+      save: null,
+      damage: false,
+    };
     expect(plan.context.actions).toEqual([
-      { name: 'Bite', activityTypes: ['attack'], rangeFt: 5, longRangeFt: null, melee: true },
-      { name: 'Spit', activityTypes: ['attack'], rangeFt: 30, longRangeFt: 60, melee: false },
+      {
+        name: 'Bite',
+        activityTypes: ['attack'],
+        activities: [attack],
+        rangeFt: 5,
+        longRangeFt: null,
+        melee: true,
+      },
+      {
+        name: 'Spit',
+        activityTypes: ['attack'],
+        activities: [attack],
+        rangeFt: 30,
+        longRangeFt: 60,
+        melee: false,
+      },
     ]);
     // The defeated Cleric is left out; Hero is 5 squares away, edge to edge 4 gaps + 1.
     expect(plan.context.targets).toHaveLength(1);

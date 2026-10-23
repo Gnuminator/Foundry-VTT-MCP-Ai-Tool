@@ -40,10 +40,10 @@ to exist even when you only transcribe. Edit `FVTT_SESSIONS_DIR` in `.env` if yo
 | `voice-stack.ps1 logs [service]`       | follow the logs                                                                                           |
 | `voice-stack.ps1 down`                 | stops and removes the project's containers; keeps the model cache volume                                  |
 
-`transcribe` options: `-Model <name|path>` (default `large-v3-turbo`), `-Force` (redo finished tracks),
-`-NoPipeline`, `-NoHotwords`, `-NoAutoFix`, `-Hotwords` (no `names.txt`: use `<session>/vocab.txt`).
-When `<session>/names.txt` exists it goes to Whisper as hotwords (cut to a token budget, first names
-win; see `tools/transcriber/README.md`) and to the pipeline as the known names for automatic name
+`transcribe` options: `-Model <name|path>` (default `large-v3`), `-Force` (redo finished tracks),
+`-NoPipeline`, `-NoAutoFix`, `-Hotwords` (pass `<session>/names.txt`, or `vocab.txt` when there is no
+names file, to Whisper as hotwords; off by default, see the results below; `-NoHotwords` is kept and
+does nothing). `<session>/names.txt` goes to the pipeline as the known names for automatic name
 fixes (every fix is listed in `timeline/fixes.json`; `-NoAutoFix` turns them into suggestions).
 
 `names` options: `-Dashboard <url>` (default `http://127.0.0.1:3100`, the co-GM dashboard of the
@@ -78,7 +78,7 @@ LiveKit session folder out of `livekit-recordings` (or point at it) to transcrib
 of this: the repository is public.
 
 The Hugging Face model cache lives in the named volume `fvtt-voice-hf-cache` (the first run downloads
-`large-v3-turbo`, about 1.6 GB, and loads it in under a minute afterwards).
+`large-v3`, about 3 GB, and loads it in under a minute afterwards).
 
 ## Hugging Face token
 
@@ -99,9 +99,50 @@ docker compose -f tools/voice-stack/docker-compose.yml --project-directory tools
   transcriber /session --out /session/transcripts --model /models/hviske-v6
 ```
 
+## Which model, and why (2026-10-24)
+
+Default: `large-v3`, language `da`, no hotwords. Speed does not matter here (the rule is best quality
+within about real time): `large-v3` runs at 0.06 of real time on the GPU PC, so a 3 hour session
+takes about 11 minutes; turbo is about 3 times faster and not needed.
+
+Bench (VAD threshold 0.4 and 500 ms silence; the transcriber itself uses the faster-whisper VAD
+defaults) on six 60 s slices of the David GM test recording (2026-10-23, two speakers, Danish with English
+game words; the audio stays private). There is no hand-made reference, so each slice is judged by
+agreement: distance of each candidate from the consensus (the candidate closest to all the others),
+plus reading the disputed spans. Lower is closer to the consensus. Six of the eight candidates are
+large-v3 variants, so the consensus leans toward large-v3: read the last column, not only the
+percentage.
+
+| Candidate (beam 5, VAD on)          | distance to consensus | RTF  | What the disputed spans show                                                 |
+| ----------------------------------- | --------------------- | ---- | ---------------------------------------------------------------------------- |
+| large-v3 `da`                       | 4.9 %                 | 0.06 | best Danish spelling and word endings; drops short English asides on 1 slice |
+| large-v3 auto                       | 4.9 %                 | 0.06 | identical to `da` here (language detected as Danish on every slice)          |
+| large-v3 auto, per-segment language | 7.0 %                 | 0.06 | keeps the English tail on the English-only slice; otherwise identical        |
+| large-v3, VAD chunks, `da`          | 8.5 %                 | 0.06 | hallucinated lead-in phrases, mangled the mixed slice ("put the COM in")     |
+| large-v3, VAD chunks, auto          | 8.9 %                 | 0.07 | same as above                                                                |
+| turbo `da` / auto                   | 12.3 %                | 0.02 | misspells Danish ("stedspadsløs"), garbles the start of an English sentence  |
+| turbo, VAD chunks, auto             | 19.6 %                | 0.03 | worst                                                                        |
+| large-v3 forced `en`                | n/a                   | 0.11 | translates the Danish into English: never use for mixed audio                |
+
+Whole recording, both tracks (95 min each), large-v3: `da` 359 s and 136 s, per-segment language 315 s
+and 145 s, 8502 and 3924 words, within one word of each other. So per-segment language detection
+changes nothing on long audio and is not turned on.
+
+Short hotword list (co-GM, Strahd, Danni, Foundry, dnd5e, Silvera, Rokksteddy, David, Barovia) against
+none, same slices: on turbo it made the transcript worse (dropped 13 of 87 words on the game-terms
+slice); on large-v3 it fixed some spans (a missed sentence, "som GM", "halfling") and broke others
+("trykker" for "så klikker du", "på bar" for "barbare", an English aside dropped). Not a clear win, so
+hotwords stay off by default, as the older long-form benchmark found. The tool's own names are fixed
+after transcription instead (session pipeline, `data/product_rules.json`).
+
+Known limit: when a recording starts with a whole English sentence and then Danish, large-v3 with `da`
+can leave the English sentence out (the 2026-10-23 recorder test). Forcing `en` keeps both sentences
+but translates Danish elsewhere, and per-segment language detection did not fix it. Where this
+matters, a turbo run (`-Model large-v3-turbo`) keeps the English and can be compared by hand.
+
 ## GPU sharing
 
-One GPU job at a time. `large-v3-turbo` needs about 3 GB of VRAM, but two jobs at once slow each other
+One GPU job at a time. `large-v3` needs about 4 GB of VRAM, but two jobs at once slow each other
 down, and the bigger models can run out of memory. `transcribe` prints the GPU memory before it starts
 and warns when more than 6 GB is already in use. The LiveKit services do not use the GPU.
 

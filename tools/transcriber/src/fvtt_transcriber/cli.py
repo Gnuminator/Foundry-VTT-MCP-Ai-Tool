@@ -39,7 +39,7 @@ def build_parser() -> argparse.ArgumentParser:
         type=Path,
         help="output folder (default: <input folder>/transcripts); JSON goes to <out>/json",
     )
-    p.add_argument("--model", default="large-v3-turbo", help="model name, Hugging Face id or folder")
+    p.add_argument("--model", default="large-v3", help="model name, Hugging Face id or folder")
     p.add_argument(
         "--engine",
         choices=["auto", "whisper", "hviske", "saga2"],

@@ -13,7 +13,14 @@ from session_pipeline import namelist
 from session_pipeline.echo import levels_from_tracks
 from session_pipeline.filters import parse_vocab
 from session_pipeline.model import InputError, Track, load_track
-from session_pipeline.names import NameRules, NameSuggester, ordinary_from_frequency, parse_rules
+from session_pipeline.names import (
+    NameRules,
+    NameSuggester,
+    merge_rules,
+    ordinary_from_frequency,
+    parse_rules,
+    product_rules,
+)
 from session_pipeline.textutil import norm_tokens
 from session_pipeline.timeline import SpeakerInfo, run_pipeline, write_outputs
 
@@ -51,6 +58,11 @@ def build_parser() -> argparse.ArgumentParser:
     m.add_argument("--vocab", type=Path, help="vocabulary file (commas or lines) for the recitation filter")
     m.add_argument("--names", type=Path, help="known names for suggestions (default: the vocabulary)")
     m.add_argument("--rules", type=Path, help="JSON: correct spelling -> [wrong spellings]")
+    m.add_argument(
+        "--no-product-rules",
+        action="store_true",
+        help="skip the shipped fixes for the tool's own names (KGM -> co-GM, Strut -> Strahd, Danny -> Danni)",
+    )
     m.add_argument("--ordinary-words", type=Path, help="file of ordinary words the suggester must ignore")
     m.add_argument(
         "--ordinary-min-count",
@@ -105,7 +117,9 @@ def run_merge(args: argparse.Namespace) -> int:
     tracks: list[Track] = [load_track(f) for f in files]
     vocab = _read_terms(args.vocab)
     names = _read_terms(args.names) or vocab
-    rules: NameRules | None = parse_rules(_read_json(args.rules)) if args.rules else None
+    session_rules = _read_json(args.rules) if args.rules else {}
+    base_rules = {} if args.no_product_rules else product_rules()
+    rules: NameRules | None = parse_rules(merge_rules(session_rules, base_rules)) or None
     ordinary: set[str] = set()
     if args.ordinary_words:
         ordinary |= {t for w in _read_terms(args.ordinary_words) for t in norm_tokens(w)}

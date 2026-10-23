@@ -12,12 +12,14 @@ The name list and the rules are inputs. Later they come from the Foundry world.
 
 from __future__ import annotations
 
+import json
 import re
 import unicodedata
 from collections import Counter
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from difflib import SequenceMatcher
+from importlib import resources
 from typing import Any
 
 from session_pipeline.textutil import norm_tokens
@@ -66,11 +68,12 @@ class Suggestion:
 
 def _match_case(found: str, correct: str) -> str:
     letters = [c for c in found if c.isalpha()]
-    if len(letters) > 1 and all(c.isupper() for c in letters):
-        return correct.upper()
-    # canonical mixed case inside a word ("D'Arcy", "NPC") stays; a capital after a space does not count
+    # canonical mixed case inside a word ("D'Arcy", "NPC", "co-GM") stays, even over an all-caps
+    # "KGM"; a capital after a space does not count
     if any(i > 0 and c.isupper() and correct[i - 1] != " " for i, c in enumerate(correct)):
         return correct
+    if len(letters) > 1 and all(c.isupper() for c in letters):
+        return correct.upper()
     if letters and letters[0].isupper():
         return correct[:1].upper() + correct[1:]
     if letters and all(c.islower() for c in letters):
@@ -90,9 +93,10 @@ class NameRules:
                     self.by_wrong.setdefault(w, correct)
         alts = sorted(self.by_wrong, key=len, reverse=True)
         body = "|".join(r"\s+".join(re.escape(p) for p in a.split(" ")) for a in alts)
-        # whole word: no word character before, none after (hyphenated compounds count as one word)
+        # whole word: no word character before, none after (hyphenated compounds and host names
+        # like "kgm.example.com" count as one word)
         self._rx = (
-            re.compile(rf"(?<!\w)(?<!\w-)(?:{body})(?!\w|-\w)", re.IGNORECASE | re.UNICODE)
+            re.compile(rf"(?<!\w)(?<!\w-)(?:{body})(?!\w|-\w|\.\w)", re.IGNORECASE | re.UNICODE)
             if alts
             else None
         )
@@ -114,6 +118,22 @@ class NameRules:
 
         out = self._rx.sub(sub, text)
         return out, [Fix(k[0], k[1], n, k[2]) for k, n in counts.items()]
+
+
+def product_rules() -> dict[str, list[str]]:
+    """The mis-hearings of the tool's own names that ship with the package (``data/product_rules.json``,
+    from the 2026-10-23 David recording): "KGM" for co-GM, "Strut" for Strahd, "Danny" for Danni."""
+    text = (resources.files("session_pipeline") / "data" / "product_rules.json").read_text(encoding="utf-8")
+    return {k: [str(w) for w in v] for k, v in json.loads(text).items()}
+
+
+def merge_rules(first: Mapping[str, Iterable[str]], second: Mapping[str, Iterable[str]]) -> dict[str, list[str]]:
+    """``first`` wins when both map the same wrong spelling (a session's rules over the shipped ones)."""
+    out: dict[str, list[str]] = {}
+    for rules in (first, second):
+        for correct, wrongs in rules.items():
+            out.setdefault(correct, []).extend(wrongs)
+    return out
 
 
 def parse_rules(data: Mapping[str, Any]) -> NameRules:

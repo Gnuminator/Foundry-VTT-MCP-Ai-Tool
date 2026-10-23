@@ -28,11 +28,16 @@ const round = (v, digits) => Math.round(v * 10 ** digits) / 10 ** digits;
 
 // The section for a usage:week report: unknown values are left out, never written as 0.
 export function sectionFor(report) {
-  const lines = [`## ${report.window.from}`, `- from: ${report.window.from}`, `- to: ${report.window.to}`];
+  const lines = [
+    `## ${report.window.from}`,
+    `- from: ${report.window.from}`,
+    `- to: ${report.window.to}`,
+  ];
   for (const [name, key, digits] of KEYS) {
     const t = report.targets.find(x => x.name === name);
     if (!t) continue;
-    if (t.value !== null && t.value !== undefined) lines.push(`- ${key}: ${round(t.value, digits)}`);
+    if (t.value !== null && t.value !== undefined)
+      lines.push(`- ${key}: ${round(t.value, digits)}`);
     lines.push(`- ${key}-limit: ${t.limit}`);
     // ok from the rounded number, so it agrees with what the board recomputes from the note
     const known = t.value !== null && t.value !== undefined;
@@ -64,7 +69,9 @@ export function splitSections(text) {
 export function upsert(existing, report) {
   const id = report.window.from;
   const rest = splitSections(existing || '').filter(([d]) => d !== id);
-  const all = [[id, sectionFor(report)], ...rest].sort((a, b) => (a[0] < b[0] ? 1 : a[0] > b[0] ? -1 : 0));
+  const all = [[id, sectionFor(report)], ...rest].sort((a, b) =>
+    a[0] < b[0] ? 1 : a[0] > b[0] ? -1 : 0
+  );
   return `${HEAD}\n${all.map(([, s]) => s).join('\n\n')}\n`;
 }
 

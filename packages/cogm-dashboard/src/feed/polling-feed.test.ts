@@ -178,7 +178,7 @@ describe('PollingGameFeed event cursor', () => {
     feed.stop();
   });
 
-  it('finds an event stamped behind the cursor (a clock that is behind) within a few polls', async () => {
+  it('finds an event stamped behind the cursor (a clock that is behind) on a later resync', async () => {
     const { client, got, feed } = eventsSetup();
     client.add('a', Date.parse('2026-09-30T10:00:00.000Z'));
     feed.start();
@@ -187,7 +187,7 @@ describe('PollingGameFeed event cursor', () => {
     client.add('late', Date.parse('2026-09-30T09:59:50.000Z'));
     await vi.advanceTimersByTimeAsync(3000);
     expect(got).toEqual(['a']);
-    await vi.advanceTimersByTimeAsync(10_000);
+    await vi.advanceTimersByTimeAsync(30_000);
     expect(got).toEqual(['a', 'late']);
     feed.stop();
   });

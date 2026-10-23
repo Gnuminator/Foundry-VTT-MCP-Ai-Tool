@@ -44,6 +44,9 @@ import type {
  */
 const RESYNC_EVERY_POLLS = 8;
 
+/** How many events a resync reads: as many as one cursor read, so a burst is not cut. */
+const RESYNC_LIMIT = 100;
+
 /** How many delivered event ids the feed remembers to skip a re-read. */
 const MAX_DELIVERED_IDS = 500;
 
@@ -170,7 +173,7 @@ export class PollingGameFeed implements GameFeed {
       const args: Record<string, unknown> =
         this.cursor !== null && !resync
           ? { sinceTimestamp: this.cursor, limit: 100 }
-          : { limit: this.backfillLimit };
+          : { limit: resync ? RESYNC_LIMIT : this.backfillLimit };
       this.pollsSinceResync = resync ? 0 : this.pollsSinceResync + 1;
 
       const response = await this.client.callTool<RecentEventsResponse>('get-recent-events', args);
@@ -196,10 +199,10 @@ export class PollingGameFeed implements GameFeed {
       // free.
       this.cursor = this.maxTimestamp(this.cursor, response.latestTimestamp ?? null);
       // The module stamps events with its own clock. A cursor ahead of that clock (it stepped
-      // back) would hide every new event until the clock catches up: start over from the backfill.
+      // back) would hide every new event until the clock catches up: hold it at that clock.
       const serverMs = Date.parse(response.serverTime ?? '');
       if (this.cursor !== null && Number.isFinite(serverMs) && Date.parse(this.cursor) > serverMs) {
-        this.cursor = null;
+        this.cursor = response.serverTime ?? this.cursor;
       }
       this.firstEventPoll = false;
       this.publishStatus();

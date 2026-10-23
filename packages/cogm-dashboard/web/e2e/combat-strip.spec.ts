@@ -153,6 +153,16 @@ const TOOLS = [
     },
     mutates: 'read',
   },
+  {
+    name: 'plan-combat-change',
+    description: 'Plan ending the fight.',
+    inputSchema: {
+      type: 'object',
+      properties: { action: { type: 'string', enum: ['end'] }, combatId: { type: 'string' } },
+      required: ['action'],
+    },
+    mutates: 'read',
+  },
 ];
 
 /**
@@ -418,7 +428,7 @@ test.describe('picking combatants', () => {
     await expect(page.locator('#combat-body button.combatant-pick')).toHaveCount(0);
   });
 
-  test('both on: a hint, then a count and the three buttons', async ({ page }) => {
+  test('both on: a hint, then a count and the buttons', async ({ page }) => {
     await setup(page, { combatButtons: true, initial: [fight(PARTY_FIGHT)] });
     await load(page);
     const bar = page.locator('#combat-actions');
@@ -426,6 +436,7 @@ test.describe('picking combatants', () => {
     await expect(bar.locator('.ca-hint')).toHaveText(
       'Click combatants to deal damage or set a condition on them.'
     );
+    await expect(bar.locator('.ca-btn')).toHaveText(['End combat']);
     await expect(row(page, 'Ogre Brute')).toHaveClass(/selectable/);
     await expect(row(page, 'Ogre Brute')).toHaveAttribute(
       'data-track',
@@ -438,8 +449,13 @@ test.describe('picking combatants', () => {
     await expect(bar.locator('.ca-count')).toHaveText('1 selected');
     await row(page, 'Goblin Archer').click();
     await expect(bar.locator('.ca-count')).toHaveText('2 selected');
-    await expect(bar.locator('.ca-btn')).toHaveText(['Damage / Heal', 'Condition', 'Clear']);
-    await expect(bar.locator('.ca-btn.ghost')).toHaveText('Clear');
+    await expect(bar.locator('.ca-btn')).toHaveText([
+      'Damage / Heal',
+      'Condition',
+      'Clear',
+      'End combat',
+    ]);
+    await expect(bar.locator('[data-sel="clear"]')).toHaveText('Clear');
 
     // A second click on a row lets go of it.
     await row(page, 'Ogre Brute').click();
@@ -448,7 +464,7 @@ test.describe('picking combatants', () => {
     await expect(bar.locator('.ca-count')).toHaveText('1 selected');
 
     // Clear lets go of all and brings the hint back.
-    await bar.locator('.ca-btn.ghost').click();
+    await bar.locator('[data-sel="clear"]').click();
     await expect(rows(page).locator('.selected')).toHaveCount(0);
     await expect(bar.locator('.ca-hint')).toBeVisible();
   });
@@ -498,6 +514,22 @@ test.describe('picking combatants', () => {
     await expect(drawer.locator('#tool-field-action')).toHaveValue('damage');
     // The bridge's order, not the order they were picked in.
     await expect(drawer.locator('#tool-field-targets')).toHaveValue('Goblin Archer\nOgre Brute');
+    // Nothing planned or applied: the GM presses Run in the Tool runner.
+    await expect(drawer.locator('#tool-run')).toBeVisible();
+    expect(beyondReads(calls)).toEqual([]);
+  });
+
+  test('End combat opens the Tool runner on plan-combat-change, filled in, and writes nothing', async ({
+    page,
+  }) => {
+    const { calls } = await setup(page, { combatButtons: true, initial: [fight(PARTY_FIGHT)] });
+    await load(page);
+    await page.locator('#combat-actions [data-sel="end"]').click();
+
+    const drawer = page.getByRole('dialog', { name: '🛠 Tool Runner' });
+    await expect(drawer).toBeVisible();
+    await expect(drawer.locator('#tool-detail-name')).toHaveText('plan-combat-change');
+    await expect(drawer.locator('#tool-field-action')).toHaveValue('end');
     // Nothing planned or applied: the GM presses Run in the Tool runner.
     await expect(drawer.locator('#tool-run')).toBeVisible();
     expect(beyondReads(calls)).toEqual([]);

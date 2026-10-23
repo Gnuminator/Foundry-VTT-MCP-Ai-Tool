@@ -134,6 +134,7 @@ export const NON_WRITE_METHODS: readonly string[] = [
   'measureDistance',
   'openDocumentForGm',
   'ping',
+  'planCombatChange',
   'planLiveChange',
   'planPartyPlacement',
   'planRoomSetup',

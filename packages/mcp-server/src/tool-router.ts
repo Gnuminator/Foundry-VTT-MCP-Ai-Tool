@@ -44,6 +44,7 @@ import type { QuestCreationTools } from './tools/quest-creation.js';
 import type { RefChoiceTools } from './tools/ref-choices.js';
 import type { ResourceTools } from './tools/resources.js';
 import type { SceneChangeTools } from './tools/scene-change.js';
+import type { CombatChangeTools } from './tools/combat-change.js';
 import type { SceneTools } from './tools/scene.js';
 import type { SessionLogTools } from './tools/session-log.js';
 import type { TarokkaTools } from './tools/tarokka.js';
@@ -89,6 +90,7 @@ export interface ToolRouterDeps {
   refChoiceTools: RefChoiceTools;
   resourceTools: ResourceTools;
   sceneChangeTools: SceneChangeTools;
+  combatChangeTools: CombatChangeTools;
   sceneTools: SceneTools;
   sessionLogTools: SessionLogTools;
   tarokkaTools: TarokkaTools;
@@ -202,6 +204,7 @@ export function buildToolRouter(deps: ToolRouterDeps): Record<string, ToolHandle
     'plan-party-change': args => deps.partyTools.handlePlanPartyChange(args),
     'plan-actor-change': args => deps.livePlayTools.handlePlanActorChange(args),
     'plan-token-change': args => deps.livePlayTools.handlePlanTokenChange(args),
+    'plan-combat-change': args => deps.combatChangeTools.handlePlanCombatChange(args),
     'plan-scene-change': args => deps.sceneChangeTools.handlePlanSceneChange(args),
     'plan-scene-mood': args => deps.sceneMoodTools.handleToolCall('plan-scene-mood', args),
     'list-scene-moods': args => deps.sceneMoodTools.handleToolCall('list-scene-moods', args),
@@ -278,6 +281,7 @@ export function collectToolDefinitions(deps: ToolRouterDeps): ToolDefinitionLike
     ...deps.partyTools.getToolDefinitions(),
     ...deps.livePlayTools.getToolDefinitions(),
     ...deps.sceneChangeTools.getToolDefinitions(),
+    ...deps.combatChangeTools.getToolDefinitions(),
     ...deps.refChoiceTools.getToolDefinitions(),
   ]);
 }

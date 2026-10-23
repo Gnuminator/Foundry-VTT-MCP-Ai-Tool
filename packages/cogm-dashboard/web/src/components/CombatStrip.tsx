@@ -21,6 +21,7 @@ import {
   bossPrompts,
   canSelect,
   deathSavesWords,
+  endCombatRequest,
   hpPercent,
   hpText,
   hpTone,
@@ -256,21 +257,39 @@ function ActionBar({
   stale,
   onAct,
   onClear,
+  onEnd,
 }: {
   count: number;
   stale: boolean;
   onAct: (action: SelectionAction) => void;
   onClear: () => void;
+  onEnd: () => void;
 }): JSX.Element {
+  const off = stale ? ('true' as const) : undefined;
+  const away = stale ? 'The bridge is away' : undefined;
+  const endButton = (
+    <button
+      type="button"
+      className="ca-btn ghost"
+      data-track="dash.combat.end"
+      data-sel="end"
+      aria-disabled={off}
+      title={away ?? 'Plan ending this fight; you confirm it, and Undo brings it back'}
+      onClick={() => {
+        if (!stale) onEnd();
+      }}
+    >
+      End combat
+    </button>
+  );
   if (count === 0) {
     return (
       <div className="ca-row">
         <span className="ca-hint">Click combatants to deal damage or set a condition on them.</span>
+        {endButton}
       </div>
     );
   }
-  const off = stale ? ('true' as const) : undefined;
-  const away = stale ? 'The bridge is away' : undefined;
   return (
     <div className="ca-row">
       <span className="ca-count">
@@ -315,6 +334,7 @@ function ActionBar({
       >
         Clear
       </button>
+      {endButton}
     </div>
   );
 }
@@ -427,6 +447,7 @@ export function CombatStrip({
                   if (targets.length > 0) onOpenTool(planRequest(action, targets));
                 }}
                 onClear={() => setPicked(new Set())}
+                onEnd={() => onOpenTool(endCombatRequest())}
               />
             )}
           </div>

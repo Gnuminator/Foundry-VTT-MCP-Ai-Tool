@@ -34,6 +34,7 @@ export const BOSS_COMBAT_ROWS = [
   'dash.combat.selection-clear',
   'dash.combat.selection-condition',
   'dash.combat.selection-damage',
+  'dash.combat.end',
 ];
 
 /** @type {import('../lib/contract.mjs').Scenario} */

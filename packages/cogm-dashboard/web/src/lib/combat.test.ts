@@ -23,6 +23,7 @@ import {
   livingBosses,
   metaText,
   planRequest,
+  endCombatRequest,
   pruneSelection,
   reactionLabel,
   reactionsFor,
@@ -388,6 +389,12 @@ describe('selecting combatants and the action bar', () => {
       action: 'condition',
       targets: ['A', 'B'],
     });
+  });
+});
+
+describe('ending the fight', () => {
+  it('opens the tool runner on plan-combat-change with the end action', () => {
+    expect(endCombatRequest()).toEqual({ name: 'plan-combat-change', prefill: { action: 'end' } });
   });
 });
 

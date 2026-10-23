@@ -308,6 +308,16 @@ describe('FoundryDataAccess — requestAbilityCheck (wrapper)', () => {
     const msg = world.messages.contents[world.messages.contents.length - 1];
     expect(msg.content).toContain('WIS Ability Check (Public)');
     expect(msg.content).toContain('Spot the trap — DC 15');
+    // The click handler reads the DC from the button and rolls against it.
+    expect(msg.content).toContain('data-dc="15"');
+  });
+
+  it('puts no data-dc on a request without a DC', async () => {
+    world.addUser({ id: 'u1', name: 'Alice', active: true, isGM: false });
+    addPlayerCharacter({ id: 'a1', name: 'Silvera', ownerUserId: 'u1' });
+    await da.requestAbilityCheck({ targetPlayer: 'Alice', ability: 'wis', isPublic: true });
+    const msg = world.messages.contents[world.messages.contents.length - 1];
+    expect(msg.content).not.toContain('data-dc');
   });
 });
 

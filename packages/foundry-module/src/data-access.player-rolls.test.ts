@@ -41,6 +41,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ERROR_MESSAGES, MODULE_ID } from './constants.js';
 import { createTestWorld, makeItem, type TestWorld } from './test-support/foundry-mock/index.js';
 import { FoundryDataAccess } from './data-access.js';
+import { eventTracker } from './session-events.js';
 
 let world: TestWorld;
 let restore: () => void;
@@ -285,6 +286,36 @@ describe('FoundryDataAccess — requestPlayerRolls', () => {
 // ===========================================================================
 // requestAbilityCheck / requestAttackRoll (wrappers)
 // ===========================================================================
+
+describe('FoundryDataAccess: roll request event', () => {
+  it('a private request is a roll-request event naming who may see it; a public one names no one', async () => {
+    world.addUser({ id: 'u1', name: 'Alice', active: true, isGM: false });
+    world.addUser({ id: 'gm1', name: 'GM', active: true, isGM: true });
+    addPlayerCharacter({ id: 'a1', name: 'Silvera', ownerUserId: 'u1' });
+    await da.requestPlayerRolls({
+      rollType: 'ability',
+      rollTarget: 'wis',
+      targetPlayer: 'Alice',
+      isPublic: false,
+      rollModifier: '',
+      flavor: '',
+    });
+    await da.requestPlayerRolls({
+      rollType: 'ability',
+      rollTarget: 'wis',
+      targetPlayer: 'Alice',
+      isPublic: true,
+      rollModifier: '',
+      flavor: '',
+    });
+    const events = eventTracker.getSessionLog({ eventType: 'roll-request' }).slice(-2);
+    expect(events[0].description).toContain('Private roll request to Alice');
+    expect(events[0].details.isPublic).toBe(false);
+    expect(events[0].details.whisperTo).toEqual(expect.arrayContaining(['u1']));
+    expect(events[1].details.isPublic).toBe(true);
+    expect(events[1].details.whisperTo).toEqual([]);
+  });
+});
 
 describe('FoundryDataAccess — requestAbilityCheck (wrapper)', () => {
   it('builds an ability roll request and folds reason + DC into the flavor', async () => {

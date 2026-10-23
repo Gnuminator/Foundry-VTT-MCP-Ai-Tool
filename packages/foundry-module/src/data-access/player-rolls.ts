@@ -3,6 +3,7 @@ import * as shared from './shared.js';
 import { trackUsage } from '../usage-recorder.js';
 import { logDebug, logInfo } from '../log.js';
 import { dig, rec, type Rec } from '../doc-read.js';
+import { eventTracker } from '../session-events.js';
 
 /** A roll button's persisted state (world setting `rollStates`, keyed by button id). */
 interface RollButtonState {
@@ -130,6 +131,25 @@ export class PlayerRollsDataAccess {
         throw new Error('Foundry did not create the roll-request chat message');
       }
       this.saveRollButtonMessageId(buttonId, chatMessage.id);
+
+      // The Live Feed (GM) and the target player's own page (/me) list the request. No visibility
+      // stamp: the public /player feed never shows it (events without one are dropped there).
+      const targetName = playerInfo.targetName;
+      eventTracker.logSessionEvent(
+        'roll-request',
+        `${data.isPublic ? 'Roll request' : 'Private roll request'} to ${targetName}: ${buttonLabel}`,
+        {
+          actorName: playerInfo.character?.name ?? null,
+          actorId: playerInfo.character?.id ?? null,
+          details: {
+            label: buttonLabel,
+            isPublic: data.isPublic,
+            targetName,
+            // Who may see a private request: the player and the GMs (empty for a public one).
+            whisperTo: whisperTargets,
+          },
+        }
+      );
 
       // Click handlers are attached globally via the renderChatMessageHTML hook
       // in main.ts, so every client wires them up when it renders the message.

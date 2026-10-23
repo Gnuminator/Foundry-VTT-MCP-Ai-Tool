@@ -361,6 +361,18 @@ describe('EventTracker roll events (O3 item 6)', () => {
     expect(gm[0].description).toBe('Wolf, Attack: 1d20 (14) +4 modifier = 18 vs AC 13: hit');
   });
 
+  it('a private roll records who it was whispered to and the line that person may read', () => {
+    const t = new EventTracker();
+    t.registerHooks();
+    fire('createChatMessage', rollMessage({ id: 'p', whisper: ['player1', 'gm'] }));
+    fire('createChatMessage', rollMessage({ id: 'b', whisper: ['gm'], blind: true }));
+    const [priv, blind] = t.getSessionLog({ eventType: 'gm-roll' });
+    expect(priv.details.whisperTo).toEqual(['player1', 'gm']);
+    expect(typeof priv.details.playerLine).toBe('string');
+    expect(priv.details.playerLine).not.toContain(' vs ');
+    expect(blind.details.whisperTo).toEqual(['gm']);
+  });
+
   it('a whispered damage roll is a `gm-roll`, not a public `damage-roll`', () => {
     const t = new EventTracker();
     t.registerHooks();

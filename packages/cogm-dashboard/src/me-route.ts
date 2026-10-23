@@ -17,7 +17,9 @@
  */
 import type { Express, Request, Response } from 'express';
 
+import type { SessionEvent } from './feed/types.js';
 import type { PlayerLinkStore } from './player-links.js';
+import { privateRollsFor } from './private-rolls.js';
 import type { PlayerDirectory } from './usage-route.js';
 
 export interface MeClient {
@@ -31,6 +33,8 @@ export interface MeRouteOptions {
   requireGm: (req: Request, res: Response, next: () => void) => void;
   /** The connected world, or null before it is known. */
   worldId: () => string | null;
+  /** The recent session events, for the player's own private rolls; absent on fakes. */
+  events?: () => readonly SessionEvent[];
   /** The GM's theme for this world (the Fancy view follows it). */
   theme: () => string;
   publicDir: string;
@@ -65,7 +69,13 @@ export function mountMeRoute(app: Express, options: MeRouteOptions): void {
     }
     client
       .characterSheet(userId)
-      .then(result => res.json({ ...(result as object), theme: options.theme() }))
+      .then(result =>
+        res.json({
+          ...(result as object),
+          theme: options.theme(),
+          privateRolls: options.events ? privateRollsFor(userId, options.events()) : [],
+        })
+      )
       .catch((error: unknown) => {
         res.status(502).json({
           error: error instanceof Error ? error.message : 'Could not read the character.',

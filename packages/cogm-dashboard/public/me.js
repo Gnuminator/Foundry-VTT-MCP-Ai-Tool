@@ -95,6 +95,18 @@ function renderFancy(s) {
     .filter(([, v]) => v > 0)
     .map(([k, v]) => `${v} ${k}`)
     .join(' · ');
+  const privateRolls = (data?.privateRolls || []).length
+    ? `<section class="card wide" id="me-private-rolls">
+      <h2>Your private rolls</h2>
+      <ul class="rows">${data.privateRolls
+        .map(
+          r =>
+            `<li><span>${r.kind === 'request' ? 'Asked' : 'Rolled'}: ${esc(r.text)}</span><span class="val muted">${esc(new Date(r.timestampMs).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }))}</span></li>`
+        )
+        .join('')}</ul>
+      <p class="muted">Only you and your GM see these.</p>
+    </section>`
+    : '';
   return `<div class="fancy">
     <section class="card wide">
       <div class="vitals">
@@ -106,6 +118,7 @@ function renderFancy(s) {
       <div class="chips">${conditions}</div>
       ${down ? `<p>Death saves: ${pips(s.deathSaves.success, 3)} saved, ${pips(s.deathSaves.failure, 3)} failed</p>` : ''}
     </section>
+    ${privateRolls}
     ${
       caster
         ? `<section class="card">

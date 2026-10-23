@@ -19,6 +19,7 @@ import {
   readFeedEvent,
   readFeedEvents,
   severityClass,
+  eventLabel,
   type FeedEvent,
   type FeedLog,
 } from './feed';
@@ -230,6 +231,9 @@ describe('severityClass', () => {
     expect(severityClass('damage')).toBe('sev-damage');
     expect(severityClass('condition-applied')).toBe('sev-condition-applied');
     expect(severityClass('gm-roll')).toBe('sev-gm-roll');
+    expect(eventLabel('gm-roll')).toBe('private roll');
+    expect(eventLabel('roll-request')).toBe('roll request');
+    expect(eventLabel('damage')).toBe('damage');
   });
 
   it('keeps an odd kind inside the class attribute', () => {

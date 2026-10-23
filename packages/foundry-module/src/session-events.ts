@@ -466,6 +466,13 @@ export class EventTracker {
       breakdown: described.text,
       messageId: entry.id,
     };
+    if (isPrivate) {
+      // Who a private roll was whispered to, and the line that person may read (no DC or outcome
+      // unless dnd5e shows them): /me lists a player's own private rolls from these. A blind
+      // roll has no recipients.
+      details.whisperTo = whisper.filter((id): id is string => typeof id === 'string');
+      details.playerLine = described.textPlayerSafe;
+    }
     const [only] = described.rolls;
     if (only && described.rolls.length === 1) {
       if (only.natural !== undefined) details.natural = only.natural;

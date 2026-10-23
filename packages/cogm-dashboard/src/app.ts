@@ -659,6 +659,7 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
     directory: playerDirectory,
     requireGm,
     worldId: () => world?.id ?? null,
+    events: () => state.recentEvents,
     theme: () => themes.get(world?.id),
     publicDir: config.publicDir,
     pageHeaders: res => PLAYER_PAGE_HEADERS.apply(res),

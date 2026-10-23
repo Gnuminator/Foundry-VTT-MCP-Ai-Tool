@@ -125,6 +125,16 @@ export function severityClass(eventType: string): string {
   return `sev-${safe || 'other'}`;
 }
 
+/**
+ * The chip an event shows: the module's kind, except where that name means nothing to a GM. A
+ * whispered or blind roll is a `gm-roll` to the module; the GM reads "private roll".
+ */
+export function eventLabel(eventType: string): string {
+  if (eventType === 'gm-roll') return 'private roll';
+  if (eventType === 'roll-request') return 'roll request';
+  return eventType;
+}
+
 /** The time an event shows: the browser's own time format, as the old page did. */
 export function eventTime(timestampMs: number): string {
   return new Date(timestampMs).toLocaleTimeString();

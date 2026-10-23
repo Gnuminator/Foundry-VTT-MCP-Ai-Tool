@@ -4,7 +4,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { COMBAT_PLAN_QUERY, planCombatChange } from './combat-plan.js';
+import { COMBAT_PLAN_QUERY, planCombatChange, startedOnCreate } from './combat-plan.js';
 import { COMBAT_PLAN_QUERY as SHARED_QUERY } from '../../../shared/src/combat-change.js';
 import { createTestWorld, makeToken, type TestWorld } from './test-support/foundry-mock/index.js';
 
@@ -88,7 +88,14 @@ describe('start', () => {
 
   it('marks a hidden token hidden and leaves out a token with no actor', async () => {
     arena([
-      makeToken({ id: 't1', name: 'Ambusher', disposition: -1, hidden: true, actorId: 'a1' }),
+      makeToken({
+        id: 't1',
+        name: 'Ambusher',
+        disposition: -1,
+        hidden: true,
+        actorId: 'a1',
+        actor: { id: 'a1', type: 'npc' },
+      }),
       makeToken({ id: 't2', name: 'Marker', disposition: -1 }),
     ]);
     const plan = await planCombatChange({ action: 'start' });
@@ -113,6 +120,26 @@ describe('start', () => {
     await expect(planCombatChange({ action: 'start' })).rejects.toThrow(
       'No player character or Hostile token'
     );
+  });
+});
+
+describe('startedOnCreate', () => {
+  it('is true for a combat created already begun', () => {
+    expect(startedOnCreate({ round: 1 }, { 'foundry-mcp-bridge': { changeMode: 'apply' } })).toBe(
+      true
+    );
+    expect(startedOnCreate({ round: 1 }, {})).toBe(true);
+  });
+
+  it('is false for round 0, and for a combat an undo or rollback re-creates', () => {
+    expect(startedOnCreate({ round: 0 }, {})).toBe(false);
+    expect(startedOnCreate({}, undefined)).toBe(false);
+    expect(startedOnCreate({ round: 3 }, { 'foundry-mcp-bridge': { changeMode: 'undo' } })).toBe(
+      false
+    );
+    expect(
+      startedOnCreate({ round: 3 }, { 'foundry-mcp-bridge': { changeMode: 'rollback' } })
+    ).toBe(false);
   });
 });
 

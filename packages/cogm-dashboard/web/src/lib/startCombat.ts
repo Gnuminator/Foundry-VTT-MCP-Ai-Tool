@@ -15,6 +15,7 @@ export interface SceneToken {
 
 /** The answer of get-token-positions, as far as the picker reads it. */
 export interface TokenPositionsAnswer {
+  sceneId?: string;
   sceneName?: string;
   tokens?: SceneToken[];
 }
@@ -47,10 +48,12 @@ export function sideWords(token: SceneToken): string {
 /** The plan request for the ticked tokens, in the picker's order. */
 export function startArgs(
   rows: readonly SceneToken[],
-  ticked: ReadonlySet<string>
-): { action: 'start'; tokenIds: string[] } {
+  ticked: ReadonlySet<string>,
+  sceneId?: string
+): { action: 'start'; tokenIds: string[]; sceneId?: string } {
   return {
     action: 'start',
+    ...(sceneId ? { sceneId } : {}),
     tokenIds: rows.filter(t => ticked.has(t.tokenId) && canFight(t)).map(t => t.tokenId),
   };
 }

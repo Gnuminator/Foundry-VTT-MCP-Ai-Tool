@@ -1,3 +1,4 @@
+import { startedOnCreate } from './combat-plan.js';
 import { MODULE_ID } from './constants.js';
 import { EffectEventDeduper } from './effect-dedupe.js';
 import { hpChangeFitsRoll, originatingMessageId } from './hp-credit.js';
@@ -806,8 +807,8 @@ export class PlayRecorder {
       on('updateToken', (t, c, o, u) => this.onUpdateToken(t, c, o, u));
       on('combatStart', c => this.onCombatStart(c));
       // A combat created already begun (plan-combat-change start) never fires combatStart.
-      on('createCombat', c => {
-        if ((num(shape<CombatLike>(c)?.round) ?? 0) > 0) this.onCombatStart(c);
+      on('createCombat', (c, o) => {
+        if (startedOnCreate(c, o)) this.onCombatStart(c);
       });
       on('updateCombat', (c, ch, o, u) => this.onUpdateCombat(c, ch, o, u));
       on('deleteCombat', c => this.onDeleteCombat(c));

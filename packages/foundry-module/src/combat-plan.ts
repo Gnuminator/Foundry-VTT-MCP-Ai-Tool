@@ -21,6 +21,7 @@ import type {
   CombatStartRequest,
 } from '@gnuminator/shared';
 
+import { MODULE_ID } from './constants.js';
 import * as shared from './data-access/shared.js';
 import { requireCurrentScene } from './scene-plan-geometry.js';
 
@@ -59,6 +60,18 @@ function combatantCount(combat: CombatDoc): number {
   const c = combat.combatants;
   if (Array.isArray(c)) return c.length;
   return c?.size ?? c?.contents?.length ?? 0;
+}
+
+/**
+ * Whether a just-created Combat is a start the logs should record: it is already begun (round >
+ * 0, as plan-combat-change start makes it, and no combatStart hook fires for it) and no guarded
+ * undo or rollback made it (that re-creates an ended fight with its old round).
+ */
+export function startedOnCreate(combat: unknown, options: unknown): boolean {
+  const round = Number((combat as { round?: unknown } | null)?.round ?? 0);
+  if (!(round > 0)) return false;
+  const ns = (options as Record<string, { changeMode?: unknown } | undefined> | null)?.[MODULE_ID];
+  return ns?.changeMode !== 'undo' && ns?.changeMode !== 'rollback';
 }
 
 /** The tokens a fight starts with when the caller names none: player characters and Hostiles. */
@@ -101,7 +114,7 @@ function planStart(request: CombatStartRequest): CombatChangePlan {
   const names: string[] = [];
   for (const token of picked) {
     const name = String(token.name ?? token.id);
-    if (!token.actorId && !token.actor) {
+    if (!token.actor) {
       skipped.push(`${name} (no actor)`);
       continue;
     }

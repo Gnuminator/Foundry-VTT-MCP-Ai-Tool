@@ -21,10 +21,12 @@ import { Button, QueryState } from '../ui';
 function TokenList({
   rows,
   sceneName,
+  sceneId,
   onClose,
 }: {
   rows: SceneToken[];
   sceneName: string | undefined;
+  sceneId: string | undefined;
   onClose: () => void;
 }): JSX.Element {
   const run = useGuardedChange();
@@ -37,7 +39,7 @@ function TokenList({
     if (!next.delete(id)) next.add(id);
     setEdited(next);
   };
-  const args = startArgs(rows, ticked);
+  const args = startArgs(rows, ticked, sceneId);
   const none = args.tokenIds.length === 0;
   const start = (): void => {
     if (busy || none) return;
@@ -126,10 +128,19 @@ export function StartCombat(): JSX.Element {
           <TokenList
             rows={pickerRows(data.tokens)}
             sceneName={data.sceneName}
+            sceneId={data.sceneId}
             onClose={() => setOpen(false)}
           />
         )}
       </QueryState>
+      {/* The list has its own Cancel; while it loads, failed or is empty there is none. */}
+      {!(tokens.isSuccess && (tokens.data.tokens ?? []).length > 0) && (
+        <div className="ca-row">
+          <Button size="sm" data-track="dash.combat.start-cancel" onClick={() => setOpen(false)}>
+            Close
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

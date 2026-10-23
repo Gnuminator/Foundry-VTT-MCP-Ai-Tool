@@ -481,9 +481,7 @@ test.describe('start combat', () => {
     await expect(list).toBeHidden();
   });
 
-  test('Cancel closes the picker and writes nothing; with GM Actions off there is no button', async ({
-    page,
-  }) => {
+  test('Cancel closes the picker and writes nothing', async ({ page }) => {
     const { calls } = await setup(page, {});
     await load(page);
     await page.getByRole('button', { name: 'Start combat' }).click();

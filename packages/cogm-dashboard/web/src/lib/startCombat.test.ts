@@ -50,6 +50,7 @@ describe('the start-combat picker', () => {
       tokenIds: ['t2', 't4'],
     });
     expect(startArgs(rows, new Set()).tokenIds).toEqual([]);
+    expect(startArgs(rows, new Set(['t2']), 'scene1').sceneId).toBe('scene1');
   });
 
   it('says Hostile for the enemies', () => {

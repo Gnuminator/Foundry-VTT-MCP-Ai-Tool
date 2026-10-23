@@ -261,6 +261,16 @@ export function DuringBar({ during }: { during: DuringController }): JSX.Element
           Auto
         </LayoutButton>
       </div>
+      <Button
+        variant="quiet"
+        id="btn-layout-tour-bar"
+        data-track="dash.during.layout-tour"
+        hidden={trial !== null}
+        title="Try the three layouts on the real screen, with a sample fight, and keep one"
+        onClick={() => actions.startTrial()}
+      >
+        Try the layouts
+      </Button>
       <Tooltip content="What the layouts do. Opens the guide">
         <button
           type="button"

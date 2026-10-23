@@ -106,11 +106,13 @@ one PR. Vault paths below are under `C:\Users\chris\Documents\Obsidian\vault\Dev
   and keep the worktree, clean and pushed, until the planner has merged.
   **Report in the vault first (2026-10-23):** write a `- progress:` line on your item in vault
   `Backlog.md` (pull first, then commit and push) carrying the PR number, the full head sha and
-  the review note path, plus anything the brief asks for (an advisor tally, say). That line is the
+  the review note path, plus anything the brief asks for (a tally the brief names, say), as one line like
+  `- progress: <date> PR #<n> ready, head <40-char sha>, review <note path>`. That line is the
   ready state the planner reads; a planner that was replaced since your brief never sees a
   message. Only after the push may you SendMessage "the newest session titled Planner", and only
   if ListAgents shows one active. Never message a fixed session id from your brief: a full
-  planner that handed over wakes at full price on every note and the new one never gets it.
+  planner that handed over wakes at full price on every note and the new one never gets it. The
+  line is how the planner learns the state; keep the worktree clean and pushed until it merges.
   Don't run the gate without `--dry-run` and don't offer the app's PR Auto-fix. To check the gate
   first, from the PR branch, clean and pushed, run main's copy (never the branch's own, so a PR
   cannot judge itself):

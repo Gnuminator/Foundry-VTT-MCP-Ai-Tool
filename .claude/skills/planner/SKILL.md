@@ -30,7 +30,7 @@ a turn after the answer.
 ## Backlog upkeep
 
 Each item in `Backlog.md`: `## <size S/M/L> <title>` then lines `- id: <slug>`, `- board: <area>`,
-`- done when: ...`, `- area: <files or folder>`, optional `- gate:`, `- blocked by:`, `- pi: yes`,
+`- done when: ...`, `- area: <files or folder>`, `- progress:` (the lane's ready state, see Read the state), optional `- gate:`, `- blocked by:`, `- pi: yes`,
 `- source:`, and `- claimed:` once a lane takes it. Order is priority; G0 critical path first.
 Every new item gets an `- id:` (short, lowercase, stable, never changed or reused, because the
 live board at board.spennerit.com, D-124, links items by it) and a `- board:` line (its area on
@@ -77,13 +77,15 @@ keep each item's lines together when you move it.
   Work). The weekly check counts Haiku turns on the Models line: near zero two weeks running
   (checked 2026-10-17: 2 turns) means the rule is not followed or not worth having.
 
-## Handover (200k/250k in low mode, 350k/400k otherwise)
+## Before a planner ends or hands over
 
-Before the planner stops: write the handover note (running lanes with session ids and their
+The planner ends after its outcome, or at 200k/250k (low mode) or 350k/400k context. Title this session
+"Planner" when it starts (`set_session_title`, if the user has not), so lanes can find the newest one.
+Before it stops: write the handover note (running lanes with session ids and their
 `- progress:` state, open PRs, what is next), then detach every running lane with
 `mcp__ccd_session_mgmt__detach_session` (works on sessions this planner started; it is no longer
-told when their turns end, and archiving this session no longer takes them along) so their notes
-stop waking it; the next planner
+told when their turns end, and archiving this session no longer takes them along) so their turn-end notes stop
+waking it (detaching cannot be undone, and the app refuses a session the user placed); the next planner
 finds the lanes through `list_sessions` and the Backlog lines. Only then archive this session
 (see Session cleanup). A planner that is closed without detaching keeps being woken by lane
 notes (2026-10-23: close to 10% of a 5-hour window).

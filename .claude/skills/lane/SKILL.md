@@ -12,7 +12,8 @@ one PR. Vault paths below are under `C:\Users\chris\Documents\Obsidian\vault\Dev
 ## Start
 
 1. Pull the vault. Open `Backlog.md`, take the top item with no `claimed:` line that fits your
-   brief, write `claimed: <session title> <date>` under it, commit and push the vault. If the item
+   brief, write `claimed: <session title> <date>` under it, commit and push the vault, then
+   `npm run lane:beat -- "<session title>" claimed` (see Heartbeat). If the item
    has `- touches:` or `- depends on:` lines, look at the board's lane warnings first: another lane
    on the same paths, or an unmerged dependency, means wait or ask the planner. If the vault note
    `Usage now.md` is more than about 2 hours old (the planner writes it before starting a lane),
@@ -22,6 +23,23 @@ one PR. Vault paths below are under `C:\Users\chris\Documents\Obsidian\vault\Dev
    Before building on an old base, check `git branch -r --list 'aitool/claude/*'` for the same work.
 3. Read only what the item names. Long notes, logs or docs go to a Haiku subagent (list under
    Work); you read its summary.
+
+## Heartbeat
+
+At each milestone write a heartbeat under your claim, so the PM board's lane card shows your step
+and how long ago it was, and the stale rule ("no activity for 18 hours") counts it:
+
+```bash
+npm run lane:beat -- "<session title>" "<step>"
+```
+
+It adds `- last seen: <YYYY-MM-DD HH:MM> <step>` (Copenhagen time) under every claimed item of the
+lane, replacing the old line, then pulls, commits only `Backlog.md` and pushes the vault; a vault
+problem is a warning and never stops you. The milestones and their steps: `claimed` (right after
+the claim), `PR open`, `review` (review started), `fixes` (a review round came back), `ready to
+merge`, `handed over`. Also beat when a long step runs past two hours without any of those
+(`still testing`, `waiting for CI`). The board drops the line when the claim is released or the
+item is marked done; the board ignores a line on an item with no claim.
 
 ## Work
 

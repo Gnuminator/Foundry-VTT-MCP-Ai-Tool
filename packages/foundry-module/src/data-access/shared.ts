@@ -1,5 +1,6 @@
 import { MODULE_ID, TOKEN_DISPOSITIONS } from '../constants.js';
 import { rec } from '../character-sheet-fields.js';
+import { viewedScene } from '../viewed-scene.js';
 
 /**
  * Cross-cutting data-access helpers, as stateless free functions.
@@ -261,7 +262,7 @@ export function findSceneTokenActor(
   worldActorId?: string
 ): Actor | null | undefined {
   // `?.`: test mocks may have no scenes collection.
-  const scene = game.scenes?.current;
+  const scene = viewedScene(game.scenes);
   if (!scene) return undefined;
   const tokens = scene.tokens.contents;
   const lower = identifier.toLowerCase();

@@ -20,6 +20,7 @@ import type {
   PlayRollInfo,
   PlaySceneToken,
 } from '@gnuminator/shared';
+import { viewedScene } from './viewed-scene.js';
 
 /**
  * PlayRecorder — the full play-log recorder (docs/design/OBSIDIAN-PLAN.md section 8,
@@ -848,7 +849,7 @@ export class PlayRecorder {
           }
         }
       }
-      this.viewedSceneId = currentCanvas()?.scene?.id ?? game.scenes.current?.id ?? null;
+      this.viewedSceneId = currentCanvas()?.scene?.id ?? viewedScene(game.scenes)?.id ?? null;
       // A client without a canvas (canvasReady never fires) still records who is online at
       // load, on the active scene, so "Seen in" does not wait for a join or an activation.
       if (!currentCanvas()?.scene) this.maybeRecordScene(activeSceneId(), true);

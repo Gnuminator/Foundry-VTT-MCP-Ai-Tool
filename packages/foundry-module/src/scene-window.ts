@@ -8,6 +8,7 @@
  */
 import { escapeHtml } from './ai-changes-model.js';
 import { createPanelWindow } from './gm-windows.js';
+import { viewedScene } from './viewed-scene.js';
 
 /** The parts of a scene the panel reads (Foundry's `Scene`, structurally; v14 keeps light in `environment`). */
 export interface SceneLike {
@@ -107,7 +108,7 @@ const panel = createPanelWindow({
   render: () =>
     renderSceneHtml(
       buildSceneView(
-        game.scenes?.current,
+        viewedScene(game.scenes),
         Array.from((game.playlists ?? []) as unknown as Iterable<PlaylistLike>)
       )
     ),

@@ -15,6 +15,7 @@ import type {
   PlayerVisibility,
   PlayerVisibleToken,
 } from '@gnuminator/shared';
+import { viewedScene } from './viewed-scene.js';
 
 /** Query names (mirror of the shared `PLAYER_VIEW_QUERIES`). */
 export const PLAYER_VIEW_QUERIES = {
@@ -155,7 +156,7 @@ export function computePlayerVisibility(): PlayerVisibility {
     .filter((actor): boolean => actor.hasPlayerOwner)
     .map((actor): string => actor.id);
 
-  const activeScene = game.scenes.current ?? null;
+  const activeScene = viewedScene(game.scenes) ?? null;
   const scene = activeScene
     ? { id: activeScene.id, name: playerFacingSceneName(activeScene) }
     : null;
@@ -182,7 +183,7 @@ function findVisibleToken(actor: ActorLike): TokenLike | null {
   if (actor.token) return actor.token.hidden === true ? null : actor.token;
   // Defensive: `eventVisibilityFor` runs from hooks that can fire before the
   // world (and `game.scenes`) is fully set up.
-  const scene = game.scenes?.current;
+  const scene = viewedScene(game.scenes);
   const id = typeof actor.id === 'string' ? actor.id : null;
   if (!scene || id === null) return null;
   const match = contentsOf(scene.tokens).find(

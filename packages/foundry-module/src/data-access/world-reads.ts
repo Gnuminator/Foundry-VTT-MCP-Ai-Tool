@@ -3,6 +3,7 @@ import { ERROR_MESSAGES } from '../constants.js';
 import type { SceneInfo, SceneToken, WorldInfo, WorldUser } from './types.js';
 import { isTableViewerUser } from '../table-viewer-user.js';
 import { sceneBackgroundSrc } from '../systems/core.js';
+import { viewedScene } from '../viewed-scene.js';
 
 /**
  * Scene members the shared `Scene` declaration does not list. Read from the live
@@ -55,7 +56,7 @@ export class WorldReadsDataAccess {
    * normalized through `shared.getTokenDisposition` to guarantee a number.
    */
   async getActiveScene(): Promise<SceneInfo> {
-    const scene = game.scenes.current as (Scene & SceneExtraFields) | null | undefined;
+    const scene = viewedScene(game.scenes) as (Scene & SceneExtraFields) | null | undefined;
     if (!scene) {
       throw new Error(ERROR_MESSAGES.SCENE_NOT_FOUND);
     }

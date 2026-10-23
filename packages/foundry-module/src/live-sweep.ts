@@ -1,5 +1,6 @@
 import { MODULE_ID } from './constants.js';
 import { featureSettingKey, isKnownFeature } from './guarded-features.js';
+import { viewedScene } from './viewed-scene.js';
 
 /**
  * Test-world helper for the live write sweep (I-016, `scripts/live-write-sweep.mjs`).
@@ -240,7 +241,7 @@ export async function liveSweep(data: unknown): Promise<LiveSweepResult> {
 }
 
 function snapshot(): SweepSnapshotResult {
-  const scene = sweepGame().scenes?.current ?? null;
+  const scene = viewedScene(sweepGame().scenes) ?? null;
   const env = scene?.environment;
   const darkness = env?.darknessLevel ?? scene?.darkness;
   const globalLight = env?.globalLight?.enabled;
@@ -254,7 +255,7 @@ function snapshot(): SweepSnapshotResult {
 }
 
 async function startCombat(tokenIds: unknown): Promise<SweepCombatResult> {
-  const scene = sweepGame().scenes?.current;
+  const scene = viewedScene(sweepGame().scenes);
   if (!scene) throw new Error('No active scene');
   const ids = Array.isArray(tokenIds) ? tokenIds.map(String) : [];
   const tokens = ids.map(id => scene.tokens?.get(id)).filter((t): t is SweepDoc => t !== undefined);

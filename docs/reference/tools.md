@@ -566,6 +566,7 @@ Parameters:
 
 - `actorName` (string, required): NPC actor name or ID. A token on the current scene with this name or ID (or the only token made from this actor) is used first, so an unlinked token spends its own uses.
 - `itemName` (string, required): Name of the weapon/feature/spell to use (e.g. "Scimitar").
+- `activity` (string): Activity to run (name, id or type); a non-attack one is used (spends its cost) and its damage rolled.
 - `targetAC` (integer): Optional target AC to compute hit/miss against.
 - `isPublic` (boolean): Public roll (true or omitted, the default) or whispered to the GM only (false).
 
@@ -661,23 +662,29 @@ Parameters:
 
 ### plan-npc-turn
 
-Plan a monster's turn. Without moveTo it only reads the fight: whose turn, speed, attacks, Multiattack text, and each enemy's distance, AC, HP, state, square to attack from and score. With moveTo (a grid square) it paths round walls, doors and hostile creatures, counts difficult terrain and plans the move (apply-planned-change, undo-change). List a multiattack in attacks. The attack steps name the tools that roll them (use-npc-activity, then plan-actor-change). Square grids only; no spells, saves or legendary actions yet. Needs the "NPC turn assistant" switch (off by default).
+Plan a monster's turn. Without moveTo it only reads the fight: speed, attacks, Multiattack text, and each enemy's distance, AC, HP, state and score. With moveTo (a grid square) it paths round walls, doors and creatures, counts difficult terrain and plans the move (apply-planned-change, undo-change). List a multiattack in attacks (activity for a save action; legendary actions only on another creature's turn). Roll first with the tools the steps name, then call again with moveTo and results: one plan holds the move and all damage. Needs the "NPC turn assistant" switch (off by default).
 
 Kind: read-only. Title: Plan NPC turn.
 
 Parameters:
 
-- `token` (string): The NPC token on the current scene. Default: whose turn it is.
+- `token` (string): NPC token. Default: whose turn it is.
 - `moveTo` (object): Move the NPC to this grid square (its top-left square).
   - `gridX` (integer, required): Range: at least 0.
   - `gridY` (integer, required): Range: at least 0.
-- `itemName` (string): The attack or action it will use (checked against its items).
-- `target` (string): The token it will attack (checked for reach after the move).
-- `attacks` (array of object): A multiattack: several attacks in order (see the Multiattack text). Items: at most 10.
+- `itemName` (string): Attack or action to use.
+- `target` (string): Token to attack.
+- `attacks` (array of object): A multiattack, in order. Items: at most 10.
   - `itemName` (string, required)
   - `target` (string, required)
-- `dash` (boolean): Dash: the move may use twice the speed. A Dash takes the action, so attacks are refused unless reason names a bonus-action Dash.
-- `reason` (string): One line on why (shown in the plan and Recent Changes).
+  - `activity` (string): Activity of the item.
+- `results` (array of object): Damage the rolls dealt. multiplier 0.5 = half on a made save. Items: 1 to 20.
+  - `target` (string, required)
+  - `amount` (number, required): The damage the roll reported. Range: at least 0.
+  - `damageType` (string)
+  - `multiplier` (number): Range: 0 to 1.
+- `dash` (boolean): Dash: twice the speed; no attacks unless reason names a bonus-action Dash.
+- `reason` (string): Why (shown in the plan).
 
 ### plan-paper-sync
 

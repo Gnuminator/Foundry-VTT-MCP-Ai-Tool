@@ -225,7 +225,7 @@ export function hpOf(actor: LiveActor): Hp | null {
  * records `amount` and the update dnd5e would make, then returns false. Null
  * when dnd5e or another module cancelled the damage before our hook ran.
  */
-async function dryRunDamage(
+export async function dryRunDamage(
   actor: LiveActor,
   damages: unknown[],
   options: Rec
@@ -253,7 +253,7 @@ async function dryRunDamage(
  * The paths of `updates` whose value differs from the actor's current value. dnd5e writes an
  * empty temp HP or max HP bonus (null) as 0; that is no change, so it stays out of the plan.
  */
-function changedOnly(actor: LiveActor, updates: Rec): Rec {
+export function changedOnly(actor: LiveActor, updates: Rec): Rec {
   const changes: Rec = {};
   for (const [path, value] of Object.entries(updates)) {
     const current = getPath(actor, path);
@@ -264,7 +264,7 @@ function changedOnly(actor: LiveActor, updates: Rec): Rec {
   return changes;
 }
 
-function hpAfter(actor: LiveActor, changes: Rec): Hp {
+export function hpAfter(actor: LiveActor, changes: Rec): Hp {
   const before = hpOf(actor) ?? { value: 0, max: 0, temp: 0 };
   return {
     value: num(changes['system.attributes.hp.value']) ?? before.value,
@@ -273,14 +273,14 @@ function hpAfter(actor: LiveActor, changes: Rec): Hp {
   };
 }
 
-function hpText(before: Hp, after: Hp): string {
+export function hpText(before: Hp, after: Hp): string {
   const parts: string[] = [];
   if (after.value !== before.value) parts.push(`HP ${before.value} to ${after.value}`);
   if (after.temp !== before.temp) parts.push(`temp HP ${before.temp} to ${after.temp}`);
   return parts.join(', ');
 }
 
-function damageTypeLabel(type: string | undefined): string {
+export function damageTypeLabel(type: string | undefined): string {
   if (!type) return '';
   const config = rec(rec(rec(CONFIG)?.DND5E)?.damageTypes);
   const label = str(rec(config?.[type])?.label);

@@ -1,5 +1,5 @@
 {
-  "total": 3053,
+  "total": 3052,
   "rules": {
     "@typescript-eslint/explicit-function-return-type": 180,
     "@typescript-eslint/no-explicit-any": 531,
@@ -7,6 +7,6 @@
     "@typescript-eslint/no-unsafe-assignment": 675,
     "@typescript-eslint/no-unsafe-call": 106,
     "@typescript-eslint/no-unsafe-member-access": 1368,
-    "@typescript-eslint/no-unsafe-return": 82
+    "@typescript-eslint/no-unsafe-return": 81
   }
 }

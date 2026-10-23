@@ -119,6 +119,8 @@ export interface PlayerCombatant {
   initiative: number | null;
   isCurrentTurn: boolean;
   isPC: boolean;
+  /** PCs only: the character's actor id, so a player's page can find its own character. */
+  actorId: string | null;
   side: 'pc' | 'npc' | 'enemy';
   defeated: boolean;
   /** PCs only. */

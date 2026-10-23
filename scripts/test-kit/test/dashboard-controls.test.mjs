@@ -195,7 +195,7 @@ test('rows are grouped in run order, and the trial runs before the During layout
   assert.ok(groups.indexOf('trial') < groups.indexOf('during'), groups.join(','));
   assert.deepEqual(
     groupedRows('player').map(g => g.group),
-    ['main', 'who', 'handouts', 'footer']
+    ['main', 'who', 'handouts', 'mine', 'footer']
   );
   assert.equal(groupOf('dash.tools.close'), 'tools');
   assert.equal(

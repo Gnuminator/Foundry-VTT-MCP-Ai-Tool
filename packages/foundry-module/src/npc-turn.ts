@@ -441,6 +441,8 @@ interface Occupancy {
   blocks(f: Footprint): boolean;
   /** True when walking through a creature's square on this footprint costs extra. */
   difficult(f: Footprint): boolean;
+  /** False when a creature's square never costs extra (automation none, or the NPC ignores difficult terrain). */
+  slows: boolean;
   /** Where the verdicts come from, for the notes. */
   source: 'dnd5e canvas' | 'dnd5e rules';
 }
@@ -520,6 +522,7 @@ function occupancyOf(input: {
     return {
       blocks: f => automation === 'full' && !ignoresBlocking && blocking(f),
       difficult: f => slows && difficult(f),
+      slows,
       source: 'dnd5e canvas',
     };
   }
@@ -559,6 +562,7 @@ function occupancyOf(input: {
   return {
     blocks: f => automation === 'full' && !ignoresBlocking && blockers.some(b => overlaps(f, b)),
     difficult: f => slows && slowing.some(b => overlaps(f, b)),
+    slows,
     source: 'dnd5e rules',
   };
 }
@@ -669,7 +673,7 @@ export function planNpcTurn(data: unknown): NpcTurnPlan {
         ? 'a creature of another disposition (neutral too) blocks unless it is two sizes apart, Tiny (modern rules), dead or unconscious'
         : 'creatures do not block (dnd5e movement automation is not full)';
     notes.push(
-      `Other creatures follow dnd5e's rules (${drawn ? 'asked of the drawn map' : 'worked out here: the map is not drawn'}): ${blocking}, and walking through a creature's square costs one square more (allies too under the legacy rules). Hidden tokens are left out.${drawn ? ' Tokens you have selected in Foundry are ignored.' : ''}`
+      `Other creatures follow dnd5e's rules (${drawn ? 'asked of the drawn map' : 'worked out here: the map is not drawn'}): ${blocking}, and ${occupancy.slows ? "walking through a creature's square costs one square more (allies too under the legacy rules)" : "a creature's square costs nothing extra (movement automation is off or the NPC ignores difficult terrain)"}. Hidden tokens are left out.${drawn ? ' Tokens you have selected in Foundry are ignored.' : ''}`
     );
   }
   const occupied = others.map(t => ({ t, rect: rectOf(scene, t) }));

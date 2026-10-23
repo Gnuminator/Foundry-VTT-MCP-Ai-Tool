@@ -5,7 +5,7 @@
   fallback leaves out walls that belong to other levels.
 - **Who blocks follows dnd5e:** a creature of another disposition (neutral too) blocks unless it is
   two sizes apart, Tiny (modern rules), dead or unconscious, a non-creature or a hidden token; none
-  blocks when the dnd5e movement automation is not "full". Walking through a creature's square costs double (allies too under the
+  blocks when the dnd5e movement automation is not "full". Walking through a creature's square costs one square more (allies too under the
   legacy rules; not at all when the creature ignores difficult terrain). When the map is drawn the
   plan asks dnd5e's own `isOccupiedGridSpaceBlocking` and `isOccupiedGridSpaceDifficult`.
 - **Dash:** a Dash takes the action, so `plan-npc-turn` refuses attacks after a Dash unless `reason`

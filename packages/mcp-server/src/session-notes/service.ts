@@ -607,7 +607,8 @@ export class SessionNotesService {
         delete n.undonePut;
         n.autoPut = true;
         if (recapMissing) {
-          n.lastError = 'The Recap page is missing from the restored journal (deleted by hand?)';
+          n.lastError =
+            'The Recap page is missing from the restored journal (deleted by hand?). Undo the put and put the notes again to recreate it';
         } else delete n.lastError;
       });
       if (recapMissing) continue;

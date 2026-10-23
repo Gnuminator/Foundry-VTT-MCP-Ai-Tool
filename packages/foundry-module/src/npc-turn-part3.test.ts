@@ -249,15 +249,23 @@ describe('legendary actions', () => {
           { itemName: 'Lash', target: 'Goblin' },
         ],
       })
-    ).toThrow(/only one legendary action can be used at a time/);
+    ).toThrow(/only one legendary action can be used at a time.*other targets/);
   });
 
   it('notes a normal attack planned off the NPC turn', () => {
     arena({ boss: true, items: [lash, tentacle], legact: { max: 3, spent: 0, value: 3 } });
     const plan = planNpcTurn({ token: 'Boss', itemName: 'Tentacle', target: 'Hero' });
-    expect(plan.context.notes.join(' ')).toMatch(/only a legendary action can be used now/);
+    expect(plan.context.notes.join(' ')).toMatch(
+      /only a reaction or a legendary action can be used now/
+    );
     const lashPlan = planNpcTurn({ token: 'Boss', itemName: 'Lash', target: 'Hero' });
-    expect(lashPlan.context.notes.join(' ')).not.toMatch(/only a legendary action can be used/);
+    expect(lashPlan.context.notes.join(' ')).not.toMatch(/only a reaction or a legendary action/);
+  });
+
+  it('does not give the off-turn note to a creature with no legendary actions', () => {
+    arena({ boss: true, items: [tentacle] });
+    const plan = planNpcTurn({ token: 'Boss', itemName: 'Tentacle', target: 'Hero' });
+    expect(plan.context.notes.join(' ')).not.toMatch(/only a reaction or a legendary action/);
   });
 
   it('notes that a move taken as a legendary action is often limited', () => {
@@ -352,6 +360,7 @@ describe('damage from the rolls, planned with the move', () => {
     expect(plan.ops).toEqual([
       { kind: 'update', uuid: 'Actor.Hero', changes: { 'system.attributes.hp.value': 21 } },
     ]);
+    expect(plan.steps.at(-1)).toMatch(/5 slashing.* \+ 4 slashing.*\(Hero twin\)/);
   });
 
   it('lets dnd5e apply resistance and keeps a failed-save zero out of the plan', async () => {

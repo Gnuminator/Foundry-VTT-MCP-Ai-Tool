@@ -381,6 +381,9 @@ describe('FoundryDataAccess: useNpcActivity on an unlinked token', () => {
       });
       expect(legendary.attack.use).toHaveBeenCalledTimes(1);
       expect(legendary.attack.rollAttack).toHaveBeenCalledTimes(1);
+      expect(legendary.attack.use.mock.invocationCallOrder[0]).toBeLessThan(
+        legendary.attack.rollAttack.mock.invocationCallOrder[0]
+      );
       const plain = cloudItem();
       world.addActor({ name: 'Wolf', type: 'npc', items: [plain.item] });
       await da.useNpcActivity({ actorName: 'Wolf', itemName: 'Mucus Cloud', activity: 'Swipe' });

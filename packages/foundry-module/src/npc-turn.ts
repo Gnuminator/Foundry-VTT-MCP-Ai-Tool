@@ -941,12 +941,16 @@ export function planNpcTurn(data: unknown): NpcTurnPlan {
   const legendarySpend = attacks.reduce((sum, a) => sum + (a.legendaryCost ?? 0), 0);
   if (attacks.filter(a => a.legendaryCost !== null && a.legendaryCost !== undefined).length > 1) {
     throw new Error(
-      `${tokenName}: only one legendary action can be used at a time, at the end of another creature's turn. Plan one now and the next after the next creature's turn.`
+      `${tokenName}: only one legendary action can be used at a time, at the end of another creature's turn. Plan one now and the next after the next creature's turn. A legendary area action is planned against one target; put the other targets' saves and damage in results.`
     );
   }
-  if (context.ownTurn === false && attacks.some(a => a.legendaryCost == null)) {
+  if (
+    context.ownTurn === false &&
+    context.legendary &&
+    attacks.some(a => a.legendaryCost == null)
+  ) {
     notes.push(
-      `It is not ${tokenName}'s turn: only a legendary action can be used now. An attack that is not a legendary action (such as a Multiattack) belongs on its own turn.`
+      `It is not ${tokenName}'s turn: only a reaction or a legendary action can be used now. An attack that is not a legendary action (such as a Multiattack) belongs on its own turn.`
     );
   }
   if (legendarySpend > 0) {

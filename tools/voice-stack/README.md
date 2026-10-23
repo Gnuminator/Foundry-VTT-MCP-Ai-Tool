@@ -109,7 +109,9 @@ Bench (VAD threshold 0.4 and 500 ms silence; the transcriber itself uses the fas
 defaults) on six 60 s slices of the David GM test recording (2026-10-23, two speakers, Danish with English
 game words; the audio stays private). There is no hand-made reference, so each slice is judged by
 agreement: distance of each candidate from the consensus (the candidate closest to all the others),
-plus reading the disputed spans. Lower is closer to the consensus.
+plus reading the disputed spans. Lower is closer to the consensus. Six of the eight candidates are
+large-v3 variants, so the consensus leans toward large-v3: read the last column, not only the
+percentage.
 
 | Candidate (beam 5, VAD on)          | distance to consensus | RTF  | What the disputed spans show                                                 |
 | ----------------------------------- | --------------------- | ---- | ---------------------------------------------------------------------------- |

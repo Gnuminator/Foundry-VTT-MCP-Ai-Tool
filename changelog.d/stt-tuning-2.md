@@ -1,7 +1,7 @@
 ### Voice (Backlog: danish-transcription-tuning, pipeline-vocab-productnames)
 
 - **Transcription default is now large-v3:** on six slices of the David GM test recording (Danish with
-  English game words) it spells Danish clearly better than large-v3-turbo and runs at 0.06 of real
+  English game words) it spells Danish better than large-v3-turbo (judged by agreement and by reading, there is no reference text) and runs at 0.06 of real
   time, so a 3 hour session takes about 11 minutes. Language stays `da`; the results table is in
   `tools/voice-stack/README.md`.
 - **Hotwords are off by default:** `voice-stack.ps1 transcribe` passes `names.txt` to Whisper only with

@@ -21,5 +21,11 @@ def test_other_words_and_host_names_are_left_alone() -> None:
     assert fix("på kgm.example.com") == "på kgm.example.com"
 
 
+def test_all_caps_and_host_name_guards_in_the_rule_matcher() -> None:
+    assert parse_rules({"Sorvan": ["sorva"]}).apply("SORVA ser")[0] == "SORVAN ser"
+    assert parse_rules({"D'Arcy": ["darcy"]}).apply("DARCY og darcy")[0] == "D'Arcy og D'Arcy"
+    assert parse_rules({"Sorvan": ["sorva"]}).apply("sorva.example.com")[0] == "sorva.example.com"
+
+
 def test_a_session_rule_wins_over_the_shipped_one() -> None:
     assert fix("Danny kommer", {"Dannie": ["Danny"]}) == "Dannie kommer"

@@ -28,7 +28,7 @@ a summary). Each JSON has `engine`, `variant`, `slice`, `speaker`, `seconds`, `a
 `segments` (`start end text avg_logprob no_speech_prob compression_ratio`) and `words`
 (`start end word p`). The JSON also carries the `settings` used.
 
-## Default profile (chosen by the 2026-09-30 benchmark)
+## Default profile (chosen by the 2026-10-24 benchmark)
 
 Model `large-v3` (downloaded once into the `/cache` volume; chosen over `large-v3-turbo` by the 2026-10-24 benchmark, see `tools/voice-stack/README.md`), language `da`, Silero VAD filter on,
 `condition_on_previous_text` off, `no_speech_threshold` 0.85, `compression_ratio_threshold` 2.4, word

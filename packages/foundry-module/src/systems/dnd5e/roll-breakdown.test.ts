@@ -130,6 +130,28 @@ describe('describeRoll', () => {
     expect(breakdown.text).toBe('Wolf, Wisdom save: 1d20 (5) -1 WIS = 4 vs DC 13: failure');
   });
 
+  it('a DC from a public roll request shows pass or fail to players too; a private one does not', () => {
+    makeActor({ wis: -1 });
+    const message = makeMessage({ ability: 'wis' });
+    const roll = (options: Record<string, unknown>): Record<string, unknown> => ({
+      formula: '1d20 - 1',
+      total: 4,
+      options,
+      terms: [d20Term({ results: [{ result: 5, active: true }] }), op('-'), numberTerm(1)],
+    });
+    const publicCard = describeRoll(message, roll({ target: 13, requestedDcPublic: true }), 'save');
+    expect(publicCard.textPlayerSafe).toBe(
+      'Wolf, Wisdom save: 1d20 (5) -1 WIS = 4 vs DC 13: failure'
+    );
+    const privateCard = describeRoll(
+      message,
+      roll({ target: 13, requestedDcPublic: false }),
+      'save'
+    );
+    expect(privateCard.text).toContain('vs DC 13: failure');
+    expect(privateCard.textPlayerSafe).toBe('Wolf, Wisdom save: 1d20 (5) -1 WIS = 4');
+  });
+
   it('skill check', () => {
     makeActor({ dex: 3, prof: 2 });
     const message = makeMessage({ ability: 'dex', skill: 'ste' });

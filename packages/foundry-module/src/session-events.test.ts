@@ -840,6 +840,17 @@ describe('EventTracker temp HP in the session log', () => {
     return t;
   }
 
+  it('a hit that ends at 0 HP says what was left: "took 9 damage (HP 9 to 0)"', () => {
+    const t = new EventTracker();
+    t.registerHooks();
+    fire('updateActor', pc, hp(9, 0));
+    fire('updateActor', pc, hp(0, 0));
+
+    const damage = t.getSessionLog({ eventType: 'damage' });
+    expect(damage).toHaveLength(1);
+    expect(damage[0].description).toBe('Silvera took 9 damage (HP 9 to 0)');
+  });
+
   it('damage that only hits temp HP is logged (dnd5e writes hp.temp alone)', () => {
     const t = tracker();
     fire('updateActor', pc, hp(undefined, 7));

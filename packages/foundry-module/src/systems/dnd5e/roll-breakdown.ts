@@ -498,7 +498,9 @@ export function describeRoll(
 
     const head = `${actorName}, ${label}: `;
     const detail = `${base}${naturalNote}${advantageNote}${challengeClause}`;
-    const detailPlayerSafe = `${base}${naturalNote}${advantageNote}${challengeVisibilityAll() ? challengeClause : ''}`;
+    // A DC the GM asked for on a public roll request is already on the card the player clicked.
+    const dcOnPublicCard = asRecord(roll?.options)?.requestedDcPublic === true;
+    const detailPlayerSafe = `${base}${naturalNote}${advantageNote}${challengeVisibilityAll() || dcOnPublicCard ? challengeClause : ''}`;
     const text = head + detail;
     const textPlayerSafe = head + detailPlayerSafe;
 

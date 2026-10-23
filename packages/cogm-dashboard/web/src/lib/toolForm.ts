@@ -91,6 +91,10 @@ export const isQueueCall = (name: string, args: Record<string, unknown>): boolea
 // sets from the confirm window's flags. The form never asks for them.
 const CONFIRM_FLAGS = ['confirm', 'confirmDestructive'];
 
+/** The roll tools' public/private pick, and the field that asks Claude to have asked for it. */
+const PUBLIC_FIELD = 'isPublic';
+const VISIBILITY_FIELD = 'userConfirmedVisibility';
+
 /**
  * The tag on a tool: read, write or destructive as the dashboard gates it, and "plan" for a
  * plan-* tool (a read to the gate, but its apply changes the game, after the confirm window).
@@ -108,12 +112,16 @@ export function paramsOf(tool: ToolInfo): {
   const all =
     schema && typeof schema.properties === 'object' && schema.properties ? schema.properties : {};
   const required = Array.isArray(schema?.required) ? schema.required : [];
-  if (!CONFIRM_FORWARDED_TOOLS.has(tool.name)) return { props: all, required };
-  // The confirm window answers these; the server fills them from its flags (toolArgs).
-  const props = Object.fromEntries(
-    Object.entries(all).filter(([key]) => !CONFIRM_FLAGS.includes(key))
-  );
-  return { props, required: required.filter(key => !CONFIRM_FLAGS.includes(key)) };
+  // Never asked for: the confirm window answers the confirm flags (the server fills them from its
+  // flags, toolArgs), and the roll tools' userConfirmedVisibility is Claude's "did you ask the GM
+  // public or private?" gate, which the form answers by its own Public tick (isPublic).
+  const hidden = [
+    ...(CONFIRM_FORWARDED_TOOLS.has(tool.name) ? CONFIRM_FLAGS : []),
+    ...(VISIBILITY_FIELD in all && PUBLIC_FIELD in all ? [VISIBILITY_FIELD] : []),
+  ];
+  if (hidden.length === 0) return { props: all, required };
+  const props = Object.fromEntries(Object.entries(all).filter(([key]) => !hidden.includes(key)));
+  return { props, required: required.filter(key => !hidden.includes(key)) };
 }
 
 /** The picker annotation of a parameter, or null (free text, a tick, or none). */
@@ -240,5 +248,10 @@ export function collectArgs(
     problems.unshift(`Required: ${missing.join(', ')}`);
     fields.unshift(...missing);
   }
-  return problems.length > 0 ? { problems, fields } : { args };
+  if (problems.length > 0) return { problems, fields };
+  // The form's Public tick is the pick: it is always sent (required), so the field is answered.
+  if (VISIBILITY_FIELD in (tool.inputSchema.properties ?? {}) && PUBLIC_FIELD in args) {
+    args[VISIBILITY_FIELD] = true;
+  }
+  return { args };
 }

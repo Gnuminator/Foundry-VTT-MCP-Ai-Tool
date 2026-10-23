@@ -802,21 +802,30 @@ export class EventTracker {
           const tempCleared = delta === 0 && toTemp === 0 && !credit;
           if (!tempCleared) {
             const toTempText = tempLost > 0 ? ` (${tempLost} to temp HP)` : '';
-            this.logSessionEvent('damage', `${actorName} took ${damage} damage${toTempText}`, {
-              actorName,
-              actorId,
-              details: {
-                amount: damage,
-                from: prev,
-                to,
-                ...(tempLost > 0
-                  ? { tempAbsorbed: tempLost, tempFrom: prevTemp, tempTo: toTemp }
-                  : {}),
-                source: credit?.label ?? null,
-                ...(credit ? { sourceMessageId: credit.messageId, sourceExact: credit.exact } : {}),
-              },
-              visibility,
-            });
+            // A hit that ends at 0 HP says what was left to lose: a 30-point hit on a 9 HP actor
+            // took 9 (the dashboard's change line says 30).
+            const hpText = to <= 0 && delta < 0 ? ` (HP ${prev} to ${to})` : '';
+            this.logSessionEvent(
+              'damage',
+              `${actorName} took ${damage} damage${toTempText}${hpText}`,
+              {
+                actorName,
+                actorId,
+                details: {
+                  amount: damage,
+                  from: prev,
+                  to,
+                  ...(tempLost > 0
+                    ? { tempAbsorbed: tempLost, tempFrom: prevTemp, tempTo: toTemp }
+                    : {}),
+                  source: credit?.label ?? null,
+                  ...(credit
+                    ? { sourceMessageId: credit.messageId, sourceExact: credit.exact }
+                    : {}),
+                },
+                visibility,
+              }
+            );
           }
         } else {
           this.logSessionEvent('healing', `${actorName} healed ${delta} HP`, {

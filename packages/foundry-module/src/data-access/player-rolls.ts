@@ -53,6 +53,8 @@ export class PlayerRollsDataAccess {
     isPublic: boolean;
     rollModifier: string;
     flavor: string;
+    /** A difficulty class the roll is judged against: the card shows it and the roll carries it. */
+    dc?: number;
   }): Promise<{ success: boolean; message: string; error?: string }> {
     shared.validateFoundryState();
 
@@ -89,6 +91,7 @@ export class PlayerRollsDataAccess {
                     data-roll-formula="${rollFormula}"
                     data-roll-label="${buttonLabel}"
                     data-is-public="${data.isPublic}"
+                    ${data.dc != null ? `data-dc="${data.dc}"` : ''}
                     data-character-id="${playerInfo.character?.id ?? ''}"
                     data-target-user-id="${playerInfo.user?.id ?? ''}">
               🎲 ${buttonLabel}
@@ -163,6 +166,7 @@ export class PlayerRollsDataAccess {
       isPublic: data.isPublic,
       rollModifier: '',
       flavor: flavorParts.join(' — '),
+      ...(data.dc != null ? { dc: data.dc } : {}),
     });
   }
 
@@ -375,7 +379,15 @@ export class PlayerRollsDataAccess {
         if (typeof Roll.validate === 'function' && !Roll.validate(rollFormula)) {
           throw new Error(`Invalid roll formula: "${rollFormula}"`);
         }
-        const roll = new Roll(rollFormula);
+        // A check with a DC: the roll carries it as its target, so the Live Feed (and the player
+        // page, for a public roll whose card already showed the DC) can say pass or fail.
+        const dcRaw = Number(button.attr('data-dc'));
+        const dc = button.attr('data-dc') !== undefined && Number.isFinite(dcRaw) ? dcRaw : null;
+        const roll = new Roll(
+          rollFormula,
+          {},
+          dc !== null ? { target: dc, requestedDcPublic: isPublic } : {}
+        );
         await roll.evaluate();
 
         // Get the character for speaker info

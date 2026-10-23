@@ -90,8 +90,11 @@ fi
 # backup is skipped for now and tried again: every 30 minutes, six times (04:30 to 07:30 for the timer). If they are
 # still there after that, the night is skipped with an ERROR line (run it when it is quiet:
 # systemctl start foundry-backup.service), but never two nights in a row: a user who stays connected all night (a tab
-# left open) must not stop the backup for good, so the night after a skip backs up anyway once the waits are over
-# (the marker file below says the last night was skipped; a finished backup removes it).
+# left open) must not stop the backup for good, so the night after a skip backs up anyway once the waits are over.
+# The marker file below holds the date of the skipped night (date +%F; a finished backup removes it). Only a marker
+# with yesterday's date counts: a run on the same day as the skip (a manual run, a stage 6 rerun in the evening) sees
+# today's date, waits, and skips again without stopping Foundry; an older or empty marker (left by an earlier version
+# of this script) counts as a fresh skip too.
 # FOUNDRY_BACKUP_ANYWAY=1 in front of this script skips the wait (the stage's FORCE=1 uses it). A /api/status that
 # cannot be read is looked at again twice, a minute apart (one slow answer on a busy Pi is not "nobody"), then does
 # not hold the backup back: a hung Foundry has no players, and a backup that never runs is worse. The Assistant GM
@@ -133,6 +136,11 @@ players_online() {
 if [ -d "$systemd_dir" ] && [ "${FOUNDRY_BACKUP_ANYWAY:-0}" != 1 ] && systemctl is-active --quiet foundry.service; then
   waits=0
   unknown=0
+  # Both dates are read now, not after the waits: a manual run that starts in the evening and waits past midnight
+  # must still see the day it started on as "today".
+  today="$(date +%F)"
+  yesterday="$(date -d yesterday +%F 2>/dev/null || true)"
+  [ -n "$yesterday" ] || echo "WARNING: could not work out yesterday's date; a skipped night will not make the next one back up anyway" >&2
   while :; do
     online="$(players_online)"
     if [ "$online" = "?" ]; then
@@ -147,13 +155,12 @@ if [ -d "$systemd_dir" ] && [ "${FOUNDRY_BACKUP_ANYWAY:-0}" != 1 ] && systemctl 
     fi
     [ "$online" -gt 0 ] || break
     if [ "$waits" -ge "$max_waits" ]; then
-      if [ -e "$skip_marker" ]; then
+      if [ -n "$yesterday" ] && [ "$(head -n 1 "$skip_marker" 2>/dev/null || true)" = "$yesterday" ]; then
         echo "WARNING: $online player(s) are still online in Foundry, but last night's backup was skipped too: backing up anyway" >&2
         break
       fi
-      mkdir -p "$(dirname "$skip_marker")"
-      : >"$skip_marker"
       echo "ERROR: backup skipped for tonight: $online player(s) were still online in Foundry after $max_waits waits of $((retry_seconds / 60)) minutes. Run it when it is quiet: systemctl start foundry-backup.service (if tomorrow night is busy too, it backs up anyway)" >&2
+      { mkdir -p "$(dirname "$skip_marker")" && printf '%s\n' "$today" >"$skip_marker"; } || echo "WARNING: could not write $skip_marker; tomorrow night will skip again if players are online" >&2
       exit 1
     fi
     waits=$((waits + 1))

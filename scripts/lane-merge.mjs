@@ -67,6 +67,8 @@ export const WAIT_POLL_MS = 30 * 1000;
 const WAIT_MAX_ERRORS = 3;
 /** A single gh call (spawnSync timeout). */
 const GH_TIMEOUT_MS = 120_000;
+/** One git call on the vault (pull, commit, push) for the merge train note. */
+const VAULT_GIT_TIMEOUT_MS = 60_000;
 /** Exit codes of the wait (the gate itself: 0 merged or OK, 1 refused, 2 usage). */
 export const EXIT_CI_FAILED = 3;
 export const EXIT_HEAD_MOVED = 4;
@@ -685,23 +687,35 @@ export function publishTrainNote({ vault, state, event, run, now }) {
   try {
     // no vault checkout on this PC (or --vault points elsewhere): nothing to publish, not a problem
     if (!fs.existsSync(path.join(vault, '.git'))) return '';
-    const pulled = git('pull', '--rebase', '--autostash');
-    if (pulled.status !== 0) return `merge train note not written: vault pull failed (${why(pulled)})`;
-    fs.mkdirSync(path.dirname(file), { recursive: true });
-    fs.writeFileSync(file, renderTrainNote(state, event, now().toISOString()));
-    const added = git('add', '--', TRAIN_NOTE_PATH);
-    if (added.status !== 0) return `merge train note not committed (${why(added)})`;
+    // Pull without touching anyone else's work: no rebase and no autostash, so nothing is ever left
+    // half done in the shared vault. Fetch plus a fast-forward works with a dirty tree.
+    const sync = () => {
+      git('restore', '--staged', '--worktree', '--', TRAIN_NOTE_PATH); // an earlier failed try; fine to fail
+      const fetched = git('fetch');
+      if (fetched.status !== 0) return `vault fetch failed (${why(fetched)})`;
+      const merged = git('merge', '--ff-only', '@{u}');
+      return merged.status === 0 ? '' : `vault pull failed (${why(merged)})`;
+    };
     const label = event.kind === 'reset' ? 'reset' : `${event.kind} #${event.pr}`;
     const subject = `Merge train: ${label}, ${state.since.length}/${TRAIN_SIZE}`;
-    const committed = git('commit', '-m', subject, '--', TRAIN_NOTE_PATH);
-    if (committed.status !== 0) return `merge train note not committed (${why(committed)})`;
-    let pushed = git('push');
-    if (pushed.status !== 0) {
-      const again = git('pull', '--rebase', '--autostash');
-      pushed = again.status === 0 ? git('push') : again;
+    let pushError = '';
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const synced = sync();
+      if (synced) return `merge train note not written: ${synced}`;
+      fs.mkdirSync(path.dirname(file), { recursive: true });
+      fs.writeFileSync(file, renderTrainNote(state, event, now().toISOString()));
+      const added = git('add', '--', TRAIN_NOTE_PATH);
+      if (added.status !== 0) return `merge train note not committed (${why(added)})`;
+      const committed = git('commit', '-m', subject, '--', TRAIN_NOTE_PATH);
+      if (committed.status !== 0) return `merge train note not committed (${why(committed)})`;
+      const pushed = git('push');
+      if (pushed.status === 0) return '';
+      pushError = why(pushed);
+      // Take our own commit back, so the vault is left as it was and the next try starts clean.
+      git('reset', '--soft', 'HEAD~1');
+      git('restore', '--staged', '--', TRAIN_NOTE_PATH);
     }
-    if (pushed.status !== 0) return `merge train note committed but not pushed (${why(pushed)})`;
-    return '';
+    return `merge train note not pushed (${pushError})`;
   } catch (e) {
     return `merge train note not written (${e instanceof Error ? e.message : String(e)})`;
   }
@@ -824,6 +838,10 @@ export function defaultRun(cmd, args) {
           maxBuffer: 256 * 1024 * 1024,
           // one hung gh call must not hang a background --wait-ci forever
           ...(cmd === 'gh' ? { timeout: GH_TIMEOUT_MS } : {}),
+          // the vault's git (the merge train note) must neither hang nor ask for a login
+          ...(cmd === 'git' && args[0] === '-C'
+            ? { timeout: VAULT_GIT_TIMEOUT_MS, env: { ...process.env, GIT_TERMINAL_PROMPT: '0' } }
+            : {}),
         });
   return {
     status: r.status ?? 1,
@@ -1139,7 +1157,13 @@ export function main(options = {}) {
   const details = [];
   /** @type {string[]} */
   const notes = [];
+  // The train lock, held from before the merge until it is written. A refusal drops it before any
+  // vault I/O, so a slow vault never keeps other lanes waiting.
+  /** @type {(() => void) | null} */
+  let release = null;
   const finish = (code = 1) => {
+    release?.();
+    release = null;
     log(`lane:merge: NOT merged #${n}`);
     for (const f of failures) log(f);
     for (const line of notes) log(`lane:merge: ${line}`);
@@ -1385,8 +1409,6 @@ export function main(options = {}) {
   }
   // A module PR takes the train lock around read, merge and write, so two lanes cannot both pass
   // at 3/4.
-  /** @type {(() => void) | null} */
-  let release = null;
   let warning = '';
   try {
     if (trainRelevant) {
@@ -1421,8 +1443,6 @@ export function main(options = {}) {
     release?.();
   }
   const k = train.since.length;
-  const noteWarning = recordTrain(train, 'merge', n);
-  if (noteWarning) warning += `; ${noteWarning}`;
   const advice =
     trainRelevant && k === TRAIN_SIZE - 1
       ? '; run live:roundtrip before the next module merge'
@@ -1430,6 +1450,9 @@ export function main(options = {}) {
   log(
     `lane:merge: merged #${n} at ${sha7}; merge train ${k}/${TRAIN_SIZE}${advice}${extras}${warning}`
   );
+  // After the merged line, so a slow or hanging vault push never hides a merge that happened.
+  const noteWarning = recordTrain(train, 'merge', n);
+  if (noteWarning) log(`lane:merge: ${noteWarning}`);
   return 0;
 }
 

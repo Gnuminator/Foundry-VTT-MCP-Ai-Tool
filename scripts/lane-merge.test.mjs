@@ -1802,6 +1802,7 @@ const TRAIN_STATE = {
   since: [{ pr: 461, sha: HEAD, at: '2026-10-23T13:52:58.810Z' }],
 };
 const NOTE_NOW = '2026-10-23T14:00:00.000Z';
+const SYNCED_PUSH = ['restore', 'fetch', 'merge', 'add', 'commit', 'push'];
 const NOTE_FILE = (/** @type {string} */ vault) => path.join(vault, ...TRAIN_NOTE_PATH.split('/'));
 
 /** The PM board's parser (a sibling checkout), or null where it is not there. */
@@ -1845,8 +1846,14 @@ test('merge train note: the board parser reads what the gate writes (round trip)
   if (!board) return t.skip('PM board checkout not found (set PM_BOARD_DIR)');
   for (const [state, event] of [
     [TRAIN_STATE, { kind: 'merge', pr: 461, at: NOTE_NOW }],
-    [{ lastRoundtrip: TRAIN_STATE.lastRoundtrip, since: [] }, { kind: 'reset', at: NOTE_NOW }],
-    [{ lastRoundtrip: null, since: TRAIN_STATE.since }, { kind: 'refusal', pr: 7, at: NOTE_NOW }],
+    [
+      { lastRoundtrip: TRAIN_STATE.lastRoundtrip, since: [] },
+      { kind: 'reset', at: NOTE_NOW },
+    ],
+    [
+      { lastRoundtrip: null, since: TRAIN_STATE.since },
+      { kind: 'refusal', pr: 7, at: NOTE_NOW },
+    ],
   ]) {
     const { train, problems } = board.parseMergeTrain(renderTrainNote(state, event, NOTE_NOW));
     assert.deepEqual(problems, []);
@@ -1903,13 +1910,13 @@ test('merge train note: a failed vault pull or push, no checkout, or a throw onl
     now: () => new Date(NOTE_NOW),
   };
   fs.rmSync(path.join(root, 'remote.git'), { recursive: true, force: true });
-  assert.match(publishTrainNote(opts), /vault pull failed/);
+  assert.match(publishTrainNote(opts), /vault fetch failed/);
   assert.equal(publishTrainNote({ ...opts, vault: tmpDir() }), ''); // no vault checkout: nothing to do
   const pushFails = (/** @type {string} */ _c, /** @type {string[]} */ args) =>
     args.includes('push')
       ? { status: 1, stdout: '', stderr: 'rejected' }
       : { status: 0, stdout: '', stderr: '' };
-  assert.match(publishTrainNote({ ...opts, run: pushFails }), /committed but not pushed \(rejected\)/);
+  assert.match(publishTrainNote({ ...opts, run: pushFails }), /not pushed \(rejected\)/);
   const boom = () => {
     throw new Error('spawn failed');
   };
@@ -1937,26 +1944,99 @@ test('merge train note: a merge writes the new count; a vault failure never fail
   assert.equal(r.code, 0, r.text);
   assert.deepEqual(
     t.git.map(a => a[0]),
-    ['pull', 'add', 'commit', 'push']
+    SYNCED_PUSH
   );
-  assert.deepEqual(t.git[2].slice(-2), ['--', TRAIN_NOTE_PATH]);
+  assert.deepEqual(t.git[4].slice(-2), ['--', TRAIN_NOTE_PATH]);
   const text = fs.readFileSync(NOTE_FILE(t.vault), 'utf8');
   assert.match(text, /count: 1\n/);
   assert.match(text, /last-event: merge\nlast-event-pr: 312\n/);
 
-  for (const fail of ['pull', 'commit', 'push']) {
+  for (const fail of ['fetch', 'merge', 'commit', 'push']) {
     const f = trainVault();
     const bad = gate({ vault: f.vault, vaultRun: a => f.vaultRun(a, fail), files: MODULE_FILES });
     assert.equal(bad.code, 0, bad.text);
     assert.ok(bad.merged);
-    assert.match(bad.text, /merged #312 .*WARNING: merge train note/);
+    // the merged line stands alone and comes first; the vault warning is a line of its own after it
+    const mergedAt = bad.lines.findIndex(l => /merged #312 at /.test(l));
+    assert.ok(mergedAt >= 0 && !/WARNING/.test(bad.lines[mergedAt]));
+    assert.match(bad.lines[mergedAt + 1], /WARNING: merge train note/);
     assert.equal(readTrain(bad.state).since.length, 1);
   }
 });
 
+test('merge train note: a vault push that fails twice leaves the vault as it was', () => {
+  const { root, vault, g } = realVault();
+  const before = g(vault, 'rev-parse', 'HEAD').trim();
+  const rejectPush = (/** @type {string} */ cmd, /** @type {string[]} */ args) =>
+    args.includes('push') ? { status: 1, stdout: '', stderr: 'rejected' } : defaultRun(cmd, args);
+  const warn = publishTrainNote({
+    vault,
+    state: TRAIN_STATE,
+    event: { kind: 'refusal', pr: 9, at: NOTE_NOW },
+    run: rejectPush,
+    now: () => new Date(NOTE_NOW),
+  });
+  assert.match(warn, /not pushed \(rejected\)/);
+  assert.equal(g(vault, 'rev-parse', 'HEAD').trim(), before); // our commit was taken back
+  assert.equal(g(vault, 'diff', '--cached', '--name-only').trim(), ''); // nothing left staged
+  assert.equal(fs.readFileSync(path.join(vault, 'other.md'), 'utf8'), 'dirty\n');
+  assert.ok(root);
+});
+
+test('merge train note: the vault moved on (a push elsewhere) is fast-forwarded, no rebase or stash', () => {
+  const { root, vault, g } = realVault();
+  const other = path.join(root, 'other-clone');
+  g(root, 'clone', '-q', 'remote.git', other);
+  g(other, 'config', 'user.name', 'Other');
+  g(other, 'config', 'user.email', 'other@example.com');
+  fs.writeFileSync(path.join(other, 'later.md'), 'later\n');
+  g(other, 'add', 'later.md');
+  g(other, 'commit', '-q', '-m', 'later');
+  g(other, 'push', '-q');
+  const calls = [];
+  const spy = (/** @type {string} */ cmd, /** @type {string[]} */ args) => {
+    calls.push(args.slice(2).join(' '));
+    return defaultRun(cmd, args);
+  };
+  const warn = publishTrainNote({
+    vault,
+    state: TRAIN_STATE,
+    event: { kind: 'merge', pr: 461, at: NOTE_NOW },
+    run: spy,
+    now: () => new Date(NOTE_NOW),
+  });
+  assert.equal(warn, '');
+  assert.ok(fs.existsSync(path.join(vault, 'later.md')));
+  assert.ok(!calls.some(c => /rebase|stash|^pull/.test(c)), calls.join(' | '));
+  assert.equal(fs.readFileSync(path.join(vault, 'other.md'), 'utf8'), 'dirty\n');
+});
+
+test('merge train note: a refusal drops the train lock before any vault git call', () => {
+  const t = trainVault();
+  let lockHeldAtVault = null;
+  const probe = (/** @type {string[]} */ a) => {
+    lockHeldAtVault ??= fs.existsSync(`${home}.lock`);
+    return t.vaultRun(a);
+  };
+  const home = path.join(tmpDir(), 'merge-train.json');
+  const r = gate({
+    vault: t.vault,
+    vaultRun: probe,
+    files: MODULE_FILES,
+    merge: 1,
+    train: undefined,
+    argv: ['--state', home],
+  });
+  assert.equal(r.code, 1);
+  assert.equal(lockHeldAtVault, false);
+});
+
 test('merge train note: --dry-run writes nothing; a refusal writes a refusal event', () => {
   const dry = trainVault();
-  assert.equal(gate({ vault: dry.vault, vaultRun: a => dry.vaultRun(a), argv: ['--dry-run'] }).code, 0);
+  assert.equal(
+    gate({ vault: dry.vault, vaultRun: a => dry.vaultRun(a), argv: ['--dry-run'] }).code,
+    0
+  );
   assert.equal(dry.git.length, 0);
   assert.ok(!fs.existsSync(NOTE_FILE(dry.vault)));
   const dryRefused = trainVault();
@@ -1974,7 +2054,7 @@ test('merge train note: --dry-run writes nothing; a refusal writes a refusal eve
   assert.equal(r.code, 1);
   assert.deepEqual(
     t.git.map(a => a[0]),
-    ['pull', 'add', 'commit', 'push']
+    SYNCED_PUSH
   );
   const text = fs.readFileSync(NOTE_FILE(t.vault), 'utf8');
   assert.match(text, /count: 1\n[\s\S]*last-event: refusal\nlast-event-pr: 312\n/);
@@ -1996,11 +2076,14 @@ test('merge train note: --train-reset writes a reset event, and a vault failure 
   });
   assert.equal(code, 0);
   const text = fs.readFileSync(NOTE_FILE(t.vault), 'utf8');
-  assert.match(text, /count: 0\n[\s\S]*last-roundtrip-result: green\nlast-event: reset\nlast-event-at: /);
+  assert.match(
+    text,
+    /count: 0\n[\s\S]*last-roundtrip-result: green\nlast-event: reset\nlast-event-at: /
+  );
   assert.ok(!text.includes('last-event-pr'));
   assert.match(
     lines.join('\n'),
-    /merge train reset at ab12cd3; merge train 0\/4\nlane:merge: WARNING: merge train note committed but not pushed/
+    /merge train reset at ab12cd3; merge train 0\/4\nlane:merge: WARNING: merge train note not pushed/
   );
   assert.equal(readTrain(state).since.length, 0);
 });

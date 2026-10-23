@@ -95,12 +95,23 @@ async function setup(
   await page.route('**/api/tools', route =>
     route.fulfill({ json: { tools: [], gmActionsEnabled: true } })
   );
+  // mark-play-session flips it, like the real bridge.
+  let open = true;
   await fakeTools(
     page,
     call => {
       switch (call.name) {
         case 'get-play-session':
-          return ok({ success: true, worldId: 'w', open: true, startedAt: STARTED, endedAt: null });
+          return ok({
+            success: true,
+            worldId: 'w',
+            open,
+            startedAt: open ? STARTED : null,
+            endedAt: open ? null : new Date().toISOString(),
+          });
+        case 'mark-play-session':
+          open = (call.args as { action?: string }).action === 'start';
+          return ok({ success: true });
         case 'get-party':
           return ok({ groups: [], paceOptions: [], scene: null, encounter: null, warnings: [] });
         case 'list-revealed-pages':
@@ -254,6 +265,24 @@ test.describe('events arriving', () => {
     await expect(rows(page).first().locator('.event-desc')).toHaveText('Mira heals 6 hit points');
     await expect(rows(page).first()).toHaveClass(/sev-healing/);
     await expect(meta(page)).toHaveText('3 events');
+  });
+
+  test('keeps showing new events after End session and a new Start session', async ({ page }) => {
+    const { push } = await setup(page, { initial: [events(THREE.slice(0, 2), true)] });
+    await load(page);
+    await expect(rows(page)).toHaveCount(2);
+
+    await page.locator('#btn-session').click();
+    await expect(page.locator('#btn-session')).toHaveText('Start session');
+    push([events([raw('d', 4, 'healing', 'Mira heals 6 hit points')])]);
+    await expect(meta(page)).toHaveText('3 events');
+
+    await page.locator('#btn-session').click();
+    await expect(page.locator('#btn-session')).toHaveText('End session');
+    await expect(during(page)).toBeVisible();
+    push([events([raw('e', 6, 'healing', 'Mira heals 4 hit points')])]);
+    await expect(meta(page)).toHaveText('4 events');
+    await expect(rows(page).first().locator('.event-desc')).toHaveText('Mira heals 4 hit points');
   });
 
   test('a replay after a reconnect adds nothing twice', async ({ page }) => {

@@ -14,15 +14,36 @@ import { join } from 'node:path';
 import { SCENES } from './scenes.mjs';
 
 /** The ffmpeg arguments for one recording. Exported for tests. */
-export function ffmpegArgs({ width, height, outputIdx = 0, file }) {
+export function ffmpegArgs({ width, height, outputIdx = 0, file, grab = 'ddagrab' }) {
+  // gdigrab is the fallback for a night when ddagrab opens the output and then never delivers a
+  // frame (2026-10-24); set FOUNDRY_DEMO_GRAB=gdigrab.
+  const input =
+    grab === 'gdigrab'
+      ? [
+          '-f',
+          'gdigrab',
+          '-framerate',
+          '60',
+          '-offset_x',
+          '0',
+          '-offset_y',
+          '0',
+          '-video_size',
+          `${width}x${height}`,
+          '-i',
+          'desktop',
+        ]
+      : [
+          '-f',
+          'lavfi',
+          '-i',
+          `ddagrab=output_idx=${outputIdx}:framerate=60:offset_x=0:offset_y=0:video_size=${width}x${height}`,
+        ];
   return [
     '-hide_banner',
     '-loglevel',
     'error',
-    '-f',
-    'lavfi',
-    '-i',
-    `ddagrab=output_idx=${outputIdx}:framerate=60:offset_x=0:offset_y=0:video_size=${width}x${height}`,
+    ...input,
     '-c:v',
     'h264_nvenc',
     '-preset',
@@ -88,6 +109,7 @@ export class FfmpegRecorder {
         height: this.height,
         outputIdx: this.outputIdx,
         file: this.ts,
+        grab: process.env.FOUNDRY_DEMO_GRAB === 'gdigrab' ? 'gdigrab' : 'ddagrab',
       }),
       { stdio: ['pipe', 'ignore', 'inherit'], windowsHide: true }
     );

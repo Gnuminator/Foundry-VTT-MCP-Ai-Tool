@@ -75,7 +75,7 @@ describe('no canvas', () => {
   it('resolveTargets finds a token on the active scene', () => {
     const scene = game.scenes.active;
     scene.tokens.add(
-      makeToken({ id: 't3', name: 'Archer', actor: { uuid: 'Actor.a3', name: 'Archer' } } as never)
+      makeToken({ id: 't3', name: 'Archer', actor: { uuid: 'Actor.a3', name: 'Archer' } })
     );
     const targets = resolveTargets(['Archer']);
     expect(targets).toHaveLength(1);

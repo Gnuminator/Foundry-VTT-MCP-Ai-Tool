@@ -80,8 +80,8 @@ export class CombatResolutionTools {
             activity: {
               type: 'string',
               description:
-                "Which activity of the item to run (name, id or type), for an item with several (an attack, a save, a utility). A save, utility or legendary activity is used (its card, its cost) and its damage rolled; the reply names the save to roll with roll-saving-throws. Default: the item's attack.",
-              ...freeText('An activity name on the item'),
+                'Activity to run (name, id or type); a non-attack one is used (spends its cost) and its damage rolled.',
+              ...freeText('An activity name'),
             },
             targetAC: {
               type: 'integer',

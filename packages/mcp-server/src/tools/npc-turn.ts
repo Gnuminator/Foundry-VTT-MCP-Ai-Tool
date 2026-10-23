@@ -86,13 +86,13 @@ export class NpcTurnTools {
       {
         name: 'plan-npc-turn',
         description:
-          "Plan a monster's turn. Without moveTo it only reads the fight: whose turn, speed, attacks, Multiattack text, and each enemy's distance, AC, HP, state, square to attack from and score. With moveTo (a grid square) it paths round walls, doors and hostile creatures, counts difficult terrain and plans the move (apply-planned-change, undo-change). List a multiattack in attacks (name the activity for a save-based action; a legendary action is planned on another creature's turn and costs legendary actions). Rolls cannot be undone, so roll first with the tools the steps name (use-npc-activity, roll-saving-throws), then call again with moveTo and results (the damage each target takes): one plan covers the move and every hit point change, with one confirm and one undo. Square grids only. Needs the \"NPC turn assistant\" switch (off by default).",
+          "Plan a monster's turn. Without moveTo it only reads the fight: speed, attacks, Multiattack text, and each enemy's distance, AC, HP, state and score. With moveTo (a grid square) it paths round walls, doors and creatures, counts difficult terrain and plans the move (apply-planned-change, undo-change). List a multiattack in attacks (activity for a save action; legendary actions only on another creature's turn). Roll first with the tools the steps name, then call again with moveTo and results: one plan holds the move and all damage. Needs the \"NPC turn assistant\" switch (off by default).",
         inputSchema: {
           type: 'object',
           properties: {
             token: {
               type: 'string',
-              description: 'The NPC token on the current scene. Default: whose turn it is.',
+              description: 'NPC token. Default: whose turn it is.',
               ...toolRef('token', 'name'),
             },
             moveTo: {
@@ -106,17 +106,17 @@ export class NpcTurnTools {
             },
             itemName: {
               type: 'string',
-              description: 'The attack or action it will use (checked against its items).',
+              description: 'Attack or action to use.',
               ...freeText('An item name on the NPC, checked by the module'),
             },
             target: {
               type: 'string',
-              description: 'The token it will attack (checked for reach after the move).',
+              description: 'Token to attack.',
               ...toolRef('token', 'name'),
             },
             attacks: {
               type: 'array',
-              description: 'A multiattack: several attacks in order (see the Multiattack text).',
+              description: 'A multiattack, in order.',
               maxItems: 10,
               items: {
                 type: 'object',
@@ -125,9 +125,8 @@ export class NpcTurnTools {
                   target: { type: 'string', ...toolRef('token', 'name') },
                   activity: {
                     type: 'string',
-                    description:
-                      'Which activity of the item (an item can hold an attack, a save and a utility); named in the context. Default: its attack, else its save.',
-                    ...freeText('An activity name on the item, checked by the module'),
+                    description: 'Activity of the item.',
+                    ...freeText('An activity name'),
                   },
                 },
                 required: ['itemName', 'target'],
@@ -135,8 +134,7 @@ export class NpcTurnTools {
             },
             results: {
               type: 'array',
-              description:
-                "The damage the rolls dealt (roll first with use-npc-activity and roll-saving-throws, then call again with the move and these): planned together with the move as one change. Use multiplier 0.5 for half damage on a successful save, 0 for none. A critical hit's dice are already doubled.",
+              description: 'Damage the rolls dealt. multiplier 0.5 = half on a made save.',
               minItems: 1,
               maxItems: 20,
               items: {
@@ -150,7 +148,6 @@ export class NpcTurnTools {
                   },
                   damageType: {
                     type: 'string',
-                    description: 'dnd5e damage type (slashing, fire...) so resistance applies.',
                     ...freeText('A dnd5e damage type'),
                   },
                   multiplier: { type: 'number', minimum: 0, maximum: 1 },
@@ -161,11 +158,11 @@ export class NpcTurnTools {
             dash: {
               type: 'boolean',
               description:
-                'Dash: the move may use twice the speed. A Dash takes the action, so attacks are refused unless reason names a bonus-action Dash.',
+                'Dash: twice the speed; no attacks unless reason names a bonus-action Dash.',
             },
             reason: {
               type: 'string',
-              description: 'One line on why (shown in the plan and Recent Changes).',
+              description: 'Why (shown in the plan).',
             },
           },
         },

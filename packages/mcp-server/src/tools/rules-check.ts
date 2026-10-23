@@ -108,7 +108,7 @@ export class RulesCheckTools {
       {
         name: 'check-action',
         description:
-          'Rules check (off by default). Says whether an attack, spell or item looks legal and why: turn, cost, range to a target, spell slots, uses left and concentration. With the switch on, use-item, request-attack-roll and a token move in plan-token-change add the same advice to their reply and never block. Cannot see actions already spent this turn. Read-only.',
+          'Rules check (off by default). Says whether an attack, spell or item looks legal and why: turn, cost, range to a target, spell slots and uses left. Cannot see actions already spent this turn. Read-only.',
         inputSchema: {
           type: 'object',
           properties: {

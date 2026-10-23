@@ -23,7 +23,9 @@ import { gzipSync } from 'node:zlib';
 // Handouts, Player links and Module diagnostics moved to their own chunks (App.tsx, LazyPanel) and
 // the first load measured 140.2 KB (entry plus the shared ui chunk; it was 150.5 KB in one entry
 // chunk, 136.2 KB on 2026-10-10). A new panel starts as a lazy chunk, not in the entry.
-export const FIRST_LOAD_LIMIT_KB = 143;
+// 144 on 2026-10-23: the After a paper night menu item and chunk reference (paper-form) took the
+// first load to 143.3 KB; the panel itself is the lazy PaperSync chunk.
+export const FIRST_LOAD_LIMIT_KB = 144;
 
 /**
  * Lazy chunks by name stem (the file name without its hash and extension: `Tarokka-Cx9aB1zQ.js`
@@ -33,6 +35,7 @@ export const FIRST_LOAD_LIMIT_KB = 143;
 export const LAZY_LIMITS_KB = {
   Handouts: 3, // 2.2 KB
   ModuleDiagnostics: 1, // 0.8 KB
+  PaperSync: 6, // 5.1 KB, measured 2026-10-23
   Party: 4, // 3.0 KB
   PlayerLinks: 2, // 1.2 KB
   Prep: 4, // 3.2 KB

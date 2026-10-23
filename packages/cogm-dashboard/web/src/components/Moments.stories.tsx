@@ -76,7 +76,7 @@ function Page({ initial }: { initial: Moment | null }): JSX.Element {
       <MomentViews
         moment={moment}
         slotRefs={slotRefs}
-        afterTop={<AfterTop active={moment === 'after'} />}
+        afterTop={<AfterTop active={moment === 'after'} onOpenPaperSync={() => undefined} />}
       />
       {dock('preflight', open => (
         <PreflightDrawer

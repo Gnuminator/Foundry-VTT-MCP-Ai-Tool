@@ -623,8 +623,8 @@ test.describe('the Advanced menu', () => {
     const menu = page.getByRole('menu');
     await expect(menu.locator('.menu-label')).toHaveText(['Panels', 'During screen', 'Tools']);
     const items = menu.getByRole('menuitem');
-    await expect(items.nth(5)).toHaveText('⚔ Combat buttons: off');
-    await expect(items.nth(6)).toHaveText('▦ Try the During layouts');
+    await expect(items.nth(6)).toHaveText('⚔ Combat buttons: off');
+    await expect(items.nth(7)).toHaveText('▦ Try the During layouts');
     await expect(menu.locator('#btn-combat-buttons')).toHaveAttribute(
       'data-track',
       'dash.header.combat-buttons'

@@ -93,12 +93,16 @@ const versionsChunk = panelChunk(() =>
 const partyChunk = panelChunk(() =>
   import('./panels/Party').then(m => ({ default: m.PartyDrawer }))
 );
+const paperChunk = panelChunk(() =>
+  import('./panels/PaperSync').then(m => ({ default: m.PaperSyncDrawer }))
+);
 const changesChunk = panelChunk(() => import('./panels/RecentChanges'));
 const afterChunk = panelChunk(() => import('./panels/After'));
 // The ones that dock into a view load at once; the floating ones when the browser is idle.
 const DOCKED_CHUNKS = [partyChunk, prepChunk, handoutsChunk, changesChunk];
 const FLOATING_CHUNKS = [
   afterChunk,
+  paperChunk,
   tarokkaChunk,
   toolsChunk,
   linksChunk,
@@ -133,12 +137,13 @@ export function App(): JSX.Element {
 }
 
 /** The drawers this page has so far; each one's open state. */
-type DrawerName = 'preflight' | 'prep' | 'party' | 'handouts' | 'tarokka' | 'tools';
+type DrawerName = 'preflight' | 'prep' | 'party' | 'handouts' | 'paper' | 'tarokka' | 'tools';
 const NO_DRAWERS: Record<DrawerName, boolean> = {
   preflight: false,
   prep: false,
   party: false,
   handouts: false,
+  paper: false,
   tarokka: false,
   tools: false,
 };
@@ -149,6 +154,7 @@ const DRAWER_IDS: Record<DrawerName, string> = {
   prep: 'prep-drawer',
   party: 'party-drawer',
   handouts: 'handouts-drawer',
+  paper: 'paper-drawer',
   tarokka: 'tarokka-drawer',
   tools: 'tools-drawer',
 };
@@ -178,7 +184,7 @@ function Dashboard(): JSX.Element {
   }
   useFocusAfterMoment(moment);
   const docked = (name: DrawerName): boolean =>
-    name !== 'tarokka' && name !== 'tools' && dockOf(name) !== null;
+    name !== 'tarokka' && name !== 'tools' && name !== 'paper' && dockOf(name) !== null;
   const setDrawer = (name: DrawerName, open: boolean): void =>
     setDrawers(d => ({ ...d, [name]: open }));
   // The Advanced menu opens a drawer, as on the old page; one already open comes to the top and
@@ -322,6 +328,15 @@ function Dashboard(): JSX.Element {
                 🃏 Tarokka
               </Button>
             </AdvancedItem>
+            <AdvancedItem onSelect={() => openDrawer('paper')}>
+              <Button
+                id="btn-paper"
+                data-track="dash.header.paper"
+                title="After a paper night: type the numbers from the paper sheets back into Foundry (GM only)"
+              >
+                📝 After a paper night
+              </Button>
+            </AdvancedItem>
             <DuringMenuItems during={during} />
             <AdvancedLabel>Tools</AdvancedLabel>
             <AdvancedItem onSelect={() => openDrawer('tools')}>
@@ -413,7 +428,12 @@ function Dashboard(): JSX.Element {
         duringBar={<DuringBar during={during} />}
         duringFolds={during.folds}
         afterTop={
-          <LazyPanel chunk={afterChunk} show={moment === 'after'} active={moment === 'after'} />
+          <LazyPanel
+            chunk={afterChunk}
+            show={moment === 'after'}
+            active={moment === 'after'}
+            onOpenPaperSync={() => openDrawer('paper')}
+          />
         }
         beforeTop={<LayoutTrialCard during={during} />}
         duringStrip={
@@ -489,6 +509,13 @@ function Dashboard(): JSX.Element {
           show={dockOf('changes') !== null}
         />
       )}
+      <LazyPanel
+        chunk={paperChunk}
+        shell={{ id: 'paper-drawer', title: '📝 After a paper night' }}
+        show={drawers.paper}
+        open={drawers.paper}
+        onOpenChange={open => setDrawer('paper', open)}
+      />
       <LazyPanel
         chunk={tarokkaChunk}
         shell={{ id: 'tarokka-drawer', title: '🃏 Tarokka' }}

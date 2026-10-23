@@ -15,6 +15,12 @@ export const USAGE_CATALOG: readonly UsageCatalogEntry[] = [
     file: 'packages/cogm-dashboard/public/index.html',
   },
   {
+    name: 'dash.after.paper',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/web/src/panels/After.tsx',
+  },
+  {
     name: 'dash.after.refresh',
     kind: 'action',
     surface: 'dashboard',
@@ -297,6 +303,12 @@ export const USAGE_CATALOG: readonly UsageCatalogEntry[] = [
     file: 'packages/cogm-dashboard/public/index.html',
   },
   {
+    name: 'dash.header.paper',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/web/src/App.tsx',
+  },
+  {
     name: 'dash.header.party',
     kind: 'action',
     surface: 'dashboard',
@@ -493,6 +505,48 @@ export const USAGE_CATALOG: readonly UsageCatalogEntry[] = [
     kind: 'action',
     surface: 'dashboard',
     file: 'packages/cogm-dashboard/public/app.js',
+  },
+  {
+    name: 'dash.paper.add-item',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/web/src/panels/PaperSync.tsx',
+  },
+  {
+    name: 'dash.paper.close',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/web/src/panels/PaperSync.tsx',
+  },
+  {
+    name: 'dash.paper.log-night',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/web/src/panels/PaperSync.tsx',
+  },
+  {
+    name: 'dash.paper.plan',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/web/src/panels/PaperSync.tsx',
+  },
+  {
+    name: 'dash.paper.refresh',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/web/src/panels/PaperSync.tsx',
+  },
+  {
+    name: 'dash.paper.remove-item',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/web/src/panels/PaperSync.tsx',
+  },
+  {
+    name: 'dash.paper.reset',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/web/src/panels/PaperSync.tsx',
   },
   {
     name: 'dash.party.add-to-combat',

@@ -287,10 +287,16 @@ function Invoke-VaultGit([string]$Dir, [string[]]$GitArgs) {
   return [pscustomobject]@{ Ok = ($p.ExitCode -eq 0); Text = $text }
 }
 
+# The holder as the note carries it: one line, 60 characters at most (not cut inside a surrogate pair),
+# in double quotes so a "#" or ": " in a session title survives YAML, the board and Obsidian.
 function Get-NoteHolder([string]$Text) {
   $t = ("$Text" -replace '\p{Cc}', ' ').Trim()
-  if ($t.Length -gt 60) { $t = $t.Substring(0, 60) }
-  return $t
+  if ($t.Length -gt 60) {
+    $t = $t.Substring(0, 60)
+    if ([char]::IsHighSurrogate($t[$t.Length - 1])) { $t = $t.Substring(0, $t.Length - 1) }
+    $t = $t.TrimEnd()
+  }
+  return '"' + ($t -replace '([\\"])', '\$1') + '"'
 }
 
 # The note text: this server's lines replaced, the other servers' lines kept as they are.
@@ -298,7 +304,7 @@ function Get-NoteText([string]$Existing, $Lock, [string]$Name) {
   $keep = [ordered]@{}
   if ($Existing -match '(?s)^---\r?\n(.*?)\r?\n---') {
     foreach ($line in ($Matches[1] -split '\r?\n')) {
-      if ($line -match '^(server-[abc](?:-[a-z]+)?): (.*)$') { $keep[$Matches[1]] = $Matches[2] }
+      if ($line -match '^(server-[abc](?:-[a-z]+)?): (.*)$') { $keep[$Matches[1]] = $Matches[2].TrimEnd() }
     }
   }
   $id = "server-$($Name.ToLowerInvariant())"
@@ -316,33 +322,78 @@ function Get-NoteText([string]$Existing, $Lock, [string]$Name) {
   return "---`n$($lines -join "`n")`n---`n`nWritten by scripts/test-env/lock.ps1 on every take, release, queue, leave and publish. Do not edit by hand.`n"
 }
 
+# Runs the body with <vault>/.git/test-servers-note.lck held, so two lock.ps1 runs (two servers) never
+# rewrite the shared note at the same time. $null when the lock could not be had in time (the caller warns).
+function Use-NoteLock([string]$Dir, [scriptblock]$Body) {
+  $lck = Join-Path $Dir '.git/test-servers-note.lck'
+  $deadline = [DateTime]::UtcNow.AddSeconds(150)
+  $stream = $null
+  while ($null -eq $stream) {
+    try {
+      $stream = [System.IO.File]::Open($lck, 'CreateNew', 'Write', 'None')
+    } catch [System.IO.IOException], [System.UnauthorizedAccessException] {
+      try {
+        if (([DateTime]::UtcNow - (Get-Item -LiteralPath $lck -ErrorAction Stop).LastWriteTimeUtc).TotalSeconds -gt 240) {
+          Remove-Item -LiteralPath $lck -Force -ErrorAction Stop  # stale: a killed run left it
+          continue
+        }
+      } catch { }
+      if ([DateTime]::UtcNow -gt $deadline) { return $null }
+      Start-Sleep -Milliseconds 200
+    }
+  }
+  try {
+    & $Body
+    return $true
+  } finally {
+    $stream.Dispose()
+    Remove-Item -LiteralPath $lck -Force -ErrorAction SilentlyContinue
+  }
+}
+
+function Write-NoteWarning([string]$Text) { [Console]::Error.WriteLine("WARNING: $Text") }
+
 # Writes this server's state to the vault note and pushes it. Never throws; a problem is a warning.
+# The vault is left as it was found: no rebase and no autostash (fetch plus a fast-forward works with a
+# dirty tree), and a commit that could not be pushed is taken back.
 function Publish-LockNote {
   try {
     $dir = if ($Vault) { $Vault } elseif ($Root) { $null } elseif ($env:FOUNDRY_AI_OBSIDIAN_DIR) { $env:FOUNDRY_AI_OBSIDIAN_DIR } else { Join-Path $HOME 'Documents/Obsidian/vault' }
     if (-not $dir -or -not (Test-Path -LiteralPath (Join-Path $dir '.git'))) { return }
-    $lock = Read-TestLock $lockRoot
-    if ($lock.Unreadable) { return }
-    $name = $TestEnv.Server
-    $pulled = Invoke-VaultGit $dir @('pull', '--rebase', '--autostash')
-    if (-not $pulled.Ok) { [Console]::Error.WriteLine("WARNING: test servers note not written: vault pull failed ($($pulled.Text))"); return }
     $file = Join-Path $dir ($NotePath -replace '/', [IO.Path]::DirectorySeparatorChar)
-    $existing = if (Test-Path -LiteralPath $file) { Get-Content -LiteralPath $file -Raw } else { '' }
-    New-Item -ItemType Directory -Force (Split-Path $file) | Out-Null
-    [System.IO.File]::WriteAllText($file, (Get-NoteText $existing $lock $name), [System.Text.UTF8Encoding]::new($false))
-    $added = Invoke-VaultGit $dir @('add', '--', $NotePath)
-    if (-not $added.Ok) { [Console]::Error.WriteLine("WARNING: test servers note not committed ($($added.Text))"); return }
-    $state = if ($lock.Holder) { 'held' } else { 'free' }
-    $committed = Invoke-VaultGit $dir @('commit', '-m', "Test server ${name}: $state, queue $(@($lock.Queue).Count)", '--', $NotePath)
-    if (-not $committed.Ok) { [Console]::Error.WriteLine("WARNING: test servers note not committed ($($committed.Text))"); return }
-    $pushed = Invoke-VaultGit $dir @('push')
-    if (-not $pushed.Ok) {
-      $again = Invoke-VaultGit $dir @('pull', '--rebase', '--autostash')
-      $pushed = if ($again.Ok) { Invoke-VaultGit $dir @('push') } else { $again }
+    $done = Use-NoteLock $dir {
+      # read the lock inside the note lock: the run that writes last writes the newest state
+      $lock = Read-TestLock $lockRoot
+      if ($lock.Unreadable) { return }
+      $name = $TestEnv.Server
+      $state = if ($lock.Holder) { 'held' } else { 'free' }
+      $subject = "Test server ${name}: $state, queue $(@($lock.Queue).Count)"
+      $pushError = ''
+      foreach ($attempt in 1, 2) {
+        [void](Invoke-VaultGit $dir @('restore', '--staged', '--worktree', '--', $NotePath))  # an earlier failed try; fine to fail
+        $fetched = Invoke-VaultGit $dir @('fetch')
+        if (-not $fetched.Ok) { Write-NoteWarning "test servers note not written: vault fetch failed ($($fetched.Text))"; return }
+        $merged = Invoke-VaultGit $dir @('merge', '--ff-only', '@{u}')
+        if (-not $merged.Ok) { Write-NoteWarning "test servers note not written: vault pull failed ($($merged.Text))"; return }
+        $existing = if (Test-Path -LiteralPath $file) { Get-Content -LiteralPath $file -Raw } else { '' }
+        New-Item -ItemType Directory -Force (Split-Path $file) | Out-Null
+        [System.IO.File]::WriteAllText($file, (Get-NoteText $existing $lock $name), [System.Text.UTF8Encoding]::new($false))
+        $added = Invoke-VaultGit $dir @('add', '--', $NotePath)
+        if (-not $added.Ok) { Write-NoteWarning "test servers note not committed ($($added.Text))"; return }
+        $committed = Invoke-VaultGit $dir @('commit', '-m', $subject, '--', $NotePath)
+        if (-not $committed.Ok) { Write-NoteWarning "test servers note not committed ($($committed.Text))"; return }
+        $pushed = Invoke-VaultGit $dir @('push')
+        if ($pushed.Ok) { return }
+        $pushError = $pushed.Text
+        # take our own commit back, so the vault is left as it was and the next try starts clean
+        [void](Invoke-VaultGit $dir @('reset', '--soft', 'HEAD~1'))
+        [void](Invoke-VaultGit $dir @('restore', '--staged', '--', $NotePath))
+      }
+      Write-NoteWarning "test servers note not pushed ($pushError)"
     }
-    if (-not $pushed.Ok) { Write-Warning "test servers note committed but not pushed ($($pushed.Text))" }
+    if ($null -eq $done) { Write-NoteWarning 'test servers note not written: another lock.ps1 run held the vault note for over 2 minutes' }
   } catch {
-    [Console]::Error.WriteLine("WARNING: test servers note not written ($($_.Exception.Message))")
+    Write-NoteWarning "test servers note not written ($($_.Exception.Message))"
   }
 }
 

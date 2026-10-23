@@ -12,7 +12,9 @@ one PR. Vault paths below are under `C:\Users\chris\Documents\Obsidian\vault\Dev
 ## Start
 
 1. Pull the vault. Open `Backlog.md`, take the top item with no `claimed:` line that fits your
-   brief, write `claimed: <session title> <date>` under it, commit and push the vault, then
+   brief, write `claimed: <session title> <date>` under it and, on the next line,
+   `- link: <your session link>` (the `link` field of `get_session "self"`, a `claude://` address;
+   the board's lane card opens your session from it), commit and push the vault, then
    `npm run lane:beat -- "<session title>" claimed` (see Heartbeat). If the item
    has `- touches:` or `- depends on:` lines, look at the board's lane warnings first: another lane
    on the same paths, or an unmerged dependency, means wait or ask the planner. If the vault note

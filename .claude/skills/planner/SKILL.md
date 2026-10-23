@@ -59,7 +59,8 @@ keep each item's lines together when you move it.
   the board's usage card is fresh when the lane begins.
 - At most 3 lanes, each owning its own files, one per test server. Respect every hold in CLAUDE.md.
 - Brief (half a page): the Backlog item, state, open PRs, links, done-when, "load the `lane`
-  skill, follow CLAUDE.md". It says: report "ready to merge" as a `- progress:` line on the item
+  skill, follow CLAUDE.md". It says: write your own `claude://` session link (`get_session "self"`,
+  field `link`) as a `- link:` line under your claim, so the board's lane card opens you; report "ready to merge" as a `- progress:` line on the item
   in vault `Backlog.md`, then at most message "the newest session titled Planner". The brief names
   no planner session id (Before a planner ends says why). Work outside this repo (the Pi, another
   folder) carries the rules that apply there (`pi-work`).

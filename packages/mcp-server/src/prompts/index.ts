@@ -11,6 +11,7 @@ import type { ToolSetName } from '../tool-sets.js';
 import { resolveArguments } from './arguments.js';
 import { encounterCheck } from './encounter-check.js';
 import { npcImprov } from './npc-improv.js';
+import { paperSyncPhotos } from './paper-sync-photos.js';
 import { prepNextSession } from './prep-next-session.js';
 import { revealHandout } from './reveal-handout.js';
 import { rulesQuestion } from './rules-question.js';
@@ -34,6 +35,7 @@ export const PROMPTS: readonly PromptDefinition[] = [
   npcImprov,
   encounterCheck,
   revealHandout,
+  paperSyncPhotos,
 ];
 
 /**

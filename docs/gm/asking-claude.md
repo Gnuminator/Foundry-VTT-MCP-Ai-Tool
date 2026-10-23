@@ -79,7 +79,7 @@ The tool comes with prompts for common jobs. Claude Desktop lists a connected se
 its message box (look for the tool's entries, such as `foundry-mcp` and `foundry-mcp-prep`, under
 the message box's **+** menu; the exact place can move between Claude Desktop versions). Pick one,
 fill in its fields, send. A prompt shows up only while its set is switched on: `rules-question` and
-`npc-improv` are in core, the other four in prep.
+`npc-improv` are in core, `paper-sync-photos` is in play, the other four in prep.
 
 | Prompt              | Fields                                                             | What it is for                                                                                                                       |
 | ------------------- | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------ |
@@ -89,6 +89,15 @@ fill in its fields, send. A prompt shows up only while its set is switched on: `
 | `npc-improv`        | `npc` (required)                                                   | A quick GM-only improv card for an NPC: voice, mannerism, want, secret.                                                              |
 | `encounter-check`   | `scene` (optional)                                                 | Checks an encounter's balance against the party.                                                                                     |
 | `reveal-handout`    | `page` (required)                                                  | Plans revealing a journal page to players, shows you the plan, and applies it only after you confirm.                                |
+| `paper-sync-photos` | `characters` (optional)                                            | Reads photos of paper character sheets after a paper night, plans the changes, and lists every reading it was unsure of first.       |
+
+`paper-sync-photos` is for a night played on paper: attach one photo per sheet (or several for a
+sheet in two parts), pick the prompt and send. Claude reads the numbers, compares them with
+Foundry, makes one plan per character and shows each plan with the value on the sheet next to the
+value in Foundry. Every reading it was unsure of is marked CHECK and listed together under "Check
+these before you apply", so a misread 8 for a 3 is caught before anything changes. It never
+touches XP, level, class or maximum hit points, and the switch **AI Tool: Paper sync (writes)**
+must be on. Plans are applied only after your yes, and each can be undone.
 
 The `npc-improv` card contains secrets. Keep it off shared screens. Read a players recap yourself
 before you send it on.

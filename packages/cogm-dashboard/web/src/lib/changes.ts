@@ -11,6 +11,9 @@ export const AI_LIMIT = 20;
 /** How many changes the Everyone tab asks for (the tool's own default is 30, its limit 200). */
 export const EVERYONE_LIMIT = 100;
 
+/** How often the Everyone tab reads the list again while it shows. */
+export const EVERYONE_REFRESH_MS = 4000;
+
 /** The bridge tool that lists everyone's changes; an older bridge has none and the tab is hidden. */
 export const EVERYONE_TOOL = 'list-changes';
 

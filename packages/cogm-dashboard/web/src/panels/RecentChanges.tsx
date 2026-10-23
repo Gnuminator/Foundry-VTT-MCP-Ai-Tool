@@ -34,6 +34,7 @@ import {
   nextStep,
   obsidianChangePath,
   planArgs,
+  EVERYONE_REFRESH_MS,
   readAiChanges,
   readEveryoneChanges,
   readUndoPlan,
@@ -280,6 +281,9 @@ function ChangesCard({ active }: { active: boolean }): JSX.Element {
     enabled: active && shown === 'everyone',
     staleTime: 0,
     retry: false,
+    // A token a player or the GM moved in Foundry sends no gm-change event: the tab reads again
+    // while it shows (not in a hidden browser tab).
+    refetchInterval: EVERYONE_REFRESH_MS,
   });
   const current = shown === 'ai' ? ai : everyone;
 

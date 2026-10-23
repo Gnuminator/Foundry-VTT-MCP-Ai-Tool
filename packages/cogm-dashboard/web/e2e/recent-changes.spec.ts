@@ -673,3 +673,23 @@ test('Recent Changes is a During fold card and sits in After as well', async ({ 
   await c.getByRole('button', { name: 'Open Recent Changes' }).click();
   await expect(c.locator('.change-entry').first()).toBeVisible();
 });
+
+test('the Everyone tab picks up a change made in Foundry without a click or a reload', async ({
+  page,
+}) => {
+  let moved = false;
+  await setup(page, {
+    everyone: () => ({
+      changes: moved ? [human('h-moved', { summary: 'Moved Brenna' }), human('h1')] : [human('h1')],
+      note: '',
+    }),
+  });
+  const c = await load(page);
+  await c.getByRole('button', { name: 'Everyone' }).click();
+  await expect(c.getByText('Human h1')).toBeVisible();
+  await expect(c.getByText('Moved Brenna')).toHaveCount(0);
+
+  // A token moved in Foundry sends no gm-change: only the tab's own reading finds it.
+  moved = true;
+  await expect(c.getByText('Moved Brenna')).toBeVisible({ timeout: 10_000 });
+});

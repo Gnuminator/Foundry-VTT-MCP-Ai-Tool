@@ -16,7 +16,8 @@ import { defineConfig, devices } from '@playwright/test';
 import { GM_TOKEN } from './e2e/support';
 
 const packageDir = fileURLToPath(new URL('..', import.meta.url));
-const PORT = 3197;
+// E2E_PORT lets lanes that run at the same time each have their own server.
+const PORT = Number(process.env.E2E_PORT ?? 3197);
 const channel = process.env.PLAYWRIGHT_CHANNEL;
 
 export default defineConfig({

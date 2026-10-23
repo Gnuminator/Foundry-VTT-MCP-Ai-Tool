@@ -9,7 +9,7 @@
 // prompts is on (so it can be turned off), a fight shown while the bridge is away says so and its
 // buttons are off, a reaction tick changes only its own button (the focus stays), rows can be
 // picked with the keyboard, and the hit point bar has a text equivalent.
-import { useState, type JSX, type MouseEvent } from 'react';
+import { lazy, Suspense, useState, type JSX, type MouseEvent } from 'react';
 
 import {
   AWAY_TEXT,
@@ -49,7 +49,8 @@ import { usePrefs } from '../lib/prefs';
 import { useBridgeAway, useCombat, useDashboardSettings } from '../lib/stream';
 import { Panel, Pill } from '../ui';
 
-import { StartCombat } from './StartCombat';
+// The picker is a lazy chunk (bundle budget): it loads when no fight runs and GM Actions is on.
+const StartCombat = lazy(() => import('./StartCombat').then(m => ({ default: m.StartCombat })));
 
 /** The tool runner's request: a tool and the form's starting values. */
 export interface StripToolRequest {
@@ -439,7 +440,11 @@ export function CombatStrip({
                 </div>
               ))}
           </div>
-          {real === null && !showSample && settings?.gmActionsEnabled === true && <StartCombat />}
+          {real === null && !showSample && settings?.gmActionsEnabled === true && (
+            <Suspense fallback={null}>
+              <StartCombat />
+            </Suspense>
+          )}
           <div className="combat-actions" id="combat-actions" hidden={!selectable}>
             {selectable && (
               <ActionBar

@@ -392,22 +392,13 @@ export const DASHBOARD_CONTROLS = [
   },
   {
     name: 'dash.combat.start',
-    how: 'open',
-    // Only the After page (web/src) has it, and only while no fight runs.
-    selector: '[data-track="dash.combat.start"]',
-    reach: [MOMENT_DURING],
-    expect: '.cs-list',
-    optional: true,
-    why: 'only with no fight running and GM Actions on (opens the token list, plans nothing)',
+    how: 'skip',
+    why: 'new dashboard only (david-start-combat-picker, only with no fight running); an e2e test covers it',
   },
   {
     name: 'dash.combat.start-cancel',
-    how: 'open',
-    selector: '[data-track="dash.combat.start-cancel"]',
-    reach: [MOMENT_DURING, 'dash.combat.start'],
-    gone: '.cs-list',
-    optional: true,
-    why: 'only with the token list open',
+    how: 'skip',
+    why: 'new dashboard only (the token list of Start combat); an e2e test covers it',
   },
   {
     name: 'dash.combat.start-go',

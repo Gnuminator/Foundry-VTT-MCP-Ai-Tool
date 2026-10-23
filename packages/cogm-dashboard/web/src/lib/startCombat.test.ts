@@ -40,7 +40,7 @@ describe('the start-combat picker', () => {
 
   it('ticks player characters and Hostile tokens, not Neutral or Friendly, nor a token with no actor', () => {
     expect([...defaultTicks(pickerRows(SCENE))].sort()).toEqual(['t1', 't2', 't3']);
-    expect(canFight(SCENE[4]!)).toBe(false);
+    expect(canFight(SCENE[4])).toBe(false);
   });
 
   it('sends the ticked tokens in the picker order, and never one that cannot fight', () => {
@@ -53,8 +53,8 @@ describe('the start-combat picker', () => {
   });
 
   it('says Hostile for the enemies', () => {
-    expect(sideWords(SCENE[1]!)).toBe('Hostile');
-    expect(sideWords(SCENE[0]!)).toBe('Neutral or Friendly');
-    expect(sideWords(SCENE[2]!)).toBe('PC');
+    expect(sideWords(SCENE[1])).toBe('Hostile');
+    expect(sideWords(SCENE[0])).toBe('Neutral or Friendly');
+    expect(sideWords(SCENE[2])).toBe('PC');
   });
 });

@@ -22,7 +22,7 @@ import type {
 } from '@gnuminator/shared';
 
 import * as shared from './data-access/shared.js';
-import { requireCurrentScene, type SceneDoc } from './scene-plan-geometry.js';
+import { requireCurrentScene } from './scene-plan-geometry.js';
 
 /** Query name (mirror of the shared `COMBAT_PLAN_QUERY`). */
 export const COMBAT_PLAN_QUERY = 'planCombatChange';
@@ -39,6 +39,22 @@ interface CombatDoc {
   combatants?: { size?: number; contents?: unknown[] } | unknown[];
 }
 
+/** The token fields the start plan reads (scene tokens are untyped in the v14 declarations). */
+interface TokenLike {
+  id: string;
+  name?: string | null;
+  actorId?: string | null;
+  actor?: { id?: string; type?: string; hasPlayerOwner?: boolean } | null;
+  disposition?: number;
+  hidden?: boolean;
+}
+
+interface SceneLike {
+  id: string;
+  name?: string | null;
+  tokens?: { contents?: TokenLike[] };
+}
+
 function combatantCount(combat: CombatDoc): number {
   const c = combat.combatants;
   if (Array.isArray(c)) return c.length;
@@ -46,7 +62,7 @@ function combatantCount(combat: CombatDoc): number {
 }
 
 /** The tokens a fight starts with when the caller names none: player characters and Hostiles. */
-function isDefaultCombatToken(token: SceneDoc): boolean {
+function isDefaultCombatToken(token: TokenLike): boolean {
   const actor = token.actor;
   const isPC = !!actor?.hasPlayerOwner && actor?.type === 'character';
   return isPC || token.disposition === -1;
@@ -54,20 +70,23 @@ function isDefaultCombatToken(token: SceneDoc): boolean {
 
 function planStart(request: CombatStartRequest): CombatChangePlan {
   shared.validateFoundryState();
-  const scene = request.sceneId ? game.scenes?.get(request.sceneId) : requireCurrentScene();
-  if (!scene) throw new Error('Scene not found: ' + String(request.sceneId));
-  const running = (game.combats?.contents ?? []).find(
-    (c: { scene?: { id?: string } | null }) => c.scene?.id === scene.id
+  const scene = (request.sceneId ? game.scenes?.get(request.sceneId) : requireCurrentScene()) as
+    | SceneLike
+    | null
+    | undefined;
+  if (!scene) throw new Error(`Scene not found: ${String(request.sceneId)}`);
+  const running = ((game.combats?.contents ?? []) as { scene?: { id?: string } | null }[]).find(
+    c => c.scene?.id === scene.id
   );
   if (running) {
     throw new Error(
       `A combat already runs on "${String(scene.name)}". End it first, or add to it in Foundry.`
     );
   }
-  const all: SceneDoc[] = scene.tokens?.contents ?? [];
+  const all: TokenLike[] = scene.tokens?.contents ?? [];
   const wanted = Array.isArray(request.tokenIds) ? request.tokenIds.map(String) : null;
   const skipped: string[] = [];
-  let picked: SceneDoc[];
+  let picked: TokenLike[];
   if (wanted) {
     picked = [];
     for (const id of new Set(wanted)) {

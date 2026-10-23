@@ -70,6 +70,39 @@ describe('spent actions', () => {
     expect(r?.status).toBe('info');
   });
 
+  it('counts the earlier use in a pre-check (a second Healing Word is not free)', () => {
+    const r = cost({
+      ...base,
+      item: 'Healing Word',
+      spellLevel: 1,
+      activation: 'Bonus Action',
+      beforeUse: true,
+      spent: { uses: [use('Healing Word', 'bonus', 'spell')] },
+    });
+    expect(r?.status).toBe('warn');
+  });
+
+  it('says only the item itself was seen when the after-the-fact check drops it', () => {
+    const r = cost({
+      ...base,
+      item: 'Healing Word',
+      spellLevel: 1,
+      activation: 'Bonus Action',
+      spent: { uses: [use('Healing Word', 'bonus', 'spell')] },
+    });
+    expect(r?.reason).toContain('Only Healing Word itself was seen');
+  });
+
+  it('says nothing about spent actions when other combatants share the actor', () => {
+    const r = cost({
+      ...base,
+      combat: { ...(base.combat as object), sharedActor: true } as never,
+      spent: { uses: [use('Shield', 'action', 'spell')] },
+    });
+    expect(r?.reason).not.toContain('Nothing used');
+    expect(r?.reason).toContain('confirm it is still free');
+  });
+
   it('lets a cantrip pair with a weapon attack but not with another spell', () => {
     const cantripThenSword = cost({
       ...base,

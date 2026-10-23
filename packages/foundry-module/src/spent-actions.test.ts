@@ -1,10 +1,87 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  spentLedger,
   spentSinceOwnTurn,
   useFromMessage,
   type SpentUse,
   type TurnMark,
 } from './spent-actions.js';
+
+describe('useFromMessage (card level)', () => {
+  const card = (type: string, level?: number): unknown => ({
+    id: 'm',
+    type: 'usage',
+    speaker: { actor: 'a1' },
+    system: {
+      activation: { type: 'action' },
+      item: { name: 'Scroll', type, uuid: 'Actor.a1.Item.i1' },
+      ...(level === undefined ? {} : { level }),
+    },
+  });
+
+  it('reads the level from the card before the item lookup', () => {
+    const levelOf = vi.fn(() => 9);
+    expect(useFromMessage(card('spell', 3), null, 1, levelOf)?.itemLevel).toBe(3);
+    expect(levelOf).not.toHaveBeenCalled();
+  });
+
+  it('sees a scroll cast (a consumable with a level) as a spell', () => {
+    const u = useFromMessage(card('consumable', 0), null, 1);
+    expect(u?.itemType).toBe('spell');
+    expect(u?.itemLevel).toBe(0);
+    expect(useFromMessage(card('consumable'), null, 1)?.itemType).toBe('consumable');
+  });
+});
+
+describe('spentLedger hooks', () => {
+  const handlers: Record<string, (m: unknown) => void> = {};
+  const usage = {
+    id: 'm1',
+    type: 'usage',
+    speaker: { actor: 'a1' },
+    system: { activation: { type: 'bonus' }, item: { name: 'Healing Word', type: 'spell' } },
+  };
+  const fresh = (): typeof spentLedger =>
+    new (spentLedger.constructor as new () => typeof spentLedger)();
+
+  beforeEach(() => {
+    vi.stubGlobal('Hooks', {
+      on: (name: string, fn: (m: unknown) => void) => (handlers[name] = fn),
+    });
+    vi.stubGlobal('game', { user: { isGM: true }, combat: { id: 'c1' } });
+    vi.stubGlobal('fromUuidSync', () => null);
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it('records a usage card on a GM client, forgets it when deleted, ignores other messages', () => {
+    const ledger = fresh();
+    ledger.registerHooks();
+    handlers.createChatMessage({ type: 'base' });
+    expect(ledger.snapshot()).toHaveLength(0);
+    handlers.createChatMessage(usage);
+    expect(ledger.snapshot()).toHaveLength(1);
+    handlers.deleteChatMessage({ id: 'm1' });
+    expect(ledger.snapshot()).toHaveLength(0);
+  });
+
+  it('records nothing on a player client and swallows a thrown error', () => {
+    const ledger = fresh();
+    ledger.registerHooks();
+    vi.stubGlobal('game', { user: { isGM: false } });
+    handlers.createChatMessage(usage);
+    expect(ledger.snapshot()).toHaveLength(0);
+    vi.stubGlobal('game', {
+      get user(): never {
+        throw new Error('boom');
+      },
+    });
+    expect(() => handlers.createChatMessage(usage)).not.toThrow();
+  });
+});
 
 describe('useFromMessage', () => {
   const usage = {

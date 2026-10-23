@@ -145,6 +145,7 @@ export function useFromMessage(
     system?: {
       activation?: { type?: unknown };
       item?: { name?: unknown; type?: unknown; uuid?: unknown };
+      level?: unknown;
     };
   };
   if (msg?.type !== 'usage') return null;
@@ -153,12 +154,19 @@ export function useFromMessage(
   const actorId = str(msg.speaker?.actor) ?? /^Actor\.([^.]+)\./.exec(str(item?.uuid) ?? '')?.[1];
   const activation = str(msg.system?.activation?.type);
   if (!actorId || !activation) return null;
+  // The card carries the spell level (also for a scroll cast, whose item is a consumable); the
+  // item lookup is the fallback for a card without it.
+  const cardLevel = typeof msg.system?.level === 'number' ? msg.system.level : null;
+  const rawType = str(item?.type) ?? 'item';
+  const isSpell = rawType === 'spell' || (rawType === 'consumable' && cardLevel !== null);
   return {
     actorId,
     item: str(item?.name) ?? 'an item',
-    itemType: str(item?.type) ?? 'item',
+    itemType: isSpell ? 'spell' : rawType,
     activation,
-    itemLevel: item?.type === 'spell' && str(item.uuid) ? levelOf(str(item.uuid) as string) : null,
+    itemLevel:
+      cardLevel ??
+      (rawType === 'spell' && str(item?.uuid) ? levelOf(str(item?.uuid) as string) : null),
     messageId: str(msg.id),
     combatId,
     timestampMs: now,

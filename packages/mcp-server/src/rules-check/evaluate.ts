@@ -26,6 +26,8 @@ export type CombatFact =
       inCombat: boolean;
       /** Several combatants share the actor (unlinked tokens), so the turn cannot be told. */
       ambiguous?: boolean;
+      /** Other combatants share the actor id, so the ledger (keyed by actor) is not this token's alone. */
+      sharedActor?: boolean;
       isCurrentTurn: boolean;
       currentName: string | null;
     };
@@ -66,6 +68,8 @@ export interface RulesFacts {
    * saw it. Missing when the module cannot say (old module, or turns not seen).
    */
   spent?: SpentFact | undefined;
+  /** The check runs before the use, so the ledger does not hold the checked item's own use yet. */
+  beforeUse?: boolean;
   /** Rules versions ("2014" / "2024"): the item's own tag, and the actor's with where it came from. */
   rules?:
     | {
@@ -194,14 +198,22 @@ function spentLine(
   label: string
 ): RulesCheckLine | null {
   const c = f.combat;
-  if (!f.spent || !c.active || !c.inCombat || c.ambiguous) return null;
+  if (!f.spent || !c.active || !c.inCombat || c.ambiguous || c.sharedActor) return null;
   if (cost !== 'reaction' && !c.isCurrentTurn) return null;
   const same = f.spent.uses.filter(u => classifyActivation(u.activation) === cost);
   // Asked after the fact ("was that Healing Word fine?"): the use being checked is already in the
   // ledger, so it does not count against itself.
-  const own = same.map(u => u.item).lastIndexOf(f.item);
+  // A pre-check runs before the use, so there is nothing of its own to drop.
+  const own = f.beforeUse ? -1 : same.map(u => u.item).lastIndexOf(f.item);
   if (own >= 0) same.splice(own, 1);
   const base = `Costs ${name} (${label}).`;
+  if (same.length === 0 && own >= 0) {
+    return {
+      check: 'action-cost',
+      status: 'info',
+      reason: `${base} Only ${f.item} itself was seen this turn; fine if this check is about that use.`,
+    };
+  }
   if (same.length === 0) {
     return {
       check: 'action-cost',

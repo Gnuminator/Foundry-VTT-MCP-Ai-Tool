@@ -401,14 +401,17 @@ export class CharacterTools {
 
     try {
       const target = targets?.find(t => t.toLowerCase() !== 'self');
-      const rulesCheck = await this.rulesCheck?.tryCheck({
-        actor: actorIdentifier,
-        item: itemIdentifier,
-        ...(target ? { target } : {}),
-        ...(spellLevel !== undefined && spellLevel >= 1 && spellLevel <= 9
-          ? { castLevel: Math.trunc(spellLevel) }
-          : {}),
-      });
+      const rulesCheck = await this.rulesCheck?.tryCheck(
+        {
+          actor: actorIdentifier,
+          item: itemIdentifier,
+          ...(target ? { target } : {}),
+          ...(spellLevel !== undefined && spellLevel >= 1 && spellLevel <= 9
+            ? { castLevel: Math.trunc(spellLevel) }
+            : {}),
+        },
+        true
+      );
       const result = await this.foundryClient.query('foundry-mcp-bridge.useItem', {
         actorIdentifier,
         itemIdentifier,

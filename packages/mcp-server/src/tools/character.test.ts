@@ -512,12 +512,10 @@ describe('CharacterTools.handleUseItem', () => {
       targets: ['self', 'Wolf'],
       spellLevel: 4,
     });
-    expect(tryCheck).toHaveBeenCalledWith({
-      actor: 'Elara',
-      item: 'Fireball',
-      target: 'Wolf',
-      castLevel: 4,
-    });
+    expect(tryCheck).toHaveBeenCalledWith(
+      { actor: 'Elara', item: 'Fireball', target: 'Wolf', castLevel: 4 },
+      true
+    );
     expect(query).toHaveBeenCalledTimes(1);
     expect(result).toEqual({ ...payload, rulesCheck: check });
   });

@@ -287,7 +287,7 @@ describe('FoundryDataAccess — requestPlayerRolls', () => {
 // requestAbilityCheck / requestAttackRoll (wrappers)
 // ===========================================================================
 
-describe('FoundryDataAccess — roll request event', () => {
+describe('FoundryDataAccess: roll request event', () => {
   it('a private request is a roll-request event naming who may see it; a public one names no one', async () => {
     world.addUser({ id: 'u1', name: 'Alice', active: true, isGM: false });
     world.addUser({ id: 'gm1', name: 'GM', active: true, isGM: true });

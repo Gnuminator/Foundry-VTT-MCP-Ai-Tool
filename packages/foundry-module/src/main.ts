@@ -161,7 +161,7 @@ class FoundryMCPBridge {
       registerGuardedFeature({
         id: NPC_TURN_FEATURE_ID,
         name: 'AI Tool: NPC turn assistant (writes)',
-        hint: 'Lets the AI move a monster on its turn, after you confirm the plan. Each move shows in Recent Changes with an Undo. The attack is rolled separately.',
+        hint: 'Lets the AI move a monster on its turn and take hit points off the creatures it hits, after you confirm the plan. Each turn shows in Recent Changes with an Undo. The attacks and saves are rolled first, separately.',
       });
       registerGuardedFeature({
         id: PAPER_SYNC_FEATURE_ID,

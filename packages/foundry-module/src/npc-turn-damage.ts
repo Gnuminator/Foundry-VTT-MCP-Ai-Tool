@@ -16,7 +16,7 @@ import {
   hpText,
   resolveTargets,
 } from './live-plan.js';
-import { planNpcTurn } from './npc-turn.js';
+import { findTarget, planNpcTurn } from './npc-turn.js';
 
 type Rec = Record<string, unknown>;
 
@@ -42,13 +42,7 @@ export async function planNpcTurnWithDamage(data: unknown): Promise<NpcTurnPlan>
   for (const raw of results) {
     const entry = (raw !== null && typeof raw === 'object' ? raw : {}) as Rec;
     const asked = typeof entry.target === 'string' ? entry.target.trim() : '';
-    const target = plan.context.targets.find(
-      t => t.tokenId === asked || t.name.toLowerCase() === asked.toLowerCase()
-    );
-    if (!target) {
-      const names = plan.context.targets.map(t => t.name).join(', ') || 'none';
-      throw new Error(`"${asked}" is not a target in this fight (targets: ${names})`);
-    }
+    const target = findTarget(plan.context.targets, asked);
     const amount = entry.amount;
     if (typeof amount !== 'number' || !Number.isFinite(amount) || amount < 0) {
       throw new Error(`Damage to ${target.name} needs an amount of 0 or more`);
@@ -59,7 +53,14 @@ export async function planNpcTurnWithDamage(data: unknown): Promise<NpcTurnPlan>
         `Damage to ${target.name}: multiplier must be between 0 and 1 (0.5 for half damage on a save; a critical hit's dice are already doubled)`
       );
     }
-    const type = typeof entry.damageType === 'string' ? entry.damageType.trim() : '';
+    const type = typeof entry.damageType === 'string' ? entry.damageType.trim().toLowerCase() : '';
+    const known = (globalThis as Rec).CONFIG as Rec | undefined;
+    const types = (known?.DND5E as Rec | undefined)?.damageTypes as Rec | undefined;
+    if (type && types && !(type in types)) {
+      throw new Error(
+        `Damage to ${target.name}: "${type}" is not a dnd5e damage type (${Object.keys(types).join(', ')})`
+      );
+    }
     const value = Math.floor(amount * multiplier);
     const hit = hits.get(target.tokenId) ?? {
       tokenId: target.tokenId,

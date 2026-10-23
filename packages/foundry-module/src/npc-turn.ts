@@ -288,6 +288,23 @@ function describeActivity(activity: Rec): NpcTurnActivity {
   };
 }
 
+/** A target by token id or name; several tokens with one name must be told apart by id. */
+export function findTarget(targets: NpcTurnTarget[], asked: string): NpcTurnTarget {
+  const byId = targets.find(t => t.tokenId === asked);
+  if (byId) return byId;
+  const byName = targets.filter(t => t.name.toLowerCase() === asked.toLowerCase());
+  if (byName.length > 1) {
+    throw new Error(
+      `Several targets are named "${asked}": use the token id (${byName.map(t => t.tokenId).join(', ')})`
+    );
+  }
+  if (!byName[0]) {
+    const names = targets.map(t => t.name).join(', ') || 'none';
+    throw new Error(`"${asked}" is not a target in this fight (targets: ${names})`);
+  }
+  return byName[0];
+}
+
 /** The legendary action pool (`system.resources.legact`); null when the actor has none. */
 function legendaryOf(actor: Rec): { max: number; spent: number; value: number } | null {
   const pool = rec(path(actor, 'system.resources.legact'));
@@ -875,13 +892,7 @@ export function planNpcTurn(data: unknown): NpcTurnPlan {
   const finalSpot = after ?? here;
   for (const asked of requested) {
     const action = findAction(asked.itemName);
-    const target = context.targets.find(
-      t => t.tokenId === asked.target || t.name.toLowerCase() === asked.target.toLowerCase()
-    );
-    if (!target) {
-      const names = context.targets.map(t => t.name).join(', ') || 'none';
-      throw new Error(`"${asked.target}" is not a target in this fight (targets: ${names})`);
-    }
+    const target = findTarget(context.targets, asked.target);
     const away = target.distanceAfterMove ?? target.distance;
     const farthest = action.longRangeFt ?? action.rangeFt;
     const inReach = farthest === null || away <= farthest;
@@ -914,7 +925,7 @@ export function planNpcTurn(data: unknown): NpcTurnPlan {
       kind,
       ...(activity?.save ? { save: activity.save } : {}),
       ...(legendaryCost !== null ? { legendaryCost } : {}),
-      rollWith: `use-npc-activity ${JSON.stringify({ actorName: context.token.id, itemName: action.name, ...(activity && (action.activities?.length ?? 0) > 1 ? { activity: activity.name } : {}), ...(kind === 'attack' && target.ac !== null ? { targetAC: target.ac } : {}) })}`,
+      rollWith: `use-npc-activity ${JSON.stringify({ actorName: context.token.id, itemName: action.name, ...(activity && (kind !== 'attack' || (action.activities?.length ?? 0) > 1) ? { activity: activity.name } : {}), ...(kind === 'attack' && target.ac !== null ? { targetAC: target.ac } : {}) })}`,
       ...(kind === 'save'
         ? {
             saveWith: `roll-saving-throws ${JSON.stringify({ targets: [target.tokenId], rollType: 'save', ...(ability ? { ability } : {}), ...(saveDc !== null ? { dc: saveDc } : {}) })}`,
@@ -922,8 +933,8 @@ export function planNpcTurn(data: unknown): NpcTurnPlan {
         : {}),
       damageWith:
         kind === 'save'
-          ? `Put the damage use-npc-activity reported in results as {"target":${JSON.stringify(target.name)},"amount":<it>,"damageType":"<its type>"${activity?.save?.onSave === 'half' ? ',"multiplier":0.5 when the save succeeded' : activity?.save?.onSave === 'none' ? ',"multiplier":0 when the save succeeded' : ''}} and call plan-npc-turn again with the move`
-          : `Put the damage use-npc-activity reported in results as {"target":${JSON.stringify(target.name)},"amount":<it>,"damageType":"<its type>"} and call plan-npc-turn again with the move (use-npc-activity already doubles a critical hit's dice: do not add a multiplier)`,
+          ? `Put the damage use-npc-activity reported in results as {"target":${JSON.stringify(target.tokenId)},"amount":<it>,"damageType":"<its type>"${activity?.save?.onSave === 'half' ? ',"multiplier":0.5 when the save succeeded' : activity?.save?.onSave === 'none' ? ',"multiplier":0 when the save succeeded' : ''}} and call plan-npc-turn again with the move`
+          : `Put the damage use-npc-activity reported in results as {"target":${JSON.stringify(target.tokenId)},"amount":<it>,"damageType":"<its type>"} and call plan-npc-turn again with the move (use-npc-activity already doubles a critical hit's dice: do not add a multiplier)`,
     });
   }
   const legendarySpend = attacks.reduce((sum, a) => sum + (a.legendaryCost ?? 0), 0);
@@ -934,17 +945,23 @@ export function planNpcTurn(data: unknown): NpcTurnPlan {
       );
     }
     const left = context.legendary?.value ?? 0;
-    if (legendarySpend > left) {
+    // With `results` the rolls are done and use-npc-activity has already spent the actions.
+    const paid = Array.isArray(request.results) && request.results.length > 0;
+    if (!paid && legendarySpend > left) {
       throw new Error(
         `${tokenName} has ${left} legendary action${left === 1 ? '' : 's'} left, and this turn needs ${legendarySpend}`
       );
     }
-    if (moveTo && speed !== null && (node?.cost ?? 0) * scene.distance > speed / 2) {
-      throw new Error(
-        `A move taken as a legendary action covers at most half the speed (${speed / 2} ${scene.units}); this one costs ${tidy((node?.cost ?? 0) * scene.distance)}`
+    notes.push(
+      paid
+        ? `Legendary actions used: ${legendarySpend}, already spent by the roll (${left} left).`
+        : `Legendary actions used: ${legendarySpend} of ${left} left.`
+    );
+    if (moveTo) {
+      notes.push(
+        `A move taken as a legendary action is often limited (some creatures: half the speed, ${speed === null ? '?' : speed / 2} ${scene.units}); check the creature's own text.`
       );
     }
-    notes.push(`Legendary actions used: ${legendarySpend} of ${left} left.`);
   }
   if (attacks.length > 1 && context.multiattack === null) {
     notes.push(

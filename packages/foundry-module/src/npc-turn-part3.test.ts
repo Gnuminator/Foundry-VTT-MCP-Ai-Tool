@@ -233,24 +233,36 @@ describe('legendary actions', () => {
     ).toThrow(/1 legendary action left, and this turn needs 2/);
   });
 
-  it('caps a move taken as a legendary action at half the speed', () => {
+  it('notes that a move taken as a legendary action is often limited', () => {
     arena({ boss: true, items: [lash], legact: { max: 3, spent: 0, value: 3 }, walk: 30 });
+    const plan = planNpcTurn({
+      token: 'Boss',
+      moveTo: { gridX: 6, gridY: 4 },
+      itemName: 'Lash',
+      target: 'Goblin',
+    });
+    expect(plan.context.notes.join(' ')).toMatch(/some creatures: half the speed, 15 ft/);
+  });
+
+  it('does not count the actions twice once the roll has spent them (results given)', () => {
+    arena({ boss: true, items: [lash], legact: { max: 3, spent: 3, value: 0 } });
+    const plan = planNpcTurn({
+      token: 'Boss',
+      attacks: [{ itemName: 'Lash', target: 'Hero' }],
+      results: [{ target: 'Hero', amount: 1 }],
+    });
+    expect(plan.context.notes.join(' ')).toMatch(/already spent by the roll \(0 left\)/);
+  });
+
+  it('still refuses on its own turn when results are given', () => {
+    arena({ items: [lash], legact: { max: 3, spent: 1, value: 2 } });
     expect(() =>
       planNpcTurn({
-        token: 'Boss',
-        moveTo: { gridX: 6, gridY: 4 },
         itemName: 'Lash',
-        target: 'Goblin',
+        target: 'Hero',
+        results: [{ target: 'Hero', amount: 1 }],
       })
-    ).toThrow(/at most half the speed \(15 ft\)/);
-    expect(
-      planNpcTurn({
-        token: 'Boss',
-        moveTo: { gridX: 5, gridY: 4 },
-        itemName: 'Lash',
-        target: 'Goblin',
-      }).moveCost
-    ).toBe(15);
+    ).toThrow(/own turn/);
   });
 });
 
@@ -324,6 +336,33 @@ describe('damage from the rolls, planned with the move', () => {
       planNpcTurnWithDamage({ results: [{ target: 'Hero', amount: 3, multiplier: 2 }] })
     ).rejects.toThrow(/multiplier must be between 0 and 1/);
     await expect(planNpcTurnWithDamage({ results: [] })).rejects.toThrow(/at least one entry/);
+  });
+
+  it('refuses a name shared by several targets and an unknown damage type', async () => {
+    const { scene } = arena({ items: [bite] });
+    scene.tokens.contents.push(
+      token('t9', 'Hero', 8, 2, { disposition: 1, actor: hero('Hero2', 30) })
+    );
+    g.game.combats.contents[0].combatants.contents.push({
+      id: 'c9',
+      tokenId: 't9',
+      defeated: false,
+    });
+    await expect(
+      planNpcTurnWithDamage({ results: [{ target: 'Hero', amount: 3 }] })
+    ).rejects.toThrow(/Several targets are named "Hero": use the token id \(t2, t9\)/);
+    const plan = await planNpcTurnWithDamage({ results: [{ target: 't9', amount: 3 }] });
+    expect(plan.ops).toEqual([
+      { kind: 'update', uuid: 'Actor.Hero2', changes: { 'system.attributes.hp.value': 27 } },
+    ]);
+    g.CONFIG = { DND5E: { damageTypes: { fire: {}, poison: {} } } };
+    await expect(
+      planNpcTurnWithDamage({ results: [{ target: 't9', amount: 3, damageType: 'Frost' }] })
+    ).rejects.toThrow(/"frost" is not a dnd5e damage type \(fire, poison\)/);
+    await expect(
+      planNpcTurnWithDamage({ results: [{ target: 't9', amount: 3, damageType: 'FIRE' }] })
+    ).resolves.toBeDefined();
+    delete g.CONFIG;
   });
 
   it('is the plain plan when there are no results', async () => {

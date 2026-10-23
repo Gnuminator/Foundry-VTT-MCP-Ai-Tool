@@ -424,6 +424,9 @@ test('the GM Actions gate shows the docked Pre-flight, closing the drawers over 
     );
   });
   await load(page);
+  // The gate checks the page for a docked Pre-flight when the click lands, so wait until the
+  // Before moment has docked it; earlier, Pre-flight floats over Party and Party stays open.
+  await expect(docked(page, '✈ Pre-flight')).toBeVisible();
   await fromMenu(page, 'btn-party');
   const party = page.getByRole('dialog', { name: '🛡 Party' });
   await party.getByRole('button', { name: 'Short rest request' }).click();

@@ -19,7 +19,7 @@ from fvtt_transcriber.vocab import (
 
 def test_default_profile_is_the_benchmark_pick() -> None:
     a = build_parser().parse_args(["in"])
-    assert a.model == "large-v3-turbo"
+    assert a.model == "large-v3"
     assert a.language == "da"
     assert a.no_vad is False  # vad_filter on
     assert a.condition_on_previous_text is False

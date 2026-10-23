@@ -20,8 +20,9 @@ SAMPLE_RATE = 16000
 
 @dataclass(slots=True)
 class WhisperSettings:
-    """The default profile, chosen by the 2026-09-30 benchmark (turbo "vadrobust" plus hotwords):
-    model large-v3-turbo (set in the CLI), language da, Silero VAD filter on,
+    """The default profile, chosen by the 2026-10-24 benchmark on the David GM test recording (large-v3,
+    VAD, no hotwords; earlier 2026-09-30 pick: turbo plus hotwords):
+    model large-v3 (set in the CLI), language da, Silero VAD filter on,
     condition_on_previous_text off, no_speech_threshold 0.85, compression_ratio_threshold 2.4, word
     timestamps, beam 5, and (when a names file is given) hotwords, never initial_prompt. Every field
     can be changed on the command line.

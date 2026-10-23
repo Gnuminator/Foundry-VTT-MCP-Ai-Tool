@@ -26,11 +26,12 @@
   -Journals (also list world item and journal names; off by default), GM_DASHBOARD_TOKEN is sent as the
   dashboard token when set.
 
-  transcribe options: -Model <name|path> (default large-v3-turbo), -Force (redo finished tracks),
-  -NoPipeline (transcriber only), -NoHotwords (ignore names.txt), -NoAutoFix (the pipeline only suggests
-  name fixes), -Hotwords (no names.txt: use <session>/vocab.txt as hotwords instead).
-  If <session>/names.txt exists it is passed to Whisper as hotwords (cut to a token budget, first names
-  win) and to the pipeline as the known names for automatic name fixes.
+  transcribe options: -Model <name|path> (default large-v3), -Force (redo finished tracks),
+  -NoPipeline (transcriber only), -NoAutoFix (the pipeline only suggests name fixes), -Hotwords (pass
+  <session>/names.txt, or vocab.txt when there is no names file, to Whisper as hotwords, cut to a token
+  budget; off by default because the 2026-10 benchmark found they hurt). -NoHotwords is kept and does
+  nothing now. If <session>/names.txt exists it is passed to the pipeline as the known names for
+  automatic name fixes.
   The pipeline picks up <session>/speakers.json, vocab.txt, names.txt, rules.json and ordinary-words.txt.
 #>
 [CmdletBinding()]
@@ -240,14 +241,13 @@ switch ($Command) {
     $tArgs = @('--profile', 'transcribe', 'run', '--rm', '-T', '-v', "${folder}:/session", 'transcriber',
       $inside, '--out', '/session/transcripts')
     if ($Model) { $tArgs += @('--model', $Model) }
-    if (-not $NoHotwords) {
+    if ($Hotwords -and -not $NoHotwords) {
       if (Test-Path (Join-Path $folder 'names.txt')) {
         $tArgs += @('--hotwords', '/session/names.txt')
-      } elseif ($Hotwords) {
-        if (-not (Test-Path (Join-Path $folder 'vocab.txt'))) { throw "-Hotwords needs $folder\vocab.txt (or run: voice-stack.ps1 names <session>)" }
+      } elseif (Test-Path (Join-Path $folder 'vocab.txt')) {
         $tArgs += @('--hotwords', '/session/vocab.txt')
       } else {
-        Write-Host "No names.txt in ${folder}: transcribing without hotwords (voice-stack.ps1 names <session> builds one)."
+        throw "-Hotwords needs $folder\names.txt or vocab.txt (run: voice-stack.ps1 names <session>)"
       }
     }
     if ($Force) { $tArgs += '--force' }

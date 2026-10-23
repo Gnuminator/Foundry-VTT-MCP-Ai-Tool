@@ -30,10 +30,10 @@ a summary). Each JSON has `engine`, `variant`, `slice`, `speaker`, `seconds`, `a
 
 ## Default profile (chosen by the 2026-09-30 benchmark)
 
-Model `large-v3-turbo` (downloaded once into the `/cache` volume), language `da`, Silero VAD filter on,
+Model `large-v3` (downloaded once into the `/cache` volume; chosen over `large-v3-turbo` by the 2026-10-24 benchmark, see `tools/voice-stack/README.md`), language `da`, Silero VAD filter on,
 `condition_on_previous_text` off, `no_speech_threshold` 0.85, `compression_ratio_threshold` 2.4, word
-timestamps on, beam size 5, float16 on the GPU, and **hotwords from a names file, never
-`initial_prompt`**. Every one of these can be changed on the command line (`--model`, `--language`,
+timestamps on, beam size 5, float16 on the GPU, and **hotwords only when a names file is given (off by default; never
+`initial_prompt`)**. Every one of these can be changed on the command line (`--model`, `--language`,
 `--no-vad`, `--condition-on-previous-text`, `--no-speech-threshold`, ...). The VAD is the Silero model
 bundled with faster-whisper, the same one the benchmark used, so there is no separate `silero-vad`
 package.

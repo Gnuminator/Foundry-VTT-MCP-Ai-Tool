@@ -1,12 +1,12 @@
 {
-  "total": 3052,
+  "total": 3050,
   "rules": {
     "@typescript-eslint/explicit-function-return-type": 180,
     "@typescript-eslint/no-explicit-any": 531,
     "@typescript-eslint/no-unsafe-argument": 111,
     "@typescript-eslint/no-unsafe-assignment": 675,
     "@typescript-eslint/no-unsafe-call": 106,
-    "@typescript-eslint/no-unsafe-member-access": 1368,
+    "@typescript-eslint/no-unsafe-member-access": 1366,
     "@typescript-eslint/no-unsafe-return": 81
   }
 }

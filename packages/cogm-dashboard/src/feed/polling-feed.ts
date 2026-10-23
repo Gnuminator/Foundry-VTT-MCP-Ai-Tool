@@ -37,6 +37,16 @@ import type {
  * and retries on the next tick.
  */
 
+/**
+ * Every Nth event poll ignores the cursor and reads the newest events again, so an event that
+ * landed behind the cursor (a Foundry clock that stepped back, a second GM browser whose clock is
+ * behind) still shows within a few polls. Events already passed on are skipped by id.
+ */
+const RESYNC_EVERY_POLLS = 8;
+
+/** How many delivered event ids the feed remembers to skip a re-read. */
+const MAX_DELIVERED_IDS = 500;
+
 /** Consecutive unexplained tool failures before declaring Foundry unreachable. */
 const FOUNDRY_FAILURE_THRESHOLD = 3;
 
@@ -76,6 +86,8 @@ export class PollingGameFeed implements GameFeed {
   private readonly logger: Logger;
   private cursor: string | null = null;
   private firstEventPoll = true;
+  private pollsSinceResync = 0;
+  private readonly delivered = new Set<string>();
   private eventPollInFlight = false;
   private combatPollInFlight = false;
   private errorCursor: string | null = null;
@@ -112,6 +124,7 @@ export class PollingGameFeed implements GameFeed {
       this.foundry = 'unknown';
       this.cursor = null;
       this.firstEventPoll = true;
+      this.pollsSinceResync = 0;
       this.errorCursor = null;
       this.firstErrorPoll = true;
       this.consecutiveFailures = 0;
@@ -153,17 +166,26 @@ export class PollingGameFeed implements GameFeed {
     if (!this.client.isConnected || this.eventPollInFlight) return;
     this.eventPollInFlight = true;
     try {
+      const resync = this.cursor !== null && this.pollsSinceResync >= RESYNC_EVERY_POLLS;
       const args: Record<string, unknown> =
-        this.cursor !== null
+        this.cursor !== null && !resync
           ? { sinceTimestamp: this.cursor, limit: 100 }
           : { limit: this.backfillLimit };
+      this.pollsSinceResync = resync ? 0 : this.pollsSinceResync + 1;
 
       const response = await this.client.callTool<RecentEventsResponse>('get-recent-events', args);
-      const events = Array.isArray(response.events) ? response.events : [];
+      const read = Array.isArray(response.events) ? response.events : [];
+      const events = read.filter(e => !this.delivered.has(e.id));
 
       this.onPollSuccess();
 
       if (events.length > 0) {
+        for (const e of events) this.delivered.add(e.id);
+        // Sets keep insertion order: the oldest ids go first.
+        for (const id of this.delivered) {
+          if (this.delivered.size <= MAX_DELIVERED_IDS) break;
+          this.delivered.delete(id);
+        }
         this.handlers.onEvents(events, { initial: this.firstEventPoll });
       }
 
@@ -173,6 +195,12 @@ export class PollingGameFeed implements GameFeed {
       // event recorded at that instant. GameState de-dups by id, so re-reads are
       // free.
       this.cursor = this.maxTimestamp(this.cursor, response.latestTimestamp ?? null);
+      // The module stamps events with its own clock. A cursor ahead of that clock (it stepped
+      // back) would hide every new event until the clock catches up: start over from the backfill.
+      const serverMs = Date.parse(response.serverTime ?? '');
+      if (this.cursor !== null && Number.isFinite(serverMs) && Date.parse(this.cursor) > serverMs) {
+        this.cursor = null;
+      }
       this.firstEventPoll = false;
       this.publishStatus();
     } catch (error) {

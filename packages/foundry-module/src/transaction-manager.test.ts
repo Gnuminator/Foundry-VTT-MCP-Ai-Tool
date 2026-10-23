@@ -146,6 +146,24 @@ describe('TransactionManager — rollback (happy paths)', () => {
     expect(scene.tokens.get('t1')).toBeUndefined();
   });
 
+  it('rolls back a Token create on the active scene when there is no canvas', async () => {
+    const scene = world.addScene({
+      id: 's1',
+      active: true,
+      tokens: [{ id: 't1', name: 'Goblin Token' }],
+    });
+    world.setActiveScene(scene.id);
+    world.noCanvas = true;
+    expect((globalThis as any).game.scenes.current).toBeUndefined();
+    const id = tm.startTransaction('t');
+    tm.addAction(id, tm.createTokenCreationAction('t1'));
+
+    const result = await tm.rollbackTransaction(id);
+
+    expect(result.success).toBe(true);
+    expect(scene.tokens.get('t1')).toBeUndefined();
+  });
+
   it('rolls back an Actor update by restoring the original data', async () => {
     const actor = world.addActor({ id: 'a1', name: 'Renamed' });
     const id = tm.startTransaction('t');

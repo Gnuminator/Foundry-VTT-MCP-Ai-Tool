@@ -13,6 +13,7 @@ import type {
   SceneTokenPlacement,
   TokenPlacementResult,
 } from './types.js';
+import { viewedScene } from '../viewed-scene.js';
 
 /** Actor folder that all AI-created creatures are filed under. */
 const CREATURES_FOLDER = 'Foundry MCP Creatures';
@@ -386,7 +387,7 @@ export class ActorCreationDataAccess {
       throw new Error(`${ERROR_MESSAGES.ACCESS_DENIED}: ${permissionCheck.reason}`);
     }
 
-    const scene = game.scenes.current;
+    const scene = viewedScene(game.scenes);
     if (!scene) {
       throw new Error('No active scene found');
     }

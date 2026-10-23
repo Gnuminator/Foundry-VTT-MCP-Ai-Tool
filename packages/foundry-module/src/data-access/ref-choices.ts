@@ -16,6 +16,7 @@
 import { statusEffectList } from '../systems/dnd5e/status-effects.js';
 import { isToolTemplateRegion, toolTemplateFlag } from '../systems/regions.js';
 import { supportsMeasuredTemplates } from '../systems/core.js';
+import { viewedScene } from '../viewed-scene.js';
 
 /** Optional fields may be undefined here; JSON drops them on the wire. */
 export interface RefChoice {
@@ -168,7 +169,7 @@ function findIn<T extends { id: string; uuid: string; name: string }>(
 /** The scene named by `parent` (id, uuid or name), else the current scene. */
 function sceneFor(parent: string): Scene | null {
   if (parent) return findIn(game.scenes, parent) ?? null;
-  return game.scenes.current ?? null;
+  return viewedScene(game.scenes) ?? null;
 }
 
 function typeAllowed(type: string | undefined, filter: RefFilter): boolean {
@@ -190,7 +191,7 @@ export const ON_SCENE_GROUP = 'On this scene';
 function listActors({ filter }: ListRequest): Listed {
   const onScene = new Set<string>();
   if (filter.onSceneFirst) {
-    const tokens = (game.scenes.current?.tokens.contents ?? []) as TokenLike[];
+    const tokens = (viewedScene(game.scenes)?.tokens.contents ?? []) as TokenLike[];
     for (const t of tokens) {
       const id = t.actorId ?? t.actor?.id;
       if (id) onScene.add(id);
@@ -235,7 +236,7 @@ function listTokens({ parent }: ListRequest): Listed {
 }
 
 function listScenes(): Listed {
-  const current = game.scenes.current?.id;
+  const current = viewedScene(game.scenes)?.id;
   const choices = game.scenes.contents.map(s => ({
     id: s.id,
     uuid: s.uuid,

@@ -1,4 +1,5 @@
 import { MODULE_ID } from './constants.js';
+import { viewedScene } from './viewed-scene.js';
 
 /**
  * Write-safety layer for multi-step Foundry mutations.
@@ -206,7 +207,7 @@ export class TransactionManager {
         return;
       }
       case 'Token': {
-        const scene = (game.scenes as any).current;
+        const scene = viewedScene<any>(game.scenes);
         const token = scene?.tokens.get(action.entityId);
         if (token) {
           await token.delete();

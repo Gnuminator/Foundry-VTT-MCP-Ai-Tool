@@ -66,6 +66,8 @@ export class TestWorld {
   readonly settings = new Map<string, unknown>();
   /** The scene `game.scenes.current` resolves to. */
   currentSceneId: string | null = null;
+  /** Core `noCanvas`: `game.scenes.current` is empty while `game.scenes.active` is still set. */
+  noCanvas = false;
   /** The combat `game.combat` resolves to (the active encounter). */
   currentCombat: AnyDoc | null = null;
   /** Notifications captured from `ui.notifications.*`. */
@@ -170,7 +172,8 @@ export class TestWorld {
     // `game.scenes.current` is a live getter on the scenes collection.
     Object.defineProperty(this.scenes, 'current', {
       configurable: true,
-      get: () => (this.currentSceneId ? this.scenes.get(this.currentSceneId) : undefined),
+      get: () =>
+        this.currentSceneId && !this.noCanvas ? this.scenes.get(this.currentSceneId) : undefined,
     });
     Object.defineProperty(this.scenes, 'active', {
       configurable: true,

@@ -30,6 +30,7 @@ import type {
 import { MODULE_ID } from './constants.js';
 import { findSpots, type GridLike, type Rect } from './party-place.js';
 import { currentLevelId, sceneHasLevels } from './systems/core.js';
+import { viewedScene } from './viewed-scene.js';
 
 /** Query name (mirror of the shared `ROOM_SETUP_QUERY`). */
 export const ROOM_SETUP_QUERY = 'planRoomSetup';
@@ -128,7 +129,7 @@ function resolveScene(ref: string | undefined): SceneLike {
     }
     if (!scene) throw new Error(`No scene "${ref}"`);
   } else {
-    scene = scenes?.current;
+    scene = viewedScene(scenes);
     if (!scene) throw new Error('No scene is being viewed: open the scene in Foundry first');
   }
   return scene;

@@ -25,6 +25,7 @@ import type {
 } from '@gnuminator/shared';
 
 import { wallsOf } from './scene-walls.js';
+import { viewedScene } from './viewed-scene.js';
 
 /** Mirror of the shared `LIVE_TOKEN_FIELDS`: parameter name to token path. */
 export const TOKEN_FIELDS = {
@@ -119,7 +120,7 @@ interface SceneInfo {
 
 function currentScene(): SceneInfo {
   const scenes = rec(rec(game)?.scenes);
-  const scene = rec(scenes?.current) ?? rec(scenes?.active);
+  const scene = rec(viewedScene(scenes));
   if (!scene) throw new Error('No current scene: open the scene with the tokens first');
   const grid = rec(scene.grid);
   return {

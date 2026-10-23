@@ -10,6 +10,7 @@
 import type { SceneStateReply } from '@gnuminator/shared';
 
 import { ERROR_MESSAGES } from './constants.js';
+import { viewedScene } from './viewed-scene.js';
 
 /** Query name (mirror of the shared `SCENE_STATE_QUERY`). */
 export const SCENE_STATE_QUERY = 'getSceneState';
@@ -54,14 +55,14 @@ export function getSceneState(request: unknown): SceneStateReply {
       ? (request as { sceneId: string }).sceneId
       : undefined;
   const scenes = game.scenes as unknown as ScenesLike | undefined;
-  const scene = sceneId ? scenes?.get?.(sceneId) : scenes?.current;
+  const scene = sceneId ? scenes?.get?.(sceneId) : viewedScene(scenes);
   if (!scene) {
     throw new Error(sceneId ? `No scene with id "${sceneId}"` : ERROR_MESSAGES.SCENE_NOT_FOUND);
   }
   return {
     sceneId: scene.id,
     name: scene.name,
-    viewed: scenes?.current?.id === scene.id,
+    viewed: viewedScene(scenes)?.id === scene.id,
     walls: contentsOf(scene.walls).map(sourceOf),
     lights: contentsOf(scene.lights).map(sourceOf),
     tiles: contentsOf(scene.tiles).map(sourceOf),

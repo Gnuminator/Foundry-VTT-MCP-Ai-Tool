@@ -7,6 +7,7 @@
 import { ERROR_MESSAGES } from './constants.js';
 import { supportsMeasuredTemplates, UnsupportedOnThisFoundryError } from './systems/core.js';
 import { supportsRegionDocuments } from './systems/regions.js';
+import { viewedScene } from './viewed-scene.js';
 
 /** A Foundry document as these helpers read it (a scene, token or actor). */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -25,7 +26,7 @@ export interface TemplateGeometry {
 
 /** The viewed scene (`game.scenes.current`), or throw `SCENE_NOT_FOUND` when there is none. */
 export function requireCurrentScene(): SceneDoc {
-  const scene = (game.scenes as SceneDoc)?.current;
+  const scene = viewedScene(game.scenes as unknown as { current?: SceneDoc; active?: SceneDoc });
   if (!scene) {
     throw new Error(ERROR_MESSAGES.SCENE_NOT_FOUND);
   }

@@ -2,6 +2,7 @@ import { ERROR_MESSAGES } from '../constants.js';
 import * as shared from './shared.js';
 import { sceneBackgroundSrc } from '../systems/core.js';
 import { rec } from '../doc-read.js';
+import { viewedScene } from '../viewed-scene.js';
 
 /** Normalize a thrown value to a message string for wrapped error reporting. */
 function errorMessage(error: unknown): string {
@@ -142,7 +143,7 @@ export class ScenesTokensDataAccess {
 
   /** The scene currently on the canvas, or throw `message` when there is none. */
   private requireCurrentScene(message: string): Scene {
-    const scene = game.scenes?.current;
+    const scene = viewedScene(game.scenes);
     if (!scene) {
       throw new Error(message);
     }
@@ -372,7 +373,7 @@ export class ScenesTokensDataAccess {
   async getTokenPositions(data: { sceneId?: string }): Promise<TokenPositions> {
     shared.validateFoundryState();
 
-    const scene = data.sceneId ? game.scenes?.get(data.sceneId) : game.scenes.current;
+    const scene = data.sceneId ? game.scenes?.get(data.sceneId) : viewedScene(game.scenes);
     if (!scene) {
       throw new Error(ERROR_MESSAGES.SCENE_NOT_FOUND);
     }
@@ -435,7 +436,7 @@ export class ScenesTokensDataAccess {
   }): Promise<DistanceResult> {
     shared.validateFoundryState();
 
-    const scene = game.scenes.current;
+    const scene = viewedScene(game.scenes);
     if (!scene) {
       throw new Error(ERROR_MESSAGES.SCENE_NOT_FOUND);
     }

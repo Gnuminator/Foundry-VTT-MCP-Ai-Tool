@@ -16,7 +16,7 @@ import { changeJournal } from './change-journal.js';
 import { playRecorder } from './play-recorder.js';
 import { eventTracker } from './session-events.js';
 import { spentLedger, spentSinceOwnTurn } from './spent-actions.js';
-import { detectRulesVersion } from './systems/dnd5e/rules-version.js';
+import { detectRulesVersion, readRulesTag } from './systems/dnd5e/rules-version.js';
 import { usageRecorder } from './usage-recorder.js';
 import {
   applyGuardedOps,
@@ -1418,7 +1418,13 @@ export class QueryHandlers {
       const actorId = typeof data?.actorId === 'string' ? data.actorId : '';
       const combat = game.combat;
       const actor = actorId ? game.actors?.get(actorId) : undefined;
-      const detected = actor ? detectRulesVersion(actor) : null;
+      // An explicit GM choice stored on the actor wins over detection.
+      const stored = actor ? readRulesTag(actor) : null;
+      const detected = actor
+        ? stored?.source === 'gm'
+          ? stored
+          : detectRulesVersion(actor)
+        : null;
       const item = typeof data?.itemId === 'string' ? actor?.items?.get(data.itemId) : undefined;
       const itemDetected = item ? detectRulesVersion(item) : null;
       return {

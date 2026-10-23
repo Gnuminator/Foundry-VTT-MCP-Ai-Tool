@@ -233,6 +233,26 @@ describe('QueryHandlers — guarded-write handlers', () => {
   });
 });
 
+describe('QueryHandlers: getSpentActions', () => {
+  it('prefers a GM-stored rules tag on the actor and refuses a non-GM', async () => {
+    qh.registerHandlers();
+    const actor = {
+      id: 'a1',
+      documentName: 'Actor',
+      system: { source: { rules: '2014' } },
+      flags: { [MODULE_ID]: { rules: { version: '2024', source: 'gm', at: '' } } },
+      items: { get: () => undefined },
+    };
+    (globalThis as any).game.actors = { get: () => actor };
+    const call = (): Promise<any> => queries()[`${MODULE_ID}.getSpentActions`]({ actorId: 'a1' });
+    expect((await call()).actorRules).toEqual({ version: '2024', source: 'gm' });
+    actor.flags[MODULE_ID].rules.source = 'detected';
+    expect((await call()).actorRules.version).toBe('2014');
+    (globalThis as any).game.user = { ...(globalThis as any).game.user, isGM: false };
+    expect(await call()).toEqual({ error: 'Access denied', success: false });
+  });
+});
+
 describe('QueryHandlers: aiChangesUpdated (I-108)', () => {
   it('announces to the AI changes windows, GM only', async () => {
     qh.registerHandlers();

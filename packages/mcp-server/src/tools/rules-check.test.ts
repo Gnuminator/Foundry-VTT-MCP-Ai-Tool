@@ -427,6 +427,32 @@ describe('check-action', () => {
     expect(r.checks.find(c => c.check === 'turn')?.status).toBe('unknown');
   });
 
+  it('leaves the ledger out when unlinked tokens share the actor id', async () => {
+    const twins = {
+      success: true,
+      active: true,
+      round: 1,
+      current: { name: 'Goblin' },
+      combatants: [
+        { name: 'Goblin', actorId: 'a1', tokenId: 't1', isCurrentTurn: true },
+        { name: 'Goblin 2', actorId: 'a1', tokenId: 't2', isCurrentTurn: false },
+      ],
+    };
+    const spent = {
+      success: true,
+      tracked: true,
+      sinceOwnTurn: [{ item: 'Shield', itemType: 'spell', activation: 'reaction' }],
+    };
+    const goblin = { ...resources, actorName: 'Goblin', actorId: 'a1' };
+    const { t, query } = tools({ combat: twins, spent });
+    const base = query.getMockImplementation()!;
+    query.mockImplementation(async (m: string, a?: unknown) =>
+      m === 'foundry-mcp-bridge.getCharacterResources' ? goblin : base(m, a)
+    );
+    const r = await t.handleToolCall('check-action', { actor: 'Goblin', item: 'Magic Missile' });
+    expect(JSON.stringify(r.checks)).not.toContain('Shield');
+  });
+
   it('refuses an effect', async () => {
     const { t } = tools({
       entity: { success: true, entityType: 'effect', entity: { name: 'Bless' } },

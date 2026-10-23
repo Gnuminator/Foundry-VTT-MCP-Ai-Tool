@@ -166,7 +166,7 @@ export class RulesCheckTools {
    */
   async tryCheck(args: unknown): Promise<RulesCheckResult | null> {
     try {
-      return await this.checkAction(args);
+      return await this.checkAction(args, true);
     } catch (error) {
       if (!(error instanceof Error && error.message === SWITCH_OFF)) {
         // Often just a player name that is not an actor, or a free-text weapon label.
@@ -209,7 +209,7 @@ export class RulesCheckTools {
     if (!features.find(f => f.id === RULES_CHECK_FEATURE_ID)?.enabled) throw new Error(SWITCH_OFF);
   }
 
-  private async checkAction(args: unknown): Promise<RulesCheckResult> {
+  private async checkAction(args: unknown, beforeUse = false): Promise<RulesCheckResult> {
     const p = params.parse(args ?? {});
     await this.requireOn();
 
@@ -291,6 +291,7 @@ export class RulesCheckTools {
       needsConcentration: isSpell && properties.includes('concentration'),
       concentration: this.concentrationFact(resources.concentration),
       spent: spentFact,
+      ...(beforeUse ? { beforeUse: true } : {}),
       rules: { item: itemRules, actor: actorRules },
       uses: [usesFrom(entity.uses), usesFrom(activity?.uses)].filter(
         (u): u is UsesFact => u !== null
@@ -323,7 +324,7 @@ export class RulesCheckTools {
       };
       const actorRules = versionOf(reply.actorRules);
       const itemRules = versionOf(reply.itemRules);
-      const watched = combat.active && combat.inCombat && !combat.ambiguous;
+      const watched = combat.active && combat.inCombat && !combat.ambiguous && !combat.sharedActor;
       if (!watched || reply.tracked !== true || !Array.isArray(reply.sinceOwnTurn)) {
         return { spent: undefined, actorRules, itemRules };
       }
@@ -406,11 +407,13 @@ export class RulesCheckTools {
     const combatants = Array.isArray(state.combatants) ? state.combatants.map(rec) : [];
     let mine: Rec | undefined;
     let ambiguous = false;
+    let sharedActor = false;
     if (tokenId !== undefined) {
       mine = combatants.find(c => c.tokenId === tokenId);
     } else {
       // Unlinked tokens share an actor id: take the one named like the actor, else give up on turns.
       const byActor = combatants.filter(c => actorId !== undefined && c.actorId === actorId);
+      sharedActor = byActor.length > 1;
       const pool = byActor.length > 0 ? byActor : combatants.filter(c => c.name === actorName);
       // Same-named tokens cannot be told apart by name: that is ambiguous, not "the first one".
       const exact = pool.filter(c => c.name === actorName);
@@ -428,6 +431,7 @@ export class RulesCheckTools {
         round: typeof state.round === 'number' ? state.round : 0,
         inCombat: mine !== undefined || ambiguous,
         ...(ambiguous ? { ambiguous: true } : {}),
+        ...(tokenId === undefined && sharedActor ? { sharedActor: true } : {}),
         isCurrentTurn: mine?.isCurrentTurn === true,
         currentName: text(rec(state.current).name) ?? null,
       },

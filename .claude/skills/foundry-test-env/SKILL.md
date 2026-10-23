@@ -143,6 +143,11 @@ A crashed session's lock or queue entry (status and the dashboard flag entries o
 drops a dead queue entry. A `lock.json` that cannot be read is refused until `take -Force` or
 `release -Force` starts a fresh lock; check with the other sessions first.
 
+Every `take`, `release`, `queue` and `leave` also writes that server's state (free or held, the
+holder's title, since when, queue length) to the vault note `Test servers.md` for the PM board
+(`lock.ps1 publish` writes it again). A vault problem prints a WARNING line and never fails the
+lock. The board warns on Today when a lock is older than 6 hours: release when you are done.
+
 Each server has its own lock (`<Root>\lock.json`); add `-Server B` to every `lock.ps1` call for
 server B. A whole test kit run with B's lock taken and released for you: `npm run kit:run`
 (options and exit codes in `docs/dev/TEST-KIT.md`, "The kit run command"; `--server A` runs it on

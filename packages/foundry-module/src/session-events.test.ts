@@ -370,7 +370,10 @@ describe('EventTracker roll events (O3 item 6)', () => {
     expect(priv.details.whisperTo).toEqual(['player1', 'gm']);
     expect(typeof priv.details.playerLine).toBe('string');
     expect(priv.details.playerLine).not.toContain(' vs ');
-    expect(blind.details.whisperTo).toEqual(['gm']);
+    expect(blind.details.whisperTo).toEqual([]);
+    fire('createChatMessage', rollMessage({ id: 'bp', whisper: ['player1', 'gm'], blind: true }));
+    const all = t.getSessionLog({ eventType: 'gm-roll' });
+    expect(all[all.length - 1].details.whisperTo).toEqual([]);
   });
 
   it('a whispered damage roll is a `gm-roll`, not a public `damage-roll`', () => {

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // `npm run usage:week` (D-122): a weekly report from the Claude Code transcripts on this PC.
 //
-//   node scripts/dev/usage-week.mjs [--days N] [--json]
+//   node scripts/dev/usage-week.mjs [--days N] [--json] [--write-vault]
 //
 // Source: every .jsonl under ~/.claude/projects/<dir>, where <dir> is the main checkout's folder
 // or one of its worktrees (C--...-Foundry-VTT-AI-Tool or ...-Foundry-VTT-AI-Tool--claude-worktrees-*),
@@ -34,6 +34,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { createInterface } from 'node:readline';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { noteFile, writeNote } from './weekly-check-note.mjs';
 
 export const REPO = 'Gnuminator/Foundry-VTT-MCP-Ai-Tool';
 export const PROJECT_DIR = 'C--Users-chris-Documents-Claude-Code-Projects-Foundry-VTT-AI-Tool';
@@ -538,6 +539,11 @@ export async function main(argv = process.argv.slice(2), env = process.env, out 
   const report = await buildReport({ root, now, days: opts.days, prs, usageLog });
   report.notes = notes;
   report.runMs = Date.now() - started;
+  if (argv.includes('--write-vault')) {
+    const file = noteFile(vaultDirFor(env));
+    writeNote(file, report);
+    notes.push(`weekly check written to ${file}`);
+  }
   if (opts.json) out.write(`${JSON.stringify(report, null, 2)}\n`);
   else {
     out.write(`${formatReport(report, notes)}\n`);

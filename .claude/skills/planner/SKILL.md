@@ -149,6 +149,10 @@ dropped on 2026-10-17 because the 350k/400k hand-over rule makes it unreachable.
 2026-10-17, next 2026-10-24. A rule or tool that does not move them is removed.
 While weekly usage is above 50%, write `~/.foundry-ai-tool/context-thresholds.json` as
 `{ "plan": 200000, "out": 250000 }` (the context hook's low mode); delete it below 50%.
+**Weekly check note (the board's Week page):** at each weekly check run `npm run usage:week --
+--write-vault` (add `--days 7`; the window ends today, so run it on the Saturday after the 07:00
+reset) and commit and push vault `Dev/Foundry AI Tool/Weekly check.md`. It adds one `## <first day>`
+section of numbers against the D-122 targets and replaces the section of the same window.
 
 **`Usage now.md` (the board's usage card):** at each planner start and before each lane start, read
 `get_usage "self"`: the window "Weekly · all models" gives `--weekly` and `--weekly-resets`, "5-hour

@@ -34,8 +34,9 @@ npm run lane:beat -- "<session title>" "<step>"
 ```
 
 It adds `- last seen: <YYYY-MM-DD HH:MM> <step>` (Copenhagen time) under every claimed item of the
-lane, replacing the old line, then pulls, commits only `Backlog.md` and pushes the vault; a vault
-problem is a warning and never stops you. The milestones and their steps: `claimed` (right after
+lane, replacing the old line, then fetches, fast-forwards, commits only `Backlog.md` and pushes the
+vault; a vault problem is a warning and never stops you (with uncommitted edits in the vault's
+`Backlog.md` the beat is skipped with a warning: run it again a minute later). The milestones and their steps: `claimed` (right after
 the claim), `PR open`, `review` (review started), `fixes` (a review round came back), `ready to
 merge`, `handed over`. Also beat when a long step runs past two hours without any of those
 (`still testing`, `waiting for CI`). The board drops the line when the claim is released or the

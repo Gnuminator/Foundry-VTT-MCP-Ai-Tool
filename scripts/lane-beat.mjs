@@ -37,8 +37,19 @@ const zoneFmt = new Intl.DateTimeFormat('sv', {
   hourCycle: 'h23'
 });
 
-/** `2026-10-23 16:40` in Copenhagen time. @param {Date} date */
-export const stampOf = date => zoneFmt.format(date);
+/**
+ * `2026-10-23 16:40` in Copenhagen time. In the hour the October clock change repeats (02:00 to 02:59
+ * twice) the wall time is ambiguous, so it carries its offset (`2026-10-25 02:30+02:00`).
+ * @param {Date} date
+ */
+export function stampOf(date) {
+  const wall = zoneFmt.format(date);
+  const ambiguous = [-1, 1].some(h => zoneFmt.format(new Date(date.getTime() + h * 36e5)) === wall);
+  if (!ambiguous) return wall;
+  const asUtc = Date.parse(`${wall.replace(' ', 'T')}:00Z`);
+  const hours = Math.round((asUtc - Math.floor(date.getTime() / 6e4) * 6e4) / 36e5);
+  return `${wall}+${String(hours).padStart(2, '0')}:00`;
+}
 
 /** One line of at most STEP_MAX characters, no control characters. @param {string} text */
 export const cleanStep = text =>
@@ -77,7 +88,8 @@ export function setBeat(text, lane, stamp, step) {
     let end = start + 1;
     while (end < lines.length && !/^#{1,2}\s/.test(lines[end])) end++;
     const block = lines.slice(start, end);
-    if (block.some(isClaim)) {
+    // only a `## S|M|L <title>` item counts, as on the board: not the preamble or a `# ` chapter heading
+    if (/^##\s+[SML]\s/.test(block[0]) && block.some(isClaim)) {
       items++;
       let put = false;
       for (const l of block) {
@@ -117,31 +129,44 @@ export function publishBeat({ vault, lane, step, now, run = defaultRun, dryRun =
   const line = `- last seen: ${stamp}${step ? ` ${step}` : ''}`;
   const git = (/** @type {string[]} */ ...a) => run('git', ['-C', vault, ...a]);
   const why = (/** @type {{ stderr: string, stdout: string }} */ r) => firstLine(r.stderr || r.stdout) || 'failed';
+  const skipped = (/** @type {string} */ w) => ({ warning: `heartbeat not written: ${w}`, items: -1, line });
   try {
     const file = path.join(vault, ...BACKLOG_PATH.split('/'));
     if (!fs.existsSync(path.join(vault, '.git')) || !fs.existsSync(file)) {
-      return { warning: `heartbeat not written: no vault checkout with ${BACKLOG_PATH} at ${vault}`, items: -1, line };
+      return skipped(`no vault checkout with ${BACKLOG_PATH} at ${vault}`);
     }
-    if (!dryRun) {
-      const pulled = git('pull', '--rebase', '--autostash');
-      if (pulled.status !== 0) return { warning: `heartbeat not written: vault pull failed (${why(pulled)})`, items: -1, line };
+    if (dryRun) return { warning: '', items: setBeat(fs.readFileSync(file, 'utf8'), lane, stamp, step).items, line };
+    // The vault is shared with the planner, other lanes and open Obsidian notes: never rebase or autostash in it.
+    // Backlog.md with edits nobody committed yet is left alone; fetch plus a fast-forward does the pull.
+    const dirty = git('status', '--porcelain', '--', BACKLOG_PATH);
+    if (dirty.status !== 0) return skipped(`vault status failed (${why(dirty)})`);
+    if (dirty.stdout.trim()) return skipped('Backlog.md has uncommitted edits in the vault (another session is editing it)');
+    let pushError = '';
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const fetched = git('fetch');
+      if (fetched.status !== 0) return skipped(`vault fetch failed (${why(fetched)})`);
+      const merged = git('merge', '--ff-only', '@{u}');
+      if (merged.status !== 0) return skipped(`vault pull failed (${why(merged)})`);
+      const set = setBeat(fs.readFileSync(file, 'utf8'), lane, stamp, step);
+      if (set.items === 0) return { warning: '', items: 0, line };
+      fs.writeFileSync(file, set.text);
+      const added = git('add', '--', BACKLOG_PATH);
+      if (added.status !== 0) return { warning: `heartbeat not committed (${why(added)})`, items: set.items, line };
+      const committed = git('commit', '-m', `Lane beat: ${lane}${step ? `, ${step}` : ''}`, '--', BACKLOG_PATH);
+      if (committed.status !== 0) {
+        git('restore', '--staged', '--worktree', '--', BACKLOG_PATH);
+        return { warning: `heartbeat not committed (${why(committed)})`, items: set.items, line };
+      }
+      const pushed = git('push');
+      if (pushed.status === 0) return { warning: '', items: set.items, line };
+      pushError = why(pushed);
+      // take our own commit back, so the vault is left as it was and the next try starts clean
+      git('reset', '--soft', 'HEAD~1');
+      git('restore', '--staged', '--worktree', '--', BACKLOG_PATH);
     }
-    const set = setBeat(fs.readFileSync(file, 'utf8'), lane, stamp, step);
-    if (set.items === 0 || dryRun) return { warning: '', items: set.items, line };
-    fs.writeFileSync(file, set.text);
-    const added = git('add', '--', BACKLOG_PATH);
-    if (added.status !== 0) return { warning: `heartbeat not committed (${why(added)})`, items: set.items, line };
-    const committed = git('commit', '-m', `Lane beat: ${lane}${step ? `, ${step}` : ''}`, '--', BACKLOG_PATH);
-    if (committed.status !== 0) return { warning: `heartbeat not committed (${why(committed)})`, items: set.items, line };
-    let pushed = git('push');
-    if (pushed.status !== 0) {
-      const again = git('pull', '--rebase', '--autostash');
-      pushed = again.status === 0 ? git('push') : again;
-    }
-    if (pushed.status !== 0) return { warning: `heartbeat committed but not pushed (${why(pushed)})`, items: set.items, line };
-    return { warning: '', items: set.items, line };
+    return { warning: `heartbeat not pushed (${pushError})`, items: -1, line };
   } catch (e) {
-    return { warning: `heartbeat not written (${e instanceof Error ? e.message : String(e)})`, items: -1, line };
+    return skipped(e instanceof Error ? e.message : String(e));
   }
 }
 

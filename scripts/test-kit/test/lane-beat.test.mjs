@@ -140,7 +140,7 @@ test('a vault problem is a warning and exit 0; a lane with no claim, or no step,
   git(s.vault, 'remote', 'set-url', 'origin', path.join(s.dir, 'missing.git'));
   const errs = [];
   assert.equal(main(['lane-x', 'PR open', '--vault', s.vault], { now: () => NOW, log() {}, err: l => errs.push(l) }), 0);
-  assert.match(errs.join('\n'), /lane:beat: WARNING: heartbeat not written: vault pull failed/);
+  assert.match(errs.join('\n'), /lane:beat: WARNING: heartbeat not written: vault fetch failed/);
   const bare = path.join(s.dir, 'nothing');
   fs.mkdirSync(bare);
   const e2 = [];
@@ -164,8 +164,46 @@ test('--dry-run prints the line and writes nothing', { skip }, () => {
   assert.equal(git(s.vault, 'status', '--short'), '');
 });
 
+test('review of PR 467 H1: a Backlog.md with uncommitted edits is left alone, nothing is committed', { skip }, () => {
+  const s = scratch();
+  fs.appendFileSync(s.file, '- note: someone is editing\n');
+  const head = git(s.vault, 'rev-parse', 'HEAD');
+  const errs = [];
+  assert.equal(main(['lane-x', 'PR open', '--vault', s.vault], { now: () => NOW, log() {}, err: l => errs.push(l) }), 0);
+  assert.match(errs.join('\n'), /WARNING: heartbeat not written: Backlog.md has uncommitted edits/);
+  assert.equal(git(s.vault, 'rev-parse', 'HEAD'), head);
+  assert.match(fs.readFileSync(s.file, 'utf8'), /someone is editing/, 'their edit is untouched');
+  assert.doesNotMatch(fs.readFileSync(s.file, 'utf8'), /last seen: 2026-10-23 16:40/);
+});
+
+test('review of PR 467 H2: a failed push leaves no commit behind and the vault is not mid-rebase', { skip }, () => {
+  const s = scratch();
+  git(s.vault, 'config', 'remote.origin.pushurl', path.join(s.dir, 'missing.git'));
+  const head = git(s.vault, 'rev-parse', 'HEAD');
+  const errs = [];
+  assert.equal(main(['lane-x', 'PR open', '--vault', s.vault], { now: () => NOW, log() {}, err: l => errs.push(l) }), 0);
+  assert.match(errs.join('\n'), /WARNING: heartbeat not pushed/);
+  assert.equal(git(s.vault, 'rev-parse', 'HEAD'), head, 'no stranded commit');
+  assert.equal(git(s.vault, 'status', '--short'), '', 'the vault is clean');
+  assert.equal(fs.existsSync(path.join(s.vault, '.git', 'rebase-merge')) || fs.existsSync(path.join(s.vault, '.git', 'rebase-apply')), false);
+});
+
+test('review of PR 467 M1: the repeated autumn hour carries its offset, other times do not', () => {
+  assert.equal(stampOf(new Date('2026-10-25T00:30:00Z')), '2026-10-25 02:30+02:00');
+  assert.equal(stampOf(new Date('2026-10-25T01:30:00Z')), '2026-10-25 02:30+01:00');
+  assert.equal(stampOf(new Date('2026-10-25T02:30:00Z')), '2026-10-25 03:30');
+  assert.equal(stampOf(new Date('2026-10-24T23:30:00Z')), '2026-10-25 01:30');
+});
+
+test('review of PR 467 M2 and L1: a claim outside a ## S|M|L item is not an item; a lane name with regex characters matches literally', () => {
+  const text = ['# Backlog', '- claimed: lane-x 2026-10-23', '', '# Chapter', '- claimed: lane-x 2026-10-23', '', '## S Real', '- id: real', '- claimed: lane.x+ 2026-10-23', ''].join('\n');
+  assert.equal(setBeat(text, 'lane-x', '2026-10-23 16:40', 'a').items, 0);
+  assert.equal(setBeat(text, 'lane.x+', '2026-10-23 16:40', 'a').items, 1);
+  assert.equal(setBeat(text, 'lane.x', '2026-10-23 16:40', 'a').items, 0);
+});
+
 test('publishBeat never throws, even when git does', () => {
   const s = scratch();
   const r = publishBeat({ vault: s.vault, lane: 'lane-x', step: 'x', now: NOW, run: () => { throw new Error('boom'); } });
-  assert.match(r.warning, /heartbeat not written \(boom\)/);
+  assert.match(r.warning, /heartbeat not written: boom/);
 });

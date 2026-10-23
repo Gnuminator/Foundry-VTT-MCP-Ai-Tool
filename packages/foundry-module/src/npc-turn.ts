@@ -331,7 +331,7 @@ function speedOf(actor: Rec, scene: SceneInfo, tokenName: string): number | null
 
 interface Terrain {
   /** Movement cost multiplier at a point (regions that modify the cost of walking stack). */
-  at(point: Point, elevation: number): number;
+  at(point: Point, elevation: number): { cost: number; dnd5eDifficult: boolean };
   any: boolean;
 }
 
@@ -401,15 +401,14 @@ function terrainOf(scene: SceneInfo, token: Rec, actor: Rec): Terrain {
   };
   return {
     any: costly.length > 0 || difficult.length > 0,
-    at(point, elevation): number {
+    at(point, elevation): { cost: number; dnd5eDifficult: boolean } {
       let total = 1;
       for (const { region, factor } of costly) {
         if (inside(region, point, elevation)) total *= factor;
       }
-      if (difficult.some(region => inside(region, point, elevation))) {
-        total += 1;
-      }
-      return total;
+      const dnd5eDifficult = difficult.some(region => inside(region, point, elevation));
+      if (dnd5eDifficult) total += 1;
+      return { cost: total, dnd5eDifficult };
     },
   };
 }
@@ -473,7 +472,10 @@ function occupancyOf(input: {
   // dnd5e: ignoring all or nonmagical difficult terrain also ignores creatures' squares.
   const slows =
     automation !== 'none' && !['all', 'nonmagical'].some(i => ignoredTerrain.includes(i));
-  const isCreature = (a: Rec | null): boolean => path(a, 'system.isCreature') !== false;
+  const isCreature = (a: Rec | null): boolean =>
+    a !== null && path(a, 'system.isCreature') !== false;
+  // dnd5e compares the occupant's elevation band with the mover's, a band being one grid distance.
+  const bandOf = (height: number): number => Math.floor(height / scene.distance + 1e-8);
   // A creature that cannot block (or is no creature) is not stopped by anyone either.
   const ignoresBlocking = !isCreature(actor) || status(actor).some(s => never.includes(s));
   const squares = (f: Footprint, k: number): Array<{ i: number; j: number; k: number }> => {
@@ -495,7 +497,7 @@ function occupancyOf(input: {
     typeof layer?.isOccupiedGridSpaceBlocking === 'function' &&
     typeof layer.isOccupiedGridSpaceDifficult === 'function'
   ) {
-    const k = Math.floor(elevation / scene.distance);
+    const k = bandOf(elevation);
     const ask = (method: 'isOccupiedGridSpaceBlocking' | 'isOccupiedGridSpaceDifficult') => {
       const cache = new Map<string, boolean>();
       return (f: Footprint): boolean =>
@@ -526,8 +528,12 @@ function occupancyOf(input: {
   const mine = sizeNumber(str(path(actor, 'system.traits.size')));
   const nimble = path(actor, 'flags.dnd5e.halflingNimbleness') === true;
   const myDisposition = num(token.disposition) ?? -1;
+  const myBand = bandOf(elevation);
   const counts = (t: Rec): boolean =>
-    t.hidden !== true && num(t.disposition) !== -2 && isCreature(actorOf(t));
+    t.hidden !== true &&
+    num(t.disposition) !== -2 &&
+    bandOf(num(t.elevation) ?? 0) === myBand &&
+    isCreature(actorOf(t));
   const blockers = others
     .filter(t => {
       if (!counts(t) || (num(t.disposition) ?? -1) === myDisposition) return false;
@@ -657,15 +663,21 @@ export function planNpcTurn(data: unknown): NpcTurnPlan {
   const others = levelTokens.filter(t => t.id !== token.id);
   const occupancy = occupancyOf({ scene, token, actor, elevation, others, defeated });
   if (others.length > 0) {
+    const drawn = occupancy.source === 'dnd5e canvas';
+    const blocking =
+      movementAutomation() === 'full'
+        ? 'a creature of another disposition (neutral too) blocks unless it is two sizes apart, Tiny (modern rules), dead or unconscious'
+        : 'creatures do not block (dnd5e movement automation is not full)';
     notes.push(
-      `Other creatures follow dnd5e's rules (${occupancy.source === 'dnd5e canvas' ? 'asked of the drawn map' : 'worked out here: the map is not drawn'}): a hostile one blocks unless it is two sizes apart, Tiny (modern rules), dead or unconscious, and walking through a creature's square costs double (allies too under the legacy rules). Hidden tokens are left out.`
+      `Other creatures follow dnd5e's rules (${drawn ? 'asked of the drawn map' : 'worked out here: the map is not drawn'}): ${blocking}, and walking through a creature's square costs one square more (allies too under the legacy rules). Hidden tokens are left out.${drawn ? ' Tokens you have selected in Foundry are ignored.' : ''}`
     );
   }
   const occupied = others.map(t => ({ t, rect: rectOf(scene, t) }));
   // What entering a square costs: regions, and a creature's square when nothing else slows it already.
   const costAt = (f: Footprint): number => {
-    const ground = terrain.at(centre(f), elevation);
-    return ground > 1 || !occupancy.difficult(f) ? ground : 2;
+    const { cost: ground, dnd5eDifficult } = terrain.at(centre(f), elevation);
+    // dnd5e adds a square for a creature's square unless its own Difficult Terrain already did.
+    return dnd5eDifficult || !occupancy.difficult(f) ? ground : ground + 1;
   };
 
   // Every square the NPC can walk to this turn, with the cheapest way there.

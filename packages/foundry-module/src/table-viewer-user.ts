@@ -72,14 +72,17 @@ export function assertUserCreateAllowed(feature: string, data: Record<string, un
     }
   }
   // Permission overrides (for example SETTINGS_MODIFY) are not a Table viewer's; the recorded
-  // source of a deleted Table user holds an empty object.
+  // source of a deleted Table user holds an empty object. Only a plain false passes, so a
+  // serialized __$OPERATOR$__ object (top level or nested) cannot get through.
   const permissions = data.permissions;
   if (permissions !== undefined && permissions !== null) {
     if (typeof permissions !== 'object' || Array.isArray(permissions)) {
       throw new Error('A created User may not carry permissions');
     }
     const entries = Object.entries(permissions);
-    if (entries.some(([key, value]) => value === true || key.includes('.') || /^[-=]=/.test(key))) {
+    if (
+      entries.some(([key, value]) => value !== false || key.includes('.') || /^[-=]=/.test(key))
+    ) {
       throw new Error('A created User may not carry a permission override');
     }
   }

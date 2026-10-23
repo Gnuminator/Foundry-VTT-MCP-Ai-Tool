@@ -747,6 +747,89 @@ describe('lows from the PR #447 Opus review', () => {
     });
   });
 
+  describe('lows from the PR #456 Opus review', () => {
+    const mud = (): any => ({
+      behaviors: {
+        contents: [
+          { type: 'modifyMovementCost', disabled: false, system: { difficulties: { walk: 2 } } },
+        ],
+      },
+      testPoint: ({ x }: { x: number }) => x >= 300 && x <= 500,
+    });
+    const thorns = (): any => ({
+      behaviors: { contents: [{ type: 'dnd5e.difficultTerrain', disabled: false, system: {} }] },
+      testPoint: ({ x }: { x: number }) => x >= 300 && x <= 500,
+    });
+    const ally = (): any =>
+      token('t5', 'Pack mate', 4, 2, { actor: heroActor({ system: { traits: { size: 'med' } } }) });
+
+    it('L1: a creature in a core cost region costs one square more (2x makes 3x)', () => {
+      g.dnd5e = { settings: { rulesVersion: 'legacy' } };
+      arena({ walls: corridor(), regions: [mud()], walk: 60 });
+      expect(toSix().moveCost).toBe(30);
+      arena({ walls: corridor(), regions: [mud()], tokens: [ally()], walk: 60 });
+      expect(toSix().moveCost).toBe(35);
+    });
+
+    it("L1: dnd5e's own Difficult Terrain is not counted twice with a creature", () => {
+      g.dnd5e = { settings: { rulesVersion: 'legacy' } };
+      arena({ walls: corridor(), regions: [thorns()], tokens: [ally()], walk: 60 });
+      expect(toSix().moveCost).toBe(30);
+    });
+
+    it('L2: a creature at another elevation neither blocks nor slows', () => {
+      const flyer = creature();
+      flyer.elevation = 30;
+      arena({ walls: corridor(), tokens: [flyer] });
+      expect(toSix().moveCost).toBe(20);
+      flyer.elevation = 3;
+      arena({ walls: corridor(), tokens: [flyer] });
+      expect(() => toSix()).toThrow(/cannot be reached/);
+    });
+
+    it('L2: a token with no actor is no creature', () => {
+      const empty = token('t7', 'Marker', 4, 2, { disposition: 1 });
+      arena({ walls: corridor(), tokens: [empty] });
+      expect(toSix().moveCost).toBe(20);
+    });
+
+    it('L2: the drawn map is asked for the elevation band, with float noise tolerated', () => {
+      const blocking = vi.fn(() => false);
+      arena({ walls: corridor(), wolfExtra: { elevation: 15 - 1e-10 } });
+      g.canvas = {
+        ready: true,
+        scene: { id: 's1' },
+        tokens: {
+          get: (id: string): unknown => ({ id }),
+          isOccupiedGridSpaceBlocking: blocking,
+          isOccupiedGridSpaceDifficult: (): boolean => false,
+        },
+      };
+      toSix();
+      expect(blocking).toHaveBeenCalledWith(expect.objectContaining({ k: 3 }), { id: 't1' });
+    });
+
+    it('L3: the note names the real rules', () => {
+      arena({ walls: corridor(), tokens: [creature()] });
+      const notes = (): string => planNpcTurn({}).context.notes.join(' ');
+      expect(notes()).toMatch(/another disposition \(neutral too\) blocks unless/);
+      expect(notes()).not.toMatch(/selected in Foundry/);
+      world.settings.set('dnd5e.movementAutomation', 'partial');
+      expect(notes()).toMatch(/creatures do not block \(dnd5e movement automation is not full\)/);
+      world.settings.set('dnd5e.movementAutomation', 'full');
+      g.canvas = {
+        ready: true,
+        scene: { id: 's1' },
+        tokens: {
+          get: (id: string): unknown => ({ id }),
+          isOccupiedGridSpaceBlocking: (): boolean => false,
+          isOccupiedGridSpaceDifficult: (): boolean => false,
+        },
+      };
+      expect(notes()).toMatch(/Tokens you have selected in Foundry are ignored/);
+    });
+  });
+
   it('R2-L2: the move step says the token is placed, not walked', () => {
     arena();
     expect(toSix().steps[0]).toMatch(

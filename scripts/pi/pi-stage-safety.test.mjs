@@ -643,14 +643,22 @@ describe('the nightly backup waits while players are online (r37 S7)', () => {
   const stage6 = read('scripts/pi/remote/6-backup.sh');
   const body = stage6.match(/<<'BACKUP_SCRIPT'\n([\s\S]*?)\nBACKUP_SCRIPT\n/)?.[1];
 
+  // The script dates its marker with the Pi's local `date +%F`; the same local calendar day here (n days ago).
+  const dayAgo = (n) => {
+    const t = new Date();
+    t.setDate(t.getDate() - n);
+    return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`;
+  };
+
   // users: the number curl reports per look (the list is consumed by each sleep; the last one stays).
-  function nightly({ users = [0], active = 'foundry.service', env = {}, curlFails = false, markerExists = false } = {}) {
+  // marker: the text of an existing skip marker ('' is one from an earlier version of the script), or null for none.
+  function nightly({ users = [0], active = 'foundry.service', env = {}, curlFails = false, marker = null } = {}) {
     const d = tmp();
     const bin = join(d, 'bin');
     mkdirSync(bin);
-    if (markerExists) {
+    if (marker !== null) {
       mkdirSync(join(d, 'marker'));
-      writeFileSync(join(d, 'marker', 'skipped-last-night'), '');
+      writeFileSync(join(d, 'marker', 'skipped-last-night'), marker);
     }
     const log = join(d, 'calls.log');
     const seq = join(d, 'users.seq');
@@ -695,6 +703,7 @@ tail -n +2 "$SEQ" >"$SEQ.next"; if [ -s "$SEQ.next" ]; then mv "$SEQ.next" "$SEQ
       calls,
       sleeps: (calls.match(/^sleep /gm) || []).length,
       marker: existsSync(join(d, 'marker', 'skipped-last-night')),
+      markerText: existsSync(join(d, 'marker', 'skipped-last-night')) ? readFileSync(join(d, 'marker', 'skipped-last-night'), 'utf8').trim() : null,
     };
   }
 
@@ -727,10 +736,11 @@ tail -n +2 "$SEQ" >"$SEQ.next"; if [ -s "$SEQ.next" ]; then mv "$SEQ.next" "$SEQ
     assert.doesNotMatch(r.calls, /systemctl stop foundry\.service/);
     assert.doesNotMatch(r.calls, /restic/);
     assert.ok(r.marker, 'the skipped night is recorded');
+    assert.equal(r.markerText, dayAgo(0), 'the marker holds the date of the skipped night');
   });
 
-  test('never two skipped nights in a row: with last night skipped too it backs up anyway after the waits, and the marker goes', () => {
-    const r = nightly({ users: [2], markerExists: true });
+  test('never two skipped nights in a row: with a marker dated yesterday it backs up anyway after the waits, and the marker goes', () => {
+    const r = nightly({ users: [2], marker: dayAgo(1) });
     assert.equal(r.status, 0, r.out);
     assert.equal(r.sleeps, 6, r.calls);
     assert.match(r.out, /last night's backup was skipped too: backing up anyway/);
@@ -739,8 +749,34 @@ tail -n +2 "$SEQ" >"$SEQ.next"; if [ -s "$SEQ.next" ]; then mv "$SEQ.next" "$SEQ
     assert.ok(!r.marker, 'a finished backup removes the marker');
   });
 
+  test('a marker dated today (a manual run or a stage 6 rerun the evening after a skip) never stops Foundry under players', () => {
+    const r = nightly({ users: [2], marker: dayAgo(0) });
+    assert.notEqual(r.status, 0, r.out);
+    assert.equal(r.sleeps, 6, r.calls);
+    assert.match(r.out, /ERROR: backup skipped for tonight/);
+    assert.doesNotMatch(r.out, /backing up anyway/);
+    assert.doesNotMatch(r.calls, /systemctl stop foundry\.service/);
+    assert.doesNotMatch(r.calls, /restic/);
+    assert.equal(r.markerText, dayAgo(0));
+  });
+
+  test('an older marker (a night in between had no skip) is a fresh skip: no backup anyway, the marker is re-dated', () => {
+    const r = nightly({ users: [2], marker: dayAgo(3) });
+    assert.notEqual(r.status, 0, r.out);
+    assert.doesNotMatch(r.calls, /systemctl stop foundry\.service/);
+    assert.doesNotMatch(r.calls, /restic/);
+    assert.equal(r.markerText, dayAgo(0));
+  });
+
+  test('an empty marker from the earlier version of the script is not trusted either', () => {
+    const r = nightly({ users: [2], marker: '' });
+    assert.notEqual(r.status, 0, r.out);
+    assert.doesNotMatch(r.calls, /systemctl stop foundry\.service/);
+    assert.equal(r.markerText, dayAgo(0));
+  });
+
   test('a backup that finds nobody online also removes an old marker', () => {
-    const r = nightly({ users: [0], markerExists: true });
+    const r = nightly({ users: [0], marker: dayAgo(1) });
     assert.equal(r.status, 0, r.out);
     assert.ok(!r.marker);
   });

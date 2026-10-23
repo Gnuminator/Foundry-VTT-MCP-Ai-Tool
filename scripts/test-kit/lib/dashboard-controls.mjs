@@ -391,6 +391,30 @@ export const DASHBOARD_CONTROLS = [
     why: 'needs a selected combatant (opens the tool form, runs nothing)',
   },
   {
+    name: 'dash.combat.start',
+    how: 'open',
+    // Only the After page (web/src) has it, and only while no fight runs.
+    selector: '[data-track="dash.combat.start"]',
+    reach: [MOMENT_DURING],
+    expect: '.cs-list',
+    optional: true,
+    why: 'only with no fight running and GM Actions on (opens the token list, plans nothing)',
+  },
+  {
+    name: 'dash.combat.start-cancel',
+    how: 'open',
+    selector: '[data-track="dash.combat.start-cancel"]',
+    reach: [MOMENT_DURING, 'dash.combat.start'],
+    gone: '.cs-list',
+    optional: true,
+    why: 'only with the token list open',
+  },
+  {
+    name: 'dash.combat.start-go',
+    how: 'write',
+    why: 'plans and applies a combat on the scene; the unit and e2e tests and the live check cover it',
+  },
+  {
     name: 'dash.combat.end',
     how: 'open',
     // Only the After page (web/src) has it; the old page's files do not, so the data-track

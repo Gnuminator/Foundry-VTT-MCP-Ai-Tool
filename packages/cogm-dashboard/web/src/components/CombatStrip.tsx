@@ -49,6 +49,8 @@ import { usePrefs } from '../lib/prefs';
 import { useBridgeAway, useCombat, useDashboardSettings } from '../lib/stream';
 import { Panel, Pill } from '../ui';
 
+import { StartCombat } from './StartCombat';
+
 /** The tool runner's request: a tool and the form's starting values. */
 export interface StripToolRequest {
   name: string;
@@ -437,6 +439,7 @@ export function CombatStrip({
                 </div>
               ))}
           </div>
+          {real === null && !showSample && settings?.gmActionsEnabled === true && <StartCombat />}
           <div className="combat-actions" id="combat-actions" hidden={!selectable}>
             {selectable && (
               <ActionBar

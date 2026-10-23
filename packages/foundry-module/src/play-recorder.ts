@@ -805,6 +805,10 @@ export class PlayRecorder {
       on('deleteToken', (t, o, u) => this.onDeleteToken(t, o, u));
       on('updateToken', (t, c, o, u) => this.onUpdateToken(t, c, o, u));
       on('combatStart', c => this.onCombatStart(c));
+      // A combat created already begun (plan-combat-change start) never fires combatStart.
+      on('createCombat', c => {
+        if ((num(shape<CombatLike>(c)?.round) ?? 0) > 0) this.onCombatStart(c);
+      });
       on('updateCombat', (c, ch, o, u) => this.onUpdateCombat(c, ch, o, u));
       on('deleteCombat', c => this.onDeleteCombat(c));
       on('canvasReady', () => this.onCanvasReady());

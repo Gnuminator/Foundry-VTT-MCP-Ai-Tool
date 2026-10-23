@@ -189,6 +189,15 @@ export class EventTracker {
         }
       });
 
+      // A combat created already begun (plan-combat-change start) never fires combatStart.
+      Hooks.on('createCombat', (combat: unknown) => {
+        try {
+          if (Number(dig(combat, 'round') ?? 0) > 0) this.onCombatStart(combat);
+        } catch (error) {
+          console.warn(`[${MODULE_ID}] EventTracker createCombat failed:`, error);
+        }
+      });
+
       Hooks.on('deleteCombat', (combat: unknown) => {
         try {
           this.onCombatEnd(combat);

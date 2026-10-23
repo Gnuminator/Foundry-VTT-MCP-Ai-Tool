@@ -87,6 +87,34 @@ describe('plan-combat-change', () => {
     expect(autoApplyEnabled).not.toHaveBeenCalled();
   });
 
+  it('passes a start request through and auto-applies a plain write when the GM allows it', async () => {
+    query.mockResolvedValueOnce({
+      summary: 'Start combat on "Field" with 2 tokens',
+      ops: [{ kind: 'create', documentName: 'Combat', data: {} }],
+      combatants: ['Brannoc', 'Wolf'],
+      skipped: ['x (no actor)'],
+    });
+    createPlan.mockImplementationOnce((input: { feature: string; summary: string }) =>
+      Promise.resolve({
+        planId: 'plan-2',
+        feature: input.feature,
+        summary: input.summary,
+        risk: 'write',
+        requires: { confirm: true, confirmDestructive: false },
+      })
+    );
+    const result = await tools.handlePlanCombatChange({
+      action: 'start',
+      tokenIds: ['t1', 't2'],
+      sceneId: undefined,
+    });
+    expect(query.mock.calls[0][1]).toEqual({ action: 'start', tokenIds: ['t1', 't2'] });
+    expect(result.combatants).toEqual(['Brannoc', 'Wolf']);
+    expect(result.skipped).toEqual(['x (no actor)']);
+    expect(result.combatId).toBeUndefined();
+    expect(result.autoApply).toBe(true);
+  });
+
   it('rejects an unknown action', async () => {
     await expect(tools.handlePlanCombatChange({ action: 'pause' })).rejects.toThrow();
     expect(query).not.toHaveBeenCalled();

@@ -24,6 +24,7 @@ const PAGE_READS = new Set([
   'list-revealed-pages',
   'list-scenes',
   'list-ref-choices',
+  'get-token-positions',
   'list-recent-changes',
 ]);
 const beyondReads = (calls: ToolCall[]): ToolCall[] =>
@@ -203,6 +204,46 @@ async function setup(page: Page, options: Options = {}): Promise<Fakes> {
           return ok({ pages: [], queue: [] });
         case 'list-scenes':
           return ok([]);
+        case 'get-token-positions':
+          return ok({
+            success: true,
+            sceneName: 'Field',
+            tokens: [
+              {
+                tokenId: 'tk-shop',
+                name: 'Shopkeeper',
+                actorId: 'a3',
+                category: 'npc',
+                hidden: false,
+              },
+              { tokenId: 'tk-wolf', name: 'Wolf', actorId: 'a2', category: 'enemy', hidden: false },
+              { tokenId: 'tk-bran', name: 'Brannoc', actorId: 'a1', category: 'pc', hidden: false },
+              {
+                tokenId: 'tk-mark',
+                name: 'Marker',
+                actorId: null,
+                category: 'enemy',
+                hidden: false,
+              },
+            ],
+          });
+        case 'plan-combat-change':
+          return ok({
+            planId: 'plan-start',
+            feature: 'live-play',
+            summary: 'Start combat on "Field" with 2 tokens',
+            risk: 'write',
+            requires: { confirm: true, confirmDestructive: false },
+          });
+        case 'apply-planned-change':
+          return ok({
+            changeId: 'chg-start',
+            planId: 'plan-start',
+            feature: 'live-play',
+            summary: 'Start combat on "Field" with 2 tokens',
+            mode: 'apply',
+            risk: 'write',
+          });
         case 'list-ref-choices':
           return ok({ kind: 'token', choices: tokenChoices, truncated: false });
         default:
@@ -374,7 +415,11 @@ test.describe('when the strip shows', () => {
   test('Cards: hidden with no fight, shown while one runs, hidden when it ends', async ({
     page,
   }) => {
-    const { push } = await setup(page, { layout: 'layered', initial: [noFight] });
+    const { push } = await setup(page, {
+      layout: 'layered',
+      gmActions: false,
+      initial: [noFight],
+    });
     await load(page);
     await expect(during(page)).toHaveAttribute('data-context', 'calm');
     await expect(strip(page)).toBeHidden();
@@ -404,6 +449,61 @@ test.describe('when the strip shows', () => {
     await load(page);
     await expect(during(page)).toHaveAttribute('data-view', 'simple');
     await expect(strip(page)).toBeHidden();
+  });
+});
+
+test.describe('start combat', () => {
+  test('with no fight, a picker ticks the player characters and Hostile tokens and starts them', async ({
+    page,
+  }) => {
+    const { calls } = await setup(page, {});
+    await load(page);
+    await page.getByRole('button', { name: 'Start combat' }).click();
+
+    const list = page.getByRole('list', { name: 'Tokens to put in the fight' });
+    await expect(list.locator('.cs-name')).toHaveText(['Brannoc', 'Marker', 'Wolf', 'Shopkeeper']);
+    const box = (name: string): Locator => list.getByRole('checkbox', { name: new RegExp(name) });
+    await expect(box('Brannoc')).toBeChecked();
+    await expect(box('Wolf')).toBeChecked();
+    await expect(box('Shopkeeper')).not.toBeChecked();
+    // No actor: it cannot fight, so it is off and cannot be ticked.
+    await expect(box('Marker')).toBeDisabled();
+    await expect(box('Marker')).not.toBeChecked();
+
+    await box('Shopkeeper').check();
+    await box('Brannoc').uncheck();
+    await page.getByRole('button', { name: 'Start combat with 2' }).click();
+
+    await expect.poll(() => calls.map(c => c.name)).toContain('apply-planned-change');
+    const planned = calls.find(c => c.name === 'plan-combat-change');
+    expect(planned?.args).toEqual({ action: 'start', tokenIds: ['tk-wolf', 'tk-shop'] });
+    // The picker closes once the change is in.
+    await expect(list).toBeHidden();
+  });
+
+  test('Cancel closes the picker and writes nothing; with GM Actions off there is no button', async ({
+    page,
+  }) => {
+    const { calls } = await setup(page, {});
+    await load(page);
+    await page.getByRole('button', { name: 'Start combat' }).click();
+    await page.getByRole('button', { name: 'Cancel' }).click();
+    await expect(page.getByRole('button', { name: 'Start combat' })).toBeVisible();
+    expect(beyondReads(calls)).toEqual([]);
+  });
+
+  test('GM Actions off: no Start combat button', async ({ page }) => {
+    await setup(page, { gmActions: false });
+    await load(page);
+    await expect(strip(page)).toBeAttached();
+    await expect(page.getByRole('button', { name: 'Start combat' })).toHaveCount(0);
+  });
+
+  test('a running fight has no Start combat button', async ({ page }) => {
+    await setup(page, { initial: [fight(PARTY_FIGHT)] });
+    await load(page);
+    await expect(rows(page)).toHaveCount(4);
+    await expect(page.getByRole('button', { name: 'Start combat' })).toHaveCount(0);
   });
 });
 
@@ -804,7 +904,7 @@ test.describe('the bridge is away', () => {
   test('a fight that ended while the bridge was away goes when the bridge says so', async ({
     page,
   }) => {
-    const { push } = await setup(page, { initial: [fight(PARTY_FIGHT)] });
+    const { push } = await setup(page, { gmActions: false, initial: [fight(PARTY_FIGHT)] });
     await load(page);
     push([FOUNDRY_AWAY]);
     await expect(away(page)).not.toHaveText('');
@@ -823,7 +923,9 @@ test.describe('the bridge is away', () => {
     await row(page, 'Ogre Brute').click();
     await expect(rows(page)).toHaveCount(4);
     push([noFight]);
-    await expect(strip(page)).toBeHidden();
+    // With GM Actions on, the strip stays to offer Start combat; the fight itself is gone.
+    await expect(rows(page)).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Start combat' })).toBeVisible();
     await expect(away(page)).toHaveText('');
     push([fight(BOSS_FIGHT)]);
     await expect(rows(page)).toHaveCount(3);
@@ -904,7 +1006,7 @@ test.describe('the layout trial', () => {
   test('the Auto step shows a sample fight with no buttons, and Stop takes it away', async ({
     page,
   }) => {
-    await setup(page, { combatButtons: true, initial: [noFight] });
+    await setup(page, { combatButtons: true, gmActions: false, initial: [noFight] });
     await load(page);
     await expect(strip(page)).toBeHidden();
     await fromMenu(page, 'btn-layout-tour');

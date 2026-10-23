@@ -5,7 +5,7 @@
 // and the stream are faked in the browser; nothing here needs a world.
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
-import { GM_TOKEN, fakeCommonRoutes, fakeTools, ok } from './support';
+import { GM_TOKEN, fakeCommonRoutes, fakeTools, fromMenu, ok } from './support';
 
 const STARTED = '2026-10-10T18:00:00.000Z';
 
@@ -336,6 +336,15 @@ test.describe('opening and folding', () => {
     await expectFolds(page, folds(false, false, true, true));
     await foldButton(page, 'handouts').click();
     await expectFolds(page, folds(false, false, false, true));
+  });
+
+  test('Simple hides Party, so Advanced, Party opens it over the page', async ({ page }) => {
+    await setup(page, 'toggle');
+    await load(page);
+    await expect(page.locator('#party-drawer')).toBeHidden();
+    await fromMenu(page, 'btn-party');
+    await expect(page.locator('#party-drawer')).toBeVisible();
+    await expect(page.locator('#party-drawer')).not.toHaveClass(/docked/);
   });
 
   test('Auto in a fight: the feed is a side card, Party is the big column', async ({ page }) => {

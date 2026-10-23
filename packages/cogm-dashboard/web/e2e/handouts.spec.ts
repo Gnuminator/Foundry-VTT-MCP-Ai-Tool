@@ -239,7 +239,7 @@ test('shows the empty states, and a failed load says why and keeps the last rows
   const drawer = await openHandouts(page);
 
   await expect(drawer.locator('#handouts-queue .empty')).toHaveText(
-    'Nothing queued. Queue pages during prep, then reveal each in one click.'
+    'Nothing queued. Only queued or revealed pages show here, so a new journal does not appear on its own: press + Queue a page to add one, then reveal it in one click.'
   );
   await expect(drawer.locator('#handouts-next')).toHaveText('Reveal next');
   await expect(drawer.locator('#handouts-next')).toBeDisabled();

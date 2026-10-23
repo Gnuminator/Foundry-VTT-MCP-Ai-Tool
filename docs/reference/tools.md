@@ -505,7 +505,7 @@ Parameters:
 - `condition` (string): condition: the id or name (prone, poisoned, exhaustion...).
 - `active` (boolean): condition: false removes it. Default: `true`.
 - `level` (integer): condition exhaustion: the level to set.
-- `conditions` (array of string): clear-conditions: names to remove; omit to remove expired effects.
+- `conditions` (array of string): clear-conditions: names to remove (prone...); omit for expired effects only.
 - `resource` (string): resource: "spell3", "pact", a class resource (Ki Points, primary) or an item name.
 - `value` (integer): resource: the new current value (0 to max).
 

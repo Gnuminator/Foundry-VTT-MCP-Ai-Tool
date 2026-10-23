@@ -175,7 +175,11 @@ function Dashboard(): JSX.Element {
   usePreloadPanels(DOCKED_CHUNKS, FLOATING_CHUNKS);
   const { moment, pick } = useMoment();
   const during = useDuringLayout(moment, () => pick('during'));
-  const { slotRefs, dockOf } = useDocks(moment);
+  const { slotRefs, dockOf: slotOf } = useDocks(moment);
+  // A card whose slot the layout hides (Simple view has no Party) opens over the page instead.
+  const [floated, setFloated] = useState<Partial<Record<DockName, boolean>>>({});
+  const dockOf = (name: DockName): HTMLElement | null =>
+    floated[name] && drawers[name as DrawerName] ? null : slotOf(name);
   const [drawers, setDrawers] = useState(NO_DRAWERS);
   const [seenMoment, setSeenMoment] = useState(moment);
   if (moment !== seenMoment) {
@@ -185,12 +189,20 @@ function Dashboard(): JSX.Element {
   useFocusAfterMoment(moment);
   const docked = (name: DrawerName): boolean =>
     name !== 'tarokka' && name !== 'tools' && name !== 'paper' && dockOf(name) !== null;
-  const setDrawer = (name: DrawerName, open: boolean): void =>
+  const setDrawer = (name: DrawerName, open: boolean): void => {
+    if (!open) setFloated(f => (f[name as DockName] ? { ...f, [name]: false } : f));
     setDrawers(d => ({ ...d, [name]: open }));
+  };
   // The Advanced menu opens a drawer, as on the old page; one already open comes to the top and
   // takes the focus (the menu keeps its own close from moving it, and nothing opens to take it).
   // A docked one is already on screen: it scrolls into view and takes the focus instead.
   const openDrawer = (name: DrawerName): void => {
+    const slot = name === 'tarokka' || name === 'tools' || name === 'paper' ? null : dockOf(name);
+    if (slot?.getClientRects().length === 0) {
+      setFloated(f => ({ ...f, [name]: true }));
+      setDrawers(d => ({ ...d, [name]: true }));
+      return;
+    }
     // A folded During card opens first (and shows its body) so there is something to focus.
     if (moment === 'during' && (name === 'party' || name === 'handouts') && docked(name))
       flushSync(() => during.folds.open(name));

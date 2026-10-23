@@ -371,8 +371,9 @@ day under `AI Tool/Everyone/` (to read, not to undo from).
 ### The same list inside Foundry
 
 You do not need the dashboard open to see or undo what changed. In Foundry's left toolbar (the
-scene controls) there is an **AI Tool** group, shown to GMs only. Click it, then click
-**Changes**: a window opens with everything that changed in the last week, newest first, by
+scene controls) there is an **AI Tool** group, shown to GMs only. It is the **wand icon** (sparkles)
+at the very bottom of the column, under Tokens, Tiles, Drawings, Walls, Lights, Sounds, Regions and
+Journal Notes; hover it to see "AI Tool". Click it, then click **Changes**: a window opens with everything that changed in the last week, newest first, by
 players, by you and by the AI. Each row shows the time, who did it ("by Ireena", or an **AI** tag),
 what changed, and **Undo** while the change can still be undone. Click "Changes" on a row to see
 the lines that changed, and **Show more** for the last 100. **Show:** at the top narrows the list
@@ -564,7 +565,9 @@ cannot unsee it. Every one of them shows up in Recent Changes and can be undone 
 
 ## The handout drawer (📜 Handouts)
 
-Queue handouts during prep, then reveal each with one click at the table. The drawer shows:
+Queue handouts during prep, then reveal each with one click at the table. Only queued or revealed
+pages show here: a new journal (one Claude just made, say) is not listed until you press
+**+ Queue a page** for it. The drawer shows:
 
 - **Queue**: the pages you staged, oldest first, with their scene and who they are for.
   **Remove** takes one off the queue. Queueing changes nothing in Foundry.

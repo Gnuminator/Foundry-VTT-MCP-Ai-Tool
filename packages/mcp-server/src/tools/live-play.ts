@@ -203,7 +203,8 @@ export class LivePlayTools {
             conditions: {
               type: 'array',
               items: { type: 'string' },
-              description: 'clear-conditions: names to remove; omit to remove expired effects.',
+              description:
+                'clear-conditions: names to remove (prone...); omit for expired effects only.',
               ...toolRef('condition', 'id'),
             },
             resource: {

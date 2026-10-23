@@ -221,7 +221,7 @@ export function HandoutsDrawer({
       as="li"
       errorLabel="Couldn't load the handouts"
       isEmpty={d => d.queue.length === 0}
-      empty="Nothing queued. Queue pages during prep, then reveal each in one click."
+      empty="Nothing queued. Only queued or revealed pages show here, so a new journal does not appear on its own: press + Queue a page to add one, then reveal it in one click."
     >
       {data =>
         data.queue.map(q => (

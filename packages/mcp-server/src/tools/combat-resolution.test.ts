@@ -161,6 +161,21 @@ describe('CombatResolutionTools.handleUseNpcActivity', () => {
     });
   });
 
+  it('says so when an older module ignores the activity it was asked for', async () => {
+    const { tools } = makeTools(() => ({ success: true, attackTotal: 18 }));
+    await expect(
+      tools.handleUseNpcActivity({ actorName: 'Goblin', itemName: 'Cloud', activity: 'Cloud' })
+    ).rejects.toThrow(/module is older than this server and ignored the activity "Cloud"/);
+  });
+
+  it('accepts a reply that names the activity that ran', async () => {
+    const payload = { success: true, activity: 'Cloud' };
+    const { tools } = makeTools(() => payload);
+    await expect(
+      tools.handleUseNpcActivity({ actorName: 'Goblin', itemName: 'Cloud', activity: 'Cloud' })
+    ).resolves.toBe(payload);
+  });
+
   it('throws when Foundry reports a failure with an error message', async () => {
     const { tools } = makeTools(() => ({ success: false, error: 'item not found' }));
     await expect(

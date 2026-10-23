@@ -678,7 +678,7 @@ Parameters:
   - `itemName` (string, required)
   - `target` (string, required)
   - `activity` (string): Activity of the item.
-- `results` (array of object): Damage the rolls dealt. multiplier 0.5 = half on a made save. Items: 1 to 20.
+- `results` (array of object): Per damageByType entry. multiplier 0.5 = half on a made save. Items: 1 to 20.
   - `target` (string, required)
   - `amount` (number, required): The damage the roll reported. Range: at least 0.
   - `damageType` (string)

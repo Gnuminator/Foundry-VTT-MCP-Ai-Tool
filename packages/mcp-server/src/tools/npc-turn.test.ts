@@ -157,6 +157,22 @@ describe('plan-npc-turn', () => {
     expect(createPlan).not.toHaveBeenCalled();
   });
 
+  it('says so when an older module answers results or an activity without part 3 fields', async () => {
+    await expect(
+      tools.handleToolCall('plan-npc-turn', { results: [{ target: 'Hero', amount: 3 }] })
+    ).rejects.toThrow(/does not plan damage results, activities or legendary actions/);
+    await expect(
+      tools.handleToolCall('plan-npc-turn', {
+        attacks: [{ itemName: 'Cloud', target: 'Hero', activity: 'Cloud' }],
+      })
+    ).rejects.toThrow(/module is older/);
+    expect(createPlan).not.toHaveBeenCalled();
+    planReply = reply({ context: { ...CONTEXT, ownTurn: true } });
+    await expect(
+      tools.handleToolCall('plan-npc-turn', { results: [{ target: 'Hero', amount: 3 }] })
+    ).resolves.toBeDefined();
+  });
+
   it('rejects bad input and unknown tool names', async () => {
     await expect(
       tools.handleToolCall('plan-npc-turn', { attacks: [{ itemName: 'Bite' }] })

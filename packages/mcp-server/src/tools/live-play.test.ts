@@ -325,6 +325,36 @@ describe('plan-token-change', () => {
     query.mockImplementation(() => Promise.resolve(tokenPlan()));
   });
 
+  it('shows the advisory movement check with the plan but stores the plain summary', async () => {
+    const rulesCheck = {
+      verdict: 'problem',
+      summary: 'Move Wolf 1: not legal. too far',
+      checks: [],
+    };
+    const tryCheckMove = vi.fn(() => Promise.resolve(rulesCheck));
+    const withCheck = new LivePlayTools({
+      foundryClient: { query },
+      guardedWrites: { createPlan, autoApplyEnabled },
+      logger: logger(),
+      rulesCheck: { tryCheckMove } as any,
+    });
+    const result = await withCheck.handlePlanTokenChange({
+      action: 'move',
+      tokens: ['Wolf 1'],
+      gridX: 5,
+      gridY: 4,
+    });
+    expect(createPlan.mock.calls[0][0].summary).toBe('Move Wolf 1 to (5,4)');
+    expect(result.summary).toBe(
+      'Move Wolf 1 to (5,4). Rules check: Move Wolf 1: not legal. too far'
+    );
+    expect(result.rulesCheck).toBe(rulesCheck);
+    // Not a move: no check.
+    tryCheckMove.mockClear();
+    await withCheck.handlePlanTokenChange({ action: 'update', tokens: ['Wolf 1'], hidden: true });
+    expect(tryCheckMove).not.toHaveBeenCalled();
+  });
+
   it('fit-scale may omit tokens (the whole scene); other actions may not', async () => {
     await tools.handlePlanTokenChange({ action: 'fit-scale' });
     expect(query.mock.calls[0][1]).toEqual({ scope: 'token', action: 'fit-scale' });

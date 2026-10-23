@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import type { LiveTargetPreview } from '@gnuminator/shared';
 
 import { RulesCheckTools, findActivityData, itemRangeLabel } from './rules-check.js';
 
@@ -73,6 +74,57 @@ describe('itemRangeLabel', () => {
     expect(itemRangeLabel({ range: { units: 'self' } })).toBe('self');
     expect(itemRangeLabel({ range: { units: 'touch' } })).toBe('touch');
     expect(itemRangeLabel({})).toBeNull();
+  });
+});
+
+describe('tryCheck', () => {
+  it('returns the report when on, and null when off or when anything throws', async () => {
+    const on = await tools({}).t.tryCheck({ actor: 'Ilvara', item: 'Magic Missile' });
+    expect(on?.item).toBe('Magic Missile');
+    expect(await tools({ enabled: false }).t.tryCheck({ actor: 'Ilvara', item: 'x' })).toBeNull();
+    expect(await tools({}).t.tryCheck({})).toBeNull();
+  });
+});
+
+describe('tryCheckMove', () => {
+  const preview = (distance: number): LiveTargetPreview => ({
+    target: 'Ilvara',
+    actorUuid: 'u',
+    line: 'x',
+    move: { distance, units: 'ft', speed: 30, speedUnits: 'ft' },
+  });
+
+  it('pins the combatant by token id when several share a name', async () => {
+    const zombies = {
+      success: true,
+      active: true,
+      round: 1,
+      current: { name: 'Zombie' },
+      combatants: [
+        { name: 'Zombie', tokenId: 't1', isCurrentTurn: true },
+        { name: 'Zombie', tokenId: 't2', isCurrentTurn: false },
+      ],
+    };
+    const mine = (id: string): LiveTargetPreview => ({
+      ...preview(20),
+      target: 'Zombie',
+      actorUuid: `Scene.s1.Token.${id}`,
+    });
+    const t2 = await tools({ combat: zombies }).t.tryCheckMove([mine('t2')]);
+    expect(t2?.checks[0]?.status).toBe('info');
+    expect(t2?.checks[0]?.reason).toContain("Zombie's turn, not Zombie's");
+    const t1 = await tools({ combat: zombies }).t.tryCheckMove([mine('t1')]);
+    expect(t1?.checks[0]?.status).toBe('pass');
+    // A token that is not in the fight gets no verdict, even if its name matches a combatant.
+    expect(await tools({ combat: zombies }).t.tryCheckMove([mine('t9')])).toBeNull();
+  });
+
+  it('checks a planned move against speed in a fight; null when off, no move or no fight', async () => {
+    expect((await tools({}).t.tryCheckMove([preview(65)]))?.verdict).toBe('problem');
+    expect(await tools({ enabled: false }).t.tryCheckMove([preview(65)])).toBeNull();
+    expect(await tools({}).t.tryCheckMove([{ target: 'a', actorUuid: 'u', line: 'x' }])).toBeNull();
+    const idle = tools({ combat: { success: true, active: false } });
+    expect(await idle.t.tryCheckMove([preview(65)])).toBeNull();
   });
 });
 
@@ -292,6 +344,20 @@ describe('check-action', () => {
     await expect(
       t.handleToolCall('check-action', { actor: 'Ilvara', item: 'Magic Missile', activity: 'Nope' })
     ).rejects.toThrow(/has no activity "Nope".*Cast/);
+  });
+
+  it('warns when the actor already concentrates and the spell needs it', async () => {
+    const entity = JSON.parse(JSON.stringify(spell));
+    entity.entity.system = { properties: ['concentration'] };
+    const { t, query } = tools({ entity });
+    const original = query.getMockImplementation()!;
+    query.mockImplementation(async (m: string, a?: unknown) =>
+      m === 'foundry-mcp-bridge.getCharacterResources'
+        ? { ...resources, concentration: { active: true, spell: 'Bless' } }
+        : original(m, a)
+    );
+    const r = await t.handleToolCall('check-action', { actor: 'Ilvara', item: 'Magic Missile' });
+    expect(r.checks.find(c => c.check === 'concentration')?.status).toBe('warn');
   });
 
   it('refuses an effect', async () => {

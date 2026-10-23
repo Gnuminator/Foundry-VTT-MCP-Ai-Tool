@@ -182,6 +182,16 @@ function square(scene: SceneInfo, x: number, y: number): string {
 // move
 // ---------------------------------------------------------------------------
 
+/** The token's creature speed: walk, else the best other mode; null when the sheet has none. */
+function speedOf(doc: Rec): { speed: number | null; speedUnits: string | null } {
+  const movement = rec(getPath(rec(doc.actor), 'system.attributes.movement'));
+  if (!movement) return { speed: null, speedUnits: null };
+  const modes = ['walk', 'fly', 'swim', 'climb', 'burrow'].map(m => num(movement[m]) ?? 0);
+  const walk = modes[0] ?? 0;
+  const speed = walk > 0 ? walk : Math.max(...modes);
+  return { speed: speed > 0 ? speed : null, speedUnits: str(movement.units) ?? 'ft' };
+}
+
 function planMove(
   scene: SceneInfo,
   tokens: TokenRef[],
@@ -243,6 +253,7 @@ function planMove(
       target: token.name,
       actorUuid: token.uuid,
       line: `${token.name}: ${square(scene, x0, y0)} to ${square(scene, x, y)}, ${far} ${scene.units}, placed, not walked (Foundry's ruler does not count it)${crossing ? '; WARNING: a wall or closed door lies in between' : ''}`,
+      move: { distance: far, units: scene.units, ...speedOf(token.doc) },
     });
   }
   const who = tokens.map(t => t.name).join(', ');

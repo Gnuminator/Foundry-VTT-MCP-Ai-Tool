@@ -5,11 +5,14 @@ import { Logger } from '../logger.js';
 import { SystemRegistry } from '../systems/system-registry.js';
 import { detectGameSystem, getCachedSystemId, type GameSystem } from '../utils/system-detection.js';
 import type { SystemAdapter } from '../systems/types.js';
+import type { RulesCheckTools } from './rules-check.js';
 
 export interface CharacterToolsOptions {
   foundryClient: FoundryClient;
   logger: Logger;
   systemRegistry?: SystemRegistry;
+  /** Advisory rules pre-check for use-item (never blocks). */
+  rulesCheck?: Pick<RulesCheckTools, 'tryCheck'>;
 }
 
 export class CharacterTools {
@@ -17,8 +20,10 @@ export class CharacterTools {
   private logger: Logger;
   private systemRegistry: SystemRegistry | null;
   private cachedGameSystem: GameSystem | null = null;
+  private rulesCheck: Pick<RulesCheckTools, 'tryCheck'> | null;
 
-  constructor({ foundryClient, logger, systemRegistry }: CharacterToolsOptions) {
+  constructor({ foundryClient, logger, systemRegistry, rulesCheck }: CharacterToolsOptions) {
+    this.rulesCheck = rulesCheck ?? null;
     this.foundryClient = foundryClient;
     this.logger = logger.child({ component: 'CharacterTools' });
     this.systemRegistry = systemRegistry ?? null;
@@ -395,6 +400,15 @@ export class CharacterTools {
     });
 
     try {
+      const target = targets?.find(t => t.toLowerCase() !== 'self');
+      const rulesCheck = await this.rulesCheck?.tryCheck({
+        actor: actorIdentifier,
+        item: itemIdentifier,
+        ...(target ? { target } : {}),
+        ...(spellLevel !== undefined && spellLevel >= 1 && spellLevel <= 9
+          ? { castLevel: Math.trunc(spellLevel) }
+          : {}),
+      });
       const result = await this.foundryClient.query('foundry-mcp-bridge.useItem', {
         actorIdentifier,
         itemIdentifier,
@@ -412,7 +426,9 @@ export class CharacterTools {
         targets: result.targets,
       });
 
-      return result;
+      return rulesCheck && result && typeof result === 'object'
+        ? { ...result, rulesCheck }
+        : result;
     } catch (error) {
       this.logger.error('Failed to use item', error);
       throw new Error(

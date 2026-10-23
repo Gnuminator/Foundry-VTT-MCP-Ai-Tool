@@ -109,7 +109,11 @@ export class NpcTurnTools {
                 required: ['itemName', 'target'],
               },
             },
-            dash: { type: 'boolean', description: 'Dash: the move may use twice the speed.' },
+            dash: {
+              type: 'boolean',
+              description:
+                'Dash: the move may use twice the speed. A Dash takes the action, so attacks are refused unless reason names a bonus-action Dash.',
+            },
             reason: {
               type: 'string',
               description: 'One line on why (shown in the plan and Recent Changes).',

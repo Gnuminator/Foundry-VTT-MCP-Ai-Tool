@@ -24,6 +24,8 @@ import type {
   LiveTokenRequest,
 } from '@gnuminator/shared';
 
+import { wallsOf } from './scene-walls.js';
+
 /** Mirror of the shared `LIVE_TOKEN_FIELDS`: parameter name to token path. */
 export const TOKEN_FIELDS = {
   name: 'name',
@@ -112,6 +114,7 @@ interface SceneInfo {
   distance: number;
   units: string;
   tokens: Rec[];
+  raw: Rec;
 }
 
 function currentScene(): SceneInfo {
@@ -128,6 +131,7 @@ function currentScene(): SceneInfo {
     tokens: contentsOf(scene.tokens)
       .map(rec)
       .filter((t): t is Rec => t !== null),
+    raw: scene,
   };
 }
 
@@ -229,10 +233,16 @@ function planMove(
     if (x !== x0) changes.x = x;
     if (y !== y0) changes.y = y;
     ops.push({ kind: 'update', uuid: token.uuid, changes });
+    // The apply places the token (no walking): say so, and warn when a wall lies between.
+    const half = (n: unknown): number => ((num(n) ?? 1) * scene.size) / 2;
+    const crossing = wallsOf(scene.raw, token.doc).blocked(
+      { x: x0 + half(token.doc.width), y: y0 + half(token.doc.height) },
+      { x: x + half(token.doc.width), y: y + half(token.doc.height) }
+    );
     previews.push({
       target: token.name,
       actorUuid: token.uuid,
-      line: `${token.name}: ${square(scene, x0, y0)} to ${square(scene, x, y)}, ${far} ${scene.units}`,
+      line: `${token.name}: ${square(scene, x0, y0)} to ${square(scene, x, y)}, ${far} ${scene.units}, placed, not walked (Foundry's ruler does not count it)${crossing ? '; WARNING: a wall or closed door lies in between' : ''}`,
     });
   }
   const who = tokens.map(t => t.name).join(', ');

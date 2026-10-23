@@ -169,6 +169,29 @@ describe('DiceRollTools.handleRequestAbilityCheck', () => {
 // ---------------------------------------------------------------------------
 
 describe('DiceRollTools.handleRequestAttackRoll', () => {
+  it('appends an unclear or problem rules check to the reply and stays silent when legal', async () => {
+    const { query } = makeTools(() => ({ success: true, message: 'Posted.' }));
+    const args = { targetPlayer: 'Carol', weaponOrSpellName: 'Longsword', isPublic: true };
+    const logger: any = { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() };
+    logger.child = (): unknown => logger;
+    const run = async (check: unknown): Promise<unknown> => {
+      const tryCheck = vi.fn(async () => check);
+      const t = new DiceRollTools({
+        foundryClient: { query } as any,
+        logger,
+        rulesCheck: { tryCheck } as any,
+      });
+      return t.handleRequestAttackRoll(args);
+    };
+    expect(await run({ verdict: 'problem', summary: 'Carol: no uses left.' })).toBe(
+      'Attack roll requested. Posted. Rules check: Carol: no uses left.'
+    );
+    expect(await run({ verdict: 'legal', summary: 'looks legal.' })).toBe(
+      'Attack roll requested. Posted.'
+    );
+    expect(await run(null)).toBe('Attack roll requested. Posted.');
+  });
+
   it('dispatches requestAttackRoll with parsed params and returns success string', async () => {
     const { tools, query } = makeTools(() => ({
       success: true,

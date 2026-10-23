@@ -262,7 +262,13 @@ async function startBackend(): Promise<void> {
     supportedSystems: systemRegistry.getSupportedSystems(),
   });
 
-  const characterTools = new CharacterTools({ foundryClient, logger, systemRegistry });
+  const rulesCheckTools = new RulesCheckTools({ foundryClient, logger });
+  const characterTools = new CharacterTools({
+    foundryClient,
+    logger,
+    systemRegistry,
+    rulesCheck: rulesCheckTools,
+  });
 
   const compendiumTools = new CompendiumTools({ foundryClient, logger, systemRegistry });
 
@@ -279,7 +285,7 @@ async function startBackend(): Promise<void> {
 
   const questCreationTools = new QuestCreationTools({ foundryClient, logger });
 
-  const diceRollTools = new DiceRollTools({ foundryClient, logger });
+  const diceRollTools = new DiceRollTools({ foundryClient, logger, rulesCheck: rulesCheckTools });
 
   const campaignManagementTools = new CampaignManagementTools(foundryClient, logger);
 
@@ -436,9 +442,13 @@ async function startBackend(): Promise<void> {
     logger,
   });
   const sceneMoodTools = new SceneMoodTools({ foundryClient, guardedWrites, logger });
-  const rulesCheckTools = new RulesCheckTools({ foundryClient, logger });
   const tableViewerTools = new TableViewerTools({ foundryClient, guardedWrites, logger });
-  const livePlayTools = new LivePlayTools({ foundryClient, guardedWrites, logger });
+  const livePlayTools = new LivePlayTools({
+    foundryClient,
+    guardedWrites,
+    logger,
+    rulesCheck: rulesCheckTools,
+  });
   const sceneChangeTools = new SceneChangeTools({ foundryClient, guardedWrites, logger });
   // O4 Foundry mirror: the pump starts with the Foundry link below (vault dir set only).
   const mirrorEnv = mirrorEnvSettings();

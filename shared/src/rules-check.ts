@@ -17,7 +17,15 @@ export const RULES_CHECK_STATUSES = ['pass', 'warn', 'fail', 'unknown', 'info'] 
 export type RulesCheckStatus = (typeof RULES_CHECK_STATUSES)[number];
 
 /** The checks, in the order they are reported. */
-export const RULES_CHECK_KINDS = ['turn', 'action-cost', 'range', 'slots', 'uses'] as const;
+export const RULES_CHECK_KINDS = [
+  'turn',
+  'action-cost',
+  'range',
+  'slots',
+  'uses',
+  'movement',
+  'concentration',
+] as const;
 export type RulesCheckKind = (typeof RULES_CHECK_KINDS)[number];
 
 /** One line of the report. */

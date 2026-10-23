@@ -495,6 +495,33 @@ describe('CharacterTools.handleListCharacters', () => {
 // ---------------------------------------------------------------------------
 
 describe('CharacterTools.handleUseItem', () => {
+  const check = { verdict: 'problem', summary: 'not legal' };
+
+  it('adds the advisory rules check and still uses the item when it says problem', async () => {
+    const payload = { success: true, actorName: 'Elara' };
+    const { query, logger } = makeTools(() => payload);
+    const tryCheck = vi.fn(async () => check);
+    const tools = new CharacterTools({
+      foundryClient: { query } as any,
+      logger,
+      rulesCheck: { tryCheck } as any,
+    });
+    const result = await tools.handleUseItem({
+      actorIdentifier: 'Elara',
+      itemIdentifier: 'Fireball',
+      targets: ['self', 'Wolf'],
+      spellLevel: 4,
+    });
+    expect(tryCheck).toHaveBeenCalledWith({
+      actor: 'Elara',
+      item: 'Fireball',
+      target: 'Wolf',
+      castLevel: 4,
+    });
+    expect(query).toHaveBeenCalledTimes(1);
+    expect(result).toEqual({ ...payload, rulesCheck: check });
+  });
+
   it('dispatches useItem with consume defaulting to true and skipDialog defaulting to true', async () => {
     const payload = { success: true, actorName: 'Elara', itemName: 'Fireball', targets: [] };
     const { tools, query } = makeTools(() => payload);

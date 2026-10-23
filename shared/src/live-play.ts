@@ -24,6 +24,7 @@
  * GM only: the preview shows exact hit points.
  */
 import type { GuardedOp } from './guarded-write.js';
+import type { RulesCheckResult } from './rules-check.js';
 
 /** Module query name (prefixed with the module id on the wire). GM client only. */
 export const LIVE_PLAN_QUERY = 'planLiveChange';
@@ -126,6 +127,18 @@ export interface LiveTargetPreview {
   line: string;
   /** Set when this target needs no change (already prone, immune...). */
   skipped?: boolean;
+  /** move only: how far the token goes and the creature's walking speed (null when unknown). */
+  move?: LiveMoveFact;
+}
+
+/** The numbers behind a move preview, for the advisory movement check. */
+export interface LiveMoveFact {
+  /** Straight-line distance between the squares, in `units`. */
+  distance: number;
+  units: string;
+  /** Walking speed in `speedUnits`; the best other mode when it cannot walk; null when unknown. */
+  speed: number | null;
+  speedUnits: string | null;
 }
 
 /** Either request the `planLiveChange` query takes. */
@@ -141,6 +154,8 @@ export interface LiveChangePlan {
 /** What `plan-actor-change` returns: the guarded plan plus the preview. */
 export interface LiveActorPlanResult {
   targets: LiveTargetPreview[];
+  /** plan-token-change move: the advisory movement check, when the rules check is on and a fight runs. */
+  rulesCheck?: RulesCheckResult;
   /**
    * The GM switched on "apply without confirming" for live play: apply this plan
    * at once (apply-planned-change) without asking. Only ever true for a plan of

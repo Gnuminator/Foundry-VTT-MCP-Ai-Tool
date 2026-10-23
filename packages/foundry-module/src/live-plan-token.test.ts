@@ -163,9 +163,24 @@ describe('planTokenChange: move', () => {
         target: 'Wolf 1',
         actorUuid: 'Scene.s1.Token.t1',
         line: `Wolf 1: (2,2) to (5,4), 15 ft${PLACED}`,
+        move: { distance: 15, units: 'ft', speed: null, speedUnits: null },
       },
     ]);
     expect(plan.summary).toBe('Move Wolf 1 to (5,4)');
+  });
+
+  it("reports the creature's walking speed with the distance, else its best other speed", () => {
+    const scene = g.game.scenes.current;
+    const wolf = scene.tokens.contents.find((t: any) => t.name === 'Wolf 1');
+    wolf.actor = { system: { attributes: { movement: { walk: 40, fly: 60, units: 'ft' } } } };
+    expect(planTokenChange(move({ gridX: 5, gridY: 4 })).targets[0]?.move).toEqual({
+      distance: 15,
+      units: 'ft',
+      speed: 40,
+      speedUnits: 'ft',
+    });
+    wolf.actor = { system: { attributes: { movement: { walk: 0, fly: 60 } } } };
+    expect(planTokenChange(move({ gridX: 5, gridY: 4 })).targets[0]?.move?.speed).toBe(60);
   });
 
   it('warns when a wall or closed door lies between the old and the new square (R2-L2)', () => {

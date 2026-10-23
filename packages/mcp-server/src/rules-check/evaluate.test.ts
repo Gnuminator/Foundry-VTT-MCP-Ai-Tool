@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import type { RulesCheckLine } from '@gnuminator/shared';
-import { classifyActivation, evaluateAction, parseRange, type RulesFacts } from './evaluate.js';
+import {
+  classifyActivation,
+  evaluateAction,
+  evaluateMovement,
+  parseRange,
+  type RulesFacts,
+} from './evaluate.js';
 
 const base: RulesFacts = {
   actor: 'Ilvara',
@@ -199,5 +205,70 @@ describe('evaluateAction', () => {
     const r = evaluateAction({ ...base, distance: { feet: 30 } });
     expect(r.verdict).toBe('problem');
     expect(r.summary).toMatch(/not legal.*30 ft/);
+  });
+});
+
+describe('concentration', () => {
+  const conc = {
+    ...base,
+    spellLevel: 2,
+    needsConcentration: true,
+    slots: { level2: { current: 1, max: 2 } },
+  };
+
+  it('warns that a second concentration spell drops the first', () => {
+    const l = line({ ...conc, concentration: { active: true, spell: 'Bless' } }, 'concentration');
+    expect(l?.status).toBe('warn');
+    expect(l?.reason).toContain('drops that (Bless)');
+  });
+
+  it('is only information when nothing is held, and silent for other spells', () => {
+    const idle = { active: false, spell: null };
+    expect(line({ ...conc, concentration: idle }, 'concentration')?.status).toBe('info');
+    const other = {
+      ...conc,
+      needsConcentration: false,
+      concentration: { active: true, spell: 'x' },
+    };
+    expect(line(other, 'concentration')).toBeUndefined();
+  });
+});
+
+describe('evaluateMovement', () => {
+  const inFight = {
+    active: true,
+    round: 1,
+    inCombat: true,
+    isCurrentTurn: true,
+    currentName: 'Ilvara',
+  } as const;
+  const move = {
+    name: 'Ilvara',
+    distance: 30,
+    units: 'ft',
+    speed: 30,
+    speedUnits: 'ft',
+    combat: inFight,
+  };
+
+  it('passes within speed, warns up to double (Dash), fails beyond', () => {
+    expect(evaluateMovement([move])?.verdict).toBe('legal');
+    expect(evaluateMovement([{ ...move, distance: 45 }])?.checks[0]?.status).toBe('warn');
+    const far = evaluateMovement([{ ...move, distance: 65 }]);
+    expect(far?.verdict).toBe('problem');
+    expect(far?.checks[0]?.check).toBe('movement');
+  });
+
+  it('says nothing outside a fight and does not guess without a speed or in other units', () => {
+    expect(evaluateMovement([{ ...move, combat: { active: false } }])).toBeNull();
+    expect(evaluateMovement([{ ...move, speed: null }])?.checks[0]?.status).toBe('unknown');
+    expect(evaluateMovement([{ ...move, units: 'mi' }])?.checks[0]?.status).toBe('unknown');
+  });
+
+  it("notes another creature's turn without failing a move inside speed", () => {
+    const combat = { ...inFight, isCurrentTurn: false, currentName: 'Zombie' };
+    const r = evaluateMovement([{ ...move, combat }]);
+    expect(r?.checks[0]?.status).toBe('info');
+    expect(r?.checks[0]?.reason).toContain("Zombie's turn");
   });
 });

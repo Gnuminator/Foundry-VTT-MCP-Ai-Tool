@@ -4,13 +4,17 @@ import {
   RULES_CHECK_FEATURE_ID,
   toolRef,
   unwrapBridgeReply,
+  type LiveMoveFact,
+  type LiveTargetPreview,
   type RulesCheckResult,
 } from '@gnuminator/shared';
 import type { FoundryClient } from '../foundry-client.js';
 import type { Logger } from '../logger.js';
 import {
   evaluateAction,
+  evaluateMovement,
   type CombatFact,
+  type MoveFact,
   type SlotFact,
   type UsesFact,
 } from '../rules-check/evaluate.js';
@@ -104,7 +108,7 @@ export class RulesCheckTools {
       {
         name: 'check-action',
         description:
-          'Rules check (off by default). Says whether an attack, spell or item looks legal and why: turn, cost, range to a target, spell slots and uses left. Cannot see actions already spent this turn. Read-only.',
+          'Rules check (off by default). Says whether an attack, spell or item looks legal and why: turn, cost, range to a target, spell slots, uses left and concentration. With the switch on, use-item, request-attack-roll and a token move in plan-token-change add the same advice to their reply and never block. Cannot see actions already spent this turn. Read-only.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -146,13 +150,54 @@ export class RulesCheckTools {
     }
   }
 
-  private async checkAction(args: unknown): Promise<RulesCheckResult> {
-    const p = params.parse(args ?? {});
+  /**
+   * The advisory pre-check other tools run before a roll or a use: null when the switch is off or
+   * anything goes wrong, so it never blocks or fails the write it sits in front of.
+   */
+  async tryCheck(args: unknown): Promise<RulesCheckResult | null> {
+    try {
+      return await this.checkAction(args);
+    } catch (error) {
+      if (!(error instanceof Error && error.message === SWITCH_OFF)) {
+        this.logger.warn('Rules pre-check skipped', error);
+      }
+      return null;
+    }
+  }
+
+  /** The advisory movement check for planned token moves; null when off, outside a fight or on any error. */
+  async tryCheckMove(targets: LiveTargetPreview[]): Promise<RulesCheckResult | null> {
+    try {
+      const moves = targets.filter((t): t is LiveTargetPreview & { move: LiveMoveFact } =>
+        Boolean(t.move && !t.skipped)
+      );
+      if (moves.length === 0) return null;
+      await this.requireOn();
+      const facts: MoveFact[] = [];
+      for (const t of moves) {
+        const { combat } = await this.combatFact(undefined, t.target);
+        facts.push({ name: t.target, combat, ...t.move });
+      }
+      return evaluateMovement(facts);
+    } catch (error) {
+      if (!(error instanceof Error && error.message === SWITCH_OFF)) {
+        this.logger.warn('Rules movement pre-check skipped', error);
+      }
+      return null;
+    }
+  }
+
+  private async requireOn(): Promise<void> {
     const features = unwrapBridgeReply(
       await this.foundryClient.query('foundry-mcp-bridge.listGuardedFeatures'),
       'Feature list refused'
     );
     if (!features.find(f => f.id === RULES_CHECK_FEATURE_ID)?.enabled) throw new Error(SWITCH_OFF);
+  }
+
+  private async checkAction(args: unknown): Promise<RulesCheckResult> {
+    const p = params.parse(args ?? {});
+    await this.requireOn();
 
     const resources = rec(
       await this.foundryClient.query('foundry-mcp-bridge.getCharacterResources', {
@@ -224,10 +269,19 @@ export class RulesCheckTools {
       target: p.target,
       distance,
       slots,
+      needsConcentration: isSpell && properties.includes('concentration'),
+      concentration: this.concentrationFact(resources.concentration),
       uses: [usesFrom(entity.uses), usesFrom(activity?.uses)].filter(
         (u): u is UsesFact => u !== null
       ),
     });
+  }
+
+  private concentrationFact(raw: unknown): { active: boolean; spell: string | null } | undefined {
+    const c = rec(raw);
+    return typeof c.active === 'boolean'
+      ? { active: c.active, spell: text(c.spell) ?? null }
+      : undefined;
   }
 
   /** Whether the actor is an NPC (false when it cannot be read). */

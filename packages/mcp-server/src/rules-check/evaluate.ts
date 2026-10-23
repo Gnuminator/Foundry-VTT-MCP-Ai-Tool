@@ -57,6 +57,10 @@ export interface RulesFacts {
   slots: Record<string, SlotFact> | undefined;
   /** The item's own uses, then the chosen activity's. */
   uses: UsesFact[];
+  /** The spell needs concentration. */
+  needsConcentration?: boolean;
+  /** What the actor concentrates on now (from `get-character-resources`), if known. */
+  concentration?: { active: boolean; spell: string | null } | undefined;
 }
 
 const LIMITS = [
@@ -372,10 +376,108 @@ function usesCheck(f: RulesFacts): RulesCheckLine | null {
   return { check: 'uses', status: 'pass', reason: `${first.value} of ${first.max} uses left.` };
 }
 
+/** Only for a concentration spell: casting it ends the concentration the actor already holds. */
+function concentrationCheck(f: RulesFacts): RulesCheckLine | null {
+  if (!f.needsConcentration || !f.concentration) return null;
+  if (!f.concentration.active) {
+    return {
+      check: 'concentration',
+      status: 'info',
+      reason: `${f.item} needs concentration; ${f.actor} is not concentrating on anything else.`,
+    };
+  }
+  const held = f.concentration.spell;
+  return {
+    check: 'concentration',
+    status: 'warn',
+    reason: `${f.item} needs concentration, and ${f.actor} is already concentrating${held ? ` on ${held}` : ''}: casting it drops that${held ? ` (${held})` : ''}.`,
+  };
+}
+
 function verdictOf(checks: RulesCheckLine[]): RulesCheckVerdict {
   if (checks.some(c => c.status === 'fail')) return 'problem';
   if (checks.some(c => c.status === 'warn' || c.status === 'unknown')) return 'unclear';
   return 'legal';
+}
+
+export interface MoveFact {
+  /** The token that moves (also the combatant's name). */
+  name: string;
+  distance: number;
+  units: string;
+  speed: number | null;
+  speedUnits: string | null;
+  combat: CombatFact;
+}
+
+const MOVE_LIMITS = [
+  'The distance is a straight line between the squares; the route, difficult terrain, walls and the movement already used this turn are not counted.',
+  'Foundry places the token, so only the creature walking speed (or its best other speed) is compared.',
+];
+
+const isFeet = (u: string | null): boolean => u === null || /^(ft|feet|foot)/i.test(u.trim());
+
+function moveLine(f: MoveFact): RulesCheckLine | null {
+  const c = f.combat;
+  // Moving a token outside a fight is the table's business, not a rules question.
+  if (!c.active || !c.inCombat || c.ambiguous) return null;
+  const check = 'movement' as const;
+  if (!isFeet(f.units) || !isFeet(f.speedUnits)) {
+    return {
+      check,
+      status: 'unknown',
+      reason: `${f.name}: the scene or the speed is not measured in feet, so the move is not compared with speed.`,
+    };
+  }
+  if (f.speed === null) {
+    return {
+      check,
+      status: 'unknown',
+      reason: `${f.name} has no speed on the sheet, so a ${f.distance} ft move is not compared with it.`,
+    };
+  }
+  const where = c.isCurrentTurn
+    ? ''
+    : ` It is ${c.currentName ?? 'someone else'}'s turn, not ${f.name}'s.`;
+  if (f.distance <= f.speed) {
+    return {
+      check,
+      status: c.isCurrentTurn ? 'pass' : 'info',
+      reason: `${f.name} moves ${f.distance} ft, within its speed of ${f.speed} ft.${where}`,
+    };
+  }
+  if (f.distance <= f.speed * 2) {
+    return {
+      check,
+      status: 'warn',
+      reason: `${f.name} moves ${f.distance} ft, past its speed of ${f.speed} ft: only possible with the Dash action.${where}`,
+    };
+  }
+  return {
+    check,
+    status: 'fail',
+    reason: `${f.name} moves ${f.distance} ft, more than twice its speed of ${f.speed} ft, so not even a Dash covers it.${where}`,
+  };
+}
+
+/** The advisory movement check for a token move; null when there is nothing to say (no fight). */
+export function evaluateMovement(facts: MoveFact[]): RulesCheckResult | null {
+  const checks = facts.map(moveLine).filter((l): l is RulesCheckLine => l !== null);
+  if (checks.length === 0) return null;
+  const verdict = verdictOf(checks);
+  const names = facts.map(f => f.name).join(', ');
+  const reasons = (status: RulesCheckLine['status'][]): string =>
+    checks
+      .filter(c => status.includes(c.status))
+      .map(c => c.reason)
+      .join(' ');
+  const summary =
+    verdict === 'problem'
+      ? `Move ${names}: not legal. ${reasons(['fail'])}`
+      : verdict === 'unclear'
+        ? `Move ${names}: nothing rules it out, but check this. ${reasons(['warn', 'unknown'])}`
+        : `Move ${names}: looks legal.`;
+  return { verdict, actor: names, item: 'Move', checks, summary, limits: MOVE_LIMITS };
 }
 
 /** The whole report for one actor, item and optional target. */
@@ -386,6 +488,8 @@ export function evaluateAction(f: RulesFacts): RulesCheckResult {
   if (slots) checks.push(slots);
   const uses = usesCheck(f);
   if (uses) checks.push(uses);
+  const concentration = concentrationCheck(f);
+  if (concentration) checks.push(concentration);
   const verdict = verdictOf(checks);
   const about = `${f.actor} using ${f.item}${f.target ? ` on ${f.target}` : ''}`;
   const reasons = (status: RulesCheckLine['status'][]): string =>

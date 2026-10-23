@@ -2,19 +2,24 @@ import { freeText, toolRef } from '@gnuminator/shared';
 import { z } from 'zod';
 import { FoundryClient } from '../foundry-client.js';
 import { Logger } from '../logger.js';
+import type { RulesCheckTools } from './rules-check.js';
 
 interface DiceRollToolsOptions {
   foundryClient: FoundryClient;
   logger: Logger;
+  /** Advisory rules pre-check for attack requests (never blocks). */
+  rulesCheck?: Pick<RulesCheckTools, 'tryCheck'>;
 }
 
 export class DiceRollTools {
   private foundryClient: FoundryClient;
   private logger: Logger;
+  private rulesCheck: Pick<RulesCheckTools, 'tryCheck'> | null;
 
   constructor(options: DiceRollToolsOptions) {
     this.foundryClient = options.foundryClient;
     this.logger = options.logger;
+    this.rulesCheck = options.rulesCheck ?? null;
   }
 
   getToolDefinitions() {
@@ -211,12 +216,17 @@ export class DiceRollTools {
     });
     try {
       const params = schema.parse(args);
+      const check = await this.rulesCheck?.tryCheck({
+        actor: params.targetPlayer,
+        item: params.weaponOrSpellName,
+      });
       const response = await this.foundryClient.query(
         'foundry-mcp-bridge.requestAttackRoll',
         params
       );
       if (response?.success) {
-        return `Attack roll requested. ${response.message}`;
+        const note = check && check.verdict !== 'legal' ? ` Rules check: ${check.summary}` : '';
+        return `Attack roll requested. ${response.message}${note}`;
       }
       throw new Error(response?.error || 'Failed to request attack roll');
     } catch (error) {

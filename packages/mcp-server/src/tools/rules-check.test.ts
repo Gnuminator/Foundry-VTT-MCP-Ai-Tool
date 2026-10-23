@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import type { LiveTargetPreview } from '@gnuminator/shared';
 
 import { RulesCheckTools, findActivityData, itemRangeLabel } from './rules-check.js';
 
@@ -73,6 +74,32 @@ describe('itemRangeLabel', () => {
     expect(itemRangeLabel({ range: { units: 'self' } })).toBe('self');
     expect(itemRangeLabel({ range: { units: 'touch' } })).toBe('touch');
     expect(itemRangeLabel({})).toBeNull();
+  });
+});
+
+describe('tryCheck', () => {
+  it('returns the report when on, and null when off or when anything throws', async () => {
+    const on = await tools({}).t.tryCheck({ actor: 'Ilvara', item: 'Magic Missile' });
+    expect(on?.item).toBe('Magic Missile');
+    expect(await tools({ enabled: false }).t.tryCheck({ actor: 'Ilvara', item: 'x' })).toBeNull();
+    expect(await tools({}).t.tryCheck({})).toBeNull();
+  });
+});
+
+describe('tryCheckMove', () => {
+  const preview = (distance: number): LiveTargetPreview => ({
+    target: 'Ilvara',
+    actorUuid: 'u',
+    line: 'x',
+    move: { distance, units: 'ft', speed: 30, speedUnits: 'ft' },
+  });
+
+  it('checks a planned move against speed in a fight; null when off, no move or no fight', async () => {
+    expect((await tools({}).t.tryCheckMove([preview(65)]))?.verdict).toBe('problem');
+    expect(await tools({ enabled: false }).t.tryCheckMove([preview(65)])).toBeNull();
+    expect(await tools({}).t.tryCheckMove([{ target: 'a', actorUuid: 'u', line: 'x' }])).toBeNull();
+    const idle = tools({ combat: { success: true, active: false } });
+    expect(await idle.t.tryCheckMove([preview(65)])).toBeNull();
   });
 });
 
@@ -292,6 +319,20 @@ describe('check-action', () => {
     await expect(
       t.handleToolCall('check-action', { actor: 'Ilvara', item: 'Magic Missile', activity: 'Nope' })
     ).rejects.toThrow(/has no activity "Nope".*Cast/);
+  });
+
+  it('warns when the actor already concentrates and the spell needs it', async () => {
+    const entity = JSON.parse(JSON.stringify(spell));
+    entity.entity.system = { properties: ['concentration'] };
+    const { t, query } = tools({ entity });
+    const original = query.getMockImplementation()!;
+    query.mockImplementation(async (m: string, a?: unknown) =>
+      m === 'foundry-mcp-bridge.getCharacterResources'
+        ? { ...resources, concentration: { active: true, spell: 'Bless' } }
+        : original(m, a)
+    );
+    const r = await t.handleToolCall('check-action', { actor: 'Ilvara', item: 'Magic Missile' });
+    expect(r.checks.find(c => c.check === 'concentration')?.status).toBe('warn');
   });
 
   it('refuses an effect', async () => {

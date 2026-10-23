@@ -18,6 +18,7 @@ import { z } from 'zod';
 import type { FoundryClient } from '../foundry-client.js';
 import type { GuardedWriteService, PlanView } from '../guarded-write/service.js';
 import type { Logger } from '../logger.js';
+import type { RulesCheckTools } from './rules-check.js';
 
 interface ToolDefinition {
   name: string;
@@ -33,6 +34,8 @@ export interface LivePlayToolsOptions {
   foundryClient: Pick<FoundryClient, 'query'>;
   guardedWrites: Pick<GuardedWriteService, 'createPlan' | 'autoApplyEnabled'>;
   logger: Logger;
+  /** Advisory movement check for token moves (never blocks). */
+  rulesCheck?: Pick<RulesCheckTools, 'tryCheckMove'>;
 }
 
 /** Fixed resource values resolved before item names: spell slots, pact, class resources. */
@@ -271,7 +274,24 @@ export class LivePlayTools {
         ops: built.ops,
       });
       // D-083: "apply without confirming" covers damage, conditions and resources, not tokens.
-      return { ...plan, targets: built.targets, autoApply: false };
+      const result: PlanView & LiveActorPlanResult = {
+        ...plan,
+        targets: built.targets,
+        autoApply: false,
+      };
+      // Advisory only: shown with the plan, never stored with it and never a reason to refuse.
+      const rulesCheck =
+        params.action === 'move'
+          ? await this.options.rulesCheck?.tryCheckMove(built.targets)
+          : null;
+      if (rulesCheck && rulesCheck.verdict !== 'legal') {
+        return {
+          ...result,
+          rulesCheck,
+          summary: `${plan.summary}. Rules check: ${rulesCheck.summary}`,
+        };
+      }
+      return rulesCheck ? { ...result, rulesCheck } : result;
     } catch (error) {
       this.logger.warn('Token plan not created', {
         action: params.action,

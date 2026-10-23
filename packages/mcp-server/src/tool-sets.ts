@@ -90,6 +90,7 @@ export const TOOL_SETS: Readonly<Record<ToolSetName, ToolSetSpec>> = {
       'manage-rest',
       'get-party',
       'plan-party-change',
+      'plan-combat-change',
       'plan-scene-change',
       'plan-scene-restore',
       'plan-npc-turn',

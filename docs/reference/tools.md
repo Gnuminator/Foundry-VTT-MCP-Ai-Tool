@@ -6,12 +6,12 @@ description: Every tool the bridge serves, by tool set, with its description and
 
 # Tool reference
 
-The bridge serves 94 tools in five sets. [Tool sets](TOOL-SETS.md) explains the sets and how Claude Desktop loads them; this page lists every tool with the description and parameters Claude reads.
+The bridge serves 95 tools in five sets. [Tool sets](TOOL-SETS.md) explains the sets and how Claude Desktop loads them; this page lists every tool with the description and parameters Claude reads.
 
 | Set | Claude Desktop entry | Tools | For |
 | --- | --- | --- | --- |
 | [Core](#core) | `foundry-mcp` | 22 | Look things up (world, characters, scenes, journals, compendiums, combat) and review, apply or undo planned changes. Always on. |
-| [Play](#play) | `foundry-mcp-play` | 35 | Run the table live: tokens, combat turns, rolls, damage, conditions, resources, chat, scene mood, map notes and loot. |
+| [Play](#play) | `foundry-mcp-play` | 36 | Run the table live: tokens, combat turns, rolls, damage, conditions, resources, chat, scene mood, map notes and loot. |
 | [Prep](#prep) | `foundry-mcp-prep` | 20 | Prepare sessions and write recaps: quests and journals, encounter budgets, the Tarokka reading, handouts, the session log, play stats and the pre-flight check. |
 | [Build](#build) | `foundry-mcp-build` | 8 | Make and change NPCs, monsters and items: from a compendium or from scratch, with features, attacks and spells. Set up rooms: teleports and tokens in a room. |
 | [Admin](#admin) | `foundry-mcp-admin` | 9 | Set up and troubleshoot: installed modules and their errors, who owns which actor, and the Obsidian mirror settings. |
@@ -607,6 +607,17 @@ Parameters:
 - `gridX` (integer): For "place" at grid: the column.
 - `gridY` (integer): For "place" at grid: the row.
 - `hidden` (boolean): For "place": the new tokens start hidden.
+
+### plan-combat-change
+
+Plan ending the fight: "end" removes the active combat from the tracker. Apply with apply-planned-change (destructive, so the GM confirms; it never applies on its own), revert with undo-change (the fight comes back with its round, turn and initiative). Shows in Recent Changes. Undo does not restore effects that end with combat or token movement history (the result carries a warning).
+
+Kind: read-only. Title: Plan ending a fight.
+
+Parameters:
+
+- `action` (string, required): end: close the active combat. One of: `end`.
+- `combatId` (string): end: the combat to close. Omit for the active one.
 
 ### plan-scene-change
 

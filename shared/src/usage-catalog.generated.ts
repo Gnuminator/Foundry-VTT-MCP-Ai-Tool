@@ -111,6 +111,12 @@ export const USAGE_CATALOG: readonly UsageCatalogEntry[] = [
     file: 'packages/cogm-dashboard/public/index.html',
   },
   {
+    name: 'dash.combat.end',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/web/src/components/CombatStrip.tsx',
+  },
+  {
     name: 'dash.combat.reaction',
     kind: 'action',
     surface: 'dashboard',

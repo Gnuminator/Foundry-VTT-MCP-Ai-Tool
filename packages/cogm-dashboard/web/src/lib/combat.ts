@@ -369,6 +369,14 @@ export function planRequest(
   return { name: 'plan-actor-change', prefill: { action, targets } };
 }
 
+/** The tool runner's request to end the fight (plan, confirm, then apply; Undo in Recent Changes). */
+export function endCombatRequest(): {
+  name: 'plan-combat-change';
+  prefill: { action: 'end' };
+} {
+  return { name: 'plan-combat-change', prefill: { action: 'end' } };
+}
+
 // --- The bridge --------------------------------------------------------------------------------
 
 /**

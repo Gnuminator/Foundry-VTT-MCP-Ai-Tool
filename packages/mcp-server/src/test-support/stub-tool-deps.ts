@@ -44,6 +44,7 @@ import { QuestCreationTools } from '../tools/quest-creation.js';
 import { RefChoiceTools } from '../tools/ref-choices.js';
 import { ResourceTools } from '../tools/resources.js';
 import { SceneChangeTools } from '../tools/scene-change.js';
+import { CombatChangeTools } from '../tools/combat-change.js';
 import { SceneTools } from '../tools/scene.js';
 import { SessionLogTools } from '../tools/session-log.js';
 import { TarokkaTools } from '../tools/tarokka.js';
@@ -129,6 +130,7 @@ export function stubToolRouterDeps(): ToolRouterDeps {
     refChoiceTools: new RefChoiceTools({ ...base, guardedWrites: {} }),
     resourceTools: new ResourceTools(base),
     sceneChangeTools: new SceneChangeTools({ foundryClient, guardedWrites: {} as any, logger }),
+    combatChangeTools: new CombatChangeTools({ foundryClient, guardedWrites: {} as any, logger }),
     sceneTools: new SceneTools(base),
     sessionLogTools: new SessionLogTools(base),
     tarokkaTools: new TarokkaTools({ tarokka: {} as any, logger }),

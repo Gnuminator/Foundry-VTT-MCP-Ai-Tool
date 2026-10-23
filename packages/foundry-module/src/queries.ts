@@ -44,6 +44,7 @@ import { getPartyState, PARTY_STATE_QUERY } from './party-scan.js';
 import { PARTY_PLACE_QUERY, planPartyPlacement } from './party-place.js';
 import { getPrepScan, PREP_SCAN_QUERY } from './prep-scan.js';
 import { LIVE_PLAN_QUERY, planLiveChange } from './live-plan.js';
+import { COMBAT_PLAN_QUERY, planCombatChange } from './combat-plan.js';
 import { planSceneChange, SCENE_PLAN_QUERY } from './scene-plan.js';
 import {
   getSceneMoods,
@@ -264,6 +265,11 @@ export class QueryHandlers {
     // as guarded ops. GM client only.
     handlers.set(`${modulePrefix}.${SCENE_PLAN_QUERY}`, (data: unknown) =>
       this.withGmGate('Failed to plan the scene change', () => planSceneChange(data))
+    );
+
+    // Combat plans (David's GM test, read-only): end a fight as a guarded delete. GM client only.
+    handlers.set(`${modulePrefix}.${COMBAT_PLAN_QUERY}`, (data: unknown) =>
+      this.withGmGate('Failed to plan the combat change', () => planCombatChange(data))
     );
 
     // Scene mood presets and music (I-034, I-129, read-only): moods and playlists as guarded

@@ -65,6 +65,7 @@ import { SessionLogTools } from './tools/session-log.js';
 import { CombatResolutionTools } from './tools/combat-resolution.js';
 import { EncounterTools } from './tools/encounter.js';
 import { SceneChangeTools } from './tools/scene-change.js';
+import { CombatChangeTools } from './tools/combat-change.js';
 import { DiagnosticsTools } from './tools/diagnostics.js';
 import { GuardedChangeTools } from './tools/guarded-changes.js';
 import { ChangeHistoryTools } from './tools/change-history.js';
@@ -450,6 +451,7 @@ async function startBackend(): Promise<void> {
     rulesCheck: rulesCheckTools,
   });
   const sceneChangeTools = new SceneChangeTools({ foundryClient, guardedWrites, logger });
+  const combatChangeTools = new CombatChangeTools({ foundryClient, guardedWrites, logger });
   // O4 Foundry mirror: the pump starts with the Foundry link below (vault dir set only).
   const mirrorEnv = mirrorEnvSettings();
   for (const warning of mirrorEnv.warnings) logger.warn(warning);
@@ -517,6 +519,7 @@ async function startBackend(): Promise<void> {
     partyTools,
     livePlayTools,
     sceneChangeTools,
+    combatChangeTools,
     diagnosticsTools,
     refChoiceTools,
   };

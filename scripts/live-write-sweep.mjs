@@ -865,6 +865,33 @@ async function combatTools() {
     );
     return `${plan.targets[0].line}; undone (initiative ${after.initiative})`;
   });
+  await step('plan-combat-change end (undo brings the fight back)', async () => {
+    needCombat();
+    const fight = async () => {
+      try {
+        const state = await tool('get-combat-state', {});
+        return state && state.combatants && state.combatants.length > 0 ? state : null;
+      } catch {
+        return null;
+      }
+    };
+    const before = await fight();
+    assert(before, 'no fight to end');
+    const { plan, change } = await planAndApply({ action: 'end' }, 'plan-combat-change');
+    assert(plan.risk === 'destructive', `risk ${plan.risk}`);
+    assert(plan.autoApply === false, 'an end plan must never auto-apply');
+    assert(!(await fight()), 'the fight is still running');
+    await undo(change);
+    const after = await fight();
+    assert(after, 'the fight did not come back');
+    assert(after.round === before.round, `round ${after.round}, was ${before.round}`);
+    const wolf = c => (c.combatants || []).find(x => x.tokenId === ctx.wolfTokenId);
+    assert(
+      wolf(after) && wolf(after).initiative === wolf(before).initiative,
+      `the wolf's initiative ${wolf(after) && wolf(after).initiative}, was ${wolf(before).initiative}`
+    );
+    return `${plan.summary}; undone (round ${after.round})`;
+  });
 }
 
 // --- 7. Scene: notes, templates, mood, switching --------------------------------

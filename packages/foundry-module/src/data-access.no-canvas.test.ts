@@ -6,6 +6,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createTestWorld, makeToken, type TestWorld } from './test-support/foundry-mock/index.js';
 import { FoundryDataAccess } from './data-access.js';
+import { ERROR_MESSAGES } from './constants.js';
 import { viewedScene } from './viewed-scene.js';
 
 let world: TestWorld;
@@ -48,6 +49,7 @@ describe('no canvas', () => {
     expect(viewedScene({ current: null, active: { id: 'b' } })?.id).toBe('b');
     expect(viewedScene({ current: null, active: null })).toBeUndefined();
     expect(viewedScene(undefined)).toBeUndefined();
+    expect(viewedScene({ active: { id: 'b' } })?.id).toBe('b');
   });
 
   it('getActiveScene reads the active scene', async () => {
@@ -62,8 +64,16 @@ describe('no canvas', () => {
     expect(result.tokens.map(t => t.name).sort()).toEqual(['Foe', 'Hero']);
   });
 
+  it('measureDistance finds tokens on the active scene', async () => {
+    const result = await da.measureDistance({ fromTokenName: 'Hero', toTokenName: 'Foe' });
+    expect(result).toBeDefined();
+  });
+
   it('still reports SCENE_NOT_FOUND when no scene is active either', async () => {
     world.setActiveScene(null as unknown as string);
-    await expect(da.getTokenPositions({})).rejects.toThrow();
+    await expect(da.getTokenPositions({})).rejects.toThrow(ERROR_MESSAGES.SCENE_NOT_FOUND);
+    await expect(da.measureDistance({ fromTokenName: 'Hero', toTokenName: 'Foe' })).rejects.toThrow(
+      ERROR_MESSAGES.SCENE_NOT_FOUND
+    );
   });
 });

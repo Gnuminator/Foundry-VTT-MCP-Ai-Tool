@@ -35,6 +35,7 @@ import type {
 
 import { planTokenChange } from './live-plan-token.js';
 import { findStatusEffect, statusEffectList } from './systems/dnd5e/status-effects.js';
+import { viewedScene } from './viewed-scene.js';
 
 /** Query name (mirror of the shared `LIVE_PLAN_QUERY`). */
 export const LIVE_PLAN_QUERY = 'planLiveChange';
@@ -154,7 +155,7 @@ function assertNotShadowing(id: string, viewedScene: string | null, viewed: Live
 export function resolveTargets(identifiers: string[]): Target[] {
   if (identifiers.length === 0) throw new Error('Name at least one target (a token or an actor)');
   const g = rec(game);
-  const scene = rec(rec(g?.scenes)?.current);
+  const scene = rec(viewedScene(rec(g?.scenes)));
   const tokens = contentsOf(scene?.tokens);
   const actors = contentsOf(g?.actors);
   const targets: Target[] = [];

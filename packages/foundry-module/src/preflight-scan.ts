@@ -30,6 +30,7 @@ import type {
 } from '@gnuminator/shared';
 
 import { tokenNameForPlayers, UNKNOWN_CREATURE } from './player-visibility.js';
+import { viewedScene } from './viewed-scene.js';
 
 /** Query name (mirror of the shared `PREFLIGHT_QUERY`). */
 export const PREFLIGHT_QUERY = 'getPreflightScan';
@@ -325,7 +326,7 @@ export function collectPlayerVisibleNames(): PlayerVisibleName[] {
     });
   }
 
-  const active = rec(rec(g?.scenes)?.current);
+  const active = rec(viewedScene(rec(g?.scenes)));
   for (const token of contentsOf(active?.tokens)) {
     const t = rec(token);
     if (!t || t.hidden === true) continue;

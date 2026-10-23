@@ -23,6 +23,7 @@
  */
 import type { PartyPlacement, PartyPlaceRequest } from '@gnuminator/shared';
 import { SIZE_FEET, fitSquares, isFeetUnit } from './live-plan-token.js';
+import { viewedScene as viewedSceneOf } from './viewed-scene.js';
 
 /** Query name (prefixed with the module id on the wire). GM client only. */
 export const PARTY_PLACE_QUERY = 'planPartyPlacement';
@@ -187,7 +188,7 @@ export function findSpots(
 
 function viewedScene(): Rec | null {
   const scenes = rec((game as unknown as Rec).scenes);
-  return rec(scenes?.current) ?? rec(scenes?.active) ?? null;
+  return rec(viewedSceneOf(scenes)) ?? null;
 }
 
 function canvasFor(scene: Rec): Rec | null {

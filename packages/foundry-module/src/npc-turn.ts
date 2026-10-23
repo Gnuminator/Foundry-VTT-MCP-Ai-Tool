@@ -37,6 +37,7 @@ import {
   type ReachNode,
 } from './npc-turn-grid.js';
 import { canvasShows, onLevel, wallsOf, type Point } from './scene-walls.js';
+import { viewedScene } from './viewed-scene.js';
 
 /** Query name (mirror of the shared `NPC_TURN_QUERY`). */
 export const NPC_TURN_QUERY = 'planNpcTurn';
@@ -122,7 +123,7 @@ function diagonalRule(grid: Rec | null): number {
 
 function currentScene(): SceneInfo {
   const scenes = rec(rec(game)?.scenes);
-  const scene = rec(scenes?.current) ?? rec(scenes?.active);
+  const scene = rec(viewedScene(scenes));
   if (!scene) throw new Error('No current scene: open the scene with the fight first');
   const grid = rec(scene.grid);
   const type = num(grid?.type);

@@ -15,6 +15,7 @@
 import type {
   GuardedOp,
   NpcTurnAction,
+  NpcTurnActivity,
   NpcTurnAttack,
   NpcTurnContext,
   NpcTurnPlan,
@@ -232,7 +233,14 @@ function actionsOf(actor: Rec, scene: SceneInfo): NpcTurnAction[] {
       .map(rec)
       .filter((a): a is Rec => a !== null);
     const types = [...new Set(activities.map(a => str(a.type)).filter((t): t is string => !!t))];
-    if (!types.some(t => ['attack', 'save', 'damage'].includes(t))) continue;
+    const described = activities.map(describeActivity);
+    // A legendary action can be any kind of activity (a utility Lash, a heal, a cast).
+    if (
+      !types.some(t => ['attack', 'save', 'damage'].includes(t)) &&
+      !described.some(a => a.legendaryCost !== null)
+    ) {
+      continue;
+    }
     const range = rec(path(item, 'system.range'));
     const reach = num(range?.reach);
     // dnd5e 6 feats keep the range on the activity, weapons on the item. A weapon's prepared
@@ -256,9 +264,54 @@ function actionsOf(actor: Rec, scene: SceneInfo): NpcTurnAction[] {
     const rangeFt = melee ? (reach ?? (thrown ? null : value) ?? scene.distance) : (value ?? reach);
     // A thrown weapon also reaches its throwing range.
     const longRangeFt = thrown ? (long ?? value) : melee ? null : long;
-    out.push({ name, activityTypes: types, rangeFt, longRangeFt, melee });
+    out.push({ name, activityTypes: types, activities: described, rangeFt, longRangeFt, melee });
   }
   return out;
+}
+
+/** One dnd5e activity as the plan needs it: its kind, legendary cost, save and damage. */
+function describeActivity(activity: Rec): NpcTurnActivity {
+  const type = str(activity.type) ?? 'utility';
+  const cost =
+    path(activity, 'activation.type') === 'legendary'
+      ? Math.max(1, num(path(activity, 'activation.value')) ?? 1)
+      : null;
+  const abilities = stringsOf(path(activity, 'save.ability'));
+  const onSave = str(path(activity, 'damage.onSave'));
+  const parts = contentsOf(path(activity, 'damage.parts'));
+  return {
+    name: str(activity.name) ?? `${type.charAt(0).toUpperCase()}${type.slice(1)}`,
+    type,
+    legendaryCost: cost,
+    save: type === 'save' ? { abilities, dc: num(path(activity, 'save.dc.value')), onSave } : null,
+    damage: parts.length > 0,
+  };
+}
+
+/** A target by token id or name; several tokens with one name must be told apart by id. */
+export function findTarget(targets: NpcTurnTarget[], asked: string): NpcTurnTarget {
+  const byId = targets.find(t => t.tokenId === asked);
+  if (byId) return byId;
+  const byName = targets.filter(t => t.name.toLowerCase() === asked.toLowerCase());
+  if (byName.length > 1) {
+    throw new Error(
+      `Several targets are named "${asked}": use the token id (${byName.map(t => t.tokenId).join(', ')})`
+    );
+  }
+  if (!byName[0]) {
+    const names = targets.map(t => t.name).join(', ') || 'none';
+    throw new Error(`"${asked}" is not a target in this fight (targets: ${names})`);
+  }
+  return byName[0];
+}
+
+/** The legendary action pool (`system.resources.legact`); null when the actor has none. */
+function legendaryOf(actor: Rec): { max: number; spent: number; value: number } | null {
+  const pool = rec(path(actor, 'system.resources.legact'));
+  const max = num(pool?.max);
+  if (max === null || max <= 0) return null;
+  const spent = num(pool?.spent) ?? 0;
+  return { max, spent, value: num(pool?.value) ?? Math.max(0, max - spent) };
 }
 
 /** The text of a Multiattack feature, without markup, cut to a readable length. */
@@ -608,7 +661,7 @@ export function planNpcTurn(data: unknown): NpcTurnPlan {
   const moveLimit = speed === null ? null : tidy(speed * (dash ? 2 : 1));
   const notes: string[] = [
     `Grid: ${DIAGONAL_LABELS[scene.rule] ?? 'diagonals follow the world setting'}. Walking only: flying, climbing and teleporting are not planned.`,
-    'The attack roll is not part of the plan (a roll cannot be undone); the attack steps name the tools to run after applying the move.',
+    'Rolls are not part of the plan (a roll cannot be undone): roll first with the tools the steps name, then plan the move and the damage together with results.',
   ];
   if (
     current &&
@@ -733,7 +786,7 @@ export function planNpcTurn(data: unknown): NpcTurnPlan {
 
   // Attack options and the squares to attack from.
   const actions = actionsOf(actor, scene);
-  const requested: Array<{ itemName: string; target: string }> = [];
+  const requested: Array<{ itemName: string; target: string; activity?: string }> = [];
   const itemName = str(request.itemName);
   const targetName = str(request.target);
   if (itemName || targetName) {
@@ -746,7 +799,8 @@ export function planNpcTurn(data: unknown): NpcTurnPlan {
       const i = str(e?.itemName);
       const t = str(e?.target);
       if (!i || !t) throw new Error('Each attack needs an itemName and a target');
-      requested.push({ itemName: i, target: t });
+      const activity = str(e?.activity);
+      requested.push({ itemName: i, target: t, ...(activity ? { activity } : {}) });
     }
   }
   if (dash && !bonusDash && requested.length > 0) {
@@ -761,6 +815,27 @@ export function planNpcTurn(data: unknown): NpcTurnPlan {
       throw new Error(`${tokenName} has no attack or action named "${name}" (it has: ${names})`);
     }
     return action;
+  };
+  const pickActivity = (
+    who: string,
+    action: NpcTurnAction,
+    asked: string | undefined
+  ): NpcTurnActivity | null => {
+    const list = action.activities ?? [];
+    if (asked) {
+      const lower = asked.toLowerCase();
+      const found =
+        list.find(a => a.name.toLowerCase() === lower) ?? list.find(a => a.type === lower);
+      if (!found) {
+        throw new Error(
+          `${action.name} on ${who} has no activity "${asked}" (it has: ${list.map(a => a.name).join(', ') || 'none'})`
+        );
+      }
+      return found;
+    }
+    return (
+      list.find(a => a.type === 'attack') ?? list.find(a => a.type === 'save') ?? list[0] ?? null
+    );
   };
   const engageAction =
     (requested[0] ? findAction(requested[0].itemName) : null) ??
@@ -798,8 +873,18 @@ export function planNpcTurn(data: unknown): NpcTurnPlan {
     suggested: suggested
       ? { tokenId: suggested.tokenId, name: suggested.name, reasons: suggested.reasons }
       : null,
+    legendary: legendaryOf(actor),
+    ownTurn:
+      current !== null &&
+      (str(current.tokenId) === String(token.id) ||
+        str(rec(current.token)?.id) === String(token.id)),
     notes,
   };
+  if (context.legendary && context.ownTurn === false) {
+    notes.push(
+      `Legendary actions: ${context.legendary.value} of ${context.legendary.max} left. They are used at the end of another creature's turn.`
+    );
+  }
 
   // The intended attacks, each checked against the items and the reach after the move.
   const steps: string[] = [];
@@ -807,13 +892,7 @@ export function planNpcTurn(data: unknown): NpcTurnPlan {
   const finalSpot = after ?? here;
   for (const asked of requested) {
     const action = findAction(asked.itemName);
-    const target = context.targets.find(
-      t => t.tokenId === asked.target || t.name.toLowerCase() === asked.target.toLowerCase()
-    );
-    if (!target) {
-      const names = context.targets.map(t => t.name).join(', ') || 'none';
-      throw new Error(`"${asked.target}" is not a target in this fight (targets: ${names})`);
-    }
+    const target = findTarget(context.targets, asked.target);
     const away = target.distanceAfterMove ?? target.distance;
     const farthest = action.longRangeFt ?? action.rangeFt;
     const inReach = farthest === null || away <= farthest;
@@ -830,15 +909,59 @@ export function planNpcTurn(data: unknown): NpcTurnPlan {
         `${action.name} is a melee attack, but a wall or closed door is between ${squareLabel(finalSpot.x, finalSpot.y)} and ${target.name}`
       );
     }
+    const activity = pickActivity(tokenName, action, asked.activity);
+    const kind =
+      activity?.type === 'attack' ? 'attack' : activity?.type === 'save' ? 'save' : 'other';
+    const legendaryCost = activity?.legendaryCost ?? null;
+    const saveDc = activity?.save?.dc ?? null;
+    const ability = activity?.save?.abilities[0];
     attacks.push({
       itemName: action.name,
       target: target.name,
       targetAC: target.ac,
       inReach,
       blockedByWall,
-      rollWith: `use-npc-activity ${JSON.stringify({ actorName: context.token.id, itemName: action.name, ...(target.ac !== null ? { targetAC: target.ac } : {}) })}`,
-      damageWith: `plan-actor-change {"action":"damage","targets":[${JSON.stringify(target.tokenId)}],"amount":<the damage the roll reported>,"damageType":"<its type>"} (use-npc-activity already doubles a critical hit's dice: do not add a multiplier)`,
+      ...(activity && (action.activities?.length ?? 0) > 1 ? { activity: activity.name } : {}),
+      kind,
+      ...(activity?.save ? { save: activity.save } : {}),
+      ...(legendaryCost !== null ? { legendaryCost } : {}),
+      rollWith: `use-npc-activity ${JSON.stringify({ actorName: context.token.id, itemName: action.name, ...(activity && (kind !== 'attack' || (action.activities?.length ?? 0) > 1) ? { activity: activity.name } : {}), ...(kind === 'attack' && target.ac !== null ? { targetAC: target.ac } : {}) })}`,
+      ...(kind === 'save'
+        ? {
+            saveWith: `roll-saving-throws ${JSON.stringify({ targets: [target.tokenId], rollType: 'save', ...(ability ? { ability } : {}), ...(saveDc !== null ? { dc: saveDc } : {}) })}`,
+          }
+        : {}),
+      damageWith:
+        kind === 'save'
+          ? `Put the damage use-npc-activity reported in results as {"target":${JSON.stringify(target.tokenId)},"amount":<it>,"damageType":"<its type>"${activity?.save?.onSave === 'half' ? ',"multiplier":0.5 when the save succeeded' : activity?.save?.onSave === 'none' ? ',"multiplier":0 when the save succeeded' : ''}} and call plan-npc-turn again with the move`
+          : `Put the damage use-npc-activity reported in results as {"target":${JSON.stringify(target.tokenId)},"amount":<it>,"damageType":"<its type>"} and call plan-npc-turn again with the move (use-npc-activity already doubles a critical hit's dice: do not add a multiplier)`,
     });
+  }
+  const legendarySpend = attacks.reduce((sum, a) => sum + (a.legendaryCost ?? 0), 0);
+  if (legendarySpend > 0) {
+    if (context.ownTurn) {
+      throw new Error(
+        `${tokenName} cannot use a legendary action on its own turn: they are used at the end of another creature's turn`
+      );
+    }
+    const left = context.legendary?.value ?? 0;
+    // With `results` the rolls are done and use-npc-activity has already spent the actions.
+    const paid = Array.isArray(request.results) && request.results.length > 0;
+    if (!paid && legendarySpend > left) {
+      throw new Error(
+        `${tokenName} has ${left} legendary action${left === 1 ? '' : 's'} left, and this turn needs ${legendarySpend}`
+      );
+    }
+    notes.push(
+      paid
+        ? `Legendary actions used: ${legendarySpend}, already spent by the roll (${left} left).`
+        : `Legendary actions used: ${legendarySpend} of ${left} left.`
+    );
+    if (moveTo) {
+      notes.push(
+        `A move taken as a legendary action is often limited (some creatures: half the speed, ${speed === null ? '?' : speed / 2} ${scene.units}); check the creature's own text.`
+      );
+    }
   }
   if (attacks.length > 1 && context.multiattack === null) {
     notes.push(
@@ -873,8 +996,11 @@ export function planNpcTurn(data: unknown): NpcTurnPlan {
     steps.push(`${tokenName} stays at ${squareLabel(here.x, here.y)}`);
   }
   attacks.forEach((a, i) => {
+    const saveText = a.save
+      ? ` (${a.save.abilities.join('/').toUpperCase() || '?'} save${a.save.dc !== null ? ` DC ${a.save.dc}` : ''}${a.save.onSave ? `, ${a.save.onSave} damage on a success` : ''})`
+      : '';
     steps.push(
-      `${attacks.length > 1 ? `Attack ${i + 1} of ${attacks.length}: ` : 'Then '}${a.itemName} on ${a.target}${a.targetAC !== null ? ` (AC ${a.targetAC})` : ''}${a.inReach ? '' : ' (out of reach from here)'}${a.blockedByWall ? ' (a wall is in the way)' : ''}${bonusDash ? ' (after a bonus-action Dash)' : ''}`
+      `${attacks.length > 1 ? `Attack ${i + 1} of ${attacks.length}: ` : 'Then '}${a.itemName}${a.activity && a.activity !== a.itemName ? ` (${a.activity})` : ''} on ${a.target}${a.kind === 'attack' && a.targetAC !== null ? ` (AC ${a.targetAC})` : ''}${saveText}${a.legendaryCost ? ` (legendary action, costs ${a.legendaryCost})` : ''}${a.inReach ? '' : ' (out of reach from here)'}${a.blockedByWall ? ' (a wall is in the way)' : ''}${bonusDash ? ' (after a bonus-action Dash)' : ''}`
     );
   });
   if (ops) {

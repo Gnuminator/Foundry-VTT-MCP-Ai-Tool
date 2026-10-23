@@ -1558,18 +1558,52 @@ export class ActorBuilderDataAccess {
     let attackTotal: number | null = null;
     let isCritical = false;
     let damageTotal: number | null = null;
+    let damageByType: Array<{ type: string; total: number }> | undefined;
     let formula: string | null = null;
     let usedActivity = false;
     let attackSucceeded: boolean | null = null;
 
+    const legactBefore = actor.system?.resources?.legact?.spent ?? null;
+    let chosen: NpcAttackActivity | undefined;
     if (major >= 4) {
       const activities = item.system?.activities;
+      if (data.activity) {
+        const wanted = data.activity.toLowerCase();
+        const all = activities?.contents ?? [];
+        chosen = all.find(
+          a => a.id === data.activity || a.name?.toLowerCase() === wanted || a.type === wanted
+        );
+        if (!chosen) {
+          const names = all.map(a => a.name ?? a.type ?? '?').join(', ') || 'none';
+          throw new Error(`"${item.name}" has no activity "${data.activity}" (it has: ${names})`);
+        }
+      }
       const attackAct =
-        activities?.getByType?.('attack')?.[0] ??
-        (activities?.contents ?? []).find(a => a.type === 'attack');
+        chosen?.type === 'attack'
+          ? chosen
+          : chosen
+            ? undefined
+            : (activities?.getByType?.('attack')?.[0] ??
+              (activities?.contents ?? []).find(a => a.type === 'attack'));
       // Public unless asked otherwise; dnd5e's message config names the visibility `rollMode`.
       const message = { create: true, rollMode: shared.rollModeFor(data.isPublic !== false) };
-      if (attackAct) {
+      if (chosen && !attackAct) {
+        // A save, damage, utility, heal or cast activity: use it (this posts its card and spends
+        // its cost, a legendary action included), then roll its damage when it has any.
+        await this.useActivity(chosen, item.name, message);
+        if (typeof chosen.rollDamage === 'function' && (chosen.damage?.parts?.length ?? 0) > 0) {
+          const dmgOut = await chosen.rollDamage({}, { configure: false }, message);
+          const sum = sumDamage(dmgOut);
+          damageTotal = sum.total;
+          damageByType = sum.byType;
+          const first = Array.isArray(dmgOut) ? dmgOut[0] : dmgOut;
+          formula = first?.formula ?? null;
+        }
+      } else if (attackAct) {
+        // An attack roll alone does not spend a legendary action: use the activity first.
+        if (attackAct.activation?.type === 'legendary') {
+          await this.useActivity(attackAct, item.name, message);
+        }
         usedActivity = true;
         const atkOut = await attackAct.rollAttack({}, { configure: false }, message);
         const atk = Array.isArray(atkOut) ? atkOut[0] : atkOut;
@@ -1579,9 +1613,9 @@ export class ActorBuilderDataAccess {
         // dnd5e auto-fills the attack's target from a targeted token's AC.
         attackSucceeded = typeof atk?.isSuccess === 'boolean' ? atk.isSuccess : null;
         const dmgOut = await attackAct.rollDamage({ isCritical }, { configure: false }, message);
-        damageTotal = Array.isArray(dmgOut)
-          ? dmgOut.reduce((s: number, r) => s + (r.total || 0), 0)
-          : (dmgOut?.total ?? null);
+        const sum = sumDamage(dmgOut);
+        damageTotal = sum.total;
+        damageByType = sum.byType;
       } else {
         // No attack activity — just use the item (posts its card).
         await item.use({}, { configure: false }, message);
@@ -1634,11 +1668,57 @@ export class ActorBuilderDataAccess {
       hit,
       isCritical,
       damageTotal,
+      ...(damageByType && damageByType.length > 0 ? { damageByType } : {}),
       formula,
+      ...(chosen
+        ? {
+            activity: chosen.name ?? chosen.type,
+            activityType: chosen.type,
+            ...(chosen.type === 'save'
+              ? {
+                  save: {
+                    abilities: Array.from(chosen.save?.ability ?? []),
+                    dc: chosen.save?.dc?.value ?? null,
+                    onSave: chosen.damage?.onSave ?? null,
+                  },
+                }
+              : {}),
+          }
+        : {}),
+      ...(legactBefore !== null
+        ? {
+            legendarySpent: {
+              before: legactBefore,
+              after: actor.system?.resources?.legact?.spent ?? legactBefore,
+            },
+          }
+        : {}),
     };
   }
 
   // ---- private helpers ------------------------------------------------------
+
+  /**
+   * Use an activity for its card and cost (a legendary action included) without dnd5e rolling
+   * its attack or damage by itself (this tool rolls them) and without a template to place.
+   * dnd5e returns nothing when the use is refused (no uses left): that stops the roll.
+   */
+  private async useActivity(
+    activity: NpcAttackActivity,
+    itemName: string | undefined,
+    message: object
+  ): Promise<void> {
+    const used = await activity.use?.(
+      { subsequentActions: false, create: { measuredTemplate: false } },
+      { configure: false },
+      message
+    );
+    if (!used) {
+      throw new Error(
+        `${itemName ?? 'The item'} could not be used (no uses or legendary actions left?): nothing was rolled`
+      );
+    }
+  }
 
   /** Extract a human-readable message from an unknown thrown value. */
   private errorMessage(error: unknown): string {
@@ -1906,6 +1986,8 @@ interface ImportableItem {
 export interface UseNpcActivityInput {
   actorName: string;
   itemName: string;
+  /** Which activity of the item (name, id or type); default: its attack. */
+  activity?: string | undefined;
   targetAC?: number | undefined;
   isPublic?: boolean | undefined;
 }
@@ -1922,11 +2004,21 @@ export interface UseNpcActivityResult {
   hit: boolean | null;
   isCritical: boolean;
   damageTotal: number | null;
+  /** The damage per type (a mixed hit, piercing plus poison), so resistance applies per type. */
+  damageByType?: Array<{ type: string; total: number }> | undefined;
   formula: string | null;
+  /** The activity that ran (set when `activity` was asked for). */
+  activity?: string | undefined;
+  activityType?: string | undefined;
+  /** A save-based activity: what the targets roll against. */
+  save?: { abilities: string[]; dc: number | null; onSave: string | null } | undefined;
+  /** The legendary actions spent before and after (a legendary activity spends them). */
+  legendarySpent?: { before: number; after: number } | undefined;
 }
 
 /** What a dnd5e attack or damage roll reports (an Activity returns one or a list, an Item one). */
 interface NpcRollResult {
+  options?: { type?: string | undefined } | undefined;
   total?: number | null | undefined;
   isCritical?: boolean | undefined;
   formula?: string | undefined;
@@ -1935,9 +2027,34 @@ interface NpcRollResult {
 
 type NpcRollOutput = NpcRollResult | NpcRollResult[] | null | undefined;
 
+/** A damage roll's total, and its parts per damage type. */
+function sumDamage(out: NpcRollOutput): {
+  total: number | null;
+  byType: Array<{ type: string; total: number }>;
+} {
+  if (!Array.isArray(out)) return { total: out?.total ?? null, byType: [] };
+  const byType = new Map<string, number>();
+  for (const r of out) {
+    const type = r.options?.type ?? '';
+    byType.set(type, (byType.get(type) ?? 0) + (r.total || 0));
+  }
+  return {
+    total: out.reduce((s, r) => s + (r.total || 0), 0),
+    byType: [...byType].map(([type, total]) => ({ type, total })),
+  };
+}
+
 /** A dnd5e activity as `useNpcActivity` drives it (v4+). */
 interface NpcAttackActivity {
+  id?: string | undefined;
+  name?: string | undefined;
   type?: string | undefined;
+  activation?: { type?: string | undefined } | undefined;
+  save?:
+    | { ability?: Iterable<string> | undefined; dc?: { value?: number | null } | undefined }
+    | undefined;
+  damage?: { onSave?: string | undefined; parts?: unknown[] | undefined } | undefined;
+  use?(config: object, dialog: object, message: object): Promise<unknown>;
   rollAttack(config: object, dialog: object, message: object): Promise<NpcRollOutput>;
   rollDamage(config: object, dialog: object, message: object): Promise<NpcRollOutput>;
 }
@@ -1959,5 +2076,8 @@ interface NpcActivityItem {
 
 interface NpcActivityActor {
   name: string;
+  system?:
+    | { resources?: { legact?: { spent?: number | null } | undefined } | undefined }
+    | undefined;
   items: FoundryCollection<NpcActivityItem>;
 }

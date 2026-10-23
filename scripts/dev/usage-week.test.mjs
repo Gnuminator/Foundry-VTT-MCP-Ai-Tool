@@ -6,6 +6,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { dataDir, readCalls, render, summarize } from './usage-calls.mjs';
+import './usage-now.test.mjs'; // runs with this file in CI's "Weekly usage report" step
 import {
   PROJECT_DIR,
   TARGETS,

@@ -25,8 +25,26 @@ const planParams = z.object({
   itemName: z.string().min(1).optional(),
   target: z.string().min(1).optional(),
   attacks: z
-    .array(z.object({ itemName: z.string().min(1), target: z.string().min(1) }))
+    .array(
+      z.object({
+        itemName: z.string().min(1),
+        target: z.string().min(1),
+        activity: z.string().min(1).optional(),
+      })
+    )
     .max(10)
+    .optional(),
+  results: z
+    .array(
+      z.object({
+        target: z.string().min(1),
+        amount: z.number().min(0).max(10000),
+        damageType: z.string().min(1).max(40).optional(),
+        multiplier: z.number().min(0).max(1).optional(),
+      })
+    )
+    .min(1)
+    .max(20)
     .optional(),
   dash: z.boolean().optional(),
   reason: z.string().min(1).max(300).optional(),
@@ -68,13 +86,13 @@ export class NpcTurnTools {
       {
         name: 'plan-npc-turn',
         description:
-          'Plan a monster\'s turn. Without moveTo it only reads the fight: whose turn, speed, attacks, Multiattack text, and each enemy\'s distance, AC, HP, state, square to attack from and score. With moveTo (a grid square) it paths round walls, doors and hostile creatures, counts difficult terrain and plans the move (apply-planned-change, undo-change). List a multiattack in attacks. The attack steps name the tools that roll them (use-npc-activity, then plan-actor-change). Square grids only; no spells, saves or legendary actions yet. Needs the "NPC turn assistant" switch (off by default).',
+          "Plan a monster's turn. Without moveTo it only reads the fight: speed, attacks, Multiattack text, and each enemy's distance, AC, HP, state and score. With moveTo (a grid square) it paths round walls, doors and creatures, counts difficult terrain and plans the move (apply-planned-change, undo-change). List a multiattack in attacks (activity for a save action; legendary actions only on another creature's turn). Roll first with the tools the steps name, then call again with moveTo and results: one plan holds the move and all damage. Needs the \"NPC turn assistant\" switch (off by default).",
         inputSchema: {
           type: 'object',
           properties: {
             token: {
               type: 'string',
-              description: 'The NPC token on the current scene. Default: whose turn it is.',
+              description: 'NPC token. Default: whose turn it is.',
               ...toolRef('token', 'name'),
             },
             moveTo: {
@@ -88,35 +106,63 @@ export class NpcTurnTools {
             },
             itemName: {
               type: 'string',
-              description: 'The attack or action it will use (checked against its items).',
+              description: 'Attack or action to use.',
               ...freeText('An item name on the NPC, checked by the module'),
             },
             target: {
               type: 'string',
-              description: 'The token it will attack (checked for reach after the move).',
+              description: 'Token to attack.',
               ...toolRef('token', 'name'),
             },
             attacks: {
               type: 'array',
-              description: 'A multiattack: several attacks in order (see the Multiattack text).',
+              description: 'A multiattack, in order.',
               maxItems: 10,
               items: {
                 type: 'object',
                 properties: {
                   itemName: { type: 'string', ...freeText('An item name on the NPC') },
                   target: { type: 'string', ...toolRef('token', 'name') },
+                  activity: {
+                    type: 'string',
+                    description: 'Activity of the item.',
+                    ...freeText('An activity name'),
+                  },
                 },
                 required: ['itemName', 'target'],
+              },
+            },
+            results: {
+              type: 'array',
+              description: 'Damage the rolls dealt. multiplier 0.5 = half on a made save.',
+              minItems: 1,
+              maxItems: 20,
+              items: {
+                type: 'object',
+                properties: {
+                  target: { type: 'string', ...toolRef('token', 'name') },
+                  amount: {
+                    type: 'number',
+                    minimum: 0,
+                    description: 'The damage the roll reported.',
+                  },
+                  damageType: {
+                    type: 'string',
+                    ...freeText('A dnd5e damage type'),
+                  },
+                  multiplier: { type: 'number', minimum: 0, maximum: 1 },
+                },
+                required: ['target', 'amount'],
               },
             },
             dash: {
               type: 'boolean',
               description:
-                'Dash: the move may use twice the speed. A Dash takes the action, so attacks are refused unless reason names a bonus-action Dash.',
+                'Dash: twice the speed; no attacks unless reason names a bonus-action Dash.',
             },
             reason: {
               type: 'string',
-              description: 'One line on why (shown in the plan and Recent Changes).',
+              description: 'Why (shown in the plan).',
             },
           },
         },
@@ -162,6 +208,14 @@ export class NpcTurnTools {
     if ((params.attacks?.length || params.dash) && built.attacks === undefined) {
       throw new Error(
         'The Foundry module is older than this server and does not check attacks or a Dash: update the module and reload Foundry.'
+      );
+    }
+    // An older module ignores `results` and `activity` and answers without the activity list.
+    const usesPartThree =
+      params.results !== undefined || params.attacks?.some(a => a.activity !== undefined);
+    if (usesPartThree && built.context.ownTurn === undefined) {
+      throw new Error(
+        'The Foundry module is older than this server and does not plan damage results, activities or legendary actions: update the module and reload Foundry.'
       );
     }
     const result = {

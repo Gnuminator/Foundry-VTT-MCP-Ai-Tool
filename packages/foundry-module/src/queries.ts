@@ -49,7 +49,8 @@ import {
   SCENE_MOODS_QUERY,
 } from './scene-mood.js';
 import { getSceneState, SCENE_STATE_QUERY } from './scene-state.js';
-import { NPC_TURN_QUERY, planNpcTurn } from './npc-turn.js';
+import { NPC_TURN_QUERY } from './npc-turn.js';
+import { planNpcTurnWithDamage } from './npc-turn-damage.js';
 import { PAPER_SYNC_QUERY, planPaperSync } from './paper-sync-plan.js';
 import { planRoomSetup, ROOM_SETUP_QUERY } from './room-setup.js';
 import { LIVE_SWEEP_QUERY, liveSweep } from './live-sweep.js';
@@ -280,7 +281,7 @@ export class QueryHandlers {
     // NPC turn assistant (I-125, read-only): the fight, the NPC's actions and targets, and the
     // ops of a validated move. GM client only.
     handlers.on(`${modulePrefix}.${NPC_TURN_QUERY}`, (data: unknown) =>
-      this.withGmGate('Failed to plan the NPC turn', () => Promise.resolve(planNpcTurn(data)))
+      this.withGmGate('Failed to plan the NPC turn', () => planNpcTurnWithDamage(data))
     );
 
     // Paper sync (Paper nights A, read-only): the numbers on one paper sheet as guarded ops for

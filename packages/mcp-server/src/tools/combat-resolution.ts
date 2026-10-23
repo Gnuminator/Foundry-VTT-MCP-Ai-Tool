@@ -1,4 +1,4 @@
-import { toolRef } from '@gnuminator/shared';
+import { freeText, toolRef } from '@gnuminator/shared';
 import { z } from 'zod';
 import { FoundryClient } from '../foundry-client.js';
 import { Logger } from '../logger.js';
@@ -77,6 +77,12 @@ export class CombatResolutionTools {
               description: 'Name of the weapon/feature/spell to use (e.g. "Scimitar").',
               ...toolRef('actor-item', 'id', { parent: 'actorName' }),
             },
+            activity: {
+              type: 'string',
+              description:
+                'Activity to run (name, id or type); a non-attack one is used (spends its cost) and its damage rolled.',
+              ...freeText('An activity name'),
+            },
             targetAC: {
               type: 'integer',
               description: 'Optional target AC to compute hit/miss against.',
@@ -152,11 +158,24 @@ export class CombatResolutionTools {
     const schema = z.object({
       actorName: z.string(),
       itemName: z.string(),
+      activity: z.string().optional(),
       targetAC: z.number().int().optional(),
       isPublic: z.boolean().optional(),
     });
     try {
-      return await this.query('useNpcActivity', schema.parse(args), 'Failed to use NPC activity');
+      const params = schema.parse(args);
+      const result: unknown = await this.query(
+        'useNpcActivity',
+        params,
+        'Failed to use NPC activity'
+      );
+      // An older module ignores `activity` and answers without it: it ran the item's attack.
+      if (params.activity && result && typeof result === 'object' && !('activity' in result)) {
+        throw new Error(
+          `The Foundry module is older than this server and ignored the activity "${params.activity}": it rolled the item's attack instead (already in the chat). Update the module and reload Foundry.`
+        );
+      }
+      return result;
     } catch (error) {
       this.logger.error('Error using NPC activity', error);
       if (error instanceof z.ZodError) {

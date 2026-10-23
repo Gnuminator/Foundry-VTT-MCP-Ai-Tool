@@ -88,7 +88,9 @@ export async function planNpcTurnWithDamage(data: unknown): Promise<NpcTurnPlan>
     const seen = byActor.get(key);
     if (seen) {
       seen.hit.damages.push(...hit.damages);
-      seen.hit.parts.push(...hit.parts);
+      seen.hit.parts.push(
+        ...hit.parts.map(part => (hit.name === seen.hit.name ? part : `${part} (${hit.name})`))
+      );
     } else {
       byActor.set(key, {
         actor,

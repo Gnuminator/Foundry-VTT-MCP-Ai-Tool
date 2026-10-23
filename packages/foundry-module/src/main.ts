@@ -7,6 +7,7 @@ import { QueryHandlers } from './queries.js';
 import { ModuleSettings, isBridgeUser, registerSettingsUsageHooks } from './settings.js';
 import { CampaignHooks } from './campaign-hooks.js';
 import { eventTracker } from './session-events.js';
+import { spentLedger } from './spent-actions.js';
 import { changeJournal } from './change-journal.js';
 import { playRecorder } from './play-recorder.js';
 import { USAGE_SOCKET_TYPE, trackUsage, usageRecorder } from './usage-recorder.js';
@@ -201,6 +202,9 @@ class FoundryMCPBridge {
       // Register session-event hooks (chat log buffer + session event log).
       // These power the chat-log, combat play-by-play, and session-log tools.
       eventTracker.registerHooks();
+
+      // The rules check's ledger of activities used this turn (reads usage chat messages).
+      spentLedger.registerHooks();
 
       // Register the full play-log recorder (O3): raw per-change records behind
       // the session/stats notes. Runs only on a GM client; seeds its shadow

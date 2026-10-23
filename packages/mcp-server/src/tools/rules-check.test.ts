@@ -45,6 +45,7 @@ function tools(opts: {
   entity?: unknown;
   combat?: unknown;
   distance?: unknown;
+  spent?: unknown;
 }): { t: RulesCheckTools; query: ReturnType<typeof vi.fn> } {
   const query = vi.fn(async (method: string) => {
     switch (method) {
@@ -56,6 +57,9 @@ function tools(opts: {
         return opts.entity ?? spell;
       case 'foundry-mcp-bridge.getCombatState':
         return opts.combat ?? combat;
+      case 'foundry-mcp-bridge.getSpentActions':
+        if (opts.spent === undefined) throw new Error('unknown method');
+        return opts.spent;
       case 'foundry-mcp-bridge.measureDistance':
         if (opts.distance instanceof Error) throw opts.distance;
         return opts.distance ?? { success: true, distance: 30, units: 'ft' };
@@ -358,6 +362,69 @@ describe('check-action', () => {
     );
     const r = await t.handleToolCall('check-action', { actor: 'Ilvara', item: 'Magic Missile' });
     expect(r.checks.find(c => c.check === 'concentration')?.status).toBe('warn');
+  });
+
+  it('uses the ledger of spent actions and the rules versions when the module has them', async () => {
+    const spent = {
+      success: true,
+      tracked: true,
+      sinceOwnTurn: [{ item: 'Fireball', itemType: 'spell', activation: 'action', itemLevel: 3 }],
+      actorRules: { version: '2024', source: 'system.source.rules' },
+      itemRules: { version: '2014', source: 'system.source.rules' },
+    };
+    const entity = {
+      success: true,
+      entityType: 'item',
+      entity: {
+        name: 'Longsword',
+        type: 'weapon',
+        activities: [{ id: 'a', name: 'Attack', activation: 'Action', range: '5 ft' }],
+        system: {},
+      },
+    };
+    const r = await tools({ entity, spent }).t.handleToolCall('check-action', {
+      actor: 'Ilvara',
+      item: 'Longsword',
+    });
+    expect(r.checks.find(c => c.check === 'action-cost')?.status).toBe('warn');
+    expect(r.checks.find(c => c.check === 'rules-version')?.status).toBe('warn');
+    expect(r.limits[0]).toContain('through Foundry');
+  });
+
+  it('leaves the spent-action line plain outside a fight or with an old module', async () => {
+    const outside = { success: true, active: false };
+    const spent = { success: true, tracked: true, sinceOwnTurn: [] };
+    const r = await tools({ combat: outside, spent }).t.handleToolCall('check-action', {
+      actor: 'Ilvara',
+      item: 'Magic Missile',
+    });
+    expect(r.limits[0]).toContain('does not record');
+    const old = await tools({}).t.handleToolCall('check-action', {
+      actor: 'Ilvara',
+      item: 'Magic Missile',
+    });
+    expect(old.limits[0]).toContain('does not record');
+  });
+
+  it('does not pick the first of two same-named combatants', async () => {
+    const twins = {
+      success: true,
+      active: true,
+      round: 1,
+      current: { name: 'Goblin' },
+      combatants: [
+        { name: 'Goblin', actorId: 'a1', tokenId: 't1', isCurrentTurn: true },
+        { name: 'Goblin', actorId: 'a1', tokenId: 't2', isCurrentTurn: false },
+      ],
+    };
+    const goblin = { ...resources, actorName: 'Goblin' };
+    const { t, query } = tools({ combat: twins });
+    const base = query.getMockImplementation()!;
+    query.mockImplementation(async (m: string, a?: unknown) =>
+      m === 'foundry-mcp-bridge.getCharacterResources' ? goblin : base(m, a)
+    );
+    const r = await t.handleToolCall('check-action', { actor: 'Goblin', item: 'Magic Missile' });
+    expect(r.checks.find(c => c.check === 'turn')?.status).toBe('unknown');
   });
 
   it('refuses an effect', async () => {

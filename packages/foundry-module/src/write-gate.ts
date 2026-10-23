@@ -115,6 +115,7 @@ export const NON_WRITE_METHODS: readonly string[] = [
   'getSceneMoods',
   'getSceneState',
   'getSessionLog',
+  'getSpentActions',
   'getTargets',
   'getTarokkaReading',
   'getTokenDetails',

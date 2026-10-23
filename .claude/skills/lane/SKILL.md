@@ -104,6 +104,13 @@ one PR. Vault paths below are under `C:\Users\chris\Documents\Obsidian\vault\Dev
 - **Ready to merge (the planner merges, 2026-10-16):** once every review for the head says Merge,
   stop: report the PR number, the full head sha and the review note path, and leave the PR open
   and keep the worktree, clean and pushed, until the planner has merged.
+  **Report in the vault first (2026-10-23):** write a `- progress:` line on your item in vault
+  `Backlog.md` (pull first, then commit and push) carrying the PR number, the full head sha and
+  the review note path, plus anything the brief asks for (an advisor tally, say). That line is the
+  ready state the planner reads; a planner that was replaced since your brief never sees a
+  message. Only after the push may you SendMessage "the newest session titled Planner", and only
+  if ListAgents shows one active. Never message a fixed session id from your brief: a full
+  planner that handed over wakes at full price on every note and the new one never gets it.
   Don't run the gate without `--dry-run` and don't offer the app's PR Auto-fix. To check the gate
   first, from the PR branch, clean and pushed, run main's copy (never the branch's own, so a PR
   cannot judge itself):
@@ -129,6 +136,8 @@ one PR. Vault paths below are under `C:\Users\chris\Documents\Obsidian\vault\Dev
 - Write the `Handoff/<lane> prompt <date>.md` note at the first milestone (green passes, PR
   opened, a review says Merge) and update it at each later one, then commit and push the vault:
   done, left, branch, PR and head sha, the next command. Hitting the limit then means one step.
+  At each milestone and at handover also update the `- progress:` line on your Backlog item (same
+  rules as under "Ready to merge": vault first, then at most a message to the newest Planner).
 - Before saying a session can be closed: no background run it owns is still going.
 - Never leave a user to-do only in chat: add it to vault `Waiting.md` (what to do, minutes, what it
   settles, a `- due:` line).

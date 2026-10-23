@@ -172,11 +172,11 @@ test('publish writes the current state without changing the lock', { skip }, () 
 
 test('a hostile holder title stays one quoted value: a hash, a colon, quotes, a backslash, a newline, three dashes', { skip }, () => {
   const s = scratch();
-  const title = 'Fix PR #466: "quoted" back\slash\n--- x';
+  const title = 'Fix PR #466: "quoted" back\\slash\n--- x';
   assert.equal(lock(s, take(title, 'local_1')).status, 0);
   const text = fs.readFileSync(path.join(s.vault, NOTE), 'utf8');
   assert.equal(text.match(/^---$/gm).length, 2, 'the frontmatter has its two fences and no more');
-  assert.equal(readNote(path.join(s.vault, NOTE))['server-a-holder'], 'Fix PR #466: "quoted" back\slash --- x');
+  assert.equal(readNote(path.join(s.vault, NOTE))['server-a-holder'], 'Fix PR #466: "quoted" back\\slash --- x');
   assert.match(text, /^server-a-holder: ".*"$/m, 'written in double quotes');
 });
 

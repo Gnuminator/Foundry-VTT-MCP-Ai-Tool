@@ -12,9 +12,10 @@ one PR. Vault paths below are under `C:\Users\chris\Documents\Obsidian\vault\Dev
 ## Start
 
 1. Pull the vault. Open `Backlog.md`, take the top item with no `claimed:` line that fits your
-   brief, write `claimed: <session title> <date>` under it, commit and push the vault. If the item has
-   `- touches:` or `- depends on:` lines, look at the board's lane warnings first: another lane on the same
-   paths, or an unmerged dependency, means wait or ask the planner.
+   brief, write `claimed: <session title> <date>` under it, commit and push the vault. If the item
+   has `- touches:` or `- depends on:` lines, look at the board's lane warnings first: another lane
+   on the same paths, or an unmerged dependency, means wait or ask the planner. If the vault note
+   `Usage now.md` is more than about 2 hours old, refresh it (planner skill, Weekly check).
 2. `git branch --show-current` (an app restart resets a worktree to its own branch). New work:
    `git fetch aitool && git checkout --no-track -b claude/<topic> aitool/main`, then `npm ci`.
    Before building on an old base, check `git branch -r --list 'aitool/claude/*'` for the same work.
@@ -103,16 +104,18 @@ one PR. Vault paths below are under `C:\Users\chris\Documents\Obsidian\vault\Dev
   push from a branch made off `aitool/main`).
 - **Ready to merge (the planner merges, 2026-10-16):** once every review for the head says Merge,
   stop: report the PR number, the full head sha and the review note path, and leave the PR open
-  and keep the worktree, clean and pushed, until the planner has merged.
+  and keep the worktree, clean and pushed, until the planner has merged. If no planner is left to
+  merge (none active in ListAgents, the `- progress:` line unanswered for a long while), the hold
+  ends only when the user says so: ask the user and leave the worktree as it is meanwhile.
   **Report in the vault first (2026-10-23):** write a `- progress:` line on your item in vault
   `Backlog.md` (pull first, then commit and push) carrying the PR number, the full head sha and
-  the review note path, plus anything the brief asks for (a tally the brief names, say), as one line like
-  `- progress: <date> PR #<n> ready, head <40-char sha>, review <note path>`. That line is the
-  ready state the planner reads; a planner that was replaced since your brief never sees a
-  message. Only after the push may you SendMessage "the newest session titled Planner", and only
-  if ListAgents shows one active. Never message a fixed session id from your brief: a full
-  planner that handed over wakes at full price on every note and the new one never gets it. The
-  line is how the planner learns the state; keep the worktree clean and pushed until it merges.
+  the review note path, plus anything the brief asks for (a tally the brief names, say), as one
+  line like `- progress: <date> PR #<n> ready, head <40-char sha>, review <note path>`. Replace
+  your earlier line instead of stacking another. That line is the ready state the planner reads;
+  a planner that was replaced since your brief never sees a message. Only after the push may you
+  SendMessage "the newest session titled Planner", and only if ListAgents shows one active. Never
+  message a fixed session id from your brief: a planner that handed over wakes at full price on
+  every note and the new one never gets it.
   Don't run the gate without `--dry-run` and don't offer the app's PR Auto-fix. To check the gate
   first, from the PR branch, clean and pushed, run main's copy (never the branch's own, so a PR
   cannot judge itself):

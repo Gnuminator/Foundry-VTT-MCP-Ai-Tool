@@ -279,4 +279,129 @@ describe('FoundryDataAccess: useNpcActivity on an unlinked token', () => {
     expect(worldAttack).toHaveBeenCalledTimes(1);
     for (const t of tokenAttacks) expect(t).not.toHaveBeenCalled();
   });
+
+  describe('activities by name (dnd5e 4+)', () => {
+    const use = (): any => vi.fn(() => Promise.resolve([{}]));
+    /** An item with a save activity (damage) beside its attack activity. */
+    function cloudItem(extra: { use?: any; legendary?: boolean } = {}): any {
+      const save = {
+        id: 'sv1',
+        type: 'save',
+        name: 'Cloud',
+        save: { ability: new Set(['dex']), dc: { value: 14 } },
+        damage: { onSave: 'half', parts: [{}] },
+        use: extra.use ?? use(),
+        rollDamage: vi.fn(() =>
+          Promise.resolve([
+            { total: 6, options: { type: 'piercing' }, formula: '1d8+2' },
+            { total: 3, options: { type: 'poison' } },
+            { total: 2, options: { type: 'piercing' } },
+          ])
+        ),
+      };
+      const attack: any = {
+        id: 'at1',
+        type: 'attack',
+        name: 'Swipe',
+        activation: { type: extra.legendary ? 'legendary' : 'action' },
+        use: extra.use ?? use(),
+        rollAttack: vi.fn(() => Promise.resolve({ total: 17, formula: '1d20+5' })),
+        rollDamage: vi.fn(() => Promise.resolve({ total: 4 })),
+      };
+      const all = [attack, save];
+      return {
+        save,
+        attack,
+        item: makeItem({
+          id: 'cl1',
+          name: 'Mucus Cloud',
+          type: 'feat',
+          system: {
+            activities: {
+              getByType: (t: string) => all.filter(a => a.type === t),
+              contents: all,
+            },
+          },
+        }),
+      };
+    }
+
+    it('uses a save activity, rolls its damage and sums it per damage type', async () => {
+      const { item, save, attack } = cloudItem();
+      npcWith('Bandit', [item]);
+      const result = await da.useNpcActivity({
+        actorName: 'Bandit',
+        itemName: 'Mucus Cloud',
+        activity: 'cloud',
+      });
+      expect(save.use).toHaveBeenCalledTimes(1);
+      expect(save.use.mock.calls[0][0]).toEqual({
+        subsequentActions: false,
+        create: { measuredTemplate: false },
+      });
+      expect(attack.rollAttack).not.toHaveBeenCalled();
+      expect(result).toMatchObject({
+        hadAttack: false,
+        damageTotal: 11,
+        formula: '1d8+2',
+        activity: 'Cloud',
+        activityType: 'save',
+        save: { abilities: ['dex'], dc: 14, onSave: 'half' },
+      });
+      expect(result.damageByType).toEqual([
+        { type: 'piercing', total: 8 },
+        { type: 'poison', total: 3 },
+      ]);
+    });
+
+    it('refuses an unknown activity and lists the real ones', async () => {
+      const { item } = cloudItem();
+      npcWith('Bandit', [item]);
+      await expect(
+        da.useNpcActivity({ actorName: 'Bandit', itemName: 'Mucus Cloud', activity: 'Nope' })
+      ).rejects.toThrow(/has no activity "Nope" \(it has: Swipe, Cloud\)/);
+    });
+
+    it('stops with nothing rolled when dnd5e refuses the use (no uses or legendary actions left)', async () => {
+      const { item, save } = cloudItem({ use: vi.fn(() => Promise.resolve(undefined)) });
+      npcWith('Bandit', [item]);
+      await expect(
+        da.useNpcActivity({ actorName: 'Bandit', itemName: 'Mucus Cloud', activity: 'Cloud' })
+      ).rejects.toThrow(/could not be used .*nothing was rolled/);
+      expect(save.rollDamage).not.toHaveBeenCalled();
+    });
+
+    it('uses a legendary attack once before the attack roll, and plain attacks not at all', async () => {
+      const legendary = cloudItem({ legendary: true });
+      npcWith('Bandit', [legendary.item]);
+      await da.useNpcActivity({
+        actorName: 'Bandit',
+        itemName: 'Mucus Cloud',
+        activity: 'Swipe',
+      });
+      expect(legendary.attack.use).toHaveBeenCalledTimes(1);
+      expect(legendary.attack.rollAttack).toHaveBeenCalledTimes(1);
+      const plain = cloudItem();
+      world.addActor({ name: 'Wolf', type: 'npc', items: [plain.item] });
+      await da.useNpcActivity({ actorName: 'Wolf', itemName: 'Mucus Cloud', activity: 'Swipe' });
+      expect(plain.attack.use).not.toHaveBeenCalled();
+      expect(plain.attack.rollAttack).toHaveBeenCalledTimes(1);
+    });
+
+    it('reports the legendary actions spent before and after', async () => {
+      const { item, attack } = cloudItem({ legendary: true });
+      const actor = npcWith('Bandit', [item]);
+      actor.system = { ...(actor.system ?? {}), resources: { legact: { max: 3, spent: 1 } } };
+      attack.use = vi.fn(() => {
+        actor.system.resources.legact.spent = 2;
+        return Promise.resolve([{}]);
+      });
+      const result = await da.useNpcActivity({
+        actorName: 'Bandit',
+        itemName: 'Mucus Cloud',
+        activity: 'Swipe',
+      });
+      expect(result.legendarySpent).toEqual({ before: 1, after: 2 });
+    });
+  });
 });

@@ -933,11 +933,21 @@ export function planNpcTurn(data: unknown): NpcTurnPlan {
         : {}),
       damageWith:
         kind === 'save'
-          ? `Put the damage use-npc-activity reported in results as {"target":${JSON.stringify(target.tokenId)},"amount":<it>,"damageType":"<its type>"${activity?.save?.onSave === 'half' ? ',"multiplier":0.5 when the save succeeded' : activity?.save?.onSave === 'none' ? ',"multiplier":0 when the save succeeded' : ''}} and call plan-npc-turn again with the move`
-          : `Put the damage use-npc-activity reported in results as {"target":${JSON.stringify(target.tokenId)},"amount":<it>,"damageType":"<its type>"} and call plan-npc-turn again with the move (use-npc-activity already doubles a critical hit's dice: do not add a multiplier)`,
+          ? `Put the damage use-npc-activity reported in results, one entry per damageByType entry (same target, that entry's type and total), as {"target":${JSON.stringify(target.tokenId)},"amount":<that entry's total>,"damageType":"<that entry's type>"${activity?.save?.onSave === 'half' ? ',"multiplier":0.5 when the save succeeded' : activity?.save?.onSave === 'none' ? ',"multiplier":0 when the save succeeded' : ''}} and call plan-npc-turn again with the move`
+          : `Put the damage use-npc-activity reported in results, one entry per damageByType entry (same target, that entry's type and total), as {"target":${JSON.stringify(target.tokenId)},"amount":<that entry's total>,"damageType":"<that entry's type>"} and call plan-npc-turn again with the move (use-npc-activity already doubles a critical hit's dice: do not add a multiplier)`,
     });
   }
   const legendarySpend = attacks.reduce((sum, a) => sum + (a.legendaryCost ?? 0), 0);
+  if (attacks.filter(a => a.legendaryCost !== null && a.legendaryCost !== undefined).length > 1) {
+    throw new Error(
+      `${tokenName}: only one legendary action can be used at a time, at the end of another creature's turn. Plan one now and the next after the next creature's turn.`
+    );
+  }
+  if (context.ownTurn === false && attacks.some(a => a.legendaryCost == null)) {
+    notes.push(
+      `It is not ${tokenName}'s turn: only a legendary action can be used now. An attack that is not a legendary action (such as a Multiattack) belongs on its own turn.`
+    );
+  }
   if (legendarySpend > 0) {
     if (context.ownTurn) {
       throw new Error(

@@ -18,6 +18,7 @@ beforeEach(() => {
 });
 afterEach(() => {
   restore();
+  delete g.CONFIG;
 });
 
 const attackActivity = (name = 'Attack', extra: Record<string, unknown> = {}): any => ({
@@ -197,6 +198,16 @@ describe('activities and saves', () => {
   });
 });
 
+describe('damage hints', () => {
+  it('asks for one results entry per damageByType entry', () => {
+    arena({ items: [tentacle, cloud] });
+    const plan = planNpcTurn({ attacks: [{ itemName: 'Tentacle', target: 'Hero' }] });
+    expect(plan.attack?.damageWith).toMatch(/one entry per damageByType entry/);
+    const save = planNpcTurn({ itemName: 'Mucus Cloud', activity: 'Cloud', target: 'Hero' });
+    expect(save.attack?.damageWith).toMatch(/one entry per damageByType entry/);
+  });
+});
+
 describe('legendary actions', () => {
   it("refuses a legendary action on the NPC's own turn", () => {
     arena({ items: [lash], legact: { max: 3, spent: 0, value: 3 } });
@@ -221,7 +232,15 @@ describe('legendary actions', () => {
     expect(() => planNpcTurn({ token: 'Boss', itemName: 'Lash', target: 'Hero' })).toThrow(
       /0 legendary actions left, and this turn needs 1/
     );
-    arena({ boss: true, items: [lash], legact: { max: 3, spent: 2, value: 1 } });
+    const heavy = item('Heavy Lash', [{ type: 'utility', name: 'Heavy Lash', ...legendary(2) }]);
+    arena({ boss: true, items: [heavy], legact: { max: 3, spent: 2, value: 1 } });
+    expect(() => planNpcTurn({ token: 'Boss', itemName: 'Heavy Lash', target: 'Hero' })).toThrow(
+      /1 legendary action left, and this turn needs 2/
+    );
+  });
+
+  it('refuses several legendary actions in one plan', () => {
+    arena({ boss: true, items: [lash], legact: { max: 3, spent: 0, value: 3 } });
     expect(() =>
       planNpcTurn({
         token: 'Boss',
@@ -230,7 +249,15 @@ describe('legendary actions', () => {
           { itemName: 'Lash', target: 'Goblin' },
         ],
       })
-    ).toThrow(/1 legendary action left, and this turn needs 2/);
+    ).toThrow(/only one legendary action can be used at a time/);
+  });
+
+  it('notes a normal attack planned off the NPC turn', () => {
+    arena({ boss: true, items: [lash, tentacle], legact: { max: 3, spent: 0, value: 3 } });
+    const plan = planNpcTurn({ token: 'Boss', itemName: 'Tentacle', target: 'Hero' });
+    expect(plan.context.notes.join(' ')).toMatch(/only a legendary action can be used now/);
+    const lashPlan = planNpcTurn({ token: 'Boss', itemName: 'Lash', target: 'Hero' });
+    expect(lashPlan.context.notes.join(' ')).not.toMatch(/only a legendary action can be used/);
   });
 
   it('notes that a move taken as a legendary action is often limited', () => {
@@ -306,6 +333,27 @@ describe('damage from the rolls, planned with the move', () => {
     expect(plan.summary).toBe('NPC turn: Wolf, damage to Hero');
   });
 
+  it('merges the hits on two tokens of one linked actor into one op', async () => {
+    const { scene, heroToken } = arena({ items: [bite] });
+    scene.tokens.contents.push(
+      token('t9', 'Hero twin', 8, 2, { disposition: 1, actor: heroToken.actor })
+    );
+    g.game.combats.contents[0].combatants.contents.push({
+      id: 'c9',
+      tokenId: 't9',
+      defeated: false,
+    });
+    const plan = await planNpcTurnWithDamage({
+      results: [
+        { target: 't2', amount: 5, damageType: 'slashing' },
+        { target: 't9', amount: 4, damageType: 'slashing' },
+      ],
+    });
+    expect(plan.ops).toEqual([
+      { kind: 'update', uuid: 'Actor.Hero', changes: { 'system.attributes.hp.value': 21 } },
+    ]);
+  });
+
   it('lets dnd5e apply resistance and keeps a failed-save zero out of the plan', async () => {
     const { heroToken } = arena({ items: [bite] });
     heroToken.actor = hero('Hero', 30, { resists: 'fire' });
@@ -362,7 +410,6 @@ describe('damage from the rolls, planned with the move', () => {
     await expect(
       planNpcTurnWithDamage({ results: [{ target: 't9', amount: 3, damageType: 'FIRE' }] })
     ).resolves.toBeDefined();
-    delete g.CONFIG;
   });
 
   it('is the plain plan when there are no results', async () => {

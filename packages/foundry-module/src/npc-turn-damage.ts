@@ -8,6 +8,7 @@
 import type { GuardedOp, NpcTurnPlan } from '@gnuminator/shared';
 
 import {
+  type LiveActor,
   changedOnly,
   damageTypeLabel,
   dryRunDamage,
@@ -78,9 +79,24 @@ export async function planNpcTurnWithDamage(data: unknown): Promise<NpcTurnPlan>
   const damageOps: GuardedOp[] = [];
   const lines: string[] = [];
   const hurt: string[] = [];
+  // Two tokens of one linked actor share hit points: merge their hits into one op on the actor.
+  const byActor = new Map<string, { actor: LiveActor; hit: Hit }>();
   for (const hit of hits.values()) {
     const { actor } = resolveTargets([hit.tokenId])[0] ?? {};
     if (!actor) throw new Error(`${hit.name} has no actor to damage`);
+    const key = actor.uuid;
+    const seen = byActor.get(key);
+    if (seen) {
+      seen.hit.damages.push(...hit.damages);
+      seen.hit.parts.push(...hit.parts);
+    } else {
+      byActor.set(key, {
+        actor,
+        hit: { ...hit, damages: [...hit.damages], parts: [...hit.parts] },
+      });
+    }
+  }
+  for (const { actor, hit } of byActor.values()) {
     const before = hpOf(actor);
     if (!before) {
       lines.push(`${hit.name}: has no hit points`);

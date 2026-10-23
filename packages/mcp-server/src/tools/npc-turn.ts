@@ -134,7 +134,7 @@ export class NpcTurnTools {
             },
             results: {
               type: 'array',
-              description: 'Damage the rolls dealt. multiplier 0.5 = half on a made save.',
+              description: 'Per damageByType entry. multiplier 0.5 = half on a made save.',
               minItems: 1,
               maxItems: 20,
               items: {

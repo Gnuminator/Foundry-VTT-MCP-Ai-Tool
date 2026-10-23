@@ -643,16 +643,14 @@ describe('the nightly backup waits while players are online (r37 S7)', () => {
   const stage6 = read('scripts/pi/remote/6-backup.sh');
   const body = stage6.match(/<<'BACKUP_SCRIPT'\n([\s\S]*?)\nBACKUP_SCRIPT\n/)?.[1];
 
-  // The script dates its marker with the Pi's local `date +%F`; the same local calendar day here (n days ago).
-  const dayAgo = (n) => {
-    const t = new Date();
-    t.setDate(t.getDate() - n);
-    return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`;
-  };
+  // The script dates its marker with `date +%F` and `date -d yesterday +%F`; the test's fake date answers with a fixed
+  // calendar day (the 15th, "n days ago" counts back from it), so no test depends on the real clock.
+  const dayAgo = (n) => `2026-03-${String(15 - n).padStart(2, '0')}`;
 
   // users: the number curl reports per look (the list is consumed by each sleep; the last one stays).
   // marker: the text of an existing skip marker ('' is one from an earlier version of the script), or null for none.
-  function nightly({ users = [0], active = 'foundry.service', env = {}, curlFails = false, marker = null } = {}) {
+  // midnightAfterFirstSleep: the fake clock moves on one day when the first sleep ends (a run that waits past midnight).
+  function nightly({ users = [0], active = 'foundry.service', env = {}, curlFails = false, marker = null, midnightAfterFirstSleep = false } = {}) {
     const d = tmp();
     const bin = join(d, 'bin');
     mkdirSync(bin);
@@ -673,7 +671,22 @@ esac
 exit 0`);
     tool('curl', `if [ "\${CURL_FAILS:-0}" = 1 ]; then exit 22; fi
 echo "{\\"active\\":true,\\"users\\":$(head -n 1 "$SEQ")}"`);
+    // The fake date: today and yesterday come from two files; the first sleep may move the clock past midnight.
+    const days = join(d, 'days');
+    mkdirSync(days);
+    writeFileSync(join(days, 'today'), dayAgo(0));
+    writeFileSync(join(days, 'yesterday'), dayAgo(1));
+    if (midnightAfterFirstSleep) {
+      writeFileSync(join(days, 'today.next'), `2026-03-16`);
+      writeFileSync(join(days, 'yesterday.next'), dayAgo(0));
+    }
+    tool('date', `case "$*" in
+  "+%F") cat "$DAYS/today" ;;
+  "-d yesterday +%F") if [ "\${FAKE_NO_YESTERDAY:-0}" = 1 ]; then exit 1; fi; cat "$DAYS/yesterday" ;;
+  *) exec /usr/bin/date "$@" ;;
+esac`);
     tool('sleep', `echo "sleep $*" >>"$LOG"
+for f in today yesterday; do if [ -f "$DAYS/$f.next" ]; then mv "$DAYS/$f.next" "$DAYS/$f"; fi; done
 tail -n +2 "$SEQ" >"$SEQ.next"; if [ -s "$SEQ.next" ]; then mv "$SEQ.next" "$SEQ"; else rm -f "$SEQ.next"; fi`);
     tool('restic', 'echo "restic $*" >>"$LOG"');
     // JOURNAL is the log of the run with invocation id JOURNAL_ID; any other run has nothing.
@@ -689,6 +702,7 @@ tail -n +2 "$SEQ" >"$SEQ.next"; if [ -s "$SEQ.next" ]; then mv "$SEQ.next" "$SEQ
         SCRIPT: posix(script),
         LOG: posix(log),
         SEQ: posix(seq),
+        DAYS: posix(days),
         ACTIVE: active,
         CURL_FAILS: curlFails ? '1' : '0',
         FOUNDRY_BACKUP_SYSTEMD_DIR: posix(d),
@@ -758,6 +772,23 @@ tail -n +2 "$SEQ" >"$SEQ.next"; if [ -s "$SEQ.next" ]; then mv "$SEQ.next" "$SEQ
     assert.doesNotMatch(r.calls, /systemctl stop foundry\.service/);
     assert.doesNotMatch(r.calls, /restic/);
     assert.equal(r.markerText, dayAgo(0));
+  });
+
+  test('a run that starts the evening after a skip and waits past midnight still counts its start day as today', () => {
+    const r = nightly({ users: [2], marker: dayAgo(0), midnightAfterFirstSleep: true });
+    assert.notEqual(r.status, 0, r.out);
+    assert.equal(r.sleeps, 6, r.calls);
+    assert.doesNotMatch(r.out, /backing up anyway/);
+    assert.doesNotMatch(r.calls, /systemctl stop foundry\.service/);
+    assert.doesNotMatch(r.calls, /restic/);
+    assert.equal(r.markerText, dayAgo(0), 'dated with the day the run started');
+  });
+
+  test('no way to work out yesterday: a warning, and a skipped night does not force the next one', () => {
+    const r = nightly({ users: [2], marker: dayAgo(1), env: { FAKE_NO_YESTERDAY: '1' } });
+    assert.notEqual(r.status, 0, r.out);
+    assert.match(r.out, /WARNING: could not work out yesterday's date/);
+    assert.doesNotMatch(r.calls, /systemctl stop foundry\.service/);
   });
 
   test('an older marker (a night in between had no skip) is a fresh skip: no backup anyway, the marker is re-dated', () => {

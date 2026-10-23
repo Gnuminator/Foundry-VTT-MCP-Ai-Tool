@@ -61,10 +61,31 @@ export interface RulesFacts {
   needsConcentration?: boolean;
   /** What the actor concentrates on now (from `get-character-resources`), if known. */
   concentration?: { active: boolean; spell: string | null } | undefined;
+  /**
+   * What the actor used since its own turn began, as the module's ledger of dnd5e usage messages
+   * saw it. Missing when the module cannot say (old module, or turns not seen).
+   */
+  spent?: SpentFact | undefined;
+  /** Rules versions ("2014" / "2024"): the item's own tag, and the actor's with where it came from. */
+  rules?:
+    | {
+        item: string | null;
+        actor: { version: string; source: string } | null;
+      }
+    | undefined;
 }
 
+export interface SpentFact {
+  uses: Array<{ item: string; itemType: string; activation: string }>;
+}
+
+const LIMITS_UNTRACKED =
+  'Foundry does not record which actions, bonus actions or reactions a creature has already spent this turn, so that part is never confirmed.';
+const LIMITS_TRACKED =
+  "Spent actions come from the activities used through Foundry since the creature's turn began. Dash, Dodge, Help, hand-rolled attacks and anything settled aloud are not seen, and extra actions (Action Surge, haste) are not modelled.";
+
 const LIMITS = [
-  'Foundry does not record which actions, bonus actions or reactions a creature has already spent this turn, so that part is never confirmed.',
+  LIMITS_UNTRACKED,
   'Cover, conditions, spell components and special cases (for example a bonus action spell limiting the main action) are not checked yet.',
   'Ammunition and resources an item consumes are not checked, and distance is measured between token centres.',
 ];
@@ -152,6 +173,86 @@ function turnCheck(f: RulesFacts, cost: Cost): RulesCheckLine {
   };
 }
 
+const names = (uses: Array<{ item: string }>): string =>
+  [...new Set(uses.map(u => u.item))].join(', ');
+
+/**
+ * The cost line when the ledger saw this actor's turn. An action or bonus action only counts on
+ * the actor's own turn; a reaction counts from the start of its last turn (it returns then).
+ * Null when nothing is known, so the plain "confirm it is still free" line stands.
+ */
+function spentLine(
+  f: RulesFacts,
+  cost: 'action' | 'bonus' | 'reaction',
+  name: string,
+  label: string
+): RulesCheckLine | null {
+  const c = f.combat;
+  if (!f.spent || !c.active || !c.inCombat || c.ambiguous) return null;
+  if (cost !== 'reaction' && !c.isCurrentTurn) return null;
+  const same = f.spent.uses.filter(u => classifyActivation(u.activation) === cost);
+  const base = `Costs ${name} (${label}).`;
+  if (same.length === 0) {
+    return {
+      check: 'action-cost',
+      status: 'info',
+      reason: `${base} Nothing used through Foundry has spent ${cost === 'reaction' ? `${f.actor}'s reaction` : `${f.actor}'s ${cost === 'bonus' ? 'bonus action' : 'action'}`} yet${cost === 'reaction' ? ' since its turn began' : ' this turn'}.`,
+    };
+  }
+  const used = names(same);
+  if (cost === 'action') {
+    // Several weapon attacks are one Attack action (Extra Attack); spells and other items are not.
+    const spellInvolved = f.spellLevel !== null || same.some(u => u.itemType === 'spell');
+    if (!spellInvolved) {
+      return {
+        check: 'action-cost',
+        status: 'info',
+        reason: `${base} ${f.actor} already used ${used} as an action this turn; that is fine if it is the same Attack action (Extra Attack).`,
+      };
+    }
+    return {
+      check: 'action-cost',
+      status: 'warn',
+      reason: `${base} ${f.actor} already used ${used} as an action this turn, and a spell and another action do not mix unless an extra action (Action Surge, haste) or a cantrip in place of an attack applies.`,
+    };
+  }
+  return {
+    check: 'action-cost',
+    status: 'warn',
+    reason:
+      cost === 'bonus'
+        ? `${base} ${f.actor} already used ${used} as a bonus action this turn, and there is only one per turn.`
+        : `${base} ${f.actor} already used ${used} as a reaction since its turn began, and a reaction comes back only at the start of its next turn.`,
+  };
+}
+
+/** Rules version of the item against the actor: a mismatch plays by different rules. */
+function rulesCheck(f: RulesFacts): RulesCheckLine | null {
+  const r = f.rules;
+  if (!r?.item) return null;
+  const actor = r.actor;
+  // The world's default is a guess about the actor, not a statement: do not compare against it.
+  if (!actor || actor.source === 'world-setting') {
+    return {
+      check: 'rules-version',
+      status: 'info',
+      reason: `${f.item} follows the ${r.item} rules.`,
+    };
+  }
+  if (actor.version === r.item) {
+    return {
+      check: 'rules-version',
+      status: 'info',
+      reason: `${f.item} and ${f.actor} both follow the ${r.item} rules.`,
+    };
+  }
+  return {
+    check: 'rules-version',
+    status: 'warn',
+    reason: `${f.item} follows the ${r.item} rules but ${f.actor} follows the ${actor.version} rules; the two rule sets differ (for example in features, weapon mastery and spell details), so check the item's text.`,
+  };
+}
+
 function costCheck(f: RulesFacts, cost: Cost): RulesCheckLine {
   const label = f.activation ? `"${f.activation}"` : 'no activation';
   const inRound = f.combat.active && f.combat.inCombat;
@@ -161,6 +262,8 @@ function costCheck(f: RulesFacts, cost: Cost): RulesCheckLine {
     case 'reaction': {
       const name =
         cost === 'action' ? 'an action' : cost === 'bonus' ? 'a bonus action' : 'a reaction';
+      const spent = spentLine(f, cost, name, label);
+      if (spent) return spent;
       return {
         check: 'action-cost',
         status: 'info',
@@ -494,6 +597,8 @@ export function evaluateAction(f: RulesFacts): RulesCheckResult {
   if (uses) checks.push(uses);
   const concentration = concentrationCheck(f);
   if (concentration) checks.push(concentration);
+  const version = rulesCheck(f);
+  if (version) checks.push(version);
   const verdict = verdictOf(checks);
   const about = `${f.actor} using ${f.item}${f.target ? ` on ${f.target}` : ''}`;
   const reasons = (status: RulesCheckLine['status'][]): string =>
@@ -514,6 +619,6 @@ export function evaluateAction(f: RulesFacts): RulesCheckResult {
     ...(f.target ? { target: f.target } : {}),
     checks,
     summary,
-    limits: LIMITS,
+    limits: f.spent ? [LIMITS_TRACKED, ...LIMITS.slice(1)] : LIMITS,
   };
 }

@@ -118,6 +118,8 @@ export interface CombatTimelineEntry {
   turn: number;
   combatantName: string;
   actorId: string | null;
+  /** The encounter the turn belongs to (spent actions are counted per encounter). */
+  combatId?: string | null;
   timestampMs: number;
 }
 
@@ -749,6 +751,7 @@ export class EventTracker {
           dig(current, 'token', 'name') ||
           'Unknown') as string,
         actorId: orNull(dig(current, 'actor', 'id')),
+        combatId: orNull(dig(combat, 'id')),
         timestampMs: Date.now(),
       };
       this.combatTimeline.push(entry);

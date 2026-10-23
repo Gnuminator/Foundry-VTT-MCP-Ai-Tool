@@ -25,6 +25,7 @@ export const RULES_CHECK_KINDS = [
   'uses',
   'movement',
   'concentration',
+  'rules-version',
 ] as const;
 export type RulesCheckKind = (typeof RULES_CHECK_KINDS)[number];
 

@@ -16,6 +16,7 @@ import {
   type CombatFact,
   type MoveFact,
   type SlotFact,
+  type SpentFact,
   type UsesFact,
 } from '../rules-check/evaluate.js';
 
@@ -77,6 +78,9 @@ export function spellPrepared(system: Rec, level: unknown): boolean {
   return typeof system.prepared === 'number' ? system.prepared >= 1 : true;
 }
 
+/** "2014" or "2024", else null. */
+const rulesTag = (v: unknown): string | null => (v === '2014' || v === '2024' ? v : null);
+
 function usesFrom(v: unknown): UsesFact | null {
   const u = rec(v);
   return typeof u.max === 'number' && typeof u.value === 'number'
@@ -108,7 +112,7 @@ export class RulesCheckTools {
       {
         name: 'check-action',
         description:
-          'Rules check (off by default). Says whether an attack, spell or item looks legal and why: turn, cost, range to a target, spell slots and uses left. Cannot see actions already spent this turn. Read-only.',
+          'Rules check (off by default). Says whether an attack, spell or item looks legal and why: turn, cost, actions spent, range, slots, uses, concentration. Read-only.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -245,6 +249,7 @@ export class RulesCheckTools {
     const attackType = attackValue === 'melee' || attackValue === 'ranged' ? attackValue : null;
     const { combat, tokenName } = await this.combatFact(actorId, actorName);
     const distance = p.target ? await this.distanceFact(tokenName, p.target) : undefined;
+    const { spent: spentFact, actorRules } = await this.spentFact(actorId, combat);
 
     const slots: Record<string, SlotFact> = {};
     for (const [key, raw] of Object.entries(rec(resources.spellSlots))) {
@@ -275,10 +280,55 @@ export class RulesCheckTools {
       slots,
       needsConcentration: isSpell && properties.includes('concentration'),
       concentration: this.concentrationFact(resources.concentration),
+      spent: spentFact,
+      rules: {
+        item: rulesTag(rec(system.source).rules),
+        actor: actorRules,
+      },
       uses: [usesFrom(entity.uses), usesFrom(activity?.uses)].filter(
         (u): u is UsesFact => u !== null
       ),
     });
+  }
+
+  /**
+   * What the module's ledger saw the actor use since its turn began, and the actor's rules
+   * version. Both are optional: an older module has no such query, and outside a fight (or with
+   * several same-named tokens) the ledger has nothing to add.
+   */
+  private async spentFact(
+    actorId: string | undefined,
+    combat: CombatFact
+  ): Promise<{
+    spent: SpentFact | undefined;
+    actorRules: { version: string; source: string } | null;
+  }> {
+    if (!actorId) return { spent: undefined, actorRules: null };
+    try {
+      const reply = rec(
+        await this.foundryClient.query('foundry-mcp-bridge.getSpentActions', { actorId })
+      );
+      if (reply.success === false) return { spent: undefined, actorRules: null };
+      const rules = rec(reply.actorRules);
+      const version = rulesTag(rules.version);
+      const source = text(rules.source);
+      const actorRules = version && source ? { version, source } : null;
+      const watched = combat.active && combat.inCombat && !combat.ambiguous;
+      if (!watched || reply.tracked !== true || !Array.isArray(reply.sinceOwnTurn)) {
+        return { spent: undefined, actorRules };
+      }
+      const uses = reply.sinceOwnTurn.map(rec).flatMap(u => {
+        const item = text(u.item);
+        const activation = text(u.activation);
+        return item && activation
+          ? [{ item, itemType: text(u.itemType) ?? 'item', activation }]
+          : [];
+      });
+      return { spent: { uses }, actorRules };
+    } catch (error) {
+      this.logger.debug('Rules check: spent actions unavailable', error);
+      return { spent: undefined, actorRules: null };
+    }
   }
 
   private concentrationFact(raw: unknown): { active: boolean; spell: string | null } | undefined {
@@ -345,8 +395,14 @@ export class RulesCheckTools {
       // Unlinked tokens share an actor id: take the one named like the actor, else give up on turns.
       const byActor = combatants.filter(c => actorId !== undefined && c.actorId === actorId);
       const pool = byActor.length > 0 ? byActor : combatants.filter(c => c.name === actorName);
-      const exact = pool.find(c => c.name === actorName);
-      mine = exact ?? (pool.length === 1 ? pool[0] : undefined);
+      // Same-named tokens cannot be told apart by name: that is ambiguous, not "the first one".
+      const exact = pool.filter(c => c.name === actorName);
+      mine =
+        exact.length === 1
+          ? exact[0]
+          : exact.length === 0 && pool.length === 1
+            ? pool[0]
+            : undefined;
       ambiguous = mine === undefined && pool.length > 1;
     }
     return {

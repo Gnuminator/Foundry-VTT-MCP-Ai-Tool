@@ -14,6 +14,9 @@ import { setCampaignPartStatus } from './campaign-hooks.js';
 import { listGuardedFeatures } from './guarded-features.js';
 import { changeJournal } from './change-journal.js';
 import { playRecorder } from './play-recorder.js';
+import { eventTracker } from './session-events.js';
+import { spentLedger, spentSinceOwnTurn } from './spent-actions.js';
+import { detectRulesVersion } from './systems/dnd5e/rules-version.js';
 import { usageRecorder } from './usage-recorder.js';
 import {
   applyGuardedOps,
@@ -445,6 +448,7 @@ export class QueryHandlers {
     handlers.set(`${modulePrefix}.getChatLog`, this.handleGetChatLog.bind(this));
     handlers.set(`${modulePrefix}.getCombatPlayByPlay`, this.handleGetCombatPlayByPlay.bind(this));
     handlers.set(`${modulePrefix}.sendChatMessage`, this.handleSendChatMessage.bind(this));
+    handlers.set(`${modulePrefix}.getSpentActions`, this.handleGetSpentActions.bind(this));
 
     // 3C: Resource tracking
     handlers.set(
@@ -1405,6 +1409,25 @@ export class QueryHandlers {
   }): Promise<any> {
     return this.withGmGate('Failed to get chat log', async () => {
       return await this.dataAccess.getChatLog(data || {});
+    });
+  }
+
+  /** Rules check: what an actor used since its own turn began, and its rules version (read-only). */
+  async handleGetSpentActions(data: { actorId?: unknown }): Promise<unknown> {
+    return this.withGmGate('Failed to read spent actions', async () => {
+      const actorId = typeof data?.actorId === 'string' ? data.actorId : '';
+      const combat = game.combat;
+      const actor = actorId ? game.actors?.get(actorId) : undefined;
+      const detected = actor ? detectRulesVersion(actor) : null;
+      return {
+        ...spentSinceOwnTurn(
+          actorId,
+          typeof combat?.id === 'string' ? combat.id : null,
+          spentLedger.snapshot(),
+          eventTracker.getCombatTimeline()
+        ),
+        actorRules: detected ? { version: detected.version, source: detected.source } : null,
+      };
     });
   }
 

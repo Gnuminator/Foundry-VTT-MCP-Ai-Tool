@@ -782,7 +782,7 @@ Parameters:
 
 ### check-action
 
-Rules check (off by default). Says whether an attack, spell or item looks legal and why: turn, cost, range to a target, spell slots and uses left. Cannot see actions already spent this turn. Read-only.
+Rules check (off by default). Says whether an attack, spell or item looks legal and why: turn, cost, actions spent, range, slots, uses, concentration. Read-only.
 
 Kind: read-only. Title: Check an action against the rules.
 

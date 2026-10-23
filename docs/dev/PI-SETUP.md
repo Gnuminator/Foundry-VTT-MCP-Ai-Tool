@@ -1105,6 +1105,32 @@ SSD and the card only starts it. That is the setup to use: DietPi offers no NVMe
 board, and flashing a bootloader into the Pi's SPI flash to boot straight from the SSD has caused
 boot problems for others, so it is not tried.
 
+## Board status report (stage 16)
+
+The Pi reports its own health to the PM board once an hour, because the PC is not always on. Stage 16
+(`scripts/pi/remote/16-board-status.sh`) installs `/opt/foundry-ai-tool/status/board-status.sh` and a
+systemd timer `foundry-board-status.timer` (minute 07 of every hour, a few minutes after boot, and a
+catch-up after a missed hour). The script only reads the Pi and sends one JSON object: up and uptime,
+disk free (the disk with Foundry's data), the last nightly backup (the result of
+`foundry-backup.service` and the time of the newest restic snapshot, read with `--no-lock`), and
+Foundry up or down with the Foundry and dnd5e versions from `localhost:30000/api/status`. No log
+lines, no world or user names, no host name but `foundry-pi`. The board stores it and shows it on
+Today, red when the backup is older than 30 hours or no report came for 3 hours.
+
+- **Token file (the user creates it, once):** `/etc/foundry-ai-tool/board-status.conf`, owner root,
+  mode 0600, exactly two lines: `header = "CF-Access-Client-Id: <id>"` and
+  `header = "CF-Access-Client-Secret: <secret>"` (the Cloudflare Access service token `pi-status`;
+  board side: the PM board README, "Pi status on Today"). The stage refuses without it, refuses any
+  other line, and never prints it; curl reads it with `-K`, so the values are not in the process list.
+- **Run:** after a `dietpi-backup` snapshot,
+  `cat scripts/pi/remote/lib.sh scripts/pi/remote/16-board-status.sh | ssh foundry-pi 'bash -s'`.
+  It ends with one report; a board that is not deployed yet (or a wrong token) fails that first report
+  with the HTTP code, and the timer stays installed.
+- **Check later:** `systemctl list-timers foundry-board-status.timer`, `journalctl -u foundry-board-status -n 5`
+  (it prints `sent (HTTP 204)` or the HTTP code).
+- Tests: `scripts/pi/board-status.test.mjs` (the script against a local server) and, with
+  `PI_STAGE16_CONTAINER=1` (Docker), `scripts/pi/container-test/stage16-scenarios.sh` in the ARM64 container.
+
 ## Where things live on the Pi
 
 | What                                                         | Where                                                                                  |

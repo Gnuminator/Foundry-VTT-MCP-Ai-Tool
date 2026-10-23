@@ -384,6 +384,7 @@ describe('the stages', () => {
   const stages = [
     '1-health', '2-node', '3-foundry', '4-tailscale', '5-tool', '5-check-world', '6-backup', '7-vault',
     '8-recorder', '9-ssh-log', '10-space-check', '11-world', '12-tunnel', '13-player-creation', '15-ssh-keys-only',
+    '16-board-status',
   ];
 
   test('every stage checks for a snapshot from today right after require_root', () => {

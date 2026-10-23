@@ -26,10 +26,10 @@ if [ -L "$conf" ] || [ ! -f "$conf" ]; then
   die "$conf is missing. Create it (root, mode 0600) with the two header lines from the stage 16 header, then run this again"
 fi
 [ "$(stat -c '%u %a' "$conf")" = "0 600" ] || die "$conf must be owned by root with mode 0600 (chown root:root, chmod 600)"
-bad_line="$(grep -nvE '^(header = "CF-Access-Client-(Id|Secret): [^" ]+"|#.*|)$' "$conf" | head -n 1 | cut -d: -f1 || true)"
+bad_line="$(LC_ALL=C grep -a -nvE '^(header = "CF-Access-Client-(Id|Secret): [^" ]+"|#.*|)$' "$conf" | head -n 1 | cut -d: -f1 || true)"
 [ -z "$bad_line" ] || die "$conf line $bad_line is not a header line or a comment (content not shown)"
 for h in Id Secret; do
-  [ "$(grep -cE "^header = \"CF-Access-Client-$h: [^\" ]+\"\$" "$conf" || true)" = 1 ] ||
+  [ "$(LC_ALL=C grep -a -cE "^header = \"CF-Access-Client-$h: [^\" ]+\"\$" "$conf" || true)" = 1 ] ||
     die "$conf must hold exactly one CF-Access-Client-$h header line"
 done
 ok "$conf is present, root-only, two header lines (not printed)"
@@ -75,6 +75,12 @@ if [ "$dry" = 0 ]; then
     echo "board-status: the token file must be root-owned with mode 0600" >&2
     exit 78
   fi
+  # The stage checked the content once; check it every hour too, so a later edit cannot add a curl option (-a: a NUL byte
+  # must not make grep skip the lines).
+  if [ -n "$(LC_ALL=C grep -a -nvE '^(header = "CF-Access-Client-(Id|Secret): [^" ]+"|#.*|)$' "$conf" | head -n 1)" ]; then
+    echo "board-status: the token file holds a line that is not an Access header (content not shown)" >&2
+    exit 78
+  fi
 fi
 
 # Disk: the one holding Foundry's data (falls back to /).
@@ -87,6 +93,10 @@ uptime_s="$(cut -d. -f1 /proc/uptime 2>/dev/null || true)"
 # Last nightly backup: the systemd result of the last run, and the time of the newest restic snapshot (read-only:
 # --no-lock, --no-cache). Either may be unknown; that is reported as null, never as an error.
 backup_result="$(systemctl show -p Result --value "$backup_unit" 2>/dev/null || true)"
+# A unit that has not run since the boot (or does not exist) says "success" by default: report no result then, so a failure
+# followed by a reboot never reads as green. The snapshot time below still tells how old the last backup is.
+backup_started="$(systemctl show -p ExecMainStartTimestampMonotonic --value "$backup_unit" 2>/dev/null || true)"
+case "${backup_started:-0}" in 0 | "") backup_result="" ;; esac
 backup_at=""
 if command -v restic >/dev/null 2>&1; then
   backup_at="$(
@@ -97,7 +107,7 @@ if command -v restic >/dev/null 2>&1; then
 fi
 
 # Foundry: /api/status answers on the setup screen too.
-api_json="$(curl -fs --max-time 5 "$api" 2>/dev/null || true)"
+api_json="$(curl -q -fs --max-time 5 "$api" 2>/dev/null || true)"
 
 payload="$(
   DISK_TOTAL_KB="$disk_total_kb" DISK_FREE_KB="$disk_free_kb" UPTIME_S="$uptime_s" BACKUP_RESULT="$backup_result" \
@@ -132,7 +142,7 @@ process.stdout.write(JSON.stringify({
   },
 }));
 '
-)"
+)" || payload=""
 [ -n "$payload" ] || {
   echo "board-status: could not build the report" >&2
   exit 70
@@ -146,8 +156,9 @@ fi
 proto='=https'
 [ "$test_mode" = 1 ] && proto='=http,https'
 # -K reads the two Access headers from the root-only file, so they never appear in the process list.
-code="$(printf '%s' "$payload" | curl -sS -o /dev/null -w '%{http_code}' --proto "$proto" --max-time 20 \
-  -K "$conf" -H 'Content-Type: application/json' --data-binary @- "$url" 2>/dev/null)" || {
+# -q: no ~/.curlrc. curl's own error text (DNS, TLS, timeout) is kept for the journal; it never holds header values.
+code="$(printf '%s' "$payload" | curl -q -sS -o /dev/null -w '%{http_code}' --proto "$proto" --max-time 20 \
+  -K "$conf" -H 'Content-Type: application/json' --data-binary @- "$url")" || {
   echo "board-status: could not reach the board" >&2
   exit 69
 }
@@ -167,7 +178,8 @@ chmod 0755 "$status_script"
 say "the timer"
 service_unit="[Unit]
 Description=Foundry AI Tool: report the Pi's health to the PM board (read-only)
-After=network-online.target
+Wants=network-online.target
+After=network-online.target time-sync.target
 
 [Service]
 Type=oneshot
@@ -184,9 +196,8 @@ Description=Foundry AI Tool: Pi health report to the PM board, hourly at minute 
 [Timer]
 OnCalendar=*-*-* *:07:00
 RandomizedDelaySec=120
-# A report soon after a boot, and one after a missed hour: both only read the Pi and send one POST.
+# A report soon after a boot. No catch-up run for a missed hour: it would fire before the network and the clock are ready.
 OnBootSec=5min
-Persistent=true
 
 [Install]
 WantedBy=timers.target"

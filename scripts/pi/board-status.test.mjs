@@ -33,7 +33,7 @@ const ID = 'header = "CF-Access-Client-Id: abc123.access"';
 const SECRET = 'header = "CF-Access-Client-Secret: s3cr3t-value-xyz"';
 
 // A fake Pi folder: the token file, a restic that prints one snapshot, a systemctl that answers `show`.
-function fakePi({ conf = `${ID}\n${SECRET}\n`, backupResult = 'success', snapshotTime = '2026-10-23T02:31:09Z' } = {}) {
+function fakePi({ conf = `${ID}\n${SECRET}\n`, backupResult = 'success', started = '123456', snapshotTime = '2026-10-23T02:31:09Z' } = {}) {
   const d = tmp();
   const bin = path.join(d, 'bin');
   mkdirSync(bin);
@@ -43,7 +43,7 @@ function fakePi({ conf = `${ID}\n${SECRET}\n`, backupResult = 'success', snapsho
     writeFileSync(path.join(bin, name), `#!/usr/bin/env bash\n${body}\n`);
     chmodSync(path.join(bin, name), 0o755);
   };
-  stub('systemctl', `echo "${backupResult}"`);
+  stub('systemctl', `case "$*" in *Monotonic*) echo "${started}" ;; *) echo "${backupResult}" ;; esac`);
   stub('restic', `echo '[{"time":"${snapshotTime}","id":"deadbeef"}]'`);
   const scriptPath = path.join(d, 'board-status.sh');
   writeFileSync(scriptPath, script);
@@ -182,15 +182,31 @@ describe('status script', () => {
     assert.equal(board.seen.length, 0);
   });
 
-  test('without test mode a token file that is not root 0600 is refused', async () => {
+  test('without test mode a token file that is not root 0600 is refused, whoever runs it', async () => {
     const board = await startBoard(204);
-    const r = await run(fakePi(), { env: { FOUNDRY_STATUS_TEST: '0' }, url: `http://127.0.0.1:${board.port}/api/pi-status` });
+    const pi = fakePi();
+    chmodSync(path.join(pi.d, 'etc', 'board-status.conf'), 0o644);
+    const r = await run(pi, { env: { FOUNDRY_STATUS_TEST: '0' }, url: `http://127.0.0.1:${board.port}/api/pi-status` });
     board.close();
-    // Not root here (or mode differs on Windows): refused. Where the test runs as root with mode 0600 it is not,
-    // so only the refusal path is asserted when the file really is not root-owned.
-    if (process.getuid?.() !== 0) {
-      assert.equal(r.status, 78);
+    assert.equal(r.status, 78);
+    assert.equal(board.seen.length, 0);
+  });
+
+  test('a unit that has not run since the boot reports no result, never a green default', async () => {
+    const r = await run(fakePi({ started: '0' }), { args: ['--dry-run'] });
+    assert.equal(JSON.parse(r.stdout).backup.result, null);
+    assert.equal(JSON.parse(r.stdout).backup.at, '2026-10-23T02:31:09.000Z');
+  });
+
+  test('a token file with a line that is not an Access header is refused every hour, a NUL byte included', async () => {
+    for (const extra of ['url = "http://evil.example/"\n', 'output = "/etc/passwd"\n', '\0url = "http://evil.example/"\n']) {
+      const board = await startBoard(204);
+      const pi = fakePi({ conf: `${ID}\n${SECRET}\n${extra}` });
+      const r = await run(pi, { url: `http://127.0.0.1:${board.port}/api/pi-status` });
+      board.close();
+      assert.equal(r.status, 78, JSON.stringify(extra));
       assert.equal(board.seen.length, 0);
+      assert.ok(!(r.stdout + r.stderr).includes('evil'));
     }
   });
 });
@@ -212,6 +228,17 @@ describe('stage text', () => {
     for (const line of stage.split('\n')) {
       if (/rm\s+-[a-z]*r[a-z]*f?\s/.test(line)) assert.match(line, /\$\{[a-z_]+:\?\}/, line);
     }
+  });
+
+  test('https is the default, only test mode widens it; curl ignores ~/.curlrc; the stage greps binary-safe', () => {
+    assert.match(script, /proto='=https'\n\[ "\$test_mode" = 1 \] && proto='=http,https'/);
+    assert.equal((script.match(/\bcurl -q /g) || []).length, 2);
+    assert.match(stage, /LC_ALL=C grep -a -nvE/);
+  });
+
+  test('no catch-up run at boot; the service waits for network and time', () => {
+    assert.ok(!/Persistent=/.test(stage.replace(/^#.*$/gm, '')));
+    assert.match(stage, /Wants=network-online\.target\nAfter=network-online\.target time-sync\.target/);
   });
 
   test('the timer is hourly', () => {

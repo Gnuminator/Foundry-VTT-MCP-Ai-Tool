@@ -1109,8 +1109,7 @@ boot problems for others, so it is not tried.
 
 The Pi reports its own health to the PM board once an hour, because the PC is not always on. Stage 16
 (`scripts/pi/remote/16-board-status.sh`) installs `/opt/foundry-ai-tool/status/board-status.sh` and a
-systemd timer `foundry-board-status.timer` (minute 07 of every hour, a few minutes after boot, and a
-catch-up after a missed hour). The script only reads the Pi and sends one JSON object: up and uptime,
+systemd timer `foundry-board-status.timer` (minute 07 of every hour, and 5 minutes after boot). The script only reads the Pi and sends one JSON object: up and uptime,
 disk free (the disk with Foundry's data), the last nightly backup (the result of
 `foundry-backup.service` and the time of the newest restic snapshot, read with `--no-lock`), and
 Foundry up or down with the Foundry and dnd5e versions from `localhost:30000/api/status`. No log
@@ -1133,20 +1132,21 @@ Today, red when the backup is older than 30 hours or no report came for 3 hours.
 
 ## Where things live on the Pi
 
-| What                                                         | Where                                                                                  |
-| ------------------------------------------------------------ | -------------------------------------------------------------------------------------- |
-| Foundry program                                              | `/opt/foundry`                                                                         |
-| Foundry data (worlds, modules, assets)                       | `/var/lib/foundry`                                                                     |
-| Node.js                                                      | `/opt/node24`                                                                          |
-| The tool (release builds)                                    | `/opt/foundry-ai-tool`                                                                 |
-| Settings and secrets for the tool                            | `/etc/foundry-ai-tool/.env` (readable by root and the service only)                    |
-| The tool's storage (bridge vault)                            | `/var/lib/foundry-ai-tool`                                                             |
-| Backups                                                      | restic repository `/var/lib/foundry-backup/restic` (the PC copy: `E:\PiBackup\restic`) |
-| Recorder bot                                                 | `/opt/foundry-ai-tool/discord-bot` (service `foundry-ai-tool-discord-bot`)             |
-| Recordings (until this PC has copied them, then 7 more days) | `/var/lib/foundry-ai-tool/recordings`                                                  |
-| GM vault (Syncthing shares it)                               | `/var/lib/foundry-ai-tool/obsidian/gm`                                                 |
-| Space check status (hourly)                                  | `/var/lib/foundry-ai-tool/space/status.json`                                           |
-| When this PC last copied the backups (restic, snapshot)      | `/var/lib/foundry-backup-pulls/<kind>.json`                                            |
+| What                                                         | Where                                                                                                                 |
+| ------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------- |
+| Foundry program                                              | `/opt/foundry`                                                                                                        |
+| Foundry data (worlds, modules, assets)                       | `/var/lib/foundry`                                                                                                    |
+| Node.js                                                      | `/opt/node24`                                                                                                         |
+| The tool (release builds)                                    | `/opt/foundry-ai-tool`                                                                                                |
+| Settings and secrets for the tool                            | `/etc/foundry-ai-tool/.env` (readable by root and the service only)                                                   |
+| The tool's storage (bridge vault)                            | `/var/lib/foundry-ai-tool`                                                                                            |
+| Backups                                                      | restic repository `/var/lib/foundry-backup/restic` (the PC copy: `E:\PiBackup\restic`)                                |
+| Recorder bot                                                 | `/opt/foundry-ai-tool/discord-bot` (service `foundry-ai-tool-discord-bot`)                                            |
+| Recordings (until this PC has copied them, then 7 more days) | `/var/lib/foundry-ai-tool/recordings`                                                                                 |
+| GM vault (Syncthing shares it)                               | `/var/lib/foundry-ai-tool/obsidian/gm`                                                                                |
+| Space check status (hourly)                                  | `/var/lib/foundry-ai-tool/space/status.json`                                                                          |
+| Board status report (stage 16): script, token file, timer    | `/opt/foundry-ai-tool/status/board-status.sh`, `/etc/foundry-ai-tool/board-status.conf`, `foundry-board-status.timer` |
+| When this PC last copied the backups (restic, snapshot)      | `/var/lib/foundry-backup-pulls/<kind>.json`                                                                           |
 
 ## Sources
 

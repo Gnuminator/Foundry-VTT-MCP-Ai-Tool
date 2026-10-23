@@ -40,6 +40,13 @@ test('a section lists numbers, limits and ok; unknown values are left out, not 0
   );
 });
 
+test('ok is judged on the rounded number the note shows', () => {
+  const r = report('2026-10-17', '2026-10-23', {
+    targets: [{ name: 'sessions a day', value: 15.04, limit: 15, unit: 'sessions', ok: false }],
+  });
+  assert.match(sectionFor(r), /- sessions-a-day: 15\n- sessions-a-day-limit: 15\n- sessions-a-day-ok: yes/);
+});
+
 test('upsert keeps weeks newest first and replaces the section of the same window', () => {
   let text = upsert('', report('2026-10-10', '2026-10-16'));
   text = upsert(text, report('2026-10-24', '2026-10-30'));

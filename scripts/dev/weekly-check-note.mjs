@@ -34,7 +34,10 @@ export function sectionFor(report) {
     if (!t) continue;
     if (t.value !== null && t.value !== undefined) lines.push(`- ${key}: ${round(t.value, digits)}`);
     lines.push(`- ${key}-limit: ${t.limit}`);
-    lines.push(`- ${key}-ok: ${t.ok === null ? 'unknown' : t.ok ? 'yes' : 'no'}`);
+    // ok from the rounded number, so it agrees with what the board recomputes from the note
+    const known = t.value !== null && t.value !== undefined;
+    const ok = known ? round(t.value, digits) <= t.limit : t.ok;
+    lines.push(`- ${key}-ok: ${ok === null || ok === undefined ? 'unknown' : ok ? 'yes' : 'no'}`);
   }
   return lines.join('\n');
 }

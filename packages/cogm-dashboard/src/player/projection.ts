@@ -220,6 +220,7 @@ export function projectCombat(
       initiative: num(c.initiative),
       isCurrentTurn: c.isCurrentTurn === true,
       isPC: pc,
+      actorId: pc ? actorId : null,
       side: pc ? 'pc' : c.category === 'enemy' ? 'enemy' : 'npc',
       defeated: c.defeated === true,
       hp:

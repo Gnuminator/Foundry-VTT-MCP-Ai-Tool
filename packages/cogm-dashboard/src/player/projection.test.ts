@@ -223,9 +223,11 @@ describe('projectCombat', () => {
       hpBand: 'critical',
       conditions: ['Prone'],
       deathSaves: null,
+      actorId: null, // only PCs carry an actor id
     });
     const hero = out?.combatants[1];
     expect(hero).toMatchObject({
+      actorId: 'a-pc',
       hp: { value: 0, max: 18, temp: 0 },
       deathSaves: { successes: 1, failures: 2 },
     });

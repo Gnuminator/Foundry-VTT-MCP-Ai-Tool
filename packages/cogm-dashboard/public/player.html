@@ -166,6 +166,43 @@
         font-size: 11px;
         margin-right: 6px;
       }
+      .turn-banner {
+        padding: 8px 10px;
+        margin-bottom: 8px;
+        border-radius: 6px;
+        border: 1px solid var(--line);
+        background: var(--panel-2);
+        font-weight: 600;
+      }
+      .turn-banner.yours {
+        border-color: var(--pc);
+        color: var(--pc);
+      }
+      .turn-banner.next {
+        border-color: var(--amber);
+        color: var(--amber);
+      }
+      .mine-alert {
+        padding: 8px 10px;
+        margin-bottom: 8px;
+        border-radius: 6px;
+        border: 1px solid var(--amber);
+        color: var(--amber);
+      }
+      .mine-char {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+        padding: 4px 0;
+      }
+      .mine-char .hpbar {
+        width: 90px;
+      }
+      .mine-char a {
+        margin-left: auto;
+        color: var(--pc);
+      }
       .empty {
         color: var(--muted);
         padding: 14px;
@@ -243,6 +280,14 @@
       <section class="card" id="who-picker" hidden style="grid-column: 1 / -1">
         <h2>Who are you?</h2>
         <div id="who-list" class="body"></div>
+      </section>
+      <section class="card mine" id="mine" hidden style="grid-column: 1 / -1">
+        <h2>You</h2>
+        <div class="body">
+          <div id="mine-turn" class="turn-banner" hidden></div>
+          <div id="mine-alerts"></div>
+          <div id="mine-chars"></div>
+        </div>
       </section>
       <section class="card">
         <h2>Combat order</h2>

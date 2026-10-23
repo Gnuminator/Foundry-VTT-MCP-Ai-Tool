@@ -1,0 +1,150 @@
+/**
+ * The player page's "You" section (public/player-me.js): your turn, next up, your character card
+ * and the concentration reminder.
+ */
+import type { PlayerCombat, PlayerCombatant } from '@gnuminator/shared';
+import { describe, expect, it } from 'vitest';
+
+import {
+  concentrationDc,
+  concentrationReminders,
+  mySheets,
+  parseDamageLine,
+  turnLine,
+  turnStatus,
+} from '../public/player-me.js';
+
+function c(over: Partial<PlayerCombatant>): PlayerCombatant {
+  return {
+    id: 'c',
+    name: 'Goblin',
+    initiative: 10,
+    isCurrentTurn: false,
+    isPC: false,
+    actorId: null,
+    side: 'enemy',
+    defeated: false,
+    hp: null,
+    hpBand: null,
+    conditions: [],
+    deathSaves: null,
+    ...over,
+  };
+}
+
+const hero = (id: string, actorId: string, over: Partial<PlayerCombatant> = {}): PlayerCombatant =>
+  c({ id, name: `Hero ${id}`, isPC: true, actorId, side: 'pc', ...over });
+
+function combat(combatants: PlayerCombatant[]): PlayerCombat {
+  return { active: true, round: 3, combatants };
+}
+
+describe('turnStatus', () => {
+  const order = [
+    c({ id: 'g1', isCurrentTurn: true }),
+    hero('p1', 'actor-1'),
+    c({ id: 'g2', defeated: true }),
+    c({ id: 'g3' }),
+    hero('p2', 'actor-2'),
+  ];
+
+  it('says whose turn it is and who is up next, from the visible order', () => {
+    expect(turnStatus(combat(order), ['actor-1'])).toMatchObject({ state: 'next', round: 3 });
+    expect(turnStatus(combat(order), ['actor-2'])).toMatchObject({ state: 'later', turnsAway: 3 });
+    const mine = order.map(o => ({ ...o, isCurrentTurn: o.id === 'p1' }));
+    expect(turnStatus(combat(mine), ['actor-1'])).toMatchObject({ state: 'yours' });
+  });
+
+  it('wraps to the top of the round and skips defeated creatures', () => {
+    const last = order.map(o => ({ ...o, isCurrentTurn: o.id === 'p2' }));
+    expect(turnStatus(combat(last), ['actor-1'])).toMatchObject({ state: 'later', turnsAway: 2 });
+    expect(turnStatus(combat(last), ['nobody'])).toMatchObject({ state: 'out' });
+  });
+
+  it('is null without an active combat, and an NPC never matches an actor id', () => {
+    expect(turnStatus(null, ['actor-1'])).toBeNull();
+    expect(turnStatus({ active: false, round: 0, combatants: [] }, ['actor-1'])).toBeNull();
+    const npcOnly = combat([c({ id: 'n', isCurrentTurn: true, actorId: 'actor-1' })]);
+    expect(turnStatus(npcOnly, ['actor-1'])).toMatchObject({ state: 'out' });
+  });
+
+  it('words the banner and says nothing when out of the combat', () => {
+    expect(turnLine({ state: 'yours', name: 'Brenna' })).toBe('Your turn, Brenna.');
+    expect(turnLine({ state: 'next', name: 'Brenna' })).toBe('You are up next, Brenna.');
+    expect(turnLine({ state: 'later', turnsAway: 2 })).toBe('2 turns until yours.');
+    // The current creature is one players cannot see: the order they see has no marker.
+    expect(turnLine({ state: 'later', turnsAway: null })).toBe('Not your turn yet.');
+    expect(turnLine({ state: 'out' })).toBeNull();
+    expect(turnLine(null)).toBeNull();
+  });
+});
+
+describe('mySheets', () => {
+  it('keeps only what the card shows and drops malformed rows', () => {
+    const out = mySheets({
+      sheets: [
+        {
+          id: 'a',
+          name: 'Brenna',
+          hp: { value: 5, max: 20, temp: 0 },
+          conditions: ['Prone', 3],
+          concentration: 'Bless',
+          secret: 'x',
+        },
+        { id: 7, name: 'bad' },
+        null,
+      ],
+    });
+    expect(out).toEqual([
+      {
+        id: 'a',
+        name: 'Brenna',
+        hp: { value: 5, max: 20, temp: 0 },
+        conditions: ['Prone'],
+        concentration: 'Bless',
+      },
+    ]);
+    expect(mySheets(null)).toEqual([]);
+  });
+});
+
+describe('concentration reminder', () => {
+  const sheets = mySheets({
+    sheets: [
+      {
+        id: 'a',
+        name: 'Brenna',
+        hp: { value: 5, max: 20 },
+        conditions: [],
+        concentration: 'Bless',
+      },
+      { id: 'b', name: 'Tobin', hp: { value: 5, max: 20 }, conditions: [], concentration: null },
+    ],
+  });
+
+  it('uses 10 or half the damage, whichever is higher', () => {
+    expect(concentrationDc(7)).toBe(10);
+    expect(concentrationDc(30)).toBe(15);
+    expect(concentrationDc(21)).toBe(10);
+  });
+
+  it('reminds once per damage line, only for a character that is concentrating', () => {
+    const seen = new Set<string>();
+    const events = [
+      { id: 'e1', timestampMs: 1, type: 'damage', text: 'Brenna took 30 damage.' },
+      { id: 'e2', timestampMs: 2, type: 'damage', text: 'Tobin took 9 damage.' },
+      { id: 'e3', timestampMs: 3, type: 'damage', text: 'Goblin was hit.' },
+      { id: 'e4', timestampMs: 4, type: 'healing', text: 'Brenna regained 4 HP.' },
+    ];
+    const first = concentrationReminders(events, sheets, seen);
+    expect(first).toHaveLength(1);
+    expect(first[0].text).toContain('Brenna took 30 damage while concentrating on Bless');
+    expect(first[0].text).toContain('DC 15');
+    expect(concentrationReminders(events, sheets, seen)).toEqual([]);
+  });
+
+  it('parses only the fixed damage template', () => {
+    expect(parseDamageLine('Brenna took 7 damage.')).toEqual({ name: 'Brenna', amount: 7 });
+    expect(parseDamageLine('Brenna was hit.')).toBeNull();
+  });
+});

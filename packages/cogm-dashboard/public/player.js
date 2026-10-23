@@ -5,6 +5,7 @@
 // server already sanitized. A GM credential in this browser changes nothing:
 // the player endpoints always project. This page filters nothing itself.
 
+import { concentrationReminders, mySheets, turnLine, turnStatus } from './player-me.js';
 import { applyTheme, currentMist, loadTheme, setMist } from './theme.js';
 
 // Optional player token (only if the deployment sets PLAYER_DASHBOARD_TOKEN).
@@ -113,7 +114,103 @@ function renderFeed(events) {
     .join('');
 }
 
+// --- Mine: your turn, your character, concentration (player-me.js) -------------------
+// Needs the player's own link (/me?k=...), which me.js keeps on this device; without it this
+// section stays hidden. The sheets come from /api/me (only the characters this player owns).
+const ME_KEY = 'cogm_me_key';
+const ME_REFRESH_MS = 8000;
+const elMine = $('mine');
+const elMineTurn = $('mine-turn');
+const elMineAlerts = $('mine-alerts');
+const elMineChars = $('mine-chars');
+let mySheetList = [];
+let lastCombat = null;
+let meLoading = false;
+let meAt = 0;
+let meMissed = false;
+const seenDamage = new Set();
+let damagePrimed = false;
+const meKey = (() => {
+  try {
+    return localStorage.getItem(ME_KEY) || '';
+  } catch {
+    return '';
+  }
+})();
+
+async function loadMe() {
+  if (!meKey || meLoading) return;
+  meLoading = true;
+  try {
+    const res = await fetch('/api/me', { headers: { 'X-CoGM-Me': meKey } });
+    if (!res.ok) throw new Error(String(res.status));
+    mySheetList = mySheets(await res.json());
+    meMissed = false;
+  } catch {
+    meMissed = true;
+  } finally {
+    meAt = Date.now();
+    meLoading = false;
+  }
+}
+
+function renderMine() {
+  if (!meKey || mySheetList.length === 0) {
+    elMine.hidden = true;
+    return;
+  }
+  elMine.hidden = false;
+  const status = turnStatus(
+    lastCombat,
+    mySheetList.map(s => s.id)
+  );
+  const line = turnLine(status);
+  elMineTurn.hidden = !line;
+  elMineTurn.className = 'turn-banner' + (status && line ? ' ' + status.state : '');
+  elMineTurn.textContent = line || '';
+  elMineChars.innerHTML = mySheetList
+    .map(s => {
+      const pct = s.hp && s.hp.max ? Math.max(0, Math.min(100, (100 * s.hp.value) / s.hp.max)) : 0;
+      const hp = s.hp
+        ? `<span class="hpbar"><i style="width:${pct}%"></i></span> ${escape(s.hp.value)}/${escape(s.hp.max)}`
+        : '';
+      const conds = [
+        ...s.conditions.filter(c => !(s.concentration && /^concentrating$/i.test(c))),
+        s.concentration ? `Concentrating: ${s.concentration}` : '',
+      ]
+        .filter(Boolean)
+        .map(escape)
+        .join(', ');
+      return `<div class="mine-char"><strong>${escape(s.name)}</strong> ${hp}${conds ? ` <span class="cond">${conds}</span>` : ''}<a href="/me" data-track="player.mine.sheet">Open sheet</a></div>`;
+    })
+    .join('');
+}
+
+async function onMineState(s) {
+  lastCombat = s.combat;
+  if (!meKey) return;
+  const events = Array.isArray(s.events) ? s.events : [];
+  if (!damagePrimed) {
+    // The first frame carries the recent feed: those lines are history, not new hits.
+    for (const e of events) seenDamage.add(e.id);
+    damagePrimed = true;
+  }
+  const fresh = events.some(e => e.type === 'damage' && !seenDamage.has(e.id));
+  if (fresh || Date.now() - meAt > ME_REFRESH_MS || mySheetList.length === 0) await loadMe();
+  if (fresh && !meMissed) {
+    for (const r of concentrationReminders(events, mySheetList, seenDamage)) {
+      const div = document.createElement('div');
+      div.className = 'mine-alert';
+      div.textContent = r.text;
+      div.addEventListener('click', () => div.remove());
+      elMineAlerts.prepend(div);
+    }
+  }
+  renderMine();
+}
+
 function renderState(s) {
+  void onMineState(s);
   elStatus.textContent = STATUS_LABELS[s.status] || 'connecting…';
   elWorld.textContent = s.world
     ? `${s.world.title}${s.world.systemId ? ' · ' + s.world.systemId : ''}`

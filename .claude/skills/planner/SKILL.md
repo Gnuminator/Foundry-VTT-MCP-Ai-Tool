@@ -151,7 +151,9 @@ While weekly usage is above 50%, write `~/.foundry-ai-tool/context-thresholds.js
 `{ "plan": 200000, "out": 250000 }` (the context hook's low mode); delete it below 50%.
 
 **`Usage now.md` (the board's usage card):** at each planner start and before each lane start, read
-`get_usage` (its `plan.windows`) and run, in the main checkout or any built worktree:
+`get_usage "self"`: the window "Weekly · all models" gives `--weekly` and `--weekly-resets`, "5-hour
+limit" gives `--five-hour` and `--five-hour-resets`, a "Weekly · <model>" window gives `--model`.
+Then run, in the main checkout or any built worktree:
 
 ```bash
 npm run usage:now -- --weekly <weekly all-models %> --weekly-resets <its resetsAt> \

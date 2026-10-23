@@ -46,6 +46,7 @@
     "usage:catalog": "node scripts/usage-catalog.mjs",
     "usage:catalog:check": "node scripts/usage-catalog.mjs --check",
     "usage:week": "node scripts/dev/usage-week.mjs",
+    "usage:now": "node scripts/dev/usage-now.mjs",
     "usage:calls": "node scripts/dev/usage-calls.mjs",
     "live:roundtrip": "node scripts/live-roundtrip.mjs",
     "live:sweep": "node scripts/live-write-sweep.mjs",

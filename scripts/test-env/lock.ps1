@@ -6,6 +6,7 @@
 #   pwsh scripts/test-env/lock.ps1 release -Session <local_id> [-Force]
 #   pwsh scripts/test-env/lock.ps1 queue -Holder "<session title>" -Session <local_id> -Purpose "<text>"
 #   pwsh scripts/test-env/lock.ps1 leave -Session <local_id>
+#   pwsh scripts/test-env/lock.ps1 publish   write this server's state to the vault note again (reads only)
 #   ... -Server B   test server B's lock (<B's Root>/lock.json); default A, or FOUNDRY_TEST_SERVER
 #
 # State is <Root>/lock.json: { holder, session, since, purpose, queue: [ { holder, session, since, purpose } ] }.
@@ -15,14 +16,21 @@
 # gone (status flags entries older than 4 hours); leave -Session <their id> drops a dead queue
 # entry. A lock.json that cannot be read is refused until take -Force or release -Force starts a
 # fresh one.
+# The PM board's Today page shows the three servers from the vault note
+# `Dev/Foundry AI Tool/Test servers.md`: take, release, queue, leave and publish write this server's
+# state there (free or held, the holder's title, since when, queue length; no paths, purposes or
+# secrets): pull, commit only that file, push. A vault problem is a WARNING line and never fails or
+# undoes the lock. The vault is $env:FOUNDRY_AI_OBSIDIAN_DIR or ~/Documents/Obsidian/vault; -Vault
+# overrides it. With -Root (the tests) nothing is written unless -Vault names a checkout too.
 # Exit code 1: refused (the lock is held by another session, or lock.json cannot be read).
 param(
-  [Parameter(Mandatory, Position = 0)][ValidateSet('status', 'take', 'release', 'queue', 'leave')][string]$Command,
+  [Parameter(Mandatory, Position = 0)][ValidateSet('status', 'take', 'release', 'queue', 'leave', 'publish')][string]$Command,
   [string]$Holder,
   [string]$Session,
   [string]$Purpose,
   [switch]$Force,
   [string]$Root,
+  [string]$Vault,
   [ValidateSet('A', 'B', 'C')] [string]$Server
 )
 . (Join-Path $PSScriptRoot 'config.ps1')
@@ -257,8 +265,93 @@ function Invoke-Leave {
   return 0
 }
 
+$NotePath = 'Dev/Foundry AI Tool/Test servers.md'
+
+# git in the vault with a time limit, so a hung network never holds up a lock command.
+function Invoke-VaultGit([string]$Dir, [string[]]$GitArgs) {
+  $psi = [System.Diagnostics.ProcessStartInfo]::new('git')
+  foreach ($a in (@('-C', $Dir) + $GitArgs)) { $psi.ArgumentList.Add($a) }
+  $psi.RedirectStandardOutput = $true
+  $psi.RedirectStandardError = $true
+  $psi.UseShellExecute = $false
+  $psi.Environment['GIT_TERMINAL_PROMPT'] = '0'
+  $p = [System.Diagnostics.Process]::Start($psi)
+  $out = $p.StandardOutput.ReadToEndAsync()
+  $err = $p.StandardError.ReadToEndAsync()
+  if (-not $p.WaitForExit(30000)) {
+    try { $p.Kill($true) } catch { }
+    return [pscustomobject]@{ Ok = $false; Text = 'timed out after 30 seconds' }
+  }
+  $p.WaitForExit()
+  $text = (("$($err.Result)").Trim() + "`n" + ("$($out.Result)").Trim()).Trim().Split("`n")[0]
+  return [pscustomobject]@{ Ok = ($p.ExitCode -eq 0); Text = $text }
+}
+
+function Get-NoteHolder([string]$Text) {
+  $t = ("$Text" -replace '\p{Cc}', ' ').Trim()
+  if ($t.Length -gt 60) { $t = $t.Substring(0, 60) }
+  return $t
+}
+
+# The note text: this server's lines replaced, the other servers' lines kept as they are.
+function Get-NoteText([string]$Existing, $Lock, [string]$Name) {
+  $keep = [ordered]@{}
+  if ($Existing -match '(?s)^---\r?\n(.*?)\r?\n---') {
+    foreach ($line in ($Matches[1] -split '\r?\n')) {
+      if ($line -match '^(server-[abc](?:-[a-z]+)?): (.*)$') { $keep[$Matches[1]] = $Matches[2] }
+    }
+  }
+  $id = "server-$($Name.ToLowerInvariant())"
+  foreach ($k in @($keep.Keys)) { if ($k -eq $id -or $k.StartsWith("$id-")) { $keep.Remove($k) } }
+  if ($Lock.Holder) {
+    $keep[$id] = 'held'
+    $keep["$id-holder"] = Get-NoteHolder $Lock.Holder
+    if ($Lock.Since) { $keep["$id-since"] = $Lock.Since }
+  } else {
+    $keep[$id] = 'free'
+  }
+  $keep["$id-queue"] = [string]@($Lock.Queue).Count
+  $lines = @('type: test-servers', "updated: $([DateTime]::UtcNow.ToString('o'))")
+  foreach ($k in ($keep.Keys | Sort-Object)) { $lines += "${k}: $($keep[$k])" }
+  return "---`n$($lines -join "`n")`n---`n`nWritten by scripts/test-env/lock.ps1 on every take, release, queue, leave and publish. Do not edit by hand.`n"
+}
+
+# Writes this server's state to the vault note and pushes it. Never throws; a problem is a warning.
+function Publish-LockNote {
+  try {
+    $dir = if ($Vault) { $Vault } elseif ($Root) { $null } elseif ($env:FOUNDRY_AI_OBSIDIAN_DIR) { $env:FOUNDRY_AI_OBSIDIAN_DIR } else { Join-Path $HOME 'Documents/Obsidian/vault' }
+    if (-not $dir -or -not (Test-Path -LiteralPath (Join-Path $dir '.git'))) { return }
+    $lock = Read-TestLock $lockRoot
+    if ($lock.Unreadable) { return }
+    $name = $TestEnv.Server
+    $pulled = Invoke-VaultGit $dir @('pull', '--rebase', '--autostash')
+    if (-not $pulled.Ok) { [Console]::Error.WriteLine("WARNING: test servers note not written: vault pull failed ($($pulled.Text))"); return }
+    $file = Join-Path $dir ($NotePath -replace '/', [IO.Path]::DirectorySeparatorChar)
+    $existing = if (Test-Path -LiteralPath $file) { Get-Content -LiteralPath $file -Raw } else { '' }
+    New-Item -ItemType Directory -Force (Split-Path $file) | Out-Null
+    [System.IO.File]::WriteAllText($file, (Get-NoteText $existing $lock $name), [System.Text.UTF8Encoding]::new($false))
+    $added = Invoke-VaultGit $dir @('add', '--', $NotePath)
+    if (-not $added.Ok) { [Console]::Error.WriteLine("WARNING: test servers note not committed ($($added.Text))"); return }
+    $state = if ($lock.Holder) { 'held' } else { 'free' }
+    $committed = Invoke-VaultGit $dir @('commit', '-m', "Test server ${name}: $state, queue $(@($lock.Queue).Count)", '--', $NotePath)
+    if (-not $committed.Ok) { [Console]::Error.WriteLine("WARNING: test servers note not committed ($($committed.Text))"); return }
+    $pushed = Invoke-VaultGit $dir @('push')
+    if (-not $pushed.Ok) {
+      $again = Invoke-VaultGit $dir @('pull', '--rebase', '--autostash')
+      $pushed = if ($again.Ok) { Invoke-VaultGit $dir @('push') } else { $again }
+    }
+    if (-not $pushed.Ok) { Write-Warning "test servers note committed but not pushed ($($pushed.Text))" }
+  } catch {
+    [Console]::Error.WriteLine("WARNING: test servers note not written ($($_.Exception.Message))")
+  }
+}
+
 if ($Command -eq 'status') {
   Show-Status
+  exit 0
+}
+if ($Command -eq 'publish') {
+  Publish-LockNote
   exit 0
 }
 $code = Use-LockFile {
@@ -269,4 +362,6 @@ $code = Use-LockFile {
     'leave' { Invoke-Leave }
   }
 }
-exit ([int]@($code)[-1])
+$exitCode = [int]@($code)[-1]
+if ($exitCode -eq 0) { Publish-LockNote }
+exit $exitCode

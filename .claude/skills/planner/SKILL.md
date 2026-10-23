@@ -11,7 +11,11 @@ decision), then ends. It does not sit and wait for lanes. Vault paths below are 
 
 ## Read the state (measured, never from memory)
 
-- `Backlog.md`, `Waiting.md`, CLAUDE.md "Holds now".
+- `Backlog.md`, `Waiting.md`, CLAUDE.md "Holds now". The `- progress:` line on a claimed Backlog
+  item is the lane's ready state (PR, head sha, review note); lanes write it before they message
+  anyone, so read it instead of waiting for a note. Never SendMessage an idle lane above about
+  150k (CLAUDE.md): the message re-reads its whole uncached context. Start a fresh lane from its
+  vault handover (`Handoff/<lane> prompt <date>.md`) instead.
 - `gh pr list --state open` and the CI of each.
 - `list_sessions` without `linked` (lanes start their own successors; they only show in the full
   list), then `get_usage` with each running lane's id (lanes underreport their context).
@@ -26,7 +30,7 @@ a turn after the answer.
 ## Backlog upkeep
 
 Each item in `Backlog.md`: `## <size S/M/L> <title>` then lines `- id: <slug>`, `- board: <area>`,
-`- done when: ...`, `- area: <files or folder>`, optional `- gate:`, `- blocked by:`, `- pi: yes`,
+`- done when: ...`, `- area: <files or folder>`, `- progress:` (the lane's ready state, see Read the state), optional `- gate:`, `- blocked by:`, `- pi: yes`,
 `- source:`, and `- claimed:` once a lane takes it. Order is priority; G0 critical path first.
 Every new item gets an `- id:` (short, lowercase, stable, never changed or reused, because the
 live board at board.spennerit.com, D-124, links items by it) and a `- board:` line (its area on
@@ -49,7 +53,10 @@ keep each item's lines together when you move it.
 
 - At most 3 lanes, each owning its own files, one per test server. Respect every hold in CLAUDE.md.
 - Brief (half a page): the Backlog item, state, open PRs, links, done-when, "load the `lane`
-  skill, follow CLAUDE.md". Work outside this repo (the Pi, another folder) carries the rules that
+  skill, follow CLAUDE.md". It says: report "ready to merge" as a `- progress:` line (PR, full
+  head sha, review note path) on the item in vault `Backlog.md`, then at most message "the newest
+  session titled Planner"; the brief names no planner session id, because planners hand over and
+  a lane that messages the old one wakes it at full price while the new one never hears. Work outside this repo (the Pi, another folder) carries the rules that
   apply there (`pi-work`).
 - `start_session` with `model` set as a full id (`claude-sonnet-5-5`, `claude-haiku-5-5`,
   `claude-opus-5-5`; the hook refuses a short name): Sonnet 5.5 for coding, Haiku 5.5 for read-only
@@ -69,6 +76,19 @@ keep each item's lines together when you move it.
   review note (verdict, head sha, findings by ID) before a merge. Lanes do the same (lane skill,
   Work). The weekly check counts Haiku turns on the Models line: near zero two weeks running
   (checked 2026-10-17: 2 turns) means the rule is not followed or not worth having.
+
+## Before a planner ends or hands over
+
+The planner ends after its outcome, or at 200k/250k (low mode) or 350k/400k context. Title this session
+"Planner" when it starts (`set_session_title`, if the user has not), so lanes can find the newest one.
+Before it stops: write the handover note (running lanes with session ids and their
+`- progress:` state, open PRs, what is next), then detach every running lane with
+`mcp__ccd_session_mgmt__detach_session` (works on sessions this planner started; it is no longer
+told when their turns end, and archiving this session no longer takes them along) so their turn-end notes stop
+waking it (detaching cannot be undone, and the app refuses a session the user placed); the next planner
+finds the lanes through `list_sessions` and the Backlog lines. Only then archive this session
+(see Session cleanup). A planner that is closed without detaching keeps being woken by lane
+notes (2026-10-23: close to 10% of a 5-hour window).
 
 ## Decisions and holds
 

@@ -241,9 +241,9 @@ describe('QueryHandlers: getSpentActions', () => {
       documentName: 'Actor',
       system: { source: { rules: '2014' } },
       flags: { [MODULE_ID]: { rules: { version: '2024', source: 'gm', at: '' } } },
-      items: { get: () => undefined },
+      items: { get: (): undefined => undefined },
     };
-    (globalThis as any).game.actors = { get: () => actor };
+    (globalThis as any).game.actors = { get: (): typeof actor => actor };
     const call = (): Promise<any> => queries()[`${MODULE_ID}.getSpentActions`]({ actorId: 'a1' });
     expect((await call()).actorRules).toEqual({ version: '2024', source: 'gm' });
     actor.flags[MODULE_ID].rules.source = 'detected';

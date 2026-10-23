@@ -345,6 +345,12 @@ test.describe('opening and folding', () => {
     await fromMenu(page, 'btn-party');
     await expect(page.locator('#party-drawer')).toBeVisible();
     await expect(page.locator('#party-drawer')).not.toHaveClass(/docked/);
+    // Closed from the backdrop, it is back in its slot for a layout that shows it.
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#party-drawer')).toBeHidden();
+    await page.getByRole('button', { name: 'Show everything' }).click();
+    await expect(page.locator('#party-drawer')).toBeVisible();
+    await expect(page.locator('#party-drawer')).toHaveClass(/docked/);
   });
 
   test('Auto in a fight: the feed is a side card, Party is the big column', async ({ page }) => {

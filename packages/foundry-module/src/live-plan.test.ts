@@ -790,9 +790,9 @@ describe('clear-conditions', () => {
   });
 
   it('says so when there is nothing to remove', async () => {
-    addActor({ id: 'a1', name: 'Wolf', effects: [effect('e4', 'No timer', [])] });
+    addActor({ id: 'a1', name: 'Wolf', effects: [] });
     await expect(planLiveChange(hpRequest({ action: 'clear-conditions' }))).rejects.toThrow(
-      'Nothing to change: Wolf: nothing to remove (no expired effects); it has no conditions'
+      'Nothing to change: Wolf: nothing to remove (no expired effects); it has no conditions or effects'
     );
   });
 
@@ -803,11 +803,11 @@ describe('clear-conditions', () => {
       effects: [effect('e1', 'Prone', ['prone']), effect('e2', 'Blessed', [])],
     });
     await expect(planLiveChange(hpRequest({ action: 'clear-conditions' }))).rejects.toThrow(
-      'Wolf: nothing to remove (no expired effects); it has Prone, name one to remove it'
+      'Wolf: nothing to remove (no expired effects); it has Prone, Blessed, name one to remove it'
     );
     await expect(
       planLiveChange(hpRequest({ action: 'clear-conditions', conditions: ['poisoned'] }))
-    ).rejects.toThrow('Wolf: nothing to remove (no poisoned); it has Prone, name one');
+    ).rejects.toThrow('Wolf: nothing to remove (no poisoned); it has Prone, Blessed, name one');
   });
 });
 

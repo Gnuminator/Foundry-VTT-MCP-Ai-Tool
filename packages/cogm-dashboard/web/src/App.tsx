@@ -178,7 +178,8 @@ function Dashboard(): JSX.Element {
   const { slotRefs, dockOf: slotOf } = useDocks(moment);
   // A card whose slot the layout hides (Simple view has no Party) opens over the page instead.
   const [floated, setFloated] = useState<Partial<Record<DockName, boolean>>>({});
-  const dockOf = (name: DockName): HTMLElement | null => (floated[name] ? null : slotOf(name));
+  const dockOf = (name: DockName): HTMLElement | null =>
+    floated[name] && drawers[name as DrawerName] ? null : slotOf(name);
   const [drawers, setDrawers] = useState(NO_DRAWERS);
   const [seenMoment, setSeenMoment] = useState(moment);
   if (moment !== seenMoment) {

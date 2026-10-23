@@ -305,7 +305,7 @@ export class QuestCreationTools {
         content: questContent,
         message: `Quest "${request.questTitle}" created successfully with ${result.pageCount || 1} page(s)`,
         // The Handouts drawer lists only queued or revealed pages, so a new journal is not there.
-        next: 'To hand the quest out to players, offer the GM to queue its page (plan-page-reveal, action queue, or + Queue a page in the Handouts drawer). Only queued or revealed pages show under Handouts.',
+        next: 'To hand the quest out to players, offer to queue its page for the GM (plan-page-reveal, action queue, or + Queue a page in the Handouts drawer). Only queued or revealed pages show under Handouts.',
       };
     } catch (error) {
       this.errorHandler.handleToolError(error, 'create-quest-journal', 'quest creation');

@@ -563,16 +563,15 @@ function planClearConditions(
       .map(e => ({ uuid: effectUuid(e), label: str(e.name) ?? '?' }))
       .filter((e): e is { uuid: string; label: string } => e.uuid !== null);
     if (named.length === 0) {
-      // Say what the GM can do: list the conditions the actor has, so a remove with no name or a
-      // wrong name can be retried with one of them.
+      // Say what the GM can do: list the effects the actor has (conditions and others, by name),
+      // so a remove with no name or a wrong name can be retried with one of them.
       const current = effectsOf(actor)
-        .filter(e => effectStatuses(e).length > 0)
         .map(e => str(e.name))
         .filter((n): n is string => n !== null);
       const have =
         current.length > 0
           ? `; it has ${current.join(', ')}, name one to remove it`
-          : '; it has no conditions';
+          : '; it has no conditions or effects';
       previews.push({
         target: name,
         actorUuid: actor.uuid,

@@ -88,6 +88,21 @@ describe('tryCheck', () => {
     expect(await tools({ enabled: false }).t.tryCheck({ actor: 'Ilvara', item: 'x' })).toBeNull();
     expect(await tools({}).t.tryCheck({})).toBeNull();
   });
+
+  it('counts an earlier use of the same item only when the caller posts the card itself', async () => {
+    const spent = {
+      success: true,
+      tracked: true,
+      sinceOwnTurn: [
+        { item: 'Magic Missile', itemType: 'spell', activation: 'action', itemLevel: 1 },
+      ],
+    };
+    const args = { actor: 'Ilvara', item: 'Magic Missile' };
+    const cost = (r: Awaited<ReturnType<RulesCheckTools['tryCheck']>>): string | undefined =>
+      r?.checks.find(c => c.check === 'action-cost')?.status;
+    expect(cost(await tools({ spent }).t.tryCheck(args, true))).toBe('warn');
+    expect(cost(await tools({ spent }).t.tryCheck(args))).toBe('info');
+  });
 });
 
 describe('tryCheckMove', () => {
@@ -441,7 +456,7 @@ describe('check-action', () => {
     const spent = {
       success: true,
       tracked: true,
-      sinceOwnTurn: [{ item: 'Shield', itemType: 'spell', activation: 'reaction' }],
+      sinceOwnTurn: [{ item: 'Fireball', itemType: 'spell', activation: 'action', itemLevel: 3 }],
     };
     const goblin = { ...resources, actorName: 'Goblin', actorId: 'a1' };
     const { t, query } = tools({ combat: twins, spent });
@@ -450,7 +465,14 @@ describe('check-action', () => {
       m === 'foundry-mcp-bridge.getCharacterResources' ? goblin : base(m, a)
     );
     const r = await t.handleToolCall('check-action', { actor: 'Goblin', item: 'Magic Missile' });
-    expect(JSON.stringify(r.checks)).not.toContain('Shield');
+    expect(JSON.stringify(r.checks)).not.toContain('Fireball');
+    // Control: with one token the same ledger entry is reported.
+    const solo = tools({ spent });
+    const one = await solo.t.handleToolCall('check-action', {
+      actor: 'Ilvara',
+      item: 'Magic Missile',
+    });
+    expect(JSON.stringify(one.checks)).toContain('Fireball');
   });
 
   it('refuses an effect', async () => {

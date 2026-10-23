@@ -161,12 +161,12 @@ export class RulesCheckTools {
   }
 
   /**
-   * The advisory pre-check other tools run before a roll or a use: null when the switch is off or
+   * The advisory pre-check other tools run before a roll or a use (`beforeUse`: the caller is about to post the usage card itself, so the ledger cannot hold this use yet): null when the switch is off or
    * anything goes wrong, so it never blocks or fails the write it sits in front of.
    */
-  async tryCheck(args: unknown): Promise<RulesCheckResult | null> {
+  async tryCheck(args: unknown, beforeUse = false): Promise<RulesCheckResult | null> {
     try {
-      return await this.checkAction(args, true);
+      return await this.checkAction(args, beforeUse);
     } catch (error) {
       if (!(error instanceof Error && error.message === SWITCH_OFF)) {
         // Often just a player name that is not an actor, or a free-text weapon label.

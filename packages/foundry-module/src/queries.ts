@@ -1426,7 +1426,12 @@ export class QueryHandlers {
           : detectRulesVersion(actor)
         : null;
       const item = typeof data?.itemId === 'string' ? actor?.items?.get(data.itemId) : undefined;
-      const itemDetected = item ? detectRulesVersion(item) : null;
+      const itemStored = item ? readRulesTag(item) : null;
+      const itemDetected = item
+        ? itemStored?.source === 'gm'
+          ? itemStored
+          : detectRulesVersion(item)
+        : null;
       return {
         ...spentSinceOwnTurn(
           actorId,

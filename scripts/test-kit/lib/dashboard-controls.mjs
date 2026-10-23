@@ -395,7 +395,7 @@ export const DASHBOARD_CONTROLS = [
     // Only the After page (web/src) has it; the old page's files do not, so the data-track
     // test cannot look it up there.
     selector: '[data-track="dash.combat.end"]',
-    reach: [MOMENT_DURING, 'dash.combat.select-combatant'],
+    reach: [MOMENT_DURING],
     expect: '#tool-detail',
     optional: true,
     why: 'needs a combat, GM Actions on and Combat buttons on (opens the tool form, runs nothing)',

@@ -66,7 +66,7 @@ export class CombatChangeTools {
       {
         name: 'plan-combat-change',
         description:
-          'Plan ending the fight: "end" removes the active combat from the tracker. Apply with apply-planned-change (destructive, so the GM confirms; it never applies on its own), revert with undo-change (the fight comes back with its round, turn and initiative). Shows in Recent Changes.',
+          'Plan ending the fight: "end" removes the active combat from the tracker. Apply with apply-planned-change (destructive, so the GM confirms; it never applies on its own), revert with undo-change (the fight comes back with its round, turn and initiative). Shows in Recent Changes. Undo does not restore effects that end with combat or token movement history (the result carries a warning).',
         inputSchema: {
           type: 'object',
           properties: {
@@ -104,7 +104,12 @@ export class CombatChangeTools {
       });
       const autoApply =
         plan.risk === 'write' && (await this.options.guardedWrites.autoApplyEnabled(plan.feature));
-      return { ...plan, combatId: built.combatId, autoApply };
+      return {
+        ...plan,
+        combatId: built.combatId,
+        ...(built.warning ? { warning: built.warning } : {}),
+        autoApply,
+      };
     } catch (error) {
       this.logger.warn('Combat plan not created', {
         action: params.action,

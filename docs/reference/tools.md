@@ -610,9 +610,9 @@ Parameters:
 
 ### plan-combat-change
 
-Plan ending the fight: "end" removes the active combat from the tracker. Apply with apply-planned-change (destructive, so the GM confirms; it never applies on its own), revert with undo-change (the fight comes back with its round, turn and initiative). Shows in Recent Changes.
+Plan ending the fight: "end" removes the active combat from the tracker. Apply with apply-planned-change (destructive, so the GM confirms; it never applies on its own), revert with undo-change (the fight comes back with its round, turn and initiative). Shows in Recent Changes. Undo does not restore effects that end with combat or token movement history (the result carries a warning).
 
-Kind: read-only. Title: Plan starting or ending a fight.
+Kind: read-only. Title: Plan ending a fight.
 
 Parameters:
 

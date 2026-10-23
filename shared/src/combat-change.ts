@@ -36,11 +36,14 @@ export interface CombatChangePlan {
   summary: string;
   ops: GuardedOp[];
   combatId: string;
+  /** What Undo does not bring back; shown beside the plan. */
+  warning?: string;
 }
 
 /** What `plan-combat-change` returns beside the guarded plan. */
 export interface CombatChangePlanResult {
   combatId: string;
+  warning?: string;
   /** The GM switched on "apply without confirming"; never true when the plan deletes. */
   autoApply: boolean;
 }

@@ -39,6 +39,7 @@ describe('end', () => {
     const plan = await planCombatChange({ action: 'end' });
     expect(plan.ops).toEqual([{ kind: 'delete', uuid: 'Combat.c1' }]);
     expect(plan.combatId).toBe('c1');
+    expect(plan.warning).toContain('Undo');
     expect(plan.summary).toBe('End combat on "Field" (round 3, 2 combatants)');
   });
 

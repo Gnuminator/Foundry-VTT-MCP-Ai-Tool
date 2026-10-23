@@ -18,6 +18,10 @@ import * as shared from './data-access/shared.js';
 /** Query name (mirror of the shared `COMBAT_PLAN_QUERY`). */
 export const COMBAT_PLAN_QUERY = 'planCombatChange';
 
+/** Foundry removes these when a fight ends; Undo re-creates the Combat only. */
+const END_WARNING =
+  'Ending the fight also removes effects that end with combat (expired or special-duration ones) and clears token movement history. Undo brings the fight back with its round, turn and initiative, but not those.';
+
 interface CombatDoc {
   id?: string;
   uuid?: string;
@@ -47,6 +51,7 @@ function planEnd(request: CombatEndRequest): CombatChangePlan {
     summary,
     ops: [{ kind: 'delete', uuid: combat.uuid ?? `Combat.${combat.id}` }],
     combatId: combat.id,
+    warning: END_WARNING,
   };
 }
 

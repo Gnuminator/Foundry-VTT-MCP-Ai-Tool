@@ -23,6 +23,7 @@ const BUILT: CombatChangePlan = {
   summary: 'End combat on "Field" (round 3, 4 combatants)',
   ops: [{ kind: 'delete', uuid: 'Combat.c1' }],
   combatId: 'c1',
+  warning: 'Undo does not bring back effects.',
 };
 
 let query: ReturnType<typeof vi.fn>;
@@ -81,6 +82,7 @@ describe('plan-combat-change', () => {
       ops: BUILT.ops,
     });
     expect(result.combatId).toBe('c1');
+    expect(result.warning).toBe(BUILT.warning);
     expect(result.autoApply).toBe(false);
     expect(autoApplyEnabled).not.toHaveBeenCalled();
   });

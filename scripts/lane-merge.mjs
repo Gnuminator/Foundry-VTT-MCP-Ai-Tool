@@ -36,6 +36,10 @@
  *
  * The merge train is per PC: its state file lives in ~/.foundry-ai-tool, so lanes on another PC
  * count their own merges. A lock file next to it serialises the read-check-merge-write.
+ *
+ * Every merge, --train-reset and refusal (not --dry-run) also writes the train state to the vault
+ * note `Dev/Foundry AI Tool/Merge train.md` for the PM board: pull, commit only that file, push.
+ * A vault problem is a WARNING line; it never fails or undoes a merge.
  */
 import { spawnSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
@@ -641,6 +645,68 @@ export function writeTrain(file, state) {
   fs.writeFileSync(file, `${JSON.stringify(state, null, 2)}\n`);
 }
 
+/** Vault note the PM board reads for the merge train (board README, "Merge train.md"). */
+export const TRAIN_NOTE_PATH = 'Dev/Foundry AI Tool/Merge train.md';
+
+/** @typedef {{ kind: 'merge' | 'reset' | 'refusal', pr?: number, at: string }} TrainEvent */
+
+/**
+ * The vault note text: `key: value` lines in a frontmatter, numbers, a commit hash, a result word
+ * and ISO dates only (the board never copies free text, and no secrets belong here). A reset only
+ * ever follows a green live:roundtrip, so the recorded result is always green.
+ * @param {TrainState} state @param {TrainEvent} event @param {string} updated
+ */
+export function renderTrainNote(state, event, updated) {
+  const lines = ['type: merge-train', `updated: ${updated}`, `count: ${state.since.length}`];
+  lines.push(`limit: ${TRAIN_SIZE}`);
+  if (state.lastRoundtrip) {
+    lines.push(`last-roundtrip-sha: ${state.lastRoundtrip.sha}`);
+    lines.push(`last-roundtrip: ${state.lastRoundtrip.at}`);
+    lines.push('last-roundtrip-result: green');
+  }
+  lines.push(`last-event: ${event.kind}`);
+  if (event.pr !== undefined) lines.push(`last-event-pr: ${event.pr}`);
+  lines.push(`last-event-at: ${event.at}`);
+  return `---\n${lines.join('\n')}\n---\n\nWritten by scripts/lane-merge.mjs on every merge, --train-reset and refusal. Do not edit by hand.\n`;
+}
+
+/**
+ * Write the merge train note into the vault and push it (vault rules: pull first, commit only that
+ * file, push). Never throws and never undoes anything: every problem comes back as a warning text
+ * (empty when all went well). A vault that is not a git checkout writes nothing.
+ * @param {{ vault: string, state: TrainState, event: TrainEvent, run: (cmd: string, args: string[]) => { status: number, stdout: string, stderr: string }, now: () => Date }} o
+ * @returns {string}
+ */
+export function publishTrainNote({ vault, state, event, run, now }) {
+  const file = path.join(vault, ...TRAIN_NOTE_PATH.split('/'));
+  const git = (/** @type {string[]} */ ...a) => run('git', ['-C', vault, ...a]);
+  const why = (/** @type {{ stderr: string, stdout: string }} */ r) =>
+    firstLine(r.stderr || r.stdout) || 'failed';
+  try {
+    // no vault checkout on this PC (or --vault points elsewhere): nothing to publish, not a problem
+    if (!fs.existsSync(path.join(vault, '.git'))) return '';
+    const pulled = git('pull', '--rebase', '--autostash');
+    if (pulled.status !== 0) return `merge train note not written: vault pull failed (${why(pulled)})`;
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, renderTrainNote(state, event, now().toISOString()));
+    const added = git('add', '--', TRAIN_NOTE_PATH);
+    if (added.status !== 0) return `merge train note not committed (${why(added)})`;
+    const label = event.kind === 'reset' ? 'reset' : `${event.kind} #${event.pr}`;
+    const subject = `Merge train: ${label}, ${state.since.length}/${TRAIN_SIZE}`;
+    const committed = git('commit', '-m', subject, '--', TRAIN_NOTE_PATH);
+    if (committed.status !== 0) return `merge train note not committed (${why(committed)})`;
+    let pushed = git('push');
+    if (pushed.status !== 0) {
+      const again = git('pull', '--rebase', '--autostash');
+      pushed = again.status === 0 ? git('push') : again;
+    }
+    if (pushed.status !== 0) return `merge train note committed but not pushed (${why(pushed)})`;
+    return '';
+  } catch (e) {
+    return `merge train note not written (${e instanceof Error ? e.message : String(e)})`;
+  }
+}
+
 /** Wait without spinning. @param {number} ms */
 function sleep(ms) {
   Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
@@ -995,6 +1061,22 @@ export function main(options = {}) {
     return f.status === 0 ? null : firstLine(f.stderr || f.stdout) || 'failed';
   };
   const message = (/** @type {unknown} */ e) => (e instanceof Error ? e.message : String(e));
+  const vault =
+    args.vault ?? env.FOUNDRY_AI_OBSIDIAN_DIR ?? path.join(home, 'Documents', 'Obsidian', 'vault');
+  /**
+   * Write the train state to the vault note. A failure is a warning text, never a failed merge.
+   * @param {TrainState} state @param {TrainEvent['kind']} kind @param {number} [pr]
+   */
+  const recordTrain = (state, kind, pr) => {
+    const warn = publishTrainNote({
+      vault,
+      state,
+      event: { kind, ...(pr === undefined ? {} : { pr }), at: now().toISOString() },
+      run,
+      now,
+    });
+    return warn ? `WARNING: ${warn}` : '';
+  };
 
   if (args.train) {
     try {
@@ -1042,12 +1124,15 @@ export function main(options = {}) {
       release?.();
     }
     log(`lane:merge: merge train reset at ${short(tipSha)}; merge train 0/${TRAIN_SIZE}`);
+    const resetWarning = recordTrain(
+      { lastRoundtrip: { sha: tipSha, at: now().toISOString() }, since: [] },
+      'reset'
+    );
+    if (resetWarning) log(`lane:merge: ${resetWarning}`);
     return 0;
   }
 
   const n = /** @type {number} */ (args.pr);
-  const vault =
-    args.vault ?? env.FOUNDRY_AI_OBSIDIAN_DIR ?? path.join(home, 'Documents', 'Obsidian', 'vault');
   /** @type {string[]} */
   const failures = [];
   /** @type {string[]} */
@@ -1059,6 +1144,14 @@ export function main(options = {}) {
     for (const f of failures) log(f);
     for (const line of notes) log(`lane:merge: ${line}`);
     for (const d of details) log(d);
+    if (!args.dryRun) {
+      try {
+        const warn = recordTrain(readTrain(statePath), 'refusal', n);
+        if (warn) log(`lane:merge: ${warn}`);
+      } catch (e) {
+        log(`lane:merge: WARNING: merge train note not written (${message(e)})`);
+      }
+    }
     return code;
   };
 
@@ -1328,6 +1421,8 @@ export function main(options = {}) {
     release?.();
   }
   const k = train.since.length;
+  const noteWarning = recordTrain(train, 'merge', n);
+  if (noteWarning) warning += `; ${noteWarning}`;
   const advice =
     trainRelevant && k === TRAIN_SIZE - 1
       ? '; run live:roundtrip before the next module merge'

@@ -15,8 +15,11 @@ export function mySheets(me) {
       conditions: Array.isArray(s.conditions)
         ? s.conditions.filter(c => typeof c === 'string')
         : [],
+      // dnd5e names the effect "Concentrating: <spell>": keep the spell.
       concentration:
-        typeof s.concentration === 'string' && s.concentration ? s.concentration : null,
+        typeof s.concentration === 'string' && s.concentration
+          ? s.concentration.replace(/^concentrating:\s*/i, '') || null
+          : null,
     }));
 }
 
@@ -31,11 +34,19 @@ export function turnStatus(combat, actorIds) {
   const mine = new Set(actorIds);
   const order = combat.combatants.filter(c => !c.defeated);
   const currentIdx = order.findIndex(c => c.isCurrentTurn);
-  const me = order.findIndex(c => c.isPC && c.actorId && mine.has(c.actorId));
-  if (me < 0) return { state: 'out', round: combat.round };
+  const owned = order
+    .map((c, i) => (c.isPC && c.actorId && mine.has(c.actorId) ? i : -1))
+    .filter(i => i >= 0);
+  if (owned.length === 0) return { state: 'out', round: combat.round };
+  // With two characters in the fight, follow the one whose turn comes first.
+  const me =
+    currentIdx < 0 ? owned[0] : owned.reduce((best, i) => (dist(i) < dist(best) ? i : best));
+  function dist(i) {
+    return (i - currentIdx + order.length) % order.length;
+  }
   if (currentIdx < 0)
     return { state: 'later', round: combat.round, turnsAway: null, name: order[me].name };
-  const away = (me - currentIdx + order.length) % order.length;
+  const away = dist(me);
   const base = { round: combat.round, name: order[me].name };
   if (away === 0) return { ...base, state: 'yours' };
   if (away === 1) return { ...base, state: 'next' };
@@ -53,9 +64,9 @@ export function turnLine(status) {
   return status.turnsAway ? `${status.turnsAway} turns until yours.` : 'Not your turn yet.';
 }
 
-/** The Constitution save DC for a damaged concentrating caster: 10 or half the damage. */
+/** The Constitution save DC for a damaged concentrating caster: 10 or half the damage, at most 30. */
 export function concentrationDc(damage) {
-  return Math.max(10, Math.floor(damage / 2));
+  return Math.min(30, Math.max(10, Math.floor(damage / 2)));
 }
 
 /** "Brenna took 7 damage." -> { name, amount }; the feed's fixed template for a PC. */

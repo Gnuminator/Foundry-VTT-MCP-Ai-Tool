@@ -44,6 +44,8 @@ const CANARY = {
   inlineRoll: 'CANARY-INLINE-ROLL',
   tarokka: 'CANARY-TAROKKA-CARD',
   aiText: 'CANARY-AI-COMMENTARY',
+  /** Actor id of every non-PC combatant: only player characters may carry one to a player. */
+  npcActor: 'CANARY-NPC-ACTOR-ID',
 } as const;
 
 /** An enabled co-GM whose every answer is a canary: AI output is GM-only. */
@@ -77,7 +79,7 @@ const visibility: PlayerVisibility = {
   pcActorIds: ['a-pc'],
   scene: { id: 's1', name: 'Village square' },
   tokens: [
-    { tokenId: 't-npc', actorId: 'a-npc', name: 'Hooded figure', pc: false },
+    { tokenId: 't-npc', actorId: CANARY.npcActor, name: 'Hooded figure', pc: false },
     { tokenId: 't-pc', actorId: 'a-pc', name: 'Ilvara', pc: true },
   ],
 };
@@ -237,7 +239,7 @@ const combat: CombatState = {
       defeated: false,
       deathSaves: null,
       tokenId: 't-npc',
-      actorId: 'a-npc',
+      actorId: CANARY.npcActor,
       statuses: ['prone', CANARY.effect],
     },
     {
@@ -253,7 +255,7 @@ const combat: CombatState = {
       defeated: false,
       deathSaves: null,
       tokenId: 't-not-visible',
-      actorId: 'a-other',
+      actorId: CANARY.npcActor,
     },
     {
       id: 'c-hidden',
@@ -269,7 +271,7 @@ const combat: CombatState = {
       deathSaves: null,
       hidden: true,
       tokenId: 't-npc',
-      actorId: 'a-npc',
+      actorId: CANARY.npcActor,
     },
   ],
 };

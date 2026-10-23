@@ -61,6 +61,23 @@ describe('turnStatus', () => {
     expect(turnStatus(combat(last), ['nobody'])).toMatchObject({ state: 'out' });
   });
 
+  it("with two of the player's characters, follows the one whose turn comes first", () => {
+    const two = [
+      c({ id: 'g1', isCurrentTurn: true }),
+      c({ id: 'g2' }),
+      hero('p1', 'actor-1'),
+      hero('p2', 'actor-2'),
+    ];
+    // actor-2 is listed after actor-1 but acts second; actor-1 is two turns away.
+    const out = turnStatus(combat(two), ['actor-2', 'actor-1']);
+    expect(out).toMatchObject({ state: 'later', turnsAway: 2, name: 'Hero p1' });
+    const wrapped = two.map(o => ({ ...o, isCurrentTurn: o.id === 'p1' }));
+    expect(turnStatus(combat(wrapped), ['actor-2', 'actor-1'])).toMatchObject({
+      state: 'yours',
+      name: 'Hero p1',
+    });
+  });
+
   it('is null without an active combat, and an NPC never matches an actor id', () => {
     expect(turnStatus(null, ['actor-1'])).toBeNull();
     expect(turnStatus({ active: false, round: 0, combatants: [] }, ['actor-1'])).toBeNull();
@@ -80,6 +97,17 @@ describe('turnStatus', () => {
 });
 
 describe('mySheets', () => {
+  it('keeps the spell from dnd5e\'s "Concentrating: <spell>" effect name', () => {
+    const [sheet] = mySheets({
+      sheets: [{ id: 'a', name: 'Brenna', conditions: [], concentration: 'Concentrating: Bless' }],
+    });
+    expect(sheet.concentration).toBe('Bless');
+    const [bare] = mySheets({
+      sheets: [{ id: 'a', name: 'Brenna', conditions: [], concentration: 'Concentrating' }],
+    });
+    expect(bare.concentration).toBe('Concentrating');
+  });
+
   it('keeps only what the card shows and drops malformed rows', () => {
     const out = mySheets({
       sheets: [
@@ -126,6 +154,7 @@ describe('concentration reminder', () => {
     expect(concentrationDc(7)).toBe(10);
     expect(concentrationDc(30)).toBe(15);
     expect(concentrationDc(21)).toBe(10);
+    expect(concentrationDc(200)).toBe(30);
   });
 
   it('reminds once per damage line, only for a character that is concentrating', () => {

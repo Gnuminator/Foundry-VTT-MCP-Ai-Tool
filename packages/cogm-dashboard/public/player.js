@@ -125,7 +125,7 @@ const elMineAlerts = $('mine-alerts');
 const elMineChars = $('mine-chars');
 let mySheetList = [];
 let lastCombat = null;
-let meLoading = false;
+let meLoading = null;
 let meAt = 0;
 let meMissed = false;
 const seenDamage = new Set();
@@ -138,20 +138,24 @@ const meKey = (() => {
   }
 })();
 
-async function loadMe() {
-  if (!meKey || meLoading) return;
-  meLoading = true;
-  try {
-    const res = await fetch('/api/me', { headers: { 'X-CoGM-Me': meKey } });
-    if (!res.ok) throw new Error(String(res.status));
-    mySheetList = mySheets(await res.json());
-    meMissed = false;
-  } catch {
-    meMissed = true;
-  } finally {
-    meAt = Date.now();
-    meLoading = false;
-  }
+// One read at a time; a second caller waits for the one in flight instead of skipping it.
+function loadMe() {
+  if (!meKey) return Promise.resolve();
+  if (meLoading) return meLoading;
+  meLoading = (async () => {
+    try {
+      const res = await fetch('/api/me', { headers: { 'X-CoGM-Me': meKey } });
+      if (!res.ok) throw new Error(String(res.status));
+      mySheetList = mySheets(await res.json());
+      meMissed = false;
+    } catch {
+      meMissed = true;
+    } finally {
+      meAt = Date.now();
+      meLoading = null;
+    }
+  })();
+  return meLoading;
 }
 
 function renderMine() {

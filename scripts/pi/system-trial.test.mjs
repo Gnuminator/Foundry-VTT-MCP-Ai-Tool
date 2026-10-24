@@ -336,7 +336,7 @@ describe('14-system-trial.sh in an ARM64 container', { skip: containerReason }, 
     assert.ok(at('stop foundry-ai-tool-gm-browser.service') >= 0, calls.join('\n'));
     assert.ok(at('stop foundry-ai-tool-gm-browser.service') < at('stop foundry.service'));
     assert.ok(at('stop foundry.service') < at('restart foundry.service'));
-    assert.ok(at('restart foundry.service') < at('restart foundry-ai-tool-gm-browser.service'));
+    assert.ok(at('start foundry-ai-tool-gm-browser.service') > at('restart foundry.service'));
   });
 
   test('trial-zip: ZIP= under the import folder is used as it is, with no download', () => {

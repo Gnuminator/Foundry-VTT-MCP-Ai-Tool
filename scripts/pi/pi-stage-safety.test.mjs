@@ -572,7 +572,7 @@ ${failMv}
     test('control: without a failure the new program runs, the old one is .prev and the zip is removed', () => {
       const { root, prelude } = setup();
       const r = go(root, prelude, {});
-      console.log('DEBUGOUT', r.out);      assert.equal(r.status, 0, r.out);
+      assert.equal(r.status, 0, r.out);
       assert.equal(readFileSync(join(root, 'foundry', 'main.js'), 'utf8'), 'new');
       assert.equal(readFileSync(join(root, 'foundry.prev', 'main.js'), 'utf8'), 'old');
       assert.ok(!existsSync(join(root, 'foundryvtt.zip')), 'the zip is removed once the new program runs');

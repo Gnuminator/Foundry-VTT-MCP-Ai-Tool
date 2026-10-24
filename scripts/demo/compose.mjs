@@ -75,6 +75,8 @@ export function resolveManifest(file) {
       ...t,
       map: c.map ?? {},
       cursor: !!c.cursor,
+      bare: c.card === false,
+      noClip: c.clip === false,
       narration: nar ? { wav: `${nar}.wav`, timing: `${nar}.timing.json` } : null,
     };
   });
@@ -90,7 +92,8 @@ export function resolveManifest(file) {
     name,
     ids: list.map(String),
   }));
-  if (m.clips) for (const c of chapters) cuts.push({ name: `clip-${c.id}`, ids: [c.id] });
+  if (m.clips)
+    for (const c of chapters) if (!c.noClip) cuts.push({ name: `clip-${c.id}`, ids: [c.id] });
   for (const cut of cuts)
     for (const id of cut.ids)
       if (!ids.has(id)) throw new Error(`manifest: cut "${cut.name}" names unknown chapter ${id}`);
@@ -430,6 +433,7 @@ function buildChapter(ch, { man, W, H, draft, work, inter, ff }) {
     H,
     draft,
     cursor: ch.cursor,
+    bare: ch.bare,
   });
 
   const file = join(work, `ch-${ch.id}.mp4`);
@@ -439,6 +443,7 @@ function buildChapter(ch, { man, W, H, draft, work, inter, ff }) {
     .update(String(statSync(ch.video).size))
     .update(inter.join())
     .update(ch.title)
+    .update(String(ch.bare))
     .update(man.brand)
     .update(String(fontsOk))
     .digest('hex');
@@ -489,10 +494,12 @@ function makeStills(built, outDir, ff) {
   const dir = join(outDir, 'stills');
   mkdirSync(dir, { recursive: true });
   for (const b of built.values()) {
-    const tl = timeline([{ frames: b.frames, steps: b.plans.map(p => ({ len: p.outLen })) }]);
+    const tl = timeline([
+      { bare: b.ch.bare, frames: b.frames, steps: b.plans.map(p => ({ len: p.outLen })) },
+    ]);
     b.steps.forEach((s, i) => {
       // The first step starts under the card's cross fade: look past it.
-      const t = tl.stepInfo[0][i].start + (i === 0 ? XFADE : 0) + 0.15;
+      const t = tl.stepInfo[0][i].start + (i === 0 && !b.ch.bare ? XFADE : 0) + 0.15;
       ff(
         [
           '-ss',
@@ -514,7 +521,11 @@ function makeStills(built, outDir, ff) {
 
 function composeCut({ cut, parts, man, outDir, work, W, H, draft, fin, ff }) {
   const tl = timeline(
-    parts.map(b => ({ frames: b.frames, steps: b.plans.map(p => ({ len: p.outLen })) }))
+    parts.map(b => ({
+      bare: b.ch.bare,
+      frames: b.frames,
+      steps: b.plans.map(p => ({ len: p.outLen })),
+    }))
   );
   const { graph: vg, total } = assembleGraph(parts.map(b => b.frames));
 

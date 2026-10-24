@@ -183,6 +183,24 @@ describe('compose: filter graphs', () => {
     expect(total).toBeCloseTo(tl.total, 5);
   });
 
+  it('leaves out the title card of a bare chapter and starts its first step at once', () => {
+    const { graph, offset } = plan.chapterGraph({
+      plans,
+      steps,
+      card: 'c[card]',
+      W: 960,
+      H: 540,
+      draft: true,
+      bare: true,
+    });
+    expect(graph).toContain('[body]null[out]');
+    expect(graph).not.toContain('xfade');
+    expect(offset).toBe(0);
+    const tl = plan.timeline([{ bare: true, frames: 300, steps: [{ len: 5 }] }]);
+    expect(tl.stepInfo[0][0].start).toBe(0);
+    expect(tl.stepInfo[0][0].voiceAt).toBeCloseTo(plan.LEAD_IN, 5);
+  });
+
   it('mixes narration at its places, ducks music under it and normalises to -16 LUFS', () => {
     expect(plan.audioGraph({ clips: [], total: 10 })).toBeNull();
     const voice = plan.audioGraph({ clips: [{ input: 3, from: 1, to: 4, at: 2.5 }], total: 10 });

@@ -116,6 +116,22 @@ describe('projectEvent', () => {
     expect(projectEvent(legendary)).toBeNull();
   });
 
+  it('shows a PC item use, drops an NPC one and a private one (no visibility)', () => {
+    const use = (over: Partial<SessionEvent>): string | null =>
+      projectEvent(
+        event({
+          eventType: 'item-use',
+          actorName: SECRET,
+          description: `${SECRET} used Bless`,
+          details: { itemName: 'Bless' },
+          ...over,
+        })
+      )?.text ?? null;
+    expect(use({ visibility: pc })).toBe('Ilvara used Bless.');
+    expect(use({ visibility: seenNpc })).toBeNull();
+    expect(use({ visibility: undefined })).toBeNull();
+  });
+
   it('names the roller of a public roll as players know it (found live in M2)', () => {
     // Foundry's chat alias is the combatant/token name, even when the token's
     // name display is off, or the world actor's name when rolled from its sheet.

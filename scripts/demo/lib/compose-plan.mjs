@@ -350,6 +350,7 @@ export function chapterGraph({
   H,
   draft = false,
   cursor = false,
+  bare = false,
 }) {
   const g = [];
   const sel = glitches.length
@@ -371,15 +372,19 @@ export function chapterGraph({
   g.push(
     `${plans.map((_, i) => `[v${i}]`).join('')}concat=n=${plans.length}:v=1:a=0,fps=${FPS}[body]`
   );
-  g.push(card);
-  const offset = CARD - XFADE;
-  g.push(`[card][body]xfade=transition=fade:duration=${XFADE}:offset=${offset}[out]`);
+  // A bare chapter (an intro or outro shot) has no title card: the body is the chapter.
+  const offset = bare ? 0 : CARD - XFADE;
+  if (bare) g.push('[body]null[out]');
+  else {
+    g.push(card);
+    g.push(`[card][body]xfade=transition=fade:duration=${XFADE}:offset=${offset}[out]`);
+  }
   return { graph: g.join(';\n'), bodyFrames: plans.reduce((n, p) => n + p.outFrames, 0), offset };
 }
 
 /**
  * Where everything lands on the finished cut's clock. chapters: [{frames, steps: [{len, narration?}]}]
- * (frames of the chapter intermediate, the steps in order). Returns chapter starts (xfaded into
+ * (frames of the chapter intermediate, the steps in order; bare: true for a chapter without a card). Returns chapter starts (xfaded into
  * each other), the total length and, per step, its start and the start of its narration.
  */
 export function timeline(chapters) {
@@ -389,7 +394,7 @@ export function timeline(chapters) {
   chapters.forEach((ch, j) => {
     const start = j === 0 ? 0 : acc - XFADE;
     starts.push(start);
-    let local = CARD - XFADE;
+    let local = ch.bare ? 0 : CARD - XFADE;
     const infos = ch.steps.map(s => {
       const info = { start: start + local, len: s.len, voiceAt: start + local + LEAD_IN };
       local += s.len;

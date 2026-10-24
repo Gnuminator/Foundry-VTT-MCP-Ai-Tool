@@ -167,7 +167,11 @@ export function playerFacingEnvironment(
     s.environment !== null && typeof s.environment === 'object'
       ? (s.environment as Record<string, unknown>)
       : {};
-  const timeOfDay = timeOfDayForDarkness(env.darknessLevel ?? s.darkness);
+  // Darkness only reads as time of day on a scene lit by the sun (global illumination on); a
+  // crypt kept dark by design would otherwise say "Deep night" at noon.
+  const globalLight = env.globalLight as { enabled?: unknown } | null | undefined;
+  const timeOfDay =
+    globalLight?.enabled === true ? timeOfDayForDarkness(env.darknessLevel ?? s.darkness) : null;
   const weatherId = env.weather ?? s.weather;
   const weather =
     typeof weatherId === 'string' && Object.hasOwn(WEATHER_LABELS, weatherId)

@@ -374,6 +374,7 @@ describe('get-play-session', () => {
       startedAt: null,
       lastEventAt: null,
       endedAt: null,
+      previousEndedAt: null,
     });
   });
 
@@ -387,6 +388,65 @@ describe('get-play-session', () => {
       startedAt: new Date(nowMs).toISOString(),
       lastEventAt: new Date(nowMs).toISOString(),
       endedAt: null,
+      previousEndedAt: null,
+    });
+  });
+
+  it('while open, reports when the session before ended', async () => {
+    const tools = makeTools();
+    await tools.handleMarkPlaySession({ action: 'start' });
+    await tools.handleMarkPlaySession({ action: 'end' });
+    const ended = new Date(nowMs).toISOString();
+    nowMs += 60_000;
+    await tools.handleMarkPlaySession({ action: 'start' });
+    expect(await tools.handleGetPlaySession({})).toMatchObject({
+      open: true,
+      previousEndedAt: ended,
+    });
+  });
+
+  it('previousEndedAt ignores prep events logged between the sessions', async () => {
+    const tools = makeTools();
+    await tools.handleMarkPlaySession({ action: 'start' });
+    await tools.handleMarkPlaySession({ action: 'end' });
+    const ended = new Date(nowMs).toISOString();
+    nowMs += 60_000;
+    await store.appendLines('w1', 'sessions', `${localDateKey(nowMs)}.jsonl`, [
+      {
+        timestamp: new Date(nowMs).toISOString(),
+        timestampMs: nowMs,
+        eventType: 'journal-updated',
+      },
+    ]);
+    nowMs += 60_000;
+    await tools.handleMarkPlaySession({ action: 'start' });
+    expect(await tools.handleGetPlaySession({})).toMatchObject({
+      open: true,
+      previousEndedAt: ended,
+    });
+  });
+
+  it('previousEndedAt for a session that never got an end marker is its last activity', async () => {
+    const tools = makeTools();
+    await tools.handleMarkPlaySession({ action: 'start' });
+    nowMs += 60_000;
+    await store.appendLines('w1', 'sessions', `${localDateKey(nowMs)}.jsonl`, [
+      { timestamp: new Date(nowMs).toISOString(), timestampMs: nowMs, eventType: 'roll' },
+    ]);
+    const lastActivity = new Date(nowMs).toISOString();
+    nowMs += 5 * 60 * 60 * 1000;
+    await store.appendLines('w1', 'sessions', `${localDateKey(nowMs)}.jsonl`, [
+      {
+        timestamp: new Date(nowMs).toISOString(),
+        timestampMs: nowMs,
+        eventType: 'journal-updated',
+      },
+    ]);
+    nowMs += 60_000;
+    await tools.handleMarkPlaySession({ action: 'start' });
+    expect(await tools.handleGetPlaySession({})).toMatchObject({
+      open: true,
+      previousEndedAt: lastActivity,
     });
   });
 
@@ -402,6 +462,7 @@ describe('get-play-session', () => {
       startedAt: null,
       lastEventAt: new Date(nowMs).toISOString(),
       endedAt: new Date(nowMs).toISOString(),
+      previousEndedAt: null,
     });
   });
 
@@ -556,6 +617,7 @@ describe('get-play-session with play records (O3 contract 3)', () => {
       startedAt: null,
       lastEventAt: null,
       endedAt: null,
+      previousEndedAt: null,
     });
   });
 });

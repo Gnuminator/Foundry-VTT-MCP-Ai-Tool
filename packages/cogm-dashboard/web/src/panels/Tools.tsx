@@ -666,7 +666,8 @@ function ToolForm({
       noValidate
       // A disabled Run stops the browser's Enter-to-submit, so Enter in a field asks here.
       onKeyDown={e => {
-        if (running === null || e.key !== 'Enter' || !(e.target instanceof HTMLInputElement)) return;
+        if (running === null || e.key !== 'Enter' || !(e.target instanceof HTMLInputElement))
+          return;
         e.preventDefault();
         onSubmit();
       }}

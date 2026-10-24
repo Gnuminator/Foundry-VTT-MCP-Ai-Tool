@@ -9,6 +9,7 @@
 export const FPS = 60;
 
 export const BREATH = 1.0; // seconds of air around a narration line (lead-in plus tail)
+export const HOLD_AFTER = 2.0; // a step with a focus (a click) keeps the screen still this long after it
 export const LEAD_IN = 0.2; // the narration for a step starts this long after the step does
 export const CARD = 1.5; // chapter card, seconds
 export const XFADE = 0.4; // card <-> clip and chapter <-> chapter cross fade, seconds
@@ -152,7 +153,6 @@ export function planStep({ st, index, next, narrationS = 0, rawFrames }) {
     return m;
   });
   const contentFrames = o;
-  const outFrames = Math.round(contentFrames + hold * FPS);
 
   /** Map a raw time (seconds) to the output time (seconds) of this step. */
   const rawToOut = tRaw => {
@@ -161,6 +161,13 @@ export function planStep({ st, index, next, narrationS = 0, rawFrames }) {
     for (const m of marks) if (f < m.b) return (m.o + (f - m.a) / m.speed) / FPS;
     return contentFrames / FPS;
   };
+
+  // Let the viewer see the result of a click: HOLD_AFTER seconds after it before the step ends.
+  if (focus) {
+    const after = contentFrames / FPS - rawToOut(focusAt) + hold;
+    if (after < HOLD_AFTER) hold += HOLD_AFTER - after;
+  }
+  const outFrames = Math.round(contentFrames + hold * FPS);
 
   return {
     fromF,

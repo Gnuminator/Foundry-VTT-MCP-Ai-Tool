@@ -40,10 +40,9 @@ export function collectFiles() {
     files.set(`references/${name}`, readFileSync(path.join(pagesDir, name), 'utf8'));
   }
   for (const name of PLAYER_PAGES) {
-    files.set(
-      `references/player/${name}`,
-      readFileSync(path.join(repo, 'docs', 'player', name), 'utf8')
-    );
+    // The screenshots are not in the skill: drop the image lines so no link is left dangling.
+    const text = readFileSync(path.join(repo, 'docs', 'player', name), 'utf8');
+    files.set(`references/player/${name}`, text.replace(/^!\[[^\]]*\]\([^)]*\)[ \t]*\r?\n\r?\n?/gm, ''));
   }
   return files;
 }

@@ -50,6 +50,19 @@ test('the build writes the folder and a zip with the skill folder at its root', 
   }
 });
 
+test('the player guides are in, without dangling image links, and no page has an em dash', () => {
+  const out = mkdtempSync(path.join(tmpdir(), 'dnd-helper-'));
+  try {
+    const { files } = build(out);
+    const guide = files.get('references/player/make-a-character.md');
+    assert.ok(guide && files.has('references/player/join.md'));
+    assert.doesNotMatch(guide, /\]\(\.\.\/images\//);
+    for (const [name, text] of files) assert.doesNotMatch(text, /—/, `${name} has an em dash`);
+  } finally {
+    rmSync(out, { recursive: true, force: true });
+  }
+});
+
 test('every page SKILL.md names is in the skill', () => {
   const out = mkdtempSync(path.join(tmpdir(), 'dnd-helper-'));
   try {
@@ -70,7 +83,7 @@ test('the skill is advise-only: no write tool is named as a step', () => {
       if (name.startsWith('references/player/')) continue;
       assert.doesNotMatch(
         text,
-        /`(plan-actor-change|apply-planned-change|dnd5e-add-feature|dnd5e-add-features-from-compendium|create-actor-from-compendium)`/,
+        /`(plan-actor-change|apply-planned-change|undo-change|plan-undo-changes|dnd5e-add-feature|dnd5e-add-features-from-compendium|create-actor-from-compendium)`/,
         `${name} names a write tool`
       );
     }

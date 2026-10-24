@@ -6,7 +6,8 @@ The same steps as the connector's `rules-question` prompt, so the answers look a
    2014 rules. If you cannot tell, say "version unknown".
 2. Pick the search terms: the exact name of the spell, condition, feature, action or rule.
    `search-compendium` matches **names only**; search the exact name first, then close variants.
-   `search-journals` (search type both) covers rules text that sits in **world** journals, such as
+   `search-journals` (search type both; rules terms only, skip and do not open adventure or
+   campaign journals) covers rules text that sits in **world** journals, such as
    a book imported into the world. Text inside compendium journals cannot be searched yet: say so
    if that is where the rule would be, and answer from general knowledge labelled as such.
 3. Read the best hits in full: `get-compendium-item` for a compendium entry, `list-journals` with

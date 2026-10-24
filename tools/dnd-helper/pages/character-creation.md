@@ -15,7 +15,7 @@ a checked sheet. You advise; they click.
 ## 2. Look up options (connector, core set)
 
 1. `list-compendium-packs` once to see which books are installed. The Actor Studio lists are
-   limited by the GM to the 2024 PHB module, so offer only choices that exist there.
+   usually limited by the GM to the 2024 PHB module, so offer only choices that exist there.
 2. For each candidate class, species and background, `search-compendium` the exact name, then
    `get-compendium-item` for the entry. Read what it gives; do not list from memory.
 3. Suggest 2 or 3 combinations that fit the concept, one line each with why. The player picks.

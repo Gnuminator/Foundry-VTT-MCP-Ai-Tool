@@ -207,6 +207,12 @@ export const USAGE_CATALOG: readonly UsageCatalogEntry[] = [
     file: 'packages/cogm-dashboard/public/index.html',
   },
   {
+    name: 'dash.during.layout-tour',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/web/src/components/During.tsx',
+  },
+  {
     name: 'dash.features.read-more',
     kind: 'action',
     surface: 'dashboard',

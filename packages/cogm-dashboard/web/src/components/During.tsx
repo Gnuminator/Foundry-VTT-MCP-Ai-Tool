@@ -4,6 +4,7 @@
 // slots out per `data-layout`, `data-context` and `data-view` on #moment-during (Moments.tsx sets
 // them); the choice is kept per world on the server (lib/prefs.ts), so either page shows it.
 import { useEffect, useRef, useState, type JSX } from 'react';
+import { flushSync } from 'react-dom';
 
 import { hasOpenPanel, hasOpenPopper } from '../lib/escape';
 import {
@@ -261,6 +262,20 @@ export function DuringBar({ during }: { during: DuringController }): JSX.Element
           Auto
         </LayoutButton>
       </div>
+      <Button
+        variant="quiet"
+        id="btn-layout-tour-bar"
+        data-track="dash.during.layout-tour"
+        hidden={trial !== null}
+        title="Try the three layouts on the real screen, with a sample fight, and keep one"
+        onClick={() => {
+          // The button hides as the trial starts: keep the focus on the guide's Next button.
+          flushSync(() => actions.startTrial());
+          document.getElementById('layout-tour-next')?.focus();
+        }}
+      >
+        Try layouts
+      </Button>
       <Tooltip content="What the layouts do. Opens the guide">
         <button
           type="button"
@@ -357,6 +372,7 @@ function focusAfterTrial(layout: DuringLayout | undefined): void {
   const targets = [
     layout ? document.querySelector(`.layout-switch [data-layout-pick="${layout}"]`) : null,
     document.getElementById('btn-layout-trial'),
+    document.getElementById('btn-layout-tour-bar'),
     document.getElementById('btn-advanced'),
   ];
   targets.find(visible)?.focus();

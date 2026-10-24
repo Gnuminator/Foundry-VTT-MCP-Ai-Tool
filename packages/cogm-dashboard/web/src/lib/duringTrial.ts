@@ -96,7 +96,7 @@ export function showsSampleFight(trial: Trial | null): boolean {
 export function autoNote(context: DuringContext): string {
   return context === 'combat'
     ? 'Combat: the turn order and the party come forward.'
-    : 'No combat: the Live Feed comes first.';
+    : 'No fight now, so this looks like Cards. A fight brings the turn order and the party forward.';
 }
 
 /** The bar's Full button: shown in Simple/Full, in the trial too. */

@@ -179,6 +179,10 @@ It comes in three layouts. Pick one with **Layout** at the top of the screen:
 - **Auto**: follows the game. Without a fight it looks like Cards. When combat starts, the turn
   order grows and Party opens in the big column; the Live Feed folds to the side.
 
+The **Try layouts** button next to **Layout** starts the trial any time, with a sample fight so
+you can see what Auto does. Until a fight starts, Auto looks the same as Cards, and the line next to
+**Layout** says so.
+
 Click **▸** or a folded card's title to open it, **▾** to fold it. On a narrow window or a tablet
 every layout becomes one column with Recent Changes near the top; on a phone the Live Feed is
 folded until you tap it.

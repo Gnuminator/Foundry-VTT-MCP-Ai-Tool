@@ -188,6 +188,7 @@ export const DASHBOARD_CONTROLS = [
   { name: 'dash.trial.view', how: 'view', reach: LAYOUT_TOUR, expect: '#layout-tour' },
   { name: 'dash.trial.next', how: 'open', reach: LAYOUT_TOUR, changes: '#layout-tour-step' },
   { name: 'dash.trial.stop', how: 'open', reach: LAYOUT_TOUR, gone: '#layout-tour' },
+  { name: 'dash.during.layout-tour', how: 'skip', why: NEW_ONLY },
   {
     name: 'dash.trial.use',
     how: 'write',

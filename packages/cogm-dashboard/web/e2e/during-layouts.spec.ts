@@ -206,7 +206,7 @@ test.describe('the layout switch', () => {
     await layoutButton(page, 'Auto').click();
     await expect(during(page)).toHaveAttribute('data-layout', 'auto');
     await expect(page.locator('#during-auto-note')).toHaveText(
-      'No combat: the Live Feed comes first.'
+      'No fight now, so this looks like Cards. A fight brings the turn order and the party forward.'
     );
     await expect(during(page)).not.toHaveAttribute('data-view', /.*/);
 
@@ -308,7 +308,7 @@ test.describe('the layout switch', () => {
     await load(page);
     await expect(during(page)).toHaveAttribute('data-context', 'calm');
     await expect(page.locator('#during-auto-note')).toHaveText(
-      'No combat: the Live Feed comes first.'
+      'No fight now, so this looks like Cards. A fight brings the turn order and the party forward.'
     );
 
     push([{ event: 'combat', data: { combat: { active: true, round: 1, combatants: [] } } }]);
@@ -397,6 +397,22 @@ test.describe('the layout trial', () => {
     await expect(during(page)).toHaveAttribute('data-context', 'calm');
     // Trying saves nothing.
     expect(changes).toEqual([]);
+  });
+
+  test('the During bar has its own Try the layouts button, hidden while the trial runs', async ({
+    page,
+  }) => {
+    await setup(page, { open: true, events: [prefs({ layoutPicked: true })] });
+    await load(page);
+    const button = page.locator('#btn-layout-tour-bar');
+    await expect(button).toHaveText('Try layouts');
+    await button.focus();
+    await page.keyboard.press('Enter');
+    await expect(guide(page)).toBeVisible();
+    await expect(button).toBeHidden();
+    await expect(page.locator('#layout-tour-next')).toBeFocused();
+    await page.locator('#layout-tour-stop').click();
+    await expect(button).toBeVisible();
   });
 
   test('the Simple/Full step shows the "Show everything" button its text points to', async ({

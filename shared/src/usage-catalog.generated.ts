@@ -231,6 +231,12 @@ export const USAGE_CATALOG: readonly UsageCatalogEntry[] = [
     file: 'packages/cogm-dashboard/web/src/components/During.tsx',
   },
   {
+    name: 'dash.during.start-combat',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/web/src/components/During.tsx',
+  },
+  {
     name: 'dash.features.read-more',
     kind: 'action',
     surface: 'dashboard',

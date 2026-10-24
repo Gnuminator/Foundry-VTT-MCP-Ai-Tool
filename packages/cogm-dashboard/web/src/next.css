@@ -291,6 +291,10 @@ main.moment-views #moment-during.during-no-bar {
 .combat-start .ca-row {
   padding: 0;
 }
+/* The picker opened from the During bar takes its own row under the layout switch. */
+.during-start {
+  flex-basis: 100%;
+}
 .cs-hint {
   margin: 0 0 0.4rem;
   font-size: var(--fs-sm);

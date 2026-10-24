@@ -490,6 +490,70 @@ test.describe('start combat', () => {
     expect(beyondReads(calls)).toEqual([]);
   });
 
+  for (const [name, options] of [
+    ['Cards', { layout: 'layered' }],
+    ['Simple', { layout: 'toggle', full: false }],
+    ['Auto', { layout: 'auto' }],
+  ] as const) {
+    test(`${name}: the During bar starts a fight with no fight running, the card stays away`, async ({
+      page,
+    }) => {
+      const { calls } = await setup(page, options);
+      await load(page);
+      await expect(strip(page)).toBeHidden();
+      // One entry point, on the bar.
+      const open = page.locator('#during-bar').getByRole('button', { name: 'Start combat' });
+      await expect(page.getByRole('button', { name: 'Start combat' })).toHaveCount(1);
+      await open.click();
+
+      const list = page.getByRole('list', { name: 'Tokens to put in the fight' });
+      await expect(list.locator('.cs-name')).toHaveText([
+        'Brannoc',
+        'Marker',
+        'Wolf',
+        'Shopkeeper',
+      ]);
+      await page.getByRole('button', { name: 'Start combat with 2' }).click();
+
+      await expect.poll(() => calls.map(c => c.name)).toContain('apply-planned-change');
+      const planned = calls.find(c => c.name === 'plan-combat-change');
+      expect(planned?.args).toEqual({ action: 'start', tokenIds: ['tk-bran', 'tk-wolf'] });
+      await expect(list).toBeHidden();
+    });
+  }
+
+  test('the bar picker closes with Cancel and the button comes back', async ({ page }) => {
+    const { calls } = await setup(page, { layout: 'layered' });
+    await load(page);
+    const bar = page.locator('#during-bar');
+    await bar.getByRole('button', { name: 'Start combat' }).click();
+    await page.getByRole('button', { name: 'Cancel' }).click();
+    await expect(bar.getByRole('button', { name: 'Start combat' })).toBeVisible();
+    expect(beyondReads(calls)).toEqual([]);
+  });
+
+  test('the bar has no Start combat in the Full view, where the strip has it', async ({ page }) => {
+    await setup(page, FULL_CALM);
+    await load(page);
+    await expect(page.getByRole('button', { name: 'Start combat' })).toHaveCount(1);
+    await expect(
+      page.locator('#during-bar').getByRole('button', { name: 'Start combat' })
+    ).toHaveCount(0);
+  });
+
+  test('GM Actions off: no Start combat on the bar', async ({ page }) => {
+    await setup(page, { layout: 'layered', gmActions: false });
+    await load(page);
+    await expect(page.getByRole('button', { name: 'Start combat' })).toHaveCount(0);
+  });
+
+  test('a running fight: no Start combat on the bar', async ({ page }) => {
+    await setup(page, { layout: 'layered', initial: [fight(PARTY_FIGHT)] });
+    await load(page);
+    await expect(rows(page)).toHaveCount(4);
+    await expect(page.getByRole('button', { name: 'Start combat' })).toHaveCount(0);
+  });
+
   test('GM Actions off: no Start combat button', async ({ page }) => {
     await setup(page, { ...FULL_CALM, gmActions: false });
     await load(page);

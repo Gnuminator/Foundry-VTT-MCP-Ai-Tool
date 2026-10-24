@@ -91,9 +91,17 @@ function TokenList({
   );
 }
 
-/** The Start combat button and, once opened, the token picker. Shown while no fight runs. */
-export function StartCombat(): JSX.Element {
-  const [open, setOpen] = useState(false);
+/**
+ * The Start combat button and, once opened, the token picker. Shown while no fight runs. With
+ * `onDismiss` the picker is opened from outside (the During bar's button) and starts open; closing
+ * it calls `onDismiss` and there is no button here.
+ */
+export function StartCombat({ onDismiss }: { onDismiss?: () => void }): JSX.Element | null {
+  const [open, setOpenState] = useState(onDismiss !== undefined);
+  const setOpen = (next: boolean): void => {
+    setOpenState(next);
+    if (!next) onDismiss?.();
+  };
   const tokens = useQuery({
     queryKey: ['combat-start-tokens'],
     queryFn: async () => {

@@ -4,7 +4,8 @@
   offers Start combat. It lists every token on the scene, with the player characters and Hostile
   tokens ticked and Neutral and Friendly ones not (Foundry's token disposition); you change the ticks
   and start. The fight is created at round 1 and logged in Recent Changes with Undo. The tracker
-  card still shows with no fight only in the Full view (david-start-combat-picker).
+  card still shows with no fight only in the Full view; in every other During layout a small Start
+  combat button on the During bar opens the same picker (david-start-combat-picker).
 
 ### Module
 

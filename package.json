@@ -42,6 +42,7 @@
     "docs:links": "node scripts/check-links.mjs",
     "docs:tools": "node scripts/docs-tools.mjs",
     "gm-coach": "node tools/gm-coach/build.mjs",
+    "dnd-helper": "node tools/dnd-helper/build.mjs",
     "wiki:stage": "node scripts/wiki/stage.mjs",
     "wiki:test": "node --test scripts/wiki/stage.test.mjs",
     "usage:catalog": "node scripts/usage-catalog.mjs",

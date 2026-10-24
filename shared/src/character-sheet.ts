@@ -137,8 +137,32 @@ export interface CharacterSheet {
   personality: { traits: string; ideals: string; bonds: string; flaws: string; appearance: string };
 }
 
+/** A roll request still waiting for the player's roll (their button on the dashboard's page). */
+export interface PlayerRollRequest {
+  /** The roll button's id; `playerRoll` takes it back. */
+  buttonId: string;
+  /** The button text, e.g. "Stealth Skill Check (Private)". No DC, formula or outcome. */
+  label: string;
+}
+
 export interface CharacterSheetsResult {
   userId: string;
   userName: string;
   sheets: CharacterSheet[];
+  /** The player's open roll requests, newest first (absent from an older module). */
+  rollRequests?: PlayerRollRequest[];
+}
+
+/** Module query name: the player pressed a roll button on the dashboard's page. */
+export const PLAYER_ROLL_QUERY = 'playerRoll';
+
+export interface PlayerRollRequestBody {
+  userId: string;
+  buttonId: string;
+}
+
+export interface PlayerRollReply {
+  success: boolean;
+  message?: string;
+  error?: string;
 }

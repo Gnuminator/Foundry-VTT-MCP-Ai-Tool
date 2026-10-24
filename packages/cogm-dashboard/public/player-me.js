@@ -23,6 +23,14 @@ export function mySheets(me) {
     }));
 }
 
+/** The roll requests waiting for the player: a button id and its text, nothing else. */
+export function myRollRequests(me) {
+  const list = me && Array.isArray(me.rollRequests) ? me.rollRequests : [];
+  return list
+    .filter(r => r && typeof r.buttonId === 'string' && typeof r.label === 'string')
+    .map(r => ({ buttonId: r.buttonId, label: r.label }));
+}
+
 /**
  * Where the player's character stands in the combat order. `state` is `yours` (their turn),
  * `next` (they act right after the current one), `later` (with `turnsAway`), or `out` (not in the

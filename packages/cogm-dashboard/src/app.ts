@@ -89,6 +89,8 @@ export interface DashboardClient {
   featureSwitches?(): Promise<unknown>;
   /** My character (I-096): one player's character sheets; absent on fakes. */
   characterSheet?(userId: string): Promise<unknown>;
+  /** The player's roll button: the module rolls for their character; absent on fakes. */
+  playerRoll?(userId: string, buttonId: string): Promise<unknown>;
   /** Session notes (recap lane, D-087): list, get, put, approve; absent on fakes. */
   sessionNotes?(action: SessionNotesAction, params?: Record<string, unknown>): Promise<unknown>;
   readonly isConnected?: boolean;

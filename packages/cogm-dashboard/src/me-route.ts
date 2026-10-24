@@ -6,6 +6,9 @@
  *                                          player's private key comes in the `X-CoGM-Me` header
  *                                          (the page moves it out of the address bar at once,
  *                                          so it never lands in a log or the browser history)
+ * - `POST /api/me/roll`                -> the player rolls one of their open roll requests (the body
+ *                                          carries the button id; the module rolls for their character
+ *                                          from the GM client and checks the request is theirs)
  * - `GET  /api/player-links`            -> GM: each player, with their link if they have one
  * - `GET  /api/party-sheets`            -> GM: the sheets of every player's characters, for the paper
  *                                          night print (`party-print.html`)
@@ -24,6 +27,7 @@ import type { PlayerDirectory } from './usage-route.js';
 
 export interface MeClient {
   characterSheet?(userId: string): Promise<unknown>;
+  playerRoll?(userId: string, buttonId: string): Promise<unknown>;
 }
 
 export interface MeRouteOptions {
@@ -43,6 +47,21 @@ export interface MeRouteOptions {
 
 const ME_KEY_HEADER = 'x-cogm-me';
 const USER_ID = /^[A-Za-z0-9]{16}$/;
+const BUTTON_ID = /^[A-Za-z0-9]{16}$/;
+
+/** The open roll requests, reduced to the button id and its text (nothing else reaches the page). */
+function openRollRequests(result: unknown): Array<{ buttonId: string; label: string }> {
+  const list = (result as { rollRequests?: unknown } | null)?.rollRequests;
+  if (!Array.isArray(list)) return [];
+  const out: Array<{ buttonId: string; label: string }> = [];
+  for (const r of list as unknown[]) {
+    const { buttonId, label } = (r ?? {}) as { buttonId?: unknown; label?: unknown };
+    if (typeof buttonId === 'string' && BUTTON_ID.test(buttonId) && typeof label === 'string') {
+      out.push({ buttonId, label: label.slice(0, 80) });
+    }
+  }
+  return out.slice(0, 8);
+}
 
 export function mountMeRoute(app: Express, options: MeRouteOptions): void {
   const { client, links, directory, requireGm, worldId } = options;
@@ -72,6 +91,7 @@ export function mountMeRoute(app: Express, options: MeRouteOptions): void {
       .then(result =>
         res.json({
           ...(result as object),
+          rollRequests: openRollRequests(result),
           theme: options.theme(),
           privateRolls: options.events ? privateRollsFor(userId, options.events()) : [],
         })
@@ -81,6 +101,53 @@ export function mountMeRoute(app: Express, options: MeRouteOptions): void {
           error: error instanceof Error ? error.message : 'Could not read the character.',
         });
       });
+  });
+
+  // One roll at a time per player: a second press while the first is rolling is refused.
+  const rolling = new Set<string>();
+  app.post('/api/me/roll', (req: Request, res: Response) => {
+    const world = worldId();
+    const raw = req.headers[ME_KEY_HEADER];
+    const key = Array.isArray(raw) ? raw[0] : raw;
+    const userId = world ? links.userFor(world, key) : null;
+    if (!userId) {
+      res
+        .status(401)
+        .json({ code: 'no-link', error: 'This link is not valid. Ask your GM for a new one.' });
+      return;
+    }
+    const buttonId = (req.body as { buttonId?: unknown } | undefined)?.buttonId;
+    if (typeof buttonId !== 'string' || !BUTTON_ID.test(buttonId)) {
+      res.status(400).json({ error: 'Not a roll request.' });
+      return;
+    }
+    if (typeof client.playerRoll !== 'function') {
+      res.status(501).json({ error: 'This bridge cannot roll for you. Roll in Foundry instead.' });
+      return;
+    }
+    if (rolling.has(userId)) {
+      res.status(429).json({ error: 'Your last roll is still going.' });
+      return;
+    }
+    rolling.add(userId);
+    client
+      .playerRoll(userId, buttonId)
+      .then(result => {
+        const r = (result ?? {}) as { success?: unknown; message?: unknown; error?: unknown };
+        if (r.success === true) {
+          res.json({ ok: true, message: typeof r.message === 'string' ? r.message : 'Rolled.' });
+        } else {
+          res.status(409).json({
+            error: typeof r.error === 'string' ? r.error : 'The roll did not work.',
+          });
+        }
+      })
+      .catch((error: unknown) => {
+        res.status(502).json({
+          error: error instanceof Error ? error.message : 'The roll did not work.',
+        });
+      })
+      .finally(() => rolling.delete(userId));
   });
 
   app.get('/api/player-links', requireGm, (_req: Request, res: Response) => {

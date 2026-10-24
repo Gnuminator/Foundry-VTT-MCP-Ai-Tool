@@ -25,7 +25,9 @@ import { gzipSync } from 'node:zlib';
 // chunk, 136.2 KB on 2026-10-10). A new panel starts as a lazy chunk, not in the entry.
 // 144 on 2026-10-23: the After a paper night menu item and chunk reference (paper-form) took the
 // first load to 143.3 KB; the panel itself is the lazy PaperSync chunk.
-export const FIRST_LOAD_LIMIT_KB = 144;
+// 145 on 2026-10-24: the During bar's focus handling for the Start combat picker (about 0.5 KB)
+// took the first load to 144.0 KB.
+export const FIRST_LOAD_LIMIT_KB = 145;
 
 /**
  * Lazy chunks by name stem (the file name without its hash and extension: `Tarokka-Cx9aB1zQ.js`

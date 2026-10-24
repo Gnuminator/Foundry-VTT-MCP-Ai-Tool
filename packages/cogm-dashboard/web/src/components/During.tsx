@@ -262,13 +262,13 @@ export function DuringBar({ during }: { during: DuringController }): JSX.Element
       // The loading row's Close button gives way to the list: when the focused control is
       // swapped out of the page, focus goes to the new first control. A click on empty page
       // leaves the control in place, so the focus is not pulled back.
-      const watch = new MutationObserver(() => {
+      const watch = new MutationObserver((): void => {
         if (focused?.isConnected) return;
         focused = first();
         focused?.focus();
       });
       watch.observe(row, { childList: true, subtree: true });
-      return () => watch.disconnect();
+      return (): void => watch.disconnect();
     }
     if (!picking && giveFocusBack.current) {
       giveFocusBack.current = false;

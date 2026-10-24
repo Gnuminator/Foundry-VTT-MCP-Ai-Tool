@@ -206,7 +206,7 @@ test.describe('the layout switch', () => {
     await layoutButton(page, 'Auto').click();
     await expect(during(page)).toHaveAttribute('data-layout', 'auto');
     await expect(page.locator('#during-auto-note')).toHaveText(
-      'No fight now, so this looks like Cards. A fight brings the turn order and the party forward.'
+      'Auto is showing Cards now, because no fight is running. A fight brings the turn order and the party forward.'
     );
     await expect(during(page)).not.toHaveAttribute('data-view', /.*/);
 
@@ -308,13 +308,13 @@ test.describe('the layout switch', () => {
     await load(page);
     await expect(during(page)).toHaveAttribute('data-context', 'calm');
     await expect(page.locator('#during-auto-note')).toHaveText(
-      'No fight now, so this looks like Cards. A fight brings the turn order and the party forward.'
+      'Auto is showing Cards now, because no fight is running. A fight brings the turn order and the party forward.'
     );
 
     push([{ event: 'combat', data: { combat: { active: true, round: 1, combatants: [] } } }]);
     await expect(during(page)).toHaveAttribute('data-context', 'combat');
     await expect(page.locator('#during-auto-note')).toHaveText(
-      'Combat: the turn order and the party come forward.'
+      'Auto is showing Combat now: the turn order and the party come forward.'
     );
   });
 

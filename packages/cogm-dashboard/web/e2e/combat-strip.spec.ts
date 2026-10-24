@@ -532,6 +532,31 @@ test.describe('start combat', () => {
     expect(beyondReads(calls)).toEqual([]);
   });
 
+  test('the bar picker does not reopen by itself after a fight came and went', async ({ page }) => {
+    const { push } = await setup(page, { layout: 'layered', initial: [noFight] });
+    await load(page);
+    const bar = page.locator('#during-bar');
+    await bar.getByRole('button', { name: 'Start combat' }).click();
+    await expect(page.getByRole('list', { name: 'Tokens to put in the fight' })).toBeVisible();
+    push([fight(PARTY_FIGHT)]);
+    await expect(rows(page)).toHaveCount(4);
+    push([noFight]);
+    await expect(bar.getByRole('button', { name: 'Start combat' })).toBeVisible();
+    await expect(page.getByRole('list', { name: 'Tokens to put in the fight' })).toHaveCount(0);
+  });
+
+  test('the bar picker takes focus when it opens and gives it back on Cancel', async ({ page }) => {
+    await setup(page, { layout: 'layered' });
+    await load(page);
+    const bar = page.locator('#during-bar');
+    await bar.getByRole('button', { name: 'Start combat' }).click();
+    const list = page.getByRole('list', { name: 'Tokens to put in the fight' });
+    await expect(list).toBeVisible();
+    await expect(list.getByRole('checkbox').first()).toBeFocused();
+    await page.getByRole('button', { name: 'Cancel' }).click();
+    await expect(bar.getByRole('button', { name: 'Start combat' })).toBeFocused();
+  });
+
   test('the bar has no Start combat in the Full view, where the strip has it', async ({ page }) => {
     await setup(page, FULL_CALM);
     await load(page);

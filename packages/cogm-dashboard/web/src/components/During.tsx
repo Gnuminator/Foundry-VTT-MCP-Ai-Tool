@@ -243,6 +243,39 @@ export function DuringBar({ during }: { during: DuringController }): JSX.Element
     trial === null &&
     screen.context === 'calm' &&
     screen.view !== 'full';
+  const pickerRow = useRef<HTMLDivElement>(null);
+  const giveFocusBack = useRef(false);
+  // The picker belongs to the button: when the button goes away (a fight began, Full, GM Actions
+  // off), the next calm screen starts closed.
+  useEffect(() => {
+    if (!startHere) setPicking(false);
+  }, [startHere]);
+  // Focus follows the swap: into the picker when it opens (the list loads later), back onto the
+  // button when it closes by the GM's hand.
+  useEffect(() => {
+    const row = pickerRow.current;
+    if (picking && row) {
+      const first = (): HTMLElement | null =>
+        row.querySelector<HTMLElement>('input:not(:disabled), button:not(:disabled)');
+      let focused = first();
+      focused?.focus();
+      // The loading row's Close button gives way to the list: when the focused control is
+      // swapped out of the page, focus goes to the new first control. A click on empty page
+      // leaves the control in place, so the focus is not pulled back.
+      const watch = new MutationObserver((): void => {
+        if (focused?.isConnected) return;
+        focused = first();
+        focused?.focus();
+      });
+      watch.observe(row, { childList: true, subtree: true });
+      return (): void => watch.disconnect();
+    }
+    if (!picking && giveFocusBack.current) {
+      giveFocusBack.current = false;
+      document.getElementById('btn-during-start-combat')?.focus();
+    }
+    return undefined;
+  }, [picking]);
   return (
     <div className="during-bar" id="during-bar">
       <NotReadyNote id={NOT_READY_BAR_ID} show={prefs === undefined} />
@@ -309,7 +342,12 @@ export function DuringBar({ during }: { during: DuringController }): JSX.Element
       >
         {fullButtonLabel(screen.view)}
       </Button>
-      <span className="during-auto-note" id="during-auto-note" hidden={screen.layout !== 'auto'}>
+      <span
+        className="during-auto-note"
+        id="during-auto-note"
+        data-auto-pick={screen.context === 'combat' ? 'combat' : 'cards'}
+        hidden={screen.layout !== 'auto'}
+      >
         {autoNote(screen.context)}
       </span>
       {startHere && !picking && (
@@ -323,9 +361,14 @@ export function DuringBar({ during }: { during: DuringController }): JSX.Element
         </Button>
       )}
       {startHere && picking && (
-        <div className="during-start">
+        <div className="during-start" ref={pickerRow}>
           <Suspense fallback={null}>
-            <StartCombat onDismiss={() => setPicking(false)} />
+            <StartCombat
+              onDismiss={() => {
+                giveFocusBack.current = true;
+                setPicking(false);
+              }}
+            />
           </Suspense>
         </div>
       )}

@@ -292,7 +292,15 @@
 }
 .during-auto-note {
   font-size: var(--fs-xs);
-  color: var(--text-dim);
+  color: var(--text-mid);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-md);
+  padding: 0.15rem 0.6rem;
+}
+.during-auto-note[data-auto-pick='combat'] {
+  color: var(--text);
+  background: var(--accent-soft);
+  border-color: var(--accent);
 }
 .layout-hint {
   margin: 0;

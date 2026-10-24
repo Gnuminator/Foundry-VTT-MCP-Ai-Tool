@@ -1,11 +1,14 @@
 import {
   CORE_STATUS_LABELS,
+  TIME_OF_DAY_LABELS,
   UNKNOWN_CREATURE,
+  WEATHER_LABELS,
   type EventVisibility,
   type PlayerCombat,
   type PlayerCombatant,
   type PlayerEvent,
   type PlayerHandout,
+  type PlayerSceneEnvironment,
   type PlayerState,
   type PlayerVisibility,
 } from '@gnuminator/shared';
@@ -255,7 +258,33 @@ export interface PlayerStateInputs {
   combat: CombatState | null;
   events: readonly SessionEvent[];
   handouts: readonly PlayerHandout[];
+  /** Handouts revealed after this time (ms) are marked new; null marks none. */
+  newSinceMs?: number | null;
   opts: PlayerViewConfig;
+}
+
+/**
+ * The scene's look as players may see it: each value must be one of the fixed labels, so a
+ * module that forwards anything else (free text, a mood preset name) shows nothing.
+ */
+export function projectEnvironment(
+  scene: PlayerVisibility['scene'] | undefined
+): PlayerSceneEnvironment | null {
+  const env = scene?.environment;
+  if (!env) return null;
+  const timeOfDay = (TIME_OF_DAY_LABELS as readonly unknown[]).includes(env.timeOfDay)
+    ? env.timeOfDay
+    : null;
+  const weather = (Object.values(WEATHER_LABELS) as unknown[]).includes(env.weather)
+    ? env.weather
+    : null;
+  return timeOfDay === null && weather === null ? null : { timeOfDay, weather };
+}
+
+function isNewHandout(revealedAt: string | null, sinceMs: number | null | undefined): boolean {
+  if (typeof sinceMs !== 'number' || revealedAt === null) return false;
+  const ms = Date.parse(revealedAt);
+  return Number.isFinite(ms) && ms > sinceMs;
 }
 
 /** Everything the player page shows, projected. */
@@ -264,6 +293,7 @@ export function buildPlayerState(input: PlayerStateInputs): PlayerState {
     status: playerStatus(input.status),
     world: input.world ? { title: input.world.title, systemId: input.world.systemId } : null,
     scene: input.visibility?.scene ? input.visibility.scene.name : null,
+    sceneEnvironment: projectEnvironment(input.visibility?.scene),
     combat: projectCombat(input.combat, input.visibility, input.opts),
     events: projectEvents(input.events),
     handouts: input.handouts.map(h => ({
@@ -271,6 +301,7 @@ export function buildPlayerState(input: PlayerStateInputs): PlayerState {
       title: h.title,
       html: h.html,
       revealedAt: h.revealedAt,
+      ...(isNewHandout(h.revealedAt, input.newSinceMs) ? { isNew: true } : {}),
       // I-039: the player page shows a chosen-players handout only to them.
       ...(Array.isArray(h.players) && h.players.length > 0 ? { players: [...h.players] } : {}),
     })),

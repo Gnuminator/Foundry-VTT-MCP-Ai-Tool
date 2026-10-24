@@ -29,6 +29,15 @@ function asRecord(v: unknown): Record<string, unknown> | null {
   return v !== null && typeof v === 'object' ? (v as Record<string, unknown>) : null;
 }
 
+/** `get-play-session` to the time "new" counts from: the open session's start, else its end. */
+export function sessionSince(session: unknown): number | null {
+  const r = asRecord(session);
+  if (!r) return null;
+  const at = r.open === true ? r.startedAt : r.endedAt;
+  const ms = typeof at === 'string' ? Date.parse(at) : NaN;
+  return Number.isFinite(ms) ? ms : null;
+}
+
 function str(v: unknown): string | null {
   return typeof v === 'string' && v.trim() !== '' ? v : null;
 }
@@ -49,6 +58,7 @@ export class PlayerViewSource {
   /** Handouts for a player named on no `players` list: only the ones for every player. */
   private everyPlayerValue: PlayerHandout[] = [];
   private handoutsReadyValue = false;
+  private sessionSinceValue: number | null = null;
   private timer: NodeJS.Timeout | null = null;
   private inFlight = false;
 
@@ -77,6 +87,14 @@ export class PlayerViewSource {
    */
   handoutsFor(userId: string): PlayerHandout[] {
     return this.perPlayerValue.get(userId) ?? this.everyPlayerValue;
+  }
+
+  /**
+   * The moment "new" counts from: the open session's start, else the last session's end (ms);
+   * null without a session marker. A handout revealed after it is new to the players.
+   */
+  get sessionSinceMs(): number | null {
+    return this.sessionSinceValue;
   }
 
   /** True once `get-player-handouts` has answered at least once. */
@@ -108,6 +126,14 @@ export class PlayerViewSource {
       if (visibility !== undefined && this.isVisibility(visibility)) {
         changed ||= JSON.stringify(visibility) !== JSON.stringify(this.visibilityValue);
         this.visibilityValue = visibility;
+      }
+      const session = await this.client
+        .callTool<unknown>('get-play-session')
+        .catch((error: unknown) => this.failed('get-play-session', error));
+      if (session !== undefined) {
+        const since = sessionSince(session);
+        changed ||= since !== this.sessionSinceValue;
+        this.sessionSinceValue = since;
       }
       const raw = await this.client
         .callTool<RawHandouts>('get-player-handouts')

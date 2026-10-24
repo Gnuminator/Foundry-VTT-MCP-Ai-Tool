@@ -9,7 +9,7 @@ import { describe, expect, it } from 'vitest';
 import { Logger } from '../logger.js';
 
 import { buildPlayerState } from './projection.js';
-import { PlayerViewSource, type PlayerSourceClient } from './source.js';
+import { PlayerViewSource, sessionSince, type PlayerSourceClient } from './source.js';
 
 const COPY = 'JournalEntry.hhhhhhhhhhhhhhhh.JournalEntryPage.cccccccccccccccc';
 const SOURCE = 'JournalEntry.gggggggggggggggg.JournalEntryPage.ssssssssssssssss';
@@ -167,5 +167,30 @@ describe('PlayerViewSource per player (O7 vaults)', () => {
     // The player page keeps its list: every handout, links cleaned against every revealed page.
     expect(s.handouts.map(h => h.id)).toEqual(['pub', 'alice', 'bob']);
     expect(s.handouts[0].html).toContain('Bob Door');
+  });
+});
+
+describe('sessionSince', () => {
+  it('counts from the open session start, else the last end', () => {
+    const start = '2026-10-20T19:00:00.000Z';
+    const end = '2026-10-13T22:00:00.000Z';
+    expect(sessionSince({ open: true, startedAt: start, endedAt: null })).toBe(Date.parse(start));
+    expect(sessionSince({ open: false, startedAt: null, endedAt: end })).toBe(Date.parse(end));
+    expect(sessionSince({ open: false, startedAt: null, endedAt: null })).toBeNull();
+    expect(sessionSince('nope')).toBeNull();
+  });
+
+  it('the source keeps it and reports a change', async () => {
+    const answers = {
+      'get-play-session': { open: true, startedAt: '2026-10-20T19:00:00.000Z', endedAt: null },
+      'get-player-handouts': { revealedUuids: [], handouts: [] },
+    };
+    let changes = 0;
+    const source = new PlayerViewSource(clientWith(answers), new Logger('error', 'test'), () => {
+      changes += 1;
+    });
+    await source.refresh();
+    expect(source.sessionSinceMs).toBe(Date.parse('2026-10-20T19:00:00.000Z'));
+    expect(changes).toBe(1);
   });
 });

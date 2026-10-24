@@ -255,3 +255,9 @@ export function collectArgs(
   }
   return { args };
 }
+
+/** What a run in flight is called in the form: the tool and its action (ids would say little). */
+export function runLabel(tool: string, args: Record<string, unknown>): string {
+  const action = args['action'];
+  return typeof action === 'string' && action ? `${tool} ${action}` : tool;
+}

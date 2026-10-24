@@ -29,13 +29,35 @@ function asRecord(v: unknown): Record<string, unknown> | null {
   return v !== null && typeof v === 'object' ? (v as Record<string, unknown>) : null;
 }
 
-/** `get-play-session` to the time "new" counts from: the open session's start, else its end. */
-export function sessionSince(session: unknown): number | null {
+/** How often the session marker is re-read (ms); each read scans vault files. */
+const SESSION_POLL_MS = 60_000;
+
+/** The session marker as `get-play-session` reports it, checked. */
+export interface SessionMarker {
+  open: boolean;
+  startedAtMs: number | null;
+  endedAtMs: number | null;
+}
+
+export function sessionMarker(session: unknown): SessionMarker | null {
   const r = asRecord(session);
   if (!r) return null;
-  const at = r.open === true ? r.startedAt : r.endedAt;
-  const ms = typeof at === 'string' ? Date.parse(at) : NaN;
-  return Number.isFinite(ms) ? ms : null;
+  const ms = (at: unknown): number | null => {
+    const t = typeof at === 'string' ? Date.parse(at) : NaN;
+    return Number.isFinite(t) ? t : null;
+  };
+  return { open: r.open === true, startedAtMs: ms(r.startedAt), endedAtMs: ms(r.endedAt) };
+}
+
+/**
+ * The time "new" counts from. While a session is open: the previous session's end
+ * (`lastEndedMs`, the last end seen), so handouts revealed during prep stay new through the
+ * session; with none seen yet, the session's own start. Closed: its end.
+ */
+export function sessionSince(session: unknown, lastEndedMs: number | null = null): number | null {
+  const m = sessionMarker(session);
+  if (!m) return null;
+  return m.open ? (lastEndedMs ?? m.startedAtMs) : m.endedAtMs;
 }
 
 function str(v: unknown): string | null {
@@ -59,6 +81,9 @@ export class PlayerViewSource {
   private everyPlayerValue: PlayerHandout[] = [];
   private handoutsReadyValue = false;
   private sessionSinceValue: number | null = null;
+  /** The newest session end seen while none was open (what "new" counts from during one). */
+  private lastEndedMs: number | null = null;
+  private sessionPolledAt = 0;
   private timer: NodeJS.Timeout | null = null;
   private inFlight = false;
 
@@ -127,11 +152,21 @@ export class PlayerViewSource {
         changed ||= JSON.stringify(visibility) !== JSON.stringify(this.visibilityValue);
         this.visibilityValue = visibility;
       }
-      const session = await this.client
-        .callTool<unknown>('get-play-session')
-        .catch((error: unknown) => this.failed('get-play-session', error));
+      // The marker changes a few times a night, so it runs on its own slower clock (a failed
+      // read waits the full interval too, and keeps the last value).
+      const now = Date.now();
+      const sessionDue = now - this.sessionPolledAt >= SESSION_POLL_MS;
+      if (sessionDue) this.sessionPolledAt = now;
+      const session = sessionDue
+        ? await this.client
+            .callTool<unknown>('get-play-session')
+            .catch((error: unknown) => this.failed('get-play-session', error))
+        : undefined;
       if (session !== undefined) {
-        const since = sessionSince(session);
+        const marker = sessionMarker(session);
+        if (marker && !marker.open && marker.endedAtMs !== null)
+          this.lastEndedMs = marker.endedAtMs;
+        const since = sessionSince(session, this.lastEndedMs);
         changed ||= since !== this.sessionSinceValue;
         this.sessionSinceValue = since;
       }

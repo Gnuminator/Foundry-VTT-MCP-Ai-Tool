@@ -4,7 +4,7 @@
  * handout, and the player page shows it like any other, sanitized and
  * projected to its player fields only.
  */
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { Logger } from '../logger.js';
 
@@ -192,5 +192,64 @@ describe('sessionSince', () => {
     await source.refresh();
     expect(source.sessionSinceMs).toBe(Date.parse('2026-10-20T19:00:00.000Z'));
     expect(changes).toBe(1);
+  });
+
+  it('keeps counting from the previous end while a session is open (prep reveal)', async () => {
+    const end = '2026-10-13T22:00:00.000Z';
+    const start = '2026-10-20T19:00:00.000Z';
+    const answers: Record<string, unknown> = {
+      'get-play-session': { open: false, startedAt: null, endedAt: end },
+      'get-player-handouts': { revealedUuids: [], handouts: [] },
+    };
+    const source = new PlayerViewSource(clientWith(answers), new Logger('error', 'test'), () => {});
+    vi.useFakeTimers();
+    try {
+      await source.refresh();
+      expect(source.sessionSinceMs).toBe(Date.parse(end));
+      answers['get-play-session'] = { open: true, startedAt: start, endedAt: null };
+      await vi.advanceTimersByTimeAsync(61_000);
+      await source.refresh();
+      expect(source.sessionSinceMs).toBe(Date.parse(end));
+    } finally {
+      vi.useRealTimers();
+    }
+    expect(sessionSince({ open: true, startedAt: start, endedAt: null }, Date.parse(end))).toBe(
+      Date.parse(end)
+    );
+  });
+
+  it('polls get-play-session at most once a minute and survives it failing', async () => {
+    const start = '2026-10-20T19:00:00.000Z';
+    let calls = 0;
+    let fail = false;
+    const client: PlayerSourceClient = {
+      callTool: <T>(name: string): Promise<T> => {
+        if (name === 'get-play-session') {
+          calls += 1;
+          return fail
+            ? Promise.reject(new Error('boom'))
+            : Promise.resolve({ open: true, startedAt: start, endedAt: null } as T);
+        }
+        if (name === 'get-player-handouts') {
+          return Promise.resolve({ revealedUuids: [], handouts: [] } as T);
+        }
+        return Promise.reject(new Error(`unknown tool ${name}`));
+      },
+    };
+    const source = new PlayerViewSource(client, new Logger('error', 'test'), () => {});
+    vi.useFakeTimers();
+    try {
+      await source.refresh();
+      await source.refresh();
+      expect(calls).toBe(1);
+      fail = true;
+      await vi.advanceTimersByTimeAsync(61_000);
+      await source.refresh();
+      expect(calls).toBe(2);
+      expect(source.sessionSinceMs).toBe(Date.parse(start));
+      expect(source.handoutsReady).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

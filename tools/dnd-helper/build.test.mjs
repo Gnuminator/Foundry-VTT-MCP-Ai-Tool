@@ -80,7 +80,8 @@ test('the skill is advise-only: no write tool is named as a step', () => {
   try {
     const { files } = build(out);
     for (const [name, text] of files) {
-      if (name.startsWith('references/player/')) continue;
+      // SKILL.md names the forbidden tools on purpose, in its ground rules.
+      if (name === 'SKILL.md' || name.startsWith('references/player/')) continue;
       assert.doesNotMatch(
         text,
         /`(plan-actor-change|apply-planned-change|undo-change|plan-undo-changes|dnd5e-add-feature|dnd5e-add-features-from-compendium|create-actor-from-compendium)`/,

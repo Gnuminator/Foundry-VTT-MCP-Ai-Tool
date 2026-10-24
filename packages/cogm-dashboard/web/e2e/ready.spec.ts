@@ -1,4 +1,4 @@
-// Ready for session inside Pre-flight: the switch chips (/api/session/switches, faked here except
+// Turn on for tonight inside Pre-flight: the switch chips (/api/session/switches, faked here except
 // in the last test), turning them on and off with the toasts the old page shows, GM Actions from
 // the stream's settings event, the pre-flight row following, and Start the session log. With no
 // session open the page shows Before, where Pre-flight (and Ready inside it) sits in the page.
@@ -21,7 +21,7 @@ const switches = (list: typeof OFF, extra: Record<string, unknown> = {}): unknow
   ...extra,
 });
 
-const READY_ROW = { id: 'ready', label: 'Ready for session', status: 'warn', detail: 'Off.' };
+const READY_ROW = { id: 'ready', label: 'Turn on for tonight', status: 'warn', detail: 'Off.' };
 
 interface FakeAnswer {
   status?: number;
@@ -91,7 +91,7 @@ test('shows the switches, all off, with Ready and the session log', async ({ pag
     '○ GM Actions',
   ]);
   await expect(chips(block).nth(1)).toHaveAttribute('title', 'AI Tool: Handouts (writes): off');
-  await expect(block.locator('#btn-ready')).toHaveText('Ready for session');
+  await expect(block.locator('#btn-ready')).toHaveText('Turn on for tonight');
   await expect(block.locator('#btn-ready')).toBeEnabled();
   await expect(block.locator('#btn-ready-off')).toHaveCount(0);
   await expect(block.locator('#btn-ready-log')).toBeVisible();
@@ -123,10 +123,10 @@ test('Ready turns them on, says what changed, and the pre-flight row follows', a
   await expect(
     toast(
       page,
-      '✓ Ready for session. Turned on: Changes from the tool, Handouts (writes), GM Actions'
+      '✓ Turn on for tonight. Turned on: Changes from the tool, Handouts (writes), GM Actions'
     )
   ).toBeVisible();
-  await expect(block.locator('#btn-ready')).toHaveText('✓ Ready for tonight');
+  await expect(block.locator('#btn-ready')).toHaveText('✓ On for tonight');
   await expect(block.locator('#btn-ready')).toHaveClass(/is-ready/);
   await expect(block.locator('#btn-ready')).toBeDisabled();
   await expect(chips(block)).toHaveText([
@@ -168,7 +168,7 @@ test('Turn them off again says what it turned off', async ({ page }) => {
     '○ GM Actions',
   ]);
   await expect(block.locator('#btn-ready-off')).toHaveCount(0);
-  await expect(block.locator('#btn-ready')).toHaveText('Ready for session');
+  await expect(block.locator('#btn-ready')).toHaveText('Turn on for tonight');
 });
 
 test('a switch Foundry dropped and a failed call both raise error toasts', async ({ page }) => {
@@ -190,14 +190,16 @@ test('a switch Foundry dropped and a failed call both raise error toasts', async
   const block = await openReady(page);
 
   await block.locator('#btn-ready').click();
-  await expect(toast(page, '✓ Ready for session. Turned on: Changes from the tool')).toBeVisible();
+  await expect(
+    toast(page, '✓ Turn on for tonight. Turned on: Changes from the tool')
+  ).toBeVisible();
   await expect(
     toast(page, '✗ Foundry did not change: Handouts (writes). Check the module settings.')
   ).toBeVisible();
   await expect(block.locator('#btn-ready')).toBeEnabled();
 
   await block.locator('#btn-ready').click();
-  await expect(toast(page, '✗ Ready for session: The bridge is not connected.')).toBeVisible();
+  await expect(toast(page, '✗ Turn on for tonight: The bridge is not connected.')).toBeVisible();
 });
 
 test('GM Actions follow the stream, and a failed read shows in the note', async ({ page }) => {
@@ -289,7 +291,7 @@ test('while a change is out both buttons wait, and a double click sends once', a
 
   release();
   await expect(
-    toast(page, '✓ Ready for session. Turned on: Changes from the tool, Handouts (writes)')
+    toast(page, '✓ Turn on for tonight. Turned on: Changes from the tool, Handouts (writes)')
   ).toBeVisible();
   await expect(block.locator('#btn-ready-off')).toBeEnabled();
   expect(fakes.posts).toEqual([{ action: 'ready' }]);

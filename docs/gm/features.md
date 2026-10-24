@@ -14,10 +14,10 @@ Most switches are Foundry settings: **Game Settings** (the gear icon in the side
 Settings**, category **Foundry AI Tool**. Tick or untick, then **Save Changes**. They stop the
 dashboard's changes as well as Claude's.
 
-**Ready for session** (the Pre-flight panel in the dashboard's Before view) turns on, in one click,
+**Turn on for tonight** (the Pre-flight panel in the dashboard's Before view) turns on, in one click,
 what an evening at the table needs: Allow Write Operations, Handouts, Live play, Party, Tarokka and
 GM Actions. **End session** turns off again what it turned on. See
-[Ready for session](dashboard.md#ready-for-session).
+[Turn on for tonight](dashboard.md#turn-on-for-tonight).
 
 ## Allow Write Operations
 
@@ -25,7 +25,7 @@ GM Actions. **End session** turns off again what it turned on. See
   Foundry, from Claude or from the dashboard, and there is no Undo.
 - **Starts:** on.
 - **Turn it off when:** you want the tool to watch only, for example while you show a new player
-  around. Ready for session turns it back on.
+  around. Turn on for tonight turns it back on.
 
 ## Live play
 
@@ -52,7 +52,7 @@ GM Actions. **End session** turns off again what it turned on. See
 
 - **What it does:** reveals or hides journal pages for the players, queues pages to reveal one
   after another, and shows who has seen each one.
-- **Starts:** off. Setting "AI Tool: Handouts (writes)". Ready for session turns it on.
+- **Starts:** off. Setting "AI Tool: Handouts (writes)". Turn on for tonight turns it on.
 - **Turn it on when:** before the first session with a handout (a letter, a map, a picture).
 - **More:** [The handout drawer](dashboard.md#the-handout-drawer--handouts).
 
@@ -61,7 +61,7 @@ GM Actions. **End session** turns off again what it turned on. See
 - **What it does:** the party panel: the party's travel pace, placing the party's tokens on the
   scene you are looking at, adding the party to combat, and a rest request every player can
   answer from their own character.
-- **Starts:** off. Setting "AI Tool: Party (writes)". Ready for session turns it on.
+- **Starts:** off. Setting "AI Tool: Party (writes)". Turn on for tonight turns it on.
 - **Turn it on when:** the party travels or rests for the first time. It needs a Group actor set
   as the primary party in Foundry.
 - **More:** [The party drawer](dashboard.md#the-party-drawer--party).
@@ -70,7 +70,7 @@ GM Actions. **End session** turns off again what it turned on. See
 
 - **What it does:** saves a card reading, links cards to journals, and publishes reveal pages to
   the players.
-- **Starts:** off. Setting "AI Tool: Tarokka (writes)". Ready for session turns it on.
+- **Starts:** off. Setting "AI Tool: Tarokka (writes)". Turn on for tonight turns it on.
 - **Turn it on when:** before the first card reading.
 - **More:** [The Tarokka drawer](dashboard.md#the-tarokka-drawer--tarokka).
 
@@ -99,7 +99,7 @@ GM Actions. **End session** turns off again what it turned on. See
   **Undo**. The Recap also lands in the Handouts queue, so the players see it only when you reveal
   it. The dashboard's **After** view shows where the notes are, with **Read**, **Approve without
   revealing** and **Undo**.
-- **Starts:** off. Setting "AI Tool: Session notes (writes)". Ready for session does not turn it
+- **Starts:** off. Setting "AI Tool: Session notes (writes)". Turn on for tonight does not turn it
   on, because the notes arrive after the session.
 - **Turn it on when:** you record your sessions and want the notes in Foundry without doing
   anything. While it is off, the notes wait and go in by themselves once you turn it on.
@@ -130,7 +130,7 @@ GM Actions. **End session** turns off again what it turned on. See
 
 - **What it does:** the dashboard's own switch for changing the game from the dashboard. It does
   not stop Claude.
-- **Starts:** off every time the dashboard starts. Ready for session turns it on, End session turns
+- **Starts:** off every time the dashboard starts. Turn on for tonight turns it on, End session turns
   it off.
-- **Turn it on when:** you act from the dashboard. Ready for session does it for you.
+- **Turn it on when:** you act from the dashboard. Turn on for tonight does it for you.
 - **More:** [GM Actions](dashboard.md#-gm-actions-off--on).

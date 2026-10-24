@@ -21,7 +21,7 @@ export const GAME_STATE_KEY = ['game'] as const;
 /** Opens the place where the GM turns GM Actions on; App provides it. */
 export const GmActionsGateContext = createContext<() => void>(() => undefined);
 
-const GATE_TEXT = 'GM Actions are off. Ready for session in Pre-flight turns them on.';
+const GATE_TEXT = 'GM Actions are off. Turn on for tonight in Pre-flight turns them on.';
 
 /** What a plan-* tool answers (guarded-write/service.ts on the bridge); the fields used here. */
 interface Plan {
@@ -206,7 +206,7 @@ export function useGuardedTools(): GuardedTools {
           // The server says GM Actions are off, whatever the page last heard: the gates show
           // (the Tool runner's bar too) until the stream says otherwise. Before the stream's first
           // settings there is nothing else to keep: GM Actions stand in alone, as the Tool runner's
-          // catalog and Ready for session do (the Obsidian link waits for the stream).
+          // catalog and Turn on for tonight do (the Obsidian link waits for the stream).
           if (err.code === 'gm-actions-disabled') {
             queryClient.setQueryData<DashboardSettings | null>(SETTINGS_KEY, old =>
               old ? { ...old, gmActionsEnabled: false } : { gmActionsEnabled: false }

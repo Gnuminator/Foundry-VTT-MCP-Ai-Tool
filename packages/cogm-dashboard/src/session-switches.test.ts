@@ -1,5 +1,5 @@
 /**
- * Ready for session (D3, PB-17): the GM route turns the module's switches and GM Actions on,
+ * Turn on for tonight (D3, PB-17): the GM route turns the module's switches and GM Actions on,
  * End turns them off; the parser and the pre-flight row.
  */
 import type { Server } from 'http';

@@ -233,7 +233,7 @@ test('a failed session read shows Before', async ({ page }) => {
   await load(page);
   await expect(tab(page, 'Before')).toHaveAttribute('aria-selected', 'true');
   await expect(view(page, 'before')).toBeVisible();
-  // Ready for session mounts with Pre-flight and shares the failed read: no second try.
+  // Turn on for tonight mounts with Pre-flight and shares the failed read: no second try.
   await expect(docked(page, '✈ Pre-flight').locator('#ready-block')).toBeVisible();
   await expect.poll(() => count(calls, 'get-play-session')).toBe(1);
   // The next poll is the sync point: the first read plus that poll, and no extra from Ready.

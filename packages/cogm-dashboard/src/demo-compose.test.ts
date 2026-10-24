@@ -35,13 +35,13 @@ const sentence = (
 describe('compose: narration to steps', () => {
   const steps = [
     { step: 'open', title: 'Open the tool' },
-    { step: 'ready', title: 'Ready for session' },
+    { step: 'ready', title: 'Turn on for tonight' },
     { step: 'quiet', title: 'Nothing said here' },
   ];
   const sentences = [
     sentence(1, 0.5, 2.0, 'open'),
     sentence(2, 2.4, 4.0, 'open'),
-    sentence(3, 4.4, 6.0, 'Ready for session'),
+    sentence(3, 4.4, 6.0, 'Turn on for tonight'),
     sentence(4, 6.4, 7.0, 'Left over'),
   ];
 

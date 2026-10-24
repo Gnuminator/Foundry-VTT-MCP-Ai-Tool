@@ -730,7 +730,7 @@ test('with GM Actions off nothing is planned; the gate opens Pre-flight', async 
   await fakeStream(page, gmActions(false));
   const calls = await fakeTools(page, bridge);
   const drawer = await openTarokka(page);
-  const gate = 'GM Actions are off. Ready for session in Pre-flight turns them on.';
+  const gate = 'GM Actions are off. Turn on for tonight in Pre-flight turns them on.';
   const preflight = page.getByRole('dialog', { name: '✈ Pre-flight' });
 
   await drawer.getByRole('button', { name: 'Import from tarokka-reading' }).click();

@@ -1,7 +1,7 @@
 // Starting and ending the play session (mark-play-session, a log-only tool: no GM Actions, no
-// confirm). One hook for every button that does it (the header marker, Ready for session's
+// confirm). One hook for every button that does it (the header marker, Turn on for tonight's
 // "Start the session log"), so they share one pending state and one flow. Ending also turns off
-// what Ready for session turned on, as the old page's End session did.
+// what Turn on for tonight turned on, as the old page's End session did.
 import {
   useIsMutating,
   useMutation,
@@ -28,7 +28,7 @@ const MARK_KEY = ['mark-play-session'] as const;
 type Toast = (text: string, kind: 'ok' | 'err') => void;
 
 /**
- * Turns off what Ready for session turned on, when it is on: the module remembers a Ready, or GM
+ * Turns off what Turn on for tonight turned on, when it is on: the module remembers a Ready, or GM
  * Actions are on. The switches are read first when this page has not seen them (Pre-flight never
  * opened). A failure is toasted; the end of the session itself has already happened.
  */

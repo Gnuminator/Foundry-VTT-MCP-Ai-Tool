@@ -14,7 +14,7 @@ const CHECKS = [
     detail: 'Bridge 0.21.0, module 0.21.0.',
   },
   { id: 'scene', label: 'Starting scene', status: 'fail', detail: 'No scene is active.' },
-  { id: 'ready', label: 'Ready for session', status: 'warn', detail: 'Some switches are off.' },
+  { id: 'ready', label: 'Turn on for tonight', status: 'warn', detail: 'Some switches are off.' },
   { id: 'odd', label: 'A new check', status: 'later', detail: 'Status this page does not know.' },
 ];
 
@@ -62,7 +62,7 @@ test('runs the checks on open and shows the verdict', async ({ page }) => {
   await expect(items.locator('.pf-label')).toHaveText([
     'Versions match',
     'Starting scene',
-    'Ready for session',
+    'Turn on for tonight',
     'A new check',
     'Tarokka cards hidden',
   ]);

@@ -397,9 +397,9 @@ test.describe('Undo on the AI tab', () => {
     const c = await load(page);
     await c.getByRole('button', { name: 'Undo: Revealed a page' }).click();
     await expect(
-      toast(page, 'GM Actions are off. Ready for session in Pre-flight turns them on.')
+      toast(page, 'GM Actions are off. Turn on for tonight in Pre-flight turns them on.')
     ).toBeVisible();
-    // No confirm window; the gate opened Pre-flight, where Ready for session turns GM Actions on.
+    // No confirm window; the gate opened Pre-flight, where Turn on for tonight turns GM Actions on.
     await expect(page.getByRole('dialog', { name: 'Destructive action' })).toHaveCount(0);
     await expect(page.getByRole('dialog', { name: /Pre-flight/ })).toBeVisible();
     expect(names(calls)).not.toContain('undo-change');
@@ -658,7 +658,7 @@ test.describe('Undo on the Everyone tab', () => {
     const c = await openEveryone(page);
     await c.getByRole('button', { name: 'Undo: Human h1' }).click();
     await expect(
-      toast(page, 'GM Actions are off. Ready for session in Pre-flight turns them on.')
+      toast(page, 'GM Actions are off. Turn on for tonight in Pre-flight turns them on.')
     ).toBeVisible();
     expect(names(calls)).not.toContain('plan-undo-changes');
   });

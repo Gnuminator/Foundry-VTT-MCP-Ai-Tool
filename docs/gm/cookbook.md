@@ -235,7 +235,7 @@ These need the **play** set switched on.
   (writes)" on, they then go into Foundry by themselves: a GM-only journal in the folder
   "Session notes" with the pages Recap, GM summary and Scenes (Danish first, English below). It
   happens as soon as Foundry is open with writes on, so notes made overnight land when you next
-  press "Ready for session". The Live Feed and Recent Changes show it, with an Undo.
+  press "Turn on for tonight". The Live Feed and Recent Changes show it, with an Undo.
 - **Tip:** read the Recap page before anyone else does. It waits in the reveal queue; press
   **Reveal next** when it is fine, and the players get it in "Handouts". Revealing it, or
   **Approve without revealing** on the dashboard, marks the session approved. The recorded audio

@@ -52,9 +52,11 @@ only on the old dashboard (see "The old dashboard page" below).
 Marks the start and the end of a play session. The tool uses these marks to write one Obsidian note
 per session and to group the play log.
 
+- **Start session** is the button in the header. **Turn on for tonight** in Pre-flight is a different
+  button: it only switches on what the tool needs to change things.
 - Click **Start session** when play begins. The text changes to "Session since 19:30".
 - Click **End session** when play ends. The text changes back to "No session". It also turns off
-  again what **Ready for session** turned on (see below), and GM Actions.
+  again what **Turn on for tonight** turned on (see below), and GM Actions.
 - Starting a session only writes a line in the tool's own log. It never changes the game, so it
   works with GM Actions off.
 - If you forget, the notes still split sessions at a gap of 3 hours without events.
@@ -72,7 +74,7 @@ The master switch for changing the game from the dashboard. Click it to turn it 
 - It only guards the dashboard. It does not stop Claude Desktop.
 - Restarting the dashboard turns it off again.
 
-Turn it on when you are about to act, and off again after. **Ready for session** turns it on
+Turn it on when you are about to act, and off again after. **Turn on for tonight** turns it on
 for you, together with the module switches.
 
 ### 🛠 Tools (Advanced)
@@ -84,7 +86,7 @@ Under **Advanced ▾**, Tools. Opens the tool runner. See "The tool runner" belo
 In the header, next to **Advanced ▾**. Opens the pre-flight check: run it before the players join. The tool ticks what it can check by
 itself (Foundry connected, module and bridge versions match, the write switches, secrets in world
 settings, names players can see that give away a secret, module conflicts, Obsidian notes, the
-play session, Ready for session, the player page, Tarokka cards hidden). Below that are the things to
+play session, Turn on for tonight, the player page, Tarokka cards hidden). Below that are the things to
 check by hand, from [before each session](before-session.md); your ticks stay in this browser until
 you click **Clear ticks**. The button itself reads **Pre-flight: ready** or **Pre-flight: 2 to fix**
 after each Foundry connect.
@@ -92,7 +94,7 @@ after each Foundry connect.
 A value that looks like a secret is never shown in full, only its first four characters and its
 length. If the module and bridge versions differ, a banner at the top says which to update.
 
-#### Ready for session
+#### Turn on for tonight
 
 At the top of the Pre-flight panel. One click turns on what an evening at the table needs:
 
@@ -197,7 +199,7 @@ stay in Foundry's own combat tracker, and damage normally goes through dnd5e's c
 
 Combat in the dashboard is optional. If you want it, the strip can add damage, healing and
 conditions on several combatants at once: turn on **⚔ Combat buttons** under **Advanced** (off by
-default). With the combat buttons and GM Actions on (**Ready for session** turns GM Actions on),
+default). With the combat buttons and GM Actions on (**Turn on for tonight** turns GM Actions on),
 click combatant rows to select them (click again to unselect). With one or more selected:
 
 - **Damage / Heal**: opens the tool runner (`plan-actor-change`) with those names filled in. Pick
@@ -233,7 +235,7 @@ cards are only on the old dashboard (`/legacy/`). There, at the bottom of **Befo
 what the feature does, whether it is on, and **when to turn it on** (for example Boss prompts:
 "before the first boss fight"). **Read more** opens its section of
 [Features and when to turn them on](features.md). The cards only show; you switch features in
-Foundry's module settings, or all at once with **Ready for session**.
+Foundry's module settings, or all at once with **Turn on for tonight**.
 
 ### Help: the "?" on each panel
 

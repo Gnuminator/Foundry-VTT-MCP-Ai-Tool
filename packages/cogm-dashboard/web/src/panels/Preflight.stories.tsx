@@ -16,7 +16,7 @@ import { PHONE_VIEW, VEIL } from '../storybook/modes';
 
 import { PreflightButton, PreflightDrawer, VersionBanner } from './Preflight';
 
-// Pre-flight: the checks before the players join, with "Ready for session" (the switches that
+// Pre-flight: the checks before the players join, with "Turn on for tonight" (the switches that
 // turn the AI Tool's writes on for the night) at the top. Both are read each time it opens.
 const bridge = (
   check: Reply,

@@ -1,5 +1,5 @@
 // Take: before a session: Pre-flight checks the bridge, the module,
-// the write switches and the players' page for spoilers (I-095); Ready for session turns on
+// the write switches and the players' page for spoilers (I-095); Turn on for tonight turns on
 // what tonight needs in one click (PB-17); the feature cards say when to turn the rest on.
 //
 //   npm run demo:take -- preflight
@@ -50,7 +50,7 @@ export async function run(t) {
     await t.shot('Dashboard', 'preflight-findings');
   });
 
-  await t.step('ready', 'Ready for session: one click turns on what tonight needs', async () => {
+  await t.step('ready', 'Turn on for tonight: one click turns on what tonight needs', async () => {
     const ready = page.locator('#btn-ready');
     await ready.scrollIntoViewIfNeeded();
     await t.pause(1200);

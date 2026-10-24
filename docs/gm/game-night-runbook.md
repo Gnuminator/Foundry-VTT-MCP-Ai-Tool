@@ -20,7 +20,7 @@ solve technical problems yourself.
 ## Before you start (15 minutes before)
 
 - [ ] Open the game's address and join as your GM user. Check the player list at the bottom left.
-- [ ] Do the [Before each session](before-session.md) checklist (pre-flight, Ready for session).
+- [ ] Do the [Before each session](before-session.md) checklist (pre-flight, Turn on for tonight).
 - [ ] Join Discord voice. Start the recording with `/record start` only if every player has said
       yes to recording (or their track is taken out afterwards).
 

@@ -428,7 +428,7 @@ export function PartyDrawer({
       )}
       <p className="pf-detail party-hint">
         Actions apply in one click and land in Recent Changes with Undo. They need the &quot;AI
-        Tool: Party (writes)&quot; switch in the module settings (Ready for session turns it on).
+        Tool: Party (writes)&quot; switch in the module settings (Turn on for tonight turns it on).
       </p>
     </Drawer>
   );

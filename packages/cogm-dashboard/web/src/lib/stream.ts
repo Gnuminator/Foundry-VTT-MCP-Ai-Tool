@@ -9,6 +9,7 @@ import { streamUrl } from './auth';
 import { bridgeAway, bridgeBlip, readCombat, type CombatState } from './combat';
 import { EMPTY_FEED, addFeedEvents, hasNewGmChange, readFeedEvents, type FeedLog } from './feed';
 import { onPrefs } from './prefs';
+import { PLAY_SESSION_KEY } from './session';
 
 /** One Foundry module error or warning (feed/types.ts ModuleError on the server). */
 export interface ModuleError {
@@ -184,6 +185,9 @@ const HANDLERS: Record<string, (queryClient: QueryClient, data: unknown) => void
   // A player opened a handout for the first time (GM only, no payload): the drawer reloads its
   // seen ticks when it is open. A closed drawer loads afresh on its next opening anyway.
   'handouts-seen': queryClient => void queryClient.invalidateQueries({ queryKey: HANDOUTS_KEY }),
+  // The session was started or ended from a dashboard window (GM only, no payload): read it again,
+  // so another open window follows without waiting for its minute poll.
+  'play-session': queryClient => void queryClient.invalidateQueries({ queryKey: PLAY_SESSION_KEY }),
   status: onStatus,
   settings: (queryClient, data) =>
     queryClient.setQueryData<DashboardSettings>(SETTINGS_KEY, data as DashboardSettings),

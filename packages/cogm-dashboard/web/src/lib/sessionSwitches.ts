@@ -1,4 +1,4 @@
-// Ready for session's switches (`/api/session/switches`): the module's write switches that one
+// Turn on for tonight's switches (`/api/session/switches`): the module's write switches that one
 // click turns on for tonight, and the dashboard's GM Actions. Shared by the Ready block in
 // Pre-flight and by the header's End session, which turns them off again as the old page did.
 import type { QueryClient } from '@tanstack/react-query';
@@ -46,7 +46,7 @@ export function switchNames(list: SessionSwitch[], ids: string[]): string[] {
 
 /**
  * What a switches write changed, in the caches and in the toasts: the read the Ready block shows,
- * GM Actions in the stream's settings, and the lines "Ready for session. Turned on: ..." or
+ * GM Actions in the stream's settings, and the lines "Turn on for tonight. Turned on: ..." or
  * "Turned off again: ...", plus the switches Foundry did not change.
  */
 export function applySwitchesWrite(
@@ -71,7 +71,9 @@ export function applySwitchesWrite(
   const failed = switchNames(all, data.switches?.failed ?? []);
   if (action === 'ready') {
     toast(
-      changed.length > 0 ? `✓ Ready for session. Turned on: ${changed.join(', ')}` : '✓ Already on',
+      changed.length > 0
+        ? `✓ Turn on for tonight. Turned on: ${changed.join(', ')}`
+        : '✓ Already on',
       'ok'
     );
   } else if (changed.length > 0) {

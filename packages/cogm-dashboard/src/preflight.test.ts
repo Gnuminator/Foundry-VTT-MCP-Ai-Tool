@@ -58,7 +58,7 @@ describe('playerTextChunks', () => {
 });
 
 describe('runDashboardPreflight', () => {
-  it('adds Ready for session and the player page to the bridge checks', async () => {
+  it('adds Turn on for tonight and the player page to the bridge checks', async () => {
     const { callTool, texts } = tools();
     const result = await runDashboardPreflight({
       callTool,

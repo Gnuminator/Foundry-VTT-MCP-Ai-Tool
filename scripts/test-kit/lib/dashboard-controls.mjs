@@ -544,7 +544,7 @@ export const DASHBOARD_CONTROLS = [
   { name: 'dash.party.rest-long', how: 'write', why: 'requests a long rest' },
   { name: 'dash.party.rest-short', how: 'write', why: 'requests a short rest' },
 
-  // --- Pre-flight and Ready for session ---
+  // --- Pre-flight and Turn on for tonight ---
   { name: 'dash.preflight.view', how: 'view', reach: PREFLIGHT, expect: '#preflight-drawer' },
   { name: 'dash.preflight.close', how: 'open', reach: PREFLIGHT, gone: '#preflight-drawer' },
   {

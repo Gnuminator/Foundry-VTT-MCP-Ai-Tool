@@ -795,14 +795,14 @@ export class PlayRecorder {
 
     try {
       on('updateActor', (a, c, o, u) => this.onUpdateActor(a, c, o, u));
-      on('createActor', (a, d, o, u) => this.onCreateActor(a, d, o, u));
+      on('createActor', (a, o, u) => this.onCreateActor(a, o, u));
       on('deleteActor', (a, o, u) => this.onDeleteActor(a, o, u));
-      on('createItem', (i, d, o, u) => this.onCreateItem(i, d, o, u));
+      on('createItem', (i, o, u) => this.onCreateItem(i, o, u));
       on('updateItem', (i, c, o, u) => this.onUpdateItem(i, c, o, u));
       on('deleteItem', (i, o, u) => this.onDeleteItem(i, o, u));
-      on('createActiveEffect', (e, d, o, u) => this.onCreateActiveEffect(e, d, o, u));
+      on('createActiveEffect', (e, o, u) => this.onCreateActiveEffect(e, o, u));
       on('deleteActiveEffect', (e, o, u) => this.onDeleteActiveEffect(e, o, u));
-      on('createToken', (t, d, o, u) => this.onCreateToken(t, d, o, u));
+      on('createToken', (t, o, u) => this.onCreateToken(t, o, u));
       on('deleteToken', (t, o, u) => this.onDeleteToken(t, o, u));
       on('updateToken', (t, c, o, u) => this.onUpdateToken(t, c, o, u));
       on('combatStart', c => this.onCombatStart(c));
@@ -1358,12 +1358,7 @@ export class PlayRecorder {
       : playRecordKeys.createDeleteBucketed(kind, uuid, t);
   }
 
-  private onCreateActor(
-    rawActor: unknown,
-    _data: unknown,
-    _options: unknown,
-    userId: unknown
-  ): void {
+  private onCreateActor(rawActor: unknown, _options: unknown, userId: unknown): void {
     if (!this.isGM()) return;
     const actor = shape<ActorLike>(rawActor);
     const uuid = str(actor?.uuid);
@@ -1411,7 +1406,7 @@ export class PlayRecorder {
     return shape<ActorLike>(item.actor) ?? shape<ActorLike>(item.parent);
   }
 
-  private onCreateItem(rawItem: unknown, _data: unknown, _options: unknown, userId: unknown): void {
+  private onCreateItem(rawItem: unknown, _options: unknown, userId: unknown): void {
     if (!this.isGM()) return;
     const item = shape<ItemLike>(rawItem);
     const itemUuid = str(item?.uuid);
@@ -1586,12 +1581,7 @@ export class PlayRecorder {
   // Effects
   // -------------------------------------------------------------------------
 
-  private onCreateActiveEffect(
-    rawEffect: unknown,
-    _data: unknown,
-    _options: unknown,
-    userId: unknown
-  ): void {
+  private onCreateActiveEffect(rawEffect: unknown, _options: unknown, userId: unknown): void {
     if (!this.isGM()) return;
     const effect = shape<EffectLike>(rawEffect);
     const effectUuid = str(effect?.uuid);
@@ -1657,12 +1647,7 @@ export class PlayRecorder {
   // Tokens (create/delete/move)
   // -------------------------------------------------------------------------
 
-  private onCreateToken(
-    rawToken: unknown,
-    _data: unknown,
-    _options: unknown,
-    userId: unknown
-  ): void {
+  private onCreateToken(rawToken: unknown, _options: unknown, userId: unknown): void {
     if (!this.isGM()) return;
     const token = shape<TokenDocLike>(rawToken);
     const tokenUuid = str(token?.uuid);

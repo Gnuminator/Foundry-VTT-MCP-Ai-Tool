@@ -416,6 +416,54 @@ describe('EventTracker roll events (O3 item 6)', () => {
   });
 });
 
+describe('EventTracker item-use events', () => {
+  const card = (over: Partial<any> = {}): any =>
+    rollMessage({
+      id: 'card',
+      type: 'usage',
+      rolls: [],
+      system: { item: { uuid: 'Actor.a.Item.bless', name: 'Bless', type: 'spell' } },
+      speaker: { alias: 'Akra', actor: 'akra1' },
+      ...over,
+    });
+
+  it('a public item card without a roll is an `item-use` event with visibility', () => {
+    const t = new EventTracker();
+    t.registerHooks();
+    fire('createChatMessage', card());
+    const events = t.getSessionLog({ eventType: 'item-use' });
+    expect(events).toHaveLength(1);
+    expect(events[0].description).toBe('Akra used Bless');
+    expect(events[0].details).toMatchObject({
+      itemName: 'Bless',
+      itemType: 'spell',
+      private: false,
+    });
+    expect(events[0].visibility).toBeDefined();
+  });
+
+  it('a whispered or blind card is GM-only: no visibility for the player feed', () => {
+    const t = new EventTracker();
+    t.registerHooks();
+    fire('createChatMessage', card({ id: 'w', whisper: ['gm'] }));
+    fire('createChatMessage', card({ id: 'b', blind: true }));
+    const events = t.getSessionLog({ eventType: 'item-use' });
+    expect(events).toHaveLength(2);
+    for (const e of events) {
+      expect(e.visibility).toBeUndefined();
+      expect(e.details.private).toBe(true);
+    }
+  });
+
+  it('rest cards and plain rolls are not item uses', () => {
+    const t = new EventTracker();
+    t.registerHooks();
+    fire('createChatMessage', rollMessage({ id: 'rest', type: 'rest', system: { type: 'short' } }));
+    fire('createChatMessage', rollMessage());
+    expect(t.getSessionLog({ eventType: 'item-use' })).toHaveLength(0);
+  });
+});
+
 describe('EventTracker session events', () => {
   it('detects damage and death from HP changes', () => {
     const t = new EventTracker();

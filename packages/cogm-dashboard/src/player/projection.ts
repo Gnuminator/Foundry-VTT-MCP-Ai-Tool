@@ -145,6 +145,12 @@ const TEMPLATES: Readonly<Record<string, Template>> = {
   // Public rolls: the module's player-safe line, named as players know the roller.
   roll: rollLine,
   'damage-roll': rollLine,
+  // A public item, spell or feature card: a PC's only, since an NPC's feature names can spoil.
+  'item-use': (e, v) => {
+    if (!isPc(v)) return null;
+    const item = str(e.details.itemName);
+    return item ? `${str(v.playerName)} used ${item}.` : null;
+  },
 };
 
 /** One session event as a player may see it, or null (default deny). */

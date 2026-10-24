@@ -125,6 +125,13 @@ describe(
       ])
         mkdirSync(`${pi}/${dir}`, { recursive: true });
       writeFileSync(`${pi}/tool/gm-browser/assistant-gm.mjs`, '');
+      // The stage checks $NODE_DIR/bin/node before anything else: this one runs the node of the test.
+      mkdirSync(`${pi}/node/bin`, { recursive: true });
+      writeFileSync(
+        `${pi}/node/bin/node`,
+        `#!/usr/bin/env bash\nexec "${process.execPath.replaceAll('\\', '/')}" "$@"\n`,
+        { mode: 0o755 }
+      );
       writeFileSync(`${pi}/app/package.json`, '{"version":"14.368.0"}');
       writeFileSync(`${pi}/foundry/Data/worlds/pi-check/world.json`, '{"id":"pi-check"}');
       if (version) {

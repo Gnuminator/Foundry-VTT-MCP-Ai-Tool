@@ -127,7 +127,6 @@ describe('actor state shadows', () => {
           _stats: { modifiedTime: NOW },
         },
         {},
-        {},
         'u1'
       );
 
@@ -293,7 +292,7 @@ describe('items on actors', () => {
       system: { quantity: 2 },
     });
     item.actor = actor;
-    Hooks.callAll('createItem', item, {}, {}, 'u1');
+    Hooks.callAll('createItem', item, {}, 'u1');
     Hooks.callAll('deleteItem', item, {}, 'u1');
     const kinds = recorder.getPlayRecords({}).records.map(r => r.kind);
     expect(kinds).toEqual(['item-create', 'item-delete']);
@@ -312,7 +311,7 @@ describe('items on actors', () => {
     world.actors.add(actor);
     const item = makeFixtureItem({ system: { uses: { spent: 0, max: 3 } } });
     item.actor = actor;
-    Hooks.callAll('createItem', item, {}, {}, 'u1');
+    Hooks.callAll('createItem', item, {}, 'u1');
     item._stats.modifiedTime = 8000;
     Hooks.callAll('updateItem', item, { system: { uses: { spent: 1 } } }, {}, 'u1');
     const [record] = recorder.getPlayRecords({}).records.filter(r => r.kind === 'item-uses');
@@ -324,7 +323,7 @@ describe('items on actors', () => {
     world.actors.add(actor);
     const item = makeFixtureItem({ type: 'consumable', system: { quantity: 3 } });
     item.actor = actor;
-    Hooks.callAll('createItem', item, {}, {}, 'u1');
+    Hooks.callAll('createItem', item, {}, 'u1');
     item._stats.modifiedTime = 9000;
     Hooks.callAll('updateItem', item, { system: { quantity: 2 } }, {}, 'u1');
     const record = recorder.getPlayRecords({}).records.find(r => r.kind === 'item-quantity');
@@ -336,7 +335,7 @@ describe('items on actors', () => {
     world.actors.add(actor);
     const classItem = makeFixtureItem({ type: 'class', system: { levels: 3, hd: { spent: 0 } } });
     classItem.actor = actor;
-    Hooks.callAll('createItem', classItem, {}, {}, 'u1');
+    Hooks.callAll('createItem', classItem, {}, 'u1');
     classItem._stats.modifiedTime = 10_000;
     Hooks.callAll('updateItem', classItem, { system: { hd: { spent: 1 } } }, {}, 'u1');
     const record = recorder.getPlayRecords({}).records.find(r => r.kind === 'hit-dice');
@@ -351,7 +350,7 @@ describe('items on actors', () => {
     // A real Foundry embedded collection already carries the new item by the
     // time `createItem` fires; the plain-array fixture needs this spelled out.
     actor.items.push(classItem);
-    Hooks.callAll('createItem', classItem, {}, {}, 'u1');
+    Hooks.callAll('createItem', classItem, {}, 'u1');
     // Level goes from 3 (seeded at create) — bump it to see a level record.
     classItem._stats.modifiedTime = 11_000;
     fireUpdate('updateItem', classItem, { system: { levels: 4 } }, {}, 'u1');
@@ -373,7 +372,7 @@ describe('items on actors', () => {
     });
     npcClassLikeItem.actor = npc;
     npc.items.push(npcClassLikeItem);
-    Hooks.callAll('createItem', npcClassLikeItem, {}, {}, 'u1');
+    Hooks.callAll('createItem', npcClassLikeItem, {}, 'u1');
     expect(
       recorder
         .getPlayRecords({})
@@ -394,7 +393,7 @@ describe('effects and tokens', () => {
       statuses: new Set(['prone']),
       parent: actor,
     };
-    Hooks.callAll('createActiveEffect', effect, {}, {}, 'u1');
+    Hooks.callAll('createActiveEffect', effect, {}, 'u1');
     Hooks.callAll('deleteActiveEffect', effect, {}, 'u1');
     const kinds = recorder.getPlayRecords({}).records.map(r => r.kind);
     expect(kinds).toEqual(['effect-add', 'effect-remove']);
@@ -414,12 +413,20 @@ describe('effects and tokens', () => {
       parent: actor,
     });
     const [prone, mirror] = [effect('e1'), effect('e2')];
-    Hooks.callAll('createActiveEffect', prone, {}, {}, 'u1');
-    Hooks.callAll('createActiveEffect', mirror, {}, {}, 'u1');
+    Hooks.callAll('createActiveEffect', prone, {}, 'u1');
+    Hooks.callAll('createActiveEffect', mirror, {}, 'u1');
     Hooks.callAll('deleteActiveEffect', prone, {}, 'u1');
     Hooks.callAll('deleteActiveEffect', mirror, {}, 'u1');
     const kinds = recorder.getPlayRecords({}).records.map(r => r.kind);
     expect(kinds).toEqual(['effect-add', 'effect-remove']);
+  });
+
+  it('records actor create from the 3-argument Foundry 14 create hook', () => {
+    const actor = makeFixtureActor({ t: Date.now() });
+    Hooks.callAll('createActor', actor, {}, 'u1');
+    const records = recorder.getPlayRecords({}).records;
+    expect(records.map(r => r.kind)).toEqual(['actor-create']);
+    expect(records[0].userId).toBe('u1');
   });
 
   it('records token create/delete/move; move carries no coordinates', () => {
@@ -431,7 +438,7 @@ describe('effects and tokens', () => {
       actorLink: true,
       _stats: { modifiedTime: now },
     };
-    Hooks.callAll('createToken', token, {}, {}, 'u1');
+    Hooks.callAll('createToken', token, {}, 'u1');
     token._stats.modifiedTime = now + 500;
     Hooks.callAll('updateToken', token, { x: 100, y: 200 }, {}, 'u1');
     Hooks.callAll('deleteToken', token, {}, 'u1');
@@ -457,7 +464,7 @@ describe('effects and tokens', () => {
       actorLink: false,
       _stats: { modifiedTime: 1000 },
     };
-    Hooks.callAll('createToken', token, {}, {}, 'u1');
+    Hooks.callAll('createToken', token, {}, 'u1');
     synthetic._stats.modifiedTime = 2000;
     fireUpdate(
       'updateActor',

@@ -2,6 +2,7 @@ import { startedOnCreate } from './combat-plan.js';
 import { MODULE_ID } from './constants.js';
 import {
   chatRollKind,
+  dnd5eMessageItemRef,
   dnd5eRestType,
   dnd5eRollType,
   isDamageRoll,
@@ -444,6 +445,39 @@ export class EventTracker {
 
     // Rolls are also significant session events
     this.logRollEvent(message, entry);
+    this.logItemUseEvent(message, entry);
+  }
+
+  /**
+   * The session event for an item, spell or feature card posted to chat, with or without a roll
+   * ("Akra used Bless"). A public card becomes `item-use` with the speaker's visibility, so the
+   * player feed may show a PC's. A whispered or blind card is logged for the GM with no
+   * visibility, which the player projection drops.
+   */
+  private logItemUseEvent(rawMessage: unknown, entry: ChatLogEntry): void {
+    const message = rawMessage as ChatMessage;
+    if (chatRollKind(message) === 'rest' || dnd5eRestType(message) !== undefined) return;
+    if (!isUsageCard(message)) return;
+    const source = rawMessage as { whisper?: unknown; blind?: unknown };
+    const whisper: unknown[] = Array.isArray(source.whisper) ? source.whisper : [];
+    const isPrivate =
+      whisper.length > 0 ||
+      source.blind === true ||
+      (rawMessage as { messageMode?: unknown }).messageMode === 'blind';
+    const item = dnd5eMessageItemRef(message);
+    const itemName = item?.name ?? 'an item';
+    const who = entry.speakerName || 'Someone';
+    this.logSessionEvent('item-use', `${who} used ${itemName}${isPrivate ? ' (private)' : ''}`, {
+      actorName: entry.speakerName,
+      actorId: entry.actorId,
+      details: {
+        itemName,
+        itemType: item?.type ?? 'item',
+        private: isPrivate,
+        messageId: entry.id,
+      },
+      ...(isPrivate ? {} : { visibility: eventVisibilityFor(this.resolveSpeakerActor(message)) }),
+    });
   }
 
   /**

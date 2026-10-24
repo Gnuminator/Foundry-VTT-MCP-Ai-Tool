@@ -44,12 +44,22 @@ export function ffmpegArgs({ width, height, outputIdx = 0, file, grab = 'ddagrab
     '-loglevel',
     'error',
     ...input,
+    // Near-lossless capture: constant quality 10 with no bitrate cap and the slowest NVENC
+    // preset. gdigrab frames are converted to 4:4:4 so text edges keep their colour (ddagrab
+    // frames stay on the GPU, no conversion).
     '-c:v',
     'h264_nvenc',
     '-preset',
-    'p5',
+    'p7',
+    '-tune',
+    'hq',
+    '-rc',
+    'vbr',
     '-cq',
-    '19',
+    '10',
+    '-b:v',
+    '0',
+    ...(grab === 'gdigrab' ? ['-pix_fmt', 'yuv444p'] : []),
     '-r',
     '60',
     // MPEG-TS survives a killed ffmpeg; it is remuxed to MP4 once the recording stops.

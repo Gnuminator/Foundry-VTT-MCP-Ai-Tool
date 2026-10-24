@@ -260,12 +260,25 @@ function pass(ctx, cuts, draft) {
   const inter =
     draft || !nv
       ? ['-c:v', 'libx264', '-preset', draft ? 'ultrafast' : 'fast', '-crf', '14']
-      : ['-c:v', 'h264_nvenc', '-preset', 'p5', '-cq', '14'];
+      : [
+          '-c:v',
+          'h264_nvenc',
+          '-preset',
+          'p7',
+          '-tune',
+          'hq',
+          '-rc',
+          'vbr',
+          '-cq',
+          '10',
+          '-b:v',
+          '0',
+        ];
+  // Final encode: x264 averaging 12 Mbps (the spec floor is 8). Static screen footage at constant
+  // quality lands far below that, so the target rate is what guarantees the floor.
   const fin = draft
     ? ['-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '22']
-    : nv
-      ? ['-c:v', 'h264_nvenc', '-preset', 'p6', '-cq', '21']
-      : ['-c:v', 'libx264', '-preset', 'medium', '-crf', '18'];
+    : ['-c:v', 'libx264', '-preset', 'slow', '-b:v', '12M', '-maxrate', '24M', '-bufsize', '48M'];
   const ff = (args, cwd = work) =>
     run('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-y', ...args], { cwd });
   const ids = [...new Set(cuts.flatMap(c => c.ids))];

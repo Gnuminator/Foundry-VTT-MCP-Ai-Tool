@@ -664,6 +664,12 @@ function ToolForm({
       id="tool-form"
       autoComplete="off"
       noValidate
+      // A disabled Run stops the browser's Enter-to-submit, so Enter in a field asks here.
+      onKeyDown={e => {
+        if (running === null || e.key !== 'Enter' || !(e.target instanceof HTMLInputElement)) return;
+        e.preventDefault();
+        onSubmit();
+      }}
       onSubmit={e => {
         e.preventDefault();
         onSubmit();
@@ -678,11 +684,11 @@ function ToolForm({
         <span className="form-error" id="tool-form-error" role="alert">
           {error}
         </span>
-        {running !== null && (
-          <span className="field-hint" id="tool-form-waiting" role="status">
-            Waiting for {running} to finish. Run is back when Foundry answers (up to 4 minutes).
-          </span>
-        )}
+        {/* Always in the page, so a screen reader hears the text when it arrives. */}
+        <span className="field-hint" id="tool-form-waiting" role="status">
+          {running !== null &&
+            `Waiting for ${running} to finish. Run is back when Foundry answers (up to 4 minutes).`}
+        </span>
       </div>
     </form>
   );

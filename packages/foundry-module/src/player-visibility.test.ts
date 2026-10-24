@@ -21,6 +21,8 @@ import {
   computePlayerVisibility,
   eventVisibilityFor,
   pagesForPlayers,
+  playerFacingEnvironment,
+  timeOfDayForDarkness,
 } from './player-visibility.js';
 import { UNKNOWN_CREATURE, UNKNOWN_SCENE } from '@gnuminator/shared';
 
@@ -89,6 +91,39 @@ describe('computePlayerVisibility — scene', () => {
   it('falls back to UNKNOWN_SCENE when navName is unset (never the true scene name)', () => {
     world.addScene({ id: 's1', name: 'Death House Basement', active: true });
     expect(computePlayerVisibility().scene).toEqual({ id: 's1', name: UNKNOWN_SCENE });
+  });
+
+  it('gives fixed time-of-day and weather labels, never a mood name or free text', () => {
+    world.addScene({
+      id: 's1',
+      name: 'Crypt',
+      navName: 'Village Square',
+      active: true,
+      environment: { darknessLevel: 0.6, weather: 'rain' },
+      flags: { 'foundry-mcp-bridge': { mood: 'Sorvan ritual' } },
+    });
+    expect(computePlayerVisibility().scene).toEqual({
+      id: 's1',
+      name: 'Village Square',
+      environment: { timeOfDay: 'Night', weather: 'Rain' },
+    });
+  });
+
+  it('maps darkness to the four labels and drops a weather id it does not know', () => {
+    expect([0, 0.3, 0.6, 0.9].map(timeOfDayForDarkness)).toEqual([
+      'Daylight',
+      'Dusk',
+      'Night',
+      'Deep night',
+    ]);
+    expect(timeOfDayForDarkness(undefined)).toBeNull();
+    expect(
+      playerFacingEnvironment({ environment: { darknessLevel: 0, weather: 'sorvanFog' } })
+    ).toEqual({
+      timeOfDay: 'Daylight',
+      weather: null,
+    });
+    expect(playerFacingEnvironment({ environment: {} })).toBeUndefined();
   });
 
   it('falls back to UNKNOWN_SCENE when navName is blank', () => {

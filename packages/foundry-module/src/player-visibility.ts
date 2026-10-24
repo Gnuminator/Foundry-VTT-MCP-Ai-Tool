@@ -28,6 +28,19 @@ export const UNKNOWN_CREATURE = 'Unknown creature';
 /** Player-facing label for a scene without a navigation name (mirror of the shared constant). */
 export const UNKNOWN_SCENE = 'Current scene';
 
+/** Mirror of the shared `TIME_OF_DAY_LABELS`, by darkness: below 0.25, 0.5, 0.75, else. */
+export const TIME_OF_DAY_LABELS = ['Daylight', 'Dusk', 'Night', 'Deep night'] as const;
+
+/** Mirror of the shared `WEATHER_LABELS`: core weather effect id to the label players see. */
+export const WEATHER_LABELS: Readonly<Record<string, string>> = Object.freeze({
+  leaves: 'Falling leaves',
+  rain: 'Rain',
+  rainStorm: 'Storm',
+  fog: 'Fog',
+  snow: 'Snow',
+  blizzard: 'Blizzard',
+});
+
 declare global {
   /**
    * Synchronous UUID resolution (verified: `client/utils/helpers.mjs:188`,
@@ -131,6 +144,38 @@ export function playerFacingSceneName(scene: unknown): string {
   return typeof s?.navName === 'string' && s.navName.length > 0 ? s.navName : UNKNOWN_SCENE;
 }
 
+/** Time of day from the scene's darkness slider (0 light to 1 dark); null when it is not a number. */
+export function timeOfDayForDarkness(darkness: unknown): string | null {
+  if (typeof darkness !== 'number' || !Number.isFinite(darkness)) return null;
+  const d = Math.max(0, Math.min(1, darkness));
+  if (d < 0.25) return TIME_OF_DAY_LABELS[0];
+  if (d < 0.5) return TIME_OF_DAY_LABELS[1];
+  if (d < 0.75) return TIME_OF_DAY_LABELS[2];
+  return TIME_OF_DAY_LABELS[3];
+}
+
+/**
+ * The time of day and weather of the scene players are on, as fixed labels (never a scene mood
+ * preset name, never free text). A weather id that is not in the table shows nothing. Undefined
+ * when neither is known, so a scene without either keeps its old shape.
+ */
+export function playerFacingEnvironment(
+  scene: unknown
+): { timeOfDay: string | null; weather: string | null } | undefined {
+  const s = scene !== null && typeof scene === 'object' ? (scene as Record<string, unknown>) : {};
+  const env =
+    s.environment !== null && typeof s.environment === 'object'
+      ? (s.environment as Record<string, unknown>)
+      : {};
+  const timeOfDay = timeOfDayForDarkness(env.darknessLevel ?? s.darkness);
+  const weatherId = env.weather ?? s.weather;
+  const weather =
+    typeof weatherId === 'string' && Object.hasOwn(WEATHER_LABELS, weatherId)
+      ? (WEATHER_LABELS[weatherId] ?? null)
+      : null;
+  return timeOfDay === null && weather === null ? undefined : { timeOfDay, weather };
+}
+
 // ---------------------------------------------------------------------------
 // getPlayerVisibility
 // ---------------------------------------------------------------------------
@@ -157,8 +202,13 @@ export function computePlayerVisibility(): PlayerVisibility {
     .map((actor): string => actor.id);
 
   const activeScene = viewedScene(game.scenes) ?? null;
+  const environment = activeScene ? playerFacingEnvironment(activeScene) : undefined;
   const scene = activeScene
-    ? { id: activeScene.id, name: playerFacingSceneName(activeScene) }
+    ? {
+        id: activeScene.id,
+        name: playerFacingSceneName(activeScene),
+        ...(environment ? { environment } : {}),
+      }
     : null;
 
   const tokens: PlayerVisibleToken[] = activeScene

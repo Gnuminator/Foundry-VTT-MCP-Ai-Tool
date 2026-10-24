@@ -311,6 +311,7 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
       combat: state.combat,
       events: state.recentEvents,
       handouts: playerView.handouts,
+      newSinceMs: playerView.sessionSinceMs,
       opts: config.playerView,
     });
   }

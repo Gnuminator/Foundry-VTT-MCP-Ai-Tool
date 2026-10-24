@@ -400,7 +400,7 @@ the remote-hosting topology.
 | `GM_EMAILS`                    | _(unset)_                        | Comma-separated email addresses that map to GM role (via Cloudflare Access).          |
 | `CF_ACCESS_TEAM_DOMAIN`        | _(unset)_                        | `<team>.cloudflareaccess.com`; with `CF_ACCESS_AUD`, turns on the Access token check. |
 | `PLAYER_SHOW_ENEMY_CONDITIONS` | `true`                           | Let player view see status conditions on enemy combatants.                            |
-| `PLAYER_SHOW_ENEMY_HP_BANDS`   | `false`                          | Let player view see coarse HP bands (e.g. "bloodied") on enemies.                     |
+| `PLAYER_SHOW_ENEMY_HP_BANDS`   | `true`                           | Let player view see coarse HP bands (e.g. "bloodied") on enemies. `false` hides them. |
 | `LOG_LEVEL`                    | `info`                           | Dashboard server log verbosity.                                                       |
 
 ### Host check (DNS rebinding guard)

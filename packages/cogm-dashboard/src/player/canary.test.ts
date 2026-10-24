@@ -46,6 +46,8 @@ const CANARY = {
   aiText: 'CANARY-AI-COMMENTARY',
   /** Actor id of every non-PC combatant: only player characters may carry one to a player. */
   npcActor: 'CANARY-NPC-ACTOR-ID',
+  /** A scene mood preset name or free text the module must never forward as time of day or weather. */
+  moodName: 'CANARY-SCENE-MOOD-NAME',
 } as const;
 
 /** An enabled co-GM whose every answer is a canary: AI output is GM-only. */
@@ -77,7 +79,11 @@ const visibility: PlayerVisibility = {
   schema: 1,
   computedAt: 0,
   pcActorIds: ['a-pc'],
-  scene: { id: 's1', name: 'Village square' },
+  scene: {
+    id: 's1',
+    name: 'Village square',
+    environment: { timeOfDay: CANARY.moodName, weather: `${CANARY.moodName} Rain` },
+  },
   tokens: [
     { tokenId: 't-npc', actorId: CANARY.npcActor, name: 'Hooded figure', pc: false },
     { tokenId: 't-pc', actorId: 'a-pc', name: 'Ilvara', pc: true },

@@ -4,7 +4,13 @@ import { describe, expect, it } from 'vitest';
 import type { PlayerViewConfig } from '../config.js';
 import type { Combatant, CombatState, SessionEvent } from '../feed/types.js';
 
-import { buildPlayerState, projectCombat, projectEvent, projectEvents } from './projection.js';
+import {
+  projectEnvironment,
+  buildPlayerState,
+  projectCombat,
+  projectEvent,
+  projectEvents,
+} from './projection.js';
 
 const SECRET = 'CANARY-GM-SECRET';
 const opts: PlayerViewConfig = { showEnemyHpBands: true, showEnemyConditions: true };
@@ -297,6 +303,7 @@ describe('buildPlayerState', () => {
       status: 'live',
       world: { title: 'Maravia', systemId: 'dnd5e' },
       scene: 'Village',
+      sceneEnvironment: null,
       combat: null,
       events: [{ id: 'e1', timestampMs: 1000, type: 'damage', text: 'Ilvara took 7 damage.' }],
       handouts: [],
@@ -326,5 +333,63 @@ describe('buildPlayerState', () => {
       { id: 'h1', title: 'Letter', html: '<p>x</p>', revealedAt: null, players: ['u1'] },
       { id: 'h2', title: 'Notice', html: '<p>y</p>', revealedAt: null },
     ]);
+  });
+});
+
+describe('scene environment and new handouts', () => {
+  const live = {
+    controlChannel: 'connected',
+    foundry: 'reachable',
+    lastError: null,
+    lastPollAt: null,
+    foundryDownSince: null,
+  } as const;
+
+  it('shows only the fixed time-of-day and weather labels', () => {
+    const scene = (timeOfDay: string | null, weather: string | null): never =>
+      ({ id: 's', name: 'X', environment: { timeOfDay, weather } }) as never;
+    expect(projectEnvironment(scene('Night', 'Rain'))).toEqual({
+      timeOfDay: 'Night',
+      weather: 'Rain',
+    });
+    expect(projectEnvironment(scene('Strahd crypt mood', 'Sorvan storm'))).toBeNull();
+    expect(projectEnvironment(scene('Dusk', 'Sorvan storm'))).toEqual({
+      timeOfDay: 'Dusk',
+      weather: null,
+    });
+    expect(projectEnvironment({ id: 's', name: 'X' })).toBeNull();
+    expect(projectEnvironment(null)).toBeNull();
+  });
+
+  it('marks a handout revealed after the session start as new, and no other', () => {
+    const state = buildPlayerState({
+      status: live,
+      world: null,
+      visibility: null,
+      combat: null,
+      events: [],
+      handouts: [
+        { id: 'h1', title: 'Old', html: '<p>a</p>', revealedAt: '2026-10-01T18:00:00.000Z' },
+        { id: 'h2', title: 'Fresh', html: '<p>b</p>', revealedAt: '2026-10-20T19:30:00.000Z' },
+        { id: 'h3', title: 'Undated', html: '<p>c</p>', revealedAt: null },
+      ],
+      newSinceMs: Date.parse('2026-10-20T19:00:00.000Z'),
+      opts,
+    });
+    expect(state.handouts.map(h => [h.id, h.isNew === true])).toEqual([
+      ['h1', false],
+      ['h2', true],
+      ['h3', false],
+    ]);
+    const none = buildPlayerState({
+      status: live,
+      world: null,
+      visibility: null,
+      combat: null,
+      events: [],
+      handouts: [{ id: 'h2', title: 'Fresh', html: '', revealedAt: '2026-10-20T19:30:00.000Z' }],
+      opts,
+    });
+    expect(none.handouts[0]).not.toHaveProperty('isNew');
   });
 });

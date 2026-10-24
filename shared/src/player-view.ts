@@ -35,6 +35,29 @@ export const UNKNOWN_CREATURE = 'Unknown creature';
 /** The player-facing label for a scene without a navigation name. */
 export const UNKNOWN_SCENE = 'Current scene';
 
+/**
+ * The time-of-day labels a player may see, from the viewed scene's darkness slider (0 = light,
+ * 1 = dark). The module and the projection both draw from this fixed list; nothing the GM typed
+ * ever reaches players.
+ */
+export const TIME_OF_DAY_LABELS = ['Daylight', 'Dusk', 'Night', 'Deep night'] as const;
+
+/** The weather labels a player may see, by Foundry's core weather effect id. Unknown ids show nothing. */
+export const WEATHER_LABELS: Readonly<Record<string, string>> = Object.freeze({
+  leaves: 'Falling leaves',
+  rain: 'Rain',
+  rainStorm: 'Storm',
+  fog: 'Fog',
+  snow: 'Snow',
+  blizzard: 'Blizzard',
+});
+
+/** What the scene looks like to the players: fixed labels only (`TIME_OF_DAY_LABELS`, `WEATHER_LABELS`). */
+export interface PlayerSceneEnvironment {
+  timeOfDay: string | null;
+  weather: string | null;
+}
+
 /** What the players can see right now, computed on the GM client. */
 export interface PlayerVisibility {
   schema: 1;
@@ -43,7 +66,7 @@ export interface PlayerVisibility {
   /** Actor ids at least one non-GM user owns (OWNER): the party's characters and companions. */
   pcActorIds: string[];
   /** The active scene as players know it (`navName`, else `UNKNOWN_SCENE`); null without one. */
-  scene: { id: string; name: string } | null;
+  scene: { id: string; name: string; environment?: PlayerSceneEnvironment } | null;
   /** Tokens on the active scene that are not hidden, named the way a player sees them. */
   tokens: PlayerVisibleToken[];
 }
@@ -146,6 +169,8 @@ export interface PlayerHandout {
   /** Sanitized HTML. */
   html: string;
   revealedAt: string | null;
+  /** Revealed since the current session started (or since the last one ended): the page marks it "New". */
+  isNew?: boolean;
   /**
    * I-039: revealed only to these users (Foundry user ids); absent: every player. The player
    * page shows it only to a player whose picked name matches (a self-picked name, D-065).
@@ -158,6 +183,8 @@ export interface PlayerState {
   status: 'live' | 'foundry-offline' | 'disconnected' | 'connecting';
   world: { title: string; systemId: string } | null;
   scene: string | null;
+  /** Time of day and weather of the scene players are on, fixed labels only; null when unknown. */
+  sceneEnvironment: PlayerSceneEnvironment | null;
   combat: PlayerCombat | null;
   events: PlayerEvent[];
   handouts: PlayerHandout[];

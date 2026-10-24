@@ -263,13 +263,20 @@ async function onMineState(s) {
   renderMine();
 }
 
+// "Daylight, Rain": the module sends fixed labels only; nothing else is shown.
+function sceneLook(env) {
+  if (!env) return '';
+  const parts = [env.timeOfDay, env.weather].filter(p => typeof p === 'string' && p);
+  return parts.length ? ` (${parts.join(', ')})` : '';
+}
+
 function renderState(s) {
   void onMineState(s);
   elStatus.textContent = STATUS_LABELS[s.status] || 'connecting…';
   elWorld.textContent = s.world
     ? `${s.world.title}${s.world.systemId ? ' · ' + s.world.systemId : ''}`
     : '—';
-  elScene.textContent = s.scene ? `· ${s.scene}` : '';
+  elScene.textContent = s.scene ? `· ${s.scene}${sceneLook(s.sceneEnvironment)}` : '';
   renderCombat(s.combat);
   renderFeed(s.events);
 }
@@ -295,7 +302,7 @@ function renderHandouts(handouts) {
   // `html` was rebuilt server-side from an allowlist (no attributes, no scripts).
   elHandouts.innerHTML = shown
     .map(
-      h => `<details class="handout" data-handout="${escape(h.id)}"><summary data-track="player.handouts.open">${escape(h.title)}${Array.isArray(h.players) ? ' <span class="handout-private">just for you</span>' : ''}</summary>
+      h => `<details class="handout" data-handout="${escape(h.id)}"><summary data-track="player.handouts.open">${escape(h.title)}${h.isNew ? ' <span class="handout-new">New</span>' : ''}${Array.isArray(h.players) ? ' <span class="handout-private">just for you</span>' : ''}</summary>
         <div class="content">${h.html}</div></details>`
     )
     .join('');

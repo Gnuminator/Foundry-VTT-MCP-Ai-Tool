@@ -91,6 +91,7 @@ import { ChangeHistory, journalLinks } from './change-history.js';
 import { UsageLog, handleRecordUsage } from './usage-log.js';
 import {
   handleCharacterSheet,
+  handlePlayerRoll,
   handleFeatureSwitches,
   handleSessionSwitches,
   type FoundryQuery,
@@ -758,7 +759,8 @@ async function startBackend(): Promise<void> {
           if (
             msg.method === 'session_switches' ||
             msg.method === 'feature_switches' ||
-            msg.method === 'character_sheet'
+            msg.method === 'character_sheet' ||
+            msg.method === 'player_roll'
           ) {
             const query: FoundryQuery = (method, data) => foundryClient.query(method, data ?? {});
             try {
@@ -767,7 +769,9 @@ async function startBackend(): Promise<void> {
                   ? await handleSessionSwitches(query, msg.params)
                   : msg.method === 'feature_switches'
                     ? await handleFeatureSwitches(query)
-                    : await handleCharacterSheet(query, msg.params);
+                    : msg.method === 'character_sheet'
+                      ? await handleCharacterSheet(query, msg.params)
+                      : await handlePlayerRoll(query, msg.params);
               socket.write(`${JSON.stringify({ id: msg.id, result })}\n`);
             } catch (e: unknown) {
               const message = e instanceof Error ? e.message : 'Switches failed';

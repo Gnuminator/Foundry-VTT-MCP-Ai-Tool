@@ -1,3 +1,4 @@
+import { startedOnCreate } from './combat-plan.js';
 import { MODULE_ID } from './constants.js';
 import {
   chatRollKind,
@@ -186,6 +187,15 @@ export class EventTracker {
           this.onCombatStart(combat);
         } catch (error) {
           console.warn(`[${MODULE_ID}] EventTracker combatStart failed:`, error);
+        }
+      });
+
+      // A combat created already begun (plan-combat-change start) never fires combatStart.
+      Hooks.on('createCombat', (combat: unknown, options: unknown) => {
+        try {
+          if (startedOnCreate(combat, options)) this.onCombatStart(combat);
+        } catch (error) {
+          console.warn(`[${MODULE_ID}] EventTracker createCombat failed:`, error);
         }
       });
 

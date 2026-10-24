@@ -55,6 +55,7 @@ export const WRITE_METHODS: readonly string[] = [
   'updateCampaignProgress',
   'updateJournalContent',
   // chat and rolls (new chat messages)
+  'playerRoll',
   'request-player-rolls',
   'requestAbilityCheck',
   'requestAttackRoll',

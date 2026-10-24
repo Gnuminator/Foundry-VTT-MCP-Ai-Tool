@@ -16,7 +16,11 @@
 
 import type { ChangeJournalResponse } from './change-journal.js';
 import type { CharacterEntityResult } from './character-entity.js';
-import type { CharacterSheetsResult } from './character-sheet.js';
+import type {
+  CharacterSheetsResult,
+  PlayerRollReply,
+  PlayerRollRequestBody,
+} from './character-sheet.js';
 import type { ExportIndexRequest, ExportIndexResponse } from './export-index.js';
 import type {
   GuardedApplyOutcome,
@@ -175,6 +179,10 @@ export interface BridgeQueryMap {
   'foundry-mcp-bridge.characterSheet': {
     request: { userId: string };
     reply: CharacterSheetsResult;
+  };
+  'foundry-mcp-bridge.playerRoll': {
+    request: PlayerRollRequestBody;
+    reply: PlayerRollReply;
   };
   'foundry-mcp-bridge.getCharacterEntity': {
     request: { characterIdentifier: string; entityIdentifier: string };

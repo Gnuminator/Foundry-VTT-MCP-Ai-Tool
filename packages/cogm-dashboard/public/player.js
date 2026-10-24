@@ -5,7 +5,13 @@
 // server already sanitized. A GM credential in this browser changes nothing:
 // the player endpoints always project. This page filters nothing itself.
 
-import { concentrationReminders, mySheets, turnLine, turnStatus } from './player-me.js';
+import {
+  concentrationReminders,
+  myRollRequests,
+  mySheets,
+  turnLine,
+  turnStatus,
+} from './player-me.js';
 import { applyTheme, currentMist, loadTheme, setMist } from './theme.js';
 
 // Optional player token (only if the deployment sets PLAYER_DASHBOARD_TOKEN).
@@ -123,7 +129,10 @@ const elMine = $('mine');
 const elMineTurn = $('mine-turn');
 const elMineAlerts = $('mine-alerts');
 const elMineChars = $('mine-chars');
+const elMineRolls = $('mine-rolls');
 let mySheetList = [];
+let myRolls = [];
+const rollNotes = new Map();
 let lastCombat = null;
 let meLoading = null;
 let meAt = 0;
@@ -146,7 +155,9 @@ function loadMe() {
     try {
       const res = await fetch('/api/me', { headers: { 'X-CoGM-Me': meKey } });
       if (!res.ok) throw new Error(String(res.status));
-      mySheetList = mySheets(await res.json());
+      const me = await res.json();
+      mySheetList = mySheets(me);
+      myRolls = myRollRequests(me);
       meMissed = false;
     } catch {
       meMissed = true;
@@ -158,12 +169,51 @@ function loadMe() {
   return meLoading;
 }
 
+// Open roll requests as buttons: the GM client rolls for your character when you press one.
+function renderMineRolls() {
+  const ids = new Set(myRolls.map(r => r.buttonId));
+  for (const id of [...rollNotes.keys()]) if (!ids.has(id)) rollNotes.delete(id);
+  elMineRolls.innerHTML = myRolls
+    .map(
+      r =>
+        `<div class="mine-roll"><button type="button" data-roll="${escape(r.buttonId)}" data-track="player.mine.roll"${rollNotes.get(r.buttonId) === 'Rolling...' ? ' disabled' : ''}>Roll</button> <span>${escape(r.label)}</span> <span class="roll-note">${escape(rollNotes.get(r.buttonId) || '')}</span></div>`
+    )
+    .join('');
+}
+
+elMineRolls.addEventListener('click', async e => {
+  const btn = e.target instanceof Element ? e.target.closest('button[data-roll]') : null;
+  if (!btn || btn.disabled || !meKey) return;
+  const id = btn.dataset.roll;
+  btn.disabled = true;
+  rollNotes.set(id, 'Rolling...');
+  btn.parentElement.querySelector('.roll-note').textContent = 'Rolling...';
+  try {
+    const res = await fetch('/api/me/roll', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CoGM-Me': meKey },
+      body: JSON.stringify({ buttonId: id }),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (res.ok) {
+      myRolls = myRolls.filter(r => r.buttonId !== id);
+    } else {
+      rollNotes.set(id, body.error || 'The roll did not work.');
+    }
+  } catch {
+    rollNotes.set(id, 'Could not reach the table. Try again.');
+  }
+  await loadMe();
+  renderMine();
+});
+
 function renderMine() {
   if (!meKey || mySheetList.length === 0) {
     elMine.hidden = true;
     return;
   }
   elMine.hidden = false;
+  renderMineRolls();
   const status = turnStatus(
     lastCombat,
     mySheetList.map(s => s.id)
@@ -213,13 +263,20 @@ async function onMineState(s) {
   renderMine();
 }
 
+// "Daylight, Rain": the module sends fixed labels only; nothing else is shown.
+function sceneLook(env) {
+  if (!env) return '';
+  const parts = [env.timeOfDay, env.weather].filter(p => typeof p === 'string' && p);
+  return parts.length ? ` (${parts.join(', ')})` : '';
+}
+
 function renderState(s) {
   void onMineState(s);
   elStatus.textContent = STATUS_LABELS[s.status] || 'connecting…';
   elWorld.textContent = s.world
     ? `${s.world.title}${s.world.systemId ? ' · ' + s.world.systemId : ''}`
     : '—';
-  elScene.textContent = s.scene ? `· ${s.scene}` : '';
+  elScene.textContent = s.scene ? `· ${s.scene}${sceneLook(s.sceneEnvironment)}` : '';
   renderCombat(s.combat);
   renderFeed(s.events);
 }
@@ -245,7 +302,7 @@ function renderHandouts(handouts) {
   // `html` was rebuilt server-side from an allowlist (no attributes, no scripts).
   elHandouts.innerHTML = shown
     .map(
-      h => `<details class="handout" data-handout="${escape(h.id)}"><summary data-track="player.handouts.open">${escape(h.title)}${Array.isArray(h.players) ? ' <span class="handout-private">just for you</span>' : ''}</summary>
+      h => `<details class="handout" data-handout="${escape(h.id)}"><summary data-track="player.handouts.open">${escape(h.title)}${h.isNew ? ' <span class="handout-new">New</span>' : ''}${Array.isArray(h.players) ? ' <span class="handout-private">just for you</span>' : ''}</summary>
         <div class="content">${h.html}</div></details>`
     )
     .join('');

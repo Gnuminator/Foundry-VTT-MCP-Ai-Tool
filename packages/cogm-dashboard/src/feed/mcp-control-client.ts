@@ -227,6 +227,11 @@ export class McpControlClient extends EventEmitter {
     return this.send('character_sheet', { userId });
   }
 
+  /** The player pressed a roll button: the module rolls for their character. A control method. */
+  async playerRoll(userId: string, buttonId: string): Promise<unknown> {
+    return this.send('player_roll', { userId, buttonId });
+  }
+
   /**
    * The feature cards (I-064): every feature switch with its state and "Allow Write
    * Operations". Read-only; a control method, never an MCP tool.

@@ -283,3 +283,34 @@ main.moment-views #moment-during.during-no-bar {
   font-weight: 400;
   color: var(--text-dim, inherit);
 }
+
+/* Start combat (David's GM test): the token picker shown while no fight runs. */
+.combat-start {
+  padding: 0.5rem 0.9rem;
+}
+.combat-start .ca-row {
+  padding: 0;
+}
+/* The picker opened from the During bar takes its own row under the layout switch. */
+.during-start {
+  flex-basis: 100%;
+}
+.cs-hint {
+  margin: 0 0 0.4rem;
+  font-size: var(--fs-sm);
+  color: var(--text-dim);
+}
+.cs-list {
+  list-style: none;
+  margin: 0 0 0.5rem;
+  padding: 0;
+  display: grid;
+  gap: 0.25rem;
+}
+.cs-name {
+  font-weight: 600;
+}
+.cs-note {
+  color: var(--text-dim);
+  font-size: var(--fs-xs);
+}

@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   handleCharacterSheet,
   handleFeatureSwitches,
+  handlePlayerRoll,
   handleSessionSwitches,
 } from './session-control.js';
 
@@ -91,5 +92,35 @@ describe('handleCharacterSheet (control method character_sheet)', () => {
     await expect(handleCharacterSheet(query, { userId: 'player0000000001' })).rejects.toThrow(
       'Access denied'
     );
+  });
+});
+
+describe('handlePlayerRoll (control method player_roll)', () => {
+  it('passes the user and the roll button to the module query', async () => {
+    const query = vi.fn().mockResolvedValue({ success: true });
+    await handlePlayerRoll(query, { userId: 'player0000000001', buttonId: 'abcdefghij012345' });
+    expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.playerRoll', {
+      userId: 'player0000000001',
+      buttonId: 'abcdefghij012345',
+    });
+  });
+
+  it("hands the module's refusal back as an answer", async () => {
+    const refusal = { success: false, error: 'You already made this roll.' };
+    const query = vi.fn().mockResolvedValue(refusal);
+    await expect(
+      handlePlayerRoll(query, { userId: 'player0000000001', buttonId: 'abcdefghij012345' })
+    ).resolves.toEqual(refusal);
+  });
+
+  it('refuses an odd user or button id without asking Foundry', async () => {
+    const query = vi.fn();
+    await expect(
+      handlePlayerRoll(query, { userId: 'x', buttonId: 'abcdefghij012345' })
+    ).rejects.toThrow('user id');
+    await expect(
+      handlePlayerRoll(query, { userId: 'player0000000001', buttonId: '../x' })
+    ).rejects.toThrow('roll button');
+    expect(query).not.toHaveBeenCalled();
   });
 });

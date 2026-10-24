@@ -377,6 +377,19 @@ export class FoundryDataAccess {
     return this.playerRolls.requestPlayerRolls(data);
   }
 
+  /** The roll requests still waiting for this player (dashboard player page). */
+  listOpenRollRequests(userId: string): Array<{ buttonId: string; label: string }> {
+    return this.playerRolls.listOpenRollRequests(userId);
+  }
+
+  /** The player pressed a roll button on the dashboard: roll for them from this GM client. */
+  async executePlayerRoll(
+    userId: string,
+    buttonId: string
+  ): Promise<{ success: boolean; message?: string; error?: string }> {
+    return this.playerRolls.executePlayerRoll(userId, buttonId);
+  }
+
   /**
    * Restore roll button states from persistent storage
    * Called when chat messages are rendered to maintain state across sessions

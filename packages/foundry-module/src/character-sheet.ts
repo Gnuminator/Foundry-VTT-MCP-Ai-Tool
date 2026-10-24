@@ -36,6 +36,9 @@ import {
 /** Query name (shared's CHARACTER_SHEET_QUERY; a module file imports types only). */
 export const CHARACTER_SHEET_QUERY = 'characterSheet';
 
+/** Query name (shared's PLAYER_ROLL_QUERY): the player pressed a roll button on the dashboard. */
+export const PLAYER_ROLL_QUERY = 'playerRoll';
+
 const INVENTORY_TYPES = [
   'weapon',
   'equipment',

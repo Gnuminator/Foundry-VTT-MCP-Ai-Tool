@@ -199,6 +199,29 @@
       .mine-char .hpbar {
         width: 90px;
       }
+      .mine-roll {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+        padding: 4px 0;
+      }
+      .mine-roll button {
+        background: var(--pc);
+        color: #000;
+        border: 0;
+        border-radius: 6px;
+        padding: 6px 12px;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      .mine-roll button:disabled {
+        opacity: 0.6;
+        cursor: wait;
+      }
+      .mine-roll .roll-note {
+        color: var(--muted);
+      }
       .mine-char a {
         margin-left: auto;
         color: var(--pc);
@@ -215,6 +238,11 @@
       .handout summary {
         cursor: pointer;
         font-weight: 600;
+      }
+      .handout-new {
+        color: var(--amber);
+        font-size: 0.8em;
+        margin-left: 6px;
       }
       .handout-private {
         color: var(--muted);
@@ -286,6 +314,7 @@
         <div class="body">
           <div id="mine-turn" class="turn-banner" hidden></div>
           <div id="mine-alerts"></div>
+          <div id="mine-rolls"></div>
           <div id="mine-chars"></div>
         </div>
       </section>

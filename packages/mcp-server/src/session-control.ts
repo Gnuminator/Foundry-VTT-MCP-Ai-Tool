@@ -9,6 +9,8 @@
  * - `character_sheet` (I-096): the character sheets one player owns, for the dashboard's `/me`
  *   page (the module's `characterSheet` query). Read-only; the dashboard passes the user id it
  *   mapped from the player's private link key.
+ * - `player_roll`: the player pressed a roll button on the dashboard's player page; the module
+ *   rolls for their character (the module query `playerRoll`, a write behind the write gate).
  */
 
 /** The Foundry link's query call (the backend's `foundryClient.query`). */
@@ -72,6 +74,28 @@ export async function handleCharacterSheet(query: FoundryQuery, params: unknown)
   const userId = (params as { userId?: unknown } | null | undefined)?.userId;
   if (typeof userId !== 'string' || !USER_ID.test(userId)) throw new Error('A user id is required');
   const result = await query('foundry-mcp-bridge.characterSheet', { userId });
+  const error = (result as { error?: unknown } | null | undefined)?.error;
+  if (typeof error === 'string') throw new Error(error);
+  return result;
+}
+
+const BUTTON_ID = /^[A-Za-z0-9]{16}$/;
+
+/** `player_roll`: `{userId, buttonId}`; the module checks the button is that player's. */
+export async function handlePlayerRoll(query: FoundryQuery, params: unknown): Promise<unknown> {
+  const p = (params ?? {}) as { userId?: unknown; buttonId?: unknown };
+  if (typeof p.userId !== 'string' || !USER_ID.test(p.userId)) {
+    throw new Error('A user id is required');
+  }
+  if (typeof p.buttonId !== 'string' || !BUTTON_ID.test(p.buttonId)) {
+    throw new Error('A roll button id is required');
+  }
+  const result = await query('foundry-mcp-bridge.playerRoll', {
+    userId: p.userId,
+    buttonId: p.buttonId,
+  });
+  // The module's own refusal (not yours, already rolled, too old) is an answer, not a failure.
+  if ((result as { success?: unknown } | null | undefined)?.success === false) return result;
   const error = (result as { error?: unknown } | null | undefined)?.error;
   if (typeof error === 'string') throw new Error(error);
   return result;

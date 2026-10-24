@@ -257,12 +257,15 @@ export function DuringBar({ during }: { during: DuringController }): JSX.Element
     if (picking && row) {
       const first = (): HTMLElement | null =>
         row.querySelector<HTMLElement>('input:not(:disabled), button:not(:disabled)');
-      first()?.focus();
+      let focused = first();
+      focused?.focus();
       // The loading row's Close button gives way to the list: when the focused control is
-      // swapped out, focus falls to the body, and it goes to the new first control instead.
+      // swapped out of the page, focus goes to the new first control. A click on empty page
+      // leaves the control in place, so the focus is not pulled back.
       const watch = new MutationObserver(() => {
-        if (document.activeElement && document.activeElement !== document.body) return;
-        first()?.focus();
+        if (focused?.isConnected) return;
+        focused = first();
+        focused?.focus();
       });
       watch.observe(row, { childList: true, subtree: true });
       return () => watch.disconnect();
@@ -271,6 +274,7 @@ export function DuringBar({ during }: { during: DuringController }): JSX.Element
       giveFocusBack.current = false;
       document.getElementById('btn-during-start-combat')?.focus();
     }
+    return undefined;
   }, [picking]);
   return (
     <div className="during-bar" id="during-bar">

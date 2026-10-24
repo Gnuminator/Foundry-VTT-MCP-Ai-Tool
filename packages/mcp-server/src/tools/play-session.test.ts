@@ -405,6 +405,51 @@ describe('get-play-session', () => {
     });
   });
 
+  it('previousEndedAt ignores prep events logged between the sessions', async () => {
+    const tools = makeTools();
+    await tools.handleMarkPlaySession({ action: 'start' });
+    await tools.handleMarkPlaySession({ action: 'end' });
+    const ended = new Date(nowMs).toISOString();
+    nowMs += 60_000;
+    await store.appendLines('w1', 'sessions', `${localDateKey(nowMs)}.jsonl`, [
+      {
+        timestamp: new Date(nowMs).toISOString(),
+        timestampMs: nowMs,
+        eventType: 'journal-updated',
+      },
+    ]);
+    nowMs += 60_000;
+    await tools.handleMarkPlaySession({ action: 'start' });
+    expect(await tools.handleGetPlaySession({})).toMatchObject({
+      open: true,
+      previousEndedAt: ended,
+    });
+  });
+
+  it('previousEndedAt for a session that never got an end marker is its last activity', async () => {
+    const tools = makeTools();
+    await tools.handleMarkPlaySession({ action: 'start' });
+    nowMs += 60_000;
+    await store.appendLines('w1', 'sessions', `${localDateKey(nowMs)}.jsonl`, [
+      { timestamp: new Date(nowMs).toISOString(), timestampMs: nowMs, eventType: 'roll' },
+    ]);
+    const lastActivity = new Date(nowMs).toISOString();
+    nowMs += 5 * 60 * 60 * 1000;
+    await store.appendLines('w1', 'sessions', `${localDateKey(nowMs)}.jsonl`, [
+      {
+        timestamp: new Date(nowMs).toISOString(),
+        timestampMs: nowMs,
+        eventType: 'journal-updated',
+      },
+    ]);
+    nowMs += 60_000;
+    await tools.handleMarkPlaySession({ action: 'start' });
+    expect(await tools.handleGetPlaySession({})).toMatchObject({
+      open: true,
+      previousEndedAt: lastActivity,
+    });
+  });
+
   it('closes on an end marker', async () => {
     const tools = makeTools();
     await tools.handleMarkPlaySession({ action: 'start' });

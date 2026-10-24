@@ -397,23 +397,34 @@ export class PlaySessionTools {
             : new Date(lastEventAtMs).toISOString();
     }
 
-    // While open: when the session before this one ended (its newest event before this start).
+    // While open: when the session before this one ended, by the same rule as `endedAt` (its end
+    // marker, or the last event of a session that went quiet). Logged events between sessions
+    // (prep reveals, scene changes) never count as an end.
     let previousEndedAt: string | null = null;
     if (open) {
       const startMs = eventTimeOf(newestMarker!);
-      let before: number | null = null;
+      const before: LoggedEvent[] = [];
       for (const file of files) {
-        const times = (await this.store.readLines(worldId, 'sessions', file))
-          .filter(isLoggedEvent)
-          .filter(e => !isPaperSyncEvent(e) && Number.isFinite(eventTimeOf(e)))
-          .map(eventTimeOf)
-          .filter(t => t < startMs);
-        if (times.length > 0) {
-          before = Math.max(...times);
-          break;
-        }
+        before.push(
+          ...(await this.store.readLines(worldId, 'sessions', file))
+            .filter(isLoggedEvent)
+            .filter(e => !isPaperSyncEvent(e) && eventTimeOf(e) < startMs)
+        );
       }
-      previousEndedAt = before === null ? null : new Date(before).toISOString();
+      before.sort((a, b) => eventTimeOf(a) - eventTimeOf(b));
+      const prev = [...before].reverse().find(isMarker) ?? null;
+      if (prev?.eventType === 'session-end') {
+        previousEndedAt = prev.timestamp;
+      } else if (prev) {
+        let last = eventTimeOf(prev);
+        for (const e of before) {
+          const t = eventTimeOf(e);
+          if (t <= last) continue;
+          if (t - last > SESSION_GAP_MS) break;
+          last = t;
+        }
+        previousEndedAt = new Date(last).toISOString();
+      }
     }
 
     return {

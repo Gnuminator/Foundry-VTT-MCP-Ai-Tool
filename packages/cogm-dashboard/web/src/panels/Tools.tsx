@@ -37,6 +37,7 @@ import {
   kindOf,
   paramsOf,
   pickerRef,
+  runLabel,
   startDraft,
   type Draft,
   type FieldValue,
@@ -195,7 +196,9 @@ function ToolRunner({
   const [result, setResult] = useState<ToolResult | null>(null);
   const [problems, setProblems] = useState<Problems | null>(null);
   const [openPicker, setOpenPicker] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+  // The run waiting on Foundry (a write can wait up to 4 minutes). Every tool's form says what it
+  // waits for, so a greyed Run is never a mystery.
+  const [running, setRunning] = useState<string | null>(null);
   const busyRef = useRef(false);
   // The names the pickers saw, per tool and field: what the confirm window shows for an id.
   const names = useRef(new Map<string, Map<string, string>>());
@@ -336,7 +339,11 @@ function ToolRunner({
   };
 
   const submit = (): void => {
-    if (!tool || busyRef.current) return;
+    if (!tool) return;
+    if (busyRef.current) {
+      toast(`Still waiting for ${running ?? 'the earlier change'} to finish.`, 'warn');
+      return;
+    }
     const collected = collectArgs(tool, drafts[tool.name] ?? startDraft(tool));
     if ('problems' in collected) {
       setProblems({
@@ -352,13 +359,13 @@ function ToolRunner({
     setResult(null);
     setOpenPicker(null);
     busyRef.current = true;
-    setBusy(true);
+    setRunning(runLabel(tool.name, collected.args));
     // Called before the re-render: the guarded path reads which element had focus.
     void execute(tool, collected.args)
       .then(shown => setResult(shown))
       .finally(() => {
         busyRef.current = false;
-        setBusy(false);
+        setRunning(null);
       });
   };
 
@@ -459,7 +466,7 @@ function ToolRunner({
         openPicker={openPicker}
         setOpenPicker={setOpenPicker}
         namesOf={key => namesOf(tool.name, key)}
-        busy={busy}
+        running={running}
         error={problems?.tool === tool.name ? problems.text : ''}
         onSubmit={submit}
       />
@@ -525,7 +532,7 @@ function ToolForm({
   openPicker,
   setOpenPicker,
   namesOf,
-  busy,
+  running,
   error,
   onSubmit,
 }: {
@@ -536,7 +543,7 @@ function ToolForm({
   openPicker: string | null;
   setOpenPicker: (key: string | null) => void;
   namesOf: (key: string) => Map<string, string>;
-  busy: boolean;
+  running: string | null;
   error: string;
   onSubmit: () => void;
 }): JSX.Element {
@@ -665,12 +672,17 @@ function ToolForm({
       {keys.map(field)}
       {keys.length === 0 && <p className="field-hint">This tool takes no parameters.</p>}
       <div className="form-actions">
-        <Button type="submit" variant="primary" id="tool-run" disabled={busy}>
+        <Button type="submit" variant="primary" id="tool-run" disabled={running !== null}>
           {reads ? 'Run' : 'Run…'}
         </Button>
         <span className="form-error" id="tool-form-error" role="alert">
           {error}
         </span>
+        {running !== null && (
+          <span className="field-hint" id="tool-form-waiting" role="status">
+            Waiting for {running} to finish. Run is back when Foundry answers (up to 4 minutes).
+          </span>
+        )}
       </div>
     </form>
   );

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { collectArgs, paramsOf, startDraft, type ToolInfo } from './toolForm';
+import { collectArgs, paramsOf, runLabel, startDraft, type ToolInfo } from './toolForm';
 
 const rollTool: ToolInfo = {
   name: 'request-player-rolls',
@@ -38,5 +38,14 @@ describe('the roll tools’ visibility field', () => {
       inputSchema: { properties: { userConfirmedVisibility: { type: 'boolean' } } },
     };
     expect(Object.keys(paramsOf(other).props)).toEqual(['userConfirmedVisibility']);
+  });
+});
+
+describe('the label of a run in flight', () => {
+  it('names the tool and its action', () => {
+    expect(runLabel('plan-actor-change', { action: 'damage', targets: ['abc'] })).toBe(
+      'plan-actor-change damage'
+    );
+    expect(runLabel('get-world-info', {})).toBe('get-world-info');
   });
 });

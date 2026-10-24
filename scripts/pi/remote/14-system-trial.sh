@@ -74,6 +74,7 @@ case "$RESTORE_MIGRATED" in 0 | 1) ;; *) die "RESTORE_MIGRATED must be 0 or 1. N
 [ "$RESTORE_MIGRATED" = 0 ] || [ "$MODE" = rollback ] || die "RESTORE_MIGRATED is for MODE=rollback only. Nothing was changed"
 [ -z "$ZIP" ] || [ "$MODE" = trial ] || die "ZIP is for MODE=trial only. Nothing was changed"
 [[ "$MIGRATION_WAIT" =~ ^[0-9]+$ ]] && [ "$MIGRATION_WAIT" -ge 10 ] || die "MIGRATION_WAIT must be a number of seconds, at least 10. Nothing was changed"
+[ "$MODE" = status ] || [ ! -e "$TOOL_DATA/kit-session.env" ] || die "a kit session is up ($TOOL_DATA/kit-session.env exists, the Kit GM browser holds strahd-kit): run kit-session.sh MODE=down first. Nothing was changed"
 if [ "$MODE" != status ]; then
   install -d -m 700 "$IMPORT"
   exec 9>"$IMPORT/system-trial.lock"
@@ -244,7 +245,7 @@ restore_world() { # $1 world id, $2 the folder that takes the current copy, $3 t
 migration_of() { # $1 world id
   local db="$data/worlds/$1/data/settings" tmp v
   [ -d "$db" ] || return 0
-  tmp="$(mktemp -d "$IMPORT/migration-check-XXXXXX")"
+  tmp="$(mktemp -d "$IMPORT/migration-check-XXXXXX")" || { printf '?'; return 0; }
   if cp -a "$db" "$tmp/settings" 2>/dev/null; then
     rm -f "$tmp/settings/LOCK"
     v="$(node --input-type=module - "$FOUNDRY_APP/node_modules/classic-level" "$tmp/settings" <<'NODE' 2>/dev/null || echo '?'
@@ -405,6 +406,12 @@ undo_rollback() {
 on_exit() {
   [ -z "$work" ] || rm -rf "${work:?}"
   [ "$stopped" = 1 ] && have_systemd || return 0
+  # The undo moves world folders, so nothing may have them open. A run that failed after Foundry was restarted (the
+  # wait for the world, the migration wait) has Foundry and the Assistant GM browser running on them.
+  if [ -n "$undo" ]; then
+    systemctl stop foundry-ai-tool-gm-browser.service 2>/dev/null || true
+    systemctl stop foundry.service 2>/dev/null || true
+  fi
   [ -z "$undo" ] || "$undo" || warn "putting things back did not finish (see above)"
   world_now="$(get_world 2>/dev/null || echo '?')"
   if [ "$was_foundry" = 1 ]; then systemctl restart foundry.service || true; else systemctl stop foundry.service 2>/dev/null || true; fi
@@ -610,6 +617,9 @@ if [ "$MODE" = switch ]; then
 fi
 
 # ---- rollback ----------------------------------------------------------------------------------------------
+# One group: bash reads a piped script a command at a time, and a dropped connection would lose the rest of a rollback
+# that is not parsed whole (trial and switch are `if` blocks for the same reason).
+{
 case "$phase" in
   trial | rolling-back) ;;
   "") die "no trial is open: nothing to roll back. Nothing was changed" ;;
@@ -716,3 +726,4 @@ trap - EXIT
 say "summary"
 out "    $SYSTEM $from runs again; Foundry launches $launched_before"
 out "    kept in $archive: $SYSTEM $to, the worlds that ran on it and the trial folder; remove later, only with the user's OK"
+}

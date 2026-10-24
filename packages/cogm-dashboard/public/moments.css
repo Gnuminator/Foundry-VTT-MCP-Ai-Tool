@@ -136,9 +136,8 @@
 #moment-during .slot-party {
   grid-area: party;
 }
-/* The turn order shows only while a fight runs, except in B's Full view (today's screen) and while
-   it holds the Start combat picker (the After page, GM Actions on: how a fight starts). */
-#moment-during[data-context='calm']:not([data-view='full']) .slot-strip:not(:has(.combat-start)),
+/* The turn order shows only while a fight runs, except in B's Full view (today's screen). */
+#moment-during[data-context='calm']:not([data-view='full']) .slot-strip,
 #moment-during[data-view='simple'] .slot-strip,
 #moment-during[data-view='simple'] .slot-party {
   display: none;

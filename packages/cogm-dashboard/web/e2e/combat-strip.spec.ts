@@ -415,11 +415,8 @@ test.describe('when the strip shows', () => {
   test('Cards: hidden with no fight, shown while one runs, hidden when it ends', async ({
     page,
   }) => {
-    const { push } = await setup(page, {
-      layout: 'layered',
-      gmActions: false,
-      initial: [noFight],
-    });
+    // GM Actions is on (the default): the strip still stays away in the calm Cards layout.
+    const { push } = await setup(page, { layout: 'layered', initial: [noFight] });
     await load(page);
     await expect(during(page)).toHaveAttribute('data-context', 'calm');
     await expect(strip(page)).toBeHidden();
@@ -453,10 +450,13 @@ test.describe('when the strip shows', () => {
 });
 
 test.describe('start combat', () => {
+  // The picker lives in the strip, which shows with no fight only in B's Full view.
+  const FULL_CALM: Options = { layout: 'toggle', full: true };
+
   test('with no fight, a picker ticks the player characters and Hostile tokens and starts them', async ({
     page,
   }) => {
-    const { calls } = await setup(page, {});
+    const { calls } = await setup(page, FULL_CALM);
     await load(page);
     await page.getByRole('button', { name: 'Start combat' }).click();
 
@@ -482,7 +482,7 @@ test.describe('start combat', () => {
   });
 
   test('Cancel closes the picker and writes nothing', async ({ page }) => {
-    const { calls } = await setup(page, {});
+    const { calls } = await setup(page, FULL_CALM);
     await load(page);
     await page.getByRole('button', { name: 'Start combat' }).click();
     await page.getByRole('button', { name: 'Cancel' }).click();
@@ -491,7 +491,7 @@ test.describe('start combat', () => {
   });
 
   test('GM Actions off: no Start combat button', async ({ page }) => {
-    await setup(page, { gmActions: false });
+    await setup(page, { ...FULL_CALM, gmActions: false });
     await load(page);
     await expect(strip(page)).toBeAttached();
     await expect(page.getByRole('button', { name: 'Start combat' })).toHaveCount(0);
@@ -902,7 +902,7 @@ test.describe('the bridge is away', () => {
   test('a fight that ended while the bridge was away goes when the bridge says so', async ({
     page,
   }) => {
-    const { push } = await setup(page, { gmActions: false, initial: [fight(PARTY_FIGHT)] });
+    const { push } = await setup(page, { initial: [fight(PARTY_FIGHT)] });
     await load(page);
     push([FOUNDRY_AWAY]);
     await expect(away(page)).not.toHaveText('');
@@ -921,9 +921,7 @@ test.describe('the bridge is away', () => {
     await row(page, 'Ogre Brute').click();
     await expect(rows(page)).toHaveCount(4);
     push([noFight]);
-    // With GM Actions on, the strip stays to offer Start combat; the fight itself is gone.
-    await expect(rows(page)).toHaveCount(0);
-    await expect(page.getByRole('button', { name: 'Start combat' })).toBeVisible();
+    await expect(strip(page)).toBeHidden();
     await expect(away(page)).toHaveText('');
     push([fight(BOSS_FIGHT)]);
     await expect(rows(page)).toHaveCount(3);
@@ -1004,7 +1002,7 @@ test.describe('the layout trial', () => {
   test('the Auto step shows a sample fight with no buttons, and Stop takes it away', async ({
     page,
   }) => {
-    await setup(page, { combatButtons: true, gmActions: false, initial: [noFight] });
+    await setup(page, { combatButtons: true, initial: [noFight] });
     await load(page);
     await expect(strip(page)).toBeHidden();
     await fromMenu(page, 'btn-layout-tour');

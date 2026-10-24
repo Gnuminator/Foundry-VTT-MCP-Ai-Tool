@@ -59,7 +59,7 @@ import { PAPER_SYNC_QUERY, planPaperSync } from './paper-sync-plan.js';
 import { planRoomSetup, ROOM_SETUP_QUERY } from './room-setup.js';
 import { LIVE_SWEEP_QUERY, liveSweep } from './live-sweep.js';
 import { SESSION_SWITCHES_QUERY, sessionSwitches } from './session-switches.js';
-import { CHARACTER_SHEET_QUERY, characterSheets } from './character-sheet.js';
+import { CHARACTER_SHEET_QUERY, PLAYER_ROLL_QUERY, characterSheets } from './character-sheet.js';
 import { gateWriteHandlers } from './write-gate.js';
 
 export class QueryHandlers {
@@ -322,7 +322,26 @@ export class QueryHandlers {
     // /me page. Read-only; the dashboard maps the player's link key to the user id. Not an MCP
     // tool (the control method `character_sheet`). GM client only.
     handlers.on(`${modulePrefix}.${CHARACTER_SHEET_QUERY}`, (data: unknown) =>
-      this.withGmGate('Character sheet failed', () => characterSheets(data))
+      this.withGmGate('Character sheet failed', async () => {
+        const result = await characterSheets(data);
+        return { ...result, rollRequests: this.dataAccess.listOpenRollRequests(result.userId) };
+      })
+    );
+
+    // The player pressed a roll button on the dashboard's page: this GM client rolls for their
+    // character and marks the request done (the module checks the button is theirs). A write
+    // (write-gate.ts); not an MCP tool (the control method `player_roll`). GM client only.
+    handlers.on(`${modulePrefix}.${PLAYER_ROLL_QUERY}`, (data: unknown) =>
+      this.withGmGate('Player roll failed', () => {
+        const body = (data ?? {}) as { userId?: unknown; buttonId?: unknown };
+        if (typeof body.userId !== 'string' || typeof body.buttonId !== 'string') {
+          return Promise.resolve({
+            success: false,
+            error: 'A user and a roll button are required.',
+          });
+        }
+        return this.dataAccess.executePlayerRoll(body.userId, body.buttonId);
+      })
     );
 
     // Obsidian mirror (O4, read-only): the export index of PCs, NPCs, scenes,

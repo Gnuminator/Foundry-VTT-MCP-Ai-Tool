@@ -28,8 +28,9 @@ afterEach(async () => {
 
 async function start(
   options: { shared?: boolean; failFor?: string } = {}
-): Promise<{ base: string; asked: string[] }> {
+): Promise<{ base: string; asked: string[]; rolled: string[][] }> {
   const asked: string[] = [];
+  const rolled: string[][] = [];
   const client = {
     isConnected: true,
     listTools: (): Promise<unknown[]> => Promise.resolve([]),
@@ -45,6 +46,14 @@ async function start(
             ],
           } as T)
         : Promise.reject(new Error('no tool')),
+    playerRoll: (userId: string, buttonId: string): Promise<unknown> => {
+      rolled.push([userId, buttonId]);
+      return Promise.resolve(
+        buttonId === 'wrongbutton00000'
+          ? { success: false, error: 'There is no such roll request for you.' }
+          : { success: true, message: 'Rolled.' }
+      );
+    },
     characterSheet: (userId: string): Promise<unknown> => {
       asked.push(userId);
       if (userId === options.failFor) return Promise.reject(new Error('gone'));
@@ -53,6 +62,10 @@ async function start(
         userId,
         userName: 'x',
         sheets: options.shared ? [own, { id: 'shared', name: 'Shared' }] : [{ name: own.name }],
+        rollRequests: [
+          { buttonId: 'abcdefghij012345', label: 'Stealth Skill Check (Private)', dc: 15 },
+          { buttonId: 'bad id', label: 'x' },
+        ],
       });
     },
   };
@@ -83,7 +96,7 @@ async function start(
     foundryDownSince: null,
   });
   await new Promise(resolve => setTimeout(resolve, 200));
-  return { base: `http://127.0.0.1:${(server.address() as AddressInfo).port}`, asked };
+  return { base: `http://127.0.0.1:${(server.address() as AddressInfo).port}`, asked, rolled };
 }
 
 const gm = { 'X-CoGM-Token': GM_TOKEN };
@@ -109,6 +122,35 @@ describe('/api/me and the player links', () => {
       theme: 'neutral',
     });
     expect(asked).toEqual([PLAYER]);
+  });
+
+  it('lists the open roll requests as a button id and a label, nothing more', async () => {
+    const { base } = await start();
+    const res = await me(base, keyOf(await makeLink(base, PLAYER)));
+    const body = (await res.json()) as { rollRequests: unknown };
+    expect(body.rollRequests).toEqual([
+      { buttonId: 'abcdefghij012345', label: 'Stealth Skill Check (Private)' },
+    ]);
+  });
+
+  it('rolls for the player through their own key, as that player only', async () => {
+    const { base, rolled } = await start();
+    const key = keyOf(await makeLink(base, PLAYER));
+    const post = (k: string | undefined, buttonId: unknown): Promise<Response> =>
+      fetch(`${base}/api/me/roll`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(k ? { 'X-CoGM-Me': k } : {}) },
+        body: JSON.stringify({ buttonId }),
+      });
+    expect((await post(undefined, 'abcdefghij012345')).status).toBe(401);
+    expect((await post('x'.repeat(24), 'abcdefghij012345')).status).toBe(401);
+    expect((await post(key, 'not a button')).status).toBe(400);
+    expect(rolled).toEqual([]);
+    expect((await post(key, 'abcdefghij012345')).status).toBe(200);
+    expect(rolled).toEqual([[PLAYER, 'abcdefghij012345']]);
+    const refused = await post(key, 'wrongbutton00000');
+    expect(refused.status).toBe(409);
+    expect(((await refused.json()) as { error: string }).error).toMatch(/no such roll request/);
   });
 
   it('no key, a wrong key or an old key gets nothing', async () => {

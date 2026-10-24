@@ -937,6 +937,12 @@ export const PLAYER_CONTROLS = [
     why: 'only shown to a player who opened their own /me link on this device',
   },
   {
+    name: 'player.mine.roll',
+    how: 'toggle',
+    optional: true,
+    why: 'only shown to a player with an open roll request',
+  },
+  {
     name: 'player.footer.mist',
     how: 'toggle',
     optional: true,

@@ -120,6 +120,7 @@ export class PlayerRollsDataAccess {
                 isPublic: data.isPublic,
                 characterId: playerInfo.character?.id ?? '',
                 targetUserId: playerInfo.user?.id ?? '',
+                ...(data.dc != null ? { dc: data.dc } : {}),
               },
             },
           },
@@ -395,57 +396,16 @@ export class PlayerRollsDataAccess {
         // malformed formulas like "1d20+[object Object]").
         logInfo(`[${MODULE_ID}] Executing roll with formula:`, rollFormula);
 
-        // Create and evaluate the roll, validating first for a clear error.
-        if (typeof Roll.validate === 'function' && !Roll.validate(rollFormula)) {
-          throw new Error(`Invalid roll formula: "${rollFormula}"`);
-        }
-        // A check with a DC: the roll carries it as its target, so the Live Feed (and the player
-        // page, for a public roll whose card already showed the DC) can say pass or fail.
         const dcRaw = Number(button.attr('data-dc'));
-        const dc = button.attr('data-dc') !== undefined && Number.isFinite(dcRaw) ? dcRaw : null;
-        const roll = new Roll(
+        await this.rollForButton({
           rollFormula,
-          {},
-          dc !== null ? { target: dc, requestedDcPublic: isPublic } : {}
-        );
-        await roll.evaluate();
-
-        // Get the character for speaker info
-        const character = characterId ? game.actors?.get(characterId) : null;
-
-        const whisperTargets: string[] = [];
-
-        if (!isPublic) {
-          // For private rolls: whisper to target + GM
-          if (targetUserId) {
-            whisperTargets.push(targetUserId);
-          }
-          // Add all active GMs
-          const gmUsers = game.users?.filter(u => u.isGM && u.active);
-          if (gmUsers) {
-            for (const gm of gmUsers) {
-              if (gm.id && !whisperTargets.includes(gm.id)) {
-                whisperTargets.push(gm.id);
-              }
-            }
-          }
-        }
-
-        const messageData: Record<string, unknown> = {
-          speaker: ChatMessage.getSpeaker({ actor: character }),
-          flavor: `${rollLabel} ${isGmRoll ? '(GM Override)' : ''}`,
-          ...(whisperTargets.length > 0 ? { whisper: whisperTargets } : {}),
-        };
-
-        // A private roll keeps its explicit whisper list (the player + GMs). v14's `gm` mode
-        // keeps a non-empty list; v13 has no mode that does, so it gets the old non-mode
-        // value 'whisper', which v13 ignores (an unknown v14 mode would fall back to public).
-        const visibility = isPublic
-          ? shared.rollToMessageOptions(true)
-          : shared.usesMessageModes()
-            ? { messageMode: 'gm' }
-            : { rollMode: 'whisper' };
-        await roll.toMessage(messageData, { create: true, ...visibility });
+          rollLabel,
+          isPublic,
+          characterId,
+          targetUserId,
+          dc: button.attr('data-dc') !== undefined && Number.isFinite(dcRaw) ? dcRaw : null,
+          isGmRoll,
+        });
 
         // Update the ChatMessage to reflect rolled state
         const buttonId = button.data('button-id') as string | undefined;
@@ -483,6 +443,152 @@ export class PlayerRollsDataAccess {
       }
     };
     html.find('.mcp-roll-button').on('click', event => void onRollButtonClick(event));
+  }
+
+  // ===========================================================================
+  // Rolling for a button
+  // ===========================================================================
+
+  /**
+   * Evaluate one roll-button roll and post it as a chat message: the shared core of the live
+   * click handler and {@link executePlayerRoll}. A check with a DC carries it as the roll's
+   * target, so the Live Feed (and the player page, for a public roll whose card already showed
+   * the DC) can say pass or fail. A private roll is whispered to the target player and the GMs.
+   */
+  private async rollForButton(args: {
+    rollFormula: string;
+    rollLabel: string;
+    isPublic: boolean;
+    characterId: string | undefined;
+    targetUserId: string | undefined;
+    dc: number | null;
+    isGmRoll: boolean;
+  }): Promise<void> {
+    const { rollFormula, rollLabel, isPublic, characterId, targetUserId, dc, isGmRoll } = args;
+    // Validate first for a clear error.
+    if (typeof Roll.validate === 'function' && !Roll.validate(rollFormula)) {
+      throw new Error(`Invalid roll formula: "${rollFormula}"`);
+    }
+    const roll = new Roll(
+      rollFormula,
+      {},
+      dc !== null ? { target: dc, requestedDcPublic: isPublic } : {}
+    );
+    await roll.evaluate();
+
+    // Get the character for speaker info
+    const character = characterId ? game.actors?.get(characterId) : null;
+
+    const whisperTargets: string[] = [];
+
+    if (!isPublic) {
+      // For private rolls: whisper to target + GM
+      if (targetUserId) {
+        whisperTargets.push(targetUserId);
+      }
+      // Add all active GMs
+      const gmUsers = game.users?.filter(u => u.isGM && u.active);
+      if (gmUsers) {
+        for (const gm of gmUsers) {
+          if (gm.id && !whisperTargets.includes(gm.id)) {
+            whisperTargets.push(gm.id);
+          }
+        }
+      }
+    }
+
+    const messageData: Record<string, unknown> = {
+      speaker: ChatMessage.getSpeaker({ actor: character }),
+      flavor: `${rollLabel} ${isGmRoll ? '(GM Override)' : ''}`,
+      ...(whisperTargets.length > 0 ? { whisper: whisperTargets } : {}),
+    };
+
+    // A private roll keeps its explicit whisper list (the player + GMs). v14's `gm` mode
+    // keeps a non-empty list; v13 has no mode that does, so it gets the old non-mode
+    // value 'whisper', which v13 ignores (an unknown v14 mode would fall back to public).
+    const visibility = isPublic
+      ? shared.rollToMessageOptions(true)
+      : shared.usesMessageModes()
+        ? { messageMode: 'gm' }
+        : { rollMode: 'whisper' };
+    await roll.toMessage(messageData, { create: true, ...visibility });
+  }
+
+  /** How many open requests one player's list carries. */
+  private static readonly OPEN_REQUEST_LIMIT = 8;
+
+  /**
+   * The roll requests still waiting for this player's roll, newest first (the dashboard's player
+   * page shows them as buttons). Only a request whose target user is this player counts; the DC,
+   * the formula and the character id stay on this side. A GM client only (the dashboard asks it).
+   */
+  listOpenRollRequests(userId: string): Array<{ buttonId: string; label: string }> {
+    const found: Array<{ buttonId: string; label: string; at: number }> = [];
+    for (const message of game.messages ?? []) {
+      const flags = rec(rec(rec(message)?.flags)?.[MODULE_ID]);
+      const rollButtons = flags?.rollButtons;
+      for (const [buttonId, raw] of Object.entries(rec(rollButtons) ?? {})) {
+        const state = rec(raw) ?? {};
+        if (state.rolled === true || state.targetUserId !== userId) continue;
+        const label = typeof state.rollLabel === 'string' ? state.rollLabel : 'Roll';
+        const at = Number(rec(message)?.timestamp);
+        found.push({ buttonId, label, at: Number.isFinite(at) ? at : 0 });
+      }
+    }
+    return found
+      .sort((a, b) => b.at - a.at)
+      .slice(0, PlayerRollsDataAccess.OPEN_REQUEST_LIMIT)
+      .map(({ buttonId, label }) => ({ buttonId, label }));
+  }
+
+  /**
+   * The player pressed a roll button on the dashboard's page: roll for them from this (GM)
+   * client, exactly as their own click in Foundry would (same formula, DC and whisper), then
+   * mark the request done. Refuses a button that is not this player's, already rolled or being
+   * rolled. Returns `{ success, message?, error? }` (never throws).
+   */
+  async executePlayerRoll(
+    userId: string,
+    buttonId: string
+  ): Promise<{ success: boolean; message?: string; error?: string }> {
+    shared.validateFoundryState();
+    if (this.isRollButtonProcessing(buttonId)) {
+      return { success: false, error: 'This roll is already being made.' };
+    }
+    this.setRollButtonProcessing(buttonId, true);
+    try {
+      const messageId = this.getRollButtonMessageId(buttonId);
+      const message = messageId ? game.messages?.get(messageId) : undefined;
+      const state = (message ? rec(this.getRollStateFromMessage(message, buttonId)) : null) ?? {};
+      if (!message || state.targetUserId !== userId) {
+        return { success: false, error: 'There is no such roll request for you.' };
+      }
+      if (state.rolled === true) {
+        return { success: false, error: 'You already made this roll.' };
+      }
+      const rollFormula = typeof state.rollFormula === 'string' ? state.rollFormula : '';
+      const rollLabel = typeof state.rollLabel === 'string' ? state.rollLabel : 'Roll';
+      const dcRaw = state.dc;
+      const dc = typeof dcRaw === 'number' && Number.isFinite(dcRaw) ? dcRaw : null;
+      trackUsage('action', 'module.chat.roll-button');
+      await this.rollForButton({
+        rollFormula,
+        rollLabel,
+        isPublic: state.isPublic === true,
+        characterId: typeof state.characterId === 'string' ? state.characterId : undefined,
+        targetUserId: userId,
+        dc,
+        isGmRoll: false,
+      });
+      await this.updateRollButtonMessage(buttonId, userId, rollLabel);
+      return { success: true, message: `${rollLabel} rolled.` };
+    } catch (error) {
+      console.error(`[${MODULE_ID}] Error rolling for a player:`, error);
+      trackUsage('error', 'module.error.roll-button', { code: 'roll-failed' });
+      return { success: false, error: 'The roll did not work. Try it in Foundry instead.' };
+    } finally {
+      this.setRollButtonProcessing(buttonId, false);
+    }
   }
 
   // ===========================================================================

@@ -93,8 +93,13 @@ function installRollSpy(total = 14): {
   const toMessage = vi.fn(() => Promise.resolve({}));
   const evaluate = vi.fn(() => Promise.resolve({ total }));
   const ctorArgs: any[] = [];
-  (globalThis as any).Roll = function MockRoll(this: any, formula: string, data?: any) {
-    ctorArgs.push([formula, data]);
+  (globalThis as any).Roll = function MockRoll(
+    this: any,
+    formula: string,
+    data?: any,
+    options?: any
+  ) {
+    ctorArgs.push([formula, data, options]);
     this.formula = formula;
     this.total = total;
     this.evaluate = evaluate;
@@ -725,5 +730,74 @@ describe('FoundryDataAccess — cleanOldRollStates', () => {
 
   it('returns 0 when there are no roll states at all', async () => {
     expect(await da.cleanOldRollStates()).toBe(0);
+  });
+});
+
+// ===========================================================================
+// listOpenRollRequests / executePlayerRoll (the dashboard's player page button)
+// ===========================================================================
+
+describe('FoundryDataAccess: player page roll buttons', () => {
+  const btn = (extra: Record<string, unknown> = {}): Record<string, unknown> => ({
+    rolled: false,
+    rollFormula: '1d20+3',
+    rollLabel: 'Stealth Skill Check (Private)',
+    isPublic: false,
+    characterId: 'a1',
+    targetUserId: 'u1',
+    ...extra,
+  });
+
+  function addRequest(buttonId: string, messageId: string, state: Record<string, unknown>): any {
+    const msg = world.addMessage({
+      id: messageId,
+      content: '<button/>',
+      flags: { [MODULE_ID]: { rollButtons: { [buttonId]: state } } },
+    });
+    (msg as any).canUserModify = (): boolean => true;
+    da.saveRollButtonMessageId(buttonId, messageId);
+    return msg;
+  }
+
+  it('lists only the open requests aimed at that player, with a label and nothing else', () => {
+    addRequest('b1', 'm1', btn({ dc: 15 }));
+    addRequest('b2', 'm2', btn({ rolled: true }));
+    addRequest('b3', 'm3', btn({ targetUserId: 'u2' }));
+    expect(da.listOpenRollRequests('u1')).toEqual([
+      { buttonId: 'b1', label: 'Stealth Skill Check (Private)' },
+    ]);
+    expect(da.listOpenRollRequests('u2')).toHaveLength(1);
+  });
+
+  it('rolls for the player with the stored formula and DC, then marks the request done', async () => {
+    world.addUser({ id: 'u1', name: 'Alice', active: true, isGM: false });
+    addPlayerCharacter({ id: 'a1', name: 'Silvera', ownerUserId: 'u1' });
+    const msg = addRequest('b1', 'm1', btn({ dc: 15 }));
+    const spy = installRollSpy();
+
+    const result = await da.executePlayerRoll('u1', 'b1');
+
+    expect(result.success).toBe(true);
+    expect(spy.ctorArgs[0][0]).toBe('1d20+3');
+    expect(spy.ctorArgs[0][2]).toEqual({ target: 15, requestedDcPublic: false });
+    expect(spy.toMessage).toHaveBeenCalledTimes(1);
+    expect(msg.flags[MODULE_ID].rollButtons.b1.rolled).toBe(true);
+    expect(msg.flags[MODULE_ID].rollButtons.b1.rolledBy).toBe('u1');
+    expect(da.listOpenRollRequests('u1')).toEqual([]);
+  });
+
+  it("refuses another player's button, a missing one and a second roll", async () => {
+    world.addUser({ id: 'u1', name: 'Alice', active: true, isGM: false });
+    addRequest('b1', 'm1', btn());
+    const spy = installRollSpy();
+
+    expect((await da.executePlayerRoll('u2', 'b1')).success).toBe(false);
+    expect((await da.executePlayerRoll('u1', 'nope')).success).toBe(false);
+    expect(spy.toMessage).not.toHaveBeenCalled();
+
+    expect((await da.executePlayerRoll('u1', 'b1')).success).toBe(true);
+    const again = await da.executePlayerRoll('u1', 'b1');
+    expect(again.success).toBe(false);
+    expect(spy.toMessage).toHaveBeenCalledTimes(1);
   });
 });

@@ -37,6 +37,8 @@ export interface SessionMarker {
   open: boolean;
   startedAtMs: number | null;
   endedAtMs: number | null;
+  /** While open: when the session before ended (newer bridges only). */
+  previousEndedAtMs: number | null;
 }
 
 export function sessionMarker(session: unknown): SessionMarker | null {
@@ -46,7 +48,12 @@ export function sessionMarker(session: unknown): SessionMarker | null {
     const t = typeof at === 'string' ? Date.parse(at) : NaN;
     return Number.isFinite(t) ? t : null;
   };
-  return { open: r.open === true, startedAtMs: ms(r.startedAt), endedAtMs: ms(r.endedAt) };
+  return {
+    open: r.open === true,
+    startedAtMs: ms(r.startedAt),
+    endedAtMs: ms(r.endedAt),
+    previousEndedAtMs: ms(r.previousEndedAt),
+  };
 }
 
 /**
@@ -57,7 +64,7 @@ export function sessionMarker(session: unknown): SessionMarker | null {
 export function sessionSince(session: unknown, lastEndedMs: number | null = null): number | null {
   const m = sessionMarker(session);
   if (!m) return null;
-  return m.open ? (lastEndedMs ?? m.startedAtMs) : m.endedAtMs;
+  return m.open ? (m.previousEndedAtMs ?? lastEndedMs ?? m.startedAtMs) : m.endedAtMs;
 }
 
 function str(v: unknown): string | null {

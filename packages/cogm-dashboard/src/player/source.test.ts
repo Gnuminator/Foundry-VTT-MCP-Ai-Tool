@@ -218,6 +218,18 @@ describe('sessionSince', () => {
     );
   });
 
+  it('prefers the bridge previousEndedAt, so a restart mid-session still counts from it', () => {
+    const prev = '2026-10-13T22:00:00.000Z';
+    expect(
+      sessionSince({
+        open: true,
+        startedAt: '2026-10-20T19:00:00.000Z',
+        endedAt: null,
+        previousEndedAt: prev,
+      })
+    ).toBe(Date.parse(prev));
+  });
+
   it('polls get-play-session at most once a minute and survives it failing', async () => {
     const start = '2026-10-20T19:00:00.000Z';
     let calls = 0;

@@ -374,6 +374,7 @@ describe('get-play-session', () => {
       startedAt: null,
       lastEventAt: null,
       endedAt: null,
+      previousEndedAt: null,
     });
   });
 
@@ -387,6 +388,20 @@ describe('get-play-session', () => {
       startedAt: new Date(nowMs).toISOString(),
       lastEventAt: new Date(nowMs).toISOString(),
       endedAt: null,
+      previousEndedAt: null,
+    });
+  });
+
+  it('while open, reports when the session before ended', async () => {
+    const tools = makeTools();
+    await tools.handleMarkPlaySession({ action: 'start' });
+    await tools.handleMarkPlaySession({ action: 'end' });
+    const ended = new Date(nowMs).toISOString();
+    nowMs += 60_000;
+    await tools.handleMarkPlaySession({ action: 'start' });
+    expect(await tools.handleGetPlaySession({})).toMatchObject({
+      open: true,
+      previousEndedAt: ended,
     });
   });
 
@@ -402,6 +417,7 @@ describe('get-play-session', () => {
       startedAt: null,
       lastEventAt: new Date(nowMs).toISOString(),
       endedAt: new Date(nowMs).toISOString(),
+      previousEndedAt: null,
     });
   });
 
@@ -556,6 +572,7 @@ describe('get-play-session with play records (O3 contract 3)', () => {
       startedAt: null,
       lastEventAt: null,
       endedAt: null,
+      previousEndedAt: null,
     });
   });
 });

@@ -528,6 +528,12 @@ export class PlayerRollsDataAccess {
   /** A request older than this is stale: the page does not list it and the module refuses it. */
   private static readonly OPEN_REQUEST_MAX_AGE_MS = 12 * 60 * 60 * 1000;
 
+  /**
+   * Buttons rolled from the page on this client whose card mark failed: the card still reads
+   * "not rolled", so these stay out of the list and are refused until the mark succeeds.
+   */
+  private readonly rolledFromPage = new Set<string>();
+
   /** How many open requests one player's list carries. */
   private static readonly OPEN_REQUEST_LIMIT = 8;
 
@@ -544,6 +550,7 @@ export class PlayerRollsDataAccess {
       for (const [buttonId, raw] of Object.entries(rec(rollButtons) ?? {})) {
         const state = rec(raw) ?? {};
         if (state.rolled === true || state.targetUserId !== userId) continue;
+        if (this.rolledFromPage.has(buttonId)) continue;
         const label = typeof state.rollLabel === 'string' ? state.rollLabel : 'Roll';
         const at = Number(rec(message)?.timestamp);
         if (
@@ -583,7 +590,7 @@ export class PlayerRollsDataAccess {
       if (!message || state.targetUserId !== userId) {
         return { success: false, error: 'There is no such roll request for you.' };
       }
-      if (state.rolled === true) {
+      if (state.rolled === true || this.rolledFromPage.has(buttonId)) {
         return { success: false, error: 'You already made this roll.' };
       }
       const sentAt = Number(rec(message)?.timestamp);
@@ -617,6 +624,7 @@ export class PlayerRollsDataAccess {
         await this.updateRollButtonMessage(buttonId, userId, rollLabel);
       } catch (markError) {
         console.error(`[${MODULE_ID}] Rolled for a player but could not mark the card:`, markError);
+        this.rolledFromPage.add(buttonId);
       }
       return { success: true, message: `${rollLabel} rolled.` };
     } catch (error) {

@@ -812,6 +812,10 @@ describe('FoundryDataAccess: player page roll buttons', () => {
     const result = await da.executePlayerRoll('u1', 'b1');
     expect(result.success).toBe(true);
     expect(spy.toMessage).toHaveBeenCalledTimes(1);
+    // The card still reads "not rolled": it is neither offered again nor rolled a second time.
+    expect(da.listOpenRollRequests('u1')).toEqual([]);
+    expect((await da.executePlayerRoll('u1', 'b1')).success).toBe(false);
+    expect(spy.toMessage).toHaveBeenCalledTimes(1);
   });
 
   it('leaves a request older than 12 hours out of the list and refuses it', async () => {

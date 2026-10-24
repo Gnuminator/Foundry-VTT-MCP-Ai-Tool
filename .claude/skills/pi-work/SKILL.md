@@ -39,9 +39,9 @@ Plan B (game night on the PC): `docs/dev/PLAN-B.md`.
 
 ## Current state and holds
 
-- Holds in CLAUDE.md "Holds now" apply (stage 14 and dnd5e 6.0.6 on the Pi are paused until after
-  G0; the Pi stays on dnd5e 6.0.5).
-- Updates (D-098, D-110): newest Foundry, dnd5e and module versions, tested first on the PC test
+- Holds in CLAUDE.md "Holds now" apply. The stage 14 hold is lifted (D-128, the user, 2026-10-24):
+  the Pi moves to the newest Foundry, dnd5e and tool release, in the order below.
+- Updates (D-098, D-110, D-128): newest Foundry, dnd5e and module versions, tested first on the PC test
   server (CI, `live:roundtrip`, `live:sweep`, full kit), then the kit on the Pi's `strahd-kit`
   world, then the real world; never on a game-night day; never a beta on the real world.
 - Stage 12 (tunnel) refuses to run while any Pi world has a GM user with no password.

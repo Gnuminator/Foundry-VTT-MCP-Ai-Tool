@@ -57,7 +57,8 @@ test('the player guides are in, without dangling image links, and no page has an
     const guide = files.get('references/player/make-a-character.md');
     assert.ok(guide && files.has('references/player/join.md'));
     assert.doesNotMatch(guide, /\]\(\.\.\/images\//);
-    for (const [name, text] of files) assert.doesNotMatch(text, /—/, `${name} has an em dash`);
+    const emDash = String.fromCharCode(0x2014);
+    for (const [name, text] of files) assert.ok(!text.includes(emDash), `${name} has an em dash`);
   } finally {
     rmSync(out, { recursive: true, force: true });
   }

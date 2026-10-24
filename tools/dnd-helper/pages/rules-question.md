@@ -10,7 +10,7 @@ The same steps as the connector's `rules-question` prompt, so the answers look a
    campaign journals) covers rules text that sits in **world** journals, such as
    a book imported into the world. Text inside compendium journals cannot be searched yet: say so
    if that is where the rule would be, and answer from general knowledge labelled as such.
-3. Read the best hits in full: `get-compendium-item` for a compendium entry, `list-journals` with
+3. Read the best hits in full: `get-compendium-item` for a compendium entry, `list-journals` (only with a journal id from a search hit, never to browse all titles) with
    the journal and page for a journal page. Answer from the text itself, never from a title alone.
 4. Prefer the 2024 rules. If a 2014 version also exists, add one line on how it differs only when
    that changes the answer.

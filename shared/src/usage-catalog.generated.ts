@@ -147,6 +147,24 @@ export const USAGE_CATALOG: readonly UsageCatalogEntry[] = [
     file: 'packages/cogm-dashboard/public/app.js',
   },
   {
+    name: 'dash.combat.start',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/web/src/components/StartCombat.tsx',
+  },
+  {
+    name: 'dash.combat.start-cancel',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/web/src/components/StartCombat.tsx',
+  },
+  {
+    name: 'dash.combat.start-go',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/web/src/components/StartCombat.tsx',
+  },
+  {
     name: 'dash.drawer.backdrop',
     kind: 'action',
     surface: 'dashboard',
@@ -208,6 +226,12 @@ export const USAGE_CATALOG: readonly UsageCatalogEntry[] = [
   },
   {
     name: 'dash.during.layout-tour',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/web/src/components/During.tsx',
+  },
+  {
+    name: 'dash.during.start-combat',
     kind: 'action',
     surface: 'dashboard',
     file: 'packages/cogm-dashboard/web/src/components/During.tsx',

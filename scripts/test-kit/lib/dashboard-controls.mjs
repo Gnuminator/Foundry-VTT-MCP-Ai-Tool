@@ -391,6 +391,26 @@ export const DASHBOARD_CONTROLS = [
     why: 'needs a selected combatant (opens the tool form, runs nothing)',
   },
   {
+    name: 'dash.combat.start',
+    how: 'skip',
+    why: 'new dashboard only (david-start-combat-picker, only with no fight running); an e2e test covers it',
+  },
+  {
+    name: 'dash.during.start-combat',
+    how: 'skip',
+    why: 'new dashboard only (the During bar button that opens the Start combat picker, only with no fight running); an e2e test covers it',
+  },
+  {
+    name: 'dash.combat.start-cancel',
+    how: 'skip',
+    why: 'new dashboard only (the token list of Start combat); an e2e test covers it',
+  },
+  {
+    name: 'dash.combat.start-go',
+    how: 'write',
+    why: 'plans and applies a combat on the scene; the unit and e2e tests and the live check cover it',
+  },
+  {
     name: 'dash.combat.end',
     how: 'open',
     // Only the After page (web/src) has it; the old page's files do not, so the data-track

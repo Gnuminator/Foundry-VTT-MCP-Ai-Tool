@@ -3,7 +3,7 @@
 // and the two "During screen" entries of the Advanced menu. The old page's moments.css lays the
 // slots out per `data-layout`, `data-context` and `data-view` on #moment-during (Moments.tsx sets
 // them); the choice is kept per world on the server (lib/prefs.ts), so either page shows it.
-import { useEffect, useRef, useState, type JSX } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState, type JSX } from 'react';
 import { flushSync } from 'react-dom';
 
 import { hasOpenPanel, hasOpenPopper } from '../lib/escape';
@@ -37,6 +37,9 @@ import { useDuringFolds, type DuringFolds } from './Folds';
 import { useHelp } from './HelpButton';
 import type { Moment } from './Moments';
 import { useToast } from './Toasts';
+
+// The picker is a lazy chunk (bundle budget): it loads when the bar's Start combat is clicked.
+const StartCombat = lazy(() => import('./StartCombat').then(m => ({ default: m.StartCombat })));
 
 /** What the layout buttons say while the world (and so the saved choice) is not known yet. */
 export const NOT_READY_TIP =
@@ -232,6 +235,14 @@ function LayoutButton({
 export function DuringBar({ during }: { during: DuringController }): JSX.Element {
   const openHelp = useHelp();
   const { screen, hintVisible, prefs, trial, actions } = during;
+  const settings = useDashboardSettings();
+  const [picking, setPicking] = useState(false);
+  // The strip has its own Start combat in the Full view; everywhere else with no fight, it is here.
+  const startHere =
+    settings?.gmActionsEnabled === true &&
+    trial === null &&
+    screen.context === 'calm' &&
+    screen.view !== 'full';
   return (
     <div className="during-bar" id="during-bar">
       <NotReadyNote id={NOT_READY_BAR_ID} show={prefs === undefined} />
@@ -301,6 +312,23 @@ export function DuringBar({ during }: { during: DuringController }): JSX.Element
       <span className="during-auto-note" id="during-auto-note" hidden={screen.layout !== 'auto'}>
         {autoNote(screen.context)}
       </span>
+      {startHere && !picking && (
+        <Button
+          variant="quiet"
+          id="btn-during-start-combat"
+          data-track="dash.during.start-combat"
+          onClick={() => setPicking(true)}
+        >
+          Start combat
+        </Button>
+      )}
+      {startHere && picking && (
+        <div className="during-start">
+          <Suspense fallback={null}>
+            <StartCombat onDismiss={() => setPicking(false)} />
+          </Suspense>
+        </div>
+      )}
       <p className="layout-hint" id="layout-hint" hidden={!hintVisible}>
         <span>
           New: the During screen has three layouts. Try Simple/Full or Auto here, or keep Cards.

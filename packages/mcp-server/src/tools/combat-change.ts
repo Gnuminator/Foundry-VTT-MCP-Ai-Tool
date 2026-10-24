@@ -3,6 +3,7 @@ import {
   COMBAT_PLAN_QUERY,
   LIVE_PLAY_FEATURE_ID,
   freeText,
+  toolRef,
   type CombatChangePlan,
   type CombatChangePlanResult,
   type CombatChangeRequest,
@@ -32,6 +33,8 @@ export interface CombatChangeToolsOptions {
 const planParams = z.object({
   action: z.enum(COMBAT_CHANGE_ACTIONS),
   combatId: z.string().optional(),
+  tokenIds: z.array(z.string()).optional(),
+  sceneId: z.string().optional(),
 });
 
 function unwrap<T>(response: unknown, what: string): T {
@@ -66,14 +69,25 @@ export class CombatChangeTools {
       {
         name: 'plan-combat-change',
         description:
-          'Plan ending the fight: "end" removes the active combat from the tracker. Apply with apply-planned-change (destructive, so the GM confirms; it never applies on its own), revert with undo-change (the fight comes back with its round, turn and initiative). Shows in Recent Changes. Undo does not restore effects that end with combat or token movement history (the result carries a warning).',
+          'Plan starting or ending a fight. "start" puts tokens of the viewed scene in a new combat (default: player characters and Hostile tokens; already at round 1, no initiative rolled, so roll it next). "end" removes the active combat. Apply with apply-planned-change, revert with undo-change; ending is destructive, so the GM confirms. Shows in Recent Changes. Undo of an end does not restore effects that end with combat or token movement history (the result carries a warning).',
         inputSchema: {
           type: 'object',
           properties: {
             action: {
               type: 'string',
               enum: [...COMBAT_CHANGE_ACTIONS],
-              description: 'end: close the active combat.',
+              description: 'start: new combat. end: close the active combat.',
+            },
+            tokenIds: {
+              type: 'array',
+              items: { type: 'string' },
+              description: 'start: the tokens to fight. Omit for player characters and Hostiles.',
+              ...toolRef('token', 'id'),
+            },
+            sceneId: {
+              type: 'string',
+              description: 'start: scene (default: the viewed one).',
+              ...freeText('A scene id; omit for the viewed scene.'),
             },
             combatId: {
               type: 'string',
@@ -106,7 +120,9 @@ export class CombatChangeTools {
         plan.risk === 'write' && (await this.options.guardedWrites.autoApplyEnabled(plan.feature));
       return {
         ...plan,
-        combatId: built.combatId,
+        ...(built.combatId ? { combatId: built.combatId } : {}),
+        ...(built.combatants ? { combatants: built.combatants } : {}),
+        ...(built.skipped ? { skipped: built.skipped } : {}),
         ...(built.warning ? { warning: built.warning } : {}),
         autoApply,
       };

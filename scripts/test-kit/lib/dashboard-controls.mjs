@@ -396,6 +396,11 @@ export const DASHBOARD_CONTROLS = [
     why: 'new dashboard only (david-start-combat-picker, only with no fight running); an e2e test covers it',
   },
   {
+    name: 'dash.during.start-combat',
+    how: 'skip',
+    why: 'new dashboard only (the During bar button that opens the Start combat picker, only with no fight running); an e2e test covers it',
+  },
+  {
     name: 'dash.combat.start-cancel',
     how: 'skip',
     why: 'new dashboard only (the token list of Start combat); an e2e test covers it',

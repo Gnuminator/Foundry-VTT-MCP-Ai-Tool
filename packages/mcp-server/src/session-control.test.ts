@@ -105,6 +105,14 @@ describe('handlePlayerRoll (control method player_roll)', () => {
     });
   });
 
+  it("hands the module's refusal back as an answer", async () => {
+    const refusal = { success: false, error: 'You already made this roll.' };
+    const query = vi.fn().mockResolvedValue(refusal);
+    await expect(
+      handlePlayerRoll(query, { userId: 'player0000000001', buttonId: 'abcdefghij012345' })
+    ).resolves.toEqual(refusal);
+  });
+
   it('refuses an odd user or button id without asking Foundry', async () => {
     const query = vi.fn();
     await expect(

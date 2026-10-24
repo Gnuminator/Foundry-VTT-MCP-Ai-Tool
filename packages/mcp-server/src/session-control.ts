@@ -94,6 +94,8 @@ export async function handlePlayerRoll(query: FoundryQuery, params: unknown): Pr
     userId: p.userId,
     buttonId: p.buttonId,
   });
+  // The module's own refusal (not yours, already rolled, too old) is an answer, not a failure.
+  if ((result as { success?: unknown } | null | undefined)?.success === false) return result;
   const error = (result as { error?: unknown } | null | undefined)?.error;
   if (typeof error === 'string') throw new Error(error);
   return result;

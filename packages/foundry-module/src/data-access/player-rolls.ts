@@ -514,6 +514,9 @@ export class PlayerRollsDataAccess {
     await roll.toMessage(messageData, { create: true, ...visibility });
   }
 
+  /** A request older than this is stale: the page does not list it and the module refuses it. */
+  private static readonly OPEN_REQUEST_MAX_AGE_MS = 12 * 60 * 60 * 1000;
+
   /** How many open requests one player's list carries. */
   private static readonly OPEN_REQUEST_LIMIT = 8;
 
@@ -532,7 +535,13 @@ export class PlayerRollsDataAccess {
         if (state.rolled === true || state.targetUserId !== userId) continue;
         const label = typeof state.rollLabel === 'string' ? state.rollLabel : 'Roll';
         const at = Number(rec(message)?.timestamp);
-        found.push({ buttonId, label, at: Number.isFinite(at) ? at : 0 });
+        if (
+          !Number.isFinite(at) ||
+          Date.now() - at > PlayerRollsDataAccess.OPEN_REQUEST_MAX_AGE_MS
+        ) {
+          continue;
+        }
+        found.push({ buttonId, label, at });
       }
     }
     return found
@@ -565,6 +574,16 @@ export class PlayerRollsDataAccess {
       }
       if (state.rolled === true) {
         return { success: false, error: 'You already made this roll.' };
+      }
+      const sentAt = Number(rec(message)?.timestamp);
+      if (
+        !Number.isFinite(sentAt) ||
+        Date.now() - sentAt > PlayerRollsDataAccess.OPEN_REQUEST_MAX_AGE_MS
+      ) {
+        return {
+          success: false,
+          error: 'This roll request is too old. Ask your GM for a new one.',
+        };
       }
       const rollFormula = typeof state.rollFormula === 'string' ? state.rollFormula : '';
       const rollLabel = typeof state.rollLabel === 'string' ? state.rollLabel : 'Roll';

@@ -748,9 +748,15 @@ describe('FoundryDataAccess: player page roll buttons', () => {
     ...extra,
   });
 
-  function addRequest(buttonId: string, messageId: string, state: Record<string, unknown>): any {
+  function addRequest(
+    buttonId: string,
+    messageId: string,
+    state: Record<string, unknown>,
+    timestamp = Date.now()
+  ): any {
     const msg = world.addMessage({
       id: messageId,
+      timestamp,
       content: '<button/>',
       flags: { [MODULE_ID]: { rollButtons: { [buttonId]: state } } },
     });
@@ -784,6 +790,16 @@ describe('FoundryDataAccess: player page roll buttons', () => {
     expect(msg.flags[MODULE_ID].rollButtons.b1.rolled).toBe(true);
     expect(msg.flags[MODULE_ID].rollButtons.b1.rolledBy).toBe('u1');
     expect(da.listOpenRollRequests('u1')).toEqual([]);
+  });
+
+  it('leaves a request older than 12 hours out of the list and refuses it', async () => {
+    addRequest('b1', 'm1', btn(), Date.now() - 13 * 60 * 60 * 1000);
+    const spy = installRollSpy();
+    expect(da.listOpenRollRequests('u1')).toEqual([]);
+    const result = await da.executePlayerRoll('u1', 'b1');
+    expect(result.success).toBe(false);
+    expect(result.error).toMatch(/too old/);
+    expect(spy.toMessage).not.toHaveBeenCalled();
   });
 
   it("refuses another player's button, a missing one and a second roll", async () => {

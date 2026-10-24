@@ -52,6 +52,12 @@ async function start(
         buttonId === 'wrongbutton00000'
           ? { success: false, error: 'There is no such roll request for you.' }
           : { success: true, message: 'Rolled.' }
+      ).then(r =>
+        buttonId === 'writesoff0000000'
+          ? Promise.reject(
+              new Error('Player roll failed: Write operations are disabled in the module settings')
+            )
+          : r
       );
     },
     characterSheet: (userId: string): Promise<unknown> => {
@@ -151,6 +157,11 @@ describe('/api/me and the player links', () => {
     const refused = await post(key, 'wrongbutton00000');
     expect(refused.status).toBe(409);
     expect(((await refused.json()) as { error: string }).error).toMatch(/no such roll request/);
+    const off = await post(key, 'writesoff0000000');
+    expect(off.status).toBe(502);
+    const offText = ((await off.json()) as { error: string }).error;
+    expect(offText).toMatch(/switched off/);
+    expect(offText).not.toMatch(/module settings/);
   });
 
   it('no key, a wrong key or an old key gets nothing', async () => {

@@ -99,7 +99,7 @@ describe('computePlayerVisibility — scene', () => {
       name: 'Crypt',
       navName: 'Village Square',
       active: true,
-      environment: { darknessLevel: 0.6, weather: 'rain' },
+      environment: { darknessLevel: 0.6, weather: 'rain', globalLight: { enabled: true } },
       flags: { 'foundry-mcp-bridge': { mood: 'Sorvan ritual' } },
     });
     expect(computePlayerVisibility().scene).toEqual({
@@ -118,12 +118,23 @@ describe('computePlayerVisibility — scene', () => {
     ]);
     expect(timeOfDayForDarkness(undefined)).toBeNull();
     expect(
-      playerFacingEnvironment({ environment: { darknessLevel: 0, weather: 'sorvanFog' } })
+      playerFacingEnvironment({
+        environment: { darknessLevel: 0, weather: 'sorvanFog', globalLight: { enabled: true } },
+      })
     ).toEqual({
       timeOfDay: 'Daylight',
       weather: null,
     });
     expect(playerFacingEnvironment({ environment: {} })).toBeUndefined();
+  });
+
+  it('hides the time of day on a scene without global illumination (crypts, dungeons)', () => {
+    expect(
+      playerFacingEnvironment({
+        environment: { darknessLevel: 0.9, weather: 'rain', globalLight: { enabled: false } },
+      })
+    ).toEqual({ timeOfDay: null, weather: 'Rain' });
+    expect(playerFacingEnvironment({ environment: { darknessLevel: 0.9 } })).toBeUndefined();
   });
 
   it('falls back to UNKNOWN_SCENE when navName is blank', () => {

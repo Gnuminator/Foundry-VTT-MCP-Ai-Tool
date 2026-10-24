@@ -143,8 +143,13 @@ export function mountMeRoute(app: Express, options: MeRouteOptions): void {
         }
       })
       .catch((error: unknown) => {
+        const message = error instanceof Error ? error.message : '';
+        // The module's switch for writes is off: say so in table words, not settings words.
+        const writesOff = /Write operations are disabled/i.test(message);
         res.status(502).json({
-          error: error instanceof Error ? error.message : 'The roll did not work.',
+          error: writesOff
+            ? 'Rolling from this page is switched off right now. Roll in Foundry, or ask your GM.'
+            : message || 'The roll did not work.',
         });
       })
       .finally(() => rolling.delete(userId));

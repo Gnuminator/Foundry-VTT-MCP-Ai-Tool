@@ -792,6 +792,32 @@ describe('FoundryDataAccess: player page roll buttons', () => {
     expect(da.listOpenRollRequests('u1')).toEqual([]);
   });
 
+  it('reads the DC from the card for a request made before the dc flag existed', async () => {
+    world.addUser({ id: 'u1', name: 'Alice', active: true, isGM: false });
+    addPlayerCharacter({ id: 'a1', name: 'Silvera', ownerUserId: 'u1' });
+    const msg = addRequest('b1', 'm1', btn());
+    msg.content =
+      '<button class="mcp-roll-button"\n data-button-id="b1"\n data-dc="13"\n data-target-user-id="u1">Roll</button>';
+    const spy = installRollSpy();
+    expect((await da.executePlayerRoll('u1', 'b1')).success).toBe(true);
+    expect(spy.ctorArgs[0][2]).toEqual({ target: 13, requestedDcPublic: false });
+  });
+
+  it('still reports the roll as made when marking the card fails', async () => {
+    world.addUser({ id: 'u1', name: 'Alice', active: true, isGM: false });
+    addPlayerCharacter({ id: 'a1', name: 'Silvera', ownerUserId: 'u1' });
+    addRequest('b1', 'm1', btn());
+    const spy = installRollSpy();
+    vi.spyOn(da, 'updateRollButtonMessage').mockRejectedValue(new Error('no GM online'));
+    const result = await da.executePlayerRoll('u1', 'b1');
+    expect(result.success).toBe(true);
+    expect(spy.toMessage).toHaveBeenCalledTimes(1);
+    // The card still reads "not rolled": it is neither offered again nor rolled a second time.
+    expect(da.listOpenRollRequests('u1')).toEqual([]);
+    expect((await da.executePlayerRoll('u1', 'b1')).success).toBe(false);
+    expect(spy.toMessage).toHaveBeenCalledTimes(1);
+  });
+
   it('leaves a request older than 12 hours out of the list and refuses it', async () => {
     addRequest('b1', 'm1', btn(), Date.now() - 13 * 60 * 60 * 1000);
     const spy = installRollSpy();

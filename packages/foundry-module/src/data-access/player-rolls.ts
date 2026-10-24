@@ -350,6 +350,17 @@ export class PlayerRollsDataAccess {
 
       // Check if this button is already being processed by another user
       const buttonId = button.data('button-id') as string | undefined;
+      // Already rolled (say, from the player's page on the dashboard): do not roll twice.
+      const clickedMessageId = buttonId ? this.getRollButtonMessageId(buttonId) : null;
+      const clickedMessage = clickedMessageId ? game.messages?.get(clickedMessageId) : undefined;
+      if (
+        buttonId &&
+        clickedMessage &&
+        rec(this.getRollStateFromMessage(clickedMessage, buttonId))?.rolled === true
+      ) {
+        button.text('✓ Rolled');
+        return;
+      }
       if (buttonId && this.isRollButtonProcessing(buttonId)) {
         button.text('🎲 Processing...');
         return;
@@ -517,6 +528,12 @@ export class PlayerRollsDataAccess {
   /** A request older than this is stale: the page does not list it and the module refuses it. */
   private static readonly OPEN_REQUEST_MAX_AGE_MS = 12 * 60 * 60 * 1000;
 
+  /**
+   * Buttons rolled from the page on this client whose card mark failed: the card still reads
+   * "not rolled", so these stay out of the list and are refused until the mark succeeds.
+   */
+  private readonly rolledFromPage = new Set<string>();
+
   /** How many open requests one player's list carries. */
   private static readonly OPEN_REQUEST_LIMIT = 8;
 
@@ -533,6 +550,7 @@ export class PlayerRollsDataAccess {
       for (const [buttonId, raw] of Object.entries(rec(rollButtons) ?? {})) {
         const state = rec(raw) ?? {};
         if (state.rolled === true || state.targetUserId !== userId) continue;
+        if (this.rolledFromPage.has(buttonId)) continue;
         const label = typeof state.rollLabel === 'string' ? state.rollLabel : 'Roll';
         const at = Number(rec(message)?.timestamp);
         if (
@@ -572,7 +590,7 @@ export class PlayerRollsDataAccess {
       if (!message || state.targetUserId !== userId) {
         return { success: false, error: 'There is no such roll request for you.' };
       }
-      if (state.rolled === true) {
+      if (state.rolled === true || this.rolledFromPage.has(buttonId)) {
         return { success: false, error: 'You already made this roll.' };
       }
       const sentAt = Number(rec(message)?.timestamp);
@@ -587,7 +605,8 @@ export class PlayerRollsDataAccess {
       }
       const rollFormula = typeof state.rollFormula === 'string' ? state.rollFormula : '';
       const rollLabel = typeof state.rollLabel === 'string' ? state.rollLabel : 'Roll';
-      const dcRaw = state.dc;
+      // Requests made before the `dc` flag existed still carry it in the card's button markup.
+      const dcRaw = state.dc ?? this.dcFromMessageContent(rec(message)?.content, buttonId);
       const dc = typeof dcRaw === 'number' && Number.isFinite(dcRaw) ? dcRaw : null;
       trackUsage('action', 'module.chat.roll-button');
       await this.rollForButton({
@@ -599,7 +618,14 @@ export class PlayerRollsDataAccess {
         dc,
         isGmRoll: false,
       });
-      await this.updateRollButtonMessage(buttonId, userId, rollLabel);
+      // The roll is posted: a failed mark must not read as a failed roll (the player would press
+      // again and roll twice).
+      try {
+        await this.updateRollButtonMessage(buttonId, userId, rollLabel);
+      } catch (markError) {
+        console.error(`[${MODULE_ID}] Rolled for a player but could not mark the card:`, markError);
+        this.rolledFromPage.add(buttonId);
+      }
       return { success: true, message: `${rollLabel} rolled.` };
     } catch (error) {
       console.error(`[${MODULE_ID}] Error rolling for a player:`, error);
@@ -608,6 +634,20 @@ export class PlayerRollsDataAccess {
     } finally {
       this.setRollButtonProcessing(buttonId, false);
     }
+  }
+
+  /** The `data-dc` of one button in a roll-request card's HTML, or null. */
+  private dcFromMessageContent(content: unknown, buttonId: string): number | null {
+    if (typeof content !== 'string') return null;
+    const idAttr = `data-button-id="${buttonId}"`;
+    for (const tag of content.match(/<button\b[^>]*>/gi) ?? []) {
+      if (!tag.includes(idAttr)) continue;
+      const raw = /\bdata-dc="([^"]*)"/i.exec(tag)?.[1];
+      if (raw === undefined || raw.trim() === '') return null;
+      const dc = Number(raw);
+      return Number.isFinite(dc) ? dc : null;
+    }
+    return null;
   }
 
   // ===========================================================================

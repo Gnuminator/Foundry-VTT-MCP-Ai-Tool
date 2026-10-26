@@ -893,7 +893,12 @@ export class EventTracker {
       // Death and stabilization detection (hit points only)
       if (prev !== undefined && to !== undefined && prev !== to) {
         if (prev > 0 && to <= 0) {
-          this.logSessionEvent('death', `${actorName} dropped to 0 HP`, {
+          // The GM's line says who is down and what that means; the player page words its own.
+          const downText =
+            dig(actor, 'type') === 'character'
+              ? `${actorName} is down: 0 HP, unconscious, death saves begin`
+              : `${actorName} is down (0 HP)`;
+          this.logSessionEvent('death', downText, {
             actorName,
             actorId,
             details: {},

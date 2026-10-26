@@ -479,6 +479,20 @@ describe('EventTracker session events', () => {
     expect(t.getSessionLog({ eventType: 'death' })).toHaveLength(1);
   });
 
+  it('says who is down at 0 HP: a PC is unconscious with death saves, an NPC is down', () => {
+    const t = new EventTracker();
+    t.registerHooks();
+    const hero = { id: 'h1', name: 'Akra', type: 'character' };
+    const goblin = { id: 'g2', name: 'Goblin', type: 'npc' };
+    for (const a of [hero, goblin]) {
+      fire('updateActor', a, { system: { attributes: { hp: { value: 9 } } } });
+      fire('updateActor', a, { system: { attributes: { hp: { value: 0 } } } });
+    }
+    const lines = t.getSessionLog({ eventType: 'death' }).map(e => e.description);
+    expect(lines).toContain('Akra is down: 0 HP, unconscious, death saves begin');
+    expect(lines).toContain('Goblin is down (0 HP)');
+  });
+
   it("credits damage like the play log: the card's own message exactly, else a roll that fits", () => {
     const t = new EventTracker();
     t.registerHooks();

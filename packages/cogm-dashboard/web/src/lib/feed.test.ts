@@ -233,6 +233,7 @@ describe('severityClass', () => {
     expect(severityClass('gm-roll')).toBe('sev-gm-roll');
     expect(eventLabel('gm-roll')).toBe('private roll');
     expect(eventLabel('roll-request')).toBe('roll request');
+    expect(eventLabel('death')).toBe('down');
     expect(eventLabel('damage')).toBe('damage');
   });
 

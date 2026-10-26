@@ -16,7 +16,9 @@ describe('moveUpPlan', () => {
   });
   it('refuses when a row to re-queue was deleted', () => {
     expect(moveUpPlan([row('a'), row('b'), row('c', false)], 1)).toBeNull();
-    expect(moveUpPlan([row('a'), row('b', false)], 1)).toBeNull();
+    expect(moveUpPlan([row('a', false), row('b')], 1)).toBeNull();
+    // The moved row itself is never re-queued, so a deleted one can still move up.
+    expect(moveUpPlan([row('a'), row('b', false)], 1)?.map(r => r.uuid)).toEqual(['a']);
   });
 });
 

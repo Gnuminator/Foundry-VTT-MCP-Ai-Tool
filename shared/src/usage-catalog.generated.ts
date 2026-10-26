@@ -249,6 +249,18 @@ export const USAGE_CATALOG: readonly UsageCatalogEntry[] = [
     file: 'packages/cogm-dashboard/public/index.html',
   },
   {
+    name: 'dash.handouts.move-down',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/web/src/panels/Handouts.tsx',
+  },
+  {
+    name: 'dash.handouts.move-up',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/web/src/panels/Handouts.tsx',
+  },
+  {
     name: 'dash.handouts.queue-page',
     kind: 'action',
     surface: 'dashboard',

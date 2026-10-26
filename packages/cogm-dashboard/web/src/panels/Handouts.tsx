@@ -219,21 +219,29 @@ export function HandoutsDrawer({
   // Swaps a row with the one above it: unqueue and queue again the rows that must come later (see
   // lib/handoutQueue.ts). Plain calls like Remove; the queue reloads after, also on a failure.
   const [moving, setMoving] = useState(false);
+  const movingRef = useRef(false);
   const moveUp = (index: number): void => {
     const plan = s ? moveUpPlan(s.queue, index) : null;
-    if (!plan || moving) return;
+    if (!plan || movingRef.current || revealingRef.current) return;
+    movingRef.current = true;
     setMoving(true);
     void (async (): Promise<void> => {
+      let current = '';
       try {
         for (const q of plan) {
+          current = q.title || 'Untitled';
           await callTool('plan-page-reveal', { action: 'unqueue', pageUuid: q.uuid });
-          await callTool('plan-page-reveal', requeueArgs(q));
+          // A page that does not go back would be lost, so try once more before giving up.
+          await callTool('plan-page-reveal', requeueArgs(q)).catch(() =>
+            callTool('plan-page-reveal', requeueArgs(q))
+          );
         }
         usage().trackTool('plan-page-reveal', 'ok');
       } catch (err: unknown) {
         usage().trackTool('plan-page-reveal', 'error', failCode(err));
-        toast(`✗ plan-page-reveal: ${errorText(err)}`, 'err');
+        toast(`✗ "${current}" may have dropped off the queue: ${errorText(err)}`, 'err');
       } finally {
+        movingRef.current = false;
         setMoving(false);
         void handouts.refetch();
       }
@@ -275,7 +283,7 @@ export function HandoutsDrawer({
               data-track="dash.handouts.move-up"
               aria-label={`Move ${q.title || 'Untitled'} up`}
               title="Move up"
-              disabled={moving || removing !== null || !moveUpPlan(data.queue, i)}
+              disabled={moving || revealing || removing !== null || !moveUpPlan(data.queue, i)}
               onClick={() => moveUp(i)}
             >
               ↑
@@ -286,7 +294,7 @@ export function HandoutsDrawer({
               data-track="dash.handouts.move-down"
               aria-label={`Move ${q.title || 'Untitled'} down`}
               title="Move down"
-              disabled={moving || removing !== null || !moveUpPlan(data.queue, i + 1)}
+              disabled={moving || revealing || removing !== null || !moveUpPlan(data.queue, i + 1)}
               onClick={() => moveUp(i + 1)}
             >
               ↓
@@ -295,7 +303,7 @@ export function HandoutsDrawer({
               type="button"
               size="sm"
               data-track="dash.handouts.unqueue"
-              disabled={removing === q.uuid}
+              disabled={removing === q.uuid || moving}
               onClick={() => unqueue(q.uuid)}
             >
               Remove
@@ -364,7 +372,7 @@ export function HandoutsDrawer({
             id="handouts-next"
             ref={nextRef}
             data-track="dash.handouts.reveal-next"
-            disabled={!next || revealing}
+            disabled={!next || revealing || moving}
             onClick={revealNext}
           >
             {next ? `Reveal next: ${next.title || 'Untitled'}` : 'Reveal next'}

@@ -10,6 +10,7 @@ import { Drawer, DrawerClose } from '../components/Drawer';
 import { useToast } from '../components/Toasts';
 import { api, callTool, errorText } from '../lib/api';
 import { failCode, useGuardedChange } from '../lib/guarded';
+import { moveUpPlan, requeueArgs } from '../lib/handoutQueue';
 import { HANDOUTS_KEY } from '../lib/stream';
 import { usage } from '../lib/usage';
 import { Button, QueryState } from '../ui';
@@ -215,6 +216,30 @@ export function HandoutsDrawer({
       });
   };
 
+  // Swaps a row with the one above it: unqueue and queue again the rows that must come later (see
+  // lib/handoutQueue.ts). Plain calls like Remove; the queue reloads after, also on a failure.
+  const [moving, setMoving] = useState(false);
+  const moveUp = (index: number): void => {
+    const plan = s ? moveUpPlan(s.queue, index) : null;
+    if (!plan || moving) return;
+    setMoving(true);
+    void (async (): Promise<void> => {
+      try {
+        for (const q of plan) {
+          await callTool('plan-page-reveal', { action: 'unqueue', pageUuid: q.uuid });
+          await callTool('plan-page-reveal', requeueArgs(q));
+        }
+        usage().trackTool('plan-page-reveal', 'ok');
+      } catch (err: unknown) {
+        usage().trackTool('plan-page-reveal', 'error', failCode(err));
+        toast(`✗ plan-page-reveal: ${errorText(err)}`, 'err');
+      } finally {
+        setMoving(false);
+        void handouts.refetch();
+      }
+    })();
+  };
+
   const queueBlock = (
     <QueryState
       query={handouts}
@@ -224,7 +249,7 @@ export function HandoutsDrawer({
       empty="Nothing queued. Only queued or revealed pages show here, so a new journal does not appear on its own: press + Queue a page to add one, then reveal it in one click."
     >
       {data =>
-        data.queue.map(q => (
+        data.queue.map((q, i) => (
           <li
             key={q.entryId}
             className={`preflight-item${next?.entryId === q.entryId ? ' pf-info' : ''}`}
@@ -244,6 +269,28 @@ export function HandoutsDrawer({
                 {audienceText(q.players)}
               </span>
             </span>
+            <Button
+              type="button"
+              size="sm"
+              data-track="dash.handouts.move-up"
+              aria-label={`Move ${q.title || 'Untitled'} up`}
+              title="Move up"
+              disabled={moving || removing !== null || !moveUpPlan(data.queue, i)}
+              onClick={() => moveUp(i)}
+            >
+              ↑
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              data-track="dash.handouts.move-down"
+              aria-label={`Move ${q.title || 'Untitled'} down`}
+              title="Move down"
+              disabled={moving || removing !== null || !moveUpPlan(data.queue, i + 1)}
+              onClick={() => moveUp(i + 1)}
+            >
+              ↓
+            </Button>
             <Button
               type="button"
               size="sm"

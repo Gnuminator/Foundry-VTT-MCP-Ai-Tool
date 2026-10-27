@@ -123,6 +123,14 @@ item is marked done; the board ignores a line on an item with no claim.
   `scripts/plan-b/` counts as Pi scripts). Its other refusals at this point (no review note yet,
   CI pending) are expected. A Sonnet note on a PR the gate calls risky is wasted: on 2026-10-19
   #435 and #438 each needed a fresh Opus round after two Sonnet rounds.
+- **Pre-review agents (I-143):** before the formal review, run the narrow read-only reviewers in
+  `.claude/agents/` (`model: "opus"`) on the pushed head, one per kind of change:
+  `review-guarded-writes` (guarded writes, write gate, plan/confirm/undo, dashboard buttons that
+  call them), `review-wire-contracts` (shared types, bridge methods, tool sets, tool descriptions),
+  `review-pi-ci` (Pi scripts, CI, the merge gate). Give each the PR number, the full head sha, the
+  path of a `git diff aitool/main...HEAD` file and the PR description, in a checkout at that sha.
+  Fix what they find, then brief the formal reviewer with the findings and fixes; they do not
+  replace it.
 - **Review note format** (the merge gate reads it):
   - path: vault `Handoff/Reviews <YYYY-MM-DD>/<PR>-review.md`, round 2 `<PR>-review-round2.md`;
     Opus: `<PR>-opus-review.md`, `<PR>-opus-review-round2.md`, with the heading

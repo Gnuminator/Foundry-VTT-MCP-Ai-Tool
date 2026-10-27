@@ -72,6 +72,91 @@ interface SearchPack extends IndexedPack {
   index: { values(): Iterable<unknown>; get(id: string): unknown };
 }
 
+/** Creature criteria shared by the structured search and its text fallback. */
+export interface CreatureCriteria {
+  challengeRating?: number | { min?: number; max?: number };
+  creatureType?: string;
+  size?: string;
+  hasSpells?: boolean;
+  hasLegendaryActions?: boolean;
+  limit?: number;
+}
+
+/** Filters of a compendium name search (creature-aware for Actor packs). */
+export interface SearchFilters {
+  challengeRating?: number | { min?: number; max?: number };
+  creatureType?: string;
+  size?: string;
+  alignment?: string;
+  hasLegendaryActions?: boolean;
+  spellcaster?: boolean;
+}
+
+/** What the creature queries answer for one creature (enhanced index or text fallback). */
+export interface CreatureHit {
+  id?: string;
+  name: string;
+  type?: string;
+  img?: string;
+  pack: string;
+  packLabel: string;
+  description?: string;
+  hasImage?: boolean;
+  summary?: string;
+  system?: Record<string, unknown>;
+  creatureType?: string;
+  size?: string;
+  hitPoints?: number;
+  armorClass?: number;
+  hasSpells?: boolean;
+  alignment?: string;
+  challengeRating?: number;
+  hasLegendaryActions?: boolean;
+}
+
+/** The pack and criteria summary that goes with a creature list. */
+export interface CreatureSearchSummary {
+  packsSearched: number;
+  topPacks: Array<{ id: string; label: string; priority: number }>;
+  totalCreaturesFound: number;
+  resultsByPack: Record<string, number>;
+  criteria: CreatureCriteria;
+  indexMetadata?: { totalIndexedCreatures: number; searchMethod: string };
+  fallback?: boolean;
+  searchMethod?: string;
+}
+
+/** A pack index entry as the search reads it (Foundry's index holds only what was requested). */
+interface IndexEntry {
+  _id?: string;
+  name?: string;
+  type?: string;
+  img?: string;
+  description?: string;
+  system?: unknown;
+}
+
+/** The creature fields of an Actor index entry's `system` that ranking reads. */
+interface IndexedCreatureSystem {
+  details?: { type?: { value?: string }; cr?: number };
+  type?: { value?: string };
+  cr?: number;
+}
+
+/** The parts of a compendium document, its items and effects that the full lookup reads. */
+interface CompendiumDocLike {
+  id?: string;
+  name?: string;
+  toObject(): unknown;
+  type?: string;
+  img?: string;
+  system?: unknown;
+  items?: Array<{ id: string; name: string; type: string; img?: string; system?: unknown }>;
+  effects?: Array<
+    ActiveEffect & { label?: string; disabled?: boolean; duration?: unknown; name?: string }
+  >;
+}
+
 /** A pack and the index entries whose names matched. */
 interface PackHits {
   pack: SearchPack;
@@ -143,7 +228,7 @@ export class CompendiumDataAccess {
   private async basicNameSearch(
     query: string,
     packType?: string,
-    filters?: any
+    filters?: SearchFilters
   ): Promise<CompendiumSearchResult[]> {
     const searchTerms = query
       .toLowerCase()
@@ -163,7 +248,7 @@ export class CompendiumDataAccess {
       try {
         for (const entry of Array.from(pack.index.values())) {
           try {
-            const typedEntry = entry as any;
+            const typedEntry = entry as IndexEntry | undefined;
             if (
               !typedEntry?.name ||
               typeof typedEntry.name !== 'string' ||
@@ -179,7 +264,7 @@ export class CompendiumDataAccess {
             // Creature-aware name filtering for filtered Actor searches.
             if (
               filters &&
-              this.shouldApplyFilters(entry, filters) &&
+              this.shouldApplyFilters(typedEntry, filters) &&
               pack.metadata.type === 'Actor' &&
               !this.passesActorNameFilters(typedEntry, filters)
             ) {
@@ -289,20 +374,18 @@ export class CompendiumDataAccess {
   }
 
   /** Build a search result from a pack index entry. */
-  private toIndexResult(typedEntry: any, pack: any): CompendiumSearchResult {
+  private toIndexResult(typedEntry: IndexEntry, pack: SearchPack): CompendiumSearchResult {
     return {
       id: typedEntry._id || '',
-      name: typedEntry.name,
+      name: typedEntry.name as string,
       type: typedEntry.type || 'unknown',
-      img: typedEntry.img || undefined,
+      ...(typedEntry.img ? { img: typedEntry.img } : {}),
       pack: pack.metadata.id,
       packLabel: pack.metadata.label,
       description: typedEntry.description || '',
       hasImage: !!typedEntry.img,
       summary: `${typedEntry.type} from ${pack.metadata.label}`,
-      ...((pack as IndexedPack).metadata.type === 'Item'
-        ? { system: summarySystem((typedEntry as { system?: unknown }).system) }
-        : {}),
+      ...(pack.metadata.type === 'Item' ? { system: summarySystem(typedEntry.system) } : {}),
     };
   }
 
@@ -311,8 +394,8 @@ export class CompendiumDataAccess {
    * synonyms) and test the entry against them. Used to narrow filtered Actor
    * searches that run through the basic index path.
    */
-  private passesActorNameFilters(typedEntry: any, filters: any): boolean {
-    const searchCriteria: any = {};
+  private passesActorNameFilters(typedEntry: IndexEntry, filters: SearchFilters): boolean {
+    const searchCriteria: { searchTerms?: string[] } = {};
 
     if (filters.challengeRating) {
       const crTerms: string[] = [];
@@ -331,7 +414,7 @@ export class CompendiumDataAccess {
       if (filters.creatureType.toLowerCase() === 'humanoid') {
         typeTerms.push('human', 'elf', 'dwarf', 'orc', 'goblin');
       }
-      searchCriteria.searchTerms = [...(searchCriteria.searchTerms || []), ...typeTerms];
+      searchCriteria.searchTerms = [...(searchCriteria.searchTerms ?? []), ...typeTerms];
     }
 
     return this.matchesSearchCriteria(typedEntry, searchCriteria);
@@ -341,7 +424,7 @@ export class CompendiumDataAccess {
   private compareSearchResults(
     a: CompendiumSearchResult,
     b: CompendiumSearchResult,
-    filters: any,
+    filters: SearchFilters | undefined,
     query: string
   ): number {
     const q = query.toLowerCase();
@@ -360,20 +443,24 @@ export class CompendiumDataAccess {
   }
 
   /** Only dnd5e 6 actor entries (npc, character) with a defined filter are worth filtering. */
-  private shouldApplyFilters(entry: any, filters: any): boolean {
+  private shouldApplyFilters(entry: IndexEntry, filters: SearchFilters): boolean {
     if (entry.type !== 'npc' && entry.type !== 'character') {
       return false;
     }
-    return Object.keys(filters).some(key => filters[key] !== undefined);
+    return Object.values(filters).some(value => value !== undefined);
   }
 
   /**
    * Heuristic relevance score for ranking filtered results: rewards creature-type
    * and CR matches, common creature names, and query-term hits in the name.
    */
-  private calculateRelevanceScore(entry: any, filters: any, query: string): number {
+  private calculateRelevanceScore(
+    entry: CompendiumSearchResult,
+    filters: SearchFilters,
+    query: string
+  ): number {
     let score = 0;
-    const system = entry.system || {};
+    const system = (entry.system ?? {}) as IndexedCreatureSystem;
 
     if (filters.creatureType) {
       const entryType = system.details?.type?.value || system.type?.value || '';
@@ -429,14 +516,9 @@ export class CompendiumDataAccess {
    * {@link CreatureIndexBuildingError} when the index is not ready within
    * {@link INDEX_WAIT_MS}.
    */
-  async listCreaturesByCriteria(criteria: {
-    challengeRating?: number | { min?: number; max?: number };
-    creatureType?: string;
-    size?: string;
-    hasSpells?: boolean;
-    hasLegendaryActions?: boolean;
-    limit?: number;
-  }): Promise<{ creatures: any[]; searchSummary: any }> {
+  async listCreaturesByCriteria(
+    criteria: CreatureCriteria
+  ): Promise<{ creatures: CreatureHit[]; searchSummary: CreatureSearchSummary }> {
     const limit = criteria.limit || 500;
 
     if (!game.settings.get(MODULE_ID, 'enableEnhancedCreatureIndex')) {
@@ -483,7 +565,7 @@ export class CompendiumDataAccess {
   }
 
   /** Map an enhanced (dnd5e) creature index entry to the result shape. */
-  private toEnhancedResult(creature: EnhancedCreatureIndex): any {
+  private toEnhancedResult(creature: EnhancedCreatureIndex): CreatureHit {
     const d = creature;
     return {
       id: d.id,
@@ -508,9 +590,9 @@ export class CompendiumDataAccess {
   /** Build the pack-distribution + metadata summary for an enhanced-index search. */
   private buildEnhancedSummary(
     enhancedCreatures: EnhancedCreatureIndex[],
-    results: any[],
-    criteria: any
-  ): any {
+    results: CreatureHit[],
+    criteria: CreatureCriteria
+  ): CreatureSearchSummary {
     const resultsByPack = new Map<string, number>();
     for (const creature of results) {
       resultsByPack.set(creature.packLabel, (resultsByPack.get(creature.packLabel) || 0) + 1);
@@ -536,7 +618,10 @@ export class CompendiumDataAccess {
   }
 
   /** Dispatch enhanced-criteria matching (dnd5e is the only supported system). */
-  private passesEnhancedCriteria(creature: EnhancedCreatureIndex, criteria: any): boolean {
+  private passesEnhancedCriteria(
+    creature: EnhancedCreatureIndex,
+    criteria: CreatureCriteria
+  ): boolean {
     return this.passesDnD5eCriteria(creature, criteria);
   }
 
@@ -593,9 +678,9 @@ export class CompendiumDataAccess {
    * + CR-tier name patterns) and runs a basic Actor search.
    */
   private async fallbackBasicCreatureSearch(
-    criteria: any,
+    criteria: CreatureCriteria,
     limit: number
-  ): Promise<{ creatures: any[]; searchSummary: any }> {
+  ): Promise<{ creatures: CreatureHit[]; searchSummary: CreatureSearchSummary }> {
     console.warn(`[${MODULE_ID}] Falling back to basic search due to enhanced index failure`);
 
     const searchTerms: string[] = [];
@@ -629,7 +714,7 @@ export class CompendiumDataAccess {
 
   /** Name/description include+exclude matching over an index entry. */
   private matchesSearchCriteria(
-    entry: any,
+    entry: IndexEntry,
     criteria: {
       searchTerms?: string[];
       excludeTerms?: string[];
@@ -662,14 +747,7 @@ export class CompendiumDataAccess {
    */
   private async tryEnhancedActorSearch(
     packType: string | undefined,
-    filters:
-      | {
-          challengeRating?: number | { min?: number; max?: number };
-          creatureType?: string;
-          size?: string;
-          hasLegendaryActions?: boolean;
-        }
-      | undefined
+    filters: SearchFilters | undefined
   ): Promise<CompendiumSearchResult[] | null> {
     if (!filters || packType !== 'Actor') return null;
     // `challengeRating` 0 is a real CR, so test it for presence, not truthiness.
@@ -680,8 +758,10 @@ export class CompendiumDataAccess {
     if (!game.settings.get(MODULE_ID, 'enableEnhancedCreatureIndex')) return null;
 
     try {
-      const criteria: any = { limit: 100 };
-      if (hasCr) criteria.challengeRating = filters.challengeRating;
+      const criteria: CreatureCriteria = { limit: 100 };
+      if (hasCr && filters.challengeRating !== undefined) {
+        criteria.challengeRating = filters.challengeRating;
+      }
       if (filters.creatureType) criteria.creatureType = filters.creatureType;
       if (filters.size) criteria.size = filters.size;
       if (filters.hasLegendaryActions) criteria.hasLegendaryActions = filters.hasLegendaryActions;
@@ -723,26 +803,25 @@ export class CompendiumDataAccess {
       throw new Error(`Compendium pack ${packId} not found`);
     }
 
-    const document = await pack.getDocument(documentId);
-    if (!document) {
+    // Compendium documents are untyped (`CompendiumCollection<any>`).
+    const doc = (await pack.getDocument(documentId)) as CompendiumDocLike | null | undefined;
+    if (!doc) {
       throw new Error(`Document ${documentId} not found in pack ${packId}`);
     }
 
-    // Compendium documents are untyped (`CompendiumCollection<any>`).
-    const doc = document;
     const fullEntry: CompendiumEntryFull = {
-      id: document.id || '',
-      name: document.name || '',
+      id: doc.id || '',
+      name: doc.name || '',
       type: doc.type || 'unknown',
       img: doc.img || undefined,
       pack: packId,
       packLabel: pack.metadata.label,
       system: shared.sanitizeData(doc.system || {}),
-      fullData: shared.sanitizeData(document.toObject()),
+      fullData: shared.sanitizeData(doc.toObject()),
     };
 
     if (doc.items) {
-      fullEntry.items = doc.items.map((item: any) => ({
+      fullEntry.items = doc.items.map(item => ({
         id: item.id,
         name: item.name,
         type: item.type,
@@ -752,7 +831,7 @@ export class CompendiumDataAccess {
     }
 
     if (doc.effects) {
-      fullEntry.effects = doc.effects.map((effect: any) => ({
+      fullEntry.effects = doc.effects.map(effect => ({
         id: effect.id,
         name: effect.name || effect.label || 'Unknown Effect',
         // v14 removes `effect.icon`; `effectImg` (systems/core.ts) reads `img`

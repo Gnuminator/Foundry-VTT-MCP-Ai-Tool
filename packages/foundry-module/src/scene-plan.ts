@@ -38,7 +38,9 @@ import {
   templateDocumentType,
   tokenCenter,
   tokensInTemplate,
+  type SceneCollection,
   type SceneDoc,
+  type SceneEmbeddedDoc,
   type TemplateGeometry,
 } from './scene-plan-geometry.js';
 import { currentLevelId, sceneHasLevels } from './systems/core.js';
@@ -55,8 +57,10 @@ export const SCENE_PLAN_QUERY = 'planSceneChange';
 const CURRENCIES = ['pp', 'gp', 'ep', 'sp', 'cp'] as const;
 
 /** The contents of a Foundry collection (or a plain array) as an array. */
-function contentsOf(collection: SceneDoc): SceneDoc[] {
-  return collection?.contents ?? collection ?? [];
+function contentsOf<T>(collection: SceneCollection<T>): T[] {
+  return (
+    (collection as { contents?: T[] } | null | undefined)?.contents ?? (collection as T[]) ?? []
+  );
 }
 
 /** The uuid of an embedded document of `scene` (Foundry builds it as `<parent>.<Type>.<id>`). */
@@ -121,7 +125,10 @@ function planTemplate(request: SceneTemplateRequest): SceneChangePlan {
   const direction = request.direction ?? (request.shape === 'rect' ? 45 : 0);
   const angle =
     request.shape === 'cone'
-      ? (request.angle ?? (CONFIG as SceneDoc).MeasuredTemplate?.defaults?.angle ?? 53.13)
+      ? (request.angle ??
+        (CONFIG as { MeasuredTemplate?: { defaults?: { angle?: number } } }).MeasuredTemplate
+          ?.defaults?.angle ??
+        53.13)
       : undefined;
   const width = request.shape === 'ray' ? (request.width ?? 5) : undefined;
   const fillColor = nonEmpty(request.fillColor) ?? userColor() ?? '#ff0000';
@@ -178,7 +185,7 @@ function planTemplate(request: SceneTemplateRequest): SceneChangePlan {
     summary: `Place a ${request.distance} ${units} ${request.shape} template on ${quoted(scene.name)}`,
     ops: [op],
     sceneId: scene.id,
-    tokensInside: inside.map((t: SceneDoc) => ({
+    tokensInside: inside.map(t => ({
       name: t.name,
       actorId: t.actorId || t.actor?.id || null,
     })),
@@ -196,23 +203,20 @@ function planClearTemplates(request: SceneClearTemplatesRequest): SceneChangePla
   const scene = requireCurrentScene();
   const collection = contentsOf(docType === 'MeasuredTemplate' ? scene.templates : scene.regions);
 
-  let found: SceneDoc[];
+  let found: SceneEmbeddedDoc[];
   if (request.all) {
     found =
       docType === 'MeasuredTemplate'
         ? collection
-        : collection.filter((r: SceneDoc) =>
+        : collection.filter(r =>
             isToolTemplateRegion(r as Parameters<typeof isToolTemplateRegion>[0])
           );
   } else if (request.templateId) {
-    const one = collection.find((t: SceneDoc) => t.id === request.templateId);
+    const one = collection.find(t => t.id === request.templateId);
     if (!one) throw new Error(`Template not found: ${request.templateId}`);
     // On Foundry 14 a Region is only a template when this tool placed it; a
     // hand-made GM region (a lair, a trap zone) is never cleared by id either.
-    if (
-      docType !== 'MeasuredTemplate' &&
-      !isToolTemplateRegion(one as Parameters<typeof isToolTemplateRegion>[0])
-    ) {
+    if (docType !== 'MeasuredTemplate' && !isToolTemplateRegion(one)) {
       throw new Error(`Region ${request.templateId} is not a template placed by the AI Tool.`);
     }
     found = [one];
@@ -221,7 +225,7 @@ function planClearTemplates(request: SceneClearTemplatesRequest): SceneChangePla
   }
   if (found.length === 0) throw new Error('No templates to clear.');
 
-  const ops: GuardedOp[] = found.map((t: SceneDoc) => ({
+  const ops: GuardedOp[] = found.map(t => ({
     kind: 'delete',
     uuid: embeddedUuid(scene, docType, t.id),
   }));
@@ -300,9 +304,15 @@ function planNote(request: SceneNoteRequest): SceneChangePlan {
   let entryId = request.entryId;
   if (!entryId && request.journalName) {
     const wanted = request.journalName.toLowerCase();
+    const journals = game.journal as
+      | {
+          getName?(name: string): { id?: string } | undefined;
+          find?(predicate: (entry: { name?: string }) => boolean): { id?: string } | undefined;
+        }
+      | undefined;
     const journal =
-      (game.journal as SceneDoc)?.getName?.(request.journalName) ||
-      (game.journal as SceneDoc)?.find?.((e: SceneDoc) => e.name?.toLowerCase() === wanted);
+      journals?.getName?.(request.journalName) ??
+      journals?.find?.(e => e.name?.toLowerCase() === wanted);
     entryId = journal?.id;
   }
 
@@ -313,7 +323,8 @@ function planNote(request: SceneNoteRequest): SceneChangePlan {
     y: Math.round(y),
     iconSize: Math.max(32, Math.round(request.iconSize ?? 40)),
     fontSize: 24,
-    textAnchor: (CONST as SceneDoc).TEXT_ANCHOR_POINTS?.BOTTOM ?? 1,
+    textAnchor:
+      (CONST as { TEXT_ANCHOR_POINTS?: { BOTTOM?: number } }).TEXT_ANCHOR_POINTS?.BOTTOM ?? 1,
     texture: { src: nonEmpty(request.icon) ?? 'icons/svg/book.svg' },
   };
   if (entryId) data.entryId = entryId;
@@ -342,14 +353,14 @@ function planNote(request: SceneNoteRequest): SceneChangePlan {
 function planRemoveNote(request: SceneRemoveNoteRequest): SceneChangePlan {
   const scene = requireCurrentScene();
   const notes = contentsOf(scene.notes);
-  let found: SceneDoc[];
+  let found: SceneEmbeddedDoc[];
   if (request.noteId) {
-    const one = notes.find((n: SceneDoc) => n.id === request.noteId);
+    const one = notes.find(n => n.id === request.noteId);
     if (!one) throw new Error(`No map note found with id "${request.noteId}".`);
     found = [one];
   } else if (request.text) {
     const needle = request.text.toLowerCase();
-    found = notes.filter((n: SceneDoc) => (n.text || '').toLowerCase() === needle);
+    found = notes.filter(n => (n.text || '').toLowerCase() === needle);
     if (found.length === 0) {
       throw new Error(`No map note found with text "${request.text}".`);
     }
@@ -362,7 +373,7 @@ function planRemoveNote(request: SceneRemoveNoteRequest): SceneChangePlan {
       : `${found.length} map notes`;
   return {
     summary: `Remove ${label} from ${quoted(scene.name)}`,
-    ops: found.map((n: SceneDoc) => ({
+    ops: found.map(n => ({
       kind: 'delete' as const,
       uuid: embeddedUuid(scene, 'Note', n.id),
     })),
@@ -439,7 +450,15 @@ async function planLoot(request: SceneLootRequest): Promise<SceneChangePlan> {
     }
     if (Object.keys(changes).length > 0) ops.push({ kind: 'update', uuid: actor.uuid, changes });
 
-    const fromUuidFn = (globalThis as SceneDoc).fromUuid;
+    const fromUuidFn = (
+      globalThis as unknown as {
+        fromUuid?: (
+          uuid: string
+        ) => Promise<
+          (Parameters<typeof itemData>[0] & { documentName?: string }) | null | undefined
+        >;
+      }
+    ).fromUuid;
     for (const uuid of Array.isArray(request.itemUuids) ? request.itemUuids : []) {
       try {
         const doc = fromUuidFn ? await fromUuidFn(uuid) : null;
@@ -467,7 +486,7 @@ async function planLoot(request: SceneLootRequest): Promise<SceneChangePlan> {
       documentName: 'ChatMessage',
       data: {
         content: `<b>Loot${actor ? ` for ${String(actor.name)}` : ''}:</b> ${line || '(nothing)'}`,
-        speaker: (ChatMessage as SceneDoc).getSpeaker({ alias: 'Loot' }),
+        speaker: ChatMessage.getSpeaker({ alias: 'Loot' }),
       },
     });
   }

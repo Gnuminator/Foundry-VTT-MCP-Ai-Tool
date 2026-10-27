@@ -9,9 +9,42 @@ import { supportsMeasuredTemplates, UnsupportedOnThisFoundryError } from './syst
 import { supportsRegionDocuments } from './systems/regions.js';
 import { viewedScene } from './viewed-scene.js';
 
-/** A Foundry document as these helpers read it (a scene, token or actor). */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export type SceneDoc = any;
+/** A token document as these helpers read it. */
+export interface SceneTokenDoc {
+  id: string;
+  name: string;
+  x: number;
+  y: number;
+  width?: number;
+  height?: number;
+  actorId?: string;
+  actor?: { id?: string };
+}
+
+/** An embedded template, region or note document of a scene. */
+export interface SceneEmbeddedDoc {
+  id: string;
+  text?: string;
+}
+
+/** A collection of embedded documents, or a plain array. */
+export type SceneCollection<T> = T[] | { contents?: T[] } | null | undefined;
+
+/** A scene as these helpers read it. */
+export interface SceneDoc {
+  id: string;
+  uuid: string;
+  name?: string;
+  grid?: { size?: number; distance?: number; units?: string };
+  environment?: { darknessLock?: unknown };
+  tokens: {
+    find(predicate: (token: SceneTokenDoc) => boolean): SceneTokenDoc | undefined;
+    filter(predicate: (token: SceneTokenDoc) => boolean): SceneTokenDoc[];
+  };
+  templates?: SceneCollection<SceneEmbeddedDoc>;
+  regions?: SceneCollection<SceneEmbeddedDoc>;
+  notes?: SceneCollection<SceneEmbeddedDoc>;
+}
 
 /** The shape parameters the template geometry reads. */
 export interface TemplateGeometry {
@@ -50,13 +83,13 @@ export function templateDocumentType(): 'MeasuredTemplate' | 'Region' {
 }
 
 /** Find a token on `scene` by (case-insensitive) name or by id. */
-export function findToken(scene: SceneDoc, nameOrId: string): SceneDoc {
+export function findToken(scene: SceneDoc, nameOrId: string): SceneTokenDoc | undefined {
   const lowered = nameOrId.toLowerCase();
-  return scene.tokens.find((t: SceneDoc) => t.name?.toLowerCase() === lowered || t.id === nameOrId);
+  return scene.tokens.find(t => t.name?.toLowerCase() === lowered || t.id === nameOrId);
 }
 
 /** The center of a token in pixels (its x/y is the top-left corner). */
-export function tokenCenter(scene: SceneDoc, token: SceneDoc): { x: number; y: number } {
+export function tokenCenter(scene: SceneDoc, token: SceneTokenDoc): { x: number; y: number } {
   const size = scene.grid?.size || 100;
   return {
     x: token.x + ((token.width ?? 1) * size) / 2,
@@ -69,14 +102,14 @@ export function tokenCenter(scene: SceneDoc, token: SceneDoc): { x: number; y: n
  * scene grid (pixels-per-unit = gridSize / gridDistance), so it works for any
  * scene without a live canvas. Supports circle / ray / cone / rect.
  */
-export function tokensInTemplate(scene: SceneDoc, tpl: TemplateGeometry): SceneDoc[] {
-  const grid = scene.grid || {};
+export function tokensInTemplate(scene: SceneDoc, tpl: TemplateGeometry): SceneTokenDoc[] {
+  const grid = scene.grid ?? {};
   const size = grid.size || 100;
   const px = size / (grid.distance || 5); // pixels per distance unit
   const cx = tpl.x;
   const cy = tpl.y;
   const toRad = (d: number): number => (d * Math.PI) / 180;
-  return scene.tokens.filter((td: SceneDoc) => {
+  return scene.tokens.filter(td => {
     const tx = td.x + ((td.width ?? 1) * size) / 2;
     const ty = td.y + ((td.height ?? 1) * size) / 2;
     const dx = tx - cx;

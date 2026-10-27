@@ -18,9 +18,9 @@ export interface CharacterInfo {
   system: Record<string, unknown>;
   items: CharacterItem[];
   effects: CharacterEffect[];
-  actions?: any[]; // system actions (strikes, spells, etc.)
-  itemVariants?: any[]; // Item rule element variants (ChoiceSet, etc.)
-  itemToggles?: any[]; // Item rule element toggles (RollOption, ToggleProperty, equipped)
+  actions?: unknown[]; // system actions (strikes, spells, etc.)
+  itemVariants?: unknown[]; // Item rule element variants (ChoiceSet, etc.)
+  itemToggles?: unknown[]; // Item rule element toggles (RollOption, ToggleProperty, equipped)
   spellcasting?: SpellcastingEntry[]; // spellcasting entries
   /**
    * 2014 vs 2024 rules: the tag this module wrote (`flags.foundry-mcp-bridge.rules`)
@@ -218,7 +218,7 @@ export interface CompendiumEntryFull {
   id: string;
   name: string;
   type: string;
-  img?: string;
+  img?: string | undefined;
   pack: string;
   packLabel: string;
   system: Record<string, unknown>;
@@ -231,14 +231,14 @@ export interface CompendiumItem {
   id: string;
   name: string;
   type: string;
-  img?: string;
+  img?: string | undefined;
   system: Record<string, unknown>;
 }
 
 export interface CompendiumEffect {
   id: string;
   name: string;
-  icon?: string;
+  icon?: string | undefined;
   disabled: boolean;
   duration?: Record<string, unknown>;
 }

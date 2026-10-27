@@ -20,6 +20,7 @@ import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
+import { acquire } from './heavy-lock.mjs';
 
 const require = createRequire(import.meta.url);
 const { ESLint } = require('eslint');
@@ -30,7 +31,15 @@ const update = process.argv.includes('--update');
 const allowIncrease = process.argv.includes('--allow-increase');
 
 const eslint = new ESLint({ cwd: repoRoot });
-const results = await eslint.lintFiles(['.']);
+// ESLint with the type-aware rules takes 1 to 3 GB: one heavy run at a time (scripts/heavy-lock.mjs).
+// No --cache: the type-aware rules read other files' types, so a per-file cache can go stale.
+const lock = acquire('lint-ratchet');
+let results;
+try {
+  results = await eslint.lintFiles(['.']);
+} finally {
+  lock.release();
+}
 
 const errorResults = ESLint.getErrorResults(results);
 if (errorResults.length > 0) {

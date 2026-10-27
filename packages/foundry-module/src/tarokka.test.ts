@@ -338,4 +338,58 @@ describe('searchLinkCandidates', () => {
     expect(() => searchLinkCandidates({ query: 'v' })).toThrow(/2 to 100/);
     expect(() => searchLinkCandidates(undefined)).toThrow(/2 to 100/);
   });
+
+  it('finds a name that is only a heading inside a page, with its anchor', () => {
+    world.journal.add(
+      makeJournal({
+        id: 'j2',
+        name: 'Chapter 1',
+        uuid: 'JournalEntry.j2',
+        pages: [
+          makeJournalPage({
+            id: 'p2',
+            name: 'Cast',
+            uuid: 'JournalEntry.j2.JournalEntryPage.p2',
+            text: {
+              content:
+                '<h2>Mira <em>Vale</em></h2><p>Mira is nice.</p><h3>Mira Vale</h3><h3>Other &amp; Co</h3>',
+            },
+          }),
+          makeJournalPage({
+            id: 'p3',
+            name: 'Mira Vale',
+            uuid: 'JournalEntry.j2.JournalEntryPage.p3',
+            text: { content: '<h2>Mira Vale</h2>' },
+          }),
+        ],
+      })
+    );
+    const { candidates } = searchLinkCandidates({ query: 'mira vale' });
+    expect(candidates.map(c => [c.uuid, c.heading, c.anchor])).toEqual([
+      ['JournalEntry.j2.JournalEntryPage.p3', undefined, undefined],
+      ['JournalEntry.j2.JournalEntryPage.p2', 'Mira Vale', 'mira-vale'],
+      ['JournalEntry.j2.JournalEntryPage.p2', 'Mira Vale', 'mira-vale$1'],
+    ]);
+    expect(searchLinkCandidates({ query: 'other & co' }).candidates[0].anchor).toBe('other-co');
+  });
+
+  it('ignores non-heading text and respects the limit', () => {
+    world.journal.add(
+      makeJournal({
+        id: 'j4',
+        name: 'Notes',
+        uuid: 'JournalEntry.j4',
+        pages: [
+          makeJournalPage({
+            id: 'p4',
+            name: 'Body',
+            uuid: 'JournalEntry.j4.JournalEntryPage.p4',
+            text: { content: '<p>zorblax in body</p><h2>Zorblax</h2><h2>Zorblax II</h2>' },
+          }),
+        ],
+      })
+    );
+    expect(searchLinkCandidates({ query: 'zorblax' }).candidates).toHaveLength(2);
+    expect(searchLinkCandidates({ query: 'zorblax', limit: 1 }).candidates).toHaveLength(1);
+  });
 });

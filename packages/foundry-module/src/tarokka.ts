@@ -306,9 +306,42 @@ export interface LinkCandidate {
   documentName: 'JournalEntryPage' | 'JournalEntry' | 'Scene' | 'Actor';
   name: string;
   parentName?: string;
+  /** Set when the match is a heading inside the page: the heading text and its anchor slug. */
+  heading?: string;
+  anchor?: string;
 }
 
-/** World journal pages, journals, scenes and actors whose name contains `query`. */
+/** Headings (h1 to h6) in page HTML with Foundry's anchor slugs (a repeat gets `$1`, `$2`, as in `page.toc`). */
+export function pageHeadings(html: string): Array<{ text: string; slug: string }> {
+  const out: Array<{ text: string; slug: string }> = [];
+  const seen = new Map<string, number>();
+  for (const m of html.matchAll(/<h([1-6])\b[^>]*>([\s\S]*?)<\/h\1>/gi)) {
+    const text = m[2]
+      .replace(/<[^>]*>/g, '')
+      .replace(/&nbsp;/g, ' ')
+      .replace(/&amp;/g, '&')
+      .replace(/&#0?39;|&apos;/g, "'")
+      .replace(/&quot;/g, '"')
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (!text) continue;
+    const base =
+      text
+        .toLowerCase()
+        .replace(/['"]/g, '')
+        .replace(/[^\p{L}\p{N}]+/gu, '-')
+        .replace(/^-+|-+$/g, '') || 'heading';
+    const n = seen.get(base) ?? 0;
+    seen.set(base, n + 1);
+    out.push({ text, slug: n ? `${base}$${n}` : base });
+  }
+  return out;
+}
+
+/**
+ * World journal pages, journals, scenes and actors whose name contains `query`, plus journal
+ * pages with a heading that contains it (`heading` and `anchor` set; link as `uuid#anchor`).
+ */
 export function searchLinkCandidates(data: { query?: unknown; limit?: unknown } | undefined): {
   query: string;
   candidates: LinkCandidate[];
@@ -343,6 +376,24 @@ export function searchLinkCandidates(data: { query?: unknown; limit?: unknown } 
         name: page.name ?? '',
         parentName: entry.name,
       });
+      if (full) break;
+    }
+    // NPCs often live only as a heading inside a page: listed after the title matches.
+    for (const page of full ? [] : (entry.pages?.contents ?? [])) {
+      const html = page.type === 'text' ? page.text?.content : undefined;
+      if (typeof html !== 'string' || matches(page.name)) continue;
+      for (const h of pageHeadings(html)) {
+        if (!matches(h.text)) continue;
+        full = push({
+          uuid: page.uuid,
+          documentName: 'JournalEntryPage',
+          name: page.name ?? '',
+          parentName: entry.name,
+          heading: h.text,
+          anchor: h.slug,
+        });
+        if (full) break;
+      }
       if (full) break;
     }
     if (full) break;

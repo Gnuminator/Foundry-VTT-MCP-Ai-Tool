@@ -82,7 +82,7 @@ export class TarokkaTools {
       {
         name: 'suggest-tarokka-links',
         description:
-          "Search the world's journals, journal pages, scenes and actors by name to find what a Tarokka card should link to. The GM chooses; nothing is changed.",
+          'Search journals, pages, scenes, actors and page headings (heading, anchor set) by name for what a Tarokka card should link to. The GM chooses; nothing is changed.',
         inputSchema: {
           type: 'object',
           properties: {

@@ -525,6 +525,7 @@ test('main --json prints the raw numbers; the text form ends with the run time',
     assert.equal(j.total.sessions, 2);
     assert.equal(j.total.weeklyPoints, 40);
     assert.equal(j.total.prs, null);
+    assert.equal(j.advisorCalls, 0);
     assert.equal(j.targets.length, 4);
     assert.ok(j.notes.some(n => /merged PRs skipped/.test(n)));
     assert.equal(typeof j.runMs, 'number');

@@ -235,17 +235,20 @@ describe('createModuleRequestHandler', () => {
       expect(plan).toHaveBeenCalledWith({ action, sceneId: 's1', showNow: true });
     });
 
-    it.each(['reveal', 'hide', 'queue', 'anything'])('refuses the action %s', async action => {
-      const { handler, plan } = makeHandler();
-      await expect(
-        handler(
-          'plan-page-reveal',
-          { action, pageUuid: 'JournalEntry.A.JournalEntryPage.B' },
-          danni
-        )
-      ).rejects.toThrow(/only run plan-page-reveal with action "reveal-next" or "unqueue"/);
-      expect(plan).not.toHaveBeenCalled();
-    });
+    it.each(['reveal', 'hide', 'queue', 'move', 'anything'])(
+      'refuses the action %s',
+      async action => {
+        const { handler, plan } = makeHandler();
+        await expect(
+          handler(
+            'plan-page-reveal',
+            { action, pageUuid: 'JournalEntry.A.JournalEntryPage.B' },
+            danni
+          )
+        ).rejects.toThrow(/only run plan-page-reveal with action "reveal-next" or "unqueue"/);
+        expect(plan).not.toHaveBeenCalled();
+      }
+    );
 
     it('refuses a missing or non-text action', async () => {
       const { handler, plan } = makeHandler();

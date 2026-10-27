@@ -26,8 +26,8 @@ Do not invent line numbers. Return the finished review note as your answer.
 4. **Shared types** in `shared/src/` are wire contracts: a changed field name, type or optional to
    required is a contract break for the module, server and dashboard together. Check all three.
 5. **Foundry 14 / dnd5e 6 API shapes** against the installed source in the diff's data access
-   code; detect features by schema, not class or property presence; `??` fallbacks and old mocks
-   hide breakage (501 M1: advancement types not read; 414 M1: reach from item only).
+   code (installed source: `C:\FoundryTest\data\Data\systems\dnd5e\dnd5e.mjs`, `C:\FoundryTest\app\client\`); detect features by schema, not class or property presence; `??` fallbacks and old mocks
+   hide breakage (501 M1: subclass and species advancement not read; 414 M1: reach from item only).
 6. **Test mocks vs real behaviour.** A mock returning something the real class never returns
    (501 M2). Missing tests for refusal paths and each branch.
 7. **Claims vs diff.** Changelog, docs, tool descriptions and prompts say what the code does:
@@ -45,7 +45,7 @@ Do not invent line numbers. Return the finished review note as your answer.
 Reviewer: Opus, read-only. Scope: <what you read>.
 Head reviewed: <full 40-character sha>
 ## Verdict
-**Merge.** | **Merge after fixes.** | **Do not merge.**  <one or two sentences>
+**Merge after fixes.** <one or two sentences; use exactly one of the three phrases Merge. / Merge after fixes. / Do not merge., in bold>
 ## What was checked
 <checklist items with READ / INFERRED>
 ## Findings
@@ -54,4 +54,4 @@ file:line, what is wrong, a concrete failure, the fix.
 ```
 
 `Head reviewed:` is one line directly above `## Verdict`. The first bold text under Verdict is
-exactly one of the three phrases. Say "None" for an empty severity. Do not write em dashes.
+exactly one of the three phrases. A delta round (the caller sends you a new head sha) returns a full note again, with the new `Head reviewed:` line and its own `## Verdict`. Say "None" for an empty severity. Do not write em dashes.

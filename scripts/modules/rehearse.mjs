@@ -212,7 +212,7 @@ async function cmdRun(o) {
   // 3. CI.
   steps.push(o.green ? runStep('npm run green', 'npm', ['run', 'green'], { CI: 'true' }) : { name: 'npm run green', status: 'skip', detail: 'pass --with-green' });
 
-  const foundry = readFileSync(path.join(srv.Root, 'app', 'package.json'), 'utf8').match(/"version":\s*"([^"]+)"/)?.[1] ?? '?';
+  const foundry = readFileSync(path.join(srv.AppDir, 'package.json'), 'utf8').match(/"version":\s*"([^"]+)"/)?.[1] ?? '?';
   const system = installed.find(p => p.id === 'dnd5e')?.version ?? '?';
   const stamp = stampNow();
   const dir = path.join(root, 'rehearsals', `${stamp}-${srv.name}`);
@@ -239,7 +239,7 @@ async function cmdArchive(o) {
   const installed = scanInstalled(srv.dataDir);
   await archiveFoundry(root, srv, rehearsal);
   const inList = new Map(strahd().modules.map(m => [m.id, m]));
-  const ids = o.ids ?? installed.filter(p => p.kind === 'module').map(p => p.id);
+  const ids = o.ids ?? installed.map(p => p.id); // modules and the dnd5e system
   for (const id of ids) {
     const p = installed.find(x => x.id === id);
     if (!p) continue;

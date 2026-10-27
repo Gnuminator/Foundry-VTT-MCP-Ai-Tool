@@ -6,6 +6,7 @@ import { SystemRegistry } from '../systems/system-registry.js';
 import { detectGameSystem, getCachedSystemId, type GameSystem } from '../utils/system-detection.js';
 import type { SystemAdapter } from '../systems/types.js';
 import type { RulesCheckTools } from './rules-check.js';
+import { arr, at, rec, type Rec } from './bridge-data.js';
 
 export interface CharacterToolsOptions {
   foundryClient: FoundryClient;
@@ -62,7 +63,7 @@ export class CharacterTools {
    * Tool: get-character
    * Retrieve detailed information about a specific character
    */
-  getToolDefinitions() {
+  getToolDefinitions(): { name: string; description: string; inputSchema: object }[] {
     return [
       {
         name: 'get-character',
@@ -284,7 +285,7 @@ export class CharacterTools {
     ];
   }
 
-  async handleGetCharacter(args: any): Promise<any> {
+  async handleGetCharacter(args: unknown): Promise<unknown> {
     const schema = z.object({
       identifier: z.string().min(1, 'Character identifier cannot be empty'),
     });
@@ -294,9 +295,9 @@ export class CharacterTools {
     this.logger.info('Getting character information', { identifier });
 
     try {
-      const characterData = await this.foundryClient.query('foundry-mcp-bridge.getCharacterInfo', {
+      const characterData = (await this.foundryClient.query('foundry-mcp-bridge.getCharacterInfo', {
         characterName: identifier,
-      });
+      })) as Rec;
 
       this.logger.debug('Successfully retrieved character data', {
         characterId: characterData.id,
@@ -314,7 +315,7 @@ export class CharacterTools {
     }
   }
 
-  async handleGetCharacterEntity(args: any): Promise<any> {
+  async handleGetCharacterEntity(args: unknown): Promise<unknown> {
     const schema = z.object({
       characterIdentifier: z.string().min(1, 'Character identifier cannot be empty'),
       entityIdentifier: z.string().min(1, 'Entity identifier cannot be empty'),
@@ -343,7 +344,7 @@ export class CharacterTools {
     }
   }
 
-  async handleListCharacters(args: any): Promise<any> {
+  async handleListCharacters(args: unknown): Promise<unknown> {
     const schema = z.object({
       type: z.string().optional(),
     });
@@ -353,13 +354,15 @@ export class CharacterTools {
     this.logger.info('Listing characters', { type });
 
     try {
-      const actors = await this.foundryClient.query('foundry-mcp-bridge.listActors', { type });
+      const actors = (await this.foundryClient.query('foundry-mcp-bridge.listActors', {
+        type,
+      })) as Rec[];
 
       this.logger.debug('Successfully retrieved character list', { count: actors.length });
 
       // Format the response for Claude
       return {
-        characters: actors.map((actor: any) => ({
+        characters: actors.map(actor => ({
           id: actor.id,
           name: actor.name,
           type: actor.type,
@@ -377,7 +380,7 @@ export class CharacterTools {
     }
   }
 
-  async handleUseItem(args: any): Promise<any> {
+  async handleUseItem(args: unknown): Promise<unknown> {
     const schema = z.object({
       actorIdentifier: z.string().min(1, 'Actor identifier cannot be empty'),
       itemIdentifier: z.string().min(1, 'Item identifier cannot be empty'),
@@ -412,7 +415,7 @@ export class CharacterTools {
         },
         true
       );
-      const result = await this.foundryClient.query('foundry-mcp-bridge.useItem', {
+      const result = (await this.foundryClient.query('foundry-mcp-bridge.useItem', {
         actorIdentifier,
         itemIdentifier,
         targets,
@@ -421,7 +424,7 @@ export class CharacterTools {
           spellLevel,
           skipDialog: skipDialog ?? true, // Default to skipping dialogs for MCP automation
         },
-      });
+      })) as Rec;
 
       this.logger.debug('Successfully used item', {
         actorName: result.actorName,
@@ -441,12 +444,12 @@ export class CharacterTools {
     }
   }
 
-  async handleAddActorItems(args: any): Promise<any> {
+  async handleAddActorItems(args: unknown): Promise<unknown> {
     const itemSchema = z.object({
       name: z.string().min(1, 'Item name cannot be empty'),
       type: z.string().min(1, 'Item type cannot be empty'),
       img: z.string().optional(),
-      system: z.record(z.any()).optional(),
+      system: z.record(z.unknown()).optional(),
     });
 
     const schema = z.object({
@@ -463,14 +466,14 @@ export class CharacterTools {
     });
 
     try {
-      const result = await this.foundryClient.query('foundry-mcp-bridge.addActorItems', {
+      const result = (await this.foundryClient.query('foundry-mcp-bridge.addActorItems', {
         actorIdentifier,
         items,
-      });
+      })) as Rec;
 
       this.logger.debug('Successfully added actor items', {
         actorName: result.actorName,
-        created: result.created?.length ?? 0,
+        created: arr(result.created).length,
       });
 
       return result;
@@ -483,12 +486,12 @@ export class CharacterTools {
     }
   }
 
-  async handleUpdateWorldItems(args: any): Promise<any> {
+  async handleUpdateWorldItems(args: unknown): Promise<unknown> {
     const updateEntrySchema = z.object({
       id: z.string().min(1, 'Item id cannot be empty'),
       name: z.string().optional(),
       img: z.string().optional(),
-      system: z.record(z.any()).optional(),
+      system: z.record(z.unknown()).optional(),
       folder: z.string().optional(),
     });
 
@@ -504,11 +507,13 @@ export class CharacterTools {
     });
 
     try {
-      const result = await this.foundryClient.query('foundry-mcp-bridge.updateWorldItems', {
+      const result = (await this.foundryClient.query('foundry-mcp-bridge.updateWorldItems', {
         updates,
-      });
+      })) as Rec;
 
-      this.logger.debug('Successfully updated world items', { count: result.updated?.length ?? 0 });
+      this.logger.debug('Successfully updated world items', {
+        count: arr(result.updated).length,
+      });
 
       return result;
     } catch (error) {
@@ -520,7 +525,7 @@ export class CharacterTools {
     }
   }
 
-  async handleListWorldItems(args: any): Promise<any> {
+  async handleListWorldItems(args: unknown): Promise<unknown> {
     const schema = z.object({
       type: z.string().optional(),
       folder: z.string().optional(),
@@ -536,11 +541,11 @@ export class CharacterTools {
     });
 
     try {
-      const items = await this.foundryClient.query('foundry-mcp-bridge.listWorldItems', {
+      const items = (await this.foundryClient.query('foundry-mcp-bridge.listWorldItems', {
         ...(type !== undefined ? { type } : {}),
         ...(folder !== undefined ? { folder } : {}),
         ...(nameFilter !== undefined ? { nameFilter } : {}),
-      });
+      })) as unknown[] | null | undefined;
 
       this.logger.debug('Successfully listed world items', { count: items?.length ?? 0 });
 
@@ -557,12 +562,12 @@ export class CharacterTools {
     }
   }
 
-  async handleCreateWorldItems(args: any): Promise<any> {
+  async handleCreateWorldItems(args: unknown): Promise<unknown> {
     const itemSchema = z.object({
       name: z.string().min(1, 'Item name cannot be empty'),
       type: z.string().min(1, 'Item type cannot be empty'),
       img: z.string().optional(),
-      system: z.record(z.any()).optional(),
+      system: z.record(z.unknown()).optional(),
     });
 
     const schema = z.object({
@@ -579,14 +584,14 @@ export class CharacterTools {
     });
 
     try {
-      const result = await this.foundryClient.query('foundry-mcp-bridge.createWorldItems', {
+      const result = (await this.foundryClient.query('foundry-mcp-bridge.createWorldItems', {
         items,
         folder,
-      });
+      })) as Rec;
 
       this.logger.debug('Successfully created world items', {
         folderId: result.folderId,
-        created: result.created?.length ?? 0,
+        created: arr(result.created).length,
       });
 
       return result;
@@ -599,7 +604,7 @@ export class CharacterTools {
     }
   }
 
-  async handleManageWorldItems(args: any): Promise<any> {
+  async handleManageWorldItems(args: unknown): Promise<unknown> {
     const { action } = z
       .object({ action: z.enum(['create', 'list', 'update', 'add-to-actor']) })
       .parse(args);
@@ -616,7 +621,7 @@ export class CharacterTools {
     }
   }
 
-  async handleSearchCharacterItems(args: any): Promise<any> {
+  async handleSearchCharacterItems(args: unknown): Promise<unknown> {
     const schema = z.object({
       characterIdentifier: z.string().min(1, 'Character identifier cannot be empty'),
       query: z.string().optional(),
@@ -636,17 +641,17 @@ export class CharacterTools {
     });
 
     try {
-      const result = await this.foundryClient.query('foundry-mcp-bridge.searchCharacterItems', {
+      const result = (await this.foundryClient.query('foundry-mcp-bridge.searchCharacterItems', {
         characterIdentifier,
         query,
         type,
         category,
         limit: limit ?? 20,
-      });
+      })) as Rec;
 
       this.logger.debug('Successfully searched character items', {
         characterName: result.characterName,
-        matchCount: result.matches?.length || 0,
+        matchCount: arr(result.matches).length,
       });
 
       return result;
@@ -659,26 +664,28 @@ export class CharacterTools {
     }
   }
 
-  private async formatCharacterResponse(characterData: any): Promise<any> {
-    const response: any = {
+  private async formatCharacterResponse(characterData: Rec): Promise<Rec> {
+    const response: Rec = {
       id: characterData.id,
       name: characterData.name,
       type: characterData.type,
       basicInfo: await this.extractBasicInfo(characterData),
       stats: await this.extractStats(characterData),
-      items: this.formatItems(characterData.items || []),
-      effects: this.formatEffects(characterData.effects || []),
+      items: this.formatItems(arr(characterData.items)),
+      effects: this.formatEffects(arr(characterData.effects)),
       hasImage: !!characterData.img,
     };
 
     // Add actions with minimal data (name, traits, action cost only - no variants)
-    if (characterData.actions && characterData.actions.length > 0) {
-      response.actions = this.formatActions(characterData.actions);
+    const actions = arr(characterData.actions);
+    if (actions.length > 0) {
+      response.actions = this.formatActions(actions);
     }
 
     // Add spellcasting data with spell lists
-    if (characterData.spellcasting && characterData.spellcasting.length > 0) {
-      response.spellcasting = this.formatSpellcasting(characterData.spellcasting);
+    const spellcasting = arr(characterData.spellcasting);
+    if (spellcasting.length > 0) {
+      response.spellcasting = this.formatSpellcasting(spellcasting);
     }
 
     // Exclude itemVariants and itemToggles - these are verbose and can be fetched via get-character-entity if needed
@@ -686,9 +693,10 @@ export class CharacterTools {
     return response;
   }
 
-  private formatSpellcasting(spellcastingEntries: any[]): any[] {
-    return spellcastingEntries.map(entry => {
-      const formatted: any = {
+  private formatSpellcasting(spellcastingEntries: unknown[]): Rec[] {
+    return spellcastingEntries.map(rawEntry => {
+      const entry = rec(rawEntry);
+      const formatted: Rec = {
         name: entry.name,
         type: entry.type,
       };
@@ -712,14 +720,16 @@ export class CharacterTools {
       }
 
       // Include spell slots if available
-      if (entry.slots && Object.keys(entry.slots).length > 0) {
+      if (entry.slots && Object.keys(entry.slots as object).length > 0) {
         formatted.slots = entry.slots;
       }
 
       // Format spells - minimal data for browsing, use get-character-entity for full details
-      if (entry.spells && entry.spells.length > 0) {
-        formatted.spells = entry.spells.map((spell: any) => {
-          const spellData: any = {
+      const spells = arr(entry.spells);
+      if (spells.length > 0) {
+        formatted.spells = spells.map(rawSpell => {
+          const spell = rec(rawSpell);
+          const spellData: Rec = {
             id: spell.id,
             name: spell.name,
             level: spell.level,
@@ -736,7 +746,7 @@ export class CharacterTools {
           }
 
           // Include traits for PF2e spells (for filtering by damage type, etc.)
-          if (spell.traits && spell.traits.length > 0) {
+          if (arr(spell.traits).length > 0) {
             spellData.traits = spell.traits;
           }
 
@@ -759,23 +769,24 @@ export class CharacterTools {
           return spellData;
         });
 
-        formatted.spellCount = entry.spells.length;
+        formatted.spellCount = spells.length;
       }
 
       return formatted;
     });
   }
 
-  private formatActions(actions: any[]): any[] {
+  private formatActions(actions: unknown[]): Rec[] {
     // Return minimal action data - just enough to identify and filter
-    return actions.map(action => {
-      const formatted: any = {
+    return actions.map(rawAction => {
+      const action = rec(rawAction);
+      const formatted: Rec = {
         name: action.name,
         type: action.type,
       };
 
       // Include traits if present (for filtering, e.g., "fire" attacks, "concentrate" actions)
-      if (action.traits && action.traits.length > 0) {
+      if (arr(action.traits).length > 0) {
         formatted.traits = action.traits;
       }
 
@@ -793,9 +804,9 @@ export class CharacterTools {
     });
   }
 
-  private async extractBasicInfo(characterData: any): Promise<any> {
+  private async extractBasicInfo(characterData: Rec): Promise<Rec> {
     // Extract common fields that exist across different game systems
-    const basicInfo: any = {};
+    const basicInfo: Rec = {};
 
     // Let the active SystemAdapter (if it exposes extractBasicInfo) seed
     // system-specific fields first. Anything it returns wins; the legacy
@@ -803,7 +814,7 @@ export class CharacterTools {
     try {
       const adapter = await this.getAdapter();
       if (adapter && typeof adapter.extractBasicInfo === 'function') {
-        const fromAdapter = adapter.extractBasicInfo(characterData);
+        const fromAdapter: unknown = adapter.extractBasicInfo(characterData);
         if (fromAdapter && typeof fromAdapter === 'object') {
           Object.assign(basicInfo, fromAdapter);
         }
@@ -812,56 +823,59 @@ export class CharacterTools {
       this.logger.warn('System adapter extractBasicInfo failed; falling back to legacy', { error });
     }
 
-    const system = characterData.system || {};
+    const system = rec(characterData.system);
 
     // D&D 5e / PF2e common fields (only fill if adapter didn't already)
+    const attributes = rec(system.attributes);
     if (system.attributes) {
-      if (system.attributes.hp && basicInfo.hitPoints === undefined) {
+      if (attributes.hp && basicInfo.hitPoints === undefined) {
         basicInfo.hitPoints = {
-          current: system.attributes.hp.value,
-          max: system.attributes.hp.max,
-          temp: system.attributes.hp.temp || 0,
+          current: at(attributes, 'hp', 'value'),
+          max: at(attributes, 'hp', 'max'),
+          temp: at(attributes, 'hp', 'temp') || 0,
         };
       }
-      if (system.attributes.ac && basicInfo.armorClass === undefined) {
-        basicInfo.armorClass = system.attributes.ac.value;
+      if (attributes.ac && basicInfo.armorClass === undefined) {
+        basicInfo.armorClass = at(attributes, 'ac', 'value');
       }
     }
 
     // Level information (only if adapter didn't set it)
     if (basicInfo.level === undefined) {
-      if (system.details?.level?.value) {
-        basicInfo.level = system.details.level.value;
+      if (at(system, 'details', 'level', 'value')) {
+        basicInfo.level = at(system, 'details', 'level', 'value');
       } else if (typeof system.level === 'number') {
         basicInfo.level = system.level;
       }
     }
 
     // Class information
-    if (system.details?.class) {
-      basicInfo.class = system.details.class;
+    if (at(system, 'details', 'class')) {
+      basicInfo.class = at(system, 'details', 'class');
     }
 
     // Race/ancestry information
     // dnd5e 4.x+ stores race as an embedded item document; collapse to just the
     // identifying name to avoid dumping the full item (HTML description, advancement,
     // circular refs). Older data may store a plain string, which we pass through.
-    if (system.details?.race) {
-      const race = system.details.race;
+    const race = at(system, 'details', 'race');
+    const ancestry = at(system, 'details', 'ancestry');
+    if (race) {
       basicInfo.race =
-        typeof race === 'string' ? race : race.name || race.identifier || race._id || 'Unknown';
-    } else if (system.details?.ancestry) {
-      const ancestry = system.details.ancestry;
+        typeof race === 'string'
+          ? race
+          : at(race, 'name') || at(race, 'identifier') || at(race, '_id') || 'Unknown';
+    } else if (ancestry) {
       basicInfo.ancestry =
         typeof ancestry === 'string'
           ? ancestry
-          : ancestry.name || ancestry.identifier || ancestry._id || 'Unknown';
+          : at(ancestry, 'name') || at(ancestry, 'identifier') || at(ancestry, '_id') || 'Unknown';
     }
 
     return basicInfo;
   }
 
-  private async extractStats(characterData: any): Promise<any> {
+  private async extractStats(characterData: Rec): Promise<unknown> {
     // Try using system adapter if available. Lookup uses the raw Foundry
     // system id first so adapters whose id isn't part of the narrow
     // GameSystem enum (e.g. 'dsa5', 'cosmere-rpg') resolve correctly.
@@ -880,17 +894,18 @@ export class CharacterTools {
     }
 
     // Legacy extraction (backwards compatibility)
-    const system = characterData.system || {};
-    const stats: any = {};
+    const system = rec(characterData.system);
+    const stats: Rec = {};
 
     // Ability scores (D&D 5e style)
     if (system.abilities) {
-      stats.abilities = {};
-      for (const [key, ability] of Object.entries(system.abilities)) {
+      const abilities: Rec = {};
+      stats.abilities = abilities;
+      for (const [key, ability] of Object.entries(rec(system.abilities))) {
         if (typeof ability === 'object' && ability !== null) {
-          stats.abilities[key] = {
-            score: (ability as any).value || 10,
-            modifier: (ability as any).mod || 0,
+          abilities[key] = {
+            score: at(ability, 'value') || 10,
+            modifier: at(ability, 'mod') || 0,
           };
         }
       }
@@ -898,13 +913,14 @@ export class CharacterTools {
 
     // Skills
     if (system.skills) {
-      stats.skills = {};
-      for (const [key, skill] of Object.entries(system.skills)) {
+      const skills: Rec = {};
+      stats.skills = skills;
+      for (const [key, skill] of Object.entries(rec(system.skills))) {
         if (typeof skill === 'object' && skill !== null) {
-          stats.skills[key] = {
-            value: (skill as any).value || 0,
-            proficient: (skill as any).proficient || false,
-            ability: (skill as any).ability || '',
+          skills[key] = {
+            value: at(skill, 'value') || 0,
+            proficient: at(skill, 'proficient') || false,
+            ability: at(skill, 'ability') || '',
           };
         }
       }
@@ -912,12 +928,13 @@ export class CharacterTools {
 
     // Saves
     if (system.saves) {
-      stats.saves = {};
-      for (const [key, save] of Object.entries(system.saves)) {
+      const saves: Rec = {};
+      stats.saves = saves;
+      for (const [key, save] of Object.entries(rec(system.saves))) {
         if (typeof save === 'object' && save !== null) {
-          stats.saves[key] = {
-            value: (save as any).value || 0,
-            proficient: (save as any).proficient || false,
+          saves[key] = {
+            value: at(save, 'value') || 0,
+            proficient: at(save, 'proficient') || false,
           };
         }
       }
@@ -926,78 +943,85 @@ export class CharacterTools {
     return stats;
   }
 
-  private formatItems(items: any[]): any[] {
+  private formatItems(items: unknown[]): Rec[] {
     // Return ALL items with minimal data
-    return items.map(item => {
+    return items.map(rawItem => {
+      const item = rec(rawItem);
+      const system = rec(item.system);
       // Return minimal data - just enough to identify and filter items
-      const formattedItem: any = {
+      const formattedItem: Rec = {
         id: item.id,
         name: item.name,
         type: item.type,
       };
 
       // Include quantity if present
-      if (item.system?.quantity !== undefined && item.system.quantity !== 1) {
-        formattedItem.quantity = item.system.quantity;
+      if (system.quantity !== undefined && system.quantity !== 1) {
+        formattedItem.quantity = system.quantity;
       }
 
       // Include traits for PF2e items (feats, equipment, spells, etc.)
-      if (item.system?.traits?.value) {
-        formattedItem.traits = Array.isArray(item.system.traits.value)
-          ? item.system.traits.value
-          : [];
+      const traits = at(system, 'traits', 'value');
+      if (traits) {
+        formattedItem.traits = Array.isArray(traits) ? traits : [];
       }
 
       // Include rarity for PF2e items
-      if (item.system?.traits?.rarity) {
-        formattedItem.rarity = item.system.traits.rarity;
+      const rarity = at(system, 'traits', 'rarity');
+      if (rarity) {
+        formattedItem.rarity = rarity;
       }
 
       // Include level for PF2e items (feats, spells, etc.)
-      if (item.system?.level?.value !== undefined) {
-        formattedItem.level = item.system.level.value;
-      } else if (item.system?.level !== undefined) {
-        formattedItem.level = item.system.level;
+      if (at(system, 'level', 'value') !== undefined) {
+        formattedItem.level = at(system, 'level', 'value');
+      } else if (system.level !== undefined) {
+        formattedItem.level = system.level;
       }
 
       // Include action cost for PF2e feats/actions
-      if (item.system?.actionType?.value) {
-        formattedItem.actionType = item.system.actionType.value;
+      const actionType = at(system, 'actionType', 'value');
+      if (actionType) {
+        formattedItem.actionType = actionType;
       }
 
       // Include equipped status for equippable items
-      if (item.system?.equipped !== undefined) {
-        formattedItem.equipped = item.system.equipped;
+      if (system.equipped !== undefined) {
+        formattedItem.equipped = system.equipped;
       }
 
       // Include attuned status for D&D 5e magic items
-      if (item.system?.attunement !== undefined) {
-        formattedItem.attunement = item.system.attunement;
+      if (system.attunement !== undefined) {
+        formattedItem.attunement = system.attunement;
       }
 
       return formattedItem;
     });
   }
 
-  private formatEffects(effects: any[]): any[] {
-    return effects.map(effect => ({
-      id: effect.id,
-      name: effect.name,
-      disabled: effect.disabled,
-      duration: effect.duration
-        ? {
-            // Foundry 14 durations are {value, units, ...}; the module reports
-            // {type, duration, remaining}. Read the module's names, fall back to v14's.
-            type: effect.duration.type ?? effect.duration.units,
-            ...(effect.duration.duration !== undefined || effect.duration.value !== undefined
-              ? { duration: effect.duration.duration ?? effect.duration.value }
-              : {}),
-            remaining: effect.duration.remaining,
-          }
-        : null,
-      // v14 removed ActiveEffect#icon in favor of img
-      hasIcon: !!(effect.icon ?? effect.img),
-    }));
+  private formatEffects(effects: unknown[]): Rec[] {
+    return effects.map(rawEffect => {
+      const effect = rec(rawEffect);
+      const duration = effect.duration ? rec(effect.duration) : null;
+      return {
+        id: effect.id,
+        name: effect.name,
+        disabled: effect.disabled,
+        duration: duration
+          ? {
+              // Foundry 14 durations are {value, units, ...}; the module reports
+              // {type, duration, remaining}. Read the module's names, fall back to v14's.
+              type: duration.type ?? duration.units,
+              ...(duration.duration !== undefined || duration.value !== undefined
+                ? { duration: duration.duration ?? duration.value }
+                : {}),
+              remaining: duration.remaining,
+            }
+          : null,
+        // v14 removed ActiveEffect#icon in favor of img
+        hasIcon: !!(effect.icon ?? effect.img),
+      };
+    });
   }
 }
 

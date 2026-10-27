@@ -686,7 +686,7 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
     }),
   });
 
-  // The version tracker (I-127): GM only, off until the GM switches it on in the Advanced menu.
+  // The version tracker (I-127): GM only, on by default, the GM can switch it off in the Advanced menu.
   mountVersionsRoute(app, {
     requireGm,
     tracker: new VersionTracker({

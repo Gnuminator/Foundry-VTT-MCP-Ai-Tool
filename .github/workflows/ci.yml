@@ -415,7 +415,7 @@ jobs:
         timeout-minutes: 8
         run: |
           python -m pip install --quiet 'pytest>=8' numpy
-          command -v ffmpeg || timeout 300 sh -c 'sudo apt-get update -q -o Acquire::http::Timeout=20 -o Acquire::Retries=0 && sudo apt-get install -y -q -o Acquire::http::Timeout=20 -o Acquire::Retries=0 --no-install-recommends ffmpeg' || echo "::warning::ffmpeg not installed: the narration render tests will skip"
+          command -v ffmpeg || timeout -k 20 300 sh -c 'sudo apt-get update -q -o Acquire::http::Timeout=20 -o Acquire::https::Timeout=20 -o Acquire::Retries=0 && sudo apt-get install -y -q -o Acquire::http::Timeout=20 -o Acquire::https::Timeout=20 -o Acquire::Retries=0 --no-install-recommends ffmpeg' || echo "::warning::ffmpeg not installed: the narration render tests will skip"
 
       - name: Unit tests (tools/*)
         run: |

@@ -481,6 +481,8 @@ export class QueryHandlers {
       this.handleGetCharacterResources.bind(this)
     );
 
+    handlers.set(`${modulePrefix}.getLevelUpOptions`, this.handleGetLevelUpOptions.bind(this));
+
     // 3D: Active effects / conditions
     handlers.set(`${modulePrefix}.getActiveEffects`, this.handleGetActiveEffects.bind(this));
 
@@ -1501,6 +1503,18 @@ export class QueryHandlers {
         throw new Error('identifier is required');
       }
       return await this.dataAccess.getCharacterResources(data);
+    });
+  }
+
+  async handleGetLevelUpOptions(data: {
+    identifier: string;
+    className?: string;
+  }): Promise<unknown> {
+    return this.withGmGate('Failed to get level-up options', async () => {
+      if (!data?.identifier) {
+        throw new Error('identifier is required');
+      }
+      return await this.dataAccess.getLevelUpOptions(data);
     });
   }
 

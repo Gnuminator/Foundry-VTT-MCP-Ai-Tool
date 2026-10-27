@@ -57,6 +57,7 @@ import { DnD5eNpcTools } from './tools/dnd5e/npc.js';
 import { DnD5eFeaturesFromCompendiumTools } from './tools/dnd5e/features.js';
 
 import { ChatLogTools } from './tools/chat-log.js';
+import { LevelUpTools } from './tools/level-up.js';
 import { ResourceTools } from './tools/resources.js';
 import { EffectsTools } from './tools/effects.js';
 import { CombatTools } from './tools/combat.js';
@@ -297,6 +298,8 @@ async function startBackend(): Promise<void> {
 
   const resourceTools = new ResourceTools({ foundryClient, logger });
 
+  const levelUpTools = new LevelUpTools({ foundryClient, logger });
+
   const effectsTools = new EffectsTools({ foundryClient, logger });
 
   const combatTools = new CombatTools({ foundryClient, logger });
@@ -502,6 +505,7 @@ async function startBackend(): Promise<void> {
     dnd5eFeaturesFromCompendiumTools,
     chatLogTools,
     resourceTools,
+    levelUpTools,
     effectsTools,
     combatTools,
     movementTools,

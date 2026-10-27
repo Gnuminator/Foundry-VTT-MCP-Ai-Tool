@@ -6,11 +6,11 @@ description: Every tool the bridge serves, by tool set, with its description and
 
 # Tool reference
 
-The bridge serves 95 tools in five sets. [Tool sets](TOOL-SETS.md) explains the sets and how Claude Desktop loads them; this page lists every tool with the description and parameters Claude reads.
+The bridge serves 96 tools in five sets. [Tool sets](TOOL-SETS.md) explains the sets and how Claude Desktop loads them; this page lists every tool with the description and parameters Claude reads.
 
 | Set | Claude Desktop entry | Tools | For |
 | --- | --- | --- | --- |
-| [Core](#core) | `foundry-mcp` | 22 | Look things up (world, characters, scenes, journals, compendiums, combat) and review, apply or undo planned changes. Always on. |
+| [Core](#core) | `foundry-mcp` | 23 | Look things up (world, characters, scenes, journals, compendiums, combat) and review, apply or undo planned changes. Always on. |
 | [Play](#play) | `foundry-mcp-play` | 36 | Run the table live: tokens, combat turns, rolls, damage, conditions, resources, chat, scene mood, map notes and loot. |
 | [Prep](#prep) | `foundry-mcp-prep` | 20 | Prepare sessions and write recaps: quests and journals, encounter budgets, the Tarokka reading, handouts, the session log, play stats and the pre-flight check. |
 | [Build](#build) | `foundry-mcp-build` | 8 | Make and change NPCs, monsters and items: from a compendium or from scratch, with features, attacks and spells. Set up rooms: teleports and tokens in a room. |
@@ -72,6 +72,17 @@ Parameters:
 - `type` (string): Filter by dnd5e item type: "spell", "weapon", "equipment" (armor and shields too), "consumable", "tool", "loot", "container", "feat" (features), "class", "subclass", "background", "race" (species), or "effect" for active effects. Leave empty to search all types.
 - `category` (string): Additional category filter. For spells: "cantrip" or "prepared". For weapons and equipment: "equipped".
 - `limit` (number): Maximum number of results to return (default: 20)
+
+### get-level-up-options
+
+Advice only, changes nothing: what a character's next class level grants, the choices still open (hit points, ASI or feat, subclass, spells, items), and earlier advancement left unfinished.
+
+Kind: read-only. Title: Get level-up options.
+
+Parameters:
+
+- `identifier` (string, required): Character name or actor ID.
+- `className` (string)
 
 ### list-scenes
 

@@ -284,7 +284,7 @@ export class RecorderBot {
       },
       session,
       resolveSpeaker: this.speakerResolver(guild),
-      alert: msg => void channel.send(msg).catch(() => undefined),
+      alert: (msg): void => void channel.send(msg).catch(() => undefined),
     });
     this.active = { session, recorder, channel };
     try {

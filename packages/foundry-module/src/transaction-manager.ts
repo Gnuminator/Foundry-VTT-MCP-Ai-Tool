@@ -20,9 +20,14 @@ export interface TransactionAction {
   type: 'create' | 'update' | 'delete';
   entityType: 'Actor' | 'Token' | 'Scene' | 'Item';
   entityId?: string;
-  originalData?: any;
-  newData?: any;
+  originalData?: Record<string, unknown>;
+  newData?: Record<string, unknown>;
   rollbackAction?: () => Promise<void>;
+}
+
+/** The slice of a scene that rolling back a token create needs. */
+interface RollbackSceneLike {
+  tokens: { get(id: string): { delete(): Promise<unknown> } | undefined };
 }
 
 export interface Transaction {
@@ -207,7 +212,9 @@ export class TransactionManager {
         return;
       }
       case 'Token': {
-        const scene = viewedScene<any>(game.scenes);
+        const scene = viewedScene<RollbackSceneLike>(
+          game.scenes as unknown as { current?: RollbackSceneLike; active?: RollbackSceneLike }
+        );
         const token = scene?.tokens.get(action.entityId);
         if (token) {
           await token.delete();

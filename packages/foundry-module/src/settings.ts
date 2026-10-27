@@ -49,6 +49,34 @@ export function buildModuleHello(bridgeUserId: unknown): ModuleHelloData {
   };
 }
 
+/** The values of the module's world and client settings that the bridge code reads. */
+interface BridgeSettingValues {
+  enabled: boolean;
+  serverHost: string;
+  serverPort: number;
+  allowWriteOperations: boolean;
+  allowNonGmAccess: boolean;
+  bridgeUserId: string;
+  maxActorsPerRequest: number;
+  enableEnhancedCreatureIndex: boolean;
+  autoRebuildIndex: boolean;
+  enableNotifications: boolean;
+  autoReconnectEnabled: boolean;
+  heartbeatInterval: number;
+}
+type BridgeSettingKey = keyof BridgeSettingValues;
+
+/** One registered setting as Foundry keeps it in `game.settings.settings`. */
+interface RegisteredSetting {
+  hint: string;
+  default?: unknown;
+}
+
+/** Foundry's registry of registered settings (not part of the public typings). */
+function settingsRegistry(): Map<string, RegisteredSetting> {
+  return (game.settings as unknown as { settings: Map<string, RegisteredSetting> }).settings;
+}
+
 /** The few user fields the Bridge User choices read. */
 interface GmUserLike {
   id?: string;
@@ -209,7 +237,7 @@ export class ModuleSettings {
     });
 
     // Enhanced Creature Index submenu
-    (game.settings as any).registerMenu(this.moduleId, 'enhancedIndexMenu', {
+    menus.registerMenu(this.moduleId, 'enhancedIndexMenu', {
       name: 'Enhanced Creature Index',
       label: 'Configure Enhanced Index',
       hint: 'The Enhanced Creature Index pre-computes creature statistics for instant filtering by Challenge Rating, creature type, and abilities. This enables AI models to quickly find creatures matching specific criteria without loading every compendium entry.',
@@ -455,7 +483,7 @@ export class ModuleSettings {
   /**
    * Handle roll states setting changes - fires on all clients for world-scoped settings
    */
-  private onRollStatesChanged(_newValue: any): void {
+  private onRollStatesChanged(_newValue: unknown): void {
     // No action needed - ChatMessage.update() handles state synchronization automatically
   }
 
@@ -492,7 +520,7 @@ export class ModuleSettings {
         : `❌ Disconnected - Use connection panel to connect`;
 
       // Update the hint for the enabled setting to show status
-      const enabledSetting = (game.settings as any).settings.get(`${this.moduleId}.enabled`);
+      const enabledSetting = settingsRegistry().get(`${this.moduleId}.enabled`);
       if (enabledSetting) {
         enabledSetting.hint = `${enabledSetting.hint.split(' |')[0]} | Status: ${statusText}`;
       }
@@ -523,22 +551,22 @@ export class ModuleSettings {
   /**
    * Get a specific setting value
    */
-  getSetting(key: string): any {
-    return game.settings.get(this.moduleId, key);
+  getSetting<K extends BridgeSettingKey>(key: K): BridgeSettingValues[K] {
+    return game.settings.get(this.moduleId, key) as BridgeSettingValues[K];
   }
 
   /**
    * Set a specific setting value
    */
-  async setSetting(key: string, value: any): Promise<any> {
+  async setSetting(key: string, value: unknown): Promise<unknown> {
     return game.settings.set(this.moduleId, key, value);
   }
 
   /**
    * Get all settings as an object
    */
-  getAllSettings(): Record<string, any> {
-    const settingKeys = [
+  getAllSettings(): Record<string, unknown> {
+    const settingKeys: BridgeSettingKey[] = [
       // Basic Settings
       'enabled',
       'serverHost',
@@ -557,7 +585,7 @@ export class ModuleSettings {
       'heartbeatInterval',
     ];
 
-    const settings: Record<string, any> = {};
+    const settings: Record<string, unknown> = {};
     for (const key of settingKeys) {
       settings[key] = this.getSetting(key);
     }
@@ -667,7 +695,7 @@ export class ModuleSettings {
    * Reset all settings to defaults
    */
   async resetToDefaults(): Promise<void> {
-    const settingKeys = [
+    const settingKeys: BridgeSettingKey[] = [
       // Basic Settings
       'enabled',
       'serverHost',
@@ -688,7 +716,7 @@ export class ModuleSettings {
 
     for (const key of settingKeys) {
       // Get the default value from the setting registration
-      const setting = (game.settings as any).settings.get(`${this.moduleId}.${key}`);
+      const setting = settingsRegistry().get(`${this.moduleId}.${key}`);
       if (setting && 'default' in setting) {
         await this.setSetting(key, setting.default);
       }

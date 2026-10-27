@@ -1,5 +1,5 @@
 import * as shared from './shared.js';
-import { eventTracker } from '../session-events.js';
+import { eventTracker, type SessionLogEntry } from '../session-events.js';
 
 /**
  * Session event log domain for `FoundryDataAccess`.
@@ -26,7 +26,7 @@ export class SessionLogDataAccess {
     limit?: number;
     eventType?: string;
     actorName?: string;
-  }): Promise<any> {
+  }): Promise<{ success: true; count: number; events: SessionLogEntry[] }> {
     shared.validateFoundryState();
 
     const filters = buildFilters({
@@ -62,7 +62,13 @@ export class SessionLogDataAccess {
     sinceTimestamp?: string;
     limit?: number;
     eventType?: string;
-  }): Promise<any> {
+  }): Promise<{
+    success: true;
+    count: number;
+    events: SessionLogEntry[];
+    latestTimestamp: string | null;
+    serverTime: string;
+  }> {
     shared.validateFoundryState();
 
     const filters = buildFilters({

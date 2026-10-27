@@ -469,4 +469,34 @@ describe('FoundryDataAccess.searchRules', () => {
     expect(after.results[0].documentId).toBe('phbj1');
     expect(after.skippedPacks).toBeUndefined();
   });
+
+  it('gives up on a hung background rebuild so the next one can run', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    try {
+      const pack = world.packs.get('dnd-players-handbook.content') as {
+        getDocuments: () => Promise<unknown[]>;
+      };
+      const realGet = pack.getDocuments;
+      const now = vi.spyOn(Date, 'now');
+      const t0 = 1_000_000;
+      now.mockReturnValue(t0);
+      await da.searchRules({ query: 'grapple' });
+      const hung = vi.fn((): Promise<unknown[]> => new Promise(() => {}));
+      pack.getDocuments = hung;
+      const stale = t0 + 11 * 60 * 1000;
+      now.mockReturnValue(stale);
+      const res = await da.searchRules({ query: 'grapple' });
+      expect(res.results[0].documentId).toBe('phbj1');
+      expect(hung).toHaveBeenCalledTimes(1);
+      // The hung rebuild is dropped after 60 s, backs off like any failure, then retries.
+      await vi.advanceTimersByTimeAsync(61_000);
+      now.mockReturnValue(stale + 61_000);
+      await da.searchRules({ query: 'grapple' });
+      await vi.advanceTimersByTimeAsync(0);
+      expect(hung).toHaveBeenCalledTimes(2);
+      pack.getDocuments = realGet;
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

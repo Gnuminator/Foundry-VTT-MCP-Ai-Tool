@@ -262,6 +262,9 @@ describe('reading and import', () => {
     await expect(tarokka.planImport({ clear: true, userId: 'u1' })).rejects.toThrow(
       /clear takes no source or userId/
     );
+    // The Tools form sends the schema default source 'auto' along with clear.
+    const plan = await tarokka.planImport({ clear: true, source: 'auto' });
+    expect(plan.summary).toMatch(/Clear the current Tarokka reading/);
   });
 
   it('refuses a clear plan that went stale because a reading was imported after it', async () => {

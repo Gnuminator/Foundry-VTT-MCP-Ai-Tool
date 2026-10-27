@@ -11,6 +11,6 @@
 
 ### Docs
 
-- **The GM windows (guide for the GM):** a new page, [docs/gm/gm-windows.md](docs/gm/gm-windows.md),
+- **The GM windows (guide for the GM):** a new page, `docs/gm/gm-windows.md`,
   with pictures: how to switch them on, where the buttons are and what each window is for. Listed
   in the GM guides index and in the feature list.

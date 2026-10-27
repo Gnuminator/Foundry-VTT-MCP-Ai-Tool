@@ -2,7 +2,7 @@
 
 import { type CallToolResult, type ListToolsResult, Server } from '@modelcontextprotocol/server';
 
-import { serveStdio } from '@modelcontextprotocol/server/stdio';
+import { StdioServerTransport, serveStdio } from '@modelcontextprotocol/server/stdio';
 
 import { config } from './config.js';
 
@@ -379,11 +379,26 @@ async function startWrapper(): Promise<void> {
 
   // When stdin closes (Claude Desktop exits), clean up the backend
 
-  process.stdin.on('end', () => {
+  const shutdown = (): never => {
     backend.cleanup();
 
     process.exit(0);
-  });
+  };
+
+  process.stdin.on('end', shutdown);
+
+  // stdin gone without 'end', and a transport that closed on its own (a line over the 10 MiB cap,
+  // a broken stdout): serveStdio's transport stops reading then, so without this the wrapper
+  // would stay up on the backend socket and answer nothing.
+  process.stdin.on('close', shutdown);
+
+  class ExitingTransport extends StdioServerTransport {
+    override async close(): Promise<void> {
+      await super.close();
+
+      shutdown();
+    }
+  }
 
   // Also handle process termination signals
 
@@ -484,7 +499,10 @@ async function startWrapper(): Promise<void> {
 
   // The era (2025-11-25 `initialize` or 2026-07-28 `server/discover` and per-request `_meta`) is
   // chosen per connection by serveStdio; both are served from the one factory.
-  serveStdio(buildServer);
+  serveStdio(buildServer, {
+    transport: new ExitingTransport(),
+    onerror: error => backend.log('serveStdio error', { error: messageOf(error) }),
+  });
 }
 
 startWrapper().catch(err => {

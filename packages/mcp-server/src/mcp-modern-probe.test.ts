@@ -130,6 +130,18 @@ class Wrapper {
     return ((res.result as { tools: Array<{ name: string }> }).tools ?? []).map(t => t.name);
   }
 
+  /** Closes the wrapper's stdin the way Claude Desktop does on exit; resolves with its exit code. */
+  async endInput(): Promise<number | null> {
+    this.child.stdin!.end();
+    const deadline = Date.now() + REPLY_TIMEOUT_MS;
+    while (this.exited === undefined) {
+      if (Date.now() > deadline)
+        throw new Error(`wrapper still running after stdin end: ${this.stderr}`);
+      await new Promise(resolve => setTimeout(resolve, 50));
+    }
+    return this.exited;
+  }
+
   kill(): void {
     this.child.kill();
   }
@@ -185,6 +197,15 @@ describe('MCP 2026-07-28 probe against dist/index.js', () => {
     const second = await w.toolNames();
     expect(first).toEqual(FAKE_TOOLS.map(t => t.name));
     expect(second).toEqual(first);
+  });
+
+  it('exits with code 0 when stdin ends, in either era', async () => {
+    const legacy = start();
+    await legacy.initialize();
+    expect(await legacy.endInput()).toBe(0);
+    const modern = start();
+    await modern.request('server/discover', { _meta: MODERN_META });
+    expect(await modern.endInput()).toBe(0);
   });
 
   it('keeps the 2025-11-25 results free of 2026-07-28 fields', async () => {

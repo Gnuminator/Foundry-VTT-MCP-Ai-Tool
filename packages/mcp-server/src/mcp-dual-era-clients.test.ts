@@ -67,6 +67,7 @@ describe('old and new MCP clients on the stdio wrapper', () => {
     await client.connect(new LegacyStdio(serverParams()));
     try {
       expect(client.getServerVersion()?.name).toBe('foundry-mcp-server');
+      expect(client.getInstructions()).toContain('Foundry AI Tool');
       const { tools } = await client.listTools();
       expect(tools.map(t => t.name)).toEqual(FAKE_TOOLS.map(t => t.name));
       const result = await client.callTool({ name: 'get-world-info', arguments: {} });

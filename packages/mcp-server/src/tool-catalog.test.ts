@@ -73,12 +73,13 @@ describe('tool catalog', () => {
     for (const set of TOOL_SET_NAMES) {
       const served = stripToolRefs(filterToolsBySets(tools, resolveToolSets(set)));
       const size = JSON.stringify(served).length;
-      expect(size, set).toBeLessThanOrEqual(budget[set]);
       // Read by scripts/drift-check.mjs, which prints these lines and warns under 500 characters.
+      // Written before the assertion, so an over-budget set still shows its (negative) room.
       const room = budget[set] - size;
       process.stdout.write(
         `tool-set headroom: ${set} ${room} characters (${size} of ${budget[set]})${room < 500 ? ' WARNING: under 500, the next tool needs a raise (the user decides)' : ''}\n`
       );
+      expect(size, set).toBeLessThanOrEqual(budget[set]);
     }
   });
 

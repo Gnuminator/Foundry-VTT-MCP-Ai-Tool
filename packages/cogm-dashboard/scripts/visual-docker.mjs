@@ -53,7 +53,11 @@ const dashboardVolume = `foundry-ai-tool-visual-dashboard-node-modules-${volumeK
 
 // `docker run` against a stopped Docker Desktop prints a long pipe error; say it plainly instead.
 const probe = spawnSync('docker', ['info', '--format', '{{.ServerVersion}}'], { encoding: 'utf8' });
-if (probe.error || probe.status !== 0) {
+if (probe.error) {
+  console.error('The docker command was not found. Install Docker Desktop and run this again.');
+  process.exit(2);
+}
+if (probe.status !== 0) {
   console.error(
     'Docker is not running. Start Docker Desktop, wait until it says "Engine running", and run this again.'
   );

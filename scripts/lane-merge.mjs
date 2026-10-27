@@ -1018,6 +1018,7 @@ export function runEntry({ argv, relaunch, runMain, log }) {
     return code;
   } catch (e) {
     const reason = `unexpected error: ${e instanceof Error ? e.message : String(e)}`;
+    if (e instanceof Error && e.stack) console.error(e.stack);
     log(`lane:merge: NOT merged: ${reason}`);
     if (wait) log(verdictLine(1, reason));
     return 1;
@@ -1536,5 +1537,8 @@ if (decision === 'run') {
   console.error(
     `lane:merge: started as ${process.argv[1]} but this module is ${self}; not running`
   );
+  if (process.argv.includes('--wait-ci')) {
+    console.log(verdictLine(1, 'started under another name; not running'));
+  }
   process.exit(1);
 }

@@ -210,6 +210,8 @@ export function createPanelWindow(spec: PanelSpec): PanelOpener {
       }
       windowClass ??= define();
       instance ??= new windowClass();
+      // Tracked before the first draw finishes, so a switch turned off during it still closes the window.
+      openWindows.add(instance);
       await instance.render({ force: true });
       instance.bringToFront?.();
       spec.onOpen?.();

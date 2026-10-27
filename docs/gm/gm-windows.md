@@ -101,8 +101,9 @@ configuration.
 - **Combat or Party is empty:** no combat is running, or no character is owned by a player yet. The
   window tells you which.
 - **Session shows an error:** the AI Tool is not connected. See [Troubleshooting](troubleshooting.md).
-- **Nothing changes in a window:** close it and open it again; the numbers come from Foundry's own data,
-  so they are never older than what Foundry knows.
+- **Nothing changes in a window:** close it and open it again. Combat, Party and Scene read Foundry's
+  own data and redraw within a moment of a change; Session asks the AI Tool and checks every fifteen
+  seconds, or at once when you press Refresh.
 
 More on the other parts of the tool: [the dashboard](dashboard.md) and
 [features and when to turn them on](features.md#gm-windows).

@@ -317,11 +317,13 @@ describe('the switch, the buttons and the windows', () => {
     expect(rendered).toHaveLength(2);
     const [combatWindow, partyWindow] = rendered;
     const config = registered.mock.calls[0][2];
+    const off = vi.spyOn(g.Hooks, 'off');
     world.settings.set(`${MODULE_ID}.${GM_WINDOWS_SETTING}`, false);
     config.onChange();
     await vi.advanceTimersByTimeAsync(0);
     expect(combatWindow.closed).toBe(true);
     expect(partyWindow.closed).toBe(true);
+    expect(off.mock.calls.length).toBeGreaterThanOrEqual(2);
     // Closing removed the hooks: a later hook does not draw into the closed window.
     const before = combatWindow.content.innerHTML;
     g.Hooks.callAll('updateCombat');

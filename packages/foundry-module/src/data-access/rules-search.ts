@@ -9,13 +9,13 @@ import { MODULE_ID } from '../constants.js';
 
 /**
  * Searched when the `rulesSearchPacks` setting is empty: the PHB module, the dnd5e system
- * packs, and the rules packs of `aitool-content` (not its journals or monsters, which hold
- * adventure names).
+ * packs, and the rules packs of `aitool-content`, including its "Books" journals (the DMG 2024
+ * and the other rulebooks; not its monsters, which hold adventure names).
  */
 export const DEFAULT_RULES_PACKAGES = [
   'dnd-players-handbook',
   'dnd5e',
-  ...['classes', 'species', 'backgrounds', 'feats', 'spells', 'items'].map(
+  ...['classes', 'species', 'backgrounds', 'feats', 'spells', 'items', 'journals'].map(
     p => `aitool-content.${p}`
   ),
 ];
@@ -63,6 +63,8 @@ const STOP_WORDS = new Set([
 const SNIPPET_CHARS = 240;
 const MAX_EXCERPT = 4000;
 const CACHE_TTL_MS = 10 * 60 * 1000;
+/** After a failed background rebuild, the stale index is served this long before the next try. */
+const REFRESH_RETRY_MS = 60 * 1000;
 
 /** A number from the wire, clamped; a missing or non-numeric value gives the fallback. */
 function clampInt(value: unknown, fallback: number, min: number, max: number): number {
@@ -146,16 +148,20 @@ export function plainText(html: unknown): string {
     text
       // &amp; last, so "&amp;lt;" stays the text "&lt;".
       .replace(/&nbsp;/g, ' ')
-      .replace(/&lt;/g, '<')
-      .replace(/&gt;/g, '>')
+      // Comparison signs read as single angle quotes, so "AC &lt; 15" stays "AC ‹ 15" and the
+      // bracket strip below never sees them.
+      .replace(/&lt;/g, '‹')
+      .replace(/&gt;/g, '›')
       .replace(/&quot;/g, '"')
       .replace(/&rsquo;/g, '’')
       .replace(/&#(x[0-9a-f]+|\d+);/gi, (whole, n: string) => {
         const code = n[0] === 'x' || n[0] === 'X' ? parseInt(n.slice(1), 16) : Number(n);
+        if (code === 60) return '‹';
+        if (code === 62) return '›';
         return code > 0 && code <= 0x10ffff ? String.fromCodePoint(code) : whole;
       })
-      // After decoding: nested input like "<scr<script>ipt>" or a decoded "&lt;script" leaves
-      // a bracket, so none survives (search text only; a literal "<" reads as a space).
+      // After decoding: nested input like "<scr<script>ipt>" can leave a bracket, so none
+      // survives (search text only; a literal "<" reads as a space).
       .replace(/[<>]/g, ' ')
       .replace(/&amp;/g, '&')
       .replace(/\s+/g, ' ')
@@ -166,6 +172,7 @@ export function plainText(html: unknown): string {
 /** Lower-case search stem: "grappling", "grappled" and "grapples" all become "grappl". */
 export function stem(word: string): string {
   const w = word.toLowerCase();
+  if (w.length > 4 && w.endsWith('ies')) return `${w.slice(0, -3)}y`; // "allies" finds "ally"
   if (w.endsWith('ss')) return w; // "bless", "class": no plural s to drop
   const stripped = w.replace(/(ing|ed|es|e|s)$/, '');
   if (stripped.length >= 4) return stripped;
@@ -199,7 +206,10 @@ function isAllowed(pack: PackLike, allowlist: string[]): boolean {
 
 export class RulesSearchDataAccess {
   /** Per-pack text, built on first use (a pack can change when an importer writes to it). */
-  private cache = new Map<string, { at: number; entries: Promise<IndexedText[]> }>();
+  private cache = new Map<
+    string,
+    { at: number; entries: Promise<IndexedText[]>; refreshing?: boolean }
+  >();
 
   clearCache(): void {
     this.cache.clear();
@@ -306,16 +316,35 @@ export class RulesSearchDataAccess {
           }
         : hits.length === 0 && !includeWorld && !includeOtherBooks
           ? {
-              note: 'Nothing found in the rules packs. includeWorld also searches world journals, which can hold adventure text; includeOtherBooks searches packs outside the allowlist.',
+              note: 'Nothing found in the rules packs. includeWorld also searches the world journals, which hold the imported adventure text (do not use it for a plain rules question); includeOtherBooks searches packs outside the allowlist.',
             }
           : {}),
     };
   }
 
-  /** One build per pack, shared by searches that start together; kept for CACHE_TTL_MS. */
+  /**
+   * One build per pack, shared by searches that start together. After CACHE_TTL_MS the old index
+   * is still served while one background rebuild runs, so no search waits for a whole pack
+   * (a cold build can pass the dashboard's 15 s timeout).
+   */
   private indexPack(pack: PackLike, id: string, type: string): Promise<IndexedText[]> {
     const cached = this.cache.get(id);
-    if (cached && Date.now() - cached.at < CACHE_TTL_MS) return cached.entries;
+    if (cached) {
+      if (Date.now() - cached.at >= CACHE_TTL_MS && !cached.refreshing) {
+        cached.refreshing = true;
+        this.buildPackIndex(pack, id, type).then(
+          fresh => {
+            this.cache.set(id, { at: Date.now(), entries: Promise.resolve(fresh) });
+          },
+          error => {
+            console.warn(`${MODULE_ID} | rules search: refresh of ${id} failed`, error);
+            cached.refreshing = false;
+            cached.at = Date.now() - CACHE_TTL_MS + REFRESH_RETRY_MS;
+          }
+        );
+      }
+      return cached.entries;
+    }
     const entries = this.buildPackIndex(pack, id, type);
     this.cache.set(id, { at: Date.now(), entries });
     entries.catch(() => this.cache.delete(id));
@@ -399,9 +428,20 @@ function termPresence(entry: IndexedText, terms: string[], patterns: RegExp[]): 
  */
 export function termPattern(term: string): RegExp {
   const short = term.length < 5;
+  const escape = (text: string): string => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  if (term.length >= 3 && term.endsWith('y')) {
+    // "ally" finds "allies" (see `stem`): the y ending is the plural pair, not a suffix to strip.
+    const root = escape(term.slice(0, -1));
+    return new RegExp(short ? `\\b${root}(?:y|ies)\\b` : `\\b${root}(?:y|ie)`, 'i');
+  }
   const base = short && !term.endsWith('ss') ? term.replace(/(ing|ed|es|e|s)$/, '') : term;
-  const escaped = (base.length >= 2 ? base : term).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  return new RegExp(short ? `\\b${escaped}(?:ing|ed|es|e|s)?\\b` : `\\b${escaped}`, 'i');
+  // A stripped short term needs one of the endings back ("cone" finds cone and cones, not "Con").
+  const stripped = short && base !== term && base.length >= 2;
+  const escaped = escape(base.length >= 2 ? base : term);
+  return new RegExp(
+    short ? `\\b${escaped}(?:ing|ed|es|e|s)${stripped ? '' : '?'}\\b` : `\\b${escaped}`,
+    'i'
+  );
 }
 
 function scoreEntry(

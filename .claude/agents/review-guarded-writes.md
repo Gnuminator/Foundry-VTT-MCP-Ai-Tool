@@ -34,7 +34,7 @@ as READ (you opened the code) or INFERRED (you did not). Do not invent line numb
 7. **Silently ignored arguments** when a mode flag is set (507 L1), and renderer or Obsidian text
    that is wrong after the new state (507 L2).
 8. **Visibility.** No spoilers on normal screens; GM-only and whisper paths set `whisper`/`blind`
-   (Foundry 14 message modes; an unknown name falls back to the sender's current chat mode, not whisper). Player-facing wording matches
+   (Foundry 14 message modes; an unknown name falls back to the sender's current chat mode, which is often public). Player-facing wording matches
    the docs that quote it (499 L1).
 9. **Tests.** A conflict test for stale plans, a failure-path test, and mocks that match the real
    dnd5e/Foundry class (a mocked method the real class never returns hid 501 M2).

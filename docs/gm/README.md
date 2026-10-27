@@ -14,28 +14,28 @@ play.
 **From inside Foundry:** Settings tab, **Game Settings**, category **Foundry AI Tool**, the
 **Open the GM guide** button opens these pages in a new browser tab.
 
-| Page                                                              | What it is for                                                                            |
-| ----------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| [Your first hour as GM](first-hour.md)                            | A set reading order: Foundry's own guides for the basics, our pages for the tool.         |
-| [Getting started](getting-started.md)                             | What the tool is, its parts, how they fit together, a glossary, and today's setup.        |
-| [The dashboard](dashboard.md)                                     | Every panel and button on the dashboard, what it does and when to use it.                 |
-| [The GM windows](gm-windows.md)                                   | Combat, Party, Session and Scene as small windows next to the map, and how to switch on.  |
-| [Features and when to turn them on](features.md)                  | Each feature switch, what it does, and the moment to turn it on.                          |
-| [Asking Claude](asking-claude.md)                                 | Good requests, the ready-made prompts, how Claude's changes are approved, its limits.     |
-| [Your GM coach in Claude](gm-coach.md)                            | Add the Foundry GM coach skill to your Claude account, and how to ask it.                 |
-| [Cookbook](cookbook.md)                                           | Ready-to-use requests and clicks before, during and after a session.                      |
-| [Your Obsidian vault](obsidian.md)                                | What is in your vault, where your prep goes, and connecting the plugin to the server.     |
-| [Prep and expectations](prep-and-expectations.md)                 | What to prepare, the expectations talk, ability scores and a session 0 agenda.            |
-| [Prepare session 0](prepare-session-0.md)                         | Set up the world so players can make their characters, and run the night.                 |
-| [Before each session](before-session.md)                          | A checklist for the 15 minutes before play.                                               |
-| [After each session](after-session.md)                            | A checklist for right after play.                                                         |
-| [When a character dies](death-and-new-characters.md)              | The moment of death, a death log, and bringing in a new character.                        |
-| [Never do this, only do this if](never-and-only-if.md)            | Short rules, each with its reason.                                                        |
-| [Game night runbook](game-night-runbook.md)                       | One page for the night: what to do when something fails, and when to call for help.       |
-| [The TV at the table](tv-table-viewer.md)                         | Show the map on a TV at an in-person session; it signs in once as a player called Table.  |
-| [Troubleshooting](troubleshooting.md)                             | Symptom, likely cause and fix.                                                            |
-| [Connect Claude Desktop to the server](connect-claude-desktop.md) | Install the small Windows client and the tunnel key so Claude Desktop reaches the server. |
-| [Claude Free or Pro](claude-plans.md)                             | What works on the free Claude plan, its limits, and what Pro adds.                        |
+| Page                                                              | What it is for                                                                                 |
+| ----------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| [Your first hour as GM](first-hour.md)                            | A set reading order: Foundry's own guides for the basics, our pages for the tool.              |
+| [Getting started](getting-started.md)                             | What the tool is, its parts, how they fit together, a glossary, and today's setup.             |
+| [The dashboard](dashboard.md)                                     | Every panel and button on the dashboard, what it does and when to use it.                      |
+| [The GM windows](gm-windows.md)                                   | Combat, Party, Session, Scene and Loot as small windows next to the map, and how to switch on. |
+| [Features and when to turn them on](features.md)                  | Each feature switch, what it does, and the moment to turn it on.                               |
+| [Asking Claude](asking-claude.md)                                 | Good requests, the ready-made prompts, how Claude's changes are approved, its limits.          |
+| [Your GM coach in Claude](gm-coach.md)                            | Add the Foundry GM coach skill to your Claude account, and how to ask it.                      |
+| [Cookbook](cookbook.md)                                           | Ready-to-use requests and clicks before, during and after a session.                           |
+| [Your Obsidian vault](obsidian.md)                                | What is in your vault, where your prep goes, and connecting the plugin to the server.          |
+| [Prep and expectations](prep-and-expectations.md)                 | What to prepare, the expectations talk, ability scores and a session 0 agenda.                 |
+| [Prepare session 0](prepare-session-0.md)                         | Set up the world so players can make their characters, and run the night.                      |
+| [Before each session](before-session.md)                          | A checklist for the 15 minutes before play.                                                    |
+| [After each session](after-session.md)                            | A checklist for right after play.                                                              |
+| [When a character dies](death-and-new-characters.md)              | The moment of death, a death log, and bringing in a new character.                             |
+| [Never do this, only do this if](never-and-only-if.md)            | Short rules, each with its reason.                                                             |
+| [Game night runbook](game-night-runbook.md)                       | One page for the night: what to do when something fails, and when to call for help.            |
+| [The TV at the table](tv-table-viewer.md)                         | Show the map on a TV at an in-person session; it signs in once as a player called Table.       |
+| [Troubleshooting](troubleshooting.md)                             | Symptom, likely cause and fix.                                                                 |
+| [Connect Claude Desktop to the server](connect-claude-desktop.md) | Install the small Windows client and the tunnel key so Claude Desktop reaches the server.      |
+| [Claude Free or Pro](claude-plans.md)                             | What works on the free Claude plan, its limits, and what Pro adds.                             |
 
 What players see and what the tool records about them: [player guide](../player/README.md) and
 the [player cookbook](../player/cookbook.md).

@@ -455,7 +455,7 @@ describe('exportWorldToObsidian', () => {
   it('shows "no reading" and an empty canvas when Tarokka has no complete reading', async () => {
     await store.write(WORLD, 'gm', 'tarokka.json', { current: { positions: {} } });
     await run();
-    expect(await note('AI Tool/Tarokka/Current reading.md')).toContain('No reading is stored yet');
+    expect(await note('AI Tool/Tarokka/Current reading.md')).toContain('No current reading');
     const canvas = JSON.parse(await note('AI Tool/Tarokka/Spread.canvas')) as {
       nodes: Array<{ id: string; text?: string }>;
     };

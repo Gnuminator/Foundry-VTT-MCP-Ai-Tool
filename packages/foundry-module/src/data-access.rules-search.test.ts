@@ -403,7 +403,7 @@ describe('FoundryDataAccess.searchRules', () => {
     const now = vi.spyOn(Date, 'now');
     now.mockReturnValue(1_000_000);
     await da.searchRules({ query: 'grapple' });
-    pack.getDocuments = () => Promise.reject(new Error('boom'));
+    pack.getDocuments = (): Promise<unknown[]> => Promise.reject(new Error('boom'));
     now.mockReturnValue(1_000_000 + 11 * 60 * 1000);
     const res = await da.searchRules({ query: 'grapple' });
     await new Promise(resolve => setTimeout(resolve, 0));

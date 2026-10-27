@@ -131,6 +131,24 @@ item is marked done; the board ignores a line on an item with no claim.
   path of a `git diff aitool/main...HEAD` file and the PR description, in a checkout at that sha.
   Fix what they find, then brief the formal reviewer with the findings and fixes; they do not
   replace it.
+- **Hybrid review flow (D-127):**
+  - **Rounds:** every PR gets one review round plus one delta check by the same reviewer (D-101).
+    A third round needs the planner; do not start one yourself (the runner refuses it without
+    `--allow-round3`, which is the planner's flag). Batch your findings into one fix round.
+  - **Instant review:** PRs on the critical path, PRs other work stacks on, and risky PRs (the
+    gate's list) are reviewed now while you are alive, by a subagent as above.
+  - **Batched review:** low-risk PRs (build-ahead, board, lows, docs) do not wait for you: report
+    "PR open" in the `- progress:` line and end. The planner has them reviewed once or twice a day
+    by a review lane or by the API runner (next bullet). Fix the findings when they come back.
+- **Review runner (D-127, until 2026-11-14):** `node scripts/review-runner/run.mjs <PR>...` reviews
+  on the separate API credit, never the subscription. It needs `REVIEW_RUNNER_API_KEY` in the
+  environment (only the runner reads it, and it hands it to its SDK child as `ANTHROPIC_API_KEY`;
+  never set or print that name in your own shell) and a one-time `npm ci --prefix
+scripts/review-runner`. It picks Opus for a PR the gate calls risky and Sonnet otherwise, checks
+  the head out in a scratch worktree, writes the note in the format below to vault `Handoff/Reviews
+<date>/`, commits it with explicit paths and logs the cost in `~/.review-runner/ledger.jsonl`; it
+  stops at $95 in total. `--dry-run` shows the plan and spends nothing. Run it for real only when
+  the planner asked.
 - **Review note format** (the merge gate reads it):
   - path: vault `Handoff/Reviews <YYYY-MM-DD>/<PR>-review.md`, round 2 `<PR>-review-round2.md`;
     Opus: `<PR>-opus-review.md`, `<PR>-opus-review-round2.md`, with the heading

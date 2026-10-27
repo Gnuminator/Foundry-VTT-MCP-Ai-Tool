@@ -196,6 +196,16 @@ describe('module sockets (PB-02)', () => {
     await expect(result).resolves.toEqual({ ok: 1 });
   });
 
+  it('rejects the pending query when a response frame has no data', async () => {
+    const a = connect();
+    const result = connector.query('ping');
+    const rejected = expect(result).rejects.toThrow('Query response had no data');
+    a.say({ type: 'mcp-response', id: a.sent[0].id });
+    await rejected;
+    expect((connector as any).pendingQueries.size).toBe(0);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
   it('closes every socket on stop', async () => {
     const a = connect();
     const b = connect();

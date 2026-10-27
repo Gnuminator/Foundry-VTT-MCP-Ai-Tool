@@ -2,6 +2,7 @@ import express, { type Express, type NextFunction, type Request, type Response }
 import rateLimit from 'express-rate-limit';
 import {
   createSpaceStatusReader,
+  type PlayerHandout,
   type RecordUsageResult,
   type UsageEvent,
 } from '@gnuminator/shared';
@@ -48,9 +49,10 @@ import { mountSpaceRoute } from './space-route.js';
 import { VersionTracker, defaultKitLastRunFile, mountVersionsRoute } from './versions.js';
 import { PlayerLinkStore } from './player-links.js';
 import { DashboardPrefsStore, parsePrefsChange } from './dashboard-prefs.js';
-import { THEMES, ThemeStore, isTheme } from './theme.js';
+import { THEMES, ThemeStore, isTheme, type ThemeId } from './theme.js';
 import { PlayerLogStore } from './player-vault/log-store.js';
 import { PlayerVaultService } from './player-vault/service.js';
+import type { VaultPlayer } from './player-vault/types.js';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -294,12 +296,13 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
           config.stateDir ? path.join(config.stateDir, 'player-vault-log') : null,
           logger.child('player-vault')
         ),
-        world: () => (world ? { id: world.id, title: world.title } : null),
-        players: () => playerDirectory.list(),
-        refreshPlayers: () => playerDirectory.refreshIfStale(),
-        handouts: userId => playerView.handoutsFor(userId),
-        handoutsReady: () => playerView.handoutsReady,
-        theme: worldId => themes.get(worldId),
+        world: (): { id: string; title: string } | null =>
+          world ? { id: world.id, title: world.title } : null,
+        players: (): VaultPlayer[] => playerDirectory.list(),
+        refreshPlayers: (): Promise<void> => playerDirectory.refreshIfStale(),
+        handouts: (userId): PlayerHandout[] => playerView.handoutsFor(userId),
+        handoutsReady: (): boolean => playerView.handoutsReady,
+        theme: (worldId): ThemeId => themes.get(worldId),
       })
     : null;
 

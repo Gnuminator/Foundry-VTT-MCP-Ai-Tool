@@ -110,8 +110,9 @@ const FILTER_USER_PREFIX = 'user:';
 
 /** Escape a value for HTML text and quoted attributes (Foundry's helper when it exists). */
 export function escapeHtml(value: unknown): string {
-  const foundryEscape = (globalThis as { foundry?: { utils?: { escapeHTML?: unknown } } }).foundry
-    ?.utils?.escapeHTML;
+  const foundryEscape = (
+    globalThis as { foundry?: { utils?: { escapeHTML?: (value: string) => unknown } } }
+  ).foundry?.utils?.escapeHTML;
   const text =
     typeof value === 'string'
       ? value

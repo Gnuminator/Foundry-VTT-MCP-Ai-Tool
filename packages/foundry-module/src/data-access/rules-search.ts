@@ -7,8 +7,18 @@
 
 import { MODULE_ID } from '../constants.js';
 
-/** Package names searched when the `rulesSearchPacks` setting is empty. */
-export const DEFAULT_RULES_PACKAGES = ['dnd-players-handbook', 'aitool-content', 'dnd5e'];
+/**
+ * Searched when the `rulesSearchPacks` setting is empty: the PHB module, the dnd5e system
+ * packs, and the rules packs of `aitool-content` (not its journals or monsters, which hold
+ * adventure names).
+ */
+export const DEFAULT_RULES_PACKAGES = [
+  'dnd-players-handbook',
+  'dnd5e',
+  ...['classes', 'species', 'backgrounds', 'feats', 'spells', 'items'].map(
+    p => `aitool-content.${p}`
+  ),
+];
 
 export const RULES_SEARCH_SETTING = 'rulesSearchPacks';
 
@@ -52,6 +62,13 @@ const STOP_WORDS = new Set([
 
 const SNIPPET_CHARS = 240;
 const MAX_EXCERPT = 4000;
+const CACHE_TTL_MS = 10 * 60 * 1000;
+
+/** A number from the wire, clamped; a missing or non-numeric value gives the fallback. */
+function clampInt(value: unknown, fallback: number, min: number, max: number): number {
+  const n = typeof value === 'number' && Number.isFinite(value) ? Math.floor(value) : fallback;
+  return Math.min(Math.max(n, min), max);
+}
 const MAX_LIMIT = 25;
 
 interface IndexedText {
@@ -88,6 +105,8 @@ export interface RulesSearchResult {
   results: RulesSearchHit[];
   totalMatches: number;
   searchedPacks: string[];
+  /** Packs that failed to load; their text is missing from the results. */
+  skippedPacks?: string[];
   includeWorld: boolean;
   includeOtherBooks: boolean;
   note?: string;
@@ -107,20 +126,28 @@ export interface RulesSearchParams {
 /** HTML to plain text: tags out, entities decoded for the common few, blanks squeezed. */
 export function plainText(html: unknown): string {
   if (typeof html !== 'string') return '';
-  return html
-    .replace(/@UUID\[[^\]]*\]\{([^}]*)\}/g, '$1')
-    .replace(/\[\[[^\]]*\]\]\{([^}]*)\}/g, '$1')
-    .replace(/\[\[[^\]]*\]\]|@Embed\[[^\]]*\]/g, '')
-    .replace(/<\/(p|div|li|h[1-6]|tr|br)>|<br\s*\/?>/gi, ' ')
-    .replace(/<[^>]*>/g, '')
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;|&rsquo;/g, "'")
-    .replace(/\s+/g, ' ')
-    .trim();
+  return (
+    html
+      // Labelled enrichers keep their label; a bare roll keeps its command and arguments
+      // ("[[/damage 2d6 fire]]" reads "damage 2d6 fire"); a bare reference keeps its name.
+      .replace(/@UUID\[[^\]]*\]\{([^}]*)\}/g, '$1')
+      .replace(/\[\[[^\]]*\]\]\{([^}]*)\}/g, '$1')
+      .replace(/\[\[\s*\/?(\w+)\s*([^\]]*)\]\]/g, '$1 $2')
+      .replace(/&(?:amp;)?Reference\[([^\]=]+)(?:=[^\]]*)?\]/g, '$1')
+      .replace(/@(?:UUID|Embed)\[[^\]]*\]/g, '')
+      .replace(/<\/(p|div|li|h[1-6]|tr|td|th|br)>|<br\s*\/?>/gi, ' ')
+      .replace(/<[^>]*>/g, '')
+      // &amp; last, so "&amp;lt;" stays the text "&lt;".
+      .replace(/&nbsp;/g, ' ')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/&rsquo;/g, '’')
+      .replace(/&#(\d+);/g, (_, n: string) => String.fromCodePoint(Number(n)))
+      .replace(/&amp;/g, '&')
+      .replace(/\s+/g, ' ')
+      .trim()
+  );
 }
 
 /** Lower-case search stem: "grappling", "grappled" and "grapples" all become "grappl". */
@@ -155,8 +182,8 @@ function isAllowed(pack: PackLike, allowlist: string[]): boolean {
 }
 
 export class RulesSearchDataAccess {
-  /** Per-pack text, built on first use. A pack changes only on a module update. */
-  private cache = new Map<string, IndexedText[]>();
+  /** Per-pack text, built on first use (a pack can change when an importer writes to it). */
+  private cache = new Map<string, { at: number; entries: Promise<IndexedText[]> }>();
 
   clearCache(): void {
     this.cache.clear();
@@ -171,16 +198,14 @@ export class RulesSearchDataAccess {
         'Search query has no searchable words (only filler words like "how" or "the")'
       );
     }
-    const limit = Math.min(Math.max(Math.floor(params.limit ?? 10), 1), MAX_LIMIT);
-    const excerptChars = Math.min(
-      Math.max(Math.floor(params.excerptChars ?? SNIPPET_CHARS), 80),
-      MAX_EXCERPT
-    );
+    const limit = clampInt(params.limit, 10, 1, MAX_LIMIT);
+    const excerptChars = clampInt(params.excerptChars, SNIPPET_CHARS, 80, MAX_EXCERPT);
     const includeWorld = params.includeWorld === true;
     const includeOtherBooks = params.includeOtherBooks === true;
 
     const allowlist = parseAllowlist(game.settings.get(MODULE_ID, RULES_SEARCH_SETTING));
     const searchedPacks: string[] = [];
+    const skippedPacks: string[] = [];
     const entries: IndexedText[] = [];
 
     for (const pack of game.packs as unknown as Iterable<PackLike>) {
@@ -193,6 +218,7 @@ export class RulesSearchDataAccess {
         searchedPacks.push(id);
       } catch (error) {
         console.warn(`${MODULE_ID} | rules search: skipping pack ${id}`, error);
+        skippedPacks.push(id);
       }
     }
 
@@ -203,7 +229,8 @@ export class RulesSearchDataAccess {
 
     const needed = terms.length <= 2 ? terms.length : Math.ceil(terms.length / 2);
     // Rare terms count more than common ones ("grappl" beats "action").
-    const presence = entries.map(entry => termPresence(entry, terms));
+    const patterns = terms.map(termPattern);
+    const presence = entries.map(entry => termPresence(entry, terms, patterns));
     const weights = terms.map((_, i) => {
       const df = presence.filter(p => p[i] !== 'none').length;
       return Math.log(1 + entries.length / Math.max(df, 1));
@@ -216,7 +243,7 @@ export class RulesSearchDataAccess {
     const seen = new Set<string>();
     const hits: RulesSearchHit[] = [];
     const order = entries.map((_, i) => i);
-    const scores = order.map(i => scoreEntry(entries[i], terms, presence[i], weights));
+    const scores = order.map(i => scoreEntry(entries[i], terms, patterns, presence[i], weights));
     order.sort(
       (a, b) =>
         scores[b].score - scores[a].score ||
@@ -254,19 +281,32 @@ export class RulesSearchDataAccess {
       results: hits.slice(0, limit),
       totalMatches: hits.length,
       searchedPacks,
+      ...(skippedPacks.length > 0 ? { skippedPacks } : {}),
       includeWorld,
       includeOtherBooks,
-      ...(hits.length === 0 && !includeWorld && !includeOtherBooks
+      ...(searchedPacks.length === 0 && !includeWorld
         ? {
-            note: 'Nothing found in the rules packs. Adventure text and world journals are only searched with includeWorld or includeOtherBooks.',
+            note: `No pack matches the "Rules search packs" setting (${allowlist.join(', ')}). Use package names or pack ids such as dnd5e.rules, separated by commas.`,
           }
-        : {}),
+        : hits.length === 0 && !includeWorld && !includeOtherBooks
+          ? {
+              note: 'Nothing found in the rules packs. includeWorld also searches world journals, which can hold adventure text; includeOtherBooks searches packs outside the allowlist.',
+            }
+          : {}),
     };
   }
 
-  private async indexPack(pack: PackLike, id: string, type: string): Promise<IndexedText[]> {
+  /** One build per pack, shared by searches that start together; kept for CACHE_TTL_MS. */
+  private indexPack(pack: PackLike, id: string, type: string): Promise<IndexedText[]> {
     const cached = this.cache.get(id);
-    if (cached) return cached;
+    if (cached && Date.now() - cached.at < CACHE_TTL_MS) return cached.entries;
+    const entries = this.buildPackIndex(pack, id, type);
+    this.cache.set(id, { at: Date.now(), entries });
+    entries.catch(() => this.cache.delete(id));
+    return entries;
+  }
+
+  private async buildPackIndex(pack: PackLike, id: string, type: string): Promise<IndexedText[]> {
     const out: IndexedText[] = [];
     const label: string = pack.metadata?.label ?? id;
     const docs = await pack.getDocuments();
@@ -302,7 +342,6 @@ export class RulesSearchDataAccess {
         });
       }
     }
-    this.cache.set(id, out);
     return out;
   }
 
@@ -330,29 +369,38 @@ export class RulesSearchDataAccess {
 type Presence = 'none' | 'body' | 'title';
 
 /** Per term: in the page or journal title, only in the text, or absent. */
-function termPresence(entry: IndexedText, terms: string[]): Presence[] {
-  const title = `${entry.name} ${entry.pageName ?? ''}`.toLowerCase();
-  const body = entry.text.toLowerCase();
-  return terms.map(term =>
-    title.includes(term) ? 'title' : body.includes(term) ? 'body' : 'none'
+function termPresence(entry: IndexedText, terms: string[], patterns: RegExp[]): Presence[] {
+  const title = `${entry.name} ${entry.pageName ?? ''}`;
+  return terms.map((_, i) =>
+    patterns[i].test(title) ? 'title' : patterns[i].test(entry.text) ? 'body' : 'none'
   );
+}
+
+/**
+ * A term matches at the start of a word ("grappl" finds "grappling"), never inside one
+ * ("rest" not "forest"); a short term ("ac", "dc", "help") must be the whole word, with
+ * an optional plural.
+ */
+export function termPattern(term: string): RegExp {
+  const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(term.length < 5 ? `\\b${escaped}(?:s|es)?\\b` : `\\b${escaped}`, 'i');
 }
 
 function scoreEntry(
   entry: IndexedText,
   terms: string[],
+  patterns: RegExp[],
   presence: Presence[],
   weights: number[]
 ): { matched: number; score: number; firstIndex: number } {
-  const body = entry.text.toLowerCase();
   let matched = 0;
   let score = 0;
   let firstIndex = -1;
-  terms.forEach((term, i) => {
+  terms.forEach((_, i) => {
     if (presence[i] === 'none') return;
     matched += 1;
-    const at = body.indexOf(term);
-    const tf = at >= 0 ? 1 + Math.min(countOccurrences(body, term), 5) / 5 : 0;
+    const at = entry.text.search(patterns[i]);
+    const tf = at >= 0 ? 1 + Math.min(countOccurrences(entry.text, patterns[i]), 5) / 5 : 0;
     score += weights[i] * ((presence[i] === 'title' ? 4 : 0) + tf);
     if (at >= 0 && (firstIndex < 0 || at < firstIndex)) firstIndex = at;
   });
@@ -361,14 +409,8 @@ function scoreEntry(
   return { matched, score: Math.round(score * (0.6 + 0.4 * density) * 10) / 10, firstIndex };
 }
 
-function countOccurrences(haystack: string, needle: string): number {
-  let count = 0;
-  let from = 0;
-  while ((from = haystack.indexOf(needle, from)) >= 0) {
-    count += 1;
-    from += needle.length;
-  }
-  return count;
+function countOccurrences(haystack: string, pattern: RegExp): number {
+  return haystack.match(new RegExp(pattern.source, 'gi'))?.length ?? 0;
 }
 
 function snippetAround(text: string, index: number, chars: number): string {

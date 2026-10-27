@@ -373,15 +373,18 @@ export class CompendiumTools {
 
   async handleSearchRules(args: unknown): Promise<unknown> {
     const schema = z.object({
-      query: z.string().min(2, 'Search query must be at least 2 characters'),
-      limit: z.number().min(1).max(25).default(10),
+      query: z.string().min(2, 'Search query must be at least 2 characters').max(300),
+      limit: z.number().int().min(1).max(25).default(10),
       includeWorld: z.boolean().default(false),
-      excerptChars: z.number().min(80).max(4000).default(240),
+      excerptChars: z.number().int().min(80).max(4000).default(240),
       includeOtherBooks: z.boolean().default(false),
     });
     const parsed = schema.parse(typeof args === 'string' ? { query: args } : args);
     try {
-      return await this.foundryClient.query('foundry-mcp-bridge.searchRules', parsed);
+      // The first search after a reload builds the index of every rules pack: allow it time.
+      return await this.foundryClient.query('foundry-mcp-bridge.searchRules', parsed, {
+        timeoutMs: 60_000,
+      });
     } catch (error) {
       this.logger.error('Failed to search rules', error);
       throw new Error(

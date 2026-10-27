@@ -7,7 +7,13 @@ import {
   type TestWorld,
 } from './test-support/foundry-mock/index.js';
 import { FoundryDataAccess } from './data-access.js';
-import { parseAllowlist, queryTerms, stem } from './data-access/rules-search.js';
+import {
+  parseAllowlist,
+  plainText,
+  queryTerms,
+  stem,
+  termPattern,
+} from './data-access/rules-search.js';
 
 let world: TestWorld;
 let restore: () => void;
@@ -57,7 +63,7 @@ beforeEach(() => {
         name: 'Shield',
         type: 'spell',
         system: {
-          description: { value: '<p>An invisible barrier of magical force protects you.</p>' },
+          description: { value: '<p>A glimmering dome of force surrounds the caster.</p>' },
         },
       }),
     ],
@@ -112,7 +118,55 @@ describe('search-rules text helpers', () => {
   });
 });
 
+describe('plainText', () => {
+  it('keeps roll arguments, reference names and table cells; decodes entities in order', () => {
+    expect(plainText('<p>Take [[/damage 2d6 type=fire]] on a failed [[/save dex dc=15]]</p>')).toBe(
+      'Take damage 2d6 type=fire on a failed save dex dc=15'
+    );
+    expect(plainText('See &Reference[Grappled] and &amp;Reference[Prone=1]')).toBe(
+      'See Grappled and Prone'
+    );
+    expect(plainText('<table><tr><td>a</td><td>b</td></tr></table>')).toBe('a b');
+    expect(plainText('x&#233;y &amp;lt; z @UUID[Compendium.a.b.c] ok')).toBe('xéy &lt; z ok');
+  });
+});
+
+describe('termPattern', () => {
+  it('matches word starts and whole short words only', () => {
+    expect(termPattern('rest').test('a long rest')).toBe(true);
+    expect(termPattern('rest').test('the forest')).toBe(false);
+    expect(termPattern('ac').test('reach')).toBe(false);
+    expect(termPattern('ac').test('your AC rises')).toBe(true);
+    expect(termPattern('grappl').test('grappling')).toBe(true);
+    expect(termPattern('advantag').test('disadvantage')).toBe(false);
+  });
+});
+
 describe('FoundryDataAccess.searchRules', () => {
+  it('reports a pack that fails to load and one that matches nothing', async () => {
+    world.addPack({
+      id: 'dnd5e.broken',
+      label: 'Broken',
+      type: 'JournalEntry',
+      getDocuments: () => Promise.reject(new Error('boom')),
+    });
+    const res = await da.searchRules({ query: 'grapple' });
+    expect(res.skippedPacks).toEqual(['dnd5e.broken']);
+    allowlistSetting = 'nothing-matches-this';
+    const none = await da.searchRules({ query: 'grapple' });
+    expect(none.note).toMatch(/No pack matches/);
+  });
+
+  it('treats a non-numeric limit as the default and shares one index build', async () => {
+    const pack = world.packs.get('dnd-players-handbook.content');
+    const spy = vi.spyOn(pack as { getDocuments: () => Promise<unknown[]> }, 'getDocuments');
+    await Promise.all([
+      da.searchRules({ query: 'grapple', limit: Number.NaN }),
+      da.searchRules({ query: 'grapple' }),
+    ]);
+    expect(spy).toHaveBeenCalledTimes(1);
+  });
+
   it('finds the PHB page for "how does grappling work" with a snippet and ids', async () => {
     const res = await da.searchRules({ query: 'how does grappling work' });
     expect(res.results[0]).toMatchObject({
@@ -128,7 +182,7 @@ describe('FoundryDataAccess.searchRules', () => {
   });
 
   it('searches Item descriptions', async () => {
-    const res = await da.searchRules({ query: 'invisible barrier' });
+    const res = await da.searchRules({ query: 'glimmering dome' });
     expect(res.results.map(r => r.documentId)).toEqual(['sp1']);
   });
 

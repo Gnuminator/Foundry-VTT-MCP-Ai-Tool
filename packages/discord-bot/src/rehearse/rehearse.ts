@@ -164,7 +164,7 @@ export async function rehearse(
         const name = user?.username ?? userId;
         return { userId, username: name, displayName: user?.globalName ?? name };
       },
-      alert: msg => log.info(`  recorder: ${msg}`),
+      alert: (msg): void => log.info(`  recorder: ${msg}`),
     });
     log.info(`Recorder joining ${channel.name}...`);
     await recorder.start();

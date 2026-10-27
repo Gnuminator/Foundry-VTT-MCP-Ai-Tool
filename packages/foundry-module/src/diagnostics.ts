@@ -31,6 +31,26 @@ export interface DiagnosticEntry {
   userName: string | null;
 }
 
+/** `String(value)` for a value of unknown type (a best-effort label, never parsed). */
+function stringifyValue(value: unknown): string {
+  return String(value);
+}
+
+/** The parts of a thrown value or rejection reason that the capture reads. */
+interface ErrorLike {
+  message?: string;
+  stack?: string;
+}
+
+/** The parts of a window `error` event that the capture reads. */
+interface WindowErrorLike {
+  message?: string;
+  error?: unknown;
+  filename?: string;
+  lineno?: number;
+  colno?: number;
+}
+
 const MAX_ENTRIES = 500;
 const STORAGE_KEY = `${MODULE_ID}.diagnostics`;
 
@@ -62,7 +82,7 @@ export class Diagnostics {
       const origError = console.error.bind(console);
       const origWarn = console.warn.bind(console);
 
-      console.error = (...args: any[]): void => {
+      console.error = (...args: unknown[]): void => {
         try {
           this.captureConsole('error', args);
         } catch {
@@ -70,7 +90,7 @@ export class Diagnostics {
         }
         origError(...args);
       };
-      console.warn = (...args: any[]): void => {
+      console.warn = (...args: unknown[]): void => {
         try {
           this.captureConsole('warn', args);
         } catch {
@@ -79,13 +99,14 @@ export class Diagnostics {
         origWarn(...args);
       };
 
-      window.addEventListener('error', (ev: any) => {
+      window.addEventListener('error', (ev: WindowErrorLike) => {
         try {
+          const err = ev?.error as ErrorLike | null | undefined;
           this.capture({
             level: 'error',
             kind: 'window-error',
-            message: ev?.message || String(ev?.error?.message || ev?.error || 'Uncaught error'),
-            stack: ev?.error?.stack ?? null,
+            message: ev?.message || stringifyValue(err?.message || ev?.error || 'Uncaught error'),
+            stack: err?.stack ?? null,
             source: ev?.filename ? `${ev.filename}:${ev.lineno ?? '?'}:${ev.colno ?? '?'}` : null,
           });
         } catch {
@@ -93,13 +114,14 @@ export class Diagnostics {
         }
       });
 
-      window.addEventListener('unhandledrejection', (ev: any) => {
+      window.addEventListener('unhandledrejection', (ev: { reason?: unknown }) => {
         try {
-          const reason = ev?.reason;
+          const rawReason: unknown = ev?.reason;
+          const reason = rawReason as ErrorLike | null | undefined;
           this.capture({
             level: 'error',
             kind: 'unhandledrejection',
-            message: reason?.message || String(reason ?? 'Unhandled promise rejection'),
+            message: reason?.message || stringifyValue(rawReason ?? 'Unhandled promise rejection'),
             stack: reason?.stack ?? null,
             source: null,
           });
@@ -114,8 +136,8 @@ export class Diagnostics {
     }
   }
 
-  private captureConsole(level: 'error' | 'warn', args: any[]): void {
-    const errArg = args.find(a => a instanceof Error);
+  private captureConsole(level: 'error' | 'warn', args: unknown[]): void {
+    const errArg = args.find((a): a is Error => a instanceof Error);
     const message = args.map(a => this.format(a)).join(' ');
     this.capture({
       level,
@@ -126,17 +148,17 @@ export class Diagnostics {
     });
   }
 
-  private format(a: any): string {
+  private format(a: unknown): string {
     if (a instanceof Error) return a.message;
     if (typeof a === 'string') return a;
     if (typeof a === 'object' && a !== null) {
       try {
         return JSON.stringify(a);
       } catch {
-        return String(a);
+        return stringifyValue(a);
       }
     }
-    return String(a);
+    return stringifyValue(a);
   }
 
   private capture(p: {
@@ -157,7 +179,8 @@ export class Diagnostics {
       source: p.source,
       module: this.attribute(haystack),
       kind: p.kind,
-      userName: (globalThis as any).game?.user?.name ?? null,
+      userName:
+        (globalThis as { game?: { user?: { name?: string | null } } }).game?.user?.name ?? null,
     };
 
     this.buffer.push(entry);
@@ -186,9 +209,9 @@ export class Diagnostics {
   private restore(): void {
     const raw = window.localStorage?.getItem(STORAGE_KEY);
     if (!raw) return;
-    const parsed = JSON.parse(raw);
+    const parsed: unknown = JSON.parse(raw);
     if (Array.isArray(parsed)) {
-      this.buffer = parsed.slice(-MAX_ENTRIES);
+      this.buffer = (parsed as DiagnosticEntry[]).slice(-MAX_ENTRIES);
     }
   }
 

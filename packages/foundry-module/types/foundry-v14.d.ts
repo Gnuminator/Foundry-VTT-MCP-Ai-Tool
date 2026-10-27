@@ -639,8 +639,18 @@ declare global {
   const Folder: FoundryDocumentClass<Folder>;
   const JournalEntry: FoundryDocumentClass<JournalEntry>;
 
+  /** What the settings callbacks and the Enhanced Index menu use of `window.foundryMCPBridge`. */
+  interface FoundryMcpBridgeHandle {
+    dataAccess?: unknown;
+    start?(): unknown;
+    stop?(): unknown;
+    restart?(): unknown;
+  }
+
   interface Window {
-    foundryMCPBridge?: any;
+    foundryMCPBridge?: FoundryMcpBridgeHandle;
+    /** Console helpers installed by `main.ts`. */
+    foundryMCPDebug?: Record<string, unknown>;
   }
 }
 

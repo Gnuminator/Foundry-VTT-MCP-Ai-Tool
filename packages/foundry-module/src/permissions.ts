@@ -147,10 +147,10 @@ export class PermissionManager {
    */
   validateOperationParameters(
     operationName: string,
-    parameters: any
-  ): { valid: boolean; errors: string[]; sanitized?: any } {
+    parameters: Record<string, unknown>
+  ): { valid: boolean; errors: string[]; sanitized?: Record<string, unknown> | undefined } {
     const errors: string[] = [];
-    const sanitized = { ...parameters };
+    const sanitized: Record<string, unknown> = { ...parameters };
 
     switch (operationName) {
       case 'createActor':
@@ -159,7 +159,7 @@ export class PermissionManager {
         }
 
         if (sanitized.quantity) {
-          const quantity = parseInt(sanitized.quantity);
+          const quantity = parseInt(sanitized.quantity as string);
           // The ceiling of the "Max actors per request" setting; the setting itself is checked
           // in checkWritePermission and clamps in data-access (P-062).
           if (isNaN(quantity) || quantity < 1 || quantity > 50) {
@@ -183,7 +183,13 @@ export class PermissionManager {
           errors.push('actorIds must be a non-empty array');
         }
 
-        if (sanitized.placement && !['random', 'grid', 'center'].includes(sanitized.placement)) {
+        if (
+          sanitized.placement &&
+          !(
+            typeof sanitized.placement === 'string' &&
+            ['random', 'grid', 'center'].includes(sanitized.placement)
+          )
+        ) {
           errors.push('placement must be one of: random, grid, center');
         }
         break;
@@ -205,9 +211,12 @@ export class PermissionManager {
    */
   getOperationStatus(): Record<
     string,
-    { operation: WriteOperation; allowed: boolean; reason?: string }
+    { operation: WriteOperation; allowed: boolean; reason?: string | undefined }
   > {
-    const status: Record<string, any> = {};
+    const status: Record<
+      string,
+      { operation: WriteOperation; allowed: boolean; reason?: string | undefined }
+    > = {};
 
     for (const [key, operation] of Object.entries(this.writeOperations)) {
       const check = this.checkWritePermission(key);

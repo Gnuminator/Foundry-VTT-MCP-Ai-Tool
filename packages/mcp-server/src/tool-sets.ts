@@ -40,6 +40,7 @@ export const TOOL_SETS: Readonly<Record<ToolSetName, ToolSetSpec>> = {
       'get-character',
       'get-character-entity',
       'search-character-items',
+      'get-level-up-options',
       'list-scenes',
       'get-current-scene',
       'get-token-positions',

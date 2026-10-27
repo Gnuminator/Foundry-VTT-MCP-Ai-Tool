@@ -101,6 +101,7 @@ export const NON_WRITE_METHODS: readonly string[] = [
   'getJournalContent',
   'getJournalPageContent',
   'getLibraryDocuments',
+  'getLevelUpOptions',
   'getLibraryIndex',
   'getModuleErrors',
   'getModuleManifest',

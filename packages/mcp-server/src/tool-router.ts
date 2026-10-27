@@ -42,6 +42,7 @@ import type { PartyTools } from './tools/party.js';
 import type { PrepDigestTools } from './tools/prep-digest.js';
 import type { QuestCreationTools } from './tools/quest-creation.js';
 import type { RefChoiceTools } from './tools/ref-choices.js';
+import type { LevelUpTools } from './tools/level-up.js';
 import type { ResourceTools } from './tools/resources.js';
 import type { SceneChangeTools } from './tools/scene-change.js';
 import type { CombatChangeTools } from './tools/combat-change.js';
@@ -89,6 +90,7 @@ export interface ToolRouterDeps {
   questCreationTools: QuestCreationTools;
   refChoiceTools: RefChoiceTools;
   resourceTools: ResourceTools;
+  levelUpTools: LevelUpTools;
   sceneChangeTools: SceneChangeTools;
   combatChangeTools: CombatChangeTools;
   sceneTools: SceneTools;
@@ -184,6 +186,7 @@ export function buildToolRouter(deps: ToolRouterDeps): Record<string, ToolHandle
     'list-journals': args => deps.questCreationTools.handleListJournals(args),
     'search-journals': args => deps.questCreationTools.handleSearchJournals(args),
     'get-character-resources': args => deps.resourceTools.handleGetCharacterResources(args),
+    'get-level-up-options': args => deps.levelUpTools.handleGetLevelUpOptions(args),
     'get-current-scene': args => deps.sceneTools.handleGetCurrentScene(args),
     'get-world-info': args => deps.sceneTools.handleGetWorldInfo(args),
     'get-session-log': args => deps.sessionLogTools.handleGetSessionLog(args),
@@ -262,6 +265,7 @@ export function collectToolDefinitions(deps: ToolRouterDeps): ToolDefinitionLike
     ...deps.tokenManipulationTools.getToolDefinitions(),
     ...deps.chatLogTools.getToolDefinitions(),
     ...deps.resourceTools.getToolDefinitions(),
+    ...deps.levelUpTools.getToolDefinitions(),
     ...deps.effectsTools.getToolDefinitions(),
     ...deps.combatTools.getToolDefinitions(),
     ...deps.movementTools.getToolDefinitions(),

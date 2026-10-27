@@ -81,6 +81,7 @@ export const TOOL_HINTS: Readonly<Record<string, ToolHintSpec>> = {
   'get-combat-play-by-play': { title: 'Get combat play-by-play', kind: 'read' },
   'send-chat-message': { title: 'Send chat message', kind: 'write' },
   'get-character-resources': { title: 'Get character resources', kind: 'read' },
+  'get-level-up-options': { title: 'Get level-up options', kind: 'read' },
   'get-active-effects': { title: 'Get active effects', kind: 'read' },
   'advance-combat-turn': { title: 'Advance combat turn', kind: 'write' },
   'set-initiative': { title: 'Set initiative', kind: 'destructive' },

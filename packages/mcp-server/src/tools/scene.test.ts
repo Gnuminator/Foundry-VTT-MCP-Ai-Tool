@@ -11,8 +11,11 @@ import { SceneTools } from './scene.js';
  * key transformations on representative mock responses.
  */
 
-function makeTools(queryImpl?: (method: string, data: unknown) => unknown) {
-  const query = vi.fn(queryImpl ?? (() => ({ success: true })));
+function makeTools(queryImpl?: (method: string, data: unknown) => unknown): {
+  tools: SceneTools;
+  query: ReturnType<typeof vi.fn>;
+} {
+  const query = vi.fn(queryImpl ?? ((): unknown => ({ success: true })));
   const foundryClient = { query } as any;
   // Minimal Logger stub: `.child()` returns itself; level methods are no-ops.
   const logger: any = {
@@ -21,7 +24,7 @@ function makeTools(queryImpl?: (method: string, data: unknown) => unknown) {
     info: vi.fn(),
     debug: vi.fn(),
   };
-  logger.child = () => logger;
+  logger.child = (): unknown => logger;
   return { tools: new SceneTools({ foundryClient, logger }), query };
 }
 
@@ -298,7 +301,7 @@ describe('SceneTools.handleGetCurrentScene', () => {
   });
 
   it('maps disposition numbers to names: -1→hostile, 0→neutral, 1→friendly, other→unknown', async () => {
-    const makeToken = (id: string, disposition: number) => ({
+    const makeToken = (id: string, disposition: number): Record<string, unknown> => ({
       id,
       name: id,
       x: 0,

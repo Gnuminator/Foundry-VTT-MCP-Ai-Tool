@@ -133,6 +133,43 @@ export class HandoutQueue {
     return removed;
   }
 
+  /**
+   * Move a queued page to `toIndex` (0 = first, oldest) in one write. The queue order is the
+   * entries' `addedAt`, so the existing times are handed out again in the new order (bumped by a
+   * millisecond where two would tie). Returns false when the page is already there.
+   */
+  async move(uuid: string, toIndex: number): Promise<boolean> {
+    const worldId = await this.worldIds.current();
+    let moved = false;
+    await this.store.update<QueueFile>(worldId, 'gm', QUEUE_FILE, 1, current => {
+      const file = current?.data ?? {};
+      const ordered = orderedQueue(file);
+      const from = ordered.findIndex(([, e]) => e.uuid === uuid);
+      if (from < 0) throw new Error('That page is not in the reveal queue');
+      if (!Number.isInteger(toIndex) || toIndex < 0 || toIndex >= ordered.length) {
+        throw new Error(`position must be between 0 and ${ordered.length - 1}`);
+      }
+      if (from === toIndex) return file;
+      const times = ordered.map(([, e]) => Date.parse(e.addedAt));
+      const reordered = [...ordered];
+      reordered.splice(toIndex, 0, reordered.splice(from, 1)[0]);
+      const entries = { ...(file.entries ?? {}) };
+      let last = -Infinity;
+      reordered.forEach(([id, e], i) => {
+        const base = times[i];
+        const at = Number.isFinite(base) ? Math.max(base, last + 1) : last + 1;
+        last = at;
+        entries[id] = {
+          ...e,
+          addedAt: Number.isFinite(at) ? new Date(at).toISOString() : e.addedAt,
+        };
+      });
+      moved = true;
+      return { ...file, entries };
+    });
+    return moved;
+  }
+
   /** The seen log for every page. */
   async seen(worldId?: string): Promise<Record<string, SeenEntry[]>> {
     const id = worldId ?? (await this.worldIds.current());

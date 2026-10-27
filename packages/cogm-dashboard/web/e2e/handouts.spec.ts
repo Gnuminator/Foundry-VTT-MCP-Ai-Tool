@@ -354,6 +354,48 @@ test('Remove takes a page off the queue with GM Actions off; Reveal next stays g
   expect(names(calls.slice(before)).filter(n => n === 'plan-page-reveal')).toEqual([]);
 });
 
+test('an arrow moves a row with one move call and keeps keyboard focus on that arrow', async ({
+  page,
+}) => {
+  await fakeStream(page, gmActions(true));
+  let queue = [...QUEUE];
+  const calls = await fakeTools(page, call => {
+    if (call.name === 'list-revealed-pages') return ok({ pages: PAGES, queue });
+    if (call.name === 'plan-page-reveal' && call.args['action'] === 'move') {
+      const from = queue.findIndex(q => q.uuid === call.args['pageUuid']);
+      const next = [...queue];
+      next.splice(call.args['position'] as number, 0, next.splice(from, 1)[0]);
+      queue = next;
+      return ok({ queued: true, pageUuid: call.args['pageUuid'], note: 'Moved.' });
+    }
+    return bridge(call);
+  });
+  const drawer = await openHandouts(page);
+  await expect(queueRows(drawer)).toHaveCount(4);
+
+  // Move the second row up, then the same row (now first) down, from the keyboard.
+  const up = queueRows(drawer).nth(1).getByRole('button', { name: 'Move Map of Maravia up' });
+  await up.focus();
+  await page.keyboard.press('Enter');
+  await expect(queueRows(drawer).nth(0)).toContainText('Map of Maravia');
+  await expect(queueRows(drawer).nth(0).getByRole('button', { name: /up$/ })).toBeDisabled();
+  // At the top the up arrow is disabled, so focus lands on the down arrow of the same row.
+  await expect(
+    queueRows(drawer).nth(0).getByRole('button', { name: 'Move Map of Maravia down' })
+  ).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(queueRows(drawer).nth(1)).toContainText('Map of Maravia');
+  await expect(
+    queueRows(drawer).nth(1).getByRole('button', { name: 'Move Map of Maravia down' })
+  ).toBeFocused();
+
+  const moves = calls.filter(c => c.name === 'plan-page-reveal');
+  expect(moves.map(c => c.args)).toEqual([
+    { action: 'move', pageUuid: page_(2), position: 0 },
+    { action: 'move', pageUuid: page_(2), position: 1 },
+  ]);
+});
+
 test('Reveal next asks first; the tick unlocks Confirm, which applies with both flags', async ({
   page,
 }) => {

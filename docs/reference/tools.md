@@ -997,8 +997,9 @@ Kind: read-only. Title: Plan page reveal.
 Parameters:
 
 - `pageUuid` (string): The journal page to reveal, hide, queue or unqueue. Not used by "reveal-next".
-- `action` (string, required): "reveal" adds it to the player allowlist; "hide" removes it. "queue" stages the page for later (changes nothing in Foundry, no plan, applies at once) and "unqueue" removes it from the queue. "reveal-next" plans the reveal of the oldest queued page for sceneId (or any), with the players it was queued for; applying it also takes the page off the queue. One of: `reveal`, `hide`, `queue`, `unqueue`, `reveal-next`.
+- `action` (string, required): "reveal" adds it to the player allowlist; "hide" removes it. "queue" stages the page for later (no plan, applies at once) and "unqueue" removes it from the queue. "move" puts a queued page at `position`. "reveal-next" plans revealing the oldest queued page for sceneId (or any); applying it takes the page off the queue. One of: `reveal`, `hide`, `queue`, `unqueue`, `move`, `reveal-next`.
 - `players` (array of string): Reveal (or queue) for these players only (Foundry user ids): the rest of the table does not get it. Omit for every player.
+- `position` (integer): move: new place, 0 = first.
 - `sceneId` (string): queue: the scene the page belongs to (omit for any scene). reveal-next: take the next page queued for this scene (or for any scene).
 - `setOwnership` (boolean): Also change the page ownership (default true). False only changes the allowlist.
 - `copy` (boolean): Reveal as a copy in the player journal "Handouts" (secret blocks and embeds left out, the source unchanged). Omit for automatic: copy when no player can open the page's journal, or when the page already has a copy (the copy is updated). True: always copy. False: never copy (raise the page instead; refused while the page has a copy).

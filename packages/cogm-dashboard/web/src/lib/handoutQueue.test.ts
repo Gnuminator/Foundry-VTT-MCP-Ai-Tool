@@ -1,35 +1,23 @@
 import { describe, expect, it } from 'vitest';
 
-import { moveUpPlan, requeueArgs, type QueueRow } from './handoutQueue';
+import { canMoveTo, moveTarget } from './handoutQueue';
 
-const row = (uuid: string, exists = true): QueueRow => ({ uuid, exists, sceneId: null });
-const q = [row('a'), row('b'), row('c'), row('d')];
-
-describe('moveUpPlan', () => {
-  it('re-queues the row above, then everything after the moved row', () => {
-    expect(moveUpPlan(q, 1)?.map(r => r.uuid)).toEqual(['a', 'c', 'd']);
-    expect(moveUpPlan(q, 3)?.map(r => r.uuid)).toEqual(['c']);
+describe('canMoveTo', () => {
+  it('allows a move inside the queue to another place', () => {
+    expect(canMoveTo(4, 1, 0)).toBe(true);
+    expect(canMoveTo(4, 2, 3)).toBe(true);
   });
-  it('has nothing to do for the first row or a bad index', () => {
-    expect(moveUpPlan(q, 0)).toBeNull();
-    expect(moveUpPlan(q, 4)).toBeNull();
-  });
-  it('refuses when a row to re-queue was deleted', () => {
-    expect(moveUpPlan([row('a'), row('b'), row('c', false)], 1)).toBeNull();
-    expect(moveUpPlan([row('a', false), row('b')], 1)).toBeNull();
-    // The moved row itself is never re-queued, so a deleted one can still move up.
-    expect(moveUpPlan([row('a'), row('b', false)], 1)?.map(r => r.uuid)).toEqual(['a']);
+  it('refuses the edges, the same place and a bad index', () => {
+    expect(canMoveTo(4, 0, -1)).toBe(false);
+    expect(canMoveTo(4, 3, 4)).toBe(false);
+    expect(canMoveTo(4, 2, 2)).toBe(false);
+    expect(canMoveTo(4, 4, 3)).toBe(false);
   });
 });
 
-describe('requeueArgs', () => {
-  it('keeps scene and players when set', () => {
-    expect(requeueArgs({ uuid: 'u', exists: true, sceneId: 's', players: ['p'] })).toEqual({
-      action: 'queue',
-      pageUuid: 'u',
-      sceneId: 's',
-      players: ['p'],
-    });
-    expect(requeueArgs(row('u'))).toEqual({ action: 'queue', pageUuid: 'u' });
+describe('moveTarget', () => {
+  it('is one place up or down', () => {
+    expect(moveTarget(2, 'up')).toBe(1);
+    expect(moveTarget(2, 'down')).toBe(3);
   });
 });

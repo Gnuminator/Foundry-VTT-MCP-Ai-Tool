@@ -152,6 +152,58 @@ describe('reveal queue', () => {
     );
   });
 
+  it('move puts a page at a new place in one write, keeping scene and players', async () => {
+    await handouts.queuePage({ pageUuid: PAGE1, sceneId: SCENE, players: [ANNA] });
+    now += 1000;
+    await handouts.queuePage({ pageUuid: PAGE2 });
+    now += 1000;
+    await handouts.queuePage({ pageUuid: HIDDEN });
+    const order = async (): Promise<string[]> => (await handouts.listQueue()).map(q => q.uuid);
+    const writes = vi.spyOn(store, 'update');
+    const listener = vi.fn();
+    handouts.addQueueChangedListener(listener);
+
+    await expect(handouts.movePage({ pageUuid: HIDDEN, position: 0 })).resolves.toMatchObject({
+      queued: true,
+    });
+    expect(await order()).toEqual([HIDDEN, PAGE1, PAGE2]);
+    expect(writes).toHaveBeenCalledTimes(1);
+    expect(listener).toHaveBeenCalledTimes(1);
+    const first = (await handouts.listQueue()).find(q => q.uuid === PAGE1)!;
+    expect([first.sceneId, first.players]).toEqual([SCENE, [ANNA]]);
+
+    await handouts.movePage({ pageUuid: HIDDEN, position: 2 });
+    expect(await order()).toEqual([PAGE1, PAGE2, HIDDEN]);
+    // Already there: nobody told.
+    await handouts.movePage({ pageUuid: PAGE1, position: 0 });
+    expect(listener).toHaveBeenCalledTimes(2);
+    // Reveal next follows the new order.
+    await handouts.movePage({ pageUuid: PAGE2, position: 0 });
+    const plan = await handouts.planPageReveal({ action: 'reveal-next' });
+    expect(plan.pageUuid).toBe(PAGE2);
+  });
+
+  it('move works when pages were queued in the same millisecond', async () => {
+    await handouts.queuePage({ pageUuid: PAGE1 });
+    await handouts.queuePage({ pageUuid: PAGE2 });
+    await handouts.queuePage({ pageUuid: HIDDEN });
+    await handouts.movePage({ pageUuid: HIDDEN, position: 1 });
+    expect((await handouts.listQueue()).map(q => q.uuid)).toEqual([PAGE1, HIDDEN, PAGE2]);
+    await handouts.movePage({ pageUuid: PAGE2, position: 0 });
+    expect((await handouts.listQueue()).map(q => q.uuid)).toEqual([PAGE2, PAGE1, HIDDEN]);
+  });
+
+  it('move refuses a page that is not queued and a place outside the queue', async () => {
+    await handouts.queuePage({ pageUuid: PAGE1 });
+    await expect(handouts.movePage({ pageUuid: PAGE2, position: 0 })).rejects.toThrow(
+      /not in the reveal queue/
+    );
+    await expect(handouts.movePage({ pageUuid: PAGE1, position: 1 })).rejects.toThrow(/position/);
+    await expect(handouts.movePage({ pageUuid: PAGE1, position: -1 })).rejects.toThrow(/position/);
+    await expect(handouts.movePage({ pageUuid: PAGE1 })).rejects.toThrow(/position/);
+    expect((await handouts.listQueue()).map(q => q.uuid)).toEqual([PAGE1]);
+  });
+
   it('tells the queue-changed listeners after a queue or unqueue, and not after a refusal', async () => {
     const listener = vi.fn();
     handouts.addQueueChangedListener(listener);

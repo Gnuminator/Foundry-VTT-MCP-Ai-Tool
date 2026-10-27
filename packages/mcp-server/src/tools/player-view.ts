@@ -27,7 +27,13 @@ interface ToolDefinition {
 interface PlayerViewToolsOptions {
   handouts: Pick<
     HandoutsService,
-    'listRevealed' | 'listQueue' | 'playerHandouts' | 'planPageReveal' | 'queuePage' | 'unqueuePage'
+    | 'listRevealed'
+    | 'listQueue'
+    | 'playerHandouts'
+    | 'planPageReveal'
+    | 'queuePage'
+    | 'unqueuePage'
+    | 'movePage'
   >;
   secretTerms: Pick<SecretTermsService, 'findSecretTerms'>;
   foundryClient: Pick<FoundryClient, 'query'>;
@@ -99,9 +105,9 @@ export class PlayerViewTools {
             },
             action: {
               type: 'string',
-              enum: ['reveal', 'hide', 'queue', 'unqueue', 'reveal-next'],
+              enum: ['reveal', 'hide', 'queue', 'unqueue', 'move', 'reveal-next'],
               description:
-                '"reveal" adds it to the player allowlist; "hide" removes it. "queue" stages the page for later (changes nothing in Foundry, no plan, applies at once) and "unqueue" removes it from the queue. "reveal-next" plans the reveal of the oldest queued page for sceneId (or any), with the players it was queued for; applying it also takes the page off the queue.',
+                '"reveal" adds it to the player allowlist; "hide" removes it. "queue" stages the page for later (no plan, applies at once) and "unqueue" removes it from the queue. "move" puts a queued page at `position`. "reveal-next" plans revealing the oldest queued page for sceneId (or any); applying it takes the page off the queue.',
             },
             players: {
               type: 'array',
@@ -110,6 +116,7 @@ export class PlayerViewTools {
                 'Reveal (or queue) for these players only (Foundry user ids): the rest of the table does not get it. Omit for every player.',
               ...toolRef('user', 'id', { filter: { role: 'player' } }),
             },
+            position: { type: 'integer', description: 'move: new place, 0 = first.' },
             sceneId: {
               type: 'string',
               description:
@@ -178,7 +185,8 @@ export class PlayerViewTools {
     const params = z
       .object({
         pageUuid: z.string().min(1).max(300).optional(),
-        action: z.enum(['reveal', 'hide', 'queue', 'unqueue', 'reveal-next']),
+        action: z.enum(['reveal', 'hide', 'queue', 'unqueue', 'move', 'reveal-next']),
+        position: z.number().int().min(0).max(1000).optional(),
         setOwnership: z.boolean().optional(),
         copy: z.boolean().optional(),
         players: z.array(z.string().max(64)).max(20).optional(),
@@ -188,7 +196,7 @@ export class PlayerViewTools {
       .parse(args ?? {});
     if (
       params.showNow !== undefined &&
-      (params.action === 'queue' || params.action === 'unqueue')
+      (params.action === 'queue' || params.action === 'unqueue' || params.action === 'move')
     ) {
       throw new Error(`showNow only goes with a reveal, not with action "${params.action}"`);
     }
@@ -204,6 +212,10 @@ export class PlayerViewTools {
     }
     if (params.action === 'unqueue')
       return this.handouts.unqueuePage({ pageUuid: params.pageUuid });
+    if (params.action === 'move') {
+      if (params.position === undefined) throw new Error('position is required for action "move"');
+      return this.handouts.movePage({ pageUuid: params.pageUuid, position: params.position });
+    }
     return this.logged('page reveal', () =>
       this.handouts.planPageReveal({
         action: params.action,

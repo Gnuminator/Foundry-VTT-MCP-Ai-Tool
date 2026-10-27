@@ -46,6 +46,9 @@ item is marked done; the board ignores a line on an item with no claim.
 
 ## Work
 
+- **Advisor (D-127):** call `advisor` (Opus, the user setting) once before you start coding and
+  once before you open the PR; act on it or say in the PR why not. The weekly check counts the
+  calls.
 - **Subagents:** `model: "sonnet"` for code, tests, scripts and sweeps; `model: "haiku"` for
   reading and simple mechanical edits; Opus only for design and risky-PR reviews. Partition workers
   by file, lock shared contracts first, tell them to write big files in parts of at most about 250

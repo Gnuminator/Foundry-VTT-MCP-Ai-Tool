@@ -143,7 +143,18 @@ describe('termPattern', () => {
     expect(termPattern('grappl').test('grappling')).toBe(true);
     expect(termPattern('advantag').test('disadvantage')).toBe(false);
     // Terms that stem() shortened must still find their own word.
-    for (const word of ['prone', 'dodge', 'shove', 'large', 'surge', 'resting', 'saves', 'uses']) {
+    for (const word of [
+      'prone',
+      'dodge',
+      'shove',
+      'large',
+      'surge',
+      'resting',
+      'saves',
+      'uses',
+      'bless',
+      'class',
+    ]) {
       expect(termPattern(stem(word)).test(`a ${word} creature`), word).toBe(true);
     }
     expect(termPattern(stem('saves')).test('you save')).toBe(true);

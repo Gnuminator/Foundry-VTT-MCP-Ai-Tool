@@ -157,6 +157,7 @@ export function plainText(html: unknown): string {
 /** Lower-case search stem: "grappling", "grappled" and "grapples" all become "grappl". */
 export function stem(word: string): string {
   const w = word.toLowerCase();
+  if (w.endsWith('ss')) return w; // "bless", "class": no plural s to drop
   const stripped = w.replace(/(ing|ed|es|e|s)$/, '');
   if (stripped.length >= 4) return stripped;
   // "saves" would lose too much; drop only the plural s so it still finds "save".
@@ -389,7 +390,7 @@ function termPresence(entry: IndexedText, terms: string[], patterns: RegExp[]): 
  */
 export function termPattern(term: string): RegExp {
   const short = term.length < 5;
-  const base = short ? term.replace(/(ing|ed|es|e|s)$/, '') : term;
+  const base = short && !term.endsWith('ss') ? term.replace(/(ing|ed|es|e|s)$/, '') : term;
   const escaped = (base.length >= 2 ? base : term).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   return new RegExp(short ? `\\b${escaped}(?:ing|ed|es|e|s)?\\b` : `\\b${escaped}`, 'i');
 }

@@ -417,13 +417,16 @@ describe('EventTracker roll events (O3 item 6)', () => {
 });
 
 describe('EventTracker item-use events', () => {
+  beforeEach(() => {
+    (globalThis as any).game.actors.get = resolveSilveraActor;
+  });
   const card = (over: Partial<any> = {}): any =>
     rollMessage({
       id: 'card',
       type: 'usage',
       rolls: [],
       system: { item: { uuid: 'Actor.a.Item.bless', name: 'Bless', type: 'spell' } },
-      speaker: { alias: 'Akra', actor: 'akra1' },
+      speaker: { alias: 'Silvera', actor: 'actor1' },
       ...over,
     });
 
@@ -433,13 +436,26 @@ describe('EventTracker item-use events', () => {
     fire('createChatMessage', card());
     const events = t.getSessionLog({ eventType: 'item-use' });
     expect(events).toHaveLength(1);
-    expect(events[0].description).toBe('Akra used Bless');
+    expect(events[0].description).toBe('Silvera used Bless');
     expect(events[0].details).toMatchObject({
       itemName: 'Bless',
       itemType: 'spell',
       private: false,
     });
-    expect(events[0].visibility).toBeDefined();
+    expect(events[0].visibility).toMatchObject({ subject: 'pc', playerName: 'Silvera' });
+  });
+
+  it('a public NPC card is an `item-use` event with subject npc', () => {
+    (globalThis as any).game.actors.get = (
+      id: string
+    ): { id: string; name: string; hasPlayerOwner: boolean } | undefined =>
+      id === 'gob1' ? { id: 'gob1', name: 'Goblin', hasPlayerOwner: false } : undefined;
+    const t = new EventTracker();
+    t.registerHooks();
+    fire('createChatMessage', card({ id: 'npc', speaker: { alias: 'Goblin', actor: 'gob1' } }));
+    const events = t.getSessionLog({ eventType: 'item-use' });
+    expect(events).toHaveLength(1);
+    expect(events[0].visibility).toMatchObject({ subject: 'npc' });
   });
 
   it('a whispered or blind card is GM-only: no visibility for the player feed', () => {

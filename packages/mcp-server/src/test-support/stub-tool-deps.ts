@@ -42,6 +42,7 @@ import { PartyTools } from '../tools/party.js';
 import { PrepDigestTools } from '../tools/prep-digest.js';
 import { QuestCreationTools } from '../tools/quest-creation.js';
 import { RefChoiceTools } from '../tools/ref-choices.js';
+import { LevelUpTools } from '../tools/level-up.js';
 import { ResourceTools } from '../tools/resources.js';
 import { SceneChangeTools } from '../tools/scene-change.js';
 import { CombatChangeTools } from '../tools/combat-change.js';
@@ -129,6 +130,7 @@ export function stubToolRouterDeps(): ToolRouterDeps {
     questCreationTools: new QuestCreationTools(base),
     refChoiceTools: new RefChoiceTools({ ...base, guardedWrites: {} }),
     resourceTools: new ResourceTools(base),
+    levelUpTools: new LevelUpTools(base),
     sceneChangeTools: new SceneChangeTools({ foundryClient, guardedWrites: {} as any, logger }),
     combatChangeTools: new CombatChangeTools({ foundryClient, guardedWrites: {} as any, logger }),
     sceneTools: new SceneTools(base),

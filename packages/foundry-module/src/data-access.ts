@@ -9,6 +9,7 @@ import { JournalDataAccess } from './data-access/journals.js';
 import { WorldItemsDataAccess } from './data-access/world-items.js';
 import { ChatDataAccess } from './data-access/chat.js';
 import { OwnershipPlayersDataAccess } from './data-access/ownership-players.js';
+import { LevelUpDataAccess } from './data-access/level-up.js';
 import { ResourcesEffectsDataAccess } from './data-access/resources-effects.js';
 import { CharacterDataAccess } from './data-access/characters.js';
 import { ScenesTokensDataAccess } from './data-access/scenes-tokens.js';
@@ -66,6 +67,7 @@ export class FoundryDataAccess {
   private chat = new ChatDataAccess();
   private ownership = new OwnershipPlayersDataAccess();
   private resources = new ResourcesEffectsDataAccess();
+  private levelUp = new LevelUpDataAccess();
   private characters = new CharacterDataAccess();
   private scenesTokens = new ScenesTokensDataAccess();
   private sceneFx = new SceneFxDataAccess();
@@ -643,6 +645,10 @@ export class FoundryDataAccess {
 
   async getActiveEffects(data: { identifier: string }): Promise<any> {
     return this.resources.getActiveEffects(data);
+  }
+
+  async getLevelUpOptions(data: { identifier: string; className?: string }): Promise<unknown> {
+    return this.levelUp.getLevelUpOptions(data);
   }
 
   // ===========================================================================

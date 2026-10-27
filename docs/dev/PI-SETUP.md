@@ -829,13 +829,43 @@ WORLD=frostmaiden-training KIT_WORLD= LAUNCH=curse-of-strahd EXTRA_GM_USER=Claud
   `/etc/foundry-ai-tool/` is written for every world of the run before the first is provisioned and
   stays until that world's provisioning has worked, so a plain rerun provisions the kept
   world again with the passwords already in its file (no `REPLACE_WORLD=1` needed). On any failure
-  Foundry comes back on the campaign.
+  Foundry comes back on the world it launched before the run (the campaign, unless it was switched to
+  the training world; see "Switching Foundry to the training world and back").
 - Only the GM user is checked on the PC (push-world stops unless `Gamemaster` has no password).
   Other users in the copy, such as the test server's passwordless `Player`, go to the Pi as they are,
   so delete them in the copy first, or give them a password in Foundry on the Pi afterwards.
 - Then stage 13 with `WORLD=frostmaiden-training KIT_WORLD=` turns Actor Studio's usage tracking off
   there too. Like stage 11, stage 13 only defaults `KIT_WORLD` to `strahd-kit` for
   `curse-of-strahd`: any other world must set it, so a training run cannot change strahd-kit.
+
+#### Switching Foundry to the training world and back
+
+Who: Claude, when the user asks for it, never the GM and never by hand on the Pi (decision D-118). The user says when the training call is, a session does the switch under the `pi-work`
+rules, and after the call the same session switches back to `curse-of-strahd`. Do not leave the Pi on
+the training world: the players and Danni's real game open whatever world Foundry launches.
+
+How: there is no stage that only switches worlds. The switch is stage 11 (`11-world.sh`) run with a
+training bundle and `LAUNCH` set to the world Foundry should start. Both directions use the same bundle
+command, and the installed training world is kept, with its passwords, because `REPLACE_WORLD` stays 0:
+
+1. Check that nobody is online (Foundry stops for a few minutes) and take a `dietpi-backup 1` snapshot.
+   Get the user's OK for this run.
+2. On this PC build a fresh bundle with the `push-world.ps1` command above. Stage 11 deletes the bundle
+   after a successful run, so each switch needs its own.
+3. Switch to the training world: run stage 11 with
+   `WORLD=frostmaiden-training KIT_WORLD= LAUNCH=frostmaiden-training EXTRA_GM_USER=Claude`.
+4. After the call, do steps 1 and 2 again (a snapshot taken for step 3 on an earlier day does not
+   count: stage 11 wants one from today), then run stage 11 with
+   `WORLD=frostmaiden-training KIT_WORLD= LAUNCH=curse-of-strahd EXTRA_GM_USER=Claude`. Check on the Pi
+   that `options.json` launches `curse-of-strahd` and that `/api/status` shows the campaign world.
+
+If step 4 fails, Foundry stays on the training world, because a failed run puts back whatever world it
+launched before the run. Run step 4 again until it works, and do not end the session before it has.
+Build each bundle while the PC's Foundry does not have the world open; the bundle is still fully
+checked even though the kept world is not replaced from it.
+
+Because the world is kept, anything changed in it during a call stays for the next one. To start over,
+add `REPLACE_WORLD=1` to the command of step 3.
 
 If a proxy ever has to run elsewhere, it is our patched copy (it reads the cookie from a file and
 keeps it out of its logs), bound to `127.0.0.1`, never the upstream one (which logs the cookie).

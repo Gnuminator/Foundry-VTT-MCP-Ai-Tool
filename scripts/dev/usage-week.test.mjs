@@ -28,6 +28,7 @@ import {
   usageLogFile,
   weeklyPoints,
 } from './usage-week.mjs';
+import { sectionFor } from './weekly-check-note.mjs';
 
 const NOW = new Date(2026, 9, 10, 12, 0); // local noon, 10 Oct 2026
 const at = (day, hour = 10, minute = 0) => new Date(2026, 9, day, hour, minute);
@@ -633,4 +634,54 @@ test('the default data dir follows XDG_DATA_HOME off Windows like the server', (
 test('a missing folder reads as no calls', () => {
   assert.deepEqual(readCalls(path.join(os.tmpdir(), 'no-such-usage-dir')), []);
   assert.match(render(summarize([]), 7), /No tool calls/);
+});
+
+test('advisor calls: main-session tool_use items by their own id, once, inside the window', async () => {
+  const root = mkdtempSync(path.join(os.tmpdir(), 'usage-week-advisor-'));
+  try {
+    const projects = path.join(root, 'projects');
+    const put = (rel, lines) => {
+      const file = path.join(projects, PROJECT_DIR, ...rel);
+      mkdirSync(path.dirname(file), { recursive: true });
+      writeFileSync(file, `${lines.join('\n')}\n`);
+    };
+    const withContent = (id, when, content, extra = {}) => {
+      const j = JSON.parse(resp(id, when, 'claude-sonnet-5-5', 50_000, extra));
+      j.message.content = content;
+      return JSON.stringify(j);
+    };
+    const advisor = (id, type = 'server_tool_use') => ({ type, id, name: 'advisor', input: {} });
+    put(
+      ['a.jsonl'],
+      [
+        // one response over two lines: the text line first, the tool_use line second
+        withContent('m1', at(9, 9), [{ type: 'text', text: 'hi' }]),
+        withContent('m1', at(9, 9), [advisor('srv1')]),
+        withContent('m2', at(9, 10), [advisor('srv2'), advisor('tool3', 'tool_use')]),
+        withContent('m3', at(9, 11), [{ type: 'tool_use', id: 't9', name: 'Read', input: {} }]),
+        withContent('side', at(9, 12), [advisor('srv-side')], { isSidechain: true }),
+        withContent('old', new Date(2026, 8, 20, 9), [advisor('srv-old')]),
+        JSON.stringify({
+          type: 'user',
+          timestamp: at(9, 13).toISOString(),
+          message: { content: '{"name": "advisor", "usage"}' },
+        }),
+      ]
+    );
+    put(
+      ['a', 'subagents', 'agent-1.jsonl'],
+      [withContent('s1', at(9, 9, 30), [advisor('srv-sub')])]
+    );
+    // a fork repeats the parent's lines
+    put(
+      ['fork.jsonl'],
+      [withContent('m2', at(9, 10), [advisor('srv2'), advisor('tool3', 'tool_use')])]
+    );
+    const report = await buildReport({ root: projects, now: NOW, days: 7 });
+    assert.equal(report.advisorCalls, 3);
+    assert.match(formatReport(report), /Advisor calls \(main sessions\): 3/);
+    assert.match(sectionFor(report), /- advisor-calls: 3/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
 });

@@ -10,6 +10,8 @@
   overflow-x: auto;
   list-style: none;
   border-bottom: 1px solid var(--border-soft);
+  /* The mist: the far end of the order fades out. A mask, not opacity, keeps the text readable. */
+  mask-image: linear-gradient(to right, #000 80%, rgb(0 0 0 / 35%));
 }
 
 .item {
@@ -132,17 +134,17 @@
 
 /* The rest recede: the further along, the fainter. */
 .later {
-  opacity: 0.55;
+  opacity: 0.85;
 }
 .later ~ .later {
-  opacity: 0.4;
+  opacity: 0.8;
 }
 .later ~ .later ~ .later ~ .later {
-  opacity: 0.28;
+  opacity: 0.75;
 }
 
 .down {
-  opacity: 0.4;
+  opacity: 0.75;
 }
 .down .badge {
   border-style: dashed;

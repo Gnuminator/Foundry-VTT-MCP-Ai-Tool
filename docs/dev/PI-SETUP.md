@@ -837,6 +837,30 @@ WORLD=frostmaiden-training KIT_WORLD= LAUNCH=curse-of-strahd EXTRA_GM_USER=Claud
   there too. Like stage 11, stage 13 only defaults `KIT_WORLD` to `strahd-kit` for
   `curse-of-strahd`: any other world must set it, so a training run cannot change strahd-kit.
 
+#### Switching Foundry to the training world and back
+
+Who: Claude, when the user asks for it, never the GM and never by hand on the Pi (the user decided this
+on 2026-10-24). The user says when the training call is, a session does the switch under the `pi-work`
+rules, and after the call the same session switches back to `curse-of-strahd`. Do not leave the Pi on
+the training world: the players and Danni's real game open whatever world Foundry launches.
+
+How: there is no stage that only switches worlds. The switch is stage 11 (`11-world.sh`) run with a
+training bundle and `LAUNCH` set to the world Foundry should start. Both directions use the same bundle
+command, and the installed training world is kept, with its passwords, because `REPLACE_WORLD` stays 0:
+
+1. Check that nobody is online (Foundry stops for a few minutes) and take a `dietpi-backup 1` snapshot.
+   Get the user's OK for this run.
+2. On this PC build a fresh bundle with the `push-world.ps1` command above. Stage 11 deletes the bundle
+   after a successful run, so each switch needs its own.
+3. Switch to the training world: run stage 11 with
+   `WORLD=frostmaiden-training KIT_WORLD= LAUNCH=frostmaiden-training EXTRA_GM_USER=Claude`.
+4. After the call, build a fresh bundle again and run stage 11 with the settings listed above
+   (`LAUNCH=curse-of-strahd`). Check on the Pi that `options.json` launches `curse-of-strahd` and that
+   `/api/status` shows the campaign world.
+
+Because the world is kept, anything changed in it during a call stays for the next one. To start over,
+add `REPLACE_WORLD=1` to the command of step 3.
+
 If a proxy ever has to run elsewhere, it is our patched copy (it reads the cookie from a file and
 keeps it out of its logs), bound to `127.0.0.1`, never the upstream one (which logs the cookie).
 

@@ -211,6 +211,9 @@ export class RulesSearchDataAccess {
     { at: number; entries: Promise<IndexedText[]>; refreshing?: boolean }
   >();
 
+  /** Background rebuilds of stale packs run through this chain, one after another. */
+  private refreshChain: Promise<void> = Promise.resolve();
+
   clearCache(): void {
     this.cache.clear();
   }
@@ -332,15 +335,18 @@ export class RulesSearchDataAccess {
     if (cached) {
       if (Date.now() - cached.at >= CACHE_TTL_MS && !cached.refreshing) {
         cached.refreshing = true;
-        this.buildPackIndex(pack, id, type).then(
-          fresh => {
-            this.cache.set(id, { at: Date.now(), entries: Promise.resolve(fresh) });
-          },
-          error => {
-            console.warn(`${MODULE_ID} | rules search: refresh of ${id} failed`, error);
-            cached.refreshing = false;
-            cached.at = Date.now() - CACHE_TTL_MS + REFRESH_RETRY_MS;
-          }
+        // One pack at a time, so the rebuilds never load every pack at once during play.
+        this.refreshChain = this.refreshChain.then(() =>
+          this.buildPackIndex(pack, id, type).then(
+            fresh => {
+              this.cache.set(id, { at: Date.now(), entries: Promise.resolve(fresh) });
+            },
+            error => {
+              console.warn(`${MODULE_ID} | rules search: refresh of ${id} failed`, error);
+              cached.refreshing = false;
+              cached.at = Date.now() - CACHE_TTL_MS + REFRESH_RETRY_MS;
+            }
+          )
         );
       }
       return cached.entries;
@@ -432,11 +438,13 @@ export function termPattern(term: string): RegExp {
   if (term.length >= 3 && term.endsWith('y')) {
     // "ally" finds "allies" (see `stem`): the y ending is the plural pair, not a suffix to strip.
     const root = escape(term.slice(0, -1));
-    return new RegExp(short ? `\\b${root}(?:y|ies)\\b` : `\\b${root}(?:y|ie)`, 'i');
+    return new RegExp(short ? `\\b${root}(?:y|ys|ying|ied|ies)\\b` : `\\b${root}(?:y|ie)`, 'i');
   }
   const base = short && !term.endsWith('ss') ? term.replace(/(ing|ed|es|e|s)$/, '') : term;
-  // A stripped short term needs one of the endings back ("cone" finds cone and cones, not "Con").
-  const stripped = short && base !== term && base.length >= 2;
+  // A stripped short term needs one of the endings back ("cone" finds cone and cones, not "Con"),
+  // unless only a plural s came off a word of three letters or more ("hits" still finds "hit").
+  const pluralOnly = term.endsWith('s') && !term.endsWith('es') && base === term.slice(0, -1);
+  const stripped = short && base !== term && base.length >= 2 && !(pluralOnly && base.length >= 3);
   const escaped = escape(base.length >= 2 ? base : term);
   return new RegExp(
     short ? `\\b${escaped}(?:ing|ed|es|e|s)${stripped ? '' : '?'}\\b` : `\\b${escaped}`,

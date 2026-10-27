@@ -185,6 +185,26 @@ describe('termPattern', () => {
     expect(termPattern(stem('ally')).test('your allies')).toBe(true);
     expect(termPattern(stem('families')).test('the family')).toBe(true);
     expect(termPattern(stem('ally')).test('rally')).toBe(false);
+    for (const [query, text] of [
+      ['day', 'for 3 days'],
+      ['days', 'one day'],
+      ['key', 'the keys'],
+      ['fly', 'while flying'],
+      ['ally', 'an allied creature'],
+    ]) {
+      expect(termPattern(stem(query)).test(text), `${query} / ${text}`).toBe(true);
+    }
+  });
+
+  it('keeps a plain plural s optional on words of three letters or more', () => {
+    for (const [query, text] of [
+      ['hits', 'a critical hit'],
+      ['arms', 'one arm'],
+      ['orcs', 'an orc'],
+      ['hit', 'two hits'],
+    ]) {
+      expect(termPattern(stem(query)).test(text), `${query} / ${text}`).toBe(true);
+    }
   });
 });
 
@@ -377,6 +397,7 @@ describe('FoundryDataAccess.searchRules', () => {
 
   it('reuses the cached index and rebuilds a stale one in the background', async () => {
     const pack = world.packs.get('dnd-players-handbook.content');
+    const realGet = (pack as { getDocuments: () => Promise<unknown[]> }).getDocuments;
     const spy = vi.spyOn(pack as { getDocuments: () => Promise<unknown[]> }, 'getDocuments');
     const now = vi.spyOn(Date, 'now');
     const t0 = 1_000_000;
@@ -385,15 +406,51 @@ describe('FoundryDataAccess.searchRules', () => {
     await da.searchRules({ query: 'resting' });
     expect(spy).toHaveBeenCalledTimes(1);
 
-    // Past the TTL the old index answers at once and one rebuild starts behind it.
+    // Past the TTL the old index answers at once while the rebuild is still waiting.
+    let release: () => void = () => {};
+    const gate = new Promise<void>(resolve => {
+      release = resolve;
+    });
+    spy.mockImplementation(async () => {
+      await gate;
+      return realGet();
+    });
     now.mockReturnValue(t0 + 11 * 60 * 1000);
     const stale = await da.searchRules({ query: 'grapple' });
     expect(stale.results[0].documentId).toBe('phbj1');
     await da.searchRules({ query: 'grapple' });
     expect(spy).toHaveBeenCalledTimes(2);
+    release();
     await new Promise(resolve => setTimeout(resolve, 0));
     await da.searchRules({ query: 'grapple' });
     expect(spy).toHaveBeenCalledTimes(2);
+  });
+
+  it('retries a failed background rebuild only after the backoff', async () => {
+    const pack = world.packs.get('dnd-players-handbook.content') as {
+      getDocuments: () => Promise<unknown[]>;
+    };
+    const realGet = pack.getDocuments;
+    const spy = vi.fn((): Promise<unknown[]> => Promise.reject(new Error('boom')));
+    const now = vi.spyOn(Date, 'now');
+    const t0 = 1_000_000;
+    now.mockReturnValue(t0);
+    await da.searchRules({ query: 'grapple' });
+    pack.getDocuments = spy;
+    const stale = t0 + 11 * 60 * 1000;
+    now.mockReturnValue(stale);
+    await da.searchRules({ query: 'grapple' });
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(spy).toHaveBeenCalledTimes(1);
+    now.mockReturnValue(stale + 30_000);
+    await da.searchRules({ query: 'grapple' });
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(spy).toHaveBeenCalledTimes(1);
+    now.mockReturnValue(stale + 61_000);
+    await da.searchRules({ query: 'grapple' });
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(spy).toHaveBeenCalledTimes(2);
+    pack.getDocuments = realGet;
   });
 
   it('keeps serving the stale index when a background rebuild fails', async () => {

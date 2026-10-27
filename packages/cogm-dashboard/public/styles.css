@@ -802,7 +802,8 @@ body {
 }
 /* Dice rolls: public ones like the table sees them; GM-only (private, blind) muted. */
 .event.sev-roll::before,
-.event.sev-damage-roll::before {
+.event.sev-damage-roll::before,
+.event.sev-item-use::before {
   background: linear-gradient(180deg, var(--accent-bright), var(--accent));
 }
 .event.sev-gm-roll::before {

@@ -47,7 +47,9 @@ opens instead of the game. It is the lock on the front door. You don't need a Cl
    minute, look in spam.
 4. Type the code into the page and confirm.
 
-<!-- Pictures still to add (vault Waiting.md W25): the page that asks for the code, and the code email with the digits blurred. -->
+![The Cloudflare Access page "Enter your code" with a Code box and a blue Verify button](../images/guides/join-code-page.png)
+
+![The Cloudflare email with the six-digit code, blurred here, and a Log in button](../images/guides/join-code-email.png)
 
 The page now takes you on to Foundry. If you typed an address that isn't on the GM's list, Cloudflare
 does not say so: it just never sends a code. That is the first thing to check if nothing arrives.
@@ -70,7 +72,9 @@ and Foundry's **User Configuration**. Close both for now. User Configuration com
 you join until you have a character and have picked it there (see
 [Make your character](make-a-character.md)).
 
-<!-- Picture still to add (W25): the two first-join windows on the real world. -->
+![Foundry's User Configuration window and the Actor Studio welcome window open on top of each other after the first join](../images/guides/join-first-windows.png)
+
+The two windows can overlap. Drag one aside, or click **Close** on the Actor Studio window first.
 
 If the screen says **Game Paused**, the GM has paused the game. Nothing is wrong. It goes away when
 the GM starts again.

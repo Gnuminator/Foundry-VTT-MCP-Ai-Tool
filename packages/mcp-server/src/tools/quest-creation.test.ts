@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 
 import { QuestCreationTools } from './quest-creation.js';
 
@@ -21,8 +21,14 @@ import { QuestCreationTools } from './quest-creation.js';
  * and also throw.
  */
 
-function makeTools(queryImpl?: (method: string, data: unknown) => unknown) {
-  const query = vi.fn(queryImpl ?? (() => ({ success: true })));
+interface TestTools {
+  tools: QuestCreationTools;
+  query: Mock<(method: string, data: unknown) => unknown>;
+  logger: any;
+}
+
+function makeTools(queryImpl?: (method: string, data: unknown) => unknown): TestTools {
+  const query = vi.fn(queryImpl ?? ((): unknown => ({ success: true })));
   const foundryClient = { query } as any;
   // Minimal Logger stub: `.child()` returns itself; level methods are no-ops.
   const logger: any = {
@@ -31,7 +37,7 @@ function makeTools(queryImpl?: (method: string, data: unknown) => unknown) {
     info: vi.fn(),
     debug: vi.fn(),
   };
-  logger.child = () => logger;
+  logger.child = (): unknown => logger;
   return { tools: new QuestCreationTools({ foundryClient, logger }), query, logger };
 }
 
@@ -713,9 +719,9 @@ describe('QuestCreationTools.handleUpdateQuestJournal — pageId path (targeted 
   const ORIGINAL_CONTENT = '<p>Original page content.</p>';
   const VERIFY_CONTENT = '<p>Original page content.</p><p>New info here.</p>';
 
-  function makePageUpdater() {
+  function makePageUpdater(): TestTools {
     let callCount = 0;
-    const queryImpl = (method: string, _data: unknown) => {
+    const queryImpl = (method: string, _data: unknown): unknown => {
       callCount++;
       if (method === 'foundry-mcp-bridge.getJournalPageContent' && callCount === 1) {
         return { content: ORIGINAL_CONTENT, success: true };
@@ -790,9 +796,9 @@ describe('QuestCreationTools.handleUpdateQuestJournal — no-pageId path (first 
   function makeFirstPageUpdater(
     existingContent = EXISTING_CONTENT,
     verifyContent = VERIFY_CONTENT
-  ) {
+  ): TestTools {
     let callCount = 0;
-    const queryImpl = (method: string, _data: unknown) => {
+    const queryImpl = (method: string, _data: unknown): unknown => {
       callCount++;
       if (method === 'foundry-mcp-bridge.getJournalContent' && callCount === 1) {
         return { content: existingContent, success: true };
@@ -1174,8 +1180,8 @@ describe('QuestCreationTools.handleSearchJournals — dispatch and result shapin
     },
   ];
 
-  function makeSearcher(pageContent = 'The party slew the dragon and found treasure.') {
-    const queryImpl = (method: string, _data: any) => {
+  function makeSearcher(pageContent = 'The party slew the dragon and found treasure.'): TestTools {
+    const queryImpl = (method: string, _data: any): unknown => {
       if (method === 'foundry-mcp-bridge.listJournals') {
         return JOURNALS_WITH_PAGES;
       }

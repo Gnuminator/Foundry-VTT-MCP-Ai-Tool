@@ -133,7 +133,9 @@ describe('plainText', () => {
       expect(plainText(nested), nested).not.toMatch(/[<>]/);
     }
     expect(plainText('<scr<script>ipt>alert(1)')).toBe('ipt alert(1)');
-    expect(plainText('&lt;script&gt;x&#60;b&#x3e; ok')).toBe('script x b ok');
+    // Encoded comparison signs stay readable, and no bracket survives.
+    expect(plainText('&lt;script&gt;x&#60;b&#x3e; ok')).toBe('‹script›x‹b› ok');
+    expect(plainText('<p>AC &lt; 15 and HP &gt;= 10</p>')).toBe('AC ‹ 15 and HP ›= 10');
     expect(plainText('<table><tr><td>a</td><td>b</td></tr></table>')).toBe('a b');
     expect(plainText('x&#233;y &amp;lt; z @UUID[Compendium.a.b.c] ok')).toBe('xéy &lt; z ok');
   });
@@ -164,6 +166,45 @@ describe('termPattern', () => {
     }
     expect(termPattern(stem('saves')).test('you save')).toBe(true);
     expect(termPattern(stem('resting')).test('a rest')).toBe(true);
+  });
+
+  it('keeps short stemmed words from matching unrelated words', () => {
+    const cone = termPattern(stem('cone'));
+    expect(cone.test('a 15-foot cone')).toBe(true);
+    expect(cone.test('Cones of cold')).toBe(true);
+    expect(cone.test('a Con save')).toBe(false);
+    expect(termPattern(stem('uses')).test('has no use')).toBe(true);
+    expect(termPattern(stem('uses')).test('tell us now')).toBe(false);
+    expect(termPattern(stem('dies')).test('if it died')).toBe(true);
+    expect(termPattern(stem('dies')).test('a di roll')).toBe(false);
+  });
+
+  it('treats y and ies as one ending', () => {
+    expect(stem('allies')).toBe(stem('ally'));
+    expect(termPattern(stem('allies')).test('your ally')).toBe(true);
+    expect(termPattern(stem('ally')).test('your allies')).toBe(true);
+    expect(termPattern(stem('families')).test('the family')).toBe(true);
+    expect(termPattern(stem('ally')).test('rally')).toBe(false);
+    for (const [query, text] of [
+      ['day', 'for 3 days'],
+      ['days', 'one day'],
+      ['key', 'the keys'],
+      ['fly', 'while flying'],
+      ['ally', 'an allied creature'],
+    ]) {
+      expect(termPattern(stem(query)).test(text), `${query} / ${text}`).toBe(true);
+    }
+  });
+
+  it('keeps a plain plural s optional on words of three letters or more', () => {
+    for (const [query, text] of [
+      ['hits', 'a critical hit'],
+      ['arms', 'one arm'],
+      ['orcs', 'an orc'],
+      ['hit', 'two hits'],
+    ]) {
+      expect(termPattern(stem(query)).test(text), `${query} / ${text}`).toBe(true);
+    }
   });
 });
 
@@ -278,5 +319,154 @@ describe('FoundryDataAccess.searchRules', () => {
     const res = await da.searchRules({ query: 'zzzzqq' });
     expect(res.results).toEqual([]);
     expect(res.note).toMatch(/includeWorld/);
+    expect(res.note).toMatch(/adventure text/);
+  });
+
+  it('searches the Books journals (the DMG 2024) by default, but not other aitool-content packs', async () => {
+    world.addPack({
+      id: 'aitool-content.journals',
+      label: 'Books',
+      type: 'JournalEntry',
+      documents: [
+        makeJournal({
+          id: 'dmgj1',
+          name: "Dungeon Master's Guide",
+          pages: [
+            makeJournalPage({
+              id: 'dp1',
+              name: 'Bastions',
+              text: { content: '<p>A bastion is a stronghold.</p>' },
+            }),
+          ],
+        }),
+      ],
+    });
+    world.addPack({
+      id: 'aitool-content.monsters',
+      label: 'Monsters',
+      type: 'Item',
+      documents: [
+        makeActor({
+          id: 'mon1',
+          name: 'Strahd',
+          type: 'npc',
+          system: { description: { value: '<p>A bastion of evil.</p>' } },
+        }),
+      ],
+    });
+    const res = await da.searchRules({ query: 'bastion' });
+    expect(res.results.map(r => r.documentId)).toEqual(['dmgj1']);
+    expect(res.searchedPacks).not.toContain('aitool-content.monsters');
+  });
+
+  it('accepts a full pack id and a package name that differs from the id prefix', async () => {
+    allowlistSetting = 'dnd5e.spells';
+    const byId = await da.searchRules({ query: 'glimmering dome' });
+    expect(byId.searchedPacks).toEqual(['dnd5e.spells']);
+    world.addPack({
+      id: 'renamed.book',
+      label: 'Renamed',
+      type: 'JournalEntry',
+      metadata: {
+        id: 'renamed.book',
+        label: 'Renamed',
+        type: 'JournalEntry',
+        packageName: 'real-package',
+      },
+      documents: [
+        makeJournal({
+          id: 'rj1',
+          name: 'Rules',
+          pages: [
+            makeJournalPage({
+              id: 'rp1',
+              name: 'Zephyr',
+              text: { content: '<p>Zephyr rule.</p>' },
+            }),
+          ],
+        }),
+      ],
+    });
+    allowlistSetting = 'real-package';
+    const byPackage = await da.searchRules({ query: 'zephyr' });
+    expect(byPackage.results.map(r => r.documentId)).toEqual(['rj1']);
+    allowlistSetting = 'renamed';
+    const byPrefix = await da.searchRules({ query: 'zephyr' });
+    expect(byPrefix.results).toEqual([]);
+  });
+
+  it('reuses the cached index and rebuilds a stale one in the background', async () => {
+    const pack = world.packs.get('dnd-players-handbook.content');
+    const realGet = (pack as { getDocuments: () => Promise<unknown[]> }).getDocuments;
+    const spy = vi.spyOn(pack as { getDocuments: () => Promise<unknown[]> }, 'getDocuments');
+    const now = vi.spyOn(Date, 'now');
+    const t0 = 1_000_000;
+    now.mockReturnValue(t0);
+    await da.searchRules({ query: 'grapple' });
+    await da.searchRules({ query: 'resting' });
+    expect(spy).toHaveBeenCalledTimes(1);
+
+    // Past the TTL the old index answers at once while the rebuild is still waiting.
+    let release: () => void = () => {};
+    const gate = new Promise<void>(resolve => {
+      release = resolve;
+    });
+    spy.mockImplementation(async () => {
+      await gate;
+      return realGet();
+    });
+    now.mockReturnValue(t0 + 11 * 60 * 1000);
+    const stale = await da.searchRules({ query: 'grapple' });
+    expect(stale.results[0].documentId).toBe('phbj1');
+    await da.searchRules({ query: 'grapple' });
+    expect(spy).toHaveBeenCalledTimes(2);
+    release();
+    await new Promise(resolve => setTimeout(resolve, 0));
+    await da.searchRules({ query: 'grapple' });
+    expect(spy).toHaveBeenCalledTimes(2);
+  });
+
+  it('retries a failed background rebuild only after the backoff', async () => {
+    const pack = world.packs.get('dnd-players-handbook.content') as {
+      getDocuments: () => Promise<unknown[]>;
+    };
+    const realGet = pack.getDocuments;
+    const spy = vi.fn((): Promise<unknown[]> => Promise.reject(new Error('boom')));
+    const now = vi.spyOn(Date, 'now');
+    const t0 = 1_000_000;
+    now.mockReturnValue(t0);
+    await da.searchRules({ query: 'grapple' });
+    pack.getDocuments = spy;
+    const stale = t0 + 11 * 60 * 1000;
+    now.mockReturnValue(stale);
+    await da.searchRules({ query: 'grapple' });
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(spy).toHaveBeenCalledTimes(1);
+    now.mockReturnValue(stale + 30_000);
+    await da.searchRules({ query: 'grapple' });
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(spy).toHaveBeenCalledTimes(1);
+    now.mockReturnValue(stale + 61_000);
+    await da.searchRules({ query: 'grapple' });
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(spy).toHaveBeenCalledTimes(2);
+    pack.getDocuments = realGet;
+  });
+
+  it('keeps serving the stale index when a background rebuild fails', async () => {
+    const pack = world.packs.get('dnd-players-handbook.content') as {
+      getDocuments: () => Promise<unknown[]>;
+    };
+    const now = vi.spyOn(Date, 'now');
+    now.mockReturnValue(1_000_000);
+    await da.searchRules({ query: 'grapple' });
+    pack.getDocuments = (): Promise<unknown[]> => Promise.reject(new Error('boom'));
+    now.mockReturnValue(1_000_000 + 11 * 60 * 1000);
+    const res = await da.searchRules({ query: 'grapple' });
+    await new Promise(resolve => setTimeout(resolve, 0));
+    const after = await da.searchRules({ query: 'grapple' });
+    expect(res.results[0].documentId).toBe('phbj1');
+    expect(after.results[0].documentId).toBe('phbj1');
+    expect(after.skippedPacks).toBeUndefined();
   });
 });

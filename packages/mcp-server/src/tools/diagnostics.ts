@@ -2,6 +2,11 @@ import { toolRef } from '@gnuminator/shared';
 import { z } from 'zod';
 import { FoundryClient } from '../foundry-client.js';
 import { Logger } from '../logger.js';
+import type {
+  DiagnosticsBridgeReply,
+  DiagnosticsManifestResult,
+  DiagnosticsToolDefinition,
+} from './types/diagnostics-types.js';
 
 interface DiagnosticsToolsOptions {
   foundryClient: FoundryClient;
@@ -23,7 +28,7 @@ export class DiagnosticsTools {
     this.logger = options.logger.child({ component: 'DiagnosticsTools' });
   }
 
-  getToolDefinitions() {
+  getToolDefinitions(): DiagnosticsToolDefinition[] {
     return [
       {
         name: 'get-modules',
@@ -85,15 +90,21 @@ export class DiagnosticsTools {
     ];
   }
 
-  private async run(method: string, params: any, failMsg: string) {
-    const response = await this.foundryClient.query(`foundry-mcp-bridge.${method}`, params);
+  private async run(
+    method: string,
+    params: unknown,
+    failMsg: string
+  ): Promise<DiagnosticsBridgeReply | undefined> {
+    const response = (await this.foundryClient.query(`foundry-mcp-bridge.${method}`, params)) as
+      | DiagnosticsBridgeReply
+      | undefined;
     if (response?.success === false) {
       throw new Error(response.error || failMsg);
     }
     return response;
   }
 
-  async handleGetModules(args: any) {
+  async handleGetModules(args: unknown): Promise<DiagnosticsBridgeReply | undefined> {
     const schema = z.object({
       activeOnly: z.boolean().optional(),
       withIssuesOnly: z.boolean().optional(),
@@ -107,7 +118,7 @@ export class DiagnosticsTools {
     }
   }
 
-  async handleGetModuleErrors(args: any) {
+  async handleGetModuleErrors(args: unknown): Promise<DiagnosticsBridgeReply | undefined> {
     const schema = z.object({
       level: z.enum(['error', 'warn']).optional(),
       moduleId: z.string().optional(),
@@ -126,7 +137,7 @@ export class DiagnosticsTools {
     }
   }
 
-  async handleClearModuleErrors(_args: any) {
+  async handleClearModuleErrors(_args?: unknown): Promise<DiagnosticsBridgeReply | undefined> {
     try {
       return await this.run('clearModuleErrors', {}, 'Failed to clear module errors');
     } catch (error) {
@@ -135,7 +146,7 @@ export class DiagnosticsTools {
     }
   }
 
-  async handleGetModuleManifest(args: any) {
+  async handleGetModuleManifest(args: unknown): Promise<DiagnosticsManifestResult> {
     const schema = z.object({ moduleId: z.string() });
     try {
       return await this.run(

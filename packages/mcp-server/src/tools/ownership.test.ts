@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi, type Mock } from 'vitest';
 
 import { OwnershipTools } from './ownership.js';
 
@@ -12,7 +12,9 @@ import { OwnershipTools } from './ownership.js';
 type Before = Record<string, { present: boolean; value?: unknown }>;
 
 /** A fake `createPlan` that builds the diff the real service would: one line per changed path. */
-function fakeCreatePlan(befores: Record<string, Before> = {}) {
+function fakeCreatePlan(
+  befores: Record<string, Before> = {}
+): Mock<(input: any) => Promise<unknown>> {
   return vi.fn((input: any) =>
     Promise.resolve({
       planId: 'plan-1',
@@ -43,8 +45,12 @@ function fakeCreatePlan(befores: Record<string, Before> = {}) {
 function makeTools(
   queryImpl?: (method: string, data: unknown) => unknown,
   createPlan: ReturnType<typeof fakeCreatePlan> = fakeCreatePlan()
-) {
-  const query = vi.fn(queryImpl ?? (() => ({ success: true })));
+): {
+  tools: OwnershipTools;
+  query: Mock<(method: string, data: unknown) => unknown>;
+  createPlan: ReturnType<typeof fakeCreatePlan>;
+} {
+  const query = vi.fn(queryImpl ?? ((): unknown => ({ success: true })));
   const foundryClient = { query } as any;
   // Minimal Logger stub: `.child()` returns itself; level methods are no-ops.
   const logger: any = {
@@ -53,7 +59,7 @@ function makeTools(
     info: vi.fn(),
     debug: vi.fn(),
   };
-  logger.child = () => logger;
+  logger.child = (): unknown => logger;
   const guardedWrites = { createPlan } as any;
   return {
     tools: new OwnershipTools({ foundryClient, guardedWrites, logger }),

@@ -2,6 +2,31 @@
   "_comment": "Known upstream module findings, so they do not hide new ones (I-117). Each entry matches the text of a module error from get-module-errors by substring; module '*' matches any. max caps how many findings the entry may absorb. The first rehearsal run tunes the match strings against real text; an entry the run did not see is listed as unseen, and is removed when the module's release fixes it.",
   "expected": [
     {
+      "id": "ac5e-notices",
+      "module": "*",
+      "match": "AC5E",
+      "why": "Automated Conditions 5e logs notices through the error log: LOADED, 'No targets selected' (the kit casts and rolls without targets) and 'Multiple damage types' (2026-10-27, 14.606.4.5). Informational."
+    },
+    {
+      "id": "ac5e-hooks-and-migration",
+      "module": "*",
+      "match": "Automated Conditions 5e added",
+      "why": "The load-time hook count of Automated Conditions 5e."
+    },
+    {
+      "id": "ac5e-no-migration",
+      "module": "*",
+      "match": "automated-conditions-5e no migration needed",
+      "why": "Informational load line."
+    },
+    {
+      "id": "autoanimations-null-id",
+      "module": "autoanimations",
+      "match": "Cannot read properties of null (reading 'id')",
+      "max": 4,
+      "why": "Automated Animations 8.0.1 (a major update from 7.1.10) with dnd5e 6.0.6: seen twice in one smoke run of the kit (2026-10-27, first rehearsal), not seen in spells-deep alone. Not bisected against 7.1.10. Check when the modules are learned (Backlog: learn-modules) and remove the entry if a later 8.x release fixes it."
+    },
+    {
       "id": "dnd5e-forced-deletion-legacy-syntax",
       "module": "*",
       "match": "using legacy syntax which should be migrated",

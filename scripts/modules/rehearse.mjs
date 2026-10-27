@@ -173,7 +173,7 @@ export function errorFindings(result, sinceMs = 0) {
     .map(e => ({
       module: String(
         e.moduleId ?? e.module ?? /\/modules\/([^/]+)\//.exec(`${e.stack ?? ''} ${e.source ?? ''}`)?.[1] ?? '*'
-      ),
+      ).replace(/^module:/, ''),
       text: String(e.message ?? e.error ?? JSON.stringify(e)).slice(0, 300),
     }));
 }

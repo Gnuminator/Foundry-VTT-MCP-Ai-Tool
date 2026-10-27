@@ -120,6 +120,7 @@ test('errorFindings reads module errors in either shape', () => {
     { module: '*', text: 'y' },
   ]);
   assert.deepEqual(errorFindings({ errors: [stacked] }, 101), []);
+  assert.equal(errorFindings({ errors: [{ module: 'module:dae', message: 'z' }] })[0].module, 'dae');
 });
 
 test('parseArgs reads the command and its flags and refuses the rest', () => {

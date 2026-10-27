@@ -1,3 +1,3 @@
 ### Fixes
 
-- **CI:** the bounded ffmpeg install in the Python test job now follows `timeout` with a kill after 20 s (`timeout -k 20 300`), so an apt that ignores the first signal is stopped inside the install step instead of failing the job at its limit. The apt network timeout also covers https mirrors.
+- **CI:** in the Python test job the ffmpeg install now bounds each apt-get call on its own (`timeout -k 20`, 120 s for update and 180 s for install), so an apt that ignores the first signal gets a kill 20 s later. The apt network timeout also covers https mirrors.

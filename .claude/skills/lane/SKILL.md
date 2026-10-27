@@ -99,6 +99,10 @@ item is marked done; the board ignores a line on an item with no claim.
   merged needs `git merge aitool/main` first), look at the changed PNGs it prints under
   `packages/cogm-dashboard/web/visual/__screenshots__/`, commit them, push again, and only then
   open the PR.
+  If it stops with "regenerated N PNG(s) but the artifact holds M" or "no png-count.txt marker",
+  the collect step lost files (or the branch has an old workflow file: merge `aitool/main`); it
+  writes nothing then, so read the run log. A clean run on a branch with one changed screenshot
+  delivered that PNG (2026-10-27, run 40595605155).
   Never copy baselines from a failed PR run. Re-run it after a later change that moves pixels.
 - `changelog.d/<topic>.md` added; lint and em-dash baselines lowered if counts dropped.
 - `git status --short`: add explicit paths; no binaries, archives, audio, `.env` or downloads.

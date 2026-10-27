@@ -135,10 +135,10 @@ function installStorageStubs(): void {
     disk.fetchCalls.push({ url, init });
     // GET (load path)
     if (disk.fetchNotOk || disk.content === null) {
-      return { ok: false, status: 404, json: async () => ({}) };
+      return { ok: false, status: 404, json: async (): Promise<unknown> => ({}) };
     }
     const text = disk.content;
-    return { ok: true, status: 200, json: async () => JSON.parse(text) };
+    return { ok: true, status: 200, json: async (): Promise<unknown> => JSON.parse(text) };
   });
 }
 
@@ -529,7 +529,7 @@ describe('PersistentCreatureIndex — rebuildIndex / build (dnd5e)', () => {
     );
     const badPack = addMonsterPack([], 'world.bad', 'Bad');
     // Force the bad pack's document load to throw (caught per-pack).
-    badPack.getDocuments = async () => {
+    badPack.getDocuments = async (): Promise<never> => {
       throw new Error('pack load failed');
     };
     void goodPack;

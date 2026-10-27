@@ -176,11 +176,11 @@ function makeRig(): Rig {
     client,
     logger,
     store,
-    world: () => state.world,
-    players: () => state.players,
-    handouts: () => state.handouts,
-    handoutsReady: () => state.handoutsReady,
-    theme: () => state.theme,
+    world: (): Rig['state']['world'] => state.world,
+    players: (): VaultPlayer[] => state.players,
+    handouts: (): PlayerHandout[] => state.handouts,
+    handoutsReady: (): boolean => state.handoutsReady,
+    theme: (): ThemeId => state.theme,
     snippetDir,
   });
   return { svc, store, root, snippetDir, calls, sheetCalls, state };

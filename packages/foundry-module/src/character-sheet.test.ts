@@ -204,7 +204,7 @@ describe('characterSheets', () => {
 
   function install(): void {
     g.game = {
-      users: { get: (id: string) => [user, gm].find(u => u.id === id) },
+      users: { get: (id: string): unknown => [user, gm].find(u => u.id === id) },
       actors: [owned, observed, npc],
     };
   }

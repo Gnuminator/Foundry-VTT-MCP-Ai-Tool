@@ -285,9 +285,9 @@ export function installFoundryGlobals(world: TestWorld): () => void {
   g.game = world.buildGame();
   g.ui = {
     notifications: {
-      info: (m: string) => world.notifications.push({ level: 'info', message: m }),
-      warn: (m: string) => world.notifications.push({ level: 'warn', message: m }),
-      error: (m: string) => world.notifications.push({ level: 'error', message: m }),
+      info: (m: string): number => world.notifications.push({ level: 'info', message: m }),
+      warn: (m: string): number => world.notifications.push({ level: 'warn', message: m }),
+      error: (m: string): number => world.notifications.push({ level: 'error', message: m }),
     },
   };
   g.CONST = {
@@ -333,7 +333,10 @@ export function installFoundryGlobals(world: TestWorld): () => void {
       // Fixed-width zero-padded counter so e.g. seq 1 and 10 never alias.
       randomID: (length = 16): string =>
         `r${String((randomIdSeq += 1)).padStart(Math.max(1, length - 1), '0')}`.slice(0, length),
-      mergeObject: (original: any, other: any = {}) => ({ ...original, ...other }),
+      mergeObject: (original: any, other: any = {}): Record<string, unknown> => ({
+        ...original,
+        ...other,
+      }),
       getProperty: (obj: any, path: string): unknown =>
         path.split('.').reduce((node, key) => (node == null ? undefined : node[key]), obj),
       setProperty: (obj: any, path: string, value: unknown): boolean => {
@@ -343,7 +346,8 @@ export function installFoundryGlobals(world: TestWorld): () => void {
         node[parts[parts.length - 1]] = value;
         return true;
       },
-      isEmpty: (v: any) => v == null || (typeof v === 'object' && Object.keys(v).length === 0),
+      isEmpty: (v: any): boolean =>
+        v == null || (typeof v === 'object' && Object.keys(v).length === 0),
       expandObject: (flat: Record<string, any>): Record<string, unknown> => {
         const out: any = {};
         for (const [path, value] of Object.entries(flat)) {
@@ -410,7 +414,7 @@ export function installFoundryGlobals(world: TestWorld): () => void {
     create: async (data: any): Promise<AnyDoc> => world.addMessage(firstOf(data)),
     // Foundry's getSpeaker({scene,actor,token,alias}) — we only need the alias
     // (the world/GM voice falls back to actor.name) for the chat write paths.
-    getSpeaker: ({ actor, alias, token, scene }: any = {}) => ({
+    getSpeaker: ({ actor, alias, token, scene }: any = {}): Record<string, unknown> => ({
       scene: scene?.id ?? null,
       actor: actor?.id ?? null,
       token: token?.id ?? null,

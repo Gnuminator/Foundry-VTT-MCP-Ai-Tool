@@ -66,13 +66,19 @@ describe('tool catalog', () => {
     const budget = {
       core: 17_500, // about 17,200 with get-level-up-options (I-152; raised 500 on purpose); about 16,600 before
       play: 40_000, // about 39,000 with plan-combat-change (David's GM test; raised 1,500 on purpose, room for its start action); about 38,000 before, with plan-paper-sync (Paper nights A: eleven sheet fields in one schema, about 3,700 characters) on top of Paper nights C's session fields; raised 1,500 on purpose for check-action, 1,000 for the multiattack and path fields of plan-npc-turn, 3,000 for plan-paper-sync. The next Play tool needs another raise
-      prep: 22_000,
+      prep: 22_000, // near full (CI review 2026-10-27: #500 hit it); the next Prep tool needs a raise, which costs Claude Desktop context: the user decides, never raise it in passing
       build: 29_000, // about 28,100 with plan-room-setup (I-133)
       admin: 8_000,
     } as const;
     for (const set of TOOL_SET_NAMES) {
       const served = stripToolRefs(filterToolsBySets(tools, resolveToolSets(set)));
-      expect(JSON.stringify(served).length, set).toBeLessThanOrEqual(budget[set]);
+      const size = JSON.stringify(served).length;
+      expect(size, set).toBeLessThanOrEqual(budget[set]);
+      // Read by scripts/drift-check.mjs, which prints these lines and warns under 500 characters.
+      const room = budget[set] - size;
+      process.stdout.write(
+        `tool-set headroom: ${set} ${room} characters (${size} of ${budget[set]})${room < 500 ? ' WARNING: under 500, the next tool needs a raise (the user decides)' : ''}\n`
+      );
     }
   });
 

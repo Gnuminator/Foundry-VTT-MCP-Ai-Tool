@@ -357,6 +357,11 @@ function runChecks(dir, checks, log, main, sha, merged) {
     }
     const ok = r.status === 0;
     log(`  ${ok ? 'ok  ' : 'FAIL'} ${check.name}`);
+    // The tool-set size test prints how much room each set has left; show it, and mark a low one.
+    for (const line of `${r.stdout ?? ''}`.split('\n')) {
+      const m = /tool-set headroom: .*/.exec(line);
+      if (m) log(`       ${m[0].trim()}`);
+    }
     if (!ok) {
       failed.push(check.name);
       const output = `${r.stdout ?? ''}${r.stderr ?? ''}`.trim().split('\n');

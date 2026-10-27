@@ -133,7 +133,8 @@ export function plainText(html: unknown): string {
       .replace(/@UUID\[[^\]]*\]\{([^}]*)\}/g, '$1')
       .replace(/\[\[[^\]]*\]\]\{([^}]*)\}/g, '$1')
       .replace(/\[\[\s*\/?(\w+)\s*([^\]]*)\]\]/g, '$1 $2')
-      .replace(/&(?:amp;)?Reference\[([^\]=]+)(?:=[^\]]*)?\]/g, '$1')
+      .replace(/&(?:amp;)?Reference\[[^\]]*\]\{([^}]*)\}/g, '$1')
+      .replace(/&(?:amp;)?Reference\[([^\]=\s]+)[^\]]*\]/g, '$1')
       .replace(/@(?:UUID|Embed)\[[^\]]*\]/g, '')
       .replace(/<\/(p|div|li|h[1-6]|tr|td|th|br)>|<br\s*\/?>/gi, ' ')
       .replace(/<[^>]*>/g, '')
@@ -143,7 +144,10 @@ export function plainText(html: unknown): string {
       .replace(/&gt;/g, '>')
       .replace(/&quot;/g, '"')
       .replace(/&rsquo;/g, '’')
-      .replace(/&#(\d+);/g, (_, n: string) => String.fromCodePoint(Number(n)))
+      .replace(/&#(x[0-9a-f]+|\d+);/gi, (whole, n: string) => {
+        const code = n[0] === 'x' || n[0] === 'X' ? parseInt(n.slice(1), 16) : Number(n);
+        return code > 0 && code <= 0x10ffff ? String.fromCodePoint(code) : whole;
+      })
       .replace(/&amp;/g, '&')
       .replace(/\s+/g, ' ')
       .trim()
@@ -154,7 +158,9 @@ export function plainText(html: unknown): string {
 export function stem(word: string): string {
   const w = word.toLowerCase();
   const stripped = w.replace(/(ing|ed|es|e|s)$/, '');
-  return stripped.length >= 4 ? stripped : w;
+  if (stripped.length >= 4) return stripped;
+  // "saves" would lose too much; drop only the plural s so it still finds "save".
+  return w.length > 4 && w.endsWith('s') ? w.slice(0, -1) : w;
 }
 
 export function queryTerms(query: string): string[] {
@@ -284,7 +290,7 @@ export class RulesSearchDataAccess {
       ...(skippedPacks.length > 0 ? { skippedPacks } : {}),
       includeWorld,
       includeOtherBooks,
-      ...(searchedPacks.length === 0 && !includeWorld
+      ...(searchedPacks.length === 0 && skippedPacks.length === 0 && !includeWorld
         ? {
             note: `No pack matches the "Rules search packs" setting (${allowlist.join(', ')}). Use package names or pack ids such as dnd5e.rules, separated by commas.`,
           }
@@ -378,12 +384,14 @@ function termPresence(entry: IndexedText, terms: string[], patterns: RegExp[]): 
 
 /**
  * A term matches at the start of a word ("grappl" finds "grappling"), never inside one
- * ("rest" not "forest"); a short term ("ac", "dc", "help") must be the whole word, with
- * an optional plural.
+ * ("rest" not "forest"); a short term ("ac", "dc", "help") must be the whole word, with the
+ * endings `stem` removes ("pron" finds "prone", "sav" finds "saves" and "saving").
  */
 export function termPattern(term: string): RegExp {
-  const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  return new RegExp(term.length < 5 ? `\\b${escaped}(?:s|es)?\\b` : `\\b${escaped}`, 'i');
+  const short = term.length < 5;
+  const base = short ? term.replace(/(ing|ed|es|e|s)$/, '') : term;
+  const escaped = (base.length >= 2 ? base : term).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(short ? `\\b${escaped}(?:ing|ed|es|e|s)?\\b` : `\\b${escaped}`, 'i');
 }
 
 function scoreEntry(

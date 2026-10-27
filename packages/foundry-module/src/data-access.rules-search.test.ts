@@ -126,6 +126,9 @@ describe('plainText', () => {
     expect(plainText('See &Reference[Grappled] and &amp;Reference[Prone=1]')).toBe(
       'See Grappled and Prone'
     );
+    expect(plainText('&amp;Reference[prone]{Prone} and &#99999999; &#x27;')).toBe(
+      "Prone and &#99999999; '"
+    );
     expect(plainText('<table><tr><td>a</td><td>b</td></tr></table>')).toBe('a b');
     expect(plainText('x&#233;y &amp;lt; z @UUID[Compendium.a.b.c] ok')).toBe('xéy &lt; z ok');
   });
@@ -139,6 +142,12 @@ describe('termPattern', () => {
     expect(termPattern('ac').test('your AC rises')).toBe(true);
     expect(termPattern('grappl').test('grappling')).toBe(true);
     expect(termPattern('advantag').test('disadvantage')).toBe(false);
+    // Terms that stem() shortened must still find their own word.
+    for (const word of ['prone', 'dodge', 'shove', 'large', 'surge', 'resting', 'saves', 'uses']) {
+      expect(termPattern(stem(word)).test(`a ${word} creature`), word).toBe(true);
+    }
+    expect(termPattern(stem('saves')).test('you save')).toBe(true);
+    expect(termPattern(stem('resting')).test('a rest')).toBe(true);
   });
 });
 

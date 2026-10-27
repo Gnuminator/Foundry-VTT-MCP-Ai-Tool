@@ -148,6 +148,33 @@ export class CompendiumTools {
         },
       },
       {
+        name: 'search-rules',
+        description:
+          'Full-text rules search over rulebook journal pages and item, spell and feature descriptions, in the allowlisted rules packs only. Returns ids and a snippet; read a hit in full with get-compendium-item (itemId = documentId) or, for world journals, list-journals.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            query: {
+              type: 'string',
+              description: 'Rule or term in plain words, e.g. "grapple". Filler words are ignored.',
+            },
+            limit: {
+              type: 'number',
+              description: 'Maximum hits, 1 to 25 (default 10).',
+            },
+            includeWorld: {
+              type: 'boolean',
+              description: 'Also search world journals (adventure text). Off by default.',
+            },
+            includeOtherBooks: {
+              type: 'boolean',
+              description: 'Also search packs outside the rules allowlist. Off by default.',
+            },
+          },
+          required: ['query'],
+        },
+      },
+      {
         name: 'get-compendium-item',
         description:
           'Retrieve detailed information about a specific compendium item. Use compact mode for UI performance when full details are not needed.',
@@ -334,6 +361,25 @@ export class CompendiumTools {
       this.logger.error('Failed to search compendium', error);
       throw new Error(
         `Failed to search compendium: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        { cause: error }
+      );
+    }
+  }
+
+  async handleSearchRules(args: unknown): Promise<unknown> {
+    const schema = z.object({
+      query: z.string().min(2, 'Search query must be at least 2 characters'),
+      limit: z.number().min(1).max(25).default(10),
+      includeWorld: z.boolean().default(false),
+      includeOtherBooks: z.boolean().default(false),
+    });
+    const parsed = schema.parse(typeof args === 'string' ? { query: args } : args);
+    try {
+      return await this.foundryClient.query('foundry-mcp-bridge.searchRules', parsed);
+    } catch (error) {
+      this.logger.error('Failed to search rules', error);
+      throw new Error(
+        `Failed to search rules: ${error instanceof Error ? error.message : 'Unknown error'}`,
         { cause: error }
       );
     }

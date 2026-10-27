@@ -78,11 +78,12 @@ afterEach(() => {
 // ---------------------------------------------------------------------------
 
 describe('CompendiumTools.getToolDefinitions', () => {
-  it('exposes exactly four compendium tools in the correct order', () => {
+  it('exposes exactly five compendium tools in the correct order', () => {
     const { tools } = makeTools();
     const defs = tools.getToolDefinitions();
     expect(defs.map(d => d.name)).toEqual([
       'search-compendium',
+      'search-rules',
       'get-compendium-item',
       'list-creatures-by-criteria',
       'list-compendium-packs',

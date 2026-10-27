@@ -14,6 +14,8 @@ import { CharacterDataAccess } from './data-access/characters.js';
 import { ScenesTokensDataAccess } from './data-access/scenes-tokens.js';
 import { SceneFxDataAccess } from './data-access/scene-fx.js';
 import { CompendiumDataAccess } from './data-access/compendium.js';
+import { RulesSearchDataAccess } from './data-access/rules-search.js';
+import type { RulesSearchParams, RulesSearchResult } from './data-access/rules-search.js';
 import { CombatDataAccess } from './data-access/combat.js';
 import { ActorCreationDataAccess } from './data-access/actor-creation.js';
 import { ActorBuilderDataAccess } from './data-access/actor-builder.js';
@@ -68,6 +70,7 @@ export class FoundryDataAccess {
   private scenesTokens = new ScenesTokensDataAccess();
   private sceneFx = new SceneFxDataAccess();
   private compendium = new CompendiumDataAccess(this.persistentIndex);
+  private rulesSearch = new RulesSearchDataAccess();
   private combat = new CombatDataAccess();
   private actorCreation = new ActorCreationDataAccess(this.compendium);
   private actorBuilder = new ActorBuilderDataAccess();
@@ -161,6 +164,10 @@ export class FoundryDataAccess {
     }
   ): Promise<CompendiumSearchResult[]> {
     return this.compendium.searchCompendium(query, packType, filters);
+  }
+
+  async searchRules(params: RulesSearchParams): Promise<RulesSearchResult> {
+    return this.rulesSearch.searchRules(params);
   }
 
   async listCreaturesByCriteria(criteria: {

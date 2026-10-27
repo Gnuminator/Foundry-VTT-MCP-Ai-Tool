@@ -341,7 +341,7 @@ export class ModuleSettings {
 
     game.settings.register(this.moduleId, 'rulesSearchPacks', {
       name: 'Rules search packs',
-      hint: 'Which packages the search-rules tool reads, as package names or pack ids separated by commas. Leave empty for the default: dnd-players-handbook, aitool-content, dnd5e. Adventure text is never searched unless the caller asks.',
+      hint: 'Which packages the search-rules tool reads, as package names or pack ids separated by commas. Leave empty for the default: dnd-players-handbook, dnd5e and the aitool-content rules packs (classes, species, backgrounds, feats, spells, items, journals = the Books, including the DMG 2024). Adventure text is never searched unless the caller asks.',
       scope: 'world',
       config: true,
       type: String,

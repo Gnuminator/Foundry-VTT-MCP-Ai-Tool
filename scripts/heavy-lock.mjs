@@ -11,7 +11,7 @@
  *
  * Design:
  * - A slot is a folder `slot-N` under `<tmp>/foundry-ai-heavy-lock` (mkdir is atomic) with an
- *   `owner.json` (pid, label, start). A slot whose pid is dead, or older than 3 hours, is stale and
+ *   `owner.json` (pid, label, start). A slot whose pid is dead, or older than 1 hour, is stale and
  *   taken over. HEAVY_LOCK_SLOTS sets how many slots there are (default 1).
  * - Re-entrant through the environment: the holder sets HEAVY_LOCK_HELD for its children, so
  *   `green` holding the lock for a step that runs `npm run lint:ratchet` does not wait on itself.
@@ -28,7 +28,13 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 export const HELD_ENV = 'HEAVY_LOCK_HELD';
-const STALE_MS = 3 * 60 * 60 * 1000;
+const STALE_MS = 60 * 60 * 1000;
+/** Set once a run gave up waiting: the rest of that process then does not wait again. */
+let gaveUp = false;
+/** For tests: forget a give-up. */
+export function resetGaveUp() {
+  gaveUp = false;
+}
 const FRESH_SLOT_MS = 15 * 1000;
 const POLL_MS = 1000;
 const REMIND_MS = 60 * 1000;
@@ -88,6 +94,11 @@ function inspectSlot(slot, now, alive) {
   } else if (alive(owner.pid) && now - owner.start < STALE_MS) {
     return owner;
   }
+  // Another waiter may have taken the slot over between the read and now: look again before removing.
+  const again = readOwner(slot);
+  if ((again?.pid ?? null) !== (owner?.pid ?? null) || (again?.start ?? 0) !== (owner?.start ?? 0)) {
+    return again ?? 'unknown';
+  }
   fs.rmSync(slot, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
   return null;
 }
@@ -109,9 +120,14 @@ export function acquire(label, o = {}) {
     now = Date.now,
     alive = pidAlive,
   } = o;
-  const maxWaitMs = o.maxWaitMs ?? (Number(env.HEAVY_LOCK_MAX_WAIT_MIN) || 60) * 60 * 1000;
+  const configured = Number(env.HEAVY_LOCK_MAX_WAIT_MIN);
+  const maxWaitMs = gaveUp
+    ? 0
+    : (o.maxWaitMs ?? (Number.isFinite(configured) && configured >= 0 && env.HEAVY_LOCK_MAX_WAIT_MIN ? configured : 60) * 60 * 1000);
   const noop = { release() {}, waitedMs: 0, held: false };
-  if (env[HELD_ENV]) return noop;
+  // A parent run that holds the lock marks its children; a marker whose process is gone is ignored.
+  const marker = Number(env[HELD_ENV]);
+  if (marker && alive(marker)) return noop;
   const dir = lockDir(env);
   const slots = slotCount(env);
   const began = now();
@@ -142,6 +158,7 @@ export function acquire(label, o = {}) {
         const release = () => {
           if (released) return;
           released = true;
+          process.off('exit', release);
           try {
             const owner = readOwner(slot);
             if (owner && owner.pid === process.pid) {
@@ -159,6 +176,7 @@ export function acquire(label, o = {}) {
       const waited = now() - began;
       if (waited >= maxWaitMs) {
         log(`heavy-lock: waited ${Math.round(waited / 60000)} min, going on without the lock (${label})`);
+        gaveUp = true;
         return noop;
       }
       if (lastRemind === 0 || now() - lastRemind >= REMIND_MS) {
@@ -231,10 +249,36 @@ export function main(argv) {
   const label = li >= 0 && li < dash ? rest[li + 1] : command.slice(0, 3).join(' ');
   return withHeavyLock(label, () => {
     const r = spawnSync(command.join(' '), { shell: true, stdio: 'inherit', env: process.env });
-    return r.status ?? 1;
+    return r.status ?? (r.signal ? 130 : 1);
   });
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+/**
+ * Is this module the script node was started with? Real paths on both sides, so a junction or a
+ * drive-letter case cannot turn into a silent exit 0 (as green.mjs isEntryModule; not imported,
+ * because green imports this file).
+ * @param {string | undefined} argv1 @param {string} self
+ */
+export function isEntryModule(argv1, self) {
+  if (!argv1) return false;
+  const norm = (/** @type {string} */ p) => {
+    let r;
+    try {
+      r = fs.realpathSync(p);
+    } catch {
+      r = path.resolve(p);
+    }
+    return process.platform === 'win32' ? r.toLowerCase() : r;
+  };
+  return norm(argv1) === norm(self);
+}
+
+const self = fileURLToPath(import.meta.url);
+if (isEntryModule(process.argv[1], self)) {
+  // Ctrl+C reaches the child too; staying alive lets the lock be released and the code passed on.
+  process.on('SIGINT', () => {});
   process.exit(main(process.argv.slice(2)));
+} else if (process.argv[1] && path.basename(process.argv[1]).toLowerCase() === path.basename(self).toLowerCase()) {
+  console.error(`heavy-lock: started as ${process.argv[1]} but this module is ${self}`);
+  process.exit(1);
 }

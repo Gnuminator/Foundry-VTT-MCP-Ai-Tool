@@ -9,7 +9,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { HELD_ENV, acquire, status, withHeavyLock } from './heavy-lock.mjs';
+import { HELD_ENV, acquire, resetGaveUp, status, withHeavyLock } from './heavy-lock.mjs';
 import { lockedCommand } from './drift-check.mjs';
 
 const script = fileURLToPath(new URL('./heavy-lock.mjs', import.meta.url));
@@ -70,12 +70,12 @@ test('a lock whose process is gone is taken over', () => {
   lock.release();
 });
 
-test('a lock older than three hours is stale even if its pid lives', () => {
+test('a lock older than an hour is stale even if its pid lives', () => {
   const { dir, env } = fixture();
   fs.mkdirSync(path.join(dir, 'slot-0'));
   fs.writeFileSync(
     path.join(dir, 'slot-0', 'owner.json'),
-    JSON.stringify({ pid: process.pid, label: 'old', start: Date.now() - 4 * 3600 * 1000 })
+    JSON.stringify({ pid: process.pid, label: 'old', start: Date.now() - 2 * 3600 * 1000 })
   );
   const lock = acquire('new', { env, log: () => {}, alive: () => true });
   assert.equal(lock.held, true);
@@ -99,8 +99,30 @@ test('the wait gives up after the maximum and goes on without the lock', () => {
   });
   assert.equal(lock.held, false);
   assert.ok(lines.some(l => l.includes('going on without the lock')));
+  // Having given up once, the rest of that process does not wait again.
+  const again = acquire('later', { env, log: () => {}, sleep: () => assert.fail('waited'), alive: () => true });
+  assert.equal(again.held, false);
+  resetGaveUp();
   holder.release();
 });
+
+test('a held marker naming a dead process is ignored', () => {
+  const { env } = fixture({ [HELD_ENV]: '999999' });
+  const lock = acquire('x', { env, log: () => {}, alive: pid => pid !== 999999 });
+  assert.equal(lock.held, true);
+  lock.release();
+});
+
+test('the CLI started through a path that differs in case still runs the command (win32)', { skip: process.platform !== 'win32' }, () => {
+  const { env } = fixture();
+  const r = spawnSync(
+    process.execPath,
+    [path.join(path.dirname(script).toUpperCase(), path.basename(script)), 'run', '--', 'node', '-e', '"process.exit(5)"'],
+    { env: { ...process.env, ...env, HEAVY_LOCK_HELD: '' }, encoding: 'utf8' }
+  );
+  assert.equal(r.status, 5);
+});
+
 
 test('a lock folder that cannot be made only prints a line and runs unlocked', () => {
   const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'heavy-lock-test-')), 'plain-file');

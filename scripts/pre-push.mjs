@@ -61,7 +61,7 @@ export function main(o = {}) {
 /** @param {{ name: string, args: string[] }} check @param {string} cwd */
 function defaultRunCheck(check, cwd) {
   // One command string under the shell (an args array under a shell is DEP0190), as green.mjs does.
-  return withHeavyLock(`pre-push ${check.name}`, () => {
+  const run = () => {
     const r = spawnSync(['npm', ...check.args].join(' '), {
       cwd,
       shell: true,
@@ -69,7 +69,9 @@ function defaultRunCheck(check, cwd) {
       env: stepEnvironment(process.env, portableNode22Dir()),
     });
     return r.status ?? 1;
-  });
+  };
+  // The 1 s em dash check is not worth a wait behind a green; lint and the type check are.
+  return check.name === 'emdash:ratchet' ? run() : withHeavyLock(`pre-push ${check.name}`, run);
 }
 
 if (isEntryModule(process.argv[1], fileURLToPath(import.meta.url))) {

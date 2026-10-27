@@ -352,7 +352,10 @@ export function runDriftCheck({
  */
 export function lockedCommand(check, dir) {
   const script = path.join(dir, 'scripts', 'heavy-lock.mjs');
-  if (!check.heavy || !fs.existsSync(script)) return check.command;
+  // The command goes through the shell twice, so only plain words are wrapped (as green's isShellSafe).
+  if (!check.heavy || !fs.existsSync(script) || !/^[\w .:/@=-]+$/.test(check.command)) {
+    return check.command;
+  }
   const label = `drift-check ${check.name.split('(')[0].replace(/[^\w -]/g, '').trim()}`;
   return `node "${script}" run --label "${label}" -- ${check.command}`;
 }

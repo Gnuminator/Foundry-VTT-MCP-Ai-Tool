@@ -17,6 +17,7 @@ interface AdvancementLike {
   average?: number;
   appliesToClass?: boolean;
   configuration?: Rec;
+  value?: unknown;
   configuredForLevel?: (level: number) => boolean;
   valueForLevel?: (level: number) => unknown;
 }
@@ -30,6 +31,8 @@ interface ClassItemLike {
 }
 
 interface GrantEntry {
+  /** The class, subclass or species item the advancement belongs to. */
+  source?: string;
   advancementId: string;
   type: string;
   name: string;
@@ -39,6 +42,7 @@ interface GrantEntry {
 }
 
 interface OpenChoice {
+  source?: string;
   kind: 'hit-points' | 'asi-or-feat' | 'subclass' | 'item-choice' | 'trait' | 'spells';
   advancementId: string;
   name: string;
@@ -46,6 +50,7 @@ interface OpenChoice {
 }
 
 interface UnfinishedEntry {
+  source?: string;
   level: number;
   advancementId: string;
   type: string;
@@ -65,11 +70,20 @@ interface ClassLevelUp {
   unfinishedAdvancement: UnfinishedEntry[];
 }
 
+interface SpeciesLevelUp {
+  name: string;
+  nextLevelGrants: GrantEntry[];
+  openChoices: OpenChoice[];
+  unfinishedAdvancement: UnfinishedEntry[];
+}
+
 interface LevelUpResult {
   success: true;
   actorId: string;
   actorName: string;
   characterLevel: number;
+  /** Species advancement at the next character level, once for every class. */
+  species: SpeciesLevelUp | null;
   classes: ClassLevelUp[];
   notes: string[];
 }
@@ -102,6 +116,15 @@ function levelAdvancements(item: ClassItemLike, level: number): AdvancementLike[
   return list.filter(a => a.appliesToClass !== false);
 }
 
+/**
+ * Whether the player has finished `adv` at `level`. dnd5e's ASI advancement never overrides
+ * `configuredForLevel` (always true), so a skipped ASI is told by its empty value instead.
+ */
+function isConfigured(adv: AdvancementLike, level: number): boolean {
+  if (adv.type === 'AbilityScoreImprovement') return !!rec(adv.value).type;
+  return adv.configuredForLevel?.(level) ?? true;
+}
+
 function displayOf(value: unknown): unknown {
   if (value && typeof value === 'object' && 'display' in value) {
     return value.display;
@@ -128,6 +151,7 @@ export class LevelUpDataAccess {
     }
 
     const items = Array.from((actor.items as unknown as Iterable<ClassItemLike>) ?? []);
+    const characterLevel = num(rec(rec(actor.system).details).level);
     let classItems = items.filter(i => i.type === 'class');
     const wanted = data.className?.trim().toLowerCase();
     if (wanted) {
@@ -155,8 +179,9 @@ export class LevelUpDataAccess {
       success: true,
       actorId: actor.id,
       actorName: actor.name,
-      characterLevel: num(rec(rec(actor.system).details).level),
-      classes: classItems.map(c => this.describeClass(c, items)),
+      characterLevel,
+      species: this.describeSpecies(actor, items, characterLevel),
+      classes: classItems.map(c => this.describeClass(c, items, characterLevel)),
       notes: [
         ...notes,
         'Advice only: nothing was changed. Spell slots follow the class table and are not listed; open the level-up dialog in Foundry to apply the choices.',
@@ -164,38 +189,98 @@ export class LevelUpDataAccess {
     };
   }
 
-  private describeClass(item: ClassItemLike, items: ClassItemLike[]): ClassLevelUp {
-    const sys = item.system ?? {};
-    const classLevel = num(sys.levels);
-    const identifier = typeof sys.identifier === 'string' ? sys.identifier : null;
-    const nextLevel = classLevel >= MAX_LEVEL ? null : classLevel + 1;
-
-    const subclassItem = items.find(
-      i => i.type === 'subclass' && identifier && i.system?.classIdentifier === identifier
-    );
-
+  /**
+   * What `item` (a class, subclass or species) grants at `currentLevel + 1`, which of that is a
+   * choice, and what up to `currentLevel` was left unfinished. dnd5e's level-up walks the class
+   * and its subclass at the new class level and the species at the new character level.
+   */
+  private collect(
+    item: ClassItemLike,
+    subclassItem: ClassItemLike | undefined,
+    currentLevel: number,
+    hasNext: boolean
+  ): { grants: GrantEntry[]; open: OpenChoice[]; unfinished: UnfinishedEntry[] } {
     const grants: GrantEntry[] = [];
     const open: OpenChoice[] = [];
-    if (nextLevel !== null) {
+    if (hasNext) {
+      const nextLevel = currentLevel + 1;
       const scaleBefore = (a: AdvancementLike): unknown =>
-        displayOf(safe(() => a.valueForLevel?.(classLevel), null));
+        displayOf(safe(() => a.valueForLevel?.(currentLevel), null));
       for (const adv of levelAdvancements(item, nextLevel)) {
         const entry = this.describeAdvancement(adv, nextLevel, subclassItem, scaleBefore);
         if (!entry) continue;
-        grants.push(entry.grant);
-        if (entry.open) open.push(entry.open);
+        grants.push({ ...entry.grant, source: item.name });
+        if (entry.open) open.push({ ...entry.open, source: item.name });
       }
     }
 
     const unfinished: UnfinishedEntry[] = [];
-    for (let level = 1; level <= classLevel; level++) {
+    for (let level = 1; level <= currentLevel; level++) {
       for (const adv of levelAdvancements(item, level)) {
-        const done = safe(() => adv.configuredForLevel?.(level) ?? true, true);
-        if (!done) {
-          unfinished.push({ level, advancementId: adv.id, type: adv.type, name: advName(adv) });
+        if (!safe(() => isConfigured(adv, level), true)) {
+          unfinished.push({
+            level,
+            advancementId: adv.id,
+            type: adv.type,
+            name: advName(adv),
+            source: item.name,
+          });
         }
       }
     }
+    return { grants, open, unfinished };
+  }
+
+  /** The species item's advancement at character level (the same for every class). */
+  private describeSpecies(
+    actor: Actor,
+    items: ClassItemLike[],
+    characterLevel: number
+  ): SpeciesLevelUp | null {
+    const linked = rec(rec(actor.system).details).race as ClassItemLike | undefined;
+    const item =
+      linked && typeof linked === 'object' && 'type' in linked
+        ? linked
+        : items.find(i => i.type === 'race');
+    if (!item) return null;
+    const { grants, open, unfinished } = this.collect(
+      item,
+      undefined,
+      characterLevel,
+      characterLevel < MAX_LEVEL
+    );
+    return {
+      name: item.name,
+      nextLevelGrants: grants,
+      openChoices: open,
+      unfinishedAdvancement: unfinished,
+    };
+  }
+
+  private describeClass(
+    item: ClassItemLike,
+    items: ClassItemLike[],
+    characterLevel: number
+  ): ClassLevelUp {
+    const sys = item.system ?? {};
+    const classLevel = num(sys.levels);
+    const identifier = typeof sys.identifier === 'string' ? sys.identifier : null;
+    const nextLevel =
+      classLevel >= MAX_LEVEL || characterLevel >= MAX_LEVEL ? null : classLevel + 1;
+
+    const subclassItem =
+      (item as { subclass?: ClassItemLike | null }).subclass ??
+      items.find(
+        i => i.type === 'subclass' && identifier && i.system?.classIdentifier === identifier
+      );
+
+    const own = this.collect(item, subclassItem, classLevel, nextLevel !== null);
+    const sub = subclassItem
+      ? this.collect(subclassItem, subclassItem, classLevel, nextLevel !== null)
+      : { grants: [], open: [], unfinished: [] };
+    const grants = [...own.grants, ...sub.grants];
+    const open = [...own.open, ...sub.open];
+    const unfinished = [...own.unfinished, ...sub.unfinished];
 
     const sc = sys.spellcasting as { progression?: string; ability?: string } | undefined;
     const spellcasting =
@@ -230,8 +315,8 @@ export class LevelUpDataAccess {
     switch (adv.type) {
       case 'HitPoints': {
         const detail = {
-          hitDie: adv.hitDie ?? null,
-          average: adv.average ?? null,
+          hitDie: safe(() => adv.hitDie ?? null, null),
+          average: safe(() => adv.average ?? null, null),
           firstLevel: level === 1,
         };
         return {

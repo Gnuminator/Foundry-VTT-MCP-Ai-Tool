@@ -102,7 +102,10 @@ describe('getLevelUpOptions', () => {
   it('flags advancement from earlier levels that was never finished', async () => {
     const fighter = classItem(3, {
       1: [adv('HitPoints', { id: 'hp1', configuredForLevel: () => true })],
-      2: [adv('AbilityScoreImprovement', { id: 'asi2', configuredForLevel: () => false })],
+      // dnd5e's ASI always answers true from configuredForLevel; a skipped one has no value.type.
+      2: [
+        adv('AbilityScoreImprovement', { id: 'asi2', configuredForLevel: () => true, value: {} }),
+      ],
       3: [adv('Subclass', { id: 'sub3', configuredForLevel: () => false })],
     });
     world.actors.add(actorWith(fighter));
@@ -142,6 +145,55 @@ describe('getLevelUpOptions', () => {
     world.actors.add(actorWith(fighter));
     const out = await da.getLevelUpOptions({ identifier: 'Brienne' });
     expect(out.classes[0].nextLevelGrants).toEqual([]);
+  });
+
+  it('does not flag an ASI that has a chosen type', async () => {
+    const fighter = classItem(2, {
+      2: [
+        adv('AbilityScoreImprovement', {
+          id: 'asi',
+          configuredForLevel: () => true,
+          value: { type: 'asi' },
+        }),
+      ],
+    });
+    world.actors.add(actorWith(fighter));
+    const out = await da.getLevelUpOptions({ identifier: 'Brienne' });
+    expect(out.classes[0].unfinishedAdvancement).toEqual([]);
+  });
+
+  it('includes the subclass advancement at the new class level', async () => {
+    const champion = makeItem({
+      name: 'Champion',
+      type: 'subclass',
+      system: { classIdentifier: 'fighter' },
+      advancement: {
+        byLevel: {
+          3: [adv('ItemGrant', { id: 'crit', configuration: { items: [] } })],
+          2: [adv('Subclass', { id: 'old', configuredForLevel: () => false })],
+        },
+      },
+    });
+    world.actors.add(actorWith(classItem(2, {}), champion));
+    const out = await da.getLevelUpOptions({ identifier: 'Brienne' });
+    expect(out.classes[0].nextLevelGrants).toEqual([
+      expect.objectContaining({ advancementId: 'crit', source: 'Champion' }),
+    ]);
+    expect(out.classes[0].unfinishedAdvancement).toEqual([
+      expect.objectContaining({ level: 2, source: 'Champion' }),
+    ]);
+  });
+
+  it('reads the species advancement once at character level', async () => {
+    const species = makeItem({
+      name: 'Elf',
+      type: 'race',
+      advancement: { byLevel: { 4: [adv('ScaleValue', { id: 'sv', identifier: 'x' })] } },
+    });
+    world.actors.add(actorWith(classItem(3, {}), species));
+    const out = await da.getLevelUpOptions({ identifier: 'Brienne' });
+    expect(out.species).toMatchObject({ name: 'Elf' });
+    expect(out.species?.unfinishedAdvancement).toEqual([]);
   });
 
   it('reports no next level at class level 20', async () => {

@@ -32,6 +32,7 @@ import {
 } from './mirror-pump.js';
 import { shortSuffix } from './mirror-paths.js';
 import { MIRROR_SETTINGS_FILE } from './mirror-settings.js';
+import { rmTmp } from '../test-support/rm-tmp.js';
 
 const converter = vi.hoisted(() => ({
   html: vi.fn<(html: string, ctx: LinkContext) => string>(),
@@ -98,7 +99,7 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
-  await fsp.rm(tmp, { recursive: true, force: true });
+  await rmTmp(tmp);
 });
 
 function newPump(): ObsidianMirrorPump {
@@ -694,7 +695,7 @@ describe('ObsidianMirrorPump: the GM owns what the GM touched', () => {
     await tickAfter(pump, 10_000);
     expect(await exists(full('AI Tool/Foundry/NPCs/Rat.md'))).toBe(false);
     // Once the scan completes again, both happen.
-    await fsp.rm(full('Prep/d'), { recursive: true, force: true });
+    await rmTmp(full('Prep/d'));
     await tickAfter(pump, RECONCILE_MIN_INTERVAL_MS);
     expect(await exists(full(P.wolf))).toBe(false);
     expect(await exists(full('AI Tool/Foundry/NPCs/Bat.md'))).toBe(true);
@@ -1189,7 +1190,7 @@ describe('ObsidianMirrorPump: adventure hubs, review fixes (I-105)', () => {
     await reconcileNow(pump);
     expect(await read(HUB)).toBe(before);
     // Once the scan completes again, the hub follows.
-    await fsp.rm(full('Prep/d'), { recursive: true, force: true });
+    await rmTmp(full('Prep/d'));
     await reconcileNow(pump);
     expect(await read(HUB)).toContain('[Great Hall]');
   });

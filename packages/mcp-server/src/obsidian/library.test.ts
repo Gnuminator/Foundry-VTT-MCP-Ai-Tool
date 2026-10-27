@@ -34,6 +34,7 @@ import { versionedSig, type LinkContext } from './mirror-common.js';
 import { KEPT_AT_OLD_PATH } from './note-writer.js';
 import { checkMarkdownOwnership } from './ownership.js';
 import { statBlockMarkdown } from './stat-block-md.js';
+import { rmTmp } from '../test-support/rm-tmp.js';
 
 const WORLD = 'test-world';
 const PACK = 'world.test-bestiary';
@@ -579,7 +580,7 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
-  await fsp.rm(dir, { recursive: true, force: true });
+  await rmTmp(dir);
 });
 
 describe('LibrarySync', () => {

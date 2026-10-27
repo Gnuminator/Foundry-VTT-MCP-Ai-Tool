@@ -2,6 +2,17 @@ import { toolRef } from '@gnuminator/shared';
 import { z } from 'zod';
 import { FoundryClient } from '../foundry-client.js';
 import { Logger } from '../logger.js';
+import type { MovementReply } from './types/movement-types.js';
+
+interface MovementToolDefinition {
+  name: string;
+  description: string;
+  inputSchema: {
+    type: string;
+    properties: Record<string, unknown>;
+    required?: string[];
+  };
+}
 
 interface MovementToolsOptions {
   foundryClient: FoundryClient;
@@ -20,7 +31,7 @@ export class MovementTools {
     this.logger = options.logger.child({ component: 'MovementTools' });
   }
 
-  getToolDefinitions() {
+  getToolDefinitions(): MovementToolDefinition[] {
     return [
       {
         name: 'get-token-positions',
@@ -67,9 +78,11 @@ export class MovementTools {
     ];
   }
 
-  async handleGetTargets(_args: any) {
+  async handleGetTargets(_args: unknown): Promise<MovementReply | undefined> {
     try {
-      const response = await this.foundryClient.query('foundry-mcp-bridge.getTargets', {});
+      const response = (await this.foundryClient.query('foundry-mcp-bridge.getTargets', {})) as
+        | MovementReply
+        | undefined;
       if (response?.success === false) {
         throw new Error(response.error || 'Failed to get targets');
       }
@@ -80,14 +93,14 @@ export class MovementTools {
     }
   }
 
-  async handleGetTokenPositions(args: any) {
+  async handleGetTokenPositions(args: unknown): Promise<MovementReply | undefined> {
     const schema = z.object({ sceneId: z.string().optional() });
     try {
       const params = schema.parse(args ?? {});
-      const response = await this.foundryClient.query(
+      const response = (await this.foundryClient.query(
         'foundry-mcp-bridge.getTokenPositions',
         params
-      );
+      )) as MovementReply | undefined;
       if (response?.success === false) {
         throw new Error(response.error || 'Failed to get token positions');
       }
@@ -98,14 +111,17 @@ export class MovementTools {
     }
   }
 
-  async handleMeasureDistance(args: any) {
+  async handleMeasureDistance(args: unknown): Promise<MovementReply | string | undefined> {
     const schema = z.object({
       fromTokenName: z.string(),
       toTokenName: z.string(),
     });
     try {
       const params = schema.parse(args ?? {});
-      const response = await this.foundryClient.query('foundry-mcp-bridge.measureDistance', params);
+      const response = (await this.foundryClient.query(
+        'foundry-mcp-bridge.measureDistance',
+        params
+      )) as MovementReply | undefined;
       if (response?.success === false) {
         throw new Error(response.error || 'Failed to measure distance');
       }

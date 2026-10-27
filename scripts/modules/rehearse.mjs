@@ -8,8 +8,8 @@
  *   node scripts/modules/rehearse.mjs check   [--server B]       also asks each manifest for its newest
  *   node scripts/modules/rehearse.mjs stage   --server B [--ids a,b]   download newer zips to staging
  *   node scripts/modules/rehearse.mjs install --server B [--ids a,b]   staged zips into the server (stopped, lock held)
- *   node scripts/modules/rehearse.mjs run     --server B [--size smoke|full] [--no-kit] [--with-green]
- *   node scripts/modules/rehearse.mjs archive --server B [--ids a,b] [--from-report <dir>]
+ *   node scripts/modules/rehearse.mjs run     --server B [--size smoke|full] [--no-kit] [--no-live] [--with-green]
+ *   node scripts/modules/rehearse.mjs archive --server B [--ids a,b] [--from-report <dir>]... (repeatable)
  *   node scripts/modules/rehearse.mjs pi-plan                    the commands for the Pi mirror (printed, never run)
  *
  * The archive is $MODULE_ARCHIVE or C:\FoundryAI\module-archive (see lib.mjs). Licensed and Patreon
@@ -51,7 +51,7 @@ const strahd = () => readJson(path.join(here, 'strahd-modules.json'));
 const expectedList = () => readJson(path.join(here, 'expected.json')).expected ?? [];
 
 export function parseArgs(argv) {
-  const o = { cmd: '', server: 'B', ids: null, size: 'smoke', kit: true, green: false, fromReport: null, help: false };
+  const o = { cmd: '', server: 'B', ids: null, size: 'smoke', kit: true, green: false, fromReports: [], live: true, help: false };
   const args = [...argv];
   o.cmd = args[0] && !args[0].startsWith('--') ? args.shift() : '';
   const value = flag => {
@@ -64,7 +64,8 @@ export function parseArgs(argv) {
     if (a === '--server') o.server = value(a);
     else if (a === '--ids') o.ids = value(a).split(',').map(s => s.trim()).filter(Boolean);
     else if (a === '--size') o.size = value(a);
-    else if (a === '--from-report') o.fromReport = value(a);
+    else if (a === '--from-report') o.fromReports.push(value(a));
+    else if (a === '--no-live') o.live = false;
     else if (a === '--no-kit') o.kit = false;
     else if (a === '--with-green') o.green = true;
     else if (a === '--help' || a === '-h') o.help = true;
@@ -160,23 +161,21 @@ async function cmdInstall(o) {
   }
 }
 
-async function dashboardTool(port, name, args = {}) {
-  const r = await fetch(`http://127.0.0.1:${port}/api/tool`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ name, args }),
-    signal: AbortSignal.timeout(30000),
-  });
-  return r.json();
-}
-
-/** Module errors from the bridge, as { module, text } findings. */
-export function errorFindings(result) {
+/**
+ * Module errors from the bridge, as { module, text } findings. The module is the one the bridge
+ * names, else the one in the stack's `/modules/<id>/` path, else '*'. `sinceMs` drops older entries
+ * (the bridge keeps errors from earlier sessions).
+ */
+export function errorFindings(result, sinceMs = 0) {
   const list = result?.result?.errors ?? result?.errors ?? [];
-  return list.map(e => ({
-    module: String(e.moduleId ?? e.module ?? e.id ?? '*'),
-    text: String(e.message ?? e.error ?? JSON.stringify(e)).slice(0, 300),
-  }));
+  return list
+    .filter(e => !e.timestampMs || e.timestampMs >= sinceMs)
+    .map(e => ({
+      module: String(
+        e.moduleId ?? e.module ?? /\/modules\/([^/]+)\//.exec(`${e.stack ?? ''} ${e.source ?? ''}`)?.[1] ?? '*'
+      ),
+      text: String(e.message ?? e.error ?? JSON.stringify(e)).slice(0, 300),
+    }));
 }
 
 function runStep(name, cmd, args, env = {}) {
@@ -193,26 +192,23 @@ async function cmdRun(o) {
   const plan = planUpdates(installed, readPinned(root), {}, strahd());
   const steps = [];
 
-  // 1. load check: every Strahd module installed is active at its installed version, no module errors.
-  const mods = await dashboardTool(srv.DashboardPort, 'get-modules', {});
-  const active = new Map(((mods.result?.modules ?? [])).map(m => [m.id ?? m.name, m]));
-  const inactive = strahd().modules.filter(m => installed.some(p => p.id === m.id) && !active.get(m.id)?.active).map(m => m.id);
-  steps.push({ name: 'load: Strahd modules active', status: inactive.length ? 'fail' : 'pass', detail: inactive.length ? `not active: ${inactive.join(', ')}` : undefined });
-  const errs = errorFindings(await dashboardTool(srv.DashboardPort, 'get-module-errors', {}));
-  const findings = splitFindings(errs, expectedList());
-  steps.push({ name: 'load: module errors', status: findings.fresh.length ? 'fail' : 'pass', detail: `${errs.length} seen, ${findings.fresh.length} new` });
+  // 1. live:roundtrip and live:sweep talk to the dashboard on 3100, which is server A's, in ai-tool-test.
+  if (srv.name === 'A' && o.live) {
+    steps.push(runStep('live:roundtrip', 'node', ['scripts/live-roundtrip.mjs']));
+    steps.push(runStep('live:sweep', 'node', ['scripts/live-read-sweep.mjs']));
+  } else steps.push({ name: 'live:roundtrip and live:sweep', status: 'skip', detail: srv.name === 'A' ? '--no-live' : 'they use server A (dashboard 3100); run the rehearsal on A or run them there' });
 
-  // 2. the kit with the all-modules profile.
+
+  // 2. the kit on the modules-all profile; it restarts the server in the kit world.
   if (o.kit) steps.push(runStep(`kit (${o.size}, modules-all)`, 'node', ['scripts/test-kit/kit-run.mjs', '--server', srv.name, '--profile', 'modules-all', '--size', o.size, '--keep-up', '--session', process.env.KIT_RUN_SESSION ?? 'rehearsal']));
   else steps.push({ name: 'kit', status: 'skip', detail: '--no-kit' });
 
-  // 3. live:roundtrip and live:sweep talk to the dashboard on 3100, which is server A's.
-  if (srv.name === 'A') {
-    steps.push(runStep('live:roundtrip', 'node', ['scripts/live-roundtrip.mjs']));
-    steps.push(runStep('live:sweep', 'node', ['scripts/live-read-sweep.mjs']));
-  } else steps.push({ name: 'live:roundtrip and live:sweep', status: 'skip', detail: 'they use server A (dashboard 3100); run the rehearsal on A or run them there' });
 
-  // 4. CI.
+  // The load check (modules active, no new module errors) is the kit scenario module-load, so it
+  // runs inside the kit in the kit world; its result is the kit step. Findings stay empty here.
+  const findings = splitFindings([], expectedList());
+
+  // 3. CI.
   steps.push(o.green ? runStep('npm run green', 'npm', ['run', 'green'], { CI: 'true' }) : { name: 'npm run green', status: 'skip', detail: 'pass --with-green' });
 
   const foundry = readFileSync(path.join(srv.Root, 'app', 'package.json'), 'utf8').match(/"version":\s*"([^"]+)"/)?.[1] ?? '?';
@@ -232,12 +228,13 @@ async function cmdRun(o) {
 async function cmdArchive(o) {
   const srv = serverInfo(o.server);
   const root = archiveRoot();
-  let rehearsal = null;
-  if (o.fromReport) {
-    const rep = readJson(path.join(o.fromReport, 'report.json'));
-    if (!runPassed(rep.steps) || rep.findings.fresh.length) throw new Notready('that rehearsal did not pass; nothing is archived');
-    rehearsal = path.basename(o.fromReport);
-  } else if (!o.ids) throw new Notready('give --from-report <dir> (a passing rehearsal) or --ids with a rehearsal in mind');
+  // One or more passing reports (a live pass and a kit pass may be separate runs): all must pass.
+  for (const dir of o.fromReports) {
+    const rep = readJson(path.join(dir, 'report.json'));
+    if (!runPassed(rep.steps) || rep.findings.fresh.length) throw new Notready(`${dir} did not pass; nothing is archived`);
+  }
+  if (!o.fromReports.length && !o.ids) throw new Notready('give --from-report <dir> (a passing rehearsal, repeatable) or --ids');
+  const rehearsal = o.fromReports.map(d => path.basename(d)).join('+') || null;
   const installed = scanInstalled(srv.dataDir);
   const inList = new Map(strahd().modules.map(m => [m.id, m]));
   const ids = o.ids ?? installed.filter(p => p.kind === 'module').map(p => p.id);

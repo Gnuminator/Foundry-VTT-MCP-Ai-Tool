@@ -2,6 +2,24 @@
   "_comment": "Known upstream module findings, so they do not hide new ones (I-117). Each entry matches the text of a module error from get-module-errors by substring; module '*' matches any. max caps how many findings the entry may absorb. The first rehearsal run tunes the match strings against real text; an entry the run did not see is listed as unseen, and is removed when the module's release fixes it.",
   "expected": [
     {
+      "id": "dnd5e-forced-deletion-legacy-syntax",
+      "module": "*",
+      "match": "using legacy syntax which should be migrated",
+      "why": "Foundry 14 deprecation warning for the old '-=key' forced deletion syntax. dnd5e-item-resources trips it on the kit heroes, and the warning lists autoanimations 8.0.1 and dnd5e 6.0.6 as packages using it (2026-10-27, first rehearsal). Upstream; the run lists it as known."
+    },
+    {
+      "id": "paralyzed-effect-missing",
+      "module": "*",
+      "match": "dnd5eparalyzed00\" does not exist",
+      "why": "Casting Hold Person with the Strahd modules on logs 'ActiveEffect dnd5eparalyzed00 does not exist' (spells-deep). It is not the automated-conditions-5e update (the old 14.606.4.4 does it too); DAE or another module is the likely source (2026-10-27, first rehearsal). Unbisected."
+    },
+    {
+      "id": "kit-notification-hidden",
+      "module": "*",
+      "match": "setting 'hidden'",
+      "why": "A test kit artifact, not a bug: a chat card is deleted within 100 ms of its pop-up (TEST-KIT.md, 'The notification error'). The kit's GM page keeps it quiet; if it shows, the page hook broke."
+    },
+    {
       "id": "dae-turn-start-source",
       "module": "dae",
       "match": "turnStartSource",

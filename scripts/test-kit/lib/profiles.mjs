@@ -73,6 +73,21 @@ export function validateProfile(p) {
         problems.push(`packs.${kind} is empty`);
     }
   }
+  if (o.knownConsoleErrors !== undefined) {
+    const k = o.knownConsoleErrors;
+    let bad = !Array.isArray(k);
+    if (!bad) {
+      for (const src of k) {
+        try {
+          if (typeof src !== 'string') throw new Error('not text');
+          new RegExp(src);
+        } catch {
+          bad = true;
+        }
+      }
+    }
+    if (bad) problems.push('knownConsoleErrors must be a list of regular expressions (text)');
+  }
   if (o.knownAlso !== undefined) {
     const k = o.knownAlso;
     if (

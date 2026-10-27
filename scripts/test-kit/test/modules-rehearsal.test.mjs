@@ -114,6 +114,12 @@ test('a run passes only with passing steps and no new findings in the report', (
 test('errorFindings reads module errors in either shape', () => {
   assert.deepEqual(errorFindings({ result: { errors: [{ moduleId: 'dae', message: 'boom' }] } }), [{ module: 'dae', text: 'boom' }]);
   assert.deepEqual(errorFindings({}), []);
+  const stacked = { id: 'diag-1', module: null, message: 'x', stack: 'at f (http://h/modules/dae/dae.js:1:1)', timestampMs: 100 };
+  assert.deepEqual(errorFindings({ errors: [stacked, { message: 'y', timestampMs: 100 }] }), [
+    { module: 'dae', text: 'x' },
+    { module: '*', text: 'y' },
+  ]);
+  assert.deepEqual(errorFindings({ errors: [stacked] }, 101), []);
 });
 
 test('parseArgs reads the command and its flags and refuses the rest', () => {

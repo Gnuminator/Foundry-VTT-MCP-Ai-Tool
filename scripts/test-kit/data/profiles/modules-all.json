@@ -1,6 +1,6 @@
 {
   "id": "modules-all",
-  "world": "ai-tool-kit-srd",
+  "world": "ai-tool-kit-modules",
   "title": "AI Tool Kit (SRD, all Strahd modules)",
   "modules": [
     "lib-wrapper",
@@ -51,5 +51,9 @@
   "select": {
     "rules": ["2024", "2014"]
   },
+  "knownConsoleErrors": [
+    "ActiveEffect .dnd5eparalyzed00. does not exist",
+    "using legacy syntax which should be migrated"
+  ],
   "knownAlso": ["srd"]
 }

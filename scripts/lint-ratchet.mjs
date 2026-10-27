@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 /**
- * Lint ratchet: ESLint errors fail, and warnings may only go down.
+ * Lint ratchet: any ESLint error fails, and the baseline is 0 (D-109); a rule set to `warn` would
+ * still be counted and could only go down.
  *
  * CI used to run `eslint --quiet`, which hides warnings, so nothing stopped the
  * warning count from growing. This script lints the repo exactly like

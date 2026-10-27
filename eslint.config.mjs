@@ -46,9 +46,8 @@ export default defineConfig(
           varsIgnorePattern: '^_',
           caughtErrorsIgnorePattern: '^_',
           ignoreRestSiblings: true,
-          // typescript-eslint 8 checks caught errors by default; 6 did not. Kept off until the
-          // lint zero sweep renames the unused ones.
-          caughtErrors: 'none',
+          // typescript-eslint 8 checks caught errors by default; 6 did not.
+          caughtErrors: 'all',
         },
       ],
       '@typescript-eslint/explicit-function-return-type': 'error',

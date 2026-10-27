@@ -200,7 +200,7 @@ export class CampaignHooks {
       let statusToggles: JQuery;
       try {
         statusToggles = $html.find('.campaign-status-toggle');
-      } catch (error) {
+      } catch {
         // If DOM query fails, journal is likely being destroyed
         return;
       }

@@ -224,7 +224,7 @@ export function finishNote(answer, pr, model, sha, name) {
     .split(/\r?\n/)
     .filter(l => !/^\s*(?:[-*]\s+)?(?:\*\*)?Head reviewed:/i.test(l))
     // The house style has no em dashes; the vault is not scanned, so fix it here.
-    .map(l => l.replace(/\s*—\s*/g, ', '));
+    .map(l => l.replace(new RegExp('\\s*\\u2014\\s*', 'g'), ', '));
   const verdicts = lines.map((l, i) => (/^##\s+Verdict\b/i.test(l) ? i : -1)).filter(i => i >= 0);
   if (verdicts.length !== 1) {
     problems.push(`expected one "## Verdict" section, found ${verdicts.length}`);

@@ -86,14 +86,17 @@ jobs:
       - name: Collect the changed and new PNGs
         # bash, not the container's default sh: the loop needs read -d, which sh (dash) lacks. On
         # #533 sh printed "Illegal option -d", copied nothing and the step still passed. Process
-        # substitution keeps the loop in this shell, so a failure inside it fails the step.
-        # png-count.txt is the number of PNGs git reports; npm run visual:baselines compares it
-        # with the PNGs it finds in the artifact.
+        # file keeps the loop in this shell, so a failure inside it fails the step, and git runs
+        # once on its own line, so its failure fails the step too. png-count.txt is the number of
+        # changed or new PNGs git reports; npm run visual:baselines compares it with the PNGs it
+        # finds in the artifact.
         shell: bash
         run: |
           set -euo pipefail
           dir=packages/cogm-dashboard/web/visual/__screenshots__
           mkdir -p baseline-out
+          status="$RUNNER_TEMP/status.z"
+          git status --porcelain -z --untracked-files=all -- "$dir" > "$status"
           count=0
           # -z: names with quotes or non-ASCII characters arrive unquoted. Deleted files are not
           # copied (removing a story's baseline is the lane's call).
@@ -105,9 +108,10 @@ jobs:
             mkdir -p "baseline-out/$(dirname "$f")"
             cp "$f" "baseline-out/$f"
             count=$((count + 1))
-          done < <(git status --porcelain -z --untracked-files=all -- "$dir")
+          done < "$status"
           # Counted a second way (no read loop), so a loop that silently does nothing shows up.
-          expected=$(git status --porcelain -z --untracked-files=all -- "$dir" | tr '\0' '\n' | grep -c '^[^D][^D] .*\.png$' || true)
+          # Only grep's "no match" exit 1 is tolerated.
+          expected=$(tr '\0' '\n' < "$status" | grep -c '^[^D][^D] .*\.png$' || [ $? -eq 1 ])
           echo "$expected" > baseline-out/png-count.txt
           if [ "$expected" != "$count" ]; then
             echo "git reports $expected PNG(s) but the loop copied $count."

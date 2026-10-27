@@ -72,13 +72,13 @@ export const collectProblem = (countText, foundCount) => {
   }
   const expected = Number(text);
   if (expected !== foundCount) {
-    return `Playwright regenerated ${expected} PNG(s) but the artifact holds ${foundCount}. The collect step lost files: see the run log.`;
+    return `git saw ${expected} changed or new PNG(s) in the run but the artifact holds ${foundCount}. The collect step lost files: see the run log.`;
   }
   return '';
 };
 
 /** @param {string[]} args */
-const gh =args => {
+const gh = args => {
   const r = spawnSync('gh', args, { encoding: 'utf8', shell: false });
   if (r.error) throw new Error(`gh failed to start: ${r.error.message}`);
   if (r.status !== 0) {

@@ -99,7 +99,7 @@ item is marked done; the board ignores a line on an item with no claim.
   merged needs `git merge aitool/main` first), look at the changed PNGs it prints under
   `packages/cogm-dashboard/web/visual/__screenshots__/`, commit them, push again, and only then
   open the PR.
-  If it stops with "regenerated N PNG(s) but the artifact holds M" or "no png-count.txt marker",
+  If it stops with "git saw N changed or new PNG(s) in the run but the artifact holds M" or "no png-count.txt marker",
   the collect step lost files (or the branch has an old workflow file: merge `aitool/main`); it
   writes nothing then, so read the run log. A clean run on a branch with one changed screenshot
   delivered that PNG (2026-10-27, run 40595605155).

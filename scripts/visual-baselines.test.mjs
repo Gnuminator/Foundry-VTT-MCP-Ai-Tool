@@ -38,7 +38,7 @@ test('renderProblem refuses a failed render with nothing changed', () => {
 test('collectProblem fails when the artifact holds fewer PNGs than the run counted', () => {
   assert.equal(collectProblem('6\n', 6), '');
   assert.equal(collectProblem('0\n', 0), '');
-  assert.match(collectProblem('6\n', 0), /regenerated 6 PNG\(s\) but the artifact holds 0/);
+  assert.match(collectProblem('6\n', 0), /git saw 6 changed or new PNG\(s\) in the run but the artifact holds 0/);
   assert.match(collectProblem('2', 3), /holds 3/);
   assert.match(collectProblem('', 0), /no png-count\.txt/);
   assert.match(collectProblem('x', 0), /no png-count\.txt/);

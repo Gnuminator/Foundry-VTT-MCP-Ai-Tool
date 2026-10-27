@@ -42,6 +42,46 @@ function setup(): { client: FakeClient; statuses: BridgeStatus[]; feed: PollingG
 
 const last = (list: BridgeStatus[]): BridgeStatus => list[list.length - 1];
 
+describe('PollingGameFeed lastPollAt', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-09-30T10:00:00.000Z'));
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('is handed on after every successful poll, though the status itself did not change', async () => {
+    const client = new FakeClient();
+    const statuses: BridgeStatus[] = [];
+    const polls: string[] = [];
+    const handlers: GameFeedHandlers = {
+      onEvents: (): void => {},
+      onCombat: (): void => {},
+      onErrors: (): void => {},
+      onStatus: (s): void => void statuses.push(s),
+      onPoll: (at): void => void polls.push(at),
+    };
+    const feed = new PollingGameFeed(client as unknown as McpControlClient, handlers, {
+      pollIntervalMs: 1000,
+      combatPollIntervalMs: 1000,
+      errorPollIntervalMs: 1000,
+      logger: new Logger('error'),
+    });
+    feed.start();
+    await vi.advanceTimersByTimeAsync(1100);
+    const afterFirst = polls.length;
+    const statusCount = statuses.length;
+    expect(afterFirst).toBeGreaterThan(0);
+    await vi.advanceTimersByTimeAsync(5000);
+    feed.stop();
+    // Nothing changed, so no new status was published, yet the poll time kept moving.
+    expect(statuses.length).toBe(statusCount);
+    expect(polls.length).toBeGreaterThan(afterFirst);
+    expect(Date.parse(polls[polls.length - 1])).toBeGreaterThan(Date.parse(polls[0]));
+  });
+});
+
 describe('PollingGameFeed foundryDownSince', () => {
   beforeEach(() => {
     vi.useFakeTimers();

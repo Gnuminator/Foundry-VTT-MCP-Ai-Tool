@@ -140,6 +140,7 @@ export function buildToolRouter(deps: ToolRouterDeps): Record<string, ToolHandle
     'set-initiative': args => deps.combatTools.handleSetInitiative(args),
     'roll-initiative-for-npcs': args => deps.combatTools.handleRollInitiativeForNpcs(args),
     'search-compendium': args => deps.compendiumTools.handleSearchCompendium(args),
+    'search-rules': args => deps.compendiumTools.handleSearchRules(args),
     'get-compendium-item': args => deps.compendiumTools.handleGetCompendiumItem(args),
     'list-creatures-by-criteria': args => deps.compendiumTools.handleListCreaturesByCriteria(args),
     'list-compendium-packs': args => deps.compendiumTools.handleListCompendiumPacks(args),

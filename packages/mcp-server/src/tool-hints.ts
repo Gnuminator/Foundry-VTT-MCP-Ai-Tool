@@ -58,6 +58,7 @@ export const TOOL_HINTS: Readonly<Record<string, ToolHintSpec>> = {
   'list-journals': { title: 'List or read journals', kind: 'read' },
   'search-journals': { title: 'Search journals', kind: 'read' },
   'search-compendium': { title: 'Search compendiums', kind: 'read' },
+  'search-rules': { title: 'Search rules', kind: 'read' },
   'get-compendium-item': { title: 'Get compendium item', kind: 'read' },
   'list-compendium-packs': { title: 'List compendium packs', kind: 'read' },
   'get-planned-change': { title: 'Show planned change', kind: 'read' },

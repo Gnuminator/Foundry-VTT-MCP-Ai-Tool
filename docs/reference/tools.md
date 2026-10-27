@@ -6,11 +6,11 @@ description: Every tool the bridge serves, by tool set, with its description and
 
 # Tool reference
 
-The bridge serves 96 tools in five sets. [Tool sets](TOOL-SETS.md) explains the sets and how Claude Desktop loads them; this page lists every tool with the description and parameters Claude reads.
+The bridge serves 97 tools in five sets. [Tool sets](TOOL-SETS.md) explains the sets and how Claude Desktop loads them; this page lists every tool with the description and parameters Claude reads.
 
 | Set | Claude Desktop entry | Tools | For |
 | --- | --- | --- | --- |
-| [Core](#core) | `foundry-mcp` | 23 | Look things up (world, characters, scenes, journals, compendiums, combat) and review, apply or undo planned changes. Always on. |
+| [Core](#core) | `foundry-mcp` | 24 | Look things up (world, characters, scenes, journals, compendiums, combat) and review, apply or undo planned changes. Always on. |
 | [Play](#play) | `foundry-mcp-play` | 36 | Run the table live: tokens, combat turns, rolls, damage, conditions, resources, chat, scene mood, map notes and loot. |
 | [Prep](#prep) | `foundry-mcp-prep` | 20 | Prepare sessions and write recaps: quests and journals, encounter budgets, the Tarokka reading, handouts, the session log, play stats and the pre-flight check. |
 | [Build](#build) | `foundry-mcp-build` | 8 | Make and change NPCs, monsters and items: from a compendium or from scratch, with features, attacks and spells. Set up rooms: teleports and tokens in a room. |
@@ -166,6 +166,20 @@ Parameters:
   - `hasLegendaryActions` (boolean): Filter for creatures with legendary actions
   - `spellcaster` (boolean): Filter for creatures that can cast spells (D&D 5e)
 - `limit` (number): Maximum number of results to return (default: 50 for discovery searches, max: 50). Range: 1 to 50.
+
+### search-rules
+
+Full-text rules search over rulebook journal pages and item, spell and feature descriptions, in the allowlisted rules packs only. Returns ids and an excerpt; a whole journal is large, so prefer a bigger excerptChars to opening it with get-compendium-item (itemId = documentId) or, for world journals, list-journals.
+
+Kind: read-only. Title: Search rules.
+
+Parameters:
+
+- `query` (string, required): Rule or term in plain words, e.g. "grapple". Filler words are ignored.
+- `limit` (number): Maximum hits, 1 to 25 (default 10).
+- `excerptChars` (number): Excerpt length per hit, 80 to 4000 (default 240). Raise it to read a rule.
+- `includeWorld` (boolean): Also search world journals (adventure text). Off by default.
+- `includeOtherBooks` (boolean): Also search packs outside the rules allowlist. Off by default.
 
 ### get-compendium-item
 

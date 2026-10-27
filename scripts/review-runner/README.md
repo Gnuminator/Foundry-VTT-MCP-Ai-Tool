@@ -41,8 +41,16 @@ node scripts/review-runner/run.mjs 523                  # one real review
 4. Checks the answer with the merge gate's own note parser (one `## Verdict`, the `Head reviewed:`
    line the runner inserts, a known verdict) and writes
    `Handoff/Reviews <date>/<PR>-[opus-]review[-roundN].md`, then commits that path in the vault.
-5. Appends the cost (`total_cost_usd`, tokens) to the ledger. At $95 in total no review starts.
-   A run that dies without a result is booked at its full budget.
+5. The ledger takes a `reserve` line at the full budget before the SDK starts and a `settle` line
+   (real cost minus the reserve) after it, so a crash or Ctrl-C leaves the full budget booked.
+   Appends the cost (`total_cost_usd`, tokens) to the ledger. At $95 in total no review starts.
+   The $95 stop is advisory: the Console's $100 workspace limit is the real backstop, a different
+   `--ledger` file starts from zero, and two runs at once each read the total once.
+
+The reviewer's tools go through a guard that allows Read, Grep and Glob inside the checkout, the
+scratch folder and the previous note's folder only. A note containing a token-like string is
+refused. The scratch folder holds a copy of the private `CLAUDE.md`; it is deleted after the run
+unless `--keep-scratch` is set.
 
 The SDK must report `apiKeySource: ANTHROPIC_API_KEY`; anything else stops the run before any
 spend, so it cannot fall back to the subscription login.

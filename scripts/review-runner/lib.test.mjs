@@ -9,12 +9,15 @@ import {
   budgetFor,
   buildPrompts,
   finishNote,
+  latestRound,
   nextRound,
   noteName,
   parseArgs,
   pickModel,
   readLedger,
   scrub,
+  secretHits,
+  toolRefusal,
   totalUsd,
 } from './lib.mjs';
 
@@ -63,6 +66,41 @@ test('the ledger totals and the $95 stop', () => {
   assert.equal(budgetFor(94.6, 'sonnet'), null);
   assert.equal(budgetFor(95, 'sonnet'), null);
   fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('latestRound picks the highest round, not the last name', () => {
+  const names = ['5-opus-review-round2.md', '5-opus-review.md', '5-handover.md'];
+  assert.deepEqual(latestRound(names, 5), { round: 2, name: '5-opus-review-round2.md' });
+  assert.deepEqual(latestRound([], 5), { round: 0, name: null });
+});
+
+test('a ledger line without a number counts as a full review, not as free', () => {
+  assert.equal(totalUsd([{ costUsd: 1 }, { costUsd: /** @type {any} */ ('x') }]), 7);
+});
+
+test('toolRefusal keeps the reviewer inside its folders', () => {
+  const wt = path.resolve('/work/wt');
+  const roots = [wt, path.resolve('/work/scratch')];
+  const refuse = (/** @type {string} */ t, /** @type {Record<string, unknown>} */ i) => toolRefusal(t, i, wt, roots);
+  assert.equal(refuse('Read', { file_path: path.join(wt, 'a.ts') }), null);
+  assert.equal(refuse('Read', { file_path: 'src/a.ts' }), null);
+  assert.equal(refuse('Read', { file_path: path.resolve('/work/scratch/pr.diff') }), null);
+  assert.match(refuse('Read', { file_path: path.resolve('/etc/passwd') }) ?? '', /outside/);
+  assert.match(refuse('Read', { file_path: '../../secret' }) ?? '', /outside/);
+  assert.match(refuse('Read', { file_path: path.resolve('/work/wt-evil/x') }) ?? '', /outside/);
+  assert.equal(refuse('Grep', { pattern: '/etc/passwd', path: 'src' }), null);
+  assert.match(refuse('Grep', { pattern: 'x', path: path.resolve('/') }) ?? '', /outside/);
+  assert.match(refuse('Glob', { pattern: '../**' }) ?? '', /relative/);
+  assert.match(refuse('Glob', { pattern: 'C:/Users/**' }) ?? '', /relative/);
+  assert.equal(refuse('Glob', { pattern: 'src/**/*.ts' }), null);
+  assert.match(refuse('Bash', { command: 'ls' }) ?? '', /not allowed/);
+});
+
+test('secretHits finds the key and token-like strings', () => {
+  assert.deepEqual(secretHits('fine', 'sk-ant-abc'), []);
+  assert.deepEqual(secretHits('has KEY-123 inside', 'KEY-123'), ['the review key']);
+  assert.deepEqual(secretHits(`token ghp_${'a'.repeat(30)}`, ''), ['a token-like string']);
+  assert.deepEqual(secretHits('plain text', ''), []);
 });
 
 test('scrub removes the key', () => {

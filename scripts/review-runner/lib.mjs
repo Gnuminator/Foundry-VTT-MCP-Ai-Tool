@@ -101,13 +101,67 @@ export function pickModel(files) {
 /** Next round for a PR from its existing note file names (`<N>-review.md`, `<N>-opus-review-round2.md`).
  * @param {string[]} names @param {number} pr */
 export function nextRound(names, pr) {
-  let max = 0;
+  return latestRound(names, pr).round + 1;
+}
+
+/** The highest review round among a PR's note names, and the name of that note (else 0, null).
+ * @param {string[]} names @param {number} pr */
+export function latestRound(names, pr) {
+  let round = 0;
+  /** @type {string | null} */
+  let name = null;
   const re = new RegExp(`^${pr}-(?:opus-)?review(?:-round(\\d+))?\\.md$`, 'i');
   for (const n of names) {
     const m = re.exec(n);
-    if (m) max = Math.max(max, m[1] ? Number(m[1]) : 1);
+    const r = m ? (m[1] ? Number(m[1]) : 1) : 0;
+    if (r > round) {
+      round = r;
+      name = n;
+    }
   }
-  return max + 1;
+  return { round, name };
+}
+
+/**
+ * The tool guard (the reviewer is read-only and stays inside its checkout, the scratch folder and
+ * the previous note's folder). Read, Grep and Glob only; every path argument must resolve under a
+ * root; a Glob pattern may not be absolute or climb with `..`.
+ * @param {string} tool @param {Record<string, unknown>} input @param {string} cwd @param {string[]} roots
+ * @returns {string | null} the reason it is refused, or null when allowed
+ */
+export function toolRefusal(tool, input, cwd, roots) {
+  if (!['Read', 'Grep', 'Glob'].includes(tool)) return `${tool} is not allowed`;
+  const norm = (/** @type {string} */ p) => path.resolve(cwd, p).toLowerCase();
+  const inside = (/** @type {string} */ p) =>
+    roots.some(r => {
+      const root = path.resolve(r).toLowerCase();
+      const x = norm(p);
+      return x === root || x.startsWith(root + path.sep);
+    });
+  for (const k of ['file_path', 'path']) {
+    const v = input[k];
+    if (v !== undefined && v !== null && v !== '' && !(typeof v === 'string' && inside(v))) {
+      return `${k} is outside the review folders`;
+    }
+  }
+  for (const k of ['pattern', 'glob']) {
+    const v = input[k];
+    if (tool === 'Grep' && k === 'pattern') continue;
+    if (typeof v === 'string' && (path.isAbsolute(v) || /^[a-z]:/i.test(v) || v.split(/[\\/]/).includes('..'))) {
+      return `${k} must be relative and stay inside the checkout`;
+    }
+  }
+  return null;
+}
+
+/** Token-like strings that must not reach a committed note. @param {string} text @param {string} key */
+export function secretHits(text, key) {
+  const hits = [];
+  if (key && text.includes(key)) hits.push('the review key');
+  if (/sk-ant-[A-Za-z0-9_-]{10,}|gh[pousr]_[A-Za-z0-9]{20,}|xox[abprs]-[A-Za-z0-9-]{10,}|-----BEGIN [A-Z ]*PRIVATE KEY-----/.test(text)) {
+    hits.push('a token-like string');
+  }
+  return hits;
 }
 
 /** File name of a review note. @param {number} pr @param {'opus' | 'sonnet'} model @param {number} round */
@@ -130,7 +184,12 @@ export function readLedger(file) {
 }
 
 /** @param {{ costUsd: number }[]} entries */
-export const totalUsd = entries => entries.reduce((s, e) => s + (Number(e.costUsd) || 0), 0);
+export const totalUsd = entries =>
+  entries.reduce((s, e) => {
+    const c = Number(e.costUsd);
+    // A line without a number counts as the most a review can cost, never as free.
+    return s + (Number.isFinite(c) ? c : PER_REVIEW_CAP_USD.opus);
+  }, 0);
 
 /** @param {string} file @param {object} entry */
 export function appendLedger(file, entry) {

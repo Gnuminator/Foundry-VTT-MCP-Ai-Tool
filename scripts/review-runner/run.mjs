@@ -34,13 +34,17 @@ import {
   appendLedger,
   budgetFor,
   buildPrompts,
+  defaultLedgerPath,
   finishNote,
+  latestRound,
   nextRound,
   noteName,
   parseArgs,
   pickModel,
   readLedger,
   scrub,
+  secretHits,
+  toolRefusal,
   totalUsd,
 } from './lib.mjs';
 
@@ -120,7 +124,17 @@ function plan(pr, o, spent) {
   if (budget === null) throw new Error(`the $95 stop is reached (spent $${spent.toFixed(2)}); no review started`);
   const name = noteName(pr, model, round);
   const dir = path.join(o.vault, 'Dev', 'Foundry AI Tool', 'Handoff', `Reviews ${today()}`);
-  const previous = round > 1 ? [...notes].sort((a, b) => a.name.localeCompare(b.name)).at(-1) ?? null : null;
+  if (notes.some(n => n.file === path.join(dir, name))) {
+    throw new Error(`${name} already exists in ${dir}; a note is never overwritten (use --round for the next one)`);
+  }
+  const prevName =
+    round > 1
+      ? latestRound(
+          notes.map(n => n.name),
+          pr
+        ).name
+      : null;
+  const previous = prevName ? (notes.find(n => n.name === prevName) ?? null) : null;
   return { pr, ...info, model, categories: picked.categories, round, budget, name, dir, previous };
 }
 
@@ -179,6 +193,20 @@ async function review(p, o, key, repo) {
     /** @type {any} */
     let result = null;
     let apiKeySource = '';
+    // Book the full budget before any spend, then settle to the real cost: a crash, a Ctrl-C or a
+    // late SDK error cannot leave real spend out of the ledger.
+    const base = { pr: p.pr, sha: p.sha, model: p.model, round: p.round };
+    appendLedger(o.ledger, { ts: new Date().toISOString(), ...base, kind: 'reserve', costUsd: p.budget });
+    const settle = (/** @type {number} */ real, /** @type {object} */ extra = {}) =>
+      appendLedger(o.ledger, {
+        ts: new Date().toISOString(),
+        ...base,
+        kind: 'settle',
+        costUsd: real - p.budget,
+        realCostUsd: real,
+        ...extra,
+      });
+    const roots = [wt, scratch, ...(p.previous ? [path.dirname(p.previous.file)] : [])];
     try {
       for await (const m of query({
         prompt: user,
@@ -187,9 +215,14 @@ async function review(p, o, key, repo) {
           model: MODEL_IDS[p.model],
           systemPrompt: system,
           tools: ['Read', 'Grep', 'Glob'],
-          allowedTools: ['Read', 'Grep', 'Glob'],
-          permissionMode: 'dontAsk',
-          additionalDirectories: [scratch, ...(p.previous ? [path.dirname(p.previous.file)] : [])],
+          // Not allowedTools: a bare tool name allows every path. This guard allows the checkout,
+          // the scratch folder and the previous note's folder only.
+          canUseTool: async (/** @type {string} */ tool, /** @type {Record<string, unknown>} */ input) => {
+            const why = toolRefusal(tool, input, wt, roots);
+            return why ? { behavior: 'deny', message: why } : { behavior: 'allow', updatedInput: input };
+          },
+          permissionMode: 'default',
+          additionalDirectories: roots.slice(1),
           settingSources: [],
           persistSession: false,
           maxTurns: o.maxTurns,
@@ -200,35 +233,21 @@ async function review(p, o, key, repo) {
         if (m.type === 'system' && m.subtype === 'init') {
           apiKeySource = String(m.apiKeySource);
           if (apiKeySource !== 'ANTHROPIC_API_KEY') {
+            settle(0, { note: 'stopped at init, wrong key source' });
             throw new Error(`the SDK uses "${apiKeySource}", not the review key; stopping before any spend on the wrong account`);
           }
         }
         if (m.type === 'result') result = m;
       }
     } catch (e) {
-      if (!result) {
-        appendLedger(o.ledger, {
-          ts: new Date().toISOString(),
-          pr: p.pr,
-          sha: p.sha,
-          model: p.model,
-          round: p.round,
-          costUsd: apiKeySource === 'ANTHROPIC_API_KEY' ? p.budget : 0,
-          booked: apiKeySource === 'ANTHROPIC_API_KEY' ? 'full budget, no result' : 'no spend, stopped at init',
-        });
-      }
+      // A result in hand gives the real cost; otherwise the full reservation stands.
+      if (result) settle(Number(result.total_cost_usd) || 0, { note: 'error after result' });
       throw e;
     }
-    if (!result) throw new Error('the SDK ended without a result');
+    if (!result) throw new Error('the SDK ended without a result (the full budget stays booked)');
 
     const costUsd = Number(result.total_cost_usd) || 0;
-    appendLedger(o.ledger, {
-      ts: new Date().toISOString(),
-      pr: p.pr,
-      sha: p.sha,
-      model: p.model,
-      round: p.round,
-      costUsd,
+    settle(costUsd, {
       turns: result.num_turns,
       durationMs: Date.now() - started,
       subtype: result.subtype,
@@ -243,32 +262,46 @@ async function review(p, o, key, repo) {
     if (result.subtype !== 'success') throw new Error(`the review ended with ${result.subtype} ($${costUsd.toFixed(2)} spent); no note written`);
 
     const { text, problems } = finishNote(String(result.result), p.pr, p.model, p.sha, p.name);
+    for (const h of secretHits(text, key)) problems.push(`the note contains ${h}`);
     if (problems.length > 0) {
       const raw = path.join(os.tmpdir(), `review-runner-${p.pr}-rejected.md`);
       fs.writeFileSync(raw, text);
       throw new Error(`the answer is not a valid note (${problems.join('; ')}); kept at ${raw}`);
     }
+    if (!o.noCommit && !run('git', ['pull', '--rebase', '-q'], o.vault).ok) {
+      run('git', ['rebase', '--abort'], o.vault);
+      const unsaved = path.join(os.tmpdir(), `review-runner-${p.pr}-unsaved.md`);
+      fs.writeFileSync(unsaved, text);
+      throw new Error(`the vault could not be pulled; the note is kept at ${unsaved} ($${costUsd.toFixed(2)} is booked, do not rerun)`);
+    }
     fs.mkdirSync(p.dir, { recursive: true });
     const file = path.join(p.dir, p.name);
+    if (fs.existsSync(file)) throw new Error(`${file} appeared meanwhile; a note is never overwritten`);
     fs.writeFileSync(file, text);
     if (!o.noCommit) commitNote(o.vault, file, p.pr);
     return { costUsd, turns: Number(result.num_turns), file };
   } finally {
     if (!o.keepScratch) {
-      if (worktreeMade) run('git', ['worktree', 'remove', '--force', wt], repo);
-      fs.rmSync(scratch, { recursive: true, force: true });
+      try {
+        if (worktreeMade) run('git', ['worktree', 'remove', '--force', wt], repo);
+        fs.rmSync(scratch, { recursive: true, force: true });
+      } catch (e) {
+        console.error(`could not remove ${scratch}: ${e instanceof Error ? e.message : String(e)}`);
+      }
     }
   }
 }
 
 /** Commit exactly the note and push (one pull --rebase retry). @param {string} vault @param {string} file @param {number} pr */
 function commitNote(vault, file, pr) {
-  run('git', ['pull', '--rebase', '-q'], vault);
   const rel = path.relative(vault, file).split(path.sep).join('/');
   must('git', ['add', '--', rel], vault);
   must('git', ['commit', '-q', '-m', `Review note for PR #${pr} (review runner)`, '--', rel], vault);
   if (!run('git', ['push', '-q'], vault).ok) {
-    run('git', ['pull', '--rebase', '-q'], vault);
+    if (!run('git', ['pull', '--rebase', '-q'], vault).ok) {
+      run('git', ['rebase', '--abort'], vault);
+      throw new Error(`the note is committed in the vault but the push failed: push by hand, do not rerun (${file})`);
+    }
     must('git', ['push', '-q'], vault);
   }
 }
@@ -281,6 +314,10 @@ async function main() {
     process.exit(1);
   }
   const repo = must('git', ['rev-parse', '--show-toplevel']);
+  if (path.resolve(o.ledger) !== path.resolve(defaultLedgerPath())) {
+    console.warn(`warning: --ledger is not the default; the $95 total only counts ${o.ledger}`);
+  }
+  if (!o.dryRun) run('git', ['worktree', 'prune'], repo);
   let spent = totalUsd(readLedger(o.ledger));
   console.log(`review-runner: ${o.dryRun ? 'DRY RUN, nothing is spent. ' : ''}spent so far $${spent.toFixed(2)} of $95`);
   let failed = 0;

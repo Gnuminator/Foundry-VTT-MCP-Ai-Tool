@@ -27,8 +27,11 @@ import { clearSystemCache } from '../utils/system-detection.js';
  * different responses per method (e.g., first call returns world info, second
  * returns the payload).
  */
-function makeTools(queryImpl?: (method: string, data?: unknown) => unknown) {
-  const query = vi.fn(queryImpl ?? (() => ({ success: true })));
+function makeTools(queryImpl?: (method: string, data?: unknown) => unknown): {
+  tools: CompendiumTools;
+  query: ReturnType<typeof vi.fn>;
+} {
+  const query = vi.fn(queryImpl ?? ((): unknown => ({ success: true })));
   const foundryClient = { query } as any;
 
   // Minimal Logger stub: .child() returns itself; level methods are no-ops.
@@ -38,7 +41,7 @@ function makeTools(queryImpl?: (method: string, data?: unknown) => unknown) {
     info: vi.fn(),
     debug: vi.fn(),
   };
-  logger.child = () => logger;
+  logger.child = (): unknown => logger;
 
   // systemRegistry is optional; we pass undefined here (handlers don't use it
   // for their core dispatch logic — they rely on detectGameSystem instead).
@@ -316,7 +319,7 @@ describe('CompendiumTools.handleSearchCompendium', () => {
   it('accepts string args (MCP fallback) — wraps string as { query }', async () => {
     const { tools, query } = makeTools(makeQueryWithSystem('dnd5e', searchResults));
     // handleSearchCompendium catches ZodError and retries when args is a plain string
-    const result = await tools.handleSearchCompendium('goblin' as any);
+    const result = await tools.handleSearchCompendium('goblin');
     expect(result.query).toBe('goblin');
     const compendiumCall = query.mock.calls.find(
       ([m]) => m === 'foundry-mcp-bridge.searchCompendium'
@@ -693,7 +696,7 @@ describe('CompendiumTools.handleListCreaturesByCriteria', () => {
 
   it('parses challengeRating as string number ("5") via union transform', async () => {
     const { tools, query } = makeTools(makeQueryWithSystem('dnd5e', bridgeResponse));
-    await tools.handleListCreaturesByCriteria({ challengeRating: '5' as any });
+    await tools.handleListCreaturesByCriteria({ challengeRating: '5' });
     const listCall = query.mock.calls.find(
       ([m]) => m === 'foundry-mcp-bridge.listCreaturesByCriteria'
     );
@@ -750,7 +753,7 @@ describe('CompendiumTools.handleListCreaturesByCriteria', () => {
     const listCall = query.mock.calls.find(
       ([m]) => m === 'foundry-mcp-bridge.listCreaturesByCriteria'
     );
-    expect((listCall![1] as any).limit).toBe(100);
+    expect((listCall![1] as { limit: number }).limit).toBe(100);
   });
 });
 

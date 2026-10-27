@@ -90,7 +90,8 @@ item is marked done; the board ignores a line on an item with no claim.
   and its log tail). `--list`, `--only a,b`, `--from <step>` for a rerun.
 - **Dashboard change (anything under `packages/cogm-dashboard/`, stories included, or a
   `package-lock.json` change such as a Playwright bump):** push the branch, run `npm run visual:baselines -- <branch>` (starts `visual-baselines.yml` on GitHub,
-  about 15 minutes, no Docker needed), look at the changed PNGs it prints under
+  about 15 minutes, no Docker needed; the workflow runs on your branch, so a branch cut before it
+  merged needs `git merge aitool/main` first), look at the changed PNGs it prints under
   `packages/cogm-dashboard/web/visual/__screenshots__/`, commit them, push again, and only then
   open the PR.
   Never copy baselines from a failed PR run. Re-run it after a later change that moves pixels.

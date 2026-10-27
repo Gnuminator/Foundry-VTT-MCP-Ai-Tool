@@ -4,7 +4,8 @@
  *
  *   npm run visual:baselines -- <branch>
  *
- * Starts .github/workflows/visual-baselines.yml from main for a pushed branch, waits for it,
+ * Starts .github/workflows/visual-baselines.yml ON a pushed branch (it must contain the file: cut
+ * the branch from main after the workflow merged, or merge main in), waits for it,
  * downloads the artifact and copies the changed or new PNGs into
  * packages/cogm-dashboard/web/visual/__screenshots__/ of THIS checkout, then prints the files.
  * Look at the images, commit them, then open the PR. Needs `gh` signed in; the branch must be
@@ -80,11 +81,18 @@ async function main() {
     console.error(`Branch ${branch} is not pushed to ${REPO}. Push it first.`);
     return 2;
   }
+  try {
+    gh(['api', `repos/${REPO}/contents/.github/workflows/${WORKFLOW}?ref=${branch}`, '--silent']);
+  } catch {
+    console.error(
+      `Branch ${branch} does not contain .github/workflows/${WORKFLOW} (the workflow runs on the branch). Merge main into it, then push.`
+    );
+    return 2;
+  }
   const since = Date.now();
   const nonce = `n${since.toString(36)}${Math.random().toString(36).slice(2, 6)}`;
   gh([
-    'workflow', 'run', WORKFLOW, '--repo', REPO, '--ref', 'main',
-    '-f', `branch=${branch}`, '-f', `nonce=${nonce}`
+    'workflow', 'run', WORKFLOW, '--repo', REPO, '--ref', branch, '-f', `nonce=${nonce}`
   ]);
   console.log(`Started ${WORKFLOW} for ${branch}. Waiting for the run...`);
 

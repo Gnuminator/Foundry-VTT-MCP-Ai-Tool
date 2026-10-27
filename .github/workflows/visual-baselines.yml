@@ -2,7 +2,10 @@ name: visual-baselines
 
 # Makes the dashboard screenshot baselines for a branch BEFORE its pull request, so the first PR run
 # of dashboard-visual is green. Start it with `npm run visual:baselines -- <branch>` (it dispatches
-# this workflow from main, waits, and unpacks the artifact). It renders the screens and the story
+# this workflow ON the branch, waits, and unpacks the artifact), so the branch must contain this
+# file: cut it from main after this workflow merged, or merge main into it. It runs on the branch
+# itself, not on main, so branch code never runs with main's cache access (CodeQL
+# actions/cache-poisoning). It renders the screens and the story
 # shots with --update-snapshots in the same Playwright image as dashboard-visual in ci.yml, and
 # uploads only the PNGs that changed or are new. It never commits or pushes (read-only token): the
 # lane looks at the images and commits them itself. Keep the image tag in step with ci.yml.
@@ -10,23 +13,19 @@ name: visual-baselines
 on:
   workflow_dispatch:
     inputs:
-      branch:
-        description: 'Branch to render the screenshots for'
-        required: true
-        type: string
       nonce:
         description: 'Set by npm run visual:baselines so it can find its own run'
         required: false
         default: ''
         type: string
 
-run-name: visual-baselines ${{ inputs.branch }} ${{ inputs.nonce }}
+run-name: visual-baselines ${{ github.ref_name }} ${{ inputs.nonce }}
 
 permissions:
   contents: read
 
 concurrency:
-  group: visual-baselines-${{ inputs.branch }}
+  group: visual-baselines-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -40,8 +39,6 @@ jobs:
       HOME: /root
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ inputs.branch }}
 
       - name: Mark the checkout safe for git
         # The container runs as root on a runner-owned checkout.

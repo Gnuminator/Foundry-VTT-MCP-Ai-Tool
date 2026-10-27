@@ -17,8 +17,12 @@ import { CharacterTools } from './character.js';
  * extractStats) are exercised via the public handlers.
  */
 
-function makeTools(queryImpl?: (method: string, data: unknown) => unknown) {
-  const query = vi.fn(queryImpl ?? (() => ({ success: true })));
+function makeTools(queryImpl?: (method: string, data: unknown) => unknown): {
+  tools: CharacterTools;
+  query: ReturnType<typeof vi.fn>;
+  logger: any;
+} {
+  const query = vi.fn(queryImpl ?? ((): unknown => ({ success: true })));
   const foundryClient = { query } as any;
   // Minimal Logger stub: `.child()` returns itself; level methods are no-ops.
   const logger: any = {
@@ -27,7 +31,7 @@ function makeTools(queryImpl?: (method: string, data: unknown) => unknown) {
     info: vi.fn(),
     debug: vi.fn(),
   };
-  logger.child = () => logger;
+  logger.child = (): unknown => logger;
   // No systemRegistry — tests run in legacy-extraction mode.
   return { tools: new CharacterTools({ foundryClient, logger }), query, logger };
 }

@@ -129,6 +129,10 @@ describe('plainText', () => {
     expect(plainText('&amp;Reference[prone]{Prone} and &#99999999; &#x27;')).toBe(
       "Prone and &#99999999; '"
     );
+    for (const nested of ['<scr<script>ipt>alert(1)', '<<script>script>x', '<scr<!-- -->ipt>x']) {
+      expect(plainText(nested), nested).not.toMatch(/[<>]/);
+    }
+    expect(plainText('<scr<script>ipt>alert(1)')).not.toContain('<script');
     expect(plainText('<table><tr><td>a</td><td>b</td></tr></table>')).toBe('a b');
     expect(plainText('x&#233;y &amp;lt; z @UUID[Compendium.a.b.c] ok')).toBe('xéy &lt; z ok');
   });

@@ -138,6 +138,8 @@ export function plainText(html: unknown): string {
       .replace(/@(?:UUID|Embed)\[[^\]]*\]/g, '')
       .replace(/<\/(p|div|li|h[1-6]|tr|td|th|br)>|<br\s*\/?>/gi, ' ')
       .replace(/<[^>]*>/g, '')
+      // Nested input like "<scr<script>ipt>" leaves a stray bracket: no tag survives.
+      .replace(/[<>]/g, ' ')
       // &amp; last, so "&amp;lt;" stays the text "&lt;".
       .replace(/&nbsp;/g, ' ')
       .replace(/&lt;/g, '<')

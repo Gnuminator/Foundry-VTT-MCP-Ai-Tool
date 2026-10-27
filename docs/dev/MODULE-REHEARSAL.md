@@ -74,7 +74,7 @@ while players are online.
    `/home/dietpi/module-archive` on the Pi (`rehearse.mjs pi-plan` prints the `scp`). Read-only for
    the Foundry service. Not `staging/` and not `rehearsals/`.
 2. **Stage `17-modules.sh`** (new, in `scripts/pi/remote/`, with a container test next to the others):
-   reads `pinned.json` and, for each package, checks the zip's sha256, stops with nothing changed on
+   reads `pinned.json` (only the Strahd-list modules and dnd5e are pinned; the test copy of our bridge never is, the tool reaches the Pi through stage 5) and, for each package, checks the zip's sha256, stops with nothing changed on
    any mismatch, refuses without today's snapshot, refuses while players are online, stops Foundry,
    moves the old folder to `/var/lib/foundry-import/prev-<time>`, unpacks the pinned version, checks
    `module.json` has the pinned version, starts Foundry. It never downloads and never installs a

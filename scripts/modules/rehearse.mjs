@@ -13,7 +13,7 @@
  *   node scripts/modules/rehearse.mjs pi-plan                    the commands for the Pi mirror (printed, never run)
  *
  * The archive is $MODULE_ARCHIVE or C:\FoundryAI\module-archive (see lib.mjs). Licensed and Patreon
- * packages are archived like the rest and never leave this PC. Test servers only: the live ports
+ * packages are archived like the rest and never in a repo or the vault. Test servers only: the live ports
  * 31414-31416 and the Pi are never touched. Exit codes: 0 ok, 1 a step failed or findings are new,
  * 2 not ready (server up/down, lock, bad arguments).
  */
@@ -234,12 +234,17 @@ async function cmdArchive(o) {
     const rep = readJson(path.join(dir, 'report.json'));
     if (!runPassed(rep.steps) || rep.findings.fresh.length) throw new Notready(`${dir} did not pass; nothing is archived`);
   }
-  if (!o.fromReports.length && !o.ids) throw new Notready('give --from-report <dir> (a passing rehearsal, repeatable) or --ids');
+  if (!o.fromReports.length) throw new Notready('give --from-report <dir> (a passing rehearsal, repeatable); --ids only narrows it');
   const rehearsal = o.fromReports.map(d => path.basename(d)).join('+') || null;
   const installed = scanInstalled(srv.dataDir);
   await archiveFoundry(root, srv, rehearsal);
   const inList = new Map(strahd().modules.map(m => [m.id, m]));
-  const ids = o.ids ?? installed.map(p => p.id); // modules and the dnd5e system
+  // Only the Strahd list goes in the pinned list (the test copy of our bridge and modules not on the
+  // list stay out), plus the dnd5e system; --ids narrows that.
+  const ids = (o.ids ?? installed.map(p => p.id)).filter(id => {
+    const entry = inList.get(id);
+    return installed.find(x => x.id === id)?.kind === 'system' || (entry && entry.role !== 'ours');
+  });
   for (const id of ids) {
     const p = installed.find(x => x.id === id);
     if (!p) continue;

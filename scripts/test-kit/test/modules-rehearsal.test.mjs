@@ -104,6 +104,7 @@ test('splitFindings keeps known upstream findings from hiding new ones', () => {
 
 test('a run passes only with passing steps and no new findings in the report', () => {
   assert.equal(runPassed([{ status: 'pass' }, { status: 'skip' }]), true);
+  assert.equal(runPassed([{ status: 'skip' }]), false); // nothing tested is no pass
   assert.equal(runPassed([{ status: 'pass' }, { status: 'fail' }]), false);
   assert.equal(runPassed([]), false);
   const base = { server: 'B', stamp: 's', gitSha: 'abc', foundry: '14.369', system: '6.0.6', plan: [], steps: [{ name: 'kit', status: 'pass' }] };

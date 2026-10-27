@@ -183,8 +183,9 @@ export function planUpdates(installed, pinned, upstream = {}, strahd = null) {
   });
 }
 
-/** A run's overall verdict: every step pass or an expected finding only. @param {Array<{status: string}>} steps */
-export const runPassed = steps => steps.length > 0 && steps.every(s => s.status === 'pass' || s.status === 'skip');
+/** A run's overall verdict: at least one step passed and none failed (a run that tested nothing is no pass). @param {Array<{status: string}>} steps */
+export const runPassed = steps =>
+  steps.some(s => s.status === 'pass') && steps.every(s => s.status === 'pass' || s.status === 'skip');
 
 /**
  * Findings that match an expected entry (`{module, match, why}`) are known upstream behaviour;

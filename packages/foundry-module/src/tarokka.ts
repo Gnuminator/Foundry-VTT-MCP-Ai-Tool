@@ -331,11 +331,14 @@ function stripTags(html: string): string {
 }
 
 function decodeEntities(text: string): string {
-  return text.replace(/&(?:#(\d{1,7})|#x([0-9a-f]{1,6})|([a-z]+));/gi, (whole, dec, hex, name) => {
-    if (name) return NAMED_ENTITIES[name.toLowerCase()] ?? whole;
-    const code = dec ? Number(dec) : parseInt(hex, 16);
-    return code > 0 && code <= 0x10ffff ? String.fromCodePoint(code) : whole;
-  });
+  return text.replace(
+    /&(?:#(\d{1,7})|#x([0-9a-f]{1,6})|([a-z]+));/gi,
+    (whole: string, dec: string | undefined, hex: string | undefined, name: string | undefined) => {
+      if (name) return NAMED_ENTITIES[name.toLowerCase()] ?? whole;
+      const code = dec ? Number(dec) : parseInt(hex ?? '', 16);
+      return code > 0 && code <= 0x10ffff ? String.fromCodePoint(code) : whole;
+    }
+  );
 }
 
 /**

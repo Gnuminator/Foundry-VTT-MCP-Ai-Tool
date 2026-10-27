@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { AT_THE_TABLE, toolRef } from '@gnuminator/shared';
 import { FoundryClient } from '../foundry-client.js';
 import { Logger } from '../logger.js';
+import type { ResourcesReply, ResourcesToolDefinition } from './types/resources-types.js';
 
 interface ResourceToolsOptions {
   foundryClient: FoundryClient;
@@ -21,7 +22,7 @@ export class ResourceTools {
     this.logger = options.logger.child({ component: 'ResourceTools' });
   }
 
-  getToolDefinitions() {
+  getToolDefinitions(): ResourcesToolDefinition[] {
     return [
       {
         name: 'get-character-resources',
@@ -42,14 +43,14 @@ export class ResourceTools {
     ];
   }
 
-  async handleGetCharacterResources(args: any) {
+  async handleGetCharacterResources(args: unknown): Promise<ResourcesReply | undefined> {
     const schema = z.object({ identifier: z.string() });
     try {
       const params = schema.parse(args ?? {});
-      const response = await this.foundryClient.query(
+      const response = (await this.foundryClient.query(
         'foundry-mcp-bridge.getCharacterResources',
         params
-      );
+      )) as ResourcesReply | undefined;
       if (response?.success === false) {
         throw new Error(response.error || 'Failed to get character resources');
       }

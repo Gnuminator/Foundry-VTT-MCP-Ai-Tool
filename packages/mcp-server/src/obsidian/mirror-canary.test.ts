@@ -186,13 +186,13 @@ afterEach(async () => {
 async function runPump(): Promise<ObsidianMirrorPump> {
   const pump = new ObsidianMirrorPump({
     foundryClient: fake,
-    worldIds: { current: () => Promise.resolve(WORLD) },
+    worldIds: { current: (): Promise<typeof WORLD> => Promise.resolve(WORLD) },
     store,
     vaultDir: vault,
     logger,
     pollMs: 10_000,
     openBase: 'http://localhost:3000',
-    now: () => clock.t,
+    now: (): number => clock.t,
   });
   await pump.tick(); // the start reconcile
   // An incremental cycle with a change, then a later reconcile.

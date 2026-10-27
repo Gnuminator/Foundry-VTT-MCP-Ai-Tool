@@ -1,9 +1,13 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 
 import { DiagnosticsTools } from './diagnostics.js';
 
-function makeTools(queryImpl?: (method: string, data: unknown) => unknown) {
-  const query = vi.fn(queryImpl ?? (() => ({ success: true })));
+function makeTools(queryImpl?: (method: string, data: unknown) => unknown): {
+  tools: DiagnosticsTools;
+  query: Mock<(method: string, data: unknown) => unknown>;
+  logger: any;
+} {
+  const query = vi.fn(queryImpl ?? ((): unknown => ({ success: true })));
   const foundryClient = { query } as any;
   // Minimal Logger stub: `.child()` returns itself; level methods are no-ops.
   const logger: any = {
@@ -12,7 +16,7 @@ function makeTools(queryImpl?: (method: string, data: unknown) => unknown) {
     info: vi.fn(),
     debug: vi.fn(),
   };
-  logger.child = () => logger;
+  logger.child = (): unknown => logger;
   return { tools: new DiagnosticsTools({ foundryClient, logger }), query, logger };
 }
 
@@ -67,7 +71,7 @@ describe('DiagnosticsTools.handleGetModules', () => {
   });
 
   it('passes activeOnly and withIssuesOnly through to the query', async () => {
-    const { tools, query } = makeTools(() => ({ success: true }));
+    const { tools, query } = makeTools((): unknown => ({ success: true }));
     await tools.handleGetModules({ activeOnly: true, withIssuesOnly: false });
     expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.getModules', {
       activeOnly: true,
@@ -108,7 +112,7 @@ describe('DiagnosticsTools.handleGetModuleErrors', () => {
   });
 
   it('passes all optional filter fields through to the query', async () => {
-    const { tools, query } = makeTools(() => ({ success: true }));
+    const { tools, query } = makeTools((): unknown => ({ success: true }));
     await tools.handleGetModuleErrors({
       level: 'error',
       moduleId: 'lib-wrapper',
@@ -156,7 +160,7 @@ describe('DiagnosticsTools.handleClearModuleErrors', () => {
   });
 
   it('ignores any args passed and still sends empty params', async () => {
-    const { tools, query } = makeTools(() => ({ success: true }));
+    const { tools, query } = makeTools((): unknown => ({ success: true }));
     await tools.handleClearModuleErrors({ anything: 'ignored' });
     expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.clearModuleErrors', {});
   });

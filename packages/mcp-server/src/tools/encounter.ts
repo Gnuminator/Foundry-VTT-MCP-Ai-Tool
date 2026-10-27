@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { FoundryClient } from '../foundry-client.js';
 import { Logger } from '../logger.js';
+import type { EncounterReply, EncounterToolDefinition } from './types/encounter-types.js';
 
 interface EncounterToolsOptions {
   foundryClient: FoundryClient;
@@ -20,7 +21,7 @@ export class EncounterTools {
     this.logger = options.logger.child({ component: 'EncounterTools' });
   }
 
-  getToolDefinitions() {
+  getToolDefinitions(): EncounterToolDefinition[] {
     return [
       {
         name: 'suggest-balanced-encounter',
@@ -45,17 +46,17 @@ export class EncounterTools {
     ];
   }
 
-  async handleSuggestBalancedEncounter(args: any) {
+  async handleSuggestBalancedEncounter(args: unknown): Promise<EncounterReply | undefined> {
     const schema = z.object({
       partyLevels: z.array(z.number().int()).optional(),
       difficulty: z.enum(['low', 'moderate', 'high']).optional(),
     });
     try {
       const params = schema.parse(args ?? {});
-      const response = await this.foundryClient.query(
+      const response = (await this.foundryClient.query(
         'foundry-mcp-bridge.suggestBalancedEncounter',
         params
-      );
+      )) as EncounterReply | undefined;
       if (response?.success === false) {
         throw new Error(response.error || 'Failed to suggest encounter');
       }

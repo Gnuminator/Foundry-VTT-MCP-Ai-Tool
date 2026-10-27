@@ -42,7 +42,7 @@ function setup(
   const logger = { info: vi.fn(), warn: vi.fn() };
   const render = new ObsidianAutoRender({
     store: {} as VaultStore,
-    audit: { list: () => Promise.resolve([]) },
+    audit: { list: (): Promise<never[]> => Promise.resolve([]) },
     vaultDir: '/vault',
     logger,
     debounceMs: opts.debounceMs ?? 1000,

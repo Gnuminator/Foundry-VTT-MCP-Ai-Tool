@@ -32,6 +32,7 @@ import {
   renderReport,
   runPassed,
   scanInstalled,
+  sha256File,
   splitFindings,
 } from './lib.mjs';
 import {
@@ -236,6 +237,7 @@ async function cmdArchive(o) {
   if (!o.fromReports.length && !o.ids) throw new Notready('give --from-report <dir> (a passing rehearsal, repeatable) or --ids');
   const rehearsal = o.fromReports.map(d => path.basename(d)).join('+') || null;
   const installed = scanInstalled(srv.dataDir);
+  await archiveFoundry(root, srv, rehearsal);
   const inList = new Map(strahd().modules.map(m => [m.id, m]));
   const ids = o.ids ?? installed.filter(p => p.kind === 'module').map(p => p.id);
   for (const id of ids) {
@@ -254,6 +256,19 @@ async function cmdArchive(o) {
   }
   const pinned = readPinned(root);
   writePinned(root, pinned);
+}
+
+/** Pin the Foundry zip in the archive's foundry/ folder that matches the server's app version. */
+async function archiveFoundry(root, srv, rehearsal) {
+  const version = readJson(path.join(srv.AppDir, 'package.json')).version;
+  const zip = path.join(root, 'foundry', `FoundryVTT-Node-${version.replace(/[.]0$/, '')}.zip`);
+  if (!existsSync(zip)) return console.log(`foundry ${version}: no zip at ${zip}, not pinned`);
+  const pinned = readPinned(root);
+  if (pinned.foundry?.version === version) return;
+  pinned.foundry = { version, file: path.relative(root, zip).replaceAll('\\', '/'), sha256: await sha256File(zip), testedOn: `server ${srv.name}`, ...(rehearsal ? { rehearsal } : {}) };
+  pinned.updated = new Date().toISOString();
+  writePinned(root, pinned);
+  console.log(`archived Foundry ${version}`);
 }
 
 function cmdPiPlan() {

@@ -8,11 +8,15 @@ import { EnvError } from '../lib/errors.mjs';
 const PASSWORD = 'pw-3c9d-SECRET-TEXT';
 
 /** A page that records what the join form got. */
-function stubPage({ failPasswordFill = false } = {}) {
+function stubPage({ failPasswordFill = false, nameIsSelect = false } = {}) {
   /** @type {Array<[string, string, string?]>} */
   const calls = [];
   const locator = selector => ({
     waitFor: async () => {},
+    evaluate: async () => nameIsSelect,
+    selectOption: async opt => {
+      calls.push(['select', selector, opt.label]);
+    },
     fill: async value => {
       calls.push(['fill', selector, value]);
       if (selector === '#join-password' && failPasswordFill) {
@@ -48,6 +52,13 @@ test('a passwordless join leaves the password field alone', async () => {
   );
   assert.equal(page.calls.filter(c => c[1] === '#join-password').length, 0);
   assert.ok(page.calls.some(c => c[0] === 'click' && c[1] === 'button[name="join"]'));
+});
+
+test('a name list (Foundry 14.369) is chosen from, not typed into', async () => {
+  const page = stubPage({ nameIsSelect: true });
+  await joinGame(/** @type {any} */ (page), { foundryUrl: 'http://x:30000', user: 'Kit GM' });
+  assert.ok(page.calls.some(c => c[0] === 'select' && c[1] === '#join-username' && c[2] === 'Kit GM'));
+  assert.equal(page.calls.filter(c => c[0] === 'fill').length, 0);
 });
 
 test('a given password is typed into the password field, after the name and before the click', async () => {

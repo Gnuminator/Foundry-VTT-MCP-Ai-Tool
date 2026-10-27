@@ -27,6 +27,12 @@
       "why": "Automated Animations 8.0.1 (a major update from 7.1.10) with dnd5e 6.0.6: seen twice in one smoke run of the kit (2026-10-27, first rehearsal), not seen in spells-deep alone. Not bisected against 7.1.10. Check when the modules are learned (Backlog: learn-modules) and remove the entry if a later 8.x release fixes it."
     },
     {
+      "id": "foundry-14-369-forced-deletion",
+      "module": "*",
+      "match": "forced deletion of a data field value is no longer supported",
+      "why": "Foundry 14.369 words the legacy '-=key: null' forced deletion deprecation this way (14.368 used the 'legacy syntax' wording above): deprecated since 14, support removed in 16. The kit logged it 68 times in one smoke run with the Strahd modules and dnd5e 6.0.6; the packages are not named in the message. Upstream; a Foundry 16 or Foundry 15 upgrade needs it fixed first (2026-10-28, first rehearsal on 14.369)."
+    },
+    {
       "id": "dnd5e-forced-deletion-legacy-syntax",
       "module": "*",
       "match": "using legacy syntax which should be migrated",

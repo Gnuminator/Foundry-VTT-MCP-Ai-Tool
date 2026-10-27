@@ -18,6 +18,15 @@ node scripts/modules/rehearse.mjs pi-plan                the Pi mirror commands,
 Take the server's lock first (`scripts/test-env/lock.ps1`); `install` refuses while the server is
 running. Foundry itself and dnd5e are handled like a module: stage the zip, install it, rehearse.
 
+## Foundry itself
+
+The three test servers share server A's Foundry app folder, so a new Foundry version is never
+unpacked over it while another lane runs B or C. Unpack the zip into its own folder (first run:
+`C:\FoundryTest\app-14.369`), point server A at it with `AppDir` in `scripts/test-env/local.json`,
+and pin B and C to the folder they use with `AppDir` in `local.B.json` and `local.C.json` (all
+three files are gitignored). B and C move when a lane that holds them chooses to. Foundry's zip goes
+into the archive under `foundry/` and into `pinned.json` once a rehearsal on it has passed.
+
 ## What a run checks
 
 1. **Load:** every module on the Strahd list (`scripts/modules/strahd-modules.json`) is installed and

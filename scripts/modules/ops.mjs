@@ -43,7 +43,20 @@ export function serverInfo(name) {
   for (const p of [s.ControlPort, s.LinkPort]) {
     if (LIVE_PORTS.includes(p)) throw new Error('refusing: a live bridge port');
   }
-  return { ...s, name: String(name).toUpperCase(), dataDir: path.join(s.Root, 'data', 'Data') };
+  return { ...s, name: String(name).toUpperCase(), dataDir: path.join(s.Root, 'data', 'Data'), AppDir: appDirOf(String(name).toUpperCase(), all) };
+}
+
+/** The Foundry app folder of a server: its local file's AppDir, else (B, C) server A's, else <Root>/app. */
+function appDirOf(name, all) {
+  const local = n => {
+    const file = path.join(REPO_ROOT, 'scripts', 'test-env', n === 'A' ? 'local.json' : `local.${n}.json`);
+    try {
+      return JSON.parse(readFileSync(file, 'utf8').replace(/^﻿/, '')).AppDir ?? null;
+    } catch {
+      return null;
+    }
+  };
+  return local(name) ?? (name === 'A' ? null : local('A')) ?? path.join(all.A.Root, 'app');
 }
 
 /** True when something listens on 127.0.0.1:port. @param {number} port */

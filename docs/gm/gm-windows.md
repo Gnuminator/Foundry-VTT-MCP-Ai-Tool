@@ -100,9 +100,9 @@ the coins come to in gold pieces) and their treasure items, with a total for the
 top. It updates by itself when someone gains or spends coins, or an item is added or removed.
 
 Only items that are marked as treasure count: on the item's sheet, set **Loot Type** to Art Object,
-Gemstone, Treasure or Trade Goods. Ordinary adventuring gear (a crowbar, a bedroll) has no loot type
-and stays out, so the window is not a list of everything in the backpack. The window only shows;
-to hand out loot, ask Claude ("give the party 50 gold and a ruby") and confirm the change it plans.
+Gemstone, Treasure or Trade Good. Ordinary adventuring gear (a crowbar, a bedroll) is left out, so
+the window is not a list of everything in the backpack. The window only shows; to hand out loot, ask
+Claude ("give Thorin 50 gold and a ruby") and confirm the change it plans.
 
 When to use it: after a fight or a treasure room, to see what the party has now and who holds it.
 

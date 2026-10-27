@@ -85,7 +85,8 @@ export const isPlanTool = (name: string): boolean => /^plan-/.test(name);
  * runs at once and needs no GM Actions, as Remove in the Handouts drawer does.
  */
 export const isQueueCall = (name: string, args: Record<string, unknown>): boolean =>
-  name === 'plan-page-reveal' && (args['action'] === 'queue' || args['action'] === 'unqueue');
+  name === 'plan-page-reveal' &&
+  (args['action'] === 'queue' || args['action'] === 'unqueue' || args['action'] === 'move');
 
 // CONFIRM_FORWARDED_TOOLS: the tools whose own `confirm` and `confirmDestructive` args the server
 // sets from the confirm window's flags. The form never asks for them.

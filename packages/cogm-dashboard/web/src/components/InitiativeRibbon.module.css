@@ -61,7 +61,7 @@
 
 .init {
   font-size: var(--text-2xs);
-  color: var(--text-dim);
+  color: var(--text-mid);
 }
 
 .hp {

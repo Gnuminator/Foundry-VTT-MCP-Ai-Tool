@@ -1,16 +1,12 @@
 #!/usr/bin/env node
 
-import { Server } from '@modelcontextprotocol/sdk/server/index.js';
+import { type CallToolResult, type ListToolsResult, Server } from '@modelcontextprotocol/server';
 
-import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-
-import {
-  type CallToolResult,
-  CallToolRequestSchema,
-  ListToolsRequestSchema,
-} from '@modelcontextprotocol/sdk/types.js';
+import { serveStdio } from '@modelcontextprotocol/server/stdio';
 
 import { config } from './config.js';
+
+import { LIST_CACHE_HINTS } from './list-cache-hints.js';
 
 import {
   BACKEND_LOCK_HELD_EXIT_CODE,
@@ -379,17 +375,6 @@ async function startWrapper(): Promise<void> {
   });
   for (const warning of TOOL_SET_SELECTION.warnings) backend.log(warning);
 
-  const mcp = new Server(
-    { name: config.server.name, version: config.server.version },
-    {
-      capabilities: { tools: {}, ...PROMPTS_CAPABILITY },
-      instructions: toolSetInstructions(TOOL_SET_SELECTION),
-    }
-  );
-
-  // The ready-made "/" prompts (prompts/list, prompts/get). Static, answered right here.
-  registerPromptHandlers(mcp, TOOL_SET_SELECTION.all ? undefined : TOOL_SET_SELECTION.sets);
-
   // Setup cleanup handlers - cross-platform approach
 
   // When stdin closes (Claude Desktop exits), clean up the backend
@@ -418,68 +403,88 @@ async function startWrapper(): Promise<void> {
   // when it cuts a result.
   const listedTools = new Map<string, ToolDefinitionLike>();
 
-  mcp.setRequestHandler(ListToolsRequestSchema, async () => {
-    try {
-      const res = (await backend.send('list_tools', {})) as ListToolsReply;
-
-      try {
-        backend.log('ListTools handler: received from backend', {
-          hasTools: !!res.tools,
-          toolCount: res.tools?.length || 0,
-        });
-      } catch {}
-
-      // Picker annotations (x-foundry-ref) are for the dashboard only, and this entry lists only
-      // its tool sets (the dashboard reads the control channel and sees every tool).
-      const listed = filterToolsBySets(
-        (res.tools ?? []) as Parameters<typeof stripToolRefs>[0],
-        TOOL_SET_SELECTION
-      );
-      const served = stripToolRefs(listed);
-      for (const tool of served as ToolDefinitionLike[]) listedTools.set(tool.name, tool);
-      return { tools: served };
-    } catch (e) {
-      // Log but return empty to remain MCP-compliant
-
-      try {
-        backend.log('ListTools failed; returning empty', { error: messageOf(e) });
-      } catch {}
-
-      return { tools: [] };
-    }
-  });
-
   // One line per call (name, set, ms, size, ok; no arguments) for the tool-set trimming data.
   const callLog = new ToolCallLog();
 
-  mcp.setRequestHandler(CallToolRequestSchema, async request => {
-    const { name, arguments: args } = request.params as unknown as CallToolParams;
-    const toolName = String(name);
+  // serveStdio calls this once per connection (and once for a discarded server/discover probe), so
+  // it only builds a server over the state above and starts nothing.
+  const buildServer = (): Server => {
+    const mcp = new Server(
+      { name: config.server.name, version: config.server.version },
+      {
+        capabilities: { tools: {}, ...PROMPTS_CAPABILITY },
+        instructions: toolSetInstructions(TOOL_SET_SELECTION),
+        // ttlMs and cacheScope for the list results of MCP 2026-07-28; 2025-11-25 clients never see them.
+        cacheHints: LIST_CACHE_HINTS,
+      }
+    );
 
-    return (await runLoggedCall(
-      callLog,
-      toolName,
-      async () => {
-        const res = (await backend.send('call_tool', {
-          name,
-          args: args ?? {},
-        })) as ToolResultLike;
+    // The ready-made "/" prompts (prompts/list, prompts/get). Static, answered right here.
+    registerPromptHandlers(mcp, TOOL_SET_SELECTION.all ? undefined : TOOL_SET_SELECTION.sets);
 
-        // One size cap for every tool result Claude gets (D-109); the dashboard reads them in full.
-        return capToolResult(res, toolName, listedTools.get(toolName));
-      },
-      (e: unknown): ToolResultLike => ({
-        content: [
-          { type: 'text', text: `Error: ${templateText(messageOf(e) || 'Backend unavailable')}` },
-        ],
-        isError: true,
-      })
-    )) as unknown as CallToolResult;
-  });
+    mcp.setRequestHandler('tools/list', async () => {
+      try {
+        const res = (await backend.send('list_tools', {})) as ListToolsReply;
 
-  const transport = new StdioServerTransport();
+        try {
+          backend.log('ListTools handler: received from backend', {
+            hasTools: !!res.tools,
+            toolCount: res.tools?.length || 0,
+          });
+        } catch {}
 
-  await mcp.connect(transport);
+        // Picker annotations (x-foundry-ref) are for the dashboard only, and this entry lists only
+        // its tool sets (the dashboard reads the control channel and sees every tool).
+        const listed = filterToolsBySets(
+          (res.tools ?? []) as Parameters<typeof stripToolRefs>[0],
+          TOOL_SET_SELECTION
+        );
+        const served = stripToolRefs(listed);
+        for (const tool of served as ToolDefinitionLike[]) listedTools.set(tool.name, tool);
+        // The backend's tool definitions are already protocol-shaped; v2 types the schema strictly.
+        return { tools: served as unknown as ListToolsResult['tools'] };
+      } catch (e) {
+        // Log but return empty to remain MCP-compliant
+
+        try {
+          backend.log('ListTools failed; returning empty', { error: messageOf(e) });
+        } catch {}
+
+        return { tools: [] };
+      }
+    });
+
+    mcp.setRequestHandler('tools/call', async request => {
+      const { name, arguments: args } = request.params as unknown as CallToolParams;
+      const toolName = String(name);
+
+      return (await runLoggedCall(
+        callLog,
+        toolName,
+        async () => {
+          const res = (await backend.send('call_tool', {
+            name,
+            args: args ?? {},
+          })) as ToolResultLike;
+
+          // One size cap for every tool result Claude gets (D-109); the dashboard reads them in full.
+          return capToolResult(res, toolName, listedTools.get(toolName));
+        },
+        (e: unknown): ToolResultLike => ({
+          content: [
+            { type: 'text', text: `Error: ${templateText(messageOf(e) || 'Backend unavailable')}` },
+          ],
+          isError: true,
+        })
+      )) as unknown as CallToolResult;
+    });
+
+    return mcp;
+  };
+
+  // The era (2025-11-25 `initialize` or 2026-07-28 `server/discover` and per-request `_meta`) is
+  // chosen per connection by serveStdio; both are served from the one factory.
+  serveStdio(buildServer);
 }
 
 startWrapper().catch(err => {

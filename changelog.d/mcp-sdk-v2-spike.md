@@ -1,0 +1,3 @@
+### MCP server (I-138; held, not for merge until Claude Desktop speaks MCP 2026-07-28 or after G2)
+
+- **MCP SDK v2 spike:** the stdio server runs on `@modelcontextprotocol/server` 2.4.0 through `serveStdio`, which serves 2025-11-25 clients (`initialize`) and 2026-07-28 clients (`server/discover`, per-request `_meta`) from one factory. `tools/list` and `prompts/list` carry `ttlMs` and `cacheScope` for the new era only. The v1 SDK stays as a dev dependency for the old-client test; the single-file bundle still builds and answers both eras.

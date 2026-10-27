@@ -279,7 +279,7 @@ export class SocketBridge {
       callback({ success: true, data: result });
     } catch (error) {
       this.log(
-        `Query failed: ${String(data.method)} -${error instanceof Error ? error.message : 'Unknown error'}`
+        `Query failed: ${String(data.method)} - ${error instanceof Error ? error.message : 'Unknown error'}`
       );
       callback({
         success: false,

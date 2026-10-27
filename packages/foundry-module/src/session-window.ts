@@ -142,6 +142,8 @@ const panel = createPanelWindow({
   icon: 'fa-solid fa-flag',
   width: 340,
   height: 200,
+  left: 830,
+  top: 20,
   hooks: [],
   render: () => renderSessionHtml(controller.view),
   onOpen: () => {

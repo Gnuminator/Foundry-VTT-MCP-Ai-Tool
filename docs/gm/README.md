@@ -19,6 +19,7 @@ play.
 | [Your first hour as GM](first-hour.md)                            | A set reading order: Foundry's own guides for the basics, our pages for the tool.         |
 | [Getting started](getting-started.md)                             | What the tool is, its parts, how they fit together, a glossary, and today's setup.        |
 | [The dashboard](dashboard.md)                                     | Every panel and button on the dashboard, what it does and when to use it.                 |
+| [The GM windows](gm-windows.md)                                   | Combat, Party, Session and Scene as small windows next to the map, and how to switch on.  |
 | [Features and when to turn them on](features.md)                  | Each feature switch, what it does, and the moment to turn it on.                          |
 | [Asking Claude](asking-claude.md)                                 | Good requests, the ready-made prompts, how Claude's changes are approved, its limits.     |
 | [Your GM coach in Claude](gm-coach.md)                            | Add the Foundry GM coach skill to your Claude account, and how to ask it.                 |

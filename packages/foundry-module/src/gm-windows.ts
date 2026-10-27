@@ -21,14 +21,15 @@ export const PANEL_REFRESH_DEBOUNCE_MS = 200;
 /** Register the switch. Call from the module `init` hook. */
 export function registerGmWindowsSetting(): void {
   game.settings.register(MODULE_ID, GM_WINDOWS_SETTING, {
-    name: 'AI Tool: GM windows (Combat and Party)',
-    hint: 'Adds a Combat and a Party button to the AI Tool group in the scene controls (GM only). Each opens a window with the combat order or the party at a glance, so you can run from one screen. Read-only; nothing here changes the game.',
+    name: 'AI Tool: GM windows (Combat, Party, Session, Scene)',
+    hint: 'Adds Combat, Party, Session and Scene buttons to the AI Tool group in the scene controls (GM only). Each opens a window next to the map: the combat order, the party, the session marker and the scene mood. Combat has Previous and Next turn buttons (same as the combat tracker) and Session has Start and End; nothing else here changes the game. Turning this off closes the open windows.',
     scope: 'world',
     config: true,
     type: Boolean,
     default: false,
     // The buttons are added when the scene controls are built: build them again.
     onChange: () => {
+      if (!gmWindowsEnabled()) closeGmWindows();
       try {
         const controls = (ui as unknown as { controls?: { render?(o: object): unknown } }).controls;
         void controls?.render?.({ reset: true });
@@ -48,6 +49,19 @@ export function gmWindowsEnabled(): boolean {
   }
 }
 
+/** The windows that are open now, so the switch can close them. */
+const openWindows = new Set<{ close?(): Promise<unknown> }>();
+
+/** Close every open GM window (the switch was turned off); a window that is not open stays so. */
+export function closeGmWindows(): void {
+  for (const window of Array.from(openWindows)) {
+    openWindows.delete(window);
+    void Promise.resolve(window.close?.()).catch((e: unknown): void => {
+      console.warn(`${MODULE_ID} | window close failed`, e);
+    });
+  }
+}
+
 /** Whether this client may open a GM window right now. */
 export function canOpenGmWindow(): boolean {
   return game.user?.isGM === true && gmWindowsEnabled();
@@ -60,6 +74,9 @@ export interface PanelSpec {
   icon: string;
   width: number;
   height: number;
+  /** Where the window first opens (pixels from the top left), so the windows do not stack on one spot. */
+  left?: number;
+  top?: number;
   /** Foundry hooks (`updateCombat`, ...) after which the panel redraws. */
   hooks: readonly string[];
   /** The panel's HTML; escapes everything that comes from a document. */
@@ -122,7 +139,12 @@ export function createPanelWindow(spec: PanelSpec): PanelOpener {
         classes: ['fmb-ai-window', 'fmb-gm-window'],
         tag: 'div',
         window: { title: spec.title, icon: spec.icon, resizable: true },
-        position: { width: spec.width, height: spec.height },
+        position: {
+          width: spec.width,
+          height: spec.height,
+          ...(spec.left !== undefined ? { left: spec.left } : {}),
+          ...(spec.top !== undefined ? { top: spec.top } : {}),
+        },
         actions,
       };
 
@@ -143,6 +165,7 @@ export function createPanelWindow(spec: PanelSpec): PanelOpener {
       }
 
       _onRender(): void {
+        openWindows.add(this);
         if (this.hookIds.length > 0) return;
         for (const name of spec.hooks) {
           const id = Hooks.on(name, () => this.scheduleRedraw());
@@ -151,6 +174,7 @@ export function createPanelWindow(spec: PanelSpec): PanelOpener {
       }
 
       _onClose(): void {
+        openWindows.delete(this);
         for (const [name, id] of this.hookIds) Hooks.off(name, id);
         this.hookIds = [];
         if (this.timer !== null) clearTimeout(this.timer);
@@ -162,6 +186,11 @@ export function createPanelWindow(spec: PanelSpec): PanelOpener {
         if (this.timer !== null) clearTimeout(this.timer);
         this.timer = setTimeout(() => {
           this.timer = null;
+          // The switch went off (or this GM lost the role) while the window was open: close it, do not blank it.
+          if (!canOpenGmWindow()) {
+            closeGmWindows();
+            return;
+          }
           this.render().catch((e: unknown): void => {
             console.warn(`${MODULE_ID} | window redraw failed`, e);
           });
@@ -187,7 +216,11 @@ export function createPanelWindow(spec: PanelSpec): PanelOpener {
       return true;
     },
     redraw(): void {
-      if (!instance || instance.rendered === false || !canOpenGmWindow()) return;
+      if (!instance || instance.rendered === false) return;
+      if (!canOpenGmWindow()) {
+        closeGmWindows();
+        return;
+      }
       instance.render().catch((e: unknown): void => {
         console.warn(`${MODULE_ID} | window redraw failed`, e);
       });
@@ -195,6 +228,7 @@ export function createPanelWindow(spec: PanelSpec): PanelOpener {
     reset(): void {
       windowClass = null;
       instance = null;
+      openWindows.clear();
     },
   };
 }

@@ -170,7 +170,7 @@ describe('the Scene model', () => {
     expect(view).toMatchObject({
       empty: false,
       name: 'Maravia',
-      darkness: 'Dark (70%)',
+      darkness: 'Dark, darkness 70%',
       globalLight: true,
       weather: 'fog',
       playing: ['Wind (Dread)'],
@@ -180,7 +180,7 @@ describe('the Scene model', () => {
   it('is empty without a scene and clamps a darkness outside 0 to 1', () => {
     expect(buildSceneView(null, []).empty).toBe(true);
     expect(buildSceneView({ environment: { darknessLevel: 3 } }, []).darkness).toBe(
-      'Pitch dark (100%)'
+      'Pitch dark, darkness 100%'
     );
     expect(renderSceneHtml(buildSceneView(null, []))).toContain('No scene is active');
   });

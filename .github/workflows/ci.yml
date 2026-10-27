@@ -331,8 +331,9 @@ jobs:
     # accessibility check, and (UI-03) a shot and an axe check of every Storybook story, under
     # web/visual/__screenshots__/stories. The baselines are Linux-only, made in this same
     # Playwright image (the image tag must be the installed @playwright/test version; the first
-    # step checks it). Advisory: it is not a required check, but a diff fails the job (no
-    # continue-on-error), and the report with the diff images is kept as an artifact. Refresh the
+    # step checks it). Not a required check in the ruleset, but a diff fails the job (no
+    # continue-on-error) and the merge gate (scripts/lane-merge.mjs) refuses any check that is not
+    # green, so a red dashboard-visual blocks the merge. The report with the diff images is kept as an artifact. Refresh the
     # baselines with `npm run test:visual:update -w @gnuminator/cogm-dashboard` (Docker; see the
     # dashboard README).
     needs: visual-changes

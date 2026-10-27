@@ -282,7 +282,7 @@ describe('QueryHandlers: aiChangesUpdated (I-108)', () => {
 
 describe('QueryHandlers — handleQuery dispatch', () => {
   it('invokes the registered handler and returns its result', async () => {
-    queries()[`${MODULE_ID}.x`] = async (d: any) => ({ got: d });
+    queries()[`${MODULE_ID}.x`] = async (d: any): Promise<unknown> => ({ got: d });
     const res = await qh.handleQuery(`${MODULE_ID}.x`, { a: 1 });
     expect(res).toEqual({ got: { a: 1 } });
   });
@@ -296,7 +296,7 @@ describe('QueryHandlers — handleQuery dispatch', () => {
   });
 
   it('returns a failure object when the handler throws', async () => {
-    queries()[`${MODULE_ID}.boom`] = async () => {
+    queries()[`${MODULE_ID}.boom`] = async (): Promise<never> => {
       throw new Error('boom');
     };
     const res = await qh.handleQuery(`${MODULE_ID}.boom`, {});

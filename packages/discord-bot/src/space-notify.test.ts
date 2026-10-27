@@ -54,7 +54,7 @@ function harness(sendResult = true): {
   let ok = sendResult;
   const sent: string[] = [];
   const notifier = new SpaceNotifier({
-    now: () => now,
+    now: (): number => now,
     send: (text): Promise<boolean> => {
       if (ok) sent.push(text);
       return Promise.resolve(ok);

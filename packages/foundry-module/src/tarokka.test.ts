@@ -50,9 +50,9 @@ function install(foundryVersion = '14.368', version = '1.0.3', active = true): v
   restore = world.install();
   g.game.i18n = {
     lang: 'en',
-    has: (k: string) => k in I18N,
-    localize: (k: string) => I18N[k] ?? k,
-    format: (k: string) => k,
+    has: (k: string): boolean => k in I18N,
+    localize: (k: string): string => I18N[k] ?? k,
+    format: (k: string): string => k,
   };
   g.game.settings.register = vi.fn();
   g.CONFIG.queries = {};

@@ -272,7 +272,7 @@ describe('planPartyPlacement', () => {
     };
     g.game = {
       user: { isGM: true },
-      actors: { get: (id: string) => (id === 'g1' ? group : undefined) },
+      actors: { get: (id: string): unknown => (id === 'g1' ? group : undefined) },
       scenes: { current: scene },
     };
     if (opts.viewed) g.canvas = { ready: true, scene, stage: { pivot: { x: 1050, y: 950 } } };

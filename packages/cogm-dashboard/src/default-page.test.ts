@@ -68,7 +68,7 @@ async function start(
   return {
     port: (server.address() as AddressInfo).port,
     dashboard,
-    stop: async () => {
+    stop: async (): Promise<void> => {
       dashboard.close();
       await new Promise<void>(resolve => server.close(() => resolve()));
     },

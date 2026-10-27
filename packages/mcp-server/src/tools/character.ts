@@ -720,7 +720,7 @@ export class CharacterTools {
       }
 
       // Include spell slots if available
-      if (entry.slots && Object.keys(entry.slots as object).length > 0) {
+      if (entry.slots && Object.keys(entry.slots).length > 0) {
         formatted.slots = entry.slots;
       }
 

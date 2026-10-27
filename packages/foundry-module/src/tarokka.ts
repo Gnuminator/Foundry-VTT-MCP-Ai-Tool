@@ -320,6 +320,16 @@ const NAMED_ENTITIES: Record<string, string> = {
   nbsp: ' ',
 };
 
+/** Tags removed until none is left (the text is only matched and slugged, never rendered). */
+function stripTags(html: string): string {
+  let out = html;
+  for (let prev = ''; prev !== out; ) {
+    prev = out;
+    out = out.replace(/<[^<>]*>/g, '');
+  }
+  return out;
+}
+
 function decodeEntities(text: string): string {
   return text.replace(/&(?:#(\d{1,7})|#x([0-9a-f]{1,6})|([a-z]+));/gi, (whole, dec, hex, name) => {
     if (name) return NAMED_ENTITIES[name.toLowerCase()] ?? whole;
@@ -338,9 +348,7 @@ export function pageHeadings(html: string): Array<{ text: string; slug: string }
   const used = new Set<string>();
   for (const m of html.matchAll(/<h([1-6])\b([^>]*)>([\s\S]*?)<\/h\1>/gi)) {
     if (/\bdata-no-toc\b/i.test(m[2])) continue;
-    const text = decodeEntities(m[3].replace(/<[^>]*>/g, ''))
-      .replace(/\s+/g, ' ')
-      .trim();
+    const text = decodeEntities(stripTags(m[3])).replace(/\s+/g, ' ').trim();
     if (!text) continue;
     const id = /\bid\s*=\s*(?:"([^"]*)"|'([^']*)')/i.exec(m[2]);
     const own = id?.[1] ?? id?.[2];

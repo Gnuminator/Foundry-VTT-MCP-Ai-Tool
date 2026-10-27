@@ -5,6 +5,7 @@ import type {
   UntypedBridgeMethod,
 } from '@gnuminator/shared';
 import { Logger } from './logger.js';
+import type { BridgeMessage, ConnectionInfo } from './types/connector-types.js';
 import { Config } from './config.js';
 import {
   FoundryConnector,
@@ -109,11 +110,11 @@ export class FoundryClient {
     return this.connector.activeModuleHasCapability(capability);
   }
 
-  ping(): Promise<any> {
+  ping(): Promise<unknown> {
     return this.query('foundry-mcp-bridge.ping');
   }
 
-  getConnectionInfo(): any {
+  getConnectionInfo(): ConnectionInfo {
     return this.connector.getConnectionInfo();
   }
 
@@ -130,7 +131,7 @@ export class FoundryClient {
     return this.connector.isConnected();
   }
 
-  sendMessage(message: any): void {
+  sendMessage(message: BridgeMessage): void {
     this.logger.debug('Sending message to Foundry', {
       type: message.type,
       requestId: message.requestId,
@@ -138,7 +139,7 @@ export class FoundryClient {
     this.connector.sendToFoundry(message);
   }
 
-  broadcastMessage(message: any): void {
+  broadcastMessage(message: BridgeMessage): void {
     this.logger.debug('Broadcasting message to Foundry', { type: message.type });
     this.connector.broadcastMessage(message);
   }

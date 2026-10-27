@@ -14,11 +14,12 @@
 //
 // How the container sees the repo: the repo is mounted at /work, but node_modules is not the host's
 // (Windows has junctions and platform files there). The root node_modules and the dashboard's own
-// are named Docker volumes, filled by `npm ci --ignore-scripts` for the dashboard workspace the
+// are named Docker volumes (one pair per worktree), filled by `npm ci --ignore-scripts` for the dashboard workspace the
 // first time and again whenever package-lock.json changes. Snapshots and results are written
 // straight into the repo through the mount.
 import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -44,6 +45,25 @@ if (!existsSync(path.join(packageDir, 'storybook-static', 'index.json'))) {
   process.exit(2);
 }
 
+// The two node_modules volumes are per worktree (a short hash of the repo path in the name): two
+// lanes, or two lockfiles, would otherwise reinstall over each other and race in `npm ci`.
+const volumeKey = createHash('sha256').update(repoRoot.toLowerCase()).digest('hex').slice(0, 8);
+const rootVolume = `foundry-ai-tool-visual-node-modules-${volumeKey}`;
+const dashboardVolume = `foundry-ai-tool-visual-dashboard-node-modules-${volumeKey}`;
+
+// `docker run` against a stopped Docker Desktop prints a long pipe error; say it plainly instead.
+const probe = spawnSync('docker', ['info', '--format', '{{.ServerVersion}}'], { encoding: 'utf8' });
+if (probe.error) {
+  console.error('The docker command was not found. Install Docker Desktop and run this again.');
+  process.exit(2);
+}
+if (probe.status !== 0) {
+  console.error(
+    'Docker is not running. Start Docker Desktop, wait until it says "Engine running", and run this again.'
+  );
+  process.exit(2);
+}
+
 // Runs in the container, from the repo root.
 const inContainer = `
 set -e
@@ -65,9 +85,9 @@ const dockerArgs = [
   '-v',
   `${repoRoot}:/work`,
   '-v',
-  'foundry-ai-tool-visual-node-modules:/work/node_modules',
+  `${rootVolume}:/work/node_modules`,
   '-v',
-  'foundry-ai-tool-visual-dashboard-node-modules:/work/packages/cogm-dashboard/node_modules',
+  `${dashboardVolume}:/work/packages/cogm-dashboard/node_modules`,
   '-w',
   '/work',
   image,

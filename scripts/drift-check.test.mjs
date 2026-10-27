@@ -383,3 +383,21 @@ test('a failing shared build fails the check with its output, and the lane is un
     fs.rmSync(tmp, { recursive: true, force: true });
   }
 });
+
+test('a passing guard that prints tool-set headroom lines has them shown, other output is not', () => {
+  const { tmp, lane } = repos();
+  try {
+    const r = run(lane, [
+      {
+        name: 'sizes',
+        command:
+          "node -e \"console.log('noise'); console.log('tool-set headroom: prep 13 characters (21987 of 22000) WARNING: under 500')\"",
+      },
+    ]);
+    assert.equal(r.code, 0, r.out);
+    assert.match(r.out, /ok {3}sizes\n {7}tool-set headroom: prep 13 characters/);
+    assert.doesNotMatch(r.out, /noise/);
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});

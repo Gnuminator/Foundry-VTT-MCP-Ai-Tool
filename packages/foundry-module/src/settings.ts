@@ -339,6 +339,15 @@ export class ModuleSettings {
     // Removed 'enableWriteAuditLog' setting as it provides no rollback functionality
     // and only creates log entries without user-actionable features
 
+    game.settings.register(this.moduleId, 'rulesSearchPacks', {
+      name: 'Rules search packs',
+      hint: 'Which packages the search-rules tool reads, as package names or pack ids separated by commas. Leave empty for the default: dnd-players-handbook, aitool-content, dnd5e. Adventure text is never searched unless the caller asks.',
+      scope: 'world',
+      config: true,
+      type: String,
+      default: '',
+    });
+
     // Enhanced Creature Index settings (configured via submenu only)
     game.settings.register(this.moduleId, 'enableEnhancedCreatureIndex', {
       scope: 'world',

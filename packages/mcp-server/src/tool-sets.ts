@@ -48,6 +48,7 @@ export const TOOL_SETS: Readonly<Record<ToolSetName, ToolSetSpec>> = {
       'list-journals',
       'search-journals',
       'search-compendium',
+      'search-rules',
       'get-compendium-item',
       'list-compendium-packs',
       'get-planned-change',

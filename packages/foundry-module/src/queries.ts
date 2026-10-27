@@ -136,6 +136,7 @@ export class QueryHandlers {
 
     // Compendium queries
     handlers.set(`${modulePrefix}.searchCompendium`, this.handleSearchCompendium.bind(this));
+    handlers.set(`${modulePrefix}.searchRules`, this.handleSearchRules.bind(this));
     handlers.set(
       `${modulePrefix}.listCreaturesByCriteria`,
       this.handleListCreaturesByCriteria.bind(this)
@@ -646,6 +647,22 @@ export class QueryHandlers {
       }
 
       return await this.dataAccess.searchCompendium(data.query, data.packType, data.filters);
+    });
+  }
+
+  /** Full-text rules search over allowlisted compendium journals and items (read-only). */
+  private async handleSearchRules(data: {
+    query: string;
+    limit?: number;
+    includeWorld?: boolean;
+    excerptChars?: number;
+    includeOtherBooks?: boolean;
+  }): Promise<unknown> {
+    return this.withGmGate('Failed to search rules', async () => {
+      if (!data || typeof data.query !== 'string') {
+        throw new Error('query parameter is required and must be a string');
+      }
+      return await this.dataAccess.searchRules(data);
     });
   }
 

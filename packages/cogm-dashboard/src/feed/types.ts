@@ -123,6 +123,8 @@ export interface GameFeedHandlers {
   onCombat(combat: CombatState | null): void;
   onErrors(errors: ModuleError[], meta: { initial: boolean }): void;
   onStatus(status: BridgeStatus): void;
+  /** After each successful poll: moves `lastPollAt` in the held status without broadcasting it. */
+  onPoll?(at: string): void;
 }
 
 /**

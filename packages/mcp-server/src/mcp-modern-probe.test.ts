@@ -8,10 +8,12 @@
 import { type ChildProcess, spawn } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as net from 'node:net';
+import * as os from 'node:os';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { LATEST_PROTOCOL_VERSION } from '@modelcontextprotocol/sdk/types.js';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
 const distIndex = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -30,6 +32,9 @@ const FAKE_TOOLS = ['search-journals', 'get-world-info', 'list-characters', 'get
 );
 
 const REPLY_TIMEOUT_MS = 10_000;
+
+// Longer than the reply timeout, so a slow start shows "no reply to request N", not a bare timeout.
+vi.setConfig({ testTimeout: 20_000 });
 
 const MODERN_META = {
   'io.modelcontextprotocol/protocolVersion': '2026-07-28',
@@ -58,7 +63,12 @@ function startFakeBridge(): Promise<{ server: net.Server; port: number }> {
           const line = buf.slice(0, idx).trim();
           buf = buf.slice(idx + 1);
           if (!line) continue;
-          const req = JSON.parse(line) as { id: string; method: string };
+          let req: { id: string; method: string };
+          try {
+            req = JSON.parse(line) as { id: string; method: string };
+          } catch {
+            continue;
+          }
           const result =
             req.method === 'list_tools'
               ? { tools: FAKE_TOOLS }
@@ -83,6 +93,8 @@ class Wrapper {
 
   exited: number | null | undefined;
 
+  stderr = '';
+
   private nextId = 1;
 
   constructor(private child: ChildProcess) {
@@ -93,9 +105,18 @@ class Wrapper {
       while ((idx = this.buf.indexOf('\n')) >= 0) {
         const line = this.buf.slice(0, idx).trim();
         this.buf = this.buf.slice(idx + 1);
-        if (line) this.frames.push(JSON.parse(line) as Frame);
+        if (!line) continue;
+        try {
+          this.frames.push(JSON.parse(line) as Frame);
+        } catch {
+          // a stray non-JSON line is not a frame; the missing reply fails the test with the stderr
+        }
       }
       this.waiters.splice(0).forEach(w => w());
+    });
+    child.stderr!.setEncoding('utf8');
+    child.stderr!.on('data', (chunk: string) => {
+      this.stderr += chunk;
     });
     child.on('exit', code => {
       this.exited = code;
@@ -117,9 +138,10 @@ class Wrapper {
       const hit = this.frames.find(f => f.id === id);
       if (hit) return hit;
       if (this.exited !== undefined)
-        throw new Error(`wrapper exited (${this.exited}) before reply ${id}`);
+        throw new Error(`wrapper exited (${this.exited}) before reply ${id}: ${this.stderr}`);
       const left = deadline - Date.now();
-      if (left <= 0) throw new Error(`no reply to request ${id} within ${REPLY_TIMEOUT_MS} ms`);
+      if (left <= 0)
+        throw new Error(`no reply to request ${id} within ${REPLY_TIMEOUT_MS} ms: ${this.stderr}`);
       await new Promise<void>(resolve => {
         const t = setTimeout(resolve, left);
         this.waiters.push(() => {
@@ -156,7 +178,8 @@ class Wrapper {
 }
 
 describe('MCP 2026-07-28 probe against dist/index.js', () => {
-  let bridge: { server: net.Server; port: number };
+  let bridge: { server: net.Server; port: number } | undefined;
+  let tmpDir = '';
   const running: Wrapper[] = [];
 
   beforeAll(async () => {
@@ -164,6 +187,8 @@ describe('MCP 2026-07-28 probe against dist/index.js', () => {
       throw new Error(`${distIndex} not found. Run "npm run build" first (npm run green does).`);
     }
     bridge = await startFakeBridge();
+    // The wrapper logs under os.tmpdir(); keep these runs out of the live connectors' wrapper.log.
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mcp-probe-'));
   });
 
   afterEach(() => {
@@ -171,16 +196,20 @@ describe('MCP 2026-07-28 probe against dist/index.js', () => {
   });
 
   afterAll(() => {
-    bridge.server.close();
+    bridge?.server.close();
+    if (tmpDir) fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
   function start(): Wrapper {
     const child = spawn(process.execPath, [distIndex], {
-      stdio: ['pipe', 'pipe', 'ignore'],
+      stdio: ['pipe', 'pipe', 'pipe'],
       env: {
         ...process.env,
         MCP_CONTROL_HOST: '127.0.0.1',
-        MCP_CONTROL_PORT: String(bridge.port),
+        MCP_CONTROL_PORT: String(bridge?.port),
+        TEMP: tmpDir,
+        TMP: tmpDir,
+        TMPDIR: tmpDir,
         MCP_NO_SPAWN: '1',
         FOUNDRY_AI_TOOL_SETS: '',
       },
@@ -216,9 +245,13 @@ describe('MCP 2026-07-28 probe against dist/index.js', () => {
   it('answers tools/list with modern _meta and no initialize, and stays up', async () => {
     const w = start();
     const res = await w.request('tools/list', { _meta: MODERN_META });
-    // Record, do not mandate: the answer is whatever v1 does today. It must be a reply (no hang),
-    // and the process must survive and serve the normal flow afterwards.
-    expect(res.result !== undefined || res.error !== undefined).toBe(true);
+    // Pins what v1 does today: no initialize needed, a legacy result with no modern fields. A
+    // move to the new protocol changes this on purpose; update it then.
+    expect(res.error).toBeUndefined();
+    const listed = res.result as { tools: Array<{ name: string }> };
+    expect(listed.tools.map(t => t.name)).toEqual(FAKE_TOOLS.map(t => t.name));
+    expect(listed).not.toHaveProperty('resultType');
+    expect(listed).not.toHaveProperty('ttlMs');
     await w.initialize();
     const first = await w.toolNames({ _meta: MODERN_META });
     const second = await w.toolNames({ _meta: MODERN_META });
@@ -227,14 +260,16 @@ describe('MCP 2026-07-28 probe against dist/index.js', () => {
     expect(w.exited).toBeUndefined();
   });
 
-  it('answers initialize asking for 2026-07-28 with the 2025-11-25 era it speaks', async () => {
+  it('answers initialize asking for 2026-07-28 with the newest era the SDK speaks (a tripwire on SDK bumps)', async () => {
     const w = start();
     const res = await w.request('initialize', {
       protocolVersion: '2026-07-28',
       capabilities: {},
       clientInfo: { name: 'probe-modern', version: '0.0.0' },
     });
-    expect((res.result as { protocolVersion: string }).protocolVersion).toBe('2025-11-25');
+    expect((res.result as { protocolVersion: string }).protocolVersion).toBe(
+      LATEST_PROTOCOL_VERSION
+    );
   });
 
   it('calls a tool after a modern probe and the legacy handshake', async () => {

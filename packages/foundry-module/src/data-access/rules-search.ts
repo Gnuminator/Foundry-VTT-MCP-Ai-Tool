@@ -126,18 +126,24 @@ export interface RulesSearchParams {
 /** HTML to plain text: tags out, entities decoded for the common few, blanks squeezed. */
 export function plainText(html: unknown): string {
   if (typeof html !== 'string') return '';
+  let text = html
+    // Labelled enrichers keep their label; a bare roll keeps its command and arguments
+    // ("[[/damage 2d6 fire]]" reads "damage 2d6 fire"); a bare reference keeps its name.
+    .replace(/@UUID\[[^\]]*\]\{([^}]*)\}/g, '$1')
+    .replace(/\[\[[^\]]*\]\]\{([^}]*)\}/g, '$1')
+    .replace(/\[\[\s*\/?(\w+)\s*([^\]]*)\]\]/g, '$1 $2')
+    .replace(/&(?:amp;)?Reference\[[^\]]*\]\{([^}]*)\}/g, '$1')
+    .replace(/&(?:amp;)?Reference\[([^\]=\s]+)[^\]]*\]/g, '$1')
+    .replace(/@(?:UUID|Embed)\[[^\]]*\]/g, '')
+    .replace(/<\/(p|div|li|h[1-6]|tr|td|th|br)>|<br\s*\/?>/gi, ' ');
+  // Strip tags until none is left, so nested input like "<scr<script>ipt>" cannot rebuild one.
+  let previous: string;
+  do {
+    previous = text;
+    text = text.replace(/<[^>]*>/g, '');
+  } while (text !== previous);
   return (
-    html
-      // Labelled enrichers keep their label; a bare roll keeps its command and arguments
-      // ("[[/damage 2d6 fire]]" reads "damage 2d6 fire"); a bare reference keeps its name.
-      .replace(/@UUID\[[^\]]*\]\{([^}]*)\}/g, '$1')
-      .replace(/\[\[[^\]]*\]\]\{([^}]*)\}/g, '$1')
-      .replace(/\[\[\s*\/?(\w+)\s*([^\]]*)\]\]/g, '$1 $2')
-      .replace(/&(?:amp;)?Reference\[[^\]]*\]\{([^}]*)\}/g, '$1')
-      .replace(/&(?:amp;)?Reference\[([^\]=\s]+)[^\]]*\]/g, '$1')
-      .replace(/@(?:UUID|Embed)\[[^\]]*\]/g, '')
-      .replace(/<\/(p|div|li|h[1-6]|tr|td|th|br)>|<br\s*\/?>/gi, ' ')
-      .replace(/<[^>]*>/g, '')
+    text
       // &amp; last, so "&amp;lt;" stays the text "&lt;".
       .replace(/&nbsp;/g, ' ')
       .replace(/&lt;/g, '<')

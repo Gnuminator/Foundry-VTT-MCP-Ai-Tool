@@ -65,6 +65,17 @@ const MAX_EXCERPT = 4000;
 const CACHE_TTL_MS = 10 * 60 * 1000;
 /** After a failed background rebuild, the stale index is served this long before the next try. */
 const REFRESH_RETRY_MS = 60 * 1000;
+/** A background rebuild that has not settled by then counts as failed, so one hung pack cannot stall the chain. */
+const REFRESH_TIMEOUT_MS = 60 * 1000;
+
+/** Rejects when the promise has not settled within ms; the timer is always cleared. */
+function withTimeout<T>(promise: Promise<T>, ms: number, what: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`${what} timed out after ${ms} ms`)), ms);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
 
 /** A number from the wire, clamped; a missing or non-numeric value gives the fallback. */
 function clampInt(value: unknown, fallback: number, min: number, max: number): number {
@@ -337,7 +348,11 @@ export class RulesSearchDataAccess {
         cached.refreshing = true;
         // One pack at a time, so the rebuilds never load every pack at once during play.
         this.refreshChain = this.refreshChain.then(() =>
-          this.buildPackIndex(pack, id, type).then(
+          withTimeout(
+            this.buildPackIndex(pack, id, type),
+            REFRESH_TIMEOUT_MS,
+            `refresh of ${id}`
+          ).then(
             fresh => {
               this.cache.set(id, { at: Date.now(), entries: Promise.resolve(fresh) });
             },

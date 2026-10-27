@@ -84,7 +84,7 @@ jobs:
 
       - name: Merge gate and keep-green scripts
         # scripts/green.mjs (parity with this job) and scripts/lane-merge.mjs (D-122 merge gate).
-        run: node --test scripts/green.test.mjs scripts/lane-merge.test.mjs scripts/visual-baselines.test.mjs
+        run: node --test scripts/green.test.mjs scripts/lane-merge.test.mjs scripts/visual-baselines.test.mjs scripts/review-runner/lib.test.mjs
 
       - name: Weekly usage report
         # scripts/dev/usage-week.mjs (D-122 targets) against fixture transcripts.
@@ -414,7 +414,9 @@ jobs:
         timeout-minutes: 8
         run: |
           python -m pip install --quiet 'pytest>=8' numpy
-          command -v ffmpeg || timeout 300 sh -c 'sudo apt-get update -q -o Acquire::http::Timeout=20 -o Acquire::Retries=0 && sudo apt-get install -y -q -o Acquire::http::Timeout=20 -o Acquire::Retries=0 --no-install-recommends ffmpeg' || echo "::warning::ffmpeg not installed: the narration render tests will skip"
+          # timeout waits on apt-get itself (through sudo), so -k can send the SIGKILL
+          apt_opts="-o Acquire::http::Timeout=20 -o Acquire::https::Timeout=20 -o Acquire::Retries=0"
+          command -v ffmpeg || { sudo timeout -k 20 120 apt-get update -q $apt_opts && sudo timeout -k 20 180 apt-get install -y -q $apt_opts --no-install-recommends ffmpeg; } || echo "::warning::ffmpeg not installed: the narration render tests will skip"
 
       - name: Unit tests (tools/*)
         run: |

@@ -164,6 +164,9 @@ export const RISKY_CATEGORIES = [
       '.github/workflows/**',
       '.claude/hooks/**',
       '.claude/settings.json',
+      // The review runner writes the notes the gate counts (D-127), and the agent files go into its prompt.
+      'scripts/review-runner/**',
+      '.claude/agents/**',
     ],
   },
 ];

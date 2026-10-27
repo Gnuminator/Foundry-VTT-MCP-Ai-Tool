@@ -66,7 +66,7 @@ describe('tool catalog', () => {
     const budget = {
       core: 17_500, // about 17,200 with get-level-up-options (I-152; raised 500 on purpose); about 16,600 before
       play: 40_000, // about 39,000 with plan-combat-change (David's GM test; raised 1,500 on purpose, room for its start action); about 38,000 before, with plan-paper-sync (Paper nights A: eleven sheet fields in one schema, about 3,700 characters) on top of Paper nights C's session fields; raised 1,500 on purpose for check-action, 1,000 for the multiattack and path fields of plan-npc-turn, 3,000 for plan-paper-sync. The next Play tool needs another raise
-      prep: 22_000, // near full (CI review 2026-10-27: #500 hit it); the next Prep tool needs a raise, which costs Claude Desktop context: the user decides, never raise it in passing
+      prep: 22_500, // about 22,100 with the clear option of plan-tarokka-import (#507, raised 500 on purpose); about 21,900 before. Near full: the next Prep tool needs a raise, which costs Claude Desktop context: the user decides, never raise it in passing
       build: 29_000, // about 28,100 with plan-room-setup (I-133)
       admin: 8_000,
     } as const;

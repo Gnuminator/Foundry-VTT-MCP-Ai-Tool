@@ -281,10 +281,30 @@ export class TarokkaService {
   async planImport(args: {
     source?: 'auto' | TarokkaSource;
     userId?: string;
-  }): Promise<PlanView & { source: TarokkaSource; providerNote?: string }> {
+    clear?: boolean;
+  }): Promise<PlanView & { source?: TarokkaSource; providerNote?: string }> {
     const source = args.source ?? 'auto';
     const worldId = await this.worldIds.current();
     const { file, config } = await this.load(worldId);
+
+    if (args.clear) {
+      const current = file.current;
+      if (!current) throw new Error('There is no current reading to clear');
+      // Archive, never delete: undo restores `current` and drops the archive copy.
+      return this.guardedWrites.createPlan({
+        feature: TAROKKA_FEATURE,
+        summary: 'Clear the current Tarokka reading (archived, not deleted)',
+        vaultOps: [
+          {
+            kind: 'vault-set',
+            file: TAROKKA_FILE,
+            path: `archive.${current.readingId}`,
+            value: current,
+          },
+          { kind: 'vault-delete', file: TAROKKA_FILE, path: 'current' },
+        ],
+      });
+    }
 
     let reading: StoredReading | null = null;
     let providerNote: string | undefined;

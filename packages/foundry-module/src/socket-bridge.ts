@@ -60,6 +60,23 @@ interface PendingModuleRequest {
   timer: ReturnType<typeof setTimeout>;
 }
 
+/** One frame sent to the backend; `type` is the only field every frame has. */
+interface OutboundFrame {
+  type: string;
+  id?: unknown;
+  data?: unknown;
+  timestamp?: number;
+}
+
+/** What `getConnectionInfo()` reports, for logs and diagnostics. */
+export interface BridgeConnectionInfo {
+  type: 'websocket' | null;
+  state: string;
+  reconnectAttempts: number;
+  maxReconnectAttempts: null;
+  config: { host: string; port: number; namespace: string };
+}
+
 /**
  * Browser-compatible socket bridge: one WebSocket link to the backend
  */
@@ -67,7 +84,7 @@ export class SocketBridge {
   private ws: WebSocket | null = null;
   private connectionState: string = CONNECTION_STATES.DISCONNECTED;
   private reconnectAttempts = 0;
-  private reconnectTimer: any = null;
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   /** Set by `disconnect()`: the owner closed the link on purpose, so nothing reconnects. */
   private stopped = false;
   private activeConnectionType: 'websocket' | null = null;
@@ -200,7 +217,7 @@ export class SocketBridge {
 
     this.ws.onmessage = (event): void => {
       try {
-        const message = JSON.parse(event.data);
+        const message: unknown = JSON.parse(event.data as string);
         void this.handleMessage(message);
       } catch (error) {
         this.log(`Failed to parse message: ${String(error)}`);
@@ -208,19 +225,21 @@ export class SocketBridge {
     };
   }
 
-  private async handleMessage(message: any): Promise<void> {
+  private async handleMessage(raw: unknown): Promise<void> {
+    // A cast only: a null frame still throws on `.type` and lands in the catch below.
+    const message = raw as { type?: unknown; id?: unknown; data?: unknown };
     try {
       if (message.type === 'mcp-query') {
-        await this.handleMCPQuery(message.data, response => {
+        await this.handleMCPQuery(message.data, (response): void => {
           this.sendMessage({
             type: 'mcp-response',
             id: message.id,
             data: response,
           });
         });
-      } else if ((message as { type?: unknown }).type === MODULE_REPLY_TYPE) {
+      } else if (message.type === MODULE_REPLY_TYPE) {
         this.handleModuleReply(message);
-      } else if ((message as { type?: unknown }).type === BRIDGE_HELLO_TYPE) {
+      } else if (message.type === BRIDGE_HELLO_TYPE) {
         this.handleBridgeHello(message);
       } else if (message.type === 'ping') {
         this.sendMessage({
@@ -235,9 +254,14 @@ export class SocketBridge {
     }
   }
 
-  private async handleMCPQuery(data: any, callback: (response: any) => void): Promise<void> {
+  private async handleMCPQuery(
+    rawData: unknown,
+    callback: (response: unknown) => void
+  ): Promise<void> {
+    // A cast only: undefined or null data still throws on `.method`, as before.
+    const data = rawData as { method?: unknown; data?: unknown };
     try {
-      this.log(`Handling MCP query: ${data.method}`);
+      this.log(`Handling MCP query: ${String(data.method)}`);
 
       // Dispatch from the module-private handler table, never from CONFIG.queries
       // (which any player can reach through Foundry's query relay).
@@ -245,17 +269,17 @@ export class SocketBridge {
       const handler = typeof queryKey === 'string' ? bridgeHandlers.get(queryKey) : undefined;
 
       if (!handler) {
-        throw new Error(`No handler found for query: ${data.method}`);
+        throw new Error(`No handler found for query: ${String(data.method)}`);
       }
 
       // Execute the query handler
       const result = await handler(data.data || {});
 
-      this.log(`Query completed: ${data.method}`);
+      this.log(`Query completed: ${String(data.method)}`);
       callback({ success: true, data: result });
     } catch (error) {
       this.log(
-        `Query failed: ${data.method} - ${error instanceof Error ? error.message : 'Unknown error'}`
+        `Query failed: ${String(data.method)} - ${error instanceof Error ? error.message : 'Unknown error'}`
       );
       callback({
         success: false,
@@ -424,7 +448,7 @@ export class SocketBridge {
     }
   }
 
-  private sendMessage(message: any): void {
+  private sendMessage(message: OutboundFrame): void {
     if (this.connectionState !== CONNECTION_STATES.CONNECTED) {
       this.log(`Cannot send message - not connected`);
       return;
@@ -443,7 +467,7 @@ export class SocketBridge {
     }
   }
 
-  emitToServer(event: string, data?: any): void {
+  emitToServer(event: string, data?: unknown): void {
     this.sendMessage({
       type: event,
       data,
@@ -459,7 +483,7 @@ export class SocketBridge {
     return this.connectionState;
   }
 
-  getConnectionInfo(): any {
+  getConnectionInfo(): BridgeConnectionInfo {
     return {
       type: this.activeConnectionType,
       state: this.connectionState,

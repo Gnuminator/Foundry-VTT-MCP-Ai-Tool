@@ -2,7 +2,7 @@ import { MODULE_ID } from './constants.js';
 import { handleAiChangesSocketMessage } from './ai-changes-signal.js';
 import { registerAiToolControls } from './ai-tool-controls.js';
 import { setBridgeLink } from './bridge-link.js';
-import { SocketBridge } from './socket-bridge.js';
+import { SocketBridge, type BridgeConnectionInfo } from './socket-bridge.js';
 import { QueryHandlers } from './queries.js';
 import { ModuleSettings, isBridgeUser, registerSettingsUsageHooks } from './settings.js';
 import { CampaignHooks } from './campaign-hooks.js';
@@ -40,6 +40,35 @@ const SERVER_NOTICE_THROTTLE_MS = 10 * 60 * 1000;
 // Install diagnostic error capture as early as possible (module evaluation),
 // so the earliest console/uncaught errors from other modules are caught.
 diagnostics.install();
+
+/** What `getStatus()` returns. */
+interface BridgeStatus {
+  initialized: boolean;
+  enabled: boolean;
+  connected: boolean;
+  connectionState: string;
+  connectionInfo: BridgeConnectionInfo | undefined;
+  settings: Record<string, unknown>;
+  registeredMethods: string[];
+  lastConnectionState: string;
+  lastActivity: string;
+  heartbeatActive: boolean;
+}
+
+/** A module socket message from another client (roll state and chat message requests). */
+interface RollSocketMessage {
+  type?: unknown;
+  buttonId?: string;
+  messageId?: string;
+  userId: string;
+  rollLabel: string;
+  rollState?: { rolledBy: string };
+}
+
+/** The part of a chat message the roll button hook reads. */
+interface RollButtonMessage {
+  getFlag?(scope: string, key: string): unknown;
+}
 
 /**
  * Main Foundry MCP Bridge Module Class
@@ -217,7 +246,7 @@ class FoundryMCPBridge {
       changeJournal.registerHooks();
 
       // Expose data access globally for settings UI
-      (window as any).foundryMCPBridge.dataAccess = this.queryHandlers.dataAccess;
+      window.foundryMCPBridge!.dataAccess = this.queryHandlers.dataAccess;
 
       this.isInitialized = true;
       logInfo(`[${MODULE_ID}] Module initialized successfully`);
@@ -456,7 +485,7 @@ class FoundryMCPBridge {
   /**
    * Get current bridge status
    */
-  getStatus(): any {
+  getStatus(): BridgeStatus {
     return {
       initialized: this.isInitialized,
       enabled: this.settings.getSetting('enabled'),
@@ -554,7 +583,7 @@ class FoundryMCPBridge {
 const foundryMCPBridge = new FoundryMCPBridge();
 
 // Make it available globally for settings callbacks
-(window as any).foundryMCPBridge = foundryMCPBridge;
+window.foundryMCPBridge = foundryMCPBridge;
 
 // Foundry VTT Hooks
 Hooks.once('init', async () => {
@@ -574,7 +603,10 @@ Hooks.once('ready', async () => {
 
     // Register socket listener for roll state management (after game.user is available)
 
-    const onRollSocketMessage = async (data: any, senderId?: unknown): Promise<void> => {
+    const onRollSocketMessage = async (
+      data: RollSocketMessage,
+      senderId?: unknown
+    ): Promise<void> => {
       try {
         // Usage events from other clients (I-084): only the GM client that holds the
         // buffer keeps them. `senderId` is the authenticated sender Foundry's server
@@ -593,7 +625,7 @@ Hooks.once('ready', async () => {
           if (game.user?.isGM) {
             try {
               // Get the data access instance to update the message
-              const queryHandlers = foundryMCPBridge['queryHandlers'] as any;
+              const queryHandlers = foundryMCPBridge['queryHandlers'];
               if (queryHandlers?.dataAccess) {
                 await queryHandlers.dataAccess.updateRollButtonMessage(
                   data.buttonId,
@@ -621,7 +653,7 @@ Hooks.once('ready', async () => {
           if (game.user?.isGM) {
             try {
               // Get the data access instance to save the roll state
-              const queryHandlers = foundryMCPBridge['queryHandlers'] as any;
+              const queryHandlers = foundryMCPBridge['queryHandlers'];
               if (queryHandlers?.dataAccess) {
                 await queryHandlers.dataAccess.saveRollState(
                   data.buttonId,
@@ -654,7 +686,7 @@ Hooks.once('ready', async () => {
     };
     game.socket?.on(
       'module.foundry-mcp-bridge',
-      (data: any, senderId?: unknown) => void onRollSocketMessage(data, senderId)
+      (data: RollSocketMessage, senderId?: unknown) => void onRollSocketMessage(data, senderId)
     );
   } catch (error) {
     console.error(`[${MODULE_ID}] Ready failed:`, error);
@@ -685,7 +717,7 @@ Hooks.on('closeSettingsConfig', () => {
 
 // Global hook to handle MCP roll button rendering and state management
 // Using renderChatMessageHTML for Foundry v13 compatibility (renderChatMessage is deprecated)
-Hooks.on('renderChatMessageHTML', (message: any, html: HTMLElement) => {
+Hooks.on('renderChatMessageHTML', (message: RollButtonMessage, html: HTMLElement) => {
   try {
     // Convert HTMLElement to jQuery for compatibility with existing handler code
     const $html = $(html);
@@ -695,11 +727,17 @@ Hooks.on('renderChatMessageHTML', (message: any, html: HTMLElement) => {
 
     if (rollButtons) {
       // Get the data access instance
-      const queryHandlers = foundryMCPBridge['queryHandlers'] as any;
+      const queryHandlers = foundryMCPBridge['queryHandlers'];
       if (queryHandlers?.dataAccess) {
         // Check if any buttons in this message are already rolled
-        for (const [_buttonId, buttonData] of Object.entries(rollButtons)) {
-          if (buttonData && typeof buttonData === 'object' && (buttonData as any).rolled) {
+        for (const [_buttonId, buttonData] of Object.entries(
+          rollButtons as Record<string, unknown>
+        )) {
+          if (
+            buttonData &&
+            typeof buttonData === 'object' &&
+            (buttonData as { rolled?: unknown }).rolled
+          ) {
             break;
           }
         }
@@ -714,13 +752,19 @@ Hooks.on('renderChatMessageHTML', (message: any, html: HTMLElement) => {
     } else if ($html.find('.mcp-roll-button').length > 0) {
       // Legacy message without flags - fall back to old behavior
 
-      const queryHandlers = foundryMCPBridge['queryHandlers'] as any;
+      const queryHandlers = foundryMCPBridge['queryHandlers'];
       if (queryHandlers?.dataAccess) {
         queryHandlers.dataAccess.attachRollButtonHandlers($html);
 
         // Check for legacy roll states
         setTimeout(() => {
-          queryHandlers.dataAccess.ensureButtonStatesForMessage($html);
+          // Legacy hook: the method no longer exists on the data access class; the typed
+          // handle keeps the original call (and its failure) exactly as it was.
+          (
+            queryHandlers.dataAccess as unknown as {
+              ensureButtonStatesForMessage(html: JQuery): void;
+            }
+          ).ensureButtonStatesForMessage($html);
         }, 100);
       }
     }
@@ -756,7 +800,7 @@ window.addEventListener('beforeunload', () => {
 
 // Development helpers (only in debug mode)
 if (typeof window !== 'undefined') {
-  (window as any).foundryMCPDebug = {
+  window.foundryMCPDebug = {
     bridge: foundryMCPBridge,
     getStatus: (): unknown => foundryMCPBridge.getStatus(),
     start: (): Promise<void> => foundryMCPBridge.start(),

@@ -425,6 +425,21 @@ describe('CompendiumTools.handleGetCompendiumItem', () => {
     expect(result.description).toContain('powerful blue dragon');
   });
 
+  it('description strips nested tags until none is left', async () => {
+    const nested = {
+      ...fullItem,
+      system: { description: { value: '<scr<script>ipt>alert(1)</scr</script>ipt>safe' } },
+    };
+    const { tools } = makeTools(() => nested);
+    const result = await tools.handleGetCompendiumItem({
+      packId: 'dnd5e.monsters',
+      itemId: 'abc123',
+    });
+    expect(result.fullDescription).not.toContain('<');
+    expect(result.fullDescription).toContain('alert(1)');
+    expect(result.description).not.toContain('<');
+  });
+
   it('compact mode returns stats block and properties; sets mode="compact"', async () => {
     const { tools } = makeTools(() => fullItem);
     const result = await tools.handleGetCompendiumItem({

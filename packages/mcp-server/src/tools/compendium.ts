@@ -1063,7 +1063,14 @@ export class CompendiumTools {
       text = stringified;
     }
 
-    return (text as string).replace(/<[^>]*>/g, '').trim();
+    // Strip tags until none is left, so nested input like "<scr<script>ipt>" cannot rebuild one.
+    let html = text as string;
+    let previous: string;
+    do {
+      previous = html;
+      html = html.replace(/<[^>]*>/g, '');
+    } while (html !== previous);
+    return html.trim();
   }
 
   private truncateText(text: string, maxLength: number): string {

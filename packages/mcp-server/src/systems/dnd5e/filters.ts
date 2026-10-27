@@ -5,6 +5,8 @@
  */
 
 import { z } from 'zod';
+import { at } from '../data.js';
+import type { DnD5eSystemData } from '../types.js';
 
 /**
  * D&D 5e creature types
@@ -115,10 +117,11 @@ export type DnD5eFilters = z.infer<typeof DnD5eFiltersSchema>;
 /**
  * Check if a creature matches D&D 5e filters
  */
-export function matchesDnD5eFilters(creature: any, filters: DnD5eFilters): boolean {
+export function matchesDnD5eFilters(creature: unknown, filters: DnD5eFilters): boolean {
+  const data = (at(creature, 'systemData') ?? {}) as Partial<DnD5eSystemData>;
   // Challenge Rating filter
   if (filters.challengeRating !== undefined) {
-    const cr = creature.systemData?.challengeRating;
+    const cr = data.challengeRating;
     if (cr === undefined) return false;
 
     if (typeof filters.challengeRating === 'number') {
@@ -132,7 +135,7 @@ export function matchesDnD5eFilters(creature: any, filters: DnD5eFilters): boole
 
   // Creature Type filter
   if (filters.creatureType) {
-    const creatureType = creature.systemData?.creatureType;
+    const creatureType = data.creatureType;
     if (creatureType?.toLowerCase() !== filters.creatureType.toLowerCase()) {
       return false;
     }
@@ -142,7 +145,7 @@ export function matchesDnD5eFilters(creature: any, filters: DnD5eFilters): boole
   // display word ('medium') matches a stored dnd5e key ('med') and vice versa
   // (see normalizeDnD5eSizeKey / DnD5eSizeKeys above).
   if (filters.size) {
-    const rawSize = creature.systemData?.size;
+    const rawSize = data.size;
     if (!rawSize) return false;
     const size = String(rawSize);
     const wantKey = normalizeDnD5eSizeKey(filters.size);
@@ -154,7 +157,7 @@ export function matchesDnD5eFilters(creature: any, filters: DnD5eFilters): boole
 
   // Alignment filter
   if (filters.alignment) {
-    const alignment = creature.systemData?.alignment;
+    const alignment = data.alignment;
     if (!alignment?.toLowerCase().includes(filters.alignment.toLowerCase())) {
       return false;
     }
@@ -162,7 +165,7 @@ export function matchesDnD5eFilters(creature: any, filters: DnD5eFilters): boole
 
   // Legendary Actions filter
   if (filters.hasLegendaryActions !== undefined) {
-    const hasLegendary = creature.systemData?.hasLegendaryActions || false;
+    const hasLegendary = data.hasLegendaryActions || false;
     if (hasLegendary !== filters.hasLegendaryActions) {
       return false;
     }
@@ -170,7 +173,7 @@ export function matchesDnD5eFilters(creature: any, filters: DnD5eFilters): boole
 
   // Spellcaster filter
   if (filters.spellcaster !== undefined) {
-    const hasSpells = creature.systemData?.hasSpellcasting || false;
+    const hasSpells = data.hasSpellcasting || false;
     if (hasSpells !== filters.spellcaster) {
       return false;
     }

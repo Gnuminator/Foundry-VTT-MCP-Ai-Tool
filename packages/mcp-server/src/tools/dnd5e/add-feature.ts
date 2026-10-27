@@ -4,6 +4,17 @@ import { FoundryClient } from '../../foundry-client.js';
 import { Logger } from '../../logger.js';
 import { ErrorHandler } from '../../utils/error-handler.js';
 import { detectGameSystem, getCachedSystemId } from '../../utils/system-detection.js';
+import type {
+  AttackParams,
+  AttackWithSaveParams,
+  AuraParams,
+  FeatureResult,
+  PassiveParams,
+  SaveParams,
+  SpellcastingParams,
+  SpellcastingResult,
+  SpellsResult,
+} from './types.js';
 
 // ---------------------------------------------------------------------------
 // Canonical value sets for soft validation (warnings, not errors)
@@ -104,7 +115,7 @@ export class DnD5eAddFeatureTool {
     this.errorHandler = new ErrorHandler(this.logger);
   }
 
-  getToolDefinitions() {
+  getToolDefinitions(): { name: string; description: string; inputSchema: object }[] {
     return [
       {
         name: 'dnd5e-add-feature',
@@ -437,7 +448,7 @@ export class DnD5eAddFeatureTool {
   // Master dispatcher
   // ---------------------------------------------------------------------------
 
-  async handleAddFeature(args: any): Promise<any> {
+  async handleAddFeature(args: unknown): Promise<unknown> {
     const { featureType } = z
       .object({
         featureType: z.enum([
@@ -474,7 +485,7 @@ export class DnD5eAddFeatureTool {
   // passive
   // ---------------------------------------------------------------------------
 
-  private async handlePassive(args: any): Promise<any> {
+  private async handlePassive(args: unknown): Promise<unknown> {
     const schema = z.object({
       featureType: z.literal('passive'),
       actorIdentifier: z.string().min(1, 'actorIdentifier cannot be empty'),
@@ -501,10 +512,10 @@ export class DnD5eAddFeatureTool {
         );
       }
 
-      const result = await this.foundryClient.query(
+      const result = (await this.foundryClient.query(
         'foundry-mcp-bridge.addPassiveFeatureToActor',
         parsed
-      );
+      )) as FeatureResult;
 
       this.logger.info('Passive feature added successfully', {
         actorId: result.actor?.id,
@@ -517,7 +528,10 @@ export class DnD5eAddFeatureTool {
     }
   }
 
-  private formatPassiveResponse(result: any, params: any): any {
+  private formatPassiveResponse(
+    result: FeatureResult,
+    params: PassiveParams
+  ): Record<string, unknown> {
     const summary = `✅ Feature "${result.item.name}" added to "${result.actor.name}"`;
     const details = [
       `**Actor:** ${result.actor.name} (id: \`${result.actor.id}\`)`,
@@ -538,7 +552,7 @@ export class DnD5eAddFeatureTool {
   // save
   // ---------------------------------------------------------------------------
 
-  private async handleSave(args: any): Promise<any> {
+  private async handleSave(args: unknown): Promise<unknown> {
     const schema = z
       .object({
         featureType: z.literal('save'),
@@ -588,10 +602,10 @@ export class DnD5eAddFeatureTool {
         );
       }
 
-      const result = await this.foundryClient.query(
+      const result = (await this.foundryClient.query(
         'foundry-mcp-bridge.addSaveFeatureToActor',
         parsed
-      );
+      )) as FeatureResult;
 
       this.logger.info('Save feature added successfully', {
         actorId: result.actor?.id,
@@ -604,8 +618,8 @@ export class DnD5eAddFeatureTool {
     }
   }
 
-  private formatSaveResponse(result: any, params: any): any {
-    const damageDesc = (params.damageParts as any[])
+  private formatSaveResponse(result: FeatureResult, params: SaveParams): Record<string, unknown> {
+    const damageDesc = params.damageParts
       .map(p => `${p.number}d${p.denomination} ${p.type}`)
       .join(' + ');
     const areaDesc = params.areaType
@@ -634,7 +648,7 @@ export class DnD5eAddFeatureTool {
   // attack
   // ---------------------------------------------------------------------------
 
-  private async handleAttack(args: any): Promise<any> {
+  private async handleAttack(args: unknown): Promise<unknown> {
     const schema = z
       .object({
         featureType: z.literal('attack'),
@@ -719,10 +733,10 @@ export class DnD5eAddFeatureTool {
         );
       }
 
-      const result = await this.foundryClient.query('foundry-mcp-bridge.addAttackToActor', {
+      const result = (await this.foundryClient.query('foundry-mcp-bridge.addAttackToActor', {
         ...parsed,
         effectiveAbility,
-      });
+      })) as FeatureResult;
 
       this.logger.info('Attack feature added successfully', {
         actorId: result.actor?.id,
@@ -735,9 +749,13 @@ export class DnD5eAddFeatureTool {
     }
   }
 
-  private formatAttackResponse(result: any, params: any, warnings: string[]): any {
+  private formatAttackResponse(
+    result: FeatureResult,
+    params: AttackParams,
+    warnings: string[]
+  ): Record<string, unknown> {
     const bonusStr = params.attackBonus > 0 ? ` +${params.attackBonus} to hit` : '';
-    const damageDesc = (params.damageParts as any[])
+    const damageDesc = params.damageParts
       .map(p => `${p.number}d${p.denomination} ${p.type}`)
       .join(' + ');
     const rangeDesc =
@@ -771,7 +789,7 @@ export class DnD5eAddFeatureTool {
   // attack-with-save
   // ---------------------------------------------------------------------------
 
-  private async handleAttackWithSave(args: any): Promise<any> {
+  private async handleAttackWithSave(args: unknown): Promise<unknown> {
     const schema = z
       .object({
         featureType: z.literal('attack-with-save'),
@@ -854,10 +872,13 @@ export class DnD5eAddFeatureTool {
         );
       }
 
-      const result = await this.foundryClient.query('foundry-mcp-bridge.addAttackWithSaveToActor', {
-        ...parsed,
-        effectiveAbility,
-      });
+      const result = (await this.foundryClient.query(
+        'foundry-mcp-bridge.addAttackWithSaveToActor',
+        {
+          ...parsed,
+          effectiveAbility,
+        }
+      )) as FeatureResult;
 
       this.logger.info('Attack+save feature added successfully', {
         actorId: result.actor?.id,
@@ -870,12 +891,16 @@ export class DnD5eAddFeatureTool {
     }
   }
 
-  private formatAttackWithSaveResponse(result: any, params: any, warnings: string[]): any {
+  private formatAttackWithSaveResponse(
+    result: FeatureResult,
+    params: AttackWithSaveParams,
+    warnings: string[]
+  ): Record<string, unknown> {
     const bonusStr = params.attackBonus > 0 ? ` +${params.attackBonus} to hit` : '';
-    const attackDamageDesc = (params.damageParts as any[])
+    const attackDamageDesc = params.damageParts
       .map(p => `${p.number}d${p.denomination} ${p.type}`)
       .join(' + ');
-    const saveDamageDesc = (params.saveDamageParts as any[])
+    const saveDamageDesc = params.saveDamageParts
       .map(p => `${p.number}d${p.denomination} ${p.type}`)
       .join(' + ');
     const rangeDesc =
@@ -908,7 +933,7 @@ export class DnD5eAddFeatureTool {
   // aura
   // ---------------------------------------------------------------------------
 
-  private async handleAura(args: any): Promise<any> {
+  private async handleAura(args: unknown): Promise<unknown> {
     const schema = z.object({
       featureType: z.literal('aura'),
       actorIdentifier: z.string().min(1, 'actorIdentifier cannot be empty'),
@@ -955,7 +980,10 @@ export class DnD5eAddFeatureTool {
         );
       }
 
-      const result = await this.foundryClient.query('foundry-mcp-bridge.addAuraToActor', parsed);
+      const result = (await this.foundryClient.query(
+        'foundry-mcp-bridge.addAuraToActor',
+        parsed
+      )) as FeatureResult;
 
       this.logger.info('Aura feature added successfully', {
         actorId: result.actor?.id,
@@ -968,8 +996,12 @@ export class DnD5eAddFeatureTool {
     }
   }
 
-  private formatAuraResponse(result: any, params: any, warnings: string[]): any {
-    const damageDesc = (params.damageParts as any[])
+  private formatAuraResponse(
+    result: FeatureResult,
+    params: AuraParams,
+    warnings: string[]
+  ): Record<string, unknown> {
+    const damageDesc = params.damageParts
       .map(p => `${p.number}d${p.denomination} ${p.type}`)
       .join(' + ');
     const areaDesc = `${params.areaSize}${params.areaUnits} ${params.areaType}`;
@@ -999,7 +1031,7 @@ export class DnD5eAddFeatureTool {
   // spellcasting
   // ---------------------------------------------------------------------------
 
-  private async handleSpellcasting(args: any): Promise<any> {
+  private async handleSpellcasting(args: unknown): Promise<unknown> {
     const schema = z.object({
       featureType: z.literal('spellcasting'),
       actorIdentifier: z.string().min(1, 'actorIdentifier cannot be empty'),
@@ -1039,10 +1071,10 @@ export class DnD5eAddFeatureTool {
         );
       }
 
-      const result = await this.foundryClient.query('foundry-mcp-bridge.setActorSpellcasting', {
+      const result = (await this.foundryClient.query('foundry-mcp-bridge.setActorSpellcasting', {
         ...parsed,
         effectiveAbility,
-      });
+      })) as SpellcastingResult;
 
       this.logger.info('Actor spellcasting set successfully', { actorId: result.actor?.id });
 
@@ -1052,7 +1084,10 @@ export class DnD5eAddFeatureTool {
     }
   }
 
-  private formatSpellcastingResponse(result: any, params: any): any {
+  private formatSpellcastingResponse(
+    result: SpellcastingResult,
+    params: SpellcastingParams
+  ): Record<string, unknown> {
     const isWarlock = params.spellcastingClass === 'warlock';
     const slotsDesc = isWarlock
       ? `Pact Magic: ${result.spellcasting.slots.pact.max} slot(s) of level ${result.spellcasting.slots.pact.level}`
@@ -1068,8 +1103,8 @@ export class DnD5eAddFeatureTool {
       `**Slots:** ${slotsDesc}`,
     ].join('\n');
     const warningSection =
-      (result.warnings as string[]).length > 0
-        ? `\n\n⚠️ **Warnings:**\n${(result.warnings as string[]).map((w: string) => `- ${w}`).join('\n')}`
+      result.warnings.length > 0
+        ? `\n\n⚠️ **Warnings:**\n${result.warnings.map(w => `- ${w}`).join('\n')}`
         : '';
     return {
       summary,
@@ -1085,7 +1120,7 @@ export class DnD5eAddFeatureTool {
   // spells
   // ---------------------------------------------------------------------------
 
-  private async handleSpells(args: any): Promise<any> {
+  private async handleSpells(args: unknown): Promise<unknown> {
     const schema = z.object({
       featureType: z.literal('spells'),
       actorIdentifier: z.string().min(1, 'actorIdentifier cannot be empty'),
@@ -1110,7 +1145,10 @@ export class DnD5eAddFeatureTool {
         );
       }
 
-      const result = await this.foundryClient.query('foundry-mcp-bridge.addSpellsToActor', parsed);
+      const result = (await this.foundryClient.query(
+        'foundry-mcp-bridge.addSpellsToActor',
+        parsed
+      )) as SpellsResult;
 
       this.logger.info('Spells import complete', {
         actorId: result.actor?.id,
@@ -1126,18 +1164,12 @@ export class DnD5eAddFeatureTool {
     }
   }
 
-  private formatSpellsResponse(result: any, params: any): any {
-    const added = result.added as Array<{
-      name: string;
-      packId: string;
-      packLabel: string;
-      itemId: string;
-    }>;
-    const skipped = result.skipped as Array<{ name: string; reason: string }>;
-    const notFound = result.notFound as string[];
-    const failed = result.failed as Array<{ name: string; error: string }>;
-    const warnings = result.warnings as string[];
-    const total = (params.spellNames as string[]).length;
+  private formatSpellsResponse(
+    result: SpellsResult,
+    params: { spellNames: string[] }
+  ): Record<string, unknown> {
+    const { added, skipped, notFound, failed, warnings } = result;
+    const total = params.spellNames.length;
 
     const parts: string[] = [];
     if (added.length > 0) parts.push(`${added.length} added`);

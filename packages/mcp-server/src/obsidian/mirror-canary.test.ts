@@ -30,6 +30,7 @@ import { VaultStore } from '../vault/store.js';
 
 import { ObsidianMirrorPump } from './mirror-pump.js';
 import { MIRROR_SETTINGS_FILE } from './mirror-settings.js';
+import { rmTmp } from '../test-support/rm-tmp.js';
 
 const WORLD = 'canary-world';
 
@@ -180,7 +181,7 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
-  await fsp.rm(tmp, { recursive: true, force: true });
+  await rmTmp(tmp);
 });
 
 async function runPump(): Promise<ObsidianMirrorPump> {

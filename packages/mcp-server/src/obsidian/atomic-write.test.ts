@@ -9,6 +9,7 @@ import * as path from 'path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { writeFileAtomic } from './atomic-write.js';
+import { rmTmp } from '../test-support/rm-tmp.js';
 
 let dir: string;
 
@@ -17,7 +18,7 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
-  await fsp.rm(dir, { recursive: true, force: true });
+  await rmTmp(dir);
 });
 
 describe('writeFileAtomic', () => {

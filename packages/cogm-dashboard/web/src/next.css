@@ -314,3 +314,45 @@ main.moment-views #moment-during.during-no-bar {
   color: var(--text-dim);
   font-size: var(--fs-xs);
 }
+
+/* Tool runner form (design pass, I-149 trial): parameter names read as identifiers, the helper
+   text is readable, and Run stays in view under a long form. Tokens only; the old page is
+   untouched. */
+.tool-runner-body .tool-detail {
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-4) 0;
+}
+.tool-runner-body .tool-detail-desc {
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--border-soft);
+}
+.tool-runner-body .tool-form {
+  gap: var(--space-4);
+  margin-top: 0;
+}
+.tool-runner-body .field {
+  gap: var(--space-1);
+}
+.tool-runner-body .field > label {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--text);
+}
+.tool-runner-body .field-hint {
+  font-size: var(--text-xs);
+  color: var(--text-dim);
+}
+.tool-runner-body .field-control,
+.tool-runner-body .tool-form select,
+.tool-runner-body .tool-form input:not([type='checkbox']) {
+  min-height: 2.25rem;
+}
+.tool-runner-body .form-actions {
+  position: sticky;
+  bottom: 0;
+  margin: 0 calc(-1 * var(--space-4));
+  padding: var(--space-3) var(--space-4);
+  min-height: 3.25rem;
+  background: var(--bg-panel);
+  border-top: 1px solid var(--border);
+}

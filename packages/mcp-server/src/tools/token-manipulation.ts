@@ -2,6 +2,20 @@ import { toolRef } from '@gnuminator/shared';
 import { z } from 'zod';
 import { FoundryClient } from '../foundry-client.js';
 import { Logger } from '../logger.js';
+import type {
+  AvailableConditionsReply,
+  TokenDetailsReply,
+} from './types/token-manipulation-types.js';
+
+interface TokenToolDefinition {
+  name: string;
+  description: string;
+  inputSchema: {
+    type: string;
+    properties: Record<string, unknown>;
+    required?: string[];
+  };
+}
 
 export interface TokenManipulationToolsOptions {
   foundryClient: FoundryClient;
@@ -20,7 +34,7 @@ export class TokenManipulationTools {
   /**
    * Tool definitions for token manipulation operations
    */
-  getToolDefinitions() {
+  getToolDefinitions(): TokenToolDefinition[] {
     return [
       {
         name: 'get-token-details',
@@ -50,7 +64,7 @@ export class TokenManipulationTools {
     ];
   }
 
-  async handleGetTokenDetails(args: any): Promise<any> {
+  async handleGetTokenDetails(args: unknown): Promise<Record<string, unknown>> {
     const schema = z.object({
       tokenId: z.string(),
     });
@@ -60,9 +74,9 @@ export class TokenManipulationTools {
     this.logger.info('Getting token details', { tokenId });
 
     try {
-      const tokenData = await this.foundryClient.query('foundry-mcp-bridge.get-token-details', {
+      const tokenData = (await this.foundryClient.query('foundry-mcp-bridge.get-token-details', {
         tokenId,
-      });
+      })) as TokenDetailsReply;
 
       this.logger.debug('Retrieved token details', {
         tokenId,
@@ -79,7 +93,7 @@ export class TokenManipulationTools {
     }
   }
 
-  private formatTokenDetails(tokenData: any): any {
+  private formatTokenDetails(tokenData: TokenDetailsReply): Record<string, unknown> {
     return {
       id: tokenData.id,
       name: tokenData.name,
@@ -115,7 +129,7 @@ export class TokenManipulationTools {
     };
   }
 
-  private getDispositionName(disposition: number): string {
+  private getDispositionName(disposition: unknown): string {
     switch (disposition) {
       case -2:
         return 'secret';
@@ -130,14 +144,14 @@ export class TokenManipulationTools {
     }
   }
 
-  async handleGetAvailableConditions(_args: any): Promise<any> {
+  async handleGetAvailableConditions(_args: unknown): Promise<Record<string, unknown>> {
     this.logger.info('Getting available conditions');
 
     try {
-      const result = await this.foundryClient.query(
+      const result = (await this.foundryClient.query(
         'foundry-mcp-bridge.get-available-conditions',
         {}
-      );
+      )) as AvailableConditionsReply;
 
       this.logger.debug('Retrieved available conditions', { count: result.conditions?.length });
 

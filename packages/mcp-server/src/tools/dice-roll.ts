@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { FoundryClient } from '../foundry-client.js';
 import { Logger } from '../logger.js';
 import type { RulesCheckTools } from './rules-check.js';
+import type { DiceRollBridgeReply, DiceRollToolDefinition } from './types/dice-roll-types.js';
 
 interface DiceRollToolsOptions {
   foundryClient: FoundryClient;
@@ -22,7 +23,7 @@ export class DiceRollTools {
     this.rulesCheck = options.rulesCheck ?? null;
   }
 
-  getToolDefinitions() {
+  getToolDefinitions(): DiceRollToolDefinition[] {
     return [
       {
         name: 'request-player-rolls',
@@ -181,7 +182,9 @@ export class DiceRollTools {
     ];
   }
 
-  async handleRequestAbilityCheck(args: any) {
+  async handleRequestAbilityCheck(
+    args: unknown
+  ): Promise<string | DiceRollBridgeReply | undefined> {
     const schema = z.object({
       targetPlayer: z.string(),
       ability: z.enum(['str', 'dex', 'con', 'int', 'wis', 'cha']),
@@ -191,15 +194,15 @@ export class DiceRollTools {
     });
     try {
       const params = schema.parse(args);
-      const response = await this.foundryClient.query(
+      const response = (await this.foundryClient.query(
         'foundry-mcp-bridge.requestAbilityCheck',
         params
-      );
+      )) as DiceRollBridgeReply | undefined;
       if (response?.success) {
         return `Ability check requested. ${response.message}`;
       }
       throw new Error(response?.error || 'Failed to request ability check');
-    } catch (error) {
+    } catch (error: unknown) {
       this.logger.error('Error requesting ability check', error);
       if (error instanceof z.ZodError) {
         return `Parameter error: ${error.errors.map(e => e.message).join(', ')}`;
@@ -208,7 +211,7 @@ export class DiceRollTools {
     }
   }
 
-  async handleRequestAttackRoll(args: any) {
+  async handleRequestAttackRoll(args: unknown): Promise<string | DiceRollBridgeReply | undefined> {
     const schema = z.object({
       targetPlayer: z.string(),
       weaponOrSpellName: z.string(),
@@ -220,16 +223,16 @@ export class DiceRollTools {
         actor: params.targetPlayer,
         item: params.weaponOrSpellName,
       });
-      const response = await this.foundryClient.query(
+      const response = (await this.foundryClient.query(
         'foundry-mcp-bridge.requestAttackRoll',
         params
-      );
+      )) as DiceRollBridgeReply | undefined;
       if (response?.success) {
         const note = check && check.verdict !== 'legal' ? ` Rules check: ${check.summary}` : '';
         return `Attack roll requested. ${response.message}${note}`;
       }
       throw new Error(response?.error || 'Failed to request attack roll');
-    } catch (error) {
+    } catch (error: unknown) {
       this.logger.error('Error requesting attack roll', error);
       if (error instanceof z.ZodError) {
         return `Parameter error: ${error.errors.map(e => e.message).join(', ')}`;
@@ -238,7 +241,7 @@ export class DiceRollTools {
     }
   }
 
-  async handleRollNpcCheck(args: any) {
+  async handleRollNpcCheck(args: unknown): Promise<string | DiceRollBridgeReply | undefined> {
     const schema = z.object({
       actorName: z.string(),
       rollType: z.enum(['ability', 'save', 'skill', 'attack']),
@@ -247,12 +250,15 @@ export class DiceRollTools {
     });
     try {
       const params = schema.parse(args);
-      const response = await this.foundryClient.query('foundry-mcp-bridge.rollNpcCheck', params);
+      const response = (await this.foundryClient.query(
+        'foundry-mcp-bridge.rollNpcCheck',
+        params
+      )) as DiceRollBridgeReply | undefined;
       if (response?.success === false) {
         throw new Error(response.error || 'Failed to roll NPC check');
       }
       return response;
-    } catch (error) {
+    } catch (error: unknown) {
       this.logger.error('Error rolling NPC check', error);
       if (error instanceof z.ZodError) {
         return `Parameter error: ${error.errors.map(e => e.message).join(', ')}`;
@@ -261,7 +267,7 @@ export class DiceRollTools {
     }
   }
 
-  async handleRequestPlayerRolls(args: any) {
+  async handleRequestPlayerRolls(args: unknown): Promise<string | DiceRollBridgeReply | undefined> {
     const schema = z.object({
       rollType: z.enum(['ability', 'skill', 'save', 'attack', 'initiative', 'custom']),
       rollTarget: z.string(),
@@ -284,17 +290,17 @@ export class DiceRollTools {
         return 'You must determine the roll visibility before calling this function. Either: 1) The user already specified "public" or "private" in their request, or 2) You need to ask: "Do you want this to be a PUBLIC roll or PRIVATE roll?" Set userConfirmedVisibility to true only when you are confident about the visibility preference.';
       }
 
-      const response = await this.foundryClient.query(
+      const response = (await this.foundryClient.query(
         'foundry-mcp-bridge.request-player-rolls',
         params
-      );
+      )) as DiceRollBridgeReply;
 
       if (response.success) {
         return `Roll request sent successfully! ${response.message}`;
       } else {
         throw new Error(response.error || 'Failed to request player rolls');
       }
-    } catch (error) {
+    } catch (error: unknown) {
       this.logger.error('Error requesting player rolls', error);
       if (error instanceof z.ZodError) {
         const messages = error.errors.map(e => {

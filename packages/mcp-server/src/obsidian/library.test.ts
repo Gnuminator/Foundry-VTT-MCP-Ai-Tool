@@ -298,10 +298,10 @@ describe('statBlockMarkdown', () => {
 describe('renderLibraryNote', () => {
   const ctx = (paths: Record<string, string>): LibraryNoteContext => {
     const library = {
-      byUuid: (uuid: string) =>
+      byUuid: (uuid: string): { notePath: string | null; name: string } | null =>
         paths[uuid] ? { notePath: paths[uuid] ?? null, name: uuid.slice(-4) } : null,
-      legacy: () => null,
-      spellByName: (name: string) => (name === 'Frost Spark' ? SPARK : null),
+      legacy: (): null => null,
+      spellByName: (name: string): typeof SPARK | null => (name === 'Frost Spark' ? SPARK : null),
     };
     return {
       worldId: WORLD,

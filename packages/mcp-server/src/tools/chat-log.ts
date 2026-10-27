@@ -2,6 +2,11 @@ import { z } from 'zod';
 import { AT_THE_TABLE, toolRef } from '@gnuminator/shared';
 import { FoundryClient } from '../foundry-client.js';
 import { Logger } from '../logger.js';
+import type {
+  ChatLogBridgeReply,
+  ChatLogSendResult,
+  ChatLogToolDefinition,
+} from './types/chat-log-types.js';
 
 interface ChatLogToolsOptions {
   foundryClient: FoundryClient;
@@ -23,7 +28,7 @@ export class ChatLogTools {
     this.logger = options.logger.child({ component: 'ChatLogTools' });
   }
 
-  getToolDefinitions() {
+  getToolDefinitions(): ChatLogToolDefinition[] {
     return [
       {
         name: 'get-chat-log',
@@ -105,7 +110,7 @@ export class ChatLogTools {
     ];
   }
 
-  async handleGetChatLog(args: any) {
+  async handleGetChatLog(args: unknown): Promise<ChatLogBridgeReply | undefined> {
     const schema = z.object({
       limit: z.number().int().min(1).max(200).optional(),
       speakerName: z.string().optional(),
@@ -114,7 +119,9 @@ export class ChatLogTools {
     });
     try {
       const params = schema.parse(args ?? {});
-      const response = await this.foundryClient.query('foundry-mcp-bridge.getChatLog', params);
+      const response = (await this.foundryClient.query('foundry-mcp-bridge.getChatLog', params)) as
+        | ChatLogBridgeReply
+        | undefined;
       if (response?.success === false) {
         throw new Error(response.error || 'Failed to get chat log');
       }
@@ -125,9 +132,12 @@ export class ChatLogTools {
     }
   }
 
-  async handleGetCombatPlayByPlay(_args: any) {
+  async handleGetCombatPlayByPlay(_args?: unknown): Promise<ChatLogBridgeReply | undefined> {
     try {
-      const response = await this.foundryClient.query('foundry-mcp-bridge.getCombatPlayByPlay', {});
+      const response = (await this.foundryClient.query(
+        'foundry-mcp-bridge.getCombatPlayByPlay',
+        {}
+      )) as ChatLogBridgeReply | undefined;
       if (response?.success === false) {
         throw new Error(response.error || 'Failed to get combat play-by-play');
       }
@@ -138,7 +148,7 @@ export class ChatLogTools {
     }
   }
 
-  async handleSendChatMessage(args: any) {
+  async handleSendChatMessage(args: unknown): Promise<ChatLogSendResult> {
     const schema = z.object({
       message: z.string().min(1),
       speakerActorId: z.string().optional(),
@@ -148,7 +158,10 @@ export class ChatLogTools {
     });
     try {
       const params = schema.parse(args ?? {});
-      const response = await this.foundryClient.query('foundry-mcp-bridge.sendChatMessage', params);
+      const response = (await this.foundryClient.query(
+        'foundry-mcp-bridge.sendChatMessage',
+        params
+      )) as ChatLogBridgeReply | undefined;
       if (response?.success === false) {
         throw new Error(response.error || 'Failed to send chat message');
       }

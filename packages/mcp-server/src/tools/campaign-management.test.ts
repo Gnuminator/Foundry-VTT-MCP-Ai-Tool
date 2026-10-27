@@ -13,10 +13,13 @@ import { CampaignManagementTools } from './campaign-management.js';
  * (not an options object like CombatTools / MovementTools).
  */
 
-function makeTools(queryImpl?: (method: string, data: unknown) => unknown) {
+function makeTools(queryImpl?: (method: string, data: unknown) => unknown): {
+  tools: CampaignManagementTools;
+  query: ReturnType<typeof vi.fn>;
+} {
   const query = vi.fn(
     queryImpl ??
-      (() => ({
+      ((): unknown => ({
         success: true,
         id: 'journal-id-123',
         name: 'Test Campaign - Campaign Dashboard',
@@ -30,7 +33,7 @@ function makeTools(queryImpl?: (method: string, data: unknown) => unknown) {
     info: vi.fn(),
     debug: vi.fn(),
   };
-  logger.child = () => logger;
+  logger.child = (): unknown => logger;
   // Positional constructor: (foundryClient, logger)
   return { tools: new CampaignManagementTools(foundryClient, logger), query };
 }

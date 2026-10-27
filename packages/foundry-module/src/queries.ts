@@ -62,6 +62,14 @@ import { SESSION_SWITCHES_QUERY, sessionSwitches } from './session-switches.js';
 import { CHARACTER_SHEET_QUERY, PLAYER_ROLL_QUERY, characterSheets } from './character-sheet.js';
 import { gateWriteHandlers } from './write-gate.js';
 
+/** First argument of a FoundryDataAccess method: the wire payload shape its handler forwards. */
+type DataArg<K extends keyof FoundryDataAccess> = FoundryDataAccess[K] extends (
+  arg: infer A,
+  ...rest: never[]
+) => unknown
+  ? A
+  : never;
+
 export class QueryHandlers {
   public dataAccess: FoundryDataAccess;
 
@@ -75,7 +83,7 @@ export class QueryHandlers {
    * (default off) additionally permits the non-GM user running this client.
    * Handlers are only reachable through the socket bridge (see bridge-handlers.ts).
    */
-  private validateGMAccess(): { allowed: boolean; error?: any } {
+  private validateGMAccess(): { allowed: boolean; error?: unknown } {
     if (game.user?.isGM || this.allowNonGmAccess()) {
       return { allowed: true };
     }
@@ -571,7 +579,7 @@ export class QueryHandlers {
   /**
    * Handle query requests from other parts of the module
    */
-  async handleQuery(queryName: string, data: any): Promise<any> {
+  async handleQuery(queryName: string, data: unknown): Promise<unknown> {
     try {
       const handler = bridgeHandlers.get(queryName);
       if (!handler) {
@@ -594,7 +602,7 @@ export class QueryHandlers {
   private async handleGetCharacterInfo(data: {
     characterName?: string;
     characterId?: string;
-  }): Promise<any> {
+  }): Promise<unknown> {
     return this.withGmGate('Failed to get character info', async () => {
       const identifier = data.characterName || data.characterId;
       if (!identifier) {
@@ -608,7 +616,7 @@ export class QueryHandlers {
   /**
    * Handle list actors request
    */
-  private async handleListActors(data: { type?: string }): Promise<any> {
+  private async handleListActors(data: { type?: string }): Promise<unknown> {
     return this.withGmGate('Failed to list actors', async () => {
       const actors = await this.dataAccess.listActors();
 
@@ -635,7 +643,7 @@ export class QueryHandlers {
       hasLegendaryActions?: boolean;
       spellcaster?: boolean;
     };
-  }): Promise<any> {
+  }): Promise<unknown> {
     return this.withGmGate('Failed to search compendium', async () => {
       // Add better parameter validation
       if (!data || typeof data !== 'object') {
@@ -676,7 +684,7 @@ export class QueryHandlers {
     hasSpells?: boolean;
     hasLegendaryActions?: boolean;
     limit?: number;
-  }): Promise<any> {
+  }): Promise<unknown> {
     return this.withGmGate('Failed to list creatures by criteria', async () => {
       const result = await this.dataAccess.listCreaturesByCriteria(data);
 
@@ -690,7 +698,7 @@ export class QueryHandlers {
   /**
    * Handle get available packs request
    */
-  private async handleGetAvailablePacks(): Promise<any> {
+  private async handleGetAvailablePacks(): Promise<unknown> {
     return this.withGmGate('Failed to get available packs', async () => {
       return await this.dataAccess.getAvailablePacks();
     });
@@ -699,7 +707,7 @@ export class QueryHandlers {
   /**
    * Handle get active scene request
    */
-  private async handleGetActiveScene(): Promise<any> {
+  private async handleGetActiveScene(): Promise<unknown> {
     return this.withGmGate('Failed to get active scene', async () => {
       return await this.dataAccess.getActiveScene();
     });
@@ -708,7 +716,7 @@ export class QueryHandlers {
   /**
    * Handle get world info request
    */
-  private async handleGetWorldInfo(): Promise<any> {
+  private async handleGetWorldInfo(): Promise<unknown> {
     return this.withGmGate('Failed to get world info', async () => {
       return await this.dataAccess.getWorldInfo();
     });
@@ -763,10 +771,10 @@ export class QueryHandlers {
           coordinates?: { x: number; y: number }[];
         }
       | undefined;
-  }): Promise<any> {
+  }): Promise<unknown> {
     return this.withGmGate('Failed to create actor from compendium', async () => {
       // Clean interface - direct pack/item reference only
-      const requestData: any = {
+      const requestData: DataArg<'createActorFromCompendiumEntry'> = {
         packId: data.packId,
         itemId: data.itemId,
         // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing -- keep `||`: a non-array falsy value (for example '') must still fall back to [] (behaviour-neutral sweep)
@@ -789,7 +797,7 @@ export class QueryHandlers {
   private async handleGetCompendiumDocumentFull(data: {
     packId: string;
     documentId: string;
-  }): Promise<any> {
+  }): Promise<unknown> {
     return this.withGmGate('Failed to get compendium document', async () => {
       if (!data.packId) {
         throw new Error('packId is required');
@@ -810,7 +818,7 @@ export class QueryHandlers {
     actorIds: string[];
     placement?: 'random' | 'grid' | 'center';
     hidden?: boolean;
-  }): Promise<any> {
+  }): Promise<unknown> {
     return this.withGmGate('Failed to add actors to scene', async () => {
       if (!data.actorIds || !Array.isArray(data.actorIds) || data.actorIds.length === 0) {
         throw new Error('actorIds array is required and must not be empty');
@@ -829,7 +837,7 @@ export class QueryHandlers {
    */
   private async handleValidateWritePermissions(data: {
     operation: 'createActor' | 'modifyScene';
-  }): Promise<any> {
+  }): Promise<unknown> {
     return this.withGmGate('Failed to validate write permissions', async () => {
       if (!data.operation) {
         throw new Error('operation is required');
@@ -842,7 +850,12 @@ export class QueryHandlers {
   /**
    * Handle journal entry creation
    */
-  async handleCreateJournalEntry(data: any): Promise<any> {
+  async handleCreateJournalEntry(data: {
+    name: string;
+    content: string;
+    folderName?: string | undefined;
+    additionalPages?: Array<{ name: string; content: string }> | undefined;
+  }): Promise<unknown> {
     try {
       // SECURITY: Silent GM validation
       const gmCheck = this.validateGMAccess();
@@ -860,8 +873,8 @@ export class QueryHandlers {
       return await this.dataAccess.createJournalEntry({
         name: data.name,
         content: data.content,
-        additionalPages: data.additionalPages,
-        folderName: data.folderName,
+        ...(data.additionalPages !== undefined && { additionalPages: data.additionalPages }),
+        ...(data.folderName !== undefined && { folderName: data.folderName }),
       });
     } catch (error) {
       throw new Error(
@@ -874,7 +887,7 @@ export class QueryHandlers {
   /**
    * Handle list journals request
    */
-  async handleListJournals(): Promise<any> {
+  async handleListJournals(): Promise<unknown> {
     return this.withGmGate('Failed to list journals', async () => {
       return await this.dataAccess.listJournals();
     });
@@ -883,7 +896,7 @@ export class QueryHandlers {
   /**
    * Handle get journal content request
    */
-  async handleGetJournalContent(data: { journalId: string }): Promise<any> {
+  async handleGetJournalContent(data: { journalId: string }): Promise<unknown> {
     return this.withGmGate('Failed to get journal content', async () => {
       if (!data.journalId) {
         throw new Error('journalId is required');
@@ -896,7 +909,7 @@ export class QueryHandlers {
   /**
    * Handle get specific journal page content request
    */
-  async handleGetJournalPageContent(data: { journalId: string; pageId: string }): Promise<any> {
+  async handleGetJournalPageContent(data: { journalId: string; pageId: string }): Promise<unknown> {
     return this.withGmGate('Failed to get journal page content', async () => {
       if (!data.journalId) {
         throw new Error('journalId is required');
@@ -917,7 +930,7 @@ export class QueryHandlers {
     content: string;
     pageId?: string;
     newPageName?: string;
-  }): Promise<any> {
+  }): Promise<unknown> {
     return this.withGmGate('Failed to update journal content', async () => {
       if (!data.journalId) {
         throw new Error('journalId is required');
@@ -952,7 +965,7 @@ export class QueryHandlers {
     isPublic: boolean;
     rollModifier: string;
     flavor: string;
-  }): Promise<any> {
+  }): Promise<unknown> {
     return this.withGmGate('Failed to request player rolls', async () => {
       if (!data.rollType || !data.rollTarget || !data.targetPlayer) {
         throw new Error('rollType, rollTarget, and targetPlayer are required');
@@ -965,7 +978,7 @@ export class QueryHandlers {
   /**
    * Handle get enhanced creature index request
    */
-  async handleGetEnhancedCreatureIndex(): Promise<any> {
+  async handleGetEnhancedCreatureIndex(): Promise<unknown> {
     return this.withGmGate('Failed to get enhanced creature index', async () => {
       return await this.dataAccess.getEnhancedCreatureIndex();
     });
@@ -978,7 +991,7 @@ export class QueryHandlers {
     campaignId: string;
     partId: string;
     newStatus: string;
-  }): Promise<any> {
+  }): Promise<unknown> {
     return this.withGmGate('Failed to update campaign progress', async () => {
       const { journalId, journalName } = await setCampaignPartStatus(
         data.campaignId,
@@ -1000,7 +1013,7 @@ export class QueryHandlers {
   /**
    * Handle get actor ownership request
    */
-  async handleGetActorOwnership(data: any): Promise<any> {
+  async handleGetActorOwnership(data: DataArg<'getActorOwnership'>): Promise<unknown> {
     return this.withGmGate('Failed to get actor ownership', async () => {
       return await this.dataAccess.getActorOwnership(data);
     });
@@ -1009,7 +1022,7 @@ export class QueryHandlers {
   /**
    * Handle get friendly NPCs request
    */
-  async handleGetFriendlyNPCs(): Promise<any> {
+  async handleGetFriendlyNPCs(): Promise<unknown> {
     return this.withGmGate('Failed to get friendly NPCs', async () => {
       return await this.dataAccess.getFriendlyNPCs();
     });
@@ -1018,7 +1031,7 @@ export class QueryHandlers {
   /**
    * Handle get party characters request
    */
-  async handleGetPartyCharacters(): Promise<any> {
+  async handleGetPartyCharacters(): Promise<unknown> {
     return this.withGmGate('Failed to get party characters', async () => {
       return await this.dataAccess.getPartyCharacters();
     });
@@ -1027,7 +1040,7 @@ export class QueryHandlers {
   /**
    * Handle get connected players request
    */
-  async handleGetConnectedPlayers(): Promise<any> {
+  async handleGetConnectedPlayers(): Promise<unknown> {
     return this.withGmGate('Failed to get connected players', async () => {
       return await this.dataAccess.getConnectedPlayers();
     });
@@ -1036,7 +1049,7 @@ export class QueryHandlers {
   /**
    * Handle find players request
    */
-  async handleFindPlayers(data: any): Promise<any> {
+  async handleFindPlayers(data: DataArg<'findPlayers'>): Promise<unknown> {
     return this.withGmGate('Failed to find players', async () => {
       if (!data.identifier) {
         throw new Error('identifier is required');
@@ -1049,7 +1062,7 @@ export class QueryHandlers {
   /**
    * Handle find actor request
    */
-  async handleFindActor(data: any): Promise<any> {
+  async handleFindActor(data: DataArg<'findActor'>): Promise<unknown> {
     return this.withGmGate('Failed to find actor', async () => {
       if (!data.identifier) {
         throw new Error('identifier is required');
@@ -1062,7 +1075,7 @@ export class QueryHandlers {
   /**
    * Handle list scenes request
    */
-  private async handleListScenes(data: any): Promise<any> {
+  private async handleListScenes(data: DataArg<'listScenes'>): Promise<unknown> {
     return this.withGmGate('Failed to list scenes', async () => {
       return await this.dataAccess.listScenes(data);
     });
@@ -1071,7 +1084,7 @@ export class QueryHandlers {
   /**
    * Handle switch scene request
    */
-  private async handleSwitchScene(data: any): Promise<any> {
+  private async handleSwitchScene(data: DataArg<'switchScene'>): Promise<unknown> {
     return this.withGmGate('Failed to switch scene', async () => {
       if (!data.scene_identifier) {
         throw new Error('scene_identifier is required');
@@ -1086,7 +1099,7 @@ export class QueryHandlers {
   /**
    * Handle get token details request
    */
-  private async handleGetTokenDetails(data: { tokenId: string }): Promise<any> {
+  private async handleGetTokenDetails(data: { tokenId: string }): Promise<unknown> {
     return this.withGmGate('Failed to get token details', async () => {
       if (!data.tokenId) {
         throw new Error('tokenId is required');
@@ -1099,7 +1112,7 @@ export class QueryHandlers {
   /**
    * Handle get available conditions request
    */
-  private async handleGetAvailableConditions(): Promise<any> {
+  private async handleGetAvailableConditions(): Promise<unknown> {
     return this.withGmGate('Failed to get available conditions', async () => {
       return await this.dataAccess.getAvailableConditions();
     });
@@ -1118,7 +1131,7 @@ export class QueryHandlers {
       spellLevel?: number;
       versatile?: boolean;
     };
-  }): Promise<any> {
+  }): Promise<unknown> {
     return this.withGmGate('Failed to use item', async () => {
       if (!data.actorIdentifier) {
         throw new Error('actorIdentifier is required');
@@ -1145,7 +1158,7 @@ export class QueryHandlers {
     type?: string;
     category?: string;
     limit?: number;
-  }): Promise<any> {
+  }): Promise<unknown> {
     return this.withGmGate('Failed to search character items', async () => {
       if (!data.characterIdentifier) {
         throw new Error('characterIdentifier is required');
@@ -1181,9 +1194,9 @@ export class QueryHandlers {
       name: string;
       type: string;
       img?: string;
-      system?: Record<string, any>;
+      system?: Record<string, unknown>;
     }>;
-  }): Promise<any> {
+  }): Promise<unknown> {
     return this.withGmGate('Failed to add actor items', async () => {
       if (!data?.actorIdentifier) {
         throw new Error('actorIdentifier is required');
@@ -1204,10 +1217,10 @@ export class QueryHandlers {
       id: string;
       name?: string;
       img?: string;
-      system?: Record<string, any>;
+      system?: Record<string, unknown>;
       folder?: string;
     }>;
-  }): Promise<any> {
+  }): Promise<unknown> {
     return this.withGmGate('Failed to update world items', async () => {
       if (!Array.isArray(data?.updates) || data.updates.length === 0) {
         throw new Error('updates array is required and must contain at least one entry');
@@ -1221,7 +1234,7 @@ export class QueryHandlers {
     type?: string;
     folder?: string;
     nameFilter?: string;
-  }): Promise<any> {
+  }): Promise<unknown> {
     return this.withGmGate('Failed to list world items', async () => {
       return await this.dataAccess.listWorldItems({
         ...(data.type !== undefined ? { type: data.type } : {}),
@@ -1236,10 +1249,10 @@ export class QueryHandlers {
       name: string;
       type: string;
       img?: string;
-      system?: Record<string, any>;
+      system?: Record<string, unknown>;
     }>;
     folder?: string;
-  }): Promise<any> {
+  }): Promise<unknown> {
     return this.withGmGate('Failed to create world items', async () => {
       if (!Array.isArray(data?.items) || data.items.length === 0) {
         throw new Error('items array is required and must contain at least one entry');
@@ -1257,7 +1270,9 @@ export class QueryHandlers {
   /**
    * Handle add save feature to actor request (D&D 5e only)
    */
-  private async handleAddSaveFeatureToActor(data: any): Promise<any> {
+  private async handleAddSaveFeatureToActor(
+    data: DataArg<'addSaveFeatureToActor'>
+  ): Promise<unknown> {
     return this.withGmGate('Failed to add save feature to actor', async () => {
       if (!data.actorIdentifier) {
         throw new Error('actorIdentifier is required');
@@ -1273,7 +1288,7 @@ export class QueryHandlers {
   /**
    * Handle create NPC actor request (D&D 5e only)
    */
-  private async handleCreateNpcActor(data: any): Promise<any> {
+  private async handleCreateNpcActor(data: DataArg<'createNpcActor'>): Promise<unknown> {
     return this.withGmGate('Failed to create NPC actor', async () => {
       if (!data.name) {
         throw new Error('name is required');
@@ -1307,7 +1322,7 @@ export class QueryHandlers {
   /**
    * Handle add attack feature to actor request (D&D 5e only)
    */
-  private async handleAddAttackToActor(data: any): Promise<any> {
+  private async handleAddAttackToActor(data: DataArg<'addAttackToActor'>): Promise<unknown> {
     return this.withGmGate('Failed to add attack to actor', async () => {
       if (!data.actorIdentifier) {
         throw new Error('actorIdentifier is required');
@@ -1329,7 +1344,7 @@ export class QueryHandlers {
   /**
    * Handle add aura feature to actor request (D&D 5e only)
    */
-  private async handleAddAuraToActor(data: any): Promise<any> {
+  private async handleAddAuraToActor(data: DataArg<'addAuraToActor'>): Promise<unknown> {
     return this.withGmGate('Failed to add aura to actor', async () => {
       if (!data.actorIdentifier) {
         throw new Error('actorIdentifier is required');
@@ -1354,7 +1369,9 @@ export class QueryHandlers {
   /**
    * Handle add passive feature to actor request (D&D 5e only)
    */
-  private async handleAddPassiveFeatureToActor(data: any): Promise<any> {
+  private async handleAddPassiveFeatureToActor(
+    data: DataArg<'addPassiveFeatureToActor'>
+  ): Promise<unknown> {
     return this.withGmGate('Failed to add passive feature to actor', async () => {
       if (!data.actorIdentifier) {
         throw new Error('actorIdentifier is required');
@@ -1370,7 +1387,9 @@ export class QueryHandlers {
   /**
    * Handle add attack+save feature to actor request (D&D 5e only)
    */
-  private async handleAddAttackWithSaveToActor(data: any): Promise<any> {
+  private async handleAddAttackWithSaveToActor(
+    data: DataArg<'addAttackWithSaveToActor'>
+  ): Promise<unknown> {
     return this.withGmGate('Failed to add attack+save to actor', async () => {
       if (!data.actorIdentifier) throw new Error('actorIdentifier is required');
       if (!data.featureName) throw new Error('featureName is required');
@@ -1388,7 +1407,9 @@ export class QueryHandlers {
     });
   }
 
-  private async handleSetActorSpellcasting(data: any): Promise<any> {
+  private async handleSetActorSpellcasting(
+    data: DataArg<'setActorSpellcasting'>
+  ): Promise<unknown> {
     return this.withGmGate('Failed to set actor spellcasting', async () => {
       if (!data.actorIdentifier) {
         throw new Error('actorIdentifier is required');
@@ -1411,7 +1432,7 @@ export class QueryHandlers {
     });
   }
 
-  private async handleAddSpellsToActor(data: any): Promise<any> {
+  private async handleAddSpellsToActor(data: DataArg<'addSpellsToActor'>): Promise<unknown> {
     return this.withGmGate('Failed to add spells to actor', async () => {
       if (!data.actorIdentifier) {
         throw new Error('actorIdentifier is required');
@@ -1427,7 +1448,9 @@ export class QueryHandlers {
     });
   }
 
-  private async handleAddFeaturesFromCompendium(data: any): Promise<any> {
+  private async handleAddFeaturesFromCompendium(
+    data: DataArg<'addFeaturesFromCompendium'>
+  ): Promise<unknown> {
     return this.withGmGate('Failed to add features from compendium', async () => {
       if (!data.actorIdentifier) {
         throw new Error('actorIdentifier is required');
@@ -1450,7 +1473,7 @@ export class QueryHandlers {
     speakerName?: string;
     messageType?: string;
     sinceTimestamp?: string;
-  }): Promise<any> {
+  }): Promise<unknown> {
     return this.withGmGate('Failed to get chat log', async () => {
       return await this.dataAccess.getChatLog(data || {});
     });
@@ -1491,7 +1514,7 @@ export class QueryHandlers {
     });
   }
 
-  async handleGetCombatPlayByPlay(): Promise<any> {
+  async handleGetCombatPlayByPlay(): Promise<unknown> {
     return this.withGmGate('Failed to get combat play-by-play', async () => {
       return await this.dataAccess.getCombatPlayByPlay();
     });
@@ -1503,7 +1526,7 @@ export class QueryHandlers {
     speakerActorName?: string;
     messageType?: string;
     whisperTargets?: string[];
-  }): Promise<any> {
+  }): Promise<unknown> {
     return this.withGmGate('Failed to send chat message', async () => {
       if (!data?.message) {
         throw new Error('message is required');
@@ -1514,7 +1537,7 @@ export class QueryHandlers {
 
   // ===== 3C: RESOURCE TRACKING =====
 
-  async handleGetCharacterResources(data: { identifier: string }): Promise<any> {
+  async handleGetCharacterResources(data: { identifier: string }): Promise<unknown> {
     return this.withGmGate('Failed to get character resources', async () => {
       if (!data?.identifier) {
         throw new Error('identifier is required');
@@ -1537,7 +1560,7 @@ export class QueryHandlers {
 
   // ===== 3D: ACTIVE EFFECTS / CONDITIONS =====
 
-  async handleGetActiveEffects(data: { identifier: string }): Promise<any> {
+  async handleGetActiveEffects(data: { identifier: string }): Promise<unknown> {
     return this.withGmGate('Failed to get active effects', async () => {
       if (!data?.identifier) {
         throw new Error('identifier is required');
@@ -1548,19 +1571,19 @@ export class QueryHandlers {
 
   // ===== 3E: COMBAT TRACKER =====
 
-  async handleGetCombatState(): Promise<any> {
+  async handleGetCombatState(): Promise<unknown> {
     return this.withGmGate('Failed to get combat state', async () => {
       return await this.dataAccess.getCombatState();
     });
   }
 
-  async handleAdvanceCombatTurn(data: { skipTo?: string }): Promise<any> {
+  async handleAdvanceCombatTurn(data: { skipTo?: string }): Promise<unknown> {
     return this.withGmGate('Failed to advance combat turn', async () => {
       return await this.dataAccess.advanceCombatTurn(data || {});
     });
   }
 
-  async handleSetInitiative(data: { combatantName: string; initiative: number }): Promise<any> {
+  async handleSetInitiative(data: { combatantName: string; initiative: number }): Promise<unknown> {
     return this.withGmGate('Failed to set initiative', async () => {
       if (!data?.combatantName) throw new Error('combatantName is required');
       if (data?.initiative === undefined || data?.initiative === null) {
@@ -1572,13 +1595,16 @@ export class QueryHandlers {
 
   // ===== 3F: MOVEMENT AND POSITIONING =====
 
-  async handleGetTokenPositions(data: { sceneId?: string }): Promise<any> {
+  async handleGetTokenPositions(data: { sceneId?: string }): Promise<unknown> {
     return this.withGmGate('Failed to get token positions', async () => {
       return await this.dataAccess.getTokenPositions(data || {});
     });
   }
 
-  async handleMeasureDistance(data: { fromTokenName: string; toTokenName: string }): Promise<any> {
+  async handleMeasureDistance(data: {
+    fromTokenName: string;
+    toTokenName: string;
+  }): Promise<unknown> {
     return this.withGmGate('Failed to measure distance', async () => {
       if (!data?.fromTokenName) throw new Error('fromTokenName is required');
       if (!data?.toTokenName) throw new Error('toTokenName is required');
@@ -1594,7 +1620,7 @@ export class QueryHandlers {
     dc?: number;
     isPublic: boolean;
     reason?: string;
-  }): Promise<any> {
+  }): Promise<unknown> {
     return this.withGmGate('Failed to request ability check', async () => {
       if (!data?.targetPlayer) throw new Error('targetPlayer is required');
       if (!data?.ability) throw new Error('ability is required');
@@ -1606,7 +1632,7 @@ export class QueryHandlers {
     targetPlayer: string;
     weaponOrSpellName: string;
     isPublic: boolean;
-  }): Promise<any> {
+  }): Promise<unknown> {
     return this.withGmGate('Failed to request attack roll', async () => {
       if (!data?.targetPlayer) throw new Error('targetPlayer is required');
       if (!data?.weaponOrSpellName) throw new Error('weaponOrSpellName is required');
@@ -1619,7 +1645,7 @@ export class QueryHandlers {
     rollType: string;
     rollTarget: string;
     isPublic: boolean;
-  }): Promise<any> {
+  }): Promise<unknown> {
     return this.withGmGate('Failed to roll NPC check', async () => {
       if (!data?.actorName) throw new Error('actorName is required');
       if (!data?.rollType) throw new Error('rollType is required');
@@ -1634,7 +1660,7 @@ export class QueryHandlers {
     limit?: number;
     eventType?: string;
     actorName?: string;
-  }): Promise<any> {
+  }): Promise<unknown> {
     return this.withGmGate('Failed to get session log', async () => {
       return await this.dataAccess.getSessionLog(data || {});
     });
@@ -1644,7 +1670,7 @@ export class QueryHandlers {
     sinceTimestamp?: string;
     limit?: number;
     eventType?: string;
-  }): Promise<any> {
+  }): Promise<unknown> {
     return this.withGmGate('Failed to get recent events', async () => {
       return await this.dataAccess.getRecentEvents(data || {});
     });
@@ -1652,13 +1678,15 @@ export class QueryHandlers {
 
   // ===== COMBAT RESOLUTION: INITIATIVE =====
 
-  async handleRollInitiativeForNpcs(data: { scope?: 'npcs' | 'all' | 'missing' }): Promise<any> {
+  async handleRollInitiativeForNpcs(data: {
+    scope?: 'npcs' | 'all' | 'missing';
+  }): Promise<unknown> {
     return this.withGmGate('Failed to roll initiative', async () => {
       return await this.dataAccess.rollInitiativeForNpcs(data || {});
     });
   }
 
-  async handleRollSavingThrows(data: any): Promise<any> {
+  async handleRollSavingThrows(data: DataArg<'rollSavingThrows'>): Promise<unknown> {
     return this.withGmGate('Failed to roll saving throws', async () => {
       if (!Array.isArray(data?.targets) || data.targets.length === 0) {
         throw new Error('targets array is required');
@@ -1668,7 +1696,7 @@ export class QueryHandlers {
     });
   }
 
-  async handleUseNpcActivity(data: any): Promise<any> {
+  async handleUseNpcActivity(data: DataArg<'useNpcActivity'>): Promise<unknown> {
     return this.withGmGate('Failed to use NPC activity', async () => {
       if (!data?.actorName) throw new Error('actorName is required');
       if (!data?.itemName) throw new Error('itemName is required');
@@ -1676,7 +1704,7 @@ export class QueryHandlers {
     });
   }
 
-  async handleManageRest(data: any): Promise<any> {
+  async handleManageRest(data: DataArg<'manageRest'>): Promise<unknown> {
     return this.withGmGate('Failed to manage rest', async () => {
       if (!Array.isArray(data?.targets) || data.targets.length === 0) {
         throw new Error('targets array is required');
@@ -1688,13 +1716,15 @@ export class QueryHandlers {
 
   // ===== ENCOUNTER & SCENE TOOLS =====
 
-  async handleSuggestBalancedEncounter(data: any): Promise<any> {
+  async handleSuggestBalancedEncounter(
+    data: DataArg<'suggestBalancedEncounter'>
+  ): Promise<unknown> {
     return this.withGmGate('Failed to suggest encounter', async () => {
       return await this.dataAccess.suggestBalancedEncounter(data || {});
     });
   }
 
-  async handlePlayPlaylist(data: any): Promise<any> {
+  async handlePlayPlaylist(data: DataArg<'playPlaylist'>): Promise<unknown> {
     return this.withGmGate('Failed to play playlist', async () => {
       return await this.dataAccess.playPlaylist(data || {});
     });
@@ -1702,7 +1732,7 @@ export class QueryHandlers {
 
   // ===== CLEANUP & TARGETING =====
 
-  async handleGetTargets(): Promise<any> {
+  async handleGetTargets(): Promise<unknown> {
     return this.withGmGate('Failed to get targets', async () => {
       return await this.dataAccess.getTargets();
     });
@@ -1710,7 +1740,10 @@ export class QueryHandlers {
 
   // ===== DIAGNOSTICS =====
 
-  async handleGetModules(data: { activeOnly?: boolean; withIssuesOnly?: boolean }): Promise<any> {
+  async handleGetModules(data: {
+    activeOnly?: boolean;
+    withIssuesOnly?: boolean;
+  }): Promise<unknown> {
     return this.withGmGate('Failed to get modules', async () => {
       return await this.dataAccess.getModules(data || {});
     });
@@ -1721,19 +1754,19 @@ export class QueryHandlers {
     moduleId?: string;
     sinceTimestamp?: string;
     limit?: number;
-  }): Promise<any> {
+  }): Promise<unknown> {
     return this.withGmGate('Failed to get module errors', async () => {
       return await this.dataAccess.getModuleErrors(data || {});
     });
   }
 
-  async handleClearModuleErrors(): Promise<any> {
+  async handleClearModuleErrors(): Promise<unknown> {
     return this.withGmGate('Failed to clear module errors', async () => {
       return await this.dataAccess.clearModuleErrors();
     });
   }
 
-  async handleGetModuleManifest(data: { moduleId: string }): Promise<any> {
+  async handleGetModuleManifest(data: { moduleId: string }): Promise<unknown> {
     return this.withGmGate('Failed to get module manifest', async () => {
       if (!data?.moduleId) throw new Error('moduleId is required');
       return await this.dataAccess.getModuleManifest(data);

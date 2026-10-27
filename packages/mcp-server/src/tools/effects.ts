@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { AT_THE_TABLE, toolRef } from '@gnuminator/shared';
 import { FoundryClient } from '../foundry-client.js';
 import { Logger } from '../logger.js';
+import type { EffectsReply, EffectsToolDefinition } from './types/effects-types.js';
 
 interface EffectsToolsOptions {
   foundryClient: FoundryClient;
@@ -20,7 +21,7 @@ export class EffectsTools {
     this.logger = options.logger.child({ component: 'EffectsTools' });
   }
 
-  getToolDefinitions() {
+  getToolDefinitions(): EffectsToolDefinition[] {
     return [
       {
         name: 'get-active-effects',
@@ -41,14 +42,14 @@ export class EffectsTools {
     ];
   }
 
-  async handleGetActiveEffects(args: any) {
+  async handleGetActiveEffects(args: unknown): Promise<EffectsReply | undefined> {
     const schema = z.object({ identifier: z.string() });
     try {
       const params = schema.parse(args ?? {});
-      const response = await this.foundryClient.query(
+      const response = (await this.foundryClient.query(
         'foundry-mcp-bridge.getActiveEffects',
         params
-      );
+      )) as EffectsReply | undefined;
       if (response?.success === false) {
         throw new Error(response.error || 'Failed to get active effects');
       }

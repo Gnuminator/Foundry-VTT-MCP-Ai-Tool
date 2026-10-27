@@ -105,19 +105,19 @@ export const SystemPaths = {
  * Extract a value from system data using a path string
  * Handles both simple and nested paths (e.g., "system.details.cr")
  */
-export function extractSystemValue(data: any, path: string | null): any {
+export function extractSystemValue(data: unknown, path: string | null): unknown {
   if (!path || !data) {
     return undefined;
   }
 
   const parts = path.split('.');
-  let value = data;
+  let value: unknown = data;
 
   for (const part of parts) {
     if (value === undefined || value === null) {
       return undefined;
     }
-    value = value[part];
+    value = (value as Record<string, unknown>)[part];
   }
 
   return value;
@@ -126,7 +126,7 @@ export function extractSystemValue(data: any, path: string | null): any {
 /**
  * Get creature level/CR (D&D 5e: CR first, then level).
  */
-export function getCreatureLevel(actorData: any, system: GameSystem): number | undefined {
+export function getCreatureLevel(actorData: unknown, system: GameSystem): number | undefined {
   if (system === 'dnd5e') {
     const cr = extractSystemValue(actorData, SystemPaths.dnd5e.challengeRating);
     if (cr !== undefined) return Number(cr);
@@ -141,9 +141,15 @@ export function getCreatureLevel(actorData: any, system: GameSystem): number | u
 /**
  * Get creature type (D&D 5e: single creature-type string).
  */
-export function getCreatureType(actorData: any, system: GameSystem): string | string[] | undefined {
+export function getCreatureType(
+  actorData: unknown,
+  system: GameSystem
+): string | string[] | undefined {
   if (system === 'dnd5e') {
-    return extractSystemValue(actorData, SystemPaths.dnd5e.creatureType);
+    return extractSystemValue(actorData, SystemPaths.dnd5e.creatureType) as
+      | string
+      | string[]
+      | undefined;
   }
 
   return undefined;
@@ -152,7 +158,7 @@ export function getCreatureType(actorData: any, system: GameSystem): string | st
 /**
  * Check if a creature has spellcasting (D&D 5e: spells object or spellcasting level).
  */
-export function hasSpellcasting(actorData: any, system: GameSystem): boolean {
+export function hasSpellcasting(actorData: unknown, system: GameSystem): boolean {
   if (system === 'dnd5e') {
     const spells = extractSystemValue(actorData, SystemPaths.dnd5e.spells);
     const spellLevel = extractSystemValue(actorData, 'system.details.spellLevel');

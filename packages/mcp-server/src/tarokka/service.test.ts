@@ -237,6 +237,23 @@ describe('reading and import', () => {
     expect(view.reading!.positions).toHaveLength(5);
   });
 
+  it('clears the current reading into the archive, and undo restores it', async () => {
+    await expect(tarokka.planImport({ clear: true })).rejects.toThrow(/no current reading/);
+    await apply((await tarokka.planImport({ source: 'builtin-roll' })).planId);
+    const before = await tarokka.getReading();
+    const readingId = before.reading!.readingId;
+
+    const plan = await tarokka.planImport({ clear: true });
+    expect(plan.summary).toMatch(/Clear the current Tarokka reading/);
+    expect(plan.requires.confirmDestructive).toBe(true);
+    const changeId = await apply(plan.planId, true);
+    expect(await tarokka.getReading()).toMatchObject({ available: false, archivedReadings: 1 });
+    expect((await vaultData(TAROKKA_FILE)).archive[readingId]).toBeDefined();
+
+    await guarded.undo(changeId, { confirm: true });
+    expect(await tarokka.getReading()).toEqual(before);
+  });
+
   it('needs the tarokka feature switch to apply', async () => {
     const plan = await tarokka.planImport({ source: 'builtin-roll' });
     foundry.features[0].enabled = false;

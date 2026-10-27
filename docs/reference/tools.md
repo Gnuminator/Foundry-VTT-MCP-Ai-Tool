@@ -925,13 +925,14 @@ No parameters.
 
 ### plan-tarokka-import
 
-Plan storing a Tarokka reading in the bridge vault (GM-only, outside Foundry). source "auto" (default) takes the reading dealt in the tarokka-reading module when available, otherwise rolls one; "builtin-roll" always deals a fresh reading (3 common + 2 high cards, crypto random); "tarokka-reading" requires that module. A new reading archives the previous one. Returns a planId: show the diff to the GM, then apply-planned-change.
+Plan storing a Tarokka reading in the bridge vault (GM-only, outside Foundry). source "auto" (default) takes the reading dealt in the tarokka-reading module when available, otherwise rolls one; "builtin-roll" always deals a fresh reading (3 common + 2 high cards, crypto random); "tarokka-reading" requires that module. A new reading archives the previous one; clear: true archives it and leaves none (undoable). Returns a planId: show the diff to the GM, then apply-planned-change.
 
 Kind: read-only. Title: Plan Tarokka reading import.
 
 Parameters:
 
 - `source` (string): One of: `auto`, `builtin-roll`, `tarokka-reading`. Default: `auto`.
+- `clear` (boolean): Archive the current reading, deal none.
 - `userId` (string): The GM user who dealt in tarokka-reading, when that is another client than the bridge (Foundry 14.352+).
 
 ### suggest-tarokka-links

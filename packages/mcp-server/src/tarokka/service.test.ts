@@ -267,8 +267,13 @@ describe('reading and import', () => {
   it('refuses a clear plan that went stale because a reading was imported after it', async () => {
     await apply((await tarokka.planImport({ source: 'builtin-roll' })).planId);
     const clearPlan = await tarokka.planImport({ clear: true });
+    now += 1000;
     await apply((await tarokka.planImport({ source: 'builtin-roll' })).planId);
-    await expect(apply(clearPlan.planId, true)).rejects.toThrow(/Conflict/);
+    const second = (await tarokka.getReading()).reading!.readingId;
+    await expect(apply(clearPlan.planId, true)).rejects.toThrow(
+      /Conflict, nothing was written: .*current changed since/
+    );
+    expect((await tarokka.getReading()).reading!.readingId).toBe(second);
   });
 
   it('needs the tarokka feature switch to apply', async () => {

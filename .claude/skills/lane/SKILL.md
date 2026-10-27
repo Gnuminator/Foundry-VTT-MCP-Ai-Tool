@@ -88,10 +88,11 @@ item is marked done; the board ignores a line on an item with no claim.
 
 - `npm run green`: everything CI's build-test job runs, quiet (one OK line, or the failing step
   and its log tail). `--list`, `--only a,b`, `--from <step>` for a rerun.
-- **Dashboard change (anything under `packages/cogm-dashboard/`, stories included):** push the
-  branch, run `npm run visual:baselines -- <branch>` (starts `visual-baselines.yml` on GitHub,
+- **Dashboard change (anything under `packages/cogm-dashboard/`, stories included, or a
+  `package-lock.json` change such as a Playwright bump):** push the branch, run `npm run visual:baselines -- <branch>` (starts `visual-baselines.yml` on GitHub,
   about 15 minutes, no Docker needed), look at the changed PNGs it prints under
-  `packages/cogm-dashboard/web/visual/__screenshots__/`, commit them, and only then open the PR.
+  `packages/cogm-dashboard/web/visual/__screenshots__/`, commit them, push again, and only then
+  open the PR.
   Never copy baselines from a failed PR run. Re-run it after a later change that moves pixels.
 - `changelog.d/<topic>.md` added; lint and em-dash baselines lowered if counts dropped.
 - `git status --short`: add explicit paths; no binaries, archives, audio, `.env` or downloads.

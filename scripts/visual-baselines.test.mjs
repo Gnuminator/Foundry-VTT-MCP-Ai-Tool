@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { pickRun, safeTarget, SCREENSHOTS, validBranch } from './visual-baselines.mjs';
+import { pickRun, renderProblem, safeTarget, SCREENSHOTS, validBranch } from './visual-baselines.mjs';
 
 test('validBranch accepts normal branches only', () => {
   assert.ok(validBranch('claude/dnd-levelup'));
@@ -19,13 +19,18 @@ test('safeTarget keeps to PNGs under the screenshots folder', () => {
   assert.ok(!safeTarget('changed.txt'));
 });
 
-test('pickRun takes the newest run after the dispatch', () => {
-  const since = Date.parse('2026-10-27T10:00:10Z');
+test('pickRun matches only the run carrying its own nonce', () => {
   const runs = [
-    { databaseId: 1, createdAt: '2026-10-27T09:00:00Z' },
-    { databaseId: 3, createdAt: '2026-10-27T10:00:14Z' },
-    { databaseId: 2, createdAt: '2026-10-27T10:00:12Z' }
+    { databaseId: 1, displayTitle: 'visual-baselines claude/a nAAA' },
+    { databaseId: 2, displayTitle: 'visual-baselines claude/b nBBB' }
   ];
-  assert.equal(pickRun(runs, since)?.databaseId, 3);
-  assert.equal(pickRun([runs[0]], since), undefined);
+  assert.equal(pickRun(runs, 'nBBB')?.databaseId, 2);
+  assert.equal(pickRun(runs, 'nCCC'), undefined);
+});
+
+test('renderProblem refuses a failed render with nothing changed', () => {
+  assert.equal(renderProblem('0\n', 0), '');
+  assert.equal(renderProblem('1\n', 4), '');
+  assert.match(renderProblem('1\n', 0), /nothing rendered/);
+  assert.match(renderProblem('', 3), /no Playwright exit code/);
 });

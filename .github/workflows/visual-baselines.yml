@@ -14,6 +14,13 @@ on:
         description: 'Branch to render the screenshots for'
         required: true
         type: string
+      nonce:
+        description: 'Set by npm run visual:baselines so it can find its own run'
+        required: false
+        default: ''
+        type: string
+
+run-name: visual-baselines ${{ inputs.branch }} ${{ inputs.nonce }}
 
 permissions:
   contents: read
@@ -69,17 +76,25 @@ jobs:
 
       - name: Render the baselines
         # An axe finding fails Playwright but not the rendering: the baselines are still written,
-        # and axe is judged by dashboard-visual on the PR.
-        run: npm run test:visual:ci -w @gnuminator/cogm-dashboard -- --update-snapshots || echo "Playwright exited non-zero (axe or a test); baselines were still written."
+        # and axe is judged by dashboard-visual on the PR. The exit code goes into the artifact so
+        # npm run visual:baselines can say when nothing rendered.
+        run: |
+          mkdir -p baseline-out
+          code=0
+          npm run test:visual:ci -w @gnuminator/cogm-dashboard -- --update-snapshots || code=$?
+          echo "$code" > baseline-out/playwright-exit.txt
+          git rev-parse HEAD > baseline-out/head.txt
 
       - name: Collect the changed and new PNGs
         run: |
           dir=packages/cogm-dashboard/web/visual/__screenshots__
           mkdir -p baseline-out
-          git status --porcelain --untracked-files=all -- "$dir" | grep -E '\.png$' > baseline-out/changed.txt || true
-          cat baseline-out/changed.txt
-          # Deleted files are listed but not copied (removing a story's baseline is the lane's call).
-          sed -E 's/^...//' baseline-out/changed.txt | while read -r f; do
+          # -z: names with quotes or non-ASCII characters arrive unquoted. Deleted files are not
+          # copied (removing a story's baseline is the lane's call).
+          git status --porcelain -z --untracked-files=all -- "$dir" | while IFS= read -r -d '' entry; do
+            f="${entry:3}"
+            case "$f" in *.png) ;; *) continue ;; esac
+            echo "$entry"
             if [ -f "$f" ]; then
               mkdir -p "baseline-out/$(dirname "$f")"
               cp "$f" "baseline-out/$f"

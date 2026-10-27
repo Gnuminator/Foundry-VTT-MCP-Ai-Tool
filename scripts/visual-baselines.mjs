@@ -35,14 +35,27 @@ export const safeTarget = rel => {
 };
 
 /**
- * Newest dispatch run created at or after `since` (ms).
- * @param {{databaseId:number,createdAt:string}[]} runs
- * @param {number} since
+ * The run whose title (the workflow's run-name) carries this invocation's nonce, so two lanes
+ * dispatching at the same time never take each other's run.
+ * @param {{databaseId:number,displayTitle:string}[]} runs
+ * @param {string} nonce
  */
-export const pickRun = (runs, since) =>
-  runs
-    .filter(r => Date.parse(r.createdAt) >= since - 5000)
-    .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))[0];
+export const pickRun = (runs, nonce) => runs.find(r => r.displayTitle?.split(' ').includes(nonce));
+
+/**
+ * What the run's playwright-exit.txt says. A non-zero exit with no changed PNG means nothing
+ * rendered, which must not read as "the screenshots already match".
+ * @param {string} exitText
+ * @param {number} changedCount
+ */
+export const renderProblem = (exitText, changedCount) => {
+  const code = exitText.trim();
+  if (code === '') return 'The run left no Playwright exit code.';
+  if (code !== '0' && changedCount === 0) {
+    return `Playwright exited ${code} and no baseline changed: nothing rendered. See the run log.`;
+  }
+  return '';
+};
 
 /** @param {string[]} args */
 const gh = args => {
@@ -68,7 +81,11 @@ async function main() {
     return 2;
   }
   const since = Date.now();
-  gh(['workflow', 'run', WORKFLOW, '--repo', REPO, '--ref', 'main', '-f', `branch=${branch}`]);
+  const nonce = `n${since.toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+  gh([
+    'workflow', 'run', WORKFLOW, '--repo', REPO, '--ref', 'main',
+    '-f', `branch=${branch}`, '-f', `nonce=${nonce}`
+  ]);
   console.log(`Started ${WORKFLOW} for ${branch}. Waiting for the run...`);
 
   let run;
@@ -78,10 +95,10 @@ async function main() {
     const list = JSON.parse(
       gh([
         'run', 'list', '--repo', REPO, '--workflow', WORKFLOW, '--event', 'workflow_dispatch',
-        '--limit', '10', '--json', 'databaseId,createdAt'
+        '--limit', '10', '--json', 'databaseId,displayTitle'
       ])
     );
-    run = pickRun(list, since);
+    run = pickRun(list, nonce);
   }
   console.log(`Run ${run.databaseId}: https://github.com/${REPO}/actions/runs/${run.databaseId}`);
 
@@ -117,7 +134,23 @@ async function main() {
     }
   };
   walk(tmp);
+  const readText = name => {
+    try {
+      return fs.readFileSync(path.join(tmp, name), 'utf8');
+    } catch {
+      return '';
+    }
+  };
+  const problem = renderProblem(readText('playwright-exit.txt'), changed.length);
+  const rendered = readText('head.txt').trim();
   fs.rmSync(tmp, { recursive: true, force: true });
+  if (problem) throw new Error(problem);
+  const local = spawnSync('git', ['rev-parse', 'HEAD'], { cwd: repoRoot, encoding: 'utf8' }).stdout.trim();
+  if (rendered && local && rendered !== local) {
+    console.warn(
+      `Warning: rendered ${rendered.slice(0, 8)} but this checkout is at ${local.slice(0, 8)}. Push your latest commit and run it again if the screen changed since.`
+    );
+  }
 
   if (changed.length === 0) {
     console.log('No baselines changed: the committed screenshots already match.');

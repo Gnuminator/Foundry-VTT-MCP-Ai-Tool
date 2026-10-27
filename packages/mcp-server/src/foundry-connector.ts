@@ -495,15 +495,20 @@ export class FoundryConnector {
         clearTimeout(pending.timeout);
         this.pendingQueries.delete(message.id);
 
-        if (message.data.success) {
+        // The frame is unvalidated JSON: a module that sends no `data` must still settle the query.
+        const body = message.data as InboundFrame['data'] | undefined;
+        if (!body) {
+          this.logger.error('Query response had no data', { id: message.id });
+          pending.reject(new Error('Query response had no data'));
+        } else if (body.success) {
           this.logger.debug('Query response received', {
             id: message.id,
-            hasData: !!message.data.data,
+            hasData: !!body.data,
           });
-          pending.resolve(message.data.data);
+          pending.resolve(body.data);
         } else {
-          this.logger.error('Query failed', { id: message.id, error: message.data.error });
-          pending.reject(new Error(message.data.error || 'Query failed'));
+          this.logger.error('Query failed', { id: message.id, error: body.error });
+          pending.reject(new Error(body.error || 'Query failed'));
         }
       }
       return Promise.resolve();

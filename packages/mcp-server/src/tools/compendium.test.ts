@@ -877,3 +877,44 @@ describe('CompendiumTools.handleListCompendiumPacks', () => {
     await expect(tools.handleListCompendiumPacks(undefined)).rejects.toThrow();
   });
 });
+
+describe('CompendiumTools.handleSearchRules', () => {
+  it('dispatches foundry-mcp-bridge.searchRules with the defaults filled in and a long timeout', async () => {
+    const { tools, query } = makeTools(() => ({ results: [] }));
+    await tools.handleSearchRules({ query: 'grappling' });
+    expect(query).toHaveBeenCalledWith(
+      'foundry-mcp-bridge.searchRules',
+      {
+        query: 'grappling',
+        limit: 10,
+        includeWorld: false,
+        excerptChars: 240,
+        includeOtherBooks: false,
+      },
+      { timeoutMs: 60_000 }
+    );
+  });
+
+  it('accepts a bare string as the query', async () => {
+    const { tools, query } = makeTools(() => ({ results: [] }));
+    await tools.handleSearchRules('how does grappling work');
+    expect((query.mock.calls[0][1] as { query: string }).query).toBe('how does grappling work');
+  });
+
+  it('rejects arguments outside the limits before calling Foundry', async () => {
+    const { tools, query } = makeTools();
+    await expect(tools.handleSearchRules({ query: 'a' })).rejects.toThrow();
+    await expect(tools.handleSearchRules({ query: 'grapple', limit: 26 })).rejects.toThrow();
+    await expect(tools.handleSearchRules({ query: 'grapple', excerptChars: 79 })).rejects.toThrow();
+    expect(query).not.toHaveBeenCalled();
+  });
+
+  it('wraps a Foundry failure', async () => {
+    const { tools } = makeTools(() => {
+      throw new Error('link down');
+    });
+    await expect(tools.handleSearchRules({ query: 'grapple' })).rejects.toThrow(
+      'Failed to search rules: link down'
+    );
+  });
+});

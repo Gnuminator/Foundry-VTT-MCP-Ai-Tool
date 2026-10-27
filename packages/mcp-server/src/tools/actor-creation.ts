@@ -3,6 +3,12 @@ import { z } from 'zod';
 import { FoundryClient } from '../foundry-client.js';
 import { Logger } from '../logger.js';
 import { ErrorHandler } from '../utils/error-handler.js';
+import type {
+  ActorCreationResponse,
+  CompendiumEntryBridgeReply,
+  CompendiumEntryResponse,
+  CreateActorBridgeReply,
+} from './types/actor-creation-types.js';
 
 export interface ActorCreationToolsOptions {
   foundryClient: FoundryClient;
@@ -23,7 +29,7 @@ export class ActorCreationTools {
   /**
    * Tool definitions for actor creation operations
    */
-  getToolDefinitions() {
+  getToolDefinitions(): Array<{ name: string; description: string; inputSchema: unknown }> {
     return [
       {
         name: 'create-actor-from-compendium',
@@ -124,7 +130,7 @@ export class ActorCreationTools {
   /**
    * Handle actor creation from specific compendium entry
    */
-  async handleCreateActorFromCompendium(args: any): Promise<any> {
+  async handleCreateActorFromCompendium(args: unknown): Promise<ActorCreationResponse> {
     const schema = z.object({
       packId: z.string().min(1, 'Pack ID cannot be empty'),
       itemId: z.string().min(1, 'Item ID cannot be empty'),
@@ -166,7 +172,7 @@ export class ActorCreationTools {
       }
 
       // Create the actors via Foundry module using exact pack/item IDs
-      const result = await this.foundryClient.query(
+      const result = (await this.foundryClient.query(
         'foundry-mcp-bridge.createActorFromCompendium',
         {
           packId,
@@ -181,7 +187,7 @@ export class ActorCreationTools {
               }
             : undefined,
         }
-      );
+      )) as CreateActorBridgeReply;
 
       this.logger.info('Actor creation completed', {
         totalCreated: result.totalCreated,
@@ -205,7 +211,7 @@ export class ActorCreationTools {
   /**
    * Handle getting full compendium entry data
    */
-  async handleGetCompendiumEntryFull(args: any): Promise<any> {
+  async handleGetCompendiumEntryFull(args: unknown): Promise<CompendiumEntryResponse> {
     const schema = z.object({
       packId: z.string().min(1, 'Pack ID cannot be empty'),
       entryId: z.string().min(1, 'Entry ID cannot be empty'),
@@ -216,13 +222,13 @@ export class ActorCreationTools {
     this.logger.info('Getting full compendium entry', { packId, entryId });
 
     try {
-      const fullEntry = await this.foundryClient.query(
+      const fullEntry = (await this.foundryClient.query(
         'foundry-mcp-bridge.getCompendiumDocumentFull',
         {
           packId,
           documentId: entryId,
         }
-      );
+      )) as CompendiumEntryBridgeReply;
 
       this.logger.debug('Successfully retrieved full compendium entry', {
         packId,
@@ -241,15 +247,17 @@ export class ActorCreationTools {
   /**
    * Format compendium entry response
    */
-  private formatCompendiumEntryResponse(entry: any): any {
+  private formatCompendiumEntryResponse(
+    entry: CompendiumEntryBridgeReply
+  ): CompendiumEntryResponse {
     const itemsInfo =
-      entry.items?.length > 0
-        ? `\n📦 Items: ${entry.items.map((item: any) => item.name).join(', ')}`
+      entry.items && entry.items.length > 0
+        ? `\n📦 Items: ${entry.items.map(item => item.name).join(', ')}`
         : '';
 
     const effectsInfo =
-      entry.effects?.length > 0
-        ? `\n✨ Effects: ${entry.effects.map((effect: any) => effect.name).join(', ')}`
+      entry.effects && entry.effects.length > 0
+        ? `\n✨ Effects: ${entry.effects.map(effect => effect.name).join(', ')}`
         : '';
 
     return {
@@ -258,9 +266,9 @@ export class ActorCreationTools {
       pack: entry.packLabel,
       system: entry.system,
       fullData: entry.fullData,
-      items: entry.items || [],
-      effects: entry.effects || [],
-      summary: `📊 **${entry.name}** (${entry.type} from ${entry.packLabel})${itemsInfo}${effectsInfo}`,
+      items: entry.items ?? [],
+      effects: entry.effects ?? [],
+      summary: `📊 **${String(entry.name)}** (${String(entry.type)} from ${String(entry.packLabel)})${itemsInfo}${effectsInfo}`,
     };
   }
 
@@ -268,23 +276,24 @@ export class ActorCreationTools {
    * Format simplified actor creation response
    */
   private formatSimpleActorCreationResponse(
-    result: any,
+    result: CreateActorBridgeReply,
     packId: string,
     itemId: string,
     _customNames: string[]
-  ): any {
-    const summary = `✅ Created ${result.totalCreated} of ${result.totalRequested} requested actors`;
+  ): ActorCreationResponse {
+    const summary = `✅ Created ${String(result.totalCreated)} of ${String(result.totalRequested)} requested actors`;
 
     const details = result.actors
-      .map((actor: any) => `• **${actor.name}** (from ${packId})`)
+      .map(actor => `• **${String(actor.name)}** (from ${packId})`)
       .join('\n');
 
     const sceneInfo =
-      result.tokensPlaced > 0
+      (result.tokensPlaced ?? 0) > 0
         ? `\n🎯 Added ${result.tokensPlaced} tokens to the current scene`
         : '';
 
-    const errorInfo = result.errors?.length > 0 ? `\n⚠️ Issues: ${result.errors.join(', ')}` : '';
+    const errorInfo =
+      result.errors && result.errors.length > 0 ? `\n⚠️ Issues: ${result.errors.join(', ')}` : '';
 
     return {
       summary,

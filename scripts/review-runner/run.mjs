@@ -239,7 +239,7 @@ async function review(p, o, key, repo) {
           apiKeySource = String(m.apiKeySource);
           if (apiKeySource !== 'ANTHROPIC_API_KEY') {
             settle(0, { note: 'stopped at init, wrong key source' });
-            throw new Error(`the SDK uses "${apiKeySource}", not the review key; stopping before any spend on the wrong account`);
+            throw new Error('the SDK is not using the review key (another login would be billed); stopping before any spend');
           }
         }
         if (m.type === 'result') result = m;

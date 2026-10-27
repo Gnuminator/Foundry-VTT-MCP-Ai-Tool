@@ -58,8 +58,27 @@ export const renderProblem = (exitText, changedCount) => {
   return '';
 };
 
+/**
+ * The run's png-count.txt is the number of PNGs git saw in the workflow's checkout; the artifact
+ * must hold that many. A missing marker or a mismatch means the collect step lost files (#533:
+ * six shots differed, the artifact held none, and this script said "No baselines changed").
+ * @param {string} countText
+ * @param {number} foundCount
+ */
+export const collectProblem = (countText, foundCount) => {
+  const text = countText.trim();
+  if (!/^\d+$/.test(text)) {
+    return 'The run left no png-count.txt marker (a run of an old workflow file?). Merge aitool/main into the branch and run it again.';
+  }
+  const expected = Number(text);
+  if (expected !== foundCount) {
+    return `Playwright regenerated ${expected} PNG(s) but the artifact holds ${foundCount}. The collect step lost files: see the run log.`;
+  }
+  return '';
+};
+
 /** @param {string[]} args */
-const gh = args => {
+const gh =args => {
   const r = spawnSync('gh', args, { encoding: 'utf8', shell: false });
   if (r.error) throw new Error(`gh failed to start: ${r.error.message}`);
   if (r.status !== 0) {
@@ -133,11 +152,7 @@ async function main() {
       if (e.isDirectory()) walk(full);
       else {
         const rel = path.relative(tmp, full).split(path.sep).join('/');
-        if (!safeTarget(rel)) continue;
-        const dest = path.join(repoRoot, rel);
-        fs.mkdirSync(path.dirname(dest), { recursive: true });
-        fs.copyFileSync(full, dest);
-        changed.push(rel);
+        if (safeTarget(rel)) changed.push(rel);
       }
     }
   };
@@ -149,7 +164,16 @@ async function main() {
       return '';
     }
   };
-  const problem = renderProblem(readText('playwright-exit.txt'), changed.length);
+  const problem =
+    renderProblem(readText('playwright-exit.txt'), changed.length) ||
+    collectProblem(readText('png-count.txt'), changed.length);
+  if (!problem) {
+    for (const rel of changed) {
+      const dest = path.join(repoRoot, rel);
+      fs.mkdirSync(path.dirname(dest), { recursive: true });
+      fs.copyFileSync(path.join(tmp, rel), dest);
+    }
+  }
   const rendered = readText('head.txt').trim();
   fs.rmSync(tmp, { recursive: true, force: true });
   if (problem) throw new Error(problem);

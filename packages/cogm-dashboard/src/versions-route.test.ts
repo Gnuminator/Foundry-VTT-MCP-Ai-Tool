@@ -84,7 +84,7 @@ describe('GET /api/versions', () => {
   it('answers "on" by default (I-127)', async () => {
     // Local requests pass; the tracker's online lookups fail at once, so the test needs no network.
     const realFetch = globalThis.fetch;
-    vi.stubGlobal('fetch', (input: Parameters<typeof fetch>[0], init?: RequestInit) =>
+    vi.stubGlobal('fetch', (input: string | URL, init?: RequestInit) =>
       String(input).startsWith('http://127.0.0.1')
         ? realFetch(input, init)
         : Promise.reject(new Error('offline in tests'))

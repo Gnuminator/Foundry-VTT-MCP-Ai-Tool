@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { toolRef } from '@gnuminator/shared';
 import { FoundryClient } from '../foundry-client.js';
 import { Logger } from '../logger.js';
+import type { SessionLogBridgeReply, SessionLogToolDefinition } from './types/session-log-types.js';
 
 interface SessionLogToolsOptions {
   foundryClient: FoundryClient;
@@ -23,7 +24,7 @@ export class SessionLogTools {
     this.logger = options.logger.child({ component: 'SessionLogTools' });
   }
 
-  getToolDefinitions() {
+  getToolDefinitions(): SessionLogToolDefinition[] {
     return [
       {
         name: 'get-session-log',
@@ -82,7 +83,7 @@ export class SessionLogTools {
     ];
   }
 
-  async handleGetSessionLog(args: any) {
+  async handleGetSessionLog(args: unknown): Promise<SessionLogBridgeReply | undefined> {
     const schema = z.object({
       limit: z.number().int().min(1).max(1000).optional(),
       eventType: z.string().optional(),
@@ -90,7 +91,10 @@ export class SessionLogTools {
     });
     try {
       const params = schema.parse(args ?? {});
-      const response = await this.foundryClient.query('foundry-mcp-bridge.getSessionLog', params);
+      const response = (await this.foundryClient.query(
+        'foundry-mcp-bridge.getSessionLog',
+        params
+      )) as SessionLogBridgeReply | undefined;
       if (response?.success === false) {
         throw new Error(response.error || 'Failed to get session log');
       }
@@ -101,7 +105,7 @@ export class SessionLogTools {
     }
   }
 
-  async handleGetRecentEvents(args: any) {
+  async handleGetRecentEvents(args: unknown): Promise<SessionLogBridgeReply | undefined> {
     const schema = z.object({
       sinceTimestamp: z.string().optional(),
       limit: z.number().int().min(1).max(1000).optional(),
@@ -109,7 +113,10 @@ export class SessionLogTools {
     });
     try {
       const params = schema.parse(args ?? {});
-      const response = await this.foundryClient.query('foundry-mcp-bridge.getRecentEvents', params);
+      const response = (await this.foundryClient.query(
+        'foundry-mcp-bridge.getRecentEvents',
+        params
+      )) as SessionLogBridgeReply | undefined;
       if (response?.success === false) {
         throw new Error(response.error || 'Failed to get recent events');
       }

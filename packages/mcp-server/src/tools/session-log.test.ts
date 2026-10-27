@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi, type Mock } from 'vitest';
 
 import { SessionLogTools } from './session-log.js';
 
@@ -9,8 +9,12 @@ import { SessionLogTools } from './session-log.js';
  * Foundry-side failures ({success:false}) are surfaced as thrown Errors.
  */
 
-function makeTools(queryImpl?: (method: string, data: unknown) => unknown) {
-  const query = vi.fn(queryImpl ?? (() => ({ success: true })));
+function makeTools(queryImpl?: (method: string, data: unknown) => unknown): {
+  tools: SessionLogTools;
+  query: Mock<(method: string, data: unknown) => unknown>;
+  logger: any;
+} {
+  const query = vi.fn(queryImpl ?? ((): unknown => ({ success: true })));
   const foundryClient = { query } as any;
   const logger: any = {
     error: vi.fn(),
@@ -18,7 +22,7 @@ function makeTools(queryImpl?: (method: string, data: unknown) => unknown) {
     info: vi.fn(),
     debug: vi.fn(),
   };
-  logger.child = () => logger;
+  logger.child = (): unknown => logger;
   return { tools: new SessionLogTools({ foundryClient, logger }), query, logger };
 }
 

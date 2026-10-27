@@ -2,6 +2,11 @@ import { freeText, toolRef } from '@gnuminator/shared';
 import { z } from 'zod';
 import { FoundryClient } from '../foundry-client.js';
 import { Logger } from '../logger.js';
+import type {
+  CombatResolutionBridgeReply,
+  CombatResolutionToolDefinition,
+  CombatResolutionToolResult,
+} from './types/combat-resolution-types.js';
 
 interface CombatResolutionToolsOptions {
   foundryClient: FoundryClient;
@@ -22,7 +27,7 @@ export class CombatResolutionTools {
     this.logger = options.logger.child({ component: 'CombatResolutionTools' });
   }
 
-  getToolDefinitions() {
+  getToolDefinitions(): CombatResolutionToolDefinition[] {
     return [
       {
         name: 'roll-saving-throws',
@@ -122,15 +127,21 @@ export class CombatResolutionTools {
     ];
   }
 
-  private async query(method: string, params: any, failMsg: string) {
-    const response = await this.foundryClient.query(`foundry-mcp-bridge.${method}`, params);
+  private async query(
+    method: string,
+    params: unknown,
+    failMsg: string
+  ): Promise<CombatResolutionBridgeReply | undefined> {
+    const response = (await this.foundryClient.query(`foundry-mcp-bridge.${method}`, params)) as
+      | CombatResolutionBridgeReply
+      | undefined;
     if (response?.success === false) {
       throw new Error(response.error || failMsg);
     }
     return response;
   }
 
-  async handleRollSavingThrows(args: any) {
+  async handleRollSavingThrows(args: unknown): Promise<CombatResolutionToolResult> {
     const schema = z.object({
       targets: z.array(z.string()).min(1),
       rollType: z.enum(['save', 'check', 'skill']),
@@ -145,7 +156,7 @@ export class CombatResolutionTools {
         schema.parse(args),
         'Failed to roll saving throws'
       );
-    } catch (error) {
+    } catch (error: unknown) {
       this.logger.error('Error rolling saving throws', error);
       if (error instanceof z.ZodError) {
         return `Parameter error: ${error.errors.map(e => e.message).join(', ')}`;
@@ -154,7 +165,7 @@ export class CombatResolutionTools {
     }
   }
 
-  async handleUseNpcActivity(args: any) {
+  async handleUseNpcActivity(args: unknown): Promise<CombatResolutionToolResult> {
     const schema = z.object({
       actorName: z.string(),
       itemName: z.string(),
@@ -164,11 +175,7 @@ export class CombatResolutionTools {
     });
     try {
       const params = schema.parse(args);
-      const result: unknown = await this.query(
-        'useNpcActivity',
-        params,
-        'Failed to use NPC activity'
-      );
+      const result = await this.query('useNpcActivity', params, 'Failed to use NPC activity');
       // An older module ignores `activity` and answers without it: it ran the item's attack.
       if (params.activity && result && typeof result === 'object' && !('activity' in result)) {
         throw new Error(
@@ -176,7 +183,7 @@ export class CombatResolutionTools {
         );
       }
       return result;
-    } catch (error) {
+    } catch (error: unknown) {
       this.logger.error('Error using NPC activity', error);
       if (error instanceof z.ZodError) {
         return `Parameter error: ${error.errors.map(e => e.message).join(', ')}`;
@@ -185,7 +192,7 @@ export class CombatResolutionTools {
     }
   }
 
-  async handleManageRest(args: any) {
+  async handleManageRest(args: unknown): Promise<CombatResolutionToolResult> {
     const schema = z.object({
       targets: z.array(z.string()).min(1),
       restType: z.enum(['short', 'long']),
@@ -193,7 +200,7 @@ export class CombatResolutionTools {
     });
     try {
       return await this.query('manageRest', schema.parse(args), 'Failed to manage rest');
-    } catch (error) {
+    } catch (error: unknown) {
       this.logger.error('Error managing rest', error);
       if (error instanceof z.ZodError) {
         return `Parameter error: ${error.errors.map(e => e.message).join(', ')}`;

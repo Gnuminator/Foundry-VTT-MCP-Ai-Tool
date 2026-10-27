@@ -399,7 +399,9 @@ function parseResponse(raw: unknown, sigInputs: string): ExportIndexResponse {
   ) {
     throw new Error('getExportIndex returned a malformed page');
   }
-  const truncated = Array.isArray(raw.truncated) ? raw.truncated : [];
+  const truncated = Array.isArray(raw.truncated)
+    ? (raw.truncated as ExportIndexResponse['truncated'])
+    : [];
   // Notes store the signature with the renderer version and the other inputs, so a change of
   // either re-renders them.
   const entries = (raw.entries as unknown[]).map(entry =>

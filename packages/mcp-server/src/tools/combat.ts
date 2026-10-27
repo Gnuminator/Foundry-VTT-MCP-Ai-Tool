@@ -2,6 +2,11 @@ import { toolRef } from '@gnuminator/shared';
 import { z } from 'zod';
 import { FoundryClient } from '../foundry-client.js';
 import { Logger } from '../logger.js';
+import type {
+  CombatBridgeReply,
+  CombatToolDefinition,
+  CombatToolResult,
+} from './types/combat-types.js';
 
 interface CombatToolsOptions {
   foundryClient: FoundryClient;
@@ -20,7 +25,7 @@ export class CombatTools {
     this.logger = options.logger.child({ component: 'CombatTools' });
   }
 
-  getToolDefinitions() {
+  getToolDefinitions(): CombatToolDefinition[] {
     return [
       {
         name: 'get-combat-state',
@@ -84,50 +89,55 @@ export class CombatTools {
     ];
   }
 
-  async handleGetCombatState(_args: any) {
+  async handleGetCombatState(_args?: unknown): Promise<CombatToolResult> {
     try {
-      const response = await this.foundryClient.query('foundry-mcp-bridge.getCombatState', {});
+      const response = (await this.foundryClient.query('foundry-mcp-bridge.getCombatState', {})) as
+        | CombatBridgeReply
+        | undefined;
       if (response?.success === false) {
         throw new Error(response.error || 'Failed to get combat state');
       }
       return response;
-    } catch (error) {
+    } catch (error: unknown) {
       this.logger.error('Error getting combat state', error);
       throw error;
     }
   }
 
-  async handleAdvanceCombatTurn(args: any) {
+  async handleAdvanceCombatTurn(args: unknown): Promise<CombatToolResult> {
     const schema = z.object({ skipTo: z.string().optional() });
     try {
       const params = schema.parse(args ?? {});
-      const response = await this.foundryClient.query(
+      const response = (await this.foundryClient.query(
         'foundry-mcp-bridge.advanceCombatTurn',
         params
-      );
+      )) as CombatBridgeReply | undefined;
       if (response?.success === false) {
         throw new Error(response.error || 'Failed to advance combat turn');
       }
       return response;
-    } catch (error) {
+    } catch (error: unknown) {
       this.logger.error('Error advancing combat turn', error);
       throw error;
     }
   }
 
-  async handleSetInitiative(args: any) {
+  async handleSetInitiative(args: unknown): Promise<CombatToolResult> {
     const schema = z.object({
       combatantName: z.string(),
       initiative: z.number(),
     });
     try {
       const params = schema.parse(args ?? {});
-      const response = await this.foundryClient.query('foundry-mcp-bridge.setInitiative', params);
+      const response = (await this.foundryClient.query(
+        'foundry-mcp-bridge.setInitiative',
+        params
+      )) as CombatBridgeReply | undefined;
       if (response?.success === false) {
         throw new Error(response.error || 'Failed to set initiative');
       }
       return response;
-    } catch (error) {
+    } catch (error: unknown) {
       this.logger.error('Error setting initiative', error);
       if (error instanceof z.ZodError) {
         return `Parameter error: ${error.errors.map(e => e.message).join(', ')}`;
@@ -136,22 +146,22 @@ export class CombatTools {
     }
   }
 
-  async handleRollInitiativeForNpcs(args: any) {
+  async handleRollInitiativeForNpcs(args: unknown): Promise<CombatToolResult> {
     const schema = z.object({
       scope: z.enum(['npcs', 'all', 'missing']).optional(),
       combatantIds: z.array(z.string()).optional(),
     });
     try {
       const params = schema.parse(args ?? {});
-      const response = await this.foundryClient.query(
+      const response = (await this.foundryClient.query(
         'foundry-mcp-bridge.rollInitiativeForNpcs',
         params
-      );
+      )) as CombatBridgeReply | undefined;
       if (response?.success === false) {
         throw new Error(response.error || 'Failed to roll initiative');
       }
       return response;
-    } catch (error) {
+    } catch (error: unknown) {
       this.logger.error('Error rolling initiative for NPCs', error);
       throw error;
     }

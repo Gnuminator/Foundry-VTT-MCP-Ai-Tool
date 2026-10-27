@@ -3,7 +3,7 @@ import { Logger } from '../logger.js';
 export interface MCPError {
   type: 'user' | 'system' | 'permission' | 'validation' | 'connection';
   message: string;
-  details?: any;
+  details?: unknown;
   suggestions?: string[];
   recoverable: boolean;
 }
@@ -18,7 +18,7 @@ export class ErrorHandler {
   /**
    * Map Foundry errors to user-friendly MCP errors
    */
-  mapFoundryError(error: any, context: string): MCPError {
+  mapFoundryError(error: unknown, context: string): MCPError {
     const errorMessage = error instanceof Error ? error.message : String(error);
     const errorLower = errorMessage.toLowerCase();
 
@@ -172,7 +172,7 @@ export class ErrorHandler {
   /**
    * Log error with appropriate level
    */
-  logError(mcpError: MCPError, toolName: string, originalError?: any): void {
+  logError(mcpError: MCPError, toolName: string, originalError?: unknown): void {
     const logData = {
       toolName,
       errorType: mcpError.type,
@@ -225,7 +225,7 @@ export class ErrorHandler {
   /**
    * Handle tool execution error with proper formatting
    */
-  handleToolError(error: any, toolName: string, context: string = ''): never {
+  handleToolError(error: unknown, toolName: string, context: string = ''): never {
     const mcpError = this.mapFoundryError(error, `${toolName} ${context}`.trim());
     this.logError(mcpError, toolName, error);
 

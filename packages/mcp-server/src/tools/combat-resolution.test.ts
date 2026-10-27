@@ -13,8 +13,11 @@ import { CombatResolutionTools } from './combat-resolution.js';
  * The FoundryClient is mocked so these tests run with no bridge connection.
  */
 
-function makeTools(queryImpl?: (method: string, data: unknown) => unknown) {
-  const query = vi.fn(queryImpl ?? (() => ({ success: true })));
+function makeTools(queryImpl?: (method: string, data: unknown) => unknown): {
+  tools: CombatResolutionTools;
+  query: ReturnType<typeof vi.fn>;
+} {
+  const query = vi.fn(queryImpl ?? ((): unknown => ({ success: true })));
   const foundryClient = { query } as any;
   // Minimal Logger stub: `.child()` returns itself; level methods are no-ops.
   const logger: any = {
@@ -23,7 +26,7 @@ function makeTools(queryImpl?: (method: string, data: unknown) => unknown) {
     info: vi.fn(),
     debug: vi.fn(),
   };
-  logger.child = () => logger;
+  logger.child = (): unknown => logger;
   return { tools: new CombatResolutionTools({ foundryClient, logger }), query };
 }
 
@@ -48,7 +51,7 @@ describe('CombatResolutionTools.getToolDefinitions', () => {
   it('declares the required fields for each tool', () => {
     const { tools } = makeTools();
     const defs = tools.getToolDefinitions();
-    const required = (name: string) =>
+    const required = (name: string): unknown =>
       (defs.find(d => d.name === name)!.inputSchema as any).required;
     expect(required('roll-saving-throws')).toEqual(['targets', 'rollType']);
     expect(required('use-npc-activity')).toEqual(['actorName', 'itemName']);

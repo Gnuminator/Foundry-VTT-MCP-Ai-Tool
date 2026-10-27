@@ -36,6 +36,7 @@ export const FIRST_LOAD_LIMIT_KB = 145;
  */
 export const LAZY_LIMITS_KB = {
   Handouts: 3, // 2.2 KB
+  InitiativeRibbon: 2, // 1.6 KB, measured 2026-10-27
   ModuleDiagnostics: 1, // 0.8 KB
   PaperSync: 6, // 5.1 KB, measured 2026-10-23
   Party: 4, // 3.0 KB

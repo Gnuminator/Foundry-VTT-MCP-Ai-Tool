@@ -201,6 +201,14 @@ it is (highlighted), and each combatant's HP bar and numbers. Each row is tagged
 or **NPC**. The top line shows the round and the number of combatants. Turns, initiative and saves
 stay in Foundry's own combat tracker, and damage normally goes through dnd5e's chat cards there.
 
+Above the rows is the **initiative ribbon**: one strip in turn order, starting with whoever is up.
+That creature is large with their name; the next two are clear, and the rest fade out towards the
+right. Each has a ring in the colour of its side (PC, Enemy or NPC), its initials, its initiative,
+a small HP bar and its first conditions, with **Concentrating** first. A **Round** marker shows
+where the order wraps into the next round, and a **Lair** marker shows where a lair action falls
+when a boss in the fight has one. Defeated creatures are dimmed and never count as next. The ribbon
+only shows the fight; it never writes anything.
+
 Combat in the dashboard is optional. If you want it, the strip can add damage, healing and
 conditions on several combatants at once: turn on **⚔ Combat buttons** under **Advanced** (off by
 default). With the combat buttons and GM Actions on (**Turn on for tonight** turns GM Actions on),

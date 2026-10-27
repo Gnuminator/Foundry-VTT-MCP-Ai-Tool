@@ -1,0 +1,190 @@
+/* The initiative ribbon (UI-07): the creature up now is large, the next two are clear, the rest
+   fade into mist. Colours and sizes are the theme's tokens; the only motion is the new turn
+   settling in, and it is off with reduced motion. */
+.ribbon {
+  display: flex;
+  align-items: stretch;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  overflow-x: auto;
+  list-style: none;
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.item {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+  width: 4.2rem;
+  min-width: 0;
+  text-align: center;
+}
+
+.badge {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 2.6rem;
+  height: 2.6rem;
+  border-radius: 50%;
+  border: 2px solid var(--border-strong);
+  background: var(--bg-elev);
+  color: var(--text);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
+
+.pc .badge {
+  border-color: var(--pc);
+}
+.enemy .badge {
+  border-color: var(--enemy);
+}
+.npc .badge {
+  border-color: var(--npc);
+}
+
+.name {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-2xs);
+  color: var(--text-mid);
+}
+
+.init {
+  font-size: var(--text-2xs);
+  color: var(--text-dim);
+}
+
+.hp {
+  display: block;
+  width: 100%;
+  height: 0.25rem;
+  border-radius: var(--r-pill);
+  background: var(--bg-sunken);
+  overflow: hidden;
+}
+
+.hpFill {
+  display: block;
+  height: 100%;
+  background: var(--good);
+}
+.hpFill.mid {
+  background: var(--warn);
+}
+.hpFill.low {
+  background: var(--bad);
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.15rem;
+  max-width: 100%;
+}
+
+.chip {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 0 0.3rem;
+  border-radius: var(--r-pill);
+  font-size: 0.6rem;
+  line-height: 1.4;
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+.chip.conc {
+  background: var(--accent-soft);
+  color: var(--accent-bright);
+}
+
+/* The one whose turn it is. */
+.current {
+  width: 5.6rem;
+}
+.current .badge {
+  width: 3.8rem;
+  height: 3.8rem;
+  font-size: var(--text-lg);
+  background: var(--accent-soft);
+  box-shadow: 0 0 0 3px var(--accent-glow);
+  animation: settle var(--dur-slow) var(--ease-out);
+}
+.current .name {
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--text);
+}
+
+.next {
+  opacity: 0.95;
+}
+
+/* The rest recede: the further along, the fainter. */
+.later {
+  opacity: 0.55;
+}
+.later ~ .later {
+  opacity: 0.4;
+}
+.later ~ .later ~ .later ~ .later {
+  opacity: 0.28;
+}
+
+.down {
+  opacity: 0.4;
+}
+.down .badge {
+  border-style: dashed;
+  text-decoration: line-through;
+}
+
+.marker {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.15rem;
+  min-width: 3.2rem;
+  padding: 0 var(--space-2);
+  border-left: 1px dashed var(--border-strong);
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.lair {
+  border-left-style: solid;
+  border-left-color: var(--warn);
+  color: var(--warn);
+}
+
+@keyframes settle {
+  from {
+    transform: scale(0.85);
+    opacity: 0.6;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .current .badge {
+    animation: none;
+  }
+}

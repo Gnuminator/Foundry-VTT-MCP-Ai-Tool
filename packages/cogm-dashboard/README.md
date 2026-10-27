@@ -112,10 +112,10 @@ token. Ported so far: Player links, Module diagnostics, Pre-flight (with Ready f
 Prep, Party, Handouts, Tarokka, the Tool runner, the Advanced menu (its panel, During screen and
 tool entries; Pre-flight stays in the header with its status) and the Before / During / After
 views, with Pre-flight, Prep, Party and Handouts docked in them, the During layouts (the
-switch, the layout trial and the hint), the During folds, Combat strip, Live Feed, Recent Changes,
+switch, the layout trial and the hint), the During folds, the Combat Tracker (the combat strip and
+the initiative ribbon above it), Live Feed, Recent Changes,
 the After stats and session notes, and the header's session marker, GM Actions switch and theme
-picker. Still on the old page only (`/legacy/`): the Combat Tracker view, the feature cards and the
-AI commentary.
+picker. Still on the old page only (`/legacy/`): the feature cards and the AI commentary.
 
 - `npm run build` also builds it (Vite) into `dist/web`; the server serves its page at `/` and its
   files under `/next/`. The Docker image and the Pi get it with the rest of `dist/`.

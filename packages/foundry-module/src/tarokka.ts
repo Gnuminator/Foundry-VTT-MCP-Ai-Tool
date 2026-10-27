@@ -311,36 +311,64 @@ export interface LinkCandidate {
   anchor?: string;
 }
 
-/** Headings (h1 to h6) in page HTML with Foundry's anchor slugs (a repeat gets `$1`, `$2`, as in `page.toc`). */
+const NAMED_ENTITIES: Record<string, string> = {
+  amp: '&',
+  lt: '<',
+  gt: '>',
+  quot: '"',
+  apos: "'",
+  nbsp: ' ',
+};
+
+function decodeEntities(text: string): string {
+  return text.replace(/&(?:#(\d{1,7})|#x([0-9a-f]{1,6})|([a-z]+));/gi, (whole, dec, hex, name) => {
+    if (name) return NAMED_ENTITIES[name.toLowerCase()] ?? whole;
+    const code = dec ? Number(dec) : parseInt(hex, 16);
+    return code > 0 && code <= 0x10ffff ? String.fromCodePoint(code) : whole;
+  });
+}
+
+/**
+ * Headings (h1 to h6) in page HTML with the anchor slugs of `JournalEntryPage#toc`: Foundry's
+ * `slugify` (when the page runs in Foundry), quotes removed, 64 characters, an own `id` wins, a
+ * repeat gets `$1`, `$2`. Headings marked `data-no-toc` are skipped.
+ */
 export function pageHeadings(html: string): Array<{ text: string; slug: string }> {
   const out: Array<{ text: string; slug: string }> = [];
-  const seen = new Map<string, number>();
-  for (const m of html.matchAll(/<h([1-6])\b[^>]*>([\s\S]*?)<\/h\1>/gi)) {
-    const text = m[2]
-      .replace(/<[^>]*>/g, '')
-      .replace(/&nbsp;/g, ' ')
-      .replace(/&amp;/g, '&')
-      .replace(/&#0?39;|&apos;/g, "'")
-      .replace(/&quot;/g, '"')
+  const used = new Set<string>();
+  for (const m of html.matchAll(/<h([1-6])\b([^>]*)>([\s\S]*?)<\/h\1>/gi)) {
+    if (/\bdata-no-toc\b/i.test(m[2])) continue;
+    const text = decodeEntities(m[3].replace(/<[^>]*>/g, ''))
       .replace(/\s+/g, ' ')
       .trim();
     if (!text) continue;
-    const base =
-      text
-        .toLowerCase()
-        .replace(/['"]/g, '')
-        .replace(/[^\p{L}\p{N}]+/gu, '-')
-        .replace(/^-+|-+$/g, '') || 'heading';
-    const n = seen.get(base) ?? 0;
-    seen.set(base, n + 1);
-    out.push({ text, slug: n ? `${base}$${n}` : base });
+    const id = /\bid\s*=\s*(?:"([^"]*)"|'([^']*)')/i.exec(m[2]);
+    const own = id?.[1] ?? id?.[2];
+    const slugify = (text as unknown as { slugify?: () => string }).slugify;
+    const plain =
+      typeof slugify === 'function'
+        ? slugify.call(text)
+        : text
+            .replace(/&/g, 'and')
+            .trim()
+            .toLowerCase()
+            .replace(/[\s-]+/g, '-');
+    let slug = own || plain.replace(/["']/g, '').substring(0, 64);
+    if (used.has(slug)) {
+      let i = 1;
+      while (used.has(`${slug}$${i}`)) i++;
+      slug = `${slug}$${i}`;
+    }
+    used.add(slug);
+    out.push({ text, slug });
   }
   return out;
 }
 
 /**
  * World journal pages, journals, scenes and actors whose name contains `query`, plus journal
- * pages with a heading that contains it (`heading` and `anchor` set; link as `uuid#anchor`).
+ * pages with a heading that contains it (`heading` and `anchor` set; the anchor is information for
+ * the GM, the link itself is still the page uuid).
  */
 export function searchLinkCandidates(data: { query?: unknown; limit?: unknown } | undefined): {
   query: string;

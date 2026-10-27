@@ -16,6 +16,7 @@ import {
 import {
   getTarokkaReading,
   onTarokkaSettingChanged,
+  pageHeadings,
   parseProviderReading,
   readTarokkaReadingLocal,
   resetTarokkaStateForTests,
@@ -370,7 +371,19 @@ describe('searchLinkCandidates', () => {
       ['JournalEntry.j2.JournalEntryPage.p2', 'Mira Vale', 'mira-vale'],
       ['JournalEntry.j2.JournalEntryPage.p2', 'Mira Vale', 'mira-vale$1'],
     ]);
-    expect(searchLinkCandidates({ query: 'other & co' }).candidates[0].anchor).toBe('other-co');
+    expect(searchLinkCandidates({ query: 'other & co' }).candidates[0].anchor).toBe('other-and-co');
+  });
+
+  it('builds anchors like page.toc: hyphens and quotes, own id, data-no-toc, numeric entities', () => {
+    expect(
+      pageHeadings(
+        '<h2>Ez-Zer&#39;s  Hall</h2><h3 id="own-id">Named</h3><h3 data-no-toc>Hidden</h3><h2>Ez-Zer&#x27;s Hall</h2>'
+      )
+    ).toEqual([
+      { text: "Ez-Zer's Hall", slug: 'ez-zers-hall' },
+      { text: 'Named', slug: 'own-id' },
+      { text: "Ez-Zer's Hall", slug: 'ez-zers-hall$1' },
+    ]);
   });
 
   it('ignores non-heading text and respects the limit', () => {

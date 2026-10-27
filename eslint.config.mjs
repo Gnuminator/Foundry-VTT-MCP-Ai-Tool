@@ -51,43 +51,42 @@ export default defineConfig(
           caughtErrors: 'none',
         },
       ],
-      '@typescript-eslint/explicit-function-return-type': 'warn',
-      '@typescript-eslint/no-explicit-any': 'warn',
+      '@typescript-eslint/explicit-function-return-type': 'error',
+      '@typescript-eslint/no-explicit-any': 'error',
       'no-empty': ['error', { allowEmptyCatch: true }],
-      '@typescript-eslint/no-unsafe-member-access': 'warn',
-      '@typescript-eslint/no-unsafe-assignment': 'warn',
-      '@typescript-eslint/no-unsafe-call': 'warn',
-      '@typescript-eslint/no-unsafe-argument': 'warn',
-      '@typescript-eslint/no-unsafe-return': 'warn',
+      '@typescript-eslint/no-unsafe-member-access': 'error',
+      '@typescript-eslint/no-unsafe-assignment': 'error',
+      '@typescript-eslint/no-unsafe-call': 'error',
+      '@typescript-eslint/no-unsafe-argument': 'error',
+      '@typescript-eslint/no-unsafe-return': 'error',
       // Async methods without await are kept for a uniform async API; forgotten awaits are caught
       // by no-floating-promises (an error).
       '@typescript-eslint/require-await': 'off',
-      '@typescript-eslint/restrict-template-expressions': 'warn',
+      '@typescript-eslint/restrict-template-expressions': 'error',
       // `||` on primitives is a deliberate fallback for '', 0 and false.
       '@typescript-eslint/prefer-nullish-coalescing': [
-        'warn',
+        'error',
         { ignorePrimitives: { string: true, number: true, boolean: true, bigint: true } },
       ],
       '@typescript-eslint/no-floating-promises': 'error',
       '@typescript-eslint/await-thenable': 'error',
-      'no-console': ['warn', { allow: ['warn', 'error'] }],
+      'no-console': ['error', { allow: ['warn', 'error'] }],
       'prefer-const': 'error',
       'no-var': 'error',
       'object-shorthand': 'error',
       'prefer-template': 'error',
       // Findings that are new with ESLint 10 and typescript-eslint 8 (their recommended sets
-      // and the stricter prefer-optional-chain). Warnings, so the ratchet counts them, until
-      // the lint zero sweep fixes them and warnings become errors.
-      'no-useless-assignment': 'warn',
-      'no-constant-binary-expression': 'warn',
-      'preserve-caught-error': 'warn',
+      // and the stricter prefer-optional-chain). Errors since the lint zero sweep (D-109).
+      'no-useless-assignment': 'error',
+      'no-constant-binary-expression': 'error',
+      'preserve-caught-error': 'error',
       '@typescript-eslint/no-unnecessary-type-assertion': 'error',
       '@typescript-eslint/prefer-optional-chain': 'error',
-      '@typescript-eslint/prefer-promise-reject-errors': 'warn',
+      '@typescript-eslint/prefer-promise-reject-errors': 'error',
       '@typescript-eslint/no-base-to-string': 'error',
       '@typescript-eslint/unbound-method': 'error',
       '@typescript-eslint/no-duplicate-type-constituents': 'error',
-      '@typescript-eslint/only-throw-error': 'warn',
+      '@typescript-eslint/only-throw-error': 'error',
     },
   },
   {
@@ -114,7 +113,7 @@ export default defineConfig(
     // recommended set adds the React Compiler rules; turning those on is the React lane's call.
     rules: {
       'react-hooks/rules-of-hooks': 'error',
-      'react-hooks/exhaustive-deps': 'warn',
+      'react-hooks/exhaustive-deps': 'error',
     },
   },
   prettierRecommended

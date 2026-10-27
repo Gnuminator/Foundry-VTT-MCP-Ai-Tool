@@ -1,0 +1,37 @@
+{
+  "_comment": "Known upstream module findings, so they do not hide new ones (I-117). Each entry matches the text of a module error from get-module-errors by substring; module '*' matches any. max caps how many findings the entry may absorb. The first rehearsal run tunes the match strings against real text; an entry the run did not see is listed as unseen, and is removed when the module's release fixes it.",
+  "expected": [
+    {
+      "id": "dae-turn-start-source",
+      "module": "dae",
+      "match": "turnStartSource",
+      "why": "DAE 14.x: a deprecated special duration on an old effect (walkthrough 2026-10-04). Upstream data, nothing for us to fix."
+    },
+    {
+      "id": "dae-dnd5e-deprecation",
+      "module": "dae",
+      "match": "createRiderConditions",
+      "why": "DAE logs a dnd5e deprecation warning in createRiderConditions on each applied effect (walkthrough 2026-10-04)."
+    },
+    {
+      "id": "actor-studio-v1-application",
+      "module": "foundryvtt-actor-studio",
+      "match": "V1 Application",
+      "why": "Actor Studio uses the deprecated V1 application framework; the warning shows on load. Our fork (I-116) does not change it."
+    },
+    {
+      "id": "ddb-importer-403",
+      "module": "ddb-importer",
+      "match": "403",
+      "max": 2,
+      "why": "A harmless 403 from the MrPrimate server when no Patreon key is set (walkthrough 2026-10-04)."
+    },
+    {
+      "id": "monks-common-display-tokenizer-images",
+      "module": "monks-common-display",
+      "match": "Tokenizer",
+      "max": 5,
+      "why": "Missing Tokenizer images from old-world data; a fresh kit world has none (walkthrough 2026-10-04). Unseen is normal."
+    }
+  ]
+}

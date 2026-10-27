@@ -138,8 +138,6 @@ export function plainText(html: unknown): string {
       .replace(/@(?:UUID|Embed)\[[^\]]*\]/g, '')
       .replace(/<\/(p|div|li|h[1-6]|tr|td|th|br)>|<br\s*\/?>/gi, ' ')
       .replace(/<[^>]*>/g, '')
-      // Nested input like "<scr<script>ipt>" leaves a stray bracket: no tag survives.
-      .replace(/[<>]/g, ' ')
       // &amp; last, so "&amp;lt;" stays the text "&lt;".
       .replace(/&nbsp;/g, ' ')
       .replace(/&lt;/g, '<')
@@ -150,6 +148,9 @@ export function plainText(html: unknown): string {
         const code = n[0] === 'x' || n[0] === 'X' ? parseInt(n.slice(1), 16) : Number(n);
         return code > 0 && code <= 0x10ffff ? String.fromCodePoint(code) : whole;
       })
+      // After decoding: nested input like "<scr<script>ipt>" or a decoded "&lt;script" leaves
+      // a bracket, so none survives (search text only; a literal "<" reads as a space).
+      .replace(/[<>]/g, ' ')
       .replace(/&amp;/g, '&')
       .replace(/\s+/g, ' ')
       .trim()

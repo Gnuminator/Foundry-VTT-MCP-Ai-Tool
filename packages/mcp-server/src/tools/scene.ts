@@ -2,19 +2,21 @@ import { toolRef } from '@gnuminator/shared';
 import { z } from 'zod';
 import { FoundryClient } from '../foundry-client.js';
 import { Logger } from '../logger.js';
+import type {
+  ActiveSceneData,
+  SceneNoteData,
+  SceneTokenData,
+  SceneUserLike,
+  TokenSummary,
+  WorldInfoData,
+} from './types/scene-types.js';
 
 export interface SceneToolsOptions {
   foundryClient: FoundryClient;
   logger: Logger;
 }
 
-interface WorldUserLike {
-  id?: unknown;
-  name?: unknown;
-  isGM?: unknown;
-  active?: unknown;
-  tableViewer?: unknown;
-}
+type WorldUserLike = SceneUserLike;
 
 /** Non-GM users (not the TV's Table user) of a world-info answer as `{ id, name, active }`. */
 function playerUsersOf(worldData: unknown): { id: string; name: string; active: boolean }[] {
@@ -44,7 +46,7 @@ export class SceneTools {
   /**
    * Tool definitions for scene operations
    */
-  getToolDefinitions() {
+  getToolDefinitions(): { name: string; description: string; inputSchema: unknown }[] {
     return [
       {
         name: 'get-current-scene',
@@ -116,22 +118,25 @@ export class SceneTools {
     ];
   }
 
-  async listScenes(input: any): Promise<any> {
-    const safeInput = input ?? {};
+  async listScenes(input: unknown): Promise<unknown> {
+    const safeInput = (input ?? {}) as Record<string, unknown>;
     try {
       const params = {
         filter: typeof safeInput.filter === 'string' ? safeInput.filter : undefined,
         include_active_only: Boolean(safeInput.include_active_only),
       };
       return await this.foundryClient.query('foundry-mcp-bridge.list-scenes', params);
-    } catch (error: any) {
+    } catch (error: unknown) {
       this.logger.error('List scenes failed', { error, input: safeInput });
-      return { success: false, error: error?.message ?? 'Unknown error' };
+      return {
+        success: false,
+        error: (error as { message?: unknown } | null | undefined)?.message ?? 'Unknown error',
+      };
     }
   }
 
-  async switchScene(input: any): Promise<any> {
-    const safeInput = input ?? {};
+  async switchScene(input: unknown): Promise<unknown> {
+    const safeInput = (input ?? {}) as Record<string, unknown>;
     try {
       const sceneIdentifier =
         typeof safeInput.scene_identifier === 'string'
@@ -147,13 +152,16 @@ export class SceneTools {
       };
 
       return await this.foundryClient.query('foundry-mcp-bridge.switch-scene', params);
-    } catch (error: any) {
+    } catch (error: unknown) {
       this.logger.error('Switch scene failed', { error, input: safeInput });
-      return { success: false, error: error?.message ?? 'Unknown error' };
+      return {
+        success: false,
+        error: (error as { message?: unknown } | null | undefined)?.message ?? 'Unknown error',
+      };
     }
   }
 
-  async handleGetCurrentScene(args: any): Promise<any> {
+  async handleGetCurrentScene(args: unknown): Promise<Record<string, unknown>> {
     const schema = z.object({
       includeTokens: z.boolean().default(true),
       includeHidden: z.boolean().default(false),
@@ -164,7 +172,9 @@ export class SceneTools {
     this.logger.info('Getting current scene information', { includeTokens, includeHidden });
 
     try {
-      const sceneData = await this.foundryClient.query('foundry-mcp-bridge.getActiveScene');
+      const sceneData = (await this.foundryClient.query(
+        'foundry-mcp-bridge.getActiveScene'
+      )) as ActiveSceneData;
 
       this.logger.debug('Successfully retrieved scene data', {
         sceneId: sceneData.id,
@@ -182,11 +192,13 @@ export class SceneTools {
     }
   }
 
-  async handleGetWorldInfo(_args: any): Promise<any> {
+  async handleGetWorldInfo(_args?: unknown): Promise<Record<string, unknown>> {
     this.logger.info('Getting world information');
 
     try {
-      const worldData = await this.foundryClient.query('foundry-mcp-bridge.getWorldInfo');
+      const worldData = (await this.foundryClient.query(
+        'foundry-mcp-bridge.getWorldInfo'
+      )) as WorldInfoData;
 
       this.logger.debug('Successfully retrieved world data', {
         worldId: worldData.id,
@@ -203,8 +215,12 @@ export class SceneTools {
     }
   }
 
-  private formatSceneResponse(sceneData: any, includeTokens: boolean, includeHidden: boolean): any {
-    const response: any = {
+  private formatSceneResponse(
+    sceneData: ActiveSceneData,
+    includeTokens: boolean,
+    includeHidden: boolean
+  ): Record<string, unknown> {
+    const response: Record<string, unknown> = {
       id: sceneData.id,
       name: sceneData.name,
       active: sceneData.active,
@@ -229,7 +245,7 @@ export class SceneTools {
     }
 
     if (sceneData.notes && sceneData.notes.length > 0) {
-      response.notes = sceneData.notes.map((note: any) => ({
+      response.notes = sceneData.notes.map((note: SceneNoteData) => ({
         id: note.id,
         text: this.truncateText(note.text, 100),
         position: { x: note.x, y: note.y },
@@ -239,7 +255,10 @@ export class SceneTools {
     return response;
   }
 
-  private formatTokens(tokens: any[], includeHidden: boolean): any[] {
+  private formatTokens(
+    tokens: SceneTokenData[],
+    includeHidden: boolean
+  ): Record<string, unknown>[] {
     return tokens
       .filter(token => includeHidden || !token.hidden)
       .map(token => ({
@@ -260,10 +279,10 @@ export class SceneTools {
       }));
   }
 
-  private createTokenSummary(tokens: any[], includeHidden: boolean): any {
+  private createTokenSummary(tokens: SceneTokenData[], includeHidden: boolean): TokenSummary {
     const visibleTokens = includeHidden ? tokens : tokens.filter(t => !t.hidden);
 
-    const summary = {
+    const summary: TokenSummary = {
       total: visibleTokens.length,
       byDisposition: {
         friendly: 0,
@@ -296,7 +315,7 @@ export class SceneTools {
     return summary;
   }
 
-  private formatWorldResponse(worldData: any): any {
+  private formatWorldResponse(worldData: WorldInfoData): Record<string, unknown> {
     return {
       id: worldData.id,
       title: worldData.title,
@@ -309,26 +328,26 @@ export class SceneTools {
       },
       users: {
         total: worldData.users?.length || 0,
-        active: worldData.users?.filter((u: any) => u.active).length || 0,
-        gms: worldData.users?.filter((u: any) => u.isGM).length || 0,
+        active: worldData.users?.filter((u: WorldUserLike) => u.active).length || 0,
+        gms: worldData.users?.filter((u: WorldUserLike) => u.isGM).length || 0,
         // The TV's Table user is a screen, not a player.
         players:
           worldData.users?.filter((u: WorldUserLike) => !u.isGM && !u.tableViewer).length || 0,
       },
       activeUsers:
         worldData.users
-          ?.filter((u: any) => u.active)
-          .map((u: any) => ({
+          ?.filter((u: WorldUserLike) => u.active)
+          .map((u: WorldUserLike) => ({
             id: u.id,
             name: u.name,
             isGM: u.isGM,
-          })) || [],
+          })) ?? [],
       // Every non-GM user, online or not (the player page's one-time name pick, I-084).
       playerUsers: playerUsersOf(worldData),
     };
   }
 
-  private getDispositionName(disposition: number): string {
+  private getDispositionName(disposition: number | undefined): string {
     switch (disposition) {
       case -2:
         return 'secret';
@@ -343,7 +362,7 @@ export class SceneTools {
     }
   }
 
-  private truncateText(text: string, maxLength: number): string {
+  private truncateText(text: string | undefined, maxLength: number): string | undefined {
     if (!text || text.length <= maxLength) {
       return text;
     }

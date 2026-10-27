@@ -50,7 +50,7 @@ const KIND_EVENTS: FeedEvent[] = [
   ev('k10', at(20, 9), 'condition-applied', 'Ogre Brute gained "Poisoned"'),
   ev('k11', at(20, 10), 'condition-removed', 'Ogre Brute lost "Poisoned"'),
   ev('k12', at(20, 11), 'resource-spent', 'Mira used a level 2 spell slot'),
-  ev('k13', at(20, 12), 'death', 'Goblin Archer dropped to 0 hit points'),
+  ev('k13', at(20, 12), 'death', 'Goblin Archer is down (0 HP)'),
   ev('k14', at(20, 13), 'stabilize', 'Mira is stable'),
   ev('k15', at(20, 14), 'gm-change', 'Applied: moved the Ogre Brute token'),
   ev('k16', at(20, 15), 'combat-end', 'Combat ended after 4 rounds'),

@@ -32,7 +32,7 @@ journals also show up in your GM Obsidian vault when the mirror is on.
 
 The tool follows hit points, not life and death:
 
-- **Dropping to 0 HP** is logged ("Kasimir dropped to 0 HP") and shows in the dashboard's
+- **Dropping to 0 HP** is logged ("Kasimir is down: 0 HP, unconscious, death saves begin") and shows in the dashboard's
   **Live Feed** and on the players' page. Getting back above 0 is logged too ("is back up").
 - **Death saving throws** show in Foundry's Combat Tracker, the dashboard's turn-order strip and in the **🛡 Party** drawer while a
   character is at 0 HP ("Death saves: 1 saved, 2 failed"). They are recorded in the play log.

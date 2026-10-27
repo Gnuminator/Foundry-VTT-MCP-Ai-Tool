@@ -23,7 +23,11 @@ export const PLAYER_RECAP_TOOLS: readonly string[] = [
   'check-secret-terms',
 ];
 
-/** The session-log event types the players' page shows; the players recap keeps only these. */
+/**
+ * The session-log event types the players' page shows; the players recap keeps only these.
+ * `item-use` is shown on the page but stays out of the recap on purpose: the item name lives in
+ * `details`, which the recap prompt must not read.
+ */
 const PLAYER_EVENT_TYPES =
   'combat-start, combat-end, damage, healing, death, stabilize, condition-applied, condition-removed, resource-spent, scene-change, roll, damage-roll';
 

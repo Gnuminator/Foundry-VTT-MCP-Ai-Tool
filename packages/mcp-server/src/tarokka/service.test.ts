@@ -254,6 +254,23 @@ describe('reading and import', () => {
     expect(await tarokka.getReading()).toEqual(before);
   });
 
+  it('refuses clear together with source or userId', async () => {
+    await apply((await tarokka.planImport({ source: 'builtin-roll' })).planId);
+    await expect(tarokka.planImport({ clear: true, source: 'builtin-roll' })).rejects.toThrow(
+      /clear takes no source or userId/
+    );
+    await expect(tarokka.planImport({ clear: true, userId: 'u1' })).rejects.toThrow(
+      /clear takes no source or userId/
+    );
+  });
+
+  it('refuses a clear plan that went stale because a reading was imported after it', async () => {
+    await apply((await tarokka.planImport({ source: 'builtin-roll' })).planId);
+    const clearPlan = await tarokka.planImport({ clear: true });
+    await apply((await tarokka.planImport({ source: 'builtin-roll' })).planId);
+    await expect(apply(clearPlan.planId, true)).rejects.toThrow(/Conflict/);
+  });
+
   it('needs the tarokka feature switch to apply', async () => {
     const plan = await tarokka.planImport({ source: 'builtin-roll' });
     foundry.features[0].enabled = false;

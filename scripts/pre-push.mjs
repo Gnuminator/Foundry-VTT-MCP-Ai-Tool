@@ -15,6 +15,7 @@ import {
   portableNode22Dir,
   stepEnvironment,
 } from './green.mjs';
+import { withHeavyLock } from './heavy-lock.mjs';
 
 /** The checks, in the order of the CI job. */
 export const CHECKS = [
@@ -60,13 +61,15 @@ export function main(o = {}) {
 /** @param {{ name: string, args: string[] }} check @param {string} cwd */
 function defaultRunCheck(check, cwd) {
   // One command string under the shell (an args array under a shell is DEP0190), as green.mjs does.
-  const r = spawnSync(['npm', ...check.args].join(' '), {
-    cwd,
-    shell: true,
-    stdio: 'inherit',
-    env: stepEnvironment(process.env, portableNode22Dir()),
+  return withHeavyLock(`pre-push ${check.name}`, () => {
+    const r = spawnSync(['npm', ...check.args].join(' '), {
+      cwd,
+      shell: true,
+      stdio: 'inherit',
+      env: stepEnvironment(process.env, portableNode22Dir()),
+    });
+    return r.status ?? 1;
   });
-  return r.status ?? 1;
 }
 
 if (isEntryModule(process.argv[1], fileURLToPath(import.meta.url))) {

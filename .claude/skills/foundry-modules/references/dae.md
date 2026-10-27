@@ -38,7 +38,7 @@ Status: source read (version 14.0.19, Foundry 14.368 to 14.999). Live pass on a 
 
 ## Verdict
 
-Draft: **optional, leaning drop for session 0.** The dnd5e 6 Active Effects editor covers a GM's needs, and DAE earns its place with Midi QOL or heavy homebrew effects. Cost: two library dependencies and a larger update surface. Final verdict after the live pass (does the duration list work with dnd5e 6 spell effects?).
+Draft: **optional: keep only if the Strahd characters' items need DAE durations or macros (some D&D Beyond imports do), decided once those characters exist.** Walkthrough 2026-10-04 (14.0.14): no clash; concentration works with DAE on (dnd5e 6 does it itself), a player's self effect still needs "Allow Player Effect Application" on, DAE adds its flags and a dnd5e `createRiderConditions` deprecation warning, nothing breaks. Leaning drop for session 0. The dnd5e 6 Active Effects editor covers a GM's needs, and DAE earns its place with Midi QOL or heavy homebrew effects. Cost: two library dependencies and a larger update surface. Final verdict after the live pass (does the duration list work with dnd5e 6 spell effects?).
 
 ## Danni's guide line
 

@@ -39,7 +39,7 @@ Quality of life for combat: turn alerts with sound ("you are next", "your turn")
 
 ## Verdict
 
-Draft: **keep.** Combat feels guided for a new GM with few clicks, and monster names stay hidden from players. Costs: many options (leave defaults), a sound on every turn. Final verdict after the live pass.
+Draft: **keep (optional, his taste).** Walkthrough 2026-10-04: no clash with the AI Tool; turns advanced by `advance-combat-turn` post its "Round N" card; its one interaction is the "Not all Initiative have been rolled" confirm when combat is started by hand (a script calling `Combat#startCombat()` times out on that dialog; the kit and sweep helpers avoid it). Combat feels guided for a new GM with few clicks, and monster names stay hidden from players. Costs: many options (leave defaults), a sound on every turn. Final verdict after the live pass.
 
 ## Danni's guide line
 

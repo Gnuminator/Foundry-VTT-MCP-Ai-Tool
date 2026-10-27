@@ -27,6 +27,7 @@ Status: source and README read (version 14.01, Foundry 14 verified). Live pass o
 
 ## How it interacts with the AI Tool
 
+- **Log gap (walkthrough 2026-10-04, 14.01):** a save rolled from TokenBar's request card is not seen by the session log or play recorder (see Verdict).
 - No tool calls it. Our `request-player-rolls`, `request-ability-check`, `roll-saving-throws` use the bridge's own roll path and chat cards; TokenBar's "Request" cards are a second, separate path. Both can be used in one session, but a roll made on one card does not answer the other.
 - TokenBar reads token disposition and ownership: a token the bridge creates with non-friendly disposition will not appear in the bar.
 - Whether the movement lock stops a token move made through a bridge token tool is unverified; test in the live pass before telling Danni "the AI can still move tokens in combat".
@@ -41,7 +42,7 @@ Status: source and README read (version 14.01, Foundry 14 verified). Live pass o
 
 ## Verdict
 
-Draft: **keep, low cost.** Group saves and the token bar are the two things that make running a table of five faster for a GM new to Foundry. Cost at the table: one more bar on the canvas (collapsible), plus a different roll-request card than the AI's. Turn off loot and XP features. Final verdict after the live pass.
+Draft: **drop (recommended), or keep only if Danni wants its bar and we teach the recorder to read its cards.** The module walkthrough (2026-10-04, vault `Design/Module walkthrough plan.md`) found that TokenBar writes a save result into its own chat card (a message update) and posts no dnd5e roll message, so the session log, play recorder, recaps and stats miss every save rolled from its cards. dnd5e 6's own roll requests and our `request-player-rolls` are logged. The bar and group-request dialog are nice for a GM new to Foundry, which is the case for keeping. Re-verify the log gap on the newest version in the live pass.
 
 ## Danni's guide line
 

@@ -32,7 +32,7 @@ Defaults. Leave both Beyond20 switches off (the auto-cast one is off by default;
 
 ## Verdict
 
-Draft: **keep if Danni runs spellcaster-heavy fights, otherwise optional.** Concentration and spell duration are the easiest thing for a new GM to forget; the cost is one more row in the tracker and the install ping. Final verdict after the live pass.
+Draft: **drop (recommended) unless Danni likes its reminders.** The walkthrough (2026-10-04) found no clash (no errors, effect counts down across rounds advanced by our `advance-combat-turn`), but dnd5e 6 and Foundry 14 already track effect durations and concentration, the module declares dnd5e 5.0.0+ rather than 6, and it adds an install ping. What it adds is the per-caster row in the tracker. Re-check on the newest version in the live pass.
 
 ## Danni's guide line
 

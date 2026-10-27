@@ -96,6 +96,30 @@ test('toolRefusal keeps the reviewer inside its folders', () => {
   assert.match(refuse('Bash', { command: 'ls' }) ?? '', /not allowed/);
 });
 
+test('toolRefusal refuses home folders, variables and brace lists that start at a root', () => {
+  const wt = path.resolve('/work/wt');
+  const refuse = (/** @type {string} */ t, /** @type {Record<string, unknown>} */ i) => toolRefusal(t, i, wt, [wt]);
+  assert.match(refuse('Read', { file_path: '~/.ssh/id_rsa' }) ?? '', /plain relative path/);
+  assert.match(refuse('Read', { file_path: '~\\.claude\\.credentials.json' }) ?? '', /plain relative path/);
+  assert.match(refuse('Read', { file_path: '$HOME/x' }) ?? '', /plain relative path/);
+  assert.match(refuse('Read', { file_path: '%APPDATA%\\x' }) ?? '', /plain relative path/);
+  assert.match(refuse('Glob', { pattern: '{C:/Users/chris/**,x}' }) ?? '', /plain relative path/);
+  assert.match(refuse('Glob', { pattern: '{src/*,/etc/*}' }) ?? '', /plain relative path/);
+  assert.equal(refuse('Glob', { pattern: 'src/**/*.{ts,tsx}' }), null);
+  // An 8.3 short name inside a path is fine, and a drive letter on an absolute path is fine.
+  assert.equal(refuse('Read', { file_path: path.join(wt, 'CHRIS~1', 'a.ts') }), null);
+  // Windows paths compare without case.
+  assert.equal(refuse('Read', { file_path: path.join(wt, 'A.ts').toUpperCase() }), null);
+});
+
+test('a reserve line plus a settle line total the real cost', () => {
+  const budget = 3;
+  const real = 0.38;
+  assert.ok(Math.abs(totalUsd([{ costUsd: budget }, { costUsd: real - budget }]) - real) < 1e-9);
+  // A run with no settle line stays at the full budget.
+  assert.equal(totalUsd([{ costUsd: budget }]), budget);
+});
+
 test('secretHits finds the key and token-like strings', () => {
   assert.deepEqual(secretHits('fine', 'sk-ant-abc'), []);
   assert.deepEqual(secretHits('has KEY-123 inside', 'KEY-123'), ['the review key']);

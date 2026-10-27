@@ -186,6 +186,11 @@ async function review(p, o, key, repo) {
       agentChecklists,
     });
 
+    // Pull the vault before any spend: a dirty vault must not fail a review after it was paid for.
+    if (!o.noCommit && !run('git', ['pull', '--rebase', '-q'], o.vault).ok) {
+      run('git', ['rebase', '--abort'], o.vault);
+      throw new Error(`the vault could not be pulled (${o.vault}); fix it first, nothing was spent`);
+    }
     const { query } = await import('@anthropic-ai/claude-agent-sdk');
     const env = { ...process.env, ANTHROPIC_API_KEY: key };
     delete env[KEY_VAR];
@@ -246,7 +251,8 @@ async function review(p, o, key, repo) {
     }
     if (!result) throw new Error('the SDK ended without a result (the full budget stays booked)');
 
-    const costUsd = Number(result.total_cost_usd) || 0;
+    const costUsd = Number(result.total_cost_usd);
+    if (!Number.isFinite(costUsd)) throw new Error('the SDK gave no cost figure; the full budget stays booked');
     settle(costUsd, {
       turns: result.num_turns,
       durationMs: Date.now() - started,
@@ -262,17 +268,19 @@ async function review(p, o, key, repo) {
     if (result.subtype !== 'success') throw new Error(`the review ended with ${result.subtype} ($${costUsd.toFixed(2)} spent); no note written`);
 
     const { text, problems } = finishNote(String(result.result), p.pr, p.model, p.sha, p.name);
-    for (const h of secretHits(text, key)) problems.push(`the note contains ${h}`);
-    if (problems.length > 0) {
-      const raw = path.join(os.tmpdir(), `review-runner-${p.pr}-rejected.md`);
-      fs.writeFileSync(raw, text);
-      throw new Error(`the answer is not a valid note (${problems.join('; ')}); kept at ${raw}`);
+    const secrets = secretHits(text, key);
+    for (const h of secrets) problems.push(`the note contains ${h}`);
+    // Opus-named notes count for risky PRs: the answering model must be the one the name claims.
+    if (!Object.keys(result.modelUsage ?? {}).some(k => k.includes(p.model))) {
+      problems.push(`modelUsage does not show a ${p.model} model answering`);
     }
-    if (!o.noCommit && !run('git', ['pull', '--rebase', '-q'], o.vault).ok) {
-      run('git', ['rebase', '--abort'], o.vault);
-      const unsaved = path.join(os.tmpdir(), `review-runner-${p.pr}-unsaved.md`);
-      fs.writeFileSync(unsaved, text);
-      throw new Error(`the vault could not be pulled; the note is kept at ${unsaved} ($${costUsd.toFixed(2)} is booked, do not rerun)`);
+    if (problems.length > 0) {
+      // A note with a secret in it is never written to disk.
+      const raw = path.join(os.tmpdir(), `review-runner-${p.pr}-rejected.md`);
+      if (secrets.length === 0) fs.writeFileSync(raw, text);
+      throw new Error(
+        `the answer is not a valid note (${problems.join('; ')})${secrets.length === 0 ? `; kept at ${raw}` : ''}`
+      );
     }
     fs.mkdirSync(p.dir, { recursive: true });
     const file = path.join(p.dir, p.name);

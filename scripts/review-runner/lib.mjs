@@ -138,6 +138,14 @@ export function toolRefusal(tool, input, cwd, roots) {
       const x = norm(p);
       return x === root || x.startsWith(root + path.sep);
     });
+  // Shell-style expansion the guard cannot follow (home folder, variables, brace lists) is refused.
+  for (const k of ['file_path', 'path', 'pattern', 'glob']) {
+    const v = input[k];
+    if (tool === 'Grep' && k === 'pattern') continue;
+    if (typeof v === 'string' && (/[$%:]/.test(v.replace(/^[a-z]:[\\/]/i, '')) || /(^|[\\/{,])~/.test(v) || /[{,][\\/]/.test(v))) {
+      return `${k} uses ~, $, %, : or a brace list that starts at a root; give a plain relative path`;
+    }
+  }
   for (const k of ['file_path', 'path']) {
     const v = input[k];
     if (v !== undefined && v !== null && v !== '' && !(typeof v === 'string' && inside(v))) {
@@ -250,6 +258,9 @@ export function buildPrompts(c) {
     c.round > 1
       ? `This is round ${c.round}: a delta check. Judge only whether the previous note's findings are fixed and whether the fixes introduced new problems. Say which finding IDs are fixed.`
       : `This is round 1: a full review.`,
+    ...(c.agentChecklists.length > 0
+      ? [`\nThe checklists below come from other agent files. Where one describes its own output format, ignore that part: your note uses the format above.`]
+      : []),
     ...c.agentChecklists.map(
       (t, i) => `\n## Checklist ${i + 1} (from .claude/agents)\n\n${t}`
     ),

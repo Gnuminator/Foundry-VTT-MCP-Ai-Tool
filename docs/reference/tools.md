@@ -158,7 +158,7 @@ Parameters:
 
 ### search-rules
 
-Full-text rules search over rulebook journal pages and item, spell and feature descriptions, in the allowlisted rules packs only. Returns ids and a snippet; read a hit in full with get-compendium-item (itemId = documentId) or, for world journals, list-journals.
+Full-text rules search over rulebook journal pages and item, spell and feature descriptions, in the allowlisted rules packs only. Returns ids and an excerpt; a whole journal is large, so prefer a bigger excerptChars to opening it with get-compendium-item (itemId = documentId) or, for world journals, list-journals.
 
 Kind: read-only. Title: Search rules.
 
@@ -166,6 +166,7 @@ Parameters:
 
 - `query` (string, required): Rule or term in plain words, e.g. "grapple". Filler words are ignored.
 - `limit` (number): Maximum hits, 1 to 25 (default 10).
+- `excerptChars` (number): Excerpt length per hit, 80 to 4000 (default 240). Raise it to read a rule.
 - `includeWorld` (boolean): Also search world journals (adventure text). Off by default.
 - `includeOtherBooks` (boolean): Also search packs outside the rules allowlist. Off by default.
 

@@ -158,6 +158,39 @@ describe('FoundryDataAccess.searchRules', () => {
     expect(res.results.map(r => r.documentId)).toEqual(['cosj1']);
   });
 
+  it('lists a page that two packs share only once, from the first pack on the allowlist', async () => {
+    world.addPack({
+      id: 'dnd5e.content24',
+      label: 'SRD 5.2',
+      type: 'JournalEntry',
+      documents: [
+        makeJournal({
+          id: 'srdj1',
+          name: 'Playing the Game',
+          pages: [makeJournalPage({ id: 'sp9', name: 'Grapple', text: { content: GRAPPLE_HTML } })],
+        }),
+      ],
+    });
+    const res = await da.searchRules({ query: 'grapple' });
+    const grapple = res.results.filter(r => r.pageName === 'Grapple');
+    expect(grapple.map(r => r.packId)).toEqual(['dnd-players-handbook.content']);
+  });
+
+  it('returns a longer excerpt on request', async () => {
+    const long = `<p>${'Grapple rules text. '.repeat(100)}</p>`;
+    world.addJournal({
+      id: 'wj2',
+      name: 'Long',
+      pages: [makeJournalPage({ id: 'wp2', name: 'Long', text: { content: long } })],
+    });
+    const short = await da.searchRules({ query: 'grapple', includeWorld: true });
+    const big = await da.searchRules({ query: 'grapple', includeWorld: true, excerptChars: 1500 });
+    const pick = (r: typeof short): number =>
+      r.results.find(h => h.documentId === 'wj2')!.snippet.length;
+    expect(pick(short)).toBeLessThan(300);
+    expect(pick(big)).toBeGreaterThan(1400);
+  });
+
   it('rejects a query with no searchable words', async () => {
     await expect(da.searchRules({ query: 'how does' })).rejects.toThrow(/searchable/);
   });

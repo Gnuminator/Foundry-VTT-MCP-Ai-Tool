@@ -51,6 +51,7 @@ const STOP_WORDS = new Set([
 ]);
 
 const SNIPPET_CHARS = 240;
+const MAX_EXCERPT = 4000;
 const MAX_LIMIT = 25;
 
 interface IndexedText {
@@ -97,6 +98,8 @@ export interface RulesSearchParams {
   limit?: number;
   /** Also search world journals (an imported adventure lives there). */
   includeWorld?: boolean;
+  /** Length of each hit's text excerpt (default 240); raise it to read a rule without opening the journal. */
+  excerptChars?: number;
   /** Also search compendium packs that are not on the allowlist. */
   includeOtherBooks?: boolean;
 }
@@ -107,6 +110,7 @@ export function plainText(html: unknown): string {
   return html
     .replace(/@UUID\[[^\]]*\]\{([^}]*)\}/g, '$1')
     .replace(/\[\[[^\]]*\]\]\{([^}]*)\}/g, '$1')
+    .replace(/\[\[[^\]]*\]\]|@Embed\[[^\]]*\]/g, '')
     .replace(/<\/(p|div|li|h[1-6]|tr|br)>|<br\s*\/?>/gi, ' ')
     .replace(/<[^>]*>/g, '')
     .replace(/&nbsp;/g, ' ')
@@ -168,6 +172,10 @@ export class RulesSearchDataAccess {
       );
     }
     const limit = Math.min(Math.max(Math.floor(params.limit ?? 10), 1), MAX_LIMIT);
+    const excerptChars = Math.min(
+      Math.max(Math.floor(params.excerptChars ?? SNIPPET_CHARS), 80),
+      MAX_EXCERPT
+    );
     const includeWorld = params.includeWorld === true;
     const includeOtherBooks = params.includeOtherBooks === true;
 
@@ -194,10 +202,34 @@ export class RulesSearchDataAccess {
     }
 
     const needed = terms.length <= 2 ? terms.length : Math.ceil(terms.length / 2);
+    // Rare terms count more than common ones ("grappl" beats "action").
+    const presence = entries.map(entry => termPresence(entry, terms));
+    const weights = terms.map((_, i) => {
+      const df = presence.filter(p => p[i] !== 'none').length;
+      return Math.log(1 + entries.length / Math.max(df, 1));
+    });
+    const packRank = (id: string | undefined): number => {
+      const pkg = id?.split('.')[0] ?? '';
+      const at = allowlist.findIndex(e => e === id || e === pkg);
+      return at < 0 ? allowlist.length : at;
+    };
+    const seen = new Set<string>();
     const hits: RulesSearchHit[] = [];
-    for (const entry of entries) {
-      const scored = scoreEntry(entry, terms);
+    const order = entries.map((_, i) => i);
+    const scores = order.map(i => scoreEntry(entries[i], terms, presence[i], weights));
+    order.sort(
+      (a, b) =>
+        scores[b].score - scores[a].score ||
+        packRank(entries[a].packId) - packRank(entries[b].packId)
+    );
+    for (const i of order) {
+      const entry = entries[i];
+      const scored = scores[i];
       if (scored.matched < needed) continue;
+      // The PHB and the SRD 5.2 carry the same page: list it once, from the first pack.
+      const key = `${entry.pageName ?? entry.name}|${entry.text.slice(0, 120)}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
       hits.push({
         source: entry.source,
         packId: entry.packId,
@@ -207,7 +239,7 @@ export class RulesSearchDataAccess {
         name: entry.name,
         pageId: entry.pageId,
         pageName: entry.pageName,
-        snippet: snippetAround(entry.text, scored.firstIndex),
+        snippet: snippetAround(entry.text, scored.firstIndex, excerptChars),
         score: scored.score,
         readWith:
           entry.source === 'world'
@@ -215,7 +247,6 @@ export class RulesSearchDataAccess {
             : 'get-compendium-item (packId, itemId=documentId)',
       });
     }
-    hits.sort((a, b) => b.score - a.score || a.name.localeCompare(b.name));
 
     return {
       query,
@@ -296,27 +327,38 @@ export class RulesSearchDataAccess {
   }
 }
 
+type Presence = 'none' | 'body' | 'title';
+
+/** Per term: in the page or journal title, only in the text, or absent. */
+function termPresence(entry: IndexedText, terms: string[]): Presence[] {
+  const title = `${entry.name} ${entry.pageName ?? ''}`.toLowerCase();
+  const body = entry.text.toLowerCase();
+  return terms.map(term =>
+    title.includes(term) ? 'title' : body.includes(term) ? 'body' : 'none'
+  );
+}
+
 function scoreEntry(
   entry: IndexedText,
-  terms: string[]
+  terms: string[],
+  presence: Presence[],
+  weights: number[]
 ): { matched: number; score: number; firstIndex: number } {
-  const title = `${entry.name} ${entry.pageName ?? ''}`.toLowerCase();
   const body = entry.text.toLowerCase();
   let matched = 0;
   let score = 0;
   let firstIndex = -1;
-  for (const term of terms) {
-    const inTitle = title.includes(term);
-    const at = body.indexOf(term);
-    if (!inTitle && at < 0) continue;
+  terms.forEach((term, i) => {
+    if (presence[i] === 'none') return;
     matched += 1;
-    if (inTitle) score += 20;
-    if (at >= 0) {
-      score += 1 + Math.min(countOccurrences(body, term), 5);
-      if (firstIndex < 0 || at < firstIndex) firstIndex = at;
-    }
-  }
-  return { matched, score: score + matched * 10, firstIndex };
+    const at = body.indexOf(term);
+    const tf = at >= 0 ? 1 + Math.min(countOccurrences(body, term), 5) / 5 : 0;
+    score += weights[i] * ((presence[i] === 'title' ? 4 : 0) + tf);
+    if (at >= 0 && (firstIndex < 0 || at < firstIndex)) firstIndex = at;
+  });
+  // A short page that matches is a better answer than a long chapter that mentions it.
+  const density = Math.min(1, 1500 / Math.max(entry.text.length, 1));
+  return { matched, score: Math.round(score * (0.6 + 0.4 * density) * 10) / 10, firstIndex };
 }
 
 function countOccurrences(haystack: string, needle: string): number {
@@ -329,10 +371,12 @@ function countOccurrences(haystack: string, needle: string): number {
   return count;
 }
 
-function snippetAround(text: string, index: number): string {
-  if (text.length <= SNIPPET_CHARS) return text;
-  const start = Math.max(0, (index < 0 ? 0 : index) - 60);
-  const end = Math.min(text.length, start + SNIPPET_CHARS);
+function snippetAround(text: string, index: number, chars: number): string {
+  if (text.length <= chars) return text;
+  // A long excerpt starts at the top of the page when the match is near it.
+  const lead = chars > 1000 ? 200 : 60;
+  const start = Math.max(0, (index < 0 ? 0 : index) - lead);
+  const end = Math.min(text.length, start + chars);
   return `${start > 0 ? '...' : ''}${text.slice(start, end).trim()}${end < text.length ? '...' : ''}`;
 }
 

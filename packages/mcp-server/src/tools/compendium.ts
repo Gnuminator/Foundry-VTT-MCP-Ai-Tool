@@ -150,7 +150,7 @@ export class CompendiumTools {
       {
         name: 'search-rules',
         description:
-          'Full-text rules search over rulebook journal pages and item, spell and feature descriptions, in the allowlisted rules packs only. Returns ids and a snippet; read a hit in full with get-compendium-item (itemId = documentId) or, for world journals, list-journals.',
+          'Full-text rules search over rulebook journal pages and item, spell and feature descriptions, in the allowlisted rules packs only. Returns ids and an excerpt; a whole journal is large, so prefer a bigger excerptChars to opening it with get-compendium-item (itemId = documentId) or, for world journals, list-journals.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -161,6 +161,11 @@ export class CompendiumTools {
             limit: {
               type: 'number',
               description: 'Maximum hits, 1 to 25 (default 10).',
+            },
+            excerptChars: {
+              type: 'number',
+              description:
+                'Excerpt length per hit, 80 to 4000 (default 240). Raise it to read a rule.',
             },
             includeWorld: {
               type: 'boolean',
@@ -371,6 +376,7 @@ export class CompendiumTools {
       query: z.string().min(2, 'Search query must be at least 2 characters'),
       limit: z.number().min(1).max(25).default(10),
       includeWorld: z.boolean().default(false),
+      excerptChars: z.number().min(80).max(4000).default(240),
       includeOtherBooks: z.boolean().default(false),
     });
     const parsed = schema.parse(typeof args === 'string' ? { query: args } : args);

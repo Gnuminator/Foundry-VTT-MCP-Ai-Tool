@@ -653,6 +653,7 @@ export class QueryHandlers {
     query: string;
     limit?: number;
     includeWorld?: boolean;
+    excerptChars?: number;
     includeOtherBooks?: boolean;
   }): Promise<unknown> {
     return this.withGmGate('Failed to search rules', async () => {

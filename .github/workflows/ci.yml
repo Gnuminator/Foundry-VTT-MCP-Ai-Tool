@@ -400,6 +400,7 @@ jobs:
     # tool is picked up without editing this job.
     runs-on: ubuntu-latest
     name: python-tests (Python 3.12)
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
 
@@ -408,10 +409,12 @@ jobs:
           python-version: '3.12'
 
       - name: Install pytest, numpy and ffmpeg
-        # ffmpeg: the narration render tests skip without it.
+        # ffmpeg: the narration render tests skip without it, so a slow apt mirror must not
+        # hang the job: the install is bounded and a failure only skips those tests.
+        timeout-minutes: 8
         run: |
           python -m pip install --quiet 'pytest>=8' numpy
-          command -v ffmpeg || (sudo apt-get update -q && sudo apt-get install -y -q --no-install-recommends ffmpeg)
+          command -v ffmpeg || timeout 300 sh -c 'sudo apt-get update -q -o Acquire::http::Timeout=20 -o Acquire::Retries=0 && sudo apt-get install -y -q -o Acquire::http::Timeout=20 -o Acquire::Retries=0 --no-install-recommends ffmpeg' || echo "::warning::ffmpeg not installed: the narration render tests will skip"
 
       - name: Unit tests (tools/*)
         run: |

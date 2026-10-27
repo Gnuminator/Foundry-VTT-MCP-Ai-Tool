@@ -287,7 +287,8 @@ helper for those elements.
 - `npm run test:visual:update -w @gnuminator/cogm-dashboard` writes new baselines after a change
   you meant. Look at the PNGs in the diff, then commit them with the change.
 - The container mounts the repo at `/work` but keeps its own `node_modules` in two named Docker
-  volumes (`foundry-ai-tool-visual-node-modules`, `foundry-ai-tool-visual-dashboard-node-modules`),
+  volumes per worktree (`foundry-ai-tool-visual-node-modules-<hash of the repo path>` and
+  `foundry-ai-tool-visual-dashboard-node-modules-<hash>`, so two lanes never share them),
   filled by `npm ci --ignore-scripts` the first time and again when `package-lock.json` changes.
   Remove them with `docker volume rm` to start clean. Snapshots and `test-results/visual` are
   written into the repo.

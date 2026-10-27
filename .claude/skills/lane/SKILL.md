@@ -87,7 +87,19 @@ item is marked done; the board ignores a line on an item with no claim.
 ## Before the PR
 
 - `npm run green`: everything CI's build-test job runs, quiet (one OK line, or the failing step
-  and its log tail). `--list`, `--only a,b`, `--from <step>` for a rerun.
+  and its log tail). `--list`, `--only a,b`, `--from <step>` for a rerun. **Green on the final
+  commit:** run it again after the last review fix, on the committed tree. A full OK run on a clean
+  tree writes the tree hash to `.git/green-ok`; the `pre-push` hook (`scripts/pre-push.mjs`: the
+  lint and em-dash ratchets and the typecheck, about a minute) is skipped when that stamp matches,
+  and otherwise refuses a push that CI would fail on those. `SKIP_PREPUSH=1 git push ...` skips it
+  by hand.
+- **Dashboard change (anything under `packages/cogm-dashboard/`, stories included, or a
+  `package-lock.json` change such as a Playwright bump):** push the branch, run `npm run visual:baselines -- <branch>` (starts `visual-baselines.yml` on GitHub,
+  about 15 minutes, no Docker needed; the workflow runs on your branch, so a branch cut before it
+  merged needs `git merge aitool/main` first), look at the changed PNGs it prints under
+  `packages/cogm-dashboard/web/visual/__screenshots__/`, commit them, push again, and only then
+  open the PR.
+  Never copy baselines from a failed PR run. Re-run it after a later change that moves pixels.
 - `changelog.d/<topic>.md` added; lint and em-dash baselines lowered if counts dropped.
 - `git status --short`: add explicit paths; no binaries, archives, audio, `.env` or downloads.
 - PR description = the handover: what changed, how it was verified (commands, live checks, kit
@@ -150,7 +162,11 @@ item is marked done; the board ignores a line on an item with no claim.
   the checks pass; anything else, or no output, is a refusal. The gate checks CI on the head commit,
   a review note for that sha (Opus for risky paths), the changelog fragment, `drift:check` and the
   merge train. Add `--wait-ci` to wait for CI first; exit codes: 0 ok or merged, 1 refused, 2 usage,
-  3 a check failed, 4 head moved, 5 timed out.
+  3 a check failed, 4 head moved, 5 timed out. With `--wait-ci` every run ends with one line
+  `lane:merge: wait-ci ended: exit <code>, <reason>` (also after a killed child or an unexpected
+  error). **Do not pipe the gate through `tail` or `head`** (the pipe hides its exit code and holds
+  all output until the end): run it plain, in the background if it may wait, and read its last line.
+  Dashboard-visual is not a required check in the ruleset, but the gate blocks on a red one.
 
 ## Context and handover
 

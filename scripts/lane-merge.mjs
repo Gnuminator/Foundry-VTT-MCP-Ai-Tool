@@ -927,7 +927,7 @@ const lf = text => text.replace(/\r\n/g, '\n');
  * @param {{ argv: string[], run: Run, selfPath: string, env: Record<string, string | undefined>,
  *   tmpdir: string, cwd?: string, log: (line: string) => void,
  *   spawn?: typeof spawnSync, execPath?: string }} o
- * @returns {{ relaunched: boolean, code: number, fetched: boolean, error: string | null }}
+ * @returns {{ relaunched: boolean, code: number, fetched: boolean, error: string | null, killed?: string | null }}
  */
 export function relaunchFromMain(o) {
   const {
@@ -964,7 +964,65 @@ export function relaunchFromMain(o) {
     stdio: 'inherit',
     env: { ...env, [ENV_FROM_MAIN]: '1', [ENV_FETCHED]: '1' },
   });
-  return { relaunched: true, code: r.status ?? 1, fetched: true, error: null };
+  // A child that was killed (a signal, or a caller's timeout) has no exit status; say so.
+  const killed =
+    r.status == null
+      ? r.error
+        ? `main's copy of the gate could not run (${r.error.message})`
+        : `main's copy of the gate was killed (${r.signal ?? 'no exit status'})`
+      : null;
+  return { relaunched: true, code: r.status ?? 1, fetched: true, error: null, killed };
+}
+
+/** What each exit code of the gate means, for the `--wait-ci` verdict line. */
+const EXIT_REASONS = {
+  0: 'ok (checks pass or merged)',
+  1: 'refused (see the lines above)',
+  2: 'usage error',
+  [EXIT_CI_FAILED]: 'a CI check failed',
+  [EXIT_HEAD_MOVED]: 'the PR head moved while waiting',
+  [EXIT_WAIT_TIMEOUT]: 'timed out waiting for CI',
+};
+
+/**
+ * The one line a `--wait-ci` run ends with, whatever happened. Read it, not the exit code of a pipe.
+ * @param {number} code @param {string} [reason] overrides the reason of the code
+ */
+export function verdictLine(code, reason) {
+  return `lane:merge: wait-ci ended: exit ${code}, ${reason ?? EXIT_REASONS[code] ?? 'unknown'}`;
+}
+
+/**
+ * The entry point's work: relaunch from main or run this copy, and for `--wait-ci` end with exactly
+ * one verdict line. The relaunched child prints its own, so the parent adds one only when the child
+ * ended without a status (a signal) or this process threw.
+ * @param {{ argv: string[], relaunch: () => ReturnType<typeof relaunchFromMain>,
+ *   runMain: (fetched: boolean) => number, log: (line: string) => void }} o
+ * @returns {number} the process exit code
+ */
+export function runEntry({ argv, relaunch, runMain, log }) {
+  const wait = argv.includes('--wait-ci');
+  try {
+    const gate = relaunch();
+    if (gate.error) {
+      log(`lane:merge: NOT merged: ${gate.error}`);
+      if (wait) log(verdictLine(1, gate.error));
+      return 1;
+    }
+    if (gate.relaunched) {
+      if (wait && gate.killed) log(verdictLine(gate.code, gate.killed));
+      return gate.code;
+    }
+    const code = runMain(gate.fetched);
+    if (wait) log(verdictLine(code));
+    return code;
+  } catch (e) {
+    const reason = `unexpected error: ${e instanceof Error ? e.message : String(e)}`;
+    if (e instanceof Error && e.stack) console.error(e.stack);
+    log(`lane:merge: NOT merged: ${reason}`);
+    if (wait) log(verdictLine(1, reason));
+    return 1;
+  }
 }
 
 /** Run by `node -e`: import main's drift-check copy and run it in the current folder. */
@@ -1459,22 +1517,28 @@ export function main(options = {}) {
 const self = fileURLToPath(import.meta.url);
 const decision = entryDecision(process.argv[1], self);
 if (decision === 'run') {
-  const gate = relaunchFromMain({
-    argv: process.argv.slice(2),
-    run: defaultRun,
-    selfPath: self,
-    env: process.env,
-    tmpdir: os.tmpdir(),
-    log: console.log,
-  });
-  if (gate.error) {
-    console.log(`lane:merge: NOT merged: ${gate.error}`);
-    process.exit(1);
-  }
-  process.exit(gate.relaunched ? gate.code : main({ fetched: gate.fetched }));
+  process.exit(
+    runEntry({
+      argv: process.argv.slice(2),
+      relaunch: () =>
+        relaunchFromMain({
+          argv: process.argv.slice(2),
+          run: defaultRun,
+          selfPath: self,
+          env: process.env,
+          tmpdir: os.tmpdir(),
+          log: console.log,
+        }),
+      runMain: fetched => main({ fetched }),
+      log: console.log,
+    })
+  );
 } else if (decision === 'mismatch') {
   console.error(
     `lane:merge: started as ${process.argv[1]} but this module is ${self}; not running`
   );
+  if (process.argv.includes('--wait-ci')) {
+    console.log(verdictLine(1, 'started under another name; not running'));
+  }
   process.exit(1);
 }

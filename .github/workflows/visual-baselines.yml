@@ -84,20 +84,40 @@ jobs:
           git rev-parse HEAD > baseline-out/head.txt
 
       - name: Collect the changed and new PNGs
+        # bash, not the container's default sh: the loop needs read -d, which sh (dash) lacks. On
+        # #533 sh printed "Illegal option -d", copied nothing and the step still passed. Process
+        # file keeps the loop in this shell, so a failure inside it fails the step, and git runs
+        # once on its own line, so its failure fails the step too. png-count.txt is the number of
+        # changed or new PNGs git reports; npm run visual:baselines compares it with the PNGs it
+        # finds in the artifact.
+        shell: bash
         run: |
+          set -euo pipefail
           dir=packages/cogm-dashboard/web/visual/__screenshots__
           mkdir -p baseline-out
+          status="$RUNNER_TEMP/status.z"
+          git status --porcelain -z --untracked-files=all -- "$dir" > "$status"
+          count=0
           # -z: names with quotes or non-ASCII characters arrive unquoted. Deleted files are not
           # copied (removing a story's baseline is the lane's call).
-          git status --porcelain -z --untracked-files=all -- "$dir" | while IFS= read -r -d '' entry; do
+          while IFS= read -r -d '' entry; do
             f="${entry:3}"
             case "$f" in *.png) ;; *) continue ;; esac
             echo "$entry"
-            if [ -f "$f" ]; then
-              mkdir -p "baseline-out/$(dirname "$f")"
-              cp "$f" "baseline-out/$f"
-            fi
-          done
+            case "${entry:0:2}" in *D*) continue ;; esac
+            mkdir -p "baseline-out/$(dirname "$f")"
+            cp "$f" "baseline-out/$f"
+            count=$((count + 1))
+          done < "$status"
+          # Counted a second way (no read loop), so a loop that silently does nothing shows up.
+          # Only grep's "no match" exit 1 is tolerated.
+          expected=$(tr '\0' '\n' < "$status" | grep -c '^[^D][^D] .*\.png$' || [ $? -eq 1 ])
+          echo "$expected" > baseline-out/png-count.txt
+          if [ "$expected" != "$count" ]; then
+            echo "git reports $expected PNG(s) but the loop copied $count."
+            exit 1
+          fi
+          echo "Collected $count PNG(s)."
 
       - name: Keep the baselines
         uses: actions/upload-artifact@v4

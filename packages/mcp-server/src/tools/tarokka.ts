@@ -72,7 +72,8 @@ export class TarokkaTools {
             },
             clear: {
               type: 'boolean',
-              description: 'Archive the current reading, deal none.',
+              description:
+                'Archive the current reading, deal none. Leave out source and userId with clear.',
             },
             userId: {
               type: 'string',

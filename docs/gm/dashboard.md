@@ -138,8 +138,8 @@ links and My character" below.
 More entries under **Advanced ▾**, Tools:
 
 - **🩺 Module diagnostics** shows or hides the Module Diagnostics panel (see below).
-- **Version tracker: off / on** is off by default. Turn it on and a **📦 Versions** entry appears
-  in the same menu. It opens a table of what is installed (Foundry, the game system and the
+- **Version tracker: on / off** is on by default. While it is on, a **📦 Versions** entry appears
+  in the same menu; turn it off to hide it and stop the online lookups. It opens a table of what is installed (Foundry, the game system and the
   modules) next to the newest release, with a status for each. It only tells you what is out of
   date; it never updates anything.
 

@@ -284,6 +284,15 @@ export class TarokkaService {
     clear?: boolean;
   }): Promise<PlanView & { source?: TarokkaSource; providerNote?: string }> {
     const source = args.source ?? 'auto';
+    // 'auto' is the schema default that the dashboard Tools form fills in, so it is not a deal request.
+    if (
+      args.clear &&
+      ((args.source !== undefined && args.source !== 'auto') || args.userId !== undefined)
+    ) {
+      throw new Error(
+        'clear takes no source or userId: it archives the current reading and deals nothing'
+      );
+    }
     const worldId = await this.worldIds.current();
     const { file, config } = await this.load(worldId);
 

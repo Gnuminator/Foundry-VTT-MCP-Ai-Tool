@@ -38,7 +38,9 @@ export const CHECKS = [
   { name: 'docs links', command: 'npm run docs:links' },
   {
     name: 'mcp-server tests (tool counts, tool reference, tool sets)',
-    command: 'npx vitest run',
+    // The probe test runs the built dist/index.js, which the merged worktree never builds;
+    // CI and `npm run green` run it after a build.
+    command: 'npx vitest run --exclude src/mcp-modern-probe.test.ts',
     cwd: 'packages/mcp-server',
   },
   {

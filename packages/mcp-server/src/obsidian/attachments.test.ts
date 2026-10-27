@@ -10,6 +10,7 @@ import * as path from 'path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { AttachmentStore, type Fetcher } from './attachments.js';
+import { rmTmp } from '../test-support/rm-tmp.js';
 
 let dir: string;
 let fetched: string[];
@@ -20,7 +21,7 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
-  await fsp.rm(dir, { recursive: true, force: true });
+  await rmTmp(dir);
 });
 
 function respond(body: string, type = 'image/png', status = 200): Response {

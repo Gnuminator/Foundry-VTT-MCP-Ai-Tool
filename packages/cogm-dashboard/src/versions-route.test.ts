@@ -81,9 +81,9 @@ describe('GET /api/versions', () => {
     expect((await get(port, GM_TOKEN)).status).toBe(200);
   });
 
-  it('answers "off" while the switch is off, which is the default', async () => {
+  it('answers "on" by default (I-127)', async () => {
     const port = await start();
-    expect((await get(port, GM_TOKEN)).body).toEqual({ enabled: false });
+    expect((await get(port, GM_TOKEN)).body).toMatchObject({ enabled: true });
   });
 });
 

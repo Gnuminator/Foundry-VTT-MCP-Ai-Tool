@@ -4,7 +4,12 @@
  */
 import { describe, expect, it, vi } from 'vitest';
 import { buildSceneView, renderSceneHtml } from './scene-window.js';
-import { SessionController, parseSession, renderSessionHtml } from './session-window.js';
+import {
+  SessionController,
+  parseSession,
+  renderSessionHtml,
+  sessionErrorText,
+} from './session-window.js';
 
 const closed = { open: false, startedAt: null, lastEventAt: null, endedAt: '2026-10-18T20:00:00Z' };
 const open = { open: true, startedAt: '2026-10-18T18:00:00Z', lastEventAt: null, endedAt: null };
@@ -151,6 +156,20 @@ describe('the Session controller', () => {
     resolvers[0]({ success: true, ...closed });
     await a;
     expect(c.view.session).toEqual(open);
+  });
+});
+
+describe('the Session error text', () => {
+  it('rewrites the bridge-not-connected message and keeps any other', async () => {
+    const down = new Error(
+      'The AI Tool bridge is not connected. Is the Assistant GM browser running?'
+    );
+    const c = new SessionController(vi.fn().mockRejectedValue(down), () => {});
+    await c.load();
+    expect(c.view.error).toContain('The AI Tool is not connected right now');
+    expect(c.view.error).not.toContain('Assistant GM');
+    expect(sessionErrorText(new Error('Boom'))).toBe('Boom');
+    expect(sessionErrorText('plain')).toBe('plain');
   });
 });
 

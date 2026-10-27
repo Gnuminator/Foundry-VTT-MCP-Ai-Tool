@@ -10,7 +10,7 @@
  * {@link SessionController}.
  */
 import { escapeHtml } from './ai-changes-model.js';
-import { aiToolRequest } from './gm-helper-queries.js';
+import { AI_TOOL_NOT_CONNECTED, aiToolRequest } from './gm-helper-queries.js';
 import { createPanelWindow } from './gm-windows.js';
 
 /** What `get-play-session` answers, as far as the window reads it. */
@@ -72,6 +72,14 @@ export function renderSessionHtml(view: SessionView): string {
   return `<p>${line}</p>${last}<p>${action} ${refresh}</p>`;
 }
 
+/** What the window shows for a failed request; "not connected" gets words a GM new to the tool can act on. */
+export function sessionErrorText(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error);
+  return message === AI_TOOL_NOT_CONNECTED
+    ? 'The AI Tool is not connected right now, so the session marker cannot be read. Check the status of the AI Tool in Foundry (the dashboard shows it too), then press Refresh.'
+    : message;
+}
+
 /** The window's state and flows; `request` is injected so tests need no bridge. */
 export class SessionController {
   view: SessionView = { status: 'loading', error: '', session: null, busy: false };
@@ -99,7 +107,7 @@ export class SessionController {
       this.view = {
         ...this.view,
         status: 'error',
-        error: error instanceof Error ? error.message : String(error),
+        error: sessionErrorText(error),
       };
     }
     this.changed();
@@ -120,7 +128,7 @@ export class SessionController {
         ...this.view,
         busy: false,
         status: 'error',
-        error: error instanceof Error ? error.message : String(error),
+        error: sessionErrorText(error),
       };
       this.changed();
       return;

@@ -74,7 +74,7 @@ into the session log (that is what Claude's recap is built from); it changes not
 you can start or end it again whenever you like.
 
 The window needs the AI Tool to be connected (you see "MCP Bridge connected" when you join). If it is
-not, the window says what is wrong instead of staying empty. **Refresh** asks again at once; it also
+not, the window says "The AI Tool is not connected right now" instead of staying empty. **Refresh** asks again at once; it also
 checks for itself every fifteen seconds.
 
 When to use it: start the session when play begins and end it when you stop, so the log and the
@@ -96,8 +96,8 @@ configuration.
 
 - **No AI Tool group at all:** the switch is off, or you are not logged in as the GM. Players never
   get the group.
-- **A window says it is off:** the switch was turned off while you clicked. Turn it on again in the
-  settings.
+- **A message at the bottom says the GM windows are off:** the switch is off. Turn it on again in
+  the settings.
 - **Combat or Party is empty:** no combat is running, or no character is owned by a player yet. The
   window tells you which.
 - **Session shows an error:** the AI Tool is not connected. See [Troubleshooting](troubleshooting.md).

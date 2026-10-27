@@ -1055,7 +1055,8 @@ export class CompendiumTools {
 
     // Ensure we have a string before calling replace()
     if (typeof text !== 'string') {
-      const stringified = show(text || '');
+      // An object that is left here would print as "[object Object]", which is dropped below.
+      const stringified = typeof text === 'object' ? '' : show(text);
       if (!stringified || stringified === '[object Object]') {
         return '';
       }

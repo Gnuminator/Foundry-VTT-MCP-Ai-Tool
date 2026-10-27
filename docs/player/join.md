@@ -72,7 +72,7 @@ and Foundry's **User Configuration**. Close both for now. User Configuration com
 you join until you have a character and have picked it there (see
 [Make your character](make-a-character.md)).
 
-![Foundry's User Configuration window and the Actor Studio welcome window open on top of each other after the first join](../images/guides/join-first-windows.png)
+![Foundry's User Configuration window and the Actor Studio welcome window open next to each other, touching, after the first join](../images/guides/join-first-windows.png)
 
 The two windows can overlap. Drag one aside, or click **Close** on the Actor Studio window first.
 

@@ -6,6 +6,7 @@
  */
 
 import { z } from 'zod';
+import type { Rec } from './data.js';
 
 /**
  * Supported game system identifiers
@@ -45,7 +46,7 @@ export interface SystemCreatureIndex {
 
   // System-specific metadata
   system: SystemId;
-  systemData: any; // System-specific fields (D&D 5e CR, PF2e level, etc.)
+  systemData: Rec; // System-specific fields (D&D 5e CR, PF2e level, etc.)
 }
 
 /**
@@ -74,8 +75,8 @@ export interface SystemAdapter {
    * @returns Creature data or null if not a valid creature
    */
   extractCreatureData(
-    doc: any,
-    pack: any
+    doc: unknown,
+    pack: unknown
   ): { creature: SystemCreatureIndex; errors: number } | null;
 
   /**
@@ -89,7 +90,7 @@ export interface SystemAdapter {
    * @param creature - Indexed creature data
    * @param filters - User-provided filter criteria
    */
-  matchesFilters(creature: SystemCreatureIndex, filters: Record<string, any>): boolean;
+  matchesFilters(creature: SystemCreatureIndex, filters: Record<string, unknown>): boolean;
 
   /**
    * Get system-specific data paths for actor properties
@@ -101,19 +102,19 @@ export interface SystemAdapter {
    * Format creature data for list display
    * Used in search results and creature lists
    */
-  formatCreatureForList(creature: SystemCreatureIndex): any;
+  formatCreatureForList(creature: SystemCreatureIndex): Rec;
 
   /**
    * Format creature data for detailed display
    * Used when showing full creature information
    */
-  formatCreatureForDetails(creature: SystemCreatureIndex): any;
+  formatCreatureForDetails(creature: SystemCreatureIndex): Rec;
 
   /**
    * Generate human-readable description of filters
    * @param filters - Filter criteria to describe
    */
-  describeFilters(filters: Record<string, any>): string;
+  describeFilters(filters: Record<string, unknown>): string;
 
   /**
    * Get normalized power level for a creature
@@ -129,7 +130,7 @@ export interface SystemAdapter {
    * Used by get-character and list-characters tools
    * @param actorData - Raw Foundry actor data
    */
-  extractCharacterStats(actorData: any): any;
+  extractCharacterStats(actorData: Rec): Rec;
 
   /**
    * Extract system-specific "basic info" from actor data
@@ -142,23 +143,25 @@ export interface SystemAdapter {
    * @param actorData - Raw Foundry actor data
    * @returns Object merged into the get-character response's basicInfo
    */
-  extractBasicInfo?(actorData: any): any;
+  extractBasicInfo?(actorData: Rec): Rec;
 }
 
 /**
  * D&D 5e specific creature index structure
  */
+export interface DnD5eSystemData {
+  challengeRating?: number;
+  creatureType?: string;
+  size?: string;
+  alignment?: string;
+  level?: number;
+  hasSpellcasting: boolean;
+  hasLegendaryActions: boolean;
+  hitPoints?: number;
+  armorClass?: number;
+}
+
 export interface DnD5eCreatureIndex extends SystemCreatureIndex {
   system: 'dnd5e';
-  systemData: {
-    challengeRating?: number;
-    creatureType?: string;
-    size?: string;
-    alignment?: string;
-    level?: number;
-    hasSpellcasting: boolean;
-    hasLegendaryActions: boolean;
-    hitPoints?: number;
-    armorClass?: number;
-  };
+  systemData: DnD5eSystemData & Rec;
 }

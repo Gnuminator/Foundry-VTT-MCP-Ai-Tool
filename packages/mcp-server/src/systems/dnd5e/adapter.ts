@@ -11,6 +11,7 @@ import type {
   SystemCreatureIndex,
   DnD5eCreatureIndex,
 } from '../types.js';
+import { arr, at, rec, type Rec } from '../data.js';
 import { DnD5eFiltersSchema, matchesDnD5eFilters, describeDnD5eFilters } from './filters.js';
 
 /** Narrow an unknown value to a plain object record, or undefined otherwise. */
@@ -55,8 +56,8 @@ export class DnD5eAdapter implements SystemAdapter {
    * exists only to satisfy the SystemAdapter interface and always throws.
    */
   extractCreatureData(
-    _doc: any,
-    _pack: any
+    _doc: unknown,
+    _pack: unknown
   ): { creature: SystemCreatureIndex; errors: number } | null {
     throw new Error(
       'extractCreatureData runs in the Foundry module browser index builder, not the MCP-server adapter'
@@ -67,7 +68,7 @@ export class DnD5eAdapter implements SystemAdapter {
     return DnD5eFiltersSchema;
   }
 
-  matchesFilters(creature: SystemCreatureIndex, filters: Record<string, any>): boolean {
+  matchesFilters(creature: SystemCreatureIndex, filters: Record<string, unknown>): boolean {
     // Validate filters match D&D 5e schema
     const validated = DnD5eFiltersSchema.safeParse(filters);
     if (!validated.success) {
@@ -99,9 +100,9 @@ export class DnD5eAdapter implements SystemAdapter {
     };
   }
 
-  formatCreatureForList(creature: SystemCreatureIndex): any {
+  formatCreatureForList(creature: SystemCreatureIndex): Rec {
     const dnd5eCreature = creature as DnD5eCreatureIndex;
-    const formatted: any = {
+    const formatted: Rec = {
       id: creature.id,
       name: creature.name,
       type: creature.type,
@@ -113,7 +114,7 @@ export class DnD5eAdapter implements SystemAdapter {
 
     // Add D&D 5e specific stats
     if (dnd5eCreature.systemData) {
-      const stats: any = {};
+      const stats: Rec = {};
 
       if (dnd5eCreature.systemData.challengeRating !== undefined) {
         stats.challengeRating = dnd5eCreature.systemData.challengeRating;
@@ -159,7 +160,7 @@ export class DnD5eAdapter implements SystemAdapter {
     return formatted;
   }
 
-  formatCreatureForDetails(creature: SystemCreatureIndex): any {
+  formatCreatureForDetails(creature: SystemCreatureIndex): Rec {
     const dnd5eCreature = creature as DnD5eCreatureIndex;
     const formatted = this.formatCreatureForList(creature);
 
@@ -185,7 +186,7 @@ export class DnD5eAdapter implements SystemAdapter {
     return formatted;
   }
 
-  describeFilters(filters: Record<string, any>): string {
+  describeFilters(filters: Record<string, unknown>): string {
     const validated = DnD5eFiltersSchema.safeParse(filters);
     if (!validated.success) {
       return 'invalid filters';
@@ -212,62 +213,63 @@ export class DnD5eAdapter implements SystemAdapter {
   /**
    * Extract character statistics from actor data
    */
-  extractCharacterStats(actorData: any): any {
-    const system = actorData.system || {};
-    const stats: any = {};
+  extractCharacterStats(actorData: Rec): Rec {
+    const system = rec(actorData.system);
+    const stats: Rec = {};
 
     // Basic info
     stats.name = actorData.name;
     stats.type = actorData.type;
 
     // Challenge Rating or Level
-    const cr = system.details?.cr ?? system.details?.cr?.value ?? system.cr;
+    const cr = at(system, 'details', 'cr') ?? at(system, 'details', 'cr', 'value') ?? system.cr;
     if (cr !== undefined && cr !== null) {
       stats.challengeRating = Number(cr);
     }
 
-    const level = system.details?.level?.value ?? system.details?.level ?? system.level;
+    const level =
+      at(system, 'details', 'level', 'value') ?? at(system, 'details', 'level') ?? system.level;
     if (level !== undefined && level !== null) {
       stats.level = Number(level);
     }
 
     // Hit Points
-    const hp = system.attributes?.hp;
+    const hp = at(system, 'attributes', 'hp');
     if (hp) {
       stats.hitPoints = {
-        current: hp.value ?? 0,
-        max: hp.max ?? 0,
-        temp: hp.temp ?? 0,
+        current: at(hp, 'value') ?? 0,
+        max: at(hp, 'max') ?? 0,
+        temp: at(hp, 'temp') ?? 0,
       };
     }
 
     // Armor Class
-    const ac = system.attributes?.ac?.value ?? system.attributes?.ac;
+    const ac = at(system, 'attributes', 'ac', 'value') ?? at(system, 'attributes', 'ac');
     if (ac !== undefined) {
       stats.armorClass = ac;
     }
 
     // Abilities (STR, DEX, CON, INT, WIS, CHA)
     if (system.abilities) {
-      stats.abilities = {};
-      for (const [key, ability] of Object.entries(system.abilities)) {
-        const abilityData = ability as any;
-        stats.abilities[key] = {
-          value: abilityData.value ?? 10,
-          modifier: abilityData.mod ?? 0,
+      const abilities: Rec = {};
+      stats.abilities = abilities;
+      for (const [key, ability] of Object.entries(rec(system.abilities))) {
+        abilities[key] = {
+          value: at(ability, 'value') ?? 10,
+          modifier: at(ability, 'mod') ?? 0,
         };
       }
     }
 
     // Skills
     if (system.skills) {
-      stats.skills = {};
-      for (const [key, skill] of Object.entries(system.skills)) {
-        const skillData = skill as any;
-        stats.skills[key] = {
-          value: skillData.value ?? 0,
-          modifier: skillData.total ?? skillData.mod ?? 0,
-          proficient: skillData.proficient ?? 0,
+      const skills: Rec = {};
+      stats.skills = skills;
+      for (const [key, skill] of Object.entries(rec(system.skills))) {
+        skills[key] = {
+          value: at(skill, 'value') ?? 0,
+          modifier: at(skill, 'total') ?? at(skill, 'mod') ?? 0,
+          proficient: at(skill, 'proficient') ?? 0,
         };
       }
     }
@@ -278,18 +280,20 @@ export class DnD5eAdapter implements SystemAdapter {
       // an unset type has no usable `value` (blank, or stripped by sanitizing,
       // which used to leave the whole object, `{}`, in the output). Report only
       // a non-blank string; otherwise leave the field out like size/alignment.
-      const rawType: unknown = system.details?.type;
+      const rawType: unknown = at(system, 'details', 'type');
       const creatureType = typeof rawType === 'string' ? rawType : asRecord(rawType)?.value;
       if (typeof creatureType === 'string' && creatureType.trim() !== '') {
         stats.creatureType = creatureType;
       }
 
-      const size = system.traits?.size?.value ?? system.traits?.size ?? system.size;
+      const size =
+        at(system, 'traits', 'size', 'value') ?? at(system, 'traits', 'size') ?? system.size;
       if (size) {
         stats.size = size;
       }
 
-      const alignment = system.details?.alignment?.value ?? system.details?.alignment;
+      const alignment =
+        at(system, 'details', 'alignment', 'value') ?? at(system, 'details', 'alignment');
       if (alignment) {
         stats.alignment = alignment;
       }
@@ -302,7 +306,7 @@ export class DnD5eAdapter implements SystemAdapter {
       // (plan `creature-index.ts:520-535`).
       // verified: dnd5e.mjs 6.0.5 — NPCData.resources.legact SchemaField,
       // initial max: 0.
-      const legact = asRecord(system.resources?.legact);
+      const legact = asRecord(at(system, 'resources', 'legact'));
       const legactMax = typeof legact?.max === 'number' ? legact.max : 0;
       if (legactMax > 0) {
         stats.legendaryActions = {
@@ -332,17 +336,18 @@ export class DnD5eAdapter implements SystemAdapter {
     // casting ability on every NPC (a Wolf has "str") and their casters cast
     // from spell items, while a caster can have spell items and no ability.
     // dnd5e 6 models innate and at-will spells as spell items too.
-    const items = Array.isArray(actorData.items) ? (actorData.items as unknown[]) : [];
+    const items = arr(actorData.items);
     const hasSpellItem = items.some(item => asRecord(item)?.type === 'spell');
+    const spellLevel = at(system, 'details', 'spellLevel');
     const hasSpells = !!(
       hasSpellSlotValue ||
       hasSpellItem ||
-      (system.details?.spellLevel && system.details.spellLevel > 0)
+      (spellLevel && (spellLevel as number) > 0)
     );
     if (hasSpells) {
       stats.spellcasting = {
         hasSpells: true,
-        spellLevel: system.details?.spellLevel ?? 0,
+        spellLevel: spellLevel ?? 0,
       };
     }
 

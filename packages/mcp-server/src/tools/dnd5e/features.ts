@@ -4,6 +4,7 @@ import { FoundryClient } from '../../foundry-client.js';
 import { Logger } from '../../logger.js';
 import { ErrorHandler } from '../../utils/error-handler.js';
 import { detectGameSystem, getCachedSystemId } from '../../utils/system-detection.js';
+import { arr, at, type Rec } from '../../systems/data.js';
 
 // ---------------------------------------------------------------------------
 // Options interface
@@ -29,7 +30,7 @@ export class DnD5eFeaturesFromCompendiumTools {
     this.errorHandler = new ErrorHandler(this.logger);
   }
 
-  getToolDefinitions() {
+  getToolDefinitions(): { name: string; description: string; inputSchema: object }[] {
     return [
       {
         name: 'dnd5e-add-features-from-compendium',
@@ -96,7 +97,7 @@ export class DnD5eFeaturesFromCompendiumTools {
     ];
   }
 
-  async handleAddFeaturesFromCompendium(args: any): Promise<any> {
+  async handleAddFeaturesFromCompendium(args: unknown): Promise<unknown> {
     const schema = z.object({
       actorIdentifier: z.string().min(1, 'actorIdentifier cannot be empty'),
       featureNames: z.array(z.string().min(1)).min(1).max(50),
@@ -122,17 +123,17 @@ export class DnD5eFeaturesFromCompendiumTools {
         );
       }
 
-      const result = await this.foundryClient.query(
+      const result = (await this.foundryClient.query(
         'foundry-mcp-bridge.addFeaturesFromCompendium',
         parsed
-      );
+      )) as Rec;
 
       this.logger.info('Features import complete', {
-        actorId: result.actor?.id,
-        added: result.added?.length,
-        skipped: result.skipped?.length,
-        notFound: result.notFound?.length,
-        failed: result.failed?.length,
+        actorId: at(result, 'actor', 'id'),
+        added: arr(result.added).length,
+        skipped: arr(result.skipped).length,
+        notFound: arr(result.notFound).length,
+        failed: arr(result.failed).length,
       });
 
       return this.formatResponse(result, parsed);
@@ -145,7 +146,8 @@ export class DnD5eFeaturesFromCompendiumTools {
     }
   }
 
-  private formatResponse(result: any, params: any): any {
+  private formatResponse(result: Rec, params: { featureNames: string[] }): Rec {
+    const actor = result.actor as { id: string; name: string };
     const added = result.added as Array<{
       name: string;
       packId: string;
@@ -157,7 +159,7 @@ export class DnD5eFeaturesFromCompendiumTools {
     const failed = result.failed as Array<{ name: string; error: string }>;
     const warnings = result.warnings as string[];
 
-    const totalRequested = (params.featureNames as string[]).length;
+    const totalRequested = params.featureNames.length;
 
     // ── Summary line ──────────────────────────────────────────────────────────
     const parts: string[] = [];
@@ -167,13 +169,13 @@ export class DnD5eFeaturesFromCompendiumTools {
     if (failed.length > 0) parts.push(`${failed.length} failed`);
 
     const statusIcon = failed.length > 0 ? '⚠️' : notFound.length > 0 ? '🔍' : '✅';
-    const summary = `${statusIcon} Features imported to "${result.actor.name}" — ${
+    const summary = `${statusIcon} Features imported to "${actor.name}" — ${
       parts.length > 0 ? parts.join(', ') : 'nothing changed'
     }`;
 
     // ── Sections ──────────────────────────────────────────────────────────────
     const lines: string[] = [
-      `**Actor:** ${result.actor.name} (id: \`${result.actor.id}\`)`,
+      `**Actor:** ${actor.name} (id: \`${actor.id}\`)`,
       `**Requested:** ${totalRequested} — Added: ${added.length}, Skipped: ${skipped.length}, Not found: ${notFound.length}${failed.length > 0 ? `, Failed: ${failed.length}` : ''}`,
     ];
 
@@ -215,7 +217,7 @@ export class DnD5eFeaturesFromCompendiumTools {
     return {
       summary,
       success: added.length > 0 || (notFound.length === 0 && failed.length === 0),
-      actor: result.actor,
+      actor,
       added,
       skipped,
       notFound,

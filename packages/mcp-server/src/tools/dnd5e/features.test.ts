@@ -32,8 +32,11 @@ const mockDetectGameSystem = detectGameSystem as ReturnType<typeof vi.fn>;
 // Helper
 // ---------------------------------------------------------------------------
 
-function makeTools(queryImpl?: (method: string, data: unknown) => unknown) {
-  const query = vi.fn(queryImpl ?? (() => ({ success: true })));
+function makeTools(queryImpl?: (method: string, data: unknown) => unknown): {
+  tools: DnD5eFeaturesFromCompendiumTools;
+  query: ReturnType<typeof vi.fn>;
+} {
+  const query = vi.fn(queryImpl ?? ((): unknown => ({ success: true })));
   const foundryClient = { query } as any;
   // Minimal Logger stub: `.child()` returns itself; level methods are no-ops.
   const logger: any = {
@@ -42,7 +45,7 @@ function makeTools(queryImpl?: (method: string, data: unknown) => unknown) {
     info: vi.fn(),
     debug: vi.fn(),
   };
-  logger.child = () => logger;
+  logger.child = (): unknown => logger;
   return { tools: new DnD5eFeaturesFromCompendiumTools({ foundryClient, logger }), query };
 }
 
@@ -56,7 +59,7 @@ function makeResult(
     failed: Array<{ name: string; error: string }>;
     warnings: string[];
   }> = {}
-) {
+): Record<string, unknown> {
   return {
     actor: { id: 'actor-1', name: 'Goblin Boss' },
     added: [],
@@ -164,7 +167,7 @@ describe('DnD5eFeaturesFromCompendiumTools.handleAddFeaturesFromCompendium — d
       featureNames: ['Nimble Escape'],
     });
 
-    const callArgs = query.mock.calls[0][1] as any;
+    const callArgs = query.mock.calls[0][1];
     expect(callArgs.compendiumPacks).toEqual(['dnd5e.monsterfeatures', 'dnd5e.classfeatures']);
   });
 });

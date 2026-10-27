@@ -49,8 +49,9 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
+          # No npm cache: this job runs a branch's code, and a cache it writes could poison the
+          # cache the main-branch jobs read (CodeQL actions/cache-poisoning).
           node-version: '22'
-          cache: 'npm'
 
       - name: Install dependencies
         run: npm ci

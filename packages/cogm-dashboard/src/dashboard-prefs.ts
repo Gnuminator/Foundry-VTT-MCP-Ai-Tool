@@ -21,7 +21,7 @@ export interface DashboardPrefs {
   duringFull: boolean;
   /** Damage / Heal, Condition and Clear in the strip; off by default (D-092, Advanced). */
   combatButtons: boolean;
-  /** The version tracker panel (I-127); off by default (D-098). */
+  /** The version tracker panel (I-127); on by default (I-127; D-098 had it off). */
   versionTracker: boolean;
   /** The GM picked a layout in the trial (or with the switcher); the Before card goes away. */
   layoutPicked: boolean;

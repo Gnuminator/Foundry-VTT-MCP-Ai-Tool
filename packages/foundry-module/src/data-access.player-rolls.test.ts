@@ -481,6 +481,44 @@ describe('FoundryDataAccess — rollNpcCheck', () => {
     expect(result).toMatchObject({ formula: '2d20kl1 + 2', total: 8, mode: 'disadvantage' });
   });
 
+  it('rolls an NPC attack through its attack activity without spending ammunition', async () => {
+    const rollAttack = vi.fn(() =>
+      Promise.resolve([{ formula: '2d20kh + 4', total: 19, options: { advantageMode: 1 } }])
+    );
+    world.addActor({
+      id: 'npc12',
+      name: 'Archer',
+      type: 'npc',
+      items: [{ name: 'Longbow', system: { activities: [{ type: 'attack', rollAttack }] } }] as any,
+    });
+    const spy = installRollSpy();
+    const result = await da.rollNpcCheck({
+      actorName: 'Archer',
+      rollType: 'attack',
+      rollTarget: 'Longbow',
+      isPublic: false,
+      advantage: 'advantage',
+    });
+    const [config, , message] = rollAttack.mock.calls[0] as any[];
+    expect(config).toMatchObject({ advantage: true, ammunition: '' });
+    expect(message.rollMode).toBeDefined();
+    expect(spy.ctorArgs).toEqual([]);
+    expect(result).toMatchObject({ total: 19, mode: 'advantage' });
+  });
+
+  it('never posts a second card when dnd5e returns rolls of an odd shape', async () => {
+    const actor = world.addActor({ id: 'npc13', name: 'Wisp', type: 'npc' });
+    actor.rollAbilityCheck = vi.fn(() => Promise.resolve([{}]));
+    const spy = installRollSpy();
+    await da.rollNpcCheck({
+      actorName: 'Wisp',
+      rollType: 'ability',
+      rollTarget: 'dex',
+      isPublic: true,
+    });
+    expect(spy.ctorArgs).toEqual([]);
+  });
+
   it('reports the mode dnd5e settled on when no choice was made (a condition decided)', async () => {
     const actor = world.addActor({ id: 'npc10', name: 'Orc', type: 'npc' });
     actor.rollAbilityCheck = vi.fn(() =>
@@ -928,6 +966,24 @@ describe('FoundryDataAccess: player page roll buttons', () => {
     expect(actor.rollAbilityCheck.mock.calls[0][0]).toEqual({ ability: 'str', advantage: true });
     // plain fallback: only a d20 roll takes the choice, an unknown value is ignored
     expect(spy.ctorArgs.map(a => a[0])).toEqual(['2d20kl+3', '1d20+1', '1d20+3']);
+  });
+
+  it('refuses an advantage choice on a custom roll instead of dropping it', async () => {
+    world.addUser({ id: 'u1', name: 'Alice', active: true, isGM: false });
+    addPlayerCharacter({ id: 'a1', name: 'Silvera', ownerUserId: 'u1' });
+    const before = world.messages.size;
+    const result = await da.requestPlayerRolls({
+      rollType: 'custom',
+      rollTarget: '1d20+5',
+      targetPlayer: 'Alice',
+      isPublic: true,
+      rollModifier: '',
+      flavor: '',
+      advantage: 'advantage',
+    });
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('custom');
+    expect(world.messages.size).toBe(before);
   });
 
   it('puts the chosen mode on the request card and in the stored state', async () => {

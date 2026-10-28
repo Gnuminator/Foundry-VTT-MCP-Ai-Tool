@@ -338,7 +338,7 @@ Parameters:
 - `userConfirmedVisibility` (boolean, required): REQUIRED: Must be set to true to confirm the roll visibility has been determined. This can happen in two ways: 1) User explicitly specified "public" or "private" in their original request (e.g., "public stealth check"), or 2) You asked the clarifying question and received their answer. Only set this to true when you are confident about the visibility preference, either from their original request or from a direct answer to your question. Always `true`.
 - `rollModifier` (string): Optional modifier to add to the roll (e.g., "+2", "-1", "+1d4"). Default: `""`.
 - `flavor` (string): Optional flavor text to describe the roll context. Default: `""`.
-- `advantage` (string): Optional. Combines with the roller conditions (advantage on a poisoned roller is normal); omit to let those decide. One of: `advantage`, `disadvantage`.
+- `advantage` (string): Optional. Not for custom rolls. Combines with the roller conditions (advantage on a poisoned roller is normal); omit to let those decide. One of: `advantage`, `disadvantage`.
 
 ### request-ability-check
 
@@ -353,7 +353,7 @@ Parameters:
 - `dc` (integer): Optional difficulty class to display with the request.
 - `isPublic` (boolean, required): Whether the roll is public (visible to all) or private (target player + GM only).
 - `reason` (string): Context for the check, e.g. "Perception check to notice the ambush".
-- `advantage` (string): Optional. Combines with the roller conditions (advantage on a poisoned roller is normal); omit to let those decide. One of: `advantage`, `disadvantage`.
+- `advantage` (string): Optional. Not for custom rolls. Combines with the roller conditions (advantage on a poisoned roller is normal); omit to let those decide. One of: `advantage`, `disadvantage`.
 
 ### request-attack-roll
 
@@ -366,7 +366,7 @@ Parameters:
 - `targetPlayer` (string, required): Player name or character name to request the roll from.
 - `weaponOrSpellName` (string, required): Name of the weapon or spell attack.
 - `isPublic` (boolean, required): Whether the roll is public (visible to all) or private (target player + GM only).
-- `advantage` (string): Optional. Combines with the roller conditions (advantage on a poisoned roller is normal); omit to let those decide. One of: `advantage`, `disadvantage`.
+- `advantage` (string): Optional. Not for custom rolls. Combines with the roller conditions (advantage on a poisoned roller is normal); omit to let those decide. One of: `advantage`, `disadvantage`.
 
 ### roll-npc-check
 
@@ -380,7 +380,7 @@ Parameters:
 - `rollType` (string, required): Type of roll. One of: `ability`, `save`, `skill`, `attack`.
 - `rollTarget` (string, required): Target for the roll: ability (str/dex/...), skill name (perception, stealth, ...), or weapon/attack name.
 - `isPublic` (boolean, required): Whether the result is public (true) or whispered to the GM (false).
-- `advantage` (string): Optional. Combines with the roller conditions (advantage on a poisoned roller is normal); omit to let those decide. One of: `advantage`, `disadvantage`.
+- `advantage` (string): Optional. Not for custom rolls. Combines with the roller conditions (advantage on a poisoned roller is normal); omit to let those decide. One of: `advantage`, `disadvantage`.
 
 ### get-token-details
 

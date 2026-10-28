@@ -103,6 +103,14 @@ export class PlayerRollsDataAccess {
   }): Promise<{ success: boolean; message: string; error?: string }> {
     shared.validateFoundryState();
     const advantage = parseAdvantage(data.advantage);
+    if (advantage && data.rollType === 'custom') {
+      return {
+        success: false,
+        message: '',
+        error:
+          'A custom roll takes no advantage choice: put it in the formula (for example 2d20kh+5), or use an ability, skill, save or attack roll.',
+      };
+    }
 
     try {
       const playerInfo = this.resolveTargetPlayer(data.targetPlayer);
@@ -303,17 +311,19 @@ export class PlayerRollsDataAccess {
       null,
       data.isPublic,
       [],
-      advantage
+      advantage,
+      true
     );
-    const first = viaDnd5e?.[0] as { formula?: unknown; total?: unknown } | undefined;
-    if (first && typeof first.formula === 'string' && typeof first.total === 'number') {
+    // dnd5e has posted its card: never roll a second one, whatever shape came back.
+    if (viaDnd5e) {
+      const first = viaDnd5e[0] as { formula?: unknown; total?: unknown } | undefined;
       return {
         success: true,
         actorName: actor.name,
         rollType: data.rollType,
         rollTarget: data.rollTarget,
-        formula: first.formula,
-        total: first.total,
+        formula: String(first?.formula ?? ''),
+        total: Number(first?.total),
         isPublic: data.isPublic,
         mode: modeOfRoll(first),
       };
@@ -681,7 +691,8 @@ export class PlayerRollsDataAccess {
     dc: number | null,
     isPublic: boolean,
     whisperTargets: string[],
-    advantage?: RollAdvantage
+    advantage?: RollAdvantage,
+    spendNothing = false
   ): Promise<unknown[] | null> {
     if (!rollType || !rollTarget) return null;
     const advOptions = advantage ? { [advantage]: true } : {};
@@ -742,7 +753,13 @@ export class PlayerRollsDataAccess {
       // dashboard's player page would carry the GM's target onto the player's card, so only the
       // player's own click keeps it.
       out = await activity.rollAttack(
-        { ...(game.user?.isGM ? { target: null } : {}), ...advOptions },
+        {
+          ...(game.user?.isGM ? { target: null } : {}),
+          ...advOptions,
+          // A GM-run NPC attack has no Undo: it must not use up ammunition or write item flags
+          // the way a player's attack does.
+          ...(spendNothing ? { ammunition: '' } : {}),
+        },
         dialog,
         message
       );

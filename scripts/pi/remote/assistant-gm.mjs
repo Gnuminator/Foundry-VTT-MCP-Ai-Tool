@@ -15,6 +15,10 @@
 // PROVISION_GM_USER, PROVISION_GM_PASSWORD (empty for a fresh world's Gamemaster) and
 // PROVISION_GM_NEW_PASSWORD (set on that user afterwards), and optionally PROVISION_EXTRA_GM_USER plus
 // PROVISION_EXTRA_GM_PASSWORD (a second GM with its own password). Passwords are never printed.
+//
+// The next line tells the Pi stages what this driver can do (stage 11 checks it before it needs a feature).
+// Add a word when a stage must tell a new driver from an old one; never remove one.
+// assistant-gm features: extra-gm
 
 import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';

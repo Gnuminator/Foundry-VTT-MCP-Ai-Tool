@@ -564,7 +564,10 @@ ${failMv}
       // The systemctl calls go to a file: the stage may exit (its EXIT trap rolls back) before it could print them.
       const callsLog = join(root, 'calls.log');
       writeFileSync(callsLog, '');
-      const r = spawnSync('bash', ['-c', script], { encoding: 'utf8', env: { ...process.env, CALLS_LOG: posix(callsLog), ...env } });
+      // As a file, not `bash -c`: the Windows command line ends at about 8,000 characters and cut this script off.
+      const scriptFile = join(root, 'stage3.sh');
+      writeFileSync(scriptFile, script);
+      const r = spawnSync('bash', [posix(scriptFile)], { encoding: 'utf8', env: { ...process.env, CALLS_LOG: posix(callsLog), ...env } });
       return { status: r.status, out: `${r.stdout}${r.stderr}`, calls: readFileSync(callsLog, 'utf8') };
     };
 
@@ -575,6 +578,41 @@ ${failMv}
       assert.equal(readFileSync(join(root, 'foundry', 'main.js'), 'utf8'), 'new');
       assert.equal(readFileSync(join(root, 'foundry.prev', 'main.js'), 'utf8'), 'old');
       assert.ok(!existsSync(join(root, 'foundryvtt.zip')), 'the zip is removed once the new program runs');
+    });
+
+    test('FOUNDRY_EXPECT_VERSION refuses a zip of another version before anything stops', () => {
+      const { root, prelude } = setup();
+      const r = go(root, prelude, { FOUNDRY_EXPECT_VERSION: '14.369' });
+      assert.notEqual(r.status, 0, r.out);
+      assert.match(r.out, /holds Foundry 14\.999, not FOUNDRY_EXPECT_VERSION=14\.369\. Nothing was changed/);
+      assert.equal(readFileSync(join(root, 'foundry', 'main.js'), 'utf8'), 'old');
+      assert.ok(existsSync(join(root, 'foundryvtt.zip')));
+      assert.doesNotMatch(r.calls, /stop foundry/, 'Foundry was not stopped');
+    });
+
+    test('FOUNDRY_EXPECT_VERSION matches the zip by prefix (14.999 and 14.999.0)', () => {
+      for (const want of ['14.999', '14.999.0']) {
+        const { root, prelude } = setup();
+        const r = go(root, prelude, { FOUNDRY_EXPECT_VERSION: want });
+        if (want === '14.999') assert.equal(r.status, 0, r.out);
+        else assert.notEqual(r.status, 0, 'a longer expectation than the zip version does not match');
+      }
+    });
+
+    test('FOUNDRY_EXPECT_VERSION with no zip compares the installed program: another version refuses, the same passes the check', () => {
+      for (const [want, refused] of [['14.369', true], ['14.368', false]]) {
+        const { root, prelude } = setup();
+        rmSync(join(root, 'foundryvtt.zip'));
+        writeFileSync(join(root, 'foundry', 'package.json'), '{"version":"14.368.0"}');
+        const r = go(root, prelude, { FOUNDRY_EXPECT_VERSION: want });
+        if (refused) {
+          assert.notEqual(r.status, 0, r.out);
+          assert.match(r.out, /installed Foundry is 14\.368\.0, not FOUNDRY_EXPECT_VERSION=14\.369\. Nothing was changed/);
+          assert.doesNotMatch(r.calls, /stop foundry/);
+        } else {
+          assert.match(r.out, /Foundry already installed/, r.out);
+        }
+      }
     });
 
     test('the second rename failing puts the old program back and starts Foundry again', () => {

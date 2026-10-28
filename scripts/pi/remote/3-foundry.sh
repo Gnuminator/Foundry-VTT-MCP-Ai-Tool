@@ -3,7 +3,7 @@
 # Needs the "Linux/Node.js" build zip from the user's foundryvtt.com account, copied to the Pi
 # first (Claude: scp <zip> foundry-pi:/root/foundryvtt.zip). The licence key and the admin
 # password are entered by the user in their browser on first start, never here.
-# FOUNDRY_ZIP overrides the zip path.
+# FOUNDRY_ZIP overrides the zip path. FOUNDRY_EXPECT_VERSION (for example 14.369) refuses a zip of another version.
 
 require_root
 require_recent_snapshot
@@ -56,6 +56,14 @@ if [ -f "$zip" ]; then
   unzip -q "$zip" -d "$tmp"
   [ -f "$tmp/main.js" ] || die "$zip is not the Linux/Node.js build (no main.js at its top level)"
   version="$(awk -F'"' '/"version"/ { print $4; exit }' "$tmp/package.json" 2>/dev/null || true)"
+  # FOUNDRY_EXPECT_VERSION=14.369 (a prefix of the zip's version, so 14.369 matches 14.369.0) refuses any other build
+  # before anything stops: the wrong zip in /root is the one mistake a new Foundry version can make here.
+  if [ -n "${FOUNDRY_EXPECT_VERSION:-}" ]; then
+    case "${version:-}" in
+      "$FOUNDRY_EXPECT_VERSION" | "$FOUNDRY_EXPECT_VERSION".*) ;;
+      *) die "$zip holds Foundry ${version:-?}, not FOUNDRY_EXPECT_VERSION=$FOUNDRY_EXPECT_VERSION. Nothing was changed" ;;
+    esac
+  fi
   require_quiet "installing a new Foundry program (it stops Foundry)"
   # The new program is staged next to the old one and swapped in with two renames (never `rm -rf dir/*`
   # first, which left an empty program folder when the copy failed). The old one stays as
@@ -83,6 +91,14 @@ if [ -f "$zip" ]; then
   ok "installed Foundry ${version:-?} in $FOUNDRY_APP (data stays in $FOUNDRY_DATA)"
   zip_installed=1
 elif [ -f "$FOUNDRY_APP/main.js" ]; then
+  if [ -n "${FOUNDRY_EXPECT_VERSION:-}" ]; then
+    # No zip to check: the installed program must already be that version, or a missing zip would pass for success.
+    installed="$(awk -F'"' '/"version"/ { print $4; exit }' "$FOUNDRY_APP/package.json" 2>/dev/null || true)"
+    case "${installed:-}" in
+      "$FOUNDRY_EXPECT_VERSION" | "$FOUNDRY_EXPECT_VERSION".*) ;;
+      *) die "no Foundry zip at $zip, and the installed Foundry is ${installed:-unknown}, not FOUNDRY_EXPECT_VERSION=$FOUNDRY_EXPECT_VERSION. Nothing was changed" ;;
+    esac
+  fi
   ok "Foundry already installed in $FOUNDRY_APP (no new zip given)"
 else
   die "no Foundry zip at $zip and nothing installed yet"

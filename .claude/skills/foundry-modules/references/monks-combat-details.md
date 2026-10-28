@@ -2,7 +2,7 @@
 
 Verified on Foundry 14.368 / dnd5e 6.0.6, module 14.03, 2026-10-28 (test server C; the start-combat check, the tracker pop-out, auto-defeat and the CR line were seen live; turn sounds, hide-enemies from a player's view and the playlist feature were not).
 
-**Verdict: keep (optional, his taste).** It guides a new GM through a fight with few clicks, and nothing it does clashes with the AI Tool. Its one visible interaction is a confirm dialog when combat is started by hand before everyone has rolled initiative.
+**Verdict: keep.** It guides a new GM through a fight with few clicks, and nothing it does clashes with the AI Tool. It is optional and a matter of Danni's taste. Its one visible interaction is a confirm dialog when combat is started by hand before everyone has rolled initiative.
 
 **For Danni's guides:** It pops the combat list up when a fight starts, warns you if someone has not rolled initiative, and marks monsters as defeated at 0 HP.
 
@@ -30,7 +30,7 @@ Key prefix `monks-combat-details.`.
 | Auto defeated (`auto-defeated`)                                   | default (`npc-zero`)                            | Removes "dead but still in the order" noise.                                                                                                |
 | Show combat CR (`show-combat-cr`)                                 | on (default)                                    | A hint for a new GM.                                                                                                                        |
 | Show combat playlist (`show-combat-playlist`)                     | off (default)                                   | We use the playlist tool.                                                                                                                   |
-| Volume, disable sounds (`volume`, `disablesounds`)                | default                                         | Each player mutes their own client.                                                                                                         |
+| Volume, disable sounds (`volume`, `disablesounds`)                | default                                         | `volume` is per client, so each player sets their own; `disablesounds` is world-wide.                                                       |
 
 ## How it interacts with the AI Tool
 

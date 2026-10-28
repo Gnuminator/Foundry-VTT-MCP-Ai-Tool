@@ -2,7 +2,7 @@
 
 Verified on Foundry 14.368 / dnd5e 6.0.6, module 14.01, 2026-10-28 (test server C; the module's request dialog, the combat movement switch and the save card were driven live; player-side rolling, the Assign XP dialog and loot were not).
 
-**Verdict: drop.** Saves rolled from its request cards are written into its own chat card and no dnd5e roll message is created, so the play recorder, session log, recaps and stats miss every one of them. dnd5e 6's own roll requests and our `request-player-rolls` are logged. Keep it only if Danni wants its bar badly enough that we teach the recorder to read its cards.
+**Verdict: drop.** A save a player rolls from its request card is written into the card as a message update and no dnd5e roll message is created. The play recorder listens only for new chat messages, so those saves are missing from the session log, recaps and stats (seen in the 2026-10-04 walkthrough). dnd5e 6's own roll requests and our `request-player-rolls` are logged. Keep it only if Danni wants its bar badly enough that we teach the recorder to read its cards.
 
 **For Danni's guides:** The bar of your players' faces on the canvas: click a face to jump to that token; the dice button asks everyone for the same save in one go (but the AI's recap will not see those rolls).
 
@@ -23,19 +23,19 @@ Verified on Foundry 14.368 / dnd5e 6.0.6, module 14.01, 2026-10-28 (test server 
 
 Key prefix `monks-tokenbar.`; defaults unless noted.
 
-| Label (key)                                                          | Value         | Why                                                                     |
-| -------------------------------------------------------------------- | ------------- | ----------------------------------------------------------------------- |
-| Allow player (`allow-player`)                                        | off (default) | Players get no request buttons.                                         |
-| Change to combat (`change-to-combat`)                                | on (default)  | Party movement becomes combat-only while a fight runs. Tell Danni.      |
-| Show XP dialog (`show-xp-dialog`)                                    | off if kept   | We award XP by session, not per fight (not verified).                   |
-| Lootable menu, auto gold, loot sheet (`show-lootable-menu` and more) | off           | `loot-sheet` defaults to Monk's Enhanced Journal, which we do not run.  |
-| Capture saving throws (`capture-savingthrows`)                       | off           | Would pull sheet-rolled saves into the card; not tested (not verified). |
+| Label (key)                                                          | Value         | Why                                                                                                                                             |
+| -------------------------------------------------------------------- | ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| Allow player (`allow-player`)                                        | off (default) | Players get no request buttons.                                                                                                                 |
+| Change to combat (`change-to-combat`)                                | on (default)  | Party movement becomes combat-only while a fight runs. Tell Danni.                                                                              |
+| Show XP dialog (`show-xp-dialog`)                                    | off if kept   | We award XP by session, not per fight (not verified).                                                                                           |
+| Lootable menu, auto gold, loot sheet (`show-lootable-menu` and more) | off           | `loot-sheet` defaults to Monk's Enhanced Journal, which we do not run.                                                                          |
+| Capture saving throws (`capture-savingthrows`)                       | off           | Its hint: "Create Saving Throw Chat Card when requesting item saving throw roll", i.e. item-triggered save requests; not tested (not verified). |
 
-Remember to set `movement` back to `free` after a fight if combat ends by deleting the combat: it is a world setting that stays on Combat Turn until the module resets it (not verified for a normal end of combat).
+When combat ends, `movement-after-combat` (default `free`) sets movement back; I deleted the combat in the test and set `movement` back to `free` by hand, so the automatic reset on a normal end is not verified.
 
 ## How it interacts with the AI Tool
 
-- **Log gap (verified, same as the 2026-10-04 walkthrough on 14.01):** "Request with Roll" for Test Hero produced exactly one chat message, `type: base`, flag `monks-tokenbar` with the request and result, and one embedded roll (1d20 + 3 + 2 = 9). It carries no `flags.dnd5e` and no dnd5e `system` data, which is what `play-recorder.ts` reads for saves. So `get-session-log`, the play recorder, recaps and stats will not count a TokenBar save. Rolls from dnd5e 6 chat-card buttons and from `request-player-rolls` / `roll-saving-throws` are recorded.
+- **Log gap (verified, same as the 2026-10-04 walkthrough on 14.01):** "Request with Roll" for Test Hero produced exactly one chat message, `type: base`, flag `monks-tokenbar` with the request and result, and one embedded roll (1d20 + 3 + 2 = 9). It carries no `flags.dnd5e` and no dnd5e `system` data, which is what `play-recorder.ts` reads for the save type. Reading the code (not checked against `get-session-log` live): this GM-rolled message holds its roll when created, so the recorder would log it as an untyped roll with no save type, DC or outcome; a player's roll from the card arrives later as a message update, and `onCreateChatMessage` is the only chat listener, so it is not logged at all. Either way recaps and stats cannot tell it was a save. Rolls from dnd5e 6 chat-card buttons and from `request-player-rolls` / `roll-saving-throws` are recorded.
 - No tool calls the module. A save the AI requests and one TokenBar requests are separate cards; answering one does not answer the other.
 - The bar only lists friendly, player-owned tokens, so NPC tokens the bridge creates will not appear.
 - The movement lock acts on players. Whether it stops a bridge token move (`plan-token-change`, which runs as the GM) was not tested (not verified).

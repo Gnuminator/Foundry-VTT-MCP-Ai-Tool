@@ -2,7 +2,7 @@
 
 Verified on Foundry 14.368 / dnd5e 6.0.6, module 2.3.0, 2026-10-28 (test server C; a Bless cast, ten rounds of turns and the install ping were driven live).
 
-**Verdict: drop (optional).** It works on dnd5e 6 and does not clash with the AI Tool, but dnd5e 6 and Foundry 14 already track concentration and effect durations, so all it adds is a "rounds left" row in the tracker. It also sends an install ping with no switch. Keep it only if Danni likes the reminder row.
+**Verdict: drop.** It works on dnd5e 6 and does not clash with the AI Tool, but dnd5e 6 and Foundry 14 already track concentration and effect durations, so all it adds is a "rounds left" row in the tracker. It also sends an install ping with no switch. It is optional: keep it only if Danni likes the reminder row.
 
 **For Danni's guides:** Under a caster in the combat tracker you see how many rounds their spell has left, and the spell ends by itself when the rounds run out.
 
@@ -33,7 +33,7 @@ Defaults, with one change if the module is kept: turn "Beyond20: Cast Spell butt
 
 ## Gotchas on Foundry 14 / dnd5e 6
 
-- **Install ping (verified):** on `ready` the active GM's browser posts `{moduleId, system, systemVersion, foundryVersion, worldId, moduleVersion}` once per module version to `https://foundry.turkeysunite-local.org/module-install`, with an `x-install-tracker-key` header, up to three tries per version. There is no setting to turn it off. On the test server the browser blocked it (CORS preflight, "Failed to fetch"), the module recorded `attempts: 1` in its hidden setting `installTracker`, and nothing was sent. Because the custom header forces a preflight, whether a real world is ever recorded depends on that server's CORS answer. No campaign text or player data is in the payload; the world id is.
+- **Install ping (verified):** on `ready` the active GM's browser posts `{moduleId, system, systemVersion, foundryVersion, worldId, moduleVersion, updated}` once per module version to `https://foundry.turkeysunite-local.org/module-install`, with an `x-install-tracker-key` header, up to three tries per version. There is no setting to turn it off. On the test server the browser blocked it (CORS preflight, "Failed to fetch"), the module recorded `attempts: 1` in its hidden setting `installTracker`, and nothing was sent. Because the custom header forces a preflight, whether a real world is ever recorded depends on that server's CORS answer. No campaign text or player data is in the payload; the world id is.
 - Manifest: Foundry 13 to 14, dnd5e 5.0.0 or newer; it declares no dnd5e 6 support but worked on 6.0.6.
 - Only dnd5e is supported; on another system the module loads no adapter and stays idle.
 - A cast with no combat running creates no timer.

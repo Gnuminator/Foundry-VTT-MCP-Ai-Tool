@@ -20,6 +20,7 @@ import {
 } from './mirror-scan.js';
 import { campaignDir } from './note-writer.js';
 import { withGeneratedHash } from './ownership.js';
+import { rmTmp } from '../test-support/rm-tmp.js';
 
 const WORLD = 'sorvan-test';
 /** Built at run time so the source has no invisible or ambiguous characters. */
@@ -42,7 +43,7 @@ beforeEach(async () => {
 
 afterEach(async () => {
   vi.restoreAllMocks();
-  await fsp.rm(tmp, { recursive: true, force: true });
+  await rmTmp(tmp);
 });
 
 interface NoteSpec {

@@ -460,6 +460,10 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
 
   // --- Feed handlers ---------------------------------------------------------
   const handlers: GameFeedHandlers = {
+    onPoll(at) {
+      // Quiet on purpose: a broadcast per poll would wake every client for no visible change.
+      currentStatus = { ...currentStatus, lastPollAt: at };
+    },
     onStatus(status) {
       // World info only exists once Foundry is reachable; fetch it on the
       // transition INTO reachable (a failed fetch retries on its own backoff).
@@ -682,7 +686,7 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
     }),
   });
 
-  // The version tracker (I-127): GM only, off until the GM switches it on in the Advanced menu.
+  // The version tracker (I-127): GM only, on by default, the GM can switch it off in the Advanced menu.
   mountVersionsRoute(app, {
     requireGm,
     tracker: new VersionTracker({

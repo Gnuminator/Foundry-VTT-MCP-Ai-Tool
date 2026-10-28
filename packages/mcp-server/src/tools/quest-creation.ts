@@ -627,7 +627,7 @@ export class QuestCreationTools {
               journalId: journal.id,
             });
             journal.contentPreview = `${String(content?.content?.substring(0, 150))}...`;
-          } catch (error) {
+          } catch {
             journal.contentPreview = 'Error loading content';
           }
         }
@@ -713,7 +713,7 @@ export class QuestCreationTools {
                   contentSnippet: this.extractSnippet(pageContent.content, request.searchQuery),
                 });
               }
-            } catch (error) {
+            } catch {
               // Skip pages with content errors
             }
           }

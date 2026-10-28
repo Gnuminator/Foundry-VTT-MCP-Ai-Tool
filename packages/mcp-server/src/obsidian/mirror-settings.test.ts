@@ -20,6 +20,7 @@ import {
   normalizeMirrorSettings,
   readMirrorSettings,
 } from './mirror-settings.js';
+import { rmTmp } from '../test-support/rm-tmp.js';
 
 const ID_A = 'aaaaaaaaaaaaaaaa';
 const ID_B = 'BBBBBBBBBBBBBBBB';
@@ -311,7 +312,7 @@ describe('readMirrorSettings', () => {
   });
 
   afterEach(async () => {
-    await fsp.rm(dataDir, { recursive: true, force: true });
+    await rmTmp(dataDir);
   });
 
   it('gives the defaults and their hash when the file does not exist', async () => {

@@ -46,6 +46,9 @@ item is marked done; the board ignores a line on an item with no claim.
 
 ## Work
 
+- **Advisor (D-127):** call `advisor` (Opus, the user setting) once before you start coding and
+  once before you open the PR; act on it or say in the PR why not. The weekly check counts the
+  calls.
 - **Subagents:** `model: "sonnet"` for code, tests, scripts and sweeps; `model: "haiku"` for
   reading and simple mechanical edits; Opus only for design and risky-PR reviews. Partition workers
   by file, lock shared contracts first, tell them to write big files in parts of at most about 250
@@ -99,6 +102,10 @@ item is marked done; the board ignores a line on an item with no claim.
   merged needs `git merge aitool/main` first), look at the changed PNGs it prints under
   `packages/cogm-dashboard/web/visual/__screenshots__/`, commit them, push again, and only then
   open the PR.
+  If it stops with "git saw N changed or new PNG(s) in the run but the artifact holds M" or "no png-count.txt marker",
+  the collect step lost files (or the branch has an old workflow file: merge `aitool/main`); it
+  writes nothing then, so read the run log. A clean run on a branch with one changed screenshot
+  delivered that PNG (2026-10-27, run 40595605155).
   Never copy baselines from a failed PR run. Re-run it after a later change that moves pixels.
 - `changelog.d/<topic>.md` added; lint and em-dash baselines lowered if counts dropped.
 - `git status --short`: add explicit paths; no binaries, archives, audio, `.env` or downloads.
@@ -131,6 +138,24 @@ item is marked done; the board ignores a line on an item with no claim.
   path of a `git diff aitool/main...HEAD` file and the PR description, in a checkout at that sha.
   Fix what they find, then brief the formal reviewer with the findings and fixes; they do not
   replace it.
+- **Hybrid review flow (D-127):**
+  - **Rounds:** every PR gets one review round plus one delta check by the same reviewer (D-101).
+    A third round needs the planner; do not start one yourself (the runner refuses it without
+    `--allow-round3`, which is the planner's flag). Batch your findings into one fix round.
+  - **Instant review:** PRs on the critical path, PRs other work stacks on, and risky PRs (the
+    gate's list) are reviewed now while you are alive, by a subagent as above.
+  - **Batched review:** low-risk PRs (build-ahead, board, lows, docs) do not wait for you: report
+    "PR open" in the `- progress:` line and end. The planner has them reviewed once or twice a day
+    by a review lane or by the API runner (next bullet). Fix the findings when they come back.
+- **Review runner (D-127, until 2026-11-14):** `node scripts/review-runner/run.mjs <PR>...` reviews
+  on the separate API credit, never the subscription. It needs `REVIEW_RUNNER_API_KEY` in the
+  environment (only the runner reads it, and it hands it to its SDK child as `ANTHROPIC_API_KEY`;
+  never set or print that name in your own shell) and a one-time `npm ci --prefix
+scripts/review-runner`. It picks Opus for a PR the gate calls risky and Sonnet otherwise, checks
+  the head out in a scratch worktree, writes the note in the format below to vault `Handoff/Reviews
+<date>/`, commits it with explicit paths and logs the cost in `~/.review-runner/ledger.jsonl`; it
+  stops at $95 in total. `--dry-run` shows the plan and spends nothing. Run it for real only when
+  the planner asked.
 - **Review note format** (the merge gate reads it):
   - path: vault `Handoff/Reviews <YYYY-MM-DD>/<PR>-review.md`, round 2 `<PR>-review-round2.md`;
     Opus: `<PR>-opus-review.md`, `<PR>-opus-review-round2.md`, with the heading

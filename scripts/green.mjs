@@ -26,6 +26,25 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { withHeavyLock } from './heavy-lock.mjs';
+
+/**
+ * The steps that need a lot of RAM or CPU (lint, type check, build, the test suites, the browser
+ * run). Each takes the heavy-check lock, so parallel greens, the pre-push hook and the gate's drift
+ * check take turns instead of running together (see scripts/heavy-lock.mjs).
+ */
+export const HEAVY_STEPS = new Set([
+  'typecheck',
+  'lint-ratchet',
+  'build',
+  'kit-test',
+  'test-shared',
+  'test-foundry-module',
+  'test-mcp-server',
+  'test-cogm-dashboard',
+  'test-discord-bot',
+  'e2e',
+]);
 
 /** The unit-test steps run with CI=true, as on the runner (vitest then runs once, not in watch mode). */
 const CI = { CI: 'true' };
@@ -68,7 +87,7 @@ export const STEPS = [
     '.claude/hooks/warn-control-bytes.test.mjs',
     '.claude/hooks/guard-model.test.mjs'
   ),
-  nodeTest('gate-scripts', 'scripts/green.test.mjs', 'scripts/lane-merge.test.mjs', 'scripts/visual-baselines.test.mjs'),
+  nodeTest('gate-scripts', 'scripts/green.test.mjs', 'scripts/lane-merge.test.mjs', 'scripts/visual-baselines.test.mjs', 'scripts/review-runner/lib.test.mjs', 'scripts/heavy-lock.test.mjs'),
   nodeTest('usage-week', 'scripts/dev/usage-week.test.mjs'),
   nodeTest('gamenight-watch', 'scripts/gamenight-watch.test.mjs'),
   nodeTest('pi-space-check', 'scripts/pi/space-check.test.mjs'),
@@ -472,19 +491,23 @@ export function nodeNote(o = {}) {
  * @returns {number} exit status (1 when the process could not start or was killed)
  */
 function spawnStep(step, fd, cwd) {
-  // One command string with shell: true (a command plus an args array under a shell is DEP0190).
-  const r = spawnSync(commandLine(step), {
-    cwd,
-    shell: true,
-    stdio: ['ignore', fd, fd],
-    env: {
-      ...stepEnvironment(process.env, NODE22_DIR),
-      FORCE_COLOR: '0',
-      NO_COLOR: '1',
-      ...step.env,
-    },
-  });
-  return r.status ?? 1;
+  const run = () => {
+    // One command string with shell: true (a command plus an args array under a shell is DEP0190).
+    const r = spawnSync(commandLine(step), {
+      cwd,
+      shell: true,
+      stdio: ['ignore', fd, fd],
+      env: {
+        ...stepEnvironment(process.env, NODE22_DIR),
+        FORCE_COLOR: '0',
+        NO_COLOR: '1',
+        ...step.env,
+      },
+    });
+    return r.status ?? 1;
+  };
+  // A heavy step takes the machine-wide lock (scripts/heavy-lock.mjs); the others just run.
+  return HEAVY_STEPS.has(step.name) ? withHeavyLock(`green ${step.name}`, run) : run();
 }
 
 /**

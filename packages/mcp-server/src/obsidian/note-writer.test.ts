@@ -11,6 +11,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { campaignDir, NoteWriter } from './note-writer.js';
 import { checkMarkdownOwnership, withGeneratedHash } from './ownership.js';
+import { rmTmp } from '../test-support/rm-tmp.js';
 
 const WORLD = 'sorvan-test';
 let tmp: string;
@@ -28,7 +29,7 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
-  await fsp.rm(tmp, { recursive: true, force: true });
+  await rmTmp(tmp);
 });
 
 function newWriter(): NoteWriter {

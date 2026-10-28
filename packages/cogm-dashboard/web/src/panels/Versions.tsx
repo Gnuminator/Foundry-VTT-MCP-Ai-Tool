@@ -1,6 +1,6 @@
 // Version tracker (I-127): what is installed against the newest release for Foundry, the game
 // system and each module, and the last test-kit result. GM only; the Advanced menu shows the entry
-// only once the GM has switched the tracker on (the `versionTracker` pref, off by default).
+// only once the GM has switched the tracker on (the `versionTracker` pref, on by default).
 // The server (src/versions.ts) checks the newest versions online at most every six hours.
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { JSX } from 'react';

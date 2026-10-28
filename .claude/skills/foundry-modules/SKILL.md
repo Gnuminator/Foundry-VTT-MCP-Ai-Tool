@@ -53,6 +53,18 @@ the version on test server A (the pinned set) when the page was written or refre
 | `gm-vision`                | 2.0.5           | `references/gm-vision.md`                | keep     |
 | `healthEstimate`           | 36.1.1          | `references/healthEstimate.md`           | keep     |
 | `nice-more-dice`           | 1.4.2           | `references/nice-more-dice.md`           | keep     |
+| `item-piles`               | 3.3.4           | `references/item-piles.md`               | optional |
+| `tidy5e-sheet`             | 14.4.0          | `references/tidy5e-sheet.md`             | optional |
+| `quick-insert`             | 3.7.8           | `references/quick-insert.md`             | keep     |
+| `find-the-culprit`         | 3.3.0           | `references/find-the-culprit.md`         | keep     |
+| `fxmaster`                 | 8.4.2           | `references/fxmaster.md`                 | optional |
+| `tokenmagic`               | 0.8.4           | `references/tokenmagic.md`               | drop     |
+| `fxbus`                    | 0.8.0           | `references/fxbus.md`                    | drop     |
+| `theatre`                  | 3.4.2           | `references/theatre.md`                  | drop     |
+| `polyglot`                 | 2.10.4          | `references/polyglot.md`                 | optional |
+
+The last nine rows (batch E) are candidates tried on test server B on 2026-10-28, not on server A:
+they are not in the Strahd list and their versions are the ones tried.
 
 Two verdicts changed on 2026-10-28 after a live check on Foundry 14.369: `calendaria` optional to
 keep (the Barovian calendar and Travel Pace build on it; clean load) and `monks-player-settings`
@@ -60,8 +72,25 @@ optional to keep (its player drop-down is there, the first check opened the wron
 `autoanimations` stays optional (the null `id` error did not reproduce on 8.0.1) and `ddb-importer`
 stays optional, with its kit-profile line corrected (it is in `modules-all`).
 
-Batch E (new candidates, another lane) adds more. `Dev/Foundry AI Tool/Backlog.md` in the vault
-lists the batches.
+### Batch E: new candidates (tried 2026-10-28 on test server B, Foundry 14.369 / dnd5e 6.0.6)
+
+None of the nine broke the world: all nine plus the 23 modules of the earlier keep list that are installed on server B (3DS Atlas to vtta-tokenizer) loaded together (37 active) with no console errors. Not installed anywhere else; the Pi and the Strahd world are untouched.
+
+| Module                          | Version         | For Danni | The one thing to know                                                                                            |
+| ------------------------------- | --------------- | --------- | ---------------------------------------------------------------------------------------------------------------- |
+| Item Piles (+ `itempilesdnd5e`) | 3.3.4 (+ 1.1.0) | optional  | Replaces Loot Sheet NPC 5e. Needs the dnd5e companion; piles are `character` actors that `list-characters` shows |
+| Tidy 5e Sheets                  | 14.4.0          | optional  | Our writes and rolls show up in it live; it removes the Tokenizer portrait button                                |
+| Quick Insert                    | 3.7.8           | keep      | Turn on "GMs only", or players can search the names of actors and scenes they cannot see                         |
+| Find the Culprit                | 3.3.0           | keep      | Disables our bridge during a search; Zero Modules and Reset restored the 14 modules that were active in that run |
+| FXMaster                        | 8.4.2           | optional  | Weather lives in a scene flag, separate from the core weather `plan-scene-mood` sets                             |
+| Token Magic FX                  | 0.8.4           | drop      | Works and survives our token moves, but noisy and overlaps Automated Animations                                  |
+| FX Bus                          | 0.8.0           | drop      | Screen shake panel; client-side only, no data; not needed at the table                                           |
+| Theatre Inserts                 | v3.4.2          | drop      | Its chat lines have no speaker: our log reads them as out-of-character chat from the user                        |
+| Polyglot                        | 2.10.4          | optional  | Scrambles only the display; the stored text is plain, so recaps and player views show it in the clear            |
+
+Both FXMaster and Item Piles post a **public** welcome card to chat on the first GM load; delete the cards before players join.
+
+`Dev/Foundry AI Tool/Backlog.md` in the vault lists the batches.
 
 ### Disabled in the old Frostmaiden world: one-line verdicts
 

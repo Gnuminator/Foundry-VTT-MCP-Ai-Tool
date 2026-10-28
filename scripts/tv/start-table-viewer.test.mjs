@@ -249,6 +249,10 @@ describe('start-table-viewer.ps1', { skip: !hasPwsh && 'pwsh 7 not installed' },
     // The page re-checks where it is before typing (the page may have moved on).
     assert.match(r.stdout, /location\.pathname/);
     assert.match(r.stdout, /wrong-page/);
+    // Foundry 14.369 picks the user from a select: matched by option text, no-user when absent.
+    assert.match(r.stdout, /u.tagName === 'SELECT'/);
+    assert.match(r.stdout, /textContent\.trim\(\) === "Ta\\"ble"/);
+    assert.match(r.stdout, /no-user/);
   });
 
   test(

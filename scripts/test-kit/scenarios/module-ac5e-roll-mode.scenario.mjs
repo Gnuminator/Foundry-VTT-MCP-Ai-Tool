@@ -9,12 +9,13 @@
  *
  * What it pins (a change here is a decision, not noise):
  * - `roll-saving-throws` rolls through dnd5e's API, so AC5e makes a poisoned monster's check
- *   roll with disadvantage, and a normal roll with the rules off;
- * - `request-ability-check` and `request-attack-roll` post a button that rolls a plain formula
- *   (`new Roll`, no dnd5e hooks), so AC5e does not change them: the roll mode is the same with the
- *   rules on and off. That is a gap for the table (a poisoned player's button roll has no
- *   disadvantage); if the module ever routes the buttons through dnd5e, the check below fails and
- *   the expectation moves here.
+ *   roll with disadvantage (and a normal one when unpoisoned): this arm measures AC5e;
+ * - `request-ability-check` and `request-attack-roll` post a button; the scenario reads the formula
+ *   on the posted button and does not click it. The button's roll is a plain `new Roll` in
+ *   `rollForButton` (packages/foundry-module/src/data-access/player-rolls.ts), outside dnd5e's
+ *   hooks, so AC5e cannot change it: that claim comes from reading the code. The check here only
+ *   notices if the posted formula starts to differ for a poisoned character (for example 2d20kl1),
+ *   which is the sign that the buttons were routed through dnd5e and this expectation moves.
  */
 import { monsterOf, playerHero } from '../lib/helpers.mjs';
 

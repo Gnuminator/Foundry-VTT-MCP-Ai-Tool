@@ -18,7 +18,7 @@
  * 2 not ready (server up/down, lock, bad arguments).
  */
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { kitHome } from '../test-kit/lib/targets.mjs';
@@ -115,21 +115,21 @@ function requireOurLock(srv) {
 
 /**
  * The module errors the kit's module-load scenario saw, from the report of the last kit run that
- * wrote one at or after `sinceMs` (<kit home>/last-run.json names its folder). Empty when there is
- * no such run or the scenario did not run.
- * @param {string} home @param {number} [sinceMs]
+ * ended at or after `sinceMs` on `server` with the modules-all profile (<kit home>/last-run.json
+ * names it and its folder). Null when there is no such run or the scenario did not report, so the
+ * caller can say "not reported" instead of "none".
+ * @param {string} home @param {number} [sinceMs] @param {string} [server]
  */
-export function kitModuleFindings(home, sinceMs = 0) {
+export function kitModuleFindings(home, sinceMs = 0, server) {
   try {
     const last = readJson(path.join(home, 'last-run.json')).lastRun;
-    if (!last?.reportDir) return [];
-    const file = path.join(last.reportDir, 'report.json');
-    if (statSync(file).mtimeMs < sinceMs) return [];
-    const scenario = readJson(file).scenarios?.find(x => x.id === 'module-load');
+    if (!last?.reportDir || (server && last.server !== server) || last.profile !== 'modules-all') return null;
+    if (!(Date.parse(last.finishedAt) >= sinceMs)) return null;
+    const scenario = readJson(path.join(last.reportDir, 'report.json')).scenarios?.find(x => x.id === 'module-load');
     const found = scenario?.attachments?.find(a => a.name === 'module-findings')?.data;
-    return Array.isArray(found) ? found : [];
+    return Array.isArray(found) ? found : null;
   } catch {
-    return [];
+    return null;
   }
 }
 
@@ -143,7 +143,9 @@ export function versionMismatches(plan, installed) {
   return plan
     .map(p => {
       const now = installed.find(x => x.id === p.id && x.kind === p.kind);
-      return !now || compareVersions(now.version, p.installed) !== 0 ? `${p.id} ${p.installed} -> ${now?.version ?? 'gone'}` : null;
+      const numeric = v => /^v?\d/.test(v);
+      const same = now && (now.version === p.installed || (numeric(now.version) && numeric(p.installed) && compareVersions(now.version, p.installed) === 0));
+      return !same ?`${p.id} ${p.installed} -> ${now?.version ?? 'gone'}` : null;
     })
     .filter(Boolean);
 }
@@ -265,7 +267,9 @@ async function cmdRun(o) {
   // The load check (modules active, no new module errors) is the kit scenario module-load, so it
   // runs inside the kit in the kit world; its pass or fail is the kit step, and the errors it saw
   // come from the kit report, so this report lists them as known or new.
-  const findings = splitFindings(o.kit ? kitModuleFindings(kitHome(), startedMs) : [], expectedList());
+  const kitFound = o.kit ? kitModuleFindings(kitHome(), startedMs, srv.name) : null;
+  if (o.kit && !kitFound) steps.push({ name: 'module-load findings', status: 'skip', detail: 'the kit did not report them (it stopped before module-load or ran elsewhere); read the kit report' });
+  const findings = splitFindings(kitFound ?? [], expectedList());
 
   // 3. CI.
   steps.push(o.green ? runStep('npm run green', 'npm', ['run', 'green'], { CI: 'true' }) : { name: 'npm run green', status: 'skip', detail: 'pass --with-green' });

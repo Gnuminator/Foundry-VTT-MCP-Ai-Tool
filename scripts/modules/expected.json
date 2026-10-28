@@ -5,8 +5,8 @@
       "id": "ac5e-notices",
       "module": "*",
       "match": "AC5E",
-      "max": 40,
-      "why": "Automated Conditions 5e logs notices through the error log: LOADED, 'No targets selected' (the kit casts and rolls without targets) and 'Multiple damage types' (2026-10-27, 14.606.4.5). Informational. A smoke run on 14.369 saw 29 (25 'No targets selected', 4 'Multiple damage types'); the cap is that plus room (2026-10-28, tuned against a real run)."
+      "max": 60,
+      "why": "Automated Conditions 5e logs notices through the error log: LOADED, 'No targets selected' (the kit casts and rolls without targets) and 'Multiple damage types' (2026-10-27, 14.606.4.5). Informational. A smoke run on 14.369 saw 29 (25 'No targets selected', 4 'Multiple damage types'); the cap is that plus room for the full-size scenario module-ac5e-roll-mode, which adds rolls (2026-10-28, tuned against a real run)."
     },
     {
       "id": "ac5e-hooks-and-migration",

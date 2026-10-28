@@ -194,6 +194,18 @@ test('zipEntryNames reads a real zip and unsafe entry names are refused before u
   assert.throws(() => unpackZip(zip), /outside its folder/); // refused by our check, with or without bsdtar
   writeFileSync(path.join(d, 'plain.zip'), 'not a zip at all, long enough to pass the length check');
   assert.deepEqual(zipEntryNames(path.join(d, 'plain.zip')), []);
+  // a zip that cannot be read exactly is refused, not passed as clean
+  const whole = readFileSync(zip);
+  writeFileSync(path.join(d, 'cut.zip'), whole.subarray(0, whole.length - 30));
+  assert.throws(() => zipEntryNames(path.join(d, 'cut.zip')), /no zip end record/);
+  const zip64 = Buffer.from(whole);
+  zip64.writeUInt16LE(0xffff, zip64.length - 22 + 10);
+  writeFileSync(path.join(d, 'zip64.zip'), zip64);
+  assert.throws(() => zipEntryNames(path.join(d, 'zip64.zip')), /ZIP64/);
+  const shortDir = Buffer.from(whole);
+  shortDir.writeUInt16LE(9, shortDir.length - 22 + 10);
+  writeFileSync(path.join(d, 'short.zip'), shortDir);
+  assert.throws(() => zipEntryNames(path.join(d, 'short.zip')), /cut short/);
   rmSync(d, { recursive: true, force: true });
 });
 
@@ -237,13 +249,17 @@ test('kitModuleFindings reads what module-load attached to the last kit report',
   const home = tmp();
   const dir = path.join(home, 'run-1');
   mkdirSync(dir);
-  assert.deepEqual(kitModuleFindings(home), []); // no last-run.json
-  writeFileSync(path.join(home, 'last-run.json'), JSON.stringify({ lastRun: { reportDir: dir } }));
-  assert.deepEqual(kitModuleFindings(home), []); // no report yet
+  assert.equal(kitModuleFindings(home), null); // no last-run.json
+  const last = { reportDir: dir, server: 'A', profile: 'modules-all', finishedAt: new Date().toISOString() };
+  writeFileSync(path.join(home, 'last-run.json'), JSON.stringify({ lastRun: last }));
+  assert.equal(kitModuleFindings(home), null); // no report yet
   const found = [{ module: 'dae', text: 'boom' }];
   writeFileSync(path.join(dir, 'report.json'), JSON.stringify({ scenarios: [{ id: 'other', attachments: [] }, { id: 'module-load', attachments: [{ name: 'module-findings', data: found }] }] }));
-  assert.deepEqual(kitModuleFindings(home), found);
-  assert.deepEqual(kitModuleFindings(home, Date.now() + 60000), []); // an older run than this rehearsal
+  assert.deepEqual(kitModuleFindings(home, 0, 'A'), found);
+  assert.equal(kitModuleFindings(home, Date.now() + 60000, 'A'), null); // an older run than this rehearsal
+  assert.equal(kitModuleFindings(home, 0, 'B'), null); // another server's run
+  writeFileSync(path.join(home, 'last-run.json'), JSON.stringify({ lastRun: { ...last, profile: 'srd' } }));
+  assert.equal(kitModuleFindings(home, 0, 'A'), null); // another profile
   rmSync(home, { recursive: true, force: true });
 });
 

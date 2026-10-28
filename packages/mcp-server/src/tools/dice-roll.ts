@@ -12,13 +12,11 @@ interface DiceRollToolsOptions {
   rulesCheck?: Pick<RulesCheckTools, 'tryCheck'>;
 }
 
-/** The optional GM choice every d20 roll tool takes; absent lets dnd5e decide from conditions. */
-const advantageProperty = {
-  type: 'string',
-  enum: ['advantage', 'disadvantage'],
-  description:
-    'Optional. Not for custom or initiative rolls. Combines with the roller conditions (advantage on a poisoned roller is normal); omit to let those decide.',
-} as const;
+/**
+ * The optional GM choice every d20 roll tool takes; absent lets dnd5e decide from conditions, and
+ * a choice combines with them. No description: the Play tool-set size budget is tight.
+ */
+const advantageChoice = { type: 'string', enum: ['advantage', 'disadvantage'] } as const;
 
 export class DiceRollTools {
   private foundryClient: FoundryClient;
@@ -80,7 +78,7 @@ export class DiceRollTools {
               description: 'Optional flavor text to describe the roll context',
               default: '',
             },
-            advantage: advantageProperty,
+            advantage: advantageChoice,
           },
           required: [
             'rollType',
@@ -123,7 +121,7 @@ export class DiceRollTools {
               type: 'string',
               description: 'Context for the check, e.g. "Perception check to notice the ambush".',
             },
-            advantage: advantageProperty,
+            advantage: advantageChoice,
           },
           required: ['targetPlayer', 'ability', 'isPublic'],
         },
@@ -154,7 +152,7 @@ export class DiceRollTools {
               description:
                 'Whether the roll is public (visible to all) or private (target player + GM only).',
             },
-            advantage: advantageProperty,
+            advantage: advantageChoice,
           },
           required: ['targetPlayer', 'weaponOrSpellName', 'isPublic'],
         },
@@ -162,7 +160,7 @@ export class DiceRollTools {
       {
         name: 'roll-npc-check',
         description:
-          'Roll directly for an NPC actor (no player prompt) and post the result to chat. Supports ability checks, saving throws, skill checks, and attacks. Conditions apply; the reply has the d20 mode.',
+          'Roll directly for an NPC actor (no player prompt) and post the result to chat. Supports ability checks, saving throws, skill checks, and attacks.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -186,7 +184,7 @@ export class DiceRollTools {
               type: 'boolean',
               description: 'Whether the result is public (true) or whispered to the GM (false).',
             },
-            advantage: advantageProperty,
+            advantage: advantageChoice,
           },
           required: ['actorName', 'rollType', 'rollTarget', 'isPublic'],
         },

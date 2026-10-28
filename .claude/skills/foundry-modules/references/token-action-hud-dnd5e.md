@@ -1,6 +1,6 @@
 # Token Action HUD D&D 5e (`token-action-hud-dnd5e`)
 
-Not verified live: drafted from the module's manifest, docs and source on disk, 2026-10-27; live check pending.
+Verified on Foundry 14.368 / dnd5e 6.0.6, module 2.2.0, 2026-10-28 (test server B). Parts not clicked through are marked "(not verified)".
 
 **Verdict: keep.** This is the D&D 5e half of the HUD and the manifest targets exactly our stack: Foundry 14.359+ (verified 14.368) and dnd5e 6.0.0 to 6.99 (verified 6.0.5). It reads dnd5e 6 activities, so it matches how our own tools use items. Keep or drop it together with `token-action-hud-core`.
 
@@ -14,11 +14,11 @@ For dnd5e 6 activities: with "Show Activities as Actions" off, an item is one bu
 
 ## Where its UI is
 
-Same HUD as core (select a token). Settings: Game Settings, Configure Settings, Token Action HUD D&D 5e. Tooltips on hover show item info (tooltip mode is a core setting).
+Same HUD as core (select a token): with Test Hero (a level 3 Fighter) controlled it showed the tabs Inventory, Features, Attributes, Effects and Utility. Settings: Game Settings, Configure Settings, Token Action HUD D&D 5e. Tooltips on hover show item info (tooltip mode is a core setting).
 
 ## Settings we use and why
 
-All ten are per-user (client scope), so each player chooses their own. Key prefix `token-action-hud-dnd5e.`; defaults read from the minified source.
+All ten are per-user (client scope, confirmed live), so each player chooses their own. Key prefix `token-action-hud-dnd5e.`; the defaults below are the values seen on server B.
 
 | Label                               | Key                               | Default | Our value                                                                                |
 | ----------------------------------- | --------------------------------- | ------- | ---------------------------------------------------------------------------------------- |
@@ -43,6 +43,7 @@ No interaction found. Grep of `packages/`, `docs/`, `scripts/` shows no code tha
 - Our `use-item`, `request-attack-roll` and `request-ability-check` do not depend on the HUD; they call dnd5e directly (`activity.use`, `rollAttack`) in the GM client. They work with the module on or off.
 - Items our Build tools add (add-feature, create-npc) are ordinary dnd5e items and appear in the HUD groups according to type, activation and the settings above (not verified).
 - No `foundry-mcp-bridge` setting is needed.
+- Kit scenario: none yet, none earned. No AI Tool read or write depends on the HUD. Clicking an action and the HUD's behaviour after our writes were not tried on 2026-10-28 (not verified).
 
 ## Gotchas on Foundry 14 / dnd5e 6
 

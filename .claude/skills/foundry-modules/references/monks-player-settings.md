@@ -1,22 +1,22 @@
 # Monk's Player Settings (`monks-player-settings`)
 
-Not verified live: drafted from the module's manifest, docs and source on disk, 2026-10-27; live check pending.
+Verified on Foundry 14.368 / dnd5e 6.0.6, module 14.01, 2026-10-28 (test server B). Parts not clicked through are marked "(not verified)".
 
-**Verdict: keep.** It is small (two files of logic, no canvas or roll hooks), it solves a real problem for a new GM with five players on different browsers, and the source shows no clash with Foundry 14. The one caution is that the manifest only claims Foundry 13 (`compatibility.verified` is 13, module version 14.01) even though the changelog says "v14 compatibility".
+**Verdict: optional.** Its main feature, the README's player drop-down in Game Settings for viewing and editing another player's client settings, is not present on Foundry 14.368: no select with the user names appears in the Game Settings dialog. What still works is the browser sync (it saves each user's client settings in a user flag). The module is small and loads cleanly, so it does no harm, but it no longer does what the README promises. The manifest also only claims Foundry 13 (`compatibility.verified` is 13).
 
-**For Danni's guides:** This lets you open a player's personal settings (like their sound volume or sheet look) from your own screen and fix them for them, and it keeps a player's settings when they change browsers.
+**For Danni's guides:** This keeps a player's personal settings (like sound volume or sheet look) when they change browsers. The part where you open a player's settings from your own screen does not show up on our Foundry version, so do not promise it.
 
 ## What it does
 
-- Adds a player drop-down to the Configure Settings window for the GM. Pick a player and the window shows that player's client settings; saving writes them to that player (applied at once if they are online, else on their next login).
-- Keeps a copy of each user's client settings in a user flag (`monks-player-settings.client-settings`, with a `save-id`). On another browser it offers to sync from the saved copy.
+- README: adds a player drop-down to the Configure Settings window for the GM, to view and edit that player's client settings. **Not present on 14.368** (checked in the open Game Settings dialog: no select with the user names). Everything described for it below is from the README and source only (not verified).
+- Keeps a copy of each user's client settings in a user flag (`monks-player-settings.client-settings`, with a `save-id`). Verified: user Claude has both flags (`client-settings` and `save-id`). Offering a sync on another browser was not tried (not verified).
 - Only settings registered with `config: true`, client scope and a plain type (string, number, boolean, array) are considered. Settings of modules not installed in this world are dropped.
 - A player must have logged in once before their settings show correctly (README).
 
 ## Where its UI is
 
-- **Settings > Configure Settings** (the GM sees the player drop-down at the top; players see a sync prompt after login when their saved copy differs).
-- **Module Settings > Monk's Player Settings** has two entries, listed below.
+- **Settings > Configure Settings**: the README's player drop-down is missing on 14.368. Players are said to see a sync prompt after login when their saved copy differs (not verified).
+- **Game Settings** category "Monk's Player Settings" has 3 entries (two settings and the reset menu, listed below).
 - It uses a socket `module.monks-player-settings` to push values to online players.
 
 ## Settings we use and why
@@ -27,11 +27,13 @@ Not verified live: drafted from the module's manifest, docs and source on disk, 
 | Ignore Modules              | `monks-player-settings.ignore-modules` | world  | `fuzzy-foundry` | keep; add a module id here if one of its client settings should not be synced |
 | Reset ignore changes (menu) | n/a                                    | n/a    | n/a             | click it only if the "ignore until next change" box needs to come back        |
 
-The module does not force values on its own. It only copies what a player (or the GM, through the drop-down) saved.
+Live values: `sync-settings` true, `ignore-modules` "fuzzy-foundry", one menu `resetIgnore`. The module does not force values on its own. It only copies what a player saved.
 
 ## How it interacts with the AI Tool
 
 No interaction found: grepped `packages`, `scripts`, `docs` and `CHANGELOG.md` for "monks-player", no hit.
+
+Kit scenario: none yet, none earned (it changes no AI Tool tool result and its one visible feature is gone on 14).
 
 Indirect points worth knowing:
 
@@ -41,8 +43,8 @@ Indirect points worth knowing:
 
 ## Gotchas on Foundry 14 / dnd5e 6
 
-- `compatibility.minimum` and `verified` are both 13; module version 14.01. Foundry shows it as "untested" or compatible depending on its rules; the changelog's v14 note is the only claim (not verified live).
-- It monkey-patches `foundry.helpers.ClientSettings.prototype.sheet` and wraps `foundry.applications.settings.SettingsConfig`. A Foundry core change to that class would break it first; the first sign is the player drop-down missing.
+- `compatibility.minimum` and `verified` are both 13; module version 14.01. It loads on 14.368 without a problem, but the changelog's "v14 compatibility" claim does not hold for the player drop-down.
+- It monkey-patches `foundry.helpers.ClientSettings.prototype.sheet` and wraps `foundry.applications.settings.SettingsConfig`. The missing player drop-down is the sign that this wrap no longer takes effect on 14.368 (the cause was not investigated).
 - Settings from modules like Simple Calendar that have their own editors are not tracked (README).
 - Players must log in once before the GM can see their settings.
 - No dnd5e-specific code. Pi: no OS-specific behavior seen (not verified).

@@ -1,10 +1,10 @@
 # Tokenizer (`vtta-tokenizer`)
 
-Not verified live: drafted from the module's manifest, docs and source on disk, 2026-10-27; live check pending.
+Verified on Foundry 14.368 / dnd5e 6.0.6, module 5.0.3, 2026-10-28 (test server B). Parts not clicked through are marked "(not verified)".
 
-**Verdict: keep.** It is the tool for making round token pictures and portraits with a frame, and the world's NPC images already live under `Data/tokenizer/` (the Pi push depends on it). `compatibility.verified` is 13 (module 5.0.3), but the source uses the Foundry 13+ APIs (`foundry.applications.apps.FilePicker.implementation`, ApplicationV2 header controls), so I saw no 14 break in the code. It is a GM tool; no players need it.
+**Verdict: keep.** It is the tool for making round token pictures and portraits with a frame, and the world's NPC images already live under `Data/tokenizer/` (the Pi push depends on it). `compatibility.verified` is 13 (module 5.0.3), but the source uses the Foundry 13+ APIs (`foundry.applications.apps.FilePicker.implementation`, ApplicationV2 header controls), and the window opened and rendered on 14.368. It is a GM tool; no players need it (`disable-player` is on).
 
-**For Danni's guides:** Tokenizer is the "make a token" window: open an actor, click Tokenizer, drag the picture into the circle, pick a frame, and it saves a token and a portrait for you.
+**For Danni's guides:** Tokenizer is the "make a token" window: open an actor, click the three dots in the sheet's top bar, choose Tokenizer, drag the picture into the circle, pick a frame, and it saves a token and a portrait for you.
 
 ## What it does
 
@@ -15,14 +15,16 @@ Not verified live: drafted from the module's manifest, docs and source on disk, 
 
 ## Where its UI is
 
-- **Actor sheet header**, a "Tokenizer" button (an ApplicationV2 header control, shown to users who can upload files; players only if "Disable for Users lacking permissions?" is off). In the older V1 path the button needs "title-link" on (default off); the V2 path does not check it (from source).
-- Right-click an actor in the **Actors directory** > Tokenizer (and compendium entries).
-- Clicking an actor's portrait image on supported sheets (switch `disable-avatar-click`, default off; whether it works on the dnd5e 6 sheet is not verified).
+- **Actor sheet, three-dot header menu**, entry "Tokenizer" (seen next to "DDB Importer" and "3D Dice Settings"). There is no Tokenizer button in the header of the dnd5e 6 character sheet, and `title-link` (world, default false) did not add one when set to true and back. The draft's header-button claim was wrong for this sheet.
+- **API:** `game.modules.get('vtta-tokenizer').api.tokenizeActor(actor)`; also `launch`, `launchTokenizer`, `tokenizeSceneToken`, `tokenizeDoc`, `updateSceneTokenImg`, `autoToken`.
+- Clicking an actor's portrait on the dnd5e 6 sheet only opens the normal image pop-out, not Tokenizer.
+- Right-click an actor in the **Actors directory** > Tokenizer (and compendium entries) (from source, not verified).
+- The window "Tokenizer" opened with Avatar and Token panels, layers, Add Frame, Add Mask and a dynamic ring layer. Nothing was saved in this run, so saving a file and updating the actor portrait are (not verified).
 - **Settings > Module Settings > Tokenizer** for folders and defaults.
 
 ## Settings we use and why
 
-Keys are `vtta-tokenizer.<key>`; defaults are from `dist/main.js`. Scope "player" in the source is not a Foundry scope: Foundry 14's `ClientSettings.register` turns an unknown scope into `client` (checked in the core client file), so those settings are per browser.
+Keys are `vtta-tokenizer.<key>`; defaults are from `dist/main.js` and the values seen live on server B match the table (for example `image-upload-directory` "[data] tokenizer/pc-images", `frame-directory` "[data] tokenizer/frames", masks "[data] tokenizer/masks", `token-size` 400, `portrait-size` 1000, `add-frame-default` true, `disable-player` true, `auto-apply-dynamic-token-ring` false). Scope "player" in the source is not a Foundry scope: Foundry 14's `ClientSettings.register` turns an unknown scope into `client` (checked in the core client file), so those settings are per browser.
 
 | Label (approx.)                        | Key                             | Scope  | Default                       | We use                                              |
 | -------------------------------------- | ------------------------------- | ------ | ----------------------------- | --------------------------------------------------- |
@@ -41,10 +43,12 @@ Keys are `vtta-tokenizer.<key>`; defaults are from `dist/main.js`. Scope "player
 - **Secret check on push:** the module name never counts as a secret word; its folder settings (`image-upload-directory`, `frame-directory`) are listed as harmless in `world-refs.test.mjs`. The hidden `proxy` setting is a URL, not a credential.
 - Our tools do not call it. `dnd5e-create-npc` and friends use whatever image path they are given. Tokens it makes are ordinary files; nothing in the bridge reads or writes its settings.
 - Needs no `foundry-mcp-bridge` settings.
+- Kit scenario: none yet, none earned (no tool reads or writes it; its files are plain images).
 
 ## Gotchas on Foundry 14 / dnd5e 6
 
-- `compatibility.verified` is 13 and the manifest has no 14 line. Foundry will show it as unverified; the code points to 13+ APIs. Clicks to confirm (not verified): the header button appears on the dnd5e 6 sheet, the window opens, a save writes a file and updates the actor portrait.
+- `compatibility.verified` is 13 and the manifest has no 14 line. Foundry will show it as unverified; the code uses 13+ APIs. Confirmed: the window opens from the three-dot menu and the API. Not confirmed (not verified): a save writes a file and updates the actor portrait.
+- No header button on the dnd5e 6 sheet, and portrait click does not open it; use the three-dot menu or the API (see Where its UI is).
 - It also hooks the older `getActorSheetHeaderButtons` and per-sheet `render<SheetName>` hooks for V1 sheets; those do nothing on 14 (from source, not verified).
 - Written files go to the Foundry server's `Data/tokenizer/`. On the Pi (Linux, case-sensitive) a mixed-case file name saved on Windows still matches only by exact spelling; `push-world.ps1` and `world-refs.mjs` check that every referenced path exists.
 - Players with upload rights can use it; nothing else needs a special permission.

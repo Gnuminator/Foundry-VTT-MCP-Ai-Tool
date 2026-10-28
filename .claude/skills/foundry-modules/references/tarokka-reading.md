@@ -1,6 +1,6 @@
 # Tarokka Reading (`tarokka-reading`)
 
-Not verified live: drafted from the module's manifest, docs and source on disk, 2026-10-27; live check pending.
+Verified on Foundry 14.368 / dnd5e 6.0.6, module 1.0.5, 2026-10-28 (test server B). Parts not clicked through are marked "(not verified)".
 
 **Verdict: keep.** Version 1.0.5 declares Foundry 11 to 14 (verified 14), has no dnd5e-specific code, and is the table-facing half of the reading: the dealing, face-down cards and one-by-one reveal at the table. Our own feature does not replace that; it stores, links and reveals text. The AI Tool reads the module only through its internal settings, which is the fragile part (1.x only), so pin the version.
 
@@ -8,21 +8,22 @@ Not verified live: drafted from the module's manifest, docs and source on disk, 
 
 ## What it does
 
-- Five-card cross: Tome, Symbol, Sword (common deck), Ally, Enemy (high deck, "Crowns"). The GM picks cards in advance or leaves a slot random. Duplicates and wrong-deck picks are flagged in the prepare view.
-- The GM deals (cards slide in face down), clicks a glowing slot to place the next card, clicks the card to flip it. Players only see revealed cards; position names and the GM notes stay on the GM's browser.
+- A five-position reading. The window on 14.368 labels the positions The Symbol (2), The Artifact (1), The Lair (5), The Blade (3) and The Ally (4); the draft's list from the README (Tome, Symbol, Sword, Ally, Enemy) does not match what the window shows. The GM picks cards in advance or leaves a slot random. Duplicates and wrong-deck picks are flagged in the prepare view (from README, not verified).
+- The GM deals, places the next card on a slot and flips cards one at a time; players only see revealed cards, and position names and GM notes stay on the GM's browser (README; dealing was done, but placing, flipping and showing to players were not tried, so those parts are not verified).
 - Ships no artwork (cards are drawn in CSS). The GM can rename each card and give it an image (Customize cards > Edit cards, or Import a folder with files named after the card).
 - English and French. Works with any game system.
 
 ## Where its UI is
 
-- A diamond icon in the left scene toolbar, GM only (opens the reading window; module id `tarokka`).
-- **Prepare**, **Show to players** / **Stop showing**, **New reading** inside that window.
+- Verified: a scene control group "Tarokka Reading" (diamond icon, `tarokka`) with one tool, "open", in the left toolbar, GM only. Our bridge adds its own separate `aiTool` control group.
+- Buttons **Prepare**, **New reading**, **Show to players** inside the window (footer hint: Click "New reading" to deal the cards). **Stop showing** appears once shown (not verified).
+- After **New reading**, our bridge shows a dialog "AI Tool: Tarokka reading": "Offer this reading to the AI Tool?" with Yes / No (No was clicked; the bridge was not running on B, so the import itself is not verified).
 - **Settings > Module Settings > Tarokka Reading > Customize cards** (GM only menu) for names and images.
 - Players get the reading window opened automatically while the GM has "shown" it (also at their login if it is currently shown).
 
 ## Settings we use and why
 
-None of its settings are visible config; its state lives in four hidden ones (key `tarokka-reading.<key>`):
+Game Settings has a "Tarokka Reading" category with one entry, the `cardsConfig` menu; its state lives in four hidden settings (key `tarokka-reading.<key>`). Live: after New reading the dealt reading sat in the browser's localStorage key `tarokka-reading.secret` (5 cards; keys id, broadcast, cards, stages), while the world setting `reading` stayed empty (no positions, broadcast false) until cards are shown to players:
 
 | Key             | Scope  | Holds                                  | Notes                                                     |
 | --------------- | ------ | -------------------------------------- | --------------------------------------------------------- |
@@ -36,6 +37,8 @@ We change nothing in these. Use the Customize cards menu for names and images. R
 ## How it interacts with the AI Tool
 
 Our feature has its own built-in roll (3 common + 2 high cards, crypto random) and a vault store; this module is one optional source.
+
+Kit scenario: none yet, none earned (the existing Tarokka kit steps cover our side; the module's reading lives in browser storage and needs a live GM browser, so it cannot run headless).
 
 **What we read from it** (read-only, `packages/foundry-module/src/tarokka.ts`, constant `TAROKKA_READING_MODULE`):
 
@@ -59,7 +62,7 @@ Our feature has its own built-in roll (3 common + 2 high cards, crypto random) a
 - The hidden settings are internal, not an API. A module update that renames `secret`, `plan` or the card ids silently breaks import; our code refuses any version that is not 1.x. Do not update past 1.x without re-running the Tarokka kit steps.
 - `secret` and `plan` are client-scope, i.e. browser storage (localStorage) for that GM. A different browser, a cleared cache or a private window loses the reading before it is imported. Import it into the vault straight after dealing. `get-tarokka-reading` can ask another active GM client with the `userId` argument.
 - A headless Assistant GM (or the Pi) cannot deal; it only receives an offer from a live GM browser. The reading window itself needs a GM in a normal browser.
-- Foundry 14: the toolbar code handles both the old array and the new object form of `getSceneControlButtons` (from source); the diamond showing up on 14 is (not verified).
+- Foundry 14: the toolbar code handles both the old array and the new object form of `getSceneControlButtons` (from source); the diamond control group does show up on 14.368 (verified).
 - Do not mix up the two reveals: the module's "Show to players" flips cards on the players' screens; our `plan-tarokka-reveal` publishes a journal page. Use one, or both on purpose.
 - Removing the module leaves `tarokka-reading.*` rows in world and user settings (harmless). Our vault readings stay.
 - Card images you import are your files; no artwork or book text is in this module.

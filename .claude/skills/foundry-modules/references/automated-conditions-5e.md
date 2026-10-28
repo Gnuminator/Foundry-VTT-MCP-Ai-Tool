@@ -1,8 +1,8 @@
 # Automated Conditions 5e (`automated-conditions-5e`)
 
-Not verified live: drafted from the module's manifest, docs and source on disk, 2026-10-27; live check pending.
+Verified on Foundry 14.368 / dnd5e 6.0.6, module 14.606.4.4 (tested; the pinned 14.606.4.5 is on server A only), 2026-10-28 (test server B). Parts not clicked through are marked "(not verified)".
 
-**Verdict: keep.** It is built for exactly this stack (module 14.606.4.5, verified Foundry 14.369, dnd5e 6.0.0 to 6.1.0, verified 6.0.6), so no version problem shows in the source. Our pre-flight already warns when it is missing, and our live feed already copes with its doubled condition effects.
+**Verdict: keep.** It is built for exactly this stack (module 14.606.4.5, verified Foundry 14.369, dnd5e 6.0.0 to 6.1.0, verified 6.0.6) and it loaded and changed a roll on 14.368 / dnd5e 6.0.6. Our pre-flight already warns when it is missing, and our live feed already copes with its doubled condition effects.
 
 **For Danni's guides:** This module makes conditions like frightened, prone or poisoned change dice rolls by themselves (advantage, disadvantage, auto-fail), and shows a small tooltip saying why.
 
@@ -22,7 +22,7 @@ Not verified live: drafted from the module's manifest, docs and source on disk, 
 
 ## Settings we use and why
 
-Labels are as the English lang file shows them; keys are in `scripts/ac5e-settings.mjs`. Defaults are from source; "we use" is a proposal until clicked through (not verified).
+Labels are as the English lang file shows them; keys are in `scripts/ac5e-settings.mjs`. Live values on 14.368 (Game Settings category "Automated Conditions 5e", 22 entries): `automateStatuses` on, `showTooltips` (user) "both", `showNameTooltips` (user) on, `showChatTooltips` (world) "all" (options All Actors, Players, Owned, None), `visibilityChecks` on, `targeting` "source", `tokenlessActorWarning` on, `wavesCover` off, `autoHazards` off, `autoArmorSpellUse` "off", `autoEncumbrance` off, `advantageBehaviorOverride` off, `disableAc5eUi` off; one menu, `linksMenu`. "We use" is still a proposal. The table's Default column comes from source; where it differs from the live value above (for example `targeting`), trust the live value.
 
 | Label                                                                       | Key                                                | Scope | Default                            | Proposal                                                                                        |
 | --------------------------------------------------------------------------- | -------------------------------------------------- | ----- | ---------------------------------- | ----------------------------------------------------------------------------------------------- |
@@ -40,7 +40,8 @@ Keys are the strings in `scripts/ac5e-settings.mjs`, prefixed `automated-conditi
 - **Pre-flight:** rule `automated-conditions-5e` in `packages/foundry-module/src/preflight-scan.ts` (severity info, "missing" type) says: not active, conditions do not change rolls by themselves. It checks the module id or a title match. Nothing else in the scan reads its settings.
 - **Live feed and play log:** it mirrors a dnd5e condition as a second ActiveEffect, so one toggle fires two create or delete events. `packages/foundry-module/src/effect-dedupe.ts` (used by the session-events feed and the play recorder, P-026) drops the second one within 1.5 s when actor, kind and name or status match. Tests use the name "Prone (AC5e)".
 - **Our condition writes** (the Play set, `get-available-conditions`, `get-active-effects`, plan-actor-change and plan-token-change): they go through Foundry's normal effect create/delete, so its hooks (`preCreateActiveEffect`) run on them. Whether it rewrites or blocks a condition we add is (not verified).
-- **Rolls through the tool** (`request-attack-roll`, `roll-saving-throws`, `request-ability-check`, `roll-npc-check`): it hooks `dnd5e.preRollAttack`, `preRollSavingThrow`, `preRollAbilityCheck`, `preUseActivity` and the build hooks, so a roll we trigger on an actor is likely to pick up its advantage state and tooltips (not verified).
+- **Rolls through the tool** (`request-attack-roll`, `roll-saving-throws`, `request-ability-check`, `roll-npc-check`): it hooks `dnd5e.preRollAttack`, `preRollSavingThrow`, `preRollAbilityCheck`, `preUseActivity` and the build hooks. Verified for the skill-check path: a test character with the `poisoned` status (set with `toggleStatusEffect`) rolled `actor.rollSkill({skill:'ath'})`, the same dnd5e call our roll tools use, and got `2d20dis + 3 + 2`, flavor "Strength (Athletics) Check (Disadvantage)", and the chat message carries the `automated-conditions-5e` flag namespace. So it changes rolls made through the API, not only by clicking sheets. The attack roll and saving throw paths, and the Shift bypass, were not tested (not verified).
+- **Kit scenario:** it earns one. It changes the roll results of `request-ability-check`, `request-attack-roll` and `roll-saving-throws`, so a scenario should apply a condition and compare the roll mode. Proposed for the I-117 per-module profiles, not built in this batch.
 - No bridge settings are needed and no AI Tool flags are touched.
 
 ## Gotchas on Foundry 14 / dnd5e 6
@@ -49,7 +50,7 @@ Keys are the strings in `scripts/ac5e-settings.mjs`, prefixed `automated-conditi
 - Roll behavior changes with Midi-QOL on or off (it switches to a Midi code path). Only matters if Midi is ever added; the table runs without it.
 - The module deprecation warnings in the console are known and listed as out of scope in `docs/dev/RUNTIME-TEST-PLAN.md`.
 - Its status-effect handling can copy dnd5e statuses; a world without it keeps the plain dnd5e conditions and any custom effects it created as ordinary Active Effects (not verified).
-- Pi (headless, Linux): no OS-specific code seen; it only needs the module folder (not verified).
+- Pi (headless, Linux): no OS-specific code seen; it only needs the module folder (not verified; the Pi was not tested).
 
 ## Sources
 

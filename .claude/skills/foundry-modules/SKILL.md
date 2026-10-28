@@ -14,17 +14,17 @@ server. Foundry's own UI is `foundry-core-ui`; the test servers are `foundry-tes
 
 | Module id                 | Page                                    | Verdict  |
 | ------------------------- | --------------------------------------- | -------- |
-| `foundryvtt-actor-studio` | `references/foundryvtt-actor-studio.md` | see page |
-| `ddb-importer`            | `references/ddb-importer.md`            | see page |
-| `dnd-players-handbook`    | `references/dnd-players-handbook.md`    | see page |
-| `token-action-hud-core`   | `references/token-action-hud-core.md`   | see page |
-| `token-action-hud-dnd5e`  | `references/token-action-hud-dnd5e.md`  | see page |
-| `dice-so-nice`            | `references/dice-so-nice.md`            | see page |
-| `NotYourTurn`             | `references/NotYourTurn.md`             | see page |
-| `automated-conditions-5e` | `references/automated-conditions-5e.md` | see page |
-| `monks-player-settings`   | `references/monks-player-settings.md`   | see page |
-| `vtta-tokenizer`          | `references/vtta-tokenizer.md`          | see page |
-| `tarokka-reading`         | `references/tarokka-reading.md`         | see page |
+| `foundryvtt-actor-studio` | `references/foundryvtt-actor-studio.md` | keep     |
+| `ddb-importer`            | `references/ddb-importer.md`            | optional |
+| `dnd-players-handbook`    | `references/dnd-players-handbook.md`    | keep     |
+| `token-action-hud-core`   | `references/token-action-hud-core.md`   | keep     |
+| `token-action-hud-dnd5e`  | `references/token-action-hud-dnd5e.md`  | keep     |
+| `dice-so-nice`            | `references/dice-so-nice.md`            | keep     |
+| `NotYourTurn`             | `references/NotYourTurn.md`             | keep     |
+| `automated-conditions-5e` | `references/automated-conditions-5e.md` | keep     |
+| `monks-player-settings`   | `references/monks-player-settings.md`   | optional |
+| `vtta-tokenizer`          | `references/vtta-tokenizer.md`          | keep     |
+| `tarokka-reading`         | `references/tarokka-reading.md`         | keep     |
 
 Batches B and C add their own rows here after batch A merges. Batch E (after G0) adds the
 candidates. `Dev/Foundry AI Tool/Backlog.md` in the vault lists the batches.

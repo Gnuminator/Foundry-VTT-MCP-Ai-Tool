@@ -1,6 +1,6 @@
 # Token Action HUD Core (`token-action-hud-core`)
 
-Not verified live: drafted from the module's manifest, docs and source on disk, 2026-10-27; live check pending.
+Verified on Foundry 14.368 / dnd5e 6.0.6, module 2.1.2, 2026-10-28 (test server B). Parts not clicked through are marked "(not verified)".
 
 **Verdict: keep.** The manifest says it is verified on Foundry 14.368, nothing in the source conflicts with the AI Tool, and it saves players from digging through the character sheet. It does nothing without its system module `token-action-hud-dnd5e`, so the two are kept or dropped together.
 
@@ -14,14 +14,14 @@ It refreshes on token selection, actor, item, active effect and combat updates (
 
 ## Where its UI is
 
-- On the canvas: the HUD appears when a token is selected. Top-level buttons open groups on hover (or on click, see below). Drag a top-level button to move it.
+- On the canvas: with a token controlled (checked with Test Hero, a level 3 Fighter) the HUD appears at the top left of the canvas with the actor name and the tabs Inventory, Features, Attributes, Effects and Utility (13 groups in the DOM). It follows the controlled token; with none controlled it is empty. The elements are `#token-action-hud-app` and `#token-action-hud`. Top-level buttons open groups on hover (or on click, see below). Drag a top-level button to move it (not verified).
 - Two keybindings to enable/disable and collapse/expand the HUD (Configure Controls, "Token Action HUD"; exact default keys not verified).
-- Game Settings, Configure Settings, Token Action HUD Core: all the settings below. Unlock the HUD (padlock button) to edit groups, add groups, drop in macros.
+- Game Settings, Configure Settings, Token Action HUD Core: 23 entries plus the menus `customStyle` and `layout`; the settings below. Unlock the HUD (padlock button) to edit groups, add groups, drop in macros.
 - Per-user layouts: "User Default Layout" and the reset buttons in the same menu.
 
 ## Settings we use and why
 
-Scope read from the bundled source. "Client" settings are per browser, so each player sets their own; "world" settings are the GM's and apply to everyone.
+Scope read from the bundled source; defaults confirmed live on B (`allow` is "1", the menu entry Player; style `foundryVTT`; also on by default: `enableCompendiumActions`, `enableMacroActions`; `tooltips` full, `tooltipDelay` 1500). "Client" settings are per browser, so each player sets their own; "world" settings are the GM's and apply to everyone.
 
 | Label                 | Key (`token-action-hud-core.<key>`) | Scope  | Default                         | Our value                                                                                                         |
 | --------------------- | ----------------------------------- | ------ | ------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
@@ -44,6 +44,7 @@ No interaction found. A grep of `packages/`, `docs/` and `scripts/` finds the mo
 - Our writes (add-feature, create-npc, item changes) do not touch the HUD, but the HUD listens for item and actor updates, so new items should show up after the update (not verified).
 - The HUD does not change roll flow for our tools: it only calls dnd5e's own roll and use functions, which create the same chat messages our `get-chat-log` reads.
 - `foundry-mcp-bridge` needs no setting for it.
+- Kit scenario: none yet, none earned. Nothing the AI Tool reads or writes goes through the HUD, and the kit never needs it. Clicking an action and HUD refresh after our writes were not tried on 2026-10-28 (not verified).
 
 ## Gotchas on Foundry 14 / dnd5e 6
 

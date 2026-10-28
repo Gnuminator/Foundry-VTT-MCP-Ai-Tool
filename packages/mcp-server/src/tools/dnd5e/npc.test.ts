@@ -38,8 +38,8 @@ const VALID_ARGS = {
  */
 function makeQueryForDnd5e(
   successResult: unknown = { actor: { id: 'abc', name: 'Test Goblin', cr: '1/4' } }
-) {
-  return vi.fn((method: string) => {
+): ReturnType<typeof vi.fn> {
+  return vi.fn((method: string): unknown => {
     if (method === 'foundry-mcp-bridge.getWorldInfo') {
       return { system: 'dnd5e' };
     }
@@ -50,7 +50,10 @@ function makeQueryForDnd5e(
   });
 }
 
-function makeTools(queryImpl?: (method: string, data: unknown) => unknown) {
+function makeTools(queryImpl?: (method: string, data: unknown) => unknown): {
+  tools: DnD5eNpcTools;
+  query: ReturnType<typeof vi.fn>;
+} {
   const query = vi.fn(queryImpl ?? makeQueryForDnd5e());
   const foundryClient = { query } as any;
   // Minimal Logger stub: `.child()` returns itself; level methods are no-ops.
@@ -60,7 +63,7 @@ function makeTools(queryImpl?: (method: string, data: unknown) => unknown) {
     info: vi.fn(),
     debug: vi.fn(),
   };
-  logger.child = () => logger;
+  logger.child = (): unknown => logger;
   return { tools: new DnD5eNpcTools({ foundryClient, logger }), query };
 }
 
@@ -133,7 +136,7 @@ describe('DnD5eNpcTools.handleCreateNpc — happy path', () => {
     const query = makeQueryForDnd5e(actorResult);
     const foundryClient = { query } as any;
     const logger: any = { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() };
-    logger.child = () => logger;
+    logger.child = (): unknown => logger;
     const tools = new DnD5eNpcTools({ foundryClient, logger });
 
     await tools.handleCreateNpc({ ...VALID_ARGS });
@@ -173,7 +176,7 @@ describe('DnD5eNpcTools.handleCreateNpc — happy path', () => {
     const query = makeQueryForDnd5e();
     const foundryClient = { query } as any;
     const logger: any = { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() };
-    logger.child = () => logger;
+    logger.child = (): unknown => logger;
     const tools = new DnD5eNpcTools({ foundryClient, logger });
 
     await tools.handleCreateNpc({ ...VALID_ARGS });
@@ -400,7 +403,7 @@ describe('DnD5eNpcTools.handleCreateNpc — system check', () => {
     });
     const foundryClient = { query } as any;
     const logger: any = { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() };
-    logger.child = () => logger;
+    logger.child = (): unknown => logger;
     const tools = new DnD5eNpcTools({ foundryClient, logger });
 
     await expect(tools.handleCreateNpc({ ...VALID_ARGS })).rejects.toThrow();
@@ -417,7 +420,7 @@ describe('DnD5eNpcTools.handleCreateNpc — system check', () => {
     });
     const foundryClient = { query } as any;
     const logger: any = { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() };
-    logger.child = () => logger;
+    logger.child = (): unknown => logger;
     const tools = new DnD5eNpcTools({ foundryClient, logger });
 
     // detectGameSystem catches the error and caches 'other', which then triggers
@@ -456,7 +459,7 @@ describe('DnD5eNpcTools.handleCreateNpc — Foundry-side failure', () => {
     });
     const foundryClient = { query } as any;
     const logger: any = { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() };
-    logger.child = () => logger;
+    logger.child = (): unknown => logger;
     const tools = new DnD5eNpcTools({ foundryClient, logger });
 
     await expect(tools.handleCreateNpc({ ...VALID_ARGS })).rejects.toThrow();
@@ -474,7 +477,7 @@ describe('DnD5eNpcTools.handleCreateNpc — Foundry-side failure', () => {
     });
     const foundryClient = { query } as any;
     const logger: any = { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() };
-    logger.child = () => logger;
+    logger.child = (): unknown => logger;
     const tools = new DnD5eNpcTools({ foundryClient, logger });
 
     try {

@@ -34,6 +34,7 @@ import { versionedSig, type LinkContext } from './mirror-common.js';
 import { KEPT_AT_OLD_PATH } from './note-writer.js';
 import { checkMarkdownOwnership } from './ownership.js';
 import { statBlockMarkdown } from './stat-block-md.js';
+import { rmTmp } from '../test-support/rm-tmp.js';
 
 const WORLD = 'test-world';
 const PACK = 'world.test-bestiary';
@@ -298,10 +299,10 @@ describe('statBlockMarkdown', () => {
 describe('renderLibraryNote', () => {
   const ctx = (paths: Record<string, string>): LibraryNoteContext => {
     const library = {
-      byUuid: (uuid: string) =>
+      byUuid: (uuid: string): { notePath: string | null; name: string } | null =>
         paths[uuid] ? { notePath: paths[uuid] ?? null, name: uuid.slice(-4) } : null,
-      legacy: () => null,
-      spellByName: (name: string) => (name === 'Frost Spark' ? SPARK : null),
+      legacy: (): null => null,
+      spellByName: (name: string): typeof SPARK | null => (name === 'Frost Spark' ? SPARK : null),
     };
     return {
       worldId: WORLD,
@@ -579,7 +580,7 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
-  await fsp.rm(dir, { recursive: true, force: true });
+  await rmTmp(dir);
 });
 
 describe('LibrarySync', () => {

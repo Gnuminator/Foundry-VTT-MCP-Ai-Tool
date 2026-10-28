@@ -69,7 +69,7 @@ export function HelpProvider({ children }: { children: ReactNode }): JSX.Element
   useEffect(() => {
     if (!open) return;
     usage().trackView('dash.help.view');
-    return () => usage().endView('dash.help.view');
+    return (): void => usage().endView('dash.help.view');
   }, [open]);
 
   const openHelp: OpenHelp = to => {

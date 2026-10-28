@@ -4,6 +4,7 @@
 // whether a password was given, never a password value. /tmp/provfail holds a number of calls that must fail
 // first (the scenario writes it, the file is world-writable because this runs as the foundry user): each failing
 // call counts it down and exits 1 after recording its line with " FAILED" at the end.
+// assistant-gm features: extra-gm
 import { appendFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 
 if (process.argv[2] !== 'provision') {

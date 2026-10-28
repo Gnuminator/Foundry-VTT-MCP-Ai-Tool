@@ -15,7 +15,10 @@ import { kitHome } from './targets.mjs';
 const here = path.dirname(fileURLToPath(import.meta.url));
 export const SRD_PROFILE_FILE = path.join(here, '..', 'data', 'profiles', 'srd.json');
 
-const PROFILE_ID_RE = /^[a-z0-9][a-z0-9-]{0,40}$/;
+/** Profiles that ship in the repo besides `srd`. */
+export const SHIPPED_PROFILES = ['modules-all'];
+
+const PROFILE_ID_RE =/^[a-z0-9][a-z0-9-]{0,40}$/;
 const PACK_KINDS = [
   'classes',
   'subclasses',
@@ -69,6 +72,21 @@ export function validateProfile(p) {
       if (Array.isArray(o.packs[kind]) && !o.packs[kind].length)
         problems.push(`packs.${kind} is empty`);
     }
+  }
+  if (o.knownConsoleErrors !== undefined) {
+    const k = o.knownConsoleErrors;
+    let bad = !Array.isArray(k);
+    if (!bad) {
+      for (const src of k) {
+        try {
+          if (typeof src !== 'string') throw new Error('not text');
+          new RegExp(src);
+        } catch {
+          bad = true;
+        }
+      }
+    }
+    if (bad) problems.push('knownConsoleErrors must be a list of regular expressions (text)');
   }
   if (o.knownAlso !== undefined) {
     const k = o.knownAlso;
@@ -133,6 +151,8 @@ export function validateProfile(p) {
 /** Where a profile's file lives. @param {string} id @param {string} [home] */
 export function profileFile(id, home = kitHome()) {
   if (id === 'srd') return SRD_PROFILE_FILE;
+  // Module ids only, no book text: shipped in the repo so a rehearsal runs on any checkout (I-117).
+  if (SHIPPED_PROFILES.includes(id)) return path.join(here, '..', 'data', 'profiles', `${id}.json`);
   return path.join(home, 'licensed', 'profiles', `${id}.json`);
 }
 

@@ -163,7 +163,8 @@ listed).
 | 11. World           | `11-world.sh` installs the bundle `push-world.ps1` built on this PC, after checking the tar and every checksum: the campaign world, its private modules and image folders. An existing campaign world is kept unless `REPLACE_WORLD=1`; a test copy `strahd-kit` is reset every time; old copies go to `/var/lib/foundry-import/prev-<time>`, never deleted. Each world gets a generated GM password (`/etc/foundry-ai-tool/world-<id>.env`) and is provisioned like stage 5. A Plan B push-back keeps the Pi's GM password and needs `REPLACE_WORLD=1 KIT_WORLD=` ([Plan B](PLAN-B.md#after-the-night)). See "Licensed content"                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | **yes:** your OK (Foundry stops for a few minutes), after a `dietpi-backup 1` snapshot                                                                                                                                             |
 | 12. Tunnel          | Part C (D-075): Cloudflare Tunnel, so players reach Foundry and the GM the dashboard through Cloudflare Access with no router port open (`12-tunnel.sh`). `cloudflared` from Cloudflare's signed apt repository (key pinned), service `foundry-ai-tool-cloudflared` in token mode: a root-only token file read through systemd `LoadCredential`, never an argument or environment variable; no token, no start. `FOUNDRY_PUBLIC_HOST=play.<domain>` sets Foundry's `hostname`, `proxySSL`, `proxyPort` 443. No firewall, SSH, network or Tailscale change. Stops first, before it installs anything, while Foundry has no administrator password, or any world has a Gamemaster or Assistant GM with no password or no Gamemaster at all (a never-launched world counts); `gm-passwords.sh` runs that read-only check on its own, again after adding worlds or GM users. It also checks that the bridge's control port 31414 answers on loopback and nothing listens beyond it (the `mcp` TCP route of D-095 reaches it through the tunnel, behind its own Access application, see [Remote access](REMOTE-ACCESS.md)) | **yes:** your OK and a snapshot; then run `set-tunnel-token.sh` yourself over SSH                                                                                                                                                  |
 | 13. Player creation | D-112, D-113: players make level-1 characters in Actor Studio at session 0 (`13-player-creation.sh`). Installs our Actor Studio fork build (`2.10.5-aitool.4`) from its GitHub release, checked against a pinned sha256, and sets the world settings creation needs (Player and Trusted Player may create actors; equipment selection on, from the Player's Handbook pack). See "Player character creation"                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | **yes:** your OK (Foundry stops for a few minutes), after a `dietpi-backup 1` snapshot                                                                                                                                             |
-| 15. SSH keys only   | D-123, before Part C goes live (`15-ssh-keys-only.sh`; 14 is held elsewhere): a drop-in `/etc/ssh/sshd_config.d/00-foundry-keys-only.conf` with `PasswordAuthentication no`, `KbdInteractiveAuthentication no` and `PermitRootLogin prohibit-password`, so SSH takes a key and never a password, root included. Refuses unless root has a valid key, sshd takes keys from it, the main config includes the drop-in folder and no `Match` block sets a login value; `sshd -t` after the write and `sshd -T` (root from three addresses) before the reload, and either one failing rolls the drop-in back; a 5-minute safety timer, armed first, removes the drop-in (and starts ssh if it is down) unless a new key-only connection confirms; then a reload, not a restart (open sessions stay up), and a `live:` check of what the running sshd offers. **The console login with the root password still works** (a screen and keyboard on the Pi): the way back in if a key is ever lost. `UNDO=1` removes the drop-in. See "SSH keys only (stage 15)"                                                               | **yes:** your OK (an SSH change), after a `dietpi-backup 1` snapshot, in default permission mode, never on a game-night day                                                                                                        |
+| 14. System trial    | D-098: a new dnd5e version runs on the kit world `strahd-kit` first (`14-system-trial.sh`, `MODE=trial`, then `switch` or `rollback`). The release zip is pinned by sha256; the old version and a copy of every world are kept until the trial ends. While a trial is open, stages 5-check-world, 11 and 13 refuse to run. See "System trial (stage 14)"                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | **yes:** your OK for each mode (Foundry stops for a minute or two), after a `dietpi-backup 1` snapshot; never on a game-night day                                                                                                  |
+| 15. SSH keys only   | D-123, before Part C goes live (`15-ssh-keys-only.sh`): a drop-in `/etc/ssh/sshd_config.d/00-foundry-keys-only.conf` with `PasswordAuthentication no`, `KbdInteractiveAuthentication no` and `PermitRootLogin prohibit-password`, so SSH takes a key and never a password, root included. Refuses unless root has a valid key, sshd takes keys from it, the main config includes the drop-in folder and no `Match` block sets a login value; `sshd -t` after the write and `sshd -T` (root from three addresses) before the reload, and either one failing rolls the drop-in back; a 5-minute safety timer, armed first, removes the drop-in (and starts ssh if it is down) unless a new key-only connection confirms; then a reload, not a restart (open sessions stay up), and a `live:` check of what the running sshd offers. **The console login with the root password still works** (a screen and keyboard on the Pi): the way back in if a key is ever lost. `UNDO=1` removes the drop-in. See "SSH keys only (stage 15)"                                                                                     | **yes:** your OK (an SSH change), after a `dietpi-backup 1` snapshot, in default permission mode, never on a game-night day                                                                                                        |
 
 Stage 5 in more detail, because it changes how Claude Desktop reaches the game: each entry in
 `%APPDATA%\Claude\claude_desktop_config.json` gets `MCP_CONTROL_HOST` set to the Pi's Tailscale name
@@ -472,7 +473,9 @@ deletes anything, and prints at the end where things are left. The scratch folde
 The bridge writes the GM's Obsidian vault on the Pi, in `/var/lib/foundry-ai-tool/obsidian/gm`: the
 session log, the change log, the play stats and the Library notes. `7-vault.sh` (stage 7) sets that
 up and runs Syncthing as its own service, `foundry-ai-tool-syncthing` (user `foundry`, its files in
-`/var/lib/foundry-ai-tool/syncthing`, never in Foundry's data folder). Syncthing keeps the folder
+`/var/lib/foundry-ai-tool/syncthing`, never in Foundry's data folder). Stage 7 also takes
+`DASHBOARD_FOUNDRY_URL=https://play.<domain>` for the initiative ribbon's portraits (see
+[REMOTE-ACCESS.md](REMOTE-ACCESS.md), Part C step 4). Syncthing keeps the folder
 `foundry-gm-vault` the same on every PC you add, in both directions: the GM's own notes in `Prep/` go
 back to the Pi and into its nightly backups. The player vault is not part of this yet (it waits for
 O7, D-091).
@@ -952,6 +955,106 @@ screen, an install from a local zip, services that were off staying off, and a f
 browser start that restarts Foundry only once. CI runs both, the container part on the ARM runner,
 where a missing Docker fails the step instead of skipping it.
 
+## System trial (stage 14)
+
+dnd5e is one folder on the Pi (`/var/lib/foundry/Data/systems/dnd5e`), shared by every world:
+curse-of-strahd, strahd-kit, frostmaiden-training and pi-check all run on the version installed
+there. A world migrates its data the first time it is launched on a new version, and a migrated
+world does not go back. So a new dnd5e version (D-098, never on a game-night day) goes to the kit
+world first, the test kit runs there, and only then does the campaign get it. The version on trial
+is pinned in the script (`PIN_VERSION`, `PIN_URL` and `PIN_SHA256`, the release asset's digest on
+GitHub); the first one is 6.0.6 (the Pi runs 6.0.5). A new version is a new reviewed change to those
+lines.
+
+Each mode except `status` stops Foundry for a minute or two: a `dietpi-backup 1` snapshot and your
+OK first, every time. The stage checks it: a snapshot from today, and for `MODE=switch` one taken after
+the trial began (the nightly one from before it does not count). From the clean main checkout on this PC, with the mode in front of `bash`:
+
+```powershell
+cat scripts/pi/remote/lib.sh scripts/pi/remote/14-system-trial.sh | ssh foundry-pi 'MODE=status bash -s'
+```
+
+- **`MODE=trial`** downloads the pinned zip (or takes `ZIP`, a `.zip` under
+  `/var/lib/foundry-import/`) and checks its sha256, that its `system.json` is dnd5e at the pinned
+  version and that it fits this Foundry (`compatibility.minimum` and `.maximum`). It keeps the
+  installed version in `/var/lib/foundry-import/system-trial/dnd5e-<version>`, copies every world
+  folder there as it is now, installs the new version and launches only `strahd-kit`. Then run the
+  test kit on `strahd-kit`. **Until `switch` or `rollback`, launch no other world**, not the
+  training world either: it would migrate. Stages 5-check-world, 11 and 13 refuse to run while a
+  trial is open (stage 13 only for `WORLD=strahd-kit KIT_WORLD=`), and stage 5's check world never
+  replaces an installed dnd5e, so a rerun after a switch keeps the new version. The Claude Desktop
+  connectors see `strahd-kit` (the Assistant GM browser holds the bridge link there) until `switch`
+  or `rollback`; the Kit GM takes the link while a kit session is up.
+- **The test kit during a trial:** `kit-session.sh MODE=up` accepts `strahd-kit` as the launched
+  world while a trial is open (phase `trial`) and records it as the world to put back, so
+  `MODE=down` leaves Foundry on the kit; with any other original world `MODE=down` is refused during
+  a trial. The other way round, stage 14 (every mode but `status`) refuses while a kit session is up
+  (`/var/lib/foundry-ai-tool/kit-session.env` exists): run `MODE=down` first.
+- **`MODE=switch`** (its own snapshot and OK) launches curse-of-strahd on the new version, which
+  migrates the campaign. The training world and pi-check migrate when they are next launched. After a
+  switch the stage has no roll back: going back means restoring the snapshot from before it.
+- **The dnd5e migration runs in the first GM client**, here the Assistant GM browser, not when the
+  server launches a world. When the new version's `flags.needsMigrationVersion` is newer than the
+  launched world's `dnd5e.systemMigrationVersion` setting (or that setting is empty), `trial` and
+  `switch` wait until the setting reaches the new version (read from a copy of the world's settings
+  database) before they report success; a migration that does not end in `MIGRATION_WAIT` seconds
+  (default 1800) counts as a failure and is put back. 6.0.6 asks for none (its
+  `needsMigrationVersion` is 6.0.0), and the stage says so. When the setting cannot be read, the stage
+  warns: wait until the Assistant GM browser shows no migration notice before stopping Foundry or
+  taking a snapshot.
+- **`MODE=rollback`** puts the old version back, resets `strahd-kit` from the trial's copy (its run
+  on the new version is dropped) and launches the world Foundry ran before the trial (curse-of-strahd
+  when it ran none). A world other
+  than the kit that was launched during the trial (a file newer than the trial's start) is refused,
+  because it may be migrated; `RESTORE_MIGRATED=1` puts it back from the copy too, losing its changes
+  since. A rollback that stops halfway says so and saves where it was: run `MODE=rollback` again.
+
+**The order on the Pi for the update to the newest (D-128; the user decides the order, and each step
+is a snapshot, the user's OK and a read of the output first):**
+
+1. `dietpi-backup 1` snapshot, then stage 14 `MODE=trial` (dnd5e 6.0.6 on `strahd-kit`).
+2. Snapshot, then stage 3 with `FOUNDRY_EXPECT_VERSION=14.369` and the zip in place. The trial is
+   open, so Foundry restarts on `strahd-kit`: the new Foundry meets the kit first, not the campaign.
+3. `5-tool.sh` with `TOOL_REF=v0.23.0` (the tool release). `5-check-world.sh` refuses while the trial
+   is open, which is expected here.
+4. The test kit on `strahd-kit`: `kit-session.sh MODE=up`, `npm run kit:run -- --target pi
+--not-game-night`, `MODE=down`.
+5. Snapshot, then stage 14 `MODE=switch` (the campaign migrates).
+
+A rollback after step 2 puts dnd5e 6.0.5 back under Foundry 14.369, which 6.0.5 supports.
+
+- **`MODE=status`** is read-only: the trial's phase, the installed version, and each world's system
+  version and whether it was launched since the trial began.
+- **Before anything stops** the request and the trial's state are checked (a second trial, a switch
+  without a trial and a rollback after a switch are refused), the zip is checked as above, the
+  copies must fit (their bytes by `du -sb` against `df`: under 5 % of the disk left over stops, under
+  20 % warns), and nobody may be online (the Assistant GM browser stops and `/api/status` must count
+  nobody; `FORCE=1` stops Foundry anyway). One run at a time (a lock in `/var/lib/foundry-import`).
+- **A failed trial or switch** puts back what ran before it (the old version, `strahd-kit` or
+  curse-of-strahd from the copy, `options.json`) and starts Foundry and the Assistant GM browser as
+  they were, but launches a world again only when the dnd5e folder holds the version that world runs
+  on. If it does not, `options.json` launches no world, Foundry stays stopped and the stage says what
+  to put back by hand. Nothing is deleted: replaced folders go to
+  `/var/lib/foundry-import/prev-<time>-*`, and removing those or the trial folder needs your OK.
+- **Every run is logged** in `/var/lib/foundry-import/system-trial.log`, and a dropped SSH connection
+  does not stop it halfway (the stage ignores hang-up and broken-pipe signals). If a run still ends
+  with the phase at `installing` or `switching` (`MODE=status`; no mode accepts those), read the log
+  and restore the snapshot from before the run.
+
+Not run on the Pi yet. With `PI_SYSTEM_TRIAL_CONTAINER=1`, `node --test scripts/pi/system-trial.test.mjs`
+runs the stage in ARM64 Debian 13 containers with stand-ins for systemd and a fake Foundry that writes
+into the world it opens and migrates its `world.json`
+(`scripts/pi/container-test/system-trial-scenarios.sh`; Docker needed, four containers side by side,
+about 20 minutes under emulation on a PC): a trial from the download and from `ZIP`, a wrong sha256, a
+zip that does not fit this Foundry or holds another version, the version installed already, a second
+trial, a trial that fails after the stop and undoes itself, a rollback (also one that refuses a world
+launched during the trial and one with `RESTORE_MIGRATED=1`), a rollback that stops halfway and a rerun
+that finishes it, the switch and a failed switch, a rollback after a switch, `status`, and people
+online with and without `FORCE=1`, a trial that fails while the migration or the world start is
+still running (Foundry stops before any world folder moves), and a kit session that is up
+(trial, switch and rollback refused, `status` works). `kit-session-scenarios.sh` adds the kit
+session during a trial. CI runs it on the ARM runner, where a missing Docker fails the step.
+
 ## Kit session (strahd-kit test run)
 
 Before session 0 it is worth watching a real player make a level-1 character, as a player, on the
@@ -1160,23 +1263,88 @@ Today, red when the backup is older than 30 hours or no report came for 3 hours.
 - Tests: `scripts/pi/board-status.test.mjs` (the script against a local server) and, with
   `PI_STAGE16_CONTAINER=1` (Docker), `scripts/pi/container-test/stage16-scenarios.sh` in the ARM64 container.
 
+## GitHub Actions runners for the PM board (stage 17)
+
+The PM board is rebuilt by GitHub Actions on every vault push, which used up the free hosted minutes
+(2026-10-28). Stage 17 (`scripts/pi/remote/17-gh-runner.sh`) puts two self-hosted runners (linux-arm64, pinned
+release and sha256) on the Pi: `vault` for `Gnuminator/obsidian-vault` (workflow `board`) and `board` for
+`Gnuminator/foundry-ai-tool-pm-board` (workflow `deploy board`). A repo-level runner serves one repo, hence two.
+
+- **Fenced from the game:** the user `ghrunner` (no login, no sudo, no foundry group); each runner's unit allows
+  writes only in `/opt/gh-runner/<name>`, cannot see `/etc/foundry-ai-tool`, `/var/lib/foundry*` or `/mnt`, cannot
+  list other processes, cannot reach loopback, Tailscale or the LAN (the router stays reachable for DNS and the way
+  out), and has 2 GB and a low CPU weight. IPv6 is denied as a whole (`::/0`; the runner reaches GitHub over IPv4).
+  The IPv4 nameservers in `/etc/resolv.conf` are allowed along with the router; a nameserver in `127.0.0.0/8`, a Tailscale
+  address (`100.64.0.0/10`) or one of the Pi's own addresses cannot be, so the stage stops and names it. The stage
+  proves the address rules before it starts anything: a control probe without the rules must reach sshd (otherwise
+  the fence cannot be tested and the stage stops), and a probe service with the rules must be refused at sshd on
+  loopback and on the Pi's LAN address. If that probe still connects (a kernel without cgroup BPF firewalling), the
+  stage turns the gate timer off and stops; runners that already run keep running until they are stopped. A workflow
+  on any branch of these repos runs on the Pi, so both repos must stay private (checked 2026-10-28: both are).
+- **Gate:** `foundry-ai-tool-gh-runner-gate.timer` (every minute) runs `/opt/gh-runner/gate.sh`. While a play
+  session is marked (the newest `session-start`/`session-end` marker over the 3 newest `sessions/<date>.jsonl` of a
+  world vault is a start, so a session over midnight counts; a start older than 14 hours is stale) it stops the
+  runners that run no job. A job is found through the unit's cgroup (a `Runner.Worker` process), and a running job
+  is left alone, so it can delay the stop until it ends. Builds wait on GitHub's side and run when the session ends.
+  Nothing marks a session by itself: it relies on `mark-play-session`. If the state cannot
+  be read, the runners stay stopped for up to 6 hours in a row, then the gate lets them run and logs it. The runners are
+  not enabled at boot: the gate starts them (within a minute) when no session is marked. A rerun that changes a unit
+  file does not touch a running runner: stop it (`systemctl stop`) and the gate starts it with the new file.
+- **Tokens:** the Cloudflare token stays in the `board` environment secrets on GitHub (the workflow already reads it;
+  nothing of it is on the Pi). A runner is registered with a one-hour registration token that
+  `scripts/pi/remote/put-runner-token.sh vault|board` (on the PC) pipes from `gh` into
+  `/etc/foundry-ai-tool/gh-runner-<name>.reg` (root only) without printing it; the stage deletes the file after
+  registering. A runner that is registered needs no token on a rerun.
+- **Run:** after a `dietpi-backup` snapshot and both token files,
+  `cat scripts/pi/remote/lib.sh scripts/pi/remote/17-gh-runner.sh | ssh foundry-pi 'bash -s'`. It does not touch Foundry
+  or any of its services.
+- **libicu:** the runner's .NET needs ICU, and GitHub's `config.sh` stops without it (it reports on stdout, not stderr).
+  Only when no libicu is in the library cache, the stage refreshes the apt lists (`apt-get update`, as stages 1, 4 and 12
+  do), installs the newest `libicuNN` package apt then knows (`libicu72` on Debian 12), says so, and removes nothing. This
+  comes before the runner user is created. If registering still fails, the last lines of `config.sh`'s output are
+  printed, minus any line that could hold the token.
+- **Check later:** `systemctl list-timers foundry-ai-tool-gh-runner-gate.timer`,
+  `journalctl -u foundry-ai-tool-gh-runner-gate -n 10`, each repo's Settings > Actions > Runners shows `foundry-pi`.
+  To stop everything: `systemctl disable --now foundry-ai-tool-gh-runner-gate.timer` and stop the two runner units.
+- Tests: `scripts/pi/gh-runner.test.mjs` (the gate against fake vaults, the stage as text, the allow list against fake `resolv.conf` files); with `PI_STAGE17_CONTAINER=1` (Docker) also `scripts/pi/container-test/stage17-scenarios.sh`, the libicu check and the registration step in the ARM64 container, with no ICU installed and started from a folder the runner user cannot enter (`config.sh` checks `ldd ./bin/...` relative to the cwd).
+
+## Clock sync (stage 18)
+
+DietPi's default time sync (`CONFIG_NTP_MODE=2` in `/boot/dietpi.txt`) is "boot + daily": systemd-timesyncd
+syncs once, then DietPi stops it again. `timedatectl` still says "System clock synchronized: yes" (the kernel
+flag stays set for some hours) but "NTP service: inactive", and the clock drifts between syncs. Cloudflare Access tokens and
+the board's hourly report need a correct clock. Stage 18 (`scripts/pi/remote/18-time-sync.sh`) sets DietPi's
+mode 4 (daemon + drift) with `dietpi-set_software ntpd-mode 4`, so timesyncd stays enabled and running and a
+later DietPi update keeps it. DietPi's tool also rewrites `/etc/systemd/timesyncd.conf` from `CONFIG_NTP_MIRROR` (default: removes it;
+a hand edit would be lost, the snapshot has it). Nothing else is touched and nothing restarts.
+
+- **Look first (changes nothing):** `cat scripts/pi/remote/lib.sh scripts/pi/remote/18-time-sync.sh | ssh foundry-pi 'DRY_RUN=1 bash -s'`
+- **Run:** after a `dietpi-backup` snapshot and the user's OK,
+  `cat scripts/pi/remote/lib.sh scripts/pi/remote/18-time-sync.sh | ssh foundry-pi 'bash -s'`.
+  It ends by waiting (up to 90 seconds) for "NTP service: active" and "System clock synchronized: yes".
+- **Check later:** `... | ssh foundry-pi 'CHECK=1 bash -s'` or `timedatectl`.
+- **Undo:** the same pipe with `UNDO=1` (back to DietPi's mode 2).
+- Tests: `scripts/pi/time-sync.test.mjs` (the stage in bash with stand-ins for systemctl, timedatectl and DietPi's tool).
+
 ## Where things live on the Pi
 
-| What                                                         | Where                                                                                                                 |
-| ------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------- |
-| Foundry program                                              | `/opt/foundry`                                                                                                        |
-| Foundry data (worlds, modules, assets)                       | `/var/lib/foundry`                                                                                                    |
-| Node.js                                                      | `/opt/node24`                                                                                                         |
-| The tool (release builds)                                    | `/opt/foundry-ai-tool`                                                                                                |
-| Settings and secrets for the tool                            | `/etc/foundry-ai-tool/.env` (readable by root and the service only)                                                   |
-| The tool's storage (bridge vault)                            | `/var/lib/foundry-ai-tool`                                                                                            |
-| Backups                                                      | restic repository `/var/lib/foundry-backup/restic` (the PC copy: `E:\PiBackup\restic`)                                |
-| Recorder bot                                                 | `/opt/foundry-ai-tool/discord-bot` (service `foundry-ai-tool-discord-bot`)                                            |
-| Recordings (until this PC has copied them, then 7 more days) | `/var/lib/foundry-ai-tool/recordings`                                                                                 |
-| GM vault (Syncthing shares it)                               | `/var/lib/foundry-ai-tool/obsidian/gm`                                                                                |
-| Space check status (hourly)                                  | `/var/lib/foundry-ai-tool/space/status.json`                                                                          |
-| Board status report (stage 16): script, token file, timer    | `/opt/foundry-ai-tool/status/board-status.sh`, `/etc/foundry-ai-tool/board-status.conf`, `foundry-board-status.timer` |
-| When this PC last copied the backups (restic, snapshot)      | `/var/lib/foundry-backup-pulls/<kind>.json`                                                                           |
+| What                                                         | Where                                                                                                                      |
+| ------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------- |
+| Foundry program                                              | `/opt/foundry`                                                                                                             |
+| Foundry data (worlds, modules, assets)                       | `/var/lib/foundry`                                                                                                         |
+| Node.js                                                      | `/opt/node24`                                                                                                              |
+| The tool (release builds)                                    | `/opt/foundry-ai-tool`                                                                                                     |
+| Settings and secrets for the tool                            | `/etc/foundry-ai-tool/.env` (readable by root and the service only)                                                        |
+| The tool's storage (bridge vault)                            | `/var/lib/foundry-ai-tool`                                                                                                 |
+| Backups                                                      | restic repository `/var/lib/foundry-backup/restic` (the PC copy: `E:\PiBackup\restic`)                                     |
+| Recorder bot                                                 | `/opt/foundry-ai-tool/discord-bot` (service `foundry-ai-tool-discord-bot`)                                                 |
+| Recordings (until this PC has copied them, then 7 more days) | `/var/lib/foundry-ai-tool/recordings`                                                                                      |
+| GM vault (Syncthing shares it)                               | `/var/lib/foundry-ai-tool/obsidian/gm`                                                                                     |
+| Space check status (hourly)                                  | `/var/lib/foundry-ai-tool/space/status.json`                                                                               |
+| Board status report (stage 16): script, token file, timer    | `/opt/foundry-ai-tool/status/board-status.sh`, `/etc/foundry-ai-tool/board-status.conf`, `foundry-board-status.timer`      |
+| GitHub runners for the PM board (stage 17): runners, gate    | `/opt/gh-runner/{vault,board}`, `/opt/gh-runner/gate.sh`, `foundry-ai-tool-gh-runner-{vault,board}.service`, `-gate.timer` |
+| When this PC last copied the backups (restic, snapshot)      | `/var/lib/foundry-backup-pulls/<kind>.json`                                                                                |
+| A dnd5e trial (the old version, world copies; stage 14)      | `/var/lib/foundry-import/system-trial`                                                                                     |
 
 ## Sources
 

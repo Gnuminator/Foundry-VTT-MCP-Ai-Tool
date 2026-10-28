@@ -23,6 +23,7 @@ import {
   type WantedUuid,
 } from './prep-notes.js';
 import { PREP_TEMPLATES } from './prep-templates.js';
+import { rmTmp } from '../test-support/rm-tmp.js';
 
 const WORLD = 'w1';
 let vaultDir: string;
@@ -59,7 +60,7 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
-  await fsp.rm(vaultDir, { recursive: true, force: true });
+  await rmTmp(vaultDir);
 });
 
 describe('prepNoteLines', () => {

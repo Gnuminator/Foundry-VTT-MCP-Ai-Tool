@@ -38,6 +38,7 @@
     "green": "node scripts/green.mjs",
     "lane:merge": "node scripts/lane-merge.mjs",
     "lane:beat": "node scripts/lane-beat.mjs",
+    "visual:baselines": "node scripts/visual-baselines.mjs",
     "docs:lint": "markdownlint-cli2",
     "docs:links": "node scripts/check-links.mjs",
     "docs:tools": "node scripts/docs-tools.mjs",

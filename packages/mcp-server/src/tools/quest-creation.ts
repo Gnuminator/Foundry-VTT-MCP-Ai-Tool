@@ -3,6 +3,13 @@ import { z } from 'zod';
 import { FoundryClient } from '../foundry-client.js';
 import { Logger } from '../logger.js';
 import { ErrorHandler } from '../utils/error-handler.js';
+import type {
+  QuestBridgeReply,
+  QuestJournalListReply,
+  QuestSearchMatch,
+  QuestToolDefinition,
+  QuestToolResult,
+} from './types/quest-types.js';
 
 export interface QuestCreationToolsOptions {
   foundryClient: FoundryClient;
@@ -41,6 +48,15 @@ function savedPageHolds(saved: unknown, line: string): boolean {
   return squash(saved).includes(squash(line));
 }
 
+/**
+ * The text of a bridge error field, or the fallback when it is empty (same result as
+ * `String(error || fallback)`; bridge errors are strings).
+ */
+function errorText(error: unknown, fallback: string): string {
+  if (!error) return fallback;
+  return typeof error === 'string' ? error : (error as { toString(): string }).toString();
+}
+
 export class QuestCreationTools {
   private foundryClient: FoundryClient;
   private logger: Logger;
@@ -52,10 +68,15 @@ export class QuestCreationTools {
     this.errorHandler = new ErrorHandler(this.logger);
   }
 
+  /** Query the bridge and view the reply as a journal reply (the bridge may return nothing). */
+  private async queryReply(method: string, data: unknown): Promise<QuestBridgeReply | null> {
+    return (await this.foundryClient.query(method, data)) as QuestBridgeReply | null;
+  }
+
   /**
    * Get all tool definitions for MCP registration
    */
-  getToolDefinitions() {
+  getToolDefinitions(): QuestToolDefinition[] {
     return [
       {
         name: 'create-quest-journal',
@@ -255,7 +276,7 @@ export class QuestCreationTools {
   /**
    * Handle create quest journal request
    */
-  async handleCreateQuestJournal(args: any): Promise<any> {
+  async handleCreateQuestJournal(args: unknown): Promise<QuestToolResult> {
     try {
       // Validate arguments
       const requestSchema = z.object({
@@ -286,7 +307,7 @@ export class QuestCreationTools {
       const questContent = this.generateQuestContent(request);
 
       // Create journal entry via Foundry client
-      const result = await this.foundryClient.query('foundry-mcp-bridge.createJournalEntry', {
+      const result = await this.queryReply('foundry-mcp-bridge.createJournalEntry', {
         name: request.questTitle,
         content: questContent,
         additionalPages: request.additionalPages,
@@ -294,7 +315,7 @@ export class QuestCreationTools {
       });
 
       if (!result || result.error) {
-        throw new Error(result?.error || 'Failed to create quest journal');
+        throw new Error(errorText(result?.error, 'Failed to create quest journal'));
       }
 
       return {
@@ -315,7 +336,7 @@ export class QuestCreationTools {
   /**
    * Handle link quest to NPC request
    */
-  async handleLinkQuestToNPC(args: any): Promise<any> {
+  async handleLinkQuestToNPC(args: unknown): Promise<QuestToolResult> {
     try {
       const requestSchema = z.object({
         journalId: z.string().min(1, 'Journal ID is required'),
@@ -326,7 +347,7 @@ export class QuestCreationTools {
       const request = requestSchema.parse(args);
 
       // Get journal content first
-      const journalResult = await this.foundryClient.query('foundry-mcp-bridge.getJournalContent', {
+      const journalResult = await this.queryReply('foundry-mcp-bridge.getJournalContent', {
         journalId: request.journalId,
       });
 
@@ -382,7 +403,7 @@ export class QuestCreationTools {
   /**
    * Handle update quest journal request
    */
-  async handleUpdateQuestJournal(args: any): Promise<any> {
+  async handleUpdateQuestJournal(args: unknown): Promise<QuestToolResult> {
     try {
       const requestSchema = z.object({
         journalId: z.string().min(1, 'Journal ID is required'),
@@ -400,14 +421,14 @@ export class QuestCreationTools {
       // If creating a new page, skip the read-modify-write cycle
       if (request.newPageName) {
         const formattedContent = this.formatNewPageContent(request.newContent, request.updateType);
-        const result = await this.foundryClient.query('foundry-mcp-bridge.updateJournalContent', {
+        const result = await this.queryReply('foundry-mcp-bridge.updateJournalContent', {
           journalId: request.journalId,
           content: formattedContent,
           newPageName: request.newPageName,
         });
 
         if (!result || result.error || !result.success) {
-          throw new Error(result?.error || 'Failed to create new journal page');
+          throw new Error(errorText(result?.error, 'Failed to create new journal page'));
         }
 
         return {
@@ -423,30 +444,24 @@ export class QuestCreationTools {
       // Get current journal content (for the target page)
       let currentContent: string;
       if (request.pageId) {
-        const pageResult = await this.foundryClient.query(
-          'foundry-mcp-bridge.getJournalPageContent',
-          {
-            journalId: request.journalId,
-            pageId: request.pageId,
-          }
-        );
+        const pageResult = await this.queryReply('foundry-mcp-bridge.getJournalPageContent', {
+          journalId: request.journalId,
+          pageId: request.pageId,
+        });
         if (!pageResult || pageResult.error) {
           throw new Error(`Page not found: ${request.pageId}`);
         }
-        currentContent = pageResult.content;
+        currentContent = pageResult.content as string;
       } else {
-        const currentJournal = await this.foundryClient.query(
-          'foundry-mcp-bridge.getJournalContent',
-          {
-            journalId: request.journalId,
-          }
-        );
+        const currentJournal = await this.queryReply('foundry-mcp-bridge.getJournalContent', {
+          journalId: request.journalId,
+        });
         if (!currentJournal || currentJournal.error) {
           throw new Error(
-            `Journal not found: ${currentJournal?.error || 'Journal ID may be invalid'}`
+            `Journal not found: ${errorText(currentJournal?.error, 'Journal ID may be invalid')}`
           );
         }
-        currentContent = currentJournal.content;
+        currentContent = currentJournal.content as string;
       }
 
       if (!currentContent) {
@@ -468,7 +483,7 @@ export class QuestCreationTools {
       }
 
       // Update the journal
-      const result = await this.foundryClient.query('foundry-mcp-bridge.updateJournalContent', {
+      const result = await this.queryReply('foundry-mcp-bridge.updateJournalContent', {
         journalId: request.journalId,
         content: updatedContent,
         pageId: request.pageId,
@@ -479,7 +494,7 @@ export class QuestCreationTools {
       }
 
       if (result.error) {
-        throw new Error(`Failed to update quest journal: ${result.error}`);
+        throw new Error(`Failed to update quest journal: ${errorText(result.error, '')}`);
       }
 
       if (!result.success) {
@@ -489,21 +504,15 @@ export class QuestCreationTools {
       // Verify the update by reading the content back
       let verifyContent: string;
       if (request.pageId) {
-        const verifyResult = await this.foundryClient.query(
-          'foundry-mcp-bridge.getJournalPageContent',
-          {
-            journalId: request.journalId,
-            pageId: request.pageId,
-          }
-        );
+        const verifyResult = await this.queryReply('foundry-mcp-bridge.getJournalPageContent', {
+          journalId: request.journalId,
+          pageId: request.pageId,
+        });
         verifyContent = verifyResult?.content || '';
       } else {
-        const verifyResult = await this.foundryClient.query(
-          'foundry-mcp-bridge.getJournalContent',
-          {
-            journalId: request.journalId,
-          }
-        );
+        const verifyResult = await this.queryReply('foundry-mcp-bridge.getJournalContent', {
+          journalId: request.journalId,
+        });
         verifyContent = verifyResult?.content || '';
       }
 
@@ -541,7 +550,7 @@ export class QuestCreationTools {
   /**
    * Handle list journals request
    */
-  async handleListJournals(args: any): Promise<any> {
+  async handleListJournals(args: unknown): Promise<QuestToolResult> {
     try {
       const requestSchema = z.object({
         filterQuests: z.boolean().optional().default(false),
@@ -554,16 +563,13 @@ export class QuestCreationTools {
 
       // Mode: Read a specific page
       if (request.journalId && request.pageId) {
-        const pageResult = await this.foundryClient.query(
-          'foundry-mcp-bridge.getJournalPageContent',
-          {
-            journalId: request.journalId,
-            pageId: request.pageId,
-          }
-        );
+        const pageResult = await this.queryReply('foundry-mcp-bridge.getJournalPageContent', {
+          journalId: request.journalId,
+          pageId: request.pageId,
+        });
 
         if (!pageResult || pageResult.error) {
-          throw new Error(pageResult?.error || 'Page not found');
+          throw new Error(errorText(pageResult?.error, 'Page not found'));
         }
 
         return {
@@ -576,15 +582,12 @@ export class QuestCreationTools {
 
       // Mode: Read a specific journal (first page + page manifest)
       if (request.journalId) {
-        const journalContent = await this.foundryClient.query(
-          'foundry-mcp-bridge.getJournalContent',
-          {
-            journalId: request.journalId,
-          }
-        );
+        const journalContent = await this.queryReply('foundry-mcp-bridge.getJournalContent', {
+          journalId: request.journalId,
+        });
 
         if (!journalContent || journalContent.error) {
-          throw new Error(journalContent?.error || 'Journal not found');
+          throw new Error(errorText(journalContent?.error, 'Journal not found'));
         }
 
         return {
@@ -600,7 +603,10 @@ export class QuestCreationTools {
       }
 
       // Mode: List all journals
-      const journals = await this.foundryClient.query('foundry-mcp-bridge.listJournals', {});
+      const journals = (await this.foundryClient.query(
+        'foundry-mcp-bridge.listJournals',
+        {}
+      )) as QuestJournalListReply | null;
 
       if (!journals || journals.error) {
         throw new Error('Failed to retrieve journals');
@@ -610,18 +616,18 @@ export class QuestCreationTools {
 
       // Filter for quest-related journals if requested
       if (request.filterQuests) {
-        filteredJournals = journals.filter((journal: any) => this.isQuestRelated(journal.name));
+        filteredJournals = journals.filter(journal => this.isQuestRelated(journal.name));
       }
 
       // Include content if requested
       if (request.includeContent) {
         for (const journal of filteredJournals) {
           try {
-            const content = await this.foundryClient.query('foundry-mcp-bridge.getJournalContent', {
+            const content = await this.queryReply('foundry-mcp-bridge.getJournalContent', {
               journalId: journal.id,
             });
-            journal.contentPreview = `${content?.content?.substring(0, 150)}...`;
-          } catch (error) {
+            journal.contentPreview = `${String(content?.content?.substring(0, 150))}...`;
+          } catch {
             journal.contentPreview = 'Error loading content';
           }
         }
@@ -642,7 +648,7 @@ export class QuestCreationTools {
   /**
    * Handle search journals request
    */
-  async handleSearchJournals(args: any): Promise<any> {
+  async handleSearchJournals(args: unknown): Promise<QuestToolResult> {
     try {
       const requestSchema = z.object({
         searchQuery: z.string().min(1, 'Search query is required'),
@@ -652,21 +658,24 @@ export class QuestCreationTools {
       const request = requestSchema.parse(args);
 
       // Get all journals (now includes page metadata)
-      const journals = await this.foundryClient.query('foundry-mcp-bridge.listJournals', {});
+      const journals = (await this.foundryClient.query(
+        'foundry-mcp-bridge.listJournals',
+        {}
+      )) as QuestJournalListReply | null;
 
       if (!journals || journals.error) {
         throw new Error('Failed to retrieve journals');
       }
 
-      const searchResults = [];
+      const searchResults: QuestSearchMatch[] = [];
       const query = request.searchQuery.toLowerCase();
 
       for (const journal of journals) {
         let matches = false;
-        const matchInfo: any = {
+        const matchInfo: QuestSearchMatch = {
           id: journal.id,
           name: journal.name,
-          pageCount: journal.pageCount || 0,
+          pageCount: journal.pageCount ?? 0,
           matchType: [],
           matchedPages: [],
         };
@@ -681,11 +690,11 @@ export class QuestCreationTools {
 
         // Search content across ALL pages
         if (request.searchType === 'content' || request.searchType === 'both') {
-          const pages = journal.pages || [];
+          const pages = journal.pages ?? [];
           for (const page of pages) {
             if (page.type !== 'text') continue;
             try {
-              const pageContent = await this.foundryClient.query(
+              const pageContent = await this.queryReply(
                 'foundry-mcp-bridge.getJournalPageContent',
                 {
                   journalId: journal.id,
@@ -704,7 +713,7 @@ export class QuestCreationTools {
                   contentSnippet: this.extractSnippet(pageContent.content, request.searchQuery),
                 });
               }
-            } catch (error) {
+            } catch {
               // Skip pages with content errors
             }
           }

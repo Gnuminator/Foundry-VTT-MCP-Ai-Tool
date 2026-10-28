@@ -18,7 +18,7 @@ afterEach(() => {
 });
 
 function fakeClock(): Clock & { t: number } {
-  const c = { t: 0, now: () => c.t };
+  const c = { t: 0, now: (): number => c.t };
   return c;
 }
 

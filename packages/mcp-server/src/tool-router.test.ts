@@ -10,12 +10,12 @@ import { describe, expect, it, vi } from 'vitest';
 import { buildToolRouter, type ToolRouterDeps } from './tool-router.js';
 
 /** A tool whose every method is a memoized spy resolving to a marker. */
-function toolMock() {
+function toolMock(): object {
   const fns: Record<string, any> = {};
   return new Proxy(
     {},
     {
-      get(_t, prop: string) {
+      get(_t, prop: string): unknown {
         fns[prop] ??= vi.fn(async (...a: any[]) => ({ called: prop, args: a }));
         return fns[prop];
       },
@@ -29,7 +29,7 @@ function makeDeps(): ToolRouterDeps {
   return new Proxy(
     {},
     {
-      get(_t, prop: string) {
+      get(_t, prop: string): unknown {
         cache[prop] ??= toolMock();
         return cache[prop];
       },
@@ -40,7 +40,7 @@ function makeDeps(): ToolRouterDeps {
 describe('buildToolRouter', () => {
   it('exposes a handler for every call_tool route', () => {
     const router = buildToolRouter(makeDeps());
-    expect(Object.keys(router)).toHaveLength(96);
+    expect(Object.keys(router)).toHaveLength(97);
   });
 
   it('routes direct tools to the owning method with the call args', async () => {

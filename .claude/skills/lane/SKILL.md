@@ -46,6 +46,9 @@ item is marked done; the board ignores a line on an item with no claim.
 
 ## Work
 
+- **Advisor (D-127):** call `advisor` (Opus, the user setting) once before you start coding and
+  once before you open the PR; act on it or say in the PR why not. The weekly check counts the
+  calls.
 - **Subagents:** `model: "sonnet"` for code, tests, scripts and sweeps; `model: "haiku"` for
   reading and simple mechanical edits; Opus only for design and risky-PR reviews. Partition workers
   by file, lock shared contracts first, tell them to write big files in parts of at most about 250
@@ -87,7 +90,23 @@ item is marked done; the board ignores a line on an item with no claim.
 ## Before the PR
 
 - `npm run green`: everything CI's build-test job runs, quiet (one OK line, or the failing step
-  and its log tail). `--list`, `--only a,b`, `--from <step>` for a rerun.
+  and its log tail). `--list`, `--only a,b`, `--from <step>` for a rerun. **Green on the final
+  commit:** run it again after the last review fix, on the committed tree. A full OK run on a clean
+  tree writes the tree hash to `.git/green-ok`; the `pre-push` hook (`scripts/pre-push.mjs`: the
+  lint and em-dash ratchets and the typecheck, about a minute) is skipped when that stamp matches,
+  and otherwise refuses a push that CI would fail on those. `SKIP_PREPUSH=1 git push ...` skips it
+  by hand.
+- **Dashboard change (anything under `packages/cogm-dashboard/`, stories included, or a
+  `package-lock.json` change such as a Playwright bump):** push the branch, run `npm run visual:baselines -- <branch>` (starts `visual-baselines.yml` on GitHub,
+  about 15 minutes, no Docker needed; the workflow runs on your branch, so a branch cut before it
+  merged needs `git merge aitool/main` first), look at the changed PNGs it prints under
+  `packages/cogm-dashboard/web/visual/__screenshots__/`, commit them, push again, and only then
+  open the PR.
+  If it stops with "git saw N changed or new PNG(s) in the run but the artifact holds M" or "no png-count.txt marker",
+  the collect step lost files (or the branch has an old workflow file: merge `aitool/main`); it
+  writes nothing then, so read the run log. A clean run on a branch with one changed screenshot
+  delivered that PNG (2026-10-27, run 40595605155).
+  Never copy baselines from a failed PR run. Re-run it after a later change that moves pixels.
 - `changelog.d/<topic>.md` added; lint and em-dash baselines lowered if counts dropped.
 - `git status --short`: add explicit paths; no binaries, archives, audio, `.env` or downloads.
 - PR description = the handover: what changed, how it was verified (commands, live checks, kit
@@ -111,6 +130,32 @@ item is marked done; the board ignores a line on an item with no claim.
   `scripts/plan-b/` counts as Pi scripts). Its other refusals at this point (no review note yet,
   CI pending) are expected. A Sonnet note on a PR the gate calls risky is wasted: on 2026-10-19
   #435 and #438 each needed a fresh Opus round after two Sonnet rounds.
+- **Pre-review agents (I-143):** before the formal review, run the narrow read-only reviewers in
+  `.claude/agents/` (`model: "opus"`) on the pushed head, one per kind of change:
+  `review-guarded-writes` (guarded writes, write gate, plan/confirm/undo, dashboard buttons that
+  call them), `review-wire-contracts` (shared types, bridge methods, tool sets, tool descriptions),
+  `review-pi-ci` (Pi scripts, CI, the merge gate). Give each the PR number, the full head sha, the
+  path of a `git diff aitool/main...HEAD` file and the PR description, in a checkout at that sha.
+  Fix what they find, then brief the formal reviewer with the findings and fixes; they do not
+  replace it.
+- **Hybrid review flow (D-127):**
+  - **Rounds:** every PR gets one review round plus one delta check by the same reviewer (D-101).
+    A third round needs the planner; do not start one yourself (the runner refuses it without
+    `--allow-round3`, which is the planner's flag). Batch your findings into one fix round.
+  - **Instant review:** PRs on the critical path, PRs other work stacks on, and risky PRs (the
+    gate's list) are reviewed now while you are alive, by a subagent as above.
+  - **Batched review:** low-risk PRs (build-ahead, board, lows, docs) do not wait for you: report
+    "PR open" in the `- progress:` line and end. The planner has them reviewed once or twice a day
+    by a review lane or by the API runner (next bullet). Fix the findings when they come back.
+- **Review runner (D-127, until 2026-11-14):** `node scripts/review-runner/run.mjs <PR>...` reviews
+  on the separate API credit, never the subscription. It needs `REVIEW_RUNNER_API_KEY` in the
+  environment (only the runner reads it, and it hands it to its SDK child as `ANTHROPIC_API_KEY`;
+  never set or print that name in your own shell) and a one-time `npm ci --prefix
+scripts/review-runner`. It picks Opus for a PR the gate calls risky and Sonnet otherwise, checks
+  the head out in a scratch worktree, writes the note in the format below to vault `Handoff/Reviews
+<date>/`, commits it with explicit paths and logs the cost in `~/.review-runner/ledger.jsonl`; it
+  stops at $95 in total. `--dry-run` shows the plan and spends nothing. Run it for real only when
+  the planner asked.
 - **Review note format** (the merge gate reads it):
   - path: vault `Handoff/Reviews <YYYY-MM-DD>/<PR>-review.md`, round 2 `<PR>-review-round2.md`;
     Opus: `<PR>-opus-review.md`, `<PR>-opus-review-round2.md`, with the heading
@@ -150,12 +195,16 @@ item is marked done; the board ignores a line on an item with no claim.
   the checks pass; anything else, or no output, is a refusal. The gate checks CI on the head commit,
   a review note for that sha (Opus for risky paths), the changelog fragment, `drift:check` and the
   merge train. Add `--wait-ci` to wait for CI first; exit codes: 0 ok or merged, 1 refused, 2 usage,
-  3 a check failed, 4 head moved, 5 timed out.
+  3 a check failed, 4 head moved, 5 timed out. With `--wait-ci` every run ends with one line
+  `lane:merge: wait-ci ended: exit <code>, <reason>` (also after a killed child or an unexpected
+  error). **Do not pipe the gate through `tail` or `head`** (the pipe hides its exit code and holds
+  all output until the end): run it plain, in the background if it may wait, and read its last line.
+  Dashboard-visual is not a required check in the ruleset, but the gate blocks on a red one.
 
 ## Context and handover
 
 - The context hook prints one line at 350k (plan the handover) and 400k (hand over now); 200k
-  and 250k while the planner has set low mode (weekly usage above 50%). `get_usage "self"` gives
+  and 250k while the planner has set low mode (weekly usage on or above pace). `get_usage "self"` gives
   the exact number.
 - Handover: half a page to vault `Handoff/<lane> prompt <date>.md` and in full in the chat in a
   fenced block: task, state, open PRs, links, done-when, "follow CLAUDE.md". Findings a successor

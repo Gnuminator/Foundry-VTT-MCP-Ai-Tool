@@ -190,7 +190,6 @@ declare global {
     readonly isSelf: boolean;
     hasPermission(permission: string): boolean;
     hasRole(role: string | number, options?: { exact?: boolean }): boolean;
-    updateTokenTargets(targetIds?: string[]): void;
     /**
      * Send a query to this user's client (v13+). The receiving handler is
      * `CONFIG.queries[name]`; since 14.352 it also receives the sender (see
@@ -639,8 +638,18 @@ declare global {
   const Folder: FoundryDocumentClass<Folder>;
   const JournalEntry: FoundryDocumentClass<JournalEntry>;
 
+  /** What the settings callbacks and the Enhanced Index menu use of `window.foundryMCPBridge`. */
+  interface FoundryMcpBridgeHandle {
+    dataAccess?: unknown;
+    start?(): unknown;
+    stop?(): unknown;
+    restart?(): unknown;
+  }
+
   interface Window {
-    foundryMCPBridge?: any;
+    foundryMCPBridge?: FoundryMcpBridgeHandle;
+    /** Console helpers installed by `main.ts`. */
+    foundryMCPDebug?: Record<string, unknown>;
   }
 }
 

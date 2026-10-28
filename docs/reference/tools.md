@@ -6,11 +6,11 @@ description: Every tool the bridge serves, by tool set, with its description and
 
 # Tool reference
 
-The bridge serves 96 tools in five sets. [Tool sets](TOOL-SETS.md) explains the sets and how Claude Desktop loads them; this page lists every tool with the description and parameters Claude reads.
+The bridge serves 97 tools in five sets. [Tool sets](TOOL-SETS.md) explains the sets and how Claude Desktop loads them; this page lists every tool with the description and parameters Claude reads.
 
 | Set | Claude Desktop entry | Tools | For |
 | --- | --- | --- | --- |
-| [Core](#core) | `foundry-mcp` | 23 | Look things up (world, characters, scenes, journals, compendiums, combat) and review, apply or undo planned changes. Always on. |
+| [Core](#core) | `foundry-mcp` | 24 | Look things up (world, characters, scenes, journals, compendiums, combat) and review, apply or undo planned changes. Always on. |
 | [Play](#play) | `foundry-mcp-play` | 36 | Run the table live: tokens, combat turns, rolls, damage, conditions, resources, chat, scene mood, map notes and loot. |
 | [Prep](#prep) | `foundry-mcp-prep` | 20 | Prepare sessions and write recaps: quests and journals, encounter budgets, the Tarokka reading, handouts, the session log, play stats and the pre-flight check. |
 | [Build](#build) | `foundry-mcp-build` | 8 | Make and change NPCs, monsters and items: from a compendium or from scratch, with features, attacks and spells. Set up rooms: teleports and tokens in a room. |
@@ -167,6 +167,20 @@ Parameters:
   - `spellcaster` (boolean): Filter for creatures that can cast spells (D&D 5e)
 - `limit` (number): Maximum number of results to return (default: 50 for discovery searches, max: 50). Range: 1 to 50.
 
+### search-rules
+
+Full-text rules search over rulebook journal pages and item, spell and feature descriptions, in the allowlisted rules packs only. Returns ids and an excerpt; a whole journal is large, so prefer a bigger excerptChars to opening it with get-compendium-item (itemId = documentId) or, for world journals, list-journals.
+
+Kind: read-only. Title: Search rules.
+
+Parameters:
+
+- `query` (string, required): Rule or term in plain words, e.g. "grapple". Filler words are ignored.
+- `limit` (number): Maximum hits, 1 to 25 (default 10).
+- `excerptChars` (number): Excerpt length per hit, 80 to 4000 (default 240). Raise it to read a rule.
+- `includeWorld` (boolean): Also search world journals (adventure text). Off by default.
+- `includeOtherBooks` (boolean): Also search packs outside the rules allowlist. Off by default.
+
 ### get-compendium-item
 
 Retrieve detailed information about a specific compendium item. Use compact mode for UI performance when full details are not needed.
@@ -268,6 +282,7 @@ Parameters:
 
 - `uuid` (string, required): Document uuid, e.g. JournalEntry.abc.JournalEntryPage.def
 - `userId` (string): The GM user whose screen to use (default: the bridge's own client).
+- `pan` (boolean): With a token uuid (Scene.x.Token.y): pan the GM's Foundry view to that token and select it instead of opening its sheet. Only that GM's screen moves, not the players'.
 
 ### check-secret-terms
 
@@ -925,18 +940,19 @@ No parameters.
 
 ### plan-tarokka-import
 
-Plan storing a Tarokka reading in the bridge vault (GM-only, outside Foundry). source "auto" (default) takes the reading dealt in the tarokka-reading module when available, otherwise rolls one; "builtin-roll" always deals a fresh reading (3 common + 2 high cards, crypto random); "tarokka-reading" requires that module. A new reading archives the previous one. Returns a planId: show the diff to the GM, then apply-planned-change.
+Plan storing a Tarokka reading in the bridge vault (GM-only, outside Foundry). source "auto" (default) takes the reading dealt in the tarokka-reading module when available, otherwise rolls one; "builtin-roll" always deals a fresh reading (3 common + 2 high cards, crypto random); "tarokka-reading" requires that module. A new reading archives the previous one; clear: true archives it and leaves none (undoable). Returns a planId: show the diff to the GM, then apply-planned-change.
 
 Kind: read-only. Title: Plan Tarokka reading import.
 
 Parameters:
 
 - `source` (string): One of: `auto`, `builtin-roll`, `tarokka-reading`. Default: `auto`.
+- `clear` (boolean): Archive the current reading, deal none. Leave out source and userId with clear.
 - `userId` (string): The GM user who dealt in tarokka-reading, when that is another client than the bridge (Foundry 14.352+).
 
 ### suggest-tarokka-links
 
-Search the world's journals, journal pages, scenes and actors by name to find what a Tarokka card should link to. The GM chooses; nothing is changed.
+Search journals, pages, scenes, actors and page headings (heading, anchor set) by name for what a Tarokka card should link to. The GM chooses; nothing is changed.
 
 Kind: read-only. Title: Suggest Tarokka links.
 

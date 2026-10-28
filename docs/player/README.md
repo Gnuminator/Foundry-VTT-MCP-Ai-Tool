@@ -16,7 +16,7 @@ New to the table? Start with [Join the game](join.md) (the address, logging in, 
 
 **The player page.** A read-only web page. It is live on the table's home server, behind the same
 kind of email-code login as the game (Cloudflare Access), so only addresses on the GM's list get
-in. The GM sends you its address. It has three parts:
+in. The GM sends you its address. It has these parts:
 
 - **Combat order:** who acts when, the current turn, and the round. Player characters have an HP
   bar. Monsters and NPCs show no HP numbers, only standard conditions (like prone or frightened),
@@ -25,6 +25,9 @@ in. The GM sends you its address. It has three parts:
   took 7 damage." or "Wolf 1 was hit." Private, blind and GM rolls never show here, and neither
   does anything about a creature whose name you cannot see.
 - **Handouts:** journal pages the GM revealed to you, such as a letter or a map note.
+- **Roll buttons:** when the GM asks you for a roll, it shows as a button on this page (and on My
+  character) if you opened your private link. Press it and your roll goes to the table. You only
+  see requests meant for you.
 
 The page is built only from what players are allowed to see. Hidden creatures, true names you have
 not learned, enemy HP, GM notes and secrets never reach it.
@@ -51,6 +54,7 @@ of whoever caused them, when Foundry says who. It records:
 - conditions and effects;
 - short and long rests;
 - combat: start, turns and end;
+- roll requests (who was asked for what);
 - token moves, scene changes, XP, level and currency;
 - who joined and left the game;
 - chat messages with their text, including in-character, out-of-character and whispers.

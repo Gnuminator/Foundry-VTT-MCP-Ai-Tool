@@ -30,6 +30,7 @@ import { VaultStore } from '../vault/store.js';
 
 import { ObsidianMirrorPump } from './mirror-pump.js';
 import { MIRROR_SETTINGS_FILE } from './mirror-settings.js';
+import { rmTmp } from '../test-support/rm-tmp.js';
 
 const WORLD = 'canary-world';
 
@@ -180,19 +181,19 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
-  await fsp.rm(tmp, { recursive: true, force: true });
+  await rmTmp(tmp);
 });
 
 async function runPump(): Promise<ObsidianMirrorPump> {
   const pump = new ObsidianMirrorPump({
     foundryClient: fake,
-    worldIds: { current: () => Promise.resolve(WORLD) },
+    worldIds: { current: (): Promise<typeof WORLD> => Promise.resolve(WORLD) },
     store,
     vaultDir: vault,
     logger,
     pollMs: 10_000,
     openBase: 'http://localhost:3000',
-    now: () => clock.t,
+    now: (): number => clock.t,
   });
   await pump.tick(); // the start reconcile
   // An incremental cycle with a change, then a later reconcile.

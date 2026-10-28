@@ -377,7 +377,14 @@ export class PersistentCreatureIndex {
       });
       const uploaded = await this.filePicker.upload('data', this.worldDir(), file);
       if (!uploaded) {
-        throw new Error('File upload failed');
+        // FilePicker.upload usually returns false after Foundry showed its own error. A
+        // refusal has several causes (no upload permission, full disk, size limit). On the
+        // test servers a common one is a session the server no longer knows ("User []
+        // does not have permission"): the cookie is per host name, not per port.
+        throw new Error(
+          'File upload failed (Foundry refused the upload; if the console says "does not have ' +
+            'permission", the browser session may have been replaced, so reload this world)'
+        );
       }
     } catch (error) {
       console.error(`[${this.moduleId}] Failed to save enhanced index to file:`, error);

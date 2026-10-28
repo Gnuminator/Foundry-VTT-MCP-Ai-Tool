@@ -26,6 +26,25 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { withHeavyLock } from './heavy-lock.mjs';
+
+/**
+ * The steps that need a lot of RAM or CPU (lint, type check, build, the test suites, the browser
+ * run). Each takes the heavy-check lock, so parallel greens, the pre-push hook and the gate's drift
+ * check take turns instead of running together (see scripts/heavy-lock.mjs).
+ */
+export const HEAVY_STEPS = new Set([
+  'typecheck',
+  'lint-ratchet',
+  'build',
+  'kit-test',
+  'test-shared',
+  'test-foundry-module',
+  'test-mcp-server',
+  'test-cogm-dashboard',
+  'test-discord-bot',
+  'e2e',
+]);
 
 /** The unit-test steps run with CI=true, as on the runner (vitest then runs once, not in watch mode). */
 const CI = { CI: 'true' };
@@ -68,7 +87,7 @@ export const STEPS = [
     '.claude/hooks/warn-control-bytes.test.mjs',
     '.claude/hooks/guard-model.test.mjs'
   ),
-  nodeTest('gate-scripts', 'scripts/green.test.mjs', 'scripts/lane-merge.test.mjs'),
+  nodeTest('gate-scripts', 'scripts/green.test.mjs', 'scripts/lane-merge.test.mjs', 'scripts/visual-baselines.test.mjs', 'scripts/review-runner/lib.test.mjs', 'scripts/heavy-lock.test.mjs'),
   nodeTest('usage-week', 'scripts/dev/usage-week.test.mjs'),
   nodeTest('gamenight-watch', 'scripts/gamenight-watch.test.mjs'),
   nodeTest('pi-space-check', 'scripts/pi/space-check.test.mjs'),
@@ -76,6 +95,7 @@ export const STEPS = [
   nodeTest('pi-world-refs', 'scripts/pi/world-refs.test.mjs'),
   nodeTest('pi-assistant-gm', 'scripts/pi/assistant-gm.test.mjs'),
   nodeTest('pi-gm-passwords', 'scripts/pi/gm-passwords.test.mjs'),
+  nodeTest('pi-system-trial-guard', 'scripts/pi/system-trial-guard.test.mjs'),
   nodeTest('pi-player-creation', 'scripts/pi/player-creation.test.mjs'),
   nodeTest('pi-kit-session', 'scripts/pi/kit-session.test.mjs'),
   nodeTest('pi-fetch-kit-login', 'scripts/pi/fetch-kit-login.test.mjs'),
@@ -85,6 +105,9 @@ export const STEPS = [
   nodeTest('pi-stage5-load-check', 'scripts/pi/stage5-load-check.test.mjs'),
   nodeTest('pi-ssh-keys-only', 'scripts/pi/ssh-keys-only.test.mjs'),
   nodeTest('pi-board-status', 'scripts/pi/board-status.test.mjs'),
+  nodeTest('pi-gh-runner', 'scripts/pi/gh-runner.test.mjs'),
+  nodeTest('pi-stage7-foundry-url', 'scripts/pi/stage7-foundry-url.test.mjs'),
+  nodeTest('pi-time-sync', 'scripts/pi/time-sync.test.mjs'),
   nodeTest('pi-control-port-check', 'scripts/pi/control-port-check.test.mjs'),
   nodeTest('pi-stage-safety', 'scripts/pi/pi-stage-safety.test.mjs'),
   nodeTest('tunnel-client', 'installer/nsis/tunnel-client.test.mjs'),
@@ -303,6 +326,46 @@ function repoRoot() {
 }
 
 /**
+ * The tree hash of HEAD when the working tree has no uncommitted or untracked changes, else null.
+ * A green run on a clean tree is "green on this commit".
+ * @param {string} cwd
+ * @returns {string | null}
+ */
+export function cleanTreeHash(cwd) {
+  const git = (/** @type {string[]} */ args) =>
+    spawnSync('git', args, { cwd, encoding: 'utf8', windowsHide: true });
+  const status = git(['status', '--porcelain']);
+  if (status.status !== 0 || status.stdout.trim() !== '') return null;
+  const tree = git(['rev-parse', 'HEAD^{tree}']);
+  return tree.status === 0 ? tree.stdout.trim() : null;
+}
+
+/** Where a full green run records the tree it passed on (per worktree, inside its git dir). @param {string} cwd */
+export function greenStampPath(cwd) {
+  const r = spawnSync('git', ['rev-parse', '--git-path', 'green-ok'], {
+    cwd,
+    encoding: 'utf8',
+    windowsHide: true,
+  });
+  return r.status === 0 && r.stdout.trim() ? path.resolve(cwd, r.stdout.trim()) : null;
+}
+
+/**
+ * Did `npm run green` pass on exactly this tree? (.git/green-ok holds the tree hash of the last full OK run.)
+ * @param {string} cwd
+ */
+export function greenPassedOnThisTree(cwd) {
+  const tree = cleanTreeHash(cwd);
+  const file = greenStampPath(cwd);
+  if (!tree || !file) return false;
+  try {
+    return fs.readFileSync(file, 'utf8').trim() === tree;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Is this word safe in a shell line as it is? Letters, digits and `_ @ % + = : , . / -` only: no
  * space, quote, backslash or shell metacharacter, so a command line never needs quoting.
  * @param {string} word
@@ -432,19 +495,23 @@ export function nodeNote(o = {}) {
  * @returns {number} exit status (1 when the process could not start or was killed)
  */
 function spawnStep(step, fd, cwd) {
-  // One command string with shell: true (a command plus an args array under a shell is DEP0190).
-  const r = spawnSync(commandLine(step), {
-    cwd,
-    shell: true,
-    stdio: ['ignore', fd, fd],
-    env: {
-      ...stepEnvironment(process.env, NODE22_DIR),
-      FORCE_COLOR: '0',
-      NO_COLOR: '1',
-      ...step.env,
-    },
-  });
-  return r.status ?? 1;
+  const run = () => {
+    // One command string with shell: true (a command plus an args array under a shell is DEP0190).
+    const r = spawnSync(commandLine(step), {
+      cwd,
+      shell: true,
+      stdio: ['ignore', fd, fd],
+      env: {
+        ...stepEnvironment(process.env, NODE22_DIR),
+        FORCE_COLOR: '0',
+        NO_COLOR: '1',
+        ...step.env,
+      },
+    });
+    return r.status ?? 1;
+  };
+  // A heavy step takes the machine-wide lock (scripts/heavy-lock.mjs); the others just run.
+  return HEAVY_STEPS.has(step.name) ? withHeavyLock(`green ${step.name}`, run) : run();
 }
 
 /**
@@ -452,6 +519,7 @@ function spawnStep(step, fd, cwd) {
  *   argv?: string[], steps?: Step[], cwd?: string, tmpdir?: string, now?: () => number,
  *   isTTY?: boolean, log?: (line: string) => void, write?: (text: string) => void,
  *   runStep?: (step: Step, fd: number, cwd: string) => number, note?: string | null,
+ *   recordStamp?: boolean,
  * }} [options]
  * @returns {number} the process exit code
  */
@@ -489,6 +557,14 @@ export function main(options = {}) {
   }
 
   if (note) log(note);
+  // A full run (every step) on a clean tree is recorded, so the pre-push hook can skip its ratchets.
+  const treeBefore =
+    options.recordStamp === false ||
+    steps !== STEPS ||
+    opts.only.length + opts.skip.length > 0 ||
+    opts.from
+      ? null
+      : cleanTreeHash(cwd);
   const logDir = path.join(tmpdir, `green-${stamp(new Date(now()))}`);
   fs.mkdirSync(logDir, { recursive: true });
   const started = now();
@@ -511,6 +587,14 @@ export function main(options = {}) {
   if (isTTY) write('\x1b[2K\r');
 
   if (failed.length === 0) {
+    if (treeBefore && cleanTreeHash(cwd) === treeBefore) {
+      const stamp = greenStampPath(cwd);
+      try {
+        if (stamp) fs.writeFileSync(stamp, `${treeBefore}\n`);
+      } catch {
+        // No stamp: the pre-push hook just runs its ratchets.
+      }
+    }
     log(`green: OK, ${picked.steps.length} steps in ${formatDuration(now() - started)}`);
     return 0;
   }

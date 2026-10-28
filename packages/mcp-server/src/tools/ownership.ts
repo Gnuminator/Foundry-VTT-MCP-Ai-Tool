@@ -11,6 +11,11 @@ import {
 import { FoundryClient } from '../foundry-client.js';
 import type { GuardedWriteService, PlanView } from '../guarded-write/service.js';
 import { Logger } from '../logger.js';
+import type {
+  OwnershipEntity,
+  OwnershipListResult,
+  OwnershipToolDefinition,
+} from './types/ownership-types.js';
 
 export interface OwnershipToolsOptions {
   foundryClient: FoundryClient;
@@ -73,7 +78,7 @@ export class OwnershipTools {
   /**
    * Get tool definitions for ownership management
    */
-  getToolDefinitions() {
+  getToolDefinitions(): OwnershipToolDefinition[] {
     return [
       {
         name: 'plan-ownership-change',
@@ -133,7 +138,12 @@ export class OwnershipTools {
   /**
    * Handle tool execution
    */
-  async handleToolCall(name: string, args: any) {
+  async handleToolCall(
+    name: string,
+    args: unknown
+  ): Promise<
+    (PlanView & { targets: LiveTargetPreview[]; autoApply: false }) | OwnershipListResult
+  > {
     try {
       switch (name) {
         case 'plan-ownership-change':
@@ -214,18 +224,24 @@ export class OwnershipTools {
   /**
    * List actor ownership permissions
    */
-  private async listActorOwnership(args: any) {
-    const { actorIdentifier, playerIdentifier } = args;
+  private async listActorOwnership(args: unknown): Promise<OwnershipListResult> {
+    const { actorIdentifier, playerIdentifier } = args as {
+      actorIdentifier?: string;
+      playerIdentifier?: string;
+    };
 
     this.logger.info(
       `Listing actor ownership for actor: "${actorIdentifier || 'all'}", player: "${playerIdentifier || 'all'}"`
     );
 
     try {
-      const ownershipData = await this.foundryClient.query('foundry-mcp-bridge.getActorOwnership', {
-        actorIdentifier,
-        playerIdentifier,
-      });
+      const ownershipData: unknown = await this.foundryClient.query(
+        'foundry-mcp-bridge.getActorOwnership',
+        {
+          actorIdentifier,
+          playerIdentifier,
+        }
+      );
 
       return {
         success: true,
@@ -243,26 +259,32 @@ export class OwnershipTools {
   /**
    * Resolve actors from identifier (supports bulk operations)
    */
-  private async resolveActors(identifier: string): Promise<Array<{ id: string; name: string }>> {
+  private async resolveActors(identifier: string): Promise<OwnershipEntity[]> {
     this.logger.debug(`Resolving actors for identifier: ${identifier}`);
 
     try {
       if (identifier.toLowerCase().includes('all friendly npcs')) {
         // Get all tokens in current scene with friendly disposition
-        const actors = await this.foundryClient.query('foundry-mcp-bridge.getFriendlyNPCs', {});
+        const actors = (await this.foundryClient.query(
+          'foundry-mcp-bridge.getFriendlyNPCs',
+          {}
+        )) as OwnershipEntity[];
         this.logger.debug(`Found ${actors.length} friendly NPCs`);
         return actors;
       } else if (identifier.toLowerCase().includes('party characters')) {
         // Get all player-owned characters
-        const actors = await this.foundryClient.query('foundry-mcp-bridge.getPartyCharacters', {});
+        const actors = (await this.foundryClient.query(
+          'foundry-mcp-bridge.getPartyCharacters',
+          {}
+        )) as OwnershipEntity[];
         this.logger.debug(`Found ${actors.length} party characters`);
         return actors;
       } else {
         // Single actor lookup
         this.logger.debug(`Looking for single actor: ${identifier}`);
-        const actor = await this.foundryClient.query('foundry-mcp-bridge.findActor', {
+        const actor = (await this.foundryClient.query('foundry-mcp-bridge.findActor', {
           identifier,
-        });
+        })) as OwnershipEntity | null | undefined;
         this.logger.debug(`Single actor lookup result:`, actor);
         return actor ? [actor] : [];
       }
@@ -275,26 +297,26 @@ export class OwnershipTools {
   /**
    * Resolve players from identifier (supports partial matching)
    */
-  private async resolvePlayers(identifier: string): Promise<Array<{ id: string; name: string }>> {
+  private async resolvePlayers(identifier: string): Promise<OwnershipEntity[]> {
     this.logger.debug(`Resolving players for identifier: ${identifier}`);
 
     try {
       if (identifier.toLowerCase() === 'party') {
         // Get all connected players (excluding GM)
-        const players = await this.foundryClient.query(
+        const players = (await this.foundryClient.query(
           'foundry-mcp-bridge.getConnectedPlayers',
           {}
-        );
+        )) as OwnershipEntity[];
         this.logger.debug(`Found ${players.length} connected players`);
         return players;
       } else {
         // Single player lookup with partial matching
         this.logger.debug(`Looking for single player: ${identifier}`);
-        const players = await this.foundryClient.query('foundry-mcp-bridge.findPlayers', {
+        const players = (await this.foundryClient.query('foundry-mcp-bridge.findPlayers', {
           identifier,
           allowPartialMatch: true,
           includeCharacterOwners: true, // Also match by character names they own
-        });
+        })) as OwnershipEntity[];
         this.logger.debug(`Player lookup result:`, players);
         return players;
       }

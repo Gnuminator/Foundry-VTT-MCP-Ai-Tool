@@ -40,12 +40,11 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Typecheck and lint (green-gate + warning ratchet)
+      - name: Typecheck and lint (green-gate + lint ratchet)
         # Documented green-gate: a type/lint error that doesn't break the build
-        # must still fail CI. Runs before build to fail fast. The lint ratchet
-        # fails on any eslint error AND on any rule whose warning count rises
-        # above scripts/lint-baseline.json (the count may only go down; lower it
-        # with `npm run lint:ratchet -- --update`).
+        # must still fail CI. Runs before build to fail fast. Every lint rule is an
+        # error now (D-109), so the lint ratchet fails on any finding; the baseline
+        # scripts/lint-baseline.json stays at 0.
         run: npm run typecheck && npm run lint:ratchet && npm run emdash:ratchet && npm run version:check
 
       - name: Usage catalogue is current
@@ -85,7 +84,7 @@ jobs:
 
       - name: Merge gate and keep-green scripts
         # scripts/green.mjs (parity with this job) and scripts/lane-merge.mjs (D-122 merge gate).
-        run: node --test scripts/green.test.mjs scripts/lane-merge.test.mjs
+        run: node --test scripts/green.test.mjs scripts/lane-merge.test.mjs scripts/visual-baselines.test.mjs scripts/review-runner/lib.test.mjs scripts/heavy-lock.test.mjs
 
       - name: Weekly usage report
         # scripts/dev/usage-week.mjs (D-122 targets) against fixture transcripts.
@@ -122,6 +121,11 @@ jobs:
         # Assistant GM users with no password in any world, gm-passwords.sh, and stage 12 refusing before it
         # installs anything.
         run: node --test scripts/pi/gm-passwords.test.mjs
+
+      - name: Pi system trial guard
+        # refuse_during_system_trial (lib.sh): stages 5-check-world, 11 and 13 refuse to launch a world while a
+        # stage 14 dnd5e trial is open, and stage 5's check world never replaces an installed dnd5e.
+        run: node --test scripts/pi/system-trial-guard.test.mjs
 
       - name: Pi stage 13 settings driver
         # player-creation-settings.mjs against a fake game: the three D-113 settings and usage-tracking off for
@@ -169,6 +173,21 @@ jobs:
         # 16-board-status.sh: the hourly status script against a local server (payload, Access headers, 2xx only, the token file
         # checks) and the stage as text. The stage itself runs in a container on the ARM runner (build-test-arm).
         run: node --test scripts/pi/board-status.test.mjs
+
+      - name: Pi stage 17 GitHub runners
+        # 17-gh-runner.sh: the play-session gate against fake vaults (open, ended, past midnight, unknown, a running job) and the
+        # stage as text (pinned runner, token handling, the fence in the units).
+        run: node --test scripts/pi/gh-runner.test.mjs
+
+      - name: Pi stage 7 dashboard address
+        # 7-vault.sh: DASHBOARD_FOUNDRY_URL (the ribbon's portraits) as text, and Plan B's dashboard block. The stage's
+        # dashboard.env step runs in a container on the ARM runner (build-test-arm).
+        run: node --test scripts/pi/stage7-foundry-url.test.mjs
+
+      - name: Pi stage 18 time sync
+        # 18-time-sync.sh (backlog pi-ntp): DietPi mode 4 only when needed, dry run, check, undo, snapshot required, with stand-in
+        # systemctl, timedatectl and dietpi-set_software.
+        run: node --test scripts/pi/time-sync.test.mjs
 
       - name: Pi stage 12 control port check
         # control_port_check in remote/lib.sh (D-095): the bridge's 31414 answers on loopback and nothing listens beyond it.
@@ -331,8 +350,9 @@ jobs:
     # accessibility check, and (UI-03) a shot and an axe check of every Storybook story, under
     # web/visual/__screenshots__/stories. The baselines are Linux-only, made in this same
     # Playwright image (the image tag must be the installed @playwright/test version; the first
-    # step checks it). Advisory: it is not a required check, but a diff fails the job (no
-    # continue-on-error), and the report with the diff images is kept as an artifact. Refresh the
+    # step checks it). Not a required check in the ruleset, but a diff fails the job (no
+    # continue-on-error) and the merge gate (scripts/lane-merge.mjs) refuses any check that is not
+    # green, so a red dashboard-visual blocks the merge. The report with the diff images is kept as an artifact. Refresh the
     # baselines with `npm run test:visual:update -w @gnuminator/cogm-dashboard` (Docker; see the
     # dashboard README).
     needs: visual-changes
@@ -400,6 +420,7 @@ jobs:
     # tool is picked up without editing this job.
     runs-on: ubuntu-latest
     name: python-tests (Python 3.12)
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
 
@@ -408,10 +429,14 @@ jobs:
           python-version: '3.12'
 
       - name: Install pytest, numpy and ffmpeg
-        # ffmpeg: the narration render tests skip without it.
+        # ffmpeg: the narration render tests skip without it, so a slow apt mirror must not
+        # hang the job: the install is bounded and a failure only skips those tests.
+        timeout-minutes: 8
         run: |
           python -m pip install --quiet 'pytest>=8' numpy
-          command -v ffmpeg || (sudo apt-get update -q && sudo apt-get install -y -q --no-install-recommends ffmpeg)
+          # timeout waits on apt-get itself (through sudo), so -k can send the SIGKILL
+          apt_opts="-o Acquire::http::Timeout=20 -o Acquire::https::Timeout=20 -o Acquire::Retries=0"
+          command -v ffmpeg || { sudo timeout -k 20 120 apt-get update -q $apt_opts && sudo timeout -k 20 180 apt-get install -y -q $apt_opts --no-install-recommends ffmpeg; } || echo "::warning::ffmpeg not installed: the narration render tests will skip"
 
       - name: Unit tests (tools/*)
         run: |
@@ -443,12 +468,11 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Typecheck and lint (green-gate + warning ratchet)
+      - name: Typecheck and lint (green-gate + lint ratchet)
         # Documented green-gate: a type/lint error that doesn't break the build
-        # must still fail CI. Runs before build to fail fast. The lint ratchet
-        # fails on any eslint error AND on any rule whose warning count rises
-        # above scripts/lint-baseline.json (the count may only go down; lower it
-        # with `npm run lint:ratchet -- --update`).
+        # must still fail CI. Runs before build to fail fast. Every lint rule is an
+        # error now (D-109), so the lint ratchet fails on any finding; the baseline
+        # scripts/lint-baseline.json stays at 0.
         run: npm run typecheck && npm run lint:ratchet && npm run emdash:ratchet && npm run version:check
 
       - name: Usage catalogue is current
@@ -513,12 +537,27 @@ jobs:
           PI_SSH_KEYS_ONLY_CONTAINER: 1
         run: node --test scripts/pi/ssh-keys-only.test.mjs
 
+      - name: Pi stage 7 in an ARM64 container
+        # scripts/pi/container-test/stage7-scenarios.sh: the dashboard.env step of stage 7 on Debian 13 ARM64 (no address,
+        # a given one, a rerun that keeps it, the refusals, a replacement).
+        env:
+          PI_STAGE7_CONTAINER: 1
+        run: node --test scripts/pi/stage7-foundry-url.test.mjs
+
       - name: Pi stage 16 in an ARM64 container
         # scripts/pi/container-test/stage16-scenarios.sh: stage 16 on Debian 13 ARM64 with stand-ins for systemd, curl and restic
         # (every token file refusal, the install and first report, a rerun, a board that answers 403).
         env:
           PI_STAGE16_CONTAINER: 1
         run: node --test scripts/pi/board-status.test.mjs
+
+      - name: Pi stage 14 in an ARM64 container
+        # scripts/pi/container-test/system-trial-scenarios.sh: stage 14 on Debian 13 ARM64 with stand-ins for systemd
+        # and a fake Foundry (the dnd5e trial, switch and rollback, the refusals before anything stops, a failed trial
+        # that puts everything back, a rollback that stops halfway and is finished by a rerun).
+        env:
+          PI_SYSTEM_TRIAL_CONTAINER: 1
+        run: node --test scripts/pi/system-trial.test.mjs
 
       - name: MCP schema smoke test
         run: node scripts/mcp-schema-smoke-test.mjs

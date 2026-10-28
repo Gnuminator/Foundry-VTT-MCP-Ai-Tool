@@ -501,6 +501,8 @@ describe('11-world.sh in an ARM64 container', { skip: containerReason }, () => {
     assert.match(r.output, /Nothing was changed/);
     assert.deepEqual(stops(r), []);
     assert.ok(!r.worlds.includes('frostmaiden-training'), 'the world must not be installed');
+    assert.equal(r.pending, '', 'no provisioning marker may be written');
+    assert.equal(r.after, r.before, 'the env files must not change');
   });
 
   test('old-driver-env: an env file that already names an extra GM needs the new driver too', () => {
@@ -509,6 +511,8 @@ describe('11-world.sh in an ARM64 container', { skip: containerReason }, () => {
     assert.match(r.output, /Nothing was changed/);
     assert.deepEqual(stops(r), []);
     assert.ok(!r.worlds.includes('frostmaiden-training'), 'the world must not be installed');
+    assert.equal(r.pending, '', 'no provisioning marker may be written');
+    assert.equal(r.after, r.before, 'the env file that names the extra GM must not change');
   });
 
   test('old-driver-plain: the old driver is fine when no extra GM is involved', () => {

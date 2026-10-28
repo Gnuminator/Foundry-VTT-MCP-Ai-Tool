@@ -61,7 +61,7 @@ export class TarokkaTools {
       {
         name: 'plan-tarokka-import',
         description:
-          'Plan storing a Tarokka reading in the bridge vault (GM-only, outside Foundry). source "auto" (default) takes the reading dealt in the tarokka-reading module when available, otherwise rolls one; "builtin-roll" always deals a fresh reading (3 common + 2 high cards, crypto random); "tarokka-reading" requires that module. A new reading archives the previous one. Returns a planId: show the diff to the GM, then apply-planned-change.',
+          'Plan storing a Tarokka reading in the bridge vault (GM-only, outside Foundry). source "auto" (default) takes the reading dealt in the tarokka-reading module when available, otherwise rolls one; "builtin-roll" always deals a fresh reading (3 common + 2 high cards, crypto random); "tarokka-reading" requires that module. A new reading archives the previous one; clear: true archives it and leaves none (undoable). Returns a planId: show the diff to the GM, then apply-planned-change.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -69,6 +69,11 @@ export class TarokkaTools {
               type: 'string',
               enum: ['auto', 'builtin-roll', 'tarokka-reading'],
               default: 'auto',
+            },
+            clear: {
+              type: 'boolean',
+              description:
+                'Archive the current reading, deal none. Leave out source and userId with clear.',
             },
             userId: {
               type: 'string',
@@ -82,7 +87,7 @@ export class TarokkaTools {
       {
         name: 'suggest-tarokka-links',
         description:
-          "Search the world's journals, journal pages, scenes and actors by name to find what a Tarokka card should link to. The GM chooses; nothing is changed.",
+          'Search journals, pages, scenes, actors and page headings (heading, anchor set) by name for what a Tarokka card should link to. The GM chooses; nothing is changed.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -157,10 +162,12 @@ export class TarokkaTools {
       .object({
         source: z.enum(['auto', 'builtin-roll', 'tarokka-reading']).optional(),
         userId: z.string().min(1).optional(),
+        clear: z.boolean().optional(),
       })
       .parse(args ?? {});
     return this.logged('import', () =>
       this.tarokka.planImport({
+        ...(params.clear ? { clear: true } : {}),
         ...(params.source ? { source: params.source } : {}),
         ...(params.userId ? { userId: params.userId } : {}),
       })

@@ -2,10 +2,12 @@ import express, { type Express, type NextFunction, type Request, type Response }
 import rateLimit from 'express-rate-limit';
 import {
   createSpaceStatusReader,
+  type PlayerHandout,
   type RecordUsageResult,
   type UsageEvent,
 } from '@gnuminator/shared';
 
+import { normalizeFoundryUrl, withPortraitUrls } from './combat-images.js';
 import type { Config, Tone } from './config.js';
 import type { Logger } from './logger.js';
 import { ToolError, TimeoutError } from './feed/mcp-control-client.js';
@@ -48,9 +50,10 @@ import { mountSpaceRoute } from './space-route.js';
 import { VersionTracker, defaultKitLastRunFile, mountVersionsRoute } from './versions.js';
 import { PlayerLinkStore } from './player-links.js';
 import { DashboardPrefsStore, parsePrefsChange } from './dashboard-prefs.js';
-import { THEMES, ThemeStore, isTheme } from './theme.js';
+import { THEMES, ThemeStore, isTheme, type ThemeId } from './theme.js';
 import { PlayerLogStore } from './player-vault/log-store.js';
 import { PlayerVaultService } from './player-vault/service.js';
+import type { VaultPlayer } from './player-vault/types.js';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -294,12 +297,13 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
           config.stateDir ? path.join(config.stateDir, 'player-vault-log') : null,
           logger.child('player-vault')
         ),
-        world: () => (world ? { id: world.id, title: world.title } : null),
-        players: () => playerDirectory.list(),
-        refreshPlayers: () => playerDirectory.refreshIfStale(),
-        handouts: userId => playerView.handoutsFor(userId),
-        handoutsReady: () => playerView.handoutsReady,
-        theme: worldId => themes.get(worldId),
+        world: (): { id: string; title: string } | null =>
+          world ? { id: world.id, title: world.title } : null,
+        players: (): VaultPlayer[] => playerDirectory.list(),
+        refreshPlayers: (): Promise<void> => playerDirectory.refreshIfStale(),
+        handouts: (userId): PlayerHandout[] => playerView.handoutsFor(userId),
+        handoutsReady: (): boolean => playerView.handoutsReady,
+        theme: (worldId): ThemeId => themes.get(worldId),
       })
     : null;
 
@@ -457,6 +461,10 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
 
   // --- Feed handlers ---------------------------------------------------------
   const handlers: GameFeedHandlers = {
+    onPoll(at) {
+      // Quiet on purpose: a broadcast per poll would wake every client for no visible change.
+      currentStatus = { ...currentStatus, lastPollAt: at };
+    },
     onStatus(status) {
       // World info only exists once Foundry is reachable; fetch it on the
       // transition INTO reachable (a failed fetch retries on its own backoff).
@@ -490,7 +498,8 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
       sse.broadcast('errors', { errors: added, initial: meta.initial }, gmOnly);
       if (!meta.initial) errorCommentary.notifyErrors(added);
     },
-    onCombat(combat: CombatState | null) {
+    onCombat(rawCombat: CombatState | null) {
+      const combat = withPortraitUrls(rawCombat, normalizeFoundryUrl(config.foundryUrl ?? ''));
       const prevSignature = state.combatSignature();
       state.setCombat(combat);
 
@@ -679,7 +688,7 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
     }),
   });
 
-  // The version tracker (I-127): GM only, off until the GM switches it on in the Advanced menu.
+  // The version tracker (I-127): GM only, on by default, the GM can switch it off in the Advanced menu.
   mountVersionsRoute(app, {
     requireGm,
     tracker: new VersionTracker({

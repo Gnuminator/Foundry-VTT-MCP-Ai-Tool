@@ -1,0 +1,3 @@
+### Module notes (module-learn-e)
+
+- **Batch E of the module reference:** Item Piles (with its dnd5e companion), Tidy 5e Sheets, Quick Insert, Find the Culprit, FXMaster, Token Magic FX, FX Bus, Theatre Inserts and Polyglot each have a page under `.claude/skills/foundry-modules/references/`, tried on test server B with a keep, optional or drop verdict for the GM. Findings that matter: Quick Insert lists hidden actor names to players unless "GMs only" is on, Item Piles pile actors show up in `list-characters`, Theatre lines reach our chat log with no speaker, and Polyglot keeps the real text readable to anything that republishes chat.

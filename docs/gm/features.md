@@ -1,6 +1,6 @@
 ---
 title: Features and when to turn them on
-description: Every feature switch of Foundry AI Tool, what it does, and the moment to turn it on.
+description: The feature switches of Foundry AI Tool you use at the table, what each does, and the moment to turn it on.
 ---
 
 # Features and when to turn them on
@@ -125,6 +125,17 @@ GM Actions. **End session** turns off again what it turned on. See
   pick **AI Tool: The Veil** (or **AI Tool: Neutral**) in the **Theme** column. Each player can
   still choose their own dice under **3D Dice Settings**.
 - **More:** the [before-session checklist](before-session.md#turn-on-what-tonight-needs).
+
+## GM windows
+
+- **What it does:** adds Combat, Party, Session, Scene and Loot buttons to the AI Tool group in the scene
+  controls (GM only). Each opens a small window next to the map, so you can run a scene from one
+  screen without the dashboard tab. Only the Combat turn buttons and the Session start and end
+  change anything, and nothing here asks Claude.
+- **Starts:** off. Setting "AI Tool: GM windows".
+- **Turn it on when:** you want the combat order or the party at hand while you run a fight, so
+  from the first session with combat.
+- **More:** [The GM windows](gm-windows.md).
 
 ## GM Actions
 

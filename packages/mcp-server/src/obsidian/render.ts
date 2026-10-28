@@ -501,7 +501,7 @@ export function renderTarokkaNote(
         '',
         GENERATED_BANNER,
         '',
-        'No reading is stored yet. Deal or import one from the dashboard (🃏 Tarokka).',
+        'No current reading. Deal or import one from the dashboard (🃏 Tarokka).',
         '',
       ].join('\n')
     );
@@ -571,7 +571,7 @@ export function renderTarokkaArchiveNote(
       '',
       GENERATED_BANNER,
       '',
-      'GM only. This reading was replaced by a later one; the bridge vault keeps it in `gm/tarokka.json` archive.',
+      'GM only. This reading is no longer the current one (replaced or cleared); the bridge vault keeps it in `gm/tarokka.json` archive.',
       '',
       ...sections,
     ].join('\n')

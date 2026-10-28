@@ -9,8 +9,8 @@ The dashboard is your control panel. Open it in a browser on a second screen nex
 Foundry. Its address is the one the tool admin gave you (on the admin's own PC it is
 `http://localhost:3000`).
 
-Watching is always safe. Apart from the session marks, nothing on the dashboard changes the game until you turn on **GM Actions** and
-confirm.
+Watching is always safe. Apart from the session marks and queueing a handout, nothing on the
+dashboard changes the game until you turn on **GM Actions** and confirm.
 
 > Keep the dashboard off any screen the players can see, and never share its window in Discord or
 > a video call. It shows true names, exact HP, private rolls and, when you ask, Tarokka cards.
@@ -40,12 +40,17 @@ The page at `/` has no row of status lights. Two things tell you about the conne
   window still open?). The page keeps trying by itself. "Connection closed: reload the page" means
   it gave up; reload the page. No mark means the link is fine.
 - **✈ Pre-flight.** The button reads "✈ Pre-flight: ready" or "✈ Pre-flight: N to fix". Its first
-  lines say whether Foundry is connected ("Foundry connected"). If it is not, open the world in your
-  browser and join as your GM user. Each panel also shows its own message when it cannot read the
+  lines say whether Foundry is connected ("Foundry connected"). If it is not, tell the tool admin:
+  the AI Tool's link to Foundry (a browser on the server) is down. Each panel also shows its own message when it cannot read the
   game.
 
 The lights (Bridge, Foundry, AI) and the line with your world, game system and Foundry version are
 only on the old dashboard (see "The old dashboard page" below).
+
+### Theme
+
+A **Theme** dropdown in the header (Neutral or The Veil) sets the look for this world. The players'
+page and Obsidian follow it.
 
 ### Session: Start session / End session
 
@@ -138,10 +143,17 @@ links and My character" below.
 More entries under **Advanced ▾**, Tools:
 
 - **🩺 Module diagnostics** shows or hides the Module Diagnostics panel (see below).
-- **Version tracker: off / on** is off by default. Turn it on and a **📦 Versions** entry appears
-  in the same menu. It opens a table of what is installed (Foundry, the game system and the
+- **Version tracker: on / off** is on by default. While it is on, a **📦 Versions** entry appears
+  in the same menu; turn it off to hide it and stop the online lookups. It opens a table of what is installed (Foundry, the game system and the
   modules) next to the newest release, with a status for each. It only tells you what is out of
   date; it never updates anything.
+
+### 📝 After a paper night (Advanced)
+
+Under **Advanced ▾**, Panels (there is also a card for it in the **After** view). For a table that
+played on paper: one card per player character, filled in from the sheet in Foundry. Type the
+numbers from the paper sheet; **Plan** makes one change per character, with the usual confirm and
+Undo. It needs GM Actions and the module switch "AI Tool: Paper sync (writes)".
 
 ### ⚔ Combat buttons and ▦ Try the During layouts
 
@@ -201,6 +213,18 @@ it is (highlighted), and each combatant's HP bar and numbers. Each row is tagged
 or **NPC**. The top line shows the round and the number of combatants. Turns, initiative and saves
 stay in Foundry's own combat tracker, and damage normally goes through dnd5e's chat cards there.
 
+Above the rows is the **initiative ribbon**: one strip in turn order, starting with whoever is up.
+That creature is large with their name; the next two are clear, and the rest fade out towards the
+right. Each has a ring in the colour of its side (PC, Enemy or NPC), its token portrait (its
+initials when it has none), its initiative, a small HP bar and its first two conditions, with
+**Concentrating** first. Click a portrait to move the GM's Foundry view to that token (it switches
+to the token's scene first if needed; with two GMs logged in it shows an error instead). Portraits
+need the dashboard to know Foundry's address: set `DASHBOARD_FOUNDRY_URL` to the one your browser
+uses, otherwise the initials show. A **Round** marker shows where the order wraps into the next
+round, and a **Lair** marker shows where a lair action falls when a boss in the fight has one.
+Defeated creatures are dimmed and never count as next. The ribbon never changes the game; the click
+only moves that screen's view.
+
 Combat in the dashboard is optional. If you want it, the strip can add damage, healing and
 conditions on several combatants at once: turn on **⚔ Combat buttons** under **Advanced** (off by
 default). With the combat buttons and GM Actions on (**Turn on for tonight** turns GM Actions on),
@@ -212,10 +236,16 @@ click combatant rows to select them (click again to unselect). With one or more 
 - **Condition**: the same, for a condition: pick it, and untick **active** to remove it.
 - **Clear**: unselects all.
 
-Fill in the amount and click the run button: it applies at once, because the targets are the rows
-you selected and your click is the confirmation. A message lists each target's result ("Wolf 2: HP
-11 to 5") with **Undo** for a few seconds; one click puts it back. Later, use **Undo** in Recent
-Changes. If you change the targets in the form by hand, the confirm window shows them first.
+Fill in the amount and click **Run...**. The confirm window lists each target and what will
+change; click **Confirm**. A message lists each target's result ("Wolf 2: HP 11 to 5") with
+**Undo** for a few seconds; one click puts it back. Later, use **Undo** in Recent Changes.
+
+**Start combat** and **End combat**: with no fight running and GM Actions on, the Combat Tracker
+offers **Start combat** (in most During layouts, a small **Start combat** button on the During bar
+opens the same thing). It lists the tokens on the scene you are viewing, with player characters and
+Hostile tokens ticked. Change the ticks and click **Start combat with N**. The fight starts at
+round 1, with **Undo**. **End combat** (with the combat buttons on) plans ending the fight; you
+confirm it, and Undo brings it back.
 
 **👑 Boss prompts** (in the panel's top line, only while a creature with legendary actions or a lair
 is in the fight; off until you turn it on, and remembered in this browser). Turn it on before the
@@ -227,7 +257,7 @@ first boss fight. It shows:
 - **🏰 Lair action** reminder when the turn order passes initiative 20 (or the lair's own count),
   for a creature whose "in lair" box is ticked on its sheet.
 - **⚡ legendary actions left** for each boss that is not taking its own turn.
-- An **R** button on every row: click it when that creature uses its reaction. The marks clear at
+- An **R** button on each boss that is still up: click it when that creature uses its reaction. The marks clear at
   the next round. These marks stay on the dashboard; nothing changes in Foundry.
 
 The player page never shows any of this.
@@ -243,7 +273,7 @@ Foundry's module settings, or all at once with **Turn on for tonight**.
 
 ### Help: the "?" on each panel
 
-Every panel has a small **?** next to its title. It opens this guide at that panel's section, in a
+Most panels have a small **?** next to their title. It opens this guide at that panel's section, in a
 side panel over the dashboard; links inside it open the other guide pages there too. **📖 GM
 guides** in the **Advanced** menu opens the list of guides. The help is built into the dashboard,
 so it works without internet and always matches the installed version. The side panel has a link
@@ -300,7 +330,8 @@ scene changes and more. Each line shows its type and the time.
 
 - You see each roll's full breakdown, for example "Wolf 1, Bite attack: 1d20 (15) +2 STR +2
   proficiency = 19", plus the target's AC or DC and the outcome when they are known.
-- Private, blind and GM rolls appear as `gm-roll` lines. Players never see these.
+- Private and blind rolls show a **private roll** chip. Players never see these. Roll requests
+  show as **roll request**, and someone dropping to 0 HP shows **down**.
 - `gm-change` lines appear when a guarded change is applied or undone.
 
 ### AI commentary
@@ -380,7 +411,7 @@ You do not need the dashboard open to see or undo what changed. In Foundry's lef
 scene controls) there is an **AI Tool** group, shown to GMs only. It is the **wand icon** (sparkles)
 at the very bottom of the column, under Tokens, Tiles, Drawings, Walls, Lights, Sounds, Regions and
 Journal Notes; hover it to see "AI Tool". Click it, then click **Changes**: a window opens with everything that changed in the last week, newest first, by
-players, by you and by the AI. Each row shows the time, who did it ("by Ireena", or an **AI** tag),
+players, by you and by the AI. Each row shows the time, who did it ("by Thorin", or an **AI** tag),
 what changed, and **Undo** while the change can still be undone. Click "Changes" on a row to see
 the lines that changed, and **Show more** for the last 100. **Show:** at the top narrows the list
 to **All**, **AI** or one person. **AI** shows only what the AI changed; a person shows what that
@@ -388,7 +419,7 @@ person changed and the undos they ran from this window.
 
 **Undo** asks you to confirm first, listing what will be put back, and then says "Undone: ...", or
 tells you why it refused (for example because the same thing was changed again since). If the
-change is not the latest one on that thing (Ireena's HP was changed again afterwards, say), the
+change is not the latest one on that thing (Thorin's HP was changed again afterwards, say), the
 window lists the later changes and asks:
 
 - **Just this**: undo only this change and keep the later ones.
@@ -466,9 +497,8 @@ the window.
 
 ## The confirm window
 
-The dashboard's own buttons that make a planned change (Damage and Condition on the combatants you
-selected, the party's pace and rest request, Tarokka links and imports) apply at once when you
-click: your click is the confirmation. A message says what changed, with **Undo** for a few seconds; Recent
+The dashboard's own buttons that make a planned change (the party's pace and rest request,
+Tarokka links and imports) apply at once when you click: your click is the confirmation. A message says what changed, with **Undo** for a few seconds; Recent
 Changes keeps the full history.
 
 The confirm window opens first for:
@@ -477,8 +507,8 @@ The confirm window opens first for:
   at once, so Undo cannot take it back from their eyes).
 - **Plans you did not make on the dashboard**: a plan Claude made.
   Plan, confirm and undo stay for every AI change.
-- **Plans you type by hand in the tool runner** (Advanced), so you see which targets they hit before
-  they apply.
+- **Any plan made in the tool runner**, including the combat strip's Damage / Heal and Condition,
+  so you see which targets they hit before they apply.
 - **Older tools without a plan** (from the tool runner), which have no Undo.
 
 In the confirm window:
@@ -575,8 +605,9 @@ Queue handouts during prep, then reveal each with one click at the table. Only q
 pages show here: a new journal (one Claude just made, say) is not listed until you press
 **+ Queue a page** for it. The drawer shows:
 
-- **Queue**: the pages you staged, oldest first, with their scene and who they are for.
-  **Remove** takes one off the queue. Queueing changes nothing in Foundry.
+- **Queue**: the pages you staged, with their scene and who they are for. Use **↑** and **↓** to
+  change the order: the first page is what **Reveal next** reveals. **Remove** takes one off the
+  queue. Queueing changes nothing in Foundry.
 - **Reveal next: `<title>`**: plans the reveal of the next queued page for the scene that is active
   now (or a page queued for any scene). The confirm window shows the change; applying it also takes
   the page off the queue. Undo in Recent Changes hides it again and puts it back in the queue.
@@ -644,20 +675,22 @@ card in Foundry's chat). Claude uses the same actions with `get-party` and `plan
 The page players look at: the dashboard address with `/player` at the end. Open it yourself before a session
 to check what they see. Its parts:
 
+- **You**: at the top, for a player who opened their own `/me` link on that device: "Your turn" or
+  "You are up next", a small card for each of their characters (HP, conditions, concentration) and
+  a concentration reminder when they take damage. Their open roll requests show here as buttons.
 - **Combat order**: initiative and names as players know them. PCs have an HP bar; enemies and NPCs
-  have no HP numbers. Only standard conditions show. Hidden creatures are left out, and a creature
+  have no HP numbers, only a rough band (healthy, bloodied, critical, down). Only standard conditions show. Hidden creatures are left out, and a creature
   whose name players cannot see is "Unknown creature".
 - **Session feed**: public rolls and what players could see happen, with creatures named the way
   players know them. Private, blind and GM rolls never show. Damage and healing amounts show for
   PCs only (others just "was hit").
 - **Handouts**: pages you revealed, with secret sections, inline rolls and links to unrevealed
-  pages removed.
+  pages removed. A page revealed during the current session carries a **New** mark.
 
 The header shows the world, the scene's **Navigation Name** (else "Current scene", never the real
-name) and a status: `live`, `foundry offline`, `disconnected` or `connecting…`.
+name) with its time of day and weather, for example "Village Square (Dusk, Rain)", and a status: `live`, `foundry offline`, `disconnected` or `connecting…`.
 
-Today the dashboard only answers on this PC, so players on other computers cannot open the page
-yet. How players reach it is set up with the Orange Pi.
+Players open it from their own devices, behind the same email-code login as Foundry.
 
 ### Revealing a handout
 
@@ -691,7 +724,7 @@ that you make once per player.
 
 1. **Advanced**, **🔗 Player links**. The panel lists every player (non-GM) user in the world.
 2. **Make link** next to a player. The link is copied; send it to that player in a direct
-   message, not in the table chat.
+   message, not in the table chat. Later, **Copy link** copies it again.
 3. The player opens it once. The page remembers it on that device, so it works from a bookmark
    or the home screen afterwards.
 
@@ -703,13 +736,16 @@ needed. A player who owns no character sees "Ask your GM".
   the wrong person).
 - **Remove** turns the link off without a new one.
 
-The page has three views, and each player picks theirs (remembered on their device):
+The page has four views, and each player picks theirs (remembered on their device):
 
 - **At the table**: big HP, AC and initiative, conditions, spell slots, resources, attacks and
   prepared spells. It follows the dashboard theme.
 - **Paper 2024** (the default paper view) and **Paper 2014**: black on white, in the same order
   as the printed character sheet of that edition, so a player can copy it onto paper or print it
   (**Print** at the bottom).
+- **Paper night**: a sheet for a table that plays on paper. Each block shows the value as it was
+  when the sheet was printed and a box to write the new one in. **Print all party sheets** in the
+  Player links panel prints every character's paper-night sheet, two pages each (GM only).
 
 What the page leaves out: the GM's secret sections in descriptions, the true names of
 unidentified items (it shows what the player sees in Foundry), and any actor the player does not

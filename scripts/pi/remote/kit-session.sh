@@ -332,7 +332,13 @@ if [ "$MODE" = up ]; then
   [ -f "$TOOL_DIR/app/package.json" ] || die "the tool is not built at $TOOL_DIR/app: run stage 5 first"
   [ ! -e "$STATE" ] || die "a kit session is already up: run MODE=down first (state: $STATE)"
   orig_world="$(current_world)"
-  [ "$orig_world" != "$KIT_WORLD" ] || die "Foundry already launches $KIT_WORLD: nothing to set up (and nothing to put back afterwards). Nothing was changed"
+  # While stage 14's dnd5e trial is open Foundry launches the kit world on purpose (the trial's own world): the test
+  # kit runs there, and MODE=down puts options.json back on it, not on a campaign world that would migrate.
+  trial_phase="$(sed -n 's/^phase=//p' "$SYSTEM_TRIAL_DIR/state" 2>/dev/null | head -n1)" || trial_phase=""
+  [ "$orig_world" != "$KIT_WORLD" ] || [ "$trial_phase" = trial ] || die "Foundry already launches $KIT_WORLD: nothing to set up (and nothing to put back afterwards). Nothing was changed"
+  # Ask for the worlds MODE=down will launch as well, so a session never comes up in a state its own MODE=down refuses
+  # (and which then locks stage 14 out through kit-session.env).
+  refuse_during_system_trial "the kit session (MODE=up)" "$KIT_WORLD" "${orig_world:-none}"
   [[ "$orig_world" =~ ^[a-z0-9-]*$ ]] || die "options.json launches '$orig_world', which is not a plain world id: nothing was changed"
   driver_available || die "no $SESSION_DRIVER: scp scripts/pi/remote/kit-session.mjs foundry-pi:/root/ first"
   # The Kit GM browser runs stage 5's Assistant GM driver under a transient unit and needs the bridge to talk to.
@@ -511,6 +517,8 @@ was_gm_browser="$(state_value WAS_GM_BROWSER)"
 state_stamp="$(state_value STAMP)"
 state_epoch="$(state_value STAMP_EPOCH)"
 [[ "$orig_world" =~ ^[a-z0-9-]*$ ]] || die "$STATE holds a world id I do not trust (ORIG_WORLD): check the file by hand. Nothing was changed"
+# MODE=down launches $orig_world again: never a campaign world on the dnd5e version on trial.
+refuse_during_system_trial "the kit session (MODE=down)" "${orig_world:-none}"
 [[ "$was_gm_browser" =~ ^[01]$ ]] || die "$STATE holds no valid WAS_GM_BROWSER (0 or 1): check the file by hand. Nothing was changed"
 [[ "$state_stamp" =~ ^[0-9]{8}-[0-9]{6}$ ]] || die "$STATE holds no valid STAMP: check the file by hand. Nothing was changed"
 # STAMP_EPOCH is missing in a state file from before it existed (then STAMP is the cutoff); a line that is there must be seconds.

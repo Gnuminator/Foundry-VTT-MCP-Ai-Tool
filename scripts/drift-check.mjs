@@ -29,7 +29,7 @@ import { fileURLToPath } from 'node:url';
 
 /** The guards that fail when two PRs are each green alone but not together. */
 export const CHECKS = [
-  { name: 'lint baseline', command: 'npm run lint:ratchet' },
+  { name: 'lint baseline', command: 'npm run lint:ratchet', heavy: true },
   { name: 'em-dash baseline', command: 'npm run emdash:ratchet' },
   { name: 'changelog fragments', command: 'npm run changelog:check' },
   { name: 'usage catalog', command: 'npm run usage:catalog:check' },
@@ -38,13 +38,17 @@ export const CHECKS = [
   { name: 'docs links', command: 'npm run docs:links' },
   {
     name: 'mcp-server tests (tool counts, tool reference, tool sets)',
-    command: 'npx vitest run',
+    // The probe test runs the built dist/index.js, which the merged worktree never builds;
+    // CI and `npm run green` run it after a build.
+    command: 'npx vitest run --exclude src/mcp-modern-probe.test.ts',
     cwd: 'packages/mcp-server',
+    heavy: true,
   },
   {
     name: 'module write gate',
     command: 'npx vitest run src/write-gate.test.ts',
     cwd: 'packages/foundry-module',
+    heavy: true,
   },
 ];
 
@@ -339,13 +343,31 @@ export function runDriftCheck({
 }
 
 /**
+ * A heavy guard runs through the heavy-check lock (scripts/heavy-lock.mjs in the merged tree), so
+ * two drift checks, a green and a lint ratchet take turns instead of loading the PC together. The
+ * lock is reached through its CLI, not an import: the merge gate runs a copy of this file that may
+ * not import other repo files. A tree without the script (main before the lock existed) runs the
+ * guard as it always did.
+ * @param {{ name: string, command: string, heavy?: boolean }} check @param {string} dir
+ */
+export function lockedCommand(check, dir) {
+  const script = path.join(dir, 'scripts', 'heavy-lock.mjs');
+  // The command goes through the shell twice, so only plain words are wrapped (as green's isShellSafe).
+  if (!check.heavy || !fs.existsSync(script) || !/^[\w .:/@=-]+$/.test(check.command)) {
+    return check.command;
+  }
+  const label = `drift-check ${check.name.split('(')[0].replace(/[^\w -]/g, '').trim()}`;
+  return `node "${script}" run --label "${label}" -- ${check.command}`;
+}
+
+/**
  * @param {string} dir @param {typeof CHECKS} checks @param {(line: string) => void} log
  * @param {string} main @param {string} sha @param {boolean} merged
  */
 function runChecks(dir, checks, log, main, sha, merged) {
   const failed = [];
   for (const check of checks) {
-    const r = spawnSync(check.command, {
+    const r = spawnSync(lockedCommand(check, dir), {
       cwd: path.join(dir, check.cwd ?? '.'),
       env: { ...process.env, CI: 'true' },
       shell: true,
@@ -357,6 +379,13 @@ function runChecks(dir, checks, log, main, sha, merged) {
     }
     const ok = r.status === 0;
     log(`  ${ok ? 'ok  ' : 'FAIL'} ${check.name}`);
+    // The tool-set size test prints how much room each set has left; show it, and mark a low one.
+    for (const line of `${r.stdout ?? ''}`.split('\n')) {
+      const m = /tool-set headroom: .*/.exec(line);
+      if (m) log(`       ${m[0].trim()}`);
+      // The heavy-check lock says when this guard waited its turn.
+      if (line.startsWith('heavy-lock:')) log(`       ${line.trim()}`);
+    }
     if (!ok) {
       failed.push(check.name);
       const output = `${r.stdout ?? ''}${r.stderr ?? ''}`.trim().split('\n');

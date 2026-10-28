@@ -26,7 +26,11 @@ import {
   stepEnvironment,
   nodeNote,
   main,
+  cleanTreeHash,
+  greenStampPath,
+  greenPassedOnThisTree,
 } from './green.mjs';
+import { main as prePush, CHECKS } from './pre-push.mjs';
 
 const ciYml = fs.readFileSync(
   path.resolve(
@@ -466,4 +470,67 @@ test('main: the Node note is the first line, before the steps', () => {
     ),
     false
   );
+});
+
+/** A temp git repository with one commit. */
+function tempRepo() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'green-stamp-'));
+  const git = (...args) => spawnSync('git', args, { cwd: dir, encoding: 'utf8' });
+  git('init', '-q');
+  fs.writeFileSync(path.join(dir, 'a.txt'), 'one\n');
+  git('add', 'a.txt');
+  git('-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '-m', 'one');
+  return { dir, git };
+}
+
+test('green stamp: matches only the clean tree it was recorded for', () => {
+  const { dir } = tempRepo();
+  const steps = [{ name: 'one', cmd: 'x', args: [] }];
+  const logs = fs.mkdtempSync(path.join(os.tmpdir(), 'green-stamp-logs-'));
+  const base = { steps, cwd: dir, tmpdir: logs, isTTY: false, note: null, log: () => {} };
+  // fake steps never stamp (only the real STEPS list does)
+  assert.equal(main({ ...base, argv: [], runStep: () => 0 }), 0);
+  assert.equal(greenPassedOnThisTree(dir), false);
+  const tree = cleanTreeHash(dir);
+  assert.match(tree, /^[0-9a-f]{40}$/);
+  fs.writeFileSync(greenStampPath(dir), `${tree}\n`);
+  assert.equal(greenPassedOnThisTree(dir), true);
+  fs.writeFileSync(path.join(dir, 'a.txt'), 'two\n');
+  assert.equal(cleanTreeHash(dir), null, 'uncommitted change: not green on a commit');
+  assert.equal(greenPassedOnThisTree(dir), false);
+  fs.writeFileSync(path.join(dir, 'a.txt'), 'one\n');
+  fs.writeFileSync(path.join(dir, 'new.txt'), 'x\n');
+  assert.equal(cleanTreeHash(dir), null, 'an untracked file counts');
+});
+
+test('pre-push: runs the ratchets and typecheck, refuses on the first failure, skips after green', () => {
+  const lines = [];
+  const ran = [];
+  const base = { cwd: '.', env: {}, log: l => lines.push(l), passedGreen: () => false };
+  const pass = c => {
+    ran.push(c.name);
+    return 0;
+  };
+  assert.deepEqual(
+    CHECKS.map(c => c.name),
+    ['lint:ratchet', 'emdash:ratchet', 'typecheck']
+  );
+  assert.equal(prePush({ ...base, runCheck: pass }), 0);
+  assert.deepEqual(ran, ['lint:ratchet', 'emdash:ratchet', 'typecheck']);
+  ran.length = 0;
+  const failLint = c => {
+    ran.push(c.name);
+    return c.name === 'lint:ratchet' ? 1 : 0;
+  };
+  assert.equal(prePush({ ...base, runCheck: failLint }), 1);
+  assert.deepEqual(ran, ['lint:ratchet'], 'stops at the first failure');
+  assert.match(lines.at(-1), /lint:ratchet failed, push refused/);
+  ran.length = 0;
+  const fail = c => {
+    ran.push(c.name);
+    return 1;
+  };
+  assert.equal(prePush({ ...base, passedGreen: () => true, runCheck: fail }), 0);
+  assert.equal(prePush({ ...base, env: { SKIP_PREPUSH: '1' }, runCheck: fail }), 0);
+  assert.deepEqual(ran, []);
 });

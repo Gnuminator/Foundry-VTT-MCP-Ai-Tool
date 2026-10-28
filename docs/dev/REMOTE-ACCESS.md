@@ -214,6 +214,30 @@ scripts, and the two that touch secrets are run by you.
    ask for a Cloudflare login. Only the GM emails reach the dashboard as GM; a player's email gets
    the read-only player view.
 
+4. **Portraits in the initiative ribbon.** The ribbon loads each token portrait from Foundry, so the
+   dashboard must know Foundry's address _as the GM's browser reaches it_: run stage 7 again with
+   `DASHBOARD_FOUNDRY_URL=https://play.<domain>` (a plain address, no path and no trailing slash;
+   `... | ssh foundry-pi 'DASHBOARD_FOUNDRY_URL=https://play.<domain> bash -s'`). It goes into
+   `dashboard.env`, a rerun without the value keeps it (a wrong value is replaced by running the
+   stage again with the right one), and stage 7 warns while it is missing. Like any stage it needs
+   a `dietpi-backup 1` snapshot from today first, and a changed value restarts the dashboard, which
+   the stage refuses while players are online or a recording runs.
+   Plan B sets it itself (`http://localhost:<Foundry port>`; the dashboard there is opened on the
+   PC only, so that is the address the browser uses). Players never see portraits, by design.
+
+   **Why no image proxy:** the page on `cogm.<domain>` asks `play.<domain>` for a plain `<img>`.
+   The two names share a registrable domain, so the browser counts it as same-site and sends the
+   `CF_Authorization` cookie that the GM's Access login for `play.<domain>` already set (no CORS
+   needed for an image). Foundry serves its static files without its own login (checked read-only on
+   the Pi, 2026-10-28: `curl -I http://127.0.0.1:30000/icons/svg/mystery-man.svg` answers 200).
+   If the Access session for `play.` has expired, Access answers with a redirect and the image may
+   fail (the login host is cross-site), so the ribbon shows initials. The same holds over the
+   Tailscale route, where the browser may hold no `play.` session at all. Open `https://play.<domain>` once (the GM does anyway) and reload
+   the dashboard. Not checked end to end here: after the stage runs, look at the ribbon in a real
+   fight from `https://cogm.<domain>`. If the portraits stay initials while `play.<domain>` is
+   open in another tab, build the GM-only image proxy on the dashboard instead (a route that
+   fetches the path from `FOUNDRY_AI_FOUNDRY_URL` and returns it to a GM caller only).
+
 ### Removing a player
 
 Cloudflare One, Access controls, Applications, `Foundry players`, Policies, edit `Players`, delete
@@ -391,6 +415,7 @@ the remote-hosting topology.
 | `PORT`                         | `3000`                           | HTTP port the dashboard binds. Cloudflare Tunnel proxies this.                        |
 | `DASHBOARD_HOST`               | `127.0.0.1`                      | Listen address. Non-loopback needs a `GM_DASHBOARD_TOKEN` of 32 or more characters.   |
 | `DASHBOARD_ALLOWED_HOSTS`      | _(unset)_                        | Extra host names it answers to, e.g. the tunnel's public name (Host check).           |
+| `DASHBOARD_FOUNDRY_URL`        | _(unset)_                        | Foundry as the GM's browser reaches it; the ribbon's portraits (initials if unset).   |
 | `MCP_CONTROL_HOST`             | `127.0.0.1`                      | Where the dashboard connects for the control channel.                                 |
 | `MCP_CONTROL_PORT`             | `31414`                          | Control channel port (must match the backend).                                        |
 | `ANTHROPIC_API_KEY`            | _(unset — AI disabled if empty)_ | Anthropic API key. **Server-side only. Never reaches browser.**                       |

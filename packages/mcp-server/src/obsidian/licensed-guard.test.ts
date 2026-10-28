@@ -19,6 +19,7 @@ import {
   runGit,
   type GitRunner,
 } from './licensed-guard.js';
+import { rmTmp } from '../test-support/rm-tmp.js';
 
 function hasGit(): boolean {
   try {
@@ -46,7 +47,7 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
-  await fsp.rm(dir, { recursive: true, force: true });
+  await rmTmp(dir);
 });
 
 async function write(rel: string, text: string, root = campaign): Promise<void> {

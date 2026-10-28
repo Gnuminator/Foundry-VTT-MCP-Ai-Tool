@@ -60,10 +60,26 @@ export async function setCampaignPartStatus(
   return { journalId: entry.id, journalName: entry.name };
 }
 
+/** The slice of a rendered journal application this module reads (Foundry app v1 internals). */
+interface RenderedAppLike {
+  _state?: number;
+  closing?: boolean;
+  object?: HookEntryLike;
+  document?: HookEntryLike;
+}
+
+/** A journal entry or page as the render hook may hand it over; checked before use. */
+interface HookEntryLike {
+  name?: string;
+  parent?: HookEntryLike;
+  getFlag?: unknown;
+  setFlag?: unknown;
+}
+
 export class CampaignHooks {
   private isRegistered: boolean = false;
 
-  constructor(_bridge: any) {
+  constructor(_bridge: unknown) {
     // Bridge not needed for direct Foundry flag approach
   }
 
@@ -83,7 +99,7 @@ export class CampaignHooks {
     ];
 
     hookNames.forEach(hookName => {
-      Hooks.on(hookName, (app: any, html: any, data: any) => {
+      Hooks.on(hookName, (app: unknown, html: unknown, data: unknown) => {
         this.onRenderJournalSheet(app, html, data);
       });
     });
@@ -106,17 +122,17 @@ export class CampaignHooks {
   /**
    * Handle journal sheet rendering to add interactive elements
    */
-  private onRenderJournalSheet(app: any, html: any, _data: any): void {
+  private onRenderJournalSheet(app: unknown, html: unknown, _data: unknown): void {
     try {
       // Extra defensive checks before processing
-      if (!app || !html || app._state === -1) {
+      if (!app || !html || (app as RenderedAppLike)._state === -1) {
         return;
       }
 
       // Small delay to avoid race condition with Foundry's internal DOM manipulation
       setTimeout(() => {
         // Double-check the app is still valid after delay
-        if (!app || app._state === -1 || app.closing) {
+        if (!app || (app as RenderedAppLike)._state === -1 || (app as RenderedAppLike).closing) {
           return;
         }
         this.processJournalRender(app, html, _data);
@@ -129,10 +145,11 @@ export class CampaignHooks {
   /**
    * Process journal render after DOM is stable
    */
-  private processJournalRender(app: any, html: any, _data: any): void {
+  private processJournalRender(appArg: unknown, html: unknown, _data: unknown): void {
     try {
       // Defensive checks to prevent null errors during journal close/destruction
-      if (!app || !html) return;
+      if (!appArg || !html) return;
+      const app = appArg as RenderedAppLike;
 
       // Check if app is being closed or destroyed
       if (app._state === -1 || app.closing) {
@@ -140,7 +157,9 @@ export class CampaignHooks {
       }
 
       // Convert html to jQuery if it isn't already
-      const $html = html.jquery ? html : $(html);
+      const $html: JQuery = (html as { jquery?: unknown }).jquery
+        ? (html as JQuery)
+        : $(html as HTMLElement);
 
       // Additional DOM validation - ensure the HTML element exists and is connected
       if (!$html[0]?.isConnected) {
@@ -149,7 +168,7 @@ export class CampaignHooks {
 
       // Only process if this looks like a campaign dashboard
       const isCampaignDashboard =
-        (app.object?.name || app.object?.parent?.name || '')?.includes('Campaign Dashboard') ||
+        (app.object?.name || app.object?.parent?.name || '').includes('Campaign Dashboard') ||
         $html.find('.campaign-status-toggle').length > 0;
 
       if (!isCampaignDashboard) {
@@ -157,9 +176,9 @@ export class CampaignHooks {
       }
 
       // Try different ways to get the journal entry
-      let entry = app.object;
+      let entry: HookEntryLike | undefined = app.object;
       if (!entry && app.document) {
-        entry = app.document.parent || app.document;
+        entry = app.document.parent ?? app.document;
       }
       if (entry?.parent) {
         entry = entry.parent; // JournalEntryPage -> JournalEntry
@@ -174,13 +193,14 @@ export class CampaignHooks {
       }
 
       // Load previously saved status flags (if any) for this entry
-      const statusFlags = entry.getFlag('world', 'campaignStatus') || {};
+      const journal = entry as CampaignJournalLike;
+      const statusFlags = campaignStatusFlags(journal);
 
       // Find all campaign status toggle elements with defensive error handling
-      let statusToggles;
+      let statusToggles: JQuery;
       try {
         statusToggles = $html.find('.campaign-status-toggle');
-      } catch (error) {
+      } catch {
         // If DOM query fails, journal is likely being destroyed
         return;
       }
@@ -192,8 +212,8 @@ export class CampaignHooks {
       // Set initial state of each status toggle element based on saved flags
       statusToggles.each((_index: number, element: HTMLElement) => {
         const $element = $(element);
-        const campaignId = $element.data('campaign-id');
-        const partId = $element.data('part-id');
+        const campaignId = $element.data('campaign-id') as string | number | undefined;
+        const partId = $element.data('part-id') as string | number | undefined;
 
         if (!campaignId || !partId) {
           console.warn('[Campaign Status] Toggle missing data attributes:', element);
@@ -203,7 +223,7 @@ export class CampaignHooks {
         const flagKey = `${campaignId}-${partId}`;
         const savedStatus = statusFlags[flagKey];
 
-        if (savedStatus) {
+        if (typeof savedStatus === 'string' && savedStatus) {
           // Update element to match saved status
           this.updateToggleVisual($element, savedStatus);
         }
@@ -211,7 +231,7 @@ export class CampaignHooks {
 
       // Attach click handlers to each toggle
       statusToggles.on('click', (event: JQuery.ClickEvent) => {
-        void this.onStatusToggleClick(event, entry, statusFlags);
+        void this.onStatusToggleClick(event, journal, statusFlags);
       });
     } catch (error) {
       console.error('Error setting up campaign dashboard interactivity:', error);
@@ -223,16 +243,16 @@ export class CampaignHooks {
    */
   private async onStatusToggleClick(
     event: JQuery.ClickEvent,
-    entry: any,
-    statusFlags: any
+    entry: CampaignJournalLike,
+    statusFlags: Record<string, unknown>
   ): Promise<void> {
     try {
       event.preventDefault();
       event.stopPropagation();
 
-      const target = $(event.currentTarget);
-      const campaignId = target.data('campaign-id');
-      const partId = target.data('part-id');
+      const target: JQuery = $(event.currentTarget as HTMLElement);
+      const campaignId = target.data('campaign-id') as string | number | undefined;
+      const partId = target.data('part-id') as string | number | undefined;
 
       if (!campaignId || !partId) {
         console.warn('[Campaign Status] Click on toggle missing data attributes');

@@ -26,8 +26,8 @@ const deps = stubToolRouterDeps();
 const tools = collectToolDefinitions(deps);
 
 describe('tool catalog', () => {
-  it('lists exactly 96 tools; control methods such as record_usage are not tools', () => {
-    expect(tools).toHaveLength(96);
+  it('lists exactly 97 tools; control methods such as record_usage are not tools', () => {
+    expect(tools).toHaveLength(97);
     for (const method of [
       'record_usage',
       'session_switches',
@@ -64,15 +64,22 @@ describe('tool catalog', () => {
     // Budgets with some room. Raise one only on purpose.
     // I-124 raised core and prep by 2,000 for the tool hints (title, readOnlyHint, destructiveHint).
     const budget = {
-      core: 17_500, // about 17,200 with get-level-up-options (I-152; raised 500 on purpose); about 16,600 before
+      core: 18_500, // about 18,200 with search-rules (I-152; raised 1,000 on purpose) on top of get-level-up-options (about 17,200); about 16,600 before
       play: 40_000, // about 39,000 with plan-combat-change (David's GM test; raised 1,500 on purpose, room for its start action); about 38,000 before, with plan-paper-sync (Paper nights A: eleven sheet fields in one schema, about 3,700 characters) on top of Paper nights C's session fields; raised 1,500 on purpose for check-action, 1,000 for the multiattack and path fields of plan-npc-turn, 3,000 for plan-paper-sync. The next Play tool needs another raise
-      prep: 22_000,
+      prep: 22_500, // about 22,100 with the clear option of plan-tarokka-import (#507, raised 500 on purpose); about 21,900 before. Near full: the next Prep tool needs a raise, which costs Claude Desktop context: the user decides, never raise it in passing
       build: 29_000, // about 28,100 with plan-room-setup (I-133)
       admin: 8_000,
     } as const;
     for (const set of TOOL_SET_NAMES) {
       const served = stripToolRefs(filterToolsBySets(tools, resolveToolSets(set)));
-      expect(JSON.stringify(served).length, set).toBeLessThanOrEqual(budget[set]);
+      const size = JSON.stringify(served).length;
+      // Read by scripts/drift-check.mjs, which prints these lines and warns under 500 characters.
+      // Written before the assertion, so an over-budget set still shows its (negative) room.
+      const room = budget[set] - size;
+      process.stdout.write(
+        `tool-set headroom: ${set} ${room} characters (${size} of ${budget[set]})${room < 500 ? ' WARNING: under 500, the next tool needs a raise (the user decides)' : ''}\n`
+      );
+      expect(size, set).toBeLessThanOrEqual(budget[set]);
     }
   });
 

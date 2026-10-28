@@ -22,7 +22,6 @@ const ROOT = fileURLToPath(new URL('../../../', import.meta.url));
 const OTHER_NAMES: Readonly<Record<string, string>> = {
   'foundry-mcp-bridge': 'the Foundry module id',
   'tarokka-reading': 'the Foundry module the Tarokka import reads',
-  'gm-roll': 'a dashboard feed line type',
   'gm-change': 'a dashboard feed line type',
   'host-not-allowed': 'a dashboard error code',
   'obsidian-mirror': 'a guarded-write feature id',

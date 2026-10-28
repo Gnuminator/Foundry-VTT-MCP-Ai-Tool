@@ -53,6 +53,8 @@ const who = (over: Partial<Combatant> = {}): Combatant => ({
   deathSaves: null,
   boss: null,
   tokenId: null,
+  tokenUuid: null,
+  img: null,
   ...over,
 });
 
@@ -94,6 +96,8 @@ describe('reading a fight off the stream', () => {
           isPC: true,
           category: 'pc',
           tokenId: 'tok-a',
+          tokenUuid: 'Scene.sceneAAAAAAAAAAAA.Token.tokAAAAAAAAAAAAA',
+          img: 'http://localhost:30001/tokens/alder.webp',
           hp: { value: 5, max: 9, temp: 2 },
         },
         {
@@ -117,6 +121,15 @@ describe('reading a fight off the stream', () => {
     expect(combat?.combatants.map(c => c.id)).toEqual(['a', 'b']);
     expect(combat?.combatants[0]?.hp).toEqual({ value: 5, max: 9, temp: 2 });
     expect(combat?.combatants.map(c => c.tokenId)).toEqual(['tok-a', null]);
+    expect(combat?.combatants.map(c => c.tokenUuid)).toEqual([
+      'Scene.sceneAAAAAAAAAAAA.Token.tokAAAAAAAAAAAAA',
+      null,
+    ]);
+    // Only an http(s) address becomes a portrait; anything else falls back to the initials.
+    expect(combat?.combatants.map(c => c.img)).toEqual([
+      'http://localhost:30001/tokens/alder.webp',
+      null,
+    ]);
     expect(combat?.combatants[1]).toMatchObject({
       initiative: null,
       isCurrentTurn: true,

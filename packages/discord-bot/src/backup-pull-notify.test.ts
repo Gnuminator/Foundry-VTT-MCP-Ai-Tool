@@ -73,7 +73,7 @@ function harness(): {
   let ok = true;
   const sent: string[] = [];
   const notifier = new BackupPullNotifier({
-    now: () => now,
+    now: (): number => now,
     send: (text): Promise<boolean> => {
       if (ok) sent.push(text);
       return Promise.resolve(ok);

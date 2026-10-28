@@ -207,6 +207,8 @@ describe('the prefs', () => {
     ).toEqual({ ...DEFAULT_PREFS, duringLayout: 'auto', combatButtons: true, hintSessions: ['x'] });
     expect(readPrefs({ duringLayout: 'sideways', duringFull: 'yes' })).toEqual(DEFAULT_PREFS);
     expect(readPrefs(null)).toEqual(DEFAULT_PREFS);
+    expect(readPrefs({}).versionTracker).toBe(true);
+    expect(readPrefs({ versionTracker: false }).versionTracker).toBe(false);
   });
 
   it('applies a change at once, and leaves the hint count to the server', () => {

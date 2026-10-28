@@ -10,6 +10,7 @@
 // buttons are off, a reaction tick changes only its own button (the focus stays), rows can be
 // picked with the keyboard, and the hit point bar has a text equivalent.
 import { lazy, Suspense, useState, type JSX, type MouseEvent } from 'react';
+import { RibbonBoundary } from './RibbonBoundary';
 
 import {
   AWAY_TEXT,
@@ -51,6 +52,10 @@ import { Panel, Pill } from '../ui';
 
 // The picker is a lazy chunk (bundle budget): it loads when no fight runs and GM Actions is on.
 const StartCombat = lazy(() => import('./StartCombat').then(m => ({ default: m.StartCombat })));
+// So is the initiative ribbon: it loads when a fight with somebody in it runs.
+const InitiativeRibbon = lazy(() =>
+  import('./InitiativeRibbon').then(m => ({ default: m.InitiativeRibbon }))
+);
 
 /** The tool runner's request: a tool and the form's starting values. */
 export interface StripToolRequest {
@@ -428,6 +433,13 @@ export function CombatStrip({
           <p className="strip-away" id="combat-away" role="status">
             {stale ? AWAY_TEXT : ''}
           </p>
+          {combat !== null && combat.combatants.length > 0 && (
+            <RibbonBoundary>
+              <Suspense fallback={null}>
+                <InitiativeRibbon combat={combat} />
+              </Suspense>
+            </RibbonBoundary>
+          )}
           <div
             className="boss-prompts"
             id="boss-prompts"

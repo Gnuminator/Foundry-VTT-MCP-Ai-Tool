@@ -29,7 +29,7 @@ import {
   playerQueryRows,
 } from '../lib/foundry-sweep-play.mjs';
 import { settingsRows } from '../lib/foundry-sweep-settings.mjs';
-import { Sweep, closeWindows, expandSidebar, resetControls } from '../lib/foundry-sweep.mjs';
+import { Sweep, closeWindows, expandSidebar, hideModuleOverlays, resetControls } from '../lib/foundry-sweep.mjs';
 
 /** @type {import('../lib/contract.mjs').Scenario} */
 export default {
@@ -91,6 +91,8 @@ export default {
     });
     await expandSidebar(gmPage);
     await expandSidebar(player.page);
+    await hideModuleOverlays(gmPage);
+    await hideModuleOverlays(player.page);
     const sweep = new Sweep({ gm: gmPage, player: player.page });
     sweep.attachShot = (name, data) => t.attachFile(name, data);
     t.cleanup(async () => {

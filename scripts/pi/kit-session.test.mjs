@@ -11,6 +11,7 @@
 //   that were off staying off, the Kit GM password file (mode 600, never printed) and the transient Kit GM browser unit.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
+import fs from 'node:fs';
 import { mkdtempSync, readFileSync, rmSync, symlinkSync, unlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -1215,6 +1216,7 @@ describe('kit-session.mjs, the Kit GM (the in-browser part)', () => {
       goto: async url => calls.push(['goto', url]),
       keyboard: { press: async key => calls.push(['press', key]) },
       locator: sel => ({
+        evaluate: async () => 'input',
         fill: async value => {
           calls.push(['fill', sel, value]);
           if (breaks && sel === '#join-password') throw new Error(`fill ${value} failed`);
@@ -1252,6 +1254,7 @@ describe('kit-session.mjs, the browser side and the script', () => {
       goto: async url => calls.push(['goto', url]),
       keyboard: { press: async key => calls.push(['press', key]) },
       locator: sel => ({
+        evaluate: async () => 'input',
         fill: async value => calls.push(['fill', sel, value]),
         click: async () => calls.push(['click', sel]),
       }),
@@ -1279,6 +1282,63 @@ describe('kit-session.mjs, the browser side and the script', () => {
       await joinsWithoutPassword(no, { url: 'http://x:30000', user: PLAYER_NAME }),
       false
     );
+  });
+
+  test('joinsWithoutPassword picks the user from the 14.369 select instead of typing', async () => {
+    const calls = [];
+    const page = {
+      goto: async url => calls.push(['goto', url]),
+      keyboard: { press: async key => calls.push(['press', key]) },
+      locator: sel => ({
+        evaluate: async () => 'select',
+        selectOption: async opt => calls.push(['select', sel, opt.label]),
+        fill: async value => calls.push(['fill', sel, value]),
+        click: async () => calls.push(['click', sel]),
+      }),
+      waitForURL: async () => {},
+    };
+    assert.equal(
+      await joinsWithoutPassword(page, { url: 'http://x:30000', user: PLAYER_NAME }),
+      true
+    );
+    assert.deepEqual(calls, [
+      ['goto', 'http://x:30000/join'],
+      ['select', '#join-username', PLAYER_NAME],
+      ['fill', '#join-password', ''],
+      ['click', 'button[name="join"]'],
+    ]);
+  });
+
+  test('joinsWithoutPassword says false at once when the 14.369 option is disabled (user online)', async () => {
+    const calls = [];
+    const page = {
+      goto: async url => calls.push(['goto', url]),
+      keyboard: { press: async key => calls.push(['press', key]) },
+      locator: sel => ({
+        evaluate: async () => 'online',
+        selectOption: async () => calls.push(['select', sel]),
+        fill: async value => calls.push(['fill', sel, value]),
+        click: async () => calls.push(['click', sel]),
+      }),
+      waitForURL: async () => {},
+    };
+    assert.equal(
+      await joinsWithoutPassword(page, { url: 'http://x:30000', user: PLAYER_NAME }),
+      false
+    );
+    assert.deepEqual(calls, [['goto', 'http://x:30000/join']]);
+  });
+
+  test('the three typeJoinUser copies (the remote scripts ship standalone) stay identical', () => {
+    const grab = f => {
+      const s = fs.readFileSync(path.join(repo, 'scripts', 'pi', 'remote', f), 'utf8');
+      const i = s.indexOf('async function typeJoinUser');
+      return s.slice(i, s.indexOf('\n}\n', i));
+    };
+    const a = grab('kit-session.mjs');
+    assert.ok(a.length > 100);
+    assert.equal(grab('assistant-gm.mjs'), a);
+    assert.equal(grab('player-creation-settings.mjs'), a);
   });
 
   test('run as a script (also through a symlinked folder), main() runs and stops on a missing ACTION or TOOL_APP', () => {
@@ -1634,6 +1694,49 @@ describe('kit-session.sh in an ARM64 container', { skip: containerReason }, () =
     assert.match(r.output, /Foundry already launches strahd-kit/);
     assert.deepEqual(r.calls, []);
     assert.deepEqual(r.state, ['absent']);
+  });
+
+  test('up while a dnd5e trial is open on strahd-kit: it goes through and records strahd-kit as the world to put back', () => {
+    const r = run('up-already-kit-trial');
+    assert.equal(r.exit, 0, r.output);
+    assert.equal(r.world, 'strahd-kit');
+    assert.ok(r.state.includes('ORIG_WORLD=strahd-kit'), r.state.join('\n'));
+    assert.match(r.output, /Foundry runs strahd-kit \(it launched strahd-kit before\)/);
+  });
+
+  test('up refused during a trial when Foundry launches a campaign world (MODE=down would refuse it later)', () => {
+    const r = run('up-trial-campaign');
+    untouched(r, 'curse-of-strahd');
+    assert.equal(r.exit, 1, r.output);
+    assert.match(r.output, /a dnd5e system trial is open .*the kit session \(MODE=up\)/);
+    assert.deepEqual(r.calls, []);
+    assert.deepEqual(r.state, ['absent']);
+  });
+
+  test('up refused while a stage 14 rollback is halfway (phase rolling-back)', () => {
+    const r = run('up-trial-rolling-back');
+    untouched(r, 'curse-of-strahd');
+    assert.equal(r.exit, 1, r.output);
+    assert.match(r.output, /phase rolling-back/);
+    assert.deepEqual(r.calls, []);
+    assert.deepEqual(r.state, ['absent']);
+  });
+
+  test('down after such an up leaves Foundry on strahd-kit, not on a campaign world', () => {
+    const r = run('down-trial-kit-orig');
+    assert.equal(r.exit, 0, r.output);
+    assert.equal(r.world, 'strahd-kit');
+    assert.deepEqual(r.state, ['absent']);
+    assert.match(r.output, /Foundry launches: strahd-kit/);
+  });
+
+  test('down refused during a trial when the original world is a campaign world; nothing changes', () => {
+    const r = run('down-trial-campaign-orig');
+    assert.equal(r.exit, 1, r.output);
+    assert.match(r.output, /a dnd5e system trial is open .*the kit session \(MODE=down\)/);
+    assert.deepEqual(r.calls, []);
+    assert.equal(r.world, 'strahd-kit');
+    assert.ok(r.state.includes('ORIG_WORLD=curse-of-strahd'), 'the state file stays');
   });
 
   test('up refused with someone online (the Assistant GM browser comes back, no state file, no Kit GM file)', () => {

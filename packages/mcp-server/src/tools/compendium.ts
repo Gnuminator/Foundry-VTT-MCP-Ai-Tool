@@ -27,6 +27,7 @@ import {
   spellSchoolName,
   weaponDamageSummary,
 } from './creature-format.js';
+import { arr, at, isRec, rec, text as show, type Rec } from './bridge-data.js';
 
 export interface CompendiumToolsOptions {
   foundryClient: FoundryClient;
@@ -59,7 +60,7 @@ export class CompendiumTools {
   /**
    * Tool definitions for compendium operations
    */
-  getToolDefinitions() {
+  getToolDefinitions(): { name: string; description: string; inputSchema: object }[] {
     return [
       {
         name: 'search-compendium',
@@ -142,6 +143,38 @@ export class CompendiumTools {
                 'Maximum number of results to return (default: 50 for discovery searches, max: 50)',
               minimum: 1,
               maximum: 50,
+            },
+          },
+          required: ['query'],
+        },
+      },
+      {
+        name: 'search-rules',
+        description:
+          'Full-text rules search over rulebook journal pages and item, spell and feature descriptions, in the allowlisted rules packs only. Returns ids and an excerpt; a whole journal is large, so prefer a bigger excerptChars to opening it with get-compendium-item (itemId = documentId) or, for world journals, list-journals.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            query: {
+              type: 'string',
+              description: 'Rule or term in plain words, e.g. "grapple". Filler words are ignored.',
+            },
+            limit: {
+              type: 'number',
+              description: 'Maximum hits, 1 to 25 (default 10).',
+            },
+            excerptChars: {
+              type: 'number',
+              description:
+                'Excerpt length per hit, 80 to 4000 (default 240). Raise it to read a rule.',
+            },
+            includeWorld: {
+              type: 'boolean',
+              description: 'Also search world journals (adventure text). Off by default.',
+            },
+            includeOtherBooks: {
+              type: 'boolean',
+              description: 'Also search packs outside the rules allowlist. Off by default.',
             },
           },
           required: ['query'],
@@ -258,7 +291,7 @@ export class CompendiumTools {
     ];
   }
 
-  async handleSearchCompendium(args: any): Promise<any> {
+  async handleSearchCompendium(args: unknown): Promise<unknown> {
     // Detect game system for appropriate filtering
     const gameSystem = await this.getGameSystem();
 
@@ -277,7 +310,7 @@ export class CompendiumTools {
       // Try alternative argument structures that MCP might send
       if (typeof args === 'string') {
         parsedArgs = schema.parse({ query: args });
-      } else if (args && typeof args === 'object' && typeof args.query === 'undefined') {
+      } else if (isRec(args) && typeof args.query === 'undefined') {
         // Handle case where arguments might be nested differently
         const firstKey = Object.keys(args)[0];
         if (firstKey && typeof args[firstKey] === 'string') {
@@ -305,11 +338,11 @@ export class CompendiumTools {
     });
 
     try {
-      const results = await this.foundryClient.query('foundry-mcp-bridge.searchCompendium', {
+      const results = (await this.foundryClient.query('foundry-mcp-bridge.searchCompendium', {
         query,
         packType,
         filters,
-      });
+      })) as unknown[];
 
       // Limit results
       const limitedResults = results.slice(0, limit);
@@ -325,7 +358,7 @@ export class CompendiumTools {
         query,
         gameSystem, // Include detected system in response
         filterDescription: filters ? describeFilters(filters, gameSystem) : 'no filters',
-        results: limitedResults.map((item: any) => this.formatCompendiumItem(item, gameSystem)),
+        results: limitedResults.map(item => this.formatCompendiumItem(item, gameSystem)),
         totalFound: results.length,
         showing: limitedResults.length,
         hasMore: results.length > limit,
@@ -339,7 +372,30 @@ export class CompendiumTools {
     }
   }
 
-  async handleGetCompendiumItem(args: any): Promise<any> {
+  async handleSearchRules(args: unknown): Promise<unknown> {
+    const schema = z.object({
+      query: z.string().min(2, 'Search query must be at least 2 characters').max(300),
+      limit: z.number().int().min(1).max(25).default(10),
+      includeWorld: z.boolean().default(false),
+      excerptChars: z.number().int().min(80).max(4000).default(240),
+      includeOtherBooks: z.boolean().default(false),
+    });
+    const parsed = schema.parse(typeof args === 'string' ? { query: args } : args);
+    try {
+      // The first search after a reload builds the index of every rules pack: allow it time.
+      return await this.foundryClient.query('foundry-mcp-bridge.searchRules', parsed, {
+        timeoutMs: 60_000,
+      });
+    } catch (error) {
+      this.logger.error('Failed to search rules', error);
+      throw new Error(
+        `Failed to search rules: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        { cause: error }
+      );
+    }
+  }
+
+  async handleGetCompendiumItem(args: unknown): Promise<unknown> {
     const schema = z.object({
       packId: z.string().min(1, 'Pack ID cannot be empty'),
       itemId: z.string().min(1, 'Item ID cannot be empty'),
@@ -350,14 +406,19 @@ export class CompendiumTools {
 
     try {
       // Use the proper document retrieval method that already exists in actor creation
-      const item = await this.foundryClient.query('foundry-mcp-bridge.getCompendiumDocumentFull', {
-        packId,
-        documentId: itemId,
-      });
+      const raw: unknown = await this.foundryClient.query(
+        'foundry-mcp-bridge.getCompendiumDocumentFull',
+        {
+          packId,
+          documentId: itemId,
+        }
+      );
 
-      if (!item) {
+      if (!raw) {
         throw new Error(`Item ${itemId} not found in pack ${packId}`);
       }
+
+      const item = rec(raw);
 
       // Format the response using the detailed item data
       const baseResponse = {
@@ -380,7 +441,7 @@ export class CompendiumTools {
           ...baseResponse,
           stats: compactStats,
           properties: this.extractItemProperties(item),
-          items: (item.items || []).slice(0, 5), // Limit items to prevent bloat
+          items: arr(item.items).slice(0, 5), // Limit items to prevent bloat
           mode: 'compact',
         };
       } else {
@@ -388,7 +449,7 @@ export class CompendiumTools {
         return {
           ...baseResponse,
           fullDescription: this.extractFullDescription(item),
-          system: this.sanitizeSystemData(item.system || {}),
+          system: this.sanitizeSystemData(rec(item.system)),
           properties: this.extractItemProperties(item),
           items: item.items || [],
           effects: item.effects || [],
@@ -405,7 +466,7 @@ export class CompendiumTools {
     }
   }
 
-  async handleListCreaturesByCriteria(args: any): Promise<any> {
+  async handleListCreaturesByCriteria(args: unknown): Promise<unknown> {
     // Detect game system for appropriate filtering
     const gameSystem = await this.getGameSystem();
 
@@ -423,12 +484,8 @@ export class CompendiumTools {
             .refine(
               val => {
                 try {
-                  const parsed = JSON.parse(val);
-                  return (
-                    typeof parsed === 'object' &&
-                    parsed !== null &&
-                    (typeof parsed.min === 'number' || typeof parsed.max === 'number')
-                  );
+                  const parsed = rec(JSON.parse(val));
+                  return typeof parsed.min === 'number' || typeof parsed.max === 'number';
                 } catch {
                   return false;
                 }
@@ -438,7 +495,7 @@ export class CompendiumTools {
               }
             )
             .transform(val => {
-              const parsed = JSON.parse(val);
+              const parsed = JSON.parse(val) as { min?: number; max?: number };
               return {
                 min: parsed.min || 0,
                 max: parsed.max || 30,
@@ -519,36 +576,39 @@ export class CompendiumTools {
     });
 
     try {
-      const results = await this.foundryClient.query(
+      const results: unknown = await this.foundryClient.query(
         'foundry-mcp-bridge.listCreaturesByCriteria',
         params
       );
+      const response = at(results, 'response');
+      const responseCreatures = at(response, 'creatures') as unknown[] | undefined;
+      const resultList = results as unknown[];
 
       this.logger.debug('Creature criteria search completed', {
         gameSystem,
         criteriaCount: Object.keys(params).length,
-        totalFound: results.response?.creatures?.length || 0,
+        totalFound: responseCreatures?.length || 0,
         limit: params.limit,
-        packsSearched: results.response?.searchSummary?.packsSearched || 0,
+        packsSearched: at(response, 'searchSummary', 'packsSearched') || 0,
       });
 
       // Extract search summary for transparency
-      const searchSummary = results.response?.searchSummary || {
+      const searchSummary = at(response, 'searchSummary') ?? {
         packsSearched: 0,
         topPacks: [],
-        totalCreaturesFound: results.response?.creatures?.length || 0,
+        totalCreaturesFound: responseCreatures?.length || 0,
       };
 
       return {
         gameSystem, // Include detected system
         criteriaDescription, // Human-readable criteria
-        creatures: (results.response?.creatures || results).map((creature: any) =>
+        creatures: (responseCreatures ?? resultList).map(creature =>
           this.formatCreatureListItem(creature, gameSystem)
         ),
-        totalFound: results.response?.creatures?.length || results.length,
+        totalFound: responseCreatures?.length || resultList.length,
         criteria: params,
         searchSummary: {
-          ...searchSummary,
+          ...rec(searchSummary),
           searchStrategy: `Prioritized pack search - D&D 5e content first, then modules, then campaign-specific`,
           note: 'Packs searched in priority order to find most relevant creatures first',
         },
@@ -564,7 +624,7 @@ export class CompendiumTools {
     }
   }
 
-  async handleListCompendiumPacks(args: any): Promise<any> {
+  async handleListCompendiumPacks(args: unknown): Promise<unknown> {
     const schema = z.object({
       type: z.string().optional(),
     });
@@ -574,10 +634,12 @@ export class CompendiumTools {
     this.logger.info('Listing compendium packs', { type });
 
     try {
-      const packs = await this.foundryClient.query('foundry-mcp-bridge.getAvailablePacks');
+      const packs = (await this.foundryClient.query(
+        'foundry-mcp-bridge.getAvailablePacks'
+      )) as Rec[];
 
       // Filter by type if specified
-      const filteredPacks = type ? packs.filter((pack: any) => pack.type === type) : packs;
+      const filteredPacks = type ? packs.filter(pack => pack.type === type) : packs;
 
       this.logger.debug('Successfully retrieved compendium packs', {
         total: packs.length,
@@ -586,7 +648,7 @@ export class CompendiumTools {
       });
 
       return {
-        packs: filteredPacks.map((pack: any) => ({
+        packs: filteredPacks.map(pack => ({
           id: pack.id,
           label: pack.label,
           type: pack.type,
@@ -594,7 +656,7 @@ export class CompendiumTools {
           private: pack.private,
         })),
         total: filteredPacks.length,
-        availableTypes: [...new Set(packs.map((pack: any) => pack.type))],
+        availableTypes: [...new Set(packs.map(pack => pack.type))],
       };
     } catch (error) {
       this.logger.error('Failed to list compendium packs', error);
@@ -605,8 +667,9 @@ export class CompendiumTools {
     }
   }
 
-  private formatCompendiumItem(item: any, gameSystem?: GameSystem): any {
-    const formatted: any = {
+  private formatCompendiumItem(rawItem: unknown, gameSystem?: GameSystem): Rec {
+    const item = rec(rawItem);
+    const formatted: Rec = {
       id: item.id,
       name: item.name,
       type: item.type,
@@ -620,7 +683,7 @@ export class CompendiumTools {
     };
 
     if (item.type === 'npc' || item.type === 'character') {
-      const stats: any = {};
+      const stats: Rec = {};
 
       if (gameSystem === 'dnd5e') {
         // Level/CR
@@ -633,17 +696,17 @@ export class CompendiumTools {
         const creatureType = getCreatureType(item, gameSystem);
         if (creatureType) stats.creatureType = creatureType;
 
-        const system = item.system || {};
+        const system = rec(item.system);
 
         // Hit Points
-        const hp = system.attributes?.hp?.value;
-        const maxHp = system.attributes?.hp?.max;
+        const hp = at(system, 'attributes', 'hp', 'value');
+        const maxHp = at(system, 'attributes', 'hp', 'max');
         if (hp !== undefined || maxHp !== undefined) {
           stats.hitPoints = { current: hp, max: maxHp };
         }
 
         // Armor Class
-        const ac = system.attributes?.ac?.value;
+        const ac = at(system, 'attributes', 'ac', 'value');
         if (ac !== undefined) stats.armorClass = ac;
 
         // Size (dnd5e stores a key such as "med"; report the word)
@@ -652,30 +715,32 @@ export class CompendiumTools {
 
         // Alignment
         const alignment =
-          system.details?.alignment?.value || system.details?.alignment || system.alignment;
+          at(system, 'details', 'alignment', 'value') ||
+          at(system, 'details', 'alignment') ||
+          system.alignment;
         if (alignment) stats.alignment = alignment;
       } else {
         // Fallback: Legacy D&D 5e extraction
-        const system = item.system || {};
-        const cr = system.details?.cr || system.cr;
+        const system = rec(item.system);
+        const cr = at(system, 'details', 'cr') || system.cr;
         if (cr !== undefined) stats.challengeRating = cr;
 
-        const hp = system.attributes?.hp?.value || system.hp?.value;
-        const maxHp = system.attributes?.hp?.max || system.hp?.max;
+        const hp = at(system, 'attributes', 'hp', 'value') || at(system, 'hp', 'value');
+        const maxHp = at(system, 'attributes', 'hp', 'max') || at(system, 'hp', 'max');
         if (hp !== undefined || maxHp !== undefined) {
           stats.hitPoints = { current: hp, max: maxHp };
         }
 
-        const ac = system.attributes?.ac?.value || system.ac?.value;
+        const ac = at(system, 'attributes', 'ac', 'value') || at(system, 'ac', 'value');
         if (ac !== undefined) stats.armorClass = ac;
 
-        const creatureType = system.details?.type?.value || system.type?.value;
+        const creatureType = at(system, 'details', 'type', 'value') || at(system, 'type', 'value');
         if (creatureType) stats.creatureType = creatureType;
 
         const size = creatureSizeWord(item);
         if (size) stats.size = size;
 
-        const alignment = system.details?.alignment || system.alignment;
+        const alignment = at(system, 'details', 'alignment') || system.alignment;
         if (alignment) stats.alignment = alignment;
       }
 
@@ -687,46 +752,46 @@ export class CompendiumTools {
     return formatted;
   }
 
-  private extractDescription(item: any): string {
-    const system = item.system || {};
+  private extractDescription(item: unknown): string {
+    const system = rec(at(item, 'system'));
 
     // Try different common description fields
     const description =
-      system.description?.value ||
-      system.description?.content ||
+      at(system, 'description', 'value') ||
+      at(system, 'description', 'content') ||
       system.description ||
-      system.details?.description ||
+      at(system, 'details', 'description') ||
       '';
 
     return this.truncateText(this.stripHtml(description), 200);
   }
 
-  private extractFullDescription(item: any): string {
-    const system = item.system || {};
+  private extractFullDescription(item: unknown): string {
+    const system = rec(at(item, 'system'));
 
     const description =
-      system.description?.value ||
-      system.description?.content ||
+      at(system, 'description', 'value') ||
+      at(system, 'description', 'content') ||
       system.description ||
-      system.details?.description ||
+      at(system, 'details', 'description') ||
       '';
 
     return this.stripHtml(description);
   }
 
-  private createItemSummary(item: any): string {
-    const parts = [];
+  private createItemSummary(item: Rec): string {
+    const parts: string[] = [];
 
-    parts.push(`${item.type} from ${item.packLabel}`);
+    parts.push(`${show(item.type)} from ${show(item.packLabel)}`);
 
-    const system = item.system || {};
+    const system = rec(item.system);
 
     // Add relevant summary information based on item type
-    switch (item.type.toLowerCase()) {
+    switch ((item.type as string).toLowerCase()) {
       case 'spell':
         if (system.level === 0) parts.push('Cantrip');
-        else if (system.level) parts.push(`Level ${system.level}`);
-        if (system.school) parts.push(spellSchoolName(system.school) ?? system.school);
+        else if (system.level) parts.push(`Level ${show(system.level)}`);
+        if (system.school) parts.push(spellSchoolName(system.school) ?? show(system.school));
         break;
       case 'weapon': {
         // dnd5e 4+ keeps damage in system.damage.base; 3.x in system.damage.parts
@@ -742,8 +807,10 @@ export class CompendiumTools {
         // '' rarity with a filled rarities list still gets a label
         const rarity = itemRarityLabel(system.rarity) ?? itemRarityLabel(system.rarities);
         if (rarity) parts.push(rarity);
-        if (system.price?.value)
-          parts.push(`${system.price.value} ${system.price.denomination || 'gp'}`);
+        if (at(system, 'price', 'value'))
+          parts.push(
+            `${show(at(system, 'price', 'value'))} ${show(at(system, 'price', 'denomination') || 'gp')}`
+          );
         break;
       }
     }
@@ -751,9 +818,10 @@ export class CompendiumTools {
     return parts.join(' • ');
   }
 
-  private formatCreatureListItem(creature: any, gameSystem?: GameSystem): any {
-    const system = creature.system || {};
-    const formatted: any = {
+  private formatCreatureListItem(rawCreature: unknown, gameSystem?: GameSystem): Rec {
+    const creature = rec(rawCreature);
+    const system = rec(creature.system);
+    const formatted: Rec = {
       name: creature.name,
       id: creature.id,
       pack: { id: creature.pack, label: creature.packLabel },
@@ -785,32 +853,38 @@ export class CompendiumTools {
 
       // Feature flags
       const hasSpells = flatHasSpells(creature) ?? hasSpellcasting(creature, gameSystem);
-      formatted.flags = {
+      const flags: Rec = {
         spellcaster: hasSpells,
       };
+      formatted.flags = flags;
 
       // D&D 5e specific flags
       if (gameSystem === 'dnd5e') {
-        formatted.flags.legendary = hasLegendaryActions(creature);
+        flags.legendary = hasLegendaryActions(creature);
 
         const typeStr = typeof creatureType === 'string' ? creatureType.toLowerCase() : '';
-        formatted.flags.undead = typeStr === 'undead';
-        formatted.flags.dragon = typeStr === 'dragon';
-        formatted.flags.fiend = typeStr === 'fiend';
+        flags.undead = typeStr === 'undead';
+        flags.dragon = typeStr === 'dragon';
+        flags.fiend = typeStr === 'fiend';
       }
     } else {
       // Legacy fallback (D&D 5e assumptions)
-      const challengeRating = creature.challengeRating ?? system.details?.cr ?? system.cr ?? 0;
-      const creatureType =
-        creature.creatureType ?? system.details?.type?.value ?? system.type?.value ?? 'unknown';
+      const challengeRating =
+        creature.challengeRating ?? at(system, 'details', 'cr') ?? system.cr ?? 0;
+      const creatureType = show(
+        creature.creatureType ??
+          at(system, 'details', 'type', 'value') ??
+          at(system, 'type', 'value') ??
+          'unknown'
+      );
       const size = creatureSizeWord(creature) ?? 'medium';
 
       const hasSpells =
         creature.hasSpells ??
         !!(
           system.spells ||
-          system.attributes?.spellcasting ||
-          (system.details?.spellLevel && system.details.spellLevel > 0)
+          at(system, 'attributes', 'spellcasting') ||
+          (Number(at(system, 'details', 'spellLevel')) > 0 && at(system, 'details', 'spellLevel'))
         );
       const hasLegendary = hasLegendaryActions(creature);
 
@@ -832,7 +906,7 @@ export class CompendiumTools {
   /**
    * Helper method to describe criteria in human-readable format
    */
-  private describeCriteria(params: any, gameSystem: GameSystem): string {
+  private describeCriteria(params: Rec, gameSystem: GameSystem): string {
     const parts: string[] = [];
 
     if (gameSystem === 'dnd5e') {
@@ -840,46 +914,51 @@ export class CompendiumTools {
         if (typeof params.challengeRating === 'number') {
           parts.push(`CR ${params.challengeRating}`);
         } else if (typeof params.challengeRating === 'object') {
-          const min = params.challengeRating.min ?? 0;
-          const max = params.challengeRating.max ?? 30;
-          parts.push(`CR ${min}-${max}`);
+          const min = at(params, 'challengeRating', 'min') ?? 0;
+          const max = at(params, 'challengeRating', 'max') ?? 30;
+          parts.push(`CR ${show(min)}-${show(max)}`);
         }
       }
     }
 
-    if (params.creatureType) parts.push(params.creatureType);
-    if (params.size) parts.push(params.size);
+    if (params.creatureType) parts.push(show(params.creatureType));
+    if (params.size) parts.push(show(params.size));
     if (params.hasSpells) parts.push('spellcaster');
     if (params.hasLegendaryActions) parts.push('legendary');
 
     return parts.length > 0 ? parts.join(', ') : 'no criteria';
   }
 
-  private extractCompactStats(item: any): any {
-    const system = item.system || {};
-    const stats: any = {};
+  private extractCompactStats(item: Rec): Rec {
+    const system = rec(item.system);
+    const stats: Rec = {};
 
     // Core combat stats
-    if (system.attributes?.ac?.value) stats.armorClass = system.attributes.ac.value;
-    if (system.attributes?.hp?.max) stats.hitPoints = system.attributes.hp.max;
-    if (system.details?.cr !== undefined) stats.challengeRating = system.details.cr;
+    const ac = at(system, 'attributes', 'ac', 'value');
+    if (ac) stats.armorClass = ac;
+    const maxHp = at(system, 'attributes', 'hp', 'max');
+    if (maxHp) stats.hitPoints = maxHp;
+    const cr = at(system, 'details', 'cr');
+    if (cr !== undefined) stats.challengeRating = cr;
 
     // Basic info
-    if (system.details?.type?.value) stats.creatureType = system.details.type.value;
-    const size = sizeWord(system.traits?.size);
+    const creatureType = at(system, 'details', 'type', 'value');
+    if (creatureType) stats.creatureType = creatureType;
+    const size = sizeWord(at(system, 'traits', 'size'));
     if (size) stats.size = size;
-    if (system.details?.alignment) stats.alignment = system.details.alignment;
+    const alignment = at(system, 'details', 'alignment');
+    if (alignment) stats.alignment = alignment;
 
     // Key abilities (only show notable ones)
     if (system.abilities) {
-      const abilities: any = {};
-      for (const [key, ability] of Object.entries(system.abilities)) {
-        const abil = ability as any;
-        if (abil.value !== undefined) {
-          const mod = Math.floor((abil.value - 10) / 2);
+      const abilities: Rec = {};
+      for (const [key, ability] of Object.entries(rec(system.abilities))) {
+        const value = at(ability, 'value') as number | undefined;
+        if (value !== undefined) {
+          const mod = Math.floor((value - 10) / 2);
           if (Math.abs(mod) >= 2) {
             // Only show significant modifiers
-            abilities[key.toUpperCase()] = { value: abil.value, modifier: mod };
+            abilities[key.toUpperCase()] = { value, modifier: mod };
           }
         }
       }
@@ -888,15 +967,16 @@ export class CompendiumTools {
 
     // Speed
     // (dnd5e 6 keeps speeds under movement.speeds.<type>; older data at movement.<type>)
-    const speed = movementSummary(system.attributes?.movement);
+    const speed = movementSummary(at(system, 'attributes', 'movement'));
     if (speed) stats.speed = speed;
 
     return stats;
   }
 
-  private extractItemProperties(item: any): any {
-    const system = item.system || {};
-    const properties: any = {};
+  private extractItemProperties(item: Rec): Rec {
+    const system = rec(item.system);
+    const itemType = (item.type as string).toLowerCase();
+    const properties: Rec = {};
 
     // Common properties across different item types
     // The same label as the search summary ("Very Rare"), from rarity or dnd5e 6 rarities
@@ -907,7 +987,7 @@ export class CompendiumTools {
     if (system.quantity) properties.quantity = system.quantity;
 
     // Spell-specific properties
-    if (item.type.toLowerCase() === 'spell') {
+    if (itemType === 'spell') {
       if (system.level !== undefined) properties.spellLevel = system.level;
       if (system.school) properties.school = system.school;
       if (system.components) properties.components = system.components;
@@ -916,21 +996,21 @@ export class CompendiumTools {
     }
 
     // Weapon-specific properties
-    if (item.type.toLowerCase() === 'weapon') {
+    if (itemType === 'weapon') {
       if (system.damage) properties.damage = system.damage;
       if (system.weaponType) properties.weaponType = system.weaponType;
       if (system.properties) properties.weaponProperties = system.properties;
     }
 
     // Armor-specific properties: dnd5e 6 armor is `equipment` with an armor `type.value`
-    if (item.type.toLowerCase() === 'equipment') {
+    if (itemType === 'equipment') {
       Object.assign(properties, armorProperties(system));
     }
 
     return properties;
   }
 
-  private sanitizeSystemData(systemData: any): any {
+  private sanitizeSystemData(systemData: Rec): Rec {
     // Remove potentially large or unnecessary fields
     const sanitized = { ...systemData };
 
@@ -947,15 +1027,17 @@ export class CompendiumTools {
     return sanitized;
   }
 
-  private stripHtml(text: any): string {
+  private stripHtml(input: unknown): string {
+    let text = input;
     if (!text) return '';
 
     // Handle objects with value property (e.g., {value: "text"})
     if (typeof text === 'object' && text !== null) {
-      if (text.value) {
-        text = text.value;
-      } else if (text.content) {
-        text = text.content;
+      const obj = text as Rec;
+      if (obj.value) {
+        text = obj.value;
+      } else if (obj.content) {
+        text = obj.content;
       } else {
         // For other objects, try to stringify or return empty
         try {
@@ -973,14 +1055,22 @@ export class CompendiumTools {
 
     // Ensure we have a string before calling replace()
     if (typeof text !== 'string') {
-      const stringified = String(text || '');
+      // An object that is left here would print as "[object Object]", which is dropped below.
+      const stringified = typeof text === 'object' ? '' : show(text);
       if (!stringified || stringified === '[object Object]') {
         return '';
       }
       text = stringified;
     }
 
-    return text.replace(/<[^>]*>/g, '').trim();
+    // Strip tags until none is left, so nested input like "<scr<script>ipt>" cannot rebuild one.
+    let html = text as string;
+    let previous: string;
+    do {
+      previous = html;
+      html = html.replace(/<[^>]*>/g, '');
+    } while (html !== previous);
+    return html.trim();
   }
 
   private truncateText(text: string, maxLength: number): string {

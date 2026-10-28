@@ -461,9 +461,11 @@ export default class FoundryAiToolPlugin extends Plugin {
       const link = planId ? planLink(this.settings.dashboardUrl, planId) : null;
       if (link) window.open(link);
       new Notice(
-        planId
+        link
           ? 'Plan made. Confirm it in the dashboard (it opened in your browser).'
-          : summary || 'Done.'
+          : planId
+            ? 'Plan made. Open the dashboard and confirm it there.'
+            : summary || 'Done.'
       );
     } catch (error) {
       new Notice(`Quest import: ${messageOf(error)}`);

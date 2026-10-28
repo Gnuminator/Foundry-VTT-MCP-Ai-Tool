@@ -105,6 +105,14 @@ describe('readQuestNote', () => {
     );
   });
 
+  it('refuses a note kept from Claude with ai_context: false', async () => {
+    const rel = await note(
+      'Campaigns/w1/Prep/Hidden.md',
+      QUEST.replace('ai_context: true', 'ai_context: false')
+    );
+    await expect(readQuestNote(vaultDir, WORLD, rel)).rejects.toThrow(/ai_context: false/);
+  });
+
   it('reads a null or ~ fvtt_uuid as empty', async () => {
     for (const empty of ['null', '~']) {
       const rel = await note(
@@ -129,7 +137,7 @@ describe('readQuestNote', () => {
       }
       await expect(
         readQuestNote(vaultDir, WORLD, 'Campaigns/w1/Prep/Link/Evil.md')
-      ).rejects.toThrow(/leaves the vault/);
+      ).rejects.toThrow(/leaves the Prep folder/);
     } finally {
       await rmTmp(outside);
     }

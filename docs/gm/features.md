@@ -95,7 +95,7 @@ GM Actions. **End session** turns off again what it turned on. See
 
 - **What it does:** turns a quest note from your `Prep` folder in Obsidian into a GM-only quest
   journal in Foundry, after you confirm the plan. The note needs `type: quest-prep` and an empty
-  `fvtt_uuid`. Its stakes and text are copied; `secret` and `ai_context` never are. The journal is
+  `fvtt_uuid`. Its stakes and text are copied; the `secret` and `ai_context` properties never are, and a note with `ai_context: false` is refused (a journal in Foundry is not kept from Claude). The journal is
   GM-only until you reveal it, and **Undo** in Recent Changes removes it. Importing the same note
   again is refused until you undo the first import or delete the journal.
 - **Starts:** off. Setting "AI Tool: Obsidian import (writes)".

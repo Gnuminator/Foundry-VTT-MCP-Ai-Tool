@@ -156,10 +156,13 @@ export async function readQuestNote(
     throw new QuestImportError('That note is not in the vault.');
   }
   if (!stat.isFile()) throw new QuestImportError('That path is not a note.');
-  // A junction or symlinked folder under Prep must not lead out of the vault.
-  const [realFile, realRoot] = await Promise.all([fsp.realpath(full), fsp.realpath(vaultDir)]);
-  if (!realFile.startsWith(realRoot + path.sep)) {
-    throw new QuestImportError('The note path leaves the vault.');
+  // A junction or symlinked folder under Prep must not lead out of the world's Prep folder.
+  const [realFile, realPrep] = await Promise.all([
+    fsp.realpath(full),
+    fsp.realpath(path.join(vaultDir, 'Campaigns', worldId, 'Prep')),
+  ]);
+  if (!realFile.startsWith(realPrep + path.sep)) {
+    throw new QuestImportError('The note path leaves the Prep folder.');
   }
   if (stat.size > QUEST_NOTE_MAX_BYTES) {
     throw new QuestImportError(
@@ -169,6 +172,11 @@ export async function readQuestNote(
   const { props, body } = splitNote(await fsp.readFile(full, 'utf8'));
   if (props.type !== 'quest-prep') {
     throw new QuestImportError('Only a note with type: quest-prep can be imported as a quest.');
+  }
+  if (/^(false|no|off|0)$/i.test((props.ai_context ?? '').trim())) {
+    throw new QuestImportError(
+      'This note has ai_context: false, so it is kept from Claude. A journal in Foundry would not be: remove that property first if you want it imported.'
+    );
   }
   if ((props.fvtt_uuid ?? '') !== '') {
     throw new QuestImportError(

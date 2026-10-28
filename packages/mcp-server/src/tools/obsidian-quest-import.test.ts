@@ -58,7 +58,13 @@ describe('plan-obsidian-quest-import', () => {
     // Planning writes nothing to Foundry: no folder is made or referenced.
     expect(op?.data).not.toHaveProperty('folder');
     expect(op?.data._id).toBe(
-      stableQuestId('obsidian-quest:w1:campaigns/w1/prep/quests/sunsword.md')
+      stableQuestId(
+        `obsidian-quest:w1:${
+          process.platform === 'win32'
+            ? 'campaigns/w1/prep/quests/sunsword.md'
+            : 'Campaigns/w1/Prep/Quests/Sunsword.md'
+        }`
+      )
     );
     expect(JSON.stringify(input)).not.toContain('CANARY');
   });

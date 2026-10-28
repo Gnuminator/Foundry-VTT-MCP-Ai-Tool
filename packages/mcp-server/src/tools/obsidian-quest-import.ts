@@ -66,7 +66,9 @@ export class ObsidianQuestImportTools {
       const note = await readQuestNote(this.options.vaultDir, worldId, notePath);
       // The id comes from the note's path, so a second import of the same note meets the first
       // journal (an "id already exists" refusal) instead of making a copy.
-      const seed = `${worldId}:${note.notePath.toLowerCase()}`;
+      // (Case folds only on Windows, like the path check: elsewhere a case is a different file.)
+      const folded = process.platform === 'win32' ? note.notePath.toLowerCase() : note.notePath;
+      const seed = `${worldId}:${folded}`;
       const op: GuardedOp = {
         kind: 'create',
         documentName: 'JournalEntry',

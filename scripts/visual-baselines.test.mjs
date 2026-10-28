@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { pickRun, renderProblem, safeTarget, SCREENSHOTS, validBranch } from './visual-baselines.mjs';
+import { collectProblem, pickRun, renderProblem, safeTarget, SCREENSHOTS, validBranch } from './visual-baselines.mjs';
 
 test('validBranch accepts normal branches only', () => {
   assert.ok(validBranch('claude/dnd-levelup'));
@@ -33,4 +33,13 @@ test('renderProblem refuses a failed render with nothing changed', () => {
   assert.equal(renderProblem('1\n', 4), '');
   assert.match(renderProblem('1\n', 0), /nothing rendered/);
   assert.match(renderProblem('', 3), /no Playwright exit code/);
+});
+
+test('collectProblem fails when the artifact holds fewer PNGs than the run counted', () => {
+  assert.equal(collectProblem('6\n', 6), '');
+  assert.equal(collectProblem('0\n', 0), '');
+  assert.match(collectProblem('6\n', 0), /git saw 6 changed or new PNG\(s\) in the run but the artifact holds 0/);
+  assert.match(collectProblem('2', 3), /holds 3/);
+  assert.match(collectProblem('', 0), /no png-count\.txt/);
+  assert.match(collectProblem('x', 0), /no png-count\.txt/);
 });

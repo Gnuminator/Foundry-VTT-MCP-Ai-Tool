@@ -44,6 +44,7 @@ export function sectionFor(report) {
     const ok = known ? round(t.value, digits) <= t.limit : t.ok;
     lines.push(`- ${key}-ok: ${ok === null || ok === undefined ? 'unknown' : ok ? 'yes' : 'no'}`);
   }
+  if (Number.isInteger(report.advisorCalls)) lines.push(`- advisor-calls: ${report.advisorCalls}`);
   return lines.join('\n');
 }
 

@@ -946,7 +946,7 @@ Kind: read-only. Title: Plan Tarokka reading import.
 Parameters:
 
 - `source` (string): One of: `auto`, `builtin-roll`, `tarokka-reading`. Default: `auto`.
-- `clear` (boolean): Archive the current reading, deal none.
+- `clear` (boolean): Archive the current reading, deal none. Leave out source and userId with clear.
 - `userId` (string): The GM user who dealt in tarokka-reading, when that is another client than the bridge (Foundry 14.352+).
 
 ### suggest-tarokka-links

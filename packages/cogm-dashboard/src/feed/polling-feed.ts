@@ -267,6 +267,8 @@ export class PollingGameFeed implements GameFeed {
     this.foundry = 'reachable';
     this.lastError = null;
     this.lastPollAt = new Date().toISOString();
+    // publishStatus skips unchanged status, so the held copy would keep the first poll time.
+    this.handlers.onPoll?.(this.lastPollAt);
   }
 
   private maxTimestamp(a: string | null, b: string | null): string | null {

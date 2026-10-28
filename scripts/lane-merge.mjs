@@ -161,9 +161,16 @@ export const RISKY_CATEGORIES = [
       'scripts/lane-merge.mjs',
       'scripts/green.mjs',
       'scripts/drift-check.mjs',
+      // The heavy-check lock wraps green, the pre-push hook, lint-ratchet and drift-check's guards.
+      'scripts/heavy-lock.mjs',
+      'scripts/pre-push.mjs',
+      'scripts/lint-ratchet.mjs',
       '.github/workflows/**',
       '.claude/hooks/**',
       '.claude/settings.json',
+      // The review runner writes the notes the gate counts (D-127), and the agent files go into its prompt.
+      'scripts/review-runner/**',
+      '.claude/agents/**',
     ],
   },
 ];

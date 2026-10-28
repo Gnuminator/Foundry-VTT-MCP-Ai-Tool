@@ -4,7 +4,12 @@
  */
 import { describe, expect, it, vi } from 'vitest';
 import { buildSceneView, renderSceneHtml } from './scene-window.js';
-import { SessionController, parseSession, renderSessionHtml } from './session-window.js';
+import {
+  SessionController,
+  parseSession,
+  renderSessionHtml,
+  sessionErrorText,
+} from './session-window.js';
 
 const closed = { open: false, startedAt: null, lastEventAt: null, endedAt: '2026-10-18T20:00:00Z' };
 const open = { open: true, startedAt: '2026-10-18T18:00:00Z', lastEventAt: null, endedAt: null };
@@ -154,6 +159,20 @@ describe('the Session controller', () => {
   });
 });
 
+describe('the Session error text', () => {
+  it('rewrites the bridge-not-connected message and keeps any other', async () => {
+    const down = new Error(
+      'The AI Tool bridge is not connected. Is the Assistant GM browser running?'
+    );
+    const c = new SessionController(vi.fn().mockRejectedValue(down), () => {});
+    await c.load();
+    expect(c.view.error).toContain('The AI Tool is not connected right now');
+    expect(c.view.error).not.toContain('Assistant GM');
+    expect(sessionErrorText(new Error('Boom'))).toBe('Boom');
+    expect(sessionErrorText('plain')).toBe('plain');
+  });
+});
+
 describe('the Scene model', () => {
   it('reads the name, light, weather and what is playing', () => {
     const view = buildSceneView(
@@ -170,7 +189,7 @@ describe('the Scene model', () => {
     expect(view).toMatchObject({
       empty: false,
       name: 'Maravia',
-      darkness: 'Dark (70%)',
+      darkness: 'Dark, darkness 70%',
       globalLight: true,
       weather: 'fog',
       playing: ['Wind (Dread)'],
@@ -180,7 +199,7 @@ describe('the Scene model', () => {
   it('is empty without a scene and clamps a darkness outside 0 to 1', () => {
     expect(buildSceneView(null, []).empty).toBe(true);
     expect(buildSceneView({ environment: { darknessLevel: 3 } }, []).darkness).toBe(
-      'Pitch dark (100%)'
+      'Pitch dark, darkness 100%'
     );
     expect(renderSceneHtml(buildSceneView(null, []))).toContain('No scene is active');
   });

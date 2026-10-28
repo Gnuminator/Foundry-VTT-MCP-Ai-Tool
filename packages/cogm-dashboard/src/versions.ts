@@ -1,6 +1,6 @@
 /**
  * Version tracker (I-127): installed against newest for Foundry, dnd5e and each module, plus the
- * last test-kit result. GM only, behind the `versionTracker` pref (off by default, D-098).
+ * last test-kit result. GM only, behind the `versionTracker` pref (on by default, I-127).
  *
  * Installed versions come from the bridge (`get-modules`: Foundry, the system and every module
  * with its manifest url). The newest ones are looked up online at most every six hours and kept in

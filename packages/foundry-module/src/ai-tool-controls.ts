@@ -13,6 +13,7 @@ import { openCombatWindow } from './combat-window.js';
 import { MODULE_ID } from './constants.js';
 import { gmWindowsEnabled } from './gm-windows.js';
 import { openHandoutsWindow } from './handouts-window.js';
+import { openLootWindow } from './loot-window.js';
 import { openPartyWindow } from './party-window.js';
 import { openSceneWindow } from './scene-window.js';
 import { openSessionWindow } from './session-window.js';
@@ -74,6 +75,13 @@ export const AI_TOOL_BUTTONS: readonly AiToolButton[] = [
     title: 'Scene',
     icon: 'fa-solid fa-image',
     open: () => openSceneWindow(),
+    gmWindow: true,
+  },
+  {
+    name: 'loot',
+    title: 'Loot',
+    icon: 'fa-solid fa-coins',
+    open: () => openLootWindow(),
     gmWindow: true,
   },
 ];

@@ -25,6 +25,7 @@ import {
   renderEveryoneNote,
 } from './everyone-notes.js';
 import { checkMarkdownOwnership } from './ownership.js';
+import { rmTmp } from '../test-support/rm-tmp.js';
 
 const AT = new Date(2026, 9, 7, 19, 42).toISOString();
 const LATER = new Date(2026, 9, 7, 19, 50).toISOString();
@@ -253,7 +254,7 @@ describe('EveryoneNotes', () => {
 
   afterEach(async () => {
     vi.useRealTimers();
-    await fsp.rm(vaultDir, { recursive: true, force: true });
+    await rmTmp(vaultDir);
   });
 
   it('writes one note per day under the Everyone folder, and rewrites only what changed', async () => {
@@ -436,8 +437,8 @@ describe('EveryoneNotes with the real history', () => {
   });
 
   afterEach(async () => {
-    await fsp.rm(dataDir, { recursive: true, force: true });
-    await fsp.rm(vaultDir, { recursive: true, force: true });
+    await rmTmp(dataDir);
+    await rmTmp(vaultDir);
   });
 
   function record(seq: number, t: number, actionId: string): ChangeRecord {

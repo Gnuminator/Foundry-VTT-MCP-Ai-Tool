@@ -154,6 +154,8 @@ const panel = createPanelWindow({
   icon: 'fa-solid fa-swords',
   width: 380,
   height: 520,
+  left: 70,
+  top: 20,
   hooks: [
     'createCombat',
     'updateCombat',

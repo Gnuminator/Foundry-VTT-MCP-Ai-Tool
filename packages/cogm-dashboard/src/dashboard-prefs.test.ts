@@ -83,6 +83,19 @@ describe('DashboardPrefsStore', () => {
     expect(new DashboardPrefsStore(file).get('w')).toEqual(DEFAULT_PREFS);
   });
 
+  it('reads the version tracker as on unless a stored file says false (I-127)', async () => {
+    expect(DEFAULT_PREFS.versionTracker).toBe(true);
+    const file = path.join(dir, 'dashboard-prefs.json');
+    await fsp.writeFile(
+      file,
+      JSON.stringify({ worlds: { old: { duringLayout: 'auto' }, off: { versionTracker: false } } })
+    );
+    const store = new DashboardPrefsStore(file);
+    expect(store.get('old').versionTracker).toBe(true);
+    expect(store.get('off').versionTracker).toBe(false);
+    expect(store.get('never-seen').versionTracker).toBe(true);
+  });
+
   it('saves changes made at once without a race, every change kept', async () => {
     const file = path.join(dir, 'dashboard-prefs.json');
     const store = new DashboardPrefsStore(file);

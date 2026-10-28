@@ -1,11 +1,10 @@
 /**
- * `GET /api/versions` (I-127): GM only, and off until the GM switches the version tracker on, so a
- * fresh dashboard makes no online lookups. The tracker itself is in versions.test.ts.
+ * `GET /api/versions` (I-127): GM only, and on by default (a stored off stops the online lookups). The tracker itself is in versions.test.ts.
  */
 import * as http from 'http';
 import type { AddressInfo } from 'net';
 
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { CoGm } from './ai/anthropic-co-gm.js';
 import { createDashboard, type Dashboard } from './app.js';
@@ -40,6 +39,7 @@ let dashboard: Dashboard | undefined;
 let server: http.Server | undefined;
 
 afterEach(async () => {
+  vi.unstubAllGlobals();
   dashboard?.close();
   await new Promise<void>(resolve => (server ? server.close(() => resolve()) : resolve()));
   dashboard = undefined;
@@ -81,9 +81,16 @@ describe('GET /api/versions', () => {
     expect((await get(port, GM_TOKEN)).status).toBe(200);
   });
 
-  it('answers "off" while the switch is off, which is the default', async () => {
+  it('answers "on" by default (I-127)', async () => {
+    // Local requests pass; the tracker's online lookups fail at once, so the test needs no network.
+    const realFetch = globalThis.fetch;
+    vi.stubGlobal('fetch', (input: string | URL, init?: RequestInit) =>
+      String(input).startsWith('http://127.0.0.1')
+        ? realFetch(input, init)
+        : Promise.reject(new Error('offline in tests'))
+    );
     const port = await start();
-    expect((await get(port, GM_TOKEN)).body).toEqual({ enabled: false });
+    expect((await get(port, GM_TOKEN)).body).toMatchObject({ enabled: true });
   });
 });
 

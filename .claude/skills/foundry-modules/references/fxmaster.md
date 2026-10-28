@@ -2,7 +2,7 @@
 
 Verified on Foundry 14.369 / dnd5e 6.0.6, module 8.4.2, 2026-10-28 (test server B; a weather effect, its scene flag, and our scene mood write alongside it were driven live; the Effects panel itself, filters and the Foundry-wide "above fog" option were not opened).
 
-**Verdict: optional.** Rain, fog and drifting embers on the map suit Barovia and cost nothing in play, but Automated Animations with Sequencer and JB2A already cover spell effects, and this adds one more module to learn. Add it if Danni wants fog and weather on the map.
+**Verdict: optional.** Rain, fog and drifting embers on the map suit a gloomy horror campaign and cost nothing in play, but Automated Animations with Sequencer and JB2A already cover spell effects, and this adds one more module to learn. Add it if Danni wants fog and weather on the map.
 
 **For Danni's guides:** An Effects button in the scene controls turns on rain, fog, snow or embers for the current scene.
 

@@ -30,13 +30,6 @@ export const KNOWN_VIOLATIONS: KnownViolation[] = [
   },
   {
     rule: 'color-contrast',
-    target: '#tool-field-amount-desc',
-    reason: 'Muted text #6b7385 on the drawer #171a21 is 3.66:1 (needs 4.5:1), neutral theme.',
-    screens: ['tools'],
-    theme: 'neutral',
-  },
-  {
-    rule: 'color-contrast',
     target: '#advanced-menu .menu-label',
     reason: 'Muted text #6b7385 on the menu #1d212b is 3.38:1 (needs 4.5:1), neutral theme.',
     screens: ['advanced-menu'],

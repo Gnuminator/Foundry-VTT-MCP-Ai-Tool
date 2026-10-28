@@ -512,12 +512,14 @@ describe('FoundryDataAccess — rollNpcCheck', () => {
     );
     const modes = [{ value: 'thrown' }, { rule: true }, { value: 'oneHanded' }];
     const javelin = {
+      id: 'jv1',
       name: 'Javelin',
       system: {
         activities: [{ type: 'attack', rollAttack, item: { system: { attackModes: modes } } }],
       },
     };
     const dart = {
+      id: 'dt1',
       name: 'Dart',
       system: {
         activities: [

@@ -119,6 +119,8 @@ if ($Only -in 'all', 'dashboard') {
     MCP_CONTROL_HOST = '127.0.0.1'
     MCP_CONTROL_PORT = $TestEnv.ControlPort
     FOUNDRY_AI_OBSIDIAN_DIR = $TestEnv.ObsidianDir
+    # The initiative ribbon shows portraits from Foundry's address as the browser reaches it.
+    DASHBOARD_FOUNDRY_URL = "http://localhost:$($TestEnv.FoundryPort)"
     # Each test dashboard keeps its own player links and prefs: server A uses the default
     # ~/.foundry-ai-tool, the others a folder under their root (two dashboards on one links file
     # overwrite each other's saves).

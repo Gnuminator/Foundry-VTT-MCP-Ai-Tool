@@ -35,7 +35,13 @@ same system and module versions, copied from A); B also runs kit runs and soak r
 | Dashboard | `http://localhost:3101`                               | `http://localhost:3102`                               |
 | Rest      | vault, obsidian, logs, lock under the root            | the same under `C:\FoundryTestC`                      |
 
-All use A's Foundry app (`C:\FoundryTest\app`). Ports live in `scripts/test-env/servers.json`
+All use one Foundry app folder, chosen machine-wide in `C:\FoundryTest\appdir.txt` (next to A's
+`lock.json`, not in git; first line = the folder, now `C:\FoundryTest\app-14.369`). It wins over an
+`AppDir` in any worktree's `local.json` (status warns if they differ), so every checkout starts the
+same Foundry version; with no file the default is `<Root>\app`. `status.ps1` prints the version it
+will start (`Foundry ver:`); change the choice with
+`pwsh scripts/test-env/status.ps1 -SetAppDir <folder>` (take the lock and restart the servers
+afterwards; a running server keeps its old version until then). Ports live in `scripts/test-env/servers.json`
 (read by the scripts and the kit). Every script takes `-Server A|B|C` (default A, or the
 `FOUNDRY_TEST_SERVER` environment variable), and each server has its own lock.
 
@@ -61,7 +67,7 @@ though the scripts and skills are in git.
 Paths and ports come from `scripts/test-env/config.ps1` (`Get-NodeExe` there picks the newest
 portable Node 22 folder, `%LOCALAPPDATA%\node22\node-v22.*-win-x64`); `scripts/test-env/local.json`
 (gitignored) overrides paths and ports. The scripts need PowerShell 7 (`pwsh`, the PowerShell tool).
-Foundry runs on the Node its `app\package.json` requires (14.368: >=24.13.1 <25, the
+Foundry runs on the Node its `app\package.json` requires (14.368 and 14.369: >=24.13.1 <25, the
 global Node 24); the bridge and dashboard use the repo's portable Node 22.
 
 ## Rules

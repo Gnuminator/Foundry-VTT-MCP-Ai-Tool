@@ -1,8 +1,18 @@
 # Show the test environment's state, and (read-only) whether the live bridge is up.
 #
-#   pwsh scripts/test-env/status.ps1 [-Server A|B|C]
-param([ValidateSet('A', 'B', 'C')] [string]$Server)
+#   pwsh scripts/test-env/status.ps1 [-Server A|B|C] [-SetAppDir <Foundry app folder>]
+# -SetAppDir writes the machine-wide choice (<A Root>/appdir.txt) every checkout uses, then shows status.
+param([ValidateSet('A', 'B', 'C')] [string]$Server, [string]$SetAppDir)
 . (Join-Path $PSScriptRoot 'config.ps1')
+if ($SetAppDir) {
+  $full = [IO.Path]::GetFullPath($SetAppDir)
+  if (-not (Test-Path (Join-Path $full 'main.js')) -and -not (Test-Path (Join-Path $full 'resources' 'app' 'main.js'))) { throw "No Foundry main.js in $full" }
+  Set-Content -Path $AppDirFile -Value $full -Encoding utf8
+  Write-Host "Shared Foundry app folder set: $full (in $AppDirFile). Servers pick it up at their next start."
+  $TestEnv.AppDir = $full
+  $SharedAppDir = $full
+  $AppDirNote = $null
+}
 Assert-SafePorts
 $pids = Read-Pids
 
@@ -27,7 +37,10 @@ Write-Host ("Live bridge (31414-31416, never touched): {0}" -f $(if ($live) { "U
 Write-Host ''
 $main = Find-FoundryMain
 $manifest = Join-Path $TestEnv.ModuleDir 'module.json'
+$appVersion = Get-FoundryAppVersion $TestEnv.AppDir
 Write-Host "Foundry app:  $(if ($main) { $main } else { 'not installed' })"
+Write-Host "Foundry ver:  $(if ($appVersion) { "v$appVersion, the version start.ps1 will run" } else { 'unknown' }) (app folder from $(if ($SharedAppDir) { $AppDirFile } else { 'local.json or the default <Root>/app; no shared appdir.txt' }))"
+if ($AppDirNote) { Write-Host "WARNING:      $AppDirNote" }
 Write-Host "Test world:   $(if (Test-Path (Join-Path $TestEnv.DataDir 'Data' 'worlds' $TestEnv.WorldId)) { $TestEnv.WorldId } else { 'not created' })"
 Write-Host "Module copy:  $(if (Test-Path $manifest) { 'v' + (Get-Content $manifest -Raw | ConvertFrom-Json).version } else { 'not synced' })"
 Write-Host "Logs:         $($TestEnv.LogDir)"

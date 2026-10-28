@@ -17,7 +17,7 @@ const advantageProperty = {
   type: 'string',
   enum: ['advantage', 'disadvantage'],
   description:
-    'Optional. Not for custom rolls. Combines with the roller conditions (advantage on a poisoned roller is normal); omit to let those decide.',
+    'Optional. Not for custom or initiative rolls. Combines with the roller conditions (advantage on a poisoned roller is normal); omit to let those decide.',
 } as const;
 
 export class DiceRollTools {

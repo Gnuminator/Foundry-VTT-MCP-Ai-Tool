@@ -62,6 +62,7 @@ interface Dnd5eButtonRoller {
 /** A dnd5e attack activity: `rollAttack(config, dialog, message)`. */
 interface Dnd5eAttackActivity {
   type?: string;
+  item?: { system?: unknown };
   rollAttack(config: object, dialog: object, message: object): Promise<unknown>;
 }
 
@@ -103,12 +104,11 @@ export class PlayerRollsDataAccess {
   }): Promise<{ success: boolean; message: string; error?: string }> {
     shared.validateFoundryState();
     const advantage = parseAdvantage(data.advantage);
-    if (advantage && data.rollType === 'custom') {
+    if (advantage && (data.rollType === 'custom' || data.rollType === 'initiative')) {
       return {
         success: false,
         message: '',
-        error:
-          'A custom roll takes no advantage choice: put it in the formula (for example 2d20kh+5), or use an ability, skill, save or attack roll.',
+        error: `A ${data.rollType} roll takes no advantage choice: put it in the formula (for example 2d20kh+5), or use an ability, skill, save or attack roll.`,
       };
     }
 
@@ -323,7 +323,7 @@ export class PlayerRollsDataAccess {
         rollType: data.rollType,
         rollTarget: data.rollTarget,
         formula: typeof first?.formula === 'string' ? first.formula : '',
-        total: Number(first?.total),
+        total: typeof first?.total === 'number' ? first.total : 0,
         isPublic: data.isPublic,
         mode: modeOfRoll(first),
       };
@@ -749,6 +749,19 @@ export class PlayerRollsDataAccess {
         );
         return null;
       }
+      // A GM-run NPC attack has no Undo, so it must not use up a thrown weapon either: pick the
+      // first mode that is not a throw. A weapon with only throw modes is rolled as a plain d20.
+      let attackMode: { attackMode: string } | Record<string, never> = {};
+      if (spendNothing) {
+        const modes = rec(activity.item?.system)?.attackModes;
+        if (Array.isArray(modes) && modes.length > 0) {
+          const safe = modes
+            .map(m => rec(m)?.value)
+            .find((v): v is string => typeof v === 'string' && !v.startsWith('thrown'));
+          if (!safe) return null;
+          attackMode = { attackMode: safe };
+        }
+      }
       // dnd5e fills the target AC from the clicking client's targeted tokens; a GM click or the
       // dashboard's player page would carry the GM's target onto the player's card, so only the
       // player's own click keeps it.
@@ -756,9 +769,9 @@ export class PlayerRollsDataAccess {
         {
           ...(game.user?.isGM ? { target: null } : {}),
           ...advOptions,
-          // A GM-run NPC attack has no Undo: it must not use up ammunition or write item flags
-          // the way a player's attack does.
-          ...(spendNothing ? { ammunition: '' } : {}),
+          // dnd5e still remembers the last attack options on the item, but no ammunition or
+          // thrown weapon is spent.
+          ...(spendNothing ? { ammunition: '', ...attackMode } : {}),
         },
         dialog,
         message

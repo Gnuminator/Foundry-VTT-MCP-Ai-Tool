@@ -506,6 +506,47 @@ describe('FoundryDataAccess — rollNpcCheck', () => {
     expect(result).toMatchObject({ total: 19, mode: 'advantage' });
   });
 
+  it('keeps an NPC attack off the thrown mode, and rolls a throw-only weapon plain', async () => {
+    const rollAttack = vi.fn(() =>
+      Promise.resolve([{ formula: '1d20 + 4', total: 11, options: { advantageMode: 0 } }])
+    );
+    const modes = [{ value: 'thrown' }, { rule: true }, { value: 'oneHanded' }];
+    const javelin = {
+      name: 'Javelin',
+      system: {
+        activities: [{ type: 'attack', rollAttack, item: { system: { attackModes: modes } } }],
+      },
+    };
+    const dart = {
+      name: 'Dart',
+      system: {
+        activities: [
+          {
+            type: 'attack',
+            rollAttack,
+            item: { system: { attackModes: [{ value: 'thrown' }] } },
+          },
+        ],
+      },
+    };
+    const actor = world.addActor({
+      id: 'npc14',
+      name: 'Skirmisher',
+      type: 'npc',
+      items: [javelin, dart] as any,
+    });
+    actor.getRollData = (): Record<string, never> => ({});
+    const spy = installRollSpy();
+    const check = { actorName: 'Skirmisher', rollType: 'attack' as const, isPublic: true };
+
+    await da.rollNpcCheck({ ...check, rollTarget: 'Javelin' });
+    expect(rollAttack.mock.calls[0][0]).toMatchObject({ ammunition: '', attackMode: 'oneHanded' });
+
+    await da.rollNpcCheck({ ...check, rollTarget: 'Dart' });
+    expect(rollAttack).toHaveBeenCalledTimes(1);
+    expect(spy.ctorArgs).toHaveLength(1);
+  });
+
   it('never posts a second card when dnd5e returns rolls of an odd shape', async () => {
     const actor = world.addActor({ id: 'npc13', name: 'Wisp', type: 'npc' });
     actor.rollAbilityCheck = vi.fn(() => Promise.resolve([{}]));
@@ -984,6 +1025,17 @@ describe('FoundryDataAccess: player page roll buttons', () => {
     expect(result.success).toBe(false);
     expect(result.error).toContain('custom');
     expect(world.messages.size).toBe(before);
+    const init = await da.requestPlayerRolls({
+      rollType: 'initiative',
+      rollTarget: 'initiative',
+      targetPlayer: 'Alice',
+      isPublic: true,
+      rollModifier: '',
+      flavor: '',
+      advantage: 'disadvantage',
+    });
+    expect(init.success).toBe(false);
+    expect(init.error).toContain('initiative');
   });
 
   it('puts the chosen mode on the request card and in the stored state', async () => {

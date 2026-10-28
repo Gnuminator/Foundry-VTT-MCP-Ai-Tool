@@ -141,6 +141,8 @@ describe('14-system-trial.sh in an ARM64 container', { skip: containerReason }, 
       exit: label => part(label, 'exit'),
       output: label => part(label, 'output'),
       calls: label => lines(part(label, 'calls')),
+      /** Foundry's stops and restarts and every mv, in the order they happened. */
+      order: label => lines(part(label, 'order')),
       downloads: label => lines(part(label, 'downloads')),
       /** The stage's log file after that run ("none" when there is none). */
       log: label => part(label, 'log'),
@@ -466,6 +468,8 @@ describe('14-system-trial.sh in an ARM64 container', { skip: containerReason }, 
   test('trial-fails: a trial that fails after Foundry stopped puts 6.0.5, strahd-kit and options.json back', () => {
     const r = run('trial-fails');
     assert.equal(r.exit('trial'), '1', r.output('trial'));
+    assertStoppedBeforeUndo(r.calls('trial'));
+    assertNoMoveWhileRunning(r.order('trial'));
     const out = r.output('trial');
     assert.match(out, /strahd-kit is not running on port 30000/);
     assert.match(out, /dnd5e 6\.0\.5 is back in \/var\/lib\/foundry\/Data\/systems\/dnd5e/);
@@ -716,6 +720,8 @@ describe('14-system-trial.sh in an ARM64 container', { skip: containerReason }, 
   test('switch-fails: a failed switch puts the campaign back from the copy and launches the kit world again', () => {
     const r = run('switch-fails');
     assert.equal(r.exit('switch'), '1', r.output('switch'));
+    assertStoppedBeforeUndo(r.calls('switch'));
+    assertNoMoveWhileRunning(r.order('switch'));
     const out = r.output('switch');
     assert.match(out, /curse-of-strahd is not running on port 30000/);
     assert.match(out, /curse-of-strahd is back from the trial's copy, still on 6\.0\.5 data/);
@@ -847,14 +853,27 @@ describe('14-system-trial.sh in an ARM64 container', { skip: containerReason }, 
     assert.ok(between.includes('stop foundry.service'), calls.join('\n'));
   };
 
+  /** After Foundry's start on the new version, its stop comes before any mv (the undo moves world folders). */
+  const assertNoMoveWhileRunning = order => {
+    const firstRestart = order.indexOf('restart foundry.service');
+    assert.ok(firstRestart >= 0, order.join('\n'));
+    const after = order.slice(firstRestart + 1);
+    const stop = after.indexOf('stop foundry.service');
+    const move = after.findIndex(l => l.startsWith('mv '));
+    assert.ok(stop >= 0, `Foundry stops after the failed start:\n${order.join('\n')}`);
+    assert.ok(move === -1 || stop < move, `no mv before the stop:\n${order.join('\n')}`);
+  };
+
   test('trial-migration-hangs: a migration that never ends stops Foundry and the GM browser, then puts everything back', () => {
     const r = run('trial-migration-hangs');
     assert.equal(r.exit('trial'), '1', r.output('trial'));
     assert.match(r.output('trial'), /the dnd5e migration of strahd-kit did not finish in 20 s/);
     assertStoppedBeforeUndo(r.calls('trial'));
+    assertNoMoveWhileRunning(r.order('trial'));
     const st = r.state('trial');
-    assert.equal(st.system.startsWith('6.0.5'), true, st.system);
+    assert.equal(st.system, `6.0.5 (${INSTALLED})`);
     assert.equal(st.options, 'curse-of-strahd');
+    assert.deepEqual(st.worlds['strahd-kit'], untouched, 'strahd-kit is the copy again');
   });
 
   test('switch-migration-hangs: the same for a switch; the campaign is back from the trial copy', () => {
@@ -863,7 +882,10 @@ describe('14-system-trial.sh in an ARM64 container', { skip: containerReason }, 
     assert.match(r.output('switch'), /the dnd5e migration of curse-of-strahd did not finish in 20 s/);
     assert.match(r.output('switch'), /curse-of-strahd is back from the trial's copy/);
     assertStoppedBeforeUndo(r.calls('switch'));
-    assert.equal(r.state('switch').options, 'strahd-kit');
+    assertNoMoveWhileRunning(r.order('switch'));
+    const st = r.state('switch');
+    assert.equal(st.options, 'strahd-kit');
+    assert.deepEqual(st.worlds['curse-of-strahd'], untouched, 'the campaign is the copy again');
   });
 
   test('trial-migrating and switch-migrating: a release that migrates waits for it and goes through', () => {
@@ -876,7 +898,11 @@ describe('14-system-trial.sh in an ARM64 container', { skip: containerReason }, 
   });
 
   test('trial-copy-fails, rollback-restore-fails, rollback-swap-fails: a failed copy or move is undone or finished by a rerun', () => {
-    assert.equal(run('trial-copy-fails').exit('trial'), '1');
+    const c = run('trial-copy-fails');
+    assert.equal(c.exit('trial'), '1', c.output('trial'));
+    assert.equal(c.state('trial').system, `6.0.5 (${INSTALLED})`, 'the old version is still in place');
+    assert.equal(c.state('trial').options, 'curse-of-strahd');
+    assert.equal(c.state('trial').stopped, 'none', 'Foundry runs again');
     const a = run('rollback-restore-fails');
     assert.equal(a.exit('rollback'), '1', a.output('rollback'));
     assert.equal(a.exit('rerun'), '0', a.output('rerun'));

@@ -5,10 +5,9 @@
 #   pwsh scripts/desktop/repoint-connectors.ps1 -Folder <...\foundry-mcp-server-abc1234> -Apply    changes the config
 #   pwsh scripts/desktop/repoint-connectors.ps1 -Rollback <config backup file> -Apply              puts a backup back
 #
-# -Apply first copies the config to claude_desktop_config.json.bak-<time> next to it. Only the second argument of
-# each entry that runs a foundry-mcp-server-*\packages\mcp-server\dist\index.cjs changes (args[0], the first
-# argument, the path of the script); the env (tool set,
-# control host and port) and every other server stay as they are. Claude Desktop reads the config at start: this
+# -Apply first copies the config to claude_desktop_config.json.bak-<time> next to it. Only args[0] (the path of the
+# script) of each entry that runs a foundry-mcp-server-*\packages\mcp-server\dist\index.cjs changes; the env (tool
+# set, control host and port) and every other server stay as they are. Claude Desktop reads the config at start: this
 # script never restarts it, and a restart ends every Claude session, so the user does that when it suits.
 param(
   [string]$Folder,

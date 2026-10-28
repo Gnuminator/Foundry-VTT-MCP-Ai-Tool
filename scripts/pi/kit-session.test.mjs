@@ -1704,6 +1704,24 @@ describe('kit-session.sh in an ARM64 container', { skip: containerReason }, () =
     assert.match(r.output, /Foundry runs strahd-kit \(it launched strahd-kit before\)/);
   });
 
+  test('up refused during a trial when Foundry launches a campaign world (MODE=down would refuse it later)', () => {
+    const r = run('up-trial-campaign');
+    untouched(r, 'curse-of-strahd');
+    assert.equal(r.exit, 1, r.output);
+    assert.match(r.output, /a dnd5e system trial is open .*the kit session \(MODE=up\)/);
+    assert.deepEqual(r.calls, []);
+    assert.deepEqual(r.state, ['absent']);
+  });
+
+  test('up refused while a stage 14 rollback is halfway (phase rolling-back)', () => {
+    const r = run('up-trial-rolling-back');
+    untouched(r, 'curse-of-strahd');
+    assert.equal(r.exit, 1, r.output);
+    assert.match(r.output, /phase rolling-back/);
+    assert.deepEqual(r.calls, []);
+    assert.deepEqual(r.state, ['absent']);
+  });
+
   test('down after such an up leaves Foundry on strahd-kit, not on a campaign world', () => {
     const r = run('down-trial-kit-orig');
     assert.equal(r.exit, 0, r.output);

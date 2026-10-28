@@ -191,7 +191,9 @@ run_stage() { # $1 label, then KEY=VALUE words for the stage
   echo "--- $label output"
   cat /tmp/out.last
   echo "--- $label calls"
-  grep -v '^journalctl' /tmp/calls || true
+  grep -v -e '^journalctl' -e '^mv ' -e '^cp ' /tmp/calls || true
+  echo "--- $label order"
+  grep -e '^stop foundry.service$' -e '^restart foundry.service$' -e '^mv ' /tmp/calls || true
   echo "--- $label downloads"
   cat /tmp/downloads 2>/dev/null || true
   echo "--- $label log"
@@ -439,8 +441,8 @@ s_run_locked() {
 }
 
 # A kit session is up (kit-session.sh left its state file): the Kit GM browser holds strahd-kit, so trial, switch and
-# rollback are refused, status is not. Switch and rollback are tried with FORCE=1 too, as the kit session's own state
-# would be left dangling by a forced rollback.
+# rollback are refused, status is not. The rollback is tried with FORCE=1, as a forced rollback would leave the kit
+# session's own state dangling.
 s_kit_session_up() {
   mkdir -p "$TOOL_DATA"
   echo ORIG_WORLD=curse-of-strahd >"$TOOL_DATA/kit-session.env"

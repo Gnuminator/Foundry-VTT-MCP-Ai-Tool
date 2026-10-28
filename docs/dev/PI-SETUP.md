@@ -965,7 +965,8 @@ GitHub); the first one is 6.0.6 (the Pi runs 6.0.5). A new version is a new revi
 lines.
 
 Each mode except `status` stops Foundry for a minute or two: a `dietpi-backup 1` snapshot and your
-OK first, every time. From the clean main checkout on this PC, with the mode in front of `bash`:
+OK first, every time. The stage checks it: a snapshot from today, and for `MODE=switch` one taken after
+the trial began (the nightly one from before it does not count). From the clean main checkout on this PC, with the mode in front of `bash`:
 
 ```powershell
 cat scripts/pi/remote/lib.sh scripts/pi/remote/14-system-trial.sh | ssh foundry-pi 'MODE=status bash -s'
@@ -1012,7 +1013,8 @@ is a snapshot, the user's OK and a read of the output first):**
 1. `dietpi-backup 1` snapshot, then stage 14 `MODE=trial` (dnd5e 6.0.6 on `strahd-kit`).
 2. Snapshot, then stage 3 with `FOUNDRY_EXPECT_VERSION=14.369` and the zip in place. The trial is
    open, so Foundry restarts on `strahd-kit`: the new Foundry meets the kit first, not the campaign.
-3. Stage 5 with `TOOL_REF=v0.23.0` (the tool release).
+3. `5-tool.sh` with `TOOL_REF=v0.23.0` (the tool release). `5-check-world.sh` refuses while the trial
+   is open, which is expected here.
 4. The test kit on `strahd-kit`: `kit-session.sh MODE=up`, `npm run kit:run -- --target pi
 --not-game-night`, `MODE=down`.
 5. Snapshot, then stage 14 `MODE=switch` (the campaign migrates).

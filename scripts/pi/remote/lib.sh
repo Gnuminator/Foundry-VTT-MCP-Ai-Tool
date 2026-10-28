@@ -52,7 +52,9 @@ refuse_during_system_trial() { # $1 the stage, $2... the worlds it launches (non
   [ -e "$SYSTEM_TRIAL_DIR" ] || return 0
   phase="$(sed -n 's/^phase=//p' "$SYSTEM_TRIAL_DIR/state" 2>/dev/null | head -n1)" || phase=""
   [ "$phase" != switched ] || return 0
-  if [ "$#" -gt 0 ]; then
+  # A stage that launches only the kit passes in phase trial alone: in installing, switching, rolling-back or an
+  # unknown phase the Pi is mid-change (a halfway rollback), and nothing may start a session on it.
+  if [ "$#" -gt 0 ] && [ "$phase" = trial ]; then
     for id in "$@"; do [ "$id" = strahd-kit ] || break; done
     [ "$id" != strahd-kit ] || return 0
   fi
@@ -284,6 +286,21 @@ require_recent_snapshot() {
     return 0
   fi
   die "no dietpi-backup snapshot completed today (last: ${last_when:-none}). Take one first: /boot/dietpi/dietpi-backup 1 (a brand-new Pi with nothing to lose: put NO_SNAPSHOT=1 in front of bash)"
+}
+
+# require_snapshot_after FILE: refuses unless the last completed dietpi-backup snapshot is newer than FILE's mtime (stage 14
+# MODE=switch: the snapshot taken after the trial began, since a switch has no undo but restoring it). No NO_SNAPSHOT
+# switch. Skipped off DietPi (a test container). Same stats file and format as require_recent_snapshot.
+require_snapshot_after() {
+  local stats="${DIETPI_BACKUP_STATS:-/mnt/dietpi-backup/.dietpi-backup_stats}" last="" last_when="" snap_epoch="" file_epoch=""
+  [ -d "${DIETPI_DIR:-/boot/dietpi}" ] || return 0
+  if [ -f "$stats" ]; then last="$(grep 'Backup completed' "$stats" | tail -n 1 || true)"; fi
+  last_when="${last%% *}"
+  [ -z "$last_when" ] || snap_epoch="$(date -d "${last_when/_/ }" +%s 2>/dev/null || true)"
+  file_epoch="$(stat -c %Y "$1" 2>/dev/null || true)"
+  [[ "$snap_epoch" =~ ^[0-9]+$ && "$file_epoch" =~ ^[0-9]+$ ]] || die "cannot compare the last snapshot (${last_when:-none}) with $1. Take one first: /boot/dietpi/dietpi-backup 1. Nothing was changed"
+  [ "$snap_epoch" -gt "$file_epoch" ] || die "the last dietpi-backup snapshot ($last_when) is older than $1: take one now (/boot/dietpi/dietpi-backup 1), since this step has no undo but restoring it. Nothing was changed"
+  ok "dietpi-backup snapshot from after the trial began ($last_when)"
 }
 
 # warn_dashboard_split: the co-GM dashboard treats every caller as the GM until GM_DASHBOARD_TOKEN or GM_EMAILS is set

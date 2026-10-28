@@ -82,6 +82,7 @@ if [ "$MODE" != status ]; then
   trap '' HUP PIPE
   STAGE_LOG="$IMPORT/system-trial.log"
   ok "MODE=$MODE started (this run is logged in $STAGE_LOG)"
+  require_recent_snapshot
 fi
 
 # ---- helpers -----------------------------------------------------------------------------------------------
@@ -589,6 +590,7 @@ if [ "$MODE" = switch ]; then
   esac
   [ "$installed" = "$to" ] || die "the trial installed $SYSTEM $to but $installed is in $sysdir: see MODE=status. Nothing was changed"
   [ -d "$TRIAL/worlds/$CAMPAIGN" ] || die "the trial has no copy of $CAMPAIGN in $TRIAL/worlds. Nothing was changed"
+  require_snapshot_after "$TRIAL/started"
   if launched_since_trial "$CAMPAIGN"; then
     campaign_was_launched=1
     warn "$CAMPAIGN was launched during the trial, so it may run on $to already; a failed switch leaves it as it is"

@@ -2,6 +2,7 @@
 # Stand-in for cp (stage 14 scenarios): everything goes to /bin/cp, except that when /tmp/cp_fail names a world id and
 # the source of a two-path copy ends in that id, the copy dies once: a cut-short folder (the world.json and an empty
 # data folder) is left at the destination, /tmp/cp_fail is removed, and cp exits 1.
+echo "cp $*" >>/tmp/calls 2>/dev/null || true # for the order of a run (run_stage prints it as "order")
 if [ -f /tmp/cp_fail ]; then
   want="$(cat /tmp/cp_fail)"
   paths=()

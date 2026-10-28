@@ -336,7 +336,9 @@ if [ "$MODE" = up ]; then
   # kit runs there, and MODE=down puts options.json back on it, not on a campaign world that would migrate.
   trial_phase="$(sed -n 's/^phase=//p' "$SYSTEM_TRIAL_DIR/state" 2>/dev/null | head -n1)" || trial_phase=""
   [ "$orig_world" != "$KIT_WORLD" ] || [ "$trial_phase" = trial ] || die "Foundry already launches $KIT_WORLD: nothing to set up (and nothing to put back afterwards). Nothing was changed"
-  refuse_during_system_trial "the kit session (MODE=up)" "$KIT_WORLD"
+  # Ask for the worlds MODE=down will launch as well, so a session never comes up in a state its own MODE=down refuses
+  # (and which then locks stage 14 out through kit-session.env).
+  refuse_during_system_trial "the kit session (MODE=up)" "$KIT_WORLD" "${orig_world:-none}"
   [[ "$orig_world" =~ ^[a-z0-9-]*$ ]] || die "options.json launches '$orig_world', which is not a plain world id: nothing was changed"
   driver_available || die "no $SESSION_DRIVER: scp scripts/pi/remote/kit-session.mjs foundry-pi:/root/ first"
   # The Kit GM browser runs stage 5's Assistant GM driver under a transient unit and needs the bridge to talk to.

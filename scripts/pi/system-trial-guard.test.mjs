@@ -5,7 +5,15 @@
 // Runs with the real lib.sh in folders of its own (bash needed; Git Bash on Windows works).
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  utimesSync,
+  writeFileSync,
+} from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { after, describe, test } from 'node:test';
@@ -76,11 +84,63 @@ describe('refuse_during_system_trial', { skip: !hasBash && 'no bash here' }, () 
     assert.match(guard('strahd-kit', 'strahd-kit').stdout, /passed/);
   });
 
+  for (const state of ['phase=installing\n', 'phase=switching\n', 'phase=rolling-back\n', undefined]) {
+    test(`a kit-only stage is refused outside phase trial (${state?.trim() ?? 'no state file'})`, () => {
+      setTrial(state);
+      const res = guard('strahd-kit');
+      assert.equal(res.status, 1);
+      assert.doesNotMatch(res.stdout, /passed/);
+    });
+  }
+
   test('a trial folder without a state file counts as open (phase unknown)', () => {
     setTrial(undefined);
     const res = guard();
     assert.equal(res.status, 1);
     assert.match(res.stderr, /phase unknown/);
+  });
+});
+
+describe('stage 14 wants a snapshot', { skip: !hasBash && 'no bash here' }, () => {
+  const dietpi = `${root}/dietpi`;
+  const stats = `${root}/stats`;
+  const marker = `${root}/started`;
+  // The trial began at 2026-10-28 10:00; the snapshot line says when the last one completed.
+  const run = (fn, line) => {
+    mkdirSync(dietpi, { recursive: true });
+    writeFileSync(stats, line ? `${line}  Backup completed\n` : '');
+    writeFileSync(marker, 'x');
+    const t = new Date('2026-10-28T10:00:00');
+    utimesSync(marker, t, t);
+    return bash(`${lib}\n${fn} ${marker}\necho passed\n`, {
+      DIETPI_DIR: dietpi,
+      DIETPI_BACKUP_STATS: stats,
+    });
+  };
+
+  test('require_snapshot_after: a snapshot from before the trial began is refused', () => {
+    const res = run('require_snapshot_after', '2026-10-28_09:00:00');
+    assert.equal(res.status, 1);
+    assert.match(res.stderr, /older than .*started: take one now/);
+  });
+
+  test('require_snapshot_after: a snapshot from after the trial began passes', () => {
+    assert.match(run('require_snapshot_after', '2026-10-28_11:30:00').stdout, /passed/);
+  });
+
+  test('require_snapshot_after: no snapshot line at all is refused', () => {
+    const res = run('require_snapshot_after', '');
+    assert.equal(res.status, 1);
+    assert.match(res.stderr, /cannot compare the last snapshot/);
+  });
+
+  test('the stage calls require_recent_snapshot for every mode but status, and require_snapshot_after before a switch', () => {
+    const stage = readFileSync(path.join(remote, '14-system-trial.sh'), 'utf8');
+    const start = stage.indexOf('if [ "$MODE" != status ]; then\n  install -d');
+    const end = stage.indexOf('\nfi\n', start);
+    assert.ok(start > 0 && stage.slice(start, end).includes('require_recent_snapshot'));
+    const sw = stage.indexOf('if [ "$MODE" = switch ]; then');
+    assert.ok(stage.indexOf('require_snapshot_after "$TRIAL/started"', sw) > sw);
   });
 });
 

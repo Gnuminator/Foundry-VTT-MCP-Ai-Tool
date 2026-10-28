@@ -2,6 +2,7 @@
 # Stand-in for mv (stage 14 scenarios): everything goes to /bin/mv, except that when /tmp/mv_fail names a name and the
 # source of a two-path move ends in it (for example dnd5e-6.0.5), the move fails once: nothing moves, /tmp/mv_fail is
 # removed, and mv exits 1.
+echo "mv $*" >>/tmp/calls 2>/dev/null || true # for the order of a run (run_stage prints it as "order")
 if [ -f /tmp/mv_fail ]; then
   want="$(cat /tmp/mv_fail)"
   paths=()

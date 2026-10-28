@@ -362,6 +362,34 @@ describe('readPrepNotes', () => {
     expect(part.keptOut).toBe(1);
   });
 
+  it('never lets a kept-out note, the tool folder or a conflict copy reach the part (secret canary)', async () => {
+    const canary = 'CANARY-PREP-SECRET-7f3a';
+    await note(
+      'Prep/NPCs/Hidden.md',
+      fm({ type: 'npc-prep', fvtt_uuid: 'Actor.a1', ai_context: 'false', secret: canary }, canary)
+    );
+    await note(
+      'AI Tool/Foundry/NPCs/Mirror.md',
+      fm({ type: 'npc-prep', fvtt_uuid: 'Actor.a1', secret: canary }, canary)
+    );
+    await note(
+      'Prep/NPCs/Ivarro.sync-conflict-20261028-120000-ABC.md',
+      fm({ type: 'npc-prep', fvtt_uuid: 'Actor.a1', secret: canary }, canary)
+    );
+    await note(
+      'Prep/Templates/NPC.md',
+      fm({ type: 'npc-prep', fvtt_uuid: 'Actor.a1', secret: canary }, canary)
+    );
+    await note(
+      'Prep/NPCs/Ivarro.md',
+      fm({ type: 'npc-prep', fvtt_uuid: 'Actor.a1' }, 'Wants gold.')
+    );
+    const { part } = await readPrepNotes(input(WANTED));
+    expect(JSON.stringify(part)).not.toContain(canary);
+    expect(part.keptOut).toBe(1);
+    expect(part.notes.map(n => n.lines.join(' ')).join(' ')).toContain('Wants gold.');
+  });
+
   it('reports a walk that stopped at a limit', async () => {
     await note('Prep/A.md', fm({ type: 'session-plan' }));
     await note('Prep/B.md', fm({ type: 'npc-prep' }));

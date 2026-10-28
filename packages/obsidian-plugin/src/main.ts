@@ -79,6 +79,8 @@ import {
   type ThemeId,
 } from './theme.js';
 import {
+  aiContextAllowed,
+  aiContextNotice,
   campaignRootOf,
   fillPrepNote,
   findPrepNote,
@@ -247,6 +249,21 @@ export default class FoundryAiToolPlugin extends Plugin {
         const source = this.prepSourceFor(this.app.workspace.getActiveFile());
         if (!source) return false;
         if (!checking) this.pickPrepKind(source);
+        return true;
+      },
+    });
+
+    this.addCommand({
+      id: 'toggle-ai-context',
+      name: 'Toggle: Claude may read this prep note',
+      checkCallback: checking => {
+        const file = this.app.workspace.getActiveFile();
+        if (!file) return false;
+        const frontmatter = this.app.metadataCache.getFileCache(file)?.frontmatter as
+          | Record<string, unknown>
+          | undefined;
+        if (!isPrepType(frontmatter?.type)) return false;
+        if (!checking) void this.toggleAiContext(file, aiContextAllowed(frontmatter?.ai_context));
         return true;
       },
     });
@@ -437,6 +454,17 @@ export default class FoundryAiToolPlugin extends Plugin {
 
   /** A mirror note that can get a prep note: a world document (not a compendium entry or a prep
    * note itself) in its world's campaign folder. */
+  private async toggleAiContext(file: TFile, allowedNow: boolean): Promise<void> {
+    try {
+      await this.app.fileManager.processFrontMatter(file, fm => {
+        (fm as Record<string, unknown>).ai_context = !allowedNow;
+      });
+      new Notice(aiContextNotice(!allowedNow));
+    } catch (error) {
+      new Notice(`AI context: ${messageOf(error)}`);
+    }
+  }
+
   private prepSourceFor(file: TFile | null): PrepSource | null {
     const note = this.noteFor(file);
     if (!file || !note || note.uuid.startsWith('Compendium.')) return null;

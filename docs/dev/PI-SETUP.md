@@ -1160,23 +1160,54 @@ Today, red when the backup is older than 30 hours or no report came for 3 hours.
 - Tests: `scripts/pi/board-status.test.mjs` (the script against a local server) and, with
   `PI_STAGE16_CONTAINER=1` (Docker), `scripts/pi/container-test/stage16-scenarios.sh` in the ARM64 container.
 
+## GitHub Actions runners for the PM board (stage 17)
+
+The PM board is rebuilt by GitHub Actions on every vault push, which used up the free hosted minutes
+(2026-10-28). Stage 17 (`scripts/pi/remote/17-gh-runner.sh`) puts two self-hosted runners (linux-arm64, pinned
+release and sha256) on the Pi: `vault` for `Gnuminator/obsidian-vault` (workflow `board`) and `board` for
+`Gnuminator/foundry-ai-tool-pm-board` (workflow `deploy board`). A repo-level runner serves one repo, hence two.
+
+- **Fenced from the game:** the user `ghrunner` (no login, no sudo, no foundry group); each runner's unit allows
+  writes only in `/opt/gh-runner/<name>`, cannot see `/etc/foundry-ai-tool`, `/var/lib/foundry*` or `/mnt`, cannot
+  reach loopback or the Tailscale addresses (so not the bridge, the dashboard or the Foundry link), and has 2 GB and a
+  low CPU weight. Foundry itself listens on the LAN address too, behind its own login.
+- **Gate:** `foundry-ai-tool-gh-runner-gate.timer` (every minute) runs `/opt/gh-runner/gate.sh`. While a play
+  session is marked (newest `session-start` with no later `session-end` in `sessions/<date>.jsonl` of any world vault,
+  a start older than 14 hours is stale, the Cast worker's rule) it stops the runners that run no job, and a job
+  already running is never killed. Builds wait on GitHub's side and run when the session ends. If the state cannot
+  be read, the runners stay stopped for up to 6 hours in a row, then the gate lets them run and logs it. The runners are
+  not enabled at boot: the gate starts them (within a minute) when no session is marked.
+- **Tokens:** the Cloudflare token stays in the `board` environment secrets on GitHub (the workflow already reads it;
+  nothing of it is on the Pi). A runner is registered with a one-hour registration token that
+  `scripts/pi/remote/put-runner-token.sh vault|board` (on the PC) pipes from `gh` into
+  `/etc/foundry-ai-tool/gh-runner-<name>.reg` (root only) without printing it; the stage deletes the file after
+  registering. A runner that is registered needs no token on a rerun.
+- **Run:** after a `dietpi-backup` snapshot and both token files,
+  `cat scripts/pi/remote/lib.sh scripts/pi/remote/17-gh-runner.sh | ssh foundry-pi 'bash -s'`. It does not touch Foundry
+  or any of its services.
+- **Check later:** `systemctl list-timers foundry-ai-tool-gh-runner-gate.timer`,
+  `journalctl -u foundry-ai-tool-gh-runner-gate -n 10`, each repo's Settings > Actions > Runners shows `foundry-pi`.
+  To stop everything: `systemctl disable --now foundry-ai-tool-gh-runner-gate.timer` and stop the two runner units.
+- Tests: `scripts/pi/gh-runner.test.mjs` (the gate against fake vaults, the stage as text).
+
 ## Where things live on the Pi
 
-| What                                                         | Where                                                                                                                 |
-| ------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------- |
-| Foundry program                                              | `/opt/foundry`                                                                                                        |
-| Foundry data (worlds, modules, assets)                       | `/var/lib/foundry`                                                                                                    |
-| Node.js                                                      | `/opt/node24`                                                                                                         |
-| The tool (release builds)                                    | `/opt/foundry-ai-tool`                                                                                                |
-| Settings and secrets for the tool                            | `/etc/foundry-ai-tool/.env` (readable by root and the service only)                                                   |
-| The tool's storage (bridge vault)                            | `/var/lib/foundry-ai-tool`                                                                                            |
-| Backups                                                      | restic repository `/var/lib/foundry-backup/restic` (the PC copy: `E:\PiBackup\restic`)                                |
-| Recorder bot                                                 | `/opt/foundry-ai-tool/discord-bot` (service `foundry-ai-tool-discord-bot`)                                            |
-| Recordings (until this PC has copied them, then 7 more days) | `/var/lib/foundry-ai-tool/recordings`                                                                                 |
-| GM vault (Syncthing shares it)                               | `/var/lib/foundry-ai-tool/obsidian/gm`                                                                                |
-| Space check status (hourly)                                  | `/var/lib/foundry-ai-tool/space/status.json`                                                                          |
-| Board status report (stage 16): script, token file, timer    | `/opt/foundry-ai-tool/status/board-status.sh`, `/etc/foundry-ai-tool/board-status.conf`, `foundry-board-status.timer` |
-| When this PC last copied the backups (restic, snapshot)      | `/var/lib/foundry-backup-pulls/<kind>.json`                                                                           |
+| What                                                         | Where                                                                                                                      |
+| ------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------- |
+| Foundry program                                              | `/opt/foundry`                                                                                                             |
+| Foundry data (worlds, modules, assets)                       | `/var/lib/foundry`                                                                                                         |
+| Node.js                                                      | `/opt/node24`                                                                                                              |
+| The tool (release builds)                                    | `/opt/foundry-ai-tool`                                                                                                     |
+| Settings and secrets for the tool                            | `/etc/foundry-ai-tool/.env` (readable by root and the service only)                                                        |
+| The tool's storage (bridge vault)                            | `/var/lib/foundry-ai-tool`                                                                                                 |
+| Backups                                                      | restic repository `/var/lib/foundry-backup/restic` (the PC copy: `E:\PiBackup\restic`)                                     |
+| Recorder bot                                                 | `/opt/foundry-ai-tool/discord-bot` (service `foundry-ai-tool-discord-bot`)                                                 |
+| Recordings (until this PC has copied them, then 7 more days) | `/var/lib/foundry-ai-tool/recordings`                                                                                      |
+| GM vault (Syncthing shares it)                               | `/var/lib/foundry-ai-tool/obsidian/gm`                                                                                     |
+| Space check status (hourly)                                  | `/var/lib/foundry-ai-tool/space/status.json`                                                                               |
+| Board status report (stage 16): script, token file, timer    | `/opt/foundry-ai-tool/status/board-status.sh`, `/etc/foundry-ai-tool/board-status.conf`, `foundry-board-status.timer`      |
+| GitHub runners for the PM board (stage 17): runners, gate    | `/opt/gh-runner/{vault,board}`, `/opt/gh-runner/gate.sh`, `foundry-ai-tool-gh-runner-{vault,board}.service`, `-gate.timer` |
+| When this PC last copied the backups (restic, snapshot)      | `/var/lib/foundry-backup-pulls/<kind>.json`                                                                                |
 
 ## Sources
 

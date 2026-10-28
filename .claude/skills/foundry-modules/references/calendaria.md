@@ -44,7 +44,7 @@ Keys are `calendaria.<key>`. Almost all are hidden and edited in the settings pa
 
 ## Gotchas on Foundry 14 / dnd5e 6
 
-- Settled 2026-10-28: the first page said optional, the 2026-10-04 walkthrough said keep. A live check on server C (Foundry 14.369, Calendaria 1.4.6, 3DS Atlas, Barovian calendar in the list of 20, one combat round moved world time by 6 seconds, no errors) agrees with keep.
+- Settled 2026-10-28: the first page said optional, the 2026-10-04 walkthrough said keep. A live check on server C (Foundry 14.369, Calendaria 1.4.6, 3DS Atlas, Barovian calendar in the list of 20 (the code bundles 21), one combat round moved world time by 6 seconds, no errors seen; console read incomplete) agrees with keep.
 - Foundry 14 only (`minimum` and `verified` are both 14): user-scope settings and ApplicationV2.
 - Only the primary GM client (`ATLAS.isPrimaryGM`) advances time and writes scenes, so nothing happens with no GM connected. Set the primary GM in 3DS:ATLAS settings if the bridge GM and the human GM differ.
 - 1.4.6 fixed corrupted calendar overrides on load, the weekday restart per month and an FXMaster trail bug. Older worlds with legacy overrides get repaired on load.

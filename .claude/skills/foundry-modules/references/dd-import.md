@@ -2,7 +2,7 @@
 
 Verified on Foundry 14.369 / dnd5e 6.0.6, module 6.1.1, 2026-10-28 (test server C). No map was imported, so the import itself is not verified (marked in place).
 
-**Verdict: keep.** It is the tool that turns a map file with walls and lights already drawn into a ready Foundry scene, which saves a lot of hand work for bought battlemaps. It does nothing until someone uses it, loaded with no errors and has no settings that bite.
+**Verdict: keep.** It is the tool that turns a map file with walls and lights already drawn into a ready Foundry scene, which saves a lot of hand work for bought battlemaps. It does nothing until someone uses it, loaded with no errors seen (console read incomplete on 2026-10-28, so absence of errors is not proven) and has no settings that bite.
 
 **For Danni's guides:** If you have a map made in Dungeondraft or DungeonFog, this turns it into a scene with its walls, doors and lights already set up, in one step.
 

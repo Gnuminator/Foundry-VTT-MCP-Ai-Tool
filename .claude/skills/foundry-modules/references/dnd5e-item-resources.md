@@ -2,7 +2,7 @@
 
 Verified on Foundry 14.369 / dnd5e 6.0.6, module 1.3.00, 2026-10-28 (test server C). Parts not clicked through are marked "(not verified)".
 
-**Verdict: optional.** It adds a coloured, animated bar on the character sheet for any item that has limited uses. It loaded with no errors, but the manifest only claims Foundry 14.361 and says nothing about dnd5e 6, and dnd5e 6 already shows uses on the sheet. A nice look for a player who likes it, not something the game needs.
+**Verdict: optional.** It adds a coloured, animated bar on the character sheet for any item that has limited uses. It loaded with no errors seen (console read incomplete on 2026-10-28, so absence of errors is not proven), but the manifest only claims Foundry 14.361 and says nothing about dnd5e 6, and dnd5e 6 already shows uses on the sheet. A nice look for a player who likes it, not something the game needs.
 
 **For Danni's guides:** If a feature has a limited number of uses (like Second Wind), a player can switch on a coloured bar for it on their sheet, so they see at a glance how many uses are left.
 

@@ -2,7 +2,7 @@
 
 Verified on Foundry 14.369 / dnd5e 6.0.6, module 5.0.2, 2026-10-28 (test server C, world ai-tool-test, six combatants). Parts not clicked through are marked "(not verified)".
 
-**Verdict: keep.** It puts the turn order on the map as a row of portraits and it loaded and ran with no errors of its own. On 2026-10-04 a Player's carousel left out a hidden monster, so it does not spoil the fight. It replaces how combat looks for everyone, so it is a matter of taste for Danni; nothing in the AI Tool depends on it.
+**Verdict: keep.** It puts the turn order on the map as a row of portraits and it loaded and ran with no errors seen (console read incomplete on 2026-10-28, so absence of errors is not proven). On 2026-10-04 a Player's carousel left out a hidden monster, so it does not spoil the fight. It replaces how combat looks for everyone, so it is a matter of taste for Danni; nothing in the AI Tool depends on it.
 
 **For Danni's guides:** When a fight starts, the turn order shows as a row of faces along the top of the screen, with the current turn highlighted and a health bar under each face.
 

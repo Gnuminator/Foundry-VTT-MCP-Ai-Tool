@@ -2,7 +2,7 @@
 
 Verified on Foundry 14.369 / dnd5e 6.0.6, module 14.01, 2026-10-28 (test server C). Parts not clicked through are marked "(not verified)".
 
-**Verdict: keep.** A bundle of small quality-of-life changes (more condition icons, a pause border, a find-my-token button, nicer compendium sorting) that loaded cleanly. Each part has its own switch, so a part that annoys someone can be turned off.
+**Verdict: keep.** A bundle of small quality-of-life changes (more condition icons, a pause border, a find-my-token button, nicer compendium sorting) that loaded without a visible problem (console read incomplete on 2026-10-28, so absence of errors is not proven). Each part has its own switch, so a part that annoys someone can be turned off.
 
 **For Danni's guides:** Lots of small tidy-ups: extra condition icons on tokens (like Charmed, Grappled, Raging, Dodging), a coloured border while the game is paused, and a button that finds your own token on the map.
 

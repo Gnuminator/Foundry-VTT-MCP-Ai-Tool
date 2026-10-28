@@ -2,7 +2,7 @@
 
 Verified on Foundry 14.369 / dnd5e 6.0.6, module 14.01, 2026-10-28 (test server C; first look on server B, 14.368). Parts not clicked through are marked "(not verified)".
 
-**Verdict: keep.** Its main feature, a drop-down in Game Settings for the GM to view and edit another player's client settings, works on Foundry 14.369. The module is small and loads cleanly. The manifest only claims Foundry 13 (`compatibility.verified` is 13), so a Foundry update may need a new release.
+**Verdict: keep.** Its main feature, a drop-down in Game Settings for the GM to view and edit another player's client settings, works on Foundry 14.369. The module is small and loaded without a visible problem (console read incomplete on 2026-10-28, so absence of errors is not proven). The manifest only claims Foundry 13 (`compatibility.verified` is 13), so a Foundry update may need a new release.
 
 **For Danni's guides:** In Game Settings there is a drop-down at the top. Pick a player and you see that player's own settings (like sound volume) and can change them for them. A player who has never logged in has nothing saved yet.
 

@@ -210,6 +210,17 @@ export class Sweep {
 // --- Page helpers -------------------------------------------------------------------------------------
 
 /**
+ * Hide other modules' floating widgets that sit over the scene controls in the small kit window
+ * (the modules-all profile, I-117): Calendaria's mini calendar covers the AI Tool button, which
+ * is a layout clash in a window this size; a GM drags the widget away. The element does not exist
+ * under the other profiles, so the style does nothing there.
+ * @param {import('playwright-core').Page} page
+ */
+export async function hideModuleOverlays(page) {
+  await page.addStyleTag({ content: '#calendaria-mini-cal { display: none !important; }' });
+}
+
+/**
  * Open the sidebar, which Foundry starts collapsed in a small headless window: a collapsed sidebar
  * leaves the chat and the settings buttons outside the viewport, where they cannot be clicked.
  * @param {import('playwright-core').Page} page

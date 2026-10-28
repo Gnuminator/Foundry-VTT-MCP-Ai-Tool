@@ -489,6 +489,7 @@ async function cmdTarget(command, o) {
         dashboard,
         gm,
         manifest,
+        knownConsoleErrors: o.profileData.knownConsoleErrors,
         fake: o.fake,
         size: /** @type {'smoke'|'full'|'long'} */ (o.size),
         log: say,

@@ -50,7 +50,7 @@ test('all --fake builds the kit and every scenario passes', () => {
         `${s.id} skipped without saying it needs a real browser`
       );
     }
-    assert.equal(report.summary.passed, 19, `passed ${report.summary.passed}`);
+    assert.equal(report.summary.passed, 20, `passed ${report.summary.passed}`);
     for (const s of report.scenarios) {
       if (needsBrowser.includes(s)) continue;
       assert.equal(s.status, 'pass', `${s.id}: ${s.status}`);

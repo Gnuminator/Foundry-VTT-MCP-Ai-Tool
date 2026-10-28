@@ -1,0 +1,54 @@
+{
+  "_comment": "The modules the Curse of Strahd world runs (vault Design/Module walkthrough plan.md, 2026-10-04 verdicts, plus tarokka-reading). Module ids only, never content. licensed = the package is paid, Patreon or bought content: it goes in the archive but never in a repo or the vault. Edit when the GM list changes; the all-modules kit profile (scripts/test-kit/data/profiles/modules-all.json) must list the same ids (a test checks).",
+  "modules": [
+    { "id": "foundry-mcp-bridge", "role": "ours" },
+    { "id": "lib-wrapper", "role": "library" },
+    { "id": "socketlib", "role": "library" },
+    { "id": "sequencer", "role": "library" },
+    { "id": "3ds-atlas", "role": "library" },
+    { "id": "automated-conditions-5e" },
+    { "id": "dae" },
+    { "id": "NotYourTurn" },
+    { "id": "autoanimations" },
+    { "id": "calendaria" },
+    { "id": "combat-tracker-dock" },
+    {
+      "id": "ddb-importer",
+      "licensed": true,
+      "note": "Patreon parts (legacy monsters, 2014 to 2024 swap) are paid"
+    },
+    { "id": "dnd5e-item-resources" },
+    {
+      "id": "foundryvtt-actor-studio",
+      "fork": "candidate",
+      "note": "the pinned build is our fork, 2.10.5-aitool.N (I-116)"
+    },
+    { "id": "monks-combat-details" },
+    { "id": "monks-common-display" },
+    { "id": "monks-little-details" },
+    { "id": "monks-player-settings" },
+    { "id": "token-action-hud-core" },
+    { "id": "token-action-hud-dnd5e" },
+    { "id": "dd-import" },
+    { "id": "dice-calculator" },
+    { "id": "dice-so-nice" },
+    { "id": "dnd-players-handbook", "licensed": true, "note": "official PHB module" },
+    { "id": "aitool-content", "licensed": true, "note": "private content module, never public" },
+    { "id": "gm-vision" },
+    { "id": "healthEstimate" },
+    { "id": "JB2A_DnD5e", "note": "the free pack; a premium (Patreon) pack would be licensed" },
+    { "id": "nice-more-dice" },
+    { "id": "racoozes-free-battlemaps" },
+    { "id": "racooze-map-library" },
+    { "id": "share-media" },
+    { "id": "travel-pace" },
+    { "id": "vtta-tokenizer" },
+    { "id": "tarokka-reading" }
+  ],
+  "undecided": [
+    { "id": "monks-tokenbar", "why": "Danni decides, drop recommended" },
+    { "id": "combat-spell-timer", "why": "Danni decides, drop recommended" },
+    { "id": "lootsheet-simple", "why": "max dnd5e 5.9.9, not on the keep list" }
+  ],
+  "dropped": ["dice-stats", "scaleGrid"]
+}

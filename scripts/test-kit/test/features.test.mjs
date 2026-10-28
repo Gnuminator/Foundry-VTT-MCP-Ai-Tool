@@ -963,7 +963,8 @@ test('the feature scenarios run after the others (order), and a bad order is ref
   const all = scenarios.map(s => s.scenario.id);
   // The login split restarts the dashboard, so it runs after everything, the feature scenarios too.
   assert.equal(all.at(-1), 'dashboard-login-split');
-  const ids = all.filter(id => id !== 'dashboard-login-split');
+  // module-load also runs late (order 200): it reads the module errors the others raised.
+  const ids = all.filter(id => id !== 'dashboard-login-split' && id !== 'module-load');
   assert.deepEqual(ids.slice(-4).sort(), [
     'heroes-features-deep',
     'heroes-features-use',

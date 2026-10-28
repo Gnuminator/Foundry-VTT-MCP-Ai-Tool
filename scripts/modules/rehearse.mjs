@@ -255,7 +255,7 @@ async function cmdRun(o) {
   // 1. live:roundtrip and live:sweep talk to the dashboard on 3100, which is server A's, in ai-tool-test.
   if (srv.name === 'A' && o.live) {
     steps.push(runStep('live:roundtrip', 'node', ['scripts/live-roundtrip.mjs']));
-    steps.push(runStep('live:sweep', 'node', ['scripts/live-read-sweep.mjs']));
+    steps.push(runStep('live:sweep', 'node', ['scripts/live-write-sweep.mjs']));
   } else steps.push({ name: 'live:roundtrip and live:sweep', status: 'skip', detail: srv.name === 'A' ? '--no-live' : 'they use server A (dashboard 3100); run the rehearsal on A or run them there' });
 
 

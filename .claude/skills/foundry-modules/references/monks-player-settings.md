@@ -1,21 +1,21 @@
 # Monk's Player Settings (`monks-player-settings`)
 
-Verified on Foundry 14.368 / dnd5e 6.0.6, module 14.01, 2026-10-28 (test server B). Parts not clicked through are marked "(not verified)".
+Verified on Foundry 14.369 / dnd5e 6.0.6, module 14.01, 2026-10-28 (test server C; first look on server B, 14.368). Parts not clicked through are marked "(not verified)".
 
-**Verdict: optional.** Its main feature, the README's player drop-down in Game Settings for viewing and editing another player's client settings, is not present on Foundry 14.368: no select with the user names appears in the Game Settings dialog. What still works is the browser sync (it saves each user's client settings in a user flag). The module is small and loads cleanly, so it does no harm, but it no longer does what the README promises. The manifest also only claims Foundry 13 (`compatibility.verified` is 13).
+**Verdict: keep.** Its main feature, a drop-down in Game Settings for the GM to view and edit another player's client settings, works on Foundry 14.369. The module is small and loaded without a visible problem (console read incomplete on 2026-10-28, so absence of errors is not proven). The manifest only claims Foundry 13 (`compatibility.verified` is 13), so a Foundry update may need a new release.
 
-**For Danni's guides:** This keeps a player's personal settings (like sound volume or sheet look) when they change browsers. The part where you open a player's settings from your own screen does not show up on our Foundry version, so do not promise it.
+**For Danni's guides:** In Game Settings there is a drop-down at the top. Pick a player and you see that player's own settings (like sound volume) and can change them for them. A player who has never logged in has nothing saved yet.
 
 ## What it does
 
-- README: adds a player drop-down to the Configure Settings window for the GM, to view and edit that player's client settings. **Not present on 14.368** (checked in the open Game Settings dialog: no select with the user names). Everything described for it below is from the README and source only (not verified).
+- Adds a player drop-down (`#mps-view-group`) to the Game Settings window for the GM, to view and edit that player's client settings. **Verified on 14.369** (see the Verdict). Editing and saving a player's value was not done (not verified).
 - Keeps a copy of each user's client settings in a user flag (`monks-player-settings.client-settings`, with a `save-id`). Verified: user Claude has both flags (`client-settings` and `save-id`). Offering a sync on another browser was not tried (not verified).
 - Only settings registered with `config: true`, client scope and a plain type (string, number, boolean, array) are considered. Settings of modules not installed in this world are dropped.
 - A player must have logged in once before their settings show correctly (README).
 
 ## Where its UI is
 
-- **Settings > Configure Settings**: the README's player drop-down is missing on 14.368. Players are said to see a sync prompt after login when their saved copy differs (not verified).
+- **Settings tab > Game Settings**: the player drop-down is at the top of the window (the window's id is `settings-config`). Players are said to see a sync prompt after login when their saved copy differs (not verified).
 - **Game Settings** category "Monk's Player Settings" has 3 entries (two settings and the reset menu, listed below).
 - It uses a socket `module.monks-player-settings` to push values to online players.
 
@@ -33,7 +33,7 @@ Live values: `sync-settings` true, `ignore-modules` "fuzzy-foundry", one menu `r
 
 No interaction found: grepped `packages`, `scripts`, `docs` and `CHANGELOG.md` for "monks-player", no hit.
 
-Kit scenario: none yet, none earned (it changes no AI Tool tool result and its one visible feature is gone on 14).
+Kit scenario: none yet, none earned (it changes no AI Tool tool result).
 
 Indirect points worth knowing:
 
@@ -43,8 +43,10 @@ Indirect points worth knowing:
 
 ## Gotchas on Foundry 14 / dnd5e 6
 
-- `compatibility.minimum` and `verified` are both 13; module version 14.01. It loads on 14.368 without a problem, but the changelog's "v14 compatibility" claim does not hold for the player drop-down.
-- It monkey-patches `foundry.helpers.ClientSettings.prototype.sheet` and wraps `foundry.applications.settings.SettingsConfig`. The missing player drop-down is the sign that this wrap no longer takes effect on 14.368 (the cause was not investigated).
+- Settled 2026-10-28: the first page said the drop-down was missing on 14.368 because that check opened a settings window from code. Opened the way a user does it (Settings tab, "Game Settings"), the drop-down "-- All Players --" with Claude, Gamemaster, Verifier A, Verifier B, Assistant GM and Player appears and choosing Player switched the window to that user.
+- `compatibility.minimum` and `verified` are both 13; module version 14.01. It loads on 14.368 and 14.369 without a problem.
+- It monkey-patches `foundry.helpers.ClientSettings.prototype.sheet` and adds the drop-down in a `renderSettingsConfig` hook (`apps/settings-config.js`). A settings window made from code with `new SettingsConfig()` had no drop-down when tried, while the Game Settings button showed it (the module's patched `sheet` is the likely reason, not proven). This is what the first page of 2026-10-28 mistook for a broken module.
+- Its own copy of the player's settings (`client-settings` flag) was 27 KB for the Claude user on this test world, so many modules make the flag large.
 - Settings from modules like Simple Calendar that have their own editors are not tracked (README).
 - Players must log in once before the GM can see their settings.
 - No dnd5e-specific code. Pi: no OS-specific behavior seen (not verified).

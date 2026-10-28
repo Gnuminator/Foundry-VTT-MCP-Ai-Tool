@@ -1,3 +1,4 @@
 ### Tooling (I-117; D-128)
 
 - **Module update rehearsal:** `node scripts/modules/rehearse.mjs` lists modules, dnd5e and Foundry with a newer version, stages and installs them on a stopped test server, runs the load check, the kit (new `modules-all` profile from the Strahd list), `live:roundtrip` and `live:sweep`, and writes a report with known upstream findings kept apart from new ones. Passing versions go into a PC archive (zip, manifest, sha256) with a pinned list; licensed packages are archived but never in the repo. See `docs/dev/MODULE-REHEARSAL.md`, which also has the Pi install-from-archive plan (not run).
+- **Rehearsal install guards:** `install` also refuses a test server whose lock another session holds (set `REHEARSE_LOCK_SESSION` to your session id when you hold it), downloads must stay on https after redirects and are written to a `.part` file first, and an installed zip must carry the package id it was staged for.

@@ -7,7 +7,7 @@
  *   node scripts/modules/rehearse.mjs status  [--server B]       installed vs pinned list (offline)
  *   node scripts/modules/rehearse.mjs check   [--server B]       also asks each manifest for its newest
  *   node scripts/modules/rehearse.mjs stage   --server B [--ids a,b]   download newer zips to staging
- *   node scripts/modules/rehearse.mjs install --server B [--ids a,b]   staged zips into the server (stopped, lock held)
+ *   node scripts/modules/rehearse.mjs install --server B [--ids a,b]   staged zips into the server (stopped; REHEARSE_LOCK_SESSION=<your session id> when you hold its lock)
  *   node scripts/modules/rehearse.mjs run     --server B [--size smoke|full] [--no-kit] [--no-live] [--with-green]
  *   node scripts/modules/rehearse.mjs archive --server B [--ids a,b] [--from-report <dir>]... (repeatable)
  *   node scripts/modules/rehearse.mjs pi-plan                    the commands for the Pi mirror (printed, never run)

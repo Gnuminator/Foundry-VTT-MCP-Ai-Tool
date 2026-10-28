@@ -179,6 +179,15 @@ test('lockHolder reads a test server lock and treats an unreadable one as held',
   rmSync(d, { recursive: true, force: true });
 });
 
+test('every expected finding names its id, module, match text and reason', () => {
+  const file = path.join(here, '..', '..', 'modules', 'expected.json');
+  const { expected } = JSON.parse(readFileSync(file, 'utf8'));
+  for (const e of expected) {
+    for (const key of ['id', 'module', 'match', 'why']) assert.equal(typeof e[key], 'string', `${e.id}: ${key}`);
+  }
+  assert.equal(new Set(expected.map(e => e.id)).size, expected.length);
+});
+
 test('the all-modules profile is valid and lists exactly the Strahd modules', () => {
   assert.ok(SHIPPED_PROFILES.includes('modules-all'));
   const profile = loadProfile('modules-all');

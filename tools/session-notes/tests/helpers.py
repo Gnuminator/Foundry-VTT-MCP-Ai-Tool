@@ -7,7 +7,7 @@ import re
 from pathlib import Path
 from typing import Any
 
-from session_notes.claude_runner import ClaudeError, UsageLimitError
+from session_notes.claude_runner import LOGIN_HINT, AuthError, ClaudeError, UsageLimitError
 
 LINE_RE = re.compile(r"^(u\d{6}) \[[\d:]+\] [^:]+: (.*?)(?:  \[unsure: .*\])?$", re.M)
 
@@ -91,6 +91,8 @@ class FakeClaude:
         self.calls.append((kind, prompt))
         if self.fail.get(n) == "limit":
             raise UsageLimitError("Claude usage limit reached")
+        if self.fail.get(n) == "auth":
+            raise AuthError(f"{LOGIN_HINT}: Failed to authenticate")
         if self.fail.get(n) == "error":
             raise ClaudeError("boom")
         if kind == "session":

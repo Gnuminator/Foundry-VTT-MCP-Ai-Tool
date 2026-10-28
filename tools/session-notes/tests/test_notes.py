@@ -381,6 +381,36 @@ def _status(session: Path) -> dict[str, object]:
     return json.loads((session / "notes" / "status.json").read_text(encoding="utf-8"))
 
 
+def test_cli_logged_out_claude_pauses_with_login_hint(
+    session: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    code = _run_cli(monkeypatch, session, FakeClaude(fail={1: "auth"}))
+    assert code == 75
+    status = _status(session)
+    assert status["state"] == "paused" and "/login" in str(status["message"])
+    assert "usage limit" not in str(status["message"])
+
+
+def test_claude_cli_command_runs_without_connectors_and_settings(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import subprocess
+
+    seen: list[list[str]] = []
+
+    def fake_run(cmd: list[str], **_kw: object) -> subprocess.CompletedProcess[str]:
+        seen.append(cmd)
+        out = {"subtype": "success", "is_error": False, "structured_output": {"a": 1}}
+        return subprocess.CompletedProcess(cmd, 0, json.dumps(out), "")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    ClaudeCli("claude")("prompt", {}, "sonnet")
+    cmd = seen[0]
+    assert "--strict-mcp-config" in cmd and "--disable-slash-commands" in cmd
+    assert cmd[cmd.index("--setting-sources") + 1] == ""
+    assert cmd[cmd.index("--mcp-config") + 1] == '{"mcpServers":{}}'
+
+
 def test_cli_exit_codes_and_status_file(
     session: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:

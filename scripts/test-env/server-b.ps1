@@ -25,7 +25,7 @@ param(
 Assert-SafePorts
 
 # Keep in step with KIT_WORLDS in scripts/test-kit/lib/contract.mjs (targets.test.mjs checks it).
-$KitWorlds = @('ai-tool-kit-srd', 'ai-tool-kit-licensed', 'strahd-kit')
+$KitWorlds = @('ai-tool-kit-srd', 'ai-tool-kit-licensed', 'strahd-kit', 'ai-tool-kit-modules')
 
 $fromRoot = [string]$settingsA.Root
 $fromData = Join-Path $fromRoot 'data'

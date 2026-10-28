@@ -61,15 +61,15 @@ export class Logger {
     });
   }
 
-  info(message: string, meta?: any): void {
+  info(message: string, meta?: unknown): void {
     this.logger.info(message, meta);
   }
 
-  warn(message: string, meta?: any): void {
+  warn(message: string, meta?: unknown): void {
     this.logger.warn(message, meta);
   }
 
-  error(message: string, error?: any): void {
+  error(message: string, error?: unknown): void {
     if (error instanceof Error) {
       this.logger.error(message, { error: error.message, stack: error.stack });
     } else if (error) {
@@ -79,11 +79,11 @@ export class Logger {
     }
   }
 
-  debug(message: string, meta?: any): void {
+  debug(message: string, meta?: unknown): void {
     this.logger.debug(message, meta);
   }
 
-  child(defaultMeta: any): Logger {
+  child(defaultMeta: object): Logger {
     const childLogger = this.logger.child(defaultMeta);
     const childInstance = new Logger({
       level: 'info', // This will be overridden by the child logger
@@ -91,7 +91,7 @@ export class Logger {
     });
 
     // Replace the logger instance
-    (childInstance as any).logger = childLogger;
+    childInstance.logger = childLogger;
 
     return childInstance;
   }

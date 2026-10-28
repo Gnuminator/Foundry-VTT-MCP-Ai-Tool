@@ -40,7 +40,7 @@ function stubEverything(): ReturnType<typeof vi.fn> {
   (qh as any).dataAccess = new Proxy(
     { validateFoundryState: vi.fn() },
     {
-      get: (target: Record<string, unknown>, key: string) =>
+      get: (target: Record<string, unknown>, key: string): unknown =>
         key in target
           ? target[key]
           : (...args: unknown[]): Promise<{ success: boolean }> => {

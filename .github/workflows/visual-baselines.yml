@@ -1,0 +1,128 @@
+name: visual-baselines
+
+# Makes the dashboard screenshot baselines for a branch BEFORE its pull request, so the first PR run
+# of dashboard-visual is green. Start it with `npm run visual:baselines -- <branch>` (it dispatches
+# this workflow ON the branch, waits, and unpacks the artifact), so the branch must contain this
+# file: cut it from main after this workflow merged, or merge main into it. It runs on the branch
+# itself, not on main, so branch code never runs with main's cache access (CodeQL
+# actions/cache-poisoning). It renders the screens and the story
+# shots with --update-snapshots in the same Playwright image as dashboard-visual in ci.yml, and
+# uploads only the PNGs that changed or are new. It never commits or pushes (read-only token): the
+# lane looks at the images and commits them itself. Keep the image tag in step with ci.yml.
+
+on:
+  workflow_dispatch:
+    inputs:
+      nonce:
+        description: 'Set by npm run visual:baselines so it can find its own run'
+        required: false
+        default: ''
+        type: string
+
+run-name: visual-baselines ${{ github.ref_name }} ${{ inputs.nonce }}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: visual-baselines-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  baselines:
+    runs-on: ubuntu-latest
+    name: visual-baselines
+    container:
+      image: mcr.microsoft.com/playwright:v1.64.0-noble
+    env:
+      # Playwright's browsers read HOME; a container job runs as root.
+      HOME: /root
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Mark the checkout safe for git
+        # The container runs as root on a runner-owned checkout.
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - uses: actions/setup-node@v4
+        with:
+          # No npm cache: this job runs a branch's code, and a cache it writes could poison the
+          # cache the main-branch jobs read (CodeQL actions/cache-poisoning).
+          node-version: '22'
+
+      - name: Install dependencies
+        run: npm ci
+        env:
+          HUSKY: '0'
+
+      - name: The image matches the installed Playwright
+        run: |
+          installed=$(node -p "require('@playwright/test/package.json').version")
+          image="1.64.0"
+          if [ "$installed" != "$image" ]; then
+            echo "Installed @playwright/test is $installed but the job image is v$image-noble. Update the image tag here and in ci.yml."
+            exit 1
+          fi
+
+      - name: Build the dashboard
+        run: |
+          npm run build:shared
+          npm run build -w @gnuminator/cogm-dashboard
+
+      - name: Build Storybook
+        run: npm run build-storybook -w @gnuminator/cogm-dashboard
+
+      - name: Render the baselines
+        # An axe finding fails Playwright but not the rendering: the baselines are still written,
+        # and axe is judged by dashboard-visual on the PR. The exit code goes into the artifact so
+        # npm run visual:baselines can say when nothing rendered.
+        run: |
+          mkdir -p baseline-out
+          code=0
+          npm run test:visual:ci -w @gnuminator/cogm-dashboard -- --update-snapshots || code=$?
+          echo "$code" > baseline-out/playwright-exit.txt
+          git rev-parse HEAD > baseline-out/head.txt
+
+      - name: Collect the changed and new PNGs
+        # bash, not the container's default sh: the loop needs read -d, which sh (dash) lacks. On
+        # #533 sh printed "Illegal option -d", copied nothing and the step still passed. Process
+        # file keeps the loop in this shell, so a failure inside it fails the step, and git runs
+        # once on its own line, so its failure fails the step too. png-count.txt is the number of
+        # changed or new PNGs git reports; npm run visual:baselines compares it with the PNGs it
+        # finds in the artifact.
+        shell: bash
+        run: |
+          set -euo pipefail
+          dir=packages/cogm-dashboard/web/visual/__screenshots__
+          mkdir -p baseline-out
+          status="$RUNNER_TEMP/status.z"
+          git status --porcelain -z --untracked-files=all -- "$dir" > "$status"
+          count=0
+          # -z: names with quotes or non-ASCII characters arrive unquoted. Deleted files are not
+          # copied (removing a story's baseline is the lane's call).
+          while IFS= read -r -d '' entry; do
+            f="${entry:3}"
+            case "$f" in *.png) ;; *) continue ;; esac
+            echo "$entry"
+            case "${entry:0:2}" in *D*) continue ;; esac
+            mkdir -p "baseline-out/$(dirname "$f")"
+            cp "$f" "baseline-out/$f"
+            count=$((count + 1))
+          done < "$status"
+          # Counted a second way (no read loop), so a loop that silently does nothing shows up.
+          # Only grep's "no match" exit 1 is tolerated.
+          expected=$(tr '\0' '\n' < "$status" | grep -c '^[^D][^D] .*\.png$' || [ $? -eq 1 ])
+          echo "$expected" > baseline-out/png-count.txt
+          if [ "$expected" != "$count" ]; then
+            echo "git reports $expected PNG(s) but the loop copied $count."
+            exit 1
+          fi
+          echo "Collected $count PNG(s)."
+
+      - name: Keep the baselines
+        uses: actions/upload-artifact@v4
+        with:
+          name: visual-baselines
+          path: baseline-out
+          retention-days: 7
+          if-no-files-found: error

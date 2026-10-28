@@ -4,7 +4,7 @@ description: The five tool sets Claude Desktop loads (core, play, prep, build, a
 
 # Tool sets
 
-The bridge has 95 tools. Their definitions are about 112,300 characters of JSON, about 26,700 to
+The bridge has 97 tools. Their definitions are about 112,300 characters of JSON, about 26,700 to
 35,100 tokens that Claude reads at the start of every conversation, before anyone types. Many
 tools also look alike, which makes Claude pick the wrong one more often.
 
@@ -14,7 +14,7 @@ what the conversation needs. The switches are remembered for new chats.
 
 | Set       | Claude Desktop entry | Tools | Size (characters) | For                                                                                          |
 | --------- | -------------------- | ----- | ----------------- | -------------------------------------------------------------------------------------------- |
-| **core**  | `foundry-mcp`        | 22    | about 16,500      | Looking things up, and reviewing, applying or undoing planned changes. Always on.            |
+| **core**  | `foundry-mcp`        | 24    | about 18,100      | Looking things up, and reviewing, applying or undoing planned changes. Always on.            |
 | **play**  | `foundry-mcp-play`   | 36    | about 39,000      | Running the table live: tokens, combat, rolls, damage, conditions, chat, mood, loot.         |
 | **prep**  | `foundry-mcp-prep`   | 20    | about 21,400      | Prep and recaps: quests, journals, encounter budgets, Tarokka, handouts, session log, stats. |
 | **build** | `foundry-mcp-build`  | 8     | about 28,100      | Making NPCs, monsters and items, from a compendium or from scratch; room setup.              |
@@ -31,9 +31,9 @@ The source of truth is `packages/mcp-server/src/tool-sets.ts`; a test fails when
 code disagree. Each tool's description and parameters are in the [tool reference](tools.md).
 
 - **core:** `get-world-info`, `list-characters`, `get-character`, `get-character-entity`,
-  `search-character-items`, `list-scenes`, `get-current-scene`, `get-token-positions`,
+  `search-character-items`, `get-level-up-options`, `list-scenes`, `get-current-scene`, `get-token-positions`,
   `get-combat-state`, `list-journals`, `search-journals`, `search-compendium`,
-  `get-compendium-item`, `list-compendium-packs`, `get-planned-change`, `apply-planned-change`,
+  `search-rules`, `get-compendium-item`, `list-compendium-packs`, `get-planned-change`, `apply-planned-change`,
   `list-recent-changes`, `list-changes`, `plan-undo-changes`, `undo-change`, `open-in-foundry`,
   `check-secret-terms`
 - **play:** `switch-scene`, `use-item`, `request-player-rolls`, `request-ability-check`,

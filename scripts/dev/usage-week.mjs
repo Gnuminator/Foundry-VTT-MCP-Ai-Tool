@@ -153,8 +153,16 @@ export function parseResponse(line) {
   const cacheRead = n(u.cache_read_input_tokens);
   const cacheCreate = n(u.cache_creation_input_tokens);
   const output = n(u.output_tokens);
+  const content = Array.isArray(j.message.content) ? j.message.content : [];
+  const advisorIds = content
+    .map((c, i) => [c, i])
+    .filter(
+      ([c]) => (c?.type === 'tool_use' || c?.type === 'server_tool_use') && c.name === 'advisor'
+    )
+    .map(([c, i]) => c.id || `${j.message.id}:${i}`);
   return {
     id: j.message.id || null,
+    advisorIds,
     t,
     model,
     sidechain: Boolean(j.isSidechain),
@@ -169,6 +177,8 @@ export async function readTranscripts(files, startMs) {
   const seen = new Set();
   const responses = [];
   const sessions = [];
+  // advisor tool_use ids: one response spans several lines and a fork repeats its parent's lines
+  const advisorSeen = new Set();
   for (const file of files) {
     const sub = isSubagentFile(file);
     const mainTurns = [];
@@ -179,6 +189,7 @@ export async function readTranscripts(files, startMs) {
       const r = parseResponse(line);
       if (!r) continue;
       const main = !sub && !r.sidechain;
+      if (main && r.t >= startMs) for (const id of r.advisorIds) advisorSeen.add(id);
       // Sessions dedupe per file (a fork repeats its parent's ids but its first turn is its own, as in ctx.js); tokens and cost dedupe globally.
       if (main && !(r.id && fileSeen.has(r.id))) {
         if (r.id) fileSeen.add(r.id);
@@ -192,7 +203,7 @@ export async function readTranscripts(files, startMs) {
     }
     if (mainTurns.length) sessions.push({ file, turns: mainTurns });
   }
-  return { responses, sessions };
+  return { responses, sessions, advisorCalls: advisorSeen.size };
 }
 
 // --- weekly limit use (the vault's Usage log) -----------------------------------------------
@@ -330,7 +341,7 @@ function sessionStats(list) {
 export async function buildReport({ root, now, days, prs = null, usageLog = null }) {
   const { startMs, keys } = windowDays(now, days);
   const files = findTranscripts(root, startMs);
-  const { responses, sessions } = await readTranscripts(files, startMs);
+  const { responses, sessions, advisorCalls } = await readTranscripts(files, startMs);
   const byDay = new Map(keys.map(k => [k, newDay(k)]));
   const models = {};
 
@@ -407,6 +418,7 @@ export async function buildReport({ root, now, days, prs = null, usageLog = null
     days: rows,
     total,
     models,
+    advisorCalls,
     targets: targetsFor(total, days),
   };
 }
@@ -495,6 +507,7 @@ export function formatReport(report, notes = []) {
     row({ ...report.total, day: 'Window' }),
     formatTargets(report.targets),
     formatModels(report.models),
+    `Advisor calls (main sessions): ${report.advisorCalls}`,
     ...notes.map(n => `Note: ${n}`),
   ];
   return lines.join('\n');

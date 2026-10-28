@@ -112,10 +112,10 @@ token. Ported so far: Player links, Module diagnostics, Pre-flight (with Ready f
 Prep, Party, Handouts, Tarokka, the Tool runner, the Advanced menu (its panel, During screen and
 tool entries; Pre-flight stays in the header with its status) and the Before / During / After
 views, with Pre-flight, Prep, Party and Handouts docked in them, the During layouts (the
-switch, the layout trial and the hint), the During folds, Combat strip, Live Feed, Recent Changes,
+switch, the layout trial and the hint), the During folds, the Combat Tracker (the combat strip and
+the initiative ribbon above it), Live Feed, Recent Changes,
 the After stats and session notes, and the header's session marker, GM Actions switch and theme
-picker. Still on the old page only (`/legacy/`): the Combat Tracker view, the feature cards and the
-AI commentary.
+picker. Still on the old page only (`/legacy/`): the feature cards and the AI commentary.
 
 - `npm run build` also builds it (Vite) into `dist/web`; the server serves its page at `/` and its
   files under `/next/`. The Docker image and the Pi get it with the rest of `dist/`.
@@ -287,7 +287,8 @@ helper for those elements.
 - `npm run test:visual:update -w @gnuminator/cogm-dashboard` writes new baselines after a change
   you meant. Look at the PNGs in the diff, then commit them with the change.
 - The container mounts the repo at `/work` but keeps its own `node_modules` in two named Docker
-  volumes (`foundry-ai-tool-visual-node-modules`, `foundry-ai-tool-visual-dashboard-node-modules`),
+  volumes per worktree (`foundry-ai-tool-visual-node-modules-<hash of the repo path>` and
+  `foundry-ai-tool-visual-dashboard-node-modules-<hash>`, so two lanes never share them),
   filled by `npm ci --ignore-scripts` the first time and again when `package-lock.json` changes.
   Remove them with `docker volume rm` to start clean. Snapshots and `test-results/visual` are
   written into the repo.

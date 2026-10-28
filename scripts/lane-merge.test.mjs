@@ -33,6 +33,8 @@ import {
   readTrain,
   renderTrainNote,
   relaunchFromMain,
+  runEntry,
+  verdictLine,
   requiredContexts,
   riskyHits,
   rollupProblems,
@@ -439,6 +441,9 @@ test('risky categories: every category has patterns and the real paths match', (
     'scripts/lane-merge.mjs',
     'scripts/green.mjs',
     'scripts/drift-check.mjs',
+    'scripts/heavy-lock.mjs',
+    'scripts/pre-push.mjs',
+    'scripts/lint-ratchet.mjs',
     '.github/workflows/ci.yml',
     '.claude/hooks/context-alert.mjs',
     '.claude/settings.json',
@@ -1158,6 +1163,7 @@ function relaunch({
   fetchFail = false,
   env = {},
   argv = ['312'],
+  spawnResult = { status: 7 },
 } = {}) {
   const dir = tmpDir();
   const selfPath = path.join(dir, 'lane-merge.mjs');
@@ -1186,7 +1192,7 @@ function relaunch({
     },
     spawn: (cmd, args, opts) => {
       spawned.push({ cmd, args, opts });
-      return { status: 7 };
+      return spawnResult;
     },
   });
   return { out, calls, lines, spawned, dir };
@@ -2086,4 +2092,85 @@ test('merge train note: --train-reset writes a reset event, and a vault failure 
     /merge train reset at ab12cd3; merge train 0\/4\nlane:merge: WARNING: merge train note not pushed/
   );
   assert.equal(readTrain(state).since.length, 0);
+});
+
+test('wait-ci: a relaunched child killed by a signal still ends with a verdict line', () => {
+  const r = relaunch({
+    selfText: 'x\n',
+    argv: ['312', '--wait-ci'],
+    spawnResult: { status: null, signal: 'SIGTERM' },
+  });
+  assert.equal(r.out.code, 1);
+  assert.match(r.out.killed, /killed \(SIGTERM\)/);
+  const lines = [];
+  const code = runEntry({
+    argv: ['312', '--wait-ci'],
+    relaunch: () => r.out,
+    runMain: () => assert.fail('must not run in place'),
+    log: l => lines.push(l),
+  });
+  assert.equal(code, 1);
+  assert.deepEqual(lines, [
+    "lane:merge: wait-ci ended: exit 1, main's copy of the gate was killed (SIGTERM)",
+  ]);
+  const failed = relaunch({
+    selfText: 'x\n',
+    spawnResult: { status: null, error: new Error('spawn EPERM') },
+  });
+  assert.match(failed.out.killed, /could not run \(spawn EPERM\)/);
+});
+
+test('wait-ci: every other exit of runEntry ends with one verdict line', () => {
+  const entry = (argv, gate, runMain = () => 0) => {
+    const lines = [];
+    const code = runEntry({ argv, relaunch: gate, runMain, log: l => lines.push(l) });
+    return { code, lines };
+  };
+  const plain = { relaunched: false, code: 0, fetched: true, error: null };
+  for (const [code, reason] of [
+    [0, /ok/],
+    [1, /refused/],
+    [3, /CI check failed/],
+    [4, /head moved/],
+    [5, /timed out/],
+  ]) {
+    const r = entry(
+      ['312', '--wait-ci'],
+      () => plain,
+      () => code
+    );
+    assert.equal(r.code, code);
+    assert.equal(r.lines.length, 1);
+    assert.ok(r.lines[0].startsWith(`lane:merge: wait-ci ended: exit ${code}, `));
+    assert.match(r.lines[0], reason);
+  }
+  const thrown = entry(
+    ['312', '--wait-ci'],
+    () => plain,
+    () => {
+      throw new Error('boom');
+    }
+  );
+  assert.equal(thrown.code, 1);
+  assert.equal(thrown.lines.at(-1), verdictLine(1, 'unexpected error: boom'));
+  const noFetch = entry(['312', '--wait-ci'], () => ({ ...plain, error: 'git fetch failed' }));
+  assert.equal(noFetch.code, 1);
+  assert.match(noFetch.lines.at(-1), /wait-ci ended: exit 1, git fetch failed/);
+  const child = entry(['312', '--wait-ci'], () => ({
+    ...plain,
+    relaunched: true,
+    code: 3,
+    killed: null,
+  }));
+  assert.deepEqual([child.code, child.lines], [3, []], 'the child printed its own verdict');
+  const noWait = entry(
+    ['312'],
+    () => plain,
+    () => 1
+  );
+  assert.deepEqual(noWait.lines, [], 'no --wait-ci: output unchanged');
+  const noWaitThrow = entry(['312'], () => {
+    throw new Error('x');
+  });
+  assert.deepEqual([noWaitThrow.code, noWaitThrow.lines.length], [1, 1]);
 });

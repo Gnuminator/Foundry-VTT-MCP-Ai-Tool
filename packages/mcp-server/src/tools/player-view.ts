@@ -27,7 +27,13 @@ interface ToolDefinition {
 interface PlayerViewToolsOptions {
   handouts: Pick<
     HandoutsService,
-    'listRevealed' | 'listQueue' | 'playerHandouts' | 'planPageReveal' | 'queuePage' | 'unqueuePage'
+    | 'listRevealed'
+    | 'listQueue'
+    | 'playerHandouts'
+    | 'planPageReveal'
+    | 'queuePage'
+    | 'unqueuePage'
+    | 'movePage'
   >;
   secretTerms: Pick<SecretTermsService, 'findSecretTerms'>;
   foundryClient: Pick<FoundryClient, 'query'>;
@@ -87,7 +93,7 @@ export class PlayerViewTools {
       {
         name: 'plan-page-reveal',
         description:
-          'Plan revealing a journal page to players, or hiding one already revealed. Reveal adds the page to the allowlist and, by default (setOwnership: true), raises its ownership to Observer if players cannot already see it, recording the old ownership for Hide; refused if the page is already allowlisted and still observable. When no player can open the page\'s journal, the reveal instead COPIES the page into the player journal "Handouts" (created on first use, Observer for players): the copy gets the page\'s name and content, text without any secret blocks or @Embed enrichers and with links to documents players cannot open turned into plain text, or an image\'s source and caption; the source page and its journal are never changed. Revealing the same source again updates its copy; only text and image pages can be copied. Destructive class (needs the second confirmation) because a reveal cannot be taken back at the table. Hide removes the page from the allowlist and, by default, restores the ownership recorded at reveal time; for a copied handout (pass the source or the copy) it deletes the copy, the "Handouts" journal stays. Write nothing but a title into the summary. Returns a planId for apply-planned-change (plus copy and note when copying).',
+          'Plan revealing a journal page to players, or hiding one already revealed. Reveal adds the page to the allowlist and, by default (setOwnership: true), raises its ownership to Observer if players cannot already see it, recording the old ownership for Hide; refused if the page is already allowlisted and still observable. When no player can open the page\'s journal, the reveal instead COPIES the page into the player journal "Handouts" (created on first use, Observer for players): the copy gets the page\'s name and content, text without any secret blocks or @Embed enrichers and with links to documents players cannot open turned into plain text, or an image\'s source and caption; the source page and its journal are never changed. Revealing the same source again updates its copy; only text and image pages can be copied. Destructive class (second confirmation): a reveal cannot be taken back at the table. Hide removes the page from the allowlist and, by default, restores the ownership recorded at reveal time; for a copied handout (pass the source or the copy) it deletes the copy, the "Handouts" journal stays. Write nothing but a title into the summary. Returns a planId for apply-planned-change (plus copy and note).',
         inputSchema: {
           type: 'object',
           properties: {
@@ -99,9 +105,9 @@ export class PlayerViewTools {
             },
             action: {
               type: 'string',
-              enum: ['reveal', 'hide', 'queue', 'unqueue', 'reveal-next'],
+              enum: ['reveal', 'hide', 'queue', 'unqueue', 'move', 'reveal-next'],
               description:
-                '"reveal" adds it to the player allowlist; "hide" removes it. "queue" stages the page for later (changes nothing in Foundry, no plan, applies at once) and "unqueue" removes it from the queue. "reveal-next" plans the reveal of the oldest queued page for sceneId (or any), with the players it was queued for; applying it also takes the page off the queue.',
+                '"reveal" adds it to the player allowlist; "hide" removes it. "queue" stages the page for later (no plan, applies at once) and "unqueue" removes it from the queue. "move" puts a queued page at `position`. "reveal-next" plans revealing the oldest queued page (for sceneId, or any); applying it dequeues it.',
             },
             players: {
               type: 'array',
@@ -110,6 +116,7 @@ export class PlayerViewTools {
                 'Reveal (or queue) for these players only (Foundry user ids): the rest of the table does not get it. Omit for every player.',
               ...toolRef('user', 'id', { filter: { role: 'player' } }),
             },
+            position: { type: 'integer', description: 'move: new place, 0 = first.' },
             sceneId: {
               type: 'string',
               description:
@@ -178,7 +185,8 @@ export class PlayerViewTools {
     const params = z
       .object({
         pageUuid: z.string().min(1).max(300).optional(),
-        action: z.enum(['reveal', 'hide', 'queue', 'unqueue', 'reveal-next']),
+        action: z.enum(['reveal', 'hide', 'queue', 'unqueue', 'move', 'reveal-next']),
+        position: z.number().int().min(0).max(1000).optional(),
         setOwnership: z.boolean().optional(),
         copy: z.boolean().optional(),
         players: z.array(z.string().max(64)).max(20).optional(),
@@ -188,7 +196,7 @@ export class PlayerViewTools {
       .parse(args ?? {});
     if (
       params.showNow !== undefined &&
-      (params.action === 'queue' || params.action === 'unqueue')
+      (params.action === 'queue' || params.action === 'unqueue' || params.action === 'move')
     ) {
       throw new Error(`showNow only goes with a reveal, not with action "${params.action}"`);
     }
@@ -204,6 +212,10 @@ export class PlayerViewTools {
     }
     if (params.action === 'unqueue')
       return this.handouts.unqueuePage({ pageUuid: params.pageUuid });
+    if (params.action === 'move') {
+      if (params.position === undefined) throw new Error('position is required for action "move"');
+      return this.handouts.movePage({ pageUuid: params.pageUuid, position: params.position });
+    }
     return this.logged('page reveal', () =>
       this.handouts.planPageReveal({
         action: params.action,

@@ -132,12 +132,12 @@ export const DASHBOARD_CONTROLS = [
   {
     name: 'dash.header.show-versions',
     how: 'skip',
-    why: 'only shown once the Version tracker switch is on (off by default, I-127)',
+    why: 'only shown while the Version tracker switch is on (on by default since I-127; a stored off hides it)',
   },
   {
     name: 'dash.versions.recheck',
     how: 'skip',
-    why: 'inside the Versions pane, which only exists once the Version tracker switch is on (I-127)',
+    why: 'inside the Versions pane, which only exists while the Version tracker switch is on (I-127)',
   },
   { name: 'dash.header.layout-tour', how: 'open', reach: [ADV], expect: '#layout-tour' },
   { name: 'dash.header.tools', how: 'open', reach: [ADV], expect: '#tools-drawer' },
@@ -492,6 +492,8 @@ export const DASHBOARD_CONTROLS = [
     why: 'reveals the next queued page to the players',
   },
   { name: 'dash.handouts.unqueue', how: 'write', why: 'removes a page from the reveal queue' },
+  { name: 'dash.handouts.move-up', how: 'write', why: 'moves a queued page up one place' },
+  { name: 'dash.handouts.move-down', how: 'write', why: 'moves a queued page down one place' },
 
   // --- Prep ---
   { name: 'dash.prep.view', how: 'view', reach: PREP, expect: '#prep-drawer' },

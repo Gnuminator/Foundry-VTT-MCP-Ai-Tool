@@ -80,7 +80,7 @@ function addActorWithProtoToken(
   proto: Record<string, any> = { name: 'Token', texture: { src: 'tok.webp' } }
 ): any {
   const actor = world.addActor(opts);
-  actor.prototypeToken = { ...proto, toObject: () => ({ ...proto }) };
+  actor.prototypeToken = { ...proto, toObject: (): Record<string, unknown> => ({ ...proto }) };
   return actor;
 }
 

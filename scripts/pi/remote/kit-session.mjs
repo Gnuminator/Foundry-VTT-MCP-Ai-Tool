@@ -641,13 +641,33 @@ export function bridgeRestoreTarget(state, origId) {
 
 // ---- runs in node: the browser ----------------------------------------------------------------------------------
 
+// Foundry 14.368 types the user name into a text field; 14.369 picks it from a list (same as the kit's joinGame).
+// Returns 'ok', or on 14.369 'online' (the option is disabled) or 'missing' without touching the form, so a caller can
+// say why instead of waiting out a select timeout.
+async function typeJoinUser(page, user) {
+  const name = page.locator('#join-username');
+  const state = await name.evaluate((el, u) => {
+    if (el.tagName !== 'SELECT') return 'input';
+    const option = Array.from(el.options).find(o => o.textContent.trim() === u);
+    return !option ? 'missing' : option.disabled ? 'online' : 'select';
+  }, user);
+  if (state === 'select') {
+    await name.selectOption({ label: user });
+  } else if (state === 'input') {
+    await name.fill(user);
+    await page.keyboard.press('Escape'); // closes the name autocomplete
+  } else {
+    return state;
+  }
+  return 'ok';
+}
+
 // Tries to join as user with this password in a page of its own. True when the game opens. The password only goes
 // through the page's fill; a failing step says which step, never what was typed.
 export async function joinsWithPassword(page, { url, user, password, timeout = 20_000 }) {
   await page.goto(`${url}/join`, { waitUntil: 'domcontentloaded' });
   try {
-    await page.locator('#join-username').fill(user);
-    await page.keyboard.press('Escape');
+    if ((await typeJoinUser(page, user)) !== 'ok') return false; // online (14.369) or not there
     await page.locator('#join-password').fill(password);
     await page.locator('button[name="join"]').click();
   } catch {
@@ -728,8 +748,12 @@ async function main() {
     if (!onJoin || (await page.locator('template#join-game').count()) === 0) {
       throw new Error(`no world is running at ${FOUNDRY_URL}`);
     }
-    await page.locator('#join-username').fill(user);
-    await page.keyboard.press('Escape');
+    const typed = await typeJoinUser(page, user);
+    if (typed !== 'ok') {
+      throw new Error(
+        `could not join as ${user}: that user is ${typed === 'online' ? 'already online' : 'not in the world'}`
+      );
+    }
     await page.locator('#join-password').fill(password);
     await page.locator('button[name="join"]').click();
     await page.waitForURL(/\/game$/, { timeout: 60_000 }).catch(() => {

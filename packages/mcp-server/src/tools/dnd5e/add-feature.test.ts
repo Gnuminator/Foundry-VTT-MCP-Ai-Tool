@@ -43,8 +43,8 @@ const POISON_DAMAGE = { number: 2, denomination: 8, type: 'poison' };
  * handler map for specific bridge methods. Unknown methods default to
  * `{ actor: ACTOR_RESULT, item: ITEM_RESULT }`.
  */
-function makeQueryForDnd5e(overrides: Record<string, unknown> = {}) {
-  return vi.fn((method: string) => {
+function makeQueryForDnd5e(overrides: Record<string, unknown> = {}): ReturnType<typeof vi.fn> {
+  return vi.fn((method: string): unknown => {
     if (method === 'foundry-mcp-bridge.getWorldInfo') {
       return { system: 'dnd5e' };
     }
@@ -57,7 +57,11 @@ function makeQueryForDnd5e(overrides: Record<string, unknown> = {}) {
   });
 }
 
-function makeTools(queryImpl?: (method: string, data: unknown) => unknown) {
+function makeTools(queryImpl?: (method: string, data: unknown) => unknown): {
+  tools: DnD5eAddFeatureTool;
+  query: ReturnType<typeof vi.fn>;
+  logger: any;
+} {
   const query = vi.fn(queryImpl ?? makeQueryForDnd5e());
   const foundryClient = { query } as any;
   const logger: any = {
@@ -66,7 +70,7 @@ function makeTools(queryImpl?: (method: string, data: unknown) => unknown) {
     info: vi.fn(),
     debug: vi.fn(),
   };
-  logger.child = () => logger;
+  logger.child = (): unknown => logger;
   return { tools: new DnD5eAddFeatureTool({ foundryClient, logger }), query, logger };
 }
 
@@ -1099,7 +1103,7 @@ describe('DnD5eAddFeatureTool — spellcasting', () => {
     warnings: [],
   };
 
-  function makeSpellcastingTools() {
+  function makeSpellcastingTools(): ReturnType<typeof makeTools> {
     return makeTools(
       vi.fn((method: string) => {
         if (method === 'foundry-mcp-bridge.getWorldInfo') return { system: 'dnd5e' };
@@ -1304,7 +1308,7 @@ describe('DnD5eAddFeatureTool — spells', () => {
     warnings: [] as string[],
   };
 
-  function makeSpellsTools(overrideResult?: typeof SPELLS_RESULT) {
+  function makeSpellsTools(overrideResult?: typeof SPELLS_RESULT): ReturnType<typeof makeTools> {
     return makeTools(
       vi.fn((method: string) => {
         if (method === 'foundry-mcp-bridge.getWorldInfo') return { system: 'dnd5e' };

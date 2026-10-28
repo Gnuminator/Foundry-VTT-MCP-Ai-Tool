@@ -1,5 +1,5 @@
 import { WebSocketServer, WebSocket } from 'ws';
-import { createServer } from 'http';
+import { createServer, type Server } from 'http';
 import {
   BRIDGE_CAPABILITY_MODULE_REQUEST,
   BRIDGE_CAPABILITY_MODULE_REQUEST_TOOL_PREFIX,
@@ -19,6 +19,7 @@ import {
 } from '@gnuminator/shared';
 import { Logger } from './logger.js';
 import { Config } from './config.js';
+import type { BridgeMessage, ConnectionInfo, InboundFrame } from './types/connector-types.js';
 
 export interface FoundryConnectorOptions {
   config: Config['foundry'];
@@ -75,7 +76,7 @@ export type ModuleRequestHandler = (
 
 export class FoundryConnector {
   private wss: WebSocketServer | null = null;
-  private httpServer: any;
+  private httpServer: Server | null = null;
   private logger: Logger;
   private config: Config['foundry'];
   private isStarted = false;
@@ -114,10 +115,11 @@ export class FoundryConnector {
     });
 
     // Create HTTP server for WebSocket connections
-    this.httpServer = createServer((req, res) => {
+    const httpServer = createServer((req, res) => {
       res.writeHead(404);
       res.end();
     });
+    this.httpServer = httpServer;
 
     const bindHost = foundryLinkBindHost();
 
@@ -125,7 +127,7 @@ export class FoundryConnector {
     this.wss = new WebSocketServer({ noServer: true });
 
     // Manually handle upgrade for WebSocket connections
-    this.httpServer.on('upgrade', (req: any, socket: any, head: any) => {
+    httpServer.on('upgrade', (req, socket, head) => {
       const pathname = req.url || '/';
 
       // Only upgrade if path matches WebSocket namespace
@@ -143,14 +145,14 @@ export class FoundryConnector {
 
     // Start the HTTP server
     await new Promise<void>((resolve, reject) => {
-      this.httpServer.listen(this.config.port, bindHost, () => {
+      httpServer.listen(this.config.port, bindHost, () => {
         this.isStarted = true;
         this.startLinkWatch();
         this.logger.info('Foundry connector listening', { host: bindHost, port: this.config.port });
         resolve();
       });
 
-      this.httpServer.on('error', (error: Error) => {
+      httpServer.on('error', (error: Error) => {
         this.logger.error('Failed to start Foundry connector', error);
         reject(error);
       });
@@ -183,9 +185,7 @@ export class FoundryConnector {
 
     const onWsMessage = async (data: unknown): Promise<void> => {
       try {
-        const message = JSON.parse((data as Buffer).toString()) as {
-          type?: string;
-        };
+        const message = JSON.parse((data as Buffer).toString()) as InboundFrame;
 
         if (message.type === 'module-hello') {
           this.handleHello(message, ws);
@@ -474,9 +474,10 @@ export class FoundryConnector {
       this.wss = null;
     }
 
-    if (this.httpServer) {
+    const httpServer = this.httpServer;
+    if (httpServer) {
       await new Promise<void>(resolve => {
-        this.httpServer.close(() => {
+        httpServer.close(() => {
           resolve();
         });
       });
@@ -487,32 +488,37 @@ export class FoundryConnector {
     this.logger.info('Foundry connector stopped');
   }
 
-  private handleMessage(message: any): Promise<void> {
+  private handleMessage(message: InboundFrame): Promise<void> {
     if (message.type === 'mcp-response' && message.id) {
       const pending = this.pendingQueries.get(message.id);
       if (pending) {
         clearTimeout(pending.timeout);
         this.pendingQueries.delete(message.id);
 
-        if (message.data.success) {
+        // The frame is unvalidated JSON: a module that sends no `data` must still settle the query.
+        const body = message.data as InboundFrame['data'] | undefined;
+        if (!body) {
+          this.logger.error('Query response had no data', { id: message.id });
+          pending.reject(new Error('Query response had no data'));
+        } else if (body.success) {
           this.logger.debug('Query response received', {
             id: message.id,
-            hasData: !!message.data.data,
+            hasData: !!body.data,
           });
-          pending.resolve(message.data.data);
+          pending.resolve(body.data);
         } else {
-          this.logger.error('Query failed', { id: message.id, error: message.data.error });
-          pending.reject(new Error(message.data.error || 'Query failed'));
+          this.logger.error('Query failed', { id: message.id, error: body.error });
+          pending.reject(new Error(body.error || 'Query failed'));
         }
       }
       return Promise.resolve();
     }
 
     if (message.type === 'pong') {
-      const pending = this.pendingQueries.get(message.id);
+      const pending = this.pendingQueries.get(message.id as string);
       if (pending) {
         clearTimeout(pending.timeout);
-        this.pendingQueries.delete(message.id);
+        this.pendingQueries.delete(message.id as string);
         pending.resolve(message.data);
       }
       return Promise.resolve();
@@ -577,7 +583,7 @@ export class FoundryConnector {
     });
   }
 
-  sendToFoundry(message: any): void {
+  sendToFoundry(message: unknown): void {
     if (
       this.activeConnectionType === 'websocket' &&
       this.foundrySocket?.readyState === WebSocket.OPEN
@@ -603,7 +609,7 @@ export class FoundryConnector {
     return this.connectionSerial;
   }
 
-  getConnectionInfo(): any {
+  getConnectionInfo(): ConnectionInfo {
     return {
       started: this.isStarted,
       connected: this.isConnected(),
@@ -628,7 +634,7 @@ export class FoundryConnector {
   /**
    * Send a message to the connected Foundry module
    */
-  sendMessage(message: any): void {
+  sendMessage(message: BridgeMessage): void {
     if (!this.isConnected()) {
       throw new Error('Not connected to Foundry VTT module');
     }
@@ -648,7 +654,7 @@ export class FoundryConnector {
   /**
    * Broadcast a message to all connected Foundry clients (alias for sendMessage for single connection)
    */
-  broadcastMessage(message: any): void {
+  broadcastMessage(message: BridgeMessage): void {
     this.sendMessage(message);
   }
 }

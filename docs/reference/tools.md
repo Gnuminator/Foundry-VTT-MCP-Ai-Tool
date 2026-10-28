@@ -6,11 +6,11 @@ description: Every tool the bridge serves, by tool set, with its description and
 
 # Tool reference
 
-The bridge serves 95 tools in five sets. [Tool sets](TOOL-SETS.md) explains the sets and how Claude Desktop loads them; this page lists every tool with the description and parameters Claude reads.
+The bridge serves 97 tools in five sets. [Tool sets](TOOL-SETS.md) explains the sets and how Claude Desktop loads them; this page lists every tool with the description and parameters Claude reads.
 
 | Set | Claude Desktop entry | Tools | For |
 | --- | --- | --- | --- |
-| [Core](#core) | `foundry-mcp` | 22 | Look things up (world, characters, scenes, journals, compendiums, combat) and review, apply or undo planned changes. Always on. |
+| [Core](#core) | `foundry-mcp` | 24 | Look things up (world, characters, scenes, journals, compendiums, combat) and review, apply or undo planned changes. Always on. |
 | [Play](#play) | `foundry-mcp-play` | 36 | Run the table live: tokens, combat turns, rolls, damage, conditions, resources, chat, scene mood, map notes and loot. |
 | [Prep](#prep) | `foundry-mcp-prep` | 20 | Prepare sessions and write recaps: quests and journals, encounter budgets, the Tarokka reading, handouts, the session log, play stats and the pre-flight check. |
 | [Build](#build) | `foundry-mcp-build` | 8 | Make and change NPCs, monsters and items: from a compendium or from scratch, with features, attacks and spells. Set up rooms: teleports and tokens in a room. |
@@ -72,6 +72,17 @@ Parameters:
 - `type` (string): Filter by dnd5e item type: "spell", "weapon", "equipment" (armor and shields too), "consumable", "tool", "loot", "container", "feat" (features), "class", "subclass", "background", "race" (species), or "effect" for active effects. Leave empty to search all types.
 - `category` (string): Additional category filter. For spells: "cantrip" or "prepared". For weapons and equipment: "equipped".
 - `limit` (number): Maximum number of results to return (default: 20)
+
+### get-level-up-options
+
+Advice only, changes nothing: what a character's next class level grants, the choices still open (hit points, ASI or feat, subclass, spells, items), and earlier advancement left unfinished.
+
+Kind: read-only. Title: Get level-up options.
+
+Parameters:
+
+- `identifier` (string, required): Character name or actor ID.
+- `className` (string)
 
 ### list-scenes
 
@@ -155,6 +166,20 @@ Parameters:
   - `hasLegendaryActions` (boolean): Filter for creatures with legendary actions
   - `spellcaster` (boolean): Filter for creatures that can cast spells (D&D 5e)
 - `limit` (number): Maximum number of results to return (default: 50 for discovery searches, max: 50). Range: 1 to 50.
+
+### search-rules
+
+Full-text rules search over rulebook journal pages and item, spell and feature descriptions, in the allowlisted rules packs only. Returns ids and an excerpt; a whole journal is large, so prefer a bigger excerptChars to opening it with get-compendium-item (itemId = documentId) or, for world journals, list-journals.
+
+Kind: read-only. Title: Search rules.
+
+Parameters:
+
+- `query` (string, required): Rule or term in plain words, e.g. "grapple". Filler words are ignored.
+- `limit` (number): Maximum hits, 1 to 25 (default 10).
+- `excerptChars` (number): Excerpt length per hit, 80 to 4000 (default 240). Raise it to read a rule.
+- `includeWorld` (boolean): Also search world journals (adventure text). Off by default.
+- `includeOtherBooks` (boolean): Also search packs outside the rules allowlist. Off by default.
 
 ### get-compendium-item
 
@@ -257,6 +282,7 @@ Parameters:
 
 - `uuid` (string, required): Document uuid, e.g. JournalEntry.abc.JournalEntryPage.def
 - `userId` (string): The GM user whose screen to use (default: the bridge's own client).
+- `pan` (boolean): With a token uuid (Scene.x.Token.y): pan the GM's Foundry view to that token and select it instead of opening its sheet. Only that GM's screen moves, not the players'.
 
 ### check-secret-terms
 
@@ -914,18 +940,19 @@ No parameters.
 
 ### plan-tarokka-import
 
-Plan storing a Tarokka reading in the bridge vault (GM-only, outside Foundry). source "auto" (default) takes the reading dealt in the tarokka-reading module when available, otherwise rolls one; "builtin-roll" always deals a fresh reading (3 common + 2 high cards, crypto random); "tarokka-reading" requires that module. A new reading archives the previous one. Returns a planId: show the diff to the GM, then apply-planned-change.
+Plan storing a Tarokka reading in the bridge vault (GM-only, outside Foundry). source "auto" (default) takes the reading dealt in the tarokka-reading module when available, otherwise rolls one; "builtin-roll" always deals a fresh reading (3 common + 2 high cards, crypto random); "tarokka-reading" requires that module. A new reading archives the previous one; clear: true archives it and leaves none (undoable). Returns a planId: show the diff to the GM, then apply-planned-change.
 
 Kind: read-only. Title: Plan Tarokka reading import.
 
 Parameters:
 
 - `source` (string): One of: `auto`, `builtin-roll`, `tarokka-reading`. Default: `auto`.
+- `clear` (boolean): Archive the current reading, deal none. Leave out source and userId with clear.
 - `userId` (string): The GM user who dealt in tarokka-reading, when that is another client than the bridge (Foundry 14.352+).
 
 ### suggest-tarokka-links
 
-Search the world's journals, journal pages, scenes and actors by name to find what a Tarokka card should link to. The GM chooses; nothing is changed.
+Search journals, pages, scenes, actors and page headings (heading, anchor set) by name for what a Tarokka card should link to. The GM chooses; nothing is changed.
 
 Kind: read-only. Title: Suggest Tarokka links.
 
@@ -990,15 +1017,16 @@ No parameters.
 
 ### plan-page-reveal
 
-Plan revealing a journal page to players, or hiding one already revealed. Reveal adds the page to the allowlist and, by default (setOwnership: true), raises its ownership to Observer if players cannot already see it, recording the old ownership for Hide; refused if the page is already allowlisted and still observable. When no player can open the page's journal, the reveal instead COPIES the page into the player journal "Handouts" (created on first use, Observer for players): the copy gets the page's name and content, text without any secret blocks or @Embed enrichers and with links to documents players cannot open turned into plain text, or an image's source and caption; the source page and its journal are never changed. Revealing the same source again updates its copy; only text and image pages can be copied. Destructive class (needs the second confirmation) because a reveal cannot be taken back at the table. Hide removes the page from the allowlist and, by default, restores the ownership recorded at reveal time; for a copied handout (pass the source or the copy) it deletes the copy, the "Handouts" journal stays. Write nothing but a title into the summary. Returns a planId for apply-planned-change (plus copy and note when copying).
+Plan revealing a journal page to players, or hiding one already revealed. Reveal adds the page to the allowlist and, by default (setOwnership: true), raises its ownership to Observer if players cannot already see it, recording the old ownership for Hide; refused if the page is already allowlisted and still observable. When no player can open the page's journal, the reveal instead COPIES the page into the player journal "Handouts" (created on first use, Observer for players): the copy gets the page's name and content, text without any secret blocks or @Embed enrichers and with links to documents players cannot open turned into plain text, or an image's source and caption; the source page and its journal are never changed. Revealing the same source again updates its copy; only text and image pages can be copied. Destructive class (second confirmation): a reveal cannot be taken back at the table. Hide removes the page from the allowlist and, by default, restores the ownership recorded at reveal time; for a copied handout (pass the source or the copy) it deletes the copy, the "Handouts" journal stays. Write nothing but a title into the summary. Returns a planId for apply-planned-change (plus copy and note).
 
 Kind: read-only. Title: Plan page reveal.
 
 Parameters:
 
 - `pageUuid` (string): The journal page to reveal, hide, queue or unqueue. Not used by "reveal-next".
-- `action` (string, required): "reveal" adds it to the player allowlist; "hide" removes it. "queue" stages the page for later (changes nothing in Foundry, no plan, applies at once) and "unqueue" removes it from the queue. "reveal-next" plans the reveal of the oldest queued page for sceneId (or any), with the players it was queued for; applying it also takes the page off the queue. One of: `reveal`, `hide`, `queue`, `unqueue`, `reveal-next`.
+- `action` (string, required): "reveal" adds it to the player allowlist; "hide" removes it. "queue" stages the page for later (no plan, applies at once) and "unqueue" removes it from the queue. "move" puts a queued page at `position`. "reveal-next" plans revealing the oldest queued page (for sceneId, or any); applying it dequeues it. One of: `reveal`, `hide`, `queue`, `unqueue`, `move`, `reveal-next`.
 - `players` (array of string): Reveal (or queue) for these players only (Foundry user ids): the rest of the table does not get it. Omit for every player.
+- `position` (integer): move: new place, 0 = first.
 - `sceneId` (string): queue: the scene the page belongs to (omit for any scene). reveal-next: take the next page queued for this scene (or for any scene).
 - `setOwnership` (boolean): Also change the page ownership (default true). False only changes the allowlist.
 - `copy` (boolean): Reveal as a copy in the player journal "Handouts" (secret blocks and embeds left out, the source unchanged). Omit for automatic: copy when no player can open the page's journal, or when the page already has a copy (the copy is updated). True: always copy. False: never copy (raise the page instead; refused while the page has a copy).
@@ -1020,14 +1048,14 @@ Parameters:
 
 ### get-session-log
 
-Return the structured event log for the current session: combat start/end, HP changes (damage/healing), deaths and stabilizations, conditions applied/removed, resources expended, scene changes, journal entries created/updated, and dice rolls (public rolls as roll/damage-roll with a full breakdown in details.breakdown; whispered, blind and self rolls as gm-roll). Use this as a session memory layer to recap what has happened.
+Return the structured event log for the current session: combat start/end, HP changes (damage/healing), deaths and stabilizations, conditions applied/removed, resources expended, scene changes, journal entries created/updated, and dice rolls (public rolls as roll/damage-roll with a full breakdown in details.breakdown; whispered, blind and self rolls as gm-roll), and item-use cards. Use this as a session memory layer to recap what has happened.
 
 Kind: read-only. Title: Get session log.
 
 Parameters:
 
 - `limit` (integer): Maximum number of events to return (default 100). Default: `100`.
-- `eventType` (string): Optional event type filter (e.g. "combat-start", "combat-end", "damage", "healing", "death", "stabilize", "condition-applied", "condition-removed", "resource-spent", "scene-change", "journal-created", "journal-updated", "roll", "damage-roll", "gm-roll").
+- `eventType` (string): Optional event type filter (e.g. "combat-start", "combat-end", "damage", "healing", "death", "stabilize", "condition-applied", "condition-removed", "resource-spent", "scene-change", "journal-created", "journal-updated", "roll", "damage-roll", "gm-roll", "item-use").
 - `actorName` (string): Optional actor name filter (partial match).
 
 ### get-play-session

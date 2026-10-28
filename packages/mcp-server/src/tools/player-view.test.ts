@@ -14,6 +14,7 @@ function makeTools(): {
     listQueue: vi.fn(() => Promise.resolve([])),
     queuePage: vi.fn(() => Promise.resolve({ queued: true, pageUuid: 'x', note: '' })),
     unqueuePage: vi.fn(() => Promise.resolve({ queued: false, pageUuid: 'x', note: '' })),
+    movePage: vi.fn(() => Promise.resolve({ queued: true, pageUuid: 'x', note: '' })),
     playerHandouts: vi.fn(() => Promise.resolve({ handouts: [], revealedUuids: [] })),
     planPageReveal: vi.fn(() => Promise.resolve({ planId: 'p1', pageUuid: 'x' })),
   };
@@ -92,6 +93,11 @@ describe('PlayerViewTools', () => {
     expect(handouts.queuePage).toHaveBeenLastCalledWith({ pageUuid: 'x', players: ['u1'] });
     await tools.handlePlanPageReveal({ pageUuid: 'x', action: 'unqueue' });
     expect(handouts.unqueuePage).toHaveBeenLastCalledWith({ pageUuid: 'x' });
+    await tools.handlePlanPageReveal({ pageUuid: 'x', action: 'move', position: 2 });
+    expect(handouts.movePage).toHaveBeenLastCalledWith({ pageUuid: 'x', position: 2 });
+    await expect(tools.handlePlanPageReveal({ pageUuid: 'x', action: 'move' })).rejects.toThrow(
+      /position is required/
+    );
   });
 
   it('get-player-handouts forwards the service result as is', async () => {

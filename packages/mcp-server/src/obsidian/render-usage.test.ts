@@ -12,6 +12,7 @@ import { VaultStore } from '../vault/store.js';
 
 import { campaignDir, exportWorldToObsidian, newExportCache } from './export.js';
 import { formatUsageDuration, renderUsageNote, USAGE_NOTE_PATH } from './render-usage.js';
+import { rmTmp } from '../test-support/rm-tmp.js';
 
 const T = new Date(2026, 8, 28, 20, 0, 0).getTime();
 const MIN = 60_000;
@@ -135,8 +136,8 @@ describe('export of the usage note', () => {
   });
 
   afterEach(async () => {
-    await fsp.rm(dataDir, { recursive: true, force: true });
-    await fsp.rm(vaultDir, { recursive: true, force: true });
+    await rmTmp(dataDir);
+    await rmTmp(vaultDir);
   });
 
   async function read(rel: string): Promise<string | null> {

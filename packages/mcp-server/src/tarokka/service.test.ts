@@ -237,6 +237,48 @@ describe('reading and import', () => {
     expect(view.reading!.positions).toHaveLength(5);
   });
 
+  it('clears the current reading into the archive, and undo restores it', async () => {
+    await expect(tarokka.planImport({ clear: true })).rejects.toThrow(/no current reading/);
+    await apply((await tarokka.planImport({ source: 'builtin-roll' })).planId);
+    const before = await tarokka.getReading();
+    const readingId = before.reading!.readingId;
+
+    const plan = await tarokka.planImport({ clear: true });
+    expect(plan.summary).toMatch(/Clear the current Tarokka reading/);
+    expect(plan.requires.confirmDestructive).toBe(true);
+    const changeId = await apply(plan.planId, true);
+    expect(await tarokka.getReading()).toMatchObject({ available: false, archivedReadings: 1 });
+    expect((await vaultData(TAROKKA_FILE)).archive[readingId]).toBeDefined();
+
+    await guarded.undo(changeId, { confirm: true });
+    expect(await tarokka.getReading()).toEqual(before);
+  });
+
+  it('refuses clear together with source or userId', async () => {
+    await apply((await tarokka.planImport({ source: 'builtin-roll' })).planId);
+    await expect(tarokka.planImport({ clear: true, source: 'builtin-roll' })).rejects.toThrow(
+      /clear takes no source or userId/
+    );
+    await expect(tarokka.planImport({ clear: true, userId: 'u1' })).rejects.toThrow(
+      /clear takes no source or userId/
+    );
+    // The Tools form sends the schema default source 'auto' along with clear.
+    const plan = await tarokka.planImport({ clear: true, source: 'auto' });
+    expect(plan.summary).toMatch(/Clear the current Tarokka reading/);
+  });
+
+  it('refuses a clear plan that went stale because a reading was imported after it', async () => {
+    await apply((await tarokka.planImport({ source: 'builtin-roll' })).planId);
+    const clearPlan = await tarokka.planImport({ clear: true });
+    now += 1000;
+    await apply((await tarokka.planImport({ source: 'builtin-roll' })).planId);
+    const second = (await tarokka.getReading()).reading!.readingId;
+    await expect(apply(clearPlan.planId, true)).rejects.toThrow(
+      /Conflict, nothing was written: .*current changed since/
+    );
+    expect((await tarokka.getReading()).reading!.readingId).toBe(second);
+  });
+
   it('needs the tarokka feature switch to apply', async () => {
     const plan = await tarokka.planImport({ source: 'builtin-roll' });
     foundry.features[0].enabled = false;

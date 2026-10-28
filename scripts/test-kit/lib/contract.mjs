@@ -45,7 +45,7 @@ export const TOOLS_ONLY_TAG = 'tools-only';
  * `strahd-kit` is a throwaway copy of the campaign world for the licensed Curse of Strahd scenarios,
  * made again from the campaign world whenever it is needed (as on the Pi); never the campaign itself.
  */
-export const KIT_WORLDS = ['ai-tool-kit-srd', 'ai-tool-kit-licensed', 'strahd-kit'];
+export const KIT_WORLDS = ['ai-tool-kit-srd', 'ai-tool-kit-licensed', 'strahd-kit', 'ai-tool-kit-modules'];
 
 /** The kit's own world. */
 export const DEFAULT_KIT_WORLD = 'ai-tool-kit-srd';
@@ -64,6 +64,8 @@ export const DEFAULT_KIT_WORLD = 'ai-tool-kit-srd';
  *   compendium ids per kind, searched in order; the first pack that has an entry wins for duplicates
  * @property {{rules: Array<'2024'|'2014'>, skipNames?: string[], skipIds?: string}} [select]
  *   which rules versions count (both = 2024 plus legacy that remain), names to skip, and an id regex to skip
+ * @property {string[]} [knownConsoleErrors]   regular expressions (as text) for console errors every scenario accepts under
+ *   this profile (upstream errors of the profile's modules)
  * @property {string[]} [knownAlso]   profiles whose known lists (lib/known.mjs) count here too, after the
  *   profile's own; a licensed profile names "srd", because it includes the system's own packs
  * @property {{pack: string, rules?: '2024'|'2014', excludeIdPattern?: string}} [matrixMonsters]

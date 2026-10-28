@@ -10,6 +10,7 @@ import { Drawer, DrawerClose } from '../components/Drawer';
 import { useToast } from '../components/Toasts';
 import { api, callTool, errorText } from '../lib/api';
 import { failCode, useGuardedChange } from '../lib/guarded';
+import { canMoveTo, moveTarget } from '../lib/handoutQueue';
 import { HANDOUTS_KEY } from '../lib/stream';
 import { usage } from '../lib/usage';
 import { Button, QueryState } from '../ui';
@@ -215,6 +216,60 @@ export function HandoutsDrawer({
       });
   };
 
+  // Moves a row one place with the bridge's `move` action: one write, so a failure leaves the queue
+  // as it was. A plain call like Remove; the queue reloads after, also on a failure. The arrows are
+  // disabled during the move, which drops keyboard focus, so it goes back to the moved row's arrow
+  // (the other one when the row reached an end of the queue) once the queue has reloaded.
+  const [moving, setMoving] = useState(false);
+  const movingRef = useRef(false);
+  const queueRef = useRef<HTMLUListElement>(null);
+  const [refocusMove, setRefocusMove] = useState<{
+    entryId: string;
+    direction: 'up' | 'down';
+  } | null>(null);
+  const move = (index: number, direction: 'up' | 'down'): void => {
+    const row = s?.queue[index];
+    const to = moveTarget(index, direction);
+    if (!s || !row || !canMoveTo(s.queue.length, index, to)) return;
+    if (movingRef.current || revealingRef.current) return;
+    movingRef.current = true;
+    setMoving(true);
+    void callTool('plan-page-reveal', { action: 'move', pageUuid: row.uuid, position: to })
+      .then(
+        () => usage().trackTool('plan-page-reveal', 'ok'),
+        (err: unknown) => {
+          usage().trackTool('plan-page-reveal', 'error', failCode(err));
+          toast(`✗ plan-page-reveal: ${errorText(err)}`, 'err');
+        }
+      )
+      .finally(() => {
+        void handouts.refetch({ cancelRefetch: false }).finally(() => {
+          movingRef.current = false;
+          setMoving(false);
+          setRefocusMove({ entryId: row.entryId, direction });
+        });
+      });
+  };
+  useEffect(() => {
+    if (!refocusMove || moving) return;
+    setRefocusMove(null);
+    const list = queueRef.current;
+    const active = document.activeElement;
+    // Focus the GM moved elsewhere meanwhile stays put.
+    const parked =
+      active === document.body ||
+      list?.contains(active) ||
+      active?.getAttribute('role') === 'dialog';
+    if (!list || !parked) return;
+    const li = [...list.querySelectorAll<HTMLElement>('[data-entry-id]')].find(
+      el => el.dataset['entryId'] === refocusMove.entryId
+    );
+    const other = refocusMove.direction === 'up' ? 'down' : 'up';
+    const want = li?.querySelector<HTMLButtonElement>(`[data-move="${refocusMove.direction}"]`);
+    const alt = li?.querySelector<HTMLButtonElement>(`[data-move="${other}"]`);
+    (want && !want.disabled ? want : alt && !alt.disabled ? alt : want)?.focus();
+  }, [refocusMove, moving]);
+
   const queueBlock = (
     <QueryState
       query={handouts}
@@ -224,9 +279,10 @@ export function HandoutsDrawer({
       empty="Nothing queued. Only queued or revealed pages show here, so a new journal does not appear on its own: press + Queue a page to add one, then reveal it in one click."
     >
       {data =>
-        data.queue.map(q => (
+        data.queue.map((q, i) => (
           <li
             key={q.entryId}
+            data-entry-id={q.entryId}
             className={`preflight-item${next?.entryId === q.entryId ? ' pf-info' : ''}`}
           >
             <span className="pf-text">
@@ -247,8 +303,36 @@ export function HandoutsDrawer({
             <Button
               type="button"
               size="sm"
+              data-track="dash.handouts.move-up"
+              data-move="up"
+              aria-label={`Move ${q.title || 'Untitled'} up`}
+              title="Move up"
+              disabled={
+                moving || revealing || removing !== null || !canMoveTo(data.queue.length, i, i - 1)
+              }
+              onClick={() => move(i, 'up')}
+            >
+              ↑
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              data-track="dash.handouts.move-down"
+              data-move="down"
+              aria-label={`Move ${q.title || 'Untitled'} down`}
+              title="Move down"
+              disabled={
+                moving || revealing || removing !== null || !canMoveTo(data.queue.length, i, i + 1)
+              }
+              onClick={() => move(i, 'down')}
+            >
+              ↓
+            </Button>
+            <Button
+              type="button"
+              size="sm"
               data-track="dash.handouts.unqueue"
-              disabled={removing === q.uuid}
+              disabled={removing === q.uuid || moving}
               onClick={() => unqueue(q.uuid)}
             >
               Remove
@@ -317,7 +401,7 @@ export function HandoutsDrawer({
             id="handouts-next"
             ref={nextRef}
             data-track="dash.handouts.reveal-next"
-            disabled={!next || revealing}
+            disabled={!next || revealing || moving}
             onClick={revealNext}
           >
             {next ? `Reveal next: ${next.title || 'Untitled'}` : 'Reveal next'}
@@ -353,7 +437,7 @@ export function HandoutsDrawer({
       }
     >
       <h3 className="preflight-h">Queue</h3>
-      <ul className="preflight-list" id="handouts-queue" aria-label="Queue">
+      <ul className="preflight-list" id="handouts-queue" aria-label="Queue" ref={queueRef}>
         {queueBlock}
       </ul>
       <h3 className="preflight-h">Revealed</h3>

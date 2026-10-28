@@ -7,6 +7,14 @@ import { ErrorHandler } from '../utils/error-handler.js';
 import { Logger } from '../logger.js';
 import { CampaignPartTypeSchema, toolRef } from '@gnuminator/shared';
 import type { CampaignStructure, CampaignPart } from '@gnuminator/shared';
+import type {
+  CampaignDashboardRequest,
+  CampaignDashboardResult,
+  CampaignTemplatePart,
+  CampaignToolDefinition,
+  CreateJournalEntryReply,
+  StatusTrackerSource,
+} from './types/campaign-types.js';
 
 export class CampaignManagementTools {
   private foundryClient: FoundryClient;
@@ -19,7 +27,7 @@ export class CampaignManagementTools {
     this.errorHandler = new ErrorHandler(this.logger);
   }
 
-  getToolDefinitions() {
+  getToolDefinitions(): CampaignToolDefinition[] {
     return [
       {
         name: 'create-campaign-dashboard',
@@ -89,7 +97,7 @@ export class CampaignManagementTools {
   /**
    * Handle create campaign dashboard request
    */
-  async handleCreateCampaignDashboard(args: any): Promise<any> {
+  async handleCreateCampaignDashboard(args: unknown): Promise<CampaignDashboardResult> {
     try {
       const requestSchema = z.object({
         campaignTitle: z.string().min(1, 'Campaign title is required'),
@@ -124,7 +132,7 @@ export class CampaignManagementTools {
         defaultLocation: z.string().optional(),
       });
 
-      const request = requestSchema.parse(args);
+      const request: CampaignDashboardRequest = requestSchema.parse(args);
 
       // Generate campaign structure based on template
       const campaignStructure = this.generateCampaignStructure(request);
@@ -133,7 +141,7 @@ export class CampaignManagementTools {
       const dashboardContent = this.generateDashboardHTML(campaignStructure);
 
       // Create the journal entry in Foundry (organized in campaign-specific folder)
-      const journalResult = await this.foundryClient.query(
+      const journalReply: unknown = await this.foundryClient.query(
         'foundry-mcp-bridge.createJournalEntry',
         {
           name: `${request.campaignTitle} - Campaign Dashboard`,
@@ -141,6 +149,7 @@ export class CampaignManagementTools {
           folderName: request.campaignTitle, // Organize in campaign-named folder
         }
       );
+      const journalResult = journalReply as CreateJournalEntryReply | null | undefined;
 
       if (!journalResult || journalResult.error) {
         throw new Error(journalResult?.error || 'Failed to create campaign dashboard journal');
@@ -172,47 +181,55 @@ export class CampaignManagementTools {
   /**
    * Generate campaign structure from template
    */
-  private generateCampaignStructure(request: any): CampaignStructure {
+  private generateCampaignStructure(request: CampaignDashboardRequest): CampaignStructure {
     const campaignId = `campaign-${Date.now()}`;
     const timestamp = Date.now();
 
     let parts: CampaignPart[];
 
     if (request.template === 'custom' && request.customParts) {
-      parts = request.customParts.map((part: any, index: number) => ({
-        id: `${campaignId}-part-${index + 1}`,
-        title: part.title,
-        description: part.description,
-        type: part.type,
-        status: 'not_started' as const,
-        dependencies: index > 0 ? [`${campaignId}-part-${index}`] : [],
-        subParts: part.subParts?.map((subPart: any, subIndex: number) => ({
-          id: `${campaignId}-part-${index + 1}-sub-${subIndex + 1}`,
-          title: subPart.title,
-          description: subPart.description,
-          type: 'sub_part' as const,
+      parts = request.customParts.map(
+        (part, index): CampaignPart => ({
+          id: `${campaignId}-part-${index + 1}`,
+          title: part.title,
+          description: part.description,
+          type: part.type,
           status: 'not_started' as const,
-          createdAt: timestamp,
-        })),
-        ...(request.defaultQuestGiver && {
-          questGiver: {
-            id: `npc-${request.defaultQuestGiver.toLowerCase().replace(/\s+/g, '-')}`,
-            name: request.defaultQuestGiver,
+          dependencies: index > 0 ? [`${campaignId}-part-${index}`] : [],
+          ...(part.subParts
+            ? {
+                subParts: part.subParts.map((subPart, subIndex) => ({
+                  id: `${campaignId}-part-${index + 1}-sub-${subIndex + 1}`,
+                  title: subPart.title,
+                  description: subPart.description,
+                  type: 'sub_part' as const,
+                  status: 'not_started' as const,
+                  createdAt: timestamp,
+                })),
+              }
+            : {}),
+          ...(request.defaultQuestGiver
+            ? {
+                questGiver: {
+                  id: `npc-${request.defaultQuestGiver.toLowerCase().replace(/\s+/g, '-')}`,
+                  name: request.defaultQuestGiver,
+                },
+              }
+            : {}),
+          levelRecommendation: {
+            start: part.levelStart,
+            end: part.levelEnd,
           },
-        }),
-        levelRecommendation: {
-          start: part.levelStart,
-          end: part.levelEnd,
-        },
-        gmNotes: '',
-        playerContent: '',
-        scaling: {
-          adjustForPartySize: true,
-          adjustForLevel: true,
-          difficultyModifier: 0,
-        },
-        createdAt: timestamp,
-      }));
+          gmNotes: '',
+          playerContent: '',
+          scaling: {
+            adjustForPartySize: true,
+            adjustForLevel: true,
+            difficultyModifier: 0,
+          },
+          createdAt: timestamp,
+        })
+      );
     } else {
       parts = this.getTemplateParts(
         request.template,
@@ -228,14 +245,16 @@ export class CampaignManagementTools {
       description: request.campaignDescription,
       parts,
       metadata: {
-        ...(request.defaultQuestGiver && {
-          defaultQuestGiver: {
-            id: `npc-${request.defaultQuestGiver.toLowerCase().replace(/\s+/g, '-')}`,
-            name: request.defaultQuestGiver,
-          },
-        }),
-        ...(request.defaultLocation && { defaultLocation: request.defaultLocation }),
-        ...(request.template && { theme: request.template }),
+        ...(request.defaultQuestGiver
+          ? {
+              defaultQuestGiver: {
+                id: `npc-${request.defaultQuestGiver.toLowerCase().replace(/\s+/g, '-')}`,
+                name: request.defaultQuestGiver,
+              },
+            }
+          : {}),
+        ...(request.defaultLocation ? { defaultLocation: request.defaultLocation } : {}),
+        ...(request.template ? { theme: request.template } : {}),
         tags: [request.template],
       },
       createdAt: timestamp,
@@ -252,7 +271,7 @@ export class CampaignManagementTools {
     timestamp: number,
     defaultQuestGiver?: string
   ): CampaignPart[] {
-    const templates: Record<string, any[]> = {
+    const templates: Record<string, CampaignTemplatePart[]> = {
       'five-part-adventure': [
         {
           title: 'Hook & Introduction',
@@ -373,40 +392,46 @@ export class CampaignManagementTools {
 
     const templateParts = templates[template] || templates['five-part-adventure'];
 
-    return templateParts.map((part, index) => ({
-      id: `${campaignId}-part-${index + 1}`,
-      title: part.title,
-      description: part.description,
-      type: 'main_part' as const,
-      status: 'not_started' as const,
-      dependencies: index > 0 ? [`${campaignId}-part-${index}`] : [],
-      subParts: part.subParts?.map((subPart: any, subIndex: number) => ({
-        id: `${campaignId}-part-${index + 1}-sub-${subIndex + 1}`,
-        title: subPart.title,
-        description: subPart.description,
-        type: 'sub_part' as const,
+    return templateParts.map(
+      (part, index): CampaignPart => ({
+        id: `${campaignId}-part-${index + 1}`,
+        title: part.title,
+        description: part.description,
+        type: 'main_part' as const,
         status: 'not_started' as const,
-        createdAt: timestamp,
-      })),
-      ...(defaultQuestGiver && {
-        questGiver: {
-          id: `npc-${defaultQuestGiver.toLowerCase().replace(/\s+/g, '-')}`,
-          name: defaultQuestGiver,
+        dependencies: index > 0 ? [`${campaignId}-part-${index}`] : [],
+        ...(part.subParts
+          ? {
+              subParts: part.subParts.map((subPart, subIndex) => ({
+                id: `${campaignId}-part-${index + 1}-sub-${subIndex + 1}`,
+                title: subPart.title,
+                description: subPart.description,
+                type: 'sub_part' as const,
+                status: 'not_started' as const,
+                createdAt: timestamp,
+              })),
+            }
+          : {}),
+        ...(defaultQuestGiver && {
+          questGiver: {
+            id: `npc-${defaultQuestGiver.toLowerCase().replace(/\s+/g, '-')}`,
+            name: defaultQuestGiver,
+          },
+        }),
+        levelRecommendation: {
+          start: part.levels[0],
+          end: part.levels[1],
         },
-      }),
-      levelRecommendation: {
-        start: part.levels[0],
-        end: part.levels[1],
-      },
-      gmNotes: '',
-      playerContent: '',
-      scaling: {
-        adjustForPartySize: true,
-        adjustForLevel: true,
-        difficultyModifier: 0,
-      },
-      createdAt: timestamp,
-    }));
+        gmNotes: '',
+        playerContent: '',
+        scaling: {
+          adjustForPartySize: true,
+          adjustForLevel: true,
+          difficultyModifier: 0,
+        },
+        createdAt: timestamp,
+      })
+    );
   }
 
   /**
@@ -540,7 +565,7 @@ export class CampaignManagementTools {
     if (part.subParts && part.subParts.length > 0) {
       html += `\n    <div class="sub-parts">`;
       html += `\n      <h4>Sub-Parts:</h4>`;
-      part.subParts.forEach((subPart: any, subIndex: number) => {
+      part.subParts.forEach((subPart, subIndex) => {
         const subStatusTracker = this.generateStatusTracker(subPart, campaign.id);
         html += `\n      <p><strong>${partNumber}.${subIndex + 1}: ${subPart.title}</strong> - Status: ${subStatusTracker}</p>`;
         if (subPart.journalId) {
@@ -572,7 +597,7 @@ export class CampaignManagementTools {
   /**
    * Generate interactive status toggle element for Foundry hook system
    */
-  private generateStatusTracker(part: any, campaignId: string): string {
+  private generateStatusTracker(part: StatusTrackerSource, campaignId: string): string {
     const statusIcon = this.getStatusIcon(part.status);
     const statusDisplay = this.formatStatus(part.status);
     const statusClass = part.status.replace('_', '-'); // Convert to CSS class format
@@ -608,14 +633,18 @@ export class CampaignManagementTools {
   /**
    * Calculate overall campaign progress
    */
-  private calculateProgress(campaign: CampaignStructure) {
+  private calculateProgress(campaign: CampaignStructure): {
+    total: number;
+    completed: number;
+    percentage: number;
+  } {
     let total = 0;
     let completed = 0;
 
-    campaign.parts.forEach((part: any) => {
+    campaign.parts.forEach((part: CampaignPart) => {
       if (part.subParts && part.subParts.length > 0) {
         total += part.subParts.length;
-        completed += part.subParts.filter((sp: any) => sp.status === 'completed').length;
+        completed += part.subParts.filter(sp => sp.status === 'completed').length;
       } else {
         total += 1;
         if (part.status === 'completed') completed += 1;

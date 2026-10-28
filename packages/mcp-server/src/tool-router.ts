@@ -42,6 +42,7 @@ import type { PartyTools } from './tools/party.js';
 import type { PrepDigestTools } from './tools/prep-digest.js';
 import type { QuestCreationTools } from './tools/quest-creation.js';
 import type { RefChoiceTools } from './tools/ref-choices.js';
+import type { LevelUpTools } from './tools/level-up.js';
 import type { ResourceTools } from './tools/resources.js';
 import type { SceneChangeTools } from './tools/scene-change.js';
 import type { CombatChangeTools } from './tools/combat-change.js';
@@ -89,6 +90,7 @@ export interface ToolRouterDeps {
   questCreationTools: QuestCreationTools;
   refChoiceTools: RefChoiceTools;
   resourceTools: ResourceTools;
+  levelUpTools: LevelUpTools;
   sceneChangeTools: SceneChangeTools;
   combatChangeTools: CombatChangeTools;
   sceneTools: SceneTools;
@@ -103,7 +105,7 @@ export interface ToolCallContext {
   requestedBy?: string;
 }
 
-export type ToolHandler = (args: any, context?: ToolCallContext) => Promise<any>;
+export type ToolHandler = (args: unknown, context?: ToolCallContext) => Promise<unknown>;
 
 /**
  * Build the `call_tool` name → handler map. Unknown names are absent from the
@@ -138,6 +140,7 @@ export function buildToolRouter(deps: ToolRouterDeps): Record<string, ToolHandle
     'set-initiative': args => deps.combatTools.handleSetInitiative(args),
     'roll-initiative-for-npcs': args => deps.combatTools.handleRollInitiativeForNpcs(args),
     'search-compendium': args => deps.compendiumTools.handleSearchCompendium(args),
+    'search-rules': args => deps.compendiumTools.handleSearchRules(args),
     'get-compendium-item': args => deps.compendiumTools.handleGetCompendiumItem(args),
     'list-creatures-by-criteria': args => deps.compendiumTools.handleListCreaturesByCriteria(args),
     'list-compendium-packs': args => deps.compendiumTools.handleListCompendiumPacks(args),
@@ -184,6 +187,7 @@ export function buildToolRouter(deps: ToolRouterDeps): Record<string, ToolHandle
     'list-journals': args => deps.questCreationTools.handleListJournals(args),
     'search-journals': args => deps.questCreationTools.handleSearchJournals(args),
     'get-character-resources': args => deps.resourceTools.handleGetCharacterResources(args),
+    'get-level-up-options': args => deps.levelUpTools.handleGetLevelUpOptions(args),
     'get-current-scene': args => deps.sceneTools.handleGetCurrentScene(args),
     'get-world-info': args => deps.sceneTools.handleGetWorldInfo(args),
     'get-session-log': args => deps.sessionLogTools.handleGetSessionLog(args),
@@ -221,7 +225,7 @@ export function buildToolRouter(deps: ToolRouterDeps): Record<string, ToolHandle
       deps.tokenManipulationTools.handleGetAvailableConditions(args),
   };
 
-  return Object.assign(Object.create(null), routes);
+  return Object.assign(Object.create(null) as Record<string, ToolHandler>, routes);
 }
 
 /** A tool as the backend lists it (MCP `tools/list` shape). */
@@ -262,6 +266,7 @@ export function collectToolDefinitions(deps: ToolRouterDeps): ToolDefinitionLike
     ...deps.tokenManipulationTools.getToolDefinitions(),
     ...deps.chatLogTools.getToolDefinitions(),
     ...deps.resourceTools.getToolDefinitions(),
+    ...deps.levelUpTools.getToolDefinitions(),
     ...deps.effectsTools.getToolDefinitions(),
     ...deps.combatTools.getToolDefinitions(),
     ...deps.movementTools.getToolDefinitions(),

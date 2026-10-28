@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { toolRef } from '@gnuminator/shared';
 import { FoundryClient } from '../foundry-client.js';
 import { Logger } from '../logger.js';
+import type { SessionLogBridgeReply, SessionLogToolDefinition } from './types/session-log-types.js';
 
 interface SessionLogToolsOptions {
   foundryClient: FoundryClient;
@@ -23,12 +24,12 @@ export class SessionLogTools {
     this.logger = options.logger.child({ component: 'SessionLogTools' });
   }
 
-  getToolDefinitions() {
+  getToolDefinitions(): SessionLogToolDefinition[] {
     return [
       {
         name: 'get-session-log',
         description:
-          'Return the structured event log for the current session: combat start/end, HP changes (damage/healing), deaths and stabilizations, conditions applied/removed, resources expended, scene changes, journal entries created/updated, and dice rolls (public rolls as roll/damage-roll with a full breakdown in details.breakdown; whispered, blind and self rolls as gm-roll). Use this as a session memory layer to recap what has happened.',
+          'Return the structured event log for the current session: combat start/end, HP changes (damage/healing), deaths and stabilizations, conditions applied/removed, resources expended, scene changes, journal entries created/updated, and dice rolls (public rolls as roll/damage-roll with a full breakdown in details.breakdown; whispered, blind and self rolls as gm-roll), and item-use cards. Use this as a session memory layer to recap what has happened.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -40,7 +41,7 @@ export class SessionLogTools {
             eventType: {
               type: 'string',
               description:
-                'Optional event type filter (e.g. "combat-start", "combat-end", "damage", "healing", "death", "stabilize", "condition-applied", "condition-removed", "resource-spent", "scene-change", "journal-created", "journal-updated", "roll", "damage-roll", "gm-roll").',
+                'Optional event type filter (e.g. "combat-start", "combat-end", "damage", "healing", "death", "stabilize", "condition-applied", "condition-removed", "resource-spent", "scene-change", "journal-created", "journal-updated", "roll", "damage-roll", "gm-roll", "item-use").',
             },
             actorName: {
               type: 'string',
@@ -82,7 +83,7 @@ export class SessionLogTools {
     ];
   }
 
-  async handleGetSessionLog(args: any) {
+  async handleGetSessionLog(args: unknown): Promise<SessionLogBridgeReply | undefined> {
     const schema = z.object({
       limit: z.number().int().min(1).max(1000).optional(),
       eventType: z.string().optional(),
@@ -90,7 +91,10 @@ export class SessionLogTools {
     });
     try {
       const params = schema.parse(args ?? {});
-      const response = await this.foundryClient.query('foundry-mcp-bridge.getSessionLog', params);
+      const response = (await this.foundryClient.query(
+        'foundry-mcp-bridge.getSessionLog',
+        params
+      )) as SessionLogBridgeReply | undefined;
       if (response?.success === false) {
         throw new Error(response.error || 'Failed to get session log');
       }
@@ -101,7 +105,7 @@ export class SessionLogTools {
     }
   }
 
-  async handleGetRecentEvents(args: any) {
+  async handleGetRecentEvents(args: unknown): Promise<SessionLogBridgeReply | undefined> {
     const schema = z.object({
       sinceTimestamp: z.string().optional(),
       limit: z.number().int().min(1).max(1000).optional(),
@@ -109,7 +113,10 @@ export class SessionLogTools {
     });
     try {
       const params = schema.parse(args ?? {});
-      const response = await this.foundryClient.query('foundry-mcp-bridge.getRecentEvents', params);
+      const response = (await this.foundryClient.query(
+        'foundry-mcp-bridge.getRecentEvents',
+        params
+      )) as SessionLogBridgeReply | undefined;
       if (response?.success === false) {
         throw new Error(response.error || 'Failed to get recent events');
       }

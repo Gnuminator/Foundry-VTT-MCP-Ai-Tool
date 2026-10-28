@@ -20,8 +20,8 @@
  *     `vi.fn()` stubs (these are fire-and-forget, so the stubs return resolved
  *     promises). The generic fallback uses the harness `ChatMessage.create`.
  *   - `useItem` targeting reads `game.scenes.active`, `scene.tokens`, and
- *     `game.user.updateTokenTargets`; a scene is added and `updateTokenTargets`
- *     is stubbed on the GM user after install.
+ *     `canvas.tokens.setTargets` (v14 has no `User#updateTokenTargets`); a scene is added and a
+ *     `canvas` with a `setTargets` stub is installed per-test and removed in `afterEach`.
  *   - Compendium packs are added with `world.addPack` (type `'Item'` so they pass
  *     the `pack.metadata.type === 'Item'` guard); their index carries `_id`/`name`
  *     and `pack.getDocument` returns a doc with `toObject()`.
@@ -53,9 +53,17 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  delete (globalThis as any).canvas;
   restore();
   vi.restoreAllMocks();
 });
+
+/** A ready canvas viewing `sceneId`, with a stubbed tokens layer. */
+function stubCanvas(sceneId: string): ReturnType<typeof vi.fn> {
+  const setTargets = vi.fn();
+  (globalThis as any).canvas = { ready: true, scene: { id: sceneId }, tokens: { setTargets } };
+  return setTargets;
+}
 
 /** A short tick so a fire-and-forget `.use()/.toMessage()` promise resolves. */
 const flush = (): Promise<unknown> => new Promise(resolve => setTimeout(resolve, 0));
@@ -182,7 +190,7 @@ describe('FoundryDataAccess — useItem', () => {
     expect(result.itemName).toBe('Trinket');
   });
 
-  it('resolves named targets, sets them via updateTokenTargets, and reports them', async () => {
+  it('resolves named targets, sets them via canvas.tokens.setTargets, and reports them', async () => {
     const use = vi.fn(() => Promise.resolve());
     const item = makeItem({ id: 'spell1', name: 'Hold Person', type: 'spell' });
     (item as any).use = use;
@@ -196,8 +204,7 @@ describe('FoundryDataAccess — useItem', () => {
     });
     world.setActiveScene(scene.id);
 
-    const updateTokenTargets = vi.fn(() => Promise.resolve());
-    (world.options.currentUser as any).updateTokenTargets = updateTokenTargets;
+    const setTargets = stubCanvas(scene.id);
 
     const result = await da.useItem({
       actorIdentifier: 'Mage',
@@ -205,10 +212,88 @@ describe('FoundryDataAccess — useItem', () => {
       targets: ['Goblin'],
     });
 
-    expect(updateTokenTargets).toHaveBeenCalledTimes(1);
-    expect(updateTokenTargets.mock.calls[0][0]).toEqual(['tok-goblin']);
+    expect(setTargets).toHaveBeenCalledTimes(1);
+    expect(setTargets).toHaveBeenCalledWith(['tok-goblin'], { mode: 'replace' });
     expect(result.targets).toEqual(['Goblin']);
     expect(result.message).toContain('targeting Goblin');
+  });
+
+  it('still uses the item when no canvas is ready to take the targets', async () => {
+    const use = vi.fn(() => Promise.resolve());
+    const item = makeItem({ id: 'spell1', name: 'Hold Person', type: 'spell' });
+    (item as any).use = use;
+    world.addActor({ id: 'a1', name: 'Mage', items: [item] });
+    const scene = world.addScene({
+      id: 'scene1',
+      name: 'Field',
+      active: true,
+      tokens: [makeToken({ id: 'tok-goblin', name: 'Goblin', x: 100, y: 100 })],
+    });
+    world.setActiveScene(scene.id);
+
+    const result = await da.useItem({
+      actorIdentifier: 'Mage',
+      itemIdentifier: 'Hold Person',
+      targets: ['Goblin'],
+    });
+
+    expect(use).toHaveBeenCalledTimes(1);
+    expect(result.targets).toBeUndefined();
+    expect(result.message).not.toContain('targeting');
+    expect(result.message).toContain('targets not set: the canvas is not ready');
+  });
+
+  it('does not clear the GM targets when the viewed scene is not the active one', async () => {
+    const use = vi.fn(() => Promise.resolve());
+    const item = makeItem({ id: 'spell1', name: 'Hold Person', type: 'spell' });
+    (item as any).use = use;
+    world.addActor({ id: 'a1', name: 'Mage', items: [item] });
+    const scene = world.addScene({
+      id: 'scene1',
+      name: 'Field',
+      active: true,
+      tokens: [makeToken({ id: 'tok-goblin', name: 'Goblin', x: 100, y: 100 })],
+    });
+    world.setActiveScene(scene.id);
+    const setTargets = stubCanvas('other-scene');
+
+    const result = await da.useItem({
+      actorIdentifier: 'Mage',
+      itemIdentifier: 'Hold Person',
+      targets: ['Goblin'],
+    });
+
+    expect(setTargets).not.toHaveBeenCalled();
+    expect(use).toHaveBeenCalledTimes(1);
+    expect(result.targets).toBeUndefined();
+    expect(result.message).toContain('different scene');
+  });
+
+  it('still uses the item when Foundry refuses to set the targets', async () => {
+    const use = vi.fn(() => Promise.resolve());
+    const item = makeItem({ id: 'spell1', name: 'Hold Person', type: 'spell' });
+    (item as any).use = use;
+    world.addActor({ id: 'a1', name: 'Mage', items: [item] });
+    const scene = world.addScene({
+      id: 'scene1',
+      name: 'Field',
+      active: true,
+      tokens: [makeToken({ id: 'tok-goblin', name: 'Goblin', x: 100, y: 100 })],
+    });
+    world.setActiveScene(scene.id);
+    stubCanvas(scene.id).mockImplementation(() => {
+      throw new Error('boom');
+    });
+
+    const result = await da.useItem({
+      actorIdentifier: 'Mage',
+      itemIdentifier: 'Hold Person',
+      targets: ['Goblin'],
+    });
+
+    expect(use).toHaveBeenCalledTimes(1);
+    expect(result.targets).toBeUndefined();
+    expect(result.message).toContain('Foundry refused');
   });
 
   it('resolves "self" to the caster\'s own token', async () => {
@@ -224,13 +309,15 @@ describe('FoundryDataAccess — useItem', () => {
       tokens: [makeToken({ id: 'tok-self', name: 'Paladin Token', actorId: actor.id })],
     });
     world.setActiveScene(scene.id);
-    (world.options.currentUser as any).updateTokenTargets = vi.fn(() => Promise.resolve());
+    const setTargets = stubCanvas(scene.id);
 
     const result = await da.useItem({
       actorIdentifier: 'Paladin',
       itemIdentifier: 'Bless',
       targets: ['self'],
     });
+
+    expect(setTargets).toHaveBeenCalledWith(['tok-self'], { mode: 'replace' });
 
     // "self" resolves the token to the caster actor; the reported name is the actor's.
     expect(result.targets).toEqual(['Paladin']);

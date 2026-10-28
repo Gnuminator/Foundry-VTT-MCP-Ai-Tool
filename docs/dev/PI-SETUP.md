@@ -830,13 +830,43 @@ WORLD=frostmaiden-training KIT_WORLD= LAUNCH=curse-of-strahd EXTRA_GM_USER=Claud
   `/etc/foundry-ai-tool/` is written for every world of the run before the first is provisioned and
   stays until that world's provisioning has worked, so a plain rerun provisions the kept
   world again with the passwords already in its file (no `REPLACE_WORLD=1` needed). On any failure
-  Foundry comes back on the campaign.
+  Foundry comes back on the world it launched before the run (the campaign, unless it was switched to
+  the training world; see "Switching Foundry to the training world and back").
 - Only the GM user is checked on the PC (push-world stops unless `Gamemaster` has no password).
   Other users in the copy, such as the test server's passwordless `Player`, go to the Pi as they are,
   so delete them in the copy first, or give them a password in Foundry on the Pi afterwards.
 - Then stage 13 with `WORLD=frostmaiden-training KIT_WORLD=` turns Actor Studio's usage tracking off
   there too. Like stage 11, stage 13 only defaults `KIT_WORLD` to `strahd-kit` for
   `curse-of-strahd`: any other world must set it, so a training run cannot change strahd-kit.
+
+#### Switching Foundry to the training world and back
+
+Who: Claude, when the user asks for it, never the GM and never by hand on the Pi (decision D-118). The user says when the training call is, a session does the switch under the `pi-work`
+rules, and after the call the same session switches back to `curse-of-strahd`. Do not leave the Pi on
+the training world: the players and Danni's real game open whatever world Foundry launches.
+
+How: there is no stage that only switches worlds. The switch is stage 11 (`11-world.sh`) run with a
+training bundle and `LAUNCH` set to the world Foundry should start. Both directions use the same bundle
+command, and the installed training world is kept, with its passwords, because `REPLACE_WORLD` stays 0:
+
+1. Check that nobody is online (Foundry stops for a few minutes) and take a `dietpi-backup 1` snapshot.
+   Get the user's OK for this run.
+2. On this PC build a fresh bundle with the `push-world.ps1` command above. Stage 11 deletes the bundle
+   after a successful run, so each switch needs its own.
+3. Switch to the training world: run stage 11 with
+   `WORLD=frostmaiden-training KIT_WORLD= LAUNCH=frostmaiden-training EXTRA_GM_USER=Claude`.
+4. After the call, do steps 1 and 2 again (a snapshot taken for step 3 on an earlier day does not
+   count: stage 11 wants one from today), then run stage 11 with
+   `WORLD=frostmaiden-training KIT_WORLD= LAUNCH=curse-of-strahd EXTRA_GM_USER=Claude`. Check on the Pi
+   that `options.json` launches `curse-of-strahd` and that `/api/status` shows the campaign world.
+
+If step 4 fails, Foundry stays on the training world, because a failed run puts back whatever world it
+launched before the run. Run step 4 again until it works, and do not end the session before it has.
+Build each bundle while the PC's Foundry does not have the world open; the bundle is still fully
+checked even though the kept world is not replaced from it.
+
+Because the world is kept, anything changed in it during a call stays for the next one. To start over,
+add `REPLACE_WORLD=1` to the command of step 3.
 
 If a proxy ever has to run elsewhere, it is our patched copy (it reads the cookie from a file and
 keeps it out of its logs), bound to `127.0.0.1`, never the upstream one (which logs the cookie).
@@ -1205,24 +1235,88 @@ Today, red when the backup is older than 30 hours or no report came for 3 hours.
 - Tests: `scripts/pi/board-status.test.mjs` (the script against a local server) and, with
   `PI_STAGE16_CONTAINER=1` (Docker), `scripts/pi/container-test/stage16-scenarios.sh` in the ARM64 container.
 
+## GitHub Actions runners for the PM board (stage 17)
+
+The PM board is rebuilt by GitHub Actions on every vault push, which used up the free hosted minutes
+(2026-10-28). Stage 17 (`scripts/pi/remote/17-gh-runner.sh`) puts two self-hosted runners (linux-arm64, pinned
+release and sha256) on the Pi: `vault` for `Gnuminator/obsidian-vault` (workflow `board`) and `board` for
+`Gnuminator/foundry-ai-tool-pm-board` (workflow `deploy board`). A repo-level runner serves one repo, hence two.
+
+- **Fenced from the game:** the user `ghrunner` (no login, no sudo, no foundry group); each runner's unit allows
+  writes only in `/opt/gh-runner/<name>`, cannot see `/etc/foundry-ai-tool`, `/var/lib/foundry*` or `/mnt`, cannot
+  list other processes, cannot reach loopback, Tailscale or the LAN (the router stays reachable for DNS and the way
+  out), and has 2 GB and a low CPU weight. IPv6 is denied as a whole (`::/0`; the runner reaches GitHub over IPv4).
+  The IPv4 nameservers in `/etc/resolv.conf` are allowed along with the router; a nameserver in `127.0.0.0/8`, a Tailscale
+  address (`100.64.0.0/10`) or one of the Pi's own addresses cannot be, so the stage stops and names it. The stage
+  proves the address rules before it starts anything: a control probe without the rules must reach sshd (otherwise
+  the fence cannot be tested and the stage stops), and a probe service with the rules must be refused at sshd on
+  loopback and on the Pi's LAN address. If that probe still connects (a kernel without cgroup BPF firewalling), the
+  stage turns the gate timer off and stops; runners that already run keep running until they are stopped. A workflow
+  on any branch of these repos runs on the Pi, so both repos must stay private (checked 2026-10-28: both are).
+- **Gate:** `foundry-ai-tool-gh-runner-gate.timer` (every minute) runs `/opt/gh-runner/gate.sh`. While a play
+  session is marked (the newest `session-start`/`session-end` marker over the 3 newest `sessions/<date>.jsonl` of a
+  world vault is a start, so a session over midnight counts; a start older than 14 hours is stale) it stops the
+  runners that run no job. A job is found through the unit's cgroup (a `Runner.Worker` process), and a running job
+  is left alone, so it can delay the stop until it ends. Builds wait on GitHub's side and run when the session ends.
+  Nothing marks a session by itself: it relies on `mark-play-session`. If the state cannot
+  be read, the runners stay stopped for up to 6 hours in a row, then the gate lets them run and logs it. The runners are
+  not enabled at boot: the gate starts them (within a minute) when no session is marked. A rerun that changes a unit
+  file does not touch a running runner: stop it (`systemctl stop`) and the gate starts it with the new file.
+- **Tokens:** the Cloudflare token stays in the `board` environment secrets on GitHub (the workflow already reads it;
+  nothing of it is on the Pi). A runner is registered with a one-hour registration token that
+  `scripts/pi/remote/put-runner-token.sh vault|board` (on the PC) pipes from `gh` into
+  `/etc/foundry-ai-tool/gh-runner-<name>.reg` (root only) without printing it; the stage deletes the file after
+  registering. A runner that is registered needs no token on a rerun.
+- **Run:** after a `dietpi-backup` snapshot and both token files,
+  `cat scripts/pi/remote/lib.sh scripts/pi/remote/17-gh-runner.sh | ssh foundry-pi 'bash -s'`. It does not touch Foundry
+  or any of its services.
+- **libicu:** the runner's .NET needs ICU, and GitHub's `config.sh` stops without it (it reports on stdout, not stderr).
+  Only when no libicu is in the library cache, the stage refreshes the apt lists (`apt-get update`, as stages 1, 4 and 12
+  do), installs the newest `libicuNN` package apt then knows (`libicu72` on Debian 12), says so, and removes nothing. This
+  comes before the runner user is created. If registering still fails, the last lines of `config.sh`'s output are
+  printed, minus any line that could hold the token.
+- **Check later:** `systemctl list-timers foundry-ai-tool-gh-runner-gate.timer`,
+  `journalctl -u foundry-ai-tool-gh-runner-gate -n 10`, each repo's Settings > Actions > Runners shows `foundry-pi`.
+  To stop everything: `systemctl disable --now foundry-ai-tool-gh-runner-gate.timer` and stop the two runner units.
+- Tests: `scripts/pi/gh-runner.test.mjs` (the gate against fake vaults, the stage as text, the allow list against fake `resolv.conf` files); with `PI_STAGE17_CONTAINER=1` (Docker) also `scripts/pi/container-test/stage17-scenarios.sh`, the libicu check and the registration step in the ARM64 container, with no ICU installed and started from a folder the runner user cannot enter (`config.sh` checks `ldd ./bin/...` relative to the cwd).
+
+## Clock sync (stage 18)
+
+DietPi's default time sync (`CONFIG_NTP_MODE=2` in `/boot/dietpi.txt`) is "boot + daily": systemd-timesyncd
+syncs once, then DietPi stops it again. `timedatectl` still says "System clock synchronized: yes" (the kernel
+flag stays set for some hours) but "NTP service: inactive", and the clock drifts between syncs. Cloudflare Access tokens and
+the board's hourly report need a correct clock. Stage 18 (`scripts/pi/remote/18-time-sync.sh`) sets DietPi's
+mode 4 (daemon + drift) with `dietpi-set_software ntpd-mode 4`, so timesyncd stays enabled and running and a
+later DietPi update keeps it. DietPi's tool also rewrites `/etc/systemd/timesyncd.conf` from `CONFIG_NTP_MIRROR` (default: removes it;
+a hand edit would be lost, the snapshot has it). Nothing else is touched and nothing restarts.
+
+- **Look first (changes nothing):** `cat scripts/pi/remote/lib.sh scripts/pi/remote/18-time-sync.sh | ssh foundry-pi 'DRY_RUN=1 bash -s'`
+- **Run:** after a `dietpi-backup` snapshot and the user's OK,
+  `cat scripts/pi/remote/lib.sh scripts/pi/remote/18-time-sync.sh | ssh foundry-pi 'bash -s'`.
+  It ends by waiting (up to 90 seconds) for "NTP service: active" and "System clock synchronized: yes".
+- **Check later:** `... | ssh foundry-pi 'CHECK=1 bash -s'` or `timedatectl`.
+- **Undo:** the same pipe with `UNDO=1` (back to DietPi's mode 2).
+- Tests: `scripts/pi/time-sync.test.mjs` (the stage in bash with stand-ins for systemctl, timedatectl and DietPi's tool).
+
 ## Where things live on the Pi
 
-| What                                                         | Where                                                                                                                 |
-| ------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------- |
-| Foundry program                                              | `/opt/foundry`                                                                                                        |
-| Foundry data (worlds, modules, assets)                       | `/var/lib/foundry`                                                                                                    |
-| Node.js                                                      | `/opt/node24`                                                                                                         |
-| The tool (release builds)                                    | `/opt/foundry-ai-tool`                                                                                                |
-| Settings and secrets for the tool                            | `/etc/foundry-ai-tool/.env` (readable by root and the service only)                                                   |
-| The tool's storage (bridge vault)                            | `/var/lib/foundry-ai-tool`                                                                                            |
-| Backups                                                      | restic repository `/var/lib/foundry-backup/restic` (the PC copy: `E:\PiBackup\restic`)                                |
-| Recorder bot                                                 | `/opt/foundry-ai-tool/discord-bot` (service `foundry-ai-tool-discord-bot`)                                            |
-| Recordings (until this PC has copied them, then 7 more days) | `/var/lib/foundry-ai-tool/recordings`                                                                                 |
-| GM vault (Syncthing shares it)                               | `/var/lib/foundry-ai-tool/obsidian/gm`                                                                                |
-| Space check status (hourly)                                  | `/var/lib/foundry-ai-tool/space/status.json`                                                                          |
-| Board status report (stage 16): script, token file, timer    | `/opt/foundry-ai-tool/status/board-status.sh`, `/etc/foundry-ai-tool/board-status.conf`, `foundry-board-status.timer` |
-| When this PC last copied the backups (restic, snapshot)      | `/var/lib/foundry-backup-pulls/<kind>.json`                                                                           |
-| A dnd5e trial (the old version, world copies; stage 14)      | `/var/lib/foundry-import/system-trial`                                                                                |
+| What                                                         | Where                                                                                                                      |
+| ------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------- |
+| Foundry program                                              | `/opt/foundry`                                                                                                             |
+| Foundry data (worlds, modules, assets)                       | `/var/lib/foundry`                                                                                                         |
+| Node.js                                                      | `/opt/node24`                                                                                                              |
+| The tool (release builds)                                    | `/opt/foundry-ai-tool`                                                                                                     |
+| Settings and secrets for the tool                            | `/etc/foundry-ai-tool/.env` (readable by root and the service only)                                                        |
+| The tool's storage (bridge vault)                            | `/var/lib/foundry-ai-tool`                                                                                                 |
+| Backups                                                      | restic repository `/var/lib/foundry-backup/restic` (the PC copy: `E:\PiBackup\restic`)                                     |
+| Recorder bot                                                 | `/opt/foundry-ai-tool/discord-bot` (service `foundry-ai-tool-discord-bot`)                                                 |
+| Recordings (until this PC has copied them, then 7 more days) | `/var/lib/foundry-ai-tool/recordings`                                                                                      |
+| GM vault (Syncthing shares it)                               | `/var/lib/foundry-ai-tool/obsidian/gm`                                                                                     |
+| Space check status (hourly)                                  | `/var/lib/foundry-ai-tool/space/status.json`                                                                               |
+| Board status report (stage 16): script, token file, timer    | `/opt/foundry-ai-tool/status/board-status.sh`, `/etc/foundry-ai-tool/board-status.conf`, `foundry-board-status.timer`      |
+| GitHub runners for the PM board (stage 17): runners, gate    | `/opt/gh-runner/{vault,board}`, `/opt/gh-runner/gate.sh`, `foundry-ai-tool-gh-runner-{vault,board}.service`, `-gate.timer` |
+| When this PC last copied the backups (restic, snapshot)      | `/var/lib/foundry-backup-pulls/<kind>.json`                                                                                |
+| A dnd5e trial (the old version, world copies; stage 14)      | `/var/lib/foundry-import/system-trial`                                                                                     |
 
 ## Sources
 

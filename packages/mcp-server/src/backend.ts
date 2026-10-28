@@ -57,6 +57,7 @@ import { DnD5eNpcTools } from './tools/dnd5e/npc.js';
 import { DnD5eFeaturesFromCompendiumTools } from './tools/dnd5e/features.js';
 
 import { ChatLogTools } from './tools/chat-log.js';
+import { LevelUpTools } from './tools/level-up.js';
 import { ResourceTools } from './tools/resources.js';
 import { EffectsTools } from './tools/effects.js';
 import { CombatTools } from './tools/combat.js';
@@ -101,6 +102,7 @@ import { UsagePump } from './usage-pump.js';
 import { ObsidianAutoRender, obsidianAutoRenderSettings } from './obsidian/auto-render.js';
 import { EveryoneNotes } from './obsidian/everyone-notes.js';
 import { ObsidianMirrorPump } from './obsidian/mirror-pump.js';
+import { messageOf } from './types/server-types.js';
 import { mirrorEnvSettings } from './obsidian/mirror-settings.js';
 import { ObsidianMirrorTools } from './tools/obsidian-mirror.js';
 
@@ -137,8 +139,8 @@ function acquireLock(): boolean {
   try {
     try {
       lockFd = fs.openSync(LOCK_FILE, 'wx');
-    } catch (err: any) {
-      if (err?.code === 'EEXIST') {
+    } catch (err: unknown) {
+      if ((err as { code?: unknown } | null | undefined)?.code === 'EEXIST') {
         try {
           const lockData = fs.readFileSync(LOCK_FILE, 'utf8');
 
@@ -297,6 +299,8 @@ async function startBackend(): Promise<void> {
 
   const resourceTools = new ResourceTools({ foundryClient, logger });
 
+  const levelUpTools = new LevelUpTools({ foundryClient, logger });
+
   const effectsTools = new EffectsTools({ foundryClient, logger });
 
   const combatTools = new CombatTools({ foundryClient, logger });
@@ -323,7 +327,7 @@ async function startBackend(): Promise<void> {
         audit: auditLog,
         vaultDir: obsidianVaultDir,
         logger,
-        toolNames: () => allToolNames,
+        toolNames: (): string[] => allToolNames,
       })
     : null;
   // Filled once the tool list is built below; the usage note lists tools never run.
@@ -461,7 +465,7 @@ async function startBackend(): Promise<void> {
     store: vaultStore,
     worldIds,
     guardedWrites,
-    status: () => mirrorPump?.status() ?? null,
+    status: (): ReturnType<ObsidianMirrorPump['status']> | null => mirrorPump?.status() ?? null,
     env: {
       vaultDirSet: Boolean(obsidianVaultDir),
       openBase: mirrorEnv.openBase,
@@ -502,6 +506,7 @@ async function startBackend(): Promise<void> {
     dnd5eFeaturesFromCompendiumTools,
     chatLogTools,
     resourceTools,
+    levelUpTools,
     effectsTools,
     combatTools,
     movementTools,
@@ -665,7 +670,7 @@ async function startBackend(): Promise<void> {
           if (msg.method === 'call_tool') {
             const { name, args, requestedBy } = (msg.params || {}) as {
               name: string;
-              args?: any;
+              args?: unknown;
               requestedBy?: unknown;
             };
 
@@ -679,7 +684,10 @@ async function startBackend(): Promise<void> {
                 typeof requestedBy === 'string'
                   ? requestedBy.trim().slice(0, MAX_REQUESTER_LENGTH)
                   : '';
-              const result = await route(args, requester ? { requestedBy: requester } : undefined);
+              const result: unknown = await route(
+                args,
+                requester ? { requestedBy: requester } : undefined
+              );
 
               const payload: ToolResultPayload = {
                 content: [
@@ -691,7 +699,7 @@ async function startBackend(): Promise<void> {
               };
 
               socket.write(`${JSON.stringify({ id: msg.id, result: payload })}\n`);
-            } catch (e: any) {
+            } catch (e: unknown) {
               const errorMessage = e instanceof Error ? e.message : 'Unknown error occurred';
 
               socket.write(
@@ -711,7 +719,7 @@ async function startBackend(): Promise<void> {
           // Usage events from the dashboard (dashboard forced surface and who); not a tool, never
           // listed to Claude, and the stdio wrapper never forwards it.
           if (msg.method === 'record_usage') {
-            const result = await handleRecordUsage(usageLog, msg.params);
+            const result: unknown = await handleRecordUsage(usageLog, msg.params);
             socket.write(`${JSON.stringify({ id: msg.id, result })}\n`);
 
             continue;
@@ -721,7 +729,7 @@ async function startBackend(): Promise<void> {
           // Claude, and the stdio wrapper never forwards it.
           if (msg.method === 'record_handout_seen') {
             try {
-              const result = await handleRecordHandoutSeen(handouts, msg.params);
+              const result: unknown = await handleRecordHandoutSeen(handouts, msg.params);
               socket.write(`${JSON.stringify({ id: msg.id, result })}\n`);
             } catch (e: unknown) {
               const message = e instanceof Error ? e.message : 'Bad request';
@@ -737,7 +745,7 @@ async function startBackend(): Promise<void> {
           // wrapper never forwards it.
           if (msg.method === 'live_sweep') {
             try {
-              const result = await foundryClient.query(
+              const result: unknown = await foundryClient.query(
                 'foundry-mcp-bridge.liveSweep',
                 msg.params ?? {}
               );
@@ -798,10 +806,10 @@ async function startBackend(): Promise<void> {
           // Unknown method
 
           socket.write(`${JSON.stringify({ id: msg.id, error: { message: 'Unknown method' } })}\n`);
-        } catch (e: any) {
+        } catch (e: unknown) {
           try {
             socket.write(
-              `${JSON.stringify({ error: { message: e?.message || 'Bad request' } })}\n`
+              `${JSON.stringify({ error: { message: messageOf(e) || 'Bad request' } })}\n`
             );
           } catch {}
         }
@@ -874,8 +882,8 @@ void (async function main(): Promise<void> {
 
   try {
     await startBackend();
-  } catch (e: any) {
-    console.error('Failed to start backend:', e?.message || e);
+  } catch (e: unknown) {
+    console.error('Failed to start backend:', messageOf(e) || e);
 
     releaseLock();
 

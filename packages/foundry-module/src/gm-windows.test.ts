@@ -178,6 +178,11 @@ describe('the switch, the buttons and the windows', () => {
         (this as any)._onRender();
       }
       bringToFront = vi.fn();
+      closed = false;
+      async close(): Promise<void> {
+        this.closed = true;
+        (this as any)._onClose();
+      }
     }
     g.foundry = { ...g.foundry, applications: { api: { ApplicationV2: FakeApplicationV2 } } };
     combat = {
@@ -244,6 +249,7 @@ describe('the switch, the buttons and the windows', () => {
       'party',
       'session',
       'scene',
+      'loot',
     ]);
     expect(controls[AI_TOOL_CONTROL].tools.party).toMatchObject({ order: 5, button: true });
     restore();
@@ -305,12 +311,42 @@ describe('the switch, the buttons and the windows', () => {
     expect(combat.nextTurn).not.toHaveBeenCalled();
   });
 
-  it('draws nothing if the switch is turned off while the window is open', async () => {
+  it('closes every open window when the switch is turned off, instead of blanking it', async () => {
+    install(true, true);
+    await openCombatWindow();
+    await openPartyWindow();
+    expect(rendered).toHaveLength(2);
+    const [combatWindow, partyWindow] = rendered;
+    const config = registered.mock.calls[0][2];
+    const off = vi.spyOn(g.Hooks, 'off');
+    world.settings.set(`${MODULE_ID}.${GM_WINDOWS_SETTING}`, false);
+    config.onChange();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(combatWindow.closed).toBe(true);
+    expect(partyWindow.closed).toBe(true);
+    expect(off.mock.calls.length).toBeGreaterThanOrEqual(2);
+    // Closing removed the hooks: a later hook does not draw into the closed window.
+    const before = combatWindow.content.innerHTML;
+    g.Hooks.callAll('updateCombat');
+    await vi.advanceTimersByTimeAsync(PANEL_REFRESH_DEBOUNCE_MS + 10);
+    expect(combatWindow.content.innerHTML).toBe(before);
+  });
+
+  it('closes the window on its next redraw when the switch went off without a change event', async () => {
     install(true, true);
     await openCombatWindow();
     world.settings.set(`${MODULE_ID}.${GM_WINDOWS_SETTING}`, false);
     g.Hooks.callAll('updateCombat');
     await vi.advanceTimersByTimeAsync(PANEL_REFRESH_DEBOUNCE_MS + 10);
-    expect(rendered[0].content.innerHTML).toBe('');
+    expect(rendered[0].closed).toBe(true);
+  });
+
+  it('names every window in the switch hint and says it closes them when turned off', () => {
+    install(true, false);
+    const [, , config] = registered.mock.calls[0];
+    expect(config.name).toBe('AI Tool: GM windows');
+    for (const word of ['Combat', 'Party', 'Session', 'Scene', 'Loot'])
+      expect(config.hint).toContain(word);
+    expect(config.hint).toContain('closes the open windows');
   });
 });

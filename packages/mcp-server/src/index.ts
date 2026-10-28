@@ -32,6 +32,13 @@ import {
   toolSetInstructions,
 } from './tool-sets.js';
 
+import {
+  type CallToolParams,
+  type ListToolsReply,
+  messageOf,
+  templateText,
+} from './types/server-types.js';
+
 import type { ControlRequest, ControlResponse } from '@gnuminator/shared';
 
 import { stripToolRefs } from '@gnuminator/shared';
@@ -66,13 +73,16 @@ class BackendClient {
 
   private buffer = '';
 
-  private pending = new Map<string, { resolve: (v: any) => void; reject: (e: any) => void }>();
+  private pending = new Map<
+    string,
+    { resolve: (v: unknown) => void; reject: (e: unknown) => void }
+  >();
 
   private logFile = path.join(os.tmpdir(), 'foundry-mcp-server', 'wrapper.log');
 
   private backendProcess: ChildProcess | null = null;
 
-  log(msg: string, meta?: any): void {
+  log(msg: string, meta?: unknown): void {
     try {
       const dir = path.dirname(this.logFile);
 
@@ -111,7 +121,7 @@ class BackendClient {
       });
 
       sock.on('error', e => {
-        this.log('connect(): error', { error: (e as any)?.message });
+        this.log('connect(): error', { error: messageOf(e) });
         reject(e);
       });
     });
@@ -158,7 +168,7 @@ class BackendClient {
           this.log('connectWithRetry(): retry failed', {
             attempt: attempt + 1,
             delayMs,
-            error: (error as any)?.message,
+            error: messageOf(error),
           });
         }
       }
@@ -277,14 +287,14 @@ class BackendClient {
         else p.resolve(msg.result);
       } catch (e) {
         this.log('onData(): JSON parse error', {
-          error: (e as any)?.message,
+          error: messageOf(e),
           lineLength: line.length,
         });
       }
     }
   }
 
-  private rejectAll(err: any): void {
+  private rejectAll(err: unknown): void {
     for (const [, p] of this.pending) p.reject(err);
 
     this.pending.clear();
@@ -292,13 +302,13 @@ class BackendClient {
     this.socket = null;
   }
 
-  send(method: string, params: any): Promise<any> {
-    return new Promise((resolve, reject) => {
+  send(method: string, params: unknown): Promise<unknown> {
+    return new Promise<unknown>((resolve, reject) => {
       void (async (): Promise<void> => {
         try {
           await this.ensure();
         } catch (e) {
-          this.log('send(): ensure failed', { error: (e as any)?.message });
+          this.log('send(): ensure failed', { error: messageOf(e) });
 
           return reject(e instanceof Error ? e : new Error(String(e)));
         }
@@ -316,7 +326,7 @@ class BackendClient {
         } catch (e) {
           this.pending.delete(id);
 
-          this.log('send(): write error', { error: (e as any)?.message });
+          this.log('send(): write error', { error: messageOf(e) });
 
           reject(e instanceof Error ? e : new Error(String(e)));
         }
@@ -335,7 +345,7 @@ class BackendClient {
 
         this.log('cleanup(): backend process killed');
       } catch (e) {
-        this.log('cleanup(): error killing backend', { error: (e as any)?.message });
+        this.log('cleanup(): error killing backend', { error: messageOf(e) });
       }
     }
 
@@ -353,12 +363,12 @@ async function startWrapper(): Promise<void> {
   try {
     await backend.ensure();
     try {
-      (backend as any).log?.('startWrapper(): pre-connected to backend');
+      backend.log('startWrapper(): pre-connected to backend');
     } catch {}
   } catch (e) {
     try {
-      (backend as any).log?.('startWrapper(): pre-connection failed, will retry on demand', {
-        error: (e as any)?.message,
+      backend.log('startWrapper(): pre-connection failed, will retry on demand', {
+        error: messageOf(e),
       });
     } catch {}
   }
@@ -410,10 +420,10 @@ async function startWrapper(): Promise<void> {
 
   mcp.setRequestHandler(ListToolsRequestSchema, async () => {
     try {
-      const res = await backend.send('list_tools', {});
+      const res = (await backend.send('list_tools', {})) as ListToolsReply;
 
       try {
-        (backend as any).log?.('ListTools handler: received from backend', {
+        backend.log('ListTools handler: received from backend', {
           hasTools: !!res.tools,
           toolCount: res.tools?.length || 0,
         });
@@ -422,7 +432,7 @@ async function startWrapper(): Promise<void> {
       // Picker annotations (x-foundry-ref) are for the dashboard only, and this entry lists only
       // its tool sets (the dashboard reads the control channel and sees every tool).
       const listed = filterToolsBySets(
-        (res.tools || []) as Parameters<typeof stripToolRefs>[0],
+        (res.tools ?? []) as Parameters<typeof stripToolRefs>[0],
         TOOL_SET_SELECTION
       );
       const served = stripToolRefs(listed);
@@ -432,7 +442,7 @@ async function startWrapper(): Promise<void> {
       // Log but return empty to remain MCP-compliant
 
       try {
-        (backend as any).log?.('ListTools failed; returning empty', { error: (e as any)?.message });
+        backend.log('ListTools failed; returning empty', { error: messageOf(e) });
       } catch {}
 
       return { tools: [] };
@@ -443,7 +453,7 @@ async function startWrapper(): Promise<void> {
   const callLog = new ToolCallLog();
 
   mcp.setRequestHandler(CallToolRequestSchema, async request => {
-    const { name, arguments: args } = request.params as any;
+    const { name, arguments: args } = request.params as unknown as CallToolParams;
     const toolName = String(name);
 
     return (await runLoggedCall(
@@ -458,8 +468,10 @@ async function startWrapper(): Promise<void> {
         // One size cap for every tool result Claude gets (D-109); the dashboard reads them in full.
         return capToolResult(res, toolName, listedTools.get(toolName));
       },
-      (e: any): ToolResultLike => ({
-        content: [{ type: 'text', text: `Error: ${e?.message || 'Backend unavailable'}` }],
+      (e: unknown): ToolResultLike => ({
+        content: [
+          { type: 'text', text: `Error: ${templateText(messageOf(e) || 'Backend unavailable')}` },
+        ],
         isError: true,
       })
     )) as unknown as CallToolResult;

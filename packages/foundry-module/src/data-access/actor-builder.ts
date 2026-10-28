@@ -214,6 +214,7 @@ export class ActorBuilderDataAccess {
 
     // Handle targeting if targets are specified
     const resolvedTargetNames: string[] = [];
+    let targetsNotSet = '';
     if (targets && targets.length > 0) {
       // Get all tokens on the current scene
       const scene = game.scenes?.active;
@@ -259,9 +260,29 @@ export class ActorBuilderDataAccess {
       }
 
       // Set targets using Foundry's targeting system
-      if (tokenIds.length > 0 && game.user) {
-        await (game.user.updateTokenTargets(tokenIds) as unknown);
-        logInfo(`[foundry-mcp-bridge] Set targets: ${resolvedTargetNames.join(', ')}`);
+      // v14 has no User#updateTokenTargets; the tokens layer owns targeting
+      // (client/canvas/layers/tokens.mjs:341). It only resolves ids on the viewed canvas.
+      if (tokenIds.length > 0) {
+        const cv = typeof canvas === 'undefined' ? undefined : canvas;
+        const layer = cv?.ready ? cv.tokens : undefined;
+        if (!layer) {
+          targetsNotSet = 'the canvas is not ready';
+        } else if (cv?.scene?.id !== scene.id) {
+          // setTargets only finds ids on the viewed canvas; calling it would clear the GM's targets.
+          targetsNotSet = 'the GM is viewing a different scene than the active one';
+        } else {
+          try {
+            layer.setTargets(tokenIds, { mode: 'replace' });
+            logInfo(`[foundry-mcp-bridge] Set targets: ${resolvedTargetNames.join(', ')}`);
+          } catch (err) {
+            console.error('[foundry-mcp-bridge] Setting targets failed:', err);
+            targetsNotSet = 'Foundry refused to set them';
+          }
+        }
+        if (targetsNotSet) {
+          console.warn(`[foundry-mcp-bridge] Targets not set: ${targetsNotSet}`);
+          resolvedTargetNames.length = 0;
+        }
       }
     }
 
@@ -333,7 +354,11 @@ export class ActorBuilderDataAccess {
       }
 
       const targetInfo =
-        resolvedTargetNames.length > 0 ? ` targeting ${resolvedTargetNames.join(', ')}` : '';
+        resolvedTargetNames.length > 0
+          ? ` targeting ${resolvedTargetNames.join(', ')}`
+          : targetsNotSet
+            ? ` (targets not set: ${targetsNotSet}; pick them in Foundry before confirming the dialog)`
+            : '';
 
       const result: UseItemResult = {
         success: true,

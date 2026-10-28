@@ -31,7 +31,7 @@ Open the terminal with **`` Ctrl+` ``** (it opens at the repo root) and confirm 
 npm install            # only needed on a fresh clone; skip if node_modules already exists
 npm run build          # composite build of all workspaces
 npm run typecheck      # strict TS, all workspaces
-npm run lint:ratchet   # ESLint errors fail; warning counts may only go down
+npm run lint:ratchet   # any ESLint error fails (baseline 0)
 npm run emdash:ratchet # em dashes may only go down
 CI=true npm test       # every workspace
 npm run docs:lint      # markdownlint (.markdownlint-cli2.jsonc)

@@ -297,6 +297,7 @@ describe('items on actors', () => {
     const kinds = recorder.getPlayRecords({}).records.map(r => r.kind);
     expect(kinds).toEqual(['item-create', 'item-delete']);
     const [created] = recorder.getPlayRecords({}).records;
+    expect(created.userId).toBe('u1');
     expect(created.item).toEqual({
       uuid: item.uuid,
       name: 'Potion of Healing',
@@ -397,6 +398,7 @@ describe('effects and tokens', () => {
     Hooks.callAll('deleteActiveEffect', effect, {}, 'u1');
     const kinds = recorder.getPlayRecords({}).records.map(r => r.kind);
     expect(kinds).toEqual(['effect-add', 'effect-remove']);
+    expect(recorder.getPlayRecords({}).records[0].userId).toBe('u1');
     expect(recorder.getPlayRecords({}).records[0].data).toMatchObject({
       effectName: 'Prone',
       statuses: ['prone'],
@@ -444,6 +446,7 @@ describe('effects and tokens', () => {
     Hooks.callAll('deleteToken', token, {}, 'u1');
     const records = recorder.getPlayRecords({}).records;
     expect(records.map(r => r.kind)).toEqual(['token-create', 'token-move', 'token-delete']);
+    expect(records[0].userId).toBe('u1');
     const move = records[1];
     expect(move.path).toBeUndefined();
     expect(move.before).toBeUndefined();

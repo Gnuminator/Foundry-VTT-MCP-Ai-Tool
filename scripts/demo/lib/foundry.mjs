@@ -29,8 +29,13 @@ export async function joinFoundry(
   await page.goto(`${foundryUrl}/join`);
   const name = page.locator('#join-username');
   await name.waitFor();
-  await name.fill(user);
-  await page.keyboard.press('Escape'); // close the name autocomplete
+  // Foundry 14.368 types the user name into a text field; 14.369 picks it from a list.
+  if (await name.evaluate(el => el.tagName === 'SELECT')) {
+    await name.selectOption({ label: user });
+  } else {
+    await name.fill(user);
+    await page.keyboard.press('Escape'); // close the name autocomplete
+  }
   await page.locator('#join-password').fill(password);
   await page.locator('button[name="join"]').click();
   await page.waitForURL(/\/game$/, { timeout: timeoutMs });

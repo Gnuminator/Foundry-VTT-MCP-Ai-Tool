@@ -88,6 +88,13 @@ export interface CombatantSnapshot {
   tokenId: string | null;
   actorId: string | null;
   sceneId: string | null;
+  /** The token's uuid (`Scene.x.Token.y`): what the dashboard's ribbon pans to. */
+  tokenUuid: string | null;
+  /**
+   * The combatant's image as the tracker shows it (an override, else the token texture, never a
+   * video), a Foundry path without an origin: the dashboard server adds Foundry's address.
+   */
+  img: string | null;
   hp: { value: number | null; max: number | null; temp: number } | null;
   conditions: string[];
   statuses: string[];
@@ -253,8 +260,9 @@ export class CombatDataAccess {
     // only some of them.
     const cExtra = c as {
       tokenId?: string | null;
-      token?: { id?: string | null } | null;
+      token?: { id?: string | null; uuid?: string | null } | null;
       sceneId?: string | null;
+      img?: string | null;
     };
     const actorExtra = actor as { id?: string | null; statuses?: Iterable<unknown> } | null;
     return {
@@ -266,6 +274,8 @@ export class CombatDataAccess {
       tokenId: cExtra.tokenId ?? cExtra.token?.id ?? null,
       actorId: actorExtra?.id ?? null,
       sceneId: cExtra.sceneId ?? null,
+      tokenUuid: cExtra.token?.uuid || null,
+      img: cExtra.img || null,
       hp: hp ? { value: hp.value ?? null, max: hp.max ?? null, temp: hp.temp ?? 0 } : null,
       conditions: shared.actorConditionNames(actor),
       statuses: Array.from(actorExtra?.statuses ?? []).filter(

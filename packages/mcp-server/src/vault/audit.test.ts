@@ -202,14 +202,21 @@ describe('AuditLog', () => {
     expect(await audit.ring('nobody')).toEqual([]);
   });
 
-  // 505 real atomic writes: about 7s on a Windows disk with Defender, past the 5s default.
+  // Seed a full ring and its history in one write each, then append past the ring size: 505
+  // sequential fsync'd rewrites timed out at 30s on a loaded disk (flaky in the #484 drift check).
   it('keeps every history line even past the ring size (append-only, never trimmed)', async () => {
-    for (let i = 0; i < AUDIT_RING_SIZE + 5; i++) {
+    const seeded = Array.from({ length: AUDIT_RING_SIZE }, (_, i) => entry(`c${i}`));
+    await store.write('w1', 'gm', 'audit.json', { entries: seeded });
+    await store.appendLines('w1', 'gm', AUDIT_HISTORY_FILE, seeded);
+    for (let i = AUDIT_RING_SIZE; i < AUDIT_RING_SIZE + 5; i++) {
       await audit.append('w1', entry(`c${i}`));
     }
     expect(await store.readLines('w1', 'gm', AUDIT_HISTORY_FILE)).toHaveLength(AUDIT_RING_SIZE + 5);
-    expect((await audit.list('w1', 10_000)).length).toBe(AUDIT_RING_SIZE);
-  }, 30_000);
+    const ring = await audit.list('w1', 10_000);
+    expect(ring).toHaveLength(AUDIT_RING_SIZE);
+    expect(ring[0]?.changeId).toBe(`c${AUDIT_RING_SIZE + 4}`);
+    expect(ring[ring.length - 1]?.changeId).toBe('c5');
+  });
 });
 
 function delResult(index: number, deleted: Record<string, unknown>): GuardedOpResult {

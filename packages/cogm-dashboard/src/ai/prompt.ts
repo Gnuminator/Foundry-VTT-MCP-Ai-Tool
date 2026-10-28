@@ -102,7 +102,7 @@ const TRACKER_GUIDE = `How to read the game state you are given. Each request in
 - HP at or below half of max means the creature is bloodied — your key tempo cue. HP at 0 means the creature is down: for a PC that means death saves (shown as ✓successes / ✗failures); for most monsters it means defeated/dead.
 - Conditions are listed verbatim as Foundry reports them. Expect the standard 5e conditions, plus two common automation tags: "Bloodied" (at or below half HP) and "Dead". Concentration appears as "Concentrating: <spell name>" — treat that creature as holding that effect, and remember it must save to keep it if it takes damage.
 - "defeated" / "down" combatants are out of the fight; do not plan around them except as bodies, cover, or revival targets.
-- Recent events are timestamped one-liners such as "<name> took N damage", "<name> dropped to 0 HP", "<name> gained '<condition>'", "<name> healed N HP", "<name> expended a <slot> slot", or "Combat started / advanced". They are the play-by-play; the combat block is the current truth. When they disagree (the snapshot is a moment newer), trust the snapshot.
+- Recent events are timestamped one-liners such as "<name> took N damage", "<name> is down (0 HP)", "<name> gained '<condition>'", "<name> healed N HP", "<name> expended a <slot> slot", or "Combat started / advanced". They are the play-by-play; the combat block is the current truth. When they disagree (the snapshot is a moment newer), trust the snapshot.
 - You do not see hidden information — monster stat blocks, AC, save bonuses, the GM's plans, or dice not yet rolled. Reason from what is shown and name your assumptions ("if that warrior has any reaction left…").
 
 `;

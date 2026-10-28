@@ -228,12 +228,12 @@ function assertPageUuid(value: unknown): string {
   return value;
 }
 
-const ACTIONS = ['reveal', 'hide', 'queue', 'unqueue', 'reveal-next'] as const;
+const ACTIONS = ['reveal', 'hide', 'queue', 'unqueue', 'move', 'reveal-next'] as const;
 type RevealAction = (typeof ACTIONS)[number];
 
 function assertAction(value: unknown): RevealAction {
   if (typeof value !== 'string' || !(ACTIONS as readonly string[]).includes(value)) {
-    throw new Error('action must be "reveal", "hide", "queue", "unqueue" or "reveal-next"');
+    throw new Error('action must be "reveal", "hide", "queue", "unqueue", "move" or "reveal-next"');
   }
   return value as RevealAction;
 }
@@ -552,8 +552,8 @@ export class HandoutsService {
     showNow?: boolean;
   }): Promise<PageRevealPlan> {
     const action = assertAction(args.action);
-    if (action === 'queue' || action === 'unqueue') {
-      throw new Error(`Use queuePage or unqueuePage for action "${action}"`);
+    if (action === 'queue' || action === 'unqueue' || action === 'move') {
+      throw new Error(`Use queuePage, unqueuePage or movePage for action "${action}"`);
     }
     if (args.copy !== undefined && typeof args.copy !== 'boolean') {
       throw new Error('copy must be true or false');
@@ -630,6 +630,19 @@ export class HandoutsService {
     if (!removed) throw new Error('That page is not in the reveal queue');
     this.notifyQueueChanged();
     return { queued: false, pageUuid, note: 'Removed from the reveal queue.' };
+  }
+
+  /** Put a queued page at `position` (0 = first) in one write. Changes nothing in Foundry. */
+  async movePage(args: { pageUuid?: unknown; position?: unknown }): Promise<QueueChangeView> {
+    const pageUuid = assertPageUuid(args.pageUuid);
+    if (typeof args.position !== 'number') throw new Error('position must be a whole number');
+    const moved = await this.queue.move(pageUuid, args.position);
+    if (moved) this.notifyQueueChanged();
+    return {
+      queued: true,
+      pageUuid,
+      note: moved ? `Moved to place ${args.position + 1} in the reveal queue.` : 'Already there.',
+    };
   }
 
   /**

@@ -268,6 +268,30 @@ describe('compose: command line and guards', () => {
     expect(p.focusAt).toBe(10);
   });
 
+  it('holds HOLD_AFTER seconds after a click so the result can be seen', () => {
+    const quick = {
+      step: 'a',
+      start: 10,
+      end: 12,
+      focus: { x: 0.2, y: 0.2, w: 0.1, h: 0.1, at: 11.5 },
+    };
+    const p = plan.planStep({
+      st: quick,
+      index: 1,
+      next: { step: 'b', start: 12, end: 14 },
+      rawFrames: 3600,
+    });
+    expect(p.outLen - p.rawToOut(11.5)).toBeCloseTo(plan.HOLD_AFTER, 1);
+    const roomy = { ...quick, end: 20, focus: { ...quick.focus, at: 11 } };
+    const q = plan.planStep({
+      st: roomy,
+      index: 1,
+      next: { step: 'b', start: 20, end: 24 },
+      rawFrames: 3600,
+    });
+    expect(q.hold).toBe(0);
+  });
+
   it('escapes chapter titles for the metadata file', () => {
     expect(plan.escMeta('A=B; C#D\\E\nF')).toBe('A\\=B\\; C\\#D\\\\E F');
   });

@@ -645,6 +645,11 @@
   gap: 0.15rem;
 }
 
+/* A tag directly in the column (Scene's "Global light") keeps its own width. */
+.fmb-gm-main > .fmb-ai-tag {
+  align-self: flex-start;
+}
+
 .fmb-gm-sub {
   display: flex;
   flex-wrap: wrap;

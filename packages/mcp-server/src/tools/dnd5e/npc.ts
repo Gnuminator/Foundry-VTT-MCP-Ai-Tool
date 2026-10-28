@@ -83,6 +83,24 @@ export interface DnD5eNpcToolsOptions {
 // Tool class
 // ---------------------------------------------------------------------------
 
+/** The bridge's reply to createNpcActor, as far as the response text reads it. */
+interface NpcCreateResult {
+  actor: { id: string; name: string; cr?: string; folder?: string };
+}
+
+/** The parsed create-npc arguments the response text reads. */
+interface NpcParams {
+  cr: Parameters<typeof normalizeCR>[0];
+  abilities: Record<'str' | 'dex' | 'con' | 'int' | 'wis' | 'cha', number>;
+  acMode: string;
+  acValue?: number | undefined;
+  creatureType: string;
+  creatureSubtype?: string | undefined;
+  size: string;
+  hpAverage: number;
+  hpFormula: string;
+}
+
 export class DnD5eNpcTools {
   private foundryClient: FoundryClient;
   private logger: Logger;
@@ -94,7 +112,7 @@ export class DnD5eNpcTools {
     this.errorHandler = new ErrorHandler(this.logger);
   }
 
-  getToolDefinitions() {
+  getToolDefinitions(): { name: string; description: string; inputSchema: object }[] {
     return [
       {
         name: 'dnd5e-create-npc',
@@ -401,7 +419,7 @@ export class DnD5eNpcTools {
     ];
   }
 
-  async handleCreateNpc(args: any): Promise<any> {
+  async handleCreateNpc(args: unknown): Promise<unknown> {
     const schema = z
       .object({
         // Identity
@@ -559,7 +577,10 @@ export class DnD5eNpcTools {
         );
       }
 
-      const result = await this.foundryClient.query('foundry-mcp-bridge.createNpcActor', parsed);
+      const result = (await this.foundryClient.query(
+        'foundry-mcp-bridge.createNpcActor',
+        parsed
+      )) as NpcCreateResult;
 
       this.logger.info('NPC created successfully', {
         actorId: result.actor?.id,
@@ -572,7 +593,11 @@ export class DnD5eNpcTools {
     }
   }
 
-  private formatResponse(result: any, params: any, warnings: string[]): any {
+  private formatResponse(
+    result: NpcCreateResult,
+    params: NpcParams,
+    warnings: string[]
+  ): Record<string, unknown> {
     const crStr = result.actor?.cr ?? formatCR(normalizeCR(params.cr));
 
     const abilityLine = (['str', 'dex', 'con', 'int', 'wis', 'cha'] as const)

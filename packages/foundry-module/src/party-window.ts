@@ -128,6 +128,8 @@ const panel = createPanelWindow({
   icon: 'fa-solid fa-users',
   width: 360,
   height: 460,
+  left: 460,
+  top: 20,
   hooks: [
     'updateActor',
     'createActor',

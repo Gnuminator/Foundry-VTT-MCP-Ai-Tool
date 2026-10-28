@@ -132,6 +132,7 @@ export function severityClass(eventType: string): string {
 export function eventLabel(eventType: string): string {
   if (eventType === 'gm-roll') return 'private roll';
   if (eventType === 'roll-request') return 'roll request';
+  if (eventType === 'death') return 'down';
   return eventType;
 }
 

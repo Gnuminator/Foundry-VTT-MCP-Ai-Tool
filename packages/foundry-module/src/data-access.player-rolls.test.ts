@@ -839,6 +839,34 @@ describe('FoundryDataAccess: player page roll buttons', () => {
     expect(spy.ctorArgs).toEqual([]);
   });
 
+  it('picks the item that has an attack activity and clears the GM target on a GM-run attack', async () => {
+    world.addUser({ id: 'u1', name: 'Alice', active: true, isGM: false });
+    const actor = addPlayerCharacter({ id: 'a1', name: 'Silvera', ownerUserId: 'u1' });
+    const rollAttack = vi.fn(() => Promise.resolve([{ total: 17 }]));
+    actor.items = [
+      { name: 'Sword Training', system: { activities: [{ type: 'utility' }] } },
+      { name: 'Longsword', system: { activities: [{ type: 'attack', rollAttack }] } },
+    ];
+    installRollSpy();
+    addRequest('b1', 'm1', btn({ rollType: 'attack', rollTarget: 'sword' }));
+    (game as any).user = { id: 'gm1', isGM: true };
+    expect((await da.executePlayerRoll('u1', 'b1')).success).toBe(true);
+    expect(rollAttack.mock.calls[0][0]).toEqual({ target: null });
+  });
+
+  it('rolls the plain formula when dnd5e makes no roll, and for an old card with no type', async () => {
+    world.addUser({ id: 'u1', name: 'Alice', active: true, isGM: false });
+    const actor = addPlayerCharacter({ id: 'a1', name: 'Silvera', ownerUserId: 'u1' });
+    actor.rollAbilityCheck = vi.fn(() => Promise.resolve(null));
+    const spy = installRollSpy();
+    addRequest('b1', 'm1', btn({ rollType: 'ability', rollTarget: 'str' }));
+    addRequest('b2', 'm2', btn());
+    expect((await da.executePlayerRoll('u1', 'b1')).success).toBe(true);
+    expect((await da.executePlayerRoll('u1', 'b2')).success).toBe(true);
+    expect(actor.rollAbilityCheck).toHaveBeenCalledTimes(1);
+    expect(spy.ctorArgs.map(a => a[0])).toEqual(['1d20+3', '1d20+3']);
+  });
+
   it('falls back to the plain formula when there is no attack activity', async () => {
     world.addUser({ id: 'u1', name: 'Alice', active: true, isGM: false });
     const actor = addPlayerCharacter({ id: 'a1', name: 'Silvera', ownerUserId: 'u1' });

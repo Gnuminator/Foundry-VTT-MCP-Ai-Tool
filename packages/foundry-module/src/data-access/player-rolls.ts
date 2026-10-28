@@ -577,7 +577,7 @@ export class PlayerRollsDataAccess {
    * Roll an ability check, skill check, saving throw or attack through dnd5e's actor and
    * activity API (no dialog), posting dnd5e's own chat card. The DC rides on the roll's options
    * like the plain path's. Returns false when the type is not one of those, the weapon or its
-   * attack activity is missing, or dnd5e lacks the method, so the caller rolls the plain formula.
+   * attack activity is missing, dnd5e lacks the method or makes no roll, so the caller rolls the plain formula.
    */
   private async rollThroughDnd5e(
     actor: Actor,
@@ -613,27 +613,40 @@ export class PlayerRollsDataAccess {
       out = await roller.rollSavingThrow({ ability: rollTarget, ...dcOptions }, dialog, message);
     } else if (rollType === 'attack') {
       const wanted = rollTarget.toLowerCase();
-      const items = Array.from(actor.items ?? []);
-      const item =
-        items.find(i => i.name.toLowerCase() === wanted) ??
-        items.find(i => i.name.toLowerCase().includes(wanted));
-      const activities = rec(item?.system)?.activities as
-        | { find(fn: (a: Dnd5eAttackActivity) => boolean): Dnd5eAttackActivity | undefined }
-        | undefined;
-      const activity = activities?.find(a => a.type === 'attack');
+      type Activities = {
+        find(fn: (a: Dnd5eAttackActivity) => boolean): Dnd5eAttackActivity | undefined;
+      };
+      // Only items that have an attack activity can match, so a feature that shares part of
+      // the weapon's name does not hide it.
+      const attackers = Array.from(actor.items ?? []).flatMap(i => {
+        const activity = (rec(i.system)?.activities as Activities | undefined)?.find(
+          a => a.type === 'attack'
+        );
+        return activity ? [{ name: i.name.toLowerCase(), activity }] : [];
+      });
+      const activity = (
+        attackers.find(i => i.name === wanted) ?? attackers.find(i => i.name.includes(wanted))
+      )?.activity;
       if (!activity || typeof activity.rollAttack !== 'function') {
         console.warn(
           `[${MODULE_ID}] No attack activity for "${rollTarget}" on ${actor.name}; rolling a plain d20`
         );
         return false;
       }
-      out = await activity.rollAttack({}, dialog, message);
+      // dnd5e fills the target AC from the clicking client's targeted tokens; a GM click or the
+      // dashboard's player page would carry the GM's target onto the player's card, so only the
+      // player's own click keeps it.
+      out = await activity.rollAttack(game.user?.isGM ? { target: null } : {}, dialog, message);
     } else {
       return false;
     }
-    // dnd5e returns no roll when the roll is cancelled or refused.
+    // dnd5e returns no roll when a hook vetoes it or the actor has no such ability or skill; no
+    // card was made, so the plain formula still gives the player a roll.
     if (out === null || out === undefined || (Array.isArray(out) && out.length === 0)) {
-      throw new Error('dnd5e did not make the roll');
+      console.warn(
+        `[${MODULE_ID}] dnd5e made no ${rollType} roll for ${actor.name}; rolling plain`
+      );
+      return false;
     }
     return true;
   }

@@ -322,7 +322,7 @@ export class PlayerRollsDataAccess {
         actorName: actor.name,
         rollType: data.rollType,
         rollTarget: data.rollTarget,
-        formula: String(first?.formula ?? ''),
+        formula: typeof first?.formula === 'string' ? first.formula : '',
         total: Number(first?.total),
         isPublic: data.isPublic,
         mode: modeOfRoll(first),

@@ -214,6 +214,7 @@ export class ActorBuilderDataAccess {
 
     // Handle targeting if targets are specified
     const resolvedTargetNames: string[] = [];
+    let targetsNotSet = '';
     if (targets && targets.length > 0) {
       // Get all tokens on the current scene
       const scene = game.scenes?.active;
@@ -265,15 +266,22 @@ export class ActorBuilderDataAccess {
         const cv = typeof canvas === 'undefined' ? undefined : canvas;
         const layer = cv?.ready ? cv.tokens : undefined;
         if (!layer) {
-          console.warn('[foundry-mcp-bridge] Canvas not ready, targets not set');
+          targetsNotSet = 'the canvas is not ready';
+        } else if (cv?.scene?.id !== scene.id) {
+          // setTargets only finds ids on the viewed canvas; calling it would clear the GM's targets.
+          targetsNotSet = 'the GM is viewing a different scene than the active one';
         } else {
-          if (cv?.scene?.id !== scene.id) {
-            console.warn(
-              '[foundry-mcp-bridge] The GM is viewing a different scene than the active one; targets may not apply'
-            );
+          try {
+            layer.setTargets(tokenIds, { mode: 'replace' });
+            logInfo(`[foundry-mcp-bridge] Set targets: ${resolvedTargetNames.join(', ')}`);
+          } catch (err) {
+            console.error('[foundry-mcp-bridge] Setting targets failed:', err);
+            targetsNotSet = 'Foundry refused to set them';
           }
-          layer.setTargets(tokenIds, { mode: 'replace' });
-          logInfo(`[foundry-mcp-bridge] Set targets: ${resolvedTargetNames.join(', ')}`);
+        }
+        if (targetsNotSet) {
+          console.warn(`[foundry-mcp-bridge] Targets not set: ${targetsNotSet}`);
+          resolvedTargetNames.length = 0;
         }
       }
     }
@@ -346,7 +354,11 @@ export class ActorBuilderDataAccess {
       }
 
       const targetInfo =
-        resolvedTargetNames.length > 0 ? ` targeting ${resolvedTargetNames.join(', ')}` : '';
+        resolvedTargetNames.length > 0
+          ? ` targeting ${resolvedTargetNames.join(', ')}`
+          : targetsNotSet
+            ? ` (targets not set: ${targetsNotSet}; pick them in Foundry before confirming the dialog)`
+            : '';
 
       const result: UseItemResult = {
         success: true,

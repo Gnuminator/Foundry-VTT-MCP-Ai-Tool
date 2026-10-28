@@ -265,9 +265,10 @@ function differencesCheck(f: RulesFacts): RulesCheckLine | null {
   if (!diff) return null;
   const stated = (v: { version: string; source: string } | null | undefined): string | null =>
     v != null && v.source !== 'world-setting' ? v.version : null;
-  const applies = stated(f.rules?.item) ?? stated(f.rules?.actor);
+  const fromItem = stated(f.rules?.item);
+  const applies = fromItem ?? stated(f.rules?.actor);
   const which = applies
-    ? ` ${f.item} follows the ${applies} rules here.`
+    ? ` ${fromItem ? f.item : f.actor} follows the ${applies} rules here.`
     : ` Nothing on ${f.item} or ${f.actor} says which rules apply.`;
   return {
     check: 'rules-differences',

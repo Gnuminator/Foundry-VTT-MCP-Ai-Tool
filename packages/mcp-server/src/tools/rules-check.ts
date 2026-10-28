@@ -118,7 +118,7 @@ export class RulesCheckTools {
       {
         name: 'check-action',
         description:
-          'Rules check (off by default). Says whether an attack, spell or item looks legal and why: turn, cost, actions spent, range, slots, uses, concentration, and where the 2014 and 2024 rules differ. Read-only.',
+          'Rules check (off by default). Says whether an attack, spell or item looks legal and why: turn, cost, actions spent, range, slots, uses, concentration, and notes on 2014 vs 2024 differences for a few actions. Read-only.',
         inputSchema: {
           type: 'object',
           properties: {

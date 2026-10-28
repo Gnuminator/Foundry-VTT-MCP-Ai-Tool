@@ -239,8 +239,11 @@ describe('rules differences', () => {
   it('falls back to the actor, then to saying it does not know', () => {
     const f = { ...base, item: 'Hide' };
     expect(diffLine({ ...f, rules: { item: null, actor: doc('2014') } })?.reason).toContain(
-      'follows the 2014 rules'
+      'Ilvara follows the 2014 rules'
     );
+    expect(
+      diffLine({ ...f, rules: { item: doc('2024', 'world-setting'), actor: doc('2014') } })?.reason
+    ).toContain('Ilvara follows the 2014 rules');
     expect(
       diffLine({ ...f, rules: { item: doc('2024', 'world-setting'), actor: null } })?.reason
     ).toContain('says which rules apply');

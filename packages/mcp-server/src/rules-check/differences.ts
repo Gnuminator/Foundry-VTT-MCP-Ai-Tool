@@ -27,29 +27,28 @@ export const RULE_DIFFERENCES: RuleDifference[] = [
   },
   {
     topic: 'Grapple',
-    match: /^grapple$/i,
+    match: /\bgrapple\b/i,
     spell: false,
     rules2014:
       'a contested Strength (Athletics) check against Athletics or Acrobatics, made in place of one attack.',
     rules2024:
-      'an unarmed strike option: the target saves with Strength or Dexterity against a fixed DC, and a free hand is needed.',
+      'an unarmed strike option: the target saves with Strength or Dexterity against a DC built from the grappler Strength modifier and proficiency bonus.',
   },
   {
     topic: 'Shove',
-    match: /^shove$/i,
+    match: /\bshove\b/i,
     spell: false,
     rules2014: 'a contested Strength (Athletics) check, made in place of one attack.',
     rules2024:
-      'an unarmed strike option: the target saves with Strength or Dexterity against a fixed DC.',
+      'an unarmed strike option: the target saves with Strength or Dexterity against a DC built from the shover Strength modifier and proficiency bonus.',
   },
   {
     topic: 'Hide',
     match: /^hide$/i,
     spell: false,
-    rules2014:
-      'a Dexterity (Stealth) check, set against what the others notice (passive Perception).',
+    rules2014: 'a Dexterity (Stealth) check, set against what the others notice (Perception).',
     rules2024:
-      'a Dexterity (Stealth) check against a fixed DC 15, and the hider needs cover or heavy obscurement.',
+      'a Dexterity (Stealth) check against a fixed DC 15, and the hider needs three-quarters or total cover or heavy obscurement, out of sight.',
   },
 ];
 

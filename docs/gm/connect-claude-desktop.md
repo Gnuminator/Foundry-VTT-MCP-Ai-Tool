@@ -18,8 +18,8 @@ You need: a Windows PC, Claude Desktop installed and signed in, and the tunnel k
    clock) and choose **Quit**. Closing the window is not enough. The installer will not close it for
    you.
 2. Run `FoundryMCPServer-Setup-vX.Y.Z.exe` that you were sent.
-3. On the page about the bridge, tick **Reach the bridge through the Cloudflare tunnel**. In the
-   name box type the tunnel name you were given (it starts with `mcp.`). Leave the port as it is.
+3. On the page called "Bridge address", tick **Use the Cloudflare tunnel**. In **Tunnel name**
+   type the name you were given (it starts with `mcp.`). Leave the address and the port as they are.
 4. Go on. A small window asks for the **Client ID**, then the **secret**. Paste each one and press
    Enter. The secret is hidden while you type; that is normal. Nothing you paste is shown or saved
    anywhere except in a locked store that only your Windows user can open.
@@ -73,8 +73,8 @@ asked for reading too.
   when it quit. Quit it from the tray and run the installer again.
 - **The key was refused:** the Client ID or the secret was pasted wrong, or the key was switched
   off. Run the installer again and paste both again, or ask for a new key.
-- **Everything worked yesterday and nothing works today:** check that the server is on
-  (`https://` the Foundry address should open) before anything else.
+- **Everything worked yesterday and nothing works today:** open the game's address first.
+  If it does not load, the server is down; see the [Game night runbook](game-night-runbook.md).
 
 ## Taking it off
 

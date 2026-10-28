@@ -23,10 +23,9 @@ of the tool's folder (it holds the `scripts\tv` files). Ask the tool admin to se
 3. Read it, then confirm. It shows in **Recent Changes**, with an **Undo** if you change your mind.
 
 If a user called Table already exists (a player or a GM), or Claude cannot read the list of users,
-it says so and plans nothing. (A Table player made before this change is not marked: undo its plan
-in Recent Changes and plan it again, or the handout receipts and the player count keep counting
-it.) The Table player is marked as the TV, so the handout receipts, the
-player count and the session attendance leave it out.
+it says so and plans nothing. The Table player is marked as the TV, so the handout receipts, the
+player count and the session attendance leave it out. (A Table player made with an older version
+is not marked: undo its plan in Recent Changes and plan it again, or it keeps being counted.)
 
 **If the map is dark on the TV:** on a scene with token vision on, a player only sees what their
 own characters can see, and Table has none. Give Table the same view as the party: ask Claude

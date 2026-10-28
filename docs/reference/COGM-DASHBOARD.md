@@ -1,7 +1,7 @@
 # The dashboard
 
-A live, AI-assisted **GM dashboard** that runs in a browser next to Foundry VTT. It watches the
-game as it happens — and now lets you **run the game from the dashboard**, too.
+A live **GM dashboard** that runs in a browser next to Foundry VTT. It watches the game as it
+happens and lets you run parts of it from the page.
 
 ![The dashboard during a combat](../images/cogm/overview.png)
 
@@ -11,12 +11,13 @@ game as it happens — and now lets you **run the game from the dashboard**, too
 
 ### See the whole table at a glance
 
-- **Live combat tracker** — initiative order, current turn, HP bars, conditions, and death saves,
-  all updating in real time.
-- **Live event feed** — damage, healing, deaths, conditions, spell slots and more, color-coded by
+- **Live combat tracker**: initiative order, current turn, HP bars, conditions, and death saves,
+  all updating in real time. A ribbon of portraits shows who is up now and who is next; click one
+  to pan Foundry to that token.
+- **Live event feed**: damage, healing, deaths, conditions, spell slots and more, color-coded by
   type as they happen.
-- **Module diagnostics** — a running log of Foundry module errors/warnings so you catch a broken
-  module mid-session, with an optional AI "likely cause & fix."
+- **Module diagnostics**: a running log of Foundry module errors and warnings so you catch a broken
+  module mid-session. (The optional AI explanation of a cause is on the old dashboard only.)
 
 ### Before, during and after the session
 
@@ -25,8 +26,8 @@ look ahead or back):
 
 - **Before** (no session running): Pre-flight's checks next to Prep (last session, open quests,
   next session notes, handouts waiting), and a Features slot that says "Not on this page yet"
-  (the per-feature cards are on the old dashboard at `/legacy/`). **Turn on for tonight** at the top of Pre-flight turns on,
-  in one click, what tonight needs ("Allow Write Operations", the Handouts, Live play, Party
+  (the per-feature cards are on the old dashboard at `/legacy/`). **Turn on for tonight** at the
+  top of Pre-flight turns on, in one click, what tonight needs ("Allow Write Operations", the Handouts, Live play, Party
   and Tarokka switches, GM Actions); **End session** turns off again what it turned on. Only the dashboard's
   GM route can do this (the bridge's control method `session_switches`, never an MCP tool), so
   Claude can never switch on its own writes.
@@ -44,10 +45,10 @@ Every panel has a **?** that opens its section of the GM guide in a side panel; 
 are built into the dashboard (`npm run build` renders `docs/gm` into `dist/help.json`), so the
 help works offline and matches the installed version.
 
-**Advanced** (top right) holds the rest: the Prep, Party, Handouts and Tarokka panels (a panel
-already on the screen is scrolled to; otherwise it opens over the page), the Tool Runner, module
-diagnostics, the player links, the Combat buttons and During layouts entries, and the optional
-Version tracker. The AI commentary and its settings (pause, diagnostics AI, tone, model) are not on
+**Advanced** (top right) holds the rest: the GM guides, the Prep, Party, Handouts and Tarokka
+panels (a panel already on the screen is scrolled to; otherwise it opens over the page), After a
+paper night, the Tool Runner, module diagnostics, the player links, the Combat buttons and During
+layouts entries, and the Version tracker (on by default; Advanced turns it off). The AI commentary and its settings (pause, diagnostics AI, tone, model) are not on
 this page; they are on the old dashboard.
 
 ### My character, one page per player
@@ -68,8 +69,8 @@ with secret sections and unidentified items' true names left out.
   lamplight for the main action, no red (danger is shown with words on an ink ground). The
   Obsidian plugin follows it too (`GET /api/theme`), and its own Theme setting changes it
   (`POST /api/control` with `set-theme`).
-- **Mist** (shown with The Veil, on the dashboard and in the players' page footer): each screen
-  picks its own. **Calm** (the default) is still mist, **Drifting** moves slowly, **Clear air**
+- **Mist** (shown with The Veil, in the players' page footer; the dashboard page has no Mist
+  picker yet): each screen picks its own. **Calm** (the default) is still mist, **Drifting** moves slowly, **Clear air**
   removes it. Drifting stops when the device asks for reduced motion.
 - The theme is saved in `dashboard-themes.json` in `COGM_STATE_DIR` (default
   `~/.foundry-ai-tool`). Until the dashboard knows the world (a GM in Foundry), each screen keeps
@@ -79,20 +80,22 @@ with secret sections and unidentified items' true names left out.
 
 Not on the page at `/` yet. It is on the old dashboard at `/legacy/`, and needs an Anthropic API key.
 
-- **Streaming commentary** — tactical or narrative call-outs when something significant happens
-  ("the Goblin Boss is bloodied and prone — press the attack").
-- **Ask the AI** — type a question like _"who's in trouble?"_ and get an answer grounded in the
+- **Streaming commentary**: tactical or narrative call-outs when something significant happens
+  ("the Goblin Boss is bloodied and prone, press the attack").
+- **Ask the AI**: type a question like _"who's in trouble?"_ and get an answer grounded in the
   current board state.
-- **Whisper to chat** — send any comment straight into Foundry as a GM whisper with one click.
+- **Whisper to chat**: send any comment straight into Foundry as a GM whisper with one click.
 
 ### Damage and conditions on several creatures at once
 
 ![Multi-select combatants and act on them as a group](../images/cogm/combat-control.png)
 
 - **Click combatants in the During view's turn-order strip to multi-select** them.
-- **Apply damage, healing or a condition** to all of them in one click (dnd5e works out
-  resistances, vulnerabilities and immunities), with an **Undo** message after.
-- Turns, initiative and saving throws stay in Foundry's own combat tracker.
+- **Damage / Heal** or **Condition** opens the Tool Runner with the plan filled in for the picked
+  creatures. You confirm it, dnd5e works out resistances, vulnerabilities and immunities, and
+  Recent Changes has the Undo.
+- The strip can start a fight (a token picker) and end one. Turn order, initiative and saving
+  throws stay in Foundry's own combat tracker.
 
 ### Do (almost) anything the bridge can do
 
@@ -108,8 +111,8 @@ Not on the page at `/` yet. It is on the old dashboard at `/legacy/`, and needs 
 ![Every game-changing action asks for confirmation](../images/cogm/confirm.png)
 
 - Watching the game is **always read-only**.
-- Game-changing actions stay off until you flip the **GM Actions** switch (or click **Ready for
-  session**, which turns it on for tonight; **End session** turns it off).
+- Game-changing actions stay off until you flip the **GM Actions** switch (or click **Turn on
+  for tonight** in Pre-flight, which turns it on; **End session** turns it off).
 - **Every change can be undone.** The dashboard's purpose-built buttons apply non-destructive
   changes in one click with an **Undo** message; plans typed by hand in the Tool Runner and plans
   from Claude or Obsidian always show a confirm window, and
@@ -125,9 +128,9 @@ must be open with the bridge connected).
 
 ```bash
 cd packages/cogm-dashboard
-# put your Anthropic API key in .env (ANTHROPIC_API_KEY=...) to enable the AI commentary
+# put your Anthropic API key in .env (ANTHROPIC_API_KEY=...) to enable the AI commentary (old page only)
 npm run dev          # → http://localhost:3000
 ```
 
-Without an API key the live feed, combat tracker, diagnostics and GM Actions all still work — only
+Without an API key the live feed, combat tracker, diagnostics and GM Actions all still work. Only
 the AI commentary is disabled.

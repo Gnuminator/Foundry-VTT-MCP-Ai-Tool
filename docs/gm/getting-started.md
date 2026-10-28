@@ -1,6 +1,6 @@
 ---
 title: Getting started
-description: What Foundry AI Tool is, its parts in plain words, how they fit together, a short glossary and today's setup.
+description: What Foundry AI Tool is, its parts in plain words, how they fit together, a short glossary and how it is set up.
 ---
 
 # Getting started
@@ -19,23 +19,23 @@ You stay in charge, but know the two kinds of change:
   tool's own features (party, Tarokka, handouts, the Obsidian mirror): Claude plans a change and you approve it, and
   every such change can be undone.
 - **Direct actions.** Many of Claude's other tools (rolls, new NPCs, journals, chat
-  and more) act as soon as Claude uses them, and the tool cannot undo them. Keep Claude Desktop's "ask before using a tool" on for tools that change the game, so
-  nothing happens without your click. [Asking Claude](asking-claude.md) explains how.
+  and more) act as soon as Claude uses them, and the tool cannot undo them. [Asking Claude](asking-claude.md)
+  lists which ones, and how to make Claude Desktop ask first if you want that.
 
 Players get their own page that never shows spoilers.
 
 ## The parts
 
-| Part                | What it is                                                       | What you use it for                                                   |
-| ------------------- | ---------------------------------------------------------------- | --------------------------------------------------------------------- |
-| **Foundry VTT**     | The virtual tabletop. You and the players join it in a browser.  | Running the game: maps, tokens, character sheets, dice, chat.         |
-| **The module**      | "Foundry AI Tool", an add-on module inside Foundry.              | It lets the bridge read and change your world. You rarely touch it.   |
-| **The bridge**      | A small program on the computer next to Claude Desktop.          | It connects Foundry, Claude Desktop, the dashboard and Obsidian.      |
-| **Claude Desktop**  | Anthropic's Claude app on your computer.                         | Asking Claude about the game, prep, rules and planned changes.        |
-| **The dashboard**   | A web page on your second screen.                                | Your control panel: live feed, combat, approving and undoing changes. |
-| **The player page** | A read-only page of the dashboard at `/player`.                  | What players may see: combat order, a safe feed, handouts.            |
-| **Obsidian**        | A note-taking app. The tool writes notes into an Obsidian vault. | Reading and prep: session notes, change history, stats, world notes.  |
-| **The Orange Pi**   | A small home server (coming later).                              | Runs Foundry, the bridge and the dashboard all the time.              |
+| Part                | What it is                                                                         | What you use it for                                                   |
+| ------------------- | ---------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| **Foundry VTT**     | The virtual tabletop. You and the players join it in a browser.                    | Running the game: maps, tokens, character sheets, dice, chat.         |
+| **The module**      | "Foundry AI Tool", an add-on module inside Foundry.                                | It lets the bridge read and change your world. You rarely touch it.   |
+| **The bridge**      | A small program on the home server (the Orange Pi).                                | It connects Foundry, Claude Desktop, the dashboard and Obsidian.      |
+| **Claude Desktop**  | Anthropic's Claude app on your computer. A small client reaches the bridge for it. | Asking Claude about the game, prep, rules and planned changes.        |
+| **The dashboard**   | A web page on your second screen.                                                  | Your control panel: live feed, combat, approving and undoing changes. |
+| **The player page** | A read-only page of the dashboard at `/player`.                                    | What players may see: combat order, a safe feed, handouts.            |
+| **Obsidian**        | A note-taking app. The tool writes notes into an Obsidian vault.                   | Reading and prep: session notes, change history, stats, world notes.  |
+| **The Orange Pi**   | A small home server that is always on.                                             | Runs Foundry, the bridge and the dashboard all the time.              |
 
 ## How they fit together
 
@@ -50,22 +50,23 @@ Players get their own page that never shows spoilers.
   You can also apply its plan yourself in the dashboard.
 - **Obsidian is for reading and prep.** The tool writes notes there after things happen. Nothing
   you write in Obsidian flows back into Foundry.
-- **The bridge connects them.** The module in your Foundry browser tab talks to the bridge. Claude
-  Desktop and the dashboard talk to the bridge too.
+- **The bridge connects them.** The module inside Foundry talks to the bridge. Claude Desktop and
+  the dashboard talk to the bridge too.
 
 ```text
   Claude Desktop ──┐
-                   ├──► bridge ◄──► module in your Foundry tab ──► your game
+                   ├──► bridge ◄──► module in the server's Foundry browser ──► your game
   dashboard ───────┘      │
                           └──► Obsidian notes (one way)
 ```
 
 Two things to know from the start:
 
-- The module runs inside a **GM's** Foundry browser tab. If no GM is logged in to Foundry, the tool
-  cannot reach the game.
-- Players never use the bridge. They see Foundry as usual. Once the Orange Pi is set up, they can
-  also open the player page; it is live behind the email-code login.
+- The module runs inside a Foundry browser on the server, logged in as a helper GM called the
+  Assistant GM. It holds the link to the bridge, so the tool works even when no human GM is logged
+  in, and your own browser never runs the bridge. If it goes down, tell the tool admin.
+- Players never use the bridge. They see Foundry as usual. They can also open the player page; it
+  is behind the same email-code login as the game.
 
 ## What is special for Curse of Strahd
 
@@ -113,8 +114,8 @@ Tool words:
   (writes)". Off by default, except "AI Tool: Live play (writes)" (damage, healing, conditions,
   resources), which starts on.
 - **GM Actions:** the dashboard's switch for changing the game from the dashboard. Off by default.
-- **GM token:** a password-like part of the dashboard's GM address (`?token=…`). It is only used
-  once the dashboard can be reached from other computers; today's setup has none.
+- **GM token:** a password-like part of the dashboard's GM address (`?token=…`). The tool admin
+  gives you the address; open it once and the browser remembers it.
 - **Recent Changes:** the dashboard panel that lists applied changes, each with Undo when possible.
 - **Bridge vault:** the tool's own GM-only storage on the bridge's computer: the Tarokka reading,
   revealed handouts, the change history and the logs. It is not part of Foundry's world backup.
@@ -122,15 +123,22 @@ Tool words:
   user name. The session notes and stats come from it.
 - **Play session:** one evening of play. You mark its start and end in the dashboard.
 
-## Setup today (Windows)
+## How it is set up
 
-> **Note: this section is for the tool admin's own Windows PC.** For the campaign, Foundry and the
-> dashboard run on the Orange Pi home server and you start nothing yourself: use the
-> [before-session checklist](before-session.md). The Pi setup is in
+For the campaign, Foundry, the bridge, the dashboard and the Assistant GM browser all run on the
+Orange Pi home server, and you start nothing there yourself. Your own part is small: install the
+connection for Claude Desktop once ([Connect Claude Desktop to the server](connect-claude-desktop.md)),
+then use the [before-session checklist](before-session.md). You reach Foundry and the dashboard
+through Cloudflare, which asks for an emailed code now and then.
+
+### Setup on the admin's own PC (Windows)
+
+> **Note: this part is for the tool admin's own Windows PC** (and as the fallback if the server
+> fails on game night). You do not do it. The server's setup is in
 > [docs/dev/PI-SETUP.md](../dev/PI-SETUP.md).
 
-Today everything runs on one Windows PC: Claude Desktop, the bridge, the dashboard, and the browser
-in which you are logged in to Foundry as the GM. The Foundry server itself may run elsewhere.
+On the admin's own PC everything runs on one Windows PC: Claude Desktop, the bridge, the dashboard,
+and the browser in which you are logged in to Foundry as the GM.
 
 1. **Foundry 14 with the dnd5e system.** The tool supports Foundry 14 with dnd5e 6.
 2. **Install the module.** On Foundry's setup screen: **Add-on Modules**, **Install Module**, paste
@@ -189,7 +197,7 @@ This is book content you bought, so it stays on your computer:
 - If the bridge runs on another computer than Foundry, set `FOUNDRY_AI_FOUNDRY_URL` to
   Foundry's address so the pictures can be fetched.
 
-Each time you play on the Pi, the order is simple: start Claude Desktop, open Foundry and join as
+Each time you play, the order is simple: start Claude Desktop, open Foundry and join as
 the GM, open the dashboard in your browser. The [before-session checklist](before-session.md) has
 the details. (On the admin's own PC the dashboard is also started by hand, with
 `npm run dev:cogm`.)

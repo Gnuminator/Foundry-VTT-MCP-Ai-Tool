@@ -6,7 +6,7 @@ description: Five small windows inside Foundry (Combat, Party, Session, Scene, L
 # The GM windows
 
 During play you keep glancing at the same few things: whose turn it is, how hurt the party is,
-whether the session is marked as running, what the light and weather are. The co-GM dashboard shows
+whether the session is marked as running, what the light and weather are. The dashboard shows
 all of that, but it lives in another browser tab. The **GM windows** put the same things in small
 windows inside Foundry, right next to the map, so you can run a whole scene from one screen.
 
@@ -72,7 +72,7 @@ starts or ends the session marker, the same one as in the dashboard. The marker 
 into the session log (that is what Claude's recap is built from); it changes nothing in the game, and
 you can start or end it again whenever you like.
 
-The window needs the AI Tool to be connected (you see "MCP Bridge connected" when you join). If it is
+The window needs the AI Tool to be connected (the dashboard's **✈ Pre-flight** says "Foundry connected"). If it is
 not, the window says "The AI Tool is not connected right now" instead of staying empty. **Refresh** asks again at once; it also
 checks for itself every fifteen seconds.
 

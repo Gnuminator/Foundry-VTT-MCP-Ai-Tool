@@ -49,8 +49,10 @@ changed. Edits made inside a player's folder are lost on the next update.
 ## Before you shut down
 
 - [ ] Leave Foundry (Settings tab, **Log Out**) or close the Foundry tab.
-- [ ] Stop the dashboard: in its terminal window press Ctrl+C, or close the window.
-- [ ] Quit Claude Desktop if you are done. The bridge stops with it.
+- [ ] Close the dashboard tab. The dashboard and the bridge keep running on the Pi; nothing to stop.
+- [ ] Quit Claude Desktop if you are done.
+
+(On the builder's own PC the dashboard runs in a terminal window: press Ctrl+C there.)
 
 ## If a player asks for their data to be removed
 

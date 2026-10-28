@@ -50,3 +50,7 @@ keeps track of, ask the GM. Good questions:
 - "Which handouts do we have so far?"
 - "Can you send us a recap of last session?" (a spoiler-free recap made for players)
 - "What did the letter from last week say again?"
+
+## Roll when the GM asks
+
+When the GM asks you for a roll, a button shows up on the player page, and on My character if you opened your private link. Press it and your roll goes to the table. It uses Foundry's own roll, so conditions and advantage on your character apply.

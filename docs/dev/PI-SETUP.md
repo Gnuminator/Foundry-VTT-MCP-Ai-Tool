@@ -1195,10 +1195,14 @@ release and sha256) on the Pi: `vault` for `Gnuminator/obsidian-vault` (workflow
 - **Run:** after a `dietpi-backup` snapshot and both token files,
   `cat scripts/pi/remote/lib.sh scripts/pi/remote/17-gh-runner.sh | ssh foundry-pi 'bash -s'`. It does not touch Foundry
   or any of its services.
+- **libicu:** the runner's .NET needs ICU, and GitHub's `config.sh` stops without it (it reports on stdout, not stderr).
+  The stage installs the newest `libicuNN` package apt knows (`libicu72` on Debian 12) only when no libicu is in the
+  library cache, says so, and removes nothing. If registering still fails, the last lines of `config.sh`'s output are
+  printed, minus any line that could hold the token.
 - **Check later:** `systemctl list-timers foundry-ai-tool-gh-runner-gate.timer`,
   `journalctl -u foundry-ai-tool-gh-runner-gate -n 10`, each repo's Settings > Actions > Runners shows `foundry-pi`.
   To stop everything: `systemctl disable --now foundry-ai-tool-gh-runner-gate.timer` and stop the two runner units.
-- Tests: `scripts/pi/gh-runner.test.mjs` (the gate against fake vaults, the stage as text, the allow list against fake `resolv.conf` files); with `PI_STAGE17_CONTAINER=1` (Docker) also `scripts/pi/container-test/stage17-scenarios.sh`, the registration step in the ARM64 container started from a folder the runner user cannot enter (`config.sh` checks `ldd ./bin/...` relative to the cwd).
+- Tests: `scripts/pi/gh-runner.test.mjs` (the gate against fake vaults, the stage as text, the allow list against fake `resolv.conf` files); with `PI_STAGE17_CONTAINER=1` (Docker) also `scripts/pi/container-test/stage17-scenarios.sh`, the libicu check and the registration step in the ARM64 container, with no ICU installed and started from a folder the runner user cannot enter (`config.sh` checks `ldd ./bin/...` relative to the cwd).
 
 ## Clock sync (stage 18)
 

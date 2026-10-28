@@ -44,9 +44,16 @@ into the archive under `foundry/` and into `pinned.json` once a rehearsal on it 
 The report is `<archive>/rehearsals/<time>-<server>/report.md` and `report.json`: the packages that
 differ from the pinned list, the steps and the findings sections. A run passes when every step
 passes; `archive` also needs a passing kit step in one of its reports, and a report from the same
-server. The module load check is the kit scenario `module-load`, so the report's findings sections
-stay empty for now: read the kit report for module errors (copying them into the rehearsal report is
-on the Backlog, `module-rehearsal-lows`).
+server and an unchanged version list (`archive` compares each report's package versions with the
+server as it is now). The module load check is the kit scenario `module-load`; the rehearsal report
+lists the module errors it saw as known and new findings (read from the kit report of that run).
+
+Per-module kit scenarios run in the same kit step and skip when their module is not in the profile:
+`module-ac5e-roll-mode` (full size) poisons a hero and a monster and compares the roll mode of
+`request-ability-check`, `request-attack-roll` and `roll-saving-throws` with the same creatures
+unpoisoned. Today only `roll-saving-throws` (it rolls through dnd5e) gets disadvantage from
+Automated Conditions 5e; the two request buttons roll a plain `1d20` formula, so a poisoned
+player's button roll has none.
 
 **Expected findings** are in `scripts/modules/expected.json`: a module, a substring of the error and
 why it is known upstream behaviour, with a `max` on the broad ones. `splitFindings` applies them to

@@ -16,8 +16,9 @@ import {
   scanInstalled,
   splitFindings,
 } from '../../modules/lib.mjs';
-import { appDirOf, archivePackage, downloadZip, installFromZip, lockHolder, zipFolder } from '../../modules/ops.mjs';
-import { errorFindings, parseArgs } from '../../modules/rehearse.mjs';
+import { spawnSync } from 'node:child_process';
+import { appDirOf, archivePackage, downloadZip, installFromZip, lockHolder, unpackZip, unsafeEntryName, zipEntryNames, zipFolder } from '../../modules/ops.mjs';
+import { errorFindings, kitModuleFindings, parseArgs, versionMismatches } from '../../modules/rehearse.mjs';
 import { loadProfile, SHIPPED_PROFILES } from '../lib/profiles.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -131,13 +132,133 @@ test('parseArgs reads the command and its flags and refuses the rest', () => {
   assert.throws(() => parseArgs(['run', '--size', 'huge']));
 });
 
-test('the archive round trip: zip an installed module, archive it, install it elsewhere', async () => {
+/** crc-32 of a buffer (the zip format needs it). @param {Buffer} buf */
+function crc32(buf) {
+  let c = ~0;
+  for (const b of buf) {
+    c ^= b;
+    for (let k = 0; k < 8; k++) c = (c >>> 1) ^ (0xedb88320 & -(c & 1));
+  }
+  return ~c >>> 0;
+}
+
+/** A real zip (stored entries, local headers and a central directory). @param {string} file @param {Record<string, string>} entries */
+function writeRealZip(file, entries) {
+  const parts = [];
+  const central = [];
+  let offset = 0;
+  for (const [name, text] of Object.entries(entries)) {
+    const data = Buffer.from(text);
+    const nm = Buffer.from(name);
+    const head = Buffer.alloc(30);
+    head.writeUInt32LE(0x04034b50, 0);
+    head.writeUInt16LE(20, 4);
+    head.writeUInt32LE(crc32(data), 14);
+    head.writeUInt32LE(data.length, 18);
+    head.writeUInt32LE(data.length, 22);
+    head.writeUInt16LE(nm.length, 26);
+    const cd = Buffer.alloc(46);
+    cd.writeUInt32LE(0x02014b50, 0);
+    cd.writeUInt16LE(20, 4);
+    cd.writeUInt16LE(20, 6);
+    cd.writeUInt32LE(crc32(data), 16);
+    cd.writeUInt32LE(data.length, 20);
+    cd.writeUInt32LE(data.length, 24);
+    cd.writeUInt16LE(nm.length, 28);
+    cd.writeUInt32LE(offset, 42);
+    central.push(cd, nm);
+    parts.push(head, nm, data);
+    offset += 30 + nm.length + data.length;
+  }
+  const dir = Buffer.concat(central);
+  const end = Buffer.alloc(22);
+  end.writeUInt32LE(0x06054b50, 0);
+  end.writeUInt16LE(central.length / 2, 8);
+  end.writeUInt16LE(central.length / 2, 10);
+  end.writeUInt32LE(dir.length, 12);
+  end.writeUInt32LE(offset, 16);
+  writeFileSync(file, Buffer.concat([...parts, dir, end]));
+}
+
+/** unpackZip uses the tar that reads zips (Windows bsdtar); GNU tar on Linux cannot, so those tests skip there. */
+const zipTar = process.platform === 'win32' ? path.join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'tar.exe') : 'tar';
+const canUnzip = /bsdtar/.test(spawnSync(zipTar, ['--version'], { encoding: 'utf8' }).stdout ?? '');
+
+test('zipEntryNames reads a real zip and unsafe entry names are refused before unpacking', () => {
+  const d = tmp();
+  const zip = path.join(d, 'evil.zip');
+  writeRealZip(zip, { 'module.json': '{}', '../evil.txt': 'x', 'ok/a.js': 'y' });
+  assert.deepEqual(zipEntryNames(zip), ['module.json', '../evil.txt', 'ok/a.js']);
+  assert.ok(['../x', 'a/../../x', '/abs', 'C:\\x', 'a\\..\\b'].every(unsafeEntryName));
+  assert.ok(!['module.json', 'dir/..file', 'a/b.js'].some(unsafeEntryName));
+  assert.throws(() => unpackZip(zip), /outside its folder/); // refused by our check, with or without bsdtar
+  writeFileSync(path.join(d, 'plain.zip'), 'not a zip at all, long enough to pass the length check');
+  assert.deepEqual(zipEntryNames(path.join(d, 'plain.zip')), []);
+  rmSync(d, { recursive: true, force: true });
+});
+
+test('a real zip unpacks, even with the package inside one folder', { skip: !canUnzip && 'needs bsdtar' }, () => {
+  const d = tmp();
+  const zip = path.join(d, 'real.zip');
+  writeRealZip(zip, { 'demo/module.json': JSON.stringify({ id: 'demo', version: '1.0.0' }), 'demo/x.js': 'export {}' });
+  const { tmp: out, root } = unpackZip(zip);
+  assert.ok(existsSync(path.join(root, 'x.js')));
+  rmSync(out, { recursive: true, force: true });
+  rmSync(d, { recursive: true, force: true });
+});
+
+test('bsdtar itself keeps a "../" entry inside the target folder (unpackZip still refuses it up front)', { skip: !canUnzip && 'needs bsdtar' }, () => {
+  const d = tmp();
+  const zip = path.join(d, 'evil.zip');
+  const out = path.join(d, 'a', 'out');
+  mkdirSync(out, { recursive: true });
+  writeRealZip(zip, { 'module.json': '{}', '../evil.txt': 'x' });
+  spawnSync(zipTar, ['-xf', zip, '-C', out], { encoding: 'utf8' });
+  assert.equal(existsSync(path.join(d, 'a', 'evil.txt')), false);
+  rmSync(d, { recursive: true, force: true });
+});
+
+test('modeOfFormula reads the roll mode of a d20 formula', async () => {
+  const { modeOfFormula } = await import('../scenarios/module-ac5e-roll-mode.scenario.mjs');
+  assert.deepEqual(['1d20+2', '2d20kl1 + 3', '2d20kh', '2d20dis + 3', 'nonsense'].map(modeOfFormula), ['normal', 'disadvantage', 'advantage', 'other', 'other']);
+});
+
+test('versionMismatches names packages whose version changed or went missing since the report', () => {
+  const plan = [
+    { id: 'a', kind: 'module', installed: '1.0.0' },
+    { id: 'b', kind: 'module', installed: '2.0.0' },
+    { id: 'dnd5e', kind: 'system', installed: '6.0.6' },
+  ];
+  assert.deepEqual(versionMismatches(plan, [{ id: 'a', kind: 'module', version: '1.0.0' }, { id: 'b', kind: 'module', version: '2.1.0' }, { id: 'dnd5e', kind: 'system', version: '6.0.6' }]), ['b 2.0.0 -> 2.1.0']);
+  assert.deepEqual(versionMismatches(plan, [{ id: 'a', kind: 'module', version: 'v1.0.0' }]), ['b 2.0.0 -> gone', 'dnd5e 6.0.6 -> gone']);
+});
+
+test('kitModuleFindings reads what module-load attached to the last kit report', () => {
+  const home = tmp();
+  const dir = path.join(home, 'run-1');
+  mkdirSync(dir);
+  assert.deepEqual(kitModuleFindings(home), []); // no last-run.json
+  writeFileSync(path.join(home, 'last-run.json'), JSON.stringify({ lastRun: { reportDir: dir } }));
+  assert.deepEqual(kitModuleFindings(home), []); // no report yet
+  const found = [{ module: 'dae', text: 'boom' }];
+  writeFileSync(path.join(dir, 'report.json'), JSON.stringify({ scenarios: [{ id: 'other', attachments: [] }, { id: 'module-load', attachments: [{ name: 'module-findings', data: found }] }] }));
+  assert.deepEqual(kitModuleFindings(home), found);
+  assert.deepEqual(kitModuleFindings(home, Date.now() + 60000), []); // an older run than this rehearsal
+  rmSync(home, { recursive: true, force: true });
+});
+
+test('the archive round trip: zip an installed module, archive it, install it elsewhere', { skip: !canUnzip && 'needs bsdtar' }, async () => {
   const d = tmp();
   const root = path.join(d, 'archive');
   const dataA = path.join(d, 'a', 'Data');
   const dataB = path.join(d, 'b', 'Data');
   const dir = fakeModule(dataA, 'module', 'demo', '1.2.3');
   writeFileSync(path.join(dir, 'x.js'), 'export {}');
+  // a real zip (as a download is), plus the zip made from the installed folder
+  const real = path.join(d, 'demo-real.zip');
+  writeRealZip(real, { 'module.json': JSON.stringify({ id: 'demo', title: 'demo', version: '1.2.3' }), 'x.js': 'export {}' });
+  await archivePackage({ root, kind: 'module', id: 'demo', version: '1.2.3', zip: real });
+  assert.equal(readPinned(root).modules.demo.version, '1.2.3');
   const zip = await archivePackage({ root, kind: 'module', id: 'demo', version: '1.2.3', installedDir: dir, licensed: true, testedOn: 'server B' });
   const pin = readPinned(root).modules.demo;
   assert.equal(pin.version, '1.2.3');

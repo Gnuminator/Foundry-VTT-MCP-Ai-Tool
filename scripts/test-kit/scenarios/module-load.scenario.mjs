@@ -40,6 +40,7 @@ export default {
 
     await t.step('no module error that is not a known upstream finding', async () => {
       const found = errorFindings(await t.tool('get-module-errors', {}));
+      t.attach('module-findings', found); // the module rehearsal lists them in its report
       const { known, fresh, unseen } = splitFindings(found, readJson('expected.json').expected);
       t.check(
         !fresh.length,

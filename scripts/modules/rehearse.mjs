@@ -18,9 +18,10 @@
  * 2 not ready (server up/down, lock, bad arguments).
  */
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { kitHome } from '../test-kit/lib/targets.mjs';
 import {
   archiveRoot,
   compareVersions,
@@ -99,13 +100,53 @@ async function lookUpstream(installed) {
 /** A test server must be stopped, and its lock free or ours, before files change under it. */
 async function requireStopped(srv) {
   if (await portOpen(srv.FoundryPort)) throw new Notready(`server ${srv.name} is running on ${srv.FoundryPort}; stop it first`);
+  requireOurLock(srv);
+}
+class Notready extends Error {}
+
+/** The server's lock must be held by REHEARSE_LOCK_SESSION. @param {{name: string, Root: string}} srv */
+function requireOurLock(srv) {
   const held = lockHolder(srv);
   if (!held) throw new Notready(`take server ${srv.name}'s lock first (scripts/test-env/lock.ps1 take -Server ${srv.name}), then set REHEARSE_LOCK_SESSION to your session id`);
   if (!held.session || held.session !== process.env.REHEARSE_LOCK_SESSION) {
     throw new Notready(`server ${srv.name} is locked by "${held.holder}"; set REHEARSE_LOCK_SESSION to the session id that holds it`);
   }
 }
-class Notready extends Error {}
+
+/**
+ * The module errors the kit's module-load scenario saw, from the report of the last kit run that
+ * wrote one at or after `sinceMs` (<kit home>/last-run.json names its folder). Empty when there is
+ * no such run or the scenario did not run.
+ * @param {string} home @param {number} [sinceMs]
+ */
+export function kitModuleFindings(home, sinceMs = 0) {
+  try {
+    const last = readJson(path.join(home, 'last-run.json')).lastRun;
+    if (!last?.reportDir) return [];
+    const file = path.join(last.reportDir, 'report.json');
+    if (statSync(file).mtimeMs < sinceMs) return [];
+    const scenario = readJson(file).scenarios?.find(x => x.id === 'module-load');
+    const found = scenario?.attachments?.find(a => a.name === 'module-findings')?.data;
+    return Array.isArray(found) ? found : [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Packages whose installed version in a report's plan differs from the current scan (one that is
+ * gone now counts too), as "id tested -> now".
+ * @param {Array<{id: string, kind: string, installed: string}>} plan
+ * @param {Array<{id: string, kind: string, version: string}>} installed
+ */
+export function versionMismatches(plan, installed) {
+  return plan
+    .map(p => {
+      const now = installed.find(x => x.id === p.id && x.kind === p.kind);
+      return !now || compareVersions(now.version, p.installed) !== 0 ? `${p.id} ${p.installed} -> ${now?.version ?? 'gone'}` : null;
+    })
+    .filter(Boolean);
+}
 
 async function cmdStatus(o, withUpstream) {
   const srv = serverInfo(o.server);
@@ -195,6 +236,9 @@ function runStep(name, cmd, args, env = {}) {
 async function cmdRun(o) {
   const srv = serverInfo(o.server);
   if (!(await portOpen(srv.DashboardPort))) throw new Notready(`no dashboard on ${srv.DashboardPort}: start server ${srv.name} (scripts/test-env/start.ps1 -Server ${srv.name}) with the lock held`);
+  // live:roundtrip and live:sweep write to server A's world: the lock has to be ours before they run.
+  if (srv.name === 'A' && o.live) requireOurLock(srv);
+  const startedMs = Date.now();
   const root = archiveRoot();
   const installed = scanInstalled(srv.dataDir);
   const plan = planUpdates(installed, readPinned(root), {}, strahd());
@@ -219,8 +263,9 @@ async function cmdRun(o) {
 
 
   // The load check (modules active, no new module errors) is the kit scenario module-load, so it
-  // runs inside the kit in the kit world; its result is the kit step. Findings stay empty here.
-  const findings = splitFindings([], expectedList());
+  // runs inside the kit in the kit world; its pass or fail is the kit step, and the errors it saw
+  // come from the kit report, so this report lists them as known or new.
+  const findings = splitFindings(o.kit ? kitModuleFindings(kitHome(), startedMs) : [], expectedList());
 
   // 3. CI.
   steps.push(o.green ? runStep('npm run green', 'npm', ['run', 'green'], { CI: 'true' }) : { name: 'npm run green', status: 'skip', detail: 'pass --with-green' });
@@ -253,6 +298,11 @@ async function cmdArchive(o) {
   if (!o.fromReports.length) throw new Notready('give --from-report <dir> (a passing rehearsal, repeatable); --ids only narrows it');
   const rehearsal = o.fromReports.map(d => path.basename(d)).join('+') || null;
   const installed = scanInstalled(srv.dataDir);
+  // The reports describe the versions that were tested: archive nothing that has changed since.
+  for (const dir of o.fromReports) {
+    const changed = versionMismatches(readJson(path.join(dir, 'report.json')).plan ?? [], installed);
+    if (changed.length) throw new Notready(`${dir} tested other versions than the server has now (${changed.join(', ')}); run the rehearsal again`);
+  }
   await archiveFoundry(root, srv, rehearsal);
   const inList = new Map(strahd().modules.map(m => [m.id, m]));
   // Only the Strahd list goes in the pinned list (the test copy of our bridge and modules not on the

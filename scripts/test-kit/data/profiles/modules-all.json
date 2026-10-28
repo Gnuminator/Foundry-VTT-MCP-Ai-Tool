@@ -53,7 +53,8 @@
   },
   "knownConsoleErrors": [
     "ActiveEffect .dnd5eparalyzed00. does not exist",
-    "using legacy syntax which should be migrated"
+    "using legacy syntax which should be migrated[\\s\\S]*(autoanimations|dnd5e)",
+    "forced deletion of a data field value is no longer supported"
   ],
   "knownAlso": ["srd"]
 }

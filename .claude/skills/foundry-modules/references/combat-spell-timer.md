@@ -1,39 +1,46 @@
 # Combat Spell Timer (`combat-spell-timer`)
 
-Status: source read (version 2.3.0, Foundry 13 to 14, dnd5e 5+). Live pass on a test server: pending.
+Verified on Foundry 14.368 / dnd5e 6.0.6, module 2.3.0, 2026-10-28 (test server C; a Bless cast, ten rounds of turns and the install ping were driven live).
+
+**Verdict: drop (optional).** It works on dnd5e 6 and does not clash with the AI Tool, but dnd5e 6 and Foundry 14 already track concentration and effect durations, so all it adds is a "rounds left" row in the tracker. It also sends an install ping with no switch. Keep it only if Danni likes the reminder row.
+
+**For Danni's guides:** Under a caster in the combat tracker you see how many rounds their spell has left, and the spell ends by itself when the rounds run out.
 
 ## What it does
 
-- Watches dnd5e spell casts, shows a per-combatant timer row in the combat tracker with rounds remaining, and ends the spell's effect when the duration runs out. Concentration is tracked per caster; casting a second concentration spell asks whether to drop the first.
-- Also tracks class features with a duration: Rage (with a turn-end extend/end prompt), Form of the Beast, Totem Spirit, Zealous Presence, Path to the Grave, Wild Surge.
-- Optional Beyond20 integration (auto-cast from a D&D Beyond roll). We do not use Beyond20.
+- Watches dnd5e spell casts during a combat and stores a timer on the combat. The tracker shows a row "Bless (Test Cleric), 10 rounds left" and, under the caster, "Concentrating: Bless, Cast: Round 1, 10 rounds left".
+- When the rounds are used up it deletes the timer and the Concentrating effect. Live: Test Cleric cast Bless in round 1 (duration 1 minute, so 10 rounds); the timer and the effect were both gone when the combat reached round 11.
+- Concentration is tracked per caster (casting a second concentration spell asks whether to drop the first, not exercised).
+- Also tracks class features with a duration (Rage with an extend or end prompt, Form of the Beast, Totem Spirit, Zealous Presence, Path to the Grave, Wild Surge); not exercised.
+- Optional Beyond20 integration; we do not use Beyond20.
 
-## Where the UI is
+## Where its UI is
 
-- Combat tracker: a row under the caster with the spell icon and "N rounds left"; right-click or the row menu to update or remove. The effect sheet gets a "Show effect details" toggle.
-- Settings (client scope): Debug Logging, Beyond20 switches, a spell-name map menu (GM only). Nothing world-scope to tune.
+- The combat tracker rows described above; the effect sheet gets a "Show effect details" toggle.
+- Settings (client scope): Debug Logging, two Beyond20 switches, and a GM-only spell-name map menu. There is nothing world-wide to tune.
 
-## Settings we would use
+## Settings we use and why
 
-Defaults. Leave both Beyond20 switches off (the auto-cast one is off by default; turn the plain Beyond20 one off too, there is no D&D Beyond roller in our setup).
+Defaults, with one change if the module is kept: turn "Beyond20: Cast Spell button" (`combat-spell-timer.beyond20Integration`, default on) off, since we have no D&D Beyond roller. Leave "Beyond20: Auto-cast spell / apply effect" (`combat-spell-timer.beyond20AutoCast`) off, its default.
 
 ## How it interacts with the AI Tool
 
-- State lives in the combat document: flag `flags.combat-spell-timer.timers`. The bridge's combat tools (`get-combat-state`, `advance-combat-turn`, `get-combat-play-by-play`) read round and turn but do not show the timers. The module reacts to the same `updateCombat` / `combatTurnChange` hooks, so advancing a turn through the bridge should end spells the same way as the tracker's next-turn button (verify live).
-- A cast through `use-item` fires dnd5e's usage hooks, so it should create a timer; verify in the live pass (this is why the module earns a kit scenario).
-- The module writes through a GM socket (`socket: true`); no GM connected means timers are not stored.
+- **Cast through an item use creates the timer (verified):** `Item#use` on Bless (the path `use-item` takes) wrote `flags.combat-spell-timer.timers` on the combat with `durationRounds: 10`, `concentration: true` and a link to the Concentrating effect.
+- **Advancing turns removes it (verified):** `Combat#nextTurn()` (what `advance-combat-turn` calls) thirty-one times, from round 1 to round 11, ended the timer and the effect at round 11. The core effect has the same one-minute duration, so the module did not change the outcome, only showed it.
+- Our combat read tools (`get-combat-state`, `get-combat-play-by-play`) do not show the timers; `get-character` and the dashboard do not either. They live only in the combat flag and the tracker row.
+- It writes through a GM socket, so with no GM connected a timer is not stored.
+- Kit scenario: none. The module is a drop recommendation and a scenario would test code we plan not to run; the recipe above (use-item, then advance turns, then read the combat flag) is the scenario to write if it is kept.
 
-## Gotchas
+## Gotchas on Foundry 14 / dnd5e 6
 
-- **Phones home:** on `ready` the active GM posts `{moduleId, system, systemVersion, foundryVersion, worldId, moduleVersion}` once per module version to `https://foundry.turkeysunite-local.org/module-install` (up to 3 tries, no user switch). No campaign text or player data. Under our trust model that is acceptable, but Danni should know; a host without internet just fails silently and gives up after three tries.
-- Active timers do not show in `get-character` or the dashboard; only in the tracker.
-- Combat must exist for a timer to be created.
-- Only dnd5e is supported (another system loads no adapter and the module stays idle).
+- **Install ping (verified):** on `ready` the active GM's browser posts `{moduleId, system, systemVersion, foundryVersion, worldId, moduleVersion}` once per module version to `https://foundry.turkeysunite-local.org/module-install`, with an `x-install-tracker-key` header, up to three tries per version. There is no setting to turn it off. On the test server the browser blocked it (CORS preflight, "Failed to fetch"), the module recorded `attempts: 1` in its hidden setting `installTracker`, and nothing was sent. Because the custom header forces a preflight, whether a real world is ever recorded depends on that server's CORS answer. No campaign text or player data is in the payload; the world id is.
+- Manifest: Foundry 13 to 14, dnd5e 5.0.0 or newer; it declares no dnd5e 6 support but worked on 6.0.6.
+- Only dnd5e is supported; on another system the module loads no adapter and stays idle.
+- A cast with no combat running creates no timer.
+- Disabling it leaves the combat flag on old combats; harmless.
+- Pi: a host without internet just fails the ping silently.
 
-## Verdict
+## Sources
 
-Draft: **drop (recommended) unless Danni likes its reminders.** The walkthrough (2026-10-04) found no clash (no errors, effect counts down across rounds advanced by our `advance-combat-turn`), but dnd5e 6 and Foundry 14 already track effect durations and concentration, the module declares dnd5e 5.0.0+ rather than 6, and it adds an install ping. What it adds is the per-caster row in the tracker. Re-check on the newest version in the live pass.
-
-## Danni's guide line
-
-"Under a caster in the combat tracker you see how many rounds their spell has left; it ends the effect for you."
+- Repo: https://github.com/kamcknig/combat-spell-timer ; manifest and source on disk in `C:\FoundryTest\data\Data\modules\combat-spell-timer` (`scripts/combat-spell-timer.mjs`, `core/timers.mjs`, `core/store.mjs`, `utils/installTracker.mjs`).
+- Vault `Dev/Foundry AI Tool/Design/Module walkthrough plan.md` (2026-10-04, no clash).

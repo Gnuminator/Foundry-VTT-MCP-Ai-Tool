@@ -1,45 +1,47 @@
 # Dynamic effects using Active Effects, DAE (`dae`)
 
-Status: source read (version 14.0.19, Foundry 14.368 to 14.999). Live pass on a test server: pending.
+Verified on Foundry 14.368 / dnd5e 6.0.6, module 14.0.19, 2026-10-28 (test server C, effect editor opened live; automation and special durations were not exercised). The 2026-10-04 walkthrough covered 14.0.14 with the same result.
+
+**Verdict: optional.** Keep it only if the Curse of Strahd characters' items use DAE special durations or macros (some D&D Beyond imports do); decide once those characters exist. It does not clash with the AI Tool, but dnd5e 6 already does concentration and the plain effect editor, and it adds two library dependencies and a bigger update surface. Leaning drop for session 0.
+
+**For Danni's guides:** A bigger effect editor: you only open its extra tab if a spell or item effect needs an unusual end, like "until your next turn".
 
 ## What it does
 
-- Extends Foundry's Active Effect editor with the full list of dnd5e fields to change (a field picker instead of typing `system.attributes.ac.bonus`), special durations (until the end of the target's next turn, on the next attack, on short or long rest, and so on), and a Dependent Conditions mode.
-- Gives item and spell effects a "transfer to actor" behaviour with those durations, and an API other modules (Midi QOL, which we do not run) call.
-- A second editor, DIME, edits item macros attached to effects.
+- Replaces the Active Effect sheet with `DAEActiveEffectConfig` and four tabs: Details, Duration, DAE, Changes. The DAE tab holds an expression that removes the effect when false, one that disables it when true, an icon overlay switch, "Expiry Mode" (Default uses the global setting) and "Macro Repeat". The special-duration list ("until the end of the target's next turn", on the next attack, on rest) lives lower in that tab (not scrolled to).
+- Adds a field picker for the Changes tab, and `flags.dae.specialDuration` on effects.
+- Exposes a `DAE` global API for other modules (`DAE.daeSpecialDurations()`, `daeCustomEffect`, ...); only Midi QOL, which we do not run, needs most of it.
 
-## Requires
+## Where its UI is
 
-`lib-wrapper` and `socketlib` (both installed on the test servers).
+- Open any effect from an actor's or item's Effects tab: the editor shows the four tabs above. Settings: Module Settings, DAE.
 
-## Where the UI is
+## Settings we use and why
 
-- The Effects tab of an actor or item sheet: the effect editor gets DAE's extra tabs and a longer duration list. Settings: Module Settings > DAE.
+Key prefix `dae.`; defaults unless noted.
 
-## Settings we would use
-
-| Setting                                           | Value            | Why                                                        |
-| ------------------------------------------------- | ---------------- | ---------------------------------------------------------- |
-| `expireRoundEffectsOnCombatEnd`                   | on               | Round-based effects should not outlive the fight. Test it. |
-| `expiryAction` / `coreExpiryAction`               | default          | Defaults delete or update expired effects.                 |
-| `DAEUntestedSystems`, `ZZDebug`, `disableEffects` | off / none / off | Debug and escape hatches only.                             |
-| `enableAutoMigration`                             | off              | Do not let it rewrite world effects.                       |
+| Label (key)                                                            | Value         | Why                                                            |
+| ---------------------------------------------------------------------- | ------------- | -------------------------------------------------------------- |
+| Expire round effects on combat end (`expireRoundEffectsOnCombatEnd`)   | on if kept    | Round-based effects should not outlive the fight (not tested). |
+| Expiry action, core expiry action (`expiryAction`, `coreExpiryAction`) | default       | Delete or update expired effects as the module decides.        |
+| Auto migration (`enableAutoMigration`)                                 | off (default) | Do not let it rewrite world effects.                           |
+| Untested systems, debug, disable effects                               | default       | Escape hatches only.                                           |
 
 ## How it interacts with the AI Tool
 
-- The bridge writes effects as plain Active Effect documents (`get-active-effects`, `plan-actor-change`, `use-item`). DAE does not block that, but it adds `flags.dae.*` and `specialDuration` fields to effects it creates. An effect the AI applies has no special duration unless the plan sets `flags.dae.specialDuration`, so "until the end of its next turn" is a round count unless a tool learns otherwise.
-- DAE patches Active Effect application through libWrapper; re-run the kit after every DAE or libWrapper bump.
-- Without Midi QOL most of DAE's value is the editor and the durations, not automation.
+- An effect created the way the bridge does (`createEmbeddedDocuments('ActiveEffect', ...)`) gets `flags.dae.specialDuration: []` added by DAE and is otherwise unchanged (verified). So guarded effect writes survive DAE's hooks; they just have no special duration unless the plan sets `flags.dae.specialDuration`.
+- Walkthrough 2026-10-04: concentration still works with DAE on (dnd5e 6 posts its save prompt on damage), and a player's self effect still needs the dnd5e setting "Allow Player Effect Application"; DAE only adds its flags and a dnd5e `createRiderConditions` deprecation warning.
+- No tool reads DAE's flags. Kit scenario: none; the module is optional and the check above is cheap to repeat after a bump.
 
-## Gotchas
+## Gotchas on Foundry 14 / dnd5e 6
 
-- Foundry 14 changed active effect behaviour; DAE has a Foundry 14 only build, so dnd5e and Foundry bumps are the risk. Pin versions in the rehearsal archive.
-- `atlCompatibility` (default `legacy`) matters only with Active Token Effects, which we do not run.
+- Manifest: Foundry 14.368 to 14.999; requires `lib-wrapper` and `socketlib`. DAE patches effect application through libWrapper, so rerun the smoke kit after every DAE, libWrapper, dnd5e or Foundry bump.
+- Old items that use deprecated special durations (a Cloak of Displacement effect in the Frostmaiden world) log a warning.
+- `atlCompatibility` matters only with Active Token Effects, which we do not run.
+- Removing the module leaves `flags.dae` on effects; harmless.
+- Pi: nothing platform-specific found. On the test server C the module was 14.0.14 and was replaced by the archive's 14.0.19 for this check.
 
-## Verdict
+## Sources
 
-Draft: **optional: keep only if the Strahd characters' items need DAE durations or macros (some D&D Beyond imports do), decided once those characters exist.** Walkthrough 2026-10-04 (14.0.14): no clash; concentration works with DAE on (dnd5e 6 does it itself), a player's self effect still needs "Allow Player Effect Application" on, DAE adds its flags and a dnd5e `createRiderConditions` deprecation warning, nothing breaks. Leaning drop for session 0. The dnd5e 6 Active Effects editor covers a GM's needs, and DAE earns its place with Midi QOL or heavy homebrew effects. Cost: two library dependencies and a larger update surface. Final verdict after the live pass (does the duration list work with dnd5e 6 spell effects?).
-
-## Danni's guide line
-
-"A bigger effect editor: only open it if a spell or item effect needs an unusual duration."
+- Manifest and source on disk: `C:\FoundryTest\data\Data\modules\dae` (`module.json`, `module/settings.js`, `dae.js`).
+- Vault `Dev/Foundry AI Tool/Design/Module walkthrough plan.md` (2026-10-04).

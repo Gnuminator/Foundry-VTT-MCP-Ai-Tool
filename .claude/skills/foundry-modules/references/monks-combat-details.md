@@ -1,46 +1,55 @@
 # Monk's Combat Details (`monks-combat-details`)
 
-Status: source and README read (version 14.03, Foundry 14 verified). Live pass on a test server: pending.
+Verified on Foundry 14.368 / dnd5e 6.0.6, module 14.03, 2026-10-28 (test server C; the start-combat check, the tracker pop-out, auto-defeat and the CR line were seen live; turn sounds, hide-enemies from a player's view and the playlist feature were not).
+
+**Verdict: keep (optional, his taste).** It guides a new GM through a fight with few clicks, and nothing it does clashes with the AI Tool. Its one visible interaction is a confirm dialog when combat is started by hand before everyone has rolled initiative.
+
+**For Danni's guides:** It pops the combat list up when a fight starts, warns you if someone has not rolled initiative, and marks monsters as defeated at 0 HP.
 
 ## What it does
 
-Quality of life for combat: turn alerts with sound ("you are next", "your turn"), the tracker pops out when combat starts and closes at the end, the current combatant is kept in view, player characters sort to the top while rolling initiative, a warning if you start before everyone has rolled, enemy names hidden until their first turn, auto-defeat at 0 HP, a combat CR estimate, a combat playlist swap, separate token bars in combat, and clear targets / pan to token on your turn.
+- **Start check (seen):** starting a combat with an unrolled combatant opens "Not all Initiative have been rolled... Do you wish to continue with starting the combat?" with Yes and No.
+- **Pop-out (seen):** once combat started the tracker opened as its own window ("Combat Tracker", Round 1) and the Test Cleric row was highlighted.
+- **CR estimate (seen):** the encounter header showed "CR: 1/4" for the combat (setting `show-combat-cr`, on by default).
+- **Auto-defeat (seen):** with the default `auto-defeated` value (NPCs at zero), setting Wolf 1's HP to 0 marked its combatant defeated and the token dead; setting HP back to 11 cleared both. So an undo of a damage change also undoes the defeat.
+- Also: turn and next-up alerts with sound, "Round N" chat card, current combatant kept in view, clear targets and pan on your turn, enemy names hidden from players, combat bars, playlist swap (not exercised).
 
-## Where the UI is
+## Where its UI is
 
-- Settings: Module Settings > Monk's Combat Details (about fifty options, many client scope).
-- The combat tracker and a toast overlay for turn alerts.
+- Settings: Module Settings, Monk's Combat Details (about fifty options, many client scope).
+- The combat tracker window and the alerts shown as toasts.
 
-## Settings we would use, and why
+## Settings we use and why
 
-| Setting                               | Value                  | Why                                                                                                                 |
-| ------------------------------------- | ---------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| `prevent-initiative`                  | on (default)           | Warns before starting with unrolled combatants.                                                                     |
-| `hide-enemies` / `hide-until-turn`    | on / on                | Players do not see the monster list until it acts (spoiler-safe). Check against the AI Tool's roll-initiative flow. |
-| `auto-defeated`                       | default (NPCs at 0 HP) | Removes "dead but still in the order" noise.                                                                        |
-| `show-combat-cr`                      | on (default)           | A hint for a new GM.                                                                                                |
-| `popout-combat` / `switch-combat-tab` | default on             | Less clicking.                                                                                                      |
-| `show-combat-playlist`                | off                    | We use the playlist tool.                                                                                           |
-| `disablesounds`                       | off                    | Players mute their own volume (`volume`, client scope).                                                             |
+Key prefix `monks-combat-details.`.
+
+| Label (key)                                                       | Value                                           | Why                                                                                                                                         |
+| ----------------------------------------------------------------- | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| Prevent initiative (`prevent-initiative`)                         | on (default)                                    | The "not all rolled" warning.                                                                                                               |
+| Hide enemies, hide until turn (`hide-enemies`, `hide-until-turn`) | off (default); on to hide monsters from players | Adding a hostile combatant mid-combat with `hide-enemies` on did not hide it in our test, so check the path you use (not verified further). |
+| Auto defeated (`auto-defeated`)                                   | default (`npc-zero`)                            | Removes "dead but still in the order" noise.                                                                                                |
+| Show combat CR (`show-combat-cr`)                                 | on (default)                                    | A hint for a new GM.                                                                                                                        |
+| Show combat playlist (`show-combat-playlist`)                     | off (default)                                   | We use the playlist tool.                                                                                                                   |
+| Volume, disable sounds (`volume`, `disablesounds`)                | default                                         | Each player mutes their own client.                                                                                                         |
 
 ## How it interacts with the AI Tool
 
-- `roll-initiative-for-npcs`, `set-initiative`, `advance-combat-turn` change the Combat document; Monk's reacts to the same hooks (alerts fire, the tracker scrolls, defeated state is set). It does not need the bridge.
-- `hide-enemies` hides combatants from players; the GM-only `get-combat-state` still lists them.
-- Monk's round chat messages (`round-chatmessages`) land in `get-chat-log`; switch that off if the log gets noisy.
-- `auto-defeated` marks combatants defeated when a guarded HP change takes them to 0; undo reverts HP but may not un-defeat. Verify in the live pass.
+- Our combat tools change the same documents it listens to, and its features follow (turn alerts, "Round N" card, auto-defeat on an HP write). It does not need the bridge.
+- **Start dialog:** a script or tool that calls `Combat#startCombat()` on a combat with an unrolled combatant waits on that dialog and times out. The kit helper rolls everyone first (`rollAll` in `gm-actions.mjs`), so kit runs are not affected. A player or GM starting a fight by hand sees the question.
+- `get-combat-state` is GM-only and lists every combatant whatever the hide settings.
+- `round-chatmessages` posts "Round N" cards that land in `get-chat-log`; turn that setting off if the log gets noisy.
+- Kit scenario: none; the kit's `scripted-fight` already covers the combat flow with the module able to run beside it.
 
-## Gotchas
+## Gotchas on Foundry 14 / dnd5e 6
 
-- Large settings surface: change only the few above.
+- Manifest verified "14". Large settings surface: change only the few above.
 - `reroll-initiative` is registered twice in the source; harmless.
-- Custom turn-message HTML files cannot be picked with Foundry's file picker; type the path.
-- Possible overlap with Combat Tracker Dock (installed): the pop-out tracker may fight the dock; check both on in the live pass.
+- Custom turn-message HTML files cannot be picked in Foundry's file picker; the path has to be typed.
+- Overlap with Combat Tracker Dock (installed): both draw a tracker; check them together before G0 (not verified).
+- Removing the module leaves only its world settings.
+- Pi: nothing platform-specific found.
 
-## Verdict
+## Sources
 
-Draft: **keep (optional, his taste).** Walkthrough 2026-10-04: no clash with the AI Tool; turns advanced by `advance-combat-turn` post its "Round N" card; its one interaction is the "Not all Initiative have been rolled" confirm when combat is started by hand (a script calling `Combat#startCombat()` times out on that dialog; the kit and sweep helpers avoid it). Combat feels guided for a new GM with few clicks, and monster names stay hidden from players. Costs: many options (leave defaults), a sound on every turn. Final verdict after the live pass.
-
-## Danni's guide line
-
-"It pops the combat list up, tells each player when they are next, and keeps monster names hidden until they act."
+- Repo: https://github.com/ironmonk88/monks-combat-details ; `README.md`, `CHANGELOG.md`, `settings.js` in `C:\FoundryTest\data\Data\modules\monks-combat-details`.
+- Vault `Dev/Foundry AI Tool/Design/Module walkthrough plan.md` (2026-10-04); repo `scripts/test-kit/lib/gm-actions.mjs`.

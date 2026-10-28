@@ -21,16 +21,16 @@ templates are in `C:/FoundryTest/app/templates/setup/parts/`.
 
 ## How to reach it
 
-| What | Path | Who |
-|------|------|-----|
-| Join page | Open `http://localhost:30001/join`. Log Out also lands here. | anyone |
-| Game Access buttons | Sidebar > **Settings** tab (gear icon, last in the strip) > section **Game Access** (at the bottom, may need a scroll) | Log Out: everyone. Invitation Links: GM and Assistant. Return to Setup: Gamemaster only |
-| Main Menu | Press Esc when nothing else is open | everyone (items vary by role) |
-| User Management | Settings tab > **User Management**, or Main Menu > **User Management**. The browser navigates to `/players` | Gamemaster and Assistant |
-| User Configuration | Right-click a name in the Players list (bottom-left) > **User Configuration** | GM for anyone; a player for themself |
-| User Permissions | Settings tab > **Game Settings** > category **Core** > row **User Permissions** > button **User Permissions**. Also `/players` > **Configure User Permissions** | Gamemaster only |
-| Configure Ownership | Right-click a document or folder in a sidebar directory > **Configure Ownership**. Or open a document sheet > header ⋮ (**Toggle Controls**) > **Configure Ownership** | GM and Assistant |
-| World Configuration (feeds the join page) | Settings tab > **World Configuration** | Gamemaster only |
+| What                                      | Path                                                                                                                                                                   | Who                                                                                     |
+| ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| Join page                                 | Open `http://localhost:30001/join`. Log Out also lands here.                                                                                                           | anyone                                                                                  |
+| Game Access buttons                       | Sidebar > **Settings** tab (gear icon, last in the strip) > section **Game Access** (at the bottom, may need a scroll)                                                 | Log Out: everyone. Invitation Links: GM and Assistant. Return to Setup: Gamemaster only |
+| Main Menu                                 | Press Esc when nothing else is open                                                                                                                                    | everyone (items vary by role)                                                           |
+| User Management                           | Settings tab > **User Management**, or Main Menu > **User Management**. The browser navigates to `/players`                                                            | Gamemaster and Assistant                                                                |
+| User Configuration                        | Right-click a name in the Players list (bottom-left) > **User Configuration**                                                                                          | GM for anyone; a player for themself                                                    |
+| User Permissions                          | Settings tab > **Game Settings** > category **Core** > row **User Permissions** > button **User Permissions**. Also `/players` > **Configure User Permissions**        | Gamemaster only                                                                         |
+| Configure Ownership                       | Right-click a document or folder in a sidebar directory > **Configure Ownership**. Or open a document sheet > header ⋮ (**Toggle Controls**) > **Configure Ownership** | GM and Assistant                                                                        |
+| World Configuration (feeds the join page) | Settings tab > **World Configuration**                                                                                                                                 | Gamemaster only                                                                         |
 
 - Clicking any sidebar tab icon also expands a collapsed sidebar
   (`C:/FoundryTest/app/client/applications/sidebar/sidebar.mjs`). [unverified]
@@ -52,8 +52,10 @@ Sources: [KB Settings](https://foundryvtt.com/article/settings/),
   image. The page can look empty in a screenshot while it animates in; read the accessibility
   tree instead (see the test-env skill). [unverified]
 - Panel **Join Game Session** (form `name="join"`, part `#join-game-form`):
-  - User name **text field** (`#join-username`, `name="username"`, accessible name
-    **Select User**, user icon). This is new since v11/v12, which used a dropdown. Focusing or
+  - User name field (`#join-username`, accessible name **Select User**, user icon). **14.368: a
+    text field** (`name="username"`). **14.369: a `<select name="userId">`** again, option value =
+    user id, option text = user name; scripts check `tagName` and use `selectOption({ label })` or
+    `fill`. The text field is new since v11/v12, which used a dropdown. Focusing or
     typing opens an autocomplete list of the world's users, filtered by prefix. Users who are
     already connected appear greyed out (disabled). Picking one fills the name and moves focus
     to the password. [unverified]
@@ -206,13 +208,13 @@ Sources: `C:/FoundryTest/app/templates/setup/parts/user-management-form.hbs`,
 
 ## User roles
 
-| Value | Label in v14 | What it means (from the source) |
-|-------|--------------|---------------------------------|
-| 0 | **None** | Cannot join (join error, see above). This is how "ban" works. |
-| 1 | **Player** | Normal player. |
-| 2 | **Trusted Player** | Player plus the Trusted defaults in the matrix below (drawing, file browser, journal creation...). |
-| 3 | **Assistant Gamemaster** | `isGM` is true: sees every document as Owner, sees GM-only UI. No User Permissions, no World Configuration, no Return to Setup, no Login as User. |
-| 4 | **Gamemaster** | Full control of the world. The world needs at least one. |
+| Value | Label in v14             | What it means (from the source)                                                                                                                   |
+| ----- | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0     | **None**                 | Cannot join (join error, see above). This is how "ban" works.                                                                                     |
+| 1     | **Player**               | Normal player.                                                                                                                                    |
+| 2     | **Trusted Player**       | Player plus the Trusted defaults in the matrix below (drawing, file browser, journal creation...).                                                |
+| 3     | **Assistant Gamemaster** | `isGM` is true: sees every document as Owner, sees GM-only UI. No User Permissions, no World Configuration, no Return to Setup, no Login as User. |
+| 4     | **Gamemaster**           | Full control of the world. The world needs at least one.                                                                                          |
 
 - `user.isGM` is true for both Assistant and Gamemaster. Code that needs the full GM uses
   `user.hasRole("GAMEMASTER")`. [unverified]
@@ -266,8 +268,8 @@ Sources: `C:/FoundryTest/app/client/applications/ui/players.mjs`,
   - **Player Color**: colour picker. Used for cursor, ruler and the players-list dot.
   - **Player Pronouns**: free text. Shown in the players list as `(pronouns)`.
 - Fieldset **Player Character**: a select (`name="character"`) listing actors that the
-  *configured* user can at least observe. Options are grouped **Owner** / **Observer** based on
-  *your own* ownership, so a GM sees them all under Owner. Actors already assigned to another
+  _configured_ user can at least observe. Options are grouped **Owner** / **Observer** based on
+  _your own_ ownership, so a GM sees them all under Owner. Actors already assigned to another
   user are disabled. The blank option means no character. When a character is set, a portrait
   and a **Release Character** button (ban icon; the name is its tooltip) appear. The button
   clears the select, and the change is kept only when you save. [unverified]
@@ -308,32 +310,32 @@ Sources: `C:/FoundryTest/app/client/applications/sheets/user-config.mjs`,
 Default matrix (from `CONST.USER_PERMISSIONS`; "default from" is the lowest role ticked by
 default; "locked" roles always have it):
 
-| Row label | Key | Default from | Locked for |
-|-----------|-----|--------------|------------|
-| **Broadcast Audio** | BROADCAST_AUDIO | Trusted | - |
-| **Broadcast Video** | BROADCAST_VIDEO | Trusted | - |
-| **Configure Token Settings** | TOKEN_CONFIGURE | Trusted | Assistant, GM |
-| **Create Actors** | ACTOR_CREATE | Assistant | Assistant, GM |
-| **Create and Control Playlists** | PLAYLIST_CREATE | Assistant | Assistant, GM |
-| **Create Cards** | CARDS_CREATE | Assistant | Assistant, GM |
-| **Create Items** | ITEM_CREATE | Assistant | Assistant, GM |
-| **Create Journal Entries** | JOURNAL_CREATE | Trusted | Assistant, GM |
-| **Create Map Notes** | NOTE_CREATE | Trusted | Assistant, GM |
-| **Create Regions** | REGION_CREATE | Player | Assistant, GM |
-| **Create Tokens** | TOKEN_CREATE | Assistant | Assistant, GM |
-| **Delete Tokens** | TOKEN_DELETE | Assistant | Assistant, GM |
-| **Display Mouse Cursor** | SHOW_CURSOR | Player | - |
-| **Display Ruler Measurement** | SHOW_RULER | Player | - |
-| **Make Manual Rolls** | MANUAL_ROLLS | Trusted | - |
-| **Modify Configuration Settings** | SETTINGS_MODIFY | Assistant | GM |
-| **Modify Script Macros and Execute Script Region Behaviors** | MACRO_SCRIPT | Player | GM |
-| **Open and Close Doors** | WALL_DOORS | Player | Assistant, GM |
-| **Ping the Canvas** | PING_CANVAS | Player | - |
-| **Query Users** | QUERY_USER | Player | Assistant, GM |
-| **Upload Files** | FILES_UPLOAD | Assistant | GM |
-| **Use Drawing Tools** | DRAWING_CREATE | Trusted | Assistant, GM |
-| **Use File Browser** | FILES_BROWSE | Trusted | Assistant, GM |
-| **Whisper Private Messages** | MESSAGE_WHISPER | Player | Assistant, GM |
+| Row label                                                    | Key             | Default from | Locked for    |
+| ------------------------------------------------------------ | --------------- | ------------ | ------------- |
+| **Broadcast Audio**                                          | BROADCAST_AUDIO | Trusted      | -             |
+| **Broadcast Video**                                          | BROADCAST_VIDEO | Trusted      | -             |
+| **Configure Token Settings**                                 | TOKEN_CONFIGURE | Trusted      | Assistant, GM |
+| **Create Actors**                                            | ACTOR_CREATE    | Assistant    | Assistant, GM |
+| **Create and Control Playlists**                             | PLAYLIST_CREATE | Assistant    | Assistant, GM |
+| **Create Cards**                                             | CARDS_CREATE    | Assistant    | Assistant, GM |
+| **Create Items**                                             | ITEM_CREATE     | Assistant    | Assistant, GM |
+| **Create Journal Entries**                                   | JOURNAL_CREATE  | Trusted      | Assistant, GM |
+| **Create Map Notes**                                         | NOTE_CREATE     | Trusted      | Assistant, GM |
+| **Create Regions**                                           | REGION_CREATE   | Player       | Assistant, GM |
+| **Create Tokens**                                            | TOKEN_CREATE    | Assistant    | Assistant, GM |
+| **Delete Tokens**                                            | TOKEN_DELETE    | Assistant    | Assistant, GM |
+| **Display Mouse Cursor**                                     | SHOW_CURSOR     | Player       | -             |
+| **Display Ruler Measurement**                                | SHOW_RULER      | Player       | -             |
+| **Make Manual Rolls**                                        | MANUAL_ROLLS    | Trusted      | -             |
+| **Modify Configuration Settings**                            | SETTINGS_MODIFY | Assistant    | GM            |
+| **Modify Script Macros and Execute Script Region Behaviors** | MACRO_SCRIPT    | Player       | GM            |
+| **Open and Close Doors**                                     | WALL_DOORS      | Player       | Assistant, GM |
+| **Ping the Canvas**                                          | PING_CANVAS     | Player       | -             |
+| **Query Users**                                              | QUERY_USER      | Player       | Assistant, GM |
+| **Upload Files**                                             | FILES_UPLOAD    | Assistant    | GM            |
+| **Use Drawing Tools**                                        | DRAWING_CREATE  | Trusted      | Assistant, GM |
+| **Use File Browser**                                         | FILES_BROWSE    | Trusted      | Assistant, GM |
+| **Whisper Private Messages**                                 | MESSAGE_WHISPER | Player       | Assistant, GM |
 
 - The table is in key order; the window sorts rows by label. [unverified]
 - For this repo: **Query Users** is on for players by default. The bridge's M0 lockdown relies
@@ -355,15 +357,15 @@ Sources: `C:/FoundryTest/app/client/applications/apps/permission-config.mjs`,
 
 ## Document ownership levels
 
-| Level | Value | Meaning in the UI |
-|-------|-------|-------------------|
-| **Inherit** | -1 | Embedded documents only (for example journal pages): use the parent's level. |
-| **None** | 0 | Hidden: not listed in the sidebar directory, the sheet cannot be opened. |
-| **Limited** | 1 | Listed; the sheet opens in a reduced form chosen by the sheet/system. dnd5e actor: portrait, name, public description, biography. |
-| **Observer** | 2 | Full sheet, read-only. Enough to be picked as a Player Character. |
-| **Owner** | 3 | Can edit; for actors, controls their tokens. |
-| **Default** | UI only (-20) | Per-user row: fall back to the **All Players** level. |
-| **No Change** | UI only (-10) | Folder dialog and the journal Show Players dialog: leave as is. |
+| Level         | Value         | Meaning in the UI                                                                                                                 |
+| ------------- | ------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| **Inherit**   | -1            | Embedded documents only (for example journal pages): use the parent's level.                                                      |
+| **None**      | 0             | Hidden: not listed in the sidebar directory, the sheet cannot be opened.                                                          |
+| **Limited**   | 1             | Listed; the sheet opens in a reduced form chosen by the sheet/system. dnd5e actor: portrait, name, public description, biography. |
+| **Observer**  | 2             | Full sheet, read-only. Enough to be picked as a Player Character.                                                                 |
+| **Owner**     | 3             | Can edit; for actors, controls their tokens.                                                                                      |
+| **Default**   | UI only (-20) | Per-user row: fall back to the **All Players** level.                                                                             |
+| **No Change** | UI only (-10) | Folder dialog and the journal Show Players dialog: leave as is.                                                                   |
 
 - How a user's level is worked out: GM and Assistant are always Owner; role None is always
   None. Otherwise the user's own entry applies, else the `default` entry, else None. Inherit
@@ -384,6 +386,7 @@ lead only: [dnd5e issue #2869](https://github.com/foundryvtt/dnd5e/issues/2869).
 ## Configure Ownership dialog
 
 Ways in (GM and Assistant only) [unverified]:
+
 - Right-click an entry in the Actors, Items, Journal, Rollable Tables, Card Stacks, Macros or
   Playlists directory > **Configure Ownership** (user-lock icon).
 - Right-click a folder header in those directories > **Configure Ownership**.
@@ -395,6 +398,7 @@ Ways in (GM and Assistant only) [unverified]:
   and folder menus.
 
 The dialog [unverified]:
+
 - Title **Ownership Configuration: {name}**. Window class `.document-ownership`, app id
   `DocumentOwnershipConfig-<Type>-<id>`.
 - A hint line (one text for documents, another for folders).
@@ -562,27 +566,28 @@ Do not print `game.data.addresses` (it holds the public IP).
 
 Stable selectors and accessibility-tree names:
 
-| Element | Selector | Accessible name / text |
-|---------|----------|------------------------|
-| Join name field | `#join-username` | "Select User" |
-| Join password | `#join-password` | "User Password" |
-| Join button | `button[name="join"]` | "Join Game Session" |
-| Admin password (do not type) | `#auth-password` | "Administrator Password" |
-| Return to Setup on /join | `#join-game-setup button[type=submit]` | "Return to Setup" |
-| Settings tab button | `button[data-tab="settings"]` | "Settings" |
-| Settings-tab actions | `[data-action="openApp"][data-app="configure\|controls\|modules\|world\|players\|tours\|support\|invitations\|logout\|setup"]` | button text as in "How to reach it" |
-| Main Menu | `dialog#menu li.menu-item[data-menu-item="reload\|logout\|players\|world"]` | item text |
-| Players list | `#players`, `#players-active li.player`, `#players-inactive li.player`, `li.player[data-user-id]` | name text |
-| Players expand caret | `#players-expand` | none (no label) |
-| User Management | `#manage-players`, `[data-action="createUser\|configurePermissions\|loginAsUser\|deleteUser"]`, `select[name="users.<id>.role"]` | "Create Additional User", "Configure User Permissions", "Login as User", "Delete User" |
-| Permissions window | `#permissions-config`, `input[name="<KEY>.<role>"]`, `[data-action="reset"]` | "Reset Defaults", "Save Configuration" |
-| Game Settings entry | `button[data-action="openSubmenu"][data-key="core.permissions"]` | "User Permissions" |
-| Ownership dialog | `.document-ownership`, `select[name="default"]`, `input[data-show-gm-toggle]` | "All Players", "Show GM Users", "Save Changes" |
-| User Configuration | `.user-config`, `select[name="character"]`, `[data-action="releaseCharacter"]` | "Save Player Configuration" |
-| Invitation Links | `#invitation-links`, `#invitation-links-local`, `#invitation-links-internet` | "Local Network", "Internet" |
-| App header controls | `button[data-action="toggleControls"]` | "Toggle Controls" |
+| Element                      | Selector                                                                                                                         | Accessible name / text                                                                 |
+| ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| Join name field              | `#join-username` (text input on 14.368, `<select>` on 14.369)                                                                    | "Select User"                                                                          |
+| Join password                | `#join-password`                                                                                                                 | "User Password"                                                                        |
+| Join button                  | `button[name="join"]`                                                                                                            | "Join Game Session"                                                                    |
+| Admin password (do not type) | `#auth-password`                                                                                                                 | "Administrator Password"                                                               |
+| Return to Setup on /join     | `#join-game-setup button[type=submit]`                                                                                           | "Return to Setup"                                                                      |
+| Settings tab button          | `button[data-tab="settings"]`                                                                                                    | "Settings"                                                                             |
+| Settings-tab actions         | `[data-action="openApp"][data-app="configure\|controls\|modules\|world\|players\|tours\|support\|invitations\|logout\|setup"]`   | button text as in "How to reach it"                                                    |
+| Main Menu                    | `dialog#menu li.menu-item[data-menu-item="reload\|logout\|players\|world"]`                                                      | item text                                                                              |
+| Players list                 | `#players`, `#players-active li.player`, `#players-inactive li.player`, `li.player[data-user-id]`                                | name text                                                                              |
+| Players expand caret         | `#players-expand`                                                                                                                | none (no label)                                                                        |
+| User Management              | `#manage-players`, `[data-action="createUser\|configurePermissions\|loginAsUser\|deleteUser"]`, `select[name="users.<id>.role"]` | "Create Additional User", "Configure User Permissions", "Login as User", "Delete User" |
+| Permissions window           | `#permissions-config`, `input[name="<KEY>.<role>"]`, `[data-action="reset"]`                                                     | "Reset Defaults", "Save Configuration"                                                 |
+| Game Settings entry          | `button[data-action="openSubmenu"][data-key="core.permissions"]`                                                                 | "User Permissions"                                                                     |
+| Ownership dialog             | `.document-ownership`, `select[name="default"]`, `input[data-show-gm-toggle]`                                                    | "All Players", "Show GM Users", "Save Changes"                                         |
+| User Configuration           | `.user-config`, `select[name="character"]`, `[data-action="releaseCharacter"]`                                                   | "Save Player Configuration"                                                            |
+| Invitation Links             | `#invitation-links`, `#invitation-links-local`, `#invitation-links-internet`                                                     | "Local Network", "Internet"                                                            |
+| App header controls          | `button[data-action="toggleControls"]`                                                                                           | "Toggle Controls"                                                                      |
 
 Driving gotchas:
+
 - Context menus open on right-click. They close on Esc or on a click elsewhere. [unverified]
 - `/join` and `/players` are separate page loads. After each navigation, wait for the page,
   then read the tree again. [unverified]
@@ -600,6 +605,7 @@ Sources: `C:/FoundryTest/app/client/game.mjs` (`view`), `C:/FoundryTest/app/clie
 ## Safety in the test world
 
 Actions that change world data:
+
 - User Management: **Save and Return**, **Login as User** (it saves pending edits),
   **Create Additional User** (immediate), **Delete User** (immediate, permanent).
 - Players list: **Kick Player**, **Ban Player**, **Un-Ban Player** (User role writes, no
@@ -613,6 +619,7 @@ Actions that change world data:
 - **Return to Setup** (shuts the world down).
 
 Never do:
+
 - Anything to the **Gamemaster** row or user (the GM's own account): no password, role, name
   or delete, no Login as User, no joining as it.
 - Type any password: admin fields on `/join` or `/auth`, and user passwords in User
@@ -624,6 +631,7 @@ Never do:
   end, as the test-env skill says.
 
 How to undo:
+
 - Before any write, record the state with the snippets above (users, `core.permissions`, a
   document's `ownership`).
 - Created user: its trash button on `/players` > **Delete**.
@@ -761,6 +769,7 @@ unless you also do the cleanup step.
 ## Sources
 
 Official (foundryvtt.com):
+
 - [KB: Users and Permissions](https://foundryvtt.com/article/users/) (page shows v13.350)
 - [KB: Game Worlds](https://foundryvtt.com/article/game-worlds/)
 - [KB: Settings](https://foundryvtt.com/article/settings/) (page shows v13.351)
@@ -772,11 +781,13 @@ Official (foundryvtt.com):
 
 Community and system (leads only; the wiki pages rendered empty through the fetch tool and
 were not used for facts):
+
 - [Community wiki: Setting up Players](https://foundryvtt.wiki/en/setup/Setting-up-Players)
 - [Community wiki: Using Permissions in Foundry](https://foundryvtt.wiki/en/development/guides/permissions)
 - [dnd5e issue #2869 (limited sheets)](https://github.com/foundryvtt/dnd5e/issues/2869)
 
 Local v14 install (ground truth, read-only):
+
 - `C:/FoundryTest/app/public/lang/en.json` (all core labels quoted here)
 - `C:/FoundryTest/app/public/scripts/foundry.mjs` (`JoinGameForm`, `UserManagement`)
 - `C:/FoundryTest/app/templates/setup/parts/join-form.hbs`, `join-details.hbs`, `join-setup.hbs`, `join-world.hbs`, `user-management-form.hbs`, `user-management-user.hbs`
@@ -799,5 +810,6 @@ Local v14 install (ground truth, read-only):
 - `C:/FoundryTest/data/Data/systems/dnd5e/dnd5e.mjs` (settings, `LIMITED_PARTS`, `ownershipConfig`), `C:/FoundryTest/data/Data/systems/dnd5e/templates/actors/limited-header.hbs`, `limited-body.hbs`, `C:/FoundryTest/data/Data/systems/dnd5e/lang/en.json`
 
 Project:
+
 - `.claude/skills/foundry-test-env/SKILL.md` (test world users, rules)
 - `CLAUDE.md` (never type passwords; live ports)

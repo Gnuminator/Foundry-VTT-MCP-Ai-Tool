@@ -87,10 +87,20 @@ async function worldIsActive(page) {
   }
 }
 
+// Foundry 14.368 types the user name into a text field; 14.369 picks it from a list (same as the kit's joinGame).
+async function typeJoinUser(page, user) {
+  const name = page.locator('#join-username');
+  if (await name.evaluate(el => el.tagName === 'SELECT')) {
+    await name.selectOption({ label: user });
+  } else {
+    await name.fill(user);
+    await page.keyboard.press('Escape'); // closes the name autocomplete
+  }
+}
+
 async function joinWorld(page, user, password) {
   if (new URL(page.url()).pathname.endsWith('/game')) return;
-  await page.locator('#join-username').fill(user);
-  await page.keyboard.press('Escape');
+  await typeJoinUser(page, user);
   await page.locator('#join-password').fill(password);
   await page.locator('button[name="join"]').click();
   await page.waitForURL(/\/game$/, { timeout: 60_000 });

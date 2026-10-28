@@ -24,6 +24,17 @@ const env = (name, fallback) => {
   return value;
 };
 
+// Foundry 14.368 types the user name into a text field; 14.369 picks it from a list (same as the kit's joinGame).
+async function typeJoinUser(page, user) {
+  const name = page.locator('#join-username');
+  if (await name.evaluate(el => el.tagName === 'SELECT')) {
+    await name.selectOption({ label: user });
+  } else {
+    await name.fill(user);
+    await page.keyboard.press('Escape'); // closes the name autocomplete
+  }
+}
+
 const FOUNDRY_URL = env('FOUNDRY_URL', 'http://127.0.0.1:30000').replace(/\/$/, '');
 const MODULE_ID = 'foundryvtt-actor-studio';
 const EQUIPMENT_PACK = 'dnd-players-handbook.equipment';
@@ -183,8 +194,7 @@ async function main() {
     if (!onJoin || (await page.locator('template#join-game').count()) === 0) {
       throw new Error(`no world is running at ${FOUNDRY_URL}`);
     }
-    await page.locator('#join-username').fill(user);
-    await page.keyboard.press('Escape');
+    await typeJoinUser(page, user);
     await page.locator('#join-password').fill(password);
     await page.locator('button[name="join"]').click();
     await page.waitForURL(/\/game$/, { timeout: 60_000 }).catch(() => {

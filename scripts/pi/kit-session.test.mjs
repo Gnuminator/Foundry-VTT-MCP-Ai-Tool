@@ -1215,6 +1215,7 @@ describe('kit-session.mjs, the Kit GM (the in-browser part)', () => {
       goto: async url => calls.push(['goto', url]),
       keyboard: { press: async key => calls.push(['press', key]) },
       locator: sel => ({
+        evaluate: async () => false,
         fill: async value => {
           calls.push(['fill', sel, value]);
           if (breaks && sel === '#join-password') throw new Error(`fill ${value} failed`);
@@ -1252,6 +1253,7 @@ describe('kit-session.mjs, the browser side and the script', () => {
       goto: async url => calls.push(['goto', url]),
       keyboard: { press: async key => calls.push(['press', key]) },
       locator: sel => ({
+        evaluate: async () => false,
         fill: async value => calls.push(['fill', sel, value]),
         click: async () => calls.push(['click', sel]),
       }),
@@ -1279,6 +1281,31 @@ describe('kit-session.mjs, the browser side and the script', () => {
       await joinsWithoutPassword(no, { url: 'http://x:30000', user: PLAYER_NAME }),
       false
     );
+  });
+
+  test('joinsWithoutPassword picks the user from the 14.369 select instead of typing', async () => {
+    const calls = [];
+    const page = {
+      goto: async url => calls.push(['goto', url]),
+      keyboard: { press: async key => calls.push(['press', key]) },
+      locator: sel => ({
+        evaluate: async () => true,
+        selectOption: async opt => calls.push(['select', sel, opt.label]),
+        fill: async value => calls.push(['fill', sel, value]),
+        click: async () => calls.push(['click', sel]),
+      }),
+      waitForURL: async () => {},
+    };
+    assert.equal(
+      await joinsWithoutPassword(page, { url: 'http://x:30000', user: PLAYER_NAME }),
+      true
+    );
+    assert.deepEqual(calls, [
+      ['goto', 'http://x:30000/join'],
+      ['select', '#join-username', PLAYER_NAME],
+      ['fill', '#join-password', ''],
+      ['click', 'button[name="join"]'],
+    ]);
   });
 
   test('run as a script (also through a symlinked folder), main() runs and stops on a missing ACTION or TOOL_APP', () => {

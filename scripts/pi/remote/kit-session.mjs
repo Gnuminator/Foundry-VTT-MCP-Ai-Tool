@@ -641,13 +641,23 @@ export function bridgeRestoreTarget(state, origId) {
 
 // ---- runs in node: the browser ----------------------------------------------------------------------------------
 
+// Foundry 14.368 types the user name into a text field; 14.369 picks it from a list (same as the kit's joinGame).
+async function typeJoinUser(page, user) {
+  const name = page.locator('#join-username');
+  if (await name.evaluate(el => el.tagName === 'SELECT')) {
+    await name.selectOption({ label: user });
+  } else {
+    await name.fill(user);
+    await page.keyboard.press('Escape'); // closes the name autocomplete
+  }
+}
+
 // Tries to join as user with this password in a page of its own. True when the game opens. The password only goes
 // through the page's fill; a failing step says which step, never what was typed.
 export async function joinsWithPassword(page, { url, user, password, timeout = 20_000 }) {
   await page.goto(`${url}/join`, { waitUntil: 'domcontentloaded' });
   try {
-    await page.locator('#join-username').fill(user);
-    await page.keyboard.press('Escape');
+    await typeJoinUser(page, user);
     await page.locator('#join-password').fill(password);
     await page.locator('button[name="join"]').click();
   } catch {
@@ -728,8 +738,7 @@ async function main() {
     if (!onJoin || (await page.locator('template#join-game').count()) === 0) {
       throw new Error(`no world is running at ${FOUNDRY_URL}`);
     }
-    await page.locator('#join-username').fill(user);
-    await page.keyboard.press('Escape');
+    await typeJoinUser(page, user);
     await page.locator('#join-password').fill(password);
     await page.locator('button[name="join"]').click();
     await page.waitForURL(/\/game$/, { timeout: 60_000 }).catch(() => {

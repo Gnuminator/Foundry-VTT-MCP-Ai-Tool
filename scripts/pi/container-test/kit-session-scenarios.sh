@@ -129,6 +129,8 @@ write_state() {
 #   leftover     a Kit GM password file, temp file, profile folder and running browser, and no state file (a run that
 #                was cut off)
 #   on-kit       options.json launches strahd-kit
+#   down-state-kit-orig  a kit session whose original world was strahd-kit (it started during a dnd5e trial)
+#   trial-open   stage 14's dnd5e trial is open (system-trial/state holds phase=trial)
 #   driverfail   the fake driver fails
 #   gmbroken     the Assistant GM browser fails to start again
 #   noupload     no driver anywhere     noenvfile  no GM login for strahd-kit     noworld  no strahd-kit world
@@ -174,6 +176,12 @@ scenario() {
       up-state) write_state curse-of-strahd 1 ;;
       down-state) write_state curse-of-strahd 1 ;;
       down-state-gm0) write_state curse-of-strahd 0 ;;
+      down-state-kit-orig) write_state strahd-kit 1 ;;
+      trial-open)
+        # Stage 14's dnd5e trial is open (phase=trial): Foundry launches the kit world on purpose.
+        mkdir -p "$IMPORT/system-trial"
+        printf 'phase=trial\nSTAMP=20261012-090909\n' >"$IMPORT/system-trial/state"
+        ;;
       down-state-no-orig) write_state "" 1 ;;
       down-state-old) write_state curse-of-strahd 1 old ;;
       down-state-noorig) write_state curse-of-strahd 1 kit-noorig ;;
@@ -301,6 +309,7 @@ scenario up-gm-was-off "$U0" 0 "gm" up
 scenario up-foundry-was-off "$U0" 0 "foundry" up
 scenario up-state-exists "$U0" 0 "" up up-state
 scenario up-already-kit "$U0" 0 "" up on-kit
+scenario up-already-kit-trial "$U0" 0 "" up on-kit trial-open
 scenario up-users-online '{"active":true,"users":2}' 0 "" up
 scenario up-users-online-force '{"active":true,"users":2}' 0 "" up FORCE=1
 scenario up-status-unreadable '' 7 "" up
@@ -333,6 +342,8 @@ scenario up-options-readonly "$U0" 0 "" up options-readonly
 scenario bad-mode "$U0" 0 "" sideways
 scenario no-mode "$U0" 0 "" -
 scenario down-ok "$U0" 0 "gm" down down-state
+scenario down-trial-kit-orig "$U0" 0 "gm" down down-state-kit-orig trial-open
+scenario down-trial-campaign-orig "$U0" 0 "gm" down down-state trial-open
 scenario down-gm-was-off "$U0" 0 "gm" down down-state-gm0
 scenario down-no-world "$U0" 0 "gm" down down-state-no-orig
 scenario down-no-state "$U0" 0 "" down

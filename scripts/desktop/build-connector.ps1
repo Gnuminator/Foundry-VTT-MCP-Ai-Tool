@@ -46,6 +46,10 @@ try {
   New-Item -ItemType Directory -Force -Path $shared | Out-Null
   Copy-Item -Recurse (Join-Path $tmp 'shared\dist') (Join-Path $shared 'dist')
   Copy-Item (Join-Path $tmp 'shared\package.json') $shared
+} catch {
+  # $dest did not exist when this started, so a partial copy is ours to remove (it would block the rerun).
+  if (Test-Path $dest) { Remove-Item -Recurse -Force $dest }
+  throw
 } finally {
   if ((Get-Location).Path -like "$tmp*") { Pop-Location }
   git -C $repo worktree remove --force $tmp
@@ -54,13 +58,21 @@ try {
 # Smoke check: the server answers initialize and lists tools without reaching a live bridge.
 $node = Join-Path $Root 'node.exe'
 if (-not (Test-Path $node)) { $node = 'node' }
+$smokeVars = 'FOUNDRY_AI_TOOL_SETS', 'MCP_NO_SPAWN', 'MCP_CONTROL_HOST', 'MCP_CONTROL_PORT'
+$saved = @{}
+foreach ($v in $smokeVars) { $saved[$v] = [Environment]::GetEnvironmentVariable($v) }
 $env:FOUNDRY_AI_TOOL_SETS = 'core'
 $env:MCP_NO_SPAWN = '1'
 $env:MCP_CONTROL_HOST = '127.0.0.1'
 $env:MCP_CONTROL_PORT = "$SmokePort"
 $init = '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"smoke","version":"0"}}}'
 $list = '{"jsonrpc":"2.0","id":2,"method":"tools/list"}'
-$answer = "$init`n$list`n" | & $node (Join-Path $dest 'packages\mcp-server\dist\index.cjs') 2>$null | Select-Object -First 2
+try {
+  $answer = "$init`n$list`n" | & $node (Join-Path $dest 'packages\mcp-server\dist\index.cjs') 2>$null | Select-Object -First 2
+} finally {
+  # Run as ./build-connector.ps1 from an open pwsh, these would stay set in the caller's session.
+  foreach ($v in $smokeVars) { [Environment]::SetEnvironmentVariable($v, $saved[$v]) }
+}
 if (-not ($answer -join "`n").Contains('"tools"')) { throw "smoke check failed: no tool list from $dest" }
 
 $version = (Get-Content (Join-Path $dest 'packages\mcp-server\package.json') -Raw | ConvertFrom-Json).version

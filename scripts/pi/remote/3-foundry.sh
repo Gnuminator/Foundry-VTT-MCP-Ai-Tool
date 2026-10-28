@@ -91,6 +91,14 @@ if [ -f "$zip" ]; then
   ok "installed Foundry ${version:-?} in $FOUNDRY_APP (data stays in $FOUNDRY_DATA)"
   zip_installed=1
 elif [ -f "$FOUNDRY_APP/main.js" ]; then
+  if [ -n "${FOUNDRY_EXPECT_VERSION:-}" ]; then
+    # No zip to check: the installed program must already be that version, or a missing zip would pass for success.
+    installed="$(awk -F'"' '/"version"/ { print $4; exit }' "$FOUNDRY_APP/package.json" 2>/dev/null || true)"
+    case "${installed:-}" in
+      "$FOUNDRY_EXPECT_VERSION" | "$FOUNDRY_EXPECT_VERSION".*) ;;
+      *) die "no Foundry zip at $zip, and the installed Foundry is ${installed:-unknown}, not FOUNDRY_EXPECT_VERSION=$FOUNDRY_EXPECT_VERSION. Nothing was changed" ;;
+    esac
+  fi
   ok "Foundry already installed in $FOUNDRY_APP (no new zip given)"
 else
   die "no Foundry zip at $zip and nothing installed yet"

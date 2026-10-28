@@ -1,12 +1,13 @@
-# Points the five foundry-mcp* entries of the Claude Desktop config at a connector folder that
-# build-connector.ps1 made. Without -Apply it only shows what it would change.
+# Points the foundry-mcp* entries of the Claude Desktop config (every entry that runs a foundry-mcp-server-* folder,
+# five today) at a connector folder that build-connector.ps1 made. Without -Apply it only shows what it would change.
 #
 #   pwsh scripts/desktop/repoint-connectors.ps1 -Folder <...\foundry-mcp-server-abc1234>           shows the change
 #   pwsh scripts/desktop/repoint-connectors.ps1 -Folder <...\foundry-mcp-server-abc1234> -Apply    changes the config
 #   pwsh scripts/desktop/repoint-connectors.ps1 -Rollback <config backup file> -Apply              puts a backup back
 #
 # -Apply first copies the config to claude_desktop_config.json.bak-<time> next to it. Only the second argument of
-# each entry that runs a foundry-mcp-server-*\packages\mcp-server\dist\index.cjs changes; the env (tool set,
+# each entry that runs a foundry-mcp-server-*\packages\mcp-server\dist\index.cjs changes (args[0], the first
+# argument, the path of the script); the env (tool set,
 # control host and port) and every other server stay as they are. Claude Desktop reads the config at start: this
 # script never restarts it, and a restart ends every Claude session, so the user does that when it suits.
 param(
@@ -22,7 +23,11 @@ if (-not (Test-Path $Config)) { throw "no Claude Desktop config at $Config" }
 if ($Rollback) {
   if (-not (Test-Path $Rollback)) { throw "no backup at $Rollback" }
   if (-not $Apply) { Write-Host "Would copy $Rollback over $Config (add -Apply)"; return }
-  Copy-Item $Rollback $Config -Force
+  $parsed = try { Get-Content $Rollback -Raw | ConvertFrom-Json } catch { $null }
+  if (-not $parsed -or -not $parsed.mcpServers) { throw "$Rollback is not a Claude Desktop config (no JSON with mcpServers): nothing was changed" }
+  $tmpRestore = "$Config.restore-tmp"
+  Copy-Item $Rollback $tmpRestore -Force
+  Move-Item $tmpRestore $Config -Force
   Write-Host "Config restored from $Rollback. Restart Claude Desktop to use it."
   return
 }
@@ -48,7 +53,10 @@ if (-not $Apply) { Write-Host "Dry run: $changed entries would change. Add -Appl
 $backup = "$Config.bak-$(Get-Date -Format 'yyyyMMdd-HHmmss')"
 Copy-Item $Config $backup
 $json = $cfg | ConvertTo-Json -Depth 20
-[IO.File]::WriteAllText($Config, $json, [Text.UTF8Encoding]::new($false))
+# A temp file next to the config, then a rename: a cut-off write never leaves half a config.
+$tmpConfig = "$Config.new-tmp"
+[IO.File]::WriteAllText($tmpConfig, $json, [Text.UTF8Encoding]::new($false))
+Move-Item $tmpConfig $Config -Force
 Write-Host "Changed $changed entries. Backup: $backup"
 Write-Host "Roll back with: pwsh scripts/desktop/repoint-connectors.ps1 -Rollback '$backup' -Apply"
 Write-Host 'Claude Desktop reads the config at start: restart it when it suits (a restart ends every session).'

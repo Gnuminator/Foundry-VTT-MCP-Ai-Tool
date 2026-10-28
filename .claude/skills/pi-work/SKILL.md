@@ -40,7 +40,8 @@ Plan B (game night on the PC): `docs/dev/PLAN-B.md`.
 ## Current state and holds
 
 - Holds in CLAUDE.md "Holds now" apply. The stage 14 hold is lifted (D-128, the user, 2026-10-24):
-  the Pi moves to the newest Foundry, dnd5e and tool release, in the order below.
+  the Pi moves to the newest Foundry, dnd5e and tool release, in the order written in
+  `docs/dev/PI-SETUP.md`, "System trial (stage 14)" (trial, stage 3, stage 5, test kit, switch).
 - Updates (D-098, D-110, D-128): newest Foundry, dnd5e and module versions, tested first on the PC test
   server (CI, `live:roundtrip`, `live:sweep`, full kit), then the kit on the Pi's `strahd-kit`
   world, then the real world; never on a game-night day; never a beta on the real world.

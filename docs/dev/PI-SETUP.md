@@ -979,7 +979,14 @@ cat scripts/pi/remote/lib.sh scripts/pi/remote/14-system-trial.sh | ssh foundry-
   test kit on `strahd-kit`. **Until `switch` or `rollback`, launch no other world**, not the
   training world either: it would migrate. Stages 5-check-world, 11 and 13 refuse to run while a
   trial is open (stage 13 only for `WORLD=strahd-kit KIT_WORLD=`), and stage 5's check world never
-  replaces an installed dnd5e, so a rerun after a switch keeps the new version.
+  replaces an installed dnd5e, so a rerun after a switch keeps the new version. The Claude Desktop
+  connectors see `strahd-kit` (the Assistant GM browser holds the bridge link there) until `switch`
+  or `rollback`; the Kit GM takes the link while a kit session is up.
+- **The test kit during a trial:** `kit-session.sh MODE=up` accepts `strahd-kit` as the launched
+  world while a trial is open (phase `trial`) and records it as the world to put back, so
+  `MODE=down` leaves Foundry on the kit; with any other original world `MODE=down` is refused during
+  a trial. The other way round, stage 14 (every mode but `status`) refuses while a kit session is up
+  (`/var/lib/foundry-ai-tool/kit-session.env` exists): run `MODE=down` first.
 - **`MODE=switch`** (its own snapshot and OK) launches curse-of-strahd on the new version, which
   migrates the campaign. The training world and pi-check migrate when they are next launched. After a
   switch the stage has no roll back: going back means restoring the snapshot from before it.
@@ -998,6 +1005,20 @@ cat scripts/pi/remote/lib.sh scripts/pi/remote/14-system-trial.sh | ssh foundry-
   than the kit that was launched during the trial (a file newer than the trial's start) is refused,
   because it may be migrated; `RESTORE_MIGRATED=1` puts it back from the copy too, losing its changes
   since. A rollback that stops halfway says so and saves where it was: run `MODE=rollback` again.
+
+**The order on the Pi for the update to the newest (D-128; the user decides the order, and each step
+is a snapshot, the user's OK and a read of the output first):**
+
+1. `dietpi-backup 1` snapshot, then stage 14 `MODE=trial` (dnd5e 6.0.6 on `strahd-kit`).
+2. Snapshot, then stage 3 with `FOUNDRY_EXPECT_VERSION=14.369` and the zip in place. The trial is
+   open, so Foundry restarts on `strahd-kit`: the new Foundry meets the kit first, not the campaign.
+3. Stage 5 with `TOOL_REF=v0.23.0` (the tool release).
+4. The test kit on `strahd-kit`: `kit-session.sh MODE=up`, `npm run kit:run -- --target pi
+--not-game-night`, `MODE=down`.
+5. Snapshot, then stage 14 `MODE=switch` (the campaign migrates).
+
+A rollback after step 2 puts dnd5e 6.0.5 back under Foundry 14.369, which 6.0.5 supports.
+
 - **`MODE=status`** is read-only: the trial's phase, the installed version, and each world's system
   version and whether it was launched since the trial began.
 - **Before anything stops** the request and the trial's state are checked (a second trial, a switch
@@ -1020,12 +1041,15 @@ Not run on the Pi yet. With `PI_SYSTEM_TRIAL_CONTAINER=1`, `node --test scripts/
 runs the stage in ARM64 Debian 13 containers with stand-ins for systemd and a fake Foundry that writes
 into the world it opens and migrates its `world.json`
 (`scripts/pi/container-test/system-trial-scenarios.sh`; Docker needed, four containers side by side,
-about 10 minutes under emulation on a PC): a trial from the download and from `ZIP`, a wrong sha256, a
+about 20 minutes under emulation on a PC): a trial from the download and from `ZIP`, a wrong sha256, a
 zip that does not fit this Foundry or holds another version, the version installed already, a second
 trial, a trial that fails after the stop and undoes itself, a rollback (also one that refuses a world
 launched during the trial and one with `RESTORE_MIGRATED=1`), a rollback that stops halfway and a rerun
 that finishes it, the switch and a failed switch, a rollback after a switch, `status`, and people
-online with and without `FORCE=1`. CI runs it on the ARM runner, where a missing Docker fails the step.
+online with and without `FORCE=1`, a trial that fails while the migration or the world start is
+still running (Foundry stops before any world folder moves), and a kit session that is up
+(trial, switch and rollback refused, `status` works). `kit-session-scenarios.sh` adds the kit
+session during a trial. CI runs it on the ARM runner, where a missing Docker fails the step.
 
 ## Kit session (strahd-kit test run)
 

@@ -26,7 +26,7 @@ SCENARIOS=(
   rollback-no-trial trial-again switch switch-fails switch-twice switch-no-trial rollback-after-switch status
   status-no-trial online-refused online-force status-unreadable bad-env
   trial-migrating switch-migrating trial-migration-hangs switch-migration-hangs trial-copy-fails
-  rollback-restore-fails rollback-swap-fails run-locked
+  rollback-restore-fails rollback-swap-fails run-locked kit-session-up
 )
 
 [ -f /.dockerenv ] || [ -n "${container:-}" ] || {
@@ -50,7 +50,7 @@ ln -sf "$(command -v node)" /opt/node24/bin/node
 for f in systemctl curl journalctl sleep fake-foundry-open fake-settings fake-dnd5e-migrate cp mv; do install -m 755 "$H/bin/$f" "/usr/local/sbin/$f"; done
 mkdir -p /run/systemd/system # have_systemd() looks for this folder
 
-eval "$(grep -E '^(FOUNDRY_USER|FOUNDRY_APP|FOUNDRY_DATA)=' "$LIB")"
+eval "$(grep -E '^(FOUNDRY_USER|FOUNDRY_APP|FOUNDRY_DATA|TOOL_DATA)=' "$LIB")"
 # Foundry's own classic-level, which the stage loads from $FOUNDRY_APP/node_modules/classic-level.
 rm -rf "${FOUNDRY_APP:?}/node_modules"
 mkdir -p "$FOUNDRY_APP/node_modules"
@@ -105,6 +105,7 @@ serve() { echo "/tmp/zips/$1.zip" >/tmp/download_zip; } # what the fake curl del
 
 fresh_pi() {
   rm -rf "${FOUNDRY_DATA:?}" "${IMPORT:?}"
+  rm -f "${TOOL_DATA:?}/kit-session.env"
   rm -f /tmp/stopped-* /tmp/gmbroken /tmp/join_fail /tmp/cp_fail /tmp/mv_fail /tmp/migration_hangs /tmp/downloads /tmp/download_zip /tmp/calls /tmp/out.last
   mkdir -p "$data/worlds" "$FOUNDRY_DATA/Config" "$FOUNDRY_APP"
   echo '{"version":"14.368.0"}' >"$FOUNDRY_APP/package.json"
@@ -435,6 +436,21 @@ s_run_locked() {
   kill "$holder" 2>/dev/null
   wait "$holder" 2>/dev/null
   run_stage trial MODE=trial
+}
+
+# A kit session is up (kit-session.sh left its state file): the Kit GM browser holds strahd-kit, so trial, switch and
+# rollback are refused, status is not. Switch and rollback are tried with FORCE=1 too, as the kit session's own state
+# would be left dangling by a forced rollback.
+s_kit_session_up() {
+  mkdir -p "$TOOL_DATA"
+  echo ORIG_WORLD=curse-of-strahd >"$TOOL_DATA/kit-session.env"
+  run_stage trial_refused MODE=trial
+  rm -f "$TOOL_DATA/kit-session.env"
+  run_stage trial MODE=trial
+  echo ORIG_WORLD=curse-of-strahd >"$TOOL_DATA/kit-session.env"
+  run_stage switch_refused MODE=switch
+  run_stage rollback_refused MODE=rollback FORCE=1
+  run_stage status MODE=status
 }
 
 only="$*"

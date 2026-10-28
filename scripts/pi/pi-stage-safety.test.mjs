@@ -599,6 +599,22 @@ ${failMv}
       }
     });
 
+    test('FOUNDRY_EXPECT_VERSION with no zip compares the installed program: another version refuses, the same passes the check', () => {
+      for (const [want, refused] of [['14.369', true], ['14.368', false]]) {
+        const { root, prelude } = setup();
+        rmSync(join(root, 'foundryvtt.zip'));
+        writeFileSync(join(root, 'foundry', 'package.json'), '{"version":"14.368.0"}');
+        const r = go(root, prelude, { FOUNDRY_EXPECT_VERSION: want });
+        if (refused) {
+          assert.notEqual(r.status, 0, r.out);
+          assert.match(r.out, /installed Foundry is 14\.368\.0, not FOUNDRY_EXPECT_VERSION=14\.369\. Nothing was changed/);
+          assert.doesNotMatch(r.calls, /stop foundry/);
+        } else {
+          assert.match(r.out, /Foundry already installed/, r.out);
+        }
+      }
+    });
+
     test('the second rename failing puts the old program back and starts Foundry again', () => {
       const { root, prelude } = setup();
       const r = go(root, prelude, { FAIL_MV: '1' });

@@ -837,6 +837,77 @@ describe('14-system-trial.sh in an ARM64 container', { skip: containerReason }, 
     assert.equal(withoutZips(r.rawState('trial')), withoutZips(r.rawState('start')));
   });
 
+  /** The indexes of Foundry's stops and restarts in a run's calls: H1, Foundry is stopped between the failed start and the undo. */
+  const assertStoppedBeforeUndo = calls => {
+    const firstRestart = calls.indexOf('restart foundry.service');
+    const lastRestart = calls.lastIndexOf('restart foundry.service');
+    assert.ok(firstRestart >= 0 && lastRestart > firstRestart, calls.join('\n'));
+    const between = calls.slice(firstRestart + 1, lastRestart);
+    assert.ok(between.includes('stop foundry-ai-tool-gm-browser.service'), calls.join('\n'));
+    assert.ok(between.includes('stop foundry.service'), calls.join('\n'));
+  };
+
+  test('trial-migration-hangs: a migration that never ends stops Foundry and the GM browser, then puts everything back', () => {
+    const r = run('trial-migration-hangs');
+    assert.equal(r.exit('trial'), '1', r.output('trial'));
+    assert.match(r.output('trial'), /the dnd5e migration of strahd-kit did not finish in 20 s/);
+    assertStoppedBeforeUndo(r.calls('trial'));
+    const st = r.state('trial');
+    assert.equal(st.system.startsWith('6.0.5'), true, st.system);
+    assert.equal(st.options, 'curse-of-strahd');
+  });
+
+  test('switch-migration-hangs: the same for a switch; the campaign is back from the trial copy', () => {
+    const r = run('switch-migration-hangs');
+    assert.equal(r.exit('switch'), '1', r.output('switch'));
+    assert.match(r.output('switch'), /the dnd5e migration of curse-of-strahd did not finish in 20 s/);
+    assert.match(r.output('switch'), /curse-of-strahd is back from the trial's copy/);
+    assertStoppedBeforeUndo(r.calls('switch'));
+    assert.equal(r.state('switch').options, 'strahd-kit');
+  });
+
+  test('trial-migrating and switch-migrating: a release that migrates waits for it and goes through', () => {
+    const t = run('trial-migrating');
+    assert.equal(t.exit('trial'), '0', t.output('trial'));
+    assert.match(t.output('trial'), /waiting for the dnd5e data migration of strahd-kit/);
+    const s = run('switch-migrating');
+    assert.equal(s.exit('switch'), '0', s.output('switch'));
+    assert.match(s.output('switch'), /waiting for the dnd5e data migration of curse-of-strahd/);
+  });
+
+  test('trial-copy-fails, rollback-restore-fails, rollback-swap-fails: a failed copy or move is undone or finished by a rerun', () => {
+    assert.equal(run('trial-copy-fails').exit('trial'), '1');
+    const a = run('rollback-restore-fails');
+    assert.equal(a.exit('rollback'), '1', a.output('rollback'));
+    assert.equal(a.exit('rerun'), '0', a.output('rerun'));
+    const b = run('rollback-swap-fails');
+    assert.equal(b.exit('rollback'), '1', b.output('rollback'));
+    assert.equal(b.exit('rerun'), '0', b.output('rerun'));
+    assert.equal(b.state('rerun').system.startsWith('6.0.5'), true);
+  });
+
+  test('run-locked: a second run is refused while one holds the lock, and goes through after', () => {
+    const r = run('run-locked');
+    assert.equal(r.exit('locked'), '1', r.output('locked'));
+    assert.equal(r.exit('trial'), '0', r.output('trial'));
+  });
+
+  test('kit-session-up: with a kit session up, trial, switch and rollback (even FORCE=1) are refused; status works', () => {
+    const r = run('kit-session-up');
+    const reason = /a kit session is up .*kit-session\.env exists.*run kit-session\.sh MODE=down first\. Nothing was changed/;
+    for (const label of ['trial_refused', 'switch_refused', 'rollback_refused']) {
+      assert.equal(r.exit(label), '1', r.output(label));
+      assert.match(r.output(label), reason);
+      assert.deepEqual(r.calls(label), [], `${label}: nothing stopped or started`);
+    }
+    assert.equal(r.state('trial_refused').system.startsWith('6.0.5'), true);
+    assert.equal(r.exit('status'), '0', r.output('status'));
+    assert.match(r.output('status'), /trial: phase trial/);
+    assert.deepEqual(r.calls('status'), []);
+    // the refused switch and rollback changed nothing: the trial state is as the trial left it
+    assert.equal(r.rawState('rollback_refused'), r.rawState('trial'));
+  });
+
   test('bad-env: a missing or odd MODE, FORCE, RESTORE_MIGRATED or ZIP is refused before anything happens', () => {
     const r = run('bad-env');
     const refuse = (label, reason) => {

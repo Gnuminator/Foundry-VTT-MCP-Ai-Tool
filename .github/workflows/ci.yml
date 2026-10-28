@@ -174,6 +174,11 @@ jobs:
         # stage as text (pinned runner, token handling, the fence in the units).
         run: node --test scripts/pi/gh-runner.test.mjs
 
+      - name: Pi stage 18 time sync
+        # 18-time-sync.sh (backlog pi-ntp): DietPi mode 4 only when needed, dry run, check, undo, snapshot required, with stand-in
+        # systemctl, timedatectl and dietpi-set_software.
+        run: node --test scripts/pi/time-sync.test.mjs
+
       - name: Pi stage 12 control port check
         # control_port_check in remote/lib.sh (D-095): the bridge's 31414 answers on loopback and nothing listens beyond it.
         run: node --test scripts/pi/control-port-check.test.mjs

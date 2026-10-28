@@ -190,7 +190,6 @@ declare global {
     readonly isSelf: boolean;
     hasPermission(permission: string): boolean;
     hasRole(role: string | number, options?: { exact?: boolean }): boolean;
-    updateTokenTargets(targetIds?: string[]): void;
     /**
      * Send a query to this user's client (v13+). The receiving handler is
      * `CONFIG.queries[name]`; since 14.352 it also receives the sender (see

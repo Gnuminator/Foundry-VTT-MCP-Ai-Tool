@@ -78,9 +78,33 @@ function Get-TestServerSettings([string]$Name) {
 }
 
 $settingsA = Get-TestServerSettings 'A'
+# The Foundry app folder is one machine-level choice, so every checkout starts the servers on the same
+# Foundry version: the first line of <A Root>/appdir.txt (next to A's lock.json, outside git; no file =
+# no choice). It wins over an AppDir in a worktree's local.json (which only produces a warning when it
+# differs) and over the default <Root>/app. Set it with: pwsh scripts/test-env/status.ps1 -SetAppDir <folder>
+$AppDirFile = Join-Path $settingsA.Root 'appdir.txt'
+$SharedAppDir = $null
+if (Test-Path $AppDirFile) {
+  $appDirLine = Get-Content $AppDirFile -TotalCount 1 -ErrorAction SilentlyContinue
+  if ($appDirLine -and $appDirLine.Trim()) { $SharedAppDir = [IO.Path]::GetFullPath($appDirLine.Trim()) }
+}
+$AppDirNote = $null
+$trim = [char[]]@([char]92, [char]47)
+if ($SharedAppDir) {
+  if ($settingsA.AppDir -and ([IO.Path]::GetFullPath([string]$settingsA.AppDir).TrimEnd($trim) -ne [IO.Path]::GetFullPath($SharedAppDir).TrimEnd($trim))) {
+    $AppDirNote = "local.json AppDir ($($settingsA.AppDir)) is ignored; $AppDirFile says $SharedAppDir."
+  }
+  $settingsA.AppDir = $SharedAppDir
+}
 if (-not $settingsA.AppDir) { $settingsA.AppDir = Join-Path $settingsA.Root 'app' }
 $settings = if ($TestServerName -eq 'A') { $settingsA } else { Get-TestServerSettings $TestServerName }
 if (-not $settings.AppDir) { $settings.AppDir = $settingsA.AppDir }
+if ($SharedAppDir) {
+  if ($TestServerName -ne 'A' -and $settings.AppDir -and ([IO.Path]::GetFullPath([string]$settings.AppDir).TrimEnd($trim) -ne [IO.Path]::GetFullPath($SharedAppDir).TrimEnd($trim))) {
+    $AppDirNote = "local.$TestServerName.json AppDir ($($settings.AppDir)) is ignored; $AppDirFile says $SharedAppDir."
+  }
+  $settings.AppDir = $SharedAppDir
+}
 if (-not $settings.AdminPassword -and $settingsA.AdminPassword) {
   $settings.AdminUser = $settingsA.AdminUser
   $settings.AdminPassword = $settingsA.AdminPassword
@@ -192,6 +216,16 @@ function Get-FoundryNodeExe([string]$AppRoot) {
     if ($v -and $v -ge $min -and (-not $max -or $v -lt $max)) { return $exe }
   }
   throw "No Node.js matching Foundry's requirement '$range' found (install it; the repo's Node 22 is not used for Foundry)."
+}
+
+# The Foundry version in an app folder (its package.json), or $null.
+function Get-FoundryAppVersion([string]$Dir) {
+  foreach ($candidate in @((Join-Path $Dir 'package.json'), (Join-Path $Dir 'resources' 'app' 'package.json'))) {
+    if (Test-Path $candidate) {
+      try { return [string](Get-Content $candidate -Raw | ConvertFrom-Json).version } catch { return $null }
+    }
+  }
+  return $null
 }
 
 # The Foundry Node.js build: main.js at the root (v13+) or resources/app/main.js (older layouts).

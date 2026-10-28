@@ -105,6 +105,7 @@ export const STEPS = [
   nodeTest('pi-ssh-keys-only', 'scripts/pi/ssh-keys-only.test.mjs'),
   nodeTest('pi-board-status', 'scripts/pi/board-status.test.mjs'),
   nodeTest('pi-gh-runner', 'scripts/pi/gh-runner.test.mjs'),
+  nodeTest('pi-time-sync', 'scripts/pi/time-sync.test.mjs'),
   nodeTest('pi-control-port-check', 'scripts/pi/control-port-check.test.mjs'),
   nodeTest('pi-stage-safety', 'scripts/pi/pi-stage-safety.test.mjs'),
   nodeTest('tunnel-client', 'installer/nsis/tunnel-client.test.mjs'),

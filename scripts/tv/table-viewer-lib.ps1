@@ -94,7 +94,7 @@ function Get-JoinScript {
   $origin = ConvertTo-Json -InputObject $Origin -Compress
   $joinPath = ConvertTo-Json -InputObject "$Prefix/join" -Compress
   # Checked again in the page: it may have moved on since the address was read.
-  return "(() => { if (location.pathname.replace(/\/+$/, '') !== $joinPath || ($origin && location.origin !== $origin)) return 'wrong-page'; const u = document.querySelector('#join-username'); const b = document.querySelector('#join-game-form button[name=join]'); if (!u || !b) return 'no-form'; u.value = $name; b.click(); return 'joined'; })()"
+  return "(() => { if (location.pathname.replace(/\/+$/, '') !== $joinPath || ($origin && location.origin !== $origin)) return 'wrong-page'; const u = document.querySelector('#join-username'); const b = document.querySelector('#join-game-form button[name=join]'); if (!u || !b) return 'no-form'; if (u.tagName === 'SELECT') { const o = Array.from(u.options).find(x => x.textContent.trim() === $name); if (!o) return 'no-user'; u.value = o.value; } else { u.value = $name; } b.click(); return 'joined'; })()"
 }
 
 <# Runs one Runtime.evaluate on a page target over the DevTools WebSocket (127.0.0.1 only). #>

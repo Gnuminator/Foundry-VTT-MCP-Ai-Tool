@@ -17,20 +17,15 @@ let vaultDir: string;
 function tools(dir: string | null): {
   instance: ObsidianQuestImportTools;
   createPlan: ReturnType<typeof vi.fn>;
-  query: ReturnType<typeof vi.fn>;
 } {
   const createPlan = vi.fn(async (input: unknown): Promise<unknown> => ({ planId: 'p1', input }));
-  const query = vi.fn(
-    async (): Promise<unknown> => ({ success: true, folderId: 'FolderId0000000A' })
-  );
   const instance = new ObsidianQuestImportTools({
     vaultDir: dir,
     worldIds: { current: async (): Promise<string> => 'w1' },
     guardedWrites: { createPlan } as never,
-    foundry: { query } as never,
     logger,
   });
-  return { instance, createPlan, query };
+  return { instance, createPlan };
 }
 
 beforeEach(async () => {
@@ -60,6 +55,8 @@ describe('plan-obsidian-quest-import', () => {
     expect(op?.kind).toBe('create');
     expect(op?.documentName).toBe('JournalEntry');
     expect(op?.data.ownership).toEqual({ default: 0 });
+    // Planning writes nothing to Foundry: no folder is made or referenced.
+    expect(op?.data).not.toHaveProperty('folder');
     expect(op?.data._id).toBe(
       stableQuestId('obsidian-quest:w1:campaigns/w1/prep/quests/sunsword.md')
     );

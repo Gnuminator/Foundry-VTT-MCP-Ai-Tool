@@ -1,29 +1,27 @@
 /**
- * `plan-obsidian-quest-import` (O6, D-094 lane; docs/design/OBSIDIAN-PLAN.md section 10). This is
- * NOT an MCP tool: it has no definition and is in no tool set (the sets are at their size
- * budgets), so Claude cannot call it. Only the dashboard's GM proxy reaches it, through the
- * dashboard-only route added in `backend.ts`, for the Obsidian plugin's "Import this quest prep note". Plan a
- * GM-only quest journal in Foundry from one quest prep note in the GM's Obsidian vault. A guarded
- * plan under the `obsidian-import` feature (module switch "AI Tool: Obsidian import (writes)",
- * off by default): nothing changes until the GM confirms with `apply-planned-change`, and
- * `undo-change` removes the journal again. Foundry never reads Obsidian by itself and the journal
- * is GM-only: handing the quest out stays the existing reveal flow. The note's text goes into the
- * plan the GM sees; it is the GM's own text, never player-facing here.
+ * `plan-obsidian-quest-import` (O6, D-094 lane; docs/design/OBSIDIAN-PLAN.md section 10). Not
+ * listed to Claude: it has no tool definition and is in no tool set (the sets are at their size
+ * budgets). The dashboard's GM proxy calls it through the route added in `backend.ts`, for the
+ * Obsidian plugin's "Import this quest prep note". It is not walled off from a client that sends
+ * the name to the backend, so it must stay harmless on its own: planning writes nothing to Foundry
+ * (no folder is made), and applying needs the GM's confirm and the module switch.
+ *
+ * Plans a GM-only quest journal from one quest prep note in the GM's Obsidian vault, under the
+ * `obsidian-import` feature (module switch "AI Tool: Obsidian import (writes)", off by default).
+ * `undo-change` removes the journal again. The journal is GM-only: handing the quest out stays the
+ * existing reveal flow. The plan the GM sees names the title and the note path, not the text.
  */
 import { createHash } from 'node:crypto';
 
-import { type GuardedOp, MODULE_ID, unwrapBridgeReply } from '@gnuminator/shared';
+import { type GuardedOp, MODULE_ID } from '@gnuminator/shared';
 import { z } from 'zod';
 
-import type { FoundryClient } from '../foundry-client.js';
 import type { GuardedWriteService, PlanView } from '../guarded-write/service.js';
 import type { Logger } from '../logger.js';
 import { readQuestNote } from '../obsidian/quest-import.js';
 import type { WorldIdResolver } from '../vault/world-id.js';
 
 export const QUEST_IMPORT_FEATURE = 'obsidian-import';
-/** The journal folder the imported quests go into. */
-export const QUEST_IMPORT_FOLDER = 'Obsidian import';
 
 const HTML_FORMAT = 1;
 const NONE = 0;
@@ -33,7 +31,6 @@ export interface ObsidianQuestImportToolsOptions {
   vaultDir: string | null;
   worldIds: Pick<WorldIdResolver, 'current'>;
   guardedWrites: Pick<GuardedWriteService, 'createPlan'>;
-  foundry: Pick<FoundryClient, 'query'>;
   logger: Logger;
 }
 
@@ -67,32 +64,21 @@ export class ObsidianQuestImportTools {
     try {
       const worldId = await this.options.worldIds.current();
       const note = await readQuestNote(this.options.vaultDir, worldId, notePath);
-      const folder = unwrapBridgeReply(
-        await this.options.foundry.query('foundry-mcp-bridge.ensureJournalFolder', {
-          name: QUEST_IMPORT_FOLDER,
-        }),
-        'Journal folder refused'
-      );
-      if (typeof folder?.folderId !== 'string') {
-        throw new Error(`Foundry did not give the "${QUEST_IMPORT_FOLDER}" folder`);
-      }
       // The id comes from the note's path, so a second import of the same note meets the first
-      // journal (an "id already exists" refusal when applying) instead of making a copy.
-      const entryId = stableQuestId(`obsidian-quest:${worldId}:${note.notePath.toLowerCase()}`);
-      const pageId = stableQuestId(`obsidian-quest-page:${worldId}:${note.notePath.toLowerCase()}`);
+      // journal (an "id already exists" refusal) instead of making a copy.
+      const seed = `${worldId}:${note.notePath.toLowerCase()}`;
       const op: GuardedOp = {
         kind: 'create',
         documentName: 'JournalEntry',
         keepId: true,
         data: {
-          _id: entryId,
+          _id: stableQuestId(`obsidian-quest:${seed}`),
           name: note.title,
-          folder: folder.folderId,
           ownership: { default: NONE },
           flags: { [MODULE_ID]: { obsidianImport: true, notePath: note.notePath } },
           pages: [
             {
-              _id: pageId,
+              _id: stableQuestId(`obsidian-quest-page:${seed}`),
               name: 'Quest Details',
               type: 'text',
               sort: 100_000,
@@ -103,7 +89,7 @@ export class ObsidianQuestImportTools {
       };
       return await this.options.guardedWrites.createPlan({
         feature: QUEST_IMPORT_FEATURE,
-        summary: `Create the GM-only quest journal "${note.title}" in "${QUEST_IMPORT_FOLDER}" from the Obsidian note ${note.notePath}`,
+        summary: `Create the GM-only quest journal "${note.title}" from the Obsidian note ${note.notePath}. Undo removes it. To import it again, undo it or delete the journal first.`,
         ops: [op],
       });
     } catch (error) {

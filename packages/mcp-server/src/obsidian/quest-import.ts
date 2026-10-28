@@ -100,7 +100,9 @@ export function splitNote(text: string): { props: Record<string, string>; body: 
   for (const line of lines.slice(1, end)) {
     const match = /^([A-Za-z_][\w-]*):(?:[ \t]+(.*))?$/.exec(line.trimEnd());
     if (!match?.[1]) continue;
-    props[match[1]] = (match[2] ?? '').trim().replace(/^(['"])(.*)\1$/, '$2');
+    const value = (match[2] ?? '').trim().replace(/^(['"])(.*)\1$/, '$2');
+    // YAML null (`null`, `~`) is an empty property, as in Obsidian.
+    props[match[1]] = value === 'null' || value === '~' ? '' : value;
   }
   return { props, body: lines.slice(end + 1).join('\n') };
 }
@@ -119,7 +121,9 @@ export function resolveQuestNote(vaultDir: string, worldId: string, notePath: st
     throw new QuestImportError('The note path is not a plain vault path.');
   }
   const prefix = `Campaigns/${worldId}/Prep/`;
-  if (!notePath.toLowerCase().startsWith(prefix.toLowerCase())) {
+  // Windows paths ignore case; elsewhere a different case is a different folder.
+  const fold = (text: string): string => (process.platform === 'win32' ? text.toLowerCase() : text);
+  if (!fold(notePath).startsWith(fold(prefix))) {
     throw new QuestImportError(`Only notes under ${prefix} can be imported.`);
   }
   const rest = notePath.slice(prefix.length).toLowerCase();
@@ -152,6 +156,11 @@ export async function readQuestNote(
     throw new QuestImportError('That note is not in the vault.');
   }
   if (!stat.isFile()) throw new QuestImportError('That path is not a note.');
+  // A junction or symlinked folder under Prep must not lead out of the vault.
+  const [realFile, realRoot] = await Promise.all([fsp.realpath(full), fsp.realpath(vaultDir)]);
+  if (!realFile.startsWith(realRoot + path.sep)) {
+    throw new QuestImportError('The note path leaves the vault.');
+  }
   if (stat.size > QUEST_NOTE_MAX_BYTES) {
     throw new QuestImportError(
       `The note is over ${QUEST_NOTE_MAX_BYTES / 1024} KB: shorten it before importing.`

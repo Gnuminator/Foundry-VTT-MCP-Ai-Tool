@@ -466,7 +466,6 @@ async function startBackend(): Promise<void> {
     vaultDir: obsidianVaultDir ?? null,
     worldIds,
     guardedWrites,
-    foundry: foundryClient,
     logger,
   });
   const obsidianMirrorTools = new ObsidianMirrorTools({
@@ -540,7 +539,8 @@ async function startBackend(): Promise<void> {
   const toolRouter = buildToolRouter(toolDeps);
   // Dashboard-only routes (O6): callable through call_tool by the dashboard's GM proxy, but not
   // MCP tools (no definition, in no tool set), so buildToolRouter's one-route-per-tool test and
-  // the tool-set size budgets stay as they are. Claude cannot list or call these.
+  // the tool-set size budgets stay as they are. They are not listed to Claude, but not walled off
+  // either, so each must be harmless alone (this one plans only; applying needs confirm).
   toolRouter['plan-obsidian-quest-import'] = (args: unknown): Promise<unknown> =>
     obsidianQuestImportTools.handlePlanObsidianQuestImport(args);
   // A `module-request` from the linked browser runs through the same dispatch table as the

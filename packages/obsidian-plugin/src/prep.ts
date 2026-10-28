@@ -81,6 +81,7 @@ export function isPrepType(type: unknown): boolean {
  */
 export function isQuestImportable(frontmatter: Record<string, unknown> | undefined): boolean {
   if (frontmatter?.type !== 'quest-prep') return false;
+  // Obsidian gives an empty or `null` property as null; the backend's `splitNote` agrees.
   const uuid = frontmatter.fvtt_uuid;
   return uuid === undefined || uuid === null || (typeof uuid === 'string' && uuid.trim() === '');
 }

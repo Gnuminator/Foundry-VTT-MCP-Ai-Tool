@@ -105,6 +105,36 @@ describe('readQuestNote', () => {
     );
   });
 
+  it('reads a null or ~ fvtt_uuid as empty', async () => {
+    for (const empty of ['null', '~']) {
+      const rel = await note(
+        `Campaigns/w1/Prep/Null ${empty === '~' ? 'tilde' : 'word'}.md`,
+        QUEST.replace('fvtt_uuid:', `fvtt_uuid: ${empty}`)
+      );
+      await expect(readQuestNote(vaultDir, WORLD, rel)).resolves.toMatchObject({
+        title: expect.stringContaining('Null'),
+      });
+    }
+  });
+
+  it('refuses a folder that leads out of the vault', async () => {
+    const outside = await fsp.mkdtemp(path.join(os.tmpdir(), 'quest-outside-'));
+    try {
+      await fsp.writeFile(path.join(outside, 'Evil.md'), QUEST, 'utf8');
+      await fsp.mkdir(path.join(vaultDir, 'Campaigns/w1/Prep'), { recursive: true });
+      try {
+        await fsp.symlink(outside, path.join(vaultDir, 'Campaigns/w1/Prep/Link'), 'junction');
+      } catch {
+        return; // no permission to make a link here: nothing to test
+      }
+      await expect(
+        readQuestNote(vaultDir, WORLD, 'Campaigns/w1/Prep/Link/Evil.md')
+      ).rejects.toThrow(/leaves the vault/);
+    } finally {
+      await rmTmp(outside);
+    }
+  });
+
   it('refuses a note over the size limit', async () => {
     const rel = await note(
       'Campaigns/w1/Prep/Big.md',

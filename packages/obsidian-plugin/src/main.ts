@@ -451,9 +451,11 @@ export default class FoundryAiToolPlugin extends Plugin {
     });
   }
 
-  /** A mirror note that can get a prep note: a world document (not a compendium entry or a prep
-   * note itself) in its world's campaign folder. */
+  private importing = false;
+
   private async importQuest(file: TFile): Promise<void> {
+    if (this.importing) return;
+    this.importing = true;
     try {
       const { planId, summary } = await this.client.planQuestImport(file.path);
       const link = planId ? planLink(this.settings.dashboardUrl, planId) : null;
@@ -465,9 +467,13 @@ export default class FoundryAiToolPlugin extends Plugin {
       );
     } catch (error) {
       new Notice(`Quest import: ${messageOf(error)}`);
+    } finally {
+      this.importing = false;
     }
   }
 
+  /** A mirror note that can get a prep note: a world document (not a compendium entry or a prep
+   * note itself) in its world's campaign folder. */
   private prepSourceFor(file: TFile | null): PrepSource | null {
     const note = this.noteFor(file);
     if (!file || !note || note.uuid.startsWith('Compendium.')) return null;

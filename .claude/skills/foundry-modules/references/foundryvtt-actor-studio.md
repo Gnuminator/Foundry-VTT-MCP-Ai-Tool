@@ -2,7 +2,7 @@
 
 Verified on Foundry 14.368 / dnd5e 6.0.6, module 2.10.5-aitool.4, 2026-10-28 (test server B). Parts not clicked through are marked "(not verified)".
 
-**Verdict: keep.** The table builds its characters with it (players make level-1 heroes at session 0, D-112/D-113), and the test kit drives it. We run our own fork, `2.10.5-aitool.4`, not the upstream release.
+**Verdict: keep.** The table builds its characters with it: players make their level-1 heroes with it at session 0. The test kit drives it too (decisions D-112 and D-113). We run our own fork, `2.10.5-aitool.4`, not the upstream release.
 
 **For Danni's guides:** Actor Studio is the character builder: one window with tabs for abilities, species, background, class, equipment and spells, and a Create Character button at the end.
 

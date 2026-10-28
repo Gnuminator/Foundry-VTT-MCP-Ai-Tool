@@ -1,6 +1,6 @@
 ---
 title: Features and when to turn them on
-description: Every feature switch of Foundry AI Tool, what it does, and the moment to turn it on.
+description: The feature switches of Foundry AI Tool you use at the table, what each does, and the moment to turn it on.
 ---
 
 # Features and when to turn them on

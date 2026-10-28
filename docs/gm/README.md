@@ -7,6 +7,8 @@ description: Guides for a GM running a game with Foundry AI Tool, written for so
 
 **New to running Foundry?** Spend [your first hour as GM](first-hour.md) on a set reading order.
 
+**On a new PC:** first [connect Claude Desktop to the server](connect-claude-desktop.md).
+
 **Start here:** read [Getting started](getting-started.md) once, then use the
 [before-session](before-session.md) and [after-session](after-session.md) checklists every time you
 play.

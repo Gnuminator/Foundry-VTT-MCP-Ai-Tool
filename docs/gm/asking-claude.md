@@ -11,7 +11,8 @@ needed.
 
 ## Before you ask
 
-- Claude Desktop is running. Today it also starts the bridge.
+- Claude Desktop is running and connected to the bridge (on the Pi at the table, on the builder's PC
+  when testing).
 - Foundry is open in your browser and you are logged in as the GM. Without a GM in Foundry, Claude
   cannot reach the game.
 - The dashboard's **✈ Pre-flight** panel lists "Foundry connected", and no "Connection lost" mark shows.
@@ -144,6 +145,10 @@ as Claude's.
 | AI Tool: Tarokka (writes)                    | Off     | Save the Tarokka reading, link cards to journals, publish reveal pages.                                                                                                  |
 | AI Tool: Obsidian mirror (writes)            | Off     | Change which Foundry documents are mirrored into your Obsidian vault.                                                                                                    |
 | AI Tool: Session notes (writes)              | Off     | Put the notes of a recorded session into a GM-only journal by itself, without asking (see below).                                                                        |
+
+Other switches in the same category: the table viewer and "Undo for everything" start on; scene
+mood and music, room setup, scene restore, the NPC turn assistant, paper sync and GM windows start
+off. [Features and when to turn them on](features.md) says what each one does.
 
 **Session notes go in without asking.** With "AI Tool: Session notes (writes)" on, the bridge puts
 the notes of a recorded session (pages Recap, GM summary and Scenes, Danish first and English

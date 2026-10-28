@@ -28,7 +28,7 @@ Short rules. Each has its reason on the next line.
   Foundry's world backup does not include it.
 - **Never open the dashboard to your network or the internet without a GM token.**
   Anyone who reaches the GM page can change your game.
-- **Never run a second bridge next to the one Claude Desktop starts.**
+- **Never run a second bridge next to the one that is already running.**
   Two bridges compete for the same ports, and the connection to Foundry can break.
 
 ## Only do this if
@@ -36,8 +36,8 @@ Short rules. Each has its reason on the next line.
 - **Turn on GM Actions only if you are about to change the game from the dashboard.**
   With it off, a misclick cannot change anything; turn it off again after.
 - **Turn on a feature switch ("AI Tool: … (writes)") only if you use that feature tonight.**
-  With it off, neither Claude nor the dashboard can apply changes for it. "AI Tool: Live play
-  (writes)" is the exception: it starts on, since damage and conditions come up every session.
+  With it off, neither Claude nor the dashboard can apply changes for it. A few start on, such as
+  "AI Tool: Live play (writes)", since damage and conditions come up every session.
 - **Tick "Show cards" in the Tarokka drawer only if nobody else can see your screen.** (The
   drawer is under Advanced ▾.)
   The card names are the campaign's biggest secret.
@@ -60,7 +60,7 @@ Short rules. Each has its reason on the next line.
   reading still works.
 - **Choose "Always allow" for the tools that change the game only if you are happy not to be asked
   by Claude Desktop.** Changes through the plan are still confirmed and can be undone; direct
-  actions (rolls, chat messages, moving or deleting tokens) are not. Set **Write/delete tools** to
+  actions (rolls, new NPCs, journals, chat messages) are not. Set **Write/delete tools** to
   **Needs approval** to be asked each time.
 - **Set an Anthropic API key on the dashboard only if you want the AI commentary panel and accept
   the cost.**

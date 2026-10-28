@@ -38,7 +38,8 @@ currently shaped around a Curse of Strahd campaign.
   Claude Desktop's tool approval on for them. The tools come in five sets (core, play, prep, build,
   admin) that you switch on per chat, so Claude only reads the ones the chat needs.
 - **Guarded AI writes with undo.** New features change the game in three steps: plan, confirm with a
-  diff, apply. Each feature has its own switch in the module settings (off by default). A change is
+  diff, apply. Each feature has its own switch in the module settings; most start off, and Allow Write
+  Operations, Live play, Ownership, the table viewer and Undo for everything start on. A change is
   refused if anything changed since the plan, is recorded, and can be undone from the dashboard.
 - **Tarokka reading (Curse of Strahd).** Deal a reading with the built-in roll, or import one dealt
   in the `tarokka-reading` module. The cards are kept GM-only, outside Foundry's world data. Link
@@ -83,7 +84,8 @@ A live session control surface that runs in a browser tab on a second screen.
 ![Dashboard overview during combat](docs/images/cogm/overview.png)
 
 - **Live combat tracker:** initiative order, current turn, HP bars, conditions and death saves, in
-  real time.
+  real time, with a ribbon of portraits for who is up and who is next (click one to pan Foundry to
+  its token).
 - **Live event feed:** damage, healing, deaths, conditions, spell slots and dice rolls with their
   breakdown, as they happen.
 - **Recent Changes:** every guarded change, with Undo.
@@ -96,8 +98,9 @@ A live session control surface that runs in a browser tab on a second screen.
 ![Multi-select combatants and act on them as a group](docs/images/cogm/combat-control.png)
 
 **Damage and conditions from the dashboard:** with **GM Actions** and **⚔ Combat buttons** on
-(both off by default), select combatants in the turn-order strip and apply damage, healing or a
-condition to them as a group. Turns, initiative and saving throws stay in Foundry. (The screenshot
+(both off by default), select combatants in the turn-order strip and **Damage / Heal** or **Condition**
+opens the Tool Runner with the plan ready for them; you confirm it. The strip can also start and
+end a fight. Turns, initiative and saving throws stay in Foundry. (The screenshot
 above shows the old page's wider controls.)
 
 ![The Tool Runner exposes every Foundry bridge tool](docs/images/cogm/tool-runner.png)
@@ -128,11 +131,11 @@ The bridge and the dashboard are decoupled, so they can run where it suits the t
 - **Player vs GM split.** With a GM token (or a Cloudflare Access email allow-list) the GM surface
   needs GM credentials and everyone else gets the read-only player view. The player endpoints
   always project, even when a GM token is presented.
-- **Home server.** The plan is to run Foundry, the bridge and the dashboard on an Orange Pi 5 Pro at
-  home: see [docs/dev/PI-SETUP.md](docs/dev/PI-SETUP.md). Remote access templates (Cloudflare
-  Tunnel and Access, Docker) are in [docs/dev/REMOTE-ACCESS.md](docs/dev/REMOTE-ACCESS.md) and
-  [`deploy/`](deploy/); they are templates, not a one-click deploy, and the exposure method is
-  settled during the Pi setup.
+- **Home server.** Foundry, the bridge and the dashboard run on an Orange Pi 5 Pro at home: see
+  [docs/dev/PI-SETUP.md](docs/dev/PI-SETUP.md). It is reached through Cloudflare Tunnel and Access
+  ([docs/dev/REMOTE-ACCESS.md](docs/dev/REMOTE-ACCESS.md)); if the Pi is down on game night, see
+  [docs/dev/PLAN-B.md](docs/dev/PLAN-B.md). The Docker and Windows files in
+  [`deploy/`](deploy/) are templates, not a one-click deploy.
 
 ---
 
@@ -215,9 +218,9 @@ the `env` of every entry.
 
 **Windows PC with the bridge on a home server.** If the bridge runs on another machine, the
 `FoundryMCPServer-Setup-vX.Y.Z.exe` installer from the release page is all a GM's PC needs: it
-installs a portable Node.js and the client, asks for the bridge address (for now the server's
-name on your private network, for example its Tailscale name; a Cloudflare route is planned) and
-writes the five entries for you. Quit Claude Desktop first. It does not install Foundry, the
+installs a portable Node.js and the client, asks for the bridge address (the server's
+name on your private network, or a Cloudflare tunnel name with a service token the owner hands
+you) and writes the five entries for you. Quit Claude Desktop first. It does not install Foundry, the
 module or a bridge. Silent install: `/S /HOST=<name or IP>`. See
 [docs/dev/DEPLOYMENT.md](docs/dev/DEPLOYMENT.md).
 

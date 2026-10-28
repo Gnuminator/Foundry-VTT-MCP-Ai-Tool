@@ -5,27 +5,30 @@ description: Symptom, likely cause and fix for the problems a GM is most likely 
 
 # Troubleshooting
 
-Find your symptom, then try the causes from the top. Addresses and file paths are today's Windows
-setup; they change when the tool moves to the Orange Pi.
+Find your symptom, then try the causes from the top. Foundry, the tool and the dashboard run on the
+home server (the Orange Pi), so most "it does not work" problems are on the server or in the
+connection to it, not on your PC. When a row says to tell the tool admin, do that.
 
 ## The bridge does not connect
 
-**You see:** no "MCP Bridge connected successfully" message in Foundry, or the warning "MCP Server
-not found". The dashboard's **✈ Pre-flight** says Foundry is not connected, or shows
+**You see:** Claude says it cannot reach the bridge or Foundry, the warning "MCP Server not found"
+shows in Foundry, or the dashboard's **✈ Pre-flight** says Foundry is not connected or shows
 "Connection lost, reconnecting…".
 
-| Likely cause                                                                           | Fix                                                                                                     |
-| -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
-| Claude Desktop is not running (it starts the bridge).                                  | Start Claude Desktop and wait a few seconds. The module retries by itself; if not, reload Foundry (F5). |
-| You are not logged in to Foundry as a GM.                                              | Join as your GM user. The module only connects from a GM's browser tab.                                 |
-| The module is off in this world.                                                       | Settings tab (gear icon), **Module Management**, tick **Foundry AI Tool**, **Save Module Settings**.    |
-| The bridge is switched off in the module settings.                                     | **Game Settings**, category **Foundry AI Tool**, tick **Enable MCP Bridge**, **Save Changes**.          |
-| Your Foundry tab runs on another computer than the bridge.                             | Today they must be on the same PC. Log in to Foundry from the PC that runs Claude Desktop.              |
-| Something else uses the bridge's ports (31414 and 31415), for example a second bridge. | Close the other program, then quit and restart Claude Desktop.                                          |
+The bridge is the small program on the server that links Foundry, Claude Desktop and the dashboard.
+A browser on the server (the Assistant GM) holds its link to Foundry, so your own browser never
+needs to connect to it.
+
+| Likely cause                                                         | Fix                                                                                                                                                                                    |
+| -------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Claude Desktop says the bridge is not reachable.                     | The tunnel client on your PC is stopped. Restart your PC (it starts at every sign-in), or run the status line you were given. See [Connect Claude Desktop](connect-claude-desktop.md). |
+| Pre-flight says Foundry is not connected, but the game itself loads. | The server's own Foundry browser (the Assistant GM) is down or logged out. Tell the tool admin.                                                                                        |
+| The module is off in this world.                                     | Settings tab (gear icon), **Module Management**, tick **Foundry AI Tool**, **Save Module Settings**.                                                                                   |
+| The bridge is switched off in the module settings.                   | **Game Settings**, category **Foundry AI Tool**, tick **Enable MCP Bridge**, **Save Changes**.                                                                                         |
 
 When it works, the hint under **Enable MCP Bridge** in Game Settings ends with "Status: ✅
-Connected". If nothing helps, the bridge writes a log to
-`%TEMP%\foundry-mcp-server\wrapper.log`; send it to whoever set up the tool.
+Connected". If nothing helps, the tunnel client on your PC writes a log to
+`%TEMP%\foundry-mcp-server\wrapper.log`; send it to the tool admin.
 
 ## A tool refuses to change something
 
@@ -47,23 +50,24 @@ undo. Fix it by hand in Foundry.
 
 ## The dashboard does not load
 
-| You see                                                                   | Likely cause and fix                                                                                                                  |
-| ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| The browser cannot connect to the dashboard address.                      | The dashboard is not running. Tell the tool admin (on the admin's own PC: `npm run dev:cogm` in the tool's folder, window left open). |
-| "Connection lost, reconnecting…" or "Connection closed: reload the page". | The page lost the dashboard program. Its terminal window was closed or it restarted; start it again if needed, then reload the page.  |
-| A short error with `host-not-allowed`.                                    | You opened it under another name. Use the address the admin gave you, or add that name to `DASHBOARD_ALLOWED_HOSTS`.                  |
-| The page loads, but Pre-flight and the panels cannot read the game.       | The bridge is not running. Start Claude Desktop.                                                                                      |
-| Pre-flight's "Foundry connected" line is marked as failing.               | See "The bridge does not connect" above.                                                                                              |
-| The tool runner says "Couldn't load tools".                               | The bridge is not connected, or this browser is not signed in as the GM (see the next row).                                           |
-| GM buttons are refused although everything is connected.                  | The setup uses a GM token. Open the dashboard once with the address you were given (it ends in `?token=…`); the browser remembers it. |
-| No AI commentary on the page.                                             | Normal. The AI commentary is only on the old dashboard (`/legacy/`) and needs an API key, which the normal setup does not use.        |
-| GM Actions turned itself off.                                             | The dashboard restarted. Turn it on again when you need it.                                                                           |
+| You see                                                                   | Likely cause and fix                                                                                                                          |
+| ------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| Cloudflare shows a page asking for your email.                            | Type your email address, then the code Cloudflare sends you. If no code arrives, your address is not on the access list; tell the tool admin. |
+| The browser cannot connect to the dashboard address.                      | The dashboard is not running. Tell the tool admin (on the admin's own PC: `npm run dev:cogm`).                                                |
+| "Connection lost, reconnecting…" or "Connection closed: reload the page". | The page lost the dashboard program, for example while it restarted. Wait a moment, then reload the page. Still no luck: tell the tool admin. |
+| A short error with `host-not-allowed`.                                    | You opened it under another name. Use the address the admin gave you.                                                                         |
+| The page loads, but Pre-flight and the panels cannot read the game.       | The bridge or the server's Foundry browser is down. Tell the tool admin.                                                                      |
+| Pre-flight's "Foundry connected" line is marked as failing.               | See "The bridge does not connect" above.                                                                                                      |
+| The tool runner says "Couldn't load tools".                               | The bridge is not connected, or this browser is not signed in as the GM (see the next row).                                                   |
+| GM buttons are refused although everything is connected.                  | The setup uses a GM token. Open the dashboard once with the address you were given (it ends in `?token=…`); the browser remembers it.         |
+| No AI commentary on the page.                                             | Normal. The AI commentary is only on the old dashboard (`/legacy/`) and needs an API key, which the normal setup does not use.                |
+| GM Actions turned itself off.                                             | The dashboard restarted. Turn it on again when you need it.                                                                                   |
 
 ## Claude Desktop does not see the tools
 
 | Likely cause                                                     | Fix                                                                                                                                                                               |
 | ---------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| The tool is not in Claude Desktop's configuration.               | `%APPDATA%\Claude\claude_desktop_config.json` needs the `foundry-mcp` entries (see the [README](../../README.md#installation)).                                                   |
+| The five Foundry connectors are missing.                         | Quit Claude Desktop from the tray icon and run the installer again; see [Connect Claude Desktop](connect-claude-desktop.md).                                                      |
 | The tool set is switched off.                                    | Claude says which set a request needs. Switch that entry on under **+**, **Connectors** (see [Asking Claude](asking-claude.md#tool-sets-which-switches-to-turn-on)).              |
 | Claude Desktop was not restarted after the change.               | Quit it fully (also from the icon in the system tray), then start it again.                                                                                                       |
 | The bridge failed to start. Claude then gets an empty tool list. | Claude Desktop's settings list local MCP servers and their status (in current versions under **Settings**, **Developer**). Check the log `%TEMP%\foundry-mcp-server\wrapper.log`. |
@@ -71,16 +75,16 @@ undo. Fix it by hand in Foundry.
 
 ## The player page is empty
 
-| You see                                                 | Likely cause and fix                                                                                                                                                                                                          |
-| ------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Status `disconnected`.                                  | The bridge is not running. Start Claude Desktop.                                                                                                                                                                              |
-| Status `foundry offline`.                               | No GM is connected in Foundry. Join as the GM; see "The bridge does not connect".                                                                                                                                             |
-| "No active combat." while you fight.                    | The combat has not started. In Foundry's Combat Encounters tab, click **Start Combat**.                                                                                                                                       |
-| A creature is missing from the combat order.            | Its token or combatant is hidden, or it is not on the scene the players see. This is on purpose.                                                                                                                              |
-| A creature shows as "Unknown creature".                 | Its token's **Display Name** hides the name from players (Foundry's default). To show it: token's gear (**Open Configuration**) or the actor's **Prototype Token**, **Identity** tab, **Display Name** **Hovered by Anyone**. |
-| The feed shows little.                                  | Only public rolls and what players could see happen are shown. Private, blind and GM rolls, and events about creatures players cannot name, are left out.                                                                     |
-| "Nothing revealed yet." under Handouts.                 | The reveal was not applied, or players can no longer open the page or its journal. Run `list-revealed-pages` in the tool runner: it shows each revealed page and whether players can still open it.                           |
-| Players on other computers cannot open the page at all. | Today the dashboard only answers on the PC it runs on. Access for players comes with the Orange Pi setup.                                                                                                                     |
+| You see                                      | Likely cause and fix                                                                                                                                                                                                          |
+| -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Status `disconnected`.                       | The page lost the dashboard. Reload it; if it stays, tell the tool admin.                                                                                                                                                     |
+| Status `foundry offline`.                    | The AI Tool's link to Foundry is down. Tell the tool admin; see "The bridge does not connect".                                                                                                                                |
+| "No active combat." while you fight.         | The combat has not started. In Foundry's Combat Encounters tab, click **Start Combat**, or use **Start combat** in the dashboard's Combat Tracker.                                                                            |
+| A creature is missing from the combat order. | Its token or combatant is hidden, or it is not on the scene the players see. This is on purpose.                                                                                                                              |
+| A creature shows as "Unknown creature".      | Its token's **Display Name** hides the name from players (Foundry's default). To show it: token's gear (**Open Configuration**) or the actor's **Prototype Token**, **Identity** tab, **Display Name** **Hovered by Anyone**. |
+| The feed shows little.                       | Only public rolls and what players could see happen are shown. Private, blind and GM rolls, and events about creatures players cannot name, are left out.                                                                     |
+| "Nothing revealed yet." under Handouts.      | The reveal was not applied, or players can no longer open the page or its journal. Run `list-revealed-pages` in the tool runner: it shows each revealed page and whether players can still open it.                           |
+| A player cannot open the page at all.        | First open the player page yourself on your own device. If it works for you, send the player [Join the game](../player/join.md); if it fails for you too, tell the tool admin.                                                |
 
 ## Obsidian notes do not update
 

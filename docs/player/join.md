@@ -6,7 +6,7 @@ description: Step by step with pictures, the game's web address, the one-time em
 # Join the game
 
 **Phones are for reading, not playing.** Use a laptop or desktop computer to play. And **give Danni
-your email first**: until he adds it to the list, no login code ever arrives and Cloudflare shows
+your email first**: until Danni adds it to the list, no login code ever arrives and Cloudflare shows
 no error.
 
 We play in two places at once: **Foundry** in your web browser (the map, your character sheet,

@@ -13,7 +13,6 @@ terminal to open. You need two addresses from the tool admin: the game's and the
 
 - [ ] Start **Claude Desktop**. It connects to the bridge on the Pi.
 - [ ] Open Foundry in your browser, launch the world, and join as your GM user.
-- [ ] Wait for the Foundry message "MCP Bridge connected successfully" (top of the screen).
 - [ ] Open the dashboard address on your second screen. Cloudflare may ask for an emailed code
       first, the same as when you join the game.
 - [ ] Look at the header of the dashboard: the **✈ Pre-flight** button should say "ready" or "N to fix", and no
@@ -31,8 +30,8 @@ terminal to open. You need two addresses from the tool admin: the game's and the
 - [ ] In the Pre-flight panel, click **Turn on for tonight**. One click turns on "Allow Write
       Operations", "AI Tool: Handouts (writes)", "AI Tool: Live play (writes)", "AI Tool: Party
       (writes)", "AI Tool: Tarokka (writes)" and **GM Actions**. The chips under the button show
-      each switch; a message says what it turned on. **End session** turns off again what Ready
-      turned on.
+      each switch; a message says what it turned on. **End session** turns off again what Turn on for
+      tonight turned on.
 
 - [ ] Once, before session 1 (only with the module Dice So Nice): pick the table's dice, **AI
       Tool: The Veil** or **AI Tool: Neutral**, in Dice So Nice's **Configure Dice Roles**,

@@ -9,14 +9,15 @@ Short recipes for things you will want to do. Each one says what to type (in a C
 or click (on the dashboard), what happens, and one tip. Copy the words in quotes and change the
 names to yours.
 
-The recipes use the Claude Desktop chat with **core** and **prep** switched on (see
+Before and after the session you want **core** and **prep** switched on in the Claude Desktop chat; at
+the table, **core** and **play** (see
 [Asking Claude](asking-claude.md#tool-sets-which-switches-to-turn-on)). A recipe that needs another
 set says so.
 
 ## Four habits that make every request better
 
-1. **Name the exact thing.** "Wolf 2", "the page 'Old letter' in the journal 'Handouts'", "Ireena
-   Kolyana". Several tokens can share a name; Foundry's names are what Claude searches for.
+1. **Name the exact thing.** "Wolf 2", "the page 'Old letter' in the journal 'Handouts'", "Thorin
+   Ironfoot". Several tokens can share a name; Foundry's names are what Claude searches for.
 2. **Say what you want back.** "A list of three", "one paragraph I can read aloud", "a table with
    HP and AC".
 3. **Ask for a plan before changes.** "Show me the plan first and wait for my OK." Guarded changes
@@ -97,7 +98,7 @@ set says so.
 ### Draft a letter or an invitation from a villain
 
 - **Say:** "Draft a letter from Strahd to the party, in his voice, from these points: invites them
-  to dinner, mentions Ireena by name, polite but threatening. Around 120 words. Plain text."
+  to dinner, mentions Thorin by name, polite but threatening. Around 120 words. Plain text."
 - **What happens:** Claude writes the draft in the chat. Nothing changes in Foundry.
 - **Tip:** paste the final text into a page in a GM-only journal, then reveal it as a handout (next
   recipe). Before that, ask: "Check this text for secret terms" (`check-secret-terms`).
@@ -228,7 +229,7 @@ These need the **play** set switched on.
 
 - **Do:** nothing. After `/record stop` the recording is turned into text on the table's PC and
   Claude writes the notes. For now the builder starts this; from the first campaign session it
-  runs by itself every hour. In Claude Code, `/session-notes` does it by hand.
+  runs by itself every hour. If it did not run, ask the builder to run it.
 - **What happens:** in the session's folder, under `notes`, in Danish and English: the cleaned
   transcript, notes per scene (what happened, NPCs, loot, open threads, a "GM only" part), a
   summary for you and a draft recap for the players. With the switch "AI Tool: Session notes

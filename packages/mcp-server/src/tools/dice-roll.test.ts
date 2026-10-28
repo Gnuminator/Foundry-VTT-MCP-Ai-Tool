@@ -306,7 +306,7 @@ describe('DiceRollTools.handleRollNpcCheck', () => {
       isPublic: true,
       advantage: 'sideways',
     });
-    expect(String(bad)).toContain('Parameter error');
+    expect(bad).toEqual(expect.stringContaining('Parameter error'));
   });
 
   it('forwards advantage on the ability check and attack requests too', async () => {

@@ -757,7 +757,7 @@ export class PlayerRollsDataAccess {
       );
       return null;
     }
-    return Array.isArray(out) ? out : [out];
+    return Array.isArray(out) ? (out as unknown[]) : [out];
   }
 
   /** A request older than this is stale: the page does not list it and the module refuses it. */

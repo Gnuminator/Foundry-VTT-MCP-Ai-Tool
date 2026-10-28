@@ -290,6 +290,59 @@ describe('the stage as text', () => {
     assert.ok(stage.indexOf('does not match the pinned sha256') < stage.indexOf('tar -xzf'));
   });
 
+  // The ALLOW block of the stage, run in bash against a fake resolv.conf, with the stage's own die from lib.sh.
+  const allowBlock = /^ALLOW=""\nfor ns in[\s\S]*?\ndone\n/m.exec(stage)?.[0];
+  const allowFor = (resolv, router = '192.168.1.1') => {
+    const d = tmp();
+    const conf = path.join(d, 'resolv.conf');
+    writeFileSync(conf, resolv);
+    const lib = readFileSync(path.join(remote, 'lib.sh'), 'utf8');
+    const script = `${lib}\nROUTER=${router}\nhostname() { echo 192.168.1.50 fe80::1; }\n${allowBlock.replace('/etc/resolv.conf', posix(conf))}\necho "ALLOW=$ALLOW"\n`;
+    const file = path.join(d, 'allow.sh');
+    writeFileSync(file, script);
+    return spawnSync('bash', [posix(file)], { encoding: 'utf8' });
+  };
+
+  test('the allow list is the router plus the IPv4 nameservers of resolv.conf, without duplicates', { skip: !hasBash }, () => {
+    assert.ok(allowBlock, 'ALLOW block found');
+    const r = allowFor('nameserver 192.168.1.1\nnameserver 1.1.1.1\nnameserver 2606:4700::1111\n');
+    assert.equal(r.status, 0, r.stderr);
+    assert.match(r.stdout, /^ALLOW=192\.168\.1\.1\/32 1\.1\.1\.1\/32$/m);
+  });
+
+  test('a loopback nameserver stops the stage, names the address and is never allowed', { skip: !hasBash }, () => {
+    for (const ns of ['127.0.0.53', '127.0.0.1', '127.1.2.3']) {
+      const r = allowFor(`nameserver 1.1.1.1\nnameserver ${ns}\n`);
+      assert.notEqual(r.status, 0, ns);
+      assert.ok(r.stderr.includes(`loopback nameserver (${ns})`), r.stderr);
+      assert.ok(!r.stdout.includes('127.'), `${ns} left the allow list: ${r.stdout}`);
+    }
+    // 127.0.0.0/8 only: other ranges that merely start with 127 digits are fine.
+    assert.equal(allowFor('nameserver 12.7.0.1\n').status, 0);
+  });
+
+  test('a Tailscale nameserver or one of the Pi’s own addresses stops the stage too', { skip: !hasBash }, () => {
+    for (const ns of ['100.100.100.100', '100.64.0.1', '100.127.255.254']) {
+      const r = allowFor(`nameserver ${ns}\n`);
+      assert.notEqual(r.status, 0, ns);
+      assert.ok(r.stderr.includes(`Tailscale nameserver (${ns})`), r.stderr);
+    }
+    const own = allowFor('nameserver 192.168.1.50\n');
+    assert.notEqual(own.status, 0);
+    assert.ok(own.stderr.includes('own address as nameserver (192.168.1.50)'), own.stderr);
+    // Just outside 100.64.0.0/10, and another LAN host: allowed.
+    for (const ns of ['100.63.0.1', '100.128.0.1', '192.168.1.60']) {
+      const r = allowFor(`nameserver ${ns}\n`);
+      assert.equal(r.status, 0, `${ns}: ${r.stderr}`);
+      assert.ok(r.stdout.includes(`${ns}/32`), r.stdout);
+    }
+  });
+
+  test('config.sh starts inside the runner folder (it runs `ldd ./bin/...`, relative to the cwd)', () => {
+    assert.match(stage, /runuser -u "\$RUNNER_USER" -- env -C "\$dir" [^\n]*\.\/config\.sh --unattended/);
+    assert.ok(!stage.includes('"$dir/config.sh"'));
+  });
+
   test('every check comes before the first write', () => {
     const firstWrite = stage.indexOf('useradd');
     for (const needle of ['require_recent_snapshot', 'is missing: run stage', '.reg"']) {
@@ -308,7 +361,7 @@ describe('the stage as text', () => {
   test('every rm -rf uses ${var:?} and the runner never runs as root', () => {
     for (const line of stage.split('\n').filter(l => /rm -[a-z]*r/.test(l)))
       assert.match(line, /\$\{[a-z_]+:\?\}/, line);
-    assert.match(stage, /runuser -u "\$RUNNER_USER" -- env [^\n]*"\$dir\/config\.sh"/);
+    assert.match(stage, /runuser -u "\$RUNNER_USER" -- env [^\n]*\.\/config\.sh/);
     assert.match(stage, /^User=\$RUNNER_USER$/m);
   });
 
@@ -347,5 +400,29 @@ describe('the stage as text', () => {
     assert.match(helper, /--jq \.token/);
     assert.doesNotMatch(helper, /(echo|printf)[^\n]*\$\(?(token|TOKEN)/);
     assert.match(helper, /chmod 600/);
+  });
+});
+
+// With PI_STAGE17_CONTAINER=1 (needs Docker): the registration step in a Debian 13 ARM64 container, started from a
+// folder the runner user cannot enter.
+describe('stage 17 registration in the ARM64 container', { skip: process.env.PI_STAGE17_CONTAINER !== '1' }, () => {
+  test('scenarios', () => {
+    const r = spawnSync(
+      'docker',
+      [
+        'run',
+        '--rm',
+        '--platform',
+        'linux/arm64',
+        '-v',
+        `${repo}:/repo:ro`,
+        'debian:13-slim',
+        'bash',
+        '/repo/scripts/pi/container-test/stage17-scenarios.sh',
+      ],
+      { encoding: 'utf8', timeout: 600000 }
+    );
+    assert.equal(r.status, 0, r.stdout + r.stderr);
+    assert.ok(r.stdout.includes('ALL SCENARIOS OK'), r.stdout);
   });
 });

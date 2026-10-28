@@ -40,6 +40,14 @@ ROUTER="$(ip -4 route show default 2>/dev/null | awk '/default/ {print $3; exit}
 # Let through: the router and the DNS servers of /etc/resolv.conf (IPv4; IPv6 is denied as a whole, the runner reaches GitHub over IPv4).
 ALLOW=""
 for ns in $ROUTER $(awk '/^nameserver/ {print $2}' /etc/resolv.conf 2>/dev/null | grep -E '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$' || true); do
+  # A loopback nameserver (a local resolver such as 127.0.0.53) cannot be allowed: that would open loopback to the jobs.
+  case "$ns" in 127.*) die "/etc/resolv.conf has a loopback nameserver ($ns): allowing it would open loopback to the runner. Point resolv.conf at the router or a LAN or public DNS server and rerun" ;; esac
+  # The same for a Tailscale address (100.64.0.0/10, MagicDNS is 100.100.100.100) and the Pi's own addresses: the jobs would reach
+  # whatever listens there, and a LAN address of the Pi would make the fence probe fail and blame the kernel.
+  case "$ns" in 100.6[4-9].* | 100.[7-9][0-9].* | 100.1[01][0-9].* | 100.12[0-7].*) die "/etc/resolv.conf has a Tailscale nameserver ($ns): allowing it would open the Pi's Tailscale side to the runner. Point resolv.conf at the router or a LAN or public DNS server and rerun" ;; esac
+  for own in $(hostname -I 2>/dev/null || true); do
+    [ "$own" != "$ns" ] || die "/etc/resolv.conf has the Pi's own address as nameserver ($ns): allowing it would open the Pi to the runner. Point resolv.conf at the router or a LAN or public DNS server and rerun"
+  done
   case " $ALLOW " in *" $ns/32 "*) ;; *) ALLOW="${ALLOW:+$ALLOW }$ns/32" ;; esac
 done
 
@@ -119,8 +127,10 @@ for pair in $RUNNERS; do
     # on a command line, and the file is gone whatever happens next.
     trap 'rm -f "${reg:?}"' EXIT
     # runuser keeps the environment but env sets HOME for the runner user (runuser may reset it to the passwd home).
+    # env -C starts config.sh inside the runner folder: it checks its libraries with `ldd ./bin/...`, relative to the cwd,
+    # and the stage runs from the ssh login folder (live failure 2026-10-28: "ldd: ./bin/libcoreclr.so: No such file").
     ACTIONS_RUNNER_INPUT_TOKEN="$(cat "$reg")" \
-      runuser -u "$RUNNER_USER" -- env DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1 HOME="$dir/home" "$dir/config.sh" --unattended \
+      runuser -u "$RUNNER_USER" -- env -C "$dir" DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1 HOME="$dir/home" ./config.sh --unattended \
       --url "https://github.com/$GH_OWNER/$repo" --name foundry-pi --labels pi --work "$dir/_work" --replace >/dev/null ||
       die "registering runner $name failed (the token may be older than an hour: run put-runner-token.sh $name again)"
     rm -f "${reg:?}"

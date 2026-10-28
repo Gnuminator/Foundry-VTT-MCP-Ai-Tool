@@ -373,8 +373,11 @@ describe('exportWorldToObsidian', () => {
   it('upgrades an untouched old Home to the current template, CRLF or not', async () => {
     await seed();
     const homePath = path.join(campaignDir(vaultDir, WORLD), 'Home.md');
-    for (const eol of ['\n', '\r\n']) {
-      const old = LEGACY_CAMPAIGN_HOMES[0](WORLD).replace(/\n/g, eol);
+    for (const [version, eol] of LEGACY_CAMPAIGN_HOMES.flatMap(v => [
+      [v, '\n'] as const,
+      [v, '\r\n'] as const,
+    ])) {
+      const old = version(WORLD).replace(/\n/g, eol);
       await fsp.mkdir(path.dirname(homePath), { recursive: true });
       await fsp.writeFile(homePath, old);
       const result = await run();
@@ -400,9 +403,7 @@ describe('exportWorldToObsidian', () => {
     expect(result.kept.map(s => s.path)).toEqual(['Home.md']);
     const status = await note('AI Tool/_status.md');
     expect(status).toContain('## Your own notes (kept as you edited them)');
-    expect(status).toMatch(
-      /- `Home\.md`: your own Home \(edited in Obsidian\).*Adventures section/
-    );
+    expect(status).toMatch(/- `Home\.md`: your own Home \(edited in Obsidian\).*start page/);
     expect(status).toContain('notes_skipped: 0');
     expect(status).toMatch(/## Skipped[^\n]*\n\n- \(none\)/);
   });

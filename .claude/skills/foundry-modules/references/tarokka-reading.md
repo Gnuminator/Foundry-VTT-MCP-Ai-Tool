@@ -8,7 +8,7 @@ Verified on Foundry 14.368 / dnd5e 6.0.6, module 1.0.5, 2026-10-28 (test server 
 
 ## What it does
 
-- A five-position reading. The window on 14.368 labels the positions The Symbol (2), The Artifact (1), The Lair (5), The Blade (3) and The Ally (4); the draft's list from the README (Tome, Symbol, Sword, Ally, Enemy) does not match what the window shows. The GM picks cards in advance or leaves a slot random. Duplicates and wrong-deck picks are flagged in the prepare view (from README, not verified).
+- A five-position reading. The window on 14.368 labels the positions The Symbol (2), The Artifact (1), The Lair (5), The Blade (3) and The Ally (4). These are the module's own names for the five README positions (Tome, Symbol, Sword, Ally, Enemy); the bracketed numbers are the order in which the cards are dealt. The GM picks cards in advance or leaves a slot random. Duplicates and wrong-deck picks are flagged in the prepare view (from README, not verified).
 - The GM deals, places the next card on a slot and flips cards one at a time; players only see revealed cards, and position names and GM notes stay on the GM's browser (README; dealing was done, but placing, flipping and showing to players were not tried, so those parts are not verified).
 - Ships no artwork (cards are drawn in CSS). The GM can rename each card and give it an image (Customize cards > Edit cards, or Import a folder with files named after the card).
 - English and French. Works with any game system.

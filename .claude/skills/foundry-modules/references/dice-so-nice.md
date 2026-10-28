@@ -2,7 +2,7 @@
 
 Verified on Foundry 14.368 / dnd5e 6.0.6, module 6.4.4, 2026-10-28 (test server B). Parts not clicked through are marked "(not verified)".
 
-**Verdict: keep.** Version 6.4.4 requires Foundry 14 and is verified on 14.368. Rolls are still decided by Foundry; the module only animates them, and it is the one module the AI Tool already works with on purpose (our two dice colour sets). The two costs are a short delay before roll cards appear and its heavy asset set, both manageable with settings.
+**Verdict: keep.** Version 6.4.4 requires Foundry 14 and is verified on 14.368. Rolls are still decided by Foundry; the module only animates them, and our bridge adds two dice colour sets to it (from source). The two costs are a short delay before roll cards appear and its heavy asset set, both manageable with settings.
 
 **For Danni's guides:** Your dice roll across the screen in 3D, and the result shows in chat a moment later when they land.
 
@@ -51,7 +51,7 @@ One real link, otherwise none:
 - **Chat delay.** Roll cards stay hidden until the dice land. With many dice (a fireball, an NPC group) that is a few seconds. A kit or recording step that waits for a card should allow for it.
 - **Interactive throws** make a roll wait for a player to throw only when the user opts in or the system asks; dnd5e does not ask (not verified). Leave world setting off if a rolling tool ever stalls.
 - Heavy: large textures, sounds and WebGL; weak laptops may stutter. The Pi only serves files, so no Pi cost.
-- Removing the module leaves a `dice-so-nice` flag on users (persistent dice) and settings; harmless.
+- Removing the module may leave a `dice-so-nice` flag on users and its settings behind; harmless (from source, not verified).
 
 ## Sources
 

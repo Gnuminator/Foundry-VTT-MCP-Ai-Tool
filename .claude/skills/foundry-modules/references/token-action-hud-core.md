@@ -14,7 +14,7 @@ It refreshes on token selection, actor, item, active effect and combat updates (
 
 ## Where its UI is
 
-- On the canvas: with a token controlled (checked with Test Hero, a level 3 Fighter) the HUD appears at the top left of the canvas with the actor name and the tabs Inventory, Features, Attributes, Effects and Utility (13 groups in the DOM). It follows the controlled token; with none controlled it is empty. The elements are `#token-action-hud-app` and `#token-action-hud`. Top-level buttons open groups on hover (or on click, see below). Drag a top-level button to move it (not verified).
+- On the canvas: with a token controlled (checked with Test Hero, a level 3 Fighter) the HUD appears at the top left of the canvas with the actor name and the tabs Inventory, Features, Attributes, Effects and Utility (13 groups in the DOM). It follows the controlled token; with none controlled it was empty (seen as the GM, who has no assigned character; what a player sees is not verified). The elements are `#token-action-hud-app` and `#token-action-hud`. Top-level buttons open groups on hover (or on click, see below). Drag a top-level button to move it (not verified).
 - Two keybindings to enable/disable and collapse/expand the HUD (Configure Controls, "Token Action HUD"; exact default keys not verified).
 - Game Settings, Configure Settings, Token Action HUD Core: 23 entries plus the menus `customStyle` and `layout`; the settings below. Unlock the HUD (padlock button) to edit groups, add groups, drop in macros.
 - Per-user layouts: "User Default Layout" and the reset buttons in the same menu.
@@ -28,7 +28,7 @@ Scope read from the bundled source; defaults confirmed live on B (`allow` is "1"
 | Enable HUD            | `enable`                            | client | on                              | leave on                                                                                                          |
 | Allow HUD             | `allow`                             | world  | Player and up (requires reload) | leave, so players get it                                                                                          |
 | Roll Handler          | `rollHandler`                       | world  | `core`                          | leave `core` (a world setting; the dnd5e module hands rolls to dnd5e)                                             |
-| Always Show HUD       | `alwaysShowHud`                     | client | on                              | leave on: a player sees their character with nothing selected                                                     |
+| Always Show HUD       | `alwaysShowHud`                     | client | on                              | leave on: meant to show a player's own character with nothing selected (not verified)                             |
 | Style                 | `style`                             | client | Foundry VTT                     | leave                                                                                                             |
 | Direction             | `direction`                         | client | Auto                            | leave                                                                                                             |
 | Dragging              | `drag`                              | client | When Unlocked                   | leave                                                                                                             |

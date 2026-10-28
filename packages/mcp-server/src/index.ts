@@ -437,7 +437,7 @@ async function startWrapper(): Promise<void> {
     // The ready-made "/" prompts (prompts/list, prompts/get). Static, answered right here.
     registerPromptHandlers(mcp, TOOL_SET_SELECTION.all ? undefined : TOOL_SET_SELECTION.sets);
 
-    mcp.setRequestHandler('tools/list', async () => {
+    mcp.setRequestHandler('tools/list', async (_request, ctx) => {
       try {
         const res = (await backend.send('list_tools', {})) as ListToolsReply;
 
@@ -465,6 +465,12 @@ async function startWrapper(): Promise<void> {
           backend.log('ListTools failed; returning empty', { error: messageOf(e) });
         } catch {}
 
+        // Not cacheable: a 2026-era client must not hold an empty list for the tool TTL. A handler's own
+        // `ttlMs` reaches the wire in either era, so it is added only on a request that carries the
+        // 2026 `_meta` envelope (`ctx.mcpReq.envelope`); a 2025-11-25 client gets the plain empty list.
+        if (ctx.mcpReq.envelope) {
+          return { tools: [], ttlMs: 0, cacheScope: 'private' } as unknown as ListToolsResult;
+        }
         return { tools: [] };
       }
     });

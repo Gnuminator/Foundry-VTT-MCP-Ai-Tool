@@ -175,13 +175,13 @@ describe('MCP 2026-07-28 probe against dist/index.js', () => {
     if (tmpDir) await rmTmp(tmpDir);
   });
 
-  function start(): Wrapper {
+  function start(port: number | undefined = bridge?.port): Wrapper {
     const child = spawn(process.execPath, [distIndex], {
       stdio: ['pipe', 'pipe', 'pipe'],
       env: {
         ...process.env,
         MCP_CONTROL_HOST: '127.0.0.1',
-        MCP_CONTROL_PORT: String(bridge?.port),
+        MCP_CONTROL_PORT: String(port),
         TEMP: tmpDir,
         TMP: tmpDir,
         TMPDIR: tmpDir,
@@ -280,5 +280,65 @@ describe('MCP 2026-07-28 probe against dist/index.js', () => {
     });
     // serveStdio's default `legacy: 'serve'`: an initialize opens a 2025-era connection.
     expect((res.result as { protocolVersion: string }).protocolVersion).toBe('2025-11-25');
+  });
+
+  it('answers prompts/get for an unknown prompt with an invalid-params error, in either era', async () => {
+    const legacy = start();
+    await legacy.initialize();
+    const old = await legacy.request('prompts/get', { name: 'no-such-prompt' });
+    expect(old.error?.code).toBe(-32602);
+    expect(legacy.exited).toBeUndefined();
+    const modern = start();
+    const res = await modern.request('prompts/get', { name: 'no-such-prompt', _meta: MODERN_META });
+    expect(res.error?.code).toBe(-32602);
+    expect(modern.exited).toBeUndefined();
+  });
+
+  it('refuses a request for an unsupported protocol version and stays up', async () => {
+    const w = start();
+    const res = await w.request('tools/list', {
+      _meta: { ...MODERN_META, 'io.modelcontextprotocol/protocolVersion': '2099-01-01' },
+    });
+    expect(res.result).toBeUndefined();
+    expect(res.error).toBeTruthy();
+    // The wrapper still serves a normal client afterwards.
+    const ok = await w.request('tools/list', { _meta: MODERN_META });
+    expect(ok.error).toBeUndefined();
+    expect(w.exited).toBeUndefined();
+  });
+
+  it('answers a tool call for an unknown method with a protocol error and stays up', async () => {
+    const w = start();
+    await w.initialize();
+    const res = await w.request('no/such-method', {});
+    expect(res.error?.code).toBe(-32601);
+    expect(w.exited).toBeUndefined();
+  });
+
+  describe('when the bridge fails tools/list', () => {
+    let failing: { server: net.Server; port: number } | undefined;
+
+    beforeAll(async () => {
+      failing = await startFakeBridge({ failList: true });
+    });
+
+    afterAll(() => {
+      failing?.server.close();
+    });
+
+    it('answers an empty list with ttlMs 0 for a 2026-07-28 client', async () => {
+      const w = start(failing?.port);
+      const res = await w.request('tools/list', { _meta: MODERN_META });
+      expect(res.error).toBeUndefined();
+      expect(res.result).toMatchObject({ tools: [], ttlMs: 0, cacheScope: 'private' });
+    });
+
+    it('answers an empty list with no cache fields for a 2025-11-25 client', async () => {
+      const w = start(failing?.port);
+      await w.initialize();
+      const res = await w.request('tools/list');
+      expect(res.error).toBeUndefined();
+      expect(res.result).toEqual({ tools: [] });
+    });
   });
 });

@@ -17,7 +17,10 @@ export const FAKE_TOOLS = [
   inputSchema: { type: 'object', properties: {} },
 }));
 
-export function startFakeBridge(): Promise<{ server: net.Server; port: number }> {
+/** `failList` answers `list_tools` with an error, to exercise the wrapper's failure path. */
+export function startFakeBridge(
+  opts: { failList?: boolean } = {}
+): Promise<{ server: net.Server; port: number }> {
   return new Promise(resolve => {
     const server = net.createServer(sock => {
       let buf = '';
@@ -34,6 +37,10 @@ export function startFakeBridge(): Promise<{ server: net.Server; port: number }>
           try {
             req = JSON.parse(line) as { id: string; method: string };
           } catch {
+            continue;
+          }
+          if (opts.failList && req.method === 'list_tools') {
+            sock.write(`${JSON.stringify({ id: req.id, error: { message: 'bridge down' } })}\n`);
             continue;
           }
           const result =

@@ -5,6 +5,7 @@
       "id": "ac5e-notices",
       "module": "*",
       "match": "AC5E",
+      "max": 20,
       "why": "Automated Conditions 5e logs notices through the error log: LOADED, 'No targets selected' (the kit casts and rolls without targets) and 'Multiple damage types' (2026-10-27, 14.606.4.5). Informational."
     },
     {
@@ -42,12 +43,14 @@
       "id": "paralyzed-effect-missing",
       "module": "*",
       "match": "dnd5eparalyzed00\" does not exist",
+      "max": 4,
       "why": "Casting Hold Person with the Strahd modules on logs 'ActiveEffect dnd5eparalyzed00 does not exist' (spells-deep). It is not the automated-conditions-5e update (the old 14.606.4.4 does it too); DAE or another module is the likely source (2026-10-27, first rehearsal). Unbisected."
     },
     {
       "id": "kit-notification-hidden",
       "module": "*",
       "match": "setting 'hidden'",
+      "max": 10,
       "why": "A test kit artifact, not a bug: a chat card is deleted within 100 ms of its pop-up (TEST-KIT.md, 'The notification error'). The kit's GM page keeps it quiet; if it shows, the page hook broke."
     },
     {

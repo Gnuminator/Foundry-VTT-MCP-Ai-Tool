@@ -16,7 +16,9 @@ node scripts/modules/rehearse.mjs pi-plan                the Pi mirror commands,
 ```
 
 Take the server's lock first (`scripts/test-env/lock.ps1`); `install` refuses while the server is
-running. Foundry itself and dnd5e are handled like a module: stage the zip, install it, rehearse.
+running or while the lock is held by someone else (set `REHEARSE_LOCK_SESSION` to your session id
+when you hold it yourself). Downloads must stay on https after redirects, land in a `.part` file first,
+and an installed zip must carry the package id it was staged for. Foundry itself and dnd5e are handled like a module: stage the zip, install it, rehearse.
 
 ## Foundry itself
 

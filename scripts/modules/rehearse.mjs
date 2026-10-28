@@ -40,6 +40,7 @@ import {
   downloadZip,
   fetchManifest,
   installFromZip,
+  lockHolder,
   portOpen,
   REPO_ROOT,
   serverInfo,
@@ -98,6 +99,12 @@ async function lookUpstream(installed) {
 /** A test server must be stopped, and its lock free or ours, before files change under it. */
 async function requireStopped(srv) {
   if (await portOpen(srv.FoundryPort)) throw new Notready(`server ${srv.name} is running on ${srv.FoundryPort}; stop it first`);
+  const held = lockHolder(srv);
+  if (held && !(held.session && held.session === process.env.REHEARSE_LOCK_SESSION)) {
+    throw new Notready(
+      `server ${srv.name} is locked by "${held.holder}"; take it yourself (scripts/test-env/lock.ps1) and set REHEARSE_LOCK_SESSION to your session id`
+    );
+  }
 }
 class Notready extends Error {}
 

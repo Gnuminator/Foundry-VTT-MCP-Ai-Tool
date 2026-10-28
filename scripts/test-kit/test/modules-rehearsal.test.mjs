@@ -16,7 +16,7 @@ import {
   scanInstalled,
   splitFindings,
 } from '../../modules/lib.mjs';
-import { archivePackage, installFromZip, zipFolder } from '../../modules/ops.mjs';
+import { archivePackage, installFromZip, lockHolder, zipFolder } from '../../modules/ops.mjs';
 import { errorFindings, parseArgs } from '../../modules/rehearse.mjs';
 import { loadProfile, SHIPPED_PROFILES } from '../lib/profiles.mjs';
 
@@ -149,6 +149,33 @@ test('the archive round trip: zip an installed module, archive it, install it el
   assert.equal(scanInstalled(dataB)[0].version, '1.2.3');
   assert.equal(JSON.parse(readFileSync(path.join(d, 'rollback', 'module-demo', 'module.json'), 'utf8')).version, '1.0.0');
   zipFolder(dir, path.join(d, 'again.zip'));
+  rmSync(d, { recursive: true, force: true });
+});
+
+test('installFromZip refuses a zip whose manifest id is another package', () => {
+  const d = tmp();
+  const dir = fakeModule(path.join(d, 'a', 'Data'), 'module', 'other', '1.0.0');
+  const zip = path.join(d, 'other.zip');
+  zipFolder(dir, zip);
+  const data = path.join(d, 'b', 'Data');
+  fakeModule(data, 'module', 'demo', '1.0.0');
+  assert.throws(
+    () => installFromZip({ dataDir: data, kind: 'module', id: 'demo', zip, rollbackDir: path.join(d, 'rollback') }),
+    /not "demo"/
+  );
+  assert.equal(scanInstalled(data)[0].version, '1.0.0');
+  rmSync(d, { recursive: true, force: true });
+});
+
+test('lockHolder reads a test server lock and treats an unreadable one as held', () => {
+  const d = tmp();
+  assert.equal(lockHolder({ Root: d }), null);
+  writeFileSync(path.join(d, 'lock.json'), JSON.stringify({ holder: null, queue: [] }));
+  assert.equal(lockHolder({ Root: d }), null);
+  writeFileSync(path.join(d, 'lock.json'), JSON.stringify({ holder: 'Lane X', session: 'local_1' }));
+  assert.deepEqual(lockHolder({ Root: d }), { holder: 'Lane X', session: 'local_1' });
+  writeFileSync(path.join(d, 'lock.json'), '{ nope');
+  assert.equal(lockHolder({ Root: d })?.holder, 'unreadable lock.json');
   rmSync(d, { recursive: true, force: true });
 });
 

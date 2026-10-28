@@ -69,6 +69,22 @@ export function portOpen(port) {
   });
 }
 
+/**
+ * Who holds a test server's lock (scripts/test-env/lock.ps1 writes <Root>/lock.json). Null when it is
+ * free or has no file; an unreadable file counts as held, so a broken lock never reads as free.
+ * @param {{Root: string}} srv
+ */
+export function lockHolder(srv) {
+  const file = path.join(srv.Root, 'lock.json');
+  if (!existsSync(file)) return null;
+  try {
+    const l = JSON.parse(readFileSync(file, 'utf8').replace(/^﻿/, ''));
+    return l?.holder ? { holder: String(l.holder), session: l.session ? String(l.session) : '' } : null;
+  } catch {
+    return { holder: 'unreadable lock.json', session: '' };
+  }
+}
+
 /** GET a JSON manifest from https; null-safe result with an error text. @param {string} url */
 export async function fetchManifest(url) {
   if (!/^https:\/\//.test(url)) return { error: 'no https manifest url' };
@@ -181,6 +197,8 @@ export function installFromZip(o) {
   const folder = path.join(o.dataDir, o.kind === 'system' ? 'systems' : 'modules', o.id);
   const { tmp, root } = unpackZip(o.zip, o.kind === 'system' ? 'system.json' : 'module.json');
   try {
+    const inner = readManifest(JSON.parse(readFileSync(path.join(root, o.kind === 'system' ? 'system.json' : 'module.json'), 'utf8')));
+    if (inner?.id !== o.id) throw new Error(`${path.basename(o.zip)} holds "${inner?.id}", not "${o.id}"; nothing installed`);
     mkdirSync(o.rollbackDir, { recursive: true });
     if (existsSync(folder)) renameSync(folder, path.join(o.rollbackDir, `${o.kind}-${o.id}`));
     cpSync(root, folder, { recursive: true });

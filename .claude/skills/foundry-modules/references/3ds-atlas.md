@@ -2,7 +2,7 @@
 
 Verified on Foundry 14.368 / dnd5e 6.0.6, module 1.5.3, 2026-10-28 (loaded on test server A; its settings and chat output read from the live world; menus not clicked through, marked "(not verified)").
 
-**Verdict: keep (only as long as Calendaria or Travel Pace is on).** It is a library with no play-time features, and both of those modules require it. Its one footprint is a small update check to `3deathsaves.com` when the world opens.
+**Verdict: keep.** Keep it only as long as Calendaria or Travel Pace is on. It is a library with no play-time features, and both of those modules require it. Its one footprint is a small update check to `3deathsaves.com` when the world opens.
 
 **For Danni's guides:** You will never use this one; it just has to stay switched on while the calendar and travel modules are.
 

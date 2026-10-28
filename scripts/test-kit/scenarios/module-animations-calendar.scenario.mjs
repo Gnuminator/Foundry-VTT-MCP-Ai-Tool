@@ -25,24 +25,34 @@ const ANIMATION_SCRIPT = async ({ sceneId, heroTokenId, targetTokenId }) => {
   const targetToken = scene?.tokens.get(targetTokenId);
   if (!heroToken?.actor || !targetToken) return { error: 'tokens not found on the kit scene' };
   if (canvas.scene?.id !== sceneId) await scene.view();
-  const weapon = heroToken.actor.items.find(
+  const weapons = heroToken.actor.items.filter(
     i => i.type === 'weapon' && i.system.activities?.some(a => a.type === 'attack')
   );
-  if (!weapon) return { error: `${heroToken.actor.name} has no weapon with an attack activity` };
-  const activity = weapon.system.activities.find(a => a.type === 'attack');
-  const names = ['aa.preAnimationStart', 'aa.animationStart', 'createSequencerEffect'];
-  const fired = [];
-  const handles = names.map(name => [name, Hooks.on(name, () => fired.push(name))]);
-  const before = game.messages.size;
-  try {
-    targetToken.object.setTarget(true, { releaseOthers: true });
-    await activity.rollAttack({}, { configure: false }, { create: true });
-    await new Promise(resolve => setTimeout(resolve, 3500));
-  } finally {
-    game.user.targets.forEach(token => token.setTarget(false, { releaseOthers: false }));
-    for (const [name, id] of handles) Hooks.off(name, id);
+  if (!weapons.length) {
+    return { error: `${heroToken.actor.name} has no weapon with an attack activity` };
   }
-  return { weapon: weapon.name, fired, messages: game.messages.size - before };
+  // The free JB2A set covers only part of the weapons, so try each until one animates.
+  const names = ['aa.preAnimationStart', 'aa.animationStart', 'createSequencerEffect'];
+  const tried = [];
+  let messages = 0;
+  for (const weapon of weapons) {
+    const activity = weapon.system.activities.find(a => a.type === 'attack');
+    const fired = [];
+    const handles = names.map(name => [name, Hooks.on(name, () => fired.push(name))]);
+    const before = game.messages.size;
+    try {
+      targetToken.object.setTarget(true, { releaseOthers: true });
+      await activity.rollAttack({}, { configure: false }, { create: true });
+      await new Promise(resolve => setTimeout(resolve, 3500));
+    } finally {
+      game.user.targets.forEach(token => token.setTarget(false, { releaseOthers: false }));
+      for (const [name, id] of handles) Hooks.off(name, id);
+    }
+    messages += game.messages.size - before;
+    tried.push({ weapon: weapon.name, fired });
+    if (fired.includes('aa.animationStart') && fired.includes('createSequencerEffect')) break;
+  }
+  return { tried, messages };
 };
 
 /**
@@ -55,14 +65,18 @@ const CALENDAR_SCRIPT = async () => {
   const fired = [];
   const handles = names.map(name => [name, Hooks.on(name, () => fired.push(name))]);
   const journalsBefore = game.journal.size;
+  let advanced = false;
   try {
     await game.time.advance(day);
+    advanced = true;
     await new Promise(resolve => setTimeout(resolve, 2000));
     const journalsAfter = game.journal.size;
     return { fired, journalsBefore, journalsAfter };
   } finally {
-    await game.time.advance(-day);
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    if (advanced) {
+      await game.time.advance(-day);
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    }
     for (const [name, id] of handles) Hooks.off(name, id);
   }
 };
@@ -88,12 +102,13 @@ export default {
       t.skip('neither Automated Animations (with Sequencer and JB2A) nor Calendaria is active');
     }
 
-    if (active.animations) {
+    const hero = tokenHeroes(t.kit)[0];
+    const targetId = t.kit.monsters.find(m => m.tokenId)?.tokenId;
+    if (active.animations && !(hero && targetId)) {
+      t.log('animation step left out: the kit scene needs a hero token and a monster token');
+    }
+    if (active.animations && hero && targetId) {
       await t.step('an attack roll with a target plays an animation', async () => {
-        const heroes = tokenHeroes(t.kit);
-        const hero = heroes[0];
-        const targetId = t.kit.monsters.find(m => m.tokenId)?.tokenId;
-        if (!hero || !targetId) t.skip('the kit scene needs a hero token and a monster token');
         const result = await t.page.evaluate(ANIMATION_SCRIPT, {
           sceneId: t.kit.scene.sceneId,
           heroTokenId: hero.tokenId,
@@ -101,13 +116,15 @@ export default {
         });
         t.check(!result.error, `the roll could not be set up: ${result.error}`, result);
         t.check(result.messages >= 1, 'the attack roll made a chat message', result);
+        const played = result.tried.find(
+          x => x.fired.includes('aa.animationStart') && x.fired.includes('createSequencerEffect')
+        );
         t.check(
-          result.fired.includes('aa.animationStart') &&
-            result.fired.includes('createSequencerEffect'),
-          'Automated Animations started an animation and Sequencer made an effect',
+          played,
+          'Automated Animations started an animation and Sequencer made an effect for a weapon',
           result
         );
-        return `${result.weapon}: ${result.fired.join(', ')}`;
+        return `${played.weapon}: ${played.fired.join(', ')}`;
       });
     }
 

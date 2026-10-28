@@ -2,7 +2,7 @@
 
 Verified on Foundry 14.368 / dnd5e 6.0.6, module 4.3.0, 2026-10-28 (loaded on test server A; settings, scene controls, the journal and the chat card read from the live world; the Effects Manager window was not opened, marked "(not verified)").
 
-**Verdict: keep (as a dependency of Automated Animations; drop with it).** Version 4.3.0 is verified on Foundry 14 and does nothing until another module asks it for an effect. It leaves two traces in the world: a `sequencerDatabase` journal and a one-time GM whisper after an update.
+**Verdict: keep.** It is a dependency of Automated Animations, so drop it only together with that module. Version 4.3.0 is verified on Foundry 14 and does nothing until another module asks it for an effect. It leaves two traces in the world: a `sequencerDatabase` journal and a one-time GM whisper after an update.
 
 **For Danni's guides:** You will not touch this one; it is the engine that plays spell effects and has to stay on while animations are on.
 

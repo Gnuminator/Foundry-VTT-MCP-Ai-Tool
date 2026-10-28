@@ -15,7 +15,7 @@ A GM tool to push images and videos to players in four ways: a pop-out window, a
 - A sidebar tab (`shm-media-sidebar`) before Settings; hidden for users on the blacklist.
 - Share buttons in the header of actor and item sheets (GM only), the actor and tile HUDs, and on journal images.
 - A "share" option on chat messages (context menu).
-- A scene control group "Share Media" (the `shm-media-layer`) with select, link, browser and clear tools (seen live; my first draft said there was none).
+- A scene control group "Share Media" (the `shm-media-layer`) with select, link, browser and clear tools (seen live).
 - Tile configuration: a Share Media section. Region configuration: the `ShareRegion` behavior.
 - Configure Settings > Share Media: four GM-only menus (media settings, sidebar, entity sharing, blacklist). No hotkey.
 

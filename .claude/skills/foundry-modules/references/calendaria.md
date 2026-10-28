@@ -2,7 +2,7 @@
 
 Verified on Foundry 14.368 / dnd5e 6.0.6, module 1.4.6, 2026-10-28 (loaded on test server A and driven through the world and the browser console; anything not clicked through is marked "(not verified)").
 
-**Verdict: optional.** Version 1.4.6 is Foundry 14 only and is the most capable calendar for the game: a Barovian calendar ships in the box and Travel Pace can slow a journey with its weather. But it has 208 settings, runs its own clock, and rewrites scene darkness and journals on its own, so it earns a place only if Danni wants a visible clock and weather.
+**Verdict: optional.** Version 1.4.6 is Foundry 14 only and is the most capable calendar for the game: a Barovian calendar ships in the box and Travel Pace can slow a journey with its weather. But it has 211 settings, runs its own clock, and rewrites scene darkness and journals on its own, so it earns a place only if Danni wants a visible clock and weather.
 
 **For Danni's guides:** A calendar and clock for the table: it shows the date, the sun and moons, and the weather, and the day can be moved forward with one click.
 

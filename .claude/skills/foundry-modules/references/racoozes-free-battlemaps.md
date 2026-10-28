@@ -8,7 +8,7 @@ Verified on Foundry 14.368 / dnd5e 6.0.6, module 1.2.0, 2026-10-28 (loaded on te
 
 ## What it does
 
-A pack of ready-made battlemaps (Scene documents), free from Racooze. According to the manifest each map carries a logo roof tile that the GM may delete or hide. The live client lists 63 scenes in the pack (my first estimate of about 41 from a byte scan was wrong).
+A pack of ready-made battlemaps (Scene documents), free from Racooze. According to the manifest each map carries a logo roof tile that the GM may delete or hide. The live client lists 63 scenes in the pack.
 
 ## Where its UI is
 

@@ -2,7 +2,7 @@
 
 Verified on Foundry 14.368 / dnd5e 6.0.6, module 8.0.1, 2026-10-28 (loaded on test server A with Sequencer, socketlib and the free JB2A; attack rolls driven through the same dnd5e activity API the bridge uses; the editor menus were not clicked through, marked "(not verified)").
 
-**Verdict: optional.** Version 8.0.1 is Foundry 14 only and plays JB2A effects when an item is used, and it should fire on the bridge's own item use. But it needs Sequencer, socketlib and a JB2A module, compiles a large database at every load and with only the free JB2A set many spells will not animate. Worth it only if Danni wants spell effects.
+**Verdict: optional.** Version 8.0.1 is Foundry 14 only and plays JB2A effects when an item is used, and it fires on the bridge's attack rolls once a target is set (use-item's own targeting is likely broken, see below). But it needs Sequencer, socketlib and a JB2A module, compiles a large database at every load and with only the free JB2A set many spells will not animate. Worth it only if Danni wants spell effects.
 
 **For Danni's guides:** When a character attacks or casts, a matching spell effect plays on the map by itself, so you do not have to set anything up for most spells.
 
@@ -46,6 +46,7 @@ Keys are `autoanimations.<key>`.
 - Without a JB2A module the GM sees a permanent error banner at every load ("A JB2A Module (Free OR Patreon) is REQUIRED") and no visuals. With only the free JB2A, parts of the table do not resolve (which entries is not known).
 - Core photosensitive mode suppresses effects; the Diagnostics window warns about it.
 - It compiles the whole JB2A database at every ready; the script bundle is 2.5 MB. Clients fetch each clip on first play.
+- The module-update rehearsal on 2026-10-28 saw "Cannot read properties of null (reading id)" twice in one kit smoke run on 8.0.1 with dnd5e 6.0.6. It did not appear in the console during my manual run (two attack rolls with and without a target on the ai-tool-test world), so the cause is not found and the error was not bisected against 7.1.10 (not verified).
 - Nothing in the installed set depends on it.
 - On the Pi nothing runs server-side; the cost is in the browsers.
 

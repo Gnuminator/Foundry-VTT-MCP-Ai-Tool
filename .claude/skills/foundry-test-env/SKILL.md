@@ -188,6 +188,11 @@ there). Never touch `ai-tool-kit` (the hand-made licensed import world) or `curs
   to 1440×900); a tab that loads while hidden renders at 0×0 and its canvas fails (reload it in
   front); opening a second tab with `preview_start` can reload the first (use `tabs_create` +
   `navigate`); a second user needs a second origin (`http://127.0.0.1:30001` for `Player`).
+- Two test servers in one browser share the session cookie (cookies ignore the port): joining A
+  at `localhost:30001` while B is open at `localhost:30002` makes B's next file upload fail with
+  `User [] does not have permission to upload files` and the module's `File upload failed`
+  (reproduced 2026-10-28; the creature index is the first thing to hit it). Open each server on
+  its own host name (`localhost`, `127.0.0.1`, `[::1]`) or reload B after joining A.
 - Foundry v14 gotchas seen live: `combat.endCombat()` opens a confirm dialog (click Yes in the
   pane; a script that awaits it will hang); a user's first join opens a "User Configuration"
   dialog; `game.user.updateTokenTargets` no longer exists (use

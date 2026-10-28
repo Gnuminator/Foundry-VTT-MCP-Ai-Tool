@@ -47,6 +47,7 @@ Keys are `autoanimations.<key>`.
 - Core photosensitive mode suppresses effects; the Diagnostics window warns about it.
 - It compiles the whole JB2A database at every ready; the script bundle is 2.5 MB. Clients fetch each clip on first play.
 - The module-update rehearsal on 2026-10-28 saw "Cannot read properties of null (reading id)" twice in one kit smoke run on 8.0.1 with dnd5e 6.0.6. It did not appear in the console during my manual run (two attack rolls with and without a target on the ai-tool-test world), so the cause is not found and the error was not bisected against 7.1.10 (not verified).
+- Settled 2026-10-28 on server C (Foundry 14.369, dnd5e 6.0.6, 8.0.1 with Sequencer 4.3.0, socketlib and free JB2A 0.9.4): an attack roll with a target, one without, a Fire Bolt cast at a target and a damage roll from the dnd5e activity API all ran with no page error, no unhandled rejection and no console error naming `id` (the only error was the test bridge not running on that server). The null `id` error is therefore not a plain attack, cast or damage failure; it needs the kit smoke run's own steps to appear. The verdict stays optional because the module is cosmetic and the 2026-10-04 walkthrough's "keep" is a no-clash result, not a need.
 - Nothing in the installed set depends on it.
 - On the Pi nothing runs server-side; the cost is in the browsers.
 

@@ -17,7 +17,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from .claude_runner import ClaudeError, Runner, UsageLimitError
+from .claude_runner import AuthError, ClaudeError, Runner, UsageLimitError
 from .model import Roster, Scene, apply_speakers, load_roster, load_timeline
 from .prompts import SCENE_SCHEMA, SESSION_SCHEMA, scene_prompt, session_prompt
 from .scenes import split_scenes
@@ -47,7 +47,8 @@ class Options:
 class RunResult:
     scenes: int
     fallbacks: int
-    paused: str | None = None  # the usage-limit message when the run had to stop
+    paused: str | None = None  # the usage-limit or login message when the run had to stop
+    login_needed: bool = False  # the stop was a logged-out claude, not a usage limit
     pending: int = 0  # raw fallback scenes that the next run tries again
     audit: list[dict[str, Any]] = field(default_factory=list)
 
@@ -60,6 +61,8 @@ class Writer:
         self.notes_dir = session / "notes"
         self.work = self.notes_dir / ".work"
         self.audit: list[dict[str, Any]] = []
+        self.session_pause: str | None = None  # the limit or login message from the summary call
+        self.login_needed = False  # a pause came from a logged-out claude, not a usage limit
 
     # --- one scene ---------------------------------------------------------------------------
 
@@ -154,6 +157,7 @@ class Writer:
             except UsageLimitError as exc:
                 with lock:
                     paused.append(str(exc))
+                    self.login_needed = self.login_needed or isinstance(exc, AuthError)
                 self._log("paused", scene=scene.index, reason=str(exc))
                 return
             result["index"] = scene.index
@@ -181,6 +185,8 @@ class Writer:
         complete = paused_reason is None and len(notes) == len(scenes) and not retry
         if complete:
             session_notes = self._session_notes(notes, roster)
+            if session_notes is None:
+                paused_reason = self.session_pause
         # Written even when the session summary is missing: the scene notes are useful alone.
         write_outputs(self.notes_dir, lines, roster, notes, session_notes)
         self._flush_audit()
@@ -188,6 +194,7 @@ class Writer:
             scenes=len(notes),
             fallbacks=sum(1 for n in notes if n.get("fallback")),
             paused=paused_reason,
+            login_needed=self.login_needed,
             pending=len(retry),
             audit=self.audit,
         )
@@ -242,6 +249,8 @@ class Writer:
                 break
             except UsageLimitError as exc:
                 self._log("paused", scene="session", reason=str(exc))
+                self.session_pause = str(exc)
+                self.login_needed = self.login_needed or isinstance(exc, AuthError)
                 return None
             except ClaudeError as exc:
                 self._log("session_error", error=str(exc))

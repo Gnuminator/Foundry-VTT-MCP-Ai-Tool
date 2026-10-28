@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 from helpers import FakeClaude, scene_answer, write_session
 
-from session_notes.claude_runner import ClaudeCli, ClaudeError, UsageLimitError
+from session_notes.claude_runner import AuthError, ClaudeCli, ClaudeError, UsageLimitError
 from session_notes.model import Scene, load_roster, load_timeline
 from session_notes.prompts import scene_prompt
 from session_notes.run import Options, Writer
@@ -195,6 +195,11 @@ def test_cli_parse_success_and_errors() -> None:
         cli.parse(1, json.dumps(limit), "", "sonnet")
     with pytest.raises(UsageLimitError):
         cli.parse(1, "not json", "Error: 429 rate limit", "sonnet")
+    # A logged-out claude fails every scene the same way: stop like a limit, but say how to fix it.
+    with pytest.raises(AuthError, match="/login"):
+        cli.parse(1, "not json", "Failed to authenticate: OAuth session expired", "sonnet")
+    with pytest.raises(AuthError):
+        cli.parse(1, json.dumps({"subtype": "success", "is_error": True, "result": "Not logged in"}), "", "sonnet")
     with pytest.raises(ClaudeError):
         cli.parse(1, "not json", "crash", "sonnet")
     with pytest.raises(ClaudeError):
@@ -374,6 +379,46 @@ def _run_cli(monkeypatch: pytest.MonkeyPatch, session: Path, fake: FakeClaude) -
 
 def _status(session: Path) -> dict[str, object]:
     return json.loads((session / "notes" / "status.json").read_text(encoding="utf-8"))
+
+
+def test_cli_logged_out_claude_pauses_with_login_hint(
+    session: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    code = _run_cli(monkeypatch, session, FakeClaude(fail={1: "auth"}))
+    assert code == 75
+    status = _status(session)
+    assert status["state"] == "paused" and "/login" in str(status["message"])
+    assert "usage limit" not in str(status["message"])
+
+
+def test_cli_login_lost_at_the_summary_call_still_says_so(
+    session: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    Writer(session, FakeClaude(), Options(workers=1)).run()
+    (session / "notes" / ".work" / "session.json").unlink()  # scenes stay cached, only the summary reruns
+    code = _run_cli(monkeypatch, session, FakeClaude(fail={1: "auth"}))
+    assert code == 75
+    assert "/login" in str(_status(session)["message"])
+
+
+def test_claude_cli_command_runs_without_connectors_and_settings(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import subprocess
+
+    seen: list[list[str]] = []
+
+    def fake_run(cmd: list[str], **_kw: object) -> subprocess.CompletedProcess[str]:
+        seen.append(cmd)
+        out = {"subtype": "success", "is_error": False, "structured_output": {"a": 1}}
+        return subprocess.CompletedProcess(cmd, 0, json.dumps(out), "")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    ClaudeCli("claude")("prompt", {}, "sonnet")
+    cmd = seen[0]
+    assert "--strict-mcp-config" in cmd and "--disable-slash-commands" in cmd
+    assert cmd[cmd.index("--setting-sources") + 1] == ""
+    assert cmd[cmd.index("--mcp-config") + 1] == '{"mcpServers":{}}'
 
 
 def test_cli_exit_codes_and_status_file(

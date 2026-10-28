@@ -78,6 +78,26 @@ for pair in $RUNNERS; do
   ok "$reg is present, root-only (not printed)"
 done
 
+say "libicu (the runner's .NET needs it; config.sh stops without it)"
+# Installed only when no libicu is in the library cache (GitHub's config.sh checks `ldconfig -NXv | grep libicu`), before the
+# first write of the runner user. The package name carries the ICU version (libicu72 on Debian 12), so the newest libicuNN that
+# apt knows is taken, after the package lists are refreshed as stages 1, 4 and 12 do. Nothing is removed.
+ensure_libicu() {
+  if ldconfig -p 2>/dev/null | grep -q 'libicuuc\.so'; then
+    ok "libicu is installed"
+    return 0
+  fi
+  local pkg
+  DEBIAN_FRONTEND=noninteractive apt-get update -qq || die "apt-get update failed: libicu is missing and its package cannot be looked up"
+  pkg="$(apt-cache pkgnames libicu 2>/dev/null | grep -E '^libicu[0-9]+$' | sort -V | tail -n 1 || true)"
+  [ -n "$pkg" ] || die "libicu is missing and the refreshed apt lists hold no libicuNN package"
+  apt_install "$pkg"
+  ldconfig
+  ldconfig -p | grep -q 'libicuuc\.so' || die "$pkg is installed but libicu is still not in the library cache"
+  ok "installed $pkg"
+}
+ensure_libicu
+
 say "the runner user"
 if ! getent passwd "$RUNNER_USER" >/dev/null; then
   useradd --system --user-group --home-dir "$RUNNER_BASE" --no-create-home --shell /usr/sbin/nologin "$RUNNER_USER"
@@ -129,10 +149,19 @@ for pair in $RUNNERS; do
     # runuser keeps the environment but env sets HOME for the runner user (runuser may reset it to the passwd home).
     # env -C starts config.sh inside the runner folder: it checks its libraries with `ldd ./bin/...`, relative to the cwd,
     # and the stage runs from the ssh login folder (live failure 2026-10-28: "ldd: ./bin/libcoreclr.so: No such file").
-    ACTIONS_RUNNER_INPUT_TOKEN="$(cat "$reg")" \
-      runuser -u "$RUNNER_USER" -- env -C "$dir" DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1 HOME="$dir/home" ./config.sh --unattended \
-      --url "https://github.com/$GH_OWNER/$repo" --name foundry-pi --labels pi --work "$dir/_work" --replace >/dev/null ||
-      die "registering runner $name failed (the token may be older than an hour: run put-runner-token.sh $name again)"
+    # config.sh prints its reasons on stdout (a missing libicu, live 2026-10-28), so the output is kept and shown on failure,
+    # without any line that could hold the token (the token is only in the environment, but a long run of letters and digits
+    # or the word token is dropped anyway).
+    if out="$(
+      ACTIONS_RUNNER_INPUT_TOKEN="$(cat "$reg")" \
+        runuser -u "$RUNNER_USER" -- env -C "$dir" DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1 HOME="$dir/home" ./config.sh --unattended \
+        --url "https://github.com/$GH_OWNER/$repo" --name foundry-pi --labels pi --work "$dir/_work" --replace 2>&1
+    )"; then
+      :
+    else
+      printf '%s\n' "$out" | LC_ALL=C grep -aviE 'token|[A-Za-z0-9]{20,}' | LC_ALL=C grep -avFf "$reg" | tail -n 15 >&2 || true
+      die "registering runner $name failed (see the lines above; if there are none the token may be older than an hour: run put-runner-token.sh $name again)"
+    fi
     rm -f "${reg:?}"
     trap - EXIT
     [ -f "$dir/.runner" ] || die "runner $name did not register ($dir/.runner is missing)"

@@ -23,6 +23,28 @@ interface ResolveResult {
   errorMessage?: string;
 }
 
+/** Escape a value for a double-quoted HTML attribute. */
+function escapeAttr(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+/** The dnd5e 6 actor roll methods a button uses: `(config, dialog, message)`, may return an array. */
+interface Dnd5eButtonRoller {
+  rollAbilityCheck?(config: object, dialog: object, message: object): Promise<unknown>;
+  rollSkill?(config: object, dialog: object, message: object): Promise<unknown>;
+  rollSavingThrow?(config: object, dialog: object, message: object): Promise<unknown>;
+}
+
+/** A dnd5e attack activity: `rollAttack(config, dialog, message)`. */
+interface Dnd5eAttackActivity {
+  type?: string;
+  rollAttack(config: object, dialog: object, message: object): Promise<unknown>;
+}
+
 /**
  * Player-roll-request + roll-button lifecycle domain.
  *
@@ -91,6 +113,8 @@ export class PlayerRollsDataAccess {
                     data-button-id="${buttonId}"
                     data-roll-formula="${rollFormula}"
                     data-roll-label="${buttonLabel}"
+                    data-roll-type="${escapeAttr(data.rollType)}"
+                    data-roll-target="${escapeAttr(data.rollTarget)}"
                     data-is-public="${data.isPublic}"
                     ${data.dc != null ? `data-dc="${data.dc}"` : ''}
                     data-character-id="${playerInfo.character?.id ?? ''}"
@@ -117,6 +141,8 @@ export class PlayerRollsDataAccess {
                 rolled: false,
                 rollFormula,
                 rollLabel: buttonLabel,
+                rollType: data.rollType,
+                rollTarget: data.rollTarget,
                 isPublic: data.isPublic,
                 characterId: playerInfo.character?.id ?? '',
                 targetUserId: playerInfo.user?.id ?? '',
@@ -384,6 +410,8 @@ export class PlayerRollsDataAccess {
       const rollFormula = (button.attr('data-roll-formula') ??
         button.data('roll-formula')) as string;
       const rollLabel = (button.attr('data-roll-label') ?? button.data('roll-label')) as string;
+      const rollType = button.attr('data-roll-type') ?? '';
+      const rollTarget = button.attr('data-roll-target') ?? '';
       const isPublicRaw: unknown = button.data('is-public');
       const isPublic = isPublicRaw === true || isPublicRaw === 'true'; // Convert to proper boolean
       const characterId = button.data('character-id') as string | undefined;
@@ -411,6 +439,8 @@ export class PlayerRollsDataAccess {
         await this.rollForButton({
           rollFormula,
           rollLabel,
+          rollType,
+          rollTarget,
           isPublic,
           characterId,
           targetUserId,
@@ -469,6 +499,8 @@ export class PlayerRollsDataAccess {
   private async rollForButton(args: {
     rollFormula: string;
     rollLabel: string;
+    rollType?: string;
+    rollTarget?: string;
     isPublic: boolean;
     characterId: string | undefined;
     targetUserId: string | undefined;
@@ -476,17 +508,6 @@ export class PlayerRollsDataAccess {
     isGmRoll: boolean;
   }): Promise<void> {
     const { rollFormula, rollLabel, isPublic, characterId, targetUserId, dc, isGmRoll } = args;
-    // Validate first for a clear error.
-    if (typeof Roll.validate === 'function' && !Roll.validate(rollFormula)) {
-      throw new Error(`Invalid roll formula: "${rollFormula}"`);
-    }
-    const roll = new Roll(
-      rollFormula,
-      {},
-      dc !== null ? { target: dc, requestedDcPublic: isPublic } : {}
-    );
-    await roll.evaluate();
-
     // Get the character for speaker info
     const character = characterId ? game.actors?.get(characterId) : null;
 
@@ -508,6 +529,33 @@ export class PlayerRollsDataAccess {
       }
     }
 
+    // Checks, saves and attacks roll through dnd5e itself, so conditions (poisoned), advantage
+    // sources and Automated Conditions 5e apply as they would for a roll from the sheet.
+    if (
+      character &&
+      (await this.rollThroughDnd5e(
+        character,
+        args.rollType,
+        args.rollTarget,
+        dc,
+        isPublic,
+        whisperTargets
+      ))
+    ) {
+      return;
+    }
+
+    // Validate first for a clear error.
+    if (typeof Roll.validate === 'function' && !Roll.validate(rollFormula)) {
+      throw new Error(`Invalid roll formula: "${rollFormula}"`);
+    }
+    const roll = new Roll(
+      rollFormula,
+      {},
+      dc !== null ? { target: dc, requestedDcPublic: isPublic } : {}
+    );
+    await roll.evaluate();
+
     const messageData: Record<string, unknown> = {
       speaker: ChatMessage.getSpeaker({ actor: character }),
       flavor: `${rollLabel} ${isGmRoll ? '(GM Override)' : ''}`,
@@ -523,6 +571,84 @@ export class PlayerRollsDataAccess {
         ? { messageMode: 'gm' }
         : { rollMode: 'whisper' };
     await roll.toMessage(messageData, { create: true, ...visibility });
+  }
+
+  /**
+   * Roll an ability check, skill check, saving throw or attack through dnd5e's actor and
+   * activity API (no dialog), posting dnd5e's own chat card. The DC rides on the roll's options
+   * like the plain path's. Returns false when the type is not one of those, the weapon or its
+   * attack activity is missing, dnd5e lacks the method or makes no roll, so the caller rolls the plain formula.
+   */
+  private async rollThroughDnd5e(
+    actor: Actor,
+    rollType: string | undefined,
+    rollTarget: string | undefined,
+    dc: number | null,
+    isPublic: boolean,
+    whisperTargets: string[]
+  ): Promise<boolean> {
+    if (!rollType || !rollTarget) return false;
+    const roller = actor as Actor & Dnd5eButtonRoller;
+    const dcOptions =
+      dc !== null ? { rolls: [{ options: { target: dc, requestedDcPublic: isPublic } }] } : {};
+    const dialog = { configure: false };
+    // dnd5e 6 hands `rollMode` to v14's ChatMessage.create as `messageMode`; an explicit whisper
+    // list (the player and the GMs) rides along for a private roll.
+    const message = {
+      create: true,
+      rollMode: shared.rollModeFor(isPublic),
+      ...(whisperTargets.length > 0 ? { data: { whisper: whisperTargets } } : {}),
+    };
+
+    let out: unknown;
+    if (rollType === 'ability' && typeof roller.rollAbilityCheck === 'function') {
+      out = await roller.rollAbilityCheck({ ability: rollTarget, ...dcOptions }, dialog, message);
+    } else if (rollType === 'skill' && typeof roller.rollSkill === 'function') {
+      out = await roller.rollSkill(
+        { skill: this.getSkillCode(rollTarget), ...dcOptions },
+        dialog,
+        message
+      );
+    } else if (rollType === 'save' && typeof roller.rollSavingThrow === 'function') {
+      out = await roller.rollSavingThrow({ ability: rollTarget, ...dcOptions }, dialog, message);
+    } else if (rollType === 'attack') {
+      const wanted = rollTarget.toLowerCase();
+      type Activities = {
+        find(fn: (a: Dnd5eAttackActivity) => boolean): Dnd5eAttackActivity | undefined;
+      };
+      // Only items that have an attack activity can match, so a feature that shares part of
+      // the weapon's name does not hide it.
+      const attackers = Array.from(actor.items ?? []).flatMap(i => {
+        const activity = (rec(i.system)?.activities as Activities | undefined)?.find(
+          a => a.type === 'attack'
+        );
+        return activity ? [{ name: i.name.toLowerCase(), activity }] : [];
+      });
+      const activity = (
+        attackers.find(i => i.name === wanted) ?? attackers.find(i => i.name.includes(wanted))
+      )?.activity;
+      if (!activity || typeof activity.rollAttack !== 'function') {
+        console.warn(
+          `[${MODULE_ID}] No attack activity for "${rollTarget}" on ${actor.name}; rolling a plain d20`
+        );
+        return false;
+      }
+      // dnd5e fills the target AC from the clicking client's targeted tokens; a GM click or the
+      // dashboard's player page would carry the GM's target onto the player's card, so only the
+      // player's own click keeps it.
+      out = await activity.rollAttack(game.user?.isGM ? { target: null } : {}, dialog, message);
+    } else {
+      return false;
+    }
+    // dnd5e returns no roll when a hook vetoes it or the actor has no such ability or skill; no
+    // card was made, so the plain formula still gives the player a roll.
+    if (out === null || out === undefined || (Array.isArray(out) && out.length === 0)) {
+      console.warn(
+        `[${MODULE_ID}] dnd5e made no ${rollType} roll for ${actor.name}; rolling plain`
+      );
+      return false;
+    }
+    return true;
   }
 
   /** A request older than this is stale: the page does not list it and the module refuses it. */
@@ -612,6 +738,8 @@ export class PlayerRollsDataAccess {
       await this.rollForButton({
         rollFormula,
         rollLabel,
+        rollType: typeof state.rollType === 'string' ? state.rollType : '',
+        rollTarget: typeof state.rollTarget === 'string' ? state.rollTarget : '',
         isPublic: state.isPublic === true,
         characterId: typeof state.characterId === 'string' ? state.characterId : undefined,
         targetUserId: userId,

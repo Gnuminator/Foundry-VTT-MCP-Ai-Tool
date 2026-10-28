@@ -381,6 +381,8 @@ describe('warn_dashboard_split (S3)', () => {
 });
 
 describe('the stages', () => {
+  // 18-time-sync is left out on purpose: it checks the snapshot just before its first write, so DRY_RUN and CHECK need none
+  // (scripts/pi/time-sync.test.mjs covers the refusal).
   const stages = [
     '1-health', '2-node', '3-foundry', '4-tailscale', '5-tool', '5-check-world', '6-backup', '7-vault',
     '8-recorder', '9-ssh-log', '10-space-check', '11-world', '12-tunnel', '13-player-creation', '15-ssh-keys-only',

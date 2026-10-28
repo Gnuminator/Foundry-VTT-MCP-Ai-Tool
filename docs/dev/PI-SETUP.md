@@ -1164,10 +1164,11 @@ Today, red when the backup is older than 30 hours or no report came for 3 hours.
 
 DietPi's default time sync (`CONFIG_NTP_MODE=2` in `/boot/dietpi.txt`) is "boot + daily": systemd-timesyncd
 syncs once, then DietPi stops it again. `timedatectl` still says "System clock synchronized: yes" (the kernel
-flag stays set) but "NTP service: inactive", and the clock drifts between syncs. Cloudflare Access tokens and
+flag stays set for some hours) but "NTP service: inactive", and the clock drifts between syncs. Cloudflare Access tokens and
 the board's hourly report need a correct clock. Stage 18 (`scripts/pi/remote/18-time-sync.sh`) sets DietPi's
 mode 4 (daemon + drift) with `dietpi-set_software ntpd-mode 4`, so timesyncd stays enabled and running and a
-later DietPi update keeps it. Nothing else is touched and nothing restarts.
+later DietPi update keeps it. DietPi's tool also rewrites `/etc/systemd/timesyncd.conf` from `CONFIG_NTP_MIRROR` (default: removes it;
+a hand edit would be lost, the snapshot has it). Nothing else is touched and nothing restarts.
 
 - **Look first (changes nothing):** `cat scripts/pi/remote/lib.sh scripts/pi/remote/18-time-sync.sh | ssh foundry-pi 'DRY_RUN=1 bash -s'`
 - **Run:** after a `dietpi-backup` snapshot and the user's OK,

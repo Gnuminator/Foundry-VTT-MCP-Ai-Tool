@@ -168,6 +168,32 @@ describe('18-time-sync.sh', () => {
     assert.doesNotMatch(noop.calls, /set_software/);
   });
 
+  test('piped on stdin (bash -s) like the real run: a tool that drains stdin does not eat the rest of the stage', () => {
+    const pi = fakePi();
+    writeFileSync(
+      pi.setSoftware,
+      readFileSync(pi.setSoftware, 'utf8').replace('S="', 'cat >/dev/null || true\nS="'),
+    );
+    const script = `${lib}\nhave_systemd() { return 0; }\nsleep() { :; }\nid() { echo 0; }\n${stage}`;
+    const r = spawnSync('bash', ['-s'], {
+      input: script,
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        PATH: `${posix(pi.bin)}:${process.env.PATH}`,
+        DIETPI_TXT: posix(path.join(pi.d, 'dietpi.txt')),
+        SET_SOFTWARE: posix(pi.setSoftware),
+        DIETPI_DIR: posix(pi.dietpiDir),
+        DIETPI_BACKUP_STATS: posix(pi.stats),
+        WAIT_SECONDS: '6',
+      },
+    });
+    const out = `${r.stdout}${r.stderr}`;
+    assert.equal(r.status, 0, out);
+    assert.match(out, /ok: CONFIG_NTP_MODE=4/);
+    assert.match(out, /System clock synchronized: yes, NTP service: active/);
+  });
+
   test('touches nothing but DietPi time sync: no reboot, no other service, no rm', () => {
     const code = stage.replace(/^\s*#.*$/gm, '');
     assert.doesNotMatch(code, /\breboot\b|\brm -|systemctl (restart|stop|disable|mask)/);

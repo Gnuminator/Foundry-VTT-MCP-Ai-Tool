@@ -4,7 +4,7 @@
 #
 # Why it is needed: DietPi's default CONFIG_NTP_MODE=2 is "boot + daily": systemd-timesyncd syncs once, then DietPi stops
 # it again (/etc/cron.daily/dietpi, dietpi-timesync). `timedatectl` then says "System clock synchronized: yes" (the kernel
-# flag stays set) but "NTP service: inactive", and the clock drifts until the next daily sync. Mode 4, "daemon + drift",
+# flag stays set for some hours after the last sync) but "NTP service: inactive", and the clock drifts until the next daily sync. Mode 4, "daemon + drift",
 # keeps systemd-timesyncd running and enabled. The change is made the DietPi way, so a later DietPi update or
 # dietpi-config keeps it:  /boot/dietpi/func/dietpi-set_software ntpd-mode 4
 # (writes CONFIG_NTP_MODE=4 to /boot/dietpi.txt, unmasks, enables and starts systemd-timesyncd, and re-applies
@@ -17,7 +17,8 @@
 #   3. when all of it is already right (mode 4, enabled, active) it changes nothing; otherwise it sets mode 4;
 #   4. the check: waits up to 90 seconds for "NTP service: active" and "System clock synchronized: yes", prints
 #      timedatectl and the timesync status, and fails when either is missing.
-# Safe to run again. Nothing else on the Pi is touched: no restart of any other service, the clock is slewed by
+# Safe to run again. DietPi's tool also rewrites /etc/systemd/timesyncd.conf from CONFIG_NTP_MIRROR (default: removes it).
+# Nothing else on the Pi is touched: no restart of any other service, the clock is slewed by
 # timesyncd (it steps only when the offset is over 0.4 seconds), no reboot.
 #
 # Modes (environment, before bash):
@@ -116,7 +117,8 @@ fi
 require_recent_snapshot
 
 say "setting DietPi time sync mode $want"
-bash "$set_software" ntpd-mode "$want"
+# </dev/null: this script arrives on bash's stdin (ssh ... 'bash -s'); a child that reads stdin would eat the rest of it.
+bash "$set_software" ntpd-mode "$want" </dev/null || die "dietpi-set_software ntpd-mode $want failed (output above)"
 [ "$(read_mode)" = "$want" ] || die "CONFIG_NTP_MODE is '$(read_mode)' after the change, expected $want"
 ok "CONFIG_NTP_MODE=$want"
 

@@ -959,12 +959,6 @@ export const PLAYER_CONTROLS = [
     why: 'only shown to a player who opened their own /me link on this device',
   },
   {
-    name: 'player.sheet.open',
-    how: 'toggle',
-    optional: true,
-    why: 'a link to /me, which leaves the player page',
-  },
-  {
     name: 'player.mine.roll',
     how: 'toggle',
     optional: true,

@@ -33,6 +33,10 @@ RUNNER_BASE=/opt/gh-runner
 # name:repo
 RUNNERS="vault:obsidian-vault board:foundry-ai-tool-pm-board"
 GATE_SCRIPT="$RUNNER_BASE/gate.sh"
+# Addresses a job must not reach: loopback (bridge, dashboard, Foundry link), Tailscale, and the whole LAN except the router
+# (DNS and the way out; the Pi's own LAN address is in the denied range, so Foundry on it is out too).
+IP_DENY="127.0.0.0/8 ::1/128 100.64.0.0/10 fd7a:115c:a1e0::/48 10.0.0.0/8 172.16.0.0/12 192.168.0.0/16 169.254.0.0/16 fe80::/10"
+ROUTER="$(ip -4 route show default 2>/dev/null | awk '/default/ {print $3; exit}')"
 
 say "checking before anything is written"
 command -v curl >/dev/null 2>&1 || die "curl is missing"
@@ -40,6 +44,10 @@ command -v sha256sum >/dev/null 2>&1 || die "sha256sum is missing"
 command -v pgrep >/dev/null 2>&1 || die "pgrep (procps) is missing: the gate uses it to leave a running job alone"
 [ -x "$NODE_DIR/bin/node" ] || die "Node is missing at $NODE_DIR: run stage 2 first"
 [ -d "$TOOL_ETC" ] || die "$TOOL_ETC is missing: run stage 1 first"
+if have_systemd; then
+  [ -n "$ROUTER" ] || die "no default route (ip -4 route): the units need the router address for DNS"
+  command -v systemd-run >/dev/null 2>&1 || die "systemd-run is missing (the fence probe needs it)"
+fi
 
 # A runner without .runner needs its registration token file, checked now so a missing one stops the stage before it writes.
 for pair in $RUNNERS; do
@@ -91,8 +99,10 @@ for pair in $RUNNERS; do
   say "runner $name ($GH_OWNER/$repo)"
   install -d -m 0750 -o "$RUNNER_USER" -g "$RUNNER_USER" "$dir"
   # Extracted as the runner user, never as root: a link left in its folder cannot make root write elsewhere.
-  if [ ! -x "$dir/bin/Runner.Listener" ]; then
+  # The marker is written after tar succeeded, so an interrupted extraction is done again on the next run.
+  if [ ! -f "$dir/.extracted" ]; then
     runuser -u "$RUNNER_USER" -- tar -xzf "$tarball" -C "$dir"
+    runuser -u "$RUNNER_USER" -- sh -c 'printf "%s\n" "$1" > "$2"' sh "$RUNNER_VERSION" "$dir/.extracted"
     ok "extracted into $dir"
   else
     ok "runner files already there (not replaced: the runner updates itself)"
@@ -103,8 +113,9 @@ for pair in $RUNNERS; do
     # The token goes in through the environment of this one process (config.sh reads ACTIONS_RUNNER_INPUT_TOKEN), never
     # on a command line, and the file is gone whatever happens next.
     trap 'rm -f "${reg:?}"' EXIT
-    ACTIONS_RUNNER_INPUT_TOKEN="$(cat "$reg")" DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1 HOME="$dir/home" \
-      runuser -u "$RUNNER_USER" -- "$dir/config.sh" --unattended \
+    # runuser keeps the environment but env sets HOME for the runner user (runuser may reset it to the passwd home).
+    ACTIONS_RUNNER_INPUT_TOKEN="$(cat "$reg")" \
+      runuser -u "$RUNNER_USER" -- env DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1 HOME="$dir/home" "$dir/config.sh" --unattended \
       --url "https://github.com/$GH_OWNER/$repo" --name foundry-pi --labels pi --work "$dir/_work" --replace >/dev/null ||
       die "registering runner $name failed (the token may be older than an hour: run put-runner-token.sh $name again)"
     rm -f "${reg:?}"
@@ -129,6 +140,8 @@ state_dir="${GATE_STATE_DIR:-/run/foundry-gh-runner-gate}"
 node="${GATE_NODE:-/opt/node24/bin/node}"
 now_ms="${GATE_NOW_MS:-$(($(date +%s) * 1000))}"
 ceiling_hours="${GATE_UNKNOWN_CEILING_HOURS:-6}"
+cgroup_root="${GATE_CGROUP_ROOT:-/sys/fs/cgroup}"
+proc_root="${GATE_PROC_ROOT:-/proc}"
 mkdir -p "$state_dir"
 
 # playing | idle | unknown. Per world the newest 3 session logs decide (the last marker wins; a start older than 14 hours
@@ -147,23 +160,25 @@ for (const w of worlds) {
   let files;
   try { files = fs.readdirSync(dir).filter(f => /^\d{4}-\d{2}-\d{2}\.jsonl$/.test(f)).sort().reverse().slice(0, 3); }
   catch (e) { if (e && e.code === "ENOENT") continue; unknown = true; continue; }
+  // Markers are filed by the local date they were written on, so a session that crosses midnight has its start in one
+  // file and its end in the next: the newest marker over all the files decides, not each file on its own.
+  let last = null;
   for (const f of files) {
     try {
       const full = path.join(dir, f);
       if (nowMs - fs.statSync(full).mtimeMs > 2 * MAX) continue;
-      let last = null;
       for (const line of fs.readFileSync(full, "utf8").split(/\r?\n/)) {
         if (!line.trim()) continue;
         try {
           const e = JSON.parse(line);
           if (e.eventType !== "session-start" && e.eventType !== "session-end") continue;
           const ms = e.timestampMs ?? Date.parse(e.timestamp ?? "");
-          if (!Number.isNaN(ms)) last = { type: e.eventType, ms };
+          if (!Number.isNaN(ms) && (!last || ms >= last.ms)) last = { type: e.eventType, ms };
         } catch {}
       }
-      if (last && last.type === "session-start" && nowMs - last.ms <= MAX) playing = true;
     } catch { unknown = true; }
   }
+  if (last && last.type === "session-start" && nowMs - last.ms <= MAX) playing = true;
 }
 console.log(playing ? "playing" : unknown ? "unknown" : "idle");
 ' "$vault_root" "$now_ms" 2>/dev/null
@@ -190,25 +205,49 @@ if [ "${GATE_DRY:-0}" = 1 ]; then
   exit 0
 fi
 
+# True when the unit's cgroup holds a Runner.Worker process (a job). Found through the unit, not a path: the runner updates
+# itself into a versioned bin folder, so the path of the worker changes.
+has_job() {
+  local cg pid
+  cg="$(systemctl show -p ControlGroup --value "$1" 2>/dev/null || true)"
+  [ -n "$cg" ] && [ -r "$cgroup_root$cg/cgroup.procs" ] || return 1
+  for pid in $(cat "$cgroup_root$cg/cgroup.procs" 2>/dev/null); do
+    [ "$(cat "$proc_root/$pid/comm" 2>/dev/null || true)" = Runner.Worker ] && return 0
+  done
+  return 1
+}
+
+rc=0
 for unit in $units; do
-  name="${unit#foundry-ai-tool-gh-runner-}"
-  name="${name%.service}"
+  # activating (a runner waiting out its restart delay) counts as running; only inactive and failed are stopped
+  st="$(systemctl is-active "$unit" 2>/dev/null || true)"
   if [ "$decision" = idle ]; then
-    systemctl is-active --quiet "$unit" || {
-      systemctl start "$unit"
-      echo "gh-runner-gate: $decision: started $unit"
-    }
-  else
-    if systemctl is-active --quiet "$unit"; then
-      if pgrep -f "/opt/gh-runner/$name/bin/Runner.Worker" >/dev/null 2>&1; then
-        echo "gh-runner-gate: $state: $unit runs a job, left alone"
-      else
-        systemctl stop "$unit"
-        echo "gh-runner-gate: $state: stopped $unit"
+    case "$st" in
+    active | activating) ;;
+    *)
+      if systemctl start "$unit"; then echo "gh-runner-gate: $decision: started $unit"; else
+        echo "gh-runner-gate: could not start $unit" >&2
+        rc=1
       fi
-    fi
+      ;;
+    esac
+  else
+    case "$st" in
+    inactive | failed | "") ;;
+    *)
+      if has_job "$unit"; then
+        echo "gh-runner-gate: $state: $unit runs a job, left alone"
+      elif systemctl stop "$unit"; then
+        echo "gh-runner-gate: $state: stopped $unit"
+      else
+        echo "gh-runner-gate: could not stop $unit" >&2
+        rc=1
+      fi
+      ;;
+    esac
   fi
 done
+exit $rc
 GATE_SCRIPT_BODY
 )"
 write_file "$GATE_SCRIPT" 0755 "$script_body" || true
@@ -251,7 +290,9 @@ ProtectKernelModules=true
 ProtectControlGroups=true
 RestrictSUIDSGID=true
 InaccessiblePaths=-/etc/foundry-ai-tool -/var/lib/foundry -/var/lib/foundry-ai-tool -/var/lib/foundry-backup -/mnt -/root$other
-IPAddressDeny=127.0.0.0/8 ::1/128 100.64.0.0/10 fd7a:115c:a1e0::/48
+ProtectProc=invisible
+IPAddressDeny=$IP_DENY
+IPAddressAllow=$ROUTER/32
 Nice=10
 CPUWeight=20
 MemoryMax=2G
@@ -280,16 +321,42 @@ AccuracySec=10s
 WantedBy=timers.target"
 write_file /etc/systemd/system/foundry-ai-tool-gh-runner-gate.service 0644 "$gate_service" || true
 write_file /etc/systemd/system/foundry-ai-tool-gh-runner-gate.timer 0644 "$gate_timer" || true
-enable_unit foundry-ai-tool-gh-runner-gate.timer
 
 if have_systemd; then
+  # The fence is proved before any runner starts: a service with the units' address rules must NOT reach sshd, which
+  # listens on every address, on loopback and on the Pi's own LAN address. A kernel without cgroup BPF firewalling would
+  # start the unit "WITHOUT firewalling" and the connect would succeed: then nothing is started.
+  say "the fence (a probe with the units' address rules must be refused)"
+  [ -n "$ROUTER" ] || die "no default route: cannot tell the router address for the units"
+  lan_ip="$(hostname -I | tr ' ' '\n' | grep -E '^(10|192\.168|172\.(1[6-9]|2[0-9]|3[01]))\.' | head -n 1 || true)"
+  for target in 127.0.0.1 $lan_ip; do
+    if systemd-run --quiet --wait --collect --pipe -p "User=$RUNNER_USER" -p "IPAddressDeny=$IP_DENY" -p "IPAddressAllow=$ROUTER/32" \
+      /bin/bash -c "exec 3<>/dev/tcp/$target/22" </dev/null >/dev/null 2>&1; then
+      die "a service with the runner's address rules still reached $target:22: the kernel does not enforce IPAddressDeny. Nothing was started; the timer is not enabled"
+    fi
+    ok "$target:22 is refused for the runner's rules"
+  done
+  enable_unit foundry-ai-tool-gh-runner-gate.timer
   say "one gate run now"
   "$GATE_SCRIPT" </dev/null || warn "the first gate run failed: journalctl -u foundry-ai-tool-gh-runner-gate -n 20"
   sleep 3
-  for pair in $RUNNERS; do
-    systemctl is-active "foundry-ai-tool-gh-runner-${pair%%:*}.service" </dev/null || true
-  done
   GATE_DRY=1 "$GATE_SCRIPT" </dev/null || true
+  for pair in $RUNNERS; do
+    unit="foundry-ai-tool-gh-runner-${pair%%:*}.service"
+    if ! systemctl is-active --quiet "$unit"; then
+      ok "$unit is stopped (a play session is marked, or the state is unknown)"
+      continue
+    fi
+    online=""
+    for _ in $(seq 1 30); do
+      if [ "$(journalctl -u "$unit" -b --no-pager -o cat 2>/dev/null | grep -c 'Listening for Jobs' || true)" -gt 0 ]; then
+        online=1
+        break
+      fi
+      sleep 2
+    done
+    [ -n "$online" ] && ok "$unit is online (Listening for Jobs)" || warn "$unit never said 'Listening for Jobs': journalctl -u $unit -n 30"
+  done
 else
   warn "no systemd here (a test container?): units written, not started"
 fi

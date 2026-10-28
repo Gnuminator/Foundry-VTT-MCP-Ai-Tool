@@ -64,15 +64,32 @@ function fakePi({ logs = {}, vault = true, active = [], busy = [] } = {}) {
       }
     }
   }
+  // `active` entries are "unit" or "unit=activating"; `busy` lists units whose cgroup holds a Runner.Worker. The cgroup
+  // and /proc are fake folders: every active unit has a Runner.Listener process, a busy one also a Runner.Worker.
+  const states = Object.fromEntries(
+    active.map(a => a.split('=')).map(([u, s]) => [u, s || 'active'])
+  );
+  let pid = 1000;
+  for (const u of active.map(a => a.split('=')[0])) {
+    const cg = path.join(d, 'cg', 'system.slice', u);
+    mkdirSync(cg, { recursive: true });
+    const pids = [`${pid++}:Runner.Listener`];
+    if (busy.includes(u)) pids.push(`${pid++}:Runner.Worker`);
+    writeFileSync(path.join(cg, 'cgroup.procs'), pids.map(p => p.split(':')[0]).join('\n') + '\n');
+    for (const p of pids) {
+      const [n, comm] = p.split(':');
+      mkdirSync(path.join(d, 'proc', n), { recursive: true });
+      writeFileSync(path.join(d, 'proc', n, 'comm'), comm + '\n');
+    }
+  }
+  const stateCase = Object.entries(states)
+    .map(([u, s]) => `${u}) echo ${s}; exit 0 ;;`)
+    .join(' ');
   writeFileSync(
     path.join(bin, 'systemctl'),
-    `#!/usr/bin/env bash\necho "systemctl $*" >>"${posix(d)}/calls"\ncase "$1" in\n  is-active) case " ${active.join(' ')} " in *" \${@: -1} "*) exit 0 ;; esac; exit 3 ;;\nesac\nexit 0\n`
+    `#!/usr/bin/env bash\necho "systemctl $*" >>"${posix(d)}/calls"\ncase "$1" in\n  is-active) case "\${@: -1}" in ${stateCase} esac; echo inactive; exit 3 ;;\n  show) echo "/system.slice/\${@: -1}" ;;\nesac\nexit 0\n`
   );
-  writeFileSync(
-    path.join(bin, 'pgrep'),
-    `#!/usr/bin/env bash\ncase " ${busy.join(' ')} " in *" \${@: -1} "*) exit 0 ;; esac\nexit 1\n`
-  );
-  for (const f of ['systemctl', 'pgrep']) chmodSync(path.join(bin, f), 0o755);
+  chmodSync(path.join(bin, 'systemctl'), 0o755);
   writeFileSync(path.join(d, 'gate.sh'), gate);
   return d;
 }
@@ -88,6 +105,8 @@ function runGate(d, env = {}) {
       GATE_STATE_DIR: posix(path.join(d, 'state')),
       GATE_NODE: posix(process.execPath),
       GATE_NOW_MS: String(NOW),
+      GATE_CGROUP_ROOT: posix(path.join(d, 'cg')),
+      GATE_PROC_ROOT: posix(path.join(d, 'proc')),
       GATE_UNITS: UNITS,
       ...env,
     },
@@ -131,12 +150,59 @@ describe('the gate', { skip: !hasBash && 'no bash here' }, () => {
     const d = fakePi({
       logs: { w: { '2026-11-15.jsonl': [marker('session-start', NOW - hours(2))] } },
       active: UNITS.split(' '),
-      busy: ['/opt/gh-runner/vault/bin/Runner.Worker'],
+      busy: ['foundry-ai-tool-gh-runner-vault.service'],
     });
     const r = runGate(d);
     assert.doesNotMatch(r.calls, /stop foundry-ai-tool-gh-runner-vault/);
     assert.match(r.calls, /stop foundry-ai-tool-gh-runner-board\.service/);
     assert.match(r.out, /runs a job, left alone/);
+  });
+
+  test('a runner waiting out its restart delay (activating) is stopped during a session, and not started when idle', () => {
+    const activating = ['foundry-ai-tool-gh-runner-vault.service=activating'];
+    const playing = fakePi({
+      logs: { w: { '2026-11-15.jsonl': [marker('session-start', NOW - hours(2))] } },
+      active: activating,
+    });
+    assert.match(runGate(playing).calls, /stop foundry-ai-tool-gh-runner-vault\.service/);
+    const idle = fakePi({ logs: {}, active: activating });
+    assert.doesNotMatch(runGate(idle).calls, /start foundry-ai-tool-gh-runner-vault/);
+  });
+
+  test('a failing start of one runner does not hide the other, and the gate exits non-zero', () => {
+    const d = fakePi({ logs: {} });
+    writeFileSync(
+      path.join(d, 'bin', 'systemctl'),
+      `#!/usr/bin/env bash\necho "systemctl $*" >>"${posix(d)}/calls"\ncase "$1" in is-active) echo inactive; exit 3 ;; start) case "$2" in *vault*) exit 1 ;; esac ;; esac\nexit 0\n`
+    );
+    const r = runGate(d);
+    assert.notEqual(r.status, 0);
+    assert.match(r.calls, /start foundry-ai-tool-gh-runner-board\.service/);
+    assert.match(r.out, /could not start foundry-ai-tool-gh-runner-vault/);
+  });
+
+  test('a session that crosses midnight (start in one file, end in the next) is idle', () => {
+    const d = fakePi({
+      logs: {
+        w: {
+          '2026-11-14.jsonl': [marker('session-start', NOW - hours(6))],
+          '2026-11-15.jsonl': [marker('session-end', NOW - hours(1))],
+        },
+      },
+    });
+    assert.equal(dry(d), 'state=idle decision=idle');
+    const open = fakePi({
+      logs: {
+        w: {
+          '2026-11-14.jsonl': [
+            marker('session-end', NOW - hours(9)),
+            marker('session-start', NOW - hours(6)),
+          ],
+          '2026-11-15.jsonl': [],
+        },
+      },
+    });
+    assert.equal(dry(open), 'state=playing decision=playing');
   });
 
   test('an open session does not start a stopped runner', () => {
@@ -242,7 +308,7 @@ describe('the stage as text', () => {
   test('every rm -rf uses ${var:?} and the runner never runs as root', () => {
     for (const line of stage.split('\n').filter(l => /rm -[a-z]*r/.test(l)))
       assert.match(line, /\$\{[a-z_]+:\?\}/, line);
-    assert.match(stage, /runuser -u "\$RUNNER_USER" -- "\$dir\/config\.sh"/);
+    assert.match(stage, /runuser -u "\$RUNNER_USER" -- env [^\n]*"\$dir\/config\.sh"/);
     assert.match(stage, /^User=\$RUNNER_USER$/m);
   });
 
@@ -251,8 +317,13 @@ describe('the stage as text', () => {
       'NoNewPrivileges=true',
       'ProtectSystem=strict',
       'ReadWritePaths=$dir',
-      'IPAddressDeny=127.0.0.0/8',
+      'IPAddressDeny=$IP_DENY',
+      'IPAddressAllow=$ROUTER/32',
+      'ProtectProc=invisible',
+      'IP_DENY="127.0.0.0/8',
       '100.64.0.0/10',
+      '192.168.0.0/16',
+      'must NOT reach sshd',
       'MemoryMax=',
       'InaccessiblePaths=-/etc/foundry-ai-tool -/var/lib/foundry -/var/lib/foundry-ai-tool',
     ]) {

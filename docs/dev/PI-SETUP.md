@@ -1169,14 +1169,20 @@ release and sha256) on the Pi: `vault` for `Gnuminator/obsidian-vault` (workflow
 
 - **Fenced from the game:** the user `ghrunner` (no login, no sudo, no foundry group); each runner's unit allows
   writes only in `/opt/gh-runner/<name>`, cannot see `/etc/foundry-ai-tool`, `/var/lib/foundry*` or `/mnt`, cannot
-  reach loopback or the Tailscale addresses (so not the bridge, the dashboard or the Foundry link), and has 2 GB and a
-  low CPU weight. Foundry itself listens on the LAN address too, behind its own login.
+  list other processes, cannot reach loopback, Tailscale or the LAN (the router stays reachable for DNS and the way
+  out), and has 2 GB and a low CPU weight. The stage proves the address rules before it starts anything: a probe
+  service with the same rules must be refused at sshd on loopback and on the Pi's LAN address, otherwise (a kernel
+  without cgroup BPF firewalling) it stops. A workflow on any branch of these repos runs on the Pi, so both repos
+  must stay private (checked 2026-10-28: both are).
 - **Gate:** `foundry-ai-tool-gh-runner-gate.timer` (every minute) runs `/opt/gh-runner/gate.sh`. While a play
-  session is marked (newest `session-start` with no later `session-end` in `sessions/<date>.jsonl` of any world vault,
-  a start older than 14 hours is stale, the Cast worker's rule) it stops the runners that run no job, and a job
-  already running is never killed. Builds wait on GitHub's side and run when the session ends. If the state cannot
+  session is marked (the newest `session-start`/`session-end` marker over the 3 newest `sessions/<date>.jsonl` of a
+  world vault is a start, so a session over midnight counts; a start older than 14 hours is stale) it stops the
+  runners that run no job. A job is found through the unit's cgroup (a `Runner.Worker` process), and a running job
+  is left alone, so it can delay the stop until it ends. Builds wait on GitHub's side and run when the session ends.
+  Nothing marks a session by itself: it relies on `mark-play-session`. If the state cannot
   be read, the runners stay stopped for up to 6 hours in a row, then the gate lets them run and logs it. The runners are
-  not enabled at boot: the gate starts them (within a minute) when no session is marked.
+  not enabled at boot: the gate starts them (within a minute) when no session is marked. A rerun that changes a unit
+  file does not touch a running runner: stop it (`systemctl stop`) and the gate starts it with the new file.
 - **Tokens:** the Cloudflare token stays in the `board` environment secrets on GitHub (the workflow already reads it;
   nothing of it is on the Pi). A runner is registered with a one-hour registration token that
   `scripts/pi/remote/put-runner-token.sh vault|board` (on the PC) pipes from `gh` into

@@ -10,12 +10,10 @@
  * What it pins (a change here is a decision, not noise):
  * - `roll-saving-throws` rolls through dnd5e's API, so AC5e makes a poisoned monster's check
  *   roll with disadvantage (and a normal one when unpoisoned): this arm measures AC5e;
- * - `request-ability-check` and `request-attack-roll` post a button; the scenario reads the formula
- *   on the posted button and does not click it. The button's roll is a plain `new Roll` in
- *   `rollForButton` (packages/foundry-module/src/data-access/player-rolls.ts), outside dnd5e's
- *   hooks, so AC5e cannot change it: that claim comes from reading the code. The check here only
- *   notices if the posted formula starts to differ for a poisoned character (for example 2d20kl1),
- *   which is the sign that the buttons were routed through dnd5e and this expectation moves.
+ * - `request-ability-check` and `request-attack-roll` post a button and the scenario clicks it
+ *   (as the GM, who may click any button). The button rolls through dnd5e's actor and attack
+ *   activity API (`rollThroughDnd5e` in packages/foundry-module/src/data-access/player-rolls.ts),
+ *   so a poisoned hero rolls both with disadvantage and an unpoisoned one rolls normally.
  */
 import { monsterOf, playerHero } from '../lib/helpers.mjs';
 
@@ -58,7 +56,11 @@ const NEW_ROLLS_SCRIPT = ({ known }) => {
     if (seen.has(m.id)) continue;
     const doc = new DOMParser().parseFromString(m.content ?? '', 'text/html');
     for (const b of doc.querySelectorAll('.mcp-roll-button')) {
-      out.buttons.push({ formula: b.getAttribute('data-roll-formula') ?? '', label: b.textContent.trim() });
+      out.buttons.push({
+        id: b.getAttribute('data-button-id') ?? '',
+        formula: b.getAttribute('data-roll-formula') ?? '',
+        label: b.textContent.trim(),
+      });
     }
     for (const r of m.rolls ?? []) {
       out.rolls.push({
@@ -70,6 +72,14 @@ const NEW_ROLLS_SCRIPT = ({ known }) => {
     }
   }
   return out;
+};
+
+/** Runs in the Foundry GM page: click one roll button in the chat log, as the GM would. */
+const CLICK_BUTTON_SCRIPT = ({ buttonId }) => {
+  const b = document.querySelector(`.mcp-roll-button[data-button-id="${buttonId}"]`);
+  if (!b) return false;
+  b.click();
+  return true;
 };
 
 /** Runs in the Foundry GM page: delete chat messages. */
@@ -92,10 +102,14 @@ export function modeOfFormula(formula) {
   return m[1] === '1' ? 'normal' : 'other';
 }
 
+/** The roll mode of one chat roll: dnd5e's advantage mode, else what the formula shows. */
+const rollMode = roll =>
+  roll?.advantageMode === -1 ? 'disadvantage' : roll?.advantageMode === 1 ? 'advantage' : modeOfFormula(roll?.formula ?? '');
+
 /** @type {import('../lib/contract.mjs').Scenario} */
 export default {
   id: 'module-ac5e-roll-mode',
-  title: 'Automated Conditions 5e changes the roll mode of a poisoned creature on some roll tools',
+  title: 'A poisoned creature rolls with disadvantage on the roll tools and their buttons',
   sizes: ['full'],
   tags: ['module', 'bridge'],
   needs: ['heroes', 'monsters', 'scene'],
@@ -146,10 +160,22 @@ export default {
       await t.tool('request-ability-check', { targetPlayer: hero.name, ability: 'str', isPublic: true }, { confirm: true });
       await t.tool('request-attack-roll', { targetPlayer: hero.name, weaponOrSpellName: 'Kit Sword', isPublic: true }, { confirm: true });
       const requests = await page.evaluate(NEW_ROLLS_SCRIPT, { known: before });
-      const buttonMode = label => {
+      const buttonMode = async label => {
         const b = requests.buttons.find(x => x.label.toLowerCase().includes(label.toLowerCase()));
         t.check(b, `a roll button "${label}" was posted`, requests.buttons);
-        return { formula: b?.formula ?? '', mode: modeOfFormula(b?.formula ?? '') };
+        const beforeClick = await page.evaluate(MESSAGE_IDS_SCRIPT);
+        t.check(await page.evaluate(CLICK_BUTTON_SCRIPT, { buttonId: b?.id }), `the "${label}" button is in the chat log`);
+        let roll;
+        for (let i = 0; i < 30 && !roll; i++) {
+          await new Promise(r => setTimeout(r, 500));
+          roll = (await page.evaluate(NEW_ROLLS_SCRIPT, { known: beforeClick })).rolls[0];
+        }
+        t.check(roll, `clicking the "${label}" button made a roll`);
+        return {
+          formula: roll?.formula ?? '',
+          flags: (roll?.flags ?? []).join(','),
+          mode: rollMode(roll),
+        };
       };
       const beforeSave = await page.evaluate(MESSAGE_IDS_SCRIPT);
       await t.tool('roll-saving-throws', { targets: [monster.name], rollType: 'check', ability: 'str', isPublic: true });
@@ -159,11 +185,11 @@ export default {
       const check = {
         formula: roll?.formula ?? '',
         flags: (roll?.flags ?? []).join(','),
-        mode: roll?.advantageMode === -1 ? 'disadvantage' : roll?.advantageMode === 1 ? 'advantage' : modeOfFormula(roll?.formula ?? ''),
+        mode: rollMode(roll),
       };
       return {
-        'request-ability-check': buttonMode('Ability Check'),
-        'request-attack-roll': buttonMode('attack'),
+        'request-ability-check': await buttonMode('Ability Check'),
+        'request-attack-roll': await buttonMode('attack'),
         'roll-saving-throws': check,
       };
     };
@@ -190,15 +216,12 @@ export default {
     }
     t.attach('ac5e-roll-modes', result);
 
-    await t.step('AC5e changes the monster check through roll-saving-throws only', async () => {
+    await t.step('a poisoned creature rolls with disadvantage on all three tools', async () => {
       t.equal(result.baseline['roll-saving-throws'].mode, 'normal', 'unpoisoned monster check');
       t.equal(result.poisoned['roll-saving-throws'].mode, 'disadvantage', 'poisoned monster check');
       for (const tool of ['request-ability-check', 'request-attack-roll']) {
-        t.equal(
-          result.poisoned[tool].mode,
-          result.baseline[tool].mode,
-          `${tool}: the button's roll mode when poisoned vs not (a plain formula today)`
-        );
+        t.equal(result.baseline[tool].mode, 'normal', `${tool}: the unpoisoned hero's button roll`);
+        t.equal(result.poisoned[tool].mode, 'disadvantage', `${tool}: the poisoned hero's button roll`);
       }
     });
   },

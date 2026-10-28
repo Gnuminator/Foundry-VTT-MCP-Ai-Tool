@@ -792,6 +792,91 @@ describe('FoundryDataAccess: player page roll buttons', () => {
     expect(da.listOpenRollRequests('u1')).toEqual([]);
   });
 
+  it('rolls an ability check, skill and save through the dnd5e actor API with the DC', async () => {
+    world.addUser({ id: 'u1', name: 'Alice', active: true, isGM: false });
+    const actor = addPlayerCharacter({ id: 'a1', name: 'Silvera', ownerUserId: 'u1' });
+    actor.rollAbilityCheck = vi.fn(() => Promise.resolve([{ total: 12 }]));
+    actor.rollSkill = vi.fn(() => Promise.resolve([{ total: 12 }]));
+    actor.rollSavingThrow = vi.fn(() => Promise.resolve([{ total: 12 }]));
+    const spy = installRollSpy();
+    addRequest('b1', 'm1', btn({ rollType: 'ability', rollTarget: 'str', dc: 15 }));
+    addRequest('b2', 'm2', btn({ rollType: 'skill', rollTarget: 'Sleight of Hand' }));
+    addRequest('b3', 'm3', btn({ rollType: 'save', rollTarget: 'dex', isPublic: true }));
+
+    for (const id of ['b1', 'b2', 'b3']) {
+      expect((await da.executePlayerRoll('u1', id)).success).toBe(true);
+    }
+
+    const [config, dialog, message] = actor.rollAbilityCheck.mock.calls[0];
+    expect(config).toEqual({
+      ability: 'str',
+      rolls: [{ options: { target: 15, requestedDcPublic: false } }],
+    });
+    expect(dialog).toEqual({ configure: false });
+    expect(message.create).toBe(true);
+    expect(message.data.whisper).toContain('u1');
+    expect(actor.rollSkill.mock.calls[0][0]).toEqual({ skill: 'slt' });
+    expect(actor.rollSavingThrow.mock.calls[0][0]).toEqual({ ability: 'dex' });
+    expect(actor.rollSavingThrow.mock.calls[0][2].data).toBeUndefined();
+    // No plain `new Roll` was made for any of them.
+    expect(spy.ctorArgs).toEqual([]);
+  });
+
+  it('rolls an attack through the weapon attack activity', async () => {
+    world.addUser({ id: 'u1', name: 'Alice', active: true, isGM: false });
+    const actor = addPlayerCharacter({ id: 'a1', name: 'Silvera', ownerUserId: 'u1' });
+    const rollAttack = vi.fn(() => Promise.resolve([{ total: 17 }]));
+    actor.items = [
+      {
+        name: 'Longsword',
+        system: { activities: [{ type: 'save' }, { type: 'attack', rollAttack }] },
+      },
+    ];
+    const spy = installRollSpy();
+    addRequest('b1', 'm1', btn({ rollType: 'attack', rollTarget: 'longsword', isPublic: true }));
+    expect((await da.executePlayerRoll('u1', 'b1')).success).toBe(true);
+    expect(rollAttack).toHaveBeenCalledTimes(1);
+    expect(spy.ctorArgs).toEqual([]);
+  });
+
+  it('picks the item that has an attack activity and clears the GM target on a GM-run attack', async () => {
+    world.addUser({ id: 'u1', name: 'Alice', active: true, isGM: false });
+    const actor = addPlayerCharacter({ id: 'a1', name: 'Silvera', ownerUserId: 'u1' });
+    const rollAttack = vi.fn(() => Promise.resolve([{ total: 17 }]));
+    actor.items = [
+      { name: 'Sword Training', system: { activities: [{ type: 'utility' }] } },
+      { name: 'Longsword', system: { activities: [{ type: 'attack', rollAttack }] } },
+    ];
+    installRollSpy();
+    addRequest('b1', 'm1', btn({ rollType: 'attack', rollTarget: 'sword' }));
+    (game as any).user = { id: 'gm1', isGM: true };
+    expect((await da.executePlayerRoll('u1', 'b1')).success).toBe(true);
+    expect(rollAttack.mock.calls[0][0]).toEqual({ target: null });
+  });
+
+  it('rolls the plain formula when dnd5e makes no roll, and for an old card with no type', async () => {
+    world.addUser({ id: 'u1', name: 'Alice', active: true, isGM: false });
+    const actor = addPlayerCharacter({ id: 'a1', name: 'Silvera', ownerUserId: 'u1' });
+    actor.rollAbilityCheck = vi.fn(() => Promise.resolve(null));
+    const spy = installRollSpy();
+    addRequest('b1', 'm1', btn({ rollType: 'ability', rollTarget: 'str' }));
+    addRequest('b2', 'm2', btn());
+    expect((await da.executePlayerRoll('u1', 'b1')).success).toBe(true);
+    expect((await da.executePlayerRoll('u1', 'b2')).success).toBe(true);
+    expect(actor.rollAbilityCheck).toHaveBeenCalledTimes(1);
+    expect(spy.ctorArgs.map(a => a[0])).toEqual(['1d20+3', '1d20+3']);
+  });
+
+  it('falls back to the plain formula when there is no attack activity', async () => {
+    world.addUser({ id: 'u1', name: 'Alice', active: true, isGM: false });
+    const actor = addPlayerCharacter({ id: 'a1', name: 'Silvera', ownerUserId: 'u1' });
+    actor.items = [];
+    const spy = installRollSpy();
+    addRequest('b1', 'm1', btn({ rollType: 'attack', rollTarget: 'Nothing' }));
+    expect((await da.executePlayerRoll('u1', 'b1')).success).toBe(true);
+    expect(spy.ctorArgs[0][0]).toBe('1d20+3');
+  });
+
   it('reads the DC from the card for a request made before the dc flag existed', async () => {
     world.addUser({ id: 'u1', name: 'Alice', active: true, isGM: false });
     addPlayerCharacter({ id: 'a1', name: 'Silvera', ownerUserId: 'u1' });

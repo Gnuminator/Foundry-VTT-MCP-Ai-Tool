@@ -45,7 +45,8 @@ cat >"$dir/config.sh" <<'EOF'
 if ! ldconfig -NXv 2>/dev/null | grep -q libicu; then
   echo "Libicu's dependencies is missing for Dotnet Core 6.0"
   echo "debug: token was $ACTIONS_RUNNER_INPUT_TOKEN"
-  echo "$ACTIONS_RUNNER_INPUT_TOKEN"  echo "Execute ./bin/installdependencies.sh to install any missing Dotnet Core 6.0 dependencies."
+  echo "$ACTIONS_RUNNER_INPUT_TOKEN"
+  echo "Execute ./bin/installdependencies.sh to install any missing Dotnet Core 6.0 dependencies."
   exit 1
 fi
 [ "${ACTIONS_RUNNER_INPUT_TOKEN:-}" = "ABCDEFGHIJKLMNOPQRSTUVWX" ] || exit 2

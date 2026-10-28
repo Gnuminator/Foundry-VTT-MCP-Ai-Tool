@@ -259,9 +259,22 @@ export class ActorBuilderDataAccess {
       }
 
       // Set targets using Foundry's targeting system
-      if (tokenIds.length > 0 && game.user) {
-        await (game.user.updateTokenTargets(tokenIds) as unknown);
-        logInfo(`[foundry-mcp-bridge] Set targets: ${resolvedTargetNames.join(', ')}`);
+      // v14 has no User#updateTokenTargets; the tokens layer owns targeting
+      // (client/canvas/layers/tokens.mjs:341). It only resolves ids on the viewed canvas.
+      if (tokenIds.length > 0) {
+        const cv = typeof canvas === 'undefined' ? undefined : canvas;
+        const layer = cv?.ready ? cv.tokens : undefined;
+        if (!layer) {
+          console.warn('[foundry-mcp-bridge] Canvas not ready, targets not set');
+        } else {
+          if (cv?.scene?.id !== scene.id) {
+            console.warn(
+              '[foundry-mcp-bridge] The GM is viewing a different scene than the active one; targets may not apply'
+            );
+          }
+          layer.setTargets(tokenIds, { mode: 'replace' });
+          logInfo(`[foundry-mcp-bridge] Set targets: ${resolvedTargetNames.join(', ')}`);
+        }
       }
     }
 

@@ -10,6 +10,7 @@
 // buttons are off, a reaction tick changes only its own button (the focus stays), rows can be
 // picked with the keyboard, and the hit point bar has a text equivalent.
 import { lazy, Suspense, useState, type JSX, type MouseEvent } from 'react';
+import { RibbonBoundary } from './RibbonBoundary';
 
 import {
   AWAY_TEXT,
@@ -433,9 +434,11 @@ export function CombatStrip({
             {stale ? AWAY_TEXT : ''}
           </p>
           {combat !== null && combat.combatants.length > 0 && (
-            <Suspense fallback={null}>
-              <InitiativeRibbon combat={combat} />
-            </Suspense>
+            <RibbonBoundary>
+              <Suspense fallback={null}>
+                <InitiativeRibbon combat={combat} />
+              </Suspense>
+            </RibbonBoundary>
           )}
           <div
             className="boss-prompts"

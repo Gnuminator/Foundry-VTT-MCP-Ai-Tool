@@ -88,7 +88,9 @@ while players are online.
    version that is not pinned. `UNDO=1` puts the previous folders back. A dry run (`DRY=1`) lists
    what would change.
 3. **Foundry itself** stays stage 3 (`FoundryVTT-Node-14.369.zip`, taken from `foundry/` in the
-   mirror) and dnd5e 6.0.6 stage 14; the module stage runs after them.
+   mirror) and dnd5e 6.0.6 stage 14; the module stage runs after them. **Before stage 3 installs
+   14.369**, run stage 5 and stage 13 again (snapshot first) so the Pi's installed login drivers
+   (`assistant-gm.mjs`, the stage 13 driver) know 14.369's user select; the old copies only type the name.
 4. **Order:** the Pi `strahd-kit` world first (stage 17, then the Pi kit run from `kit-session.sh`),
    then the real world, a snapshot before each.
 5. **No auto-update on the Pi:** Foundry's own update check in the setup screen is not used; modules

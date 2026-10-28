@@ -88,19 +88,34 @@ async function worldIsActive(page) {
 }
 
 // Foundry 14.368 types the user name into a text field; 14.369 picks it from a list (same as the kit's joinGame).
+// Returns 'ok', or on 14.369 'online' (the option is disabled) or 'missing' without touching the form, so a caller can
+// say why instead of waiting out a select timeout.
 async function typeJoinUser(page, user) {
   const name = page.locator('#join-username');
-  if (await name.evaluate(el => el.tagName === 'SELECT')) {
+  const state = await name.evaluate((el, u) => {
+    if (el.tagName !== 'SELECT') return 'input';
+    const option = Array.from(el.options).find(o => o.textContent.trim() === u);
+    return !option ? 'missing' : option.disabled ? 'online' : 'select';
+  }, user);
+  if (state === 'select') {
     await name.selectOption({ label: user });
-  } else {
+  } else if (state === 'input') {
     await name.fill(user);
     await page.keyboard.press('Escape'); // closes the name autocomplete
+  } else {
+    return state;
   }
+  return 'ok';
 }
 
 async function joinWorld(page, user, password) {
   if (new URL(page.url()).pathname.endsWith('/game')) return;
-  await typeJoinUser(page, user);
+  const typed = await typeJoinUser(page, user);
+  if (typed !== 'ok') {
+    throw new Error(
+      `could not join as ${user}: that user is ${typed === 'online' ? 'already online' : 'not in the world'}`
+    );
+  }
   await page.locator('#join-password').fill(password);
   await page.locator('button[name="join"]').click();
   await page.waitForURL(/\/game$/, { timeout: 60_000 });

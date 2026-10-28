@@ -55,7 +55,9 @@ Sources: [KB Settings](https://foundryvtt.com/article/settings/),
   - User name field (`#join-username`, accessible name **Select User**, user icon). **14.368: a
     text field** (`name="username"`). **14.369: a `<select name="userId">`** again, option value =
     user id, option text = user name; scripts check `tagName` and use `selectOption({ label })` or
-    `fill`. The text field is new since v11/v12, which used a dropdown. Focusing or
+    `fill`. On 14.369 users who are already online are `disabled` options (verified in
+    `app-14.369/templates/setup/parts/join-form.hbs`). The text field is new since v11/v12, which
+    used a dropdown. On 14.368, focusing or
     typing opens an autocomplete list of the world's users, filtered by prefix. Users who are
     already connected appear greyed out (disabled). Picking one fills the name and moves focus
     to the password. [unverified]

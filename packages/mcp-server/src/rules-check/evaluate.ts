@@ -3,6 +3,7 @@
  * No I/O, no Foundry globals; the tool in `tools/rules-check.ts` gathers the facts.
  */
 import type { RulesCheckLine, RulesCheckResult, RulesCheckVerdict } from '@gnuminator/shared';
+import { differenceFor } from './differences.js';
 
 export interface SlotFact {
   current: number;
@@ -35,6 +36,8 @@ export type CombatFact =
 export interface RulesFacts {
   actor: string;
   item: string;
+  /** The chosen activity's name, when the caller named one (Grapple and Shove live on Unarmed Strike). */
+  activityName?: string;
   /** Spell level (0 for a cantrip), null for anything that is not a spell. */
   spellLevel: number | null;
   /** The level the caller wants to cast at, if given. */
@@ -251,6 +254,25 @@ function spentLine(
       cost === 'bonus'
         ? `${base} ${f.actor} already used ${used} as a bonus action this turn, and there is only one per turn.`
         : `${base} ${f.actor} already used ${used} as a reaction since its turn began, and a reaction comes back only at the start of its next turn.`,
+  };
+}
+
+/** Where 2014 and 2024 differ for this action, in short; says which one applies when it is stated. */
+function differencesCheck(f: RulesFacts): RulesCheckLine | null {
+  const diff =
+    differenceFor(f.item, f.spellLevel !== null) ??
+    (f.activityName ? differenceFor(f.activityName, f.spellLevel !== null) : undefined);
+  if (!diff) return null;
+  const stated = (v: { version: string; source: string } | null | undefined): string | null =>
+    v != null && v.source !== 'world-setting' ? v.version : null;
+  const applies = stated(f.rules?.item) ?? stated(f.rules?.actor);
+  const which = applies
+    ? ` ${f.item} follows the ${applies} rules here.`
+    : ` Nothing on ${f.item} or ${f.actor} says which rules apply.`;
+  return {
+    check: 'rules-differences',
+    status: 'info',
+    reason: `${diff.topic} works differently in the two rule sets. 2014: ${diff.rules2014} 2024: ${diff.rules2024}${which}`,
   };
 }
 
@@ -622,6 +644,8 @@ export function evaluateAction(f: RulesFacts): RulesCheckResult {
   if (concentration) checks.push(concentration);
   const version = rulesCheck(f);
   if (version) checks.push(version);
+  const differences = differencesCheck(f);
+  if (differences) checks.push(differences);
   const verdict = verdictOf(checks);
   const about = `${f.actor} using ${f.item}${f.target ? ` on ${f.target}` : ''}`;
   const reasons = (status: RulesCheckLine['status'][]): string =>

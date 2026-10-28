@@ -64,6 +64,6 @@ describe('legacy Campaign Home templates', () => {
       '## Help',
     ]);
     expect(home).toContain('start here');
-    expect(home).not.toContain('—');
+    expect(home).not.toContain(String.fromCharCode(0x2014));
   });
 });

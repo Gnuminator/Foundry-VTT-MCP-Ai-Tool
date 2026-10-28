@@ -12,22 +12,36 @@ server. Foundry's own UI is `foundry-core-ui`; the test servers are `foundry-tes
 
 ## Index
 
-| Module id                 | Page                                    | Verdict  |
-| ------------------------- | --------------------------------------- | -------- |
-| `foundryvtt-actor-studio` | `references/foundryvtt-actor-studio.md` | keep     |
-| `ddb-importer`            | `references/ddb-importer.md`            | optional |
-| `dnd-players-handbook`    | `references/dnd-players-handbook.md`    | keep     |
-| `token-action-hud-core`   | `references/token-action-hud-core.md`   | keep     |
-| `token-action-hud-dnd5e`  | `references/token-action-hud-dnd5e.md`  | keep     |
-| `dice-so-nice`            | `references/dice-so-nice.md`            | keep     |
-| `NotYourTurn`             | `references/NotYourTurn.md`             | keep     |
-| `automated-conditions-5e` | `references/automated-conditions-5e.md` | keep     |
-| `monks-player-settings`   | `references/monks-player-settings.md`   | optional |
-| `vtta-tokenizer`          | `references/vtta-tokenizer.md`          | keep     |
-| `tarokka-reading`         | `references/tarokka-reading.md`         | keep     |
+| Module id                  | Page                                     | Verdict  |
+| -------------------------- | ---------------------------------------- | -------- |
+| `foundryvtt-actor-studio`  | `references/foundryvtt-actor-studio.md`  | keep     |
+| `ddb-importer`             | `references/ddb-importer.md`             | optional |
+| `dnd-players-handbook`     | `references/dnd-players-handbook.md`     | keep     |
+| `token-action-hud-core`    | `references/token-action-hud-core.md`    | keep     |
+| `token-action-hud-dnd5e`   | `references/token-action-hud-dnd5e.md`   | keep     |
+| `dice-so-nice`             | `references/dice-so-nice.md`             | keep     |
+| `NotYourTurn`              | `references/NotYourTurn.md`              | keep     |
+| `automated-conditions-5e`  | `references/automated-conditions-5e.md`  | keep     |
+| `monks-player-settings`    | `references/monks-player-settings.md`    | optional |
+| `vtta-tokenizer`           | `references/vtta-tokenizer.md`           | keep     |
+| `tarokka-reading`          | `references/tarokka-reading.md`          | keep     |
+| `combat-spell-timer`       | `references/combat-spell-timer.md`       | drop     |
+| `dae`                      | `references/dae.md`                      | optional |
+| `monks-combat-details`     | `references/monks-combat-details.md`     | keep     |
+| `monks-tokenbar`           | `references/monks-tokenbar.md`           | drop     |
+| `3ds-atlas`                | `references/3ds-atlas.md`                | keep     |
+| `JB2A_DnD5e`               | `references/JB2A_DnD5e.md`               | optional |
+| `autoanimations`           | `references/autoanimations.md`           | optional |
+| `calendaria`               | `references/calendaria.md`               | optional |
+| `lib-wrapper`              | `references/lib-wrapper.md`              | keep     |
+| `racooze-map-library`      | `references/racooze-map-library.md`      | optional |
+| `racoozes-free-battlemaps` | `references/racoozes-free-battlemaps.md` | optional |
+| `sequencer`                | `references/sequencer.md`                | keep     |
+| `share-media`              | `references/share-media.md`              | keep     |
+| `socketlib`                | `references/socketlib.md`                | keep     |
+| `travel-pace`              | `references/travel-pace.md`              | keep     |
 
-Batches B and C add their own rows here after batch A merges. Batch E (after G0) adds the
-candidates. `Dev/Foundry AI Tool/Backlog.md` in the vault lists the batches.
+Batch E (after G0) adds the candidates. `Dev/Foundry AI Tool/Backlog.md` in the vault lists the batches.
 
 ## Page format (follow it exactly; every page uses these headings in this order)
 

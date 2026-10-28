@@ -145,7 +145,7 @@ export function versionMismatches(plan, installed) {
       const now = installed.find(x => x.id === p.id && x.kind === p.kind);
       const numeric = v => /^v?\d/.test(v);
       const same = now && (now.version === p.installed || (numeric(now.version) && numeric(p.installed) && compareVersions(now.version, p.installed) === 0));
-      return !same ?`${p.id} ${p.installed} -> ${now?.version ?? 'gone'}` : null;
+      return !same ? `${p.id} ${p.installed} -> ${now?.version ?? 'gone'}` : null;
     })
     .filter(Boolean);
 }

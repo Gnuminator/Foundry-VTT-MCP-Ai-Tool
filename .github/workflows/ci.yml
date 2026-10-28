@@ -174,6 +174,11 @@ jobs:
         # stage as text (pinned runner, token handling, the fence in the units).
         run: node --test scripts/pi/gh-runner.test.mjs
 
+      - name: Pi stage 7 dashboard address
+        # 7-vault.sh: DASHBOARD_FOUNDRY_URL (the ribbon's portraits) as text, and Plan B's dashboard block. The stage's
+        # dashboard.env step runs in a container on the ARM runner (build-test-arm).
+        run: node --test scripts/pi/stage7-foundry-url.test.mjs
+
       - name: Pi stage 18 time sync
         # 18-time-sync.sh (backlog pi-ntp): DietPi mode 4 only when needed, dry run, check, undo, snapshot required, with stand-in
         # systemctl, timedatectl and dietpi-set_software.
@@ -526,6 +531,13 @@ jobs:
         env:
           PI_SSH_KEYS_ONLY_CONTAINER: 1
         run: node --test scripts/pi/ssh-keys-only.test.mjs
+
+      - name: Pi stage 7 in an ARM64 container
+        # scripts/pi/container-test/stage7-scenarios.sh: the dashboard.env step of stage 7 on Debian 13 ARM64 (no address,
+        # a given one, a rerun that keeps it, the refusals, a replacement).
+        env:
+          PI_STAGE7_CONTAINER: 1
+        run: node --test scripts/pi/stage7-foundry-url.test.mjs
 
       - name: Pi stage 16 in an ARM64 container
         # scripts/pi/container-test/stage16-scenarios.sh: stage 16 on Debian 13 ARM64 with stand-ins for systemd, curl and restic

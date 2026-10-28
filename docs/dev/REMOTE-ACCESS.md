@@ -218,7 +218,10 @@ scripts, and the two that touch secrets are run by you.
    dashboard must know Foundry's address _as the GM's browser reaches it_: run stage 7 again with
    `DASHBOARD_FOUNDRY_URL=https://play.<domain>` (a plain address, no path and no trailing slash;
    `... | ssh foundry-pi 'DASHBOARD_FOUNDRY_URL=https://play.<domain> bash -s'`). It goes into
-   `dashboard.env`, a rerun without the value keeps it, and stage 7 warns while it is missing.
+   `dashboard.env`, a rerun without the value keeps it (a wrong value is replaced by running the
+   stage again with the right one), and stage 7 warns while it is missing. Like any stage it needs
+   a `dietpi-backup 1` snapshot from today first, and a changed value restarts the dashboard, which
+   the stage refuses while players are online or a recording runs.
    Plan B sets it itself (`http://localhost:<Foundry port>`; the dashboard there is opened on the
    PC only, so that is the address the browser uses). Players never see portraits, by design.
 
@@ -227,8 +230,9 @@ scripts, and the two that touch secrets are run by you.
    `CF_Authorization` cookie that the GM's Access login for `play.<domain>` already set (no CORS
    needed for an image). Foundry serves its static files without its own login (checked read-only on
    the Pi, 2026-10-28: `curl -I http://127.0.0.1:30000/icons/svg/mystery-man.svg` answers 200).
-   If the Access session for `play.` has expired, Access answers with a redirect, the image fails
-   and the ribbon shows initials: open `https://play.<domain>` once (the GM does anyway) and reload
+   If the Access session for `play.` has expired, Access answers with a redirect and the image may
+   fail (the login host is cross-site), so the ribbon shows initials. The same holds over the
+   Tailscale route, where the browser may hold no `play.` session at all. Open `https://play.<domain>` once (the GM does anyway) and reload
    the dashboard. Not checked end to end here: after the stage runs, look at the ribbon in a real
    fight from `https://cogm.<domain>`. If the portraits stay initials while `play.<domain>` is
    open in another tab, build the GM-only image proxy on the dashboard instead (a route that

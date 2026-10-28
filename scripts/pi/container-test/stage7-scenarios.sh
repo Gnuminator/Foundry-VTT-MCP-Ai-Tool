@@ -72,8 +72,13 @@ before="$(cat "$env_file")"
 for bad in 'https://play.example.com/' 'https://play.example.com/foundry' 'play.example.com' 'https://play.example.com"x' 'https://u:p@play.example.com'; do
   if out="$(run_step "$bad")"; then fail "accepted '$bad'"; else
     if echo "$out" | grep -q 'plain address'; then pass "refused '$bad'"; else fail "wrong refusal for '$bad': $out"; fi
+    if echo "$out" | grep -q 'p@'; then fail "the refusal for '$bad' echoes the value"; fi
   fi
 done
+# A second line must not slip through on the strength of a valid first line.
+if out="$(run_step $'https://play.example.com\nGM_EMAILS=x@y.z')"; then fail "accepted a value with a second line"; else
+  if echo "$out" | grep -q 'plain address'; then pass "refused a value with a second line"; else fail "wrong refusal for two lines: $out"; fi
+fi
 if [ "$(cat "$env_file")" = "$before" ]; then pass "a refused value leaves the file alone"; else fail "file changed after refusals"; fi
 
 # 5.

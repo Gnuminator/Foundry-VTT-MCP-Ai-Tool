@@ -66,8 +66,10 @@ if [ -z "$foundry_url" ] && [ -f "$TOOL_ETC/dashboard.env" ]; then
   foundry_url="$(sed -n 's/^DASHBOARD_FOUNDRY_URL=//p' "$TOOL_ETC/dashboard.env" | tail -n 1)"
 fi
 if [ -n "$foundry_url" ]; then
-  printf '%s' "$foundry_url" | grep -Eq '^https?://[A-Za-z0-9.-]+(:[0-9]+)?$' ||
-    die "DASHBOARD_FOUNDRY_URL must be a plain address such as https://play.example.com (no path, no trailing slash; got '$foundry_url')"
+  # Whole-string match (grep matches line by line, so a second line would slip through); the refusal does not echo
+  # the value, which may hold a password.
+  [[ "$foundry_url" =~ ^https?://[A-Za-z0-9.-]+(:[0-9]+)?$ ]] ||
+    die "DASHBOARD_FOUNDRY_URL must be a plain address such as https://play.example.com (no path, no trailing slash, no login, one line)"
 fi
 
 say "the bridge's Obsidian output"

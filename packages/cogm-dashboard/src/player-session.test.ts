@@ -34,7 +34,11 @@ describe('sessionPhase', () => {
 });
 
 describe('splitHandouts', () => {
-  const page = (id: string, title: string, revealedAt: string | null = null) => ({
+  const page = (
+    id: string,
+    title: string,
+    revealedAt: string | null = null
+  ): { id: string; title: string; html: string; revealedAt: string | null } => ({
     id,
     title,
     html: '',

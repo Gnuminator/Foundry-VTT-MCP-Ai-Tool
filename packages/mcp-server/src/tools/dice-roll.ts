@@ -17,7 +17,7 @@ const advantageProperty = {
   type: 'string',
   enum: ['advantage', 'disadvantage'],
   description:
-    'Optional: roll with advantage or disadvantage. Leave it out for a normal roll: Foundry still applies the conditions on the roller (poisoned gives disadvantage, for example). A choice combines with those, so advantage against a poisoned roller comes out normal.',
+    'Optional. Combines with the roller conditions (advantage on a poisoned roller is normal); omit to let those decide.',
 } as const;
 
 export class DiceRollTools {
@@ -162,7 +162,7 @@ export class DiceRollTools {
       {
         name: 'roll-npc-check',
         description:
-          'Roll directly for an NPC actor (no player prompt) and post the result to chat. Supports ability checks, saving throws, skill checks, and attacks. Rolls through dnd5e, so the NPC conditions apply; the reply says which mode (advantage, disadvantage or normal) the d20 rolled in.',
+          'Roll directly for an NPC actor (no player prompt) and post the result to chat. Supports ability checks, saving throws, skill checks, and attacks. Conditions apply; the reply has the d20 mode.',
         inputSchema: {
           type: 'object',
           properties: {

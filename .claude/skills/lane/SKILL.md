@@ -46,6 +46,9 @@ item is marked done; the board ignores a line on an item with no claim.
 
 ## Work
 
+- **Advisor (D-127):** call `advisor` (Opus, the user setting) once before you start coding and
+  once before you open the PR; act on it or say in the PR why not. The weekly check counts the
+  calls.
 - **Subagents:** `model: "sonnet"` for code, tests, scripts and sweeps; `model: "haiku"` for
   reading and simple mechanical edits; Opus only for design and risky-PR reviews. Partition workers
   by file, lock shared contracts first, tell them to write big files in parts of at most about 250
@@ -99,6 +102,10 @@ item is marked done; the board ignores a line on an item with no claim.
   merged needs `git merge aitool/main` first), look at the changed PNGs it prints under
   `packages/cogm-dashboard/web/visual/__screenshots__/`, commit them, push again, and only then
   open the PR.
+  If it stops with "git saw N changed or new PNG(s) in the run but the artifact holds M" or "no png-count.txt marker",
+  the collect step lost files (or the branch has an old workflow file: merge `aitool/main`); it
+  writes nothing then, so read the run log. A clean run on a branch with one changed screenshot
+  delivered that PNG (2026-10-27, run 40595605155).
   Never copy baselines from a failed PR run. Re-run it after a later change that moves pixels.
 - `changelog.d/<topic>.md` added; lint and em-dash baselines lowered if counts dropped.
 - `git status --short`: add explicit paths; no binaries, archives, audio, `.env` or downloads.

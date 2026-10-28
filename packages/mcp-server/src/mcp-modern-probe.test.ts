@@ -15,6 +15,7 @@ import { fileURLToPath } from 'node:url';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { FAKE_TOOLS, startFakeBridge } from './test-support/fake-control-bridge.js';
+import { rmTmp } from './test-support/rm-tmp.js';
 
 const distIndex = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -142,8 +143,12 @@ class Wrapper {
     return this.exited;
   }
 
-  kill(): void {
+  /** Kills the process and resolves once it has exited, so it no longer writes into the temp folder. */
+  async kill(): Promise<void> {
+    if (this.exited !== undefined) return;
+    const gone = new Promise<void>(resolve => this.child.once('exit', () => resolve()));
     this.child.kill();
+    await gone;
   }
 }
 
@@ -161,13 +166,13 @@ describe('MCP 2026-07-28 probe against dist/index.js', () => {
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mcp-probe-'));
   });
 
-  afterEach(() => {
-    running.splice(0).forEach(w => w.kill());
+  afterEach(async () => {
+    await Promise.all(running.splice(0).map(w => w.kill()));
   });
 
-  afterAll(() => {
+  afterAll(async () => {
     bridge?.server.close();
-    if (tmpDir) fs.rmSync(tmpDir, { recursive: true, force: true });
+    if (tmpDir) await rmTmp(tmpDir);
   });
 
   function start(): Wrapper {

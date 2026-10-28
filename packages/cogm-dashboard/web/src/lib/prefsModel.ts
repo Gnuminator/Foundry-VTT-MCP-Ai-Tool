@@ -30,7 +30,7 @@ export const DEFAULT_PREFS: DuringPrefs = {
   duringLayout: 'layered',
   duringFull: false,
   combatButtons: false,
-  versionTracker: false,
+  versionTracker: true,
   layoutPicked: false,
   hintDismissed: false,
   hintSessions: [],
@@ -47,7 +47,7 @@ export function readPrefs(raw: unknown): DuringPrefs {
     duringLayout: layout ?? DEFAULT_PREFS.duringLayout,
     duringFull: r['duringFull'] === true,
     combatButtons: r['combatButtons'] === true,
-    versionTracker: r['versionTracker'] === true,
+    versionTracker: r['versionTracker'] !== false,
     layoutPicked: r['layoutPicked'] === true,
     hintDismissed: r['hintDismissed'] === true,
     hintSessions: Array.isArray(r['hintSessions'])

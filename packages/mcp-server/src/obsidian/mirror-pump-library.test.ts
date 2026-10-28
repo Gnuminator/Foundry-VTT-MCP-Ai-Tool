@@ -24,6 +24,7 @@ import { VaultStore } from '../vault/store.js';
 import type { GitRunner } from './licensed-guard.js';
 import { ObsidianMirrorPump } from './mirror-pump.js';
 import { MIRROR_SETTINGS_FILE } from './mirror-settings.js';
+import { rmTmp } from '../test-support/rm-tmp.js';
 
 const WORLD = 'test-world';
 const PACK = 'world.test-bestiary';
@@ -151,7 +152,7 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
-  await fsp.rm(tmp, { recursive: true, force: true });
+  await rmTmp(tmp);
 });
 
 function newPump(git?: GitRunner, now?: () => number): ObsidianMirrorPump {

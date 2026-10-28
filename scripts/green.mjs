@@ -26,6 +26,25 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { withHeavyLock } from './heavy-lock.mjs';
+
+/**
+ * The steps that need a lot of RAM or CPU (lint, type check, build, the test suites, the browser
+ * run). Each takes the heavy-check lock, so parallel greens, the pre-push hook and the gate's drift
+ * check take turns instead of running together (see scripts/heavy-lock.mjs).
+ */
+export const HEAVY_STEPS = new Set([
+  'typecheck',
+  'lint-ratchet',
+  'build',
+  'kit-test',
+  'test-shared',
+  'test-foundry-module',
+  'test-mcp-server',
+  'test-cogm-dashboard',
+  'test-discord-bot',
+  'e2e',
+]);
 
 /** The unit-test steps run with CI=true, as on the runner (vitest then runs once, not in watch mode). */
 const CI = { CI: 'true' };
@@ -68,7 +87,7 @@ export const STEPS = [
     '.claude/hooks/warn-control-bytes.test.mjs',
     '.claude/hooks/guard-model.test.mjs'
   ),
-  nodeTest('gate-scripts', 'scripts/green.test.mjs', 'scripts/lane-merge.test.mjs', 'scripts/visual-baselines.test.mjs', 'scripts/review-runner/lib.test.mjs'),
+  nodeTest('gate-scripts', 'scripts/green.test.mjs', 'scripts/lane-merge.test.mjs', 'scripts/visual-baselines.test.mjs', 'scripts/review-runner/lib.test.mjs', 'scripts/heavy-lock.test.mjs'),
   nodeTest('usage-week', 'scripts/dev/usage-week.test.mjs'),
   nodeTest('gamenight-watch', 'scripts/gamenight-watch.test.mjs'),
   nodeTest('pi-space-check', 'scripts/pi/space-check.test.mjs'),
@@ -85,6 +104,8 @@ export const STEPS = [
   nodeTest('pi-stage5-load-check', 'scripts/pi/stage5-load-check.test.mjs'),
   nodeTest('pi-ssh-keys-only', 'scripts/pi/ssh-keys-only.test.mjs'),
   nodeTest('pi-board-status', 'scripts/pi/board-status.test.mjs'),
+  nodeTest('pi-gh-runner', 'scripts/pi/gh-runner.test.mjs'),
+  nodeTest('pi-time-sync', 'scripts/pi/time-sync.test.mjs'),
   nodeTest('pi-control-port-check', 'scripts/pi/control-port-check.test.mjs'),
   nodeTest('pi-stage-safety', 'scripts/pi/pi-stage-safety.test.mjs'),
   nodeTest('tunnel-client', 'installer/nsis/tunnel-client.test.mjs'),
@@ -472,19 +493,23 @@ export function nodeNote(o = {}) {
  * @returns {number} exit status (1 when the process could not start or was killed)
  */
 function spawnStep(step, fd, cwd) {
-  // One command string with shell: true (a command plus an args array under a shell is DEP0190).
-  const r = spawnSync(commandLine(step), {
-    cwd,
-    shell: true,
-    stdio: ['ignore', fd, fd],
-    env: {
-      ...stepEnvironment(process.env, NODE22_DIR),
-      FORCE_COLOR: '0',
-      NO_COLOR: '1',
-      ...step.env,
-    },
-  });
-  return r.status ?? 1;
+  const run = () => {
+    // One command string with shell: true (a command plus an args array under a shell is DEP0190).
+    const r = spawnSync(commandLine(step), {
+      cwd,
+      shell: true,
+      stdio: ['ignore', fd, fd],
+      env: {
+        ...stepEnvironment(process.env, NODE22_DIR),
+        FORCE_COLOR: '0',
+        NO_COLOR: '1',
+        ...step.env,
+      },
+    });
+    return r.status ?? 1;
+  };
+  // A heavy step takes the machine-wide lock (scripts/heavy-lock.mjs); the others just run.
+  return HEAVY_STEPS.has(step.name) ? withHeavyLock(`green ${step.name}`, run) : run();
 }
 
 /**

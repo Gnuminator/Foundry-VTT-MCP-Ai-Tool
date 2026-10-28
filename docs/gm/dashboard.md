@@ -138,8 +138,8 @@ links and My character" below.
 More entries under **Advanced ▾**, Tools:
 
 - **🩺 Module diagnostics** shows or hides the Module Diagnostics panel (see below).
-- **Version tracker: off / on** is off by default. Turn it on and a **📦 Versions** entry appears
-  in the same menu. It opens a table of what is installed (Foundry, the game system and the
+- **Version tracker: on / off** is on by default. While it is on, a **📦 Versions** entry appears
+  in the same menu; turn it off to hide it and stop the online lookups. It opens a table of what is installed (Foundry, the game system and the
   modules) next to the newest release, with a status for each. It only tells you what is out of
   date; it never updates anything.
 
@@ -200,6 +200,18 @@ A slim strip at the top of the **During** view. It shows the active combat: init
 it is (highlighted), and each combatant's HP bar and numbers. Each row is tagged **PC**, **Enemy**
 or **NPC**. The top line shows the round and the number of combatants. Turns, initiative and saves
 stay in Foundry's own combat tracker, and damage normally goes through dnd5e's chat cards there.
+
+Above the rows is the **initiative ribbon**: one strip in turn order, starting with whoever is up.
+That creature is large with their name; the next two are clear, and the rest fade out towards the
+right. Each has a ring in the colour of its side (PC, Enemy or NPC), its token portrait (its
+initials when it has none), its initiative, a small HP bar and its first conditions, with
+**Concentrating** first. Click a portrait to move the GM's Foundry view to that token (it switches
+to the token's scene first if needed; with two GMs logged in it shows an error instead). Portraits
+need the dashboard to know Foundry's address: set `DASHBOARD_FOUNDRY_URL` to the one your browser
+uses, otherwise the initials show. A **Round** marker shows where the order wraps into the next
+round, and a **Lair** marker shows where a lair action falls when a boss in the fight has one.
+Defeated creatures are dimmed and never count as next. The ribbon never changes the game; the click
+only moves that screen's view.
 
 Combat in the dashboard is optional. If you want it, the strip can add damage, healing and
 conditions on several combatants at once: turn on **⚔ Combat buttons** under **Advanced** (off by

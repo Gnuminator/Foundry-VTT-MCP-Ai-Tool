@@ -39,6 +39,8 @@ class TimedOut extends Error {}
  *   makes the scenario's `t.browser` (slice 4); `sink` is the run's console error list, so the
  *   dashboard pages' errors land in the report. The runner calls `close()` after the scenario's
  *   cleanups. Without it `t.browser` is null (the fake)
+ * @property {string[]} [knownConsoleErrors]   regular expressions (as text) for console errors the profile
+ *   accepts in every scenario (the modules-all profile: upstream module errors, see scripts/modules/expected.json)
  * @property {string} [filesDir]   where `t.attachFile` writes (`<report dir>/files`); the report holds
  *   the path relative to its parent, `files/<scenario id>/<name>`. Without it `t.attachFile` returns null
  */
@@ -342,7 +344,9 @@ async function runOne({ scenario, file }, opts, consoleSink) {
       );
       consoleSink.push(...errors.map(x => ({ ...x, scenario: scenario.id })));
       // A scenario can name errors it reports itself (Actor Studio's own), so they are not blamed on the bridge module.
-      const known = (scenario.knownConsoleErrors ?? []).map(src => new RegExp(src));
+      const known = [...(scenario.knownConsoleErrors ?? []), ...(opts.knownConsoleErrors ?? [])].map(
+        src => new RegExp(src)
+      );
       const ours = errors.filter(
         (/** @type {{message: string, source: string}} */ x) =>
           (x.message.includes(MODULE_ID) || x.source.includes(MODULE_ID)) &&

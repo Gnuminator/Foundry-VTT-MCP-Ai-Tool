@@ -7,6 +7,7 @@ import {
   type UsageEvent,
 } from '@gnuminator/shared';
 
+import { normalizeFoundryUrl, withPortraitUrls } from './combat-images.js';
 import type { Config, Tone } from './config.js';
 import type { Logger } from './logger.js';
 import { ToolError, TimeoutError } from './feed/mcp-control-client.js';
@@ -497,7 +498,8 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
       sse.broadcast('errors', { errors: added, initial: meta.initial }, gmOnly);
       if (!meta.initial) errorCommentary.notifyErrors(added);
     },
-    onCombat(combat: CombatState | null) {
+    onCombat(rawCombat: CombatState | null) {
+      const combat = withPortraitUrls(rawCombat, normalizeFoundryUrl(config.foundryUrl ?? ''));
       const prevSignature = state.combatSignature();
       state.setCombat(combat);
 
@@ -686,7 +688,7 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
     }),
   });
 
-  // The version tracker (I-127): GM only, off until the GM switches it on in the Advanced menu.
+  // The version tracker (I-127): GM only, on by default, the GM can switch it off in the Advanced menu.
   mountVersionsRoute(app, {
     requireGm,
     tracker: new VersionTracker({

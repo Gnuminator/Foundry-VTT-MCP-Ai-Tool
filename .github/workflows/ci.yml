@@ -40,12 +40,11 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Typecheck and lint (green-gate + warning ratchet)
+      - name: Typecheck and lint (green-gate + lint ratchet)
         # Documented green-gate: a type/lint error that doesn't break the build
-        # must still fail CI. Runs before build to fail fast. The lint ratchet
-        # fails on any eslint error AND on any rule whose warning count rises
-        # above scripts/lint-baseline.json (the count may only go down; lower it
-        # with `npm run lint:ratchet -- --update`).
+        # must still fail CI. Runs before build to fail fast. Every lint rule is an
+        # error now (D-109), so the lint ratchet fails on any finding; the baseline
+        # scripts/lint-baseline.json stays at 0.
         run: npm run typecheck && npm run lint:ratchet && npm run emdash:ratchet && npm run version:check
 
       - name: Usage catalogue is current
@@ -85,7 +84,7 @@ jobs:
 
       - name: Merge gate and keep-green scripts
         # scripts/green.mjs (parity with this job) and scripts/lane-merge.mjs (D-122 merge gate).
-        run: node --test scripts/green.test.mjs scripts/lane-merge.test.mjs scripts/visual-baselines.test.mjs scripts/review-runner/lib.test.mjs
+        run: node --test scripts/green.test.mjs scripts/lane-merge.test.mjs scripts/visual-baselines.test.mjs scripts/review-runner/lib.test.mjs scripts/heavy-lock.test.mjs
 
       - name: Weekly usage report
         # scripts/dev/usage-week.mjs (D-122 targets) against fixture transcripts.
@@ -169,6 +168,16 @@ jobs:
         # 16-board-status.sh: the hourly status script against a local server (payload, Access headers, 2xx only, the token file
         # checks) and the stage as text. The stage itself runs in a container on the ARM runner (build-test-arm).
         run: node --test scripts/pi/board-status.test.mjs
+
+      - name: Pi stage 17 GitHub runners
+        # 17-gh-runner.sh: the play-session gate against fake vaults (open, ended, past midnight, unknown, a running job) and the
+        # stage as text (pinned runner, token handling, the fence in the units).
+        run: node --test scripts/pi/gh-runner.test.mjs
+
+      - name: Pi stage 18 time sync
+        # 18-time-sync.sh (backlog pi-ntp): DietPi mode 4 only when needed, dry run, check, undo, snapshot required, with stand-in
+        # systemctl, timedatectl and dietpi-set_software.
+        run: node --test scripts/pi/time-sync.test.mjs
 
       - name: Pi stage 12 control port check
         # control_port_check in remote/lib.sh (D-095): the bridge's 31414 answers on loopback and nothing listens beyond it.
@@ -449,12 +458,11 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Typecheck and lint (green-gate + warning ratchet)
+      - name: Typecheck and lint (green-gate + lint ratchet)
         # Documented green-gate: a type/lint error that doesn't break the build
-        # must still fail CI. Runs before build to fail fast. The lint ratchet
-        # fails on any eslint error AND on any rule whose warning count rises
-        # above scripts/lint-baseline.json (the count may only go down; lower it
-        # with `npm run lint:ratchet -- --update`).
+        # must still fail CI. Runs before build to fail fast. Every lint rule is an
+        # error now (D-109), so the lint ratchet fails on any finding; the baseline
+        # scripts/lint-baseline.json stays at 0.
         run: npm run typecheck && npm run lint:ratchet && npm run emdash:ratchet && npm run version:check
 
       - name: Usage catalogue is current

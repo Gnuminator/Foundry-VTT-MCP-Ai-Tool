@@ -140,6 +140,11 @@ export class GuardedChangeTools {
               description: "The GM user whose screen to use (default: the bridge's own client).",
               ...toolRef('user', 'id', { filter: { role: 'gm' } }),
             },
+            pan: {
+              type: 'boolean',
+              description:
+                "With a token uuid (Scene.x.Token.y): pan the GM's Foundry view to that token and select it instead of opening its sheet. Only that GM's screen moves, not the players'.",
+            },
           },
           required: ['uuid'],
         },
@@ -211,7 +216,11 @@ export class GuardedChangeTools {
 
   async handleOpenInFoundry(args: unknown): Promise<unknown> {
     const params = z
-      .object({ uuid: z.string().min(1).max(500), userId: z.string().min(1).optional() })
+      .object({
+        uuid: z.string().min(1).max(500),
+        userId: z.string().min(1).optional(),
+        pan: z.boolean().optional(),
+      })
       .parse(args ?? {});
     const response = (await this.foundryClient.query(
       'foundry-mcp-bridge.openDocumentForGm',

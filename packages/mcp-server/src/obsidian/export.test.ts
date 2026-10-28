@@ -26,6 +26,7 @@ import { pathKey } from './mirror-common.js';
 import { allocateNotePaths } from './mirror-paths.js';
 import { SEEN_INDEX_FILE, type SeenIndex } from './seen-in.js';
 import { cell, frontmatter, renderCampaignHome, safeFileName } from './render.js';
+import { rmTmp } from '../test-support/rm-tmp.js';
 
 const WORLD = 'sorvan-test';
 let dataDir: string;
@@ -39,8 +40,8 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
-  await fsp.rm(dataDir, { recursive: true, force: true });
-  await fsp.rm(vaultDir, { recursive: true, force: true });
+  await rmTmp(dataDir);
+  await rmTmp(vaultDir);
 });
 
 async function seed(): Promise<void> {
@@ -1175,7 +1176,7 @@ describe('O3 play-log export (Stats/, session Stats section)', () => {
       );
       expect(warm).toBe(cold);
     } finally {
-      await fsp.rm(coldVault, { recursive: true, force: true });
+      await rmTmp(coldVault);
     }
   });
 

@@ -27,7 +27,10 @@ import { gzipSync } from 'node:zlib';
 // first load to 143.3 KB; the panel itself is the lazy PaperSync chunk.
 // 145 on 2026-10-24: the During bar's focus handling for the Start combat picker (about 0.5 KB)
 // took the first load to 144.0 KB.
-export const FIRST_LOAD_LIMIT_KB = 145;
+// 146 on 2026-10-28: reading the token image and uuid of each combatant (lib/combat.ts, which every
+// fight passes through, so it cannot be lazy) took the first load to 145.1 KB; the portrait and
+// pan code itself is in the lazy InitiativeRibbon chunk.
+export const FIRST_LOAD_LIMIT_KB = 146;
 
 /**
  * Lazy chunks by name stem (the file name without its hash and extension: `Tarokka-Cx9aB1zQ.js`
@@ -36,7 +39,7 @@ export const FIRST_LOAD_LIMIT_KB = 145;
  */
 export const LAZY_LIMITS_KB = {
   Handouts: 3, // 2.2 KB
-  InitiativeRibbon: 2, // 1.6 KB, measured 2026-10-27
+  InitiativeRibbon: 2, // 1.8 KB with portraits and the pan click (was 1.6 KB), measured 2026-10-28
   ModuleDiagnostics: 1, // 0.8 KB
   PaperSync: 6, // 5.1 KB, measured 2026-10-23
   Party: 4, // 3.0 KB

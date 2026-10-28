@@ -21,6 +21,10 @@ export interface RibbonCreature {
   /** The condition names to show, concentration first. */
   conditions: string[];
   concentrating: boolean;
+  /** The token portrait address, or null (the initials show instead). */
+  img: string | null;
+  /** The token uuid a click pans to, or null when the module did not send one. */
+  tokenUuid: string | null;
 }
 
 /** Where the order wraps: everything after it is the next round. */
@@ -79,6 +83,8 @@ function creatureOf(c: Combatant, role: RibbonRole): RibbonCreature {
       ...c.conditions.filter(cond => !isConcentration(cond)),
     ],
     concentrating,
+    img: c.img,
+    tokenUuid: c.tokenUuid,
   };
 }
 

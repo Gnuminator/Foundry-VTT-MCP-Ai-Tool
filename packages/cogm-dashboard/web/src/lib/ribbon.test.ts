@@ -107,6 +107,21 @@ describe('ribbonItems', () => {
   });
 });
 
+describe('ribbon portraits and pan target', () => {
+  it('carries the token image and uuid of each creature', () => {
+    const fight: CombatState = {
+      ...FIGHT,
+      combatants: FIGHT.combatants.map((c, i) =>
+        i === 0 ? { ...c, img: 'http://x/a.webp', tokenUuid: 'Scene.s.Token.t' } : c
+      ),
+    };
+    const first = ribbonItems(fight)?.find(i => i.kind === 'creature');
+    expect(first).toMatchObject({ img: 'http://x/a.webp', tokenUuid: 'Scene.s.Token.t' });
+    const other = ribbonItems(fight)?.filter(i => i.kind === 'creature')[1];
+    expect(other).toMatchObject({ img: null, tokenUuid: null });
+  });
+});
+
 describe('lairCount', () => {
   it('is null without a lair, the lair count with one, 20 by default', () => {
     expect(lairCount(FIGHT.combatants)).toBeNull();

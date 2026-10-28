@@ -67,6 +67,9 @@ export interface Combatant {
   tokenId?: string | null;
   actorId?: string | null;
   sceneId?: string | null;
+  /** The token's uuid and the combatant's image path (GM only; absent from older modules). */
+  tokenUuid?: string | null;
+  img?: string | null;
   statuses?: string[];
   /** I-070: an NPC's legendary actions, legendary resistances and lair (GM only; absent from older modules). */
   boss?: BossResources | null;

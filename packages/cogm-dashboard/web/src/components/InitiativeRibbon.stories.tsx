@@ -51,6 +51,37 @@ export const Five: Story = {
   },
 };
 
+/** A made-up round portrait as an inline image, so the baseline needs no server. */
+const portrait = (fill: string, letter: string): string =>
+  `data:image/svg+xml;utf8,${encodeURIComponent(
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" fill="${fill}"/><text x="32" y="42" font-size="30" text-anchor="middle" fill="white" font-family="sans-serif">${letter}</text></svg>`
+  )}`;
+
+/** Portraits on some creatures (a click pans Foundry to the token); the rest keep their initials. */
+export const WithPortraits: Story = {
+  render: () => (
+    <Show
+      combat={{
+        ...FIGHT,
+        combatants: FIGHT.combatants.map((c, i) => ({
+          ...c,
+          img:
+            i % 2 === 0
+              ? portrait(['#7a4', '#a47', '#47a'][i % 3] ?? '#777', c.name.charAt(0))
+              : null,
+          tokenUuid: i === 3 ? null : `Scene.sceneAAAAAAAAAAAA.Token.token${i}AAAAAAAAAA`,
+        })),
+      }}
+    />
+  ),
+  play: async ({ canvasElement }) => {
+    await expect(canvasElement.querySelector('img')).not.toBeNull();
+    await expect(
+      within(canvasElement).getByRole('button', { name: 'Pan to Brannoc' })
+    ).toBeVisible();
+  },
+};
+
 export const Two: Story = { render: () => <Show combat={crowd(2, 1)} /> };
 
 export const Eight: Story = { render: () => <Show combat={crowd(8, 3)} /> };

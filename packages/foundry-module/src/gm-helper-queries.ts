@@ -82,14 +82,70 @@ export function parseUuidPayload(data: unknown): string {
   return uuid;
 }
 
-/** Open a document on this client: sheet, journal page, or scene view. */
+/** Whether the payload asks to pan to a token instead of opening its sheet. */
+export function parsePanFlag(data: unknown): boolean {
+  return (data as { pan?: unknown } | null | undefined)?.pan === true;
+}
+
+/** The shape of a token and the canvas that `panToToken` reads; narrow, since Foundry's typings are wide. */
+interface PannableToken {
+  parent?: { id?: string | null; view?(): Promise<unknown> } | null;
+  object?: { center?: { x: number; y: number }; control?(o: object): unknown } | null;
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
+}
+
+/**
+ * Pan this client's view to a token (the ribbon's click): switch to the token's scene when it is
+ * not the one on screen, centre on the token and select it. Changes only this GM's view.
+ */
+async function panToToken(doc: PannableToken): Promise<void> {
+  const scene = doc.parent;
+  const cv = (
+    globalThis as {
+      canvas?: {
+        scene?: { id?: string | null } | null;
+        grid?: { size?: number };
+        animatePan?(o: object): Promise<unknown>;
+      };
+    }
+  ).canvas;
+  if (scene && scene.id !== cv?.scene?.id) await scene.view?.();
+  const live = (globalThis as { canvas?: typeof cv }).canvas;
+  if (scene && live?.scene?.id !== scene.id) {
+    throw new Error(
+      "The token's scene did not open on this GM client (canvas still loading, or off)"
+    );
+  }
+  const size = live?.grid?.size ?? 100;
+  const center = doc.object?.center ?? {
+    x: (doc.x ?? 0) + ((doc.width ?? 1) * size) / 2,
+    y: (doc.y ?? 0) + ((doc.height ?? 1) * size) / 2,
+  };
+  doc.object?.control?.({ releaseOthers: true });
+  // Not awaited: a browser tab in the background never finishes the animation, and the request
+  // must not wait for it.
+  void Promise.resolve(live?.animatePan?.({ x: center.x, y: center.y, duration: 250 })).catch(
+    (error: unknown): void => {
+      console.warn(`[${MODULE_ID}] Could not pan to the token:`, error);
+    }
+  );
+}
+
+/** Open a document on this client: sheet, journal page, or scene view; `pan` pans to a token. */
 export async function openDocumentLocally(
-  uuid: string
+  uuid: string,
+  pan = false
 ): Promise<{ opened: true; documentName: string; name: string | null }> {
   const doc = await fromUuid(uuid);
   if (!doc) throw new Error(`Document not found: ${uuid}`);
   const named = doc as FoundryDocument & { name?: string };
-  if (doc.documentName === 'JournalEntryPage' && doc.parent) {
+  if (pan) {
+    if (doc.documentName !== 'Token') throw new Error('Only a token can be panned to');
+    await panToToken(doc);
+  } else if (doc.documentName === 'JournalEntryPage' && doc.parent) {
     doc.parent.sheet?.render(true, { pageId: doc.id });
   } else if (doc.documentName === 'Scene') {
     await (doc as Scene).view();
@@ -108,7 +164,7 @@ async function openDocumentQuery(
 ): Promise<{ opened: true; documentName: string; name: string | null }> {
   requireGmSender(context);
   if (!game.user.isGM) throw new Error('Rejected: this client is not a GM');
-  return openDocumentLocally(parseUuidPayload(data));
+  return openDocumentLocally(parseUuidPayload(data), parsePanFlag(data));
 }
 
 /** `CONFIG.queries` handler: this GM client's tarokka-reading reading, for a GM sender. */
@@ -324,19 +380,21 @@ export function resolveGmTarget(userId?: string): User {
 export async function openDocumentForGm(data: {
   uuid?: unknown;
   userId?: unknown;
+  pan?: unknown;
 }): Promise<{ opened: true; documentName: string; name: string | null; userId: string }> {
   const uuid = parseUuidPayload(data);
+  const pan = parsePanFlag(data);
   const userId = typeof data.userId === 'string' && data.userId ? data.userId : undefined;
   const target = resolveGmTarget(userId);
   if (target.id === game.user.id) {
-    return { ...(await openDocumentLocally(uuid)), userId: target.id };
+    return { ...(await openDocumentLocally(uuid, pan)), userId: target.id };
   }
   if (!coreSupportsQuerySender()) {
     throw new Error('Opening a document on another GM client needs Foundry 14.352 or newer');
   }
   const result = (await target.query(
     GM_HELPER_QUERIES.openDocument,
-    { uuid },
+    pan ? { uuid, pan } : { uuid },
     { timeout: HELPER_TIMEOUT_MS }
   )) as { opened: true; documentName: string; name: string | null };
   return { ...result, userId: target.id };

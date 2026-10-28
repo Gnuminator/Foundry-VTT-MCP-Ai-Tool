@@ -118,4 +118,16 @@ describe('GuardedChangeTools handlers', () => {
     );
     await expect(tools.handleOpenInFoundry({})).rejects.toThrow();
   });
+
+  it('passes pan on to the bridge (and rejects a non-boolean)', async () => {
+    const { tools, query } = makeTools();
+    await tools.handleOpenInFoundry({ uuid: 'Scene.a.Token.b', pan: true });
+    expect(query).toHaveBeenCalledWith('foundry-mcp-bridge.openDocumentForGm', {
+      uuid: 'Scene.a.Token.b',
+      pan: true,
+    });
+    await expect(
+      tools.handleOpenInFoundry({ uuid: 'Scene.a.Token.b', pan: 'yes' })
+    ).rejects.toThrow();
+  });
 });

@@ -610,7 +610,7 @@ Parameters:
 
 ### get-party
 
-GM ONLY. The dnd5e party (group actors, the primary party first): each member's HP, AC, passive Perception, conditions, exhaustion, hit dice and tokens on the current scene (and whether they are in the encounter), the travel pace and whether a slowed member forces slow pace, plus the current encounter. Read-only.
+GM ONLY. The dnd5e party (group actors, the primary party first): each member's HP, AC, passive Perception (and, when the AI Tool: Who would notice switch is on, passive Investigation and Insight under passives), conditions, exhaustion, hit dice and tokens on the current scene (and whether they are in the encounter), the travel pace and whether a slowed member forces slow pace, plus the current encounter. Read-only.
 
 Kind: read-only. Title: Get party.
 

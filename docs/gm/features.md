@@ -66,6 +66,15 @@ GM Actions. **End session** turns off again what it turned on. See
   as the primary party in Foundry.
 - **More:** [The party drawer](dashboard.md#the-party-drawer--party).
 
+## Who would notice
+
+- **What it does:** adds a row to the party drawer. Type a DC and every character shows a chip for
+  passive Perception, Investigation and Insight, with a tick or a cross. It only reads: nothing is
+  rolled and players never see it.
+- **Starts:** off. Setting "AI Tool: Who would notice". It is not part of Turn on for tonight.
+- **Turn it on when:** you want to know who spots something hidden without asking for rolls.
+- **More:** [The party drawer](dashboard.md#the-party-drawer--party).
+
 ## Tarokka
 
 - **What it does:** saves a card reading, links cards to journals, and publishes reveal pages to

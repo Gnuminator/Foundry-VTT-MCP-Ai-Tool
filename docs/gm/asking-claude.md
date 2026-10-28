@@ -148,7 +148,8 @@ as Claude's.
 
 Other switches in the same category: the table viewer and "Undo for everything" start on; scene
 mood and music, room setup, scene restore, the NPC turn assistant, paper sync and GM windows start
-off. [Features and when to turn them on](features.md) says what each one does.
+off, and so do "AI Tool: Who would notice" (a passive-score row in the party drawer, read only) and
+"AI Tool: Rules check". [Features and when to turn them on](features.md) says what each one does.
 
 **Session notes go in without asking.** With "AI Tool: Session notes (writes)" on, the bridge puts
 the notes of a recorded session (pages Recap, GM summary and Scenes, Danish first and English

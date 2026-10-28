@@ -35,8 +35,13 @@ RUNNERS="vault:obsidian-vault board:foundry-ai-tool-pm-board"
 GATE_SCRIPT="$RUNNER_BASE/gate.sh"
 # Addresses a job must not reach: loopback (bridge, dashboard, Foundry link), Tailscale, and the whole LAN except the router
 # (DNS and the way out; the Pi's own LAN address is in the denied range, so Foundry on it is out too).
-IP_DENY="127.0.0.0/8 ::1/128 100.64.0.0/10 fd7a:115c:a1e0::/48 10.0.0.0/8 172.16.0.0/12 192.168.0.0/16 169.254.0.0/16 fe80::/10"
-ROUTER="$(ip -4 route show default 2>/dev/null | awk '/default/ {print $3; exit}')"
+IP_DENY="127.0.0.0/8 ::1/128 100.64.0.0/10 fd7a:115c:a1e0::/48 10.0.0.0/8 172.16.0.0/12 192.168.0.0/16 169.254.0.0/16 fe80::/10 ::/0"
+ROUTER="$(ip -4 route show default 2>/dev/null | awk '/default/ {print $3; exit}' || true)"
+# Let through: the router and the DNS servers of /etc/resolv.conf (IPv4; IPv6 is denied as a whole, the runner reaches GitHub over IPv4).
+ALLOW=""
+for ns in $ROUTER $(awk '/^nameserver/ {print $2}' /etc/resolv.conf 2>/dev/null | grep -E '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$' || true); do
+  case " $ALLOW " in *" $ns/32 "*) ;; *) ALLOW="${ALLOW:+$ALLOW }$ns/32" ;; esac
+done
 
 say "checking before anything is written"
 command -v curl >/dev/null 2>&1 || die "curl is missing"
@@ -292,7 +297,7 @@ RestrictSUIDSGID=true
 InaccessiblePaths=-/etc/foundry-ai-tool -/var/lib/foundry -/var/lib/foundry-ai-tool -/var/lib/foundry-backup -/mnt -/root$other
 ProtectProc=invisible
 IPAddressDeny=$IP_DENY
-IPAddressAllow=$ROUTER/32
+IPAddressAllow=$ALLOW
 Nice=10
 CPUWeight=20
 MemoryMax=2G
@@ -327,12 +332,16 @@ if have_systemd; then
   # listens on every address, on loopback and on the Pi's own LAN address. A kernel without cgroup BPF firewalling would
   # start the unit "WITHOUT firewalling" and the connect would succeed: then nothing is started.
   say "the fence (a probe with the units' address rules must be refused)"
-  [ -n "$ROUTER" ] || die "no default route: cannot tell the router address for the units"
   lan_ip="$(hostname -I | tr ' ' '\n' | grep -E '^(10|192\.168|172\.(1[6-9]|2[0-9]|3[01]))\.' | head -n 1 || true)"
   for target in 127.0.0.1 $lan_ip; do
-    if systemd-run --quiet --wait --collect --pipe -p "User=$RUNNER_USER" -p "IPAddressDeny=$IP_DENY" -p "IPAddressAllow=$ROUTER/32" \
+    # The control: without the address rules the same probe must connect, else a refusal below proves nothing.
+    systemd-run --quiet --wait --collect --pipe -p "User=$RUNNER_USER" /bin/bash -c "exec 3<>/dev/tcp/$target/22" </dev/null >/dev/null 2>&1 ||
+      die "the control probe (no address rules) cannot reach $target:22, so the fence cannot be tested here"
+    if systemd-run --quiet --wait --collect --pipe -p "User=$RUNNER_USER" -p "IPAddressDeny=$IP_DENY" -p "IPAddressAllow=$ALLOW" \
       /bin/bash -c "exec 3<>/dev/tcp/$target/22" </dev/null >/dev/null 2>&1; then
-      die "a service with the runner's address rules still reached $target:22: the kernel does not enforce IPAddressDeny. Nothing was started; the timer is not enabled"
+      # A timer from an earlier run must not go on starting runners with the old units.
+      systemctl disable --now foundry-ai-tool-gh-runner-gate.timer >/dev/null 2>&1 || true
+      die "a service with the runner's address rules still reached $target:22: the kernel does not enforce IPAddressDeny. The gate timer is off; runners that already run keep running (stop them: systemctl stop foundry-ai-tool-gh-runner-vault foundry-ai-tool-gh-runner-board)"
     fi
     ok "$target:22 is refused for the runner's rules"
   done

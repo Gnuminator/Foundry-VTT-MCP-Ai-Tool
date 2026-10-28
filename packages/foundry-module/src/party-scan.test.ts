@@ -18,6 +18,7 @@ import {
 } from './guarded-features.js';
 import {
   PARTY_FEATURE_ID as SHARED_FEATURE,
+  WHO_NOTICES_FEATURE_ID as SHARED_WHO_NOTICES,
   PARTY_REST_TYPES as SHARED_REST_TYPES,
   PARTY_STATE_QUERY as SHARED_QUERY,
 } from '../../../shared/src/party.js';
@@ -100,6 +101,7 @@ describe('wire contract', () => {
   it('mirrors the shared constants', () => {
     expect(PARTY_STATE_QUERY).toBe(SHARED_QUERY);
     expect(PARTY_FEATURE_ID).toBe(SHARED_FEATURE);
+    expect(WHO_NOTICES_FEATURE_ID).toBe(SHARED_WHO_NOTICES);
     expect(PARTY_REST_TYPES).toEqual(SHARED_REST_TYPES);
   });
 });

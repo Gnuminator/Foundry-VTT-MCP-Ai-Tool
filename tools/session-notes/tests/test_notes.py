@@ -391,6 +391,16 @@ def test_cli_logged_out_claude_pauses_with_login_hint(
     assert "usage limit" not in str(status["message"])
 
 
+def test_cli_login_lost_at_the_summary_call_still_says_so(
+    session: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    Writer(session, FakeClaude(), Options(workers=1)).run()
+    (session / "notes" / ".work" / "session.json").unlink()  # scenes stay cached, only the summary reruns
+    code = _run_cli(monkeypatch, session, FakeClaude(fail={1: "auth"}))
+    assert code == 75
+    assert "/login" in str(_status(session)["message"])
+
+
 def test_claude_cli_command_runs_without_connectors_and_settings(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

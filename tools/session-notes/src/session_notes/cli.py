@@ -3,7 +3,7 @@
 ``session-notes scenes <session>`` only shows how the session would be split (no Claude call).
 ``session-notes publish <session>`` hands the notes to the bridge, which puts them into Foundry.
 Exit codes: 0 done, 1 error, 3 the bridge cannot take the notes now (publish; try again later),
-75 paused by a usage limit (run the same command again later), 76 some scenes are still raw (run again).
+75 paused by a usage limit or a logged-out claude (run the same command again later), 76 some scenes are still raw (run again).
 """
 
 from __future__ import annotations
@@ -13,7 +13,7 @@ import os
 import sys
 from pathlib import Path
 
-from .claude_runner import LOGIN_HINT, ClaudeCli, ClaudeError
+from .claude_runner import ClaudeCli, ClaudeError
 from .model import clock, load_timeline
 from .publish import publish
 from .retention import approve, cleanup
@@ -159,7 +159,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     counts = {"scenes": result.scenes, "fallbacks": result.fallbacks, "pending": result.pending}
     if result.paused:
-        why = "" if LOGIN_HINT in result.paused else "Paused by a usage limit: "
+        why = "" if result.login_needed else "Paused by a usage limit: "
         print(f"{why}{result.paused}\nRun the same command again later.")
         write_status(session, "paused", f"{why}{result.paused}", **counts)
         return EXIT_PAUSED

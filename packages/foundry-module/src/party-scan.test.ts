@@ -8,8 +8,14 @@ import {
   PARTY_FEATURE_ID,
   PARTY_REST_TYPES,
   PARTY_STATE_QUERY,
+  WHO_NOTICES_FEATURE_ID,
   getPartyState,
 } from './party-scan.js';
+import {
+  featureSettingKey,
+  registerGuardedFeature,
+  resetGuardedFeaturesForTests,
+} from './guarded-features.js';
 import {
   PARTY_FEATURE_ID as SHARED_FEATURE,
   PARTY_REST_TYPES as SHARED_REST_TYPES,
@@ -111,6 +117,39 @@ describe('groups', () => {
       ['Alpha Band', false],
     ]);
     expect(state.warnings).toEqual([]);
+  });
+
+  describe('who would notice (I-078)', () => {
+    const withSkills = (id: string): any => {
+      const a = hero(id, 'Ana');
+      a.system.skills = { prc: { passive: 9 }, inv: { passive: 12 }, ins: {} };
+      return a;
+    };
+
+    it('leaves passives null while the switch is off', () => {
+      group('g1', 'The Party', [withSkills('a1')]);
+      expect(getPartyState().groups[0]?.members[0]?.passives).toBeNull();
+    });
+
+    it('reads dnd5e passive scores as they are once the switch is on', () => {
+      resetGuardedFeaturesForTests();
+      g.game.settings.register = (): void => {};
+      registerGuardedFeature({
+        id: WHO_NOTICES_FEATURE_ID,
+        name: 'Who',
+        hint: 'h',
+        readOnly: true,
+      });
+      g.game.settings.get = (_m: string, key: string): unknown =>
+        key === featureSettingKey(WHO_NOTICES_FEATURE_ID);
+      group('g1', 'The Party', [withSkills('a1')]);
+      expect(getPartyState().groups[0]?.members[0]?.passives).toEqual({
+        perception: 9,
+        investigation: 12,
+        insight: null,
+      });
+      resetGuardedFeaturesForTests();
+    });
   });
 
   it('reads member numbers, conditions without exhaustion, and death saves only at 0 HP', () => {

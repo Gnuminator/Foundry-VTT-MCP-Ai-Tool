@@ -51,9 +51,8 @@ lists the module errors it saw as known and new findings (read from the kit repo
 Per-module kit scenarios run in the same kit step and skip when their module is not in the profile:
 `module-ac5e-roll-mode` (full size) poisons a hero and a monster and compares the roll mode of
 `request-ability-check`, `request-attack-roll` and `roll-saving-throws` with the same creatures
-unpoisoned. Today `roll-saving-throws` (it rolls through dnd5e) gets disadvantage from Automated
-Conditions 5e (measured); the two request buttons post a plain `1d20` formula that the module rolls
-outside dnd5e's hooks (from the code; the scenario reads the button and does not click it).
+unpoisoned. All three roll through dnd5e (the two request buttons since the roll-buttons fix; the
+scenario clicks them as the GM), so a poisoned creature gets disadvantage from Automated Conditions 5e.
 
 **Expected findings** are in `scripts/modules/expected.json`: a module, a substring of the error and
 why it is known upstream behaviour, with a `max` on the broad ones. `splitFindings` applies them to

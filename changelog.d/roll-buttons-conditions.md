@@ -1,0 +1,3 @@
+### Fixes
+
+- **Roll-request buttons apply conditions:** the chat buttons that `request-ability-check`, `request-attack-roll` and `request-player-rolls` (ability, skill, save) post now roll through dnd5e's own actor and attack-activity API instead of a plain `1d20` formula, so poisoned and other conditions, advantage sources and Automated Conditions 5e apply (a poisoned player rolls `2d20dis`). An attack button now also adds the weapon's real to-hit bonus. The DC still rides on the roll and the card is still marked rolled. Initiative and custom rolls, and an attack with no matching weapon, still roll the plain formula. Kit scenario `module-ac5e-roll-mode` now clicks the buttons and expects disadvantage.

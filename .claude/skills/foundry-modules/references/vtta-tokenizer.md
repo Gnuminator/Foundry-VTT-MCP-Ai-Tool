@@ -15,7 +15,8 @@ Verified on Foundry 14.368 / dnd5e 6.0.6, module 5.0.3, 2026-10-28 (test server 
 
 ## Where its UI is
 
-- **Actor sheet, three-dot header menu**, entry "Tokenizer" (seen next to "DDB Importer" and "3D Dice Settings"). There is no Tokenizer button in the header of the dnd5e 6 character sheet, and `title-link` (world, default false) did not add one when set to true and back.- **API:** `game.modules.get('vtta-tokenizer').api.tokenizeActor(actor)`; also `launch`, `launchTokenizer`, `tokenizeSceneToken`, `tokenizeDoc`, `updateSceneTokenImg`, `autoToken`.
+- **Actor sheet, three-dot header menu**, entry "Tokenizer" (seen next to "DDB Importer" and "3D Dice Settings"). There is no Tokenizer button in the header of the dnd5e 6 character sheet, and `title-link` (world, default false) did not add one when set to true and back.
+- **API:** `game.modules.get('vtta-tokenizer').api.tokenizeActor(actor)`; also `launch`, `launchTokenizer`, `tokenizeSceneToken`, `tokenizeDoc`, `updateSceneTokenImg`, `autoToken`.
 - Clicking an actor's portrait on the dnd5e 6 sheet only opens the normal image pop-out, not Tokenizer.
 - Right-click an actor in the **Actors directory** > Tokenizer (and compendium entries) (from source, not verified).
 - The window "Tokenizer" opened with Avatar and Token panels, layers, Add Frame, Add Mask and a dynamic ring layer. Nothing was saved in this run, so saving a file and updating the actor portrait are (not verified).

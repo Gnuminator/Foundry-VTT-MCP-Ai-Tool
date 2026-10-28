@@ -170,6 +170,66 @@ describe('resolveGmTarget / openDocumentForGm', () => {
     expect(res.userId).toBe('human');
   });
 
+  it('pan: switches scene when needed, centres on the token and selects it', async () => {
+    const control = vi.fn();
+    const view = vi.fn().mockResolvedValue(undefined);
+    const animatePan = vi.fn().mockResolvedValue(undefined);
+    g.canvas = { scene: { id: 'other' }, grid: { size: 100 }, animatePan };
+    g.fromUuid = vi.fn().mockResolvedValue({
+      documentName: 'Token',
+      name: 'Ogre',
+      parent: { id: 'sceneAAAAAAAAAAA', view },
+      object: { center: { x: 450, y: 250 }, control },
+    });
+
+    const res = await openDocumentForGm({
+      uuid: 'Scene.sceneAAAAAAAAAAA.Token.tokAAAAAAAAAAAAA',
+      pan: true,
+    });
+
+    expect(view).toHaveBeenCalled();
+    expect(animatePan).toHaveBeenCalledWith({ x: 450, y: 250, duration: 250 });
+    expect(control).toHaveBeenCalledWith({ releaseOthers: true });
+    expect(res).toMatchObject({ opened: true, documentName: 'Token', userId: 'gm' });
+  });
+
+  it('pan: stays on the scene already shown and falls back to the token position', async () => {
+    const view = vi.fn();
+    const animatePan = vi.fn().mockResolvedValue(undefined);
+    g.canvas = { scene: { id: 'sceneAAAAAAAAAAA' }, grid: { size: 100 }, animatePan };
+    g.fromUuid = vi.fn().mockResolvedValue({
+      documentName: 'Token',
+      parent: { id: 'sceneAAAAAAAAAAA', view },
+      x: 200,
+      y: 300,
+      width: 2,
+      height: 2,
+    });
+
+    await openDocumentForGm({ uuid: 'Scene.sceneAAAAAAAAAAA.Token.tokAAAAAAAAAAAAA', pan: true });
+
+    expect(view).not.toHaveBeenCalled();
+    expect(animatePan).toHaveBeenCalledWith({ x: 300, y: 400, duration: 250 });
+  });
+
+  it('pan: refuses anything that is not a token', async () => {
+    g.fromUuid = vi.fn().mockResolvedValue({ documentName: 'Actor', sheet: { render: vi.fn() } });
+    await expect(openDocumentForGm({ uuid: 'Actor.abcdefghijklmnop', pan: true })).rejects.toThrow(
+      /token/
+    );
+  });
+
+  it('pan is passed on to another GM client', async () => {
+    const query = vi.fn().mockResolvedValue({ opened: true, documentName: 'Token', name: 'X' });
+    addUser({ id: 'human', name: 'Human GM', isGM: true, active: true, role: 4, query });
+    await openDocumentForGm({ uuid: 'Scene.sceneAAAAAAAAAAA.Token.tokAAAAAAAAAAAAA', pan: true });
+    expect(query).toHaveBeenCalledWith(
+      GM_HELPER_QUERIES.openDocument,
+      { uuid: 'Scene.sceneAAAAAAAAAAA.Token.tokAAAAAAAAAAAAA', pan: true },
+      { timeout: 10_000 }
+    );
+  });
+
   it('asks for userId when several full GMs are logged in', () => {
     addUser({ id: 'a', name: 'A', isGM: true, active: true, role: 4 });
     addUser({ id: 'b', name: 'B', isGM: true, active: true, role: 4 });

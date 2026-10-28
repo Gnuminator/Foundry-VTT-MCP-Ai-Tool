@@ -78,6 +78,18 @@ interface Dnd5eRester {
   longRest(config: object): Promise<unknown>;
 }
 
+/**
+ * A Foundry image path as an address the dashboard (another origin, beside Foundry in the GM's
+ * browser) can load: a relative path is resolved against this page's origin; an address that is
+ * already absolute is kept.
+ */
+export function absoluteImagePath(src: string | null | undefined): string | null {
+  if (!src) return null;
+  const origin = (globalThis as { location?: { origin?: string } }).location?.origin;
+  if (!origin || origin === 'null' || /^(?:[a-z][a-z0-9+.-]*:|\/\/)/i.test(src)) return src;
+  return `${origin}/${src.replace(/^\/+/, '')}`;
+}
+
 /** One combatant of the tracker snapshot (`getCombatState`). */
 export interface CombatantSnapshot {
   id: string;
@@ -88,6 +100,10 @@ export interface CombatantSnapshot {
   tokenId: string | null;
   actorId: string | null;
   sceneId: string | null;
+  /** The token's uuid (`Scene.x.Token.y`): what the dashboard's ribbon pans to. */
+  tokenUuid: string | null;
+  /** The token's image path (its texture, else the combatant's image): the ribbon's portrait. */
+  img: string | null;
   hp: { value: number | null; max: number | null; temp: number } | null;
   conditions: string[];
   statuses: string[];
@@ -253,8 +269,13 @@ export class CombatDataAccess {
     // only some of them.
     const cExtra = c as {
       tokenId?: string | null;
-      token?: { id?: string | null } | null;
+      token?: {
+        id?: string | null;
+        uuid?: string | null;
+        texture?: { src?: string | null } | null;
+      } | null;
       sceneId?: string | null;
+      img?: string | null;
     };
     const actorExtra = actor as { id?: string | null; statuses?: Iterable<unknown> } | null;
     return {
@@ -266,6 +287,8 @@ export class CombatDataAccess {
       tokenId: cExtra.tokenId ?? cExtra.token?.id ?? null,
       actorId: actorExtra?.id ?? null,
       sceneId: cExtra.sceneId ?? null,
+      tokenUuid: cExtra.token?.uuid || null,
+      img: absoluteImagePath(cExtra.token?.texture?.src || cExtra.img),
       hp: hp ? { value: hp.value ?? null, max: hp.max ?? null, temp: hp.temp ?? 0 } : null,
       conditions: shared.actorConditionNames(actor),
       statuses: Array.from(actorExtra?.statuses ?? []).filter(

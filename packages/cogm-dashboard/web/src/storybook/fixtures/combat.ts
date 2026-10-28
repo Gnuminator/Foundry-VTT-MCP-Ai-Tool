@@ -19,6 +19,8 @@ export function combatant(id: string, name: string, over: Partial<Combatant> = {
     deathSaves: null,
     boss: null,
     tokenId: null,
+    tokenUuid: null,
+    img: null,
     ...over,
   };
 }

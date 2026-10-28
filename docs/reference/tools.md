@@ -282,6 +282,7 @@ Parameters:
 
 - `uuid` (string, required): Document uuid, e.g. JournalEntry.abc.JournalEntryPage.def
 - `userId` (string): The GM user whose screen to use (default: the bridge's own client).
+- `pan` (boolean): With a token uuid (Scene.x.Token.y): pan the GM's view to that token and select it instead of opening its sheet. Only the GM's own view moves.
 
 ### check-secret-terms
 

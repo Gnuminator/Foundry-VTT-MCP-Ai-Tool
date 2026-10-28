@@ -40,6 +40,28 @@
   letter-spacing: 0.03em;
 }
 
+/* The token portrait fills the ring; a button badge is clickable (pans Foundry to the token). */
+.portrait {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+}
+button.badge {
+  padding: 0;
+  overflow: hidden;
+  font: inherit;
+  cursor: pointer;
+}
+button.badge:hover {
+  box-shadow: 0 0 0 3px var(--accent-glow);
+}
+button.badge:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 .pc .badge {
   border-color: var(--pc);
 }

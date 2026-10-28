@@ -44,6 +44,10 @@ export interface Combatant {
   boss: BossResources | null;
   /** The combatant's token (null from an older module or the sample fight): what a plan targets. */
   tokenId: string | null;
+  /** The token's uuid (null from an older module): what the ribbon pans to. */
+  tokenUuid: string | null;
+  /** The token's image address (null from an older module or with no image): the ribbon portrait. */
+  img: string | null;
 }
 
 /** The fight the stream last reported (`combat`, GM only). Combatants are in the bridge's order. */
@@ -104,6 +108,8 @@ function readCombatant(v: unknown): Combatant | null {
       : null,
     boss: readBoss(v['boss']),
     tokenId: typeof v['tokenId'] === 'string' && v['tokenId'] ? v['tokenId'] : null,
+    tokenUuid: typeof v['tokenUuid'] === 'string' && v['tokenUuid'] ? v['tokenUuid'] : null,
+    img: typeof v['img'] === 'string' && /^https?:\/\//i.test(v['img']) ? v['img'] : null,
   };
 }
 
@@ -439,6 +445,8 @@ function sampleCombatant(
     deathSaves: null,
     boss: null,
     tokenId: null,
+    tokenUuid: null,
+    img: null,
     ...extra,
   };
 }

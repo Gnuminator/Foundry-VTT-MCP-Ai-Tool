@@ -390,6 +390,17 @@ describe('exportWorldToObsidian', () => {
     }
   });
 
+  it('the start page links to Prep files the export really creates', async () => {
+    await seed();
+    await run();
+    const home = await note('Home.md');
+    expect(home).toContain('(Prep/README.md)');
+    expect(await note('Prep/README.md')).toBeTruthy();
+    expect(home).toContain('`Prep/Templates/`');
+    const templates = await fsp.readdir(path.join(campaignDir(vaultDir, WORLD), 'Prep/Templates'));
+    expect(templates.length).toBeGreaterThan(0);
+  });
+
   it('leaves an edited old Home alone and says so in _status.md', async () => {
     await seed();
     const homePath = path.join(campaignDir(vaultDir, WORLD), 'Home.md');

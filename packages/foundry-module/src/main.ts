@@ -142,6 +142,11 @@ class FoundryMCPBridge {
         hint: "Lets the AI Tool change which Foundry documents it mirrors into the GM's Obsidian vault (the mirror settings).",
       });
       registerGuardedFeature({
+        id: 'obsidian-import',
+        name: 'AI Tool: Obsidian import (writes)',
+        hint: "Lets the AI Tool create a GM-only quest journal from a quest prep note in the GM's Obsidian vault, after you confirm the plan.",
+      });
+      registerGuardedFeature({
         id: PARTY_FEATURE_ID,
         name: 'AI Tool: Party (writes)',
         hint: "Lets the dashboard's Party drawer and the AI change the party's travel pace, add the party to combat and post a party rest request.",

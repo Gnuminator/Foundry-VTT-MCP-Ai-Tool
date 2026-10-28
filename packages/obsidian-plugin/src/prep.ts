@@ -76,6 +76,16 @@ export function isPrepType(type: unknown): boolean {
 }
 
 /**
+ * Whether a note can be imported as a quest (O6): a quest prep note whose `fvtt_uuid` is empty (a
+ * note that already points at a journal is not imported again). The backend checks it all again.
+ */
+export function isQuestImportable(frontmatter: Record<string, unknown> | undefined): boolean {
+  if (frontmatter?.type !== 'quest-prep') return false;
+  const uuid = frontmatter.fvtt_uuid;
+  return uuid === undefined || uuid === null || (typeof uuid === 'string' && uuid.trim() === '');
+}
+
+/**
  * The campaign folder a mirror note lives in (`Campaigns/<world>`), or null when the note is not
  * in its world's campaign folder (then there is no Prep folder to write to).
  */

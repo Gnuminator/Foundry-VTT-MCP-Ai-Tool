@@ -105,6 +105,7 @@ import { ObsidianMirrorPump } from './obsidian/mirror-pump.js';
 import { messageOf } from './types/server-types.js';
 import { mirrorEnvSettings } from './obsidian/mirror-settings.js';
 import { ObsidianMirrorTools } from './tools/obsidian-mirror.js';
+import { ObsidianQuestImportTools } from './tools/obsidian-quest-import.js';
 
 // Control channel bind target. Defaults to the frozen loopback contract
 // (127.0.0.1:31414) the stdio wrapper and dashboard expect, but is injectable so
@@ -461,6 +462,13 @@ async function startBackend(): Promise<void> {
   const mirrorEnv = mirrorEnvSettings();
   for (const warning of mirrorEnv.warnings) logger.warn(warning);
   let mirrorPump: ObsidianMirrorPump | null = null;
+  const obsidianQuestImportTools = new ObsidianQuestImportTools({
+    vaultDir: obsidianVaultDir ?? null,
+    worldIds,
+    guardedWrites,
+    foundry: foundryClient,
+    logger,
+  });
   const obsidianMirrorTools = new ObsidianMirrorTools({
     store: vaultStore,
     worldIds,
@@ -530,6 +538,11 @@ async function startBackend(): Promise<void> {
     refChoiceTools,
   };
   const toolRouter = buildToolRouter(toolDeps);
+  // Dashboard-only routes (O6): callable through call_tool by the dashboard's GM proxy, but not
+  // MCP tools (no definition, in no tool set), so buildToolRouter's one-route-per-tool test and
+  // the tool-set size budgets stay as they are. Claude cannot list or call these.
+  toolRouter['plan-obsidian-quest-import'] = (args: unknown): Promise<unknown> =>
+    obsidianQuestImportTools.handlePlanObsidianQuestImport(args);
   // A `module-request` from the linked browser runs through the same dispatch table as the
   // control channel's call_tool (MODULE_REQUEST_TOOLS only; an undo records who asked).
   foundryClient.setModuleRequestHandler(

@@ -267,6 +267,12 @@ export class DashboardClient {
     return { pages, queue };
   }
 
+  /** `plan-obsidian-quest-import` for one quest prep note: the planId to confirm in the dashboard. */
+  async planQuestImport(notePath: string): Promise<{ planId: string | null; summary: string }> {
+    const result = rec(await this.readTool('plan-obsidian-quest-import', { notePath }));
+    return { planId: str(result?.planId), summary: str(result?.summary) ?? '' };
+  }
+
   /**
    * `plan-page-reveal` for one page. `reveal` and `hide` return a planId to confirm in the
    * dashboard; `queue` and `unqueue` change only the GM's reveal queue (no plan) and return a note.

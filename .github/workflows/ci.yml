@@ -169,6 +169,11 @@ jobs:
         # checks) and the stage as text. The stage itself runs in a container on the ARM runner (build-test-arm).
         run: node --test scripts/pi/board-status.test.mjs
 
+      - name: Pi stage 17 GitHub runners
+        # 17-gh-runner.sh: the play-session gate against fake vaults (open, ended, past midnight, unknown, a running job) and the
+        # stage as text (pinned runner, token handling, the fence in the units).
+        run: node --test scripts/pi/gh-runner.test.mjs
+
       - name: Pi stage 18 time sync
         # 18-time-sync.sh (backlog pi-ntp): DietPi mode 4 only when needed, dry run, check, undo, snapshot required, with stand-in
         # systemctl, timedatectl and dietpi-set_software.

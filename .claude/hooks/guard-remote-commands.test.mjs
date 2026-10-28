@@ -27,11 +27,11 @@ test('read-only remote commands pass', () => {
   }
 });
 
-test('the real stage scripts pass, except stage 1 (the foundry user), stage 9 (SSH login keys) and stage 15 (SSH settings), which ask', () => {
+test('the real stage scripts pass, except stage 1 (the foundry user), stage 9 (SSH login keys), stage 15 (SSH settings) and stage 17 (the ghrunner user), which ask', () => {
   const dir = path.join(repo, 'scripts', 'pi', 'remote');
   for (const name of readdirSync(dir).filter(n => /^\d+-.*\.sh$/.test(n))) {
     const command = `cat scripts/pi/remote/lib.sh scripts/pi/remote/${name} | ssh -o BatchMode=yes foundry-pi bash`;
-    const expected = /^(1|9|15)-/.test(name) ? 'ask' : 'allow';
+    const expected = /^(1|9|15|17)-/.test(name) ? 'ask' : 'allow';
     assert.equal(kind(command), expected, `${name}: ${JSON.stringify(decide(command, repo))}`);
   }
 });
@@ -86,9 +86,14 @@ test('every script in scripts/pi/remote is one of the kinds checked above', () =
   const known = n =>
     /^\d+-.*\.sh$/.test(n) ||
     /^set-.*\.sh$/.test(n) ||
-    ['lib.sh', 'lib-gm-passwords.sh', 'gm-script.sh', 'gm-passwords.sh', 'kit-session.sh'].includes(
-      n
-    );
+    [
+      'lib.sh',
+      'lib-gm-passwords.sh',
+      'gm-script.sh',
+      'gm-passwords.sh',
+      'kit-session.sh',
+      'put-runner-token.sh',
+    ].includes(n);
   const unchecked = readdirSync(dir).filter(n => n.endsWith('.sh') && !known(n));
   assert.deepEqual(unchecked, [], 'add a guard test for each new script the user runs over SSH');
 });

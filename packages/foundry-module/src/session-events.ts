@@ -772,20 +772,28 @@ export class EventTracker {
 
   private onCombatStart(combat: unknown): void {
     const combatantCount = dig(combat, 'combatants', 'size') ?? 0;
-    this.logSessionEvent('combat-start', `Combat started with ${text(combatantCount)} combatants`, {
-      details: { combatId: dig(combat, 'id'), round: dig(combat, 'round') ?? 1, combatantCount },
-      visibility: NO_SUBJECT_VISIBILITY,
-    });
+    this.logSessionEvent(
+      'combat-start',
+      `Combat started with ${text(combatantCount)} combatant${combatantCount === 1 ? '' : 's'}`,
+      {
+        details: { combatId: dig(combat, 'id'), round: dig(combat, 'round') ?? 1, combatantCount },
+        visibility: NO_SUBJECT_VISIBILITY,
+      }
+    );
     // Seed the timeline with round 1
     this.recordCombatTurn(combat);
   }
 
   private onCombatEnd(combat: unknown): void {
     const rounds = dig(combat, 'round') ?? 0;
-    this.logSessionEvent('combat-end', `Combat ended after ${text(rounds)} rounds`, {
-      details: { combatId: dig(combat, 'id'), rounds },
-      visibility: NO_SUBJECT_VISIBILITY,
-    });
+    this.logSessionEvent(
+      'combat-end',
+      `Combat ended after ${text(rounds)} round${rounds === 1 ? '' : 's'}`,
+      {
+        details: { combatId: dig(combat, 'id'), rounds },
+        visibility: NO_SUBJECT_VISIBILITY,
+      }
+    );
   }
 
   private onUpdateCombat(combat: unknown, changed: unknown): void {

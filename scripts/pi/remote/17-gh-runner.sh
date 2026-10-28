@@ -121,8 +121,10 @@ for pair in $RUNNERS; do
     # on a command line, and the file is gone whatever happens next.
     trap 'rm -f "${reg:?}"' EXIT
     # runuser keeps the environment but env sets HOME for the runner user (runuser may reset it to the passwd home).
+    # env -C starts config.sh inside the runner folder: it checks its libraries with `ldd ./bin/...`, relative to the cwd,
+    # and the stage runs from the ssh login folder (live failure 2026-10-28: "ldd: ./bin/libcoreclr.so: No such file").
     ACTIONS_RUNNER_INPUT_TOKEN="$(cat "$reg")" \
-      runuser -u "$RUNNER_USER" -- env DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1 HOME="$dir/home" "$dir/config.sh" --unattended \
+      runuser -u "$RUNNER_USER" -- env -C "$dir" DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1 HOME="$dir/home" ./config.sh --unattended \
       --url "https://github.com/$GH_OWNER/$repo" --name foundry-pi --labels pi --work "$dir/_work" --replace >/dev/null ||
       die "registering runner $name failed (the token may be older than an hour: run put-runner-token.sh $name again)"
     rm -f "${reg:?}"

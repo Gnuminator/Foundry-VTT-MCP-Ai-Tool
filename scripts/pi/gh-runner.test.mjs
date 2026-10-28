@@ -321,6 +321,11 @@ describe('the stage as text', () => {
     assert.equal(allowFor('nameserver 12.7.0.1\n').status, 0);
   });
 
+  test('config.sh starts inside the runner folder (it runs `ldd ./bin/...`, relative to the cwd)', () => {
+    assert.match(stage, /runuser -u "\$RUNNER_USER" -- env -C "\$dir" [^\n]*\.\/config\.sh --unattended/);
+    assert.ok(!stage.includes('"$dir/config.sh"'));
+  });
+
   test('every check comes before the first write', () => {
     const firstWrite = stage.indexOf('useradd');
     for (const needle of ['require_recent_snapshot', 'is missing: run stage', '.reg"']) {
@@ -339,7 +344,7 @@ describe('the stage as text', () => {
   test('every rm -rf uses ${var:?} and the runner never runs as root', () => {
     for (const line of stage.split('\n').filter(l => /rm -[a-z]*r/.test(l)))
       assert.match(line, /\$\{[a-z_]+:\?\}/, line);
-    assert.match(stage, /runuser -u "\$RUNNER_USER" -- env [^\n]*"\$dir\/config\.sh"/);
+    assert.match(stage, /runuser -u "\$RUNNER_USER" -- env [^\n]*\.\/config\.sh/);
     assert.match(stage, /^User=\$RUNNER_USER$/m);
   });
 
@@ -378,5 +383,29 @@ describe('the stage as text', () => {
     assert.match(helper, /--jq \.token/);
     assert.doesNotMatch(helper, /(echo|printf)[^\n]*\$\(?(token|TOKEN)/);
     assert.match(helper, /chmod 600/);
+  });
+});
+
+// With PI_STAGE17_CONTAINER=1 (needs Docker): the registration step in a Debian 13 ARM64 container, started from a
+// folder the runner user cannot enter.
+describe('stage 17 registration in the ARM64 container', { skip: process.env.PI_STAGE17_CONTAINER !== '1' }, () => {
+  test('scenarios', () => {
+    const r = spawnSync(
+      'docker',
+      [
+        'run',
+        '--rm',
+        '--platform',
+        'linux/arm64',
+        '-v',
+        `${repo}:/repo:ro`,
+        'debian:13-slim',
+        'bash',
+        '/repo/scripts/pi/container-test/stage17-scenarios.sh',
+      ],
+      { encoding: 'utf8', timeout: 600000 }
+    );
+    assert.equal(r.status, 0, r.stdout + r.stderr);
+    assert.ok(r.stdout.includes('ALL SCENARIOS OK'), r.stdout);
   });
 });

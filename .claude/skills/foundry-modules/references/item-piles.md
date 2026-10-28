@@ -1,4 +1,4 @@
-# Item Piles (`item-piles`, with `itempilesdnd5e`)
+# Item Piles (`item-piles`)
 
 Verified on Foundry 14.369 / dnd5e 6.0.6, module 3.3.4 plus the companion `itempilesdnd5e` 1.1.0, 2026-10-28 (test server B; piles, loot pick-up as a player, turning a token into a pile and back, and our tools around it were driven live; merchants, trading, vaults and the death-to-loot setting were not).
 

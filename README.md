@@ -39,7 +39,7 @@ currently shaped around a Curse of Strahd campaign.
   admin) that you switch on per chat, so Claude only reads the ones the chat needs.
 - **Guarded AI writes with undo.** New features change the game in three steps: plan, confirm with a
   diff, apply. Each feature has its own switch in the module settings; most start off, and Allow Write
-  Operations, Live play and Ownership start on. A change is
+  Operations, Live play, Ownership, the table viewer and Undo for everything start on. A change is
   refused if anything changed since the plan, is recorded, and can be undone from the dashboard.
 - **Tarokka reading (Curse of Strahd).** Deal a reading with the built-in roll, or import one dealt
   in the `tarokka-reading` module. The cards are kept GM-only, outside Foundry's world data. Link

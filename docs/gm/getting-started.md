@@ -111,8 +111,8 @@ Tool words:
 - **Plan:** a proposed change with a list of what it will do (the diff). Plans expire after 15
   minutes.
 - **Feature switch:** a setting that allows one feature to make changes, such as "AI Tool: Tarokka
-  (writes)". Off by default, except "AI Tool: Live play (writes)" (damage, healing, conditions,
-  resources), which starts on.
+  (writes)". Most are off by default; a few start on (Live play for damage, healing and conditions,
+  Ownership, the table viewer and Undo for everything). [Features](features.md) lists each one.
 - **GM Actions:** the dashboard's switch for changing the game from the dashboard. Off by default.
 - **GM token:** a password-like part of the dashboard's GM address (`?token=…`). The tool admin
   gives you the address; open it once and the browser remembers it.

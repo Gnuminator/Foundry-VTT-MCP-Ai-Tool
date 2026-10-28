@@ -36,8 +36,8 @@ Short rules. Each has its reason on the next line.
 - **Turn on GM Actions only if you are about to change the game from the dashboard.**
   With it off, a misclick cannot change anything; turn it off again after.
 - **Turn on a feature switch ("AI Tool: … (writes)") only if you use that feature tonight.**
-  With it off, neither Claude nor the dashboard can apply changes for it. "AI Tool: Live play
-  (writes)" is the exception: it starts on, since damage and conditions come up every session.
+  With it off, neither Claude nor the dashboard can apply changes for it. A few start on, such as
+  "AI Tool: Live play (writes)", since damage and conditions come up every session.
 - **Tick "Show cards" in the Tarokka drawer only if nobody else can see your screen.** (The
   drawer is under Advanced ▾.)
   The card names are the campaign's biggest secret.

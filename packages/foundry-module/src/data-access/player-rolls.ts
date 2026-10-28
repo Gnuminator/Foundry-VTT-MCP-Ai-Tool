@@ -23,6 +23,26 @@ interface ResolveResult {
   errorMessage?: string;
 }
 
+/** A GM's choice for a d20 roll; absent means dnd5e decides from conditions and flags. */
+type RollAdvantage = 'advantage' | 'disadvantage';
+
+/** Read an advantage value from untrusted input (a card attribute, a flag, a query body). */
+function parseAdvantage(value: unknown): RollAdvantage | undefined {
+  return value === 'advantage' || value === 'disadvantage' ? value : undefined;
+}
+
+/** The mode a rolled d20 used, from dnd5e's `advantageMode` option (1, -1 or 0). */
+function modeOfRoll(roll: unknown): 'advantage' | 'disadvantage' | 'normal' {
+  const mode = rec(rec(roll)?.options)?.advantageMode;
+  return mode === 1 ? 'advantage' : mode === -1 ? 'disadvantage' : 'normal';
+}
+
+/** The plain-formula fallback of a chosen mode: a leading `1d20` becomes `2d20kh` or `2d20kl`. */
+function withAdvantage(formula: string, advantage: RollAdvantage | undefined): string {
+  if (!advantage) return formula;
+  return formula.replace(/^1d20(?![\d])/i, advantage === 'advantage' ? '2d20kh' : '2d20kl');
+}
+
 /** Escape a value for a double-quoted HTML attribute. */
 function escapeAttr(value: string): string {
   return value
@@ -78,8 +98,11 @@ export class PlayerRollsDataAccess {
     flavor: string;
     /** A difficulty class the roll is judged against: the card shows it and the roll carries it. */
     dc?: number;
+    /** The GM's choice; it combines with the character's own sources (poisoned cancels advantage). */
+    advantage?: RollAdvantage;
   }): Promise<{ success: boolean; message: string; error?: string }> {
     shared.validateFoundryState();
+    const advantage = parseAdvantage(data.advantage);
 
     try {
       const playerInfo = this.resolveTargetPlayer(data.targetPlayer);
@@ -99,7 +122,9 @@ export class PlayerRollsDataAccess {
         playerInfo.character
       );
       const buttonId = foundry.utils.randomID();
-      const buttonLabel = this.buildRollButtonLabel(data.rollType, data.rollTarget, data.isPublic);
+      const buttonLabel =
+        this.buildRollButtonLabel(data.rollType, data.rollTarget, data.isPublic) +
+        (advantage ? ` (${advantage})` : '');
 
       const rollButtonHtml = `
         <div class="mcp-roll-request" style="margin: 12px 0; padding: 12px; border: 1px solid #ccc; border-radius: 8px; background: #f9f9f9;">
@@ -117,6 +142,7 @@ export class PlayerRollsDataAccess {
                     data-roll-target="${escapeAttr(data.rollTarget)}"
                     data-is-public="${data.isPublic}"
                     ${data.dc != null ? `data-dc="${data.dc}"` : ''}
+                    ${advantage ? `data-advantage="${advantage}"` : ''}
                     data-character-id="${playerInfo.character?.id ?? ''}"
                     data-target-user-id="${playerInfo.user?.id ?? ''}">
               🎲 ${buttonLabel}
@@ -147,6 +173,7 @@ export class PlayerRollsDataAccess {
                 characterId: playerInfo.character?.id ?? '',
                 targetUserId: playerInfo.user?.id ?? '',
                 ...(data.dc != null ? { dc: data.dc } : {}),
+                ...(advantage ? { advantage } : {}),
               },
             },
           },
@@ -201,6 +228,7 @@ export class PlayerRollsDataAccess {
     dc?: number;
     isPublic: boolean;
     reason?: string;
+    advantage?: RollAdvantage;
   }): Promise<{ success: boolean; message: string; error?: string }> {
     const flavorParts: string[] = [];
     if (data.reason) flavorParts.push(data.reason);
@@ -214,6 +242,7 @@ export class PlayerRollsDataAccess {
       rollModifier: '',
       flavor: flavorParts.join(' — '),
       ...(data.dc != null ? { dc: data.dc } : {}),
+      ...(data.advantage ? { advantage: data.advantage } : {}),
     });
   }
 
@@ -222,8 +251,10 @@ export class PlayerRollsDataAccess {
     targetPlayer: string;
     weaponOrSpellName: string;
     isPublic: boolean;
+    advantage?: RollAdvantage;
   }): Promise<{ success: boolean; message: string; error?: string }> {
     return this.requestPlayerRolls({
+      ...(data.advantage ? { advantage: data.advantage } : {}),
       rollType: 'attack',
       rollTarget: data.weaponOrSpellName,
       targetPlayer: data.targetPlayer,
@@ -243,6 +274,7 @@ export class PlayerRollsDataAccess {
     rollType: string;
     rollTarget: string;
     isPublic: boolean;
+    advantage?: RollAdvantage;
   }): Promise<{
     success: boolean;
     actorName: string;
@@ -251,12 +283,40 @@ export class PlayerRollsDataAccess {
     formula: string;
     total: number;
     isPublic: boolean;
+    /** The mode the d20 rolled in: the GM's choice combined with the actor's conditions. */
+    mode: 'advantage' | 'disadvantage' | 'normal';
   }> {
     shared.validateFoundryState();
 
     const actor = shared.findActorByIdentifier(data.actorName);
     if (!actor) {
       throw new Error(`${ERROR_MESSAGES.CHARACTER_NOT_FOUND}: ${data.actorName}`);
+    }
+
+    const advantage = parseAdvantage(data.advantage);
+    // dnd5e's own roll, so the NPC's conditions (poisoned, prone) and flags apply; GM-only
+    // whisper for a private roll comes from the roll mode.
+    const viaDnd5e = await this.rollDnd5eRolls(
+      actor,
+      data.rollType,
+      data.rollTarget,
+      null,
+      data.isPublic,
+      [],
+      advantage
+    );
+    const first = viaDnd5e?.[0] as { formula?: unknown; total?: unknown } | undefined;
+    if (first && typeof first.formula === 'string' && typeof first.total === 'number') {
+      return {
+        success: true,
+        actorName: actor.name,
+        rollType: data.rollType,
+        rollTarget: data.rollTarget,
+        formula: first.formula,
+        total: first.total,
+        isPublic: data.isPublic,
+        mode: modeOfRoll(first),
+      };
     }
 
     let formula: string;
@@ -277,7 +337,7 @@ export class PlayerRollsDataAccess {
       formula = this.buildRollFormula(data.rollType, data.rollTarget, '', actor);
     }
 
-    const roll = new Roll(formula, actor.getRollData());
+    const roll = new Roll(withAdvantage(formula, advantage), actor.getRollData());
     await roll.evaluate();
 
     const speaker = ChatMessage.getSpeaker({ actor });
@@ -295,6 +355,7 @@ export class PlayerRollsDataAccess {
       formula: roll.formula,
       total: roll.total,
       isPublic: data.isPublic,
+      mode: advantage ?? 'normal',
     };
   }
 
@@ -446,6 +507,7 @@ export class PlayerRollsDataAccess {
           targetUserId,
           dc: button.attr('data-dc') !== undefined && Number.isFinite(dcRaw) ? dcRaw : null,
           isGmRoll,
+          advantage: parseAdvantage(button.attr('data-advantage')),
         });
 
         // Update the ChatMessage to reflect rolled state
@@ -506,8 +568,12 @@ export class PlayerRollsDataAccess {
     targetUserId: string | undefined;
     dc: number | null;
     isGmRoll: boolean;
+    advantage?: RollAdvantage | undefined;
   }): Promise<void> {
-    const { rollFormula, rollLabel, isPublic, characterId, targetUserId, dc, isGmRoll } = args;
+    const { rollLabel, isPublic, characterId, targetUserId, dc, isGmRoll, advantage } = args;
+    // A custom formula is the GM's own; only d20 rolls take the choice.
+    const rollFormula =
+      args.rollType === 'custom' ? args.rollFormula : withAdvantage(args.rollFormula, advantage);
     // Get the character for speaker info
     const character = characterId ? game.actors?.get(characterId) : null;
 
@@ -539,7 +605,8 @@ export class PlayerRollsDataAccess {
         args.rollTarget,
         dc,
         isPublic,
-        whisperTargets
+        whisperTargets,
+        advantage
       ))
     ) {
       return;
@@ -585,9 +652,39 @@ export class PlayerRollsDataAccess {
     rollTarget: string | undefined,
     dc: number | null,
     isPublic: boolean,
-    whisperTargets: string[]
+    whisperTargets: string[],
+    advantage?: RollAdvantage
   ): Promise<boolean> {
-    if (!rollType || !rollTarget) return false;
+    return (
+      (await this.rollDnd5eRolls(
+        actor,
+        rollType,
+        rollTarget,
+        dc,
+        isPublic,
+        whisperTargets,
+        advantage
+      )) !== null
+    );
+  }
+
+  /**
+   * {@link rollThroughDnd5e}'s core: the rolls dnd5e made, or null when the plain formula should
+   * be rolled instead. `advantage` is passed as dnd5e's own roll config, so it combines with the
+   * actor's conditions and flags the way a held modifier key would (advantage and disadvantage
+   * cancel to a normal roll).
+   */
+  private async rollDnd5eRolls(
+    actor: Actor,
+    rollType: string | undefined,
+    rollTarget: string | undefined,
+    dc: number | null,
+    isPublic: boolean,
+    whisperTargets: string[],
+    advantage?: RollAdvantage
+  ): Promise<unknown[] | null> {
+    if (!rollType || !rollTarget) return null;
+    const advOptions = advantage ? { [advantage]: true } : {};
     const roller = actor as Actor & Dnd5eButtonRoller;
     const dcOptions =
       dc !== null ? { rolls: [{ options: { target: dc, requestedDcPublic: isPublic } }] } : {};
@@ -602,15 +699,23 @@ export class PlayerRollsDataAccess {
 
     let out: unknown;
     if (rollType === 'ability' && typeof roller.rollAbilityCheck === 'function') {
-      out = await roller.rollAbilityCheck({ ability: rollTarget, ...dcOptions }, dialog, message);
+      out = await roller.rollAbilityCheck(
+        { ability: rollTarget, ...advOptions, ...dcOptions },
+        dialog,
+        message
+      );
     } else if (rollType === 'skill' && typeof roller.rollSkill === 'function') {
       out = await roller.rollSkill(
-        { skill: this.getSkillCode(rollTarget), ...dcOptions },
+        { skill: this.getSkillCode(rollTarget), ...advOptions, ...dcOptions },
         dialog,
         message
       );
     } else if (rollType === 'save' && typeof roller.rollSavingThrow === 'function') {
-      out = await roller.rollSavingThrow({ ability: rollTarget, ...dcOptions }, dialog, message);
+      out = await roller.rollSavingThrow(
+        { ability: rollTarget, ...advOptions, ...dcOptions },
+        dialog,
+        message
+      );
     } else if (rollType === 'attack') {
       const wanted = rollTarget.toLowerCase();
       type Activities = {
@@ -631,14 +736,18 @@ export class PlayerRollsDataAccess {
         console.warn(
           `[${MODULE_ID}] No attack activity for "${rollTarget}" on ${actor.name}; rolling a plain d20`
         );
-        return false;
+        return null;
       }
       // dnd5e fills the target AC from the clicking client's targeted tokens; a GM click or the
       // dashboard's player page would carry the GM's target onto the player's card, so only the
       // player's own click keeps it.
-      out = await activity.rollAttack(game.user?.isGM ? { target: null } : {}, dialog, message);
+      out = await activity.rollAttack(
+        { ...(game.user?.isGM ? { target: null } : {}), ...advOptions },
+        dialog,
+        message
+      );
     } else {
-      return false;
+      return null;
     }
     // dnd5e returns no roll when a hook vetoes it or the actor has no such ability or skill; no
     // card was made, so the plain formula still gives the player a roll.
@@ -646,9 +755,9 @@ export class PlayerRollsDataAccess {
       console.warn(
         `[${MODULE_ID}] dnd5e made no ${rollType} roll for ${actor.name}; rolling plain`
       );
-      return false;
+      return null;
     }
-    return true;
+    return Array.isArray(out) ? out : [out];
   }
 
   /** A request older than this is stale: the page does not list it and the module refuses it. */
@@ -745,6 +854,7 @@ export class PlayerRollsDataAccess {
         targetUserId: userId,
         dc,
         isGmRoll: false,
+        advantage: parseAdvantage(state.advantage),
       });
       // The roll is posted: a failed mark must not read as a failed roll (the player would press
       // again and roll twice).

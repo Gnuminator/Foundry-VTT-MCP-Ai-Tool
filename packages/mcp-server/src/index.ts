@@ -469,7 +469,7 @@ async function startWrapper(): Promise<void> {
         // `ttlMs` reaches the wire in either era, so it is added only on a request that carries the
         // 2026 `_meta` envelope (`ctx.mcpReq.envelope`); a 2025-11-25 client gets the plain empty list.
         if (ctx.mcpReq.envelope) {
-          return { tools: [], ttlMs: 0, cacheScope: 'private' } as unknown as ListToolsResult;
+          return { tools: [], ttlMs: 0, cacheScope: 'private' };
         }
         return { tools: [] };
       }

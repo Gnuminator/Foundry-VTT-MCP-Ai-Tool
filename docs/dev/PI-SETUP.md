@@ -349,6 +349,13 @@ in Task Scheduler. Change the limit with `FOUNDRY_AI_BACKUP_STALE_DAYS` in
 `/etc/foundry-ai-tool/discord-bot.env` (default 3), then restart the bot
 (`systemctl restart foundry-ai-tool-discord-bot`).
 
+Session-over post (I-111, off by default): when a play session ends the bot posts a link to the
+player page in one channel. Turn it on in the same env file with `DISCORD_SESSION_POST_CHANNEL_ID`
+(the channel) and `FOUNDRY_AI_PLAYER_PAGE_URL` (the link players can open; without it the post stays
+off). `FOUNDRY_AI_DASHBOARD_URL` (default `http://127.0.0.1:3100`) is where the bot reads the session
+flag and `FOUNDRY_AI_PLAYER_TOKEN` is the dashboard's player token if one is set. A session that
+ends while the bot is down is not announced.
+
 Rolling it out (each step with your OK, snapshot first): run stage 6 again (it installs the helper
 and the folder, and runs one backup now: **Foundry stops for a minute or two, so never run it during
 a game**), then a new tool build (stage 5) and stage 8, so the bot runs the build that reads the

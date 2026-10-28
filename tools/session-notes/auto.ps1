@@ -117,7 +117,7 @@ try {
         $code = Invoke-Notes @('run', $folder)
         switch ($code) {
           0 { Say "$($dir.Name): notes done" }
-          75 { Say "$($dir.Name): paused by the usage limit; the next pass continues" }
+          75 { Say "$($dir.Name): paused (usage limit, or Claude not logged in: see notes\status.json); the next pass continues" }
           76 { Say "$($dir.Name): some scenes are still raw; the next pass tries them again" }
           default {
             Say "$($dir.Name): notes failed (exit $code), see notes\audit.jsonl"

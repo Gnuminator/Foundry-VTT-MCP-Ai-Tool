@@ -13,7 +13,7 @@ import os
 import sys
 from pathlib import Path
 
-from .claude_runner import ClaudeCli, ClaudeError
+from .claude_runner import LOGIN_HINT, ClaudeCli, ClaudeError
 from .model import clock, load_timeline
 from .publish import publish
 from .retention import approve, cleanup
@@ -159,8 +159,9 @@ def main(argv: list[str] | None = None) -> int:
     )
     counts = {"scenes": result.scenes, "fallbacks": result.fallbacks, "pending": result.pending}
     if result.paused:
-        print(f"Paused by a usage limit: {result.paused}\nRun the same command again later.")
-        write_status(session, "paused", f"Paused by a usage limit: {result.paused}", **counts)
+        why = "" if LOGIN_HINT in result.paused else "Paused by a usage limit: "
+        print(f"{why}{result.paused}\nRun the same command again later.")
+        write_status(session, "paused", f"{why}{result.paused}", **counts)
         return EXIT_PAUSED
     if result.pending:
         msg = f"{result.pending} scene(s) could not be written and are kept raw for now."

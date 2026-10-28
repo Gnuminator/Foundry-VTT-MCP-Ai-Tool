@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 from helpers import FakeClaude, scene_answer, write_session
 
-from session_notes.claude_runner import ClaudeCli, ClaudeError, UsageLimitError
+from session_notes.claude_runner import AuthError, ClaudeCli, ClaudeError, UsageLimitError
 from session_notes.model import Scene, load_roster, load_timeline
 from session_notes.prompts import scene_prompt
 from session_notes.run import Options, Writer
@@ -195,6 +195,11 @@ def test_cli_parse_success_and_errors() -> None:
         cli.parse(1, json.dumps(limit), "", "sonnet")
     with pytest.raises(UsageLimitError):
         cli.parse(1, "not json", "Error: 429 rate limit", "sonnet")
+    # A logged-out claude fails every scene the same way: stop like a limit, but say how to fix it.
+    with pytest.raises(AuthError, match="/login"):
+        cli.parse(1, "not json", "Failed to authenticate: OAuth session expired", "sonnet")
+    with pytest.raises(AuthError):
+        cli.parse(1, json.dumps({"subtype": "success", "is_error": True, "result": "Not logged in"}), "", "sonnet")
     with pytest.raises(ClaudeError):
         cli.parse(1, "not json", "crash", "sonnet")
     with pytest.raises(ClaudeError):

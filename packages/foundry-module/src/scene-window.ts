@@ -43,7 +43,7 @@ function darknessText(level: unknown): string {
   if (typeof level !== 'number' || !Number.isFinite(level)) return '';
   const p = percent(level);
   const word = p < 25 ? 'Daylight' : p < 60 ? 'Dusk' : p < 90 ? 'Dark' : 'Pitch dark';
-  return `${word} (${p}%)`;
+  return `${word}, darkness ${p}%`;
 }
 
 export function buildSceneView(
@@ -97,6 +97,8 @@ const panel = createPanelWindow({
   icon: 'fa-solid fa-image',
   width: 340,
   height: 260,
+  left: 830,
+  top: 250,
   hooks: [
     'canvasReady',
     'updateScene',

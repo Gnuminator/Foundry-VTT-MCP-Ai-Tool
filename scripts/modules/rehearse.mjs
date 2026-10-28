@@ -202,7 +202,7 @@ async function cmdRun(o) {
   try {
     foundry = readFileSync(path.join(srv.AppDir, 'package.json'), 'utf8').match(/"version":\s*"([^"]+)"/)?.[1] ?? '?';
   } catch {
-    throw new Notready(`no Foundry app folder at ${srv.AppDir} (AppDir in scripts/test-env/local.json); nothing was run`);
+    throw new Notready(`no Foundry app folder at ${srv.AppDir} (appdir.txt next to the lock, or AppDir in scripts/test-env/local.json); nothing was run`);
   }
   const steps = [];
 

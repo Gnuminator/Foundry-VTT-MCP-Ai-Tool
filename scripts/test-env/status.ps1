@@ -39,7 +39,7 @@ $main = Find-FoundryMain
 $manifest = Join-Path $TestEnv.ModuleDir 'module.json'
 $appVersion = Get-FoundryAppVersion $TestEnv.AppDir
 Write-Host "Foundry app:  $(if ($main) { $main } else { 'not installed' })"
-Write-Host "Foundry ver:  $(if ($appVersion) { "v$appVersion, the version start.ps1 will run" } else { 'unknown' }) (app folder from $(if ($SharedAppDir) { $AppDirFile } else { 'local.json or the default <Root>/app; no shared appdir.txt' }))"
+Write-Host "Foundry ver:  $(if ($appVersion) { "v$appVersion, the version the next start.ps1 will run" } else { 'unknown' }) (app folder from $(if ($SharedAppDir) { $AppDirFile } else { 'local.json or the default <Root>/app; no shared appdir.txt' }))"
 if ($AppDirNote) { Write-Host "WARNING:      $AppDirNote" }
 Write-Host "Test world:   $(if (Test-Path (Join-Path $TestEnv.DataDir 'Data' 'worlds' $TestEnv.WorldId)) { $TestEnv.WorldId } else { 'not created' })"
 Write-Host "Module copy:  $(if (Test-Path $manifest) { 'v' + (Get-Content $manifest -Raw | ConvertFrom-Json).version } else { 'not synced' })"

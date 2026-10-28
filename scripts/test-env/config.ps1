@@ -86,11 +86,11 @@ $AppDirFile = Join-Path $settingsA.Root 'appdir.txt'
 $SharedAppDir = $null
 if (Test-Path $AppDirFile) {
   $appDirLine = Get-Content $AppDirFile -TotalCount 1 -ErrorAction SilentlyContinue
-  if ($appDirLine -and $appDirLine.Trim()) { $SharedAppDir = $appDirLine.Trim() }
+  if ($appDirLine -and $appDirLine.Trim()) { $SharedAppDir = [IO.Path]::GetFullPath($appDirLine.Trim()) }
 }
 $AppDirNote = $null
+$trim = [char[]]@([char]92, [char]47)
 if ($SharedAppDir) {
-  $trim = [char[]]@([char]92, [char]47)
   if ($settingsA.AppDir -and ([IO.Path]::GetFullPath([string]$settingsA.AppDir).TrimEnd($trim) -ne [IO.Path]::GetFullPath($SharedAppDir).TrimEnd($trim))) {
     $AppDirNote = "local.json AppDir ($($settingsA.AppDir)) is ignored; $AppDirFile says $SharedAppDir."
   }
@@ -99,6 +99,12 @@ if ($SharedAppDir) {
 if (-not $settingsA.AppDir) { $settingsA.AppDir = Join-Path $settingsA.Root 'app' }
 $settings = if ($TestServerName -eq 'A') { $settingsA } else { Get-TestServerSettings $TestServerName }
 if (-not $settings.AppDir) { $settings.AppDir = $settingsA.AppDir }
+if ($SharedAppDir) {
+  if ($TestServerName -ne 'A' -and $settings.AppDir -and ([IO.Path]::GetFullPath([string]$settings.AppDir).TrimEnd($trim) -ne [IO.Path]::GetFullPath($SharedAppDir).TrimEnd($trim))) {
+    $AppDirNote = "local.$TestServerName.json AppDir ($($settings.AppDir)) is ignored; $AppDirFile says $SharedAppDir."
+  }
+  $settings.AppDir = $SharedAppDir
+}
 if (-not $settings.AdminPassword -and $settingsA.AdminPassword) {
   $settings.AdminUser = $settingsA.AdminUser
   $settings.AdminPassword = $settingsA.AdminPassword
@@ -212,7 +218,6 @@ function Get-FoundryNodeExe([string]$AppRoot) {
   throw "No Node.js matching Foundry's requirement '$range' found (install it; the repo's Node 22 is not used for Foundry)."
 }
 
-# The Foundry Node.js build: main.js at the root (v13+) or resources/app/main.js (older layouts).
 # The Foundry version in an app folder (its package.json), or $null.
 function Get-FoundryAppVersion([string]$Dir) {
   foreach ($candidate in @((Join-Path $Dir 'package.json'), (Join-Path $Dir 'resources' 'app' 'package.json'))) {
@@ -223,6 +228,7 @@ function Get-FoundryAppVersion([string]$Dir) {
   return $null
 }
 
+# The Foundry Node.js build: main.js at the root (v13+) or resources/app/main.js (older layouts).
 function Find-FoundryMain {
   foreach ($candidate in @((Join-Path $TestEnv.AppDir 'main.js'), (Join-Path $TestEnv.AppDir 'resources' 'app' 'main.js'))) {
     if (Test-Path $candidate) { return $candidate }

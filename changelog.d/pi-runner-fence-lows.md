@@ -1,5 +1,5 @@
 ### Pi (PR #554 review lows and the first live run)
 
 - **Stage 17 registers from the runner folder:** the first live run failed with `ldd: ./bin/libcoreclr.so: No such file or directory` because GitHub's `config.sh` checks its libraries relative to the current folder and the stage started it from the ssh login folder. It now starts inside the runner folder (`env -C`). A new ARM64 container scenario (`stage17-scenarios.sh`) runs the registration command from a folder the runner user cannot enter, and fails on the old script.
-- **Stage 17 and a loopback nameserver:** a nameserver in `127.0.0.0/8` in `/etc/resolv.conf` (a local resolver such as 127.0.0.53) is no longer put on the runner's allow list, where it would have opened loopback to the jobs. The stage stops before writing anything and names the address.
+- **Stage 17 and a loopback nameserver:** a nameserver in `127.0.0.0/8`, a Tailscale address (`100.64.0.0/10`) or one of the Pi's own addresses in `/etc/resolv.conf` (a local resolver such as 127.0.0.53) is no longer put on the runner's allow list, where it would have opened loopback to the jobs. The stage stops before writing anything and names the address.
 - **PI-SETUP, stage 17:** says that IPv6 is denied as a whole, that the `/etc/resolv.conf` nameservers are allowed along with the router, and that a failed fence probe turns the gate timer off.

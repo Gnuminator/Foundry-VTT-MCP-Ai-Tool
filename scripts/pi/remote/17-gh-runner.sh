@@ -42,6 +42,12 @@ ALLOW=""
 for ns in $ROUTER $(awk '/^nameserver/ {print $2}' /etc/resolv.conf 2>/dev/null | grep -E '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$' || true); do
   # A loopback nameserver (a local resolver such as 127.0.0.53) cannot be allowed: that would open loopback to the jobs.
   case "$ns" in 127.*) die "/etc/resolv.conf has a loopback nameserver ($ns): allowing it would open loopback to the runner. Point resolv.conf at the router or a LAN or public DNS server and rerun" ;; esac
+  # The same for a Tailscale address (100.64.0.0/10, MagicDNS is 100.100.100.100) and the Pi's own addresses: the jobs would reach
+  # whatever listens there, and a LAN address of the Pi would make the fence probe fail and blame the kernel.
+  case "$ns" in 100.6[4-9].* | 100.[7-9][0-9].* | 100.1[01][0-9].* | 100.12[0-7].*) die "/etc/resolv.conf has a Tailscale nameserver ($ns): allowing it would open the Pi's Tailscale side to the runner. Point resolv.conf at the router or a LAN or public DNS server and rerun" ;; esac
+  for own in $(hostname -I 2>/dev/null || true); do
+    [ "$own" != "$ns" ] || die "/etc/resolv.conf has the Pi's own address as nameserver ($ns): allowing it would open the Pi to the runner. Point resolv.conf at the router or a LAN or public DNS server and rerun"
+  done
   case " $ALLOW " in *" $ns/32 "*) ;; *) ALLOW="${ALLOW:+$ALLOW }$ns/32" ;; esac
 done
 

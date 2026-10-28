@@ -297,7 +297,7 @@ describe('the stage as text', () => {
     const conf = path.join(d, 'resolv.conf');
     writeFileSync(conf, resolv);
     const lib = readFileSync(path.join(remote, 'lib.sh'), 'utf8');
-    const script = `${lib}\nROUTER=${router}\n${allowBlock.replace('/etc/resolv.conf', posix(conf))}\necho "ALLOW=$ALLOW"\n`;
+    const script = `${lib}\nROUTER=${router}\nhostname() { echo 192.168.1.50 fe80::1; }\n${allowBlock.replace('/etc/resolv.conf', posix(conf))}\necho "ALLOW=$ALLOW"\n`;
     const file = path.join(d, 'allow.sh');
     writeFileSync(file, script);
     return spawnSync('bash', [posix(file)], { encoding: 'utf8' });
@@ -319,6 +319,23 @@ describe('the stage as text', () => {
     }
     // 127.0.0.0/8 only: other ranges that merely start with 127 digits are fine.
     assert.equal(allowFor('nameserver 12.7.0.1\n').status, 0);
+  });
+
+  test('a Tailscale nameserver or one of the Pi’s own addresses stops the stage too', { skip: !hasBash }, () => {
+    for (const ns of ['100.100.100.100', '100.64.0.1', '100.127.255.254']) {
+      const r = allowFor(`nameserver ${ns}\n`);
+      assert.notEqual(r.status, 0, ns);
+      assert.ok(r.stderr.includes(`Tailscale nameserver (${ns})`), r.stderr);
+    }
+    const own = allowFor('nameserver 192.168.1.50\n');
+    assert.notEqual(own.status, 0);
+    assert.ok(own.stderr.includes('own address as nameserver (192.168.1.50)'), own.stderr);
+    // Just outside 100.64.0.0/10, and another LAN host: allowed.
+    for (const ns of ['100.63.0.1', '100.128.0.1', '192.168.1.60']) {
+      const r = allowFor(`nameserver ${ns}\n`);
+      assert.equal(r.status, 0, `${ns}: ${r.stderr}`);
+      assert.ok(r.stdout.includes(`${ns}/32`), r.stdout);
+    }
   });
 
   test('config.sh starts inside the runner folder (it runs `ldd ./bin/...`, relative to the cwd)', () => {

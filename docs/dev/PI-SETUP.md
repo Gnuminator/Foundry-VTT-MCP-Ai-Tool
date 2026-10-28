@@ -1171,11 +1171,13 @@ release and sha256) on the Pi: `vault` for `Gnuminator/obsidian-vault` (workflow
   writes only in `/opt/gh-runner/<name>`, cannot see `/etc/foundry-ai-tool`, `/var/lib/foundry*` or `/mnt`, cannot
   list other processes, cannot reach loopback, Tailscale or the LAN (the router stays reachable for DNS and the way
   out), and has 2 GB and a low CPU weight. IPv6 is denied as a whole (`::/0`; the runner reaches GitHub over IPv4).
-  The IPv4 nameservers in `/etc/resolv.conf` are allowed along with the router; a nameserver in `127.0.0.0/8` cannot
-  be, so the stage stops and names it. The stage proves the address rules before it starts anything: a probe
-  service with the same rules must be refused at sshd on loopback and on the Pi's LAN address, otherwise (a kernel
-  without cgroup BPF firewalling) it stops, and a failed probe turns the gate timer off, so no runner starts. A workflow on any branch of these repos runs on the Pi, so both repos
-  must stay private (checked 2026-10-28: both are).
+  The IPv4 nameservers in `/etc/resolv.conf` are allowed along with the router; a nameserver in `127.0.0.0/8`, a Tailscale
+  address (`100.64.0.0/10`) or one of the Pi's own addresses cannot be, so the stage stops and names it. The stage
+  proves the address rules before it starts anything: a control probe without the rules must reach sshd (otherwise
+  the fence cannot be tested and the stage stops), and a probe service with the rules must be refused at sshd on
+  loopback and on the Pi's LAN address. If that probe still connects (a kernel without cgroup BPF firewalling), the
+  stage turns the gate timer off and stops; runners that already run keep running until they are stopped. A workflow
+  on any branch of these repos runs on the Pi, so both repos must stay private (checked 2026-10-28: both are).
 - **Gate:** `foundry-ai-tool-gh-runner-gate.timer` (every minute) runs `/opt/gh-runner/gate.sh`. While a play
   session is marked (the newest `session-start`/`session-end` marker over the 3 newest `sessions/<date>.jsonl` of a
   world vault is a start, so a session over midnight counts; a start older than 14 hours is stale) it stops the

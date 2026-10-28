@@ -16,9 +16,11 @@ node scripts/modules/rehearse.mjs pi-plan                the Pi mirror commands,
 ```
 
 Take the server's lock first (`scripts/test-env/lock.ps1`); `install` refuses while the server is
-running or while the lock is held by someone else (set `REHEARSE_LOCK_SESSION` to your session id
-when you hold it yourself). Downloads must stay on https after redirects, land in a `.part` file first,
-and an installed zip must carry the package id it was staged for. Foundry itself and dnd5e are handled like a module: stage the zip, install it, rehearse.
+running, while nobody holds the lock, or while the lock is held by another session (set
+`REHEARSE_LOCK_SESSION` to the session id that holds it; `run` hands the same id to the kit).
+Downloads must stay on https after redirects, land in a `.part` file first, and an installed zip must
+carry the package id it was staged for. Modules and the dnd5e system are staged and installed this
+way; Foundry itself is unpacked by hand (next section).
 
 ## Foundry itself
 
@@ -40,12 +42,15 @@ into the archive under `foundry/` and into `pinned.json` once a rehearsal on it 
 4. **`npm run green`** with `--with-green`.
 
 The report is `<archive>/rehearsals/<time>-<server>/report.md` and `report.json`: the packages that
-differ from the pinned list, the steps, new findings and known ones. A run passes when every step
-passes and no finding is new.
+differ from the pinned list, the steps and the findings sections. A run passes when every step
+passes; `archive` also needs a passing kit step in one of its reports, and a report from the same
+server. The module load check is the kit scenario `module-load`, so the report's findings sections
+stay empty for now: read the kit report for module errors (copying them into the rehearsal report is
+on the Backlog, `module-rehearsal-lows`).
 
 **Expected findings** are in `scripts/modules/expected.json`: a module, a substring of the error and
-why it is known upstream behaviour. A known finding is listed but does not fail the run; an entry
-the run did not see is listed as unseen, so a fixed upstream bug gets noticed and removed.
+why it is known upstream behaviour, with a `max` on the broad ones. `splitFindings` applies them to
+the findings a report carries.
 
 ## The archive
 

@@ -6,12 +6,15 @@
  */
 import { spawnSync } from 'node:child_process';
 import {
+  closeSync,
   cpSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
+  openSync,
   readdirSync,
   readFileSync,
+  readSync,
   renameSync,
   rmSync,
   writeFileSync,
@@ -98,17 +101,32 @@ export async function fetchManifest(url) {
   }
 }
 
-/** Download a file and refuse anything that is not a zip. @param {string} url @param {string} dest */
-export async function downloadZip(url, dest) {
+/**
+ * Download a file and refuse anything that is not a zip: https after redirects too, written to a
+ * .part file and moved into place only once it starts like a zip.
+ * @param {string} url @param {string} dest @param {typeof fetch} [fetchImpl]
+ */
+export async function downloadZip(url, dest, fetchImpl = fetch) {
   if (!/^https:\/\//.test(url)) throw new Error('refusing a non-https download');
   mkdirSync(path.dirname(dest), { recursive: true });
-  const r = await fetch(url, { signal: AbortSignal.timeout(10 * 60 * 1000), redirect: 'follow' });
+  const r = await fetchImpl(url, { signal: AbortSignal.timeout(10 * 60 * 1000), redirect: 'follow' });
   if (!r.ok || !r.body) throw new Error(`download failed: HTTP ${r.status}`);
-  await pipeline(Readable.fromWeb(/** @type {any} */ (r.body)), createWriteStream(dest));
-  const head = readFileSync(dest).subarray(0, 4).toString('latin1');
-  if (head !== 'PK\x03\x04') {
-    rmSync(dest, { force: true });
-    throw new Error('the download is not a zip file');
+  if (new URL(r.url || url).protocol !== 'https:') throw new Error('refusing a download that redirected away from https');
+  const part = `${dest}.part`;
+  try {
+    await pipeline(Readable.fromWeb(/** @type {any} */ (r.body)), createWriteStream(part));
+    const fd = openSync(part, 'r');
+    const buf = Buffer.alloc(4);
+    try {
+      readSync(fd, buf, 0, 4, 0);
+    } finally {
+      closeSync(fd);
+    }
+    if (buf.toString('latin1') !== 'PK\x03\x04') throw new Error('the download is not a zip file');
+    renameSync(part, dest);
+  } catch (e) {
+    rmSync(part, { force: true });
+    throw e;
   }
   return sha256File(dest);
 }

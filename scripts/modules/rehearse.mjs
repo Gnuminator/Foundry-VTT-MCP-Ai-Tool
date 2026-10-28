@@ -100,10 +100,9 @@ async function lookUpstream(installed) {
 async function requireStopped(srv) {
   if (await portOpen(srv.FoundryPort)) throw new Notready(`server ${srv.name} is running on ${srv.FoundryPort}; stop it first`);
   const held = lockHolder(srv);
-  if (held && !(held.session && held.session === process.env.REHEARSE_LOCK_SESSION)) {
-    throw new Notready(
-      `server ${srv.name} is locked by "${held.holder}"; take it yourself (scripts/test-env/lock.ps1) and set REHEARSE_LOCK_SESSION to your session id`
-    );
+  if (!held) throw new Notready(`take server ${srv.name}'s lock first (scripts/test-env/lock.ps1 take -Server ${srv.name}), then set REHEARSE_LOCK_SESSION to your session id`);
+  if (!held.session || held.session !== process.env.REHEARSE_LOCK_SESSION) {
+    throw new Notready(`server ${srv.name} is locked by "${held.holder}"; set REHEARSE_LOCK_SESSION to the session id that holds it`);
   }
 }
 class Notready extends Error {}
@@ -157,6 +156,7 @@ async function cmdInstall(o) {
   const rollbackDir = path.join(srv.Root, `module-rollback-${stamp}`);
   const staging = path.join(archiveRoot(), 'staging');
   const ids = o.ids ?? (existsSync(staging) ? readdirSync(staging) : []);
+  console.log(`old folders move to ${rollbackDir}`);
   for (const id of ids) {
     const s = stagedZip(id);
     if (!s || !existsSync(s.zip)) {
@@ -198,6 +198,12 @@ async function cmdRun(o) {
   const root = archiveRoot();
   const installed = scanInstalled(srv.dataDir);
   const plan = planUpdates(installed, readPinned(root), {}, strahd());
+  let foundry;
+  try {
+    foundry = readFileSync(path.join(srv.AppDir, 'package.json'), 'utf8').match(/"version":\s*"([^"]+)"/)?.[1] ?? '?';
+  } catch {
+    throw new Notready(`no Foundry app folder at ${srv.AppDir} (AppDir in scripts/test-env/local.json); nothing was run`);
+  }
   const steps = [];
 
   // 1. live:roundtrip and live:sweep talk to the dashboard on 3100, which is server A's, in ai-tool-test.
@@ -208,7 +214,7 @@ async function cmdRun(o) {
 
 
   // 2. the kit on the modules-all profile; it restarts the server in the kit world.
-  if (o.kit) steps.push(runStep(`kit (${o.size}, modules-all)`, 'node', ['scripts/test-kit/kit-run.mjs', '--server', srv.name, '--profile', 'modules-all', '--size', o.size, '--keep-up', '--session', process.env.KIT_RUN_SESSION ?? 'rehearsal']));
+  if (o.kit) steps.push(runStep(`kit (${o.size}, modules-all)`, 'node', ['scripts/test-kit/kit-run.mjs', '--server', srv.name, '--profile', 'modules-all', '--size', o.size, '--keep-up', '--session', process.env.KIT_RUN_SESSION ?? process.env.REHEARSE_LOCK_SESSION ?? 'rehearsal']));
   else steps.push({ name: 'kit', status: 'skip', detail: '--no-kit' });
 
 
@@ -219,7 +225,6 @@ async function cmdRun(o) {
   // 3. CI.
   steps.push(o.green ? runStep('npm run green', 'npm', ['run', 'green'], { CI: 'true' }) : { name: 'npm run green', status: 'skip', detail: 'pass --with-green' });
 
-  const foundry = readFileSync(path.join(srv.AppDir, 'package.json'), 'utf8').match(/"version":\s*"([^"]+)"/)?.[1] ?? '?';
   const system = installed.find(p => p.id === 'dnd5e')?.version ?? '?';
   const stamp = stampNow();
   const dir = path.join(root, 'rehearsals', `${stamp}-${srv.name}`);
@@ -240,7 +245,11 @@ async function cmdArchive(o) {
   for (const dir of o.fromReports) {
     const rep = readJson(path.join(dir, 'report.json'));
     if (!runPassed(rep.steps) || rep.findings.fresh.length) throw new Notready(`${dir} did not pass; nothing is archived`);
+    if (rep.server !== srv.name) throw new Notready(`${dir} is a run on server ${rep.server}, not ${srv.name}`);
   }
+  // npm run green alone tests no module: a kit step has to have passed in one of the reports.
+  const kitPassed = o.fromReports.some(d => readJson(path.join(d, 'report.json')).steps.some(s => s.name.startsWith('kit') && s.status === 'pass'));
+  if (o.fromReports.length && !kitPassed) throw new Notready('no report has a passing kit step; nothing is archived');
   if (!o.fromReports.length) throw new Notready('give --from-report <dir> (a passing rehearsal, repeatable); --ids only narrows it');
   const rehearsal = o.fromReports.map(d => path.basename(d)).join('+') || null;
   const installed = scanInstalled(srv.dataDir);
@@ -250,7 +259,7 @@ async function cmdArchive(o) {
   // list stay out), plus the dnd5e system; --ids narrows that.
   const ids = (o.ids ?? installed.map(p => p.id)).filter(id => {
     const entry = inList.get(id);
-    return installed.find(x => x.id === id)?.kind === 'system' || (entry && entry.role !== 'ours');
+    return id === 'dnd5e' ? installed.some(x => x.id === id && x.kind === 'system') : entry && entry.role !== 'ours';
   });
   for (const id of ids) {
     const p = installed.find(x => x.id === id);

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
@@ -16,7 +16,7 @@ import {
   scanInstalled,
   splitFindings,
 } from '../../modules/lib.mjs';
-import { archivePackage, installFromZip, lockHolder, zipFolder } from '../../modules/ops.mjs';
+import { archivePackage, downloadZip, installFromZip, lockHolder, zipFolder } from '../../modules/ops.mjs';
 import { errorFindings, parseArgs } from '../../modules/rehearse.mjs';
 import { loadProfile, SHIPPED_PROFILES } from '../lib/profiles.mjs';
 
@@ -164,6 +164,24 @@ test('installFromZip refuses a zip whose manifest id is another package', () => 
     /not "demo"/
   );
   assert.equal(scanInstalled(data)[0].version, '1.0.0');
+  rmSync(d, { recursive: true, force: true });
+});
+
+test('downloadZip stays on https, writes a .part file and keeps only real zips', async () => {
+  const d = tmp();
+  const fake = (body, url) => async () => {
+    const r = new Response(body, { status: 200 });
+    Object.defineProperty(r, 'url', { value: url });
+    return r;
+  };
+  const dest = path.join(d, 'a.zip');
+  await assert.rejects(downloadZip('https://x.test/a.zip', dest, fake('PK\x03\x04data', 'http://x.test/a.zip')), /redirected away from https/);
+  await assert.rejects(downloadZip('https://x.test/a.zip', dest, fake('<html>', 'https://x.test/a.zip')), /not a zip/);
+  assert.equal(existsSync(dest), false);
+  assert.equal(existsSync(`${dest}.part`), false);
+  await downloadZip('https://x.test/a.zip', dest, fake('PK\x03\x04data', 'https://x.test/a.zip'));
+  assert.equal(existsSync(dest), true);
+  assert.equal(existsSync(`${dest}.part`), false);
   rmSync(d, { recursive: true, force: true });
 });
 

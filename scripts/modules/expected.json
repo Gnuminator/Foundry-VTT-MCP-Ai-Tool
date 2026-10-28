@@ -5,8 +5,8 @@
       "id": "ac5e-notices",
       "module": "*",
       "match": "AC5E",
-      "max": 20,
-      "why": "Automated Conditions 5e logs notices through the error log: LOADED, 'No targets selected' (the kit casts and rolls without targets) and 'Multiple damage types' (2026-10-27, 14.606.4.5). Informational."
+      "max": 60,
+      "why": "Automated Conditions 5e logs notices through the error log: LOADED, 'No targets selected' (the kit casts and rolls without targets) and 'Multiple damage types' (2026-10-27, 14.606.4.5). Informational. A smoke run on 14.369 saw 29 (25 'No targets selected', 4 'Multiple damage types'); the cap is that plus room for the full-size scenario module-ac5e-roll-mode, which adds rolls (2026-10-28, tuned against a real run)."
     },
     {
       "id": "ac5e-hooks-and-migration",
@@ -37,21 +37,21 @@
       "id": "dnd5e-forced-deletion-legacy-syntax",
       "module": "*",
       "match": "using legacy syntax which should be migrated",
-      "why": "Foundry 14 deprecation warning for the old '-=key' forced deletion syntax. dnd5e-item-resources trips it on the kit heroes, and the warning lists autoanimations 8.0.1 and dnd5e 6.0.6 as packages using it (2026-10-27, first rehearsal). Upstream; the run lists it as known."
+      "why": "Foundry 14 deprecation warning for the old '-=key' forced deletion syntax. dnd5e-item-resources trips it on the kit heroes, and the warning lists autoanimations 8.0.1 and dnd5e 6.0.6 as packages using it (2026-10-27, first rehearsal). Upstream; the run lists it as known. Foundry 14.369 words it differently (foundry-14-369-forced-deletion), so this entry is unseen there."
     },
     {
       "id": "paralyzed-effect-missing",
       "module": "*",
       "match": "dnd5eparalyzed00\" does not exist",
       "max": 4,
-      "why": "Casting Hold Person with the Strahd modules on logs 'ActiveEffect dnd5eparalyzed00 does not exist' (spells-deep). It is not the automated-conditions-5e update (the old 14.606.4.4 does it too); DAE or another module is the likely source (2026-10-27, first rehearsal). Unbisected."
+      "why": "Casting Hold Person with the Strahd modules on logs 'ActiveEffect dnd5eparalyzed00 does not exist' (spells-deep). It is not the automated-conditions-5e update (the old 14.606.4.4 does it too); DAE or another module is the likely source (2026-10-27, first rehearsal). Unbisected. Not in the module errors of a 14.369 smoke run (2026-10-28; the kit's console list has it), cap kept at 4."
     },
     {
       "id": "kit-notification-hidden",
       "module": "*",
       "match": "setting 'hidden'",
       "max": 10,
-      "why": "A test kit artifact, not a bug: a chat card is deleted within 100 ms of its pop-up (TEST-KIT.md, 'The notification error'). The kit's GM page keeps it quiet; if it shows, the page hook broke."
+      "why": "A test kit artifact, not a bug: a chat card is deleted within 100 ms of its pop-up (TEST-KIT.md, 'The notification error'). The kit's GM page keeps it quiet; if it shows, the page hook broke. Not seen in a 14.369 smoke run (2026-10-28), cap kept at 10."
     },
     {
       "id": "dae-turn-start-source",

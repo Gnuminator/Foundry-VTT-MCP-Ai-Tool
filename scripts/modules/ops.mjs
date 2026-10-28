@@ -143,6 +143,50 @@ function tar(args) {
   const exe = process.platform === 'win32' ? path.join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'tar.exe') : 'tar';
   const r = spawnSync(exe, args, { encoding: 'utf8' });
   if (r.status !== 0) throw new Error(`tar ${args[0]} failed: ${(r.stderr || r.stdout || '').trim().slice(0, 300)}`);
+  return r.stdout;
+}
+
+/** True for an archive entry name that is absolute, has a drive letter or climbs out with "..". @param {string} name */
+export function unsafeEntryName(name) {
+  return /^([/\\]|[a-zA-Z]:)/.test(name) || name.split(/[/\\]/).includes('..');
+}
+
+/**
+ * The entry names of a zip file, read from its central directory. Anything that cannot be read
+ * exactly (no end record, ZIP64 markers, a directory shorter than its count, a comment that runs
+ * past the file) throws, so a zip that hides its names never passes as clean. A file that does not
+ * start with "PK" is not a zip: it gives no names (see {@link entryNames}).
+ * @param {string} zip
+ */
+export function zipEntryNames(zip) {
+  const buf = readFileSync(zip);
+  if (buf.length < 22 || buf.toString('latin1', 0, 2) !== 'PK') return [];
+  let eocd = -1;
+  for (let i = buf.length - 22; i >= Math.max(0, buf.length - 22 - 65535); i--) {
+    // the end record whose comment length reaches exactly the end of the file
+    if (buf.readUInt32LE(i) === 0x06054b50 && i + 22 + buf.readUInt16LE(i + 20) === buf.length) {
+      eocd = i;
+      break;
+    }
+  }
+  if (eocd < 0) throw new Error(`${path.basename(zip)}: no zip end record; refusing to read it`);
+  const count = buf.readUInt16LE(eocd + 10);
+  let pos = buf.readUInt32LE(eocd + 16);
+  if (count === 0xffff || pos === 0xffffffff) throw new Error(`${path.basename(zip)}: a ZIP64 archive; refusing to read it`);
+  const names = [];
+  for (let n = 0; n < count; n++) {
+    if (pos + 46 > buf.length || buf.readUInt32LE(pos) !== 0x02014b50) throw new Error(`${path.basename(zip)}: the central directory is cut short`);
+    const nameLen = buf.readUInt16LE(pos + 28);
+    names.push(buf.toString('utf8', pos + 46, pos + 46 + nameLen));
+    pos += 46 + nameLen + buf.readUInt16LE(pos + 30) + buf.readUInt16LE(pos + 32);
+  }
+  return names;
+}
+
+/** The entry names of a package file: the zip directory, else tar's own listing (a tar under a .zip name). @param {string} file */
+function entryNames(file) {
+  const names = zipEntryNames(file);
+  return names.length ? names : tar(['-tf', file]).split(/\r?\n/).filter(Boolean);
 }
 
 /**
@@ -151,6 +195,9 @@ function tar(args) {
  * @param {string} zip @param {string} [file]
  */
 export function unpackZip(zip, file = 'module.json') {
+  // bsdtar's own refusal of "../" entries is not something to rely on: look at the names first.
+  const bad = entryNames(zip).find(unsafeEntryName);
+  if (bad) throw new Error(`${path.basename(zip)} has an entry outside its folder ("${bad}"); nothing unpacked`);
   const tmp = mkdtempSync(path.join(os.tmpdir(), 'rehearse-'));
   tar(['-xf', zip, '-C', tmp]);
   if (existsSync(path.join(tmp, file))) return { tmp, root: tmp };

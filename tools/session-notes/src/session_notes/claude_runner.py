@@ -84,6 +84,14 @@ class ClaudeCli:
             "--no-session-persistence",
             "--system-prompt",
             SYSTEM_PROMPT,
+            # A plain text job: without these the call loads the user's connectors, skills and
+            # settings, about 180k tokens of context per call (measured 2026-10-28: 543 without).
+            "--strict-mcp-config",
+            "--mcp-config",
+            '{"mcpServers":{}}',
+            "--disable-slash-commands",
+            "--setting-sources",
+            "",
         ]
         try:
             proc = subprocess.run(

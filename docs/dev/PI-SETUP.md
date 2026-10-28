@@ -1160,6 +1160,23 @@ Today, red when the backup is older than 30 hours or no report came for 3 hours.
 - Tests: `scripts/pi/board-status.test.mjs` (the script against a local server) and, with
   `PI_STAGE16_CONTAINER=1` (Docker), `scripts/pi/container-test/stage16-scenarios.sh` in the ARM64 container.
 
+## Clock sync (stage 18)
+
+DietPi's default time sync (`CONFIG_NTP_MODE=2` in `/boot/dietpi.txt`) is "boot + daily": systemd-timesyncd
+syncs once, then DietPi stops it again. `timedatectl` still says "System clock synchronized: yes" (the kernel
+flag stays set) but "NTP service: inactive", and the clock drifts between syncs. Cloudflare Access tokens and
+the board's hourly report need a correct clock. Stage 18 (`scripts/pi/remote/18-time-sync.sh`) sets DietPi's
+mode 4 (daemon + drift) with `dietpi-set_software ntpd-mode 4`, so timesyncd stays enabled and running and a
+later DietPi update keeps it. Nothing else is touched and nothing restarts.
+
+- **Look first (changes nothing):** `cat scripts/pi/remote/lib.sh scripts/pi/remote/18-time-sync.sh | ssh foundry-pi 'DRY_RUN=1 bash -s'`
+- **Run:** after a `dietpi-backup` snapshot and the user's OK,
+  `cat scripts/pi/remote/lib.sh scripts/pi/remote/18-time-sync.sh | ssh foundry-pi 'bash -s'`.
+  It ends by waiting (up to 90 seconds) for "NTP service: active" and "System clock synchronized: yes".
+- **Check later:** `... | ssh foundry-pi 'CHECK=1 bash -s'` or `timedatectl`.
+- **Undo:** the same pipe with `UNDO=1` (back to DietPi's mode 2).
+- Tests: `scripts/pi/time-sync.test.mjs` (the stage in bash with stand-ins for systemctl, timedatectl and DietPi's tool).
+
 ## Where things live on the Pi
 
 | What                                                         | Where                                                                                                                 |

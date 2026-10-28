@@ -262,6 +262,38 @@ describe('FoundryDataAccess — requestPlayerRolls', () => {
     expect(buttons[buttonId].targetUserId).toBe(''); // no user for GM-only characters
   });
 
+  it('rolls for the character assigned to the player, not the first actor they own', async () => {
+    const user = world.addUser({ id: 'u1', name: 'Alice', active: true, isGM: false });
+    addPlayerCharacter({
+      id: 'a0',
+      name: 'Alt Familiar',
+      ownerUserId: 'u1',
+      rollData: { abilities: { dex: { mod: -2 } } },
+    });
+    const main = addPlayerCharacter({
+      id: 'a1',
+      name: 'Silvera',
+      ownerUserId: 'u1',
+      rollData: { abilities: { dex: { mod: 3 } } },
+    });
+    user.character = main;
+
+    await da.requestPlayerRolls({
+      rollType: 'ability',
+      rollTarget: 'dex',
+      targetPlayer: 'Alice',
+      isPublic: true,
+      rollModifier: '',
+      flavor: '',
+    });
+
+    const msg = world.messages.contents[world.messages.contents.length - 1];
+    const buttons = msg.flags[MODULE_ID].rollButtons;
+    const button = buttons[Object.keys(buttons)[0]];
+    expect(button.characterId).toBe('a1');
+    expect(button.rollFormula).toBe('1d20+3');
+  });
+
   it('appends a custom rollModifier to the formula', async () => {
     world.addUser({ id: 'u1', name: 'Alice', active: true, isGM: false });
     addPlayerCharacter({

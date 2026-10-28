@@ -472,7 +472,9 @@ deletes anything, and prints at the end where things are left. The scratch folde
 The bridge writes the GM's Obsidian vault on the Pi, in `/var/lib/foundry-ai-tool/obsidian/gm`: the
 session log, the change log, the play stats and the Library notes. `7-vault.sh` (stage 7) sets that
 up and runs Syncthing as its own service, `foundry-ai-tool-syncthing` (user `foundry`, its files in
-`/var/lib/foundry-ai-tool/syncthing`, never in Foundry's data folder). Syncthing keeps the folder
+`/var/lib/foundry-ai-tool/syncthing`, never in Foundry's data folder). Stage 7 also takes
+`DASHBOARD_FOUNDRY_URL=https://play.<domain>` for the initiative ribbon's portraits (see
+[REMOTE-ACCESS.md](REMOTE-ACCESS.md), Part C step 4). Syncthing keeps the folder
 `foundry-gm-vault` the same on every PC you add, in both directions: the GM's own notes in `Prep/` go
 back to the Pi and into its nightly backups. The player vault is not part of this yet (it waits for
 O7, D-091).

@@ -189,6 +189,8 @@ Start-PlanBService 'dashboard' "`"$node`" `"$server`"" @{
   MCP_CONTROL_PORT        = $ports.Control
   COGM_STATE_DIR          = $L.DashboardStateDir
   FOUNDRY_AI_OBSIDIAN_DIR = ''
+  # Foundry as the GM's browser reaches it (the ribbon's portraits), not the bridge's address.
+  DASHBOARD_FOUNDRY_URL   = "http://localhost:$($ports.Foundry)"
 } (Join-Path $PlanBRepoRoot 'packages' 'cogm-dashboard')
 Wait-Service 'foundry' $ports.Foundry 120
 Wait-Service 'bridge' $ports.Control 30

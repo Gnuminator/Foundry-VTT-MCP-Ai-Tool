@@ -1,6 +1,6 @@
 ---
 title: The GM windows
-description: Four small windows inside Foundry (Combat, Party, Session, Scene) that keep what you look at most during play next to the map, where they live and what each one is for.
+description: Five small windows inside Foundry (Combat, Party, Session, Scene, Loot) that keep what you look at most during play next to the map, where they live and what each one is for.
 ---
 
 # The GM windows
@@ -12,7 +12,7 @@ windows inside Foundry, right next to the map, so you can run a whole scene from
 
 They are **only for you**. Players never see them, and nothing is sent to players when you open one.
 
-![The four GM windows open next to the map](../images/guides/gm-windows-overview.png)
+![The five GM windows open next to the map](../images/guides/gm-windows-overview.png)
 
 ## Turn them on
 
@@ -20,7 +20,7 @@ The windows are off until you switch them on, so a new world never shows buttons
 
 1. Click the gear icon in the sidebar (**Game Settings**), then **Configure Settings**.
 2. Pick the category **Foundry AI Tool**.
-3. Tick **AI Tool: GM windows (Combat, Party, Session, Scene)** and press **Save Changes**.
+3. Tick **AI Tool: GM windows** and press **Save Changes**.
 
 ![The GM windows switch in Game Settings](../images/guides/gm-windows-setting.png)
 
@@ -30,8 +30,7 @@ The buttons appear at once, without reloading. Unticking the switch closes every
 
 On the left edge of the map, the scene controls have a group called **AI Tool** (the wand icon at the
 bottom). Click it and a second column opens with one button for each window, in this order: Changes,
-Handouts and Tarokka (these three are always there), then **Combat**, **Party**, **Session** and
-**Scene**. Hold the mouse over a button to see its name.
+Handouts and Tarokka (these three are always there), then **Combat**, **Party**, **Session**, **Scene** and **Loot**. Hold the mouse over a button to see its name.
 
 ![The AI Tool group in the scene controls](../images/guides/gm-windows-buttons.png)
 
@@ -91,6 +90,21 @@ rain") or use the dashboard.
 
 When to use it: to check what the players are seeing and hearing without opening the scene
 configuration.
+
+## Loot
+
+![The Loot window](../images/guides/gm-window-loot.png)
+
+What the party is carrying in treasure. A card for each player character with their coins (and what
+the coins come to in gold pieces) and their treasure items, with a total for the whole party at the
+top. It updates by itself when someone gains or spends coins, or an item is added or removed.
+
+Only items that are marked as treasure count: on the item's sheet, set **Loot Type** to Art Object,
+Gemstone, Treasure or Trade Good. Ordinary adventuring gear (a crowbar, a bedroll) is left out, so
+the window is not a list of everything in the backpack. The window only shows; to hand out loot, ask
+Claude ("give Thorin 50 gold and a ruby") and confirm the change it plans.
+
+When to use it: after a fight or a treasure room, to see what the party has now and who holds it.
 
 ## If something looks wrong
 

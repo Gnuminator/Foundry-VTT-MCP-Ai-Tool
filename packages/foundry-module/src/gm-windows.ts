@@ -21,8 +21,8 @@ export const PANEL_REFRESH_DEBOUNCE_MS = 200;
 /** Register the switch. Call from the module `init` hook. */
 export function registerGmWindowsSetting(): void {
   game.settings.register(MODULE_ID, GM_WINDOWS_SETTING, {
-    name: 'AI Tool: GM windows (Combat, Party, Session, Scene)',
-    hint: 'Adds Combat, Party, Session and Scene buttons to the AI Tool group in the scene controls (GM only). Each opens a window next to the map: the combat order, the party, the session marker and the scene mood. Combat has Previous and Next turn buttons (same as the combat tracker) and Session has Start and End; nothing else here changes the game. Turning this off closes the open windows.',
+    name: 'AI Tool: GM windows',
+    hint: 'Adds Combat, Party, Session, Scene and Loot buttons to the AI Tool group in the scene controls (GM only). Each opens a window next to the map: the combat order, the party, the session marker, the scene mood and the coins and loot the party carries. Combat has Previous and Next turn buttons (same as the combat tracker) and Session has Start and End; nothing else here changes the game. Turning this off closes the open windows.',
     scope: 'world',
     config: true,
     type: Boolean,

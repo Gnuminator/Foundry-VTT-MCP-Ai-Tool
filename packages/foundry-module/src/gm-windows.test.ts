@@ -249,6 +249,7 @@ describe('the switch, the buttons and the windows', () => {
       'party',
       'session',
       'scene',
+      'loot',
     ]);
     expect(controls[AI_TOOL_CONTROL].tools.party).toMatchObject({ order: 5, button: true });
     restore();
@@ -340,10 +341,12 @@ describe('the switch, the buttons and the windows', () => {
     expect(rendered[0].closed).toBe(true);
   });
 
-  it('names all four windows in the switch and says it closes them when turned off', () => {
+  it('names every window in the switch hint and says it closes them when turned off', () => {
     install(true, false);
     const [, , config] = registered.mock.calls[0];
-    for (const word of ['Combat', 'Party', 'Session', 'Scene']) expect(config.name).toContain(word);
+    expect(config.name).toBe('AI Tool: GM windows');
+    for (const word of ['Combat', 'Party', 'Session', 'Scene', 'Loot'])
+      expect(config.hint).toContain(word);
     expect(config.hint).toContain('closes the open windows');
   });
 });

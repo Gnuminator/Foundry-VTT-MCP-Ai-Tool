@@ -29,7 +29,7 @@ Keys are `theatre.<key>`.
 
 ## How it interacts with the AI Tool
 
-- **Speaker is lost.** The test line was created as `type: base` with `speaker = { scene: null, actor: null, token: null }` and flag `theatre.theatreMessage`. `get-chat-log` returned it as `messageType: ooc`, `speakerName: "Claude"` (the user), `actorId: null`, content `<p>Well met, traveller.</p>`. A scene played through Theatre therefore reads in recaps and the session log as one player's out-of-character chat, not as the NPC speaking.
+- **Speaker is lost.** I clicked the Test Hero portrait in the Theatre bar, typed a line in the chat box and pressed Enter (Theatre's own path, not a script), and the line was created as `type: base` with `speaker = { scene: null, actor: null, token: null }` and flag `theatre.theatreMessage`. `get-chat-log` returned it as `messageType: ooc`, `speakerName: "Claude"` (the user), `actorId: null`, content `<p>Well met, traveller.</p>`. A scene played through Theatre therefore reads in recaps and the session log as one player's out-of-character chat, not as the NPC speaking.
 - `send-chat-message` and `get-chat-log` otherwise work unchanged. No tool stages inserts.
 - Adding Test Hero to the bar changed neither the user's flags nor the actor's flags (both read back empty), so the bar list lives elsewhere (a setting; not traced). No document of ours is touched.
 - No `foundry-mcp-bridge` setting is needed.

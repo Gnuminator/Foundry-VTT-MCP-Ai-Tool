@@ -52,14 +52,14 @@ server. Foundry's own UI is `foundry-core-ui`; the test servers are `foundry-tes
 
 ### Batch E: new candidates (tried 2026-10-28 on test server B, Foundry 14.369 / dnd5e 6.0.6)
 
-None of the nine broke the world: all nine plus the 23 keep-list modules installed on server B loaded together (37 active) with no console errors. Not installed anywhere else; the Pi and the Strahd world are untouched.
+None of the nine broke the world: all nine plus the 23 modules of the earlier keep list that are installed on server B (3DS Atlas to vtta-tokenizer) loaded together (37 active) with no console errors. Not installed anywhere else; the Pi and the Strahd world are untouched.
 
 | Module                          | Version         | For Danni | The one thing to know                                                                                            |
 | ------------------------------- | --------------- | --------- | ---------------------------------------------------------------------------------------------------------------- |
 | Item Piles (+ `itempilesdnd5e`) | 3.3.4 (+ 1.1.0) | optional  | Replaces Loot Sheet NPC 5e. Needs the dnd5e companion; piles are `character` actors that `list-characters` shows |
 | Tidy 5e Sheets                  | 14.4.0          | optional  | Our writes and rolls show up in it live; it removes the Tokenizer portrait button                                |
 | Quick Insert                    | 3.7.8           | keep      | Turn on "GMs only", or players can search the names of actors and scenes they cannot see                         |
-| Find the Culprit                | 3.3.0           | keep      | Disables our bridge during a search; Zero Modules and Reset restored all 14 modules                              |
+| Find the Culprit                | 3.3.0           | keep      | Disables our bridge during a search; Zero Modules and Reset restored the 14 modules that were active in that run |
 | FXMaster                        | 8.4.2           | optional  | Weather lives in a scene flag, separate from the core weather `plan-scene-mood` sets                             |
 | Token Magic FX                  | 0.8.4           | drop      | Works and survives our token moves, but noisy and overlaps Automated Animations                                  |
 | FX Bus                          | 0.8.0           | drop      | Screen shake panel; client-side only, no data; not needed at the table                                           |

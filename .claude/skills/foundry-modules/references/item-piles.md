@@ -24,19 +24,19 @@ Verified on Foundry 14.369 / dnd5e 6.0.6, module 3.3.4 plus the companion `itemp
 
 Keys are `item-piles.<key>`.
 
-| Label (client)        | Key                | Default                  | Our value / reason                                                                          |
-| --------------------- | ------------------ | ------------------------ | ------------------------------------------------------------------------------------------- |
-| (hidden) system found | `systemFound`      | false with the companion | read it only; the companion's config is applied anyway (currencies show PP, GP, EP, SP, CP) |
-| Delete empty piles    | `deleteEmptyPiles` | on                       | leave: an emptied bag disappears                                                            |
-| Enable trading        | `enableTrading`    | on                       | leave; turn off if the table never trades                                                   |
-| Output to chat        | `outputToChat`     | on                       | leave: the pick-up card is the loot record the AI can read                                  |
-| Pile defaults         | `pileDefaults`     | see UI                   | leave; one pile uses "display one item" which renames the token (see Gotchas)               |
+| Label (client)        | Key                | Default                    | Our value / reason                                                                                                 |
+| --------------------- | ------------------ | -------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| (hidden) system found | `systemFound`      | false (seen, companion on) | ignore it: the flag stayed false but the companion's dnd5e config was applied (currencies show PP, GP, EP, SP, CP) |
+| Delete empty piles    | `deleteEmptyPiles` | on                         | leave: an emptied bag disappears                                                                                   |
+| Enable trading        | `enableTrading`    | on                         | leave; turn off if the table never trades                                                                          |
+| Output to chat        | `outputToChat`     | on                         | leave: the pick-up card is the loot record the AI can read                                                         |
+| Pile defaults         | `pileDefaults`     | see UI                     | leave; one pile uses "display one item" which renames the token (see Gotchas)                                      |
 
 ## How it interacts with the AI Tool
 
 - **Characters list.** A pile is an actor of type `character` ("Default Item Pile" plus one per pile). `list-characters` returns it next to the real PCs, and `get-token-positions` returns the pile token with category `npc` and HP 0 of 0 (seen live). Name piles clearly; do not read them as party members.
 - **Loot.** No tool gives or takes pile items. `search-character-items` and `get-character` can read a pile actor's items by its actor id (not run live). The pick-up chat card shows up in `get-chat-log` as a plain message (`messageType: other`, flag `item-piles`) with the items in the HTML; the play recorder logs nothing for it.
-- Our writes survive: moving or hiding a pile token through `plan-token-change` was not run; HP and conditions do not apply to piles.
+- Whether our writes survive on a pile was not run: moving or hiding a pile token through `plan-token-change` is untried; HP and conditions do not apply to piles.
 - No `foundry-mcp-bridge` setting is needed. `manage-world-items` (Build set) creates world items, which can be dropped into a pile by hand.
 
 ## Gotchas on Foundry 14 / dnd5e 6

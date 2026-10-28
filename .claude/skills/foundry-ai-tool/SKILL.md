@@ -49,15 +49,21 @@ Features plan with read-only `plan-*` tools; one generic `apply-planned-change` 
 
 ## Dashboard (http://localhost:3100)
 
-- Header: GM Actions switch, **Tools** (tool runner), **Tarokka** drawer (GM only).
+- Header: GM Actions switch; **Advanced** menu with **Tools** (tool runner), **Tarokka** drawer
+  (GM only), Handouts, Prep, Party, Module diagnostics and Player links. The Tool Runner's chunk
+  loads lazily: "Loading..." for a few seconds the first time. Turning GM Actions on removes the
+  yellow banner at the top of the runner and moves the search box up: take a new screenshot
+  before clicking.
 - Tool runner: search, then a form built from the tool's schema. Parameters that name something
   have **Pick…**: a filterable list of what exists now (tokens of the current scene with
   disposition, hidden flag and position; actors; journals; compendium entries by search; plans;
   changes; ...). Multi-select for list parameters; typing by hand still works. A red
   "same name ×N" means the tool matches by name and several share it. Candidates come from the
   read tool `list-ref-choices` (`{kind, filter?, parent?, query?}`), usable through the API too.
-- Writes open a confirm modal (with the plan's diff for `apply-planned-change`); destructive ones
-  need the "I understand" checkbox. The modal fades in: screenshot after ~1 s.
+- An ordinary write (plan risk `write`, e.g. Tarokka New reading, Start combat) applies on the
+  click, with a toast and Undo; everything else opens a confirm modal (with the plan's diff);
+  destructive ones need the "I understand" checkbox (End combat, reveals). The modal fades in:
+  screenshot after ~1 s.
 - Recent Changes pane: applied changes with **Undo**. Live Feed: session events and `gm-change`
   entries. Module Diagnostics: the GM client's captured console errors (kept in the browser's
   localStorage across reloads, so older entries from other sessions or users can show up).
@@ -86,7 +92,8 @@ Last full pass: 2026-09-28, all green (see CLAUDE.md). For each item record evid
 3. Guarded write: `plan-tarokka-import {"source":"builtin-roll"}`, `get-planned-change`, apply
    (refused without confirm; flags in `args` do not count), `list-recent-changes`, `undo-change`
    (destructive class). After undoing the first import, `get-tarokka-reading` says no reading.
-4. Same through the dashboard UI: Tarokka drawer, New reading, confirm modal, Recent Changes, undo.
+4. Same through the dashboard UI: Tarokka drawer, New reading (applies on the click, toast with
+   Undo), Reveal with its destructive confirm modal, Recent Changes, undo.
 5. Switch off: apply refused for a links plan, a reveal plan and a Foundry-only re-reveal; undo
    still works. Switch back on.
 6. Conflict: plan, change the same target (vault: apply a second plan on the same path; Foundry:
@@ -243,7 +250,7 @@ mirror settings `enabled: true`. `start.ps1` sets `FOUNDRY_AI_OPEN_BASE=http://l
    scene without `navName` has the "Players see the true name" warning.
 4. Opted-in journal: page notes in `Journals\<journal>\`; `@UUID` links became relative links to
    the notes, a compendium link points at `/open?uuid=`, `section.secret` is a collapsed
-   `[!secret]-` callout, `[[/r ...]]` is inline code, `javascript:` links are plain text, no `<%`.
+   `[!secret]-` callout, `[[/r 1d20]]` is the words Foundry shows ("1d20"), `javascript:` links are plain text, no `<%`.
    A journal that is not opted in has an index note only: its page text appears nowhere in the vault.
 5. Rename an actor in Foundry: same file, new H1, `name` and `aliases`. Delete a journal: its
    notes move to the vault `.trash\`. Edit a mirror note by hand: it is skipped and listed in

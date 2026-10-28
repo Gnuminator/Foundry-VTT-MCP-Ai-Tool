@@ -12,7 +12,7 @@ const URL_ = 'https://play.example.test/player';
 const END1 = '2026-10-28T22:00:00.000Z';
 const END2 = '2026-11-04T22:00:00.000Z';
 
-function make(ok = true) {
+function make(ok = true): { notifier: SessionPostNotifier; sent: string[] } {
   const sent: string[] = [];
   const notifier = new SessionPostNotifier({
     pageUrl: URL_,
@@ -122,13 +122,12 @@ describe('createSessionFlagReader', () => {
   it('is null on an error status or a network failure', async () => {
     const bad = createSessionFlagReader({
       dashboardUrl: 'http://x',
-      fetch: (() =>
-        Promise.resolve(new Response('no', { status: 500 }))) as unknown as typeof fetch,
+      fetch: () => Promise.resolve(new Response('no', { status: 500 })),
     });
     expect(await bad()).toBeNull();
     const down = createSessionFlagReader({
       dashboardUrl: 'http://x',
-      fetch: (() => Promise.reject(new Error('refused'))) as unknown as typeof fetch,
+      fetch: () => Promise.reject(new Error('refused')),
     });
     expect(await down()).toBeNull();
   });

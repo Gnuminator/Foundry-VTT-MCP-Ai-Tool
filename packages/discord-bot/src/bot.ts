@@ -209,8 +209,7 @@ export class RecorderBot {
       send: async (text): Promise<boolean> => {
         try {
           const channel = await c.channels.fetch(channelId);
-          if (!channel || !channel.isSendable())
-            throw new Error('not a channel the bot can post in');
+          if (!channel?.isSendable()) throw new Error('not a channel the bot can post in');
           await channel.send(text);
           failureLog.reset();
           return true;

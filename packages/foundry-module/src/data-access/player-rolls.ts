@@ -1086,10 +1086,15 @@ export class PlayerRollsDataAccess {
         errorMessage: `Player "${user.name}" is registered but not currently logged in. They need to be online to receive roll requests.`,
       };
     }
-    // The user's owned character (non-GM), if any — drives roll-data lookups.
-    const playerCharacter = game.actors?.find(
-      (actor: Actor) => actor.testUserPermission(user, 'OWNER') && !user.isGM
-    );
+    // The user's character (non-GM) drives roll-data lookups: the one assigned to the user in
+    // User Configuration when they own it, else the first actor they own.
+    const assigned = user.character;
+    const playerCharacter =
+      assigned && !user.isGM && assigned.testUserPermission(user, 'OWNER')
+        ? assigned
+        : game.actors?.find(
+            (actor: Actor) => actor.testUserPermission(user, 'OWNER') && !user.isGM
+          );
     return {
       found: true,
       user,

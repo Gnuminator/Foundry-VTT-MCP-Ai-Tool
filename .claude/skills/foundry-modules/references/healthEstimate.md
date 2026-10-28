@@ -1,6 +1,6 @@
 # Health Estimate (`healthEstimate`)
 
-Verified on Foundry 14.369 / dnd5e 6.0.6, module 36.1.1, 2026-10-28 (test server C). The estimate was computed live; the on-screen label was not captured (marked in place).
+Verified on Foundry 14.369 / dnd5e 6.0.6, module 36.1.1, 2026-10-28 (test server C; the estimate itself was computed on 35.2.2 before the module was updated, not rerun on 36.1.1). The estimate was computed live; the on-screen label was not captured (marked in place).
 
 **Verdict: keep.** It gives words like "Badly Injured" instead of hit point numbers, which is how most tables want monster health to look. It reads HP and never writes anything, so it is safe next to our tools. It does not hide the HP bar by itself.
 
@@ -31,7 +31,7 @@ Verified on Foundry 14.369 / dnd5e 6.0.6, module 36.1.1, 2026-10-28 (test server
 
 - It only reads HP. A normal `actor.update` of HP changed the estimate immediately, so any HP change we make through a guarded write, such as `plan-actor-change`, should show up in it at once (only the plain update was tried).
 - Spoilers: by itself it does not hide the real HP bar or HP numbers from players. That is set per token in Foundry (bar visibility) and by actor ownership. Our own player view and `get-token-details` are unchanged by this module.
-- No bridge settings. No kit scenario (module group test of 2026-10-04 passed: roundtrip 10 of 10).
+- No bridge settings. No kit scenario. It was on in the all-modules run of 2026-10-04 (roundtrip 14 of 14, sweep 53/1/0, no load errors), which did not test it on its own.
 
 ## Gotchas on Foundry 14 / dnd5e 6
 

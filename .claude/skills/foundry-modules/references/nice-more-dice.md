@@ -22,7 +22,7 @@ None of its own. Dice So Nice's per-player settings decide which dice each playe
 
 ## How it interacts with the AI Tool
 
-- Cosmetic only. Rolls our tools make (`request-attack-roll`, `roll-saving-throws`, `roll-npc-check`) are normal Foundry rolls; the dice look is chosen by the roller's Dice So Nice settings. The play log reads the roll result, not the picture (design session check, 2026-10-04).
+- Cosmetic only. Rolls our tools make (`request-attack-roll`, `roll-saving-throws`, `roll-npc-check`) are normal Foundry rolls; the dice look is chosen by the roller's Dice So Nice settings. The play log reads the roll result, not the picture (reasoned from how Dice So Nice works, not tested here).
 - No bridge settings. No kit scenario.
 
 ## Gotchas on Foundry 14 / dnd5e 6

@@ -10,14 +10,14 @@ Verified on Foundry 14.369 / dnd5e 6.0.6, module 5.0.2, 2026-10-28 (test server 
 
 - Draws the combat as a carousel of portraits docked to the map. Started a combat of six tokens on Test Arena (roll all, start): the row appeared at the top, the active combatant is marked and the round counter shows in it.
 - Each portrait can show an attribute bar (HP by default), the initiative number and a disposition colour. These are all settings, not hand edits.
-- Hides the core combat tracker in the sidebar while it is on (setting "Hide Conflicting UIs", on).
+- Hides the core combat tracker in the sidebar while it is on (setting "Hide Conflicting UIs", on) (not verified).
 - Hidden combatants: with a monster's token and combatant hidden, the Player's carousel showed only the player character (module test of 2026-10-04, not repeated today).
 
 ## Where its UI is
 
 - The carousel itself: the top of the map (position setting "Position", default a docked row).
 - **Game Settings > Carousel Combat Tracker**: 30 entries; three of them are client settings every user sets for their own screen ("Carousel Size", "Less Buttons", "Overflow Style"); the rest are world settings.
-- **Combat sidebar > settings cog** has a separate entry for the attributes list (menu `combat-tracker-dock.attributesMenu`).
+- The attributes list has its own menu entry in the same Game Settings category (`combat-tracker-dock.attributesMenu`).
 
 ## Settings we use and why
 

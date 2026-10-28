@@ -2,7 +2,7 @@
 
 Verified on Foundry 14.369 / dnd5e 6.0.6, module 14.01, 2026-10-28 (test server C; first look on server B, 14.368). Parts not clicked through are marked "(not verified)".
 
-**Verdict: keep.** Its main feature, a drop-down in Game Settings for the GM to view and edit another player's client settings, works on Foundry 14.369. The first page said it was missing on 14.368; that check opened a settings window from code instead of the Game Settings button. Opened the way a user does it (Settings tab, "Game Settings"), the drop-down "-- All Players --" with Claude, Gamemaster, Verifier A, Verifier B, Assistant GM and Player appears and choosing Player switched the window to that user. The module is small and loads cleanly. The manifest only claims Foundry 13 (`compatibility.verified` is 13), so a Foundry update may need a new release.
+**Verdict: keep.** Its main feature, a drop-down in Game Settings for the GM to view and edit another player's client settings, works on Foundry 14.369. The module is small and loads cleanly. The manifest only claims Foundry 13 (`compatibility.verified` is 13), so a Foundry update may need a new release.
 
 **For Danni's guides:** In Game Settings there is a drop-down at the top. Pick a player and you see that player's own settings (like sound volume) and can change them for them. A player who has never logged in has nothing saved yet.
 
@@ -43,6 +43,7 @@ Indirect points worth knowing:
 
 ## Gotchas on Foundry 14 / dnd5e 6
 
+- Settled 2026-10-28: the first page said the drop-down was missing on 14.368 because that check opened a settings window from code. Opened the way a user does it (Settings tab, "Game Settings"), the drop-down "-- All Players --" with Claude, Gamemaster, Verifier A, Verifier B, Assistant GM and Player appears and choosing Player switched the window to that user.
 - `compatibility.minimum` and `verified` are both 13; module version 14.01. It loads on 14.368 and 14.369 without a problem.
 - It monkey-patches `foundry.helpers.ClientSettings.prototype.sheet` and adds the drop-down in a `renderSettingsConfig` hook (`apps/settings-config.js`). A settings window made from code with `new SettingsConfig()` had no drop-down when tried, while the Game Settings button showed it (the module's patched `sheet` is the likely reason, not proven). This is what the first page of 2026-10-28 mistook for a broken module.
 - Its own copy of the player's settings (`client-settings` flag) was 27 KB for the Claude user on this test world, so many modules make the flag large.

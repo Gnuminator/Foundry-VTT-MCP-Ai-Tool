@@ -1,6 +1,6 @@
 # Dice Tray (`dice-calculator`)
 
-Verified on Foundry 14.369 / dnd5e 6.0.6, module 4.0.6, 2026-10-28 (test server C). It loaded and the tray drew; no roll was made from the tray (marked in place).
+Verified on Foundry 14.369 / dnd5e 6.0.6, module 4.0.6, 2026-10-28 (test server C). It loaded and the tray drew (first seen on 4.0.5, not redrawn on 4.0.6); no roll was made from the tray (marked in place).
 
 **Verdict: keep.** A row of dice buttons under the chat box, so a player or the GM can click a d20 or a d6 instead of typing a roll. Small, loads clean, each player can hide it for themselves.
 

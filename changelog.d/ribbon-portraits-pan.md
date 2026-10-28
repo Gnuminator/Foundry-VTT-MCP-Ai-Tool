@@ -3,9 +3,8 @@
 - **Initiative ribbon: portraits and pan to token (UI-07):** each creature in the ribbon shows its
   token portrait (its initials when it has none or it does not load), and clicking it pans the GM's
   Foundry view to that token, switching scene first when needed. It only moves that GM's screen;
-  nothing in the game changes. Portraits load from `FOUNDRY_AI_FOUNDRY_URL` (the address your
-  browser uses for Foundry, the same setting as the Obsidian mirror); without it the ribbon shows
-  initials.
+  nothing in the game changes. Portraits load from `DASHBOARD_FOUNDRY_URL` (the address your
+  browser uses for Foundry); without it the ribbon shows initials.
 
 ### Module
 

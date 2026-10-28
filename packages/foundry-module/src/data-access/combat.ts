@@ -260,11 +260,7 @@ export class CombatDataAccess {
     // only some of them.
     const cExtra = c as {
       tokenId?: string | null;
-      token?: {
-        id?: string | null;
-        uuid?: string | null;
-        texture?: { src?: string | null } | null;
-      } | null;
+      token?: { id?: string | null; uuid?: string | null } | null;
       sceneId?: string | null;
       img?: string | null;
     };
@@ -279,7 +275,7 @@ export class CombatDataAccess {
       actorId: actorExtra?.id ?? null,
       sceneId: cExtra.sceneId ?? null,
       tokenUuid: cExtra.token?.uuid || null,
-      img: cExtra.img || cExtra.token?.texture?.src || null,
+      img: cExtra.img || null,
       hp: hp ? { value: hp.value ?? null, max: hp.max ?? null, temp: hp.temp ?? 0 } : null,
       conditions: shared.actorConditionNames(actor),
       statuses: Array.from(actorExtra?.statuses ?? []).filter(

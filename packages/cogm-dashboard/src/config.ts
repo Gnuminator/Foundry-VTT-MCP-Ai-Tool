@@ -31,9 +31,9 @@ export interface Config {
    */
   readonly allowedHosts: AllowedHosts;
   /**
-   * Foundry's address as the GM's browser reaches it (`FOUNDRY_AI_FOUNDRY_URL`, the setting the
-   * Obsidian mirror reads too): token portraits in the initiative ribbon load from it. Empty:
-   * the ribbon shows initials.
+   * Foundry's address as the GM's browser reaches it (`DASHBOARD_FOUNDRY_URL`; not the bridge's
+   * `FOUNDRY_AI_FOUNDRY_URL`, which is where the bridge reaches Foundry): token portraits in the
+   * initiative ribbon load from it. Empty: the ribbon shows initials.
    */
   readonly foundryUrl?: string;
   /** MCP backend control-channel host (JSON-lines TCP). */
@@ -227,7 +227,7 @@ export const config: Config = {
   host: readString('DASHBOARD_HOST', '127.0.0.1'),
   /** DNS rebinding guard: a tunnel's or proxy's public name must be listed here. */
   allowedHosts: parseAllowedHosts(process.env.DASHBOARD_ALLOWED_HOSTS ?? ''),
-  foundryUrl: readString('FOUNDRY_AI_FOUNDRY_URL', ''),
+  foundryUrl: readString('DASHBOARD_FOUNDRY_URL', ''),
   mcpHost: readString('MCP_CONTROL_HOST', '127.0.0.1'),
   mcpPort: readNumber('MCP_CONTROL_PORT', 31414),
   pollIntervalMs,

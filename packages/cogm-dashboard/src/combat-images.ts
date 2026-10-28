@@ -2,16 +2,27 @@
  * Token portraits for the initiative ribbon. The module sends each combatant's image as a Foundry
  * path (`tokens/ogre.webp`) because the browser that holds the bridge link may reach Foundry at an
  * address the GM's own browser cannot (the Pi's `127.0.0.1:30000`). The dashboard knows the
- * address the GM can use (`FOUNDRY_AI_FOUNDRY_URL`, the same setting the Obsidian mirror reads),
- * so it joins the two here before the fight goes to the page. Without that setting a relative
- * path is dropped and the ribbon shows initials; an absolute http(s) address is kept.
+ * address the GM can use (`DASHBOARD_FOUNDRY_URL`; not `FOUNDRY_AI_FOUNDRY_URL`, which is where
+ * the bridge reaches Foundry and differs on a remote setup), so it joins the two here before the
+ * fight goes to the page. Without that setting a relative path is dropped and the ribbon shows
+ * initials; an absolute http(s) address is kept.
  */
 import type { CombatState, Combatant } from './feed/types.js';
 
-/** `base` without a trailing slash, or '' when it is not an http(s) address. */
+/**
+ * `base` without a trailing slash, or '' when it is not a plain http(s) address (credentials, a
+ * query or a fragment make it unusable as a base).
+ */
 export function normalizeFoundryUrl(base: string): string {
   const trimmed = base.trim().replace(/\/+$/, '');
-  return /^https?:\/\/\S+$/i.test(trimmed) ? trimmed : '';
+  if (!/^https?:\/\/\S+$/i.test(trimmed)) return '';
+  try {
+    const url = new URL(trimmed);
+    if (url.username || url.password || url.search || url.hash) return '';
+  } catch {
+    return '';
+  }
+  return trimmed;
 }
 
 /** The page address of one image path, or null when there is none to show. */

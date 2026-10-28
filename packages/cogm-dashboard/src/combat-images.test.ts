@@ -27,6 +27,9 @@ describe('normalizeFoundryUrl', () => {
     expect(normalizeFoundryUrl('')).toBe('');
     expect(normalizeFoundryUrl('play.example.org')).toBe('');
     expect(normalizeFoundryUrl('javascript:alert(1)')).toBe('');
+    expect(normalizeFoundryUrl('https://user:pw@play.example.org')).toBe('');
+    expect(normalizeFoundryUrl('https://play.example.org/?a=1')).toBe('');
+    expect(normalizeFoundryUrl('https://play.example.org/#x')).toBe('');
   });
 });
 

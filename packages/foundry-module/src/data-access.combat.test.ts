@@ -710,7 +710,7 @@ describe('FoundryDataAccess — getCombatState: tokenId/actorId/sceneId/statuses
     expect(result.combatants[2].tokenId).toBeNull();
   });
 
-  it('reads the token uuid and image (the combatant image, else the token texture), else null', async () => {
+  it('reads the token uuid and the combatant image (Foundry derives it; a video gives none), else null', async () => {
     const actor = makeActor({ type: 'npc', system: hp(5) });
     world.setCombat({
       turns: [
@@ -718,13 +718,15 @@ describe('FoundryDataAccess — getCombatState: tokenId/actorId/sceneId/statuses
           id: 'c1',
           name: 'Ogre',
           actor,
-          token: { id: 't1', uuid: 'Scene.s.Token.t1', texture: { src: 'tokens/ogre.webp' } },
+          img: 'tokens/ogre.webp',
+          token: { id: 't1', uuid: 'Scene.s.Token.t1' },
         }),
+        // A video token with no override: Foundry leaves `img` empty, so there is no portrait.
         makeCombatant({
           id: 'c2',
           name: 'Wolf',
           actor,
-          img: 'tokens/wolf.png',
+          img: null,
           token: { id: 't2', texture: { src: 'tokens/wolf.webm' } },
         }),
         makeCombatant({ id: 'c3', name: 'Nobody', actor }),
@@ -737,7 +739,7 @@ describe('FoundryDataAccess — getCombatState: tokenId/actorId/sceneId/statuses
     const result = await da.getCombatState();
     expect(result.combatants[0].tokenUuid).toBe('Scene.s.Token.t1');
     expect(result.combatants[0].img).toBe('tokens/ogre.webp');
-    expect(result.combatants[1].img).toBe('tokens/wolf.png');
+    expect(result.combatants[1].img).toBeNull();
     expect(result.combatants[2]).toMatchObject({ tokenUuid: null, img: null });
   });
 

@@ -8,6 +8,8 @@
 #   PEER_ID / PEER_NAME  also add that PC's Syncthing device and share the vault with it
 #   OPEN_BASE            the address "Open in Foundry" links use (default: the one already in
 #                        bridge.env, else the dashboard's Tailscale name; Part C sets the Cloudflare name)
+#   DASHBOARD_FOUNDRY_URL  Foundry's address as the GM's browser reaches it (https://play.<domain>); the initiative
+#                        ribbon builds its portraits from it. Default: the one already in dashboard.env; none = initials
 #   VAULT_NAME           the vault's folder name on the receiving PC (default "Foundry GM vault")
 # The Foundry mirror switch ("AI Tool: Obsidian mirror (writes)" plus the guarded plan-obsidian-mirror
 # tool) stays off: that is the GM's decision per world (D-083). The session, change and stats notes
@@ -58,6 +60,16 @@ if [ -z "$open_base" ] && [ -n "$ts_name" ]; then
   open_base="http://$ts_name:3000"
 fi
 
+# Foundry's address for the GM's browser (ribbon portraits). Given, else the one an earlier run wrote.
+foundry_url="${DASHBOARD_FOUNDRY_URL:-}"
+if [ -z "$foundry_url" ] && [ -f "$TOOL_ETC/dashboard.env" ]; then
+  foundry_url="$(sed -n 's/^DASHBOARD_FOUNDRY_URL=//p' "$TOOL_ETC/dashboard.env" | tail -n 1)"
+fi
+if [ -n "$foundry_url" ]; then
+  printf '%s' "$foundry_url" | grep -Eq '^https?://[A-Za-z0-9.-]+(:[0-9]+)?$' ||
+    die "DASHBOARD_FOUNDRY_URL must be a plain address such as https://play.example.com (no path, no trailing slash; got '$foundry_url')"
+fi
+
 say "the bridge's Obsidian output"
 # These two files belong to this script: it rewrites them whole, so keep other settings elsewhere.
 bridge_env="# Written by scripts/pi/remote/7-vault.sh; edit it there (the file is rewritten whole).
@@ -71,6 +83,12 @@ else
 fi
 dashboard_env="# Written by scripts/pi/remote/7-vault.sh; edit it there (the file is rewritten whole).
 OBSIDIAN_VAULT_NAME=\"$vault_name\""
+if [ -n "$foundry_url" ]; then
+  dashboard_env="$dashboard_env
+DASHBOARD_FOUNDRY_URL=$foundry_url"
+else
+  warn "no DASHBOARD_FOUNDRY_URL: the initiative ribbon shows initials, not portraits. Run this stage again with DASHBOARD_FOUNDRY_URL=https://play.<domain>"
+fi
 mkdir -p "$TOOL_ETC"
 write_file "$TOOL_ETC/bridge.env" 0640 "$bridge_env" || true
 write_file "$TOOL_ETC/dashboard.env" 0640 "$dashboard_env" || true

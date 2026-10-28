@@ -148,8 +148,12 @@ the roundtrip before any Pi deploy too. Tell the user what was merged.
 the weekly limit per day. The startup share (Share column) is information only: its 20% target was
 dropped on 2026-10-17 because the 350k/400k hand-over rule makes it unreachable. First check
 2026-10-17, next 2026-10-24. A rule or tool that does not move them is removed.
-While weekly usage is above 50%, write `~/.foundry-ai-tool/context-thresholds.json` as
-`{ "plan": 200000, "out": 250000 }` (the context hook's low mode); delete it below 50%.
+Low mode follows pace, not a fixed 50% (the user, 2026-10-28): pace is the share of the week gone
+since the weekly reset (hours since the reset / 168; `get_usage` gives `resetsAt`, the reset is 7
+days before it). While weekly usage is on or above pace, write
+`~/.foundry-ai-tool/context-thresholds.json` as `{ "plan": 200000, "out": 250000 }` (the context
+hook's low mode); delete it (or rename it `.off`) once usage is under pace. Check at each planner
+start and lane start.
 Also read the report's `Advisor calls (main sessions)` line (the `advisor-calls` number in the
 note): lanes should make two a PR (lane skill, Work); near zero two weeks running means the rule is
 not followed.

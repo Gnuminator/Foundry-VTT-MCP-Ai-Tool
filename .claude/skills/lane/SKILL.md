@@ -204,7 +204,7 @@ scripts/review-runner`. It picks Opus for a PR the gate calls risky and Sonnet o
 ## Context and handover
 
 - The context hook prints one line at 350k (plan the handover) and 400k (hand over now); 200k
-  and 250k while the planner has set low mode (weekly usage above 50%). `get_usage "self"` gives
+  and 250k while the planner has set low mode (weekly usage on or above pace). `get_usage "self"` gives
   the exact number.
 - Handover: half a page to vault `Handoff/<lane> prompt <date>.md` and in full in the chat in a
   fenced block: task, state, open PRs, links, done-when, "follow CLAUDE.md". Findings a successor

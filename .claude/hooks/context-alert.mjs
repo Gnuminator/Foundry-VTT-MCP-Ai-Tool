@@ -3,7 +3,7 @@
 // PostToolUse (every tool) and UserPromptSubmit, so it must be fast: it reads only the last 512 KB
 // of the transcript (transcripts reach tens of MB), no network, no full-file read.
 //
-// Rule: plan the handover at 350k tokens, be out by 400k. While the weekly limit is above 50% the
+// Rule: plan the handover at 350k tokens, be out by 400k. While weekly usage is on or above pace the
 // lines are 200k and 250k (low mode: env CONTEXT_ALERT_LOW=1, or the file
 // ~/.foundry-ai-tool/context-thresholds.json = { "plan": n, "out": n }, which the planner writes;
 // the file wins over the env).

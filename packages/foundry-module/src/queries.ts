@@ -965,6 +965,7 @@ export class QueryHandlers {
     isPublic: boolean;
     rollModifier: string;
     flavor: string;
+    advantage?: 'advantage' | 'disadvantage';
   }): Promise<unknown> {
     return this.withGmGate('Failed to request player rolls', async () => {
       if (!data.rollType || !data.rollTarget || !data.targetPlayer) {
@@ -1620,6 +1621,7 @@ export class QueryHandlers {
     dc?: number;
     isPublic: boolean;
     reason?: string;
+    advantage?: 'advantage' | 'disadvantage';
   }): Promise<unknown> {
     return this.withGmGate('Failed to request ability check', async () => {
       if (!data?.targetPlayer) throw new Error('targetPlayer is required');
@@ -1632,6 +1634,7 @@ export class QueryHandlers {
     targetPlayer: string;
     weaponOrSpellName: string;
     isPublic: boolean;
+    advantage?: 'advantage' | 'disadvantage';
   }): Promise<unknown> {
     return this.withGmGate('Failed to request attack roll', async () => {
       if (!data?.targetPlayer) throw new Error('targetPlayer is required');
@@ -1645,6 +1648,7 @@ export class QueryHandlers {
     rollType: string;
     rollTarget: string;
     isPublic: boolean;
+    advantage?: 'advantage' | 'disadvantage';
   }): Promise<unknown> {
     return this.withGmGate('Failed to roll NPC check', async () => {
       if (!data?.actorName) throw new Error('actorName is required');

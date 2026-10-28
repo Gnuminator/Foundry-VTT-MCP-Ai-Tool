@@ -10,7 +10,7 @@
   overflow-x: auto;
   list-style: none;
   border-bottom: 1px solid var(--border-soft);
-  /* The mist: the far end of the order fades out. A mask, not opacity, keeps the text readable. */
+  /* The mist: the far end of the order fades out as a visual cue; the rows and the list label carry the same information. A mask rather than low opacity, so text contrast holds (axe). */
   mask-image: linear-gradient(to right, #000 80%, rgb(0 0 0 / 35%));
 }
 

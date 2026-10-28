@@ -20,9 +20,9 @@ function Creature({ c }: { c: RibbonCreature }): JSX.Element {
   return (
     <li
       className={`${styles['item']} ${styles[c.side]} ${styles[c.role]}`}
-      data-id={c.id}
+      data-ribbon-id={c.id}
       data-role={c.role}
-      {...(c.role === 'current' ? { 'aria-current': 'true' as const } : {})}
+      {...(c.role === 'current' ? { 'aria-current': 'step' as const } : {})}
     >
       <span className={styles['badge']} aria-hidden="true">
         {c.initials}

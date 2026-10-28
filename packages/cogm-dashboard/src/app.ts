@@ -316,6 +316,8 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
       events: state.recentEvents,
       handouts: playerView.handouts,
       newSinceMs: playerView.sessionSinceMs,
+      sessionOpen: playerView.sessionOpen,
+      sessionEndedMs: playerView.lastSessionEndedMs,
       opts: config.playerView,
     });
   }

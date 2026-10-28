@@ -9,6 +9,7 @@ import {
   type PlayerEvent,
   type PlayerHandout,
   type PlayerSceneEnvironment,
+  type PlayerSession,
   type PlayerState,
   type PlayerVisibility,
 } from '@gnuminator/shared';
@@ -266,6 +267,9 @@ export interface PlayerStateInputs {
   handouts: readonly PlayerHandout[];
   /** Handouts revealed after this time (ms) are marked new; null marks none. */
   newSinceMs?: number | null;
+  /** The session marker (I-111): whether a session is open, and when the last one ended (ms). */
+  sessionOpen?: boolean | null;
+  sessionEndedMs?: number | null;
   opts: PlayerViewConfig;
 }
 
@@ -293,6 +297,16 @@ function isNewHandout(revealedAt: string | null, sinceMs: number | null | undefi
   return Number.isFinite(ms) && ms > sinceMs;
 }
 
+/** The session flag players get: open or not, and the last end time. Null when unknown. */
+export function projectSession(
+  open: boolean | null | undefined,
+  endedMs: number | null | undefined
+): PlayerSession | null {
+  if (typeof open !== 'boolean') return null;
+  const ended = typeof endedMs === 'number' && Number.isFinite(endedMs);
+  return { open, endedAt: ended ? new Date(endedMs).toISOString() : null };
+}
+
 /** Everything the player page shows, projected. */
 export function buildPlayerState(input: PlayerStateInputs): PlayerState {
   return {
@@ -302,6 +316,7 @@ export function buildPlayerState(input: PlayerStateInputs): PlayerState {
     sceneEnvironment: projectEnvironment(input.visibility?.scene),
     combat: projectCombat(input.combat, input.visibility, input.opts),
     events: projectEvents(input.events),
+    session: projectSession(input.sessionOpen, input.sessionEndedMs),
     handouts: input.handouts.map(h => ({
       id: h.id,
       title: h.title,

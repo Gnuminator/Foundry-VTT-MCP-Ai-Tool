@@ -1,0 +1,4 @@
+### Player page and Discord (I-111)
+
+- **The player page follows the session:** during a session `/player` shows the combat order, the session feed and the handouts first; between sessions it leads with the last recap, the handouts and the quests the party knows. A link to your own character sheet sits at the top. The player state carries a new `session` flag (open or not, and when the last session ended) and nothing else of the session marker; the canary tests cover it.
+- **Discord post when a session ends (off by default):** set `DISCORD_SESSION_POST_CHANNEL_ID` in the bot settings and the bot posts a link to the player page in that channel when a session ends. `FOUNDRY_AI_PLAYER_PAGE_URL` (required, the link players can open) says which link it posts; `FOUNDRY_AI_DASHBOARD_URL` (default `http://127.0.0.1:3100`) and `FOUNDRY_AI_PLAYER_TOKEN` say where and how it reads the session.

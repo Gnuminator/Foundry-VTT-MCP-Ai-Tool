@@ -11,6 +11,10 @@
  * | `FOUNDRY_AI_SPACE_STATUS` | the space check's status file (the Pi writes it)       |
  * | `FOUNDRY_AI_BACKUP_PULLS` | folder with the Pi's record of the PC's last backup copies |
  * | `FOUNDRY_AI_BACKUP_STALE_DAYS` | DM when a kind of copy is older than this; default 3  |
+ * | `DISCORD_SESSION_POST_CHANNEL_ID` | channel for the "session is over" link post; unset = off |
+ * | `FOUNDRY_AI_DASHBOARD_URL` | where the bot reads the session state; default `http://127.0.0.1:3100` |
+ * | `FOUNDRY_AI_PLAYER_PAGE_URL` | the player page link in the post (required for the post; no default) |
+ * | `FOUNDRY_AI_PLAYER_TOKEN` | the dashboard's player token, if the deployment sets one |
  * | `REHEARSAL_TOKEN_1` to `_3` | speaker bot tokens for `rehearse` (one bot application each) |
  * | `REHEARSAL_CHANNEL_ID` | the voice channel rehearsals use                          |
  * | `FVTT_REHEARSAL_DIR` | where rehearsals go; default `Documents\FoundryRehearsals`  |
@@ -36,6 +40,14 @@ export interface BotConfig {
   backupPullsDir?: string | undefined;
   /** Days before a copy counts as stale; unset or invalid means 3. */
   backupStaleDays?: number | undefined;
+  /** I-111: the channel for the "session is over" post; unset means the post is off. */
+  sessionPostChannelId?: string | undefined;
+  /** Where the bot reads the session state; default `http://127.0.0.1:3100`. */
+  dashboardUrl?: string | undefined;
+  /** The player page link in the post; without it the post stays off (127.0.0.1 is no link for players). */
+  playerPageUrl?: string | undefined;
+  /** The dashboard's player token, when the deployment sets one. */
+  playerToken?: string | undefined;
 }
 
 export interface RehearsalConfig {
@@ -85,6 +97,10 @@ export function loadConfig(envFile = defaultEnvFile(), requireToken = true): Bot
     spaceStatusFile: get('FOUNDRY_AI_SPACE_STATUS'),
     backupPullsDir: get('FOUNDRY_AI_BACKUP_PULLS'),
     backupStaleDays: parseStaleDays(get('FOUNDRY_AI_BACKUP_STALE_DAYS')),
+    sessionPostChannelId: get('DISCORD_SESSION_POST_CHANNEL_ID'),
+    dashboardUrl: get('FOUNDRY_AI_DASHBOARD_URL'),
+    playerPageUrl: get('FOUNDRY_AI_PLAYER_PAGE_URL'),
+    playerToken: get('FOUNDRY_AI_PLAYER_TOKEN'),
   };
 }
 

@@ -4,7 +4,7 @@
 // rows below stay the place to pick combatants. Each creature is a ring of its side's colour
 // around its token portrait (its initials when there is none); a click pans the GM's Foundry view
 // to the token, through open-in-foundry with pan: that moves only the view and changes nothing.
-import type { JSX } from 'react';
+import { useState, type JSX } from 'react';
 
 import { callTool, errorText } from '../lib/api';
 import { NO_VALUE, hpTone, type CombatState } from '../lib/combat';
@@ -15,17 +15,27 @@ import { useToast } from './Toasts';
 
 function Creature({ c }: { c: RibbonCreature }): JSX.Element {
   const toast = useToast();
+  // A portrait that fails to load (Foundry unreachable from here) falls back to the initials.
+  const [broken, setBroken] = useState<string | null>(null);
   const pan = (): void => {
     if (!c.tokenUuid) return;
     callTool('open-in-foundry', { uuid: c.tokenUuid, pan: true }).catch((err: unknown) =>
       toast(`✗ Could not pan to ${c.name}: ${errorText(err)}`, 'err')
     );
   };
-  const face = c.img ? (
-    <img className={styles['portrait']} src={c.img} alt="" loading="lazy" draggable={false} />
-  ) : (
-    c.initials
-  );
+  const face =
+    c.img && broken !== c.img ? (
+      <img
+        className={styles['portrait']}
+        src={c.img}
+        alt=""
+        loading="lazy"
+        draggable={false}
+        onError={() => setBroken(c.img)}
+      />
+    ) : (
+      c.initials
+    );
   const tone = hpTone({ value: c.hpPercent, max: 100 });
   const state = [
     c.role === 'current' && 'up now',

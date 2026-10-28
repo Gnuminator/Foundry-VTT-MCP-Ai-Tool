@@ -114,13 +114,24 @@ async function panToToken(doc: PannableToken): Promise<void> {
   ).canvas;
   if (scene && scene.id !== cv?.scene?.id) await scene.view?.();
   const live = (globalThis as { canvas?: typeof cv }).canvas;
+  if (scene && live?.scene?.id !== scene.id) {
+    throw new Error(
+      "The token's scene did not open on this GM client (canvas still loading, or off)"
+    );
+  }
   const size = live?.grid?.size ?? 100;
   const center = doc.object?.center ?? {
     x: (doc.x ?? 0) + ((doc.width ?? 1) * size) / 2,
     y: (doc.y ?? 0) + ((doc.height ?? 1) * size) / 2,
   };
-  await live?.animatePan?.({ x: center.x, y: center.y, duration: 250 });
   doc.object?.control?.({ releaseOthers: true });
+  // Not awaited: a browser tab in the background never finishes the animation, and the request
+  // must not wait for it.
+  void Promise.resolve(live?.animatePan?.({ x: center.x, y: center.y, duration: 250 })).catch(
+    (error: unknown): void => {
+      console.warn(`[${MODULE_ID}] Could not pan to the token:`, error);
+    }
+  );
 }
 
 /** Open a document on this client: sheet, journal page, or scene view; `pan` pans to a token. */

@@ -18,7 +18,6 @@ import {
   type TestWorld,
 } from './test-support/foundry-mock/index.js';
 import { FoundryDataAccess } from './data-access.js';
-import { absoluteImagePath } from './data-access/combat.js';
 
 let world: TestWorld;
 let restore: () => void;
@@ -711,7 +710,7 @@ describe('FoundryDataAccess — getCombatState: tokenId/actorId/sceneId/statuses
     expect(result.combatants[2].tokenId).toBeNull();
   });
 
-  it('reads the token uuid and image (token texture, else the combatant image), else null', async () => {
+  it('reads the token uuid and image (the combatant image, else the token texture), else null', async () => {
     const actor = makeActor({ type: 'npc', system: hp(5) });
     world.setCombat({
       turns: [
@@ -721,7 +720,13 @@ describe('FoundryDataAccess — getCombatState: tokenId/actorId/sceneId/statuses
           actor,
           token: { id: 't1', uuid: 'Scene.s.Token.t1', texture: { src: 'tokens/ogre.webp' } },
         }),
-        makeCombatant({ id: 'c2', name: 'Wolf', actor, img: 'https://cdn.example/wolf.png' }),
+        makeCombatant({
+          id: 'c2',
+          name: 'Wolf',
+          actor,
+          img: 'tokens/wolf.png',
+          token: { id: 't2', texture: { src: 'tokens/wolf.webm' } },
+        }),
         makeCombatant({ id: 'c3', name: 'Nobody', actor }),
       ],
       turn: 0,
@@ -732,22 +737,8 @@ describe('FoundryDataAccess — getCombatState: tokenId/actorId/sceneId/statuses
     const result = await da.getCombatState();
     expect(result.combatants[0].tokenUuid).toBe('Scene.s.Token.t1');
     expect(result.combatants[0].img).toBe('tokens/ogre.webp');
-    expect(result.combatants[1].img).toBe('https://cdn.example/wolf.png');
+    expect(result.combatants[1].img).toBe('tokens/wolf.png');
     expect(result.combatants[2]).toMatchObject({ tokenUuid: null, img: null });
-  });
-
-  it('absoluteImagePath resolves a relative path against the page origin', () => {
-    const g = globalThis as { location?: unknown };
-    const before = g.location;
-    g.location = { origin: 'http://localhost:30001' };
-    try {
-      expect(absoluteImagePath('tokens/a b.webp')).toBe('http://localhost:30001/tokens/a b.webp');
-      expect(absoluteImagePath('/tokens/a.webp')).toBe('http://localhost:30001/tokens/a.webp');
-      expect(absoluteImagePath('https://cdn.example/a.png')).toBe('https://cdn.example/a.png');
-      expect(absoluteImagePath(null)).toBeNull();
-    } finally {
-      g.location = before;
-    }
   });
 
   it('reads actorId from the combatant actor, else null', async () => {

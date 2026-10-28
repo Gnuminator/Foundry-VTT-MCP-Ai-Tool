@@ -172,9 +172,12 @@ describe('resolveGmTarget / openDocumentForGm', () => {
 
   it('pan: switches scene when needed, centres on the token and selects it', async () => {
     const control = vi.fn();
-    const view = vi.fn().mockResolvedValue(undefined);
     const animatePan = vi.fn().mockResolvedValue(undefined);
     g.canvas = { scene: { id: 'other' }, grid: { size: 100 }, animatePan };
+    const view = vi.fn().mockImplementation(() => {
+      g.canvas.scene = { id: 'sceneAAAAAAAAAAA' };
+      return Promise.resolve();
+    });
     g.fromUuid = vi.fn().mockResolvedValue({
       documentName: 'Token',
       name: 'Ogre',
@@ -210,6 +213,37 @@ describe('resolveGmTarget / openDocumentForGm', () => {
 
     expect(view).not.toHaveBeenCalled();
     expect(animatePan).toHaveBeenCalledWith({ x: 300, y: 400, duration: 250 });
+  });
+
+  it('pan: says so when the token scene did not open here', async () => {
+    const animatePan = vi.fn();
+    g.canvas = { scene: { id: 'other' }, grid: { size: 100 }, animatePan };
+    g.fromUuid = vi.fn().mockResolvedValue({
+      documentName: 'Token',
+      parent: { id: 'sceneAAAAAAAAAAA', view: vi.fn().mockResolvedValue(undefined) },
+    });
+    await expect(
+      openDocumentForGm({ uuid: 'Scene.sceneAAAAAAAAAAA.Token.tokAAAAAAAAAAAAA', pan: true })
+    ).rejects.toThrow(/did not open/);
+    expect(animatePan).not.toHaveBeenCalled();
+  });
+
+  it('the registered openDocument handler passes pan on for a GM sender', async () => {
+    registerGmHelperQueries();
+    g.canvas = { scene: { id: 'sceneAAAAAAAAAAA' }, grid: { size: 100 }, animatePan: vi.fn() };
+    const control = vi.fn();
+    g.fromUuid = vi.fn().mockResolvedValue({
+      documentName: 'Token',
+      parent: { id: 'sceneAAAAAAAAAAA' },
+      object: { center: { x: 1, y: 2 }, control },
+    });
+    const gm = addUser({ id: 'gm2', name: 'Real GM', isGM: true });
+    await g.CONFIG.queries[GM_HELPER_QUERIES.openDocument](
+      { uuid: 'Scene.sceneAAAAAAAAAAA.Token.tokAAAAAAAAAAAAA', pan: true },
+      { user: gm }
+    );
+    expect(g.canvas.animatePan).toHaveBeenCalledWith({ x: 1, y: 2, duration: 250 });
+    expect(control).toHaveBeenCalled();
   });
 
   it('pan: refuses anything that is not a token', async () => {

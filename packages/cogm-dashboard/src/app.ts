@@ -7,6 +7,7 @@ import {
   type UsageEvent,
 } from '@gnuminator/shared';
 
+import { normalizeFoundryUrl, withPortraitUrls } from './combat-images.js';
 import type { Config, Tone } from './config.js';
 import type { Logger } from './logger.js';
 import { ToolError, TimeoutError } from './feed/mcp-control-client.js';
@@ -497,7 +498,8 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
       sse.broadcast('errors', { errors: added, initial: meta.initial }, gmOnly);
       if (!meta.initial) errorCommentary.notifyErrors(added);
     },
-    onCombat(combat: CombatState | null) {
+    onCombat(rawCombat: CombatState | null) {
+      const combat = withPortraitUrls(rawCombat, normalizeFoundryUrl(config.foundryUrl ?? ''));
       const prevSignature = state.combatSignature();
       state.setCombat(combat);
 

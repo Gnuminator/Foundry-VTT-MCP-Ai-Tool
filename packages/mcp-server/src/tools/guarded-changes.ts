@@ -143,7 +143,7 @@ export class GuardedChangeTools {
             pan: {
               type: 'boolean',
               description:
-                "With a token uuid (Scene.x.Token.y): pan the GM's view to that token and select it instead of opening its sheet. Only the GM's own view moves.",
+                "With a token uuid (Scene.x.Token.y): pan the GM's Foundry view to that token and select it instead of opening its sheet. Only that GM's screen moves, not the players'.",
             },
           },
           required: ['uuid'],

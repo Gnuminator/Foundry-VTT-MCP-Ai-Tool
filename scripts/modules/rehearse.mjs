@@ -145,7 +145,7 @@ export function versionMismatches(plan, installed) {
       const now = installed.find(x => x.id === p.id && x.kind === p.kind);
       const numeric = v => /^v?\d/.test(v);
       const same = now && (now.version === p.installed || (numeric(now.version) && numeric(p.installed) && compareVersions(now.version, p.installed) === 0));
-      return !same ?`${p.id} ${p.installed} -> ${now?.version ?? 'gone'}` : null;
+      return !same ? `${p.id} ${p.installed} -> ${now?.version ?? 'gone'}` : null;
     })
     .filter(Boolean);
 }
@@ -255,7 +255,7 @@ async function cmdRun(o) {
   // 1. live:roundtrip and live:sweep talk to the dashboard on 3100, which is server A's, in ai-tool-test.
   if (srv.name === 'A' && o.live) {
     steps.push(runStep('live:roundtrip', 'node', ['scripts/live-roundtrip.mjs']));
-    steps.push(runStep('live:sweep', 'node', ['scripts/live-read-sweep.mjs']));
+    steps.push(runStep('live:sweep', 'node', ['scripts/live-write-sweep.mjs']));
   } else steps.push({ name: 'live:roundtrip and live:sweep', status: 'skip', detail: srv.name === 'A' ? '--no-live' : 'they use server A (dashboard 3100); run the rehearsal on A or run them there' });
 
 

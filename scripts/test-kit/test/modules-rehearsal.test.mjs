@@ -206,6 +206,10 @@ test('zipEntryNames reads a real zip and unsafe entry names are refused before u
   shortDir.writeUInt16LE(9, shortDir.length - 22 + 10);
   writeFileSync(path.join(d, 'short.zip'), shortDir);
   assert.throws(() => zipEntryNames(path.join(d, 'short.zip')), /cut short/);
+  const lowCount = Buffer.from(whole); // fewer entries stated than the directory holds: names would hide
+  lowCount.writeUInt16LE(2, lowCount.length - 22 + 10);
+  writeFileSync(path.join(d, 'low.zip'), lowCount);
+  assert.throws(() => zipEntryNames(path.join(d, 'low.zip')), /does not match its stated size/);
   rmSync(d, { recursive: true, force: true });
 });
 

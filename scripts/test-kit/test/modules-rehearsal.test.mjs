@@ -16,7 +16,7 @@ import {
   scanInstalled,
   splitFindings,
 } from '../../modules/lib.mjs';
-import { archivePackage, downloadZip, installFromZip, lockHolder, zipFolder } from '../../modules/ops.mjs';
+import { appDirOf, archivePackage, downloadZip, installFromZip, lockHolder, zipFolder } from '../../modules/ops.mjs';
 import { errorFindings, parseArgs } from '../../modules/rehearse.mjs';
 import { loadProfile, SHIPPED_PROFILES } from '../lib/profiles.mjs';
 
@@ -183,6 +183,18 @@ test('downloadZip stays on https, writes a .part file and keeps only real zips',
   assert.equal(existsSync(dest), true);
   assert.equal(existsSync(`${dest}.part`), false);
   rmSync(d, { recursive: true, force: true });
+});
+
+test('appDirOf follows the machine-wide appdir.txt next to the lock for every server', () => {
+  const root = mkdtempSync(path.join(os.tmpdir(), 'appdir-'));
+  try {
+    const all = { A: { Root: root }, B: { Root: path.join(root, 'b') } };
+    writeFileSync(path.join(root, 'appdir.txt'), `${path.join(root, 'app-14.369')}\r\n`);
+    assert.equal(appDirOf('A', all), path.join(root, 'app-14.369'));
+    assert.equal(appDirOf('B', all), path.join(root, 'app-14.369'));
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
 });
 
 test('lockHolder reads a test server lock and treats an unreadable one as held', () => {

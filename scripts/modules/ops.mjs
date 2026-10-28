@@ -49,8 +49,14 @@ export function serverInfo(name) {
   return { ...s, name: String(name).toUpperCase(), dataDir: path.join(s.Root, 'data', 'Data'), AppDir: appDirOf(String(name).toUpperCase(), all) };
 }
 
-/** The Foundry app folder of a server: its local file's AppDir, else (B, C) server A's, else <Root>/app. */
-function appDirOf(name, all) {
+/** The Foundry app folder of a server: the machine-wide <A Root>/appdir.txt (as config.ps1), else its local file's AppDir, else (B, C) server A's, else <Root>/app. */
+export function appDirOf(name, all) {
+  try {
+    const shared = readFileSync(path.join(all.A.Root, 'appdir.txt'), 'utf8').split(/\r?\n/)[0].replace(/^﻿/, '').trim();
+    if (shared) return path.resolve(shared);
+  } catch {
+    // no shared file: fall through to the local files
+  }
   const local = n => {
     const file = path.join(REPO_ROOT, 'scripts', 'test-env', n === 'A' ? 'local.json' : `local.${n}.json`);
     try {

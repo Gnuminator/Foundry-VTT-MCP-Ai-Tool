@@ -355,7 +355,9 @@ describe('the stage as text', () => {
   test('config.sh output is kept and shown on failure, without a line that could hold the token', () => {
     assert.doesNotMatch(stage, /--replace >\/dev\/null/);
     assert.match(stage, /--replace 2>&1/);
-    assert.match(stage, /grep -aviE 'token\|\[A-Za-z0-9\]\{20,\}'/);
+    assert.match(stage, /grep -aviE 'token\|\[A-Za-z0-9\]\{20,\}' \| LC_ALL=C grep -avFf "\$reg"/);
+    assert.match(stage, /ensure_libicu\(\) \{[\s\S]*?apt-get update -qq[\s\S]*?apt-cache pkgnames/);
+    assert.ok(stage.indexOf('\nensure_libicu\n') < stage.indexOf('useradd'));
   });
 
   test('every check comes before the first write', () => {

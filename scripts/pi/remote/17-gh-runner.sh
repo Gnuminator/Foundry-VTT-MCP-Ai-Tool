@@ -78,6 +78,26 @@ for pair in $RUNNERS; do
   ok "$reg is present, root-only (not printed)"
 done
 
+say "libicu (the runner's .NET needs it; config.sh stops without it)"
+# Installed only when no libicu is in the library cache (GitHub's config.sh checks `ldconfig -NXv | grep libicu`), before the
+# first write of the runner user. The package name carries the ICU version (libicu72 on Debian 12), so the newest libicuNN that
+# apt knows is taken, after the package lists are refreshed as stages 1, 4 and 12 do. Nothing is removed.
+ensure_libicu() {
+  if ldconfig -p 2>/dev/null | grep -q 'libicuuc\.so'; then
+    ok "libicu is installed"
+    return 0
+  fi
+  local pkg
+  DEBIAN_FRONTEND=noninteractive apt-get update -qq || die "apt-get update failed: libicu is missing and its package cannot be looked up"
+  pkg="$(apt-cache pkgnames libicu 2>/dev/null | grep -E '^libicu[0-9]+$' | sort -V | tail -n 1 || true)"
+  [ -n "$pkg" ] || die "libicu is missing and the refreshed apt lists hold no libicuNN package"
+  apt_install "$pkg"
+  ldconfig
+  ldconfig -p | grep -q 'libicuuc\.so' || die "$pkg is installed but libicu is still not in the library cache"
+  ok "installed $pkg"
+}
+ensure_libicu
+
 say "the runner user"
 if ! getent passwd "$RUNNER_USER" >/dev/null; then
   useradd --system --user-group --home-dir "$RUNNER_BASE" --no-create-home --shell /usr/sbin/nologin "$RUNNER_USER"
@@ -89,24 +109,6 @@ case "$(id -nG "$RUNNER_USER")" in
 *"$FOUNDRY_USER"* | *sudo* | *adm*) die "$RUNNER_USER is in a group that gives it more than it needs: $(id -nG "$RUNNER_USER")" ;;
 esac
 install -d -m 0755 -o root -g root "$RUNNER_BASE" "$RUNNER_BASE/cache"
-
-say "libicu (the runner's .NET needs it; config.sh stops without it)"
-# Installed only when no libicu is in the library cache (GitHub's config.sh checks `ldconfig -NXv | grep libicu`); the package
-# name carries the ICU version (libicu72 on Debian 12), so the newest libicuNN that apt knows is taken. Nothing is removed.
-ensure_libicu() {
-  if ldconfig -p 2>/dev/null | grep -q 'libicuuc\.so'; then
-    ok "libicu is installed"
-    return 0
-  fi
-  local pkg
-  pkg="$(apt-cache pkgnames libicu 2>/dev/null | grep -E '^libicu[0-9]+$' | sort -V | tail -n 1 || true)"
-  [ -n "$pkg" ] || die "libicu is missing and apt knows no libicuNN package (apt-get update first?)"
-  apt_install "$pkg"
-  ldconfig
-  ldconfig -p | grep -q 'libicuuc\.so' || die "$pkg is installed but libicu is still not in the library cache"
-  ok "installed $pkg"
-}
-ensure_libicu
 
 say "the pinned runner release $RUNNER_VERSION"
 tarball="$RUNNER_BASE/cache/actions-runner-linux-arm64-$RUNNER_VERSION.tar.gz"
@@ -157,7 +159,7 @@ for pair in $RUNNERS; do
     )"; then
       :
     else
-      printf '%s\n' "$out" | LC_ALL=C grep -aviE 'token|[A-Za-z0-9]{20,}' | tail -n 15 >&2 || true
+      printf '%s\n' "$out" | LC_ALL=C grep -aviE 'token|[A-Za-z0-9]{20,}' | LC_ALL=C grep -avFf "$reg" | tail -n 15 >&2 || true
       die "registering runner $name failed (see the lines above; if there are none the token may be older than an hour: run put-runner-token.sh $name again)"
     fi
     rm -f "${reg:?}"

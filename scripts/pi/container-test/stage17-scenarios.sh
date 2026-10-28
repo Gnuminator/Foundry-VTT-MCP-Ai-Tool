@@ -45,7 +45,7 @@ cat >"$dir/config.sh" <<'EOF'
 if ! ldconfig -NXv 2>/dev/null | grep -q libicu; then
   echo "Libicu's dependencies is missing for Dotnet Core 6.0"
   echo "debug: token was $ACTIONS_RUNNER_INPUT_TOKEN"
-  echo "Execute ./bin/installdependencies.sh to install any missing Dotnet Core 6.0 dependencies."
+  echo "$ACTIONS_RUNNER_INPUT_TOKEN"  echo "Execute ./bin/installdependencies.sh to install any missing Dotnet Core 6.0 dependencies."
   exit 1
 fi
 [ "${ACTIONS_RUNNER_INPUT_TOKEN:-}" = "ABCDEFGHIJKLMNOPQRSTUVWX" ] || exit 2
@@ -81,7 +81,8 @@ if grep -q "Libicu's dependencies is missing" /tmp/out1; then pass "config.sh's 
 fi
 if grep -q "$TOKEN" /tmp/out1; then fail "the token reached the output"; else pass "the token is not in the output"; fi
 
-# 2. ensure_libicu installs libicu when it is missing, and says so.
+# 2. ensure_libicu installs libicu when it is missing, and says so, even when the apt lists were never fetched (the Pi).
+rm -rf /var/lib/apt/lists/*
 if [ -z "$icu_snippet" ]; then fail "ensure_libicu is not in the stage"; else
   out2="$(
     . "$LIB"

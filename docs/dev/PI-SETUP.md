@@ -1196,8 +1196,9 @@ release and sha256) on the Pi: `vault` for `Gnuminator/obsidian-vault` (workflow
   `cat scripts/pi/remote/lib.sh scripts/pi/remote/17-gh-runner.sh | ssh foundry-pi 'bash -s'`. It does not touch Foundry
   or any of its services.
 - **libicu:** the runner's .NET needs ICU, and GitHub's `config.sh` stops without it (it reports on stdout, not stderr).
-  The stage installs the newest `libicuNN` package apt knows (`libicu72` on Debian 12) only when no libicu is in the
-  library cache, says so, and removes nothing. If registering still fails, the last lines of `config.sh`'s output are
+  Only when no libicu is in the library cache, the stage refreshes the apt lists (`apt-get update`, as stages 1, 4 and 12
+  do), installs the newest `libicuNN` package apt then knows (`libicu72` on Debian 12), says so, and removes nothing. This
+  comes before the runner user is created. If registering still fails, the last lines of `config.sh`'s output are
   printed, minus any line that could hold the token.
 - **Check later:** `systemctl list-timers foundry-ai-tool-gh-runner-gate.timer`,
   `journalctl -u foundry-ai-tool-gh-runner-gate -n 10`, each repo's Settings > Actions > Runners shows `foundry-pi`.

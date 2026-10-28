@@ -290,6 +290,37 @@ describe('the stage as text', () => {
     assert.ok(stage.indexOf('does not match the pinned sha256') < stage.indexOf('tar -xzf'));
   });
 
+  // The ALLOW block of the stage, run in bash against a fake resolv.conf, with the stage's own die from lib.sh.
+  const allowBlock = /^ALLOW=""\nfor ns in[\s\S]*?\ndone\n/m.exec(stage)?.[0];
+  const allowFor = (resolv, router = '192.168.1.1') => {
+    const d = tmp();
+    const conf = path.join(d, 'resolv.conf');
+    writeFileSync(conf, resolv);
+    const lib = readFileSync(path.join(remote, 'lib.sh'), 'utf8');
+    const script = `${lib}\nROUTER=${router}\n${allowBlock.replace('/etc/resolv.conf', posix(conf))}\necho "ALLOW=$ALLOW"\n`;
+    const file = path.join(d, 'allow.sh');
+    writeFileSync(file, script);
+    return spawnSync('bash', [posix(file)], { encoding: 'utf8' });
+  };
+
+  test('the allow list is the router plus the IPv4 nameservers of resolv.conf, without duplicates', { skip: !hasBash }, () => {
+    assert.ok(allowBlock, 'ALLOW block found');
+    const r = allowFor('nameserver 192.168.1.1\nnameserver 1.1.1.1\nnameserver 2606:4700::1111\n');
+    assert.equal(r.status, 0, r.stderr);
+    assert.match(r.stdout, /^ALLOW=192\.168\.1\.1\/32 1\.1\.1\.1\/32$/m);
+  });
+
+  test('a loopback nameserver stops the stage, names the address and is never allowed', { skip: !hasBash }, () => {
+    for (const ns of ['127.0.0.53', '127.0.0.1', '127.1.2.3']) {
+      const r = allowFor(`nameserver 1.1.1.1\nnameserver ${ns}\n`);
+      assert.notEqual(r.status, 0, ns);
+      assert.ok(r.stderr.includes(`loopback nameserver (${ns})`), r.stderr);
+      assert.ok(!r.stdout.includes('127.'), `${ns} left the allow list: ${r.stdout}`);
+    }
+    // 127.0.0.0/8 only: other ranges that merely start with 127 digits are fine.
+    assert.equal(allowFor('nameserver 12.7.0.1\n').status, 0);
+  });
+
   test('every check comes before the first write', () => {
     const firstWrite = stage.indexOf('useradd');
     for (const needle of ['require_recent_snapshot', 'is missing: run stage', '.reg"']) {

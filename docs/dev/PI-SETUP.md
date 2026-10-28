@@ -1170,9 +1170,11 @@ release and sha256) on the Pi: `vault` for `Gnuminator/obsidian-vault` (workflow
 - **Fenced from the game:** the user `ghrunner` (no login, no sudo, no foundry group); each runner's unit allows
   writes only in `/opt/gh-runner/<name>`, cannot see `/etc/foundry-ai-tool`, `/var/lib/foundry*` or `/mnt`, cannot
   list other processes, cannot reach loopback, Tailscale or the LAN (the router stays reachable for DNS and the way
-  out), and has 2 GB and a low CPU weight. The stage proves the address rules before it starts anything: a probe
+  out), and has 2 GB and a low CPU weight. IPv6 is denied as a whole (`::/0`; the runner reaches GitHub over IPv4).
+  The IPv4 nameservers in `/etc/resolv.conf` are allowed along with the router; a nameserver in `127.0.0.0/8` cannot
+  be, so the stage stops and names it. The stage proves the address rules before it starts anything: a probe
   service with the same rules must be refused at sshd on loopback and on the Pi's LAN address, otherwise (a kernel
-  without cgroup BPF firewalling) it stops. A workflow on any branch of these repos runs on the Pi, so both repos
+  without cgroup BPF firewalling) it stops, and a failed probe turns the gate timer off, so no runner starts. A workflow on any branch of these repos runs on the Pi, so both repos
   must stay private (checked 2026-10-28: both are).
 - **Gate:** `foundry-ai-tool-gh-runner-gate.timer` (every minute) runs `/opt/gh-runner/gate.sh`. While a play
   session is marked (the newest `session-start`/`session-end` marker over the 3 newest `sessions/<date>.jsonl` of a

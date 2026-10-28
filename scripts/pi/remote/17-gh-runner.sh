@@ -40,6 +40,8 @@ ROUTER="$(ip -4 route show default 2>/dev/null | awk '/default/ {print $3; exit}
 # Let through: the router and the DNS servers of /etc/resolv.conf (IPv4; IPv6 is denied as a whole, the runner reaches GitHub over IPv4).
 ALLOW=""
 for ns in $ROUTER $(awk '/^nameserver/ {print $2}' /etc/resolv.conf 2>/dev/null | grep -E '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$' || true); do
+  # A loopback nameserver (a local resolver such as 127.0.0.53) cannot be allowed: that would open loopback to the jobs.
+  case "$ns" in 127.*) die "/etc/resolv.conf has a loopback nameserver ($ns): allowing it would open loopback to the runner. Point resolv.conf at the router or a LAN or public DNS server and rerun" ;; esac
   case " $ALLOW " in *" $ns/32 "*) ;; *) ALLOW="${ALLOW:+$ALLOW }$ns/32" ;; esac
 done
 

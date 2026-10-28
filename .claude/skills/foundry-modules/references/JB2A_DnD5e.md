@@ -1,6 +1,6 @@
 # JB2A free animation set (`JB2A_DnD5e`)
 
-Not verified live: drafted from the module's manifest, README, license, scripts and folder layout on disk, 2026-10-27; live check pending.
+Verified on Foundry 14.368 / dnd5e 6.0.6, module 0.9.4, 2026-10-28 (loaded on test server A with Sequencer; its packs and database read from the live client; the info chat card was not seen and the asset set was not played through, marked "(not verified)").
 
 **Verdict: optional.** Version 0.9.4 is the free tier of the Jules and Ben animated assets, about 1.6 GB of clips that only Sequencer-based modules use. Keep it only with Automated Animations. It is CC BY-NC-SA, so none of it goes into the repo or vault.
 
@@ -25,8 +25,8 @@ Keys are `JB2A_DnD5e.<key>`, world scope.
 
 ## How it interacts with the AI Tool
 
-- **Chat.** One public info card appears in the chat log the first time a GM loads the world. `get-chat-log` and the play recorder will see it once.
-- **Compendiums.** `list-compendium-packs` lists the macro and actor packs. They are tool-irrelevant; mind the actor pack when searching for monsters.
+- **Chat.** The source posts one public info card the first time a GM loads the world, but on this test world the `runonlyonce` setting was already on and no JB2A card was in the log (seen live), so do not count on it.
+- **Compendiums.** The live client shows two packs: `jb2a-sequencer` (15 macros) and `jb2a-actors` (23 actors). `list-compendium-packs` will list them. They are tool-irrelevant; mind the actor pack when searching for monsters.
 - **Nothing else.** No scenes, journals or documents. No `foundry-mcp-bridge` setting is needed.
 
 ## Gotchas on Foundry 14 / dnd5e 6

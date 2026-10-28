@@ -1,6 +1,6 @@
 # Automated Animations (`autoanimations`)
 
-Not verified live: drafted from the module's manifest, README, language file and bundle on disk, and from dnd5e 6.0.6 and the bridge source, 2026-10-27; live check pending.
+Verified on Foundry 14.368 / dnd5e 6.0.6, module 8.0.1, 2026-10-28 (loaded on test server A with Sequencer, socketlib and the free JB2A; attack rolls driven through the same dnd5e activity API the bridge uses; the editor menus were not clicked through, marked "(not verified)").
 
 **Verdict: optional.** Version 8.0.1 is Foundry 14 only and plays JB2A effects when an item is used, and it should fire on the bridge's own item use. But it needs Sequencer, socketlib and a JB2A module, compiles a large database at every load and with only the free JB2A set many spells will not animate. Worth it only if Danni wants spell effects.
 
@@ -32,8 +32,10 @@ Keys are `autoanimations.<key>`.
 
 ## How it interacts with the AI Tool
 
-- **Triggers.** On dnd5e 6 without MIDI QOL it listens to `dnd5e.rollAttackV2`, `dnd5e.rollDamageV2` and `dnd5e.postUseActivity` (the last only for activities with no damage). The bridge uses `item.use`, `activity.use`, `rollAttack` and `rollDamage` (`actor-builder.ts`), which call those hooks in the GM browser that hosts the bridge. So `use-item`, `request-attack-roll` and `use-npc-activity` should animate, the same as a click on the sheet. (not verified live)
-- **What can stop it.** The animation needs a token for the actor on the scene the GM is viewing. Targets come from the GM client's `game.user.targets`, which the bridge may not set, so ranged effects can play at the wrong place or skip. No token means a silent no-op. Anything that changes data without these hooks (a hand-made chat message, a document update) plays nothing. (not verified live)
+- **Triggers.** On dnd5e 6 without MIDI QOL it listens to `dnd5e.rollAttackV2`, `dnd5e.rollDamageV2` and `dnd5e.postUseActivity` (the last only for activities with no damage). The bridge uses `item.use`, `activity.use`, `rollAttack` and `rollDamage` (`actor-builder.ts`), which call those hooks in the GM browser that hosts the bridge. So `use-item`, `request-attack-roll` and `use-npc-activity` can animate, the same as a click on the sheet.
+- **Seen live.** An attack roll from an activity (`rollAttack`, the call the bridge makes) with a target selected fired the module's hooks (`aa.preAnimationStart`, `aa.animationStart`) and a Sequencer effect for both Test Hero weapons tried (Longsword +1 and Handaxe). With no target the module started its workflow, then stopped after `aa.preAnimationStart` with no effect.
+- **What can stop it.** Targets come from the GM client's `game.user.targets`. `use-item` sets them through `game.user.updateTokenTargets` (`actor-builder.ts`), and that method does not exist on Foundry 14.368 (`typeof` gave `undefined`), so a `targets` argument to `use-item` is likely to throw instead of targeting. Follow-up: use `token.object.setTarget(true, { releaseOthers: true })`. (the tool call itself was not run)
+- The animation also needs a token for the actor on the scene the GM is viewing; no token means a silent no-op. Anything that changes data without these hooks (a hand-made chat message, a document update) plays nothing.
 - **Data.** It stores `flags.autoanimations` on Items and Active Effects, and on tiles it places. An item copied or written by a tool keeps the flag.
 - **Chat.** No chat messages of its own.
 - No `foundry-mcp-bridge` setting is needed.

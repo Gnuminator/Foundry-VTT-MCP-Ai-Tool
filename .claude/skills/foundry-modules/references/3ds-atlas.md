@@ -1,6 +1,6 @@
 # 3DS:ATLAS (`3ds-atlas`)
 
-Not verified live: drafted from the module's manifest, release notes, language file and source on disk, 2026-10-27; live check pending.
+Verified on Foundry 14.368 / dnd5e 6.0.6, module 1.5.3, 2026-10-28 (loaded on test server A; its settings and chat output read from the live world; menus not clicked through, marked "(not verified)").
 
 **Verdict: keep (only as long as Calendaria or Travel Pace is on).** It is a library with no play-time features, and both of those modules require it. Its one footprint is a small update check to `3deathsaves.com` when the world opens.
 
@@ -29,7 +29,7 @@ The theme settings are hidden and need no change.
 
 ## How it interacts with the AI Tool
 
-No interaction with the tools. `get-modules` and `get-module-manifest` list it as a library (`library: true`) at 1.5.3, and list it under the requirements of `calendaria` and `travel-pace`. It creates no scenes, journals or documents. Its settings are plain world and client keys.
+One footprint in chat: on the first load as GM it posted a whisper from "3DS:ATLAS" titled "Updates Available" naming 3DS:ATLAS 1.5.4 and Calendaria 1.4.7 (seen live), so `get-chat-log` and the play recorder see it once. `get-modules` and `get-module-manifest` list it as a library (`library: true`) at 1.5.3, and list it under the requirements of `calendaria` and `travel-pace`. It creates no scenes, journals or documents. Its settings are plain world and client keys.
 
 ## Gotchas on Foundry 14 / dnd5e 6
 
@@ -37,6 +37,7 @@ No interaction with the tools. `get-modules` and `get-module-manifest` list it a
 - **Network.** At `ready` each client fetches `https://www.3deathsaves.com/versions.json`. The docs search calls `/search`. A support report is posted to the same site only when someone submits one; it lists installed modules, versions and a settings summary (the builder was not read line by line). On an offline host the update check fails quietly (not verified).
 - Disabling it breaks Calendaria and Travel Pace; Foundry will not enable them without it.
 - Its stylesheet loads on every page, with a small visual effect.
+- Seen live: with only the `Claude` GM online, the primary GM was `Claude`.
 - The `primaryGM` setting is a user choice, not the bridge's GM; with two GM accounts online, check which one it picks.
 
 ## Sources

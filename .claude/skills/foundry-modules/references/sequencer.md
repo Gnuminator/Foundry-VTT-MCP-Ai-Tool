@@ -1,6 +1,6 @@
 # Sequencer (`sequencer`)
 
-Not verified live: drafted from the module's manifest, bundled changelog, language file and readable bundle on disk, 2026-10-27; live check pending.
+Verified on Foundry 14.368 / dnd5e 6.0.6, module 4.3.0, 2026-10-28 (loaded on test server A; settings, scene controls, the journal and the chat card read from the live world; the Effects Manager window was not opened, marked "(not verified)").
 
 **Verdict: keep (as a dependency of Automated Animations; drop with it).** Version 4.3.0 is verified on Foundry 14 and does nothing until another module asks it for an effect. It leaves two traces in the world: a `sequencerDatabase` journal and a one-time GM whisper after an update.
 
@@ -30,8 +30,9 @@ Keys are `sequencer.<key>`.
 
 ## How it interacts with the AI Tool
 
-- **Journals.** On the first load as GM it creates a journal entry named `sequencerDatabase` with default ownership Owner. `list-journals` and `search-journals` will list it; it is not campaign content.
-- **Chat.** After an install or minor update the GM gets one whispered "Sequencer updated to v4.3.0" card (class `sequencer-welcome`). `get-chat-log` and the play recorder see it once.
+- **Journals.** On the first load as GM it creates a journal entry named `sequencerDatabase` with default ownership Owner. `list-journals` and `search-journals` will list it (seen live, with no pages); it is not campaign content.
+- **Chat.** After an install or minor update the GMs get one whispered "Sequencer updated to v4.3.0" card (class `sequencer-welcome`; seen live, whispered to all three GM accounts of the test world). `get-chat-log` and the play recorder see it once.
+- **Scene controls.** Seen live: a "Sequencer" control group (select effect, play effect, effect viewer, database) and the same viewer and database tools in the Token controls.
 - **Effects.** No tool plays effects. Persistent effects live in `flags.sequencer` on tokens, tiles and templates.
 - No `foundry-mcp-bridge` setting is needed.
 

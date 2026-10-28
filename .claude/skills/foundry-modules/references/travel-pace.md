@@ -1,6 +1,6 @@
 # Travel Pace Calculator (`travel-pace`)
 
-Not verified live: drafted from the module's manifest, README and source on disk, 2026-10-27; live check pending.
+Verified on Foundry 14.368 / dnd5e 6.0.6, module 5.3.1, 2026-10-28 (loaded on test server A; a calculation sent through its API; the dialog itself was not clicked through, so dialog claims are marked "(not verified)").
 
 **Verdict: keep.** Version 5.3.1 is small (a 16 KB script), has no hidden data and answers the question a Strahd table asks all the time: how long to reach the next place. It only touches world time when the GM clicks a button. Its one cost is the `3ds-atlas` dependency.
 
@@ -33,7 +33,7 @@ The README still mentions a "Use Metric System" setting; 5.3.1 has none, so unit
 
 ## How it interacts with the AI Tool
 
-- **Chat.** The result is a public chat message with a link to the mount and the text of the pace. `get-chat-log` returns it; `flags.travel-pace.result` carries the numbers.
+- **Chat.** The result is a public chat message with a link to the mount and the text of the pace. `get-chat-log` returns it; `flags.travel-pace.result` carries the numbers. Seen live: 24 miles at Normal pace gave "Travel Time: 1 day" (480 travel minutes) and a Stealth line with an "Advance World Time" button; the button text is part of the stored message.
 - **World time.** Only the GM's button moves time, through `game.time.advance`. The change is a world-time update, not a document write, so the change journal and undo do not cover it (not verified live). `get-world-info` shows the new time.
 - **Actors.** It reads NPC, vehicle and group actors and compendium vehicle indexes; it writes nothing to actors. The mount list holds actor UUIDs; deleted actors are skipped silently.
 - **No tool drives it.** The calculator has an API (`game.modules.get("travel-pace").api`: `calculateTravel`, `submitCalculation`, `openCalculator`) and two hooks (`travelPace.preCalculate`, `travelPace.calculated`), but no AI Tool tool calls them; work out a trip in your own head and ask the GM to click. (not verified live)
@@ -43,7 +43,7 @@ The README still mentions a "Use Metric System" setting; 5.3.1 has none, so unit
 
 - Verified on Foundry 14.367 and dnd5e 6.0.0; it breaks below dnd5e 5.3. It reads dnd5e 6's `system.attributes.travel.speeds` and `movement.speed`.
 - Day length comes from the active calendar (`game.time.calendar`), so a calendar with a different day length changes the result.
-- No `lang` folder ships and the strings are not in the ATLAS language file; where labels load from is not confirmed, so check that they are not raw keys (not verified).
+- The calculator tool sits in the Token controls group (seen live). No `lang` folder ships; the chat card showed real words, but check the dialog labels for raw keys (not verified).
 - Removing it leaves only the six world settings and old chat flags.
 - Nothing about the Pi changes it.
 

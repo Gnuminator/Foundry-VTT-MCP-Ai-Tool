@@ -1,6 +1,6 @@
 # Racooze's Free Battlemaps (`racoozes-free-battlemaps`)
 
-Not verified live: drafted from the module's manifest and file layout on disk, 2026-10-27; live check pending.
+Verified on Foundry 14.368 / dnd5e 6.0.6, module 1.2.0, 2026-10-28 (loaded on test server A and the pack read from the live client; an import was not tried, marked "(not verified)").
 
 **Verdict: optional.** Version 1.2.0 is a free Scene compendium with no code, no settings and no network, so it cannot break anything. It is useful for quick encounters, but about 77 MB of images ride along and imported scenes keep pointing into the module folder.
 
@@ -8,7 +8,7 @@ Not verified live: drafted from the module's manifest and file layout on disk, 2
 
 ## What it does
 
-A pack of ready-made battlemaps (Scene documents), free from Racooze. According to the manifest each map carries a logo roof tile that the GM may delete or hide. About 41 scenes (an estimate from a byte scan of the pack files, not a count; confirm with `list-compendium-packs`).
+A pack of ready-made battlemaps (Scene documents), free from Racooze. According to the manifest each map carries a logo roof tile that the GM may delete or hide. The live client lists 63 scenes in the pack (my first estimate of about 41 from a byte scan was wrong).
 
 ## Where its UI is
 

@@ -1,6 +1,6 @@
 # libWrapper (`lib-wrapper`)
 
-Not verified live: drafted from the module's manifest, README, changelog, language file and settings template on disk, 2026-10-27; live check pending.
+Verified on Foundry 14.368 / dnd5e 6.0.6, module 1.13.5.1, 2026-10-28 (loaded on test server A; settings and the menu registration read from the live client; its menu windows were not opened, marked "(not verified)").
 
 **Verdict: keep.** Version 1.13.5.1 declares Foundry 14 and `dae` (Dynamic Active Effects) requires it. Its toasts are also the fastest way to spot a module that has not been updated for Foundry 14.
 
@@ -29,7 +29,7 @@ Keys are `lib-wrapper.<key>`.
 
 ## How it interacts with the AI Tool
 
-No interaction. The toasts are not stored in module errors, so `get-module-errors` is unlikely to show them (not verified live). The bridge does not use it. Only `dae` requires it among the installed modules; Sequencer uses it when present and has its own fallback otherwise.
+No interaction. It loaded without a toast alongside the other modules in this batch (seen live). The toasts are not stored in module errors, so `get-module-errors` is unlikely to show them (not verified live). The bridge does not use it. Only `dae` requires it among the installed modules; Sequencer uses it when present and has its own fallback otherwise.
 
 ## Gotchas on Foundry 14 / dnd5e 6
 

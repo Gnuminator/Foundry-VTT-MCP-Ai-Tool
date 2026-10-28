@@ -1,6 +1,6 @@
 # Racooze Map Library (`racooze-map-library`)
 
-Not verified live: drafted from the module's manifest, language file and readable source on disk, 2026-10-27; live check pending (a live run needs a Patreon login, which is the GM's to do).
+Verified on Foundry 14.368 / dnd5e 6.0.6, module 1.2.42, 2026-10-28 (loaded on test server A; the Map Library button seen in the Scenes directory; no Patreon login was made, so connecting, browsing and importing are drafted from the source and marked "(not verified)").
 
 **Verdict: optional.** Version 1.2.42 is a well-behaved importer for Racooze battlemaps on Foundry 14, but it needs a paid Patreon connection, sends its download key to `library.racooze.de` on every call and writes big files. Use it on the PC to build scenes; the Pi world only needs the scenes it produces.
 

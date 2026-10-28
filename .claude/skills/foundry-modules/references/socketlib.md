@@ -1,6 +1,6 @@
 # socketlib (`socketlib`)
 
-Not verified live: drafted from the module's manifest, README, changelog and source on disk, 2026-10-27; live check pending.
+Verified on Foundry 14.368 / dnd5e 6.0.6, module 1.1.4, 2026-10-28 (loaded on test server A; it registers no settings and showed nothing in the client, as the source says; the dependents' socket calls were not exercised, marked "(not verified)").
 
 **Verdict: keep.** Version 1.1.4 is a 335-line library with no settings, no menu and no stored data, and four installed modules require it. Nothing to tune, nothing to fear.
 

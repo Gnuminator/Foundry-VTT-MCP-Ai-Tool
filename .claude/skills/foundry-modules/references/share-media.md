@@ -1,6 +1,6 @@
 # Share Media (`share-media`)
 
-Not verified live: drafted from the module's manifest, language file, templates and readable source on disk, 2026-10-27; live check pending.
+Verified on Foundry 14.368 / dnd5e 6.0.6, module 3.14.3, 2026-10-28 (loaded on test server A; a chat share sent through its API; the sidebar tab, scene controls and settings keys were read from the live client; menus were not clicked through, so those claims are marked "(not verified)").
 
 **Verdict: keep.** Version 3.14.3 is Foundry 14 only, calls out to no outside server and does one job a GM needs at the table: put a picture, handout or video in front of the players now. It adds sidebar and sheet buttons that the GM must learn to ignore.
 
@@ -15,8 +15,9 @@ A GM tool to push images and videos to players in four ways: a pop-out window, a
 - A sidebar tab (`shm-media-sidebar`) before Settings; hidden for users on the blacklist.
 - Share buttons in the header of actor and item sheets (GM only), the actor and tile HUDs, and on journal images.
 - A "share" option on chat messages (context menu).
+- A scene control group "Share Media" (the `shm-media-layer`) with select, link, browser and clear tools (seen live; my first draft said there was none).
 - Tile configuration: a Share Media section. Region configuration: the `ShareRegion` behavior.
-- Configure Settings > Share Media: four GM-only menus (media settings, sidebar, entity sharing, blacklist). No scene control and no hotkey.
+- Configure Settings > Share Media: four GM-only menus (media settings, sidebar, entity sharing, blacklist). No hotkey.
 
 ## Settings we use and why
 
@@ -32,7 +33,7 @@ All are `config: false` and edited in the four menus. Keys are `share-media.<key
 
 ## How it interacts with the AI Tool
 
-- **Chat.** A chat share is a normal whispered `ChatMessage` with an image or video and `flags.share-media.media` (source and settings). `get-chat-log` and the play recorder see it like any whisper.
+- **Chat.** A chat share is a normal `ChatMessage` with an image or video and `flags.share-media.media` (source and settings). Seen live: a share to "all users" is public (no whisper), a share to chosen users is whispered to them. `get-chat-log` and the play recorder see it like any message.
 - **Scenes and regions.** No scenes are created. Tiles and regions that use it carry `flags.share-media.media`; a region with the behavior has a `ShareRegion` behavior document, so tools that list region behaviors will see an unfamiliar type (not verified live).
 - **No tool drives it.** The module has an API (`game.modules.get("share-media").api`: `share`, `popoutToAllUsers`, `fullscreenToAllUsers`, `chatToAllUsers`, `sceneFit`, `sceneFill`, GM only), but nothing in the AI Tool calls it. A future "show this handout" tool would need the plan and confirm step, because the module does no spoiler filtering. (not verified live)
 - No `foundry-mcp-bridge` setting is needed.

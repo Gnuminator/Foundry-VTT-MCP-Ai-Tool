@@ -343,6 +343,23 @@ describe('the stage as text', () => {
     assert.ok(!stage.includes('"$dir/config.sh"'));
   });
 
+  test('libicu is installed only when missing, before any runner is registered, and nothing is removed', () => {
+    const fn = /^ensure_libicu\(\) \{[\s\S]*?\n\}/m.exec(stage)?.[0];
+    assert.ok(fn, 'ensure_libicu found');
+    assert.match(fn, /ldconfig -p/);
+    assert.match(fn, /apt_install "\$pkg"/);
+    assert.doesNotMatch(fn, /apt(-get)? (remove|purge|autoremove)/);
+    assert.ok(stage.indexOf('\nensure_libicu\n') < stage.indexOf('./config.sh'));
+  });
+
+  test('config.sh output is kept and shown on failure, without a line that could hold the token', () => {
+    assert.doesNotMatch(stage, /--replace >\/dev\/null/);
+    assert.match(stage, /--replace 2>&1/);
+    assert.match(stage, /grep -aviE 'token\|\[A-Za-z0-9\]\{20,\}' \| LC_ALL=C grep -avFf "\$reg"/);
+    assert.match(stage, /ensure_libicu\(\) \{[\s\S]*?apt-get update -qq[\s\S]*?apt-cache pkgnames/);
+    assert.ok(stage.indexOf('\nensure_libicu\n') < stage.indexOf('useradd'));
+  });
+
   test('every check comes before the first write', () => {
     const firstWrite = stage.indexOf('useradd');
     for (const needle of ['require_recent_snapshot', 'is missing: run stage', '.reg"']) {

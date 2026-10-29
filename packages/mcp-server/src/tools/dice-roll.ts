@@ -313,7 +313,7 @@ export class DiceRollTools {
       const flavor =
         dcText === '' || params.flavor.includes(dcText)
           ? params.flavor
-          : [params.flavor, dcText].filter(Boolean).join(' — ');
+          : [params.flavor, dcText].filter(Boolean).join(', ');
 
       const response = (await this.foundryClient.query('foundry-mcp-bridge.request-player-rolls', {
         ...params,

@@ -32,7 +32,7 @@ export const RULE_DIFFERENCES: RuleDifference[] = [
     rules2014:
       'a contested Strength (Athletics) check against Athletics or Acrobatics, made in place of one attack.',
     rules2024:
-      'an unarmed strike option: the target saves with Strength or Dexterity against a DC built from the grappler Strength modifier and proficiency bonus.',
+      "an unarmed strike option: the target saves with Strength or Dexterity against a DC built from the grappler's Strength modifier and proficiency bonus.",
   },
   {
     topic: 'Shove',
@@ -40,7 +40,7 @@ export const RULE_DIFFERENCES: RuleDifference[] = [
     spell: false,
     rules2014: 'a contested Strength (Athletics) check, made in place of one attack.',
     rules2024:
-      'an unarmed strike option: the target saves with Strength or Dexterity against a DC built from the shover Strength modifier and proficiency bonus.',
+      "an unarmed strike option: the target saves with Strength or Dexterity against a DC built from the shover's Strength modifier and proficiency bonus.",
   },
   {
     topic: 'Hide',

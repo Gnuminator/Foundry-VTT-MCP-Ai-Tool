@@ -70,16 +70,4 @@ export const KNOWN_STORY_VIOLATIONS: KnownStoryViolation[] = [
     reason: 'Muted text #6b7385 on the drawer #171a21 is 3.66:1 (needs 4.5:1), neutral theme.',
     stories: ['panels-tools--gm-actions-off', 'panels-tools--tool-list'],
   },
-  {
-    rule: 'color-contrast',
-    target: '.field-hint',
-    reason: 'Muted text #6b7385 on the drawer #171a21 is 3.66:1 (needs 4.5:1), neutral theme.',
-    stories: [
-      'panels-tools--form-prefilled',
-      'panels-tools--form-with-picker-open',
-      'panels-tools--missing-required-field',
-      'panels-tools--phone',
-      'panels-tools--read-result',
-    ],
-  },
 ];

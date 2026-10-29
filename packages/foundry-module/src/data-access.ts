@@ -382,6 +382,7 @@ export class FoundryDataAccess {
     isPublic: boolean;
     rollModifier: string;
     flavor: string;
+    advantage?: 'advantage' | 'disadvantage';
   }): Promise<{ success: boolean; message: string; error?: string }> {
     return this.playerRolls.requestPlayerRolls(data);
   }
@@ -692,6 +693,7 @@ export class FoundryDataAccess {
     dc?: number;
     isPublic: boolean;
     reason?: string;
+    advantage?: 'advantage' | 'disadvantage';
   }): Promise<unknown> {
     return this.playerRolls.requestAbilityCheck(data);
   }
@@ -700,6 +702,7 @@ export class FoundryDataAccess {
     targetPlayer: string;
     weaponOrSpellName: string;
     isPublic: boolean;
+    advantage?: 'advantage' | 'disadvantage';
   }): Promise<unknown> {
     return this.playerRolls.requestAttackRoll(data);
   }
@@ -709,6 +712,7 @@ export class FoundryDataAccess {
     rollType: string;
     rollTarget: string;
     isPublic: boolean;
+    advantage?: 'advantage' | 'disadvantage';
   }): Promise<unknown> {
     return this.playerRolls.rollNpcCheck(data);
   }

@@ -28,6 +28,7 @@ import type {
   PartyState,
 } from '@gnuminator/shared';
 
+import { isFeatureEnabled } from './guarded-features.js';
 import { statusEffectList } from './systems/dnd5e/status-effects.js';
 
 /** Query name (mirror of the shared `PARTY_STATE_QUERY`). */
@@ -35,6 +36,8 @@ export const PARTY_STATE_QUERY = 'getPartyState';
 
 /** Guarded feature id (mirror of the shared `PARTY_FEATURE_ID`). */
 export const PARTY_FEATURE_ID = 'party';
+/** Guarded feature id of the read-only "Who would notice" chips (mirror of the shared one; I-078). */
+export const WHO_NOTICES_FEATURE_ID = 'who-notices';
 
 /** Mirror of the shared `PARTY_REST_TYPES`. */
 export const PARTY_REST_TYPES: readonly PartyRestType[] = ['short', 'long'];
@@ -182,6 +185,13 @@ function memberTokens(actorId: string, scene: Rec | null, combat: Rec | null): P
   return out;
 }
 
+/** dnd5e's own passive scores already count conditions, advantage flags and exhaustion. */
+function passivesOf(system: Rec | null): PartyMember['passives'] {
+  const skills = rec(system?.skills);
+  const passive = (id: string): number | null => num(rec(skills?.[id])?.passive);
+  return { perception: passive('prc'), investigation: passive('inv'), insight: passive('ins') };
+}
+
 function memberOf(actor: Rec, scene: Rec | null, combat: Rec | null): PartyMember | null {
   const actorId = str(actor.id);
   if (!actorId) return null;
@@ -198,6 +208,7 @@ function memberOf(actor: Rec, scene: Rec | null, combat: Rec | null): PartyMembe
     hp,
     ac: num(rec(attributes?.ac)?.value),
     passivePerception: num(rec(rec(system?.skills)?.prc)?.passive),
+    passives: isFeatureEnabled(WHO_NOTICES_FEATURE_ID) ? passivesOf(system) : null,
     exhaustion: num(attributes?.exhaustion) ?? 0,
     hitDice: hitDice(attributes),
     deathSaves:

@@ -13,11 +13,7 @@ import { changeJournal } from './change-journal.js';
 import { playRecorder } from './play-recorder.js';
 import { USAGE_SOCKET_TYPE, trackUsage, usageRecorder } from './usage-recorder.js';
 import { diagnostics } from './diagnostics.js';
-import {
-  registerGmHelperQueries,
-  sendTarokkaOffer,
-  unregisterGmHelperQueries,
-} from './gm-helper-queries.js';
+import { registerGmHelperQueries, unregisterGmHelperQueries } from './gm-helper-queries.js';
 import { registerGuardedFeature } from './guarded-features.js';
 import { LIVE_PLAY_FEATURE_ID } from './live-plan.js';
 import { OWNERSHIP_FEATURE_ID } from './data-access/ownership-players.js';
@@ -31,7 +27,7 @@ import { PARTY_FEATURE_ID, WHO_NOTICES_FEATURE_ID } from './party-scan.js';
 import { registerGmWindowsSetting } from './gm-windows.js';
 import { registerSessionSwitchSettings } from './session-switches.js';
 import { registerDiceThemes } from './dice-themes.js';
-import { TAROKKA_FEATURE_ID, onTarokkaSettingChanged } from './tarokka.js';
+import { TAROKKA_FEATURE_ID } from './tarokka.js';
 import { registerTarokkaTableSettings, syncPlayerTable } from './tarokka-table-window.js';
 import { logInfo } from './log.js';
 // Connection control now handled through settings menu
@@ -224,11 +220,6 @@ class FoundryMCPBridge {
         name: 'AI Tool: Undo for everything',
         hint: "Lets the AI Tool undo and redo anyone's changes (players', yours and the AI's) from the Changes list: one change, or everything since on the same thing. Each undo is confirmed first and logged, and can be undone again.",
         defaultEnabled: true,
-      });
-      Hooks.on('clientSettingChanged', (key: string) => {
-        void onTarokkaSettingChanged(key, sendTarokkaOffer).catch(error => {
-          console.warn(`[${MODULE_ID}] Tarokka offer failed:`, error);
-        });
       });
 
       // Register bridge handlers (module-private table, dispatched only by the

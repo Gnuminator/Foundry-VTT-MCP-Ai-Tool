@@ -231,6 +231,7 @@ describe('the switch, the buttons and the windows', () => {
       'aiChanges',
       'handouts',
       'tarokka',
+      'tarokkaTable',
     ]);
     expect(await openCombatWindow()).toBe(false);
     expect(await openPartyWindow()).toBe(false);
@@ -245,13 +246,14 @@ describe('the switch, the buttons and the windows', () => {
       'aiChanges',
       'handouts',
       'tarokka',
+      'tarokkaTable',
       'combat',
       'party',
       'session',
       'scene',
       'loot',
     ]);
-    expect(controls[AI_TOOL_CONTROL].tools.party).toMatchObject({ order: 5, button: true });
+    expect(controls[AI_TOOL_CONTROL].tools.party).toMatchObject({ order: 6, button: true });
     restore();
     install(false, true);
     const none: Record<string, any> = {};

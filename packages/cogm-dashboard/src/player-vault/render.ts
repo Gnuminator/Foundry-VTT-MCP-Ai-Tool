@@ -360,6 +360,26 @@ function sessionOrder(a: VaultSession, b: VaultSession): number {
 // The vault
 // ---------------------------------------------------------------------------
 
+/** The "Start here" paragraph: names only the sections that have something, so a new vault does not point at nothing. */
+function startHere(has: {
+  character: boolean;
+  recaps: boolean;
+  handouts: boolean;
+  sessions: boolean;
+}): string {
+  const parts = [
+    has.character ? 'Open your character to check your sheet.' : '',
+    has.recaps ? 'Read the recaps to catch up on earlier sessions.' : '',
+    has.handouts
+      ? 'Look in the handouts for letters, maps and clues your GM has shared with you.'
+      : '',
+    has.sessions ? 'The session log lists what happened each night, newest first.' : '',
+  ].filter(v => v !== '');
+  return parts.length === 0
+    ? 'Start here: this page is still empty. Your character, the recaps, the handouts and the session log show up here as they are written.'
+    : `Start here: this page links to everything in your vault. ${parts.join(' ')}`;
+}
+
 function homeSection(title: string, refs: NoteRef[]): string {
   return refs.length === 0
     ? ''
@@ -420,7 +440,12 @@ export function renderPlayerVault(input: PlayerVaultInput): PlayerVaultFiles {
     `# ${t(input.worldTitle.trim() === '' ? 'Campaign' : input.worldTitle)}`,
     `Player: ${t(input.player.name)}`,
     '> [!info] Written by the AI Tool\n> The AI Tool writes this vault from Foundry. Edits you make here are overwritten at the next update.',
-    'Start here: this page links to everything in your vault. Open your character to check your sheet, read the recaps to catch up on earlier sessions, and look in the handouts for letters, maps and clues your GM has shared with you. The session log lists what happened each night, newest first.',
+    startHere({
+      character: characters.length > 0,
+      recaps: recaps.length > 0,
+      handouts: handouts.length > 0,
+      sessions: sessions.length > 0,
+    }),
     homeSection(input.sheets.length === 1 ? 'My character' : 'My characters', characters),
     homeSection('Recaps', recaps),
     homeSection('Handouts', handouts),

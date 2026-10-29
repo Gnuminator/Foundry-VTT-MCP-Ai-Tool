@@ -544,7 +544,25 @@ describe('renderPlayerVault: Home', () => {
     const home = get(renderPlayerVault(input()), 'Home.md');
     expect(home).toContain('Start here:');
     expect(home.indexOf('Start here:')).toBeGreaterThan(home.indexOf('Written by the AI Tool'));
-    expect(home).not.toMatch(/GM notes|Prep|spoiler/i);
+    const intro = home.split('\n\n').find(p => p.startsWith('Start here:')) ?? '';
+    expect(intro).not.toMatch(/\b(GM notes|prep|spoilers?)\b/i);
+  });
+
+  it('says the page is still empty, and points at no section, when there is nothing yet', () => {
+    const home = get(renderPlayerVault(input()), 'Home.md');
+    const intro = home.split('\n\n').find(p => p.startsWith('Start here:')) ?? '';
+    expect(intro).toContain('still empty');
+    expect(intro).not.toMatch(/Open your character|Read the recaps|Look in the handouts/);
+  });
+
+  it('names only the sections that exist', () => {
+    const home = get(
+      renderPlayerVault(input({ sheets: [sheet({ id: '1', name: 'One' })] })),
+      'Home.md'
+    );
+    expect(home).toContain('Open your character to check your sheet.');
+    expect(home).not.toContain('Look in the handouts');
+    expect(home).not.toContain('session log lists');
   });
 
   it('omits sections that have nothing', () => {

@@ -962,6 +962,8 @@ export interface ExportStatusInput {
   /** GM-owned notes kept as the GM edited them (an edited Home): a standing note. */
   kept?: Array<{ path: string; reason: string }>;
   errors: Array<{ path: string; error: string }>;
+  /** `AI Tool/Foundry/_status.md` exists: link it; otherwise the line is plain text (no dead link). */
+  mirrorStatusNote?: boolean;
 }
 
 /** `AI Tool/_status.md`: how many notes the tool manages, the GM's own notes it keeps as
@@ -990,7 +992,9 @@ export function renderStatusNote(worldId: string, status: ExportStatusInput): st
       '',
       `The AI Tool manages ${status.notesManaged} note(s) here. Notes it no longer produces go to the vault trash.`,
       '',
-      'The Foundry mirror keeps its own status in [Foundry/_status.md](Foundry/_status.md); that note exists only when the mirror is on.',
+      status.mirrorStatusNote === false
+        ? 'The Foundry mirror keeps its own status in `Foundry/_status.md`; that note exists only when the mirror is on.'
+        : 'The Foundry mirror keeps its own status in [Foundry/_status.md](Foundry/_status.md); that note exists only when the mirror is on.',
       '',
       ...(kept.length
         ? [

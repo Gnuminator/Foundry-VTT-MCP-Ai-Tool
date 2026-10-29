@@ -25,9 +25,11 @@ import {
 } from './mirror-common.js';
 import {
   isAdventureHubText,
+  isLooseNotesText,
   mirrorNoteType,
   MIRROR_BASE_FILES,
   renderAdventureHub,
+  renderLooseNotes,
   renderMirrorBases,
   renderMirrorNote,
   renderMirrorStatusNote,
@@ -1800,6 +1802,38 @@ describe('O2 render changes', () => {
     );
     expect(renderStatusNote(W, input)).toBe(text);
     expect(checkMarkdownOwnership(text)).toEqual({ owned: true, legacy: false });
+  });
+
+  it('the status note leaves the mirror status unlinked while that note does not exist', () => {
+    const text = renderStatusNote(W, {
+      notesManaged: 3,
+      skipped: [],
+      errors: [],
+      mirrorStatusNote: false,
+    });
+    expect(text).toContain('`Foundry/_status.md`');
+    expect(text).not.toContain('](Foundry/_status.md)');
+    expect(checkMarkdownOwnership(text)).toEqual({ owned: true, legacy: false });
+  });
+
+  it('renders the "Without an adventure" note with links relative to its place', () => {
+    const note = renderLooseNotes(W, {
+      journal: [
+        { path: 'AI Tool/Foundry/Journals/Lore/Letters.md', name: 'Letters', subfolder: 'Lore' },
+      ],
+      scene: [],
+      npc: [{ path: 'AI Tool/Foundry/NPCs/Wolf.md', name: 'Wolf', subfolder: '' }],
+    });
+    expect(note.path).toBe('AI Tool/Foundry/Without an adventure.md');
+    expect(note.text).toContain('type: "mirror-loose-notes"');
+    expect(note.text).toContain('1 chapter or journal, 1 NPC.');
+    expect(note.text).toContain('[the campaign home](../../Home.md)');
+    expect(note.text).toContain('**Lore**');
+    expect(note.text).toContain('- [Letters](Journals/Lore/Letters.md)');
+    expect(note.text).toContain('- [Wolf](NPCs/Wolf.md)');
+    expect(checkMarkdownOwnership(note.text)).toEqual({ owned: true, legacy: false });
+    expect(isLooseNotesText(note.text)).toBe(true);
+    expect(isAdventureHubText(note.text)).toBe(false);
   });
 
   it('generatedProps keeps player_visible false unless asked, in the same place', () => {

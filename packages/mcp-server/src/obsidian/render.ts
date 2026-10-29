@@ -1059,6 +1059,7 @@ export function renderCampaignHome(worldId: string): string {
     '- What happened last time: the newest note under *Play log* below.',
     '- Quests, handouts and story items: [Journals](AI%20Tool/Bases/Journals.base) and [Story items](AI%20Tool/Bases/Story%20items.base).',
     '- Where the story stands: [Tarokka reading](AI%20Tool/Tarokka/Current%20reading.md).',
+    '- First time here? Some of these links stay empty until the Foundry mirror has run and a session has been played. That is normal; they fill in by themselves.',
     '',
     '## During a session',
     '',

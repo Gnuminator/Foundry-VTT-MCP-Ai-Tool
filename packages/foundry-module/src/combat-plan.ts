@@ -153,7 +153,14 @@ function planStart(request: CombatStartRequest): CombatChangePlan {
 function planEnd(request: CombatEndRequest): CombatChangePlan {
   shared.validateFoundryState();
   const wanted = typeof request.combatId === 'string' && request.combatId ? request.combatId : null;
-  const combat = (wanted ? game.combats?.get(wanted) : game.combat) as CombatDoc | null | undefined;
+  // With no id, the fight the dashboard's strip shows (getCombatState): this browser's live combat
+  // (the one viewed on its scene), else the latest encounter. A fight started on the dashboard
+  // can belong to another scene than the one this GM browser views, where game.combat is null.
+  const combat = (
+    wanted
+      ? game.combats?.get(wanted)
+      : (game.combat ?? Array.from(game.combats ?? []).slice(-1)[0])
+  ) as CombatDoc | null | undefined;
   if (!combat?.id) {
     throw new Error(wanted ? `Combat not found: ${wanted}` : 'No active combat encounter.');
   }

@@ -14,7 +14,7 @@ is one action.
       **Undo** (GM Actions must be on for that, so do this before the next step).
 - [ ] In the dashboard header, click **End session**. It should now say "No session". It also turns
       off what **Turn on for tonight** turned on, and **GM Actions**. If the admin has set up the
-      Discord post, the bot now posts the player page link in its channel.
+      Discord post, the bot posts the player page link in its channel within a couple of minutes.
 - [ ] If the dashboard header still says **⚔ GM Actions: on**, click it so it says **off**.
 - [ ] In the Tarokka drawer (🃏 **Tarokka**, under **Advanced ▾**), untick **Show cards** if it is ticked.
 

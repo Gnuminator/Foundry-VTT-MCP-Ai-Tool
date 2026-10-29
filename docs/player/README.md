@@ -22,13 +22,13 @@ day and weather when the scene has them. It has these parts:
 
 - **Combat order:** who acts when, the current turn, and the round. Player characters have an HP
   bar. Monsters and NPCs show no HP numbers, only a rough health word (healthy, bloodied, critical
-  or down, unless the GM switched that off) and standard conditions (like prone or frightened),
+  or down, unless the person who runs the tool switched that off) and standard conditions (like prone or frightened),
   and appear under the name you know them by, or as "Unknown creature".
 - **Session feed:** public rolls and what your characters could see happen, for example "Mira
   took 7 damage." or "Wolf 1 was hit." Private, blind and GM rolls never show here, and neither
   does anything about a creature whose name you cannot see.
 - **Handouts:** journal pages the GM revealed to you, such as a letter or a map note. A handout
-  revealed since the last session shows a "New" mark.
+  revealed since the session started (or, between sessions, since the last one ended) shows a "New" mark.
 - **Last recap and Quests:** the newest revealed page with "recap" in its title, and revealed
   pages with "quest" in their title, each in its own box.
 - **You:** if you opened your private link (see My character below), the top of the page says

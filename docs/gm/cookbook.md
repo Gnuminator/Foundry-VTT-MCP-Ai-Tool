@@ -197,7 +197,7 @@ These need the **play** set switched on.
 
 ### Record the session in Discord
 
-- **Type** in the Discord text channel: `/record start` when play begins, `/record stop` when it
+- **Type** (or ask the person who runs the tool to type) in the Discord text channel: `/record start` when play begins, `/record stop` when it
   ends.
 - **What happens:** the recording bot records each speaker. For now the builder starts the bot
   before the session.

@@ -1,8 +1,8 @@
 name: CodeQL cache cleanup
 
-# CodeQL's default setup saves a ~330 MB `codeql-overlay-base-database-*` cache on every push to
-# main and never removes the old ones. 60 of them filled 10 GB of the repo's 10 GB cache limit and
-# evicted the npm caches. This keeps the newest KEEP per ref, config hash and language and deletes
+# CodeQL's default setup saves `codeql-overlay-base-database-*` caches on every push to main (about
+# 330 MB for JavaScript, a few MB for Python) and never removes the old ones. 60 of them filled
+# 9.4 GB of the repo's 10 GB cache limit and evicted the npm caches. This keeps the newest KEEP per ref, config hash and language and deletes
 # the rest. The default setup has no workflow file here, so it is matched by its name, "CodeQL".
 # The workflow_run trigger is best effort; the nightly schedule is the path that always runs.
 # A pull request touching this file runs it as a dry run (nothing is deleted) so the log shows what
@@ -18,12 +18,12 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: codeql-cache-cleanup-${{ github.event_name }}-${{ github.ref }}
+  # One group for every run on main, so a nightly and a workflow_run run never race to delete.
+  group: codeql-cache-cleanup-${{ github.event_name == 'pull_request' && github.ref || 'main' }}
   cancel-in-progress: false
 
 permissions:
   actions: write
-  contents: read
 
 jobs:
   cleanup:
@@ -48,16 +48,37 @@ jobs:
             | group_by([.ref, .grp])
             | map(sort_by(.createdAt) | reverse | .[$keep:])
             | flatten | .[] | "\(.id)\t\(.sizeInBytes)"' caches.json > old.tsv
+          total=$(jq length caches.json)
+          matched=$(jq '[.[] | select(.key | test("^codeql-overlay-base-database-[0-9]+-[0-9a-f]+-.+?-[0-9]+[.][0-9]+[.][0-9]+-"))] | length' caches.json)
+          if [ "$matched" -ne "$total" ]; then
+            echo "::warning::$((total - matched)) of $total CodeQL cache keys do not match the expected format and were left alone"
+          fi
+          if [ "$total" -gt 0 ] && [ "$matched" -eq 0 ]; then
+            echo "::error::no CodeQL cache key matches the expected format; has GitHub changed it?"
+            exit 1
+          fi
           count=$(wc -l < old.tsv)
+          deleted=0
           freed=0
           while IFS=$'\t' read -r id size; do
             if [ -n "$DRY_RUN" ]; then
               echo "dry run: would delete cache $id"
-            else
-              gh cache delete "$id" || echo "already gone: $id"
+            elif ! gh cache delete "$id"; then
+              echo "::warning::could not delete cache $id"
+              continue
             fi
+            deleted=$((deleted + 1))
             freed=$((freed + size))
           done < old.tsv
-          echo "CodeQL caches before: $(jq length caches.json), $((before / 1048576)) MiB"
-          if [ -n "$DRY_RUN" ]; then verb="Would delete"; else verb="Deleted"; fi
-          echo "$verb $count caches, $((freed / 1048576)) MiB"
+          echo "CodeQL caches before: $total, $((before / 1048576)) MiB"
+          if [ -n "$DRY_RUN" ]; then
+            echo "Would delete $deleted of $count caches, $((freed / 1048576)) MiB"
+          else
+            echo "Deleted $deleted of $count caches, $((freed / 1048576)) MiB"
+            # A failed delete is only fine if the cache is gone anyway (an eviction): list again.
+            gh cache list --limit 500 --key codeql-overlay-base-database --json id --jq '.[].id' > after.txt
+            cut -f1 old.tsv | sort > old.ids
+            sort after.txt | comm -12 - old.ids > left.ids
+            echo "Still present after the run: $(wc -l < left.ids)"
+            [ ! -s left.ids ] || exit 1
+          fi

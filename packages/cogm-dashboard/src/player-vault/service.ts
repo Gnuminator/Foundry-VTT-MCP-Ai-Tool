@@ -13,6 +13,7 @@ import type { ThemeId } from '../theme.js';
 import type { PlayerLogStore } from './log-store.js';
 import { renderPlayerVault } from './render.js';
 import type { PlayerVaultInput, VaultPlayer } from './types.js';
+import { projectPlayStats } from './stats.js';
 import { writePlayerVault } from './writer.js';
 
 /** The most events the one-time backfill asks the bridge for (`get-session-log`). */
@@ -98,6 +99,7 @@ export class PlayerVaultService {
   private readonly lastHash = new Map<string, string>();
   private readonly backfilled = new Set<string>();
   private pending: SessionEvent[] = [];
+  private lastStats: { worldId: string; raw: unknown } | null = null;
 
   constructor(private readonly options: PlayerVaultServiceOptions) {}
 
@@ -156,6 +158,7 @@ export class PlayerVaultService {
     const theme = this.options.theme(world.id);
     const css = this.snippet(theme);
     const sessions = this.options.store.sessions(world.id);
+    const rawStats = await this.playStats(world.id);
 
     for (const player of this.options.players()) {
       try {
@@ -173,6 +176,11 @@ export class PlayerVaultService {
             .filter(h => !h.players || h.players.includes(player.userId)),
           sheets,
           sessions,
+          stats: projectPlayStats(
+            rawStats,
+            world.id,
+            sheets.map(s => ({ id: s.id, name: s.name }))
+          ),
           theme: { id: theme, css },
         };
         const hash = createHash('sha256').update(JSON.stringify(input)).digest('hex');
@@ -210,6 +218,20 @@ export class PlayerVaultService {
         error: errorText(error),
       });
     }
+  }
+
+  /**
+   * The bridge's GM stats, once per pass; only `projectPlayStats` may read it. When the call
+   * fails the last good answer for the world stays, so a failed call never drops the stats note.
+   */
+  private async playStats(worldId: string): Promise<unknown> {
+    try {
+      const raw = await this.options.client.callTool('get-play-stats', {});
+      this.lastStats = { worldId, raw };
+    } catch (error) {
+      this.options.logger.warn('Player vault: play stats unavailable', { error: errorText(error) });
+    }
+    return this.lastStats?.worldId === worldId ? this.lastStats.raw : null;
   }
 
   /** The player's own sheets, or null when the bridge could not answer. */

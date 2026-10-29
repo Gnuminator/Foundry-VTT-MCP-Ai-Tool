@@ -51,7 +51,23 @@ const GM_CANARIES = {
   npcHpText: 'CANARY_NPC_HP_TEXT_e08b',
   npcHpAmount: '918273645',
   gmCharacter: 'CANARY_GM_CHARACTER_4be6',
+  // Planted in the fake `get-play-stats` answer, in fields no player may see.
+  statsRollLabel: 'CANARY_STATS_HIGHEST_ROLL_LABEL_0d7a',
+  statsRollTotal: '8675309',
+  statsScene: 'CANARY_STATS_TRUE_SCENE_a2f6',
+  statsUser: 'CANARY_STATS_GM_USER_3b8e',
+  statsNpc: 'CANARY_STATS_NPC_NAME_c19d',
+  statsLoot: 'CANARY_STATS_LOOT_NAME_47fa',
+  statsResource: 'CANARY_STATS_RESOURCE_NAME_9c04',
+  statsCrits: '7654321',
+  statsGmChanges: '6543210',
+  statsDamageDealt: '5432109',
+  statsRolls: '4321098',
 } as const;
+
+/** Allowed stats numbers: they must reach the folder of the player they belong to. */
+const ALICE_STATS = { damageTaken: 31337, healing: 2718, campaignRounds: 1618 } as const;
+const BOB_DAMAGE_TAKEN = 24680;
 
 // Canaries that belong to Bob (his handout and his sheet): Alice may not see them. The page
 // title and the link label are those of the page revealed to Bob only; links to it sit in
@@ -276,6 +292,7 @@ function makeSource(): {
   backfill: SessionEvent[];
   journals: unknown;
   catchAll: unknown;
+  playStats: unknown;
 } {
   const handouts = {
     handouts: [
@@ -343,7 +360,71 @@ function makeSource(): {
     results: [{ id: 'page-unrevealed', excerpt: GM_CANARIES.searchHit }],
   };
   const catchAll = { note: GM_CANARIES.catchAll, text: GM_CANARIES.unrevealedPage };
+  const pcStats = (uuid: string, name: string, damageTaken: number): Record<string, unknown> => ({
+    uuid,
+    name,
+    sessions: [1],
+    damageTaken,
+    damageDealt: Number(GM_CANARIES.statsDamageDealt),
+    healingReceived: ALICE_STATS.healing,
+    downs: 1,
+    kills: 1,
+    rolls: Number(GM_CANARIES.statsRolls),
+    crits: Number(GM_CANARIES.statsCrits),
+    fumbles: 1,
+    d20: [Number(GM_CANARIES.statsCrits)],
+    spellsCast: 1,
+    slotsSpent: { spell1: 1 },
+    resourcesSpent: { [GM_CANARIES.statsResource]: 2 },
+    itemsUsed: 1,
+    lootGained: { [GM_CANARIES.statsLoot]: 1 },
+    currencyDelta: { gp: 5 },
+    xpGained: 100,
+  });
+  const playStats = {
+    success: true,
+    worldId: 'w-canary',
+    campaign: {
+      sessions: 3,
+      playMinutes: 360,
+      combats: 4,
+      rounds: ALICE_STATS.campaignRounds,
+      pcDowns: 1,
+      npcKills: 2,
+      rolls: Number(GM_CANARIES.statsRolls),
+      crits: Number(GM_CANARIES.statsCrits),
+      fumbles: 1,
+      spellsCast: 5,
+      gameSeconds: 1,
+      paperSessions: 0,
+      paperNet: null,
+      lastRecordAt: null,
+    },
+    dice: {
+      d20: [Number(GM_CANARIES.statsCrits)],
+      byUser: { [GM_CANARIES.statsUser]: { rolls: 1, nat20: 1, nat1: 0, average: 20 } },
+    },
+    sessionCount: 1,
+    session: {
+      number: 1,
+      gmChanges: Number(GM_CANARIES.statsGmChanges),
+      users: [GM_CANARIES.statsUser],
+      sceneMinutes: { [GM_CANARIES.statsScene]: 10 },
+      pcDownsByName: { [BOB_CANARIES.sheetName]: 1 },
+      combats: [{ participants: [GM_CANARIES.statsNpc], kills: [GM_CANARIES.statsNpc] }],
+      highestRoll: {
+        total: Number(GM_CANARIES.statsRollTotal),
+        name: ALICE_SHEET_NAME,
+        label: GM_CANARIES.statsRollLabel,
+      },
+    },
+    pcs: [
+      pcStats(`Actor.actor-${ALICE_SHEET_NAME}`, ALICE_SHEET_NAME, ALICE_STATS.damageTaken),
+      pcStats(`Actor.actor-${BOB_CANARIES.sheetName}`, BOB_CANARIES.sheetName, BOB_DAMAGE_TAKEN),
+    ],
+  };
   return {
+    playStats,
     handouts,
     visibility,
     sheets,
@@ -468,6 +549,8 @@ describe('O7 player vault spoiler canary (real createDashboard path)', () => {
                 ],
                 activeUsers: [{ id: GM_ID, name: 'GM', isGM: true }],
               } as T);
+            case 'get-play-stats':
+              return Promise.resolve(source.playStats as T);
             case 'get-player-visibility':
               return Promise.resolve(source.visibility as T);
             case 'get-player-handouts':
@@ -575,6 +658,29 @@ describe('O7 player vault spoiler canary (real createDashboard path)', () => {
     expect(has(b, PUBLIC_NOTICE), `missing ${PUBLIC_NOTICE}`).toBe(true);
     expect(has(b, BOB_CANARIES.pageTitle), `missing ${BOB_CANARIES.pageTitle}`).toBe(true);
     expect(has(b, BOB_CANARIES.linkLabel), `missing ${BOB_CANARIES.linkLabel}`).toBe(true);
+
+    // Allowed stats: each player's own numbers reach their own note and nobody else's. The world
+    // id (in the stats answer, only compared) and the GM-only numbers never do.
+    expect(a.files).toContain('My stats.md');
+    expect(b.files).toContain('My stats.md');
+    expect(has(a, String(ALICE_STATS.damageTaken)), 'Alice lacks her damage taken').toBe(true);
+    expect(has(a, String(ALICE_STATS.campaignRounds)), 'Alice lacks party rounds').toBe(true);
+    expect(has(a, String(BOB_DAMAGE_TAKEN)), "Alice sees Bob's stats").toBe(false);
+    expect(has(b, String(BOB_DAMAGE_TAKEN)), 'Bob lacks his damage taken').toBe(true);
+    expect(has(b, String(ALICE_STATS.damageTaken)), "Bob sees Alice's stats").toBe(false);
+    for (const folder of [a, b]) expect(has(folder, 'w-canary')).toBe(false);
+    // Every file of both folders is known: a new kind of file fails here until whoever adds it
+    // has planted canaries for it above.
+    const knownFiles = ['Home.md', 'My character.md', 'My stats.md', '.aitool-player.json'];
+    const knownFolders = ['Handouts/', 'Recaps/', 'Session log/', '.obsidian/'];
+    for (const folder of [a, b]) {
+      for (const name of folder.files) {
+        expect(
+          knownFiles.includes(name) || knownFolders.some(dir => name.startsWith(dir)),
+          `unexpected file ${name}`
+        ).toBe(true);
+      }
+    }
 
     // Control: the canaries really sat in the data the fake bridge could serve.
     const served = JSON.stringify(source);

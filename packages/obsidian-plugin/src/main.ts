@@ -79,6 +79,8 @@ import {
   type ThemeId,
 } from './theme.js';
 import {
+  aiContextAllowed,
+  aiContextNotice,
   campaignRootOf,
   fillPrepNote,
   findPrepNote,
@@ -263,6 +265,21 @@ export default class FoundryAiToolPlugin extends Plugin {
           | undefined;
         if (!isQuestImportable(frontmatter)) return false;
         if (!checking) void this.importQuest(file);
+        return true;
+      },
+    });
+
+    this.addCommand({
+      id: 'toggle-ai-context',
+      name: 'Toggle: Claude may read this prep note',
+      checkCallback: checking => {
+        const file = this.app.workspace.getActiveFile();
+        if (!file) return false;
+        const frontmatter = this.app.metadataCache.getFileCache(file)?.frontmatter as
+          | Record<string, unknown>
+          | undefined;
+        if (!isPrepType(frontmatter?.type)) return false;
+        if (!checking) void this.toggleAiContext(file, aiContextAllowed(frontmatter?.ai_context));
         return true;
       },
     });
@@ -471,6 +488,18 @@ export default class FoundryAiToolPlugin extends Plugin {
       new Notice(`Quest import: ${messageOf(error)}`);
     } finally {
       this.importing = false;
+    }
+  }
+
+  /** Flip `ai_context` on a prep note: Claude may read it, or may not. */
+  private async toggleAiContext(file: TFile, allowedNow: boolean): Promise<void> {
+    try {
+      await this.app.fileManager.processFrontMatter(file, fm => {
+        (fm as Record<string, unknown>).ai_context = !allowedNow;
+      });
+      new Notice(aiContextNotice(!allowedNow));
+    } catch (error) {
+      new Notice(`AI context: ${messageOf(error)}`);
     }
   }
 

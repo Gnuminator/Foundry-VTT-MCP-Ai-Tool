@@ -3,7 +3,11 @@
 A live **GM dashboard** that runs in a browser next to Foundry VTT. It watches the game as it
 happens and lets you run parts of it from the page.
 
-![The dashboard during a combat](../images/cogm/overview.png)
+![The During screen: the combat tracker as an initiative ribbon with portraits and a turn-order strip, the live feed and the party card](../images/cogm/overview.png)
+
+Before a session the page opens on **Before**, with Pre-flight and Prep:
+
+![The Before screen: the Pre-flight checks with Turn on for tonight, and the Prep summary of the last session](../images/cogm/before.png)
 
 ---
 
@@ -88,7 +92,7 @@ Not on the page at `/` yet. It is on the old dashboard at `/legacy/`, and needs 
 
 ### Damage and conditions on several creatures at once
 
-![Multi-select combatants and act on them as a group](../images/cogm/combat-control.png)
+![The turn-order strip with two combatants picked and the Damage / Heal, Condition, Clear and End combat buttons](../images/cogm/combat-control.png)
 
 - **Click combatants in the During view's turn-order strip to multi-select** them.
 - **Damage / Heal** or **Condition** opens the Tool Runner with the plan filled in for the picked
@@ -99,7 +103,7 @@ Not on the page at `/` yet. It is on the old dashboard at `/legacy/`, and needs 
 
 ### Do (almost) anything the bridge can do
 
-![The Tool Runner exposes every Foundry bridge tool](../images/cogm/tool-runner.png)
+![The Tool Runner drawer open on plan-actor-change, with its form fields and Pick… buttons](../images/cogm/tool-runner.png)
 
 - A built-in **Tool Runner** exposes _every_ Foundry MCP tool behind a simple form: spawn NPCs and
   monsters from compendiums, set the scene's mood/lighting, create quest journals, drop loot, manage
@@ -108,7 +112,7 @@ Not on the page at `/` yet. It is on the old dashboard at `/legacy/`, and needs 
 
 ### Safe by default
 
-![Every game-changing action asks for confirmation](../images/cogm/confirm.png)
+![The Destructive action window for ending a combat, with its I understand box and the Cancel and Run destructive action buttons](../images/cogm/confirm.png)
 
 - Watching the game is **always read-only**.
 - Game-changing actions stay off until you flip the **GM Actions** switch (or click **Turn on

@@ -40,6 +40,7 @@ import {
   type SessionSwitches,
 } from './session-switches.js';
 import { PlayerViewSource } from './player/source.js';
+import { gzipAssets } from './gzip-assets.js';
 import { staticHeaders, type StaticHeaderGroup } from './static-headers.js';
 import { PlayerDirectory, mountUsageRoute } from './usage-route.js';
 import { mountHandoutSeenRoute } from './handout-seen-route.js';
@@ -645,17 +646,26 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
 
   // The React dashboard's files: Vite puts a content hash in every file name under assets/, so
   // those are cached for good; index.html is checked on every load so a new build shows up at once.
+  // A cold load fetches about twenty files and the end-to-end suite loads pages in parallel from
+  // one address, so the assets get their own, much larger bucket than the pages above.
+  const assetLimit = rateLimit({
+    windowMs: 10_000,
+    limit: 20_000,
+    standardHeaders: false,
+    legacyHeaders: false,
+    message: 'Too many requests',
+    validate: { xForwardedForHeader: false },
+  });
+  app.use('/next/assets', assetLimit, gzipAssets(path.join(config.webDir, 'assets')));
   app.use(
     '/next',
     express.static(config.webDir, {
       setHeaders: (res, filePath) => {
         const inAssets = path.relative(path.join(config.webDir, 'assets'), filePath);
-        res.setHeader(
-          'Cache-Control',
-          inAssets.startsWith('..') || path.isAbsolute(inAssets)
-            ? 'no-cache'
-            : 'public, max-age=31536000, immutable'
-        );
+        const hashed = !inAssets.startsWith('..') && !path.isAbsolute(inAssets);
+        res.setHeader('Cache-Control', hashed ? 'public, max-age=31536000, immutable' : 'no-cache');
+        // The same URL can come back gzipped (gzip-assets.ts) or plain.
+        if (hashed) res.setHeader('Vary', 'Accept-Encoding');
       },
     })
   );

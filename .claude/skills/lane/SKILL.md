@@ -46,9 +46,10 @@ item is marked done; the board ignores a line on an item with no claim.
 
 ## Work
 
-- **Advisor (D-127):** call `advisor` (Opus, the user setting) once before you start coding and
-  once before you open the PR; act on it or say in the PR why not. The weekly check counts the
-  calls.
+- **Advisor (the user, 2026-10-29; was two a PR, D-127):** call `advisor` (Opus, the user setting)
+  once a PR, after the work is committed and before you open the PR; act on it or say in the PR
+  why not. Name the call in the PR handover and in the `- progress:` line (`advisor: 1`; a PR that
+  went without says why). The weekly check reads calls per merged PR (`usage:week`), target one.
 - **Subagents:** `model: "sonnet"` for code, tests, scripts and sweeps; `model: "haiku"` for
   reading and simple mechanical edits; Opus only for design and risky-PR reviews. Partition workers
   by file, lock shared contracts first, tell them to write big files in parts of at most about 250
@@ -156,8 +157,11 @@ item is marked done; the board ignores a line on an item with no claim.
 scripts/review-runner`. It picks Opus for a PR the gate calls risky and Sonnet otherwise, checks
   the head out in a scratch worktree, writes the note in the format below to vault `Handoff/Reviews
 <date>/`, commits it with explicit paths and logs the cost in `~/.review-runner/ledger.jsonl`; it
-  stops at $95 in total. `--dry-run` shows the plan and spends nothing. Run it for real only when
-  the planner asked.
+  stops at $95 in total. `--dry-run` shows the plan and spends nothing. **Default review path
+  (the user, 2026-10-29):** until the credit ends on 2026-11-14 or the runner stops at $95, every
+  review round (the Sonnet and Opus rounds of D-101, delta checks included) runs on the runner;
+  your own PRs too. A subagent review is the fallback when the runner refuses (no key, no `npm ci`,
+  a stop) or the credit is spent; say which path was used in the PR handover.
 - **Review note format** (the merge gate reads it):
   - path: vault `Handoff/Reviews <YYYY-MM-DD>/<PR>-review.md`, round 2 `<PR>-review-round2.md`;
     Opus: `<PR>-opus-review.md`, `<PR>-opus-review-round2.md`, with the heading

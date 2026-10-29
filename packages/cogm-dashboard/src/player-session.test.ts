@@ -56,6 +56,18 @@ describe('splitHandouts', () => {
     expect(out.quests).toEqual([]);
   });
 
+  it('matches the page names the tools and the GM really use', () => {
+    const out = splitHandouts([
+      page('d', 'Quest Details'),
+      page('r1', 'Session 3 Recap', '2026-10-01T20:00:00.000Z'),
+      page('r2', 'Resumé af session 4', '2026-10-08T20:00:00.000Z'),
+      page('h', 'Letter from Strahd'),
+    ]);
+    expect(out.recap?.id).toBe('r2');
+    expect(out.quests.map(h => h.id)).toEqual(['d']);
+    expect(out.rest.map(h => h.id)).toEqual(['h']);
+  });
+
   it('collects quest pages and leaves the rest as handouts', () => {
     const out = splitHandouts([
       page('q1', 'Quest: The Amber Temple'),

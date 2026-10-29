@@ -16,11 +16,15 @@ export function sessionPhase(state) {
   return 'live';
 }
 
-const RECAP = /\brecap\b/i;
-const QUEST = /\bquests?\b/i;
+// What the tools really write: create-quest-journal makes a journal whose first page is titled
+// "Quest Details" (extra pages are named by the caller), and the session-recap prompt leaves the
+// recap as a draft the GM pastes into a page of their own naming, so the recap match is a
+// convention on the page title (English or Danish), not a fixed name.
+const RECAP = /(^|[^\p{L}])(recap|summary|previously|opsummering|resum[eé])(?![\p{L}])/iu;
+const QUEST = /(^|[^\p{L}])(quests?|opgaver?)(?![\p{L}])/iu;
 
 /**
- * Splits the revealed handouts into the last recap (the newest page titled "Recap"), the quest
+ * Splits the revealed handouts into the last recap (the newest page titled like a recap), the quest
  * pages and the rest. Matching is on the title only; the HTML is already sanitized server-side.
  */
 export function splitHandouts(handouts) {

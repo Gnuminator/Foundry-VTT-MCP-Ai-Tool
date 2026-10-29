@@ -40,11 +40,13 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '22'
+          cache: npm
+          cache-dependency-path: docs/wiki/package-lock.json
 
       # docs/wiki is its own package (Astro Starlight, exact pinned versions, own lockfile), not
       # an npm workspace. The stage script and the coach build use only Node's own modules.
       - name: Install Starlight (pinned)
-        run: npm ci --prefix docs/wiki --no-audit --no-fund
+        run: npm ci --prefix docs/wiki --ignore-scripts --no-audit --no-fund
 
       - name: Test the stage script
         run: node --test scripts/wiki/stage.test.mjs
@@ -54,6 +56,8 @@ jobs:
 
       # starlight-links-validator fails the build on a broken link or anchor, as mkdocs --strict did.
       - name: Build the site (links checked)
+        env:
+          ASTRO_TELEMETRY_DISABLED: '1'
         run: npm run build --prefix docs/wiki
 
       # Storybook for the React dashboard (UI-03), published next to the wiki under /storybook/.

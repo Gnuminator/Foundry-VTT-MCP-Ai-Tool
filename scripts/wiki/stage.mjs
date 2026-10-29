@@ -146,6 +146,10 @@ export function rewriteLinks(text, repoPath, images) {
             path.posix.relative(path.posix.dirname(staged), to) || path.posix.basename(to);
           return `${bang}](${rel}${anchor}${title})`;
         }
+        // A link into a staged section to a file that is not there is a typo, not a GitHub link.
+        if (to !== null && !existsSync(path.join(repo, resolved))) {
+          throw new Error(`${repoPath}: the link ${target} points to ${resolved}, which does not exist`);
+        }
         const isDir =
           existsSync(path.join(repo, resolved)) &&
           statSync(path.join(repo, resolved)).isDirectory();

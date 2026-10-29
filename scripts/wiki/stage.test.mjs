@@ -67,6 +67,14 @@ test('the nav follows the README links, then the rest A to Z', () => {
   ]);
 });
 
+test('a link to a missing guide page or image fails the stage instead of becoming a GitHub link', () => {
+  assert.throws(
+    () => rewriteLinks('[x](before-sesion.md)', 'docs/gm/README.md', new Set()),
+    /before-sesion\.md.*does not exist/
+  );
+  assert.throws(() => rewriteLinks('![x](../images/nope.png)', 'docs/gm/README.md', new Set()), /does not exist/);
+});
+
 test('page URLs keep the old /gm/ and /gm/page/ shapes under the base', () => {
   assert.equal(pageUrl('index.md'), `${BASE}/`);
   assert.equal(pageUrl('gm/README.md'), `${BASE}/gm/`);

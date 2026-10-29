@@ -37,11 +37,12 @@ export default defineConfig({
         './src/styles/field-guide.css',
       ],
       sidebar,
-      // Every link and anchor must resolve, as `mkdocs --strict` did. Storybook and the coach
-      // zip are added to the built site after this build, so the checker cannot see them.
+      // Every link and anchor must resolve, as `mkdocs --strict` did. The coach zip is in public/,
+      // so it is checked too. Storybook is copied into the site after this build: a relative link
+      // to it would need the exclude below (the home page uses an absolute URL, which is skipped).
       plugins: [
         starlightLinksValidator({
-          exclude: ['/Foundry-VTT-MCP-Ai-Tool/storybook/**', '/Foundry-VTT-MCP-Ai-Tool/gm/downloads/**'],
+          exclude: ['/Foundry-VTT-MCP-Ai-Tool/storybook/**'],
         }),
       ],
     }),

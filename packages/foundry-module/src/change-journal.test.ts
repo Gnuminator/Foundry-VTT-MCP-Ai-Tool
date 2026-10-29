@@ -12,6 +12,7 @@ import { createTestWorld, type TestWorld } from './test-support/foundry-mock/ind
 import { ChangeJournal, changedPaths } from './change-journal.js';
 import {
   CHANGE_JOURNAL_ACTION_GAP_MS,
+  CHANGE_JOURNAL_GUARDED_GAP_MS,
   CHANGE_JOURNAL_ACTION_MAX_MS,
   CHANGE_JOURNAL_ACTION_MAX_OPS,
   CHANGE_JOURNAL_DOCUMENTS,
@@ -270,6 +271,28 @@ describe('pre-hooks: the stash', () => {
     expect(idOf(simulateUpdate(actor, { name: 'follow-up' }))).toBe(first);
     vi.setSystemTime(t + 100);
     expect(idOf(simulateUpdate(actor, { name: 'plain' }))).not.toBe(first);
+  });
+
+  it('keeps slow dnd5e follow-ups of a guarded write in its group, and ends it after the long gap', () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    const actor = makeActor();
+    const idOf = (o: ReturnType<typeof simulateUpdate>): string => o[MODULE_ID].journal.actionId;
+    vi.setSystemTime(9_000_000);
+    const write = idOf(
+      simulateUpdate(
+        actor,
+        { name: 'hp' },
+        { options: { [MODULE_ID]: { changeId: 'chg-slow', changeMode: 'apply' } } }
+      )
+    );
+    // Unconscious and Prone at 0 HP start 1.2 s and 2.4 s later on a slow link: well past the plain
+    // gap, each inside the guarded gap of the one before.
+    vi.setSystemTime(9_000_000 + 1200);
+    expect(idOf(simulateUpdate(actor, { name: 'unconscious' }))).toBe(write);
+    vi.setSystemTime(9_000_000 + 2400);
+    expect(idOf(simulateUpdate(actor, { name: 'prone' }))).toBe(write);
+    vi.setSystemTime(9_000_000 + 2400 + CHANGE_JOURNAL_GUARDED_GAP_MS + 1);
+    expect(idOf(simulateUpdate(actor, { name: 'later' }))).not.toBe(write);
   });
 
   it('keeps an actionId already in the stash and one before value per document id', () => {

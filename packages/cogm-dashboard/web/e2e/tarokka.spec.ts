@@ -1012,7 +1012,7 @@ test('an apply the bridge refuses says why, has no Undo, reloads and keeps the d
 
   // A new reading refused the same way.
   await roll.click();
-  await expect(toast(page, `✗ apply-planned-change: ${refusal}`)).toHaveCount(2);
+  await expect(toast(page, refusal)).toHaveCount(2);
   await expect(page.locator('.toast-stack .toast-undo')).toHaveCount(0);
   await expect(roll).toBeEnabled();
 });

@@ -45,11 +45,11 @@ describe('TarokkaTools', () => {
 
     // A reading the GM chose: the five card arguments become one `cards` map keyed by position.
     await tools.handlePlanTarokkaImport({
-      tomeCard: 'swords-7',
-      holySymbolCard: 'glyphs-master',
-      sunswordCard: 'coins-1',
-      allyCard: 'raven',
-      strahdLocationCard: 'donjon',
+      tome: 'swords-7',
+      holySymbol: 'glyphs-master',
+      sunsword: 'coins-1',
+      ally: 'raven',
+      strahdLocation: 'donjon',
     });
     expect(tarokka.planImport).toHaveBeenLastCalledWith({
       cards: {
@@ -61,7 +61,7 @@ describe('TarokkaTools', () => {
       },
     });
     // Fewer than five still reaches the service, which refuses it with the missing position.
-    await tools.handlePlanTarokkaImport({ tomeCard: 'swords-7' });
+    await tools.handlePlanTarokkaImport({ tome: 'swords-7' });
     expect(tarokka.planImport).toHaveBeenLastCalledWith({ cards: { tome: 'swords-7' } });
 
     await tools.handlePlanTarokkaLinks({ position: 'ally', cardId: 'raven', clear: true });

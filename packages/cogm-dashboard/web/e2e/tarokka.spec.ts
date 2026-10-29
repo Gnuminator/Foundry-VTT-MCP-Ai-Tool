@@ -413,7 +413,10 @@ test('Choose the cards stores the five picked cards, none twice', async ({ page 
   const drawer = await openTarokka(page);
   await expect(drawer.locator('.tarokka-pos')).toHaveCount(5);
 
-  await drawer.getByRole('button', { name: 'Choose the cards…' }).click();
+  const chooseToggle = drawer.getByRole('button', { name: 'Choose the cards…' });
+  await expect(chooseToggle).toBeDisabled();
+  await drawer.getByRole('checkbox', { name: 'Show cards' }).check();
+  await chooseToggle.click();
   const form = drawer.locator('#tarokka-choose-form');
   const store = form.getByRole('button', { name: 'Store this reading' });
   await expect(form.locator('select')).toHaveCount(5);
@@ -437,15 +440,16 @@ test('Choose the cards stores the five picked cards, none twice', async ({ page 
     {
       name: 'plan-tarokka-import',
       args: {
-        tomeCard: 'swords-7',
-        holySymbolCard: 'glyphs-master',
-        sunswordCard: 'coins-1',
-        allyCard: 'raven',
-        strahdLocationCard: 'donjon',
+        tome: 'swords-7',
+        holySymbol: 'glyphs-master',
+        sunsword: 'coins-1',
+        ally: 'raven',
+        strahdLocation: 'donjon',
       },
     },
   ]);
   await expect(form).toHaveCount(0);
+  await expect(chooseToggle).toBeFocused();
 });
 
 test('a failed import says why and still reloads; nothing is applied', async ({ page }) => {

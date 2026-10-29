@@ -957,19 +957,19 @@ No parameters.
 
 ### plan-tarokka-import
 
-Plan storing a Tarokka reading in the bridge vault (GM-only, outside Foundry). To store a reading the GM read by hand, pass all five cards (tomeCard, holySymbolCard, sunswordCard, allyCard, strahdLocationCard; common deck for the first three, high deck for the last two, no card twice): nothing is dealt and no module is needed. Otherwise source "auto" (default) takes the reading dealt in the tarokka-reading module when available, otherwise rolls one; "builtin-roll" always deals a fresh reading (3 common + 2 high cards, crypto random); "tarokka-reading" requires that module. A new reading archives the previous one; clear: true archives it and leaves none (undoable). Returns a planId: show the diff to the GM, then apply-planned-change.
+Plan storing a Tarokka reading in the bridge vault (GM-only, outside Foundry). Cards the GM picked (all five of tome, holySymbol, sunsword, ally, strahdLocation; no repeats) are stored as given, no deal. Else source "auto" (default) takes the reading dealt in the tarokka-reading module when available, otherwise rolls one; "builtin-roll" always deals a fresh reading (3 common + 2 high cards, crypto random); "tarokka-reading" requires that module. A new reading archives the previous one; clear: true archives it and leaves none (undoable). Returns a planId: show the diff to the GM, then apply-planned-change.
 
 Kind: read-only. Title: Plan Tarokka reading import.
 
 Parameters:
 
 - `source` (string): One of: `auto`, `builtin-roll`, `tarokka-reading`. Default: `auto`.
-- `clear` (boolean): Archive the current reading, deal none. Leave out source and userId with clear.
-- `tomeCard` (string): Card for tome when the GM picks the reading (all five or none), e.g. swords-7.
-- `holySymbolCard` (string): Card for holySymbol when the GM picks the reading (all five or none), e.g. swords-7.
-- `sunswordCard` (string): Card for sunsword when the GM picks the reading (all five or none), e.g. swords-7.
-- `allyCard` (string): Card for ally when the GM picks the reading (all five or none), e.g. raven.
-- `strahdLocationCard` (string): Card for strahdLocation when the GM picks the reading (all five or none), e.g. raven.
+- `clear` (boolean): Archive the current reading, deal none. Leave out source, userId and cards with clear.
+- `tome` (string)
+- `holySymbol` (string)
+- `sunsword` (string)
+- `ally` (string)
+- `strahdLocation` (string)
 - `userId` (string): The GM user who dealt in tarokka-reading, when that is another client than the bridge (Foundry 14.352+).
 
 ### suggest-tarokka-links

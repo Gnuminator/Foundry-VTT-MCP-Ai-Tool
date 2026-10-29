@@ -341,6 +341,22 @@ describe('reading and import', () => {
       );
     });
 
+    it('refuses a reveal planned before the chosen reading replaced the reading', async () => {
+      await apply((await tarokka.planImport({ source: 'builtin-roll' })).planId);
+      const reveal = await tarokka.planReveal({ position: 'tome', text: 'Early.' });
+      now += 1000;
+      await apply((await tarokka.planImport({ cards: CHOSEN })).planId);
+      await expect(apply(reveal.planId, true)).rejects.toThrow(/current\.readingId changed since/);
+    });
+
+    it('refuses a chosen-reading plan that went stale because another reading landed first', async () => {
+      await apply((await tarokka.planImport({ source: 'builtin-roll' })).planId);
+      const chosen = await tarokka.planImport({ cards: CHOSEN });
+      now += 1000;
+      await apply((await tarokka.planImport({ source: 'builtin-roll' })).planId);
+      await expect(apply(chosen.planId)).rejects.toThrow(/Conflict, nothing was written/);
+    });
+
     it('lets the GM reveal one card at a time afterwards', async () => {
       await apply((await tarokka.planImport({ cards: CHOSEN })).planId);
       await apply((await tarokka.planReveal({ position: 'tome', text: 'First.' })).planId, true);

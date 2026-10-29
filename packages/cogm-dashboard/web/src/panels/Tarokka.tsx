@@ -150,14 +150,14 @@ export function TarokkaDrawer({
 
   // The GM's own five cards (a reading read by hand): stored as a reading, nothing is dealt.
   const [choosing, setChoosing] = useState(false);
+  const chooseToggleRef = useRef<HTMLButtonElement>(null);
   const chooseCards = (cards: Record<string, string>): void => {
-    void change(
-      'plan-tarokka-import',
-      Object.fromEntries(
-        Object.entries(cards).map(([position, cardId]) => [CARD_ARGS[position], cardId])
-      )
-    ).then(done => {
-      if (done) setChoosing(false);
+    // The tool takes the cards under the position names.
+    void change('plan-tarokka-import', cards).then(done => {
+      if (!done) return;
+      setChoosing(false);
+      // The form (and the focused Store button) is gone, no confirm window hands focus back.
+      chooseToggleRef.current?.focus();
     });
   };
 
@@ -217,8 +217,10 @@ export function TarokkaDrawer({
           <Button
             id="tarokka-choose"
             data-track="dash.tarokka.choose"
-            aria-expanded={choosing}
-            disabled={busy}
+            ref={chooseToggleRef}
+            aria-expanded={choosing && showCards}
+            disabled={busy || !showCards}
+            title={showCards ? undefined : 'Tick “Show cards” first: the picks are on screen'}
             onClick={() => setChoosing(c => !c)}
           >
             Choose the cards…
@@ -250,7 +252,7 @@ export function TarokkaDrawer({
       }
     >
       <div id="tarokka-body">
-        {choosing && <ChooseCards busy={busy} onPlan={chooseCards} />}
+        {choosing && showCards && <ChooseCards busy={busy} onPlan={chooseCards} />}
         {tarokka.isError && (
           <ErrorState error={tarokka.error}>Couldn&apos;t load the reading</ErrorState>
         )}
@@ -287,14 +289,6 @@ const CHOOSE_POSITIONS = [
   ['strahdLocation', "Strahd's location"],
 ] as const;
 
-const CARD_ARGS: Record<string, string> = {
-  tome: 'tomeCard',
-  holySymbol: 'holySymbolCard',
-  sunsword: 'sunswordCard',
-  ally: 'allyCard',
-  strahdLocation: 'strahdLocationCard',
-};
-
 interface CardChoice {
   id: string;
   name: string;
@@ -303,7 +297,8 @@ interface CardChoice {
 /**
  * Five pickers, one per position, for a reading the GM drew by hand. The lists come from the
  * bridge (list-ref-choices, per position, so each shows its own deck). The cards are chosen on
- * purpose, so the names are on screen here whatever "Show cards" says.
+ * purpose, so the form exists only while "Show cards" is ticked (Pre-flight warns about that
+ * switch, and unticking it hides the form).
  */
 function ChooseCards({
   busy,

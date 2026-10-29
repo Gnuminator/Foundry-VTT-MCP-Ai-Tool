@@ -371,3 +371,8 @@ main.moment-views #moment-during.during-no-bar {
   min-width: 0;
   line-height: 1.4;
 }
+/* An empty message takes no width, so the other one (never both at once) gets the full row. */
+.tool-runner-body .form-actions .form-error:empty,
+.tool-runner-body .form-actions .field-hint:empty {
+  flex: 0;
+}

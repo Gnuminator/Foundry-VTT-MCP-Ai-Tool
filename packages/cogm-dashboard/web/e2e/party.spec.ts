@@ -227,7 +227,19 @@ test('Who would notice: a DC gives a tick or cross per PC and skill, and the row
       },
     ],
   });
-  let state: unknown = STATE;
+  // The switch off: the bridge sends passives: null for every member.
+  let state: unknown = {
+    ...STATE,
+    groups: [
+      {
+        ...GROUP,
+        members: [
+          { ...ILVARA, passives: null },
+          { ...IVARRO, passives: null },
+        ],
+      },
+    ],
+  };
   await fakeTools(page, () => ok(state));
   const drawer = await openParty(page);
   // GM only: the drawer is the GM's, and with the switch off (no passives) there is no row.

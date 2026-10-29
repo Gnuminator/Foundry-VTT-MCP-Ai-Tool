@@ -391,6 +391,55 @@ export const DASHBOARD_CONTROLS = [
     why: 'needs a selected combatant (opens the tool form, runs nothing)',
   },
   {
+    name: 'dash.damage.amount',
+    how: 'skip',
+    why: 'the amount field of the Damage / Heal form; an e2e test covers it',
+  },
+  { name: 'dash.damage.apply', how: 'write', why: 'plans and applies damage or healing' },
+  {
+    name: 'dash.damage.cancel',
+    how: 'skip',
+    why: 'closes the Damage / Heal form; an e2e test covers it',
+  },
+  {
+    name: 'dash.damage.mode-damage',
+    how: 'skip',
+    why: 'toggle in the Damage / Heal form; an e2e test covers it',
+  },
+  {
+    name: 'dash.damage.mode-heal',
+    how: 'skip',
+    why: 'toggle in the Damage / Heal form; an e2e test covers it',
+  },
+  {
+    name: 'dash.damage.type',
+    how: 'skip',
+    why: 'damage type chips in the Damage / Heal form; an e2e test covers them',
+  },
+  {
+    name: 'dash.quickroll.advantage',
+    how: 'skip',
+    why: 'picker of the quick roll bar; an e2e test covers it',
+  },
+  {
+    name: 'dash.quickroll.dc',
+    how: 'skip',
+    why: 'DC field of the quick roll bar; an e2e test covers it',
+  },
+  {
+    name: 'dash.quickroll.what',
+    how: 'skip',
+    why: 'picker of the quick roll bar; an e2e test covers it',
+  },
+  {
+    name: 'dash.quickroll.visibility',
+    how: 'skip',
+    why: 'picker of the quick roll bar; an e2e test covers it',
+  },
+  { name: 'dash.quickroll.member', how: 'write', why: 'asks one character for a roll' },
+  { name: 'dash.quickroll.party', how: 'write', why: 'asks the party for a roll' },
+  { name: 'dash.quickroll.picked', how: 'write', why: 'asks the picked characters for a roll' },
+  {
     name: 'dash.combat.start',
     how: 'skip',
     why: 'new dashboard only (david-start-combat-picker, only with no fight running); an e2e test covers it',

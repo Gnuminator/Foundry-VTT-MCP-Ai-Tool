@@ -388,6 +388,9 @@ export function CombatStrip({
 
   // The Damage / Heal form closes with the pick it was opened for.
   const showDamage = damageOpen && kept.size > 0 && selectable;
+  // Clear, an emptied pick or GM Actions going off close it for good: it must not reopen with the
+  // next pick.
+  if (damageOpen && !showDamage) setDamageOpen(false);
   const pickedRows = (combat?.combatants ?? []).filter(c => kept.has(c.id));
   const partyRows = (combat?.combatants ?? []).filter(c => c.isPC && !c.defeated);
   const used = combat ? reactionsFor(reactions, combat.round) : NO_REACTIONS.used;
@@ -488,7 +491,13 @@ export function CombatStrip({
                 targets={selectedTargets(combat, kept)}
                 names={pickedRows.map(c => c.name)}
                 stale={stale}
-                onClose={() => setDamageOpen(false)}
+                onClose={() => {
+                  setDamageOpen(false);
+                  // The form's own button unmounts with it: put focus back on the one that opened it.
+                  requestAnimationFrame(() =>
+                    document.querySelector<HTMLElement>('[data-sel="damage"]')?.focus()
+                  );
+                }}
               />
             </Suspense>
           )}

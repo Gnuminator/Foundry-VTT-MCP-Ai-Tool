@@ -721,6 +721,20 @@ test.describe('picking combatants', () => {
     expect(beyondReads(calls)).toEqual([]);
   });
 
+  test('Clear closes the Damage / Heal form for good: the next pick does not reopen it', async ({
+    page,
+  }) => {
+    await setup(page, { combatButtons: true, initial: [fight(PARTY_FIGHT)] });
+    await load(page);
+    await row(page, 'Ogre Brute').click();
+    await page.locator('#combat-actions [data-sel="damage"]').click();
+    await expect(page.locator('#damage-form')).toBeVisible();
+    await page.getByRole('button', { name: 'Clear' }).click();
+    await expect(page.locator('#damage-form')).toHaveCount(0);
+    await row(page, 'Goblin Archer').click();
+    await expect(page.locator('#damage-form')).toHaveCount(0);
+  });
+
   test('Damage: an amount and a type plan and apply on both picked tokens in one click', async ({
     page,
   }) => {

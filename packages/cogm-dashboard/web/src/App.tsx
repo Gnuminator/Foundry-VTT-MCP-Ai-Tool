@@ -264,8 +264,8 @@ function Dashboard(): JSX.Element {
   };
   // Another panel opens the Tool runner on a tool with its form filled in.
   const [toolRequest, setToolRequest] = useState<ToolRequest | null>(null);
-  // The combat strip's Damage / Heal and Condition: the Tool runner on plan-actor-change, filled in
-  // for the picked combatants. It plans first; nothing is written until the GM confirms there.
+  // The combat strip's Condition (and End combat): the Tool runner on plan-actor-change, filled in
+  // for the picked combatants (Damage / Heal has its own form). It plans first; nothing is written until the GM confirms there.
   const openToolFromStrip = useCallback((request: StripToolRequest): void => {
     setToolRequest(r => ({ ...request, seq: (r?.seq ?? 0) + 1 }));
     setDrawers(d => ({ ...d, tools: true }));

@@ -188,6 +188,24 @@ describe('DiceRollTools.handleRequestPlayerRolls', () => {
       expect.objectContaining({ dc: 14, flavor: 'DC 14', targetPlayer: 'Bob' })
     );
   });
+
+  it('puts the DC on the card through the flavor when the caller sent none', async () => {
+    const { tools, query } = makeTools(() => ({ success: true, message: 'ok' }));
+    const base = {
+      rollType: 'save',
+      rollTarget: 'dex',
+      targetPlayer: 'Bob',
+      isPublic: true,
+      userConfirmedVisibility: true,
+      dc: 15,
+    };
+    await tools.handleRequestPlayerRolls(base);
+    await tools.handleRequestPlayerRolls({ ...base, flavor: 'Fireball' });
+    expect(query.mock.calls.map(c => (c[1] as { flavor: string }).flavor)).toEqual([
+      'DC 15',
+      'Fireball — DC 15',
+    ]);
+  });
 });
 
 describe('DiceRollTools.handleRequestAttackRoll', () => {

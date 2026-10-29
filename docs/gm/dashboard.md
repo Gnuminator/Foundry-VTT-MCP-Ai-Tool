@@ -230,9 +230,11 @@ conditions on several combatants at once: turn on **⚔ Combat buttons** under *
 default). With the combat buttons and GM Actions on (**Turn on for tonight** turns GM Actions on),
 click combatant rows to select them (click again to unselect). With one or more selected:
 
-- **Damage / Heal**: opens the tool runner (`plan-actor-change`) with those names filled in. Pick
-  damage, healing or temp-hp and enter the amount (and the damage type, so dnd5e counts
-  resistances, vulnerabilities and immunities).
+- **Damage / Heal**: opens a small form: Damage or Heal, one amount, and damage type chips (so
+  dnd5e counts resistances, vulnerabilities and immunities). One button, named for what it does
+  ("Deal 8 fire damage to ... in Foundry"), applies it at once to every picked token; each takes
+  the full amount. The toast has **Undo** and Recent Changes keeps the change. There is no
+  confirm window for this form.
 - **Condition**: the same, for a condition: pick it, and untick **active** to remove it.
 - **Clear**: unselects all.
 
@@ -507,8 +509,8 @@ The confirm window opens first for:
   at once, so Undo cannot take it back from their eyes).
 - **Plans you did not make on the dashboard**: a plan Claude made.
   Plan, confirm and undo stay for every AI change.
-- **Any plan made in the tool runner**, including the combat strip's Damage / Heal and Condition,
-  so you see which targets they hit before they apply.
+- **Any plan made in the tool runner**, including the combat strip's Condition, so you see which
+  targets it hits before it applies. (The strip's Damage / Heal form applies at once, with Undo.)
 - **Older tools without a plan** (from the tool runner), which have no Undo.
 
 In the confirm window:

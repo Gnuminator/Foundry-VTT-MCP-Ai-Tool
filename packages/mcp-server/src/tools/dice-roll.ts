@@ -291,7 +291,7 @@ export class DiceRollTools {
       userConfirmedVisibility: z.literal(true),
       rollModifier: z.string().default(''),
       flavor: z.string().default(''),
-      dc: z.number().int().optional(),
+      dc: z.number().int().min(1).max(99).optional(),
       advantage: z.enum(['advantage', 'disadvantage']).optional(),
     });
 
@@ -307,10 +307,18 @@ export class DiceRollTools {
         return 'You must determine the roll visibility before calling this function. Either: 1) The user already specified "public" or "private" in their request, or 2) You need to ask: "Do you want this to be a PUBLIC roll or PRIVATE roll?" Set userConfirmedVisibility to true only when you are confident about the visibility preference.';
       }
 
-      const response = (await this.foundryClient.query(
-        'foundry-mcp-bridge.request-player-rolls',
-        params
-      )) as DiceRollBridgeReply;
+      // The module keeps the DC off the card unless it is in the flavor (request-ability-check does
+      // the same fold); the dashboard already sends "DC n", so only add it when it is missing.
+      const dcText = params.dc === undefined ? '' : `DC ${params.dc}`;
+      const flavor =
+        dcText === '' || params.flavor.includes(dcText)
+          ? params.flavor
+          : [params.flavor, dcText].filter(Boolean).join(' — ');
+
+      const response = (await this.foundryClient.query('foundry-mcp-bridge.request-player-rolls', {
+        ...params,
+        flavor,
+      })) as DiceRollBridgeReply;
 
       if (response.success) {
         return `Roll request sent successfully! ${response.message}`;

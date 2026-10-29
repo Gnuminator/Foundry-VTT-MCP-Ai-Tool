@@ -2,12 +2,15 @@
 // private, advantage) and the hook that sends the request. The Party card and the combat strip
 // each put their own buttons beside the pickers. A request goes through request-player-rolls like
 // any other, so it lands in the play log, with the character resolved to its player and a button
-// on the player page. One click asks: a roll request changes nothing in the game and has no undo,
-// so there is no confirm window (GM Actions still has to be on).
+// on the player page. One click asks: a roll request only posts a roll card in chat (no world data
+// changes) and has no undo, so there is no confirm window (GM Actions still has to be on).
 import { useCallback, useRef, useState, type JSX, type ReactNode } from 'react';
 
-import { callTool, errorText } from '../lib/api';
+import { useQueryClient } from '@tanstack/react-query';
+
+import { ApiError, callTool, errorText } from '../lib/api';
 import { useGuardedTools } from '../lib/guarded';
+import { SETTINGS_KEY, type DashboardSettings } from '../lib/stream';
 import {
   DEFAULT_PICK,
   cleanPick,
@@ -53,6 +56,7 @@ export interface QuickRoll {
 export function useQuickRoll(): QuickRoll {
   const toast = useToast();
   const { gated } = useGuardedTools();
+  const queryClient = useQueryClient();
   const [pick, setPickState] = useState<RollPick>(readPick);
   const [busy, setBusy] = useState(false);
   const busyRef = useRef(false);
@@ -87,6 +91,12 @@ export function useQuickRoll(): QuickRoll {
             ok.push(name);
           } else {
             failed.push({ name, error: errorText(r.reason) });
+            // The server says GM Actions are off whatever the page last heard: show it as off.
+            if (r.reason instanceof ApiError && r.reason.code === 'gm-actions-disabled') {
+              queryClient.setQueryData<DashboardSettings | null>(SETTINGS_KEY, old =>
+                old ? { ...old, gmActionsEnabled: false } : { gmActionsEnabled: false }
+              );
+            }
           }
         });
       } finally {

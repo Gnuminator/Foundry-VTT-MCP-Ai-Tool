@@ -144,7 +144,7 @@ describe('GameEventHub.wait', () => {
     expect(r.truncated).toBe(true);
     expect(r.latestMs).toBe(T0 + 50);
     // The next call starts exactly at event 51.
-    const next = await hub.wait({ sinceMs: r.latestMs ?? 0, timeoutMs: 1000 });
+    const next = await hub.wait({ sinceMs: r.latestMs, timeoutMs: 1000 });
     expect(next.events).toHaveLength(10);
     expect(next.events[0].timestampMs).toBe(1050);
     expect(next.truncated).toBe(false);
@@ -153,7 +153,7 @@ describe('GameEventHub.wait', () => {
   it('keeps the cursor on the backend clock when event clocks disagree', async () => {
     hub.publishSessionEvents([ev(10_000, 'damage')]);
     const first = await hub.wait({ sinceMs: 0, timeoutMs: 1000 });
-    const cursor = first.latestMs ?? 0;
+    const cursor = first.latestMs;
     // A play-log turn stamped by the Foundry server clock, older than the session event.
     hub.publishPlayRecords([turnRecord('k9', 9000, 1, 0)]);
     const r = await hub.wait({ sinceMs: cursor, timeoutMs: 1000 });
@@ -167,8 +167,52 @@ describe('GameEventHub.wait', () => {
     const first = await p;
     expect(first.latestMs).toBe(T0);
     hub.publishSessionEvents([ev(5, 'scene-change', null)]);
-    const r = await hub.wait({ sinceMs: first.latestMs ?? 0, timeoutMs: 1000 });
+    const r = await hub.wait({ sinceMs: first.latestMs, timeoutMs: 1000 });
     expect(r.events.map(e => e.eventType)).toEqual(['scene-change']);
+  });
+
+  it('flags a gap when the cursor is older than the oldest event the ring kept', async () => {
+    hub.publishSessionEvents([ev(1, 'scene-change', null)]);
+    const first = await hub.wait({ sinceMs: 0, timeoutMs: 1000 });
+    expect(first.gap).toBeUndefined();
+    hub.publishSessionEvents(Array.from({ length: 600 }, (_, i) => ev(i + 2)));
+    const stale = await hub.wait({ sinceMs: first.latestMs, timeoutMs: 1000 });
+    expect(stale.gap).toBe(true);
+    expect(stale.events).toHaveLength(50);
+  });
+
+  it('keeps the gap flag when an event wakes a waiting call', async () => {
+    hub.publishSessionEvents(Array.from({ length: 600 }, (_, i) => ev(i + 1)));
+    const p = hub.wait({ sinceMs: T0 - 1, eventTypes: ['death'], timeoutMs: 5000 });
+    hub.publishSessionEvents([ev(9000, 'death')]);
+    const r = await p;
+    expect(r.endedBy).toBe('event');
+    expect(r.gap).toBe(true);
+  });
+
+  it('keeps the gap flag on a timeout', async () => {
+    hub.publishSessionEvents(Array.from({ length: 600 }, (_, i) => ev(i + 1)));
+    const p = hub.wait({ sinceMs: T0 - 1, eventTypes: ['death'], timeoutMs: 1000 });
+    await vi.advanceTimersByTimeAsync(1000);
+    expect((await p).gap).toBe(true);
+  });
+
+  it("never wakes on the AI's own changes and roll requests", async () => {
+    const p = hub.wait({ timeoutMs: 1000 });
+    hub.publishSessionEvents([ev(1, 'gm-change', null), ev(2, 'roll-request', null)]);
+    expect(hub.waiterCount).toBe(1);
+    hub.publishSessionEvents([ev(3, 'damage')]);
+    expect((await p).events.map(e => e.eventType)).toEqual(['damage']);
+  });
+
+  it('flags no gap for a cursor inside the ring, and none for a wait without one', async () => {
+    hub.publishSessionEvents(Array.from({ length: 600 }, (_, i) => ev(i + 1)));
+    const p = hub.wait({ timeoutMs: 1000 });
+    await vi.advanceTimersByTimeAsync(1000);
+    expect((await p).gap).toBeUndefined();
+    const all = await hub.wait({ sinceMs: T0 + 590, timeoutMs: 1000 });
+    expect(all.gap).toBeUndefined();
+    expect(all.events.length).toBeGreaterThan(0);
   });
 
   it('refuses unknown event types and lists the known ones', () => {

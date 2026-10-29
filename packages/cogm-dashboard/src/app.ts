@@ -608,7 +608,9 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
   }
   // A page load is a few requests a minute; this only stops a runaway loop on the file reads.
   // The limiter is the library's so that CodeQL and the next reader recognise it; one bucket per
-  // client address (the dashboard may sit behind a proxy, so the forwarded-for check is off).
+  // peer address. Behind the Cloudflare tunnel that is one bucket for the whole tunnel (cloudflared
+  // connects from this host), which is fine at these sizes. Do not turn on `trust proxy` to "fix"
+  // it: a client could then pick its own bucket with X-Forwarded-For, so the check stays off.
   const pageLimit = rateLimit({
     windowMs: 10_000,
     limit: 1000,
@@ -650,7 +652,7 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
   // one address, so the assets get their own, much larger bucket than the pages above.
   const assetLimit = rateLimit({
     windowMs: 10_000,
-    limit: 20_000,
+    limit: 5_000,
     standardHeaders: false,
     legacyHeaders: false,
     message: 'Too many requests',

@@ -5,7 +5,9 @@ description: Guides for a GM running a game with Foundry AI Tool, written for so
 
 # GM guides
 
-**New to running Foundry?** Spend [your first hour as GM](first-hour.md) on a set reading order.
+**Start with one page:** [First 15 minutes](first-15-minutes.md). It is the one to read first.
+
+**New to running Foundry?** Then spend [your first hour as GM](first-hour.md) on a set reading order.
 
 **On a new PC:** first [connect Claude Desktop to the server](connect-claude-desktop.md).
 
@@ -18,6 +20,7 @@ play.
 
 | Page                                                              | What it is for                                                                                 |
 | ----------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| [First 15 minutes](first-15-minutes.md)                           | The one page to read first: what this is, four small steps, what to ignore for now.            |
 | [Your first hour as GM](first-hour.md)                            | A set reading order: Foundry's own guides for the basics, our pages for the tool.              |
 | [Getting started](getting-started.md)                             | What the tool is, its parts, how they fit together, a glossary, and today's setup.             |
 | [The dashboard](dashboard.md)                                     | Every panel and button on the dashboard, what it does and when to use it.                      |

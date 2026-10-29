@@ -58,8 +58,9 @@ this page; they are on the old dashboard.
 ### My character, one page per player
 
 **Player links** (in Advanced) gives each player a private link to `/me`: their own character
-sheets, read-only and refreshed during play, in three views: **At the table** (the dashboard
-theme), **Paper 2024** and **Paper 2014** (the printed sheet's order, ready to print). A page shows
+sheets, read-only and refreshed during play, in four views: **At the table** (the dashboard
+theme), **Paper 2024** and **Paper 2014** (the printed sheet's order, ready to print) and **Paper
+night** (a sheet with write-in boxes for a table that plays on paper). A page shows
 only the actors that player's Foundry user owns. The key travels in a request header, never in a
 logged address; a new link turns the old one off. The sheet comes from the module's read-only
 `characterSheet` query through the bridge's control method `character_sheet` (never an MCP tool),

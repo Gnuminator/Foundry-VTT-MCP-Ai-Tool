@@ -521,7 +521,7 @@ Parameters:
 
 ### wait-for-game-event
 
-Wait for the next game event instead of polling get-recent-events. Returns when a matching event is logged (a few seconds after it happens), or empty on timeout: call again with sinceTimestamp = the returned latestTimestamp so nothing is missed.
+Wait for the next game event instead of polling get-recent-events. Returns when a matching event is logged (a few seconds after it happens), or empty on timeout: call again with sinceTimestamp = the returned latestTimestamp so nothing is missed. gap:true = older events were dropped; read get-recent-events.
 
 Kind: read-only. Title: Wait for a game event.
 

@@ -119,3 +119,10 @@ tools/gm-coach/dist/
 
 # Storybook build (npm run build-storybook in the dashboard package)
 storybook-static/
+
+# The wiki, staged by scripts/wiki/stage.mjs (Astro Starlight)
+docs/wiki/src/content/docs/
+docs/wiki/src/assets/
+docs/wiki/src/sidebar.generated.json
+docs/wiki/public/
+docs/wiki/.astro/

@@ -12,6 +12,7 @@ import {
   turnLine,
   turnStatus,
 } from './player-me.js';
+import { sessionPhase, splitHandouts } from './player-session.js';
 import { applyTheme, currentMist, loadTheme, setMist } from './theme.js';
 
 // Optional player token (only if the deployment sets PLAYER_DASHBOARD_TOKEN).
@@ -49,6 +50,9 @@ const elScene = $('scene');
 const elCombat = $('combat');
 const elFeed = $('feed');
 const elHandouts = $('handouts');
+const elRecap = $('recap');
+const elQuests = $('quests');
+const elWrap = $('wrap');
 const elWho = $('who');
 const elWhoName = $('who-name');
 const elWhoChange = $('who-change');
@@ -277,6 +281,7 @@ function renderState(s) {
     ? `${s.world.title}${s.world.systemId ? ' · ' + s.world.systemId : ''}`
     : '—';
   elScene.textContent = s.scene ? `· ${s.scene}${sceneLook(s.sceneEnvironment)}` : '';
+  elWrap.dataset.phase = sessionPhase(s);
   renderCombat(s.combat);
   renderFeed(s.events);
 }
@@ -292,20 +297,24 @@ function visibleHandouts(handouts) {
   return (handouts || []).filter(h => !Array.isArray(h.players) || (me && h.players.includes(me)));
 }
 
+function handoutHtml(h) {
+  // `html` was rebuilt server-side from an allowlist (no attributes, no scripts).
+  return `<details class="handout" data-handout="${escape(h.id)}"><summary data-track="player.handouts.open">${escape(h.title)}${h.isNew ? ' <span class="handout-new">New</span>' : ''}${Array.isArray(h.players) ? ' <span class="handout-private">just for you</span>' : ''}</summary>
+        <div class="content">${h.html}</div></details>`;
+}
+
+function fill(el, list, emptyText) {
+  el.innerHTML = list.length
+    ? list.map(handoutHtml).join('')
+    : `<div class="empty">${emptyText}</div>`;
+}
+
 function renderHandouts(handouts) {
   lastHandouts = Array.isArray(handouts) ? handouts : [];
-  const shown = visibleHandouts(lastHandouts);
-  if (shown.length === 0) {
-    elHandouts.innerHTML = '<div class="empty">Nothing revealed yet.</div>';
-    return;
-  }
-  // `html` was rebuilt server-side from an allowlist (no attributes, no scripts).
-  elHandouts.innerHTML = shown
-    .map(
-      h => `<details class="handout" data-handout="${escape(h.id)}"><summary data-track="player.handouts.open">${escape(h.title)}${h.isNew ? ' <span class="handout-new">New</span>' : ''}${Array.isArray(h.players) ? ' <span class="handout-private">just for you</span>' : ''}</summary>
-        <div class="content">${h.html}</div></details>`
-    )
-    .join('');
+  const { recap, quests, rest } = splitHandouts(visibleHandouts(lastHandouts));
+  fill(elRecap, recap ? [recap] : [], 'No recap yet.');
+  fill(elHandouts, rest, 'Nothing revealed yet.');
+  fill(elQuests, quests, 'No quests yet.');
 }
 
 function reportSeen(handoutId) {
@@ -319,14 +328,16 @@ function reportSeen(handoutId) {
   }).catch(() => reportedSeen.delete(handoutId));
 }
 
-elHandouts.addEventListener(
-  'toggle',
-  e => {
-    const box = e.target;
-    if (box && box.open && box.dataset && box.dataset.handout) reportSeen(box.dataset.handout);
-  },
-  true
-);
+for (const el of [elHandouts, elRecap, elQuests]) {
+  el.addEventListener(
+    'toggle',
+    e => {
+      const box = e.target;
+      if (box && box.open && box.dataset && box.dataset.handout) reportSeen(box.dataset.handout);
+    },
+    true
+  );
+}
 
 function connect() {
   const es = new EventSource(streamUrl);

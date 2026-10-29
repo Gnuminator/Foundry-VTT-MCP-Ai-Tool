@@ -71,6 +71,61 @@
           grid-template-columns: 1fr;
         }
       }
+      /* I-111: the order follows the session. Live: the fight, the feed, then the handouts.
+         Between sessions: the recap, the handouts and quests first, the live cards last. The
+         first cards (who, you) keep the top either way; your sheet link is at the top between
+         sessions and last during one. */
+      .wrap > * {
+        order: 10;
+      }
+      #who-picker {
+        order: 0;
+      }
+      #mine {
+        order: 1;
+      }
+      #card-sheet {
+        order: 2;
+      }
+      .wrap[data-phase='live'] #card-combat {
+        order: 11;
+      }
+      .wrap[data-phase='live'] #card-feed {
+        order: 12;
+      }
+      .wrap[data-phase='live'] #card-handouts {
+        order: 13;
+      }
+      .wrap[data-phase='live'] #card-recap {
+        order: 14;
+      }
+      .wrap[data-phase='live'] #card-quests {
+        order: 15;
+      }
+      .wrap[data-phase='between'] #card-recap {
+        order: 11;
+      }
+      .wrap[data-phase='between'] #card-handouts {
+        order: 12;
+      }
+      .wrap[data-phase='between'] #card-quests {
+        order: 13;
+      }
+      .wrap[data-phase='between'] #card-feed {
+        order: 14;
+      }
+      .wrap[data-phase='between'] #card-combat {
+        order: 15;
+      }
+      .wrap[data-phase='live'] #card-sheet {
+        order: 16;
+      }
+      .sheet-link a {
+        display: block;
+        padding: 10px 6px;
+        color: var(--pc);
+        font-weight: 600;
+      }
       .card {
         background: var(--panel);
         border: 1px solid var(--line);
@@ -304,7 +359,7 @@
       <span id="status" class="badge">connecting…</span>
     </header>
 
-    <div class="wrap">
+    <div class="wrap" id="wrap" data-phase="live">
       <section class="card" id="who-picker" hidden style="grid-column: 1 / -1">
         <h2>Who are you?</h2>
         <div id="who-list" class="body"></div>
@@ -318,17 +373,30 @@
           <div id="mine-chars"></div>
         </div>
       </section>
-      <section class="card">
+      <section class="card" id="card-sheet" style="grid-column: 1 / -1">
+        <div class="body sheet-link">
+          <a href="/me" data-track="player.mine.sheet">Open your character sheet</a>
+        </div>
+      </section>
+      <section class="card" id="card-combat">
         <h2>Combat order</h2>
         <div id="combat" class="body"><div class="empty">No active combat.</div></div>
       </section>
-      <section class="card">
+      <section class="card" id="card-feed">
         <h2>Session feed</h2>
         <div id="feed" class="body"><div class="empty">Waiting for events…</div></div>
       </section>
-      <section class="card">
+      <section class="card" id="card-recap">
+        <h2>Last recap</h2>
+        <div id="recap" class="body"><div class="empty">No recap yet.</div></div>
+      </section>
+      <section class="card" id="card-handouts">
         <h2>Handouts</h2>
         <div id="handouts" class="body"><div class="empty">Nothing revealed yet.</div></div>
+      </section>
+      <section class="card" id="card-quests">
+        <h2>Quests</h2>
+        <div id="quests" class="body"><div class="empty">No quests yet.</div></div>
       </section>
     </div>
 

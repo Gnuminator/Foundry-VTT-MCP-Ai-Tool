@@ -90,6 +90,7 @@ export class PlayerViewSource {
   private sessionSinceValue: number | null = null;
   /** The newest session end seen while none was open (what "new" counts from during one). */
   private lastEndedMs: number | null = null;
+  private sessionOpenValue: boolean | null = null;
   private sessionPolledAt = 0;
   private timer: NodeJS.Timeout | null = null;
   private inFlight = false;
@@ -127,6 +128,16 @@ export class PlayerViewSource {
    */
   get sessionSinceMs(): number | null {
     return this.sessionSinceValue;
+  }
+
+  /** Whether a session is open per the marker; null until the marker has been read. */
+  get sessionOpen(): boolean | null {
+    return this.sessionOpenValue;
+  }
+
+  /** When the last session ended (ms), as far as this process has seen; null if none seen. */
+  get lastSessionEndedMs(): number | null {
+    return this.lastEndedMs;
   }
 
   /** True once `get-player-handouts` has answered at least once. */
@@ -173,6 +184,10 @@ export class PlayerViewSource {
         const marker = sessionMarker(session);
         if (marker && !marker.open && marker.endedAtMs !== null)
           this.lastEndedMs = marker.endedAtMs;
+        if (marker) {
+          changed ||= marker.open !== this.sessionOpenValue;
+          this.sessionOpenValue = marker.open;
+        }
         const since = sessionSince(session, this.lastEndedMs);
         changed ||= since !== this.sessionSinceValue;
         this.sessionSinceValue = since;

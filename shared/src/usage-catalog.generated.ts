@@ -1194,7 +1194,7 @@ export const USAGE_CATALOG: readonly UsageCatalogEntry[] = [
     name: 'player.mine.sheet',
     kind: 'action',
     surface: 'player',
-    file: 'packages/cogm-dashboard/public/player.js',
+    file: 'packages/cogm-dashboard/public/player.html',
   },
   {
     name: 'player.who.change',

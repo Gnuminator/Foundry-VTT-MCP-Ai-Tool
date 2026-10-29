@@ -48,6 +48,10 @@ const CANARY = {
   npcActor: 'CANARY-NPC-ACTOR-ID',
   /** A scene mood preset name or free text the module must never forward as time of day or weather. */
   moodName: 'CANARY-SCENE-MOOD-NAME',
+  /** I-111: the session marker carries more than players get (names, notes); only open/ended pass. */
+  sessionNote: 'CANARY-SESSION-MARKER-NOTE',
+  /** A GM-only section inside a revealed recap page. */
+  recapSecret: 'CANARY-RECAP-GM-SECRET',
 } as const;
 
 /** An enabled co-GM whose every answer is a canary: AI output is GM-only. */
@@ -105,9 +109,25 @@ const fakeClient = {
         activeUsers: [{ name: CANARY.gmName, isGM: true }],
       },
       'get-player-visibility': visibility,
+      'get-play-session': {
+        open: false,
+        startedAt: '2026-09-28T18:00:00.000Z',
+        endedAt: '2026-09-28T22:00:00.000Z',
+        note: CANARY.sessionNote,
+        gmName: CANARY.gmName,
+      },
       'get-player-handouts': {
         revealedUuids: [REVEALED],
         handouts: [
+          {
+            id: 'cccccccccccccccc',
+            uuid: REVEALED,
+            title: 'Recap',
+            revealedAt: '2026-09-28T22:05:00.000Z',
+            html:
+              '<p>The party crossed the bridge.</p>' +
+              `<section class="secret"><p>${CANARY.recapSecret}</p></section>`,
+          },
           {
             id: 'bbbbbbbbbbbbbbbb',
             uuid: REVEALED,
@@ -414,6 +434,10 @@ describe('canary suite: nothing GM-only reaches a player', () => {
       );
       expect(state.combat.combatants.map(c => c.name)).toEqual(['Hooded figure']);
       expect(res.text).toContain('the map'); // a link to a revealed page keeps its label
+      // I-111: the session flag is the open bit and the end time, nothing else of the marker.
+      const session = (JSON.parse(res.text) as { session: unknown }).session;
+      expect(session).toEqual({ open: false, endedAt: '2026-09-28T22:00:00.000Z' });
+      expect(res.text).toContain('The party crossed the bridge.');
     }
   });
 
@@ -461,7 +485,7 @@ describe('canary suite: nothing GM-only reaches a player', () => {
   });
 
   it('the player page and script carry no GM data, and the page has a strict CSP', async () => {
-    for (const path of ['/player', '/player.html', '/player.js']) {
+    for (const path of ['/player', '/player.html', '/player.js', '/player-session.js']) {
       const res = await get(path);
       expect(res.status).toBe(200);
       expect(leaks(res.text)).toEqual([]);

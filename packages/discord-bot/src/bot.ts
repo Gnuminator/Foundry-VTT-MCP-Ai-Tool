@@ -36,6 +36,11 @@ import {
 import { createSpaceStatusReader } from './space-status.js';
 import { DEFAULT_BACKUP_STALE_DAYS, createBackupPullReader } from './backup-pull-status.js';
 import { BackupPullNotifier } from './backup-pull-notify.js';
+import {
+  SESSION_POST_INTERVAL_MS,
+  SessionPostNotifier,
+  createSessionFlagReader,
+} from './session-post.js';
 
 export const RECORD_COMMAND = new SlashCommandBuilder()
   .setName('record')
@@ -76,6 +81,7 @@ export class RecorderBot {
   });
   private active: Active | undefined;
   private spaceTimer: NodeJS.Timeout | undefined;
+  private sessionPostTimer: NodeJS.Timeout | undefined;
   /** DM to the owner; set once the owner is known. */
   private notifyOwner: ((text: string) => Promise<boolean>) | undefined;
 
@@ -93,6 +99,7 @@ export class RecorderBot {
         where => log.info(`Registered /record ${where}`),
         (err: unknown) => log.error('Registering /record failed', err)
       );
+      this.startSessionPost(c);
       void this.startSpaceNotices(c)
         .catch((err: unknown) => log.error('Space notices could not start', err))
         .then(() => this.recoverOrphans());
@@ -173,6 +180,60 @@ export class RecorderBot {
     this.spaceTimer.unref();
     log.info(
       `Space and backup copy notices: checking every ${SPACE_CHECK_INTERVAL_MS / 60000} minutes (backup copies are stale after ${this.config.backupStaleDays ?? DEFAULT_BACKUP_STALE_DAYS} days).`
+    );
+  }
+
+  /**
+   * I-111: when a play session ends, post a link to the player page in the configured channel
+   * (session-post.ts). Off unless DISCORD_SESSION_POST_CHANNEL_ID is set.
+   */
+  private startSessionPost(c: Client<true>): void {
+    const channelId = this.config.sessionPostChannelId;
+    if (!channelId) return;
+    const dashboardUrl = this.config.dashboardUrl ?? 'http://127.0.0.1:3100';
+    const pageUrl = this.config.playerPageUrl;
+    if (!pageUrl) {
+      log.info(
+        'Session post: off, because FOUNDRY_AI_PLAYER_PAGE_URL is not set (the link players can open).'
+      );
+      return;
+    }
+    const read = createSessionFlagReader({
+      dashboardUrl,
+      token: this.config.playerToken,
+      log: log.info,
+    });
+    const failureLog = new LogThrottle();
+    const notifier = new SessionPostNotifier({
+      pageUrl,
+      send: async (text): Promise<boolean> => {
+        try {
+          const channel = await c.channels.fetch(channelId);
+          if (!channel?.isSendable()) throw new Error('not a channel the bot can post in');
+          await channel.send(text);
+          failureLog.reset();
+          return true;
+        } catch (err) {
+          if (failureLog.shouldLog()) {
+            log.error(
+              'Session post: could not post in the channel (will retry; logged at most once per 24 hours)',
+              err
+            );
+          }
+          return false;
+        }
+      },
+    });
+    const tick = (): void => {
+      void read()
+        .then(flag => notifier.check(flag))
+        .catch((err: unknown) => log.error('Session post check failed', err));
+    };
+    tick();
+    this.sessionPostTimer = setInterval(tick, SESSION_POST_INTERVAL_MS);
+    this.sessionPostTimer.unref();
+    log.info(
+      `Session post: on, checking ${dashboardUrl} every ${SESSION_POST_INTERVAL_MS / 60000} minutes.`
     );
   }
 
@@ -326,6 +387,7 @@ export class RecorderBot {
 
   async shutdown(): Promise<void> {
     if (this.spaceTimer) clearInterval(this.spaceTimer);
+    if (this.sessionPostTimer) clearInterval(this.sessionPostTimer);
     if (this.active) log.info(await this.stop('shutdown'));
     await this.client.destroy();
   }

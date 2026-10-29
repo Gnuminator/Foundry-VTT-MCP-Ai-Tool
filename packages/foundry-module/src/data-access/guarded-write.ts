@@ -43,6 +43,8 @@ export interface GuardedUpdateOp {
   uuid: string;
   changes: Record<string, unknown>;
   unset?: string[];
+  /** A damage plan's dnd5e damage type; carried in the write's marker, never written. */
+  damageType?: string;
 }
 
 /** Create a document: top-level (`documentName` only) or embedded (`parentUuid`). */

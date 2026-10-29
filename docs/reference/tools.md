@@ -528,7 +528,7 @@ Parameters:
 
 - `eventTypes` (array of string): Event types, e.g. ["combat-turn"], ["scene-change"], ["roll","damage-roll"]. Empty = any.
 - `actorName` (string): Actor name filter (partial match).
-- `sinceTimestamp` (string): ISO time; matching events after it return at once. Omit = only new ones.
+- `sinceTimestamp` (string): The latestTimestamp of the previous call (not an event time); matching events after it return at once. Omit = only new ones.
 - `timeoutSeconds` (integer): Default 25, max 45.
 
 ### plan-actor-change

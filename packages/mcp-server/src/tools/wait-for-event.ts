@@ -49,7 +49,7 @@ export class WaitForEventTools {
             sinceTimestamp: {
               type: 'string',
               description:
-                'ISO time; matching events after it return at once. Omit = only new ones.',
+                'The latestTimestamp of the previous call (not an event time); matching events after it return at once. Omit = only new ones.',
             },
             timeoutSeconds: {
               type: 'integer',

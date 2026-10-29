@@ -22,9 +22,9 @@
  * - How many slots: HEAVY_LOCK_SLOTS, else `slots` in ~/.foundry-ai-tool/heavy-lock.json
  *   (HEAVY_LOCK_CONFIG moves it), else 3. The file is read on every poll, so a change applies to
  *   the next run and to runs already waiting, with no restart of Claude Desktop.
- * - Free RAM: the first slot is always free to take; another one only while the PC has at least
- *   `minFreeGb` (default 5) available after counting `peakGb` (default 3) for each run that took a
- *   slot in the last 90 seconds and has not reached its peak yet. Both can be set in the file.
+ * - Free RAM: the first slot is always free to take; another one only while the PC has `peakGb`
+ *   free for each run that holds a slot, plus `minFreeGb` for everything else. Both can be set in
+ *   the file (defaults below, from a measured green run).
  * - Re-entrant through the environment: the holder sets HEAVY_LOCK_HELD for its children, so
  *   `green` holding the lock for a step that runs `npm run lint:ratchet` does not wait on itself.
  * - It never blocks a run for ever: after 3 hours of waiting (HEAVY_LOCK_MAX_WAIT_MIN) the run
@@ -55,10 +55,8 @@ const REMIND_MS = 60 * 1000;
 /** A waiter touches its ticket this often; a ticket untouched for TICKET_STALE_MS is dropped. */
 const TICKET_TOUCH_MS = 30 * 1000;
 const TICKET_STALE_MS = 5 * 60 * 1000;
-/** A run that took a slot this recently has probably not reached its RAM peak yet. */
-const RAMP_MS = 90 * 1000;
 const GB = 2 ** 30;
-export const DEFAULTS = { slots: 3, minFreeGb: 5, peakGb: 3, maxWaitMin: 180 };
+export const DEFAULTS = { slots: 3, minFreeGb: 3, peakGb: 4, maxWaitMin: 180 };
 
 /** @param {Record<string, string | undefined>} [env] */
 export function lockDir(env = process.env) {
@@ -262,9 +260,10 @@ export function acquire(label, o = {}) {
       const tickets = liveTickets(qdir, t, alive);
       const place = tickets.indexOf(name);
       const free = freemem();
-      // Runs that took a slot in the last RAMP_MS are counted at their expected peak.
-      const ramping = held.filter(h => h.state !== 'unknown' && t - (h.state.since ?? h.state.start) < RAMP_MS).length;
-      const roomGb = (free - ramping * cfg.peakGb * GB) / GB;
+      // Every holder keeps room for its expected peak: a green holds for its whole run and peaks late
+      // (the test suites), so RAM free while it type-checks says little. Counting a holder that is
+      // at its peak already errs on the safe side.
+      const roomGb = free / GB - held.length * cfg.peakGb;
       const slotFree = held.length < cfg.slots;
       const ramOk = held.length === 0 || roomGb >= cfg.minFreeGb;
       // place < 0: the ticket went missing (cleared by hand, say); go on as if first in line.
@@ -345,7 +344,7 @@ export function acquire(label, o = {}) {
         const why = !slotFree
           ? `${held.length} of ${cfg.slots} slots in use (slots from ${cfg.slotsFrom})`
           : !ramOk
-            ? `${gb(free)} GB free, another run needs ${cfg.minFreeGb} GB`
+            ? `${gb(free)} GB free, another run needs ${held.length * cfg.peakGb + cfg.minFreeGb} GB`
             : 'runs ahead in line';
         log(`heavy-lock: ${label} waits for ${who}; number ${Math.max(place, 0) + 1} in line, ${why}`);
         lastRemind = t;
@@ -410,7 +409,7 @@ export function status(env = process.env, now = Date.now(), alive = pidAlive, fr
   const dir = lockDir(env);
   const cfg = readConfig(env);
   const lines = [
-    `settings: ${cfg.slots} slots (from ${cfg.slotsFrom === 'file' ? configPath(env) : cfg.slotsFrom}), another run needs ${cfg.minFreeGb} GB free, ${gb(freemem())} GB free now`,
+    `settings: ${cfg.slots} slots (from ${cfg.slotsFrom === 'file' ? configPath(env) : cfg.slotsFrom}), another run needs ${cfg.peakGb} GB per running one plus ${cfg.minFreeGb} GB free, ${gb(freemem())} GB free now`,
   ];
   /** @type {Map<number, Owner>} */
   const owners = new Map();

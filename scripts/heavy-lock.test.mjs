@@ -9,7 +9,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { HELD_ENV, acquire, pidAlive, readConfig, resetGaveUp, status, withHeavyLock } from './heavy-lock.mjs';
+import { DEFAULTS, HELD_ENV, acquire, pidAlive, readConfig, resetGaveUp, status, withHeavyLock } from './heavy-lock.mjs';
 import { lockedCommand } from './drift-check.mjs';
 
 const script = fileURLToPath(new URL('./heavy-lock.mjs', import.meta.url));
@@ -172,7 +172,7 @@ test('withHeavyLock sets the held marker for the work and does not wait on itsel
 test('status lists the settings, free and held slots, and who waits', () => {
   const { dir, env } = fixture();
   const lines = status(env, Date.now(), pidAlive, () => 8 * GB);
-  assert.match(lines[0], /^settings: 1 slots \(from env\), another run needs 5 GB free, 8\.0 GB free now$/);
+  assert.match(lines[0], /^settings: 1 slots \(from env\), another run needs 4 GB per running one plus 3 GB free, 8\.0 GB free now$/);
   assert.deepEqual(lines.slice(1), ['slot-0: free']);
   const lock = acquire('s', { env, log: () => {} });
   lock.beat('typecheck');
@@ -223,7 +223,7 @@ test('settings: environment, then the file, then the defaults; a bad value falls
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'heavy-lock-test-'));
   const file = path.join(dir, 'heavy-lock.json');
   const env = { HEAVY_LOCK_CONFIG: file };
-  assert.deepEqual(readConfig(env), { slots: 3, slotsFrom: 'default', minFreeGb: 5, peakGb: 3, maxWaitMin: 180 });
+  assert.deepEqual(readConfig(env), { slots: 3, slotsFrom: 'default', ...DEFAULTS });
   fs.writeFileSync(file, JSON.stringify({ slots: 4, minFreeGb: 6, peakGb: 2.5, maxWaitMin: 30 }));
   assert.deepEqual(readConfig(env), { slots: 4, slotsFrom: 'file', minFreeGb: 6, peakGb: 2.5, maxWaitMin: 30 });
   assert.equal(readConfig({ ...env, HEAVY_LOCK_SLOTS: '2' }).slots, 2);
@@ -255,9 +255,10 @@ test('a slot count raised in the file reaches a run that is already waiting', ()
   second.release();
 });
 
-test('free RAM: a second slot waits while the PC is short, and counts a run that just started at its peak', () => {
+test('free RAM: another slot waits until there is room for the peak of every running holder plus the reserve', () => {
   const { env } = fixture({ HEAVY_LOCK_SLOTS: '2' });
-  let free = 4 * GB;
+  fs.writeFileSync(env.HEAVY_LOCK_CONFIG, JSON.stringify({ peakGb: 4, minFreeGb: 3 }));
+  let free = 2 * GB;
   const lines = [];
   const first = acquire('first', { env, log: () => {}, freemem: () => free });
   assert.equal(first.held, true, 'the first slot never waits for RAM');
@@ -268,15 +269,15 @@ test('free RAM: a second slot waits while the PC is short, and counts a run that
     freemem: () => free,
     sleep: () => {
       sleeps++;
-      // 7 GB free minus 3 GB for the run that just started is under 5 GB: still waiting.
-      if (sleeps === 2) free = 7 * GB;
-      if (sleeps === 4) free = 9 * GB;
+      // 6.5 GB free minus 4 GB for the running holder is under the 3 GB reserve: still waiting.
+      if (sleeps === 2) free = 6.5 * GB;
+      if (sleeps === 4) free = 7 * GB;
     },
   });
   assert.equal(second.held, true);
   assert.equal(sleeps, 4);
-  assert.ok(lines.some(l => /4\.0 GB free, another run needs 5 GB/.test(l)), lines.join('\n'));
-  assert.ok(lines.some(l => /got the lock .*slot 2 of 2, 9\.0 GB free/.test(l)), lines.join('\n'));
+  assert.ok(lines.some(l => /2\.0 GB free, another run needs 7 GB/.test(l)), lines.join('\n'));
+  assert.ok(lines.some(l => /got the lock .*slot 2 of 2, 7\.0 GB free/.test(l)), lines.join('\n'));
   first.release();
   second.release();
 });

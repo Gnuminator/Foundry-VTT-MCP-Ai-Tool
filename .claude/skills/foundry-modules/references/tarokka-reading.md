@@ -2,7 +2,7 @@
 
 Verified on Foundry 14.368 / dnd5e 6.0.6, module 1.0.5, 2026-10-28 (test server B). Parts not clicked through are marked "(not verified)".
 
-**Verdict: keep.** Version 1.0.5 declares Foundry 11 to 14 (verified 14), has no dnd5e-specific code, and is the table-facing half of the reading: the dealing, face-down cards and one-by-one reveal at the table. Our own feature does not replace that; it stores, links and reveals text. The AI Tool reads the module only through its internal settings, which is the fragile part (1.x only), so pin the version.
+**Verdict: drop.** Replaced on 2026-10-29 (D-130) by our own Tarokka table in `foundry-mcp-bridge` (AI Tool toolbar group, "Tarokka table"; `packages/foundry-module/src/tarokka-table-window.ts`): place the five cards face down, flip one at a time, players see only flipped cards, cards drawn in CSS with optional pictures. The AI Tool no longer reads this module, so the notes below describe what it did, as a record of the behaviour we matched. Before the change, version 1.0.5 declared Foundry 11 to 14 (verified 14), had no dnd5e-specific code, and was the table-facing half of the reading.
 
 **For Danni's guides:** This is the card table for the Tarokka reading: you deal five cards face down and flip them one at a time while the players watch the same screen.
 

@@ -1,0 +1,3 @@
+### Obsidian (I-052 O6)
+
+- **Quest import from Obsidian:** a quest note in your `Prep` folder (`type: quest-prep`, empty `fvtt_uuid`) becomes a GM-only quest journal in Foundry. In Obsidian run "Import this quest prep note into Foundry", then confirm the plan in the dashboard. It is off until you switch on "AI Tool: Obsidian import (writes)" in the module settings, and Undo removes the journal. It is not offered to Claude as a tool (the plugin starts it through the dashboard), so the tool sets and their sizes are unchanged. Planning writes nothing to Foundry; the journal lands in the top level of the Journal tab. Importing the same note twice is refused until you undo the first or delete the journal.

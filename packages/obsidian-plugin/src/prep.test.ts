@@ -8,6 +8,7 @@ import {
   fillPrepNote,
   findPrepNote,
   isPrepType,
+  isQuestImportable,
   localDate,
   prepFileName,
   prepKindsFor,
@@ -40,6 +41,17 @@ const NPC_TEMPLATE = [
   '## What they know',
   '',
 ].join('\n');
+
+describe('isQuestImportable', () => {
+  it('is true only for a quest prep note without an fvtt_uuid', () => {
+    expect(isQuestImportable({ type: 'quest-prep' })).toBe(true);
+    expect(isQuestImportable({ type: 'quest-prep', fvtt_uuid: null })).toBe(true);
+    expect(isQuestImportable({ type: 'quest-prep', fvtt_uuid: '' })).toBe(true);
+    expect(isQuestImportable({ type: 'quest-prep', fvtt_uuid: 'JournalEntry.a' })).toBe(false);
+    expect(isQuestImportable({ type: 'npc-prep' })).toBe(false);
+    expect(isQuestImportable(undefined)).toBe(false);
+  });
+});
 
 describe('aiContextAllowed', () => {
   it('keeps a note out only on false, as a boolean or the text', () => {

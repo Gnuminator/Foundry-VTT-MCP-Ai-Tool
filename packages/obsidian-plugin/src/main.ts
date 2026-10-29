@@ -85,6 +85,7 @@ import {
   fillPrepNote,
   findPrepNote,
   isPrepType,
+  isQuestImportable,
   localDate,
   prepFileName,
   prepKindsFor,
@@ -249,6 +250,21 @@ export default class FoundryAiToolPlugin extends Plugin {
         const source = this.prepSourceFor(this.app.workspace.getActiveFile());
         if (!source) return false;
         if (!checking) this.pickPrepKind(source);
+        return true;
+      },
+    });
+
+    this.addCommand({
+      id: 'import-quest-note',
+      name: 'Import this quest prep note into Foundry (confirm in the dashboard)',
+      checkCallback: checking => {
+        const file = this.app.workspace.getActiveFile();
+        if (!file) return false;
+        const frontmatter = this.app.metadataCache.getFileCache(file)?.frontmatter as
+          | Record<string, unknown>
+          | undefined;
+        if (!isQuestImportable(frontmatter)) return false;
+        if (!checking) void this.importQuest(file);
         return true;
       },
     });
@@ -450,6 +466,29 @@ export default class FoundryAiToolPlugin extends Plugin {
       checkCallback: checking =>
         this.withActiveNote(checking, note => void this.reveal(note, action), true),
     });
+  }
+
+  private importing = false;
+
+  private async importQuest(file: TFile): Promise<void> {
+    if (this.importing) return;
+    this.importing = true;
+    try {
+      const { planId, summary } = await this.client.planQuestImport(file.path);
+      const link = planId ? planLink(this.settings.dashboardUrl, planId) : null;
+      if (link) window.open(link);
+      new Notice(
+        link
+          ? 'Plan made. Confirm it in the dashboard (it opened in your browser).'
+          : planId
+            ? 'Plan made. Open the dashboard and confirm it there.'
+            : summary || 'Done.'
+      );
+    } catch (error) {
+      new Notice(`Quest import: ${messageOf(error)}`);
+    } finally {
+      this.importing = false;
+    }
   }
 
   /** Flip `ai_context` on a prep note: Claude may read it, or may not. */

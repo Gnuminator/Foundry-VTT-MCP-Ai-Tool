@@ -36,6 +36,26 @@ const POSITION_SCHEMA = {
 
 const positionEnum = z.enum(TAROKKA_POSITIONS);
 
+/** Tool argument per position for a reading the GM picked by hand. */
+const CARD_FIELDS = {
+  tome: 'tomeCard',
+  holySymbol: 'holySymbolCard',
+  sunsword: 'sunswordCard',
+  ally: 'allyCard',
+  strahdLocation: 'strahdLocationCard',
+} as const;
+
+const CARD_PROPERTIES = Object.fromEntries(
+  TAROKKA_POSITIONS.map(position => [
+    CARD_FIELDS[position],
+    {
+      type: 'string',
+      description: `Card for ${position} when the GM picks the reading (all five or none), e.g. swords-7 or raven.`,
+      ...toolRef('tarokka-card', 'id'),
+    },
+  ])
+);
+
 /**
  * Tarokka tools (plan feature 1). All read-only: the plan-* tools return a
  * planId that `apply-planned-change` applies after the GM confirms. Needs the
@@ -61,7 +81,7 @@ export class TarokkaTools {
       {
         name: 'plan-tarokka-import',
         description:
-          'Plan storing a Tarokka reading in the bridge vault (GM-only, outside Foundry). source "auto" (default) takes the reading dealt in the tarokka-reading module when available, otherwise rolls one; "builtin-roll" always deals a fresh reading (3 common + 2 high cards, crypto random); "tarokka-reading" requires that module. A new reading archives the previous one; clear: true archives it and leaves none (undoable). Returns a planId: show the diff to the GM, then apply-planned-change.',
+          'Plan storing a Tarokka reading in the bridge vault (GM-only, outside Foundry). To store a reading the GM read by hand, pass all five cards (tomeCard, holySymbolCard, sunswordCard, allyCard, strahdLocationCard; common deck for the first three, high deck for the last two, no card twice): nothing is dealt and no module is needed. Otherwise source "auto" (default) takes the reading dealt in the tarokka-reading module when available, otherwise rolls one; "builtin-roll" always deals a fresh reading (3 common + 2 high cards, crypto random); "tarokka-reading" requires that module. A new reading archives the previous one; clear: true archives it and leaves none (undoable). Returns a planId: show the diff to the GM, then apply-planned-change.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -75,6 +95,7 @@ export class TarokkaTools {
               description:
                 'Archive the current reading, deal none. Leave out source and userId with clear.',
             },
+            ...CARD_PROPERTIES,
             userId: {
               type: 'string',
               description:
@@ -163,10 +184,20 @@ export class TarokkaTools {
         source: z.enum(['auto', 'builtin-roll', 'tarokka-reading']).optional(),
         userId: z.string().min(1).optional(),
         clear: z.boolean().optional(),
+        tomeCard: z.string().max(40).optional(),
+        holySymbolCard: z.string().max(40).optional(),
+        sunswordCard: z.string().max(40).optional(),
+        allyCard: z.string().max(40).optional(),
+        strahdLocationCard: z.string().max(40).optional(),
       })
       .parse(args ?? {});
+    const picked = TAROKKA_POSITIONS.flatMap(position => {
+      const cardId = params[CARD_FIELDS[position]];
+      return cardId ? [[position, cardId] as const] : [];
+    });
     return this.logged('import', () =>
       this.tarokka.planImport({
+        ...(picked.length > 0 ? { cards: Object.fromEntries(picked) } : {}),
         ...(params.clear ? { clear: true } : {}),
         ...(params.source ? { source: params.source } : {}),
         ...(params.userId ? { userId: params.userId } : {}),

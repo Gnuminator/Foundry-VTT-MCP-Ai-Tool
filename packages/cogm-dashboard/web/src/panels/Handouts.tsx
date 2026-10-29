@@ -12,6 +12,7 @@ import { api, callTool, errorText } from '../lib/api';
 import { failCode, useGuardedChange } from '../lib/guarded';
 import { canMoveTo, moveTarget } from '../lib/handoutQueue';
 import { HANDOUTS_KEY } from '../lib/stream';
+import { handoutsSwitchOff, type FeatureList } from '../lib/switchOff';
 import { usage } from '../lib/usage';
 import { Button, QueryState } from '../ui';
 
@@ -63,6 +64,8 @@ interface HandoutsState {
   sceneNames: Record<string, string>;
   activeSceneId: string | null;
   players: PlayerName[];
+  /** The sentence to show when "AI Tool: Handouts (writes)" or "Allow Write Operations" is off. */
+  switchOff: string | null;
 }
 
 /** The unqueue answer (QueueChangeView): no plan, nothing to apply. */
@@ -78,10 +81,11 @@ const list = <T,>(x: T[] | null | undefined): T[] => (Array.isArray(x) ? x : [])
  * "Reveal next" takes a page queued for any scene, and without names the ticks show user ids.
  */
 async function loadHandouts(): Promise<HandoutsState> {
-  const [view, scenes, players] = await Promise.all([
+  const [view, scenes, players, features] = await Promise.all([
     callTool<{ pages?: RevealedPage[]; queue?: QueuedPage[] } | null>('list-revealed-pages', {}),
     callTool<Scene[] | { scenes?: Scene[] } | null>('list-scenes', {}).catch(() => []),
     api<PlayerName[]>('/api/player/names').catch((): PlayerName[] => []),
+    api<FeatureList>('/api/features').catch((): FeatureList | null => null),
   ]);
   const sceneList = Array.isArray(scenes) ? scenes : list(scenes?.scenes);
   return {
@@ -90,6 +94,7 @@ async function loadHandouts(): Promise<HandoutsState> {
     sceneNames: Object.fromEntries(sceneList.map(s => [s.id, s.name])),
     activeSceneId: sceneList.find(s => s.active)?.id ?? null,
     players: list(players),
+    switchOff: handoutsSwitchOff(features),
   };
 }
 
@@ -436,6 +441,11 @@ export function HandoutsDrawer({
         </>
       }
     >
+      {s?.switchOff && (
+        <p className="preflight-summary pf-warn" id="handouts-switch-off" role="status">
+          {s.switchOff}
+        </p>
+      )}
       <h3 className="preflight-h">Queue</h3>
       <ul className="preflight-list" id="handouts-queue" aria-label="Queue" ref={queueRef}>
         {queueBlock}

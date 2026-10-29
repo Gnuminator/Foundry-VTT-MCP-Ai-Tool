@@ -394,6 +394,7 @@ export async function buildReport({ root, now, days, prs = null, usageLog = null
 
   const rows = [...byDay.values()];
   const total = newDay('total');
+  let advisorPerPr = null;
   total.sessions = qualifying.length;
   Object.assign(total, sessionStats(qualifying));
   total.tokens = sum(rows, d => d.tokens);
@@ -402,6 +403,7 @@ export async function buildReport({ root, now, days, prs = null, usageLog = null
   if (prs) {
     total.prs = sum(rows, d => d.prs);
     total.tokensPerPr = total.prs ? total.tokens / total.prs / 1e6 : null;
+    advisorPerPr = total.prs ? advisorCalls / total.prs : null;
   }
   const covered = rows.filter(d => d.weeklyPoints !== null);
   total.coveredDays = covered.length;
@@ -419,6 +421,7 @@ export async function buildReport({ root, now, days, prs = null, usageLog = null
     total,
     models,
     advisorCalls,
+    advisorPerPr,
     targets: targetsFor(total, days),
   };
 }
@@ -507,7 +510,11 @@ export function formatReport(report, notes = []) {
     row({ ...report.total, day: 'Window' }),
     formatTargets(report.targets),
     formatModels(report.models),
-    `Advisor calls (main sessions): ${report.advisorCalls}`,
+    `Advisor calls (main sessions): ${report.advisorCalls}${
+      Number.isFinite(report.advisorPerPr)
+        ? ` (${num(report.advisorPerPr, 1)} per merged PR, target 1)`
+        : ''
+    }`,
     ...notes.map(n => `Note: ${n}`),
   ];
   return lines.join('\n');

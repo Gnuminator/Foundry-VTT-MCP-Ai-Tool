@@ -55,7 +55,9 @@ async function start(
       ).then(r =>
         buttonId === 'writesoff0000000'
           ? Promise.reject(
-              new Error('Player roll failed: Write operations are disabled in the module settings')
+              new Error(
+                'Player roll failed: Write operations are disabled in the module settings. In Foundry, open Game Settings, Configure Settings, AI Tool and turn on "Allow Write Operations".'
+              )
             )
           : r
       );

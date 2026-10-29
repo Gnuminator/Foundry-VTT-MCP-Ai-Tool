@@ -148,7 +148,8 @@ Foundry's "Disable Canvas", does not have). It is a first slice: no clicking, no
    where the canvas exists, so that report is the baseline to compare with.
 
 4. **A player builds a character (standard array).** While the kit session is up, a headless browser
-   can join as `Kit Player` and make a level 1 character in Actor Studio, the way a player at the
+   can join as `Kit Player` and make a level 1 character in Actor Studio (the table's players then
+   level it up to 3 by hand; the kit does not), the way a player at the
    table does, with the standard array arranged by the row arrows (the kit's own player flow types
    scores into manual-input fields, which a standard-array-only table setup turns off). The kit's
    sheet checks (`judgeSheet`) judge the result:
@@ -395,7 +396,7 @@ table are real-browser scenarios with their own sizes, named in the table and in
 | `heroes-features-use`       | Every feature of every hero can be used once with no dialog; the hero is put back.                                                                                           |
 | `heroes-features-deep`      | 21 rule checks (uses, dice, slots, AC, rests) against the 2024 SRD class tables.                                                                                             |
 | `heroes-studio`             | A hero per class built in Actor Studio's own windows equals the raw kit hero.                                                                                                |
-| `player-character-creation` | As the kit player in its own browser, a level-1 character per class in Actor Studio; the sheet, scores and proficiencies are checked.                                        |
+| `player-character-creation` | As the kit player in its own browser, a level-1 character per class in Actor Studio (no level-up to 3); the sheet, scores and proficiencies are checked.                     |
 | `monsters-every`            | Every monster of every pack of the profile is copied in, uses one action and is deleted.                                                                                     |
 | `monsters-matrix`           | The monsters by CR band, type, size and trait, the gaps, and the data every creature needs.                                                                                  |
 | `monsters-odd`              | Legendary actions and resistance, lair, regeneration, shapechangers, movement, recharge, multiattack, spells.                                                                |

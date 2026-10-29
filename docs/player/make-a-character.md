@@ -1,12 +1,14 @@
 ---
 title: Make your character
-description: Step by step, make a level-1 character in Foundry with Actor Studio from the 2024 Player's Handbook, check it, and make it yours.
+description: Step by step, make a level-3 character in Foundry with Actor Studio from the 2024 Player's Handbook (build at level 1, level up twice), check it, and make it yours.
 ---
 
 # Make your character
 
-This page walks you through making a level-1 character in Foundry, the way we do it at session 0.
-It takes about 45 minutes the first time. You need to be logged in first: see
+This page walks you through making a **level-3 character** in Foundry, the way we do it at session 0:
+our campaign starts at level 3. The builder always makes a level-1 character, so you build it first
+(steps 1 to 9) and then level it up twice to level 3, which is also where you pick your subclass
+(step 10). It takes about an hour the first time. You need to be logged in first: see
 [Join the game](join.md).
 
 We use **Actor Studio**, a character builder inside Foundry. It asks the same questions as the
@@ -26,6 +28,8 @@ Ask your GM, or read the session 0 message, for:
 - **Which options are allowed.** Usually everything in the 2024 Player's Handbook; our table keeps
   to it. Some tables add or remove species, backgrounds or classes.
 - **Anything special about the campaign.** Some campaigns suggest backgrounds or character ideas.
+- **That levelling up is switched on for you.** The GM sets this (see step 10). If you can't find
+  the **Level Up** button when you get there, ask the GM.
 
 Have a rough idea of your class, species and background. You don't need to know the rules by
 heart: each choice in the builder shows its description.
@@ -90,7 +94,8 @@ does), and picking one you already have costs you a proficiency, see
 
 Open the **Class** list and pick one. The page shows the class's main ability, hit points, saving
 throws, skills to choose from, and starting equipment. In the 2024 rules you pick a subclass at
-level 3, not now.
+level 3, so not now: you pick it when you level up in
+[step 10](#10-level-up-to-level-3-then-check-your-sheet).
 
 ## 6. Name and create
 
@@ -155,7 +160,7 @@ The steps you will see, roughly in this order:
 
 - **Class:** hit points, saving throws, **skills to choose** (most classes pick two), weapon and
   armour training, and your level-1 class features. The steps are headed "Level 1 -> 2" even though
-  you are making a level-1 character; that is a labelling quirk. Do the steps as they come.
+  you are building a level-1 character first; that is a labelling quirk. Do the steps as they come.
 
 ## 8. Equipment
 
@@ -191,16 +196,49 @@ may pick, for example "Cantrips: 0/3, Spells: 0/6".
 
 Your character sheet opens.
 
-## 10. Check your sheet
+## 10. Level up to level 3, then check your sheet
+
+Your sheet is open and shows level 1. Our campaign starts at level 3, so you level up twice, one
+level at a time, with the same builder.
+
+### Level up to level 3
+
+1. A gold **Level Up** button appears at the top of your sheet. **It only shows when the GM has
+   switched on Milestone Levelling, or has given you enough experience points (XP).** If there is
+   no button, ask the GM.
+2. Click it. The window **Level Up Existing Class** opens. Click the **+** at the right end of your
+   class's row (the row itself does nothing).
+3. **Going from level 2 to 3, you also choose your subclass.** A **Choose Subclass** list appears
+   under the class row. Click it (if it does not open, click it again), pick one, and read its
+   description. The bar at the bottom reaches 100% when you have picked.
+4. Click **Add Character Level**. The steps run like in [step 7](#7-advancements-answer-each-step):
+   - **Hit Points:** tick **Take Average** (or roll). Next does nothing until you have chosen.
+   - **Choices with a counter** (for example a wizard's level-2 **Scholar** skill for Expertise,
+     or an elf's spellcasting ability at level 3): choose before you click Next.
+   - **Information steps** (new class features, **Max Prepared Spells**, the **Subclass** step):
+     click **Next**.
+5. Click **Complete** on the last step. **At level 3 a second window then opens with your
+   subclass's features (for example "Champion • Level 2 -> 3, Step 1 of 1"). Click Complete in it
+   too.** If you skip it, the sheet shows the new level but no subclass and no subclass features.
+6. Do this twice: level 1 to 2 first (no subclass then, so go straight to **Add Character
+   Level**), then level 2 to 3.
+
+A caster's level-up raises how many spells you may **prepare**, but it does **not** ask which new
+spells you learn (a wizard's two new spellbook spells, for example). Open the **Spells** tab
+afterwards and ask the GM or your D&D helper which to add.
+
+### Check your sheet
 
 Look over the sheet before you call it done. Ask the GM if anything looks wrong.
 
-- [ ] The level is 1, and the class, species and background are right.
-- [ ] Hit points: your class's hit die at its highest, plus your Constitution modifier (a wizard
-      with Constitution 14 has 8).
+- [ ] The level is 3, and the class, subclass, species and background are right.
+- [ ] Hit points: your class's hit die at its highest at level 1, plus the average (or your roll)
+      for levels 2 and 3, plus your Constitution modifier for each of the three levels (a fighter
+      with Constitution 14 who took the average has 12 + 8 + 8 = 28).
+- [ ] Proficiency bonus is +2 (it stays +2 until level 5).
 - [ ] Skills: the ones from your background (two), your class (usually two) and your species, if it
-      gives one. Count them: one too few means a step was skipped, or you picked a skill you
-      already had.
+      gives one (and a wizard's Scholar skill). Count them: one too few means a step was skipped,
+      or you picked a skill you already had.
 - [ ] Spells: every cantrip and spell you picked, including those from a feat such as Magic
       Initiate.
 - [ ] Armour class (AC). **Actor Studio puts your armour, shield and weapons on the sheet but
@@ -252,6 +290,8 @@ as your portrait and token.
 | Actor Studio says it is "already open and busy"    | The half-made character is blocking it. Reload the page (F5). Players can't delete characters, so ask the GM to delete the half-made one. |
 | AC is lower than it should be                      | Equip your armour and shield on the **Inventory** tab of your sheet.                                                                      |
 | Next lets you through a step with nothing chosen   | Press **Previous** and choose. Check the **Chosen x of y** counter before every Next.                                                     |
+| There is no **Level Up** button on your sheet      | The GM has to switch on Milestone Levelling, or give you XP. Tell them.                                                                   |
+| Level 3 shows, but no subclass on the sheet        | You skipped the second **Complete** (the subclass's features window). Tell the GM, who can add the subclass.                              |
 | You skipped a choice with Next                     | Finish, then tell the GM what is missing. The GM can add it, or delete the character so you can redo it.                                  |
 | Equipment stays below 100%                         | Click the gold amounts, and pick from every **Select focus** list, until everything is green.                                             |
 | The panel is blank after you click Complete        | Wait about 5 seconds. The next step appears by itself.                                                                                    |

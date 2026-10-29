@@ -48,7 +48,7 @@ The tabs are a column of small icons on the right edge of the sheet. Hover over 
 - **Spells**: spell slots and the spell list.
 - **Effects**: conditions and other lasting effects.
 - **Biography**: background text, ideals, bonds and flaws.
-- **Special Traits**
+- **Special Traits**: things like senses and languages that don't fit anywhere else.
 
 A small switch at the top left of the sheet toggles it between **Play** and **Edit** mode. In Edit mode little gear icons appear next to ability scores, skills, hit points and more, and you click one to change that value. If you cannot change something, switch to Edit.
 

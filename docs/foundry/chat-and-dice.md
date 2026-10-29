@@ -9,7 +9,7 @@ description: How to send messages, roll dice, whisper and control who sees a rol
 
 The chat is where everything the table says and rolls ends up. Players type there, sheets post their rolls there, and Foundry prints roll cards there. Dice are rolled by typing a short formula such as `1d20+5`.
 
-![The Chat Messages tab with two dice rolls in the log](../images/foundry/chat-roll.png)
+![The Chat Messages tab with three dice rolls in the log](../images/foundry/chat-roll-modes.png)
 
 Open it with the first button in the sidebar tab strip on the right, called **Chat Messages**. You can also press Shift+C, which Foundry calls **Focus Chat**.
 
@@ -21,7 +21,7 @@ Open it with the first button in the sidebar tab strip on the right, called **Ch
 
 <video src="../images/foundry/chat-roll.mp4" poster="../images/foundry/chat-roll.png" autoplay loop muted playsinline aria-label="Typing /r 1d20+5 in the chat box and sending it"></video>
 
-![Typing /r 1d20+5 in the chat box and sending it](../images/foundry/chat-roll.png)
+![The empty chat box, ready for /r 1d20+5 to be typed (the loop above shows the roll)](../images/foundry/chat-roll.png)
 
 Press the up arrow in the message box to bring back what you sent before. Add a label after a `#`, like `/r 1d20+5 # Perception`, and the label shows on the roll.
 

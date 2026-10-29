@@ -88,8 +88,28 @@ async function runShots() {
       } catch (err) {
         console.error(`FAILED ${name}: ${err.message}`);
         process.exitCode = 1;
-        await page.screenshot({ path: join(OUT, `_failed-${name}.png`) }).catch(() => {});
+        mkdirSync(join(env.demoRoot, 'failed'), { recursive: true });
+        await page
+          .screenshot({ path: join(env.demoRoot, 'failed', `${name}.png`) })
+          .catch(() => {});
       } finally {
+        // The demo world has no combats, regions, lights or playlists of its own, so whatever a
+        // failed shot left behind can go.
+        await page
+          .evaluate(async () => {
+            const { game, canvas } = globalThis;
+            await Promise.all(game.combats.map(c => c.delete()));
+            await canvas.scene?.deleteEmbeddedDocuments(
+              'Region',
+              canvas.scene.regions.map(r => r.id)
+            );
+            await canvas.scene?.deleteEmbeddedDocuments(
+              'AmbientLight',
+              canvas.scene.lights.map(l => l.id)
+            );
+            await Promise.all(game.playlists.map(p => p.delete()));
+          })
+          .catch(() => {});
         await context.close();
       }
     }
@@ -126,7 +146,10 @@ function encode(raw, file) {
   );
   if (r.status !== 0) throw new Error(`ffmpeg encode failed: ${r.stderr}`);
   const mb = statSync(file).size / 1024 / 1024;
-  if (mb > MAX_MB) throw new Error(`${file} is ${mb.toFixed(2)} MB, over ${MAX_MB} MB`);
+  if (mb > MAX_MB) {
+    rmSync(file, { force: true });
+    throw new Error(`${file} is ${mb.toFixed(2)} MB, over ${MAX_MB} MB; removed`);
+  }
   return mb;
 }
 

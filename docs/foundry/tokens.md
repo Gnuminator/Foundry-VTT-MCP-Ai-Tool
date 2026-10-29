@@ -15,7 +15,7 @@ A token is an actor on the map. The actor holds the stats. The token is the litt
 
 <video src="../images/foundry/tokens-drag.mp4" poster="../images/foundry/tokens-drag.png" autoplay loop muted playsinline aria-label="Dragging an actor from the Actors tab onto the map to make a token"></video>
 
-![Dragging an actor from the Actors tab onto the map to make a token](../images/foundry/tokens-drag.png)
+![The Actors tab beside the map before an actor is dragged out (the loop above shows the drag)](../images/foundry/tokens-drag.png)
 
 The new token copies the actor's Prototype Token settings. See [Actors](actors.md).
 

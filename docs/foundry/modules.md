@@ -35,7 +35,7 @@ Some modules need other modules. When you tick one, a **Dependency Resolution** 
 
 ## Install, update and remove
 
-This happens on the setup screen, outside any world, and needs the admin. This part was not click-tested for these pages.
+This happens on the setup screen, outside any world, and needs the admin.
 
 1. On the setup screen, open the **Add-on Modules** tab.
 2. **Install Module** opens a list of modules you can install.

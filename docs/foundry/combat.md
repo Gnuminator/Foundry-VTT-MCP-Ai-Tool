@@ -15,7 +15,7 @@ An encounter is a list of fighters in turn order, kept in the **Combat Encounter
 
 <video src="../images/foundry/combat-start.mp4" poster="../images/foundry/combat-start.png" autoplay loop muted playsinline aria-label="Rolling initiative and starting an encounter"></video>
 
-![Rolling initiative and starting an encounter](../images/foundry/combat-start.png)
+![The Combat Encounters tab with an encounter made, before initiative is rolled (the loop above shows the rolls and the start)](../images/foundry/combat-start.png)
 
 1. Switch to the token controls on the left and right-click a token on the map. The token HUD opens around it.
 2. Click the crossed swords button, **Enter Combat**. If there is no encounter yet, Foundry makes one. You can also open the **Combat Encounters** tab and click the **+** at the top, **Create Combat**.

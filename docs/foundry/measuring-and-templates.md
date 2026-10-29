@@ -13,7 +13,7 @@ Two things help you judge space on the map. The ruler tells you how far somethin
 
 <video src="../images/foundry/measure-ruler.mp4" poster="../images/foundry/measure-ruler.png" autoplay loop muted playsinline aria-label="Dragging the ruler across the map to show a distance"></video>
 
-![Dragging the ruler across the map to show a distance](../images/foundry/measure-ruler.png)
+![The map with the Measure Distance tool selected, before the drag (the loop above shows the ruler line and its distance)](../images/foundry/measure-ruler.png)
 
 1. Click **Token Controls** on the left, then **Measure Distance**. Holding the R key switches the ruler on for as long as you hold it. Foundry names that key **Toggle Distance Ruler**.
 2. Drag across the map. A line with the distance appears.

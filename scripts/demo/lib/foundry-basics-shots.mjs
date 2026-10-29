@@ -306,6 +306,14 @@ export const SHOTS = {
           if (!keep.some(k => name.startsWith(k))) li.style.display = 'none';
         }
       });
+      // Fail rather than publish a picture with licensed module names if Foundry's markup changed.
+      const shown = await page.evaluate(() =>
+        [...document.querySelectorAll('.application:last-of-type li.package')]
+          .filter(li => li.style.display !== 'none')
+          .map(li => li.textContent.trim().slice(0, 30))
+      );
+      if (shown.length < 1 || shown.length > 4)
+        throw new Error(`modules-manage: expected 1 to 4 visible modules, got ${shown.length}`);
       await shotApp(page, out('modules-manage.png'));
     },
   },

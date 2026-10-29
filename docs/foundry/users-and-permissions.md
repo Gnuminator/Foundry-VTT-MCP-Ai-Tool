@@ -74,7 +74,7 @@ The same window has **Player Color**, **Player Pronouns** and **Player Avatar**.
 
 ## Watch out
 
-- Ownership of **Observer** is enough to be picked as a player's character, but the player still cannot edit it. Use **Owner** for their own character.
+- Give a player **Owner** on their own character so they can edit it. **Observer** only lets them read it.
 - Players can only see what ownership lets them see. If a player says an actor is missing, check **Configure Ownership** first.
 - **Kick Player** and **Ban Player** appear when you right-click another connected user in the players list. They act at once, with no question first. **Ban Player** sets the role to None.
 - Do not pass the GM account to players. Make a separate user for each person.

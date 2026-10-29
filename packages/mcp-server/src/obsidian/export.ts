@@ -437,6 +437,10 @@ export async function exportWorldToObsidian(options: {
   }
 
   // Status, written last, summarizing everything above (not itself).
+  const mirrorStatusNote = await fsp
+    .stat(path.join(root, 'AI Tool', 'Foundry', '_status.md'))
+    .then(stat => stat.isFile())
+    .catch(() => false);
   await writer.owned(
     'AI Tool/_status.md',
     renderStatusNote(worldId, {
@@ -444,6 +448,7 @@ export async function exportWorldToObsidian(options: {
       skipped: [...writer.skipped],
       kept: [...writer.kept],
       errors: [...writer.errors],
+      mirrorStatusNote,
     }),
     checkMarkdownOwnership
   );

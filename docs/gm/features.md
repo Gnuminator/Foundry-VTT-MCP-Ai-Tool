@@ -155,9 +155,8 @@ GM Actions. **End session** turns off again what it turned on. See
   controls (GM only). Each opens a small window next to the map, so you can run a scene from one
   screen without the dashboard tab. Only the Combat turn buttons and the Session start and end
   change anything, and nothing here asks Claude.
-- **Starts:** off. Setting "AI Tool: GM windows".
-- **Turn it on when:** you want the combat order or the party at hand while you run a fight, so
-  from the first session with combat.
+- **Starts:** on (a world where the settings were saved earlier may have it off). Setting "AI Tool: GM windows".
+- **Turn it off when:** you do not want the extra buttons in the scene controls.
 - **More:** [The GM windows](gm-windows.md).
 
 ## GM Actions

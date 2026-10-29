@@ -14,7 +14,7 @@ import {
   isTruthyFlag,
 } from './control-target.js';
 
-import { buildToolRouter, collectToolDefinitions } from './tool-router.js';
+import { buildToolRouter, collectToolDefinitions, DETACHED_TOOLS } from './tool-router.js';
 import { createAiChangesAnnouncer, createModuleRequestHandler } from './module-requests.js';
 
 import { config } from './config.js';
@@ -750,7 +750,7 @@ async function startBackend(): Promise<void> {
             };
             // Lines that arrive in the same chunk run in order; a long wait must not hold up the
             // lines behind it, so only this tool is not awaited.
-            if (name === 'wait-for-game-event') void runCall();
+            if (DETACHED_TOOLS.has(name)) void runCall();
             else await runCall();
 
             continue;

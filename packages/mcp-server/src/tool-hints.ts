@@ -90,6 +90,7 @@ export const TOOL_HINTS: Readonly<Record<string, ToolHintSpec>> = {
   'measure-distance': { title: 'Measure distance', kind: 'read' },
   'get-targets': { title: 'Get GM targets', kind: 'read' },
   'get-recent-events': { title: 'Get recent events', kind: 'read' },
+  'wait-for-game-event': { title: 'Wait for a game event', kind: 'read' },
   'plan-actor-change': { title: 'Plan damage, healing or conditions', kind: 'read' },
   'plan-token-change': { title: 'Plan token change', kind: 'read' },
   'roll-saving-throws': { title: 'Roll NPC saving throws', kind: 'write' },

@@ -146,10 +146,103 @@ function campaignHomeV2(worldId: string): string {
   ].join('\n');
 }
 
+/** The Campaign Home from 2026-10-28 (the start page, #574) to 2026-10-29, before the first-use note. */
+function campaignHomeV3(worldId: string): string {
+  const table = (
+    folder: string,
+    name: string,
+    columns: string[],
+    sortBy: string,
+    direction: 'ASC' | 'DESC' = 'DESC'
+  ): string =>
+    [
+      '```base',
+      'filters:',
+      '  and:',
+      `    - file.inFolder("Campaigns/${worldId}/AI Tool/${folder}")`,
+      'views:',
+      '  - type: table',
+      `    name: ${name}`,
+      '    order:',
+      ...columns.map(c => `      - ${c}`),
+      '    sort:',
+      `      - property: ${sortBy}`,
+      `        direction: ${direction}`,
+      '```',
+    ].join('\n');
+  return [
+    frontmatter({ type: 'campaign-home', world: worldId }),
+    `# ${worldId}: start here`,
+    '',
+    'This is your front door. The lists below keep themselves up to date, so you never need to browse the folders. This note is yours: the AI Tool created it, and once you edit it the tool never rewrites it. Tip: right-click this tab and choose Pin, or add it to your bookmarks, so it is one click away.',
+    '',
+    '## Before a session',
+    '',
+    '- Your plan and ideas: the `Prep/` folder (start with [Prep/README](Prep/README.md)). Ready-made prep note templates are in `Prep/Templates/`.',
+    '- What happened last time: the newest note under *Play log* below.',
+    '- Quests, handouts and story items: [Journals](AI%20Tool/Bases/Journals.base) and [Story items](AI%20Tool/Bases/Story%20items.base).',
+    '- Where the story stands: [Tarokka reading](AI%20Tool/Tarokka/Current%20reading.md).',
+    '',
+    '## During a session',
+    '',
+    '- Run the table from the co-GM dashboard in your browser, not from here. Obsidian is for looking things up.',
+    '- Quick lookups: [NPCs](AI%20Tool/Bases/NPCs.base), [Scenes](AI%20Tool/Bases/Scenes.base), [the party](AI%20Tool/Bases/PCs.base).',
+    '',
+    '## After a session',
+    '',
+    '- The play log writes itself. Read it below, and check what the AI changed in [Changes](AI%20Tool/Bases/Changes.base).',
+    '- Put what you want to remember in `Prep/`, or ask Claude to write a recap.',
+    '',
+    '## The campaign',
+    '',
+    '### Adventures',
+    '',
+    'One hub note per adventure, linking its chapters, scenes, NPCs and story items. They appear once the Foundry mirror has run.',
+    '',
+    table('Foundry/Adventures', 'Adventures', ['file.name', 'book'], 'file.name', 'ASC'),
+    '',
+    '### People, places and things',
+    '',
+    '- [NPCs](AI%20Tool/Bases/NPCs.base)',
+    '- [Scenes and places](AI%20Tool/Bases/Scenes.base)',
+    '- [Journals and quests](AI%20Tool/Bases/Journals.base)',
+    '- [Story items](AI%20Tool/Bases/Story%20items.base)',
+    '- [Player characters](AI%20Tool/Bases/PCs.base)',
+    '- [What the players can see](AI%20Tool/Bases/Player%20visible.base)',
+    '',
+    '## Play log',
+    '',
+    table(
+      'Sessions',
+      'Session notes',
+      ['file.name', 'date', 'events', 'changes', 'actors'],
+      'date'
+    ),
+    '',
+    '- [All sessions as a table](AI%20Tool/Bases/Sessions.base)',
+    '- [Tarokka readings](AI%20Tool/Bases/Tarokka%20readings.base)',
+    '',
+    '## Change log',
+    '',
+    table('Changes', 'Changes by month', ['file.name', 'changes', 'applied', 'undone'], 'month'),
+    '',
+    '## Rules lookups',
+    '',
+    'Spells, monsters, items, classes and the books you own are under `AI Tool/Library/`, one note per entry, grouped by book. Press Ctrl+O (the quick switcher) and type a name.',
+    '',
+    '## Help',
+    '',
+    '- Something looks wrong or empty: [Mirror status](AI%20Tool/Foundry/_status.md) shows what the Foundry mirror last did.',
+    '- `AI Tool/` is written by the tool and rebuilt on its own; do not type into it. `Prep/` is yours and the tool never writes there.',
+    '',
+  ].join('\n');
+}
+
 /** The earlier templates, oldest first. */
 export const LEGACY_CAMPAIGN_HOMES: ReadonlyArray<(worldId: string) => string> = [
   campaignHomeV1,
   campaignHomeV2,
+  campaignHomeV3,
 ];
 
 /** Whether a Home note's text is an earlier template for this world, untouched (line endings aside). */

@@ -255,6 +255,31 @@ describe('rules differences', () => {
     expect(diffLine({ ...base, item: 'Grapple' })).toBeDefined();
   });
 
+  it('matches a looser item name by whole word only', () => {
+    expect(diffLine({ ...base, item: 'Grapple Save' })).toBeDefined();
+    expect(diffLine({ ...base, item: 'Grappling Hook' })).toBeUndefined();
+    expect(diffLine({ ...base, item: 'Shove (Prone)' })).toBeDefined();
+  });
+
+  it('reads the activity name when the item name has no note', () => {
+    expect(diffLine({ ...base, item: 'Unarmed Strike', activityName: 'Grapple' })).toBeDefined();
+    expect(diffLine({ ...base, item: 'Unarmed Strike', activityName: 'Attack' })).toBeUndefined();
+    expect(
+      diffLine({ ...base, item: 'Fireball', spellLevel: 3, activityName: 'Grapple' })
+    ).toBeUndefined();
+  });
+
+  it('knows the real 2024 Unarmed Strike activity name, Grapple/Shove', () => {
+    const line = diffLine({ ...base, item: 'Unarmed Strike', activityName: 'Grapple/Shove' });
+    expect(line?.reason).toContain('Grapple and Shove works differently');
+    expect(diffLine({ ...base, item: 'Unarmed Strike', activityName: '' })).toBeUndefined();
+  });
+
+  it('writes the Grapple and Shove DC wording with possessives', () => {
+    expect(diffLine({ ...base, item: 'Grapple' })?.reason).toContain("grappler's Strength");
+    expect(diffLine({ ...base, item: 'Shove' })?.reason).toContain("shover's Strength");
+  });
+
   it('never changes the verdict', () => {
     expect(evaluateAction({ ...base, item: 'Shove' }).verdict).toBe('legal');
   });

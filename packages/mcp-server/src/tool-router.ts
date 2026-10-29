@@ -48,6 +48,7 @@ import type { SceneChangeTools } from './tools/scene-change.js';
 import type { CombatChangeTools } from './tools/combat-change.js';
 import type { SceneTools } from './tools/scene.js';
 import type { SessionLogTools } from './tools/session-log.js';
+import type { WaitForEventTools } from './tools/wait-for-event.js';
 import type { TarokkaTools } from './tools/tarokka.js';
 import type { TokenManipulationTools } from './tools/token-manipulation.js';
 import { type ToolAnnotations, withToolHints } from './tool-hints.js';
@@ -97,12 +98,15 @@ export interface ToolRouterDeps {
   sessionLogTools: SessionLogTools;
   tarokkaTools: TarokkaTools;
   tokenManipulationTools: TokenManipulationTools;
+  waitForEventTools: WaitForEventTools;
 }
 
 /** What the control channel knows about a call besides its arguments. */
 export interface ToolCallContext {
   /** Who asked (`CallToolParams.requestedBy`), for the writes that record a person's name. */
   requestedBy?: string;
+  /** Aborts when the control connection that asked closes (long waits end then). */
+  signal?: AbortSignal;
 }
 
 export type ToolHandler = (args: unknown, context?: ToolCallContext) => Promise<unknown>;
@@ -192,6 +196,8 @@ export function buildToolRouter(deps: ToolRouterDeps): Record<string, ToolHandle
     'get-world-info': args => deps.sceneTools.handleGetWorldInfo(args),
     'get-session-log': args => deps.sessionLogTools.handleGetSessionLog(args),
     'get-recent-events': args => deps.sessionLogTools.handleGetRecentEvents(args),
+    'wait-for-game-event': (args, context) =>
+      deps.waitForEventTools.handleWaitForGameEvent(args, context?.signal),
     'get-tarokka-reading': args => deps.tarokkaTools.handleGetTarokkaReading(args),
     'plan-tarokka-import': args => deps.tarokkaTools.handlePlanTarokkaImport(args),
     'suggest-tarokka-links': args => deps.tarokkaTools.handleSuggestTarokkaLinks(args),
@@ -271,6 +277,7 @@ export function collectToolDefinitions(deps: ToolRouterDeps): ToolDefinitionLike
     ...deps.combatTools.getToolDefinitions(),
     ...deps.movementTools.getToolDefinitions(),
     ...deps.sessionLogTools.getToolDefinitions(),
+    ...deps.waitForEventTools.getToolDefinitions(),
     ...deps.combatResolutionTools.getToolDefinitions(),
     ...deps.encounterTools.getToolDefinitions(),
     ...deps.diagnosticsTools.getToolDefinitions(),

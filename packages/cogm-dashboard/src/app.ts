@@ -40,6 +40,7 @@ import {
   type SessionSwitches,
 } from './session-switches.js';
 import { PlayerViewSource } from './player/source.js';
+import { gzipAssets } from './gzip-assets.js';
 import { staticHeaders, type StaticHeaderGroup } from './static-headers.js';
 import { PlayerDirectory, mountUsageRoute } from './usage-route.js';
 import { mountHandoutSeenRoute } from './handout-seen-route.js';
@@ -150,6 +151,8 @@ interface SecretTermsResult {
 const TOOL_CATALOG_TTL_MS = 60_000;
 /** GM actions may run a guarded write (up to ~4 min in Foundry plus the outcome check). */
 const GM_ACTION_TIMEOUT_MS = 300_000;
+/** `wait-for-game-event` waits up to 45 s on the backend; leave room above that. */
+const WAIT_EVENT_TIMEOUT_MS = 60_000;
 /**
  * The player page runs only its own script: no inline scripts or event handlers, even if
  * something slipped past the handout sanitizer (inline styles stay allowed for the HP bars).
@@ -643,17 +646,26 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
 
   // The React dashboard's files: Vite puts a content hash in every file name under assets/, so
   // those are cached for good; index.html is checked on every load so a new build shows up at once.
+  // A cold load fetches about twenty files and the end-to-end suite loads pages in parallel from
+  // one address, so the assets get their own, much larger bucket than the pages above.
+  const assetLimit = rateLimit({
+    windowMs: 10_000,
+    limit: 20_000,
+    standardHeaders: false,
+    legacyHeaders: false,
+    message: 'Too many requests',
+    validate: { xForwardedForHeader: false },
+  });
+  app.use('/next/assets', assetLimit, gzipAssets(path.join(config.webDir, 'assets')));
   app.use(
     '/next',
     express.static(config.webDir, {
       setHeaders: (res, filePath) => {
         const inAssets = path.relative(path.join(config.webDir, 'assets'), filePath);
-        res.setHeader(
-          'Cache-Control',
-          inAssets.startsWith('..') || path.isAbsolute(inAssets)
-            ? 'no-cache'
-            : 'public, max-age=31536000, immutable'
-        );
+        const hashed = !inAssets.startsWith('..') && !path.isAbsolute(inAssets);
+        res.setHeader('Cache-Control', hashed ? 'public, max-age=31536000, immutable' : 'no-cache');
+        // The same URL can come back gzipped (gzip-assets.ts) or plain.
+        if (hashed) res.setHeader('Vary', 'Accept-Encoding');
       },
     })
   );
@@ -1173,8 +1185,17 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
 
     client
       // A GM action may run a guarded write, which waits up to about 4 minutes
-      // for Foundry and then for its outcome (PB-04); reads keep the short timeout.
-      .callTool(name, args, mutates === 'read' ? {} : { timeoutMs: GM_ACTION_TIMEOUT_MS })
+      // for Foundry and then for its outcome (PB-04); reads keep the short timeout, except the
+      // long-poll wait (up to 45 s by design).
+      .callTool(
+        name,
+        args,
+        name === 'wait-for-game-event'
+          ? { timeoutMs: WAIT_EVENT_TIMEOUT_MS }
+          : mutates === 'read'
+            ? {}
+            : { timeoutMs: GM_ACTION_TIMEOUT_MS }
+      )
       .then(result => {
         res.json({ ok: true, name, mutates, result });
         // A reveal or hide may have changed the handouts: refresh the player view.

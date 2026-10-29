@@ -26,13 +26,23 @@ export const RULE_DIFFERENCES: RuleDifference[] = [
       'the caster of the target spell makes a Constitution save against the counterspeller, and the spell fails only on a failed save.',
   },
   {
+    // The 2024 Unarmed Strike item carries one save activity with exactly this name.
+    topic: 'Grapple and Shove',
+    match: /^grapple\s*\/\s*shove$/i,
+    spell: false,
+    rules2014:
+      'a contested Strength (Athletics) check against Athletics or Acrobatics, made in place of one attack.',
+    rules2024:
+      "an unarmed strike option: the target saves with Strength or Dexterity against a DC built from the attacker's Strength modifier and proficiency bonus.",
+  },
+  {
     topic: 'Grapple',
     match: /\bgrapple\b/i,
     spell: false,
     rules2014:
       'a contested Strength (Athletics) check against Athletics or Acrobatics, made in place of one attack.',
     rules2024:
-      'an unarmed strike option: the target saves with Strength or Dexterity against a DC built from the grappler Strength modifier and proficiency bonus.',
+      "an unarmed strike option: the target saves with Strength or Dexterity against a DC built from the grappler's Strength modifier and proficiency bonus.",
   },
   {
     topic: 'Shove',
@@ -40,7 +50,7 @@ export const RULE_DIFFERENCES: RuleDifference[] = [
     spell: false,
     rules2014: 'a contested Strength (Athletics) check, made in place of one attack.',
     rules2024:
-      'an unarmed strike option: the target saves with Strength or Dexterity against a DC built from the shover Strength modifier and proficiency bonus.',
+      "an unarmed strike option: the target saves with Strength or Dexterity against a DC built from the shover's Strength modifier and proficiency bonus.",
   },
   {
     topic: 'Hide',

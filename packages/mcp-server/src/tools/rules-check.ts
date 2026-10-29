@@ -162,7 +162,8 @@ export class RulesCheckTools {
 
   /**
    * The advisory pre-check other tools run before a roll or a use (`beforeUse`: the caller is about to post the usage card itself, so the ledger cannot hold this use yet): null when the switch is off or
-   * anything goes wrong, so it never blocks or fails the write it sits in front of.
+   * anything goes wrong, so it never blocks or fails the write it sits in front of. Callers pass no `activity`, so the
+   * Grapple and Shove notes (they live on an Unarmed Strike activity) appear only on a direct check-action call.
    */
   async tryCheck(args: unknown, beforeUse = false): Promise<RulesCheckResult | null> {
     try {

@@ -1,0 +1,63 @@
+name: CodeQL cache cleanup
+
+# CodeQL's default setup saves a ~330 MB `codeql-overlay-base-database-*` cache on every push to
+# main and never removes the old ones. 60 of them filled 10 GB of the repo's 10 GB cache limit and
+# evicted the npm caches. This keeps the newest KEEP per ref, config hash and language and deletes
+# the rest. The default setup has no workflow file here, so it is matched by its name, "CodeQL".
+# The workflow_run trigger is best effort; the nightly schedule is the path that always runs.
+# A pull request touching this file runs it as a dry run (nothing is deleted) so the log shows what
+# it would do with the runner's own jq.
+on:
+  workflow_run:
+    workflows: [CodeQL]
+    types: [completed]
+  schedule:
+    - cron: '17 3 * * *'
+  pull_request:
+    paths: ['.github/workflows/codeql-cache-cleanup.yml']
+  workflow_dispatch:
+
+concurrency:
+  group: codeql-cache-cleanup-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      KEEP: '2'
+      DRY_RUN: ${{ github.event_name == 'pull_request' && '1' || '' }}
+    steps:
+      - name: Delete old CodeQL caches
+        run: |
+          set -euo pipefail
+          gh cache list --limit 500 --key codeql-overlay-base-database \
+            --json id,key,ref,sizeInBytes,createdAt > caches.json
+          before=$(jq 'map(.sizeInBytes) | add // 0' caches.json)
+          # Key: codeql-overlay-base-database-<n>-<config hash>-<language>-<cli version>-<sha>-<run>-<n>.
+          # Group by ref, hash and language, newest first, drop the first KEEP of each group.
+          jq -r --argjson keep "$KEEP" '
+            map(. + {grp: (.key | capture("^codeql-overlay-base-database-[0-9]+-(?<h>[0-9a-f]+)-(?<l>.+?)-[0-9]+[.][0-9]+[.][0-9]+-") | "\(.h)/\(.l)")})
+            | group_by([.ref, .grp])
+            | map(sort_by(.createdAt) | reverse | .[$keep:])
+            | flatten | .[] | "\(.id)\t\(.sizeInBytes)"' caches.json > old.tsv
+          count=$(wc -l < old.tsv)
+          freed=0
+          while IFS=$'\t' read -r id size; do
+            if [ -n "$DRY_RUN" ]; then
+              echo "dry run: would delete cache $id"
+            else
+              gh cache delete "$id" || echo "already gone: $id"
+            fi
+            freed=$((freed + size))
+          done < old.tsv
+          echo "CodeQL caches before: $(jq length caches.json), $((before / 1048576)) MiB"
+          if [ -n "$DRY_RUN" ]; then verb="Would delete"; else verb="Deleted"; fi
+          echo "$verb $count caches, $((freed / 1048576)) MiB"

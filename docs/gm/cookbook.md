@@ -137,16 +137,16 @@ set says so.
 ### Start and end a fight
 
 - **In Foundry:** pick the tokens that fight (select them on the map, or drag a box around them),
-  right-click one and click the crossed swords (**Enter Combat**) in its token menu. That adds every selected token to
-  a new combat. Open the **Combat Encounters** tab and click **Roll All** (or **Roll NPCs**) for the
-  initiative, then **Start Combat**. When the fight is over, click **End Combat** at the bottom of
-  the tab and confirm.
+  right-click one and click the crossed swords (**Enter Combat**) in its token menu. That adds
+  every selected token to a new combat. Open the **Combat Encounters** tab and click **Roll All**
+  (or **Roll NPCs**) for the initiative, then **Start Combat**. When the fight is over, click **End
+  Combat** at the bottom of the tab and confirm.
 - **In the dashboard:** with **GM Actions** on (**Turn on for tonight** does it), click **Start
   combat** in the Combat Tracker. It lists the tokens on the scene, ticks the player characters and
   the hostile ones, and starts the fight at round 1 with an Undo. **End combat** needs the **⚔
   Combat buttons** switch under **Advanced**. See [Combat Tracker](dashboard.md#combat-tracker).
 - **Tip:** the Damage / Heal and Condition buttons on a combatant, and Start and End combat, all
-  need **GM Actions** on. If the buttons are missing or do nothing, look at the header: it must say
+  need **GM Actions** on (End combat and the per-combatant buttons also need **⚔ Combat buttons**). If the buttons are missing or do nothing, look at the header: it must say
   "GM Actions: on".
 
 ### Run a boss fight

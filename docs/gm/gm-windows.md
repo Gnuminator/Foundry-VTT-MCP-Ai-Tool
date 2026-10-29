@@ -18,7 +18,7 @@ They are **only for you**. Players never see them, and nothing is sent to player
 
 The windows are off until you switch them on, so a new world never shows buttons you did not ask for.
 
-1. Click the gear icon in the sidebar (**Game Settings**), then **Configure Settings**.
+1. Click the gear icon in the sidebar (the **Settings** tab), then **Game Settings**.
 2. Pick the category **Foundry AI Tool**.
 3. Tick **AI Tool: GM windows** and press **Save Changes**.
 

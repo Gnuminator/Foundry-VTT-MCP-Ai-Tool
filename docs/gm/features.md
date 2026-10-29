@@ -7,10 +7,11 @@ description: The feature switches of Foundry AI Tool you use at the table, what 
 
 The tool starts small. A few features are on from the start; the rest are off until you need them,
 so a new world never does more than you expect. This page lists each one: what it does, whether it
-starts on, and **when to turn it on**. The dashboard shows the same list as cards in the **Before**
-view, each with a link back here.
+starts on, and **when to turn it on**. The old dashboard (`/legacy/`) shows the same list as cards
+at the bottom of its **Before** view, each with a link back here. The page at `/` does not have the
+cards yet.
 
-Most switches are Foundry settings: **Game Settings** (the gear icon in the sidebar), **Configure
+Most switches are Foundry settings: the **Settings** tab (the gear icon in the sidebar), **Game
 Settings**, category **Foundry AI Tool**. Tick or untick, then **Save Changes**. They stop the
 dashboard's changes as well as Claude's.
 
@@ -142,7 +143,7 @@ GM Actions. **End session** turns off again what it turned on. See
   look of the 3D dice changes; rolls and the play log stay the same.
 - **Starts:** the sets are there as soon as Dice So Nice is; nobody uses them until they pick them.
 - **Turn it on when:** before session 1. To make one the table's default, open **Game Settings**,
-  **Configure Settings**, **Dice So Nice**, click **Configure Dice Roles**, and in the **Basic** row
+  **Dice So Nice**, click **Configure Dice Roles**, and in the **Basic** row
   pick **AI Tool: The Veil** (or **AI Tool: Neutral**) in the **Theme** column. Each player can
   still choose their own dice under **3D Dice Settings**.
 - **More:** the [before-session checklist](before-session.md#turn-on-what-tonight-needs).
@@ -166,3 +167,31 @@ GM Actions. **End session** turns off again what it turned on. See
   it off.
 - **Turn it on when:** you act from the dashboard. Turn on for tonight does it for you.
 - **More:** [GM Actions](dashboard.md#-gm-actions-off--on).
+
+## The other switches
+
+These sit in the same category in Game Settings. Except the last one, a change they allow is made
+only after you confirm a plan, and it shows in Recent Changes with Undo.
+[Asking Claude](asking-claude.md#feature-switches) lists them with the others.
+
+- **Table viewer** ("AI Tool: Table viewer (writes)"): lets Claude create the **Table** player that
+  the TV at the table signs in as. Starts on. You use it once; see
+  [The TV at the table](tv-table-viewer.md).
+- **Undo for everything** ("AI Tool: Undo for everything"): lets the tool undo and redo anyone's
+  changes (players', yours and Claude's) from the Changes list, one change or everything since on
+  the same thing. Starts on.
+- **Scene mood and music** ("AI Tool: Scene mood and music (writes)"): a scene's darkness, light and
+  weather, saved mood presets, and starting, stopping or switching playlists. Starts off. Turn it
+  on when you want Claude to set the mood of a scene.
+- **NPC turn assistant** ("AI Tool: NPC turn assistant (writes)"): moves a monster on its turn and
+  takes hit points off the creatures it hits. The attacks and saves are rolled first, separately.
+  Starts off. Turn it on when you want Claude to help run a monster's turn.
+- **Room setup** ("AI Tool: Room setup (writes)"): adds teleport regions and fills a room with
+  tokens. Starts off. Turn it on while you prepare a map.
+- **Scene restore** ("AI Tool: Scene restore (writes)"): puts a scene's walls, lights, tiles and
+  tokens back from a backup copy of the world. Starts off. Turn it on when a map was broken by hand.
+- **Paper sync** ("AI Tool: Paper sync (writes)"): writes the numbers from a paper sheet back into
+  a character after a night played on paper. XP, level and class are never changed. Starts off.
+  Turn it on after a paper night.
+- **Rules check** ("AI Tool: Rules check"): lets Claude say whether an attack, spell or item looks
+  legal right now and why. It only reads and changes nothing. Starts off.

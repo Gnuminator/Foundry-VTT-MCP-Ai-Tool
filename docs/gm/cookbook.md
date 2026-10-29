@@ -136,8 +136,8 @@ set says so.
 
 ### Run a boss fight
 
-- **Click:** **👑 Boss prompts** in the combat tracker's top line (it shows when a creature with
-  legendary actions or a lair is in the fight).
+- **Click:** **👑 Boss prompts** in the combat tracker's top line to turn it on (it shows when a
+  creature with legendary actions or a lair is in the fight, and starts off).
 - **What happens:** pips for legendary actions and resistances, a reminder when the lair acts, and
   an **R** mark per creature for its reaction this round.
 - **Tip:** tick "in lair" on the creature's sheet in Foundry, so the lair reminder and the extra
@@ -238,7 +238,8 @@ These need the **play** set switched on.
   happens as soon as Foundry is open with writes on, so notes made overnight land when you next
   press "Turn on for tonight". The Live Feed and Recent Changes show it, with an Undo.
 - **Tip:** read the Recap page before anyone else does. It waits in the reveal queue; press
-  **Reveal next** when it is fine, and the players get it in "Handouts". Revealing it, or
+  **Reveal next** when it is fine, and the players see it as "Last recap" on the player page.
+  Revealing it, or
   **Approve without revealing** on the dashboard, marks the session approved. The recorded audio
   stays on the PC (D-097); it is only deleted if a player asks for theirs to be.
 

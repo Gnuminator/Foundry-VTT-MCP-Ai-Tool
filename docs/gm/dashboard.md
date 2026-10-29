@@ -200,8 +200,8 @@ every layout becomes one column with Recent Changes near the top; on a phone the
 folded until you tap it.
 
 **Pick your During layout** (a card on the **Before** screen) shows the three layouts on the real
-screen, one after another, with a small guide in the corner: **Use this one** keeps a layout,
-**Stop** keeps what you had. In Auto it shows a sample fight (made up, nothing is sent to
+screen, one after another, with a small guide in the corner (**Try the layouts** starts it):
+**Use this one** keeps a layout, **Stop** keeps what you had. In Auto it shows a sample fight (made up, nothing is sent to
 Foundry). Skip it and Cards stays. For the first sessions a quiet line next to **Layout** reminds
 you that the other layouts exist; **✕** hides it. The layout is kept for this world, on any
 browser.
@@ -578,13 +578,13 @@ Top row:
 - **New reading (built-in roll)**: deals a new reading with the tool's own roll. The previous
   reading is kept in an archive.
 - **📓 Obsidian**: opens the current reading's note in Obsidian.
-- **Show cards**: card names stay blurred until you tick this. Untick it before anyone looks at
+- **Show cards**: card names show as "Hidden card" until you tick this. Untick it before anyone looks at
   your screen.
 
 Each of the five positions shows:
 
-- the position and its card (blurred unless **Show cards** is ticked), and your note when cards
-  are shown;
+- the position and its card ("Hidden card" unless **Show cards** is ticked), and your note when
+  cards are shown;
 - links: **Open Journal**, **Open Scene** or **Open Actor** open the linked document on your
   Foundry screen (nothing changes); "not linked" when there is none;
 - "hidden from players" or "revealed" (with **Open page** for the reveal page);
@@ -678,22 +678,36 @@ card in Foundry's chat). Claude uses the same actions with `get-party` and `plan
 ## The player page (/player)
 
 The page players look at: the dashboard address with `/player` at the end. Open it yourself before a session
-to check what they see. Its parts:
+to check what they see. It follows the evening. While a session is open (or a fight runs) the live
+cards come first: Combat order, Session feed, then Handouts. Between sessions it leads with Last
+recap, Handouts and Quests, and the live cards move down. Its parts:
 
+- **Who are you?** On a player's first visit, a list of names. The pick only decides which
+  handouts "just for you" show; the header then says "Playing as ..." with **not you?** to pick
+  again. **Skip** leaves it unpicked.
 - **You**: at the top, for a player who opened their own `/me` link on that device: "Your turn" or
   "You are up next", a small card for each of their characters (HP, conditions, concentration) and
-  a concentration reminder when they take damage. Their open roll requests show here as buttons.
+  a concentration reminder when they take damage. Their open roll requests show here as **Roll**
+  buttons.
+- **Open your character sheet**: a link to `/me`. At the top between sessions, at the bottom during
+  a session.
 - **Combat order**: initiative and names as players know them. PCs have an HP bar; enemies and NPCs
   have no HP numbers, only a rough band (healthy, bloodied, critical, down). Only standard conditions show. Hidden creatures are left out, and a creature
   whose name players cannot see is "Unknown creature".
 - **Session feed**: public rolls and what players could see happen, with creatures named the way
   players know them. Private, blind and GM rolls never show. Damage and healing amounts show for
   PCs only (others just "was hit").
+- **Last recap**: the newest revealed page whose title says "recap" (or "opsummering", "resume").
 - **Handouts**: pages you revealed, with secret sections, inline rolls and links to unrevealed
-  pages removed. A page revealed during the current session carries a **New** mark.
+  pages removed. A page revealed since the session started (or, between sessions, since the last
+  one ended) carries a **New** mark. A page for chosen players says "just for you".
+- **Quests**: revealed pages whose title says "quest" (or "opgave").
 
 The header shows the world, the scene's **Navigation Name** (else "Current scene", never the real
-name) with its time of day and weather, for example "Village Square (Dusk, Rain)", and a status: `live`, `foundry offline`, `disconnected` or `connecting…`.
+name) with its time of day (only on scenes with global illumination) and weather, for example
+"Village Square (Dusk, Rain)", and a status: `live`, `foundry offline`, `disconnected` or
+`connecting…`. With The Veil theme the footer also has a **Mist** choice, which only changes that
+device.
 
 Players open it from their own devices, behind the same email-code login as Foundry.
 
@@ -787,7 +801,13 @@ On a note from the Foundry mirror:
   opens the dashboard, which shows the usual confirm window. Nothing changes until you confirm
   there, and the change gets **Undo** in Recent Changes like any other.
 - **Add to the handout reveal queue**: puts the page in the handout drawer's queue, so you can
-  reveal it with **Reveal next** during the session. Players see nothing yet.
+  reveal it with **Reveal next** during the session. Players see nothing yet. **Remove from the
+  handout reveal queue** takes it out again.
+
+On your own prep notes (see [Your Obsidian vault](obsidian.md)) the command palette also has **New
+prep note for this**, **Import this quest prep note into Foundry (confirm in the dashboard)**
+(needs the module switch "AI Tool: Obsidian import (writes)"; the dashboard shows the usual confirm
+window and Undo removes the journal) and **Toggle: Claude may read this prep note**.
 
 The plugin also gives the whole vault the dashboard's look, your own notes included. Its
 **Theme** setting has **Neutral**, **The Veil** and **Off**. There is one theme per world: pick

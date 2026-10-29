@@ -10,10 +10,12 @@ is one action.
 
 ## Close the session
 
-- [ ] In the dashboard header, click **End session**. It should now say "No session".
 - [ ] Look through **Recent Changes** in the dashboard. If a change should not stay, click its
-      **Undo** (GM Actions must be on for that).
-- [ ] If the dashboard header says **⚔ GM Actions: on**, click it so it says **off**.
+      **Undo** (GM Actions must be on for that, so do this before the next step).
+- [ ] In the dashboard header, click **End session**. It should now say "No session". It also turns
+      off what **Turn on for tonight** turned on, and **GM Actions**. If the admin has set up the
+      Discord post, the bot now posts the player page link in its channel.
+- [ ] If the dashboard header still says **⚔ GM Actions: on**, click it so it says **off**.
 - [ ] In the Tarokka drawer (🃏 **Tarokka**, under **Advanced ▾**), untick **Show cards** if it is ticked.
 
 ## Switch features off
@@ -42,7 +44,8 @@ changed. Edits made inside a player's folder are lost on the next update.
 - To turn it on, set `FOUNDRY_AI_PLAYER_VAULTS_DIR` to a folder before you start the dashboard.
   Each player gets `<folder>/<player name>/`. Without it, nothing is written.
 - To give the players a recap, reveal it as a handout with "Recap" in its title. It lands in the
-  vault's `Recaps/` folder. The session notes journal itself never goes into a player vault.
+  vault's `Recaps/` folder, and the player page shows it as "Last recap". The session notes
+  journal itself never goes into a player vault.
 - Sharing the folders with the players comes with the Orange Pi setup (a send-only share per
   player). Until then the folders stay on the computer that runs the dashboard.
 

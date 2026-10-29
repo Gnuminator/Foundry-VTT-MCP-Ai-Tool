@@ -1,7 +1,7 @@
 /**
  * "GM windows" (I-134): more of the co-GM dashboard as pop-out windows inside Foundry, so a GM
- * who runs from one screen has them next to the map. Ships dark: the world setting
- * {@link GM_WINDOWS_SETTING} is off by default, and with it off the toolbar buttons are not added
+ * who runs from one screen has them next to the map. On by default (W52, 2026-10-29): the world
+ * setting {@link GM_WINDOWS_SETTING} can be turned off, and with it off the toolbar buttons are not added
  * and the windows refuse to open.
  *
  * {@link createPanelWindow} is the shared window shell: a read-only panel that draws one HTML
@@ -26,7 +26,7 @@ export function registerGmWindowsSetting(): void {
     scope: 'world',
     config: true,
     type: Boolean,
-    default: false,
+    default: true,
     // The buttons are added when the scene controls are built: build them again.
     onChange: () => {
       if (!gmWindowsEnabled()) closeGmWindows();

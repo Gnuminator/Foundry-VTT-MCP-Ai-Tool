@@ -68,7 +68,10 @@ let foundry: FakeModule;
 let logger: any;
 
 function makePump(
-  extra: Partial<{ onAppended: (worldId: string, count: number) => void }> = {}
+  extra: Partial<{
+    onAppended: (worldId: string, count: number) => void;
+    onRecords: (worldId: string, records: readonly PlayRecord[]) => void;
+  }> = {}
 ): PlayLogPump {
   return new PlayLogPump({
     foundryClient: foundry,
@@ -337,6 +340,35 @@ describe('PlayLogPump onAppended', () => {
     expect(onAppended).toHaveBeenCalledWith('w1', 1);
     expect(logger.warn).toHaveBeenCalledWith(
       'onAppended listener failed',
+      expect.objectContaining({ error: 'boom' })
+    );
+  });
+});
+
+describe('PlayLogPump onRecords', () => {
+  it('gets the records just written, once each, and not a replay on the next poll', async () => {
+    const onRecords = vi.fn();
+    const pump = makePump({ onRecords });
+    foundry.add({ key: 'a' });
+    foundry.add({ key: 'b' });
+    await pump.pollOnce();
+    expect(onRecords).toHaveBeenCalledTimes(1);
+    expect(onRecords.mock.calls[0][0]).toBe('w1');
+    expect(onRecords.mock.calls[0][1].map((r: PlayRecord) => r.key)).toEqual(['a', 'b']);
+
+    await pump.pollOnce();
+    expect(onRecords).toHaveBeenCalledTimes(1);
+  });
+
+  it('isolates a throwing listener: the poll still returns its count and logs the failure', async () => {
+    const onRecords = vi.fn(() => {
+      throw new Error('boom');
+    });
+    const pump = makePump({ onRecords });
+    foundry.add({ key: 'a' });
+    expect(await pump.pollOnce()).toBe(1);
+    expect(logger.warn).toHaveBeenCalledWith(
+      'onRecords listener failed',
       expect.objectContaining({ error: 'boom' })
     );
   });

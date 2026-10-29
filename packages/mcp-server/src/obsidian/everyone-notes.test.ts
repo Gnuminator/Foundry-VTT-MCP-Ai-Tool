@@ -93,6 +93,8 @@ describe('renderEveryoneNote', () => {
     expect(text).toContain('changes: 3');
     expect(text).toContain('by_people: 2');
     expect(text).toContain('by_ai: 1');
+    // The day note links the campaign home, so it is not an orphan in the graph.
+    expect(text).toContain('Part of [the campaign home](../../Home.md).');
     expect(text).toContain('undone: 2');
     expect(text).toContain(
       'people:\n  - "AI, asked by GM (dashboard)"\n  - "Gamemaster (GM)"\n  - "Ilvara"'

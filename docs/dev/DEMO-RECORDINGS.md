@@ -377,6 +377,19 @@ values of their own when they open.
 Every take keeps a GM logged in to Foundry in the background, even when its video shows
 only the dashboard: the bridge reads and writes through that GM's Foundry window.
 
+## Pictures for docs/foundry
+
+The screenshots and loops in `docs/images/foundry/` are made by `scripts/demo/foundry-basics.mjs`
+(`npm run docs:foundry-images`), so they can be redone when Foundry changes. The picture list is
+`scripts/demo/lib/foundry-basics-shots.mjs`. It runs in the demo world `ai-tool-demo`, copied to a
+test server you hold the lock on (`FOUNDRY_TEST_SERVER=B`), signed in as the passwordless GM.
+To get the world onto server B: stop B, copy the world folder from server A
+(`Copy-Item -Recurse C:\FoundryTest\data\Data\worlds\ai-tool-demo C:\FoundryTestB\data\Data\worlds\`),
+then `pwsh scripts/test-env/start.ps1 -Server B -World ai-tool-demo`.
+`--shots` makes the PNGs in a headless Edge (no screen needed); `--loops` records the MP4s from a
+fullscreen window with ffmpeg like a take does (it uses the screen for a few seconds per loop) and
+re-encodes each to a muted 60 fps 1080p file under 2 MB, failing when one is bigger.
+
 ## Before a public video
 
 The privacy checklist in the vault research note "Videos" applies: test server only,

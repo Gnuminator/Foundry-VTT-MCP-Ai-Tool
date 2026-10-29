@@ -15,6 +15,15 @@ Most switches are Foundry settings: the **Settings** tab (the gear icon in the s
 Settings**, category **Foundry AI Tool**. Tick or untick, then **Save Changes**. They stop the
 dashboard's changes as well as Claude's.
 
+"AI Tool" names three things, so here is which is which. The **module** is the add-on inside
+Foundry (Module Management lists it as **Foundry AI Tool**); every switch on this page is one of
+its settings, and nearly all of them are named "AI Tool: ..." (Allow Write Operations is the
+exception). The **dashboard** is the web page next to Foundry that
+you open in another tab. The **GM windows** are small windows inside Foundry; they have their own
+switch, "AI Tool: GM windows", which is off until you turn it on (see
+[The GM windows](gm-windows.md)). The module's switches are all in one place: scroll to the heading
+**Foundry AI Tool** in Game Settings.
+
 **Turn on for tonight** (the Pre-flight panel in the dashboard's Before view) turns on, in one click,
 what an evening at the table needs: Allow Write Operations, Handouts, Live play, Party, Tarokka and
 GM Actions. **End session** turns off again what it turned on. See
@@ -155,9 +164,8 @@ GM Actions. **End session** turns off again what it turned on. See
   controls (GM only). Each opens a small window next to the map, so you can run a scene from one
   screen without the dashboard tab. Only the Combat turn buttons and the Session start and end
   change anything, and nothing here asks Claude.
-- **Starts:** off. Setting "AI Tool: GM windows".
-- **Turn it on when:** you want the combat order or the party at hand while you run a fight, so
-  from the first session with combat.
+- **Starts:** on (a world where the settings were saved earlier may have it off). Setting "AI Tool: GM windows".
+- **Turn it off when:** you do not want the extra buttons in the scene controls.
 - **More:** [The GM windows](gm-windows.md).
 
 ## GM Actions

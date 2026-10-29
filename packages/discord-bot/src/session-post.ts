@@ -31,7 +31,7 @@ export function sessionFlagFrom(state: unknown): SessionFlag | null {
 }
 
 export function sessionPostMessage(pageUrl: string): string {
-  return `The session is over. Recap, handouts and quests are on the player page: ${pageUrl}`;
+  return `The session is over. Handouts and quests are on the player page, and the recap shows up there once it is written: ${pageUrl}`;
 }
 
 export interface SessionPostOptions {

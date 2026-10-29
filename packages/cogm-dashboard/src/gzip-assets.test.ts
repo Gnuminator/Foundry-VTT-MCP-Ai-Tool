@@ -46,6 +46,8 @@ beforeAll(async () => {
   mkdirSync(path.join(dir, 'assets'));
   writeFileSync(path.join(dir, 'assets', 'big-abc.js'), BIG_JS);
   writeFileSync(path.join(dir, 'assets', 'tiny-abc.js'), 'x');
+  writeFileSync(path.join(dir, 'assets', 'style-abc.css'), 'a { color: red; }\n'.repeat(200));
+  writeFileSync(path.join(dir, 'assets', 'UP-abc.JS'), BIG_JS);
   writeFileSync(path.join(dir, 'secret.js'), BIG_JS);
   const app = express();
   app.use('/next/assets', gzipAssets(path.join(dir, 'assets')));
@@ -87,9 +89,68 @@ describe('gzipAssets', () => {
   });
 
   it('never leaves the assets folder', async () => {
-    for (const p of ['/next/assets/..%2Fsecret.js', '/next/assets/%2e%2e/secret.js']) {
+    const paths = [
+      '/next/assets/..%2Fsecret.js',
+      '/next/assets/%2e%2e/secret.js',
+      '/next/assets/..%5Csecret.js',
+      '/next/assets/%252e%252e/secret.js',
+      '/next/assets/%zz.js',
+      '/next/assets/big-abc.js%00.js',
+    ];
+    for (const p of paths) {
       const a = await get(p, { 'Accept-Encoding': 'gzip' });
       expect(a.headers['content-encoding']).toBeUndefined();
+      expect(a.body.toString()).not.toContain('hello hello');
     }
+  });
+
+  it('treats gzip;q=0 as a refusal', async () => {
+    const a = await get('/next/assets/big-abc.js', { 'Accept-Encoding': 'gzip;q=0' });
+    expect(a.body.toString()).toBe('fell through');
+  });
+
+  it('answers HEAD without a body and serves css and upper-case extensions', async () => {
+    const head = await new Promise<http.IncomingHttpHeaders>((resolve, reject) => {
+      http
+        .request(
+          {
+            host: '127.0.0.1',
+            port,
+            path: '/next/assets/big-abc.js',
+            method: 'HEAD',
+            headers: { 'Accept-Encoding': 'gzip' },
+          },
+          res => {
+            res.resume();
+            res.on('end', () => resolve(res.headers));
+          }
+        )
+        .on('error', reject)
+        .end();
+    });
+    expect(head['content-encoding']).toBe('gzip');
+    const css = await get('/next/assets/style-abc.css', { 'Accept-Encoding': 'gzip' });
+    expect(css.headers['content-type']).toContain('text/css');
+    const upper = await get('/next/assets/UP-abc.JS', { 'Accept-Encoding': 'gzip' });
+    expect(upper.headers['content-encoding']).toBe('gzip');
+  });
+
+  it('answers a conditional request with 304 and recompresses a changed file', async () => {
+    const first = await get('/next/assets/big-abc.js', { 'Accept-Encoding': 'gzip' });
+    const etag = first.headers['etag'] as string;
+    expect(etag).toBeTruthy();
+    const cond = await get('/next/assets/big-abc.js', {
+      'Accept-Encoding': 'gzip',
+      'If-None-Match': etag,
+    });
+    expect(cond.status).toBe(304);
+    expect(cond.body.length).toBe(0);
+    const changing = path.join(dir, 'assets', 'changing-abc.js');
+    writeFileSync(changing, BIG_JS);
+    const one = await get('/next/assets/changing-abc.js', { 'Accept-Encoding': 'gzip' });
+    writeFileSync(changing, `${BIG_JS}// more changed text\n`.repeat(2));
+    const two = await get('/next/assets/changing-abc.js', { 'Accept-Encoding': 'gzip' });
+    expect(gunzipSync(two.body).toString()).toContain('more changed text');
+    expect(two.headers['etag']).not.toBe(one.headers['etag']);
   });
 });

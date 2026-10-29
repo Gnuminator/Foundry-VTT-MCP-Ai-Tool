@@ -78,10 +78,8 @@ export class DiceRollTools {
               description: 'Optional flavor text to describe the roll context',
               default: '',
             },
-            dc: {
-              type: 'integer',
-              description: 'Optional DC the roll is judged against',
-            },
+            // No description: the play tool set is at its size budget; the name says it.
+            dc: { type: 'integer' },
             advantage: advantageChoice,
           },
           required: [

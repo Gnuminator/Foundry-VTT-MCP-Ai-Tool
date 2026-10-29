@@ -56,7 +56,8 @@ const REMIND_MS = 60 * 1000;
 const TICKET_TOUCH_MS = 30 * 1000;
 const TICKET_STALE_MS = 5 * 60 * 1000;
 const GB = 2 ** 30;
-export const DEFAULTS = { slots: 3, minFreeGb: 3, peakGb: 4, maxWaitMin: 180 };
+// peakGb: one green alone peaked at 5.2 GB (the Playwright e2e step; lint-ratchet 3.3 GB), 2026-10-30.
+export const DEFAULTS = { slots: 3, minFreeGb: 2, peakGb: 5, maxWaitMin: 180 };
 
 /** @param {Record<string, string | undefined>} [env] */
 export function lockDir(env = process.env) {

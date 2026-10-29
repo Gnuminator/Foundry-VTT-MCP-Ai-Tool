@@ -93,11 +93,13 @@ item is marked done; the board ignores a line on an item with no claim.
 
 - `npm run green`: everything CI's build-test job runs, quiet (one OK line, or the failing step
   and its log tail). `--list`, `--only a,b`, `--from <step>` for a rerun. **Green on the final
-  commit:** run it again after the last review fix, on the committed tree. A full OK run on a clean
-  tree writes the tree hash to `.git/green-ok`; the `pre-push` hook (`scripts/pre-push.mjs`: the
-  lint and em-dash ratchets and the typecheck, about a minute) is skipped when that stamp matches,
-  and otherwise refuses a push that CI would fail on those. `SKIP_PREPUSH=1 git push ...` skips it
-  by hand.
+  commit:** run it again after the last review fix, on the committed tree. A full OK run writes
+  the tree it ran on (uncommitted edits included) to `.git/green-ok`; the `pre-push` hook
+  (`scripts/pre-push.mjs`: the lint and em-dash ratchets and the typecheck, about a minute) is
+  skipped when every pushed commit has that tree, and otherwise refuses a push that CI would fail
+  on those. `SKIP_PREPUSH=1 git push ...` skips it by hand. Heavy runs share the PC through a
+  machine-wide lock: `node scripts/heavy-lock.mjs status` shows who holds it and who waits; the
+  slot count is in `~/.foundry-ai-tool/heavy-lock.json` (`{"slots": 3}`), read on every run.
 - **Dashboard change (anything under `packages/cogm-dashboard/`, stories included, or a
   `package-lock.json` change such as a Playwright bump):** push the branch, run `npm run visual:baselines -- <branch>` (starts `visual-baselines.yml` on GitHub,
   about 15 minutes, no Docker needed; the workflow runs on your branch, so a branch cut before it

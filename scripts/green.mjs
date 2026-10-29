@@ -26,7 +26,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { HELD_ENV, acquire, readConfig } from './heavy-lock.mjs';
+import { HELD_ENV, acquire } from './heavy-lock.mjs';
 
 /**
  * The steps that need a lot of RAM or CPU (lint, type check, build, the test suites, the browser
@@ -527,26 +527,11 @@ export function nodeNote(o = {}) {
 }
 
 /**
- * How many vitest worker processes a suite may start (VITEST_MAX_FORKS) while several heavy runs may
- * go at once: the CPUs shared by the heavy-check slots, at least 2. Vitest's own default is one
- * fewer than the CPUs, each fork a few hundred MB. Null (vitest's default) with one slot, or when
- * VITEST_MAX_FORKS is already set.
- * @param {{ cpus?: number, slots?: number, env?: Record<string, string | undefined> }} [o]
- * @returns {string | null}
- */
-export function vitestForks(o = {}) {
-  const { cpus = os.availableParallelism(), env = process.env, slots = readConfig(env).slots } = o;
-  if (env.VITEST_MAX_FORKS || slots <= 1) return null;
-  return String(Math.max(2, Math.floor((cpus - 1) / slots)));
-}
-
-/**
  * The default step runner: stdout and stderr of the step go straight to the log file.
  * @param {Step} step @param {number} fd @param {string} cwd
  * @returns {number} exit status (1 when the process could not start or was killed)
  */
 function spawnStep(step, fd, cwd) {
-  const forks = vitestForks();
   // One command string with shell: true (a command plus an args array under a shell is DEP0190).
   const r = spawnSync(commandLine(step), {
     cwd,
@@ -556,7 +541,6 @@ function spawnStep(step, fd, cwd) {
       ...stepEnvironment(process.env, NODE22_DIR),
       FORCE_COLOR: '0',
       NO_COLOR: '1',
-      ...(forks ? { VITEST_MAX_FORKS: forks } : {}),
       ...step.env,
     },
   });

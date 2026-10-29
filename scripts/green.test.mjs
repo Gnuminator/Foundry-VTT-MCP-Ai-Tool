@@ -31,7 +31,6 @@ import {
   greenPassedOnThisTree,
   worktreeTreeHash,
   runLock,
-  vitestForks,
   HEAVY_STEPS,
 } from './green.mjs';
 import { main as prePush, CHECKS, pushedCommits } from './pre-push.mjs';
@@ -614,13 +613,6 @@ test('runLock: a run with no heavy step never takes the lock; a failure mid-run 
   lock.release();
   assert.equal(released, 1);
   assert.equal(env[HELD_ENV], undefined);
-});
-
-test('vitestForks: the CPUs shared by the slots, at least 2; nothing with one slot or a set value', () => {
-  assert.equal(vitestForks({ cpus: 16, slots: 3, env: {} }), '5');
-  assert.equal(vitestForks({ cpus: 4, slots: 3, env: {} }), '2');
-  assert.equal(vitestForks({ cpus: 16, slots: 1, env: {} }), null);
-  assert.equal(vitestForks({ cpus: 16, slots: 3, env: { VITEST_MAX_FORKS: '8' } }), null);
 });
 
 test('pushedCommits: the local shas of the pushed refs, without deletes', () => {

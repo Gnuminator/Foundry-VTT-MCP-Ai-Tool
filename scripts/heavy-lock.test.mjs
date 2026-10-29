@@ -172,7 +172,7 @@ test('withHeavyLock sets the held marker for the work and does not wait on itsel
 test('status lists the settings, free and held slots, and who waits', () => {
   const { dir, env } = fixture();
   const lines = status(env, Date.now(), pidAlive, () => 8 * GB);
-  assert.match(lines[0], /^settings: 1 slots \(from env\), another run needs 4 GB per running one plus 3 GB free, 8\.0 GB free now$/);
+  assert.match(lines[0], /^settings: 1 slots \(from env\), another run needs 5 GB per running one plus 2 GB free, 8\.0 GB free now$/);
   assert.deepEqual(lines.slice(1), ['slot-0: free']);
   const lock = acquire('s', { env, log: () => {} });
   lock.beat('typecheck');

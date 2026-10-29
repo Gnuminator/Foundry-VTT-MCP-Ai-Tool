@@ -420,6 +420,7 @@ export function renderPlayerVault(input: PlayerVaultInput): PlayerVaultFiles {
     `# ${t(input.worldTitle.trim() === '' ? 'Campaign' : input.worldTitle)}`,
     `Player: ${t(input.player.name)}`,
     '> [!info] Written by the AI Tool\n> The AI Tool writes this vault from Foundry. Edits you make here are overwritten at the next update.',
+    'Start here: this page links to everything in your vault. Open your character to check your sheet, read the recaps to catch up on earlier sessions, and look in the handouts for letters, maps and clues your GM has shared with you. The session log lists what happened each night, newest first.',
     homeSection(input.sheets.length === 1 ? 'My character' : 'My characters', characters),
     homeSection('Recaps', recaps),
     homeSection('Handouts', handouts),

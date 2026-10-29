@@ -86,6 +86,8 @@ item is marked done; the board ignores a line on an item with no claim.
   On Windows never call `python3` (Store stub, hangs); use `python`. Bash heredocs drop
   backslashes: write code with `\n` or regex through the Write/Edit tools.
 - Review checklist from past incidents: `review-checklist.md` next to this file.
+- For dashboard or player-page UI changes the reviewer also checks `docs/dev/UX-REVIEW-LIST.md`
+  (forms, contrast, states, keyboard, phone width, pre-delivery steps). Name it in the review brief.
 
 ## Before the PR
 

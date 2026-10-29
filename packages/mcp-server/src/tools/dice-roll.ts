@@ -12,6 +12,12 @@ interface DiceRollToolsOptions {
   rulesCheck?: Pick<RulesCheckTools, 'tryCheck'>;
 }
 
+/**
+ * The optional GM choice every d20 roll tool takes; absent lets dnd5e decide from conditions, and
+ * a choice combines with them. No description: the Play tool-set size budget is tight.
+ */
+const advantageChoice = { type: 'string', enum: ['advantage', 'disadvantage'] } as const;
+
 export class DiceRollTools {
   private foundryClient: FoundryClient;
   private logger: Logger;
@@ -72,6 +78,7 @@ export class DiceRollTools {
               description: 'Optional flavor text to describe the roll context',
               default: '',
             },
+            advantage: advantageChoice,
           },
           required: [
             'rollType',
@@ -114,6 +121,7 @@ export class DiceRollTools {
               type: 'string',
               description: 'Context for the check, e.g. "Perception check to notice the ambush".',
             },
+            advantage: advantageChoice,
           },
           required: ['targetPlayer', 'ability', 'isPublic'],
         },
@@ -144,6 +152,7 @@ export class DiceRollTools {
               description:
                 'Whether the roll is public (visible to all) or private (target player + GM only).',
             },
+            advantage: advantageChoice,
           },
           required: ['targetPlayer', 'weaponOrSpellName', 'isPublic'],
         },
@@ -175,6 +184,7 @@ export class DiceRollTools {
               type: 'boolean',
               description: 'Whether the result is public (true) or whispered to the GM (false).',
             },
+            advantage: advantageChoice,
           },
           required: ['actorName', 'rollType', 'rollTarget', 'isPublic'],
         },
@@ -191,6 +201,7 @@ export class DiceRollTools {
       dc: z.number().int().optional(),
       isPublic: z.boolean(),
       reason: z.string().optional(),
+      advantage: z.enum(['advantage', 'disadvantage']).optional(),
     });
     try {
       const params = schema.parse(args);
@@ -216,6 +227,7 @@ export class DiceRollTools {
       targetPlayer: z.string(),
       weaponOrSpellName: z.string(),
       isPublic: z.boolean(),
+      advantage: z.enum(['advantage', 'disadvantage']).optional(),
     });
     try {
       const params = schema.parse(args);
@@ -247,6 +259,7 @@ export class DiceRollTools {
       rollType: z.enum(['ability', 'save', 'skill', 'attack']),
       rollTarget: z.string(),
       isPublic: z.boolean(),
+      advantage: z.enum(['advantage', 'disadvantage']).optional(),
     });
     try {
       const params = schema.parse(args);
@@ -276,6 +289,7 @@ export class DiceRollTools {
       userConfirmedVisibility: z.literal(true),
       rollModifier: z.string().default(''),
       flavor: z.string().default(''),
+      advantage: z.enum(['advantage', 'disadvantage']).optional(),
     });
 
     try {

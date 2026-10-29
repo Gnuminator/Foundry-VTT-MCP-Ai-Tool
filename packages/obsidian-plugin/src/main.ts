@@ -768,6 +768,7 @@ export default class FoundryAiToolPlugin extends Plugin {
           if (!found?.options) return false;
           // Set even when it cannot save, or the live options would write the old groups back.
           found.options.colorGroups = options.colorGroups;
+          if (typeof options.search === 'string') found.options.search = options.search;
           if (typeof found.saveOptions !== 'function') return false;
           await found.saveOptions();
           return true;

@@ -266,6 +266,18 @@ export function libraryHidden(graphJson: unknown): boolean {
   return typeof search === 'string' && searchTerms(search).includes(LIBRARY_FILTER_TERM);
 }
 
+/** The search with our term cut out (and the space before it); the rest is not touched. */
+function withoutTerm(search: string): string {
+  let text = search;
+  const spans = [...search.matchAll(/(?:[^\s"]|"[^"]*")+/g)]
+    .filter(match => match[0] === LIBRARY_FILTER_TERM)
+    .map(match => [match.index ?? 0, (match.index ?? 0) + match[0].length] as const);
+  for (const [start, end] of spans.reverse()) {
+    text = `${text.slice(0, start).trimEnd()}${text.slice(end)}`;
+  }
+  return text.trim();
+}
+
 /**
  * Adds or removes our Library filter term in a graph.json value, leaving the rest of the
  * search text and of the file as it is. Idempotent; an unreadable value counts as empty.
@@ -275,11 +287,11 @@ export function withLibraryFilter(graphJson: unknown, hidden: boolean): Record<s
     typeof graphJson === 'object' && graphJson !== null && !Array.isArray(graphJson)
       ? (graphJson as Record<string, unknown>)
       : {};
-  const terms = searchTerms(typeof base.search === 'string' ? base.search : '').filter(
-    term => term !== LIBRARY_FILTER_TERM
-  );
-  if (hidden) terms.push(LIBRARY_FILTER_TERM);
-  return { ...base, search: terms.join(' ') };
+  const search = typeof base.search === 'string' ? base.search : '';
+  if (libraryHidden(base) === hidden) return { ...base, search };
+  // Edit the text itself, so the rest of the GM's search stays exactly as typed.
+  const next = hidden ? `${search.trimEnd()} ${LIBRARY_FILTER_TERM}`.trim() : withoutTerm(search);
+  return { ...base, search: next };
 }
 
 export interface LibraryFilterResult {
@@ -296,6 +308,11 @@ export async function setLibraryHiddenTo(
   hidden: boolean
 ): Promise<LibraryFilterResult> {
   const change = await changeGraphOptions(host, 'search', base => withLibraryFilter(base, hidden));
+  // The live graph is the truth: do not report a change Obsidian did not keep.
+  const now = host.graphOptions();
+  if (now && libraryHidden(now) !== hidden) {
+    throw new Error('Obsidian did not keep the graph search. Close the graph view and try again.');
+  }
   return { hidden, ...change };
 }
 

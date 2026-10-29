@@ -386,6 +386,14 @@ describe('withLibraryFilter and libraryHidden', () => {
     expect(libraryHidden(shown)).toBe(false);
   });
 
+  it('keeps the rest of the search text exactly as typed, spacing included', () => {
+    const typed = 'tag:#npc   "Count von"  line:(a b)';
+    const hidden = withLibraryFilter({ search: typed }, true);
+    expect(hidden.search).toBe(`${typed} ${LIBRARY_FILTER_TERM}`);
+    expect(withLibraryFilter(hidden, false).search).toBe(typed);
+    expect(withLibraryFilter({ search: typed }, false).search).toBe(typed);
+  });
+
   it('is idempotent in both directions', () => {
     const once = withLibraryFilter({ search: 'a' }, true);
     expect(withLibraryFilter(once, true)).toEqual(once);
@@ -417,7 +425,8 @@ describe('setLibraryHiddenTo', () => {
       disk: { search: 'stale' },
     });
     const result = await setLibraryHiddenTo(host, true);
-    expect(host.calls).toEqual(['park', 'options', 'set', 'restore', 'wait', 'options']);
+    // The last 'options' is the settle check, then the check that the live graph kept the search.
+    expect(host.calls).toEqual(['park', 'options', 'set', 'restore', 'wait', 'options', 'options']);
     expect(host.saved[0]?.search).toBe(`tag:#npc ${LIBRARY_FILTER_TERM}`);
     expect(groupsOf(host.saved[0])).toEqual([userGroup]);
     expect(result).toEqual({ hidden: true, reopened: 1, live: true, reapplied: false });
@@ -439,7 +448,7 @@ describe('setLibraryHiddenTo', () => {
   it('writes graph.json when there is no live graph plugin, and shows the Library again', async () => {
     const host = fakeHost({ live: null, disk: { search: `x ${LIBRARY_FILTER_TERM}` } });
     const result = await setLibraryHiddenTo(host, false);
-    expect(host.calls).toEqual(['park', 'options', 'read', 'write', 'restore']);
+    expect(host.calls).toEqual(['park', 'options', 'read', 'write', 'restore', 'options']);
     expect((host.written[0] as { search: string }).search).toBe('x');
     expect(result.hidden).toBe(false);
     expect(libraryFilterNotice(result)).toContain('shows in the graph again');

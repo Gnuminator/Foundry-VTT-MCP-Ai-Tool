@@ -386,7 +386,7 @@ export const DASHBOARD_CONTROLS = [
     name: 'dash.combat.selection-damage',
     how: 'open',
     reach: [MOMENT_DURING, 'dash.combat.select-combatant'],
-    expect: '#damage-form',
+    expect: '[data-track="dash.damage.apply"]',
     optional: true,
     why: 'needs a selected combatant (opens the Damage / Heal form, applies nothing until its button)',
   },

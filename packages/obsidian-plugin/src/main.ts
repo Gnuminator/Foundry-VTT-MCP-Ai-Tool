@@ -54,7 +54,9 @@ import {
 import {
   applyGraphColoursTo,
   graphColoursNotice,
+  libraryFilterNotice,
   libraryRootOf,
+  setLibraryHiddenTo,
   type GraphHost,
   type HubInfo,
 } from './graph-colours.js';
@@ -288,6 +290,16 @@ export default class FoundryAiToolPlugin extends Plugin {
       id: 'apply-graph-colours',
       name: 'Apply AI Tool graph colours',
       callback: () => void this.applyGraphColours(),
+    });
+    this.addCommand({
+      id: 'hide-library-in-graph',
+      name: 'Hide the Library in the graph',
+      callback: () => void this.setLibraryHidden(true),
+    });
+    this.addCommand({
+      id: 'show-library-in-graph',
+      name: 'Show the Library in the graph',
+      callback: () => void this.setLibraryHidden(false),
     });
 
     this.registerEvent(
@@ -691,6 +703,18 @@ export default class FoundryAiToolPlugin extends Plugin {
     }
   }
 
+  /**
+   * Hides or shows the Library notes in the graph view (a search term in the graph options, next
+   * to the GM's own search text). Off by default: the GM starts it, nothing runs on its own.
+   */
+  async setLibraryHidden(hidden: boolean): Promise<void> {
+    try {
+      new Notice(libraryFilterNotice(await setLibraryHiddenTo(this.graphHost(), hidden)));
+    } catch (error) {
+      new Notice(`Graph filter: ${messageOf(error)}`);
+    }
+  }
+
   /** Obsidian's side of the graph colours: the graph views, the graph plugin and graph.json. */
   private graphHost(): GraphHost {
     const app = this.app;
@@ -952,6 +976,21 @@ class FoundryAiToolSettingTab extends PluginSettingTab {
       .addButton(button =>
         button.setButtonText('Apply AI Tool graph colours').onClick(() => {
           void this.plugin.applyGraphColours();
+        })
+      );
+    new Setting(containerEl)
+      .setName('Library in the graph')
+      .setDesc(
+        'The Library (spells, monsters, items, books) can crowd the graph. Hide it with one search term; your own search text stays. It shows by default.'
+      )
+      .addButton(button =>
+        button.setButtonText('Hide the Library').onClick(() => {
+          void this.plugin.setLibraryHidden(true);
+        })
+      )
+      .addButton(button =>
+        button.setButtonText('Show the Library').onClick(() => {
+          void this.plugin.setLibraryHidden(false);
         })
       );
   }

@@ -203,11 +203,30 @@ export async function applyGraphColoursTo(
   hubs: HubInfo[],
   libraryRoots: string[]
 ): Promise<GraphColoursResult> {
+  let kept = 0;
+  const change = await changeGraphOptions(host, 'colorGroups', base => {
+    const merged = mergeGraphColourGroups(base, ourGroups(hubs, libraryRoots));
+    kept = merged.kept;
+    return merged.json;
+  });
+  return { adventures: hubs.length, kept, ...change };
+}
+
+/**
+ * The shared steps of every graph change: park the open graph views, start from the live options
+ * (else graph.json), save the result, restore the views, and check `key` once more after
+ * {@link GRAPH_SETTLE_MS} (a closing view could store its old options late).
+ */
+async function changeGraphOptions(
+  host: GraphHost,
+  key: 'colorGroups' | 'search',
+  merge: (base: unknown) => Record<string, unknown>
+): Promise<{ reopened: number; live: boolean; reapplied: boolean }> {
   let options: Record<string, unknown> | null = null;
-  let merged: { json: Record<string, unknown>; kept: number };
+  let json: Record<string, unknown>;
   const save = async (): Promise<boolean> => {
-    const saved = options !== null && (await host.setGraphOptions(merged.json));
-    if (!saved) await host.writeGraphJson(merged.json);
+    const saved = options !== null && (await host.setGraphOptions(json));
+    if (!saved) await host.writeGraphJson(json);
     return saved;
   };
   let live: boolean;
@@ -215,24 +234,78 @@ export async function applyGraphColoursTo(
   try {
     await host.parkGraphViews();
     options = host.graphOptions();
-    const base = options ?? (await host.readGraphJson());
-    merged = mergeGraphColourGroups(base, ourGroups(hubs, libraryRoots));
+    json = merge(options ?? (await host.readGraphJson()));
     live = await save();
   } finally {
     // Whatever failed, the parked views come back (an empty tab instead of the graph would stay).
     reopened = await host.restoreGraphViews();
   }
-  const { json, kept } = merged;
   let reapplied = false;
   if (options !== null) {
     await host.wait(GRAPH_SETTLE_MS);
     const now = host.graphOptions();
-    if (now && !sameGroups(now.colorGroups, json.colorGroups)) {
+    if (now && !sameGroups(now[key], json[key])) {
       live = await save();
       reapplied = true;
     }
   }
-  return { adventures: hubs.length, kept, reopened, live, reapplied };
+  return { reopened, live, reapplied };
+}
+
+/** Our term in the graph search: leaves every note under any `AI Tool/Library/` out. */
+export const LIBRARY_FILTER_TERM = '-path:"AI Tool/Library"';
+
+/** Splits a search on spaces outside double quotes (`-path:"a b"` stays one term). */
+function searchTerms(search: string): string[] {
+  return search.match(/(?:[^\s"]|"[^"]*")+/g) ?? [];
+}
+
+/** Whether the graph search already hides the Library. */
+export function libraryHidden(graphJson: unknown): boolean {
+  const search = (graphJson as { search?: unknown } | null)?.search;
+  return typeof search === 'string' && searchTerms(search).includes(LIBRARY_FILTER_TERM);
+}
+
+/**
+ * Adds or removes our Library filter term in a graph.json value, leaving the rest of the
+ * search text and of the file as it is. Idempotent; an unreadable value counts as empty.
+ */
+export function withLibraryFilter(graphJson: unknown, hidden: boolean): Record<string, unknown> {
+  const base =
+    typeof graphJson === 'object' && graphJson !== null && !Array.isArray(graphJson)
+      ? (graphJson as Record<string, unknown>)
+      : {};
+  const terms = searchTerms(typeof base.search === 'string' ? base.search : '').filter(
+    term => term !== LIBRARY_FILTER_TERM
+  );
+  if (hidden) terms.push(LIBRARY_FILTER_TERM);
+  return { ...base, search: terms.join(' ') };
+}
+
+export interface LibraryFilterResult {
+  /** True when the Library is now hidden. */
+  hidden: boolean;
+  reopened: number;
+  live: boolean;
+  reapplied: boolean;
+}
+
+/** Hides or shows the Library in the graph view (I-120 lane D, item 5); colours stay as they are. */
+export async function setLibraryHiddenTo(
+  host: GraphHost,
+  hidden: boolean
+): Promise<LibraryFilterResult> {
+  const change = await changeGraphOptions(host, 'search', base => withLibraryFilter(base, hidden));
+  return { hidden, ...change };
+}
+
+/** The notice after `setLibraryHiddenTo`. */
+export function libraryFilterNotice(result: LibraryFilterResult): string {
+  const reopen =
+    result.reopened === 0 && !result.live ? ' Close and reopen the graph view to see it.' : '';
+  return result.hidden
+    ? `The Library is hidden in the graph. Your own search text stays.${reopen}`
+    : `The Library shows in the graph again.${reopen}`;
 }
 
 /** The notice after `applyGraphColoursTo`. */

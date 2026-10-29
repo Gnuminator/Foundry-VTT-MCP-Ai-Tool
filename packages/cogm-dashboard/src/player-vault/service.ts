@@ -66,6 +66,8 @@ export interface PlayerVaultServiceOptions {
   theme: (worldId: string) => ThemeId;
   /** Folder with `aitool-theme-<id>.css`; default {@link DEFAULT_SNIPPET_DIR}. */
   snippetDir?: string;
+  /** How long one `get-play-stats` answer is reused (it rebuilds from the logs); default 5 min. */
+  statsTtlMs?: number;
 }
 
 /** What one rebuild did, for logs and tests. */
@@ -99,7 +101,7 @@ export class PlayerVaultService {
   private readonly lastHash = new Map<string, string>();
   private readonly backfilled = new Set<string>();
   private pending: SessionEvent[] = [];
-  private lastStats: { worldId: string; raw: unknown } | null = null;
+  private lastStats: { worldId: string; raw: unknown; at: number } | null = null;
 
   constructor(private readonly options: PlayerVaultServiceOptions) {}
 
@@ -158,9 +160,10 @@ export class PlayerVaultService {
     const theme = this.options.theme(world.id);
     const css = this.snippet(theme);
     const sessions = this.options.store.sessions(world.id);
-    const rawStats = await this.playStats(world.id);
+    const players = this.options.players();
+    const rawStats = players.length > 0 ? await this.playStats(world.id) : null;
 
-    for (const player of this.options.players()) {
+    for (const player of players) {
       try {
         const sheets = await this.sheets(player.userId);
         if (sheets === null) {
@@ -225,9 +228,13 @@ export class PlayerVaultService {
    * fails the last good answer for the world stays, so a failed call never drops the stats note.
    */
   private async playStats(worldId: string): Promise<unknown> {
+    const ttl = this.options.statsTtlMs ?? 300_000;
+    if (this.lastStats?.worldId === worldId && Date.now() - this.lastStats.at < ttl) {
+      return this.lastStats.raw;
+    }
     try {
       const raw = await this.options.client.callTool('get-play-stats', {});
-      this.lastStats = { worldId, raw };
+      this.lastStats = { worldId, raw, at: Date.now() };
     } catch (error) {
       this.options.logger.warn('Player vault: play stats unavailable', { error: errorText(error) });
     }

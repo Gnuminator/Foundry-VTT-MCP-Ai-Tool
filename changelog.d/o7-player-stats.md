@@ -6,4 +6,4 @@
   through an allowlist, so GM-only data never reaches it: no highest roll, crits, fumbles or d20
   tallies (the play log does not record a roll's visibility yet), no damage dealt, loot names,
   scene names, user names or other players' characters. The spoiler canary now plants a value in
-  every excluded field and checks the exact set of files in each vault.
+  every excluded field and fails on any file kind it does not know in a vault.

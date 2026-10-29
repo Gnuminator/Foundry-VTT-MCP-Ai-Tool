@@ -114,6 +114,7 @@ interface Rig {
     sessionLog: SessionEvent[];
     sessionLogFails: number;
     sheetFor: (userId: string) => unknown;
+    stats: (() => unknown) | null;
   };
 }
 
@@ -139,6 +140,7 @@ function makeRig(): Rig {
     connected: true,
     sessionLog: [],
     sessionLogFails: 0,
+    stats: null,
     sheetFor: userId => ({
       userId,
       userName: userId === ALICE.userId ? 'Alice' : 'Bob',
@@ -157,6 +159,13 @@ function makeRig(): Rig {
           return Promise.reject(new Error('bridge busy'));
         }
         return Promise.resolve({ events: state.sessionLog } as T);
+      }
+      if (name === 'get-play-stats' && state.stats) {
+        try {
+          return Promise.resolve(state.stats() as T);
+        } catch (error) {
+          return Promise.reject(error instanceof Error ? error : new Error(String(error)));
+        }
       }
       return Promise.reject(new Error(`unexpected tool ${name}`));
     },
@@ -182,6 +191,7 @@ function makeRig(): Rig {
     handoutsReady: (): boolean => state.handoutsReady,
     theme: (): ThemeId => state.theme,
     snippetDir,
+    statsTtlMs: 0,
   });
   return { svc, store, root, snippetDir, calls, sheetCalls, state };
 }
@@ -407,5 +417,33 @@ describe('PlayerVaultService: a player whose sheet cannot be read', () => {
       sheets: [sheet('Ilvara')],
     });
     expect((await rig.svc.rebuild()).written.sort()).toEqual(['Alice', 'Bob']);
+  });
+});
+
+describe('PlayerVaultService: allowed stats', () => {
+  const answer = (worldId: string, taken: number): unknown => ({
+    worldId,
+    campaign: { sessions: 2 },
+    pcs: [{ uuid: 'Actor.actor-Ilvara', name: 'Ilvara', damageTaken: taken }],
+  });
+
+  it('keeps the note when a later call fails, and writes none for another world', async () => {
+    const rig = makeRig();
+    rig.state.stats = (): unknown => answer('w1', 31);
+    await rig.svc.rebuild();
+    const first = await read(rig.root, 'Alice', 'My stats.md');
+    expect(first).toContain('Damage taken: 31');
+    expect(await listFiles(path.join(rig.root, 'Bob'))).toContain('My stats.md');
+
+    rig.state.stats = (): unknown => {
+      throw new Error('bridge busy');
+    };
+    await rig.svc.rebuild();
+    expect(await read(rig.root, 'Alice', 'My stats.md')).toBe(first);
+
+    const other = makeRig();
+    other.state.stats = (): unknown => answer('another-world', 31);
+    await other.svc.rebuild();
+    expect(await listFiles(path.join(other.root, 'Alice'))).not.toContain('My stats.md');
   });
 });

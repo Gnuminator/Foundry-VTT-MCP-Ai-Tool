@@ -672,7 +672,7 @@ describe('O7 player vault spoiler canary (real createDashboard path)', () => {
     // Every file of both folders is known: a new kind of file fails here until whoever adds it
     // has planted canaries for it above.
     const knownFiles = ['Home.md', 'My character.md', 'My stats.md', '.aitool-player.json'];
-    const knownFolders = ['Handouts/', 'Recaps/', 'Session log/', '.obsidian/'];
+    const knownFolders = ['My characters/', 'Handouts/', 'Recaps/', 'Session log/', '.obsidian/'];
     for (const folder of [a, b]) {
       for (const name of folder.files) {
         expect(

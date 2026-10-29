@@ -125,5 +125,13 @@
 }
 
 .fmb-tt-player .fmb-tt-card {
-  width: 9.5rem;
+  width: 8rem;
+}
+
+.fmb-tt-gm .fmb-tt-card {
+  width: 7rem;
+}
+
+.fmb-tt-gm {
+  gap: 0.6rem;
 }

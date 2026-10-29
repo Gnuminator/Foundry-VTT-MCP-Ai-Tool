@@ -92,6 +92,14 @@ GM Actions. **End session** turns off again what it turned on. See
   the players.
 - **Starts:** off. Setting "AI Tool: Tarokka (writes)". Turn on for tonight turns it on.
 - **Turn it on when:** before the first card reading.
+- **At the table:** in Foundry, **AI Tool** in the left toolbar has a **Tarokka table** button
+  (GM only). **Place** puts the next card face down, **Flip** turns one over, **Show to players**
+  opens the table on every player's screen, **Stop showing** closes it. The players see the backs
+  of the cards you placed and the faces of the ones you flipped, nothing else (no position names,
+  no notes). **Picture** gives a card a picture from the world's files. A flip is a reveal: it
+  needs this switch on, and it also marks the card revealed in the drawer and puts a page for
+  the players in the reveal journal. The table needs the reading to exist first (dealt or chosen in
+  the drawer, or by Claude), and the bridge to be connected.
 - **More:** [The Tarokka drawer](dashboard.md#the-tarokka-drawer--tarokka).
 
 ## Ownership

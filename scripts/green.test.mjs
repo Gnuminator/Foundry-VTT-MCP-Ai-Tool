@@ -204,12 +204,12 @@ test('main: all green prints one OK line and nothing else', () => {
   assert.deepEqual(r.ran, ['one', 'two', 'three']);
 });
 
-test('main: the log goes under green-<stamp>/<nn>-<step>.log', () => {
+test('main: the log goes under green-<stamp>-<pid>/<nn>-<step>.log', () => {
   const r = run([], { two: { status: 1, log: 'boom\n' } });
   const m = /FAILED at two \((.+)\)/.exec(r.lines[0]);
   assert.ok(m);
   assert.match(path.basename(m[1]), /^02-two\.log$/);
-  assert.match(path.basename(path.dirname(m[1])), /^green-\d{8}-\d{6}$/);
+  assert.equal(path.basename(path.dirname(m[1])), `${/^green-\d{8}-\d{6}/.exec(path.basename(path.dirname(m[1])))?.[0]}-${process.pid}`);
   assert.equal(path.dirname(path.dirname(m[1])), r.tmp);
 });
 

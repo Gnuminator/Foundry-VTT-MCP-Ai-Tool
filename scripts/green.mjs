@@ -5,7 +5,7 @@
  * stdout and stderr to a log file under the temp folder, and the run prints one line at the end:
  *
  *   green: OK, 35 steps in 6m12s
- *   green: FAILED at typecheck (C:\...\green-20261010-101500\01-typecheck.log)   + the last 30 log lines
+ *   green: FAILED at typecheck (C:\...\green-20261010-101500-4242\01-typecheck.log)   + the last 30 log lines
  *
  *   npm run green                       run every step, stop at the first failure
  *   npm run green -- --all              run every step, report every failed step
@@ -663,7 +663,8 @@ export function main(options = {}) {
     opts.from
       ? null
       : worktreeTreeHash(cwd);
-  const logDir = path.join(tmpdir, `green-${stamp(new Date(now()))}`);
+  // The pid keeps two greens started in the same second (parallel lanes) out of each other's logs.
+  const logDir = path.join(tmpdir, `green-${stamp(new Date(now()))}-${process.pid}`);
   fs.mkdirSync(logDir, { recursive: true });
   const started = now();
   /** @type {{ name: string, logFile: string }[]} */

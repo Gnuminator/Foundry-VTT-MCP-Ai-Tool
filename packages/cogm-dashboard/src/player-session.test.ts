@@ -6,7 +6,7 @@ import { readFileSync } from 'node:fs';
 
 import { describe, expect, it } from 'vitest';
 
-import { sessionPhase, splitHandouts } from '../public/player-session.js';
+import { handoutTitle, sessionPhase, splitHandouts } from '../public/player-session.js';
 
 const open = { open: true, endedAt: null };
 const closed = { open: false, endedAt: '2026-09-28T22:00:00.000Z' };
@@ -30,6 +30,27 @@ describe('sessionPhase', () => {
     expect(sessionPhase({ session: null, combat: null })).toBe('live');
     expect(sessionPhase({})).toBe('live');
     expect(sessionPhase(null)).toBe('live');
+  });
+});
+
+describe('handoutTitle', () => {
+  it('shows the quest title from the page h1 when the page is named Quest Details', () => {
+    expect(
+      handoutTitle({
+        title: 'Quest Details',
+        html: '<h1>The <em>Lost</em> Amulet &amp; more</h1><p>x</p>',
+      })
+    ).toBe('The Lost Amulet & more');
+  });
+
+  it('keeps every other title, and falls back when there is no usable h1', () => {
+    expect(handoutTitle({ title: 'Session 2 Recap', html: '<h1>Other</h1>' })).toBe(
+      'Session 2 Recap'
+    );
+    expect(handoutTitle({ title: 'Quest Details', html: '<p>no heading</p>' })).toBe(
+      'Quest Details'
+    );
+    expect(handoutTitle({ title: 'Quest Details', html: '<h1> </h1>' })).toBe('Quest Details');
   });
 });
 

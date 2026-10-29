@@ -44,3 +44,32 @@ export function splitHandouts(handouts) {
   const rest = list.filter(h => h !== recap && !quests.includes(h));
   return { recap, quests, rest };
 }
+
+const GENERIC_QUEST_TITLE = /^\s*quest details\s*$/i;
+const ENTITIES = {
+  '&amp;': '&',
+  '&lt;': '<',
+  '&gt;': '>',
+  '&quot;': '"',
+  '&#39;': "'",
+  '&nbsp;': ' ',
+};
+
+/**
+ * What a handout is called on the page. create-quest-journal names every quest's first page
+ * "Quest Details" and puts the quest's own title in an h1 at the top of the page, so a page with
+ * that generic name shows the h1 text instead. The h1 comes from the already sanitized HTML and
+ * the result is plain text (the caller escapes it); any other page keeps its page title.
+ */
+export function handoutTitle(h) {
+  const title = (h && h.title) || '';
+  if (!GENERIC_QUEST_TITLE.test(title)) return title;
+  const m = /<h1>([\s\S]*?)<\/h1>/i.exec((h && h.html) || '');
+  if (!m) return title;
+  const text = m[1]
+    .replace(/<[^>]*>/g, '')
+    .replace(/&(?:amp|lt|gt|quot|#39|nbsp);/g, e => ENTITIES[e])
+    .replace(/\s+/g, ' ')
+    .trim();
+  return text || title;
+}

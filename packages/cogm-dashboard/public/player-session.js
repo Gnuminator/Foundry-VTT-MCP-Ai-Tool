@@ -66,8 +66,14 @@ export function handoutTitle(h) {
   if (!GENERIC_QUEST_TITLE.test(title)) return title;
   const m = /<h1>([\s\S]*?)<\/h1>/i.exec((h && h.html) || '');
   if (!m) return title;
-  const text = m[1]
-    .replace(/<[^>]*>/g, '')
+  // Strip tags until none is left, then drop any stray angle bracket, before entities are decoded.
+  let plain = m[1];
+  for (let prev = ''; prev !== plain; ) {
+    prev = plain;
+    plain = plain.replace(/<[^>]*>/g, '');
+  }
+  const text = plain
+    .replace(/[<>]/g, '')
     .replace(/&(?:amp|lt|gt|quot|#39|nbsp);/g, e => ENTITIES[e])
     .replace(/\s+/g, ' ')
     .trim();

@@ -44,6 +44,16 @@ describe('handoutTitle', () => {
     ).toBe('The Lost Amulet & more');
   });
 
+  it('leaves no tag behind when tags are nested to survive one strip pass', () => {
+    expect(
+      handoutTitle({
+        title: 'Quest Details',
+        html: '<h1><<script>script>alert(1)<</script>/script></h1>',
+      })
+    ).toBe('script>alert(1)/script>'.replace(/[<>]/g, ''));
+    expect(handoutTitle({ title: 'Quest Details', html: '<h1>a<<b>b>c</h1>' })).not.toMatch(/[<>]/);
+  });
+
   it('keeps every other title, and falls back when there is no usable h1', () => {
     expect(handoutTitle({ title: 'Session 2 Recap', html: '<h1>Other</h1>' })).toBe(
       'Session 2 Recap'

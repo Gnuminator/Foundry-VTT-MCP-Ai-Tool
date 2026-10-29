@@ -452,8 +452,7 @@ export default class FoundryAiToolPlugin extends Plugin {
     });
   }
 
-  /** A mirror note that can get a prep note: a world document (not a compendium entry or a prep
-   * note itself) in its world's campaign folder. */
+  /** Flip `ai_context` on a prep note: Claude may read it, or may not. */
   private async toggleAiContext(file: TFile, allowedNow: boolean): Promise<void> {
     try {
       await this.app.fileManager.processFrontMatter(file, fm => {
@@ -465,6 +464,8 @@ export default class FoundryAiToolPlugin extends Plugin {
     }
   }
 
+  /** A mirror note that can get a prep note: a world document (not a compendium entry or a prep
+   * note itself) in its world's campaign folder. */
   private prepSourceFor(file: TFile | null): PrepSource | null {
     const note = this.noteFor(file);
     if (!file || !note || note.uuid.startsWith('Compendium.')) return null;

@@ -642,7 +642,7 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
 
   // The React dashboard's files: Vite puts a content hash in every file name under assets/, so
   // those are cached for good; index.html is checked on every load so a new build shows up at once.
-  app.use('/next/assets', gzipAssets(path.join(config.webDir, 'assets')));
+  app.use('/next/assets', pageLimit, gzipAssets(path.join(config.webDir, 'assets')));
   app.use(
     '/next',
     express.static(config.webDir, {

@@ -1,5 +1,6 @@
 /** Gzip for the React build's hashed files (I-098): only what is safe to cache, only when asked. */
 import express from 'express';
+import rateLimit from 'express-rate-limit';
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'fs';
 import * as http from 'http';
 import type { AddressInfo } from 'net';
@@ -50,7 +51,9 @@ beforeAll(async () => {
   writeFileSync(path.join(dir, 'assets', 'UP-abc.JS'), BIG_JS);
   writeFileSync(path.join(dir, 'secret.js'), BIG_JS);
   const app = express();
-  app.use('/next/assets', gzipAssets(path.join(dir, 'assets')));
+  // The dashboard mounts it behind the same kind of limiter (app.ts).
+  const limit = rateLimit({ windowMs: 10_000, limit: 1000, validate: false });
+  app.use('/next/assets', limit, gzipAssets(path.join(dir, 'assets')));
   app.use('/next', (_req, res) => res.status(404).send('fell through'));
   await new Promise<void>(resolve => {
     server = app.listen(0, '127.0.0.1', resolve);

@@ -211,6 +211,64 @@ test('the combat and pace lines follow the encounter, the tokens and a slowed me
   await expect(drawer.locator('.party-member .pf-detail')).toHaveText(['Level 3']);
 });
 
+test('Who would notice: a DC gives a tick or cross per PC and skill, and the row needs the switch', async ({
+  page,
+}) => {
+  await fakeStream(page, []);
+  const withPassives = (): unknown => ({
+    ...STATE,
+    groups: [
+      {
+        ...GROUP,
+        members: [
+          { ...ILVARA, passives: { perception: 13, investigation: 9, insight: null } },
+          { ...IVARRO, passives: { perception: 16, investigation: 12, insight: 10 } },
+        ],
+      },
+    ],
+  });
+  let state: unknown = STATE;
+  await fakeTools(page, () => ok(state));
+  const drawer = await openParty(page);
+  // GM only: the drawer is the GM's, and with the switch off (no passives) there is no row.
+  await expect(drawer.locator('.drawer-sub')).toContainText('GM only');
+  await expect(drawer.locator('.party-member')).toHaveCount(2);
+  await expect(drawer.locator('#party-notice')).toHaveCount(0);
+
+  state = withPassives();
+  await drawer.getByRole('button', { name: '↻ Refresh' }).click();
+  const notice = drawer.locator('#party-notice');
+  await expect(notice).toBeVisible();
+  const rows = notice.getByRole('list', { name: 'Who would notice' }).locator('li');
+  await expect(rows.locator('.pf-label')).toHaveText(['Ilvara', 'Ivarro']);
+
+  // No DC yet: scores only, no verdict marks.
+  await expect(rows.nth(0).locator('.feature-pill')).toHaveText([
+    'Perception 13',
+    'Investigation 9',
+    'Insight -',
+  ]);
+
+  await notice.getByLabel('Notice DC').fill('13');
+  await expect(rows.nth(0).locator('.feature-pill')).toHaveText([
+    'Perception 13 ✓',
+    'Investigation 9 ✗',
+    'Insight -',
+  ]);
+  await expect(rows.nth(1).locator('.feature-pill')).toHaveText([
+    'Perception 16 ✓',
+    'Investigation 12 ✗',
+    'Insight 10 ✗',
+  ]);
+
+  await notice.getByLabel('Notice DC').fill('');
+  await expect(rows.nth(1).locator('.feature-pill')).toHaveText([
+    'Perception 16',
+    'Investigation 12',
+    'Insight 10',
+  ]);
+});
+
 test('the group picker shows with two groups and switches without a load', async ({ page }) => {
   await fakeStream(page, []);
   const other = { ...GROUP, actorId: 'g2', name: 'Scouts', primary: false, members: [IVARRO] };

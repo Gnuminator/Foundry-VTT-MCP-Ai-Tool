@@ -65,6 +65,11 @@ export interface EventPumpOptions {
    * pump.
    */
   onAppended?: (worldId: string, count: number) => void;
+  /**
+   * Called with the events just written (oldest first), for the wait-for-game-event hub. Same
+   * failure rule as `onAppended`.
+   */
+  onEvents?: (worldId: string, events: readonly unknown[]) => void;
 }
 
 /** Whether the pump is on, and its interval, from the environment. */
@@ -109,6 +114,7 @@ export class EventPump {
   private readonly logger: Logger;
   private readonly intervalMs: number;
   private readonly onAppended: EventPumpOptions['onAppended'];
+  private readonly onEvents: EventPumpOptions['onEvents'];
   private timer: NodeJS.Timeout | null = null;
   private inFlight: Promise<number> | null = null;
   private state: {
@@ -125,6 +131,7 @@ export class EventPump {
     this.logger = options.logger.child({ component: 'EventPump' });
     this.intervalMs = options.intervalMs ?? DEFAULT_EVENT_POLL_MS;
     this.onAppended = options.onAppended;
+    this.onEvents = options.onEvents;
   }
 
   start(): void {
@@ -202,7 +209,19 @@ export class EventPump {
     state.cursorMs = newest;
     await this.saveState(worldId);
     this.notifyAppended(worldId, events.length);
+    this.notifyEvents(worldId, events);
     return events.length;
+  }
+
+  private notifyEvents(worldId: string, events: readonly SessionEvent[]): void {
+    if (!this.onEvents) return;
+    try {
+      this.onEvents(worldId, events);
+    } catch (error) {
+      this.logger.warn('onEvents listener failed', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
   }
 
   private notifyAppended(worldId: string, count: number): void {

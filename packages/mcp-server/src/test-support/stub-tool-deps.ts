@@ -48,6 +48,8 @@ import { SceneChangeTools } from '../tools/scene-change.js';
 import { CombatChangeTools } from '../tools/combat-change.js';
 import { SceneTools } from '../tools/scene.js';
 import { SessionLogTools } from '../tools/session-log.js';
+import { WaitForEventTools } from '../tools/wait-for-event.js';
+import { GameEventHub } from '../game-event-hub.js';
 import { TarokkaTools } from '../tools/tarokka.js';
 import { TokenManipulationTools } from '../tools/token-manipulation.js';
 
@@ -137,5 +139,6 @@ export function stubToolRouterDeps(): ToolRouterDeps {
     sessionLogTools: new SessionLogTools(base),
     tarokkaTools: new TarokkaTools({ tarokka: {} as any, logger }),
     tokenManipulationTools: new TokenManipulationTools(base),
+    waitForEventTools: new WaitForEventTools({ hub: new GameEventHub(), logger }),
   };
 }

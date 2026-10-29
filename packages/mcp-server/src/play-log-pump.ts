@@ -67,6 +67,8 @@ export interface PlayLogPumpOptions {
    * pump.
    */
   onAppended?: (worldId: string, count: number) => void;
+  /** Called with the records just written (the wait-for-game-event hub); failures are logged only. */
+  onRecords?: (worldId: string, records: readonly PlayRecord[]) => void;
 }
 
 /** Whether the pump is on, and its interval, from the environment. */
@@ -100,6 +102,7 @@ export class PlayLogPump {
   private readonly logger: Logger;
   private readonly intervalMs: number;
   private readonly onAppended: PlayLogPumpOptions['onAppended'];
+  private readonly onRecords: PlayLogPumpOptions['onRecords'];
   private timer: NodeJS.Timeout | null = null;
   private inFlight: Promise<number> | null = null;
   private state: { worldId: string; clientId: string | null; lastSeq: number } | null = null;
@@ -114,6 +117,7 @@ export class PlayLogPump {
     this.logger = options.logger.child({ component: 'PlayLogPump' });
     this.intervalMs = options.intervalMs ?? DEFAULT_EVENT_POLL_MS;
     this.onAppended = options.onAppended;
+    this.onRecords = options.onRecords;
   }
 
   start(): void {
@@ -185,14 +189,18 @@ export class PlayLogPump {
       this.logger.warn('Play log dropped invalid records', { worldId, count: invalid });
     }
 
-    const written = await this.appendByDate(worldId, valid);
+    const appended: PlayRecord[] = [];
+    const written = await this.appendByDate(worldId, valid, appended);
 
     const changed = state.clientId !== response.clientId || state.lastSeq !== response.latestSeq;
     state.clientId = response.clientId;
     state.lastSeq = response.latestSeq;
     if (changed) await this.saveState(worldId);
 
-    if (written > 0) this.notifyAppended(worldId, written);
+    if (written > 0) {
+      this.notifyAppended(worldId, written);
+      this.notifyRecords(worldId, appended);
+    }
     return written;
   }
 
@@ -208,7 +216,11 @@ export class PlayLogPump {
   }
 
   /** Group by local date, drop duplicate keys (against the file and within the batch), append. */
-  private async appendByDate(worldId: string, records: PlayRecord[]): Promise<number> {
+  private async appendByDate(
+    worldId: string,
+    records: PlayRecord[],
+    appended: PlayRecord[]
+  ): Promise<number> {
     const byDate = new Map<string, PlayRecord[]>();
     for (const record of records) {
       const date = localDateKey(record.t);
@@ -230,6 +242,7 @@ export class PlayLogPump {
       // Only mark these as written once the append has actually landed.
       for (const key of seen) keys.add(key);
       written += toAppend.length;
+      appended.push(...toAppend);
     }
     return written;
   }
@@ -246,6 +259,17 @@ export class PlayLogPump {
     }
     this.writtenKeys.set(cacheKey, keys);
     return keys;
+  }
+
+  private notifyRecords(worldId: string, records: readonly PlayRecord[]): void {
+    if (!this.onRecords) return;
+    try {
+      this.onRecords(worldId, records);
+    } catch (error) {
+      this.logger.warn('onRecords listener failed', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
   }
 
   private notifyAppended(worldId: string, count: number): void {

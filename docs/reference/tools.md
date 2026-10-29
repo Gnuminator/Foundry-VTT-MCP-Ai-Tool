@@ -6,12 +6,12 @@ description: Every tool the bridge serves, by tool set, with its description and
 
 # Tool reference
 
-The bridge serves 97 tools in five sets. [Tool sets](TOOL-SETS.md) explains the sets and how Claude Desktop loads them; this page lists every tool with the description and parameters Claude reads.
+The bridge serves 98 tools in five sets. [Tool sets](TOOL-SETS.md) explains the sets and how Claude Desktop loads them; this page lists every tool with the description and parameters Claude reads.
 
 | Set | Claude Desktop entry | Tools | For |
 | --- | --- | --- | --- |
 | [Core](#core) | `foundry-mcp` | 24 | Look things up (world, characters, scenes, journals, compendiums, combat) and review, apply or undo planned changes. Always on. |
-| [Play](#play) | `foundry-mcp-play` | 36 | Run the table live: tokens, combat turns, rolls, damage, conditions, resources, chat, scene mood, map notes and loot. |
+| [Play](#play) | `foundry-mcp-play` | 37 | Run the table live: tokens, combat turns, rolls, damage, conditions, resources, chat, scene mood, map notes and loot. |
 | [Prep](#prep) | `foundry-mcp-prep` | 20 | Prepare sessions and write recaps: quests and journals, encounter budgets, the Tarokka reading, handouts, the session log, play stats and the pre-flight check. |
 | [Build](#build) | `foundry-mcp-build` | 8 | Make and change NPCs, monsters and items: from a compendium or from scratch, with features, attacks and spells. Set up rooms: teleports and tokens in a room. |
 | [Admin](#admin) | `foundry-mcp-admin` | 9 | Set up and troubleshoot: installed modules and their errors, who owns which actor, and the Obsidian mirror settings. |
@@ -517,6 +517,19 @@ Parameters:
 - `sinceTimestamp` (string): ISO timestamp; only return events after this time. Omit for the most recent events.
 - `limit` (integer): Maximum number of events to return (default 100). Default: `100`.
 - `eventType` (string): Optional event type filter.
+
+### wait-for-game-event
+
+Wait for the next game event instead of polling get-recent-events. Returns when a matching event is logged (a few seconds after it happens), or empty on timeout: call again with sinceTimestamp = the returned latestTimestamp so nothing is missed.
+
+Kind: read-only. Title: Wait for a game event.
+
+Parameters:
+
+- `eventTypes` (array of string): Event types, e.g. ["combat-turn"], ["scene-change"], ["roll","damage-roll"]. Empty = any.
+- `actorName` (string): Actor name filter (partial match).
+- `sinceTimestamp` (string): The latestTimestamp of the previous call (not an event time); matching events after it return at once. Omit = only new ones.
+- `timeoutSeconds` (integer): Default 25, max 45.
 
 ### plan-actor-change
 

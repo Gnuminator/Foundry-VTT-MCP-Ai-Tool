@@ -24,6 +24,7 @@ export const READ_TOOLS_EXTRA: ReadonlySet<string> = new Set([
   'check-action',
   'check-secret-terms',
   'open-in-foundry',
+  'wait-for-game-event',
 ]);
 
 /**

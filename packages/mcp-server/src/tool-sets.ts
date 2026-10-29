@@ -85,6 +85,7 @@ export const TOOL_SETS: Readonly<Record<ToolSetName, ToolSetSpec>> = {
       'measure-distance',
       'get-targets',
       'get-recent-events',
+      'wait-for-game-event',
       'plan-actor-change',
       'plan-token-change',
       'roll-saving-throws',

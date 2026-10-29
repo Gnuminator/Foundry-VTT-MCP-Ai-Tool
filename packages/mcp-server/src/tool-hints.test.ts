@@ -70,6 +70,7 @@ const WRITE_VERBS = [
 
 /** Name prefixes a read-only tool may have (a plan only stages a change). */
 const READ_VERBS = [
+  'wait-for-',
   'check-',
   'get-',
   'list-',

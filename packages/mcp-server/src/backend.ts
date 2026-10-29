@@ -63,6 +63,8 @@ import { EffectsTools } from './tools/effects.js';
 import { CombatTools } from './tools/combat.js';
 import { MovementTools } from './tools/movement.js';
 import { SessionLogTools } from './tools/session-log.js';
+import { WaitForEventTools } from './tools/wait-for-event.js';
+import { GameEventHub } from './game-event-hub.js';
 import { CombatResolutionTools } from './tools/combat-resolution.js';
 import { EncounterTools } from './tools/encounter.js';
 import { SceneChangeTools } from './tools/scene-change.js';
@@ -310,6 +312,10 @@ async function startBackend(): Promise<void> {
 
   const sessionLogTools = new SessionLogTools({ foundryClient, logger });
 
+  // wait-for-game-event (I-001): the event pumps publish here, the tool sleeps on it.
+  const gameEventHub = new GameEventHub();
+  const waitForEventTools = new WaitForEventTools({ hub: gameEventHub, logger });
+
   const combatResolutionTools = new CombatResolutionTools({ foundryClient, logger });
 
   const encounterTools = new EncounterTools({ foundryClient, logger });
@@ -535,6 +541,7 @@ async function startBackend(): Promise<void> {
     combatChangeTools,
     diagnosticsTools,
     refChoiceTools,
+    waitForEventTools,
   };
   const toolRouter = buildToolRouter(toolDeps);
   // Dashboard-only routes (O6): callable through call_tool by the dashboard's GM proxy, but not
@@ -587,12 +594,17 @@ async function startBackend(): Promise<void> {
         logger,
         intervalMs: pumpSettings.intervalMs,
         onAppended: renderObsidian,
+        onEvents: (_worldId, events): void => gameEventHub.publishSessionEvents(events),
       });
       eventPump.start();
     } else {
       logger.info('Session event log disabled (FOUNDRY_AI_EVENT_LOG=off)');
     }
     const playSettings = playLogSettings();
+    gameEventHub.setSources({
+      sessionEvents: pumpSettings.enabled,
+      playLog: playSettings.enabled,
+    });
     if (playSettings.enabled) {
       playLogPump = new PlayLogPump({
         foundryClient,
@@ -601,6 +613,7 @@ async function startBackend(): Promise<void> {
         logger,
         intervalMs: playSettings.intervalMs,
         onAppended: renderObsidian,
+        onRecords: (_worldId, records): void => gameEventHub.publishPlayRecords(records),
       });
       playLogPump.start();
     } else {
@@ -660,6 +673,10 @@ async function startBackend(): Promise<void> {
   const server = net.createServer(socket => {
     socket.setEncoding('utf8');
 
+    // Aborts the long waits (wait-for-game-event) of a connection that closed.
+    const socketAbort = new AbortController();
+    socket.on('close', () => socketAbort.abort());
+
     // Closes the socket on anything that is not a JSON-lines client (an HTTP POST from a web page).
     const reader = createControlReader(socket, logger);
 
@@ -687,44 +704,54 @@ async function startBackend(): Promise<void> {
               requestedBy?: unknown;
             };
 
-            try {
-              const route = toolRouter[name];
-              if (!route) {
-                throw new Error(`Unknown tool: ${name}`);
+            const runCall = async (): Promise<void> => {
+              try {
+                const route = toolRouter[name];
+                if (!route) {
+                  throw new Error(`Unknown tool: ${name}`);
+                }
+                // The dashboard says who asked (a GM's undo there is theirs, not the AI's).
+                const requester =
+                  typeof requestedBy === 'string'
+                    ? requestedBy.trim().slice(0, MAX_REQUESTER_LENGTH)
+                    : '';
+                const result: unknown = await route(args, {
+                  ...(requester ? { requestedBy: requester } : {}),
+                  signal: socketAbort.signal,
+                });
+
+                const payload: ToolResultPayload = {
+                  content: [
+                    {
+                      type: 'text',
+                      text: typeof result === 'string' ? result : JSON.stringify(result),
+                    },
+                  ],
+                };
+
+                if (!socket.destroyed) {
+                  socket.write(`${JSON.stringify({ id: msg.id, result: payload })}\n`);
+                }
+              } catch (e: unknown) {
+                const errorMessage = e instanceof Error ? e.message : 'Unknown error occurred';
+
+                if (!socket.destroyed) {
+                  socket.write(
+                    `${JSON.stringify({
+                      id: msg.id,
+                      result: {
+                        content: [{ type: 'text', text: `Error: ${errorMessage}` }],
+                        isError: true,
+                      },
+                    })}\n`
+                  );
+                }
               }
-              // The dashboard says who asked (a GM's undo there is theirs, not the AI's).
-              const requester =
-                typeof requestedBy === 'string'
-                  ? requestedBy.trim().slice(0, MAX_REQUESTER_LENGTH)
-                  : '';
-              const result: unknown = await route(
-                args,
-                requester ? { requestedBy: requester } : undefined
-              );
-
-              const payload: ToolResultPayload = {
-                content: [
-                  {
-                    type: 'text',
-                    text: typeof result === 'string' ? result : JSON.stringify(result),
-                  },
-                ],
-              };
-
-              socket.write(`${JSON.stringify({ id: msg.id, result: payload })}\n`);
-            } catch (e: unknown) {
-              const errorMessage = e instanceof Error ? e.message : 'Unknown error occurred';
-
-              socket.write(
-                `${JSON.stringify({
-                  id: msg.id,
-                  result: {
-                    content: [{ type: 'text', text: `Error: ${errorMessage}` }],
-                    isError: true,
-                  },
-                })}\n`
-              );
-            }
+            };
+            // Lines that arrive in the same chunk run in order; a long wait must not hold up the
+            // lines behind it, so only this tool is not awaited.
+            if (name === 'wait-for-game-event') void runCall();
+            else await runCall();
 
             continue;
           }

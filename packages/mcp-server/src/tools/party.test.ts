@@ -24,6 +24,7 @@ function member(id: string, name: string, tokens: PartyMember['tokens'] = []): P
     hp: { value: 20, max: 28, temp: 0 },
     ac: 16,
     passivePerception: 13,
+    passives: null,
     exhaustion: 0,
     hitDice: { value: 2, max: 3 },
     deathSaves: null,

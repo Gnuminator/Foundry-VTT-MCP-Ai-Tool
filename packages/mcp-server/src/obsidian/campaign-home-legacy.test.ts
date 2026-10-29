@@ -32,12 +32,38 @@ describe('legacy Campaign Home templates', () => {
     );
   });
 
+  it('keeps the 2026-10-06 template byte for byte (frozen: never edit it)', () => {
+    const v2 = LEGACY_CAMPAIGN_HOMES[1];
+    expect(v2).toBeDefined();
+    expect(sha256(v2('ai-tool-test'))).toBe(
+      '36519e2419e7d741a1a07ca0b0d6da1667e072b165f9d4b3ac81680e8dad3302'
+    );
+    expect(isUntouchedLegacyHome('ai-tool-test', v2('ai-tool-test'))).toBe(true);
+  });
+
   it('gives the current Home an Adventures base on the hubs folder', () => {
     const home = renderCampaignHome('curse-of-strahd');
-    expect(home).toContain('## Adventures');
+    expect(home).toContain('### Adventures');
     expect(home).toContain(
       '    - file.inFolder("Campaigns/curse-of-strahd/AI Tool/Foundry/Adventures")'
     );
-    expect(home.indexOf('## Adventures')).toBeLessThan(home.indexOf('## Sessions'));
+    expect(home.indexOf('### Adventures')).toBeLessThan(home.indexOf('## Play log'));
+  });
+
+  it('is a start page: sections by what the GM is doing, in plain words', () => {
+    const home = renderCampaignHome('curse-of-strahd');
+    const headings = home.split('\n').filter(line => line.startsWith('## '));
+    expect(headings).toEqual([
+      '## Before a session',
+      '## During a session',
+      '## After a session',
+      '## The campaign',
+      '## Play log',
+      '## Change log',
+      '## Rules lookups',
+      '## Help',
+    ]);
+    expect(home).toContain('start here');
+    expect(home).not.toContain(String.fromCharCode(0x2014));
   });
 });

@@ -289,6 +289,44 @@ describe('DiceRollTools.handleRollNpcCheck', () => {
     expect(result).toBe(payload);
   });
 
+  it('forwards an advantage choice to the bridge and rejects an unknown one', async () => {
+    const { tools, query } = makeTools(() => ({ success: true }));
+    await tools.handleRollNpcCheck({
+      actorName: 'Goblin',
+      rollType: 'save',
+      rollTarget: 'dex',
+      isPublic: true,
+      advantage: 'advantage',
+    });
+    expect(query.mock.calls[0][1]).toMatchObject({ advantage: 'advantage' });
+    const bad = await tools.handleRollNpcCheck({
+      actorName: 'Goblin',
+      rollType: 'save',
+      rollTarget: 'dex',
+      isPublic: true,
+      advantage: 'sideways',
+    });
+    expect(bad).toEqual(expect.stringContaining('Parameter error'));
+  });
+
+  it('forwards advantage on the ability check and attack requests too', async () => {
+    const { tools, query } = makeTools(() => ({ success: true, message: 'ok' }));
+    await tools.handleRequestAbilityCheck({
+      targetPlayer: 'Alice',
+      ability: 'dex',
+      isPublic: true,
+      advantage: 'disadvantage',
+    });
+    await tools.handleRequestAttackRoll({
+      targetPlayer: 'Alice',
+      weaponOrSpellName: 'Longsword',
+      isPublic: true,
+      advantage: 'advantage',
+    });
+    expect(query.mock.calls[0][1]).toMatchObject({ advantage: 'disadvantage' });
+    expect(query.mock.calls[1][1]).toMatchObject({ advantage: 'advantage' });
+  });
+
   it('returns the response when success is true (not just a string)', async () => {
     const payload = { success: true, details: 'roll data' };
     const { tools } = makeTools(() => payload);

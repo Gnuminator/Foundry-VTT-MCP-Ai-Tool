@@ -651,6 +651,11 @@ choose **Set as Primary Party**. With more than one group, a list at the top pic
 - **Members**: each character's HP, AC, passive Perception, hit dice left, conditions and
   exhaustion, death saves at 0 HP, and whether the token is on the scene and in the encounter.
   **Open** shows the character sheet in Foundry.
+- **Who would notice**: with the module setting **AI Tool: Who would notice** switched on, type a
+  DC and each character shows chips for passive Perception, Investigation and Insight, with a
+  tick for a score at or above the DC and a cross below it. The scores are dnd5e's own, so
+  conditions and exhaustion are already counted. Only you see it; nothing is rolled or sent to
+  the players.
 - **Travel pace**: Slow, Normal or Fast. If a member is slowed, the drawer says the party moves
   at slow pace anyway.
 - **Combat**: adds the party's tokens on the current scene to the encounter, or starts an

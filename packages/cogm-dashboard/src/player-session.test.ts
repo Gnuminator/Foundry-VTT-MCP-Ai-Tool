@@ -63,6 +63,11 @@ describe('handoutTitle after the real sanitizer', () => {
     const html = sanitizeHandoutHtml(page, []);
     expect(handoutTitle({ title: 'Quest Details', html })).toBe('Find the Amulet');
   });
+
+  it('decodes what the sanitizer escapes (apostrophe, ampersand, accents)', () => {
+    const html = sanitizeHandoutHtml('<div><h1>Ireena\'s Escort &amp; Åse "Café"</h1></div>', []);
+    expect(handoutTitle({ title: 'Quest Details', html })).toBe('Ireena\'s Escort & Åse "Café"');
+  });
 });
 
 describe('splitHandouts', () => {

@@ -16,7 +16,7 @@ what the conversation needs. The switches are remembered for new chats.
 | --------- | -------------------- | ----- | ----------------- | -------------------------------------------------------------------------------------------- |
 | **core**  | `foundry-mcp`        | 24    | about 18,100      | Looking things up, and reviewing, applying or undoing planned changes. Always on.            |
 | **play**  | `foundry-mcp-play`   | 37    | about 40,400      | Running the table live: tokens, combat, rolls, damage, conditions, chat, mood, loot.         |
-| **prep**  | `foundry-mcp-prep`   | 20    | about 21,400      | Prep and recaps: quests, journals, encounter budgets, Tarokka, handouts, session log, stats. |
+| **prep**  | `foundry-mcp-prep`   | 20    | about 22,450      | Prep and recaps: quests, journals, encounter budgets, Tarokka, handouts, session log, stats. |
 | **build** | `foundry-mcp-build`  | 8     | about 28,100      | Making NPCs, monsters and items, from a compendium or from scratch; room setup.              |
 | **admin** | `foundry-mcp-admin`  | 9     | about 7,700       | Modules and their errors, actor ownership, the Obsidian mirror.                              |
 

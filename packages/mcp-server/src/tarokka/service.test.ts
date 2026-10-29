@@ -279,6 +279,92 @@ describe('reading and import', () => {
     expect((await tarokka.getReading()).reading!.readingId).toBe(second);
   });
 
+  describe('a reading the GM chooses', () => {
+    const CHOSEN = {
+      tome: 'swords-7',
+      holySymbol: 'glyphs-master',
+      sunsword: 'coins-1',
+      ally: 'raven',
+      strahdLocation: 'donjon',
+    };
+
+    it('stores exactly the five cards, with no draw and without the provider module', async () => {
+      const plan = await tarokka.planImport({ cards: CHOSEN });
+      expect(plan.source).toBe('gm-chosen');
+      expect(plan.summary).toBe('Store a new Tarokka reading (chosen by the GM)');
+      await apply(plan.planId);
+      const view = await tarokka.getReading();
+      expect(view.reading?.source).toBe('gm-chosen');
+      expect(view.reading?.positions.map(p => [p.position, p.cardId, p.revealed])).toEqual([
+        ['tome', 'swords-7', false],
+        ['holySymbol', 'glyphs-master', false],
+        ['sunsword', 'coins-1', false],
+        ['ally', 'raven', false],
+        ['strahdLocation', 'donjon', false],
+      ]);
+    });
+
+    it('archives the previous reading and is undoable', async () => {
+      await apply((await tarokka.planImport({ source: 'builtin-roll' })).planId);
+      const first = (await tarokka.getReading()).reading!.readingId;
+      now += 1000;
+      const changeId = await apply((await tarokka.planImport({ cards: CHOSEN })).planId);
+      expect((await tarokka.getReading()).archivedReadings).toBe(1);
+      await guarded.undo(changeId, { confirm: true });
+      expect((await tarokka.getReading()).reading!.readingId).toBe(first);
+    });
+
+    it('refuses a missing, repeated, unknown or wrong-deck card', async () => {
+      const { ally: _ally, ...four } = CHOSEN;
+      await expect(tarokka.planImport({ cards: four })).rejects.toThrow(/Choose a card for Ally/);
+      await expect(
+        tarokka.planImport({ cards: { ...CHOSEN, sunsword: 'swords-7' } })
+      ).rejects.toThrow(/chosen twice/);
+      await expect(tarokka.planImport({ cards: { ...CHOSEN, ally: 'swords-1' } })).rejects.toThrow(
+        /not a high-deck card id/
+      );
+      await expect(tarokka.planImport({ cards: { ...CHOSEN, tome: 'nonsense' } })).rejects.toThrow(
+        /not a common-deck card id/
+      );
+    });
+
+    it('refuses cards together with a source, userId or clear', async () => {
+      await expect(tarokka.planImport({ cards: CHOSEN, source: 'builtin-roll' })).rejects.toThrow(
+        /cards takes no source/
+      );
+      await expect(tarokka.planImport({ cards: CHOSEN, clear: true })).rejects.toThrow(
+        /cards takes no source/
+      );
+      // The Tools form's schema default 'auto' is not a deal request.
+      expect((await tarokka.planImport({ cards: CHOSEN, source: 'auto' })).source).toBe(
+        'gm-chosen'
+      );
+    });
+
+    it('refuses a reveal planned before the chosen reading replaced the reading', async () => {
+      await apply((await tarokka.planImport({ source: 'builtin-roll' })).planId);
+      const reveal = await tarokka.planReveal({ position: 'tome', text: 'Early.' });
+      now += 1000;
+      await apply((await tarokka.planImport({ cards: CHOSEN })).planId);
+      await expect(apply(reveal.planId, true)).rejects.toThrow(/current\.readingId changed since/);
+    });
+
+    it('refuses a chosen-reading plan that went stale because another reading landed first', async () => {
+      await apply((await tarokka.planImport({ source: 'builtin-roll' })).planId);
+      const chosen = await tarokka.planImport({ cards: CHOSEN });
+      now += 1000;
+      await apply((await tarokka.planImport({ source: 'builtin-roll' })).planId);
+      await expect(apply(chosen.planId)).rejects.toThrow(/Conflict, nothing was written/);
+    });
+
+    it('lets the GM reveal one card at a time afterwards', async () => {
+      await apply((await tarokka.planImport({ cards: CHOSEN })).planId);
+      await apply((await tarokka.planReveal({ position: 'tome', text: 'First.' })).planId, true);
+      const positions = (await tarokka.getReading()).reading!.positions;
+      expect(positions.map(p => p.revealed)).toEqual([true, false, false, false, false]);
+    });
+  });
+
   it('needs the tarokka feature switch to apply', async () => {
     const plan = await tarokka.planImport({ source: 'builtin-roll' });
     foundry.features[0].enabled = false;

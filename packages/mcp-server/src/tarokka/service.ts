@@ -54,7 +54,7 @@ const CARD_ID = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const UUID =
   /^(?:Compendium\.[\w-]+\.[\w-]+\.)?[A-Z][A-Za-z]+\.[A-Za-z0-9]{16}(?:\.[A-Z][A-Za-z]+\.[A-Za-z0-9]{16})*$/;
 
-export type TarokkaSource = 'builtin-roll' | 'tarokka-reading';
+export type TarokkaSource = 'builtin-roll' | 'tarokka-reading' | 'gm-chosen';
 
 export interface StoredPosition {
   cardName: string;
@@ -282,8 +282,16 @@ export class TarokkaService {
     source?: 'auto' | TarokkaSource;
     userId?: string;
     clear?: boolean;
+    /** A reading the GM picked by hand (all five positions): no draw, no provider module. */
+    cards?: Partial<Record<TarokkaPosition, string>>;
   }): Promise<PlanView & { source?: TarokkaSource; providerNote?: string }> {
     const source = args.source ?? 'auto';
+    if (
+      args.cards !== undefined &&
+      (args.clear || (args.source !== undefined && args.source !== 'auto') || args.userId)
+    ) {
+      throw new Error('cards takes no source, userId or clear: it stores exactly the cards given');
+    }
     // 'auto' is the schema default that the dashboard Tools form fills in, so it is not a deal request.
     if (
       args.clear &&
@@ -317,7 +325,9 @@ export class TarokkaService {
 
     let reading: StoredReading | null = null;
     let providerNote: string | undefined;
-    if (source === 'auto' || source === 'tarokka-reading') {
+    if (args.cards !== undefined) {
+      reading = this.fromChosen(args.cards, config);
+    } else if (source === 'auto' || source === 'tarokka-reading') {
       const result = unwrap<ProviderResult>(
         await this.foundry.query(
           'foundry-mcp-bridge.getTarokkaReading',
@@ -368,7 +378,12 @@ export class TarokkaService {
       set(`positions.${position}`, reading.positions[position]);
     }
 
-    const label = reading.source === 'builtin-roll' ? 'built-in roll' : 'tarokka-reading';
+    const label =
+      reading.source === 'builtin-roll'
+        ? 'built-in roll'
+        : reading.source === 'gm-chosen'
+          ? 'chosen by the GM'
+          : 'tarokka-reading';
     const plan = await this.guardedWrites.createPlan({
       feature: TAROKKA_FEATURE,
       summary: `Store a new Tarokka reading (${label})${previous && previous.readingId !== reading.readingId ? ', archiving the previous one' : ''}`,
@@ -639,6 +654,40 @@ export class TarokkaService {
       readingId: `roll-${this.now().toString(36)}-${randomBytes(3).toString('hex')}`,
       source: 'builtin-roll',
       readAt,
+      providerVersion: null,
+      positions,
+    };
+  }
+
+  /** The GM's own five cards: each from its position's deck, no card twice. */
+  private fromChosen(
+    cards: Partial<Record<TarokkaPosition, string>>,
+    config: TarokkaConfig
+  ): StoredReading {
+    for (const key of Object.keys(cards)) {
+      if (!isTarokkaPosition(key)) throw new Error(`Unknown position ${key}`);
+    }
+    const seen = new Set<string>();
+    const positions = {} as Record<TarokkaPosition, StoredPosition>;
+    for (const position of TAROKKA_POSITIONS) {
+      const cardId = cards[position];
+      if (!cardId) throw new Error(`Choose a card for ${POSITION_LABELS[position]}`);
+      if (deckOf(cardId) !== POSITION_DECK[position]) {
+        throw new Error(`${cardId} is not a ${POSITION_DECK[position]}-deck card id`);
+      }
+      if (seen.has(cardId)) throw new Error(`${cardId} is chosen twice; each card is dealt once`);
+      seen.add(cardId);
+      positions[position] = {
+        cardName: this.nameFor(cardId, config),
+        cardId,
+        gmNote: null,
+        revealed: false,
+      };
+    }
+    return {
+      readingId: `chosen-${this.now().toString(36)}-${randomBytes(3).toString('hex')}`,
+      source: 'gm-chosen',
+      readAt: new Date(this.now()).toISOString(),
       providerVersion: null,
       positions,
     };

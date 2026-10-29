@@ -158,6 +158,21 @@ const bridge: Answer = call => {
     }
     case 'undo-change':
       return ok({ changeId: 'u1', summary: `Undid ${String(call.args['changeId'])}` });
+    case 'list-ref-choices': {
+      const high = call.args['parent'] === 'ally' || call.args['parent'] === 'strahdLocation';
+      return ok({
+        choices: high
+          ? [
+              { id: 'raven', name: 'Raven' },
+              { id: 'donjon', name: 'Donjon' },
+            ]
+          : [
+              { id: 'swords-7', name: 'Seven of Swords' },
+              { id: 'coins-1', name: 'One of Coins' },
+              { id: 'glyphs-master', name: 'Master of Glyphs' },
+            ],
+      });
+    }
     case 'open-in-foundry':
       return ok({ opened: true });
     default:
@@ -390,6 +405,51 @@ test('Import and New reading apply in one click, with Undo; both reload the read
     args: { source: 'builtin-roll' },
   });
   await expect.poll(() => loads(calls)).toBe(4);
+});
+
+test('Choose the cards stores the five picked cards, none twice', async ({ page }) => {
+  await fakeStream(page, gmActions(true));
+  const calls = await fakeTools(page, bridge);
+  const drawer = await openTarokka(page);
+  await expect(drawer.locator('.tarokka-pos')).toHaveCount(5);
+
+  const chooseToggle = drawer.getByRole('button', { name: 'Choose the cards…' });
+  await expect(chooseToggle).toBeDisabled();
+  await drawer.getByRole('checkbox', { name: 'Show cards' }).check();
+  await chooseToggle.click();
+  const form = drawer.locator('#tarokka-choose-form');
+  const store = form.getByRole('button', { name: 'Store this reading' });
+  await expect(form.locator('select')).toHaveCount(5);
+  await expect(store).toBeDisabled();
+  const pick = (position: string, value: string): Promise<string[]> =>
+    form.locator(`select[data-position="${position}"]`).selectOption(value);
+  await pick('tome', 'swords-7');
+  await pick('holySymbol', 'glyphs-master');
+  await pick('sunsword', 'coins-1');
+  await pick('ally', 'raven');
+  await expect(store).toBeDisabled();
+  await pick('strahdLocation', 'raven');
+  await expect(form).toContainText('Each card can be in the reading once.');
+  await expect(store).toBeDisabled();
+  await pick('strahdLocation', 'donjon');
+  await expect(store).toBeEnabled();
+
+  await store.click();
+  await expect(toast(page, '✓ Applied: Stored a reading')).toBeVisible();
+  expect(plans(calls)).toEqual([
+    {
+      name: 'plan-tarokka-import',
+      args: {
+        tome: 'swords-7',
+        holySymbol: 'glyphs-master',
+        sunsword: 'coins-1',
+        ally: 'raven',
+        strahdLocation: 'donjon',
+      },
+    },
+  ]);
+  await expect(form).toHaveCount(0);
+  await expect(chooseToggle).toBeFocused();
 });
 
 test('a failed import says why and still reloads; nothing is applied', async ({ page }) => {

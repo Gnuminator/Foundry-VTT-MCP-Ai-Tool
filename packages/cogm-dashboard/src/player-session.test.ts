@@ -6,7 +6,8 @@ import { readFileSync } from 'node:fs';
 
 import { describe, expect, it } from 'vitest';
 
-import { sessionPhase, splitHandouts } from '../public/player-session.js';
+import { sanitizeHandoutHtml } from './player/sanitize.js';
+import { handoutTitle, sessionPhase, splitHandouts } from '../public/player-session.js';
 
 const open = { open: true, endedAt: null };
 const closed = { open: false, endedAt: '2026-09-28T22:00:00.000Z' };
@@ -30,6 +31,52 @@ describe('sessionPhase', () => {
     expect(sessionPhase({ session: null, combat: null })).toBe('live');
     expect(sessionPhase({})).toBe('live');
     expect(sessionPhase(null)).toBe('live');
+  });
+});
+
+describe('handoutTitle', () => {
+  it('shows the quest title from the page h1 when the page is named Quest Details', () => {
+    expect(
+      handoutTitle({
+        title: 'Quest Details',
+        html: '<h1>The <em>Lost</em> Amulet &amp; more</h1><p>x</p>',
+      })
+    ).toBe('The Lost Amulet & more');
+  });
+
+  it('leaves no tag behind when tags are nested to survive one strip pass', () => {
+    expect(
+      handoutTitle({
+        title: 'Quest Details',
+        html: '<h1><<script>script>alert(1)<</script>/script></h1>',
+      })
+    ).toBe('script>alert(1)/script>'.replace(/[<>]/g, ''));
+    expect(handoutTitle({ title: 'Quest Details', html: '<h1>a<<b>b>c</h1>' })).not.toMatch(/[<>]/);
+  });
+
+  it('keeps every other title, and falls back when there is no usable h1', () => {
+    expect(handoutTitle({ title: 'Session 2 Recap', html: '<h1>Other</h1>' })).toBe(
+      'Session 2 Recap'
+    );
+    expect(handoutTitle({ title: 'Quest Details', html: '<p>no heading</p>' })).toBe(
+      'Quest Details'
+    );
+    expect(handoutTitle({ title: 'Quest Details', html: '<h1> </h1>' })).toBe('Quest Details');
+  });
+});
+
+describe('handoutTitle after the real sanitizer', () => {
+  it('reads the quest title out of a styled quest page as a player gets it', () => {
+    const page =
+      '<section class="mcp-journal"><style>.x{}</style><div class="wrap"><h1>Find the <b>Amulet</b></h1>' +
+      '<hr class="orn"/><h2>Background</h2><p>text</p></div></section>';
+    const html = sanitizeHandoutHtml(page, []);
+    expect(handoutTitle({ title: 'Quest Details', html })).toBe('Find the Amulet');
+  });
+
+  it('decodes what the sanitizer escapes (apostrophe, ampersand, accents)', () => {
+    const html = sanitizeHandoutHtml('<div><h1>Ireena\'s Escort &amp; Åse "Café"</h1></div>', []);
+    expect(handoutTitle({ title: 'Quest Details', html })).toBe('Ireena\'s Escort & Åse "Café"');
   });
 });
 

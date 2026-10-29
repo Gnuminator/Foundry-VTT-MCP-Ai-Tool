@@ -354,7 +354,9 @@ player page in one channel. Turn it on in the same env file with `DISCORD_SESSIO
 (the channel) and `FOUNDRY_AI_PLAYER_PAGE_URL` (the link players can open; without it the post stays
 off). `FOUNDRY_AI_DASHBOARD_URL` (default `http://127.0.0.1:3100`) is where the bot reads the session
 flag and `FOUNDRY_AI_PLAYER_TOKEN` is the dashboard's player token if one is set. A session that
-ends while the bot is down is not announced.
+ends while the bot is down is not announced. The bot posts the link to everyone who can read that
+channel, so if `FOUNDRY_AI_PLAYER_PAGE_URL` carries a `?token=` (the player token), post only to a
+channel that holds nothing but players; never to one where non-players can read it.
 
 Rolling it out (each step with your OK, snapshot first): run stage 6 again (it installs the helper
 and the folder, and runs one backup now: **Foundry stops for a minute or two, so never run it during

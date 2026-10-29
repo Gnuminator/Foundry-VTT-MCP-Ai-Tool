@@ -60,7 +60,14 @@ const COACH_LINE =
 const SIDEBAR = [
   {
     label: 'Start here',
-    pages: ['gm', 'gm/first-hour', 'gm/getting-started', 'gm/connect-claude-desktop', 'gm/claude-plans'],
+    pages: [
+      'gm',
+      'gm/first-15-minutes',
+      'gm/first-hour',
+      'gm/getting-started',
+      'gm/connect-claude-desktop',
+      'gm/claude-plans',
+    ],
   },
   {
     label: 'Game night',
@@ -148,7 +155,9 @@ export function rewriteLinks(text, repoPath, images) {
         }
         // A link into a staged section to a file that is not there is a typo, not a GitHub link.
         if (to !== null && !existsSync(path.join(repo, resolved))) {
-          throw new Error(`${repoPath}: the link ${target} points to ${resolved}, which does not exist`);
+          throw new Error(
+            `${repoPath}: the link ${target} points to ${resolved}, which does not exist`
+          );
         }
         const isDir =
           existsSync(path.join(repo, resolved)) &&
@@ -213,19 +222,21 @@ export function toSite(text, stagedPath) {
           : `${BASE}/${staged}`;
       };
       // A clip written as an image becomes a <video>.
-      const withClips = line.replace(/!\[([^\]]*)\]\(([^)\s]+\.(?:mp4|webm))\)/gi, (m, label, target) => {
-        const url = siteUrl(target);
-        return url === null
-          ? m
-          : `<video src="${url}" controls muted loop playsinline preload="metadata" aria-label="${escapeAttr(label)}"></video>`;
-      });
+      const withClips = line.replace(
+        /!\[([^\]]*)\]\(([^)\s]+\.(?:mp4|webm))\)/gi,
+        (m, label, target) => {
+          const url = siteUrl(target);
+          return url === null
+            ? m
+            : `<video src="${url}" controls muted loop playsinline preload="metadata" aria-label="${escapeAttr(label)}"></video>`;
+        }
+      );
       // A link's text can wrap onto the line before, so only the `](target)` part is matched.
       return withClips.replace(/\]\(([^)\s]+)((?:\s+"[^"]*")?)\)/g, (m, target, title) => {
         const url = siteUrl(target);
         return url === null ? m : `](${url}${title})`;
       });
     })
-    .filter(l => l !== null)
     .join('\n');
 }
 
@@ -268,7 +279,11 @@ export function buildSidebar(slugs, order) {
   }).filter(g => g.items.length > 0);
   const left = slugs.filter(s => s !== 'index' && !placed.has(s));
   if (left.length > 0) groups.push({ label: LAST_GROUP, items: left.sort() });
-  const labels = { gm: 'GM guides overview', player: 'Player guide', foundry: 'Foundry basics overview' };
+  const labels = {
+    gm: 'GM guides overview',
+    player: 'Player guide',
+    foundry: 'Foundry basics overview',
+  };
   const asItem = slug => ({ slug, ...(labels[slug] ? { label: labels[slug] } : {}) });
   return [
     { slug: 'index', label: 'Home' },

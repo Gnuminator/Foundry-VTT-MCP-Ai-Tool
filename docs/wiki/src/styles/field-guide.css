@@ -89,6 +89,19 @@ h1#_top,
   white-space: nowrap;
 }
 
+/* Link marks: Foundry's own pages get a small "F" in brass, our pages stay plain */
+.sl-markdown-content a[href^='https://foundryvtt.com/']::after {
+  content: 'F';
+  margin-left: 0.3em;
+  padding: 0 0.35em;
+  border-radius: 0.25rem;
+  background: var(--fg-chip-bg);
+  color: var(--fg-chip-ink);
+  font-size: 0.7em;
+  font-weight: 700;
+  vertical-align: 0.1em;
+}
+
 .sl-markdown-content video {
   max-width: 100%;
   height: auto;

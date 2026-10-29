@@ -164,7 +164,14 @@ export function pageUrl(stagedPath) {
   return slug === '' ? `${BASE}/` : `${BASE}/${slug}/`;
 }
 
-const CLIP = /\.(mp4|webm)$/i;
+/** The GitHub-style anchor of a heading (what the dashboard help and the old wiki used). */
+const slugOf = heading =>
+  heading
+    .trim()
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s_-]/gu, '')
+    .replace(/\s/g, '-');
+
 const escapeAttr = s => s.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
 
 /**
@@ -188,24 +195,31 @@ export function toSite(text, stagedPath) {
       if (inCode(line)) return line;
       if (!dropped && /^# /.test(line)) {
         dropped = true;
-        return null;
+        // Starlight prints the title itself; the empty anchor keeps `page/#the-title` links alive.
+        return `<a id="${slugOf(line.slice(2))}"></a>`;
       }
-      return line.replace(
-        /(!?)\[([^\]]*)\]\(([^)\s]+)((?:\s+"[^"]*")?)\)/g,
-        (m, bang, label, target, title) => {
-          if (/^[a-z][a-z0-9+.-]*:/i.test(target) || target.startsWith('/')) return m;
-          const hash = target.indexOf('#');
-          const file = hash === -1 ? target : target.slice(0, hash);
-          const anchor = hash === -1 ? '' : target.slice(hash);
-          if (file === '') return m;
-          const staged = path.posix.normalize(path.posix.join(dir, file));
-          const url = /\.md$/.test(staged) ? pageUrl(staged) + anchor : `${BASE}/${staged}`;
-          if (bang && CLIP.test(file)) {
-            return `<video src="${url}" controls muted loop playsinline preload="metadata" aria-label="${escapeAttr(label)}"></video>`;
-          }
-          return `${bang}[${label}](${url}${title})`;
-        }
-      );
+      const siteUrl = target => {
+        if (/^[a-z][a-z0-9+.-]*:/i.test(target) || target.startsWith('/')) return null;
+        const hash = target.indexOf('#');
+        const file = hash === -1 ? target : target.slice(0, hash);
+        if (file === '') return null;
+        const staged = path.posix.normalize(path.posix.join(dir, file));
+        return /\.md$/.test(staged)
+          ? pageUrl(staged) + (hash === -1 ? '' : target.slice(hash))
+          : `${BASE}/${staged}`;
+      };
+      // A clip written as an image becomes a <video>.
+      const withClips = line.replace(/!\[([^\]]*)\]\(([^)\s]+\.(?:mp4|webm))\)/gi, (m, label, target) => {
+        const url = siteUrl(target);
+        return url === null
+          ? m
+          : `<video src="${url}" controls muted loop playsinline preload="metadata" aria-label="${escapeAttr(label)}"></video>`;
+      });
+      // A link's text can wrap onto the line before, so only the `](target)` part is matched.
+      return withClips.replace(/\]\(([^)\s]+)((?:\s+"[^"]*")?)\)/g, (m, target, title) => {
+        const url = siteUrl(target);
+        return url === null ? m : `](${url}${title})`;
+      });
     })
     .filter(l => l !== null)
     .join('\n');

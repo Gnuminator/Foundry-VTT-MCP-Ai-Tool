@@ -41,7 +41,6 @@ export default defineConfig({
       // zip are added to the built site after this build, so the checker cannot see them.
       plugins: [
         starlightLinksValidator({
-          errorOnRelativeLinks: false,
           exclude: ['/Foundry-VTT-MCP-Ai-Tool/storybook/**', '/Foundry-VTT-MCP-Ai-Tool/gm/downloads/**'],
         }),
       ],

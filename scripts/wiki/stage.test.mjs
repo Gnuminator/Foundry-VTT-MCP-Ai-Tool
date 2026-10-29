@@ -97,6 +97,7 @@ test('toSite makes site URLs, keeps anchors, shows clips as video and drops the 
       'title: T',
       '---',
       '',
+      '<a id="t"></a>',
       '',
       `See [the dashboard](${BASE}/gm/dashboard/#combat) and [join](${BASE}/player/join/).`,
       `![Shot](${BASE}/images/guides/a.png "t")`,

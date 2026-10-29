@@ -171,6 +171,25 @@ describe('DiceRollTools.handleRequestAbilityCheck', () => {
 // handleRequestAttackRoll
 // ---------------------------------------------------------------------------
 
+describe('DiceRollTools.handleRequestPlayerRolls', () => {
+  it('forwards dc and flavor to the bridge', async () => {
+    const { tools, query } = makeTools(() => ({ success: true, message: 'ok' }));
+    await tools.handleRequestPlayerRolls({
+      rollType: 'skill',
+      rollTarget: 'prc',
+      targetPlayer: 'Bob',
+      isPublic: true,
+      userConfirmedVisibility: true,
+      flavor: 'DC 14',
+      dc: 14,
+    });
+    expect(query).toHaveBeenCalledWith(
+      'foundry-mcp-bridge.request-player-rolls',
+      expect.objectContaining({ dc: 14, flavor: 'DC 14', targetPlayer: 'Bob' })
+    );
+  });
+});
+
 describe('DiceRollTools.handleRequestAttackRoll', () => {
   it('appends an unclear or problem rules check to the reply and stays silent when legal', async () => {
     const { query } = makeTools(() => ({ success: true, message: 'Posted.' }));

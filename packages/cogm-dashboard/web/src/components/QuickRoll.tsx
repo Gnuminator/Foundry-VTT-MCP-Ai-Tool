@@ -176,6 +176,6 @@ export function QuickRollBar({
   );
 }
 
-/** The text of an asking button: "Ask Ilvara", "Ask the party". */
+/** The label of a member's "Ask roll" button: the visible words first, then who and what. */
 export const askLabel = (roll: QuickRoll, who: string): string =>
-  `Ask ${who} for ${pickLabel(roll.pick)}`;
+  `Ask roll: ${who}, ${pickLabel(roll.pick)}`;

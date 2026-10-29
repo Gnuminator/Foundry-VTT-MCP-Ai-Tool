@@ -373,7 +373,7 @@ test('Ask for a roll: one member, then the whole party, through request-player-r
 
   await drawer.locator('#party-roll-what').selectOption('save:wis');
   await drawer.locator('#party-roll-dc').fill('13');
-  await drawer.getByRole('button', { name: 'Ask Ivarro for Wisdom save' }).click();
+  await drawer.getByRole('button', { name: 'Ask roll: Ivarro, Wisdom save' }).click();
   await expect(toast(page, '✓ Asked Ivarro for Wisdom save DC 13')).toBeVisible();
   await drawer.locator('#party-roll-advantage').selectOption('advantage');
   await drawer.locator('#party-roll-all').click();

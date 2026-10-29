@@ -118,7 +118,7 @@ export class RulesCheckTools {
       {
         name: 'check-action',
         description:
-          'Rules check (off by default). Says whether an attack, spell or item looks legal and why: turn, cost, actions spent, range, slots, uses, concentration. Read-only.',
+          'Rules check (off by default). Says whether an attack, spell or item looks legal and why: turn, cost, actions spent, range, slots, uses, concentration, and notes on 2014 vs 2024 differences for a few actions. Read-only.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -246,6 +246,7 @@ export class RulesCheckTools {
       );
     }
 
+    const activityName = text(activity?.name);
     const system = rec(entity.system);
     const isSpell = entity.type === 'spell';
     const properties: unknown[] = Array.isArray(system.properties) ? system.properties : [];
@@ -276,6 +277,7 @@ export class RulesCheckTools {
     return evaluateAction({
       actor: actorName,
       item: text(entity.name) ?? p.item,
+      ...(wanted && activityName ? { activityName } : {}),
       spellLevel: isSpell ? (typeof entity.level === 'number' ? entity.level : 0) : null,
       castLevel: p.castLevel ?? null,
       activation: text(activity?.activation) ?? text(rec(system.activation).type),

@@ -26,7 +26,7 @@ import { NPC_TURN_FEATURE_ID } from './npc-turn.js';
 import { PAPER_SYNC_FEATURE_ID } from './paper-sync-plan.js';
 import { ROOM_SETUP_FEATURE_ID } from './room-setup.js';
 import { RULES_CHECK_FEATURE_ID } from './rules-check.js';
-import { PARTY_FEATURE_ID } from './party-scan.js';
+import { PARTY_FEATURE_ID, WHO_NOTICES_FEATURE_ID } from './party-scan.js';
 import { registerGmWindowsSetting } from './gm-windows.js';
 import { registerSessionSwitchSettings } from './session-switches.js';
 import { registerDiceThemes } from './dice-themes.js';
@@ -202,6 +202,12 @@ class FoundryMCPBridge {
         id: PAPER_SYNC_FEATURE_ID,
         name: 'AI Tool: Paper sync (writes)',
         hint: 'Lets the AI write the numbers from a paper sheet back into a character after a night played on paper (hit points, spell slots, hit dice, class resources, item uses, coins, exhaustion, conditions, inspiration, death saves and item quantities), one plan per character after you confirm. Removing an item asks for a second confirm. Each one shows in Recent Changes with an Undo. XP, level and class are never changed.',
+      });
+      registerGuardedFeature({
+        id: WHO_NOTICES_FEATURE_ID,
+        name: 'AI Tool: Who would notice',
+        hint: "Adds a row to the dashboard's Party drawer: type a DC and see which characters would notice it from their passive Perception, Investigation and Insight. GM only; players never see it.",
+        readOnly: true,
       });
       registerGuardedFeature({
         id: RULES_CHECK_FEATURE_ID,

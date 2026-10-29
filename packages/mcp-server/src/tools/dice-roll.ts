@@ -80,8 +80,7 @@ export class DiceRollTools {
             },
             dc: {
               type: 'integer',
-              description:
-                'Optional difficulty class: the card shows it and the roll is judged against it (ability, skill, save and attack rolls).',
+              description: 'Optional DC the roll is judged against',
             },
             advantage: advantageChoice,
           },

@@ -1,0 +1,129 @@
+/* Tarokka card table (D-130 step 2). Cards are drawn in CSS; no card art ships with the module. */
+.fmb-tt-window .window-content {
+  background: radial-gradient(ellipse at center, #1f4d34 0%, #12301f 100%);
+  color: #f3ead2;
+  overflow: auto;
+}
+
+.fmb-tt-table {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  justify-content: center;
+  align-items: flex-start;
+  list-style: none;
+  margin: 0;
+  padding: 0.75rem;
+}
+
+.fmb-tt-slot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.fmb-tt-gmslot {
+  max-width: 11rem;
+  text-align: center;
+}
+
+.fmb-tt-label {
+  font-size: var(--font-size-12, 0.75rem);
+}
+
+.fmb-tt-card {
+  position: relative;
+  box-sizing: border-box;
+  width: 8rem;
+  aspect-ratio: 2 / 3.2;
+  border-radius: 8px;
+  border: 2px solid #c9a85a;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+  overflow: hidden;
+  box-shadow: 0 4px 10px rgb(0 0 0 / 55%);
+}
+
+.fmb-tt-empty {
+  border-style: dashed;
+  border-color: rgb(243 234 210 / 35%);
+  background: transparent;
+  box-shadow: none;
+}
+
+.fmb-tt-back {
+  background:
+    repeating-linear-gradient(45deg, rgb(201 168 90 / 18%) 0 6px, transparent 6px 12px),
+    linear-gradient(160deg, #5a1d2b, #2b0d15);
+}
+
+.fmb-tt-sigil {
+  font-size: 2.4rem;
+  color: #c9a85a;
+}
+
+.fmb-tt-face {
+  background: linear-gradient(170deg, #f6efd9, #d9c99a);
+  color: #2a2113;
+}
+
+.fmb-tt-suit-swords .fmb-tt-glyph {
+  color: #4a5a6a;
+}
+
+.fmb-tt-suit-stars .fmb-tt-glyph {
+  color: #2b4f8a;
+}
+
+.fmb-tt-suit-coins .fmb-tt-glyph {
+  color: #8a6a14;
+}
+
+.fmb-tt-suit-glyphs .fmb-tt-glyph {
+  color: #6a2b8a;
+}
+
+.fmb-tt-suit-crown {
+  background: linear-gradient(170deg, #efe2b8, #c9a85a);
+  border-color: #7a5a14;
+}
+
+.fmb-tt-suit-crown .fmb-tt-glyph {
+  color: #7a1d2b;
+}
+
+.fmb-tt-glyph {
+  font-size: 2.6rem;
+  line-height: 1;
+}
+
+.fmb-tt-value {
+  font-size: 1.8rem;
+  font-weight: bold;
+}
+
+.fmb-tt-name {
+  position: absolute;
+  inset: auto 0 0 0;
+  padding: 0.25rem 0.3rem;
+  text-align: center;
+  font-size: var(--font-size-12, 0.75rem);
+  background: rgb(0 0 0 / 55%);
+  color: #f3ead2;
+}
+
+.fmb-tt-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.fmb-tt-player .fmb-tt-card {
+  width: 9.5rem;
+}

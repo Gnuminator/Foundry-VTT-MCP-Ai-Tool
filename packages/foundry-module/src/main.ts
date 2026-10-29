@@ -32,6 +32,7 @@ import { registerGmWindowsSetting } from './gm-windows.js';
 import { registerSessionSwitchSettings } from './session-switches.js';
 import { registerDiceThemes } from './dice-themes.js';
 import { TAROKKA_FEATURE_ID, onTarokkaSettingChanged } from './tarokka.js';
+import { registerTarokkaTableSettings, syncPlayerTable } from './tarokka-table-window.js';
 import { logInfo } from './log.js';
 // Connection control now handled through settings menu
 
@@ -123,6 +124,8 @@ class FoundryMCPBridge {
       registerSettingsUsageHooks();
       registerSessionSwitchSettings();
       registerGmWindowsSetting();
+      // The Tarokka card table (D-130): the public table every client reads, players included.
+      registerTarokkaTableSettings();
       // Themed dice (I-085): every client, players included; silent without Dice So Nice.
       registerDiceThemes();
 
@@ -611,6 +614,9 @@ Hooks.once('ready', async () => {
   try {
     // Usage log (I-084): every client batches its own events every 10 s.
     usageRecorder.start();
+
+    // A player who joins while the GM shows the Tarokka table sees it at once.
+    syncPlayerTable();
 
     await foundryMCPBridge.onReady();
 

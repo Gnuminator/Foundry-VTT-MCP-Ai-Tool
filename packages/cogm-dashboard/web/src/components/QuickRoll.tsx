@@ -106,7 +106,7 @@ export function useQuickRoll(): QuickRoll {
       usage().trackTool('request-player-rolls', failed.length === 0 ? 'ok' : 'error');
       toast(sentSummary(pick, ok, failed), ok.length > 0 ? 'ok' : 'err');
     },
-    [gated, pick, toast]
+    [gated, pick, toast, queryClient]
   );
 
   return { pick, setPick, busy, ask };

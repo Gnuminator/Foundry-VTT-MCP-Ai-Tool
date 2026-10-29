@@ -1,6 +1,7 @@
 import { MODULE_ID } from './constants.js';
 import { handleAiChangesSocketMessage } from './ai-changes-signal.js';
 import { registerAiToolControls } from './ai-tool-controls.js';
+import { registerLatestRecapButton } from './latest-recap.js';
 import { setBridgeLink } from './bridge-link.js';
 import { SocketBridge, type BridgeConnectionInfo } from './socket-bridge.js';
 import { QueryHandlers } from './queries.js';
@@ -235,6 +236,7 @@ class FoundryMCPBridge {
 
       // The GM-only "AI Tool" group in the scene controls (the Changes window, I-108).
       registerAiToolControls();
+      registerLatestRecapButton();
 
       // Register campaign hooks for interactive dashboards
       this.campaignHooks.register();

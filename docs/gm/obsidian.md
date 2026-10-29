@@ -11,6 +11,10 @@ text, so it stays on your PC. The players get vaults of their own without the se
 
 ## What is in it
 
+- **Home:** your start page for the campaign, `Home.md` in the world's folder. It is sorted by what
+  you are doing (before, during and after a session) with links and live tables to NPCs, scenes,
+  quests, story items and the session notes. The tool creates it once and never rewrites it after
+  you edit it. The 📓 button next to Start session in the dashboard opens it.
 - **The AI Tool folder:** notes the tool writes. Characters, NPCs, scenes, journals, quests, the
   Library (monsters, spells, rules), session notes and stats, and under `Everyone` one note per
   day with every change the players, you and the AI made in Foundry (who, when, what; undo it in
@@ -47,6 +51,9 @@ A session plan is new each time, named after today's date (for example Prep/Sess
 2026-11-29.md), and Claude reads the newest one. Its date property is today too: change it to the
 game night when you plan ahead. This works without the dashboard.
 
+To keep a prep note away from Claude, open it and run **Toggle: Claude may read this prep note**.
+It sets the property `ai_context` to false (or back to true).
+
 A template's grey line between %% marks is a hint for you; Claude skips it. To use the templates
 for notes you start yourself, point Obsidian's Templates (or Templater) template folder at
 Prep/Templates. Edit the templates as you like: the tool writes them only when the folder is
@@ -54,6 +61,14 @@ missing.
 
 Changes you make in Obsidian never reach Foundry by themselves. Things that change the game
 (revealing a handout, for example) are planned from Obsidian and confirmed in the dashboard.
+
+**A quest from Obsidian into Foundry:** a quest note in your `Prep` folder with the property
+`type` set to `quest-prep` and an empty `fvtt_uuid` can become a GM-only quest journal. Open the
+note and run **Import this quest prep note into Foundry (confirm in the dashboard)**, then confirm
+the plan in the dashboard. It needs the switch "AI Tool: Obsidian import (writes)" (off until you
+turn it on in Foundry's Game Settings, category **Foundry AI Tool**). **Undo** in Recent Changes
+removes the journal, and the same note cannot be imported twice until you do. A note with
+`ai_context` set to false is refused.
 
 ## The graph
 

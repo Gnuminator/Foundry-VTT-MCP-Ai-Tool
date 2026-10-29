@@ -1,0 +1,20 @@
+{
+  "name": "foundry-ai-tool-wiki",
+  "private": true,
+  "type": "module",
+  "version": "0.0.0",
+  "description": "The public wiki (Astro Starlight). Not a workspace: scripts/wiki/stage.mjs fills it, then `npm run build --prefix docs/wiki`.",
+  "engines": {
+    "node": ">=22.23.4"
+  },
+  "scripts": {
+    "build": "astro build"
+  },
+  "dependencies": {
+    "@astrojs/starlight": "0.42.7",
+    "@fontsource/source-sans-3": "5.3.1",
+    "@fontsource/spectral": "5.3.0",
+    "astro": "7.4.4",
+    "starlight-links-validator": "0.27.0"
+  }
+}

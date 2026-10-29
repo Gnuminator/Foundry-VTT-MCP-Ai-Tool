@@ -16,15 +16,24 @@ New to the table? Start with [Join the game](join.md) (the address, logging in, 
 
 **The player page.** A read-only web page. It is live on the table's home server, behind the same
 kind of email-code login as the game (Cloudflare Access), so only addresses on the GM's list get
-in. The GM sends you its address. It has these parts:
+in. The GM sends you its address. During a session it shows the fight first; between sessions it
+leads with the last recap, the handouts and the quests. The header names the scene, with its time of
+day and weather when the scene has them. It has these parts:
 
 - **Combat order:** who acts when, the current turn, and the round. Player characters have an HP
-  bar. Monsters and NPCs show no HP numbers, only standard conditions (like prone or frightened),
+  bar. Monsters and NPCs show no HP numbers, only a rough health word (healthy, bloodied, critical
+  or down, unless the person who runs the tool switched that off) and standard conditions (like prone or frightened),
   and appear under the name you know them by, or as "Unknown creature".
 - **Session feed:** public rolls and what your characters could see happen, for example "Mira
   took 7 damage." or "Wolf 1 was hit." Private, blind and GM rolls never show here, and neither
   does anything about a creature whose name you cannot see.
-- **Handouts:** journal pages the GM revealed to you, such as a letter or a map note.
+- **Handouts:** journal pages the GM revealed to you, such as a letter or a map note. A handout
+  revealed since the session started (or, between sessions, since the last one ended) shows a "New" mark.
+- **Last recap and Quests:** the newest revealed page with "recap" in its title, and revealed
+  pages with "quest" in their title, each in its own box.
+- **You:** if you opened your private link (see My character below), the top of the page says
+  "Your turn" or "You are up next", shows each of your characters with HP and conditions, and
+  reminds you of the Constitution save when your concentrating character takes damage.
 - **Roll buttons:** when the GM asks you for a roll, it shows as a button on this page (and on My
   character) if you opened your private link. Press it and your roll goes to the table. You only
   see requests meant for you.
@@ -37,7 +46,8 @@ during play. Your GM sends you a private link; open it once and the page remembe
 device (bookmark it or add it to your home screen). Keep the link to yourself: anyone with it can
 read your sheet. It shows only the characters your Foundry user owns. Pick a view at the top:
 **At the table** (HP, AC, slots, conditions and resources at a glance), **Paper 2024** or
-**Paper 2014** (the printed sheet's order, to copy or print). Like the player page, it is live
+**Paper 2014** (the printed sheet's order, to copy or print), or **Paper night** (a sheet to print
+and write on when the table plays on paper). Like the player page, it is live
 behind the email-code login.
 
 **Handouts in Foundry.** When the GM reveals a handout, you can also open that page in Foundry's
@@ -108,7 +118,7 @@ The transcript and the notes stay with the rest of the campaign notes.
 ## Having your data removed
 
 Ask the GM at any time, for example for the chat you wrote or everything recorded under your user
-name. One command removes it from the play log, and the GM then rebuilds the session notes without
-it. For a recorded session, the GM can delete your audio track and have the transcript and notes
+name. The GM passes it on to whoever runs the tool, and one command removes it from the play log;
+the session notes are then rebuilt without it. For a recorded session, the GM can delete your audio track and have the transcript and notes
 written again without it. What Claude already read when the GM asked it something has gone to Anthropic and cannot be
 pulled back by the GM.

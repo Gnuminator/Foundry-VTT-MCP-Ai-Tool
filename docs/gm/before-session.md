@@ -31,7 +31,7 @@ terminal to open. You need two addresses from the tool admin: the game's and the
       Operations", "AI Tool: Handouts (writes)", "AI Tool: Live play (writes)", "AI Tool: Party
       (writes)", "AI Tool: Tarokka (writes)" and **GM Actions**. The chips under the button show
       each switch; a message says what it turned on. **End session** turns off again what Turn on for
-      tonight turned on.
+      tonight turned on, and **GM Actions**.
 
 - [ ] Once, before session 1 (only with the module Dice So Nice): pick the table's dice, **AI
       Tool: The Veil** or **AI Tool: Neutral**, in Dice So Nice's **Configure Dice Roles**,

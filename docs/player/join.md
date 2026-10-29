@@ -105,13 +105,14 @@ works the same way. You don't need it to play. More in the [player guide](README
 
 ## If it doesn't work
 
-| What you see                                  | What to do                                                                                                              |
-| --------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| No email code arrives                         | Wait a minute and check spam. Check you typed the address you gave the GM, with no extra spaces. Otherwise tell the GM. |
-| The Cloudflare page asks for your email again | Normal about once a month, or in a new browser. Get a new code.                                                         |
-| The code is refused                           | Codes run out after a short while. Reload the address, click **Send login code** again and use the newest email.        |
-| "The requested User ... does not exist"       | The user name is spelled differently. Copy it from the GM's message.                                                    |
-| Foundry asks for a password                   | You picked the wrong user, or the GM's. Pick your own name; yours has no password. Still asked? Tell the GM.            |
-| A warning about screen resolution             | Make the browser window bigger, or use a computer with a bigger screen.                                                 |
-| The page loads but stays black or very slow   | Close other tabs, check hardware acceleration is on, reload the page (F5).                                              |
-| The page can't be reached at all              | The server may be down. Tell the GM on Discord; the GM has a plan B.                                                    |
+| What you see                                    | What to do                                                                                                                                                         |
+| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| No email code arrives                           | Wait a minute and check spam. Check you typed the address you gave the GM, with no extra spaces. Otherwise tell the GM.                                            |
+| The Cloudflare page asks for your email again   | Normal about once a month, or in a new browser. Get a new code.                                                                                                    |
+| The code is refused                             | Codes run out after a short while. Reload the address, click **Send login code** again and use the newest email.                                                   |
+| "The requested User ... does not exist"         | The user name is spelled differently. Copy it from the GM's message.                                                                                               |
+| Your name is greyed out in the list, or missing | Greyed out: you are already logged in somewhere else (another tab or device). Close that one and try again. Missing: the name is not in this game, so tell the GM. |
+| Foundry asks for a password                     | You picked the wrong user, or the GM's. Pick your own name; yours has no password. Still asked? Tell the GM.                                                       |
+| A warning about screen resolution               | Make the browser window bigger, or use a computer with a bigger screen.                                                                                            |
+| The page loads but stays black or very slow     | Close other tabs, check hardware acceleration is on, reload the page (F5).                                                                                         |
+| The page can't be reached at all                | The server may be down. Tell the GM on Discord; the GM has a plan B.                                                                                               |

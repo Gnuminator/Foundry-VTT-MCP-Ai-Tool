@@ -125,6 +125,11 @@ The steps you will see, roughly in this order:
   give you.** The species steps come first, and the background's fixed skills are not offered
   again afterwards, so a skill you pick twice is silently lost and you end up with one skill too
   few.
+- **Size:** the step may be set to **Small** even for a species that is Medium (a human, for
+  example). Open the list and choose **Medium** unless your species really is small.
+- **Choices with a counter**, like Divine Order for a cleric: the step shows **Chosen 0 of 1**.
+  Next lets you through at 0, so wait until it reads **Chosen 1 of 1** (or whatever the second
+  number is). If you clicked past one, press **Previous** to go back and choose.
 - **Background ability scores:** raise the three listed scores: one by 2 and another by 1, or all
   three by 1. Click **+** next to the scores until it says **0 Points Remaining**.
 
@@ -139,6 +144,11 @@ The steps you will see, roughly in this order:
   - **Pick only spells of the class named after Magic Initiate**, for example Wizard spells for
     Magic Initiate (Wizard). The class filters are locked on for Cleric, Druid and Wizard together,
     so you are also shown spells from the other two lists, and nothing stops you picking one.
+  - The search box in that browser needs **Enter** before it filters.
+  - **A feat that asks for a spellcasting ability, and then asks again** (a second Magic Initiate
+    step): the second step puts the ability back to **Intelligence**, although it should match the
+    first. Set it again to the same ability as your cantrips, for example Wisdom for a cleric's
+    list.
   - A spell card may linger at the bottom right of the screen after the browser closes. Ignore it.
 
   ![Foundry's compendium browser in the Magic Initiate step: most spells listed once per book (SRD 5.1, SRD 5.2, PHB, PHB 2024), with the Cleric, Druid and Wizard filters locked on](../images/guides/studio-spell-picker.png)
@@ -155,10 +165,14 @@ Next comes the **Equipment** tab.
    equipment plus a little gold, or only gold.
 2. The **Planned Inventory** on the right shows what you get.
 3. Scroll down in the left column. The items turn green by themselves, but **the gold amounts
-   (for example 5 GP and 8 GP) stay black until you click them**, and that is what holds the bar at
+   (for example 5 GP and 8 GP) stay black until you click them**, and that is one thing that holds the bar at
    75%. Click each gold amount until it is green and the bar at the bottom reaches
    **100% Complete**.
-4. Click **Confirm**.
+4. **If a row offers "any holy focus"** (a cleric's class row and the Acolyte background do),
+   it opens a **Select focus** list on the right, and the bar stays at 75% until you have chosen
+   from every such row. The list has no plain "Holy Symbol": pick **Amulet**, **Emblem** or
+   **Reliquary**, whichever suits your character.
+5. Click **Confirm**.
 
 ![The Equipment tab: Starting Gold options on the left, the Planned Inventory on the right, 100% Complete](../images/guides/studio-equipment.png)
 
@@ -189,6 +203,11 @@ Look over the sheet before you call it done. Ask the GM if anything looks wrong.
       already had.
 - [ ] Spells: every cantrip and spell you picked, including those from a feat such as Magic
       Initiate.
+- [ ] Armour class (AC). **Actor Studio puts your armour, shield and weapons on the sheet but
+      does not equip them**, so AC reads as if you wore nothing (a cleric with a chain shirt and a
+      shield shows 11 instead of 16). Open the **Inventory** tab and click the small icon at the
+      right end of the row of each piece of armour, your shield and your weapons (hover over it:
+      it says "Not Equipped", and "Equipped" after you click). The AC updates at once.
 - [ ] Equipment and gold are on the **Inventory** tab. **Wizards:** the starting kit has no
       spellbook. Ask the GM to add one.
 
@@ -225,17 +244,20 @@ as your portrait and token.
 
 ## If something goes wrong
 
-| What happened                                      | What to do                                                                                               |
-| -------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| "User requires the 'Create New Actors' permission" | The GM has to allow players to make characters. Tell them.                                               |
-| A list is empty, or shows only a few choices       | The builder is not set to the right books. Tell the GM.                                                  |
-| You closed the builder halfway                     | Your character may exist half-made in the Actors tab. Ask the GM to delete it, then start again.         |
-| You skipped a choice with Next                     | Finish, then tell the GM what is missing. The GM can add it, or delete the character so you can redo it. |
-| Equipment stays below 100%                         | Scroll down in the left column and click the gold amounts too, until everything is green.                |
-| The panel is blank after you click Complete        | Wait about 5 seconds. The next step appears by itself.                                                   |
-| A list is not what the GM described                | The GM may have changed the settings after you opened the page. Reload the page (F5).                    |
-| Your character is named after you                  | You left Character Name as it was. Tell the GM, who can rename it.                                       |
-| You picked a wrong spell, or the same spell twice  | Tell the GM. They can swap it on your sheet.                                                             |
+| What happened                                      | What to do                                                                                                                                |
+| -------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| "User requires the 'Create New Actors' permission" | The GM has to allow players to make characters. Tell them.                                                                                |
+| A list is empty, or shows only a few choices       | The builder is not set to the right books. Tell the GM.                                                                                   |
+| You closed the builder halfway                     | Your character may exist half-made in the Actors tab. Ask the GM to delete it, then start again.                                          |
+| Actor Studio says it is "already open and busy"    | The half-made character is blocking it. Reload the page (F5). Players can't delete characters, so ask the GM to delete the half-made one. |
+| AC is lower than it should be                      | Equip your armour and shield on the **Inventory** tab of your sheet.                                                                      |
+| Next lets you through a step with nothing chosen   | Press **Previous** and choose. Check the **Chosen x of y** counter before every Next.                                                     |
+| You skipped a choice with Next                     | Finish, then tell the GM what is missing. The GM can add it, or delete the character so you can redo it.                                  |
+| Equipment stays below 100%                         | Click the gold amounts, and pick from every **Select focus** list, until everything is green.                                             |
+| The panel is blank after you click Complete        | Wait about 5 seconds. The next step appears by itself.                                                                                    |
+| A list is not what the GM described                | The GM may have changed the settings after you opened the page. Reload the page (F5).                                                     |
+| Your character is named after you                  | You left Character Name as it was. Tell the GM, who can rename it.                                                                        |
+| You picked a wrong spell, or the same spell twice  | Tell the GM. They can swap it on your sheet.                                                                                              |
 
 ## What to ask your GM
 

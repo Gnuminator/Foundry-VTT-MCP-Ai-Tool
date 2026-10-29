@@ -11,12 +11,13 @@ Out of the box players can't do that: they may not create characters, and Actor 
 older free rules instead of the 2024 Player's Handbook. This page sets both up, once, a week or so
 before session 0. It takes about 30 minutes.
 
-**On our server part of it is done already.** The admin has already set up character creation:
-players may create characters, Actor Studio gives starting equipment, and it takes that equipment
-from the Player's Handbook. So step 2 is a check, and so are the equipment settings in step 3.
-The other settings in step 3 may still be the defaults: compare each window with the picture and
-the table, and set what differs. The ability score method (step 3, item 2) is your choice. Steps 1
-and 4 are yours to do.
+**On our server part of it is done already.** The admin's setup script sets three things for characters:
+players may create characters, Actor Studio gives starting equipment, and the equipment comes from
+the Player's Handbook. So step 2 is a check, and so is the equipment row in step 3.
+**Everything else in step 3 is yours**: the other Compendium Sources rows, Enable Spell Selection
+and the ability score method. The script does not touch them, and until you set them a player may see
+the older free species list and no Spells step (look at what the world shows). Compare each window with the picture and the
+table, and set what differs. Steps 1 and 4 are yours too.
 
 All of it is normal Foundry settings, done as Gamemaster in your browser. Nothing here needs the
 command line or Claude. What session 0 itself holds is yours to plan; [Prep and
@@ -59,14 +60,14 @@ Settings tab, **Game Settings**, the category **[Aardvark Games] Actor Studio (A
    ticked, so it lists only the packs already in use: untick it to see them all. Tick only the
    packs of the Player's Handbook module (their names end in `[dnd-players-handbook]`):
 
-   | Row                                           | Tick              |
-   | --------------------------------------------- | ----------------- |
-   | Species Compendia, Species Features Compendia | Character Origins |
-   | Background Compendia                          | Character Origins |
-   | Class Compendia, Subclass Compendia           | Character Classes |
-   | Spell Compendia                               | Spells            |
-   | Feat Compendia                                | Feats             |
-   | Equipment Compendia                           | Equipment         |
+   | Row                                           | Tick              | Done on our server?   |
+   | --------------------------------------------- | ----------------- | --------------------- |
+   | Species Compendia, Species Features Compendia | Character Origins | Not set by the script |
+   | Background Compendia                          | Character Origins | Not set by the script |
+   | Class Compendia, Subclass Compendia           | Character Classes | Not set by the script |
+   | Spell Compendia                               | Spells            | Not set by the script |
+   | Feat Compendia                                | Feats             | Not set by the script |
+   | Equipment Compendia                           | Equipment         | Yes, check it         |
 
    Untick the D&D 5e system's own packs (the older free rules), or every list shows each choice
    twice. Click **Save**, then **Yes** when Foundry asks to reload.
@@ -80,7 +81,18 @@ Settings tab, **Game Settings**, the category **[Aardvark Games] Actor Studio (A
    the players open the builder. Manual input lets a player type any number; leave it off unless
    you want that.
 3. **Configure equipment & gold**: **Enable Equipment Selection** is ticked.
-4. **Configure spells**: tick **Enable Spell Selection**.
+4. **Configure spells**: tick **Enable Spell Selection**. The admin's script does not set this, so
+   it may be off until you tick it. With it off, a spellcaster may get no **Spells** tab and has to add
+   cantrips and spells by hand on the finished sheet, which is easy to get wrong. With it on, the
+   builder asks for them and shows how many are allowed.
+
+   The Spell Compendia row (item 1) decides which spells that Spells tab offers, so tick only the
+   Player's Handbook there. Feats such as Magic Initiate are different: they open Foundry's own
+   spell browser, which lists every edition whatever you ticked. The player guide tells players to
+   pick the "PHB 2024" copy.
+
+After setting it all, a quick sign that the packs are right: the species list shows only the 2024
+species, and a Cleric gets a **Spells** tab. Step 5 is the full test.
 
 Leave usage tracking off: our copy of Actor Studio has it off for everyone.
 

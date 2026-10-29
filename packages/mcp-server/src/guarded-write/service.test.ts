@@ -885,7 +885,7 @@ describe('vault ops', () => {
     const p = await vaultPlan([{ kind: 'vault-set', file: 'a.json', path: 'x', value: 1 }]);
     foundry.features[0].writesAllowed = false;
     await expect(service.applyPlan(p.planId, { confirm: true })).rejects.toThrow(
-      /Write operations are disabled/
+      /Write operations are disabled in the module settings\. In Foundry, open Game Settings, Configure Settings, AI Tool and turn on "Allow Write Operations"\./
     );
     expect(await store.read('curse-of-strahd', 'gm', 'a.json')).toBeNull();
 

@@ -217,7 +217,7 @@ export function useGuardedTools(): GuardedTools {
         }
         usage().trackTool(name, 'error', failCode(err));
         let error = errorText(err);
-        if (isSwitchOffRefusal(error)) {
+        if (isSwitchOffRefusal(error) && !mayHaveApplied(err)) {
           // Nothing was written and nothing is wrong: a switch to turn on, said as a hint.
           const hint = error.replace(/^Error:\s*/, '');
           toast(hint, 'warn');

@@ -103,6 +103,7 @@ function reply(result: WaitResult): Record<string, unknown> {
     ...(result.endedBy === 'cancelled' ? { cancelled: true } : {}),
     events: result.events,
     ...(result.truncated ? { truncated: true } : {}),
-    latestTimestamp: result.latestMs === null ? null : new Date(result.latestMs).toISOString(),
+    ...(result.gap ? { gap: true } : {}),
+    latestTimestamp: new Date(result.latestMs).toISOString(),
   };
 }

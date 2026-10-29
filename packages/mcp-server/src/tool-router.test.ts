@@ -7,7 +7,7 @@
  * `ownershipTools.handleToolCall(name, args)` dispatcher.
  */
 import { describe, expect, it, vi } from 'vitest';
-import { buildToolRouter, type ToolRouterDeps } from './tool-router.js';
+import { buildToolRouter, DETACHED_TOOLS, type ToolRouterDeps } from './tool-router.js';
 
 /** A tool whose every method is a memoized spy resolving to a marker. */
 function toolMock(): object {
@@ -89,6 +89,22 @@ describe('buildToolRouter', () => {
     expect((deps as any).guardedChangeTools.handleApplyPlannedChange).toHaveBeenLastCalledWith(
       args,
       undefined
+    );
+  });
+
+  it('runs wait-for-game-event detached and every other tool in line', () => {
+    expect([...DETACHED_TOOLS]).toEqual(['wait-for-game-event']);
+    expect(Object.keys(buildToolRouter(makeDeps()))).toContain('wait-for-game-event');
+  });
+
+  it('hands the connection signal to wait-for-game-event, so a closed socket ends the wait', async () => {
+    const deps = makeDeps();
+    const router = buildToolRouter(deps);
+    const signal = new AbortController().signal;
+    await router['wait-for-game-event']({ x: 1 }, { signal });
+    expect((deps as any).waitForEventTools.handleWaitForGameEvent).toHaveBeenCalledWith(
+      { x: 1 },
+      signal
     );
   });
 

@@ -71,8 +71,10 @@ export interface WaitResult {
   truncated: boolean;
   /** `timeout` and `cancelled` carry no events. */
   endedBy: 'event' | 'timeout' | 'cancelled';
-  /** Newest timestamp (ms) to pass back as the next `since`; null when nothing is known yet. */
-  latestMs: number | null;
+  /** Newest timestamp (ms) to pass back as the next `since`. */
+  latestMs: number;
+  /** The cursor was older than the oldest event the ring still holds: some events were dropped. */
+  gap?: boolean;
 }
 
 export interface HubSources {
@@ -139,6 +141,8 @@ export class GameEventHub {
   private readonly waiters = new Set<Waiter>();
   private sources: HubSources = { sessionEvents: false, playLog: false };
   private lastReceivedMs = 0;
+  /** Stamp of the newest event the ring has dropped; a cursor below it has lost events. */
+  private droppedMs = 0;
 
   /** `now` is injectable for tests. */
   constructor(private readonly now: () => number = Date.now) {}
@@ -182,7 +186,10 @@ export class GameEventHub {
     }
     while (this.ring.length > RING_SIZE) {
       const dropped = this.ring.shift();
-      if (dropped) this.ids.delete(dropped.id);
+      if (dropped) {
+        this.ids.delete(dropped.id);
+        this.droppedMs = dropped.receivedMs;
+      }
     }
     for (const waiter of [...this.waiters]) {
       const hits = fresh.filter(waiter.matches);
@@ -190,7 +197,7 @@ export class GameEventHub {
     }
   }
 
-  private result(hits: GameEvent[]): WaitResult {
+  private result(hits: GameEvent[], gap = false): WaitResult {
     const sorted = [...hits].sort((a, b) => a.receivedMs - b.receivedMs);
     const kept = sorted.slice(0, MAX_RETURNED);
     return {
@@ -198,11 +205,8 @@ export class GameEventHub {
       truncated: sorted.length > kept.length,
       endedBy: 'event',
       latestMs: kept[kept.length - 1].receivedMs,
+      ...(gap ? { gap: true } : {}),
     };
-  }
-
-  private newestMs(): number | null {
-    return this.ring.length > 0 ? this.lastReceivedMs : null;
   }
 
   /**
@@ -225,10 +229,11 @@ export class GameEventHub {
       (actor === '' || (e.actorName ?? '').toLowerCase().includes(actor));
 
     // Events the pump already published since the caller's last cursor.
+    const gap = request.sinceMs !== undefined && request.sinceMs < this.droppedMs;
     if (request.sinceMs !== undefined) {
       const since = request.sinceMs;
       const hits = this.ring.filter(e => e.receivedMs > since && matches(e));
-      if (hits.length > 0) return Promise.resolve(this.result(hits));
+      if (hits.length > 0) return Promise.resolve(this.result(hits, gap));
     }
 
     // A call that would answer at once never counts against the cap; only a real wait does.
@@ -250,6 +255,7 @@ export class GameEventHub {
         truncated: false,
         endedBy,
         latestMs: fallbackMs,
+        ...(gap ? { gap: true } : {}),
       });
       if (request.signal?.aborted) return resolve(empty('cancelled'));
       const waiter: Waiter = {

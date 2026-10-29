@@ -37,6 +37,11 @@ export const KNOWN_EVENT_TYPES: readonly string[] = [
   'condition-applied',
   'condition-removed',
 ];
+/**
+ * Logged by the module but never offered as a wait filter and never woken on: the AI's own
+ * changes and roll requests, which an any-type wait would otherwise answer with its own write.
+ */
+export const NOT_WAITABLE_EVENT_TYPES: readonly string[] = ['gm-change', 'roll-request'];
 const RING_SIZE = 500;
 const MAX_RETURNED = 50;
 
@@ -87,6 +92,8 @@ export interface HubSources {
 interface Waiter {
   matches: (event: GameEvent) => boolean;
   finish: (result: WaitResult) => void;
+  /** The cursor was older than the ring when the wait started. */
+  gap: boolean;
 }
 
 function str(value: unknown): string | null {
@@ -172,7 +179,9 @@ export class GameEventHub {
   }
 
   private publish(events: PendingGameEvent[]): void {
-    const pending = events.filter(e => !this.ids.has(e.id));
+    const pending = events.filter(
+      e => !this.ids.has(e.id) && !NOT_WAITABLE_EVENT_TYPES.includes(e.eventType)
+    );
     if (pending.length === 0) return;
     // Session events carry the browser clock and play-log records the Foundry server clock, so
     // the cursor runs on one backend stamp instead: strictly increasing, in publish order.
@@ -193,7 +202,7 @@ export class GameEventHub {
     }
     for (const waiter of [...this.waiters]) {
       const hits = fresh.filter(waiter.matches);
-      if (hits.length > 0) waiter.finish(this.result(hits));
+      if (hits.length > 0) waiter.finish(this.result(hits, waiter.gap));
     }
   }
 
@@ -260,6 +269,7 @@ export class GameEventHub {
       if (request.signal?.aborted) return resolve(empty('cancelled'));
       const waiter: Waiter = {
         matches,
+        gap,
         finish: result => {
           clearTimeout(timer);
           request.signal?.removeEventListener('abort', onAbort);

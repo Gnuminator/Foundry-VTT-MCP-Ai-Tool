@@ -4,7 +4,7 @@ import { fileURLToPath } from 'url';
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { GameEventHub, KNOWN_EVENT_TYPES } from '../game-event-hub.js';
+import { GameEventHub, KNOWN_EVENT_TYPES, NOT_WAITABLE_EVENT_TYPES } from '../game-event-hub.js';
 import { WaitForEventTools } from './wait-for-event.js';
 
 const T0 = 1_000_000;
@@ -80,8 +80,7 @@ describe('handleWaitForGameEvent', () => {
 });
 
 describe('KNOWN_EVENT_TYPES', () => {
-  /** Event types the module logs on purpose that a wait does not offer (the AI's own writes). */
-  const NOT_WAITABLE = ['gm-change', 'roll-request'];
+  const NOT_WAITABLE = NOT_WAITABLE_EVENT_TYPES;
 
   function moduleSources(): string[] {
     const root = path.resolve(
@@ -111,6 +110,12 @@ describe('KNOWN_EVENT_TYPES', () => {
       for (const m of source.matchAll(/onActiveEffect\([^,)]+,\s*'([a-z-]+)'/g)) logged.add(m[1]);
     }
     for (const type of NOT_WAITABLE) expect(logged.has(type)).toBe(true);
+    // Every call passes a literal or the `eventType` variable, so the scan above sees all of them.
+    for (const source of moduleSources()) {
+      for (const m of source.matchAll(/\blogSessionEvent\(\s*([^,\s)]+)/g)) {
+        if (!m[1].startsWith("'")) expect(['eventType', 'eventType:']).toContain(m[1]);
+      }
+    }
     const waitable = [...logged].filter(t => !NOT_WAITABLE.includes(t));
     expect([...KNOWN_EVENT_TYPES].filter(t => t !== 'combat-turn').sort()).toEqual(waitable.sort());
   });

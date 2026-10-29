@@ -31,7 +31,7 @@ export class WaitForEventTools {
     return [
       {
         name: 'wait-for-game-event',
-        description: `Wait for the next game event instead of polling get-recent-events. Returns when a matching event is logged (a few seconds after it happens), or empty on timeout: call again with sinceTimestamp = the returned latestTimestamp so nothing is missed.`,
+        description: `Wait for the next game event instead of polling get-recent-events. Returns when a matching event is logged (a few seconds after it happens), or empty on timeout: call again with sinceTimestamp = the returned latestTimestamp so nothing is missed. gap:true = older events were dropped; read get-recent-events.`,
         inputSchema: {
           type: 'object',
           properties: {

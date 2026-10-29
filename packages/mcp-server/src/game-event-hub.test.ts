@@ -181,6 +181,30 @@ describe('GameEventHub.wait', () => {
     expect(stale.events).toHaveLength(50);
   });
 
+  it('keeps the gap flag when an event wakes a waiting call', async () => {
+    hub.publishSessionEvents(Array.from({ length: 600 }, (_, i) => ev(i + 1)));
+    const p = hub.wait({ sinceMs: T0 - 1, eventTypes: ['death'], timeoutMs: 5000 });
+    hub.publishSessionEvents([ev(9000, 'death')]);
+    const r = await p;
+    expect(r.endedBy).toBe('event');
+    expect(r.gap).toBe(true);
+  });
+
+  it('keeps the gap flag on a timeout', async () => {
+    hub.publishSessionEvents(Array.from({ length: 600 }, (_, i) => ev(i + 1)));
+    const p = hub.wait({ sinceMs: T0 - 1, eventTypes: ['death'], timeoutMs: 1000 });
+    await vi.advanceTimersByTimeAsync(1000);
+    expect((await p).gap).toBe(true);
+  });
+
+  it("never wakes on the AI's own changes and roll requests", async () => {
+    const p = hub.wait({ timeoutMs: 1000 });
+    hub.publishSessionEvents([ev(1, 'gm-change', null), ev(2, 'roll-request', null)]);
+    expect(hub.waiterCount).toBe(1);
+    hub.publishSessionEvents([ev(3, 'damage')]);
+    expect((await p).events.map(e => e.eventType)).toEqual(['damage']);
+  });
+
   it('flags no gap for a cursor inside the ring, and none for a wait without one', async () => {
     hub.publishSessionEvents(Array.from({ length: 600 }, (_, i) => ev(i + 1)));
     const p = hub.wait({ timeoutMs: 1000 });

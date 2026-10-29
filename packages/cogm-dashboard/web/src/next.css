@@ -347,12 +347,27 @@ main.moment-views #moment-during.during-no-bar {
 .tool-runner-body .tool-form input:not([type='checkbox']) {
   min-height: 2.25rem;
 }
+/* The textarea keeps the old page's floor: the rule above would lower it to 2.25rem. */
+.tool-runner-body .tool-form textarea.field-control {
+  min-height: 3.2rem;
+}
 .tool-runner-body .form-actions {
   position: sticky;
   bottom: 0;
   margin: 0 calc(-1 * var(--space-4));
   padding: var(--space-3) var(--space-4);
-  min-height: 3.25rem;
   background: var(--bg-panel);
   border-top: 1px solid var(--border);
+}
+/* The message slot: the footer is always two lines of message tall (plus its padding), and the
+   error and waiting text take the width beside Run and wrap inside it, so a message arriving
+   never moves Run or the form above. */
+.tool-runner-body .form-actions {
+  min-height: calc(2 * 1.4 * var(--text-xs) + 2 * var(--space-3));
+}
+.tool-runner-body .form-actions .form-error,
+.tool-runner-body .form-actions .field-hint {
+  flex: 1;
+  min-width: 0;
+  line-height: 1.4;
 }

@@ -26,12 +26,13 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { withHeavyLock } from './heavy-lock.mjs';
+import { HELD_ENV, acquire, readConfig } from './heavy-lock.mjs';
 
 /**
  * The steps that need a lot of RAM or CPU (lint, type check, build, the test suites, the browser
- * run). Each takes the heavy-check lock, so parallel greens, the pre-push hook and the gate's drift
- * check take turns instead of running together (see scripts/heavy-lock.mjs).
+ * run). A run takes the heavy-check lock once, at its first heavy step, and keeps it until its last
+ * one, so parallel greens, the pre-push hook and the gate's drift check take turns per run instead
+ * of queueing again for every step (see scripts/heavy-lock.mjs).
  */
 export const HEAVY_STEPS = new Set([
   'typecheck',
@@ -340,6 +341,34 @@ export function cleanTreeHash(cwd) {
   return tree.status === 0 ? tree.stdout.trim() : null;
 }
 
+/**
+ * The tree hash the working tree would commit as with every change added (`git add -A`: changed,
+ * new and deleted files, not ignored ones), without touching the real index: a copy of it is used.
+ * A green run on a tree with uncommitted edits is then "green on the commit those edits become".
+ * @param {string} cwd
+ * @returns {string | null}
+ */
+export function worktreeTreeHash(cwd) {
+  const git = (/** @type {string[]} */ args, /** @type {Record<string, string>} */ extra = {}) =>
+    spawnSync('git', args, { cwd, encoding: 'utf8', windowsHide: true, env: { ...process.env, ...extra } });
+  const real = git(['rev-parse', '--git-path', 'index']);
+  if (real.status !== 0 || !real.stdout.trim()) return null;
+  const index = path.join(os.tmpdir(), `green-index-${process.pid}-${Date.now()}`);
+  try {
+    // A copy of the real index keeps git's file-stat cache, so `add -A` only hashes changed files.
+    try {
+      fs.copyFileSync(path.resolve(cwd, real.stdout.trim()), index);
+    } catch {
+      if (git(['read-tree', 'HEAD'], { GIT_INDEX_FILE: index }).status !== 0) return null;
+    }
+    if (git(['add', '-A'], { GIT_INDEX_FILE: index }).status !== 0) return null;
+    const tree = git(['write-tree'], { GIT_INDEX_FILE: index });
+    return tree.status === 0 && /^[0-9a-f]{40,64}$/.test(tree.stdout.trim()) ? tree.stdout.trim() : null;
+  } finally {
+    fs.rmSync(index, { force: true });
+  }
+}
+
 /** Where a full green run records the tree it passed on (per worktree, inside its git dir). @param {string} cwd */
 export function greenStampPath(cwd) {
   const r = spawnSync('git', ['rev-parse', '--git-path', 'green-ok'], {
@@ -351,18 +380,26 @@ export function greenStampPath(cwd) {
 }
 
 /**
- * Did `npm run green` pass on exactly this tree? (.git/green-ok holds the tree hash of the last full OK run.)
- * @param {string} cwd
+ * Did `npm run green` pass on exactly this tree? (.git/green-ok holds the tree hash of the last full
+ * OK run.) With `commits` (the commits a push sends, from the pre-push hook) every one of them must
+ * have that tree, whatever the working tree holds now; without, the working tree must be clean and
+ * HEAD must have it.
+ * @param {string} cwd @param {string[]} [commits]
  */
-export function greenPassedOnThisTree(cwd) {
-  const tree = cleanTreeHash(cwd);
+export function greenPassedOnThisTree(cwd, commits = []) {
   const file = greenStampPath(cwd);
-  if (!tree || !file) return false;
+  if (!file) return false;
+  let stamp;
   try {
-    return fs.readFileSync(file, 'utf8').trim() === tree;
+    stamp = fs.readFileSync(file, 'utf8').trim();
   } catch {
     return false;
   }
+  if (commits.length === 0) return cleanTreeHash(cwd) === stamp;
+  return commits.every(sha => {
+    const r = spawnSync('git', ['rev-parse', `${sha}^{tree}`], { cwd, encoding: 'utf8', windowsHide: true });
+    return r.status === 0 && r.stdout.trim() === stamp;
+  });
 }
 
 /**
@@ -490,28 +527,87 @@ export function nodeNote(o = {}) {
 }
 
 /**
+ * How many vitest worker processes a suite may start (VITEST_MAX_FORKS) while several heavy runs may
+ * go at once: the CPUs shared by the heavy-check slots, at least 2. Vitest's own default is one
+ * fewer than the CPUs, each fork a few hundred MB. Null (vitest's default) with one slot, or when
+ * VITEST_MAX_FORKS is already set.
+ * @param {{ cpus?: number, slots?: number, env?: Record<string, string | undefined> }} [o]
+ * @returns {string | null}
+ */
+export function vitestForks(o = {}) {
+  const { cpus = os.availableParallelism(), env = process.env, slots = readConfig(env).slots } = o;
+  if (env.VITEST_MAX_FORKS || slots <= 1) return null;
+  return String(Math.max(2, Math.floor((cpus - 1) / slots)));
+}
+
+/**
  * The default step runner: stdout and stderr of the step go straight to the log file.
  * @param {Step} step @param {number} fd @param {string} cwd
  * @returns {number} exit status (1 when the process could not start or was killed)
  */
 function spawnStep(step, fd, cwd) {
-  const run = () => {
-    // One command string with shell: true (a command plus an args array under a shell is DEP0190).
-    const r = spawnSync(commandLine(step), {
-      cwd,
-      shell: true,
-      stdio: ['ignore', fd, fd],
-      env: {
-        ...stepEnvironment(process.env, NODE22_DIR),
-        FORCE_COLOR: '0',
-        NO_COLOR: '1',
-        ...step.env,
-      },
-    });
-    return r.status ?? 1;
+  const forks = vitestForks();
+  // One command string with shell: true (a command plus an args array under a shell is DEP0190).
+  const r = spawnSync(commandLine(step), {
+    cwd,
+    shell: true,
+    stdio: ['ignore', fd, fd],
+    env: {
+      ...stepEnvironment(process.env, NODE22_DIR),
+      FORCE_COLOR: '0',
+      NO_COLOR: '1',
+      ...(forks ? { VITEST_MAX_FORKS: forks } : {}),
+      ...step.env,
+    },
+  });
+  return r.status ?? 1;
+}
+
+/**
+ * The heavy-check lock for one green run: taken at the first heavy step, beaten before each later
+ * step (so a long run is never taken for stale), released after the last heavy step.
+ * @param {Step[]} steps the steps this run executes
+ * @param {(label: string) => ReturnType<typeof acquire>} take
+ * @param {string} label
+ * @param {Record<string, string | undefined>} env gets HELD_ENV while the lock is held, so a step's
+ *   own lock (lint-ratchet) does not wait on this run
+ */
+export function runLock(steps, take, label, env = process.env) {
+  const lastHeavy = steps.findLastIndex(s => HEAVY_STEPS.has(s.name));
+  /** @type {ReturnType<typeof acquire> | null} */
+  let lock = null;
+  const release = () => {
+    if (!lock) return;
+    if (lock.held) delete env[HELD_ENV];
+    lock.release();
+    lock = null;
   };
-  // A heavy step takes the machine-wide lock (scripts/heavy-lock.mjs); the others just run.
-  return HEAVY_STEPS.has(step.name) ? withHeavyLock(`green ${step.name}`, run) : run();
+  let waitedMs = 0;
+  return {
+    /** @param {number} i @param {Step} step */
+    before(i, step) {
+      if (i > lastHeavy) return;
+      if (lock) {
+        lock.beat(step.name);
+        return;
+      }
+      if (!HEAVY_STEPS.has(step.name)) return;
+      lock = take(label);
+      waitedMs = lock.waitedMs;
+      if (lock.held) {
+        env[HELD_ENV] = String(process.pid);
+        lock.beat(step.name);
+      }
+    },
+    /** @param {number} i */
+    after(i) {
+      if (i >= lastHeavy) release();
+    },
+    release,
+    get waitedMs() {
+      return waitedMs;
+    },
+  };
 }
 
 /**
@@ -519,7 +615,7 @@ function spawnStep(step, fd, cwd) {
  *   argv?: string[], steps?: Step[], cwd?: string, tmpdir?: string, now?: () => number,
  *   isTTY?: boolean, log?: (line: string) => void, write?: (text: string) => void,
  *   runStep?: (step: Step, fd: number, cwd: string) => number, note?: string | null,
- *   recordStamp?: boolean,
+ *   recordStamp?: boolean, takeLock?: (label: string) => ReturnType<typeof acquire>,
  * }} [options]
  * @returns {number} the process exit code
  */
@@ -535,6 +631,7 @@ export function main(options = {}) {
     write = text => process.stdout.write(text),
     runStep = spawnStep,
     note = nodeNote(),
+    takeLock = label => acquire(label),
   } = options;
 
   const opts = parseArgs(argv);
@@ -557,37 +654,60 @@ export function main(options = {}) {
   }
 
   if (note) log(note);
-  // A full run (every step) on a clean tree is recorded, so the pre-push hook can skip its ratchets.
+  // A full run (every step) is recorded with the tree it ran on (uncommitted edits included), so the
+  // pre-push hook can skip its ratchets when it pushes a commit with exactly that tree.
   const treeBefore =
     options.recordStamp === false ||
     steps !== STEPS ||
     opts.only.length + opts.skip.length > 0 ||
     opts.from
       ? null
-      : cleanTreeHash(cwd);
+      : worktreeTreeHash(cwd);
   const logDir = path.join(tmpdir, `green-${stamp(new Date(now()))}`);
   fs.mkdirSync(logDir, { recursive: true });
   const started = now();
   /** @type {{ name: string, logFile: string }[]} */
   const failed = [];
-  picked.steps.forEach((step, i) => {
-    if (failed.length > 0 && !opts.all) return;
-    const nn = String(steps.indexOf(step) + 1).padStart(2, '0');
-    const logFile = path.join(logDir, `${nn}-${step.name}.log`);
-    if (isTTY) write(`\x1b[2K\rgreen: [${i + 1}/${picked.steps.length}] ${step.name}`);
-    const fd = fs.openSync(logFile, 'w');
-    let status;
-    try {
-      status = runStep(step, fd, cwd);
-    } finally {
-      fs.closeSync(fd);
-    }
-    if (status !== 0) failed.push({ name: step.name, logFile });
-  });
+  /** @type {{ step: string, ms: number, status: number }[]} */
+  const timings = [];
+  const lock = runLock(picked.steps, takeLock, `green ${path.basename(cwd)}`);
+  try {
+    picked.steps.forEach((step, i) => {
+      if (failed.length > 0 && !opts.all) return;
+      const nn = String(steps.indexOf(step) + 1).padStart(2, '0');
+      const logFile = path.join(logDir, `${nn}-${step.name}.log`);
+      if (isTTY) write(`\x1b[2K\rgreen: [${i + 1}/${picked.steps.length}] ${step.name}`);
+      lock.before(i, step);
+      const fd = fs.openSync(logFile, 'w');
+      const stepStart = performance.now();
+      let status = 1;
+      try {
+        status = runStep(step, fd, cwd);
+      } finally {
+        fs.closeSync(fd);
+        lock.after(i);
+      }
+      timings.push({ step: step.name, ms: Math.round(performance.now() - stepStart), status });
+      if (status !== 0) failed.push({ name: step.name, logFile });
+    });
+  } finally {
+    lock.release();
+  }
   if (isTTY) write('\x1b[2K\r');
+  const ended = now();
+  try {
+    // For tuning the heavy-check lock: what each step took and how long the run waited for the lock.
+    fs.writeFileSync(
+      path.join(logDir, 'timings.json'),
+      `${JSON.stringify({ totalMs: ended - started, lockWaitMs: lock.waitedMs, steps: timings }, null, 1)}\n`
+    );
+  } catch {
+    // Timings are a nice-to-have.
+  }
+  const waited = lock.waitedMs >= 1000 ? ` (${formatDuration(lock.waitedMs)} of it waiting for the heavy-check lock)` : '';
 
   if (failed.length === 0) {
-    if (treeBefore && cleanTreeHash(cwd) === treeBefore) {
+    if (treeBefore && worktreeTreeHash(cwd) === treeBefore) {
       const stamp = greenStampPath(cwd);
       try {
         if (stamp) fs.writeFileSync(stamp, `${treeBefore}\n`);
@@ -595,7 +715,7 @@ export function main(options = {}) {
         // No stamp: the pre-push hook just runs its ratchets.
       }
     }
-    log(`green: OK, ${picked.steps.length} steps in ${formatDuration(now() - started)}`);
+    log(`green: OK, ${picked.steps.length} steps in ${formatDuration(ended - started)}${waited}`);
     return 0;
   }
   for (const f of failed) log(`green: FAILED at ${f.name} (${f.logFile})`);

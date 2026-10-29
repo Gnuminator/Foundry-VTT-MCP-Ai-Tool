@@ -109,6 +109,12 @@ export interface ToolCallContext {
   signal?: AbortSignal;
 }
 
+/**
+ * Tools the control channel does not await before it reads the next line of the same connection:
+ * a long wait must not hold up the calls queued behind it.
+ */
+export const DETACHED_TOOLS: ReadonlySet<string> = new Set(['wait-for-game-event']);
+
 export type ToolHandler = (args: unknown, context?: ToolCallContext) => Promise<unknown>;
 
 /**

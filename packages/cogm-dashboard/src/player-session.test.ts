@@ -6,6 +6,7 @@ import { readFileSync } from 'node:fs';
 
 import { describe, expect, it } from 'vitest';
 
+import { sanitizeHandoutHtml } from './player/sanitize.js';
 import { handoutTitle, sessionPhase, splitHandouts } from '../public/player-session.js';
 
 const open = { open: true, endedAt: null };
@@ -51,6 +52,16 @@ describe('handoutTitle', () => {
       'Quest Details'
     );
     expect(handoutTitle({ title: 'Quest Details', html: '<h1> </h1>' })).toBe('Quest Details');
+  });
+});
+
+describe('handoutTitle after the real sanitizer', () => {
+  it('reads the quest title out of a styled quest page as a player gets it', () => {
+    const page =
+      '<section class="mcp-journal"><style>.x{}</style><div class="wrap"><h1>Find the <b>Amulet</b></h1>' +
+      '<hr class="orn"/><h2>Background</h2><p>text</p></div></section>';
+    const html = sanitizeHandoutHtml(page, []);
+    expect(handoutTitle({ title: 'Quest Details', html })).toBe('Find the Amulet');
   });
 });
 

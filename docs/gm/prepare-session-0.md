@@ -11,12 +11,12 @@ Out of the box players can't do that: they may not create characters, and Actor 
 older free rules instead of the 2024 Player's Handbook. This page sets both up, once, a week or so
 before session 0. It takes about 30 minutes.
 
-**On our server part of it is done already.** The admin's setup script does exactly three things:
+**On our server part of it is done already.** The admin's setup script sets three things for characters:
 players may create characters, Actor Studio gives starting equipment, and the equipment comes from
 the Player's Handbook. So step 2 is a check, and so is the equipment row in step 3.
 **Everything else in step 3 is yours**: the other Compendium Sources rows, Enable Spell Selection
-and the ability score method. The script does not touch them, and until you set them a player sees
-the older free species list and no Spells step. Compare each window with the picture and the
+and the ability score method. The script does not touch them, and until you set them a player may see
+the older free species list and no Spells step (look at what the world shows). Compare each window with the picture and the
 table, and set what differs. Steps 1 and 4 are yours too.
 
 All of it is normal Foundry settings, done as Gamemaster in your browser. Nothing here needs the
@@ -82,7 +82,7 @@ Settings tab, **Game Settings**, the category **[Aardvark Games] Actor Studio (A
    you want that.
 3. **Configure equipment & gold**: **Enable Equipment Selection** is ticked.
 4. **Configure spells**: tick **Enable Spell Selection**. The admin's script does not set this, so
-   it is off until you tick it. Without it a spellcaster gets no **Spells** tab and has to add
+   it may be off until you tick it. With it off, a spellcaster may get no **Spells** tab and has to add
    cantrips and spells by hand on the finished sheet, which is easy to get wrong. With it on, the
    builder asks for them and shows how many are allowed.
 

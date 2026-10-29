@@ -165,7 +165,7 @@ Next comes the **Equipment** tab.
    equipment plus a little gold, or only gold.
 2. The **Planned Inventory** on the right shows what you get.
 3. Scroll down in the left column. The items turn green by themselves, but **the gold amounts
-   (for example 5 GP and 8 GP) stay black until you click them**, and that is what holds the bar at
+   (for example 5 GP and 8 GP) stay black until you click them**, and that is one thing that holds the bar at
    75%. Click each gold amount until it is green and the bar at the bottom reaches
    **100% Complete**.
 4. **If a row offers "any holy focus"** (a cleric's class row and the Acolyte background do),
@@ -205,7 +205,7 @@ Look over the sheet before you call it done. Ask the GM if anything looks wrong.
       Initiate.
 - [ ] Armour class (AC). **Actor Studio puts your armour, shield and weapons on the sheet but
       does not equip them**, so AC reads as if you wore nothing (a cleric with a chain shirt and a
-      shield shows 11 instead of 16). Open the **Inventory** tab and click the first small icon at the
+      shield shows 11 instead of 16). Open the **Inventory** tab and click the small icon at the
       right end of the row of each piece of armour, your shield and your weapons (hover over it:
       it says "Not Equipped", and "Equipped" after you click). The AC updates at once.
 - [ ] Equipment and gold are on the **Inventory** tab. **Wizards:** the starting kit has no
@@ -251,7 +251,7 @@ as your portrait and token.
 | You closed the builder halfway                     | Your character may exist half-made in the Actors tab. Ask the GM to delete it, then start again.                                          |
 | Actor Studio says it is "already open and busy"    | The half-made character is blocking it. Reload the page (F5). Players can't delete characters, so ask the GM to delete the half-made one. |
 | AC is lower than it should be                      | Equip your armour and shield on the **Inventory** tab of your sheet.                                                                      |
-| Next let you through a step with nothing chosen    | Press **Previous** and choose. Check the **Chosen x of y** counter before every Next.                                                     |
+| Next lets you through a step with nothing chosen   | Press **Previous** and choose. Check the **Chosen x of y** counter before every Next.                                                     |
 | You skipped a choice with Next                     | Finish, then tell the GM what is missing. The GM can add it, or delete the character so you can redo it.                                  |
 | Equipment stays below 100%                         | Click the gold amounts, and pick from every **Select focus** list, until everything is green.                                             |
 | The panel is blank after you click Complete        | Wait about 5 seconds. The next step appears by itself.                                                                                    |

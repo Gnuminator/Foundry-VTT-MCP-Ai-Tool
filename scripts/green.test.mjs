@@ -32,6 +32,7 @@ import {
   worktreeTreeHash,
   runLock,
   HEAVY_STEPS,
+  SOLO_STEPS,
 } from './green.mjs';
 import { main as prePush, CHECKS, pushedCommits } from './pre-push.mjs';
 import { HELD_ENV } from './heavy-lock.mjs';
@@ -613,6 +614,14 @@ test('runLock: a run with no heavy step never takes the lock; a failure mid-run 
   lock.release();
   assert.equal(released, 1);
   assert.equal(env[HELD_ENV], undefined);
+});
+
+test('solo steps (never two greens at once) are real heavy steps', () => {
+  assert.ok(SOLO_STEPS.has('e2e'));
+  for (const name of SOLO_STEPS) {
+    assert.ok(HEAVY_STEPS.has(name), `${name} is heavy`);
+    assert.ok(STEPS.some(s => s.name === name), `${name} is a step`);
+  }
 });
 
 test('pushedCommits: the local shas of the pushed refs, without deletes', () => {

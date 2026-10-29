@@ -9,5 +9,8 @@
   `node scripts/heavy-lock.mjs status` shows the settings, the holders and who waits.
 - **No second check on push:** green records the tree it passed on, uncommitted edits included, and
   the pre-push hook skips its checks when every pushed commit has that tree.
+- **Parallel greens and e2e:** two greens never run the dashboard e2e step at the same time (it
+  shares a state folder), and green gives it a free port (`E2E_PORT`), so a run on the default
+  port elsewhere cannot fail it.
 - **Green timings:** each run writes `timings.json` (step times, lock wait) next to its logs, and
   two greens started in the same second no longer share one log folder.

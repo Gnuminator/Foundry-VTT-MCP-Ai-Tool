@@ -26,7 +26,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { HELD_ENV, acquire } from './heavy-lock.mjs';
+import { HELD_ENV, acquire, lockDir } from './heavy-lock.mjs';
 
 /**
  * The steps that need a lot of RAM or CPU (lint, type check, build, the test suites, the browser
@@ -532,19 +532,64 @@ export function nodeNote(o = {}) {
  * @returns {number} exit status (1 when the process could not start or was killed)
  */
 function spawnStep(step, fd, cwd) {
-  // One command string with shell: true (a command plus an args array under a shell is DEP0190).
-  const r = spawnSync(commandLine(step), {
-    cwd,
-    shell: true,
-    stdio: ['ignore', fd, fd],
-    env: {
-      ...stepEnvironment(process.env, NODE22_DIR),
-      FORCE_COLOR: '0',
-      NO_COLOR: '1',
-      ...step.env,
-    },
+  const run = () => {
+    // One command string with shell: true (a command plus an args array under a shell is DEP0190).
+    const r = spawnSync(commandLine(step), {
+      cwd,
+      shell: true,
+      stdio: ['ignore', fd, fd],
+      env: {
+        ...stepEnvironment(process.env, NODE22_DIR),
+        FORCE_COLOR: '0',
+        NO_COLOR: '1',
+        ...(step.name === 'e2e' && !process.env.E2E_PORT ? freePortEnv() : {}),
+        ...step.env,
+      },
+    });
+    return r.status ?? 1;
+  };
+  return SOLO_STEPS.has(step.name) ? soloLock(step.name, run) : run();
+}
+
+/**
+ * Steps that two greens must never run at the same time, even each in its own heavy slot: the e2e
+ * run starts the dashboard with a fixed state folder (%TEMP%\cogm-dashboard-e2e, set in its
+ * playwright config). Measured 2026-10-30: two greens in e2e at once, one failed on the port.
+ */
+export const SOLO_STEPS = new Set(['e2e']);
+
+/**
+ * Run fn under a one-slot lock of its own (a `solo-<name>` folder next to the heavy-check slots).
+ * The heavy lock's held marker is left out on purpose: holding a heavy slot does not mean holding
+ * this one. Nothing waits for a heavy slot while holding this lock, so the two cannot deadlock.
+ * @template T @param {string} name @param {() => T} fn @returns {T}
+ */
+function soloLock(name, fn) {
+  const { [HELD_ENV]: _held, ...rest } = process.env;
+  const lock = acquire(`green ${name}`, {
+    env: { ...rest, HEAVY_LOCK_DIR: path.join(lockDir(), `solo-${name}`), HEAVY_LOCK_SLOTS: '1' },
+    log: () => {},
   });
-  return r.status ?? 1;
+  try {
+    return fn();
+  } finally {
+    lock.release();
+  }
+}
+
+/**
+ * A free port for the e2e dashboard (E2E_PORT, read by the playwright config), so a green never
+ * fails because another run, of any version, sits on the default 3197. Empty when none was found.
+ * @returns {Record<string, string>}
+ */
+function freePortEnv() {
+  const r = spawnSync(
+    process.execPath,
+    ['-e', "const s=require('net').createServer().listen(0,'127.0.0.1',()=>{console.log(s.address().port);s.close()})"],
+    { encoding: 'utf8', windowsHide: true }
+  );
+  const port = Number(r.stdout?.trim());
+  return Number.isInteger(port) && port > 1024 && ![31414, 31415, 31416].includes(port) ? { E2E_PORT: String(port) } : {};
 }
 
 /**

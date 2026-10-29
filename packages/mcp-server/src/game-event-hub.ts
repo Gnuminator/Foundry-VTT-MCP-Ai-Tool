@@ -20,7 +20,7 @@ export const MAX_WAITERS = 4;
 const RING_SIZE = 500;
 const MAX_RETURNED = 50;
 
-export interface GameEvent {
+export interface PendingGameEvent {
   id: string;
   timestamp: string;
   timestampMs: number;
@@ -28,6 +28,11 @@ export interface GameEvent {
   actorName: string | null;
   description: string;
   details: Record<string, unknown>;
+}
+
+export interface GameEvent extends PendingGameEvent {
+  /** Backend receive stamp (ms), strictly increasing; the cursor clock. Set by the hub at publish. */
+  receivedMs: number;
 }
 
 export interface WaitRequest {
@@ -67,7 +72,7 @@ function str(value: unknown): string | null {
 }
 
 /** A session event as the module's buffer hands it out, or null when it is malformed. */
-export function toGameEvent(raw: unknown): GameEvent | null {
+export function toGameEvent(raw: unknown): PendingGameEvent | null {
   const e = raw as Record<string, unknown> | null;
   if (!e || typeof e !== 'object') return null;
   const id = str(e.id);
@@ -92,7 +97,7 @@ export function toGameEvent(raw: unknown): GameEvent | null {
 }
 
 /** The play log's `combat-turn` record as a game event; other record kinds are not events here. */
-export function playRecordToGameEvent(record: PlayRecord): GameEvent | null {
+export function playRecordToGameEvent(record: PlayRecord): PendingGameEvent | null {
   if (record.kind !== 'combat-turn' || !record.combat) return null;
   const data = record.data;
   const name = str(data?.combatantName);
@@ -113,6 +118,10 @@ export class GameEventHub {
   private readonly ids = new Set<string>();
   private readonly waiters = new Set<Waiter>();
   private sources: HubSources = { sessionEvents: false, playLog: false };
+  private lastReceivedMs = 0;
+
+  /** `now` is injectable for tests. */
+  constructor(private readonly now: () => number = Date.now) {}
 
   setSources(sources: HubSources): void {
     this.sources = sources;
@@ -128,17 +137,25 @@ export class GameEventHub {
 
   /** Session events from the event pump. */
   publishSessionEvents(raw: readonly unknown[]): void {
-    this.publish(raw.map(toGameEvent).filter((e): e is GameEvent => e !== null));
+    this.publish(raw.map(toGameEvent).filter((e): e is PendingGameEvent => e !== null));
   }
 
   /** Records from the play log pump; only `combat-turn` becomes an event. */
   publishPlayRecords(records: readonly PlayRecord[]): void {
-    this.publish(records.map(playRecordToGameEvent).filter((e): e is GameEvent => e !== null));
+    this.publish(
+      records.map(playRecordToGameEvent).filter((e): e is PendingGameEvent => e !== null)
+    );
   }
 
-  private publish(events: GameEvent[]): void {
-    const fresh = events.filter(e => !this.ids.has(e.id));
-    if (fresh.length === 0) return;
+  private publish(events: PendingGameEvent[]): void {
+    const pending = events.filter(e => !this.ids.has(e.id));
+    if (pending.length === 0) return;
+    // Session events carry the browser clock and play-log records the Foundry server clock, so
+    // the cursor runs on one backend stamp instead: strictly increasing, in publish order.
+    const fresh: GameEvent[] = pending.map(e => {
+      this.lastReceivedMs = Math.max(this.now(), this.lastReceivedMs + 1);
+      return { ...e, receivedMs: this.lastReceivedMs };
+    });
     for (const event of fresh) {
       this.ring.push(event);
       this.ids.add(event.id);
@@ -154,21 +171,18 @@ export class GameEventHub {
   }
 
   private result(hits: GameEvent[]): WaitResult {
-    const sorted = [...hits].sort((a, b) => a.timestampMs - b.timestampMs);
+    const sorted = [...hits].sort((a, b) => a.receivedMs - b.receivedMs);
     const kept = sorted.slice(0, MAX_RETURNED);
     return {
       events: kept,
       truncated: sorted.length > kept.length,
       endedBy: 'event',
-      latestMs: kept[kept.length - 1].timestampMs,
+      latestMs: kept[kept.length - 1].receivedMs,
     };
   }
 
   private newestMs(): number | null {
-    let newest: number | null = null;
-    for (const e of this.ring)
-      if (newest === null || e.timestampMs > newest) newest = e.timestampMs;
-    return newest;
+    return this.ring.length > 0 ? this.lastReceivedMs : null;
   }
 
   /**
@@ -192,7 +206,7 @@ export class GameEventHub {
     // Events the pump already published since the caller's last cursor.
     if (request.sinceMs !== undefined) {
       const since = request.sinceMs;
-      const hits = this.ring.filter(e => e.timestampMs > since && matches(e));
+      const hits = this.ring.filter(e => e.receivedMs > since && matches(e));
       if (hits.length > 0) return Promise.resolve(this.result(hits));
     }
 

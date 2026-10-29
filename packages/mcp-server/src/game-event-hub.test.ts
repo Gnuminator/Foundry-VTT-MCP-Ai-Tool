@@ -3,13 +3,17 @@ import type { PlayRecord } from '@gnuminator/shared';
 
 import {
   GameEventHub,
-  type GameEvent,
+  type PendingGameEvent,
   MAX_WAITERS,
   playRecordToGameEvent,
 } from './game-event-hub.js';
 
 let seq = 0;
-function ev(ms: number, eventType = 'damage', actorName: string | null = 'Test Hero'): GameEvent {
+function ev(
+  ms: number,
+  eventType = 'damage',
+  actorName: string | null = 'Test Hero'
+): PendingGameEvent {
   seq += 1;
   return {
     id: `e${seq}`,
@@ -37,10 +41,12 @@ function turnRecord(key: string, t: number, round: number, turn: number): PlayRe
 }
 
 let hub: GameEventHub;
+/** The backend clock the hub stamps events with; fixed, so stamps are T0, T0+1, ... */
+const T0 = 1_000_000;
 
 beforeEach(() => {
   vi.useFakeTimers();
-  hub = new GameEventHub();
+  hub = new GameEventHub(() => T0);
   hub.setSources({ sessionEvents: true, playLog: true });
 });
 afterEach(() => {
@@ -56,7 +62,7 @@ describe('GameEventHub.wait', () => {
     const r = await p;
     expect(r.endedBy).toBe('event');
     expect(r.events.map(e => e.eventType)).toEqual(['scene-change']);
-    expect(r.latestMs).toBe(2000);
+    expect(r.latestMs).toBe(T0 + 1);
     expect(hub.waiterCount).toBe(0);
   });
 
@@ -73,7 +79,7 @@ describe('GameEventHub.wait', () => {
 
   it('returns buffered events newer than sinceMs at once, without waiting', async () => {
     hub.publishSessionEvents([ev(1000), ev(2000), ev(3000)]);
-    const r = await hub.wait({ sinceMs: 1500, timeoutMs: 5000 });
+    const r = await hub.wait({ sinceMs: T0, timeoutMs: 5000 });
     expect(r.events.map(e => e.timestampMs)).toEqual([2000, 3000]);
     expect(vi.getTimerCount()).toBe(0);
   });
@@ -84,7 +90,7 @@ describe('GameEventHub.wait', () => {
     await vi.advanceTimersByTimeAsync(1000);
     const r = await p;
     expect(r.endedBy).toBe('timeout');
-    expect(r.latestMs).toBe(1000);
+    expect(r.latestMs).toBe(T0);
   });
 
   it('filters by actor name (partial, case-insensitive)', async () => {
@@ -135,12 +141,28 @@ describe('GameEventHub.wait', () => {
     const r = await p;
     expect(r.events).toHaveLength(50);
     expect(r.truncated).toBe(true);
-    expect(r.latestMs).toBe(1049);
+    expect(r.latestMs).toBe(T0 + 49);
+    // The next call starts exactly at event 51.
+    const next = await hub.wait({ sinceMs: r.latestMs ?? 0, timeoutMs: 1000 });
+    expect(next.events).toHaveLength(10);
+    expect(next.events[0].timestampMs).toBe(1050);
+    expect(next.truncated).toBe(false);
+  });
+
+  it('keeps the cursor on the backend clock when event clocks disagree', async () => {
+    hub.publishSessionEvents([ev(10_000, 'damage')]);
+    const first = await hub.wait({ sinceMs: 0, timeoutMs: 1000 });
+    const cursor = first.latestMs ?? 0;
+    // A play-log turn stamped by the Foundry server clock, older than the session event.
+    hub.publishPlayRecords([turnRecord('k9', 9000, 1, 0)]);
+    const r = await hub.wait({ sinceMs: cursor, timeoutMs: 1000 });
+    expect(r.events.map(e => e.eventType)).toEqual(['combat-turn']);
+    expect(r.latestMs).toBeGreaterThan(cursor);
   });
 
   it('keeps a bounded ring', () => {
     hub.publishSessionEvents(Array.from({ length: 700 }, (_, i) => ev(i + 1)));
-    return hub.wait({ sinceMs: 0, timeoutMs: 1000 }).then(r => {
+    return hub.wait({ sinceMs: T0 - 1, timeoutMs: 1000 }).then(r => {
       expect(r.events.length).toBe(50);
       expect(r.events[0].timestampMs).toBe(201);
     });

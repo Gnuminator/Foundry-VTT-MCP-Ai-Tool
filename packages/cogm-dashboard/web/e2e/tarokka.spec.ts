@@ -981,7 +981,8 @@ test('an apply the bridge refuses says why, has no Undo, reloads and keeps the d
   page,
 }) => {
   await fakeStream(page, gmActions(true));
-  const refusal = 'The "tarokka" feature is switched off in the module settings';
+  const refusal =
+    '"AI Tool: Tarokka (writes)" is switched off. In Foundry, open Game Settings, Configure Settings, AI Tool and turn on "AI Tool: Tarokka (writes)".';
   const calls = await fakeTools(page, call =>
     call.name === 'apply-planned-change'
       ? { status: 422, json: { ok: false, kind: 'tool', error: refusal } }
@@ -1000,7 +1001,7 @@ test('an apply the bridge refuses says why, has no Undo, reloads and keeps the d
   await confirm.getByRole('checkbox').check();
   await confirm.getByRole('button', { name: 'Run destructive action' }).click();
   // A clear no: no "may have applied" hint, no Undo.
-  await expect(toast(page, `✗ apply-planned-change: ${refusal}`)).toBeVisible();
+  await expect(toast(page, refusal)).toBeVisible();
   await expect(page.locator('.toast-stack .toast-undo')).toHaveCount(0);
   await expect.poll(() => loads(calls)).toBeGreaterThan(loaded);
   // The draft stays for another try, and every button is free again.
@@ -1011,7 +1012,7 @@ test('an apply the bridge refuses says why, has no Undo, reloads and keeps the d
 
   // A new reading refused the same way.
   await roll.click();
-  await expect(toast(page, `✗ apply-planned-change: ${refusal}`)).toHaveCount(2);
+  await expect(toast(page, refusal)).toHaveCount(2);
   await expect(page.locator('.toast-stack .toast-undo')).toHaveCount(0);
   await expect(roll).toBeEnabled();
 });

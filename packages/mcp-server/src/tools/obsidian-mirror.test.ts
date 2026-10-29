@@ -611,7 +611,7 @@ describe('plan-obsidian-mirror end to end (real GuardedWriteService)', () => {
     ];
     const plan = await tools.handlePlanObsidianMirror({ enabled: true });
     await expect(guarded.applyPlan(plan.planId, { confirm: true })).rejects.toThrow(
-      /obsidian-mirror.*switched off/
+      /"AI Tool: Obsidian mirror \(writes\)" is switched off\. In Foundry, open Game Settings/
     );
     expect(await store.read(WORLD, 'gm', MIRROR_SETTINGS_FILE)).toBeNull();
     expect((await tools.handleGetObsidianMirror({})).settings.enabled).toBe(false);

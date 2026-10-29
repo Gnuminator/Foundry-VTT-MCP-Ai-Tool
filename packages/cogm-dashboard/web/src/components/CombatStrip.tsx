@@ -11,9 +11,7 @@
 // buttons are off, a reaction tick changes only its own button (the focus stays), rows can be
 // picked with the keyboard, and the hit point bar has a text equivalent.
 import { lazy, Suspense, useState, type JSX, type MouseEvent } from 'react';
-import { DamageForm } from './DamageForm';
 import { RibbonBoundary } from './RibbonBoundary';
-import { StripRolls } from './StripRolls';
 
 import {
   AWAY_TEXT,
@@ -55,6 +53,9 @@ import { Panel, Pill } from '../ui';
 
 // The picker is a lazy chunk (bundle budget): it loads when no fight runs and GM Actions is on.
 const StartCombat = lazy(() => import('./StartCombat').then(m => ({ default: m.StartCombat })));
+// So are the Damage / Heal form and the roll row (first-load budget).
+const DamageForm = lazy(() => import('./DamageForm').then(m => ({ default: m.DamageForm })));
+const StripRolls = lazy(() => import('./StripRolls').then(m => ({ default: m.StripRolls })));
 // So is the initiative ribbon: it loads when a fight with somebody in it runs.
 const InitiativeRibbon = lazy(() =>
   import('./InitiativeRibbon').then(m => ({ default: m.InitiativeRibbon }))
@@ -482,15 +483,19 @@ export function CombatStrip({
             )}
           </div>
           {showDamage && (
-            <DamageForm
-              targets={selectedTargets(combat, kept)}
-              names={pickedRows.map(c => c.name)}
-              stale={stale}
-              onClose={() => setDamageOpen(false)}
-            />
+            <Suspense fallback={null}>
+              <DamageForm
+                targets={selectedTargets(combat, kept)}
+                names={pickedRows.map(c => c.name)}
+                stale={stale}
+                onClose={() => setDamageOpen(false)}
+              />
+            </Suspense>
           )}
           {combat !== null && !showSample && settings?.gmActionsEnabled === true && (
-            <StripRolls party={partyRows} picked={pickedRows.filter(c => c.isPC)} stale={stale} />
+            <Suspense fallback={null}>
+              <StripRolls party={partyRows} picked={pickedRows.filter(c => c.isPC)} stale={stale} />
+            </Suspense>
           )}
         </>
       }

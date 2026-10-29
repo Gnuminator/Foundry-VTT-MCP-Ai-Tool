@@ -799,6 +799,7 @@ test.describe('picking combatants', () => {
         isPublic: true,
         userConfirmedVisibility: true,
         dc: 14,
+        flavor: 'DC 14',
       }))
     );
     expect(rolls.every(c => c.confirm === true)).toBe(true);

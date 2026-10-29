@@ -379,7 +379,7 @@ test('Ask for a roll: one member, then the whole party, through request-player-r
   await drawer.locator('#party-roll-all').click();
   await expect(toast(page, '✓ Asked 2 characters for Wisdom save DC 13')).toBeVisible();
 
-  const base = { rollType: 'save', rollTarget: 'wis', isPublic: false, dc: 13 };
+  const base = { rollType: 'save', rollTarget: 'wis', isPublic: false, dc: 13, flavor: 'DC 13' };
   expect(asked()).toEqual([
     {
       name: 'request-player-rolls',

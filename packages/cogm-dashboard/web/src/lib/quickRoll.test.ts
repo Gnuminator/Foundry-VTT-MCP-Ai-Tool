@@ -27,6 +27,7 @@ describe('rollArgs', () => {
       rollTarget: 'dex',
       isPublic: true,
       dc: 15,
+      flavor: 'DC 15',
       advantage: 'advantage',
     });
     expect(rollArgs({ ...DEFAULT_PICK, what: 'skill:Sleight of Hand' }, 'x')).toMatchObject({

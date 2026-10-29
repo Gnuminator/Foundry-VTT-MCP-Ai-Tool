@@ -106,7 +106,8 @@ export function rollArgs(pick: RollPick, target: string): Record<string, unknown
     targetPlayer: target,
     isPublic: pick.isPublic,
     userConfirmedVisibility: true,
-    ...(Number.isInteger(dc) && dc > 0 ? { dc } : {}),
+    // The card says the DC out loud, as request-ability-check does.
+    ...(Number.isInteger(dc) && dc > 0 ? { dc, flavor: `DC ${dc}` } : {}),
     ...(pick.advantage === 'normal' ? {} : { advantage: pick.advantage }),
   };
 }

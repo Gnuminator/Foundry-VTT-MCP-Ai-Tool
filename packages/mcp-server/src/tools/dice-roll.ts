@@ -78,6 +78,11 @@ export class DiceRollTools {
               description: 'Optional flavor text to describe the roll context',
               default: '',
             },
+            dc: {
+              type: 'integer',
+              description:
+                'Optional difficulty class: the card shows it and the roll is judged against it (ability, skill, save and attack rolls).',
+            },
             advantage: advantageChoice,
           },
           required: [
@@ -289,6 +294,7 @@ export class DiceRollTools {
       userConfirmedVisibility: z.literal(true),
       rollModifier: z.string().default(''),
       flavor: z.string().default(''),
+      dc: z.number().int().optional(),
       advantage: z.enum(['advantage', 'disadvantage']).optional(),
     });
 

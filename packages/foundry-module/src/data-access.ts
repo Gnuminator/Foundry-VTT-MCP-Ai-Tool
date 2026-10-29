@@ -382,6 +382,7 @@ export class FoundryDataAccess {
     isPublic: boolean;
     rollModifier: string;
     flavor: string;
+    dc?: number;
     advantage?: 'advantage' | 'disadvantage';
   }): Promise<{ success: boolean; message: string; error?: string }> {
     return this.playerRolls.requestPlayerRolls(data);

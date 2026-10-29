@@ -361,6 +361,44 @@ test('a pace click plans, applies in one click, reloads, and Undo reverts it', a
     ]);
 });
 
+test('Ask for a roll: one member, then the whole party, through request-player-rolls', async ({
+  page,
+}) => {
+  await fakeStream(page, gmActions(true));
+  const calls = await fakeTools(page, call =>
+    call.name === 'request-player-rolls' ? ok({ success: true, message: 'sent' }) : bridge(call)
+  );
+  const drawer = await openParty(page);
+  const asked = (): unknown[] => calls.filter(c => c.name === 'request-player-rolls');
+
+  await drawer.locator('#party-roll-what').selectOption('save:wis');
+  await drawer.locator('#party-roll-dc').fill('13');
+  await drawer.getByRole('button', { name: 'Ask Ivarro for Wisdom save' }).click();
+  await expect(toast(page, '✓ Asked Ivarro for Wisdom save DC 13')).toBeVisible();
+  await drawer.locator('#party-roll-advantage').selectOption('advantage');
+  await drawer.locator('#party-roll-all').click();
+  await expect(toast(page, '✓ Asked 2 characters for Wisdom save DC 13')).toBeVisible();
+
+  const base = { rollType: 'save', rollTarget: 'wis', isPublic: false, dc: 13 };
+  expect(asked()).toEqual([
+    {
+      name: 'request-player-rolls',
+      args: { ...base, targetPlayer: 'Ivarro', userConfirmedVisibility: true },
+      confirm: true,
+    },
+    ...['Ilvara', 'Ivarro'].map(targetPlayer => ({
+      name: 'request-player-rolls',
+      args: {
+        ...base,
+        targetPlayer,
+        userConfirmedVisibility: true,
+        advantage: 'advantage',
+      },
+      confirm: true,
+    })),
+  ]);
+});
+
 test('each action sends its own plan, and a double click sends once', async ({ page }) => {
   await fakeStream(page, gmActions(true));
   const calls = await fakeTools(page, bridge);

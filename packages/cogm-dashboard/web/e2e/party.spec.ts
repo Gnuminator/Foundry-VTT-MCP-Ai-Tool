@@ -563,18 +563,19 @@ test('a failed plan, a refused apply and a plan that needs a confirm all say so'
 }) => {
   await fakeStream(page, gmActions(true));
   await fakePreflight(page);
+  const partyOff =
+    '"AI Tool: Party (writes)" is switched off. In Foundry, open Game Settings, Configure Settings, AI Tool and turn on "AI Tool: Party (writes)".';
   let answer: Answer = call =>
     call.name === 'plan-party-change'
-      ? { status: 422, json: { ok: false, error: 'The "party" feature is switched off' } }
+      ? { status: 422, json: { ok: false, error: partyOff } }
       : bridge(call);
   const calls = await fakeTools(page, call => answer(call));
   const drawer = await openParty(page);
   const fast = drawer.locator('#party-pace').getByRole('button', { name: 'Fast' });
 
   await fast.click();
-  await expect(
-    toast(page, '✗ plan-party-change: The "party" feature is switched off')
-  ).toBeVisible();
+  // A switch to turn on is said as a hint (no red cross, no tool name).
+  await expect(toast(page, partyOff)).toBeVisible();
   expect(names(calls)).toEqual(['get-party', 'plan-party-change']);
 
   // The server refuses with 403 when GM Actions went off after the page last heard.

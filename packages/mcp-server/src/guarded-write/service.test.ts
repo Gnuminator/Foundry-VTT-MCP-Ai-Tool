@@ -684,7 +684,7 @@ describe('undo (Foundry ops)', () => {
     expect(foundry.docs.get('Actor.ilvara')!.source.system.hp).toBe(10);
 
     await expect(service.undo(undone.changeId, { confirm: true })).rejects.toThrow(
-      /"test-feature" feature is switched off/
+      /"Test" is switched off\. In Foundry, open Game Settings, Configure Settings, AI Tool and turn on "Test"\./
     );
     foundry.features.push({ id: 'change-undo', name: '', hint: '', enabled: true });
     const redoPlan = await plan([HP_UPDATE], {
@@ -692,7 +692,7 @@ describe('undo (Foundry ops)', () => {
       undoes: { changes: [undone.changeId] },
     });
     await expect(service.applyPlan(redoPlan.planId, { confirm: true })).rejects.toThrow(
-      /"test-feature" feature is switched off/
+      /"Test" is switched off\. In Foundry, open Game Settings, Configure Settings, AI Tool and turn on "Test"\./
     );
     expect(foundry.docs.get('Actor.ilvara')!.source.system.hp).toBe(10);
 

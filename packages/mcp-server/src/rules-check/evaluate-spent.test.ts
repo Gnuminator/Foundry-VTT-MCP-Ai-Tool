@@ -269,6 +269,12 @@ describe('rules differences', () => {
     ).toBeUndefined();
   });
 
+  it('knows the real 2024 Unarmed Strike activity name, Grapple/Shove', () => {
+    const line = diffLine({ ...base, item: 'Unarmed Strike', activityName: 'Grapple/Shove' });
+    expect(line?.reason).toContain('Grapple and Shove works differently');
+    expect(diffLine({ ...base, item: 'Unarmed Strike', activityName: '' })).toBeUndefined();
+  });
+
   it('writes the Grapple and Shove DC wording with possessives', () => {
     expect(diffLine({ ...base, item: 'Grapple' })?.reason).toContain("grappler's Strength");
     expect(diffLine({ ...base, item: 'Shove' })?.reason).toContain("shover's Strength");

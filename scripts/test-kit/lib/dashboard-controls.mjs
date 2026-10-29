@@ -618,6 +618,8 @@ export const DASHBOARD_CONTROLS = [
   { name: 'dash.tarokka.show-cards', how: 'toggle', reach: TAROKKA },
   { name: 'dash.tarokka.import', how: 'write', why: 'stores a reading from tarokka-reading' },
   { name: 'dash.tarokka.roll', how: 'write', why: 'deals and stores a new reading' },
+  { name: 'dash.tarokka.choose', how: 'toggle', reach: TAROKKA },
+  { name: 'dash.tarokka.choose-save', how: 'write', why: 'stores the five cards the GM picked' },
   {
     name: 'dash.tarokka.open-obsidian',
     how: 'external',

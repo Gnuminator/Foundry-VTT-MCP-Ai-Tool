@@ -1,0 +1,3 @@
+### Docs
+
+- **The wiki moves to Astro Starlight:** the public wiki is built with Astro Starlight instead of MkDocs Material (which is in maintenance mode). Same pages and the same `/gm/` and `/gm/<page>/` addresses; the links validator still fails the build on a broken link or anchor, and Python is gone from the wiki workflow. The pages are the "field guide" look (bone and wine palette, serif headings, a sidebar grouped as Start here, Game night, The tool, Your campaign, When it breaks, For players), with dark mode. `docs/foundry/` is added to the wiki stage, and a clip written as `![text](clip.mp4)` plays in the page.

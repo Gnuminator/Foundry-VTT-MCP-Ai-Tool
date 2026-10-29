@@ -26,6 +26,11 @@ export interface GuardedUpdateOp {
   uuid: string;
   changes: Record<string, unknown>;
   unset?: string[];
+  /**
+   * A damage plan's dnd5e damage type (`fire`). Not written: the apply carries it in the write's
+   * marker so the Live Feed can say "took 5 fire damage". Absent for every other update.
+   */
+  damageType?: string;
 }
 
 /** Create a document: top-level (`documentName` only) or embedded (`parentUuid`). */

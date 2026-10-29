@@ -439,7 +439,12 @@ describe('damage and healing (dry run)', () => {
     expect(wolf.writes).toBe(0);
     expect(wolf.system.attributes.hp.value).toBe(11);
     expect(plan.ops).toEqual([
-      { kind: 'update', uuid: 'Actor.a1', changes: { 'system.attributes.hp.value': 5 } },
+      {
+        kind: 'update',
+        uuid: 'Actor.a1',
+        changes: { 'system.attributes.hp.value': 5 },
+        damageType: 'fire',
+      },
     ]);
     expect(plan.targets).toEqual([
       { target: 'Wolf', actorUuid: 'Actor.a1', line: 'Wolf: 12 fire damage, 6 taken, HP 11 to 5' },

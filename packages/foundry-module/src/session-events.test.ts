@@ -10,6 +10,8 @@
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { MODULE_ID } from './constants.js';
+
 // --- Minimal Foundry global harness -----------------------------------------
 
 type HookFn = (...args: any[]) => void;
@@ -983,6 +985,31 @@ describe('EventTracker temp HP in the session log', () => {
       expect.objectContaining({ amount: 3, from: 58, to: 61 }),
     ]);
     expect(t.getSessionLog({ eventType: 'damage' })).toHaveLength(2);
+  });
+
+  it('a guarded damage apply names its type and HP, and carries the change id for the feed', () => {
+    const t = tracker();
+    const options = { [MODULE_ID]: { changeId: 'c1', changeMode: 'apply', damageType: 'fire' } };
+    fire('updateActor', pc, hp(56, 17), options);
+
+    const damage = t.getSessionLog({ eventType: 'damage' });
+    expect(damage).toHaveLength(1);
+    expect(damage[0].description).toBe('Silvera took 5 fire damage (HP 61 to 56)');
+    expect(damage[0].details).toEqual(
+      expect.objectContaining({ amount: 5, damageType: 'fire', changeId: 'c1' })
+    );
+  });
+
+  it('an undo of a guarded change keeps no change id on its healing line', () => {
+    const t = tracker();
+    fire('updateActor', pc, hp(56, 17));
+    fire('updateActor', pc, hp(61, 17), {
+      [MODULE_ID]: { changeId: 'c2', changeMode: 'undo' },
+    });
+
+    const healing = t.getSessionLog({ eventType: 'healing' });
+    expect(healing).toHaveLength(1);
+    expect(healing[0].details).not.toHaveProperty('changeId');
   });
 
   it('gaining temp HP logs nothing', () => {

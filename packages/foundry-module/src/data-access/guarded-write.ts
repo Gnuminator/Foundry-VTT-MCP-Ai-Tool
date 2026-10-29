@@ -532,7 +532,12 @@ async function executeUpdate(
     if (ownershipKeyOf(path) === null) Object.assign(update, unsetKeyUpdate(path));
   }
   if (Object.keys(update).length > 0) {
-    await doc.update(update, writeOptions(doc, update, req, changeMode));
+    const options = writeOptions(doc, update, req, changeMode);
+    // Only a damage apply: an undo restores HP and is no damage.
+    if (op.damageType && req.mode === 'apply') {
+      (options[MODULE_ID] as Record<string, unknown>).damageType = op.damageType;
+    }
+    await doc.update(update, options);
   }
   await removeOwnershipKeys(doc, ownershipKeys, writeMarker(req, changeMode));
   const afterSource = sourceOf(doc);

@@ -283,7 +283,7 @@ export function hpText(before: Hp, after: Hp): string {
 
 export function damageTypeLabel(type: string | undefined): string {
   if (!type) return '';
-  const config = rec(rec(rec(CONFIG)?.DND5E)?.damageTypes);
+  const config = rec(rec(rec((globalThis as Rec).CONFIG)?.DND5E)?.damageTypes);
   const label = str(rec(config?.[type])?.label);
   return ` ${(label ? localize(label) : type).toLowerCase()}`;
 }
@@ -355,7 +355,14 @@ async function planHp(
       });
       continue;
     }
-    ops.push({ kind: 'update', uuid: actor.uuid, changes });
+    const damageType =
+      request.action === 'damage' && str(request.damageType) ? str(request.damageType) : null;
+    ops.push({
+      kind: 'update',
+      uuid: actor.uuid,
+      changes,
+      ...(damageType ? { damageType } : {}),
+    });
     previews.push({
       target: name,
       actorUuid: actor.uuid,

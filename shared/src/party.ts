@@ -47,6 +47,16 @@ export interface PartyMemberToken {
   inCombat: boolean;
 }
 
+/** Passive scores of one member; a score is null when the actor has none. */
+export interface PartyPassives {
+  perception: number | null;
+  investigation: number | null;
+  insight: number | null;
+}
+
+/** Guarded feature id of the read-only "Who would notice" chips (I-078). */
+export const WHO_NOTICES_FEATURE_ID = 'who-notices';
+
 export interface PartyMember {
   actorId: string;
   uuid: string;
@@ -58,6 +68,12 @@ export interface PartyMember {
   hp: PartyHitPoints | null;
   ac: number | null;
   passivePerception: number | null;
+  /**
+   * Passive Perception, Investigation and Insight as dnd5e computes them (conditions, advantage
+   * flags and exhaustion already counted). Null while the "Who would notice" switch is off
+   * (I-078); GM only like the rest of this shape.
+   */
+  passives: PartyPassives | null;
   /** Exhaustion level (0 when none). */
   exhaustion: number;
   /** Hit dice left and total; null when the actor has none. */

@@ -453,7 +453,143 @@ describe('FoundryDataAccess — rollNpcCheck', () => {
       formula: '1d20+2',
       total: 17,
       isPublic: true,
+      mode: 'normal',
     });
+  });
+
+  it('rolls through dnd5e when the actor can, passing the GM choice and reporting the mode', async () => {
+    const actor = world.addActor({ id: 'npc9', name: 'Ghoul', type: 'npc' });
+    actor.rollSavingThrow = vi.fn(() =>
+      Promise.resolve([{ formula: '2d20kl1 + 2', total: 8, options: { advantageMode: -1 } }])
+    );
+    const spy = installRollSpy();
+
+    const result = await da.rollNpcCheck({
+      actorName: 'Ghoul',
+      rollType: 'save',
+      rollTarget: 'con',
+      isPublic: false,
+      advantage: 'disadvantage',
+    });
+
+    const [config, dialog, message] = actor.rollSavingThrow.mock.calls[0];
+    expect(config).toEqual({ ability: 'con', disadvantage: true });
+    expect(dialog).toEqual({ configure: false });
+    expect(message.create).toBe(true);
+    expect(message.data).toBeUndefined();
+    expect(spy.ctorArgs).toEqual([]);
+    expect(result).toMatchObject({ formula: '2d20kl1 + 2', total: 8, mode: 'disadvantage' });
+  });
+
+  it('rolls an NPC attack through its attack activity without spending ammunition', async () => {
+    const rollAttack = vi.fn(() =>
+      Promise.resolve([{ formula: '2d20kh + 4', total: 19, options: { advantageMode: 1 } }])
+    );
+    world.addActor({
+      id: 'npc12',
+      name: 'Archer',
+      type: 'npc',
+      items: [{ name: 'Longbow', system: { activities: [{ type: 'attack', rollAttack }] } }] as any,
+    });
+    const spy = installRollSpy();
+    const result = await da.rollNpcCheck({
+      actorName: 'Archer',
+      rollType: 'attack',
+      rollTarget: 'Longbow',
+      isPublic: false,
+      advantage: 'advantage',
+    });
+    const [config, , message] = rollAttack.mock.calls[0] as any[];
+    expect(config).toMatchObject({ advantage: true, ammunition: '' });
+    expect(message.rollMode).toBeDefined();
+    expect(spy.ctorArgs).toEqual([]);
+    expect(result).toMatchObject({ total: 19, mode: 'advantage' });
+  });
+
+  it('keeps an NPC attack off the thrown mode, and rolls a throw-only weapon plain', async () => {
+    const rollAttack = vi.fn(() =>
+      Promise.resolve([{ formula: '1d20 + 4', total: 11, options: { advantageMode: 0 } }])
+    );
+    const modes = [{ value: 'thrown' }, { rule: true }, { value: 'oneHanded' }];
+    const javelin = {
+      id: 'jv1',
+      name: 'Javelin',
+      system: {
+        activities: [{ type: 'attack', rollAttack, item: { system: { attackModes: modes } } }],
+      },
+    };
+    const dart = {
+      id: 'dt1',
+      name: 'Dart',
+      system: {
+        activities: [
+          {
+            type: 'attack',
+            rollAttack,
+            item: { system: { attackModes: [{ value: 'thrown' }] } },
+          },
+        ],
+      },
+    };
+    const actor = world.addActor({
+      id: 'npc14',
+      name: 'Skirmisher',
+      type: 'npc',
+      items: [javelin, dart] as any,
+    });
+    actor.getRollData = (): Record<string, never> => ({});
+    const spy = installRollSpy();
+    const check = { actorName: 'Skirmisher', rollType: 'attack' as const, isPublic: true };
+
+    await da.rollNpcCheck({ ...check, rollTarget: 'Javelin' });
+    expect(rollAttack.mock.calls[0][0]).toMatchObject({ ammunition: '', attackMode: 'oneHanded' });
+
+    await da.rollNpcCheck({ ...check, rollTarget: 'Dart' });
+    expect(rollAttack).toHaveBeenCalledTimes(1);
+    expect(spy.ctorArgs).toHaveLength(1);
+  });
+
+  it('never posts a second card when dnd5e returns rolls of an odd shape', async () => {
+    const actor = world.addActor({ id: 'npc13', name: 'Wisp', type: 'npc' });
+    actor.rollAbilityCheck = vi.fn(() => Promise.resolve([{}]));
+    const spy = installRollSpy();
+    await da.rollNpcCheck({
+      actorName: 'Wisp',
+      rollType: 'ability',
+      rollTarget: 'dex',
+      isPublic: true,
+    });
+    expect(spy.ctorArgs).toEqual([]);
+  });
+
+  it('reports the mode dnd5e settled on when no choice was made (a condition decided)', async () => {
+    const actor = world.addActor({ id: 'npc10', name: 'Orc', type: 'npc' });
+    actor.rollAbilityCheck = vi.fn(() =>
+      Promise.resolve([{ formula: '2d20kl1', total: 4, options: { advantageMode: -1 } }])
+    );
+    const result = await da.rollNpcCheck({
+      actorName: 'Orc',
+      rollType: 'ability',
+      rollTarget: 'str',
+      isPublic: true,
+    });
+    expect(actor.rollAbilityCheck.mock.calls[0][0]).toEqual({ ability: 'str' });
+    expect(result.mode).toBe('disadvantage');
+  });
+
+  it('keeps the GM choice in the plain fallback by rewriting the leading 1d20', async () => {
+    const roll = installRollSpy(12);
+    const actor = world.addActor({ id: 'npc11', name: 'Imp', type: 'npc' });
+    actor.getRollData = (): Record<string, unknown> => ({ abilities: { dex: { mod: 3 } } });
+    const result = await da.rollNpcCheck({
+      actorName: 'Imp',
+      rollType: 'ability',
+      rollTarget: 'dex',
+      isPublic: true,
+      advantage: 'advantage',
+    });
+    expect(roll.ctorArgs[0][0]).toBe('2d20kh+3');
+    expect(result.mode).toBe('advantage');
   });
 
   it('uses gmroll rollMode for a private (non-public) roll', async () => {
@@ -852,6 +988,74 @@ describe('FoundryDataAccess: player page roll buttons', () => {
     expect(actor.rollSavingThrow.mock.calls[0][2].data).toBeUndefined();
     // No plain `new Roll` was made for any of them.
     expect(spy.ctorArgs).toEqual([]);
+  });
+
+  it('passes a stored advantage choice to dnd5e, and to the plain formula', async () => {
+    world.addUser({ id: 'u1', name: 'Alice', active: true, isGM: false });
+    const actor = addPlayerCharacter({ id: 'a1', name: 'Silvera', ownerUserId: 'u1' });
+    actor.rollAbilityCheck = vi.fn(() => Promise.resolve([{ total: 12 }]));
+    const spy = installRollSpy();
+    addRequest('b1', 'm1', btn({ rollType: 'ability', rollTarget: 'str', advantage: 'advantage' }));
+    addRequest('b2', 'm2', btn({ advantage: 'disadvantage' }));
+    addRequest(
+      'b3',
+      'm3',
+      btn({ rollType: 'custom', rollFormula: '1d20+1', advantage: 'advantage' })
+    );
+    addRequest('b4', 'm4', btn({ advantage: 'sideways' }));
+    for (const id of ['b1', 'b2', 'b3', 'b4']) {
+      expect((await da.executePlayerRoll('u1', id)).success).toBe(true);
+    }
+    expect(actor.rollAbilityCheck.mock.calls[0][0]).toEqual({ ability: 'str', advantage: true });
+    // plain fallback: only a d20 roll takes the choice, an unknown value is ignored
+    expect(spy.ctorArgs.map(a => a[0])).toEqual(['2d20kl+3', '1d20+1', '1d20+3']);
+  });
+
+  it('refuses an advantage choice on a custom roll instead of dropping it', async () => {
+    world.addUser({ id: 'u1', name: 'Alice', active: true, isGM: false });
+    addPlayerCharacter({ id: 'a1', name: 'Silvera', ownerUserId: 'u1' });
+    const before = world.messages.size;
+    const result = await da.requestPlayerRolls({
+      rollType: 'custom',
+      rollTarget: '1d20+5',
+      targetPlayer: 'Alice',
+      isPublic: true,
+      rollModifier: '',
+      flavor: '',
+      advantage: 'advantage',
+    });
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('custom');
+    expect(world.messages.size).toBe(before);
+    const init = await da.requestPlayerRolls({
+      rollType: 'initiative',
+      rollTarget: 'initiative',
+      targetPlayer: 'Alice',
+      isPublic: true,
+      rollModifier: '',
+      flavor: '',
+      advantage: 'disadvantage',
+    });
+    expect(init.success).toBe(false);
+    expect(init.error).toContain('initiative');
+  });
+
+  it('puts the chosen mode on the request card and in the stored state', async () => {
+    world.addUser({ id: 'u1', name: 'Alice', active: true, isGM: false });
+    addPlayerCharacter({ id: 'a1', name: 'Silvera', ownerUserId: 'u1' });
+    const result = await da.requestAbilityCheck({
+      targetPlayer: 'Alice',
+      ability: 'dex',
+      isPublic: true,
+      advantage: 'advantage',
+    });
+    expect(result.success).toBe(true);
+    const msg = world.messages.contents[world.messages.contents.length - 1] as any;
+    expect(msg.content).toContain('data-advantage="advantage"');
+    expect(msg.content).toContain('(advantage)');
+    expect(Object.values(msg.flags[MODULE_ID].rollButtons)[0]).toMatchObject({
+      advantage: 'advantage',
+    });
   });
 
   it('rolls an attack through the weapon attack activity', async () => {

@@ -9,6 +9,7 @@ import { Drawer, DrawerClose } from '../components/Drawer';
 import { useToast } from '../components/Toasts';
 import { callTool, errorText } from '../lib/api';
 import { GAME_STATE_KEY, useGuardedChange } from '../lib/guarded';
+import { noticed } from '../lib/notice';
 import { usage } from '../lib/usage';
 import { Button, Pill, QueryState } from '../ui';
 
@@ -25,6 +26,12 @@ interface PartyMember {
   hp: { value: number; max: number; temp: number } | null;
   ac: number | null;
   passivePerception: number | null;
+  /** Null while the "Who would notice" switch is off. */
+  passives?: {
+    perception: number | null;
+    investigation: number | null;
+    insight: number | null;
+  } | null;
   exhaustion: number;
   hitDice: { value: number; max: number } | null;
   deathSaves: { success: number; failure: number } | null;
@@ -145,6 +152,57 @@ function MemberRow({
 }
 
 type Act = (args: PartyActionArgs) => void;
+
+const NOTICE_SKILLS = [
+  { key: 'perception', label: 'Perception' },
+  { key: 'investigation', label: 'Investigation' },
+  { key: 'insight', label: 'Insight' },
+] as const;
+
+/** I-078: who would notice a hidden thing at a typed DC. GM only; nothing is rolled or sent. */
+function WhoNotices({ members }: { members: PartyMember[] }): JSX.Element | null {
+  const [dcText, setDcText] = useState('');
+  if (!members.some(m => m.passives)) return null;
+  const parsed = dcText.trim() === '' ? NaN : Number(dcText);
+  const dc = Number.isFinite(parsed) ? parsed : null;
+  return (
+    <div id="party-notice">
+      <h3 className="preflight-h">Who would notice</h3>
+      <label className="pf-detail">
+        DC{' '}
+        <input
+          type="number"
+          id="party-notice-dc"
+          aria-label="Notice DC"
+          value={dcText}
+          onChange={e => setDcText(e.target.value)}
+        />
+      </label>
+      <ul className="preflight-list" aria-label="Who would notice">
+        {members
+          .filter(m => m.passives)
+          .map(m => (
+            <li key={m.actorId || m.uuid} className="preflight-item">
+              <span className="pf-text">
+                <span className="pf-label">{m.name}</span>
+                <div className="conditions">
+                  {NOTICE_SKILLS.map(s => {
+                    const score = m.passives?.[s.key];
+                    const hit = noticed(score, dc);
+                    return (
+                      <Pill key={s.key} {...(hit === null ? {} : { tone: hit ? 'on' : 'off' })}>
+                        {`${s.label} ${score ?? '-'}${hit === null ? '' : hit ? ' ✓' : ' ✗'}`}
+                      </Pill>
+                    );
+                  })}
+                </div>
+              </span>
+            </li>
+          ))}
+      </ul>
+    </div>
+  );
+}
 
 function Pace({
   g,
@@ -410,6 +468,7 @@ export function PartyDrawer({
       </div>
       <h3 className="preflight-h">Members</h3>
       <div id="party-members">{memberBlock}</div>
+      <WhoNotices members={members} />
       {s && g && (
         <div id="party-actions">
           <h3 className="preflight-h">Travel pace</h3>

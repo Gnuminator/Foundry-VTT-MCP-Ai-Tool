@@ -358,6 +358,34 @@ describe('check-action', () => {
     expect(r.checks[0]?.status).toBe('info');
   });
 
+  it('notes the 2014 and 2024 difference for a Grapple activity on Unarmed Strike', async () => {
+    const unarmed = {
+      success: true,
+      entityType: 'item',
+      entity: {
+        name: 'Unarmed Strike',
+        type: 'weapon',
+        activities: [
+          { id: 'a', name: 'Attack', activation: 'Action', range: '5 ft' },
+          { id: 'g', name: 'Grapple', activation: 'Action', range: '5 ft' },
+        ],
+        system: {},
+      },
+    };
+    const { t } = tools({ entity: unarmed });
+    const plain = await t.handleToolCall('check-action', {
+      actor: 'Ilvara',
+      item: 'Unarmed Strike',
+    });
+    expect(plain.checks.find(c => c.check === 'rules-differences')).toBeUndefined();
+    const r = await t.handleToolCall('check-action', {
+      actor: 'Ilvara',
+      item: 'Unarmed Strike',
+      activity: 'Grapple',
+    });
+    expect(r.checks.find(c => c.check === 'rules-differences')?.reason).toContain('Grapple');
+  });
+
   it('names the activities when the requested one is missing', async () => {
     const { t } = tools({});
     await expect(

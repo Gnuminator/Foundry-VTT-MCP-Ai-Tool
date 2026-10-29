@@ -277,7 +277,7 @@ export async function exportWorldToObsidian(options: {
     'Home.md',
     renderCampaignHome(worldId),
     text => isUntouchedLegacyHome(worldId, text),
-    'your own Home (edited in Obsidian), so the tool did not upgrade it to the new template; a new Home also has an Adventures section'
+    'your own Home (edited in Obsidian), so the tool did not upgrade it to the new template; a new Home is a start page sorted by what you are doing'
   );
   await writer.createOnce('Prep', null);
   await writer.createOnce('Prep/README.md', PREP_README);

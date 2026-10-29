@@ -540,6 +540,13 @@ describe('renderPlayerVault: Home', () => {
     for (const target of targets) expect(files.has(target)).toBe(true);
   });
 
+  it('opens with a plain-words start-here paragraph that names only player sections', () => {
+    const home = get(renderPlayerVault(input()), 'Home.md');
+    expect(home).toContain('Start here:');
+    expect(home.indexOf('Start here:')).toBeGreaterThan(home.indexOf('Written by the AI Tool'));
+    expect(home).not.toMatch(/GM notes|Prep|spoiler/i);
+  });
+
   it('omits sections that have nothing', () => {
     const home = get(renderPlayerVault(input()), 'Home.md');
     expect(home).not.toContain('## ');

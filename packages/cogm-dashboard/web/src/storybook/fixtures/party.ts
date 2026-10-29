@@ -24,6 +24,7 @@ const member = (i: number): Record<string, unknown> => {
     hp: { value: i === 1 ? 0 : max - i * 3, max, temp: i === 2 ? 5 : 0 },
     ac: 13 + (i % 4),
     passivePerception: 10 + (i % 5),
+    passives: { perception: 10 + (i % 5), investigation: 9 + (i % 4), insight: 11 + (i % 3) },
     exhaustion: i === 1 ? 1 : 0,
     hitDice: i === 0 ? { value: 2, max: 3 } : null,
     deathSaves: i === 1 ? { success: 1, failure: 1 } : null,

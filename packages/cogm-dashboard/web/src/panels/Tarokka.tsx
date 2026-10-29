@@ -151,15 +151,23 @@ export function TarokkaDrawer({
   // The GM's own five cards (a reading read by hand): stored as a reading, nothing is dealt.
   const [choosing, setChoosing] = useState(false);
   const chooseToggleRef = useRef<HTMLButtonElement>(null);
+  const [refocusToggle, setRefocusToggle] = useState(false);
   const chooseCards = (cards: Record<string, string>): void => {
     // The tool takes the cards under the position names.
     void change('plan-tarokka-import', cards).then(done => {
       if (!done) return;
       setChoosing(false);
       // The form (and the focused Store button) is gone, no confirm window hands focus back.
-      chooseToggleRef.current?.focus();
+      // The toggle is still disabled until the change settles, so focus follows in an effect.
+      setRefocusToggle(true);
     });
   };
+  useEffect(() => {
+    if (!refocusToggle || busy) return;
+    setRefocusToggle(false);
+    // After the reload and the toast have settled, so nothing takes focus back.
+    window.setTimeout(() => chooseToggleRef.current?.focus(), 50);
+  }, [refocusToggle, busy]);
 
   // Opens the document on the GM's own Foundry screen; nothing changes, so no reload.
   const openDocument = (uuid: string): void => {

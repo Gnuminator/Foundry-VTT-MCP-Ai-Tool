@@ -45,14 +45,14 @@ describe('splitHandouts', () => {
     revealedAt,
   });
 
-  it('picks the newest recap and keeps older recaps out of the other lists', () => {
+  it('picks the newest recap and leaves older recaps visible under the handouts', () => {
     const out = splitHandouts([
       page('a', 'Recap', '2026-09-21T22:00:00.000Z'),
       page('b', 'Recap', '2026-09-28T22:00:00.000Z'),
       page('c', 'A letter'),
     ]);
     expect(out.recap?.id).toBe('b');
-    expect(out.rest.map(h => h.id)).toEqual(['c']);
+    expect(out.rest.map(h => h.id)).toEqual(['a', 'c']);
     expect(out.quests).toEqual([]);
   });
 
@@ -65,7 +65,7 @@ describe('splitHandouts', () => {
     ]);
     expect(out.recap?.id).toBe('r2');
     expect(out.quests.map(h => h.id)).toEqual(['d']);
-    expect(out.rest.map(h => h.id)).toEqual(['h']);
+    expect(out.rest.map(h => h.id)).toEqual(['r1', 'h']);
   });
 
   it('collects quest pages and leaves the rest as handouts', () => {

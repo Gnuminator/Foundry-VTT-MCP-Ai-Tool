@@ -45,12 +45,13 @@ export class SessionPostNotifier {
   private seen = false;
   private sawOpen = false;
   private lastEndedAt: string | null = null;
+  private sending = false;
 
   constructor(private readonly options: SessionPostOptions) {}
 
-  /** Look at one reading; returns true when it posted. */
+  /** Look at one reading; returns true when it posted. A check during a slow send does nothing. */
   async check(flag: SessionFlag | null): Promise<boolean> {
-    if (flag === null) return false;
+    if (flag === null || this.sending) return false;
     if (!this.seen) {
       this.seen = true;
       this.sawOpen = flag.open;
@@ -67,7 +68,14 @@ export class SessionPostNotifier {
         ? this.sawOpen
         : Date.parse(flag.endedAt) > Date.parse(this.lastEndedAt));
     if (!newer) return false;
-    if (!(await this.options.send(sessionPostMessage(this.options.pageUrl)))) return false;
+    this.sending = true;
+    let sent: boolean;
+    try {
+      sent = await this.options.send(sessionPostMessage(this.options.pageUrl));
+    } finally {
+      this.sending = false;
+    }
+    if (!sent) return false;
     this.sawOpen = false;
     this.lastEndedAt = flag.endedAt;
     return true;
@@ -89,6 +97,7 @@ export function createSessionFlagReader(
 ): () => Promise<SessionFlag | null> {
   const doFetch = options.fetch ?? fetch;
   const url = `${options.dashboardUrl.replace(/\/+$/, '')}/api/player/state`;
+  let failing = false;
   return async () => {
     try {
       const res = await doFetch(url, {
@@ -96,8 +105,13 @@ export function createSessionFlagReader(
         signal: AbortSignal.timeout(10_000),
       });
       if (!res.ok) return null;
-      return sessionFlagFrom(await res.json());
+      const flag = sessionFlagFrom(await res.json());
+      failing = false;
+      return flag;
     } catch (err) {
+      // Once per outage, not every check: a dashboard that is down would log all day.
+      if (failing) return null;
+      failing = true;
       options.log?.(`Session post: could not read ${url} (${(err as Error).message})`);
       return null;
     }

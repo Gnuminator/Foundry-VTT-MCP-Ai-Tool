@@ -20,7 +20,7 @@ export function sessionPhase(state) {
 // "Quest Details" (extra pages are named by the caller), and the session-recap prompt leaves the
 // recap as a draft the GM pastes into a page of their own naming, so the recap match is a
 // convention on the page title (English or Danish), not a fixed name.
-const RECAP = /(^|[^\p{L}])(recap|summary|previously|opsummering|resum[eé])(?![\p{L}])/iu;
+const RECAP = /(^|[^\p{L}])(recap|opsummering|resum[eé])(?![\p{L}])/iu;
 const QUEST = /(^|[^\p{L}])(quests?|opgaver?)(?![\p{L}])/iu;
 
 /**
@@ -37,9 +37,10 @@ export function splitHandouts(handouts) {
   // The newest by reveal time; on a tie (or no times) the later one in the list.
   let recap = null;
   for (const h of recaps) if (!recap || stamp(h) >= stamp(recap)) recap = h;
+  // Older recaps stay visible: they fall through to the handouts, never hidden.
   const quests = list.filter(
     h => h !== recap && !RECAP.test(h.title || '') && QUEST.test(h.title || '')
   );
-  const rest = list.filter(h => h !== recap && !quests.includes(h) && !RECAP.test(h.title || ''));
+  const rest = list.filter(h => h !== recap && !quests.includes(h));
   return { recap, quests, rest };
 }

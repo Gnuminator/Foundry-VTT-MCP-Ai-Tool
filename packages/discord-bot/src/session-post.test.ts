@@ -97,9 +97,52 @@ describe('SessionPostNotifier', () => {
     expect(await n.check({ open: false, endedAt: END1 })).toBe(true);
     expect(sent).toHaveLength(1);
   });
+
+  it('does not post twice when a check comes in during a slow send', async () => {
+    const sent: string[] = [];
+    let release: (v: boolean) => void = () => {};
+    const n = new SessionPostNotifier({
+      pageUrl: URL_,
+      send: (t): Promise<boolean> =>
+        new Promise(resolve => {
+          sent.push(t);
+          release = resolve;
+        }),
+    });
+    await n.check({ open: true, endedAt: null });
+    const first = n.check({ open: false, endedAt: END1 });
+    expect(await n.check({ open: false, endedAt: END1 })).toBe(false);
+    release(true);
+    expect(await first).toBe(true);
+    expect(sent).toHaveLength(1);
+    expect(await n.check({ open: false, endedAt: END1 })).toBe(false);
+  });
 });
 
 describe('createSessionFlagReader', () => {
+  it('logs a dashboard outage once, then again after it answered', async () => {
+    const lines: string[] = [];
+    let up = false;
+    const read = createSessionFlagReader({
+      dashboardUrl: 'http://x',
+      log: m => lines.push(m),
+      fetch: () =>
+        up
+          ? Promise.resolve(
+              new Response(JSON.stringify({ session: { open: true, endedAt: null } }))
+            )
+          : Promise.reject(new Error('refused')),
+    });
+    await read();
+    await read();
+    expect(lines).toHaveLength(1);
+    up = true;
+    await read();
+    up = false;
+    await read();
+    expect(lines).toHaveLength(2);
+  });
+
   it('reads /api/player/state with the token and returns the flag', async () => {
     let seen: { url: string; headers: unknown } | null = null;
     const read = createSessionFlagReader({

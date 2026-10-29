@@ -118,6 +118,15 @@ set says so.
 - **What happens:** a plan (`plan-tarokka-import`); applied after your yes, then in **🃏 Tarokka** (under **Advanced ▾**).
 - **Tip:** keep **Show cards** unticked on the dashboard while players can see your screen.
 
+### Use a Tarokka reading you chose yourself
+
+- **Say:** "Store this Tarokka reading: the tome is the Seven of Swords, the holy symbol the Master of Glyphs, the sunsword the One of Coins, the ally the Raven and Strahd's location the Donjon."
+  Or open **🃏 Tarokka**, press **Choose the cards…**, pick the five cards and press **Store this reading**.
+- **What happens:** nothing is dealt and you do not need the tarokka-reading module. Each card must come from the right deck
+  (common for the first three, high for the last two) and none can repeat. The previous reading is archived, and Undo brings it back.
+- **Then reveal one card at a time:** in **🃏 Tarokka**, press **Reveal…** on one position and write what the players may read.
+  Nothing reaches the players until you do that, and the other four stay hidden.
+
 ## During the session
 
 ### Answer a rules question

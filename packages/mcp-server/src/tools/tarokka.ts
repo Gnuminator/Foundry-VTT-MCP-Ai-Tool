@@ -50,7 +50,9 @@ const CARD_PROPERTIES = Object.fromEntries(
     CARD_FIELDS[position],
     {
       type: 'string',
-      description: `Card for ${position} when the GM picks the reading (all five or none), e.g. swords-7 or raven.`,
+      description: `Card for ${position} when the GM picks the reading (all five or none), e.g. ${
+        position === 'ally' || position === 'strahdLocation' ? 'raven' : 'swords-7'
+      }.`,
       ...toolRef('tarokka-card', 'id'),
     },
   ])

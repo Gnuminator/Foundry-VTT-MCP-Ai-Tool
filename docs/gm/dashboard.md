@@ -577,6 +577,11 @@ Top row:
   answer yes, then import it here.
 - **New reading (built-in roll)**: deals a new reading with the tool's own roll. The previous
   reading is kept in an archive.
+- **Choose the cards…**: for a reading you drew by hand. Pick the five cards (the first three from
+  the common deck, the last two from the high deck, none twice) and press **Store this reading**.
+  Nothing is dealt, and you do not need the `tarokka-reading` module. The previous reading is
+  kept in an archive, and Undo brings it back. The list shows card names, so close it before
+  anyone looks at your screen; it closes when you close the drawer.
 - **📓 Obsidian**: opens the current reading's note in Obsidian.
 - **Show cards**: card names stay blurred until you tick this. Untick it before anyone looks at
   your screen.

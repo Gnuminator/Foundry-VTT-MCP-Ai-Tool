@@ -122,6 +122,7 @@ export function TarokkaDrawer({
     return (): void => {
       usage().endView('dash.tarokka.view');
       onShowCardsChange(false);
+      setChoosing(false);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- once per opening
   }, [open]);
@@ -145,6 +146,19 @@ export function TarokkaDrawer({
 
   const importReading = (source: 'tarokka-reading' | 'builtin-roll'): void => {
     void change('plan-tarokka-import', { source });
+  };
+
+  // The GM's own five cards (a reading read by hand): stored as a reading, nothing is dealt.
+  const [choosing, setChoosing] = useState(false);
+  const chooseCards = (cards: Record<string, string>): void => {
+    void change(
+      'plan-tarokka-import',
+      Object.fromEntries(
+        Object.entries(cards).map(([position, cardId]) => [CARD_ARGS[position], cardId])
+      )
+    ).then(done => {
+      if (done) setChoosing(false);
+    });
   };
 
   // Opens the document on the GM's own Foundry screen; nothing changes, so no reload.
@@ -200,6 +214,15 @@ export function TarokkaDrawer({
           >
             New reading (built-in roll)
           </Button>
+          <Button
+            id="tarokka-choose"
+            data-track="dash.tarokka.choose"
+            aria-expanded={choosing}
+            disabled={busy}
+            onClick={() => setChoosing(c => !c)}
+          >
+            Choose the cards…
+          </Button>
           {obsidianUrl && (
             <a
               id="tarokka-obsidian"
@@ -227,6 +250,7 @@ export function TarokkaDrawer({
       }
     >
       <div id="tarokka-body">
+        {choosing && <ChooseCards busy={busy} onPlan={chooseCards} />}
         {tarokka.isError && (
           <ErrorState error={tarokka.error}>Couldn&apos;t load the reading</ErrorState>
         )}
@@ -251,6 +275,105 @@ export function TarokkaDrawer({
         )}
       </div>
     </Drawer>
+  );
+}
+
+/** The positions in reading order, with their labels and the plan-tarokka-import argument each fills. */
+const CHOOSE_POSITIONS = [
+  ['tome', 'Tome'],
+  ['holySymbol', 'Holy symbol'],
+  ['sunsword', 'Sunsword'],
+  ['ally', 'Ally'],
+  ['strahdLocation', "Strahd's location"],
+] as const;
+
+const CARD_ARGS: Record<string, string> = {
+  tome: 'tomeCard',
+  holySymbol: 'holySymbolCard',
+  sunsword: 'sunswordCard',
+  ally: 'allyCard',
+  strahdLocation: 'strahdLocationCard',
+};
+
+interface CardChoice {
+  id: string;
+  name: string;
+}
+
+/**
+ * Five pickers, one per position, for a reading the GM drew by hand. The lists come from the
+ * bridge (list-ref-choices, per position, so each shows its own deck). The cards are chosen on
+ * purpose, so the names are on screen here whatever "Show cards" says.
+ */
+function ChooseCards({
+  busy,
+  onPlan,
+}: {
+  busy: boolean;
+  onPlan: (cards: Record<string, string>) => void;
+}): JSX.Element {
+  const [picked, setPicked] = useState<Record<string, string>>({});
+  const decks = useQuery({
+    queryKey: ['tarokka-card-choices'],
+    queryFn: async (): Promise<Record<string, CardChoice[]>> => {
+      const entries = await Promise.all(
+        CHOOSE_POSITIONS.map(async ([position]) => {
+          const r = await callTool<{ choices?: CardChoice[] } | null>('list-ref-choices', {
+            kind: 'tarokka-card',
+            parent: position,
+            limit: 200,
+          });
+          return [position, r?.choices ?? []] as const;
+        })
+      );
+      return Object.fromEntries(entries);
+    },
+    staleTime: Infinity,
+    retry: false,
+  });
+  const chosen = CHOOSE_POSITIONS.map(([position]) => picked[position] ?? '');
+  const complete = chosen.every(Boolean);
+  const repeated = new Set(chosen.filter(Boolean)).size < chosen.filter(Boolean).length;
+  return (
+    <form
+      id="tarokka-choose-form"
+      className="tarokka-form"
+      onSubmit={(e: FormEvent) => {
+        e.preventDefault();
+        if (complete && !repeated) onPlan(picked);
+      }}
+    >
+      {decks.isError && <ErrorState error={decks.error}>Couldn&apos;t list the cards</ErrorState>}
+      {decks.isLoading && <LoadingState />}
+      {decks.data &&
+        CHOOSE_POSITIONS.map(([position, label]) => (
+          <label key={position} className="tarokka-choose-row">
+            {label}{' '}
+            <select
+              className="field-control"
+              data-position={position}
+              value={picked[position] ?? ''}
+              onChange={e => setPicked(p => ({ ...p, [position]: e.target.value }))}
+            >
+              <option value="">Pick a card…</option>
+              {(decks.data[position] ?? []).map(c => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        ))}
+      {repeated && <ErrorState>Each card can be in the reading once.</ErrorState>}
+      <Button
+        type="submit"
+        size="sm"
+        data-track="dash.tarokka.choose-save"
+        disabled={busy || !complete || repeated}
+      >
+        Store this reading
+      </Button>
+    </form>
   );
 }
 

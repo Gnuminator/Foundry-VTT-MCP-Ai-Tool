@@ -310,7 +310,7 @@ describe('reading and import', () => {
       now += 1000;
       const changeId = await apply((await tarokka.planImport({ cards: CHOSEN })).planId);
       expect((await tarokka.getReading()).archivedReadings).toBe(1);
-      await guarded.undoChange(changeId);
+      await guarded.undo(changeId, { confirm: true });
       expect((await tarokka.getReading()).reading!.readingId).toBe(first);
     });
 

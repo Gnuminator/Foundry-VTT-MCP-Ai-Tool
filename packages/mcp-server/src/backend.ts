@@ -735,8 +735,8 @@ async function startBackend(): Promise<void> {
                 }
               }
             };
-            // A long wait must not hold up the calls queued behind it on this socket; every other
-            // tool keeps the in-order dispatch the guarded writes rely on.
+            // Lines that arrive in the same chunk run in order; a long wait must not hold up the
+            // lines behind it, so only this tool is not awaited.
             if (name === 'wait-for-game-event') void runCall();
             else await runCall();
 

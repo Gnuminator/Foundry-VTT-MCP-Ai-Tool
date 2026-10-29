@@ -62,7 +62,8 @@ describe('GameEventHub.wait', () => {
     const r = await p;
     expect(r.endedBy).toBe('event');
     expect(r.events.map(e => e.eventType)).toEqual(['scene-change']);
-    expect(r.latestMs).toBe(T0 + 1);
+    // The empty-ring wait took the cursor T0, so the two events are stamped T0 + 1 and T0 + 2.
+    expect(r.latestMs).toBe(T0 + 2);
     expect(hub.waiterCount).toBe(0);
   });
 
@@ -141,7 +142,7 @@ describe('GameEventHub.wait', () => {
     const r = await p;
     expect(r.events).toHaveLength(50);
     expect(r.truncated).toBe(true);
-    expect(r.latestMs).toBe(T0 + 49);
+    expect(r.latestMs).toBe(T0 + 50);
     // The next call starts exactly at event 51.
     const next = await hub.wait({ sinceMs: r.latestMs ?? 0, timeoutMs: 1000 });
     expect(next.events).toHaveLength(10);
@@ -158,6 +159,31 @@ describe('GameEventHub.wait', () => {
     const r = await hub.wait({ sinceMs: cursor, timeoutMs: 1000 });
     expect(r.events.map(e => e.eventType)).toEqual(['combat-turn']);
     expect(r.latestMs).toBeGreaterThan(cursor);
+  });
+
+  it('hands out a cursor on a timeout with an empty ring, so the next call misses nothing', async () => {
+    const p = hub.wait({ timeoutMs: 1000 });
+    await vi.advanceTimersByTimeAsync(1000);
+    const first = await p;
+    expect(first.latestMs).toBe(T0);
+    hub.publishSessionEvents([ev(5, 'scene-change', null)]);
+    const r = await hub.wait({ sinceMs: first.latestMs ?? 0, timeoutMs: 1000 });
+    expect(r.events.map(e => e.eventType)).toEqual(['scene-change']);
+  });
+
+  it('refuses unknown event types and lists the known ones', () => {
+    expect(() => hub.wait({ eventTypes: ['condition'], timeoutMs: 1000 })).toThrow(
+      /Unknown event type "condition".*condition-applied/
+    );
+  });
+
+  it('answers a cursor call at once even when all waiter slots are taken', async () => {
+    hub.publishSessionEvents([ev(1000)]);
+    const open = Array.from({ length: MAX_WAITERS }, () => hub.wait({ timeoutMs: 5000 }));
+    const r = await hub.wait({ sinceMs: T0 - 1, timeoutMs: 5000 });
+    expect(r.events).toHaveLength(1);
+    await vi.advanceTimersByTimeAsync(5000);
+    await Promise.all(open);
   });
 
   it('keeps a bounded ring', () => {

@@ -17,6 +17,26 @@ export const DEFAULT_WAIT_MS = 25_000;
 /** The MCP client's default request timeout is 60 s; stay well under it. */
 export const MAX_WAIT_MS = 45_000;
 export const MAX_WAITERS = 4;
+/** Session event types the module emits, plus `combat-turn` from the play log. */
+export const KNOWN_EVENT_TYPES: readonly string[] = [
+  'scene-change',
+  'journal-created',
+  'journal-updated',
+  'item-use',
+  'roll',
+  'damage-roll',
+  'gm-roll',
+  'combat-start',
+  'combat-end',
+  'combat-turn',
+  'damage',
+  'healing',
+  'death',
+  'stabilize',
+  'resource-spent',
+  'condition-applied',
+  'condition-removed',
+];
 const RING_SIZE = 500;
 const MAX_RETURNED = 50;
 
@@ -191,12 +211,13 @@ export class GameEventHub {
    */
   wait(request: WaitRequest): Promise<WaitResult> {
     const types = (request.eventTypes ?? []).map(t => t.trim()).filter(Boolean);
-    this.assertSources(types);
-    if (this.waiters.size >= MAX_WAITERS) {
+    const unknown = types.filter(t => !KNOWN_EVENT_TYPES.includes(t));
+    if (unknown.length > 0) {
       throw new Error(
-        `Too many waits open (${MAX_WAITERS}); let one finish or time out, then try again.`
+        `Unknown event type${unknown.length > 1 ? 's' : ''} ${unknown.map(t => `"${t}"`).join(', ')}. Known types: ${KNOWN_EVENT_TYPES.join(', ')}.`
       );
     }
+    this.assertSources(types);
     const actor = request.actorName?.trim().toLowerCase() ?? '';
     const typeSet = new Set(types);
     const matches = (e: GameEvent): boolean =>
@@ -210,7 +231,19 @@ export class GameEventHub {
       if (hits.length > 0) return Promise.resolve(this.result(hits));
     }
 
-    const fallbackMs = request.sinceMs ?? this.newestMs();
+    // A call that would answer at once never counts against the cap; only a real wait does.
+    if (this.waiters.size >= MAX_WAITERS) {
+      throw new Error(
+        `Too many waits open (${MAX_WAITERS}); let one finish or time out, then try again.`
+      );
+    }
+
+    // Always hand out a backend stamp, even on an empty ring, so a timed-out call still returns
+    // a cursor and nothing published before the next call is missed.
+    if (request.sinceMs === undefined && this.ring.length === 0) {
+      this.lastReceivedMs = Math.max(this.lastReceivedMs, this.now());
+    }
+    const fallbackMs = request.sinceMs ?? this.lastReceivedMs;
     return new Promise<WaitResult>(resolve => {
       const empty = (endedBy: 'timeout' | 'cancelled'): WaitResult => ({
         events: [],

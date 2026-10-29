@@ -201,9 +201,11 @@ describe('DiceRollTools.handleRequestPlayerRolls', () => {
     };
     await tools.handleRequestPlayerRolls(base);
     await tools.handleRequestPlayerRolls({ ...base, flavor: 'Fireball' });
+    await tools.handleRequestPlayerRolls({ ...base, dc: 1, flavor: 'DC 15' });
     expect(query.mock.calls.map(c => (c[1] as { flavor: string }).flavor)).toEqual([
       'DC 15',
       'Fireball, DC 15',
+      'DC 15, DC 1',
     ]);
   });
 });

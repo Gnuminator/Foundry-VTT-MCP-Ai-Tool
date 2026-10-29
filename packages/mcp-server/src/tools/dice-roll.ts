@@ -311,7 +311,7 @@ export class DiceRollTools {
       // the same fold); the dashboard already sends "DC n", so only add it when it is missing.
       const dcText = params.dc === undefined ? '' : `DC ${params.dc}`;
       const flavor =
-        dcText === '' || params.flavor.includes(dcText)
+        dcText === '' || new RegExp(`\\b${dcText}\\b`).test(params.flavor)
           ? params.flavor
           : [params.flavor, dcText].filter(Boolean).join(', ');
 

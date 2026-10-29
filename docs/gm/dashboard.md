@@ -235,12 +235,18 @@ click combatant rows to select them (click again to unselect). With one or more 
   ("Deal 8 fire damage to ... in Foundry"), applies it at once to every picked token; each takes
   the full amount. The toast has **Undo** and Recent Changes keeps the change. There is no
   confirm window for this form.
-- **Condition**: the same, for a condition: pick it, and untick **active** to remove it.
-- **Clear**: unselects all.
+- **Condition**: opens the tool runner with the picked names filled in: pick the condition, and
+  untick **active** to remove it. Click **Run...**; the confirm window lists each target and what
+  will change; click **Confirm**.
+- **Clear**: unselects all (and closes the Damage / Heal form).
+- **Ask for a roll** (under the strip, with GM Actions on): pick a check, save or skill, a DC and
+  private or public, then **Ask the party**, or **Ask** for the picked player characters. The
+  request goes to each player's chat and the play log at once, with no confirm window and no
+  Undo (it only posts a roll card).
 
-Fill in the amount and click **Run...**. The confirm window lists each target and what will
-change; click **Confirm**. A message lists each target's result ("Wolf 2: HP 11 to 5") with
-**Undo** for a few seconds; one click puts it back. Later, use **Undo** in Recent Changes.
+After a Damage / Heal or Condition change, a message lists each target's result ("Wolf 2: HP 11 to
+5") with **Undo** for a few seconds; one click puts it back. Later, use **Undo** in Recent
+Changes.
 
 **Start combat** and **End combat**: with no fight running and GM Actions on, the Combat Tracker
 offers **Start combat** (in most During layouts, a small **Start combat** button on the During bar
@@ -671,8 +677,12 @@ choose **Set as Primary Party**. With more than one group, a list at the top pic
   a square ("put the party at the inn door").
 - **Rest**: posts dnd5e's short or long rest card to chat. Each player clicks it to rest their
   own character, the same card Foundry's party sheet posts.
+- **Ask for a roll**: pick a check, save or skill, a DC and private or public, then **Ask the
+  whole party**, or **Ask roll** on one member. It posts the roll request to the player's chat and
+  the play log (with GM Actions on). It has no confirm window and no Undo, since it only posts a
+  roll card.
 
-Each button applies in one click, with an **Undo** message. The actions need GM Actions on and
+Each of the other buttons applies in one click, with an **Undo** message. The actions need GM Actions on and
 the module setting **AI Tool: Party (writes)** switched on. Every change lands in Recent Changes
 with Undo; a rest card can only be undone while nobody has rested from it (after that, delete the
 card in Foundry's chat). Claude uses the same actions with `get-party` and `plan-party-change`.

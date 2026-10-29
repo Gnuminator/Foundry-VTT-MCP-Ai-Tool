@@ -121,7 +121,8 @@ item is marked done; the board ignores a line on an item with no claim.
 
 - Risky categories (guarded writes, bridge link, write gate, security, Pi scripts, wire contracts,
   the merge gate and CI: `scripts/lane-merge.mjs`, `green.mjs`, `drift-check.mjs`, `.github/`,
-  `.claude/hooks/`): an Opus review subagent. Everything else: a Sonnet review subagent (the gate
+  `.claude/hooks/`): an Opus review (the review runner until 2026-11-14, see Review runner below;
+  an Opus subagent as the fallback). Everything else: a Sonnet review, same paths (the gate
   decides which, see the next bullet; docs, tests, dashboard UI and kit scripts are usually
   Sonnet, and so is a delta round on lows, for a non-risky PR only: a risky PR's fixes go back to
   its Opus reviewer). Give it the PR number, the head sha and the area; it is read-only and writes
@@ -146,7 +147,7 @@ item is marked done; the board ignores a line on an item with no claim.
     A third round needs the planner; do not start one yourself (the runner refuses it without
     `--allow-round3`, which is the planner's flag). Batch your findings into one fix round.
   - **Instant review:** PRs on the critical path, PRs other work stacks on, and risky PRs (the
-    gate's list) are reviewed now while you are alive, by a subagent as above.
+    gate's list) are reviewed now while you are alive, by the runner (or a subagent as above).
   - **Batched review:** low-risk PRs (build-ahead, board, lows, docs) do not wait for you: report
     "PR open" in the `- progress:` line and end. The planner has them reviewed once or twice a day
     by a review lane or by the API runner (next bullet). Fix the findings when they come back.
@@ -171,8 +172,9 @@ scripts/review-runner`. It picks Opus for a PR the gate calls risky and Sonnet o
   - a `## Verdict` section whose first bold text is exactly `**Merge.**`, `**Merge after fixes.**`
     or `**Do not merge.**` (every note for the head must say Merge);
   - findings as H1, M1, L1 with file:line and a fix.
-- Fix the findings, push, and send the same reviewer (SendMessage to that subagent) the new head
-  for one delta round. Lows may go to the Backlog instead.
+- Fix the findings, push, and give the same reviewer the new head for one delta round: rerun the
+  runner on the new head (it counts the rounds itself), or SendMessage to the subagent that
+  reviewed. Lows may go to the Backlog instead.
 - **Push:** `git push -u aitool claude/<topic>:claude/<topic>` (explicit refspec, never a bare
   push from a branch made off `aitool/main`).
 - **Ready to merge (the planner merges, 2026-10-16):** once every review for the head says Merge,
@@ -183,7 +185,7 @@ scripts/review-runner`. It picks Opus for a PR the gate calls risky and Sonnet o
   **Report in the vault first (2026-10-23):** write a `- progress:` line on your item in vault
   `Backlog.md` (pull first, then commit and push) carrying the PR number, the full head sha and
   the review note path, plus anything the brief asks for (a tally the brief names, say), as one
-  line like `- progress: <date> PR #<n> ready, head <40-char sha>, review <note path>`. Replace
+  line like `- progress: <date> PR #<n> ready, head <40-char sha>, review <note path>, advisor: 1`. Replace
   your earlier line instead of stacking another. That line is the ready state the planner reads;
   a planner that was replaced since your brief never sees a message. Only after the push may you
   SendMessage "the newest session titled Planner", and only if ListAgents shows one active. Never

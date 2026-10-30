@@ -602,7 +602,7 @@ test('a failed plan, a refused apply and a plan that needs a confirm all say so'
   await fakeStream(page, gmActions(true));
   await fakePreflight(page);
   const partyOff =
-    '"AI Tool: Party (writes)" is switched off. In Foundry, open Game Settings, Configure Settings, AI Tool and turn on "AI Tool: Party (writes)".';
+    '"AI Tool: Party (writes)" is switched off. In Foundry, open the Settings tab, Game Settings, Foundry AI Tool and turn on "AI Tool: Party (writes)".';
   let answer: Answer = call =>
     call.name === 'plan-party-change'
       ? { status: 422, json: { ok: false, error: partyOff } }

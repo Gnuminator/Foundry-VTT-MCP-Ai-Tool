@@ -33,6 +33,8 @@ import {
   runLock,
   HEAVY_STEPS,
   SOLO_STEPS,
+  cloudGreen,
+  repoFromUrl,
 } from './green.mjs';
 import { main as prePush, CHECKS, pushedCommits } from './pre-push.mjs';
 import { HELD_ENV } from './heavy-lock.mjs';
@@ -140,6 +142,7 @@ test('parseArgs: flags, equals form, repeats and errors', () => {
   assert.deepEqual(parseArgs([]), {
     list: false,
     all: false,
+    cloud: false,
     only: [],
     skip: [],
     from: null,
@@ -691,4 +694,255 @@ test('pre-push: runs the ratchets and typecheck, refuses on the first failure, s
   assert.equal(prePush({ ...base, passedGreen: () => true, runCheck: fail }), 0);
   assert.equal(prePush({ ...base, env: { SKIP_PREPUSH: '1' }, runCheck: fail }), 0);
   assert.deepEqual(ran, []);
+});
+
+// ---- green --cloud: a fake git and a fake gh, no network ----
+
+const SHA = 'a'.repeat(40);
+
+/** A fake git: `over` replaces the answer for a command. */
+function fakeGit(over = {}) {
+  const answers = {
+    'status --porcelain': '',
+    'rev-parse --abbrev-ref HEAD': 'claude/topic',
+    'rev-parse HEAD': SHA,
+    'remote get-url aitool': 'https://github.com/Gnuminator/Foundry-VTT-MCP-Ai-Tool.git',
+    'ls-remote aitool refs/heads/claude/topic': `${SHA}\trefs/heads/claude/topic`,
+    ...over,
+  };
+  return args => {
+    const v = answers[args.join(' ')];
+    return v === undefined ? { status: 1, stdout: '', stderr: 'no' } : { status: 0, stdout: v, stderr: '' };
+  };
+}
+
+/** A fake gh over scripted runs; records every call. */
+function fakeGh({ existing = [], laterExisting = null, dispatched = [], views = [], dispatchStatus = 0, openPr = false, listFails = false, viewFails = false }) {
+  const calls = [];
+  let viewNo = 0;
+  let commitLists = 0;
+  const gh = args => {
+    calls.push(args.join(' '));
+    if (args[0] === 'pr') return { status: 0, stdout: JSON.stringify(openPr ? [{ number: 1 }] : []), stderr: '' };
+    if (args[0] === 'run' && args[1] === 'list') {
+      if (listFails) return { status: 1, stdout: '', stderr: 'gh: not logged in' };
+      const isCommit = args.includes('--commit');
+      const rows = isCommit ? (commitLists++ > 0 && laterExisting ? laterExisting : existing) : args.includes('workflow_dispatch') ? dispatched : [];
+      return { status: 0, stdout: JSON.stringify(rows), stderr: '' };
+    }
+    if (args[0] === 'workflow') return { status: dispatchStatus, stdout: '', stderr: 'HTTP 403' };
+    if (args[0] === 'run' && args[1] === 'view') {
+      if (viewFails) return { status: 1, stdout: '', stderr: 'HTTP 401' };
+      return { status: 0, stdout: JSON.stringify(views[Math.min(viewNo++, views.length - 1)]), stderr: '' };
+    }
+    return { status: 1, stdout: '', stderr: 'unexpected' };
+  };
+  return { gh, calls };
+}
+
+function cloud(git, gh, extra = {}) {
+  const lines = [];
+  let t = 0;
+  const code = cloudGreen({
+    cwd: '.',
+    git,
+    gh,
+    now: () => t,
+    sleep: ms => {
+      t += ms;
+    },
+    log: l => lines.push(l),
+    pollMs: 1000,
+    findMs: 3000,
+    timeoutMs: 60_000,
+    ...extra,
+  });
+  return { code, lines };
+}
+
+const doneView = (conclusion, jobs = []) => ({ status: 'completed', conclusion, url: 'https://gh/run/7', jobs });
+
+test('parseArgs: --cloud is a flag that cannot be mixed with step selection', () => {
+  assert.equal(parseArgs(['--cloud']).cloud, true);
+  assert.equal(parseArgs([]).cloud, false);
+  assert.match(parseArgs(['--cloud', '--only', 'e2e']).error, /cannot be combined/);
+  assert.match(parseArgs(['--cloud', '--from', 'build']).error, /cannot be combined/);
+});
+
+test('main --cloud with a step flag is a usage error and never touches the lock or a step', () => {
+  const lines = [];
+  const code = main({
+    argv: ['--cloud', '--all'],
+    log: l => lines.push(l),
+    takeLock: () => assert.fail('no lock for --cloud'),
+    runStep: () => assert.fail('no local step for --cloud'),
+  });
+  assert.equal(code, 2);
+  assert.match(lines[0], /cannot be combined/);
+});
+
+test('main --cloud runs CI through gh: no heavy lock, no local step, no green stamp', () => {
+  const lines = [];
+  const { gh } = fakeGh({
+    existing: [{ databaseId: 7, status: 'completed', conclusion: 'success', headSha: SHA, event: 'pull_request' }],
+    views: [doneView('success')],
+  });
+  const code = main({
+    argv: ['--cloud'],
+    log: l => lines.push(l),
+    takeLock: () => assert.fail('no lock for --cloud'),
+    runStep: () => assert.fail('no local step for --cloud'),
+    cloudOptions: { git: fakeGit(), gh, sleep: () => {}, pollMs: 1 },
+  });
+  assert.equal(code, 0);
+  assert.equal(lines.length, 1);
+  assert.match(lines[0], /^green: OK \(cloud\)/);
+});
+
+test('repoFromUrl reads https and ssh remotes', () => {
+  assert.equal(repoFromUrl('https://github.com/Gnuminator/Foundry-VTT-MCP-Ai-Tool.git'), 'Gnuminator/Foundry-VTT-MCP-Ai-Tool');
+  assert.equal(repoFromUrl('git@github.com:Gnuminator/Foundry-VTT-MCP-Ai-Tool.git'), 'Gnuminator/Foundry-VTT-MCP-Ai-Tool');
+  assert.equal(repoFromUrl('https://example.com/x/y'), null);
+});
+
+test('cloud: refuses a dirty tree', () => {
+  const { gh, calls } = fakeGh({});
+  const { code, lines } = cloud(fakeGit({ 'status --porcelain': ' M scripts/green.mjs' }), gh);
+  assert.equal(code, 1);
+  assert.match(lines[0], /uncommitted changes/);
+  assert.deepEqual(calls, []);
+});
+
+test('cloud: refuses a HEAD that is not pushed', () => {
+  const { gh, calls } = fakeGh({});
+  const git = fakeGit({ 'ls-remote aitool refs/heads/claude/topic': `${'b'.repeat(40)}\trefs/heads/claude/topic` });
+  const { code, lines } = cloud(git, gh);
+  assert.equal(code, 1);
+  assert.match(lines[0], /not pushed to aitool\/claude\/topic/);
+  assert.deepEqual(calls, []);
+  const none = cloud(fakeGit({ 'ls-remote aitool refs/heads/claude/topic': '' }), gh);
+  assert.match(none.lines[0], /not pushed/);
+});
+
+test('cloud: reuses the CI run already started for the head and prints one OK line', () => {
+  const { gh, calls } = fakeGh({
+    existing: [{ databaseId: 7, status: 'in_progress', conclusion: '', headSha: SHA, event: 'pull_request' }],
+    views: [{ status: 'in_progress', conclusion: '', url: 'u', jobs: [] }, doneView('success')],
+  });
+  const { code, lines } = cloud(fakeGit(), gh);
+  assert.equal(code, 0);
+  assert.equal(lines.length, 1);
+  assert.match(lines[0], /^green: OK \(cloud\), CI run https:\/\/gh\/run\/7 for aaaaaaaa in 0m1s$/);
+  assert.ok(!calls.some(c => c.startsWith('workflow run')), 'no second run when one exists');
+});
+
+test('cloud: a cancelled run does not count, ci.yml is dispatched on the branch and its run is found', () => {
+  const { gh, calls } = fakeGh({
+    existing: [{ databaseId: 5, status: 'completed', conclusion: 'cancelled', headSha: SHA, event: 'push' }],
+    dispatched: [
+      { databaseId: 6, status: 'completed', conclusion: 'success', headSha: 'c'.repeat(40), event: 'workflow_dispatch' },
+      { databaseId: 7, status: 'queued', conclusion: '', headSha: SHA, event: 'workflow_dispatch' },
+    ],
+    views: [doneView('success')],
+  });
+  const { code } = cloud(fakeGit(), gh);
+  assert.equal(code, 0);
+  assert.ok(calls.includes('workflow run ci.yml -R Gnuminator/Foundry-VTT-MCP-Ai-Tool --ref claude/topic'));
+  assert.ok(calls.some(c => c.startsWith('run view 7 ')));
+});
+
+test('cloud: a failed run names the failed job, step and URL', () => {
+  const { gh } = fakeGh({
+    existing: [{ databaseId: 7, status: 'completed', conclusion: 'failure', headSha: SHA, event: 'pull_request' }],
+    views: [
+      doneView('failure', [
+        { name: 'build-test (Node 22)', conclusion: 'failure', url: 'https://gh/job/1', steps: [{ name: 'Setup', conclusion: 'success' }, { name: 'Run e2e', conclusion: 'failure' }] },
+        { name: 'build-test (Node 24)', conclusion: 'success', url: 'https://gh/job/2', steps: [] },
+      ]),
+    ],
+  });
+  const { code, lines } = cloud(fakeGit(), gh);
+  assert.equal(code, 1);
+  assert.equal(lines.length, 1);
+  assert.equal(
+    lines[0],
+    'green: FAILED (cloud, failure) build-test (Node 22) at step "Run e2e" (https://gh/job/1) (an earlier run; gh run rerun 7 --failed to retry)'
+  );
+});
+
+test('cloud: a branch with an open PR waits for the pull_request run instead of dispatching', () => {
+  const { gh, calls } = fakeGh({
+    openPr: true,
+    existing: [],
+    laterExisting: [{ databaseId: 7, status: 'queued', conclusion: '', headSha: SHA, event: 'pull_request' }],
+    views: [doneView('success')],
+  });
+  const { code } = cloud(fakeGit(), gh);
+  assert.equal(code, 0);
+  assert.ok(!calls.some(c => c.startsWith('workflow run')), 'no dispatch next to the PR run');
+});
+
+test('cloud: an open PR whose run never shows up still gets a dispatch with its own time to be found', () => {
+  const { gh, calls } = fakeGh({
+    openPr: true,
+    existing: [],
+    dispatched: [{ databaseId: 7, status: 'queued', conclusion: '', headSha: SHA, event: 'workflow_dispatch' }],
+    views: [doneView('success')],
+  });
+  const { code } = cloud(fakeGit(), gh);
+  assert.equal(code, 0);
+  assert.ok(calls.some(c => c.startsWith('workflow run')));
+});
+
+test('cloud: gh and git errors are reported, not turned into a dispatch or a wrong message', () => {
+  const list = fakeGh({ listFails: true });
+  const a = cloud(fakeGit(), list.gh);
+  assert.equal(a.code, 1);
+  assert.match(a.lines[0], /could not list CI runs \(gh: gh: not logged in\)/);
+  assert.ok(!list.calls.some(c => c.startsWith('workflow run')));
+  const view = fakeGh({ existing: [{ databaseId: 7, status: 'queued', conclusion: '', headSha: SHA, event: 'push' }], viewFails: true });
+  const b = cloud(fakeGit(), view.gh);
+  assert.equal(b.code, 1);
+  assert.match(b.lines[0], /gh failed 5 times in a row while waiting for run 7: HTTP 401/);
+  const ls = (args) => (args[0] === 'ls-remote' ? { status: 128, stdout: '', stderr: 'fatal: unable to access' } : fakeGit()(args));
+  const c = cloud(ls, fakeGh({}).gh);
+  assert.match(c.lines[0], /could not reach aitool: fatal: unable to access/);
+});
+
+test('cloud: a run cancelled while waiting is called cancelled, and main is refused', () => {
+  const { gh } = fakeGh({
+    existing: [{ databaseId: 7, status: 'queued', conclusion: '', headSha: SHA, event: 'push' }],
+    views: [doneView('cancelled', [{ name: 'build-test', conclusion: 'cancelled', url: 'j', steps: [] }])],
+  });
+  const a = cloud(fakeGit(), gh);
+  assert.equal(a.code, 1);
+  assert.match(a.lines[0], /^green: FAILED \(cloud, cancelled\) CI run https:\/\/gh\/run\/7 was cancelled/);
+  const b = cloud(fakeGit({ 'rev-parse --abbrev-ref HEAD': 'main' }), fakeGh({}).gh);
+  assert.equal(b.code, 1);
+  assert.match(b.lines[0], /CI on main runs on push/);
+});
+
+test('ci.yml keeps what --cloud relies on: workflow_dispatch and a per-ref concurrency group', () => {
+  const yml = fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '.github', 'workflows', 'ci.yml'), 'utf8');
+  assert.match(yml, /^ {2}workflow_dispatch:/m);
+  assert.match(yml, /^ {2}group: .*github\.ref/m);
+});
+
+test('cloud: refuses when the dispatch is rejected or no run shows up', () => {
+  const rejected = cloud(fakeGit(), fakeGh({ dispatchStatus: 1 }).gh);
+  assert.equal(rejected.code, 1);
+  assert.match(rejected.lines[0], /could not start ci\.yml: HTTP 403/);
+  const missing = cloud(fakeGit(), fakeGh({}).gh);
+  assert.equal(missing.code, 1);
+  assert.match(missing.lines[0], /found no run for aaaaaaaa/);
+});
+
+test('cloud: gives up when the run is still going at the timeout', () => {
+  const { gh } = fakeGh({
+    existing: [{ databaseId: 7, status: 'queued', conclusion: '', headSha: SHA, event: 'push' }],
+    views: [{ status: 'queued', conclusion: '', url: 'u', jobs: [] }],
+  });
+  const { code, lines } = cloud(fakeGit(), gh, { timeoutMs: 5000 });
+  assert.equal(code, 1);
+  assert.match(lines[0], /still going after 0m5s/);
 });

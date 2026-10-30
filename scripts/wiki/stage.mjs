@@ -108,6 +108,43 @@ function stagedPathOf(repoPath) {
 
 const toPosix = p => p.split(path.sep).join('/');
 
+/**
+ * True when `offset` of `line` sits inside an inline code span. A span opens with a run of N
+ * backticks and closes at the next run of exactly N, so a double-backtick span can hold single
+ * backticks; a backslash-escaped backtick is no delimiter. An unclosed run is plain text.
+ */
+export function insideCodeSpan(line, offset) {
+  const runAt = i => {
+    let n = 1;
+    while (line[i + n] === '`') n++;
+    return n;
+  };
+  for (let i = 0; i < line.length; i++) {
+    if (line[i] === '\\') {
+      i++; // outside a span only: a backslash is no escape inside one (`C:\dir\`)
+    } else if (line[i] === '`') {
+      const n = runAt(i);
+      let close = -1;
+      for (let j = i + n; j < line.length; j++) {
+        if (line[j] !== '`') continue;
+        const m = runAt(j);
+        if (m === n) {
+          close = j;
+          break;
+        }
+        j += m - 1;
+      }
+      if (close === -1) {
+        i += n - 1; // an unclosed run is plain text
+      } else {
+        if (offset > i && offset < close) return true;
+        i = close + n - 1;
+      }
+    }
+  }
+  return false;
+}
+
 /** Returns a function: true for the lines that open, close or sit inside a fenced code block. */
 function fenceTracker() {
   let fence = null;
@@ -137,7 +174,7 @@ export function rewriteLinks(text, repoPath, images) {
       if (inCode(line)) return line;
       return line.replace(/(!?)\]\(([^)\s]+)((?:\s+"[^"]*")?)\)/g, (match, bang, target, title, offset) => {
         // A link shown inside an inline code span is an example, not a link.
-        if (line.slice(0, offset).split('`').length % 2 === 0) return match;
+        if (insideCodeSpan(line, offset)) return match;
         if (
           /^[a-z][a-z0-9+.-]*:/i.test(target) ||
           target.startsWith('#') ||
@@ -242,7 +279,7 @@ export function toSite(text, stagedPath) {
       );
       // A link's text can wrap onto the line before, so only the `](target)` part is matched.
       return chipped.replace(/\]\(([^)\s]+)((?:\s+"[^"]*")?)\)/g, (m, target, title, offset) => {
-        if (chipped.slice(0, offset).split('`').length % 2 === 0) return m;
+        if (insideCodeSpan(chipped, offset)) return m;
         const url = siteUrl(target);
         return url === null ? m : `](${url}${title})`;
       });

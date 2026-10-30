@@ -384,6 +384,86 @@ test('a failing shared build fails the check with its output, and the lane is un
   }
 });
 
+test('shared/dist missing: the lane checkout builds shared before the guards run', () => {
+  const { tmp, lane, other } = lanesShared();
+  try {
+    commit(other, 'main.txt', 'from another lane\n', 'other lane merged');
+    git(other, 'push', '-q', 'origin', 'HEAD:main');
+    fs.rmSync(path.join(lane, 'shared', 'dist'), { recursive: true });
+    const { code, out } = runWith(lane, { checks: [readsSharedDist('v1')], sharedBuild: buildShared });
+    assert.equal(code, 0, out);
+    assert.match(out, /shared\/dist is missing; building shared/);
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('a lane that already has main, with no shared/dist: built before the guards, once', () => {
+  const { tmp, lane } = lanesShared();
+  try {
+    fs.rmSync(path.join(lane, 'shared', 'dist'), { recursive: true });
+    const first = runWith(lane, { checks: [readsSharedDist('v1')], sharedBuild: buildShared });
+    assert.equal(first.code, 0, first.out);
+    assert.match(first.out, /already contains/);
+    assert.match(first.out, /shared\/dist is missing; building shared/);
+    // The stamp keeps an up-to-date dist from being rebuilt on the next run.
+    const second = runWith(lane, {
+      checks: [readsSharedDist('v1')],
+      sharedBuild: 'node -e "process.exit(9)"',
+    });
+    assert.equal(second.code, 0, second.out);
+    assert.doesNotMatch(second.out, /building shared/);
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('a build that exits 0 but emits no package entry fails with a clear line, no stamp', () => {
+  const { tmp, lane, other } = lanesShared();
+  try {
+    commit(other, 'main.txt', 'from another lane\n', 'other lane merged');
+    git(other, 'push', '-q', 'origin', 'HEAD:main');
+    commit(
+      lane,
+      'shared/package.json',
+      '{"name":"@gnuminator/shared","main":"dist/index.js"}\n',
+      'shared names its entry'
+    );
+    const { code, out } = runWith(lane, {
+      checks: [passes('never')],
+      sharedBuild: 'node -e "process.exit(0)"',
+    });
+    assert.equal(code, 2, out);
+    assert.match(out, /emitted no shared\/dist\/index\.js/);
+    assert.doesNotMatch(out, /never/);
+    assert.equal(fs.existsSync(path.join(lane, 'shared', 'dist', '.built-stamp')), false);
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('shared/dist older than shared/src: rebuilt; a failing build stops with its output', () => {
+  const { tmp, lane, other } = lanesShared();
+  try {
+    commit(other, 'main.txt', 'from another lane\n', 'other lane merged');
+    git(other, 'push', '-q', 'origin', 'HEAD:main');
+    const old = new Date(Date.now() - 3600_000);
+    fs.utimesSync(path.join(lane, 'shared', 'dist', 'api.txt'), old, old);
+    const failing = runWith(lane, {
+      checks: [passes('never')],
+      sharedBuild: 'node -e "console.error(\'tsc exploded\');process.exit(2)"',
+    });
+    assert.equal(failing.code, 2, failing.out);
+    assert.match(failing.out, /shared\/dist is older than shared\/src; building shared/);
+    assert.match(failing.out, /building it failed:\r?\ntsc exploded/);
+    assert.doesNotMatch(failing.out, /never/);
+    const { code, out } = runWith(lane, { checks: [readsSharedDist('v1')], sharedBuild: buildShared });
+    assert.equal(code, 0, out);
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
 test('a passing guard that prints tool-set headroom lines has them shown, other output is not', () => {
   const { tmp, lane } = repos();
   try {

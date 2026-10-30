@@ -103,6 +103,18 @@ item is marked done; the board ignores a line on an item with no claim.
   on those. `SKIP_PREPUSH=1 git push ...` skips it by hand. Heavy runs share the PC through a
   machine-wide lock: `node scripts/heavy-lock.mjs status` shows who holds it and who waits; the
   slot count is in `~/.foundry-ai-tool/heavy-lock.json` (`{"slots": 3}`), read on every run.
+  **Long queue:** an unqueued green takes 5 to 7 minutes; if `heavy-lock.mjs status` shows every
+  slot held and others waiting (measured 2026-10-30: waits of 6 to 32 minutes), commit, push the
+  branch (`SKIP_PREPUSH=1 git push -u aitool <b>:<b>`: the pre-push hook would wait for a free
+  slot too, and CI runs the same ratchets and typecheck) and run `npm run green -- --cloud`
+  instead, with `run_in_background` (about 11 to 15
+  minutes, longer than a foreground call). It checks CI on GitHub for the pushed HEAD (no load on
+  the PC, no lock) and prints one line (OK, or the failed job and step with its URL). If the
+  branch has an open PR it waits for the PR's own run (which tests the merge with main); without a
+  PR it starts `ci.yml` by workflow_dispatch on the branch (the branch alone, every job including
+  the screenshots), and opening the PR later starts a second run, so open the PR (a draft is fine)
+  first when one is coming anyway. It does not write `.git/green-ok`, so the pre-push ratchets
+  still run. Dashboard changes still need `visual:baselines` as below.
 - **Dashboard change (anything under `packages/cogm-dashboard/`, stories included, or a
   `package-lock.json` change such as a Playwright bump):** push the branch, run `npm run visual:baselines -- <branch>` (starts `visual-baselines.yml` on GitHub,
   about 15 minutes, no Docker needed; the workflow runs on your branch, so a branch cut before it
@@ -149,7 +161,8 @@ item is marked done; the board ignores a line on an item with no claim.
 - **Hybrid review flow (D-127):**
   - **Rounds:** every PR gets one review round plus one delta check by the same reviewer (D-101).
     A third round needs the planner; do not start one yourself (the runner refuses it without
-    `--allow-round3`, which is the planner's flag). Batch your findings into one fix round.
+    `--allow-round3`, which is the planner's flag; the one exception is `--delta` for a small commit
+    after a Merge, see below). Batch your findings into one fix round.
   - **Instant review:** PRs on the critical path, PRs other work stacks on, and risky PRs (the
     gate's list) are reviewed now while you are alive, by the runner (or a subagent as above).
   - **Batched review:** low-risk PRs (build-ahead, board, lows, docs) do not wait for you: report
@@ -178,7 +191,17 @@ scripts/review-runner`. It picks Opus for a PR the gate calls risky and Sonnet o
   - findings as H1, M1, L1 with file:line and a fix.
 - Fix the findings, push, and give the same reviewer the new head for one delta round: rerun the
   runner on the new head (it counts the rounds itself), or SendMessage to the subagent that
-  reviewed. Lows may go to the Backlog instead.
+  reviewed. Lows may go to the Backlog instead. **Wait for CI green on the new head before asking
+  for that last round** (`gh pr checks`): a CI-only fix after a Merge is what forced a round 3
+  on #607, #610, #611 and #613.
+- **Small commit after a Merge (planner, 2026-10-30):** a docs-only, test-only or changelog-only
+  commit, or a merge of main that leaves the PR's own files alone, gets the runner's cheap delta
+  note instead of a round 3: `node scripts/review-runner/run.mjs <PR> --delta <sha the last Merge
+note reviewed>` (`--dry-run` first; no `--allow-round3`). It refuses, with the reason, when the
+  PR's own code changed or the change is large; that is a normal round, and a third one needs the
+  planner. On a risky PR the delta note is an Opus note (the gate wants an Opus Merge for the head),
+  still at a small budget. The runner also pins the head: it reviews the sha it read at the start and writes no
+  note when the head moved meanwhile, so push everything before you start it.
 - **Push:** `git push -u aitool claude/<topic>:claude/<topic>` (explicit refspec, never a bare
   push from a branch made off `aitool/main`).
 - **Ready to merge (the planner merges, 2026-10-16):** once every review for the head says Merge,

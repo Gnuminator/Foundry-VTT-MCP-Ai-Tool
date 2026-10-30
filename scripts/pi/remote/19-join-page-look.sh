@@ -131,7 +131,8 @@ prev="" staged=""
 [ ! -L "$dest" ] || die "$dest is a link: not touching it. Nothing was changed"
 if [ "$undo" != 1 ] && [ -f "$dest" ] && [ "$(sha_of "$dest")" != "$want_sha" ]; then
   prev="$store/$stamp-$world-$dest_name.prev"
-  install -m 644 "$dest" "$prev"
+  # Read as the foundry user: root `install` on a path foundry owns would follow a link swapped in after the check above.
+  runuser -u "$FOUNDRY_USER" -- cat -- "$dest" >"$prev" && chmod 644 "$prev" || { rm -f "$prev"; prev=""; die "could not keep the picture now in the world. Nothing was changed"; }
   ok "the picture now in the world is kept as $prev"
 fi
 if [ "$undo" != 1 ]; then

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { BASE, buildSidebar, navOrder, pageUrl, rewriteLinks, toSite } from './stage.mjs';
+import { BASE, buildSidebar, insideCodeSpan, navOrder, pageUrl, rewriteLinks, toSite } from './stage.mjs';
 
 const GH = 'https://github.com/Gnuminator/Foundry-VTT-MCP-Ai-Tool';
 
@@ -145,4 +145,26 @@ test('the sidebar groups pages, puts a section README first and catches unknown 
   assert.deepEqual(sidebar[1].items.map(i => i.slug), ['gm', 'gm/first-hour']);
   assert.deepEqual(sidebar[3].items.map(i => i.slug), ['player', 'player/join']);
   assert.deepEqual(sidebar[4].items.map(i => i.slug), ['gm/new-page']);
+});
+
+test('rewriteLinks: a double-backtick span holding a link or a single backtick stays as written', () => {
+  const out = rewriteLinks(
+    'Write ``[a](b.md) and `c` `` then [real](../../CHANGELOG.md).',
+    'docs/gm/a.md',
+    new Set()
+  );
+  assert.ok(out.includes('``[a](b.md) and `c` ``'));
+  assert.ok(!out.includes('[real](../../CHANGELOG.md)'));
+});
+
+test('insideCodeSpan: delimiter runs, escapes and unclosed runs', () => {
+  assert.equal(insideCodeSpan('a `x` b', 3), true);
+  assert.equal(insideCodeSpan('a `x` b', 6), false);
+  assert.equal(insideCodeSpan('`` `x` `` b', 4), true);
+  assert.equal(insideCodeSpan('`` `x` `` b', 10), false);
+  assert.equal(insideCodeSpan('a \\` b', 5), false);
+  assert.equal(insideCodeSpan('a ` b', 4), false);
+  // A backslash inside a span is no escape (a Windows path), so the link after it is outside.
+  assert.equal(insideCodeSpan('a `C:\\x\\` [l](y.md)', 13), false);
+  assert.equal(insideCodeSpan('a `C:\\x\\` [l](y.md)', 5), true);
 });

@@ -25,8 +25,10 @@
  * - How many slots: HEAVY_LOCK_SLOTS, else `slots` in ~/.foundry-ai-tool/heavy-lock.json
  *   (HEAVY_LOCK_CONFIG moves it), else 3. The file is read on every poll, so a change applies to
  *   the next run and to runs already waiting, with no restart of Claude Desktop.
- * - Free RAM: the first slot is always free to take; another one only while the PC has `peakGb`
- *   free for each run that holds a slot, plus `minFreeGb` for everything else. Both can be set in
+ * - Free RAM: the first slot is always free to take; another one only while the PC has, for each
+ *   run that holds a slot, the part of its `peakGb` it has not used yet (estimated from the fall in
+ *   free RAM since it was admitted), plus `minFreeGb` for everything else (the new run's own growth is covered by that reserve, not counted
+ *   on its own: the user, 2026-10-30, would rather have it start than wait). They can be set in
  *   the file (defaults below, from a measured green run).
  * - Re-entrant through the environment: the holder sets HEAVY_LOCK_HELD for its children, so
  *   `green` holding the lock for a step that runs `npm run lint:ratchet` does not wait on itself.
@@ -70,7 +72,13 @@ const TICKET_TOUCH_MS = 30 * 1000;
 const TICKET_STALE_MS = 5 * 60 * 1000;
 const GB = 2 ** 30;
 // peakGb: one green alone peaked at 5.2 GB (the Playwright e2e step; lint-ratchet 3.3 GB), 2026-10-30.
-export const DEFAULTS = { slots: 3, minFreeGb: 2, peakGb: 5, maxWaitMin: 180 };
+// lightPeakGb: lint-only holders (lint-ratchet peaked at 3.3 GB, 2026-10-30, plus margin). pre-push also
+// typechecks and was not measured on its own, so it counts at peakGb.
+/** Holders that run lint or the ratchets only: they count at lightPeakGb. */
+const LIGHT_LABEL = /^(lint-ratchet|drift-check lint)/;
+/** A holder is never counted as having used all of its peak: the fall in free RAM also holds other programs growing. */
+const HOLDER_FLOOR_GB = 1;
+export const DEFAULTS = { slots: 3, minFreeGb: 2, peakGb: 5, lightPeakGb: 3.5, maxWaitMin: 180 };
 
 /** @param {Record<string, string | undefined>} [env] */
 export function lockDir(env = process.env) {
@@ -86,7 +94,7 @@ export function configPath(env = process.env) {
  * The settings for this poll: environment first, then the file, then the defaults. A bad value
  * falls through to the next source.
  * @param {Record<string, string | undefined>} [env]
- * @returns {{ slots: number, slotsFrom: 'env' | 'file' | 'default', minFreeGb: number, peakGb: number, maxWaitMin: number }}
+ * @returns {{ slots: number, slotsFrom: 'env' | 'file' | 'default', minFreeGb: number, peakGb: number, lightPeakGb: number, maxWaitMin: number }}
  */
 export function readConfig(env = process.env) {
   /** @type {Record<string, unknown>} */
@@ -115,6 +123,7 @@ export function readConfig(env = process.env) {
     slotsFrom: envSlots !== null ? 'env' : fileSlots !== null ? 'file' : 'default',
     minFreeGb: num(env.HEAVY_LOCK_MIN_FREE_GB, 0) ?? num(file.minFreeGb, 0) ?? DEFAULTS.minFreeGb,
     peakGb: num(file.peakGb, 0) ?? DEFAULTS.peakGb,
+    lightPeakGb: num(file.lightPeakGb, 0) ?? DEFAULTS.lightPeakGb,
     maxWaitMin: num(env.HEAVY_LOCK_MAX_WAIT_MIN, 0) ?? num(file.maxWaitMin, 0) ?? DEFAULTS.maxWaitMin,
   };
 }
@@ -141,7 +150,7 @@ export function pidAlive(pid) {
 
 /**
  * @typedef {{ pid: number, label: string, start: number, since?: number, step?: string,
- *   priority?: string }} Owner
+ *   priority?: string, freeGb?: number }} Owner
  */
 
 /** @param {string} slot @returns {Owner | null} */
@@ -241,6 +250,41 @@ function liveTickets(qdir, now, alive) {
   });
 }
 
+/**
+ * RAM still to come from the holders: their expected peaks minus what they use now. The free RAM we
+ * compare against already excludes what the holders use now, so reserving every peak in full would
+ * count that part twice (2026-10-30: "5.7 GB free, needs 7 GB" with one holder). What they use is
+ * estimated as the fall in free RAM since the oldest holder was admitted (it recorded freeGb),
+ * credited once: the same fall also holds what later holders use. An owner without freeGb, or a slot
+ * just created, counts at its full peak and gets no credit. The fall also holds other programs
+ * growing, so each credited holder keeps at least HOLDER_FLOOR_GB reserved.
+ * @param {{ state: Owner | 'unknown' }[]} held
+ * @param {{ peakGb: number, lightPeakGb: number }} cfg @param {number} freeGb
+ * @returns {number}
+ */
+export function pendingGb(held, cfg, freeGb) {
+  let credited = 0;
+  let creditedCount = 0;
+  let plain = 0;
+  let earliest = null;
+  for (const { state } of held) {
+    if (state === 'unknown') {
+      plain += cfg.peakGb;
+      continue;
+    }
+    const peak = LIGHT_LABEL.test(state.label) ? cfg.lightPeakGb : cfg.peakGb;
+    if (typeof state.freeGb !== 'number') {
+      plain += peak;
+      continue;
+    }
+    credited += peak;
+    creditedCount++;
+    if (!earliest || (state.since ?? state.start) < (earliest.since ?? earliest.start)) earliest = state;
+  }
+  const used = earliest ? Math.max(0, /** @type {number} */ (earliest.freeGb) - freeGb) : 0;
+  return plain + Math.max(Math.min(credited, creditedCount * HOLDER_FLOOR_GB), credited - used);
+}
+
 /** @param {number} bytes */
 const gb = bytes => (bytes / GB).toFixed(1);
 
@@ -300,10 +344,11 @@ export function acquire(label, o = {}) {
       }
       const place = tickets.indexOf(name);
       const free = freemem();
-      // Every holder keeps room for its expected peak: a green holds for its whole run and peaks late
-      // (the test suites), so RAM free while it type-checks says little. Counting a holder that is
-      // at its peak already errs on the safe side.
-      const roomGb = free / GB - held.length * cfg.peakGb;
+      // Every holder keeps room for what it still has to grow to its expected peak: a green holds
+      // for its whole run and peaks late (the test suites), so RAM free while it type-checks says
+      // little. What it uses already is not in the free RAM, so it is not reserved again.
+      const pending = pendingGb(held, cfg, free / GB);
+      const roomGb = free / GB - pending;
       const slotFree = held.length < cfg.slots;
       const ramOk = held.length === 0 || roomGb >= cfg.minFreeGb;
       if (place === 0 && slotFree && ramOk) {
@@ -318,7 +363,7 @@ export function acquire(label, o = {}) {
           }
           const start = now();
           /** @type {Owner} */
-          const owner = { pid: process.pid, label, start, since: start, priority };
+          const owner = { pid: process.pid, label, start, since: start, priority, freeGb: Number(gb(free)) };
           writeOwner(slot, owner);
           dropTicket();
           process.off('exit', dropTicket);
@@ -333,6 +378,7 @@ export function acquire(label, o = {}) {
             inUse: held.length + 1,
             slots: cfg.slots,
             slotsFrom: cfg.slotsFrom,
+            pendingGb: Number(pending.toFixed(1)),
           });
           let released = false;
           const release = () => {
@@ -383,7 +429,7 @@ export function acquire(label, o = {}) {
         const why = !slotFree
           ? `${held.length} of ${cfg.slots} slots in use (slots from ${cfg.slotsFrom})`
           : !ramOk
-            ? `${gb(free)} GB free, another run needs ${held.length * cfg.peakGb + cfg.minFreeGb} GB`
+            ? `${gb(free)} GB free, another run needs ${(pending + cfg.minFreeGb).toFixed(1).replace(/.0$/, '')} GB`
             : 'runs ahead in line';
         log(`heavy-lock: ${label} waits for ${who}; number ${place + 1} in line, ${why}`);
         lastRemind = t;
@@ -453,7 +499,7 @@ export function status(env = process.env, now = Date.now(), alive = pidAlive, fr
   const dir = lockDir(env);
   const cfg = readConfig(env);
   const lines = [
-    `settings: ${cfg.slots} slots (from ${cfg.slotsFrom === 'file' ? configPath(env) : cfg.slotsFrom}), another run needs ${cfg.peakGb} GB per running one plus ${cfg.minFreeGb} GB free, ${gb(freemem())} GB free now`,
+    `settings: ${cfg.slots} slots (from ${cfg.slotsFrom === 'file' ? configPath(env) : cfg.slotsFrom}), another run needs what each running one still has to grow to its peak (${cfg.peakGb} GB, ${cfg.lightPeakGb} for lint-only runs), plus ${cfg.minFreeGb} GB free, ${gb(freemem())} GB free now`,
   ];
   /** @type {Map<number, Owner>} */
   const owners = new Map();

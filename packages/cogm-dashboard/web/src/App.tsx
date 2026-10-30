@@ -416,7 +416,7 @@ function Dashboard(): JSX.Element {
                 className={versionTrackerOn ? 'on' : undefined}
                 data-track="dash.header.version-tracker"
                 disabled={!during.prefs}
-                title="Show a Versions panel with what is installed against the newest releases. Off by default."
+                title="Show a Versions panel with what is installed against the newest releases. On by default."
               >
                 {`Version tracker: ${versionTrackerOn ? 'on' : 'off'}`}
               </Button>

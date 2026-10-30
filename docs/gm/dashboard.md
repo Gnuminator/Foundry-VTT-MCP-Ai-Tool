@@ -112,7 +112,7 @@ again**) turns off exactly those, so a switch that was already on stays on. The 
 button show each switch (✓ on, ○ off). If Foundry did not take a change, a red toast names the
 switch; check it in Foundry's module settings, where every switch stays visible.
 
-A refusal toast ("... is switched off") offers the same click as a button, "Turn on <switch> and the
+A refusal toast ("... is switched off") offers the same click as a button, "Turn on (switch name) and the
 rest for tonight": it turns on all of the above, not only the named switch.
 
 Only the dashboard can do this, from the GM's login. Claude has no tool for it, so Claude can never

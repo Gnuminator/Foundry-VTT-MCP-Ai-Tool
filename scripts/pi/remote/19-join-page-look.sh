@@ -24,8 +24,8 @@
 #
 # Modes (environment, before bash):
 #   DRY_RUN=1  print the current values and the plan; changes nothing, needs no snapshot
-#   UNDO=1     put the "before" values back from the newest before.json (background removed when it was not set), remove the picture
-#              when it still has EXPECT_SHA256; same stop and start, same snapshot and quiet checks (UNDO_FILE=<path> picks another file)
+#   UNDO=1     put the "before" values back from the newest before.json (background removed when it was not set), put a kept earlier
+#              picture back, or else remove the picture unless the restored background still names it; same stop and start, same snapshot and quiet checks (UNDO_FILE=<path> picks another file)
 # Needed: IMAGE_SRC=/root/join-bg.webp  EXPECT_SHA256=<64 hex>  DESC_FILE=/root/join-desc.html   Optional: WORLD (curse-of-strahd),
 # DEST_NAME (join-background.webp). A real run restarts Foundry on the campaign world: the user's OK and a snapshot come first,
 # never on a game-night day. These lines are bash, not PowerShell:
@@ -64,7 +64,7 @@ sha_of() { sha256sum "$1" | cut -d' ' -f1; }
 field() { "$node" -e 'const o=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));process.stdout.write(JSON.stringify(o[process.argv[2]]??null))' "$world_json" "$1"; }
 
 if [ "$undo" = 1 ]; then
-  before="${UNDO_FILE:-$(ls -1 "$store/"[0-9]*-[0-9]*"-$world-before.json" 2>/dev/null | tail -n 1 || true)}"
+  before="${UNDO_FILE:-$(ls -1 "$store/" 2>/dev/null | grep -E "^[0-9]{8}-[0-9]{6}-$world-before\.json$" | tail -n 1 | sed "s#^#$store/#" || true)}"
   [ -n "$before" ] && [ -f "$before" ] || die "no before.json for $world in $store: nothing to undo from"
   say "undo from $before"
   echo "    now:    background $(field background)"
@@ -146,6 +146,7 @@ restore() {
   warn "the run did not finish: world.json is put back and the services start again"
   systemctl stop foundry.service || true
   foundry_copy_file "$copy" "$world_json" || warn "could not put $copy back over $world_json"
+  if [ -n "$prev" ] && [ -f "$prev" ]; then install -o "$FOUNDRY_USER" -g "$FOUNDRY_USER" -m 644 "$prev" "$dest" || true; fi
   [ "$was_foundry" = 1 ] && { systemctl start foundry.service || true; }
   [ "$was_gm" = 1 ] && { systemctl start "$gm_unit" || true; }
   return 0

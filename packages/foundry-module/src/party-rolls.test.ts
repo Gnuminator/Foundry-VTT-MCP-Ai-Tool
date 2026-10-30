@@ -109,30 +109,34 @@ describe('the round', () => {
     expect(noteRoll(null, { speaker: { actor: 'a' }, rolls: [{ total: 1 }] })).toBe(false);
   });
 
-  it('keeps waiting for the roll that was asked for, read from the dnd5e flags', () => {
-    const roll = (r: { type: string; ability?: string; skill?: string }): RollMessageLike => ({
+  it('keeps waiting for the roll that was asked for, read from the dnd5e message', () => {
+    const roll = (
+      type: string,
+      system: { ability?: string; skill?: string } = {}
+    ): RollMessageLike => ({
       timestamp: 2000,
       speaker: { actor: 'a' },
       rolls: [{ total: 12 }],
-      flags: { dnd5e: { roll: r } },
+      type,
+      system,
     });
     const save = newRound(pick({ what: 'save:dex' }), targets, 1000);
-    expect(noteRoll(save, roll({ type: 'skill', ability: 'dex', skill: 'prc' }))).toBe(false);
-    expect(noteRoll(save, roll({ type: 'save', ability: 'wis' }))).toBe(false);
-    expect(noteRoll(save, roll({ type: 'damage' }))).toBe(false);
+    expect(noteRoll(save, roll('check', { ability: 'wis', skill: 'prc' }))).toBe(false);
+    expect(noteRoll(save, roll('save', { ability: 'wis' }))).toBe(false);
+    expect(noteRoll(save, roll('check', { ability: 'dex' }))).toBe(false);
+    expect(noteRoll(save, roll('damage'))).toBe(false);
     expect(save.entries[0].status).toBe('waiting');
-    expect(noteRoll(save, roll({ type: 'save', ability: 'dex' }))).toBe(true);
+    expect(noteRoll(save, roll('save', { ability: 'dex' }))).toBe(true);
     const skill = newRound(pick({ what: 'skill:Perception' }), targets, 1000);
-    expect(noteRoll(skill, roll({ type: 'skill', ability: 'wis', skill: 'ste' }))).toBe(false);
-    expect(noteRoll(skill, roll({ type: 'skill', ability: 'wis', skill: 'prc' }))).toBe(true);
+    expect(noteRoll(skill, roll('check', { ability: 'wis', skill: 'ste' }))).toBe(false);
+    expect(noteRoll(skill, roll('check', { ability: 'wis', skill: 'prc' }))).toBe(true);
     const check = newRound(pick({ what: 'check:str' }), targets, 1000);
-    expect(noteRoll(check, roll({ type: 'save', ability: 'str' }))).toBe(false);
-    expect(noteRoll(check, roll({ type: 'ability', ability: 'str' }))).toBe(true);
-    // A plain formula has no dnd5e flags: the speaker alone decides.
+    expect(noteRoll(check, roll('save', { ability: 'str' }))).toBe(false);
+    expect(noteRoll(check, roll('check', { ability: 'str', skill: 'ath' }))).toBe(false);
+    expect(noteRoll(check, roll('check', { ability: 'str' }))).toBe(true);
+    // A plain formula is a `base` message: the speaker alone decides.
     const plain = newRound(pick({ what: 'save:dex' }), targets, 1000);
-    expect(
-      noteRoll(plain, { timestamp: 2000, speaker: { actor: 'a' }, rolls: [{ total: 5 }] })
-    ).toBe(true);
+    expect(noteRoll(plain, { ...roll('base'), rolls: [{ total: 5 }] })).toBe(true);
   });
 
   it('lists each character as waiting, passed, failed or not sent, and escapes names', () => {

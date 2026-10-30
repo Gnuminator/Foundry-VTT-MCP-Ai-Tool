@@ -163,14 +163,14 @@ export interface RoundEntry {
 export interface Round {
   label: string;
   dc: number | null;
-  /** The roll the ask is for, read from dnd5e's roll flags; a message for another roll never counts. */
+  /** The roll the ask is for, read from the dnd5e message type and data; a message for another roll never counts. */
   expect: RollExpect;
   /** ms since epoch when the requests went out; older chat rolls never count. */
   sentAt: number;
   entries: RoundEntry[];
 }
 
-/** dnd5e's skill ids (`flags.dnd5e.roll.skill` on a skill roll message). */
+/** dnd5e's skill ids (`system.skill` on a skill check message). */
 const SKILL_IDS: Record<string, string> = {
   Acrobatics: 'acr',
   'Animal Handling': 'ani',
@@ -194,7 +194,7 @@ const SKILL_IDS: Record<string, string> = {
 
 /** The kind of roll a round waits for: dnd5e's roll type and the ability or skill id. */
 export interface RollExpect {
-  type: 'ability' | 'save' | 'skill';
+  type: 'ability' | 'save' | 'skill' | 'tool';
   key: string;
 }
 
@@ -226,14 +226,26 @@ export interface RollMessageLike {
   timestamp?: number;
   speaker?: { actor?: string | null };
   rolls?: ReadonlyArray<{ total?: number }>;
-  /** dnd5e's flags on a roll message: `dnd5e.roll` is `{ type, ability, skill }`. */
-  flags?: { dnd5e?: { roll?: { type?: string; ability?: string; skill?: string } } };
+  /** dnd5e 6 message type: `save`, `check` (ability, skill or tool), `attack`, `damage`, `base` ... */
+  type?: string;
+  /** dnd5e 6 message data: `ability` on a save, `ability` and `skill` or `tool` on a check. */
+  system?: { ability?: string | null; skill?: string | null; tool?: string | null };
+}
+
+/** The roll a dnd5e message is, or null for a message type that is no ability roll. */
+function messageRoll(message: RollMessageLike): RollExpect | null {
+  const sys = message.system ?? {};
+  if (message.type === 'save') return { type: 'save', key: sys.ability ?? '' };
+  if (message.type !== 'check') return null;
+  if (sys.skill) return { type: 'skill', key: sys.skill };
+  if (sys.tool) return { type: 'tool', key: sys.tool };
+  return { type: 'ability', key: sys.ability ?? '' };
 }
 
 /**
  * Note a chat roll in the round: the first waiting entry of the speaking character, when the
  * message is newer than the ask, holds a roll and is the roll that was asked for (a save row
- * ignores an attack, a damage roll or another skill). A message without dnd5e's roll flags (a plain
+ * ignores an attack, a damage roll or another skill). A plain `base` message (a bare
  * formula) counts by speaker alone. Returns whether the round changed.
  */
 export function noteRoll(round: Round | null, message: RollMessageLike): boolean {
@@ -242,10 +254,9 @@ export function noteRoll(round: Round | null, message: RollMessageLike): boolean
   const total = message.rolls?.[0]?.total;
   if (!actorId || typeof total !== 'number' || !Number.isFinite(total)) return false;
   if ((message.timestamp ?? Date.now()) < round.sentAt) return false;
-  const flagged = message.flags?.dnd5e?.roll;
-  if (flagged?.type !== undefined) {
-    const key = round.expect.type === 'skill' ? flagged.skill : flagged.ability;
-    if (flagged.type !== round.expect.type || key !== round.expect.key) return false;
+  if (message.type !== undefined && message.type !== 'base') {
+    const got = messageRoll(message);
+    if (got?.type !== round.expect.type || got.key !== round.expect.key) return false;
   }
   const entry = round.entries.find(e => e.actorId === actorId && e.status === 'waiting');
   if (!entry) return false;

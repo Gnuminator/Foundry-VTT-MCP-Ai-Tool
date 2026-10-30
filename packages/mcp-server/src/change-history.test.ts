@@ -470,6 +470,128 @@ describe('buildActions', () => {
     ]);
   });
 
+  it("ties dnd5e's dependent deletes from another browser of the same user to the AI change by data", () => {
+    const ai = rec({
+      actionId: 'bridge',
+      changeId: 'chg-x',
+      changeMode: 'apply',
+      op: 'delete',
+      documentName: 'ActiveEffect',
+      uuid: 'Actor.a2.ActiveEffect.e1',
+      parentUuid: 'Actor.a2',
+      name: 'Concentrating: Hold Person',
+      rootUuid: 'Actor.a2',
+      rootName: 'Count Dorn',
+      data: { flags: { dnd5e: { dependents: [{ uuid: 'Actor.a1.ActiveEffect.e2' }] } } },
+    });
+    const dependent = rec({
+      actionId: 'other-browser',
+      t: ai.t + 800,
+      op: 'delete',
+      documentName: 'ActiveEffect',
+      uuid: 'Actor.a1.ActiveEffect.e2',
+      parentUuid: 'Actor.a1',
+      name: 'Hold Person',
+    });
+    const unnamed = rec({
+      actionId: 'other-browser',
+      t: ai.t + 900,
+      op: 'delete',
+      documentName: 'ActiveEffect',
+      uuid: 'Actor.a1.ActiveEffect.e3',
+      parentUuid: 'Actor.a1',
+      name: 'Bless',
+    });
+    const actions = buildActions([ai, dependent, unnamed]);
+    expect(actions.map(a => a.actionId)).toEqual(['bridge', 'other-browser']);
+    expect(actions[0]).toMatchObject({ changeId: 'chg-x', followUps: [dependent] });
+    expect(actions[1].records).toEqual([unnamed]);
+
+    // Pump order does not matter, and a delete long after the AI change is not tied to it.
+    expect(buildActions([dependent, ai])[0].followUps).toEqual([dependent]);
+    const late = { ...dependent, t: ai.t + 60_000 };
+    expect(buildActions([ai, late])[0].followUps).toEqual([]);
+    // Nor is a delete another user made, even when the data names it.
+    const otherUser = { ...dependent, userId: 'u2', userName: 'Someone' };
+    expect(buildActions([ai, otherUser])[0].followUps).toEqual([]);
+  });
+
+  it("does not swallow a person's own concentration end into an AI item delete across browsers, and files a re-deleted dependent under the latest change", () => {
+    const dependentsOf = (...uuids: string[]): Record<string, unknown> => ({
+      flags: { dnd5e: { dependents: uuids.map(uuid => ({ uuid })) } },
+    });
+    const aiItem = rec({
+      actionId: 'bridge',
+      changeId: 'chg-i',
+      changeMode: 'apply',
+      op: 'delete',
+      documentName: 'Item',
+      uuid: 'Actor.a2.Item.i1',
+      rootUuid: 'Actor.a2',
+      rootName: 'Count Dorn',
+      name: 'Longsword',
+      data: { name: 'Longsword' },
+    });
+    // The same user ends their own Bless on that actor from another browser, 5 s later.
+    const bless = rec({
+      actionId: 'other-browser',
+      t: aiItem.t + 5000,
+      op: 'delete',
+      documentName: 'ActiveEffect',
+      uuid: 'Actor.a2.ActiveEffect.bless',
+      parentUuid: 'Actor.a2',
+      rootUuid: 'Actor.a2',
+      rootName: 'Count Dorn',
+      name: 'Bless',
+      data: { statuses: ['concentrating'], ...dependentsOf('Actor.a1.ActiveEffect.b') },
+    });
+    const blessed = rec({
+      actionId: 'other-browser',
+      t: aiItem.t + 5100,
+      op: 'delete',
+      documentName: 'ActiveEffect',
+      uuid: 'Actor.a1.ActiveEffect.b',
+      parentUuid: 'Actor.a1',
+      name: 'Blessed',
+    });
+    const none = buildActions([aiItem, bless, blessed]);
+    expect(none[0].followUps).toEqual([]);
+
+    // The same dependent deleted again after a second AI change belongs to the latest one.
+    const named = dependentsOf('Actor.a1.ActiveEffect.e2');
+    const ai = (actionId: string, changeId: string, t: number): ChangeRecord =>
+      rec({
+        actionId,
+        changeId,
+        changeMode: 'apply',
+        t,
+        op: 'delete',
+        documentName: 'ActiveEffect',
+        uuid: 'Actor.a2.ActiveEffect.e1',
+        rootUuid: 'Actor.a2',
+        data: named,
+      });
+    const dep = (t: number): ChangeRecord =>
+      rec({
+        actionId: `other-${t}`,
+        t,
+        op: 'delete',
+        documentName: 'ActiveEffect',
+        uuid: 'Actor.a1.ActiveEffect.e2',
+        parentUuid: 'Actor.a1',
+        name: 'Hold Person',
+      });
+    const ai1 = ai('b1', 'chg-1', NOW);
+    const ai2 = ai('b2', 'chg-2', NOW + 20_000);
+    const dep1 = dep(NOW + 1000);
+    const dep2 = dep(NOW + 21_000);
+    const actions = buildActions([ai1, dep1, ai2, dep2]).filter(a => a.changeId);
+    expect(actions.map(a => [a.changeId, a.followUps])).toEqual([
+      ['chg-1', [dep1]],
+      ['chg-2', [dep2]],
+    ]);
+  });
+
   it('hands the planner only the follow-ups on other things, and reads the dependents link from sources only', () => {
     const dependentsOf = (...uuids: string[]): Record<string, unknown> => ({
       flags: { dnd5e: { dependents: uuids.map(uuid => ({ uuid })) } },

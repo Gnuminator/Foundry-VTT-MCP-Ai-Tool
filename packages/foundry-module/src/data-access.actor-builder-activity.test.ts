@@ -181,7 +181,9 @@ describe('FoundryDataAccess — useNpcActivity', () => {
   });
 
   describe('GM target fallback', () => {
-    const gmWith = (tokens: Array<{ id: string; name: string; ac: number }>) => ({
+    const gmWith = (
+      tokens: Array<{ id: string; name: string; ac: number }>
+    ): { id: string; isGM: boolean; active: boolean; targets: Set<unknown> } => ({
       id: 'gm2',
       isGM: true,
       active: true,
@@ -193,7 +195,10 @@ describe('FoundryDataAccess — useNpcActivity', () => {
         }))
       ),
     });
-    const withGms = async (gms: unknown[], params: Record<string, unknown>) => {
+    const withGms = async (
+      gms: unknown[],
+      params: Record<string, unknown>
+    ): Promise<Awaited<ReturnType<typeof da.useNpcActivity>>> => {
       const { item } = attackItem({
         attack: { total: 16, formula: '1d20+4' },
         damage: { total: 6 },

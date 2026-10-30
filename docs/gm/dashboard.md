@@ -200,8 +200,8 @@ every layout becomes one column with Recent Changes near the top; on a phone the
 folded until you tap it.
 
 **Pick your During layout** (a card on the **Before** screen) shows the three layouts on the real
-screen, one after another, with a small guide in the corner: **Use this one** keeps a layout,
-**Stop** keeps what you had. In Auto it shows a sample fight (made up, nothing is sent to
+screen, one after another, with a small guide in the corner (**Try the layouts** starts it):
+**Use this one** keeps a layout, **Stop** keeps what you had. In Auto it shows a sample fight (made up, nothing is sent to
 Foundry). Skip it and Cards stays. For the first sessions a quiet line next to **Layout** reminds
 you that the other layouts exist; **✕** hides it. The layout is kept for this world, on any
 browser.
@@ -230,15 +230,23 @@ conditions on several combatants at once: turn on **⚔ Combat buttons** under *
 default). With the combat buttons and GM Actions on (**Turn on for tonight** turns GM Actions on),
 click combatant rows to select them (click again to unselect). With one or more selected:
 
-- **Damage / Heal**: opens the tool runner (`plan-actor-change`) with those names filled in. Pick
-  damage, healing or temp-hp and enter the amount (and the damage type, so dnd5e counts
-  resistances, vulnerabilities and immunities).
-- **Condition**: the same, for a condition: pick it, and untick **active** to remove it.
-- **Clear**: unselects all.
+- **Damage / Heal**: opens a small form: Damage or Heal, one amount, and damage type chips (so
+  dnd5e counts resistances, vulnerabilities and immunities). One button, named for what it does
+  ("Deal 8 fire damage to ... in Foundry"), applies it at once to every picked token; each takes
+  the full amount. The toast has **Undo** and Recent Changes keeps the change. There is no
+  confirm window for this form.
+- **Condition**: opens the tool runner with the picked names filled in: pick the condition, and
+  untick **active** to remove it. Click **Run...**; the confirm window lists each target and what
+  will change; click **Confirm**.
+- **Clear**: unselects all (and closes the Damage / Heal form).
+- **Ask for a roll** (under the strip, with GM Actions on): pick a check, save or skill, a DC and
+  private or public, then **Ask the party**, or **Ask** for the picked player characters. The
+  request goes to each player's chat and the play log at once, with no confirm window and no
+  Undo (it only posts a roll card).
 
-Fill in the amount and click **Run...**. The confirm window lists each target and what will
-change; click **Confirm**. A message lists each target's result ("Wolf 2: HP 11 to 5") with
-**Undo** for a few seconds; one click puts it back. Later, use **Undo** in Recent Changes.
+After a Damage / Heal or Condition change, a message lists each target's result ("Wolf 2: HP 11 to
+5") with **Undo** for a few seconds; one click puts it back. Later, use **Undo** in Recent
+Changes.
 
 **Start combat** and **End combat**: with no fight running and GM Actions on, the Combat Tracker
 offers **Start combat** (in most During layouts, a small **Start combat** button on the During bar
@@ -507,8 +515,8 @@ The confirm window opens first for:
   at once, so Undo cannot take it back from their eyes).
 - **Plans you did not make on the dashboard**: a plan Claude made.
   Plan, confirm and undo stay for every AI change.
-- **Any plan made in the tool runner**, including the combat strip's Damage / Heal and Condition,
-  so you see which targets they hit before they apply.
+- **Any plan made in the tool runner**, including the combat strip's Condition, so you see which
+  targets it hits before it applies. (The strip's Damage / Heal form applies at once, with Undo.)
 - **Older tools without a plan** (from the tool runner), which have no Undo.
 
 In the confirm window:
@@ -577,14 +585,19 @@ Top row:
   answer yes, then import it here.
 - **New reading (built-in roll)**: deals a new reading with the tool's own roll. The previous
   reading is kept in an archive.
+- **Choose the cards…**: for a reading you drew by hand. Pick the five cards (the first three from
+  the common deck, the last two from the high deck, none twice) and press **Store this reading**.
+  Nothing is dealt, and you do not need the `tarokka-reading` module. The previous reading is
+  kept in an archive, and Undo brings it back. It shows card names, so it only opens while
+  **Show cards** is ticked, and unticking that hides it again.
 - **📓 Obsidian**: opens the current reading's note in Obsidian.
-- **Show cards**: card names stay blurred until you tick this. Untick it before anyone looks at
+- **Show cards**: card names show as "Hidden card" until you tick this. Untick it before anyone looks at
   your screen.
 
 Each of the five positions shows:
 
-- the position and its card (blurred unless **Show cards** is ticked), and your note when cards
-  are shown;
+- the position and its card ("Hidden card" unless **Show cards** is ticked), and your note when
+  cards are shown;
 - links: **Open Journal**, **Open Scene** or **Open Actor** open the linked document on your
   Foundry screen (nothing changes); "not linked" when there is none;
 - "hidden from players" or "revealed" (with **Open page** for the reveal page);
@@ -669,8 +682,12 @@ choose **Set as Primary Party**. With more than one group, a list at the top pic
   a square ("put the party at the inn door").
 - **Rest**: posts dnd5e's short or long rest card to chat. Each player clicks it to rest their
   own character, the same card Foundry's party sheet posts.
+- **Ask for a roll**: pick a check, save or skill, a DC and private or public, then **Ask the
+  whole party**, or **Ask roll** on one member. It posts the roll request to the player's chat and
+  the play log (with GM Actions on). It has no confirm window and no Undo, since it only posts a
+  roll card.
 
-Each button applies in one click, with an **Undo** message. The actions need GM Actions on and
+Each of the other buttons applies in one click, with an **Undo** message. The actions need GM Actions on and
 the module setting **AI Tool: Party (writes)** switched on. Every change lands in Recent Changes
 with Undo; a rest card can only be undone while nobody has rested from it (after that, delete the
 card in Foundry's chat). Claude uses the same actions with `get-party` and `plan-party-change`.
@@ -678,22 +695,36 @@ card in Foundry's chat). Claude uses the same actions with `get-party` and `plan
 ## The player page (/player)
 
 The page players look at: the dashboard address with `/player` at the end. Open it yourself before a session
-to check what they see. Its parts:
+to check what they see. It follows the evening. While a session is open (or a fight runs) the live
+cards come first: Combat order, Session feed, then Handouts. Between sessions it leads with Last
+recap, Handouts and Quests, and the live cards move down. Its parts:
 
+- **Who are you?** On a player's first visit, a list of names. The pick only decides which
+  handouts "just for you" show; the header then says "Playing as ..." with **not you?** to pick
+  again. **Skip** leaves it unpicked.
 - **You**: at the top, for a player who opened their own `/me` link on that device: "Your turn" or
   "You are up next", a small card for each of their characters (HP, conditions, concentration) and
-  a concentration reminder when they take damage. Their open roll requests show here as buttons.
+  a concentration reminder when they take damage. Their open roll requests show here as **Roll**
+  buttons.
+- **Open your character sheet**: a link to `/me`. At the top between sessions, at the bottom during
+  a session.
 - **Combat order**: initiative and names as players know them. PCs have an HP bar; enemies and NPCs
   have no HP numbers, only a rough band (healthy, bloodied, critical, down). Only standard conditions show. Hidden creatures are left out, and a creature
   whose name players cannot see is "Unknown creature".
 - **Session feed**: public rolls and what players could see happen, with creatures named the way
   players know them. Private, blind and GM rolls never show. Damage and healing amounts show for
   PCs only (others just "was hit").
+- **Last recap**: the newest revealed page whose title says "recap" (or "opsummering", "resume").
 - **Handouts**: pages you revealed, with secret sections, inline rolls and links to unrevealed
-  pages removed. A page revealed during the current session carries a **New** mark.
+  pages removed. A page revealed since the session started (or, between sessions, since the last
+  one ended) carries a **New** mark. A page for chosen players says "just for you".
+- **Quests**: revealed pages whose title says "quest" (or "opgave").
 
 The header shows the world, the scene's **Navigation Name** (else "Current scene", never the real
-name) with its time of day and weather, for example "Village Square (Dusk, Rain)", and a status: `live`, `foundry offline`, `disconnected` or `connecting…`.
+name) with its time of day (only on scenes with global illumination) and weather, for example
+"Village Square (Dusk, Rain)", and a status: `live`, `foundry offline`, `disconnected` or
+`connecting…`. With The Veil theme the footer also has a **Mist** choice, which only changes that
+device.
 
 Players open it from their own devices, behind the same email-code login as Foundry.
 
@@ -787,7 +818,13 @@ On a note from the Foundry mirror:
   opens the dashboard, which shows the usual confirm window. Nothing changes until you confirm
   there, and the change gets **Undo** in Recent Changes like any other.
 - **Add to the handout reveal queue**: puts the page in the handout drawer's queue, so you can
-  reveal it with **Reveal next** during the session. Players see nothing yet.
+  reveal it with **Reveal next** during the session. Players see nothing yet. **Remove from the
+  handout reveal queue** takes it out again.
+
+On your own prep notes (see [Your Obsidian vault](obsidian.md)) the command palette also has **New
+prep note for this**, **Import this quest prep note into Foundry (confirm in the dashboard)**
+(needs the module switch "AI Tool: Obsidian import (writes)"; the dashboard shows the usual confirm
+window and Undo removes the journal) and **Toggle: Claude may read this prep note**.
 
 The plugin also gives the whole vault the dashboard's look, your own notes included. Its
 **Theme** setting has **Neutral**, **The Veil** and **Off**. There is one theme per world: pick

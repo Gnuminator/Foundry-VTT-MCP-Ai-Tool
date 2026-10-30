@@ -21,7 +21,14 @@
 import type { ChangeWriteMode } from '../change-journal-types.js';
 import { MODULE_ID } from '../constants.js';
 import { eventTracker } from '../session-events.js';
-import { isFeatureEnabled, isKnownFeature, isReadOnlyFeature } from '../guarded-features.js';
+import {
+  WRITES_OFF_MESSAGE,
+  featureName,
+  featureOffMessage,
+  isFeatureEnabled,
+  isKnownFeature,
+  isReadOnlyFeature,
+} from '../guarded-features.js';
 import { assertUserCreateAllowed, assertUserUpdateAllowed } from '../table-viewer-user.js';
 import { unsetKeyUpdate } from '../systems/core.js';
 import {
@@ -427,7 +434,7 @@ function requireWriteAccess(req: GuardedApplyRequest): void {
   } catch {
     writesAllowed = false;
   }
-  if (!writesAllowed) throw new Error('Write operations are disabled in the module settings');
+  if (!writesAllowed) throw new Error(WRITES_OFF_MESSAGE);
   // Foundry refuses sound changes until the browser has unlocked audio (a click); a reload locks
   // it again, so an apply or undo of music would fail half way.
   const audio = (game as unknown as { audio?: { locked?: boolean } }).audio;
@@ -449,7 +456,7 @@ function requireWriteAccess(req: GuardedApplyRequest): void {
       throw new Error(`The "${req.feature}" feature is read-only and takes no plans`);
     }
     if (!isFeatureEnabled(req.feature)) {
-      throw new Error(`The "${req.feature}" feature is switched off in the module settings`);
+      throw new Error(featureOffMessage(featureName(req.feature)));
     }
   }
 }

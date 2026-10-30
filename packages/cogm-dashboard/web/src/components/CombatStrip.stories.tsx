@@ -157,6 +157,36 @@ export const CombatButtonsPicked: Story = {
   play: pick('Ogre Brute', 'Goblin Archer'),
 };
 
+/** Two picked, Damage / Heal pressed: the small form with an amount typed and a type chosen. */
+export const DamageFormOpen: Story = {
+  name: 'Damage / Heal form, two picked',
+  parameters: seed({ fight: FIGHT, combatButtons: true }),
+  render: render(),
+  play: async ctx => {
+    await pick('Ogre Brute', 'Goblin Archer')(ctx);
+    const canvas = within(ctx.canvasElement);
+    await userEvent.click(await canvas.findByRole('button', { name: /Damage \/ Heal/ }));
+    await userEvent.type(await canvas.findByRole('textbox', { name: 'Amount' }), '7');
+    await userEvent.click(await canvas.findByRole('button', { name: 'fire' }));
+  },
+};
+
+/** The same form in heal mode, in the Veil theme. */
+export const HealFormVeil: Story = {
+  name: 'Heal form (Veil)',
+  tags: ['veil'],
+  globals: VEIL,
+  parameters: seed({ fight: FIGHT, combatButtons: true }),
+  render: render(),
+  play: async ctx => {
+    await pick('Ogre Brute')(ctx);
+    const canvas = within(ctx.canvasElement);
+    await userEvent.click(await canvas.findByRole('button', { name: /Damage \/ Heal/ }));
+    await userEvent.click(await canvas.findByRole('button', { name: 'Heal' }));
+    await userEvent.type(await canvas.findByRole('textbox', { name: 'Amount' }), '12');
+  },
+};
+
 export const GmActionsOff: Story = {
   name: 'Combat buttons on, GM Actions off',
   parameters: seed({ fight: FIGHT, combatButtons: true, gmActions: false }),

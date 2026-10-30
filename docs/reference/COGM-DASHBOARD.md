@@ -58,8 +58,9 @@ this page; they are on the old dashboard.
 ### My character, one page per player
 
 **Player links** (in Advanced) gives each player a private link to `/me`: their own character
-sheets, read-only and refreshed during play, in three views: **At the table** (the dashboard
-theme), **Paper 2024** and **Paper 2014** (the printed sheet's order, ready to print). A page shows
+sheets, read-only and refreshed during play, in four views: **At the table** (the dashboard
+theme), **Paper 2024** and **Paper 2014** (the printed sheet's order, ready to print) and **Paper
+night** (a sheet with write-in boxes for a table that plays on paper). A page shows
 only the actors that player's Foundry user owns. The key travels in a request header, never in a
 logged address; a new link turns the old one off. The sheet comes from the module's read-only
 `characterSheet` query through the bridge's control method `character_sheet` (never an MCP tool),
@@ -95,9 +96,12 @@ Not on the page at `/` yet. It is on the old dashboard at `/legacy/`, and needs 
 ![The turn-order strip with two combatants picked and the Damage / Heal, Condition, Clear and End combat buttons](../images/cogm/combat-control.png)
 
 - **Click combatants in the During view's turn-order strip to multi-select** them.
-- **Damage / Heal** or **Condition** opens the Tool Runner with the plan filled in for the picked
-  creatures. You confirm it, dnd5e works out resistances, vulnerabilities and immunities, and
-  Recent Changes has the Undo.
+- **Damage / Heal** opens a small form (amount, damage type chips, Damage or Heal) that applies at
+  once to the picked creatures; dnd5e works out resistances, vulnerabilities and immunities, the
+  toast has Undo and Recent Changes keeps the change. **Condition** opens the Tool Runner with the
+  plan filled in; you confirm it.
+- **Ask for a roll** (Party card and the strip): pick a check, save or skill, a DC and public or
+  private, then ask one player or the whole party in one click; it shows in the play log.
 - The strip can start a fight (a token picker) and end one. Turn order, initiative and saving
   throws stay in Foundry's own combat tracker.
 

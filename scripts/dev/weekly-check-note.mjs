@@ -45,6 +45,9 @@ export function sectionFor(report) {
     lines.push(`- ${key}-ok: ${ok === null || ok === undefined ? 'unknown' : ok ? 'yes' : 'no'}`);
   }
   if (Number.isInteger(report.advisorCalls)) lines.push(`- advisor-calls: ${report.advisorCalls}`);
+  if (Number.isFinite(report.advisorPerPr)) {
+    lines.push(`- advisor-per-pr: ${round(report.advisorPerPr, 1)}`);
+  }
   return lines.join('\n');
 }
 

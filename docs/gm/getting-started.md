@@ -33,7 +33,7 @@ Players get their own page that never shows spoilers.
 | **The bridge**      | A small program on the home server (the Orange Pi).                                | It connects Foundry, Claude Desktop, the dashboard and Obsidian.      |
 | **Claude Desktop**  | Anthropic's Claude app on your computer. A small client reaches the bridge for it. | Asking Claude about the game, prep, rules and planned changes.        |
 | **The dashboard**   | A web page on your second screen.                                                  | Your control panel: live feed, combat, approving and undoing changes. |
-| **The player page** | A read-only page of the dashboard at `/player`.                                    | What players may see: combat order, a safe feed, handouts.            |
+| **The player page** | A read-only page of the dashboard at `/player`.                                    | What players may see: combat order, a safe feed, handouts, recaps.    |
 | **Obsidian**        | A note-taking app. The tool writes notes into an Obsidian vault.                   | Reading and prep: session notes, change history, stats, world notes.  |
 | **The Orange Pi**   | A small home server that is always on.                                             | Runs Foundry, the bridge and the dashboard all the time.              |
 
@@ -49,7 +49,9 @@ Players get their own page that never shows spoilers.
   applies it.
   You can also apply its plan yourself in the dashboard.
 - **Obsidian is for reading and prep.** The tool writes notes there after things happen. Nothing
-  you write in Obsidian flows back into Foundry.
+  you write in Obsidian flows back into Foundry by itself. The one exception is a quest note in
+  your `Prep` folder: you can import it as a GM-only quest journal, after you confirm a plan (see
+  [Features](features.md#obsidian-import)).
 - **The bridge connects them.** The module inside Foundry talks to the bridge. Claude Desktop and
   the dashboard talk to the bridge too.
 

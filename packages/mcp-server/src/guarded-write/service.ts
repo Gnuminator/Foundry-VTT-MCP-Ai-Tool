@@ -63,6 +63,9 @@ import {
   writeDataPath,
 } from './values.js';
 
+/** Where the switches are in Foundry; the module says the same (guarded-features.ts). */
+const SETTINGS_PATH = 'In Foundry, open Game Settings, Configure Settings, AI Tool and turn on';
+
 export const PLAN_TTL_MS = 15 * 60 * 1000;
 export const MAX_PLANS = 100;
 export const MAX_OPS = 200;
@@ -1311,13 +1314,16 @@ export class GuardedWriteService {
     const list = Array.isArray(features) ? features : [];
     // Every feature carries the same writesAllowed; a module before 0.19.0 sends none (allowed).
     if (list.some(f => f.writesAllowed === false)) {
-      throw new Error('Write operations are disabled in the module settings');
+      throw new Error(
+        `Write operations are disabled in the module settings. ${SETTINGS_PATH} "Allow Write Operations".`
+      );
     }
     if (undo) return;
     const state = list.find(f => f.id === feature);
     if (!state) throw new Error(`Unknown feature "${feature}" (not installed in the module)`);
     if (state.enabled !== true) {
-      throw new Error(`The "${feature}" feature is switched off in the module settings`);
+      const name = state.name || feature;
+      throw new Error(`"${name}" is switched off. ${SETTINGS_PATH} "${name}".`);
     }
   }
 

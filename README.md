@@ -47,7 +47,9 @@ currently shaped around a Curse of Strahd campaign.
   write.
 - **Spoiler-safe player page.** `/player` is built by projection from what players can see in
   Foundry: hidden creatures never appear, unknown names read "Unknown creature", enemies show no HP
-  numbers, and private, blind and GM rolls stay out.
+  numbers (only a coarse health band), and private, blind and GM rolls stay out. During a session it
+  leads with the combat order and the feed; between sessions with the last recap, the handouts and
+  the quests the party knows.
 - **Handouts.** Reveal a journal page to the players. It appears on the player page with GM secrets,
   inline rolls and links to unrevealed pages removed, and becomes readable in Foundry.
 - **Play log and stats.** The GM's client records rolls (with a full breakdown), HP (credited to the
@@ -55,7 +57,8 @@ currently shaped around a Curse of Strahd campaign.
   and per PC.
 - **Obsidian notes.** One note per play session, the change history, the Tarokka reading, stats,
   and an optional mirror of the Foundry world (PCs, NPCs, scenes, journals, items) with links back
-  into Foundry. Notes you edit are never overwritten.
+  into Foundry. Notes you edit are never overwritten. A quest note in your `Prep` folder can be
+  imported back as a GM-only quest journal, after you confirm the plan.
 - **The dashboard.** Live combat tracker and event feed, combat controls, a tool runner for every
   tool, Recent Changes with Undo, a Tarokka drawer and play session markers.
 
@@ -95,6 +98,9 @@ Before a session the page opens on Pre-flight and Prep; the same page runs the s
 - **Recent Changes:** every guarded change, with Undo.
 - **Play sessions:** Start and End session in the header; Obsidian notes follow these markers.
 - **Tarokka drawer:** the reading (cards hidden until you choose to show them), links, reveals.
+- **Inside Foundry and at the table:** an optional [GM windows](docs/gm/gm-windows.md) switch adds
+  Combat, Party, Session, Scene and Loot windows next to the map, and
+  [the TV at the table](docs/gm/tv-table-viewer.md) shows the map to an in-person group.
 - **AI commentary (optional, old dashboard page only):** streaming call-outs and an Ask box, on
   `/legacy/`, not yet on the page at `/`. This uses the paid Anthropic API and only runs when an
   `ANTHROPIC_API_KEY` is set; everything else works without it.
@@ -102,8 +108,9 @@ Before a session the page opens on Pre-flight and Prep; the same page runs the s
 ![The turn-order strip with two combatants picked and the Damage / Heal, Condition, Clear and End combat buttons](docs/images/cogm/combat-control.png)
 
 **Damage and conditions from the dashboard:** with **GM Actions** and **⚔ Combat buttons** on
-(both off by default), select combatants in the turn-order strip and **Damage / Heal** or **Condition**
-opens the Tool Runner with the plan ready for them; you confirm it. The strip can also start and
+(both off by default), select combatants in the turn-order strip and **Damage / Heal**
+opens a small form that applies at once (with Undo) and **Condition** opens the Tool Runner with
+the plan ready for them; you confirm it. The strip can also start and
 end a fight. Turns, initiative and saving throws stay in Foundry.
 
 ![The Tool Runner drawer open on plan-actor-change, with its form fields and Pick… buttons](docs/images/cogm/tool-runner.png)

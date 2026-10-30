@@ -21,7 +21,8 @@ The player page is live behind the email-code login. The GM sends you its addres
 ## Follow the fight
 
 - **Look at:** **Combat order** on the player page: who acts when, whose turn it is, and the round.
-- **Good to know:** your party has HP bars. Monsters show no numbers, and a creature whose name you
+- **Good to know:** your party has HP bars. Monsters show no numbers, only a rough health word
+  (healthy, bloodied, critical or down) unless the person who runs the tool switched that off, and a creature whose name you
   have not learned is "Unknown creature". Hidden creatures are not listed at all.
 
 ## Read a handout
@@ -36,8 +37,9 @@ The player page is live behind the email-code login. The GM sends you its addres
 
 ## Know when the session is recorded
 
-- **Good to know:** when the GM types `/record start` in the Discord text channel, the voice chat
-  is recorded until `/record stop`. The GM tells the table at the start.
+- **Good to know:** when the person who runs the tool types `/record start` in Discord, the voice
+  chat is recorded until `/record stop`, and the bot posts a notice when it starts. If you said no,
+  your track is deleted after each session and the notes are written without you.
 - **Tip:** want something off the record? Ask the GM; see
   [having your data removed](README.md#having-your-data-removed).
 

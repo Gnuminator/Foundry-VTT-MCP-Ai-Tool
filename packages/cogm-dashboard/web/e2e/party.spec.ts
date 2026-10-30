@@ -361,6 +361,44 @@ test('a pace click plans, applies in one click, reloads, and Undo reverts it', a
     ]);
 });
 
+test('Ask for a roll: one member, then the whole party, through request-player-rolls', async ({
+  page,
+}) => {
+  await fakeStream(page, gmActions(true));
+  const calls = await fakeTools(page, call =>
+    call.name === 'request-player-rolls' ? ok({ success: true, message: 'sent' }) : bridge(call)
+  );
+  const drawer = await openParty(page);
+  const asked = (): unknown[] => calls.filter(c => c.name === 'request-player-rolls');
+
+  await drawer.locator('#party-roll-what').selectOption('save:wis');
+  await drawer.locator('#party-roll-dc').fill('13');
+  await drawer.getByRole('button', { name: 'Ask roll: Ivarro, Wisdom save' }).click();
+  await expect(toast(page, '✓ Asked Ivarro for Wisdom save DC 13')).toBeVisible();
+  await drawer.locator('#party-roll-advantage').selectOption('advantage');
+  await drawer.locator('#party-roll-all').click();
+  await expect(toast(page, '✓ Asked 2 characters for Wisdom save DC 13')).toBeVisible();
+
+  const base = { rollType: 'save', rollTarget: 'wis', isPublic: false, dc: 13, flavor: 'DC 13' };
+  expect(asked()).toEqual([
+    {
+      name: 'request-player-rolls',
+      args: { ...base, targetPlayer: 'Ivarro', userConfirmedVisibility: true },
+      confirm: true,
+    },
+    ...['Ilvara', 'Ivarro'].map(targetPlayer => ({
+      name: 'request-player-rolls',
+      args: {
+        ...base,
+        targetPlayer,
+        userConfirmedVisibility: true,
+        advantage: 'advantage',
+      },
+      confirm: true,
+    })),
+  ]);
+});
+
 test('each action sends its own plan, and a double click sends once', async ({ page }) => {
   await fakeStream(page, gmActions(true));
   const calls = await fakeTools(page, bridge);
@@ -563,18 +601,19 @@ test('a failed plan, a refused apply and a plan that needs a confirm all say so'
 }) => {
   await fakeStream(page, gmActions(true));
   await fakePreflight(page);
+  const partyOff =
+    '"AI Tool: Party (writes)" is switched off. In Foundry, open Game Settings, Configure Settings, AI Tool and turn on "AI Tool: Party (writes)".';
   let answer: Answer = call =>
     call.name === 'plan-party-change'
-      ? { status: 422, json: { ok: false, error: 'The "party" feature is switched off' } }
+      ? { status: 422, json: { ok: false, error: partyOff } }
       : bridge(call);
   const calls = await fakeTools(page, call => answer(call));
   const drawer = await openParty(page);
   const fast = drawer.locator('#party-pace').getByRole('button', { name: 'Fast' });
 
   await fast.click();
-  await expect(
-    toast(page, '✗ plan-party-change: The "party" feature is switched off')
-  ).toBeVisible();
+  // A switch to turn on is said as a hint (no red cross, no tool name).
+  await expect(toast(page, partyOff)).toBeVisible();
   expect(names(calls)).toEqual(['get-party', 'plan-party-change']);
 
   // The server refuses with 403 when GM Actions went off after the page last heard.

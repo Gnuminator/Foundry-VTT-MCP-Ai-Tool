@@ -24,9 +24,8 @@ const OTHER_NAMES: Readonly<Record<string, string>> = {
   'tarokka-reading': 'the Foundry module the Tarokka import reads',
   'gm-change': 'a dashboard feed line type',
   'host-not-allowed': 'a dashboard error code',
-  'obsidian-mirror': 'a guarded-write feature id',
-  'live-play': 'a guarded-write feature id',
   'foundry-gm-token': 'an example Obsidian secret ID (docs/gm/obsidian.md)',
+  'quest-prep': 'an Obsidian note type value (docs/gm/obsidian.md)',
   'cf-access-client-id': 'an example Obsidian secret ID (docs/gm/obsidian.md)',
   'cf-access-client-secret': 'an example Obsidian secret ID (docs/gm/obsidian.md)',
 };

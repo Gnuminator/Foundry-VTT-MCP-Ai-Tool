@@ -118,6 +118,15 @@ set says so.
 - **What happens:** a plan (`plan-tarokka-import`); applied after your yes, then in **🃏 Tarokka** (under **Advanced ▾**).
 - **Tip:** keep **Show cards** unticked on the dashboard while players can see your screen.
 
+### Use a Tarokka reading you chose yourself
+
+- **Say:** "Store this Tarokka reading: the tome is the Seven of Swords, the holy symbol the Master of Glyphs, the sunsword the One of Coins, the ally the Raven and Strahd's location the Donjon."
+  Or open **🃏 Tarokka**, press **Choose the cards…**, pick the five cards and press **Store this reading**.
+- **What happens:** nothing is dealt and you do not need the tarokka-reading module. Each card must come from the right deck
+  (common for the first three, high for the last two) and none can repeat. The previous reading is archived, and Undo brings it back.
+- **Then reveal one card at a time:** in **🃏 Tarokka**, press **Reveal…** on one position and write what the players may read.
+  Nothing reaches the players until you do that, and the other four stay hidden.
+
 ## During the session
 
 ### Answer a rules question
@@ -134,10 +143,25 @@ set says so.
   `list-characters`).
 - **Tip:** the dashboard's combat tracker shows HP bars without asking.
 
+### Start and end a fight
+
+- **In Foundry:** pick the tokens that fight (select them on the map, or drag a box around them),
+  right-click one and click the crossed swords (**Enter Combat**) in its token menu. That adds
+  every selected token to a new combat. Open the **Combat Encounters** tab and click **Roll All**
+  (or **Roll NPCs**) for the initiative, then **Start Combat**. When the fight is over, click **End
+  Combat** at the bottom of the tab and confirm.
+- **In the dashboard:** with **GM Actions** on (**Turn on for tonight** does it), click **Start
+  combat** in the Combat Tracker. It lists the tokens on the scene, ticks the player characters and
+  the hostile ones, and starts the fight at round 1 with an Undo. **End combat** needs the **⚔
+  Combat buttons** switch under **Advanced**. See [Combat Tracker](dashboard.md#combat-tracker).
+- **Tip:** the Damage / Heal and Condition buttons on a combatant, and Start and End combat, all
+  need **GM Actions** on (End combat and the per-combatant buttons also need **⚔ Combat buttons**). If the buttons are missing or do nothing, look at the header: it must say
+  "GM Actions: on".
+
 ### Run a boss fight
 
-- **Click:** **👑 Boss prompts** in the combat tracker's top line (it shows when a creature with
-  legendary actions or a lair is in the fight).
+- **Click:** **👑 Boss prompts** in the combat tracker's top line to turn it on (it shows when a
+  creature with legendary actions or a lair is in the fight, and starts off).
 - **What happens:** pips for legendary actions and resistances, a reminder when the lair acts, and
   an **R** mark per creature for its reaction this round.
 - **Tip:** tick "in lair" on the creature's sheet in Foundry, so the lair reminder and the extra
@@ -197,7 +221,7 @@ These need the **play** set switched on.
 
 ### Record the session in Discord
 
-- **Type** in the Discord text channel: `/record start` when play begins, `/record stop` when it
+- **Type** (or ask the person who runs the tool to type) in the Discord text channel: `/record start` when play begins, `/record stop` when it
   ends.
 - **What happens:** the recording bot records each speaker. For now the builder starts the bot
   before the session.
@@ -238,7 +262,8 @@ These need the **play** set switched on.
   happens as soon as Foundry is open with writes on, so notes made overnight land when you next
   press "Turn on for tonight". The Live Feed and Recent Changes show it, with an Undo.
 - **Tip:** read the Recap page before anyone else does. It waits in the reveal queue; press
-  **Reveal next** when it is fine, and the players get it in "Handouts". Revealing it, or
+  **Reveal next** when it is fine, and the players see it as "Last recap" on the player page.
+  Revealing it, or
   **Approve without revealing** on the dashboard, marks the session approved. The recorded audio
   stays on the PC (D-097); it is only deleted if a player asks for theirs to be.
 

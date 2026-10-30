@@ -338,6 +338,7 @@ Parameters:
 - `userConfirmedVisibility` (boolean, required): REQUIRED: Must be set to true to confirm the roll visibility has been determined. This can happen in two ways: 1) User explicitly specified "public" or "private" in their original request (e.g., "public stealth check"), or 2) You asked the clarifying question and received their answer. Only set this to true when you are confident about the visibility preference, either from their original request or from a direct answer to your question. Always `true`.
 - `rollModifier` (string): Optional modifier to add to the roll (e.g., "+2", "-1", "+1d4"). Default: `""`.
 - `flavor` (string): Optional flavor text to describe the roll context. Default: `""`.
+- `dc` (integer)
 - `advantage` (string): One of: `advantage`, `disadvantage`.
 
 ### request-ability-check
@@ -520,7 +521,7 @@ Parameters:
 
 ### wait-for-game-event
 
-Wait for the next game event instead of polling get-recent-events. Returns when a matching event is logged (a few seconds after it happens), or empty on timeout: call again with sinceTimestamp = the returned latestTimestamp so nothing is missed.
+Wait for the next game event instead of polling get-recent-events. Returns when a matching event is logged (a few seconds after it happens), or empty on timeout: call again with sinceTimestamp = the returned latestTimestamp so nothing is missed. gap:true = older events were dropped; read get-recent-events.
 
 Kind: read-only. Title: Wait for a game event.
 
@@ -957,14 +958,19 @@ No parameters.
 
 ### plan-tarokka-import
 
-Plan storing a Tarokka reading in the bridge vault (GM-only, outside Foundry). source "auto" (default) takes the reading dealt in the tarokka-reading module when available, otherwise rolls one; "builtin-roll" always deals a fresh reading (3 common + 2 high cards, crypto random); "tarokka-reading" requires that module. A new reading archives the previous one; clear: true archives it and leaves none (undoable). Returns a planId: show the diff to the GM, then apply-planned-change.
+Plan storing a Tarokka reading in the bridge vault (GM-only, outside Foundry). Cards the GM picked (all five of tome, holySymbol, sunsword, ally, strahdLocation; no repeats) are stored as given, no deal. Else source "auto" (default) takes the reading dealt in the tarokka-reading module when available, otherwise rolls one; "builtin-roll" always deals a fresh reading (3 common + 2 high cards, crypto random); "tarokka-reading" requires that module. A new reading archives the previous one; clear: true archives it and leaves none (undoable). Returns a planId: show the diff to the GM, then apply-planned-change.
 
 Kind: read-only. Title: Plan Tarokka reading import.
 
 Parameters:
 
 - `source` (string): One of: `auto`, `builtin-roll`, `tarokka-reading`. Default: `auto`.
-- `clear` (boolean): Archive the current reading, deal none. Leave out source and userId with clear.
+- `clear` (boolean): Archive the current reading, deal none. Leave out source, userId and cards with clear.
+- `tome` (string)
+- `holySymbol` (string)
+- `sunsword` (string)
+- `ally` (string)
+- `strahdLocation` (string)
 - `userId` (string): The GM user who dealt in tarokka-reading, when that is another client than the bridge (Foundry 14.352+).
 
 ### suggest-tarokka-links

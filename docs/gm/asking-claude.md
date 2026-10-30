@@ -126,8 +126,10 @@ reveals and hides count as destructive and need your explicit yes for that too.
 In a long fight the confirm step gets tiring. The setting **AI Tool: Live play, apply without
 confirming** (Game Settings, category **Foundry AI Tool**; off by default) skips it for damage,
 healing, conditions and resources that Claude plans. Each change still lands in Recent Changes with
-**Undo**. The dashboard's own buttons never need it: they apply at once with an **Undo** message
-(see [the dashboard guide](dashboard.md#the-confirm-window)).
+**Undo**. The dashboard's party and Tarokka buttons never need it: they apply at once with an
+**Undo** message. Its Damage / Heal form applies at once the same way; its Condition button goes
+through the tool runner and always shows the confirm window (see
+[the dashboard guide](dashboard.md#the-confirm-window)).
 
 ### Feature switches
 
@@ -144,10 +146,11 @@ as Claude's.
 | AI Tool: Handouts (writes)                   | Off     | Reveal or hide journal pages for the players.                                                                                                                            |
 | AI Tool: Tarokka (writes)                    | Off     | Save the Tarokka reading, link cards to journals, publish reveal pages.                                                                                                  |
 | AI Tool: Obsidian mirror (writes)            | Off     | Change which Foundry documents are mirrored into your Obsidian vault.                                                                                                    |
+| AI Tool: Obsidian import (writes)            | Off     | Create a GM-only quest journal from a quest note in your Obsidian `Prep` folder. Started in Obsidian, confirmed in the dashboard; Claude has no tool for it.             |
 | AI Tool: Session notes (writes)              | Off     | Put the notes of a recorded session into a GM-only journal by itself, without asking (see below).                                                                        |
 
-Other switches in the same category: the table viewer and "Undo for everything" start on; scene
-mood and music, room setup, scene restore, the NPC turn assistant, paper sync and GM windows start
+Other switches in the same category: the table viewer, "Undo for everything" and the GM windows start on; scene
+mood and music, room setup, scene restore, the NPC turn assistant and paper sync start
 off, and so do "AI Tool: Who would notice" (a passive-score row in the party drawer, read only) and
 "AI Tool: Rules check". [Features and when to turn them on](features.md) says what each one does.
 

@@ -100,7 +100,13 @@ import {
   type RenderedNote,
   type ScannedNote,
 } from './mirror-common.js';
-import { ADVENTURES_FOLDER, collectAdventureHubs, matchBookNote } from './adventure-hubs.js';
+import {
+  ADVENTURES_FOLDER,
+  collectAdventureHubs,
+  collectLooseNotes,
+  LOOSE_NOTES_PATH,
+  matchBookNote,
+} from './adventure-hubs.js';
 import { AttachmentStore, type Fetcher } from './attachments.js';
 import { LibrarySync, type LibrarySyncDeps } from './library-sync.js';
 import {
@@ -122,8 +128,10 @@ import {
 import {
   folderText,
   isAdventureHubText,
+  isLooseNotesText,
   mirrorNoteType,
   renderAdventureHub,
+  renderLooseNotes,
   renderMirrorBases,
   renderMirrorNote,
   renderMirrorStatusNote,
@@ -1934,25 +1942,23 @@ export class ObsidianMirrorPump {
     const library = state.licensed?.library;
     const books = library?.ready ? library.bookNotes() : new Map<string, string>();
     const wanted = new Set<string>();
-    for (const hub of collectAdventureHubs(
-      [...state.notes.values()].map(note => ({
-        ...note,
-        name: state.names.get(note.uuid) ?? note.name,
-      }))
-    )) {
+    const sources = [...state.notes.values()].map(note => ({
+      ...note,
+      name: state.names.get(note.uuid) ?? note.name,
+    }));
+    const hubs = collectAdventureHubs(sources);
+    for (const hub of hubs) {
       this.checkDeadline(cycle);
       wanted.add(pathKey(hub.path));
       const note = renderAdventureHub(state.worldId, hub, matchBookNote(hub.name, books));
       await this.writeOwned(cycle, note.path, note.text, checkMarkdownOwnership);
     }
-    const folder = path.join(cycle.root, ...ADVENTURES_FOLDER.split('/'));
-    const files = await fsp.readdir(folder, { withFileTypes: true }).catch(() => []);
-    for (const file of files) {
-      if (!file.isFile() || !file.name.toLowerCase().endsWith('.md')) continue;
-      const rel = `${ADVENTURES_FOLDER}/${file.name}`;
-      if (wanted.has(pathKey(rel))) continue;
-      const text = await fsp.readFile(path.join(folder, file.name), 'utf8').catch(() => '');
-      if (!isAdventureHubText(text)) continue;
+    const trashIfOurs = async (
+      rel: string,
+      text: string,
+      isOurs: (text: string) => boolean
+    ): Promise<void> => {
+      if (!isOurs(text)) return;
       try {
         await this.assertTrashFence(state.worldId, rel);
       } catch (error) {
@@ -1969,6 +1975,27 @@ export class ObsidianMirrorPump {
           state.skipped.set(s.path, s.reason);
         for (const e of cycle.writer.errors.slice(errorsBefore)) state.errors.set(e.path, e.error);
       }
+    };
+    const folder = path.join(cycle.root, ...ADVENTURES_FOLDER.split('/'));
+    const files = await fsp.readdir(folder, { withFileTypes: true }).catch(() => []);
+    for (const file of files) {
+      if (!file.isFile() || !file.name.toLowerCase().endsWith('.md')) continue;
+      const rel = `${ADVENTURES_FOLDER}/${file.name}`;
+      if (wanted.has(pathKey(rel))) continue;
+      const text = await fsp.readFile(path.join(folder, file.name), 'utf8').catch(() => '');
+      await trashIfOurs(rel, text, isAdventureHubText);
+    }
+    // The journals, scenes and NPCs no hub lists (audit 2026-10-29): one note, or none.
+    const loose = collectLooseNotes(sources, hubs);
+    if (Object.values(loose).some(list => list.length > 0)) {
+      this.checkDeadline(cycle);
+      const note = renderLooseNotes(state.worldId, loose);
+      await this.writeOwned(cycle, note.path, note.text, checkMarkdownOwnership);
+    } else {
+      const text = await fsp
+        .readFile(path.join(cycle.root, ...LOOSE_NOTES_PATH.split('/')), 'utf8')
+        .catch(() => '');
+      await trashIfOurs(LOOSE_NOTES_PATH, text, isLooseNotesText);
     }
   }
 

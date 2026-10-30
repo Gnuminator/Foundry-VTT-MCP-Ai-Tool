@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   ADVENTURES_FOLDER,
   collectAdventureHubs,
+  collectLooseNotes,
   HUB_SECTIONS,
   matchBookNote,
   type HubSourceNote,
@@ -30,6 +31,44 @@ function basic(adventure = 'Adventure X'): HubSourceNote[] {
     note('scene', `${S}/${adventure}/Hall.md`, 'Hall'),
   ];
 }
+
+describe('collectLooseNotes: what no hub lists', () => {
+  it('gathers journals, scenes and NPCs that are in no adventure', () => {
+    const notes = [
+      ...basic(),
+      note('journal', `${J}/Letters.md`, 'Letters'),
+      note('journal', `${J}/Lore/Rumours.md`, 'Rumours'),
+      note('scene', `${S}/Maps/Inn.md`, 'Inn'),
+      note('npc', `${N}/Wolf.md`, 'Wolf'),
+      note('npc', `${N}/Adventure X/Boss.md`, 'Boss'),
+    ];
+    const hubs = collectAdventureHubs(notes);
+    const loose = collectLooseNotes(notes, hubs);
+    expect(loose.journal.map(m => [m.name, m.subfolder])).toEqual([
+      ['Letters', ''],
+      ['Rumours', 'Lore'],
+    ]);
+    expect(loose.scene.map(m => m.name)).toEqual(['Inn']);
+    // The adventure's own NPC folder has no hub of its own kind: Boss is not in Adventure X's
+    // journal or scene section, but the hub collects NPCs by name, so it is the hub's.
+    expect(loose.npc.map(m => m.name)).toEqual(['Wolf']);
+  });
+
+  it('is empty when every note belongs to a hub', () => {
+    const notes = basic();
+    const loose = collectLooseNotes(notes, collectAdventureHubs(notes));
+    expect(loose).toEqual({ journal: [], scene: [], npc: [] });
+  });
+
+  it('leaves out notes outside the fence and other kinds', () => {
+    const notes = [
+      note('journal', `${J}/Moved.md`, 'Moved', false),
+      note('pc', `${P}/Hero.md`, 'Hero'),
+      note('story-item', `${I}/Sword.md`, 'Sword'),
+    ];
+    expect(collectLooseNotes(notes, [])).toEqual({ journal: [], scene: [], npc: [] });
+  });
+});
 
 describe('collectAdventureHubs: which folders count', () => {
   it('makes a hub of a folder with a journal and a scene', () => {

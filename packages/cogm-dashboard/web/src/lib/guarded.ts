@@ -9,6 +9,7 @@ import { createContext, useCallback, useContext, useMemo } from 'react';
 import { focusedElement, useConfirm } from '../components/ConfirmDialog';
 import { useToast } from '../components/Toasts';
 import { ApiError, callTool, errorText, type ToolConfirm } from './api';
+import { isSwitchOffRefusal } from './switchOff';
 import { SETTINGS_KEY, useDashboardSettings, type DashboardSettings } from './stream';
 import { usage } from './usage';
 
@@ -216,6 +217,12 @@ export function useGuardedTools(): GuardedTools {
         }
         usage().trackTool(name, 'error', failCode(err));
         let error = errorText(err);
+        if (isSwitchOffRefusal(error) && !mayHaveApplied(err)) {
+          // Nothing was written and nothing is wrong: a switch to turn on, said as a hint.
+          const hint = error.replace(/^Error:\s*/, '');
+          toast(hint, 'warn');
+          return { outcome: { status: 'failed', error: hint } };
+        }
         if (err instanceof ApiError && err.kind === 'timeout') {
           // The bridge stopped waiting after about 4 minutes; Foundry may still have done it.
           toast(`✗ ${name} timed out. ${RECENT_CHANGES_HINT}`, 'err');

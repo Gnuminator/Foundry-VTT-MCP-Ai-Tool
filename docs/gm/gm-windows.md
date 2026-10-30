@@ -14,13 +14,14 @@ They are **only for you**. Players never see them, and nothing is sent to player
 
 ![The five GM windows open next to the map](../images/guides/gm-windows-overview.png)
 
-## Turn them on
+## Turn them on or off
 
-The windows are off until you switch them on, so a new world never shows buttons you did not ask for.
+The windows are on by default in a new world. A world where the module settings were ever saved
+may still have the switch off, and you can turn it off yourself if you do not want the buttons.
 
-1. Click the gear icon in the sidebar (**Game Settings**), then **Configure Settings**.
+1. Click the gear icon in the sidebar (the **Settings** tab), then **Game Settings**.
 2. Pick the category **Foundry AI Tool**.
-3. Tick **AI Tool: GM windows** and press **Save Changes**.
+3. Tick **AI Tool: GM windows** (or untick it to hide the buttons) and press **Save Changes**.
 
 ![The GM windows switch in Game Settings](../images/guides/gm-windows-setting.png)
 
@@ -108,7 +109,7 @@ When to use it: after a fight or a treasure room, to see what the party has now 
 
 ## If something looks wrong
 
-- **No AI Tool group at all:** the switch is off, or you are not logged in as the GM. Players never
+- **No AI Tool group at all:** the switch is off (see Turn them on or off above), or you are not logged in as the GM. Players never
   get the group.
 - **A message at the bottom says the GM windows are off:** the switch is off. Turn it on again in
   the settings.

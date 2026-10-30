@@ -144,8 +144,8 @@ export function TarokkaDrawer({
     }
   };
 
-  const importReading = (source: 'tarokka-reading' | 'builtin-roll'): void => {
-    void change('plan-tarokka-import', { source });
+  const rollReading = (): void => {
+    void change('plan-tarokka-import', { source: 'builtin-roll' });
   };
 
   // The GM's own five cards (a reading read by hand): stored as a reading, nothing is dealt.
@@ -207,18 +207,10 @@ export function TarokkaDrawer({
             ↻ Refresh
           </Button>
           <Button
-            id="tarokka-import"
-            data-track="dash.tarokka.import"
-            disabled={busy}
-            onClick={() => importReading('tarokka-reading')}
-          >
-            Import from tarokka-reading
-          </Button>
-          <Button
             id="tarokka-roll"
             data-track="dash.tarokka.roll"
             disabled={busy}
-            onClick={() => importReading('builtin-roll')}
+            onClick={rollReading}
           >
             New reading (built-in roll)
           </Button>
@@ -267,9 +259,7 @@ export function TarokkaDrawer({
         {!view ? (
           !tarokka.isError && <LoadingState />
         ) : !reading ? (
-          <EmptyState>
-            No reading in the vault. Import one from tarokka-reading or deal a new one.
-          </EmptyState>
+          <EmptyState>No reading in the vault. Choose the cards or deal a new one.</EmptyState>
         ) : (
           reading.positions.map(p => (
             // Keyed by the card too: an open form stays across reloads, but not onto another card.

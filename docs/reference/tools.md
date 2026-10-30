@@ -958,20 +958,19 @@ No parameters.
 
 ### plan-tarokka-import
 
-Plan storing a Tarokka reading in the bridge vault (GM-only, outside Foundry). Cards the GM picked (all five of tome, holySymbol, sunsword, ally, strahdLocation; no repeats) are stored as given, no deal. Else source "auto" (default) takes the reading dealt in the tarokka-reading module when available, otherwise rolls one; "builtin-roll" always deals a fresh reading (3 common + 2 high cards, crypto random); "tarokka-reading" requires that module. A new reading archives the previous one; clear: true archives it and leaves none (undoable). Returns a planId: show the diff to the GM, then apply-planned-change.
+Plan storing a Tarokka reading in the bridge vault (GM-only, outside Foundry). Cards the GM picked (all five of tome, holySymbol, sunsword, ally, strahdLocation; no repeats) are stored as given, no deal. Else a fresh reading is dealt (3 common + 2 high cards, crypto random; source "auto" or "builtin-roll"). A new reading archives the previous one; clear: true archives it and leaves none (undoable). Returns a planId: show the diff to the GM, then apply-planned-change.
 
 Kind: read-only. Title: Plan Tarokka reading import.
 
 Parameters:
 
-- `source` (string): One of: `auto`, `builtin-roll`, `tarokka-reading`. Default: `auto`.
-- `clear` (boolean): Archive the current reading, deal none. Leave out source, userId and cards with clear.
+- `source` (string): One of: `auto`, `builtin-roll`. Default: `auto`.
+- `clear` (boolean): Archive the current reading, deal none. Leave out source and cards with clear.
 - `tome` (string)
 - `holySymbol` (string)
 - `sunsword` (string)
 - `ally` (string)
 - `strahdLocation` (string)
-- `userId` (string): The GM user who dealt in tarokka-reading, when that is another client than the bridge (Foundry 14.352+).
 
 ### suggest-tarokka-links
 

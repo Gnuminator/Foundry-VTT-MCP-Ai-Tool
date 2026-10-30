@@ -7,3 +7,7 @@
   flipped. Cards are drawn in CSS; a card can get a picture from the world's files. A flip is a
   normal Tarokka reveal, so the dashboard drawer and the player page follow it. This replaces the
   community module `tarokka-reading`.
+- **No more `tarokka-reading` import:** `plan-tarokka-import` no longer takes `source:
+"tarokka-reading"` or `userId`, the dashboard drawer lost its **Import from tarokka-reading**
+  button, and the "Offer this reading to the AI Tool?" dialog is gone. Roll a reading or choose the
+  five cards. Readings stored earlier from the module still open.

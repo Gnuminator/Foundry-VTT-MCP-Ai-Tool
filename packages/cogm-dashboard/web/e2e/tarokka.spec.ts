@@ -1,6 +1,6 @@
 // The Tarokka drawer on the React dashboard: the reading (get-tarokka-reading, faked here) with
 // its empty and failed states, Show cards (hidden names never on the page), the Open buttons,
-// Import, New reading and a link pick in one click with Undo, Reveal through the confirm window
+// New reading and a link pick in one click with Undo, Reveal through the confirm window
 // (the destructive tick, both flags, Cancel, Show it now), open forms kept across reloads, the
 // GM Actions gate (and Pre-flight beside the drawer warning while Show cards is ticked), the
 // Obsidian link from the stream, and Escape.
@@ -342,9 +342,7 @@ test('shows the empty state, and a failed load says why and keeps the last readi
 
   fail = false;
   await drawer.getByRole('button', { name: '↻ Refresh' }).click();
-  await expect(body).toHaveText(
-    'No reading in the vault. Import one from tarokka-reading or deal a new one.'
-  );
+  await expect(body).toHaveText('No reading in the vault. Choose the cards or deal a new one.');
   await expect(sub).toHaveText('GM only. No reading stored yet.');
 
   view = READING;
@@ -366,20 +364,16 @@ test('shows the empty state, and a failed load says why and keeps the last readi
   );
 });
 
-test('Import and New reading apply in one click, with Undo; both reload the reading', async ({
-  page,
-}) => {
+test('New reading applies in one click, with Undo; each reloads the reading', async ({ page }) => {
   await fakeStream(page, gmActions(true));
   const calls = await fakeTools(page, bridge);
   const drawer = await openTarokka(page);
   await expect(drawer.locator('.tarokka-pos')).toHaveCount(5);
 
-  await drawer.getByRole('button', { name: 'Import from tarokka-reading' }).click();
+  await drawer.getByRole('button', { name: 'New reading (built-in roll)' }).click();
   await expect(toast(page, '✓ Applied: Stored a reading')).toBeVisible();
   await expect(page.getByRole('dialog', { name: /action/ })).toHaveCount(0);
-  expect(plans(calls)).toEqual([
-    { name: 'plan-tarokka-import', args: { source: 'tarokka-reading' } },
-  ]);
+  expect(plans(calls)).toEqual([{ name: 'plan-tarokka-import', args: { source: 'builtin-roll' } }]);
   expect(calls.find(c => c.name === 'apply-planned-change')).toEqual({
     name: 'apply-planned-change',
     args: { planId: 'im1' },
@@ -456,19 +450,17 @@ test('a failed import says why and still reloads; nothing is applied', async ({ 
   await fakeStream(page, gmActions(true));
   const calls = await fakeTools(page, call =>
     call.name === 'plan-tarokka-import'
-      ? { status: 422, json: { ok: false, error: 'No tarokka-reading reading is available' } }
+      ? { status: 422, json: { ok: false, error: 'Foundry is not connected' } }
       : bridge(call)
   );
   const drawer = await openTarokka(page);
   await expect(drawer.locator('.tarokka-pos')).toHaveCount(5);
 
-  await drawer.getByRole('button', { name: 'Import from tarokka-reading' }).click();
-  await expect(
-    toast(page, '✗ plan-tarokka-import: No tarokka-reading reading is available')
-  ).toBeVisible();
+  await drawer.getByRole('button', { name: 'New reading (built-in roll)' }).click();
+  await expect(toast(page, '✗ plan-tarokka-import: Foundry is not connected')).toBeVisible();
   await expect.poll(() => loads(calls)).toBe(2);
   expect(names(calls)).not.toContain('apply-planned-change');
-  await expect(drawer.getByRole('button', { name: 'Import from tarokka-reading' })).toBeEnabled();
+  await expect(drawer.getByRole('button', { name: 'New reading (built-in roll)' })).toBeEnabled();
 });
 
 test('Link searches, picks in one click with Undo, and keeps an open form across reloads', async ({
@@ -793,7 +785,7 @@ test('with GM Actions off nothing is planned; the gate opens Pre-flight', async 
   const gate = 'GM Actions are off. Turn on for tonight in Pre-flight turns them on.';
   const preflight = page.getByRole('dialog', { name: '✈ Pre-flight' });
 
-  await drawer.getByRole('button', { name: 'Import from tarokka-reading' }).click();
+  await drawer.getByRole('button', { name: 'New reading (built-in roll)' }).click();
   await expect(toast(page, gate)).toBeVisible();
   await expect(preflight).toBeVisible();
   // Pre-flight opens on top of the drawer that asked for it; Escape hands the top back.
@@ -840,7 +832,7 @@ test('Pre-flight beside the drawer warns while Show cards is ticked, and Hide ca
   await show.check();
 
   // The gate opens Pre-flight with Tarokka still open: the two drawers side by side.
-  await drawer.getByRole('button', { name: 'Import from tarokka-reading' }).click();
+  await drawer.getByRole('button', { name: 'New reading (built-in roll)' }).click();
   const preflight = page.getByRole('dialog', { name: '✈ Pre-flight' });
   await expect(preflight).toBeVisible();
   const row = preflight.locator('.preflight-item', { hasText: 'Tarokka cards hidden' });
@@ -865,7 +857,7 @@ test('Pre-flight beside the drawer warns while Show cards is ticked, and Hide ca
   await page.keyboard.press('Escape');
   await expect(preflight).toBeHidden();
   await show.check();
-  await drawer.getByRole('button', { name: 'Import from tarokka-reading' }).click();
+  await drawer.getByRole('button', { name: 'New reading (built-in roll)' }).click();
   await expect(preflight).toBeVisible();
   await expect(row).toHaveClass(/pf-warn/);
   await expect(row.getByRole('button', { name: 'Hide cards' })).toBeVisible();
@@ -884,7 +876,7 @@ test('the gate brings Pre-flight to the top when it is open under Tarokka', asyn
   await expect(drawer).toHaveClass(/drawer-top/);
   await expect(preflight).not.toHaveClass(/drawer-top/);
 
-  await drawer.getByRole('button', { name: 'Import from tarokka-reading' }).click();
+  await drawer.getByRole('button', { name: 'New reading (built-in roll)' }).click();
   await expect(preflight).toHaveClass(/drawer-top/);
   await expect(drawer).not.toHaveClass(/drawer-top/);
   // Escape follows the top, not the order the drawers first opened in.
@@ -989,7 +981,6 @@ test('one change at a time: a reveal waiting on its plan or its confirm holds ev
   const releasePlan = await holdTool(page, calls, 'plan-tarokka-reveal', REVEAL_PLAN);
   const drawer = await openTarokka(page);
   // By id: the drawer is hidden from the accessibility tree while the confirm window is open.
-  const importButton = page.locator('#tarokka-import');
   const rollButton = page.locator('#tarokka-roll');
   const tome = pos(drawer, 'tome');
   const ally = pos(drawer, 'ally');
@@ -1004,8 +995,7 @@ test('one change at a time: a reveal waiting on its plan or its confirm holds ev
 
   await planButton.click();
   await expect.poll(() => plans(calls).length).toBe(1);
-  // While the plan is out: no import, no new reading, no link, no second reveal.
-  await expect(importButton).toBeDisabled();
+  // While the plan is out: no new reading, no link, no second reveal.
   await expect(rollButton).toBeDisabled();
   await expect(allyLink).toBeDisabled();
   await expect(planButton).toBeDisabled();
@@ -1014,21 +1004,19 @@ test('one change at a time: a reveal waiting on its plan or its confirm holds ev
   const confirm = page.getByRole('dialog', { name: 'Destructive action' });
   await expect(confirm).toBeVisible();
   // Still held while the confirm window is open.
-  await expect(importButton).toBeDisabled();
   await expect(rollButton).toBeDisabled();
   await confirm.getByRole('button', { name: 'Cancel' }).click();
 
   // Free again once the reload after the Cancel is in.
-  await expect(importButton).toBeEnabled();
   await expect(rollButton).toBeEnabled();
   await expect(allyLink).toBeEnabled();
   await expect(planButton).toBeEnabled();
   expect(plans(calls).map(c => c.name)).toEqual(['plan-tarokka-reveal']);
   expect(names(calls)).not.toContain('apply-planned-change');
 
-  // The other way round: an import holds the position buttons until its reload is in.
+  // The other way round: a new reading holds the position buttons until its reload is in.
   const releaseLoad = await holdTool(page, calls, 'get-tarokka-reading', READING);
-  await importButton.click();
+  await rollButton.click();
   await expect(toast(page, '✓ Applied: Stored a reading')).toBeVisible();
   await expect(planButton).toBeDisabled();
   await expect(allyLink).toBeDisabled();

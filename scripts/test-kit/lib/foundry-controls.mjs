@@ -288,20 +288,6 @@ export const FOUNDRY_CONTROLS = [
     how: 'write',
     player: 'works',
   },
-  {
-    name: 'module.tarokka.offer-confirm',
-    area: 'tarokka',
-    label: 'Dialog: offer a dealt Tarokka reading to the AI Tool (Yes)',
-    how: 'click',
-    player: 'none',
-  },
-  {
-    name: 'module.tarokka.offer-decline',
-    area: 'tarokka',
-    label: 'Dialog: offer a dealt Tarokka reading to the AI Tool (No)',
-    how: 'click',
-    player: 'none',
-  },
 
   // --- A player -----------------------------------------------------------------------------------
   {

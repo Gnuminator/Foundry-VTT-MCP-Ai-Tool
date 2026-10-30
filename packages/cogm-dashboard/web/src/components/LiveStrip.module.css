@@ -214,4 +214,7 @@ button.portrait {
   .card {
     flex: 0 0 auto;
   }
+  .chips:empty {
+    display: none;
+  }
 }

@@ -427,9 +427,9 @@ jobs:
   dashboard-visual:
     # The one check name the merge gate knows: green when every shard passed or the path filter
     # skipped them (a skipped check counts as green in scripts/lane-merge.mjs), red when a shard
-    # failed or was cancelled. always() so it still runs, and fails, after a red shard.
+    # failed or was cancelled. !cancelled() so it still runs, and fails, after a red shard.
     needs: [visual-changes, dashboard-visual-shard]
-    if: always()
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     name: dashboard-visual (screenshots)
     steps:

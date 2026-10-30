@@ -87,7 +87,11 @@ describe('the round', () => {
   it('fills in each character from their own roll, once, and ignores older or foreign rolls', () => {
     const round = newRound(pick({ what: 'save:dex', dc: '14' }), targets, 1000);
     expect(
-      noteRoll(round, { timestamp: 900, speaker: { actor: 'a' }, rolls: [{ total: 20 }] })
+      noteRoll(round, {
+        timestamp: 1000 - 11 * 60 * 1000,
+        speaker: { actor: 'a' },
+        rolls: [{ total: 20 }],
+      })
     ).toBe(false);
     expect(
       noteRoll(round, { timestamp: 1100, speaker: { actor: 'z' }, rolls: [{ total: 20 }] })
@@ -308,12 +312,39 @@ describe('in the Party window', () => {
       timestamp: Date.now() + 5,
       speaker: { actor: 'a' },
       rolls: [{ total: 17 }],
+      type: 'save',
+      system: { ability: 'dex' },
     });
     await vi.advanceTimersByTimeAsync(0);
     expect(rendered[0].content.innerHTML).toContain('17 passes');
     expect(rendered[0].content.innerHTML).toContain('1 of 2 rolled');
     await action('clearRound');
     expect(rendered[0].content.innerHTML).not.toContain('Roll results');
+  });
+
+  it('sends one request at a time, and a second click while sending does nothing', async () => {
+    install(true);
+    const releases: Array<() => void> = [];
+    send.mockImplementation(
+      () =>
+        new Promise(resolve => {
+          releases.push(() => resolve({ success: true, message: 'sent' }));
+        })
+    );
+    await openPartyWindow();
+    const first = action('askAll');
+    await action('askAll');
+    await action('askOne', { actorId: 'b', actorName: 'Bran' });
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(rendered[0].content.innerHTML).toContain('data-action="askAll" disabled');
+    releases[0]();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(send).toHaveBeenCalledTimes(2);
+    releases[1]();
+    await first;
+    await vi.advanceTimersByTimeAsync(0);
+    expect(send).toHaveBeenCalledTimes(2);
+    expect(rendered[0].content.innerHTML).not.toContain('data-action="askAll" disabled');
   });
 
   it('shows a refused request and a thrown one as not sent for that character only', async () => {

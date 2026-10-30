@@ -114,7 +114,7 @@ export interface RollRequestData {
   advantage?: 'advantage' | 'disadvantage';
 }
 
-/** The request for one character, named exactly so a player name cannot win. */
+/** The request for one character, named exactly: the roll path tries an exact user name, then an exact character name. */
 export function rollRequest(pick: RollPick, characterName: string): RollRequestData {
   const sep = pick.what.indexOf(':');
   const kind = pick.what.slice(0, sep);
@@ -221,6 +221,8 @@ export function newRound(
   };
 }
 
+const CLOCK_SLACK_MS = 10 * 60 * 1000;
+
 /** The parts of a chat message the matcher reads. */
 export interface RollMessageLike {
   timestamp?: number;
@@ -253,7 +255,8 @@ export function noteRoll(round: Round | null, message: RollMessageLike): boolean
   const actorId = message.speaker?.actor;
   const total = message.rolls?.[0]?.total;
   if (!actorId || typeof total !== 'number' || !Number.isFinite(total)) return false;
-  if ((message.timestamp ?? Date.now()) < round.sentAt) return false;
+  // The player's clock stamps the message, so allow for a clock that runs behind the GM's.
+  if ((message.timestamp ?? Date.now()) < round.sentAt - CLOCK_SLACK_MS) return false;
   if (message.type !== undefined && message.type !== 'base') {
     const got = messageRoll(message);
     if (got?.type !== round.expect.type || got.key !== round.expect.key) return false;

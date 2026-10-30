@@ -168,30 +168,43 @@ interface RollSender {
 const WRITES_OFF_REASON =
   'Roll requests are off. Start the session (or turn on "Allow Write Operations" in the module settings) to send them.';
 
+/** True while a send runs: a second click (or an Ask during a group ask) does nothing. */
+let sending = false;
+
 function rollView(): PartyRollView {
-  const canSend = canOpenGmWindow() && writeOperationsAllowed();
-  return { bar: { pick, round, disabledReason: canSend ? '' : WRITES_OFF_REASON }, canSend };
+  const canSend = canOpenGmWindow() && writeOperationsAllowed() && !sending;
+  return {
+    bar: { pick, round, disabledReason: writeOperationsAllowed() ? '' : WRITES_OFF_REASON },
+    canSend,
+  };
 }
 
-/** Send one request per character and fill the round as each answer comes back. */
+/**
+ * Send one request per character and fill the round as each answer comes back. One after another,
+ * not in parallel: each request saves its card's message id into one world setting, and saves that
+ * overlap lose each other's entries.
+ */
 async function ask(targets: { id: string; name: string }[]): Promise<void> {
-  if (targets.length === 0 || !canOpenGmWindow() || !writeOperationsAllowed()) return;
-  const sender = window.foundryMCPBridge?.dataAccess as RollSender | undefined;
-  const mine = newRound(pick, targets, Date.now());
-  round = mine;
-  panel.redraw();
-  if (!sender?.requestPlayerRolls) {
-    for (const e of mine.entries) {
-      e.status = 'failed';
-      e.error = 'the AI Tool module is not ready yet';
-    }
+  if (sending) return;
+  if (targets.length === 0 || !canOpenGmWindow() || !writeOperationsAllowed()) {
     panel.redraw();
     return;
   }
-  await Promise.all(
-    mine.entries.map(async entry => {
+  const sender = window.foundryMCPBridge?.dataAccess as RollSender | undefined;
+  const sentPick = pick;
+  const mine = newRound(sentPick, targets, Date.now());
+  round = mine;
+  sending = true;
+  panel.redraw();
+  try {
+    for (const entry of mine.entries) {
+      if (!sender?.requestPlayerRolls) {
+        entry.status = 'failed';
+        entry.error = 'the AI Tool module is not ready yet';
+        continue;
+      }
       try {
-        const result = await sender.requestPlayerRolls(rollRequest(pick, entry.name));
+        const result = await sender.requestPlayerRolls(rollRequest(sentPick, entry.name));
         if (!result.success) {
           entry.status = 'failed';
           entry.error = result.error ?? 'the request failed';
@@ -200,9 +213,12 @@ async function ask(targets: { id: string; name: string }[]): Promise<void> {
         entry.status = 'failed';
         entry.error = error instanceof Error ? error.message : String(error);
       }
-    })
-  );
-  panel.redraw();
+      panel.redraw();
+    }
+  } finally {
+    sending = false;
+    panel.redraw();
+  }
 }
 
 function partyTargets(): { id: string; name: string }[] {
@@ -233,6 +249,7 @@ const panel = createPanelWindow({
     'createActiveEffect',
     'deleteActiveEffect',
     'updateActiveEffect',
+    'updateSetting',
   ],
   render: () =>
     renderPartyHtml(
@@ -271,5 +288,6 @@ export const resetPartyWindowForTests = (): void => {
   panel.reset();
   pick = { ...DEFAULT_PICK };
   round = null;
+  sending = false;
   chatHook = null;
 };

@@ -1132,8 +1132,8 @@ export class PlayerRollsDataAccess {
 
   /**
    * Resolve a roll-request target to a player user and/or character. Resolution
-   * order: a user by name (exact, then partial) → a player-owned character by
-   * name (exact, then partial) → any character with no player owner (GM rolls it)
+   * order: a user by exact name → a player-owned character by exact name → a user
+   * by partial name → a player-owned character by partial name → any character with no player owner (GM rolls it)
    * → not found. Offline players resolve to a structured PLAYER_OFFLINE error.
    */
   private resolveTargetPlayer(targetPlayer: string): ResolveResult {

@@ -358,10 +358,17 @@ test('free RAM: a holder that has used nothing yet still reserves its whole peak
   first.release();
 });
 
+test('pendingGb: the fall in free RAM is credited once, not to every holder', () => {
+  const cfg = { peakGb: 5, lightPeakGb: 3 };
+  const o = (since, freeGb) => ({ state: { pid: 1, label: 'green', start: since, since, freeGb } });
+  // A admitted at 12 GB free grew 3 GB; B admitted at 9 GB free. Free now 6: 6 of 10 GB is used.
+  assert.equal(pendingGb([o(2, 9), o(1, 12)], cfg, 6), 4);
+});
+
 test('pendingGb: pre-push and lint-ratchet use the lower peak; an owner without freeGb counts in full', () => {
   const cfg = { peakGb: 5, lightPeakGb: 3 };
   const o = (label, freeGb) => ({ state: { pid: 1, label, start: 0, freeGb } });
-  assert.equal(pendingGb([o('pre-push', 10), o('lint-ratchet', 10)], cfg, 10), 6);
+  assert.equal(pendingGb([o('pre-push', 10), o('lint-ratchet', 10), o('drift-check lint baseline', 10)], cfg, 10), 9);
   assert.equal(pendingGb([o('green x', 10)], cfg, 8), 3, 'free fell 2 GB: 3 GB still to come');
   assert.equal(pendingGb([o('green x', 10)], cfg, 2), 0, 'never negative');
   assert.equal(pendingGb([o('green x', undefined)], cfg, 2), 5);

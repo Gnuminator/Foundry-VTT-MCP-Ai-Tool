@@ -71,7 +71,10 @@ const TICKET_TOUCH_MS = 30 * 1000;
 const TICKET_STALE_MS = 5 * 60 * 1000;
 const GB = 2 ** 30;
 // peakGb: one green alone peaked at 5.2 GB (the Playwright e2e step; lint-ratchet 3.3 GB), 2026-10-30.
-// lightPeakGb: pre-push and lint-ratchet holders (lint-ratchet peaked at 3.3 GB, pre-push less).
+// lightPeakGb: pre-push and lint-ratchet holders: lint-ratchet peaked at 3.3 GB (2026-10-30), plus margin;
+// pre-push (ratchets and typecheck) was not measured on its own.
+/** Holders that run lint or the ratchets only: they count at lightPeakGb. */
+const LIGHT_LABEL = /^(pre-push|lint-ratchet|drift-check lint)/;
 export const DEFAULTS = { slots: 3, minFreeGb: 2, peakGb: 5, lightPeakGb: 3.5, maxWaitMin: 180 };
 
 /** @param {Record<string, string | undefined>} [env] */
@@ -245,26 +248,36 @@ function liveTickets(qdir, now, alive) {
 }
 
 /**
- * RAM still to come from the holders: each holder's expected peak minus what it uses now. The free
- * RAM we compare against already excludes what a holder uses now, so counting its whole peak would
- * count that part twice (2026-10-30: "5.7 GB free, needs 7 GB" with one holder). What a holder uses
- * now is estimated as the fall in free RAM since it was admitted (it recorded freeGb); an owner
- * without that field counts at its full peak.
+ * RAM still to come from the holders: their expected peaks minus what they use now. The free RAM we
+ * compare against already excludes what the holders use now, so reserving every peak in full would
+ * count that part twice (2026-10-30: "5.7 GB free, needs 7 GB" with one holder). What they use is
+ * estimated as the fall in free RAM since the oldest holder was admitted (it recorded freeGb),
+ * credited once: the same fall also holds what later holders use. An owner without freeGb, or a slot
+ * just created, counts at its full peak and gets no credit. The fall also holds other programs
+ * growing, which minFreeGb has to cover.
  * @param {{ state: Owner | 'unknown' }[]} held
  * @param {{ peakGb: number, lightPeakGb: number }} cfg @param {number} freeGb
+ * @returns {number}
  */
 export function pendingGb(held, cfg, freeGb) {
-  let total = 0;
+  let credited = 0;
+  let plain = 0;
+  let earliest = null;
   for (const { state } of held) {
     if (state === 'unknown') {
-      total += cfg.peakGb;
+      plain += cfg.peakGb;
       continue;
     }
-    const peak = /^(pre-push|lint-ratchet)/.test(state.label) ? cfg.lightPeakGb : cfg.peakGb;
-    const used = typeof state.freeGb === 'number' ? Math.max(0, state.freeGb - freeGb) : 0;
-    total += Math.max(0, peak - used);
+    const peak = LIGHT_LABEL.test(state.label) ? cfg.lightPeakGb : cfg.peakGb;
+    if (typeof state.freeGb !== 'number') {
+      plain += peak;
+      continue;
+    }
+    credited += peak;
+    if (!earliest || (state.since ?? state.start) < (earliest.since ?? earliest.start)) earliest = state;
   }
-  return total;
+  const used = earliest ? Math.max(0, /** @type {number} */ (earliest.freeGb) - freeGb) : 0;
+  return plain + Math.max(0, credited - used);
 }
 
 /** @param {number} bytes */
@@ -360,6 +373,7 @@ export function acquire(label, o = {}) {
             inUse: held.length + 1,
             slots: cfg.slots,
             slotsFrom: cfg.slotsFrom,
+            pendingGb: Number(pending.toFixed(1)),
           });
           let released = false;
           const release = () => {

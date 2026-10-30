@@ -98,6 +98,8 @@ export interface ReadPrepNotesResult {
   part: PrepNotesPart;
   /** Folders or notes that could not be read (campaign-relative path: error). */
   errors: string[];
+  /** Not failures: what the read left out on purpose (the encounter scan's note limit). */
+  notices: string[];
 }
 
 interface Candidate {
@@ -412,14 +414,15 @@ export async function readPrepNotes(input: ReadPrepNotesInput): Promise<ReadPrep
   const encounterNotes = [...candidates].sort(
     (a, b) => rank(a) - rank(b) || (a.path < b.path ? -1 : a.path > b.path ? 1 : 0)
   );
+  const notices: string[] = [];
   let looked = 0;
   for (const note of encounterNotes) {
     // keptOut keeps its meaning (matching notes only): a kept-out note is just skipped here.
     if (isOff(note.head.ai_context)) continue;
     if (encounters.length >= PREP_ENCOUNTERS_MAX) break;
     if (looked >= ENCOUNTER_SCAN_MAX_NOTES) {
-      errors.push(
-        `(prep notes): the encounter scan stopped at ${ENCOUNTER_SCAN_MAX_NOTES} notes, so some encounter blocks were not looked at`
+      notices.push(
+        `the encounter scan stopped at ${ENCOUNTER_SCAN_MAX_NOTES} notes, so some encounter blocks were not looked at`
       );
       break;
     }
@@ -443,5 +446,6 @@ export async function readPrepNotes(input: ReadPrepNotesInput): Promise<ReadPrep
       matchedAgainst: input.matchedAgainst,
     },
     errors,
+    notices,
   };
 }

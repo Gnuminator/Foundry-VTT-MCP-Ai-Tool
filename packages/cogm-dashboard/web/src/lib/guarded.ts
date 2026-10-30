@@ -122,8 +122,12 @@ export type GuardedOutcome =
   | { status: 'refused' }
   /** The GM said no in the confirm window. */
   | { status: 'cancelled' }
-  /** The plan, the apply or the write failed (the toast says so); error is the reason. */
-  | { status: 'failed'; error: string };
+  /**
+   * The plan, the apply or the write failed (the toast says so); error is the reason.
+   * `mayHaveApplied` is set when the request went out but no answer came back, so it may have
+   * landed in Foundry (a form that would send the same thing again should not keep its draft).
+   */
+  | { status: 'failed'; error: string; mayHaveApplied?: true };
 
 export interface GuardedOptions {
   /**
@@ -310,7 +314,13 @@ export function useGuardedTools(): GuardedTools {
           toast(`✗ ${toolWords(name)}: ${error}`, 'err');
         }
         changed();
-        return { outcome: { status: 'failed', error } };
+        return {
+          outcome: {
+            status: 'failed',
+            error,
+            ...(mayHaveApplied(err) ? { mayHaveApplied: true as const } : {}),
+          },
+        };
       }
     };
 

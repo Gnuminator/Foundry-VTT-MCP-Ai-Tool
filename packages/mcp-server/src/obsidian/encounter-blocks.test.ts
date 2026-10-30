@@ -177,4 +177,27 @@ describe('readPrepNotes encounters', () => {
     const { part } = await read();
     expect(part.encounters).toHaveLength(PREP_ENCOUNTERS_MAX);
   });
+
+  it('says so, apart from the read errors, when the 100-note limit leaves notes unscanned', async () => {
+    for (let i = 0; i < 101; i++) {
+      await note(
+        `Prep/Encounters/N${String(i).padStart(3, '0')}.md`,
+        doc(['type: encounter-prep'], ['Nothing here.'])
+      );
+    }
+    const { errors, notices } = await read();
+    expect(errors).toEqual([]);
+    expect(notices).toEqual([expect.stringMatching(/encounter scan stopped at 100 notes/)]);
+  });
+
+  it('gives no notice when exactly 100 notes were all scanned', async () => {
+    for (let i = 0; i < 100; i++) {
+      await note(
+        `Prep/Encounters/N${String(i).padStart(3, '0')}.md`,
+        doc(['type: encounter-prep'], ['Nothing here.'])
+      );
+    }
+    const { notices } = await read();
+    expect(notices).toEqual([]);
+  });
 });

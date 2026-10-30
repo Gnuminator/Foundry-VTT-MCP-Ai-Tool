@@ -112,6 +112,24 @@ def test_set_refuses_to_overwrite_a_file_of_the_wrong_shape(sessions: Path, body
     assert odd.read_text(encoding="utf-8") == body
 
 
+def test_set_refuses_when_a_player_entry_is_not_an_object(sessions: Path) -> None:
+    body = '{"players": {"11": {"answer": "yes"}, "33": "no"}}'
+    odd = sessions / "consent.json"
+    odd.write_text(body, encoding="utf-8")
+    with pytest.raises(ValueError, match="not objects.*33"):
+        set_consent(sessions, "11", "yes")
+    assert odd.read_text(encoding="utf-8") == body
+
+
+def test_set_keeps_other_top_level_keys(sessions: Path) -> None:
+    path = sessions / "consent.json"
+    path.write_text('{"note": "kept", "players": {}}', encoding="utf-8")
+    set_consent(sessions, "11", "yes", "Ann", "2026-11-02")
+    data = json.loads(path.read_text(encoding="utf-8"))
+    assert data["note"] == "kept"
+    assert data["players"]["11"]["answer"] == "yes"
+
+
 def test_set_refuses_to_overwrite_an_unreadable_file(sessions: Path) -> None:
     broken = sessions / "consent.json"
     broken.write_text("{not json", encoding="utf-8")

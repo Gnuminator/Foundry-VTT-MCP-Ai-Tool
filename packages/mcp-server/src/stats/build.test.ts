@@ -232,6 +232,13 @@ describe('buildStats: public roll stats (player vault)', () => {
     expect(pc?.publicD20[19]).toBe(0);
     expect(pc?.publicD20[0]).toBe(0);
     expect(pc?.publicHighestRoll).toMatchObject({ total: 15, label: 'Public check' });
+    // The session's public counts (the Discord summary) leave the same rolls out.
+    expect(stats.sessions[0]).toMatchObject({
+      rolls: 6,
+      publicRolls: 1,
+      publicCrits: 0,
+      publicFumbles: 0,
+    });
     const text = JSON.stringify({ a: pc?.publicRolls, b: pc?.publicHighestRoll, c: pc?.publicD20 });
     for (const secret of ['Blind secret', 'GM secret', 'Self secret', 'Old record', 'Odd value']) {
       expect(text).not.toContain(secret);
@@ -308,6 +315,8 @@ describe('buildStats: public roll stats (player vault)', () => {
       ),
     ]);
     expect(stats.pcs[0]).toMatchObject({ publicRolls: 2, publicCrits: 0, publicFumbles: 0 });
+    // The session counts are natural 20s and 1s on any public d20 roll.
+    expect(stats.sessions[0]).toMatchObject({ publicRolls: 2, publicCrits: 1, publicFumbles: 1 });
     expect(stats.pcs[0]?.publicD20[19]).toBe(1);
     expect(stats.pcs[0]?.publicD20[0]).toBe(1);
   });

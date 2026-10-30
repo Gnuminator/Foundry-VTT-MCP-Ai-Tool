@@ -20,6 +20,16 @@ decision), then ends. It does not sit and wait for lanes. Vault paths below are 
 - `list_sessions` without `linked` (lanes start their own successors; they only show in the full
   list), then `get_usage` with each running lane's id (lanes underreport their context).
   `get_usage "self"` for your own context and the plan percentages.
+- **Again on every wake, not only at start (2026-10-30):** each lane note, gate exit or user
+  message, re-read the `- claimed:` and `- progress:` lines of every claimed item, including lanes
+  inherited from an earlier planner (detached lanes send you no turn-end notes). A lane that
+  stopped with a handover and no running successor gets one the same turn (Sonnet, brief points at
+  its `Handoff/<lane> prompt <date>.md`; a card if the turn cannot start sessions; never message
+  the stopped lane). In the same pass rename it "CLOSED (handed over <date>) <title>" and archive
+  it under Session cleanup's conditions (not running, worktree clean and pushed, no process from
+  it, no other lane on that branch). Archive before the successor checks out the lane's branch:
+  git refuses a branch that another worktree holds (if the archive leaves the folder, run
+  `git checkout --detach` there once it is clean).
 
 ## "What's next"
 

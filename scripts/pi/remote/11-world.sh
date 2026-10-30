@@ -256,6 +256,9 @@ on_exit() {
   fi
 }
 trap on_exit EXIT
+# A dropped SSH connection must not kill the stage while Foundry is stopped: the next line of output would raise SIGPIPE
+# (stages 14 and 19 do the same; the output helpers in lib.sh already survive a failed write).
+trap '' HUP PIPE
 tar --quoting-style=literal -tf "$BUNDLE" >"$work/names" || die "cannot read the tar"
 tar --quoting-style=literal -tvf "$BUNDLE" | cut -c1 >"$work/types"
 [ "$(wc -l <"$work/names")" = "$(wc -l <"$work/types")" ] || die "the tar listing is inconsistent (odd file names)"
@@ -321,6 +324,7 @@ if [ -f MANIFEST.txt ] && grep -q '^gm-password:' MANIFEST.txt; then
     die "a push-back bundle needs a based-on-snapshot: line in MANIFEST.txt (ISO time in UTC); build it with scripts/plan-b/push-back.ps1. Nothing was changed"
   [ "$REPLACE_WORLD" = 1 ] || die "this is a Plan B push-back (its Gamemaster keeps the Pi's password): run it with REPLACE_WORLD=1 KIT_WORLD= . Nothing was changed"
   [ -z "$KIT_WORLD" ] || die "a push-back skips the kit world (its GM password file holds another password): add KIT_WORLD= . Nothing was changed"
+  [ "$WORLD_SWITCHES" != 1 ] || die "WORLD_SWITCHES=1 does not go with a Plan B push-back: its settings come back from the PC as they were played, so it never gets the world switches. Leave WORLD_SWITCHES out (or 0). Nothing was changed"
   [ -f "$TOOL_ETC/world-$WORLD.env" ] || die "a push-back needs $TOOL_ETC/world-$WORLD.env (the Pi's GM password, which the pushed world keeps): it is missing. Nothing was changed"
   case "$REPLACE_NEWER" in 0 | 1) ;; *) die "REPLACE_NEWER must be 0 or 1" ;; esac
   ok "a Plan B push-back of $WORLD, based on the Pi backup of $based_on (REPLACE_WORLD=1, no kit world, $TOOL_ETC/world-$WORLD.env present)"
@@ -809,7 +813,7 @@ provision_world() { # $1 world id
     ) || {
       # $id may be only partly set; the marker world-<id>.switches-pending stays, so a plain rerun does it again.
       if [ "$id" = "$WORLD" ]; then
-        die "the world switches of $id failed or did not verify (see the lines above). $id may be only partly set and is kept now (its settings are copied to prev first): run the stage again without REPLACE_WORLD (a plain rerun does the switches again, the marker $TOOL_ETC/world-$id.switches-pending says they are owed), or with WORLD_SWITCHES=0 to leave them"
+        die "the world switches of $id failed or did not verify (see the lines above). $id may be only partly set and is kept now (its settings are copied to prev first): run the stage again without REPLACE_WORLD (a plain rerun does the switches again, the marker $TOOL_ETC/world-$id.switches-pending says they are owed), or with WORLD_SWITCHES=0 to give up on them (that clears the marker; the switches are then not done)"
       else
         die "the world switches of the kit world $id failed or did not verify (see the lines above). Run the same command again: the kit world is reset and gets the switches. Do not add WORLD_SWITCHES=1 for this"
       fi
@@ -823,6 +827,15 @@ provision_world() { # $1 world id
 # starts (and before any env file) and each is removed after its own provisioning worked, so a failure on one world
 # leaves the others marked too, and a plain rerun provisions them all again with the same passwords.
 for id in "${todo[@]}"; do (umask 077 && : >"$TOOL_ETC/world-$id.pending"); done
+# A marker left by an earlier failed run is stale for a world that gets no switches now (it was replaced by a push-back
+# or by a run with WORLD_SWITCHES=0, or WORLD_SWITCHES=0 runs on the kept world): clear it, or a later plain run would
+# do the switches the user gave up on, over a world that has since been replaced.
+for id in "$WORLD" ${KIT_WORLD:+"$KIT_WORLD"}; do
+  [[ " ${switch_ids[*]} " == *" $id "* ]] || [ ! -e "$TOOL_ETC/world-$id.switches-pending" ] || {
+    rm -f "$TOOL_ETC/world-$id.switches-pending"
+    ok "$id: an old owed-switches marker is cleared (this run does not set the switches)"
+  }
+done
 # The same for the switches: owed until the driver has set and verified them (a plain rerun does them for a kept WORLD).
 for id in "${switch_ids[@]}"; do (umask 077 && : >"$TOOL_ETC/world-$id.switches-pending"); done
 

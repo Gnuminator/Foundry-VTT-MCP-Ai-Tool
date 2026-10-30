@@ -412,6 +412,7 @@ export class PrepDigestTools {
           `Some prep notes could not be read (${result.errors.length}; first: ${result.errors[0]}).`
         );
       }
+      for (const notice of result.notices) warnings.push(`Prep notes: ${notice}.`);
       return result.part;
     } catch (error) {
       this.logger.warn('Prep digest: prep notes failed', { error: message(error) });

@@ -35,8 +35,7 @@
     "racooze-map-library",
     "share-media",
     "travel-pace",
-    "vtta-tokenizer",
-    "tarokka-reading"
+    "vtta-tokenizer"
   ],
   "packs": {
     "classes": ["dnd5e.classes24", "dnd5e.classes"],

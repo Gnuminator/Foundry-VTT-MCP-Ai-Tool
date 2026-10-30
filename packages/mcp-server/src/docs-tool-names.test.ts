@@ -21,7 +21,6 @@ const ROOT = fileURLToPath(new URL('../../../', import.meta.url));
 /** Backticked names that are not tools, prompts or entries, each with where it comes from. */
 const OTHER_NAMES: Readonly<Record<string, string>> = {
   'foundry-mcp-bridge': 'the Foundry module id',
-  'tarokka-reading': 'the Foundry module the Tarokka import reads',
   'gm-change': 'a dashboard feed line type',
   'host-not-allowed': 'a dashboard error code',
   'foundry-gm-token': 'an example Obsidian secret ID (docs/gm/obsidian.md)',

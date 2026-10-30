@@ -163,10 +163,7 @@ export async function chatRows(sweep, { t, gm, player }) {
     const rollsBefore = await rollMessages();
     const started = Date.now();
     await button.click();
-    await until(
-      async () => (await completedCards()) > cardsBefore,
-      'the card to say who rolled'
-    );
+    await until(async () => (await completedCards()) > cardsBefore, 'the card to say who rolled');
     const ms = Date.now() - started;
     const text = await player.evaluate(() => {
       const el = [...document.querySelectorAll('.message-content')]
@@ -198,16 +195,16 @@ export async function playerQueryRows(sweep, { gm, player }) {
       // Positive control: the GM's client does register the helper query, so a refusal below is
       // the player being locked out and not a query that was never there.
       const registered = await gm.evaluate(
-        () => typeof CONFIG.queries?.['foundry-mcp-bridge.gm.tarokkaReading'] === 'function'
+        () => typeof CONFIG.queries?.['foundry-mcp-bridge.gm.openDocument'] === 'function'
       );
-      if (!registered) throw new Error('the GM client has no gm.tarokkaReading query registered');
+      if (!registered) throw new Error('the GM client has no gm.openDocument query registered');
       const outcome = await player.evaluate(async () => {
         const gm = game.users.activeGM;
         if (!gm) return { skip: 'no GM is connected' };
         const results = {};
         for (const name of [
           'foundry-mcp-bridge.getWorldInfo',
-          'foundry-mcp-bridge.gm.tarokkaReading',
+          'foundry-mcp-bridge.gm.openDocument',
         ]) {
           try {
             await gm.query(name, {}, { timeout: 5000 });

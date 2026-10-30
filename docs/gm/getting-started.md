@@ -72,8 +72,8 @@ Two things to know from the start:
 
 ## What is special for Curse of Strahd
 
-- **Tarokka reading.** Deal a reading with the tool's built-in roll, or import one dealt in the
-  `tarokka-reading` module. The cards stay GM-only, outside Foundry. You can link each card to a
+- **Tarokka reading.** Deal a reading with the tool's built-in roll, or choose the
+  five cards yourself. The cards stay GM-only, outside Foundry. You can link each card to a
   journal page, a scene or an actor. You reveal a card by writing the text players may read.
 - **A spoiler-safe player page.** It shows names the way players know them ("Unknown creature"
   otherwise), no enemy HP numbers, only public rolls, and only the handouts you reveal.

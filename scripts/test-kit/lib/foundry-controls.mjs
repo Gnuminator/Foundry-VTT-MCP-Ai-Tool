@@ -71,6 +71,13 @@ export const FOUNDRY_CONTROLS = [
     how: 'open',
     player: 'hidden',
   },
+  {
+    name: 'foundry.scene.tarokkaTable',
+    area: 'scene',
+    label: 'Scene tool "Tarokka table"',
+    how: 'open',
+    player: 'hidden',
+  },
 
   // --- Changes window ----------------------------------------------------------------------------
   {
@@ -287,20 +294,6 @@ export const FOUNDRY_CONTROLS = [
     label: 'Chat: the roll request button (the player rolls, the card says who did)',
     how: 'write',
     player: 'works',
-  },
-  {
-    name: 'module.tarokka.offer-confirm',
-    area: 'tarokka',
-    label: 'Dialog: offer a dealt Tarokka reading to the AI Tool (Yes)',
-    how: 'click',
-    player: 'none',
-  },
-  {
-    name: 'module.tarokka.offer-decline',
-    area: 'tarokka',
-    label: 'Dialog: offer a dealt Tarokka reading to the AI Tool (No)',
-    how: 'click',
-    player: 'none',
   },
 
   // --- A player -----------------------------------------------------------------------------------

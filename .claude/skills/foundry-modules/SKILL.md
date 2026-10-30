@@ -12,7 +12,7 @@ server. Foundry's own UI is `foundry-core-ui`; the test servers are `foundry-tes
 
 ## Index
 
-The Strahd list is `scripts/modules/strahd-modules.json` (35 modules; it carries the same verdict
+The Strahd list is `scripts/modules/strahd-modules.json` (34 modules; `tarokka-reading` left it on 2026-10-29, D-130; it carries the same verdict
 word as this table, and a test keeps the all-modules kit profile in step with its ids). Version =
 the version on test server A (the pinned set) when the page was written or refreshed on 2026-10-28.
 
@@ -28,7 +28,7 @@ the version on test server A (the pinned set) when the page was written or refre
 | `automated-conditions-5e`  | 14.606.4.5      | `references/automated-conditions-5e.md`  | keep     |
 | `monks-player-settings`    | 14.01           | `references/monks-player-settings.md`    | keep     |
 | `vtta-tokenizer`           | 5.0.3           | `references/vtta-tokenizer.md`           | keep     |
-| `tarokka-reading`          | 1.0.5           | `references/tarokka-reading.md`          | keep     |
+| `tarokka-reading`          | 1.0.5           | `references/tarokka-reading.md`          | drop     |
 | `combat-spell-timer`       | 2.3.0           | `references/combat-spell-timer.md`       | drop     |
 | `dae`                      | 14.0.19         | `references/dae.md`                      | optional |
 | `monks-combat-details`     | 14.03           | `references/monks-combat-details.md`     | keep     |

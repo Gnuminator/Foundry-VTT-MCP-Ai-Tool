@@ -21,7 +21,7 @@
 import { readUsageCatalog } from '../lib/dashboard-controls.mjs';
 import { FOUNDRY_CONTROLS, countHows, errorCounterRows, rowsOf } from '../lib/foundry-controls.mjs';
 import { changesRows, sceneRows } from '../lib/foundry-sweep-changes.mjs';
-import { handoutsRows, tarokkaOfferRows, tarokkaRows } from '../lib/foundry-sweep-handouts.mjs';
+import { handoutsRows, tarokkaRows } from '../lib/foundry-sweep-handouts.mjs';
 import {
   chatRows,
   journalRows,
@@ -124,7 +124,6 @@ export default {
       if (wanted('tarokka')) {
         await t.step('Tarokka window, with a reveal undone', async () => {
           await tarokkaRows(sweep, pages);
-          await tarokkaOfferRows(sweep, pages);
           return summary(sweep, rowsOf('tarokka'));
         });
       }

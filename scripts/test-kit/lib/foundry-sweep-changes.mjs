@@ -24,6 +24,7 @@ const TOOLS = [
   ['aiChanges', 'Changes', 'fmb-ai-changes'],
   ['handouts', 'Handouts', 'fmb-handouts'],
   ['tarokka', 'Tarokka', 'fmb-tarokka'],
+  ['tarokkaTable', 'Tarokka table', 'fmb-tarokka-table-gm'],
 ];
 
 /**
@@ -102,7 +103,7 @@ export async function sceneRows(sweep, { gm, player }) {
       throw new Error(`the canvas layer changed from ${layerBefore} to ${layerAfter}`);
     }
     await resetControls(gm);
-    return `3 tools: ${TOOLS.map(t => t[1]).join(', ')}; the canvas layer stays ${layerBefore}`;
+    return `${TOOLS.length} tools:${TOOLS.map(t => t[1]).join(', ')}; the canvas layer stays ${layerBefore}`;
   });
   await sweep.row('foundry.scene.group', 'player', async () => {
     const info = await player.evaluate(() => ({

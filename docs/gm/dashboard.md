@@ -579,14 +579,11 @@ category **Foundry AI Tool**) and GM Actions on.
 Top row:
 
 - **↻ Refresh**: reloads the reading.
-- **Import from tarokka-reading**: takes the reading you dealt in the `tarokka-reading` module.
-  When you deal there with the switch on, Foundry first asks "Offer this reading to the AI Tool?";
-  answer yes, then import it here.
 - **New reading (built-in roll)**: deals a new reading with the tool's own roll. The previous
   reading is kept in an archive.
 - **Choose the cards…**: for a reading you drew by hand. Pick the five cards (the first three from
   the common deck, the last two from the high deck, none twice) and press **Store this reading**.
-  Nothing is dealt, and you do not need the `tarokka-reading` module. The previous reading is
+  Nothing is dealt. The previous reading is
   kept in an archive, and Undo brings it back. It shows card names, so it only opens while
   **Show cards** is ticked, and unticking that hides it again.
 - **📓 Obsidian**: opens the current reading's note in Obsidian.

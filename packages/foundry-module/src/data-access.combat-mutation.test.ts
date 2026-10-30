@@ -41,6 +41,7 @@ import {
   type TestWorld,
 } from './test-support/foundry-mock/index.js';
 import { FoundryDataAccess } from './data-access.js';
+import { changeJournal } from './change-journal.js';
 
 let world: TestWorld;
 let restore: () => void;
@@ -87,6 +88,32 @@ function addActorWithHp(name: string, hp: { value: number; max?: number; temp?: 
     system: { attributes: { hp: { max: hp.value, temp: 0, ...hp } } },
   });
 }
+
+// ===========================================================================
+// The AI change group ends with a turn or initiative write
+// ===========================================================================
+
+describe('FoundryDataAccess: combat writes end the AI change group', () => {
+  it.each([
+    ['advanceCombatTurn', (d: FoundryDataAccess): Promise<unknown> => d.advanceCombatTurn({})],
+    [
+      'setInitiative',
+      (d: FoundryDataAccess): Promise<unknown> =>
+        d.setInitiative({ combatantName: 'Hero', initiative: 12 }),
+    ],
+    [
+      'rollInitiativeForNpcs',
+      (d: FoundryDataAccess): Promise<unknown> => d.rollInitiativeForNpcs({}),
+    ],
+  ])('%s calls changeJournal.breakGroup once', async (_name, run) => {
+    installCombat({ turns: [makeCombatant({ id: 'c1', name: 'Hero' })], turn: 0, round: 1 });
+    const spy = vi.spyOn(changeJournal, 'breakGroup');
+
+    await run(da);
+
+    expect(spy).toHaveBeenCalledTimes(1);
+  });
+});
 
 // ===========================================================================
 // advanceCombatTurn

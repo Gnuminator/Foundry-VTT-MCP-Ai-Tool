@@ -2,6 +2,10 @@
  * Tests for the guarded-write feature switches: one world setting per feature,
  * default OFF; unknown features and unreadable settings count as off.
  */
+import {
+  WRITES_OFF_MESSAGE as sharedWritesOff,
+  featureOffMessage as sharedFeatureOff,
+} from '@gnuminator/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createTestWorld, type TestWorld } from './test-support/foundry-mock/index.js';
 import {
@@ -105,6 +109,13 @@ describe('refusal wording', () => {
     );
     expect(WRITES_OFF_MESSAGE).toBe(
       'Write operations are disabled in the module settings. In Foundry, open Game Settings, Configure Settings, AI Tool and turn on "Allow Write Operations".'
+    );
+  });
+
+  it('says what the shared switch-off sentences say (the module keeps a copy)', () => {
+    expect(WRITES_OFF_MESSAGE).toBe(sharedWritesOff);
+    expect(featureOffMessage('AI Tool: Party (writes)')).toBe(
+      sharedFeatureOff('AI Tool: Party (writes)')
     );
   });
 

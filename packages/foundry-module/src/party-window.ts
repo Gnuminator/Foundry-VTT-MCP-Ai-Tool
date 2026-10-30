@@ -166,7 +166,7 @@ interface RollSender {
 }
 
 const WRITES_OFF_REASON =
-  'Roll requests are off. Start the session (or turn on "Allow Write Operations" in the module settings) to send them.';
+  'Roll requests are off. Turn on "Allow Write Operations" in the module settings to send them.';
 
 /** True while a send runs: a second click (or an Ask during a group ask) does nothing. */
 let sending = false;

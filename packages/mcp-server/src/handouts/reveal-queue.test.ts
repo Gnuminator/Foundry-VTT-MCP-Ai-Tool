@@ -255,6 +255,8 @@ describe('reveal queue', () => {
     await handouts.queuePage({ pageUuid: PAGE2, sceneId: SCENE });
     const plan = await handouts.planPageReveal({ action: 'reveal-next', sceneId: SCENE });
     expect(plan.pageUuid).toBe(PAGE2);
+    // The queue entry leaving is bookkeeping with an Undo: an ordinary write, not a destructive one.
+    expect(plan.risk).toBe('write');
     // Planning changes nothing yet.
     expect((await handouts.listQueue()).map(q => q.uuid)).toEqual([PAGE1, PAGE2]);
     const changeId = await apply(plan.planId);

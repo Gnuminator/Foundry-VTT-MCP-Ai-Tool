@@ -842,6 +842,31 @@ describe('vault ops', () => {
     });
   });
 
+  it('bookkeepingDeletes excuses a vault delete only, a Foundry delete stays destructive', async () => {
+    const created = await vaultPlan([
+      { kind: 'vault-set', file: 'npc-secrets.json', path: 'sorvan.note', value: 'watching' },
+    ]);
+    await service.applyPlan(created.planId, { confirm: true });
+    const ops = [{ kind: 'vault-delete', file: 'npc-secrets.json', path: 'sorvan' }] as never;
+    const bookkeeping = await service.createPlan({
+      feature: 'test-feature',
+      summary: 'Queue entry goes',
+      vaultOps: ops,
+      bookkeepingDeletes: true,
+    });
+    expect(bookkeeping.risk).toBe('write');
+    expect(bookkeeping.requires.confirmDestructive).toBe(false);
+    foundry.add('Actor.ilvara', 'Actor', { name: 'Ilvara' });
+    const mixed = await service.createPlan({
+      feature: 'test-feature',
+      summary: 'Both',
+      vaultOps: ops,
+      ops: [{ kind: 'delete', uuid: 'Actor.ilvara' }] as never,
+      bookkeepingDeletes: true,
+    });
+    expect(mixed.risk).toBe('destructive');
+  });
+
   it('creates a missing file, and a delete makes the plan destructive', async () => {
     const created = await vaultPlan([
       { kind: 'vault-set', file: 'npc-secrets.json', path: 'sorvan.note', value: 'watching' },

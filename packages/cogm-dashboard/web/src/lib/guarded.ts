@@ -8,8 +8,15 @@ import { createContext, useCallback, useContext, useMemo } from 'react';
 
 import { focusedElement, useConfirm } from '../components/ConfirmDialog';
 import { useToast } from '../components/Toasts';
-import { ApiError, callTool, errorText, type ToolConfirm } from './api';
-import { isSwitchOffRefusal } from './switchOff';
+import { api, ApiError, callTool, errorText, type ToolConfirm } from './api';
+import {
+  applySwitchesWrite,
+  shortName,
+  SWITCHES_KEY,
+  type SwitchesRead,
+  type SwitchesWrite,
+} from './sessionSwitches';
+import { isSwitchOffRefusal, refusedSwitchName } from './switchOff';
 import { SETTINGS_KEY, useDashboardSettings, type DashboardSettings } from './stream';
 import { usage } from './usage';
 
@@ -28,6 +35,8 @@ const GATE_TEXT = 'GM Actions are off. Turn on for tonight in Pre-flight turns t
 interface Plan {
   planId?: unknown;
   risk?: string;
+  /** A page-reveal plan's page: what the plan will show, whatever the caller expected. */
+  pageUuid?: string;
   providerNote?: string;
   /** Plans that change nothing in Foundry apply at once and say so here. */
   note?: string;
@@ -114,6 +123,16 @@ export interface GuardedOptions {
   lines?: string[];
   /** The confirm window's summary for a write that is not a plan (default: "Run <tool> ..."). */
   summary?: string;
+  /**
+   * A plan's confirm as one line (a reveal): the window shows this question and nothing else,
+   * with `confirmLabel` on the button. Implies alwaysConfirm.
+   */
+  confirmLine?: {
+    title: string;
+    question: string;
+    confirmLabel: string;
+    pageUuid?: string | undefined;
+  };
 }
 
 export interface GuardedTools {
@@ -178,9 +197,50 @@ export function useGuardedTools(): GuardedTools {
   const gmActionsOff = settings?.gmActionsEnabled !== true;
 
   return useMemo(() => {
+    /** Turn on for tonight from a refusal toast: the same call as the Ready block in Pre-flight. */
+    const turnOnForTonight = (): void => {
+      api<SwitchesWrite>('/api/session/switches', {
+        method: 'POST',
+        body: JSON.stringify({ action: 'ready' }),
+      })
+        .then(data => applySwitchesWrite(queryClient, toast, data, 'ready'))
+        .catch((err: unknown) => toast(`✗ Turn on for tonight: ${errorText(err)}`, 'err'));
+    };
+
+    /**
+     * Whether the dashboard's Turn on for tonight controls the switch a refusal names. The GM
+     * Actions gate has no button: it opens Pre-flight, which has the real one. Other switches keep
+     * the named pointer to Foundry's settings.
+     */
+    const controlsSwitch = async (switchName: string): Promise<boolean> => {
+      if (switchName === 'Allow Write Operations') return true;
+      try {
+        const read = await queryClient.fetchQuery({
+          queryKey: SWITCHES_KEY,
+          queryFn: () => api<SwitchesRead>('/api/session/switches'),
+          staleTime: 30_000,
+        });
+        return read.switches?.switches.some(s => s.name === switchName) === true;
+      } catch {
+        return false;
+      }
+    };
+
+    /** The warning toast of a refusal, with the Turn on for tonight button where it applies. */
+    const refusalToast = async (text: string, switchName: string | null): Promise<void> => {
+      const turnOn =
+        switchName !== null && (await controlsSwitch(switchName))
+          ? {
+              label: `Turn on ${shortName(switchName)} and the rest for tonight`,
+              onClick: turnOnForTonight,
+            }
+          : undefined;
+      toast(text, 'warn', turnOn);
+    };
+
     const refuse = (name: string, code: string, options: GuardedOptions): GuardedOutcome => {
       usage().trackTool(name, 'error', code);
-      toast(options.gateText ?? GATE_TEXT, 'warn');
+      void refusalToast(options.gateText ?? GATE_TEXT, null);
       openGate();
       return REFUSED;
     };
@@ -220,7 +280,7 @@ export function useGuardedTools(): GuardedTools {
         if (isSwitchOffRefusal(error) && !mayHaveApplied(err)) {
           // Nothing was written and nothing is wrong: a switch to turn on, said as a hint.
           const hint = error.replace(/^Error:\s*/, '');
-          toast(hint, 'warn');
+          void refusalToast(hint, refusedSwitchName(hint));
           return { outcome: { status: 'failed', error: hint } };
         }
         if (err instanceof ApiError && err.kind === 'timeout') {
@@ -262,8 +322,29 @@ export function useGuardedTools(): GuardedTools {
     const confirmPlan = async (
       plan: Plan,
       planId: string,
-      returnTo: HTMLElement | null
+      returnTo: HTMLElement | null,
+      line?: GuardedOptions['confirmLine']
     ): Promise<{ flags: ToolConfirm } | { outcome: GuardedOutcome }> => {
+      // The drawer's line names the page it last read; when the server planned another page
+      // (the queue moved since), the full window shows the plan's own summary instead.
+      const sameTarget = line?.pageUuid === undefined || plan.pageUuid === line.pageUuid;
+      if (line && sameTarget && (plan.risk === 'write' || plan.risk === undefined)) {
+        // One line, no list and no tick: the plan has a working Undo, the window only asks.
+        const ok = await askConfirm({
+          title: line.title,
+          summary: line.question,
+          diff: [],
+          compact: true,
+          confirmLabel: line.confirmLabel,
+          destructive: false,
+          returnTo,
+        });
+        if (!ok) {
+          usage().trackTool('apply-planned-change', 'cancelled');
+          return { outcome: CANCELLED };
+        }
+        return { flags: { confirm: true } };
+      }
       let shown = plan;
       let lines = planLines(plan);
       if (lines === null || typeof plan.summary !== 'string') {
@@ -344,8 +425,8 @@ export function useGuardedTools(): GuardedTools {
       }
       // The click is the confirmation for an ordinary write; anything else asks first.
       let flags: ToolConfirm = { confirm: true };
-      if (planned.risk !== 'write' || options.alwaysConfirm) {
-        const asked = await confirmPlan(planned, planned.planId, startedFrom);
+      if (planned.risk !== 'write' || options.alwaysConfirm || options.confirmLine) {
+        const asked = await confirmPlan(planned, planned.planId, startedFrom, options.confirmLine);
         if ('outcome' in asked) return asked.outcome;
         flags = asked.flags;
       }

@@ -172,6 +172,20 @@ describe('TableController', () => {
     expect(get().slots.every(s => s.stage === 'empty')).toBe(true);
   });
 
+  it('refuses a flip when the reading changed while the dialog was open', async () => {
+    const { controller, backend, request, deps } = makeController();
+    await controller.load();
+    await controller.place();
+    (deps.confirmFlip as ReturnType<typeof vi.fn>).mockImplementationOnce(async () => {
+      backend.readingId = 'roll-2';
+      backend.tome = 'stars-4';
+      return '';
+    });
+    await controller.flip(0);
+    expect(request).not.toHaveBeenCalledWith('plan-tarokka-reveal', expect.anything());
+    expect(controller.view.actionError).toMatch(/reading changed/);
+  });
+
   it('leaves the card face down when the apply fails', async () => {
     const { controller, backend, get } = makeController();
     await controller.load();

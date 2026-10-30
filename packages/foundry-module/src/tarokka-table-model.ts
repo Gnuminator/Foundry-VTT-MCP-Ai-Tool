@@ -350,6 +350,6 @@ export function renderFlipDialogHtml(label: string, cardName: string): string {
     '<label class="fmb-tk-field">Text for the players (optional; the card name is used if empty)' +
     '<textarea name="text" rows="3" maxlength="5000"></textarea></label>' +
     '<p>This marks the card revealed in the AI Tool and adds a page for the players. ' +
-    'Undo in Recent Changes puts it back.</p>'
+    'Undo it in the Changes window (AI Tool toolbar) or the dashboard.</p>'
   );
 }

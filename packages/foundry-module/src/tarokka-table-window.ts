@@ -190,14 +190,21 @@ export class TableController {
       if (!slot || !canFlip(this.view.table, index)) return;
       // The reading may have changed behind the window (Claude, the drawer, an Undo): a flip
       // must publish the card the GM was shown, so compare before asking.
-      const current = await this.deps.request('get-tarokka-reading', {});
-      const now = parseReading(current)?.positions.find(p => p.position === slot.position);
-      if (readingIdOf(current) !== this.view.table.readingId || now?.cardId !== slot.cardId) {
-        await this.load();
-        throw new Error('The reading changed since the table loaded; it was refreshed, flip again');
-      }
+      const check = async (): Promise<void> => {
+        const current = await this.deps.request('get-tarokka-reading', {});
+        const now = parseReading(current)?.positions.find(p => p.position === slot.position);
+        if (readingIdOf(current) !== this.view.table.readingId || now?.cardId !== slot.cardId) {
+          await this.load();
+          throw new Error(
+            'The reading changed since the table loaded; it was refreshed, flip again'
+          );
+        }
+      };
+      await check();
       const typed = await this.deps.confirmFlip(slot.label, slot.cardName);
       if (typed === null) return;
+      // The dialog stays open until the GM answers: look again before the plan is made.
+      await check();
       const text = typed.trim() === '' ? slot.cardName : typed.trim();
       // No title: the reveal's neutral default keeps the position name off the players' page.
       const plan = parseRevealPlan(
@@ -222,6 +229,10 @@ export class TableController {
     // pick, and the table must not stay locked behind a promise that never settles.
     const path = safeImage(await this.deps.pickImage());
     if (!path) return;
+    if (this.view.busy) {
+      this.deps.notifyError('Picture not saved: the table was busy. Try again.');
+      return;
+    }
     return this.act(async () => {
       await this.deps.writeImages({ ...this.deps.readImages(), [slot.cardId]: path });
       await this.load();

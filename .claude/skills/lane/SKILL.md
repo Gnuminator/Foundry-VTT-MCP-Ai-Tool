@@ -108,8 +108,9 @@ item is marked done; the board ignores a line on an item with no claim.
     ratchet tells you when a count dropped or rose; lower the baseline then
     (`npm run lint:ratchet -- --update`).
   - **The full local `npm run green`** only on request (the planner or the user asks) or when CI
-    cannot tell: a change to `green.mjs` or `ci.yml` itself, to checks CI does not run, or CI being
-    down. `--list`, `--only a,b`, `--from <step>` for a rerun. It shares the PC through the
+    cannot tell: Windows-only local behaviour (the heavy lock, the Node 22 PATH, the solo e2e lock,
+    the `.husky` hook path), checks CI does not run, or CI being down. A change to `green.mjs` or
+    `ci.yml` is judged by CI (the gate-scripts step and the ci.yml parity test run there). `--list`, `--only a,b`, `--from <step>` for a rerun. It shares the PC through the
     machine-wide lock (`node scripts/heavy-lock.mjs status` shows who holds it and who waits; the
     slot count is in `~/.foundry-ai-tool/heavy-lock.json`). A full OK run writes the tree to
     `.git/green-ok`, which makes the `pre-push` hook skip its guard.

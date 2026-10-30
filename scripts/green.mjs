@@ -821,6 +821,8 @@ export function cloudGreen(o) {
  * @param {string[]} files repo-relative paths, forward slashes
  * @returns {Step[]}
  */
+const QUICK_TEST_OF = { 'scripts/pre-push.mjs': 'scripts/green.test.mjs' };
+
 export function quickSteps(files, cwd = process.cwd()) {
   /** @type {Step[]} */
   const steps = [];
@@ -833,19 +835,21 @@ export function quickSteps(files, cwd = process.cwd()) {
   if (sharedTouched || pkgs.size > 0) steps.push({ name: 'build-shared', cmd: 'npm', args: ['run', 'build:shared'] });
   if (sharedTouched) {
     steps.push({ name: 'typecheck-all', cmd: 'npm', args: ['run', 'typecheck'] });
-    steps.push({ name: 'unit-shared', cmd: 'npm', args: ['run', 'test', '-w', '@gnuminator/shared'] });
+    steps.push({ name: 'unit-shared', cmd: 'npm', args: ['run', 'test', '-w', '@gnuminator/shared'], env: CI });
   } else {
     for (const p of [...pkgs].sort()) {
       steps.push({ name: `typecheck-${p}`, cmd: 'npm', args: ['run', 'typecheck', '-w', `@gnuminator/${p}`] });
     }
   }
   for (const p of [...pkgs].sort()) {
-    steps.push({ name: `unit-${p}`, cmd: 'npm', args: ['run', 'test', '-w', `@gnuminator/${p}`] });
+    steps.push({ name: `unit-${p}`, cmd: 'npm', args: ['run', 'test', '-w', `@gnuminator/${p}`], env: CI });
   }
   const nodeTests = new Set();
   for (const f of files) {
     if (/^(?:scripts|\.claude\/hooks)\/.*\.mjs$/.test(f) && isShellSafe(f)) {
-      nodeTests.add(f.endsWith('.test.mjs') ? f : f.replace(/\.mjs$/, '.test.mjs'));
+      nodeTests.add(
+        f.endsWith('.test.mjs') ? f : (QUICK_TEST_OF[f] ?? f.replace(/\.mjs$/, '.test.mjs'))
+      );
     }
   }
   const tests = [...nodeTests].filter(f => fs.existsSync(path.join(cwd, f))).sort();
@@ -918,7 +922,9 @@ export function main(options = {}) {
     return 2;
   }
   if (opts.list) {
-    for (const s of stepsOption) log(s.name);
+    for (const s of opts.quick ? quickSteps(options.changed ?? changedFiles(cwd), cwd) : stepsOption) {
+      log(s.name);
+    }
     return 0;
   }
   const steps = opts.quick ? quickSteps(options.changed ?? changedFiles(cwd), cwd) : stepsOption;

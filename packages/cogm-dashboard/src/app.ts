@@ -235,6 +235,9 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
 
   const state = new GameState(config.maxEvents, config.maxErrors);
   const sse = new SseHub(logger);
+  // A few seconds of memory for the slow page-load reads; a non-read tool call or a new game
+  // event empties it.
+  const readCache = createReadCache();
   const playerHub = new SseHub(logger.child('player'));
 
   const commentary = new CommentaryEngine({
@@ -494,6 +497,8 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
       playerVaults?.onEvents(events);
       const added = state.addEvents(events);
       if (added.length === 0) return;
+      // A change made elsewhere (Claude Desktop, Foundry itself) must not read back stale.
+      readCache.clear();
       sse.broadcast('events', { events: added, initial: meta.initial }, gmOnly);
       schedulePlayerBroadcast();
       if (!meta.initial) commentary.notifyEvents(added);
@@ -1150,9 +1155,6 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
         });
       });
   });
-
-  // A few seconds of memory for the slow page-load reads; any non-read tool call empties it.
-  const readCache = createReadCache();
 
   app.post('/api/tool', requireGm, (req: Request, res: Response) => {
     const body = asRecord(req.body);

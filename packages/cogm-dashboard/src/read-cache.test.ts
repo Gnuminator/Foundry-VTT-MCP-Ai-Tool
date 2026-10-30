@@ -40,7 +40,12 @@ describe('read cache', () => {
   });
 
   it('never covers the lists that show write results', () => {
-    for (const name of ['list-recent-changes', 'list-revealed-pages', 'get-combat-state']) {
+    for (const name of [
+      'list-recent-changes',
+      'list-revealed-pages',
+      'get-prep-digest',
+      'get-combat-state',
+    ]) {
       expect(CACHED_READ_TOOLS.has(name)).toBe(false);
     }
   });

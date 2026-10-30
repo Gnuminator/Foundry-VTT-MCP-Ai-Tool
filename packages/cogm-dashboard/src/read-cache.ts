@@ -1,15 +1,11 @@
-// A few seconds of memory for the dashboard's slow page-load reads (I-098): get-play-stats,
-// get-prep-digest and list-scenes. Two windows loading together, or a reload, share one bridge
-// call (also while it is still running). Never the lists that show write results (Recent Changes,
-// the Handouts queue, combat): a stale one there would hide a change. Any other tool call through
-// /api/tool, or a play-session mark, clears everything, so the GM's own writes read back fresh.
+// A few seconds of memory for two slow page-load reads (I-098): get-play-stats and list-scenes.
+// Two windows loading together, or a reload, share one bridge call (also while it is still
+// running). Never the lists that show write results (Recent Changes, the Handouts queue, the Prep
+// digest, combat): a stale one there would hide a change. Any other tool call through /api/tool,
+// a play-session mark or a new game event clears everything.
 
 /** Tools whose answer may be a few seconds old. */
-export const CACHED_READ_TOOLS: ReadonlySet<string> = new Set([
-  'get-play-stats',
-  'get-prep-digest',
-  'list-scenes',
-]);
+export const CACHED_READ_TOOLS: ReadonlySet<string> = new Set(['get-play-stats', 'list-scenes']);
 
 export const READ_CACHE_TTL_MS = 5_000;
 

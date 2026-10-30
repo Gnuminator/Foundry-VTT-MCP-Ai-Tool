@@ -123,6 +123,11 @@ export function usePreflightOnReconnect(): void {
       // A quiet run: a failure leaves the last result as it was. It waits a moment so the
       // panels' own first reads (the visible part of the page) get the bridge first.
       setTimeout(() => {
+        // The Pre-flight drawer (docked in Before) may have run it meanwhile: not twice.
+        const state = queryClient.getQueryState(PREFLIGHT_KEY);
+        if (state?.fetchStatus === 'fetching') return;
+        if (state?.dataUpdatedAt && Date.now() - state.dataUpdatedAt < PREFLIGHT_QUIET_DELAY_MS)
+          return;
         queryClient
           .fetchQuery({ queryKey: PREFLIGHT_KEY, queryFn: fetchPreflight, staleTime: 0 })
           .catch(() => undefined);

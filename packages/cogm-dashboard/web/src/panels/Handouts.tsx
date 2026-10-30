@@ -40,7 +40,7 @@ interface RevealedPage {
 }
 
 /** A queued page (handouts/service.ts QueuedPageView). */
-interface QueuedPage {
+export interface QueuedPage {
   entryId: string;
   uuid: string;
   title: string | null;
@@ -50,18 +50,18 @@ interface QueuedPage {
 }
 
 /** One player's display name (GET /api/player/names). */
-interface PlayerName {
+export interface PlayerName {
   userId: string;
   name: string;
 }
 
-interface Scene {
+export interface Scene {
   id: string;
   name: string;
   active?: boolean;
 }
 
-interface HandoutsState {
+export interface HandoutsState {
   pages: RevealedPage[];
   queue: QueuedPage[];
   sceneNames: Record<string, string>;
@@ -83,7 +83,7 @@ const list = <T,>(x: T[] | null | undefined): T[] => (Array.isArray(x) ? x : [])
  * active) and the player names. Only list-revealed-pages failing fails the load; without scenes
  * "Reveal next" takes a page queued for any scene, and without names the ticks show user ids.
  */
-async function loadHandouts(): Promise<HandoutsState> {
+export async function loadHandouts(): Promise<HandoutsState> {
   const [view, scenes, players, features] = await Promise.all([
     callTool<{ pages?: RevealedPage[]; queue?: QueuedPage[] } | null>('list-revealed-pages', {}),
     callTool<Scene[] | { scenes?: Scene[] } | null>('list-scenes', {}).catch(() => []),
@@ -102,7 +102,7 @@ async function loadHandouts(): Promise<HandoutsState> {
 }
 
 /** The queue entry "Reveal next" takes: the oldest for the active scene or for any scene. */
-function nextQueued(s: HandoutsState): QueuedPage | null {
+export function nextQueued(s: HandoutsState): QueuedPage | null {
   return (
     s.queue.find(
       q => q.sceneId === null || s.activeSceneId === null || q.sceneId === s.activeSceneId

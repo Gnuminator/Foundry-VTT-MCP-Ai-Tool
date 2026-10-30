@@ -26,6 +26,7 @@ import { SessionMarker } from './components/SessionMarker';
 import { ThemePicker } from './components/ThemePicker';
 import { StreamState } from './components/StreamState';
 import { HelpProvider } from './components/Help';
+import { LiveStripPage } from './components/LiveStripPage';
 import { useHelp } from './components/HelpButton';
 import {
   DOCKS,
@@ -127,11 +128,11 @@ function useWorldTheme(): void {
  * after G1 for the few panels that have not moved here.
  */
 export function App(): JSX.Element {
+  // /?strip=1: the live strip alone, the base the live screens build on (LiveStripPage).
+  const stripOnly = new URLSearchParams(window.location.search).get('strip') === '1';
   return (
     <HelpProvider>
-      <ConfirmProvider>
-        <Dashboard />
-      </ConfirmProvider>
+      <ConfirmProvider>{stripOnly ? <LiveStripPage /> : <Dashboard />}</ConfirmProvider>
     </HelpProvider>
   );
 }

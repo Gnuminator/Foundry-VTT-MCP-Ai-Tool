@@ -1,0 +1,217 @@
+/* The live strip: one component for screen A (the dashboard) and screen B (a Foundry window of about
+   400 px). It lays out by its own width (a container query), not the window's. Tokens only. */
+.strip {
+  container-type: inline-size;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  color: var(--text);
+  background: var(--bg);
+}
+
+.header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.title {
+  margin: 0;
+  margin-right: auto;
+  font-size: var(--text-lg);
+}
+
+.meta {
+  font-size: var(--text-sm);
+  color: var(--text-mid);
+}
+
+.away {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--warn);
+}
+
+.cards {
+  display: flex;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0 0 var(--space-1);
+  list-style: none;
+  overflow-x: auto;
+}
+
+.card {
+  flex: 0 0 9.5rem;
+  display: grid;
+  grid-template-columns: 2.75rem 1fr;
+  grid-template-rows: auto auto auto;
+  column-gap: var(--space-2);
+  align-items: center;
+  padding: var(--space-2);
+  border: 2px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--bg-elev);
+}
+
+.card[data-side='pc'] {
+  border-color: var(--pc);
+}
+.card[data-side='enemy'] {
+  border-color: var(--enemy);
+}
+.card[data-side='npc'] {
+  border-color: var(--npc);
+}
+.card[data-current='true'] {
+  box-shadow: 0 0 0 3px var(--accent-glow);
+}
+.card[data-picked='true'] {
+  background: var(--accent-soft);
+}
+.card[data-down='true'] {
+  opacity: 0.7;
+}
+
+/* The portrait box has its size before the image loads, so nothing moves when it arrives. */
+.portrait {
+  grid-row: 1 / span 3;
+  width: 2.75rem;
+  height: 2.75rem;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--bg-sunken);
+  color: var(--text);
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+button.portrait {
+  cursor: pointer;
+}
+.portrait img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.pick {
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.hpText {
+  font-size: var(--text-2xs);
+  color: var(--text-mid);
+}
+
+.hpBar {
+  height: 0.35rem;
+  border-radius: var(--r-pill);
+  background: var(--bg-sunken);
+  overflow: hidden;
+}
+.hpFill {
+  display: block;
+  height: 100%;
+  background: var(--good);
+}
+.hpFill.mid {
+  background: var(--warn);
+}
+.hpFill.low {
+  background: var(--bad);
+}
+
+.chips {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  min-height: 1.25rem;
+  margin-top: var(--space-1);
+}
+.tag {
+  padding: 0 var(--space-2);
+  border-radius: var(--r-pill);
+  background: var(--warn-soft);
+  color: var(--warn);
+  font-size: var(--text-2xs);
+}
+.tag.down {
+  background: var(--bad-soft, var(--warn-soft));
+  color: var(--bad);
+}
+
+.bar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  background: var(--bg-elev);
+}
+.barRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+.who {
+  margin-right: auto;
+  font-weight: 700;
+}
+.who[data-empty='true'] {
+  font-weight: 400;
+  color: var(--text-mid);
+}
+.cond {
+  padding: 0.25rem 0.6rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-pill);
+  background: transparent;
+  color: var(--text);
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+.cond[aria-disabled='true'] {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.handout {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+.hint {
+  font-size: var(--text-sm);
+  color: var(--text-mid);
+}
+
+@container (max-width: 30rem) {
+  .cards {
+    flex-direction: column;
+    overflow-x: visible;
+  }
+  .card {
+    flex: 0 0 auto;
+  }
+}

@@ -51,6 +51,10 @@ The creature whose turn it is has an orange frame.
 The **Previous turn** and **Next turn** buttons do exactly what the arrows in Foundry's combat
 tracker do. They show only once the combat has started. With no combat running, the window says so.
 
+After an AI damage change, wait a second or two before you click **Next turn**. Foundry can add
+Unconscious a moment after the hit points drop, and a click in that gap makes the late condition
+count as a separate change, so undoing the damage leaves Unconscious on the character.
+
 When to use it: when the table is waiting on you, so the order and who is bloodied are one glance away.
 
 ## Party
@@ -67,8 +71,12 @@ the button under the bar (**Group save** for a saving throw, **Ask everyone** ot
 every character in the list. Players click the roll card in the chat as usual. The results list under
 the bar fills in as the rolls come, per character, with "passes" or "fails" when you gave a DC. Only
 the roll you asked for counts: a different save, a skill or an attack by the same character does not
-fill the row (a bare typed dice roll by that character, such as `/r 1d20`, may still fill it). The requests are logged like any other roll request, so the recap and stats see them.
-The buttons are grey, with the reason, while "Allow Write Operations" is off.
+fill the row. A bare typed dice roll by that character, such as `/r 1d20`, does fill it, so tell the
+players to click the card. The requests are logged like any other roll request, so the recap and stats
+see them.
+
+The buttons are grey, with the reason, while "Allow Write Operations" is off (starting a session does
+not turn it on).
 
 When to use it: when you plan a fight or an ambush and want to know what the party can take, and when
 somebody asks "what is my passive Perception again".

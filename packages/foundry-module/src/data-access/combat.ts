@@ -1,4 +1,6 @@
 import * as shared from './shared.js';
+import { changeJournal } from '../change-journal.js';
+import { resolveCombat } from '../combat-resolve.js';
 import { eventTracker } from '../session-events.js';
 
 /** The roll-shape fields `rollSavingThrows` forwards to the dnd5e roll dispatch. */
@@ -230,9 +232,7 @@ export class CombatDataAccess {
 
   /** The live combat, else the most recently registered encounter, else null. */
   private resolveActiveOrRecentCombat(): TrackerCombat | null {
-    return (game.combat ??
-      Array.from(game.combats ?? []).slice(-1)[0] ??
-      null) as TrackerCombat | null;
+    return (resolveCombat() ?? null) as TrackerCombat | null;
   }
 
   /**
@@ -529,11 +529,18 @@ export class CombatDataAccess {
 
   // --- Mutation internals ----------------------------------------------------
 
-  /** The live combat (`game.combat`), or throw — mutation needs an *active* encounter. */
+  /**
+   * The fight the combat strip shows (this browser's live combat, else the latest encounter), or
+   * throw. A fight started on the dashboard can belong to a scene this GM browser does not view,
+   * where `game.combat` is null.
+   */
   private requireActiveCombat(): TrackerCombat {
-    const combat = game.combat;
+    const combat = this.resolveActiveOrRecentCombat();
     if (!combat) throw new Error('No active combat encounter.');
-    return combat as TrackerCombat;
+    // Only the turn and initiative writes come here: they are no follow-up of a guarded write
+    // that ended a moment ago (the journal's long gap would else file them under it).
+    changeJournal.breakGroup();
+    return combat;
   }
 
   /**

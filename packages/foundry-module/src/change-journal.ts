@@ -4,6 +4,7 @@ import {
   CHANGE_JOURNAL_ACTION_MAX_MS,
   CHANGE_JOURNAL_ACTION_MAX_OPS,
   CHANGE_JOURNAL_DOCUMENTS,
+  CHANGE_JOURNAL_GUARDED_GAP_MS,
   CHANGE_JOURNAL_MAX_BUFFER_BYTES,
   CHANGE_JOURNAL_MAX_LIMIT,
   CHANGE_JOURNAL_MAX_RECORD_BYTES,
@@ -307,6 +308,10 @@ export class ChangeJournal {
   private actionOps = 0;
   /** The last operation carried the guarded-write marker (an AI change was applying). */
   private lastGuarded = false;
+  /** The current change group holds a guarded write (its gap is CHANGE_JOURNAL_GUARDED_GAP_MS). */
+  private groupGuarded = false;
+  /** When the last guarded-write operation happened (the long gap counts from it). */
+  private lastGuardedAt = 0;
 
   /**
    * Register the hooks once (safe to call more than once), for every covered
@@ -375,9 +380,16 @@ export class ChangeJournal {
   private currentActionId(guarded: boolean): string {
     const now = Date.now();
     const plain = !guarded && !this.lastGuarded;
+    // A group with a guarded write waits longer for dnd5e's follow-ups of it: they are unawaited
+    // round trips and, on a slow link, start more than the plain gap after the write (Unconscious
+    // and Prone at 0 HP, the effects an undo removes) and would else become a person's own change.
+    // The longer wait is measured from the last guarded write, not from the last change, so a
+    // person's own edit a few seconds after an AI change does not chain into its group.
+    const withinGuardedGap =
+      this.groupGuarded && now - this.lastGuardedAt <= CHANGE_JOURNAL_GUARDED_GAP_MS;
     if (
       this.actionId === null ||
-      now - this.lastChangeAt > CHANGE_JOURNAL_ACTION_GAP_MS ||
+      (now - this.lastChangeAt > CHANGE_JOURNAL_ACTION_GAP_MS && !withinGuardedGap) ||
       (plain &&
         (now - this.actionStartedAt >= CHANGE_JOURNAL_ACTION_MAX_MS ||
           this.actionOps >= CHANGE_JOURNAL_ACTION_MAX_OPS))
@@ -385,11 +397,27 @@ export class ChangeJournal {
       this.actionId = randomId();
       this.actionStartedAt = now;
       this.actionOps = 0;
+      this.groupGuarded = false;
+    }
+    if (guarded) {
+      this.groupGuarded = true;
+      this.lastGuardedAt = now;
     }
     this.actionOps += 1;
     this.lastChangeAt = now;
     this.lastGuarded = guarded;
     return this.actionId;
+  }
+
+  /**
+   * End the current change group: the next operation from this browser starts its own. A direct
+   * bridge write (Next turn, initiative) calls it first, so it is never taken for a follow-up of
+   * the guarded write before it, within the guarded gap.
+   */
+  breakGroup(): void {
+    this.actionId = null;
+    this.groupGuarded = false;
+    this.lastGuarded = false;
   }
 
   /**

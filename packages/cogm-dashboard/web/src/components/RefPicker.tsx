@@ -7,7 +7,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Fragment, useEffect, useMemo, useRef, useState, type JSX, type ReactNode } from 'react';
 
 import { callTool, errorText } from '../lib/api';
-import { fetchFoundryTargets, targetValues, targetsNote } from '../lib/foundryTargets';
+import { fetchFoundryTargets, targetPairs, targetsNote } from '../lib/foundryTargets';
 import { fieldValues, refValue, type RefChoice, type ToolRef } from '../lib/toolForm';
 import { usage } from '../lib/usage';
 import { Button } from '../ui';
@@ -212,7 +212,8 @@ export function RefPicker({
   };
 
   // Token and actor fields can take whatever the GM has targeted (else selected) in Foundry.
-  const takesTokens = kinds.includes('token') || kinds.includes('actor');
+  // A uuid field needs a full uuid, which the target list does not carry: no button there.
+  const takesTokens = (kinds.includes('token') || kinds.includes('actor')) && ref.value !== 'uuid';
   const [targetNote, setTargetNote] = useState('');
   const useTargets = (): void => {
     usage().track('action', 'dash.tools.foundry-targets');
@@ -220,14 +221,12 @@ export function RefPicker({
     void fetchFoundryTargets().then(
       found => {
         setTargetNote(targetsNote(found));
-        const next = targetValues(found.tokens, ref.value, kinds);
+        const pairs = targetPairs(found.tokens, ref.value, kinds);
+        const next = pairs.map(p => p.value);
         if (next.length === 0) return;
         if (multiple) onChange(next.join('\n'));
         else if (next[0] !== undefined) onChange(next[0]);
-        for (const [i, v] of next.entries()) {
-          const n = found.tokens[i]?.name;
-          if (n) names.set(v, n);
-        }
+        for (const p of pairs) if (p.name) names.set(p.value, p.name);
       },
       (err: unknown) => setTargetNote(`✗ ${errorText(err)}`)
     );

@@ -1,6 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { combatIdsFor, readFoundryTargets, targetValues, targetsNote } from './foundryTargets';
+import {
+  combatIdsFor,
+  readFoundryTargets,
+  targetPairs,
+  targetValues,
+  targetsNote,
+} from './foundryTargets';
 
 // The pure helpers under test never call the API; the real module reads `location` on import.
 vi.mock('./api', () => ({ callTool: vi.fn() }));
@@ -34,6 +40,16 @@ describe('targetValues', () => {
   it('gives token ids when tokens are offered, actor ids for an actor-only field', () => {
     expect(targetValues(tokens, 'id', ['token', 'actor'])).toEqual(['t1', 't2']);
     expect(targetValues(tokens, 'id', ['actor'])).toEqual(['a1']);
+  });
+});
+
+describe('targetPairs', () => {
+  it('keeps each name with its own value when a token has no actor', () => {
+    const tokens = [tok(1), { tokenId: 't2', name: 'Bandit 2', actorId: null }, tok(3)];
+    expect(targetPairs(tokens, 'id', ['actor'])).toEqual([
+      { value: 'a1', name: 'Bandit 1' },
+      { value: 'a3', name: 'Bandit 3' },
+    ]);
   });
 });
 

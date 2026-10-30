@@ -53,16 +53,24 @@ export function targetsNote(t: FoundryTargets): string {
 }
 
 /** What a token field takes: names, ids, or actor ids, per the picker's annotation. */
+export function targetPairs(
+  tokens: FoundryToken[],
+  value: 'id' | 'name' | 'uuid' | undefined,
+  kinds: readonly string[]
+): Array<{ value: string; name: string }> {
+  if (value === 'name') return tokens.map(t => ({ value: t.name, name: t.name }));
+  if (!kinds.includes('token') && kinds.includes('actor')) {
+    return tokens.flatMap(t => (t.actorId ? [{ value: t.actorId, name: t.name }] : []));
+  }
+  return tokens.map(t => ({ value: t.tokenId, name: t.name }));
+}
+
 export function targetValues(
   tokens: FoundryToken[],
   value: 'id' | 'name' | 'uuid' | undefined,
   kinds: readonly string[]
 ): string[] {
-  if (value === 'name') return tokens.map(t => t.name);
-  if (!kinds.includes('token') && kinds.includes('actor')) {
-    return tokens.flatMap(t => (t.actorId ? [t.actorId] : []));
-  }
-  return tokens.map(t => t.tokenId);
+  return targetPairs(tokens, value, kinds).map(p => p.value);
 }
 
 /** Combat ids (the pick) of the combatants whose token is in the list. */

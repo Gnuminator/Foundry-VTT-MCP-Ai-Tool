@@ -514,6 +514,32 @@ describe('FoundryDataAccess — getTargets', () => {
     }
   });
 
+  it("keeps the bridge user's own targets over another GM's (a stale target wins)", async () => {
+    const g = (globalThis as any).game;
+    const prevUsers = g.users;
+    const prevTargets = g.user.targets;
+    g.user.targets = new Set([{ id: 'own', name: 'Own', actor: null }]);
+    g.users = {
+      ...prevUsers,
+      filter: (fn: (u: any) => boolean): unknown[] =>
+        [
+          {
+            id: 'gm2',
+            isGM: true,
+            active: true,
+            targets: new Set([{ id: 'other', name: 'Other' }]),
+          },
+        ].filter(fn),
+    };
+    try {
+      const result = await da.getTargets();
+      expect(result.targets.map((t: any) => t.tokenId)).toEqual(['own']);
+    } finally {
+      g.users = prevUsers;
+      g.user.targets = prevTargets;
+    }
+  });
+
   it('maps the user targets to token id / actor / ac / hp', async () => {
     (globalThis as any).game.user.targets = new Set([
       {

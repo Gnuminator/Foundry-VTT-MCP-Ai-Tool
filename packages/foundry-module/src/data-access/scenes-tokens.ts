@@ -538,6 +538,7 @@ export class ScenesTokensDataAccess {
     });
     // The bridge may run in another GM's browser (`bridgeUserId`, "Any GM"). Foundry syncs
     // every user's targets to all clients, so when this user has none, take the active GMs'.
+    // It only does so when this browser shows the same scene as that GM.
     // Canvas selection (`selected` below) is local to this browser: it only reflects the GM
     // when the bridge runs in the GM's own browser.
     let targets = Array.from(game.user?.targets ?? []);

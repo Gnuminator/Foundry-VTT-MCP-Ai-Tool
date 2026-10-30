@@ -424,7 +424,9 @@ test('started through a junction, green still runs (exit code and output, not a 
     encoding: 'utf8',
   });
   assert.equal(r.status, 0, r.stderr);
-  assert.match(r.stdout, /(^|\n)typecheck\n/);
+  const listed = r.stdout.trim().split('\n');
+  assert.ok(LIGHT_FIRST.has(listed[0]), 'the list starts with a light step (the real run order)');
+  assert.ok(listed.includes('typecheck'));
 });
 
 test('portableNode22Dir: on Windows under Node 24 the newest portable Node 22 comes first; elsewhere nothing changes', () => {
@@ -787,6 +789,7 @@ test('quickSteps: no step name takes the heavy lock', () => {
   );
   for (const s of all) {
     assert.ok(!HEAVY_STEPS.has(s.name), `${s.name} would take a heavy slot`);
+    assert.ok(!LIGHT_FIRST.has(s.name), `${s.name} would be reordered by lightFirst`);
     assert.doesNotThrow(() => commandLine(s));
   }
 });

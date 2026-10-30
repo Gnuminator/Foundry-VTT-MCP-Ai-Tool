@@ -76,6 +76,12 @@ have_systemd() { return 0; }
 require_quiet() { echo "quiet-check: $*" >>"${posix(pi.d)}/calls"; }
 systemctl() { echo "systemctl $*" >>"${posix(pi.d)}/calls"; case "$*" in *kit-gm*) return 1;; esac; return 0; }
 runuser() { shift 3; "$@"; }
+date() {
+  case "$1" in
+    +%Y%m%d-%H%M%S) local n; n=$(cat "${posix(pi.d)}/n" 2>/dev/null || echo 0); n=$((n + 1)); echo "$n" >"${posix(pi.d)}/n"; printf '20261030-1200%02d\\n' "$n" ;;
+    *) command date "$@" ;;
+  esac
+}
 install() { local a=(); while [ $# -gt 0 ]; do case "$1" in -o|-g) shift 2;; *) a+=("$1"); shift;; esac; done; command install "\${a[@]}"; }
 curl() {
   [ -z "\${JOIN_DOWN:-}" ] || return 22

@@ -39,7 +39,7 @@ export const SCENE_TOOLS = {
     return { success: true, from: from.name, to: to.name, distance: squares * 5, units: 'ft' };
   },
 
-  'get-targets': () => ({ success: true, count: 0, targets: [], selected: [] }),
+  'get-targets': () => ({ success: true, count: 0, targets: [] }),
 
   'get-token-details': (w, args) => {
     const scene = activeScene(w);

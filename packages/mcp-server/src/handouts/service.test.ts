@@ -220,8 +220,8 @@ describe('planPageReveal: reveal', () => {
   it('raises ownership to Observer and records previousOwnership when the page is not observable', async () => {
     const plan = await handouts.planPageReveal({ pageUuid: PAGE1, action: 'reveal' });
     expect(plan.target).toBe('mixed');
-    expect(plan.risk).toBe('destructive');
-    expect(plan.requires.confirmDestructive).toBe(true);
+    expect(plan.risk).toBe('write');
+    expect(plan.requires.confirmDestructive).toBe(false);
     await apply(plan.planId, true);
 
     expect(foundry.docs.get(PAGE1)?.source.ownership).toMatchObject({ default: 2 });
@@ -431,7 +431,7 @@ describe('planPageReveal: copy into "Handouts"', () => {
     const plan = await handouts.planPageReveal({ pageUuid: PAGE1, action: 'reveal' });
     expect(plan).toMatchObject({
       target: 'mixed',
-      risk: 'destructive',
+      risk: 'write',
       summary: 'Reveal page "Wine Cellar Notes" to players (copied into Handouts)',
       pageUuid: PAGE1,
       copy: {
@@ -588,7 +588,7 @@ describe('planPageReveal: copy into "Handouts"', () => {
     const plan = await handouts.planPageReveal({ pageUuid: PAGE1, action: 'reveal' });
     expect(plan).toMatchObject({
       target: 'foundry',
-      risk: 'destructive',
+      risk: 'write',
       summary: 'Reveal page "Wine Cellar Notes" to players again (updates its copy in Handouts)',
       copy: { action: 'update', pageUuid: copyUuid, journalCreated: false },
     });

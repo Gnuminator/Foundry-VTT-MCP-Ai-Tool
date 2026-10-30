@@ -30,7 +30,9 @@ import { gzipSync } from 'node:zlib';
 // 146 on 2026-10-28: reading the token image and uuid of each combatant (lib/combat.ts, which every
 // fight passes through, so it cannot be lazy) took the first load to 145.1 KB; the portrait and
 // pan code itself is in the lazy InitiativeRibbon chunk.
-export const FIRST_LOAD_LIMIT_KB = 146;
+// 147 on 2026-10-30: the "Turn on for tonight" button on a refusal toast (lib/guarded.ts, which
+// every guarded change passes through, so it cannot be lazy) took the first load to 146.4 KB.
+export const FIRST_LOAD_LIMIT_KB = 147;
 
 /**
  * Lazy chunks by name stem (the file name without its hash and extension: `Tarokka-Cx9aB1zQ.js`

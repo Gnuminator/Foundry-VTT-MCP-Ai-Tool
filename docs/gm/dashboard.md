@@ -622,8 +622,8 @@ pages show here: a new journal (one Claude just made, say) is not listed until y
   change the order: the first page is what **Reveal next** reveals. **Remove** takes one off the
   queue. Queueing changes nothing in Foundry.
 - **Reveal next: `<title>`**: plans the reveal of the next queued page for the scene that is active
-  now (or a page queued for any scene). The confirm window shows the change; applying it also takes
-  the page off the queue. Undo in Recent Changes hides it again and puts it back in the queue.
+  now (or a page queued for any scene). A one-line window asks `Show "<title>" to <players>?`
+  (no tick box; the reveal has a working Undo). Applying it also takes the page off the queue. Undo in Recent Changes hides it again and puts it back in the queue.
   Tick **Show it now** next to it to also pop the page up on the screens of the players it is for
   (everyone when it is for every player). It is off every time unless you tick it, and Undo cannot
   close the popup.

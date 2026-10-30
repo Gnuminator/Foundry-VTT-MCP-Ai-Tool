@@ -24,6 +24,12 @@ export interface ConfirmRequest {
   diff: string[];
   /** A delete, a reveal or a hide: Confirm waits for the "I understand" tick. */
   destructive: boolean;
+  /** The window's title (default "Confirm action" / "Destructive action"). */
+  title?: string | undefined;
+  /** The question alone: no change list (a reveal, which has an Undo). */
+  compact?: boolean | undefined;
+  /** The Confirm button's words (default "Confirm" / "Run destructive action"). */
+  confirmLabel?: string | undefined;
   /**
    * What had focus when the change started (the button clicked), read before the panel disabled
    * it: by the time the window opens, a disabled button has already lost focus to the page body.
@@ -144,19 +150,23 @@ export function ConfirmProvider({ children }: { children: ReactNode }): JSX.Elem
               >
                 {/* No ids of their own here: Radix names and describes the window by its ids. */}
                 <Dialog.Title asChild>
-                  <h3>{destructive ? 'Destructive action' : 'Confirm action'}</h3>
+                  <h3>
+                    {request.title ?? (destructive ? 'Destructive action' : 'Confirm action')}
+                  </h3>
                 </Dialog.Title>
                 <Dialog.Description asChild>
                   <div className="modal-body">
                     {request.summary && <p className="modal-summary">{request.summary}</p>}
                     {/* A long list scrolls inside the window and nothing in it takes the Tab key. */}
-                    <ul className="change-diff" tabIndex={0} aria-label="Changes">
-                      {request.diff.length > 0 ? (
-                        request.diff.map((line, i) => <li key={i}>{line}</li>)
-                      ) : (
-                        <li>(no changes listed)</li>
-                      )}
-                    </ul>
+                    {!request.compact && (
+                      <ul className="change-diff" tabIndex={0} aria-label="Changes">
+                        {request.diff.length > 0 ? (
+                          request.diff.map((line, i) => <li key={i}>{line}</li>)
+                        ) : (
+                          <li>(no changes listed)</li>
+                        )}
+                      </ul>
+                    )}
                   </div>
                 </Dialog.Description>
                 {destructive && (
@@ -188,7 +198,7 @@ export function ConfirmProvider({ children }: { children: ReactNode }): JSX.Elem
                     disabled={destructive && !ticked}
                     onClick={() => answer(true)}
                   >
-                    {destructive ? 'Run destructive action' : 'Confirm'}
+                    {request.confirmLabel ?? (destructive ? 'Run destructive action' : 'Confirm')}
                   </Button>
                 </div>
               </Dialog.Content>

@@ -1,7 +1,7 @@
 // The Handouts drawer on the React dashboard: the queue and the seen log (list-revealed-pages,
 // list-scenes and /api/player/names, faked here), the next entry, the empty and failed states,
-// Remove (no GM Actions needed), Reveal next through the confirm window (the destructive tick,
-// Confirm with both flags, Cancel, Escape with a toast up, Show it now), Undo, and the stream's
+// Remove (no GM Actions needed), Reveal next through the one-line confirm window (no tick,
+// Confirm with the confirm flag only, Cancel, Escape with a toast up, Show it now), Undo, and the stream's
 // handouts-seen reloading the open drawer, the reload after every reveal attempt and where focus
 // goes when the confirm window closes.
 import { expect, test, type Locator, type Page, type Route } from '@playwright/test';
@@ -113,10 +113,10 @@ const VIEW = { pages: PAGES, queue: QUEUE };
 const REVEAL_PLAN = {
   planId: 'rp1',
   feature: 'handouts',
-  risk: 'destructive',
+  risk: 'write',
   summary: 'Reveal "Map of Maravia" to every player',
   diff: [{ text: 'Map of Maravia: visible to every player' }, { text: 'Taken off the queue' }],
-  requires: { confirm: true, confirmDestructive: true },
+  requires: { confirm: true, confirmDestructive: false },
   pageUuid: page_(2),
 };
 const APPLIED = { changeId: 'ch9', summary: 'Revealed "Map of Maravia" to every player' };
@@ -305,7 +305,7 @@ test('a first load that fails says why; scenes and names that fail are left out'
   // With no active scene known, Reveal next asks for any scene.
   await drawer.locator('#handouts-next').click();
   await page
-    .getByRole('dialog', { name: 'Destructive action' })
+    .getByRole('dialog', { name: 'Show page to players' })
     .getByRole('button', { name: 'Cancel' })
     .click();
   expect(calls.find(c => c.name === 'plan-page-reveal')?.args).toEqual({ action: 'reveal-next' });
@@ -396,7 +396,7 @@ test('an arrow moves a row with one move call and keeps keyboard focus on that a
   ]);
 });
 
-test('Reveal next asks first; the tick unlocks Confirm, which applies with both flags', async ({
+test('Reveal next asks in one line, with no tick, and applies with the confirm flag only', async ({
   page,
 }) => {
   await fakeStream(page, gmActions(true));
@@ -405,15 +405,13 @@ test('Reveal next asks first; the tick unlocks Confirm, which applies with both 
   await expect(drawer.locator('#handouts-next')).toBeEnabled();
 
   await drawer.locator('#handouts-next').click();
-  const confirm = page.getByRole('dialog', { name: 'Destructive action' });
+  const confirm = page.getByRole('dialog', { name: 'Show page to players' });
   await expect(confirm).toBeVisible();
   await expect(confirm.locator('.modal-summary')).toHaveText(
-    'Reveal "Map of Maravia" to every player'
+    'Show "Map of Maravia" to every player?'
   );
-  await expect(confirm.locator('.change-diff li')).toHaveText([
-    'Map of Maravia: visible to every player',
-    'Taken off the queue',
-  ]);
+  await expect(confirm.locator('.change-diff')).toHaveCount(0);
+  await expect(confirm.getByRole('checkbox')).toHaveCount(0);
   // The modal window hides the drawer from the accessibility tree, so by id: one reveal at a time.
   await expect(page.locator('#handouts-next')).toBeDisabled();
   expect(calls.filter(c => c.name === 'plan-page-reveal').map(c => c.args)).toEqual([
@@ -421,21 +419,8 @@ test('Reveal next asks first; the tick unlocks Confirm, which applies with both 
   ]);
   expect(names(calls)).not.toContain('get-planned-change');
 
-  const run = confirm.getByRole('button', { name: 'Run destructive action' });
-  await expect(run).toBeDisabled();
-  await confirm
-    .getByRole('checkbox', {
-      name: 'I understand this changes the live game and may be hard to undo.',
-    })
-    .check();
+  const run = confirm.getByRole('button', { name: 'Show page to players' });
   await expect(run).toBeEnabled();
-  await confirm
-    .getByRole('checkbox', {
-      name: 'I understand this changes the live game and may be hard to undo.',
-    })
-    .uncheck();
-  await expect(run).toBeDisabled();
-  await confirm.getByRole('checkbox').check();
   const loaded = loads(calls);
   await run.click();
 
@@ -447,7 +432,6 @@ test('Reveal next asks first; the tick unlocks Confirm, which applies with both 
     name: 'apply-planned-change',
     args: { planId: 'rp1' },
     confirm: true,
-    confirmDestructive: true,
   });
   // The apply reloads the drawer once (the reload after the attempt joins it), and so does Undo.
   expect(loads(calls)).toBe(loaded + 1);
@@ -474,8 +458,10 @@ test('Show it now goes with one reveal; Cancel applies nothing and unticks it', 
   await expect(queueRows(drawer)).toHaveCount(4);
   const loaded = loads(calls);
   await drawer.locator('#handouts-next').click();
-  const confirm = page.getByRole('dialog', { name: 'Destructive action' });
-  await confirm.getByRole('checkbox').check();
+  const confirm = page.getByRole('dialog', { name: 'Show page to players' });
+  await expect(confirm.locator('.modal-summary')).toHaveText(
+    'Show "Map of Maravia" to every player now?'
+  );
   await confirm.getByRole('button', { name: 'Cancel' }).click();
   await expect(confirm).toBeHidden();
   await expect(showNow).not.toBeChecked();
@@ -490,8 +476,9 @@ test('Show it now goes with one reveal; Cancel applies nothing and unticks it', 
 
   // The next reveal starts unticked, and the window's own tick starts unticked again.
   await drawer.locator('#handouts-next').click();
-  await expect(confirm.getByRole('checkbox')).not.toBeChecked();
-  await expect(confirm.getByRole('button', { name: 'Run destructive action' })).toBeDisabled();
+  await expect(confirm.locator('.modal-summary')).toHaveText(
+    'Show "Map of Maravia" to every player?'
+  );
   expect(calls.filter(c => c.name === 'plan-page-reveal').map(c => c.args)[1]).toEqual({
     action: 'reveal-next',
     sceneId: 's1',
@@ -513,7 +500,7 @@ test('Escape closes the confirm window, not the toast or the drawer', async ({ p
   const drawer = await openHandouts(page);
 
   await drawer.locator('#handouts-next').click();
-  const confirm = page.getByRole('dialog', { name: 'Destructive action' });
+  const confirm = page.getByRole('dialog', { name: 'Show page to players' });
   await expect(confirm).toBeVisible();
   await expect(toast(page, 'The page is in a compendium.')).toBeVisible();
   await page.keyboard.press('Escape');
@@ -534,24 +521,23 @@ test('Escape closes the confirm window, not the toast or the drawer', async ({ p
   await expect(drawer).toBeHidden();
 });
 
-test('a plan answer without its lines is read again before the window opens', async ({ page }) => {
+test('a plan answer without its lines still gets the one-line window, with no re-read', async ({
+  page,
+}) => {
   await fakeStream(page, gmActions(true));
   const calls = await fakeTools(page, call => {
-    if (call.name === 'plan-page-reveal') return ok({ planId: 'rp1', risk: 'destructive' });
-    if (call.name === 'get-planned-change') return ok(REVEAL_PLAN);
+    if (call.name === 'plan-page-reveal') return ok({ planId: 'rp1', risk: 'write' });
     return bridge(call);
   });
   const drawer = await openHandouts(page);
 
   await drawer.locator('#handouts-next').click();
-  const confirm = page.getByRole('dialog', { name: 'Destructive action' });
-  await expect(confirm.locator('.change-diff li')).toHaveText([
-    'Map of Maravia: visible to every player',
-    'Taken off the queue',
-  ]);
-  expect(calls.find(c => c.name === 'get-planned-change')?.args).toEqual({ planId: 'rp1' });
-  await confirm.getByRole('checkbox').check();
-  await confirm.getByRole('button', { name: 'Run destructive action' }).click();
+  const confirm = page.getByRole('dialog', { name: 'Show page to players' });
+  await expect(confirm.locator('.modal-summary')).toHaveText(
+    'Show "Map of Maravia" to every player?'
+  );
+  expect(names(calls)).not.toContain('get-planned-change');
+  await confirm.getByRole('button', { name: 'Show page to players' }).click();
   await expect(toast(page, '✓ Applied: Revealed "Map of Maravia" to every player')).toBeVisible();
 });
 
@@ -615,10 +601,9 @@ test('a failed reveal reloads the queue; with nothing left, focus stays in the d
   await drawer.getByRole('button', { name: '↻ Refresh' }).click();
   await expect(drawer.locator('#handouts-next')).toBeEnabled();
   await drawer.locator('#handouts-next').click();
-  const confirm = page.getByRole('dialog', { name: 'Destructive action' });
-  await confirm.getByRole('checkbox').check();
+  const confirm = page.getByRole('dialog', { name: 'Show page to players' });
   view = { pages: PAGES, queue: [] };
-  await confirm.getByRole('button', { name: 'Run destructive action' }).click();
+  await confirm.getByRole('button', { name: 'Show page to players' }).click();
   await expect(toast(page, '✓ Applied: Revealed "Map of Maravia" to every player')).toBeVisible();
   await expect(queueRows(drawer)).toHaveCount(0);
   await expect(drawer.locator('#handouts-next')).toBeDisabled();

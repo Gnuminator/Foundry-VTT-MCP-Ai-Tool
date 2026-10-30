@@ -30,6 +30,7 @@ import { randomBytes } from 'crypto';
 import {
   type BridgeAnswer,
   expectedAfterApply,
+  featureOffMessage,
   GUARDED_OP_KINDS,
   type GuardedApplyOutcome,
   type GuardedApplyRequest,
@@ -43,6 +44,7 @@ import {
   type PathValue,
   type RulesVersion,
   unwrapBridgeReply,
+  WRITES_OFF_MESSAGE,
 } from '@gnuminator/shared';
 
 import type { FoundryClient } from '../foundry-client.js';
@@ -62,9 +64,6 @@ import {
   stableStringify,
   writeDataPath,
 } from './values.js';
-
-/** Where the switches are in Foundry; the module says the same (guarded-features.ts). */
-const SETTINGS_PATH = 'In Foundry, open Game Settings, Configure Settings, AI Tool and turn on';
 
 export const PLAN_TTL_MS = 15 * 60 * 1000;
 export const MAX_PLANS = 100;
@@ -134,6 +133,12 @@ export interface PlanInput {
    * e.g. for a reveal that cannot be taken back at the table.
    */
   risk?: 'destructive';
+  /**
+   * The plan's vault deletes only tidy the tool's own bookkeeping (a revealed page leaving the
+   * handout queue) and Undo puts them back, so they do not raise the plan to destructive.
+   * Deletes of Foundry documents still do.
+   */
+  bookkeepingDeletes?: boolean;
   /**
    * Readable names for update paths the caller knows better than the bridge, e.g.
    * `{ "ownership.abc123": "ownership for Player" }` (F5 L3). Used in the diff text, which
@@ -649,7 +654,7 @@ export class GuardedWriteService {
     // it needs one confirm (F5, D-082). Any other delete raises the plan to destructive.
     const deletes =
       ops.some((op, i) => op.kind === 'delete' && expected[i]?.documentName !== 'ActiveEffect') ||
-      vaultOps.some(op => op.kind === 'vault-delete');
+      (input.bookkeepingDeletes !== true && vaultOps.some(op => op.kind === 'vault-delete'));
     const risk: GuardedRisk = deletes || input.risk === 'destructive' ? 'destructive' : 'write';
     const target: ChangeTarget =
       ops.length > 0 && vaultOps.length > 0 ? 'mixed' : ops.length > 0 ? 'foundry' : 'vault';
@@ -1314,16 +1319,14 @@ export class GuardedWriteService {
     const list = Array.isArray(features) ? features : [];
     // Every feature carries the same writesAllowed; a module before 0.19.0 sends none (allowed).
     if (list.some(f => f.writesAllowed === false)) {
-      throw new Error(
-        `Write operations are disabled in the module settings. ${SETTINGS_PATH} "Allow Write Operations".`
-      );
+      throw new Error(WRITES_OFF_MESSAGE);
     }
     if (undo) return;
     const state = list.find(f => f.id === feature);
     if (!state) throw new Error(`Unknown feature "${feature}" (not installed in the module)`);
     if (state.enabled !== true) {
       const name = state.name || feature;
-      throw new Error(`"${name}" is switched off. ${SETTINGS_PATH} "${name}".`);
+      throw new Error(featureOffMessage(name));
     }
   }
 

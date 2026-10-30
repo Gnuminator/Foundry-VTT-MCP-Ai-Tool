@@ -55,6 +55,9 @@ keep each item's lines together when you move it.
 
 - Title this session "Planner" when it starts (`set_session_title`, if the user has not), so lanes
   can find the newest one.
+- Turn Remote Control on for this session when it starts (`set_remote_control` "self" true): the
+  app default is off (the user, 2026-10-30), so lanes do not hold archives or idle notices, but the
+  planner stays reachable from the phone.
 - Write `Usage now.md` at each planner start and before each lane start (see Weekly check), so
   the board's usage card is fresh when the lane begins.
 - At most 3 lanes, each owning its own files, one per test server. Respect every hold in CLAUDE.md.

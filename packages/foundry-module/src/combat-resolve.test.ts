@@ -21,6 +21,10 @@ function add(id: string, round: number, createdTime?: number): void {
   (world as any).currentCombat = null;
 }
 
+function idOfResolved(): string | undefined {
+  return resolveCombat<{ id: string; round?: number }>()?.id;
+}
+
 describe('resolveCombat', () => {
   it("prefers this browser's live combat", () => {
     const live = world.setCombat({ id: 'live', round: 0 });
@@ -34,18 +38,18 @@ describe('resolveCombat', () => {
   it('takes a started fight over a newer encounter nobody began', () => {
     add('running', 2, 100);
     add('prep', 0, 900);
-    expect((resolveCombat() as any).id).toBe('running');
+    expect(idOfResolved()).toBe('running');
   });
 
   it('takes the newest by creation time, whatever the collection order', () => {
     add('newer', 1, 500);
     add('older', 1, 100);
-    expect((resolveCombat() as any).id).toBe('newer');
+    expect(idOfResolved()).toBe('newer');
   });
 
   it('falls back to the last in the collection when no times are known', () => {
     add('first', 1);
     add('last', 1);
-    expect((resolveCombat() as any).id).toBe('last');
+    expect(idOfResolved()).toBe('last');
   });
 });

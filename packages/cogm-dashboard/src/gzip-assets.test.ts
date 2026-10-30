@@ -53,9 +53,12 @@ beforeAll(async () => {
   writeFileSync(path.join(dir, 'old.css'), 'a { color: red; }\n'.repeat(200));
   writeFileSync(path.join(dir, 'old.js'), BIG_JS);
   const app = express();
+  // The dashboard mounts it behind the same kind of limiter (app.ts).
+  const limit = rateLimit({ windowMs: 10_000, limit: 1000, validate: false });
   // The old pages' stylesheets: css only, revalidated, headers hook still runs.
   app.use(
     '/pub',
+    limit,
     gzipAssets(dir, {
       extensions: ['.css'],
       cacheControl: 'public, max-age=0',
@@ -63,11 +66,10 @@ beforeAll(async () => {
     })
   );
   app.use('/pub', (_req, res) => res.status(404).send('fell through'));
-  app.get('/json/:size', (req, res) => {
-    void sendJsonGzip(req, res, { text: 'x'.repeat(Number(req.params.size)) });
+  app.get('/json/:size', limit, (req, res) => {
+    const size = Math.min(Math.max(Number(req.params.size) || 0, 0), 10_000);
+    void sendJsonGzip(req, res, { text: 'x'.repeat(size) });
   });
-  // The dashboard mounts it behind the same kind of limiter (app.ts).
-  const limit = rateLimit({ windowMs: 10_000, limit: 1000, validate: false });
   app.use('/next/assets', limit, gzipAssets(path.join(dir, 'assets')));
   app.use('/next', (_req, res) => res.status(404).send('fell through'));
   await new Promise<void>(resolve => {

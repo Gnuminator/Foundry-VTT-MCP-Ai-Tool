@@ -38,6 +38,11 @@ four stages with times.
       each switch; a message says what it turned on. **End session** turns off again what Turn on for
       tonight turned on, and **GM Actions**.
 
+- [ ] Check the [GM windows](gm-windows.md) are on: in Foundry, open the **Settings** tab, **Game
+      Settings**, category **Foundry AI Tool**, and tick **AI Tool: GM windows** if it is not
+      ticked. The Combat, Party, Session, Scene and Loot buttons then show in the AI Tool group
+      of the scene controls. A world that was saved earlier may have it off.
+
 - [ ] Once, before session 1 (only with the module Dice So Nice): pick the table's dice, **AI
       Tool: The Veil** or **AI Tool: Neutral**, in Dice So Nice's **Configure Dice Roles**,
       **Basic** row, **Theme** column. See [Themed dice](features.md#themed-dice).

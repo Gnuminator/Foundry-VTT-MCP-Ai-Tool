@@ -353,6 +353,29 @@ describe('what a screen reader hears', () => {
     expect(freshEntries(after, after)).toEqual([]);
   });
 
+  it('drops the "Applied" row of a change that has its own damage line, in either order', () => {
+    const damage = ev('d', 10, { changeId: 'c1', text: 'Wolf 1 took 5 fire damage (HP 11 to 6)' });
+    const applied = ev('g', 11, { eventType: 'gm-change', changeId: 'c1', text: 'Applied: x' });
+    expect(ids(addFeedEvents(EMPTY_FEED, [damage, applied]))).toEqual(['d']);
+    const first = addFeedEvents(EMPTY_FEED, [applied]);
+    expect(ids(first)).toEqual(['g']);
+    expect(ids(addFeedEvents(first, [damage]))).toEqual(['d']);
+    // Another change, or one with no damage line (a token move), stays.
+    const other = ev('o', 12, { eventType: 'gm-change', changeId: 'c2' });
+    expect(ids(addFeedEvents(EMPTY_FEED, [damage, other]))).toEqual(['o', 'd']);
+  });
+
+  it('reads the change id off the details', () => {
+    const event = readFeedEvent({
+      id: 'e1',
+      timestampMs: 1,
+      eventType: 'damage',
+      description: 'x',
+      details: { changeId: 'c9' },
+    });
+    expect(event?.changeId).toBe('c9');
+  });
+
   it('finds the first events after a quiet start', () => {
     const after = addFeedEvents(EMPTY_FEED, [ev('a', 1)]);
     expect(freshEntries(EMPTY_FEED, after).map(e => e.id)).toEqual(['a']);

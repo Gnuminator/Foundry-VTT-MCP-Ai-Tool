@@ -1337,6 +1337,39 @@ a hand edit would be lost, the snapshot has it). Nothing else is touched and not
 - **Undo:** the same pipe with `UNDO=1` (back to DietPi's mode 2).
 - Tests: `scripts/pi/time-sync.test.mjs` (the stage in bash with stand-ins for systemctl, timedatectl and DietPi's tool).
 
+## Join page look (stage 19)
+
+The page players see before they log in (`/join`) shows the world's Background Image, Join Page Theme, Next
+Session and World Description; all four are world settings (Game Settings, World Configuration), no code. Stage 19
+(`scripts/pi/remote/19-join-page-look.sh`) sets the picture and the description of the Curse of Strahd world on the
+Pi. Join Page Theme and Next Session are not touched. The picture is campaign art: it stays on the PC and the Pi,
+never in the repo or the vault.
+
+**Why a stage and not a GM script:** World Configuration is Foundry's `editWorld` request, and while a world runs
+the server accepts it only from the full Gamemaster role (`hasRole("GAMEMASTER")`, read in Foundry 14.369's setup
+view). The Assistant GM has role 3 (assistant), so `gm-script.sh` cannot do it, and nobody types the GM password.
+The stage therefore edits `world.json` with Foundry stopped (Foundry rewrites that file itself on exit).
+
+- Copy the picture and the description (an HTML file) to the Pi: `scp join-bg.webp join-desc.html foundry-pi:/root/`.
+- **Look first (changes nothing, needs no snapshot):**
+  `cat scripts/pi/remote/lib.sh scripts/pi/remote/19-join-page-look.sh | ssh foundry-pi 'IMAGE_SRC=/root/join-bg.webp EXPECT_SHA256=<sha> DESC_FILE=/root/join-desc.html DRY_RUN=1 bash -s'`
+  prints the current background and description and what would change.
+- **Run:** the same without `DRY_RUN=1`, after a `dietpi-backup` snapshot and the user's OK, never on a game-night day.
+  It refuses while players are online or a recording runs, saves the old values to
+  `/var/lib/foundry-ai-tool/join-page-look/<time>-<world>-before.json`, stops the Assistant GM browser and Foundry,
+  installs the picture as `worlds/curse-of-strahd/join-background.webp` (owner foundry, mode 644; a different picture
+  already there is kept in `/var/lib/foundry-ai-tool/join-page-look/`; root never writes into the world folder, the
+  foundry user copies the picture in), sets `background` and `description` in `world.json`, starts Foundry, waits
+  for the join page, starts the Assistant GM browser and checks that `/join` names the picture and the picture is
+  served. Until the join page answers, a failure stops Foundry, puts `world.json` back and starts both services again;
+  a failing `/join` or picture check after that only reports (the edit stays). It refuses during a dnd5e system trial
+  or a kit session, ignores a dropped SSH connection, and the same picture and description again change nothing.
+- **Another description later** (Danni sends his own): change the HTML file and run it again.
+- **Undo:** the same pipe with `UNDO=1` (and `EXPECT_SHA256`): the old description comes back, the background key is
+  removed when it was not set before, and the picture goes (a kept earlier picture comes back) unless the restored
+  background still names it.
+- Check the result logged out (a private window), reload once. Tests: `scripts/pi/join-page-look.test.mjs`.
+
 ## Where things live on the Pi
 
 | What                                                         | Where                                                                                                                      |

@@ -189,6 +189,11 @@ jobs:
         # systemctl, timedatectl and dietpi-set_software.
         run: node --test scripts/pi/time-sync.test.mjs
 
+      - name: Pi stage 19 join page look
+        # 19-join-page-look.sh (backlog join-page-look): background picture and description into world.json with Foundry
+        # stopped, hash and webp checks, dry run, snapshot and quiet check required, UNDO, with stand-in systemctl and curl.
+        run: node --test scripts/pi/join-page-look.test.mjs
+
       - name: Pi stage 12 control port check
         # control_port_check in remote/lib.sh (D-095): the bridge's 31414 answers on loopback and nothing listens beyond it.
         run: node --test scripts/pi/control-port-check.test.mjs

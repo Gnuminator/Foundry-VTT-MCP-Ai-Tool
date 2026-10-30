@@ -16,6 +16,8 @@ export interface FeedEvent {
   eventType: string;
   /** The line the GM reads: a roll's full breakdown when there is one, else the description. */
   text: string;
+  /** The guarded change that made the event (damage, healing, gm-change), when the module says. */
+  changeId?: string;
 }
 
 /** The events this page has seen. */
@@ -57,7 +59,15 @@ export function readFeedEvent(v: unknown): FeedEvent | null {
   }
   if (typeof type !== 'string') return null;
   const description = typeof v['description'] === 'string' ? v['description'] : '';
-  return { id, timestampMs: ms, eventType: type, text: lineOf(description, v['details']) || type };
+  const details = v['details'];
+  const changeId = isRecord(details) ? details['changeId'] : undefined;
+  return {
+    id,
+    timestampMs: ms,
+    eventType: type,
+    text: lineOf(description, details) || type,
+    ...(typeof changeId === 'string' && changeId ? { changeId } : {}),
+  };
 }
 
 /** The events of a stream message (`events` array), in the order sent; unreadable ones dropped. */
@@ -92,8 +102,14 @@ export function addFeedEvents(log: FeedLog, batch: readonly FeedEvent[]): FeedLo
   }
   // Array.prototype.sort is stable: of two events with the same time, the one listed first stays
   // first, and that is the one that arrived last.
-  const entries = [...fresh.reverse(), ...log.entries]
-    .sort((a, b) => b.timestampMs - a.timestampMs)
+  const merged = [...fresh.reverse(), ...log.entries].sort((a, b) => b.timestampMs - a.timestampMs);
+  // A damage or healing apply logs its own line ("Wolf 1 took 5 fire damage (HP 11 to 6)") and
+  // then an "Applied: ..." row of the same change: the GM reads the first, not both.
+  const described = new Set(
+    merged.filter(e => e.eventType !== GM_CHANGE_EVENT && e.changeId).map(e => e.changeId)
+  );
+  const entries = merged
+    .filter(e => !(e.eventType === GM_CHANGE_EVENT && e.changeId && described.has(e.changeId)))
     .slice(0, MAX_FEED_ENTRIES);
   return { entries, total: log.total + fresh.length, seen };
 }

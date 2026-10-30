@@ -11,7 +11,7 @@ be learned in advance. You can stop after any step and come back.
 ## What this is
 
 Foundry is the game on your screen: the map, the characters, the dice. Claude is an AI you can
-chat with, and this tool lets it look at your Foundry game and help you run it. You stay in charge. For most game changes Claude shows you a plan first and you say yes, and they land in Recent Changes with an Undo. A few things, like rolls, chat and new NPCs, happen straight away; [Asking Claude](asking-claude.md) lists them.
+chat with, and this tool lets it look at your Foundry game and help you run it. You stay in charge. For most game changes Claude shows you a plan first and you say yes, and once you say yes, the change is listed in the dashboard's Recent Changes with an Undo button. A few things, like rolls, chat and new NPCs, happen straight away; [Asking Claude](asking-claude.md) lists them.
 
 ## Four steps
 

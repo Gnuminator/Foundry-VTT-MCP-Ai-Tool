@@ -78,12 +78,19 @@ const RULES = [
 ];
 
 const FAKE_DRIFT_SOURCE = `import fs from 'node:fs';\nexport function runDriftCheck() { return 0; }\n`;
+const FAKE_LOCK_SOURCE = `import fs from 'node:fs';\nexport function acquire() {}\n`;
+
+/** Is this call the drift run (wrapped in main's heavy-lock copy, or bare)? @param {string} cmd @param {string[]} args */
+const isDriftCall = (cmd, args) =>
+  cmd === 'node' &&
+  (args[0] === '--input-type=module' || (/heavy-lock\.mjs$/.test(args[0] ?? '') && args[1] === 'run'));
 
 /**
  * A gate run against fakes. Returns the output lines, the exit code, the calls and the state file.
  * @param {{ vault?: string, files?: string[], ghFiles?: string[], rollup?: any[], pr?: object,
  *   localHead?: string, dirty?: boolean, drift?: number, argv?: string[], train?: object,
  *   merge?: number, rules?: any, rulesFail?: boolean, fetchFail?: boolean, driftSource?: string | null,
+ *   lockSource?: string | null,
  *   lockTimeoutMs?: number, onDrift?: (stateFile: string) => void, fetched?: boolean,
  *   mainGate?: string | null, prFor?: (viewIndex: number) => object }} o. `mainGate` is what
  *   aitool/main holds as lane-merge.mjs (default: this very file; null: none yet). `prFor` overrides fields of the PR for each
@@ -155,7 +162,12 @@ function gate(o = {}) {
         ? { status: 128, stdout: '', stderr: 'fatal: path not in aitool/main' }
         : ok(o.driftSource ?? FAKE_DRIFT_SOURCE);
     }
-    if (cmd === 'node' && args[0] === '--input-type=module') {
+    if (key === 'git show aitool/main:scripts/heavy-lock.mjs') {
+      return o.lockSource === null
+        ? { status: 128, stdout: '', stderr: 'fatal: path not in aitool/main' }
+        : ok(o.lockSource ?? FAKE_LOCK_SOURCE);
+    }
+    if (isDriftCall(cmd, args)) {
       o.onDrift?.(state);
       return {
         status: o.drift ?? 0,
@@ -172,10 +184,13 @@ function gate(o = {}) {
     return { status: 1, stdout: '', stderr: `unexpected ${key}` };
   };
   const lines = [];
+  /** @type {string[]} */
+  const progress = [];
   const code = main({
     argv: ['312', '--vault', vault, '--state', state, ...(o.argv ?? [])],
     run,
     log: l => lines.push(l),
+    progress: l => progress.push(l),
     home,
     tmpdir: home,
     now: () => new Date('2026-10-10T12:00:00Z'),
@@ -192,6 +207,7 @@ function gate(o = {}) {
     code,
     sleeps,
     lines,
+    progress,
     calls,
     state,
     home,
@@ -619,7 +635,7 @@ test('dry run: all checks pass, prints the OK line, never calls gh pr merge or w
   assert.ok(!r.merged);
   assert.ok(!fs.existsSync(r.state));
   assert.ok(!fs.existsSync(`${r.state}.lock`));
-  assert.ok(r.calls.some(c => c[0] === 'node' && c[1] === '--input-type=module'));
+  assert.ok(r.calls.some(c => isDriftCall(c[0], c.slice(1))));
   assert.ok(
     !r.calls.some(c => c.join(' ') === 'npm run drift:check'),
     'main copy, not the local script'
@@ -847,14 +863,39 @@ test('drift-check failing is reported with the last 30 lines of its output', () 
   assert.ok(r.lines.includes('guard failed'));
 });
 
-test("H1: drift-check runs from a temp copy of main's script, not the branch's npm script", () => {
+test("H1: drift-check runs from a temp copy of main's script, not the branch's npm script, under one high-priority hold of main's lock", () => {
   const r = gate({});
   const node = r.calls.find(c => c[0] === 'node');
-  assert.deepEqual(node.slice(1, 3), ['--input-type=module', '-e']);
-  assert.match(node[3], /runDriftCheck/);
-  assert.match(node[4], /^file:\/\/\/.*lane-merge-drift-.*drift-check\.mjs$/);
-  const copy = fs.readFileSync(fileURLToPath(node[4]), 'utf8');
-  assert.equal(copy, FAKE_DRIFT_SOURCE);
+  assert.match(node[1], /lane-merge-drift-.*heavy-lock\.mjs$/);
+  assert.equal(fs.readFileSync(node[1], 'utf8'), FAKE_LOCK_SOURCE, "main's copy of the lock");
+  assert.deepEqual(node.slice(2, 9), ['run', '--label', 'drift-check (merge gate)', '--priority', 'high', '--', 'node']);
+  assert.equal(node.length, 10);
+  const runner = node[9].replace(/^"|"$/g, '');
+  assert.equal(node[9], `"${runner}"`, 'the runner path is quoted for the shell');
+  assert.deepEqual(r.progress, [
+    'lane:merge: drift-check runs now; it may first wait for the heavy-check lock (node scripts/heavy-lock.mjs status shows who holds it)',
+  ]);
+  assert.ok(!r.lines.some(l => l.includes('drift-check runs now')), 'not among the verdict lines');
+  const source = fs.readFileSync(runner, 'utf8');
+  assert.match(source, /runDriftCheck/);
+  const url = /import\("([^"]+)"\)/.exec(source)?.[1] ?? '';
+  assert.match(url, /^file:\/\/\/.*lane-merge-drift-.*drift-check\.mjs$/);
+  assert.equal(fs.readFileSync(fileURLToPath(url), 'utf8'), FAKE_DRIFT_SOURCE);
+});
+
+test('H1: without a usable heavy-lock on main the drift run goes bare, with a note', () => {
+  for (const lockSource of [null, `import { x } from './other.mjs';\n`]) {
+    const r = gate({ lockSource });
+    const node = r.calls.find(c => c[0] === 'node');
+    assert.deepEqual(node.slice(1, 3), ['--input-type=module', '-e']);
+    assert.match(node[3], /runDriftCheck/);
+    assert.match(node[4], /^file:\/\/\/.*lane-merge-drift-.*drift-check\.mjs$/);
+    assert.equal(fs.readFileSync(fileURLToPath(node[4]), 'utf8'), FAKE_DRIFT_SOURCE);
+    assert.match(
+      r.text,
+      /no usable scripts\/heavy-lock\.mjs on aitool\/main; each heavy guard takes the lock on its own/
+    );
+  }
 });
 
 test('H1: without a drift-check on main, or with relative imports, the local script runs and a note says so', () => {

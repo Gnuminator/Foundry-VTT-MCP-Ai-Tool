@@ -29,8 +29,13 @@ import {
   cleanTreeHash,
   greenStampPath,
   greenPassedOnThisTree,
+  worktreeTreeHash,
+  runLock,
+  HEAVY_STEPS,
+  SOLO_STEPS,
 } from './green.mjs';
-import { main as prePush, CHECKS } from './pre-push.mjs';
+import { main as prePush, CHECKS, pushedCommits } from './pre-push.mjs';
+import { HELD_ENV } from './heavy-lock.mjs';
 
 const ciYml = fs.readFileSync(
   path.resolve(
@@ -199,12 +204,12 @@ test('main: all green prints one OK line and nothing else', () => {
   assert.deepEqual(r.ran, ['one', 'two', 'three']);
 });
 
-test('main: the log goes under green-<stamp>/<nn>-<step>.log', () => {
+test('main: the log goes under green-<stamp>-<pid>/<nn>-<step>.log', () => {
   const r = run([], { two: { status: 1, log: 'boom\n' } });
   const m = /FAILED at two \((.+)\)/.exec(r.lines[0]);
   assert.ok(m);
   assert.match(path.basename(m[1]), /^02-two\.log$/);
-  assert.match(path.basename(path.dirname(m[1])), /^green-\d{8}-\d{6}$/);
+  assert.equal(path.basename(path.dirname(m[1])), `${/^green-\d{8}-\d{6}/.exec(path.basename(path.dirname(m[1])))?.[0]}-${process.pid}`);
   assert.equal(path.dirname(path.dirname(m[1])), r.tmp);
 });
 
@@ -503,10 +508,163 @@ test('green stamp: matches only the clean tree it was recorded for', () => {
   assert.equal(cleanTreeHash(dir), null, 'an untracked file counts');
 });
 
+test('worktreeTreeHash: uncommitted and untracked edits give the tree their commit will have, and the real index is untouched', () => {
+  const { dir, git } = tempRepo();
+  assert.equal(worktreeTreeHash(dir), cleanTreeHash(dir), 'clean tree: the HEAD tree');
+  fs.writeFileSync(path.join(dir, 'a.txt'), 'two\n');
+  fs.writeFileSync(path.join(dir, 'new.txt'), 'x\n');
+  fs.writeFileSync(path.join(dir, '.gitignore'), 'ignored.txt\n');
+  const dirty = worktreeTreeHash(dir);
+  assert.match(dirty, /^[0-9a-f]{40}$/);
+  assert.equal(git('diff', '--cached', '--name-only').stdout, '', 'nothing staged in the real index');
+  fs.writeFileSync(path.join(dir, 'ignored.txt'), 'x\n');
+  assert.equal(worktreeTreeHash(dir), dirty, 'an ignored file does not count');
+  git('add', '-A');
+  git('-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '-m', 'two');
+  assert.equal(git('rev-parse', 'HEAD^{tree}').stdout.trim(), dirty);
+});
+
+test('green stamp with pushed commits: every pushed commit must have the green tree, whatever the working tree holds', () => {
+  const { dir, git } = tempRepo();
+  const first = git('rev-parse', 'HEAD').stdout.trim();
+  fs.writeFileSync(greenStampPath(dir), `${cleanTreeHash(dir)}\n`);
+  fs.writeFileSync(path.join(dir, 'a.txt'), 'edited after the commit\n');
+  assert.equal(greenPassedOnThisTree(dir), false, 'without commits: a dirty tree never matches');
+  assert.equal(greenPassedOnThisTree(dir, [first]), true, 'the pushed commit has the green tree');
+  git('-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '-am', 'two');
+  const second = git('rev-parse', 'HEAD').stdout.trim();
+  assert.equal(greenPassedOnThisTree(dir, [second]), false);
+  assert.equal(greenPassedOnThisTree(dir, [first, second]), false, 'every commit must match');
+  assert.equal(greenPassedOnThisTree(dir, ['0123456789012345678901234567890123456789']), false, 'unknown commit');
+});
+
+test('main: a full green run stamps a dirty tree with the tree its commit will have', () => {
+  const { dir, git } = tempRepo();
+  fs.writeFileSync(path.join(dir, 'a.txt'), 'dirty\n');
+  const logs = fs.mkdtempSync(path.join(os.tmpdir(), 'green-stamp-logs-'));
+  // The real step list (so the run stamps), every step faked as passing, no lock.
+  const code = main({
+    cwd: dir,
+    tmpdir: logs,
+    argv: [],
+    isTTY: false,
+    note: null,
+    log: () => {},
+    runStep: () => 0,
+    takeLock: () => ({ held: false, waitedMs: 0, release() {}, beat() {} }),
+  });
+  assert.equal(code, 0);
+  git('add', '-A');
+  git('-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '-m', 'dirty');
+  assert.equal(fs.readFileSync(greenStampPath(dir), 'utf8').trim(), git('rev-parse', 'HEAD^{tree}').stdout.trim());
+  assert.equal(greenPassedOnThisTree(dir, [git('rev-parse', 'HEAD').stdout.trim()]), true);
+  const run = fs.readdirSync(logs).find(n => n.startsWith('green-'));
+  const timings = JSON.parse(fs.readFileSync(path.join(logs, run, 'timings.json'), 'utf8'));
+  assert.equal(timings.steps.length, STEPS.length);
+  assert.equal(timings.lockWaitMs, 0);
+});
+
+test('runLock: taken once at the first heavy step, beaten before each later step, released after the last heavy one', () => {
+  const steps = ['docs', 'typecheck', 'light', 'build', 'tail'].map(name => ({ name, cmd: 'x', args: [] }));
+  assert.ok(HEAVY_STEPS.has('typecheck') && HEAVY_STEPS.has('build'));
+  const events = [];
+  const env = {};
+  const take = label => {
+    events.push(`take ${label}`);
+    return { held: true, waitedMs: 4000, beat: s => events.push(`beat ${s}`), release: () => events.push('release') };
+  };
+  const lock = runLock(steps, take, 'green wt', env);
+  steps.forEach((s, i) => {
+    lock.before(i, s);
+    events.push(`run ${s.name}${env[HELD_ENV] ? ' (held)' : ''}`);
+    lock.after(i);
+  });
+  lock.release();
+  assert.deepEqual(events, [
+    'run docs',
+    'take green wt',
+    'beat typecheck',
+    'run typecheck (held)',
+    'beat light',
+    'run light (held)',
+    'beat build',
+    'run build (held)',
+    'release',
+    'run tail',
+  ]);
+  assert.equal(lock.waitedMs, 4000);
+  assert.equal(env[HELD_ENV], undefined);
+});
+
+test('runLock: a run with no heavy step never takes the lock; a failure mid-run still releases', () => {
+  const take = () => assert.fail('took the lock');
+  const light = runLock([{ name: 'docs', cmd: 'x', args: [] }], take, 'g', {});
+  light.before(0, { name: 'docs' });
+  light.after(0);
+  let released = 0;
+  const env = {};
+  const lock = runLock(
+    [{ name: 'typecheck' }, { name: 'build' }].map(s => ({ ...s, cmd: 'x', args: [] })),
+    () => ({ held: true, waitedMs: 0, beat() {}, release: () => released++ }),
+    'g',
+    env
+  );
+  lock.before(0, { name: 'typecheck' });
+  lock.release();
+  lock.release();
+  assert.equal(released, 1);
+  assert.equal(env[HELD_ENV], undefined);
+});
+
+test('solo steps (never two greens at once) are real heavy steps', () => {
+  assert.ok(SOLO_STEPS.has('e2e'));
+  for (const name of SOLO_STEPS) {
+    assert.ok(HEAVY_STEPS.has(name), `${name} is heavy`);
+    assert.ok(STEPS.some(s => s.name === name), `${name} is a step`);
+  }
+});
+
+test('pushedCommits: the local shas of the pushed refs, without deletes', () => {
+  const a = 'a'.repeat(40);
+  const b = 'b'.repeat(40);
+  const zero = '0'.repeat(40);
+  const text = `refs/heads/x ${a} refs/heads/x ${zero}\n(delete) ${zero} refs/heads/old ${b}\nrefs/heads/y ${b} refs/heads/y ${a}\n\n`;
+  assert.deepEqual(pushedCommits(text), [a, b]);
+  assert.deepEqual(pushedCommits(''), []);
+});
+
+test('pre-push: the checks run inside one lock, and the pushed commits reach the green check', () => {
+  const order = [];
+  const seen = [];
+  const code = prePush({
+    cwd: '.',
+    env: {},
+    log: () => {},
+    commits: ['c1'],
+    passedGreen: (_cwd, commits) => {
+      seen.push(...commits);
+      return false;
+    },
+    withLock: fn => {
+      order.push('lock');
+      const r = fn();
+      order.push('unlock');
+      return r;
+    },
+    runCheck: c => {
+      order.push(c.name);
+      return 0;
+    },
+  });
+  assert.equal(code, 0);
+  assert.deepEqual(seen, ['c1']);
+  assert.deepEqual(order, ['lock', 'lint:ratchet', 'emdash:ratchet', 'typecheck', 'unlock']);
+});
+
 test('pre-push: runs the ratchets and typecheck, refuses on the first failure, skips after green', () => {
   const lines = [];
   const ran = [];
-  const base = { cwd: '.', env: {}, log: l => lines.push(l), passedGreen: () => false };
+  const base = { cwd: '.', env: {}, log: l => lines.push(l), passedGreen: () => false, withLock: fn => fn() };
   const pass = c => {
     ran.push(c.name);
     return 0;

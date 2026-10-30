@@ -97,6 +97,16 @@ describe('FoundryDataAccess — advanceCombatTurn', () => {
     await expect(da.advanceCombatTurn({})).rejects.toThrow('No active combat encounter.');
   });
 
+  it('advances the fight the strip shows when this browser views none', async () => {
+    const combat = installCombat({ turns: [makeCombatant({ id: 'c1', name: 'Hero' })] });
+    combat.combatant = { name: 'Hero' };
+    (world as any).currentCombat = null;
+
+    await da.advanceCombatTurn({});
+
+    expect(combat.nextTurn).toHaveBeenCalledTimes(1);
+  });
+
   it('advances to the next turn (no skipTo) via combat.nextTurn()', async () => {
     const combat = installCombat({
       turns: [makeCombatant({ id: 'c1', name: 'Hero' })],

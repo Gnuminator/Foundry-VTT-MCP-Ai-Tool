@@ -1068,7 +1068,21 @@ function runDrift(run, tmpdir, notes) {
   const dir = fs.mkdtempSync(path.join(tmpdir, 'lane-merge-drift-'));
   const file = path.join(dir, 'drift-check.mjs');
   fs.writeFileSync(file, show.stdout);
-  return run('node', ['--input-type=module', '-e', DRIFT_RUNNER, pathToFileURL(file).href]);
+  // One high-priority heavy-check hold around the whole drift run, from main's copy of the lock (as
+  // for drift-check, the branch must not bring its own): the guards inside see the held marker and
+  // do not queue again each, so a merge never waits behind a green once per guard.
+  const lock = run('git', ['show', `${MAIN}:scripts/heavy-lock.mjs`]);
+  if (lock.status !== 0 || hasRelativeImports(lock.stdout) || /"/.test(dir)) {
+    notes.push(`drift-check: no usable scripts/heavy-lock.mjs on ${MAIN}; each heavy guard takes the lock on its own`);
+    return run('node', ['--input-type=module', '-e', DRIFT_RUNNER, pathToFileURL(file).href]);
+  }
+  // The lock runs its command through the shell, so the runner is a file (no quotes in the command).
+  // The lock's entry check compares file names: it must be called heavy-lock.mjs.
+  const lockFile = path.join(dir, 'heavy-lock.mjs');
+  const runner = path.join(dir, 'drift-run.mjs');
+  fs.writeFileSync(lockFile, lock.stdout);
+  fs.writeFileSync(runner, DRIFT_RUNNER.replace('process.argv[1]', JSON.stringify(pathToFileURL(file).href)));
+  return run('node', [lockFile, 'run', '--label', 'drift-check (merge gate)', '--priority', 'high', '--', 'node', `"${runner}"`]);
 }
 
 /**
@@ -1109,7 +1123,8 @@ export function entryDecision(argv1, self) {
  *   argv?: string[], run?: Run, log?: (line: string) => void, env?: Record<string, string | undefined>,
  *   home?: string, tmpdir?: string, now?: () => Date, fetched?: boolean, selfPath?: string, lockTimeoutMs?: number,
  *   sleep?: (ms: number) => void, clock?: () => number, waitPollMs?: number, waitTimeoutMs?: number,
- * }} [options]
+ *   progress?: (line: string) => void,
+ * }} [options] `progress` gets live lines that are not part of the verdict (stderr by default).
  * @returns {number} the process exit code
  */
 export function main(options = {}) {
@@ -1128,6 +1143,7 @@ export function main(options = {}) {
     clock = Date.now,
     waitPollMs = WAIT_POLL_MS,
     waitTimeoutMs = WAIT_TIMEOUT_MS,
+    progress = line => console.error(line),
   } = options;
   const args = parseArgs(argv);
   if (args.error) {
@@ -1444,6 +1460,10 @@ export function main(options = {}) {
 
   // e (continued). drift-check, the slow one: only when everything above passed.
   if (failures.length === 0 && localOk) {
+    // Its output is captured, so a wait for the heavy-check lock would be silent until the end.
+    progress(
+      'lane:merge: drift-check runs now; it may first wait for the heavy-check lock (node scripts/heavy-lock.mjs status shows who holds it)'
+    );
     const drift = runDrift(run, tmpdir, notes);
     const logFile = path.join(tmpdir, `lane-merge-${n}-drift-${now().getTime()}.log`);
     const output = `${drift.stdout}${drift.stderr}`;

@@ -24,8 +24,8 @@
  * dependent deletes: when the AI deleted an effect or an item, the effects on other actors, the
  * templates, regions and summoned tokens dnd5e removes with it (in the active GM's browser)
  * stay with the AI change, and the undo planner puts them back with it (`aiFollowUps`). A GM's
- * own click on the tracker within the action gap of such an AI write, in the bridge's browser,
- * is the one case this cannot tell apart (it is then hidden under the AI change). When the
+ * own click on the tracker within the action gap of such an AI write (the guarded gap, 3 s,
+ * counted from the write), in the bridge's browser, is the one case this cannot tell apart (it is then hidden under the AI change). When the
  * active GM is another browser, dnd5e's dependent deletes run there and show as that person's
  * action.
  *
@@ -39,6 +39,7 @@
  */
 import {
   CHANGE_JOURNAL_ACTION_GAP_MS,
+  CHANGE_JOURNAL_GUARDED_GAP_MS,
   type ChangeRecord,
   type PathValue,
 } from '@gnuminator/shared';
@@ -1273,9 +1274,14 @@ export class ChangeHistory {
 /**
  * How far after the journal start an action may still have lost its first records: the module's
  * gap (CHANGE_JOURNAL_ACTION_GAP_MS) is measured in the browser, `t` is the server's time, so
- * a busy server or a slow round trip can spread one action's records further apart.
+ * a busy server or a slow round trip can spread one action's records further apart. A guarded
+ * write waits up to CHANGE_JOURNAL_GUARDED_GAP_MS for dnd5e's follow-ups, so the margin covers
+ * that hop too.
  */
-const JOURNAL_START_MARGIN_MS = 10 * CHANGE_JOURNAL_ACTION_GAP_MS;
+const JOURNAL_START_MARGIN_MS = Math.max(
+  10 * CHANGE_JOURNAL_ACTION_GAP_MS,
+  CHANGE_JOURNAL_GUARDED_GAP_MS
+);
 
 /** A record within JOURNAL_START_MARGIN_MS after the journal start the index last saw. */
 function atJournalEdge(index: WorldIndex, r: ChangeRecord): boolean {

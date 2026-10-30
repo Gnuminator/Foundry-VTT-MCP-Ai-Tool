@@ -112,7 +112,8 @@ try {
     if ($due) {
       $consentArgs = @('consent', 'check', $folder)
       if (-not $DryRun -and -not (Test-NotesDone $folder)) { $consentArgs += '--write-status' }
-      if ((Invoke-Notes $consentArgs) -ne 0) { Say "$($dir.Name): not processed, recording consent is missing"; continue }
+      $consentCode = Invoke-Notes $consentArgs
+      if ($consentCode -ne 0) { Say "$($dir.Name): not processed (consent check exit $consentCode; 77 = recording consent is missing)"; continue }
     }
 
     if ($recorded -and $hasAudio -and -not (Test-Path $timeline)) {

@@ -70,7 +70,12 @@ python -m session_notes consent check <session>   # exit 77 and the reason when 
 
 `consent check` prints the id of every speaker still missing. A "no" passes only once that
 speaker's audio track is deleted from the session folder (by hand; this tool never deletes audio).
-A blocked session shows as "waiting" with the reason in `notes/status.json`, so the After view says
+A recorded answer covers every session, past and future, until it is changed: a later "no" also
+blocks sessions whose notes are written but not yet approved (it does not retract what was already
+published). A folder without `raw/session.json` (an import, an old test folder) cannot be checked
+and stays blocked until it has one with a `tracks` list. Before the first pass on a real sessions
+folder, run `pwsh tools/session-notes/auto.ps1 -DryRun` and move test recordings aside: every
+folder whose speakers all have a yes is processed. A blocked session shows as "waiting" with the reason in `notes/status.json`, so the After view says
 why nothing happened.
 
 ## What it writes

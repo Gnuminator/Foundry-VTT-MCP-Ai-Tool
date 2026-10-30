@@ -101,3 +101,13 @@ def test_cli_check_exit_code_and_status(sessions: Path) -> None:
     assert main(["consent", "set", "22", "yes"]) == 0
     assert main(["consent", "check", str(folder)]) == 0
     assert main(["consent", "set", "oops", "yes"]) == 1
+
+
+def test_set_refuses_to_overwrite_an_unreadable_file(sessions: Path) -> None:
+    broken = sessions / "consent.json"
+    broken.write_text("{not json", encoding="utf-8")
+    with pytest.raises(ValueError, match="cannot be read"):
+        set_consent(sessions, "11", "yes")
+    assert broken.read_text(encoding="utf-8") == "{not json"
+    with pytest.raises(ValueError):
+        set_consent(sessions, "١٢", "yes")  # non-ASCII digits are not a Discord id

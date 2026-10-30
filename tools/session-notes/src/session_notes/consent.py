@@ -55,11 +55,18 @@ def set_consent(
 ) -> Path:
     if answer not in ANSWERS:
         raise ValueError(f"answer must be yes or no, got {answer!r}")
-    if not user_id.isdigit():
+    if not (user_id.isascii() and user_id.isdigit()):
         raise ValueError(
             f"{user_id!r} is not a Discord user id (digits only; `consent check <session>` "
             "prints the ids of the speakers)"
         )
+    path = consent_path(sessions)
+    if path.is_file():
+        try:
+            json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError) as exc:
+            # Never overwrite a file we cannot read: it may hold the only record of a "no".
+            raise ValueError(f"{path} cannot be read ({exc}); fix or move it first") from exc
     players = load_consent(sessions)
     old = players.get(user_id, {})
     players[user_id] = {
@@ -67,7 +74,6 @@ def set_consent(
         "answer": answer,
         "date": when or date.today().isoformat(),
     }
-    path = consent_path(sessions)
     sessions.mkdir(parents=True, exist_ok=True)
     tmp = path.with_name(CONSENT_FILE + ".tmp")
     tmp.write_text(

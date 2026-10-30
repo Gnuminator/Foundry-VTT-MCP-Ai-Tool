@@ -202,6 +202,10 @@ export async function showScreen(page: Page, screen: Screen, theme: Theme): Prom
   // The header's session label starts as "Session: …" and changes width when the session arrives,
   // which moves the tabs by a pixel or two: shoot after it settled.
   await expect(page.locator('#session-status')).not.toHaveText('Session: …');
+  // The header's Pre-flight button reads "Pre-flight" until the delayed quiet run
+  // (PREFLIGHT_QUIET_DELAY_MS after the page loads) has its result, then "Pre-flight: ready" (or
+  // "to fix"): wait for the settled label so no shot races it.
+  await expect(page.locator('#btn-preflight')).toContainText('Pre-flight: ');
   await screen.show(page);
   await page.evaluate(() => document.fonts.ready);
   await page.waitForLoadState('networkidle');

@@ -865,7 +865,9 @@ command, and the installed training world is kept, with its passwords, because `
 2. On this PC build a fresh bundle with the `push-world.ps1` command above. Stage 11 deletes the bundle
    after a successful run, so each switch needs its own.
 3. Switch to the training world: run stage 11 with
-   `WORLD=frostmaiden-training KIT_WORLD= LAUNCH=frostmaiden-training EXTRA_GM_USER=Claude`.
+   `WORLD=frostmaiden-training KIT_WORLD= LAUNCH=frostmaiden-training EXTRA_GM_USER=Claude`
+   (after `scp scripts/pi/remote/world-switches.mjs foundry-pi:/root/`; add `WORLD_SWITCHES=1` when the
+   training world is kept and its switches must be set again, see "World switches" below).
 4. After the call, do steps 1 and 2 again (a snapshot taken for step 3 on an earlier day does not
    count: stage 11 wants one from today), then run stage 11 with
    `WORLD=frostmaiden-training KIT_WORLD= LAUNCH=curse-of-strahd EXTRA_GM_USER=Claude`. Check on the Pi
@@ -881,6 +883,60 @@ add `REPLACE_WORLD=1` to the command of step 3.
 
 If a proxy ever has to run elsewhere, it is our patched copy (it reads the cookie from a file and
 keeps it out of its logs), bound to `127.0.0.1`, never the upstream one (which logs the cookie).
+
+### World switches (frostmaiden-training and curse-of-strahd)
+
+A world that is reset from the PC copy starts with whatever its settings database held on the PC,
+which is mostly Foundry's defaults, and a test then starts with the AI Tool's switches off (the
+training world on 2026-10-29). Stage 11 sets the list below, so a test starts with them on. The
+user chose this list on 2026-10-30: both worlds get the same values, and the nightly ones (Handouts,
+writes) are **standing values**. Start session still turns on whatever is off, and End session
+turns off only what Start session turned on, so a standing value stays on after End session. One
+exception: a world copied while a night was still "ready" keeps that record, and its first End
+session then turns off what the record names; press Start and End once to clear it.
+
+| Setting (`namespace.key`)                         | Value | Why                                                                                                                  |
+| ------------------------------------------------- | ----- | -------------------------------------------------------------------------------------------------------------------- |
+| `foundry-mcp-bridge.allowWriteOperations`         | on    | The master switch for every AI write; nothing below works with it off.                                               |
+| `foundry-mcp-bridge.gmWindows`                    | on    | The Combat, Party, Session, Scene and Loot windows; a world that stored "off" would hide them.                       |
+| `foundry-mcp-bridge.feature.handouts.enabled`     | on    | Reveal next and the dashboard's player page; Danni's test found it off after a reset.                                |
+| `foundry-mcp-bridge.feature.party.enabled`        | on    | The Party drawer's travel pace, add party to combat and rest request.                                                |
+| `foundry-mcp-bridge.feature.tarokka.enabled`      | on    | Saving the Tarokka reading and publishing reveal pages (the Tarokka table).                                          |
+| `foundry-mcp-bridge.feature.live-play.enabled`    | on    | Damage, healing, conditions, resources, tokens; on by default, written so a stored "off" cannot hide it.             |
+| `foundry-mcp-bridge.feature.ownership.enabled`    | on    | Who owns which actor; on by default, written for the same reason.                                                    |
+| `foundry-mcp-bridge.feature.table-viewer.enabled` | on    | The TV's Table user; on by default, written for the same reason.                                                     |
+| `foundry-mcp-bridge.feature.change-undo.enabled`  | on    | Undo for everything from the Changes list; on by default, written for the same reason.                               |
+| `foundry-mcp-bridge.feature.who-notices.enabled`  | on    | Read-only: the passive Perception row in the Party drawer. It changes nothing, so it is safe to leave on.            |
+| `foundry-mcp-bridge.feature.rules-check.enabled`  | on    | Read-only: "does this attack look legal now". It changes nothing.                                                    |
+| `dnd5e.autoApplyDowned`                           | `all` | Unconscious and Dead land on monsters and characters at 0 hit points (W51: passed in David's combat test).           |
+| `item-piles.enableTrading`                        | on    | Players can use Request Trade. Item Piles is not active in every world: a world without it gets a warning, no error. |
+
+Left as they are (the module default, which is off): Obsidian mirror and import, Session notes, Scene
+restore, Room setup, Scene mood and music, NPC turn assistant, Paper sync, and "Live play, apply
+without confirming". Each is a deliberate opt-in with its own Undo; turn one on in Game Settings,
+Configure Settings, AI Tool when a night needs it.
+
+How it runs: `world-switches.mjs` (the table above as data; `world-switches.test.mjs` fails when
+the table and the data differ) joins the world as its GM with the login in
+`/etc/foundry-ai-tool/world-<id>.env`, sets only what differs, reloads and reads every value back.
+
+- **A new or reset world** (the kit world, and the training or campaign world when it is replaced):
+  stage 11 does it by itself, right after the world is provisioned.
+- **A push-back** (Plan B) never gets it: its settings come back from the PC as they were played.
+- **A kept world** is left alone. To set the list in it, run stage 11 with `WORLD_SWITCHES=1`
+  (the world's settings are copied to `prev-<time>` first). That is the checklist line for the next
+  test of a training world that was not reset: add `WORLD_SWITCHES=1` to the command of step 3 under
+  "Training world". It runs the world's provisioning again too (the GM login from the env file, the
+  bridge, the Assistant GM), and the copy in `prev` holds only `data/settings`. To put the settings
+  back: stop Foundry, replace the world's `data/settings` with that copy, start Foundry. Do not use
+  it on the real campaign after Danni has changed switches on purpose; it overwrites the values above.
+- **A new or reset world under auto overwrites the bundle's own values** for these settings. Use
+  `WORLD_SWITCHES=0` when the PC copy's values are deliberate.
+- **Not wanted:** `WORLD_SWITCHES=0`. The stage needs `world-switches.mjs` uploaded first:
+  `scp scripts/pi/remote/world-switches.mjs foundry-pi:/root/`, and removes the upload.
+
+The Pi has not run it yet; the first run is a later Pi day with the user's OK, after a
+`dietpi-backup 1` snapshot, like any stage 11 run.
 
 ## Player character creation (stage 13)
 

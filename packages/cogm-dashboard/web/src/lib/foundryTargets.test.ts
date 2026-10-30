@@ -34,8 +34,16 @@ describe('readFoundryTargets', () => {
 
 describe('targetValues', () => {
   const tokens = [tok(1), { tokenId: 't2', name: 'Bandit 2', actorId: null }];
-  it('gives names for a name field', () => {
-    expect(targetValues(tokens, 'name', ['token'])).toEqual(['Bandit 1', 'Bandit 2']);
+  it('gives names for a name field that takes no tokens', () => {
+    expect(targetValues(tokens, 'name', ['actor'])).toEqual(['Bandit 1', 'Bandit 2']);
+  });
+  it('gives token ids to a name field that takes tokens, so shared names stay apart', () => {
+    const wolves = [
+      { tokenId: 'w1', name: 'Wolf', actorId: 'aw' },
+      { tokenId: 'w2', name: 'Wolf', actorId: 'aw' },
+    ];
+    expect(targetValues(wolves, 'name', ['token', 'actor'])).toEqual(['w1', 'w2']);
+    expect(targetValues(wolves, 'id', ['actor'])).toEqual(['aw']);
   });
   it('gives token ids when tokens are offered, actor ids for an actor-only field', () => {
     expect(targetValues(tokens, 'id', ['token', 'actor'])).toEqual(['t1', 't2']);

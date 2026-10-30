@@ -212,8 +212,12 @@ export function RefPicker({
   };
 
   // Token and actor fields can take whatever the GM has targeted (else selected) in Foundry.
-  // A uuid field needs a full uuid, which the target list does not carry: no button there.
-  const takesTokens = (kinds.includes('token') || kinds.includes('actor')) && ref.value !== 'uuid';
+  // A uuid field needs a full uuid, which the target list does not carry, and a player field
+  // (kind user) wants a player or character name, not a token: no button on either.
+  const takesTokens =
+    (kinds.includes('token') || kinds.includes('actor')) &&
+    ref.value !== 'uuid' &&
+    !kinds.includes('user');
   const [targetNote, setTargetNote] = useState('');
   const useTargets = (): void => {
     usage().track('action', 'dash.tools.foundry-targets');

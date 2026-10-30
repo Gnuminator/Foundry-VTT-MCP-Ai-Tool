@@ -58,9 +58,16 @@ export function targetPairs(
   value: 'id' | 'name' | 'uuid' | undefined,
   kinds: readonly string[]
 ): Array<{ value: string; name: string }> {
-  if (value === 'name') return tokens.map(t => ({ value: t.name, name: t.name }));
-  if (!kinds.includes('token') && kinds.includes('actor')) {
-    return tokens.flatMap(t => (t.actorId ? [{ value: t.actorId, name: t.name }] : []));
+  const tokenKind = kinds.includes('token');
+  // A token field that takes names also takes token ids, and ids stay apart when tokens share a name.
+  if (value === 'name' && !tokenKind) return tokens.map(t => ({ value: t.name, name: t.name }));
+  if (!tokenKind && kinds.includes('actor')) {
+    const seen = new Set<string>();
+    return tokens.flatMap(t => {
+      if (!t.actorId || seen.has(t.actorId)) return [];
+      seen.add(t.actorId);
+      return [{ value: t.actorId, name: t.name }];
+    });
   }
   return tokens.map(t => ({ value: t.tokenId, name: t.name }));
 }

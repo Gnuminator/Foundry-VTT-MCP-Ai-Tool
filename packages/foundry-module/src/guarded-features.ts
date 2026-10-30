@@ -75,7 +75,11 @@ export function registerGuardedFeature(feature: GuardedFeature): void {
   }
 }
 
-/** Where the switches are, in the words the GM sees in Foundry. */
+/**
+ * Where the switches are, in the words the GM sees in Foundry. The module cannot import runtime
+ * values from the shared package (browser-imports.test.ts), so this is a copy of
+ * shared/src/switch-off.ts; guarded-features.test.ts checks the two say the same.
+ */
 const SETTINGS_PATH = 'In Foundry, open Game Settings, Configure Settings, AI Tool and turn on';
 
 /**

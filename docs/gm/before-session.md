@@ -9,6 +9,11 @@ Do these in order, about 15 minutes before the players join. Each item is one ac
 dashboard runs on the table's home server (the Orange Pi), so there is nothing to start and no
 terminal to open. You need two addresses from the tool admin: the game's and the dashboard's.
 
+:::tip
+**Do this as a quest.** [Quest: before a session](before-session-quest.md) is this checklist as
+four stages with times.
+:::
+
 ## Start everything
 
 - [ ] Start **Claude Desktop**. It connects to the bridge on the Pi.
@@ -22,8 +27,8 @@ terminal to open. You need two addresses from the tool admin: the game's and the
 ## Run the pre-flight check
 
 - [ ] In the dashboard header, click **✈ Pre-flight** (in the Before view the panel is
-      already on the page). Fix everything marked ✗ and look at each **!**. The rest of this page
-      is also in the Pre-flight panel's "Check by hand" list.
+      already on the page). Fix everything marked ✗ and look at each **!**. Most of the rest of
+      this page is also in the Pre-flight panel's "Check by hand" list (not the GM windows check).
 
 ## Turn on what tonight needs
 
@@ -32,6 +37,11 @@ terminal to open. You need two addresses from the tool admin: the game's and the
       (writes)", "AI Tool: Tarokka (writes)" and **GM Actions**. The chips under the button show
       each switch; a message says what it turned on. **End session** turns off again what Turn on for
       tonight turned on, and **GM Actions**.
+
+- [ ] Check the [GM windows](gm-windows.md) are on: in Foundry, open the **Settings** tab, **Game
+      Settings**, category **Foundry AI Tool**, and tick **AI Tool: GM windows** if it is not
+      ticked, then **Save Changes**. The Combat, Party, Session, Scene and Loot buttons then show in the AI Tool group
+      of the scene controls. A world that was saved earlier may have it off.
 
 - [ ] Once, before session 1 (only with the module Dice So Nice): pick the table's dice, **AI
       Tool: The Veil** or **AI Tool: Neutral**, in Dice So Nice's **Configure Dice Roles**,

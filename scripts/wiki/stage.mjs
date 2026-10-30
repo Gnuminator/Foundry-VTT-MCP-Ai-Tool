@@ -64,6 +64,7 @@ const SIDEBAR = [
       'gm',
       'gm/first-15-minutes',
       'gm/first-hour',
+      'gm/first-hour-quest',
       'gm/getting-started',
       'gm/connect-claude-desktop',
       'gm/claude-plans',
@@ -71,7 +72,7 @@ const SIDEBAR = [
   },
   {
     label: 'Game night',
-    pages: ['gm/before-session', 'gm/game-night-runbook', 'gm/after-session', 'gm/tv-table-viewer'],
+    pages: ['gm/before-session', 'gm/before-session-quest', 'gm/game-night-runbook', 'gm/after-session', 'gm/tv-table-viewer'],
   },
   {
     label: 'The tool',
@@ -87,7 +88,7 @@ const SIDEBAR = [
   },
   {
     label: 'Your campaign',
-    pages: ['gm/prep-and-expectations', 'gm/prepare-session-0', 'gm/death-and-new-characters'],
+    pages: ['gm/prep-and-expectations', 'gm/prepare-session-0', 'gm/prepare-session-0-quest', 'gm/death-and-new-characters'],
   },
   { label: 'When it breaks', pages: ['gm/troubleshooting', 'gm/never-and-only-if'] },
   { label: 'For players', pages: ['player'], rest: 'player' },

@@ -120,8 +120,10 @@ set says so.
 
 ### Use a Tarokka reading you chose yourself
 
-- **Say:** "Store this Tarokka reading: the tome is the Seven of Swords, the holy symbol the Master of Glyphs, the sunsword the One of Coins, the ally the Raven and Strahd's location the Donjon."
-  Or open **🃏 Tarokka**, press **Choose the cards…**, pick the five cards and press **Store this reading**.
+- **Say:** "Store this Tarokka reading: the tome is `swords-7` (Seven of Swords), the holy symbol `glyphs-master` (Master of Glyphs), the sunsword `coins-1` (One of Coins), the ally `raven` and Strahd's location `donjon`."
+  Or open **🃏 Tarokka**, tick **Show cards** (the picks are on screen), press **Choose the cards…**, pick the five cards and press **Store this reading**.
+- **Card ids:** the tool takes ids, not names: a suit and a value (`swords-7`, `glyphs-master`, `coins-1`) for the common deck,
+  or one word for the high deck (`raven`, `donjon`, `broken-one`). A name gets an error that shows the format.
 - **What happens:** nothing is dealt. Each card must come from the right deck
   (common for the first three, high for the last two) and none can repeat. The previous reading is archived, and Undo brings it back.
 - **Then reveal one card at a time:** in **🃏 Tarokka**, press **Reveal…** on one position and write what the players may read.

@@ -22,13 +22,13 @@ import { mkdirSync, rmSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { chromium } from 'playwright-core';
 import { openWindow } from './lib/browser.mjs';
-import { REPO_ROOT, testEnv } from './lib/env.mjs';
+import { REPO_ROOT, demoWorld, testEnv } from './lib/env.mjs';
 import { FfmpegRecorder } from './lib/ffmpeg-recorder.mjs';
 import { joinFoundry, unpause } from './lib/foundry.mjs';
 import { LOOPS, SHOTS } from './lib/foundry-basics-shots.mjs';
 
 const OUT = join(REPO_ROOT, 'docs', 'images', 'foundry');
-const WORLD = 'ai-tool-demo';
+const WORLD = demoWorld();
 const GM = 'GM';
 const MAX_MB = 2;
 

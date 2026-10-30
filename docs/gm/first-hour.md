@@ -1,52 +1,49 @@
 ---
 title: Your first hour as GM
-description: A set reading order for your first hour, with Foundry's own guides for the basics and our pages for the tool.
+description: A set reading order for your first hour, with our Foundry basics pages for the game and our pages for the tool.
 ---
 
 # Your first hour as GM
 
 Read these in order, with Foundry open in a world where nothing can break (a test world, not the
-campaign). Foundry's own knowledge base explains Foundry; our pages explain the tool. You don't
-have to remember it all: later, your [GM coach in Claude](gm-coach.md) answers questions from the
-same pages.
+campaign). The [Foundry basics](../foundry/README.md) pages explain Foundry itself, in plain words
+and with pictures from Foundry 14; the other pages explain the tool. You don't have to remember
+it all: later, your [GM coach in Claude](gm-coach.md) answers questions from the same pages.
 
-Foundry's pages don't say which Foundry version they describe, and some pictures there are older
-than Foundry 14. The buttons have the same names, but a few sit somewhere else now.
+:::tip
+**Do this as a quest.** Prefer a list to tick off? [Quest: your first hour](first-hour-quest.md)
+is this page as four stages with times.
+:::
 
 ## 1. The screen (15 minutes)
 
-1. [Tutorial: Gamemaster Part One](https://foundryvtt.com/article/tutorial/) (Foundry). Read
-   "Introduction to the UI": the sidebar on the right, the scene controls on the left, the scenes
-   bar at the top and the map in the middle.
-2. [Glossary of Terms](https://foundryvtt.com/article/glossary/) (Foundry). Keep it open in a tab
-   and look up a word when a page uses one you don't know.
-3. [Getting started](getting-started.md) (ours). What the tool adds to Foundry, its parts and the
-   words we use for them.
+1. [A tour of the Foundry screen](../foundry/screen-tour.md). The sidebar on the right, the scene
+   controls on the left, scene navigation at the top and the map in the middle.
+2. [Foundry glossary](../foundry/glossary.md). Keep it open in a tab and look up a word when a
+   page uses one you don't know.
+3. [Getting started](getting-started.md). What the tool adds to Foundry, its parts and the words
+   we use for them.
 
 ## 2. People and worlds (10 minutes)
 
-1. [Users and Permissions](https://foundryvtt.com/article/users/) (Foundry). The roles (Player,
-   Trusted, Assistant, Game Master) and who may see or change what. Your players are Players;
-   you are the Game Master.
-2. [Game Worlds](https://foundryvtt.com/article/game-worlds/) (Foundry). Launching a world, the
-   join page your players log in from, and Return to Setup.
+1. [Users and permissions](../foundry/users-and-permissions.md). The roles (Player, Trusted,
+   Assistant, Game Master) and who may see or change what. Your players are Players; you are the
+   Game Master.
+2. [Worlds and joining](../foundry/worlds-and-joining.md). Starting a world, the join page your
+   players log in from, and Return to Setup.
 
 ## 3. Running the table (25 minutes)
 
 Try each one in the test world as you read it.
 
-1. [Scenes](https://foundryvtt.com/article/scenes/): make a scene, and the difference between
-   viewing a scene and activating it for everyone.
-2. [Actors](https://foundryvtt.com/article/actors/): character and monster sheets, and who owns
-   which character.
-3. [Tokens](https://foundryvtt.com/article/tokens/): an actor on the map, its settings and what it
-   can see.
-4. [Journal Entries](https://foundryvtt.com/article/journal/): notes and handouts, and showing a
-   page to the players.
-5. [Chat Messages](https://foundryvtt.com/article/chat/) and
-   [Basic Dice](https://foundryvtt.com/article/dice/): the chat log, rolling and private GM rolls.
-6. [Combat Encounters](https://foundryvtt.com/article/combat/): the combat tracker, initiative,
-   turns and rounds.
+1. [Scenes](../foundry/scenes.md): make a scene, and the difference between viewing a scene and
+   activating it for everyone.
+2. [Actors](../foundry/actors.md): character and monster sheets, and who owns which character.
+3. [Tokens](../foundry/tokens.md): an actor on the map, its settings and what it can see.
+4. [Journal entries](../foundry/journals.md): notes and handouts, and showing a page to the
+   players.
+5. [Chat and dice](../foundry/chat-and-dice.md): the chat log, rolling and private GM rolls.
+6. [Combat](../foundry/combat.md): the combat tracker, initiative, turns and rounds.
 
 ## 4. The tool (10 minutes)
 
@@ -59,15 +56,15 @@ the [game night runbook](game-night-runbook.md) open on the night.
 
 ## Later, when you need them
 
-These Foundry pages cover things you meet once the basics sit:
+These [Foundry basics](../foundry/README.md) pages cover things you meet once the basics sit:
 
-- [Canvas Layers](https://foundryvtt.com/article/canvas-layers/),
-  [Walls](https://foundryvtt.com/article/walls/) and
-  [Lighting](https://foundryvtt.com/article/lighting/): what blocks sight and movement on a map.
-- [Measurement and Templates](https://foundryvtt.com/article/measurement/): the ruler and spell
-  areas.
-- [Compendium Packs](https://foundryvtt.com/article/compendium/): the libraries of monsters,
-  items and spells.
-- [Module Management](https://foundryvtt.com/article/modules/): turning modules on and off in a
-  world.
-- [Playlists](https://foundryvtt.com/article/playlists/): music and sound.
+- [Layers, walls and lighting](../foundry/walls-and-lighting.md): what blocks sight and movement
+  on a map.
+- [Measuring and templates](../foundry/measuring-and-templates.md): the ruler and spell areas.
+- [Compendiums](../foundry/compendiums.md): the libraries of monsters, items and spells.
+- [Modules](../foundry/modules.md): turning modules on and off in a world.
+- [Playlists and sound](../foundry/playlists.md): music and sound.
+
+Foundry's own [knowledge base](https://foundryvtt.com/kb/) goes deeper on any of these. It does
+not say which Foundry version a page describes, and some of its pictures are older than Foundry
+14, so a button may sit somewhere else.

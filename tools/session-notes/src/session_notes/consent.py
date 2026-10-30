@@ -67,8 +67,13 @@ def set_consent(
         except (OSError, ValueError) as exc:
             # Never overwrite a file we cannot read: it may hold the only record of a "no".
             raise ValueError(f"{path} cannot be read ({exc}); fix or move it first") from exc
-        if not isinstance(data, dict) or ("players" in data and not isinstance(data["players"], dict)):
-            raise ValueError(f"{path} is not a consent record (expected an object with a players object); fix or move it first")
+        if not isinstance(data, dict) or (
+            "players" in data and not isinstance(data["players"], dict)
+        ):
+            raise ValueError(
+                f"{path} is not a consent record (an object with a players object); "
+                "fix or move it first"
+            )
     players = load_consent(sessions)
     old = players.get(user_id, {})
     players[user_id] = {

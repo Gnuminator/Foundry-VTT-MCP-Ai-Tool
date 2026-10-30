@@ -67,9 +67,13 @@ export function endQuestion(sceneName: string | null): string {
   return `End the fight${where}? Undo stays in Recent Changes.`;
 }
 
-/** The newest change the GM can still undo: not an undo entry, not already undone. */
+/**
+ * The newest change, if the GM can undo it: not an undo entry, not already undone. Only the newest
+ * counts: after an undo the button says "Nothing to undo" instead of reaching for an older change.
+ */
 export function lastUndoable(changes: readonly AiChange[]): AiChange | null {
-  return changes.find(c => c.mode !== 'undo' && !c.undoneBy && c.canUndo) ?? null;
+  const newest = changes[0];
+  return newest && newest.mode !== 'undo' && !newest.undoneBy && newest.canUndo ? newest : null;
 }
 
 /** "Undo: Wolf 2: 12 fire damage": the button's words, cut so the header does not grow. */

@@ -277,6 +277,18 @@ export function LiveStrip(): JSX.Element {
   const undo = (): Promise<void> =>
     once(async () => {
       if (!undoable || gated('undo-change')) return;
+      const from = focusedElement();
+      const destructive = undoable.risk === 'destructive';
+      const ok = await askConfirm({
+        title: 'Undo',
+        summary: `Undo ${undoable.summary}?`,
+        diff: [],
+        compact: true,
+        confirmLabel: 'Undo',
+        destructive,
+        returnTo: from,
+      });
+      if (!ok) return;
       try {
         await callTool(
           'undo-change',
@@ -381,6 +393,15 @@ export function LiveStrip(): JSX.Element {
         {stale ? AWAY_TEXT : ''}
       </p>
 
+      {combat !== null && !selectable && (
+        <div className={styles['handout']} id="live-gated" role="status">
+          <span className={styles['meta']}>
+            Picking creatures needs GM Actions{liveOff.length > 0 ? ' and live play' : ''}.
+          </span>
+          <TurnOnNote live={live} off={liveOff} />
+        </div>
+      )}
+
       {combat === null ? (
         liveOff.length === 0 ? (
           <Suspense fallback={null}>
@@ -438,7 +459,6 @@ export function LiveStrip(): JSX.Element {
             {kept.size > 0 && (
               <Suspense fallback={null}>
                 <DamageForm
-                  key={[...kept].sort().join('|')}
                   targets={targets}
                   names={pickedNames}
                   stale={stale}

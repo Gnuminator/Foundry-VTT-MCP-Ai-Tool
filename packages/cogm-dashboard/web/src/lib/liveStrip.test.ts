@@ -110,14 +110,21 @@ describe('endQuestion', () => {
 });
 
 describe('the Undo button', () => {
-  it('picks the newest change that can still be undone', () => {
-    const list = [
-      change({ changeId: 'u', mode: 'undo' }),
-      change({ changeId: 'x', undoneBy: 'u' }),
-      change({ changeId: 'y', canUndo: false }),
-      change({ changeId: 'z' }),
-    ];
-    expect(lastUndoable(list)?.changeId).toBe('z');
+  it('offers only the newest change, never an older one', () => {
+    expect(lastUndoable([change({ changeId: 'z' }), change({ changeId: 'y' })])?.changeId).toBe(
+      'z'
+    );
+    // After an undo the newest entry is the undo itself: nothing to offer.
+    expect(
+      lastUndoable([
+        change({ changeId: 'u', mode: 'undo' }),
+        change({ changeId: 'x', undoneBy: 'u' }),
+      ])
+    ).toBeNull();
+    expect(
+      lastUndoable([change({ changeId: 'y', canUndo: false }), change({ changeId: 'z' })])
+    ).toBeNull();
+    expect(lastUndoable([change({ changeId: 'x', undoneBy: 'u' })])).toBeNull();
     expect(lastUndoable([])).toBeNull();
   });
 

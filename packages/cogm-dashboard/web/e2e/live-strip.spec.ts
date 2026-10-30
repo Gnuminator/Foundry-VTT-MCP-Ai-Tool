@@ -47,7 +47,11 @@ const sse = (events: { event: string; data: unknown }[]): string =>
     .map(e => `event: ${e.event}${NL}data: ${JSON.stringify(e.data)}${NL}${NL}`)
     .join('')}`;
 
-async function setup(page: Page, combatants: Raw[] | null): Promise<ToolCall[]> {
+async function setup(
+  page: Page,
+  combatants: Raw[] | null,
+  opts: { changes?: unknown[]; gmActions?: boolean } = {}
+): Promise<ToolCall[]> {
   await fakeCommonRoutes(page);
   const calls = await fakeTools(
     page,
@@ -58,7 +62,7 @@ async function setup(page: Page, combatants: Raw[] | null): Promise<ToolCall[]> 
         case 'list-revealed-pages':
           return ok({ pages: [], queue: [] });
         case 'list-recent-changes':
-          return ok({ changes: [] });
+          return ok({ changes: opts.changes ?? [] });
         case 'plan-actor-change':
           return ok({ planId: 'plan-hit', summary: 'Damage', risk: 'write' });
         case 'plan-combat-change':
@@ -76,7 +80,7 @@ async function setup(page: Page, combatants: Raw[] | null): Promise<ToolCall[]> 
       status: 200,
       contentType: 'text/event-stream',
       body: sse([
-        { event: 'settings', data: { gmActionsEnabled: true } },
+        { event: 'settings', data: { gmActionsEnabled: opts.gmActions ?? true } },
         {
           event: 'status',
           data: {
@@ -172,6 +176,36 @@ test('Next turn is one click; End combat asks one plain question first', async (
   await expect
     .poll(() => calls.find(c => c.name === 'apply-planned-change'))
     .toMatchObject({ args: { planId: 'plan-end' }, confirm: true, confirmDestructive: true });
+});
+
+test('Undo offers only the newest change and asks first', async ({ page }) => {
+  const newest = { changeId: 'c2', summary: 'Goblin 1: 5 fire damage', canUndo: true };
+  const older = { changeId: 'c1', summary: 'End combat', canUndo: true, risk: 'destructive' };
+  const calls = await setup(page, FIGHT, { changes: [newest, older] });
+  await load(page);
+  await expect(page.locator('#live-undo')).toContainText('Goblin 1: 5 fire damage');
+  await page.locator('#live-undo').click();
+  const dialog = page.getByRole('dialog');
+  await expect(dialog).toContainText('Undo Goblin 1: 5 fire damage?');
+  expect(calls.some(c => c.name === 'undo-change')).toBe(false);
+  await dialog.getByRole('button', { name: 'Undo' }).click();
+  await expect
+    .poll(() => calls.find(c => c.name === 'undo-change'))
+    .toMatchObject({ args: { changeId: 'c2' }, confirm: true });
+});
+
+test('after an undo the button says there is nothing to undo', async ({ page }) => {
+  const undone = { changeId: 'u1', summary: 'Undid x', mode: 'undo', canUndo: false };
+  const older = { changeId: 'c1', summary: 'End combat', canUndo: true, undoneBy: 'u1' };
+  await setup(page, FIGHT, { changes: [undone, older] });
+  await load(page);
+  await expect(page.locator('#live-undo')).toHaveText('Nothing to undo');
+});
+
+test('with GM Actions off the strip says why it cannot pick', async ({ page }) => {
+  await setup(page, FIGHT, { gmActions: false });
+  await load(page);
+  await expect(page.locator('#live-gated')).toContainText('GM Actions');
 });
 
 test('with no fight it says so and has no pick bar', async ({ page }) => {

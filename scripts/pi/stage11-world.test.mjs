@@ -93,6 +93,7 @@ describe('11-world.sh in an ARM64 container', { skip: containerReason }, () => {
           after: part('env after'),
           pending: part('pending'),
           switchesPending: part('switches pending'),
+          firstSwitchesPending: part('first run switches pending'),
           sentinels: part('sentinels'),
           kitof: part('kitof'),
           worlds: part('worlds'),
@@ -761,6 +762,33 @@ describe('11-world.sh in an ARM64 container', { skip: containerReason }, () => {
       SW('frostmaiden-training'),
     ]);
     assert.equal(r.switchesPending, '', 'the marker is gone once the switches are set');
+  });
+
+  test('world switches: a push-back that replaces the world clears the owed-switches marker, and no switches run', () => {
+    const r = run('switches-stale-pushback');
+    assert.equal(r.firstSwitchesPending, 'world-frostmaiden-training.switches-pending', 'the failed first run owed them');
+    assert.equal(r.exit, '0', r.output);
+    assert.match(r.output, /a Plan B push-back of frostmaiden-training/);
+    assert.match(r.output, /old owed-switches marker is cleared/);
+    assert.equal(r.switchesPending, '', 'the stale marker is gone');
+    assert.deepEqual(lines(r.switches), [`${SW('frostmaiden-training')} FAILED`], 'the push-back runs no driver');
+  });
+
+  test('world switches: WORLD_SWITCHES=0 on the kept world clears the owed-switches marker', () => {
+    const r = run('switches-stale-off');
+    assert.equal(r.firstSwitchesPending, 'world-frostmaiden-training.switches-pending');
+    assert.equal(r.exit, '0', r.output);
+    assert.match(r.output, /KEPT: the campaign world frostmaiden-training already exists/);
+    assert.match(r.output, /old owed-switches marker is cleared/);
+    assert.equal(r.switchesPending, '');
+    assert.deepEqual(lines(r.switches), [`${SW('frostmaiden-training')} FAILED`]);
+  });
+
+  test('world switches: WORLD_SWITCHES=1 with a push-back is refused before anything changes', () => {
+    const r = run('switches-1-pushback');
+    assert.equal(r.exit, '1', r.output);
+    assert.match(r.output, /WORLD_SWITCHES=1 does not go with a Plan B push-back.*Nothing was changed/);
+    assert.deepEqual(lines(r.switches), [SW('frostmaiden-training')], 'only the first run set switches');
   });
 
   test('world switches: a failing kit world says to run the same command, never WORLD_SWITCHES=1', () => {

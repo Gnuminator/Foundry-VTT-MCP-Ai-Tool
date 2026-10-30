@@ -280,10 +280,12 @@ scenario() {
   shift 3
   if [ -n "$only" ] && [[ " $only " != *" $name "* ]]; then return 0; fi
   # "RERUN:KEY=VALUE" words apply to the second run only (they come after the others, so they win).
-  local rerun=0 env_words=() rerun_words=() w
+  # "pushback2" makes the second bundle a Plan B push-back (a gm-password and a based-on-snapshot line in MANIFEST.txt).
+  local rerun=0 pushback2=0 env_words=() rerun_words=() w
   for w in "$@"; do
     case "$w" in
       rerun) rerun=1 ;;
+      pushback2) pushback2=1 ;;
       RERUN:*) rerun_words+=("${w#RERUN:}") ;;
       *) env_words+=("$w") ;;
     esac
@@ -299,7 +301,10 @@ scenario() {
     echo "--- first run"
     echo "exit $first_rc"
     env_state
+    echo "--- first run switches pending"
+    ls "$TOOL_ETC" | grep 'switches-pending$' || true
   fi
+  [ "$pushback2" = 0 ] || manifest_extra=$'gm-password: kept (push-back)\nbased-on-snapshot: 2026-10-30T12:00:00Z'
   run_stage "$bw" "${env_words[@]}" "${rerun_words[@]}" >/tmp/out.last
   local rc=$?
   echo "--- output"
@@ -412,6 +417,12 @@ scenario switches-bad-value frostmaiden-training - WORLD=frostmaiden-training KI
 scenario switches-fails frostmaiden-training switch_fails WORLD=frostmaiden-training KIT_WORLD= LAUNCH=curse-of-strahd
 scenario switches-fails-rerun frostmaiden-training switch_fails WORLD=frostmaiden-training KIT_WORLD= LAUNCH=curse-of-strahd rerun
 scenario switches-fails-kit curse-of-strahd switch_fails
+# A failed switches run leaves world-<id>.switches-pending. A push-back that replaces the world, or WORLD_SWITCHES=0 on the
+# kept world, clears it (a later plain run would otherwise do the switches the user gave up on). WORLD_SWITCHES=1 with a
+# push-back is refused up front.
+scenario switches-stale-pushback frostmaiden-training switch_fails WORLD=frostmaiden-training KIT_WORLD= LAUNCH=curse-of-strahd rerun pushback2 RERUN:REPLACE_WORLD=1 RERUN:REPLACE_NEWER=1
+scenario switches-stale-off frostmaiden-training switch_fails WORLD=frostmaiden-training KIT_WORLD= LAUNCH=curse-of-strahd rerun RERUN:WORLD_SWITCHES=0
+scenario switches-1-pushback frostmaiden-training - WORLD=frostmaiden-training KIT_WORLD= LAUNCH=curse-of-strahd rerun pushback2 RERUN:REPLACE_WORLD=1 RERUN:REPLACE_NEWER=1 RERUN:WORLD_SWITCHES=1
 scenario kit-names-installed curse-of-strahd training_installed KIT_WORLD=frostmaiden-training KIT_TITLE=x
 scenario kit-names-installed-replace curse-of-strahd training_installed KIT_WORLD=frostmaiden-training KIT_TITLE=x REPLACE_KIT=1
 scenario kit-copy-rerun frostmaiden-training - WORLD=frostmaiden-training KIT_WORLD=frost-kit "KIT_TITLE=Frost kit" LAUNCH=curse-of-strahd rerun

@@ -61,6 +61,7 @@ def set_consent(
             "prints the ids of the speakers)"
         )
     path = consent_path(sessions)
+    data: dict[str, Any] = {}
     if path.is_file():
         try:
             data = json.loads(path.read_text(encoding="utf-8"))
@@ -74,6 +75,13 @@ def set_consent(
                 f"{path} is not a consent record (an object with a players object); "
                 "fix or move it first"
             )
+        # load_consent drops an entry that is not an object, so a rewrite would erase it: it may be a "no".
+        bad = [k for k, v in data.get("players", {}).items() if not isinstance(v, dict)]
+        if bad:
+            raise ValueError(
+                f"{path} has players entries that are not objects ({', '.join(map(str, bad))}); "
+                "fix or move it first"
+            )
     players = load_consent(sessions)
     old = players.get(user_id, {})
     players[user_id] = {
@@ -84,7 +92,8 @@ def set_consent(
     sessions.mkdir(parents=True, exist_ok=True)
     tmp = path.with_name(CONSENT_FILE + ".tmp")
     tmp.write_text(
-        json.dumps({"players": players}, ensure_ascii=False, indent=1) + "\n", encoding="utf-8"
+        json.dumps({**data, "players": players}, ensure_ascii=False, indent=1) + "\n",
+        encoding="utf-8",
     )
     tmp.replace(path)
     return path

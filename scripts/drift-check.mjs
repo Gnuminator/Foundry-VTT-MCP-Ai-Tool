@@ -357,7 +357,8 @@ export function lockedCommand(check, dir) {
     return check.command;
   }
   const label = `drift-check ${check.name.split('(')[0].replace(/[^\w -]/g, '').trim()}`;
-  return `node "${script}" run --label "${label}" -- ${check.command}`;
+  // High priority: a merge waits on it, so it goes ahead of queued greens (an older lock ignores the flag).
+  return `node "${script}" run --label "${label}" --priority high -- ${check.command}`;
 }
 
 /**

@@ -95,7 +95,7 @@ export function buildRollRows(
       continue;
     }
     if (e.eventType !== 'roll' && e.eventType !== 'gm-roll') continue;
-    if (e.actorId === null || !ANSWERING.has(String(d['rollType'] ?? ''))) continue;
+    if (e.actorId === null || !ANSWERING.has(text(d['rollType']) ?? '')) continue;
     // The roll answers the newest request to that character sent before it (a request nobody
     // answered must not swallow the roll of the one the GM sent after it).
     const list = pending.get(e.actorId) ?? [];

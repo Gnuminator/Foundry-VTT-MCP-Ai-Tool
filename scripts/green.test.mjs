@@ -205,6 +205,15 @@ test('lightFirst: --from a light step still runs typecheck and the other heavy s
   assert.ok(late.includes('typecheck') && late.includes('e2e'), 'heavy steps survive a --from at the last light step');
 });
 
+test('LIGHT_FIRST: only known light commands, so a heavy step missing from HEAVY_STEPS fails here, not unlocked', () => {
+  const lightNpm = new Set(['emdash:ratchet', 'version:check', 'usage:catalog:check', 'docs:lint', 'docs:links', 'changelog:check']);
+  for (const s of STEPS.filter(s => LIGHT_FIRST.has(s.name))) {
+    const line = commandLine(s);
+    const ok = /^node --test /.test(line) || line === 'node tools/gm-coach/build.mjs' || (/^npm run (\S+)$/.exec(line) && lightNpm.has(/^npm run (\S+)$/.exec(line)[1]));
+    assert.ok(ok, `${s.name} (${line}) is not a known light command: add it to HEAVY_STEPS or to this list`);
+  }
+});
+
 test('runLock over the default order: the hold starts after every light step', () => {
   const steps = selectSteps(STEPS, parseArgs([])).steps;
   const taken = [];

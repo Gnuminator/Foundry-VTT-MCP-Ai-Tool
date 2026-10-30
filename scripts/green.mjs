@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 /**
  * Keep-green: runs locally what the CI job `build-test` (.github/workflows/ci.yml) runs, in the same
- * order, minus `npm ci` and the artifact uploads. Quiet by design (D-122): every step writes its
+ * order (except that the steps needing neither the build nor a heavy slot run first, see lightFirst),
+ * minus `npm ci` and the artifact uploads. Quiet by design (D-122): every step writes its
  * stdout and stderr to a log file under the temp folder, and the run prints one line at the end:
  *
  *   green: OK, 35 steps in 6m12s

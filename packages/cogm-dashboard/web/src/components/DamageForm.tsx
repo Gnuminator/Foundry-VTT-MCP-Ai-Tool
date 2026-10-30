@@ -181,7 +181,8 @@ export function DamageForm({
           data-track="dash.damage.apply"
           aria-disabled={args && !stale ? undefined : 'true'}
           title={stale ? 'The bridge is away' : undefined}
-          disabled={busy}
+          busy={busy}
+          busyLabel="Applying..."
           onClick={submit}
         >
           {amountOf(draft) === null ? 'Type an amount' : label}

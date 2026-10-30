@@ -78,7 +78,9 @@ function TokenList({
           variant="primary"
           size="sm"
           data-track="dash.combat.start-go"
-          aria-disabled={none || busy ? 'true' : undefined}
+          aria-disabled={none ? 'true' : undefined}
+          busy={busy}
+          busyLabel="Starting combat..."
           onClick={start}
         >
           {none ? 'Start combat' : `Start combat with ${args.tokenIds.length}`}

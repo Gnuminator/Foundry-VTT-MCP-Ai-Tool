@@ -132,10 +132,11 @@ export function ReadyBlock({ onChanged }: { onChanged: () => void }): JSX.Elemen
             variant="quiet"
             id="btn-ready-log"
             data-track="dash.ready.start-log"
-            disabled={startLog.pending}
+            busy={startLog.pending}
+            busyLabel="Starting..."
             onClick={() => startLog.mark('start')}
           >
-            Start the session log
+            Start the session log and live play
           </Button>
         )}
       </div>

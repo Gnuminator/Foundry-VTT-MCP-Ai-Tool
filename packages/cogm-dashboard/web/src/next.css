@@ -222,6 +222,13 @@ main.moment-views #moment-during.during-no-bar {
   filter: grayscale(0.4);
 }
 
+/* A busy button's label is the status: keep it readable. */
+.btn[aria-busy='true'] {
+  opacity: 1;
+  cursor: progress;
+  filter: none;
+}
+
 /* The wiki link in the help pane's head (it exists only in this markup). */
 .help-pane .help-wiki-link {
   color: var(--accent-bright);

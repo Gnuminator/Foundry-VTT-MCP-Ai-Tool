@@ -613,7 +613,7 @@ test.describe('Undo on the Everyone tab', () => {
     await c.getByRole('button', { name: 'Undo: Human h1' }).click();
     await undoWindow(page).getByRole('button', { name: 'Undo', exact: true }).click();
 
-    await expect(toast(page, '✗ apply-planned-change: The plan has expired.')).toBeVisible();
+    await expect(toast(page, '✗ The change: The plan has expired.')).toBeVisible();
     await expect(page.locator('.toast-stack').getByRole('button', { name: 'Undo' })).toHaveCount(0);
     await expect.poll(() => callsOf(calls, 'list-changes').length).toBeGreaterThan(before);
     expect(callsOf(calls, 'apply-planned-change')).toHaveLength(1);

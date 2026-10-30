@@ -4,7 +4,7 @@ import { expect, userEvent, waitFor, within } from 'storybook/test';
 
 import { PREFS_KEY } from '../lib/prefs';
 import type { DuringPrefs } from '../lib/prefsModel';
-import { COMBAT_KEY, FEED_KEY } from '../lib/stream';
+import { COMBAT_KEY, FEED_KEY, SETTINGS_KEY } from '../lib/stream';
 import { FIGHT } from '../storybook/fixtures/combat';
 import { FEED_FEW } from '../storybook/fixtures/feed';
 import { HandoutsDrawer } from '../panels/Handouts';
@@ -56,10 +56,12 @@ interface Setup {
   combat?: boolean;
   /** An open session with a start time, which the hint needs. */
   session?: boolean;
+  /** GM Actions off (the `settings` stream event): the combat buttons are gated. */
+  gmActionsOff?: boolean;
 }
 
 /** `parameters.dashboard` for a story: the cache the stream would fill and the fake set-prefs. */
-function bridge({ prefs, combat = false, session = false }: Setup): {
+function bridge({ prefs, combat = false, session = false, gmActionsOff = false }: Setup): {
   dashboard: DashboardParameters;
 } {
   return {
@@ -68,6 +70,7 @@ function bridge({ prefs, combat = false, session = false }: Setup): {
         [FEED_KEY, FEED_FEW] as const,
         ...(prefs ? [[PREFS_KEY, prefs] as const] : []),
         ...(combat ? [[COMBAT_KEY, FIGHT] as const] : []),
+        ...(gmActionsOff ? [[SETTINGS_KEY, { gmActionsEnabled: false }] as const] : []),
       ],
       api: {
         routes: {
@@ -139,6 +142,11 @@ export const BarAuto: Story = {
 };
 export const BarAutoInCombat: Story = {
   parameters: bridge({ prefs: { ...PICKED, duringLayout: 'auto' }, combat: true }),
+  render: render(),
+};
+export const BarGmActionsOff: Story = {
+  name: 'Bar: GM Actions off, Start combat gated',
+  parameters: bridge({ prefs: PICKED, gmActionsOff: true }),
   render: render(),
 };
 export const BarWithHint: Story = {

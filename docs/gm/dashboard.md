@@ -72,7 +72,8 @@ The 📓 next to it opens your campaign's Home note in Obsidian (see "Open in Ob
 
 **Start session** is the only switch for live play. One click turns on GM Actions and every
 **Turn on for tonight** switch; **End session** turns them off again. The line in the header
-shows the state and opens the list of switches.
+shows the state and opens the list of switches. When the page cannot read the switches, the line
+says so (and still says if GM Actions is off).
 
 - **Live play on: all set**: tools that change the game can run after you confirm, and Undo in
   Recent Changes works.
@@ -119,7 +120,7 @@ A refusal toast ("... is switched off") offers the same click as a button, "Turn
 rest for tonight": it turns on all of the above, not only the named switch.
 
 Only the dashboard can do this, from the GM's login. Claude has no tool for it, so Claude can never
-switch on its own writes. **Start the session log** next to it is the same as **Start session** in
+switch on its own writes. **Start the session log and live play** next to it is the same as **Start session** in
 the header.
 
 ### 📜 Handouts (Advanced)

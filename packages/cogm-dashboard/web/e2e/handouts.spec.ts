@@ -342,7 +342,7 @@ test('Remove takes a page off the queue with GM Actions off; Reveal next stays g
 
   unqueueFails = true;
   await queueRows(drawer).nth(3).getByRole('button', { name: 'Remove' }).click();
-  await expect(toast(page, '✗ plan-page-reveal: That page is not queued')).toBeVisible();
+  await expect(toast(page, '✗ Page reveal: That page is not queued')).toBeVisible();
   await expect.poll(() => loads(calls)).toBe(3);
   await expect(page.getByRole('dialog', { name: '✈ Pre-flight' })).toBeHidden();
 
@@ -686,7 +686,7 @@ test('a failed reveal reloads the queue; with nothing left, focus stays in the d
   // Someone else revealed the page meanwhile: the plan fails and the reload shows the queue now.
   view = { pages: PAGES, queue: [QUEUE[0]] };
   await drawer.locator('#handouts-next').click();
-  await expect(toast(page, '✗ plan-page-reveal: Nothing queued for this scene')).toBeVisible();
+  await expect(toast(page, '✗ Page reveal: Nothing queued for this scene')).toBeVisible();
   await expect(queueRows(drawer).locator('.pf-label')).toHaveText(['Letter from a courier']);
   await expect(drawer.locator('#handouts-next')).toHaveText('Reveal next');
   await expect(drawer.locator('#handouts-next')).toBeDisabled();

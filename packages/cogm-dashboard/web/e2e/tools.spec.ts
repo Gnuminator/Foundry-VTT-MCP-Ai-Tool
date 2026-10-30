@@ -697,7 +697,7 @@ test('a write that is not a plan asks with its args, names shown with their ids'
     'sceneId: Valmere (s2)',
   ]);
   await confirm.getByRole('button', { name: 'Confirm' }).click();
-  await expect(toast(page, '✓ create-quest-journal')).toBeVisible();
+  await expect(toast(page, '✓ Create quest journal done')).toBeVisible();
   expect(named(calls, 'create-quest-journal')).toEqual([
     {
       name: 'create-quest-journal',
@@ -762,7 +762,7 @@ test('a failed plan and a refused apply show the error under the form', async ({
   await field(drawer, 'action').selectOption('heal');
   await field(drawer, 'targets').fill('Wolf');
   await drawer.locator('#tool-run').click();
-  await expect(toast(page, '✗ plan-actor-change: No token named Wolf')).toBeVisible();
+  await expect(toast(page, '✗ Actor change: No token named Wolf')).toBeVisible();
   await expect(drawer.locator('#tool-result')).toHaveClass('tool-result err');
   await expect(drawer.locator('#tool-result strong')).toHaveText('Error');
   await expect(drawer.locator('#tool-result pre')).toHaveText('No token named Wolf');
@@ -772,9 +772,7 @@ test('a failed plan and a refused apply show the error under the form', async ({
   applyRefused = true;
   await drawer.locator('#tool-run').click();
   await confirmWindow(page).getByRole('button', { name: 'Confirm' }).click();
-  await expect(
-    toast(page, '✗ apply-planned-change: The Combat feature is off in Foundry.')
-  ).toBeVisible();
+  await expect(toast(page, '✗ The change: The Combat feature is off in Foundry.')).toBeVisible();
   await expect(drawer.locator('#tool-result pre')).toHaveText(
     'The Combat feature is off in Foundry.'
   );

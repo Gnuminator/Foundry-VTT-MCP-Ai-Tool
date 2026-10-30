@@ -68,6 +68,20 @@ interface Applied {
   note?: unknown;
 }
 
+/**
+ * A tool id in words for an error toast, never the id itself: "plan-combat-change" reads "Combat
+ * change", "apply-planned-change" "The change", "undo-change" "Undo".
+ */
+export function toolWords(name: string): string {
+  if (name === 'apply-planned-change') return 'The change';
+  if (name === 'undo-change') return 'Undo';
+  const words = name
+    .replace(/^(plan|get|list|set)-/, '')
+    .replace(/-/g, ' ')
+    .trim();
+  return words ? words.charAt(0).toUpperCase() + words.slice(1) : 'The change';
+}
+
 /** The toast text of a change, as the old page's doneText words it. */
 function doneText(name: string, result: Applied | null): string {
   const summary = typeof result?.summary === 'string' ? result.summary : '';
@@ -76,7 +90,7 @@ function doneText(name: string, result: Applied | null): string {
     return `✓ Applied: ${summary}${shown}`;
   }
   if (name === 'undo-change' && summary) return `✓ ${summary}`;
-  return `✓ ${name}`;
+  return `✓ ${toolWords(name)} done`;
 }
 
 /**
@@ -289,15 +303,15 @@ export function useGuardedTools(): GuardedTools {
         }
         if (err instanceof ApiError && err.kind === 'timeout') {
           // The bridge stopped waiting after about 4 minutes; Foundry may still have done it.
-          toast(`✗ ${name} timed out. ${RECENT_CHANGES_HINT}`, 'err');
+          toast(`✗ ${toolWords(name)} timed out. ${RECENT_CHANGES_HINT}`, 'err');
           error = `Timed out. ${RECENT_CHANGES_HINT}`;
         } else if (mayHaveApplied(err)) {
           const text = error.trim();
           const stop = /[.!?]$/.test(text) ? '' : '.';
           error = `${text}${stop} ${RECENT_CHANGES_HINT}`;
-          toast(`✗ ${name}: ${error}`, 'err');
+          toast(`✗ ${toolWords(name)}: ${error}`, 'err');
         } else {
-          toast(`✗ ${name}: ${error}`, 'err');
+          toast(`✗ ${toolWords(name)}: ${error}`, 'err');
         }
         changed();
         return {
@@ -423,13 +437,16 @@ export function useGuardedTools(): GuardedTools {
         planned = await callTool<Plan | null>(planTool, args);
       } catch (err) {
         usage().trackTool(planTool, 'error', failCode(err));
-        toast(`✗ ${planTool}: ${errorText(err)}`, 'err');
+        toast(`✗ ${toolWords(planTool)}: ${errorText(err)}`, 'err');
         return { status: 'failed', error: errorText(err) };
       }
       usage().trackTool(planTool, 'ok');
       if (planned?.providerNote) toast(planned.providerNote, 'warn');
       if (!planned || typeof planned.planId !== 'string' || !planned.planId) {
-        toast(typeof planned?.note === 'string' ? `✓ ${planned.note}` : `✓ ${planTool}`, 'ok');
+        toast(
+          typeof planned?.note === 'string' ? `✓ ${planned.note}` : `✓ ${toolWords(planTool)} done`,
+          'ok'
+        );
         changed();
         return { status: 'done', result: planned };
       }

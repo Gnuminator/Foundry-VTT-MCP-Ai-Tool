@@ -24,7 +24,8 @@ export function TurnOnNote({
       <Button
         size="sm"
         data-track="dash.live.turn-on"
-        disabled={live.pending}
+        busy={live.pending}
+        busyLabel="Turning on..."
         onClick={live.turnOn}
       >
         Turn on

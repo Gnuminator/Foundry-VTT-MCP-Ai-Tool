@@ -469,7 +469,7 @@ test('an apply that times out says it may have applied and reloads the party', a
 
   await drawer.locator('#party-pace').getByRole('button', { name: 'Fast' }).click();
   await expect(
-    toast(page, '✗ apply-planned-change timed out. It may have applied; check Recent Changes.')
+    toast(page, '✗ The change timed out. It may have applied; check Recent Changes.')
   ).toBeVisible();
   await expect
     .poll(() => names(calls))
@@ -510,21 +510,17 @@ test('an apply whose answer got lost says it may have applied; a tool error does
   const hint = 'It may have applied; check Recent Changes.';
 
   await fast.click();
-  await expect(
-    toast(page, `✗ apply-planned-change: The bridge link closed. ${hint}`)
-  ).toBeVisible();
+  await expect(toast(page, `✗ The change: The bridge link closed. ${hint}`)).toBeVisible();
   await expect(fast).toBeEnabled();
   await fast.click();
-  await expect(toast(page, `✗ apply-planned-change: HTTP 524. ${hint}`)).toBeVisible();
+  await expect(toast(page, `✗ The change: HTTP 524. ${hint}`)).toBeVisible();
   await expect(fast).toBeEnabled();
   await fast.click();
-  await expect(toast(page, `✗ apply-planned-change: Failed to fetch. ${hint}`)).toBeVisible();
+  await expect(toast(page, `✗ The change: Failed to fetch. ${hint}`)).toBeVisible();
   await expect(fast).toBeEnabled();
   await fast.click();
   await expect(
-    page
-      .locator('.toast-stack')
-      .getByText('✗ apply-planned-change: Nothing to change', { exact: true })
+    page.locator('.toast-stack').getByText('✗ The change: Nothing to change', { exact: true })
   ).toBeVisible();
   // Each failure past the gate reloads the party, in case it landed.
   await expect.poll(() => names(calls).filter(n => n === 'get-party').length).toBe(5);

@@ -221,11 +221,11 @@ export function HandoutsDrawer({
       .then(
         result => {
           usage().trackTool('plan-page-reveal', 'ok');
-          toast(typeof result?.note === 'string' ? `✓ ${result.note}` : '✓ plan-page-reveal', 'ok');
+          toast(typeof result?.note === 'string' ? `✓ ${result.note}` : '✓ Page reveal done', 'ok');
         },
         (err: unknown) => {
           usage().trackTool('plan-page-reveal', 'error', failCode(err));
-          toast(`✗ plan-page-reveal: ${errorText(err)}`, 'err');
+          toast(`✗ Page reveal: ${errorText(err)}`, 'err');
         }
       )
       .finally(() => {
@@ -257,7 +257,7 @@ export function HandoutsDrawer({
         () => usage().trackTool('plan-page-reveal', 'ok'),
         (err: unknown) => {
           usage().trackTool('plan-page-reveal', 'error', failCode(err));
-          toast(`✗ plan-page-reveal: ${errorText(err)}`, 'err');
+          toast(`✗ Page reveal: ${errorText(err)}`, 'err');
         }
       )
       .finally(() => {
@@ -426,7 +426,11 @@ export function HandoutsDrawer({
               if (liveOff.length === 0) revealNext();
             }}
           >
-            {next ? `Reveal next: ${next.title || 'Untitled'}` : 'Reveal next'}
+            {revealing
+              ? 'Revealing...'
+              : next
+                ? `Reveal next: ${next.title || 'Untitled'}`
+                : 'Reveal next'}
           </Button>
           <TurnOnNote live={live} off={liveOff} />
           <label className="show-now" htmlFor="handouts-show-now">

@@ -50,7 +50,7 @@ import {
 import { useLivePlay, type LivePlay } from '../lib/livePlay';
 import { offReason } from '../lib/liveSwitches';
 import { useBridgeAway, useCombat, useDashboardSettings } from '../lib/stream';
-import { Panel, Pill } from '../ui';
+import { DelayedLoading, Panel, Pill } from '../ui';
 
 import { TurnOnNote } from './TurnOnNote';
 
@@ -519,7 +519,7 @@ export function CombatStrip({
           {real === null &&
             !showSample &&
             (liveOff.length === 0 ? (
-              <Suspense fallback={null}>
+              <Suspense fallback={<DelayedLoading as="div" />}>
                 <StartCombat />
               </Suspense>
             ) : (
@@ -530,7 +530,7 @@ export function CombatStrip({
               live={live}
               off={liveOff}
               label="End combat"
-              hint="Picking combatants needs live play."
+              hint="Damage, conditions and rolls on the combatants need live play."
             />
           )}
           <div className="combat-actions" id="combat-actions" hidden={!selectable}>
@@ -552,7 +552,7 @@ export function CombatStrip({
             )}
           </div>
           {showDamage && (
-            <Suspense fallback={null}>
+            <Suspense fallback={<DelayedLoading as="div" />}>
               <DamageForm
                 targets={selectedTargets(combat, kept)}
                 names={pickedRows.map(c => c.name)}
@@ -568,7 +568,7 @@ export function CombatStrip({
             </Suspense>
           )}
           {combat !== null && !showSample && (
-            <Suspense fallback={null}>
+            <Suspense fallback={<DelayedLoading as="div" />}>
               <StripRolls party={partyRows} picked={pickedRows.filter(c => c.isPC)} stale={stale} />
             </Suspense>
           )}

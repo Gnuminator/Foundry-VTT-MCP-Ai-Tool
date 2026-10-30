@@ -13,6 +13,7 @@
  *   npm run green -- --only a,b         run only these steps
  *   npm run green -- --from NAME        start at this step
  *   npm run green -- --skip a,b         leave these steps out
+ *   npm run green -- --cloud            run CI on GitHub for the pushed HEAD instead (see cloudGreen)
  *
  * The steps run in the repository the command is started in (the git top level of the current
  * directory). On Windows, when this process is not Node 22 (the global Node 24 crashes natively
@@ -236,10 +237,10 @@ export function ciUnsupported(yamlText, job = 'build-test') {
 
 /**
  * @param {string[]} argv
- * @returns {{ list: boolean, all: boolean, only: string[], skip: string[], from: string | null, error: string | null }}
+ * @returns {{ list: boolean, all: boolean, cloud: boolean, only: string[], skip: string[], from: string | null, error: string | null }}
  */
 export function parseArgs(argv) {
-  const out = { list: false, all: false, only: [], skip: [], from: null, error: null };
+  const out = { list: false, all: false, cloud: false, only: [], skip: [], from: null, error: null };
   const csv = (/** @type {string} */ v) =>
     v
       .split(',')
@@ -259,6 +260,7 @@ export function parseArgs(argv) {
     };
     if (flag === '--list') out.list = true;
     else if (flag === '--all') out.all = true;
+    else if (flag === '--cloud') out.cloud = true;
     else if (flag === '--only' || flag === '--skip' || flag === '--from') {
       const v = value();
       if (v === null || v === '') {
@@ -272,6 +274,9 @@ export function parseArgs(argv) {
       out.error = `unknown argument ${arg}`;
       return out;
     }
+  }
+  if (out.cloud && (out.list || out.all || out.only.length + out.skip.length > 0 || out.from)) {
+    out.error = '--cloud runs the whole CI job and cannot be combined with --list, --all, --only, --skip or --from';
   }
   return out;
 }
@@ -640,6 +645,129 @@ export function runLock(steps, take, label, env = process.env) {
   };
 }
 
+/** Remote the lanes push to (CLAUDE.md: never the upstream repo). */
+const CLOUD_REMOTE = 'aitool';
+const CLOUD_WORKFLOW = 'ci.yml';
+
+/** Sleep without a timer, so green.mjs can stay synchronous. @param {number} ms */
+function sleepSync(ms) {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
+
+/**
+ * @param {string} cmd @param {string[]} args @param {string} cwd
+ * @returns {{ status: number, stdout: string, stderr: string }}
+ */
+function runCapture(cmd, args, cwd) {
+  const r = spawnSync(cmd, args, { cwd, encoding: 'utf8', windowsHide: true, timeout: 60_000 });
+  return { status: r.status ?? 1, stdout: r.stdout ?? '', stderr: r.stderr ?? '' };
+}
+
+/** `owner/repo` from a GitHub remote URL (https or ssh), else null. @param {string} url */
+export function repoFromUrl(url) {
+  const m = /github\.com[:/]([^/\s]+)\/([^/\s]+?)(?:\.git)?\s*$/.exec(url.trim());
+  return m ? `${m[1]}/${m[2]}` : null;
+}
+
+/**
+ * `green --cloud`: the same checks on GitHub for the pushed HEAD, for when the local heavy-check
+ * queue is long. No local heavy run, no heavy-check lock. It refuses a dirty tree and a HEAD that
+ * is not on the remote branch, uses the CI run already started for that sha (a push to a PR branch
+ * starts one) or else starts ci.yml by workflow_dispatch, waits, and prints one line.
+ * @param {{
+ *   cwd: string, git?: (args: string[]) => { status: number, stdout: string, stderr: string },
+ *   gh?: (args: string[]) => { status: number, stdout: string, stderr: string },
+ *   now?: () => number, sleep?: (ms: number) => void, log?: (line: string) => void,
+ *   pollMs?: number, findMs?: number, timeoutMs?: number,
+ * }} o
+ * @returns {number} the process exit code
+ */
+export function cloudGreen(o) {
+  const {
+    cwd,
+    git = args => runCapture('git', args, cwd),
+    gh = args => runCapture('gh', args, cwd),
+    now = Date.now,
+    sleep = sleepSync,
+    log = console.log,
+    pollMs = 20_000,
+    findMs = 90_000,
+    timeoutMs = 60 * 60_000,
+  } = o;
+  const refuse = (/** @type {string} */ why) => {
+    log(`green --cloud: ${why}`);
+    return 1;
+  };
+  const out = (/** @type {string[]} */ args) => {
+    const r = git(args);
+    return r.status === 0 ? r.stdout.trim() : null;
+  };
+  const dirty = git(['status', '--porcelain']);
+  if (dirty.status !== 0) return refuse('git status failed');
+  if (dirty.stdout.trim()) return refuse('the working tree has uncommitted changes; commit them (CI runs the pushed commit)');
+  const branch = out(['rev-parse', '--abbrev-ref', 'HEAD']);
+  const sha = out(['rev-parse', 'HEAD']);
+  if (!branch || branch === 'HEAD' || !sha) return refuse('no branch checked out');
+  const remoteUrl = out(['remote', 'get-url', CLOUD_REMOTE]);
+  const repo = remoteUrl && repoFromUrl(remoteUrl);
+  if (!repo) return refuse(`no GitHub remote named ${CLOUD_REMOTE}`);
+  const remoteHead = out(['ls-remote', CLOUD_REMOTE, `refs/heads/${branch}`])?.split(/\s+/)[0];
+  if (remoteHead !== sha) {
+    return refuse(`HEAD ${sha.slice(0, 8)} is not pushed to ${CLOUD_REMOTE}/${branch} (git push -u ${CLOUD_REMOTE} ${branch}:${branch})`);
+  }
+
+  const started = now();
+  /** @param {string[]} extra @returns {{ databaseId: number, status: string, conclusion: string, headSha: string }[]} */
+  const listRuns = extra => {
+    const r = gh(['run', 'list', '-R', repo, '-w', CLOUD_WORKFLOW, '--json', 'databaseId,status,conclusion,event,headSha', '-L', '20', ...extra]);
+    if (r.status !== 0) return [];
+    try {
+      return JSON.parse(r.stdout).filter((/** @type {{ headSha: string }} */ x) => x.headSha === sha);
+    } catch {
+      return [];
+    }
+  };
+  // A run that was cancelled or skipped says nothing about the commit.
+  const usable = (/** @type {{ conclusion: string }} */ x) => x.conclusion !== 'cancelled' && x.conclusion !== 'skipped';
+  let run = listRuns(['--commit', sha]).find(usable);
+  if (!run) {
+    const d = gh(['workflow', 'run', CLOUD_WORKFLOW, '-R', repo, '--ref', branch]);
+    if (d.status !== 0) return refuse(`could not start ${CLOUD_WORKFLOW}: ${(d.stderr || d.stdout).trim().split('\n')[0]}`);
+    while (!run && now() - started < findMs) {
+      sleep(Math.min(pollMs, 5000));
+      run = listRuns(['--branch', branch, '--event', 'workflow_dispatch']).find(usable);
+    }
+    if (!run) return refuse(`started ${CLOUD_WORKFLOW} but found no run for ${sha.slice(0, 8)} within ${Math.round(findMs / 1000)} s`);
+  }
+
+  /** @type {{ status: string, conclusion: string, url: string, jobs: { name: string, conclusion: string, url: string, steps?: { name: string, conclusion: string }[] }[] } | null} */
+  let view = null;
+  while (now() - started < timeoutMs) {
+    const r = gh(['run', 'view', String(run.databaseId), '-R', repo, '--json', 'status,conclusion,url,jobs']);
+    if (r.status === 0) {
+      try {
+        view = JSON.parse(r.stdout);
+      } catch {
+        view = null;
+      }
+      if (view?.status === 'completed') break;
+    }
+    sleep(pollMs);
+  }
+  if (!view || view.status !== 'completed') return refuse(`CI run ${run.databaseId} was still going after ${formatDuration(now() - started)}`);
+  if (view.conclusion === 'success') {
+    log(`green: OK (cloud), CI run ${view.url} for ${sha.slice(0, 8)} in ${formatDuration(now() - started)}`);
+    return 0;
+  }
+  const bad = view.jobs.filter(j => j.conclusion && !['success', 'skipped', 'neutral'].includes(j.conclusion));
+  const where = bad.map(j => {
+    const step = j.steps?.find(s => s.conclusion === 'failure');
+    return `${j.name}${step ? ` at step "${step.name}"` : ''} (${j.url})`;
+  });
+  log(`green: FAILED (cloud, ${view.conclusion}) ${where.length ? where.join('; ') : view.url}`);
+  return 1;
+}
+
 /**
  * @param {{
  *   argv?: string[], steps?: Step[], cwd?: string, tmpdir?: string, now?: () => number,
@@ -682,6 +810,8 @@ export function main(options = {}) {
     log('green: no steps selected');
     return 2;
   }
+
+  if (opts.cloud) return cloudGreen({ cwd, log });
 
   if (note) log(note);
   // A full run (every step) is recorded with the tree it ran on (uncommitted edits included), so the

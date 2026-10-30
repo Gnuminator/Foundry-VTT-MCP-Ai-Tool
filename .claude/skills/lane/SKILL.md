@@ -103,6 +103,13 @@ item is marked done; the board ignores a line on an item with no claim.
   on those. `SKIP_PREPUSH=1 git push ...` skips it by hand. Heavy runs share the PC through a
   machine-wide lock: `node scripts/heavy-lock.mjs status` shows who holds it and who waits; the
   slot count is in `~/.foundry-ai-tool/heavy-lock.json` (`{"slots": 3}`), read on every run.
+  **Long queue:** an unqueued green takes 5 to 7 minutes; if `heavy-lock.mjs status` shows every
+  slot held and others waiting (measured 2026-10-30: waits of 6 to 32 minutes), commit, push the
+  branch and run `npm run green -- --cloud` instead. It runs `ci.yml` on GitHub for the pushed
+  HEAD (about 11 minutes, no load on the PC, no lock), reusing the run the push already started,
+  and prints one line (OK, or the failed job and step with its URL). It does not write
+  `.git/green-ok`, so the pre-push ratchets still run. Dashboard changes still need
+  `visual:baselines` as below.
 - **Dashboard change (anything under `packages/cogm-dashboard/`, stories included, or a
   `package-lock.json` change such as a Playwright bump):** push the branch, run `npm run visual:baselines -- <branch>` (starts `visual-baselines.yml` on GitHub,
   about 15 minutes, no Docker needed; the workflow runs on your branch, so a branch cut before it

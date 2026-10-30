@@ -60,7 +60,7 @@ describe('item usage: 5.3 flags.dnd5e vs 6.0 message.system', () => {
     const [record] = recorder.getPlayRecords({}).records;
     expect(record.kind).toBe('item-use');
     expect(record.item).toEqual({ uuid: 'Item.fireball', name: 'Fireball', type: 'spell' });
-    expect(record.data).toEqual({ spellLevel: 5 });
+    expect(record.data).toEqual({ spellLevel: 5, visibility: 'public' });
     expect(record.key).toBe(playRecordKeys.itemUse('u-legacy'));
   });
 

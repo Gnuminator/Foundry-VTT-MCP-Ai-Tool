@@ -2,6 +2,1069 @@
 
 ## Unreleased
 
+## v0.23.0 (released 2026-10-30): paper nights, the rules check and rules search, waiting for game events, the NPC turn assistant, the Tarokka table, Pi stage scripts, Obsidian and test kit work
+
+**Unchanged:** the module id, the socket channel, the `foundry-mcp-bridge.*` method prefix, the settings
+namespace and the WebSocket port 31415. **Added:** the bridge queries `playerRoll`, `getLevelUpOptions`,
+`getSpentActions`, `planCombatChange`, `planPaperSync` and `searchRules`, and five tools (the bridge
+serves 98, up from 93): `get-level-up-options`, `search-rules`, `wait-for-game-event`,
+`plan-combat-change` and `plan-paper-sync`. The `roll-request` session event now carries
+`details.targetUserId` (older modules fall back to the whisper list), and `get-combat-state`
+combatants carry `img` and `tokenUuid`. **Removed:** the module's `getTarokkaReading` query (the
+reading is no longer read module-side). Update the module and the bridge together. The Orange Pi
+builds the newest release tag, not `main` (D-126).
+
+### Tooling
+
+- **One advisor call per PR:** the lane skill now asks for one `advisor` call a PR, after the work
+  is committed and before the PR opens, named in the PR handover and the `- progress:` line (it was
+  two; measured 0.7 a PR). `npm run usage:week` prints the calls per merged PR next to the
+  `Advisor calls (main sessions)` line, and adds `advisorPerPr` to `--json` and `advisor-per-pr` to
+  the weekly check note. The lane skill also makes the API review runner the default review path
+  until its credit ends on 2026-11-14.
+- **Advisor calls in the weekly check:** `npm run usage:week` counts the `advisor` tool calls made in
+  main sessions, prints them as one line, and adds them to `--json` and to the `Weekly check.md`
+  section (`advisor-calls`). The lane skill now asks for one advisor call before coding and one
+  before the PR.
+- **CodeQL cache cleanup:** a new workflow, `codeql-cache-cleanup.yml`, deletes old
+  `codeql-overlay-base-database-*` Actions caches nightly and after CodeQL runs, keeping the newest
+  two per branch, config and language. CodeQL saves a JavaScript cache of about 330 MB on every push
+  to main and never removes the old ones, so 60 of them filled 9.4 GB of the repo's 10 GB cache
+  limit and evicted the npm caches. The job fails if a cache it tried to delete is still there.
+- **CI on the PR head is the green for lanes:** the lane skill now says a lane runs quick local
+  checks, pushes, and lets CI be the full green. The full local `npm run green` is for a request or
+  for what CI cannot see (Windows-only local behaviour such as the heavy lock and the `.husky` hook
+  path).
+- **`npm run green -- --quick`:** typecheck and unit tests of the packages a branch touched against
+  `aitool/main`, the node tests of changed scripts and hooks, and the dashboard e2e specs it
+  touched. It takes no heavy-check lock.
+- **The pre-push hook** runs only the em-dash check now (a second, no lock). The lint ratchet and
+  the typecheck are left to CI; waiting for the heavy-check lock made the hook take a median 22
+  minutes.
+- **The merge gate builds `shared` when it has to:** `drift-check` (which the gate runs from main's
+  copy) now builds `@gnuminator/shared` in the lane checkout when `shared/dist` is missing or older
+  than `shared/src`, before the mcp-server tests run, so a docs-only lane no longer fails with
+  "Failed to resolve entry for @gnuminator/shared". A failed build stops the check with its output.
+- **`npm run green -- --cloud`:** runs the checks on GitHub instead of the PC, for when the local
+  heavy-check queue is long. It refuses a dirty tree or a HEAD that is not pushed to `aitool`,
+  reuses the CI run already started for that commit or else starts `ci.yml` by workflow_dispatch,
+  waits, and prints one line: OK with the run URL and time, or the failed job, step and URL. It takes
+  no heavy-check lock and runs nothing locally. The lane skill says when to use it.
+- **The heavy lock stops counting a running holder's memory twice:** another run is admitted when
+  the PC has, for each holder, only the part of its expected peak it has not used yet (estimated
+  from the fall in free RAM since the oldest holder was admitted, credited once, and never below
+  1 GB a holder because other programs growing also lower free RAM), plus the reserve. Before, a
+  green that already used 3 GB was still reserved at the full 5 GB on top of a free-RAM figure that
+  excluded those 3. Lint-only holders (lint-ratchet, the drift check's lint guard) count at a lower
+  peak (`lightPeakGb`, 3.5 GB, settable in `~/.foundry-ai-tool/heavy-lock.json`). Each admission
+  now records the free RAM at that moment (`freeGb` in the owner, `pendingGb` in `admissions.jsonl`).
+- **Lint baseline lowered:** after the Lint zero 10a, 10b and 10c rounds the ratchet baseline drops from 2542 to 295 warnings, so the cleared rules cannot creep back.
+- **Lint warnings are errors (D-109):** every ESLint rule that used to warn now fails `npm run lint` and CI, and the lint baseline is 0.
+- **Lint wording after the zero baseline:** the lint ratchet header, the CI step names and
+  `DEV-SETUP.md` now say errors, not warnings.
+- **Caught errors are linted:** `caughtErrors: 'all'` is on. The three unused `catch (error)`
+  bindings became `catch {`.
+- **Low mode follows pace:** the planner sets the context hook's low mode (handover at 200k and 250k)
+  only while weekly usage is on or above pace, the share of the week gone since the reset, instead
+  of at a fixed 50%. Planner and lane skills and the hook comment say so.
+- **Review runner pins the head and has a small-delta mode:** the runner now reads the PR head when
+  it plans and checks it again just before the SDK starts (nothing booked if it moved) and before it
+  writes the note (no note, so no round is counted, if it moved), so a push during a review can no
+  longer leave a note for an old sha. `--delta <sha>` writes a short sha-bound note for a docs, test
+  or changelog commit, or a merge of main that leaves the PR's own files alone, after a Merge note
+  for `<sha>`, with a small budget and no `--allow-round3`; a change to the PR's own code is refused
+  and stays a normal round. The lane skill says to wait for CI green on the head before the last
+  review round and to use `--delta` for small commits after a Merge.
+- **Live sweep step 25 explains its rare failure:** when "an AI-ended concentration" finds no
+  "Also restored" note, the message now names the cause seen on 2026-10-30: a second GM browser
+  logged in as the same user on the test server also runs dnd5e's dependent delete and can win the
+  race, so the journal files the dependent under that browser's own action. The foundry-test-env
+  skill says to keep one GM browser per test server. No product code changed.
+- **`npm run usage:now`:** writes the vault note `Usage now.md` that the PM board's Today view reads, from the plan percentages passed in (`get_usage`) plus the `usage:week` check numbers. The planner skill says when to write it (each planner start and before each lane start).
+- **Skills:** the planner skill names the `- progress:` line as the ready state, moves the Planner title step to "Starting lanes", renames the old planner "CLOSED (handed over DATE) Planner" before detaching, and tidies long lines; the lane skill says what to do about the worktree hold when no planner is left.
+- **Dashboard screenshot baselines before the PR:** `npm run visual:baselines -- <branch>` starts
+  the new `visual-baselines` workflow, which renders the screens and story shots in the same
+  Playwright image as `dashboard-visual`, and unpacks the changed or new PNGs into the checkout.
+  Commit them before opening the PR so the first PR run is green. The lane skill now says so.
+- **Dashboard screenshots run in 4 parallel CI shards:** the `dashboard-visual` job is now four
+  `dashboard-visual-shard` jobs (`--shard=i/4`, same image and baselines) plus a summary check still
+  named `dashboard-visual (screenshots)` (the gate judges every check, shards included, so it needs
+  no change; the visual part takes about 5 minutes instead of 14). The diff report is one
+  artifact per shard (`dashboard-visual-report-1` to `-4`). The baseline refresh workflow stays a
+  single run.
+- **Weekly check note for the PM board:** `npm run usage:week -- --write-vault` writes the numbers
+  against the D-122 targets into vault `Weekly check.md`, one section per week, for the board's
+  Week page. The planner skill's weekly check step runs it.
+
+### Session notes
+
+- **Notes run by themselves after a game night:** `tools/session-notes/register-auto.ps1` registers a Windows scheduled task (hourly and at logon, catches up after the PC was off) that runs `auto.ps1`: transcribe, write the notes, publish to the GM-only journal. A usage-limit pause continues the next hour.
+- **Consent gate:** nothing is transcribed, written or published unless every speaker has a recorded yes in `consent.json` (`session-notes consent set | list | check`). A blocked session shows as "waiting" with the reason in the After view.
+
+### Process tooling
+
+- **Lane heartbeat:** `npm run lane:beat -- "<lane>" "<step>"` (`scripts/lane-beat.mjs`) writes `- last seen: <date time> <step>` under the lane's claim in the vault Backlog at each milestone (claimed, PR open, review, fixes, ready to merge, handed over; the `lane` skill says when), so the PM board's lane card shows the step and its age and its stale rule counts it. A vault problem only prints a warning.
+- **Merge train on the PM board:** `scripts/lane-merge.mjs` writes the merge train (count, last roundtrip, last event) to the vault note `Dev/Foundry AI Tool/Merge train.md` on every merge, every `--train-reset` and every refusal, so the board's Today card shows it. A vault problem only prints a warning and never fails or undoes a merge; `--dry-run` writes nothing.
+- **Test server locks on the PM board:** `scripts/test-env/lock.ps1` writes each test server's lock state (A, B, C: free or held, the holder's title, since when, queue length) to the vault note `Dev/Foundry AI Tool/Test servers.md` on every take, release (steal included), queue and leave, and `lock.ps1 publish` writes it again. A vault problem only prints a warning and never fails the lock.
+- **Heavy-check lock:** `scripts/heavy-lock.mjs` is a machine-wide lock (one slot by default, `HEAVY_LOCK_SLOTS` for more, a folder under the temp directory) so only one heavy run goes at a time. `npm run green` takes it per heavy step (type check, lint ratchet, build, test suites, e2e), the pre-push hook per check, `lint:ratchet` around its ESLint pass and the merge gate's drift check around the lint, mcp-server and write-gate guards (through the script's CLI, since the gate's copy of `drift-check.mjs` may not import other files). A run that has to wait prints `heavy-lock: <run> waits for <holder> ...`, then every minute; a lock whose process is gone or older than 1 hour is taken over; after 60 minutes (or on any lock problem) the run goes on without the lock and does not wait again, so the lock never blocks the gate. Exit codes and output lines of the checks are unchanged. ESLint `--cache` is not used: the type-aware rules read other files' types, so a per-file cache can go stale.
+- **Lint zero, character tools:** `packages/mcp-server/src/tools/character.ts` has no ESLint warnings left. Bridge replies and actor data are read through the narrowing helpers in `tools/bridge-data.ts` instead of `any`; no change to what the tools return.
+- **Lint zero, compendium tools:** `packages/mcp-server/src/tools/compendium.ts` has no ESLint warnings left. Bridge replies and Foundry item data are read through small narrowing helpers (`tools/bridge-data.ts`) instead of `any`; no change to what the tools return.
+- **Lint zero, dnd5e tools and system adapters:** `tools/dnd5e/` (add-feature, npc, features) and `src/systems/` have no ESLint warnings left. The system adapter interface and the add-feature response builders use small named types (`tools/dnd5e/types.ts`, `systems/data.ts`) instead of `any`; no change to what the tools return.
+- **Mirror tests under load:** the temp-folder teardown in the Obsidian tests (`packages/mcp-server/src/obsidian/`) goes through `rmTmp` (`src/test-support/rm-tmp.ts`, `fs.rm` with retries), so a locked folder on Windows no longer fails with ENOTEMPTY, and the mcp-server vitest test and hook timeouts are 30 s instead of 5 s, so the gate's drift check and parallel green runs stop refusing a PR on load-sensitive tests (`mirror-pump-flake`).
+- **One Foundry app folder for the test servers:** the folder the test servers start Foundry from now comes from one machine-wide file, `appdir.txt` next to server A's `lock.json`, instead of each worktree's gitignored `local.json`, so every checkout runs the same Foundry version. `status.ps1` prints the version it will start and warns when a `local.json` `AppDir` disagrees; `status.ps1 -SetAppDir <folder>` writes the file.
+
+### Process
+
+- **Lane link on the claim:** a lane writes its own session link as a `- link:` line under its claim,
+  so the PM board's lane card can open that session in the desktop app. The `lane` and `planner`
+  skills say so (board-lane-link).
+- **Lanes report in the vault:** the `lane` skill has a lane write a `- progress:` line (PR, head sha, review note) on its Backlog item at "ready to merge" and at handover, before any message, and never message a session id from its brief. The `planner` skill reads those lines, does not message idle lanes above about 150k, detaches its lanes before it hands over, and writes no planner id in briefs.
+- **Reviewer agents in the lane skill (I-143):** the lane skill says when to run the three read-only review agents before the formal review. All three agents now ask for the PR description and a checkout at the head sha, and the chat-mode wording in the guarded-writes agent is corrected.
+
+### Pi
+
+- **Board status report (stage 16):** a systemd timer on the Pi sends a small read-only health report (up, disk free, last nightly backup, Foundry up or down with the Foundry and dnd5e versions) to the PM board once an hour, over Cloudflare Access with a service token kept in a root-only file. The board shows it on Today, red when the backup is older than 30 hours or no report came for 3 hours. Not installed yet: it runs in the Saturday Pi sitting.
+- **Join page look (stage 19, backlog join-page-look):** the page players see before they log in can now get a
+  background picture and a written description of the world. `scripts/pi/remote/19-join-page-look.sh` stops Foundry,
+  puts the picture in the world's folder, sets `background` and `description` in `world.json` (Join Page Theme and
+  Next Session untouched), starts Foundry again and checks the join page. It has a dry run, needs a snapshot from
+  today and nobody online, saves the old values and has `UNDO=1`. It is a stage and not a GM script because
+  Foundry accepts the world edit only from the full Gamemaster role, which the Assistant GM does not have. The
+  picture itself is campaign art and is not in the repo.
+- **GitHub Actions runners on the Pi (stage 17):** two self-hosted runners for the PM board's workflows
+  (obsidian-vault and the board repo), so board builds no longer use GitHub's free hosted minutes. They run as
+  their own user with no access to the game's files or ports, and a gate timer keeps them stopped while a play
+  session is marked (builds wait and run afterwards). A PC helper hands over the one-hour registration token
+  without printing it (board-local-deploy).
+- **Pi clock stays under NTP (stage 18, backlog pi-ntp):** DietPi's default time sync is "boot + daily",
+  so `timedatectl` said "NTP service: inactive" and the clock could drift between syncs, which Cloudflare
+  Access tokens and the board's hourly report depend on. `scripts/pi/remote/18-time-sync.sh` switches DietPi
+  to its daemon mode (`dietpi-set_software ntpd-mode 4`), with `DRY_RUN=1`, `CHECK=1` and `UNDO=1`, and
+  waits until "NTP service: active" and "System clock synchronized: yes".
+- **World switches (G0):** stage 11 now sets the AI Tool and dnd5e switches a world starts with (Handouts,
+  Party, Tarokka and the other live-play writes, Allow Write Operations, GM windows, Auto-apply downed set to
+  all, Item Piles trading) in every world it installs or resets, so a reset training world no longer starts with
+  them off. A kept world gets them with `WORLD_SWITCHES=1` (its settings are copied to prev first); a Plan B
+  push-back never does. The list and the reason for each value is in `docs/dev/PI-SETUP.md`, "World switches".
+  Upload `scripts/pi/remote/world-switches.mjs` to `/root/` before the run, or add `WORLD_SWITCHES=0`.
+
+### Fixes
+
+- **Bridge link:** a response frame from the module with no `data` now rejects its pending query with "Query response had no data" instead of deleting it and throwing, which left the tool call waiting forever (its timeout had already been cancelled).
+- **CI python-tests can no longer hang on a slow apt mirror:** the ffmpeg install is bounded (5 minutes, short per-download timeouts) and a failure only skips the narration render tests with a warning; the job also has a 20 minute limit.
+- **CI:** in the Python test job the ffmpeg install now bounds each apt-get call on its own (`timeout -k 20`, 120 s for update and 180 s for install), so an apt that ignores the first signal gets a kill 20 s later. The apt network timeout also covers https mirrors.
+- **Live Feed damage line:** every damage line in the Live Feed now reads "Wolf 1 took 5 damage (HP 11 to 6)" with the hit points before and after (it showed them only at 0 HP). A Damage or Heal apply from the dashboard also names the type ("took 5 fire damage") and its separate "Applied: ..." row is folded into the line. A change that does more than hit points (a paper sync, say) keeps its row. Recent Changes is unchanged.
+- **Undo of a drop to 0 HP:** dnd5e's follow-ups of an AI change (Unconscious and Prone when a character goes down, Bloodied and Unconscious removed by the undo) stay in the AI change's group when they start up to 3 seconds after the write (the limit was 0.3 seconds), so a slow link no longer shows them as someone's own change next to the undo. The 3 seconds count from the write itself, and Next turn and initiative from the bridge always start their own change, so a click on the strip right after a Damage apply stays your own change. A hand edit in Foundry within 3 seconds of an AI change on the same thing can still be grouped with it.
+- **End combat and the other combat tools:** End combat, Next turn, set initiative, roll initiative and the combatant picker act on the fight the combat strip shows, also when the GM browser that answers views another scene than the fight is on (they said "No active combat" there, though the dashboard and Foundry's tracker showed the fight). Of several encounters the started one wins, then the newest.
+- **Live Feed combat lines:** "Combat ended after 1 rounds" and "Combat started with 1 combatants" now
+  read "1 round" and "1 combatant" (the player feed already did).
+- **Neutral names in tests, part 2:** the guarded-write, session-notes, player-visibility, preflight, secret-terms and theme tests use invented names instead of Curse of Strahd characters and places. World ids stay `curse-of-strahd`.
+- **Neutral names in scripts and tests, part 3:** the Pi stage tests, test kit tests, Tarokka specs, combat tests, livekit recorder, session-notes and session-pipeline tests use invented names instead of Curse of Strahd characters and places. World ids (`curse-of-strahd`, `strahd-kit`) and the Tarokka `strahdLocation` position stay.
+- **Demo recorder fallback:** `FOUNDRY_DEMO_GRAB=gdigrab` makes `demo:take --recorder ffmpeg` capture with gdigrab instead of ddagrab, for a night when ddagrab opens the screen but never delivers a frame (video-voice lane).
+- **Merge gate after #531:** the drift check no longer runs the MCP modern-client probe test,
+  which needs a built `dist/index.js` that its trial-merge worktree never has. Since #531 every gate
+  refused on it. CI and `npm run green` still run the probe after a build.
+- **Flaky dashboard e2e test:** the "GM Actions gate shows the docked Pre-flight" test clicked in the Party drawer before Pre-flight had docked, so Pre-flight floated over Party and Party stayed open. The test now waits for the docked Pre-flight first. No product change.
+- **Flaky audit test:** "keeps every history line even past the ring size" no longer does 505 fsync'd rewrites in one test (it timed out at 30 s on a loaded disk); it seeds a full ring in one write and appends 5 more. The audit code is unchanged.
+- **Undo of a plan whose token the GM already deleted:** undoing a plan that created several
+  documents no longer refuses the whole undo when one of them is gone (a spawned token killed in
+  play). The rest is removed, the change history says which one was already gone, and a redo puts
+  back only the ones the undo removed.
+- **Session notes after a redo:** undoing the undo of a session-notes put brings the notes back to
+  "in Foundry" (the Recap is queued for reveal again), not only the journal.
+- **Foundry link:** a query whose send fails is dropped at once instead of lingering for up to two
+  minutes.
+- **A refused write names the switch to turn on:** when "Allow Write Operations" or a feature switch is off, the refusal now gives the switch exactly as Game Settings shows it ("AI Tool: Handouts (writes)") and where it is (Game Settings, Configure Settings, the AI Tool section), instead of `The "handouts" feature is switched off in the module settings`. The dashboard shows it as a hint, not a red error.
+- **Handouts drawer says why Reveal next would be refused:** while "AI Tool: Handouts (writes)" or "Allow Write Operations" is off, the drawer shows a notice with the switch name and where to turn it on. Creating a quest journal, queueing and reordering never needed the switch; only the reveal itself does. That is what stopped both training tests (the switch was off in the reset training world).
+- **Heavy-lock test with more slots:** the test that two runs started together queue one after the
+  other now pins one slot, so it no longer fails on a PC where `HEAVY_LOCK_SLOTS` is set to more
+  than one.
+- **wait-for-game-event:** the reply carries `gap: true` when the `sinceTimestamp` is older than the oldest event the server still remembers (some events were dropped); dead code removed; tests for the handler, abort on a closed connection, the event-type list and the play-log hook. A wait for any event no longer wakes on the AI's own changes and roll requests.
+- **Dashboard rate limit:** the asset limit is 5,000 per 10 seconds, the comment says one bucket per tunnel, and a test shows the assets still answer when the page limit is used up.
+- **Join form on Foundry 14.369:** the Pi Assistant GM and kit-session logins, the player-creation check, the demo recorder and the table viewer now pick the user from 14.369's `<select id="join-username">` as well as typing it into 14.368's text field.
+- **Lint zero (D-109, lane 10b, part 1):** the scene, quest, campaign and actor-creation tools use typed bridge replies instead of `any` (508 fewer lint warnings). No change in what the tools return.
+- **Lint zero (D-109, lane 10b, part 2):** the token, movement, combat, dice-roll, ownership, chat-log, diagnostics, session-log, effects, encounter and resources tools, the tool router and the small utils use typed bridge replies instead of `any`. No change in what the tools return.
+- **Lint zero (D-109, lane 10b, part 3):** the server entry point, backend client and the bridge connector and client use typed messages and replies instead of `any`. No change on the wire.
+- **Play recorder create hooks:** the actor, item, effect and token create handlers expected Foundry's old four arguments, but Foundry 14 passes three (document, options, userId). They read the options as the user, so create records had no user name. They now take three, and the tests call them the way Foundry does.
+- **Item, spell and feature cards reach the Live Feed:** posting a card to chat now shows "Akra used Bless" in the Live Feed, with or without a roll, and a PC's use shows on the player page. A whispered or blind card stays GM-only.
+- **Review lows from the item-use feed and Live Feed down line (#495, #497):** the item-use
+  session-event test now speaks as a real player character and covers an NPC card; the play
+  recorder tests check the user id on item, effect and token records; `get-session-log` lists
+  `item-use`; an item use gets the roll rail in the Live Feed; stale "dropped to 0 HP" wording is
+  updated in the co-GM prompt, the GM guide and the storybook fixture.
+- **Module pages for the board's picker:** the Item Piles title line and one FXMaster verdict sentence
+  now follow what the module picker page reads (title `# Name (`id`)`, no players' spoiler words), so
+  its data builds again after batch E.
+- **Module page monks-player-settings:** the verdict and the first gotcha now lead with the caution that the
+  author's manifest claims Foundry 13 only, so the module picker no longer reads it as certified for 14.
+- **Module rehearsal zip check:** the zip reader now also checks that the entries it read add up to the directory size the zip states, so a zip with a too-low entry count can no longer hide names. The version mismatch message got its missing space.
+- **Module rehearsal write sweep:** the `live:sweep` step ran the read sweep (`live-read-sweep.mjs`); it now runs `live-write-sweep.mjs`, the sweep the step is named for.
+- **Pi nightly backup: the skip marker is dated:** when players stay online all night the backup is skipped and a marker is left. The marker now holds the date, and the "back up anyway" rule applies only when it says yesterday. A manual run or a stage 6 rerun the evening after a skipped night waits for the players and skips again, instead of stopping Foundry under them. A marker from the earlier version (empty) is not trusted. Reaches the Pi with the next stage 6 run.
+- **MCP probe test cleanup:** the modern-client probe test waits for the wrapper processes it started to exit before it removes its temp folder, and removes it with the retrying `rmTmp`. This ends the occasional `ENOTEMPTY` failure on CI.
+- **Session notes, undo and redo (PR #443 review lows):** undoing a planned undo or a planned redo
+  (`undo-change`) now brings the session notes back, or sends them to staged, like the other undo
+  paths; a redo reads the pages back from the put and does nothing when the journal was deleted by
+  hand; the "Recap was revealed" refusal also covers undoing a redo; the "Left alone" line of an
+  undo now says the document "was already gone when the undo reached it".
+- **The TV (PR #400 review lows):** the Table user carries a flag, and the handout receipts, the
+  "all players" ownership, play attendance and the player count of
+  `get-world-info` leave it out. `plan-table-viewer` refuses when a GM user has the name, or when
+  the users cannot be listed. The module only creates a User for the `table-viewer` feature (or its
+  undo), with a role of Player or lower and no password. The TV script also refuses when a browser
+  holds the profile's lockfile, understands a Foundry address with a path prefix
+  (`https://host/foundry`), and the guide puts `-NoExit` in the Startup shortcut.
+- **Review lows from 2026-10-28 (I-126, I-078, I-139, I-149):** the rules check writes "the grappler's
+  Strength modifier" and "the shover's Strength modifier", and has tests for finding an activity by
+  id and for the looser Grapple or Shove name match. The Party drawer's "Who would notice" row has
+  an e2e test. A new player vault says "this page is still empty" instead of pointing at sections it
+  does not have, and Campaign Home has a first-use note. In the Tool Runner, text areas keep their
+  3.2rem minimum height and the footer always reserves two lines for the error or waiting message.
+- **Roll-request buttons apply conditions:** the chat buttons that `request-ability-check`, `request-attack-roll` and `request-player-rolls` (ability, skill, save) post now roll through dnd5e's own actor and attack-activity API instead of a plain `1d20` formula, so poisoned and other conditions, advantage sources and Automated Conditions 5e apply (a poisoned player rolls `2d20dis`). An attack button now also adds the weapon's real to-hit bonus. The DC still rides on the roll and the card is still marked rolled. Initiative and custom rolls, an attack with no matching weapon and a roll dnd5e does not make still roll the plain formula. An attack button spends ammunition like the sheet does, and a GM or dashboard click leaves the target AC off the player's card. Kit scenario `module-ac5e-roll-mode` now clicks the buttons and expects disadvantage.
+- **Roll requests use the player's assigned character:** a roll button asked for a player rolled for the first actor that player owns, so a player with more than one actor (an alternate character, a familiar) could roll with the wrong bonuses, or fall back to a plain d20 when the weapon was on another actor. It now uses the character assigned to the player in User Configuration, and the first owned actor only when none is assigned.
+- **Rules check, review lows:** a second Healing Word (or other repeat) is now counted in the pre-check before a use or attack; unlinked tokens that share one actor no longer share the spent-actions ledger (nothing is claimed for them); a rules version the GM stored on the actor wins over detection; the spell level is read from the usage card first (scroll casts count as spells).
+- **Rules search:** a background rebuild of a rules pack index that has not finished after 60 s counts as failed, so one hung pack no longer blocks the refresh of the others.
+- **Scene tools work with no canvas:** `get-current-scene`, `get-token-positions`, `measure-distance`, scene state, the player-visible scene and token placement now fall back to the active scene when the client has no canvas (the Pi's Assistant GM runs with core `noCanvas`, which left them failing with "Scene not found").
+- **Session notes say when Claude is logged out:** when the `claude` command on the PC has lost its
+  login, the notes run now stops at the first scene and writes "Claude is not logged in on this PC
+  (open a terminal, run claude, then /login)" to `notes/status.json`, instead of trying every scene
+  twice and reporting only "kept raw" with no reason.
+- **Session notes calls are much lighter:** each Claude call of the notes writer no longer loads the
+  PC's connectors, skills and settings (about 180k tokens of context per call; a 5-line test
+  recording went from 365k to 10k input tokens).
+- **Session notes consent:** `consent set` now also refuses to overwrite a consent.json that is not an object or whose `players` is not an object.
+- **Pi join page look:** stage 19 keeps the old picture by reading it as the foundry user instead of root `install`.
+- **Settings path in switch-off messages:** the message that tells you which Foundry switch to turn on now says "open the Settings tab, Game Settings, Foundry AI Tool" (Foundry 14 has no "Configure Settings").
+- **Version tracker tooltip** says the tracker is on by default, and the "Live play, apply without confirming" hint no longer claims the dashboard's Damage and Condition buttons skip the confirm step.
+- **Dashboard:** the stream status `lastPollAt` now moves with each successful poll. It stayed at the first poll time while events flowed (seen on the Pi), because the status is only published when something else changes. The time is updated quietly, with no extra message to the browsers.
+- **Clearer Tarokka card errors:** a card in the wrong deck, or given by name, now gets an error that
+  shows what a card id looks like (`swords-7`, `raven`). The cookbook example says Claude passes ids.
+- **Tool size figures refreshed:** the totals in the tool sets page and the README match the real
+  tool definitions again.
+- **Tarokka clear:** `clear: true` with a `source` or `userId` is now refused with a clear message instead of silently clearing and dealing nothing. The Obsidian notes say "No current reading" after a clear, and an archived reading is described as no longer current (replaced or cleared). A test covers a clear plan that goes stale when a reading is imported after it.
+- **Test environment shows ribbon portraits:** `scripts/test-env/start.ps1` now gives the test dashboard `DASHBOARD_FOUNDRY_URL` (its own Foundry port), so the initiative ribbon shows portraits there like on the Pi and in Plan B, not only initials.
+- **use-item with targets works on Foundry 14:** `use-item` with named targets called `game.user.updateTokenTargets`, which Foundry 14 (14.368 and 14.369) does not have, so the call failed before the item was used. Targets are now set through `canvas.tokens.setTargets`. If the canvas is not ready, shows another scene than the active one, or Foundry refuses, the item is still used, the targets are left alone, and the answer says "targets not set" instead of claiming a target.
+- **Screenshot baselines no longer get lost in the workflow:** the "Collect the changed and new PNGs" step of `visual-baselines.yml` ran under `sh`, where `read -d` fails without failing the step, so the artifact held no PNGs while six had changed. It now runs under bash, fails on a mismatch, and writes a `png-count.txt` marker. `npm run visual:baselines` fails loudly when the marker says N PNGs but the artifact holds fewer, and writes nothing in that case.
+
+### Tooling (CI failure review fixes 3 to 8)
+
+- **Pre-push check:** `git push` now runs the lint and em-dash ratchets and the typecheck first
+  (skipped when `npm run green` passed on the same commit), so a +1 warning is refused locally.
+- **Merge gate verdict:** `lane:merge --wait-ci` always ends with one `wait-ci ended` line with the
+  exit code and the reason, also after a killed relaunched copy or an unexpected error.
+- **Visual Docker runs:** the node_modules volumes are per worktree, and a stopped Docker Desktop
+  gets a plain message.
+- **Tool-set budgets:** the drift check prints each set's headroom and warns under 500 characters.
+
+### Internal
+
+- **Neutral names in tests and comments:** test fixtures and code comments in `packages/` no longer use Curse of Strahd plot or NPC names (Strahd, Ireena, Ismark, Rahadin, Barovia, Vallaki and the like); they use neutral made-up ones. The live features that match the real campaign content are untouched: the Tarokka reading, the secret-term check, the Veil theme, the book index, player visibility, the pre-flight scan, the mirror notes' Tarokka cross, the combat button text and the world id `curse-of-strahd`. Wire identifiers are unchanged.
+
+### Module
+
+- **Creature index upload message is less certain:** the save-failure error now says Foundry
+  refused the upload and gives the replaced-session clue only as a hint when the console says
+  "does not have permission", since a refusal can also come from missing upload permission or a
+  full disk.
+- **Creature index save failure explains itself:** when Foundry refuses the index upload (a
+  replaced browser session, `User [] does not have permission to upload files`), the error now
+  says so and suggests reloading the world. Found on the test servers, where joining two servers on
+  the same host name in one browser shares the session cookie.
+- **Ability checks show pass or fail:** a roll made from a `request-ability-check` card with a DC carries the DC, so the Live Feed says "vs DC 15: failure". On a public request the player page gets it too (the card already showed the DC to everyone); a private one stays GM-only.
+- **Live Feed damage line:** a hit that takes a character to 0 HP reads "took 9 damage (HP 9 to 0)". dnd5e 6 adds Unconscious or Dead at 0 HP only in combat and only when its "Auto-apply downed" world setting asks for it (default off); our damage path goes through a normal HP update, so that setting applies to it too.
+- **Roll requests are session events:** `request-player-rolls`, `request-ability-check` and `request-attack-roll` log a `roll-request` event (GM only; the /player feed never shows it). A private roll's event records who it was whispered to.
+- **`plan-combat-change` start action:** Claude can start a fight too (`action: "start"`, optional
+  `tokenIds`; by default the player characters and Hostile tokens). The combat is created already
+  begun, and the session log still gets its "Combat started" line.
+- `get-targets` also returns `selected`, the tokens selected on the canvas, in the same shape as
+  `targets`. It also reads the targets of the other active GMs when the bridge user has none, so it
+  works when the bridge runs in another GM's browser showing the same scene (Foundry only syncs
+  targets then); `selected` is local to the bridge's browser
+  and only reflects the GM when the bridge runs in the GM's own.
+- **GM windows are on by default:** the world switch "AI Tool: GM windows" now starts ticked, so a new world gets the Combat, Party, Session, Scene and Loot buttons without a trip to the settings (W52). A world where the module settings were ever saved keeps the switch as it was (Foundry stores every setting on save); tick it once there.
+- **Lint cleanup in the compendium search:** `data-access/compendium.ts` and `data-access/types.ts` carry real types for creature filters, search hits and compendium documents instead of `any` (194 lint warnings gone). Types only; search results are unchanged.
+- **Lint cleanup in the module's query layer:** `queries.ts` and `data-access.ts` no longer use `any` (259 lint warnings gone). Types only; the bridge handlers behave as before.
+- **Lint zero, last warnings:** the remaining ESLint warnings in the module, the dashboard and the Discord bot are cleared with types and narrowing. One side effect: campaign progress toggles now ignore a malformed saved status flag instead of failing.
+- **Lint cleanup in the scene plans:** `scene-plan.ts` and `scene-plan-geometry.ts` use typed scene, token and note shapes instead of `any` (115 lint warnings gone). Types only; the plans are unchanged.
+- **Module reference pages, batch B:** verified pages for Monk's TokenBar (drop: its saves bypass the play log), Combat Spell Timer (drop, optional; it also sends an install ping), DAE (optional) and Monk's Combat Details (keep), in `.claude/skills/foundry-modules/references/`.
+- **Module reference pages for the nine Strahd-list modules that had none:** Carousel Combat Tracker,
+  5e Resource trackers, Monk's Common Display, Monk's Little Details, Universal Battlemap Importer,
+  Dice Tray, GM Vision, Health Estimate and Nice more Dice, each tried on Foundry 14.369 with
+  dnd5e 6.0.6 (`.claude/skills/foundry-modules/`). The skill index now shows each module's version and
+  lists a one-line verdict for the 17 modules that were switched off in the old Frostmaiden world.
+- **Four conflicts between the pages and the walkthrough settled by a live check:** Calendaria is
+  keep, Monk's Player Settings is keep (its player drop-down works; the first check opened the wrong
+  window), Automated Animations stays optional (the null `id` error did not reproduce on 8.0.1),
+  and the DDB Importer page now says it is in the `modules-all` kit profile.
+- **`scripts/modules/strahd-modules.json` carries a `verdict` per module,** the same word as the page.
+- **Party roll bar and combat lows (#612, #608):** the "roll requests are off" hint now only says to turn on Allow Write Operations. The GM windows guide says a bare typed roll fills a waiting row and to wait a moment between an AI damage change and a turn or initiative change. A test now checks that Next turn, set initiative and roll NPC initiative each end the AI change group.
+- **NPC turn review lows (PR #464):** two tokens of one linked actor hit in one plan now give one hit point change instead of two that overwrite each other; a plan with more than one legendary action is refused (one at a time, at the end of another creature's turn); a normal attack planned on another creature's turn gets a note; the `damageWith` hints and the `results` description ask for one entry per `damageByType` entry; tests for activities, the per-type damage sum and the old-module guards.
+- **NPC turn small fixes (#468 review lows):** the off-turn note appears only for creatures that have legendary actions and now also names reactions; the refusal for several legendary actions says an area action is planned against one target and the other targets go in `results`; a damage line that merges two tokens of one actor names the second token.
+- **Party place packs small tokens together:** on a scene where `place` makes tokens smaller than a square (for example 0.25 squares on a 40 ft map), the party now stands close together around the spot instead of one token per square. The placed tokens also get their `depth` set next to width and height, like fit-scale.
+- **Roll requests in Foundry's Party window:** the Party window has the same one-click bar as the dashboard: pick an ability check, saving throw or skill (with an optional DC, advantage and Public), then press Ask on one character, or "Group save" / "Ask everyone" for the whole party. Each answer lists under the bar per character as the roll comes in (the total, and passes or fails against the DC). It uses the same roll request as the AI tool, so every roll lands in the play log, recap, stats and Live Feed. Needs "Allow Write Operations"; without it the buttons are disabled with the reason.
+- **Fixes:** a roll request to "Mira" now goes to the character Mira before a player whose name only contains "Mira" (Miranda).
+- **Latest recap button for players:** the Journal sidebar has a "Latest recap" button for everyone. It opens the newest session recap the GM has revealed, or says "No recap yet" when none is. It only reads pages the player can already see and writes nothing.
+- **Combat snapshot carries the token image and uuid:** `get-combat-state` combatants now include
+  `img` (a Foundry path) and `tokenUuid`. `open-in-foundry` takes an optional `pan: true` with a
+  token uuid to pan the GM's view to it instead of opening its sheet.
+- **Roll request events name the player:** the `roll-request` session event now carries
+  `details.targetUserId`, so the dashboard can tell who still owes a roll (older modules fall back
+  to the whisper list for a private request).
+
+### Dashboard
+
+- **The Tool runner says what it is waiting for:** a change that waits on Foundry (up to 4 minutes) greys out Run in every tool's form, so a Damage / Heal form opened for another target looked dead. The form now shows "Waiting for plan-actor-change damage to finish", and Enter says the same in a toast (David's test, `david-damage-form-stuck`).
+- **Danni's picks are the defaults (2026-10-30):** the During screen starts on the Auto layout (the layout is counted as picked, so the "try the layouts" card stays away), the Combat buttons start on, and players no longer see a health band on enemies (`PLAYER_SHOW_ENEMY_HP_BANDS` now defaults to false; set it to true to bring the bands back). A world that already saved its own choices keeps them.
+- **Quick Undo checked:** undoing a normal HP or condition change already needs no "I understand" tick; it only shows for undoing a created or deleted thing and for undo-all rewinds. No change needed.
+- **End combat from the Combat Tracker:** the strip has an End combat button (needs Combat buttons and GM
+  Actions). It opens the Tool runner on the new `plan-combat-change` tool; you confirm the plan, the
+  fight is removed from the tracker, and Recent Changes has Undo, which brings the fight back with its
+  round, turn and initiative. David missed this in his GM test (david-end-combat).
+- **Recent Changes, Everyone tab, updates by itself:** a token moved in Foundry shows within a few seconds, without the refresh button.
+- **Roll requests from the Tool Runner:** the roll tools no longer ask for `userConfirmedVisibility`; the Public tick on the form is the pick. Claude still has to ask first.
+- **Live Feed says who is down:** a PC or NPC dropping to 0 HP now reads "Akra is down: 0 HP, unconscious, death saves begin" (NPC: "Goblin is down (0 HP)") under a "down" chip, whatever caused it. The player page keeps its own wording.
+- **Live Feed keeps going:** the feed no longer depends on one time cursor alone. Every few polls it reads the newest events again and passes on the ones it has not shown, and a cursor that is ahead of Foundry's clock is dropped, so an event stamped behind the cursor cannot hide the feed after a session ends and starts again.
+- **During layouts are easier to find:** the During bar has a **Try layouts** button that starts the layout trial (with the sample fight), so you no longer have to find it in the Advanced menu. The line for Auto now says that it looks like Cards until a fight starts.
+- **Private rolls in the Live Feed:** a whispered or blind roll reads "private roll" on its chip (it said `gm-roll`), and a roll request shows as its own "roll request" line ("Private roll request to Alice: ...").
+- **Your private rolls on /me:** a player's own page lists the private rolls asked of them and their results (only the line they may read: no DC or outcome unless dnd5e shows them). Nothing from other players, blind rolls, the GM's own rolls or public requests.
+- **Start combat with a token picker:** with no fight running and GM Actions on, the Combat Tracker
+  offers Start combat. It lists every token on the scene, with the player characters and Hostile
+  tokens ticked and Neutral and Friendly ones not (Foundry's token disposition); you change the ticks
+  and start. The fight is created at round 1 and logged in Recent Changes with Undo. The tracker
+  card still shows with no fight only in the Full view; in every other During layout a small Start
+  combat button on the During bar opens the same picker (david-start-combat-picker).
+- **One start button:** the Pre-flight button that switched on the write switches is now called **Turn on for tonight** (it was "Ready for session"), so **Start session** in the header is the only start button. The banner about the old dashboard now says what is missing (the Features cards, the status lights and the AI commentary) and where to find it.
+- **End session reaches every open dashboard:** starting or ending the session from one dashboard window now moves the other open windows too (Before, During, After) at once, instead of up to a minute later.
+- **Auto now says what it shows:** the note beside the During layout switch is a pill that reads "Auto is showing Cards now, because no fight is running" or "Auto is showing Combat now", and it is tinted while the combat view is up, so Auto no longer looks the same as Cards with no fight.
+- **Start combat picker on the During bar:** it no longer reopens by itself after a fight began or ended while it was open, takes keyboard focus when it opens, and hands focus back to the button when it is cancelled.
+- **Use Foundry targets:** the combat strip has a "Use Foundry targets" button that picks the
+  combatants you have targeted (or, with none targeted, selected) in Foundry, so Damage / Heal and
+  "Ask picked" follow them. Token and actor fields in the Tool runner (group saves, roll requests)
+  have the same button beside Pick.
+- **Handout queue reorder is one write:** the up and down arrows on the Handouts drawer now use a
+  new `move` action on `plan-page-reveal` (with `position`), so a failed move leaves the queue as it
+  was instead of possibly dropping pages. Keyboard focus stays on the moved row's arrow.
+- **Handouts: move queued pages up and down:** the queue on the Handouts card now has up and down buttons, so the GM sets which page "Reveal next" shows first. Reveal next and Remove are unchanged; the order is kept by the bridge, so it survives a reload and Claude sees the same order.
+- **Showing a handout is one question:** a page reveal is an ordinary change with an Undo, no
+  longer a destructive one. The window asks `Show "<title>" to <players>?` in one line, with a
+  **Show page to players** button and no tick box.
+- **A refusal can turn the switch on:** when a change is refused because one of the session
+  switches is off (the GM Actions gate still opens Pre-flight), the warning toast has a **Turn on (switch name) and the rest for tonight**
+  button (the same click as Turn on for tonight in Pre-flight, so it turns on all of them). Switches the
+  dashboard does not control keep the named pointer to Foundry's settings.
+- **One switch-off sentence:** the guarded-write refusals of the bridge and the dashboard take the
+  "is switched off. In Foundry,
+  open Game Settings..." wording from one shared constant; the module (which cannot import it in
+  the browser) keeps a copy that a test checks against it.
+- **Fewer requests at first load:** the floating panels (Paper sync, Tarokka, Tools, links, diagnostics, versions) now start downloading five seconds after the page appears, one per idle moment, instead of all at once. Two seconds in, the page has made 38 requests instead of 47 (10 script files instead of 18). A panel opened earlier loads when opened.
+- **Tool Runner form (I-149):** parameter names are set in mono as identifiers, hint text uses the dim text token (clears two recorded contrast findings), fields have more room, and Run sits in a sticky footer with a reserved message slot. Tokens only, in `next.css`.
+- **Start session is the only switch for live play:** it turns on GM Actions and every Turn on for tonight switch in one click, End session turns them off. The header's GM Actions button is now one line, "Live play on: all set" (or "Handouts is off: Turn on"), that opens the list of switches.
+- **Controls stay when a switch is off:** Start combat, End combat, the Ask the party roll buttons and Reveal next render greyed out with a one-line reason and a Turn on button instead of disappearing.
+- **The Combat buttons setting is gone:** the pick bar follows GM Actions and a running fight only.
+- **Player page, scene look:** the header shows the scene's time of day and weather next to its
+  name, for example "Village Square (Dusk, Rain)". Both come from the viewed scene's darkness and
+  weather and use fixed labels only; a scene mood preset name or any other text never reaches the
+  page.
+- **Player page, "New" handouts:** a handout revealed after the current session started (or, between
+  sessions, after the last one ended) carries a "New" mark.
+- **Player page, enemy health:** the coarse enemy bands (healthy, bloodied, critical, down) are now on
+  by default. Set `PLAYER_SHOW_ENEMY_HP_BANDS=false` to hide them.
+- **Roll buttons on the player page:** a player with their `/me` link sees their open roll requests
+  on `/player` as buttons. Pressing one makes the GM's Foundry client roll for their character
+  (same formula, DC and whisper as clicking the chat button) and marks the request done. Only the
+  player's own requests are listed, and the page only gets a button id and its text.
+- **Player page: a "You" section (David's ideas 1, 2 and 4):** a player who has opened their own `/me` link on the device sees, at the top of `/player`, "Your turn" or "You are up next" from the combat order, a small card for each of their characters (HP, conditions, concentration) with a link to the full sheet, and a concentration reminder (Constitution save, DC 10 or half the damage) when a character who is concentrating takes damage. The combat feed now carries the actor id of player characters only. Nothing is added for other players or for enemies.
+- **Initiative ribbon (UI-07):** the Combat Tracker in the During view now has a ribbon above its rows: the creature up now large, the next two clear, the rest fading out, a Round marker where the order wraps, a Lair marker for a boss's lair action, HP bars and conditions (Concentrating first). It reads the same fight as the rows, writes nothing and has no motion with reduced motion on. The docs and the package README no longer list the Combat Tracker as old-dashboard-only.
+- **Ask for a roll in one click:** the Party card has an "Ask for a roll" bar (check, save or skill, DC, private or public, advantage) with "Ask the whole party" and an "Ask roll" button on each member. The combat strip has the same bar with "Ask the party" and "Ask" plus the picked player character's name. The requests go through request-player-rolls, so they show on the player page and land in the play log. The last pick is remembered.
+- **Simpler Damage / Heal:** the strip's Damage / Heal opens a small form with one amount field, a Damage or Heal toggle and damage type chips. One button, named for what it does ("Deal 8 fire damage to Goblin Archer and Ogre Brute in Foundry"), plans and applies in the same click, with Undo on the toast. Condition still opens the Tool runner.
+- **Initiative ribbon: portraits and pan to token (UI-07):** each creature in the ribbon shows its
+  token portrait (its initials when it has none or it does not load), and clicking it pans the GM's
+  Foundry view to that token, switching scene first when needed. It only moves that GM's screen;
+  nothing in the game changes. Portraits load from `DASHBOARD_FOUNDRY_URL` (the address your
+  browser uses for Foundry); without it the ribbon shows initials.
+- **Roll requests reach players at once, and the GM sees who has rolled:** a roll request sent from
+  the dashboard is pushed over the player stream within a second (it used to wait for the 4 second
+  poll and then the 8 second page refresh). The player page shows a banner naming the roll for each
+  player it is for, also without the personal link (it still asks "Who are you?" first; the Roll
+  button needs the link). The GM's roll bar shows the latest ask as "waiting for 2 of 4" with a
+  line per player ("Brenna rolled 17"). The toast says "Sent" and a request has no Undo. The Player
+  links card says each player pins their own link in Discord.
+- **Tarokka card pickers show one deck:** in the Tool Runner, each card field of "Plan a Tarokka
+  import" (tome, holy symbol, sunsword, ally, Strahd's location) lists only the deck that fits that
+  position.
+- **Who would notice (I-078):** a new read-only switch, "AI Tool: Who would notice" (off by default),
+  adds a row to the Party drawer. Type a DC and every character shows a chip for passive Perception,
+  Investigation and Insight, marked with a check or a cross. The scores are dnd5e's own, so
+  conditions, advantage flags and exhaustion are already counted. GM only; `get-party` carries a
+  new `passives` field per member, empty while the switch is off.
+
+### Modules
+
+- **Not Your Turn blocks players:** `scripts/modules/strahd-modules.json` records `BlockPlayer` and `BlockTrusted` as Autoblock (3) and `BlockAssistant` and `BlockGM` as Warning Only (1), so AI token moves are never blocked. The foundry-modules page says so. Applying it to the Pi world is a separate step.
+
+### David's GM test fixes
+
+- **Remove a condition:** when a remove finds nothing, the message lists the conditions the
+  character has and says to name one, instead of only "no expired effects".
+- **Advanced, Party and Handouts:** in a During layout that hides the card (Simple view has no
+  Party), the menu now opens the drawer over the page instead of doing nothing.
+- **Handouts drawer:** the empty queue says that only queued or revealed pages show and points to
+  the Queue a page button; `create-quest-journal` results suggest queueing the new page.
+- **GM guide:** the AI Tool group in Foundry's scene controls is the wand icon at the bottom of the
+  left toolbar.
+
+### Demo recorder
+
+- **Maximum quality recordings:** the ffmpeg recorder captures at constant quality 10 with the
+  slowest NVENC preset and no bitrate cap (4:4:4 on the gdigrab path), and `compose.mjs` encodes
+  the final cuts with x264 at an average of 12 Mbps instead of NVENC at constant quality 21, which
+  had left the GM videos near 4.7 Mbps (spec: 8 to 12).
+- **Chapters without a title card:** a compose chapter with `"card": false` in the manifest goes into
+  a cut with no title card (for an intro or outro shot), and `"clip": false` leaves it out of the
+  per-chapter clip cuts.
+
+### Setup
+
+- **Claude Desktop connector updates in two scripts:** `scripts/desktop/build-connector.ps1` builds the
+  connector from a git ref into its own `foundry-mcp-server-<sha>` folder next to the older ones (with a smoke
+  check on the test port), and `scripts/desktop/repoint-connectors.ps1` points the five `foundry-mcp*` entries
+  at it. The repoint shows a dry run first, backs the config up before it writes, can put the backup back, and
+  never restarts Claude Desktop.
+
+### D&D helper (I-152)
+
+- **`get-level-up-options` (core, read-only):** for a character, and optionally one class, lists what the next class level grants (hit points, ability score improvement or feat, subclass, granted features, spell and cantrip counts, item and trait choices), which choices are still open, and any advancement from earlier levels that was never finished. Read from the class item's advancement data; it advises only and changes nothing.
+
+### D&D helper (I-152; dnd-helper-skill)
+
+- **D&D helper skill:** `npm run dnd-helper` builds `foundry-dnd-helper.zip`, a Claude skill for
+  character creation (build card, Actor Studio steps, the ten level-1 snags as a checklist), sheet
+  checks, level-up advice (advise only, the player clicks in Foundry), rules questions and a
+  character plan note format. It works on the core connector and holds no book text. Project
+  instructions for Claude Desktop are in `tools/dnd-helper/project-instructions.md`.
+
+### Docs
+
+- **Dashboard screenshots from the React page:** the pictures in the README and the dashboard
+  reference (During with the initiative ribbon, the turn-order strip with Combat buttons on, the
+  Tool Runner drawer, the destructive confirm window) and a new Before shot are retaken on Foundry 14;
+  the join-page picture on the player docs shows the user list. The demo video is unchanged.
+- **Docs sweep (docs-sweep):** README, `docs/gm`, `docs/player` and `docs/reference` checked against
+  main. The GM guides now describe the home server (Orange Pi) setup, with the one-PC setup as the
+  admin's own PC and Plan B. The dashboard guide covers Start combat and End combat, the Theme
+  picker, After a paper night, the four `/me` views, handout order arrows and the player page's roll
+  buttons; the Combat strip's Damage / Heal and Condition buttons are described as opening the Tool
+  Runner for a confirm. The README and reference page no longer say "planned" for the Cloudflare
+  route, list the ribbon and the real switch defaults, and `COGM-DASHBOARD.md` lost its em dashes.
+  Player docs gain the roll buttons and the roll-request record.
+- **Training world switch:** `docs/dev/PI-SETUP.md` now says who switches Foundry to the Frostmaiden
+  training world (Claude, on the user's request, after a snapshot) and how (stage 11 with `LAUNCH`),
+  and that Foundry goes back to `curse-of-strahd` after the call. A failed switch back leaves Foundry on the training world, so it is
+  repeated until it works.
+- **Death guide:** `docs/gm/death-and-new-characters.md` quotes the Live Feed line and the players'
+  page line separately, for going down and for getting back up.
+- **First hour and before-session pages:** "Your first hour as GM" now points at our own Foundry
+  basics pages instead of Foundry's knowledge base (kept as a pointer for going deeper), and the
+  before-session checklist has a line to check the GM windows are on.
+- **Foundry UI reference:** the `foundry-core-ui` skill now says where Start Combat, Show Players
+  (the three-dot menu in v14) and the scene navigation tabs really are.
+- **Picture script:** `scripts/demo/foundry-basics.mjs` honours `DEMO_WORLD_ID` through
+  `demoWorld()`.
+- **Our own Foundry basics pages:** `docs/foundry/` explains Foundry itself for a new GM (screen
+  tour, glossary, worlds and joining, users and permissions, scenes, actors, tokens, journals, chat
+  and dice, combat, layers/walls/lighting, measuring and templates, compendiums, modules,
+  playlists), written from the verified Foundry 14 UI and checked live. They replace the links to
+  Foundry's own knowledge base, whose pictures predate Foundry 14.
+- **Re-runnable pictures:** `npm run docs:foundry-images` (`scripts/demo/foundry-basics.mjs`) makes
+  every screenshot and short MP4 loop in `docs/images/foundry/` from the demo world on a test
+  server (`FOUNDRY_TEST_SERVER=B` picks server B; the demo scripts' `testEnv()` now honours it).
+- **GM coach brought up to date:** the coach skill's page table now covers every GM and player page
+  (dashboard, GM windows, feature switches, Asking Claude, runbook, TV viewer and more). It knows it
+  cannot see the game, explains plan, confirm and undo, and gives the game night runbook first.
+  The coach guide says what the coach can and cannot do and that a built zip is a copy from its
+  build day.
+- **The GM windows (guide for the GM):** a new page, `docs/gm/gm-windows.md`,
+  with pictures: how to switch them on, where the buttons are and what each window is for. Listed
+  in the GM guides index and in the feature list.
+- **GM guide:** `docs/gm/gm-windows.md` gets a Loot section and new pictures.
+- **Guides checked against main:** every GM and player guide on the wiki was read against the code
+  and the Foundry 14 client. The player page section follows I-111 (live and between-session
+  order, recap and quests boxes, enemy health words, Paper night view), the Obsidian pages name the
+  quest import and the prep-note commands, the Features and Asking Claude pages list every switch,
+  and the Settings path reads "Settings tab, Game Settings" as in Foundry 14. The after-session
+  steps put Undo before End session, which switches the write switches off.
+- **Guides design, part 2:** the dashboard's help panel now also shows the Foundry basics (`docs/foundry`, page keys `foundry-<name>`, "Open on the wiki" points into `/foundry/`; the Docker image copies the folder), and renders `:::note`, `:::tip` and `:::caution` blocks as callout boxes. On the wiki, a time at the end of a heading ("(15 minutes)") shows as a chip, the start page links First 15 minutes, and a link written inside inline code is left as an example.
+- **GM guides, points from the first test with Danni and David:** the Features page says what "AI Tool"
+  means (the module, the dashboard and the GM windows) and where all the switches are in Game
+  Settings; the cookbook has "Start and end a fight" for Foundry and for the dashboard, with the
+  note that the combat buttons need GM Actions; Troubleshooting has a row for a creature that always
+  rolls with advantage or disadvantage under Automated Conditions 5e.
+- **Help and wiki build checks:** the help builder fails when a gm page and a foundry page map to the same page key, and has a unit test for cross-folder links, broken links and callouts. Links inside double-backtick code spans are now left alone in the wiki staging, as in the help.
+- **The wiki moves to Astro Starlight:** the public wiki is built with Astro Starlight instead of MkDocs Material (which is in maintenance mode). Same pages and the same `/gm/` and `/gm/<page>/` addresses; the links validator still fails the build on a broken link or anchor, and Python is gone from the wiki workflow. The pages are the "field guide" look (bone and wine palette, serif headings, a sidebar grouped as Start here, Game night, The tool, Your campaign, When it breaks, For players), with dark mode. `docs/foundry/` is added to the wiki stage, and a clip written as `![text](clip.mp4)` plays in the page.
+- **UX review list (I-149):** `docs/dev/UX-REVIEW-LIST.md` is a short checklist for dashboard and player-page changes, named in the lane review step.
+- **Player join guide:** the three missing pictures are in (the code page, the code email with the digits blurred, and the two windows that open on the first join), with a note that the two windows overlap.
+- **Module reference skill (batch A):** `.claude/skills/foundry-modules/` holds one verified page per
+  module (what it does, where its UI is, the settings we use, how it touches the AI Tool, Foundry 14
+  and dnd5e 6 gotchas, a keep or drop verdict and a line for Danni's guides) for Actor Studio,
+  ddb-importer, the Player's Handbook, Token Action HUD (core and 5e), Dice So Nice, Not Your Turn,
+  Automated Conditions 5e, Monk's Player Settings, Tokenizer and tarokka-reading.
+- **Quest pages for the GM:** three optional pages turn the longest checklists into stages with
+  times and tick boxes: Quest: your first hour, Quest: prepare session 0 and Quest: before a
+  session. Each source page has a "Do this as a quest" box that opens its quest page; the pages
+  are in the wiki sidebar next to their parents and in the dashboard help.
+
+### Module (I-134; gm-windows-g0)
+
+- **GM windows, ready for G0:** turning the "GM windows" switch off now closes every open window
+  (before, an open Combat window went blank and the others kept showing stale numbers; the Session
+  window kept polling the bridge). The four windows open side by side instead of stacked on one
+  spot. The switch is named and explained for all four windows ("AI Tool: GM windows (Combat,
+  Party, Session, Scene)"); the Scene window says "Dusk, darkness 40%" instead of "Dusk (40%)"; a
+  Session window says "The AI Tool is not connected right now" with a next step instead of
+  "Is the Assistant GM browser running?"; a
+  tag in a window column (Global light, Defeated, Hidden) keeps its own width.
+
+### Module (I-134; gm-windows-loot)
+
+- **A Loot window, behind the "GM windows" switch (off by default):** a fifth button in the AI Tool
+  group opens what the party carries in treasure: per player character the coins (and what they come
+  to in gold) and the items whose Loot Type is Art Object, Gemstone, Treasure or Trade Good, with a
+  party total. Read from Foundry's own data on the GM client and redrawn when coins or items change;
+  nothing goes through the bridge, so no new bridge handler or wire change. The switch is now called
+  "AI Tool: GM windows" (the key `gmWindows` is unchanged) and its hint lists all five windows.
+
+### Guides
+
+- **First 15 minutes:** a new GM page, the one page to read first, with four small steps, what to
+  ignore for now and where to go next. It is first in "Start here" on the wiki and linked first
+  from the GM guides index.
+- **Characters start at level 3:** the player guide "Make your character" now builds a level-1 character and levels it up twice to level 3 (subclass picked at the level-up), with the live snags found on the test server: the Level Up button needs Milestone Levelling or the XP, Take Average before Next, and the second Complete that adds the subclass. The D&D helper's project instructions, build card, sheet check, plan note and level-up page say level 3 too.
+
+### Development
+
+- **Local checks with many lanes:** `npm run green` takes the heavy-check lock once per run and
+  keeps it to its last heavy step, instead of queueing again for every step (with ten lanes a
+  5-minute green took 30 to 40 minutes). Waiters are served in arrival order; the merge gate's
+  drift check and the pre-push hook go first. The slot count comes from
+  `~/.foundry-ai-tool/heavy-lock.json` (`HEAVY_LOCK_SLOTS` still wins), read on every poll, so a
+  change applies with no restart; a second or third run starts only while enough RAM is free.
+  `node scripts/heavy-lock.mjs status` shows the settings, the holders and who waits.
+- **Merges wait once:** the merge gate holds one high-priority slot for its whole drift check, so
+  the guards inside no longer queue behind greens one by one. A slot left by a killed run is free
+  again after 20 minutes without a beat (was an hour); a hold through `heavy-lock.mjs run` beats
+  every minute.
+- **No second check on push:** green records the tree it passed on, uncommitted edits included, and
+  the pre-push hook skips its checks when every pushed commit has that tree.
+- **Parallel greens and e2e:** two greens never run the dashboard e2e step at the same time (it
+  shares a state folder), and green gives it a free port (`E2E_PORT`), so a run on the default
+  port elsewhere cannot fail it.
+- **Green timings:** each run writes `timings.json` (step times, lock wait) next to its logs, and
+  two greens started in the same second no longer share one log folder.
+- **Lanes pick the reviewer with the merge gate:** the `lane` skill now has lanes run the gate's
+  `--dry-run` before the first review and use Opus whenever the gate says the PR is risky, so a
+  Sonnet review on a risky PR is no longer wasted.
+
+### MCP server (I-001)
+
+- **`wait-for-game-event` (Play set):** Claude can wait for the next game event of a kind (combat
+  turn, scene change, roll, damage, condition applied or removed and the other session event types; an unknown type is refused with the list of known ones) instead of polling
+  `get-recent-events` in a loop. It returns as soon as the event pump logs a match, or empty after
+  25 seconds (at most 45), and hands back a `latestTimestamp` to pass as `sinceTimestamp` so nothing
+  between two calls is lost. It sleeps on the existing event pumps and never queries Foundry, so it
+  adds no load; at most four waits run at once, and a wait ends when its connection closes.
+
+### Obsidian (I-052 O5)
+
+- **Keep a prep note from Claude:** the companion plugin gets "Toggle: Claude may read this prep note", which sets `ai_context` to false or true on the open prep note.
+- **Prep notes stay private:** a test now checks that a note with `ai_context: false`, a mirror note, a sync-conflict copy and a prep template never reach what Claude reads.
+
+### Obsidian (I-052 O6)
+
+- **Quest import from Obsidian:** a quest note in your `Prep` folder (`type: quest-prep`, empty `fvtt_uuid`) becomes a GM-only quest journal in Foundry. In Obsidian run "Import this quest prep note into Foundry", then confirm the plan in the dashboard. It is off until you switch on "AI Tool: Obsidian import (writes)" in the module settings, and Undo removes the journal. It is not offered to Claude as a tool (the plugin starts it through the dashboard), so the tool sets and their sizes are unchanged. Planning writes nothing to Foundry; the journal lands in the top level of the Journal tab. Importing the same note twice is refused until you undo the first or delete the journal.
+
+### Dashboard (I-098)
+
+- **The dashboard's JavaScript is gzipped:** the hashed files under `/next/assets/` are sent
+  compressed to a browser that accepts it (the first load drops from about 456 KB to 145 KB of
+  JavaScript on the wire, compressed once per file and kept in memory). The event stream and
+  everything else are untouched.
+- **Smaller refreshes:** `/api/state` and the stylesheets of the old pages (`styles.css`, 56 KB
+  here) go out gzipped to a browser that accepts it; the page headers of the player and `/open`
+  pages are unchanged.
+- **Lighter page load:** the pre-flight check that runs by itself when Foundry connects now waits
+  two seconds, so the panels' own first reads get the bridge first. The dashboard also remembers
+  the play stats and the scene list for five seconds (two windows or a quick reload share one
+  bridge call); any change through the dashboard or new game event clears that memory, and Recent
+  Changes, Handouts, the Prep digest and combat are never remembered.
+
+### Module (I-106)
+
+- **Advantage or disadvantage on rolls:** `request-player-rolls`, `request-ability-check`,
+  `request-attack-roll` and `roll-npc-check` take an optional `advantage` (`advantage` or
+  `disadvantage`). It goes into dnd5e's own roll, so it combines with the roller's conditions
+  (advantage against a poisoned roller comes out normal). Left out, dnd5e decides as before. The
+  request card names a chosen mode.
+- **NPC rolls use dnd5e:** `roll-npc-check` now rolls through dnd5e, so an NPC's conditions (poisoned,
+  prone) apply, and the reply carries `mode` (advantage, disadvantage or normal).
+
+### Player page (I-111 follow-ups)
+
+- **Quest titles:** a quest page named "Quest Details" now shows the quest's own title (read from the page heading) in the Quests card, so two quests no longer look the same.
+- **Session post wording:** the Discord post at the end of a session says the recap shows up on the player page once it is written, instead of promising it is there already. `docs/dev/PI-SETUP.md` warns to post a link with `?token=` only in a players-only channel.
+
+### Player page and Discord (I-111)
+
+- **The player page follows the session:** during a session `/player` shows the combat order, the session feed and the handouts first; between sessions it leads with the last recap, the handouts and the quests the party knows. A link to your own character sheet sits at the top between sessions and at the bottom during one. The player state carries a new `session` flag (open or not, and when the last session ended) and nothing else of the session marker; the canary tests cover it.
+- **Discord post when a session ends (off by default):** set `DISCORD_SESSION_POST_CHANNEL_ID` in the bot settings and the bot posts a link to the player page in that channel when a session ends. `FOUNDRY_AI_PLAYER_PAGE_URL` (required, the link players can open) says which link it posts; `FOUNDRY_AI_DASHBOARD_URL` (default `http://127.0.0.1:3100`) and `FOUNDRY_AI_PLAYER_TOKEN` say where and how it reads the session.
+
+### Docs (I-116 follow-ups)
+
+- **Make your character:** the player guide now names the Actor Studio workarounds found in the
+  I-116 check: equip armour, shield and weapons on the Inventory tab (AC reads too low until you
+  do), pick Amulet, Emblem or Reliquary for a holy symbol, press Enter in the spell browser, reset
+  the spellcasting ability on a second Magic Initiate step, set Size to Medium, watch "Chosen x of
+  y" before Next, and reload (F5) plus ask the GM to delete the half-made character when Actor
+  Studio says it is busy.
+- **Prepare session 0:** says plainly that the admin's script only sets who may create characters,
+  equipment selection and the equipment pack. Spell selection and the other pack rows are the GM's
+  to set, and the table now shows which is which.
+
+### Rules check (I-126)
+
+- **2014 vs 2024 differences:** `check-action` adds a short note, in our own words, when the action is one the two rule sets handle differently (Counterspell, Grapple, Shove, Hide), and says which rules the item or creature follows. It never changes the verdict. Still off until "AI Tool: Rules check" is switched on.
+
+### Obsidian (I-139)
+
+- **A start page for the GM vault:** the Campaign Home is now written in plain words and sorted by
+  what the GM is doing (before, during and after a session, the campaign, the play log, rules
+  lookups, help), with links and live tables to NPCs, scenes, quests, story items and session
+  notes. It is still created once and never rewritten after an edit; an untouched older Home
+  upgrades to it on the next export.
+- **Player vault Home:** opens with a short "Start here" paragraph in plain words (character,
+  recaps, handouts, session log); player-safe text only.
+
+### NPC turn assistant (I-125; lows from the PR #456 review)
+
+- **A creature's square costs one more, as in dnd5e:** a creature inside a core movement-cost region
+  now adds a square on top of the region's cost (2x makes 3x); only dnd5e's own Difficult Terrain
+  already counts as that square.
+- **Creatures at another height are left out:** a creature outside the NPC's elevation band (one grid
+  distance) neither blocks nor slows, and a token with no actor is no creature. The drawn map and the
+  scene-data fallback now agree.
+- **The plan note says the real rules:** "a creature of another disposition (neutral too) blocks
+  unless ..."; "creatures do not block" when dnd5e movement automation is not full; and, when the map
+  is drawn, that tokens selected in Foundry are ignored.
+
+### Module (lows from the PR #455 review)
+
+- **User-create check is stricter:** a created User may carry a `permissions` entry only when its
+  value is exactly `false`, so Foundry's serialized operator objects cannot get through.
+
+### Obsidian (lows from the PR #445 review)
+
+- **Redo without a Recap page:** when an undone then redone notes journal comes back without its Recap
+  page, the put is restored without queuing the Recap and the notes show an error naming the missing
+  page, instead of dropping the put.
+
+### Tooling (I-138)
+
+- **MCP modern-client probe test:** a test starts the built stdio server and sends it what an MCP 2026-07-28 client would (`server/discover`, `tools/list` and `tools/call` with `_meta` and no `initialize`, `initialize` asking for the new version), next to the normal handshake. It checks nothing crashes or hangs and that `tools/list` keeps the same order on repeated calls. It pins what the connectors do today, so the later move to the new protocol starts from facts.
+
+### MCP server (I-138)
+
+- **MCP SDK 1.32.2:** the five connectors run on `@modelcontextprotocol/sdk` 1.32.2 (was 1.29.0 in the lockfile), and the range in `packages/mcp-server/package.json` is now `^1.32.2` instead of `^1.10.0`. No behaviour change for our tools; it keeps us on the v1 line's latest fixes until we move to the MCP 2026-07-28 protocol revision.
+
+### Module guides (batch C)
+
+- **Eleven module reference pages** under `.claude/skills/foundry-modules/references/`: Calendaria, Travel Pace, Share Media, 3DS:ATLAS, the Racooze map library and free battlemaps, Automated Animations, and the light pages for Sequencer, socketlib, libWrapper and the free JB2A set. Each says what the module does, where its UI is, the settings that matter, how it meets the AI Tool, the Foundry 14 gotchas and a keep or drop verdict.
+- **Kit scenario `module-animations-calendar`** (full size): when the modules are on in a kit world, an attack roll with a target plays an Automated Animations effect, and moving world time fires Calendaria's day hooks without writing journals. It skips when the modules are off.
+
+### Module notes (module-learn-e)
+
+- **Batch E of the module reference:** Item Piles (with its dnd5e companion), Tidy 5e Sheets, Quick Insert, Find the Culprit, FXMaster, Token Magic FX, FX Bus, Theatre Inserts and Polyglot each have a page under `.claude/skills/foundry-modules/references/`, tried on test server B with a keep, optional or drop verdict for the GM. Findings that matter: Quick Insert lists hidden actor names to players unless "GMs only" is on, Item Piles pile actors show up in `list-characters`, Theatre lines reach our chat log with no speaker, and Polyglot keeps the real text readable to anything that republishes chat.
+
+### Tooling (I-117; Backlog module-rehearsal-lows, ac5e-kit-scenario)
+
+- **Module rehearsal fixes:** `run` on server A refuses to start the live steps unless you hold the lock, the report now lists the module errors the kit's `module-load` scenario saw (known and new), `archive` refuses a report whose package versions no longer match the server, `unpackZip` refuses a zip entry that climbs out with `../`, the round-trip test uses a real zip, and the expected-findings caps and the legacy-syntax match in the `modules-all` profile are tuned against a real run.
+- **Kit scenario `module-ac5e-roll-mode`:** poisons a hero and a monster and compares the roll mode of `request-ability-check`, `request-attack-roll` and `roll-saving-throws` with the same creatures unpoisoned (full size, modules-all profile; skips without Automated Conditions 5e). Finding: `roll-saving-throws` gets disadvantage from the module (measured); the two request buttons post a plain `1d20` formula and, from reading the code, roll it outside dnd5e's hooks, so a poisoned player's button roll would have none (the scenario does not click the button).
+
+### Tooling (I-117; D-128)
+
+- **Module update rehearsal:** `node scripts/modules/rehearse.mjs` lists modules, dnd5e and Foundry with a newer version, stages and installs them on a stopped test server, runs the load check, the kit (new `modules-all` profile from the Strahd list), `live:roundtrip` and `live:sweep`, and writes a report with known upstream findings kept apart from new ones. Passing versions go into a PC archive (zip, manifest, sha256) with a pinned list; licensed packages are archived but never in the repo. See `docs/dev/MODULE-REHEARSAL.md`, which also has the Pi install-from-archive plan (not run).
+- **Rehearsal install guards:** `install` also needs the test server's lock held by you (set `REHEARSE_LOCK_SESSION` to your session id; a lock held by another session, or none, refuses), `run` needs it on server A before the live steps, `archive` needs a passing kit step from the same server and refuses a report whose package versions no longer match the server, a zip entry that climbs out with `../` is refused before unpacking, the report lists the module errors the kit's `module-load` scenario saw, downloads must stay on https after redirects and are written to a `.part` file first, and an installed zip must carry the package id it was staged for.
+
+### Module guides (index)
+
+- **Index rows for the module reference pages** in `.claude/skills/foundry-modules/SKILL.md`: the four batch B pages (Combat Spell Timer, DAE, Monk's Combat Details, Monk's TokenBar) and the eleven batch C pages that the index was missing. Every page in `references/` now has one row, and every row points to a page.
+
+### Session notes (notes-review-lows, notes-status-line-polish)
+
+- **Summary not reused after a rewrite:** the session summary is cached together with a digest of
+  the scene notes it was written for, so a manual re-run after a raw scene was fixed writes a new
+  summary instead of keeping the old one.
+- **Unfinished notes say so:** `transcript.*.md` and `scenes.*.md` start with a notice, and
+  `notes.json` has `complete: false`, while scenes are raw or missing or the summary is not written.
+- **The card's pill names the state:** with no staged notes the After card says Done, Paused or
+  Incomplete (as well as Failed, Published and Waiting) instead of "Waiting" for those states.
+- **One default sessions folder:** the dashboard's pipeline route and the recorder bot take
+  `Documents/FoundrySessions` from `shared/src/sessions-dir.ts` (the bot keeps an identical copy,
+  checked by a test) and `voice-stack.ps1` from one function.
+- **Tests:** `cli.main` exit codes 75 and 76 with `status.json`, the fallback counter restarting
+  when a scene changes, a pause plus a fallback in one run, `auto.ps1`'s lock and `-KeepFresh`
+  (a smoke test that runs the script on Windows), the pipeline route (GM only, before `/:id`,
+  the `sessionsDir` option) and one e2e case per pill.
+
+### NPC turn assistant (I-125, npc-turn-lows; still off by default)
+
+- **Walls on the NPC's level:** the wall check uses the level and elevation of the NPC's token, not
+  the level the GM is looking at. Foundry's own collision test gets that level, and the scene-data
+  fallback leaves out walls that belong to other levels.
+- **Who blocks follows dnd5e:** a creature of another disposition (neutral too) blocks unless it is
+  two sizes apart, Tiny (modern rules), dead or unconscious, a non-creature or a hidden token; none
+  blocks when the dnd5e movement automation is not "full". Walking through a creature's square costs one square more (allies too under the
+  legacy rules; not at all when the creature ignores difficult terrain). When the map is drawn the
+  plan asks dnd5e's own `isOccupiedGridSpaceBlocking` and `isOccupiedGridSpaceDifficult`.
+- **Dash:** a Dash takes the action, so `plan-npc-turn` refuses attacks after a Dash unless `reason`
+  names a bonus-action Dash (then the attack steps say so).
+- **Previews say the token is placed:** the `plan-npc-turn` move step and the `plan-token-change`
+  move preview now say the token is placed, not walked, and that Foundry's ruler does not count it
+  (in a started combat it still shows the full speed). `plan-token-change` also warns when a wall or
+  closed door lies between the old and the new square.
+- **Multiattack text:** `&Reference[condition=prone]` and `&Reference[prone apply=false]` show as
+  "prone", and `&mdash;`, `&rsquo;`, `&hellip;` and the other common named entities are decoded.
+
+### NPC turn assistant (I-125, npc-turn-more; still off by default)
+
+- **Multiattack:** `plan-npc-turn` takes `attacks` (an item and a target each, up to 10). Every
+  attack is checked for reach, and a melee attack with a wall or closed door in between is refused.
+  The context shows the text of the monster's Multiattack feature, so Claude can see how many
+  attacks it gets.
+- **Walls, doors and difficult terrain:** the move is found with a path search instead of a
+  straight count. Walls and closed doors block (Foundry's own check when the map is drawn, the
+  scene's wall data otherwise), hostile creatures cannot be walked through (allies can), and
+  movement-cost regions multiply the cost of the squares they cover. The plan returns the path and
+  what it costs.
+- **Smarter targets:** each enemy shows whether it is concentrating, prone or at 0 hit points, the
+  cheapest square to attack it from this turn, and a score with the reasons (lowest hit points,
+  concentrating, prone for melee or ranged, bloodied, out of reach). The context names the
+  suggested target.
+- **Review lows from PR #414:** diagonals follow the world's `gridDiagonals` setting (alternating,
+  exact, 1.5 and 2 included); hex and gridless scenes are refused; squares past the scene edge or in
+  the padding are refused, by the whole footprint of a large token; tokens on other Foundry 14
+  levels are left out as blockers and targets; a combat on another scene is not used; a speed kept
+  in other units than the scene (metres, miles) is converted, or refused when it cannot be;
+  `dash: true` plans twice the speed; a weapon keeps its normal range when its activity holds the
+  long range; a familiar is refused as player-owned, not as a player character.
+- **A planned token move is a placement:** Foundry 14 stops an `x`/`y` update at the first wall,
+  and dnd5e stops it at a hostile creature, so a move planned round a wall was refused ("Foundry
+  did not keep x, y") when applied. Guarded writes of a token's position (or size, elevation,
+  level) now place the token with one teleport (`displace`) step, also in a rollback and in undo:
+  walls and movement cost do not apply (the token can end up behind a wall), and no trap, teleport
+  or pause region along a straight line fires (undo cannot take those back). Teleport Token and
+  Change Level regions ignore such a move. This applies to every guarded token move,
+  `plan-token-change` included. Found live on test server C.
+- **dnd5e Difficult Terrain:** the path search also counts dnd5e's own Difficult Terrain region
+  behavior (Spike Growth, Web): one extra step of cost, not stacked, skipped for creatures that
+  ignore it. Regions on another level of the scene are left out.
+- **Smaller fixes:** Multiattack text also loses `&Reference[...]`, unlabelled `@UUID[...]` and HTML
+  entities; a Dash lists its attacks as "only with a bonus-action Dash"; a newer server says so when
+  the Foundry module is too old to check `attacks` or `dash`.
+- **Tool budget:** the play tool set budget in `tool-catalog.test.ts` is raised by 1,000
+  characters for the new fields.
+
+### NPC turn assistant (I-125, part 3)
+
+- **Save-based actions and activities:** `plan-npc-turn` lists every activity of an NPC's items (attack, save, utility, legendary) and takes `activity` on an attack. A save-based action names the save to roll with `roll-saving-throws`, its DC, and what a success does to the damage.
+- **Legendary actions:** planned on another creature's turn only, within the legendary actions left (refused on the NPC's own turn, or when the cost is more than what is left); a move taken as a legendary action covers at most half the speed. `use-npc-activity` takes `activity`, uses the activity (spending its legendary actions) and rolls its damage.
+- **Roll first, then one plan:** after rolling, call `plan-npc-turn` again with the move and `results` (the damage each target takes, with `multiplier` 0.5 for half on a save). One guarded plan holds the move and every hit point change, so one confirm covers the turn and one undo puts it back. Damage goes through dnd5e's own rules, so resistance counts.
+- Test for the creature-square note when the NPC ignores difficult terrain (PR #461 review).
+
+### Obsidian (I-052 O7)
+
+- **Roll numbers in the player stats note:** the play log now records each roll's visibility
+  (public, gm, blind or self). "My stats" shows a character's rolls, attack critical hits and
+  misses, natural 20s and 1s and best roll, counting public rolls only. Blind, GM and self rolls, and rolls
+  recorded before this change, are never counted.
+- **Player vault: My stats:** each player vault gets a `My stats.md` note with the campaign so far
+  (sessions, time played, fights, rounds) and the numbers of the player's own characters (damage
+  taken, healing, times down, spells, slots, coins, experience). Built from `get-play-stats`
+  through an allowlist, so GM-only data never reaches it: no unfiltered roll numbers (only public
+  rolls count, see the roll stats entry), no damage dealt, loot names,
+  scene names, user names or other players' characters. The spoiler canary now plants a value in
+  every excluded field and fails on any file kind it does not know in a vault.
+
+### Obsidian (I-052; encounter blocks)
+
+- **Encounter blocks as suggestions:** an `encounter` block (Initiative Tracker syntax) in a
+  prep note (encounter-prep first, a session plan too) now shows in the prep digest's `prep.encounters` as a read-only suggested
+  encounter (name, creatures, counts). Nothing is written; `ai_context: false`, templates and the
+  note's other text stay out.
+
+### Obsidian (lane D follow-ups, structure audit 2026-10-29)
+
+- **No loose journals, scenes or NPCs:** a note that sits in no adventure folder in Foundry is
+  linked from `AI Tool/Foundry/Without an adventure.md`, which links the campaign home. An unedited
+  one is trashed again when nothing is left to list. It is not an adventure hub (no graph colour,
+  not in Home's Adventures table).
+- **Everyone notes in the graph:** each day note under `AI Tool/Everyone/` links the campaign home,
+  so the days are no longer orphans.
+- **`AI Tool/_status.md`:** the line about the Foundry mirror status is plain text until
+  `AI Tool/Foundry/_status.md` exists, so it is not a dead link when the mirror is off.
+- **Plugin:** the commands **Hide the Library in the graph** and **Show the Library in the graph**
+  (and two buttons in the settings) add or remove one search term in the graph options. Off by
+  default; the GM's own colour groups and search text stay.
+
+### Dashboard (Paper nights B; paper-form)
+
+- **After a paper night:** a new drawer in the dashboard (Advanced menu, and a card in After) for
+  syncing the paper sheets back into Foundry. One card per player character, filled in from the
+  sheet in Foundry; type what the player reads from the paper sheet (HP and temp HP, spell slots,
+  hit dice, class resources and item uses, coins, exhaustion, conditions, inspiration, death
+  saves, inventory quantities, and new items from the compendium picker). **Plan** builds one
+  guarded `plan-paper-sync` plan for that character from the fields that changed; the confirm
+  window lists what changes (removing an item asks for the second confirm), Apply writes it, and
+  Recent Changes holds one Undo per character. A "Which night was this?" date can log the night as
+  a paper session. Needs GM Actions and the "AI Tool: Paper sync (writes)" switch.
+
+### Paper nights (paper-log)
+
+- **Paper sessions in the play log:** `mark-play-session` takes `mode: "paper"` for a night played
+  on paper, and with `date` (and `time`) marks a night after the fact. It works with Foundry
+  closed, using the last world this bridge saw. `synced: true` marks a paper night as done.
+- **Stats keep paper syncs out of the play numbers:** changes made by `plan-paper-sync` no longer
+  count as damage, healing, slots or loot. A paper night shows a "Paper night: net change" block
+  (per character: HP lost and regained, slots, resources, coins, XP, items gained and lost), in
+  `get-play-stats`, the session note and the campaign stats; a late sync no longer opens a
+  session of its own.
+- **Recap and pre-flight:** the `session-recap` prompt handles a paper session (story from the
+  session notes, sheet changes from the net block, no invented dice). The pre-flight play-session
+  line warns about a paper night with no paper sync yet.
+
+### MCP prompts (paper-photos)
+
+- **Sync from sheet photos:** a new prompt, `paper-sync-photos` (play set), for a night played on
+  paper. Attach a photo of each sheet and Claude reads the numbers, compares them with the
+  character in Foundry, makes one `plan-paper-sync` plan per character and shows each plan with
+  the sheet value next to the Foundry value. Every reading it was unsure of or could not read is
+  marked CHECK and listed together before anything is applied. Plans are applied only after your
+  yes and can be undone. It never changes XP, level, class or maximum hit points.
+
+### Dashboard (paper-print)
+
+- **Paper night print:** a fourth view on `/me`, "Paper night", is a sheet for a table that plays on
+  paper. Each block shows the value as it was when the sheet was printed and a box to write the new
+  one in: HP and temp HP, spell and pact slots, hit dice per class, class resources and item uses,
+  coins, exhaustion, conditions, inspiration, death saves, and the inventory with a quantity column
+  and empty lines. A carry-over strip at the end lists what gets read out when the night is synced.
+  No XP. The other three views and their print are unchanged.
+- **Print all party sheets:** a GM-only button in the Player links panel opens
+  `/party-print.html`, every player character's paper-night sheet, two pages each, from the new
+  GM-only route `GET /api/party-sheets`. Players still see only their own sheets.
+
+### Paper nights (Paper nights A)
+
+- **Sync a paper sheet back into Foundry:** the new Play tool `plan-paper-sync` takes the numbers on
+  one paper character sheet and plans them as one change for that character, with the usual confirm
+  and Undo. It covers hit points and temp HP, spell and pact slots, hit dice per class, class
+  resources and item uses, the five coins, exhaustion, the exact set of conditions, inspiration,
+  death saves (reset) and item quantities (a quantity of 0 removes the item and asks for the second
+  confirm; a compendium uuid adds one). Every value is what the sheet says now, only changed fields
+  become part of the plan, and a value above its maximum refuses the whole request. XP, level, class
+  and max HP are never changed. It ships off: turn on "AI Tool: Paper sync (writes)" in Foundry's
+  module settings. It never applies without confirming.
+
+### Pi (PR #554 review lows and the first live run)
+
+- **Stage 17 registers from the runner folder:** the first live run failed with `ldd: ./bin/libcoreclr.so: No such file or directory` because GitHub's `config.sh` checks its libraries relative to the current folder and the stage started it from the ssh login folder. It now starts inside the runner folder (`env -C`). A new ARM64 container scenario (`stage17-scenarios.sh`) runs the registration command from a folder the runner user cannot enter, and fails on the old script.
+- **Stage 17 refuses nameservers that would open the Pi to the runner:** a nameserver in `/etc/resolv.conf` in `127.0.0.0/8` (a local resolver such as 127.0.0.53, which would have opened loopback), in `100.64.0.0/10` (Tailscale, which would have opened the Pi's Tailscale side) or at one of the Pi's own addresses (which would have opened the Pi itself) is no longer put on the runner's allow list. The stage stops before writing anything and names the address.
+- **PI-SETUP, stage 17:** says that IPv6 is denied as a whole, that the `/etc/resolv.conf` nameservers are allowed along with the router, and that when the fence probe still connects the stage turns the gate timer off and stops (a failing control probe only stops the stage).
+
+### Pi (stage 17, second live failure)
+
+- **Stage 17 installs libicu when it is missing:** the second live run got past the folder fix and then failed to register because the Pi has no libicu, which GitHub's `config.sh` needs even with invariant globalization. The stage now installs the newest `libicuNN` package apt knows (`libicu72` on Debian 12) only when no libicu is in the library cache, says so, and removes nothing.
+- **Stage 17 shows why registering failed:** `config.sh` reports on stdout, which the stage sent to `/dev/null`, so the error blamed an old token. The last lines of its output are now printed on failure, minus any line that could hold the token. The ARM64 container scenario now starts without ICU and fails on the old script.
+
+### Orange Pi stage scripts (pi-stage-safety-2; follow-ups from PR #432)
+
+- **Stage 3 puts the old Foundry back:** if it fails after stopping Foundry (the swap, or a new program that does
+  not start), it restores `/opt/foundry.prev`, starts Foundry again and keeps the zip, so a failed run never leaves
+  the Pi without a Foundry. Stage 2 puts the old Node back if the second rename fails.
+- **The Assistant GM (and the Kit GM) is subtracted only once it has joined:** `require_quiet` looks for the
+  browser's "joined world" line in the unit's current systemd run, so a browser that runs but has no world no longer
+  hides a real player.
+- **Token scripts check first:** `set-tunnel-token.sh`, `set-dashboard-access.sh` and `set-discord-token.sh` refuse,
+  before asking for anything, while players are online or a recording runs. `FORCE=1` goes on;
+  `set-discord-token.ps1 -Force` passes it through. The first two now need `lib.sh` copied next to them
+  (Remote access, steps 8 and 10).
+- **The nightly 04:30 backup waits for the players:** while anyone is online it does not stop Foundry, looks again
+  every 30 minutes (six times), then skips the night with an ERROR line, but never two nights in a row (a tab left
+  open all night cannot stop the backup for good). An unreadable status is looked at three times before it backs up.
+  The unit's timeout is now 5 hours.
+- **Tests:** failing-`mv` tests for stages 2 and 3, the nightly backup, the three token scripts and the ps1.
+  `7-vault.sh` loses two unused variables.
+
+### Pi setup (stage 14, system trial)
+
+- **A new dnd5e version runs on the kit world first:** stage 14 (`14-system-trial.sh`) installs a pinned
+  dnd5e release (the first is 6.0.6; the download must match its sha256 and fit the Pi's Foundry) and
+  launches only `strahd-kit` on it, after keeping the old version and a copy of every world. `MODE=switch`
+  then moves the campaign to the new version; `MODE=rollback` puts the old version back and resets
+  `strahd-kit` from the copy. A world launched during the trial is not reset unless `RESTORE_MIGRATED=1`,
+  and a rollback that stops halfway finishes on a second run. `MODE=status` shows where a trial stands.
+  Nothing runs with people online (`FORCE=1` overrides), and a failed run puts back what ran before it.
+  The trial and the switch wait for dnd5e's data migration in the Assistant GM browser when the new version
+  asks for one, and a failed run launches a world again only on the version that world runs on. The copies'
+  bytes are checked against the free space first, one run goes at a time, and every run is logged.
+- **No other stage launches a world during a trial:** stages 5-check-world, 11 and 13 refuse to run while a
+  trial is open, and stage 5's check world no longer replaces an installed dnd5e (a rerun after a switch used
+  to put 6.0.5 back under migrated worlds).
+- **The test kit runs during a trial:** `kit-session.sh MODE=up` accepts `strahd-kit` as the launched world
+  while a dnd5e trial is open and puts Foundry back on it with `MODE=down`; with any other original world
+  `MODE=down` is refused during a trial. Stage 14 refuses every mode but `status` while a kit session is up.
+  A failed trial or switch now stops Foundry and the Assistant GM browser before it moves any world folder,
+  and stage 3's `FOUNDRY_EXPECT_VERSION` also checks the installed program when no zip is given.
+- **The Assistant GM driver declares its features:** `assistant-gm.mjs` has a
+  `// assistant-gm features: extra-gm` line, and stage 11 checks that line instead of looking for an
+  environment variable's name anywhere in the file (a comment no longer counts). A driver installed before
+  this change is refused when an extra GM is involved: run stage 5 again first.
+
+### Player page
+
+- **"New" handouts through a session:** while a session is open, a handout counts as new from the previous session's end, so what the GM revealed during prep still shows New when the table sits down. The session marker is read once a minute instead of every 5 seconds.
+- **Time of day only on sunlit scenes:** the "Daylight / Dusk / Night" label shows only on scenes with global illumination on, so a crypt kept dark by design no longer says "Deep night". Weather is unchanged.
+- **Roll button fixes:** pressing Roll on the page no longer rolls twice when the card could not be marked afterwards (the button is held back until the GM client restarts), and a Foundry click on a card already rolled from the page does nothing. Requests made before the DC was stored now use the DC printed on the card. With writes switched off the page says rolling is switched off instead of quoting a module setting.
+
+### Module (PR #445 follow-up lows)
+
+- **User writes are narrower:** a guarded write that creates a User is refused when its `permissions` hold a true override, and a guarded `update` of a User is refused when it touches `role`, `permissions`, `password` or `passwordSalt`. The Table user's undo and redo still work.
+- **The TV's Table user is not a player in the play log:** its join and leave records carry `tableViewer`, take no scene snapshot, and the Obsidian "Seen in" index and `get-play-stats` skip them, so a TV left on during prep no longer marks scenes and NPCs as seen.
+- **TV start script:** the join address match is case-sensitive like the check in the page, and `https://host//join` gives no prefix.
+
+### NPC turn assistant (I-125; PR #460 lows)
+
+- **Honest creature-square note:** the `plan-npc-turn` note says a creature's square costs one
+  square more only when it does; with dnd5e movement automation off, or an NPC that ignores
+  difficult terrain, it says the square costs nothing extra.
+- **Recap-missing hint:** the Recap-missing error on a redone notes put now says how to recover
+  (undo the put and put the notes again).
+
+### Tools
+
+- **request-player-rolls takes a DC:** an optional `dc` the card shows and the roll is judged against, as request-ability-check already did for checks.
+
+### Tooling (D-127; review-runner)
+
+- **Review runner on the API credit:** `node scripts/review-runner/run.mjs <PR>...` reviews pull
+  requests with the Claude Agent SDK on a separate API key (`REVIEW_RUNNER_API_KEY`), writes the
+  review note in the merge gate's format to the vault, commits it, logs each review's cost and stops
+  at $95 in total. `--dry-run` shows the plan and spends nothing. The `lane` skill carries the
+  hybrid review rules: one round plus one delta check, a third round needs the planner, low-risk
+  PRs are reviewed in batches.
+
+### Process (I-143)
+
+- **Reviewer subagents:** three read-only Opus review agents in `.claude/agents/` (`review-guarded-writes`, `review-wire-contracts`, `review-pi-ci`), each with a narrow checklist from CLAUDE.md, D-101 and past review notes, and the review note format the merge gate reads.
+
+### Orange Pi
+
+- **Initiative ribbon portraits on the Pi and in Plan B:** stage 7 takes `DASHBOARD_FOUNDRY_URL`
+  (for example `https://play.<domain>`), validates it, keeps it on later runs and writes it to the
+  dashboard's settings; Plan B passes its local Foundry address. Without it the ribbon shows
+  initials. The remote-access guide explains why no image proxy is needed behind Cloudflare Access.
+
+### Rules check (I-126; second PR)
+
+- **Spent actions:** with the `rules-check` switch on, `check-action` (and the pre-check in front of use-item and attack requests) now warns when the creature has already used its action, bonus action or reaction this turn. The module keeps a short ledger of the activities used through Foundry and counts them from the start of the creature's own turn, so a reaction stays spent until its next turn. A second weapon attack is treated as Extra Attack, not a second action.
+- **Stated limit:** only what was used through Foundry is seen. Dash, Dodge, Help, hand-rolled attacks and extra actions (Action Surge, haste) are not, and the report says so.
+- **2014 and 2024:** the report adds a rules-version line and warns when an item follows different rules from the creature using it.
+- **Fixes:** two same-named combatants are now reported as "cannot tell whose turn" instead of picking the first; the `check-action` description mentions concentration and spent actions again.
+- **Module:** new read-only bridge query `getSpentActions`.
+
+### Rules check
+
+- **Advice before you act:** with "AI Tool: Rules check" on, `use-item`, `request-attack-roll` (when the player name is a character and the weapon is one of its items) and a token move in `plan-token-change` now add the rules check to their reply (turn, cost, range, slots, uses). It only advises: nothing is refused or delayed, and with the switch off or on any error the reply is unchanged.
+- **Movement check:** a planned move in a fight is compared with the creature's walking speed (or best other speed): within speed passes, up to twice the speed needs the Dash action, beyond that is flagged. Distance is a straight line, so route, difficult terrain and movement already used this turn are not counted.
+- **Concentration:** `check-action` warns when a concentration spell would end the concentration the caster already holds, and says which spell.
+
+### Rules search (I-152)
+
+- **The DMG 2024 is searched by default:** it lives in the `aitool-content` "Books" pack, which
+  `search-rules` now reads with the other rules packs. `includeWorld` is only for the imported
+  adventure text, and the empty-result note says so.
+- **Faster after the cache expires:** a stale index answers at once and one rebuild runs in the
+  background, so a search no longer waits for a whole pack (the dashboard gave up after 15 s).
+- **Fewer wrong matches:** "cone" no longer finds "Con", "uses" no longer finds "us", and "ally"
+  finds "allies". Encoded `&lt;` and `&gt;` in rules text read as ‹ and › instead of a space.
+- **Settings hint** names the real default packs.
+
+### Tools (I-152)
+
+- **`search-rules` (core, read-only):** full-text search of rulebook journal pages and item, spell and feature descriptions, limited to an allowlist of packages (setting "Rules search packs"; default the Player's Handbook module, `aitool-content` and the dnd5e SRD). World journals and other packs are searched only when asked. Returns the page or item id with a short snippet; the full text comes from `get-compendium-item` or `list-journals`. The `rules-question` prompt now starts with it.
+
+### Voice (Backlog: danish-transcription-tuning, pipeline-vocab-productnames)
+
+- **Transcription default is now large-v3:** on six slices of the David GM test recording (Danish with
+  English game words) it spells Danish better than large-v3-turbo (judged by agreement and by reading, there is no reference text) and runs at 0.06 of real
+  time, so a 3 hour session takes about 11 minutes. Language stays `da`; the results table is in
+  `tools/voice-stack/README.md`.
+- **Hotwords are off by default:** `voice-stack.ps1 transcribe` passes `names.txt` to Whisper only with
+  `-Hotwords` (a short list did not clearly win). `names.txt` still feeds the pipeline's name fixes.
+- **Names the recogniser gets wrong are fixed after transcription:** the session pipeline ships rules
+  for KGM to co-GM, Strut to Strahd, Danny to Danni and Poundry to Foundry (`--no-product-rules` turns
+  them off, a session `rules.json` wins). Host names such as `kgm.example.com` are left alone.
+
+### Tarokka
+
+- **Clear a reading:** `plan-tarokka-import` takes `clear: true` to remove the current reading. It is
+  archived, not deleted, and Undo restores it, so a reading can be reset before a session.
+
+### Tarokka (tarokka-gm-choice)
+
+- **A reading the GM chooses:** `plan-tarokka-import` takes the five cards the GM picked (arguments
+  `tome`, `holySymbol`, `sunsword`, `ally`, `strahdLocation`) and stores them as the current
+  reading with no draw and without the tarokka-reading module. The Tarokka drawer has a **Choose the
+  cards…** form for it (open while **Show cards** is ticked). Cards are checked against their deck
+  and cannot repeat; the previous reading is archived and the change can be undone. Reveals already
+  go one position at a time.
+
+### Tarokka (I-101)
+
+- **Link suggestions find NPCs in page headings:** `suggest-tarokka-links` also matches headings inside journal pages and returns the page with `heading` and `anchor`, so an NPC that only exists as a heading can be found.
+
+### Tarokka (tarokka-table; D-130 step 2)
+
+- **A Tarokka card table in Foundry:** the AI Tool group in the scene controls has a **Tarokka
+  table** button (GM only). Place the five cards face down one at a time, flip them one at a time,
+  and **Show to players** opens the table on every player's screen: they see the backs of placed
+  cards and the faces of flipped ones, never the position names, the notes or a card that is not
+  flipped. Cards are drawn in CSS; a card can get a picture from the world's files. A flip is a
+  normal Tarokka reveal, so the dashboard drawer and the player page follow it. This replaces the
+  community module `tarokka-reading`.
+- **No more `tarokka-reading` import:** `plan-tarokka-import` no longer takes `source:
+"tarokka-reading"` or `userId`, the dashboard drawer lost its **Import from tarokka-reading**
+  button, and the "Offer this reading to the AI Tool?" dialog is gone. Roll a reading or choose the
+  five cards. Readings stored earlier from the module still open. Update the backend and the
+  module together: the module no longer answers the old `getTarokkaReading` query, so an older
+  backend rolling with `plan-tarokka-import {}` would fail against it.
+
+### Test servers
+
+- **Safer test server setup (PR #435 review lows):** `config.ps1` refuses a server Root that is, or
+  sits inside, another server's Root (they would share data and one lock). The start-of-session
+  alerts hook now reads server C's lock like B's ("Test server C lock"). The forbidden-port lists
+  of the voice stack, the LiveKit proof of concept and the Pi rebuild drill include test servers B
+  and C, a test checks that Plan B and those lists cover every port in `servers.json`, and the
+  `local.json` example names `local.B.json` / `local.C.json` with a free port.
+
+### Dashboard (I-127)
+
+- **Version tracker on by default:** the module version tracker shows in the dashboard header without
+  switching it on first. A stored prefs file without the setting reads as on; turning it off still
+  sticks.
+
+### Demo video
+
+- **Slower pace (video-voice):** `demo:compose` keeps the screen still for `HOLD_AFTER` (2 s) after a click, so a viewer can see its result before the next step starts. With narration at about 150 spoken words a minute the GM videos run about 2:45 and 4:00 (Danish) and 2:50 and 4:15 (English).
+
 ## v0.22.0 (released 2026-10-20): undo for everything, scene mood and restore, the NPC turn assistant, remote access, the pruned Pi build that follows release tags, Obsidian and test kit work
 
 **Unchanged:** the module id, the socket channel, the `foundry-mcp-bridge.*` method prefix, the settings

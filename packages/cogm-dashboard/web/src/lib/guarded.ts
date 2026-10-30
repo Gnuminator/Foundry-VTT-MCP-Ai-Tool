@@ -29,7 +29,7 @@ export const GAME_STATE_KEY = ['game'] as const;
 /** Opens the place where the GM turns GM Actions on; App provides it. */
 export const GmActionsGateContext = createContext<() => void>(() => undefined);
 
-const GATE_TEXT = 'GM Actions are off. Turn on for tonight in Pre-flight turns them on.';
+const GATE_TEXT = 'GM Actions are off. Start session or the header Turn on button turns them on.';
 
 /** What a plan-* tool answers (guarded-write/service.ts on the bridge); the fields used here. */
 interface Plan {

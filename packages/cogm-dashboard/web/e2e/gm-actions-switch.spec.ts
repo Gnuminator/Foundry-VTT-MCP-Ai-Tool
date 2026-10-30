@@ -57,7 +57,7 @@ test('a switch that is off is named, and the list turns everything on', async ({
   await page.goto(`/next/?token=${GM_TOKEN}`);
 
   const button = page.locator('#btn-gm');
-  await expect(button).toHaveText('GM Actions and Handouts (writes) are off: Turn on');
+  await expect(button).toHaveText('GM Actions and Handouts are off: Turn on');
   await button.click();
   const switches = page.getByRole('list', { name: 'Live play switches' });
   await expect(switches.getByRole('listitem')).toHaveCount(4);

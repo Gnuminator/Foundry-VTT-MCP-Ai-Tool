@@ -419,9 +419,12 @@ export function HandoutsDrawer({
             id="handouts-next"
             ref={nextRef}
             data-track="dash.handouts.reveal-next"
-            disabled={!next || revealing || moving || liveOff.length > 0}
+            disabled={!next || revealing || moving}
+            aria-disabled={liveOff.length > 0 ? 'true' : undefined}
             title={liveOff.length > 0 ? offReason(liveOff) : undefined}
-            onClick={revealNext}
+            onClick={() => {
+              if (liveOff.length === 0) revealNext();
+            }}
           >
             {next ? `Reveal next: ${next.title || 'Untitled'}` : 'Reveal next'}
           </Button>

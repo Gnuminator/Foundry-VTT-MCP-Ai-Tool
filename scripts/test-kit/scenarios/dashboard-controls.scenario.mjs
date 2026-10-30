@@ -96,7 +96,10 @@ export default {
             body: { action: 'set-gm-actions', value: true },
           });
           await page.waitForFunction(
-            () => /:\s*on/i.test(document.querySelector('#btn-gm')?.textContent ?? ''),
+            () => {
+              const t = document.querySelector('#btn-gm')?.textContent ?? '';
+              return t.trim() !== '' && !/GM Actions/i.test(t);
+            },
             undefined,
             { timeout: 10000 }
           );

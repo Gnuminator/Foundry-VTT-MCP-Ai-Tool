@@ -5,7 +5,7 @@ import type { JSX } from 'react';
 
 import type { Combatant } from '../lib/combat';
 import { useLivePlay } from '../lib/livePlay';
-import { offReason } from '../lib/liveSwitches';
+import { ROLL_NEEDS, offReason } from '../lib/liveSwitches';
 import { Button } from '../ui';
 import { QuickRollBar, useQuickRoll } from './QuickRoll';
 import { TurnOnNote } from './TurnOnNote';
@@ -23,7 +23,7 @@ export function StripRolls({
 }): JSX.Element | null {
   const roll = useQuickRoll();
   const live = useLivePlay();
-  const liveOff = live.off();
+  const liveOff = live.off(ROLL_NEEDS);
   if (party.length === 0) return null;
   const off = stale || roll.busy || liveOff.length > 0;
   const away = stale ? 'The bridge is away' : liveOff.length > 0 ? offReason(liveOff) : undefined;

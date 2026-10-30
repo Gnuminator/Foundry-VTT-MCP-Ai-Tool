@@ -36,7 +36,7 @@ export const PREFLIGHT_CLEAN = {
 const SWITCH_LIST = [
   { id: 'handouts', name: 'AI Tool: Handouts (writes)', on: true },
   { id: 'party', name: 'AI Tool: Party (writes)', on: true },
-  { id: 'live', name: 'AI Tool: Live play (writes)', on: false },
+  { id: 'live-play', name: 'AI Tool: Live play (writes)', on: false },
 ];
 
 export const SWITCHES_READY = {

@@ -447,7 +447,11 @@ test('Reveal next asks in one line, with no tick, and applies with the confirm f
   await expect.poll(() => loads(calls)).toBe(loaded + 2);
 });
 
-/** Reveal next with the apply refused as `message`; the switches list is what Pre-flight reads. */
+/**
+ * Reveal next with the apply refused as `message`; the switches list is what the toast reads. The
+ * list says Handouts is on (a stale read), so the button is not gated by the live play line and
+ * the click reaches the refusal.
+ */
 async function refusedReveal(page: Page, message: string, posts: unknown[] = []): Promise<void> {
   await fakeStream(page, gmActions(true));
   await page.route('**/api/session/switches', (route, request) => {
@@ -462,7 +466,7 @@ async function refusedReveal(page: Page, message: string, posts: unknown[] = [])
         switches: {
           switches: [
             { id: 'writes', name: 'Allow Write Operations', on: true },
-            { id: 'handouts', name: 'AI Tool: Handouts (writes)', on: false },
+            { id: 'handouts', name: 'AI Tool: Handouts (writes)', on: true },
           ],
         },
         gmActionsEnabled: true,

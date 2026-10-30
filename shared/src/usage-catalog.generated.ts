@@ -339,12 +339,6 @@ export const USAGE_CATALOG: readonly UsageCatalogEntry[] = [
     file: 'packages/cogm-dashboard/public/index.html',
   },
   {
-    name: 'dash.header.combat-buttons',
-    kind: 'action',
-    surface: 'dashboard',
-    file: 'packages/cogm-dashboard/public/index.html',
-  },
-  {
     name: 'dash.header.diag-ai',
     kind: 'action',
     surface: 'dashboard',

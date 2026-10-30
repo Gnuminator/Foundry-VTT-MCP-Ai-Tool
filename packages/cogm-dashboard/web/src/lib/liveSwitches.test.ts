@@ -14,11 +14,11 @@ describe('which switches a control still needs', () => {
   });
 
   it('names GM Actions first when it is off', () => {
-    expect(offSwitches(HANDOUT_NEEDS, false, list)).toEqual(['GM Actions', 'Handouts (writes)']);
+    expect(offSwitches(HANDOUT_NEEDS, false, list)).toEqual(['GM Actions', 'Handouts']);
   });
 
   it('ignores a switch the control does not need', () => {
-    expect(offSwitches(COMBAT_NEEDS, true, list)).not.toContain('Handouts (writes)');
+    expect(offSwitches(COMBAT_NEEDS, true, list)).not.toContain('Handouts');
   });
 
   it('ignores module switches until they are read', () => {

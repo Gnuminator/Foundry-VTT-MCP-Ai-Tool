@@ -18,7 +18,7 @@ export function LivePlayLine(): JSX.Element {
   const names = offSwitches(everything, gmActions, live.list);
   const rows = [
     { id: GM_ACTIONS, name: 'GM Actions', on: gmActions },
-    ...live.list.map(s => ({ id: s.id, name: s.name.replace(/^AI Tool: /, ''), on: s.on })),
+    ...live.list.map(s => ({ id: s.id, name: s.name.replace(/^AI Tool: /, '').replace(/ \(writes\)$/, ''), on: s.on })),
   ];
   return (
     <Popover

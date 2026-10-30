@@ -147,11 +147,27 @@ describe('readPrepNotes encounters', () => {
       'Prep/Encounters/A.sync-conflict-20261028-120000-ABC.md',
       doc(['type: encounter-prep'], block)
     );
-    await note('Prep/NPCs/N.md', doc(['type: npc-prep'], block));
+    await note('Prep/NPCs/N.md', doc(['type: npc-prep', 'ai_context: false'], block));
     const { part } = await read();
     expect(part.encounters).toBeUndefined();
-    expect(part.keptOut).toBe(1);
+    expect(part.keptOut).toBe(2);
     expect(JSON.stringify(part)).not.toContain(CANARY);
+  });
+
+  it('finds a block in a session plan, and counts a matched kept-out note once', async () => {
+    await note('Prep/Session 1.md', doc(['type: session-plan']));
+    await note(
+      'Prep/Encounters/Hidden.md',
+      doc(['type: encounter-prep', 'fvtt_uuid: Scene.s1', 'ai_context: false'])
+    );
+    const { part } = await readPrepNotes({
+      vaultDir,
+      worldId: WORLD,
+      wanted: [{ uuid: 'Scene.s1', reason: 'scene', matched: 'Village' }],
+      matchedAgainst: { scene: 'Village', tokens: 0, openQuests: 0 },
+    });
+    expect(part.encounters?.map(e => e.path)).toEqual(['Prep/Session 1.md']);
+    expect(part.keptOut).toBe(1);
   });
 
   it('caps the notes', async () => {

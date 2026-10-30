@@ -70,10 +70,10 @@ turn it on in Foundry's Game Settings, category **Foundry AI Tool**). **Undo** i
 removes the journal, and the same note cannot be imported twice until you do. A note with
 `ai_context` set to false is refused.
 
-**An encounter idea for Claude:** a note with `type` set to `encounter-prep` and a code block
-marked `encounter` (the Encounter template has one; it is the Initiative Tracker block) shows up
-for Claude as a suggested encounter, so you can ask "what do I have prepared for the goblins?"
-Claude only reads it; nothing is made in Foundry. Write the block like this:
+**An encounter idea for Claude:** a code block marked `encounter` (the Initiative Tracker block)
+in a prep note, for example one with `type` set to `encounter-prep` or in a session plan, shows
+up for Claude as a suggested encounter, so you can ask "what do I have prepared for the
+goblins?" Claude only reads it; nothing is made in Foundry. Write the block like this:
 
 ````markdown
 ```encounter

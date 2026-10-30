@@ -53,6 +53,8 @@ export const PREP_NOTE_READ_BYTES = 65_536;
 const UUID_READ_BYTES = 16_384;
 
 const READ_CONCURRENCY = 16;
+/** Notes opened to look for encounter blocks. */
+const ENCOUNTER_SCAN_MAX_NOTES = 100;
 /** The tool's own folder (mirror, session notes, stats): never the GM's prep. */
 const TOOL_FOLDER = MIRROR_ROOT.split('/')[0] ?? MIRROR_ROOT;
 const SYNC_CONFLICT = /\.sync-conflict-/i;
@@ -362,6 +364,7 @@ export async function readPrepNotes(input: ReadPrepNotesInput): Promise<ReadPrep
     for (const { note, index } of matches) {
       if (isOff(note.head.ai_context)) {
         keptOut++;
+        keptOutPaths.add(note.path);
         continue;
       }
       const wanted = input.wanted[index];
@@ -402,17 +405,24 @@ export async function readPrepNotes(input: ReadPrepNotesInput): Promise<ReadPrep
     });
   }
 
-  // Suggested encounters: `encounter` blocks in encounter-prep notes the GM lets the AI read.
+  // Suggested encounters: `encounter` blocks in any prep note the GM lets the AI read, the
+  // encounter-prep notes first (a block may sit in a session plan too).
   const encounters: PrepEncounterNote[] = [];
-  const encounterNotes = candidates
-    .filter(c => c.head.type === 'encounter-prep')
-    .sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
+  const rank = (c: Candidate): number => (c.head.type === 'encounter-prep' ? 0 : 1);
+  const encounterNotes = [...candidates].sort(
+    (a, b) => rank(a) - rank(b) || (a.path < b.path ? -1 : a.path > b.path ? 1 : 0)
+  );
+  let looked = 0;
   for (const note of encounterNotes) {
     if (isOff(note.head.ai_context)) {
-      if (!keptOutPaths.has(note.path)) keptOut++;
+      if (!keptOutPaths.has(note.path)) {
+        keptOut++;
+        keptOutPaths.add(note.path);
+      }
       continue;
     }
-    if (encounters.length >= PREP_ENCOUNTERS_MAX) break;
+    if (encounters.length >= PREP_ENCOUNTERS_MAX || looked >= ENCOUNTER_SCAN_MAX_NOTES) break;
+    looked++;
     try {
       const { text } = await readHead(`${walked.root}/${note.path}`, PREP_NOTE_READ_BYTES);
       const found = parseEncounterBlocks(text, path.posix.basename(note.path, '.md'));

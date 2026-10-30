@@ -1,6 +1,9 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { combatIdsFor, readFoundryTargets, targetValues, targetsNote } from './foundryTargets';
+
+// The pure helpers under test never call the API; the real module reads `location` on import.
+vi.mock('./api', () => ({ callTool: vi.fn() }));
 
 const tok = (n: number): { tokenId: string; name: string; actorId: string } => ({
   tokenId: `t${n}`,

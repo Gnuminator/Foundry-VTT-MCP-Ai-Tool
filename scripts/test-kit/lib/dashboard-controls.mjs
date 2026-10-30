@@ -123,6 +123,23 @@ export const DASHBOARD_CONTROLS = [
   { name: 'dash.header.handouts', how: 'open', reach: [ADV], expect: '#handouts-drawer' },
   { name: 'dash.header.tarokka', how: 'open', reach: [ADV], expect: '#tarokka-drawer' },
   { name: 'dash.header.paper', how: 'skip', why: NEW_ONLY },
+
+  // --- the live strip (/next?strip=1; the e2e spec live-strip.spec.ts and the live check cover it) ---
+  ...[
+    'dash.live.clear',
+    'dash.live.condition',
+    'dash.live.end-combat',
+    'dash.live.next-turn',
+    'dash.live.pan',
+    'dash.live.pick',
+    'dash.live.show-handout',
+    'dash.live.undo',
+    'dash.quickroll.again',
+  ].map(name => ({
+    name,
+    how: 'skip',
+    why: 'only on the live strip page (/next?strip=1); the e2e spec and the live check cover it',
+  })),
   {
     name: 'dash.header.version-tracker',
     how: 'skip',

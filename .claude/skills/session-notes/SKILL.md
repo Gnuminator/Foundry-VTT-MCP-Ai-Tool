@@ -6,7 +6,9 @@ description: Write the notes for a recorded play session - cleaned transcript, p
 # Session notes (manual run)
 
 The normal path is automatic: after `/record stop` the bot converts the audio, the transcriber and
-the session pipeline build `timeline/timeline.jsonl`, and a scheduled task runs the notes writer.
+the session pipeline build `timeline/timeline.jsonl`, and the hourly Windows task (`tools/session-notes/register-auto.ps1`) runs `auto.ps1`, which
+transcribes and writes the notes. It does nothing for a session unless every speaker has a recorded
+yes (`python -m session_notes consent check <session>`; `consent set <id> yes` records one).
 Use this skill when that did not happen or stopped half way.
 
 ## Steps

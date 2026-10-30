@@ -296,7 +296,8 @@ helper for those elements.
   `dashboard-visual-shard`, 4 parallel shards; the check `dashboard-visual (screenshots)` sums
   them up). A diff fails a shard. The report with the expected, actual and diff
   images is one artifact per shard, `dashboard-visual-report-1` to `-4`, on the run's summary page (kept 14 days). The
-  job is advisory: it is not in the required checks. After a Playwright bump, change the image
+  checks are not in the ruleset's required list, but the merge gate refuses any red check, so a
+  red shard blocks the merge. After a Playwright bump, change the image
   tag in `.github/workflows/ci.yml` too (the job's first step fails with a message when they
   differ) and refresh the baselines.
 

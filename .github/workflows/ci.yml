@@ -316,7 +316,7 @@ jobs:
         run: node scripts/validate-manifest.js
 
   visual-changes:
-    # Decides whether dashboard-visual is worth its 2.5 minutes and image pull: only when the
+    # Decides whether dashboard-visual is worth its 5 minutes and image pull: only when the
     # dashboard package, the lockfile or this workflow changed. A job inside one workflow cannot
     # use `on.paths` (that would skip the whole workflow), so this job reads the diff itself, with
     # plain git and no third-party action. On a pull request the checkout is the merge commit, and
@@ -355,9 +355,10 @@ jobs:
     # accessibility check, and (UI-03) a shot and an axe check of every Storybook story, under
     # web/visual/__screenshots__/stories. The baselines are Linux-only, made in this same
     # Playwright image (the image tag must be the installed @playwright/test version; the first
-    # step checks it). It runs as 4 parallel shards (--shard=i/4; fullyParallel spreads the tests
-    # evenly; about 835 shots took 14 minutes in one job). The summary job below keeps the one
-    # check name `dashboard-visual (screenshots)` that the merge gate knows. Not a required check in the ruleset, but a diff fails the job (no
+    # step checks it). It runs as 4 parallel shards (--shard=i/4; fullyParallel splits the tests
+    # evenly by count; about 835 shots took 14 minutes in one job, the shards about 5). The summary
+    # job below keeps one check under the old name `dashboard-visual (screenshots)` for people and
+    # the lane skill; the gate judges every check, shards included. Not a required check in the ruleset, but a diff fails the job (no
     # continue-on-error) and the merge gate (scripts/lane-merge.mjs) refuses any check that is not
     # green, so a red dashboard-visual blocks the merge. The report with the diff images is kept as an artifact. Refresh the
     # baselines with `npm run test:visual:update -w @gnuminator/cogm-dashboard` (Docker; see the
@@ -425,7 +426,7 @@ jobs:
           retention-days: 14
 
   dashboard-visual:
-    # The one check name the merge gate knows: green when every shard passed or the path filter
+    # One summary check under the old name: green when every shard passed or the path filter
     # skipped them (a skipped check counts as green in scripts/lane-merge.mjs), red when a shard
     # failed or was cancelled. !cancelled() so it still runs, and fails, after a red shard.
     needs: [visual-changes, dashboard-visual-shard]

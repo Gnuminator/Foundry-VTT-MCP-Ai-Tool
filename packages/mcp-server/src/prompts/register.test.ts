@@ -6,10 +6,13 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
-import { Client } from '@modelcontextprotocol/sdk/client/index.js';
-import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
-import { Server } from '@modelcontextprotocol/sdk/server/index.js';
-import { ErrorCode, McpError } from '@modelcontextprotocol/sdk/types.js';
+import { Client } from '@modelcontextprotocol/client';
+import {
+  InMemoryTransport,
+  ProtocolError,
+  ProtocolErrorCode,
+  Server,
+} from '@modelcontextprotocol/server';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { PROMPTS, getPrompt } from './index.js';
@@ -77,21 +80,21 @@ describe('prompts over MCP', () => {
 
   it('answers a missing required argument with an invalid-params error', async () => {
     const error = await client.getPrompt({ name: 'reveal-handout' }).catch((e: unknown) => e);
-    expect(error).toBeInstanceOf(McpError);
-    expect((error as McpError).code).toBe(ErrorCode.InvalidParams);
-    expect((error as McpError).message).toContain('Missing required argument "page"');
+    expect(error).toBeInstanceOf(ProtocolError);
+    expect((error as ProtocolError).code).toBe(ProtocolErrorCode.InvalidParams);
+    expect((error as ProtocolError).message).toContain('Missing required argument "page"');
   });
 
   it('answers an unknown prompt or argument with an invalid-params error', async () => {
     const unknown = await client.getPrompt({ name: 'nope' }).catch((e: unknown) => e);
-    expect((unknown as McpError).code).toBe(ErrorCode.InvalidParams);
-    expect((unknown as McpError).message).toContain('Unknown prompt "nope"');
+    expect((unknown as ProtocolError).code).toBe(ProtocolErrorCode.InvalidParams);
+    expect((unknown as ProtocolError).message).toContain('Unknown prompt "nope"');
 
     const badArg = await client
       .getPrompt({ name: 'encounter-check', arguments: { room: 'x' } })
       .catch((e: unknown) => e);
-    expect((badArg as McpError).code).toBe(ErrorCode.InvalidParams);
-    expect((badArg as McpError).message).toContain('Unknown argument "room"');
+    expect((badArg as ProtocolError).code).toBe(ProtocolErrorCode.InvalidParams);
+    expect((badArg as ProtocolError).message).toContain('Unknown argument "room"');
   });
 });
 

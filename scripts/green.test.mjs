@@ -760,6 +760,16 @@ test('main --quick: no base ref is an error, not "nothing to check"', () => {
   assert.match(lines.at(-1), /found no base/);
 });
 
+test('main --quick --list: lists the quick steps, and no base is an error too', () => {
+  const lines = [];
+  const base = { argv: ['--quick', '--list'], cwd: os.tmpdir(), note: null, log: l => lines.push(l) };
+  assert.equal(main({ ...base, changed: ['shared/src/a.ts'] }), 0);
+  assert.deepEqual(lines, ['build-shared', 'typecheck-all', 'unit-shared']);
+  lines.length = 0;
+  assert.equal(main({ ...base, changed: null }), 2);
+  assert.match(lines.at(-1), /found no base/);
+});
+
 test('quickSteps: a deleted package file still triggers that package', () => {
   assert.deepEqual(quickNames(['packages/mcp-server/src/gone.ts']), [
     'build-shared',

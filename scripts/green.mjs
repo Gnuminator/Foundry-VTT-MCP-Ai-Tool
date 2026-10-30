@@ -924,17 +924,19 @@ export function main(options = {}) {
     return 2;
   }
   if (opts.list) {
-    if (opts.quick) {
-      for (const s of quickSteps(options.changed ?? changedFiles(cwd) ?? [], cwd)) log(s.name);
+    if (!opts.quick) {
+      for (const s of stepsOption) log(s.name);
       return 0;
     }
-    for (const s of stepsOption) log(s.name);
-    return 0;
   }
   const changed = opts.quick ? (options.changed !== undefined ? options.changed : changedFiles(cwd)) : [];
   if (changed === null) {
     log('green: --quick found no base (aitool/main, origin/main, main); git fetch aitool first');
     return 2;
+  }
+  if (opts.list) {
+    for (const s of quickSteps(changed, cwd)) log(s.name);
+    return 0;
   }
   const steps = opts.quick ? quickSteps(changed, cwd) : stepsOption;
   if (opts.quick && steps.length === 0) {

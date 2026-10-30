@@ -1140,19 +1140,25 @@ export class PlayerRollsDataAccess {
     const searchTerm = targetPlayer.toLowerCase().trim();
     const allUsers = Array.from(game.users?.values() || []);
 
-    // 1) Registered user by name (exact wins over partial).
-    const userByName =
-      allUsers.find((u: User) => u.name?.toLowerCase() === searchTerm) ??
-      allUsers.find((u: User) => Boolean(u.name?.toLowerCase().includes(searchTerm)));
-    if (userByName) {
-      return this.resultForUser(userByName);
+    // 1) Registered user by exact name, then a player-owned character by exact name: a partial
+    //    user match never beats an exact character (character "Mira", user "Miranda").
+    const exactUser = allUsers.find((u: User) => u.name?.toLowerCase() === searchTerm);
+    if (exactUser) {
+      return this.resultForUser(exactUser);
+    }
+    const exactCharacter = game.actors?.find(
+      (actor: Actor) => actor.name?.toLowerCase() === searchTerm && actor.hasPlayerOwner
+    );
+    const partialUser = exactCharacter
+      ? undefined
+      : allUsers.find((u: User) => Boolean(u.name?.toLowerCase().includes(searchTerm)));
+    if (partialUser) {
+      return this.resultForUser(partialUser);
     }
 
-    // 2) Player-owned character by name (exact wins over partial).
+    // 2) Player-owned character by partial name.
     const character =
-      game.actors?.find(
-        (actor: Actor) => actor.name?.toLowerCase() === searchTerm && actor.hasPlayerOwner
-      ) ??
+      exactCharacter ??
       game.actors?.find((actor: Actor) =>
         Boolean(actor.name?.toLowerCase().includes(searchTerm) && actor.hasPlayerOwner)
       );

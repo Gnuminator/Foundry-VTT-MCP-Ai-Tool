@@ -1337,6 +1337,31 @@ a hand edit would be lost, the snapshot has it). Nothing else is touched and not
 - **Undo:** the same pipe with `UNDO=1` (back to DietPi's mode 2).
 - Tests: `scripts/pi/time-sync.test.mjs` (the stage in bash with stand-ins for systemctl, timedatectl and DietPi's tool).
 
+## Join page look (stage 19)
+
+The page players see before they log in (`/join`) shows the world's Background Image, Join Page Theme, Next
+Session and World Description; all four are world settings (Game Settings, World Configuration), no code. For
+the Curse of Strahd world on the Pi two scripts set them, in this order, each after a `dietpi-backup` snapshot
+and the user's OK. The image is campaign art: it stays on the PC and the Pi, never in the repo or the vault.
+
+1. **Stage 19** (`scripts/pi/remote/19-join-image.sh`) puts the webp into `worlds/curse-of-strahd/join-background.webp`
+   as the foundry user (mode 644). It is a stage and not part of the GM script because `gm-script.sh` limits a script
+   file to 1 MB and a base64 copy of a 0.9 MB webp is 1.3 MB. It checks the file (regular file, webp, at most 5 MB,
+   `EXPECT_SHA256`), keeps a different existing file as `.old` only with `REPLACE=1`, and changes nothing when the
+   same file is already there.
+   `scp join-bg.webp foundry-pi:/root/`, then
+   `cat scripts/pi/remote/lib.sh scripts/pi/remote/19-join-image.sh | ssh foundry-pi 'IMAGE_SRC=/root/join-bg.webp EXPECT_SHA256=<sha> DRY_RUN=1 bash -s'`
+   (without `DRY_RUN=1` for the real run; `UNDO=1` removes it again).
+2. **The GM script** `scripts/pi/gm-scripts/join-page-look.js` (see "GM scripts" above) checks that the image is
+   served (HEAD), then posts `editWorld` with the background path and the description. Join Page Theme and Next
+   Session are sent back unchanged and the script stops with an error if they changed. Its dry run reads the
+   current values and the image's size and writes nothing. To change the description (Danni sends his own text
+   later) edit `DESC` in the script and dry-run the new file.
+
+Undo: clear Background Image and paste the old description back (the log of the run has the "before" values), or
+run the script again with those values, then stage 19 with `UNDO=1`. Check the result logged out (a private window).
+Tests: `scripts/pi/join-image.test.mjs`.
+
 ## Where things live on the Pi
 
 | What                                                         | Where                                                                                                                      |

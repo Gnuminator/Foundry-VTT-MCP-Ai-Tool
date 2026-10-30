@@ -287,9 +287,17 @@ function ActionBar({
 }): JSX.Element {
   const off = stale ? ('true' as const) : undefined;
   const away = stale ? 'The bridge is away' : undefined;
+  // Held here, not in the button: the button remounts when the pick goes from none to some.
+  const [targetsNote, setTargetsNote] = useState('');
   const foundryButton = (
     <Suspense fallback={null}>
-      <FoundryTargetsButton combatants={combatants} stale={stale} onPick={onPick} />
+      <FoundryTargetsButton
+        combatants={combatants}
+        stale={stale}
+        onPick={onPick}
+        note={targetsNote}
+        onNote={setTargetsNote}
+      />
     </Suspense>
   );
   const endButton = (

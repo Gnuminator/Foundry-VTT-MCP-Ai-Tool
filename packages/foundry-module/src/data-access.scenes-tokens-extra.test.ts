@@ -492,6 +492,28 @@ describe('FoundryDataAccess — getTargets', () => {
     }
   });
 
+  it('falls back to the targets of the other active GMs when this user has none', async () => {
+    const tok = { id: 'tk9', name: 'Orc', actor: null };
+    const g = (globalThis as any).game;
+    const prevUsers = g.users;
+    g.users = {
+      ...prevUsers,
+      filter: (fn: (u: any) => boolean) =>
+        [
+          { id: 'gm2', isGM: true, active: true, targets: new Set([tok]) },
+          { id: 'gm3', isGM: true, active: true, targets: new Set([tok]) },
+          { id: 'gm4', isGM: true, active: false, targets: new Set([{ id: 'x', name: 'X' }]) },
+          { id: 'pl', isGM: false, active: true, targets: new Set([{ id: 'y', name: 'Y' }]) },
+        ].filter(fn),
+    };
+    try {
+      const result = await da.getTargets();
+      expect(result.targets.map((t: any) => t.tokenId)).toEqual(['tk9']);
+    } finally {
+      g.users = prevUsers;
+    }
+  });
+
   it('maps the user targets to token id / actor / ac / hp', async () => {
     (globalThis as any).game.user.targets = new Set([
       {

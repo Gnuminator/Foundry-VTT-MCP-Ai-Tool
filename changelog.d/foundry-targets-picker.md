@@ -8,4 +8,6 @@
 ### Module
 
 - `get-targets` also returns `selected`, the tokens selected on the canvas, in the same shape as
-  `targets`.
+  `targets`. It also reads the targets of the other active GMs when the bridge user has none, so it
+  works when the bridge runs in another GM's browser; `selected` is local to the bridge's browser
+  and only reflects the GM when the bridge runs in the GM's own.

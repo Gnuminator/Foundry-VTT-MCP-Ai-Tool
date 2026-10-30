@@ -1,7 +1,7 @@
 // The combat strip's "Use Foundry targets" button (item foundry-targets-picker): picks the
 // combatants whose tokens the GM has targeted (else selected) in Foundry. A lazy chunk of its own
 // (first-load budget). It only reads; the pick feeds Damage / Heal and the roll row.
-import { useState, type JSX } from 'react';
+import type { JSX } from 'react';
 
 import { errorText } from '../lib/api';
 import { combatIdsFor, fetchFoundryTargets, targetsNote } from '../lib/foundryTargets';
@@ -10,12 +10,16 @@ export function FoundryTargetsButton({
   combatants,
   stale,
   onPick,
+  note,
+  onNote: setNote,
 }: {
   combatants: ReadonlyArray<{ id: string; tokenId: string | null }>;
   stale: boolean;
   onPick: (ids: string[]) => void;
+  /** The last result line; kept by the caller so it survives this button remounting. */
+  note: string;
+  onNote: (note: string) => void;
 }): JSX.Element {
-  const [note, setNote] = useState('');
   const away = stale ? 'The bridge is away' : undefined;
   const run = (): void => {
     setNote('Reading Foundry…');

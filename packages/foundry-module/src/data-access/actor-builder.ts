@@ -1670,7 +1670,12 @@ export class ActorBuilderDataAccess {
     let targetAC = data.targetAC ?? null;
     let targetName: string | null = null;
     try {
-      const userTargets = Array.from((game.user as User | undefined)?.targets ?? []);
+      // The bridge user's targets, else an active GM's (the bridge may run in another browser).
+      const userTargets = shared.currentTargetTokens<{
+        id: string;
+        name?: string;
+        actor?: { system?: { attributes?: { ac?: { value?: number | null } } } } | null;
+      }>();
       if (userTargets.length > 0) {
         const tt = userTargets[0];
         targetName = tt.name ?? null;

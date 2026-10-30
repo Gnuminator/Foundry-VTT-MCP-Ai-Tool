@@ -16,11 +16,11 @@ what the conversation needs. The switches are remembered for new chats.
 | --------- | -------------------- | ----- | ----------------- | -------------------------------------------------------------------------------------------- |
 | **core**  | `foundry-mcp`        | 24    | about 18,400      | Looking things up, and reviewing, applying or undoing planned changes. Always on.            |
 | **play**  | `foundry-mcp-play`   | 37    | about 41,000      | Running the table live: tokens, combat, rolls, damage, conditions, chat, mood, loot.         |
-| **prep**  | `foundry-mcp-prep`   | 20    | about 22,150      | Prep and recaps: quests, journals, encounter budgets, Tarokka, handouts, session log, stats. |
+| **prep**  | `foundry-mcp-prep`   | 20    | about 22,200      | Prep and recaps: quests, journals, encounter budgets, Tarokka, handouts, session log, stats. |
 | **build** | `foundry-mcp-build`  | 8     | about 28,800      | Making NPCs, monsters and items, from a compendium or from scratch; room setup.              |
 | **admin** | `foundry-mcp-admin`  | 9     | about 7,800       | Modules and their errors, actor ownership, the Obsidian mirror.                              |
 
-A prep chat with core and prep on carries about 40,500 characters instead of 118,200. Core alone is
+A prep chat with core and prep on carries about 40,600 characters instead of 118,300. Core alone is
 about 15% of everything.
 
 The dashboard is not affected: it reads the bridge directly and always has every tool.

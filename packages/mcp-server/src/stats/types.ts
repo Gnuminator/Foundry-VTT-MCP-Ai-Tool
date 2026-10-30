@@ -88,6 +88,14 @@ export interface SessionStats {
   rolls: number;
   crits: number;
   fumbles: number;
+  /**
+   * The same three numbers counting only rolls whose play record says `visibility: 'public'`
+   * (blind, GM, self and unrecorded rolls are left out). The only session roll counts that may
+   * go to the players' Discord channel.
+   */
+  publicRolls: number;
+  publicCrits: number;
+  publicFumbles: number;
   spellsCast: number;
   spellSlotsSpent: number;
   resourcesSpent: number;

@@ -109,6 +109,16 @@ interface TargetToken {
   hp: HpSnapshot | null;
 }
 
+/** A targeted or controlled token, as `getTargets` reads it. */
+interface TargetSource {
+  id: string;
+  name: string;
+  actor?: {
+    id?: string;
+    system?: { attributes?: { ac?: { value?: number | null }; hp?: Dnd5eHitPoints } };
+  } | null;
+}
+
 /** The `getTargets` result. `selected` is what the GM has selected on the canvas (not targeted). */
 interface TargetsResult {
   success: true;
@@ -522,34 +532,17 @@ export class ScenesTokensDataAccess {
   async getTargets(): Promise<TargetsResult> {
     shared.validateFoundryState();
 
-    const toToken = (t: {
-      id: string;
-      name: string;
-      actor?: {
-        id?: string;
-        system?: { attributes?: { ac?: { value?: number | null }; hp?: Dnd5eHitPoints } };
-      } | null;
-    }): TargetToken => ({
+    const toToken = (t: TargetSource): TargetToken => ({
       tokenId: t.id,
       name: t.name,
       actorId: t.actor?.id ?? null,
       ac: t.actor?.system?.attributes?.ac?.value ?? null,
       hp: this.hpSnapshot(t.actor?.system?.attributes?.hp),
     });
-    // The bridge may run in another GM's browser (`bridgeUserId`, "Any GM"). Foundry syncs
-    // every user's targets to all clients, so when this user has none, take the active GMs'.
-    // It only does so when this browser shows the same scene as that GM.
+    // Targets fall back to the active GMs' when the bridge user has none (shared.currentTargetTokens).
     // Canvas selection (`selected` below) is local to this browser: it only reflects the GM
     // when the bridge runs in the GM's own browser.
-    let targets = Array.from(game.user?.targets ?? []);
-    if (targets.length === 0) {
-      const gms = (game.users?.filter(u => u.isGM && u.active && u.id !== game.user?.id) ??
-        []) as Array<{ targets?: Iterable<(typeof targets)[number]> }>;
-      const seen = new Set<string>();
-      targets = gms
-        .flatMap(u => Array.from(u.targets ?? []))
-        .filter(t => !seen.has(t.id) && seen.add(t.id));
-    }
+    const targets = shared.currentTargetTokens<TargetSource>();
     // `typeof` guard: headless callers (tests) may have no `canvas` global at all.
     const controlled =
       typeof canvas === 'undefined' ? [] : Array.from(canvas?.tokens?.controlled ?? []);

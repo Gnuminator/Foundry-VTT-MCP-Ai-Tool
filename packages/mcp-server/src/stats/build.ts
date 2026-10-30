@@ -591,6 +591,9 @@ function buildSession(
   let rolls = 0;
   let crits = 0;
   let fumbles = 0;
+  let publicRolls = 0;
+  let publicCrits = 0;
+  let publicFumbles = 0;
   let spellsCast = 0;
   let itemsUsed = 0;
   let spellSlotsSpent = 0;
@@ -638,6 +641,11 @@ function buildSession(
         rolls++;
         if (record.roll?.crit) crits++;
         if (record.roll?.fumble) fumbles++;
+        if (record.data?.visibility === 'public') {
+          publicRolls++;
+          if (record.roll?.crit) publicCrits++;
+          if (record.roll?.fumble) publicFumbles++;
+        }
         if (record.userId) userIds.add(record.userId);
         const results = d20Results(record);
         for (const v of results) if (v >= 1 && v <= 20) ctx.dice.d20[v - 1] += 1;
@@ -908,6 +916,9 @@ function buildSession(
     rolls,
     crits,
     fumbles,
+    publicRolls,
+    publicCrits,
+    publicFumbles,
     spellsCast,
     spellSlotsSpent,
     resourcesSpent,

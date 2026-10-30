@@ -180,6 +180,39 @@ describe('FoundryDataAccess — useNpcActivity', () => {
     expect(result.hit).toBe(true); // 16 >= 15
   });
 
+  it('takes the target from another active GM when the bridge user has none', async () => {
+    const { item } = attackItem({ attack: { total: 16, formula: '1d20+4' }, damage: { total: 6 } });
+    npcWith('Bandit', [item]);
+    const g = (globalThis as any).game;
+    const prevUsers = g.users;
+    g.users = {
+      ...prevUsers,
+      filter: (fn: (u: any) => boolean): unknown[] =>
+        [
+          {
+            id: 'gm2',
+            isGM: true,
+            active: true,
+            targets: new Set([
+              {
+                id: 'tk1',
+                name: 'Goblin',
+                actor: { system: { attributes: { ac: { value: 15 } } } },
+              },
+            ]),
+          },
+        ].filter(fn),
+    };
+    try {
+      const result = await da.useNpcActivity({ actorName: 'Bandit', itemName: 'Claw' });
+      expect(result.targetName).toBe('Goblin');
+      expect(result.targetAC).toBe(15);
+      expect(result.hit).toBe(true);
+    } finally {
+      g.users = prevUsers;
+    }
+  });
+
   it('falls back to using the item (no attack) when it has no attack activity', async () => {
     const use = vi.fn(() => Promise.resolve({}));
     const item = makeItem({

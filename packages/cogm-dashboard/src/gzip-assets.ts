@@ -41,7 +41,14 @@ export interface GzipAssetsOptions {
  * differ. A failed compression falls back to the plain answer.
  */
 export async function sendJsonGzip(req: Request, res: Response, payload: unknown): Promise<void> {
-  const text = JSON.stringify(payload);
+  let text: string;
+  try {
+    text = JSON.stringify(payload);
+  } catch {
+    // What res.json would have turned into a 500; an async caller must not reject instead.
+    res.status(500).json({ error: 'Could not serialise the answer' });
+    return;
+  }
   res.vary('Accept-Encoding');
   res.type('application/json; charset=utf-8');
   if (Buffer.byteLength(text) < MIN_BYTES || req.acceptsEncodings('gzip', 'identity') !== 'gzip') {

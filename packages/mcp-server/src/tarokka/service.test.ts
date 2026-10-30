@@ -514,6 +514,19 @@ describe('reveal', () => {
     expect((await tarokka.getReading()).reading!.positions[0].revealed).toBe(false);
   });
 
+  it('pins the card too: the same reading with another card here writes nothing', async () => {
+    const plan = await tarokka.planReveal({ position: 'tome', text: 'One.' });
+    await store.update<any>(WORLD, 'gm', TAROKKA_FILE, 1, current => {
+      const data = current!.data;
+      data.current.positions.tome.cardId = 'stars-5';
+      return data;
+    });
+    await expect(apply(plan.planId, true)).rejects.toThrow(
+      /Conflict, nothing was written: tarokka\.json current\.positions\.tome\.cardId changed since/
+    );
+    expect(foundry.docs.has(plan.pageUuid)).toBe(false);
+  });
+
   it('pins the reading for a re-reveal too (no vault ops of its own)', async () => {
     const first = await tarokka.planReveal({ position: 'tome', text: 'One.' });
     await apply(first.planId, true);

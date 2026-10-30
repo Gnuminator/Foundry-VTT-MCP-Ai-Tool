@@ -27,7 +27,8 @@
  *   the next run and to runs already waiting, with no restart of Claude Desktop.
  * - Free RAM: the first slot is always free to take; another one only while the PC has, for each
  *   run that holds a slot, the part of its `peakGb` it has not used yet (estimated from the fall in
- *   free RAM since it was admitted), plus `minFreeGb` for everything else. Both can be set in
+ *   free RAM since it was admitted), plus `minFreeGb` for everything else (the new run's own growth is covered by that reserve, not counted
+ *   on its own: the user, 2026-10-30, would rather have it start than wait). They can be set in
  *   the file (defaults below, from a measured green run).
  * - Re-entrant through the environment: the holder sets HEAVY_LOCK_HELD for its children, so
  *   `green` holding the lock for a step that runs `npm run lint:ratchet` does not wait on itself.
@@ -71,10 +72,12 @@ const TICKET_TOUCH_MS = 30 * 1000;
 const TICKET_STALE_MS = 5 * 60 * 1000;
 const GB = 2 ** 30;
 // peakGb: one green alone peaked at 5.2 GB (the Playwright e2e step; lint-ratchet 3.3 GB), 2026-10-30.
-// lightPeakGb: pre-push and lint-ratchet holders: lint-ratchet peaked at 3.3 GB (2026-10-30), plus margin;
-// pre-push (ratchets and typecheck) was not measured on its own.
+// lightPeakGb: lint-only holders (lint-ratchet peaked at 3.3 GB, 2026-10-30, plus margin). pre-push also
+// typechecks and was not measured on its own, so it counts at peakGb.
 /** Holders that run lint or the ratchets only: they count at lightPeakGb. */
-const LIGHT_LABEL = /^(pre-push|lint-ratchet|drift-check lint)/;
+const LIGHT_LABEL = /^(lint-ratchet|drift-check lint)/;
+/** A holder is never counted as having used all of its peak: the fall in free RAM also holds other programs growing. */
+const HOLDER_FLOOR_GB = 1;
 export const DEFAULTS = { slots: 3, minFreeGb: 2, peakGb: 5, lightPeakGb: 3.5, maxWaitMin: 180 };
 
 /** @param {Record<string, string | undefined>} [env] */
@@ -254,13 +257,14 @@ function liveTickets(qdir, now, alive) {
  * estimated as the fall in free RAM since the oldest holder was admitted (it recorded freeGb),
  * credited once: the same fall also holds what later holders use. An owner without freeGb, or a slot
  * just created, counts at its full peak and gets no credit. The fall also holds other programs
- * growing, which minFreeGb has to cover.
+ * growing, so each credited holder keeps at least HOLDER_FLOOR_GB reserved.
  * @param {{ state: Owner | 'unknown' }[]} held
  * @param {{ peakGb: number, lightPeakGb: number }} cfg @param {number} freeGb
  * @returns {number}
  */
 export function pendingGb(held, cfg, freeGb) {
   let credited = 0;
+  let creditedCount = 0;
   let plain = 0;
   let earliest = null;
   for (const { state } of held) {
@@ -274,10 +278,11 @@ export function pendingGb(held, cfg, freeGb) {
       continue;
     }
     credited += peak;
+    creditedCount++;
     if (!earliest || (state.since ?? state.start) < (earliest.since ?? earliest.start)) earliest = state;
   }
   const used = earliest ? Math.max(0, /** @type {number} */ (earliest.freeGb) - freeGb) : 0;
-  return plain + Math.max(0, credited - used);
+  return plain + Math.max(Math.min(credited, creditedCount * HOLDER_FLOOR_GB), credited - used);
 }
 
 /** @param {number} bytes */
@@ -494,7 +499,7 @@ export function status(env = process.env, now = Date.now(), alive = pidAlive, fr
   const dir = lockDir(env);
   const cfg = readConfig(env);
   const lines = [
-    `settings: ${cfg.slots} slots (from ${cfg.slotsFrom === 'file' ? configPath(env) : cfg.slotsFrom}), another run needs ${cfg.peakGb} GB (${cfg.lightPeakGb} for pre-push and lint-ratchet) per running one, less what it uses already, plus ${cfg.minFreeGb} GB free, ${gb(freemem())} GB free now`,
+    `settings: ${cfg.slots} slots (from ${cfg.slotsFrom === 'file' ? configPath(env) : cfg.slotsFrom}), another run needs what each running one still has to grow to its peak (${cfg.peakGb} GB, ${cfg.lightPeakGb} for lint-only runs), plus ${cfg.minFreeGb} GB free, ${gb(freemem())} GB free now`,
   ];
   /** @type {Map<number, Owner>} */
   const owners = new Map();

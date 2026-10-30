@@ -226,7 +226,7 @@ test('withHeavyLock sets the held marker for the work and does not wait on itsel
 test('status lists the settings, free and held slots, and who waits', () => {
   const { dir, env } = fixture();
   const lines = status(env, Date.now(), pidAlive, () => 8 * GB);
-  assert.match(lines[0], /^settings: 1 slots \(from env\), another run needs 5 GB \(3\.5 for pre-push and lint-ratchet\) per running one, less what it uses already, plus 2 GB free, 8\.0 GB free now$/);
+  assert.match(lines[0], /^settings: 1 slots \(from env\), another run needs what each running one still has to grow to its peak \(5 GB, 3\.5 for lint-only runs\), plus 2 GB free, 8\.0 GB free now$/);
   assert.deepEqual(lines.slice(1), ['slot-0: free']);
   const lock = acquire('s', { env, log: () => {} });
   lock.beat('typecheck');
@@ -337,14 +337,17 @@ test('free RAM: another slot waits until there is room for the peak of every run
 });
 
 test('free RAM: what a holder uses already is not reserved again', () => {
-  const { env } = fixture({ HEAVY_LOCK_SLOTS: '2' });
+  const { dir, env } = fixture({ HEAVY_LOCK_SLOTS: '2' });
   fs.writeFileSync(env.HEAVY_LOCK_CONFIG, JSON.stringify({ peakGb: 5, minFreeGb: 2 }));
   let free = 12 * GB;
   const first = acquire('first', { env, log: () => {}, freemem: () => free });
-  // The holder has grown to its peak: free fell by 5 GB to 7. 7 - 0 pending >= 2: no waiting.
-  free = 7 * GB;
+  // The holder has grown to its peak: free fell by 5.5 GB to 6.5. The old rule wanted 6.5 - 5 >= 2 and
+  // waited; now 6.5 - 1 (the holder's floor) >= 2.
+  free = 6.5 * GB;
   const second = acquire('second', { env, log: () => {}, freemem: () => free, sleep: () => assert.fail('waited') });
   assert.equal(second.held, true);
+  const owner = JSON.parse(fs.readFileSync(path.join(dir, 'slot-0', 'owner.json'), 'utf8'));
+  assert.equal(owner.freeGb, 12, 'the owner records the free RAM at admission');
   first.release();
   second.release();
 });
@@ -363,14 +366,15 @@ test('pendingGb: the fall in free RAM is credited once, not to every holder', ()
   const o = (since, freeGb) => ({ state: { pid: 1, label: 'green', start: since, since, freeGb } });
   // A admitted at 12 GB free grew 3 GB; B admitted at 9 GB free. Free now 6: 6 of 10 GB is used.
   assert.equal(pendingGb([o(2, 9), o(1, 12)], cfg, 6), 4);
+  assert.equal(pendingGb([o(2, 9), o(1, 12)], cfg, 0), 2, 'floor: 1 GB per holder');
 });
 
-test('pendingGb: pre-push and lint-ratchet use the lower peak; an owner without freeGb counts in full', () => {
+test('pendingGb: lint-only holders use the lower peak, pre-push does not; an owner without freeGb counts in full', () => {
   const cfg = { peakGb: 5, lightPeakGb: 3 };
   const o = (label, freeGb) => ({ state: { pid: 1, label, start: 0, freeGb } });
-  assert.equal(pendingGb([o('pre-push', 10), o('lint-ratchet', 10), o('drift-check lint baseline', 10)], cfg, 10), 9);
+  assert.equal(pendingGb([o('pre-push', 10), o('lint-ratchet', 10), o('drift-check lint baseline', 10)], cfg, 10), 11);
   assert.equal(pendingGb([o('green x', 10)], cfg, 8), 3, 'free fell 2 GB: 3 GB still to come');
-  assert.equal(pendingGb([o('green x', 10)], cfg, 2), 0, 'never negative');
+  assert.equal(pendingGb([o('green x', 10)], cfg, 2), 1, 'a holder keeps a 1 GB reserve');
   assert.equal(pendingGb([o('green x', undefined)], cfg, 2), 5);
   assert.equal(pendingGb([{ state: 'unknown' }], cfg, 2), 5);
 });

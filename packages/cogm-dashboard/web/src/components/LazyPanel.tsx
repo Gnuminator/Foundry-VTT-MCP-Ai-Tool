@@ -126,27 +126,42 @@ export function LazyPanel<F extends PanelFn>({
   );
 }
 
+/** How long the floating panels wait after the first render before they start downloading. */
+const IDLE_PRELOAD_DELAY_MS = 5000;
+
 /**
  * Starts the downloads: `now` right after the first render (panels that dock into a view, so they
- * are on the page almost at once), `idle` when the browser has nothing else to do (the floating
- * ones, so the first open is not a wait).
+ * are on the page almost at once). `idle` waits a few seconds so the first data calls get the
+ * Pi's connection to themselves (the floating ones are closed drawers), then fetches one chunk per
+ * idle slot. A panel opened before then loads on first use.
  */
 export function usePreloadPanels(
   now: readonly PanelChunk<PanelFn>[],
   idle: readonly PanelChunk<PanelFn>[]
 ): void {
   useEffect(() => {
-    const run = (chunks: readonly PanelChunk<PanelFn>[]) => (): void => {
-      for (const c of chunks) void c.load().catch(() => undefined);
+    for (const c of now) void c.load().catch(() => undefined);
+    let cancelIdle: () => void = () => undefined;
+    const next = (i: number): void => {
+      const chunk = idle[i];
+      if (!chunk) return;
+      const go = (): void => {
+        void chunk.load().catch(() => undefined);
+        next(i + 1);
+      };
+      if (typeof requestIdleCallback === 'function') {
+        const id = requestIdleCallback(go, { timeout: 4000 });
+        cancelIdle = (): void => cancelIdleCallback(id);
+      } else {
+        const id = setTimeout(go, 200);
+        cancelIdle = (): void => clearTimeout(id);
+      }
     };
-    run(now)();
-    const later = run(idle);
-    if (typeof requestIdleCallback === 'function') {
-      const id = requestIdleCallback(later, { timeout: 4000 });
-      return (): void => cancelIdleCallback(id);
-    }
-    const id = setTimeout(later, 1500);
-    return (): void => clearTimeout(id);
+    const start = setTimeout(() => next(0), IDLE_PRELOAD_DELAY_MS);
+    return (): void => {
+      clearTimeout(start);
+      cancelIdle();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- the chunk lists are module constants
   }, []);
 }

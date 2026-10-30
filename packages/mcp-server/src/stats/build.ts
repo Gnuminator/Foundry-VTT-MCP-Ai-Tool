@@ -252,6 +252,11 @@ interface PcAccumulator {
   crits: number;
   fumbles: number;
   d20: number[];
+  publicRolls: number;
+  publicCrits: number;
+  publicFumbles: number;
+  publicD20: number[];
+  publicHighestRoll: HighestRoll | null;
   spellsCast: number;
   slotsSpent: Map<string, number>;
   resourcesSpent: Map<string, number>;
@@ -275,6 +280,11 @@ function newPcAccumulator(actor: PlayActorRef): PcAccumulator {
     crits: 0,
     fumbles: 0,
     d20: new Array<number>(20).fill(0),
+    publicRolls: 0,
+    publicCrits: 0,
+    publicFumbles: 0,
+    publicD20: new Array<number>(20).fill(0),
+    publicHighestRoll: null,
     spellsCast: 0,
     slotsSpent: new Map(),
     resourcesSpent: new Map(),
@@ -661,6 +671,29 @@ function buildSession(
           if (record.roll?.crit) pc.crits++;
           if (record.roll?.fumble) pc.fumbles++;
           for (const v of results) if (v >= 1 && v <= 20) pc.d20[v - 1] += 1;
+          // Only a roll recorded as public counts for the player vault; records from before
+          // `visibility` existed (or with any other value) never do.
+          if (record.data?.visibility === 'public') {
+            pc.publicRolls++;
+            if (record.roll?.crit) pc.publicCrits++;
+            if (record.roll?.fumble) pc.publicFumbles++;
+            for (const v of results) if (v >= 1 && v <= 20) pc.publicD20[v - 1] += 1;
+            if (
+              roll &&
+              HIGHEST_ROLL_TYPES.has(roll.rollType) &&
+              Number.isFinite(roll.total) &&
+              (!pc.publicHighestRoll || roll.total > pc.publicHighestRoll.total)
+            ) {
+              pc.publicHighestRoll = {
+                total: roll.total,
+                name: record.actor.name,
+                label: rollLabel(roll),
+                rollType: roll.rollType,
+                natural: roll.natural ?? results[0] ?? null,
+                at: new Date(record.t).toISOString(),
+              };
+            }
+          }
         }
         if (record.combat) {
           const c = combatFor(record.combat.id);
@@ -926,6 +959,11 @@ export function buildStats(input: BuildStatsInput): StatsModel {
         crits: pc.crits,
         fumbles: pc.fumbles,
         d20: pc.d20,
+        publicRolls: pc.publicRolls,
+        publicCrits: pc.publicCrits,
+        publicFumbles: pc.publicFumbles,
+        publicD20: pc.publicD20,
+        publicHighestRoll: pc.publicHighestRoll,
         spellsCast: pc.spellsCast,
         slotsSpent: tallyFromMap(pc.slotsSpent),
         resourcesSpent: tallyFromMap(pc.resourcesSpent),

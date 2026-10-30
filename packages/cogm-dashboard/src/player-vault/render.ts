@@ -10,7 +10,7 @@ import type { CharacterSheet, PlayerHandout, SheetItem, SheetSpell } from '@gnum
 
 import { htmlToMarkdown, neutralizeMarkdownText } from './html-md.js';
 import { NameAllocator } from './names.js';
-import type { PlayerStats } from './stats.js';
+import type { PlayerBestRoll, PlayerStats } from './stats.js';
 import type { PlayerVaultFiles, PlayerVaultInput, VaultSession } from './types.js';
 
 /**
@@ -375,6 +375,11 @@ function tallyText(values: Record<string, number>, label: (key: string) => strin
     .join(', ');
 }
 
+function bestRollText(roll: PlayerBestRoll): string {
+  const natural = roll.natural !== null ? ` (natural ${roll.natural})` : '';
+  return `${roll.total}${roll.label ? `, ${roll.label}` : ''}${natural}`;
+}
+
 function renderStats(stats: PlayerStats): string {
   const c = stats.campaign;
   const party = section('The campaign so far', [
@@ -402,6 +407,12 @@ function renderStats(stats: PlayerStats): string {
         tallyText(pc.currencyDelta, k => k)
       ),
       kv('Experience gained', pc.xpGained),
+      kv('Rolls everyone could see', pc.rolls),
+      kv('Critical hits', pc.crits),
+      kv('Critical misses', pc.fumbles),
+      kv('Natural 20s', pc.d20[19]),
+      kv('Natural 1s', pc.d20[0]),
+      kv('Highest roll', pc.highestRoll ? bestRollText(pc.highestRoll) : null),
     ]).replace(/^## /, '### ')
   );
   const body = [

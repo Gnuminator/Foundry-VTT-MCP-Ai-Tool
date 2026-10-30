@@ -140,6 +140,143 @@ describe('buildStats: the highest roll', () => {
   });
 });
 
+describe('buildStats: public roll stats (player vault)', () => {
+  const visible = (v: string): Partial<PlayRecord> => ({ data: { visibility: v } });
+
+  it('canary: blind, GM, self and unrecorded rolls never reach the public fields', () => {
+    const stats = build([
+      roll(
+        'r1',
+        T0,
+        PC,
+        'm1',
+        { total: 15, natural: 15, rollType: 'check', label: 'Public check' },
+        visible('public')
+      ),
+      roll(
+        'r2',
+        T0 + 1000,
+        PC,
+        'm2',
+        {
+          total: 40,
+          natural: 20,
+          crit: true,
+          dice: [{ faces: 20, results: [20] }],
+          rollType: 'check',
+          label: 'Blind secret',
+        },
+        visible('blind')
+      ),
+      roll(
+        'r3',
+        T0 + 2000,
+        PC,
+        'm3',
+        {
+          total: 41,
+          natural: 20,
+          crit: true,
+          dice: [{ faces: 20, results: [20] }],
+          rollType: 'check',
+          label: 'GM secret',
+        },
+        visible('gm')
+      ),
+      roll(
+        'r4',
+        T0 + 3000,
+        PC,
+        'm4',
+        {
+          total: 42,
+          natural: 1,
+          fumble: true,
+          dice: [{ faces: 20, results: [1] }],
+          rollType: 'check',
+          label: 'Self secret',
+        },
+        visible('self')
+      ),
+      roll('r5', T0 + 4000, PC, 'm5', {
+        total: 43,
+        natural: 20,
+        crit: true,
+        dice: [{ faces: 20, results: [20] }],
+        rollType: 'check',
+        label: 'Old record',
+      }),
+      roll(
+        'r6',
+        T0 + 5000,
+        PC,
+        'm6',
+        {
+          total: 44,
+          natural: 20,
+          crit: true,
+          dice: [{ faces: 20, results: [20] }],
+          rollType: 'check',
+          label: 'Odd value',
+        },
+        visible('whatever')
+      ),
+    ]);
+    const pc = stats.pcs[0];
+    expect(pc?.rolls).toBe(6);
+    expect(pc?.publicRolls).toBe(1);
+    expect(pc?.publicCrits).toBe(0);
+    expect(pc?.publicFumbles).toBe(0);
+    expect(pc?.publicD20.reduce((a, b) => a + b, 0)).toBe(1);
+    expect(pc?.publicD20[9]).toBe(1); // only the public roll's default d20 result of 10
+    expect(pc?.publicD20[19]).toBe(0);
+    expect(pc?.publicD20[0]).toBe(0);
+    expect(pc?.publicHighestRoll).toMatchObject({ total: 15, label: 'Public check' });
+    const text = JSON.stringify({ a: pc?.publicRolls, b: pc?.publicHighestRoll, c: pc?.publicD20 });
+    for (const secret of ['Blind secret', 'GM secret', 'Self secret', 'Old record', 'Odd value']) {
+      expect(text).not.toContain(secret);
+    }
+  });
+
+  it('counts public crits, fumbles and d20 results and keeps the highest public roll', () => {
+    const stats = build([
+      roll(
+        'r1',
+        T0,
+        PC,
+        'm1',
+        {
+          total: 30,
+          natural: 20,
+          crit: true,
+          dice: [{ faces: 20, results: [20] }],
+          rollType: 'attack',
+        },
+        visible('public')
+      ),
+      roll(
+        'r2',
+        T0 + 1000,
+        PC,
+        'm2',
+        {
+          total: 3,
+          natural: 1,
+          fumble: true,
+          dice: [{ faces: 20, results: [1] }],
+          rollType: 'save',
+        },
+        visible('public')
+      ),
+    ]);
+    const pc = stats.pcs[0];
+    expect(pc).toMatchObject({ publicRolls: 2, publicCrits: 1, publicFumbles: 1 });
+    expect(pc?.publicD20[19]).toBe(1);
+    expect(pc?.publicD20[0]).toBe(1);
+    expect(pc?.publicHighestRoll?.total).toBe(30);
+  });
+});
+
 describe('buildStats', () => {
   it('counts damage and healing only from HP deltas, never from the roll total', () => {
     const records: PlayRecord[] = [

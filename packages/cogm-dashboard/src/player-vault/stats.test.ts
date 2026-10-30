@@ -35,6 +35,18 @@ function raw(over: Record<string, unknown> = {}): Record<string, unknown> {
         crits: 2,
         fumbles: 1,
         d20: [1],
+        publicRolls: 7,
+        publicCrits: 1,
+        publicFumbles: 2,
+        publicD20: [2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3],
+        publicHighestRoll: {
+          total: 24,
+          name: 'Ilvara',
+          label: 'Athletics check',
+          rollType: 'check',
+          natural: 20,
+          at: '2026-10-30T20:00:00.000Z',
+        },
         spellsCast: 2,
         slotsSpent: { spell1: 2, pact: 0 },
         resourcesSpent: { 'Secret Wand': 2, Rage: 1 },
@@ -76,23 +88,70 @@ describe('projectPlayStats', () => {
           itemsUsed: 1,
           currencyDelta: { gp: -5 },
           xpGained: 50,
+          rolls: 7,
+          crits: 1,
+          fumbles: 2,
+          d20: [2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3],
+          highestRoll: { total: 24, label: 'Athletics check', natural: 20 },
         },
       ],
     });
     const text = JSON.stringify(stats);
-    for (const banned of [
-      'highestRoll',
-      'Perception',
-      'Secret Wand',
-      'Other',
-      'Danni',
-      'w1',
-      '777',
-      'crits',
-      'rolls',
-    ]) {
+    for (const banned of ['Perception', 'Secret Wand', 'Other', 'Danni', 'w1', '777', '"at"']) {
       expect(text).not.toContain(banned);
     }
+  });
+
+  it('canary: the unfiltered roll fields (blind, GM and self rolls) never reach a player', () => {
+    // The unfiltered `rolls`, `crits`, `fumbles`, `d20` and `highestRoll` carry sentinel values
+    // that only a blind or GM roll could produce; none may appear in the projection or the note.
+    const answer = raw() as { pcs: Array<Record<string, unknown>> };
+    const pcs = answer.pcs.map(pc => ({
+      ...pc,
+      rolls: 4242,
+      crits: 4343,
+      fumbles: 4444,
+      d20: new Array<number>(20).fill(4545),
+      highestRoll: { total: 4646, label: 'Blind Insight', natural: 20 },
+    }));
+    const stats = projectPlayStats({ ...answer, pcs }, 'w1', OWN);
+    const note =
+      renderPlayerVault({
+        worldTitle: 'W',
+        player: { userId: 'u1', name: 'Alice' },
+        handouts: [],
+        sheets: [],
+        sessions: [],
+        theme: { id: 'default' as never, css: null },
+        stats,
+      }).get('My stats.md') ?? '';
+    for (const text of [JSON.stringify(stats), note]) {
+      for (const sentinel of ['4242', '4343', '4444', '4545', '4646', 'Blind Insight']) {
+        expect(text).not.toContain(sentinel);
+      }
+    }
+    expect(note).toContain('Highest roll: 24, Athletics check (natural 20)');
+  });
+
+  it('shows no roll numbers when the answer has no public fields (an old bridge)', () => {
+    const answer = raw() as { pcs: Array<Record<string, unknown>> };
+    const pcs = answer.pcs.map(pc => {
+      const rest = { ...pc };
+      for (const key of [
+        'publicRolls',
+        'publicCrits',
+        'publicFumbles',
+        'publicD20',
+        'publicHighestRoll',
+      ]) {
+        delete rest[key];
+      }
+      return rest;
+    });
+    const pc = projectPlayStats({ ...answer, pcs }, 'w1', OWN)?.pcs[0];
+    expect(pc?.rolls).toBe(0);
+    expect(pc?.highestRoll).toBeNull();
+    expect(pc?.d20.every(n => n === 0)).toBe(true);
   });
 
   it('is null for another world or a malformed answer', () => {

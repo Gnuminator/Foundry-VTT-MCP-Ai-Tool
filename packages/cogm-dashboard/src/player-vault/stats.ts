@@ -6,14 +6,26 @@
  * bridge answer later cannot reach a player by accident. The result type has no slot for anything
  * else, and the renderer takes only that type.
  *
- * Left out on purpose: `highestRoll`, `crits`, `fumbles`, `d20` and `dice` (the play log does not
- * record a roll's visibility, so a blind or GM roll would count), `rolls`, `damageDealt` (it is
+ * Roll numbers come only from the `public*` fields (`publicRolls`, `publicCrits`, `publicFumbles`,
+ * `publicD20`, `publicHighestRoll`), which the stats build fills from rolls whose play record says
+ * `visibility: 'public'`. Never read `rolls`, `crits`, `fumbles`, `d20`, `highestRoll` or `dice`:
+ * they count blind, GM and self rolls.
+ *
+ * Left out on purpose: those unfiltered roll fields, `damageDealt` (it is
  * NPC HP lost), `lootGained` (item names may be unidentified), `sceneMinutes`, `users`,
  * `gmChanges`, `combats`, `worldId`, `pcDownsByName`, `paperNet`, other players' characters.
  */
 
 /** Numbers keyed by a spell slot key or a coin denomination. */
 export type StatTally = Record<string, number>;
+
+/** A player's best public d20 roll: the numbers and what was rolled, nothing else. */
+export interface PlayerBestRoll {
+  total: number;
+  /** E.g. `Athletics check`, or null. */
+  label: string | null;
+  natural: number | null;
+}
 
 export interface PlayerPcStats {
   /** The player's own character name, from their sheet (never from the stats answer). */
@@ -30,6 +42,13 @@ export interface PlayerPcStats {
   itemsUsed: number;
   currencyDelta: StatTally;
   xpGained: number;
+  /** Public rolls only (see the file header). */
+  rolls: number;
+  crits: number;
+  fumbles: number;
+  /** Natural d20 results 1..20 (index 0 = a natural 1), public rolls only. */
+  d20: number[];
+  highestRoll: PlayerBestRoll | null;
 }
 
 export interface PlayerStats {
@@ -73,6 +92,24 @@ function tally(value: unknown): StatTally {
   return out;
 }
 
+function d20Tally(value: unknown): number[] {
+  const out = new Array<number>(20).fill(0);
+  if (!Array.isArray(value)) return out;
+  for (let i = 0; i < 20; i++) out[i] = count(value[i]);
+  return out;
+}
+
+function bestRoll(value: unknown): PlayerBestRoll | null {
+  const source = record(value);
+  if (!source || typeof source.total !== 'number' || !Number.isFinite(source.total)) return null;
+  return {
+    total: source.total,
+    label: typeof source.label === 'string' ? source.label : null,
+    natural:
+      typeof source.natural === 'number' && Number.isFinite(source.natural) ? source.natural : null,
+  };
+}
+
 /**
  * Project the `get-play-stats` result for one player, or null when it is not for this world or
  * not shaped like a stats answer. `worldId` is only compared, never kept.
@@ -108,6 +145,11 @@ export function projectPlayStats(
       itemsUsed: count(match.itemsUsed),
       currencyDelta: tally(match.currencyDelta),
       xpGained: count(match.xpGained),
+      rolls: count(match.publicRolls),
+      crits: count(match.publicCrits),
+      fumbles: count(match.publicFumbles),
+      d20: d20Tally(match.publicD20),
+      highestRoll: bestRoll(match.publicHighestRoll),
     });
   }
 

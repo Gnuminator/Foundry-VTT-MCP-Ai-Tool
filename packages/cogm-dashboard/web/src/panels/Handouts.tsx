@@ -174,7 +174,7 @@ export function HandoutsDrawer({
     // One line, no tick: a reveal has a working Undo (it is a write, not a destructive change).
     const confirmLine = {
       title: 'Show page to players',
-      question: `Show "${next?.title || 'Untitled'}" to ${who}${showNow ? ' now' : ''}?`,
+      question: `Show "${next?.title || 'Untitled'}" to ${who}${showNow ? ' now (Undo cannot close the popup)' : ''}?`,
       confirmLabel: 'Show page to players',
     };
     void plan('plan-page-reveal', args, { confirmLine }).finally(() => {

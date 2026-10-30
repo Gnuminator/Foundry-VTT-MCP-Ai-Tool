@@ -11,6 +11,7 @@ import { useToast } from '../components/Toasts';
 import { api, ApiError, callTool, errorText, type ToolConfirm } from './api';
 import {
   applySwitchesWrite,
+  shortName,
   SWITCHES_KEY,
   type SwitchesRead,
   type SwitchesWrite,
@@ -220,7 +221,10 @@ export function useGuardedTools(): GuardedTools {
     /** The warning toast of a refusal, with the Turn on for tonight button where it applies. */
     const refusalToast = async (text: string, switchName: string | null): Promise<void> => {
       const turnOn = (await controlsSwitch(switchName))
-        ? { label: 'Turn on for tonight', onClick: turnOnForTonight }
+        ? {
+            label: `Turn on ${switchName === null ? 'GM Actions' : shortName(switchName)} for tonight`,
+            onClick: turnOnForTonight,
+          }
         : undefined;
       toast(text, 'warn', turnOn);
     };

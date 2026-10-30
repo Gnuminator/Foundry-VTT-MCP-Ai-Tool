@@ -6,6 +6,7 @@
 // goes when the confirm window closes.
 import { expect, test, type Locator, type Page, type Route } from '@playwright/test';
 
+import { featureOffMessage } from '../../../../shared/src/switch-off.js';
 import {
   GM_TOKEN,
   fakeCommonRoutes,
@@ -446,6 +447,62 @@ test('Reveal next asks in one line, with no tick, and applies with the confirm f
   await expect.poll(() => loads(calls)).toBe(loaded + 2);
 });
 
+/** Reveal next with the apply refused as `message`; the switches list is what Pre-flight reads. */
+async function refusedReveal(page: Page, message: string, posts: unknown[] = []): Promise<void> {
+  await fakeStream(page, gmActions(true));
+  await page.route('**/api/session/switches', (route, request) => {
+    if (request.method() === 'POST') {
+      posts.push(request.postDataJSON());
+      return route.fulfill({
+        json: { ok: true, switches: null, gmActionsEnabled: true, gmActionsChanged: false },
+      });
+    }
+    return route.fulfill({
+      json: {
+        switches: {
+          switches: [
+            { id: 'writes', name: 'AI Tool: Changes from the tool', on: true },
+            { id: 'handouts', name: 'AI Tool: Handouts (writes)', on: false },
+          ],
+        },
+        gmActionsEnabled: true,
+      },
+    });
+  });
+  await fakeTools(page, call =>
+    call.name === 'apply-planned-change'
+      ? { status: 422, json: { ok: false, error: message } }
+      : bridge(call)
+  );
+  const drawer = await openHandouts(page);
+  await drawer.locator('#handouts-next').click();
+  await page
+    .getByRole('dialog', { name: 'Show page to players' })
+    .getByRole('button', { name: 'Show page to players' })
+    .click();
+}
+
+test('a refusal for the Handouts switch names it on a button that turns the switches on', async ({
+  page,
+}) => {
+  const posts: unknown[] = [];
+  await refusedReveal(page, featureOffMessage('AI Tool: Handouts (writes)'), posts);
+  const button = page.locator('.toast-stack .toast-action', {
+    hasText: 'Turn on Handouts (writes) for tonight',
+  });
+  await expect(button).toBeVisible();
+  await button.click();
+  await expect.poll(() => posts).toEqual([{ action: 'ready' }]);
+});
+
+test('a refusal for a switch Pre-flight does not control has no button', async ({ page }) => {
+  await refusedReveal(page, featureOffMessage('AI Tool: NPC turn assistant'));
+  await expect(
+    page.locator('.toast-stack .toast', { hasText: 'NPC turn assistant' })
+  ).toBeVisible();
+  await expect(page.locator('.toast-stack .toast-action')).toHaveCount(0);
+});
+
 test('Show it now goes with one reveal; Cancel applies nothing and unticks it', async ({
   page,
 }) => {
@@ -460,7 +517,7 @@ test('Show it now goes with one reveal; Cancel applies nothing and unticks it', 
   await drawer.locator('#handouts-next').click();
   const confirm = page.getByRole('dialog', { name: 'Show page to players' });
   await expect(confirm.locator('.modal-summary')).toHaveText(
-    'Show "Map of Maravia" to every player now?'
+    'Show "Map of Maravia" to every player now (Undo cannot close the popup)?'
   );
   await confirm.getByRole('button', { name: 'Cancel' }).click();
   await expect(confirm).toBeHidden();

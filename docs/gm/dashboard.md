@@ -460,9 +460,9 @@ handout drawer shows, so you can reveal a handout without leaving Foundry:
   scene") and which players (or "all players"). **Remove** takes a page off the queue at once;
   nothing changes in Foundry.
 - **Reveal next**: reveals the oldest queued page for the scene that is active now. A window shows
-  exactly what will change and asks you to confirm, because a reveal cannot be taken back at the
-  table. Cancel and nothing happens. Undo in **Changes** hides the page again and puts it back
-  in the queue.
+  the page and who gets it in one line and asks you to confirm. Cancel and nothing happens. Undo
+  in **Changes** hides the page again and puts it back in the queue (a player may already have
+  read it).
 - **Show it now**: tick it next to **Reveal next** to also pop the page up on the screens of the
   players it is for. It is unticked whenever the window opens and goes back to unticked after each
   reveal (also after a cancel), so it is a choice you make each time. The tick stays while you are

@@ -103,6 +103,18 @@ item is marked done; the board ignores a line on an item with no claim.
   on those. `SKIP_PREPUSH=1 git push ...` skips it by hand. Heavy runs share the PC through a
   machine-wide lock: `node scripts/heavy-lock.mjs status` shows who holds it and who waits; the
   slot count is in `~/.foundry-ai-tool/heavy-lock.json` (`{"slots": 3}`), read on every run.
+  **Long queue:** an unqueued green takes 5 to 7 minutes; if `heavy-lock.mjs status` shows every
+  slot held and others waiting (measured 2026-10-30: waits of 6 to 32 minutes), commit, push the
+  branch (`SKIP_PREPUSH=1 git push -u aitool <b>:<b>`: the pre-push hook would wait for a free
+  slot too, and CI runs the same ratchets and typecheck) and run `npm run green -- --cloud`
+  instead, with `run_in_background` (about 11 to 15
+  minutes, longer than a foreground call). It checks CI on GitHub for the pushed HEAD (no load on
+  the PC, no lock) and prints one line (OK, or the failed job and step with its URL). If the
+  branch has an open PR it waits for the PR's own run (which tests the merge with main); without a
+  PR it starts `ci.yml` by workflow_dispatch on the branch (the branch alone, every job including
+  the screenshots), and opening the PR later starts a second run, so open the PR (a draft is fine)
+  first when one is coming anyway. It does not write `.git/green-ok`, so the pre-push ratchets
+  still run. Dashboard changes still need `visual:baselines` as below.
 - **Dashboard change (anything under `packages/cogm-dashboard/`, stories included, or a
   `package-lock.json` change such as a Playwright bump):** push the branch, run `npm run visual:baselines -- <branch>` (starts `visual-baselines.yml` on GitHub,
   about 15 minutes, no Docker needed; the workflow runs on your branch, so a branch cut before it

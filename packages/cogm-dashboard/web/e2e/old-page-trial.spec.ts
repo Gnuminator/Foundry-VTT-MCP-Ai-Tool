@@ -8,7 +8,6 @@ import { GM_TOKEN, fakeCommonRoutes, fakeStream, fakeTools, ok } from './support
 const PREFS = {
   duringLayout: 'layered',
   duringFull: false,
-  combatButtons: false,
   layoutPicked: false,
   hintDismissed: true,
   hintSessions: [],

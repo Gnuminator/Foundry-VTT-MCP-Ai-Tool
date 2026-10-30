@@ -57,30 +57,33 @@ page and Obsidian follow it.
 Marks the start and the end of a play session. The tool uses these marks to write one Obsidian note
 per session and to group the play log.
 
-- **Start session** is the button in the header. **Turn on for tonight** in Pre-flight is a different
-  button: it only switches on what the tool needs to change things.
+- **Start session** is the button in the header. It also turns on live play: GM Actions and every
+  **Turn on for tonight** switch (see "Live play on" below).
 - Click **Start session** when play begins. The text changes to "Session since 19:30".
 - Click **End session** when play ends. The text changes back to "No session". It also turns off
   again what **Turn on for tonight** turned on (see below), and GM Actions.
-- Starting a session only writes a line in the tool's own log. It never changes the game, so it
-  works with GM Actions off.
+- Starting a session writes a line in the tool's own log and turns live play on, so tools that
+  change the game can run after you confirm. There is no "log only" start any more.
 - If you forget, the notes still split sessions at a gap of 3 hours without events.
 
 The 📓 next to it opens your campaign's Home note in Obsidian (see "Open in Obsidian" below).
 
-### ⚔ GM Actions: off / on
+### Live play on: all set
 
-The master switch for changing the game from the dashboard. Click it to turn it on or off.
+**Start session** is the only switch for live play. One click turns on GM Actions and every
+**Turn on for tonight** switch; **End session** turns them off again. The line in the header
+shows the state and opens the list of switches.
 
-- **Off** (the default): you can look, read and run read-only tools. Nothing that changes the game
-  runs from the dashboard.
-- **On**: tools that change the game can run after you confirm, and Undo in Recent Changes works.
-  The combat buttons need their own switch as well (see **⚔ Combat buttons** below).
+- **Live play on: all set**: tools that change the game can run after you confirm, and Undo in
+  Recent Changes works.
+- **Something is off** (for example "Handouts is off: Turn on"): the controls that need it stay on
+  the screen, greyed out, with the reason and a **Turn on** button next to them. One click turns
+  everything on, the same as Start session.
 - It only guards the dashboard. It does not stop Claude Desktop.
-- Restarting the dashboard turns it off again.
+- Restarting the dashboard turns GM Actions off again.
 
-Turn it on when you are about to act, and off again after. **Turn on for tonight** turns it on
-for you, together with the module switches.
+The header has no off control. Start session turns live play on; **End session** or Pre-flight's
+**Turn them off again** turns it off.
 
 ### 🛠 Tools (Advanced)
 
@@ -158,13 +161,10 @@ played on paper: one card per player character, filled in from the sheet in Foun
 numbers from the paper sheet; **Plan** makes one change per character, with the usual confirm and
 Undo. It needs GM Actions and the module switch "AI Tool: Paper sync (writes)".
 
-### ⚔ Combat buttons and ▦ Try the During layouts
+### ▦ Try the During layouts
 
-Two entries under **Advanced**, in the **During screen** group:
+One entry under **Advanced**, in the **During screen** group:
 
-- **⚔ Combat buttons: off / on** puts **Damage / Heal**, **Condition** and **Clear** in the
-  turn-order strip (see Combat Tracker below). On by default. They still need GM Actions on to
-  do anything. Your choice is kept for this world.
 - **▦ Try the During layouts** starts the short layout trial again (see During layouts below).
 
 ### ⏸ Pause, 🩺 Diag AI, Tone, Model (old dashboard only)
@@ -228,9 +228,8 @@ Defeated creatures are dimmed and never count as next. The ribbon never changes 
 only moves that screen's view.
 
 Combat in the dashboard is optional. If you want it, the strip can add damage, healing and
-conditions on several combatants at once: **⚔ Combat buttons** under **Advanced** are on by
-default (switch them off there if you prefer Foundry's chat cards). With the combat buttons and GM Actions on (**Turn on for tonight** turns GM Actions on),
-click combatant rows to select them (click again to unselect). With one or more selected:
+conditions on several combatants at once. While a fight runs and live play is on (**Start session**
+turns it on), click combatant rows to select them (click again to unselect). With one or more selected:
 
 - **Damage / Heal**: opens a small form: Damage or Heal, one amount, and damage type chips (so
   dnd5e counts resistances, vulnerabilities and immunities). One button, named for what it does
@@ -254,7 +253,7 @@ Changes.
 offers **Start combat** (in most During layouts, a small **Start combat** button on the During bar
 opens the same thing). It lists the tokens on the scene you are viewing, with player characters and
 Hostile tokens ticked. Change the ticks and click **Start combat with N**. The fight starts at
-round 1, with **Undo**. **End combat** (with the combat buttons on) plans ending the fight; you
+round 1, with **Undo**. **End combat** plans ending the fight; you
 confirm it, and Undo brings it back.
 
 **👑 Boss prompts** (in the panel's top line, only while a creature with legendary actions or a lair

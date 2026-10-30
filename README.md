@@ -107,7 +107,7 @@ Before a session the page opens on Pre-flight and Prep; the same page runs the s
 
 ![The turn-order strip with two combatants picked and the Damage / Heal, Condition, Clear and End combat buttons](docs/images/cogm/combat-control.png)
 
-**Damage and conditions from the dashboard:** with **GM Actions** and **⚔ Combat buttons** on
+**Damage and conditions from the dashboard:** with **GM Actions** on (Start session turns them on)
 (both off by default), select combatants in the turn-order strip and **Damage / Heal**
 opens a small form that applies at once (with Undo) and **Condition** opens the Tool Runner with
 the plan ready for them; you confirm it. The strip can also start and

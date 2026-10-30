@@ -183,7 +183,7 @@ GM Actions. **End session** turns off again what it turned on. See
 - **Starts:** off every time the dashboard starts. Turn on for tonight turns it on, End session turns
   it off.
 - **Turn it on when:** you act from the dashboard. Turn on for tonight does it for you.
-- **More:** [GM Actions](dashboard.md#-gm-actions-off--on).
+- **More:** [GM Actions](dashboard.md#live-play-on-all-set).
 
 ## The other switches
 

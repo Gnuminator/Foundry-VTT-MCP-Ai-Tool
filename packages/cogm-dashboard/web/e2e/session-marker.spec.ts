@@ -60,7 +60,7 @@ test('Start session marks the log, then the header reads Session since and End s
   page,
 }) => {
   const calls = await fakeBridge(page);
-  await fakeSwitches(page, false);
+  const switches = await fakeSwitches(page, false);
   await page.goto(`/next/?token=${GM_TOKEN}`);
 
   const status = page.locator('#session-status');
@@ -75,6 +75,11 @@ test('Start session marks the log, then the header reads Session since and End s
   ]);
   // A log-only tool: no confirm flags.
   expect(calls.find(c => c.name === 'mark-play-session')?.confirm).toBeUndefined();
+  // Start session is the only switch for live play: it turns on GM Actions and the switches too.
+  await expect(
+    toast(page, '✓ Turn on for tonight. Turned on: Handouts (writes), GM Actions')
+  ).toBeVisible();
+  expect(switches.posts).toEqual([{ action: 'ready' }]);
 
   await page.locator('#btn-session').click();
   await expect(toast(page, '✓ Play session ended')).toBeVisible();
@@ -132,7 +137,7 @@ test('End session also turns off what Turn on for tonight turned on', async ({ p
 
   await expect(toast(page, '✓ Play session ended')).toBeVisible();
   await expect(toast(page, '✓ Turned off again: Handouts (writes), GM Actions')).toBeVisible();
-  expect(switches.posts).toEqual([{ action: 'end' }]);
+  expect(switches.posts).toEqual([{ action: 'ready' }, { action: 'end' }]);
 });
 
 test('End session leaves the switches alone when Ready is not on', async ({ page }) => {
@@ -146,7 +151,7 @@ test('End session leaves the switches alone when Ready is not on', async ({ page
 
   await expect(toast(page, '✓ Play session ended')).toBeVisible();
   await expect(page.locator('#btn-session')).toHaveText('Start session');
-  expect(switches.posts).toEqual([]);
+  expect(switches.posts).toEqual([{ action: 'ready' }]);
 });
 
 test('a mark that worked shows at once when the next read fails, and says so', async ({ page }) => {

@@ -27,11 +27,16 @@ export function isSwitchedOff(message, managed = []) {
   if (!/switched off|switch\b[^.]*\bon\b|is off|disabled|not enabled|turned off/i.test(message)) {
     return false;
   }
-  return !managed.some(id => new RegExp(`\\b${id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i').test(message));
+  return !managed.some(id =>
+    new RegExp(`\\b${id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i').test(message)
+  );
 }
 
 /** Collapses white space. @param {string | null | undefined} text */
-export const squash = text => String(text ?? '').replace(/\s+/g, ' ').trim();
+export const squash = text =>
+  String(text ?? '')
+    .replace(/\s+/g, ' ')
+    .trim();
 
 /**
  * Waits until the page is connected to the dashboard's stream (and so to the bridge) and has its
@@ -48,11 +53,13 @@ export async function waitReady(page) {
 }
 
 /**
- * Whether the header button says GM Actions are on.
+ * Whether the header live play line says GM Actions are on: it names GM Actions only while they
+ * are off ("GM Actions is off: Turn on"); "Live play on: all set" or another switch's name is on.
  * @param {import('playwright-core').Page} page
  */
 export async function gmActionsLabelOn(page) {
-  return /:\s*on/i.test((await page.locator('#btn-gm').textContent()) ?? '');
+  const label = (await page.locator('#btn-gm').textContent()) ?? '';
+  return label.trim() !== '' && !/GM Actions/i.test(label);
 }
 
 /**
@@ -103,7 +110,9 @@ export async function openCard(page, name) {
  */
 export function markToasts(page) {
   return page.evaluate(() =>
-    document.querySelectorAll('#toast-stack .toast').forEach(el => el.setAttribute('data-seen', '1'))
+    document
+      .querySelectorAll('#toast-stack .toast')
+      .forEach(el => el.setAttribute('data-seen', '1'))
   );
 }
 
@@ -195,7 +204,11 @@ export async function settleWrite(page, { confirm = true } = {}) {
   );
   if (!(await page.locator('#modal-backdrop').isVisible())) {
     const refusal = await page.evaluate(() =>
-      [...document.querySelectorAll('#toast-stack .toast.err:not([data-seen]), #toast-stack .toast.warn:not([data-seen])')]
+      [
+        ...document.querySelectorAll(
+          '#toast-stack .toast.err:not([data-seen]), #toast-stack .toast.warn:not([data-seen])'
+        ),
+      ]
         .map(el => el.textContent || '')
         .join(' | ')
     );
@@ -250,7 +263,8 @@ export async function closeTools(page) {
  */
 export async function resetUi(page) {
   try {
-    if (await page.locator('#modal-backdrop').isVisible()) await page.locator('#modal-cancel').click();
+    if (await page.locator('#modal-backdrop').isVisible())
+      await page.locator('#modal-cancel').click();
     for (const selector of ['#drawer-close', '#tarokka-close']) {
       if (await page.locator(selector).isVisible()) await page.locator(selector).click();
     }

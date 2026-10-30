@@ -262,17 +262,14 @@ let settings = {
 let duringPrefs = {
   duringLayout: 'auto',
   duringFull: false,
-  combatButtons: true,
   layoutPicked: true,
   hintDismissed: false,
   hintSessions: [],
 };
-/** Damage / Heal, Condition and Clear in the strip: GM Actions on and the Advanced switch on.
- * Never on the layout trial's made-up fight, so nothing can be sent for its combatants. */
+/** Damage / Heal, Condition and Clear in the strip: on with GM Actions (the Combat buttons setting
+ * is gone). Never on the layout trial's made-up fight, so nothing can be sent for its combatants. */
 function combatButtonsOn() {
-  return (
-    !!settings.gmActionsEnabled && !!duringPrefs.combatButtons && !(lastCombat && lastCombat.sample)
-  );
+  return !!settings.gmActionsEnabled && !(lastCombat && lastCombat.sample);
 }
 
 // GM Actions state
@@ -4282,7 +4279,6 @@ const btnDuringFull = $('btn-during-full');
 const autoNote = $('during-auto-note');
 const layoutHint = $('layout-hint');
 const layoutTrial = $('layout-trial');
-const btnCombatButtons = $('btn-combat-buttons');
 /** Folded cards on the During screen; reset to the layout's defaults when the layout,
  * the context (combat or not) or the width class changes. */
 const folds = new Map();
@@ -4434,10 +4430,6 @@ function renderLayoutHint() {
 function renderDuringPrefs(next) {
   if (!next || typeof next !== 'object') return;
   duringPrefs = { ...duringPrefs, ...next };
-  btnCombatButtons.textContent = duringPrefs.combatButtons
-    ? '⚔ Combat buttons: on'
-    : '⚔ Combat buttons: off';
-  btnCombatButtons.classList.toggle('on', !!duringPrefs.combatButtons);
   layoutTrial.hidden = !!duringPrefs.layoutPicked;
   if (!combatButtonsOn()) selectedCombatants.clear();
   renderCombat(lastCombat);
@@ -4487,17 +4479,6 @@ btnDuringFull.addEventListener('click', () => {
 });
 $('layout-hint-close').addEventListener('click', () => {
   void savePrefs({ hintDismissed: true });
-});
-btnCombatButtons.addEventListener('click', () => {
-  const on = !duringPrefs.combatButtons;
-  void savePrefs({ combatButtons: on });
-  if (on)
-    toast(
-      settings.gmActionsEnabled
-        ? '✓ Combat buttons on: click combatants in the turn-order strip to pick them.'
-        : '✓ Combat buttons on. They show in the turn-order strip once GM Actions are on.',
-      'ok'
-    );
 });
 
 // --- The trial: each layout on the real screen, with a small guide card in the corner ---

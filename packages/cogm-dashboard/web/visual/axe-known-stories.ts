@@ -23,7 +23,6 @@ export const KNOWN_STORY_VIOLATIONS: KnownStoryViolation[] = [
     stories: [
       'components-advancedmenu--open',
       'components-advancedmenu--open-phone',
-      'components-during-layouts--menu-combat-buttons-on',
       'components-during-layouts--menu-open',
       'components-during-layouts--menu-open-phone',
       'components-during-layouts--menu-waiting-for-the-world',

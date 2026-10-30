@@ -70,7 +70,7 @@ export function deckOf(cardId: string): 'common' | 'high' | null {
 
 /** The message for a card id outside the position's deck; shows what an id looks like. */
 export function wrongDeckMessage(cardId: string, deck: 'common' | 'high'): string {
-  const examples = deck === 'common' ? 'swords-7, coins-master' : 'raven, donjon';
+  const examples = deck === 'common' ? 'swords-7, coins-master' : 'raven, broken-one';
   return `${cardId} is not a ${deck}-deck card id (ids look like ${examples}, not card names)`;
 }
 

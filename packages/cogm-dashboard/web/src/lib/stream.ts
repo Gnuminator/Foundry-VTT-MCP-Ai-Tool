@@ -9,7 +9,6 @@ import { streamUrl } from './auth';
 import { bridgeAway, bridgeBlip, readCombat, type CombatState } from './combat';
 import { EMPTY_FEED, addFeedEvents, hasNewGmChange, readFeedEvents, type FeedLog } from './feed';
 import { onPrefs } from './prefs';
-import { ROLLS_KEY, readRollRows, type RollRow } from './rollStatus';
 import { PLAY_SESSION_KEY } from './session';
 
 /** One Foundry module error or warning (feed/types.ts ModuleError on the server). */
@@ -53,6 +52,9 @@ export const THEME_KEY = ['theme'] as const;
 export interface WorldTheme {
   theme: string;
 }
+
+/** The roll rows the stream brought, as sent (lib/rollStatus.ts reads them). */
+export const ROLLS_KEY = ['stream', 'rolls'] as const;
 
 export const SETTINGS_KEY = ['stream', 'settings'] as const;
 
@@ -207,10 +209,7 @@ const HANDLERS: Record<string, (queryClient: QueryClient, data: unknown) => void
   prefs: onPrefs,
   // Who was asked for a roll and who rolled it, newest first (lib/rollStatus.ts).
   rolls: (queryClient, data) =>
-    queryClient.setQueryData<RollRow[]>(
-      ROLLS_KEY,
-      readRollRows((data as { rows?: unknown } | null)?.rows)
-    ),
+    queryClient.setQueryData<unknown>(ROLLS_KEY, (data as { rows?: unknown } | null)?.rows),
   // The whole fight (lib/combat.ts), null when none runs: the During layouts and the strip read it.
   combat: (queryClient, data) => {
     const combat = readCombat((data as { combat?: unknown } | null)?.combat);

@@ -2,6 +2,9 @@
 // the rows from the session events (src/roll-status.ts) and pushes them as the GM stream's `rolls`
 // event; the roll bar shows the latest ask as "waiting for 2 of 4" and "Brenna rolled 17".
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMemo } from 'react';
+
+import { ROLLS_KEY } from './stream';
 
 /** One request to one player (src/roll-status.ts RollRow). */
 export interface RollRow {
@@ -15,8 +18,6 @@ export interface RollRow {
   status: 'sent' | 'rolled';
   total?: number;
 }
-
-export const ROLLS_KEY = ['stream', 'rolls'] as const;
 
 /** A request this old no longer shows under the roll bar. */
 export const ROUND_SHOWN_MS = 2 * 60 * 60 * 1000;
@@ -97,9 +98,9 @@ export function useRollRows(): RollRow[] {
   const queryClient = useQueryClient();
   const { data } = useQuery({
     queryKey: ROLLS_KEY,
-    queryFn: () => queryClient.getQueryData<RollRow[]>(ROLLS_KEY) ?? [],
+    queryFn: () => queryClient.getQueryData<unknown>(ROLLS_KEY) ?? [],
     staleTime: Infinity,
     gcTime: Infinity,
   });
-  return data ?? [];
+  return useMemo(() => readRollRows(data), [data]);
 }

@@ -86,6 +86,19 @@ describe('readQuestNote', () => {
     expect(result.html).not.toContain('ai_context');
   });
 
+  it('puts the escaped title in the first <h1>, the only one on the page', async () => {
+    const rel = await note('Campaigns/w1/Prep/Quests/The Sunsword.md', QUEST);
+    const result = await readQuestNote(vaultDir, WORLD, rel);
+    expect(result.html.startsWith('<h1>The Sunsword</h1>\n')).toBe(true);
+    expect(result.html.match(/<h1>/g)).toHaveLength(1);
+    const tricky = await note(
+      'Campaigns/w1/Prep/Quests/Tricky.md',
+      QUEST.replace('---', '---\ntitle: Tom & <b>Jerry</b>')
+    );
+    const html = (await readQuestNote(vaultDir, WORLD, tricky)).html;
+    expect(html.startsWith('<h1>Tom &amp; &lt;b&gt;Jerry&lt;/b&gt;</h1>')).toBe(true);
+  });
+
   it('refuses other types, a set fvtt_uuid, an empty note and a missing file', async () => {
     const base = 'Campaigns/w1/Prep/';
     const npc = await note(`${base}Npc.md`, QUEST.replace('quest-prep', 'npc-prep'));

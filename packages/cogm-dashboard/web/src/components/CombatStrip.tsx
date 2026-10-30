@@ -1,6 +1,6 @@
 // The combat strip (D-092, I-070, I-095), ported from the old page: the turn order in the During
 // view's strip slot, one row per combatant in the bridge's order, with the Boss prompts switch and
-// reaction ticks, and (Combat buttons and GM Actions on) rows to pick and an action bar. Condition
+// reaction ticks, and (GM Actions on) rows to pick and an action bar. Condition
 // opens the Tool runner on plan-actor-change for the picked names (its plan, confirm and undo
 // flow). Damage / Heal opens the small form (DamageForm), which plans and applies in one click
 // with Undo; the roll row (StripRolls) asks players for checks and saves. The rules are in
@@ -47,9 +47,12 @@ import {
   type Reactions,
   type SelectionAction,
 } from '../lib/combat';
-import { usePrefs } from '../lib/prefs';
+import { useLivePlay, type LivePlay } from '../lib/livePlay';
+import { offReason } from '../lib/liveSwitches';
 import { useBridgeAway, useCombat, useDashboardSettings } from '../lib/stream';
 import { Panel, Pill } from '../ui';
+
+import { TurnOnNote } from './TurnOnNote';
 
 // The picker is a lazy chunk (bundle budget): it loads when no fight runs and GM Actions is on.
 const StartCombat = lazy(() => import('./StartCombat').then(m => ({ default: m.StartCombat })));
@@ -352,6 +355,32 @@ function ActionBar({
 }
 
 /**
+ * A strip control that live play being off disables: the button stays, greyed out, with the reason
+ * and a Turn on next to it (one click, the same as Start session's).
+ */
+function GatedRow({
+  live,
+  off,
+  label,
+  hint,
+}: {
+  live: LivePlay;
+  off: string[];
+  label: string;
+  hint?: string;
+}): JSX.Element {
+  return (
+    <div className="ca-row" data-gated={label}>
+      {hint ? <span className="ca-hint">{hint}</span> : null}
+      <button type="button" className="ca-btn ghost" aria-disabled="true" title={offReason(off)}>
+        {label}
+      </button>
+      <TurnOnNote live={live} off={off} />
+    </div>
+  );
+}
+
+/**
  * The strip. It is in the page all the time and the During layouts show it (moments.css): while a
  * fight runs, and in Full. `sample` shows the layout trial's made-up fight when no real one runs.
  */
@@ -364,7 +393,8 @@ export function CombatStrip({
 }): JSX.Element {
   const real = useCombat();
   const away = useBridgeAway();
-  const prefs = usePrefs();
+  const live = useLivePlay();
+  const liveOff = live.off();
   const settings = useDashboardSettings();
   const [bossFlag, setBossFlag] = useState(readBossFlag);
   const [reactions, setReactions] = useState<Reactions>(NO_REACTIONS);
@@ -376,7 +406,6 @@ export function CombatStrip({
   const mode = showSample ? 'live' : stripMode(real, away);
   const stale = mode === 'stale';
   const selectable = canSelect({
-    combatButtons: prefs?.combatButtons === true,
     gmActions: settings?.gmActionsEnabled === true,
     fightActive: combat !== null,
     sample: showSample,
@@ -464,10 +493,22 @@ export function CombatStrip({
                 </div>
               ))}
           </div>
-          {real === null && !showSample && settings?.gmActionsEnabled === true && (
-            <Suspense fallback={null}>
-              <StartCombat />
-            </Suspense>
+          {real === null &&
+            !showSample &&
+            (liveOff.length === 0 ? (
+              <Suspense fallback={null}>
+                <StartCombat />
+              </Suspense>
+            ) : (
+              <GatedRow live={live} off={liveOff} label="Start combat" />
+            ))}
+          {combat !== null && !showSample && !selectable && (
+            <GatedRow
+              live={live}
+              off={liveOff}
+              label="End combat"
+              hint="Picking combatants needs live play."
+            />
           )}
           <div className="combat-actions" id="combat-actions" hidden={!selectable}>
             {selectable && (
@@ -501,7 +542,7 @@ export function CombatStrip({
               />
             </Suspense>
           )}
-          {combat !== null && !showSample && settings?.gmActionsEnabled === true && (
+          {combat !== null && !showSample && (
             <Suspense fallback={null}>
               <StripRolls party={partyRows} picked={pickedRows.filter(c => c.isPC)} stale={stale} />
             </Suspense>

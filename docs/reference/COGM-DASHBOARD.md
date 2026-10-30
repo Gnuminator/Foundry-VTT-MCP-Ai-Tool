@@ -51,8 +51,8 @@ help works offline and matches the installed version.
 
 **Advanced** (top right) holds the rest: the GM guides, the Prep, Party, Handouts and Tarokka
 panels (a panel already on the screen is scrolled to; otherwise it opens over the page), After a
-paper night, the Tool Runner, module diagnostics, the player links, the Combat buttons and During
-layouts entries, and the Version tracker (on by default; Advanced turns it off). The AI commentary and its settings (pause, diagnostics AI, tone, model) are not on
+paper night, the Tool Runner, module diagnostics, the player links and the During
+layouts entry, and the Version tracker (on by default; Advanced turns it off). The AI commentary and its settings (pause, diagnostics AI, tone, model) are not on
 this page; they are on the old dashboard.
 
 ### My character, one page per player

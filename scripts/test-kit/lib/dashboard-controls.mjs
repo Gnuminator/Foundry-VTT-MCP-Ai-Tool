@@ -123,7 +123,6 @@ export const DASHBOARD_CONTROLS = [
   { name: 'dash.header.handouts', how: 'open', reach: [ADV], expect: '#handouts-drawer' },
   { name: 'dash.header.tarokka', how: 'open', reach: [ADV], expect: '#tarokka-drawer' },
   { name: 'dash.header.paper', how: 'skip', why: NEW_ONLY },
-  { name: 'dash.header.combat-buttons', how: 'toggle', reach: [ADV], changes: true },
   {
     name: 'dash.header.version-tracker',
     how: 'skip',
@@ -173,7 +172,7 @@ export const DASHBOARD_CONTROLS = [
   {
     name: 'dash.header.gm-actions',
     how: 'write',
-    why: 'flips the master switch for game-changing actions; the write checks cover it',
+    why: 'opens the live play switch list (header line); the write checks cover it',
   },
 
   // --- the During layout trial (before the layout buttons: picking a layout hides the trial card) ---
@@ -339,7 +338,7 @@ export const DASHBOARD_CONTROLS = [
     why: 'puts an undone change back after the confirm window; dashboard-write-flows (i) clicks it',
   },
 
-  // --- the combat strip (only with a live combat; the buttons need GM Actions and Combat buttons on) ---
+  // --- the combat strip (only with a live combat; the buttons need GM Actions on) ---
   {
     name: 'dash.combat.boss-prompts',
     how: 'toggle',
@@ -363,7 +362,7 @@ export const DASHBOARD_CONTROLS = [
     reach: [MOMENT_DURING],
     expect: '.combatant.selected',
     optional: true,
-    why: 'only with a combat, GM Actions on and Combat buttons on',
+    why: 'only with a combat and GM Actions on',
   },
   {
     name: 'dash.combat.selection-clear',
@@ -484,7 +483,7 @@ export const DASHBOARD_CONTROLS = [
     reach: [MOMENT_DURING],
     expect: '#tool-detail',
     optional: true,
-    why: 'needs a combat, GM Actions on and Combat buttons on (opens the tool form, runs nothing)',
+    why: 'needs a combat and GM Actions on (opens the tool form, runs nothing)',
   },
 
   // --- the Tool Runner ---

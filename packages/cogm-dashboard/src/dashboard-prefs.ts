@@ -19,8 +19,6 @@ export interface DashboardPrefs {
   duringLayout: DuringLayout;
   /** Layout B: the Full view instead of Simple. */
   duringFull: boolean;
-  /** Damage / Heal, Condition and Clear in the strip; on by default (Danni 2026-10-30; Advanced). */
-  combatButtons: boolean;
   /** The version tracker panel (I-127); on by default (I-127; D-098 had it off). */
   versionTracker: boolean;
   /** The GM picked a layout in the trial (or with the switcher); the Before card goes away. */
@@ -34,7 +32,6 @@ export interface DashboardPrefs {
 export const DEFAULT_PREFS: DashboardPrefs = {
   duringLayout: 'auto',
   duringFull: false,
-  combatButtons: true,
   versionTracker: true,
   layoutPicked: true,
   hintDismissed: false,
@@ -52,7 +49,6 @@ export function isDuringLayout(value: unknown): value is DuringLayout {
 export interface PrefsChange {
   duringLayout?: DuringLayout;
   duringFull?: boolean;
-  combatButtons?: boolean;
   versionTracker?: boolean;
   layoutPicked?: boolean;
   hintDismissed?: boolean;
@@ -64,13 +60,7 @@ export function parsePrefsChange(raw: unknown): PrefsChange | null {
   const r = raw as Record<string, unknown>;
   const change: PrefsChange = {};
   if (isDuringLayout(r.duringLayout)) change.duringLayout = r.duringLayout;
-  for (const key of [
-    'duringFull',
-    'combatButtons',
-    'versionTracker',
-    'layoutPicked',
-    'hintDismissed',
-  ] as const) {
+  for (const key of ['duringFull', 'versionTracker', 'layoutPicked', 'hintDismissed'] as const) {
     if (typeof r[key] === 'boolean') change[key] = r[key];
   }
   if (typeof r.hintSession === 'string' && r.hintSession.trim() !== '') {
@@ -85,8 +75,6 @@ function readPrefs(raw: unknown): DashboardPrefs {
   return {
     duringLayout: isDuringLayout(r.duringLayout) ? r.duringLayout : DEFAULT_PREFS.duringLayout,
     duringFull: r.duringFull === true,
-    combatButtons:
-      typeof r.combatButtons === 'boolean' ? r.combatButtons : DEFAULT_PREFS.combatButtons,
     versionTracker: r.versionTracker !== false,
     layoutPicked: typeof r.layoutPicked === 'boolean' ? r.layoutPicked : DEFAULT_PREFS.layoutPicked,
     hintDismissed: r.hintDismissed === true,
@@ -146,7 +134,6 @@ export class DashboardPrefsStore {
     const next = this.get(worldId);
     if (change.duringLayout !== undefined) next.duringLayout = change.duringLayout;
     if (change.duringFull !== undefined) next.duringFull = change.duringFull;
-    if (change.combatButtons !== undefined) next.combatButtons = change.combatButtons;
     if (change.versionTracker !== undefined) next.versionTracker = change.versionTracker;
     if (change.layoutPicked !== undefined) next.layoutPicked = change.layoutPicked;
     if (change.hintDismissed !== undefined) next.hintDismissed = change.hintDismissed;

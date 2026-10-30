@@ -169,7 +169,7 @@ test.beforeEach(async ({ page }) => {
 });
 
 test('loads the queue and the seen log on open, with the next page marked', async ({ page }) => {
-  await fakeStream(page, []);
+  await fakeStream(page, gmActions(true));
   const namesAsked = page.waitForRequest(req => req.url().endsWith('/api/player/names'));
   const calls = await fakeTools(page, bridge);
   const drawer = await openHandouts(page);
@@ -344,13 +344,12 @@ test('Remove takes a page off the queue with GM Actions off; Reveal next stays g
   await expect.poll(() => loads(calls)).toBe(3);
   await expect(page.getByRole('dialog', { name: '✈ Pre-flight' })).toBeHidden();
 
-  // A reveal does change Foundry: with GM Actions off nothing is planned.
+  // A reveal does change Foundry: with GM Actions off the button is disabled, says why and offers
+  // Turn on; nothing is planned.
   const before = calls.length;
-  await drawer.locator('#handouts-next').click();
-  await expect(
-    toast(page, 'GM Actions are off. Turn on for tonight in Pre-flight turns them on.')
-  ).toBeVisible();
-  await expect(page.getByRole('dialog', { name: '✈ Pre-flight' })).toBeVisible();
+  await expect(drawer.locator('#handouts-next')).toBeDisabled();
+  await expect(drawer.locator('#handouts-next')).toHaveAttribute('title', 'GM Actions is off');
+  await expect(drawer.getByRole('button', { name: 'Turn on' })).toBeVisible();
   expect(names(calls.slice(before)).filter(n => n === 'plan-page-reveal')).toEqual([]);
 });
 

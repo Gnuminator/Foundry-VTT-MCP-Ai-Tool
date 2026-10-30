@@ -217,9 +217,11 @@ describe('the layout hint', () => {
 
 describe('the prefs', () => {
   it('reads an answer field by field and fills the rest from the defaults', () => {
-    expect(
-      readPrefs({ duringLayout: 'auto', combatButtons: true, hintSessions: ['x', 5] })
-    ).toEqual({ ...DEFAULT_PREFS, duringLayout: 'auto', combatButtons: true, hintSessions: ['x'] });
+    expect(readPrefs({ duringLayout: 'auto', hintSessions: ['x', 5] })).toEqual({
+      ...DEFAULT_PREFS,
+      duringLayout: 'auto',
+      hintSessions: ['x'],
+    });
     expect(readPrefs({ duringLayout: 'sideways', duringFull: 'yes' })).toEqual(DEFAULT_PREFS);
     expect(readPrefs(null)).toEqual(DEFAULT_PREFS);
     expect(readPrefs({}).versionTracker).toBe(true);

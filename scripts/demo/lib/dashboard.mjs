@@ -188,7 +188,6 @@ export function setGmActionsApi(dashboardUrl, on) {
 
 /**
  * Set the GM's screen choices for the world without the UI (D-092, I-107), for example
- * { combatButtons: true } before a take that uses the strip's Damage / Heal button, or
  * { duringLayout: 'layered', layoutPicked: true } to skip the layout trial card.
  */
 export function setDashboardPrefsApi(dashboardUrl, change) {

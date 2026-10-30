@@ -8,9 +8,12 @@ import { useEffect, useRef, useState, type JSX } from 'react';
 
 import { Drawer, DrawerClose } from '../components/Drawer';
 import { useToast } from '../components/Toasts';
+import { TurnOnNote } from '../components/TurnOnNote';
 import { api, callTool, errorText } from '../lib/api';
 import { failCode, useGuardedChange } from '../lib/guarded';
 import { canMoveTo, moveTarget } from '../lib/handoutQueue';
+import { useLivePlay } from '../lib/livePlay';
+import { HANDOUT_NEEDS, offReason } from '../lib/liveSwitches';
 import { HANDOUTS_KEY } from '../lib/stream';
 import { handoutsSwitchOff, type FeatureList } from '../lib/switchOff';
 import { usage } from '../lib/usage';
@@ -123,6 +126,8 @@ export function HandoutsDrawer({
 }): JSX.Element {
   const toast = useToast();
   const runChange = useGuardedChange();
+  const live = useLivePlay();
+  const liveOff = live.off(HANDOUT_NEEDS);
   // Loads on every opening (stale at once), after a change or undo while open, and when the
   // stream says a player opened a handout (handouts-seen).
   const handouts = useQuery({
@@ -406,11 +411,13 @@ export function HandoutsDrawer({
             id="handouts-next"
             ref={nextRef}
             data-track="dash.handouts.reveal-next"
-            disabled={!next || revealing || moving}
+            disabled={!next || revealing || moving || liveOff.length > 0}
+            title={liveOff.length > 0 ? offReason(liveOff) : undefined}
             onClick={revealNext}
           >
             {next ? `Reveal next: ${next.title || 'Untitled'}` : 'Reveal next'}
           </Button>
+          <TurnOnNote live={live} off={liveOff} />
           <label className="show-now" htmlFor="handouts-show-now">
             <input
               type="checkbox"

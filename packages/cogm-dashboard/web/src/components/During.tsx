@@ -338,11 +338,7 @@ export function DuringBar({ during }: { during: DuringController }): JSX.Element
       </span>
       {barHere && liveOff.length > 0 && (
         <>
-          <Button
-            id="btn-during-start-combat"
-            aria-disabled="true"
-            title={offReason(liveOff)}
-          >
+          <Button id="btn-during-start-combat" aria-disabled="true" title={offReason(liveOff)}>
             Start combat
           </Button>
           <TurnOnNote live={live} off={liveOff} />

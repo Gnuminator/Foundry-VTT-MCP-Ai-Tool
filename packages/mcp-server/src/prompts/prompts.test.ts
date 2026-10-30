@@ -315,7 +315,7 @@ describe('writes need the GM to say yes', () => {
     expect(ask).toBeGreaterThan(show);
     expect(apply).toBeGreaterThan(ask);
     expect(text).toContain('Only if I say yes in this conversation');
-    expect(text).toContain('`confirmDestructive` set to true');
+    expect(text).toContain('only if the plan says it requires it');
     expect(text).toContain('Never call `apply-planned-change` unless I have said yes');
     expect(text).toContain('Do not look for a way around the refusal');
   });

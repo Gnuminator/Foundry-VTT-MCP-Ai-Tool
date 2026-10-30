@@ -831,7 +831,7 @@ export class HandoutsService {
       summary: `Reveal page "${title}" to ${audience(players)}`,
       ...(ops.length > 0 ? { ops } : {}),
       vaultOps,
-      risk: 'destructive',
+      bookkeepingDeletes: true,
       ...showPlayers(showNow, pageUuid, players),
     });
     return { ...plan, pageUuid };
@@ -942,7 +942,7 @@ export class HandoutsService {
       summary: `Reveal page "${title}" to ${audience(players)} again (updates its copy in ${HANDOUTS_JOURNAL_NAME})`,
       ops: [updateOpFor(entry.uuid, changed)],
       ...(vaultOps.length > 0 ? { vaultOps } : {}),
-      risk: 'destructive',
+      bookkeepingDeletes: true,
       ...showPlayers(showNow, entry.uuid, players),
     });
     return { ...plan, pageUuid: sourceUuid, copy, note: copyNote(title, copy) };
@@ -1051,7 +1051,7 @@ export class HandoutsService {
       summary: `Reveal page "${title}" to ${audience(players)} (copied into ${HANDOUTS_JOURNAL_NAME})`,
       ops,
       vaultOps,
-      risk: 'destructive',
+      bookkeepingDeletes: true,
       ...showPlayers(showNow, copyUuid, players),
     });
     return { ...plan, pageUuid: sourceUuid, copy, note: copyNote(title, copy, warning) };

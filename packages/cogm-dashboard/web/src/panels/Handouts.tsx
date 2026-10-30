@@ -9,7 +9,7 @@ import { useEffect, useRef, useState, type JSX } from 'react';
 import { Drawer, DrawerClose } from '../components/Drawer';
 import { useToast } from '../components/Toasts';
 import { api, callTool, errorText } from '../lib/api';
-import { failCode, useGuardedChange } from '../lib/guarded';
+import { failCode, useGuardedTools } from '../lib/guarded';
 import { canMoveTo, moveTarget } from '../lib/handoutQueue';
 import { HANDOUTS_KEY } from '../lib/stream';
 import { handoutsSwitchOff, type FeatureList } from '../lib/switchOff';
@@ -122,7 +122,7 @@ export function HandoutsDrawer({
   onQueuePage: (sceneId: string | null) => void;
 }): JSX.Element {
   const toast = useToast();
-  const runChange = useGuardedChange();
+  const { plan } = useGuardedTools();
   // Loads on every opening (stale at once), after a change or undo while open, and when the
   // stream says a player opened a handout (handouts-seen).
   const handouts = useQuery({
@@ -170,7 +170,15 @@ export function HandoutsDrawer({
     // Reloads after every attempt, as the old page does: a cancelled or failed reveal may still
     // have changed the queue. An apply already started a reload (GAME_STATE_KEY); this joins it.
     // The button waits for the reload, so it never offers the page just revealed a second time.
-    void runChange('plan-page-reveal', args).finally(() => {
+    const who = next?.players?.length ? next.players.map(nameOf).join(', ') : 'every player';
+    // One line, no tick: a reveal has a working Undo (it is a write, not a destructive change).
+    const confirmLine = {
+      title: 'Show page to players',
+      question: `Show "${next?.title || 'Untitled'}" to ${who}${showNow ? ' now (Undo cannot close the popup)' : ''}?`,
+      confirmLabel: 'Show page to players',
+      pageUuid: next?.uuid,
+    };
+    void plan('plan-page-reveal', args, { confirmLine }).finally(() => {
       setShowNow(false);
       void handouts.refetch({ cancelRefetch: false }).finally(() => {
         revealingRef.current = false;

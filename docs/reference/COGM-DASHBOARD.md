@@ -124,7 +124,7 @@ Not on the page at `/` yet. It is on the old dashboard at `/legacy/`, and needs 
 - **Every change can be undone.** The dashboard's purpose-built buttons apply non-destructive
   changes in one click with an **Undo** message; plans typed by hand in the Tool Runner and plans
   from Claude or Obsidian always show a confirm window, and
-  **destructive actions** (deletes, reveals) require an explicit second confirm, so there are no
+  **destructive actions** (deletes, Tarokka reveals, hides) require an explicit second confirm, so there are no
   accidental table-wipes.
 
 ---

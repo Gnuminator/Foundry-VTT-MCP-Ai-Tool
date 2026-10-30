@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { handoutsSwitchOff, isSwitchOffRefusal } from './switchOff';
+import { featureOffMessage, WRITES_OFF_MESSAGE } from '../../../../../shared/src/switch-off.js';
+import { handoutsSwitchOff, isSwitchOffRefusal, refusedSwitchName } from './switchOff';
 
 describe('handoutsSwitchOff', () => {
   const on = { id: 'handouts', name: 'AI Tool: Handouts (writes)', enabled: true };
@@ -20,6 +21,21 @@ describe('handoutsSwitchOff', () => {
     expect(
       handoutsSwitchOff({ features: [{ ...on, enabled: false }], writesAllowed: false })
     ).toMatch(/"Allow Write Operations" is off/);
+  });
+});
+
+describe('refusedSwitchName', () => {
+  it('names the feature switch or the master switch a refusal points at', () => {
+    expect(refusedSwitchName(featureOffMessage('AI Tool: Handouts (writes)'))).toBe(
+      'AI Tool: Handouts (writes)'
+    );
+    expect(refusedSwitchName(WRITES_OFF_MESSAGE)).toBe('Allow Write Operations');
+    expect(refusedSwitchName('Conflict, nothing was written')).toBeNull();
+  });
+
+  it('matches the words of the shared constants (module, bridge and dashboard agree)', () => {
+    expect(isSwitchOffRefusal(featureOffMessage('AI Tool: Party (writes)'))).toBe(true);
+    expect(isSwitchOffRefusal(WRITES_OFF_MESSAGE)).toBe(true);
   });
 });
 

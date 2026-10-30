@@ -2370,8 +2370,8 @@ async function revealNextHandout() {
         action: 'reveal-next',
         ...(activeSceneId ? { sceneId: activeSceneId } : {}),
         ...(showNow ? { showNow: true } : {}),
-      },
-      { oneClick: true }
+      }
+      // No oneClick: the legacy page keeps asking in its window before a page reaches the players.
     );
   } finally {
     els.handoutsShowNow.checked = false;
@@ -3107,7 +3107,7 @@ async function onPartyClick(e) {
 // A plan-* tool is a read; apply-planned-change then applies it. A purpose-built
 // button passes oneClick: its plan with risk "write" applies at once with an Undo
 // toast (PB-17, D-086), the click being the confirmation. Everything else shows the
-// plan's diff in the confirm modal first: a destructive plan (a handout or Tarokka
+// plan's diff in the confirm modal first: a destructive plan (a Tarokka
 // reveal, a delete, with the destructive checkbox), a plan typed by hand in the Tool
 // Runner, and Claude's plans (opened from a plan link, they never come through here).
 // Everything stays behind GM Actions and the feature switches.

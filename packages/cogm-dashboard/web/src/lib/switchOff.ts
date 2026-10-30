@@ -1,3 +1,7 @@
+// The same words as the module and the bridge (shared/src/switch-off.ts). The dashboard page is
+// built apart from the workspace packages, so it reads that one file by path.
+import { SWITCH_OFF_PATH as SETTINGS_PATH } from '../../../../../shared/src/switch-off.js';
+
 /**
  * Whether a refusal is "an AI Tool switch is off" (the module's and the bridge's switch-off
  * sentences end in where to turn it on). Nothing was written, so it is a hint, not a failure.
@@ -8,7 +12,16 @@ export function isSwitchOffRefusal(text: string): boolean {
   );
 }
 
-const SETTINGS_PATH = 'In Foundry, open Game Settings, Configure Settings, AI Tool and turn on';
+/**
+ * The quoted switch name of a switch-off refusal ("AI Tool: Handouts (writes)"), or
+ * "Allow Write Operations" for the master switch; null when the text names none.
+ */
+export function refusedSwitchName(text: string): string | null {
+  if (/Write operations are disabled in the module settings/i.test(text)) {
+    return 'Allow Write Operations';
+  }
+  return /"([^"]+)" is switched off\./.exec(text)?.[1] ?? null;
+}
 
 /** The bridge's feature list (GET /api/features); null when it cannot be read. */
 export interface FeatureList {

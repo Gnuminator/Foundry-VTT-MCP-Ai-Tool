@@ -4,6 +4,7 @@
  * GuardedWriteService (the real module side is tested in foundry-module).
  * Extra bridge methods can be added per test through `handlers`.
  */
+import { featureOffMessage } from '@gnuminator/shared';
 import { vi } from 'vitest';
 
 import type {
@@ -121,9 +122,7 @@ export class FakeFoundry {
       const feature = this.features.find(f => f.id === req.feature);
       if (!feature?.enabled) {
         const name = feature?.name ?? req.feature;
-        throw new Error(
-          `"${name}" is switched off. In Foundry, open Game Settings, Configure Settings, AI Tool and turn on "${name}".`
-        );
+        throw new Error(featureOffMessage(name));
       }
     }
     // Like the module: in an undo or redo a delete whose document is already gone (dnd5e took

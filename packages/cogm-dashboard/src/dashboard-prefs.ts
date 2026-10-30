@@ -32,11 +32,11 @@ export interface DashboardPrefs {
 }
 
 export const DEFAULT_PREFS: DashboardPrefs = {
-  duringLayout: 'layered',
+  duringLayout: 'auto',
   duringFull: false,
-  combatButtons: false,
+  combatButtons: true,
   versionTracker: true,
-  layoutPicked: false,
+  layoutPicked: true,
   hintDismissed: false,
   hintSessions: [],
 };
@@ -85,9 +85,10 @@ function readPrefs(raw: unknown): DashboardPrefs {
   return {
     duringLayout: isDuringLayout(r.duringLayout) ? r.duringLayout : DEFAULT_PREFS.duringLayout,
     duringFull: r.duringFull === true,
-    combatButtons: r.combatButtons === true,
+    combatButtons:
+      typeof r.combatButtons === 'boolean' ? r.combatButtons : DEFAULT_PREFS.combatButtons,
     versionTracker: r.versionTracker !== false,
-    layoutPicked: r.layoutPicked === true,
+    layoutPicked: typeof r.layoutPicked === 'boolean' ? r.layoutPicked : DEFAULT_PREFS.layoutPicked,
     hintDismissed: r.hintDismissed === true,
     hintSessions: Array.isArray(r.hintSessions)
       ? r.hintSessions

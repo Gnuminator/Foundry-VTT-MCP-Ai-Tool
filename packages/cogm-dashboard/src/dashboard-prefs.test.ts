@@ -35,18 +35,19 @@ describe('parsePrefsChange', () => {
 });
 
 describe('DashboardPrefsStore', () => {
-  it('starts on layout A with the combat buttons off', () => {
+  it('starts on Auto with the combat buttons on', () => {
     const store = new DashboardPrefsStore(null);
     expect(store.get(null)).toEqual(DEFAULT_PREFS);
-    expect(store.get('sorvan').duringLayout).toBe('layered');
-    expect(store.get('sorvan').combatButtons).toBe(false);
+    expect(store.get('sorvan').duringLayout).toBe('auto');
+    expect(store.get('sorvan').combatButtons).toBe(true);
+    expect(store.get('sorvan').layoutPicked).toBe(true);
   });
 
   it('keeps choices per world', async () => {
     const store = new DashboardPrefsStore(null);
     await store.update('sorvan', { duringLayout: 'toggle', duringFull: true });
     expect(store.get('sorvan')).toMatchObject({ duringLayout: 'toggle', duringFull: true });
-    expect(store.get('other').duringLayout).toBe('layered');
+    expect(store.get('other').duringLayout).toBe('auto');
   });
 
   it('counts each session once for the hint, up to the limit', async () => {

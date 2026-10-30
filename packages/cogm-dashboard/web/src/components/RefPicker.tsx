@@ -7,6 +7,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Fragment, useEffect, useMemo, useRef, useState, type JSX, type ReactNode } from 'react';
 
 import { callTool, errorText } from '../lib/api';
+import { fetchFoundryTargets, targetValues, targetsNote } from '../lib/foundryTargets';
 import { fieldValues, refValue, type RefChoice, type ToolRef } from '../lib/toolForm';
 import { usage } from '../lib/usage';
 import { Button } from '../ui';
@@ -210,6 +211,28 @@ export function RefPicker({
     document.getElementById(fieldId)?.focus();
   };
 
+  // Token and actor fields can take whatever the GM has targeted (else selected) in Foundry.
+  const takesTokens = kinds.includes('token') || kinds.includes('actor');
+  const [targetNote, setTargetNote] = useState('');
+  const useTargets = (): void => {
+    usage().track('action', 'dash.tools.foundry-targets');
+    setTargetNote('Reading Foundry…');
+    void fetchFoundryTargets().then(
+      found => {
+        setTargetNote(targetsNote(found));
+        const next = targetValues(found.tokens, ref.value, kinds);
+        if (next.length === 0) return;
+        if (multiple) onChange(next.join('\n'));
+        else if (next[0] !== undefined) onChange(next[0]);
+        for (const [i, v] of next.entries()) {
+          const n = found.tokens[i]?.name;
+          if (n) names.set(v, n);
+        }
+      },
+      (err: unknown) => setTargetNote(`✗ ${errorText(err)}`)
+    );
+  };
+
   const counts = new Map<string, number>();
   for (const { choice } of rows) counts.set(choice.name, (counts.get(choice.name) ?? 0) + 1);
   const q = needsSearch ? '' : filter.trim().toLowerCase();
@@ -247,7 +270,24 @@ export function RefPicker({
         >
           Pick…
         </Button>
+        {takesTokens && (
+          <Button
+            type="button"
+            size="sm"
+            className="ref-open"
+            id={`${fieldId}-targets`}
+            title="Fill from the tokens targeted (or selected) in Foundry"
+            onClick={useTargets}
+          >
+            Use Foundry targets
+          </Button>
+        )}
       </div>
+      {targetNote && (
+        <div className="ref-hint" id={`${fieldId}-targets-note`} role="status">
+          {targetNote}
+        </div>
+      )}
       <div className="ref-hint" id={`${fieldId}-hint`} aria-live="polite">
         {hint}
       </div>

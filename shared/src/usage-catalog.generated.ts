@@ -117,6 +117,12 @@ export const USAGE_CATALOG: readonly UsageCatalogEntry[] = [
     file: 'packages/cogm-dashboard/web/src/components/CombatStrip.tsx',
   },
   {
+    name: 'dash.combat.foundry-targets',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/web/src/components/FoundryTargetsButton.tsx',
+  },
+  {
     name: 'dash.combat.reaction',
     kind: 'action',
     surface: 'dashboard',
@@ -1027,6 +1033,12 @@ export const USAGE_CATALOG: readonly UsageCatalogEntry[] = [
     kind: 'action',
     surface: 'dashboard',
     file: 'packages/cogm-dashboard/public/index.html',
+  },
+  {
+    name: 'dash.tools.foundry-targets',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/web/src/components/RefPicker.tsx',
   },
   {
     name: 'dash.tools.open-tool',

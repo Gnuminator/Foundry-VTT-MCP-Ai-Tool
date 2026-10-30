@@ -469,7 +469,27 @@ describe('FoundryDataAccess — getTargets', () => {
   it('returns count 0 and an empty array when the user has no targets', async () => {
     const result = await da.getTargets();
 
-    expect(result).toEqual({ success: true, count: 0, targets: [] });
+    expect(result).toEqual({ success: true, count: 0, targets: [], selected: [] });
+  });
+
+  it('lists the tokens selected on the canvas apart from the targets', async () => {
+    (globalThis as any).canvas = {
+      tokens: {
+        controlled: [
+          { id: 'tk3', name: 'Bandit', actor: { id: 'ac3', system: { attributes: {} } } },
+        ],
+      },
+    };
+    try {
+      const result = await da.getTargets();
+
+      expect(result.count).toBe(0);
+      expect(result.selected).toEqual([
+        { tokenId: 'tk3', name: 'Bandit', actorId: 'ac3', ac: null, hp: null },
+      ]);
+    } finally {
+      delete (globalThis as any).canvas;
+    }
   });
 
   it('maps the user targets to token id / actor / ac / hp', async () => {
@@ -495,6 +515,7 @@ describe('FoundryDataAccess — getTargets', () => {
         { tokenId: 'tk1', name: 'Goblin', actorId: 'ac1', ac: 15, hp: { value: 7, max: 7 } },
         { tokenId: 'tk2', name: 'Shade', actorId: null, ac: null, hp: null },
       ],
+      selected: [],
     });
   });
 });

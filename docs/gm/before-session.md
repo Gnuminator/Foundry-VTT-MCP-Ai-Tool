@@ -75,7 +75,7 @@ four stages with times.
 
 ## When play begins
 
-- [ ] Click **Start the session log** (in the Pre-flight panel) or **Start session** in the
+- [ ] Click **Start the session log and live play** (in the Pre-flight panel) or **Start session** in the
       dashboard header. It should now say "Session since" and the time.
 
 Next: [after each session](after-session.md).

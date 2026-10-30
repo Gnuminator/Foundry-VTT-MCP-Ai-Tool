@@ -5,6 +5,8 @@ import { GM_ACTIONS, offReason, offSwitches } from '../lib/liveSwitches';
 import { useDashboardSettings } from '../lib/stream';
 import { Button, Popover } from '../ui';
 
+const GM_ACTIONS_NAME = 'GM Actions';
+
 /**
  * The live play line in the header: "Live play on: all set", or what is off ("Handouts is off:
  * Turn on"). Start session is the only switch (it turns on GM Actions and every Turn on for
@@ -37,7 +39,9 @@ export function LivePlayLine(): JSX.Element {
           title="Start session turns live play on and End session turns it off"
         >
           {live.unreadable
-            ? "Live play: can't read the switches"
+            ? gmActions
+              ? "Live play: can't read the switches"
+              : `${offReason([GM_ACTIONS_NAME])}: Turn on`
             : names.length === 0
               ? 'Live play on: all set'
               : `${offReason(names)}: Turn on`}

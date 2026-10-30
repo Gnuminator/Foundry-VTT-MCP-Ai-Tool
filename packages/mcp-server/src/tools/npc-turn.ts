@@ -194,7 +194,7 @@ export class NpcTurnTools {
     const feature = features.find(f => f.id === NPC_TURN_FEATURE_ID);
     if (!feature?.enabled) {
       throw new Error(
-        'The NPC turn assistant is switched off. In Foundry, open the Settings tab, Game Settings, AI Tool and turn on "AI Tool: NPC turn assistant (writes)".'
+        'The NPC turn assistant is switched off. In Foundry, open the Settings tab, Game Settings, Foundry AI Tool and turn on "AI Tool: NPC turn assistant (writes)".'
       );
     }
 

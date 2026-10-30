@@ -153,7 +153,7 @@ export class SceneRestoreTools {
     const feature = features.find(f => f.id === SCENE_RESTORE_FEATURE_ID);
     if (!feature?.enabled) {
       throw new Error(
-        'Scene restore is switched off. In Foundry, open the Settings tab, Game Settings, AI Tool and turn on "AI Tool: Scene restore (writes)".'
+        'Scene restore is switched off. In Foundry, open the Settings tab, Game Settings, Foundry AI Tool and turn on "AI Tool: Scene restore (writes)".'
       );
     }
 

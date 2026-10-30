@@ -684,7 +684,7 @@ describe('applyGuardedOps: refusals', () => {
     const again = await request([{ kind: 'update', uuid: actor.uuid, changes: { name: 'Y' } }]);
     await expectRefused(
       again,
-      /is switched off\. In Foundry, open the Settings tab, Game Settings, AI Tool and turn on/
+      /is switched off\. In Foundry, open the Settings tab, Game Settings, Foundry AI Tool and turn on/
     );
     expect(actor.name).toBe('X');
 

@@ -7,7 +7,7 @@ import { SWITCH_OFF_PATH as SETTINGS_PATH } from '../../../../../shared/src/swit
  * sentences end in where to turn it on). Nothing was written, so it is a hint, not a failure.
  */
 export function isSwitchOffRefusal(text: string): boolean {
-  return /\bis switched off\. In Foundry, open Game Settings|Write operations are disabled in the module settings/i.test(
+  return /\bis switched off\. In Foundry, open\b|Write operations are disabled in the module settings/i.test(
     text
   );
 }

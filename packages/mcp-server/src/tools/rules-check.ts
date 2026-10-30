@@ -34,7 +34,7 @@ const params = z.object({
 });
 
 const SWITCH_OFF =
-  'The rules check is switched off. In Foundry, open the Settings tab, Game Settings, AI Tool and turn on "AI Tool: Rules check".';
+  'The rules check is switched off. In Foundry, open the Settings tab, Game Settings, Foundry AI Tool and turn on "AI Tool: Rules check".';
 
 type Rec = Record<string, unknown>;
 const rec = (v: unknown): Rec => (v !== null && typeof v === 'object' ? (v as Rec) : {});

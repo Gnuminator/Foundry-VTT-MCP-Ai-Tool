@@ -20,6 +20,13 @@ decision), then ends. It does not sit and wait for lanes. Vault paths below are 
 - `list_sessions` without `linked` (lanes start their own successors; they only show in the full
   list), then `get_usage` with each running lane's id (lanes underreport their context).
   `get_usage "self"` for your own context and the plan percentages.
+- **Again on every wake, not only at start (2026-10-30):** each lane note, gate exit or user
+  message, re-read the `- claimed:` and `- progress:` lines of every claimed item, including lanes
+  inherited from an earlier planner (detached lanes send you no turn-end notes). A lane that
+  stopped with a handover and no running successor gets one the same turn (Sonnet, brief points at
+  its `Handoff/<lane> prompt <date>.md`; a card if the turn cannot start sessions). Then finish its
+  clean-up in the same pass: rename it "CLOSED (handed over <date>) <title>", check its worktree
+  is clean and pushed, and archive it, which also frees its branch for the successor's worktree.
 
 ## "What's next"
 

@@ -255,6 +255,14 @@ note reviewed>` (`--dry-run` first; no `--allow-round3`). It refuses, with the r
   done, left, branch, PR and head sha, the next command. Hitting the limit then means one step.
   At each milestone and at handover also update the `- progress:` line on your Backlog item (same
   rules as under "Ready to merge": vault first, then at most a message to the newest Planner).
+- **When you stop at the context line, the planner must hear it (2026-10-30):** after the handover
+  note and the `- progress:` line (`handed over at <context>, no PR yet` or the PR state, plus the
+  handover note path) are pushed, SendMessage "the newest session titled Planner" once (one line:
+  item ids, handover note path), even with no PR. This one is not optional: a lane whose planner
+  handed over and detached it sends no turn-end note to anyone, so without the message a stopped
+  lane sits idle until someone looks (three lanes for about 40 minutes on 2026-10-30). If you may
+  start sessions (the user asked you here), start the successor yourself with `model` set and
+  the handover note as its brief, and say so in the message; otherwise the planner starts it.
 - Before saying a session can be closed: no background run it owns is still going.
 - Never leave a user to-do only in chat: add it to vault `Waiting.md` (what to do, minutes, what it
   settles, a `- due:` line).

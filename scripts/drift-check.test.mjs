@@ -398,6 +398,26 @@ test('shared/dist missing: the lane checkout builds shared before the guards run
   }
 });
 
+test('a lane that already has main, with no shared/dist: built before the guards, once', () => {
+  const { tmp, lane } = lanesShared();
+  try {
+    fs.rmSync(path.join(lane, 'shared', 'dist'), { recursive: true });
+    const first = runWith(lane, { checks: [readsSharedDist('v1')], sharedBuild: buildShared });
+    assert.equal(first.code, 0, first.out);
+    assert.match(first.out, /already contains/);
+    assert.match(first.out, /shared\/dist is missing; building shared/);
+    // The stamp keeps an up-to-date dist from being rebuilt on the next run.
+    const second = runWith(lane, {
+      checks: [readsSharedDist('v1')],
+      sharedBuild: 'node -e "process.exit(9)"',
+    });
+    assert.equal(second.code, 0, second.out);
+    assert.doesNotMatch(second.out, /building shared/);
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
 test('shared/dist older than shared/src: rebuilt; a failing build stops with its output', () => {
   const { tmp, lane, other } = lanesShared();
   try {

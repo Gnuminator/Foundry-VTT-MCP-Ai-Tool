@@ -18,7 +18,9 @@
  * lockfile change made by the branch itself does not count). The workspace links (`@gnuminator/*`)
  * point at this checkout's own packages, and `@gnuminator/shared` is consumed through its build
  * (`shared/dist`): when the merge changed `shared/`, the worktree gets its own workspace links and
- * builds its own `shared`, so the guards test the merged tree against a shared built from it. A worktree left by a killed run is removed by the next run; one whose run is still
+ * builds its own `shared`, so the guards test the merged tree against a shared built from it. Before
+ * any of that, a checkout whose `shared/dist` is missing or older than `shared/src` gets `shared`
+ * built (ensureSharedBuilt), so a lane that never built it does not fail the mcp-server tests. A worktree left by a killed run is removed by the next run; one whose run is still
  * alive (another lane's, same repository) and younger than an hour is left alone.
  */
 import { spawnSync } from 'node:child_process';
@@ -256,7 +258,13 @@ export function ensureSharedBuilt(cwd, buildCommand, log) {
   }
   log(`drift-check: shared/dist is ${distTime ? 'older than shared/src' : 'missing'}; building shared.`);
   const r = spawnSync(buildCommand, { cwd: shared, shell: true, encoding: 'utf8' });
-  if (r.status === 0) return null;
+  if (r.status === 0) {
+    // shared is `composite`: tsc skips outputs whose content did not change, so a touched src could
+    // leave dist older than src for good. The stamp records that the build ran after the sources.
+    fs.mkdirSync(dist, { recursive: true });
+    fs.writeFileSync(path.join(dist, '.built-stamp'), new Date().toISOString());
+    return null;
+  }
   return `${r.stdout ?? ''}${r.stderr ?? ''}`.trim().split('\n').slice(-15).join('\n');
 }
 

@@ -127,8 +127,8 @@ export async function closeTools(page, { human = false } = {}) {
 
 /** The Undo button of the newest change in Recent Changes. */
 export function newestUndoButton(page) {
-  // [id=...] rather than #...: the React pane's ids are not in the legacy index.html that
-  // demo-scripts.test.ts checks the helpers' #ids against.
+  // An attribute selector: the React pane's id is not in the legacy index.html that
+  // demo-scripts.test.ts checks the helpers' hash selectors against.
   return page.locator('[id="pane-changes-body"] button[aria-label^="Undo:"]').first();
 }
 

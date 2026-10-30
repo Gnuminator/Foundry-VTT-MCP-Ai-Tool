@@ -294,6 +294,25 @@ describe('FoundryDataAccess — requestPlayerRolls', () => {
     expect(button.rollFormula).toBe('1d20+3');
   });
 
+  it('an exact character name beats a partial player name (character "Mira", player "Miranda")', async () => {
+    world.addUser({ id: 'u1', name: 'Miranda', active: true, isGM: false });
+    world.addUser({ id: 'u2', name: 'Tom', active: true, isGM: false });
+    addPlayerCharacter({ id: 'a1', name: 'Mira', ownerUserId: 'u2' });
+    addPlayerCharacter({ id: 'a2', name: 'Miranda Jr', ownerUserId: 'u1' });
+
+    const result = await da.requestPlayerRolls({
+      rollType: 'ability',
+      rollTarget: 'dex',
+      targetPlayer: 'Mira',
+      isPublic: true,
+      rollModifier: '',
+      flavor: '',
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.message).toContain('Roll request sent to Tom');
+  });
+
   it('appends a custom rollModifier to the formula', async () => {
     world.addUser({ id: 'u1', name: 'Alice', active: true, isGM: false });
     addPlayerCharacter({

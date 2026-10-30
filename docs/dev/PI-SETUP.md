@@ -1340,27 +1340,31 @@ a hand edit would be lost, the snapshot has it). Nothing else is touched and not
 ## Join page look (stage 19)
 
 The page players see before they log in (`/join`) shows the world's Background Image, Join Page Theme, Next
-Session and World Description; all four are world settings (Game Settings, World Configuration), no code. For
-the Curse of Strahd world on the Pi two scripts set them, in this order, each after a `dietpi-backup` snapshot
-and the user's OK. The image is campaign art: it stays on the PC and the Pi, never in the repo or the vault.
+Session and World Description; all four are world settings (Game Settings, World Configuration), no code. Stage 19
+(`scripts/pi/remote/19-join-page-look.sh`) sets the picture and the description of the Curse of Strahd world on the
+Pi. Join Page Theme and Next Session are not touched. The picture is campaign art: it stays on the PC and the Pi,
+never in the repo or the vault.
 
-1. **Stage 19** (`scripts/pi/remote/19-join-image.sh`) puts the webp into `worlds/curse-of-strahd/join-background.webp`
-   as the foundry user (mode 644). It is a stage and not part of the GM script because `gm-script.sh` limits a script
-   file to 1 MB and a base64 copy of a 0.9 MB webp is 1.3 MB. It checks the file (regular file, webp, at most 5 MB,
-   `EXPECT_SHA256`), keeps a different existing file as `.old` only with `REPLACE=1`, and changes nothing when the
-   same file is already there.
-   `scp join-bg.webp foundry-pi:/root/`, then
-   `cat scripts/pi/remote/lib.sh scripts/pi/remote/19-join-image.sh | ssh foundry-pi 'IMAGE_SRC=/root/join-bg.webp EXPECT_SHA256=<sha> DRY_RUN=1 bash -s'`
-   (without `DRY_RUN=1` for the real run; `UNDO=1` removes it again).
-2. **The GM script** `scripts/pi/gm-scripts/join-page-look.js` (see "GM scripts" above) checks that the image is
-   served (HEAD), then posts `editWorld` with the background path and the description. Join Page Theme and Next
-   Session are sent back unchanged and the script stops with an error if they changed. Its dry run reads the
-   current values and the image's size and writes nothing. To change the description (Danni sends his own text
-   later) edit `DESC` in the script and dry-run the new file.
+**Why a stage and not a GM script:** World Configuration is Foundry's `editWorld` request, and while a world runs
+the server accepts it only from the full Gamemaster role (`hasRole("GAMEMASTER")`, read in Foundry 14.369's setup
+view). The Assistant GM has role 3 (assistant), so `gm-script.sh` cannot do it, and nobody types the GM password.
+The stage therefore edits `world.json` with Foundry stopped (Foundry rewrites that file itself on exit).
 
-Undo: clear Background Image and paste the old description back (the log of the run has the "before" values), or
-run the script again with those values, then stage 19 with `UNDO=1`. Check the result logged out (a private window).
-Tests: `scripts/pi/join-image.test.mjs`.
+- Copy the picture and the description (an HTML file) to the Pi: `scp join-bg.webp join-desc.html foundry-pi:/root/`.
+- **Look first (changes nothing, needs no snapshot):**
+  `cat scripts/pi/remote/lib.sh scripts/pi/remote/19-join-page-look.sh | ssh foundry-pi 'IMAGE_SRC=/root/join-bg.webp EXPECT_SHA256=<sha> DESC_FILE=/root/join-desc.html DRY_RUN=1 bash -s'`
+  prints the current background and description and what would change.
+- **Run:** the same without `DRY_RUN=1`, after a `dietpi-backup` snapshot and the user's OK, never on a game-night day.
+  It refuses while players are online or a recording runs, saves the old values to
+  `/var/lib/foundry-ai-tool/join-page-look/<time>-<world>-before.json`, stops the Assistant GM browser and Foundry,
+  installs the picture as `worlds/curse-of-strahd/join-background.webp` (foundry user, mode 644), sets `background` and
+  `description` in `world.json`, starts Foundry, waits for the join page, starts the Assistant GM browser and checks
+  that `/join` names the picture and the picture is served. A failure after the stop puts `world.json` back and starts
+  both services again. The same picture and description again change nothing.
+- **Another description later** (Danni sends his own): change the HTML file and run it again.
+- **Undo:** the same pipe with `UNDO=1` (and `EXPECT_SHA256`): the old description comes back, the background key is
+  removed when it was not set before, and the picture is deleted when it still has that hash.
+- Check the result logged out (a private window), reload once. Tests: `scripts/pi/join-page-look.test.mjs`.
 
 ## Where things live on the Pi
 

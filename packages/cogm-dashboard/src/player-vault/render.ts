@@ -407,12 +407,16 @@ function renderStats(stats: PlayerStats): string {
         tallyText(pc.currencyDelta, k => k)
       ),
       kv('Experience gained', pc.xpGained),
-      kv('Rolls everyone could see', pc.rolls),
-      kv('Critical hits', pc.crits),
-      kv('Critical misses', pc.fumbles),
-      kv('Natural 20s', pc.d20[19]),
-      kv('Natural 1s', pc.d20[0]),
-      kv('Highest roll', pc.highestRoll ? bestRollText(pc.highestRoll) : null),
+      ...(pc.rolls > 0
+        ? [
+            kv('Rolls everyone could see', pc.rolls),
+            kv('Critical hits', pc.crits),
+            kv('Critical misses', pc.fumbles),
+            kv('Natural 20s', pc.d20[19]),
+            kv('Natural 1s', pc.d20[0]),
+            kv('Highest roll', pc.highestRoll ? bestRollText(pc.highestRoll) : null),
+          ]
+        : []),
     ]).replace(/^## /, '### ')
   );
   const body = [

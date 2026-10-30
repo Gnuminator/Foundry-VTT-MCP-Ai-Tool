@@ -264,7 +264,7 @@ describe('buildStats: public roll stats (player vault)', () => {
           natural: 1,
           fumble: true,
           dice: [{ faces: 20, results: [1] }],
-          rollType: 'save',
+          rollType: 'attack',
         },
         visible('public')
       ),
@@ -274,6 +274,42 @@ describe('buildStats: public roll stats (player vault)', () => {
     expect(pc?.publicD20[19]).toBe(1);
     expect(pc?.publicD20[0]).toBe(1);
     expect(pc?.publicHighestRoll?.total).toBe(30);
+  });
+
+  it('counts critical hits and misses on attack rolls only, not on a natural 20 or 1 in a check', () => {
+    const stats = build([
+      roll(
+        'r1',
+        T0,
+        PC,
+        'm1',
+        {
+          total: 25,
+          natural: 20,
+          crit: true,
+          dice: [{ faces: 20, results: [20] }],
+          rollType: 'skill',
+        },
+        visible('public')
+      ),
+      roll(
+        'r2',
+        T0 + 1000,
+        PC,
+        'm2',
+        {
+          total: 2,
+          natural: 1,
+          fumble: true,
+          dice: [{ faces: 20, results: [1] }],
+          rollType: 'save',
+        },
+        visible('public')
+      ),
+    ]);
+    expect(stats.pcs[0]).toMatchObject({ publicRolls: 2, publicCrits: 0, publicFumbles: 0 });
+    expect(stats.pcs[0]?.publicD20[19]).toBe(1);
+    expect(stats.pcs[0]?.publicD20[0]).toBe(1);
   });
 });
 

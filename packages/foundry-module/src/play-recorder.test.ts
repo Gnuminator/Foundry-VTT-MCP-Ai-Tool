@@ -829,6 +829,27 @@ describe('scene token snapshots', () => {
       .map(r => r.data?.visibility);
     expect(visibilities).toEqual(['public', 'gm', 'blind', 'self']);
   });
+
+  it('reads the author from a User document, as live Foundry gives it', () => {
+    world.actors.add(makeFixtureActor());
+    const roll = (id: string, extra: Record<string, unknown>): Record<string, unknown> => ({
+      id,
+      type: 'check',
+      speaker: { actor: 'a1' },
+      rolls: [d20Roll({ total: 12 })],
+      flags: {},
+      author: { id: 'u1', name: 'Alice' },
+      _stats: { modifiedTime: 1000 },
+      ...extra,
+    });
+    Hooks.callAll('createChatMessage', roll('d1', { whisper: ['u1'] }), {}, 'u1');
+    Hooks.callAll('createChatMessage', roll('d2', { whisper: ['gm1'] }), {}, 'u1');
+    const visibilities = recorder
+      .getPlayRecords({})
+      .records.filter(r => r.kind === 'roll')
+      .map(r => r.data?.visibility);
+    expect(visibilities).toEqual(['self', 'gm']);
+  });
 });
 
 // --- Chat: rolls, item-use, rest, plain chat -------------------------------------

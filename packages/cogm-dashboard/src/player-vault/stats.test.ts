@@ -152,6 +152,25 @@ describe('projectPlayStats', () => {
     expect(pc?.rolls).toBe(0);
     expect(pc?.highestRoll).toBeNull();
     expect(pc?.d20.every(n => n === 0)).toBe(true);
+    const note =
+      renderPlayerVault({
+        worldTitle: 'W',
+        player: { userId: 'u1', name: 'Alice' },
+        handouts: [],
+        sheets: [],
+        sessions: [],
+        theme: { id: 'default' as never, css: null },
+        stats: projectPlayStats({ ...answer, pcs }, 'w1', OWN),
+      }).get('My stats.md') ?? '';
+    expect(note).toContain('Damage taken: 12');
+    for (const label of [
+      'Rolls everyone could see',
+      'Critical hits',
+      'Natural 20s',
+      'Highest roll',
+    ]) {
+      expect(note).not.toContain(label);
+    }
   });
 
   it('is null for another world or a malformed answer', () => {

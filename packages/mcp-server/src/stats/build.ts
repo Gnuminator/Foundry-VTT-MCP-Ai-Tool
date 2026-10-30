@@ -675,8 +675,11 @@ function buildSession(
           // `visibility` existed (or with any other value) never do.
           if (record.data?.visibility === 'public') {
             pc.publicRolls++;
-            if (record.roll?.crit) pc.publicCrits++;
-            if (record.roll?.fumble) pc.publicFumbles++;
+            // Critical hits and misses are attack rolls; a natural 20 on a check is not one.
+            if (record.roll?.rollType === 'attack') {
+              if (record.roll.crit) pc.publicCrits++;
+              if (record.roll.fumble) pc.publicFumbles++;
+            }
             for (const v of results) if (v >= 1 && v <= 20) pc.publicD20[v - 1] += 1;
             if (
               roll &&

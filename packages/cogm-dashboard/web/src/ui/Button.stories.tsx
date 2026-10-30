@@ -21,6 +21,13 @@ export const Quiet: Story = { args: { variant: 'quiet', children: 'Hide cards' }
 export const Danger: Story = { args: { variant: 'danger', children: 'Remove link' } };
 export const Small: Story = { args: { size: 'sm', children: 'Copy link' } };
 export const Disabled: Story = { args: { disabled: true, children: 'Reveal next' } };
+export const Busy: Story = {
+  args: { variant: 'primary', busy: true, busyLabel: 'Starting...', children: 'Start combat' },
+};
+/** Still waiting after 2 seconds: the label says so (the story shortens the wait to nothing). */
+export const BusySlow: Story = {
+  args: { ...Busy.args, slowAfterMs: 0 },
+};
 
 /** Every variant in both sizes, enabled and disabled: the matrix a design change must keep intact. */
 export const AllVariants: Story = {

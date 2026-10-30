@@ -16,6 +16,8 @@ interface ButtonProps extends ComponentProps<'button'> {
    */
   busy?: boolean;
   busyLabel?: string;
+  /** How long a busy button waits before it says "Waiting for Foundry..."; a story sets 0 to show it. */
+  slowAfterMs?: number;
 }
 
 /** How long a busy button waits before it says the answer is slow. */
@@ -53,11 +55,12 @@ export function Button({
   className,
   busy = false,
   busyLabel = 'Working...',
+  slowAfterMs = SLOW_AFTER_MS,
   children,
   onClick,
   ...rest
 }: ButtonProps): JSX.Element {
-  const slow = useAfter(busy, SLOW_AFTER_MS);
+  const slow = useAfter(busy, slowAfterMs);
   return (
     <button
       className={cx('btn', VARIANT_CLASS[variant], size === 'sm' && 'btn-small', className)}

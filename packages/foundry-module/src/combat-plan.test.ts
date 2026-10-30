@@ -176,6 +176,14 @@ describe('end', () => {
     expect(plan.combatId).toBe('c7');
   });
 
+  it('ends the latest of two encounters on different scenes when this browser views none', async () => {
+    world.setCombat({ id: 'old', uuid: 'Combat.old' });
+    world.setCombat({ id: 'new', uuid: 'Combat.new' });
+    (world as any).currentCombat = null;
+    const plan = await planCombatChange({ action: 'end' });
+    expect(plan.combatId).toBe('new');
+  });
+
   it('picks a named combat over the active one', async () => {
     world.setCombat({ id: 'other', uuid: 'Combat.other' });
     world.setCombat({ id: 'active', uuid: 'Combat.active' });

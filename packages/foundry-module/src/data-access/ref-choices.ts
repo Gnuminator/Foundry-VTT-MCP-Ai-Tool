@@ -307,7 +307,8 @@ function listActorItems({ parent, filter }: ListRequest): Listed {
 }
 
 function listCombatants(): Listed {
-  const combat = game.combat;
+  // The fight the combat strip shows: the live one, else the latest encounter (another scene's).
+  const combat = game.combat ?? Array.from(game.combats ?? []).slice(-1)[0];
   if (!combat) return { choices: [], note: 'No active combat' };
   const choices = combat.combatants.contents.map(c => ({
     id: c.id,

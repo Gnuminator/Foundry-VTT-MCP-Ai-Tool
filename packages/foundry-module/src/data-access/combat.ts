@@ -529,11 +529,15 @@ export class CombatDataAccess {
 
   // --- Mutation internals ----------------------------------------------------
 
-  /** The live combat (`game.combat`), or throw — mutation needs an *active* encounter. */
+  /**
+   * The fight the combat strip shows (this browser's live combat, else the latest encounter), or
+   * throw. A fight started on the dashboard can belong to a scene this GM browser does not view,
+   * where `game.combat` is null.
+   */
   private requireActiveCombat(): TrackerCombat {
-    const combat = game.combat;
+    const combat = this.resolveActiveOrRecentCombat();
     if (!combat) throw new Error('No active combat encounter.');
-    return combat as TrackerCombat;
+    return combat;
   }
 
   /**

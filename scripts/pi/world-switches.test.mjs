@@ -27,7 +27,14 @@ const key = e => `${e.ns}.${e.key}`;
 
 // A fake `game` with every PROFILE setting registered as a world setting, off (booleans false, downed 'none').
 // `without` leaves settings unregistered, `client` makes some of them client settings, `set` overrides values.
-function fakeGame({ without = [], client = [], set = {}, isGM = true, world = 'w' } = {}) {
+function fakeGame({
+  without = [],
+  client = [],
+  set = {},
+  isGM = true,
+  world = 'w',
+  active = [],
+} = {}) {
   const values = new Map(PROFILE.map(e => [key(e), typeof e.value === 'boolean' ? false : 'none']));
   for (const [k, v] of Object.entries(set)) values.set(k, v);
   const registered = new Map(
@@ -42,6 +49,8 @@ function fakeGame({ without = [], client = [], set = {}, isGM = true, world = 'w
     values,
     world: { id: world },
     user: { name: 'Gamemaster', isGM },
+    system: { id: 'dnd5e' },
+    modules: { get: ns => (active.includes(ns) ? { active: true } : undefined) },
     settings: {
       settings: registered,
       get(ns, k) {
@@ -118,6 +127,17 @@ describe('world-switches.mjs against a fake game', () => {
     const changed = await inGame(game, applyState, ARGS);
     assert.ok(!changed.includes('item-piles.enableTrading'));
     assert.deepEqual(mismatches(await inGame(game, readState, ARGS)), []);
+  });
+
+  test('an optional module that is active but registers nothing is a blocker: the key is probably wrong', async () => {
+    const game = fakeGame({ without: ['item-piles.enableTrading'], active: ['item-piles'] });
+    const before = await inGame(game, readState, ARGS);
+    assert.match(
+      blockers(before, 'w').join(';'),
+      /item-piles.enableTrading is not registered although item-piles is active/
+    );
+    assert.deepEqual(warnings(before), []);
+    assert.match(mismatches(before).join(';'), /item-piles.enableTrading is not registered/);
   });
 
   test('a required setting that is not registered, a client setting, a wrong world or a non-GM block', async () => {

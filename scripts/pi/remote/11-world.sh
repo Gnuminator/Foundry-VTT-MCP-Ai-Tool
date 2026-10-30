@@ -332,7 +332,7 @@ fi
 # a kit world or a WORLD this run installs, and not in a push-back. A kept world under auto and a push-back (the
 # command push-world.ps1 prints for it has no scp) need no driver. Checked here, before Foundry stops.
 if [ "$WORLD_SWITCHES" = 1 ] ||
-  { [ "$WORLD_SWITCHES" = auto ] && [ "$pushback" = 0 ] && { [ -n "$KIT_WORLD" ] || [ ! -e "$data/worlds/$WORLD" ] || [ "$REPLACE_WORLD" = 1 ]; }; }; then
+  { [ "$WORLD_SWITCHES" = auto ] && [ "$pushback" = 0 ] && { [ -n "$KIT_WORLD" ] || [ ! -e "$data/worlds/$WORLD" ] || [ "$REPLACE_WORLD" = 1 ] || [ -e "$TOOL_ETC/world-$WORLD.switches-pending" ]; }; }; then
   if have_systemd; then
     [ -f "$SWITCH_DRIVER" ] || [ -f "$TOOL_DIR/gm-browser/world-switches.mjs" ] ||
       die "no $SWITCH_DRIVER: scp scripts/pi/remote/world-switches.mjs foundry-pi:/root/ first, or run with WORLD_SWITCHES=0. Nothing was changed"
@@ -706,8 +706,9 @@ if [ -e "$data/worlds/$WORLD" ] && [ "$REPLACE_WORLD" != 1 ]; then
     { [ -n "$EXTRA_GM_USER" ] && [ -z "$(env_login "$TOOL_ETC/world-$WORLD.env" EXTRA_GM_USER)" ]; }; then
     todo+=("$WORLD")
   fi
-  # WORLD_SWITCHES=1 sets the switches in the kept world too, so it must run for that.
-  if [ "$WORLD_SWITCHES" = 1 ]; then
+  # WORLD_SWITCHES=1 sets the switches in the kept world too, so it must run for that; so does auto when an earlier
+  # run left the world's switches owed (world-<id>.switches-pending).
+  if [ "$WORLD_SWITCHES" = 1 ] || { [ "$WORLD_SWITCHES" = auto ] && [ -e "$TOOL_ETC/world-$WORLD.switches-pending" ]; }; then
     switch_ids+=("$WORLD")
     [[ " ${todo[*]} " == *" $WORLD "* ]] || todo+=("$WORLD")
   fi
@@ -805,7 +806,15 @@ provision_world() { # $1 world id
       runuser -u "$FOUNDRY_USER" -- env HOME="$TOOL_DATA" TOOL_APP="$TOOL_DIR/app" \
         FOUNDRY_URL=http://127.0.0.1:30000 CHROMIUM=/usr/bin/chromium \
         node "$TOOL_DIR/gm-browser/world-switches.mjs"
-    ) || die "the world switches of $id failed or did not verify (see the lines above). $id may be only partly set. A kit world is set again by any plain rerun; for $WORLD run the stage again with WORLD_SWITCHES=1 (it is kept now, and its settings are copied to prev first), or with WORLD_SWITCHES=0 to leave the switches"
+    ) || {
+      # $id may be only partly set; the marker world-<id>.switches-pending stays, so a plain rerun does it again.
+      if [ "$id" = "$WORLD" ]; then
+        die "the world switches of $id failed or did not verify (see the lines above). $id may be only partly set and is kept now (its settings are copied to prev first): run the stage again without REPLACE_WORLD (a plain rerun does the switches again, the marker $TOOL_ETC/world-$id.switches-pending says they are owed), or with WORLD_SWITCHES=0 to leave them"
+      else
+        die "the world switches of the kit world $id failed or did not verify (see the lines above). Run the same command again: the kit world is reset and gets the switches. Do not add WORLD_SWITCHES=1 for this"
+      fi
+    }
+    rm -f "$TOOL_ETC/world-$id.switches-pending"
     ok "$id: world switches set and read back"
   fi
 }
@@ -814,6 +823,8 @@ provision_world() { # $1 world id
 # starts (and before any env file) and each is removed after its own provisioning worked, so a failure on one world
 # leaves the others marked too, and a plain rerun provisions them all again with the same passwords.
 for id in "${todo[@]}"; do (umask 077 && : >"$TOOL_ETC/world-$id.pending"); done
+# The same for the switches: owed until the driver has set and verified them (a plain rerun does them for a kept WORLD).
+for id in "${switch_ids[@]}"; do (umask 077 && : >"$TOOL_ETC/world-$id.switches-pending"); done
 
 if [ "${#switch_ids[@]}" -gt 0 ] && have_systemd; then
   if [ -f "$SWITCH_DRIVER" ]; then

@@ -92,6 +92,7 @@ describe('11-world.sh in an ARM64 container', { skip: containerReason }, () => {
           first: part('first run'),
           after: part('env after'),
           pending: part('pending'),
+          switchesPending: part('switches pending'),
           sentinels: part('sentinels'),
           kitof: part('kitof'),
           worlds: part('worlds'),
@@ -743,9 +744,32 @@ describe('11-world.sh in an ARM64 container', { skip: containerReason }, () => {
     const r = run('switches-fails');
     assert.equal(r.exit, '1', r.output);
     assert.match(r.output, /the world switches of frostmaiden-training failed or did not verify/);
-    assert.match(r.output, /run the stage again with WORLD_SWITCHES=1/);
+    assert.match(r.output, /run the stage again without REPLACE_WORLD/);
+    assert.doesNotMatch(r.output, /Run the same command again/);
     assert.match(r.switches, /FAILED$/);
+    assert.equal(r.switchesPending, 'world-frostmaiden-training.switches-pending');
     assert.equal(r.world, 'curse-of-strahd', 'options.json is put back');
     assert.equal(r.leak, 'no');
+  });
+
+  test('world switches: after a failure a plain rerun does them again for the kept world and clears the marker', () => {
+    const r = run('switches-fails-rerun');
+    assert.equal(r.exit, '0', r.output);
+    assert.match(r.output, /KEPT: the campaign world frostmaiden-training already exists/);
+    assert.deepEqual(lines(r.switches), [
+      `${SW('frostmaiden-training')} FAILED`,
+      SW('frostmaiden-training'),
+    ]);
+    assert.equal(r.switchesPending, '', 'the marker is gone once the switches are set');
+  });
+
+  test('world switches: a failing kit world says to run the same command, never WORLD_SWITCHES=1', () => {
+    const r = run('switches-fails-kit');
+    assert.equal(r.exit, '1', r.output);
+    assert.match(r.output, /the world switches of the kit world strahd-kit failed/);
+    assert.match(r.output, /Run the same command again/);
+    assert.doesNotMatch(r.output, /run the stage again with WORLD_SWITCHES=1/);
+    assert.equal(r.switchesPending, 'world-strahd-kit.switches-pending');
+    assert.ok(sentinel(r, 'curse-of-strahd'), 'the kept campaign is untouched');
   });
 });

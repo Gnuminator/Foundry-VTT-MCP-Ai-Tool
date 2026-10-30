@@ -64,7 +64,8 @@ export function readState({ profile }) {
           value = null;
         }
       }
-      return { ns, key, registered: Boolean(reg), scope: reg?.scope ?? null, value };
+      const moduleActive = ns === game.system?.id || game.modules?.get(ns)?.active === true;
+      return { ns, key, registered: Boolean(reg), scope: reg?.scope ?? null, value, moduleActive };
     }),
   };
 }
@@ -97,9 +98,11 @@ export function blockers(state, world, profile = PROFILE) {
   if (!state.isGM) problems.push(`${state.user} is not a GM`);
   for (const row of state.rows) {
     const entry = profile.find(p => p.ns === row.ns && p.key === row.key);
-    if (!row.registered && !entry?.optional) {
+    if (!row.registered && (!entry?.optional || row.moduleActive)) {
       problems.push(
-        `${row.ns}.${row.key} is not registered (is the ${row.ns} module or system active in this world?)`
+        row.moduleActive
+          ? `${row.ns}.${row.key} is not registered although ${row.ns} is active: the key is probably wrong`
+          : `${row.ns}.${row.key} is not registered (is the ${row.ns} module or system active in this world?)`
       );
     } else if (row.registered && row.scope !== 'world' && !entry?.optional) {
       problems.push(
@@ -115,7 +118,7 @@ export function warnings(state, profile = PROFILE) {
   return state.rows
     .filter(
       r =>
-        (!r.registered || r.scope !== 'world') &&
+        ((!r.registered && !r.moduleActive) || (r.registered && r.scope !== 'world')) &&
         profile.find(p => p.ns === r.ns && p.key === r.key)?.optional
     )
     .map(r =>
@@ -131,7 +134,7 @@ export function mismatches(after, profile = PROFILE) {
   for (const { ns, key, value, optional } of profile) {
     const row = after.rows.find(r => r.ns === ns && r.key === key);
     if (!row?.registered) {
-      if (!optional) problems.push(`${ns}.${key} is not registered`);
+      if (!optional || row?.moduleActive) problems.push(`${ns}.${key} is not registered`);
     } else if (optional && row.scope !== 'world') {
       continue; // reported as a warning, never written
     } else if (!same(row.value, value)) {

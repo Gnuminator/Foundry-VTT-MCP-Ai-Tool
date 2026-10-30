@@ -2,12 +2,20 @@
 // (scripts/pi/container-test/stage11-scenarios.sh). The real one drives Chromium and sets the world switches; this
 // one only records the call: one line per run in /tmp/switches (and on stdout) with the world the script was given,
 // the world options.json launches at that moment and whether a GM login reached it, never a password value.
-// /tmp/switchfail present (world-writable, this runs as the foundry user) makes the call fail after recording it.
-import { appendFileSync, existsSync, readFileSync } from 'node:fs';
+// /tmp/switchfail (world-writable, this runs as the foundry user) holds a number of calls that must fail first: each
+// failing call counts it down and exits 1 after recording its line with " FAILED" at the end.
+import { appendFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 
 const e = process.env;
 const launched = JSON.parse(readFileSync('/var/lib/foundry/Config/options.json', 'utf8')).world;
-const failing = existsSync('/tmp/switchfail');
+let failing = false;
+if (existsSync('/tmp/switchfail')) {
+  const left = Number(readFileSync('/tmp/switchfail', 'utf8').trim()) || 0;
+  if (left > 0) {
+    failing = true;
+    writeFileSync('/tmp/switchfail', `${left - 1}\n`);
+  }
+}
 const line = [
   'SWITCHES',
   `world=${e.WORLD}`,

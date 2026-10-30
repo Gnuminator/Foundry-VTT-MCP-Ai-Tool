@@ -155,7 +155,7 @@ kept_settings() {
   echo "the Pi's settings" >"$data/worlds/curse-of-strahd/data/settings/000001.log"
 }
 kept_no_driver() { kept_settings && no_driver; }
-switch_fails() { : >/tmp/switchfail && chmod 666 /tmp/switchfail; }
+switch_fails() { echo 1 >/tmp/switchfail && chmod 666 /tmp/switchfail; }
 
 give_other_extra() {
   printf 'EXTRA_GM_USER="Other"\nEXTRA_GM_PASSWORD="osecret"\n' >>"$TOOL_ETC/world-curse-of-strahd.env"
@@ -339,6 +339,8 @@ scenario() {
   env_state
   echo "--- pending"
   ls "$TOOL_ETC" | grep '\.pending$' || true
+  echo "--- switches pending"
+  ls "$TOOL_ETC" | grep 'switches-pending$' || true
   echo "--- sentinels"
   for w in curse-of-strahd strahd-kit; do
     if [ -f "$data/worlds/$w/sentinel" ]; then echo "$w yes"; else echo "$w no"; fi
@@ -408,6 +410,8 @@ scenario switches-kept-no-driver curse-of-strahd kept_no_driver KIT_WORLD=
 scenario switches-kept-1-no-driver curse-of-strahd kept_no_driver KIT_WORLD= WORLD_SWITCHES=1
 scenario switches-bad-value frostmaiden-training - WORLD=frostmaiden-training KIT_WORLD= LAUNCH=curse-of-strahd WORLD_SWITCHES=maybe
 scenario switches-fails frostmaiden-training switch_fails WORLD=frostmaiden-training KIT_WORLD= LAUNCH=curse-of-strahd
+scenario switches-fails-rerun frostmaiden-training switch_fails WORLD=frostmaiden-training KIT_WORLD= LAUNCH=curse-of-strahd rerun
+scenario switches-fails-kit curse-of-strahd switch_fails
 scenario kit-names-installed curse-of-strahd training_installed KIT_WORLD=frostmaiden-training KIT_TITLE=x
 scenario kit-names-installed-replace curse-of-strahd training_installed KIT_WORLD=frostmaiden-training KIT_TITLE=x REPLACE_KIT=1
 scenario kit-copy-rerun frostmaiden-training - WORLD=frostmaiden-training KIT_WORLD=frost-kit "KIT_TITLE=Frost kit" LAUNCH=curse-of-strahd rerun

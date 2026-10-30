@@ -1357,13 +1357,16 @@ The stage therefore edits `world.json` with Foundry stopped (Foundry rewrites th
 - **Run:** the same without `DRY_RUN=1`, after a `dietpi-backup` snapshot and the user's OK, never on a game-night day.
   It refuses while players are online or a recording runs, saves the old values to
   `/var/lib/foundry-ai-tool/join-page-look/<time>-<world>-before.json`, stops the Assistant GM browser and Foundry,
-  installs the picture as `worlds/curse-of-strahd/join-background.webp` (foundry user, mode 644), sets `background` and
-  `description` in `world.json`, starts Foundry, waits for the join page, starts the Assistant GM browser and checks
-  that `/join` names the picture and the picture is served. A failure after the stop puts `world.json` back and starts
-  both services again. The same picture and description again change nothing.
+  installs the picture as `worlds/curse-of-strahd/join-background.webp` (owner foundry, mode 644; a different picture
+  already there is kept in the same folder), sets `background` and `description` in `world.json`, starts Foundry, waits
+  for the join page, starts the Assistant GM browser and checks that `/join` names the picture and the picture is
+  served. Until the join page answers, a failure stops Foundry, puts `world.json` back and starts both services again;
+  a failing `/join` or picture check after that only reports (the edit stays). It refuses during a dnd5e system trial
+  or a kit session, ignores a dropped SSH connection, and the same picture and description again change nothing.
 - **Another description later** (Danni sends his own): change the HTML file and run it again.
 - **Undo:** the same pipe with `UNDO=1` (and `EXPECT_SHA256`): the old description comes back, the background key is
-  removed when it was not set before, and the picture is deleted when it still has that hash.
+  removed when it was not set before, and the picture goes (a kept earlier picture comes back) unless the restored
+  background still names it.
 - Check the result logged out (a private window), reload once. Tests: `scripts/pi/join-page-look.test.mjs`.
 
 ## Where things live on the Pi

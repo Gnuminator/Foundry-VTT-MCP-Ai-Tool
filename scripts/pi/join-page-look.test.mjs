@@ -74,10 +74,11 @@ id() { echo 0; }
 sleep() { :; }
 have_systemd() { return 0; }
 require_quiet() { echo "quiet-check: $*" >>"${posix(pi.d)}/calls"; }
-systemctl() { echo "systemctl $*" >>"${posix(pi.d)}/calls"; [ "$1" = is-active ] && return 0; return 0; }
+systemctl() { echo "systemctl $*" >>"${posix(pi.d)}/calls"; case "$*" in *kit-gm*) return 1;; esac; return 0; }
 runuser() { shift 3; "$@"; }
 install() { local a=(); while [ $# -gt 0 ]; do case "$1" in -o|-g) shift 2;; *) a+=("$1"); shift;; esac; done; command install "\${a[@]}"; }
 curl() {
+  [ -z "\${JOIN_DOWN:-}" ] || return 22
   case "$*" in
     *"-w"*) echo "\${SERVED_CODE:-200}" ;;
     *) echo '<form id="join-game"></form>'; [ -n "\${SERVED_BG-worlds/curse-of-strahd/join-background.webp}" ] && echo "background: url(\${SERVED_BG-worlds/curse-of-strahd/join-background.webp})" || true ;;
@@ -119,7 +120,7 @@ describe('19-join-page-look.sh', () => {
     assert.match(r.out, /dry run: would stop Foundry/);
     assert.equal(existsSync(pi.dest), false);
     assert.equal(pi.json().description, '<p>old</p>');
-    assert.equal(pi.calls(), '');
+    assert.doesNotMatch(pi.calls(), /systemctl (stop|start|restart)/);
   });
 
   test('a real run stops Foundry first, edits only the two keys, saves the before values and starts Foundry again', () => {
@@ -149,7 +150,7 @@ describe('19-join-page-look.sh', () => {
     assert.notEqual(r.status, 0);
     assert.match(r.out, /snapshot/);
     assert.equal(existsSync(pi.dest), false);
-    assert.equal(pi.calls(), '');
+    assert.doesNotMatch(pi.calls(), /systemctl (stop|start|restart)/);
     assert.equal(pi.json().description, '<p>old</p>');
   });
 
@@ -162,7 +163,7 @@ describe('19-join-page-look.sh', () => {
     assert.match(run(pi, { ...source(pi), WORLD: 'no-such-world' }).out, /no world folder/);
     assert.match(run(pi, { ...source(pi), DESC_FILE: posix(path.join(pi.d, 'missing.html')) }).out, /not a regular file/);
     assert.equal(existsSync(pi.dest), false);
-    assert.equal(pi.calls(), '');
+    assert.doesNotMatch(pi.calls(), /systemctl (stop|start|restart)/);
   });
 
   test('the same picture and description again change nothing', () => {
@@ -172,7 +173,7 @@ describe('19-join-page-look.sh', () => {
     const again = run(pi, source(pi));
     assert.equal(again.status, 0, again.out);
     assert.match(again.out, /nothing to change/);
-    assert.equal(pi.calls(), '');
+    assert.doesNotMatch(pi.calls(), /systemctl (stop|start|restart)/);
   });
 
   test('when /join does not name the picture the run fails after the edit, with the services running', () => {
@@ -181,6 +182,52 @@ describe('19-join-page-look.sh', () => {
     assert.notEqual(r.status, 0);
     assert.match(r.out, /does not name/);
     assert.match(pi.calls(), /start foundry.service/);
+  });
+
+  test('when the join page never answers, Foundry is stopped, world.json put back, and only then Foundry started', () => {
+    const pi = fakePi();
+    const r = run(pi, { ...source(pi), JOIN_DOWN: '1' });
+    assert.notEqual(r.status, 0);
+    assert.match(r.out, /world.json is put back/);
+    const j = pi.json();
+    assert.equal(j.description, '<p>old</p>');
+    assert.equal('background' in j, false);
+    const calls = pi.calls();
+    const lastStop = calls.lastIndexOf('stop foundry.service');
+    assert.ok(lastStop > calls.indexOf('start foundry.service'), calls);
+    assert.ok(calls.indexOf('start foundry.service', lastStop) > lastStop, calls);
+  });
+
+  test('a second run with only a new description, then UNDO, keeps the picture the restored background names', () => {
+    const pi = fakePi();
+    const env = source(pi);
+    assert.equal(run(pi, env).status, 0);
+    writeFileSync(path.join(pi.d, 'desc.html'), '<p>second</p>');
+    assert.equal(run(pi, env).status, 0);
+    assert.equal(pi.json().description, '<p>second</p>');
+    const r = run(pi, { EXPECT_SHA256: env.EXPECT_SHA256, UNDO: '1' });
+    assert.equal(r.status, 0, r.out);
+    assert.equal(pi.json().description, DESC);
+    assert.equal(pi.json().background, 'worlds/curse-of-strahd/join-background.webp');
+    assert.equal(existsSync(pi.dest), true);
+  });
+
+  test('a different picture on a rerun is kept, and UNDO puts it back', () => {
+    const pi = fakePi();
+    const first = source(pi, webp('first'));
+    assert.equal(run(pi, first).status, 0);
+    const second = source(pi, webp('second'));
+    assert.equal(run(pi, second).status, 0);
+    assert.equal(sha(readFileSync(pi.dest)), second.EXPECT_SHA256);
+    assert.equal(run(pi, { EXPECT_SHA256: second.EXPECT_SHA256, UNDO: '1' }).status, 0);
+    assert.equal(sha(readFileSync(pi.dest)), first.EXPECT_SHA256);
+  });
+
+  test('UNDO with no before.json says so', () => {
+    const pi = fakePi();
+    const r = run(pi, { EXPECT_SHA256: 'c'.repeat(64), UNDO: '1' });
+    assert.notEqual(r.status, 0);
+    assert.match(r.out, /nothing to undo from/);
   });
 
   test('UNDO puts the old description back, drops the background and removes the picture', () => {

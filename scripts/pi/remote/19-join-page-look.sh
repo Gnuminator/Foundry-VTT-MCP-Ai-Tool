@@ -13,10 +13,13 @@
 #      file name; a dry run stops after printing the current values and what would change (no snapshot, nothing stopped);
 #   2. a real run needs a dietpi-backup snapshot from today and nobody online (lib.sh require_quiet: players, recording);
 #   3. writes the current background and description to $TOOL_DATA/join-page-look/<time>-<world>-before.json (the undo);
-#   4. stops the Assistant GM browser and Foundry, installs the picture next to world.json as the foundry user (mode 644), sets
-#      "background" and "description" in world.json (other keys untouched; temp file + rename), starts Foundry and waits for the
-#      join page, starts the Assistant GM browser again, and checks that /join names the picture and the picture is served;
-#      on any failure after the stop, world.json is put back and both services start again.
+#   4. stops the Assistant GM browser and Foundry, installs the picture next to world.json (owner foundry, mode 644; a different
+#      picture already there is kept in the store and UNDO puts it back), sets "background" and "description" in world.json (other
+#      keys untouched; temp file + rename), starts Foundry and waits for the join page, starts the Assistant GM browser again, and
+#      checks that /join names the picture and the picture is served;
+#      until the join page answers, any failure stops Foundry, puts world.json back and starts both services again; after that a
+#      failing /join or picture check only reports (the edit stays). It also refuses during a system trial or a kit session, and
+#      ignores a dropped SSH connection (HUP, PIPE) so Foundry is never left stopped halfway.
 # Join Page Theme and Next Session are not touched. The same picture and description again change nothing.
 #
 # Modes (environment, before bash):
@@ -61,7 +64,7 @@ sha_of() { sha256sum "$1" | cut -d' ' -f1; }
 field() { "$node" -e 'const o=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));process.stdout.write(JSON.stringify(o[process.argv[2]]??null))' "$world_json" "$1"; }
 
 if [ "$undo" = 1 ]; then
-  before="${UNDO_FILE:-$(ls -1 "$store/"*"-$world-before.json" 2>/dev/null | tail -n 1)}"
+  before="${UNDO_FILE:-$(ls -1 "$store/"[0-9]*-[0-9]*"-$world-before.json" 2>/dev/null | tail -n 1 || true)}"
   [ -n "$before" ] && [ -f "$before" ] || die "no before.json for $world in $store: nothing to undo from"
   say "undo from $before"
   echo "    now:    background $(field background)"
@@ -84,12 +87,21 @@ fi
 bg_new="worlds/$world/$dest_name"
 if [ "$undo" != 1 ]; then
   desc_new="$(cat "$desc_file")"
-  if [ "$(field background)" = "\"$bg_new\"" ] && [ "$(field description)" = "$("$node" -e 'process.stdout.write(JSON.stringify(process.argv[1]))' "$desc_new")" ] \
+  if [ "$(field background)" = "\"$bg_new\"" ] && [ "$(field description)" = "$("$node" -e 'process.stdout.write(JSON.stringify(process.argv[1]))' -- "$desc_new")" ] \
     && [ -f "$dest" ] && [ "$(sha_of "$dest")" = "$want_sha" ]; then
     ok "the world already has this picture and description: nothing to change"
+    if have_systemd && ! systemctl is-active --quiet foundry.service; then
+      warn "Foundry is not running (a run that was cut off?): systemctl start foundry.service"
+    fi
     exit 0
   fi
 fi
+
+if have_systemd; then
+  refuse_during_system_trial "stage 19"
+  ! systemctl is-active --quiet foundry-ai-tool-kit-gm-browser.service || die "a kit session is running (the kit GM browser): stage 19 would stop its Foundry. Nothing was changed"
+fi
+foundry_can_write "$dir" || die "the foundry user cannot write in $dir: nothing was changed"
 
 if [ "$dry" = 1 ]; then
   if [ "$undo" = 1 ]; then
@@ -105,26 +117,38 @@ require_quiet "setting the join page look of $world"
 
 stamp="$(date +%Y%m%d-%H%M%S)"
 install -d -m 755 "$store"
+# A dropped SSH connection must not kill the stage while Foundry is stopped: the next line of output would raise SIGPIPE.
+trap '' HUP PIPE
+STAGE_LOG="$store/$stamp-$world-run.log"
+
+# The picture a rerun would overwrite is kept, so UNDO can put it back.
+prev=""
+if [ "$undo" != 1 ] && [ -f "$dest" ] && [ "$(sha_of "$dest")" != "$want_sha" ]; then
+  prev="$store/$stamp-$world-$dest_name.prev"
+  cp -a "$dest" "$prev"
+  ok "the picture now in the world is kept as $prev"
+fi
 if [ "$undo" != 1 ]; then
-  "$node" -e 'const fs=require("fs");const o=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));fs.writeFileSync(process.argv[2],JSON.stringify({hadBackground:"background" in o,background:o.background??null,description:o.description??null,picture:process.argv[3]},null,2)+"\n")' \
-    "$world_json" "$store/$stamp-$world-before.json" "$dest_name"
+  "$node" -e 'const fs=require("fs");const o=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));fs.writeFileSync(process.argv[2],JSON.stringify({hadBackground:"background" in o,background:o.background??null,hadDescription:"description" in o,description:o.description??null,picture:process.argv[3],prevPicture:process.argv[4]||null},null,2)+"\n")' \
+    "$world_json" "$store/$stamp-$world-before.json" "$dest_name" "$prev"
   ok "the values before this run: $store/$stamp-$world-before.json"
 fi
 
-# Foundry writes world.json itself on exit (play time), so it is edited only while Foundry is stopped.
 copy="$store/$stamp-$world-world.json.bak"
-cp -a "$world_json" "$copy"
 was_foundry=0 was_gm=0 stopped=0
 if have_systemd; then
   systemctl is-active --quiet foundry.service && was_foundry=1
   systemctl is-active --quiet "$gm_unit" && was_gm=1
 fi
+# Foundry writes world.json itself on exit (play time): the copy is taken, and the restore done, only while Foundry is stopped.
 restore() {
   [ "$stopped" = 1 ] || return 0
   warn "the run did not finish: world.json is put back and the services start again"
-  cp -a "$copy" "$world_json" || true
-  [ "$was_foundry" = 1 ] && { systemctl restart foundry.service || true; }
+  systemctl stop foundry.service || true
+  foundry_copy_file "$copy" "$world_json" || warn "could not put $copy back over $world_json"
+  [ "$was_foundry" = 1 ] && { systemctl start foundry.service || true; }
   [ "$was_gm" = 1 ] && { systemctl start "$gm_unit" || true; }
+  return 0
 }
 trap restore EXIT
 
@@ -134,10 +158,18 @@ if have_systemd; then
   systemctl stop "$gm_unit" 2>/dev/null || true
   systemctl stop foundry.service
 fi
+cp -a "$world_json" "$copy"
 
 if [ "$undo" = 1 ]; then
-  [ ! -f "$dest" ] || [ "$(sha_of "$dest")" != "$want_sha" ] || { rm -f -- "${dest:?}"; ok "removed $dest_name"; }
-  foundry_edit_json "$world_json" 'const b=JSON.parse(require("fs").readFileSync(a[0],"utf8"));if(b.hadBackground)o.background=b.background;else delete o.background;if(b.description!==null)o.description=b.description' "$before"
+  foundry_edit_json "$world_json" 'const b=JSON.parse(require("fs").readFileSync(a[0],"utf8"));if(b.hadBackground)o.background=b.background;else delete o.background;if(b.hadDescription)o.description=b.description;else delete o.description' "$before"
+  prev_pic="$("$node" -e 'const o=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));process.stdout.write(o.prevPicture||"")' "$before")"
+  if [ -n "$prev_pic" ] && [ -f "$prev_pic" ]; then
+    install -o "$FOUNDRY_USER" -g "$FOUNDRY_USER" -m 644 "$prev_pic" "$dest"
+    ok "put the earlier $dest_name back"
+  elif [ "$(field background)" != "\"$bg_new\"" ] && [ -f "$dest" ] && [ "$(sha_of "$dest")" = "$want_sha" ]; then
+    rm -f -- "${dest:?}"
+    ok "removed $dest_name"
+  fi
 else
   install -o "$FOUNDRY_USER" -g "$FOUNDRY_USER" -m 644 "$src" "$dest"
   [ "$(sha_of "$dest")" = "$want_sha" ] || die "the installed picture's hash differs from EXPECT_SHA256"
@@ -146,23 +178,27 @@ else
 fi
 ok "world.json: background $(field background)"
 
-if have_systemd; then
+if have_systemd && [ "$was_foundry" = 1 ]; then
   say "starting Foundry"
   systemctl start foundry.service
   up=0
   for _ in $(seq 1 60); do
-    if curl -fs "$base_url/join" 2>/dev/null | grep -q 'id="join-game"'; then up=1; break; fi
+    if [ "$(curl -fs --max-time 5 "$base_url/join" 2>/dev/null | grep -c 'id="join-game"' || true)" -gt 0 ]; then up=1; break; fi
     sleep 2
   done
-  [ "$up" = 1 ] || die "the join page does not answer on $base_url (journalctl -u foundry -n 50)"
+  [ "$up" = 1 ] || die "the join page does not answer on $base_url (journalctl -u foundry -n 50); world.json is put back"
   stopped=0
   [ "$was_gm" = 1 ] && { systemctl start "$gm_unit" || warn "the Assistant GM browser did not start: journalctl -u $gm_unit -n 50"; }
   ok "Foundry is up again"
   if [ "$undo" != 1 ]; then
-    curl -fs "$base_url/join" | grep -q "$bg_new" || die "/join does not name $bg_new (world.json is written; check the page and journalctl -u foundry)"
-    [ "$(curl -s -o /dev/null -w '%{http_code}' "$base_url/$bg_new")" = 200 ] || die "$bg_new is not served (HTTP code above 200)"
+    [ "$(curl -fs --max-time 10 "$base_url/join" 2>/dev/null | grep -c "$bg_new" || true)" -gt 0 ] || die "/join does not name $bg_new (world.json is written and stays; check the page and journalctl -u foundry)"
+    [ "$(curl -s --max-time 10 -o /dev/null -w '%{http_code}' "$base_url/$bg_new")" = 200 ] || die "$bg_new is not served with HTTP 200 (world.json is written and stays)"
     ok "/join names $bg_new and the picture is served"
   fi
+elif have_systemd; then
+  stopped=0
+  [ "$was_gm" = 1 ] && { systemctl start "$gm_unit" || true; }
+  ok "Foundry was not running before this run: left stopped"
 fi
 trap - EXIT
 ok "done; check /join logged out (a private window), then reload once"

@@ -223,6 +223,10 @@ test('classifyDelta: docs, tests, changelog and main-only files are small; own c
   assert.equal(code.small, false);
   assert.match(code.reasons[0], /own code changed: src\/a\.js/);
   assert.equal(classifyDelta({ ...base, deltaFiles: [] }).small, false);
+  // docs/ and tests/ hold config and build files too; .claude markdown steers reviewers
+  for (const f of ['docs/wiki/astro.config.mjs', 'docs/wiki/package.json', 'tests/package.json', '.claude/agents/review-pi-ci.md']) {
+    assert.equal(classifyDelta({ ...base, prFilesNew: [...base.prFilesNew, f], deltaFiles: [f] }).small, false, f);
+  }
   assert.equal(classifyDelta({ ...base, deltaFiles: ['src/a.test.js'], ownLines: 401 }).small, false);
 });
 
@@ -298,7 +302,26 @@ test('plan --delta: small commits after a Merge skip the round 3 flag, code does
     assert.throws(() => plan(5, o, 0, t.repo, info(head2, [])), /not a small delta.*own code changed: src\/a\.js/);
     // a sha no note called Merge is refused
     const o2 = { ...o, delta: head.slice(0, 10) };
-    assert.throws(() => plan(5, o2, 0, t.repo, info(head2, [])), /no note says Merge/);
+    assert.throws(() => plan(5, o2, 0, t.repo, info(head2, [])), /does not say Merge/);
+    // a rename of code into a test file is still a code change
+    t.git(t.repo, 'reset', '-q', '--hard', head);
+    t.git(t.repo, 'mv', 'src/a.js', 'src/b.test.js');
+    const head3 = t.commit('rename');
+    t.publish(head3);
+    const o3 = { ...o, delta: head };
+    fs.writeFileSync(path.join(dir, '5-review-round3.md'), NOTE(head));
+    assert.throws(() => plan(5, o3, 0, t.repo, info(head3, [])), /own code changed: src\/a\.js/);
+    // a delta note cannot seed another delta
+    fs.writeFileSync(path.join(dir, '5-review-round4.md'), NOTE(head).replace('Head reviewed:', `Small delta from ${p1}\n\nHead reviewed:`));
+    assert.throws(() => plan(5, { ...o3, round: 5 }, 0, t.repo, info(head3, [])), /itself a small-delta note/);
+    // a risky PR whose Merge came from a Sonnet note is not cleared by an Opus delta
+    fs.rmSync(path.join(dir, '5-review-round4.md'));
+    fs.rmSync(path.join(dir, '5-review-round3.md'));
+    fs.writeFileSync(path.join(dir, '5-review-round3.md'), NOTE(head));
+    t.write('docs/more.md', 'm\n');
+    const head4 = t.commit('docs again');
+    t.publish(head4);
+    assert.throws(() => plan(5, { ...o3, round: 4 }, 0, t.repo, info(head4, ['scripts/lane-merge.mjs'])), /not an Opus review/);
   } finally {
     fs.rmSync(t.root, { recursive: true, force: true });
   }

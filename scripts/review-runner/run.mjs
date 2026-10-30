@@ -114,9 +114,9 @@ function existingNotes(vault, pr) {
  * that leaves the PR's own files alone)? Throws when it is not, or when the reviewed sha was not a
  * Merge for this PR or is not an ancestor of the head. Reads git only.
  * @param {number} pr @param {string} head @param {string} given @param {{ name: string, file: string }[]} notes
- * @param {string} repo
+ * @param {string} repo @param {boolean} needOpus the gate calls the PR risky
  */
-function deltaInfo(pr, head, given, notes, repo) {
+function deltaInfo(pr, head, given, notes, repo, needOpus) {
   must('git', ['fetch', '-q', 'aitool', 'main'], repo);
   must('git', ['fetch', '-q', 'aitool', `refs/pull/${pr}/head`], repo);
   const fetched = must('git', ['rev-parse', 'FETCH_HEAD'], repo);
@@ -128,19 +128,35 @@ function deltaInfo(pr, head, given, notes, repo) {
   if (!run('git', ['merge-base', '--is-ancestor', reviewed, head], repo).ok) {
     throw new Error(`--delta ${given} is not an ancestor of the head (history was rewritten); run a normal round`);
   }
-  const said = notes.flatMap(n =>
-    parseReviewNote(n.name, fs.readFileSync(n.file, 'utf8'), pr).entries.filter(e => e.head === reviewed)
-  );
+  // The same notes the gate reads, and only the latest round counts: an older Merge cannot be used
+  // past a later verdict, a malformed note stops the delta, and a delta note cannot seed another.
+  const reviewNotes = notes.filter(n => /review/i.test(n.name));
+  const parsed = reviewNotes.map(n => {
+    const text = fs.readFileSync(n.file, 'utf8');
+    return { n, text, note: parseReviewNote(n.name, text, pr) };
+  });
+  const bad = parsed.filter(x => x.note.malformed.length > 0);
+  if (bad.length > 0) throw new Error(`${bad[0].n.name} is malformed (${bad[0].note.malformed[0]}); fix it before a delta`);
+  const latestName = latestRound(reviewNotes.map(n => n.name), pr).name;
+  const latest = parsed.find(x => x.n.name === latestName);
+  const said = latest ? latest.note.entries.filter(e => e.head === reviewed) : [];
   if (said.length === 0 || said.some(e => !e.merge)) {
-    throw new Error(`no note says Merge for ${reviewed}, or one says otherwise; a delta note only follows a Merge`);
+    throw new Error(`the latest note (${latestName ?? 'none'}) does not say Merge for ${reviewed}; a delta note only follows the latest Merge`);
+  }
+  if (latest && /^Small delta from /m.test(latest.text)) {
+    throw new Error(`${latestName} is itself a small-delta note; chained deltas need a normal round (the planner decides)`);
+  }
+  if (needOpus && latest && !latest.note.opus) {
+    throw new Error(`this PR is risky and the Merge for ${reviewed} is not an Opus review; run a full Opus round`);
   }
   const lines = (/** @type {string[]} */ a) => must('git', a, repo).split(/\r?\n/).filter(Boolean);
-  const deltaFiles = lines(['diff', '--name-only', reviewed, head]);
-  const prFilesOld = lines(['diff', '--name-only', `aitool/main...${reviewed}`]);
-  const prFilesNew = lines(['diff', '--name-only', `aitool/main...${head}`]);
+  // --no-renames: a rename of code into a test or docs path must show as a delete plus an add
+  const deltaFiles = lines(['diff', '--no-renames', '--name-only', reviewed, head]);
+  const prFilesOld = lines(['diff', '--no-renames', '--name-only', `aitool/main...${reviewed}`]);
+  const prFilesNew = lines(['diff', '--no-renames', '--name-only', `aitool/main...${head}`]);
   const own = new Set([...prFilesOld, ...prFilesNew]);
   const ownDelta = deltaFiles.filter(f => own.has(f));
-  const numstat = ownDelta.length ? lines(['diff', '--numstat', reviewed, head, '--', ...ownDelta]) : [];
+  const numstat = ownDelta.length ? lines(['diff', '--no-renames', '--numstat', reviewed, head, '--', ...ownDelta]) : [];
   const ownLines = numstat.reduce((s, l) => {
     const [a, d] = l.split('\t');
     return s + (Number(a) || 0) + (Number(d) || 0);
@@ -165,7 +181,7 @@ export function plan(pr, o, spent, repo, deps) {
     notes.map(n => n.name),
     pr
   );
-  const delta = o.delta ? deltaInfo(pr, info.sha, o.delta, notes, repo) : null;
+  const delta = o.delta ? deltaInfo(pr, info.sha, o.delta, notes, repo, picked.categories.length > 0) : null;
   // A small delta is the cheap way past round 3; the planner's flag is only for a full third round.
   if (round >= 3 && !o.allowRound3 && !delta) {
     throw new Error(`PR #${pr} would be review round ${round}; a third round needs the planner (D-127). Pass --allow-round3 if the planner said so`);
@@ -216,7 +232,7 @@ export async function review(p, o, key, repo, deps) {
     // A delta note sees only the change since the reviewed sha, in the PR's own files.
     const diff = p.delta
       ? p.delta.ownFiles.length > 0
-        ? must('git', ['diff', p.delta.reviewed, p.sha, '--', ...p.delta.ownFiles], repo)
+        ? must('git', ['diff', '--no-renames', p.delta.reviewed, p.sha, '--', ...p.delta.ownFiles], repo)
         : ''
       : must('git', ['diff', `aitool/main...${p.sha}`], repo);
     fs.writeFileSync(diffPath, diff + '\n');
@@ -330,7 +346,12 @@ export async function review(p, o, key, repo, deps) {
 
     // A push while the review ran: the spend is booked, but no note names a head that is gone.
     checkHead(p.pr, p.sha, deps.headOf(p.pr), 'while the review ran, the cost is booked');
-    const { text, problems } = finishNote(String(result.result), p.pr, p.model, p.sha, p.name);
+    const finished = finishNote(String(result.result), p.pr, p.model, p.sha, p.name);
+    const { problems } = finished;
+    // Marks the note so a delta cannot seed another delta (deltaInfo refuses it).
+    const text = p.delta
+      ? finished.text.replace(/^Head reviewed:/m, `Small delta from ${p.delta.reviewed}\n\nHead reviewed:`)
+      : finished.text;
     const secrets = secretHits(text, key);
     for (const h of secrets) problems.push(`the note contains ${h}`);
     // Opus-named notes count for risky PRs: the answering model must be the one the name claims.

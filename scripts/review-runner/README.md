@@ -65,9 +65,13 @@ node scripts/review-runner/run.mjs 610 --delta <sha the last Merge note reviewed
 node scripts/review-runner/run.mjs 610 --delta <sha the last Merge note reviewed>
 ```
 
-It checks that a note says Merge for that sha and that the sha is an ancestor of the head, then
-diffs the sha to the head. Small means every changed file is either the PR's own docs, test or
-changelog file (at most 400 changed lines) or a file the PR does not own (it came in with main).
+It checks that the PR's latest note says Merge for that sha (and is an Opus note when the PR is
+risky, and not itself a small-delta note: deltas do not chain), that no note is malformed and that
+the sha is an ancestor of the head, then diffs the sha to the head without rename detection. Small
+means every changed file is either the PR's own markdown, test or changelog file (at most 400
+changed lines; `.claude/` markdown and test or docs config files do not count) or a file the PR
+does not own (it came in with main). `--dry-run` still fetches `aitool`, which moves `FETCH_HEAD`
+in your checkout.
 Anything touching the PR's own code is refused with the reason: run a normal round (round 3 then
 needs the planner's `--allow-round3`). A small delta needs no `--allow-round3`. It writes a short
 sha-bound note `<PR>-[opus-]review-roundN.md` that the merge gate accepts like any other; the model

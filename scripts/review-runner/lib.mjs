@@ -149,10 +149,10 @@ export function checkHead(pr, expected, actual, stage) {
 export const isDocsOrTest = f =>
   // .claude/ markdown (agent checklists, skills) steers reviewers and lanes: never "just docs"
   !f.startsWith('.claude/') &&
-  (/^(?:docs|changelog\.d)\//.test(f) ||
-    /\.md$/i.test(f) ||
+  (/\.md$/i.test(f) ||
     /\.(?:test|spec)\.[cm]?[jt]sx?$/.test(f) ||
-    /(?:^|\/)(?:__tests__|tests?)\//.test(f));
+    // files in a test folder, but not its package.json or config (they change how tests run)
+    (/(?:^|\/)(?:__tests__|tests?)\//.test(f) && !/(?:package(?:-lock)?\.json|\.config\.[cm]?[jt]s|\.ya?ml)$/.test(f)));
 
 /**
  * Is the change since the last Merge small enough for a delta note? Yes when every changed file is

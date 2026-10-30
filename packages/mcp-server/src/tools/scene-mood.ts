@@ -31,7 +31,7 @@ const planParams = z.object({
 });
 
 const SWITCH_OFF =
-  'Scene mood and music is switched off. In Foundry, open Game Settings, Configure Settings, AI Tool and turn on "AI Tool: Scene mood and music (writes)".';
+  'Scene mood and music is switched off. In Foundry, open the Settings tab, Game Settings, Foundry AI Tool and turn on "AI Tool: Scene mood and music (writes)".';
 
 /**
  * Scene mood presets and scene music (I-034, I-129). `plan-scene-mood` plans a mood (darkness,

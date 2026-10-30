@@ -1030,7 +1030,7 @@ test('an apply the bridge refuses says why, has no Undo, reloads and keeps the d
 }) => {
   await fakeStream(page, gmActions(true));
   const refusal =
-    '"AI Tool: Tarokka (writes)" is switched off. In Foundry, open Game Settings, Configure Settings, AI Tool and turn on "AI Tool: Tarokka (writes)".';
+    '"AI Tool: Tarokka (writes)" is switched off. In Foundry, open the Settings tab, Game Settings, Foundry AI Tool and turn on "AI Tool: Tarokka (writes)".';
   const calls = await fakeTools(page, call =>
     call.name === 'apply-planned-change'
       ? { status: 422, json: { ok: false, kind: 'tool', error: refusal } }

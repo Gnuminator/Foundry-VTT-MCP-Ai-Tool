@@ -80,7 +80,8 @@ export function registerGuardedFeature(feature: GuardedFeature): void {
  * values from the shared package (browser-imports.test.ts), so this is a copy of
  * shared/src/switch-off.ts; guarded-features.test.ts checks the two say the same.
  */
-const SETTINGS_PATH = 'In Foundry, open Game Settings, Configure Settings, AI Tool and turn on';
+const SETTINGS_PATH =
+  'In Foundry, open the Settings tab, Game Settings, Foundry AI Tool and turn on';
 
 /**
  * The refusal for "Allow Write Operations" being off. Starts with the words the dashboard's player

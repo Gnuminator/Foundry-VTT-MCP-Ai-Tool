@@ -1,10 +1,10 @@
 # Not Your Turn! (`NotYourTurn`)
 
-Verified on Foundry 14.368 / dnd5e 6.0.6, module 4.1.0, 2026-10-28 (test server B). Parts not clicked through are marked "(not verified)".
+Verified on Foundry 14.369 / dnd5e 6.0.6, module 4.1.0, 2026-10-28 and 2026-10-30 (test servers B and C). Parts not clicked through are marked "(not verified)".
 
 **Verdict: keep.** It is small (one script, no data written to actors or scenes), 4.0.0 was reworked for v14 and 4.1.0 is dated August 2026. It stops players wandering off in combat, and the AI Tool runs as a GM, for whom it only warns by default. The manifest says verified "14", not 14.368, and the README still says "tested on v13", but the move hook fires on 14.368 (see below). Player-side behaviour (the dialog, Request) was not tested (not verified).
 
-**For Danni's guides:** In a fight, a player who drags their token on someone else's turn gets a pop-up: they can undo the move or ask you to allow it.
+**For Danni's guides:** In a fight, a player who drags their token on someone else's turn simply cannot: the move is cancelled (Autoblock). There is no pop-up and no Request button for players; the GM moves the token for them, or turns off **Block Combat Movement** in the left scene controls.
 
 ## What it does
 

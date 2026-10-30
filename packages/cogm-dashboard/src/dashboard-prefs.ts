@@ -8,7 +8,7 @@
 import { promises as fsp, readFileSync } from 'fs';
 import * as path from 'path';
 
-/** A: layered cards (the default until the GM picks), B: a Simple/Full switch, C: auto. */
+/** A: layered cards, B: a Simple/Full switch, C: auto. */
 export const DURING_LAYOUTS = ['layered', 'toggle', 'auto'] as const;
 export type DuringLayout = (typeof DURING_LAYOUTS)[number];
 
@@ -19,7 +19,7 @@ export interface DashboardPrefs {
   duringLayout: DuringLayout;
   /** Layout B: the Full view instead of Simple. */
   duringFull: boolean;
-  /** Damage / Heal, Condition and Clear in the strip; off by default (D-092, Advanced). */
+  /** Damage / Heal, Condition and Clear in the strip; on by default (Danni 2026-10-30; Advanced). */
   combatButtons: boolean;
   /** The version tracker panel (I-127); on by default (I-127; D-098 had it off). */
   versionTracker: boolean;

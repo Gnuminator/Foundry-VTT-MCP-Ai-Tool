@@ -10,7 +10,7 @@ import { gunzipSync } from 'zlib';
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { gzipAssets } from './gzip-assets.js';
+import { gzipAssets, sendJsonGzip } from './gzip-assets.js';
 
 const BIG_JS = 'export const x = "hello hello hello";\n'.repeat(200);
 
@@ -50,9 +50,28 @@ beforeAll(async () => {
   writeFileSync(path.join(dir, 'assets', 'style-abc.css'), 'a { color: red; }\n'.repeat(200));
   writeFileSync(path.join(dir, 'assets', 'UP-abc.JS'), BIG_JS);
   writeFileSync(path.join(dir, 'secret.js'), BIG_JS);
+  writeFileSync(path.join(dir, 'old.css'), 'a { color: red; }\n'.repeat(200));
+  writeFileSync(path.join(dir, 'old.js'), BIG_JS);
   const app = express();
   // The dashboard mounts it behind the same kind of limiter (app.ts).
   const limit = rateLimit({ windowMs: 10_000, limit: 1000, validate: false });
+  // The old pages' stylesheets: css only, revalidated, headers hook still runs.
+  app.use(
+    '/pub',
+    limit,
+    gzipAssets(dir, {
+      extensions: ['.css'],
+      cacheControl: 'public, max-age=0',
+      setHeaders: res => res.setHeader('X-Page-Header', 'kept'),
+    })
+  );
+  app.use('/pub', (_req, res) => res.status(404).send('fell through'));
+  app.get('/json-big', limit, (req, res) => {
+    void sendJsonGzip(req, res, { text: 'x'.repeat(5000) });
+  });
+  app.get('/json-small', limit, (req, res) => {
+    void sendJsonGzip(req, res, { text: 'x'.repeat(10) });
+  });
   app.use('/next/assets', limit, gzipAssets(path.join(dir, 'assets')));
   app.use('/next', (_req, res) => res.status(404).send('fell through'));
   await new Promise<void>(resolve => {
@@ -64,6 +83,39 @@ beforeAll(async () => {
 afterAll(async () => {
   await new Promise(resolve => server.close(resolve));
   rmSync(dir, { recursive: true, force: true });
+});
+
+describe('gzipAssets for unhashed files', () => {
+  it('gzips css only, revalidates, and still runs the page headers hook', async () => {
+    const css = await get('/pub/old.css', { 'Accept-Encoding': 'gzip' });
+    expect(css.headers['content-encoding']).toBe('gzip');
+    expect(css.headers['cache-control']).toBe('public, max-age=0');
+    expect(css.headers['x-page-header']).toBe('kept');
+    expect(gunzipSync(css.body).toString()).toContain('color: red');
+    const js = await get('/pub/old.js', { 'Accept-Encoding': 'gzip' });
+    expect(js.body.toString()).toBe('fell through');
+    const plain = await get('/pub/old.css', { 'Accept-Encoding': 'identity' });
+    expect(plain.body.toString()).toBe('fell through');
+  });
+});
+
+describe('sendJsonGzip', () => {
+  it('gzips a big answer for a browser that accepts it', async () => {
+    const a = await get('/json-big', { 'Accept-Encoding': 'gzip' });
+    expect(a.headers['content-encoding']).toBe('gzip');
+    expect(a.headers['content-type']).toContain('application/json');
+    expect(a.headers['vary']).toContain('Accept-Encoding');
+    expect(JSON.parse(gunzipSync(a.body).toString())).toEqual({ text: 'x'.repeat(5000) });
+  });
+
+  it('sends plain JSON without gzip or for a small answer', async () => {
+    const plain = await get('/json-big', { 'Accept-Encoding': 'identity' });
+    expect(plain.headers['content-encoding']).toBeUndefined();
+    expect(JSON.parse(plain.body.toString()).text.length).toBe(5000);
+    const small = await get('/json-small', { 'Accept-Encoding': 'gzip' });
+    expect(small.headers['content-encoding']).toBeUndefined();
+    expect(JSON.parse(small.body.toString()).text).toBe('x'.repeat(10));
+  });
 });
 
 describe('gzipAssets', () => {

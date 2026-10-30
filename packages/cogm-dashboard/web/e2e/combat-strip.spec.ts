@@ -1275,8 +1275,9 @@ test.describe('the layout trial', () => {
 });
 
 /** A tool that failed: the dashboard's error body (`kind` says where it failed). */
-const failed = (error: string, kind = 'tool', status = 502): { status: number; json: unknown } => ({
-  status,
+const failed = (error: string, kind = 'tool'): { status: number; json: unknown } => ({
+  // As the dashboard's tool route answers: 502 for a timeout or channel error, 422 for a tool error.
+  status: kind === 'tool' ? 422 : 502,
   json: { ok: false, error, kind },
 });
 
@@ -1340,7 +1341,7 @@ test.describe('when a write or a roll request fails', () => {
       initial: [fight(PARTY_FIGHT)],
       answer: call =>
         call.name === 'apply-planned-change'
-          ? failed('The bridge did not answer', 'timeout', 504)
+          ? failed('The bridge did not answer', 'timeout')
           : undefined,
     });
     await load(page);
@@ -1413,7 +1414,7 @@ test.describe('when a write or a roll request fails', () => {
       initial: [fight(BOSS_FIGHT)],
       answer: call =>
         call.name === 'request-player-rolls'
-          ? failed('The bridge did not answer', 'timeout', 504)
+          ? failed('The bridge did not answer', 'timeout')
           : undefined,
     });
     await load(page);

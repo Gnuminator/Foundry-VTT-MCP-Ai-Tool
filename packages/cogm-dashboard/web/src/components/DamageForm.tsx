@@ -54,6 +54,7 @@ export function DamageForm({
   const { plan } = useGuardedTools();
   const [draft, setDraft] = useState<DamageDraft>(() => ({ ...EMPTY_DRAFT, type: readType() }));
   const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState('');
   const busyRef = useRef(false);
   const amountRef = useRef<HTMLInputElement>(null);
 
@@ -82,12 +83,14 @@ export function DamageForm({
         // cleared and the GM checks Recent Changes (the toast says so).
         else if (outcome.status === 'failed' && outcome.mayHaveApplied) {
           setDraft(d => ({ ...d, amount: '' }));
-          amountRef.current?.focus();
+          setNote('It may have landed. Check Recent Changes before you apply again.');
         }
       })
       .finally(() => {
         busyRef.current = false;
         setBusy(false);
+        // The disabled Apply button drops keyboard focus; hand it back to the amount.
+        amountRef.current?.focus();
       });
   };
 
@@ -138,7 +141,10 @@ export function DamageForm({
             placeholder="Amount"
             data-track="dash.damage.amount"
             value={draft.amount}
-            onChange={e => setDraft(d => ({ ...d, amount: e.target.value.replace(/\D/g, '') }))}
+            onChange={e => {
+              setNote('');
+              setDraft(d => ({ ...d, amount: e.target.value.replace(/\D/g, '') }));
+            }}
             onKeyDown={e => {
               if (e.key === 'Enter') {
                 e.preventDefault();
@@ -164,6 +170,9 @@ export function DamageForm({
           ))}
         </div>
       )}
+      <p role="status" className={styles['note']}>
+        {note}
+      </p>
       <div className={styles['row']}>
         <Button
           type="button"

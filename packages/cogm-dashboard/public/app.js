@@ -3810,7 +3810,12 @@ statEls.copy.addEventListener('click', async () => {
   if (!afterStats) return;
   try {
     await navigator.clipboard.writeText(statsForDiscord(afterStats));
-    toast('✓ Copied. The highest roll is left out (it may have been a private roll).', 'ok');
+    toast(
+      afterStats.publicCounts
+        ? '✓ Copied. Only public rolls are counted; the highest roll is left out.'
+        : '✓ Copied without roll counts (the bridge is older). The highest roll is left out.',
+      'ok'
+    );
   } catch (err) {
     toast(`✗ Could not copy: ${String(err.message || err)}`, 'err');
   }

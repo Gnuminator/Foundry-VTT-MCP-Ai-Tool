@@ -126,7 +126,9 @@ function LinksBody(): JSX.Element {
         <>
           <p className="links-note">
             Send each player their own link (a direct message, not the table chat). It opens their
-            character sheet on a phone or laptop, read-only, and stays up to date during play.
+            character sheet on a phone or laptop, read-only, and stays up to date during play. Each
+            player pins their own link in Discord; you do not need to pin it for them. Roll requests
+            show on the player page without a link, but the Roll button needs it.
           </p>
           <ul className="links-list">
             {players.map(p => (

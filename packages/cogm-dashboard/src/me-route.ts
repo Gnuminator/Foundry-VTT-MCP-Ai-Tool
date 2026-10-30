@@ -39,6 +39,8 @@ export interface MeRouteOptions {
   worldId: () => string | null;
   /** The recent session events, for the player's own private rolls; absent on fakes. */
   events?: () => readonly SessionEvent[];
+  /** Called after a player's roll went through, so the GM's roll bar updates at once. */
+  onRolled?: () => void;
   /** The GM's theme for this world (the Fancy view follows it). */
   theme: () => string;
   publicDir: string;
@@ -136,6 +138,7 @@ export function mountMeRoute(app: Express, options: MeRouteOptions): void {
         const r = (result ?? {}) as { success?: unknown; message?: unknown; error?: unknown };
         if (r.success === true) {
           res.json({ ok: true, message: typeof r.message === 'string' ? r.message : 'Rolled.' });
+          options.onRolled?.();
         } else {
           res.status(409).json({
             error: typeof r.error === 'string' ? r.error : 'The roll did not work.',

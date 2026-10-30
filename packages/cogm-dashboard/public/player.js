@@ -8,6 +8,7 @@
 import {
   concentrationReminders,
   myRollRequests,
+  rollBannerLines,
   mySheets,
   turnLine,
   turnStatus,
@@ -53,6 +54,7 @@ const elHandouts = $('handouts');
 const elRecap = $('recap');
 const elQuests = $('quests');
 const elWrap = $('wrap');
+const elRollBanner = $('roll-banner');
 const elWho = $('who');
 const elWhoName = $('who-name');
 const elWhoChange = $('who-change');
@@ -211,6 +213,32 @@ elMineRolls.addEventListener('click', async e => {
   renderMine();
 });
 
+// --- Roll requests, pushed live (item roll-status-player-push) -------------------
+// The stream carries every open request with the Foundry user it is for; the page shows the ones
+// for the name picked under "Who are you?". With the personal link key the Roll button is fetched
+// at once (loadMe) instead of at the next 8 second refresh.
+let openRolls = [];
+function renderRollBanner() {
+  const lines = rollBannerLines(openRolls, currentWho && currentWho.userId, Date.now(), !!meKey);
+  elRollBanner.hidden = lines === null;
+  if (lines === null) return;
+  elRollBanner.innerHTML =
+    '<strong>' +
+    escape(lines.title) +
+    '</strong><span class="roll-hint">' +
+    escape(lines.hint) +
+    '</span>';
+}
+function onRolls(open) {
+  openRolls = Array.isArray(open) ? open : [];
+  renderRollBanner();
+  if (meKey && currentWho && openRolls.some(r => r.userId === currentWho.userId)) {
+    void loadMe().then(renderMine);
+  }
+}
+// A request nobody answered fades from the page by itself.
+setInterval(renderRollBanner, 30000);
+
 function renderMine() {
   if (!meKey || mySheetList.length === 0) {
     elMine.hidden = true;
@@ -344,6 +372,7 @@ function connect() {
   const on = (type, fn) => es.addEventListener(type, e => fn(JSON.parse(e.data)));
   on('state', renderState);
   on('handouts', p => renderHandouts(p.handouts));
+  on('rolls', p => onRolls(p.open));
   on('theme', p => renderTheme(p.theme));
   es.onerror = () => {
     elStatus.textContent = 'reconnecting…';
@@ -385,6 +414,7 @@ function saveWho(who) {
 function showWho(who) {
   usage.setWho(who);
   currentWho = who;
+  renderRollBanner();
   renderHandouts(lastHandouts);
   elWhoPicker.hidden = true;
   elWho.hidden = false;

@@ -32,6 +32,7 @@ import { gmOnly } from './redact.js';
 import { hostAllowlist } from './host-allowlist.js';
 import { mountOpenRoute, OPEN_PAGE_HEADERS, type OpenRouteOptions } from './open-route.js';
 import { buildPlayerState } from './player/projection.js';
+import { buildRollRows, openRolls } from './roll-status.js';
 import { runDashboardPreflight } from './preflight.js';
 import {
   isSessionSwitchAction,
@@ -122,6 +123,8 @@ export interface DashboardDeps {
 export interface Dashboard {
   app: Express;
   handlers: GameFeedHandlers;
+  /** The feed's way to read events at once; server.ts sets it once the feed exists. */
+  onFeed(feed: { pollNow: () => void }): void;
   /** Start background work (player view polling). */
   start(): void;
   /** Stop background work and end every stream. */
@@ -284,6 +287,8 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
   let playerTimer: NodeJS.Timeout | null = null;
   let lastPlayerStateJson = '';
   let lastHandoutsJson = '';
+  let lastRollsJson = '';
+  let pollEventsNow: () => void = () => undefined;
 
   const playerView = new PlayerViewSource(client, logger.child('player-view'), () =>
     schedulePlayerBroadcast()
@@ -334,11 +339,33 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
       lastPlayerStateJson = json;
       playerHub.broadcast('state', rest);
     }
+    broadcastRolls();
     const handoutsJson = JSON.stringify(handouts);
     if (handoutsJson !== lastHandoutsJson) {
       lastHandoutsJson = handoutsJson;
       playerHub.broadcast('handouts', { handouts });
     }
+  }
+
+  /** Who was asked for a roll and who rolled it: the GM sees all, a player only the open requests. */
+  function currentRolls(): {
+    rows: ReturnType<typeof buildRollRows>;
+    open: ReturnType<typeof openRolls>;
+  } {
+    const rows = buildRollRows(state.recentEvents, id => playerDirectory.get(id) !== null).slice(
+      0,
+      20
+    );
+    return { rows, open: openRolls(rows, Date.now()) };
+  }
+
+  function broadcastRolls(): void {
+    const { rows, open } = currentRolls();
+    const json = JSON.stringify({ rows, open });
+    if (json === lastRollsJson) return;
+    lastRollsJson = json;
+    sse.broadcast('rolls', { rows }, gmOnly);
+    playerHub.broadcast('rolls', { open });
   }
 
   function schedulePlayerBroadcast(): void {
@@ -353,6 +380,7 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
     const { handouts, ...rest } = currentPlayerState();
     playerHub.send(res, 'state', rest);
     playerHub.send(res, 'handouts', { handouts });
+    playerHub.send(res, 'rolls', { open: currentRolls().open });
     // The stream tests wait for this as the last snapshot event of the player stream (SNAPSHOT_END
     // in the two *.app.test.ts files): keep it last, or update both.
     playerHub.send(res, 'theme', themePayload());
@@ -688,6 +716,7 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
     requireGm,
     worldId: () => world?.id ?? null,
     events: () => state.recentEvents,
+    onRolled: () => pollEventsNow(),
     theme: () => themes.get(world?.id),
     publicDir: config.publicDir,
     pageHeaders: res => PLAYER_PAGE_HEADERS.apply(res),
@@ -793,6 +822,7 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
     if (world) sse.send(res, 'prefs', prefsPayload());
     // Always, null when no fight runs: a page that was disconnected while a fight ended would
     // otherwise keep showing it as live (the broadcast of the end went to nobody).
+    sse.send(res, 'rolls', { rows: currentRolls().rows });
     sse.send(res, 'combat', { combat: state.combat });
     sse.send(res, 'events', { events: state.recentEvents, initial: true });
     // The stream tests wait for this as the last snapshot event of the GM stream (SNAPSHOT_END in
@@ -1204,6 +1234,8 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
         if (name === 'apply-planned-change' || name === 'undo-change') void playerView.refresh();
         // Another open dashboard window learns that the session started or ended at once.
         if (name === 'mark-play-session') sse.broadcast('play-session', {}, gmOnly);
+        // A roll request reaches the players now, not at the next 4 second poll.
+        if (name === 'request-player-rolls') pollEventsNow();
       })
       .catch((error: unknown) => {
         const kind =
@@ -1261,6 +1293,10 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
   return {
     app,
     handlers,
+    /** The feed's way to read events at once; set by server.ts after the feed exists. */
+    onFeed(feed: { pollNow: () => void }): void {
+      pollEventsNow = feed.pollNow;
+    },
     start(): void {
       playerView.start(PLAYER_SOURCE_INTERVAL_MS);
       playerVaults?.start();

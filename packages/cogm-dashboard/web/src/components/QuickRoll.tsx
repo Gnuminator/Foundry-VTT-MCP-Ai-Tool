@@ -21,6 +21,7 @@ import {
   type Advantage,
   type RollPick,
 } from '../lib/quickRoll';
+import { latestRound, roundHeadline, rowLine, useRollRows } from '../lib/rollStatus';
 import { usage } from '../lib/usage';
 import { useToast } from './Toasts';
 import styles from './QuickRoll.module.css';
@@ -126,6 +127,7 @@ export function QuickRollBar({
   children: ReactNode;
 }): JSX.Element {
   const { pick, setPick } = roll;
+  const round = latestRound(useRollRows(), Date.now());
   return (
     <div className={styles['bar']} role="group" aria-label="Ask for a roll">
       <select
@@ -182,6 +184,17 @@ export function QuickRollBar({
         <option value="disadvantage">Disadvantage</option>
       </select>
       {children}
+      {round && (
+        <p
+          className={`${styles['status']} ${round.waiting.length === 0 ? styles['statusDone'] : ''}`}
+          role="status"
+          data-testid="roll-status"
+        >
+          <strong>{roundHeadline(round)}</strong>
+          {'. '}
+          {round.rows.map(rowLine).join(', ')}
+        </p>
+      )}
     </div>
   );
 }

@@ -107,6 +107,19 @@ describe('world-switches.mjs against a fake game', () => {
     assert.deepEqual(mismatches(await inGame(game, readState, ARGS)), []);
   });
 
+  test('an optional setting that is not a world setting is a warning, never a blocker or a mismatch', async () => {
+    const game = fakeGame({ client: ['item-piles.enableTrading'] });
+    const before = await inGame(game, readState, ARGS);
+    assert.deepEqual(blockers(before, 'w'), []);
+    assert.match(
+      warnings(before).join(';'),
+      /item-piles\.enableTrading skipped: it is a client setting/
+    );
+    const changed = await inGame(game, applyState, ARGS);
+    assert.ok(!changed.includes('item-piles.enableTrading'));
+    assert.deepEqual(mismatches(await inGame(game, readState, ARGS)), []);
+  });
+
   test('a required setting that is not registered, a client setting, a wrong world or a non-GM block', async () => {
     const missing = await inGame(fakeGame({ without: ['dnd5e.autoApplyDowned'] }), readState, ARGS);
     assert.match(blockers(missing, 'w').join(';'), /dnd5e\.autoApplyDowned is not registered/);

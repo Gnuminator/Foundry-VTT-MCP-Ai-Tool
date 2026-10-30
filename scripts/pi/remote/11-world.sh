@@ -131,10 +131,6 @@ login_re='^[A-Za-z0-9._-]([A-Za-z0-9._ -]*[A-Za-z0-9._-])?$'
 case "$WORLD_SWITCHES" in auto | 0 | 1) ;; *) die "WORLD_SWITCHES must be auto, 1 or 0. Nothing was changed" ;; esac
 case "$SWITCH_DRIVER" in /root/*.mjs) ;; *) die "SWITCH_DRIVER must be a .mjs file under /root/ (got $SWITCH_DRIVER). Nothing was changed" ;; esac
 case "$SWITCH_DRIVER" in */../* | */..) die "SWITCH_DRIVER must not hold .. . Nothing was changed" ;; esac
-if [ "$WORLD_SWITCHES" != 0 ] && have_systemd; then
-  [ -f "$SWITCH_DRIVER" ] || [ -f "$TOOL_DIR/gm-browser/world-switches.mjs" ] ||
-    die "no $SWITCH_DRIVER: scp scripts/pi/remote/world-switches.mjs foundry-pi:/root/ first, or run with WORLD_SWITCHES=0. Nothing was changed"
-fi
 [ -f "$assistant_env" ] && [ -f "$TOOL_DIR/gm-browser/assistant-gm.mjs" ] || die "run stage 5 and 5-check-world first (no Assistant GM yet)"
 [ -d "$data/modules/foundry-mcp-bridge" ] || die "the bridge module is not installed: run stage 5 first"
 [ -f "$options" ] || die "no $options: has Foundry started once (stage 3)?"
@@ -330,6 +326,17 @@ if [ -f MANIFEST.txt ] && grep -q '^gm-password:' MANIFEST.txt; then
   ok "a Plan B push-back of $WORLD, based on the Pi backup of $based_on (REPLACE_WORLD=1, no kit world, $TOOL_ETC/world-$WORLD.env present)"
 elif [ "$REPLACE_NEWER" != 0 ]; then
   warn "REPLACE_NEWER is for a Plan B push-back only; this bundle is not one, so it is ignored"
+fi
+
+# The world switches need the in-browser driver, but only when a world will get them: WORLD_SWITCHES=1, or auto with
+# a kit world or a WORLD this run installs, and not in a push-back. A kept world under auto and a push-back (the
+# command push-world.ps1 prints for it has no scp) need no driver. Checked here, before Foundry stops.
+if [ "$WORLD_SWITCHES" = 1 ] ||
+  { [ "$WORLD_SWITCHES" = auto ] && [ "$pushback" = 0 ] && { [ -n "$KIT_WORLD" ] || [ ! -e "$data/worlds/$WORLD" ] || [ "$REPLACE_WORLD" = 1 ]; }; }; then
+  if have_systemd; then
+    [ -f "$SWITCH_DRIVER" ] || [ -f "$TOOL_DIR/gm-browser/world-switches.mjs" ] ||
+      die "no $SWITCH_DRIVER: scp scripts/pi/remote/world-switches.mjs foundry-pi:/root/ first, or run with WORLD_SWITCHES=0. Nothing was changed"
+  fi
 fi
 
 # "pi-modules: a@1.0.0, b@2.1" in MANIFEST.txt: modules the world uses that are NOT in this bundle because the Pi has
@@ -798,7 +805,7 @@ provision_world() { # $1 world id
       runuser -u "$FOUNDRY_USER" -- env HOME="$TOOL_DATA" TOOL_APP="$TOOL_DIR/app" \
         FOUNDRY_URL=http://127.0.0.1:30000 CHROMIUM=/usr/bin/chromium \
         node "$TOOL_DIR/gm-browser/world-switches.mjs"
-    ) || die "the world switches of $id failed or did not verify (see the lines above). The world itself is installed: run the stage again with WORLD_SWITCHES=1 (the world is kept now and its settings are copied to prev first), or WORLD_SWITCHES=0 to leave the switches"
+    ) || die "the world switches of $id failed or did not verify (see the lines above). $id may be only partly set. A kit world is set again by any plain rerun; for $WORLD run the stage again with WORLD_SWITCHES=1 (it is kept now, and its settings are copied to prev first), or with WORLD_SWITCHES=0 to leave the switches"
     ok "$id: world switches set and read back"
   fi
 }

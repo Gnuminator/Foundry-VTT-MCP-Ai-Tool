@@ -154,6 +154,7 @@ kept_settings() {
   mkdir -p "$data/worlds/curse-of-strahd/data/settings"
   echo "the Pi's settings" >"$data/worlds/curse-of-strahd/data/settings/000001.log"
 }
+kept_no_driver() { kept_settings && no_driver; }
 switch_fails() { : >/tmp/switchfail && chmod 666 /tmp/switchfail; }
 
 give_other_extra() {
@@ -403,6 +404,8 @@ scenario switches-kept-auto curse-of-strahd kept_settings KIT_WORLD=
 scenario switches-upload frostmaiden-training upload_driver WORLD=frostmaiden-training KIT_WORLD= LAUNCH=curse-of-strahd
 scenario switches-no-driver frostmaiden-training no_driver WORLD=frostmaiden-training KIT_WORLD= LAUNCH=curse-of-strahd
 scenario switches-no-driver-off frostmaiden-training no_driver WORLD=frostmaiden-training KIT_WORLD= LAUNCH=curse-of-strahd WORLD_SWITCHES=0
+scenario switches-kept-no-driver curse-of-strahd kept_no_driver KIT_WORLD=
+scenario switches-kept-1-no-driver curse-of-strahd kept_no_driver KIT_WORLD= WORLD_SWITCHES=1
 scenario switches-bad-value frostmaiden-training - WORLD=frostmaiden-training KIT_WORLD= LAUNCH=curse-of-strahd WORLD_SWITCHES=maybe
 scenario switches-fails frostmaiden-training switch_fails WORLD=frostmaiden-training KIT_WORLD= LAUNCH=curse-of-strahd
 scenario kit-names-installed curse-of-strahd training_installed KIT_WORLD=frostmaiden-training KIT_TITLE=x

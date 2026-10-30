@@ -886,12 +886,14 @@ keeps it out of its logs), bound to `127.0.0.1`, never the upstream one (which l
 
 ### World switches (frostmaiden-training and curse-of-strahd)
 
-A world that is reset from the PC copy starts with Foundry's defaults, and a test then starts with the
-AI Tool's switches off (the training world on 2026-10-29). Stage 11 sets the list below, so a test
-starts with them on. The user chose this list on 2026-10-30: both worlds get the same values, and
-the nightly ones (Handouts, writes) are **standing values**. Start session still turns on whatever
-is off, and End session turns off only what Start session turned on, so a standing value stays on
-after End session.
+A world that is reset from the PC copy starts with whatever its settings database held on the PC,
+which is mostly Foundry's defaults, and a test then starts with the AI Tool's switches off (the
+training world on 2026-10-29). Stage 11 sets the list below, so a test starts with them on. The
+user chose this list on 2026-10-30: both worlds get the same values, and the nightly ones (Handouts,
+writes) are **standing values**. Start session still turns on whatever is off, and End session
+turns off only what Start session turned on, so a standing value stays on after End session. One
+exception: a world copied while a night was still "ready" keeps that record, and its first End
+session then turns off what the record names; press Start and End once to clear it.
 
 | Setting (`namespace.key`)                         | Value | Why                                                                                                                  |
 | ------------------------------------------------- | ----- | -------------------------------------------------------------------------------------------------------------------- |
@@ -924,7 +926,12 @@ the table and the data differ) joins the world as its GM with the login in
 - **A kept world** is left alone. To set the list in it, run stage 11 with `WORLD_SWITCHES=1`
   (the world's settings are copied to `prev-<time>` first). That is the checklist line for the next
   test of a training world that was not reset: add `WORLD_SWITCHES=1` to the command of step 3 under
-  "Training world". Do not use it on the real campaign after Danni has changed switches on purpose.
+  "Training world". It runs the world's provisioning again too (the GM login from the env file, the
+  bridge, the Assistant GM), and the copy in `prev` holds only `data/settings`. To put the settings
+  back: stop Foundry, replace the world's `data/settings` with that copy, start Foundry. Do not use
+  it on the real campaign after Danni has changed switches on purpose; it overwrites the values above.
+- **A new or reset world under auto overwrites the bundle's own values** for these settings. Use
+  `WORLD_SWITCHES=0` when the PC copy's values are deliberate.
 - **Not wanted:** `WORLD_SWITCHES=0`. The stage needs `world-switches.mjs` uploaded first:
   `scp scripts/pi/remote/world-switches.mjs foundry-pi:/root/`, and removes the upload.
 

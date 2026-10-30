@@ -725,6 +725,14 @@ describe('11-world.sh in an ARM64 container', { skip: containerReason }, () => {
     assert.match(missing.output, /no \/root\/world-switches\.mjs: scp .* Nothing was changed/);
     assert.equal(missing.calls, '', 'nothing may stop or start');
     assert.equal(missing.switches, '');
+    // A kept world under auto gets no switches, so it needs no driver (the push-back command has no scp either).
+    const keptAuto = run('switches-kept-no-driver');
+    assert.equal(keptAuto.exit, '0', keptAuto.output);
+    assert.equal(keptAuto.switches, '');
+    const kept1 = run('switches-kept-1-no-driver');
+    assert.equal(kept1.exit, '1', kept1.output);
+    assert.match(kept1.output, /no \/root\/world-switches\.mjs: scp .* Nothing was changed/);
+    assert.equal(kept1.calls, '', 'nothing may stop or start');
     const bad = run('switches-bad-value');
     assert.equal(bad.exit, '1', bad.output);
     assert.match(bad.output, /WORLD_SWITCHES must be auto, 1 or 0/);

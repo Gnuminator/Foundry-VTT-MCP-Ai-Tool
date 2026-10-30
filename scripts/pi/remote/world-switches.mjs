@@ -101,7 +101,7 @@ export function blockers(state, world, profile = PROFILE) {
       problems.push(
         `${row.ns}.${row.key} is not registered (is the ${row.ns} module or system active in this world?)`
       );
-    } else if (row.registered && row.scope !== 'world') {
+    } else if (row.registered && row.scope !== 'world' && !entry?.optional) {
       problems.push(
         `${row.ns}.${row.key} is a ${row.scope} setting, not a world setting: set it by hand`
       );
@@ -113,8 +113,16 @@ export function blockers(state, world, profile = PROFILE) {
 // Optional entries the world cannot take, as plain sentences (not failures).
 export function warnings(state, profile = PROFILE) {
   return state.rows
-    .filter(r => !r.registered && profile.find(p => p.ns === r.ns && p.key === r.key)?.optional)
-    .map(r => `${r.ns}.${r.key} skipped: the ${r.ns} module is not active in this world`);
+    .filter(
+      r =>
+        (!r.registered || r.scope !== 'world') &&
+        profile.find(p => p.ns === r.ns && p.key === r.key)?.optional
+    )
+    .map(r =>
+      r.registered
+        ? `${r.ns}.${r.key} skipped: it is a ${r.scope} setting here, not a world setting`
+        : `${r.ns}.${r.key} skipped: the ${r.ns} module is not active in this world`
+    );
 }
 
 // What the settings must look like at the end.
@@ -124,6 +132,8 @@ export function mismatches(after, profile = PROFILE) {
     const row = after.rows.find(r => r.ns === ns && r.key === key);
     if (!row?.registered) {
       if (!optional) problems.push(`${ns}.${key} is not registered`);
+    } else if (optional && row.scope !== 'world') {
+      continue; // reported as a warning, never written
     } else if (!same(row.value, value)) {
       problems.push(
         `${ns}.${key} is ${JSON.stringify(row.value)}, expected ${JSON.stringify(value)}`

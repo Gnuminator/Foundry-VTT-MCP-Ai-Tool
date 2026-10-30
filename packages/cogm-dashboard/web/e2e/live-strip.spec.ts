@@ -66,7 +66,12 @@ async function setup(
         case 'plan-actor-change':
           return ok({ planId: 'plan-hit', summary: 'Damage', risk: 'write' });
         case 'plan-combat-change':
-          return ok({ planId: 'plan-end', summary: 'End combat', risk: 'destructive' });
+          return ok({
+            planId: 'plan-end',
+            summary: 'End combat on "Field" (round 2, 3 combatants)',
+            warning: 'Undo brings the fight back, but not expired effects.',
+            risk: 'destructive',
+          });
         case 'apply-planned-change':
           return ok({ changeId: 'chg-1', summary: 'done', mode: 'apply', risk: 'write' });
         default:
@@ -169,7 +174,9 @@ test('Next turn is one click; End combat asks one plain question first', async (
 
   await page.locator('#live-end-combat').click();
   const dialog = page.getByRole('dialog');
-  await expect(dialog).toContainText('End the fight on Field? Undo stays in Recent Changes.');
+  await expect(dialog).toContainText('End combat on "Field" (round 2, 3 combatants)?');
+  await expect(dialog).toContainText('Undo stays in Recent Changes.');
+  await expect(dialog).toContainText('not expired effects');
   await expect(dialog).not.toContainText('plan-end');
   await expect(dialog.getByRole('checkbox')).toHaveCount(0);
   await dialog.getByRole('button', { name: 'End combat' }).click();

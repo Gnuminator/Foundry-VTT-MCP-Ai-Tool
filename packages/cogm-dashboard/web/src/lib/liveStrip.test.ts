@@ -102,10 +102,12 @@ describe('conditionArgs', () => {
 
 describe('endQuestion', () => {
   it('names the scene in words and says where Undo is', () => {
-    expect(endQuestion('Death House')).toBe(
-      'End the fight on Death House? Undo stays in Recent Changes.'
+    expect(
+      endQuestion('End combat on "Death House" (round 2, 5 combatants)', 'Not the effects.')
+    ).toBe(
+      'End combat on "Death House" (round 2, 5 combatants)? Undo stays in Recent Changes. Not the effects.'
     );
-    expect(endQuestion(null)).toBe('End the fight? Undo stays in Recent Changes.');
+    expect(endQuestion(null, null)).toBe('End the fight? Undo stays in Recent Changes.');
   });
 });
 

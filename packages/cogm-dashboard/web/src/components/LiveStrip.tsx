@@ -11,9 +11,9 @@ import { callTool, errorText } from '../lib/api';
 import { AWAY_TEXT, NO_VALUE, canSelect, hpPercent, hpText, hpTone, metaText } from '../lib/combat';
 import type { Combatant } from '../lib/combat';
 import { AI_LIMIT, readAiChanges } from '../lib/changes';
-import { GAME_STATE_KEY, useGuardedTools } from '../lib/guarded';
+import { GAME_STATE_KEY, mayHaveApplied, useGuardedTools } from '../lib/guarded';
 import { useLivePlay } from '../lib/livePlay';
-import { ROLL_NEEDS, offReason } from '../lib/liveSwitches';
+import { HANDOUT_NEEDS, ROLL_NEEDS, offReason } from '../lib/liveSwitches';
 import {
   CONDITIONS,
   conditionArgs,
@@ -46,13 +46,6 @@ const StartCombat = lazy(() => import('./StartCombat').then(m => ({ default: m.S
 const DamageForm = lazy(() => import('./DamageForm').then(m => ({ default: m.DamageForm })));
 
 const AI_KEY = [...CHANGES_KEY, 'ai'] as const;
-const SCENE_KEY = ['live-strip', 'scene'] as const;
-
-interface SceneRow {
-  id: string;
-  name: string;
-  active?: boolean;
-}
 
 function Card({
   c,
@@ -188,17 +181,6 @@ export function LiveStrip(): JSX.Element {
   const party = rows.filter(c => c.isPC && !c.defeated);
   const pickedPcs = pickedRows.filter(c => c.isPC);
 
-  const scene = useQuery({
-    queryKey: SCENE_KEY,
-    queryFn: async (): Promise<string | null> => {
-      const answer = await callTool<SceneRow[] | { scenes?: SceneRow[] } | null>('list-scenes', {});
-      const list = Array.isArray(answer) ? answer : (answer?.scenes ?? []);
-      return list.find(s => s.active)?.name ?? null;
-    },
-    enabled: combat !== null,
-    staleTime: 15_000,
-    retry: false,
-  });
   const changes = useQuery({
     queryKey: AI_KEY,
     queryFn: async () => readAiChanges(await callTool('list-recent-changes', { limit: AI_LIMIT })),
@@ -231,7 +213,10 @@ export function LiveStrip(): JSX.Element {
         await callTool('advance-combat-turn', {}, { confirm: true });
         void queryClient.invalidateQueries({ queryKey: GAME_STATE_KEY });
       } catch (err) {
-        toast(`✗ Next turn: ${errorText(err)}`, 'err');
+        toast(
+          `✗ Next turn: ${errorText(err)}${mayHaveApplied(err) ? ' It may have applied; check the tracker.' : ''}`,
+          'err'
+        );
       }
     });
 
@@ -239,9 +224,9 @@ export function LiveStrip(): JSX.Element {
     once(async () => {
       const from = focusedElement();
       if (gated('plan-combat-change')) return;
-      let planned: { planId?: unknown } | null;
+      let planned: { planId?: unknown; summary?: unknown; warning?: unknown } | null;
       try {
-        planned = await callTool<{ planId?: unknown } | null>('plan-combat-change', {
+        planned = await callTool<typeof planned>('plan-combat-change', {
           action: 'end',
         });
       } catch (err) {
@@ -255,7 +240,10 @@ export function LiveStrip(): JSX.Element {
       }
       const ok = await askConfirm({
         title: 'End combat',
-        summary: endQuestion(scene.data ?? null),
+        summary: endQuestion(
+          typeof planned?.summary === 'string' ? planned.summary : null,
+          typeof planned?.warning === 'string' ? planned.warning : null
+        ),
         diff: [],
         compact: true,
         confirmLabel: 'End combat',
@@ -297,7 +285,10 @@ export function LiveStrip(): JSX.Element {
         );
         toast(`✓ Undone: ${undoable.summary}`, 'ok');
       } catch (err) {
-        toast(`✗ Undo: ${errorText(err)}`, 'err');
+        toast(
+          `✗ Undo: ${errorText(err)}${mayHaveApplied(err) ? ' It may have applied; check Recent Changes.' : ''}`,
+          'err'
+        );
       } finally {
         void queryClient.invalidateQueries({ queryKey: GAME_STATE_KEY });
       }
@@ -309,7 +300,9 @@ export function LiveStrip(): JSX.Element {
       const s = handouts.data;
       if (!s || !nextHandout) return;
       const who = nextHandout.players?.length
-        ? nextHandout.players.map(id => s.players.find(p => p.userId === id)?.name ?? id).join(', ')
+        ? nextHandout.players
+            .map(id => s.players.find(p => p.userId === id)?.name ?? 'a player')
+            .join(', ')
         : 'every player';
       const confirmLine = {
         title: 'Show page to players',
@@ -326,7 +319,15 @@ export function LiveStrip(): JSX.Element {
     });
 
   const off = stale || busy;
-  const offTitle = stale ? 'The bridge is away' : undefined;
+  // Writes also wait for the switches (GM Actions, writes, live play), so a click never plans and
+  // asks only to be refused at apply.
+  const writeOff = off || liveOff.length > 0 || !selectable;
+  const handoutOff = off || live.off(HANDOUT_NEEDS).length > 0;
+  const offTitle = stale
+    ? 'The bridge is away'
+    : liveOff.length > 0
+      ? offReason(liveOff)
+      : undefined;
   const rollOff = off || roll.busy || live.off(ROLL_NEEDS).length > 0;
   const ask = (who: Combatant[]): void => {
     if (rollOff) return;
@@ -350,10 +351,10 @@ export function LiveStrip(): JSX.Element {
               size="sm"
               id="live-next-turn"
               data-track="dash.live.next-turn"
-              aria-disabled={off || !selectable ? 'true' : undefined}
+              aria-disabled={writeOff ? 'true' : undefined}
               title={offTitle}
               onClick={() => {
-                if (!off && selectable) void nextTurn();
+                if (!writeOff) void nextTurn();
               }}
             >
               Next turn
@@ -363,10 +364,10 @@ export function LiveStrip(): JSX.Element {
               size="sm"
               id="live-end-combat"
               data-track="dash.live.end-combat"
-              aria-disabled={off || !selectable ? 'true' : undefined}
+              aria-disabled={writeOff ? 'true' : undefined}
               title={offTitle}
               onClick={() => {
-                if (!off && selectable) void endCombat();
+                if (!writeOff) void endCombat();
               }}
             >
               End combat
@@ -386,18 +387,15 @@ export function LiveStrip(): JSX.Element {
             if (undoable && !off) void undo();
           }}
         >
-          {undoLabel(undoable)}
+          {changes.isPending ? 'Loading changes' : undoLabel(undoable)}
         </Button>
       </div>
       <p className={styles['away']} id="live-away" role="status">
         {stale ? AWAY_TEXT : ''}
       </p>
 
-      {combat !== null && !selectable && (
+      {combat !== null && liveOff.length > 0 && (
         <div className={styles['handout']} id="live-gated" role="status">
-          <span className={styles['meta']}>
-            Picking creatures needs GM Actions{liveOff.length > 0 ? ' and live play' : ''}.
-          </span>
           <TurnOnNote live={live} off={liveOff} />
         </div>
       )}
@@ -474,10 +472,10 @@ export function LiveStrip(): JSX.Element {
                   className={styles['cond']}
                   data-track="dash.live.condition"
                   data-condition={cond}
-                  aria-disabled={kept.size === 0 || off ? 'true' : undefined}
+                  aria-disabled={kept.size === 0 || writeOff ? 'true' : undefined}
                   title={kept.size === 0 ? 'Pick a creature first' : offTitle}
                   onClick={() => {
-                    if (kept.size > 0 && !off) void addCondition(cond);
+                    if (kept.size > 0 && !writeOff) void addCondition(cond);
                   }}
                 >
                   {cond}
@@ -539,9 +537,12 @@ export function LiveStrip(): JSX.Element {
           size="sm"
           id="live-show-handout"
           data-track="dash.live.show-handout"
-          aria-disabled={nextHandout && !off ? undefined : 'true'}
+          aria-disabled={nextHandout && !handoutOff ? undefined : 'true'}
+          title={
+            live.off(HANDOUT_NEEDS).length > 0 ? offReason(live.off(HANDOUT_NEEDS)) : undefined
+          }
           onClick={() => {
-            if (nextHandout && !off) void showHandout();
+            if (nextHandout && !handoutOff) void showHandout();
           }}
         >
           Show next handout

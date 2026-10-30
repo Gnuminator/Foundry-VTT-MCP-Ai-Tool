@@ -61,10 +61,13 @@ export function conditionArgs(targets: string[], condition: string): Record<stri
   return { action: 'condition', targets, condition, active: true };
 }
 
-/** The End combat question: the scene in words, never an id. */
-export function endQuestion(sceneName: string | null): string {
-  const where = sceneName ? ` on ${sceneName}` : '';
-  return `End the fight${where}? Undo stays in Recent Changes.`;
+/**
+ * The End combat question, from the plan's own words (it names the scene and the round, never an
+ * id) and the plan's warning about what Undo does not bring back.
+ */
+export function endQuestion(summary: string | null, warning: string | null): string {
+  const head = summary ? `${summary}?` : 'End the fight?';
+  return [head, 'Undo stays in Recent Changes.', warning].filter(Boolean).join(' ');
 }
 
 /**

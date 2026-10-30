@@ -1280,7 +1280,7 @@ export class ChangeHistory {
  */
 const JOURNAL_START_MARGIN_MS = Math.max(
   10 * CHANGE_JOURNAL_ACTION_GAP_MS,
-  2 * CHANGE_JOURNAL_GUARDED_GAP_MS
+  CHANGE_JOURNAL_GUARDED_GAP_MS
 );
 
 /** A record within JOURNAL_START_MARGIN_MS after the journal start the index last saw. */

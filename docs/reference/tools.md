@@ -654,7 +654,7 @@ Parameters:
 
 ### plan-combat-change
 
-Plan starting or ending a fight. "start" puts tokens of the viewed scene in a new combat (default: player characters and Hostile tokens; already at round 1, no initiative rolled, so roll it next). "end" removes the active combat (else the latest encounter, as get-combat-state shows it). Apply with apply-planned-change, revert with undo-change; ending is destructive, so the GM confirms. Shows in Recent Changes. Undo of an end does not restore effects that end with combat or token movement history (the result carries a warning).
+Plan starting or ending a fight. "start" puts tokens of the viewed scene in a new combat (default: player characters and Hostile tokens; already at round 1, no initiative rolled, so roll it next). "end" removes the active combat. Apply with apply-planned-change, revert with undo-change; ending is destructive, so the GM confirms. Shows in Recent Changes. Undo of an end does not restore effects that end with combat or token movement history (the result carries a warning).
 
 Kind: read-only. Title: Plan ending a fight.
 

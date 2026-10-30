@@ -184,10 +184,13 @@ function gate(o = {}) {
     return { status: 1, stdout: '', stderr: `unexpected ${key}` };
   };
   const lines = [];
+  /** @type {string[]} */
+  const progress = [];
   const code = main({
     argv: ['312', '--vault', vault, '--state', state, ...(o.argv ?? [])],
     run,
     log: l => lines.push(l),
+    progress: l => progress.push(l),
     home,
     tmpdir: home,
     now: () => new Date('2026-10-10T12:00:00Z'),
@@ -204,6 +207,7 @@ function gate(o = {}) {
     code,
     sleeps,
     lines,
+    progress,
     calls,
     state,
     home,
@@ -868,6 +872,10 @@ test("H1: drift-check runs from a temp copy of main's script, not the branch's n
   assert.equal(node.length, 10);
   const runner = node[9].replace(/^"|"$/g, '');
   assert.equal(node[9], `"${runner}"`, 'the runner path is quoted for the shell');
+  assert.deepEqual(r.progress, [
+    'lane:merge: drift-check runs now; it may first wait for the heavy-check lock (node scripts/heavy-lock.mjs status shows who holds it)',
+  ]);
+  assert.ok(!r.lines.some(l => l.includes('drift-check runs now')), 'not among the verdict lines');
   const source = fs.readFileSync(runner, 'utf8');
   assert.match(source, /runDriftCheck/);
   const url = /import\("([^"]+)"\)/.exec(source)?.[1] ?? '';

@@ -1123,7 +1123,8 @@ export function entryDecision(argv1, self) {
  *   argv?: string[], run?: Run, log?: (line: string) => void, env?: Record<string, string | undefined>,
  *   home?: string, tmpdir?: string, now?: () => Date, fetched?: boolean, selfPath?: string, lockTimeoutMs?: number,
  *   sleep?: (ms: number) => void, clock?: () => number, waitPollMs?: number, waitTimeoutMs?: number,
- * }} [options]
+ *   progress?: (line: string) => void,
+ * }} [options] `progress` gets live lines that are not part of the verdict (stderr by default).
  * @returns {number} the process exit code
  */
 export function main(options = {}) {
@@ -1142,6 +1143,7 @@ export function main(options = {}) {
     clock = Date.now,
     waitPollMs = WAIT_POLL_MS,
     waitTimeoutMs = WAIT_TIMEOUT_MS,
+    progress = line => console.error(line),
   } = options;
   const args = parseArgs(argv);
   if (args.error) {
@@ -1458,6 +1460,10 @@ export function main(options = {}) {
 
   // e (continued). drift-check, the slow one: only when everything above passed.
   if (failures.length === 0 && localOk) {
+    // Its output is captured, so a wait for the heavy-check lock would be silent until the end.
+    progress(
+      'lane:merge: drift-check runs now; it may first wait for the heavy-check lock (node scripts/heavy-lock.mjs status shows who holds it)'
+    );
     const drift = runDrift(run, tmpdir, notes);
     const logFile = path.join(tmpdir, `lane-merge-${n}-drift-${now().getTime()}.log`);
     const output = `${drift.stdout}${drift.stderr}`;

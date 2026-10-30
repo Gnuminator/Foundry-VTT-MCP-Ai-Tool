@@ -53,11 +53,14 @@ const STALE_OLD_MS = 60 * 60 * 1000;
 export const STALE_MS = 20 * 60 * 1000;
 /** The CLI `run` beats this often while its command runs (HEAVY_LOCK_BEAT_MS, for tests). */
 const CLI_BEAT_MS = 60 * 1000;
-/** Set once a run gave up waiting: the rest of that process then does not wait again. */
-let gaveUp = false;
-/** For tests: forget a give-up. */
+/**
+ * Lock folders this process gave up waiting on: it does not wait on them again. Per folder, so a
+ * give-up on the heavy slots does not switch off green's solo e2e lock (a folder of its own).
+ */
+const gaveUp = new Set();
+/** For tests: forget the give-ups. */
 export function resetGaveUp() {
-  gaveUp = false;
+  gaveUp.clear();
 }
 const FRESH_SLOT_MS = 15 * 1000;
 const POLL_MS = 1000;
@@ -278,15 +281,23 @@ export function acquire(label, o = {}) {
     fs.mkdirSync(qdir, { recursive: true });
     const name = `${priorityDigit(priority)}-${String(began).padStart(15, '0')}-${process.pid}-${Math.random().toString(36).slice(2, 8)}.json`;
     ticket = path.join(qdir, name);
-    fs.writeFileSync(ticket, JSON.stringify({ pid: process.pid, label, since: began, priority }));
+    const ticketBody = JSON.stringify({ pid: process.pid, label, since: began, priority });
+    fs.writeFileSync(ticket, ticketBody);
     process.once('exit', dropTicket);
     let lastTouch = began;
     for (;;) {
       const t = now();
       const cfg = readConfig(env);
-      const maxWaitMs = gaveUp ? 0 : (o.maxWaitMs ?? cfg.maxWaitMin * 60 * 1000);
+      const maxWaitMs = gaveUp.has(dir) ? 0 : (o.maxWaitMs ?? cfg.maxWaitMin * 60 * 1000);
       const held = slotStates(dir, t, alive);
-      const tickets = liveTickets(qdir, t, alive);
+      let tickets = liveTickets(qdir, t, alive);
+      if (!tickets.includes(name)) {
+        // Our ticket went missing (the queue cleared by hand, or dropped as stale after a suspend):
+        // write it again under the same name, so the run keeps its place instead of jumping the line.
+        fs.writeFileSync(ticket, ticketBody);
+        lastTouch = t;
+        tickets = [...tickets, name].sort();
+      }
       const place = tickets.indexOf(name);
       const free = freemem();
       // Every holder keeps room for its expected peak: a green holds for its whole run and peaks late
@@ -295,8 +306,7 @@ export function acquire(label, o = {}) {
       const roomGb = free / GB - held.length * cfg.peakGb;
       const slotFree = held.length < cfg.slots;
       const ramOk = held.length === 0 || roomGb >= cfg.minFreeGb;
-      // place < 0: the ticket went missing (cleared by hand, say); go on as if first in line.
-      if ((place <= 0 || tickets.length === 0) && slotFree && ramOk) {
+      if (place === 0 && slotFree && ramOk) {
         const taken = new Set(held.map(h => h.index));
         for (let i = 0; i < cfg.slots; i++) {
           if (taken.has(i)) continue;
@@ -360,7 +370,7 @@ export function acquire(label, o = {}) {
       const waited = t - began;
       if (waited >= maxWaitMs) {
         log(`heavy-lock: waited ${Math.round(waited / 60000)} min, going on without the lock (${label})`);
-        gaveUp = true;
+        gaveUp.add(dir);
         dropTicket();
         return noop;
       }
@@ -375,12 +385,17 @@ export function acquire(label, o = {}) {
           : !ramOk
             ? `${gb(free)} GB free, another run needs ${held.length * cfg.peakGb + cfg.minFreeGb} GB`
             : 'runs ahead in line';
-        log(`heavy-lock: ${label} waits for ${who}; number ${Math.max(place, 0) + 1} in line, ${why}`);
+        log(`heavy-lock: ${label} waits for ${who}; number ${place + 1} in line, ${why}`);
         lastRemind = t;
       }
       if (t - lastTouch >= TICKET_TOUCH_MS) {
         const d = new Date(t);
-        fs.utimesSync(ticket, d, d);
+        try {
+          fs.utimesSync(ticket, d, d);
+        } catch (e) {
+          // Gone since the listing: the next poll writes it again. Anything else is a lock problem.
+          if (/** @type {NodeJS.ErrnoException} */ (e).code !== 'ENOENT') throw e;
+        }
         lastTouch = t;
       }
       sleep(POLL_MS);

@@ -128,6 +128,60 @@ test('the wait gives up after the maximum and goes on without the lock', () => {
   holder.release();
 });
 
+test('a give-up on one lock folder does not switch off waiting on another (the solo e2e lock)', () => {
+  const { env } = fixture();
+  const holder = acquire('holder', { env, log: () => {} });
+  assert.equal(acquire('late', { env, log: () => {}, sleep: () => {}, maxWaitMs: 0, alive: () => true }).held, false);
+  const solo = fixture();
+  const other = acquire('solo', { env: solo.env, log: () => {} });
+  let sleeps = 0;
+  const waiter = acquire('solo waiter', {
+    env: solo.env,
+    log: () => {},
+    alive: () => true,
+    sleep: () => {
+      if (++sleeps === 2) other.release();
+    },
+  });
+  assert.equal(waiter.held, true, 'waited for the other folder and got it');
+  assert.ok(sleeps >= 2);
+  waiter.release();
+  resetGaveUp();
+  holder.release();
+});
+
+test('a waiter whose own ticket goes missing writes it again and keeps its place behind earlier tickets', () => {
+  const { dir, env } = fixture();
+  const holder = acquire('holder', { env, log: () => {} });
+  const earlier = ticket(dir, { since: Date.now() - 60_000, label: 'earlier' });
+  let sleeps = 0;
+  /** @type {string[]} */
+  let seen = [];
+  const waiter = acquire('waiter', {
+    env,
+    log: () => {},
+    alive: () => true,
+    sleep: () => {
+      sleeps++;
+      const q = path.join(dir, 'queue');
+      if (sleeps === 1) {
+        // Cleared by hand: our ticket only.
+        for (const n of fs.readdirSync(q)) if (!n.includes('-abc.')) fs.rmSync(path.join(q, n));
+      } else if (sleeps === 2) {
+        seen = fs.readdirSync(q).sort();
+        holder.release();
+      } else if (sleeps === 3) {
+        assert.ok(fs.existsSync(path.join(dir, 'slot-0')) === false, 'did not jump the earlier ticket');
+        fs.rmSync(earlier);
+      }
+    },
+  });
+  assert.equal(waiter.held, true);
+  assert.equal(seen.length, 2, 'the ticket was written again next to the earlier one');
+  assert.ok(sleeps >= 3);
+  waiter.release();
+});
+
 test('a held marker naming a dead process is ignored', () => {
   const { env } = fixture({ [HELD_ENV]: '999999' });
   const lock = acquire('x', { env, log: () => {}, alive: pid => pid !== 999999 });

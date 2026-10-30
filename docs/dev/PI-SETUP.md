@@ -1322,9 +1322,11 @@ Pi's SPI flash has caused boot problems for others, so the move is done by hand.
 **Redoing the move** (each step that changes the Pi needs your OK; the guard stops a session from
 formatting a disk, so step 2 you run yourself):
 
-1. `dietpi-backup 1`, then stop Foundry, every `foundry-ai-tool-*` service (Syncthing and cloudflared
-   included) and `foundry-backup.timer`, so nothing writes to the card during the copy; power off, fit
-   the SSD, power on (`lsblk` shows `nvme0n1`).
+1. `dietpi-backup 1`, power off, fit the SSD, power on (`lsblk` shows `nvme0n1`). The services start
+   again at boot, so stop them now: Foundry, every `foundry-ai-tool-*` service (Syncthing and
+   cloudflared included) and `foundry-backup.timer`, so nothing writes to the card during the copy.
+   Stay clear of the nightly `dietpi-backup` (01:25) and the restic job (04:30); after step 3 run
+   `rsync` once more with `--delete` right before the reboot of step 4.
 2. Check before you wipe (this destroys the SSD's content, so look at it first): `findmnt -no SOURCE /`
    must show `mmcblk1p1` (on the current Pi it shows `nvme0n1p1`: stop, nothing to redo), and
    `lsblk -f /dev/nvme0n1` shows what the SSD holds (mount a data partition read-only and list it);
@@ -1360,18 +1362,22 @@ mount the SSD, put that card's UUID into the SSD's `/etc/fstab` (the `/mnt/card`
 ### Which part was lost
 
 - **Card lost, SSD fine:** no snapshot restore. Boot a freshly flashed card (Part A), then as above:
-  mount the SSD, the new card's UUID into its fstab, `rootdev` on the new card to the SSD's UUID. The
-  new card needs the kernel the SSD's `/lib/modules` matches: copy `/boot` (kernel, initrd, dtb) from
+  mount the SSD, put the new card's UUID into its fstab (until that is done `/boot` fails to mount
+  and the Pi stops in emergency mode), and `rootdev` on the new card to the SSD's UUID. Separately,
+  the new card's kernel must match the SSD's `/lib/modules`: copy `/boot` (kernel, initrd, dtb) from
   the SSD's newest post-move snapshot (`data/boot/`) onto the new card, keep the new card's own
-  `dietpiEnv.txt` with the SSD `rootdev`. Until that is done, `/boot` fails to mount and the Pi stops
-  in emergency mode (`nofail` on the `/mnt/card` line would instead boot it with a stale `/boot`, so
-  kernel updates could land on the SSD unseen; not set).
+  `dietpiEnv.txt` with the SSD `rootdev` (a mismatch shows as missing modules, possibly no network).
+  `nofail` on the `/mnt/card` line would boot with a stale `/boot` instead of stopping, so kernel
+  updates could land on the SSD unseen; it is not set.
 - **SSD lost, card fine:** the card's old system boots after reverting `rootdev`, but only until the
   first kernel update after the move: later kernels and their initrd are on the card's `/boot` while
   their `/lib/modules` are only on the SSD, so the old system can boot a kernel with no matching
-  modules (a missing Ethernet driver means no network). Put the matching `/lib/modules/<version>`
-  from the newest snapshot onto the card first. Then restore the newest snapshot and redo the move
-  with a new SSD.
+  modules (a missing Ethernet driver means no network). The snapshots on the SSD are gone too: the
+  copies are in `E:\PiBackup\snapshots` on the PC, and this PC cannot write the card's ext4. So keep
+  the card ready ahead of time: after every kernel update, with the SSD system running and the
+  user's OK, `rsync -a /lib/modules/ /mnt/card/lib/modules/`. If that was not done, boot a second,
+  freshly flashed card, mount the old card there and copy the modules from the PC archive. Then
+  restore the newest snapshot and redo the move with a new SSD.
 - **Both lost:** Part A on a new card, the `dietpi-backup` or restic restore, then redo the move.
 
 **Snapshots across the move:** `dietpi-backup` copies `/` (with the card's `/boot` visible through the
@@ -1379,8 +1385,10 @@ bind) and skips `/mnt/*`, so `/mnt/card` is not swept in, and the snapshot holds
 `dietpiEnv.txt` and the SSD's fstab. Restore a snapshot from after 2026-10-30 19:48 where you can. One
 from before has the card as `/` in its fstab and `rootdev`; `dietpi-backup -1` warns that the UUIDs
 differ and rewrites the root UUID, but it knows nothing of the `/mnt/card` and `/boot` lines and
-removes `/etc/fstab.card`. After such a restore put back the three fstab lines from step 4 and check
-`rootdev` in `/boot/dietpiEnv.txt` before rebooting, or the next kernel update lands on the SSD's own
+removes `/etc/fstab.card` and, through the bind, the card's `/boot/dietpiEnv.txt.card`. Before such a
+restore note the card's UUID (`blkid` on the card partition) somewhere outside `/` and `/boot`. After
+it put back the three fstab lines from step 4 and check `rootdev` in `/boot/dietpiEnv.txt` before
+rebooting, or the next kernel update lands on the SSD's own
 `/boot`, where u-boot never reads it.
 
 ## Board status report (stage 16)

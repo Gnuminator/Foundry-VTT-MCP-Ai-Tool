@@ -8,6 +8,8 @@
   Meant for a scheduled task (for example every hour while the PC is on). For each folder in the
   sessions folder (FVTT_SESSIONS_DIR, default Documents\FoundrySessions):
 
+  0. Consent gate: a session is skipped, with the reason in notes\status.json, unless every
+     speaker in raw\session.json has a recorded yes in <sessions>\consent.json (D-097).
   1. A finished Discord recording (raw\session.json exists) with audio but no
      timeline\timeline.jsonl: build names.txt from Foundry if the bridge answers (skipped
      otherwise), then transcribe with scripts\voice-stack.ps1 (GPU, Docker).
@@ -100,6 +102,18 @@ try {
     $timeline = Join-Path $folder 'timeline\timeline.jsonl'
     $recorded = Test-Path (Join-Path $folder 'raw\session.json')
     $hasAudio = @(Get-ChildItem $folder -File | Where-Object { $_.Name -match $audioPattern }).Count -gt 0
+
+    # Consent gate (D-097): nothing is transcribed, written or published for a session unless every
+    # speaker has a recorded yes (consent.json, `session-notes consent`). Work already handed to
+    # the GM (approved) is left alone.
+    $due = (($recorded -and $hasAudio -and -not (Test-Path $timeline)) -or
+            ((Test-Path $timeline) -and -not (Test-NotesDone $folder)) -or
+            ((Test-NotesDone $folder) -and -not (Test-Path (Join-Path $folder 'notes\approved.json'))))
+    if ($due) {
+      $consentArgs = @('consent', 'check', $folder)
+      if (-not $DryRun -and -not (Test-NotesDone $folder)) { $consentArgs += '--write-status' }
+      if ((Invoke-Notes $consentArgs) -ne 0) { Say "$($dir.Name): not processed, recording consent is missing"; continue }
+    }
 
     if ($recorded -and $hasAudio -and -not (Test-Path $timeline)) {
       Say "$($dir.Name): transcribing"

@@ -48,8 +48,30 @@ With the recorder on the Orange Pi (D-068), set `FVTT_PI_HOST`
 (normally `foundry-pi`): the pass first runs `pull.ps1`, which copies finished recordings from the
 Pi over SSH, checks every file's SHA-256 and marks them pulled there (the Pi deletes them 7 days
 later; see the bot's README). Set `MCP_CONTROL_HOST` to the Pi's Tailscale name so `publish`
-reaches the bridge there. A scheduled task in the Claude desktop app runs it
-every hour while the PC is on, so the notes are ready the morning after a session with no clicks.
+reaches the bridge there. A Windows scheduled task runs it every hour and at logon, so the notes are ready by the Monday
+after a game night with no clicks (a pass cut short by the usage limit continues the next hour; a
+pass missed while the PC was off starts when it is back). Register it once, on the PC that records:
+`pwsh tools/session-notes/register-auto.ps1` (`-WhatIf` shows it, `-Remove` takes it away). The task
+sees the user environment, not a shell profile: `python`, `claude` and `pwsh` on the user PATH,
+`FVTT_SESSIONS_DIR` and the other variables as user environment variables, Docker running for the
+transcription. Its output goes to `<sessions>\auto-task.log`.
+
+### Consent comes first (D-097)
+
+Nothing is transcribed, written or published for a session unless **every speaker in
+`raw/session.json` has a recorded yes** in `<sessions>\consent.json` (kept on the PC, never in the
+repo; keyed by Discord user id). Record each reply under the consent message:
+
+```bash
+python -m session_notes consent set <discord user id> yes --name Ann
+python -m session_notes consent list
+python -m session_notes consent check <session>   # exit 77 and the reason when blocked
+```
+
+`consent check` prints the id of every speaker still missing. A "no" passes only once that
+speaker's audio track is deleted from the session folder (by hand; this tool never deletes audio).
+A blocked session shows as "waiting" with the reason in `notes/status.json`, so the After view says
+why nothing happened.
 
 ## What it writes
 

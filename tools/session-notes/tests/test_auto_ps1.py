@@ -108,7 +108,7 @@ def fake_python(tmp: Path, writes_status: bool) -> Path:
     optionally the specific status.json the real run writes before failing."""
     bin_dir = tmp / ("bin-writes" if writes_status else "bin-silent")
     bin_dir.mkdir()
-    lines = ["@echo off"]
+    lines = ["@echo off", 'if "%~3"=="consent" exit /b 0']
     if writes_status:
         lines += [
             'mkdir "%~4\\notes" 2>nul',
@@ -147,3 +147,18 @@ def test_a_failed_notes_run_replaces_an_old_status(
     status = read_status(folder_with_timeline)
     assert code == 0 and status["state"] == "failed" and "exit 2" in status["message"]
     assert (sessions / ".auto.lock").exists() is False
+
+
+def test_a_session_without_recorded_consent_is_not_processed(
+    sessions: Path, folder_with_timeline: Path
+) -> None:
+    (folder_with_timeline / "raw").mkdir()
+    (folder_with_timeline / "raw" / "session.json").write_text(
+        json.dumps({"tracks": [{"userId": "42", "username": "ann", "file": "1-ann.rec"}]}),
+        encoding="utf-8",
+    )
+    code, out = run_pass(sessions)  # real python, so the real consent check runs; no Claude
+    status = read_status(folder_with_timeline)
+    assert code == 0 and "recording consent is missing" in out
+    assert status["state"] == "waiting" and "No recorded yes" in status["message"]
+    assert not (folder_with_timeline / "notes" / "notes.json").exists()

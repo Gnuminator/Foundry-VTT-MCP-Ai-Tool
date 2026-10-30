@@ -127,7 +127,12 @@ export interface GuardedOptions {
    * A plan's confirm as one line (a reveal): the window shows this question and nothing else,
    * with `confirmLabel` on the button. Implies alwaysConfirm.
    */
-  confirmLine?: { title: string; question: string; confirmLabel: string; pageUuid?: string };
+  confirmLine?: {
+    title: string;
+    question: string;
+    confirmLabel: string;
+    pageUuid?: string | undefined;
+  };
 }
 
 export interface GuardedTools {

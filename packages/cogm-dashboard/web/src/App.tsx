@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { useCallback, useEffect, useState, type JSX, type ReactNode } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useState, type JSX, type ReactNode } from 'react';
 import { flushSync } from 'react-dom';
 
 import { AdvancedItem, AdvancedLabel, AdvancedMenu } from './components/AdvancedMenu';
@@ -26,7 +26,6 @@ import { SessionMarker } from './components/SessionMarker';
 import { ThemePicker } from './components/ThemePicker';
 import { StreamState } from './components/StreamState';
 import { HelpProvider } from './components/Help';
-import { LiveStripPage } from './components/LiveStripPage';
 import { useHelp } from './components/HelpButton';
 import {
   DOCKS,
@@ -132,10 +131,23 @@ export function App(): JSX.Element {
   const stripOnly = new URLSearchParams(window.location.search).get('strip') === '1';
   return (
     <HelpProvider>
-      <ConfirmProvider>{stripOnly ? <LiveStripPage /> : <Dashboard />}</ConfirmProvider>
+      <ConfirmProvider>
+        {stripOnly ? (
+          <Suspense fallback={null}>
+            <LiveStripPage />
+          </Suspense>
+        ) : (
+          <Dashboard />
+        )}
+      </ConfirmProvider>
     </HelpProvider>
   );
 }
+
+// The live strip page is its own chunk: it is opt-in and pulls the Handouts panel in.
+const LiveStripPage = lazy(() =>
+  import('./components/LiveStripPage').then(m => ({ default: m.LiveStripPage }))
+);
 
 /** The drawers this page has so far; each one's open state. */
 type DrawerName = 'preflight' | 'prep' | 'party' | 'handouts' | 'paper' | 'tarokka' | 'tools';

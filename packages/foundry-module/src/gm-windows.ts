@@ -6,8 +6,10 @@
  *
  * {@link createPanelWindow} is the shared window shell: a read-only panel that draws one HTML
  * string from Foundry's own data and redraws (debounced) when one of its hooks fires. The panels
- * read documents on this GM client and call no bridge tool, so they work with the bridge off and
- * write nothing; GM only, because the panels show monster hit points and hidden combatants.
+ * read documents on this GM client and mostly call no bridge tool, so they work with the bridge
+ * off; GM only, because the panels show monster hit points and hidden combatants. The exceptions
+ * write through the module's own handlers: the Session window's marker and the Party window's roll
+ * requests (`party-window.ts`, "Allow Write Operations" must be on).
  */
 import { MODULE_ID } from './constants.js';
 import { replaceKeepingFocus } from './window-fields.js';

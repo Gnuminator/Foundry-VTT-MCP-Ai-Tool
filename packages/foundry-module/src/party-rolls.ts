@@ -163,9 +163,48 @@ export interface RoundEntry {
 export interface Round {
   label: string;
   dc: number | null;
+  /** The roll the ask is for, read from dnd5e's roll flags; a message for another roll never counts. */
+  expect: RollExpect;
   /** ms since epoch when the requests went out; older chat rolls never count. */
   sentAt: number;
   entries: RoundEntry[];
+}
+
+/** dnd5e's skill ids (`flags.dnd5e.roll.skill` on a skill roll message). */
+const SKILL_IDS: Record<string, string> = {
+  Acrobatics: 'acr',
+  'Animal Handling': 'ani',
+  Arcana: 'arc',
+  Athletics: 'ath',
+  Deception: 'dec',
+  History: 'his',
+  Insight: 'ins',
+  Intimidation: 'itm',
+  Investigation: 'inv',
+  Medicine: 'med',
+  Nature: 'nat',
+  Perception: 'prc',
+  Performance: 'prf',
+  Persuasion: 'per',
+  Religion: 'rel',
+  'Sleight of Hand': 'slt',
+  Stealth: 'ste',
+  Survival: 'sur',
+};
+
+/** The kind of roll a round waits for: dnd5e's roll type and the ability or skill id. */
+export interface RollExpect {
+  type: 'ability' | 'save' | 'skill';
+  key: string;
+}
+
+/** What roll the pick asks for, in dnd5e's own words. */
+export function pickExpect(pick: RollPick): RollExpect {
+  const sep = pick.what.indexOf(':');
+  const kind = pick.what.slice(0, sep);
+  const id = pick.what.slice(sep + 1);
+  if (kind === 'skill') return { type: 'skill', key: SKILL_IDS[id] ?? id.toLowerCase() };
+  return { type: kind === 'save' ? 'save' : 'ability', key: id };
 }
 
 export function newRound(
@@ -176,6 +215,7 @@ export function newRound(
   return {
     label: pickLabel(pick),
     dc: pickDc(pick),
+    expect: pickExpect(pick),
     sentAt: now,
     entries: targets.map(t => ({ actorId: t.id, name: t.name, status: 'waiting' })),
   };
@@ -186,11 +226,15 @@ export interface RollMessageLike {
   timestamp?: number;
   speaker?: { actor?: string | null };
   rolls?: ReadonlyArray<{ total?: number }>;
+  /** dnd5e's flags on a roll message: `dnd5e.roll` is `{ type, ability, skill }`. */
+  flags?: { dnd5e?: { roll?: { type?: string; ability?: string; skill?: string } } };
 }
 
 /**
  * Note a chat roll in the round: the first waiting entry of the speaking character, when the
- * message is newer than the ask and holds a roll. Returns whether the round changed.
+ * message is newer than the ask, holds a roll and is the roll that was asked for (a save row
+ * ignores an attack, a damage roll or another skill). A message without dnd5e's roll flags (a plain
+ * formula) counts by speaker alone. Returns whether the round changed.
  */
 export function noteRoll(round: Round | null, message: RollMessageLike): boolean {
   if (!round) return false;
@@ -198,6 +242,11 @@ export function noteRoll(round: Round | null, message: RollMessageLike): boolean
   const total = message.rolls?.[0]?.total;
   if (!actorId || typeof total !== 'number' || !Number.isFinite(total)) return false;
   if ((message.timestamp ?? Date.now()) < round.sentAt) return false;
+  const flagged = message.flags?.dnd5e?.roll;
+  if (flagged?.type !== undefined) {
+    const key = round.expect.type === 'skill' ? flagged.skill : flagged.ability;
+    if (flagged.type !== round.expect.type || key !== round.expect.key) return false;
+  }
   const entry = round.entries.find(e => e.actorId === actorId && e.status === 'waiting');
   if (!entry) return false;
   entry.status = 'rolled';

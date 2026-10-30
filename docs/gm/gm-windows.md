@@ -61,6 +61,15 @@ One card per player character: hit points, armor class (AC), passive Perception 
 conditions and the spell slots left. It only lists characters that a player owns, so a monster or an
 unowned test character never shows up. It updates by itself when hit points or conditions change.
 
+**Asking for rolls.** A bar above the cards picks the roll (an ability check, a saving throw or a
+skill), an optional DC, advantage and Public. **Ask** on a card sends that one character the request;
+the button under the bar (**Group save** for a saving throw, **Ask everyone** otherwise) sends it to
+every character in the list. Players click the roll card in the chat as usual. The results list under
+the bar fills in as the rolls come, per character, with "passes" or "fails" when you gave a DC. Only
+the roll you asked for counts: a different save, a skill or an attack by the same character does not
+fill the row. The requests are logged like any other roll request, so the recap and stats see them.
+The buttons are grey, with the reason, while "Allow Write Operations" is off.
+
 When to use it: when you plan a fight or an ambush and want to know what the party can take, and when
 somebody asks "what is my passive Perception again".
 

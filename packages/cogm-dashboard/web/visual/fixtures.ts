@@ -450,6 +450,9 @@ const PLAY_STATS = {
     rolls: 142,
     crits: 3,
     fumbles: 2,
+    publicRolls: 131,
+    publicCrits: 3,
+    publicFumbles: 2,
     highestRoll: { total: 27, name: 'Mara', label: 'Perception' },
     combats: [
       { damageDealt: { Brenna: 31, Tobias: 12, 'Harbor thug': 40 }, downs: ['Brenna'] },

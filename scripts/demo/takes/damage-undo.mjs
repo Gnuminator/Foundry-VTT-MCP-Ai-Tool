@@ -106,12 +106,12 @@ export async function run(t) {
 
   await t.step('open-form', 'Damage / Heal: enter the amount and the damage type', async () => {
     await humanClick(page.locator('[data-sel="damage"]'));
-    const amount = page.locator('#tool-form .field[data-key="amount"] .field-control');
+    // The small Damage / Heal form on the strip (damage-form-simple): the amount, a type chip.
+    const amount = page.locator('#damage-amount');
     await amount.waitFor({ state: 'visible' });
     await humanType(amount, String(DAMAGE.amount));
-    await humanType(
-      page.locator('#tool-form .field[data-key="damageType"] .field-control'),
-      DAMAGE.damageType
+    await humanClick(
+      page.locator('#damage-form').getByRole('button', { name: DAMAGE.damageType, exact: true })
     );
     await t.pause(1000);
     await t.shot('Dashboard', 'damage-form');
@@ -121,7 +121,7 @@ export async function run(t) {
     'apply',
     'One click applies it to all three; dnd5e halves it for the Vampire',
     async () => {
-      await humanClick(page.locator('#tool-form button[type=submit]'));
+      await humanClick(page.locator('#damage-apply'));
       await page.locator('.toast-undo').first().waitFor({ state: 'visible', timeout: 20000 });
       await t.pause(2500);
       await t.shot('Dashboard', 'damage-applied');

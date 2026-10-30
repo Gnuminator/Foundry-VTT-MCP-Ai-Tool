@@ -73,3 +73,7 @@
   font-size: var(--fs-sm);
   color: var(--text-dim, var(--text));
 }
+
+.note:empty {
+  display: none;
+}

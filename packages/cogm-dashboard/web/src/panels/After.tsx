@@ -107,7 +107,12 @@ function AfterStats({ active }: { active: boolean }): JSX.Element {
     if (!a) return;
     try {
       await navigator.clipboard.writeText(statsForDiscord(a));
-      toast('✓ Copied. The highest roll is left out (it may have been a private roll).', 'ok');
+      toast(
+        a.publicCounts
+          ? '✓ Copied. Only public rolls are counted; the highest roll is left out.'
+          : '✓ Copied without roll counts (the bridge is older). The highest roll is left out.',
+        'ok'
+      );
     } catch (err) {
       toast(`✗ Could not copy: ${errorText(err)}`, 'err');
     }

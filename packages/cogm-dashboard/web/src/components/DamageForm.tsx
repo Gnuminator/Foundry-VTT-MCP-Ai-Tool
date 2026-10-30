@@ -15,7 +15,7 @@ import {
   type DamageMode,
   type DamageType,
 } from '../lib/damageForm';
-import { useGuardedChange } from '../lib/guarded';
+import { useGuardedTools } from '../lib/guarded';
 import { Button } from '../ui';
 import styles from './DamageForm.module.css';
 
@@ -51,9 +51,10 @@ export function DamageForm({
   stale: boolean;
   onClose: () => void;
 }): JSX.Element {
-  const run = useGuardedChange();
+  const { plan } = useGuardedTools();
   const [draft, setDraft] = useState<DamageDraft>(() => ({ ...EMPTY_DRAFT, type: readType() }));
   const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState('');
   const busyRef = useRef(false);
   const amountRef = useRef<HTMLInputElement>(null);
 
@@ -75,13 +76,21 @@ export function DamageForm({
     if (busyRef.current || stale || !args) return;
     busyRef.current = true;
     setBusy(true);
-    void run('plan-actor-change', args)
-      .then(done => {
-        if (done) onClose();
+    void plan('plan-actor-change', args)
+      .then(outcome => {
+        if (outcome.status === 'done') onClose();
+        // The hit may have landed: a second press must not apply it again, so the amount is
+        // cleared and the GM checks Recent Changes (the toast says so).
+        else if (outcome.status === 'failed' && outcome.mayHaveApplied) {
+          setDraft(d => ({ ...d, amount: '' }));
+          setNote('It may have landed. Check Recent Changes before you apply again.');
+        }
       })
       .finally(() => {
         busyRef.current = false;
         setBusy(false);
+        // The disabled Apply button drops keyboard focus; hand it back to the amount.
+        amountRef.current?.focus();
       });
   };
 
@@ -132,7 +141,10 @@ export function DamageForm({
             placeholder="Amount"
             data-track="dash.damage.amount"
             value={draft.amount}
-            onChange={e => setDraft(d => ({ ...d, amount: e.target.value.replace(/\D/g, '') }))}
+            onChange={e => {
+              setNote('');
+              setDraft(d => ({ ...d, amount: e.target.value.replace(/\D/g, '') }));
+            }}
             onKeyDown={e => {
               if (e.key === 'Enter') {
                 e.preventDefault();
@@ -158,6 +170,9 @@ export function DamageForm({
           ))}
         </div>
       )}
+      <p role="status" className={styles['note']}>
+        {note}
+      </p>
       <div className={styles['row']}>
         <Button
           type="button"

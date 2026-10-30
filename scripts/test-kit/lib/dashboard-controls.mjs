@@ -665,6 +665,11 @@ export const DASHBOARD_CONTROLS = [
   },
   { name: 'dash.ready.turn-on', how: 'write', why: 'turns the module switches and GM Actions on' },
   {
+    name: 'dash.live.turn-on',
+    how: 'write',
+    why: 'turns the module switches and GM Actions on, the same call as dash.ready.turn-on',
+  },
+  {
     name: 'dash.ready.turn-off',
     how: 'write',
     why: 'turns the switches Ready turned on off again',

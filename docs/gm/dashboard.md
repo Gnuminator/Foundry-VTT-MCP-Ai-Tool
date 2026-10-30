@@ -57,13 +57,13 @@ page and Obsidian follow it.
 Marks the start and the end of a play session. The tool uses these marks to write one Obsidian note
 per session and to group the play log.
 
-- **Start session** is the button in the header. **Turn on for tonight** in Pre-flight is a different
-  button: it only switches on what the tool needs to change things.
+- **Start session** is the button in the header. It also turns on live play: GM Actions and every
+  **Turn on for tonight** switch (see "Live play on" below).
 - Click **Start session** when play begins. The text changes to "Session since 19:30".
 - Click **End session** when play ends. The text changes back to "No session". It also turns off
   again what **Turn on for tonight** turned on (see below), and GM Actions.
-- Starting a session only writes a line in the tool's own log. It never changes the game, so it
-  works with GM Actions off.
+- Starting a session writes a line in the tool's own log and turns live play on, so tools that
+  change the game can run after you confirm. There is no "log only" start any more.
 - If you forget, the notes still split sessions at a gap of 3 hours without events.
 
 The 📓 next to it opens your campaign's Home note in Obsidian (see "Open in Obsidian" below).
@@ -82,8 +82,8 @@ shows the state and opens the list of switches.
 - It only guards the dashboard. It does not stop Claude Desktop.
 - Restarting the dashboard turns GM Actions off again.
 
-Turn it on when you are about to act, and off again after. **Turn on for tonight** turns it on
-for you, together with the module switches.
+The header has no off control. Start session turns live play on; **End session** or Pre-flight's
+**Turn them off again** turns it off.
 
 ### 🛠 Tools (Advanced)
 

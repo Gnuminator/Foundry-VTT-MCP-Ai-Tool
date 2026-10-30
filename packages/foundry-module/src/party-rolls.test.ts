@@ -110,7 +110,7 @@ describe('the round', () => {
   });
 
   it('keeps waiting for the roll that was asked for, read from the dnd5e flags', () => {
-    const roll = (r: { type: string; ability?: string; skill?: string }) => ({
+    const roll = (r: { type: string; ability?: string; skill?: string }): RollMessageLike => ({
       timestamp: 2000,
       speaker: { actor: 'a' },
       rolls: [{ total: 12 }],

@@ -108,6 +108,32 @@ function stagedPathOf(repoPath) {
 
 const toPosix = p => p.split(path.sep).join('/');
 
+/**
+ * True when `offset` of `line` sits inside an inline code span. A span opens with a run of N
+ * backticks and closes at the next run of exactly N, so a double-backtick span can hold single
+ * backticks; a backslash-escaped backtick is no delimiter. An unclosed run is plain text.
+ */
+export function insideCodeSpan(line, offset) {
+  const runs = [];
+  for (let i = 0; i < line.length; i++) {
+    if (line[i] === '\\') {
+      i++;
+    } else if (line[i] === '`') {
+      let n = 1;
+      while (line[i + n] === '`') n++;
+      runs.push({ at: i, n });
+      i += n - 1;
+    }
+  }
+  for (let r = 0; r < runs.length; r++) {
+    const close = runs.findIndex((c, k) => k > r && c.n === runs[r].n);
+    if (close === -1) continue;
+    if (offset > runs[r].at && offset < runs[close].at) return true;
+    r = close;
+  }
+  return false;
+}
+
 /** Returns a function: true for the lines that open, close or sit inside a fenced code block. */
 function fenceTracker() {
   let fence = null;
@@ -137,7 +163,7 @@ export function rewriteLinks(text, repoPath, images) {
       if (inCode(line)) return line;
       return line.replace(/(!?)\]\(([^)\s]+)((?:\s+"[^"]*")?)\)/g, (match, bang, target, title, offset) => {
         // A link shown inside an inline code span is an example, not a link.
-        if (line.slice(0, offset).split('`').length % 2 === 0) return match;
+        if (insideCodeSpan(line, offset)) return match;
         if (
           /^[a-z][a-z0-9+.-]*:/i.test(target) ||
           target.startsWith('#') ||
@@ -242,7 +268,7 @@ export function toSite(text, stagedPath) {
       );
       // A link's text can wrap onto the line before, so only the `](target)` part is matched.
       return chipped.replace(/\]\(([^)\s]+)((?:\s+"[^"]*")?)\)/g, (m, target, title, offset) => {
-        if (chipped.slice(0, offset).split('`').length % 2 === 0) return m;
+        if (insideCodeSpan(chipped, offset)) return m;
         const url = siteUrl(target);
         return url === null ? m : `](${url}${title})`;
       });

@@ -3,11 +3,15 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { parseReviewNote } from '../lane-merge.mjs';
+import { execFileSync } from 'node:child_process';
+import { findReviewNotes, judgeReviews, parseReviewNote } from '../lane-merge.mjs';
+import { plan, review } from './run.mjs';
 import {
   appendLedger,
   budgetFor,
   buildPrompts,
+  checkHead,
+  classifyDelta,
   finishNote,
   latestRound,
   nextRound,
@@ -192,4 +196,196 @@ test('buildPrompts names the round, the sha and the checklists', () => {
   const r2 = buildPrompts({ ...base, round: 2, previousNote: 'V:/9-opus-review.md' });
   assert.match(r2.system, /round 2: a delta check/);
   assert.match(r2.user, /9-opus-review\.md/);
+  const d = buildPrompts({ ...base, round: 3, previousNote: 'V:/9-opus-review-round2.md', delta: { reviewed: 'b'.repeat(40) } });
+  assert.match(d.system, /small-delta note/);
+  assert.doesNotMatch(d.system, /round 3: a delta check/);
+});
+
+test('checkHead refuses a moved head and names both shas', () => {
+  checkHead(7, SHA, SHA.toUpperCase(), 'x');
+  assert.throws(() => checkHead(7, SHA, 'c'.repeat(40), 'while the review ran'), /PR #7 head moved while the review ran.*aaaaaaaa.*cccccccc.*no note written/);
+});
+
+test('parseArgs reads --delta and wants one PR', () => {
+  assert.equal(parseArgs(['5', '--delta', 'ABCDEF1'], {}).delta, 'abcdef1');
+  assert.equal(parseArgs(['5'], {}).delta, null);
+  assert.throws(() => parseArgs(['5', '--delta', 'xyz'], {}), /7 to 40 hex/);
+  assert.throws(() => parseArgs(['5', '6', '--delta', 'abcdef1'], {}), /one PR at a time/);
+});
+
+test('classifyDelta: docs, tests, changelog and main-only files are small; own code is not', () => {
+  const base = { prFilesOld: ['src/a.js', 'src/a.test.js'], prFilesNew: ['src/a.js', 'src/a.test.js', 'changelog.d/x.md'], ownLines: 10 };
+  const ok = classifyDelta({ ...base, deltaFiles: ['src/a.test.js', 'changelog.d/x.md', 'docs/gm/y.md', 'other/from-main.js'] });
+  assert.equal(ok.small, true);
+  assert.deepEqual(ok.mainOnly, ['docs/gm/y.md', 'other/from-main.js']);
+  assert.equal(classifyDelta({ ...base, deltaFiles: ['other/from-main.js'] }).small, true);
+  const code = classifyDelta({ ...base, deltaFiles: ['src/a.js'] });
+  assert.equal(code.small, false);
+  assert.match(code.reasons[0], /own code changed: src\/a\.js/);
+  assert.equal(classifyDelta({ ...base, deltaFiles: [] }).small, false);
+  assert.equal(classifyDelta({ ...base, deltaFiles: ['src/a.test.js'], ownLines: 401 }).small, false);
+});
+
+/** A throwaway origin + clone with remote `aitool`, so plan() and review() run against real git. */
+function makeRepo() {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'rr-test-'));
+  const env = { ...process.env, GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@t', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@t' };
+  const git = (/** @type {string} */ cwd, /** @type {string[]} */ ...a) => execFileSync('git', a, { cwd, env, encoding: 'utf8' }).trim();
+  const origin = path.join(root, 'origin.git');
+  git(root, 'init', '-q', '--bare', '-b', 'main', origin);
+  const repo = path.join(root, 'repo');
+  git(root, 'init', '-q', '-b', 'main', repo);
+  git(repo, 'remote', 'add', 'aitool', origin);
+  const write = (/** @type {string} */ f, /** @type {string} */ t) => {
+    fs.mkdirSync(path.dirname(path.join(repo, f)), { recursive: true });
+    fs.writeFileSync(path.join(repo, f), t);
+  };
+  const commit = (/** @type {string} */ msg) => {
+    git(repo, 'add', '-A');
+    git(repo, 'commit', '-q', '-m', msg);
+    return git(repo, 'rev-parse', 'HEAD');
+  };
+  write('base.txt', 'base\n');
+  const m0 = commit('m0');
+  git(repo, 'push', '-q', 'aitool', 'main');
+  /** Publish a sha as the PR head, like GitHub's refs/pull/N/head. */
+  const publish = (/** @type {string} */ sha) => {
+    git(repo, 'push', '-q', '-f', 'aitool', `${sha}:refs/pull/5/head`);
+  };
+  return { root, repo, git, write, commit, publish, m0 };
+}
+
+const NOTE = (/** @type {string} */ head) =>
+  `# PR #5 Sonnet review: t\n\nscope\n\n## Findings\n\nNone.\n\nHead reviewed: ${head}\n\n## Verdict\n\n**Merge.** ok\n`;
+
+test('plan --delta: small commits after a Merge skip the round 3 flag, code does not', () => {
+  const t = makeRepo();
+  try {
+    t.git(t.repo, 'checkout', '-q', '-b', 'pr');
+    t.write('src/a.js', 'a\n');
+    const p1 = t.commit('p1');
+    const vault = path.join(t.root, 'vault');
+    const dir = path.join(vault, 'Dev', 'Foundry AI Tool', 'Handoff', 'Reviews 2026-10-30');
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, '5-review.md'), NOTE('b'.repeat(40)));
+    fs.writeFileSync(path.join(dir, '5-review-round2.md'), NOTE(p1));
+    const o = parseArgs(['5', '--delta', p1.slice(0, 10), '--vault', vault, '--ledger', path.join(t.root, 'l.jsonl')], {});
+    const info = (/** @type {string} */ sha, /** @type {string[]} */ files) => ({ prInfo: () => ({ title: 'T', body: '', state: 'OPEN', sha, files }) });
+    // docs + test commit, then a merge of main that touches only a file the PR does not own
+    t.write('docs/x.md', 'x\n');
+    t.write('src/a.test.js', 't\n');
+    t.commit('docs and test');
+    t.git(t.repo, 'checkout', '-q', 'main');
+    t.write('other.txt', 'from main\n');
+    t.commit('main moves');
+    t.git(t.repo, 'push', '-q', 'aitool', 'main');
+    t.git(t.repo, 'checkout', '-q', 'pr');
+    t.git(t.repo, 'merge', '-q', '--no-edit', 'main');
+    const head = t.git(t.repo, 'rev-parse', 'HEAD');
+    t.publish(head);
+    const p = plan(5, o, 0, t.repo, info(head, ['src/a.js', 'docs/x.md', 'src/a.test.js']));
+    assert.equal(p.round, 3);
+    assert.equal(p.name, '5-review-round3.md');
+    assert.equal(p.budget, 0.75);
+    assert.deepEqual(p.delta?.mainOnly, ['other.txt']);
+    assert.deepEqual(p.delta?.ownFiles.sort(), ['docs/x.md', 'src/a.test.js']);
+    // without --delta the same round 3 needs the planner's flag
+    assert.throws(() => plan(5, { ...o, delta: null }, 0, t.repo, info(head, [])), /third round needs the planner/);
+    // code after the Merge is a normal round: refused as a delta
+    t.write('src/a.js', 'changed\n');
+    const head2 = t.commit('code');
+    t.publish(head2);
+    assert.throws(() => plan(5, o, 0, t.repo, info(head2, [])), /not a small delta.*own code changed: src\/a\.js/);
+    // a sha no note called Merge is refused
+    const o2 = { ...o, delta: head.slice(0, 10) };
+    assert.throws(() => plan(5, o2, 0, t.repo, info(head2, [])), /no note says Merge/);
+  } finally {
+    fs.rmSync(t.root, { recursive: true, force: true });
+  }
+});
+
+/** A fake SDK query: init with the review key source, then a result with a valid note. */
+const fakeQuery = (/** @type {{ n: number }} */ calls, /** @type {'Sonnet' | 'Opus'} */ kind = 'Sonnet') => {
+  const f = async function* () {
+    calls.n++;
+    yield { type: 'system', subtype: 'init', apiKeySource: 'ANTHROPIC_API_KEY' };
+    yield {
+      type: 'result',
+      subtype: 'success',
+      total_cost_usd: 0.4,
+      num_turns: 2,
+      result: `# PR #5 ${kind} review: t\n\nscope\n\n## Findings\n\nNone.\n\n## Verdict\n\n**Merge.** fine\n`,
+      modelUsage: { [`claude-${kind.toLowerCase()}-5-5`]: {} },
+      usage: {},
+    };
+  };
+  return f;
+};
+
+test('a delta note from review() is accepted by the merge gate, Opus for a risky PR', async () => {
+  for (const kind of /** @type {const} */ (['Sonnet', 'Opus'])) {
+    const t = makeRepo();
+    try {
+      t.git(t.repo, 'checkout', '-q', '-b', 'pr');
+      t.write('src/a.js', 'a\n');
+      const p1 = t.commit('p1');
+      const vault = path.join(t.root, 'vault');
+      const dir = path.join(vault, 'Dev', 'Foundry AI Tool', 'Handoff', 'Reviews 2026-10-30');
+      fs.mkdirSync(dir, { recursive: true });
+      const prior = kind === 'Opus' ? '5-opus-review.md' : '5-review.md';
+      fs.writeFileSync(path.join(dir, prior), NOTE(p1).replace('Sonnet', kind));
+      t.write('docs/x.md', 'x\n');
+      const head = t.commit('docs');
+      t.publish(head);
+      const calls = { n: 0 };
+      const o = parseArgs(['5', '--delta', p1, '--model', kind.toLowerCase(), '--vault', vault, '--ledger', path.join(t.root, 'l.jsonl'), '--no-commit'], {});
+      const info = { prInfo: () => ({ title: 'T', body: '', state: 'OPEN', sha: head, files: ['src/a.js', 'docs/x.md'] }) };
+      const p = plan(5, o, 0, t.repo, info);
+      assert.equal(p.round, 2);
+      await review(p, o, 'k', t.repo, { headOf: () => head, query: fakeQuery(calls, kind) });
+      const notes = findReviewNotes(vault, 5) ?? [];
+      assert.equal(notes.length, 2);
+      assert.deepEqual(judgeReviews(notes, head, kind === 'Opus'), { ok: true, detail: notes.find(n => n.entries.some(e => e.head === head))?.name });
+    } finally {
+      fs.rmSync(t.root, { recursive: true, force: true });
+    }
+  }
+});
+
+test('review refuses a head that moved: before the spend books nothing, after it writes no note', async () => {
+  const t = makeRepo();
+  try {
+    t.git(t.repo, 'checkout', '-q', '-b', 'pr');
+    t.write('src/a.js', 'a\n');
+    const head = t.commit('p1');
+    t.publish(head);
+    const vault = path.join(t.root, 'vault');
+    const ledger = path.join(t.root, 'l.jsonl');
+    const o = parseArgs(['5', '--vault', vault, '--ledger', ledger, '--no-commit'], {});
+    const info = { prInfo: () => ({ title: 'T', body: '', state: 'OPEN', sha: head, files: ['src/a.js'] }) };
+    const noteDir = () => path.join(vault, 'Dev', 'Foundry AI Tool', 'Handoff');
+    const newHead = 'd'.repeat(40);
+
+    // moved before the SDK starts: nothing is booked, the SDK is never called
+    const calls = { n: 0 };
+    let p = plan(5, o, 0, t.repo, info);
+    await assert.rejects(review(p, o, 'k', t.repo, { headOf: () => newHead, query: fakeQuery(calls) }), /head moved before the review started, nothing spent/);
+    assert.equal(calls.n, 0);
+    assert.equal(readLedger(ledger).length, 0);
+    assert.equal(fs.existsSync(noteDir()), false);
+
+    // moved while the review ran: the cost is booked honestly, no note is written
+    const seen = [head, newHead];
+    p = plan(5, o, 0, t.repo, info);
+    await assert.rejects(review(p, o, 'k', t.repo, { headOf: () => seen.shift() ?? newHead, query: fakeQuery(calls) }), /head moved while the review ran/);
+    assert.ok(totalUsd(readLedger(ledger)) > 0 && totalUsd(readLedger(ledger)) < 1);
+    assert.equal(fs.existsSync(noteDir()), false);
+
+    // a stable head writes the sha-bound note
+    p = plan(5, o, 0, t.repo, info);
+    const r = await review(p, o, 'k', t.repo, { headOf: () => head, query: fakeQuery(calls) });
+    assert.match(fs.readFileSync(r.file, 'utf8'), new RegExp(`Head reviewed: ${head}`));
+  } finally {
+    fs.rmSync(t.root, { recursive: true, force: true });
+  }
 });

@@ -16,6 +16,10 @@ export const PER_REVIEW_CAP_USD = { opus: 6, sonnet: 3 };
 export const MIN_BUDGET_USD = 0.5;
 export const MODEL_IDS = { opus: 'claude-opus-5-5', sonnet: 'claude-sonnet-5-5' };
 export const KEY_VAR = 'REVIEW_RUNNER_API_KEY';
+/** A delta note may spend at most this (its SDK budget is cut to it). Opus only when the gate calls the PR risky. */
+export const DELTA_CAP_USD = { opus: 1.5, sonnet: 0.75 };
+/** More changed lines than this in the PR's own docs and tests is not a small delta. */
+export const DELTA_MAX_LINES = 400;
 export const VERDICTS = ['merge', 'merge after fixes', 'do not merge'];
 
 /** Review agent checklists (.claude/agents) that go into the system prompt, by risky category. */
@@ -32,12 +36,12 @@ export const defaultLedgerPath = () => path.join(os.homedir(), '.review-runner',
 /**
  * @typedef {{ prs: number[], dryRun: boolean, model: 'opus' | 'sonnet' | null, round: number | null,
  *   vault: string, ledger: string, noCommit: boolean, allowRound3: boolean, maxTurns: number,
- *   keepScratch: boolean }} Options
+ *   keepScratch: boolean, delta: string | null }} Options
  */
 
 /**
  * `run.mjs <PR>... [--dry-run] [--model opus|sonnet] [--round N] [--vault DIR] [--ledger FILE]
- * [--no-commit] [--allow-round3] [--max-turns N] [--keep-scratch]`. Throws on bad input.
+ * [--no-commit] [--allow-round3] [--max-turns N] [--keep-scratch] [--delta SHA]`. Throws on bad input.
  * @param {string[]} argv @param {NodeJS.ProcessEnv} [env]
  * @returns {Options}
  */
@@ -54,6 +58,7 @@ export function parseArgs(argv, env = process.env) {
     allowRound3: false,
     maxTurns: 40,
     keepScratch: false,
+    delta: null,
   };
   const value = (/** @type {number} */ i, /** @type {string} */ flag) => {
     const v = argv[i + 1];
@@ -78,6 +83,10 @@ export function parseArgs(argv, env = process.env) {
       const n = Number(value(i++, a));
       if (!Number.isInteger(n) || n < 1) throw new Error('--max-turns must be a whole number');
       o.maxTurns = n;
+    } else if (a === '--delta') {
+      const d = value(i++, a);
+      if (!/^[0-9a-f]{7,40}$/i.test(d)) throw new Error('--delta needs the sha the last Merge note reviewed (7 to 40 hex characters)');
+      o.delta = d.toLowerCase();
     } else if (a === '--vault') o.vault = value(i++, a);
     else if (a === '--ledger') o.ledger = value(i++, a);
     else if (/^#?\d+$/.test(a)) o.prs.push(Number(a.replace('#', '')));
@@ -85,6 +94,7 @@ export function parseArgs(argv, env = process.env) {
   }
   if (o.prs.length === 0) throw new Error('give at least one PR number');
   o.prs = [...new Set(o.prs)];
+  if (o.delta && o.prs.length !== 1) throw new Error('--delta works on one PR at a time');
   return o;
 }
 
@@ -120,6 +130,47 @@ export function latestRound(names, pr) {
     }
   }
   return { round, name };
+}
+
+/**
+ * The head moved between the runner's read of it and a later step (a push during the review).
+ * Throws, so no note is written for a sha that is no longer the head and no round is booked.
+ * @param {number} pr @param {string} expected @param {string} actual @param {string} stage
+ */
+export function checkHead(pr, expected, actual, stage) {
+  if (actual.toLowerCase() !== expected.toLowerCase()) {
+    throw new Error(
+      `PR #${pr} head moved ${stage}: reviewed ${expected.slice(0, 8)}, GitHub now says ${actual.slice(0, 8)}; no note written, rerun on the new head`
+    );
+  }
+}
+
+/** Files a small delta may change on the PR's own side: docs, tests, changelog fragments. @param {string} f */
+export const isDocsOrTest = f =>
+  // .claude/ markdown (agent checklists, skills) steers reviewers and lanes: never "just docs"
+  !f.startsWith('.claude/') &&
+  (/^(?:docs|changelog\.d)\//.test(f) ||
+    /\.md$/i.test(f) ||
+    /\.(?:test|spec)\.[cm]?[jt]sx?$/.test(f) ||
+    /(?:^|\/)(?:__tests__|tests?)\//.test(f));
+
+/**
+ * Is the change since the last Merge small enough for a delta note? Yes when every changed file is
+ * either the PR's own docs, test or changelog file, or a file the PR does not own (it came in with a
+ * merge of main: in neither PR file set). Anything else, or a big own-file change, is a normal round.
+ * @param {{ deltaFiles: string[], prFilesOld: string[], prFilesNew: string[], ownLines: number }} c
+ * @returns {{ small: boolean, reasons: string[], ownFiles: string[], mainOnly: string[] }}
+ */
+export function classifyDelta(c) {
+  const own = new Set([...c.prFilesOld, ...c.prFilesNew]);
+  const ownFiles = c.deltaFiles.filter(f => own.has(f));
+  const mainOnly = c.deltaFiles.filter(f => !own.has(f));
+  const reasons = [];
+  if (c.deltaFiles.length === 0) reasons.push('nothing changed since the reviewed sha');
+  const code = ownFiles.filter(f => !isDocsOrTest(f));
+  if (code.length > 0) reasons.push(`the PR's own code changed: ${code.slice(0, 5).join(', ')}${code.length > 5 ? ', ...' : ''}`);
+  if (c.ownLines > DELTA_MAX_LINES) reasons.push(`${c.ownLines} changed lines in the PR's own files (limit ${DELTA_MAX_LINES})`);
+  return { small: reasons.length === 0, reasons, ownFiles, mainOnly };
 }
 
 /**
@@ -229,7 +280,7 @@ export function agentBody(text) {
 /**
  * @param {{ pr: number, sha: string, title: string, model: 'opus' | 'sonnet', round: number,
  *   categories: string[], previousNote: string | null, diffPath: string, bodyPath: string,
- *   agentChecklists: string[] }} c
+ *   agentChecklists: string[], delta?: { reviewed: string } | null }} c
  */
 export function buildPrompts(c) {
   const kind = c.model === 'opus' ? 'Opus' : 'Sonnet';
@@ -255,7 +306,9 @@ export function buildPrompts(c) {
     `**Merge.** or **Merge after fixes.** or **Do not merge.** followed by one or two sentences.`,
     '',
     `Rules for the note: write no "Head reviewed:" line (the runner adds it above the verdict); the first bold text under "## Verdict" is exactly one of the three verdicts above; use no em dashes.`,
-    c.round > 1
+    c.delta
+      ? `This is a small-delta note: the previous round said Merge for ${c.delta.reviewed}, and since then only docs, tests, changelog fragments or a merge of main changed. The diff file holds only that change to the PR's own files (empty when the merge left them untouched). Judge only that change: say whether it is what it claims, whether a test or doc now contradicts the code you read, and keep the note short (a few bullets). If you find the change touches behaviour, say **Merge after fixes.** and name it.`
+      : c.round > 1
       ? `This is round ${c.round}: a delta check. Judge only whether the previous note's findings are fixed and whether the fixes introduced new problems. Say which finding IDs are fixed.`
       : `This is round 1: a full review.`,
     ...(c.agentChecklists.length > 0
@@ -269,7 +322,9 @@ export function buildPrompts(c) {
     `Review PR #${c.pr}: ${c.title}`,
     `Head sha (the checkout in your working directory is at it): ${c.sha}`,
     c.categories.length > 0 ? `Risky areas touched (D-101): ${c.categories.join(', ')}` : `No risky area touched (D-101).`,
-    `The diff against main is in ${c.diffPath}; the PR description is in ${c.bodyPath}.`,
+    c.delta
+      ? `The change since the reviewed sha ${c.delta.reviewed}, in the PR's own files, is in ${c.diffPath} (empty when a merge of main left them untouched); the PR description is in ${c.bodyPath}.`
+      : `The diff against main is in ${c.diffPath}; the PR description is in ${c.bodyPath}.`,
     c.previousNote ? `The previous review note is ${c.previousNote}; read it first.` : '',
   ]
     .filter(Boolean)

@@ -133,6 +133,8 @@ interface Options {
   bossFlag?: 'on' | 'off';
   /** What list-ref-choices answers for the token picker. */
   tokenChoices?: { id: string; name: string }[];
+  /** Answers a call before the defaults do (a failing tool); undefined leaves it to them. */
+  answer?: (call: ToolCall) => { status?: number; json: unknown } | undefined;
 }
 
 interface Fakes {
@@ -185,6 +187,7 @@ async function setup(page: Page, options: Options = {}): Promise<Fakes> {
     initial = [],
     bossFlag,
     tokenChoices = [],
+    answer,
   } = options;
   if (bossFlag) {
     await page.addInitScript(flag => localStorage.setItem('cogm_boss_prompts', flag), bossFlag);
@@ -201,6 +204,8 @@ async function setup(page: Page, options: Options = {}): Promise<Fakes> {
   const calls = await fakeTools(
     page,
     call => {
+      const custom = answer?.(call);
+      if (custom) return custom;
       switch (call.name) {
         case 'get-play-session':
           return ok({ success: true, worldId: 'w', open: true, startedAt: STARTED, endedAt: null });
@@ -1266,6 +1271,154 @@ test.describe('the layout trial', () => {
     push([fight(PARTY_FIGHT)]);
     await expect(row(page, 'Brannoc')).toBeVisible();
     await expect(row(page, 'Fighter')).toHaveCount(0);
+  });
+});
+
+/** A tool that failed: the dashboard's error body (`kind` says where it failed). */
+const failed = (error: string, kind = 'tool', status = 502): { status: number; json: unknown } => ({
+  status,
+  json: { ok: false, error, kind },
+});
+
+const toastLike = (page: Page, text: RegExp): Locator =>
+  page.locator('.toast-stack').getByText(text);
+
+test.describe('when a write or a roll request fails', () => {
+  const openDamage = async (page: Page): Promise<void> => {
+    await row(page, 'Ogre Brute').click();
+    await page.locator('#combat-actions [data-sel="damage"]').click();
+    await page.locator('#damage-amount').fill('8');
+  };
+
+  test('a plan that fails keeps the draft, so Apply can be pressed again', async ({ page }) => {
+    const { calls } = await setup(page, {
+      initial: [fight(PARTY_FIGHT)],
+      answer: call => (call.name === 'plan-actor-change' ? failed('No such token') : undefined),
+    });
+    await load(page);
+    await openDamage(page);
+    await page.locator('#damage-apply').click();
+    await expect(toastLike(page, /plan-actor-change:.*No such token/)).toBeVisible();
+    // Nothing was planned, so nothing can have landed: the amount stays and the form stays open.
+    await expect(page.locator('#damage-form')).toBeVisible();
+    await expect(page.locator('#damage-amount')).toHaveValue('8');
+    await expect(page.locator('#damage-apply')).toBeEnabled();
+    expect(calls.filter(c => c.name === 'apply-planned-change')).toEqual([]);
+  });
+
+  test('a double click sends one plan', async ({ page }) => {
+    const { calls } = await setup(page, { initial: [fight(PARTY_FIGHT)] });
+    await load(page);
+    await openDamage(page);
+    await page.locator('#damage-apply').dblclick();
+    await expect(page.locator('#damage-form')).toHaveCount(0);
+    expect(calls.filter(c => c.name === 'plan-actor-change')).toHaveLength(1);
+    expect(calls.filter(c => c.name === 'apply-planned-change')).toHaveLength(1);
+  });
+
+  test('Undo on the toast undoes the hit', async ({ page }) => {
+    const { calls } = await setup(page, { initial: [fight(PARTY_FIGHT)] });
+    await load(page);
+    await openDamage(page);
+    await page.locator('#damage-apply').click();
+    await expect(page.locator('#damage-form')).toHaveCount(0);
+    await page.locator('.toast-stack .toast-undo .toast-action').click();
+    await expect
+      .poll(() => calls.find(c => c.name === 'undo-change'))
+      .toEqual({
+        name: 'undo-change',
+        args: { changeId: 'chg-start' },
+        confirm: true,
+        confirmDestructive: true,
+      });
+  });
+
+  test('an apply with no answer may have landed: the amount is cleared, not kept for a second hit', async ({
+    page,
+  }) => {
+    await setup(page, {
+      initial: [fight(PARTY_FIGHT)],
+      answer: call =>
+        call.name === 'apply-planned-change'
+          ? failed('The bridge did not answer', 'timeout', 504)
+          : undefined,
+    });
+    await load(page);
+    await openDamage(page);
+    await page.locator('#damage-apply').click();
+    await expect(toastLike(page, /timed out.*check Recent Changes/)).toBeVisible();
+    await expect(page.locator('#damage-form')).toBeVisible();
+    await expect(page.locator('#damage-amount')).toHaveValue('');
+    await expect(page.locator('#damage-apply')).toHaveText('Type an amount');
+  });
+
+  test('one of two roll requests fails: the toast says who got it and who did not', async ({
+    page,
+  }) => {
+    const { calls } = await setup(page, {
+      initial: [fight(BOSS_FIGHT)],
+      answer: call =>
+        call.name === 'request-player-rolls' && call.args['targetPlayer'] === 'Mira'
+          ? failed('Mira is not logged in')
+          : undefined,
+    });
+    await load(page);
+    await page.locator('#strip-roll-party').click();
+    await expect(
+      toastLike(page, /✓ Sent: Perception to Brannoc\. Not sent: Mira: .*Mira is not logged in/)
+    ).toBeVisible();
+    expect(calls.filter(c => c.name === 'request-player-rolls')).toHaveLength(2);
+  });
+
+  test('the strip and the Party card share one saved roll choice', async ({ page }) => {
+    const member = { actorId: 'a1', uuid: 'Actor.a1', name: 'Brannoc', type: 'character' };
+    await setup(page, {
+      initial: [fight(BOSS_FIGHT)],
+      answer: call =>
+        call.name === 'get-party'
+          ? ok({
+              groups: [
+                {
+                  actorId: 'g1',
+                  uuid: 'Actor.g1',
+                  name: 'The Party',
+                  primary: true,
+                  pace: { value: 'normal', label: 'Normal', slowed: false },
+                  members: [member],
+                },
+              ],
+              paceOptions: [],
+              scene: null,
+              encounter: null,
+              warnings: [],
+            })
+          : undefined,
+    });
+    await load(page);
+    await fromMenu(page, 'btn-party');
+    const stripWhat = page.locator('#strip-roll-what');
+    const partyWhat = page.locator('#party-roll-what');
+    await expect(partyWhat).toBeAttached();
+    await stripWhat.selectOption('save:dex');
+    await expect(partyWhat).toHaveValue('save:dex');
+    // Each bar used to keep its own copy: a change on one wrote the other's old choice back.
+    await page.locator('#party-roll-dc').fill('13');
+    await expect(page.locator('#strip-roll-dc')).toHaveValue('13');
+    await expect(stripWhat).toHaveValue('save:dex');
+    await expect(partyWhat).toHaveValue('save:dex');
+  });
+
+  test('a roll request with no answer says it may have been sent', async ({ page }) => {
+    await setup(page, {
+      initial: [fight(BOSS_FIGHT)],
+      answer: call =>
+        call.name === 'request-player-rolls'
+          ? failed('The bridge did not answer', 'timeout', 504)
+          : undefined,
+    });
+    await load(page);
+    await page.locator('#strip-roll-party').click();
+    await expect(toastLike(page, /not confirmed.*may have been sent, check chat/)).toBeVisible();
   });
 });
 

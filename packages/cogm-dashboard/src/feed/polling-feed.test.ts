@@ -245,3 +245,66 @@ describe('PollingGameFeed event cursor', () => {
     feed.stop();
   });
 });
+
+describe('PollingGameFeed pollNow', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  /** A client whose get-recent-events calls wait until the test lets them answer. */
+  function gated(): { feed: PollingGameFeed; calls: () => number; release: () => void } {
+    const waiting: (() => void)[] = [];
+    let eventCalls = 0;
+    const client = new FakeClient();
+    client.callTool = (tool: string): Promise<unknown> => {
+      if (tool !== 'get-recent-events') {
+        return Promise.resolve({ success: true, events: [], errors: [], active: false });
+      }
+      eventCalls++;
+      return new Promise(resolve => {
+        waiting.push(() => resolve({ success: true, events: [] }));
+      });
+    };
+    const handlers: GameFeedHandlers = {
+      onEvents: () => {},
+      onCombat: () => {},
+      onErrors: () => {},
+      onStatus: () => {},
+    };
+    const feed = new PollingGameFeed(client as unknown as McpControlClient, handlers, {
+      pollIntervalMs: 60_000,
+      combatPollIntervalMs: 60_000,
+      errorPollIntervalMs: 60_000,
+      logger: new Logger('error'),
+    });
+    return { feed, calls: () => eventCalls, release: () => waiting.shift()?.() };
+  }
+
+  it('reads the events at once when no poll is running', async () => {
+    const { feed, calls, release } = gated();
+    feed.pollNow();
+    expect(calls()).toBe(1);
+    release();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(calls()).toBe(1);
+  });
+
+  it('queues one more read behind a poll already running, however often it is called', async () => {
+    const { feed, calls, release } = gated();
+    feed.pollNow();
+    feed.pollNow();
+    feed.pollNow();
+    // The running poll may have read before the new event: no second call yet.
+    expect(calls()).toBe(1);
+    release();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(calls()).toBe(2);
+    release();
+    await vi.advanceTimersByTimeAsync(0);
+    // The three calls made exactly one follow-up.
+    expect(calls()).toBe(2);
+  });
+});

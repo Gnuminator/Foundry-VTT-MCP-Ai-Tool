@@ -127,7 +127,7 @@ export async function closeTools(page, { human = false } = {}) {
 
 /** The Undo button of the newest change in Recent Changes. */
 export function newestUndoButton(page) {
-  return page.locator('#changes-body [data-undo]').first();
+  return page.locator('#pane-changes-body button[aria-label^="Undo:"]').first();
 }
 
 // --- Drawers ------------------------------------------------------------------

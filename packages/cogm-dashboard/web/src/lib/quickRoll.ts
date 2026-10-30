@@ -116,13 +116,22 @@ export function rollArgs(pick: RollPick, target: string): Record<string, unknown
 export function sentSummary(
   pick: RollPick,
   ok: string[],
-  failed: { name: string; error: string }[]
+  failed: { name: string; error: string; maybeSent?: boolean }[]
 ): string {
   const what = `${pickLabel(pick)}${pick.dc.trim() ? ` DC ${pick.dc.trim()}` : ''}`;
   const who = ok.length === 1 ? ok[0] : `${ok.length} characters`;
   if (failed.length === 0) return `✓ Sent: ${what} to ${who}`;
-  const bad = failed.map(f => `${f.name}: ${f.error}`).join('; ');
+  // A request that got no answer (a timeout, a dropped link) may still have posted its card.
+  const bad = failed
+    .map(f => {
+      if (!f.maybeSent) return `${f.name}: ${f.error}`;
+      const error = f.error.trim();
+      return `${f.name}: ${error}${/[.!?]$/.test(error) ? '' : '.'} It may have been sent, check chat.`;
+    })
+    .join('; ');
+  const unsure = failed.every(f => f.maybeSent);
+  const lead = unsure ? 'Not confirmed' : 'Not sent';
   return ok.length === 0
-    ? `✗ ${what} not sent. ${bad}`
-    : `✓ Sent: ${what} to ${who}. Not sent: ${bad}`;
+    ? `✗ ${what} ${unsure ? 'not confirmed' : 'not sent'}. ${bad}`
+    : `✓ Sent: ${what} to ${who}. ${lead}: ${bad}`;
 }

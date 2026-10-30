@@ -15,7 +15,7 @@ import {
   type DamageMode,
   type DamageType,
 } from '../lib/damageForm';
-import { useGuardedChange } from '../lib/guarded';
+import { useGuardedTools } from '../lib/guarded';
 import { Button } from '../ui';
 import styles from './DamageForm.module.css';
 
@@ -51,7 +51,7 @@ export function DamageForm({
   stale: boolean;
   onClose: () => void;
 }): JSX.Element {
-  const run = useGuardedChange();
+  const { plan } = useGuardedTools();
   const [draft, setDraft] = useState<DamageDraft>(() => ({ ...EMPTY_DRAFT, type: readType() }));
   const [busy, setBusy] = useState(false);
   const busyRef = useRef(false);
@@ -75,9 +75,15 @@ export function DamageForm({
     if (busyRef.current || stale || !args) return;
     busyRef.current = true;
     setBusy(true);
-    void run('plan-actor-change', args)
-      .then(done => {
-        if (done) onClose();
+    void plan('plan-actor-change', args)
+      .then(outcome => {
+        if (outcome.status === 'done') onClose();
+        // The hit may have landed: a second press must not apply it again, so the amount is
+        // cleared and the GM checks Recent Changes (the toast says so).
+        else if (outcome.status === 'failed' && outcome.mayHaveApplied) {
+          setDraft(d => ({ ...d, amount: '' }));
+          amountRef.current?.focus();
+        }
       })
       .finally(() => {
         busyRef.current = false;

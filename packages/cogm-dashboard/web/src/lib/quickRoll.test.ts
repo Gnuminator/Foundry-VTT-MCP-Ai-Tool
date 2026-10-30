@@ -72,4 +72,15 @@ describe('labels', () => {
       '✗ Dexterity save DC 14 not sent. C: offline'
     );
   });
+
+  it('says a request with no answer may have been sent', () => {
+    const pick = { ...DEFAULT_PICK, what: 'save:dex', dc: '14' };
+    const late = { name: 'C', error: 'no answer from Foundry', maybeSent: true };
+    expect(sentSummary(pick, [], [late])).toBe(
+      '✗ Dexterity save DC 14 not confirmed. C: no answer from Foundry. It may have been sent, check chat.'
+    );
+    expect(sentSummary(pick, ['A'], [late, { name: 'D', error: 'offline' }])).toBe(
+      '✓ Sent: Dexterity save DC 14 to A. Not sent: C: no answer from Foundry. It may have been sent, check chat.; D: offline'
+    );
+  });
 });

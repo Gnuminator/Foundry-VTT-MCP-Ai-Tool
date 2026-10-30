@@ -4,12 +4,19 @@
 // any other, so it lands in the play log, with the character resolved to its player and a button
 // on the player page. One click asks: a roll request only posts a roll card in chat (no world data
 // changes) and has no undo, so there is no confirm window (GM Actions still has to be on).
-import { useCallback, useRef, useState, type JSX, type ReactNode } from 'react';
+import {
+  useCallback,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type JSX,
+  type ReactNode,
+} from 'react';
 
 import { useQueryClient } from '@tanstack/react-query';
 
 import { ApiError, callTool, errorText } from '../lib/api';
-import { useGuardedTools } from '../lib/guarded';
+import { mayHaveApplied, useGuardedTools } from '../lib/guarded';
 import { SETTINGS_KEY, type DashboardSettings } from '../lib/stream';
 import {
   DEFAULT_PICK,
@@ -45,6 +52,33 @@ function writePick(pick: RollPick): void {
   }
 }
 
+// One saved choice for every bar on the page (the strip's and the Party card's): each used to keep
+// its own copy, so the one that was out of date wrote its old choice over the other's.
+let current: RollPick | null = null;
+const listeners = new Set<() => void>();
+
+function getPick(): RollPick {
+  current ??= readPick();
+  return current;
+}
+
+function subscribe(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => void listeners.delete(listener);
+}
+
+function changePick(change: Partial<RollPick>): void {
+  current = cleanPick({ ...getPick(), ...change });
+  writePick(current);
+  listeners.forEach(l => l());
+}
+
+/** Forgets the shared choice, so the next read comes from storage again (tests). */
+export function resetQuickRollPick(): void {
+  current = null;
+  listeners.forEach(l => l());
+}
+
 export interface QuickRoll {
   pick: RollPick;
   setPick: (change: Partial<RollPick>) => void;
@@ -58,17 +92,11 @@ export function useQuickRoll(): QuickRoll {
   const toast = useToast();
   const { gated } = useGuardedTools();
   const queryClient = useQueryClient();
-  const [pick, setPickState] = useState<RollPick>(readPick);
+  const pick = useSyncExternalStore(subscribe, getPick);
   const [busy, setBusy] = useState(false);
   const busyRef = useRef(false);
 
-  const setPick = useCallback((change: Partial<RollPick>): void => {
-    setPickState(old => {
-      const next = cleanPick({ ...old, ...change });
-      writePick(next);
-      return next;
-    });
-  }, []);
+  const setPick = changePick;
 
   const ask = useCallback(
     async (names: string[]): Promise<void> => {
@@ -77,7 +105,7 @@ export function useQuickRoll(): QuickRoll {
       busyRef.current = true;
       setBusy(true);
       const ok: string[] = [];
-      const failed: { name: string; error: string }[] = [];
+      const failed: { name: string; error: string; maybeSent?: boolean }[] = [];
       try {
         // One request per character, so each one resolves to its own player and a player who is
         // not logged in fails alone.
@@ -91,7 +119,11 @@ export function useQuickRoll(): QuickRoll {
           if (r.status === 'fulfilled') {
             ok.push(name);
           } else {
-            failed.push({ name, error: errorText(r.reason) });
+            failed.push({
+              name,
+              error: errorText(r.reason),
+              ...(mayHaveApplied(r.reason) ? { maybeSent: true } : {}),
+            });
             // The server says GM Actions are off whatever the page last heard: show it as off.
             if (r.reason instanceof ApiError && r.reason.code === 'gm-actions-disabled') {
               queryClient.setQueryData<DashboardSettings | null>(SETTINGS_KEY, old =>

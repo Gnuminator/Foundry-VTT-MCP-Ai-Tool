@@ -155,8 +155,9 @@ button.portrait {
   font-size: var(--text-xs);
 }
 .tag.down {
-  background: var(--bad-soft, var(--warn-soft));
-  color: var(--bad);
+  border: 1px solid var(--bad);
+  background: transparent;
+  color: var(--text);
 }
 
 .bar {

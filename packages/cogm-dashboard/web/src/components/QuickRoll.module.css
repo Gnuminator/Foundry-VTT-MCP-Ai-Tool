@@ -27,3 +27,15 @@
   width: 3.2rem;
   text-align: center;
 }
+
+/* Who has been asked and who has rolled: a full row under the pickers. */
+.status {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: var(--fs-sm);
+  color: var(--text-dim);
+}
+
+.statusDone {
+  color: var(--ok);
+}

@@ -1292,7 +1292,8 @@ body {
   align-items: center;
   gap: 0.45rem;
 }
-.ca-hint {
+.ca-hint,
+.ca-note {
   font-size: var(--fs-xs);
   color: var(--text-dim);
 }

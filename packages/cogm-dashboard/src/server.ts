@@ -44,6 +44,7 @@ if (refusal) {
   process.exit(1);
 }
 
+dashboard.onFeed({ pollNow: () => feed.pollNow() });
 feed.start();
 dashboard.start();
 

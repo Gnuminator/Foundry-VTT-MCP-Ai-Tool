@@ -9,6 +9,7 @@ import { streamUrl } from './auth';
 import { bridgeAway, bridgeBlip, readCombat, type CombatState } from './combat';
 import { EMPTY_FEED, addFeedEvents, hasNewGmChange, readFeedEvents, type FeedLog } from './feed';
 import { onPrefs } from './prefs';
+import { ROLLS_KEY } from './rollsKey';
 import { PLAY_SESSION_KEY } from './session';
 
 /** One Foundry module error or warning (feed/types.ts ModuleError on the server). */
@@ -204,6 +205,9 @@ const HANDLERS: Record<string, (queryClient: QueryClient, data: unknown) => void
   },
   // The GM's screen choices for this world (lib/prefs.ts).
   prefs: onPrefs,
+  // Who was asked for a roll and who rolled it, newest first (lib/rollStatus.ts).
+  rolls: (queryClient, data) =>
+    queryClient.setQueryData<unknown>(ROLLS_KEY, (data as { rows?: unknown } | null)?.rows),
   // The whole fight (lib/combat.ts), null when none runs: the During layouts and the strip read it.
   combat: (queryClient, data) => {
     const combat = readCombat((data as { combat?: unknown } | null)?.combat);

@@ -64,9 +64,9 @@ describe('labels', () => {
   it('words the toast', () => {
     const pick = { ...DEFAULT_PICK, what: 'save:dex', dc: '14' };
     expect(pickLabel(pick)).toBe('Dexterity save');
-    expect(sentSummary(pick, ['Ilvara'], [])).toBe('✓ Asked Ilvara for Dexterity save DC 14');
+    expect(sentSummary(pick, ['Ilvara'], [])).toBe('✓ Sent: Dexterity save DC 14 to Ilvara');
     expect(sentSummary(pick, ['A', 'B'], [{ name: 'C', error: 'offline' }])).toBe(
-      '✓ Asked 2 characters for Dexterity save DC 14. Not sent: C: offline'
+      '✓ Sent: Dexterity save DC 14 to 2 characters. Not sent: C: offline'
     );
     expect(sentSummary(pick, [], [{ name: 'C', error: 'offline' }])).toBe(
       '✗ Dexterity save DC 14 not sent. C: offline'

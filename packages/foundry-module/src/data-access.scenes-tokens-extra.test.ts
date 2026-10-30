@@ -469,7 +469,75 @@ describe('FoundryDataAccess — getTargets', () => {
   it('returns count 0 and an empty array when the user has no targets', async () => {
     const result = await da.getTargets();
 
-    expect(result).toEqual({ success: true, count: 0, targets: [] });
+    expect(result).toEqual({ success: true, count: 0, targets: [], selected: [] });
+  });
+
+  it('lists the tokens selected on the canvas apart from the targets', async () => {
+    (globalThis as any).canvas = {
+      tokens: {
+        controlled: [
+          { id: 'tk3', name: 'Bandit', actor: { id: 'ac3', system: { attributes: {} } } },
+        ],
+      },
+    };
+    try {
+      const result = await da.getTargets();
+
+      expect(result.count).toBe(0);
+      expect(result.selected).toEqual([
+        { tokenId: 'tk3', name: 'Bandit', actorId: 'ac3', ac: null, hp: null },
+      ]);
+    } finally {
+      delete (globalThis as any).canvas;
+    }
+  });
+
+  it('falls back to the targets of the other active GMs when this user has none', async () => {
+    const tok = { id: 'tk9', name: 'Orc', actor: null };
+    const g = (globalThis as any).game;
+    const prevUsers = g.users;
+    g.users = {
+      ...prevUsers,
+      filter: (fn: (u: any) => boolean): unknown[] =>
+        [
+          { id: 'gm2', isGM: true, active: true, targets: new Set([tok]) },
+          { id: 'gm3', isGM: true, active: true, targets: new Set([tok]) },
+          { id: 'gm4', isGM: true, active: false, targets: new Set([{ id: 'x', name: 'X' }]) },
+          { id: 'pl', isGM: false, active: true, targets: new Set([{ id: 'y', name: 'Y' }]) },
+        ].filter(fn),
+    };
+    try {
+      const result = await da.getTargets();
+      expect(result.targets.map((t: any) => t.tokenId)).toEqual(['tk9']);
+    } finally {
+      g.users = prevUsers;
+    }
+  });
+
+  it("keeps the bridge user's own targets over another GM's (a stale target wins)", async () => {
+    const g = (globalThis as any).game;
+    const prevUsers = g.users;
+    const prevTargets = g.user.targets;
+    g.user.targets = new Set([{ id: 'own', name: 'Own', actor: null }]);
+    g.users = {
+      ...prevUsers,
+      filter: (fn: (u: any) => boolean): unknown[] =>
+        [
+          {
+            id: 'gm2',
+            isGM: true,
+            active: true,
+            targets: new Set([{ id: 'other', name: 'Other' }]),
+          },
+        ].filter(fn),
+    };
+    try {
+      const result = await da.getTargets();
+      expect(result.targets.map((t: any) => t.tokenId)).toEqual(['own']);
+    } finally {
+      g.users = prevUsers;
+      g.user.targets = prevTargets;
+    }
   });
 
   it('maps the user targets to token id / actor / ac / hp', async () => {
@@ -495,6 +563,7 @@ describe('FoundryDataAccess — getTargets', () => {
         { tokenId: 'tk1', name: 'Goblin', actorId: 'ac1', ac: 15, hp: { value: 7, max: 7 } },
         { tokenId: 'tk2', name: 'Shade', actorId: null, ac: null, hp: null },
       ],
+      selected: [],
     });
   });
 });

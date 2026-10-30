@@ -369,9 +369,21 @@ function onlinePlayerIds(): string[] {
   }
 }
 
-/** `whisper`/`blind` flags for records made from a chat message (only the ones that are set). */
-function privacyOf(message: ChatMessageLike): Record<string, true> {
-  const flags: Record<string, true> = {};
+/**
+ * How a chat message is shown: `blind` (hidden from the roller), `self` (whispered to its author
+ * only), `gm` (any other whisper) or `public`. The player vault counts only `public` rolls.
+ */
+function visibilityOf(message: ChatMessageLike): 'public' | 'gm' | 'blind' | 'self' {
+  if (bool(message.blind)) return 'blind';
+  const whisper = arr(message.whisper);
+  if (whisper.length === 0) return 'public';
+  const author = str(message.author) ?? str(asRecord(message.author)?.id);
+  return author !== undefined && whisper.every(id => id === author) ? 'self' : 'gm';
+}
+
+/** `whisper`/`blind` flags (only the ones that are set) and the `visibility` of a chat message's record. */
+function privacyOf(message: ChatMessageLike): Record<string, string | true> {
+  const flags: Record<string, string | true> = { visibility: visibilityOf(message) };
   if (arr(message.whisper).length > 0) flags.whisper = true;
   if (bool(message.blind)) flags.blind = true;
   return flags;
@@ -1982,7 +1994,7 @@ export class PlayRecorder {
             item: itemRef,
             roll: info,
             source: { messageId },
-            ...(Object.keys(privacy).length > 0 ? { data: privacy } : {}),
+            data: privacy,
           })
         );
         recorded = true;

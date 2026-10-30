@@ -107,8 +107,8 @@ export function sessionMeta(a: SessionSummary): string {
 }
 
 /**
- * The text for the players' Discord channel. It leaves out the highest roll: the play log does
- * not keep a roll's visibility, so it may be a private or blind roll (stats/types.ts).
+ * The text for the players' Discord channel. It leaves out the highest roll: the session's
+ * unfiltered counts include private and blind rolls (stats/types.ts).
  */
 export function statsForDiscord(a: SessionSummary): string {
   const lines = [`**${a.label || 'Last session'}** (${hoursMinutes(a.durationMin)})`];

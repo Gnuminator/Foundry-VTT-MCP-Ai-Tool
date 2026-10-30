@@ -647,7 +647,7 @@ test.describe('picking combatants', () => {
     await expect(bar.locator('.ca-hint')).toHaveText(
       'Click combatants to deal damage or set a condition on them.'
     );
-    await expect(bar.locator('.ca-btn')).toHaveText(['End combat']);
+    await expect(bar.locator('.ca-btn')).toHaveText(['Use Foundry targets', 'End combat']);
     await expect(row(page, 'Ogre Brute')).toHaveClass(/selectable/);
     await expect(row(page, 'Ogre Brute')).toHaveAttribute(
       'data-track',
@@ -664,6 +664,7 @@ test.describe('picking combatants', () => {
       'Damage / Heal',
       'Condition',
       'Clear',
+      'Use Foundry targets',
       'End combat',
     ]);
     await expect(bar.locator('[data-sel="clear"]')).toHaveText('Clear');
@@ -809,7 +810,7 @@ test.describe('picking combatants', () => {
     await page.locator('#strip-roll-dc').fill('14');
     await page.locator('#strip-roll-visibility').selectOption('public');
     await page.locator('#strip-roll-party').click();
-    await expect(toast(page, '✓ Asked 2 characters for Dexterity save DC 14')).toBeVisible();
+    await expect(toast(page, '✓ Sent: Dexterity save DC 14 to 2 characters')).toBeVisible();
     const rolls = calls.filter(c => c.name === 'request-player-rolls');
     expect(rolls.map(c => c.args)).toEqual(
       ['Brannoc', 'Mira'].map(name => ({
@@ -836,7 +837,7 @@ test.describe('picking combatants', () => {
     await row(page, 'Brannoc').click();
     await expect(page.locator('#strip-roll-picked')).toHaveText('Ask Brannoc');
     await page.locator('#strip-roll-picked').click();
-    await expect(toast(page, '✓ Asked Brannoc for Perception')).toBeVisible();
+    await expect(toast(page, '✓ Sent: Perception to Brannoc')).toBeVisible();
     expect(calls.filter(c => c.name === 'request-player-rolls').map(c => c.args)).toEqual([
       {
         rollType: 'skill',

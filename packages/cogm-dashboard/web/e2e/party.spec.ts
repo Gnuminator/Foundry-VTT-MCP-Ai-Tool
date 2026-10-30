@@ -374,10 +374,10 @@ test('Ask for a roll: one member, then the whole party, through request-player-r
   await drawer.locator('#party-roll-what').selectOption('save:wis');
   await drawer.locator('#party-roll-dc').fill('13');
   await drawer.getByRole('button', { name: 'Ask roll: Ivarro, Wisdom save' }).click();
-  await expect(toast(page, '✓ Asked Ivarro for Wisdom save DC 13')).toBeVisible();
+  await expect(toast(page, '✓ Sent: Wisdom save DC 13 to Ivarro')).toBeVisible();
   await drawer.locator('#party-roll-advantage').selectOption('advantage');
   await drawer.locator('#party-roll-all').click();
-  await expect(toast(page, '✓ Asked 2 characters for Wisdom save DC 13')).toBeVisible();
+  await expect(toast(page, '✓ Sent: Wisdom save DC 13 to 2 characters')).toBeVisible();
 
   const base = { rollType: 'save', rollTarget: 'wis', isPublic: false, dc: 13, flavor: 'DC 13' };
   expect(asked()).toEqual([
@@ -726,4 +726,38 @@ test('Open shows the actor in Foundry; Escape closes the drawer', async ({ page 
   await expect(drawer).toBeHidden();
   await expect(toast(page, '✗ open-in-foundry: No such actor')).toBeVisible();
   await expect(page.locator('.drawer-backdrop')).toHaveCount(0);
+});
+
+test('the roll bar says who still owes a roll and who rolled what', async ({ page }) => {
+  const row = (id: string, name: string, sentAt: number, extra: object = {}): object => ({
+    id,
+    sentAt,
+    label: 'Wisdom Saving Throw (Private)',
+    isPublic: false,
+    targetName: name,
+    actorId: id,
+    userId: id,
+    status: 'sent',
+    ...extra,
+  });
+  const now = Date.now();
+  await fakeStream(page, [
+    ...gmActions(true),
+    {
+      event: 'rolls',
+      data: {
+        rows: [
+          row('c', 'Tom', now - 1000),
+          row('b', 'Ivarro', now - 2000, { status: 'rolled', total: 17 }),
+          row('a', 'Ilvara', now - 3000),
+        ],
+      },
+    },
+  ]);
+  await fakeTools(page, bridge);
+  const drawer = await openParty(page);
+  const status = drawer.getByTestId('roll-status');
+  await expect(status).toContainText('Wisdom Saving Throw: waiting for 2 of 3');
+  await expect(status).toContainText('Ivarro rolled 17');
+  await expect(status).toContainText('Tom: waiting');
 });

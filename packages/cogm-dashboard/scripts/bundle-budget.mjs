@@ -32,7 +32,10 @@ import { gzipSync } from 'node:zlib';
 // pan code itself is in the lazy InitiativeRibbon chunk.
 // 147 on 2026-10-30: the "Turn on for tonight" button on a refusal toast (lib/guarded.ts, which
 // every guarded change passes through, so it cannot be lazy) took the first load to 146.4 KB.
-export const FIRST_LOAD_LIMIT_KB = 147;
+// 148 on 2026-10-30: the Use Foundry targets wiring in the combat strip and the usage catalog entry
+// for the picker button, on top of the toast button, took the first load to 147.2 KB; the button
+// itself is the lazy FoundryTargetsButton chunk.
+export const FIRST_LOAD_LIMIT_KB = 148;
 
 /**
  * Lazy chunks by name stem (the file name without its hash and extension: `Tarokka-Cx9aB1zQ.js`

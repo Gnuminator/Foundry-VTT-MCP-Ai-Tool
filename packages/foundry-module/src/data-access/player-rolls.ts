@@ -207,6 +207,8 @@ export class PlayerRollsDataAccess {
             label: buttonLabel,
             isPublic: data.isPublic,
             targetName,
+            // The player the request is for, so the dashboard can tell who still owes a roll.
+            targetUserId: playerInfo.user?.id ?? null,
             // Who may see a private request: the player and the GMs (empty for a public one).
             whisperTo: whisperTargets,
           },

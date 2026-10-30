@@ -278,7 +278,7 @@ export function useGuardedTools(): GuardedTools {
         if (isSwitchOffRefusal(error) && !mayHaveApplied(err)) {
           // Nothing was written and nothing is wrong: a switch to turn on, said as a hint.
           const hint = error.replace(/^Error:\s*/, '');
-          await refusalToast(hint, refusedSwitchName(hint));
+          void refusalToast(hint, refusedSwitchName(hint));
           return { outcome: { status: 'failed', error: hint } };
         }
         if (err instanceof ApiError && err.kind === 'timeout') {
@@ -325,10 +325,7 @@ export function useGuardedTools(): GuardedTools {
     ): Promise<{ flags: ToolConfirm } | { outcome: GuardedOutcome }> => {
       // The drawer's line names the page it last read; when the server planned another page
       // (the queue moved since), the full window shows the plan's own summary instead.
-      const sameTarget =
-        line?.pageUuid === undefined ||
-        plan.pageUuid === undefined ||
-        plan.pageUuid === line.pageUuid;
+      const sameTarget = line?.pageUuid === undefined || plan.pageUuid === line.pageUuid;
       if (line && sameTarget && (plan.risk === 'write' || plan.risk === undefined)) {
         // One line, no list and no tick: the plan has a working Undo, the window only asks.
         const ok = await askConfirm({

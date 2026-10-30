@@ -7,6 +7,7 @@
   session switches is off, the warning toast has a **Turn on <switch> and the rest for tonight**
   button (the same click as Turn on for tonight in Pre-flight, so it turns on all of them). Switches the
   dashboard does not control keep the named pointer to Foundry's settings.
-- **One switch-off sentence:** the bridge and the dashboard take the "is switched off. In Foundry,
+- **One switch-off sentence:** the guarded-write refusals of the bridge and the dashboard take the
+  "is switched off. In Foundry,
   open Game Settings..." wording from one shared constant; the module (which cannot import it in
   the browser) keeps a copy that a test checks against it.

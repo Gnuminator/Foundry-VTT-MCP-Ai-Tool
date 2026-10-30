@@ -120,9 +120,9 @@ the Obsidian mirror settings):
 4. The change is recorded. It shows in the dashboard's **Recent Changes**, where you can undo it.
 
 A guarded change is refused, and nothing is written, if its feature switch is off, if the plan is
-older than 15 minutes, or if the same thing changed in Foundry since the plan was made. Deletes
-and hides count as destructive and need your explicit yes for that too. Showing a page to players
-is an ordinary change with an Undo, so one yes is enough.
+older than 15 minutes, or if the same thing changed in Foundry since the plan was made. Deletes,
+Tarokka reveals and hides count as destructive and need your explicit yes for that too. Showing a
+handout page to players is an ordinary change with an Undo, so one yes is enough.
 
 In a long fight the confirm step gets tiring. The setting **AI Tool: Live play, apply without
 confirming** (Game Settings, category **Foundry AI Tool**; off by default) skips it for damage,

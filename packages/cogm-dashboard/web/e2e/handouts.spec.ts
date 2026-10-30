@@ -619,7 +619,9 @@ test('a plan answer without its lines still gets the one-line window, with no re
 }) => {
   await fakeStream(page, gmActions(true));
   const calls = await fakeTools(page, call => {
-    if (call.name === 'plan-page-reveal') return ok({ planId: 'rp1', risk: 'write' });
+    if (call.name === 'plan-page-reveal') {
+      return ok({ planId: 'rp1', risk: 'write', pageUuid: page_(2) });
+    }
     return bridge(call);
   });
   const drawer = await openHandouts(page);

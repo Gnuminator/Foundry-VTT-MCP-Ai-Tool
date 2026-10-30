@@ -9,7 +9,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { DEFAULTS, HELD_ENV, acquire, pidAlive, readConfig, resetGaveUp, status, withHeavyLock } from './heavy-lock.mjs';
+import { DEFAULTS, HELD_ENV, acquire, pendingGb, pidAlive, readConfig, resetGaveUp, status, withHeavyLock } from './heavy-lock.mjs';
 import { lockedCommand } from './drift-check.mjs';
 
 const script = fileURLToPath(new URL('./heavy-lock.mjs', import.meta.url));
@@ -226,7 +226,7 @@ test('withHeavyLock sets the held marker for the work and does not wait on itsel
 test('status lists the settings, free and held slots, and who waits', () => {
   const { dir, env } = fixture();
   const lines = status(env, Date.now(), pidAlive, () => 8 * GB);
-  assert.match(lines[0], /^settings: 1 slots \(from env\), another run needs 5 GB per running one plus 2 GB free, 8\.0 GB free now$/);
+  assert.match(lines[0], /^settings: 1 slots \(from env\), another run needs 5 GB \(3\.5 for pre-push and lint-ratchet\) per running one, less what it uses already, plus 2 GB free, 8\.0 GB free now$/);
   assert.deepEqual(lines.slice(1), ['slot-0: free']);
   const lock = acquire('s', { env, log: () => {} });
   lock.beat('typecheck');
@@ -278,8 +278,8 @@ test('settings: environment, then the file, then the defaults; a bad value falls
   const file = path.join(dir, 'heavy-lock.json');
   const env = { HEAVY_LOCK_CONFIG: file };
   assert.deepEqual(readConfig(env), { slots: 3, slotsFrom: 'default', ...DEFAULTS });
-  fs.writeFileSync(file, JSON.stringify({ slots: 4, minFreeGb: 6, peakGb: 2.5, maxWaitMin: 30 }));
-  assert.deepEqual(readConfig(env), { slots: 4, slotsFrom: 'file', minFreeGb: 6, peakGb: 2.5, maxWaitMin: 30 });
+  fs.writeFileSync(file, JSON.stringify({ slots: 4, minFreeGb: 6, peakGb: 2.5, lightPeakGb: 1.5, maxWaitMin: 30 }));
+  assert.deepEqual(readConfig(env), { slots: 4, slotsFrom: 'file', minFreeGb: 6, peakGb: 2.5, lightPeakGb: 1.5, maxWaitMin: 30 });
   assert.equal(readConfig({ ...env, HEAVY_LOCK_SLOTS: '2' }).slots, 2);
   assert.equal(readConfig({ ...env, HEAVY_LOCK_SLOTS: '2' }).slotsFrom, 'env');
   assert.equal(readConfig({ ...env, HEAVY_LOCK_SLOTS: 'x' }).slots, 4, 'bad env value: the file');
@@ -334,6 +334,38 @@ test('free RAM: another slot waits until there is room for the peak of every run
   assert.ok(lines.some(l => /got the lock .*slot 2 of 2, 7\.0 GB free/.test(l)), lines.join('\n'));
   first.release();
   second.release();
+});
+
+test('free RAM: what a holder uses already is not reserved again', () => {
+  const { env } = fixture({ HEAVY_LOCK_SLOTS: '2' });
+  fs.writeFileSync(env.HEAVY_LOCK_CONFIG, JSON.stringify({ peakGb: 5, minFreeGb: 2 }));
+  let free = 12 * GB;
+  const first = acquire('first', { env, log: () => {}, freemem: () => free });
+  // The holder has grown to its peak: free fell by 5 GB to 7. 7 - 0 pending >= 2: no waiting.
+  free = 7 * GB;
+  const second = acquire('second', { env, log: () => {}, freemem: () => free, sleep: () => assert.fail('waited') });
+  assert.equal(second.held, true);
+  first.release();
+  second.release();
+});
+
+test('free RAM: a holder that has used nothing yet still reserves its whole peak', () => {
+  const { env } = fixture({ HEAVY_LOCK_SLOTS: '2' });
+  fs.writeFileSync(env.HEAVY_LOCK_CONFIG, JSON.stringify({ peakGb: 5, minFreeGb: 2 }));
+  const first = acquire('first', { env, log: () => {}, freemem: () => 6 * GB });
+  const second = acquire('second', { env, log: () => {}, freemem: () => 6 * GB, sleep: () => {}, maxWaitMs: 0 });
+  assert.equal(second.held, false, '6 GB free - 5 GB to come < 2 GB');
+  first.release();
+});
+
+test('pendingGb: pre-push and lint-ratchet use the lower peak; an owner without freeGb counts in full', () => {
+  const cfg = { peakGb: 5, lightPeakGb: 3 };
+  const o = (label, freeGb) => ({ state: { pid: 1, label, start: 0, freeGb } });
+  assert.equal(pendingGb([o('pre-push', 10), o('lint-ratchet', 10)], cfg, 10), 6);
+  assert.equal(pendingGb([o('green x', 10)], cfg, 8), 3, 'free fell 2 GB: 3 GB still to come');
+  assert.equal(pendingGb([o('green x', 10)], cfg, 2), 0, 'never negative');
+  assert.equal(pendingGb([o('green x', undefined)], cfg, 2), 5);
+  assert.equal(pendingGb([{ state: 'unknown' }], cfg, 2), 5);
 });
 
 test('every slot taken is logged in admissions.jsonl', () => {

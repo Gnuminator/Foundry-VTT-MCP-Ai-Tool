@@ -717,17 +717,22 @@ function fakeGit(over = {}) {
 }
 
 /** A fake gh over scripted runs; records every call. */
-function fakeGh({ existing = [], dispatched = [], views = [], dispatchStatus = 0 }) {
+function fakeGh({ existing = [], laterExisting = null, dispatched = [], views = [], dispatchStatus = 0, openPr = false, listFails = false, viewFails = false }) {
   const calls = [];
   let viewNo = 0;
+  let commitLists = 0;
   const gh = args => {
     calls.push(args.join(' '));
+    if (args[0] === 'pr') return { status: 0, stdout: JSON.stringify(openPr ? [{ number: 1 }] : []), stderr: '' };
     if (args[0] === 'run' && args[1] === 'list') {
-      const rows = args.includes('--commit') ? existing : args.includes('workflow_dispatch') ? dispatched : [];
+      if (listFails) return { status: 1, stdout: '', stderr: 'gh: not logged in' };
+      const isCommit = args.includes('--commit');
+      const rows = isCommit ? (commitLists++ > 0 && laterExisting ? laterExisting : existing) : args.includes('workflow_dispatch') ? dispatched : [];
       return { status: 0, stdout: JSON.stringify(rows), stderr: '' };
     }
     if (args[0] === 'workflow') return { status: dispatchStatus, stdout: '', stderr: 'HTTP 403' };
     if (args[0] === 'run' && args[1] === 'view') {
+      if (viewFails) return { status: 1, stdout: '', stderr: 'HTTP 401' };
       return { status: 0, stdout: JSON.stringify(views[Math.min(viewNo++, views.length - 1)]), stderr: '' };
     }
     return { status: 1, stdout: '', stderr: 'unexpected' };
@@ -859,7 +864,56 @@ test('cloud: a failed run names the failed job, step and URL', () => {
   const { code, lines } = cloud(fakeGit(), gh);
   assert.equal(code, 1);
   assert.equal(lines.length, 1);
-  assert.equal(lines[0], 'green: FAILED (cloud, failure) build-test (Node 22) at step "Run e2e" (https://gh/job/1)');
+  assert.equal(
+    lines[0],
+    'green: FAILED (cloud, failure) build-test (Node 22) at step "Run e2e" (https://gh/job/1) (an earlier run; gh run rerun 7 --failed to retry)'
+  );
+});
+
+test('cloud: a branch with an open PR waits for the pull_request run instead of dispatching', () => {
+  const { gh, calls } = fakeGh({
+    openPr: true,
+    existing: [],
+    laterExisting: [{ databaseId: 7, status: 'queued', conclusion: '', headSha: SHA, event: 'pull_request' }],
+    views: [doneView('success')],
+  });
+  const { code } = cloud(fakeGit(), gh);
+  assert.equal(code, 0);
+  assert.ok(!calls.some(c => c.startsWith('workflow run')), 'no dispatch next to the PR run');
+});
+
+test('cloud: gh and git errors are reported, not turned into a dispatch or a wrong message', () => {
+  const list = fakeGh({ listFails: true });
+  const a = cloud(fakeGit(), list.gh);
+  assert.equal(a.code, 1);
+  assert.match(a.lines[0], /could not list CI runs \(gh: gh: not logged in\)/);
+  assert.ok(!list.calls.some(c => c.startsWith('workflow run')));
+  const view = fakeGh({ existing: [{ databaseId: 7, status: 'queued', conclusion: '', headSha: SHA, event: 'push' }], viewFails: true });
+  const b = cloud(fakeGit(), view.gh);
+  assert.equal(b.code, 1);
+  assert.match(b.lines[0], /gh failed 5 times in a row while waiting for run 7: HTTP 401/);
+  const ls = (args) => (args[0] === 'ls-remote' ? { status: 128, stdout: '', stderr: 'fatal: unable to access' } : fakeGit()(args));
+  const c = cloud(ls, fakeGh({}).gh);
+  assert.match(c.lines[0], /could not reach aitool: fatal: unable to access/);
+});
+
+test('cloud: a run cancelled while waiting is called cancelled, and main is refused', () => {
+  const { gh } = fakeGh({
+    existing: [{ databaseId: 7, status: 'queued', conclusion: '', headSha: SHA, event: 'push' }],
+    views: [doneView('cancelled', [{ name: 'build-test', conclusion: 'cancelled', url: 'j', steps: [] }])],
+  });
+  const a = cloud(fakeGit(), gh);
+  assert.equal(a.code, 1);
+  assert.match(a.lines[0], /^green: FAILED \(cloud, cancelled\) CI run https:\/\/gh\/run\/7 was cancelled/);
+  const b = cloud(fakeGit({ 'rev-parse --abbrev-ref HEAD': 'main' }), fakeGh({}).gh);
+  assert.equal(b.code, 1);
+  assert.match(b.lines[0], /CI on main runs on push/);
+});
+
+test('ci.yml keeps what --cloud relies on: workflow_dispatch and a per-ref concurrency group', () => {
+  const yml = fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '.github', 'workflows', 'ci.yml'), 'utf8');
+  assert.match(yml, /^ {2}workflow_dispatch:/m);
+  assert.match(yml, /^ {2}group: .*github\.ref/m);
 });
 
 test('cloud: refuses when the dispatch is rejected or no run shows up', () => {

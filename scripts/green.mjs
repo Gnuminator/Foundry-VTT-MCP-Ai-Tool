@@ -660,7 +660,7 @@ function sleepSync(ms) {
  */
 function runCapture(cmd, args, cwd) {
   const r = spawnSync(cmd, args, { cwd, encoding: 'utf8', windowsHide: true, timeout: 60_000 });
-  return { status: r.status ?? 1, stdout: r.stdout ?? '', stderr: r.stderr ?? '' };
+  return { status: r.status ?? 1, stdout: r.stdout ?? '', stderr: `${r.stderr ?? ''}${r.error ? r.error.message : ''}` };
 }
 
 /** `owner/repo` from a GitHub remote URL (https or ssh), else null. @param {string} url */
@@ -708,19 +708,26 @@ export function cloudGreen(o) {
   const branch = out(['rev-parse', '--abbrev-ref', 'HEAD']);
   const sha = out(['rev-parse', 'HEAD']);
   if (!branch || branch === 'HEAD' || !sha) return refuse('no branch checked out');
+  if (branch === 'main') return refuse('CI on main runs on push; use the merge train, not --cloud');
   const remoteUrl = out(['remote', 'get-url', CLOUD_REMOTE]);
   const repo = remoteUrl && repoFromUrl(remoteUrl);
   if (!repo) return refuse(`no GitHub remote named ${CLOUD_REMOTE}`);
-  const remoteHead = out(['ls-remote', CLOUD_REMOTE, `refs/heads/${branch}`])?.split(/\s+/)[0];
+  const lsRemote = git(['ls-remote', CLOUD_REMOTE, `refs/heads/${branch}`]);
+  if (lsRemote.status !== 0) return refuse(`could not reach ${CLOUD_REMOTE}: ${lsRemote.stderr.trim().split('\n')[0]}`);
+  const remoteHead = lsRemote.stdout.trim().split(/\s+/)[0];
   if (remoteHead !== sha) {
     return refuse(`HEAD ${sha.slice(0, 8)} is not pushed to ${CLOUD_REMOTE}/${branch} (git push -u ${CLOUD_REMOTE} ${branch}:${branch})`);
   }
 
   const started = now();
-  /** @param {string[]} extra @returns {{ databaseId: number, status: string, conclusion: string, headSha: string }[]} */
+  let ghError = '';
+  /** @param {string[]} extra @returns {{ databaseId: number, status: string, conclusion: string, headSha: string }[] | null} null when gh failed */
   const listRuns = extra => {
     const r = gh(['run', 'list', '-R', repo, '-w', CLOUD_WORKFLOW, '--json', 'databaseId,status,conclusion,event,headSha', '-L', '20', ...extra]);
-    if (r.status !== 0) return [];
+    if (r.status !== 0) {
+      ghError = (r.stderr || r.stdout).trim().split('\n')[0];
+      return null;
+    }
     try {
       return JSON.parse(r.stdout).filter((/** @type {{ headSha: string }} */ x) => x.headSha === sha);
     } catch {
@@ -729,28 +736,51 @@ export function cloudGreen(o) {
   };
   // A run that was cancelled or skipped says nothing about the commit.
   const usable = (/** @type {{ conclusion: string }} */ x) => x.conclusion !== 'cancelled' && x.conclusion !== 'skipped';
-  let run = listRuns(['--commit', sha]).find(usable);
+  const first = listRuns(['--commit', sha]);
+  if (!first) return refuse(`could not list CI runs (gh: ${ghError}); not starting a second run blind`);
+  let run = first.find(usable);
+  const earlier = Boolean(run && run.status === 'completed');
+  if (!run) {
+    // A branch with an open PR gets a pull_request run a few seconds after the push: wait for it
+    // instead of starting a second run (its concurrency group is the ref, not the PR's, so neither
+    // would cancel the other).
+    const pr = gh(['pr', 'list', '-R', repo, '--head', branch, '--state', 'open', '--json', 'number']);
+    let hasPr = false;
+    try {
+      hasPr = pr.status === 0 && JSON.parse(pr.stdout).length > 0;
+    } catch {
+      hasPr = false;
+    }
+    while (hasPr && !run && now() - started < findMs) {
+      sleep(Math.min(pollMs, 5000));
+      run = listRuns(['--commit', sha])?.find(usable);
+    }
+  }
   if (!run) {
     const d = gh(['workflow', 'run', CLOUD_WORKFLOW, '-R', repo, '--ref', branch]);
     if (d.status !== 0) return refuse(`could not start ${CLOUD_WORKFLOW}: ${(d.stderr || d.stdout).trim().split('\n')[0]}`);
     while (!run && now() - started < findMs) {
       sleep(Math.min(pollMs, 5000));
-      run = listRuns(['--branch', branch, '--event', 'workflow_dispatch']).find(usable);
+      run = listRuns(['--branch', branch, '--event', 'workflow_dispatch'])?.find(usable);
     }
     if (!run) return refuse(`started ${CLOUD_WORKFLOW} but found no run for ${sha.slice(0, 8)} within ${Math.round(findMs / 1000)} s`);
   }
 
   /** @type {{ status: string, conclusion: string, url: string, jobs: { name: string, conclusion: string, url: string, steps?: { name: string, conclusion: string }[] }[] } | null} */
   let view = null;
+  let errors = 0;
   while (now() - started < timeoutMs) {
     const r = gh(['run', 'view', String(run.databaseId), '-R', repo, '--json', 'status,conclusion,url,jobs']);
     if (r.status === 0) {
+      errors = 0;
       try {
         view = JSON.parse(r.stdout);
       } catch {
         view = null;
       }
       if (view?.status === 'completed') break;
+    } else if (++errors >= 5) {
+      return refuse(`gh failed 5 times in a row while waiting for run ${run.databaseId}: ${(r.stderr || r.stdout).trim().split('\n')[0]}`);
     }
     sleep(pollMs);
   }
@@ -759,12 +789,17 @@ export function cloudGreen(o) {
     log(`green: OK (cloud), CI run ${view.url} for ${sha.slice(0, 8)} in ${formatDuration(now() - started)}`);
     return 0;
   }
+  if (view.conclusion === 'cancelled') {
+    log(`green: FAILED (cloud, cancelled) CI run ${view.url} was cancelled, probably replaced by a newer run on the same ref; run --cloud again`);
+    return 1;
+  }
   const bad = view.jobs.filter(j => j.conclusion && !['success', 'skipped', 'neutral'].includes(j.conclusion));
   const where = bad.map(j => {
     const step = j.steps?.find(s => s.conclusion === 'failure');
     return `${j.name}${step ? ` at step "${step.name}"` : ''} (${j.url})`;
   });
-  log(`green: FAILED (cloud, ${view.conclusion}) ${where.length ? where.join('; ') : view.url}`);
+  const retry = earlier ? ` (an earlier run; gh run rerun ${run.databaseId} --failed to retry)` : '';
+  log(`green: FAILED (cloud, ${view.conclusion}) ${where.length ? where.join('; ') : view.url}${retry}`);
   return 1;
 }
 

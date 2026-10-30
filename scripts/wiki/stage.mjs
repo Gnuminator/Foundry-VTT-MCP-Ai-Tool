@@ -114,22 +114,33 @@ const toPosix = p => p.split(path.sep).join('/');
  * backticks; a backslash-escaped backtick is no delimiter. An unclosed run is plain text.
  */
 export function insideCodeSpan(line, offset) {
-  const runs = [];
+  const runAt = i => {
+    let n = 1;
+    while (line[i + n] === '`') n++;
+    return n;
+  };
   for (let i = 0; i < line.length; i++) {
     if (line[i] === '\\') {
-      i++;
+      i++; // outside a span only: a backslash is no escape inside one (`C:\dir\`)
     } else if (line[i] === '`') {
-      let n = 1;
-      while (line[i + n] === '`') n++;
-      runs.push({ at: i, n });
-      i += n - 1;
+      const n = runAt(i);
+      let close = -1;
+      for (let j = i + n; j < line.length; j++) {
+        if (line[j] !== '`') continue;
+        const m = runAt(j);
+        if (m === n) {
+          close = j;
+          break;
+        }
+        j += m - 1;
+      }
+      if (close === -1) {
+        i += n - 1; // an unclosed run is plain text
+      } else {
+        if (offset > i && offset < close) return true;
+        i = close + n - 1;
+      }
     }
-  }
-  for (let r = 0; r < runs.length; r++) {
-    const close = runs.findIndex((c, k) => k > r && c.n === runs[r].n);
-    if (close === -1) continue;
-    if (offset > runs[r].at && offset < runs[close].at) return true;
-    r = close;
   }
   return false;
 }

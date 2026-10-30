@@ -164,4 +164,7 @@ test('insideCodeSpan: delimiter runs, escapes and unclosed runs', () => {
   assert.equal(insideCodeSpan('`` `x` `` b', 10), false);
   assert.equal(insideCodeSpan('a \\` b', 5), false);
   assert.equal(insideCodeSpan('a ` b', 4), false);
+  // A backslash inside a span is no escape (a Windows path), so the link after it is outside.
+  assert.equal(insideCodeSpan('a `C:\\x\\` [l](y.md)', 13), false);
+  assert.equal(insideCodeSpan('a `C:\\x\\` [l](y.md)', 5), true);
 });

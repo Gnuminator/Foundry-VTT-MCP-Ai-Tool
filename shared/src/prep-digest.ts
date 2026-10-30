@@ -229,7 +229,7 @@ export interface PrepEncounter {
   truncated: boolean;
 }
 
-/** An `encounter-prep` note with its suggested encounters. */
+/** A prep note (encounter-prep first, any prep type) with its suggested encounters. */
 export interface PrepEncounterNote {
   /** Campaign-relative path. */
   path: string;
@@ -247,7 +247,7 @@ export interface PrepNotesPart {
   /** Matching notes the GM kept out with `ai_context: false`. */
   keptOut: number;
   /**
-   * Suggested encounters from `encounter` blocks in encounter-prep notes, at most
+   * Suggested encounters from `encounter` blocks in prep notes (encounter-prep first), at most
    * PREP_ENCOUNTERS_MAX notes. Suggestions only: nothing is created. Left out when there are none.
    */
   encounters?: PrepEncounterNote[];

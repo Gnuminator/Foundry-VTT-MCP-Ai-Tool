@@ -414,14 +414,15 @@ export async function readPrepNotes(input: ReadPrepNotesInput): Promise<ReadPrep
   );
   let looked = 0;
   for (const note of encounterNotes) {
-    if (isOff(note.head.ai_context)) {
-      if (!keptOutPaths.has(note.path)) {
-        keptOut++;
-        keptOutPaths.add(note.path);
-      }
-      continue;
+    // keptOut keeps its meaning (matching notes only): a kept-out note is just skipped here.
+    if (isOff(note.head.ai_context)) continue;
+    if (encounters.length >= PREP_ENCOUNTERS_MAX) break;
+    if (looked >= ENCOUNTER_SCAN_MAX_NOTES) {
+      errors.push(
+        `(prep notes): the encounter scan stopped at ${ENCOUNTER_SCAN_MAX_NOTES} notes, so some encounter blocks were not looked at`
+      );
+      break;
     }
-    if (encounters.length >= PREP_ENCOUNTERS_MAX || looked >= ENCOUNTER_SCAN_MAX_NOTES) break;
     looked++;
     try {
       const { text } = await readHead(`${walked.root}/${note.path}`, PREP_NOTE_READ_BYTES);

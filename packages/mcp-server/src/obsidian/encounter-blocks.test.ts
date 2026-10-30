@@ -150,7 +150,7 @@ describe('readPrepNotes encounters', () => {
     await note('Prep/NPCs/N.md', doc(['type: npc-prep', 'ai_context: false'], block));
     const { part } = await read();
     expect(part.encounters).toBeUndefined();
-    expect(part.keptOut).toBe(2);
+    expect(part.keptOut).toBe(0);
     expect(JSON.stringify(part)).not.toContain(CANARY);
   });
 

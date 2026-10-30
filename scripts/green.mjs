@@ -14,6 +14,7 @@
  *   npm run green -- --from NAME        start at this step
  *   npm run green -- --skip a,b         leave these steps out
  *   npm run green -- --cloud            run CI on GitHub for the pushed HEAD instead (see cloudGreen)
+ *   npm run green -- --quick            typecheck + unit tests of what changed vs aitool/main, no heavy lock
  *
  * The steps run in the repository the command is started in (the git top level of the current
  * directory). On Windows, when this process is not Node 22 (the global Node 24 crashes natively
@@ -237,10 +238,10 @@ export function ciUnsupported(yamlText, job = 'build-test') {
 
 /**
  * @param {string[]} argv
- * @returns {{ list: boolean, all: boolean, cloud: boolean, only: string[], skip: string[], from: string | null, error: string | null }}
+ * @returns {{ list: boolean, all: boolean, cloud: boolean, quick: boolean, only: string[], skip: string[], from: string | null, error: string | null }}
  */
 export function parseArgs(argv) {
-  const out = { list: false, all: false, cloud: false, only: [], skip: [], from: null, error: null };
+  const out = { list: false, all: false, cloud: false, quick: false, only: [], skip: [], from: null, error: null };
   const csv = (/** @type {string} */ v) =>
     v
       .split(',')
@@ -261,6 +262,7 @@ export function parseArgs(argv) {
     if (flag === '--list') out.list = true;
     else if (flag === '--all') out.all = true;
     else if (flag === '--cloud') out.cloud = true;
+    else if (flag === '--quick') out.quick = true;
     else if (flag === '--only' || flag === '--skip' || flag === '--from') {
       const v = value();
       if (v === null || v === '') {
@@ -277,6 +279,9 @@ export function parseArgs(argv) {
   }
   if (out.cloud && (out.list || out.all || out.only.length + out.skip.length > 0 || out.from)) {
     out.error = '--cloud runs the whole CI job and cannot be combined with --list, --all, --only, --skip or --from';
+  }
+  if (out.quick && (out.cloud || out.all || out.only.length + out.skip.length > 0 || out.from)) {
+    out.error = '--quick builds its own step list and cannot be combined with --cloud, --all, --only, --skip or --from';
   }
   return out;
 }
@@ -548,12 +553,14 @@ function spawnStep(step, fd, cwd) {
         ...stepEnvironment(process.env, NODE22_DIR),
         FORCE_COLOR: '0',
         NO_COLOR: '1',
-        ...(step.name === 'e2e' && !process.env.E2E_PORT ? freePortEnv() : {}),
+        ...((step.name === 'e2e' || step.name === 'e2e-specs') && !process.env.E2E_PORT ? freePortEnv() : {}),
         ...step.env,
       },
     });
     return r.status ?? 1;
   };
+  // The quick run's e2e spec step shares the e2e solo lock (same fixed state folder).
+  if (step.name === 'e2e-specs') return soloLock('e2e', run);
   return SOLO_STEPS.has(step.name) ? soloLock(step.name, run) : run();
 }
 
@@ -804,19 +811,102 @@ export function cloudGreen(o) {
   return 1;
 }
 
+/** Scripts whose tests live in another file. */
+const QUICK_TEST_OF = { 'scripts/pre-push.mjs': 'scripts/green.test.mjs' };
+
+/**
+ * `green --quick`: the steps for the files a branch changed (CI on the pushed head is the green, the
+ * lane skill 2026-10-30). Per touched workspace its typecheck and unit tests; a `shared/` change
+ * typechecks every package (they build on it) and tests shared; a changed `*.test.mjs` (or the
+ * script next to it) runs under node --test; a changed dashboard e2e spec builds the dashboard and
+ * runs only that spec. None of these step names is in HEAVY_STEPS (hence `unit-*`, not `test-*`), so a quick run never takes a
+ * heavy slot (the e2e spec step keeps the small solo lock the e2e port needs).
+ * @param {string[]} files repo-relative paths, forward slashes
+ * @returns {Step[]}
+ */
+export function quickSteps(files, cwd = process.cwd()) {
+  /** @type {Step[]} */
+  const steps = [];
+  const pkgs = new Set();
+  for (const f of files) {
+    const m = /^packages\/([^/]+)\//.exec(f);
+    if (m) pkgs.add(m[1]);
+  }
+  const sharedTouched = files.some(f => f.startsWith('shared/'));
+  if (sharedTouched || pkgs.size > 0) steps.push({ name: 'build-shared', cmd: 'npm', args: ['run', 'build:shared'] });
+  if (sharedTouched) {
+    steps.push({ name: 'typecheck-all', cmd: 'npm', args: ['run', 'typecheck'] });
+    steps.push({ name: 'unit-shared', cmd: 'npm', args: ['run', 'test', '-w', '@gnuminator/shared'], env: CI });
+  } else {
+    for (const p of [...pkgs].sort()) {
+      steps.push({ name: `typecheck-${p}`, cmd: 'npm', args: ['run', 'typecheck', '-w', `@gnuminator/${p}`] });
+    }
+  }
+  for (const p of [...pkgs].sort()) {
+    steps.push({ name: `unit-${p}`, cmd: 'npm', args: ['run', 'test', '-w', `@gnuminator/${p}`], env: CI });
+  }
+  const nodeTests = new Set();
+  for (const f of files) {
+    if (/^(?:scripts|\.claude\/hooks)\/.*\.mjs$/.test(f) && isShellSafe(f)) {
+      nodeTests.add(
+        f.endsWith('.test.mjs') ? f : (QUICK_TEST_OF[f] ?? f.replace(/\.mjs$/, '.test.mjs'))
+      );
+    }
+  }
+  const tests = [...nodeTests].filter(f => fs.existsSync(path.join(cwd, f))).sort();
+  if (tests.length > 0) steps.push({ name: 'node-tests', cmd: 'node', args: ['--test', ...tests], env: CI });
+  const specs = files
+    .filter(f => /^packages\/cogm-dashboard\/web\/e2e\/.+\.spec\.ts$/.test(f) && isShellSafe(f) && fs.existsSync(path.join(cwd, f)))
+    .map(f => f.replace('packages/cogm-dashboard/web/', ''))
+    .sort();
+  if (specs.length > 0) {
+    steps.push({ name: 'build-dashboard', cmd: 'npm', args: ['run', 'build', '-w', '@gnuminator/cogm-dashboard'] });
+    steps.push({
+      name: 'e2e-specs',
+      cmd: 'npm',
+      args: ['run', 'test:e2e', '-w', '@gnuminator/cogm-dashboard', '--', ...specs],
+      env: CI,
+    });
+  }
+  return steps;
+}
+
+/**
+ * The files this checkout changed against the base: committed since the merge base, uncommitted
+ * and untracked. The base is aitool/main, else origin/main, else main.
+ * @param {string} cwd
+ * @returns {string[] | null} null when no base ref exists
+ */
+export function changedFiles(cwd) {
+  const git = (/** @type {string[]} */ args) => spawnSync('git', args, { cwd, encoding: 'utf8' });
+  const base = ['aitool/main', 'origin/main', 'main'].find(
+    b => git(['rev-parse', '--verify', '--quiet', b]).status === 0
+  );
+  if (!base) return null;
+  const mb = git(['merge-base', base, 'HEAD']).stdout.trim() || base;
+  // -z: git quotes and octal-escapes non-ASCII paths otherwise. Deleted files stay in the list.
+  const lines = (/** @type {string} */ t) => t.split('\0').filter(Boolean);
+  return [
+    ...new Set([
+      ...lines(git(['diff', '--name-only', '-z', mb]).stdout),
+      ...lines(git(['ls-files', '-z', '--others', '--exclude-standard']).stdout),
+    ]),
+  ].map(f => f.replace(/\\/g, '/'));
+}
+
 /**
  * @param {{
  *   argv?: string[], steps?: Step[], cwd?: string, tmpdir?: string, now?: () => number,
  *   isTTY?: boolean, log?: (line: string) => void, write?: (text: string) => void,
  *   runStep?: (step: Step, fd: number, cwd: string) => number, note?: string | null,
- *   recordStamp?: boolean, cloudOptions?: Partial<Parameters<typeof cloudGreen>[0]>, takeLock?: (label: string) => ReturnType<typeof acquire>,
+ *   recordStamp?: boolean, changed?: string[], cloudOptions?: Partial<Parameters<typeof cloudGreen>[0]>, takeLock?: (label: string) => ReturnType<typeof acquire>,
  * }} [options]
  * @returns {number} the process exit code
  */
 export function main(options = {}) {
   const {
     argv = process.argv.slice(2),
-    steps = STEPS,
+    steps: stepsOption = STEPS,
     cwd = repoRoot(),
     tmpdir = os.tmpdir(),
     now = Date.now,
@@ -834,7 +924,23 @@ export function main(options = {}) {
     return 2;
   }
   if (opts.list) {
-    for (const s of steps) log(s.name);
+    if (!opts.quick) {
+      for (const s of stepsOption) log(s.name);
+      return 0;
+    }
+  }
+  const changed = opts.quick ? (options.changed !== undefined ? options.changed : changedFiles(cwd)) : [];
+  if (changed === null) {
+    log('green: --quick found no base (aitool/main, origin/main, main); git fetch aitool first');
+    return 2;
+  }
+  if (opts.list) {
+    for (const s of quickSteps(changed, cwd)) log(s.name);
+    return 0;
+  }
+  const steps = opts.quick ? quickSteps(changed, cwd) : stepsOption;
+  if (opts.quick && steps.length === 0) {
+    log('green: OK (quick), nothing to check: no package, script test or e2e spec changed vs the base');
     return 0;
   }
   const picked = selectSteps(steps, opts);

@@ -1,7 +1,11 @@
 #!/usr/bin/env node
 /**
- * The git pre-push hook (.husky/pre-push): runs the fast CI guards locally, so a +1 lint warning,
- * a new em dash or a type error is refused here with CI's own message, not after a CI run.
+ * The git pre-push hook (.husky/pre-push): runs the fast guards that need no heavy lock, so a new
+ * em dash is refused here with CI's own message. The lint ratchet and the typecheck are not run
+ * here any more (the user, 2026-10-30): CI runs both on every PR push and is the green for a lane,
+ * and measured on 2026-10-30 the hook queued for the heavy-check lock a median 22 minutes for them.
+ * `npm run green -- --quick` typechecks what a branch touched when you want the answer before
+ * pushing.
  *
  * Skipped when `npm run green` passed on exactly the tree being pushed (green records the tree hash
  * in `.git/green-ok`, uncommitted edits included, see greenPassedOnThisTree in green.mjs). Git hands
@@ -9,8 +13,7 @@
  * the green tree, so edits made after the commit do not make the hook run again. Started without
  * those arguments (an older .husky/pre-push), it falls back to "clean tree, HEAD has the green tree".
  * `SKIP_PREPUSH=1 git push ...` skips it by hand.
- * Measured on the user's PC: lint:ratchet 45 s, emdash:ratchet 1 s, typecheck 14 s. The checks
- * take the heavy-check lock once, with high priority (someone is waiting on the push).
+ * Measured on the user's PC: emdash:ratchet 1 s.
  */
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -21,14 +24,9 @@ import {
   portableNode22Dir,
   stepEnvironment,
 } from './green.mjs';
-import { withHeavyLock } from './heavy-lock.mjs';
 
-/** The checks, in the order of the CI job. */
-export const CHECKS = [
-  { name: 'lint:ratchet', args: ['run', 'lint:ratchet'] },
-  { name: 'emdash:ratchet', args: ['run', 'emdash:ratchet'] },
-  { name: 'typecheck', args: ['run', 'typecheck'] },
-];
+/** The checks: only guards that are fast and need no lock. */
+export const CHECKS = [{ name: 'emdash:ratchet', args: ['run', 'emdash:ratchet'] }];
 
 const ZERO = /^0+$/;
 
@@ -50,8 +48,7 @@ export function pushedCommits(text) {
  * @param {{ cwd?: string, env?: Record<string, string | undefined>, log?: (line: string) => void,
  *   commits?: string[],
  *   passedGreen?: (cwd: string, commits: string[]) => boolean,
- *   runCheck?: (check: { name: string, args: string[] }, cwd: string) => number,
- *   withLock?: <T>(fn: () => T) => T }} [o]
+ *   runCheck?: (check: { name: string, args: string[] }, cwd: string) => number }} [o]
  * @returns {number} the process exit code
  */
 export function main(o = {}) {
@@ -62,7 +59,6 @@ export function main(o = {}) {
     commits = [],
     passedGreen = greenPassedOnThisTree,
     runCheck = defaultRunCheck,
-    withLock = fn => withHeavyLock('pre-push', fn, { priority: 'high' }),
   } = o;
   if (env.SKIP_PREPUSH === '1') {
     log('pre-push: skipped (SKIP_PREPUSH=1)');
@@ -72,18 +68,14 @@ export function main(o = {}) {
     log('pre-push: skipped, npm run green passed on this tree');
     return 0;
   }
-  return withLock(() => {
-    for (const check of CHECKS) {
-      if (runCheck(check, cwd) !== 0) {
-        log(
-          `pre-push: ${check.name} failed, push refused (npm run green on the final commit runs everything CI runs)`
-        );
-        return 1;
-      }
+  for (const check of CHECKS) {
+    if (runCheck(check, cwd) !== 0) {
+      log(`pre-push: ${check.name} failed, push refused`);
+      return 1;
     }
-    log('pre-push: OK, lint, em dash and type checks pass');
-    return 0;
-  });
+  }
+  log('pre-push: OK, em dash check passes (CI runs lint and typecheck on the PR head)');
+  return 0;
 }
 
 /** @param {{ name: string, args: string[] }} check @param {string} cwd */

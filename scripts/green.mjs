@@ -759,7 +759,8 @@ export function cloudGreen(o) {
   if (!run) {
     const d = gh(['workflow', 'run', CLOUD_WORKFLOW, '-R', repo, '--ref', branch]);
     if (d.status !== 0) return refuse(`could not start ${CLOUD_WORKFLOW}: ${(d.stderr || d.stdout).trim().split('\n')[0]}`);
-    while (!run && now() - started < findMs) {
+    const dispatchedAt = now();
+    while (!run && now() - dispatchedAt < findMs) {
       sleep(Math.min(pollMs, 5000));
       run = listRuns(['--branch', branch, '--event', 'workflow_dispatch'])?.find(usable);
     }

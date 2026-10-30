@@ -882,6 +882,18 @@ test('cloud: a branch with an open PR waits for the pull_request run instead of 
   assert.ok(!calls.some(c => c.startsWith('workflow run')), 'no dispatch next to the PR run');
 });
 
+test('cloud: an open PR whose run never shows up still gets a dispatch with its own time to be found', () => {
+  const { gh, calls } = fakeGh({
+    openPr: true,
+    existing: [],
+    dispatched: [{ databaseId: 7, status: 'queued', conclusion: '', headSha: SHA, event: 'workflow_dispatch' }],
+    views: [doneView('success')],
+  });
+  const { code } = cloud(fakeGit(), gh);
+  assert.equal(code, 0);
+  assert.ok(calls.some(c => c.startsWith('workflow run')));
+});
+
 test('cloud: gh and git errors are reported, not turned into a dispatch or a wrong message', () => {
   const list = fakeGh({ listFails: true });
   const a = cloud(fakeGit(), list.gh);

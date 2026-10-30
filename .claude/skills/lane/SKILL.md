@@ -105,7 +105,9 @@ item is marked done; the board ignores a line on an item with no claim.
   slot count is in `~/.foundry-ai-tool/heavy-lock.json` (`{"slots": 3}`), read on every run.
   **Long queue:** an unqueued green takes 5 to 7 minutes; if `heavy-lock.mjs status` shows every
   slot held and others waiting (measured 2026-10-30: waits of 6 to 32 minutes), commit, push the
-  branch and run `npm run green -- --cloud` instead, with `run_in_background` (about 11 to 15
+  branch (`SKIP_PREPUSH=1 git push -u aitool <b>:<b>`: the pre-push hook would wait for a free
+  slot too, and CI runs the same ratchets and typecheck) and run `npm run green -- --cloud`
+  instead, with `run_in_background` (about 11 to 15
   minutes, longer than a foreground call). It checks CI on GitHub for the pushed HEAD (no load on
   the PC, no lock) and prints one line (OK, or the failed job and step with its URL). If the
   branch has an open PR it waits for the PR's own run (which tests the merge with main); without a

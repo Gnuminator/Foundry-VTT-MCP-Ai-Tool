@@ -22,6 +22,7 @@ play.
 | ----------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
 | [First 15 minutes](first-15-minutes.md)                           | The one page to read first: what this is, four small steps, what to ignore for now.            |
 | [Your first hour as GM](first-hour.md)                            | A set reading order: Foundry's own guides for the basics, our pages for the tool.              |
+| [Quest: your first hour](first-hour-quest.md)                     | The first hour as four stages to tick off.                                                     |
 | [Getting started](getting-started.md)                             | What the tool is, its parts, how they fit together, a glossary, and today's setup.             |
 | [The dashboard](dashboard.md)                                     | Every panel and button on the dashboard, what it does and when to use it.                      |
 | [The GM windows](gm-windows.md)                                   | Combat, Party, Session, Scene and Loot as small windows next to the map, and how to switch on. |
@@ -32,7 +33,9 @@ play.
 | [Your Obsidian vault](obsidian.md)                                | What is in your vault, where your prep goes, and connecting the plugin to the server.          |
 | [Prep and expectations](prep-and-expectations.md)                 | What to prepare, the expectations talk, ability scores and a session 0 agenda.                 |
 | [Prepare session 0](prepare-session-0.md)                         | Set up the world so players can make their characters, and run the night.                      |
+| [Quest: prepare session 0](prepare-session-0-quest.md)            | Session 0 setup as five stages to tick off.                                                    |
 | [Before each session](before-session.md)                          | A checklist for the 15 minutes before play.                                                    |
+| [Quest: before a session](before-session-quest.md)                | The 15 minutes before play as four stages.                                                     |
 | [After each session](after-session.md)                            | A checklist for right after play.                                                              |
 | [When a character dies](death-and-new-characters.md)              | The moment of death, a death log, and bringing in a new character.                             |
 | [Never do this, only do this if](never-and-only-if.md)            | Short rules, each with its reason.                                                             |

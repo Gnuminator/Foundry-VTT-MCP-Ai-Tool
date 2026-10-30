@@ -40,7 +40,7 @@ import {
   type SessionSwitches,
 } from './session-switches.js';
 import { PlayerViewSource } from './player/source.js';
-import { gzipAssets } from './gzip-assets.js';
+import { gzipAssets, sendJsonGzip } from './gzip-assets.js';
 import { staticHeaders, type StaticHeaderGroup } from './static-headers.js';
 import { PlayerDirectory, mountUsageRoute } from './usage-route.js';
 import { mountHandoutSeenRoute } from './handout-seen-route.js';
@@ -634,17 +634,16 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
   });
   // The old page stays here until after G1 (D-126). Its files use relative paths (./app.js), so it
   // is a static folder of its own; a request for /legacy redirects to /legacy/ with the query.
-  app.use(
-    '/legacy',
-    express.static(config.publicDir, {
-      setHeaders: staticHeaders(config.publicDir, [OPEN_PAGE_HEADERS, PLAYER_PAGE_HEADERS]),
-    })
-  );
-  app.use(
-    express.static(config.publicDir, {
-      setHeaders: staticHeaders(config.publicDir, [OPEN_PAGE_HEADERS, PLAYER_PAGE_HEADERS]),
-    })
-  );
+  const publicHeaders = staticHeaders(config.publicDir, [OPEN_PAGE_HEADERS, PLAYER_PAGE_HEADERS]);
+  // The old pages' stylesheets (unhashed, 89 KB for styles.css) go out gzipped; the page headers
+  // still come from the same hook, by file, and revalidation works as for express.static.
+  const publicCss = gzipAssets(config.publicDir, {
+    extensions: ['.css'],
+    cacheControl: 'public, max-age=0',
+    setHeaders: publicHeaders,
+  });
+  app.use('/legacy', publicCss, express.static(config.publicDir, { setHeaders: publicHeaders }));
+  app.use(publicCss, express.static(config.publicDir, { setHeaders: publicHeaders }));
 
   // The React dashboard's files: Vite puts a content hash in every file name under assets/, so
   // those are cached for good; index.html is checked on every load so a new build shows up at once.
@@ -750,7 +749,7 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
       // The player role gets exactly what /api/player/state serves, plus whether the token it
       // sent is unknown: then it is a GM's stale link, and the GM page stays (web/src/lib/role.ts).
       // `accessUnverified`: an Access token the dashboard could not verify; the same page stays.
-      res.json({
+      void sendJsonGzip(req, res, {
         role,
         ...(presentedUnknownToken(req, config.auth) ? { unknownToken: true } : {}),
         ...(presentedUnverifiedAccess(req, config.auth) ? { accessUnverified: true } : {}),
@@ -758,7 +757,7 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
       });
       return;
     }
-    res.json({
+    void sendJsonGzip(req, res, {
       role,
       status: currentStatus,
       combat: state.combat,

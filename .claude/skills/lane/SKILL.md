@@ -92,8 +92,10 @@ item is marked done; the board ignores a line on an item with no claim.
 ## Before the PR
 
 - `npm run green`: everything CI's build-test job runs, quiet (one OK line, or the failing step
-  and its log tail). `--list`, `--only a,b`, `--from <step>` for a rerun. **Green on the final
-  commit:** run it again after the last review fix, on the committed tree. A full OK run writes
+  and its log tail). `--list`, `--only a,b`, `--from <step>` for a rerun. Run it once before the
+  first push. **Green on the final commit:** after review fixes, CI green on the PR head counts
+  (the merge gate checks it on that exact commit; the user, 2026-10-30), so a second local green is
+  only needed when you want the answer before pushing. A full OK run writes
   the tree it ran on (uncommitted edits included) to `.git/green-ok`; the `pre-push` hook
   (`scripts/pre-push.mjs`: the lint and em-dash ratchets and the typecheck, about a minute) is
   skipped when every pushed commit has that tree, and otherwise refuses a push that CI would fail

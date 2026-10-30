@@ -7,8 +7,8 @@ description: Your first hour as a list of small tasks to tick off, four stages w
 
 This is [Your first hour as GM](first-hour.md) as a list you can tick off. Same content, same
 order. Each stage has a time, a few small tasks and a way to know you are done. You can stop after
-any stage and pick it up later: the list stays on this page, so keep your place with a note, or
-tick the boxes on paper.
+any stage and pick it up later. On the wiki the boxes can be ticked and your ticks stay in this
+browser; in the dashboard's help panel they are for reading only.
 
 :::note
 Do the whole quest in a test world, never in the campaign. A test world is a world where nothing

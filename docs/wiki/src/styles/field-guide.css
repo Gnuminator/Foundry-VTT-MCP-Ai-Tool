@@ -108,3 +108,9 @@ h1#_top,
   border-radius: 0.5rem;
   border: 1px solid var(--sl-color-gray-5);
 }
+
+/* Quest pages: "N of M done" line added by the script in astro.config.mjs. */
+.quest-progress {
+  font-weight: 600;
+  color: var(--sl-color-accent);
+}

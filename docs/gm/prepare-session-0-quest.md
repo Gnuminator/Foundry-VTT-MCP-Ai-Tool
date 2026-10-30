@@ -64,7 +64,9 @@ for equipment already. Check those three, and set the rest yourself.
 **You are done when** the species list shows only the 2024 species, a Cleric gets a **Spells**
 tab and a new character's sheet has a **Level Up** button.
 
-## Stage 4 of 5: The join page (5 minutes, optional)
+## Stage 4 of 5: The join page (5 minutes)
+
+Optional.
 
 - [ ] In **Game Settings**, category **Foundry AI Tool**, click **Choose join page look**.
 - [ ] Keep or change **The lamplit line**, then click **Apply The Veil**.

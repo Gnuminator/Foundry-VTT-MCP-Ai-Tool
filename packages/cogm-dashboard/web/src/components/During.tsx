@@ -32,7 +32,7 @@ import {
 import { usePlaySession } from '../lib/session';
 import { useCombatActive } from '../lib/stream';
 import { usage } from '../lib/usage';
-import { Button, IconButton, Tooltip } from '../ui';
+import { Button, DelayedLoading, IconButton, Tooltip } from '../ui';
 
 import { AdvancedItem, AdvancedLabel } from './AdvancedMenu';
 import { useDuringFolds, type DuringFolds } from './Folds';
@@ -295,7 +295,6 @@ export function DuringBar({ during }: { during: DuringController }): JSX.Element
         </LayoutButton>
       </div>
       <Button
-        variant="quiet"
         id="btn-layout-tour-bar"
         data-track="dash.during.layout-tour"
         hidden={trial !== null}
@@ -321,7 +320,6 @@ export function DuringBar({ during }: { during: DuringController }): JSX.Element
         </button>
       </Tooltip>
       <Button
-        variant="quiet"
         id="btn-during-full"
         data-track="dash.during.full-toggle"
         hidden={screen.layout !== 'toggle'}
@@ -341,7 +339,6 @@ export function DuringBar({ during }: { during: DuringController }): JSX.Element
       {barHere && liveOff.length > 0 && (
         <>
           <Button
-            variant="quiet"
             id="btn-during-start-combat"
             aria-disabled="true"
             title={offReason(liveOff)}
@@ -353,7 +350,7 @@ export function DuringBar({ during }: { during: DuringController }): JSX.Element
       )}
       {startHere && !picking && (
         <Button
-          variant="quiet"
+          variant="primary"
           id="btn-during-start-combat"
           data-track="dash.during.start-combat"
           onClick={() => setPicking(true)}
@@ -363,7 +360,7 @@ export function DuringBar({ during }: { during: DuringController }): JSX.Element
       )}
       {startHere && picking && (
         <div className="during-start" ref={pickerRow}>
-          <Suspense fallback={null}>
+          <Suspense fallback={<DelayedLoading as="div" />}>
             <StartCombat
               onDismiss={() => {
                 giveFocusBack.current = true;

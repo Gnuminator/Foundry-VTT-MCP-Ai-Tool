@@ -25,7 +25,7 @@ export function StripRolls({
   const live = useLivePlay();
   const liveOff = live.off(ROLL_NEEDS);
   if (party.length === 0) return null;
-  const off = stale || roll.busy || liveOff.length > 0;
+  const off = stale || liveOff.length > 0;
   const away = stale ? 'The bridge is away' : liveOff.length > 0 ? offReason(liveOff) : undefined;
   return (
     <QuickRollBar roll={roll} idPrefix="strip-roll">
@@ -37,6 +37,8 @@ export function StripRolls({
           id="strip-roll-picked"
           data-track="dash.quickroll.picked"
           aria-disabled={off ? 'true' : undefined}
+          busy={roll.busy}
+          busyLabel="Asking..."
           title={away}
           onClick={() => {
             if (!off) void roll.ask(picked.map(c => c.name));
@@ -51,6 +53,8 @@ export function StripRolls({
         id="strip-roll-party"
         data-track="dash.quickroll.party"
         aria-disabled={off ? 'true' : undefined}
+        busy={roll.busy}
+        busyLabel="Asking..."
         title={away}
         onClick={() => {
           if (!off) void roll.ask(party.map(c => c.name));

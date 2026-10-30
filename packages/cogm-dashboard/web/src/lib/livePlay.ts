@@ -22,6 +22,8 @@ export interface LivePlay {
   off: (needs?: readonly string[]) => string[];
   /** Every switch of Turn on for tonight and GM Actions are on. */
   allOn: boolean;
+  /** The switches could not be read (the bridge or the module did not answer). */
+  unreadable: boolean;
   /** The module's switches, once read. */
   list: SessionSwitch[];
   /** Turns everything on, as Start session does. */
@@ -56,6 +58,8 @@ export function useLivePlay(): LivePlay {
   return {
     off: (needs = COMBAT_NEEDS): string[] => offSwitches(needs, gmActions, list),
     allOn: offSwitches(all, gmActions, list).length === 0,
+    // Still loading is not unreadable; a failed read with nothing cached is.
+    unreadable: read.isError && read.data === undefined,
     list,
     turnOn: (): void => {
       if (!turn.isPending) turn.mutate();

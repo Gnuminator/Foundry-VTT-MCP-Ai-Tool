@@ -74,3 +74,15 @@ test('GM Actions off alone is named too', async ({ page }) => {
 
   await expect(page.locator('#btn-gm')).toHaveText('GM Actions is off: Turn on');
 });
+
+test('switches that could not be read do not read "all set"', async ({ page }) => {
+  await fakeStream(page, [{ event: 'settings', data: { gmActionsEnabled: true } }]);
+  await page.route('**/api/session/switches', route =>
+    route.fulfill({ status: 502, json: { error: 'The bridge is away' } })
+  );
+  await page.goto(`/next/?token=${GM_TOKEN}`);
+
+  const button = page.locator('#btn-gm');
+  await expect(button).toHaveText("Live play: can't read the switches");
+  await expect(button).not.toHaveClass(/\bon\b/);
+});

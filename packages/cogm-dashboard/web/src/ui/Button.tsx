@@ -1,4 +1,4 @@
-import type { ComponentProps, JSX } from 'react';
+import { useEffect, useState, type ComponentProps, type JSX } from 'react';
 
 import { cx } from './cx';
 import { Tooltip } from './Tooltip';
@@ -9,6 +9,30 @@ interface ButtonProps extends ComponentProps<'button'> {
   variant?: ButtonVariant;
   /** `sm` is the old `.btn-small`. */
   size?: 'md' | 'sm';
+  /**
+   * An answer is awaited: the button says `busyLabel` (what it is doing, "Starting...") and stays
+   * locked until it comes; after 2 seconds it says "Waiting for Foundry..." instead. The button
+   * stays focusable (aria-disabled, not disabled) so a keyboard user keeps their place.
+   */
+  busy?: boolean;
+  busyLabel?: string;
+}
+
+/** How long a busy button waits before it says the answer is slow. */
+export const SLOW_AFTER_MS = 2000;
+
+/** True once `active` has been true for `ms`; false again as soon as it stops. */
+export function useAfter(active: boolean, ms: number): boolean {
+  const [late, setLate] = useState(false);
+  useEffect(() => {
+    if (!active) {
+      setLate(false);
+      return undefined;
+    }
+    const timer = setTimeout(() => setLate(true), ms);
+    return (): void => clearTimeout(timer);
+  }, [active, ms]);
+  return active && late;
 }
 
 const VARIANT_CLASS: Record<ButtonVariant, string | false> = {
@@ -27,13 +51,22 @@ export function Button({
   variant = 'default',
   size = 'md',
   className,
+  busy = false,
+  busyLabel = 'Working...',
+  children,
+  onClick,
   ...rest
 }: ButtonProps): JSX.Element {
+  const slow = useAfter(busy, SLOW_AFTER_MS);
   return (
     <button
       className={cx('btn', VARIANT_CLASS[variant], size === 'sm' && 'btn-small', className)}
       {...rest}
-    />
+      {...(busy ? { 'aria-busy': true, 'aria-disabled': true } : {})}
+      onClick={busy ? undefined : onClick}
+    >
+      {busy ? (slow ? 'Waiting for Foundry...' : busyLabel) : children}
+    </button>
   );
 }
 

@@ -457,7 +457,7 @@ test('a failed import says why and still reloads; nothing is applied', async ({ 
   await expect(drawer.locator('.tarokka-pos')).toHaveCount(5);
 
   await drawer.getByRole('button', { name: 'New reading (built-in roll)' }).click();
-  await expect(toast(page, '✗ plan-tarokka-import: Foundry is not connected')).toBeVisible();
+  await expect(toast(page, '✗ Tarokka import: Foundry is not connected')).toBeVisible();
   await expect.poll(() => loads(calls)).toBe(2);
   expect(names(calls)).not.toContain('apply-planned-change');
   await expect(drawer.getByRole('button', { name: 'New reading (built-in roll)' })).toBeEnabled();
@@ -577,7 +577,7 @@ test('a link search with no matches says so; a failed pick keeps the form', asyn
   found = CANDIDATES;
   await input.press('Enter');
   await tome.locator('.tarokka-candidate').first().getByRole('button', { name: 'Link' }).click();
-  await expect(toast(page, '✗ plan-tarokka-links: No current reading')).toBeVisible();
+  await expect(toast(page, '✗ Tarokka links: No current reading')).toBeVisible();
   await expect(tome.locator('.tarokka-candidate')).toHaveCount(4);
   await expect(input).toHaveValue('Nothing');
   expect(names(calls)).not.toContain('apply-planned-change');
@@ -1085,7 +1085,7 @@ test('an apply that times out says it may have applied, reloads and keeps the dr
   await confirm.getByRole('checkbox').check();
   await confirm.getByRole('button', { name: 'Run destructive action' }).click();
   await expect(
-    toast(page, '✗ apply-planned-change timed out. It may have applied; check Recent Changes.')
+    toast(page, '✗ The change timed out. It may have applied; check Recent Changes.')
   ).toBeVisible();
   // The reload shows whether it went in; the form stays, as nothing says it did.
   await expect.poll(() => loads(calls)).toBeGreaterThan(loaded);

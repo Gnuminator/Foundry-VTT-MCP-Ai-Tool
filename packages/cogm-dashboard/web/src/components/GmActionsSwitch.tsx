@@ -9,7 +9,8 @@ import { Button, Popover } from '../ui';
  * The live play line in the header: "Live play on: all set", or what is off ("Handouts is off:
  * Turn on"). Start session is the only switch (it turns on GM Actions and every Turn on for
  * tonight switch, End session turns them off); this line only shows the state and opens the list
- * of switches, with one Turn on for whatever is off. It replaces the old GM Actions button (#btn-gm).
+ * of switches, with one Turn on for whatever is off. When the module's switches cannot be read it
+ * says so instead of "all set". It replaces the old GM Actions button (#btn-gm).
  */
 export function LivePlayLine(): JSX.Element {
   const live = useLivePlay();
@@ -31,11 +32,15 @@ export function LivePlayLine(): JSX.Element {
       trigger={
         <Button
           id="btn-gm"
-          className={names.length === 0 ? 'on' : undefined}
+          className={names.length === 0 && !live.unreadable ? 'on' : undefined}
           data-track="dash.header.gm-actions"
           title="Start session turns live play on and End session turns it off"
         >
-          {names.length === 0 ? 'Live play on: all set' : `${offReason(names)}: Turn on`}
+          {live.unreadable
+            ? "Live play: can't read the switches"
+            : names.length === 0
+              ? 'Live play on: all set'
+              : `${offReason(names)}: Turn on`}
         </Button>
       }
     >
@@ -51,7 +56,8 @@ export function LivePlayLine(): JSX.Element {
           size="sm"
           variant="primary"
           data-track="dash.live.turn-on"
-          disabled={live.pending}
+          busy={live.pending}
+          busyLabel="Turning on..."
           onClick={live.turnOn}
         >
           Turn on

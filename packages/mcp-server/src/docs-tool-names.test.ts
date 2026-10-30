@@ -25,6 +25,7 @@ const OTHER_NAMES: Readonly<Record<string, string>> = {
   'host-not-allowed': 'a dashboard error code',
   'foundry-gm-token': 'an example Obsidian secret ID (docs/gm/obsidian.md)',
   'quest-prep': 'an Obsidian note type value (docs/gm/obsidian.md)',
+  'encounter-prep': 'an Obsidian note type value (docs/gm/obsidian.md)',
   'cf-access-client-id': 'an example Obsidian secret ID (docs/gm/obsidian.md)',
   'cf-access-client-secret': 'an example Obsidian secret ID (docs/gm/obsidian.md)',
 };

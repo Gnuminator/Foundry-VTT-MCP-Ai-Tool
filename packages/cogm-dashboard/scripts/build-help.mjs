@@ -38,13 +38,14 @@ try {
 }
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const repo = path.resolve(here, '../../..');
+/** `BUILD_HELP_REPO` and `BUILD_HELP_OUT` point the build at a fixture tree (the unit test). */
+const repo = process.env.BUILD_HELP_REPO ?? path.resolve(here, '../../..');
 /** The guide folders and the prefix of their page keys: docs/foundry pages are `foundry-<name>`. */
 const guideDirs = [
   { dir: path.join(repo, 'docs', 'gm'), prefix: '' },
   { dir: path.join(repo, 'docs', 'foundry'), prefix: 'foundry-' },
 ];
-const outFile = path.join(here, '..', 'dist', 'help.json');
+const outFile = process.env.BUILD_HELP_OUT ?? path.join(here, '..', 'dist', 'help.json');
 const GITHUB = 'https://github.com/Gnuminator/Foundry-VTT-MCP-Ai-Tool/blob/main';
 
 function escapeAttr(value) {
@@ -70,6 +71,8 @@ for (const { dir, prefix } of guideDirs) {
   if (!existsSync(dir)) continue;
   for (const f of readdirSync(dir).filter(f => f.endsWith('.md')).sort()) {
     const key = `${prefix}${f.slice(0, -3)}`;
+    // A gm page named `foundry-x` would share the key of docs/foundry/x.md.
+    if (fileOf.has(key)) fail(`page key ${key} is used by ${fileOf.get(key)} and ${path.join(dir, f)}`);
     pages.push(key);
     fileOf.set(key, path.join(dir, f));
     keyOf.set(path.join(dir, f), key);

@@ -17,17 +17,22 @@
  * is the GM's own: callers mark it as data (PREP_NOTES_NOTICE).
  */
 import { promises as fsp } from 'fs';
+import * as path from 'path';
 
 import {
+  PREP_ENCOUNTERS_MAX,
   PREP_NOTE_MAX_LINE_CHARS,
   PREP_NOTE_MAX_LINES,
   PREP_NOTES_MAX,
   PREP_NOTES_MAX_TOTAL_LINES,
   PREP_NOTES_NOTICE,
+  type PrepEncounterNote,
   type PrepNote,
   type PrepNoteReason,
   type PrepNotesPart,
 } from '@gnuminator/shared';
+
+import { parseEncounterBlocks } from './encounter-blocks.js';
 
 import { MIRROR_ROOT } from './mirror-common.js';
 import {
@@ -397,12 +402,33 @@ export async function readPrepNotes(input: ReadPrepNotesInput): Promise<ReadPrep
     });
   }
 
+  // Suggested encounters: `encounter` blocks in encounter-prep notes the GM lets the AI read.
+  const encounters: PrepEncounterNote[] = [];
+  const encounterNotes = candidates
+    .filter(c => c.head.type === 'encounter-prep')
+    .sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
+  for (const note of encounterNotes) {
+    if (isOff(note.head.ai_context)) {
+      if (!keptOutPaths.has(note.path)) keptOut++;
+      continue;
+    }
+    if (encounters.length >= PREP_ENCOUNTERS_MAX) break;
+    try {
+      const { text } = await readHead(`${walked.root}/${note.path}`, PREP_NOTE_READ_BYTES);
+      const found = parseEncounterBlocks(text, path.posix.basename(note.path, '.md'));
+      if (found.length > 0) encounters.push({ path: note.path, encounters: found });
+    } catch (error) {
+      if (errorCode(error) !== 'ENOENT') errors.push(`${note.path}: ${errorMessage(error)}`);
+    }
+  }
+
   return {
     part: {
       notice: PREP_NOTES_NOTICE,
       notes,
       omitted,
       keptOut,
+      ...(encounters.length > 0 ? { encounters } : {}),
       matchedAgainst: input.matchedAgainst,
     },
     errors,

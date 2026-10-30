@@ -70,6 +70,25 @@ turn it on in Foundry's Game Settings, category **Foundry AI Tool**). **Undo** i
 removes the journal, and the same note cannot be imported twice until you do. A note with
 `ai_context` set to false is refused.
 
+**An encounter idea for Claude:** a note with `type` set to `encounter-prep` and a code block
+marked `encounter` (the Encounter template has one; it is the Initiative Tracker block) shows up
+for Claude as a suggested encounter, so you can ask "what do I have prepared for the goblins?"
+Claude only reads it; nothing is made in Foundry. Write the block like this:
+
+````markdown
+```encounter
+name: Goblin ambush
+creatures:
+  - 2: Goblin
+  - Bugbear
+```
+````
+
+A line is `name`, `count: name` or `name, hit points, armor class` (the numbers after the name are
+ignored). Claude reads up to 3 blocks per note, 12 creatures per block and 5 notes. A note with
+`ai_context` set to false is skipped, and only the block's name and creatures are passed on, never
+the rest of the note.
+
 ## The graph
 
 Every adventure gets one hub note, and the graph shows it as its own cluster. Journals, scenes and

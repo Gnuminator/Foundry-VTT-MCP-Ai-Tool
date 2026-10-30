@@ -55,6 +55,9 @@ import { Panel, Pill } from '../ui';
 const StartCombat = lazy(() => import('./StartCombat').then(m => ({ default: m.StartCombat })));
 // So are the Damage / Heal form and the roll row (first-load budget).
 const DamageForm = lazy(() => import('./DamageForm').then(m => ({ default: m.DamageForm })));
+const FoundryTargetsButton = lazy(() =>
+  import('./FoundryTargetsButton').then(m => ({ default: m.FoundryTargetsButton }))
+);
 const StripRolls = lazy(() => import('./StripRolls').then(m => ({ default: m.StripRolls })));
 // So is the initiative ribbon: it loads when a fight with somebody in it runs.
 const InitiativeRibbon = lazy(() =>
@@ -270,15 +273,33 @@ function ActionBar({
   onAct,
   onClear,
   onEnd,
+  combatants,
+  onPick,
 }: {
   count: number;
   stale: boolean;
   onAct: (action: SelectionAction) => void;
   onClear: () => void;
   onEnd: () => void;
+  combatants: ReadonlyArray<Combatant>;
+  /** Replace the pick with the combatants whose tokens are targeted (else selected) in Foundry. */
+  onPick: (ids: string[]) => void;
 }): JSX.Element {
   const off = stale ? ('true' as const) : undefined;
   const away = stale ? 'The bridge is away' : undefined;
+  // Held here, not in the button: the button remounts when the pick goes from none to some.
+  const [targetsNote, setTargetsNote] = useState('');
+  const foundryButton = (
+    <Suspense fallback={null}>
+      <FoundryTargetsButton
+        combatants={combatants}
+        stale={stale}
+        onPick={onPick}
+        note={targetsNote}
+        onNote={setTargetsNote}
+      />
+    </Suspense>
+  );
   const endButton = (
     <button
       type="button"
@@ -298,6 +319,7 @@ function ActionBar({
     return (
       <div className="ca-row">
         <span className="ca-hint">Click combatants to deal damage or set a condition on them.</span>
+        {foundryButton}
         {endButton}
       </div>
     );
@@ -346,6 +368,7 @@ function ActionBar({
       >
         Clear
       </button>
+      {foundryButton}
       {endButton}
     </div>
   );
@@ -482,6 +505,8 @@ export function CombatStrip({
                 }}
                 onClear={() => setPicked(new Set())}
                 onEnd={() => onOpenTool(endCombatRequest())}
+                combatants={combat?.combatants ?? []}
+                onPick={ids => setPicked(new Set(ids))}
               />
             )}
           </div>

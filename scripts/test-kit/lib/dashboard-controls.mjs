@@ -487,6 +487,12 @@ export const DASHBOARD_CONTROLS = [
     why: 'needs a combat, GM Actions on and Combat buttons on (opens the tool form, runs nothing)',
   },
 
+  {
+    name: 'dash.combat.foundry-targets',
+    how: 'skip',
+    why: 'new dashboard only (the combat strip button that picks the tokens targeted in Foundry); needs targets set in Foundry, the unit tests and the live check cover it',
+  },
+
   // --- the Tool Runner ---
   { name: 'dash.tools.view', how: 'view', reach: TOOLS, expect: '#tools-drawer' },
   { name: 'dash.tools.close', how: 'open', reach: TOOLS, gone: '#tools-drawer' },
@@ -528,6 +534,11 @@ export const DASHBOARD_CONTROLS = [
     selector: '#tool-form .ref-item',
     optional: true,
     why: 'needs a picker with at least one choice (fills the field, runs nothing)',
+  },
+  {
+    name: 'dash.tools.foundry-targets',
+    how: 'skip',
+    why: 'new dashboard only (the Pick menu button that fills a field from the tokens targeted in Foundry); needs targets set in Foundry, the unit tests and the live check cover it',
   },
   {
     name: 'dash.tools.show-all-actors',

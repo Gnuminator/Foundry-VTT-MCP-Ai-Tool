@@ -7,7 +7,9 @@ description: The session 0 setup as a list of tasks to tick off, in five stages 
 
 This is [Prepare session 0](prepare-session-0.md) as a list you can tick off. That page has the
 pictures and the reasons; this one has only the order. Do it a week or so before session 0. It
-takes about 30 minutes, plus the test run.
+takes about 30 minutes, plus the test run. If you change a setting while players have the game
+open, ask them to reload (F5) before they open the builder. Leave usage tracking off; it already
+is.
 
 :::note
 Do the stages in order. Stage 3 is the one most likely to be half done already, and the one a

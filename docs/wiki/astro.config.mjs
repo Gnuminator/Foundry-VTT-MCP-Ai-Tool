@@ -19,7 +19,7 @@ document.addEventListener('DOMContentLoaded', function () {
   var boxes = Array.prototype.slice.call(document.querySelectorAll('.sl-markdown-content input[type=checkbox]'));
   var host = document.querySelector('.sl-markdown-content');
   if (!boxes.length || !host) return;
-  var key = 'quest:' + location.pathname;
+  var key = 'quest:' + location.pathname + ':' + boxes.length;
   var saved = [];
   try { saved = JSON.parse(localStorage.getItem(key) || '[]'); } catch (e) {}
   var bar = document.createElement('p');

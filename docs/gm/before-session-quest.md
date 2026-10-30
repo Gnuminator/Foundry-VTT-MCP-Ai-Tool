@@ -7,7 +7,8 @@ description: The 15 minutes before play as a short quest, four stages with times
 
 This is [Before each session](before-session.md) as a list you can tick off, about 15 minutes
 before the players join. The checklist page has the full steps and the fixes; this one keeps the
-order and the times.
+order and the times. The rare cases stay on the checklist page: the emailed login code, Dice So
+Nice's themed dice (once, before session 1) and creature names on tokens already on the map.
 
 :::note
 Nothing to start on a PC and no terminal to open: the dashboard runs on the table's home server.
@@ -54,7 +55,8 @@ remember it afterwards.
 
 - [ ] In Claude Desktop, run the prompt `prep-next-session`.
 - [ ] Read last session's note in Obsidian.
-- [ ] Put Claude Desktop, the dashboard and Obsidian on the screen the players cannot see.
+- [ ] Put Claude Desktop, the dashboard and Obsidian on the screen the players cannot see, and
+      never share those windows in Discord or a video call.
 - [ ] When play begins, click **Start session** in the dashboard header, or **Start the session
       log** in the Pre-flight panel.
 

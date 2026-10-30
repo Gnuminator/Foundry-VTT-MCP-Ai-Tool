@@ -745,6 +745,29 @@ test('quickSteps: no step name takes the heavy lock', () => {
   }
 });
 
+test('main --quick: no base ref is an error, not "nothing to check"', () => {
+  const lines = [];
+  const code = main({
+    argv: ['--quick'],
+    cwd: os.tmpdir(),
+    isTTY: false,
+    note: null,
+    log: l => lines.push(l),
+    changed: null,
+    runStep: () => 0,
+  });
+  assert.equal(code, 2);
+  assert.match(lines.at(-1), /found no base/);
+});
+
+test('quickSteps: a deleted package file still triggers that package', () => {
+  assert.deepEqual(quickNames(['packages/mcp-server/src/gone.ts']), [
+    'build-shared',
+    'typecheck-mcp-server',
+    'unit-mcp-server',
+  ]);
+});
+
 test('parseArgs: --quick stands alone', () => {
   assert.equal(parseArgs(['--quick']).quick, true);
   for (const bad of ['--cloud', '--all', '--only=a', '--skip=a', '--from=a']) {

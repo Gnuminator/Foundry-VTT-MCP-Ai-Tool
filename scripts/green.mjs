@@ -811,6 +811,9 @@ export function cloudGreen(o) {
   return 1;
 }
 
+/** Scripts whose tests live in another file. */
+const QUICK_TEST_OF = { 'scripts/pre-push.mjs': 'scripts/green.test.mjs' };
+
 /**
  * `green --quick`: the steps for the files a branch changed (CI on the pushed head is the green, the
  * lane skill 2026-10-30). Per touched workspace its typecheck and unit tests; a `shared/` change
@@ -821,8 +824,6 @@ export function cloudGreen(o) {
  * @param {string[]} files repo-relative paths, forward slashes
  * @returns {Step[]}
  */
-const QUICK_TEST_OF = { 'scripts/pre-push.mjs': 'scripts/green.test.mjs' };
-
 export function quickSteps(files, cwd = process.cwd()) {
   /** @type {Step[]} */
   const steps = [];
@@ -855,7 +856,7 @@ export function quickSteps(files, cwd = process.cwd()) {
   const tests = [...nodeTests].filter(f => fs.existsSync(path.join(cwd, f))).sort();
   if (tests.length > 0) steps.push({ name: 'node-tests', cmd: 'node', args: ['--test', ...tests], env: CI });
   const specs = files
-    .filter(f => /^packages\/cogm-dashboard\/web\/e2e\/.+\.spec\.ts$/.test(f) && isShellSafe(f))
+    .filter(f => /^packages\/cogm-dashboard\/web\/e2e\/.+\.spec\.ts$/.test(f) && isShellSafe(f) && fs.existsSync(path.join(cwd, f)))
     .map(f => f.replace('packages/cogm-dashboard/web/', ''))
     .sort();
   if (specs.length > 0) {
@@ -874,20 +875,21 @@ export function quickSteps(files, cwd = process.cwd()) {
  * The files this checkout changed against the base: committed since the merge base, uncommitted
  * and untracked. The base is aitool/main, else origin/main, else main.
  * @param {string} cwd
- * @returns {string[]}
+ * @returns {string[] | null} null when no base ref exists
  */
 export function changedFiles(cwd) {
   const git = (/** @type {string[]} */ args) => spawnSync('git', args, { cwd, encoding: 'utf8' });
   const base = ['aitool/main', 'origin/main', 'main'].find(
     b => git(['rev-parse', '--verify', '--quiet', b]).status === 0
   );
-  if (!base) return [];
+  if (!base) return null;
   const mb = git(['merge-base', base, 'HEAD']).stdout.trim() || base;
-  const lines = (/** @type {string} */ t) => t.split(/\r?\n/).filter(Boolean);
+  // -z: git quotes and octal-escapes non-ASCII paths otherwise. Deleted files stay in the list.
+  const lines = (/** @type {string} */ t) => t.split('\0').filter(Boolean);
   return [
     ...new Set([
-      ...lines(git(['diff', '--name-only', '--diff-filter=d', mb]).stdout),
-      ...lines(git(['ls-files', '--others', '--exclude-standard']).stdout),
+      ...lines(git(['diff', '--name-only', '-z', mb]).stdout),
+      ...lines(git(['ls-files', '-z', '--others', '--exclude-standard']).stdout),
     ]),
   ].map(f => f.replace(/\\/g, '/'));
 }
@@ -922,12 +924,19 @@ export function main(options = {}) {
     return 2;
   }
   if (opts.list) {
-    for (const s of opts.quick ? quickSteps(options.changed ?? changedFiles(cwd), cwd) : stepsOption) {
-      log(s.name);
+    if (opts.quick) {
+      for (const s of quickSteps(options.changed ?? changedFiles(cwd) ?? [], cwd)) log(s.name);
+      return 0;
     }
+    for (const s of stepsOption) log(s.name);
     return 0;
   }
-  const steps = opts.quick ? quickSteps(options.changed ?? changedFiles(cwd), cwd) : stepsOption;
+  const changed = opts.quick ? (options.changed !== undefined ? options.changed : changedFiles(cwd)) : [];
+  if (changed === null) {
+    log('green: --quick found no base (aitool/main, origin/main, main); git fetch aitool first');
+    return 2;
+  }
+  const steps = opts.quick ? quickSteps(changed, cwd) : stepsOption;
   if (opts.quick && steps.length === 0) {
     log('green: OK (quick), nothing to check: no package, script test or e2e spec changed vs the base');
     return 0;

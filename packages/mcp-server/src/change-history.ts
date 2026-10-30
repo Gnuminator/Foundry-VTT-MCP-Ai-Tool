@@ -26,8 +26,8 @@
  * stay with the AI change, and the undo planner puts them back with it (`aiFollowUps`). A GM's
  * own click on the tracker within the action gap of such an AI write (the guarded gap, 3 s,
  * counted from the write), in the bridge's browser, is the one case this cannot tell apart (it is then hidden under the AI change). When the
- * active GM is another browser, dnd5e's dependent deletes run there and show as that person's
- * action.
+ * active GM is another browser, its dependent deletes have an `actionId` of their own and are
+ * tied to the AI change by their data alone (`fileForeignDependents`).
  *
  * `historyStart()` says from when the history is complete: the pump's retention can remove
  * files inside the span when they exceed the byte cap, the module's buffer can wrap before the
@@ -577,6 +577,55 @@ export function undoBlocker(action: ChangeAction): string | null {
 }
 
 /**
+ * How long after an AI delete another browser's dependent delete may still be tied to it by data
+ * (the active GM's browser runs dnd5e's dependent deletes on its own `actionId`, and a slow or
+ * busy browser can start them well after the AI write).
+ */
+const FOREIGN_DEPENDENT_WINDOW_MS = 30_000;
+
+/**
+ * Move dependent deletes another browser of the same user made (dnd5e deletes them in the active
+ * GM's browser, which has its own `actionId` and no guarded-write mark) into the group of the AI
+ * change whose deleted effect or item names them (`flags.dnd5e.dependents`, followed through), so
+ * the position rules below file them with that change. Only a delete of a dependent kind in a
+ * group with no AI record, within FOREIGN_DEPENDENT_WINDOW_MS after the AI delete, and only when
+ * the data names it: an unreadable (oversize) source ties nothing across groups.
+ */
+function fileForeignDependents(groups: Map<string, ChangeRecord[]>): void {
+  const foreign = [...groups.entries()].filter(([, g]) => !g.some(r => r.changeId));
+  if (foreign.length === 0) return;
+  for (const [, group] of groups) {
+    const ai = group.filter(r => r.changeId);
+    const sources = ai.filter(r => r.op === 'delete' && DEPENDENT_SOURCE_KINDS.has(r.documentName));
+    if (sources.length === 0) continue;
+    const from = Math.min(...sources.map(r => r.t));
+    const candidates = foreign
+      .flatMap(([, g]) => g)
+      .filter(
+        r =>
+          r.op === 'delete' &&
+          DEPENDENT_DELETE_KINDS.has(r.documentName) &&
+          r.t >= from &&
+          r.t <= from + FOREIGN_DEPENDENT_WINDOW_MS
+      );
+    if (candidates.length === 0) continue;
+    const aiRoots: ReadonlySet<string> = new Set(ai.map(r => r.rootUuid));
+    const link = dependentsLink(ai, candidates, aiRoots, burstItemsOf(ai, [...ai, ...candidates]));
+    const moved = candidates.filter(r => link.linked.has(r.uuid));
+    if (moved.length === 0) continue;
+    const gone = new Set(moved);
+    for (const entry of foreign) {
+      const rest = entry[1].filter(r => !gone.has(r));
+      if (rest.length === entry[1].length) continue;
+      entry[1] = rest;
+      if (rest.length > 0) groups.set(entry[0], rest);
+      else groups.delete(entry[0]);
+    }
+    group.push(...moved);
+  }
+}
+
+/**
  * Group records into actions by `actionId` (records keep their order; actions are in the
  * order of their first record). Records of a guarded write that was rolled back are left out.
  * In a burst with AI writes, each AI change is an action of its own (`<actionId>`, then
@@ -597,6 +646,7 @@ export function buildActions(records: ChangeRecord[], users?: UserNames): Change
     if (group) group.push(r);
     else groups.set(r.actionId, [r]);
   }
+  fileForeignDependents(groups);
 
   const split: Array<[string, ChangeRecord[], ChangeRecord[]]> = [];
   for (const [actionId, group] of groups) {

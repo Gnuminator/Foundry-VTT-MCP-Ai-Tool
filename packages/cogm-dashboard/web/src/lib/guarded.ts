@@ -208,11 +208,12 @@ export function useGuardedTools(): GuardedTools {
     };
 
     /**
-     * Whether the dashboard's Turn on for tonight controls the switch a refusal names (null: GM
-     * Actions, which it always does). Other switches keep the named pointer to Foundry's settings.
+     * Whether the dashboard's Turn on for tonight controls the switch a refusal names. The GM
+     * Actions gate has no button: it opens Pre-flight, which has the real one. Other switches keep
+     * the named pointer to Foundry's settings.
      */
-    const controlsSwitch = async (switchName: string | null): Promise<boolean> => {
-      if (switchName === null || switchName === 'Allow Write Operations') return true;
+    const controlsSwitch = async (switchName: string): Promise<boolean> => {
+      if (switchName === 'Allow Write Operations') return true;
       try {
         const read = await queryClient.fetchQuery({
           queryKey: SWITCHES_KEY,
@@ -227,12 +228,13 @@ export function useGuardedTools(): GuardedTools {
 
     /** The warning toast of a refusal, with the Turn on for tonight button where it applies. */
     const refusalToast = async (text: string, switchName: string | null): Promise<void> => {
-      const turnOn = (await controlsSwitch(switchName))
-        ? {
-            label: `Turn on ${switchName === null ? 'GM Actions' : shortName(switchName)} and the rest for tonight`,
-            onClick: turnOnForTonight,
-          }
-        : undefined;
+      const turnOn =
+        switchName !== null && (await controlsSwitch(switchName))
+          ? {
+              label: `Turn on ${shortName(switchName)} and the rest for tonight`,
+              onClick: turnOnForTonight,
+            }
+          : undefined;
       toast(text, 'warn', turnOn);
     };
 

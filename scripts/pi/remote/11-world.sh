@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # Stage 11: install a world bundle that scripts/pi/push-world.ps1 uploaded (docs/dev/PI-SETUP.md, "Licensed
 # content"). The bundle holds the campaign world, its private modules and the image folders it uses.
-#   cat scripts/pi/remote/lib.sh scripts/pi/remote/lib-gm-passwords.sh scripts/pi/remote/11-world.sh | ssh foundry-pi 'BUNDLE=/var/lib/foundry-import/curse-of-strahd-<stamp>.tar bash -s'
+#   scp scripts/pi/remote/world-switches.mjs foundry-pi:/root/ && cat scripts/pi/remote/lib.sh scripts/pi/remote/lib-gm-passwords.sh scripts/pi/remote/11-world.sh | ssh foundry-pi 'BUNDLE=/var/lib/foundry-import/curse-of-strahd-<stamp>.tar bash -s'
+# The scp copies the in-browser part that sets the world switches (world-switches.mjs; the stage installs it into
+# /opt/foundry-ai-tool/gm-browser/ and removes the upload, the way stage 13 handles player-creation-settings.mjs).
 # Take a snapshot first (dietpi-backup 1) and get the user's OK: this stops Foundry for a few minutes.
 # Env: BUNDLE (required, a .tar under /var/lib/foundry-import/), WORLD (curse-of-strahd), KIT_WORLD (a test copy of
 #   WORLD that every run resets; empty skips it; strahd-kit by default, but only for WORLD=curse-of-strahd: another
@@ -14,6 +16,12 @@
 #   own generated password; default none; letters, digits, . _ - and inner spaces), SHIP_MODULES (1 lets a bundle
 #   for a WORLD other than curse-of-strahd replace the Pi's modules; default 0 refuses such a bundle, because the
 #   campaign owns the modules: build it with push-world.ps1 -PiModules instead).
+# WORLD_SWITCHES (auto, 1 or 0; default auto) and SWITCH_DRIVER (the uploaded .mjs, default /root/world-switches.mjs):
+#   the AI Tool and dnd5e switches a world starts with (docs/dev/PI-SETUP.md, "World switches"). auto sets them in
+#   every world this run installs or resets (the kit world, and WORLD when it is replaced), never in a Plan B
+#   push-back (its settings come back from the PC as they were played); 1 sets them in WORLD too when it is kept
+#   (its settings database is copied to prev first); 0 sets none. The step runs while Foundry runs the world and
+#   is skipped without systemd.
 # REPLACE_KIT (1 lets the run reset an installed KIT_WORLD that is not a kit copy of WORLD; default 0 refuses it. A kit
 #   copy carries flags.foundry-ai-tool.kitOf = WORLD in its world.json, written by every reset; the Pi's older
 #   strahd-kit counts for WORLD=curse-of-strahd. It lifts only that rule, never the refusal to name curse-of-strahd,
@@ -68,6 +76,8 @@ REPLACE_WORLD="${REPLACE_WORLD:-0}"
 GM_USER="${GM_USER:-Gamemaster}"
 EXTRA_GM_USER="${EXTRA_GM_USER:-}"
 REPLACE_NEWER="${REPLACE_NEWER:-0}"
+WORLD_SWITCHES="${WORLD_SWITCHES:-auto}"
+SWITCH_DRIVER="${SWITCH_DRIVER:-/root/world-switches.mjs}"
 IMPORT=/var/lib/foundry-import
 data="$FOUNDRY_DATA/Data"
 options="$FOUNDRY_DATA/Config/options.json"
@@ -118,6 +128,13 @@ fi
 login_re='^[A-Za-z0-9._-]([A-Za-z0-9._ -]*[A-Za-z0-9._-])?$'
 [[ "$GM_USER" =~ $login_re ]] || die "GM_USER has odd characters or a space at an end"
 [ -z "$EXTRA_GM_USER" ] || [[ "$EXTRA_GM_USER" =~ $login_re ]] || die "EXTRA_GM_USER has odd characters or a space at an end. Nothing was changed"
+case "$WORLD_SWITCHES" in auto | 0 | 1) ;; *) die "WORLD_SWITCHES must be auto, 1 or 0. Nothing was changed" ;; esac
+case "$SWITCH_DRIVER" in /root/*.mjs) ;; *) die "SWITCH_DRIVER must be a .mjs file under /root/ (got $SWITCH_DRIVER). Nothing was changed" ;; esac
+case "$SWITCH_DRIVER" in */../* | */..) die "SWITCH_DRIVER must not hold .. . Nothing was changed" ;; esac
+if [ "$WORLD_SWITCHES" != 0 ] && have_systemd; then
+  [ -f "$SWITCH_DRIVER" ] || [ -f "$TOOL_DIR/gm-browser/world-switches.mjs" ] ||
+    die "no $SWITCH_DRIVER: scp scripts/pi/remote/world-switches.mjs foundry-pi:/root/ first, or run with WORLD_SWITCHES=0. Nothing was changed"
+fi
 [ -f "$assistant_env" ] && [ -f "$TOOL_DIR/gm-browser/assistant-gm.mjs" ] || die "run stage 5 and 5-check-world first (no Assistant GM yet)"
 [ -d "$data/modules/foundry-mcp-bridge" ] || die "the bridge module is not installed: run stage 5 first"
 [ -f "$options" ] || die "no $options: has Foundry started once (stage 3)?"
@@ -659,6 +676,9 @@ done
 say "worlds"
 install -d -m 755 -o "$FOUNDRY_USER" -g "$FOUNDRY_USER" "$data/worlds"
 todo=()
+# The worlds that get the switches (world-switches.mjs): the ones this run installs or resets, and a kept WORLD with
+# WORLD_SWITCHES=1. A Plan B push-back never gets them: its settings come back from the PC as they were played.
+switch_ids=()
 if [ -n "$KIT_WORLD" ]; then
   store_prev "$data/worlds/$KIT_WORLD" "worlds/$KIT_WORLD"
   cp -a "$work/extract/Data/worlds/$WORLD" "$data/worlds/$KIT_WORLD"
@@ -666,6 +686,7 @@ if [ -n "$KIT_WORLD" ]; then
     "$KIT_WORLD" "$KIT_TITLE" "$WORLD"
   ok "kit world $KIT_WORLD reset from the bundle"
   todo+=("$KIT_WORLD")
+  [ "$WORLD_SWITCHES" = 0 ] || [ "$pushback" = 1 ] || switch_ids+=("$KIT_WORLD")
 fi
 real_state=installed
 if [ -e "$data/worlds/$WORLD" ] && [ "$REPLACE_WORLD" != 1 ]; then
@@ -678,12 +699,18 @@ if [ -e "$data/worlds/$WORLD" ] && [ "$REPLACE_WORLD" != 1 ]; then
     { [ -n "$EXTRA_GM_USER" ] && [ -z "$(env_login "$TOOL_ETC/world-$WORLD.env" EXTRA_GM_USER)" ]; }; then
     todo+=("$WORLD")
   fi
+  # WORLD_SWITCHES=1 sets the switches in the kept world too, so it must run for that.
+  if [ "$WORLD_SWITCHES" = 1 ]; then
+    switch_ids+=("$WORLD")
+    [[ " ${todo[*]} " == *" $WORLD "* ]] || todo+=("$WORLD")
+  fi
 else
   store_prev "$data/worlds/$WORLD" "worlds/$WORLD"
   mv "$work/extract/Data/worlds/$WORLD" "$data/worlds/$WORLD"
   world_swapped=1
   ok "world $WORLD installed"
   todo+=("$WORLD")
+  [ "$WORLD_SWITCHES" = 0 ] || [ "$pushback" = 1 ] || switch_ids+=("$WORLD")
 fi
 
 # ---- provisioning: GM password file, options.json, Foundry, assistant-gm ------------------------------
@@ -716,7 +743,15 @@ provision_world() { # $1 world id
   set_world "$id"
   if ! have_systemd; then
     warn "no systemd here (a test container?): $id is set in options.json but Foundry was not started and nothing was provisioned"
+    [[ " ${switch_ids[*]} " != *" $id "* ]] || warn "the world switches of $id were skipped too (no systemd)"
     return 0
+  fi
+  # A kept world's settings are changed in place: copy its settings database first (Foundry is stopped here).
+  # An installed or reset world has the old copy in prev already.
+  if [[ " ${switch_ids[*]} " == *" $id "* ]] && [ "$id" = "$WORLD" ] && [ "$real_state" = kept ] && [ -d "$data/worlds/$id/data/settings" ]; then
+    install -d -m 700 "$prev/worlds/$id"
+    cp -a "$data/worlds/$id/data/settings" "$prev/worlds/$id/settings"
+    ok "the settings of $id before the world switches: $prev/worlds/$id/settings"
   fi
   systemctl start foundry.service
   running="$id"
@@ -747,12 +782,42 @@ provision_world() { # $1 world id
   ) || die "provisioning $id failed (see the lines above)"
   rm -f "$pending"
   ok "$id provisioned"
+  if [[ " ${switch_ids[*]} " == *" $id "* ]]; then
+    say "world switches in $id"
+    (
+      set -a
+      # shellcheck disable=SC1090
+      . "$envf"
+      set +a
+      [ -n "${GM_USER:-}" ] && [ -n "${GM_PASSWORD:-}" ] || {
+        echo "ERROR: $envf has no GM_USER and GM_PASSWORD" >&2
+        exit 1
+      }
+      # The login stays in the environment, never on a command line (as in stage 13).
+      export WORLD="$id"
+      runuser -u "$FOUNDRY_USER" -- env HOME="$TOOL_DATA" TOOL_APP="$TOOL_DIR/app" \
+        FOUNDRY_URL=http://127.0.0.1:30000 CHROMIUM=/usr/bin/chromium \
+        node "$TOOL_DIR/gm-browser/world-switches.mjs"
+    ) || die "the world switches of $id failed or did not verify (see the lines above). The world itself is installed: run the stage again with WORLD_SWITCHES=1 (the world is kept now and its settings are copied to prev first), or WORLD_SWITCHES=0 to leave the switches"
+    ok "$id: world switches set and read back"
+  fi
 }
 
 # Record success, not intent: the markers of every world this run provisions are written before the first one
 # starts (and before any env file) and each is removed after its own provisioning worked, so a failure on one world
 # leaves the others marked too, and a plain rerun provisions them all again with the same passwords.
 for id in "${todo[@]}"; do (umask 077 && : >"$TOOL_ETC/world-$id.pending"); done
+
+if [ "${#switch_ids[@]}" -gt 0 ] && have_systemd; then
+  if [ -f "$SWITCH_DRIVER" ]; then
+    install -d -m 755 "$TOOL_DIR/gm-browser"
+    install -m 0644 "$SWITCH_DRIVER" "$TOOL_DIR/gm-browser/world-switches.mjs"
+    rm -f "$SWITCH_DRIVER"
+    ok "installed $TOOL_DIR/gm-browser/world-switches.mjs"
+  else
+    ok "$TOOL_DIR/gm-browser/world-switches.mjs is already installed (no new copy in $SWITCH_DRIVER)"
+  fi
+fi
 
 say "provisioning (the world that launches goes last)"
 ordered=()
@@ -846,6 +911,13 @@ done
 for id in "${unsure_modules[@]}"; do
   echo "    module $id $(module_version "$id") (the Pi's copy kept: its version and the bundle's cannot be compared)"
 done
+if [ "${#switch_ids[@]}" -gt 0 ] && have_systemd; then
+  echo "    world switches set and verified in: ${switch_ids[*]}"
+elif [ "${#switch_ids[@]}" -gt 0 ]; then
+  echo "    world switches: skipped (no systemd)"
+else
+  echo "    world switches: not touched (WORLD_SWITCHES=$WORLD_SWITCHES)"
+fi
 echo "    asset folders: ${assets[*]:-none}"
 echo "    Foundry launches: $LAUNCH"
 for id in "$WORLD" ${KIT_WORLD:+"$KIT_WORLD"}; do

@@ -47,7 +47,7 @@ fresh_pi() {
   manifest_extra=""
   bundle_module=""
   bundle_assets=0
-  rm -f /tmp/stopped-* /tmp/provfail /tmp/calls /tmp/provision /tmp/out.first /tmp/out.last /tmp/victim-file
+  rm -f /tmp/stopped-* /tmp/provfail /tmp/switchfail /tmp/switches /tmp/calls /tmp/provision /tmp/out.first /tmp/out.last /tmp/victim-file
   ln -sf "$(command -v node)" /opt/node24/bin/node # the no-node fixture removes it
   mkdir -p "$data/worlds" "$data/modules/foundry-mcp-bridge" "$FOUNDRY_DATA/Config"
   echo '{"world":"curse-of-strahd"}' >"$FOUNDRY_DATA/Config/options.json"
@@ -64,6 +64,9 @@ fresh_pi() {
   chown -R "$FOUNDRY_USER:$FOUNDRY_USER" "$FOUNDRY_DATA"
   mkdir -p "$TOOL_ETC" "$TOOL_DIR/app" "$TOOL_DIR/gm-browser" "$TOOL_DATA"
   install -m 644 "$H/stage11-provision.mjs" "$TOOL_DIR/gm-browser/assistant-gm.mjs"
+  install -m 644 "$H/stage11-switches.mjs" "$TOOL_DIR/gm-browser/world-switches.mjs"
+  : >/tmp/switches
+  chmod 666 /tmp/switches # the fake runs as the foundry user
   printf 'ASSISTANT_GM_USER="Assistant GM"\nASSISTANT_GM_PASSWORD="asecret"\n' >"$TOOL_ETC/assistant-gm.env"
   for w in curse-of-strahd strahd-kit; do
     printf 'GM_USER="Gamemaster"\nGM_PASSWORD="gsecret1"\n' >"$TOOL_ETC/world-$w.env"
@@ -142,6 +145,16 @@ leak_check() {
   done
   echo "$leak"
 }
+
+# World switches (world-switches.mjs): the driver only in /root (a fresh scp), no driver at all, a kept campaign with a
+# settings database to back up, and a driver that fails.
+upload_driver() { mv "$TOOL_DIR/gm-browser/world-switches.mjs" /root/world-switches.mjs; }
+no_driver() { rm -f "$TOOL_DIR/gm-browser/world-switches.mjs"; }
+kept_settings() {
+  mkdir -p "$data/worlds/curse-of-strahd/data/settings"
+  echo "the Pi's settings" >"$data/worlds/curse-of-strahd/data/settings/000001.log"
+}
+switch_fails() { : >/tmp/switchfail && chmod 666 /tmp/switchfail; }
 
 give_other_extra() {
   printf 'EXTRA_GM_USER="Other"\nEXTRA_GM_PASSWORD="osecret"\n' >>"$TOOL_ETC/world-curse-of-strahd.env"
@@ -295,6 +308,12 @@ scenario() {
   cat /tmp/calls
   echo "--- provision"
   cat /tmp/provision
+  echo "--- switches"
+  cat /tmp/switches
+  echo "--- prev settings"
+  ls -d "$IMPORT"/prev-*/worlds/*/settings 2>/dev/null | sed -E 's#.*/prev-[0-9-]+/#prev/#' || true
+  echo "--- driver left"
+  ls "$TOOL_DIR/gm-browser" /root 2>/dev/null | grep -c 'world-switches' || true
   echo "--- options.json"
   node -e 'process.stdout.write(JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")).world+"\n")' "$FOUNDRY_DATA/Config/options.json"
   echo "--- options state"
@@ -375,6 +394,17 @@ scenario ship-second-launch-self frostmaiden-training ship_module WORLD=frostmai
 scenario provision-fails-campaign curse-of-strahd provision_fails_once REPLACE_WORLD=1 RERUN:REPLACE_WORLD=0 rerun
 scenario provision-fails-then-rerun frostmaiden-training provision_fails_once WORLD=frostmaiden-training KIT_WORLD= LAUNCH=curse-of-strahd EXTRA_GM_USER=Claude rerun
 scenario campaign-default curse-of-strahd - REPLACE_WORLD=1
+# The world switches: only in worlds the run installs or resets, a kept world only with WORLD_SWITCHES=1 (settings
+# copied to prev first), none with 0, never in a push-back, a driver from /root installed and the upload removed,
+# a missing driver refused up front, a failing driver stops the run.
+scenario switches-off frostmaiden-training - WORLD=frostmaiden-training KIT_WORLD= LAUNCH=curse-of-strahd WORLD_SWITCHES=0
+scenario switches-kept curse-of-strahd kept_settings KIT_WORLD= WORLD_SWITCHES=1
+scenario switches-kept-auto curse-of-strahd kept_settings KIT_WORLD=
+scenario switches-upload frostmaiden-training upload_driver WORLD=frostmaiden-training KIT_WORLD= LAUNCH=curse-of-strahd
+scenario switches-no-driver frostmaiden-training no_driver WORLD=frostmaiden-training KIT_WORLD= LAUNCH=curse-of-strahd
+scenario switches-no-driver-off frostmaiden-training no_driver WORLD=frostmaiden-training KIT_WORLD= LAUNCH=curse-of-strahd WORLD_SWITCHES=0
+scenario switches-bad-value frostmaiden-training - WORLD=frostmaiden-training KIT_WORLD= LAUNCH=curse-of-strahd WORLD_SWITCHES=maybe
+scenario switches-fails frostmaiden-training switch_fails WORLD=frostmaiden-training KIT_WORLD= LAUNCH=curse-of-strahd
 scenario kit-names-installed curse-of-strahd training_installed KIT_WORLD=frostmaiden-training KIT_TITLE=x
 scenario kit-names-installed-replace curse-of-strahd training_installed KIT_WORLD=frostmaiden-training KIT_TITLE=x REPLACE_KIT=1
 scenario kit-copy-rerun frostmaiden-training - WORLD=frostmaiden-training KIT_WORLD=frost-kit "KIT_TITLE=Frost kit" LAUNCH=curse-of-strahd rerun

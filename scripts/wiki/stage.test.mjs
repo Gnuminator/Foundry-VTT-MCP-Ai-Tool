@@ -55,6 +55,23 @@ test('web links, anchors and code fences are left alone', () => {
   assert.equal(rewriteLinks(text, 'docs/gm/README.md', new Set()), text);
 });
 
+test('a link shown in inline code is an example and stays as written', () => {
+  const text = 'Write `[x](nowhere.md)` like this, see [dash](dashboard.md).';
+  assert.equal(rewriteLinks(text, 'docs/gm/before-session.md', new Set()), text);
+  assert.equal(
+    toSite(text, 'gm/before-session.md'),
+    'Write `[x](nowhere.md)` like this, see [dash](/Foundry-VTT-MCP-Ai-Tool/gm/dashboard/).'
+  );
+});
+
+test('a time in a heading becomes a chip and the heading text stays', () => {
+  const out = toSite('## 1. The screen (15 minutes)\n## Add it (once, about 5 minutes)', 'gm/x.md');
+  assert.equal(
+    out,
+    '## 1. The screen <span class="chip">(15 minutes)</span>\n## Add it (once, about 5 minutes)'
+  );
+});
+
 test('the nav follows the README links, then the rest A to Z', () => {
   const readme =
     'Start with [b](b.md) then [a](a.md#x), [b again](b.md) and [web](https://x.test/c.md).';

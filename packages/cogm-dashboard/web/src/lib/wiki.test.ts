@@ -13,6 +13,12 @@ describe('wikiUrl', () => {
     expect(wikiUrl('dashboard', '')).toBe(`${GM}dashboard/`);
   });
 
+  it('sends a Foundry basics page to the foundry section', () => {
+    const FOUNDRY = 'https://gnuminator.github.io/Foundry-VTT-MCP-Ai-Tool/foundry/';
+    expect(wikiUrl('foundry-combat', 'x')).toBe(`${FOUNDRY}combat/#x`);
+    expect(wikiUrl('foundry-README', '')).toBe(FOUNDRY);
+  });
+
   it('keeps the heading anchor, which the wiki slugs the same way', () => {
     expect(wikiUrl('dashboard', 'module-diagnostics')).toBe(`${GM}dashboard/#module-diagnostics`);
   });

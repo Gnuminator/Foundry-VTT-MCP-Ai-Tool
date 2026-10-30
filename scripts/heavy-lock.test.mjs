@@ -293,7 +293,7 @@ test('every slot taken is logged in admissions.jsonl', () => {
 });
 
 test('a holder that beats is not stale after an hour; one that stops beating for 20 minutes is', () => {
-  const { env } = fixture();
+  const { dir, env } = fixture();
   let t = 1_000_000_000;
   const now = () => t;
   const holder = acquire('long green', { env, log: () => {}, now, alive: () => true });
@@ -301,6 +301,9 @@ test('a holder that beats is not stale after an hour; one that stops beating for
     t += 15 * 60 * 1000;
     holder.beat('e2e');
   }
+  // Written whole through a rename: no temp file is left next to it.
+  assert.deepEqual(fs.readdirSync(path.join(dir, 'slot-0')), ['owner.json']);
+  assert.equal(JSON.parse(fs.readFileSync(path.join(dir, 'slot-0', 'owner.json'), 'utf8')).step, 'e2e');
   t += 19 * 60 * 1000;
   const blocked = acquire('waiter', { env, log: () => {}, now, alive: () => true, sleep: () => {}, maxWaitMs: 0 });
   assert.equal(blocked.held, false, '109 minutes after the start but 19 after the last beat: still held');

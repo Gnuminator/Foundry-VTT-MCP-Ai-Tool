@@ -151,6 +151,24 @@ function readOwner(slot) {
 }
 
 /**
+ * Write owner.json whole (a temp file, then a rename). A waiter that read a half-written file would
+ * see no owner, and on Windows the folder's mtime does not move when a file in it is rewritten, so
+ * a beat written in place could get a live slot of a long holder removed. A rename that fails (a
+ * reader has the file open) throws; a beat treats that as a missed beat.
+ * @param {string} slot @param {Owner} owner
+ */
+function writeOwner(slot, owner) {
+  const tmp = path.join(slot, `owner-${process.pid}.tmp`);
+  fs.writeFileSync(tmp, JSON.stringify(owner));
+  try {
+    fs.renameSync(tmp, path.join(slot, 'owner.json'));
+  } catch (e) {
+    fs.rmSync(tmp, { force: true });
+    throw e;
+  }
+}
+
+/**
  * Is this slot folder held by a live run? A stale one is removed.
  * @param {string} slot @param {number} now @param {(pid: number) => boolean} alive
  * @returns {Owner | 'unknown' | null} the owner, 'unknown' for a slot just created, null when free
@@ -291,7 +309,7 @@ export function acquire(label, o = {}) {
           const start = now();
           /** @type {Owner} */
           const owner = { pid: process.pid, label, start, since: start, priority };
-          fs.writeFileSync(path.join(slot, 'owner.json'), JSON.stringify(owner));
+          writeOwner(slot, owner);
           dropTicket();
           process.off('exit', dropTicket);
           const waitedMs = start - began;
@@ -327,7 +345,7 @@ export function acquire(label, o = {}) {
               const current = readOwner(slot);
               if (!current || current.pid !== process.pid) return;
               const next = { ...current, start: now(), ...(step ? { step } : {}) };
-              fs.writeFileSync(path.join(slot, 'owner.json'), JSON.stringify(next));
+              writeOwner(slot, next);
             } catch {
               // A missed beat only matters after 20 minutes without one.
             }

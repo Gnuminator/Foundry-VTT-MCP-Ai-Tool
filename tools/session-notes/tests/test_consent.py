@@ -103,6 +103,15 @@ def test_cli_check_exit_code_and_status(sessions: Path) -> None:
     assert main(["consent", "set", "oops", "yes"]) == 1
 
 
+@pytest.mark.parametrize("body", ["[1, 2]", '"x"', '{"players": []}', '{"players": "no"}'])
+def test_set_refuses_to_overwrite_a_file_of_the_wrong_shape(sessions: Path, body: str) -> None:
+    odd = sessions / "consent.json"
+    odd.write_text(body, encoding="utf-8")
+    with pytest.raises(ValueError, match="not a consent record"):
+        set_consent(sessions, "11", "yes")
+    assert odd.read_text(encoding="utf-8") == body
+
+
 def test_set_refuses_to_overwrite_an_unreadable_file(sessions: Path) -> None:
     broken = sessions / "consent.json"
     broken.write_text("{not json", encoding="utf-8")

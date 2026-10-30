@@ -75,7 +75,7 @@ sleep() { :; }
 have_systemd() { return 0; }
 require_quiet() { echo "quiet-check: $*" >>"${posix(pi.d)}/calls"; }
 systemctl() { echo "systemctl $*" >>"${posix(pi.d)}/calls"; case "$*" in *kit-gm*) return 1;; esac; return 0; }
-runuser() { shift 3; "$@"; }
+runuser() { echo "runuser $*" >>"${posix(pi.d)}/runuser-calls"; shift 3; "$@"; }
 date() {
   case "$1" in
     +%Y%m%d-%H%M%S) local n; n=$(cat "${posix(pi.d)}/n" 2>/dev/null || echo 0); n=$((n + 1)); echo "$n" >"${posix(pi.d)}/n"; printf '20261030-1200%02d\\n' "$n" ;;
@@ -227,6 +227,7 @@ describe('19-join-page-look.sh', () => {
     assert.equal(sha(readFileSync(pi.dest)), second.EXPECT_SHA256);
     assert.equal(run(pi, { EXPECT_SHA256: second.EXPECT_SHA256, UNDO: '1' }).status, 0);
     assert.equal(sha(readFileSync(pi.dest)), first.EXPECT_SHA256);
+    assert.match(readFileSync(path.join(pi.d, 'runuser-calls'), 'utf8'), /^runuser -u foundry -- cat -- \S+join-background\.webp$/m);
   });
 
   test('UNDO after a failed run goes back to before the last run that finished', () => {

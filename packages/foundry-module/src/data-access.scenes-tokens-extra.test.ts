@@ -498,7 +498,7 @@ describe('FoundryDataAccess — getTargets', () => {
     const prevUsers = g.users;
     g.users = {
       ...prevUsers,
-      filter: (fn: (u: any) => boolean) =>
+      filter: (fn: (u: any) => boolean): unknown[] =>
         [
           { id: 'gm2', isGM: true, active: true, targets: new Set([tok]) },
           { id: 'gm3', isGM: true, active: true, targets: new Set([tok]) },

@@ -410,6 +410,17 @@ export class ChangeJournal {
   }
 
   /**
+   * End the current change group: the next operation from this browser starts its own. A direct
+   * bridge write (Next turn, initiative) calls it first, so it is never taken for a follow-up of
+   * the guarded write before it, within the guarded gap.
+   */
+  breakGroup(): void {
+    this.actionId = null;
+    this.groupGuarded = false;
+    this.lastGuarded = false;
+  }
+
+  /**
    * The journal stash of this operation, made if needed. It sits under the
    * module id next to the guarded-write marker, which is left alone. A stash
    * that already has an actionId (an earlier document of the same operation)

@@ -1002,6 +1002,19 @@ describe('EventTracker temp HP in the session log', () => {
     );
   });
 
+  it('a guarded damage apply that only removes temp HP still gets its damage line', () => {
+    const t = tracker();
+    fire('updateActor', pc, hp(undefined, 5));
+    fire('updateActor', pc, hp(undefined, 0), {
+      [MODULE_ID]: { changeId: 'c4', changeMode: 'apply', hpLine: true },
+    });
+
+    const withId = t
+      .getSessionLog({ eventType: 'damage' })
+      .filter(e => (e.details as { changeId?: string } | undefined)?.changeId === 'c4');
+    expect(withId).toHaveLength(1);
+  });
+
   it('a guarded apply that is more than an HP plan carries no change id, so its row stays', () => {
     const t = tracker();
     fire('updateActor', pc, hp(56, 17), { [MODULE_ID]: { changeId: 'c3', changeMode: 'apply' } });

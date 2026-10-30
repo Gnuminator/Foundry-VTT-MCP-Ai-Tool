@@ -874,7 +874,9 @@ export class EventTracker {
           const credit = this.damageCredit(pending, damage, to <= 0);
           // Temp HP that just disappears (a rest, the GM clearing it) is no damage: a drop to
           // 0 temp HP with the hit points untouched counts only when a damage roll explains it.
-          const tempCleared = delta === 0 && toTemp === 0 && !credit;
+          // A confirmed damage apply from the dashboard explains the drop too.
+          const tempCleared =
+            delta === 0 && toTemp === 0 && !credit && appliedChangeId(options) === '';
           if (!tempCleared) {
             const toTempText = tempLost > 0 ? ` (${tempLost} to temp HP)` : '';
             // The hit points before and after: a 30-point hit on a 9 HP actor took 9 (the

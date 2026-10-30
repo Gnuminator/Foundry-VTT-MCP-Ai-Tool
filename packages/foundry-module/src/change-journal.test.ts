@@ -317,6 +317,23 @@ describe('pre-hooks: the stash', () => {
     expect(idOf(simulateUpdate(actor, { name: 'by hand again' }))).not.toBe(write);
   });
 
+  it('starts a new group after breakGroup, so a Next turn is no follow-up of the write before it', () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    const actor = makeActor();
+    const idOf = (o: ReturnType<typeof simulateUpdate>): string => o[MODULE_ID].journal.actionId;
+    vi.setSystemTime(9_000_000);
+    const write = idOf(
+      simulateUpdate(
+        actor,
+        { name: 'hp' },
+        { options: { [MODULE_ID]: { changeId: 'chg-turn', changeMode: 'apply' } } }
+      )
+    );
+    vi.setSystemTime(9_000_000 + 1000);
+    journal.breakGroup();
+    expect(idOf(simulateUpdate(actor, { name: 'next turn' }))).not.toBe(write);
+  });
+
   it('keeps an actionId already in the stash and one before value per document id', () => {
     const one = makeActor('act1', 'One');
     const two = makeActor('act2', 'Two');

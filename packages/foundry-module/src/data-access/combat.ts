@@ -1,4 +1,5 @@
 import * as shared from './shared.js';
+import { changeJournal } from '../change-journal.js';
 import { resolveCombat } from '../combat-resolve.js';
 import { eventTracker } from '../session-events.js';
 
@@ -536,6 +537,9 @@ export class CombatDataAccess {
   private requireActiveCombat(): TrackerCombat {
     const combat = this.resolveActiveOrRecentCombat();
     if (!combat) throw new Error('No active combat encounter.');
+    // Only the turn and initiative writes come here: they are no follow-up of a guarded write
+    // that ended a moment ago (the journal's long gap would else file them under it).
+    changeJournal.breakGroup();
     return combat;
   }
 

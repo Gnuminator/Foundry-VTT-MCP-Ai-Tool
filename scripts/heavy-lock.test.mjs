@@ -179,7 +179,7 @@ test('two CLI runs started together run one after the other', async () => {
   const run = () =>
     new Promise(resolve => {
       const p = spawn(process.execPath, [script, 'run', '--', 'node', q(worker), q(marker)], {
-        env: { ...process.env, ...env, HEAVY_LOCK_HELD: '' },
+        env: { ...process.env, ...env, HEAVY_LOCK_HELD: '', HEAVY_LOCK_SLOTS: '1' },
         stdio: 'ignore',
       });
       p.on('exit', resolve);

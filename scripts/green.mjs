@@ -98,6 +98,7 @@ export const STEPS = [
   nodeTest('pi-gm-passwords', 'scripts/pi/gm-passwords.test.mjs'),
   nodeTest('pi-system-trial-guard', 'scripts/pi/system-trial-guard.test.mjs'),
   nodeTest('pi-player-creation', 'scripts/pi/player-creation.test.mjs'),
+  nodeTest('pi-world-switches', 'scripts/pi/world-switches.test.mjs'),
   nodeTest('pi-kit-session', 'scripts/pi/kit-session.test.mjs'),
   nodeTest('pi-fetch-kit-login', 'scripts/pi/fetch-kit-login.test.mjs'),
   nodeTest('pi-health-kit-line', 'scripts/pi/health-kit-line.test.mjs'),

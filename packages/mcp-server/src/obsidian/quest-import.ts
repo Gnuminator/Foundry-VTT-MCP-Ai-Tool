@@ -200,5 +200,7 @@ export async function readQuestNote(
   if (html === '' || (!hasText && stakes === '')) {
     throw new QuestImportError('The note is empty: write something under its headings first.');
   }
-  return { notePath, title, html };
+  // The title goes in an <h1> first, like create-quest-journal, so the player page Quests card
+  // shows it instead of "Quest Details". Note headings start at <h2>, so this is the only <h1>.
+  return { notePath, title, html: `<h1>${escapeHtml(title)}</h1>\n${html}` };
 }

@@ -13,7 +13,7 @@ describe('handoutsSwitchOff', () => {
 
   it('names the Handouts switch and where it is', () => {
     expect(handoutsSwitchOff({ features: [{ ...on, enabled: false }], writesAllowed: true })).toBe(
-      'Revealing is refused: "AI Tool: Handouts (writes)" is switched off. In Foundry, open Game Settings, Configure Settings, AI Tool and turn on "AI Tool: Handouts (writes)". You can still queue and reorder pages.'
+      'Revealing is refused: "AI Tool: Handouts (writes)" is switched off. In Foundry, open the Settings tab, Game Settings, AI Tool and turn on "AI Tool: Handouts (writes)". You can still queue and reorder pages.'
     );
   });
 
@@ -43,12 +43,12 @@ describe('isSwitchOffRefusal', () => {
   it('knows a feature switch that is off, as the module and the bridge word it', () => {
     expect(
       isSwitchOffRefusal(
-        '"AI Tool: Handouts (writes)" is switched off. In Foundry, open Game Settings, Configure Settings, AI Tool and turn on "AI Tool: Handouts (writes)".'
+        '"AI Tool: Handouts (writes)" is switched off. In Foundry, open the Settings tab, Game Settings, AI Tool and turn on "AI Tool: Handouts (writes)".'
       )
     ).toBe(true);
     expect(
       isSwitchOffRefusal(
-        'Error: "AI Tool: Handouts (writes)" is switched off. In Foundry, open Game Settings, Configure Settings, AI Tool and turn on "AI Tool: Handouts (writes)".'
+        'Error: "AI Tool: Handouts (writes)" is switched off. In Foundry, open the Settings tab, Game Settings, AI Tool and turn on "AI Tool: Handouts (writes)".'
       )
     ).toBe(true);
   });
@@ -56,7 +56,7 @@ describe('isSwitchOffRefusal', () => {
   it('knows "Allow Write Operations" being off', () => {
     expect(
       isSwitchOffRefusal(
-        'Write operations are disabled in the module settings. In Foundry, open Game Settings, Configure Settings, AI Tool and turn on "Allow Write Operations".'
+        'Write operations are disabled in the module settings. In Foundry, open the Settings tab, Game Settings, AI Tool and turn on "Allow Write Operations".'
       )
     ).toBe(true);
   });

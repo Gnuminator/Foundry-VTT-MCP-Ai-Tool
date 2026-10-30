@@ -684,7 +684,7 @@ describe('undo (Foundry ops)', () => {
     expect(foundry.docs.get('Actor.ilvara')!.source.system.hp).toBe(10);
 
     await expect(service.undo(undone.changeId, { confirm: true })).rejects.toThrow(
-      /"Test" is switched off\. In Foundry, open Game Settings, Configure Settings, AI Tool and turn on "Test"\./
+      /"Test" is switched off\. In Foundry, open the Settings tab, Game Settings, AI Tool and turn on "Test"\./
     );
     foundry.features.push({ id: 'change-undo', name: '', hint: '', enabled: true });
     const redoPlan = await plan([HP_UPDATE], {
@@ -692,7 +692,7 @@ describe('undo (Foundry ops)', () => {
       undoes: { changes: [undone.changeId] },
     });
     await expect(service.applyPlan(redoPlan.planId, { confirm: true })).rejects.toThrow(
-      /"Test" is switched off\. In Foundry, open Game Settings, Configure Settings, AI Tool and turn on "Test"\./
+      /"Test" is switched off\. In Foundry, open the Settings tab, Game Settings, AI Tool and turn on "Test"\./
     );
     expect(foundry.docs.get('Actor.ilvara')!.source.system.hp).toBe(10);
 
@@ -910,7 +910,7 @@ describe('vault ops', () => {
     const p = await vaultPlan([{ kind: 'vault-set', file: 'a.json', path: 'x', value: 1 }]);
     foundry.features[0].writesAllowed = false;
     await expect(service.applyPlan(p.planId, { confirm: true })).rejects.toThrow(
-      /Write operations are disabled in the module settings\. In Foundry, open Game Settings, Configure Settings, AI Tool and turn on "Allow Write Operations"\./
+      /Write operations are disabled in the module settings\. In Foundry, open the Settings tab, Game Settings, AI Tool and turn on "Allow Write Operations"\./
     );
     expect(await store.read('curse-of-strahd', 'gm', 'a.json')).toBeNull();
 

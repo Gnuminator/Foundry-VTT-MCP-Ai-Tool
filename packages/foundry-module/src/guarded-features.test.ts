@@ -105,10 +105,10 @@ describe('registerGuardedFeature', () => {
 describe('refusal wording', () => {
   it('names the switch as Game Settings shows it and where it is', () => {
     expect(featureOffMessage('AI Tool: Handouts (writes)')).toBe(
-      '"AI Tool: Handouts (writes)" is switched off. In Foundry, open Game Settings, Configure Settings, AI Tool and turn on "AI Tool: Handouts (writes)".'
+      '"AI Tool: Handouts (writes)" is switched off. In Foundry, open the Settings tab, Game Settings, AI Tool and turn on "AI Tool: Handouts (writes)".'
     );
     expect(WRITES_OFF_MESSAGE).toBe(
-      'Write operations are disabled in the module settings. In Foundry, open Game Settings, Configure Settings, AI Tool and turn on "Allow Write Operations".'
+      'Write operations are disabled in the module settings. In Foundry, open the Settings tab, Game Settings, AI Tool and turn on "Allow Write Operations".'
     );
   });
 

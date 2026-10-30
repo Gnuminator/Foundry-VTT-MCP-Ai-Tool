@@ -226,7 +226,7 @@ export class RoomSetupTools {
     const feature = features.find(f => f.id === ROOM_SETUP_FEATURE_ID);
     if (!feature?.enabled) {
       throw new Error(
-        'Room setup is switched off. In Foundry, open Game Settings, Configure Settings, AI Tool and turn on "AI Tool: Room setup (writes)".'
+        'Room setup is switched off. In Foundry, open the Settings tab, Game Settings, AI Tool and turn on "AI Tool: Room setup (writes)".'
       );
     }
 

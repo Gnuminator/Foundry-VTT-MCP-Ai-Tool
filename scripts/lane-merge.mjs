@@ -161,7 +161,7 @@ export const RISKY_CATEGORIES = [
       'scripts/lane-merge.mjs',
       'scripts/green.mjs',
       'scripts/drift-check.mjs',
-      // The heavy-check lock wraps green, the pre-push hook, lint-ratchet and drift-check's guards.
+      // The heavy-check lock wraps green, lint-ratchet and drift-check's guards.
       'scripts/heavy-lock.mjs',
       'scripts/pre-push.mjs',
       'scripts/lint-ratchet.mjs',

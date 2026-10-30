@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Heavy-check lock: a machine-wide (per Windows user) lock so that only a few heavy runs (a lint
- * pass, a vitest suite, a build) go at a time. `npm run green`, the pre-push hook, `lint:ratchet`
+ * pass, a vitest suite, a build) go at a time. `npm run green`, `lint:ratchet`
  * and the merge gate's drift check take it; the rest wait in line and print one line saying who
  * they wait for. Measured 2026-10-27: three lint-ratchet runs (1.2 to 2.9 GB each) plus two drift
  * checks took the 32 GB PC to 98% RAM and 80% CPU.
@@ -20,8 +20,8 @@
  *   the CLI `run` every minute while its command runs.
  * - Waiters queue in order (FIFO): each writes a ticket under `queue/`, named so that the names sort
  *   by priority, then by arrival. Only the first live ticket may take a slot; a ticket whose pid is
- *   dead or that has not been touched for 5 minutes is dropped. The merge gate's drift check and the
- *   pre-push hook queue with priority `high`: they are short and someone is waiting on them.
+ *   dead or that has not been touched for 5 minutes is dropped. The merge gate's drift check queues
+ *   with priority `high`: it is short and someone is waiting on it.
  * - How many slots: HEAVY_LOCK_SLOTS, else `slots` in ~/.foundry-ai-tool/heavy-lock.json
  *   (HEAVY_LOCK_CONFIG moves it), else 3. The file is read on every poll, so a change applies to
  *   the next run and to runs already waiting, with no restart of Claude Desktop.
@@ -72,8 +72,8 @@ const TICKET_TOUCH_MS = 30 * 1000;
 const TICKET_STALE_MS = 5 * 60 * 1000;
 const GB = 2 ** 30;
 // peakGb: one green alone peaked at 5.2 GB (the Playwright e2e step; lint-ratchet 3.3 GB), 2026-10-30.
-// lightPeakGb: lint-only holders (lint-ratchet peaked at 3.3 GB, 2026-10-30, plus margin). pre-push also
-// typechecks and was not measured on its own, so it counts at peakGb.
+// lightPeakGb: lint-only holders (lint-ratchet peaked at 3.3 GB, 2026-10-30, plus margin). Any other
+// holder counts at peakGb.
 /** Holders that run lint or the ratchets only: they count at lightPeakGb. */
 const LIGHT_LABEL = /^(lint-ratchet|drift-check lint)/;
 /** A holder is never counted as having used all of its peak: the fall in free RAM also holds other programs growing. */

@@ -32,6 +32,8 @@ import {
   worktreeTreeHash,
   runLock,
   HEAVY_STEPS,
+  LIGHT_FIRST,
+  lightFirst,
   SOLO_STEPS,
   cloudGreen,
   repoFromUrl,
@@ -168,6 +170,59 @@ test('selectSteps: from, only, skip, order and unknown names', () => {
   assert.deepEqual(names(['--skip', 'b,d']), ['a', 'c']);
   assert.deepEqual(names(['--from', 'b', '--skip', 'c']), ['b', 'd']);
   assert.match(selectSteps(s, parseArgs(['--only', 'zzz'])).error ?? '', /unknown step zzz/);
+});
+
+test('lightFirst: light steps run before the first heavy one, the post-build steps stay behind build', () => {
+  const names = selectSteps(STEPS, parseArgs([])).steps.map(s => s.name);
+  const firstHeavy = names.findIndex(n => HEAVY_STEPS.has(n));
+  const lastLight = names.findLastIndex(n => LIGHT_FIRST.has(n));
+  assert.ok(lastLight < firstHeavy, 'every light step is ahead of the first heavy step');
+  assert.ok(LIGHT_FIRST.has('pi-stage-safety') && LIGHT_FIRST.has('docs-lint') && LIGHT_FIRST.has('changelog'));
+  for (const n of ['typecheck', 'build', 'e2e', 'bundle-budget', 'mcp-schema-smoke', 'standalone-smoke', 'validate-manifest']) {
+    assert.ok(!LIGHT_FIRST.has(n), n);
+  }
+  const build = names.indexOf('build');
+  for (const n of ['bundle-budget', 'mcp-schema-smoke', 'split-smoke', 'validate-manifest']) {
+    assert.ok(names.indexOf(n) > build, `${n} stays after build`);
+  }
+  // Stable within the light group, nothing lost or doubled.
+  assert.deepEqual([...names].sort(), STEPS.map(s => s.name).sort());
+  assert.deepEqual(
+    names.filter(n => LIGHT_FIRST.has(n)),
+    STEPS.map(s => s.name).filter(n => LIGHT_FIRST.has(n))
+  );
+  assert.deepEqual(lightFirst([]), []);
+});
+
+test('lightFirst: --from a light step still runs typecheck and the other heavy steps', () => {
+  const full = selectSteps(STEPS, parseArgs([])).steps.map(s => s.name);
+  const light = full.find(n => LIGHT_FIRST.has(n));
+  const from = selectSteps(STEPS, parseArgs(['--from', light])).steps.map(s => s.name);
+  assert.deepEqual(from, full.slice(full.indexOf(light)));
+  const lastLight = full.findLast(n => LIGHT_FIRST.has(n));
+  const late = selectSteps(STEPS, parseArgs(['--from', lastLight])).steps.map(s => s.name);
+  assert.equal(late[0], lastLight);
+  assert.ok(late.includes('typecheck') && late.includes('e2e'), 'heavy steps survive a --from at the last light step');
+});
+
+test('LIGHT_FIRST: only known light commands, so a heavy step missing from HEAVY_STEPS fails here, not unlocked', () => {
+  const lightNpm = new Set(['emdash:ratchet', 'version:check', 'usage:catalog:check', 'docs:lint', 'docs:links', 'changelog:check']);
+  for (const s of STEPS.filter(s => LIGHT_FIRST.has(s.name))) {
+    const line = commandLine(s);
+    const ok = /^node --test /.test(line) || line === 'node tools/gm-coach/build.mjs' || (/^npm run (\S+)$/.exec(line) && lightNpm.has(/^npm run (\S+)$/.exec(line)[1]));
+    assert.ok(ok, `${s.name} (${line}) is not a known light command: add it to HEAVY_STEPS or to this list`);
+  }
+});
+
+test('runLock over the default order: the hold starts after every light step', () => {
+  const steps = selectSteps(STEPS, parseArgs([])).steps;
+  const taken = [];
+  const lock = runLock(steps, label => (taken.push(label), { held: true, waitedMs: 0, beat() {}, release() {} }), 'g', {});
+  steps.forEach((s, i) => {
+    lock.before(i, s);
+    if (LIGHT_FIRST.has(s.name)) assert.equal(taken.length, 0, `${s.name} runs before the lock`);
+  });
+  assert.equal(taken.length, 1);
 });
 
 test('formatDuration', () => {
@@ -378,7 +433,9 @@ test('started through a junction, green still runs (exit code and output, not a 
     encoding: 'utf8',
   });
   assert.equal(r.status, 0, r.stderr);
-  assert.match(r.stdout, /^typecheck\n/);
+  const listed = r.stdout.trim().split('\n');
+  assert.ok(LIGHT_FIRST.has(listed[0]), 'the list starts with a light step (the real run order)');
+  assert.ok(listed.includes('typecheck'));
 });
 
 test('portableNode22Dir: on Windows under Node 24 the newest portable Node 22 comes first; elsewhere nothing changes', () => {
@@ -741,6 +798,7 @@ test('quickSteps: no step name takes the heavy lock', () => {
   );
   for (const s of all) {
     assert.ok(!HEAVY_STEPS.has(s.name), `${s.name} would take a heavy slot`);
+    assert.ok(!LIGHT_FIRST.has(s.name), `${s.name} would be reordered by lightFirst`);
     assert.doesNotThrow(() => commandLine(s));
   }
 });

@@ -965,6 +965,7 @@ export class QueryHandlers {
     isPublic: boolean;
     rollModifier: string;
     flavor: string;
+    dc?: number;
     advantage?: 'advantage' | 'disadvantage';
   }): Promise<unknown> {
     return this.withGmGate('Failed to request player rolls', async () => {

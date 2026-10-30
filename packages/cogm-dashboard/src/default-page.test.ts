@@ -192,6 +192,29 @@ describe('the page routes are rate limited', () => {
   }, 30_000);
 });
 
+describe('the asset files have their own rate limit bucket', () => {
+  it('still answers 200 for assets after the page limit is used up', async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'cogm-web-'));
+    writeFileSync(path.join(dir, 'index.html'), REACT_PAGE);
+    mkdirSync(path.join(dir, 'assets'));
+    writeFileSync(path.join(dir, 'assets', 'x-abc123.js'), 'export {}');
+    const app = await start(dir);
+    try {
+      const statuses: number[] = [];
+      for (let batch = 0; batch < 11; batch++) {
+        const answers = await Promise.all(Array.from({ length: 100 }, () => get(app.port, '/')));
+        statuses.push(...answers.map(answer => answer.status));
+      }
+      expect(statuses.filter(status => status === 429).length).toBeGreaterThan(0);
+      const asset = await get(app.port, '/next/assets/x-abc123.js');
+      expect(asset.status).toBe(200);
+    } finally {
+      await app.stop();
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }, 30_000);
+});
+
 describe('without a React build', () => {
   it('shows the old page at / instead of nothing', async () => {
     const app = await start(null);

@@ -1,8 +1,9 @@
 // The combat strip (D-092, I-070, I-095), ported from the old page: the turn order in the During
 // view's strip slot, one row per combatant in the bridge's order, with the Boss prompts switch and
-// reaction ticks, and (Combat buttons and GM Actions on) rows to pick and an action bar whose
-// Damage / Heal and Condition open the Tool runner on plan-actor-change for the picked names. It
-// never writes: the plan, confirm and undo flow is the Tool runner's. The rules are in
+// reaction ticks, and (Combat buttons and GM Actions on) rows to pick and an action bar. Condition
+// opens the Tool runner on plan-actor-change for the picked names (its plan, confirm and undo
+// flow). Damage / Heal opens the small form (DamageForm), which plans and applies in one click
+// with Undo; the roll row (StripRolls) asks players for checks and saves. The rules are in
 // lib/combat.ts; moments.css lays the strip out per During layout and fight.
 //
 // What is new: the reaction button is only on a living boss, the switch is there whenever Boss
@@ -52,6 +53,9 @@ import { Panel, Pill } from '../ui';
 
 // The picker is a lazy chunk (bundle budget): it loads when no fight runs and GM Actions is on.
 const StartCombat = lazy(() => import('./StartCombat').then(m => ({ default: m.StartCombat })));
+// So are the Damage / Heal form and the roll row (first-load budget).
+const DamageForm = lazy(() => import('./DamageForm').then(m => ({ default: m.DamageForm })));
+const StripRolls = lazy(() => import('./StripRolls').then(m => ({ default: m.StripRolls })));
 // So is the initiative ribbon: it loads when a fight with somebody in it runs.
 const InitiativeRibbon = lazy(() =>
   import('./InitiativeRibbon').then(m => ({ default: m.InitiativeRibbon }))
@@ -365,6 +369,7 @@ export function CombatStrip({
   const [bossFlag, setBossFlag] = useState(readBossFlag);
   const [reactions, setReactions] = useState<Reactions>(NO_REACTIONS);
   const [picked, setPicked] = useState<ReadonlySet<string>>(new Set());
+  const [damageOpen, setDamageOpen] = useState(false);
 
   const showSample = sample && real === null;
   const combat = showSample ? SAMPLE_COMBAT : real;
@@ -381,6 +386,13 @@ export function CombatStrip({
   const kept = pruneSelection(picked, combat, selectable);
   if (kept !== picked) setPicked(kept);
 
+  // The Damage / Heal form closes with the pick it was opened for.
+  const showDamage = damageOpen && kept.size > 0 && selectable;
+  // Clear, an emptied pick or GM Actions going off close it for good: it must not reopen with the
+  // next pick.
+  if (damageOpen && !showDamage) setDamageOpen(false);
+  const pickedRows = (combat?.combatants ?? []).filter(c => kept.has(c.id));
+  const partyRows = (combat?.combatants ?? []).filter(c => c.isPC && !c.defeated);
   const used = combat ? reactionsFor(reactions, combat.round) : NO_REACTIONS.used;
   const prompts = bossPrompts(combat);
   const toggleShown = showBossToggle(bossFlag, combat);
@@ -464,13 +476,36 @@ export function CombatStrip({
                 stale={stale}
                 onAct={action => {
                   const targets = selectedTargets(combat, kept);
-                  if (targets.length > 0) onOpenTool(planRequest(action, targets));
+                  if (targets.length === 0) return;
+                  if (action === 'damage') setDamageOpen(true);
+                  else onOpenTool(planRequest(action, targets));
                 }}
                 onClear={() => setPicked(new Set())}
                 onEnd={() => onOpenTool(endCombatRequest())}
               />
             )}
           </div>
+          {showDamage && (
+            <Suspense fallback={null}>
+              <DamageForm
+                targets={selectedTargets(combat, kept)}
+                names={pickedRows.map(c => c.name)}
+                stale={stale}
+                onClose={() => {
+                  setDamageOpen(false);
+                  // The form's own button unmounts with it: put focus back on the one that opened it.
+                  requestAnimationFrame(() =>
+                    document.querySelector<HTMLElement>('[data-sel="damage"]')?.focus()
+                  );
+                }}
+              />
+            </Suspense>
+          )}
+          {combat !== null && !showSample && settings?.gmActionsEnabled === true && (
+            <Suspense fallback={null}>
+              <StripRolls party={partyRows} picked={pickedRows.filter(c => c.isPC)} stale={stale} />
+            </Suspense>
+          )}
         </>
       }
       bodyId="combat-body"

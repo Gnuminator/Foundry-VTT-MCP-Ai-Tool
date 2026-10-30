@@ -5,10 +5,13 @@ description: The world setup before players make their characters at session 0 (
 
 # Prepare session 0
 
-At session 0 each player makes a level-1 character in Foundry from home, with the builder
+At session 0 each player makes a level-3 character in Foundry from home, with the builder
 **Actor Studio** (the player side is in [Make your character](../player/make-a-character.md)).
-Out of the box players can't do that: they may not create characters, and Actor Studio reads the
-older free rules instead of the 2024 Player's Handbook. This page sets both up, once, a week or so
+The builder always makes a level-1 character, so the players build it and then level it up twice,
+and they pick their subclass at the second level-up.
+Out of the box players can't do that: they may not create characters, Actor Studio reads the
+older free rules instead of the 2024 Player's Handbook, and the **Level Up** button does not show
+until a character has the experience points for it. This page sets all three up, once, a week or so
 before session 0. It takes about 30 minutes.
 
 **On our server part of it is done already.** The admin's setup script sets three things for characters:
@@ -91,8 +94,16 @@ Settings tab, **Game Settings**, the category **[Aardvark Games] Actor Studio (A
    spell browser, which lists every edition whatever you ticked. The player guide tells players to
    pick the "PHB 2024" copy.
 
+5. **Configure progression**, under **Leveling Options**: tick **Enable Level Up** and **Milestone
+   Levelling**. **Without Milestone Levelling a player sees no gold Level Up button on their
+   sheet until the character has 300 XP (for level 2) and then 900 XP (for level 3).** With it on,
+   the button is always there and players can level up without any XP, which is what we want at
+   session 0. (The alternative is to give each character 900 XP yourself.) After session 0 you can
+   untick it if you would rather hand out levels by XP.
+
 After setting it all, a quick sign that the packs are right: the species list shows only the 2024
-species, and a Cleric gets a **Spells** tab. Step 5 is the full test.
+species, a Cleric gets a **Spells** tab, and a new character's sheet has a **Level Up** button.
+Step 5 is the full test.
 
 Leave usage tracking off: our copy of Actor Studio has it off for everyone.
 
@@ -136,7 +147,7 @@ expectations](prep-and-expectations.md#a-session-0-agenda-you-can-change).
 
 - Post the link to [Make your character](../player/make-a-character.md) in Discord, plus your
   answers: which ability score method, which options are allowed, anything about the campaign.
-- Players build at the same time; it takes them about 45 minutes. Stay in voice for questions.
+- Players build at the same time; it takes them about an hour, the level-ups included. Stay in voice for questions.
 - When a player says they are done, open their sheet and go through the checklist in step 10 with
   them. The most common miss: a choice skipped with **Next** (a missing skill or spell). Fix it by
   hand, or delete the character and let them redo it.

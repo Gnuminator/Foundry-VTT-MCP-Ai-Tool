@@ -155,8 +155,9 @@ days before it). While weekly usage is on or above pace, write
 hook's low mode); delete it (or rename it `.off`) once usage is under pace. Check at each planner
 start and lane start.
 Also read the report's `Advisor calls (main sessions)` line (the `advisor-calls` number in the
-note): lanes should make two a PR (lane skill, Work); near zero two weeks running means the rule is
-not followed.
+note) and the per-PR figure printed next to it: lanes make one a PR (the user, 2026-10-29; lane
+skill, Work). Well under one a PR two weeks running means the rule is not followed (a lane's
+`- progress:` line should say `advisor: 1`); well over means lanes call it more than asked.
 **Weekly check note (the board's Week page):** at each weekly check run `npm run usage:week --
 --write-vault` (add `--days 7`; the window ends today, so run it on the Saturday after the 07:00
 reset) and commit and push vault `Dev/Foundry AI Tool/Weekly check.md`. It adds one `## <first day>`

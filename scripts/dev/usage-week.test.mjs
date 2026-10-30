@@ -682,6 +682,23 @@ test('advisor calls: main-session tool_use items by their own id, once, inside t
     assert.equal(report.advisorCalls, 3);
     assert.match(formatReport(report), /Advisor calls \(main sessions\): 3/);
     assert.match(sectionFor(report), /- advisor-calls: 3/);
+    // without the merged-PR lookup there is no per-PR figure
+    assert.equal(report.advisorPerPr, null);
+    assert.doesNotMatch(formatReport(report), /per merged PR/);
+    assert.doesNotMatch(sectionFor(report), /advisor-per-pr/);
+    // with it: 3 calls over 2 merged PRs, next to the calls line and in --json
+    const prs = [
+      { number: 1, mergedAt: at(9, 15).toISOString() },
+      { number: 2, mergedAt: at(9, 16).toISOString() },
+    ];
+    const withPrs = await buildReport({ root: projects, now: NOW, days: 7, prs });
+    assert.equal(withPrs.advisorPerPr, 1.5);
+    assert.match(
+      formatReport(withPrs),
+      /Advisor calls \(main sessions\): 3 \(1\.5 per merged PR, target 1\)/
+    );
+    assert.match(sectionFor(withPrs), /- advisor-per-pr: 1\.5/);
+    assert.equal(JSON.parse(JSON.stringify(withPrs)).advisorPerPr, 1.5);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

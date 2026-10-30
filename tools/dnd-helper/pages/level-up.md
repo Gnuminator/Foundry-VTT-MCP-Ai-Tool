@@ -29,9 +29,14 @@ subclass, spells, choices), and you have no tool that runs it.
    and Constitution modifier; the average is the safe default.
 6. **Spells:** for a caster, say how many are known or prepared at the new level (from the class
    table), which spell levels they can now take, and which of their current spells they may swap.
-7. Tell them where to click: open the character sheet, use the level-up control on it, answer each
-   advancement step, and pick everything a step asks before clicking Next (a skipped choice is
-   silently lost).
+7. Tell them where to click: open the character sheet, use the gold **Level Up** button on it
+   (shown only when the GM switched on Milestone Levelling or the sheet has the XP), click the **+**
+   at the end of the class row, **Add Character Level**, tick **Take Average** (Next waits for it),
+   answer each advancement step, and pick everything a step asks before clicking Next (a skipped
+   choice is silently lost). **Level 3 (subclass):** pick it in **Choose Subclass** first, and click
+   **Complete** in the second window that lists the subclass's features, or the subclass is not
+   added. A caster's level-up does not ask which spells they learn: tell them to add those on the
+   Spells tab.
 8. When they say it is done, run `references/sheet-check.md` against the new level: level and class
    levels, hit points up by the expected amount, the new features present, any open advancement
    (a choice that was skipped), spells within limits.

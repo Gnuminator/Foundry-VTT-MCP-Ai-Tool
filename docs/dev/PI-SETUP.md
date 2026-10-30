@@ -1309,7 +1309,7 @@ drive manager allows it only on Raspberry Pis and some Odroids), and flashing a 
 Pi's SPI flash has caused boot problems for others, so the move is done by hand. The card keeps
 `/boot` (u-boot reads `/boot/dietpiEnv.txt` from it) and its old system stays untouched on it.
 
-**How it is set up now**
+### How it is set up now
 
 - `/` is the SSD's one ext4 partition (label `nvme-root`). `/boot/dietpiEnv.txt` on the card says
   `rootdev=UUID=<SSD partition>`; the old file is kept as `/boot/dietpiEnv.txt.card`.
@@ -1357,7 +1357,7 @@ flashed card (Part A; never reflash the original, it holds the frozen fallback s
 mount the SSD, put that card's UUID into the SSD's `/etc/fstab` (the `/mnt/card` line), and set
 `rootdev` on that card to the SSD's UUID.
 
-**Which part was lost**
+### Which part was lost
 
 - **Card lost, SSD fine:** no snapshot restore. Boot a freshly flashed card (Part A), then as above:
   mount the SSD, the new card's UUID into its fstab, `rootdev` on the new card to the SSD's UUID. The

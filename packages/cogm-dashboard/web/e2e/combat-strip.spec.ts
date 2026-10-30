@@ -641,7 +641,7 @@ test.describe('picking combatants', () => {
     await expect(bar.locator('.ca-hint')).toHaveText(
       'Click combatants to deal damage or set a condition on them.'
     );
-    await expect(bar.locator('.ca-btn')).toHaveText(['End combat']);
+    await expect(bar.locator('.ca-btn')).toHaveText(['Use Foundry targets', 'End combat']);
     await expect(row(page, 'Ogre Brute')).toHaveClass(/selectable/);
     await expect(row(page, 'Ogre Brute')).toHaveAttribute(
       'data-track',
@@ -658,6 +658,7 @@ test.describe('picking combatants', () => {
       'Damage / Heal',
       'Condition',
       'Clear',
+      'Use Foundry targets',
       'End combat',
     ]);
     await expect(bar.locator('[data-sel="clear"]')).toHaveText('Clear');

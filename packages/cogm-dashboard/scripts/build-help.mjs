@@ -9,7 +9,8 @@
  * (`data-help`), a link to any other repo file opens on GitHub in a new tab, web links open in a
  * new tab. A link to a guide page that does not exist, or to a missing anchor in one, fails the
  * build (links to the rest of the repo are checked by `npm run docs:links`). Images are left out
- * (their alt text stays).
+ * (their alt text stays). A `:::note`, `:::tip` or `:::caution` block (closed by `:::`) becomes a
+ * callout box.
  *
  * `--soft` (the dev script behind `npm run dev:cogm`): any problem is only a warning and the exit
  * code is 0, so the dashboard still starts; its help panel then says the help is not built.
@@ -97,6 +98,22 @@ function render(page, body) {
   const seen = new Map();
   const marked = new Marked({ gfm: true });
   marked.use({
+    extensions: [
+      {
+        // `:::note`, `:::tip` or `:::caution` ... `:::`, the syntax the wiki renders too.
+        name: 'callout',
+        level: 'block',
+        start: src => src.match(/^:::(?:note|tip|caution)[ \t]*$/m)?.index,
+        tokenizer(src) {
+          const m = /^:::(note|tip|caution)[ \t]*\r?\n([\s\S]*?)\r?\n:::[ \t]*(?:\r?\n|$)/.exec(src);
+          if (!m) return undefined;
+          return { type: 'callout', raw: m[0], kind: m[1], tokens: this.lexer.blockTokens(m[2], []) };
+        },
+        renderer(token) {
+          return `<aside class="callout callout-${token.kind}">${this.parser.parse(token.tokens)}</aside>\n`;
+        },
+      },
+    ],
     renderer: {
       heading({ tokens, depth, text }) {
         const base = slugify(text);

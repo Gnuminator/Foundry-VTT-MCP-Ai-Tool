@@ -134,7 +134,9 @@ export function rewriteLinks(text, repoPath, images) {
     .split('\n')
     .map(line => {
       if (inCode(line)) return line;
-      return line.replace(/(!?)\]\(([^)\s]+)((?:\s+"[^"]*")?)\)/g, (match, bang, target, title) => {
+      return line.replace(/(!?)\]\(([^)\s]+)((?:\s+"[^"]*")?)\)/g, (match, bang, target, title, offset) => {
+        // A link shown inside an inline code span is an example, not a link.
+        if (line.slice(0, offset).split('`').length % 2 === 0) return match;
         if (
           /^[a-z][a-z0-9+.-]*:/i.test(target) ||
           target.startsWith('#') ||
@@ -231,8 +233,14 @@ export function toSite(text, stagedPath) {
             : `<video src="${url}" controls muted loop playsinline preload="metadata" aria-label="${escapeAttr(label)}"></video>`;
         }
       );
+      // A time in a heading's last parentheses, "(15 minutes)", becomes a chip; the heading text
+      // stays as it is, so slugs and anchors do not move.
+      const chipped = withClips.replace(
+        /^(#{2,6} .*?)\s*(\((?:about )?\d+(?:-\d+)? (?:minutes?|hours?)(?: before)?\))\s*$/,
+        '$1 <span class="chip">$2</span>'
+      );
       // A link's text can wrap onto the line before, so only the `](target)` part is matched.
-      return withClips.replace(/\]\(([^)\s]+)((?:\s+"[^"]*")?)\)/g, (m, target, title) => {
+      return chipped.replace(/\]\(([^)\s]+)((?:\s+"[^"]*")?)\)/g, (m, target, title) => {
         const url = siteUrl(target);
         return url === null ? m : `](${url}${title})`;
       });

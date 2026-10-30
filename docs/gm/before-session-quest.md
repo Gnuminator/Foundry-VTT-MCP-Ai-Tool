@@ -31,6 +31,8 @@ You need the game's address and the dashboard's address from the tool admin.
 
 - [ ] Click **✈ Pre-flight**. Fix everything marked ✗ and look at each **!**.
 - [ ] In the Pre-flight panel, click **Turn on for tonight**.
+- [ ] Check the [GM windows](gm-windows.md) are on: **Settings** tab, **Game Settings**, category
+      **Foundry AI Tool**, **AI Tool: GM windows** ticked.
 
 **You are done when** the chips under the button show the switches as on.
 

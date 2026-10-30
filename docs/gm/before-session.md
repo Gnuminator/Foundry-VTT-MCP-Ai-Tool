@@ -27,8 +27,8 @@ four stages with times.
 ## Run the pre-flight check
 
 - [ ] In the dashboard header, click **✈ Pre-flight** (in the Before view the panel is
-      already on the page). Fix everything marked ✗ and look at each **!**. The rest of this page
-      is also in the Pre-flight panel's "Check by hand" list.
+      already on the page). Fix everything marked ✗ and look at each **!**. Most of the rest of
+      this page is also in the Pre-flight panel's "Check by hand" list (not the GM windows check).
 
 ## Turn on what tonight needs
 
@@ -40,7 +40,7 @@ four stages with times.
 
 - [ ] Check the [GM windows](gm-windows.md) are on: in Foundry, open the **Settings** tab, **Game
       Settings**, category **Foundry AI Tool**, and tick **AI Tool: GM windows** if it is not
-      ticked. The Combat, Party, Session, Scene and Loot buttons then show in the AI Tool group
+      ticked, then **Save Changes**. The Combat, Party, Session, Scene and Loot buttons then show in the AI Tool group
       of the scene controls. A world that was saved earlier may have it off.
 
 - [ ] Once, before session 1 (only with the module Dice So Nice): pick the table's dice, **AI

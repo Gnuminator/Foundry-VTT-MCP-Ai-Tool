@@ -21,21 +21,19 @@ stage 4 is the tool. About an hour in all.
 ## Stage 1 of 4: The screen (15 minutes)
 
 - [ ] Open Foundry, launch the test world and join as the **Game Master**.
-- [ ] Read "Introduction to the UI" in Foundry's
-      [Tutorial: Gamemaster Part One](https://foundryvtt.com/article/tutorial/).
-- [ ] Find the **sidebar** on the right, the **scene controls** on the left, the **scenes bar** at
-      the top and the **map** in the middle.
-- [ ] Open the [Glossary of Terms](https://foundryvtt.com/article/glossary/) in a second tab and
-      leave it there.
+- [ ] Read [A tour of the Foundry screen](../foundry/screen-tour.md).
+- [ ] Find the **sidebar** on the right, the **scene controls** on the left, the **scene
+      navigation** at the top and the **map** in the middle.
+- [ ] Open the [Foundry glossary](../foundry/glossary.md) in a second tab and leave it there.
 - [ ] Read [Getting started](getting-started.md) (ours).
 
 **You are done when** you can point at each of the four parts of the screen without looking.
 
 ## Stage 2 of 4: People and worlds (10 minutes)
 
-- [ ] Read [Users and Permissions](https://foundryvtt.com/article/users/) and find the four roles:
+- [ ] Read [Users and permissions](../foundry/users-and-permissions.md) and find the four roles:
       Player, Trusted, Assistant and Game Master. Your players are Players, you are the Game Master.
-- [ ] Read [Game Worlds](https://foundryvtt.com/article/game-worlds/): what launching a world
+- [ ] Read [Worlds and joining](../foundry/worlds-and-joining.md): what launching a world
       does, what the join page is and what **Return to Setup** does.
 
 **You are done when** you can say in one sentence what a Player may not do that you may.
@@ -44,17 +42,16 @@ stage 4 is the tool. About an hour in all.
 
 Try each one in the test world as you read it.
 
-- [ ] [Scenes](https://foundryvtt.com/article/scenes/): make a scene, then view it, then activate
-      it. Notice that activating is what the players see.
-- [ ] [Actors](https://foundryvtt.com/article/actors/): open a character sheet and a monster sheet.
-- [ ] [Tokens](https://foundryvtt.com/article/tokens/): drag an actor onto the map.
-- [ ] [Journal Entries](https://foundryvtt.com/article/journal/): make a page and look at how you
-      would show it to the players.
-- [ ] [Chat Messages](https://foundryvtt.com/article/chat/) and
-      [Basic Dice](https://foundryvtt.com/article/dice/): roll a die in the chat, then a private
-      GM roll.
-- [ ] [Combat Encounters](https://foundryvtt.com/article/combat/): put two tokens in a fight, roll
-      initiative and press through a few turns.
+- [ ] [Scenes](../foundry/scenes.md): make a scene, then view it, then activate it. Notice that
+      activating is what the players see.
+- [ ] [Actors](../foundry/actors.md): open a character sheet and a monster sheet.
+- [ ] [Tokens](../foundry/tokens.md): drag an actor onto the map.
+- [ ] [Journal entries](../foundry/journals.md): make a page and look at how you would show it to
+      the players.
+- [ ] [Chat and dice](../foundry/chat-and-dice.md): roll a die in the chat, then a private GM
+      roll.
+- [ ] [Combat](../foundry/combat.md): put two tokens in a fight, roll initiative and press
+      through a few turns.
 
 **You are done when** you have started and ended a fight in the test world.
 

@@ -70,8 +70,8 @@ Not covered elsewhere in this skill — full detail here.
 
 - **Scene Navigation** (`<nav id="scene-navigation">`, `#ui-left-column-2`, immediately to the
   right of the control-icon column — **not** centered across the top of the screen in v14)
-  lists scene "tabs". Always shown: the scene you are viewing, the active scene, and any scene a
-  user is viewing. The other scenes with **Navigation** enabled and visible ownership (sorted
+  lists scene "tabs". Always shown: the scene you are viewing, the active scene, and any other
+  navigation-enabled scene a user is viewing. The other scenes with **Navigation** enabled and visible ownership (sorted
   by `navOrder`) stay hidden until you click the expand arrow. Clicking a tab views that scene for you
   (does not change what others see). GM and player. Reversible (click another tab).
   Automation: each tab is `li.scene[data-scene-id]` with `data-action="viewScene"`, tooltip =

@@ -8,7 +8,12 @@
     { "id": "3ds-atlas", "role": "library", "verdict": "keep" },
     { "id": "automated-conditions-5e", "verdict": "keep" },
     { "id": "dae", "verdict": "optional" },
-    { "id": "NotYourTurn", "verdict": "keep" },
+    {
+      "id": "NotYourTurn",
+      "verdict": "keep",
+      "worldSettings": { "BlockPlayer": 3, "BlockTrusted": 3, "BlockAssistant": 1, "BlockGM": 1 },
+      "note": "Danni 2026-10-30: block out-of-turn moves completely. Drop-down values: 0 Off, 1 Warning Only, 2 Dialog Box, 3 Autoblock. GM and Assistant stay 1 so AI token moves are never blocked."
+    },
     { "id": "autoanimations", "verdict": "optional" },
     { "id": "calendaria", "verdict": "keep" },
     { "id": "combat-tracker-dock", "verdict": "keep" },

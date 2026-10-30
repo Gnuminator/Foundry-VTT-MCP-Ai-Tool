@@ -85,7 +85,13 @@ describe('the trial steps', () => {
 
 describe('what the During screen shows', () => {
   it('uses the saved layout, calm, outside the trial', () => {
-    expect(duringScreen({ prefs: prefs(), trial: null, combatActive: false })).toEqual({
+    expect(
+      duringScreen({
+        prefs: prefs({ duringLayout: 'layered' }),
+        trial: null,
+        combatActive: false,
+      })
+    ).toEqual({
       layout: 'layered',
       context: 'calm',
       view: undefined,
@@ -158,7 +164,7 @@ describe('the layout hint', () => {
     duringOnScreen: true,
     trialRunning: false,
     sessionKey: '2026-10-10T18:00:00.000Z',
-    prefs: prefs(),
+    prefs: prefs({ layoutPicked: false }),
   };
 
   it('shows for an open session on During until a layout is kept', () => {
@@ -182,13 +188,22 @@ describe('the layout hint', () => {
 
   it('shows in the first three sessions only; the one on screen keeps showing', () => {
     const seen = ['a', 'b', 'c'].slice(0, LAYOUT_HINT_SESSIONS);
-    expect(showLayoutHint({ ...base, prefs: prefs({ hintSessions: seen.slice(0, 2) }) })).toBe(
-      true
-    );
-    expect(showLayoutHint({ ...base, prefs: prefs({ hintSessions: seen }) })).toBe(false);
-    expect(showLayoutHint({ ...base, sessionKey: 'b', prefs: prefs({ hintSessions: seen }) })).toBe(
-      true
-    );
+    expect(
+      showLayoutHint({
+        ...base,
+        prefs: prefs({ layoutPicked: false, hintSessions: seen.slice(0, 2) }),
+      })
+    ).toBe(true);
+    expect(
+      showLayoutHint({ ...base, prefs: prefs({ layoutPicked: false, hintSessions: seen }) })
+    ).toBe(false);
+    expect(
+      showLayoutHint({
+        ...base,
+        sessionKey: 'b',
+        prefs: prefs({ layoutPicked: false, hintSessions: seen }),
+      })
+    ).toBe(true);
   });
 
   it('keys a session by its start time, only while it is open', () => {
@@ -219,13 +234,15 @@ describe('the prefs', () => {
   });
 
   it('rolls back only the fields of a failed change that still show it', () => {
-    const before = prefs();
+    const before = prefs({ duringLayout: 'layered', layoutPicked: false });
     const change = { duringLayout: 'auto', layoutPicked: true } as const;
     // Nothing newer: both fields go back.
     expect(rollBackChange(applyPrefsChange(before, change), before, change)).toEqual(before);
     // A newer change to another field survives.
     const newer = applyPrefsChange(applyPrefsChange(before, change), { duringFull: true });
-    expect(rollBackChange(newer, before, change)).toEqual(prefs({ duringFull: true }));
+    expect(rollBackChange(newer, before, change)).toEqual(
+      prefs({ duringLayout: 'layered', layoutPicked: false, duringFull: true })
+    );
     // A field that something newer changed is left alone.
     const toggled = applyPrefsChange(applyPrefsChange(before, change), { duringLayout: 'toggle' });
     expect(rollBackChange(toggled, before, change)).toEqual(

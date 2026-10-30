@@ -26,8 +26,9 @@
  * stay with the AI change, and the undo planner puts them back with it (`aiFollowUps`). A GM's
  * own click on the tracker within the action gap of such an AI write (the guarded gap, 3 s,
  * counted from the write), in the bridge's browser, is the one case this cannot tell apart (it is then hidden under the AI change). When the
- * active GM is another browser, its dependent deletes have an `actionId` of their own and are
- * tied to the AI change by their data alone (`fileForeignDependents`).
+ * active GM is another browser logged in as the same user, its dependent deletes have an
+ * `actionId` of their own and are tied to the AI change by their data alone
+ * (`fileForeignDependents`); in the browser of another user they show as that person's action.
  *
  * `historyStart()` says from when the history is complete: the pump's retention can remove
  * files inside the span when they exceed the byte cap, the module's buffer can wrap before the
@@ -409,7 +410,8 @@ function dependentsLink(
   sources: ChangeRecord[],
   others: ChangeRecord[],
   aiRoots: ReadonlySet<string>,
-  burstItems: BurstItems
+  burstItems: BurstItems,
+  foreign: ReadonlySet<ChangeRecord> = new Set()
 ): DependentsLink {
   const linked = new Set<string>();
   const roots = sources.filter(
@@ -428,7 +430,10 @@ function dependentsLink(
     const items = new Set(own.map(r => r.uuid));
     const ownKeys = new Set(own.flatMap(r => itemKey(r.rootUuid, r.uuid) ?? []));
     for (const r of others) {
+      // The actor rule is a guess for one browser's burst: a record of another browser (`foreign`)
+      // is only ever tied by the uuids the data names.
       if (
+        !foreign.has(r) &&
         r.op === 'delete' &&
         aiRoots.has(r.rootUuid) &&
         r.documentName === 'ActiveEffect' &&
@@ -594,35 +599,62 @@ const FOREIGN_DEPENDENT_WINDOW_MS = 30_000;
 function fileForeignDependents(groups: Map<string, ChangeRecord[]>): void {
   const foreign = [...groups.entries()].filter(([, g]) => !g.some(r => r.changeId));
   if (foreign.length === 0) return;
+  const foreignRecords = foreign.flatMap(([, g]) => g);
+  const owners: Array<{
+    group: ChangeRecord[];
+    from: number;
+    candidates: ChangeRecord[];
+    linked: ReadonlySet<string>;
+  }> = [];
   for (const [, group] of groups) {
     const ai = group.filter(r => r.changeId);
     const sources = ai.filter(r => r.op === 'delete' && DEPENDENT_SOURCE_KINDS.has(r.documentName));
     if (sources.length === 0) continue;
     const from = Math.min(...sources.map(r => r.t));
-    const candidates = foreign
-      .flatMap(([, g]) => g)
-      .filter(
-        r =>
-          r.op === 'delete' &&
-          DEPENDENT_DELETE_KINDS.has(r.documentName) &&
-          ai.some(a => a.userId === r.userId) &&
-          r.t >= from &&
-          r.t <= from + FOREIGN_DEPENDENT_WINDOW_MS
-      );
+    const candidates = foreignRecords.filter(
+      r =>
+        r.op === 'delete' &&
+        DEPENDENT_DELETE_KINDS.has(r.documentName) &&
+        ai.some(a => a.userId === r.userId) &&
+        r.t >= from &&
+        r.t <= from + FOREIGN_DEPENDENT_WINDOW_MS
+    );
     if (candidates.length === 0) continue;
     const aiRoots: ReadonlySet<string> = new Set(ai.map(r => r.rootUuid));
-    const link = dependentsLink(ai, candidates, aiRoots, burstItemsOf(ai, [...ai, ...candidates]));
-    const moved = candidates.filter(r => link.linked.has(r.uuid));
-    if (moved.length === 0) continue;
-    const gone = new Set(moved);
-    for (const entry of foreign) {
-      const rest = entry[1].filter(r => !gone.has(r));
-      if (rest.length === entry[1].length) continue;
-      entry[1] = rest;
-      if (rest.length > 0) groups.set(entry[0], rest);
-      else groups.delete(entry[0]);
+    // The group's own unmarked records (a concentration effect dnd5e ended in the bridge's
+    // browser) may be the link between an item and the foreign dependents.
+    const own = group.filter(r => !r.changeId);
+    const link = dependentsLink(
+      ai,
+      [...own, ...candidates],
+      aiRoots,
+      burstItemsOf(ai, [...ai, ...own, ...candidates]),
+      new Set(candidates)
+    );
+    owners.push({ group, from, candidates, linked: link.linked });
+  }
+  // A dependent goes to the latest AI change that started before it and names it (undo brings a
+  // deleted document back with its id, so the same one can be deleted again by a later change).
+  const moves = new Map<ChangeRecord[], ChangeRecord[]>();
+  for (const r of foreignRecords) {
+    const named = owners.filter(o => o.candidates.includes(r) && o.linked.has(r.uuid));
+    if (named.length === 0) continue;
+    const latest = named.reduce((a, b) => (b.from > a.from ? b : a));
+    moves.set(latest.group, [...(moves.get(latest.group) ?? []), r]);
+  }
+  const gone = new Set([...moves.values()].flat());
+  for (const entry of foreign) {
+    const rest = entry[1].filter(r => !gone.has(r));
+    if (rest.length === entry[1].length) continue;
+    if (rest.length > 0) groups.set(entry[0], rest);
+    else groups.delete(entry[0]);
+  }
+  // In by time, so the position rules below see when each one arrived.
+  for (const [group, moved] of moves) {
+    for (const r of moved) {
+      const at = group.findIndex(x => x.t > r.t);
+      group.splice(at < 0 ? group.length : at, 0, r);
     }
-    group.push(...moved);
   }
 }
 

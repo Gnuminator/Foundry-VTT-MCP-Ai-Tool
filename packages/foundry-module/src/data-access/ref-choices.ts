@@ -16,6 +16,7 @@
 import { statusEffectList } from '../systems/dnd5e/status-effects.js';
 import { isToolTemplateRegion, toolTemplateFlag } from '../systems/regions.js';
 import { supportsMeasuredTemplates } from '../systems/core.js';
+import { resolveCombat } from '../combat-resolve.js';
 import { viewedScene } from '../viewed-scene.js';
 
 /** Optional fields may be undefined here; JSON drops them on the wire. */
@@ -307,8 +308,7 @@ function listActorItems({ parent, filter }: ListRequest): Listed {
 }
 
 function listCombatants(): Listed {
-  // The fight the combat strip shows: the live one, else the latest encounter (another scene's).
-  const combat = game.combat ?? Array.from(game.combats ?? []).slice(-1)[0];
+  const combat = resolveCombat<NonNullable<typeof game.combat>>();
   if (!combat) return { choices: [], note: 'No active combat' };
   const choices = combat.combatants.contents.map(c => ({
     id: c.id,

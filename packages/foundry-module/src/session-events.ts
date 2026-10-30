@@ -135,7 +135,9 @@ const MAX_SESSION_BUFFER = 1000;
  */
 function appliedChangeId(options: unknown): string {
   const marker = rec(rec(options)?.[MODULE_ID]);
-  return marker?.changeMode === 'apply' && typeof marker.changeId === 'string'
+  return marker?.changeMode === 'apply' &&
+    marker.hpLine === true &&
+    typeof marker.changeId === 'string'
     ? marker.changeId
     : '';
 }

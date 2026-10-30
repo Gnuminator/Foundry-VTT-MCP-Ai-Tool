@@ -361,6 +361,7 @@ async function planHp(
       kind: 'update',
       uuid: actor.uuid,
       changes,
+      hpLine: true,
       ...(damageType ? { damageType } : {}),
     });
     previews.push({

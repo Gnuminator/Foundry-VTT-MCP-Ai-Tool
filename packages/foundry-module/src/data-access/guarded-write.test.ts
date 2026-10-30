@@ -811,6 +811,32 @@ describe('applyGuardedOps: rollback', () => {
     expect(tok.source.x).toBe(200);
   });
 
+  it('marks an HP plan op for the feed on the apply only, never on a rollback', async () => {
+    const a = addActor({ name: 'A' });
+    const b = addActor({ name: 'B' });
+    const seen: Array<Record<string, any>> = [];
+    const realUpdate = a.update.bind(a);
+    a.update = (changes: Record<string, unknown>, options?: unknown): Promise<FakeDoc> => {
+      seen.push({ changes, options });
+      return realUpdate(changes);
+    };
+    const req = await request([
+      { kind: 'update', uuid: a.uuid, changes: { name: 'A2' }, hpLine: true, damageType: 'fire' },
+      { kind: 'update', uuid: b.uuid, changes: { name: 'B2' } },
+    ]);
+    b.failUpdates = true;
+    await expect(applyGuardedOps(req)).rejects.toThrow(/database refused the update/);
+    expect(seen).toHaveLength(2);
+    expect(seen[0]?.options[MODULE_ID]).toMatchObject({
+      changeMode: 'apply',
+      hpLine: true,
+      damageType: 'fire',
+    });
+    expect(seen[1]?.options[MODULE_ID].changeMode).toBe('rollback');
+    expect(seen[1]?.options[MODULE_ID]).not.toHaveProperty('hpLine');
+    expect(seen[1]?.options[MODULE_ID]).not.toHaveProperty('damageType');
+  });
+
   it('lets a token position write cross walls, terrain and creatures, in the apply and in a rollback', async () => {
     // Foundry 14 stops an x/y update at the first wall unless the move says it may cross.
     const a = addActor({ name: 'A' });

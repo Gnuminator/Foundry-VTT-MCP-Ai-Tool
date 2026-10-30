@@ -989,7 +989,9 @@ describe('EventTracker temp HP in the session log', () => {
 
   it('a guarded damage apply names its type and HP, and carries the change id for the feed', () => {
     const t = tracker();
-    const options = { [MODULE_ID]: { changeId: 'c1', changeMode: 'apply', damageType: 'fire' } };
+    const options = {
+      [MODULE_ID]: { changeId: 'c1', changeMode: 'apply', hpLine: true, damageType: 'fire' },
+    };
     fire('updateActor', pc, hp(56, 17), options);
 
     const damage = t.getSessionLog({ eventType: 'damage' });
@@ -998,6 +1000,15 @@ describe('EventTracker temp HP in the session log', () => {
     expect(damage[0].details).toEqual(
       expect.objectContaining({ amount: 5, damageType: 'fire', changeId: 'c1' })
     );
+  });
+
+  it('a guarded apply that is more than an HP plan carries no change id, so its row stays', () => {
+    const t = tracker();
+    fire('updateActor', pc, hp(56, 17), { [MODULE_ID]: { changeId: 'c3', changeMode: 'apply' } });
+
+    const damage = t.getSessionLog({ eventType: 'damage' });
+    expect(damage).toHaveLength(1);
+    expect(damage[0].details).not.toHaveProperty('changeId');
   });
 
   it('an undo of a guarded change keeps no change id on its healing line', () => {

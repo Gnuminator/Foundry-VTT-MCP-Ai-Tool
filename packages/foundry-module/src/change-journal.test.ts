@@ -295,6 +295,28 @@ describe('pre-hooks: the stash', () => {
     expect(idOf(simulateUpdate(actor, { name: 'later' }))).not.toBe(write);
   });
 
+  it("does not chain a person's own edit into an AI group through the long gap", () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    const actor = makeActor();
+    const idOf = (o: ReturnType<typeof simulateUpdate>): string => o[MODULE_ID].journal.actionId;
+    vi.setSystemTime(9_000_000);
+    const write = idOf(
+      simulateUpdate(
+        actor,
+        { name: 'hp' },
+        { options: { [MODULE_ID]: { changeId: 'chg-own', changeMode: 'apply' } } }
+      )
+    );
+    vi.setSystemTime(9_000_000 + 1200);
+    expect(idOf(simulateUpdate(actor, { name: 'follow-up' }))).toBe(write);
+    // Danni's hand edit 2.4 s after the write, then another 2.4 s on: the second is past the long
+    // gap counted from the write, so it never rides on the first.
+    vi.setSystemTime(9_000_000 + 2400);
+    simulateUpdate(actor, { name: 'by hand' });
+    vi.setSystemTime(9_000_000 + 4800);
+    expect(idOf(simulateUpdate(actor, { name: 'by hand again' }))).not.toBe(write);
+  });
+
   it('keeps an actionId already in the stash and one before value per document id', () => {
     const one = makeActor('act1', 'One');
     const two = makeActor('act2', 'Two');

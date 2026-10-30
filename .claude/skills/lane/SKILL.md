@@ -161,7 +161,8 @@ item is marked done; the board ignores a line on an item with no claim.
 - **Hybrid review flow (D-127):**
   - **Rounds:** every PR gets one review round plus one delta check by the same reviewer (D-101).
     A third round needs the planner; do not start one yourself (the runner refuses it without
-    `--allow-round3`, which is the planner's flag). Batch your findings into one fix round.
+    `--allow-round3`, which is the planner's flag; the one exception is `--delta` for a small commit
+    after a Merge, see below). Batch your findings into one fix round.
   - **Instant review:** PRs on the critical path, PRs other work stacks on, and risky PRs (the
     gate's list) are reviewed now while you are alive, by the runner (or a subagent as above).
   - **Batched review:** low-risk PRs (build-ahead, board, lows, docs) do not wait for you: report
@@ -190,7 +191,17 @@ scripts/review-runner`. It picks Opus for a PR the gate calls risky and Sonnet o
   - findings as H1, M1, L1 with file:line and a fix.
 - Fix the findings, push, and give the same reviewer the new head for one delta round: rerun the
   runner on the new head (it counts the rounds itself), or SendMessage to the subagent that
-  reviewed. Lows may go to the Backlog instead.
+  reviewed. Lows may go to the Backlog instead. **Wait for CI green on the new head before asking
+  for that last round** (`gh pr checks`): a CI-only fix after a Merge is what forced a round 3
+  on #607, #610, #611 and #613.
+- **Small commit after a Merge (planner, 2026-10-30):** a docs-only, test-only or changelog-only
+  commit, or a merge of main that leaves the PR's own files alone, gets the runner's cheap delta
+  note instead of a round 3: `node scripts/review-runner/run.mjs <PR> --delta <sha the last Merge
+note reviewed>` (`--dry-run` first; no `--allow-round3`). It refuses, with the reason, when the
+  PR's own code changed or the change is large; that is a normal round, and a third one needs the
+  planner. On a risky PR the delta note is an Opus note (the gate wants an Opus Merge for the head),
+  still at a small budget. The runner also pins the head: it reviews the sha it read at the start and writes no
+  note when the head moved meanwhile, so push everything before you start it.
 - **Push:** `git push -u aitool claude/<topic>:claude/<topic>` (explicit refspec, never a bare
   push from a branch made off `aitool/main`).
 - **Ready to merge (the planner merges, 2026-10-16):** once every review for the head says Merge,

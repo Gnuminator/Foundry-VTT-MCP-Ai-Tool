@@ -6,7 +6,7 @@
 
 /** Where the switches are, in the words the GM sees in Foundry. */
 export const SWITCH_OFF_PATH =
-  'In Foundry, open Game Settings, Configure Settings, AI Tool and turn on';
+  'In Foundry, open the Settings tab, Game Settings, AI Tool and turn on';
 
 /** The refusal for "Allow Write Operations" being off. */
 export const WRITES_OFF_MESSAGE = `Write operations are disabled in the module settings. ${SWITCH_OFF_PATH} "Allow Write Operations".`;

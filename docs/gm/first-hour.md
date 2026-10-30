@@ -13,6 +13,11 @@ same pages.
 Foundry's pages don't say which Foundry version they describe, and some pictures there are older
 than Foundry 14. The buttons have the same names, but a few sit somewhere else now.
 
+:::tip
+**Do this as a quest.** Prefer a list to tick off? [Quest: your first hour](first-hour-quest.md)
+is this page as four stages with times.
+:::
+
 ## 1. The screen (15 minutes)
 
 1. [Tutorial: Gamemaster Part One](https://foundryvtt.com/article/tutorial/) (Foundry). Read

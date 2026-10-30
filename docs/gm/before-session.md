@@ -9,6 +9,11 @@ Do these in order, about 15 minutes before the players join. Each item is one ac
 dashboard runs on the table's home server (the Orange Pi), so there is nothing to start and no
 terminal to open. You need two addresses from the tool admin: the game's and the dashboard's.
 
+:::tip
+**Do this as a quest.** [Quest: before a session](before-session-quest.md) is this checklist as
+four stages with times.
+:::
+
 ## Start everything
 
 - [ ] Start **Claude Desktop**. It connects to the bridge on the Pi.

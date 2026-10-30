@@ -52,8 +52,8 @@ GM Actions. **End session** turns off again what it turned on. See
 
 - **What it does:** damage, healing, conditions and resources that **Claude** plans apply at once,
   without the confirm window. Each one still shows an Undo and is listed in Recent Changes. It
-  does not change the dashboard's own Damage / Heal and Condition buttons: they always show the
-  confirm window.
+  does not change the dashboard's own buttons: Condition always shows the confirm window, and
+  Damage / Heal applies at once from its small form, with Undo.
 - **Starts:** off. Setting "AI Tool: Live play, apply without confirming".
 - **Turn it on when:** you let Claude handle damage in long fights and confirming every hit gets
   tiring. Leave it off while you are still getting to know what Claude does.

@@ -386,9 +386,74 @@ export const DASHBOARD_CONTROLS = [
     name: 'dash.combat.selection-damage',
     how: 'open',
     reach: [MOMENT_DURING, 'dash.combat.select-combatant'],
-    expect: '#tool-detail',
+    expect: '[data-track="dash.damage.apply"]',
     optional: true,
-    why: 'needs a selected combatant (opens the tool form, runs nothing)',
+    why: 'needs a selected combatant (opens the Damage / Heal form, applies nothing until its button)',
+  },
+  {
+    name: 'dash.damage.mode-damage',
+    how: 'skip',
+    why: 'inside the Damage / Heal form: needs a fight and a picked combatant',
+  },
+  {
+    name: 'dash.damage.mode-heal',
+    how: 'skip',
+    why: 'inside the Damage / Heal form: needs a fight and a picked combatant',
+  },
+  {
+    name: 'dash.damage.amount',
+    how: 'skip',
+    why: 'inside the Damage / Heal form: needs a fight and a picked combatant',
+  },
+  {
+    name: 'dash.damage.type',
+    how: 'skip',
+    why: 'inside the Damage / Heal form: needs a fight and a picked combatant',
+  },
+  {
+    name: 'dash.damage.cancel',
+    how: 'skip',
+    why: 'inside the Damage / Heal form: needs a fight and a picked combatant',
+  },
+  {
+    name: 'dash.damage.apply',
+    how: 'write',
+    why: 'changes the HP of the picked tokens in Foundry (with Undo)',
+  },
+  {
+    name: 'dash.quickroll.what',
+    how: 'skip',
+    why: 'choice in the roll bar: the strip needs a fight, Party needs members',
+  },
+  {
+    name: 'dash.quickroll.dc',
+    how: 'skip',
+    why: 'field in the roll bar: the strip needs a fight, Party needs members',
+  },
+  {
+    name: 'dash.quickroll.visibility',
+    how: 'skip',
+    why: 'choice in the roll bar: the strip needs a fight, Party needs members',
+  },
+  {
+    name: 'dash.quickroll.advantage',
+    how: 'skip',
+    why: 'choice in the roll bar: the strip needs a fight, Party needs members',
+  },
+  {
+    name: 'dash.quickroll.picked',
+    how: 'write',
+    why: 'asks the picked players for a roll (shows on their screens)',
+  },
+  {
+    name: 'dash.quickroll.party',
+    how: 'write',
+    why: 'asks the whole party for a roll (shows on their screens)',
+  },
+  {
+    name: 'dash.quickroll.member',
+    how: 'write',
+    why: 'asks one player for a roll (shows on their screen)',
   },
   {
     name: 'dash.combat.start',

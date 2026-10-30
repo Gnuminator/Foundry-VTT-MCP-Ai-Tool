@@ -171,6 +171,45 @@ describe('DiceRollTools.handleRequestAbilityCheck', () => {
 // handleRequestAttackRoll
 // ---------------------------------------------------------------------------
 
+describe('DiceRollTools.handleRequestPlayerRolls', () => {
+  it('forwards dc and flavor to the bridge', async () => {
+    const { tools, query } = makeTools(() => ({ success: true, message: 'ok' }));
+    await tools.handleRequestPlayerRolls({
+      rollType: 'skill',
+      rollTarget: 'prc',
+      targetPlayer: 'Bob',
+      isPublic: true,
+      userConfirmedVisibility: true,
+      flavor: 'DC 14',
+      dc: 14,
+    });
+    expect(query).toHaveBeenCalledWith(
+      'foundry-mcp-bridge.request-player-rolls',
+      expect.objectContaining({ dc: 14, flavor: 'DC 14', targetPlayer: 'Bob' })
+    );
+  });
+
+  it('puts the DC on the card through the flavor when the caller sent none', async () => {
+    const { tools, query } = makeTools(() => ({ success: true, message: 'ok' }));
+    const base = {
+      rollType: 'save',
+      rollTarget: 'dex',
+      targetPlayer: 'Bob',
+      isPublic: true,
+      userConfirmedVisibility: true,
+      dc: 15,
+    };
+    await tools.handleRequestPlayerRolls(base);
+    await tools.handleRequestPlayerRolls({ ...base, flavor: 'Fireball' });
+    await tools.handleRequestPlayerRolls({ ...base, dc: 1, flavor: 'DC 15' });
+    expect(query.mock.calls.map(c => (c[1] as { flavor: string }).flavor)).toEqual([
+      'DC 15',
+      'Fireball, DC 15',
+      'DC 15, DC 1',
+    ]);
+  });
+});
+
 describe('DiceRollTools.handleRequestAttackRoll', () => {
   it('appends an unclear or problem rules check to the reply and stays silent when legal', async () => {
     const { query } = makeTools(() => ({ success: true, message: 'Posted.' }));

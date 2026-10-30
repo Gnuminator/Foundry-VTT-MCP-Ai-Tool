@@ -127,8 +127,9 @@ In a long fight the confirm step gets tiring. The setting **AI Tool: Live play, 
 confirming** (Game Settings, category **Foundry AI Tool**; off by default) skips it for damage,
 healing, conditions and resources that Claude plans. Each change still lands in Recent Changes with
 **Undo**. The dashboard's party and Tarokka buttons never need it: they apply at once with an
-**Undo** message. Its Damage / Heal and Condition buttons go through the tool runner and always show
-the confirm window (see [the dashboard guide](dashboard.md#the-confirm-window)).
+**Undo** message. Its Damage / Heal form applies at once the same way; its Condition button goes
+through the tool runner and always shows the confirm window (see
+[the dashboard guide](dashboard.md#the-confirm-window)).
 
 ### Feature switches
 

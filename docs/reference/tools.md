@@ -338,6 +338,7 @@ Parameters:
 - `userConfirmedVisibility` (boolean, required): REQUIRED: Must be set to true to confirm the roll visibility has been determined. This can happen in two ways: 1) User explicitly specified "public" or "private" in their original request (e.g., "public stealth check"), or 2) You asked the clarifying question and received their answer. Only set this to true when you are confident about the visibility preference, either from their original request or from a direct answer to your question. Always `true`.
 - `rollModifier` (string): Optional modifier to add to the roll (e.g., "+2", "-1", "+1d4"). Default: `""`.
 - `flavor` (string): Optional flavor text to describe the roll context. Default: `""`.
+- `dc` (integer)
 - `advantage` (string): One of: `advantage`, `disadvantage`.
 
 ### request-ability-check

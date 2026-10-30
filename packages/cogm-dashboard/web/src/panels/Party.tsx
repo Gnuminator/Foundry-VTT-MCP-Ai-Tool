@@ -6,6 +6,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useEffect, useRef, useState, type JSX } from 'react';
 
 import { Drawer, DrawerClose } from '../components/Drawer';
+import { QuickRollBar, askLabel, useQuickRoll } from '../components/QuickRoll';
 import { useToast } from '../components/Toasts';
 import { callTool, errorText } from '../lib/api';
 import { GAME_STATE_KEY, useGuardedChange } from '../lib/guarded';
@@ -76,10 +77,16 @@ function MemberRow({
   m,
   sceneName,
   onOpen,
+  onAsk,
+  askLabel: askText,
+  askBusy,
 }: {
   m: PartyMember;
   sceneName: string;
   onOpen: (uuid: string) => void;
+  onAsk: () => void;
+  askLabel: string;
+  askBusy: boolean;
 }): JSX.Element {
   const facts: string[] = [];
   if (m.level != null) facts.push(`Level ${m.level}`);
@@ -139,6 +146,17 @@ function MemberRow({
           </div>
         </div>
       )}
+      <Button
+        type="button"
+        size="sm"
+        data-track="dash.quickroll.member"
+        aria-label={askText}
+        title={askText}
+        disabled={askBusy}
+        onClick={onAsk}
+      >
+        Ask roll
+      </Button>
       <Button
         type="button"
         size="sm"
@@ -339,6 +357,7 @@ export function PartyDrawer({
 }): JSX.Element {
   const toast = useToast();
   const runChange = useGuardedChange();
+  const roll = useQuickRoll();
   // Loads on every opening (stale at once) and after a change or undo while open; nothing in
   // the stream says the party moved, so a change made in Foundry shows on Refresh.
   const party = useQuery({
@@ -411,7 +430,15 @@ export function PartyDrawer({
       {() => (
         <ul className="preflight-list" aria-label="Members">
           {members.map(m => (
-            <MemberRow key={m.actorId || m.uuid} m={m} sceneName={sceneName} onOpen={openActor} />
+            <MemberRow
+              key={m.actorId || m.uuid}
+              m={m}
+              sceneName={sceneName}
+              onOpen={openActor}
+              onAsk={() => void roll.ask([m.name])}
+              askLabel={askLabel(roll, m.name)}
+              askBusy={roll.busy}
+            />
           ))}
         </ul>
       )}
@@ -466,6 +493,28 @@ export function PartyDrawer({
           </div>
         ))}
       </div>
+      {g && members.length > 0 && (
+        <div id="party-roll">
+          <h3 className="preflight-h">Ask for a roll</h3>
+          <QuickRollBar roll={roll} idPrefix="party-roll">
+            <Button
+              type="button"
+              variant="primary"
+              size="sm"
+              id="party-roll-all"
+              data-track="dash.quickroll.party"
+              disabled={roll.busy}
+              onClick={() => void roll.ask(members.map(m => m.name))}
+            >
+              Ask the whole party
+            </Button>
+          </QuickRollBar>
+          <p className="pf-detail">
+            Sends the request to each player&apos;s chat and player page. The result lands in the
+            play log. Ask one character with the button on its row.
+          </p>
+        </div>
+      )}
       <h3 className="preflight-h">Members</h3>
       <div id="party-members">{memberBlock}</div>
       <WhoNotices members={members} />

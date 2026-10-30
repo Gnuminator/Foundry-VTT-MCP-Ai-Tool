@@ -1342,7 +1342,21 @@ formatting a disk, so step 2 you run yourself):
 **If it does not boot:** u-boot waits for the root forever and there is no serial console, so revert
 `rootdev` in `/boot/dietpiEnv.txt` on the card to its old value (the card's UUID, as in
 `dietpiEnv.txt.card`) from a Linux machine that can read ext4, and the card boots its old system
-again. Without a Linux machine, reflash the card (Part A) and restore from the PC's copies.
+again. Without a Linux machine, a freshly flashed card (Part A) boots its own system: from there
+mount the SSD, put the new card's UUID into the SSD's `/etc/fstab` (the `/mnt/card` line), and set
+`rootdev` on the new card to the SSD's UUID.
+
+**Replacing the card:** the SSD's fstab names the card by UUID, so a new or reflashed card has a
+different one, `/mnt/card` and with it `/boot` fail to mount, and the Pi stops in emergency mode.
+Do the recovery above (fix the UUID in the SSD's fstab and `rootdev` on the new card) before the
+SSD's system is expected to boot. A new card's kernel may also differ from the one the SSD's
+`/lib/modules` matches.
+
+**Snapshots across the move:** `dietpi-backup` copies `/` (with the card's `/boot` visible through the
+bind) and skips `/mnt/*`, so `/mnt/card` is not swept in. A snapshot from before 2026-10-30 19:48 has
+the card as `/` in its fstab and `rootdev`; `dietpi-backup -1` warns that the UUIDs differ and
+rewrites the root UUID, but it knows nothing of the `/mnt/card` and `/boot` lines, so after such a
+restore check `/etc/fstab` against `/etc/fstab.card` and the section above before rebooting.
 
 ## Board status report (stage 16)
 

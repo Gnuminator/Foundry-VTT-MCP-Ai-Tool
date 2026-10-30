@@ -9,6 +9,7 @@ import { streamUrl } from './auth';
 import { bridgeAway, bridgeBlip, readCombat, type CombatState } from './combat';
 import { EMPTY_FEED, addFeedEvents, hasNewGmChange, readFeedEvents, type FeedLog } from './feed';
 import { onPrefs } from './prefs';
+import { ROLLS_KEY } from './rollsKey';
 import { PLAY_SESSION_KEY } from './session';
 
 /** One Foundry module error or warning (feed/types.ts ModuleError on the server). */
@@ -52,9 +53,6 @@ export const THEME_KEY = ['theme'] as const;
 export interface WorldTheme {
   theme: string;
 }
-
-/** The roll rows the stream brought, as sent (lib/rollStatus.ts reads them). */
-export const ROLLS_KEY = ['stream', 'rolls'] as const;
 
 export const SETTINGS_KEY = ['stream', 'settings'] as const;
 

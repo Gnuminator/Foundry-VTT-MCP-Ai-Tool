@@ -4,7 +4,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useMemo } from 'react';
 
-import { ROLLS_KEY } from './stream';
+import { ROLLS_KEY } from './rollsKey';
 
 /** One request to one player (src/roll-status.ts RollRow). */
 export interface RollRow {

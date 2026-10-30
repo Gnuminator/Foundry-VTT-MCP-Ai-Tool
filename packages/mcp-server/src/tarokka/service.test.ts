@@ -268,6 +268,9 @@ describe('reading and import', () => {
       await expect(tarokka.planImport({ cards: { ...CHOSEN, tome: 'nonsense' } })).rejects.toThrow(
         /not a common-deck card id/
       );
+      await expect(
+        tarokka.planImport({ cards: { ...CHOSEN, tome: 'Seven of Swords' } })
+      ).rejects.toThrow(/ids look like swords-7, coins-master/);
     });
 
     it('refuses cards together with a source or clear', async () => {

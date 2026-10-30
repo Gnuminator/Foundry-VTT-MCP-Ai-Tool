@@ -521,6 +521,18 @@ function ToolRunner({
   );
 }
 
+const TAROKKA_POSITION_FIELDS = new Set([
+  'tome',
+  'holySymbol',
+  'sunsword',
+  'ally',
+  'strahdLocation',
+]);
+
+/** plan-tarokka-import has one card field per position, named like it: the name picks the deck. */
+const positionDeckParent = (ref: { kind: string | string[] }, key: string): string =>
+  ref.kind === 'tarokka-card' && TAROKKA_POSITION_FIELDS.has(key) ? key : '';
+
 /** The id of a field's control (its label points at it). */
 const fieldId = (key: string): string => `tool-field-${key}`;
 
@@ -643,7 +655,11 @@ function ToolForm({
             multiple={multiple}
             value={text(key)}
             onChange={v => setField(key, v)}
-            parentValue={ref.parent ? (fieldValues(text(ref.parent), true)[0] ?? '') : ''}
+            parentValue={
+              ref.parent
+                ? (fieldValues(text(ref.parent), true)[0] ?? '')
+                : positionDeckParent(ref, key)
+            }
             open={openPicker === key}
             onOpenChange={o => setOpenPicker(o ? key : null)}
             names={namesOf(key)}

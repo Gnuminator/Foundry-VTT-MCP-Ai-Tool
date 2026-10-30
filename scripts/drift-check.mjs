@@ -221,6 +221,45 @@ function buildMergedShared(cwd, dir, buildCommand, log) {
   return `${r.stdout ?? ''}${r.stderr ?? ''}`.trim().split('\n').slice(-15).join('\n');
 }
 
+/** Newest mtime of any file under `dir` (0 when there is none). @param {string} dir */
+function newestMtime(dir) {
+  let newest = 0;
+  let entries;
+  try {
+    entries = fs.readdirSync(dir, { withFileTypes: true });
+  } catch {
+    return 0;
+  }
+  for (const e of entries) {
+    const p = path.join(dir, e.name);
+    newest = Math.max(newest, e.isDirectory() ? newestMtime(p) : fs.statSync(p).mtimeMs);
+  }
+  return newest;
+}
+
+/**
+ * The guards read `@gnuminator/shared` through its build (`shared/dist`). A lane checkout whose
+ * dist is missing or older than `shared/src` (a docs-only lane that never built it) would fail the
+ * mcp-server tests with "Failed to resolve entry", so it is built here first. Returns an error
+ * text, or null. @param {string} cwd @param {string} buildCommand @param {(line: string) => void} log
+ */
+export function ensureSharedBuilt(cwd, buildCommand, log) {
+  const shared = path.join(cwd, 'shared');
+  if (!fs.existsSync(path.join(shared, 'package.json')) || !fs.existsSync(path.join(shared, 'src'))) {
+    return null;
+  }
+  const dist = path.join(shared, 'dist');
+  const distTime = newestMtime(dist);
+  if (distTime && distTime >= newestMtime(path.join(shared, 'src'))) return null;
+  if (!fs.existsSync(path.join(cwd, 'node_modules'))) {
+    return 'shared/dist is missing or out of date and node_modules is missing: run npm ci, then npm run build -w @gnuminator/shared';
+  }
+  log(`drift-check: shared/dist is ${distTime ? 'older than shared/src' : 'missing'}; building shared.`);
+  const r = spawnSync(buildCommand, { cwd: shared, shell: true, encoding: 'utf8' });
+  if (r.status === 0) return null;
+  return `${r.stdout ?? ''}${r.stderr ?? ''}`.trim().split('\n').slice(-15).join('\n');
+}
+
 /** Worktrees a killed run left behind. @param {string} cwd */
 function staleWorktrees(cwd) {
   return git(cwd, ['worktree', 'list', '--porcelain'])
@@ -269,6 +308,13 @@ export function runDriftCheck({
     return 2;
   }
   for (const stale of staleWorktrees(cwd)) removeWorktree(cwd, stale);
+
+  const sharedError = ensureSharedBuilt(cwd, sharedBuild, log);
+  if (sharedError !== null) {
+    log('drift-check: shared is not built and building it failed:');
+    log(sharedError);
+    return 2;
+  }
 
   if (git(cwd, ['merge-base', '--is-ancestor', main, 'HEAD']).ok) {
     log(`drift-check: the branch already contains ${main} (${mainSha.out}).`);

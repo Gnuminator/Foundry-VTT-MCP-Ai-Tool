@@ -28,7 +28,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { parseReviewNote } from '../lane-merge.mjs';
+import { judgeReviews, parseReviewNote } from '../lane-merge.mjs';
 import {
   AGENT_BY_CATEGORY,
   DELTA_CAP_USD,
@@ -137,6 +137,10 @@ function deltaInfo(pr, head, given, notes, repo, needOpus) {
   });
   const bad = parsed.filter(x => x.note.malformed.length > 0);
   if (bad.length > 0) throw new Error(`${bad[0].n.name} is malformed (${bad[0].note.malformed[0]}); fix it before a delta`);
+  // The gate's own verdict on the reviewed sha: another note's open Merge after fixes or Do not
+  // merge (any name the gate reads) means that sha was never clear, so a delta cannot clear its head.
+  const clear = judgeReviews(parsed.map(x => x.note), reviewed, needOpus);
+  if (!clear.ok) throw new Error(`the reviewed sha ${reviewed} is not clear at the gate (${clear.detail}); run a normal round`);
   const latestName = latestRound(reviewNotes.map(n => n.name), pr).name;
   const latest = parsed.find(x => x.n.name === latestName);
   const said = latest ? latest.note.entries.filter(e => e.head === reviewed) : [];
@@ -181,6 +185,9 @@ export function plan(pr, o, spent, repo, deps) {
     notes.map(n => n.name),
     pr
   );
+  if (o.delta && picked.categories.length > 0 && model !== 'opus') {
+    throw new Error(`PR #${pr} is risky (${picked.categories.join(', ')}); the gate needs an Opus Merge for the head, so a ${model} delta would be wasted. Drop --model or use opus`);
+  }
   const delta = o.delta ? deltaInfo(pr, info.sha, o.delta, notes, repo, picked.categories.length > 0) : null;
   // A small delta is the cheap way past round 3; the planner's flag is only for a full third round.
   if (round >= 3 && !o.allowRound3 && !delta) {
@@ -345,7 +352,18 @@ export async function review(p, o, key, repo, deps) {
     if (result.subtype !== 'success') throw new Error(`the review ended with ${result.subtype} ($${costUsd.toFixed(2)} spent); no note written`);
 
     // A push while the review ran: the spend is booked, but no note names a head that is gone.
-    checkHead(p.pr, p.sha, deps.headOf(p.pr), 'while the review ran, the cost is booked');
+    /** @type {string} */
+    let current;
+    try {
+      current = deps.headOf(p.pr);
+    } catch (e) {
+      // gh failed after the spend: keep the paid answer (unless it holds a secret) instead of losing it
+      const raw = path.join(os.tmpdir(), `review-runner-${p.pr}-rejected.md`);
+      const kept = secretHits(String(result.result), key).length === 0;
+      if (kept) fs.writeFileSync(raw, String(result.result));
+      throw new Error(`could not re-read the PR head after the review (${e instanceof Error ? e.message : String(e)}); the cost is booked${kept ? `, the answer is kept at ${raw}` : ''}`);
+    }
+    checkHead(p.pr, p.sha, current, 'while the review ran, the cost is booked');
     const finished = finishNote(String(result.result), p.pr, p.model, p.sha, p.name);
     const { problems } = finished;
     // Marks the note so a delta cannot seed another delta (deltaInfo refuses it).

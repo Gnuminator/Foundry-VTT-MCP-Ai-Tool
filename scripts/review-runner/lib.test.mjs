@@ -302,7 +302,7 @@ test('plan --delta: small commits after a Merge skip the round 3 flag, code does
     assert.throws(() => plan(5, o, 0, t.repo, info(head2, [])), /not a small delta.*own code changed: src\/a\.js/);
     // a sha no note called Merge is refused
     const o2 = { ...o, delta: head.slice(0, 10) };
-    assert.throws(() => plan(5, o2, 0, t.repo, info(head2, [])), /does not say Merge/);
+    assert.throws(() => plan(5, o2, 0, t.repo, info(head2, [])), /no review note for head/);
     // a rename of code into a test file is still a code change
     t.git(t.repo, 'reset', '-q', '--hard', head);
     t.git(t.repo, 'mv', 'src/a.js', 'src/b.test.js');
@@ -321,7 +321,12 @@ test('plan --delta: small commits after a Merge skip the round 3 flag, code does
     t.write('docs/more.md', 'm\n');
     const head4 = t.commit('docs again');
     t.publish(head4);
-    assert.throws(() => plan(5, { ...o3, round: 4 }, 0, t.repo, info(head4, ['scripts/lane-merge.mjs'])), /not an Opus review/);
+    assert.throws(() => plan(5, { ...o3, round: 4 }, 0, t.repo, info(head4, ['scripts/lane-merge.mjs'])), /needs an Opus review/);
+    // L2: a Sonnet override on a risky PR is refused before any git work
+    assert.throws(() => plan(5, { ...o3, round: 4, model: 'sonnet' }, 0, t.repo, info(head4, ['scripts/lane-merge.mjs'])), /would be wasted/);
+    // M1: another note (any *review* name the gate reads) with an open verdict on the reviewed sha
+    fs.writeFileSync(path.join(dir, '5-subagent-review.md'), NOTE(head).replace('**Merge.**', '**Merge after fixes.**'));
+    assert.throws(() => plan(5, { ...o3, round: 4 }, 0, t.repo, info(head4, [])), /not clear at the gate.*Merge after fixes/);
   } finally {
     fs.rmSync(t.root, { recursive: true, force: true });
   }
@@ -403,6 +408,16 @@ test('review refuses a head that moved: before the spend books nothing, after it
     await assert.rejects(review(p, o, 'k', t.repo, { headOf: () => seen.shift() ?? newHead, query: fakeQuery(calls) }), /head moved while the review ran/);
     assert.ok(totalUsd(readLedger(ledger)) > 0 && totalUsd(readLedger(ledger)) < 1);
     assert.equal(fs.existsSync(noteDir()), false);
+
+    // gh failing after the spend: the paid answer is kept, not lost
+    let n = 0;
+    p = plan(5, o, 0, t.repo, info);
+    await assert.rejects(
+      review(p, o, 'k', t.repo, { headOf: () => { if (n++ === 0) return head; throw new Error('gh down'); }, query: fakeQuery(calls) }),
+      /could not re-read the PR head.*gh down.*answer is kept at/
+    );
+    assert.ok(fs.existsSync(path.join(os.tmpdir(), 'review-runner-5-rejected.md')));
+    fs.rmSync(path.join(os.tmpdir(), 'review-runner-5-rejected.md'));
 
     // a stable head writes the sha-bound note
     p = plan(5, o, 0, t.repo, info);

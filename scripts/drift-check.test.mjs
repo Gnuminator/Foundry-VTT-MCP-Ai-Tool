@@ -418,6 +418,30 @@ test('a lane that already has main, with no shared/dist: built before the guards
   }
 });
 
+test('a build that exits 0 but emits no package entry fails with a clear line, no stamp', () => {
+  const { tmp, lane, other } = lanesShared();
+  try {
+    commit(other, 'main.txt', 'from another lane\n', 'other lane merged');
+    git(other, 'push', '-q', 'origin', 'HEAD:main');
+    commit(
+      lane,
+      'shared/package.json',
+      '{"name":"@gnuminator/shared","main":"dist/index.js"}\n',
+      'shared names its entry'
+    );
+    const { code, out } = runWith(lane, {
+      checks: [passes('never')],
+      sharedBuild: 'node -e "process.exit(0)"',
+    });
+    assert.equal(code, 2, out);
+    assert.match(out, /emitted no shared\/dist\/index\.js/);
+    assert.doesNotMatch(out, /never/);
+    assert.equal(fs.existsSync(path.join(lane, 'shared', 'dist', '.built-stamp')), false);
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
 test('shared/dist older than shared/src: rebuilt; a failing build stops with its output', () => {
   const { tmp, lane, other } = lanesShared();
   try {

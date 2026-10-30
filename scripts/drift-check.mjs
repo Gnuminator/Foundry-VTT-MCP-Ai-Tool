@@ -4,8 +4,8 @@
  * once another lane's PR is on main: tool counts and sizes in the docs, the generated tool
  * reference, the tool-set budgets, the lint and em-dash baselines, the changelog fragments, the
  * usage catalog, the docs links. This script merges the newest main into a copy of the branch in a
- * throwaway git worktree, runs those guards there, and removes the worktree. The lane's own working
- * tree is never touched, and nothing is committed or pushed.
+ * throwaway git worktree, runs those guards there, and removes the worktree. The lane's tracked
+ * files are never touched (only a missing or stale, gitignored `shared/dist` is rebuilt), and nothing is committed or pushed.
  *
  *   npm run drift:check                  fetch main, trial-merge it aside, run the guards
  *   npm run drift:check -- --remote NAME take main from this remote
@@ -239,6 +239,16 @@ function newestMtime(dir) {
   return newest;
 }
 
+/** The package entry named by `main` in shared/package.json, or null. @param {string} shared */
+function sharedEntry(shared) {
+  try {
+    const main = JSON.parse(fs.readFileSync(path.join(shared, 'package.json'), 'utf8')).main;
+    return typeof main === 'string' ? path.join(shared, main) : null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * The guards read `@gnuminator/shared` through its build (`shared/dist`). A lane checkout whose
  * dist is missing or older than `shared/src` (a docs-only lane that never built it) would fail the
@@ -251,7 +261,8 @@ export function ensureSharedBuilt(cwd, buildCommand, log) {
     return null;
   }
   const dist = path.join(shared, 'dist');
-  const distTime = newestMtime(dist);
+  const entry = sharedEntry(shared);
+  const distTime = entry && !fs.existsSync(entry) ? 0 : newestMtime(dist);
   if (distTime && distTime >= newestMtime(path.join(shared, 'src'))) return null;
   if (!fs.existsSync(path.join(cwd, 'node_modules'))) {
     return 'shared/dist is missing or out of date and node_modules is missing: run npm ci, then npm run build -w @gnuminator/shared';
@@ -259,6 +270,9 @@ export function ensureSharedBuilt(cwd, buildCommand, log) {
   log(`drift-check: shared/dist is ${distTime ? 'older than shared/src' : 'missing'}; building shared.`);
   const r = spawnSync(buildCommand, { cwd: shared, shell: true, encoding: 'utf8' });
   if (r.status === 0) {
+    if (entry && !fs.existsSync(entry)) {
+      return `the build ran but emitted no ${path.relative(cwd, entry).replaceAll('\\', '/')}; delete shared/*.tsbuildinfo and run again`;
+    }
     // shared is `composite`: tsc skips outputs whose content did not change, so a touched src could
     // leave dist older than src for good. The stamp records that the build ran after the sources.
     fs.mkdirSync(dist, { recursive: true });

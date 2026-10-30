@@ -52,7 +52,7 @@ export function FoundryTargetsButton({
       >
         Use Foundry targets
       </button>
-      <span className="ca-hint" role="status">
+      <span className="ca-note" role="status">
         {note}
       </span>
     </>

@@ -32,6 +32,27 @@ export function myRollRequests(me) {
 }
 
 /**
+ * The roll banner for the player who picked their name: the title ("The GM asked you for
+ * Perception.") and a hint on where to roll, or null when nothing is open for them. `open` is the
+ * player stream's list ({ id, sentAt, label, userId }); a request older than half an hour no
+ * longer shows.
+ */
+export function rollBannerLines(open, userId, now, hasKey) {
+  if (!userId || !Array.isArray(open)) return null;
+  const mine = open.filter(
+    r => r && r.userId === userId && typeof r.label === 'string' && now - r.sentAt < 30 * 60 * 1000
+  );
+  if (mine.length === 0) return null;
+  const names = mine.map(r => r.label.replace(/\s*\((?:Private|Public)\)\s*$/i, ''));
+  return {
+    title: `The GM asked you to roll: ${names.join(', ')}`,
+    hint: hasKey
+      ? 'Press Roll under "You" below, or roll it in Foundry.'
+      : 'Roll it in Foundry, or open your own link (pinned in Discord) to roll here.',
+  };
+}
+
+/**
  * Where the player's character stands in the combat order. `state` is `yours` (their turn),
  * `next` (they act right after the current one), `later` (with `turnsAway`), or `out` (not in the
  * combat, or defeated). The order is the projected list, so a creature players cannot see never

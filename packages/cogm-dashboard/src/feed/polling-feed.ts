@@ -92,6 +92,7 @@ export class PollingGameFeed implements GameFeed {
   private pollsSinceResync = 0;
   private readonly delivered = new Set<string>();
   private eventPollInFlight = false;
+  private eventPollQueued = false;
   private combatPollInFlight = false;
   private errorCursor: string | null = null;
   private firstErrorPoll = true;
@@ -165,6 +166,15 @@ export class PollingGameFeed implements GameFeed {
 
   // ---------------------------------------------------------------------------
 
+  /**
+   * Read the events now instead of at the next tick (a roll request the dashboard just sent). A
+   * poll already running may have read before the new event, so one more follows it.
+   */
+  pollNow(): void {
+    if (this.eventPollInFlight) this.eventPollQueued = true;
+    else void this.pollEvents();
+  }
+
   private async pollEvents(): Promise<void> {
     if (!this.client.isConnected || this.eventPollInFlight) return;
     this.eventPollInFlight = true;
@@ -210,6 +220,10 @@ export class PollingGameFeed implements GameFeed {
       this.handlePollError('get-recent-events', error);
     } finally {
       this.eventPollInFlight = false;
+      if (this.eventPollQueued) {
+        this.eventPollQueued = false;
+        void this.pollEvents();
+      }
     }
   }
 

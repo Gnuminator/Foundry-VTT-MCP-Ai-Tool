@@ -120,9 +120,9 @@ export function sentSummary(
 ): string {
   const what = `${pickLabel(pick)}${pick.dc.trim() ? ` DC ${pick.dc.trim()}` : ''}`;
   const who = ok.length === 1 ? ok[0] : `${ok.length} characters`;
-  if (failed.length === 0) return `✓ Asked ${who} for ${what}`;
+  if (failed.length === 0) return `✓ Sent: ${what} to ${who}`;
   const bad = failed.map(f => `${f.name}: ${f.error}`).join('; ');
   return ok.length === 0
     ? `✗ ${what} not sent. ${bad}`
-    : `✓ Asked ${who} for ${what}. Not sent: ${bad}`;
+    : `✓ Sent: ${what} to ${who}. Not sent: ${bad}`;
 }

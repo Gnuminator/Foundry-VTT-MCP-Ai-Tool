@@ -1299,7 +1299,7 @@ test.describe('when a write or a roll request fails', () => {
     await load(page);
     await openDamage(page);
     await page.locator('#damage-apply').click();
-    await expect(toastLike(page, /plan-actor-change:.*No such token/)).toBeVisible();
+    await expect(toastLike(page, /Actor change:.*No such token/)).toBeVisible();
     // Nothing was planned, so nothing can have landed: the amount stays and the form stays open.
     await expect(page.locator('#damage-form')).toBeVisible();
     await expect(page.locator('#damage-amount')).toHaveValue('8');

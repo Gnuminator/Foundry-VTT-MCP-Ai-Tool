@@ -400,7 +400,7 @@ part, the Foundry part is rolled back. A feature can raise a plan to destructive
 
 **Tarokka (`tarokka/`, module `tarokka.ts`).** The first feature on this flow: readings (built-in
 crypto roll or cards the GM chose) live in `gm/tarokka.json`, links in
-`gm/tarokka-config.json`, published player pages in `gm/reveals.json`. The module side is read-only.
+`gm/tarokka-config.json`, published player pages in `gm/reveals.json`. The module's card table writes two world settings (the public table and the optional card pictures); a flip goes through `plan-tarokka-reveal` and `apply-planned-change`, like any reveal.
 
 **Event pump (`event-pump.ts`).** The module's session-event buffer is in memory and lost on
 reload, so the backend polls `getRecentEvents` (cursor minus 1 ms, id de-duplication, cursor

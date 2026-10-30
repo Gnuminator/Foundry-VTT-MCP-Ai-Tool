@@ -17,7 +17,7 @@ Verified on Foundry 14.368 / dnd5e 6.0.6, module 1.0.5, 2026-10-28 (test server 
 
 - Verified: a scene control group "Tarokka Reading" (diamond icon, `tarokka`) with one tool, "open", in the left toolbar, GM only. Our bridge adds its own separate `aiTool` control group.
 - Buttons **Prepare**, **New reading**, **Show to players** inside the window (footer hint: Click "New reading" to deal the cards). **Stop showing** appears once shown (not verified).
-- After **New reading**, our bridge shows a dialog "AI Tool: Tarokka reading": "Offer this reading to the AI Tool?" with Yes / No (No was clicked; the bridge was not running on B, so the import itself is not verified).
+- Historic (D-130): our bridge used to show a dialog "Offer this reading to the AI Tool?" after **New reading**. That dialog and the import are gone; our own Tarokka table replaces this module.
 - **Settings > Module Settings > Tarokka Reading > Customize cards** (GM only menu) for names and images.
 - Players get the reading window opened automatically while the GM has "shown" it (also at their login if it is currently shown).
 

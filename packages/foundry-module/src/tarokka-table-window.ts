@@ -13,6 +13,7 @@
  * The controller knows nothing about Foundry's windows; the classes are built on first use
  * because `ApplicationV2` does not exist when this file is loaded.
  */
+import { onAiChangesUpdated } from './ai-changes-signal.js';
 import { MODULE_ID } from './constants.js';
 import { aiToolRequest } from './gm-helper-queries.js';
 import { parseRevealPlan } from './handouts-model.js';
@@ -187,15 +188,20 @@ export class TableController {
     return this.act(async () => {
       const slot = this.view.slots?.[index];
       if (!slot || !canFlip(this.view.table, index)) return;
+      // The reading may have changed behind the window (Claude, the drawer, an Undo): a flip
+      // must publish the card the GM was shown, so compare before asking.
+      const current = await this.deps.request('get-tarokka-reading', {});
+      const now = parseReading(current)?.positions.find(p => p.position === slot.position);
+      if (readingIdOf(current) !== this.view.table.readingId || now?.cardId !== slot.cardId) {
+        await this.load();
+        throw new Error('The reading changed since the table loaded; it was refreshed, flip again');
+      }
       const typed = await this.deps.confirmFlip(slot.label, slot.cardName);
       if (typed === null) return;
       const text = typed.trim() === '' ? slot.cardName : typed.trim();
+      // No title: the reveal's neutral default keeps the position name off the players' page.
       const plan = parseRevealPlan(
-        await this.deps.request('plan-tarokka-reveal', {
-          position: slot.position,
-          text,
-          title: slot.label,
-        })
+        await this.deps.request('plan-tarokka-reveal', { position: slot.position, text })
       );
       if (!plan) throw new Error('The AI Tool made no plan for this flip');
       await this.deps.request('apply-planned-change', {
@@ -209,12 +215,14 @@ export class TableController {
   }
 
   /** Attach a picture from the world's files to the card in this slot. */
-  pickPicture(index: number): Promise<void> {
+  async pickPicture(index: number): Promise<void> {
+    const slot = this.view.slots?.[index];
+    if (!slot || slot.cardId === '') return;
+    // The picker stays outside `act`: Foundry never calls back when it is closed without a
+    // pick, and the table must not stay locked behind a promise that never settles.
+    const path = safeImage(await this.deps.pickImage());
+    if (!path) return;
     return this.act(async () => {
-      const slot = this.view.slots?.[index];
-      if (!slot || slot.cardId === '') return;
-      const path = safeImage(await this.deps.pickImage());
-      if (!path) return;
       await this.deps.writeImages({ ...this.deps.readImages(), [slot.cardId]: path });
       await this.load();
     });
@@ -438,6 +446,24 @@ let gmClass: (new () => GmWindowInstance) | null = null;
 let gmInstance: GmWindowInstance | null = null;
 let playerClass: (new () => PlayerWindowInstance) | null = null;
 let playerInstance: PlayerWindowInstance | null = null;
+
+let watchController: TableController | null = null;
+
+/**
+ * GM clients: when the change log changes (an Undo, a new reading from the drawer), bring the
+ * public table in step with the reading even if the GM's window is closed, so players never keep
+ * a face the vault no longer shows. Does nothing while no table is set up.
+ */
+export function startTableWatch(): void {
+  if (!game.user?.isGM) return;
+  onAiChangesUpdated(() => {
+    if (readTableSetting().readingId === '') return;
+    const controller =
+      gmInstance?.controller ??
+      (watchController ??= new TableController(foundryTableDeps(), () => undefined));
+    void controller.load();
+  });
+}
 
 /** Open the GM's card table (one per browser) and fetch the reading. */
 export async function openTarokkaTableWindow(): Promise<void> {

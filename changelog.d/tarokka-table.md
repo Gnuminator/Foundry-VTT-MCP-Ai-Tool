@@ -10,4 +10,6 @@
 - **No more `tarokka-reading` import:** `plan-tarokka-import` no longer takes `source:
 "tarokka-reading"` or `userId`, the dashboard drawer lost its **Import from tarokka-reading**
   button, and the "Offer this reading to the AI Tool?" dialog is gone. Roll a reading or choose the
-  five cards. Readings stored earlier from the module still open.
+  five cards. Readings stored earlier from the module still open. Update the backend and the
+  module together: the module no longer answers the old `getTarokkaReading` query, so an older
+  backend rolling with `plan-tarokka-import {}` would fail against it.

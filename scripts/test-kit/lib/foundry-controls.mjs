@@ -71,6 +71,13 @@ export const FOUNDRY_CONTROLS = [
     how: 'open',
     player: 'hidden',
   },
+  {
+    name: 'foundry.scene.tarokkaTable',
+    area: 'scene',
+    label: 'Scene tool "Tarokka table"',
+    how: 'open',
+    player: 'hidden',
+  },
 
   // --- Changes window ----------------------------------------------------------------------------
   {

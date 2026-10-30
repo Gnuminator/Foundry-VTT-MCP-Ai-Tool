@@ -28,7 +28,11 @@ import { registerGmWindowsSetting } from './gm-windows.js';
 import { registerSessionSwitchSettings } from './session-switches.js';
 import { registerDiceThemes } from './dice-themes.js';
 import { TAROKKA_FEATURE_ID } from './tarokka.js';
-import { registerTarokkaTableSettings, syncPlayerTable } from './tarokka-table-window.js';
+import {
+  onTableSettingChanged,
+  registerTarokkaTableSettings,
+  startTableWatch,
+} from './tarokka-table-window.js';
 import { logInfo } from './log.js';
 // Connection control now handled through settings menu
 
@@ -607,7 +611,8 @@ Hooks.once('ready', async () => {
     usageRecorder.start();
 
     // A player who joins while the GM shows the Tarokka table sees it at once.
-    syncPlayerTable();
+    onTableSettingChanged();
+    startTableWatch();
 
     await foundryMCPBridge.onReady();
 

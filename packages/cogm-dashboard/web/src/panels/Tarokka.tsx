@@ -1,5 +1,5 @@
 // Tarokka (I-108): the five positions of the current reading, from the bridge vault (never Foundry
-// world data). Import and New reading replace the reading and a link pick links a card; all three
+// world data). Roll and Choose replace the reading and a link pick links a card; all three
 // are ordinary writes, applied in one click with an Undo toast. A reveal publishes text to the
 // players, so it goes through the confirm window. GM only, and spoiler safe: with "Show cards"
 // off the card names and GM notes are not on the page at all, only a blurred placeholder.

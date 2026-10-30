@@ -1,4 +1,0 @@
-### Fixes
-
-- **A refused write names the switch to turn on:** when "Allow Write Operations" or a feature switch is off, the refusal now gives the switch exactly as Game Settings shows it ("AI Tool: Handouts (writes)") and where it is (Game Settings, Configure Settings, the AI Tool section), instead of `The "handouts" feature is switched off in the module settings`. The dashboard shows it as a hint, not a red error.
-- **Handouts drawer says why Reveal next would be refused:** while "AI Tool: Handouts (writes)" or "Allow Write Operations" is off, the drawer shows a notice with the switch name and where to turn it on. Creating a quest journal, queueing and reordering never needed the switch; only the reveal itself does. That is what stopped both training tests (the switch was off in the reset training world).

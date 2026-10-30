@@ -33,7 +33,7 @@ import { HELD_ENV, acquire, lockDir } from './heavy-lock.mjs';
 /**
  * The steps that need a lot of RAM or CPU (lint, type check, build, the test suites, the browser
  * run). A run takes the heavy-check lock once, at its first heavy step, and keeps it until its last
- * one, so parallel greens, the pre-push hook and the gate's drift check take turns per run instead
+ * one, so parallel greens and the gate's drift check take turns per run instead
  * of queueing again for every step (see scripts/heavy-lock.mjs).
  */
 export const HEAVY_STEPS = new Set([
@@ -288,7 +288,8 @@ export function parseArgs(argv) {
 }
 
 /**
- * The steps a run executes: from `--from`, then `--only`, then without `--skip`, in CI order.
+ * The steps a run executes: from `--from`, then `--only`, then without `--skip`, in CI order except
+ * that the light steps move ahead of the first heavy one (see lightFirst).
  * @param {Step[]} steps @param {ReturnType<typeof parseArgs>} opts
  * @returns {{ steps: Step[], error: string | null }}
  */
@@ -307,7 +308,29 @@ export function selectSteps(steps, opts) {
   if (opts.from) selected = selected.slice(names.indexOf(opts.from));
   if (opts.only.length > 0) selected = selected.filter(s => opts.only.includes(s.name));
   if (opts.skip.length > 0) selected = selected.filter(s => !opts.skip.includes(s.name));
-  return { steps: selected, error: null };
+  return { steps: lightFirst(selected), error: null };
+}
+
+/**
+ * The names of the steps that are not heavy and do not need the build: those that sit before the
+ * `build` step in STEPS and are not in HEAVY_STEPS (the pi-*, hook, plan-b, tv, tunnel, docs and
+ * ratchet-lite steps, about 250 s of a 6.5 minute run, 2026-10-30). The steps after `build`
+ * (bundle-budget, the smokes, validate-manifest) need its output and stay behind it.
+ */
+export const LIGHT_FIRST = new Set(
+  STEPS.slice(0, STEPS.findIndex(s => s.name === 'build'))
+    .filter(s => !HEAVY_STEPS.has(s.name))
+    .map(s => s.name)
+);
+
+/**
+ * Stable partition: the light steps first, then the rest in their order. The heavy-check lock is
+ * taken at the first heavy step and kept to the last, so this shortens the hold to the heavy part
+ * (typecheck..e2e) and runs the cheap steps, which fail fast, before it. CI keeps its own order.
+ * @param {Step[]} steps
+ */
+export function lightFirst(steps) {
+  return [...steps.filter(s => LIGHT_FIRST.has(s.name)), ...steps.filter(s => !LIGHT_FIRST.has(s.name))];
 }
 
 /** @param {number} ms */
@@ -958,7 +981,7 @@ export function main(options = {}) {
 
   if (note) log(note);
   // A full run (every step) is recorded with the tree it ran on (uncommitted edits included), so the
-  // pre-push hook can skip its ratchets when it pushes a commit with exactly that tree.
+  // pre-push hook can skip its em-dash ratchet when it pushes a commit with exactly that tree.
   const treeBefore =
     options.recordStamp === false ||
     steps !== STEPS ||
@@ -1016,7 +1039,7 @@ export function main(options = {}) {
       try {
         if (stamp) fs.writeFileSync(stamp, `${treeBefore}\n`);
       } catch {
-        // No stamp: the pre-push hook just runs its ratchets.
+        // No stamp: the pre-push hook just runs its em-dash ratchet.
       }
     }
     log(`green: OK, ${picked.steps.length} steps in ${formatDuration(ended - started)}${waited}`);

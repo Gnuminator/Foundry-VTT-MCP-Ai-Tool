@@ -32,6 +32,8 @@ import {
   worktreeTreeHash,
   runLock,
   HEAVY_STEPS,
+  LIGHT_FIRST,
+  lightFirst,
   SOLO_STEPS,
   cloudGreen,
   repoFromUrl,
@@ -168,6 +170,39 @@ test('selectSteps: from, only, skip, order and unknown names', () => {
   assert.deepEqual(names(['--skip', 'b,d']), ['a', 'c']);
   assert.deepEqual(names(['--from', 'b', '--skip', 'c']), ['b', 'd']);
   assert.match(selectSteps(s, parseArgs(['--only', 'zzz'])).error ?? '', /unknown step zzz/);
+});
+
+test('lightFirst: light steps run before the first heavy one, the post-build steps stay behind build', () => {
+  const names = selectSteps(STEPS, parseArgs([])).steps.map(s => s.name);
+  const firstHeavy = names.findIndex(n => HEAVY_STEPS.has(n));
+  const lastLight = names.findLastIndex(n => LIGHT_FIRST.has(n));
+  assert.ok(lastLight < firstHeavy, 'every light step is ahead of the first heavy step');
+  assert.ok(LIGHT_FIRST.has('pi-stage-safety') && LIGHT_FIRST.has('docs-lint') && LIGHT_FIRST.has('changelog'));
+  for (const n of ['typecheck', 'build', 'e2e', 'bundle-budget', 'mcp-schema-smoke', 'standalone-smoke', 'validate-manifest']) {
+    assert.ok(!LIGHT_FIRST.has(n), n);
+  }
+  const build = names.indexOf('build');
+  for (const n of ['bundle-budget', 'mcp-schema-smoke', 'split-smoke', 'validate-manifest']) {
+    assert.ok(names.indexOf(n) > build, `${n} stays after build`);
+  }
+  // Stable within the light group, nothing lost or doubled.
+  assert.deepEqual([...names].sort(), STEPS.map(s => s.name).sort());
+  assert.deepEqual(
+    names.filter(n => LIGHT_FIRST.has(n)),
+    STEPS.map(s => s.name).filter(n => LIGHT_FIRST.has(n))
+  );
+  assert.deepEqual(lightFirst([]), []);
+});
+
+test('runLock over the default order: the hold starts after every light step', () => {
+  const steps = selectSteps(STEPS, parseArgs([])).steps;
+  const taken = [];
+  const lock = runLock(steps, label => (taken.push(label), { held: true, waitedMs: 0, beat() {}, release() {} }), 'g', {});
+  steps.forEach((s, i) => {
+    lock.before(i, s);
+    if (LIGHT_FIRST.has(s.name)) assert.equal(taken.length, 0, `${s.name} runs before the lock`);
+  });
+  assert.equal(taken.length, 1);
 });
 
 test('formatDuration', () => {

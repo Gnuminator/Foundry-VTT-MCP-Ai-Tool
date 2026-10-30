@@ -1,0 +1,4 @@
+### Tooling
+
+- **Green runs the light steps first:** `npm run green` runs the steps that need neither the build nor a heavy slot (hook, docs, Pi, Plan B and TV tests, the changelog check) before the first heavy step, so the heavy-check lock is held only for typecheck through the browser run. CI keeps its own order.
+- **Stale comments:** `heavy-lock.mjs`, `green.mjs` and `lane-merge.mjs` no longer say the pre-push hook takes the heavy lock.

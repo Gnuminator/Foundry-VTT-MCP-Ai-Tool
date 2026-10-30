@@ -1670,10 +1670,21 @@ export class ActorBuilderDataAccess {
     let targetAC = data.targetAC ?? null;
     let targetName: string | null = null;
     try {
-      const userTargets = Array.from((game.user as User | undefined)?.targets ?? []);
-      if (userTargets.length > 0) {
+      // The bridge user's targets, else an active GM's (the bridge may run in another browser).
+      const userTargets = shared.currentTargetTokens<{
+        id: string;
+        name?: string;
+        actor?: { system?: { attributes?: { ac?: { value?: number | null } } } } | null;
+      }>();
+      const ownTargets = Array.from(
+        (game.user as { targets?: Iterable<unknown> } | undefined)?.targets ?? []
+      );
+      // A GM's targets are only a guess: use them when exactly one token is targeted, and
+      // do not pair their token's name with an AC the caller passed for another creature.
+      const guessed = ownTargets.length === 0;
+      if (userTargets.length > 0 && (!guessed || userTargets.length === 1)) {
         const tt = userTargets[0];
-        targetName = tt.name ?? null;
+        if (!guessed || data.targetAC == null) targetName = tt.name ?? null;
         targetAC ??= tt.actor?.system?.attributes?.ac?.value ?? null;
       }
     } catch {

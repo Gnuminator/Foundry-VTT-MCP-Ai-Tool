@@ -180,6 +180,94 @@ describe('FoundryDataAccess — useNpcActivity', () => {
     expect(result.hit).toBe(true); // 16 >= 15
   });
 
+  describe('GM target fallback', () => {
+    const gmWith = (
+      tokens: Array<{ id: string; name: string; ac: number }>
+    ): { id: string; isGM: boolean; active: boolean; targets: Set<unknown> } => ({
+      id: 'gm2',
+      isGM: true,
+      active: true,
+      targets: new Set(
+        tokens.map(t => ({
+          id: t.id,
+          name: t.name,
+          actor: { system: { attributes: { ac: { value: t.ac } } } },
+        }))
+      ),
+    });
+    const withGms = async (
+      gms: unknown[],
+      params: Record<string, unknown>
+    ): Promise<Awaited<ReturnType<typeof da.useNpcActivity>>> => {
+      const { item } = attackItem({
+        attack: { total: 16, formula: '1d20+4' },
+        damage: { total: 6 },
+      });
+      npcWith('Bandit', [item]);
+      const g = (globalThis as any).game;
+      const prevUsers = g.users;
+      g.users = { ...prevUsers, filter: (fn: (u: any) => boolean): unknown[] => gms.filter(fn) };
+      try {
+        return await da.useNpcActivity({ actorName: 'Bandit', itemName: 'Claw', ...params });
+      } finally {
+        g.users = prevUsers;
+      }
+    };
+
+    it('leaves the target name empty when the caller passes an AC and only a GM has a target', async () => {
+      const result = await withGms([gmWith([{ id: 'tk1', name: 'Ogre', ac: 11 }])], {
+        targetAC: 13,
+      });
+      expect(result.targetName).toBeNull();
+      expect(result.targetAC).toBe(13);
+    });
+
+    it('guesses nothing when two active GMs target different tokens', async () => {
+      const result = await withGms(
+        [
+          gmWith([{ id: 'tk1', name: 'Ogre', ac: 11 }]),
+          { ...gmWith([{ id: 'tk2', name: 'Goblin', ac: 15 }]), id: 'gm3' },
+        ],
+        {}
+      );
+      expect(result.targetName).toBeNull();
+      expect(result.targetAC).toBeNull();
+    });
+  });
+
+  it('takes the target from another active GM when the bridge user has none', async () => {
+    const { item } = attackItem({ attack: { total: 16, formula: '1d20+4' }, damage: { total: 6 } });
+    npcWith('Bandit', [item]);
+    const g = (globalThis as any).game;
+    const prevUsers = g.users;
+    g.users = {
+      ...prevUsers,
+      filter: (fn: (u: any) => boolean): unknown[] =>
+        [
+          {
+            id: 'gm2',
+            isGM: true,
+            active: true,
+            targets: new Set([
+              {
+                id: 'tk1',
+                name: 'Goblin',
+                actor: { system: { attributes: { ac: { value: 15 } } } },
+              },
+            ]),
+          },
+        ].filter(fn),
+    };
+    try {
+      const result = await da.useNpcActivity({ actorName: 'Bandit', itemName: 'Claw' });
+      expect(result.targetName).toBe('Goblin');
+      expect(result.targetAC).toBe(15);
+      expect(result.hit).toBe(true);
+    } finally {
+      g.users = prevUsers;
+    }
+  });
+
   it('falls back to using the item (no attack) when it has no attack activity', async () => {
     const use = vi.fn(() => Promise.resolve({}));
     const item = makeItem({

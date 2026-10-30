@@ -328,6 +328,24 @@ export async function getOrCreateFolder(
   }
 }
 
+/**
+ * The tokens targeted in Foundry. The bridge may run in another GM's browser (`bridgeUserId`,
+ * "Any GM"): Foundry syncs every user's targets to all clients, so when this user has none, take
+ * the active GMs' (the same scene only, as Foundry itself only holds targets for the viewed one).
+ */
+export function currentTargetTokens<T extends { id: string }>(): T[] {
+  let targets = Array.from((game.user as { targets?: Iterable<T> } | undefined)?.targets ?? []);
+  if (targets.length === 0) {
+    const gms = (game.users?.filter(u => u.isGM && u.active && u.id !== game.user?.id) ??
+      []) as Array<{ targets?: Iterable<T> }>;
+    const seen = new Set<string>();
+    targets = gms
+      .flatMap(u => Array.from(u.targets ?? []))
+      .filter(t => !seen.has(t.id) && seen.add(t.id));
+  }
+  return targets;
+}
+
 /** Major version number of the active game system (0 if unparseable). */
 export function systemMajor(): number {
   return parseInt(String(game.system?.version || '0').split('.')[0], 10) || 0;

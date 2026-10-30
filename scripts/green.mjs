@@ -773,7 +773,7 @@ export function cloudGreen(o) {
  *   argv?: string[], steps?: Step[], cwd?: string, tmpdir?: string, now?: () => number,
  *   isTTY?: boolean, log?: (line: string) => void, write?: (text: string) => void,
  *   runStep?: (step: Step, fd: number, cwd: string) => number, note?: string | null,
- *   recordStamp?: boolean, takeLock?: (label: string) => ReturnType<typeof acquire>,
+ *   recordStamp?: boolean, cloudOptions?: Partial<Parameters<typeof cloudGreen>[0]>, takeLock?: (label: string) => ReturnType<typeof acquire>,
  * }} [options]
  * @returns {number} the process exit code
  */
@@ -811,7 +811,7 @@ export function main(options = {}) {
     return 2;
   }
 
-  if (opts.cloud) return cloudGreen({ cwd, log });
+  if (opts.cloud) return cloudGreen({ cwd, log, ...options.cloudOptions });
 
   if (note) log(note);
   // A full run (every step) is recorded with the tree it ran on (uncommitted edits included), so the

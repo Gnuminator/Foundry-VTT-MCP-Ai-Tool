@@ -776,6 +776,24 @@ test('main --cloud with a step flag is a usage error and never touches the lock 
   assert.match(lines[0], /cannot be combined/);
 });
 
+test('main --cloud runs CI through gh: no heavy lock, no local step, no green stamp', () => {
+  const lines = [];
+  const { gh } = fakeGh({
+    existing: [{ databaseId: 7, status: 'completed', conclusion: 'success', headSha: SHA, event: 'pull_request' }],
+    views: [doneView('success')],
+  });
+  const code = main({
+    argv: ['--cloud'],
+    log: l => lines.push(l),
+    takeLock: () => assert.fail('no lock for --cloud'),
+    runStep: () => assert.fail('no local step for --cloud'),
+    cloudOptions: { git: fakeGit(), gh, sleep: () => {}, pollMs: 1 },
+  });
+  assert.equal(code, 0);
+  assert.equal(lines.length, 1);
+  assert.match(lines[0], /^green: OK \(cloud\)/);
+});
+
 test('repoFromUrl reads https and ssh remotes', () => {
   assert.equal(repoFromUrl('https://github.com/Gnuminator/Foundry-VTT-MCP-Ai-Tool.git'), 'Gnuminator/Foundry-VTT-MCP-Ai-Tool');
   assert.equal(repoFromUrl('git@github.com:Gnuminator/Foundry-VTT-MCP-Ai-Tool.git'), 'Gnuminator/Foundry-VTT-MCP-Ai-Tool');

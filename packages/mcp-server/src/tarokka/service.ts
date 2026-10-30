@@ -39,6 +39,7 @@ import {
   deckOf,
   isTarokkaPosition,
   rollReading,
+  wrongDeckMessage,
   type RandomIndex,
   type TarokkaPosition,
 } from './deck.js';
@@ -347,7 +348,7 @@ export class TarokkaService {
     const cardId = args.cardId ?? file.current?.positions[position]?.cardId;
     if (!cardId) throw new Error('No current reading; pass cardId to link a card in advance');
     if (!CARD_ID.test(cardId) || deckOf(cardId) !== POSITION_DECK[position]) {
-      throw new Error(`${cardId} is not a ${POSITION_DECK[position]}-deck card id`);
+      throw new Error(wrongDeckMessage(cardId, POSITION_DECK[position]));
     }
 
     const vaultOps: VaultOp[] = [];
@@ -609,7 +610,7 @@ export class TarokkaService {
       const cardId = cards[position];
       if (!cardId) throw new Error(`Choose a card for ${POSITION_LABELS[position]}`);
       if (deckOf(cardId) !== POSITION_DECK[position]) {
-        throw new Error(`${cardId} is not a ${POSITION_DECK[position]}-deck card id`);
+        throw new Error(wrongDeckMessage(cardId, POSITION_DECK[position]));
       }
       if (seen.has(cardId)) throw new Error(`${cardId} is chosen twice; each card is dealt once`);
       seen.add(cardId);

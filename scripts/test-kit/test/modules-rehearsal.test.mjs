@@ -367,3 +367,11 @@ test('the all-modules profile is valid and lists exactly the Strahd modules', ()
   assert.deepEqual([...profile.modules].sort(), want);
   assert.deepEqual(profile.knownAlso, ['srd']);
 });
+
+test('NotYourTurn blocks players and trusted players, and only warns for GM and Assistant', () => {
+  const strahd = JSON.parse(readFileSync(path.join(here, '..', '..', 'modules', 'strahd-modules.json'), 'utf8'));
+  const nyt = strahd.modules.find(m => m.id === 'NotYourTurn');
+  // Drop-down values: 0 Off, 1 Warning Only, 2 Dialog Box, 3 Autoblock. The AI Tool acts as a GM,
+  // so a blocking GM value would stop AI-planned token moves.
+  assert.deepEqual(nyt.worldSettings, { BlockPlayer: 3, BlockTrusted: 3, BlockAssistant: 1, BlockGM: 1 });
+});

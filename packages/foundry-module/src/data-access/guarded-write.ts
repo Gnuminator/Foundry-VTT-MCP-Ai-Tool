@@ -50,6 +50,10 @@ export interface GuardedUpdateOp {
   uuid: string;
   changes: Record<string, unknown>;
   unset?: string[];
+  /** A damage plan's dnd5e damage type; carried in the write's marker, never written. */
+  damageType?: string;
+  /** A damage or healing plan op (the apply marks the write so the feed can fold its row). */
+  hpLine?: boolean;
 }
 
 /** Create a document: top-level (`documentName` only) or embedded (`parentUuid`). */
@@ -539,7 +543,15 @@ async function executeUpdate(
     if (ownershipKeyOf(path) === null) Object.assign(update, unsetKeyUpdate(path));
   }
   if (Object.keys(update).length > 0) {
-    await doc.update(update, writeOptions(doc, update, req, changeMode));
+    const options = writeOptions(doc, update, req, changeMode);
+    // Only a damage apply: an undo restores HP and is no damage.
+    if (op.damageType && req.mode === 'apply') {
+      (options[MODULE_ID] as Record<string, unknown>).damageType = op.damageType;
+    }
+    if (op.hpLine && req.mode === 'apply') {
+      (options[MODULE_ID] as Record<string, unknown>).hpLine = true;
+    }
+    await doc.update(update, options);
   }
   await removeOwnershipKeys(doc, ownershipKeys, writeMarker(req, changeMode));
   const afterSource = sourceOf(doc);

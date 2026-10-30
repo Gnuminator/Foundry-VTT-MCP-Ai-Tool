@@ -927,12 +927,6 @@ export const USAGE_CATALOG: readonly UsageCatalogEntry[] = [
     file: 'packages/cogm-dashboard/public/index.html',
   },
   {
-    name: 'dash.tarokka.import',
-    kind: 'action',
-    surface: 'dashboard',
-    file: 'packages/cogm-dashboard/public/index.html',
-  },
-  {
     name: 'dash.tarokka.link',
     kind: 'action',
     surface: 'dashboard',
@@ -1255,18 +1249,6 @@ export const USAGE_CATALOG: readonly UsageCatalogEntry[] = [
     kind: 'action',
     surface: 'module',
     file: 'packages/foundry-module/src/settings.ts',
-  },
-  {
-    name: 'module.tarokka.offer-confirm',
-    kind: 'action',
-    surface: 'module',
-    file: 'packages/foundry-module/src/tarokka.ts',
-  },
-  {
-    name: 'module.tarokka.offer-decline',
-    kind: 'action',
-    surface: 'module',
-    file: 'packages/foundry-module/src/tarokka.ts',
   },
   {
     name: 'player.footer.mist',

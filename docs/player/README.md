@@ -21,8 +21,8 @@ leads with the last recap, the handouts and the quests. The header names the sce
 day and weather when the scene has them. It has these parts:
 
 - **Combat order:** who acts when, the current turn, and the round. Player characters have an HP
-  bar. Monsters and NPCs show no HP numbers, only a rough health word (healthy, bloodied, critical
-  or down, unless the person who runs the tool switched that off) and standard conditions (like prone or frightened),
+  bar. Monsters and NPCs show no HP numbers and no health word (the person who runs the tool can switch a rough
+  one on: healthy, bloodied, critical or down), only standard conditions (like prone or frightened),
   and appear under the name you know them by, or as "Unknown creature".
 - **Session feed:** public rolls and what your characters could see happen, for example "Mira
   took 7 damage." or "Wolf 1 was hit." Private, blind and GM rolls never show here, and neither

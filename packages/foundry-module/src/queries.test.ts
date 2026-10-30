@@ -186,16 +186,16 @@ describe('QueryHandlers — guarded-write handlers', () => {
     'listGuardedFeatures',
   ];
 
-  it('registers the Tarokka read handlers, GM-gated', async () => {
+  it('registers the Tarokka link search handler, GM-gated', async () => {
     qh.registerHandlers();
-    expect(qh.isMethodRegistered('getTarokkaReading')).toBe(true);
+    expect(qh.isMethodRegistered('getTarokkaReading')).toBe(false);
     expect(qh.isMethodRegistered('searchLinkCandidates')).toBe(true);
     stubDataAccess();
     await expect(queries()[`${MODULE_ID}.searchLinkCandidates`]({ query: 'x' })).rejects.toThrow(
       'Failed to search link candidates: query must be 2 to 100 characters'
     );
     (globalThis as any).game.user = { ...(globalThis as any).game.user, isGM: false };
-    expect(await queries()[`${MODULE_ID}.getTarokkaReading`]({})).toEqual({
+    expect(await queries()[`${MODULE_ID}.searchLinkCandidates`]({ query: 'xy' })).toEqual({
       error: 'Access denied',
       success: false,
     });

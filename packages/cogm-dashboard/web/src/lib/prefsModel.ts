@@ -27,11 +27,11 @@ export interface DuringPrefs {
 
 /** What the server starts a world with; the page uses it only to fill a gap in an answer. */
 export const DEFAULT_PREFS: DuringPrefs = {
-  duringLayout: 'layered',
+  duringLayout: 'auto',
   duringFull: false,
-  combatButtons: false,
+  combatButtons: true,
   versionTracker: true,
-  layoutPicked: false,
+  layoutPicked: true,
   hintDismissed: false,
   hintSessions: [],
 };
@@ -46,9 +46,11 @@ export function readPrefs(raw: unknown): DuringPrefs {
   return {
     duringLayout: layout ?? DEFAULT_PREFS.duringLayout,
     duringFull: r['duringFull'] === true,
-    combatButtons: r['combatButtons'] === true,
+    combatButtons:
+      typeof r['combatButtons'] === 'boolean' ? r['combatButtons'] : DEFAULT_PREFS.combatButtons,
     versionTracker: r['versionTracker'] !== false,
-    layoutPicked: r['layoutPicked'] === true,
+    layoutPicked:
+      typeof r['layoutPicked'] === 'boolean' ? r['layoutPicked'] : DEFAULT_PREFS.layoutPicked,
     hintDismissed: r['hintDismissed'] === true,
     hintSessions: Array.isArray(r['hintSessions'])
       ? r['hintSessions'].filter((s): s is string => typeof s === 'string')

@@ -256,7 +256,7 @@ export const config: Config = {
   auth,
   playerView: {
     showEnemyConditions: readBool('PLAYER_SHOW_ENEMY_CONDITIONS', true),
-    showEnemyHpBands: readBool('PLAYER_SHOW_ENEMY_HP_BANDS', true),
+    showEnemyHpBands: readBool('PLAYER_SHOW_ENEMY_HP_BANDS', false),
   },
   obsidianVaultName: resolveObsidianVaultName(
     process.env.OBSIDIAN_VAULT_NAME ?? '',

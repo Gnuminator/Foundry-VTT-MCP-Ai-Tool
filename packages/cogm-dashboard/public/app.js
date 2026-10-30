@@ -171,7 +171,6 @@ const els = {
   tarokkaSub: $('tarokka-sub'),
   tarokkaBody: $('tarokka-body'),
   tarokkaRefresh: $('tarokka-refresh'),
-  tarokkaImport: $('tarokka-import'),
   tarokkaRoll: $('tarokka-roll'),
   tarokkaShow: $('tarokka-show'),
   // Handouts drawer (I-039)
@@ -261,10 +260,10 @@ let settings = {
 // The GM's screen choices for this world (D-092, I-107), from the server's "prefs" event:
 // the During layout and whether the combat buttons show. See "During layouts" below.
 let duringPrefs = {
-  duringLayout: 'layered',
+  duringLayout: 'auto',
   duringFull: false,
-  combatButtons: false,
-  layoutPicked: false,
+  combatButtons: true,
+  layoutPicked: true,
   hintDismissed: false,
   hintSessions: [],
 };
@@ -3177,7 +3176,7 @@ function renderTarokka() {
   if (!v || !v.available || !v.reading) {
     els.tarokkaSub.textContent = 'GM only. No reading stored yet.';
     els.tarokkaBody.innerHTML =
-      '<p class="empty">No reading in the vault. Import one from tarokka-reading or deal a new one.</p>';
+      '<p class="empty">No reading in the vault. Choose the cards or deal a new one.</p>';
     return;
   }
   const r = v.reading;
@@ -3373,9 +3372,6 @@ els.tarokkaClose.addEventListener('click', closeTarokka);
 els.drawerBackdrop.addEventListener('click', closeTarokka);
 els.tarokkaRefresh.addEventListener('click', () => void loadTarokka());
 els.tarokkaShow.addEventListener('change', renderTarokka);
-els.tarokkaImport.addEventListener('click', () =>
-  planThenApply('plan-tarokka-import', { source: 'tarokka-reading' }, { oneClick: true })
-);
 els.tarokkaRoll.addEventListener('click', () =>
   planThenApply('plan-tarokka-import', { source: 'builtin-roll' }, { oneClick: true })
 );

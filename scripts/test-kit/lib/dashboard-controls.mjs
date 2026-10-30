@@ -692,7 +692,6 @@ export const DASHBOARD_CONTROLS = [
   { name: 'dash.tarokka.close', how: 'open', reach: TAROKKA, gone: '#tarokka-drawer' },
   { name: 'dash.tarokka.refresh', how: 'read', reach: TAROKKA, expect: '#tarokka-body' },
   { name: 'dash.tarokka.show-cards', how: 'toggle', reach: TAROKKA },
-  { name: 'dash.tarokka.import', how: 'write', why: 'stores a reading from tarokka-reading' },
   { name: 'dash.tarokka.roll', how: 'write', why: 'deals and stores a new reading' },
   {
     name: 'dash.tarokka.choose',

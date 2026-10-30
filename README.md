@@ -41,8 +41,8 @@ currently shaped around a Curse of Strahd campaign.
   diff, apply. Each feature has its own switch in the module settings; most start off, and Allow Write
   Operations, Live play, Ownership, the table viewer and Undo for everything start on. A change is
   refused if anything changed since the plan, is recorded, and can be undone from the dashboard.
-- **Tarokka reading (Curse of Strahd).** Deal a reading with the built-in roll, or import one dealt
-  in the `tarokka-reading` module. The cards are kept GM-only, outside Foundry's world data. Link
+- **Tarokka reading (Curse of Strahd).** Deal a reading with the built-in roll, or choose the five
+  cards yourself, and lay them out on a card table on the canvas. The cards are kept GM-only, outside Foundry's world data. Link
   each card to a journal page, scene or actor, and reveal a card to players with only the text you
   write.
 - **Spoiler-safe player page.** `/player` is built by projection from what players can see in

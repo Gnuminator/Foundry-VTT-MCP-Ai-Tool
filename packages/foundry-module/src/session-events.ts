@@ -13,6 +13,7 @@ import { hpChangeFitsRoll, originatingMessageId } from './hp-credit.js';
 import { eventVisibilityFor, playerFacingSceneName } from './player-visibility.js';
 import { EffectEventDeduper } from './effect-dedupe.js';
 import { logInfo } from './log.js';
+import { damageTypeLabel } from './live-plan.js';
 import { dig, rec, type Rec } from './doc-read.js';
 import type { EventVisibility } from '@gnuminator/shared';
 
@@ -128,6 +129,19 @@ export interface CombatTimelineEntry {
 const DEFAULT_CHAT_BUFFER = 200;
 const MAX_SESSION_BUFFER = 1000;
 
+/**
+ * The change id of the guarded apply that made this write, or '' (an undo or rollback is no apply:
+ * its "Undid: ..." row stays in the feed).
+ */
+function appliedChangeId(options: unknown): string {
+  const marker = rec(rec(options)?.[MODULE_ID]);
+  return marker?.changeMode === 'apply' &&
+    marker.hpLine === true &&
+    typeof marker.changeId === 'string'
+    ? marker.changeId
+    : '';
+}
+
 export class EventTracker {
   private chatLog: ChatLogEntry[] = [];
   private sessionLog: SessionLogEntry[] = [];
@@ -216,9 +230,9 @@ export class EventTracker {
         }
       });
 
-      Hooks.on('updateActor', (actor: unknown, changed: unknown) => {
+      Hooks.on('updateActor', (actor: unknown, changed: unknown, options: unknown) => {
         try {
-          this.onUpdateActor(actor, changed);
+          this.onUpdateActor(actor, changed, options);
         } catch (error) {
           console.warn(`[${MODULE_ID}] EventTracker updateActor failed:`, error);
         }
@@ -825,7 +839,7 @@ export class EventTracker {
     }
   }
 
-  private onUpdateActor(actor: unknown, changed: unknown): void {
+  private onUpdateActor(actor: unknown, changed: unknown, options?: unknown): void {
     const actorIdValue = dig(actor, 'id');
     if (!actorIdValue) return;
     // Foundry actor ids and names are strings; they are recorded as they are.
@@ -860,20 +874,30 @@ export class EventTracker {
           const credit = this.damageCredit(pending, damage, to <= 0);
           // Temp HP that just disappears (a rest, the GM clearing it) is no damage: a drop to
           // 0 temp HP with the hit points untouched counts only when a damage roll explains it.
-          const tempCleared = delta === 0 && toTemp === 0 && !credit;
+          // A confirmed damage apply from the dashboard explains the drop too.
+          const tempCleared =
+            delta === 0 && toTemp === 0 && !credit && appliedChangeId(options) === '';
           if (!tempCleared) {
             const toTempText = tempLost > 0 ? ` (${tempLost} to temp HP)` : '';
-            // A hit that ends at 0 HP says what was left to lose: a 30-point hit on a 9 HP actor
-            // took 9 (the dashboard's change line says 30).
-            const hpText = to <= 0 && delta < 0 ? ` (HP ${prev} to ${to})` : '';
+            // The hit points before and after: a 30-point hit on a 9 HP actor took 9 (the
+            // dashboard's change line says 30).
+            const hpText = delta < 0 ? ` (HP ${prev} to ${to})` : '';
+            // A guarded damage apply (the dashboard's Damage form, plan-actor-change) names the
+            // dnd5e damage type and its change id; the change id lets the Live Feed fold the
+            // "Applied: ..." row of the same change into this line.
+            const marker = rec(rec(options)?.[MODULE_ID]);
+            const typeName = typeof marker?.damageType === 'string' ? marker.damageType : '';
+            const changeId = appliedChangeId(options);
             this.logSessionEvent(
               'damage',
-              `${actorName} took ${damage} damage${toTempText}${hpText}`,
+              `${actorName} took ${damage}${damageTypeLabel(typeName)} damage${toTempText}${hpText}`,
               {
                 actorName,
                 actorId,
                 details: {
                   amount: damage,
+                  ...(typeName ? { damageType: typeName } : {}),
+                  ...(changeId ? { changeId } : {}),
                   from: prev,
                   to,
                   ...(tempLost > 0
@@ -892,7 +916,12 @@ export class EventTracker {
           this.logSessionEvent('healing', `${actorName} healed ${delta} HP`, {
             actorName,
             actorId,
-            details: { amount: delta, from: prev, to },
+            details: {
+              amount: delta,
+              from: prev,
+              to,
+              ...(appliedChangeId(options) ? { changeId: appliedChangeId(options) } : {}),
+            },
             visibility,
           });
         }

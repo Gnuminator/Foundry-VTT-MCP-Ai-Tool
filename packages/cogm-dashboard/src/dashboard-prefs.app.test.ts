@@ -209,9 +209,9 @@ describe('prefs on /api/state', () => {
     const h = await start();
     expect((await getState(h, GM_TOKEN)).prefs).toBeNull();
     await loadWorld(h);
-    expect((await getState(h, GM_TOKEN)).prefs).toMatchObject({ combatButtons: false });
-    await setPrefs(h, GM_TOKEN, { combatButtons: true });
     expect((await getState(h, GM_TOKEN)).prefs).toMatchObject({ combatButtons: true });
+    await setPrefs(h, GM_TOKEN, { combatButtons: false });
+    expect((await getState(h, GM_TOKEN)).prefs).toMatchObject({ combatButtons: false });
   });
 
   it('never reaches the player role', async () => {

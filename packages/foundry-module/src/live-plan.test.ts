@@ -256,6 +256,7 @@ describe('target resolution', () => {
         kind: 'update',
         uuid: 'Scene.s.Token.t.Actor.a',
         changes: { 'system.attributes.hp.value': 7 },
+        hpLine: true,
       },
     ]);
     expect(plan.targets[0]).toMatchObject({
@@ -306,6 +307,7 @@ describe('target resolution', () => {
           kind: 'update',
           uuid: 'Scene.other.Token.far.Actor.a',
           changes: { 'system.attributes.hp.value': 7 },
+          hpLine: true,
         },
       ]);
     });
@@ -439,7 +441,13 @@ describe('damage and healing (dry run)', () => {
     expect(wolf.writes).toBe(0);
     expect(wolf.system.attributes.hp.value).toBe(11);
     expect(plan.ops).toEqual([
-      { kind: 'update', uuid: 'Actor.a1', changes: { 'system.attributes.hp.value': 5 } },
+      {
+        kind: 'update',
+        uuid: 'Actor.a1',
+        changes: { 'system.attributes.hp.value': 5 },
+        hpLine: true,
+        damageType: 'fire',
+      },
     ]);
     expect(plan.targets).toEqual([
       { target: 'Wolf', actorUuid: 'Actor.a1', line: 'Wolf: 12 fire damage, 6 taken, HP 11 to 5' },
@@ -478,7 +486,12 @@ describe('damage and healing (dry run)', () => {
       wolf.system.attributes.hp.temp = empty;
       const plan = await planLiveChange(hpRequest({ action: 'damage', amount: 3 }));
       expect(plan.ops).toEqual([
-        { kind: 'update', uuid: 'Actor.a1', changes: { 'system.attributes.hp.value': 7 } },
+        {
+          kind: 'update',
+          uuid: 'Actor.a1',
+          changes: { 'system.attributes.hp.value': 7 },
+          hpLine: true,
+        },
       ]);
     }
   });
@@ -487,7 +500,12 @@ describe('damage and healing (dry run)', () => {
     addActor({ id: 'a1', name: 'Wolf', hp: { value: 10, max: 10, temp: 3 } });
     const plan = await planLiveChange(hpRequest({ action: 'damage', amount: 3 }));
     expect(plan.ops).toEqual([
-      { kind: 'update', uuid: 'Actor.a1', changes: { 'system.attributes.hp.temp': 0 } },
+      {
+        kind: 'update',
+        uuid: 'Actor.a1',
+        changes: { 'system.attributes.hp.temp': 0 },
+        hpLine: true,
+      },
     ]);
     expect(plan.targets[0]?.line).toBe('Wolf: 3 damage, temp HP 3 to 0');
   });
@@ -496,7 +514,12 @@ describe('damage and healing (dry run)', () => {
     addActor({ id: 'a1', name: 'Wolf', hp: { value: 4, max: 11 } });
     const plan = await planLiveChange(hpRequest({ action: 'healing', amount: 5 }));
     expect(plan.ops).toEqual([
-      { kind: 'update', uuid: 'Actor.a1', changes: { 'system.attributes.hp.value': 9 } },
+      {
+        kind: 'update',
+        uuid: 'Actor.a1',
+        changes: { 'system.attributes.hp.value': 9 },
+        hpLine: true,
+      },
     ]);
     expect(plan.targets[0]?.line).toBe('Wolf: heals 5, HP 4 to 9');
     expect(plan.summary).toBe('Heal Wolf by 5');
@@ -568,7 +591,12 @@ describe('temp-hp', () => {
     addActor({ id: 'a1', name: 'Wolf', hp: { value: 10, max: 10, temp: 2 } });
     const plan = await planLiveChange(hpRequest({ action: 'temp-hp', amount: 8 }));
     expect(plan.ops).toEqual([
-      { kind: 'update', uuid: 'Actor.a1', changes: { 'system.attributes.hp.temp': 8 } },
+      {
+        kind: 'update',
+        uuid: 'Actor.a1',
+        changes: { 'system.attributes.hp.temp': 8 },
+        hpLine: true,
+      },
     ]);
     expect(plan.targets[0]?.line).toBe('Wolf: 8 temp HP, temp HP 2 to 8');
     expect(plan.summary).toBe('8 temp HP for Wolf');

@@ -7,8 +7,8 @@ import type {
 import { MODULE_ID } from './constants.js';
 import { bridgeHandlers } from './bridge-handlers.js';
 import { announceAiChangesUpdated } from './ai-changes-signal.js';
-import { fetchTarokkaReadingFromUser, openDocumentForGm } from './gm-helper-queries.js';
-import { getTarokkaReading, searchLinkCandidates } from './tarokka.js';
+import { openDocumentForGm } from './gm-helper-queries.js';
+import { searchLinkCandidates } from './tarokka.js';
 import { listRefChoices } from './data-access/ref-choices.js';
 import { setCampaignPartStatus } from './campaign-hooks.js';
 import { listGuardedFeatures } from './guarded-features.js';
@@ -210,11 +210,6 @@ export class QueryHandlers {
     );
 
     // Tarokka (read-only; the backend stores readings in its vault)
-    handlers.set(`${modulePrefix}.getTarokkaReading`, (data: { userId?: unknown } | undefined) =>
-      this.withGmGate('Failed to read the Tarokka reading', () =>
-        getTarokkaReading(data, fetchTarokkaReadingFromUser)
-      )
-    );
     handlers.set(
       `${modulePrefix}.searchLinkCandidates`,
       (data: { query?: unknown; limit?: unknown } | undefined) =>

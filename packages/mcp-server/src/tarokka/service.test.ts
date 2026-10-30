@@ -37,10 +37,6 @@ beforeEach(async () => {
   foundry = new FakeFoundry();
   foundry.worldId = WORLD;
   foundry.features = [{ id: 'tarokka', name: 'Tarokka', hint: '', enabled: true }];
-  foundry.handlers['foundry-mcp-bridge.getTarokkaReading'] = (): unknown => ({
-    available: false,
-    reason: 'tarokka-reading is not installed; use source builtin-roll',
-  });
   store = new VaultStore({ dataDir });
   now = Date.parse('2026-09-28T20:00:00.000Z');
   const logger: any = { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() };
@@ -80,20 +76,19 @@ async function vaultData(file: string): Promise<any> {
   return (await store.read(WORLD, 'gm', file))?.data;
 }
 
-const TR_READING = {
-  source: 'tarokka-reading',
-  providerVersion: '1.0.3',
-  readingId: 'abcDEF123456',
-  dealt: true,
-  complete: false,
-  slots: [
-    { position: 'tome', cardId: 'stars-4', cardName: 'Provider Name', gmNote: 'note 1' },
-    { position: 'holySymbol', cardId: 'coins-master', cardName: null, gmNote: null },
-    { position: 'sunsword', cardId: 'glyphs-2', cardName: null, gmNote: null },
-    { position: 'ally', cardId: 'ghost', cardName: null, gmNote: 'secret ally note' },
-    { position: 'strahdLocation', cardId: 'mists', cardName: null, gmNote: null },
-  ],
+/** A fixed reading the GM chose; each call to `deal` gives it a new id (the clock moves on). */
+const DEAL = {
+  tome: 'stars-4',
+  holySymbol: 'coins-master',
+  sunsword: 'glyphs-2',
+  ally: 'ghost',
+  strahdLocation: 'mists',
 };
+
+async function deal(cards: Record<string, string> = DEAL): Promise<void> {
+  now += 1000;
+  await apply((await tarokka.planImport({ cards })).planId);
+}
 
 describe('reading and import', () => {
   it('reports no reading before the first import', async () => {
@@ -104,14 +99,13 @@ describe('reading and import', () => {
     });
   });
 
-  it('rolls a reading when tarokka-reading is unavailable, and stores it on apply', async () => {
+  it('rolls a reading when none is chosen, and stores it on apply', async () => {
     const plan = await tarokka.planImport({});
     expect(plan).toMatchObject({
       feature: 'tarokka',
       target: 'vault',
       risk: 'write',
       source: 'builtin-roll',
-      providerNote: expect.stringMatching(/not installed/),
     });
     expect(plan.diff.map(d => d.text)).toContain(
       'gm/tarokka.json: current.source: (unset) → "builtin-roll"'
@@ -137,47 +131,14 @@ describe('reading and import', () => {
     });
   });
 
-  it('imports the tarokka-reading deal, with names, notes and the dealing GM', async () => {
-    const provider = vi.fn(() => ({ available: true, from: 'user:gm2', reading: TR_READING }));
-    foundry.handlers['foundry-mcp-bridge.getTarokkaReading'] = provider;
-    const plan = await tarokka.planImport({ source: 'tarokka-reading', userId: 'gm2' });
-    expect(provider).toHaveBeenCalledWith({ userId: 'gm2' });
-    await apply(plan.planId);
-    const view = await tarokka.getReading();
-    expect(view.reading).toMatchObject({
-      readingId: 'tr-abcDEF123456',
-      source: 'tarokka-reading',
-      providerVersion: '1.0.3',
-    });
-    expect(view.reading?.positions[0]).toMatchObject({
-      cardName: 'Provider Name',
-      gmNote: 'note 1',
-    });
-    expect(view.reading?.positions[1].cardName).toBe('Master of Coins');
+  it('never asks Foundry for a reading: a roll needs no module', async () => {
+    await apply((await tarokka.planImport({})).planId);
+    expect(foundry.calls.map(([method]) => method)).not.toContain(
+      'foundry-mcp-bridge.getTarokkaReading'
+    );
   });
 
-  it('refuses tarokka-reading when unavailable or malformed', async () => {
-    await expect(tarokka.planImport({ source: 'tarokka-reading' })).rejects.toThrow(
-      /not installed/
-    );
-    foundry.handlers['foundry-mcp-bridge.getTarokkaReading'] = (): unknown => ({
-      available: true,
-      reading: {
-        ...TR_READING,
-        slots: TR_READING.slots.map((s, i) => (i === 3 ? { ...s, cardId: 'swords-1' } : s)),
-      },
-    });
-    await expect(tarokka.planImport({ source: 'tarokka-reading' })).rejects.toThrow(
-      /no valid card for Ally/
-    );
-    foundry.handlers['foundry-mcp-bridge.getTarokkaReading'] = (): unknown => ({
-      success: false,
-      error: 'Access denied',
-    });
-    await expect(tarokka.planImport({})).rejects.toThrow(/refused: Access denied/);
-  });
-
-  it('archives the previous reading, keeps reveals on a re-import of the same deal', async () => {
+  it('archives the previous reading', async () => {
     await apply((await tarokka.planImport({ source: 'builtin-roll' })).planId);
     const first = (await tarokka.getReading()).reading!.readingId;
     now += 1000;
@@ -187,22 +148,6 @@ describe('reading and import', () => {
     const view = await tarokka.getReading();
     expect(view.archivedReadings).toBe(1);
     expect((await vaultData(TAROKKA_FILE)).archive[first].readingId).toBe(first);
-
-    foundry.handlers['foundry-mcp-bridge.getTarokkaReading'] = (): unknown => ({
-      available: true,
-      reading: TR_READING,
-    });
-    await apply((await tarokka.planImport({})).planId);
-    await apply(
-      (await tarokka.planReveal({ position: 'tome', text: 'The book waits.' })).planId,
-      true
-    );
-    const again = await tarokka.planImport({});
-    expect(again.summary).not.toMatch(/archiving/);
-    await apply(again.planId);
-    const kept = (await tarokka.getReading()).reading!.positions[0];
-    expect(kept.revealed).toBe(true);
-    expect(kept.revealPageUuid).toMatch(/^JournalEntry\.[A-Za-z0-9]{16}\.JournalEntryPage\./);
   });
 
   it('can be undone, restoring the previous reading', async () => {
@@ -254,13 +199,10 @@ describe('reading and import', () => {
     expect(await tarokka.getReading()).toEqual(before);
   });
 
-  it('refuses clear together with source or userId', async () => {
+  it('refuses clear together with a source', async () => {
     await apply((await tarokka.planImport({ source: 'builtin-roll' })).planId);
     await expect(tarokka.planImport({ clear: true, source: 'builtin-roll' })).rejects.toThrow(
-      /clear takes no source or userId/
-    );
-    await expect(tarokka.planImport({ clear: true, userId: 'u1' })).rejects.toThrow(
-      /clear takes no source or userId/
+      /clear takes no source/
     );
     // The Tools form sends the schema default source 'auto' along with clear.
     const plan = await tarokka.planImport({ clear: true, source: 'auto' });
@@ -328,7 +270,7 @@ describe('reading and import', () => {
       );
     });
 
-    it('refuses cards together with a source, userId or clear', async () => {
+    it('refuses cards together with a source or clear', async () => {
       await expect(tarokka.planImport({ cards: CHOSEN, source: 'builtin-roll' })).rejects.toThrow(
         /cards takes no source/
       );
@@ -448,11 +390,7 @@ describe('links', () => {
 
 describe('reveal', () => {
   beforeEach(async () => {
-    foundry.handlers['foundry-mcp-bridge.getTarokkaReading'] = (): unknown => ({
-      available: true,
-      reading: TR_READING,
-    });
-    await apply((await tarokka.planImport({})).planId);
+    await deal();
   });
 
   it('creates the player journal with the GM text, allowlists the page, marks it revealed', async () => {
@@ -480,7 +418,7 @@ describe('reveal', () => {
       uuid: plan.pageUuid,
       feature: 'tarokka',
       position: 'ally',
-      readingId: 'tr-abcDEF123456',
+      readingId: (await tarokka.getReading()).reading!.readingId,
     });
     expect((await tarokka.getReading()).reading!.positions[3]).toMatchObject({
       revealed: true,
@@ -557,12 +495,9 @@ describe('reveal', () => {
 
   /** Replace the current reading with a fresh deal of the same cards under another id. */
   async function replaceReading(): Promise<void> {
-    foundry.handlers['foundry-mcp-bridge.getTarokkaReading'] = (): unknown => ({
-      available: true,
-      reading: { ...TR_READING, readingId: 'newDEAL98765' },
-    });
-    await apply((await tarokka.planImport({})).planId);
-    expect((await tarokka.getReading()).reading?.readingId).toBe('tr-newDEAL98765');
+    const before = (await tarokka.getReading()).reading!.readingId;
+    await deal();
+    expect((await tarokka.getReading()).reading?.readingId).not.toBe(before);
   }
 
   it('pins the reading: a reveal planned for a replaced reading writes nothing', async () => {
@@ -579,6 +514,19 @@ describe('reveal', () => {
     expect((await tarokka.getReading()).reading!.positions[0].revealed).toBe(false);
   });
 
+  it('pins the card too: the same reading with another card here writes nothing', async () => {
+    const plan = await tarokka.planReveal({ position: 'tome', text: 'One.' });
+    await store.update<any>(WORLD, 'gm', TAROKKA_FILE, 1, current => {
+      const data = current!.data;
+      data.current.positions.tome.cardId = 'stars-5';
+      return data;
+    });
+    await expect(apply(plan.planId, true)).rejects.toThrow(
+      /Conflict, nothing was written: tarokka\.json current\.positions\.tome\.cardId changed since/
+    );
+    expect(foundry.docs.has(plan.pageUuid)).toBe(false);
+  });
+
   it('pins the reading for a re-reveal too (no vault ops of its own)', async () => {
     const first = await tarokka.planReveal({ position: 'tome', text: 'One.' });
     await apply(first.planId, true);
@@ -589,30 +537,6 @@ describe('reveal', () => {
     expect(foundry.docs.get(first.pageUuid)?.source).toMatchObject({
       text: { content: '<p>One.</p>' },
     });
-  });
-
-  it('pins the card too: a re-import of the same deal with another card here writes nothing', async () => {
-    const plan = await tarokka.planReveal({ position: 'tome', text: 'One.' });
-    expect(plan.diff.some(d => d.path?.endsWith('.cardId'))).toBe(false);
-    // Same readingId, only the tome card differs: the import keeps the id and resets the tome.
-    foundry.handlers['foundry-mcp-bridge.getTarokkaReading'] = (): unknown => ({
-      available: true,
-      reading: {
-        ...TR_READING,
-        slots: TR_READING.slots.map(s =>
-          s.position === 'tome' ? { ...s, cardId: 'stars-5', cardName: null, gmNote: null } : s
-        ),
-      },
-    });
-    await apply((await tarokka.planImport({})).planId);
-    const reading = (await tarokka.getReading()).reading!;
-    expect(reading.readingId).toBe('tr-abcDEF123456');
-    expect(reading.positions[0].cardId).toBe('stars-5');
-    await expect(apply(plan.planId, true)).rejects.toThrow(
-      /Conflict, nothing was written: tarokka\.json current\.positions\.tome\.cardId changed since/
-    );
-    expect(foundry.docs.has(plan.pageUuid)).toBe(false);
-    expect((await tarokka.getReading()).reading!.positions[0].revealed).toBe(false);
   });
 
   it('validates the request', async () => {
@@ -628,11 +552,7 @@ describe('reveal', () => {
 
 describe('canary: nothing secret reaches Foundry or the change summaries', () => {
   it('sends only GM-typed text to Foundry and keeps card data out of summaries', async () => {
-    foundry.handlers['foundry-mcp-bridge.getTarokkaReading'] = (): unknown => ({
-      available: true,
-      reading: TR_READING,
-    });
-    await apply((await tarokka.planImport({})).planId);
+    await deal();
     await apply(
       (await tarokka.planLinks({ position: 'strahdLocation', sceneUuid: 'Scene.cccccccccccccccc' }))
         .planId
@@ -640,22 +560,10 @@ describe('canary: nothing secret reaches Foundry or the change summaries', () =>
     const text = 'The players may know this.';
     await apply((await tarokka.planReveal({ position: 'ally', text })).planId, true);
 
-    const secrets = [
-      'Provider Name',
-      'note 1',
-      'secret ally note',
-      'stars-4',
-      'ghost',
-      'mists',
-      'Master of Coins',
-      'Scene.cccccccccccccccc',
-    ];
-    // Everything sent to Foundry, except the read-only requests for the reading itself.
+    const secrets = ['stars-4', 'ghost', 'mists', 'Master of Coins', 'Scene.cccccccccccccccc'];
+    // Everything sent to Foundry, except the read-only link search.
     const sent = JSON.stringify(
-      foundry.calls.filter(
-        ([method]) =>
-          !method.endsWith('getTarokkaReading') && !method.endsWith('searchLinkCandidates')
-      )
+      foundry.calls.filter(([method]) => !method.endsWith('searchLinkCandidates'))
     );
     for (const secret of secrets) expect(sent).not.toContain(secret);
     expect(sent).toContain(text);

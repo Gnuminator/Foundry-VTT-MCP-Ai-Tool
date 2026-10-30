@@ -160,9 +160,8 @@ Undo. It needs GM Actions and the module switch "AI Tool: Paper sync (writes)".
 Two entries under **Advanced**, in the **During screen** group:
 
 - **⚔ Combat buttons: off / on** puts **Damage / Heal**, **Condition** and **Clear** in the
-  turn-order strip (see Combat Tracker below). Off by default: in Foundry, the dnd5e chat cards
-  already apply damage and healing, and that is the way to learn first. Your choice is kept for
-  this world.
+  turn-order strip (see Combat Tracker below). On by default. They still need GM Actions on to
+  do anything. Your choice is kept for this world.
 - **▦ Try the During layouts** starts the short layout trial again (see During layouts below).
 
 ### ⏸ Pause, 🩺 Diag AI, Tone, Model (old dashboard only)
@@ -182,13 +181,13 @@ These control the AI commentary panel, which is only on the old dashboard (`/leg
 The game happens in Foundry; the **During** screen sits next to it and keeps an eye on things.
 It comes in three layouts. Pick one with **Layout** at the top of the screen:
 
-- **Cards** (the default): the Live Feed is the big column. Recent Changes, Handouts and Party
+- **Cards**: the Live Feed is the big column. Recent Changes, Handouts and Party
   are cards at the side; open one and the others fold to a single line. The turn order shows
   only while a fight runs.
 - **Simple/Full**: Simple shows only the Live Feed, Recent Changes and Handouts. **Show
   everything** switches to Full: the turn order and Party as well, all open. **Show less** goes
   back.
-- **Auto**: follows the game. Without a fight it looks like Cards. When combat starts, the turn
+- **Auto** (the default): follows the game. Without a fight it looks like Cards. When combat starts, the turn
   order grows and Party opens in the big column; the Live Feed folds to the side.
 
 The **Try layouts** button next to **Layout** starts the trial any time, with a sample fight so
@@ -226,8 +225,8 @@ Defeated creatures are dimmed and never count as next. The ribbon never changes 
 only moves that screen's view.
 
 Combat in the dashboard is optional. If you want it, the strip can add damage, healing and
-conditions on several combatants at once: turn on **⚔ Combat buttons** under **Advanced** (off by
-default). With the combat buttons and GM Actions on (**Turn on for tonight** turns GM Actions on),
+conditions on several combatants at once: **⚔ Combat buttons** under **Advanced** are on by
+default (switch them off there if you prefer Foundry's chat cards). With the combat buttons and GM Actions on (**Turn on for tonight** turns GM Actions on),
 click combatant rows to select them (click again to unselect). With one or more selected:
 
 - **Damage / Heal**: opens a small form: Damage or Heal, one amount, and damage type chips (so
@@ -580,14 +579,11 @@ category **Foundry AI Tool**) and GM Actions on.
 Top row:
 
 - **↻ Refresh**: reloads the reading.
-- **Import from tarokka-reading**: takes the reading you dealt in the `tarokka-reading` module.
-  When you deal there with the switch on, Foundry first asks "Offer this reading to the AI Tool?";
-  answer yes, then import it here.
 - **New reading (built-in roll)**: deals a new reading with the tool's own roll. The previous
   reading is kept in an archive.
 - **Choose the cards…**: for a reading you drew by hand. Pick the five cards (the first three from
   the common deck, the last two from the high deck, none twice) and press **Store this reading**.
-  Nothing is dealt, and you do not need the `tarokka-reading` module. The previous reading is
+  Nothing is dealt. The previous reading is
   kept in an archive, and Undo brings it back. It shows card names, so it only opens while
   **Show cards** is ticked, and unticking that hides it again.
 - **📓 Obsidian**: opens the current reading's note in Obsidian.
@@ -709,7 +705,7 @@ recap, Handouts and Quests, and the live cards move down. Its parts:
 - **Open your character sheet**: a link to `/me`. At the top between sessions, at the bottom during
   a session.
 - **Combat order**: initiative and names as players know them. PCs have an HP bar; enemies and NPCs
-  have no HP numbers, only a rough band (healthy, bloodied, critical, down). Only standard conditions show. Hidden creatures are left out, and a creature
+  have no HP numbers and no band: players ask you who is hurt. (The rough band, healthy, bloodied, critical, down, is a switch for the host: `PLAYER_SHOW_ENEMY_HP_BANDS=true`.) Only standard conditions show. Hidden creatures are left out, and a creature
   whose name players cannot see is "Unknown creature".
 - **Session feed**: public rolls and what players could see happen, with creatures named the way
   players know them. Private, blind and GM rolls never show. Damage and healing amounts show for

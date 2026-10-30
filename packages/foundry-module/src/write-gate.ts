@@ -119,7 +119,6 @@ export const NON_WRITE_METHODS: readonly string[] = [
   'getSessionLog',
   'getSpentActions',
   'getTargets',
-  'getTarokkaReading',
   'getTokenDetails',
   'getTokenPositions',
   'getUsageRecords',

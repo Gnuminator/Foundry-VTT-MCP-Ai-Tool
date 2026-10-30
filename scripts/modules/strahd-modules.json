@@ -1,5 +1,5 @@
 {
-  "_comment": "The modules the Curse of Strahd world runs (vault Design/Module walkthrough plan.md, 2026-10-04 verdicts, plus tarokka-reading). Module ids only, never content. licensed = the package is paid, Patreon or bought content: it goes in the archive but never in a repo or the vault. verdict = the word on the module's page in .claude/skills/foundry-modules/references (keep, optional or drop; the SKILL.md index copies it); foundry-mcp-bridge and aitool-content are ours and have no page. Edit when the GM list changes; the all-modules kit profile (scripts/test-kit/data/profiles/modules-all.json) must list the same ids (a test checks).",
+  "_comment": "The modules the Curse of Strahd world runs (vault Design/Module walkthrough plan.md, 2026-10-04 verdicts; tarokka-reading left on 2026-10-29, our own card table replaces it, D-130). Module ids only, never content. licensed = the package is paid, Patreon or bought content: it goes in the archive but never in a repo or the vault. verdict = the word on the module's page in .claude/skills/foundry-modules/references (keep, optional or drop; the SKILL.md index copies it); foundry-mcp-bridge and aitool-content are ours and have no page. Edit when the GM list changes; the all-modules kit profile (scripts/test-kit/data/profiles/modules-all.json) must list the same ids (a test checks).",
   "modules": [
     { "id": "foundry-mcp-bridge", "role": "ours" },
     { "id": "lib-wrapper", "role": "library", "verdict": "keep" },
@@ -8,7 +8,12 @@
     { "id": "3ds-atlas", "role": "library", "verdict": "keep" },
     { "id": "automated-conditions-5e", "verdict": "keep" },
     { "id": "dae", "verdict": "optional" },
-    { "id": "NotYourTurn", "verdict": "keep" },
+    {
+      "id": "NotYourTurn",
+      "verdict": "keep",
+      "worldSettings": { "BlockPlayer": 3, "BlockTrusted": 3, "BlockAssistant": 1, "BlockGM": 1 },
+      "note": "Danni 2026-10-30: block out-of-turn moves completely. Drop-down values: 0 Off, 1 Warning Only, 2 Dialog Box, 3 Autoblock. GM and Assistant stay 1 so AI token moves are never blocked."
+    },
     { "id": "autoanimations", "verdict": "optional" },
     { "id": "calendaria", "verdict": "keep" },
     { "id": "combat-tracker-dock", "verdict": "keep" },
@@ -53,13 +58,12 @@
     { "id": "racooze-map-library", "verdict": "optional" },
     { "id": "share-media", "verdict": "keep" },
     { "id": "travel-pace", "verdict": "keep" },
-    { "id": "vtta-tokenizer", "verdict": "keep" },
-    { "id": "tarokka-reading", "verdict": "keep" }
+    { "id": "vtta-tokenizer", "verdict": "keep" }
   ],
   "undecided": [
     { "id": "monks-tokenbar", "verdict": "drop", "why": "Danni decides, drop recommended" },
     { "id": "combat-spell-timer", "verdict": "drop", "why": "Danni decides, drop recommended" },
     { "id": "lootsheet-simple", "why": "max dnd5e 5.9.9, not on the keep list" }
   ],
-  "dropped": ["dice-stats", "scaleGrid"]
+  "dropped": ["dice-stats", "scaleGrid", "tarokka-reading"]
 }

@@ -17,6 +17,7 @@ import { openLootWindow } from './loot-window.js';
 import { openPartyWindow } from './party-window.js';
 import { openSceneWindow } from './scene-window.js';
 import { openSessionWindow } from './session-window.js';
+import { openTarokkaTableWindow } from './tarokka-table-window.js';
 import { openTarokkaWindow } from './tarokka-window.js';
 
 /** One button of the group. */
@@ -48,6 +49,12 @@ export const AI_TOOL_BUTTONS: readonly AiToolButton[] = [
     title: 'Tarokka',
     icon: 'fa-solid fa-cards',
     open: () => openTarokkaWindow(),
+  },
+  {
+    name: 'tarokkaTable',
+    title: 'Tarokka table',
+    icon: 'fa-solid fa-table-cells-large',
+    open: () => openTarokkaTableWindow(),
   },
   {
     name: 'combat',

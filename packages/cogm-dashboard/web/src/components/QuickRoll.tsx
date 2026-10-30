@@ -73,12 +73,6 @@ function changePick(change: Partial<RollPick>): void {
   listeners.forEach(l => l());
 }
 
-/** Forgets the shared choice, so the next read comes from storage again (tests). */
-export function resetQuickRollPick(): void {
-  current = null;
-  listeners.forEach(l => l());
-}
-
 export interface QuickRoll {
   pick: RollPick;
   setPick: (change: Partial<RollPick>) => void;

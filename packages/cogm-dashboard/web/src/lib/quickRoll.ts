@@ -121,17 +121,21 @@ export function sentSummary(
   const what = `${pickLabel(pick)}${pick.dc.trim() ? ` DC ${pick.dc.trim()}` : ''}`;
   const who = ok.length === 1 ? ok[0] : `${ok.length} characters`;
   if (failed.length === 0) return `✓ Sent: ${what} to ${who}`;
-  // A request that got no answer (a timeout, a dropped link) may still have posted its card.
-  const bad = failed
-    .map(f => {
-      if (!f.maybeSent) return `${f.name}: ${f.error}`;
-      const error = f.error.trim();
-      return `${f.name}: ${error}${/[.!?]$/.test(error) ? '' : '.'} It may have been sent, check chat.`;
-    })
-    .join('; ');
-  const unsure = failed.every(f => f.maybeSent);
-  const lead = unsure ? 'Not confirmed' : 'Not sent';
-  return ok.length === 0
-    ? `✗ ${what} ${unsure ? 'not confirmed' : 'not sent'}. ${bad}`
-    : `✓ Sent: ${what} to ${who}. ${lead}: ${bad}`;
+  // A request that got no answer (a timeout, a dropped link) may still have posted its card, so
+  // it is listed apart from the ones that surely did not go.
+  const line = (list: typeof failed): string =>
+    list.map(f => `${f.name}: ${f.error.trim().replace(/[.!?]$/, '')}`).join('; ');
+  const sure = failed.filter(f => !f.maybeSent);
+  const unsure = failed.filter(f => f.maybeSent);
+  const notConfirmed = `Not confirmed: ${line(unsure)}. It may have been sent, check chat.`;
+  if (ok.length === 0) {
+    if (sure.length === 0)
+      return `✗ ${what} not confirmed. ${notConfirmed.replace('Not confirmed: ', '')}`;
+    return `✗ ${what} not sent. ${line(sure)}${unsure.length > 0 ? `. ${notConfirmed}` : ''}`;
+  }
+  const parts = [
+    sure.length > 0 ? `Not sent: ${line(sure)}` : '',
+    unsure.length > 0 ? notConfirmed : '',
+  ];
+  return `✓ Sent: ${what} to ${who}. ${parts.filter(Boolean).join('. ')}`;
 }

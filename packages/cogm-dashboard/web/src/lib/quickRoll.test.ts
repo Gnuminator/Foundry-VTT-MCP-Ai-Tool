@@ -80,7 +80,7 @@ describe('labels', () => {
       '✗ Dexterity save DC 14 not confirmed. C: no answer from Foundry. It may have been sent, check chat.'
     );
     expect(sentSummary(pick, ['A'], [late, { name: 'D', error: 'offline' }])).toBe(
-      '✓ Sent: Dexterity save DC 14 to A. Not sent: C: no answer from Foundry. It may have been sent, check chat.; D: offline'
+      '✓ Sent: Dexterity save DC 14 to A. Not sent: D: offline. Not confirmed: C: no answer from Foundry. It may have been sent, check chat.'
     );
   });
 });

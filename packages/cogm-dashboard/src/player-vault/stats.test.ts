@@ -124,4 +124,16 @@ describe('stats note', () => {
     expect(note).toContain('Level 1 slots');
     expect(files.get('Home.md')).toContain('(My%20stats.md)');
   });
+
+  it('labels a level 0 slot key as pact slots, not "Level 0"', () => {
+    const answer = raw() as { pcs: Array<Record<string, unknown>> };
+    const pcs = answer.pcs.map(pc => ({ ...pc, slotsSpent: { spell0: 1 } }));
+    const note =
+      renderPlayerVault({
+        ...base,
+        stats: projectPlayStats({ ...answer, pcs }, 'w1', OWN),
+      }).get('My stats.md') ?? '';
+    expect(note).toContain('Pact slots');
+    expect(note).not.toContain('Level 0');
+  });
 });

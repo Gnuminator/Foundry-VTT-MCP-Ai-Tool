@@ -164,6 +164,11 @@ export class PlayerVaultService {
     const rawStats = players.length > 0 ? await this.playStats(world.id) : null;
 
     for (const player of players) {
+      if (rawStats === undefined) {
+        // No stats answer yet (fresh process, bridge busy): keep the folder, My stats.md included.
+        result.failed.push(player.name);
+        continue;
+      }
       try {
         const sheets = await this.sheets(player.userId);
         if (sheets === null) {
@@ -225,7 +230,8 @@ export class PlayerVaultService {
 
   /**
    * The bridge's GM stats, once per pass; only `projectPlayStats` may read it. When the call
-   * fails the last good answer for the world stays, so a failed call never drops the stats note.
+   * fails the last good answer for the world stays; with none (undefined) the pass skips the
+   * vaults, so a failed call never drops the stats note.
    */
   private async playStats(worldId: string): Promise<unknown> {
     const ttl = this.options.statsTtlMs ?? 300_000;
@@ -238,7 +244,7 @@ export class PlayerVaultService {
     } catch (error) {
       this.options.logger.warn('Player vault: play stats unavailable', { error: errorText(error) });
     }
-    return this.lastStats?.worldId === worldId ? this.lastStats.raw : null;
+    return this.lastStats?.worldId === worldId ? this.lastStats.raw : undefined;
   }
 
   /** The player's own sheets, or null when the bridge could not answer. */

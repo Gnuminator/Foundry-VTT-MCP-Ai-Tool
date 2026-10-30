@@ -365,7 +365,7 @@ const STATS_PATH = 'My stats.md';
 
 function slotLabel(key: string): string {
   const level = /^spell(\d+)$/.exec(key);
-  if (level) return `Level ${level[1]} slots`;
+  if (level) return Number(level[1]) === 0 ? 'Pact slots' : `Level ${level[1]} slots`;
   return key === 'pact' ? 'Pact slots' : `${key} slots`;
 }
 

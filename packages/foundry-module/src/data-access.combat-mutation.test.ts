@@ -93,7 +93,7 @@ function addActorWithHp(name: string, hp: { value: number; max?: number; temp?: 
 // The AI change group ends with a turn or initiative write
 // ===========================================================================
 
-describe('FoundryDataAccess — combat writes end the AI change group', () => {
+describe('FoundryDataAccess: combat writes end the AI change group', () => {
   it.each([
     ['advanceCombatTurn', (d: FoundryDataAccess): Promise<unknown> => d.advanceCombatTurn({})],
     [

@@ -92,29 +92,34 @@ item is marked done; the board ignores a line on an item with no claim.
 
 ## Before the PR
 
-- `npm run green`: everything CI's build-test job runs, quiet (one OK line, or the failing step
-  and its log tail). `--list`, `--only a,b`, `--from <step>` for a rerun. Run it once before the
-  first push. **Green on the final commit:** after review fixes, CI green on the PR head counts
-  (the merge gate checks it on that exact commit; the user, 2026-10-30), so a second local green is
-  only needed when you want the answer before pushing. A full OK run writes
-  the tree it ran on (uncommitted edits included) to `.git/green-ok`; the `pre-push` hook
-  (`scripts/pre-push.mjs`: the lint and em-dash ratchets and the typecheck, about a minute) is
-  skipped when every pushed commit has that tree, and otherwise refuses a push that CI would fail
-  on those. `SKIP_PREPUSH=1 git push ...` skips it by hand. Heavy runs share the PC through a
-  machine-wide lock: `node scripts/heavy-lock.mjs status` shows who holds it and who waits; the
-  slot count is in `~/.foundry-ai-tool/heavy-lock.json` (`{"slots": 3}`), read on every run.
-  **Long queue:** an unqueued green takes 5 to 7 minutes; if `heavy-lock.mjs status` shows every
-  slot held and others waiting (measured 2026-10-30: waits of 6 to 32 minutes), commit, push the
-  branch (`SKIP_PREPUSH=1 git push -u aitool <b>:<b>`: the pre-push hook would wait for a free
-  slot too, and CI runs the same ratchets and typecheck) and run `npm run green -- --cloud`
-  instead, with `run_in_background` (about 11 to 15
-  minutes, longer than a foreground call). It checks CI on GitHub for the pushed HEAD (no load on
-  the PC, no lock) and prints one line (OK, or the failed job and step with its URL). If the
-  branch has an open PR it waits for the PR's own run (which tests the merge with main); without a
-  PR it starts `ci.yml` by workflow_dispatch on the branch (the branch alone, every job including
-  the screenshots), and opening the PR later starts a second run, so open the PR (a draft is fine)
-  first when one is coming anyway. It does not write `.git/green-ok`, so the pre-push ratchets
-  still run. Dashboard changes still need `visual:baselines` as below.
+- **CI on the PR head is the green (the user, 2026-10-30 evening; vault Decisions log).** A lane
+  does not run the full `npm run green` before a PR: it waited a median 23.5 minutes for the heavy
+  lock for a 6.5 minute run. The routine: quick local checks of what you touched, push, let CI run
+  (`build-test` on Node 22, 24 and ARM, plus `dashboard-visual` for dashboard paths), fix what it
+  reports. `scripts/lane-merge.mjs --wait-ci` refuses a merge without CI green on the exact head,
+  so nothing skips CI. This also holds after review fixes: CI green on the new head is the answer.
+  - **Quick checks:** `npm run green -- --quick` (seconds to a couple of minutes, no heavy lock). It
+    diffs your branch against `aitool/main` (committed, uncommitted and untracked) and runs the
+    shared build, the typecheck and unit tests of each touched package (a `shared/` change
+    typechecks every package), the node tests of changed scripts and hooks (`foo.mjs` runs
+    `foo.test.mjs`), and the dashboard e2e specs you touched (after a dashboard build). Nothing
+    touched means "nothing to check". It never writes `.git/green-ok`.
+  - **Still yours:** `npm run docs:tools` after a tool change. Lint and em-dash baselines: the CI
+    ratchet tells you when a count dropped or rose; lower the baseline then
+    (`npm run lint:ratchet -- --update`).
+  - **The full local `npm run green`** only on request (the planner or the user asks) or when CI
+    cannot tell: a change to `green.mjs` or `ci.yml` itself, to checks CI does not run, or CI being
+    down. `--list`, `--only a,b`, `--from <step>` for a rerun. It shares the PC through the
+    machine-wide lock (`node scripts/heavy-lock.mjs status` shows who holds it and who waits; the
+    slot count is in `~/.foundry-ai-tool/heavy-lock.json`). A full OK run writes the tree to
+    `.git/green-ok`, which makes the `pre-push` hook skip its guard.
+  - **`npm run green -- --cloud`** (about 11 to 15 minutes, `run_in_background`) prints one line
+    once CI has finished for the pushed HEAD: use it to wait for CI instead of watching the PR. The
+    branch must be pushed (open the PR, a draft is fine, first, so it waits for the PR's own run);
+    it takes no lock and runs nothing locally.
+  - **The `pre-push` hook** (`scripts/pre-push.mjs`) runs only the em-dash ratchet (about a second,
+    no lock); the lint ratchet and typecheck are CI's job. `SKIP_PREPUSH=1 git push ...` skips it.
+  - Dashboard changes still need `visual:baselines`, as below.
 - **Dashboard change (anything under `packages/cogm-dashboard/`, stories included, or a
   `package-lock.json` change such as a Playwright bump):** push the branch, run `npm run visual:baselines -- <branch>` (starts `visual-baselines.yml` on GitHub,
   about 15 minutes, no Docker needed; the workflow runs on your branch, so a branch cut before it
@@ -244,7 +249,7 @@ note reviewed>` (`--dry-run` first; no `--allow-round3`). It refuses, with the r
 - Handover: half a page to vault `Handoff/<lane> prompt <date>.md` and in full in the chat in a
   fenced block: task, state, open PRs, links, done-when, "follow CLAUDE.md". Findings a successor
   needs go in the vault, not side-session notes (archiving a session deletes those).
-- Write the `Handoff/<lane> prompt <date>.md` note at the first milestone (green passes, PR
+- Write the `Handoff/<lane> prompt <date>.md` note at the first milestone (quick checks pass, PR
   opened, a review says Merge) and update it at each later one, then commit and push the vault:
   done, left, branch, PR and head sha, the next command. Hitting the limit then means one step.
   At each milestone and at handover also update the `- progress:` line on your Backlog item (same

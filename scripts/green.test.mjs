@@ -35,6 +35,7 @@ import {
   SOLO_STEPS,
   cloudGreen,
   repoFromUrl,
+  quickSteps,
 } from './green.mjs';
 import { main as prePush, CHECKS, pushedCommits } from './pre-push.mjs';
 import { HELD_ENV } from './heavy-lock.mjs';
@@ -143,6 +144,7 @@ test('parseArgs: flags, equals form, repeats and errors', () => {
     list: false,
     all: false,
     cloud: false,
+    quick: false,
     only: [],
     skip: [],
     from: null,
@@ -636,8 +638,8 @@ test('pushedCommits: the local shas of the pushed refs, without deletes', () => 
   assert.deepEqual(pushedCommits(''), []);
 });
 
-test('pre-push: the checks run inside one lock, and the pushed commits reach the green check', () => {
-  const order = [];
+test('pre-push: only the lock-free em dash guard runs, and the pushed commits reach the green check', () => {
+  const ran = [];
   const seen = [];
   const code = prePush({
     cwd: '.',
@@ -648,44 +650,36 @@ test('pre-push: the checks run inside one lock, and the pushed commits reach the
       seen.push(...commits);
       return false;
     },
-    withLock: fn => {
-      order.push('lock');
-      const r = fn();
-      order.push('unlock');
-      return r;
-    },
     runCheck: c => {
-      order.push(c.name);
+      ran.push(c.name);
       return 0;
     },
   });
   assert.equal(code, 0);
   assert.deepEqual(seen, ['c1']);
-  assert.deepEqual(order, ['lock', 'lint:ratchet', 'emdash:ratchet', 'typecheck', 'unlock']);
+  assert.deepEqual(ran, ['emdash:ratchet']);
 });
 
-test('pre-push: runs the ratchets and typecheck, refuses on the first failure, skips after green', () => {
-  const lines = [];
-  const ran = [];
-  const base = { cwd: '.', env: {}, log: l => lines.push(l), passedGreen: () => false, withLock: fn => fn() };
-  const pass = c => {
-    ran.push(c.name);
-    return 0;
-  };
+test('pre-push: never takes the heavy lock and leaves lint and typecheck to CI', () => {
+  const src = fs.readFileSync(new URL('./pre-push.mjs', import.meta.url), 'utf8');
+  assert.doesNotMatch(src, /withHeavyLock|heavy-lock\.mjs'/);
   assert.deepEqual(
     CHECKS.map(c => c.name),
-    ['lint:ratchet', 'emdash:ratchet', 'typecheck']
+    ['emdash:ratchet']
   );
-  assert.equal(prePush({ ...base, runCheck: pass }), 0);
-  assert.deepEqual(ran, ['lint:ratchet', 'emdash:ratchet', 'typecheck']);
-  ran.length = 0;
-  const failLint = c => {
+});
+
+test('pre-push: refuses a failing guard, skips after green or by hand', () => {
+  const lines = [];
+  const ran = [];
+  const base = { cwd: '.', env: {}, log: l => lines.push(l), passedGreen: () => false };
+  const failDash = c => {
     ran.push(c.name);
-    return c.name === 'lint:ratchet' ? 1 : 0;
+    return 1;
   };
-  assert.equal(prePush({ ...base, runCheck: failLint }), 1);
-  assert.deepEqual(ran, ['lint:ratchet'], 'stops at the first failure');
-  assert.match(lines.at(-1), /lint:ratchet failed, push refused/);
+  assert.equal(prePush({ ...base, runCheck: failDash }), 1);
+  assert.deepEqual(ran, ['emdash:ratchet']);
+  assert.match(lines.at(-1), /emdash:ratchet failed, push refused/);
   ran.length = 0;
   const fail = c => {
     ran.push(c.name);
@@ -694,6 +688,98 @@ test('pre-push: runs the ratchets and typecheck, refuses on the first failure, s
   assert.equal(prePush({ ...base, passedGreen: () => true, runCheck: fail }), 0);
   assert.equal(prePush({ ...base, env: { SKIP_PREPUSH: '1' }, runCheck: fail }), 0);
   assert.deepEqual(ran, []);
+});
+
+// ---- green --quick: what a branch touched, no heavy lock ----
+
+const quickNames = files => quickSteps(files, path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')).map(s => s.name);
+
+test('quickSteps: typecheck and unit tests of each touched package only', () => {
+  assert.deepEqual(quickNames(['packages/mcp-server/src/a.ts', 'packages/discord-bot/src/b.ts']), [
+    'build-shared',
+    'typecheck-discord-bot',
+    'typecheck-mcp-server',
+    'unit-discord-bot',
+    'unit-mcp-server',
+  ]);
+  assert.deepEqual(quickNames(['docs/dev/X.md', 'changelog.d/x.md']), []);
+});
+
+test('quickSteps: a shared change typechecks every package and tests shared', () => {
+  assert.deepEqual(quickNames(['shared/src/types.ts']), ['build-shared', 'typecheck-all', 'unit-shared']);
+});
+
+test('quickSteps: a changed script runs its test, a changed test runs itself, a missing test is left out', () => {
+  const steps = quickSteps(
+    ['scripts/green.mjs', 'scripts/pre-push.mjs', 'scripts/no-such-thing.mjs', '.claude/hooks/guard-model.test.mjs'],
+    path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
+  );
+  const t = steps.find(s => s.name === 'node-tests');
+  assert.ok(t);
+  assert.ok(t.args.includes('scripts/green.test.mjs'));
+  assert.ok(t.args.includes('.claude/hooks/guard-model.test.mjs'));
+  assert.ok(!t.args.some(a => a.includes('no-such-thing')));
+});
+
+test('quickSteps: touched dashboard e2e specs build the dashboard and run only those specs', () => {
+  const steps = quickSteps(['packages/cogm-dashboard/web/e2e/help.spec.ts']);
+  const names = steps.map(s => s.name);
+  assert.deepEqual(names, [
+    'build-shared',
+    'typecheck-cogm-dashboard',
+    'unit-cogm-dashboard',
+    'build-dashboard',
+    'e2e-specs',
+  ]);
+  assert.deepEqual(steps.at(-1).args.slice(-2), ['--', 'e2e/help.spec.ts']);
+});
+
+test('quickSteps: no step name takes the heavy lock', () => {
+  const all = quickSteps(
+    ['shared/src/a.ts', 'packages/cogm-dashboard/web/e2e/help.spec.ts', 'packages/foundry-module/src/a.ts', 'scripts/green.mjs'],
+    path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
+  );
+  for (const s of all) {
+    assert.ok(!HEAVY_STEPS.has(s.name), `${s.name} would take a heavy slot`);
+    assert.doesNotThrow(() => commandLine(s));
+  }
+});
+
+test('parseArgs: --quick stands alone', () => {
+  assert.equal(parseArgs(['--quick']).quick, true);
+  for (const bad of ['--cloud', '--all', '--only=a', '--skip=a', '--from=a']) {
+    assert.match(parseArgs(['--quick', bad]).error ?? '', /--quick builds its own step list/);
+  }
+});
+
+test('main --quick: runs the quick steps without the heavy lock, nothing to check is OK, no green stamp', () => {
+  const ran = [];
+  const lines = [];
+  let locked = 0;
+  const base = {
+    argv: ['--quick'],
+    cwd: os.tmpdir(),
+    tmpdir: fs.mkdtempSync(path.join(os.tmpdir(), 'quick-')),
+    isTTY: false,
+    note: null,
+    log: l => lines.push(l),
+    takeLock: () => {
+      locked++;
+      return { release() {}, beat() {}, waitedMs: 0 };
+    },
+    runStep: s => {
+      ran.push(s.name);
+      return 0;
+    },
+  };
+  assert.equal(main({ ...base, changed: ['packages/mcp-server/src/a.ts'] }), 0);
+  assert.deepEqual(ran, ['build-shared', 'typecheck-mcp-server', 'unit-mcp-server']);
+  assert.equal(locked, 0, 'a quick run takes no heavy slot');
+  assert.match(lines.at(-1), /^green: OK, 3 steps/);
+  lines.length = 0;
+  assert.equal(main({ ...base, changed: ['README.md'] }), 0);
+  assert.match(lines.at(-1), /OK \(quick\), nothing to check/);
+  assert.equal(main({ ...base, changed: ['packages/mcp-server/src/a.ts'], runStep: () => 1 }), 1);
 });
 
 // ---- green --cloud: a fake git and a fake gh, no network ----

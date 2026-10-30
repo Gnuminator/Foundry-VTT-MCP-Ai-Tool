@@ -261,10 +261,10 @@ let settings = {
 // The GM's screen choices for this world (D-092, I-107), from the server's "prefs" event:
 // the During layout and whether the combat buttons show. See "During layouts" below.
 let duringPrefs = {
-  duringLayout: 'layered',
+  duringLayout: 'auto',
   duringFull: false,
-  combatButtons: false,
-  layoutPicked: false,
+  combatButtons: true,
+  layoutPicked: true,
   hintDismissed: false,
   hintSessions: [],
 };

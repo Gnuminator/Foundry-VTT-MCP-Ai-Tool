@@ -304,11 +304,12 @@ export function selectSteps(steps, opts) {
       error: `unknown step ${unknown.join(', ')} (npm run green -- --list shows them)`,
     };
   }
-  let selected = steps;
-  if (opts.from) selected = selected.slice(names.indexOf(opts.from));
+  // Reorder first, so `--from` cuts the real run order: a rerun from a light step still runs the heavy ones.
+  let selected = lightFirst(steps);
+  if (opts.from) selected = selected.slice(selected.findIndex(s => s.name === opts.from));
   if (opts.only.length > 0) selected = selected.filter(s => opts.only.includes(s.name));
   if (opts.skip.length > 0) selected = selected.filter(s => !opts.skip.includes(s.name));
-  return { steps: lightFirst(selected), error: null };
+  return { steps: selected, error: null };
 }
 
 /**
@@ -949,7 +950,12 @@ export function main(options = {}) {
   }
   if (opts.list) {
     if (!opts.quick) {
-      for (const s of stepsOption) log(s.name);
+      const listed = selectSteps(stepsOption, opts);
+      if (listed.error) {
+        log(`green: ${listed.error}`);
+        return 2;
+      }
+      for (const s of listed.steps) log(s.name);
       return 0;
     }
   }

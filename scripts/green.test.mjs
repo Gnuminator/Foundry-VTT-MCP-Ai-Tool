@@ -194,6 +194,17 @@ test('lightFirst: light steps run before the first heavy one, the post-build ste
   assert.deepEqual(lightFirst([]), []);
 });
 
+test('lightFirst: --from a light step still runs typecheck and the other heavy steps', () => {
+  const full = selectSteps(STEPS, parseArgs([])).steps.map(s => s.name);
+  const light = full.find(n => LIGHT_FIRST.has(n));
+  const from = selectSteps(STEPS, parseArgs(['--from', light])).steps.map(s => s.name);
+  assert.deepEqual(from, full.slice(full.indexOf(light)));
+  const lastLight = full.findLast(n => LIGHT_FIRST.has(n));
+  const late = selectSteps(STEPS, parseArgs(['--from', lastLight])).steps.map(s => s.name);
+  assert.equal(late[0], lastLight);
+  assert.ok(late.includes('typecheck') && late.includes('e2e'), 'heavy steps survive a --from at the last light step');
+});
+
 test('runLock over the default order: the hold starts after every light step', () => {
   const steps = selectSteps(STEPS, parseArgs([])).steps;
   const taken = [];
@@ -413,7 +424,7 @@ test('started through a junction, green still runs (exit code and output, not a 
     encoding: 'utf8',
   });
   assert.equal(r.status, 0, r.stderr);
-  assert.match(r.stdout, /^typecheck\n/);
+  assert.match(r.stdout, /(^|\n)typecheck\n/);
 });
 
 test('portableNode22Dir: on Windows under Node 24 the newest portable Node 22 comes first; elsewhere nothing changes', () => {

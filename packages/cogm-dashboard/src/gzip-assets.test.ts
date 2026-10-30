@@ -66,9 +66,11 @@ beforeAll(async () => {
     })
   );
   app.use('/pub', (_req, res) => res.status(404).send('fell through'));
-  app.get('/json/:size', limit, (req, res) => {
-    const size = Math.min(Math.max(Number(req.params.size) || 0, 0), 10_000);
-    void sendJsonGzip(req, res, { text: 'x'.repeat(size) });
+  app.get('/json-big', limit, (req, res) => {
+    void sendJsonGzip(req, res, { text: 'x'.repeat(5000) });
+  });
+  app.get('/json-small', limit, (req, res) => {
+    void sendJsonGzip(req, res, { text: 'x'.repeat(10) });
   });
   app.use('/next/assets', limit, gzipAssets(path.join(dir, 'assets')));
   app.use('/next', (_req, res) => res.status(404).send('fell through'));
@@ -99,7 +101,7 @@ describe('gzipAssets for unhashed files', () => {
 
 describe('sendJsonGzip', () => {
   it('gzips a big answer for a browser that accepts it', async () => {
-    const a = await get('/json/5000', { 'Accept-Encoding': 'gzip' });
+    const a = await get('/json-big', { 'Accept-Encoding': 'gzip' });
     expect(a.headers['content-encoding']).toBe('gzip');
     expect(a.headers['content-type']).toContain('application/json');
     expect(a.headers['vary']).toContain('Accept-Encoding');
@@ -107,10 +109,10 @@ describe('sendJsonGzip', () => {
   });
 
   it('sends plain JSON without gzip or for a small answer', async () => {
-    const plain = await get('/json/5000', { 'Accept-Encoding': 'identity' });
+    const plain = await get('/json-big', { 'Accept-Encoding': 'identity' });
     expect(plain.headers['content-encoding']).toBeUndefined();
     expect(JSON.parse(plain.body.toString()).text.length).toBe(5000);
-    const small = await get('/json/10', { 'Accept-Encoding': 'gzip' });
+    const small = await get('/json-small', { 'Accept-Encoding': 'gzip' });
     expect(small.headers['content-encoding']).toBeUndefined();
     expect(JSON.parse(small.body.toString()).text).toBe('x'.repeat(10));
   });

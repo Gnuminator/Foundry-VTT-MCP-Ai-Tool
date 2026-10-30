@@ -26,6 +26,7 @@ import {
   presentedUnverifiedAccess,
   type AuthRequest,
 } from './auth.js';
+import { CACHED_READ_TOOLS, createReadCache } from './read-cache.js';
 import { classifyTool, toolArgs, type ToolKind } from './tool-policy.js';
 import { jsonErrorHandler } from './error-handler.js';
 import { gmOnly } from './redact.js';
@@ -1150,6 +1151,9 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
       });
   });
 
+  // A few seconds of memory for the slow page-load reads; any non-read tool call empties it.
+  const readCache = createReadCache();
+
   app.post('/api/tool', requireGm, (req: Request, res: Response) => {
     const body = asRecord(req.body);
     const name = readStr(body.name, '').trim();
@@ -1185,20 +1189,26 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
       logger.info('GM Action invoked', { tool: name, mutates });
     }
 
-    client
-      // A GM action may run a guarded write, which waits up to about 4 minutes
-      // for Foundry and then for its outcome (PB-04); reads keep the short timeout, except the
-      // long-poll wait (up to 45 s by design).
-      .callTool(
-        name,
-        args,
-        name === 'wait-for-game-event'
-          ? { timeoutMs: WAIT_EVENT_TIMEOUT_MS }
-          : mutates === 'read'
-            ? {}
-            : { timeoutMs: GM_ACTION_TIMEOUT_MS }
-      )
+    // The session marker counts as a change here: the stats and the digest move with it.
+    const changes = mutates !== 'read' || name === 'mark-play-session';
+    if (changes) readCache.clear();
+    const run = (): Promise<unknown> =>
+      client
+        // A GM action may run a guarded write, which waits up to about 4 minutes
+        // for Foundry and then for its outcome (PB-04); reads keep the short timeout, except the
+        // long-poll wait (up to 45 s by design).
+        .callTool(
+          name,
+          args,
+          name === 'wait-for-game-event'
+            ? { timeoutMs: WAIT_EVENT_TIMEOUT_MS }
+            : mutates === 'read'
+              ? {}
+              : { timeoutMs: GM_ACTION_TIMEOUT_MS }
+        );
+    (mutates === 'read' && CACHED_READ_TOOLS.has(name) ? readCache.get(name, args, run) : run())
       .then(result => {
+        if (changes) readCache.clear();
         res.json({ ok: true, name, mutates, result });
         // A reveal or hide may have changed the handouts: refresh the player view.
         if (name === 'apply-planned-change' || name === 'undo-change') void playerView.refresh();

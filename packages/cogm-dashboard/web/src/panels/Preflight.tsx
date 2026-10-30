@@ -34,6 +34,8 @@ interface PreflightResult {
 }
 
 const PREFLIGHT_KEY = ['preflight'] as const;
+/** How long the quiet run on reconnect waits after the page loads. */
+const PREFLIGHT_QUIET_DELAY_MS = 2_000;
 
 export const PREFLIGHT_ICONS: Record<CheckStatus, string> = {
   ok: '✓',
@@ -118,10 +120,13 @@ export function usePreflightOnReconnect(): void {
   useEffect(() => {
     const reachable = foundry === 'reachable';
     if (reachable && !wasReachable.current) {
-      // A quiet run: a failure leaves the last result as it was.
-      queryClient
-        .fetchQuery({ queryKey: PREFLIGHT_KEY, queryFn: fetchPreflight, staleTime: 0 })
-        .catch(() => undefined);
+      // A quiet run: a failure leaves the last result as it was. It waits a moment so the
+      // panels' own first reads (the visible part of the page) get the bridge first.
+      setTimeout(() => {
+        queryClient
+          .fetchQuery({ queryKey: PREFLIGHT_KEY, queryFn: fetchPreflight, staleTime: 0 })
+          .catch(() => undefined);
+      }, PREFLIGHT_QUIET_DELAY_MS);
     }
     wasReachable.current = reachable;
   }, [foundry, queryClient]);

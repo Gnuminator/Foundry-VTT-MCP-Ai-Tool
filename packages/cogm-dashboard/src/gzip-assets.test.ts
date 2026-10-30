@@ -63,8 +63,8 @@ beforeAll(async () => {
     })
   );
   app.use('/pub', (_req, res) => res.status(404).send('fell through'));
-  app.get('/json/:size', async (req, res) => {
-    await sendJsonGzip(req, res, { text: 'x'.repeat(Number(req.params.size)) });
+  app.get('/json/:size', (req, res) => {
+    void sendJsonGzip(req, res, { text: 'x'.repeat(Number(req.params.size)) });
   });
   // The dashboard mounts it behind the same kind of limiter (app.ts).
   const limit = rateLimit({ windowMs: 10_000, limit: 1000, validate: false });

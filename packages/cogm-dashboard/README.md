@@ -293,8 +293,9 @@ helper for those elements.
   Remove them with `docker volume rm` to start clean. Snapshots and `test-results/visual` are
   written into the repo.
 - `npm run test:visual:ci` is what runs inside the container (CI uses it directly, in the job
-  `dashboard-visual`). A diff fails that job. The report with the expected, actual and diff
-  images is the artifact `dashboard-visual-report` on the run's summary page (kept 14 days). The
+  `dashboard-visual-shard`, 4 parallel shards; the check `dashboard-visual (screenshots)` sums
+  them up). A diff fails a shard. The report with the expected, actual and diff
+  images is one artifact per shard, `dashboard-visual-report-1` to `-4`, on the run's summary page (kept 14 days). The
   job is advisory: it is not in the required checks. After a Playwright bump, change the image
   tag in `.github/workflows/ci.yml` too (the job's first step fails with a message when they
   differ) and refresh the baselines.

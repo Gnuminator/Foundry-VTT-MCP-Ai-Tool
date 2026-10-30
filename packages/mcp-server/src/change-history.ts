@@ -588,8 +588,8 @@ const FOREIGN_DEPENDENT_WINDOW_MS = 30_000;
  * GM's browser, which has its own `actionId` and no guarded-write mark) into the group of the AI
  * change whose deleted effect or item names them (`flags.dnd5e.dependents`, followed through), so
  * the position rules below file them with that change. Only a delete of a dependent kind in a
- * group with no AI record, within FOREIGN_DEPENDENT_WINDOW_MS after the AI delete, and only when
- * the data names it: an unreadable (oversize) source ties nothing across groups.
+ * group with no AI record, made by the same user as the AI change, within
+ * FOREIGN_DEPENDENT_WINDOW_MS after the AI delete, and only when the data names it: an unreadable (oversize) source ties nothing across groups.
  */
 function fileForeignDependents(groups: Map<string, ChangeRecord[]>): void {
   const foreign = [...groups.entries()].filter(([, g]) => !g.some(r => r.changeId));
@@ -605,6 +605,7 @@ function fileForeignDependents(groups: Map<string, ChangeRecord[]>): void {
         r =>
           r.op === 'delete' &&
           DEPENDENT_DELETE_KINDS.has(r.documentName) &&
+          ai.some(a => a.userId === r.userId) &&
           r.t >= from &&
           r.t <= from + FOREIGN_DEPENDENT_WINDOW_MS
       );

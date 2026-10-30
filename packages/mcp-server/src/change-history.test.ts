@@ -511,6 +511,9 @@ describe('buildActions', () => {
     expect(buildActions([dependent, ai])[0].followUps).toEqual([dependent]);
     const late = { ...dependent, t: ai.t + 60_000 };
     expect(buildActions([ai, late])[0].followUps).toEqual([]);
+    // Nor is a delete another user made, even when the data names it.
+    const otherUser = { ...dependent, userId: 'u2', userName: 'Someone' };
+    expect(buildActions([ai, otherUser])[0].followUps).toEqual([]);
   });
 
   it('hands the planner only the follow-ups on other things, and reads the dependents link from sources only', () => {

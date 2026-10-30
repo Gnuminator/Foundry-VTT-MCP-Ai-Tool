@@ -132,6 +132,11 @@ jobs:
         # every user. The stage itself runs in a container on the ARM runner (build-test-arm).
         run: node --test scripts/pi/player-creation.test.mjs
 
+      - name: Pi stage 11 world switches
+        # world-switches.mjs against a fake game, and the table in docs/dev/PI-SETUP.md against its list. The stage
+        # itself runs in a container on the ARM runner (build-test-arm, stage11-world.test.mjs).
+        run: node --test scripts/pi/world-switches.test.mjs
+
       - name: Pi kit session driver
         # kit-session.mjs against a fake game: the settings character creation needs in strahd-kit, the Kit Player
         # user, and the teardown that deletes only that user and the actors it owns. The stage itself runs in a

@@ -28,7 +28,7 @@ and the campaign world.
 
 - The Orange Pi 5 Pro and its official USB-C power supply (5 V, 5 A).
 - A microSD card, 32 GB or larger (A2 class if you have one). An NVMe SSD later is strongly
-  recommended before real play: see "Moving to NVMe" below.
+  recommended before real play (done 2026-10-30, the card now only boots): see "Moving to NVMe" below.
 - An Ethernet cable to the router.
 - A card reader on this PC.
 - Fallback only: a monitor with an HDMI cable and a USB keyboard, if the Pi cannot be found on the
@@ -211,7 +211,7 @@ Safety rules (you, 2026-10-04), so a mistake can never leave the Pi unusable:
   step, switch the session to the default permission mode and confirm the prompt yourself.
 - **Snapshots:** a full system snapshot (`dietpi-backup`, three kept in `/mnt/dietpi-backup`) is
   taken nightly and before every stage. To roll back: `dietpi-backup -1` (needs your OK). Your PC
-  also pulls copies (next section), so a dead SD card loses nothing.
+  also pulls copies (next section), so a dead SD card or SSD loses nothing.
 
 ## Snapshots on this PC
 
@@ -231,7 +231,10 @@ encryption).
 
 To restore after a reflash (each step with your OK): flash DietPi and run Part A, copy the archive
 to the Pi, unpack it into `/mnt/dietpi-backup` (`zstd -dc <archive> | tar -xpf - -C
-/mnt/dietpi-backup`), then run `dietpi-backup -1`.
+/mnt/dietpi-backup`), then run `dietpi-backup -1`. With the SSD (see "Moving to NVMe") the card holds
+`/boot`: a new card needs Part A and the `rootdev` and fstab edits of step 4 there before the restored
+system boots from the SSD again; if the SSD died instead, the card's old system (frozen at the move)
+boots after reverting `rootdev`, and the snapshot restores over it.
 
 ## Restic copies on this PC
 
@@ -409,7 +412,8 @@ After a real rebuild, `5-check-world.sh` (a throwaway world) and Claude Desktop'
 **Rebuilding the real Pi** (each step that changes the Pi needs your OK, and `dietpi-backup 1`
 first if there is anything left to keep):
 
-1. Part A with a new card. The host name must be `foundry-pi`: the Foundry licence in the backup is
+1. Part A with a new card (if only the SSD was lost, the old card still boots its old system after
+   reverting `rootdev`, see "Moving to NVMe"; redo the move after the restore). The host name must be `foundry-pi`: the Foundry licence in the backup is
    bound to it and fails verification under any other name. A new card has a new SSH host key, so
    first clear the old one on this PC (`ssh-keygen -R foundry-pi`, and the same for the Tailscale
    name and the address you use), or SSH refuses with "host key changed".
@@ -1297,13 +1301,48 @@ After a dnd5e or Foundry update, the world migrates in the first GM browser that
 this takes several minutes for a big world, and a reload restarts it. Open the world once as GM,
 wait for "Migration completed", then let the players in.
 
-## Moving to NVMe (before real play)
+## Moving to NVMe (done 2026-10-30)
 
-microSD cards wear out and are slow under a server that writes all the time. With an M.2 NVMe SSD
-(2280 size) in the Pi, Claude moves the system with DietPi's drive manager: the system runs from the
-SSD and the card only starts it. That is the setup to use: DietPi offers no NVMe boot for this
-board, and flashing a bootloader into the Pi's SPI flash to boot straight from the SSD has caused
-boot problems for others, so it is not tried.
+microSD cards wear out and are slow under a server that writes all the time, so the Pi's system runs
+from an M.2 NVMe SSD (Samsung 512 GB, 2280, PCIe: one notch, M key; two notches is M.2 SATA and will not
+work). The card only starts it. DietPi's "Transfer RootFS" is not offered on the Orange Pi 5 Pro (its
+drive manager allows it only on Raspberry Pis and some Odroids), and flashing a bootloader into the
+Pi's SPI flash has caused boot problems for others, so the move is done by hand. The card keeps
+`/boot` (u-boot reads `/boot/dietpiEnv.txt` from it) and its old system stays untouched on it.
+
+**How it is set up now**
+
+- `/` is the SSD's one ext4 partition (label `nvme-root`). `/boot/dietpiEnv.txt` on the card says
+  `rootdev=UUID=<SSD partition>`; the old file is kept as `/boot/dietpiEnv.txt.card`.
+- `/etc/fstab` mounts the card's partition at `/mnt/card` and binds `/mnt/card/boot` onto `/boot`, so
+  kernel and u-boot files that apt or DietPi write land on the card, where u-boot reads them. The
+  fstab before the move is kept as `/etc/fstab.card`.
+- `dietpi-backup` snapshots, the restic repository and Foundry's data are all on the SSD now. The
+  card's old copy of them is a frozen state from 2026-10-30 and is not updated.
+
+**Redoing the move** (each step that changes the Pi needs your OK; the guard stops a session from
+formatting a disk, so step 2 you run yourself):
+
+1. `dietpi-backup 1`, then stop Foundry and every `foundry-ai-tool-*` service, power off, fit the SSD,
+   power on (`lsblk` shows `nvme0n1`).
+2. Format (you run this; it wipes the SSD): `wipefs -a /dev/nvme0n1p1 /dev/nvme0n1`, then
+   `parted -s /dev/nvme0n1 mklabel gpt mkpart root ext4 1MiB 100%`, then
+   `mkfs.ext4 -q -L nvme-root /dev/nvme0n1p1`.
+3. Copy the system: mount the SSD at `/mnt/ssdroot`, bind-mount `/` at `/mnt/cardroot` (so the tmpfs
+   folders are left out), then
+   `rsync -aHAX --numeric-ids --exclude=/mnt/ssdroot --exclude=/mnt/cardroot /mnt/cardroot/ /mnt/ssdroot/`
+   (about 18 GB, 10 to 15 minutes from the card).
+4. In `/mnt/ssdroot/etc/fstab` point `/` at the SSD's UUID, and add the card at `/mnt/card` and
+   `/mnt/card/boot /boot none bind,x-systemd.requires-mounts-for=/mnt/card 0 0`. In the card's
+   `/boot/dietpiEnv.txt` set `rootdev=UUID=<SSD partition>`. Reboot.
+5. Check: `findmnt /` shows `/dev/nvme0n1p1`, `/boot` and `/mnt/card` show the card, no failed units,
+   Foundry on 30000, the dashboard on 3000, the bridge link up, the tunnel, the recorder bot and the
+   nightly `foundry-backup.timer`.
+
+**If it does not boot:** u-boot waits for the root forever and there is no serial console, so revert
+`rootdev` in `/boot/dietpiEnv.txt` on the card to its old value (the card's UUID, as in
+`dietpiEnv.txt.card`) from a Linux machine that can read ext4, and the card boots its old system
+again. Without a Linux machine, reflash the card (Part A) and restore from the PC's copies.
 
 ## Board status report (stage 16)
 

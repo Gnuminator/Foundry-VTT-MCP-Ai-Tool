@@ -2466,3 +2466,27 @@ body {
 .party-hint {
   margin-top: 1rem;
 }
+
+/* Callouts in the help panel (:::note, :::tip, :::caution in the guides). */
+.help-body .callout {
+  margin: 12px 0;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--r-sm);
+  background: var(--accent-soft);
+}
+.help-body .callout > :first-child {
+  margin-top: 0;
+}
+.help-body .callout > :last-child {
+  margin-bottom: 0;
+}
+.help-body .callout-tip {
+  border-left-color: var(--good);
+  background: var(--good-soft);
+}
+.help-body .callout-caution {
+  border-left-color: var(--warn);
+  background: var(--warn-soft);
+}

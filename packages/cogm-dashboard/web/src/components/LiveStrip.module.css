@@ -71,8 +71,9 @@
 .card[data-picked='true'] {
   background: var(--accent-soft);
 }
+/* A dashed edge, not a fade: opacity drops the small text under the contrast floor. */
 .card[data-down='true'] {
-  opacity: 0.7;
+  border-style: dashed;
 }
 
 /* The portrait box has its size before the image loads, so nothing moves when it arrives. */
@@ -151,7 +152,7 @@ button.portrait {
   border-radius: var(--r-pill);
   background: var(--warn-soft);
   color: var(--warn);
-  font-size: var(--text-2xs);
+  font-size: var(--text-xs);
 }
 .tag.down {
   background: var(--bad-soft, var(--warn-soft));

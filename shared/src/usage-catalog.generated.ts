@@ -519,10 +519,58 @@ export const USAGE_CATALOG: readonly UsageCatalogEntry[] = [
     file: 'packages/cogm-dashboard/public/app.js',
   },
   {
+    name: 'dash.live.clear',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/web/src/components/LiveStrip.tsx',
+  },
+  {
+    name: 'dash.live.condition',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/web/src/components/LiveStrip.tsx',
+  },
+  {
+    name: 'dash.live.end-combat',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/web/src/components/LiveStrip.tsx',
+  },
+  {
+    name: 'dash.live.next-turn',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/web/src/components/LiveStrip.tsx',
+  },
+  {
+    name: 'dash.live.pan',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/web/src/components/LiveStrip.tsx',
+  },
+  {
+    name: 'dash.live.pick',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/web/src/components/LiveStrip.tsx',
+  },
+  {
+    name: 'dash.live.show-handout',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/web/src/components/LiveStrip.tsx',
+  },
+  {
     name: 'dash.live.turn-on',
     kind: 'action',
     surface: 'dashboard',
     file: 'packages/cogm-dashboard/web/src/components/GmActionsSwitch.tsx',
+  },
+  {
+    name: 'dash.live.undo',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/web/src/components/LiveStrip.tsx',
   },
   {
     name: 'dash.main.view',
@@ -789,6 +837,12 @@ export const USAGE_CATALOG: readonly UsageCatalogEntry[] = [
     file: 'packages/cogm-dashboard/web/src/components/QuickRoll.tsx',
   },
   {
+    name: 'dash.quickroll.again',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/web/src/components/LiveStrip.tsx',
+  },
+  {
     name: 'dash.quickroll.dc',
     kind: 'action',
     surface: 'dashboard',
@@ -804,13 +858,13 @@ export const USAGE_CATALOG: readonly UsageCatalogEntry[] = [
     name: 'dash.quickroll.party',
     kind: 'action',
     surface: 'dashboard',
-    file: 'packages/cogm-dashboard/web/src/components/StripRolls.tsx',
+    file: 'packages/cogm-dashboard/web/src/components/LiveStrip.tsx',
   },
   {
     name: 'dash.quickroll.picked',
     kind: 'action',
     surface: 'dashboard',
-    file: 'packages/cogm-dashboard/web/src/components/StripRolls.tsx',
+    file: 'packages/cogm-dashboard/web/src/components/LiveStrip.tsx',
   },
   {
     name: 'dash.quickroll.visibility',

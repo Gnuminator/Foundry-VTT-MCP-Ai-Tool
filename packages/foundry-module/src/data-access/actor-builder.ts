@@ -1676,9 +1676,15 @@ export class ActorBuilderDataAccess {
         name?: string;
         actor?: { system?: { attributes?: { ac?: { value?: number | null } } } } | null;
       }>();
-      if (userTargets.length > 0) {
+      const ownTargets = Array.from(
+        (game.user as { targets?: Iterable<unknown> } | undefined)?.targets ?? []
+      );
+      // A GM's targets are only a guess: use them when exactly one token is targeted, and
+      // do not pair their token's name with an AC the caller passed for another creature.
+      const guessed = ownTargets.length === 0;
+      if (userTargets.length > 0 && (!guessed || userTargets.length === 1)) {
         const tt = userTargets[0];
-        targetName = tt.name ?? null;
+        if (!guessed || data.targetAC == null) targetName = tt.name ?? null;
         targetAC ??= tt.actor?.system?.attributes?.ac?.value ?? null;
       }
     } catch {

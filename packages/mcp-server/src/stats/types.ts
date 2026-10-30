@@ -91,7 +91,8 @@ export interface SessionStats {
   /**
    * The same three numbers counting only rolls whose play record says `visibility: 'public'`
    * (blind, GM, self and unrecorded rolls are left out). The only session roll counts that may
-   * go to the players' Discord channel.
+   * go to the players' Discord channel. Here crits and fumbles are natural 20s and 1s on any
+   * public d20 roll; the PC fields of the same names count attack rolls only.
    */
   publicRolls: number;
   publicCrits: number;

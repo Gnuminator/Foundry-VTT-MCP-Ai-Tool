@@ -315,6 +315,8 @@ describe('buildStats: public roll stats (player vault)', () => {
       ),
     ]);
     expect(stats.pcs[0]).toMatchObject({ publicRolls: 2, publicCrits: 0, publicFumbles: 0 });
+    // The session counts are natural 20s and 1s on any public d20 roll.
+    expect(stats.sessions[0]).toMatchObject({ publicRolls: 2, publicCrits: 1, publicFumbles: 1 });
     expect(stats.pcs[0]?.publicD20[19]).toBe(1);
     expect(stats.pcs[0]?.publicD20[0]).toBe(1);
   });

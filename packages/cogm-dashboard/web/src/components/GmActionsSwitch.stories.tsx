@@ -2,17 +2,19 @@ import type { Meta, StoryObj } from '@storybook/react-vite';
 import type { JSX } from 'react';
 import { expect, userEvent, waitFor, within } from 'storybook/test';
 
+import { SWITCHES_KEY } from '../lib/sessionSwitches';
 import { SETTINGS_KEY } from '../lib/stream';
 import { PHONE_VIEW, VEIL } from '../storybook/modes';
-import { fail, reply } from '../storybook/fakeApi';
+import { reply } from '../storybook/fakeApi';
+import { SWITCHES_READY, SWITCHES_TONIGHT } from '../storybook/fixtures/preflight';
 import type { DashboardParameters } from '../storybook/withDashboard';
 
-import { GmActionsSwitch } from './GmActionsSwitch';
+import { LivePlayLine } from './GmActionsSwitch';
 
-// The GM Actions master switch in the header: red and "on" while game-changing actions are allowed.
-// A click asks the server to flip it (toggle-gm-actions) and shows what the server answers.
+// The live play line in the header: "Live play on: all set" or what is off with a Turn on. Start
+// session is the only switch; the line shows the state and its list holds one Turn on.
 const meta = {
-  title: 'Components/GM Actions switch',
+  title: 'Components/Live play line',
   parameters: { layout: 'fullscreen' },
 } satisfies Meta;
 
@@ -33,7 +35,7 @@ function Header(): JSX.Element {
           </div>
         </div>
         <div className="controls">
-          <GmActionsSwitch />
+          <LivePlayLine />
         </div>
       </header>
     </div>
@@ -42,82 +44,71 @@ function Header(): JSX.Element {
 
 const render = (): JSX.Element => <Header />;
 
-/**
- * The button is disabled while a click is on its way and loses the focus then: wait until it is
- * back and drop the focus, so the shot is the same whichever way that race went.
- */
-async function settle(button: HTMLElement): Promise<void> {
-  await waitFor(() => expect(button).toBeEnabled());
-  button.blur();
-  await waitFor(() => expect(document.activeElement).toBe(document.body));
-  await expect(button.matches(':focus, :focus-visible, :hover')).toBe(false);
-}
-
 const seed = (
   gmActionsEnabled: boolean,
+  read: unknown,
   control?: DashboardParameters['api']
 ): { dashboard: DashboardParameters } => ({
   dashboard: {
     ...(control ? { api: control } : {}),
-    cache: [[SETTINGS_KEY, { gmActionsEnabled }]],
+    cache: [
+      [SETTINGS_KEY, { gmActionsEnabled }],
+      [SWITCHES_KEY, read],
+    ],
   },
 });
 
-/** GM Actions are off: nothing the dashboard writes to the game goes through. */
+/** Live play is off: the line names what is off. */
 export const Off: Story = {
-  parameters: seed(false),
+  parameters: seed(false, SWITCHES_READY),
   render,
   play: async ({ canvasElement }) => {
-    const button = await within(canvasElement).findByRole('button', { name: '⚔ GM Actions: off' });
-    await expect(button).toHaveAttribute('aria-pressed', 'false');
+    const button = await within(canvasElement).findByRole('button', { name: /GM Actions.*off/ });
     await expect(button).not.toHaveClass('on');
   },
 };
 
-/** GM Actions are on: the button is lit. */
-export const On: Story = {
-  parameters: seed(true),
+/** Everything is on after Start session. */
+export const AllSet: Story = {
+  parameters: seed(true, SWITCHES_TONIGHT),
   render,
   play: async ({ canvasElement }) => {
-    const button = await within(canvasElement).findByRole('button', { name: '⚔ GM Actions: on' });
-    await expect(button).toHaveAttribute('aria-pressed', 'true');
+    const button = await within(canvasElement).findByRole('button', {
+      name: 'Live play on: all set',
+    });
     await expect(button).toHaveClass('on');
   },
 };
 
-/** A click turns them on, as far as the server's answer says. */
+/** The list opens with one Turn on; a click turns everything on. */
 export const TurnsOn: Story = {
-  parameters: seed(false, {
-    routes: { 'POST /api/control': reply({ gmActionsEnabled: true }) },
+  parameters: seed(false, SWITCHES_READY, {
+    routes: {
+      'POST /api/session/switches': reply({
+        switches: SWITCHES_TONIGHT.switches,
+        gmActionsEnabled: true,
+        gmActionsChanged: true,
+        ok: true,
+      }),
+    },
   }),
   render,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await userEvent.click(await canvas.findByRole('button', { name: '⚔ GM Actions: off' }));
-    await settle(await canvas.findByRole('button', { name: '⚔ GM Actions: on' }));
-  },
-};
-
-/** The server cannot be reached: the toast says why and the switch stays as it was. */
-export const ClickFails: Story = {
-  parameters: seed(false, {
-    routes: { 'POST /api/control': fail(500, 'The dashboard server is not answering.') },
-  }),
-  render,
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    await userEvent.click(await canvas.findByRole('button', { name: '⚔ GM Actions: off' }));
+    await userEvent.click(await canvas.findByRole('button', { name: /GM Actions.*off/ }));
+    const list = await within(document.body).findByRole('list', { name: 'Live play switches' });
+    await expect(list).toBeVisible();
+    await userEvent.click(within(document.body).getByRole('button', { name: 'Turn on' }));
     await waitFor(() =>
-      expect(within(document.body).getAllByText(/^✗ GM Actions: /)).not.toHaveLength(0)
+      expect(canvas.getByRole('button', { name: 'Live play on: all set' })).toBeVisible()
     );
-    await settle(canvas.getByRole('button', { name: '⚔ GM Actions: off' }));
   },
 };
 
-/** The same switch, on, in The Veil theme on a phone. */
-export const OnInTheVeilOnAPhone: Story = {
+/** The same line, all set, in The Veil theme on a phone. */
+export const AllSetInTheVeilOnAPhone: Story = {
   tags: ['veil', 'phone'],
   globals: { ...VEIL, ...PHONE_VIEW },
-  parameters: seed(true),
+  parameters: seed(true, SWITCHES_TONIGHT),
   render,
 };

@@ -8,9 +8,12 @@ import { useEffect, useRef, useState, type JSX } from 'react';
 
 import { Drawer, DrawerClose } from '../components/Drawer';
 import { useToast } from '../components/Toasts';
+import { TurnOnNote } from '../components/TurnOnNote';
 import { api, callTool, errorText } from '../lib/api';
 import { failCode, useGuardedTools } from '../lib/guarded';
 import { canMoveTo, moveTarget } from '../lib/handoutQueue';
+import { useLivePlay } from '../lib/livePlay';
+import { HANDOUT_NEEDS, offReason } from '../lib/liveSwitches';
 import { HANDOUTS_KEY } from '../lib/stream';
 import { handoutsSwitchOff, type FeatureList } from '../lib/switchOff';
 import { usage } from '../lib/usage';
@@ -122,6 +125,8 @@ export function HandoutsDrawer({
   onQueuePage: (sceneId: string | null) => void;
 }): JSX.Element {
   const toast = useToast();
+  const live = useLivePlay();
+  const liveOff = live.off(HANDOUT_NEEDS);
   const { plan } = useGuardedTools();
   // Loads on every opening (stale at once), after a change or undo while open, and when the
   // stream says a player opened a handout (handouts-seen).
@@ -415,10 +420,15 @@ export function HandoutsDrawer({
             ref={nextRef}
             data-track="dash.handouts.reveal-next"
             disabled={!next || revealing || moving}
-            onClick={revealNext}
+            aria-disabled={liveOff.length > 0 ? 'true' : undefined}
+            title={liveOff.length > 0 ? offReason(liveOff) : undefined}
+            onClick={() => {
+              if (liveOff.length === 0) revealNext();
+            }}
           >
             {next ? `Reveal next: ${next.title || 'Untitled'}` : 'Reveal next'}
           </Button>
+          <TurnOnNote live={live} off={liveOff} />
           <label className="show-now" htmlFor="handouts-show-now">
             <input
               type="checkbox"

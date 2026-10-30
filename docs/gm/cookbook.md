@@ -154,11 +154,9 @@ set says so.
   Combat** at the bottom of the tab and confirm.
 - **In the dashboard:** with **GM Actions** on (**Turn on for tonight** does it), click **Start
   combat** in the Combat Tracker. It lists the tokens on the scene, ticks the player characters and
-  the hostile ones, and starts the fight at round 1 with an Undo. **End combat** needs the **⚔
-  Combat buttons** switch under **Advanced** (on by default). See [Combat Tracker](dashboard.md#combat-tracker).
+  the hostile ones, and starts the fight at round 1 with an Undo. **End combat** shows once a fight runs. See [Combat Tracker](dashboard.md#combat-tracker).
 - **Tip:** the Damage / Heal and Condition buttons on a combatant, and Start and End combat, all
-  need **GM Actions** on (End combat and the per-combatant buttons also need **⚔ Combat buttons**). If the buttons are missing or do nothing, look at the header: it must say
-  "GM Actions: on".
+  need live play on. If a button is greyed out it says why and has a **Turn on** next to it; the header should say "Live play on: all set".
 
 ### Run a boss fight
 

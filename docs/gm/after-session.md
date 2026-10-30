@@ -15,7 +15,7 @@ is one action.
 - [ ] In the dashboard header, click **End session**. It should now say "No session". It also turns
       off what **Turn on for tonight** turned on, and **GM Actions**. If the admin has set up the
       Discord post, the bot posts the player page link in its channel within a couple of minutes.
-- [ ] If the dashboard header still says **⚔ GM Actions: on**, click it so it says **off**.
+- [ ] If the dashboard header still says **Live play on: all set**, click **End session** (it turns live play off).
 - [ ] In the Tarokka drawer (🃏 **Tarokka**, under **Advanced ▾**), untick **Show cards** if it is ticked.
 
 ## Switch features off

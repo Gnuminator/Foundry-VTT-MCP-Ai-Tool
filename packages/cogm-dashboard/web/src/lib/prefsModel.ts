@@ -13,8 +13,6 @@ export interface DuringPrefs {
   duringLayout: DuringLayout;
   /** Simple/Full: the Full view instead of Simple. */
   duringFull: boolean;
-  /** Damage / Heal, Condition and Clear in the turn-order strip. */
-  combatButtons: boolean;
   /** The version tracker panel (I-127). */
   versionTracker: boolean;
   /** The GM picked a layout (the trial, or the switch): the Before card goes away. */
@@ -29,7 +27,6 @@ export interface DuringPrefs {
 export const DEFAULT_PREFS: DuringPrefs = {
   duringLayout: 'auto',
   duringFull: false,
-  combatButtons: true,
   versionTracker: true,
   layoutPicked: true,
   hintDismissed: false,
@@ -46,8 +43,6 @@ export function readPrefs(raw: unknown): DuringPrefs {
   return {
     duringLayout: layout ?? DEFAULT_PREFS.duringLayout,
     duringFull: r['duringFull'] === true,
-    combatButtons:
-      typeof r['combatButtons'] === 'boolean' ? r['combatButtons'] : DEFAULT_PREFS.combatButtons,
     versionTracker: r['versionTracker'] !== false,
     layoutPicked:
       typeof r['layoutPicked'] === 'boolean' ? r['layoutPicked'] : DEFAULT_PREFS.layoutPicked,

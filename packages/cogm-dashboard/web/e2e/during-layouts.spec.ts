@@ -12,7 +12,6 @@ const STARTED = '2026-10-10T18:00:00.000Z';
 interface Prefs {
   duringLayout: 'layered' | 'toggle' | 'auto';
   duringFull: boolean;
-  combatButtons: boolean;
   layoutPicked: boolean;
   hintDismissed: boolean;
   hintSessions: string[];
@@ -21,7 +20,6 @@ interface Prefs {
 const PREFS: Prefs = {
   duringLayout: 'layered',
   duringFull: false,
-  combatButtons: false,
   layoutPicked: false,
   hintDismissed: false,
   hintSessions: [],
@@ -632,116 +630,18 @@ test.describe('the hint', () => {
 });
 
 test.describe('the Advanced menu', () => {
-  test('has a During screen group with Combat buttons and the trial', async ({ page }) => {
+  test('has a During screen group with the trial', async ({ page }) => {
     await setup(page, { events: [picked()] });
     await load(page);
     await page.locator('#btn-advanced').click();
     const menu = page.getByRole('menu');
     await expect(menu.locator('.menu-label')).toHaveText(['Panels', 'During screen', 'Tools']);
     const items = menu.getByRole('menuitem');
-    await expect(items.nth(6)).toHaveText('⚔ Combat buttons: off');
-    await expect(items.nth(7)).toHaveText('▦ Try the During layouts');
-    await expect(menu.locator('#btn-combat-buttons')).toHaveAttribute(
-      'data-track',
-      'dash.header.combat-buttons'
-    );
+    await expect(items.nth(6)).toHaveText('▦ Try the During layouts');
     await expect(menu.locator('#btn-layout-tour')).toHaveAttribute(
       'data-track',
       'dash.header.layout-tour'
     );
-  });
-
-  test('Combat buttons saves the choice, says so, and shows on or off', async ({ page }) => {
-    const { changes } = await setup(page, { events: [picked()] });
-    await load(page);
-    await page.locator('#btn-advanced').click();
-    await page.locator('#btn-combat-buttons').click();
-    await expect(
-      toast(page, '✓ Combat buttons on. They show in the turn-order strip once GM Actions are on.')
-    ).toBeVisible();
-    expect(changes).toEqual([{ combatButtons: true }]);
-    // The menu closed and the focus went back to its button.
-    await expect(page.getByRole('menu')).toBeHidden();
-    await expect(page.locator('#btn-advanced')).toBeFocused();
-
-    await page.locator('#btn-advanced').click();
-    await expect(page.locator('#btn-combat-buttons')).toHaveText('⚔ Combat buttons: on');
-    await expect(page.locator('#btn-combat-buttons')).toHaveClass(/\bon\b/);
-    await page.locator('#btn-combat-buttons').click();
-    expect(changes).toEqual([{ combatButtons: true }, { combatButtons: false }]);
-  });
-
-  test('Combat buttons are off until the prefs arrive, and the arrow keys skip them', async ({
-    page,
-  }) => {
-    await setup(page, { events: [] });
-    await load(page);
-    await page.locator('#btn-advanced').press('Enter');
-    await expect(page.locator('#btn-combat-buttons')).toBeDisabled();
-    await expect(page.locator('#btn-layout-tour')).toBeEnabled();
-  });
-});
-
-test.describe('overlapping saves', () => {
-  test('a failed older save does not undo a newer one that was saved', async ({ page }) => {
-    let failFirst: () => void = () => undefined;
-    const held = new Promise<void>(resolve => (failFirst = resolve));
-    const { changes } = await setup(page, {
-      events: [picked()],
-      answer: async change => {
-        if (change['duringLayout'] !== 'auto') return undefined;
-        await held;
-        return { status: 500, error: 'disk full' };
-      },
-    });
-    await load(page);
-    // The first save (Auto) is on its way and shown at once.
-    await layoutButton(page, 'Auto').click();
-    await expect(during(page)).toHaveAttribute('data-layout', 'auto');
-    // A second one (Combat buttons on) is saved while the first is still out.
-    await page.locator('#btn-advanced').click();
-    await page.locator('#btn-combat-buttons').click();
-    await expect(
-      toast(page, '✓ Combat buttons on. They show in the turn-order strip once GM Actions are on.')
-    ).toBeVisible();
-
-    // Now the first one fails: its own field goes back, the second one stays.
-    failFirst();
-    await expect(toast(page, '✗ Could not save the screen choice: disk full')).toBeVisible();
-    await expect(during(page)).toHaveAttribute('data-layout', 'layered');
-    await expect(layoutButton(page, 'Cards')).toHaveAttribute('aria-pressed', 'true');
-    await page.locator('#btn-advanced').click();
-    await expect(page.locator('#btn-combat-buttons')).toHaveText('⚔ Combat buttons: on');
-    expect(changes).toEqual([
-      { duringLayout: 'auto', layoutPicked: true },
-      { combatButtons: true },
-    ]);
-  });
-
-  test('an older answer that arrives late does not overwrite a newer change', async ({ page }) => {
-    let answerFirst: () => void = () => undefined;
-    const held = new Promise<void>(resolve => (answerFirst = resolve));
-    await setup(page, {
-      events: [picked()],
-      lateAnswer: async change => {
-        if (change['duringLayout'] === 'auto') await held;
-      },
-    });
-    await load(page);
-    await layoutButton(page, 'Auto').click();
-    await page.locator('#btn-advanced').click();
-    await page.locator('#btn-combat-buttons').click();
-    await expect(
-      toast(page, '✓ Combat buttons on. They show in the turn-order strip once GM Actions are on.')
-    ).toBeVisible();
-    await expect(during(page)).toHaveAttribute('data-layout', 'auto');
-
-    // The first answer (Auto, Combat buttons still off) comes in after the second one.
-    answerFirst();
-    await page.waitForTimeout(300);
-    await expect(during(page)).toHaveAttribute('data-layout', 'auto');
-    await page.locator('#btn-advanced').click();
-    await expect(page.locator('#btn-combat-buttons')).toHaveText('⚔ Combat buttons: on');
   });
 });
 
@@ -810,16 +710,12 @@ test.describe('the trial and assistive technology', () => {
     await expect(page.locator('#during-not-ready')).toHaveCount(0);
   });
 
-  test('the Use button and Combat buttons say why they are off too', async ({ page }) => {
+  test('the Use button says why it is off too', async ({ page }) => {
     await setup(page, { events: [] });
     await load(page);
     await fromMenu(page, 'btn-layout-tour');
     await expect(page.locator('#layout-tour-use')).toBeDisabled();
     await expect(page.locator('#layout-tour-use')).toHaveAccessibleDescription(
-      /not told the dashboard/
-    );
-    await page.locator('#btn-advanced').click();
-    await expect(page.locator('#btn-combat-buttons')).toHaveAccessibleDescription(
       /not told the dashboard/
     );
   });

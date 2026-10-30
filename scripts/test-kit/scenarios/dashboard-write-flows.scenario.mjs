@@ -231,12 +231,17 @@ export default {
             body: { action: 'set-gm-actions', value: false },
           });
         });
-        await page.locator('#btn-gm').click();
-        await page.waitForFunction(() =>
-          /:\s*on/i.test(document.querySelector('#btn-gm')?.textContent ?? '')
-        );
+        // Set, not toggled: the header line now opens a switch list instead of flipping GM Actions.
+        await t.http('/api/control', {
+          method: 'POST',
+          body: { action: 'set-gm-actions', value: true },
+        });
+        await page.waitForFunction(() => {
+          const txt = document.querySelector('#btn-gm')?.textContent ?? '';
+          return txt.trim() !== '' && !/GM Actions/i.test(txt);
+        });
       }
-      t.check(await gmActionsLabelOn(page), 'the header says GM Actions: on');
+      t.check(await gmActionsLabelOn(page), 'the header does not name GM Actions as off');
       // The drawers' features, on for the run and put back afterwards (after the undo below, which
       // registers later and so runs first).
       const { before: switchesBefore } = await t.gm('setFeatureSwitches', {

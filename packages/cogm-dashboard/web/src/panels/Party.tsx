@@ -8,8 +8,11 @@ import { useEffect, useRef, useState, type JSX } from 'react';
 import { Drawer, DrawerClose } from '../components/Drawer';
 import { QuickRollBar, askLabel, useQuickRoll } from '../components/QuickRoll';
 import { useToast } from '../components/Toasts';
+import { TurnOnNote } from '../components/TurnOnNote';
 import { callTool, errorText } from '../lib/api';
 import { GAME_STATE_KEY, useGuardedChange } from '../lib/guarded';
+import { useLivePlay } from '../lib/livePlay';
+import { ROLL_NEEDS, offReason } from '../lib/liveSwitches';
 import { noticed } from '../lib/notice';
 import { usage } from '../lib/usage';
 import { Button, Pill, QueryState } from '../ui';
@@ -358,6 +361,8 @@ export function PartyDrawer({
   const toast = useToast();
   const runChange = useGuardedChange();
   const roll = useQuickRoll();
+  const live = useLivePlay();
+  const rollOff = live.off(ROLL_NEEDS);
   // Loads on every opening (stale at once) and after a change or undo while open; nothing in
   // the stream says the party moved, so a change made in Foundry shows on Refresh.
   const party = useQuery({
@@ -503,11 +508,15 @@ export function PartyDrawer({
               size="sm"
               id="party-roll-all"
               data-track="dash.quickroll.party"
-              disabled={roll.busy}
-              onClick={() => void roll.ask(members.map(m => m.name))}
+              aria-disabled={roll.busy || rollOff.length > 0 ? 'true' : undefined}
+              title={rollOff.length > 0 ? offReason(rollOff) : undefined}
+              onClick={() => {
+                if (!roll.busy && rollOff.length === 0) void roll.ask(members.map(m => m.name));
+              }}
             >
               Ask the whole party
             </Button>
+            <TurnOnNote live={live} off={rollOff} />
           </QuickRollBar>
           <p className="pf-detail">
             Sends the request to each player&apos;s chat and player page. The result lands in the

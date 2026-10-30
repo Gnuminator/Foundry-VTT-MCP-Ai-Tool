@@ -4,8 +4,11 @@
 import type { JSX } from 'react';
 
 import type { Combatant } from '../lib/combat';
+import { useLivePlay } from '../lib/livePlay';
+import { ROLL_NEEDS, offReason } from '../lib/liveSwitches';
 import { Button } from '../ui';
 import { QuickRollBar, useQuickRoll } from './QuickRoll';
+import { TurnOnNote } from './TurnOnNote';
 
 export function StripRolls({
   party,
@@ -19,9 +22,11 @@ export function StripRolls({
   stale: boolean;
 }): JSX.Element | null {
   const roll = useQuickRoll();
+  const live = useLivePlay();
+  const liveOff = live.off(ROLL_NEEDS);
   if (party.length === 0) return null;
-  const off = stale || roll.busy;
-  const away = stale ? 'The bridge is away' : undefined;
+  const off = stale || roll.busy || liveOff.length > 0;
+  const away = stale ? 'The bridge is away' : liveOff.length > 0 ? offReason(liveOff) : undefined;
   return (
     <QuickRollBar roll={roll} idPrefix="strip-roll">
       {picked.length > 0 && (
@@ -53,6 +58,7 @@ export function StripRolls({
       >
         Ask the party
       </Button>
+      <TurnOnNote live={live} off={liveOff} />
     </QuickRollBar>
   );
 }

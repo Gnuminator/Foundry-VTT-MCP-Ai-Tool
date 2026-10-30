@@ -21,7 +21,7 @@ import {
 } from './components/Drawer';
 import { CombatStrip, type StripToolRequest } from './components/CombatStrip';
 import { FoldScope } from './components/Folds';
-import { GmActionsSwitch } from './components/GmActionsSwitch';
+import { LivePlayLine } from './components/GmActionsSwitch';
 import { SessionMarker } from './components/SessionMarker';
 import { ThemePicker } from './components/ThemePicker';
 import { StreamState } from './components/StreamState';
@@ -288,7 +288,7 @@ function Dashboard(): JSX.Element {
         <MomentTabs moment={moment} onPick={pick} />
         <div className="controls">
           <SessionMarker />
-          <GmActionsSwitch />
+          <LivePlayLine />
           <ThemePicker />
           <StreamState />
           <PreflightButton

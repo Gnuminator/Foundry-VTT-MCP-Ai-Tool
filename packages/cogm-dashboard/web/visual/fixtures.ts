@@ -68,7 +68,7 @@ const SWITCHES = {
     switches: [
       { id: 'handouts', name: 'AI Tool: Handouts (writes)', on: true },
       { id: 'party', name: 'AI Tool: Party (writes)', on: true },
-      { id: 'live', name: 'AI Tool: Live play (writes)', on: false },
+      { id: 'live-play', name: 'AI Tool: Live play (writes)', on: false },
     ],
     ready: null,
     changed: [],
@@ -559,7 +559,6 @@ export async function fakeDashboard(page: Page, setup: Setup): Promise<void> {
       data: {
         duringLayout: 'layered',
         duringFull: false,
-        combatButtons: false,
         layoutPicked: true,
         hintDismissed: true,
         hintSessions: [],

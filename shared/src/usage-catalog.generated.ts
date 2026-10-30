@@ -345,12 +345,6 @@ export const USAGE_CATALOG: readonly UsageCatalogEntry[] = [
     file: 'packages/cogm-dashboard/public/index.html',
   },
   {
-    name: 'dash.header.combat-buttons',
-    kind: 'action',
-    surface: 'dashboard',
-    file: 'packages/cogm-dashboard/public/index.html',
-  },
-  {
     name: 'dash.header.diag-ai',
     kind: 'action',
     surface: 'dashboard',
@@ -523,6 +517,12 @@ export const USAGE_CATALOG: readonly UsageCatalogEntry[] = [
     kind: 'action',
     surface: 'dashboard',
     file: 'packages/cogm-dashboard/public/app.js',
+  },
+  {
+    name: 'dash.live.turn-on',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/web/src/components/GmActionsSwitch.tsx',
   },
   {
     name: 'dash.main.view',

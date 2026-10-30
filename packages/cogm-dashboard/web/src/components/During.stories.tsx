@@ -255,11 +255,6 @@ export const MenuOpen: Story = {
   render: (): JSX.Element => <MenuHost />,
   play: openMenu,
 };
-export const MenuCombatButtonsOn: Story = {
-  parameters: bridge({ prefs: { ...PICKED, combatButtons: true } }),
-  render: (): JSX.Element => <MenuHost />,
-  play: openMenu,
-};
 export const MenuWaitingForTheWorld: Story = {
   name: 'Menu: the world is not known yet',
   parameters: bridge({}),

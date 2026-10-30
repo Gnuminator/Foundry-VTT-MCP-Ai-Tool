@@ -181,9 +181,9 @@ describe('set-prefs on /api/control', () => {
     const player = listen(h, '/api/player/stream', PLAYER_TOKEN);
     await Promise.all([gm.snapshot(), player.snapshot()]);
 
-    const answer = await setPrefs(h, GM_TOKEN, { duringLayout: 'toggle', combatButtons: true });
+    const answer = await setPrefs(h, GM_TOKEN, { duringLayout: 'toggle' });
     expect(answer.status).toBe(200);
-    expect(answer.json).toMatchObject({ duringLayout: 'toggle', combatButtons: true });
+    expect(answer.json).toMatchObject({ duringLayout: 'toggle' });
     // The prefs event goes out with the answer. Waiting for the toggled value on the GM stream is the
     // assertion that counts (the connect snapshot already holds a `prefs` event, so that line alone
     // proves nothing). The player stream is another hub: a leak would be a write in the same handler,
@@ -209,9 +209,9 @@ describe('prefs on /api/state', () => {
     const h = await start();
     expect((await getState(h, GM_TOKEN)).prefs).toBeNull();
     await loadWorld(h);
-    expect((await getState(h, GM_TOKEN)).prefs).toMatchObject({ combatButtons: true });
-    await setPrefs(h, GM_TOKEN, { combatButtons: false });
-    expect((await getState(h, GM_TOKEN)).prefs).toMatchObject({ combatButtons: false });
+    expect((await getState(h, GM_TOKEN)).prefs).toMatchObject({ duringLayout: 'auto' });
+    await setPrefs(h, GM_TOKEN, { duringLayout: 'toggle' });
+    expect((await getState(h, GM_TOKEN)).prefs).toMatchObject({ duringLayout: 'toggle' });
   });
 
   it('never reaches the player role', async () => {

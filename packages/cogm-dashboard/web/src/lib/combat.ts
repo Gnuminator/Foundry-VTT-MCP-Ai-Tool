@@ -322,14 +322,13 @@ export function reactionLabel(name: string, used: boolean): string {
 
 // --- Selection and the action bar -----------------------------------------------------------
 
-/** Rows can be picked and the action bar shows: Combat buttons and GM Actions on, a real fight. */
+/** Rows can be picked and the action bar shows: GM Actions on, a real fight. */
 export function canSelect(input: {
-  combatButtons: boolean;
   gmActions: boolean;
   fightActive: boolean;
   sample: boolean;
 }): boolean {
-  return input.combatButtons && input.gmActions && input.fightActive && !input.sample;
+  return input.gmActions && input.fightActive && !input.sample;
 }
 
 /** The picked ids that are still in the fight; the same set when none left. */

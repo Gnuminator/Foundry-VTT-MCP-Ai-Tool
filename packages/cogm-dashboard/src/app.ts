@@ -800,7 +800,7 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
       errors: state.recentErrors,
       settings: settingsPayload(),
       world,
-      // Null until the world is known, as on the stream (the test kit reads Combat buttons here).
+      // Null until the world is known, as on the stream (the test kit reads the prefs here).
       prefs: world ? prefsPayload() : null,
     });
   });

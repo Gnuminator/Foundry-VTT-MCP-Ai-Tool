@@ -317,8 +317,8 @@ export default {
         const url = new URL(page.url());
         await shot(page, 'gm-page-gm-token.png');
         t.check(
-          /GM Actions/.test(seen.gm),
-          `the GM header shows the GM Actions button ("${seen.gm}")`
+          /Live play|GM Actions/.test(seen.gm),
+          `the GM header shows the live play line ("${seen.gm}")`
         );
         t.check(seen.controls > 10, `the GM page has its controls (${seen.controls} found)`);
         t.check(

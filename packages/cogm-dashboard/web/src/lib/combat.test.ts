@@ -353,11 +353,10 @@ describe('the reaction ticks', () => {
 });
 
 describe('selecting combatants and the action bar', () => {
-  const on = { combatButtons: true, gmActions: true, fightActive: true, sample: false };
+  const on = { gmActions: true, fightActive: true, sample: false };
 
-  it('needs Combat buttons, GM Actions and a real fight', () => {
+  it('needs GM Actions and a real fight', () => {
     expect(canSelect(on)).toBe(true);
-    expect(canSelect({ ...on, combatButtons: false })).toBe(false);
     expect(canSelect({ ...on, gmActions: false })).toBe(false);
     expect(canSelect({ ...on, fightActive: false })).toBe(false);
     expect(canSelect({ ...on, sample: true })).toBe(false);

@@ -3692,6 +3692,10 @@ function summarizeSession(result) {
     endedAt: s.endedAt,
     rolls: s.rolls || 0,
     nat20: s.crits || 0,
+    publicCounts:
+      typeof s.publicRolls === 'number'
+        ? { rolls: s.publicRolls, nat20: s.publicCrits || 0, nat1: s.publicFumbles || 0 }
+        : null,
     nat1: s.fumbles || 0,
     mostDamage: top ? { name: top[0], amount: top[1].amount, fights: top[1].fights } : null,
     highestRoll: s.highestRoll || null,
@@ -3783,9 +3787,12 @@ async function loadAfterStats() {
  */
 function statsForDiscord(a) {
   const lines = [`**${a.label || 'Last session'}** (${hoursMinutes(a.durationMin)})`];
-  lines.push(
-    `Rolls: ${a.rolls} (${plural(a.nat20, 'natural 20', 'natural 20s')}, ${plural(a.nat1, 'natural 1', 'natural 1s')})`
-  );
+  if (a.publicCounts) {
+    const p = a.publicCounts;
+    lines.push(
+      `Rolls: ${p.rolls} (${plural(p.nat20, 'natural 20', 'natural 20s')}, ${plural(p.nat1, 'natural 1', 'natural 1s')})`
+    );
+  }
   if (a.mostDamage) {
     lines.push(
       `Most damage: ${a.mostDamage.name}, ${a.mostDamage.amount} hp over ${plural(a.mostDamage.fights, 'fight', 'fights')}`

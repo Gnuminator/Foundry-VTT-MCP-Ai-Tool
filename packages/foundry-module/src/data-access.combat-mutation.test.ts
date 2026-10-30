@@ -95,12 +95,16 @@ function addActorWithHp(name: string, hp: { value: number; max?: number; temp?: 
 
 describe('FoundryDataAccess — combat writes end the AI change group', () => {
   it.each([
-    ['advanceCombatTurn', (d: FoundryDataAccess) => d.advanceCombatTurn({})],
+    ['advanceCombatTurn', (d: FoundryDataAccess): Promise<unknown> => d.advanceCombatTurn({})],
     [
       'setInitiative',
-      (d: FoundryDataAccess) => d.setInitiative({ combatantName: 'Hero', initiative: 12 }),
+      (d: FoundryDataAccess): Promise<unknown> =>
+        d.setInitiative({ combatantName: 'Hero', initiative: 12 }),
     ],
-    ['rollInitiativeForNpcs', (d: FoundryDataAccess) => d.rollInitiativeForNpcs({})],
+    [
+      'rollInitiativeForNpcs',
+      (d: FoundryDataAccess): Promise<unknown> => d.rollInitiativeForNpcs({}),
+    ],
   ])('%s calls changeJournal.breakGroup once', async (_name, run) => {
     installCombat({ turns: [makeCombatant({ id: 'c1', name: 'Hero' })], turn: 0, round: 1 });
     const spy = vi.spyOn(changeJournal, 'breakGroup');

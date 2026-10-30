@@ -130,7 +130,7 @@ export interface PlanInput {
   rulesVersion?: RulesVersion;
   /**
    * Raise the plan to destructive (second confirmation) even without deletes,
-   * e.g. for a reveal that cannot be taken back at the table.
+   * e.g. for a Tarokka reveal that cannot be taken back at the table.
    */
   risk?: 'destructive';
   /**

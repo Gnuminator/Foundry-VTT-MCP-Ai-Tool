@@ -137,7 +137,8 @@ const bridge: Answer = call => {
           pageUuid: call.args['pageUuid'],
           note: 'Took "Letter from a courier" off the queue.',
         })
-      : ok(REVEAL_PLAN);
+      : // The server picks the head the drawer shows: Maravia's page with a scene, else the first.
+        ok({ ...REVEAL_PLAN, pageUuid: call.args['sceneId'] ? page_(2) : page_(1) });
   }
   if (call.name === 'apply-planned-change') return ok(APPLIED);
   if (call.name === 'undo-change') return ok(UNDONE);
@@ -461,7 +462,7 @@ async function refusedReveal(page: Page, message: string, posts: unknown[] = [])
       json: {
         switches: {
           switches: [
-            { id: 'writes', name: 'AI Tool: Changes from the tool', on: true },
+            { id: 'writes', name: 'Allow Write Operations', on: true },
             { id: 'handouts', name: 'AI Tool: Handouts (writes)', on: false },
           ],
         },
@@ -488,7 +489,7 @@ test('a refusal for the Handouts switch names it on a button that turns the swit
   const posts: unknown[] = [];
   await refusedReveal(page, featureOffMessage('AI Tool: Handouts (writes)'), posts);
   const button = page.locator('.toast-stack .toast-action', {
-    hasText: 'Turn on Handouts (writes) for tonight',
+    hasText: 'Turn on Handouts (writes) and the rest for tonight',
   });
   await expect(button).toBeVisible();
   await button.click();
@@ -501,6 +502,41 @@ test('a refusal for a switch Pre-flight does not control has no button', async (
     page.locator('.toast-stack .toast', { hasText: 'NPC turn assistant' })
   ).toBeVisible();
   await expect(page.locator('.toast-stack .toast-action')).toHaveCount(0);
+});
+
+test('a plan for another page than the drawer showed, or a destructive plan, gets the full window', async ({
+  page,
+}) => {
+  await fakeStream(page, gmActions(true));
+  let plan: Record<string, unknown> = {
+    ...REVEAL_PLAN,
+    pageUuid: page_(1),
+    summary: 'Reveal "Letter from a courier"',
+  };
+  await fakeTools(page, call =>
+    call.name === 'plan-page-reveal' && call.args['action'] === 'reveal-next'
+      ? ok(plan)
+      : bridge(call)
+  );
+  const drawer = await openHandouts(page);
+
+  // The queue moved since the drawer loaded: the server planned page 1, the drawer showed page 2.
+  await drawer.locator('#handouts-next').click();
+  const summary = page.locator('.modal-summary');
+  await expect(summary).toContainText('Letter from a courier');
+  await expect(page.getByRole('dialog', { name: 'Show page to players' })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Cancel' }).click();
+  await expect(summary).toBeHidden();
+
+  // An older bridge that still plans a reveal as destructive: the full window with the tick.
+  plan = {
+    ...REVEAL_PLAN,
+    risk: 'destructive',
+    requires: { confirm: true, confirmDestructive: true },
+  };
+  await drawer.locator('#handouts-next').click();
+  await expect(page.getByRole('checkbox')).toHaveCount(1);
+  await page.getByRole('button', { name: 'Cancel' }).click();
 });
 
 test('Show it now goes with one reveal; Cancel applies nothing and unticks it', async ({

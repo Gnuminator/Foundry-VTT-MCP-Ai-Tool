@@ -35,6 +35,8 @@ const GATE_TEXT = 'GM Actions are off. Turn on for tonight in Pre-flight turns t
 interface Plan {
   planId?: unknown;
   risk?: string;
+  /** A page-reveal plan's page: what the plan will show, whatever the caller expected. */
+  pageUuid?: string;
   providerNote?: string;
   /** Plans that change nothing in Foundry apply at once and say so here. */
   note?: string;
@@ -125,7 +127,7 @@ export interface GuardedOptions {
    * A plan's confirm as one line (a reveal): the window shows this question and nothing else,
    * with `confirmLabel` on the button. Implies alwaysConfirm.
    */
-  confirmLine?: { title: string; question: string; confirmLabel: string };
+  confirmLine?: { title: string; question: string; confirmLabel: string; pageUuid?: string };
 }
 
 export interface GuardedTools {
@@ -222,7 +224,7 @@ export function useGuardedTools(): GuardedTools {
     const refusalToast = async (text: string, switchName: string | null): Promise<void> => {
       const turnOn = (await controlsSwitch(switchName))
         ? {
-            label: `Turn on ${switchName === null ? 'GM Actions' : shortName(switchName)} for tonight`,
+            label: `Turn on ${switchName === null ? 'GM Actions' : shortName(switchName)} and the rest for tonight`,
             onClick: turnOnForTonight,
           }
         : undefined;
@@ -316,7 +318,13 @@ export function useGuardedTools(): GuardedTools {
       returnTo: HTMLElement | null,
       line?: GuardedOptions['confirmLine']
     ): Promise<{ flags: ToolConfirm } | { outcome: GuardedOutcome }> => {
-      if (line && (plan.risk === 'write' || plan.risk === undefined)) {
+      // The drawer's line names the page it last read; when the server planned another page
+      // (the queue moved since), the full window shows the plan's own summary instead.
+      const sameTarget =
+        line?.pageUuid === undefined ||
+        plan.pageUuid === undefined ||
+        plan.pageUuid === line.pageUuid;
+      if (line && sameTarget && (plan.risk === 'write' || plan.risk === undefined)) {
         // One line, no list and no tick: the plan has a working Undo, the window only asks.
         const ok = await askConfirm({
           title: line.title,

@@ -112,6 +112,9 @@ again**) turns off exactly those, so a switch that was already on stays on. The 
 button show each switch (✓ on, ○ off). If Foundry did not take a change, a red toast names the
 switch; check it in Foundry's module settings, where every switch stays visible.
 
+A refusal toast ("... is switched off") offers the same click as a button, "Turn on <switch> and the
+rest for tonight": it turns on all of the above, not only the named switch.
+
 Only the dashboard can do this, from the GM's login. Claude has no tool for it, so Claude can never
 switch on its own writes. **Start the session log** next to it is the same as **Start session** in
 the header.
@@ -460,9 +463,9 @@ handout drawer shows, so you can reveal a handout without leaving Foundry:
   scene") and which players (or "all players"). **Remove** takes a page off the queue at once;
   nothing changes in Foundry.
 - **Reveal next**: reveals the oldest queued page for the scene that is active now. A window shows
-  the page and who gets it in one line and asks you to confirm. Cancel and nothing happens. Undo
-  in **Changes** hides the page again and puts it back in the queue (a player may already have
-  read it).
+  exactly what will change and asks you to confirm, because a reveal cannot be taken back at the
+  table. Cancel and nothing happens. Undo in **Changes** hides the page again and puts it back
+  in the queue.
 - **Show it now**: tick it next to **Reveal next** to also pop the page up on the screens of the
   players it is for. It is unticked whenever the window opens and goes back to unticked after each
   reveal (also after a cancel), so it is a choice you make each time. The tick stays while you are
@@ -511,8 +514,9 @@ Changes keeps the full history.
 
 The confirm window opens first for:
 
-- **Destructive changes**: deletes, and handout and Tarokka reveals and hides (players see a reveal
-  at once, so Undo cannot take it back from their eyes).
+- **Destructive changes**: deletes, Tarokka reveals and hides, and handout hides (players see a
+  reveal at once, so Undo cannot take it back from their eyes). A handout reveal has a working
+  Undo and asks in one line, with no tick.
 - **Plans you did not make on the dashboard**: a plan Claude made.
   Plan, confirm and undo stay for every AI change.
 - **Any plan made in the tool runner**, including the combat strip's Condition, so you see which
@@ -524,7 +528,7 @@ In the confirm window:
 - For a planned change it shows the plan's summary and the list of what will change. Read it.
 - For other tools it shows the tool's name and the values it will run with.
 - **Cancel** (or Escape, or a click outside) runs nothing.
-- **Destructive action**: deletes, reveals and hides, and every Undo, need a second step. Tick
+- **Destructive action**: deletes, Tarokka reveals, hides and every Undo need a second step. Tick
   "I understand this changes the live game and may be hard to undo.", then click **Run destructive
   action**.
 
@@ -623,7 +627,9 @@ pages show here: a new journal (one Claude just made, say) is not listed until y
   queue. Queueing changes nothing in Foundry.
 - **Reveal next: `<title>`**: plans the reveal of the next queued page for the scene that is active
   now (or a page queued for any scene). A one-line window asks `Show "<title>" to <players>?`
-  (no tick box; the reveal has a working Undo). Applying it also takes the page off the queue. Undo in Recent Changes hides it again and puts it back in the queue.
+  (no tick box; the reveal has a working Undo). Applying it also takes the page off the queue.
+  Undo in Recent Changes hides it again and puts it back in the queue (a player may already have
+  read it). If the queue changed since the drawer loaded, the window shows the plan in full.
   Tick **Show it now** next to it to also pop the page up on the screens of the players it is for
   (everyone when it is for every player). It is off every time unless you tick it, and Undo cannot
   close the popup.

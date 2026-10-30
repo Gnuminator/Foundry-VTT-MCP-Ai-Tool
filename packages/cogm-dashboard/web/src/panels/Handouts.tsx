@@ -176,6 +176,7 @@ export function HandoutsDrawer({
       title: 'Show page to players',
       question: `Show "${next?.title || 'Untitled'}" to ${who}${showNow ? ' now (Undo cannot close the popup)' : ''}?`,
       confirmLabel: 'Show page to players',
+      pageUuid: next?.uuid,
     };
     void plan('plan-page-reveal', args, { confirmLine }).finally(() => {
       setShowNow(false);

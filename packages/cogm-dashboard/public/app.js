@@ -2371,8 +2371,8 @@ async function revealNextHandout() {
         action: 'reveal-next',
         ...(activeSceneId ? { sceneId: activeSceneId } : {}),
         ...(showNow ? { showNow: true } : {}),
-      },
-      { oneClick: true }
+      }
+      // No oneClick: the legacy page keeps asking in its window before a page reaches the players.
     );
   } finally {
     els.handoutsShowNow.checked = false;

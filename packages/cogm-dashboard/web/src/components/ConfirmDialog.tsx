@@ -22,7 +22,7 @@ export interface ConfirmRequest {
   summary?: string | undefined;
   /** One line per change; an empty list says "(no changes listed)". */
   diff: string[];
-  /** A delete, a reveal or a hide: Confirm waits for the "I understand" tick. */
+  /** A delete, a Tarokka reveal or a hide: Confirm waits for the "I understand" tick. */
   destructive: boolean;
   /** The window's title (default "Confirm action" / "Destructive action"). */
   title?: string | undefined;

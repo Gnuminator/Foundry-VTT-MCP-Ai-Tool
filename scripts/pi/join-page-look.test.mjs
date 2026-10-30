@@ -75,7 +75,7 @@ sleep() { :; }
 have_systemd() { return 0; }
 require_quiet() { echo "quiet-check: $*" >>"${posix(pi.d)}/calls"; }
 systemctl() { echo "systemctl $*" >>"${posix(pi.d)}/calls"; case "$*" in *kit-gm*) return 1;; esac; return 0; }
-runuser() { echo "runuser $*" >>"${posix(pi.d)}/runuser-calls"; shift 3; "$@"; }
+runuser() { echo "runuser $*" >>"${posix(pi.d)}/runuser-calls"; [ -z "\${RUNUSER_FAIL:-}" ] || case "$*" in *" -- $RUNUSER_FAIL "*) return 1;; esac; shift 3; "$@"; }
 date() {
   case "$1" in
     +%Y%m%d-%H%M%S) local n; n=$(cat "${posix(pi.d)}/n" 2>/dev/null || echo 0); n=$((n + 1)); echo "$n" >"${posix(pi.d)}/n"; printf '20261030-1200%02d\\n' "$n" ;;
@@ -227,7 +227,24 @@ describe('19-join-page-look.sh', () => {
     assert.equal(sha(readFileSync(pi.dest)), second.EXPECT_SHA256);
     assert.equal(run(pi, { EXPECT_SHA256: second.EXPECT_SHA256, UNDO: '1' }).status, 0);
     assert.equal(sha(readFileSync(pi.dest)), first.EXPECT_SHA256);
-    assert.match(readFileSync(path.join(pi.d, 'runuser-calls'), 'utf8'), /^runuser -u foundry -- cat -- \S+join-background\.webp$/m);
+    assert.match(readFileSync(path.join(pi.d, 'runuser-calls'), 'utf8'), /^runuser -u foundry -- cat -- .+join-background\.webp$/m);
+  });
+
+  test('a failed read of the picture now in the world changes nothing and stops nothing', () => {
+    const pi = fakePi();
+    const first = source(pi, webp('first'));
+    assert.equal(run(pi, first).status, 0);
+    const files = () => readdirSync(pi.store).filter(f => !f.endsWith('-run.log')).sort();
+    const storeBefore = files();
+    const callsBefore = pi.calls();
+    const destBefore = readFileSync(pi.dest);
+    const second = source(pi, webp('second'));
+    const r = run(pi, { ...second, RUNUSER_FAIL: 'cat' }); // only the picture read (runuser -u foundry -- cat ...) fails
+    assert.notEqual(r.status, 0, r.out);
+    assert.match(r.out, /could not keep the picture now in the world\. Nothing was changed/);
+    assert.deepEqual(files(), storeBefore, 'no .prev, .new or before.json from the failed run');
+    assert.equal(pi.calls().slice(callsBefore.length).includes('systemctl stop'), false, 'nothing was stopped');
+    assert.deepEqual(readFileSync(pi.dest), destBefore, 'the picture in the world is unchanged');
   });
 
   test('UNDO after a failed run goes back to before the last run that finished', () => {

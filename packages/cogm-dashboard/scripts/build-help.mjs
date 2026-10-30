@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
- * Build the dashboard's in-app help (I-064): render the GM guide pages (docs/gm/*.md) into one
- * JSON file, dist/help.json, that the dashboard serves at GET /api/help/:page. Rendered at build
+ * Build the dashboard's in-app help (I-064): render the GM guide pages (docs/gm/*.md, and the
+ * Foundry basics in docs/foundry/*.md under the key `foundry-<name>`) into one JSON file, dist/help.json, that the dashboard serves at GET /api/help/:page. Rendered at build
  * time, so nothing reads the docs at request time, the help matches the version it was built
  * with, and the Docker image and the Windows install need no copy of the docs.
  *
@@ -9,7 +9,8 @@
  * (`data-help`), a link to any other repo file opens on GitHub in a new tab, web links open in a
  * new tab. A link to a guide page that does not exist, or to a missing anchor in one, fails the
  * build (links to the rest of the repo are checked by `npm run docs:links`). Images are left out
- * (their alt text stays).
+ * (their alt text stays). A `:::note`, `:::tip` or `:::caution` block (closed by `:::`) becomes a
+ * callout box.
  *
  * `--soft` (the dev script behind `npm run dev:cogm`): any problem is only a warning and the exit
  * code is 0, so the dashboard still starts; its help panel then says the help is not built.
@@ -38,7 +39,11 @@ try {
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repo = path.resolve(here, '../../..');
-const guideDir = path.join(repo, 'docs', 'gm');
+/** The guide folders and the prefix of their page keys: docs/foundry pages are `foundry-<name>`. */
+const guideDirs = [
+  { dir: path.join(repo, 'docs', 'gm'), prefix: '' },
+  { dir: path.join(repo, 'docs', 'foundry'), prefix: 'foundry-' },
+];
 const outFile = path.join(here, '..', 'dist', 'help.json');
 const GITHUB = 'https://github.com/Gnuminator/Foundry-VTT-MCP-Ai-Tool/blob/main';
 
@@ -57,11 +62,20 @@ function splitFrontMatter(text) {
   };
 }
 
-const pages = readdirSync(guideDir)
-  .filter(f => f.endsWith('.md'))
-  .map(f => f.slice(0, -3))
-  .sort();
-const sources = new Map(pages.map(p => [p, readFileSync(path.join(guideDir, `${p}.md`), 'utf8')]));
+const pages = [];
+/** Page key -> the guide file it is made from, and back. */
+const fileOf = new Map();
+const keyOf = new Map();
+for (const { dir, prefix } of guideDirs) {
+  if (!existsSync(dir)) continue;
+  for (const f of readdirSync(dir).filter(f => f.endsWith('.md')).sort()) {
+    const key = `${prefix}${f.slice(0, -3)}`;
+    pages.push(key);
+    fileOf.set(key, path.join(dir, f));
+    keyOf.set(path.join(dir, f), key);
+  }
+}
+const sources = new Map(pages.map(p => [p, readFileSync(fileOf.get(p), 'utf8')]));
 const anchors = new Map(pages.map(p => [p, anchorsOf(sources.get(p))]));
 const problems = [];
 
@@ -74,20 +88,23 @@ function resolveLink(page, href) {
       problems.push(`${page}.md: missing anchor #${anchor}`);
     return { help: `${page}#${anchor}` };
   }
-  const file = path.resolve(guideDir, target);
-  const rel = path.relative(guideDir, file).replace(/\\/g, '/');
-  // A link to another repo file becomes a GitHub link. Only links between guide pages are
-  // checked here: the rest of the repo may be missing (the Docker build stage has only
-  // docs/gm), and `npm run docs:links` checks every link in CI.
-  if (!rel.includes('/') && !rel.startsWith('..') && !existsSync(file)) {
-    problems.push(`${page}.md: broken link ${href}`);
-    return { external: href };
-  }
-  const name = rel.endsWith('.md') && !rel.includes('/') ? rel.slice(0, -3) : null;
-  if (name && pages.includes(name)) {
+  const file = path.resolve(path.dirname(fileOf.get(page)), target);
+  const name = keyOf.get(file);
+  if (name) {
     if (anchor && !anchors.get(name).has(anchor))
       problems.push(`${page}.md: missing anchor ${href}`);
     return { help: `${name}#${anchor}` };
+  }
+  // A link to another repo file becomes a GitHub link. Only a link to a missing .md file in a
+  // guide folder is checked here: the rest of the repo may be missing (the Docker build stage has
+  // only the guide folders), and `npm run docs:links` checks every link in CI.
+  if (
+    file.endsWith('.md') &&
+    guideDirs.some(g => path.dirname(file) === g.dir && existsSync(g.dir)) &&
+    !existsSync(file)
+  ) {
+    problems.push(`${page}.md: broken link ${href}`);
+    return { external: href };
   }
   const repoPath = path.relative(repo, file).replace(/\\/g, '/');
   return { external: `${GITHUB}/${repoPath}${anchor ? `#${anchor}` : ''}` };
@@ -97,6 +114,22 @@ function render(page, body) {
   const seen = new Map();
   const marked = new Marked({ gfm: true });
   marked.use({
+    extensions: [
+      {
+        // `:::note`, `:::tip` or `:::caution` ... `:::`, the syntax the wiki renders too.
+        name: 'callout',
+        level: 'block',
+        start: src => src.match(/^:::(?:note|tip|caution)[ \t]*$/m)?.index,
+        tokenizer(src) {
+          const m = /^:::(note|tip|caution)[ \t]*\r?\n([\s\S]*?)\r?\n:::[ \t]*(?:\r?\n|$)/.exec(src);
+          if (!m) return undefined;
+          return { type: 'callout', raw: m[0], kind: m[1], tokens: this.lexer.blockTokens(m[2], []) };
+        },
+        renderer(token) {
+          return `<aside class="callout callout-${token.kind}">${this.parser.parse(token.tokens)}</aside>\n`;
+        },
+      },
+    ],
     renderer: {
       heading({ tokens, depth, text }) {
         const base = slugify(text);

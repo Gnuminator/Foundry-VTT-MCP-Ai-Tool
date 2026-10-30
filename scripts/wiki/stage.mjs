@@ -240,7 +240,8 @@ export function toSite(text, stagedPath) {
         '$1 <span class="chip">$2</span>'
       );
       // A link's text can wrap onto the line before, so only the `](target)` part is matched.
-      return chipped.replace(/\]\(([^)\s]+)((?:\s+"[^"]*")?)\)/g, (m, target, title) => {
+      return chipped.replace(/\]\(([^)\s]+)((?:\s+"[^"]*")?)\)/g, (m, target, title, offset) => {
+        if (chipped.slice(0, offset).split('`').length % 2 === 0) return m;
         const url = siteUrl(target);
         return url === null ? m : `](${url}${title})`;
       });

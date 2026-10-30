@@ -692,7 +692,11 @@ async function tokenTools() {
         .map(d => String(d.text || ''));
       assert(
         planNotes.some(n => /Also restored with /.test(n)),
-        `no "Also restored" note in ${brief(undone.plan.diff)}`
+        `no "Also restored" note in ${brief(undone.plan.diff)}. If this happens on some runs only: ` +
+          'a second GM browser logged in as the same user (another pane or tab on this server) ' +
+          "also runs dnd5e's dependent delete, and when its write lands first the journal files the " +
+          "dependent under that browser's own action, not under the AI change. Close the extra " +
+          'Claude tab (the bridge then shows two module links) and run the sweep again.'
       );
       assert(
         (await effectNames(ctx.wolfActorId)).includes(concentrating),

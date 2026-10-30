@@ -11,10 +11,13 @@
  *
  * Design:
  * - A slot is a folder `slot-N` under `<tmp>/foundry-ai-heavy-lock` (mkdir is atomic) with an
- *   `owner.json` (pid, label, start; newer runs add since, beat, step, priority). A slot whose pid
- *   is dead, or whose `start` is older than 1 hour, is stale and taken over. A long holder (a whole
- *   green run) calls beat() between steps, which moves `start` on, so a run that keeps beating is
- *   never stale (an older copy of this file, still on some lane branches, reads `start` the same way).
+ *   `owner.json` (pid, label, start; newer runs add since, step, priority). A slot whose pid is
+ *   dead is stale and taken over, and so is one whose `start` is too old: 20 minutes for an owner
+ *   this file wrote (it has `since`), 1 hour for one an older copy wrote (pid, label, start only;
+ *   such a copy beats only between green steps). The age rule matters because Windows reuses pids:
+ *   a killed green's slot can look alive for ever. Holders beat, which moves `start` on: green
+ *   between steps (its longest step took under 2 minutes, e2e with its wait included, 2026-10-30),
+ *   the CLI `run` every minute while its command runs.
  * - Waiters queue in order (FIFO): each writes a ticket under `queue/`, named so that the names sort
  *   by priority, then by arrival. Only the first live ticket may take a slot; a ticket whose pid is
  *   dead or that has not been touched for 5 minutes is dropped. The merge gate's drift check and the
@@ -33,16 +36,23 @@
  * - Each slot taken is logged as one JSON line in `admissions.jsonl` (wait, free RAM, slots), so the
  *   settings can be tuned from what happened.
  * - The merge gate runs main's copy of drift-check.mjs, which may not import other repo files, so
- *   drift-check calls this file through the CLI (`run`), not as a module.
+ *   drift-check calls this file through the CLI (`run`), not as a module, once per heavy guard. The
+ *   gate itself holds one high-priority slot around the whole drift run (through main's copy of this
+ *   file), so inside the gate those per-guard calls see the held marker and go straight on.
  */
-import { spawnSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 export const HELD_ENV = 'HEAVY_LOCK_HELD';
-const STALE_MS = 60 * 60 * 1000;
+/** An owner from an older copy of this file (no `since`) is stale this long after its last beat. */
+const STALE_OLD_MS = 60 * 60 * 1000;
+/** An owner this file wrote is stale this long after its last beat (pid reuse keeps a dead one "alive"). */
+export const STALE_MS = 20 * 60 * 1000;
+/** The CLI `run` beats this often while its command runs (HEAVY_LOCK_BEAT_MS, for tests). */
+const CLI_BEAT_MS = 60 * 1000;
 /** Set once a run gave up waiting: the rest of that process then does not wait again. */
 let gaveUp = false;
 /** For tests: forget a give-up. */
@@ -155,7 +165,7 @@ function inspectSlot(slot, now, alive) {
       return null;
     }
     if (age < FRESH_SLOT_MS) return 'unknown';
-  } else if (alive(owner.pid) && now - owner.start < STALE_MS) {
+  } else if (alive(owner.pid) && now - owner.start < (owner.since === undefined ? STALE_OLD_MS : STALE_MS)) {
     return owner;
   }
   // Another waiter may have taken the slot over between the read and now: look again before removing.
@@ -319,7 +329,7 @@ export function acquire(label, o = {}) {
               const next = { ...current, start: now(), ...(step ? { step } : {}) };
               fs.writeFileSync(path.join(slot, 'owner.json'), JSON.stringify(next));
             } catch {
-              // A missed beat only matters after an hour without one.
+              // A missed beat only matters after 20 minutes without one.
             }
           };
           process.once('exit', release);
@@ -451,7 +461,41 @@ export function status(env = process.env, now = Date.now(), alive = pidAlive, fr
   return lines;
 }
 
-/** @param {string[]} argv @returns {number} */
+/**
+ * The CLI `run`: the command under the lock, beating every minute while it runs (a spawnSync would
+ * block the beat, and a hold of over 20 minutes without one counts as stale). Children see HELD_ENV.
+ * @param {string} command @param {string} label @param {'high' | 'normal'} priority
+ * @returns {Promise<number>}
+ */
+export function runCommand(command, label, priority) {
+  const env = process.env;
+  const lock = acquire(label, { priority });
+  const had = env[HELD_ENV];
+  if (lock.held) env[HELD_ENV] = String(process.pid);
+  const beatMs = Number(env.HEAVY_LOCK_BEAT_MS) > 0 ? Number(env.HEAVY_LOCK_BEAT_MS) : CLI_BEAT_MS;
+  const timer = setInterval(() => lock.beat(), beatMs);
+  return new Promise(resolve => {
+    let finished = false;
+    /** @param {number} code */
+    const done = code => {
+      // 'error' and 'exit' can both fire for one child.
+      if (finished) return;
+      finished = true;
+      clearInterval(timer);
+      if (lock.held) {
+        if (had === undefined) delete env[HELD_ENV];
+        else env[HELD_ENV] = had;
+      }
+      lock.release();
+      resolve(code);
+    };
+    const child = spawn(command, { shell: true, stdio: 'inherit', env });
+    child.on('error', () => done(1));
+    child.on('exit', (code, signal) => done(code ?? (signal ? 130 : 1)));
+  });
+}
+
+/** @param {string[]} argv @returns {number | Promise<number>} */
 export function main(argv) {
   const [cmd, ...rest] = argv;
   if (cmd === 'status') {
@@ -468,14 +512,7 @@ export function main(argv) {
   const command = rest.slice(dash + 1);
   const label = li >= 0 && li < dash ? rest[li + 1] : command.slice(0, 3).join(' ');
   const priority = pi >= 0 && pi < dash && rest[pi + 1] === 'high' ? 'high' : 'normal';
-  return withHeavyLock(
-    label,
-    () => {
-      const r = spawnSync(command.join(' '), { shell: true, stdio: 'inherit', env: process.env });
-      return r.status ?? (r.signal ? 130 : 1);
-    },
-    { priority }
-  );
+  return runCommand(command.join(' '), label, priority);
 }
 
 /**
@@ -502,7 +539,7 @@ const self = fileURLToPath(import.meta.url);
 if (isEntryModule(process.argv[1], self)) {
   // Ctrl+C reaches the child too; staying alive lets the lock be released and the code passed on.
   process.on('SIGINT', () => {});
-  process.exit(main(process.argv.slice(2)));
+  Promise.resolve(main(process.argv.slice(2))).then(code => process.exit(code));
 } else if (process.argv[1] && path.basename(process.argv[1]).toLowerCase() === path.basename(self).toLowerCase()) {
   console.error(`heavy-lock: started as ${process.argv[1]} but this module is ${self}`);
   process.exit(1);

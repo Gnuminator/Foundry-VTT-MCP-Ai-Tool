@@ -292,21 +292,55 @@ test('every slot taken is logged in admissions.jsonl', () => {
   assert.equal(entry.slotsFrom, 'env');
 });
 
-test('a holder that beats is not stale after an hour; one that stops beating is', () => {
+test('a holder that beats is not stale after an hour; one that stops beating for 20 minutes is', () => {
   const { env } = fixture();
   let t = 1_000_000_000;
   const now = () => t;
   const holder = acquire('long green', { env, log: () => {}, now, alive: () => true });
-  t += 50 * 60 * 1000;
-  holder.beat('e2e');
-  t += 50 * 60 * 1000;
+  for (let i = 0; i < 6; i++) {
+    t += 15 * 60 * 1000;
+    holder.beat('e2e');
+  }
+  t += 19 * 60 * 1000;
   const blocked = acquire('waiter', { env, log: () => {}, now, alive: () => true, sleep: () => {}, maxWaitMs: 0 });
-  assert.equal(blocked.held, false, '100 minutes after the start but 50 after the last beat: still held');
+  assert.equal(blocked.held, false, '109 minutes after the start but 19 after the last beat: still held');
   resetGaveUp();
-  t += 20 * 60 * 1000;
+  t += 2 * 60 * 1000;
   const taker = acquire('waiter', { env, log: () => {}, now, alive: () => true });
-  assert.equal(taker.held, true, '70 minutes without a beat: stale');
+  assert.equal(taker.held, true, '21 minutes without a beat: stale (a killed run whose pid was reused)');
   taker.release();
+});
+
+test('an owner from the older lock (no since) keeps the hour: 50 minutes without a beat is still held', () => {
+  const { dir, env } = fixture();
+  fs.mkdirSync(path.join(dir, 'slot-0'));
+  fs.writeFileSync(
+    path.join(dir, 'slot-0', 'owner.json'),
+    JSON.stringify({ pid: process.pid, label: 'old green', start: Date.now() - 50 * 60 * 1000 })
+  );
+  const blocked = acquire('new', { env, log: () => {}, alive: () => true, sleep: () => {}, maxWaitMs: 0 });
+  assert.equal(blocked.held, false);
+  resetGaveUp();
+});
+
+test('the CLI beats while its command runs, so a long hold is not taken for stale', () => {
+  const { dir, env } = fixture();
+  const seen = path.join(dir, 'seen.json');
+  const worker = path.join(dir, 'worker.cjs');
+  // The command reads its own slot after a while, as a waiter would.
+  fs.writeFileSync(
+    worker,
+    "const fs = require('fs'), path = require('path');\nsetTimeout(() => fs.copyFileSync(path.join(process.argv[2], 'slot-0', 'owner.json'), process.argv[3]), 1200);\n"
+  );
+  const r = spawnSync(process.execPath, [script, 'run', '--label', 'long', '--', 'node', `"${worker}"`, `"${dir}"`, `"${seen}"`], {
+    env: { ...process.env, ...env, HEAVY_LOCK_HELD: '', HEAVY_LOCK_BEAT_MS: '200' },
+    encoding: 'utf8',
+  });
+  assert.equal(r.status, 0, r.stderr);
+  const owner = JSON.parse(fs.readFileSync(seen, 'utf8'));
+  assert.equal(owner.label, 'long');
+  assert.ok(owner.start - owner.since >= 600, `start moved on by the beat (${owner.start - owner.since} ms)`);
+  assert.ok(!fs.existsSync(path.join(dir, 'slot-0')), 'released after the command');
 });
 
 test('an owner written by the older lock (pid, label, start only) is respected, and a second slot is used next to it', () => {

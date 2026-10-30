@@ -1358,7 +1358,8 @@ The stage therefore edits `world.json` with Foundry stopped (Foundry rewrites th
   It refuses while players are online or a recording runs, saves the old values to
   `/var/lib/foundry-ai-tool/join-page-look/<time>-<world>-before.json`, stops the Assistant GM browser and Foundry,
   installs the picture as `worlds/curse-of-strahd/join-background.webp` (owner foundry, mode 644; a different picture
-  already there is kept in the same folder), sets `background` and `description` in `world.json`, starts Foundry, waits
+  already there is kept in `/var/lib/foundry-ai-tool/join-page-look/`; root never writes into the world folder, the
+  foundry user copies the picture in), sets `background` and `description` in `world.json`, starts Foundry, waits
   for the join page, starts the Assistant GM browser and checks that `/join` names the picture and the picture is
   served. Until the join page answers, a failure stops Foundry, puts `world.json` back and starts both services again;
   a failing `/join` or picture check after that only reports (the edit stays). It refuses during a dnd5e system trial

@@ -223,6 +223,18 @@ describe('19-join-page-look.sh', () => {
     assert.equal(sha(readFileSync(pi.dest)), first.EXPECT_SHA256);
   });
 
+  test('UNDO after a failed run goes back to before the last run that finished', () => {
+    const pi = fakePi();
+    const env = source(pi);
+    assert.equal(run(pi, env).status, 0);
+    writeFileSync(path.join(pi.d, 'desc.html'), '<p>second</p>');
+    assert.notEqual(run(pi, { ...env, JOIN_DOWN: '1' }).status, 0);
+    assert.equal(pi.json().description, DESC);
+    assert.equal(run(pi, { EXPECT_SHA256: env.EXPECT_SHA256, UNDO: '1' }).status, 0);
+    assert.equal(pi.json().description, '<p>old</p>');
+    assert.equal(existsSync(pi.dest), false);
+  });
+
   test('UNDO with no before.json says so', () => {
     const pi = fakePi();
     const r = run(pi, { EXPECT_SHA256: 'c'.repeat(64), UNDO: '1' });

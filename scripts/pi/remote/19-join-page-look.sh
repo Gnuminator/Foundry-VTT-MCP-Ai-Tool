@@ -104,6 +104,9 @@ fi
 foundry_can_write "$dir" || die "the foundry user cannot write in $dir: nothing was changed"
 
 if [ "$dry" = 1 ]; then
+  if have_systemd && [ "$(curl -fs --max-time 5 "$base_url/join" 2>/dev/null | grep -c 'id="join-game"' || true)" -eq 0 ]; then
+    warn "$base_url/join shows no id=\"join-game\" marker: a real run could not tell that Foundry is up"
+  fi
   if [ "$undo" = 1 ]; then
     say "dry run: would stop Foundry, put the before values back and start it again; nothing changed"
   else
@@ -122,11 +125,19 @@ trap '' HUP PIPE
 STAGE_LOG="$store/$stamp-$world-run.log"
 
 # The picture a rerun would overwrite is kept, so UNDO can put it back.
-prev=""
+prev="" staged=""
+# Root never writes into the foundry-owned world folder (lib.sh: a link left there would be followed): the picture is staged
+# here as a root-owned file and put in place with foundry_copy_file, and a link at the destination is refused.
+[ ! -L "$dest" ] || die "$dest is a link: not touching it. Nothing was changed"
 if [ "$undo" != 1 ] && [ -f "$dest" ] && [ "$(sha_of "$dest")" != "$want_sha" ]; then
   prev="$store/$stamp-$world-$dest_name.prev"
-  cp -a "$dest" "$prev"
+  install -m 644 "$dest" "$prev"
   ok "the picture now in the world is kept as $prev"
+fi
+if [ "$undo" != 1 ]; then
+  staged="$store/$stamp-$world-$dest_name.new"
+  install -m 644 "$src" "$staged"
+  [ "$(sha_of "$staged")" = "$want_sha" ] || die "the staged picture's hash differs from EXPECT_SHA256. Nothing was changed"
 fi
 if [ "$undo" != 1 ]; then
   "$node" -e 'const fs=require("fs");const o=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));fs.writeFileSync(process.argv[2],JSON.stringify({hadBackground:"background" in o,background:o.background??null,hadDescription:"description" in o,description:o.description??null,picture:process.argv[3],prevPicture:process.argv[4]||null},null,2)+"\n")' \
@@ -146,7 +157,9 @@ restore() {
   warn "the run did not finish: world.json is put back and the services start again"
   systemctl stop foundry.service || true
   foundry_copy_file "$copy" "$world_json" || warn "could not put $copy back over $world_json"
-  if [ -n "$prev" ] && [ -f "$prev" ]; then install -o "$FOUNDRY_USER" -g "$FOUNDRY_USER" -m 644 "$prev" "$dest" || true; fi
+  if [ -n "$prev" ] && [ -f "$prev" ]; then foundry_copy_file "$prev" "$dest" || true; fi
+  # The next UNDO must not start from the values of a run that did not finish.
+  if [ -f "$store/$stamp-$world-before.json" ]; then mv -f "$store/$stamp-$world-before.json" "$store/$stamp-$world-failed.json" || true; fi
   [ "$was_foundry" = 1 ] && { systemctl start foundry.service || true; }
   [ "$was_gm" = 1 ] && { systemctl start "$gm_unit" || true; }
   return 0
@@ -163,16 +176,8 @@ cp -a "$world_json" "$copy"
 
 if [ "$undo" = 1 ]; then
   foundry_edit_json "$world_json" 'const b=JSON.parse(require("fs").readFileSync(a[0],"utf8"));if(b.hadBackground)o.background=b.background;else delete o.background;if(b.hadDescription)o.description=b.description;else delete o.description' "$before"
-  prev_pic="$("$node" -e 'const o=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));process.stdout.write(o.prevPicture||"")' "$before")"
-  if [ -n "$prev_pic" ] && [ -f "$prev_pic" ]; then
-    install -o "$FOUNDRY_USER" -g "$FOUNDRY_USER" -m 644 "$prev_pic" "$dest"
-    ok "put the earlier $dest_name back"
-  elif [ "$(field background)" != "\"$bg_new\"" ] && [ -f "$dest" ] && [ "$(sha_of "$dest")" = "$want_sha" ]; then
-    rm -f -- "${dest:?}"
-    ok "removed $dest_name"
-  fi
 else
-  install -o "$FOUNDRY_USER" -g "$FOUNDRY_USER" -m 644 "$src" "$dest"
+  foundry_copy_file "$staged" "$dest"
   [ "$(sha_of "$dest")" = "$want_sha" ] || die "the installed picture's hash differs from EXPECT_SHA256"
   ok "installed $dest"
   foundry_edit_json "$world_json" 'o.background=a[0];o.description=a[1]' "$bg_new" "$desc_new"
@@ -202,4 +207,15 @@ elif have_systemd; then
   ok "Foundry was not running before this run: left stopped"
 fi
 trap - EXIT
+if [ "$undo" = 1 ]; then
+  # After Foundry is up with the old values: a failed start has then already put world.json back, with its picture still there.
+  prev_pic="$("$node" -e 'const o=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));process.stdout.write(o.prevPicture||"")' "$before")"
+  if [ -n "$prev_pic" ] && [ -f "$prev_pic" ]; then
+    foundry_copy_file "$prev_pic" "$dest"
+    ok "put the earlier $dest_name back"
+  elif [ "$(field background)" != "\"$bg_new\"" ] && [ -f "$dest" ] && [ "$(sha_of "$dest")" = "$want_sha" ]; then
+    rm -f -- "${dest:?}"
+    ok "removed $dest_name"
+  fi
+fi
 ok "done; check /join logged out (a private window), then reload once"

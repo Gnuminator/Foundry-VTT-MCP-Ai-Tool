@@ -211,18 +211,18 @@ describe('the switch, the buttons and the windows', () => {
     vi.restoreAllMocks();
   });
 
-  it('registers a world switch that defaults to off and redraws the controls when changed', () => {
+  it('registers a world switch that defaults to on and redraws the controls when changed', () => {
     install(true, false);
     const [moduleId, key, config] = registered.mock.calls[0];
     expect([moduleId, key]).toEqual([MODULE_ID, GM_WINDOWS_SETTING]);
-    expect(config).toMatchObject({ scope: 'world', config: true, default: false });
+    expect(config).toMatchObject({ scope: 'world', config: true, default: true });
     const render = vi.fn();
     g.ui = { ...g.ui, controls: { render } };
     config.onChange();
     expect(render).toHaveBeenCalledWith({ reset: true });
   });
 
-  it('is off by default: no Combat or Party buttons, and the windows refuse to open', async () => {
+  it('is off when the switch is off: no Combat or Party buttons, and the windows refuse to open', async () => {
     install(true, false);
     expect(gmWindowsEnabled()).toBe(false);
     const controls: Record<string, any> = {};

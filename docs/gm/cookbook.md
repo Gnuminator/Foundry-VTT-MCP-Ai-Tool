@@ -118,6 +118,15 @@ set says so.
 - **What happens:** a plan (`plan-tarokka-import`); applied after your yes, then in **🃏 Tarokka** (under **Advanced ▾**).
 - **Tip:** keep **Show cards** unticked on the dashboard while players can see your screen.
 
+### Use a Tarokka reading you chose yourself
+
+- **Say:** "Store this Tarokka reading: the tome is the Seven of Swords, the holy symbol the Master of Glyphs, the sunsword the One of Coins, the ally the Raven and Strahd's location the Donjon."
+  Or open **🃏 Tarokka**, press **Choose the cards…**, pick the five cards and press **Store this reading**.
+- **What happens:** nothing is dealt and you do not need the tarokka-reading module. Each card must come from the right deck
+  (common for the first three, high for the last two) and none can repeat. The previous reading is archived, and Undo brings it back.
+- **Then reveal one card at a time:** in **🃏 Tarokka**, press **Reveal…** on one position and write what the players may read.
+  Nothing reaches the players until you do that, and the other four stay hidden.
+
 ## During the session
 
 ### Answer a rules question
@@ -133,6 +142,21 @@ set says so.
 - **What happens:** Claude reads the characters and the combat (`get-combat-state`,
   `list-characters`).
 - **Tip:** the dashboard's combat tracker shows HP bars without asking.
+
+### Start and end a fight
+
+- **In Foundry:** pick the tokens that fight (select them on the map, or drag a box around them),
+  right-click one and click the crossed swords (**Enter Combat**) in its token menu. That adds
+  every selected token to a new combat. Open the **Combat Encounters** tab and click **Roll All**
+  (or **Roll NPCs**) for the initiative, then **Start Combat**. When the fight is over, click **End
+  Combat** at the bottom of the tab and confirm.
+- **In the dashboard:** with **GM Actions** on (**Turn on for tonight** does it), click **Start
+  combat** in the Combat Tracker. It lists the tokens on the scene, ticks the player characters and
+  the hostile ones, and starts the fight at round 1 with an Undo. **End combat** needs the **⚔
+  Combat buttons** switch under **Advanced**. See [Combat Tracker](dashboard.md#combat-tracker).
+- **Tip:** the Damage / Heal and Condition buttons on a combatant, and Start and End combat, all
+  need **GM Actions** on (End combat and the per-combatant buttons also need **⚔ Combat buttons**). If the buttons are missing or do nothing, look at the header: it must say
+  "GM Actions: on".
 
 ### Run a boss fight
 

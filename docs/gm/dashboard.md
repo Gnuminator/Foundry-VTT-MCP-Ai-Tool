@@ -230,15 +230,23 @@ conditions on several combatants at once: turn on **⚔ Combat buttons** under *
 default). With the combat buttons and GM Actions on (**Turn on for tonight** turns GM Actions on),
 click combatant rows to select them (click again to unselect). With one or more selected:
 
-- **Damage / Heal**: opens the tool runner (`plan-actor-change`) with those names filled in. Pick
-  damage, healing or temp-hp and enter the amount (and the damage type, so dnd5e counts
-  resistances, vulnerabilities and immunities).
-- **Condition**: the same, for a condition: pick it, and untick **active** to remove it.
-- **Clear**: unselects all.
+- **Damage / Heal**: opens a small form: Damage or Heal, one amount, and damage type chips (so
+  dnd5e counts resistances, vulnerabilities and immunities). One button, named for what it does
+  ("Deal 8 fire damage to ... in Foundry"), applies it at once to every picked token; each takes
+  the full amount. The toast has **Undo** and Recent Changes keeps the change. There is no
+  confirm window for this form.
+- **Condition**: opens the tool runner with the picked names filled in: pick the condition, and
+  untick **active** to remove it. Click **Run...**; the confirm window lists each target and what
+  will change; click **Confirm**.
+- **Clear**: unselects all (and closes the Damage / Heal form).
+- **Ask for a roll** (under the strip, with GM Actions on): pick a check, save or skill, a DC and
+  private or public, then **Ask the party**, or **Ask** for the picked player characters. The
+  request goes to each player's chat and the play log at once, with no confirm window and no
+  Undo (it only posts a roll card).
 
-Fill in the amount and click **Run...**. The confirm window lists each target and what will
-change; click **Confirm**. A message lists each target's result ("Wolf 2: HP 11 to 5") with
-**Undo** for a few seconds; one click puts it back. Later, use **Undo** in Recent Changes.
+After a Damage / Heal or Condition change, a message lists each target's result ("Wolf 2: HP 11 to
+5") with **Undo** for a few seconds; one click puts it back. Later, use **Undo** in Recent
+Changes.
 
 **Start combat** and **End combat**: with no fight running and GM Actions on, the Combat Tracker
 offers **Start combat** (in most During layouts, a small **Start combat** button on the During bar
@@ -507,8 +515,8 @@ The confirm window opens first for:
   at once, so Undo cannot take it back from their eyes).
 - **Plans you did not make on the dashboard**: a plan Claude made.
   Plan, confirm and undo stay for every AI change.
-- **Any plan made in the tool runner**, including the combat strip's Damage / Heal and Condition,
-  so you see which targets they hit before they apply.
+- **Any plan made in the tool runner**, including the combat strip's Condition, so you see which
+  targets it hits before it applies. (The strip's Damage / Heal form applies at once, with Undo.)
 - **Older tools without a plan** (from the tool runner), which have no Undo.
 
 In the confirm window:
@@ -577,6 +585,11 @@ Top row:
   answer yes, then import it here.
 - **New reading (built-in roll)**: deals a new reading with the tool's own roll. The previous
   reading is kept in an archive.
+- **Choose the cards…**: for a reading you drew by hand. Pick the five cards (the first three from
+  the common deck, the last two from the high deck, none twice) and press **Store this reading**.
+  Nothing is dealt, and you do not need the `tarokka-reading` module. The previous reading is
+  kept in an archive, and Undo brings it back. It shows card names, so it only opens while
+  **Show cards** is ticked, and unticking that hides it again.
 - **📓 Obsidian**: opens the current reading's note in Obsidian.
 - **Show cards**: card names show as "Hidden card" until you tick this. Untick it before anyone looks at
   your screen.
@@ -669,8 +682,12 @@ choose **Set as Primary Party**. With more than one group, a list at the top pic
   a square ("put the party at the inn door").
 - **Rest**: posts dnd5e's short or long rest card to chat. Each player clicks it to rest their
   own character, the same card Foundry's party sheet posts.
+- **Ask for a roll**: pick a check, save or skill, a DC and private or public, then **Ask the
+  whole party**, or **Ask roll** on one member. It posts the roll request to the player's chat and
+  the play log (with GM Actions on). It has no confirm window and no Undo, since it only posts a
+  roll card.
 
-Each button applies in one click, with an **Undo** message. The actions need GM Actions on and
+Each of the other buttons applies in one click, with an **Undo** message. The actions need GM Actions on and
 the module setting **AI Tool: Party (writes)** switched on. Every change lands in Recent Changes
 with Undo; a rest card can only be undone while nobody has rested from it (after that, delete the
 card in Foundry's chat). Claude uses the same actions with `get-party` and `plan-party-change`.

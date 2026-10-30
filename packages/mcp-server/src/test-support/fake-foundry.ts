@@ -119,7 +119,12 @@ export class FakeFoundry {
   private apply(req: GuardedApplyRequest): unknown {
     if (req.mode === 'apply') {
       const feature = this.features.find(f => f.id === req.feature);
-      if (!feature?.enabled) throw new Error(`The "${req.feature}" feature is switched off`);
+      if (!feature?.enabled) {
+        const name = feature?.name ?? req.feature;
+        throw new Error(
+          `"${name}" is switched off. In Foundry, open Game Settings, Configure Settings, AI Tool and turn on "${name}".`
+        );
+      }
     }
     // Like the module: in an undo or redo a delete whose document is already gone (dnd5e took
     // it first) is as wanted and comes back as `alreadyGone` instead of a conflict.

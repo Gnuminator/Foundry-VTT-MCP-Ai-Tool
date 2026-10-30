@@ -158,6 +158,21 @@ const bridge: Answer = call => {
     }
     case 'undo-change':
       return ok({ changeId: 'u1', summary: `Undid ${String(call.args['changeId'])}` });
+    case 'list-ref-choices': {
+      const high = call.args['parent'] === 'ally' || call.args['parent'] === 'strahdLocation';
+      return ok({
+        choices: high
+          ? [
+              { id: 'raven', name: 'Raven' },
+              { id: 'donjon', name: 'Donjon' },
+            ]
+          : [
+              { id: 'swords-7', name: 'Seven of Swords' },
+              { id: 'coins-1', name: 'One of Coins' },
+              { id: 'glyphs-master', name: 'Master of Glyphs' },
+            ],
+      });
+    }
     case 'open-in-foundry':
       return ok({ opened: true });
     default:
@@ -390,6 +405,51 @@ test('Import and New reading apply in one click, with Undo; both reload the read
     args: { source: 'builtin-roll' },
   });
   await expect.poll(() => loads(calls)).toBe(4);
+});
+
+test('Choose the cards stores the five picked cards, none twice', async ({ page }) => {
+  await fakeStream(page, gmActions(true));
+  const calls = await fakeTools(page, bridge);
+  const drawer = await openTarokka(page);
+  await expect(drawer.locator('.tarokka-pos')).toHaveCount(5);
+
+  const chooseToggle = drawer.getByRole('button', { name: 'Choose the cards…' });
+  await expect(chooseToggle).toBeDisabled();
+  await drawer.getByRole('checkbox', { name: 'Show cards' }).check();
+  await chooseToggle.click();
+  const form = drawer.locator('#tarokka-choose-form');
+  const store = form.getByRole('button', { name: 'Store this reading' });
+  await expect(form.locator('select')).toHaveCount(5);
+  await expect(store).toBeDisabled();
+  const pick = (position: string, value: string): Promise<string[]> =>
+    form.locator(`select[data-position="${position}"]`).selectOption(value);
+  await pick('tome', 'swords-7');
+  await pick('holySymbol', 'glyphs-master');
+  await pick('sunsword', 'coins-1');
+  await pick('ally', 'raven');
+  await expect(store).toBeDisabled();
+  await pick('strahdLocation', 'raven');
+  await expect(form).toContainText('Each card can be in the reading once.');
+  await expect(store).toBeDisabled();
+  await pick('strahdLocation', 'donjon');
+  await expect(store).toBeEnabled();
+
+  await store.click();
+  await expect(toast(page, '✓ Applied: Stored a reading')).toBeVisible();
+  expect(plans(calls)).toEqual([
+    {
+      name: 'plan-tarokka-import',
+      args: {
+        tome: 'swords-7',
+        holySymbol: 'glyphs-master',
+        sunsword: 'coins-1',
+        ally: 'raven',
+        strahdLocation: 'donjon',
+      },
+    },
+  ]);
+  await expect(form).toHaveCount(0);
+  await expect(chooseToggle).toBeFocused();
 });
 
 test('a failed import says why and still reloads; nothing is applied', async ({ page }) => {
@@ -981,7 +1041,8 @@ test('an apply the bridge refuses says why, has no Undo, reloads and keeps the d
   page,
 }) => {
   await fakeStream(page, gmActions(true));
-  const refusal = 'The "tarokka" feature is switched off in the module settings';
+  const refusal =
+    '"AI Tool: Tarokka (writes)" is switched off. In Foundry, open Game Settings, Configure Settings, AI Tool and turn on "AI Tool: Tarokka (writes)".';
   const calls = await fakeTools(page, call =>
     call.name === 'apply-planned-change'
       ? { status: 422, json: { ok: false, kind: 'tool', error: refusal } }
@@ -1000,7 +1061,7 @@ test('an apply the bridge refuses says why, has no Undo, reloads and keeps the d
   await confirm.getByRole('checkbox').check();
   await confirm.getByRole('button', { name: 'Run destructive action' }).click();
   // A clear no: no "may have applied" hint, no Undo.
-  await expect(toast(page, `✗ apply-planned-change: ${refusal}`)).toBeVisible();
+  await expect(toast(page, refusal)).toBeVisible();
   await expect(page.locator('.toast-stack .toast-undo')).toHaveCount(0);
   await expect.poll(() => loads(calls)).toBeGreaterThan(loaded);
   // The draft stays for another try, and every button is free again.
@@ -1011,7 +1072,7 @@ test('an apply the bridge refuses says why, has no Undo, reloads and keeps the d
 
   // A new reading refused the same way.
   await roll.click();
-  await expect(toast(page, `✗ apply-planned-change: ${refusal}`)).toHaveCount(2);
+  await expect(toast(page, refusal)).toHaveCount(2);
   await expect(page.locator('.toast-stack .toast-undo')).toHaveCount(0);
   await expect(roll).toBeEnabled();
 });

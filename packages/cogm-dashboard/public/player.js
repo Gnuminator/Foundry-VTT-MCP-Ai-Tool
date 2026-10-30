@@ -12,7 +12,7 @@ import {
   turnLine,
   turnStatus,
 } from './player-me.js';
-import { sessionPhase, splitHandouts } from './player-session.js';
+import { handoutTitle, sessionPhase, splitHandouts } from './player-session.js';
 import { applyTheme, currentMist, loadTheme, setMist } from './theme.js';
 
 // Optional player token (only if the deployment sets PLAYER_DASHBOARD_TOKEN).
@@ -299,7 +299,7 @@ function visibleHandouts(handouts) {
 
 function handoutHtml(h) {
   // `html` was rebuilt server-side from an allowlist (no attributes, no scripts).
-  return `<details class="handout" data-handout="${escape(h.id)}"><summary data-track="player.handouts.open">${escape(h.title)}${h.isNew ? ' <span class="handout-new">New</span>' : ''}${Array.isArray(h.players) ? ' <span class="handout-private">just for you</span>' : ''}</summary>
+  return `<details class="handout" data-handout="${escape(h.id)}"><summary data-track="player.handouts.open">${escape(handoutTitle(h))}${h.isNew ? ' <span class="handout-new">New</span>' : ''}${Array.isArray(h.players) ? ' <span class="handout-private">just for you</span>' : ''}</summary>
         <div class="content">${h.html}</div></details>`;
 }
 

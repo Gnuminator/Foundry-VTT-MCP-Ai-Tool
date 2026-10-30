@@ -78,25 +78,25 @@ Foundry and dnd5e (verified against Foundry 14.368 and dnd5e 6.0.5):
 
 Foundry AI Tool and this table's own way of playing (the index is `references/gm/README.md`):
 
-| Question about                                                              | Page                                                                          |
-| --------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| New to all this: a reading order, what the tool is, its parts, the glossary | `references/gm/first-hour.md`, `references/gm/getting-started.md`             |
-| The dashboard: every panel and button, Pre-flight, the confirm window       | `references/gm/dashboard.md`                                                  |
-| The small windows next to the map (combat, party, session, scene, loot)     | `references/gm/gm-windows.md`                                                 |
-| Feature switches and when to turn each on                                   | `references/gm/features.md`                                                   |
-| Asking Claude: good requests, tool sets, plan then confirm then undo        | `references/gm/asking-claude.md`, `references/gm/cookbook.md`                 |
-| Installing the Claude Desktop connection on a PC                            | `references/gm/connect-claude-desktop.md`                                     |
-| The 15 minutes before play, and right after play                            | `references/gm/before-session.md`, `references/gm/after-session.md`           |
-| Something broke, on game night or otherwise                                 | `references/gm/game-night-runbook.md`, `references/gm/troubleshooting.md`     |
-| A character died, or a new one joins                                        | `references/gm/death-and-new-characters.md`                                   |
-| Rules of thumb with their reasons                                           | `references/gm/never-and-only-if.md`                                          |
-| The TV showing the map at an in-person table                                | `references/gm/tv-table-viewer.md`                                            |
-| The Obsidian vault and the notes the tool writes                            | `references/gm/obsidian.md`                                                   |
-| Session 0, players making characters, Actor Studio settings                 | `references/gm/prepare-session-0.md`, `references/player/make-a-character.md` |
-| What to prep, the expectations talk, ability scores, a session 0 agenda     | `references/gm/prep-and-expectations.md`                                      |
-| A player who cannot log in                                                  | `references/player/join.md`                                                   |
-| What players see (the player page), what is recorded, consent               | `references/player/README.md`, `references/player/cookbook.md`                |
-| What works with the free Claude plan                                        | `references/gm/claude-plans.md`                                               |
+| Question about                                                              | Page                                                                                                   |
+| --------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| New to all this: a reading order, what the tool is, its parts, the glossary | `references/gm/first-15-minutes.md`, `references/gm/first-hour.md`, `references/gm/getting-started.md` |
+| The dashboard: every panel and button, Pre-flight, the confirm window       | `references/gm/dashboard.md`                                                                           |
+| The small windows next to the map (combat, party, session, scene, loot)     | `references/gm/gm-windows.md`                                                                          |
+| Feature switches and when to turn each on                                   | `references/gm/features.md`                                                                            |
+| Asking Claude: good requests, tool sets, plan then confirm then undo        | `references/gm/asking-claude.md`, `references/gm/cookbook.md`                                          |
+| Installing the Claude Desktop connection on a PC                            | `references/gm/connect-claude-desktop.md`                                                              |
+| The 15 minutes before play, and right after play                            | `references/gm/before-session.md`, `references/gm/after-session.md`                                    |
+| Something broke, on game night or otherwise                                 | `references/gm/game-night-runbook.md`, `references/gm/troubleshooting.md`                              |
+| A character died, or a new one joins                                        | `references/gm/death-and-new-characters.md`                                                            |
+| Rules of thumb with their reasons                                           | `references/gm/never-and-only-if.md`                                                                   |
+| The TV showing the map at an in-person table                                | `references/gm/tv-table-viewer.md`                                                                     |
+| The Obsidian vault and the notes the tool writes                            | `references/gm/obsidian.md`                                                                            |
+| Session 0, players making characters, Actor Studio settings                 | `references/gm/prepare-session-0.md`, `references/player/make-a-character.md`                          |
+| What to prep, the expectations talk, ability scores, a session 0 agenda     | `references/gm/prep-and-expectations.md`                                                               |
+| A player who cannot log in                                                  | `references/player/join.md`                                                                            |
+| What players see (the player page), what is recorded, consent               | `references/player/README.md`, `references/player/cookbook.md`                                         |
+| What works with the free Claude plan                                        | `references/gm/claude-plans.md`                                                                        |
 
 If a page named here is missing, the skill was built before that page existed: say so and answer
 from the other pages.

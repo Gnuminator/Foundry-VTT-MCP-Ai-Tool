@@ -1,0 +1,110 @@
+/* "Field guide" look (board A, 2026-10-29): bone ground, ink text, wine accent, brass chips,
+   Spectral headings, Source Sans 3 body. Fonts come from @fontsource, no Google Fonts. */
+:root {
+  --sl-font: 'Source Sans 3', system-ui, sans-serif;
+  --sl-font-system: 'Source Sans 3', system-ui, sans-serif;
+  --fg-heading: 'Spectral', Georgia, 'Times New Roman', serif;
+  --fg-chip-bg: #f1e4c8;
+  --fg-chip-ink: #6b4f1d;
+}
+
+/* Light */
+:root,
+:root[data-theme='light'] {
+  --sl-color-white: #221c24;
+  --sl-color-gray-1: #2f2832;
+  --sl-color-gray-2: #4a414d;
+  --sl-color-gray-3: #6e6571;
+  --sl-color-gray-4: #a99fa3;
+  --sl-color-gray-5: #e0d6c7;
+  --sl-color-gray-6: #ece5d8;
+  --sl-color-gray-7: #f2ece0;
+  --sl-color-black: #f7f3ec;
+  --sl-color-accent-low: #f0d7da;
+  --sl-color-accent: #7a1f2e;
+  --sl-color-accent-high: #5b1522;
+  --sl-color-text-accent: #7a1f2e;
+  --sl-color-bg-nav: #f7f3ec;
+  --sl-color-bg-sidebar: #f1ebdf;
+}
+
+/* Dark: the wine lightens so it keeps contrast on a dark ground */
+:root[data-theme='dark'] {
+  --sl-color-white: #f4eee3;
+  --sl-color-gray-1: #e4dccf;
+  --sl-color-gray-2: #c3b9ad;
+  --sl-color-gray-3: #968c85;
+  --sl-color-gray-4: #5e555a;
+  --sl-color-gray-5: #3c343d;
+  --sl-color-gray-6: #2a232c;
+  --sl-color-gray-7: #1f1a21;
+  --sl-color-black: #171318;
+  --sl-color-accent-low: #4a1a24;
+  --sl-color-accent: #e58c97;
+  --sl-color-accent-high: #f3b9c0;
+  --sl-color-text-accent: #e58c97;
+  --sl-color-bg-nav: #171318;
+  --sl-color-bg-sidebar: #1c171e;
+  --fg-chip-bg: #3a2f1a;
+  --fg-chip-ink: #e8c98a;
+}
+
+.sl-markdown-content :is(h1, h2, h3, h4),
+h1#_top,
+.site-title {
+  font-family: var(--fg-heading);
+  font-weight: 700;
+  letter-spacing: -0.005em;
+}
+
+.sl-markdown-content h2 {
+  border-bottom: 1px solid var(--sl-color-gray-5);
+  padding-bottom: 0.25rem;
+}
+
+/* Sidebar group labels read as small caps in wine */
+.sidebar-content details > summary .large {
+  font-family: var(--fg-heading);
+  font-size: var(--sl-text-sm);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--sl-color-accent);
+}
+
+.sidebar-content a[aria-current='page'] {
+  background-color: var(--sl-color-accent);
+  color: var(--sl-color-black);
+}
+
+/* Time chips: write `<span class="chip">15 min</span>` in a heading or list item */
+.chip {
+  display: inline-block;
+  padding: 0 0.5em;
+  border-radius: 999px;
+  background: var(--fg-chip-bg);
+  color: var(--fg-chip-ink);
+  font-size: 0.8em;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* Link marks: Foundry's own pages get a small "F" in brass, our pages stay plain */
+.sl-markdown-content a[href^='https://foundryvtt.com/']::after {
+  content: 'F';
+  margin-left: 0.3em;
+  padding: 0 0.35em;
+  border-radius: 0.25rem;
+  background: var(--fg-chip-bg);
+  color: var(--fg-chip-ink);
+  font-size: 0.7em;
+  font-weight: 700;
+  vertical-align: 0.1em;
+}
+
+.sl-markdown-content video {
+  max-width: 100%;
+  height: auto;
+  border-radius: 0.5rem;
+  border: 1px solid var(--sl-color-gray-5);
+}

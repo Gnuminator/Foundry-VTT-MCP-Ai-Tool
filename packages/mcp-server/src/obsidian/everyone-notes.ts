@@ -240,6 +240,8 @@ export function renderEveryoneNote(
       '',
       GENERATED_BANNER,
       '',
+      'Part of [the campaign home](../../Home.md).',
+      '',
       `Everything that changed in Foundry on this day: the players, the GM and the AI, oldest first (the server's local time). Undo any of them in the dashboard (Recent Changes, Everyone tab) or in Foundry's Changes window, not here.`,
       '',
       ...partial,

@@ -13,7 +13,7 @@
     "MD024": { "siblings_only": true },
     // The docs carry a front matter `title`; only a second "# " heading counts.
     "MD025": { "front_matter_title": "" },
-    // README layout only. A placeholder such as <name> must be in backticks, or GitHub hides it.
+    // README layout, and the <video> loops in docs/foundry. A placeholder such as <name> must be in backticks, or GitHub hides it.
     "MD033": {
       "allowed_elements": [
         "a",
@@ -26,6 +26,7 @@
         "source",
         "summary",
         "sup",
+        "video",
       ],
     },
   },

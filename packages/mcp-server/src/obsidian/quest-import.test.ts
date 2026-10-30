@@ -97,6 +97,14 @@ describe('readQuestNote', () => {
     );
     const html = (await readQuestNote(vaultDir, WORLD, tricky)).html;
     expect(html.startsWith('<h1>Tom &amp; &lt;b&gt;Jerry&lt;/b&gt;</h1>')).toBe(true);
+    // An apostrophe stays a plain character, which the player page's title reader expects.
+    const quote = await note(
+      'Campaigns/w1/Prep/Quests/Quote.md',
+      QUEST.replace('---', "---\ntitle: Ireena's Escort")
+    );
+    expect((await readQuestNote(vaultDir, WORLD, quote)).html).toContain(
+      "<h1>Ireena's Escort</h1>"
+    );
   });
 
   it('refuses other types, a set fvtt_uuid, an empty note and a missing file', async () => {

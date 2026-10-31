@@ -18,8 +18,8 @@ decision), then ends. It does not sit and wait for lanes. Vault paths below are 
   vault handover (`Handoff/<lane> prompt <date>.md`) instead.
 - `gh pr list --state open` and the CI of each.
 - **Main's last CI run (2026-10-31):** at start and before each lane start,
-  `gh run list --branch main -w ci.yml -L 1`. Red means one fix lane first and the other starts
-  held until main is green again.
+  `gh run list --branch main -w ci.yml --event push --status completed -L 5` (the start-alerts hook prints "main CI red since
+  <sha> (<step>)" when the newest finished run failed). Red means the "Main is red" step below.
 - `list_sessions` without `linked` (lanes start their own successors; they only show in the full
   list), then `get_usage` with each running lane's id (lanes underreport their context).
   `get_usage "self"` for your own context and the plan percentages.
@@ -153,6 +153,29 @@ then run `npm run live:roundtrip` (plus `live:sweep`
 when write handlers changed) on main through the test server lock, and on green
 `npm run lane:merge -- --train-reset <main sha>`; bisect if red. `--train` shows the count. Run
 the roundtrip before any Pi deploy too. Tell the user what was merged.
+
+## Main is red
+
+Unblock first, fix properly second (vault `Design/Red main root cause 2026-10-31.md`: #652 took
+11.5 hours and six review rounds while five ready PRs waited).
+
+1. **Open the unblock PR within 15 minutes of seeing it** (the start alert, a gate refusal naming a
+   main failure, a lane note). Either **revert the merge that turned main red**: the `since` sha in
+   the alert, or the first red run in the list above, not simply the newest merge (others may have
+   landed while its run was going). Reverting merged work needs the user's OK first, one line through
+   the question tool (red commit, step, the PR to revert). Or, when the break is a limit and not bad
+   code (a bundle or tool-set budget, a ratchet baseline), **a one-line temporary limit raise**, which
+   needs no OK, with a Backlog item for the proper fix (`- done when:` the limit back, the cause
+   removed) so the raise is not forgotten. Either way it is a normal PR with the quick checks and CI
+   green. It goes through the gate like any other (a review note for that sha, D-101); a small diff
+   makes the review a short round, so ask for it at once. An exemption from review would be the
+   user's decision, not this skill's. A flaky red is cleared by rerunning the failed run
+   (`gh run rerun <id> --failed`); a hand dispatch does not clear it.
+2. **No other merges while main is red.** Do not run the gate for anything else; the only PR that
+   merges is the unblock PR. Lanes may keep building and may push.
+3. When main is green again, the proper fix is a normal lane (claim, review, merge) from the
+   Backlog item. Name the red commit, the step and the unblock PR in that item's `- source:` line.
+4. Tell the user in one line: the red commit, what unblocked it, the Backlog item.
 
 ## Session cleanup
 

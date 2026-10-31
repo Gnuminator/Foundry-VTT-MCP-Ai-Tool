@@ -50,12 +50,39 @@ const sse = (events: { event: string; data: unknown }[]): string =>
 async function setup(
   page: Page,
   combatants: Raw[] | null,
-  opts: { changes?: unknown[]; gmActions?: boolean } = {}
+  opts: {
+    changes?: unknown[];
+    gmActions?: boolean;
+    /** Ids of session switches that are off (the rest are on). */
+    switchesOff?: string[];
+    /** Answers a tool call before the defaults. */
+    answer?: (call: ToolCall) => { status?: number; json: unknown } | undefined;
+  } = {}
 ): Promise<ToolCall[]> {
   await fakeCommonRoutes(page);
+  if (opts.switchesOff) {
+    const off = opts.switchesOff;
+    await page.route('**/api/session/switches', route =>
+      route.fulfill({
+        json: {
+          switches: {
+            switches: ['writes', 'live-play', 'handouts'].map(id => ({
+              id,
+              name: `AI Tool: ${id}`,
+              on: !off.includes(id),
+            })),
+          },
+          gmActionsEnabled: opts.gmActions ?? true,
+          error: null,
+        },
+      })
+    );
+  }
   const calls = await fakeTools(
     page,
     call => {
+      const custom = opts.answer?.(call);
+      if (custom) return custom;
       switch (call.name) {
         case 'list-scenes':
           return ok([{ id: 's1', name: 'Field', active: true }]);
@@ -234,3 +261,119 @@ for (const width of [1440, 400]) {
     expect(overflow).toBeLessThanOrEqual(0);
   });
 }
+
+const failed = (error: string, kind = 'tool'): { status: number; json: unknown } => ({
+  status: kind === 'tool' ? 422 : 502,
+  json: { ok: false, error, kind },
+});
+const toastText = (page: Page, text: RegExp): Locator =>
+  page.locator('.toast-stack').getByText(text);
+
+test('with writes off the Damage form is not offered, and Next turn waits', async ({ page }) => {
+  const calls = await setup(page, FIGHT, { switchesOff: ['writes'] });
+  await load(page);
+  await page.getByRole('button', { name: 'Goblin 1', exact: true }).click();
+  await expect(page.locator('#live-gated')).toBeVisible();
+  await expect(page.locator('#damage-form')).toHaveCount(0);
+  await expect(page.locator('#live-next-turn')).toHaveAttribute('aria-disabled', 'true');
+  await page.locator('#live-next-turn').click({ force: true });
+  expect(calls.some(c => c.name === 'advance-combat-turn')).toBe(false);
+});
+
+test('with only live play off Next turn still works; End combat and Damage wait', async ({
+  page,
+}) => {
+  const calls = await setup(page, FIGHT, { switchesOff: ['live-play'] });
+  await load(page);
+  await expect(page.locator('#live-end-combat')).toHaveAttribute('aria-disabled', 'true');
+  await page.locator('#live-next-turn').click();
+  await expect.poll(() => calls.map(c => c.name)).toContain('advance-combat-turn');
+  await page.getByRole('button', { name: 'Goblin 1', exact: true }).click();
+  await expect(page.locator('#damage-form')).toHaveCount(0);
+});
+
+test('a double Enter in the amount sends one plan', async ({ page }) => {
+  const calls = await setup(page, FIGHT);
+  await load(page);
+  await page.getByRole('button', { name: 'Goblin 1', exact: true }).click();
+  const amount = page.getByRole('textbox', { name: 'Amount' });
+  await amount.fill('5');
+  // Both keydowns in one task, so the second arrives before the first answer.
+  await amount.evaluate(el => {
+    for (let i = 0; i < 2; i++) {
+      el.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    }
+  });
+  await expect(pickBar(page)).toContainText('pick a creature');
+  expect(calls.filter(c => c.name === 'plan-actor-change')).toHaveLength(1);
+});
+
+test('Next turn that fails says so with a full stop before the hint', async ({ page }) => {
+  await setup(page, FIGHT, {
+    answer: call =>
+      call.name === 'advance-combat-turn' ? failed('Bridge went quiet', 'channel') : undefined,
+  });
+  await load(page);
+  await page.locator('#live-next-turn').click();
+  await expect(
+    toastText(page, /Next turn: Bridge went quiet\. It may have applied; check the tracker\./)
+  ).toBeVisible();
+});
+
+test('a refused plan keeps the pick and the form so the GM can try again', async ({ page }) => {
+  const calls = await setup(page, FIGHT, {
+    answer: call => (call.name === 'plan-actor-change' ? failed('Token is gone') : undefined),
+  });
+  await load(page);
+  await page.getByRole('button', { name: 'Goblin 1', exact: true }).click();
+  await page.getByRole('textbox', { name: 'Amount' }).fill('5');
+  await page.getByRole('button', { name: /Deal 5 damage to Goblin 1/ }).click();
+  await expect(toastText(page, /Token is gone/)).toBeVisible();
+  await expect(pickBar(page)).toContainText('Goblin 1');
+  await expect(page.locator('#damage-form')).toBeVisible();
+  expect(writes(calls)).toEqual([]);
+});
+
+test('an apply that conflicts (the actor changed since the plan) leaves the pick and writes once', async ({
+  page,
+}) => {
+  const calls = await setup(page, FIGHT, {
+    answer: call =>
+      call.name === 'apply-planned-change'
+        ? failed('The actor changed since the plan was made')
+        : undefined,
+  });
+  await load(page);
+  await page.getByRole('button', { name: 'Goblin 1', exact: true }).click();
+  await page.getByRole('textbox', { name: 'Amount' }).fill('5');
+  await page.getByRole('button', { name: /Deal 5 damage to Goblin 1/ }).click();
+  await expect(toastText(page, /changed since the plan/)).toBeVisible();
+  await expect(pickBar(page)).toContainText('Goblin 1');
+  expect(calls.filter(c => c.name === 'apply-planned-change')).toHaveLength(1);
+});
+
+test('Cancel closes the form without a write and puts focus on the pick bar', async ({ page }) => {
+  const calls = await setup(page, FIGHT);
+  await load(page);
+  await page.getByRole('button', { name: 'Goblin 1', exact: true }).click();
+  await page.getByRole('button', { name: 'Cancel' }).click();
+  await expect(pickBar(page)).toContainText('pick a creature');
+  await expect(pickBar(page)).toBeFocused();
+  expect(calls.some(c => c.name === 'plan-actor-change')).toBe(false);
+});
+
+test('after a damage hit focus goes back to the pick bar', async ({ page }) => {
+  await setup(page, FIGHT);
+  await load(page);
+  await page.getByRole('button', { name: 'Goblin 1', exact: true }).click();
+  await page.getByRole('textbox', { name: 'Amount' }).fill('5');
+  await page.getByRole('textbox', { name: 'Amount' }).press('Enter');
+  await expect(pickBar(page)).toContainText('pick a creature');
+  await expect(pickBar(page)).toBeFocused();
+});
+
+test('the fight summary is a live region', async ({ page }) => {
+  await setup(page, FIGHT);
+  await load(page);
+  await expect(page.locator('#live-meta')).toHaveAttribute('role', 'status');
+});

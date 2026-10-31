@@ -39,8 +39,8 @@ export async function fakeStream(
  * A toast in the stack. Radix also repeats each toast's text in a screen-reader live region
  * outside the stack, so a page-wide getByText can match twice.
  */
-export const toast = (page: Page, text: string): Locator =>
-  page.locator('.toast-stack').getByText(text);
+export const toast = (page: Page, text: string | RegExp, options?: { exact?: boolean }): Locator =>
+  page.locator('.toast-stack').getByText(text, options);
 
 /** One POST /api/tool body: the tool, its args and the confirm flags of a write. */
 export interface ToolCall {

@@ -238,7 +238,7 @@ test('Start combat in two clicks also rolls initiative for the NPCs', async ({ p
     .poll(() => calls.find(c => c.name === 'roll-initiative-for-npcs'))
     // Only the Wolf's combatant: the player character rolls their own.
     .toMatchObject({ args: { combatantIds: ['cb-w'] }, confirm: true });
-  await expect(page.getByText('✓ Rolled initiative for the NPCs', { exact: true })).toBeVisible();
+  await expect(toast(page, '✓ Rolled initiative for the NPCs', { exact: true })).toBeVisible();
   const names = calls.map(c => c.name);
   expect(names.indexOf('apply-planned-change')).toBeLessThan(
     names.indexOf('roll-initiative-for-npcs')

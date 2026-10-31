@@ -1,5 +1,13 @@
 import { DropdownMenu } from 'radix-ui';
-import { useMemo, useRef, useState, type JSX, type ReactNode } from 'react';
+import {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type JSX,
+  type ReactNode,
+} from 'react';
 
 import { useEscapeClose } from '../lib/escape';
 import { Button } from '../ui';
@@ -13,17 +21,48 @@ import { MenuPartsContext, type MenuParts } from './AdvancedMenu';
 export function AdvancedMenuImpl({
   children,
   initialOpen,
+  restoreFocus,
 }: {
   children: ReactNode;
+  /** The stand-in button had the focus when this chunk arrived. */
+  restoreFocus: boolean;
   /** The button was clicked while this chunk loaded: open at once. */
   initialOpen: false | 'pointer' | 'keyboard';
 }): JSX.Element {
-  const [open, setOpen] = useState(initialOpen !== false);
+  const [open, setOpen] = useState(false);
   // With a toast up, the toast hands Escape on to the newest open panel (escape.ts): this menu.
   useEscapeClose(open, () => setOpen(false));
   // An entry that opened a panel keeps the focus there; Radix would hand it back to the button.
   const picked = useRef(false);
-  const openedOnce = useRef(false);
+  const contentRef = useRef<HTMLDivElement>(null);
+  // The stand-in button (AdvancedMenu.tsx) is replaced by the real one as this mounts. If the
+  // stand-in had the focus, it would drop to the page body: put it on the new button.
+  useLayoutEffect(() => {
+    if (restoreFocus) document.getElementById('btn-advanced')?.focus();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once, as the chunk mounts
+  }, []);
+  // A click while the chunk loaded opens the menu now, after the button has the focus (a menu that
+  // opens while the focus is on the page body is closed again by a modal drawer behind it). Opened
+  // by the keyboard, Radix did not see the key, so the first entry takes the focus here, as it does
+  // for a key press on the button.
+  useEffect(() => {
+    if (initialOpen === false) return;
+    setOpen(true);
+    if (initialOpen !== 'keyboard') return;
+    let inner = 0;
+    const outer = requestAnimationFrame(() => {
+      inner = requestAnimationFrame(() =>
+        contentRef.current
+          ?.querySelector<HTMLElement>('[role="menuitem"]:not([data-disabled])')
+          ?.focus()
+      );
+    });
+    return (): void => {
+      cancelAnimationFrame(outer);
+      cancelAnimationFrame(inner);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once, as the chunk mounts
+  }, []);
   const parts = useMemo<MenuParts>(
     () => ({
       Item: DropdownMenu.Item,
@@ -48,16 +87,7 @@ export function AdvancedMenuImpl({
             id="advanced-menu"
             align="end"
             sideOffset={6}
-            onOpenAutoFocus={event => {
-              // Opened by the keyboard before this chunk arrived: Radix did not see the key, so
-              // the first entry takes the focus here, as it does for a key press on the button.
-              if (initialOpen !== 'keyboard' || openedOnce.current) return;
-              openedOnce.current = true;
-              event.preventDefault();
-              (event.currentTarget as HTMLElement)
-                .querySelector<HTMLElement>('[role="menuitem"]:not([data-disabled])')
-                ?.focus();
-            }}
+            ref={contentRef}
             onCloseAutoFocus={e => {
               if (!picked.current) return;
               picked.current = false;

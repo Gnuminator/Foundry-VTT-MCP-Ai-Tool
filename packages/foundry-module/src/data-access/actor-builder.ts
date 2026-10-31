@@ -225,10 +225,11 @@ export class ActorBuilderDataAccess {
     const resolvedTargetNames: string[] = [];
     let targetsNotSet = '';
     const headless = this.clientHasNoCanvas();
-    if (!(targets && targets.length > 0) && headless) {
-      // Nobody sees a headless GM's target set; do not let an earlier call's targets ride along.
-      (game.user?.targets as unknown as Set<unknown> | undefined)?.clear();
-    }
+    const headlessTargets = (): Set<unknown> | undefined =>
+      headless ? (game.user?.targets as unknown as Set<unknown> | undefined) : undefined;
+    // Nobody sees a headless GM's target set; never let an earlier call's targets ride along
+    // (also when the names given match no token).
+    headlessTargets()?.clear();
     if (targets && targets.length > 0) {
       // Get all tokens on the current scene
       const scene = game.scenes?.active;
@@ -354,15 +355,26 @@ export class ActorBuilderDataAccess {
           // Show the dialog so the GM can make choices, except in a headless browser (the Pi's
           // Assistant GM): nobody can click it, the card would never be made, so dnd5e's defaults apply.
           const dialog = { configure: !headless };
+          if (headless) {
+            // Other dialogs would open unseen as well: the activity choice (shift skips it and takes
+            // the first usable activity) and the attack/damage roll dialogs that dnd5e opens after
+            // the card. The card is made; the rolls are left to the card's buttons.
+            usage.event = { shiftKey: true };
+            usage.subsequentActions = false;
+          }
           const message = { create: true };
           useArgs = [usage, dialog, message];
         } else {
           useArgs = [{ createMessage: true }];
         }
         // Fire and forget - don't await, as dialogs block the promise
-        itemAny.use(...useArgs).catch((err: Error) => {
-          console.error(`[foundry-mcp-bridge] Error using item ${item.name}:`, err);
-        });
+        itemAny
+          .use(...useArgs)
+          .catch((err: Error) => {
+            console.error(`[foundry-mcp-bridge] Error using item ${item.name}:`, err);
+          })
+          // The card has read the targets by now; leave no hidden set behind on a headless GM.
+          .finally(() => headlessTargets()?.clear());
       } else if (typeof itemAny.toChat === 'function') {
         if (typeof itemAny.toMessage === 'function') {
           itemAny.toMessage(undefined, { create: true }).catch((err: Error) => {
@@ -394,7 +406,9 @@ export class ActorBuilderDataAccess {
         resolvedTargetNames.length > 0
           ? ` targeting ${resolvedTargetNames.join(', ')}`
           : targetsNotSet
-            ? ` (targets not set: ${targetsNotSet}; pick them in Foundry before confirming the dialog)`
+            ? headless
+              ? ` (targets not set: ${targetsNotSet}; name them again)`
+              : ` (targets not set: ${targetsNotSet}; pick them in Foundry before confirming the dialog)`
             : '';
 
       const result: UseItemResult = {
@@ -402,12 +416,12 @@ export class ActorBuilderDataAccess {
         status: 'initiated',
         message: `Item use initiated for ${actor.name} using ${item.name}${targetInfo}. ${
           headless && systemId === 'dnd5e'
-            ? 'This GM browser has no canvas, so no dialog was shown and the system defaults were used (no spell upcasting choice).'
+            ? 'This GM browser has no canvas, so no dialog was shown: the system defaults were used (the first activity, no upcasting unless a spell level was given) and the attack or damage roll is left to the buttons on the chat card.'
             : 'If a dialog appeared in Foundry VTT, the GM should select options and confirm.'
         } The result will appear in chat.`,
         itemName: item.name,
         actorName: actor.name,
-        requiresGMInteraction: true,
+        requiresGMInteraction: !(headless && systemId === 'dnd5e'),
       };
 
       if (resolvedTargetNames.length > 0) {

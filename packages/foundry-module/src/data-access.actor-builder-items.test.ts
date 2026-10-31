@@ -249,23 +249,31 @@ describe('FoundryDataAccess — useItem', () => {
 
     const result = await da.useItem({ actorIdentifier: 'Mage', itemIdentifier: 'Hold Person' });
 
+    expect(use.mock.calls[0][0]).toMatchObject({ subsequentActions: false });
     expect(use.mock.calls[0][1]).toEqual({ configure: false });
     expect(result.message).toContain('no dialog was shown');
   });
 
   it('sets targets through game.user.targets when there is no canvas (headless GM)', async () => {
-    noCanvasWorld();
+    const use = noCanvasWorld();
     headless();
     const userTargets = new Set<unknown>(['stale']);
     (game as any).user = { ...((game as any).user ?? {}), targets: userTargets };
+    let seen: string[] = [];
+    use.mockImplementation(() => {
+      seen = Array.from(userTargets).map((t: any) => t.id);
+      return Promise.resolve();
+    });
 
     const result = await da.useItem({
       actorIdentifier: 'Mage',
       itemIdentifier: 'Hold Person',
       targets: ['Goblin'],
     });
+    await flush();
 
-    expect(Array.from(userTargets).map((t: any) => t.id)).toEqual(['tok-goblin']);
+    expect(seen).toEqual(['tok-goblin']);
+    expect(userTargets.size).toBe(0); // cleared once the use has read them
     expect(result.targets).toEqual(['Goblin']);
     expect(result.message).toContain('targeting Goblin');
   });
@@ -299,6 +307,21 @@ describe('FoundryDataAccess — useItem', () => {
 
     expect(Array.from(userTargets)).toEqual(['keep']);
     expect(result.message).toContain('targets not set: the canvas is not ready');
+  });
+
+  it('does not reuse old targets when the names given match no token (headless)', async () => {
+    noCanvasWorld();
+    headless();
+    const userTargets = new Set<unknown>(['stale']);
+    (game as any).user = { ...((game as any).user ?? {}), targets: userTargets };
+
+    await da.useItem({
+      actorIdentifier: 'Mage',
+      itemIdentifier: 'Hold Person',
+      targets: ['Gobblin'],
+    });
+
+    expect(userTargets.size).toBe(0);
   });
 
   it('clears leftover targets on a headless GM when the call names none', async () => {

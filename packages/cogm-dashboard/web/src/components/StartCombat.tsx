@@ -49,7 +49,7 @@ function TokenList({
   const start = (): void => {
     if (busy || none) return;
     setBusy(true);
-    void (async () => {
+    void (async (): Promise<void> => {
       const outcome = await plan('plan-combat-change', args);
       if (outcome.status !== 'done') return;
       // The fight exists now. The NPCs roll through the same gate and a plain write, as Next turn does.

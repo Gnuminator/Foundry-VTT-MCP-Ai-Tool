@@ -70,8 +70,13 @@ export async function setGmActions(page, on, { human = false } = {}) {
   if (on) {
     const click = human ? l => humanClick(l) : l => l.click();
     await click(page.locator('#btn-gm'));
-    // :visible, because the header also holds a hidden Turn on note with the same data-track.
-    await click(page.locator('[data-track="dash.live.turn-on"]:visible').first());
+    // The popover's own button: the header and the During view hold Turn on notes with the same
+    // data-track (hidden, or below the fold when no fight runs).
+    await click(
+      page
+        .locator('[role="dialog"][aria-label="Live play switches"] [data-track="dash.live.turn-on"]')
+        .first()
+    );
   } else {
     await setGmActionsApi(new URL(page.url()).origin, false);
   }
@@ -79,13 +84,12 @@ export async function setGmActions(page, on, { human = false } = {}) {
     const t = document.querySelector('#btn-gm')?.textContent ?? '';
     return (t.trim() !== '' && !/GM Actions/i.test(t)) === want;
   }, on);
-  // The "Turned on" toast sits bottom right and pauses while hovered: a demo cursor sent to a
-  // control behind it would wait for ever. Let it time out first.
-  await page
-    .locator('.toast')
-    .first()
-    .waitFor({ state: 'hidden', timeout: 10000 })
-    .catch(() => {});
+  // The "Turned on" toast sits bottom right and stays up while the window is hovered or blurred:
+  // a demo cursor sent to a control behind it would wait for ever. It stays visible but lets
+  // clicks through.
+  await page.addStyleTag({
+    content: '.toast-stack, .toast-stack * { pointer-events: none !important; }',
+  });
 }
 
 /**

@@ -33,7 +33,7 @@
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  height: 2rem;
+  height: 2.5rem;
   flex: none;
   padding: 0 var(--space-3);
   background: var(--bg-panel);
@@ -51,9 +51,10 @@
 }
 
 .mode {
-  padding: 2px var(--space-2);
+  min-height: 2rem;
+  padding: var(--space-1) var(--space-3);
   border: 1px solid var(--border-strong);
-  border-radius: var(--radius-sm, 4px);
+  border-radius: var(--r-sm);
   background: transparent;
   color: var(--text-mid);
   font: inherit;
@@ -156,11 +157,11 @@
     var(--accent) calc(50% + 1px),
     transparent calc(50% + 1px)
   );
-  outline: none;
 }
 
 .divider:focus-visible {
-  box-shadow: 0 0 0 2px var(--focus-ring, var(--accent));
+  outline: var(--focus-ring);
+  outline-offset: -2px;
 }
 
 .strip {
@@ -173,6 +174,13 @@
 .strip:focus,
 .single:focus {
   outline: none;
+}
+
+/* Where Alt+1 sent focus: shown for keyboard use only. */
+.strip:focus-visible,
+.single:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: -2px;
 }
 
 .single {
@@ -205,9 +213,10 @@
 }
 
 .primary {
+  min-height: 2rem;
   padding: var(--space-1) var(--space-3);
   border: 1px solid var(--accent);
-  border-radius: var(--radius-sm, 4px);
+  border-radius: var(--r-sm);
   background: var(--accent);
   color: var(--bg);
   font: inherit;

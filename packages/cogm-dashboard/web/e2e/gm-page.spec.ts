@@ -119,7 +119,7 @@ test('says plainly when Foundry refuses to be framed, with a way to open its own
   );
   await load(page);
   await expect(page.locator('#live-strip')).toBeVisible();
-  const banner = page.getByText('Foundry is not showing here');
+  const banner = page.getByText("Can't see Foundry here");
   await expect(banner).toHaveCount(0);
   await page.clock.fastForward(9000);
   await expect(banner).toBeVisible();

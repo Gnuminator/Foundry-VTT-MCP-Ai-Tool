@@ -53,7 +53,7 @@ function useViewportWidth(): number {
   useEffect(() => {
     const onResize = (): void => setWidth(window.innerWidth);
     window.addEventListener('resize', onResize);
-    return () => window.removeEventListener('resize', onResize);
+    return (): void => window.removeEventListener('resize', onResize);
   }, []);
   return width;
 }
@@ -152,7 +152,7 @@ function GmWorkspace({
       }
     };
     window.addEventListener('message', onMessage);
-    return () => window.removeEventListener('message', onMessage);
+    return (): void => window.removeEventListener('message', onMessage);
   }, [foundryOrigin]);
 
   // The frame loaded: ask the Foundry module for the current pick (it answers a "ready" from this
@@ -164,7 +164,7 @@ function GmWorkspace({
   useEffect(() => {
     if (!frameLoaded || connected) return;
     const timer = window.setTimeout(() => setTimedOut(true), FRAME_WAIT_MS);
-    return () => window.clearTimeout(timer);
+    return (): void => window.clearTimeout(timer);
   }, [frameLoaded, connected]);
 
   // The strip window and the Foundry tab are handles: notice when the GM closes them.
@@ -175,7 +175,7 @@ function GmWorkspace({
       setStripWindowOpen(stripWindow.current !== null);
       setTabOpen(foundryTab.current !== null);
     }, 1000);
-    return () => window.clearInterval(timer);
+    return (): void => window.clearInterval(timer);
   }, []);
 
   const openStripWindow = (): void => {
@@ -188,20 +188,21 @@ function GmWorkspace({
   };
 
   // The jump keys work while focus is on this page (keys typed inside the Foundry frame never
-  // reach it).
+  // reach it): Alt+1 the strip, Alt+2 Foundry. Not Alt+Shift: Windows uses that to switch the
+  // keyboard language, which a Danish and English setup has.
   useEffect(() => {
     const onKey = (event: globalThis.KeyboardEvent): void => {
-      if (!event.altKey || !event.shiftKey || event.ctrlKey || event.metaKey) return;
-      if (event.code === 'KeyS') {
+      if (!event.altKey || event.shiftKey || event.ctrlKey || event.metaKey) return;
+      if (event.code === 'Digit1') {
         stripPaneRef.current?.focus();
         event.preventDefault();
-      } else if (event.code === 'KeyF') {
+      } else if (event.code === 'Digit2') {
         frameRef.current?.focus();
         event.preventDefault();
       }
     };
     window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    return (): void => window.removeEventListener('keydown', onKey);
   }, []);
 
   // The divider.
@@ -212,12 +213,19 @@ function GmWorkspace({
   const onDividerMove = (event: PointerEvent<HTMLDivElement>): void => {
     if (!dragging) return;
     const edge = layout.mode === 'left' ? event.clientX : window.innerWidth - event.clientX;
-    update({ stripPx: clampStripPx(edge, window.innerWidth) });
+    // Saved on release, not on every move.
+    setLayout(prev => ({ ...prev, stripPx: clampStripPx(edge, window.innerWidth) }));
   };
-  const endDrag = useCallback((): void => setDragging(false), []);
+  const endDrag = useCallback((): void => {
+    setDragging(false);
+    setLayout(prev => {
+      saveLayout(prev);
+      return prev;
+    });
+  }, []);
   useEffect(() => {
     window.addEventListener('blur', endDrag);
-    return () => window.removeEventListener('blur', endDrag);
+    return (): void => window.removeEventListener('blur', endDrag);
   }, [endDrag]);
   const onDividerKey = (event: KeyboardEvent<HTMLDivElement>): void => {
     const step = event.shiftKey ? 64 : 16;
@@ -267,7 +275,7 @@ function GmWorkspace({
           <p className={styles.line}>
             {tabOpen
               ? 'Foundry is open in its own tab. Map picks still arrive here.'
-              : 'This window is too narrow for Foundry and the strip side by side.'}{' '}
+              : 'Too narrow for Foundry and the strip side by side.'}{' '}
             <button type="button" className={styles.link} onClick={openFoundryTab}>
               Open Foundry in its own tab
             </button>
@@ -284,9 +292,9 @@ function GmWorkspace({
             {showBanner ? (
               <div className={styles.banner} role="status">
                 <span>
-                  Foundry is not showing here? It may refuse to open inside this page, you have not
-                  joined the world yet, or the module&apos;s &quot;Live window address&quot; is not
-                  this page&apos;s address.
+                  Can&apos;t see Foundry here? It may refuse to open inside this page, you may not
+                  have joined the world yet, or the module&apos;s &quot;Live window address&quot; is
+                  not set to this page.
                 </span>
                 <button type="button" className={styles.primary} onClick={openFoundryTab}>
                   Open Foundry in its own tab
@@ -334,6 +342,8 @@ function GmWorkspace({
                 aria-valuemin={MIN_STRIP_PX}
                 aria-valuemax={maxStripPx(viewport)}
                 aria-valuenow={stripPx}
+                aria-valuetext={`${stripPx} pixels`}
+                title="Drag to resize, double-click to reset"
                 tabIndex={0}
                 onPointerDown={onDividerDown}
                 onPointerMove={onDividerMove}

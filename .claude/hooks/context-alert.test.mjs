@@ -8,6 +8,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
+  confirmedContextIn,
   contextFromTranscript,
   lastContextIn,
   messageFor,
@@ -234,6 +235,45 @@ test('run: a missing or empty transcript, bad input and no session id print noth
     // A missing session id still works (state key "unknown").
     const file = transcript(root, [turn(360_000)]);
     assert.ok(run({ transcript_path: file }, env));
+  } finally {
+    cleanup();
+  }
+});
+
+// A real doubled reading (2026-10-30): one response reported about twice the true context between
+// two normal ones. Two lanes handed over at a false 574k and 607k because of this.
+const DOUBLED_TRIPLE = [161_654, 327_920, 164_453];
+
+test('confirmedContextIn: a doubled reading between two normal ones never counts', () => {
+  const [a, phantom, b] = DOUBLED_TRIPLE;
+  assert.equal(confirmedContextIn([turn(a), turn(phantom)]), a);
+  assert.equal(confirmedContextIn([turn(a), turn(phantom), turn(b)]), b);
+  assert.equal(confirmedContextIn([turn(phantom), turn(b)]), b);
+  // Both responses big: the smaller one is the confirmed context.
+  assert.equal(confirmedContextIn([turn(260_000), turn(270_000)]), 260_000);
+  assert.equal(confirmedContextIn([turn(270_000)]), 270_000);
+  assert.equal(confirmedContextIn([]), null);
+});
+
+test('confirmedContextIn: lines of one response do not confirm each other, sidechains are skipped', () => {
+  const phantom = turn(DOUBLED_TRIPLE[1]);
+  assert.equal(confirmedContextIn([turn(DOUBLED_TRIPLE[0]), phantom, phantom]), DOUBLED_TRIPLE[0]);
+  assert.equal(
+    confirmedContextIn([turn(DOUBLED_TRIPLE[0]), turn(900_000, { isSidechain: true })]),
+    DOUBLED_TRIPLE[0]
+  );
+});
+
+test('run: the doubled triple stays silent in low mode, a real climb past the line still fires', () => {
+  const { root, env, cleanup } = fixture();
+  try {
+    const low = { ...env, CONTEXT_ALERT_LOW: '1' }; // 200k and 250k
+    const [a, phantom, b] = DOUBLED_TRIPLE;
+    assert.equal(run(input(transcript(root, [turn(a), turn(phantom)], 'p1.jsonl')), low), '');
+    assert.equal(run(input(transcript(root, [turn(phantom), turn(b)], 'p2.jsonl')), low), '');
+    // Two real readings above the out line: the line fires on the smaller one.
+    const real = transcript(root, [turn(255_000), turn(262_000)], 'real.jsonl');
+    assert.match(JSON.parse(run(input(real), low)).systemMessage, /Context 255k: hand over now/);
   } finally {
     cleanup();
   }

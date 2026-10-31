@@ -8,7 +8,9 @@
 // ~/.foundry-ai-tool/context-thresholds.json = { "plan": n, "out": n }, which the planner writes;
 // the file wins over the env).
 //
-// Context = input + cache read + cache creation tokens of the last main-thread assistant response.
+// Context = input + cache read + cache creation tokens of the last main-thread assistant response,
+// counted only when the response before it was at least as big (phantom doubled readings, see
+// confirmedContextIn).
 // Each line prints once per session (state: <tmp>/context-alert/<session_id>.json); the state
 // resets when the context drops under the plan line again (after a /compact or a new start).
 //
@@ -73,10 +75,13 @@ export function contextOf(usage) {
   );
 }
 
-// The last main-thread assistant response with usage in the given text lines (a partial first
-// line is the caller's business). Returns the context in tokens, or null.
-export function lastContextIn(lines) {
-  for (let i = lines.length - 1; i >= 0; i--) {
+// The main-thread assistant responses with usage in the given text lines (a partial first line is
+// the caller's business), newest first, as context sizes in tokens, at most `max`. A response
+// written as several transcript lines shares one message id and counts once.
+export function recentContextsIn(lines, max = 2) {
+  const out = [];
+  const seen = new Set();
+  for (let i = lines.length - 1; i >= 0 && out.length < max; i--) {
     const line = lines[i];
     if (!line || !line.includes('"usage"')) continue;
     let j;
@@ -86,9 +91,31 @@ export function lastContextIn(lines) {
       continue;
     }
     if (j?.type !== 'assistant' || j.isSidechain || !j.message?.usage) continue;
-    return contextOf(j.message.usage);
+    const id = j.message.id;
+    if (id) {
+      if (seen.has(id)) continue;
+      seen.add(id);
+    }
+    out.push(contextOf(j.message.usage));
   }
-  return null;
+  return out;
+}
+
+// The last main-thread assistant response with usage in the given text lines.
+// Returns the context in tokens, or null.
+export function lastContextIn(lines) {
+  const [last] = recentContextsIn(lines, 1);
+  return last ?? null;
+}
+
+// The context to act on. One API response sometimes reports its usage doubled (a retried request
+// counted twice: 161,654 then 327,920 then 164,453), which made two lanes hand over at a false
+// 574k and 607k. A reading counts only when the response before it was also big, so the effective
+// context is the smaller of the last two responses; with a single response it is that one.
+export function confirmedContextIn(lines) {
+  const [last, prev] = recentContextsIn(lines, 2);
+  if (last === undefined) return null;
+  return prev === undefined ? last : Math.min(last, prev);
 }
 
 // Reads the last `tailBytes` of a file; when the read starts mid-file the first (partial) line is
@@ -115,7 +142,7 @@ export function readTailLines(file, tailBytes = TAIL_BYTES) {
 
 export function contextFromTranscript(file, tailBytes = TAIL_BYTES) {
   try {
-    return lastContextIn(readTailLines(file, tailBytes));
+    return confirmedContextIn(readTailLines(file, tailBytes));
   } catch {
     return null;
   }

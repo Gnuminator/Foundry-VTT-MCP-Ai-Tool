@@ -17,9 +17,17 @@ decision), then ends. It does not sit and wait for lanes. Vault paths below are 
   150k (CLAUDE.md): the message re-reads its whole uncached context. Start a fresh lane from its
   vault handover (`Handoff/<lane> prompt <date>.md`) instead.
 - `gh pr list --state open` and the CI of each.
+- **Main's last CI run (2026-10-31):** at start and before each lane start,
+  `gh run list --branch main -w ci.yml -L 1`. Red means one fix lane first and the other starts
+  held until main is green again.
 - `list_sessions` without `linked` (lanes start their own successors; they only show in the full
   list), then `get_usage` with each running lane's id (lanes underreport their context).
   `get_usage "self"` for your own context and the plan percentages.
+- **Phantom readings (2026-10-31):** one API response sometimes reports its usage doubled (161,654
+  then 327,920 then 164,453). A `get_usage` context about twice the lane's last one, or a peak
+  that no neighbour reading backs up, is a phantom: read it again before you call a lane over its
+  line or hand over yourself. `context-alert.mjs` and `context-stop.mjs` already count a reading
+  only when the response before it was also at or above the line.
 - **Again on every wake, not only at start (2026-10-30):** each lane note, gate exit or user
   message, re-read the `- claimed:` and `- progress:` lines of every claimed item, including lanes
   inherited from an earlier planner (detached lanes send you no turn-end notes). A lane that
@@ -43,6 +51,8 @@ Each item in `Backlog.md`: `## <size S/M/L> <title>` then lines `- id: <slug>`, 
 `- done when: ...`, `- area: <files or folder>`, `- progress:` (the lane's ready state, see Read
 the state), optional `- gate:`, `- blocked by:`, `- pi: yes`, `- source:`, and `- claimed:` once a
 lane takes it. Order is priority; G0 critical path first.
+A speed item's `done when` names a before and an after number (the measured command and its time),
+and the lane puts both in the PR body.
 Every new item gets an `- id:` (short, lowercase, stable, never changed or reused, because the
 live board at board.spennerit.com, D-124, links items by it) and a `- board:` line (its area on
 the board); `- pi: yes` where it needs a Pi day and the user's OK. Write a blocker in `blocked by`

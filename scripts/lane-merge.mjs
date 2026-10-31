@@ -465,9 +465,30 @@ export function requiredContexts(json) {
 }
 
 /**
+ * The newest entry of each check in a rollup. A PR closed and reopened (or a workflow run again on
+ * a fresh merge ref) gets a second run on the same head, and GitHub keeps both in the rollup: an old
+ * failure must not outvote the newer run. Check runs are keyed by workflow and name, commit statuses
+ * by context; the later `startedAt` wins, and one not started yet (queued) counts as the newest.
+ * @param {any[]} rollup @returns {any[]}
+ */
+export function latestChecks(rollup) {
+  const byKey = new Map();
+  const started = c => (c.startedAt ? Date.parse(c.startedAt) || 0 : Infinity);
+  for (const c of rollup) {
+    const isStatus = c.state !== undefined && c.status === undefined;
+    const key = isStatus
+      ? `status\u0000${c.context ?? c.name}`
+      : `run\u0000${c.workflowName ?? ''}\u0000${c.name ?? c.context}`;
+    const seen = byKey.get(key);
+    if (!seen || started(c) >= started(seen)) byKey.set(key, c);
+  }
+  return [...byKey.values()];
+}
+
+/**
  * What is wrong with the CI checks of a PR. Handles both shapes of `statusCheckRollup`: a check run
- * `{ name, status, conclusion }` and a commit status `{ context, state }`. `required` are names that
- * must be in the rollup.
+ * `{ name, status, conclusion }` and a commit status `{ context, state }`. Only the newest entry of
+ * each check counts (`latestChecks`). `required` are names that must be in the rollup.
  * @param {any[]} rollup @param {string[]} [required]
  * @returns {{ failing: string[], pending: string[], missing: string[] }}
  */
@@ -475,7 +496,7 @@ export function rollupProblems(rollup, required = []) {
   const failing = [];
   const pending = [];
   const names = new Set();
-  for (const c of rollup) {
+  for (const c of latestChecks(rollup)) {
     names.add(c.name ?? c.context);
     if (c.state !== undefined && c.status === undefined) {
       const name = c.context ?? c.name ?? 'status';

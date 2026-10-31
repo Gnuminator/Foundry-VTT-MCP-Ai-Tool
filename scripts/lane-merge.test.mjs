@@ -543,6 +543,30 @@ test('rollupProblems: check runs and commit statuses, failing, pending and missi
   assert.deepEqual(bad.missing, ['never-ran']);
 });
 
+test('rollupProblems: a newer run of the same check outvotes an old failure on the same head', () => {
+  const old = { workflowName: 'CI', name: 'build-test (Node 22)', status: 'COMPLETED', conclusion: 'FAILURE', startedAt: '2026-10-31T07:56:17Z' };
+  const fresh = { ...old, conclusion: 'SUCCESS', startedAt: '2026-10-31T09:24:42Z' };
+  assert.deepEqual(rollupProblems([old, fresh]).failing, []);
+  assert.deepEqual(rollupProblems([fresh, old]).failing, []);
+  // a newer run that failed still fails, and one still queued (no startedAt) is pending
+  assert.deepEqual(rollupProblems([fresh, { ...old, startedAt: '2026-10-31T10:00:00Z' }]).failing, [
+    'build-test (Node 22) (FAILURE)',
+  ]);
+  const queued = { workflowName: 'CI', name: 'build-test (Node 22)', status: 'QUEUED', conclusion: '' };
+  assert.deepEqual(rollupProblems([old, fresh, queued]).pending, ['build-test (Node 22) (QUEUED)']);
+  // the same check name in another workflow is a different check
+  const other = { ...old, workflowName: 'Other' };
+  assert.deepEqual(rollupProblems([fresh, other]).failing, ['build-test (Node 22) (FAILURE)']);
+  // commit statuses: newest per context
+  assert.deepEqual(
+    rollupProblems([
+      { context: 'ci/legacy', state: 'FAILURE', startedAt: '2026-10-31T07:00:00Z' },
+      { context: 'ci/legacy', state: 'SUCCESS', startedAt: '2026-10-31T08:00:00Z' },
+    ]).failing,
+    []
+  );
+});
+
 test('requiredContexts: reads the ruleset answer, nothing else counts', () => {
   assert.deepEqual(requiredContexts(JSON.stringify(RULES)), ['build-test']);
   assert.equal(requiredContexts('not json'), null);

@@ -235,6 +235,10 @@ describe('severityClass', () => {
     expect(eventLabel('roll-request')).toBe('roll request');
     expect(eventLabel('death')).toBe('down');
     expect(eventLabel('damage')).toBe('damage');
+    expect(eventLabel('gm-change', 'actor-change')).toBe('actor change');
+    expect(eventLabel('gm-change', 'page_reveal')).toBe('page reveal');
+    expect(eventLabel('gm-change')).toBe('change');
+    expect(eventLabel('gm-change', '')).toBe('change');
   });
 
   it('keeps an odd kind inside the class attribute', () => {

@@ -1,4 +1,3 @@
-import { useQuery } from '@tanstack/react-query';
 import { lazy, Suspense, useCallback, useEffect, useState, type JSX, type ReactNode } from 'react';
 import { flushSync } from 'react-dom';
 
@@ -40,18 +39,13 @@ import {
 } from './components/Moments';
 import { RoleNotice } from './components/RoleNotice';
 import { panelChunk, LazyPanel, usePreloadPanels } from './components/LazyPanel';
-import {
-  PreflightButton,
-  PreflightDrawer,
-  VersionBanner,
-  usePreflightOnReconnect,
-} from './panels/Preflight';
+import { PreflightButton, VersionBanner, usePreflightOnReconnect } from './panels/Preflight';
 import type { ToolRequest } from './panels/Tools';
-import { api } from './lib/api';
 import { GmActionsGateContext } from './lib/guarded';
 import { showsSampleFight } from './lib/duringTrial';
-import { THEME_KEY, useDashboardStream, type WorldTheme } from './lib/stream';
-import { applyTheme } from './lib/theme';
+import { LIVE_SCREEN_HREF, TRY_LIVE_TEXT, isLiveScreen } from './lib/liveScreen';
+import { useDashboardStream } from './lib/stream';
+import { useWorldTheme } from './lib/worldTheme';
 import { Button } from './ui';
 
 /** The README brand's mark (docs/images/brand/logo.svg), coloured by themes/brand.css. */
@@ -96,10 +90,13 @@ const partyChunk = panelChunk(() =>
 const paperChunk = panelChunk(() =>
   import('./panels/PaperSync').then(m => ({ default: m.PaperSyncDrawer }))
 );
+const preflightChunk = panelChunk(() =>
+  import('./panels/PreflightDrawer').then(m => ({ default: m.PreflightDrawer }))
+);
 const changesChunk = panelChunk(() => import('./panels/RecentChanges'));
 const afterChunk = panelChunk(() => import('./panels/After'));
 // The ones that dock into a view load at once; the floating ones when the browser is idle.
-const DOCKED_CHUNKS = [partyChunk, prepChunk, handoutsChunk, changesChunk];
+const DOCKED_CHUNKS = [partyChunk, prepChunk, handoutsChunk, changesChunk, preflightChunk];
 const FLOATING_CHUNKS = [
   afterChunk,
   paperChunk,
@@ -110,18 +107,6 @@ const FLOATING_CHUNKS = [
   versionsChunk,
 ];
 
-/** The world's theme (/api/theme); until it answers, the cached one from main.tsx shows. */
-function useWorldTheme(): void {
-  const theme = useQuery({
-    queryKey: THEME_KEY,
-    queryFn: () => api<WorldTheme>('/api/theme'),
-    retry: false,
-  });
-  useEffect(() => {
-    if (theme.data) applyTheme(theme.data.theme);
-  }, [theme.data]);
-}
-
 /**
  * The dashboard (D-109): the page at / (D-126, the default from 2026-11-01). The old page is at /legacy/ until
  * after G1 for the few panels that have not moved here.
@@ -129,12 +114,18 @@ function useWorldTheme(): void {
 export function App(): JSX.Element {
   // /?strip=1: the live strip alone, the base the live screens build on (LiveStripPage).
   const stripOnly = new URLSearchParams(window.location.search).get('strip') === '1';
+  // /?live=1: live screen A, the opt-in Live view next to During (components/LiveScreen.tsx).
+  const liveScreen = isLiveScreen(window.location.search);
   return (
     <HelpProvider>
       <ConfirmProvider>
         {stripOnly ? (
           <Suspense fallback={null}>
             <LiveStripPage />
+          </Suspense>
+        ) : liveScreen ? (
+          <Suspense fallback={null}>
+            <LiveScreen />
           </Suspense>
         ) : (
           <Dashboard />
@@ -143,6 +134,11 @@ export function App(): JSX.Element {
     </HelpProvider>
   );
 }
+
+// Live screen A is its own chunk too: opt-in, and it pulls the Party, Handouts and changes panels in.
+const LiveScreen = lazy(() =>
+  import('./components/LiveScreen').then(m => ({ default: m.LiveScreen }))
+);
 
 // The live strip page is its own chunk: it is opt-in and pulls the Handouts panel in.
 const LiveStripPage = lazy(() =>
@@ -435,6 +431,15 @@ function Dashboard(): JSX.Element {
               </Button>
             </AdvancedItem>
           </AdvancedMenu>
+          <a
+            className="btn"
+            id="try-live-screen"
+            data-track="dash.header.try-live"
+            href={LIVE_SCREEN_HREF}
+            title="The opt-in Live view: one fixed page for the whole evening"
+          >
+            {TRY_LIVE_TEXT}
+          </a>
           <a className="btn" href="/legacy/" title="The old dashboard page, kept until after G1">
             Old dashboard
           </a>
@@ -482,7 +487,10 @@ function Dashboard(): JSX.Element {
       />
       {dock(
         'preflight',
-        <PreflightDrawer
+        <LazyPanel
+          chunk={preflightChunk}
+          shell={{ id: 'preflight-drawer', title: '✈ Pre-flight' }}
+          show={shown('preflight')}
           open={shown('preflight')}
           onOpenChange={open => setDrawer('preflight', open)}
           tarokkaShown={tarokkaShown}

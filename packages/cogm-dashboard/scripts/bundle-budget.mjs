@@ -9,7 +9,11 @@
 //
 //   npm run build -w @gnuminator/cogm-dashboard && npm run bundle:budget -w @gnuminator/cogm-dashboard
 //
-// To raise a limit on purpose, change the constant below in the same PR and say why in the PR.
+// To raise a limit on purpose, change the constant below in the same PR and say why in the PR. A
+// raise must leave at least 2 KB of headroom on the first load, or the PR makes something lazy
+// instead: a limit set to measured plus 1 KB is overflowed by the next two PRs that each fit alone
+// (main was red for 11.5 hours on 2026-10-30). Under 2 KB of headroom the script prints a GitHub
+// warning annotation; it never fails the build for that.
 import { appendFileSync, existsSync, readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -38,6 +42,8 @@ import { gzipSync } from 'node:zlib';
 // 150 on 2026-10-30: the one live switch (livePlay, liveSwitches, TurnOnNote, During and
 // GmActionsSwitch wiring, which the entry carries) took the first load to 149.2 KB; main alone was
 // 147.3 KB. Handouts went 3.0 to 3.1 KB with the switch note, so its limit is 4.
+// 150 kept on 2026-10-31 (the build had reached 150.0 KB): the Pre-flight drawer (PreflightDrawer)
+// moved to its own chunk and the first load measured 147.8 KB. Not raised.
 export const FIRST_LOAD_LIMIT_KB = 150;
 
 /**
@@ -52,6 +58,7 @@ export const LAZY_LIMITS_KB = {
   PaperSync: 6, // 5.1 KB, measured 2026-10-23
   Party: 4, // 3.0 KB
   PlayerLinks: 2, // 1.2 KB
+  PreflightDrawer: 4, // 3.3 KB, measured 2026-10-31
   Prep: 4, // 3.2 KB
   RecentChanges: 7, // 5.6 KB, measured 2026-10-17
   Tarokka: 4, // 2.8 KB
@@ -62,6 +69,23 @@ export const LAZY_LIMITS_KB = {
 export const DEFAULT_LAZY_LIMIT_KB = 40;
 
 const KB = 1000;
+
+/** A limit with less room than this (in KB of gzip) gets a warning annotation. */
+export const MIN_HEADROOM_KB = 2;
+
+/**
+ * Rows that fit but have little room left: the first load under MIN_HEADROOM_KB, a lazy chunk under
+ * MIN_HEADROOM_KB and under 5 percent of its limit (a small chunk's limit is a tenth above its size
+ * by the rule above, so a flat 2 KB would flag every one). Rows over the limit are not listed.
+ */
+export function lowHeadroom(rows, minKb = MIN_HEADROOM_KB) {
+  return rows.filter(r => {
+    if (!r.ok) return false;
+    const room = r.limitKb * KB - r.gzip;
+    if (!r.name.startsWith('lazy:')) return room < minKb * KB;
+    return room < minKb * KB && room < r.limitKb * KB * 0.05;
+  });
+}
 
 /** `index-CZFZNM0R.js` is `index`: Vite ends a file name with `-` and an 8 character hash. */
 export function chunkStem(file) {
@@ -175,6 +199,13 @@ function main() {
   const { rows, ok } = checkBudget({ first, lazy });
   console.log(formatTable(rows));
   console.log(ok ? '\nBundle budget: ok.' : '\nBundle budget: OVER. See the rows marked OVER.');
+
+  for (const r of lowHeadroom(rows)) {
+    const room = ((r.limitKb * KB - r.gzip) / KB).toFixed(1);
+    console.log(
+      `::warning title=Dashboard bundle headroom::${r.name} has ${room} KB left of ${r.limitKb} KB. Make something lazy before the next PR needs a raise.`
+    );
+  }
 
   const summary = process.env.GITHUB_STEP_SUMMARY;
   if (summary) {

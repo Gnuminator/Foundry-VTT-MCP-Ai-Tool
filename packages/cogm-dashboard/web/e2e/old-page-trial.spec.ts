@@ -60,3 +60,52 @@ test('Stop after the session opened mid-trial lands on During, unpinned', async 
     'false'
   );
 });
+
+test('a change made in Foundry reads as its feature, not "gm-change" (feed and Recent Changes)', async ({
+  page,
+}) => {
+  await fakeCommonRoutes(page);
+  const at = Date.UTC(2026, 9, 10, 20, 0, 0);
+  const event = (id: string, second: number, feature?: string): unknown => ({
+    id,
+    timestamp: new Date(at + second * 1000).toISOString(),
+    timestampMs: at + second * 1000,
+    eventType: 'gm-change',
+    actorName: null,
+    actorId: null,
+    description: `Applied: change ${id}`,
+    details: feature ? { feature } : {},
+  });
+  await fakeStream(page, [
+    { event: 'prefs', data: PREFS },
+    { event: 'events', data: { events: [event('a', 1, 'actor-change'), event('b', 2)] } },
+  ]);
+  await fakeTools(
+    page,
+    call =>
+      call.name === 'list-recent-changes'
+        ? ok({
+            changes: [
+              {
+                changeId: 'c1',
+                summary: 'Damage Ilvara',
+                feature: 'actor-change',
+                target: 'Ilvara',
+                appliedAt: '2026-10-10T19:30:00.000Z',
+                mode: 'apply',
+                risk: 'write',
+                canUndo: false,
+                diff: [],
+              },
+            ],
+          })
+        : ok({}),
+    { playSession: true }
+  );
+  await page.goto(`/legacy/?token=${GM_TOKEN}`);
+  await expect(page.locator('#feed-body .event-type')).toHaveText(['change', 'actor change']);
+  await expect(page.locator('#changes-body .change-meta').first()).toContainText('actor change');
+  await expect(page.locator('#changes-body .change-meta').first()).not.toContainText(
+    'actor-change'
+  );
+});

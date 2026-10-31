@@ -899,6 +899,22 @@ function renderCombatActions() {
 // Event feed (newest on top)
 // ---------------------------------------------------------------------------
 
+/** A feature id in words ("actor-change" reads "actor change"), else "change". */
+function featureWords(feature) {
+  return (
+    String(feature || '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, ' ')
+      .trim() || 'change'
+  );
+}
+
+/** The chip of an event: a gm-change reads as the feature behind it ("actor change"). */
+function eventChip(ev) {
+  if (ev.eventType !== 'gm-change') return ev.eventType;
+  return featureWords(ev.details && ev.details.feature);
+}
+
 /** A roll event's full breakdown for the GM, else the event's own description. */
 function gmEventText(ev) {
   const breakdown = ev.details && ev.details.breakdown;
@@ -922,7 +938,7 @@ function addEvents(events) {
     node.innerHTML = `
       <div class="event-desc">${escapeHtml(gmEventText(ev))}</div>
       <div class="event-meta">
-        <span class="event-type">${escapeHtml(ev.eventType)}</span>
+        <span class="event-type">${escapeHtml(eventChip(ev))}</span>
         <span>${time}</span>
       </div>`;
     els.feedBody.insertBefore(node, els.feedBody.firstChild);
@@ -2020,7 +2036,7 @@ function renderAiChanges() {
           </div>
           <div class="change-meta">
             <span class="change-state">${escapeHtml(state)}</span>
-            <span>${escapeHtml(c.feature)}</span>
+            <span>${escapeHtml(featureWords(c.feature))}</span>
             <span>${escapeHtml(c.target)}</span>
             <span>${escapeHtml(time)}</span>
             ${by}

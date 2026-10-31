@@ -79,6 +79,12 @@ describe('tool catalog', () => {
       process.stdout.write(
         `tool-set headroom: ${set} ${room} characters (${size} of ${budget[set]})${room < 500 ? ' WARNING: under 500, the next tool needs a raise (the user decides)' : ''}\n`
       );
+      // A GitHub warning annotation on the CI run; nothing fails for it.
+      if (room < 500 && process.env.GITHUB_ACTIONS) {
+        process.stdout.write(
+          `::warning title=Tool-set headroom::${set} has ${room} characters left; the next tool needs a raise (the user decides)\n`
+        );
+      }
       expect(size, set).toBeLessThanOrEqual(budget[set]);
     }
   });

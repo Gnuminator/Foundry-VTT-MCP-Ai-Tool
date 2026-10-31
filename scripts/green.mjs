@@ -114,6 +114,7 @@ export const STEPS = [
   nodeTest('pi-stage7-foundry-url', 'scripts/pi/stage7-foundry-url.test.mjs'),
   nodeTest('pi-time-sync', 'scripts/pi/time-sync.test.mjs'),
   nodeTest('pi-join-page-look', 'scripts/pi/join-page-look.test.mjs'),
+  nodeTest('pi-vault-sync', 'scripts/pi/vault-sync.test.mjs'),
   nodeTest('pi-control-port-check', 'scripts/pi/control-port-check.test.mjs'),
   nodeTest('pi-stage-safety', 'scripts/pi/pi-stage-safety.test.mjs'),
   nodeTest('tunnel-client', 'installer/nsis/tunnel-client.test.mjs'),
@@ -840,6 +841,21 @@ export function cloudGreen(o) {
 /** Scripts whose tests live in another file. */
 const QUICK_TEST_OF = { 'scripts/pre-push.mjs': 'scripts/green.test.mjs' };
 
+/** What `scripts/usage-catalog.mjs` scans (plus the script and its output): a change here can stale the catalogue. */
+const USAGE_CATALOG_INPUT =
+  /^(?:packages\/cogm-dashboard\/(?:public|web)\/|packages\/foundry-module\/src\/|scripts\/usage-catalog\.mjs$|shared\/src\/usage-catalog\.generated\.ts$)/;
+
+/**
+ * True when a changed file is part of the React dashboard web app.
+ * @param {string[]} files
+ */
+export function touchesDashboardWeb(files) {
+  return files.some(f => f.startsWith('packages/cogm-dashboard/web/'));
+}
+
+/** Printed at the end of a quick run that touched dashboard web files. */
+export const QUICK_SCREENSHOT_NOTE = 'Screenshots are not checked locally; CI dashboard-visual will run them.';
+
 /**
  * `green --quick`: the steps for the files a branch changed (CI on the pushed head is the green, the
  * lane skill 2026-10-30). Per touched workspace its typecheck and unit tests; a `shared/` change
@@ -881,12 +897,23 @@ export function quickSteps(files, cwd = process.cwd()) {
   }
   const tests = [...nodeTests].filter(f => fs.existsSync(path.join(cwd, f))).sort();
   if (tests.length > 0) steps.push({ name: 'node-tests', cmd: 'node', args: ['--test', ...tests], env: CI });
+  const webTouched = touchesDashboardWeb(files);
+  // CI order: usage catalogue after typecheck, bundle budget after the build. The dashboard `typecheck`
+  // script already covers web/tsconfig.json (tsc --noEmit && tsc -p web --noEmit).
+  if (files.some(f => USAGE_CATALOG_INPUT.test(f))) {
+    steps.push({ name: 'catalog-check', cmd: 'npm', args: ['run', 'usage:catalog:check'] });
+  }
   const specs = files
     .filter(f => /^packages\/cogm-dashboard\/web\/e2e\/.+\.spec\.ts$/.test(f) && isShellSafe(f) && fs.existsSync(path.join(cwd, f)))
     .map(f => f.replace('packages/cogm-dashboard/web/', ''))
     .sort();
-  if (specs.length > 0) {
+  if (specs.length > 0 || webTouched) {
     steps.push({ name: 'build-dashboard', cmd: 'npm', args: ['run', 'build', '-w', '@gnuminator/cogm-dashboard'] });
+  }
+  if (webTouched) {
+    steps.push({ name: 'bundle-budget', cmd: 'npm', args: ['run', 'bundle:budget', '-w', '@gnuminator/cogm-dashboard'] });
+  }
+  if (specs.length > 0) {
     steps.push({
       name: 'e2e-specs',
       cmd: 'npm',
@@ -1050,11 +1077,13 @@ export function main(options = {}) {
       }
     }
     log(`green: OK, ${picked.steps.length} steps in ${formatDuration(ended - started)}${waited}`);
+    if (opts.quick && touchesDashboardWeb(changed)) log(QUICK_SCREENSHOT_NOTE);
     return 0;
   }
   for (const f of failed) log(`green: FAILED at ${f.name} (${f.logFile})`);
   const tail = tailOf(failed[0].logFile);
   if (tail) log(tail);
+  if (opts.quick && touchesDashboardWeb(changed)) log(QUICK_SCREENSHOT_NOTE);
   return 1;
 }
 

@@ -474,9 +474,9 @@ export function requiredContexts(json) {
  * an unknown time (queued) counts as the newest, a finished one as the oldest. On equal or unknown
  * times the worse entry stays (failing over pending over success).
  * Chosen on purpose (#657 L3): a finished entry with no start time ranks oldest, so a dated run
- * replaces it even when that run is a success older than the failure. A start time is missing only
- * on a commit status or a malformed entry, never on a check run GitHub finished, so the case is
- * rare and the dated entry is the one that can be placed in time. A hand-dispatched ci.yml run
+ * replaces it even when that run is a success older than the failure. The alternative (keep the
+ * undated failure) would block a PR for good once a retry has passed, and the dated entry is the
+ * only one that can be placed in time; two undated finished entries keep the worse one. A hand-dispatched ci.yml run
  * (event workflow_dispatch) cannot collide with the pull_request run: its job names carry a
  * " [dispatch]" suffix, so it is a key of its own.
  * @param {any[]} rollup @returns {any[]}
@@ -718,7 +718,28 @@ const REASON_MAX = 160;
  * @param {string[]} reasons @returns {string[]}
  */
 export function refusalCauses(reasons) {
-  const tags = reasons.map(r => /^([a-z][a-z-]*):/.exec(r)?.[1] ?? 'other');
+  const slug = (/** @type {string} */ s) =>
+    s
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '');
+  /** @type {string[]} */
+  const tags = [];
+  for (const r of reasons) {
+    const word = /^([a-z][a-z-]*):/.exec(r)?.[1] ?? 'other';
+    if (word === 'ci') {
+      // one ci line can carry several problems: failing, pending, required but not reported
+      if (/\bfailing:/.test(r)) tags.push('ci-failing');
+      if (/\bpending:|no checks reported/.test(r)) tags.push('ci-pending');
+      if (/required but not reported/.test(r)) tags.push('ci-missing');
+      if (!/\bfailing:|\bpending:|no checks reported|required but not reported/.test(r)) tags.push('ci-rules');
+    } else if (word === 'drift') {
+      const guards = /\(guards: ([^)]*)\)/.exec(r)?.[1];
+      const names = guards ? guards.split(',').map(g => slug(g)).filter(Boolean) : [];
+      if (names.length > 0) tags.push(...names.map(n => `drift-${n}`));
+      else tags.push('drift');
+    } else tags.push(word);
+  }
   return [...new Set(tags)];
 }
 
@@ -729,7 +750,13 @@ export function refusalCauses(reasons) {
  */
 export function refusalBody(reasons) {
   return reasons
-    .map(r => r.split(/\r?\n/)[0].replace(/\p{Cc}/gu, ' ').trim())
+    .map(r =>
+      r
+        .split(/\r?\n/)[0]
+        .replace(/\p{Cc}/gu, ' ')
+        .replace(/ \(log [^)]*\)/, '') // a temp path of this PC says nothing in a shared commit
+        .trim()
+    )
     .filter(Boolean)
     .map(r => (r.length > REASON_MAX ? `${r.slice(0, REASON_MAX - 3)}...` : r))
     .join('\n');
@@ -1573,7 +1600,11 @@ export function main(options = {}) {
       /* the tail below still shows the output */
     }
     if (drift.status !== 0) {
-      failures.push(`drift: drift-check failed (log ${logFile}); last lines below`);
+      // drift-check logs "  FAIL <guard name>" per failing guard; the names go into the refusal reason
+      const guards = [...output.matchAll(/^ {2}FAIL (.+?)\s*$/gm)].map(m => m[1]);
+      failures.push(
+        `drift: drift-check failed${guards.length > 0 ? ` (guards: ${guards.join(', ')})` : ''} (log ${logFile}); last lines below`
+      );
       details.push(...output.replace(/\s+$/, '').split(/\r?\n/).slice(-TAIL_LINES));
     }
   } else if (failures.length > 0) {

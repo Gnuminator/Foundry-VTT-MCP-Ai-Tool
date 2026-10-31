@@ -175,7 +175,7 @@ function gate(o = {}) {
       return {
         status: o.drift ?? 0,
         stdout: 'drift output\n',
-        stderr: o.drift ? 'guard failed\n' : '',
+        stderr: o.drift ? '  FAIL bundle budget\nguard failed\n' : '',
       };
     }
     if (key === 'npm run drift:check') {
@@ -927,7 +927,7 @@ test('drift-check failing is reported with the last 30 lines of its output', () 
   const r = gate({ drift: 1 });
   assert.equal(r.code, 1);
   assert.ok(!r.merged);
-  assert.match(r.text, /drift: drift-check failed \(log /);
+  assert.match(r.text, /drift: drift-check failed \(guards: bundle budget\) \(log /);
   assert.ok(r.lines.includes('guard failed'));
 });
 
@@ -2201,21 +2201,43 @@ test('merge train note: --dry-run writes nothing; a refusal writes a refusal eve
 test('refusal reasons: one cause tag per failure kind, once each, and a short body', () => {
   assert.deepEqual(
     refusalCauses([
-      'ci: failing: build-test (FAILURE)',
-      'ci: pending: dashboard-visual (IN_PROGRESS)',
+      'ci: failing: build-test (FAILURE); pending: dashboard-visual (IN_PROGRESS)',
+      'ci: required but not reported: build-test (Node 22)',
+      'ci: no checks reported for this PR yet',
+      'ci: cannot read the required checks from the branch ruleset (gh api failed: x); refusing',
+      'wait-ci: head moved from a to b',
       'review: no review note for this head',
       'train: merge train full (4/4): run live:roundtrip',
-      'drift: drift-check failed (log x.log); last lines below',
+      'drift: drift-check failed (guards: bundle budget, lint ratchet) (log x.log); last lines below',
+      'drift: drift-check failed (log y.log); last lines below',
       'weird line',
     ]),
-    ['ci', 'review', 'train', 'drift', 'other']
+    [
+      'ci-failing',
+      'ci-pending',
+      'ci-missing',
+      'ci-rules',
+      'wait-ci',
+      'review',
+      'train',
+      'drift-bundle-budget',
+      'drift-lint-ratchet',
+      'drift',
+      'other',
+    ]
   );
   assert.deepEqual(refusalCauses([]), []);
   const long = 'ci: failing: ' + 'x'.repeat(400);
-  const body = refusalBody(['review: a\nsecond line\u0007', long, '']).split('\n');
-  assert.equal(body.length, 2);
+  const body = refusalBody([
+    'review: a\nsecond line\u0007',
+    long,
+    '',
+    'drift: drift-check failed (guards: x) (log C:/tmp/l.log); last lines below',
+  ]).split('\n');
+  assert.equal(body.length, 3);
   assert.equal(body[0], 'review: a');
   assert.ok(body[1].length <= 160 && body[1].endsWith('...'));
+  assert.equal(body[2], 'drift: drift-check failed (guards: x); last lines below'); // no temp path
 });
 
 test('refusal reasons: a real vault commit carries the tags in the subject and the lines in the body', () => {
@@ -2237,7 +2259,7 @@ test('refusal reasons: a real vault commit carries the tags in the subject and t
   const shown = g(path.join(root, 'remote.git'), 'log', '-1', '--format=%s%n--%n%b', 'main');
   assert.equal(
     shown.trim(),
-    'Merge train: refusal #649, 1/4 [ci, review]\n--\nci: failing: build-test (FAILURE)\nreview: no note for this head'
+    'Merge train: refusal #649, 1/4 [ci-failing, review]\n--\nci: failing: build-test (FAILURE)\nreview: no note for this head'
   );
 });
 

@@ -38,10 +38,7 @@ import { gzipSync } from 'node:zlib';
 // 150 on 2026-10-30: the one live switch (livePlay, liveSwitches, TurnOnNote, During and
 // GmActionsSwitch wiring, which the entry carries) took the first load to 149.2 KB; main alone was
 // 147.3 KB. Handouts went 3.0 to 3.1 KB with the switch note, so its limit is 4.
-// 151 on 2026-10-31: the live strip lows (focus to the pick bar, the shared write lock, the
-// switch split for Next turn, the may-have-applied hint) in LiveStrip.tsx, which the entry
-// carries, took the first load from just under to 150.0 KB.
-export const FIRST_LOAD_LIMIT_KB = 151;
+export const FIRST_LOAD_LIMIT_KB = 150;
 
 /**
  * Lazy chunks by name stem (the file name without its hash and extension: `Tarokka-Cx9aB1zQ.js`

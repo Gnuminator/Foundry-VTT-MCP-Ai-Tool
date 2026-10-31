@@ -177,6 +177,18 @@ export interface GuardedTools {
    */
   gated: (name: string, options?: GuardedOptions) => boolean;
   /**
+   * A write tool that is not a plan and needs no confirm window (the click is the confirmation:
+   * Next turn, Undo): the gate, then the call with its confirm flags, with the same refusal (the
+   * 403 `gm-actions-disabled`) and failure toasts as every other guarded write. No success toast:
+   * the caller says what it did.
+   */
+  call: (
+    name: string,
+    args: Record<string, unknown>,
+    confirm: ToolConfirm,
+    options?: GuardedOptions
+  ) => Promise<GuardedOutcome>;
+  /**
    * Applies a plan the GM already approved in a window of their own (the undo window: the choice
    * and the tick for a destructive plan were the confirmation). The gate, then apply-planned-change
    * with its confirm flags, then the Undo toast. The plan came from a plan-* tool here.
@@ -495,6 +507,14 @@ export function useGuardedTools(): GuardedTools {
       return true;
     };
 
+    const call: GuardedTools['call'] = async (name, args, confirm, options = {}) => {
+      if (gmActionsOff) return refuse(name, 'gm-actions-off', options);
+      const sent = await send(name, args, confirm, options);
+      if ('outcome' in sent) return sent.outcome;
+      changed();
+      return { status: 'done', result: sent.result };
+    };
+
     const applyApproved: GuardedTools['applyApproved'] = async (
       planId,
       destructive,
@@ -505,7 +525,7 @@ export function useGuardedTools(): GuardedTools {
       return apply({ planId }, flags, options);
     };
 
-    return { plan, write, gated, applyApproved };
+    return { plan, write, gated, call, applyApproved };
   }, [toast, queryClient, openGate, gmActionsOff, askConfirm]);
 }
 

@@ -2,14 +2,16 @@
 // scene. Player characters and Hostile tokens are ticked, Neutral and Friendly ones are not; the GM
 // changes the ticks and starts. Start plans plan-combat-change (a plain write, so the click applies
 // it) and the toast has Undo, which deletes the new combat. GM Actions must be on.
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { useContext, useState, type JSX } from 'react';
 
-import { callTool, errorText } from '../lib/api';
-import { GAME_STATE_KEY, mayHaveApplied, useGuardedTools } from '../lib/guarded';
+import { callTool } from '../lib/api';
+import { useGuardedTools } from '../lib/guarded';
 import {
   canFight,
   defaultTicks,
+  newNpcCombatantIds,
+  npcTokenIds,
   RollNpcInitiativeContext,
   pickerRows,
   sideWords,
@@ -31,10 +33,9 @@ function TokenList({
   sceneId: string | undefined;
   onClose: () => void;
 }): JSX.Element {
-  const { plan, gated } = useGuardedTools();
+  const { plan, gated, call } = useGuardedTools();
   const rollNpcs = useContext(RollNpcInitiativeContext);
   const toast = useToast();
-  const queryClient = useQueryClient();
   // Set once the GM touches a tick; until then the default stands.
   const [edited, setEdited] = useState<ReadonlySet<string> | null>(null);
   const [busy, setBusy] = useState(false);
@@ -53,16 +54,28 @@ function TokenList({
       const outcome = await plan('plan-combat-change', args);
       if (outcome.status !== 'done') return;
       // The fight exists now. The NPCs roll through the same gate and a plain write, as Next turn does.
-      if (rollNpcs && !gated('roll-initiative-for-npcs')) {
+      const npcTokens = npcTokenIds(rows, ticked);
+      if (rollNpcs && npcTokens.size > 0 && !gated('roll-initiative-for-npcs')) {
+        // The tool acts on the fight the bridge resolves, which can be an older encounter: roll
+        // only for the combatants of the tokens just started, found in that fight.
+        let ids: string[] = [];
         try {
-          await callTool('roll-initiative-for-npcs', { scope: 'npcs' }, { confirm: true });
-          void queryClient.invalidateQueries({ queryKey: GAME_STATE_KEY });
-          toast('✓ Rolled initiative for the NPCs', 'ok');
-        } catch (err) {
+          ids = newNpcCombatantIds(await callTool('get-combat-state', {}), npcTokens);
+        } catch {
+          // Same as finding none: the warning below says to roll in Foundry.
+        }
+        if (ids.length === 0) {
           toast(
-            `✗ Roll initiative: ${errorText(err)}${mayHaveApplied(err) ? ' It may have applied; check the tracker.' : ''}`,
-            'err'
+            'Combat started, but its NPCs were not found in the tracker. Roll their initiative in Foundry.',
+            'warn'
           );
+        } else {
+          const rolled = await call(
+            'roll-initiative-for-npcs',
+            { combatantIds: ids },
+            { confirm: true }
+          );
+          if (rolled.status === 'done') toast('✓ Rolled initiative for the NPCs', 'ok');
         }
       }
       onClose();

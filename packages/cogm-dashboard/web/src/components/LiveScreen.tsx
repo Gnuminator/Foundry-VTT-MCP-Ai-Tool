@@ -6,13 +6,13 @@
 // faces and the Start / End session button are the only things an event of the GM's changes).
 // It draws the same components as the default dashboard (LiveStrip, the Party, Handouts and Recent
 // Changes panels); the layout choices, the old-dashboard banner and the moment tabs are not here.
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState, type JSX } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { useCallback, useState, type JSX } from 'react';
 
-import { callTool, errorText } from '../lib/api';
+import { callTool } from '../lib/api';
 import { AI_LIMIT, readAiChanges } from '../lib/changes';
-import { GAME_STATE_KEY, mayHaveApplied, useGuardedTools } from '../lib/guarded';
-import { lastUndoable, undoLabel } from '../lib/liveStrip';
+import { GmActionsGateContext, useGuardedTools } from '../lib/guarded';
+import { StripUndoContext, lastUndoable, undoLabel } from '../lib/liveStrip';
 import { BACK_TO_STANDARD_TEXT, STANDARD_HREF } from '../lib/liveScreen';
 import { CHANGES_KEY, useDashboardStream } from '../lib/stream';
 import { RollNpcInitiativeContext } from '../lib/startCombat';
@@ -48,9 +48,8 @@ const AI_KEY = [...CHANGES_KEY, 'ai'] as const;
  */
 function HeaderUndo(): JSX.Element {
   const toast = useToast();
-  const queryClient = useQueryClient();
   const askConfirm = useConfirm();
-  const { gated } = useGuardedTools();
+  const { gated, call } = useGuardedTools();
   const [busy, setBusy] = useState(false);
   const changes = useQuery({
     queryKey: AI_KEY,
@@ -75,20 +74,14 @@ function HeaderUndo(): JSX.Element {
         });
         if (!ok) return;
       }
-      await callTool(
+      const done = await call(
         'undo-change',
         { changeId: undoable.changeId },
         { confirm: true, confirmDestructive: true }
       );
-      toast(`✓ Undone: ${undoable.summary}`, 'ok');
-    } catch (err) {
-      toast(
-        `✗ Undo: ${errorText(err)}${mayHaveApplied(err) ? ' It may have applied; check What just happened.' : ''}`,
-        'err'
-      );
+      if (done.status === 'done') toast(`✓ Undone: ${undoable.summary}`, 'ok');
     } finally {
       setBusy(false);
-      void queryClient.invalidateQueries({ queryKey: GAME_STATE_KEY });
     }
   };
   return (
@@ -118,8 +111,12 @@ export function LiveScreen(): JSX.Element {
   const [partySlot, setPartySlot] = useState<HTMLElement | null>(null);
   const [handoutsSlot, setHandoutsSlot] = useState<HTMLElement | null>(null);
   const [changesSlot, setChangesSlot] = useState<HTMLElement | null>(null);
+  // A refusal toast points at the header's Turn on button; there is no Pre-flight drawer to open.
+  const openGate = useCallback((): void => {
+    document.getElementById('btn-gm')?.focus();
+  }, []);
   return (
-    <>
+    <GmActionsGateContext.Provider value={openGate}>
       <header className="topbar" id="live-header">
         <h1>Dashboard</h1>
         <div className="controls">
@@ -163,7 +160,10 @@ export function LiveScreen(): JSX.Element {
       <RoleNotice />
       <main className={styles['page']} id="live-screen">
         <RollNpcInitiativeContext.Provider value>
-          <LiveStrip />
+          {/* The header has the one Undo on this page. */}
+          <StripUndoContext.Provider value={false}>
+            <LiveStrip />
+          </StripUndoContext.Provider>
         </RollNpcInitiativeContext.Provider>
         <div className={styles['grid']}>
           <DockContext.Provider value={partySlot}>
@@ -205,6 +205,6 @@ export function LiveScreen(): JSX.Element {
           </div>
         </div>
       </main>
-    </>
+    </GmActionsGateContext.Provider>
   );
 }

@@ -226,7 +226,7 @@ export class ActorBuilderDataAccess {
     let targetsNotSet = '';
     const headless = this.clientHasNoCanvas();
     const headlessTargets = (): Set<unknown> | undefined =>
-      headless ? (game.user?.targets as Set<unknown> | undefined) : undefined;
+      headless ? game.user?.targets : undefined;
     // Nobody sees a headless GM's target set; never let an earlier call's targets ride along
     // (also when the names given match no token).
     headlessTargets()?.clear();

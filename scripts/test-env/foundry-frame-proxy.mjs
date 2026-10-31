@@ -64,6 +64,10 @@ export function createProxy({ listen, target, dashboard }) {
       }
     );
     upstream.on('error', () => {
+      if (res.headersSent) {
+        res.destroy();
+        return;
+      }
       res.writeHead(502).end('The test Foundry does not answer.');
     });
     req.pipe(upstream);

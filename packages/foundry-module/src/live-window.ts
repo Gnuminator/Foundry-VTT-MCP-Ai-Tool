@@ -458,7 +458,11 @@ export function refreshLiveWindowButtons(): void {
 /** On `ready`: draw the pin and bring the window back if it was open before the reload. */
 export function restoreLiveWindow(): void {
   refreshLiveWindowButtons();
-  startPickRelay();
+  try {
+    startPickRelay();
+  } catch (e) {
+    console.warn('Foundry MCP Bridge: the live pick relay did not start', e);
+  }
   if (canOpenLiveWindow() && loadState().open) {
     void openLiveWindow().catch((e: unknown): void =>
       console.warn(`${MODULE_ID} | live window restore failed`, e)

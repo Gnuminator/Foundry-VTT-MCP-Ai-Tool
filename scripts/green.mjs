@@ -84,6 +84,7 @@ export const STEPS = [
   nodeTest('hook-remote-guard', '.claude/hooks/guard-remote-commands.test.mjs'),
   nodeTest('hook-start-alerts', '.claude/hooks/start-alerts.test.mjs'),
   nodeTest('drift-check-test', 'scripts/drift-check.test.mjs'),
+  nodeTest('test-env-frame-proxy', 'scripts/test-env/foundry-frame-proxy.test.mjs'),
   nodeTest('hook-context-alert', '.claude/hooks/context-alert.test.mjs', '.claude/hooks/context-stop.test.mjs'),
   nodeTest(
     'hook-edit-guard',

@@ -111,6 +111,7 @@ function GmWorkspace({
   const [layout, setLayout] = useState<GmLayout>(loadLayout);
   const [dragging, setDragging] = useState(false);
   const [frameLoaded, setFrameLoaded] = useState(false);
+  const [loadCount, setLoadCount] = useState(0);
   const [connected, setConnected] = useState(false);
   const [timedOut, setTimedOut] = useState(false);
   const [bannerHidden, setBannerHidden] = useState(false);
@@ -159,13 +160,16 @@ function GmWorkspace({
   // page only), and start the wait. A blocked frame also fires load, so only a pick means "here".
   const onFrameLoad = useCallback((): void => {
     setFrameLoaded(true);
+    // Joining navigates the frame (/join to /game): every load restarts the wait.
+    setTimedOut(false);
+    setLoadCount(count => count + 1);
     frameRef.current?.contentWindow?.postMessage({ type: 'fmb-live-ready' }, foundryOrigin);
   }, [foundryOrigin]);
   useEffect(() => {
-    if (!frameLoaded || connected) return;
+    if (loadCount === 0 || connected) return;
     const timer = window.setTimeout(() => setTimedOut(true), FRAME_WAIT_MS);
     return (): void => window.clearTimeout(timer);
-  }, [frameLoaded, connected]);
+  }, [loadCount, connected]);
 
   // The strip window and the Foundry tab are handles: notice when the GM closes them.
   useEffect(() => {
@@ -246,6 +250,53 @@ function GmWorkspace({
   const stripOnly = !sideBySide || tabOpen;
   const showBanner =
     !stripOnly && timedOut && !connected && !bannerHidden && layout.mode !== 'window';
+  // The frame loads afresh when it mounts again (after the Foundry tab closes): forget the old
+  // load state then.
+  const frameSlot = stripOnly ? 'none' : 'framed';
+  useEffect(() => {
+    setFrameLoaded(false);
+    setTimedOut(false);
+    setLoadCount(0);
+  }, [frameSlot]);
+
+  const stripParts = (
+    <>
+      <div
+        className={styles.divider}
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="Resize the live strip"
+        aria-valuemin={MIN_STRIP_PX}
+        aria-valuemax={maxStripPx(viewport)}
+        aria-valuenow={stripPx}
+        aria-valuetext={`${stripPx} pixels`}
+        title="Drag to resize, double-click to reset"
+        tabIndex={0}
+        onPointerDown={onDividerDown}
+        onPointerMove={onDividerMove}
+        onPointerUp={endDrag}
+        onPointerCancel={endDrag}
+        onDoubleClick={() => update({ stripPx: DEFAULT_STRIP_PX })}
+        onKeyDown={onDividerKey}
+      />
+      <aside className={styles.strip} ref={stripPaneRef} tabIndex={-1} aria-label="Live strip">
+        {!layout.hintSeen ? (
+          <p className={styles.hint}>
+            Pick tokens on the map and they are picked here too. Drag the line between the panes to
+            resize.{' '}
+            <button
+              type="button"
+              className={styles.link}
+              onClick={() => update({ hintSeen: true })}
+            >
+              Got it
+            </button>
+          </p>
+        ) : null}
+        <LiveStrip />
+      </aside>
+    </>
+  );
 
   return (
     <div className={styles.root} data-dragging={dragging ? '' : undefined}>
@@ -288,22 +339,31 @@ function GmWorkspace({
           data-mode={layout.mode}
           style={{ ['--strip-px' as string]: `${stripPx}px` }}
         >
+          {/* DOM order follows the screen: in "Strip left" the strip comes first for Tab and
+              screen readers. The Foundry section keeps its child slot, so its frame never reloads. */}
+          {layout.mode === 'left' ? stripParts : null}
           <section className={styles.foundry} aria-label="Foundry">
-            {showBanner ? (
-              <div className={styles.banner} role="status">
-                <span>
-                  Can&apos;t see Foundry here? It may refuse to open inside this page, you may not
-                  have joined the world yet, or the module&apos;s &quot;Live window address&quot; is
-                  not set to this page.
-                </span>
-                <button type="button" className={styles.primary} onClick={openFoundryTab}>
-                  Open Foundry in its own tab
-                </button>
-                <button type="button" className={styles.link} onClick={() => setBannerHidden(true)}>
-                  Hide
-                </button>
-              </div>
-            ) : null}
+            <div role="status" className={styles.bannerSlot}>
+              {showBanner ? (
+                <div className={styles.banner}>
+                  <span>
+                    Can&apos;t see Foundry here? It may refuse to open inside this page, you may not
+                    have joined the world yet, or the module&apos;s &quot;Live window address&quot;
+                    is not set to this page.
+                  </span>
+                  <button type="button" className={styles.primary} onClick={openFoundryTab}>
+                    Open Foundry in its own tab
+                  </button>
+                  <button
+                    type="button"
+                    className={styles.link}
+                    onClick={() => setBannerHidden(true)}
+                  >
+                    Hide
+                  </button>
+                </div>
+              ) : null}
+            </div>
             {layout.mode === 'window' ? (
               <div className={styles.windowBar}>
                 {stripWindowOpen ? (
@@ -332,49 +392,7 @@ function GmWorkspace({
               />
             </div>
           </section>
-          {layout.mode !== 'window' ? (
-            <>
-              <div
-                className={styles.divider}
-                role="separator"
-                aria-orientation="vertical"
-                aria-label="Resize the live strip"
-                aria-valuemin={MIN_STRIP_PX}
-                aria-valuemax={maxStripPx(viewport)}
-                aria-valuenow={stripPx}
-                aria-valuetext={`${stripPx} pixels`}
-                title="Drag to resize, double-click to reset"
-                tabIndex={0}
-                onPointerDown={onDividerDown}
-                onPointerMove={onDividerMove}
-                onPointerUp={endDrag}
-                onPointerCancel={endDrag}
-                onDoubleClick={() => update({ stripPx: DEFAULT_STRIP_PX })}
-                onKeyDown={onDividerKey}
-              />
-              <aside
-                className={styles.strip}
-                ref={stripPaneRef}
-                tabIndex={-1}
-                aria-label="Live strip"
-              >
-                {!layout.hintSeen ? (
-                  <p className={styles.hint}>
-                    Pick tokens on the map and they are picked here too. Drag the line between the
-                    panes to resize.{' '}
-                    <button
-                      type="button"
-                      className={styles.link}
-                      onClick={() => update({ hintSeen: true })}
-                    >
-                      Got it
-                    </button>
-                  </p>
-                ) : null}
-                <LiveStrip />
-              </aside>
-            </>
-          ) : null}
+          {layout.mode !== 'window' && layout.mode !== 'left' ? stripParts : null}
         </div>
       )}
     </div>

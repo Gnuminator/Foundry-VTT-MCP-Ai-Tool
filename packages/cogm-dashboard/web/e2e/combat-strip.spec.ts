@@ -1429,7 +1429,7 @@ test.describe('when a write or a roll request fails', () => {
   });
 });
 
-test('a strip chunk that fails to load leaves the page working without the strip', async ({
+test('a strip chunk that fails to load says so, with a Reload button, and the page works', async ({
   page,
 }) => {
   let hits = 0;
@@ -1441,6 +1441,10 @@ test('a strip chunk that fails to load leaves the page working without the strip
   await load(page);
   await expect.poll(() => hits).toBeGreaterThan(0);
   await expect(strip(page)).toHaveCount(0);
+  await expect(page.locator('#combat-load-failed')).toContainText(
+    'The combat strip could not load'
+  );
+  await expect(page.getByRole('button', { name: 'Reload the page' })).toBeVisible();
   await expect(page.locator('#btn-advanced')).toBeVisible();
   await expect(during(page)).toBeVisible();
 });

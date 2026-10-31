@@ -4,7 +4,7 @@
 // that fails to load leaves the page working.
 import { expect, test, type Page } from '@playwright/test';
 
-import { GM_TOKEN, fakeCommonRoutes, fakeStream, fakeTools, ok } from './support';
+import { GM_TOKEN, fakeCommonRoutes, fakeStream, fakeTools, ok, toast } from './support';
 
 interface HeldChunk {
   release: () => void;
@@ -84,10 +84,15 @@ test('focus elsewhere stays there when the real button replaces the stand-in', a
   await expect(other).toBeFocused();
 });
 
-test('a chunk that fails to load leaves the page working', async ({ page }) => {
+test('a chunk that fails to load says so on the click and leaves the page working', async ({
+  page,
+}) => {
   const chunk = await loadHoldingChunk(page, true);
   await page.locator('#btn-advanced').click();
   await expect.poll(chunk.hits).toBeGreaterThan(0);
+  await expect(toast(page, 'The Advanced menu could not load')).toBeVisible();
+  // Another click says it again: the stand-in stays and nothing else breaks.
+  await page.locator('#btn-advanced').click();
   await expect(page.locator('#btn-advanced')).toBeVisible();
   await expect(page.locator('#moments')).toBeVisible();
 });

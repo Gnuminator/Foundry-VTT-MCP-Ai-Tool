@@ -12,6 +12,7 @@ import {
 } from 'react';
 
 import { Button } from '../ui';
+import { useToast } from './Toasts';
 
 /** Tells the menu an entry opened a panel, so the focus stays in that panel. */
 export const PickedContext = createContext<() => void>(() => undefined);
@@ -54,6 +55,11 @@ export function AdvancedMenu({ children }: { children: ReactNode }): JSX.Element
   const [wanted, setWanted] = useState<MenuImplProps['initialOpen']>(false);
   const focused = useRef(false);
   const loading = useRef(false);
+  const failed = useRef(false);
+  const clicked = useRef(false);
+  const toast = useToast();
+  const sayFailed = (): void =>
+    toast('The Advanced menu could not load. Reload the page to use it.', 'err');
 
   const load = (): void => {
     if (loading.current) return;
@@ -61,8 +67,10 @@ export function AdvancedMenu({ children }: { children: ReactNode }): JSX.Element
     loadImpl().then(
       impl => setImpl(() => impl),
       () => {
-        // A failed download is tried again on the next click.
-        loading.current = false;
+        // A browser keeps a failed import's answer until the page is reloaded, so there is no
+        // second try: the click says so.
+        failed.current = true;
+        if (clicked.current) sayFailed();
       }
     );
   };
@@ -92,6 +100,11 @@ export function AdvancedMenu({ children }: { children: ReactNode }): JSX.Element
           focused.current = false;
         }}
         onClick={e => {
+          clicked.current = true;
+          if (failed.current) {
+            sayFailed();
+            return;
+          }
           // detail 0: Enter or Space (no pointer click).
           setWanted(e.detail === 0 ? 'keyboard' : 'pointer');
           load();

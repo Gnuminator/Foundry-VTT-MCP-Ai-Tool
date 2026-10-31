@@ -21,7 +21,7 @@ import {
 import type { StripToolRequest } from './components/CombatStrip';
 import { FoldScope } from './components/Folds';
 import { LivePlayLine } from './components/GmActionsSwitch';
-import { RibbonBoundary } from './components/RibbonBoundary';
+import { StripBoundary } from './components/StripBoundary';
 import { SessionMarker } from './components/SessionMarker';
 import { ThemePicker } from './components/ThemePicker';
 import { StreamState } from './components/StreamState';
@@ -480,13 +480,13 @@ function Dashboard(): JSX.Element {
         }
         beforeTop={<LayoutTrialCard during={during} />}
         duringStrip={
-          // A chunk that fails to load (a stale tab after a redeploy) leaves the page without the
-          // strip instead of blanking it.
-          <RibbonBoundary>
+          // A chunk that fails to load (a stale tab after a redeploy) shows a Reload button in the
+          // strip's place instead of blanking the page.
+          <StripBoundary>
             <Suspense fallback={null}>
               <CombatStrip sample={showsSampleFight(during.trial)} onOpenTool={openToolFromStrip} />
             </Suspense>
-          </RibbonBoundary>
+          </StripBoundary>
         }
       />
       <LayoutTourGuide during={during} />

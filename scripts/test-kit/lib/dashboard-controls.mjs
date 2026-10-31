@@ -123,6 +123,8 @@ export const DASHBOARD_CONTROLS = [
   { name: 'dash.header.handouts', how: 'open', reach: [ADV], expect: '#handouts-drawer' },
   { name: 'dash.header.tarokka', how: 'open', reach: [ADV], expect: '#tarokka-drawer' },
   { name: 'dash.header.paper', how: 'skip', why: NEW_ONLY },
+  // The Reload button that stands in for the combat strip when its chunk fails to load.
+  { name: 'dash.strip.reload', how: 'skip', why: NEW_ONLY },
 
   // --- the live strip (/next?strip=1; the e2e spec live-strip.spec.ts and the live check cover it) ---
   ...[

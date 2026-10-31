@@ -60,7 +60,6 @@ undo. Fix it by hand in Foundry.
 | Pre-flight's "Foundry connected" line is marked as failing.               | See "The bridge does not connect" above.                                                                                                      |
 | The tool runner says "Couldn't load tools".                               | The bridge is not connected, or this browser is not signed in as the GM (see the next row).                                                   |
 | GM buttons are refused although everything is connected.                  | The setup uses a GM token. Open the dashboard once with the address you were given (it ends in `?token=…`); the browser remembers it.         |
-| No AI commentary on the page.                                             | Normal. The AI commentary is only on the old dashboard (`/legacy/`) and needs an API key, which the normal setup does not use.                |
 | GM Actions turned itself off.                                             | The dashboard restarted. Turn it on again when you need it.                                                                                   |
 
 ## Claude Desktop does not see the tools

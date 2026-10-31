@@ -21,7 +21,7 @@ The tabs **Before**, **During** and **After** in the header switch what the page
 follow your evening, and you can click any of them at any time.
 
 - **Before**: the Pre-flight check and the Prep panel, the **Pick your During layout** card
-  (until you have picked a layout) and a Features slot that says "Not on this page yet" (the cards are on the old dashboard).
+  (until you have picked a layout).
 - **During**: the turn-order strip, the Live Feed, and Handouts, Party and Recent Changes.
 - **After**: Tonight's stats and the Session notes, with Prep, Handouts and Recent Changes.
 
@@ -43,9 +43,6 @@ The page at `/` has no row of status lights. Two things tell you about the conne
   lines say whether Foundry is connected ("Foundry connected"). If it is not, tell the tool admin:
   the AI Tool's link to Foundry (a browser on the server) is down. Each panel also shows its own message when it cannot read the
   game.
-
-The lights (Bridge, Foundry, AI) and the line with your world, game system and Foundry version are
-only on the old dashboard (see "The old dashboard page" below).
 
 ### Theme
 
@@ -168,16 +165,6 @@ One entry under **Advanced**, in the **During screen** group:
 
 - **▦ Try the During layouts** starts the short layout trial again (see During layouts below).
 
-### ⏸ Pause, 🩺 Diag AI, Tone, Model (old dashboard only)
-
-These control the AI commentary panel, which is only on the old dashboard (`/legacy/`). The page at
-`/` has none of them. On the old page they only work when an Anthropic API key is set.
-
-- **⏸ Pause / ▶ Resume**: stops and restarts automatic comments.
-- **🩺 Diag AI: on / off**: whether the AI comments on module errors.
-- **Tone**: **Tactical** (fight math) or **Narrative** (drama and story).
-- **Model**: which Claude model writes the comments.
-
 ## The panels
 
 ### During layouts
@@ -272,15 +259,6 @@ first boss fight. It shows:
 
 The player page never shows any of this.
 
-### Features (Before) (old dashboard only)
-
-The **Before** view on the page at `/` has a "Features" slot that says "Not on this page yet". The
-cards are only on the old dashboard (`/legacy/`). There, at the bottom of **Before**, is one card per feature, the ones still off first. Each card says
-what the feature does, whether it is on, and **when to turn it on** (for example Boss prompts:
-"before the first boss fight"). **Read more** opens its section of
-[Features and when to turn them on](features.md). The cards only show; you switch features in
-Foundry's module settings, or all at once with **Turn on for tonight**.
-
 ### Help: the "?" on each panel
 
 Most panels have a small **?** next to their title. It opens this guide at that panel's section, in a
@@ -289,13 +267,6 @@ guides** in the **Advanced** menu opens the list of guides. The help is built in
 so it works without internet and always matches the installed version. The side panel has a link
 at the top, **Open this page on the wiki**. It opens the same page on the website (needs
 internet), which is easier to read on a second screen and has search.
-
-> **The old dashboard page.** Until after the first online session on 29 November (session 1, not session 0), the
-> previous version of the dashboard is still there at the same address with `/legacy/` added (also
-> the **Old dashboard** button in the header). Use it only if something you need is missing on the
-> main page. Only the old page has: the three status lights and the world line, the Features cards,
-> the AI commentary with its **Ask** box, **→ Post to chat** and **⏸ Pause**, **🩺 Diag AI**, **Tone**
-> and **Model**, and the storage space banner. The wiki link above is not on it.
 
 ### Tonight's stats (After)
 
@@ -347,18 +318,6 @@ scene changes and more. Each line shows its type and the time.
 - A line starting "Applied:" or "Undid:" appears when a guarded change is applied or undone. Its
   chip names what made it, such as **actor change** or **page reveal**.
 
-### AI commentary
-
-Not on the page at `/`. On the old dashboard (`/legacy/`) there are optional AI comments on the fight
-and an **Ask** box ("who's in trouble?").
-
-It needs an Anthropic API key on the dashboard. That is the paid Anthropic API, billed per use and
-separate from a Claude subscription. The normal setup has no key, so this panel stays empty. Use Claude Desktop instead (see [Asking Claude](asking-claude.md)).
-
-With a key, each comment has **→ Post to chat**, which whispers it to the GM users in Foundry. If
-the text names a secret (a dealt Tarokka card), the dashboard asks first: a whisper's text reaches
-every player's browser, only its display is hidden.
-
 ### Module Diagnostics
 
 Errors and warnings from Foundry modules, caught in the GM's browser. Hover a line for details.
@@ -368,20 +327,9 @@ reload.
 At the top, a yellow line says when the server's storage space check has not run for over 3 hours.
 Nothing is wrong yet, but nobody is watching the space: tell the person who runs the server.
 
-### The storage space banner (old dashboard only)
-
-The server (the Orange Pi) checks its own free disk space every hour. The old dashboard (`/legacy/`)
-shows a banner under the header, for you only (players never see it). The page at `/` has no banner;
-it only has the yellow line in Module Diagnostics described above. On the old page:
-
-- **Yellow, "Storage space is low":** under 20% free. Backups still run. Tell the person who runs the
-  server; the banner names the disk and which jobs use it.
-- **Red, "Storage space is critical":** under 5% free, or less than a backup needs. A backup that
-  needs more space than is free will stop. Tell them now.
-
-No banner means plenty of space, or that this dashboard runs somewhere with no space check (for
-example a laptop). The same warning also arrives as a Discord message to the person who runs the
-server.
+The server (the Orange Pi) checks its own free disk space every hour: under 20% free is low, under
+5% (or less than a backup needs) is critical and a backup will stop. That warning also arrives as a
+Discord message to the person who runs the server.
 
 ### Recent Changes
 

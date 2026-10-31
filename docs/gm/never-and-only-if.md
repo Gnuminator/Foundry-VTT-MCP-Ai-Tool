@@ -14,8 +14,7 @@ Short rules. Each has its reason on the next line.
   They show true names, exact HP, private rolls, GM notes and the Tarokka cards.
 - **Never give players the dashboard's GM address or the GM token.**
   The GM page can change the game and shows every secret; players get `/player` only.
-- **Never post an AI comment ("Post to chat", on the old dashboard) or send a whisper that names a
-  secret.**
+- **Never send a whisper that names a secret.**
   A whisper's text reaches every player's browser; only its display is hidden.
 - **Never apply a plan you have not read.**
   The list of changes in the confirm window is your only preview.
@@ -62,6 +61,6 @@ Short rules. Each has its reason on the next line.
   by Claude Desktop.** Changes through the plan are still confirmed and can be undone; direct
   actions (rolls, new NPCs, journals, chat messages) are not. Set **Write/delete tools** to
   **Needs approval** to be asked each time.
-- **Set an Anthropic API key on the dashboard only if you want the AI commentary panel (on the old
-  dashboard) and accept the cost.**
-  It is the paid API, billed per use, and it sends game events to Anthropic automatically.
+- **Do not set an Anthropic API key on the dashboard unless you accept the cost.**
+  It is the paid API, billed per use, and it sends game events to Anthropic automatically. The
+  normal setup has no key.

@@ -39,8 +39,7 @@ import { gzipSync } from 'node:zlib';
 // GmActionsSwitch wiring, which the entry carries) took the first load to 149.2 KB; main alone was
 // 147.3 KB. Handouts went 3.0 to 3.1 KB with the switch note, so its limit is 4.
 // 150 kept on 2026-10-31 (the build had reached 150.0 KB): the Pre-flight drawer (PreflightDrawer)
-// and the Radix dropdown of the Advanced menu (AdvancedMenuImpl) moved to their own chunks and the
-// first load measured 145.1 KB, 4.9 KB of room. Not raised.
+// moved to its own chunk and the first load measured 147.8 KB. Not raised.
 export const FIRST_LOAD_LIMIT_KB = 150;
 
 /**
@@ -49,7 +48,6 @@ export const FIRST_LOAD_LIMIT_KB = 150;
  * percent, rounded up). Measured 2026-10-16.
  */
 export const LAZY_LIMITS_KB = {
-  AdvancedMenuImpl: 7, // 5.7 KB (the Radix dropdown menu), measured 2026-10-31
   Handouts: 4, // 3.1 KB with the live-switch note, measured 2026-10-30 (was 2.2 KB)
   InitiativeRibbon: 2, // 1.8 KB with portraits and the pan click (was 1.6 KB), measured 2026-10-28
   ModuleDiagnostics: 1, // 0.8 KB

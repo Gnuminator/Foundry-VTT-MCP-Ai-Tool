@@ -9,6 +9,7 @@ import {
 
 import { normalizeFoundryUrl, withPortraitUrls } from './combat-images.js';
 import type { Config, Tone } from './config.js';
+import { liveFrameMiddleware } from './live-frame.js';
 import type { Logger } from './logger.js';
 import { ToolError, TimeoutError } from './feed/mcp-control-client.js';
 import type { BridgeStatus, CombatState, GameFeedHandlers, WorldInfo } from './feed/types.js';
@@ -653,6 +654,8 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
     message: 'Too many requests',
     validate: { xForwardedForHeader: false },
   });
+  // The live strip page is the one page the Foundry module frames (live screen B).
+  app.use(liveFrameMiddleware(config.foundryUrl));
   app.get('/', pageLimit, (_req: Request, res: Response, next: NextFunction) => {
     if (!fs.existsSync(reactIndex)) return next();
     res.setHeader('Cache-Control', 'no-cache');

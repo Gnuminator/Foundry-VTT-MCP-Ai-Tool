@@ -25,6 +25,7 @@ import { ROOM_SETUP_FEATURE_ID } from './room-setup.js';
 import { RULES_CHECK_FEATURE_ID } from './rules-check.js';
 import { PARTY_FEATURE_ID, WHO_NOTICES_FEATURE_ID } from './party-scan.js';
 import { registerGmWindowsSetting } from './gm-windows.js';
+import { registerLiveWindowSettings, restoreLiveWindow } from './live-window.js';
 import { registerSessionSwitchSettings } from './session-switches.js';
 import { registerDiceThemes } from './dice-themes.js';
 import { TAROKKA_FEATURE_ID } from './tarokka.js';
@@ -124,6 +125,7 @@ class FoundryMCPBridge {
       registerSettingsUsageHooks();
       registerSessionSwitchSettings();
       registerGmWindowsSetting();
+      registerLiveWindowSettings();
       // The Tarokka card table (D-130): the public table every client reads, players included.
       registerTarokkaTableSettings();
       // Themed dice (I-085): every client, players included; silent without Dice So Nice.
@@ -615,6 +617,9 @@ Hooks.once('ready', async () => {
     startTableWatch();
 
     await foundryMCPBridge.onReady();
+
+    // Live screen B: the pinned button, and the live window if it was open before the reload.
+    restoreLiveWindow();
 
     // Register socket listener for roll state management (after game.user is available)
 

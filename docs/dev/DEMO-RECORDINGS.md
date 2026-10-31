@@ -343,8 +343,7 @@ Foundry's own UI (vault idea I-095):
   `/player` page.
 - `preflight`: the Before view. Pre-flight checks the bridge, the module, the write switches
   and the players' page for spoilers; **Turn on for tonight** turns on what tonight needs in one
-  click; the GM ticks the manual checks; the feature cards say when to turn the rest on, and a
-  card's **Read more** opens the guide in the side panel.
+  click; the GM ticks the manual checks.
 - `prep`: the Prep drawer shows the last session, the open quest, the "Next session"
   notes and what is ready, and opens the notes in Foundry.
 - `damage-undo`: the During view. Setup starts a fight with Wolf 1, Wolf 2 and the Vampire

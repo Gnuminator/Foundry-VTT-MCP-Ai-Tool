@@ -44,6 +44,9 @@ import { gzipSync } from 'node:zlib';
 // 147.3 KB. Handouts went 3.0 to 3.1 KB with the switch note, so its limit is 4.
 // 150 kept on 2026-10-31 (the build had reached 150.0 KB): the Pre-flight drawer (PreflightDrawer)
 // moved to its own chunk and the first load measured 147.8 KB. Not raised.
+// 150 kept on 2026-10-31 (after the live screens): the Advanced menu's Radix dropdown (AdvancedMenuImpl,
+// behind a stand-in button) and the combat strip (CombatStrip) moved to their own chunks; the
+// first load measured 144.6 KB, 5.4 KB of headroom. Not raised.
 export const FIRST_LOAD_LIMIT_KB = 150;
 
 /**
@@ -52,6 +55,8 @@ export const FIRST_LOAD_LIMIT_KB = 150;
  * percent, rounded up). Measured 2026-10-16.
  */
 export const LAZY_LIMITS_KB = {
+  AdvancedMenuImpl: 7, // 5.7 KB, measured 2026-10-31
+  CombatStrip: 5, // 3.8 KB, measured 2026-10-31
   Handouts: 4, // 3.1 KB with the live-switch note, measured 2026-10-30 (was 2.2 KB)
   InitiativeRibbon: 2, // 1.8 KB with portraits and the pan click (was 1.6 KB), measured 2026-10-28
   ModuleDiagnostics: 1, // 0.8 KB

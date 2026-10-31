@@ -326,6 +326,7 @@ reload.
 
 At the top, a yellow line says when the server's storage space check has not run for over 3 hours.
 Nothing is wrong yet, but nobody is watching the space: tell the person who runs the server.
+
 The server (the Orange Pi) checks its own free disk space every hour: under 20% free is low, under
 5% (or less than a backup needs) is critical and a backup will stop. That warning also arrives as a
 Discord message to the person who runs the server.

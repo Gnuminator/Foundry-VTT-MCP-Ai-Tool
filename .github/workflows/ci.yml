@@ -9,10 +9,13 @@ on:
     branches: [main]
   workflow_dispatch:
 
-# A new push to the same ref cancels the run still going for the old one.
+# A new push to a branch or PR ref cancels the run still going for the old one. Runs on main are never
+# cancelled: every merge commit gets a finished run, so a red cannot be hidden by the next merge
+# (57 of 97 main runs were cancelled 2026-10-14 to 10-30). The repo is public, so the extra runner
+# minutes, the ARM job included, are free.
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 # Read-only token for every job: CI checks out and tests, it never writes to the repo
 # (upload-artifact uses the runner's own artifact token, not GITHUB_TOKEN).

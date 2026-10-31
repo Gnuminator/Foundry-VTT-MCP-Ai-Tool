@@ -83,6 +83,11 @@ jobs:
         # undo; against throwaway git repos.
         run: node --test scripts/drift-check.test.mjs
 
+      - name: Test Foundry frame proxy
+        # scripts/test-env/foundry-frame-proxy.mjs (dev only): the header rewrite and the guard that
+        # refuses the live and rehearsal ports.
+        run: node --test scripts/test-env/foundry-frame-proxy.test.mjs
+
       - name: Context alert hook
         # .claude/hooks/context-alert.mjs (D-122): one line at the 350k and 400k handover marks, and
         # context-stop.mjs: the hard stop above the out line. Both ignore doubled phantom readings.

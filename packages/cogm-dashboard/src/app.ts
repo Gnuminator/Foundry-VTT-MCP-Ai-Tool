@@ -9,6 +9,7 @@ import {
 
 import { normalizeFoundryUrl, withPortraitUrls } from './combat-images.js';
 import type { Config, Tone } from './config.js';
+import { mountGmPage } from './gm-page.js';
 import { liveFrameMiddleware } from './live-frame.js';
 import type { Logger } from './logger.js';
 import { ToolError, TimeoutError } from './feed/mcp-control-client.js';
@@ -661,6 +662,8 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
     res.setHeader('Cache-Control', 'no-cache');
     res.sendFile(reactIndex);
   });
+  // The GM page (item gm-page-wrapper): Foundry and the live strip on one page.
+  mountGmPage(app, { reactIndex, foundryUrl: config.foundryUrl, pageLimit, requireGm });
   // Only a plain query string is carried over (a saved ?token= or ?plan= link); anything else is
   // dropped, and the target is always "/" plus that, so it can never leave this origin.
   app.get(['/next', '/next/'], pageLimit, (req: Request, res: Response) => {

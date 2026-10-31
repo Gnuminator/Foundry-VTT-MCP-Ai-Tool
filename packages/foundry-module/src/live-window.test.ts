@@ -13,7 +13,10 @@ import {
   LIVE_WINDOW_URL_SETTING,
   canOpenLiveWindow,
   isReadyFromFrame,
+  isReadyFromTarget,
   liveFrameUrl,
+  pickTargets,
+  postPickToTargets,
   liveWindowEnabled,
   postPickTo,
   registerLiveWindowSettings,
@@ -103,6 +106,48 @@ describe('the pick messages', () => {
         { data: { type: 'x' }, source: win, origin: 'https://dash.example.com' },
         frame
       )
+    ).toBe(false);
+  });
+});
+
+describe('the picks sent up to the GM page', () => {
+  const origin = 'https://dash.example.com';
+
+  it('targets the frame parent and the opener, never itself, none in a plain tab', () => {
+    const parent = { postMessage: vi.fn() };
+    const opener = { postMessage: vi.fn() };
+    const self = {};
+    expect(pickTargets({ parent, opener, self })).toEqual([parent, opener]);
+    expect(pickTargets({ parent: self, opener: null, self })).toEqual([]);
+    expect(pickTargets({ parent, opener: parent, self })).toEqual([parent]);
+  });
+
+  it('posts the ids to the dashboard origin only', () => {
+    const a = { postMessage: vi.fn() };
+    const b = { postMessage: vi.fn() };
+    postPickToTargets([a, b], origin, ['t1', 't2']);
+    expect(a.postMessage).toHaveBeenCalledWith(
+      { type: LIVE_PICK_MESSAGE, tokenIds: ['t1', 't2'] },
+      origin
+    );
+    expect(b.postMessage).toHaveBeenCalledTimes(1);
+  });
+
+  it('answers a ready message from a target window and the dashboard origin only', () => {
+    const parent = {};
+    const ready = { type: LIVE_READY_MESSAGE };
+    expect(isReadyFromTarget({ data: ready, source: parent, origin }, [parent], origin)).toBe(true);
+    expect(isReadyFromTarget({ data: ready, source: {}, origin }, [parent], origin)).toBe(false);
+    expect(isReadyFromTarget({ data: ready, source: null, origin }, [parent], origin)).toBe(false);
+    expect(
+      isReadyFromTarget(
+        { data: ready, source: parent, origin: 'https://evil.example' },
+        [parent],
+        origin
+      )
+    ).toBe(false);
+    expect(
+      isReadyFromTarget({ data: { type: 'x' }, source: parent, origin }, [parent], origin)
     ).toBe(false);
   });
 });

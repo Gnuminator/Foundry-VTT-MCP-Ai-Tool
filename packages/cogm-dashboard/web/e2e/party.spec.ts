@@ -138,6 +138,10 @@ test('loads the party on open and shows each member and section', async ({ page 
     'On Maravia, hidden',
   ]);
   await expect(rows.nth(0).locator('.condition-chip')).toHaveText(['Exhaustion 2', 'Poisoned']);
+  // The same data drawn again (a refresh keeps the cached object) must not add a chip: the
+  // screenshots flaked on a third Exhaustion chip.
+  await drawer.getByRole('button', { name: '↻ Refresh' }).click();
+  await expect(rows.nth(0).locator('.condition-chip')).toHaveText(['Exhaustion 2', 'Poisoned']);
   await expect(rows.nth(0).locator('.hp-text')).toHaveText('5/20 +3');
   await expect(rows.nth(0).locator('.hp-fill')).toHaveClass('hp-fill low');
   await expect(rows.nth(0).locator('.hp-fill')).toHaveAttribute('style', 'width: 25%;');

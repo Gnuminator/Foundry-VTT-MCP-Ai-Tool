@@ -18,7 +18,7 @@ TOOL_ETC=/etc/foundry-ai-tool
 TOOL_DATA=/var/lib/foundry-ai-tool
 
 # A write that fails (the SSH connection dropped, stdout is gone) never stops a stage halfway; with STAGE_LOG set
-# (stage 14) every line also goes to that file.
+# (stages 11, 14 and 19) every line also goes to that file.
 STAGE_LOG=""
 out() { # $1 the line, $2 1 for stderr
   if [ "${2:-}" = 1 ]; then printf '%s\n' "$1" >&2 2>/dev/null || true; else printf '%s\n' "$1" 2>/dev/null || true; fi

@@ -579,6 +579,36 @@ test('rollupProblems: a newer run of the same check outvotes an old failure on t
   );
 });
 
+test('latestChecks: unknown start times (Go zero time) rank by status, ties keep the worse', () => {
+  const base = { workflowName: 'CI', name: 'build-test (Node 22)' };
+  const ZERO = '0001-01-01T00:00:00Z';
+  const DAY = '2026-10-31T09:00:00Z';
+  const failed = {
+    ...base,
+    status: 'COMPLETED',
+    conclusion: 'FAILURE',
+    startedAt: '2026-10-31T07:56:17Z',
+  };
+  const passed = { ...failed, conclusion: 'SUCCESS' };
+  const queued = { ...base, status: 'QUEUED', conclusion: '', startedAt: ZERO };
+  const q = ['build-test (Node 22) (QUEUED)'];
+  const f = ['build-test (Node 22) (FAILURE)'];
+  // queued with the zero time is the newest, whatever the array order
+  assert.deepEqual(rollupProblems([failed, queued]), { failing: [], pending: q, missing: [] });
+  assert.deepEqual(rollupProblems([queued, failed]).pending, q);
+  assert.deepEqual(rollupProblems([passed, queued]).pending, q);
+  assert.deepEqual(rollupProblems([queued, passed]).pending, q);
+  // equal start times keep the worse entry, in either order
+  assert.deepEqual(rollupProblems([passed, failed]).failing, f);
+  assert.deepEqual(rollupProblems([failed, passed]).failing, f);
+  // a COMPLETED entry with the zero time is the oldest: a dated run replaces it
+  const zeroFailed = { ...failed, startedAt: ZERO };
+  assert.deepEqual(rollupProblems([zeroFailed, { ...passed, startedAt: DAY }]).failing, []);
+  assert.deepEqual(rollupProblems([{ ...passed, startedAt: DAY }, zeroFailed]).failing, []);
+  // two finished entries, both without a time: the failure stays
+  assert.deepEqual(rollupProblems([{ ...passed, startedAt: ZERO }, zeroFailed]).failing, f);
+});
+
 test('requiredContexts: reads the ruleset answer, nothing else counts', () => {
   assert.deepEqual(requiredContexts(JSON.stringify(RULES)), ['build-test']);
   assert.equal(requiredContexts('not json'), null);
@@ -1481,6 +1511,15 @@ test('waitForCi: a failing check ends the wait at once, naming it, while others 
   assert.equal(r.result.code, 3);
   assert.match(r.result.reason, /CI failed on 3d24f70: lint \(FAILURE\)/);
   assert.equal(r.polls, 2, 'no further poll after the failure');
+});
+
+test('waitForCi: an old failure with a newer queued rerun keeps waiting', () => {
+  const old = { ...cr('build-test', 'COMPLETED', 'FAILURE'), startedAt: '2026-10-31T07:56:17Z' };
+  const queued = { ...cr('build-test', 'QUEUED', ''), startedAt: '0001-01-01T00:00:00Z' };
+  const done = { ...cr('build-test', 'COMPLETED', 'SUCCESS'), startedAt: '2026-10-31T09:24:42Z' };
+  const r = waitRun([{ statusCheckRollup: [old, queued] }, { statusCheckRollup: [old, done] }]);
+  assert.equal(r.result.ok, true);
+  assert.equal(r.polls, 2, 'did not stop at the old failure');
 });
 
 test('waitForCi: a failing commit status is named too', () => {

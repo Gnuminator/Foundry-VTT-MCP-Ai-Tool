@@ -468,19 +468,41 @@ export function requiredContexts(json) {
  * The newest entry of each check in a rollup. A PR closed and reopened (or a workflow run again on
  * a fresh merge ref) gets a second run on the same head, and GitHub keeps both in the rollup: an old
  * failure must not outvote the newer run. Check runs are keyed by workflow and name, commit statuses
- * by context; the later `startedAt` wins, and one not started yet (queued) counts as the newest.
+ * by context, so a matrix job's `name:` must include its matrix variables or its legs hide each
+ * other. The later `startedAt` wins. A start time that is missing, not a number or at or below 0 (gh
+ * writes a missing time as Go's zero time `0001-01-01T00:00:00Z`) is unknown: an unfinished entry with
+ * an unknown time (queued) counts as the newest, a finished one as the oldest. On equal or unknown
+ * times the worse entry stays (failing over pending over success).
  * @param {any[]} rollup @returns {any[]}
  */
 export function latestChecks(rollup) {
   const byKey = new Map();
-  const started = c => (c.startedAt ? Date.parse(c.startedAt) || 0 : Infinity);
+  const isStatusEntry = c => c.state !== undefined && c.status === undefined;
+  const unfinished = c =>
+    isStatusEntry(c)
+      ? ['PENDING', 'EXPECTED'].includes(String(c.state).toUpperCase())
+      : String(c.status ?? '').toUpperCase() !== 'COMPLETED';
+  const started = c => {
+    const t = c.startedAt ? Date.parse(c.startedAt) : NaN;
+    if (Number.isFinite(t) && t > 0) return t;
+    return unfinished(c) ? Infinity : 0;
+  };
+  const badness = c => {
+    if (unfinished(c)) return 1;
+    const v = String(isStatusEntry(c) ? c.state : c.conclusion).toUpperCase();
+    return ['SUCCESS', 'SKIPPED', 'NEUTRAL'].includes(v) ? 0 : 2;
+  };
   for (const c of rollup) {
-    const isStatus = c.state !== undefined && c.status === undefined;
-    const key = isStatus
+    const key = isStatusEntry(c)
       ? `status\u0000${c.context ?? c.name}`
       : `run\u0000${c.workflowName ?? ''}\u0000${c.name ?? c.context}`;
     const seen = byKey.get(key);
-    if (!seen || started(c) >= started(seen)) byKey.set(key, c);
+    if (!seen) {
+      byKey.set(key, c);
+      continue;
+    }
+    const [tc, ts] = [started(c), started(seen)];
+    if (tc > ts || (tc === ts && badness(c) >= badness(seen))) byKey.set(key, c);
   }
   return [...byKey.values()];
 }

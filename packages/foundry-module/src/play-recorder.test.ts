@@ -803,8 +803,52 @@ describe('scene token snapshots', () => {
     Hooks.callAll('createChatMessage', roll('w1', { whisper: ['gm'], blind: true }), {}, 'u1');
     Hooks.callAll('createChatMessage', roll('o1', { whisper: [], blind: false }), {}, 'u1');
     const [whispered, open] = recorder.getPlayRecords({}).records.filter(r => r.kind === 'roll');
-    expect(whispered?.data).toEqual({ whisper: true, blind: true });
-    expect(open?.data).toBeUndefined();
+    expect(whispered?.data).toEqual({ whisper: true, blind: true, visibility: 'blind' });
+    expect(open?.data).toEqual({ visibility: 'public' });
+  });
+
+  it('records each roll visibility: public, gm, blind and self', () => {
+    world.actors.add(makeFixtureActor());
+    const roll = (id: string, extra: Record<string, unknown>): Record<string, unknown> => ({
+      id,
+      type: 'check',
+      speaker: { actor: 'a1' },
+      rolls: [d20Roll({ total: 12 })],
+      flags: {},
+      author: 'u1',
+      _stats: { modifiedTime: 1000 },
+      ...extra,
+    });
+    Hooks.callAll('createChatMessage', roll('v1', {}), {}, 'u1');
+    Hooks.callAll('createChatMessage', roll('v2', { whisper: ['gm1'] }), {}, 'u1');
+    Hooks.callAll('createChatMessage', roll('v3', { whisper: ['gm1'], blind: true }), {}, 'u1');
+    Hooks.callAll('createChatMessage', roll('v4', { whisper: ['u1'] }), {}, 'u1');
+    const visibilities = recorder
+      .getPlayRecords({})
+      .records.filter(r => r.kind === 'roll')
+      .map(r => r.data?.visibility);
+    expect(visibilities).toEqual(['public', 'gm', 'blind', 'self']);
+  });
+
+  it('reads the author from a User document, as live Foundry gives it', () => {
+    world.actors.add(makeFixtureActor());
+    const roll = (id: string, extra: Record<string, unknown>): Record<string, unknown> => ({
+      id,
+      type: 'check',
+      speaker: { actor: 'a1' },
+      rolls: [d20Roll({ total: 12 })],
+      flags: {},
+      author: { id: 'u1', name: 'Alice' },
+      _stats: { modifiedTime: 1000 },
+      ...extra,
+    });
+    Hooks.callAll('createChatMessage', roll('d1', { whisper: ['u1'] }), {}, 'u1');
+    Hooks.callAll('createChatMessage', roll('d2', { whisper: ['gm1'] }), {}, 'u1');
+    const visibilities = recorder
+      .getPlayRecords({})
+      .records.filter(r => r.kind === 'roll')
+      .map(r => r.data?.visibility);
+    expect(visibilities).toEqual(['self', 'gm']);
   });
 });
 
@@ -1075,7 +1119,7 @@ describe('item usage, rest and plain chat', () => {
     const [record] = recorder.getPlayRecords({}).records;
     expect(record.kind).toBe('item-use');
     expect(record.item).toEqual({ uuid: 'Item.fireball', name: 'Fireball', type: 'spell' });
-    expect(record.data).toEqual({ spellLevel: 5 });
+    expect(record.data).toEqual({ spellLevel: 5, visibility: 'public' });
     expect(record.key).toBe(playRecordKeys.itemUse('u1'));
   });
 

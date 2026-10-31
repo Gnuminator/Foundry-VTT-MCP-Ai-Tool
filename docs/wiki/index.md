@@ -11,7 +11,7 @@ logged and can be undone.
 
 ## Are you the GM?
 
-New to running Foundry? Start with [your first hour as GM](../gm/first-hour.md): Foundry's own
+New to running Foundry? Read [First 15 minutes](../gm/first-15-minutes.md) first, then [your first hour as GM](../gm/first-hour.md): Foundry's own
 guides for the basics, in a set order, and our pages for the tool.
 
 After that, the [GM guides](../gm/README.md) cover the dashboard, asking Claude, the checklists for

@@ -88,7 +88,7 @@ Last full pass: 2026-09-28, all green (see CLAUDE.md). For each item record evid
 2. Query lockdown: join as `Player` in a second tab on `http://127.0.0.1:30001` (separate cookies;
    open it with `tabs_create` + `navigate`, not `preview_start`). In its console,
    `await game.users.activeGM.query('foundry-mcp-bridge.getWorldInfo', {})` fails "not
-   registered"; `foundry-mcp-bridge.gm.tarokkaReading` fails "helper queries are GM-only".
+   registered"; `foundry-mcp-bridge.gm.openDocument` fails "helper queries are GM-only".
 3. Guarded write: `plan-tarokka-import {"source":"builtin-roll"}`, `get-planned-change`, apply
    (refused without confirm; flags in `args` do not count), `list-recent-changes`, `undo-change`
    (destructive class). After undoing the first import, `get-tarokka-reading` says no reading.

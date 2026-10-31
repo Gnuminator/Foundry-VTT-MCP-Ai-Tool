@@ -148,7 +148,8 @@ Foundry's "Disable Canvas", does not have). It is a first slice: no clicking, no
    where the canvas exists, so that report is the baseline to compare with.
 
 4. **A player builds a character (standard array).** While the kit session is up, a headless browser
-   can join as `Kit Player` and make a level 1 character in Actor Studio, the way a player at the
+   can join as `Kit Player` and make a level 1 character in Actor Studio (the table's players then
+   level it up to 3 by hand; the kit does not), the way a player at the
    table does, with the standard array arranged by the row arrows (the kit's own player flow types
    scores into manual-input fields, which a standard-array-only table setup turns off). The kit's
    sheet checks (`judgeSheet`) judge the result:
@@ -395,7 +396,7 @@ table are real-browser scenarios with their own sizes, named in the table and in
 | `heroes-features-use`       | Every feature of every hero can be used once with no dialog; the hero is put back.                                                                                           |
 | `heroes-features-deep`      | 21 rule checks (uses, dice, slots, AC, rests) against the 2024 SRD class tables.                                                                                             |
 | `heroes-studio`             | A hero per class built in Actor Studio's own windows equals the raw kit hero.                                                                                                |
-| `player-character-creation` | As the kit player in its own browser, a level-1 character per class in Actor Studio; the sheet, scores and proficiencies are checked.                                        |
+| `player-character-creation` | As the kit player in its own browser, a level-1 character per class in Actor Studio (no level-up to 3); the sheet, scores and proficiencies are checked.                     |
 | `monsters-every`            | Every monster of every pack of the profile is copied in, uses one action and is deleted.                                                                                     |
 | `monsters-matrix`           | The monsters by CR band, type, size and trait, the gaps, and the data every creature needs.                                                                                  |
 | `monsters-odd`              | Legendary actions and resistance, lair, regeneration, shapechangers, movement, recharge, multiattack, spells.                                                                |
@@ -450,7 +451,7 @@ reason), and the report links one screenshot per drawer, view, moment and During
 look at (no pixel comparison). A control that depends on data (a boss in the combat, a stored Tarokka reading,
 AI on) is skipped with a note when it is not on the screen, never failed; a console error during a row fails
 it even so (the sweep waits a moment after each row so a late error lands on the row that caused it). The boss is provided: when the kit has its scene and a `legendary` monster, the sweep starts a
-combat of that monster and a hero with Combat buttons on (both put back afterwards), and the six combat strip
+combat of that monster and a hero (put back afterwards), and the six combat strip
 rows (Boss prompts, reaction, select a combatant, the selection's Clear, Condition and Damage) must then pass. Before the rows, one step spends a legendary action on the boss in Foundry itself and waits for the Legendary pips on the page to follow, then to come back. The GM action `spendLegendary` uses the boss's cheapest usable legendary activity with action consumption on; `restoreLegendary` sets the pool back (it does not restore item or activity uses) and deletes the chat card. A
 dashboard API request that answers 400 or more is recorded as `HTTP <status> <method> <path> <tool>:
 <error>` (the tool's name and the server's error, never its arguments) in place of the browser's bare
@@ -512,14 +513,7 @@ changes included, are not candidates). When the world already
 has a Tarokka reading the five Tarokka rows are skipped, and they fail instead when the reading carries the
 sweep's own reveal text (a leftover of an earlier run). The queries-locked row first checks that the GM client
 registers the helper query, then needs the player's refusal to say "not registered" or "GM-only", so a timeout is
-not taken for a lock. The two Tarokka offer dialogs ("Offer this reading to the AI Tool?", answered Yes and
-No) run in every kit world: the kit worlds do not carry the `tarokka-reading` module, so for the length of
-those two rows the sweep makes the GM client see an active 1.x module with a client setting `secret`, sets the
-setting to a new dealt reading (which is what makes the module ask) and removes the stand-in again. When the
-module is active in the world its own setting is used and emptied again; a world whose module already has a
-reading dealt in the browser skips the two rows rather than overwrite it. The stand-ins are removed as soon as
-the two rows are done. Yes must say the reading was offered, No must not say so (the module keeps a Yes offer in
-memory on the active GM clients until the page is reloaded). At the end of the scenario, in the Tarokka cleanup,
+not taken for a lock. At the end of the scenario, in the Tarokka cleanup,
 the journals of the world are compared with the start, and a reveal journal that undo left behind fails that
 cleanup. The Changes window undoes a change that also wrote the AI
 Tool's own data (a reveal does) with the plain `undo-change`, not a planned undo; the reveal rows fail if the window refuses it.

@@ -7,6 +7,7 @@ import { useEffect, useRef, useState, type JSX, type RefObject } from 'react';
 
 import { Drawer, DrawerClose } from '../components/Drawer';
 import { api, errorText } from '../lib/api';
+import { PREFLIGHT_QUIET_DELAY_MS, runQuietPreflight } from '../lib/preflightQuiet';
 import { useBridgeStatus } from '../lib/stream';
 import { usage } from '../lib/usage';
 import { Button, EmptyState, ErrorState } from '../ui';
@@ -115,16 +116,24 @@ export function usePreflightOnReconnect(): void {
   const queryClient = useQueryClient();
   const foundry = useBridgeStatus()?.foundry;
   const wasReachable = useRef(false);
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   useEffect(() => {
     const reachable = foundry === 'reachable';
     if (reachable && !wasReachable.current) {
-      // A quiet run: a failure leaves the last result as it was.
-      queryClient
-        .fetchQuery({ queryKey: PREFLIGHT_KEY, queryFn: fetchPreflight, staleTime: 0 })
-        .catch(() => undefined);
+      // A quiet run: a failure leaves the last result as it was. It waits a moment so the
+      // panels' own first reads (the visible part of the page) get the bridge first.
+      clearTimeout(timer.current);
+      timer.current = setTimeout(
+        () => runQuietPreflight(queryClient, PREFLIGHT_KEY, fetchPreflight),
+        PREFLIGHT_QUIET_DELAY_MS
+      );
+    } else if (!reachable) {
+      clearTimeout(timer.current);
     }
     wasReachable.current = reachable;
   }, [foundry, queryClient]);
+  // Only on unmount (a dev double mount must not drop a timer the effect above just set).
+  useEffect(() => (): void => clearTimeout(timer.current), []);
 }
 
 /** The header button: it shows the last run's verdict. */

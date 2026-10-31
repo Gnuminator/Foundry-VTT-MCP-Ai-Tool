@@ -237,6 +237,22 @@
         border-color: var(--amber);
         color: var(--amber);
       }
+      .roll-banner {
+        padding: 12px 14px;
+        border-radius: 8px;
+        border: 2px solid var(--pc);
+        background: var(--panel-2);
+        color: var(--text);
+      }
+      .roll-banner strong {
+        color: var(--pc);
+      }
+      .roll-banner .roll-hint {
+        display: block;
+        margin-top: 4px;
+        color: var(--muted);
+        font-weight: 400;
+      }
       .mine-alert {
         padding: 8px 10px;
         margin-bottom: 8px;
@@ -360,6 +376,14 @@
     </header>
 
     <div class="wrap" id="wrap" data-phase="live">
+      <section
+        class="roll-banner"
+        id="roll-banner"
+        role="status"
+        aria-live="polite"
+        hidden
+        style="grid-column: 1 / -1"
+      ></section>
       <section class="card" id="who-picker" hidden style="grid-column: 1 / -1">
         <h2>Who are you?</h2>
         <div id="who-list" class="body"></div>

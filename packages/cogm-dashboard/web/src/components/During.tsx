@@ -20,6 +20,8 @@ import {
   type DuringScreen,
   type Trial,
 } from '../lib/duringTrial';
+import { useLivePlay } from '../lib/livePlay';
+import { offReason } from '../lib/liveSwitches';
 import { useSavePrefs, usePrefs } from '../lib/prefs';
 import {
   hintSessionKey,
@@ -28,15 +30,16 @@ import {
   type DuringPrefs,
 } from '../lib/prefsModel';
 import { usePlaySession } from '../lib/session';
-import { useCombatActive, useDashboardSettings } from '../lib/stream';
+import { useCombatActive } from '../lib/stream';
 import { usage } from '../lib/usage';
-import { Button, IconButton, Tooltip } from '../ui';
+import { Button, DelayedLoading, IconButton, Tooltip } from '../ui';
 
 import { AdvancedItem, AdvancedLabel } from './AdvancedMenu';
 import { useDuringFolds, type DuringFolds } from './Folds';
 import { useHelp } from './HelpButton';
 import type { Moment } from './Moments';
 import { useToast } from './Toasts';
+import { TurnOnNote } from './TurnOnNote';
 
 // The picker is a lazy chunk (bundle budget): it loads when the bar's Start combat is clicked.
 const StartCombat = lazy(() => import('./StartCombat').then(m => ({ default: m.StartCombat })));
@@ -68,7 +71,6 @@ export interface DuringActions {
   nextStep: () => void;
   useStep: () => void;
   stopTrial: () => void;
-  toggleCombatButtons: () => void;
   /** The version tracker switch (I-127); lives here because this controller owns the prefs. */
   toggleVersionTracker: () => void;
 }
@@ -96,7 +98,6 @@ export function useDuringLayout(moment: Moment | null, pinDuring: () => void): D
   const prefs = usePrefs();
   const combatActive = useCombatActive();
   const { session } = usePlaySession();
-  const settings = useDashboardSettings();
   const save = useSavePrefs(toast);
   const [trial, setTrial] = useState<Trial | null>(null);
 
@@ -174,18 +175,6 @@ export function useDuringLayout(moment: Moment | null, pinDuring: () => void): D
       });
     },
     stopTrial: () => setTrial(null),
-    toggleCombatButtons: () => {
-      const on = prefs?.combatButtons !== true;
-      void save({ combatButtons: on }).then(saved => {
-        if (!saved || !on) return;
-        toast(
-          settings?.gmActionsEnabled
-            ? '✓ Combat buttons on: click combatants in the turn-order strip to pick them.'
-            : '✓ Combat buttons on. They show in the turn-order strip once GM Actions are on.',
-          'ok'
-        );
-      });
-    },
     toggleVersionTracker: () => {
       void save({ versionTracker: prefs?.versionTracker !== true });
     },
@@ -235,14 +224,13 @@ function LayoutButton({
 export function DuringBar({ during }: { during: DuringController }): JSX.Element {
   const openHelp = useHelp();
   const { screen, hintVisible, prefs, trial, actions } = during;
-  const settings = useDashboardSettings();
+  const live = useLivePlay();
+  const liveOff = live.off();
   const [picking, setPicking] = useState(false);
   // The strip has its own Start combat in the Full view; everywhere else with no fight, it is here.
-  const startHere =
-    settings?.gmActionsEnabled === true &&
-    trial === null &&
-    screen.context === 'calm' &&
-    screen.view !== 'full';
+  // With live play off the button stays, disabled, with the reason and a Turn on.
+  const barHere = trial === null && screen.context === 'calm' && screen.view !== 'full';
+  const startHere = barHere && liveOff.length === 0;
   const pickerRow = useRef<HTMLDivElement>(null);
   const giveFocusBack = useRef(false);
   // The picker belongs to the button: when the button goes away (a fight began, Full, GM Actions
@@ -307,7 +295,6 @@ export function DuringBar({ during }: { during: DuringController }): JSX.Element
         </LayoutButton>
       </div>
       <Button
-        variant="quiet"
         id="btn-layout-tour-bar"
         data-track="dash.during.layout-tour"
         hidden={trial !== null}
@@ -333,7 +320,6 @@ export function DuringBar({ during }: { during: DuringController }): JSX.Element
         </button>
       </Tooltip>
       <Button
-        variant="quiet"
         id="btn-during-full"
         data-track="dash.during.full-toggle"
         hidden={screen.layout !== 'toggle'}
@@ -350,9 +336,17 @@ export function DuringBar({ during }: { during: DuringController }): JSX.Element
       >
         {autoNote(screen.context)}
       </span>
+      {barHere && liveOff.length > 0 && (
+        <>
+          <Button id="btn-during-start-combat" aria-disabled="true" title={offReason(liveOff)}>
+            Start combat
+          </Button>
+          <TurnOnNote live={live} off={liveOff} />
+        </>
+      )}
       {startHere && !picking && (
         <Button
-          variant="quiet"
+          variant="primary"
           id="btn-during-start-combat"
           data-track="dash.during.start-combat"
           onClick={() => setPicking(true)}
@@ -362,7 +356,7 @@ export function DuringBar({ during }: { during: DuringController }): JSX.Element
       )}
       {startHere && picking && (
         <div className="during-start" ref={pickerRow}>
-          <Suspense fallback={null}>
+          <Suspense fallback={<DelayedLoading as="div" />}>
             <StartCombat
               onDismiss={() => {
                 giveFocusBack.current = true;
@@ -513,37 +507,13 @@ export function LayoutTourGuide({ during }: { during: DuringController }): JSX.E
   );
 }
 
-/** The "During screen" group of the Advanced menu: Combat buttons, and the layout trial. */
+/** The "During screen" group of the Advanced menu: the layout trial. */
 export function DuringMenuItems({ during }: { during: DuringController }): JSX.Element {
   const { prefs, actions } = during;
-  const on = prefs?.combatButtons === true;
   return (
     <>
       <AdvancedLabel>During screen</AdvancedLabel>
       <NotReadyNote id={NOT_READY_MENU_ID} show={!prefs} />
-      <AdvancedItem
-        disabled={!prefs}
-        onSelect={() => {
-          actions.toggleCombatButtons();
-          // Nothing opens, so the focus goes back to the Advanced button.
-          return false;
-        }}
-      >
-        <Button
-          id="btn-combat-buttons"
-          className={on ? 'on' : undefined}
-          data-track="dash.header.combat-buttons"
-          disabled={!prefs}
-          {...(prefs ? {} : { 'aria-describedby': NOT_READY_MENU_ID })}
-          title={
-            prefs
-              ? "Damage / Heal, Condition and Clear on selected combatants in the turn-order strip. Off by default: dnd5e's chat cards already apply damage."
-              : NOT_READY_TIP
-          }
-        >
-          {`⚔ Combat buttons: ${on ? 'on' : 'off'}`}
-        </Button>
-      </AdvancedItem>
       <AdvancedItem onSelect={() => actions.startTrial()}>
         <Button
           id="btn-layout-tour"

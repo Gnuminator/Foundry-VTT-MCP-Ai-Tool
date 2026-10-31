@@ -14,13 +14,14 @@ They are **only for you**. Players never see them, and nothing is sent to player
 
 ![The five GM windows open next to the map](../images/guides/gm-windows-overview.png)
 
-## Turn them on
+## Turn them on or off
 
-The windows are off until you switch them on, so a new world never shows buttons you did not ask for.
+The windows are on by default in a new world. A world where the module settings were ever saved
+may still have the switch off, and you can turn it off yourself if you do not want the buttons.
 
 1. Click the gear icon in the sidebar (the **Settings** tab), then **Game Settings**.
 2. Pick the category **Foundry AI Tool**.
-3. Tick **AI Tool: GM windows** and press **Save Changes**.
+3. Tick **AI Tool: GM windows** (or untick it to hide the buttons) and press **Save Changes**.
 
 ![The GM windows switch in Game Settings](../images/guides/gm-windows-setting.png)
 
@@ -50,6 +51,12 @@ The creature whose turn it is has an orange frame.
 The **Previous turn** and **Next turn** buttons do exactly what the arrows in Foundry's combat
 tracker do. They show only once the combat has started. With no combat running, the window says so.
 
+When you ask Claude (or the dashboard's combat strip) to advance the turn or set initiative right
+after an AI damage change, wait a second or two first. Foundry can add Unconscious a moment after
+the hit points drop, and a turn change in that gap makes the late condition count as a separate
+change, so undoing the damage leaves Unconscious on the character. The Next turn button in this
+window is not affected.
+
 When to use it: when the table is waiting on you, so the order and who is bloodied are one glance away.
 
 ## Party
@@ -59,6 +66,18 @@ When to use it: when the table is waiting on you, so the order and who is bloodi
 One card per player character: hit points, armor class (AC), passive Perception (PP), level, current
 conditions and the spell slots left. It only lists characters that a player owns, so a monster or an
 unowned test character never shows up. It updates by itself when hit points or conditions change.
+
+**Asking for rolls.** A bar above the cards picks the roll (an ability check, a saving throw or a
+skill), an optional DC, advantage and Public. **Ask** on a card sends that one character the request;
+the button under the bar (**Group save** for a saving throw, **Ask everyone** otherwise) sends it to
+every character in the list. Players click the roll card in the chat as usual. The results list under
+the bar fills in as the rolls come, per character, with "passes" or "fails" when you gave a DC. Only
+the roll you asked for counts: a different save, a skill or an attack by the same character does not
+fill the row. A bare typed dice roll by that character, such as `/r 1d20`, does fill it, so tell the
+players to click the card. The requests are logged like any other roll request, so the recap and stats
+see them.
+
+The buttons are grey, with the reason, while "Allow Write Operations" is off.
 
 When to use it: when you plan a fight or an ambush and want to know what the party can take, and when
 somebody asks "what is my passive Perception again".
@@ -108,7 +127,7 @@ When to use it: after a fight or a treasure room, to see what the party has now 
 
 ## If something looks wrong
 
-- **No AI Tool group at all:** the switch is off, or you are not logged in as the GM. Players never
+- **No AI Tool group at all:** the switch is off (see Turn them on or off above), or you are not logged in as the GM. Players never
   get the group.
 - **A message at the bottom says the GM windows are off:** the switch is off. Turn it on again in
   the settings.

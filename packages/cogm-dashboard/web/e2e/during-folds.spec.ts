@@ -71,7 +71,6 @@ async function setup(page: Page, layout: Layout = 'layered', full = false): Prom
     data: {
       duringLayout: layout,
       duringFull: full,
-      combatButtons: false,
       layoutPicked: true,
       hintDismissed: true,
       hintSessions: [],
@@ -286,7 +285,6 @@ test.describe('the defaults', () => {
         json: {
           duringLayout: 'toggle',
           duringFull: false,
-          combatButtons: false,
           layoutPicked: true,
           hintDismissed: true,
           hintSessions: [],
@@ -525,7 +523,6 @@ test.describe('the folds are kept', () => {
         json: {
           duringLayout: layout,
           duringFull: false,
-          combatButtons: false,
           layoutPicked: true,
           hintDismissed: true,
           hintSessions: [],

@@ -21,7 +21,14 @@
 import type { ChangeWriteMode } from '../change-journal-types.js';
 import { MODULE_ID } from '../constants.js';
 import { eventTracker } from '../session-events.js';
-import { isFeatureEnabled, isKnownFeature, isReadOnlyFeature } from '../guarded-features.js';
+import {
+  WRITES_OFF_MESSAGE,
+  featureName,
+  featureOffMessage,
+  isFeatureEnabled,
+  isKnownFeature,
+  isReadOnlyFeature,
+} from '../guarded-features.js';
 import { assertUserCreateAllowed, assertUserUpdateAllowed } from '../table-viewer-user.js';
 import { unsetKeyUpdate } from '../systems/core.js';
 import {
@@ -43,6 +50,10 @@ export interface GuardedUpdateOp {
   uuid: string;
   changes: Record<string, unknown>;
   unset?: string[];
+  /** A damage plan's dnd5e damage type; carried in the write's marker, never written. */
+  damageType?: string;
+  /** A damage or healing plan op (the apply marks the write so the feed can fold its row). */
+  hpLine?: boolean;
 }
 
 /** Create a document: top-level (`documentName` only) or embedded (`parentUuid`). */
@@ -427,7 +438,7 @@ function requireWriteAccess(req: GuardedApplyRequest): void {
   } catch {
     writesAllowed = false;
   }
-  if (!writesAllowed) throw new Error('Write operations are disabled in the module settings');
+  if (!writesAllowed) throw new Error(WRITES_OFF_MESSAGE);
   // Foundry refuses sound changes until the browser has unlocked audio (a click); a reload locks
   // it again, so an apply or undo of music would fail half way.
   const audio = (game as unknown as { audio?: { locked?: boolean } }).audio;
@@ -449,7 +460,7 @@ function requireWriteAccess(req: GuardedApplyRequest): void {
       throw new Error(`The "${req.feature}" feature is read-only and takes no plans`);
     }
     if (!isFeatureEnabled(req.feature)) {
-      throw new Error(`The "${req.feature}" feature is switched off in the module settings`);
+      throw new Error(featureOffMessage(featureName(req.feature)));
     }
   }
 }
@@ -532,7 +543,15 @@ async function executeUpdate(
     if (ownershipKeyOf(path) === null) Object.assign(update, unsetKeyUpdate(path));
   }
   if (Object.keys(update).length > 0) {
-    await doc.update(update, writeOptions(doc, update, req, changeMode));
+    const options = writeOptions(doc, update, req, changeMode);
+    // Only a damage apply: an undo restores HP and is no damage.
+    if (op.damageType && req.mode === 'apply') {
+      (options[MODULE_ID] as Record<string, unknown>).damageType = op.damageType;
+    }
+    if (op.hpLine && req.mode === 'apply') {
+      (options[MODULE_ID] as Record<string, unknown>).hpLine = true;
+    }
+    await doc.update(update, options);
   }
   await removeOwnershipKeys(doc, ownershipKeys, writeMarker(req, changeMode));
   const afterSource = sourceOf(doc);

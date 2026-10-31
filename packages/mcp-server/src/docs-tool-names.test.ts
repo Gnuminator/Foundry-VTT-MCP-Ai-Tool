@@ -21,15 +21,17 @@ const ROOT = fileURLToPath(new URL('../../../', import.meta.url));
 /** Backticked names that are not tools, prompts or entries, each with where it comes from. */
 const OTHER_NAMES: Readonly<Record<string, string>> = {
   'foundry-mcp-bridge': 'the Foundry module id',
-  'tarokka-reading': 'the Foundry module the Tarokka import reads',
   'gm-change': 'a dashboard feed line type',
   'host-not-allowed': 'a dashboard error code',
-  'obsidian-mirror': 'a guarded-write feature id',
-  'live-play': 'a guarded-write feature id',
   'foundry-gm-token': 'an example Obsidian secret ID (docs/gm/obsidian.md)',
   'quest-prep': 'an Obsidian note type value (docs/gm/obsidian.md)',
+  'encounter-prep': 'an Obsidian note type value (docs/gm/obsidian.md)',
   'cf-access-client-id': 'an example Obsidian secret ID (docs/gm/obsidian.md)',
   'cf-access-client-secret': 'an example Obsidian secret ID (docs/gm/obsidian.md)',
+  'swords-7': 'an example Tarokka card id (docs/gm/cookbook.md)',
+  'glyphs-master': 'an example Tarokka card id (docs/gm/cookbook.md)',
+  'coins-1': 'an example Tarokka card id (docs/gm/cookbook.md)',
+  'broken-one': 'an example Tarokka card id (docs/gm/cookbook.md)',
 };
 
 function markdownFiles(dir: string): string[] {

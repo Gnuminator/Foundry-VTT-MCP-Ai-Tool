@@ -20,6 +20,16 @@ decision), then ends. It does not sit and wait for lanes. Vault paths below are 
 - `list_sessions` without `linked` (lanes start their own successors; they only show in the full
   list), then `get_usage` with each running lane's id (lanes underreport their context).
   `get_usage "self"` for your own context and the plan percentages.
+- **Again on every wake, not only at start (2026-10-30):** each lane note, gate exit or user
+  message, re-read the `- claimed:` and `- progress:` lines of every claimed item, including lanes
+  inherited from an earlier planner (detached lanes send you no turn-end notes). A lane that
+  stopped with a handover and no running successor gets one the same turn (Sonnet, brief points at
+  its `Handoff/<lane> prompt <date>.md`; a card if the turn cannot start sessions; never message
+  the stopped lane). In the same pass rename it "CLOSED (handed over <date>) <title>" and archive
+  it under Session cleanup's conditions (not running, worktree clean and pushed, no process from
+  it, no other lane on that branch). Archive before the successor checks out the lane's branch:
+  git refuses a branch that another worktree holds (if the archive leaves the folder, run
+  `git checkout --detach` there once it is clean).
 
 ## "What's next"
 
@@ -55,6 +65,9 @@ keep each item's lines together when you move it.
 
 - Title this session "Planner" when it starts (`set_session_title`, if the user has not), so lanes
   can find the newest one.
+- Turn Remote Control on for this session when it starts (`set_remote_control` "self" true): the
+  app default is off (the user, 2026-10-30), so lanes do not hold archives or idle notices, but the
+  planner stays reachable from the phone.
 - Write `Usage now.md` at each planner start and before each lane start (see Weekly check), so
   the board's usage card is fresh when the lane begins.
 - At most 3 lanes, each owning its own files, one per test server. Respect every hold in CLAUDE.md.
@@ -155,8 +168,9 @@ days before it). While weekly usage is on or above pace, write
 hook's low mode); delete it (or rename it `.off`) once usage is under pace. Check at each planner
 start and lane start.
 Also read the report's `Advisor calls (main sessions)` line (the `advisor-calls` number in the
-note): lanes should make two a PR (lane skill, Work); near zero two weeks running means the rule is
-not followed.
+note) and the per-PR figure printed next to it: lanes make one a PR (the user, 2026-10-29; lane
+skill, Work). Well under one a PR two weeks running means the rule is not followed (a lane's
+`- progress:` line should say `advisor: 1`); well over means lanes call it more than asked.
 **Weekly check note (the board's Week page):** at each weekly check run `npm run usage:week --
 --write-vault` (add `--days 7`; the window ends today, so run it on the Saturday after the 07:00
 reset) and commit and push vault `Dev/Foundry AI Tool/Weekly check.md`. It adds one `## <first day>`

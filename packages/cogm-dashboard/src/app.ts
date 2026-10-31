@@ -26,12 +26,14 @@ import {
   presentedUnverifiedAccess,
   type AuthRequest,
 } from './auth.js';
+import { CACHED_READ_TOOLS, createReadCache } from './read-cache.js';
 import { classifyTool, toolArgs, type ToolKind } from './tool-policy.js';
 import { jsonErrorHandler } from './error-handler.js';
 import { gmOnly } from './redact.js';
 import { hostAllowlist } from './host-allowlist.js';
 import { mountOpenRoute, OPEN_PAGE_HEADERS, type OpenRouteOptions } from './open-route.js';
 import { buildPlayerState } from './player/projection.js';
+import { buildRollRows, openRolls } from './roll-status.js';
 import { runDashboardPreflight } from './preflight.js';
 import {
   isSessionSwitchAction,
@@ -40,7 +42,7 @@ import {
   type SessionSwitches,
 } from './session-switches.js';
 import { PlayerViewSource } from './player/source.js';
-import { gzipAssets } from './gzip-assets.js';
+import { gzipAssets, sendJsonGzip } from './gzip-assets.js';
 import { staticHeaders, type StaticHeaderGroup } from './static-headers.js';
 import { PlayerDirectory, mountUsageRoute } from './usage-route.js';
 import { mountHandoutSeenRoute } from './handout-seen-route.js';
@@ -122,6 +124,8 @@ export interface DashboardDeps {
 export interface Dashboard {
   app: Express;
   handlers: GameFeedHandlers;
+  /** The feed's way to read events at once; server.ts sets it once the feed exists. */
+  onFeed(feed: { pollNow: () => void }): void;
   /** Start background work (player view polling). */
   start(): void;
   /** Stop background work and end every stream. */
@@ -234,6 +238,9 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
 
   const state = new GameState(config.maxEvents, config.maxErrors);
   const sse = new SseHub(logger);
+  // A few seconds of memory for the slow page-load reads; a non-read tool call or a new game
+  // event empties it.
+  const readCache = createReadCache();
   const playerHub = new SseHub(logger.child('player'));
 
   const commentary = new CommentaryEngine({
@@ -284,6 +291,8 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
   let playerTimer: NodeJS.Timeout | null = null;
   let lastPlayerStateJson = '';
   let lastHandoutsJson = '';
+  let lastRollsJson = '';
+  let pollEventsNow: () => void = () => undefined;
 
   const playerView = new PlayerViewSource(client, logger.child('player-view'), () =>
     schedulePlayerBroadcast()
@@ -334,11 +343,33 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
       lastPlayerStateJson = json;
       playerHub.broadcast('state', rest);
     }
+    broadcastRolls();
     const handoutsJson = JSON.stringify(handouts);
     if (handoutsJson !== lastHandoutsJson) {
       lastHandoutsJson = handoutsJson;
       playerHub.broadcast('handouts', { handouts });
     }
+  }
+
+  /** Who was asked for a roll and who rolled it: the GM sees all, a player only the open requests. */
+  function currentRolls(): {
+    rows: ReturnType<typeof buildRollRows>;
+    open: ReturnType<typeof openRolls>;
+  } {
+    const rows = buildRollRows(state.recentEvents, id => playerDirectory.get(id) !== null).slice(
+      0,
+      20
+    );
+    return { rows, open: openRolls(rows, Date.now()) };
+  }
+
+  function broadcastRolls(): void {
+    const { rows, open } = currentRolls();
+    const json = JSON.stringify({ rows, open });
+    if (json === lastRollsJson) return;
+    lastRollsJson = json;
+    sse.broadcast('rolls', { rows }, gmOnly);
+    playerHub.broadcast('rolls', { open });
   }
 
   function schedulePlayerBroadcast(): void {
@@ -353,6 +384,7 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
     const { handouts, ...rest } = currentPlayerState();
     playerHub.send(res, 'state', rest);
     playerHub.send(res, 'handouts', { handouts });
+    playerHub.send(res, 'rolls', { open: currentRolls().open });
     // The stream tests wait for this as the last snapshot event of the player stream (SNAPSHOT_END
     // in the two *.app.test.ts files): keep it last, or update both.
     playerHub.send(res, 'theme', themePayload());
@@ -493,6 +525,8 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
       playerVaults?.onEvents(events);
       const added = state.addEvents(events);
       if (added.length === 0) return;
+      // A change made elsewhere (Claude Desktop, Foundry itself) must not read back stale.
+      readCache.clear();
       sse.broadcast('events', { events: added, initial: meta.initial }, gmOnly);
       schedulePlayerBroadcast();
       if (!meta.initial) commentary.notifyEvents(added);
@@ -608,7 +642,9 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
   }
   // A page load is a few requests a minute; this only stops a runaway loop on the file reads.
   // The limiter is the library's so that CodeQL and the next reader recognise it; one bucket per
-  // client address (the dashboard may sit behind a proxy, so the forwarded-for check is off).
+  // peer address. Behind the Cloudflare tunnel that is one bucket for the whole tunnel (cloudflared
+  // connects from this host), which is fine at these sizes. Do not turn on `trust proxy` to "fix"
+  // it: a client could then pick its own bucket with X-Forwarded-For, so the check stays off.
   const pageLimit = rateLimit({
     windowMs: 10_000,
     limit: 1000,
@@ -632,17 +668,16 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
   });
   // The old page stays here until after G1 (D-126). Its files use relative paths (./app.js), so it
   // is a static folder of its own; a request for /legacy redirects to /legacy/ with the query.
-  app.use(
-    '/legacy',
-    express.static(config.publicDir, {
-      setHeaders: staticHeaders(config.publicDir, [OPEN_PAGE_HEADERS, PLAYER_PAGE_HEADERS]),
-    })
-  );
-  app.use(
-    express.static(config.publicDir, {
-      setHeaders: staticHeaders(config.publicDir, [OPEN_PAGE_HEADERS, PLAYER_PAGE_HEADERS]),
-    })
-  );
+  const publicHeaders = staticHeaders(config.publicDir, [OPEN_PAGE_HEADERS, PLAYER_PAGE_HEADERS]);
+  // The old pages' stylesheets (unhashed, 89 KB for styles.css) go out gzipped; the page headers
+  // still come from the same hook, by file, and revalidation works as for express.static.
+  const publicCss = gzipAssets(config.publicDir, {
+    extensions: ['.css'],
+    cacheControl: 'public, max-age=0',
+    setHeaders: publicHeaders,
+  });
+  app.use('/legacy', publicCss, express.static(config.publicDir, { setHeaders: publicHeaders }));
+  app.use(publicCss, express.static(config.publicDir, { setHeaders: publicHeaders }));
 
   // The React dashboard's files: Vite puts a content hash in every file name under assets/, so
   // those are cached for good; index.html is checked on every load so a new build shows up at once.
@@ -650,7 +685,7 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
   // one address, so the assets get their own, much larger bucket than the pages above.
   const assetLimit = rateLimit({
     windowMs: 10_000,
-    limit: 20_000,
+    limit: 5_000,
     standardHeaders: false,
     legacyHeaders: false,
     message: 'Too many requests',
@@ -686,6 +721,7 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
     requireGm,
     worldId: () => world?.id ?? null,
     events: () => state.recentEvents,
+    onRolled: () => pollEventsNow(),
     theme: () => themes.get(world?.id),
     publicDir: config.publicDir,
     pageHeaders: res => PLAYER_PAGE_HEADERS.apply(res),
@@ -748,7 +784,7 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
       // The player role gets exactly what /api/player/state serves, plus whether the token it
       // sent is unknown: then it is a GM's stale link, and the GM page stays (web/src/lib/role.ts).
       // `accessUnverified`: an Access token the dashboard could not verify; the same page stays.
-      res.json({
+      void sendJsonGzip(req, res, {
         role,
         ...(presentedUnknownToken(req, config.auth) ? { unknownToken: true } : {}),
         ...(presentedUnverifiedAccess(req, config.auth) ? { accessUnverified: true } : {}),
@@ -756,7 +792,7 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
       });
       return;
     }
-    res.json({
+    void sendJsonGzip(req, res, {
       role,
       status: currentStatus,
       combat: state.combat,
@@ -764,7 +800,7 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
       errors: state.recentErrors,
       settings: settingsPayload(),
       world,
-      // Null until the world is known, as on the stream (the test kit reads Combat buttons here).
+      // Null until the world is known, as on the stream (the test kit reads the prefs here).
       prefs: world ? prefsPayload() : null,
     });
   });
@@ -791,6 +827,7 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
     if (world) sse.send(res, 'prefs', prefsPayload());
     // Always, null when no fight runs: a page that was disconnected while a fight ended would
     // otherwise keep showing it as live (the broadcast of the end went to nobody).
+    sse.send(res, 'rolls', { rows: currentRolls().rows });
     sse.send(res, 'combat', { combat: state.combat });
     sse.send(res, 'events', { events: state.recentEvents, initial: true });
     // The stream tests wait for this as the last snapshot event of the GM stream (SNAPSHOT_END in
@@ -1183,25 +1220,33 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
       logger.info('GM Action invoked', { tool: name, mutates });
     }
 
-    client
-      // A GM action may run a guarded write, which waits up to about 4 minutes
-      // for Foundry and then for its outcome (PB-04); reads keep the short timeout, except the
-      // long-poll wait (up to 45 s by design).
-      .callTool(
-        name,
-        args,
-        name === 'wait-for-game-event'
-          ? { timeoutMs: WAIT_EVENT_TIMEOUT_MS }
-          : mutates === 'read'
-            ? {}
-            : { timeoutMs: GM_ACTION_TIMEOUT_MS }
-      )
+    // The session marker counts as a change here: the stats and the digest move with it.
+    const changes = mutates !== 'read' || name === 'mark-play-session';
+    if (changes) readCache.clear();
+    const run = (): Promise<unknown> =>
+      client
+        // A GM action may run a guarded write, which waits up to about 4 minutes
+        // for Foundry and then for its outcome (PB-04); reads keep the short timeout, except the
+        // long-poll wait (up to 45 s by design).
+        .callTool(
+          name,
+          args,
+          name === 'wait-for-game-event'
+            ? { timeoutMs: WAIT_EVENT_TIMEOUT_MS }
+            : mutates === 'read'
+              ? {}
+              : { timeoutMs: GM_ACTION_TIMEOUT_MS }
+        );
+    (mutates === 'read' && CACHED_READ_TOOLS.has(name) ? readCache.get(name, args, run) : run())
       .then(result => {
+        if (changes) readCache.clear();
         res.json({ ok: true, name, mutates, result });
         // A reveal or hide may have changed the handouts: refresh the player view.
         if (name === 'apply-planned-change' || name === 'undo-change') void playerView.refresh();
         // Another open dashboard window learns that the session started or ended at once.
         if (name === 'mark-play-session') sse.broadcast('play-session', {}, gmOnly);
+        // A roll request reaches the players now, not at the next 4 second poll.
+        if (name === 'request-player-rolls') pollEventsNow();
       })
       .catch((error: unknown) => {
         const kind =
@@ -1259,6 +1304,10 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
   return {
     app,
     handlers,
+    /** The feed's way to read events at once; set by server.ts after the feed exists. */
+    onFeed(feed: { pollNow: () => void }): void {
+      pollEventsNow = feed.pollNow;
+    },
     start(): void {
       playerView.start(PLAYER_SOURCE_INTERVAL_MS);
       playerVaults?.start();

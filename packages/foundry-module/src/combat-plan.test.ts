@@ -166,6 +166,24 @@ describe('end', () => {
     expect(plan.summary).toBe('End combat (round 1, 1 combatant)');
   });
 
+  it('ends the latest encounter when this browser views none, as the combat strip shows it', async () => {
+    // A fight started on the dashboard belongs to another scene than the one this GM browser views:
+    // game.combat is null there, but game.combats holds it and getCombatState lists it.
+    world.setCombat({ id: 'c7', uuid: 'Combat.c7', round: 1, combatants: [{ id: 'a' }] });
+    (world as any).currentCombat = null;
+    const plan = await planCombatChange({ action: 'end' });
+    expect(plan.ops).toEqual([{ kind: 'delete', uuid: 'Combat.c7' }]);
+    expect(plan.combatId).toBe('c7');
+  });
+
+  it('ends the latest of two encounters on different scenes when this browser views none', async () => {
+    world.setCombat({ id: 'old', uuid: 'Combat.old' });
+    world.setCombat({ id: 'new', uuid: 'Combat.new' });
+    (world as any).currentCombat = null;
+    const plan = await planCombatChange({ action: 'end' });
+    expect(plan.combatId).toBe('new');
+  });
+
   it('picks a named combat over the active one', async () => {
     world.setCombat({ id: 'other', uuid: 'Combat.other' });
     world.setCombat({ id: 'active', uuid: 'Combat.active' });

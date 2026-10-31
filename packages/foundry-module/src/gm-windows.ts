@@ -1,13 +1,16 @@
 /**
  * "GM windows" (I-134): more of the co-GM dashboard as pop-out windows inside Foundry, so a GM
- * who runs from one screen has them next to the map. Ships dark: the world setting
- * {@link GM_WINDOWS_SETTING} is off by default, and with it off the toolbar buttons are not added
+ * who runs from one screen has them next to the map. On by default (W52, 2026-10-29): the world
+ * setting {@link GM_WINDOWS_SETTING} can be turned off, and with it off the toolbar buttons are not added
  * and the windows refuse to open.
  *
  * {@link createPanelWindow} is the shared window shell: a read-only panel that draws one HTML
  * string from Foundry's own data and redraws (debounced) when one of its hooks fires. The panels
- * read documents on this GM client and call no bridge tool, so they work with the bridge off and
- * write nothing; GM only, because the panels show monster hit points and hidden combatants.
+ * read documents on this GM client and mostly call no bridge tool, so they work with the bridge
+ * off; GM only, because the panels show monster hit points and hidden combatants. Two exceptions:
+ * the Session window talks to the bridge (the session marker), and the Party window sends roll
+ * requests through the module's own `requestPlayerRolls` (`party-window.ts`; "Allow Write
+ * Operations" must be on).
  */
 import { MODULE_ID } from './constants.js';
 import { replaceKeepingFocus } from './window-fields.js';
@@ -22,11 +25,11 @@ export const PANEL_REFRESH_DEBOUNCE_MS = 200;
 export function registerGmWindowsSetting(): void {
   game.settings.register(MODULE_ID, GM_WINDOWS_SETTING, {
     name: 'AI Tool: GM windows',
-    hint: 'Adds Combat, Party, Session, Scene and Loot buttons to the AI Tool group in the scene controls (GM only). Each opens a window next to the map: the combat order, the party, the session marker, the scene mood and the coins and loot the party carries. Combat has Previous and Next turn buttons (same as the combat tracker) and Session has Start and End; nothing else here changes the game. Turning this off closes the open windows.',
+    hint: 'Adds Combat, Party, Session, Scene and Loot buttons to the AI Tool group in the scene controls (GM only). Each opens a window next to the map: the combat order, the party, the session marker, the scene mood and the coins and loot the party carries. Combat has Previous and Next turn buttons (same as the combat tracker), Party has roll request buttons (one character or everyone, with a group save; they post the same roll cards as the AI tool) and Session has Start and End; nothing else here changes the game. Turning this off closes the open windows.',
     scope: 'world',
     config: true,
     type: Boolean,
-    default: false,
+    default: true,
     // The buttons are added when the scene controls are built: build them again.
     onChange: () => {
       if (!gmWindowsEnabled()) closeGmWindows();
@@ -83,6 +86,8 @@ export interface PanelSpec {
   render(): string;
   /** `data-action` handlers: `target` is the clicked element. */
   actions?: Record<string, (target: HTMLElement) => void | Promise<void>>;
+  /** Called with the content element before each draw (bind input listeners here; once per element is the binder's job). */
+  bindContent?: (content: HTMLElement) => void;
   /** Called each time the window is opened (or brought to the front): a panel that loads data starts it here. */
   onOpen?: () => void;
   /** Called when the window closes: a panel that started a timer in `onOpen` stops it here. */
@@ -161,6 +166,7 @@ export function createPanelWindow(spec: PanelSpec): PanelOpener {
       }
 
       _replaceHTML(html: string, content: HTMLElement): void {
+        spec.bindContent?.(content);
         replaceKeepingFocus(content, html);
       }
 

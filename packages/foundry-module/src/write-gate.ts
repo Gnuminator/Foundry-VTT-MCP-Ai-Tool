@@ -14,10 +14,10 @@
  * checks the feature switches.
  */
 import type { BridgeHandlerTable } from './bridge-handlers.js';
-import { writeOperationsAllowed } from './guarded-features.js';
+import { WRITES_OFF_MESSAGE, writeOperationsAllowed } from './guarded-features.js';
 
 /** The refusal every gated write gets (the same text as guarded writes). */
-export const WRITES_DISABLED_MESSAGE = 'Write operations are disabled in the module settings';
+export const WRITES_DISABLED_MESSAGE = WRITES_OFF_MESSAGE;
 
 /** Methods that change the world: refused while "Allow Write Operations" is off. */
 export const WRITE_METHODS: readonly string[] = [
@@ -119,7 +119,6 @@ export const NON_WRITE_METHODS: readonly string[] = [
   'getSessionLog',
   'getSpentActions',
   'getTargets',
-  'getTarokkaReading',
   'getTokenDetails',
   'getTokenPositions',
   'getUsageRecords',

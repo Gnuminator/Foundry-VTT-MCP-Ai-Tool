@@ -294,6 +294,25 @@ describe('FoundryDataAccess — requestPlayerRolls', () => {
     expect(button.rollFormula).toBe('1d20+3');
   });
 
+  it('an exact character name beats a partial player name (character "Mira", player "Miranda")', async () => {
+    world.addUser({ id: 'u1', name: 'Miranda', active: true, isGM: false });
+    world.addUser({ id: 'u2', name: 'Tom', active: true, isGM: false });
+    addPlayerCharacter({ id: 'a1', name: 'Mira', ownerUserId: 'u2' });
+    addPlayerCharacter({ id: 'a2', name: 'Miranda Jr', ownerUserId: 'u1' });
+
+    const result = await da.requestPlayerRolls({
+      rollType: 'ability',
+      rollTarget: 'dex',
+      targetPlayer: 'Mira',
+      isPublic: true,
+      rollModifier: '',
+      flavor: '',
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.message).toContain('Roll request sent to Tom');
+  });
+
   it('appends a custom rollModifier to the formula', async () => {
     world.addUser({ id: 'u1', name: 'Alice', active: true, isGM: false });
     addPlayerCharacter({
@@ -351,6 +370,38 @@ describe('FoundryDataAccess: roll request event', () => {
     expect(events[0].details.whisperTo).toEqual(expect.arrayContaining(['u1']));
     expect(events[1].details.isPublic).toBe(true);
     expect(events[1].details.whisperTo).toEqual([]);
+  });
+
+  it('names the player the request is for, so the dashboard can tell who still owes a roll', async () => {
+    world.addUser({ id: 'u1', name: 'Alice', active: true, isGM: false });
+    addPlayerCharacter({ id: 'a1', name: 'Silvera', ownerUserId: 'u1' });
+    await da.requestPlayerRolls({
+      rollType: 'ability',
+      rollTarget: 'wis',
+      targetPlayer: 'Alice',
+      isPublic: true,
+      rollModifier: '',
+      flavor: '',
+    });
+    const event = eventTracker.getSessionLog({ eventType: 'roll-request' }).slice(-1)[0];
+    expect(event.details.targetUserId).toBe('u1');
+  });
+
+  it('has no player id for a GM-owned character with no user, and still logs the request', async () => {
+    const actor = world.addActor({ id: 'npc1', name: 'Goblin Boss', type: 'npc' });
+    actor.hasPlayerOwner = false;
+    actor.testUserPermission = (): boolean => false;
+    actor.getRollData = (): Record<string, unknown> => ({});
+    await da.requestPlayerRolls({
+      rollType: 'ability',
+      rollTarget: 'wis',
+      targetPlayer: 'Goblin Boss',
+      isPublic: true,
+      rollModifier: '',
+      flavor: '',
+    });
+    const event = eventTracker.getSessionLog({ eventType: 'roll-request' }).slice(-1)[0];
+    expect(event.details.targetUserId).toBeNull();
   });
 });
 

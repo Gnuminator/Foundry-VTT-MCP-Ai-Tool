@@ -23,22 +23,33 @@ export async function waitForDashboard(page) {
   await page.waitForFunction(() => !document.querySelector('#btn-gm')?.textContent?.includes('…'));
 }
 
-/** Whether GM Actions are on, from the header button's label. */
+/**
+ * Whether GM Actions are on, from the header live play line: it names GM Actions only while they
+ * are off ("GM Actions is off: Turn on"); "Live play on: all set" or another switch's name is on.
+ */
 export async function gmActionsOn(page) {
   const label = (await page.locator('#btn-gm').textContent()) ?? '';
-  return /:\s*on/i.test(label);
+  return label.trim() !== '' && !/GM Actions/i.test(label);
 }
 
-/** Turn GM Actions on or off with the header button. */
+/**
+ * Turn GM Actions on or off. On is the header line's Turn on (the same click as Start session's;
+ * it turns on every live play switch); off goes through the dashboard API, since the page has no
+ * off switch outside End session.
+ */
 export async function setGmActions(page, on, { human = false } = {}) {
   if ((await gmActionsOn(page)) === on) return;
-  const btn = page.locator('#btn-gm');
-  if (human) await humanClick(btn);
-  else await btn.click();
-  await page.waitForFunction(
-    want => /:\s*on/i.test(document.querySelector('#btn-gm')?.textContent ?? '') === want,
-    on
-  );
+  if (on) {
+    const click = human ? l => humanClick(l) : l => l.click();
+    await click(page.locator('#btn-gm'));
+    await click(page.locator('[data-track="dash.live.turn-on"]').first());
+  } else {
+    await setGmActionsApi(new URL(page.url()).origin, false);
+  }
+  await page.waitForFunction(want => {
+    const t = document.querySelector('#btn-gm')?.textContent ?? '';
+    return (t.trim() !== '' && !/GM Actions/i.test(t)) === want;
+  }, on);
 }
 
 /**
@@ -116,7 +127,9 @@ export async function closeTools(page, { human = false } = {}) {
 
 /** The Undo button of the newest change in Recent Changes. */
 export function newestUndoButton(page) {
-  return page.locator('#changes-body [data-undo]').first();
+  // An attribute selector: the React pane's id is not in the legacy index.html that
+  // demo-scripts.test.ts checks the helpers' hash selectors against.
+  return page.locator('[id="pane-changes-body"] button[aria-label^="Undo:"]').first();
 }
 
 // --- Drawers ------------------------------------------------------------------
@@ -188,7 +201,6 @@ export function setGmActionsApi(dashboardUrl, on) {
 
 /**
  * Set the GM's screen choices for the world without the UI (D-092, I-107), for example
- * { combatButtons: true } before a take that uses the strip's Damage / Heal button, or
  * { duringLayout: 'layered', layoutPicked: true } to skip the layout trial card.
  */
 export function setDashboardPrefsApi(dashboardUrl, change) {

@@ -224,7 +224,7 @@ export class PaperSyncTools {
     const feature = features.find(f => f.id === PAPER_SYNC_FEATURE_ID);
     if (!feature?.enabled) {
       throw new Error(
-        'Paper sync is switched off. In Foundry, open Game Settings, Configure Settings, AI Tool and turn on "AI Tool: Paper sync (writes)".'
+        'Paper sync is switched off. In Foundry, open the Settings tab, Game Settings, Foundry AI Tool and turn on "AI Tool: Paper sync (writes)".'
       );
     }
 

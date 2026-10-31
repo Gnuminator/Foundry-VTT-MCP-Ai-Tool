@@ -7,8 +7,8 @@
  * GM-only Foundry journal by itself as soon as it can: a GM client is connected, "Allow Write
  * Operations" is on and the `session-notes` switch is on. Every put is a guarded change (Recent
  * Changes, Live Feed, Undo); its Undo refuses when the GM edited a page or the Recap was already
- * revealed. The Recap page is queued for reveal; revealing it stays the GM's (destructive,
- * confirmed) action and marks the session approved (the audio is kept, D-097).
+ * revealed. The Recap page is queued for reveal; revealing it stays the GM's (confirmed)
+ * action and marks the session approved (the audio is kept, D-097).
  */
 import { createHash } from 'node:crypto';
 

@@ -68,7 +68,7 @@ const SWITCHES = {
     switches: [
       { id: 'handouts', name: 'AI Tool: Handouts (writes)', on: true },
       { id: 'party', name: 'AI Tool: Party (writes)', on: true },
-      { id: 'live', name: 'AI Tool: Live play (writes)', on: false },
+      { id: 'live-play', name: 'AI Tool: Live play (writes)', on: false },
     ],
     ready: null,
     changed: [],
@@ -450,6 +450,9 @@ const PLAY_STATS = {
     rolls: 142,
     crits: 3,
     fumbles: 2,
+    publicRolls: 131,
+    publicCrits: 3,
+    publicFumbles: 2,
     highestRoll: { total: 27, name: 'Mara', label: 'Perception' },
     combats: [
       { damageDealt: { Brenna: 31, Tobias: 12, 'Harbor thug': 40 }, downs: ['Brenna'] },
@@ -559,7 +562,6 @@ export async function fakeDashboard(page: Page, setup: Setup): Promise<void> {
       data: {
         duringLayout: 'layered',
         duringFull: false,
-        combatButtons: false,
         layoutPicked: true,
         hintDismissed: true,
         hintSessions: [],

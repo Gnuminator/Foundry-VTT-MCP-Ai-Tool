@@ -131,7 +131,6 @@ async function setup(
       data: {
         duringLayout: layout,
         duringFull: false,
-        combatButtons: false,
         layoutPicked: true,
         hintDismissed: true,
         hintSessions: [],

@@ -22,16 +22,19 @@ updated: <date>
 
 One or two lines: who they are and what they are good at.
 
-## Build card (level 1)
+## Build card (level 3)
 
-Ability scores, species, background, class, skill and spell picks, as agreed.
+Ability scores, species, background, class, subclass, skill and spell picks, as agreed (the
+level 1 build and the level 2 and 3 level-ups).
 
 ## Level path
 
-| Level | Plan          | Why | Status  |
-| ----- | ------------- | --- | ------- |
-| 2     | ...           | ... | planned |
-| 3     | subclass: ... | ... | planned |
+The table starts at level 3, so the path starts at 4.
+
+| Level | Plan                       | Why | Status  |
+| ----- | -------------------------- | --- | ------- |
+| 4     | ability score or feat: ... | ... | planned |
+| 5     | ...                        | ... | planned |
 
 ## Open questions
 

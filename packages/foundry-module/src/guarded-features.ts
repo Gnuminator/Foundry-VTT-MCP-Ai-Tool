@@ -75,6 +75,30 @@ export function registerGuardedFeature(feature: GuardedFeature): void {
   }
 }
 
+/**
+ * Where the switches are, in the words the GM sees in Foundry. The module cannot import runtime
+ * values from the shared package (browser-imports.test.ts), so this is a copy of
+ * shared/src/switch-off.ts; guarded-features.test.ts checks the two say the same.
+ */
+const SETTINGS_PATH =
+  'In Foundry, open the Settings tab, Game Settings, Foundry AI Tool and turn on';
+
+/**
+ * The refusal for "Allow Write Operations" being off. Starts with the words the dashboard's player
+ * route matches on. The bridge (`guarded-write/service.ts`) says the same sentence.
+ */
+export const WRITES_OFF_MESSAGE = `Write operations are disabled in the module settings. ${SETTINGS_PATH} "Allow Write Operations".`;
+
+/** The refusal for a feature switch being off: its name as Game Settings shows it, and where it is. */
+export function featureOffMessage(name: string): string {
+  return `"${name}" is switched off. ${SETTINGS_PATH} "${name}".`;
+}
+
+/** The setting label of a feature (its id when it is unknown here). */
+export function featureName(id: string): string {
+  return features.get(id)?.name ?? id;
+}
+
 /** Whether a feature is known here. */
 export function isKnownFeature(id: string): boolean {
   return features.has(id);

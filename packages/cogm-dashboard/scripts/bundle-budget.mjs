@@ -30,7 +30,15 @@ import { gzipSync } from 'node:zlib';
 // 146 on 2026-10-28: reading the token image and uuid of each combatant (lib/combat.ts, which every
 // fight passes through, so it cannot be lazy) took the first load to 145.1 KB; the portrait and
 // pan code itself is in the lazy InitiativeRibbon chunk.
-export const FIRST_LOAD_LIMIT_KB = 146;
+// 147 on 2026-10-30: the "Turn on for tonight" button on a refusal toast (lib/guarded.ts, which
+// every guarded change passes through, so it cannot be lazy) took the first load to 146.4 KB.
+// 148 on 2026-10-30: the Use Foundry targets wiring in the combat strip and the usage catalog entry
+// for the picker button, on top of the toast button, took the first load to 147.2 KB; the button
+// itself is the lazy FoundryTargetsButton chunk.
+// 150 on 2026-10-30: the one live switch (livePlay, liveSwitches, TurnOnNote, During and
+// GmActionsSwitch wiring, which the entry carries) took the first load to 149.2 KB; main alone was
+// 147.3 KB. Handouts went 3.0 to 3.1 KB with the switch note, so its limit is 4.
+export const FIRST_LOAD_LIMIT_KB = 150;
 
 /**
  * Lazy chunks by name stem (the file name without its hash and extension: `Tarokka-Cx9aB1zQ.js`
@@ -38,7 +46,7 @@ export const FIRST_LOAD_LIMIT_KB = 146;
  * percent, rounded up). Measured 2026-10-16.
  */
 export const LAZY_LIMITS_KB = {
-  Handouts: 3, // 2.2 KB
+  Handouts: 4, // 3.1 KB with the live-switch note, measured 2026-10-30 (was 2.2 KB)
   InitiativeRibbon: 2, // 1.8 KB with portraits and the pan click (was 1.6 KB), measured 2026-10-28
   ModuleDiagnostics: 1, // 0.8 KB
   PaperSync: 6, // 5.1 KB, measured 2026-10-23

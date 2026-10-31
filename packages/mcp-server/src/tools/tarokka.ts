@@ -36,6 +36,14 @@ const POSITION_SCHEMA = {
 
 const positionEnum = z.enum(TAROKKA_POSITIONS);
 
+/** One argument per position (named like it) for a reading the GM picked by hand. */
+const CARD_PROPERTIES = Object.fromEntries(
+  TAROKKA_POSITIONS.map(position => [
+    position,
+    { type: 'string', ...toolRef('tarokka-card', 'id') },
+  ])
+);
+
 /**
  * Tarokka tools (plan feature 1). All read-only: the plan-* tools return a
  * planId that `apply-planned-change` applies after the GM confirms. Needs the
@@ -61,26 +69,21 @@ export class TarokkaTools {
       {
         name: 'plan-tarokka-import',
         description:
-          'Plan storing a Tarokka reading in the bridge vault (GM-only, outside Foundry). source "auto" (default) takes the reading dealt in the tarokka-reading module when available, otherwise rolls one; "builtin-roll" always deals a fresh reading (3 common + 2 high cards, crypto random); "tarokka-reading" requires that module. A new reading archives the previous one; clear: true archives it and leaves none (undoable). Returns a planId: show the diff to the GM, then apply-planned-change.',
+          'Plan storing a Tarokka reading in the bridge vault (GM-only, outside Foundry). Cards the GM picked (all five of tome, holySymbol, sunsword, ally, strahdLocation; no repeats) are stored as given, no deal. Else a fresh reading is dealt (3 common + 2 high cards, crypto random; source "auto" or "builtin-roll"). A new reading archives the previous one; clear: true archives it and leaves none (undoable). Returns a planId: show the diff to the GM, then apply-planned-change.',
         inputSchema: {
           type: 'object',
           properties: {
             source: {
               type: 'string',
-              enum: ['auto', 'builtin-roll', 'tarokka-reading'],
+              enum: ['auto', 'builtin-roll'],
               default: 'auto',
             },
             clear: {
               type: 'boolean',
               description:
-                'Archive the current reading, deal none. Leave out source and userId with clear.',
+                'Archive the current reading, deal none. Leave out source and cards with clear.',
             },
-            userId: {
-              type: 'string',
-              description:
-                'The GM user who dealt in tarokka-reading, when that is another client than the bridge (Foundry 14.352+).',
-              ...toolRef('user', 'id', { filter: { role: 'gm' } }),
-            },
+            ...CARD_PROPERTIES,
           },
         },
       },
@@ -160,16 +163,24 @@ export class TarokkaTools {
   async handlePlanTarokkaImport(args: unknown): Promise<PlanView> {
     const params = z
       .object({
-        source: z.enum(['auto', 'builtin-roll', 'tarokka-reading']).optional(),
-        userId: z.string().min(1).optional(),
+        source: z.enum(['auto', 'builtin-roll']).optional(),
         clear: z.boolean().optional(),
+        tome: z.string().max(40).optional(),
+        holySymbol: z.string().max(40).optional(),
+        sunsword: z.string().max(40).optional(),
+        ally: z.string().max(40).optional(),
+        strahdLocation: z.string().max(40).optional(),
       })
       .parse(args ?? {});
+    const picked = TAROKKA_POSITIONS.flatMap(position => {
+      const cardId = params[position];
+      return cardId ? [[position, cardId] as const] : [];
+    });
     return this.logged('import', () =>
       this.tarokka.planImport({
+        ...(picked.length > 0 ? { cards: Object.fromEntries(picked) } : {}),
         ...(params.clear ? { clear: true } : {}),
         ...(params.source ? { source: params.source } : {}),
-        ...(params.userId ? { userId: params.userId } : {}),
       })
     );
   }

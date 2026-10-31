@@ -52,7 +52,7 @@ never overrides them.
 ## Pre-delivery checklist
 
 1. Both themes and the phone width looked at by eye, not only by the screenshot diff.
-2. `npm run green` passes; no new entry in the axe "known" lists (remove ones you fixed).
+2. CI is green on the PR head (quick local check: `npm run green -- --quick`); no new entry in the axe "known" lists (remove ones you fixed).
 3. Visual baselines regenerated (`npm run visual:baselines`) and the changed PNGs actually viewed.
 4. Keyboard pass: tab through the screen once, open and close any dialog or picker.
 5. Empty, loading and error states seen at least once, not assumed.

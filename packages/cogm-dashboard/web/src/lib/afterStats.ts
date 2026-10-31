@@ -18,6 +18,10 @@ export interface PlayStats {
     rolls?: number;
     crits?: number;
     fumbles?: number;
+    /** Roll counts with private, blind and unrecorded rolls left out (absent on an older bridge). */
+    publicRolls?: number;
+    publicCrits?: number;
+    publicFumbles?: number;
     highestRoll?: { total: number; name: string; label?: string } | null;
     combats?: StatsCombat[];
     pcDownsByName?: Record<string, number>;
@@ -32,6 +36,8 @@ export interface SessionSummary {
   rolls: number;
   nat20: number;
   nat1: number;
+  /** The public-only counts for Discord; null when the bridge does not send them. */
+  publicCounts: { rolls: number; nat20: number; nat1: number } | null;
   mostDamage: { name: string; amount: number; fights: number } | null;
   highestRoll: { total: number; name: string; label?: string } | null;
   /** Hero name and how many times they went down. */
@@ -87,6 +93,10 @@ export function summarizeSession(result: PlayStats | null | undefined): SessionS
     rolls: s.rolls ?? 0,
     nat20: s.crits ?? 0,
     nat1: s.fumbles ?? 0,
+    publicCounts:
+      typeof s.publicRolls === 'number'
+        ? { rolls: s.publicRolls, nat20: s.publicCrits ?? 0, nat1: s.publicFumbles ?? 0 }
+        : null,
     mostDamage: top ? { name: top[0], amount: top[1].amount, fights: top[1].fights } : null,
     highestRoll: s.highestRoll ?? null,
     downs: [...downs.entries()],
@@ -107,14 +117,18 @@ export function sessionMeta(a: SessionSummary): string {
 }
 
 /**
- * The text for the players' Discord channel. It leaves out the highest roll: the play log does
- * not keep a roll's visibility, so it may be a private or blind roll (stats/types.ts).
+ * The text for the players' Discord channel. It leaves out the highest roll and posts only the
+ * public roll counts: the session's unfiltered counts include private and blind rolls
+ * (stats/types.ts). An older bridge without public counts gets no rolls line.
  */
 export function statsForDiscord(a: SessionSummary): string {
   const lines = [`**${a.label || 'Last session'}** (${hoursMinutes(a.durationMin)})`];
-  lines.push(
-    `Rolls: ${a.rolls} (${plural(a.nat20, 'natural 20', 'natural 20s')}, ${plural(a.nat1, 'natural 1', 'natural 1s')})`
-  );
+  if (a.publicCounts) {
+    const p = a.publicCounts;
+    lines.push(
+      `Rolls: ${p.rolls} (${plural(p.nat20, 'natural 20', 'natural 20s')}, ${plural(p.nat1, 'natural 1', 'natural 1s')})`
+    );
+  }
   if (a.mostDamage) {
     lines.push(
       `Most damage: ${a.mostDamage.name}, ${a.mostDamage.amount} hp over ${plural(a.mostDamage.fights, 'fight', 'fights')}`

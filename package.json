@@ -1,6 +1,6 @@
 {
   "name": "foundry-ai-tool",
-  "version": "0.22.0",
+  "version": "0.23.0",
   "description": "Foundry AI Tool — MCP server + Foundry module + co-GM dashboard for AI-powered Foundry VTT integration",
   "private": true,
   "workspaces": [
@@ -57,6 +57,7 @@
     "demo:take": "node scripts/demo/demo.mjs take",
     "demo:export": "node scripts/demo/export.mjs",
     "demo:compose": "node scripts/demo/compose.mjs",
+    "docs:foundry-images": "node scripts/demo/foundry-basics.mjs",
     "format": "prettier --write \"**/*.{ts,js,json,md}\"",
     "format:check": "prettier --check \"**/*.{ts,js,json,md}\"",
     "typecheck": "npm run build:shared && npm run typecheck --workspaces --if-present",

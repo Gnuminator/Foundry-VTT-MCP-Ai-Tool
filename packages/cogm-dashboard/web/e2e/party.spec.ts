@@ -361,6 +361,44 @@ test('a pace click plans, applies in one click, reloads, and Undo reverts it', a
     ]);
 });
 
+test('Ask for a roll: one member, then the whole party, through request-player-rolls', async ({
+  page,
+}) => {
+  await fakeStream(page, gmActions(true));
+  const calls = await fakeTools(page, call =>
+    call.name === 'request-player-rolls' ? ok({ success: true, message: 'sent' }) : bridge(call)
+  );
+  const drawer = await openParty(page);
+  const asked = (): unknown[] => calls.filter(c => c.name === 'request-player-rolls');
+
+  await drawer.locator('#party-roll-what').selectOption('save:wis');
+  await drawer.locator('#party-roll-dc').fill('13');
+  await drawer.getByRole('button', { name: 'Ask roll: Ivarro, Wisdom save' }).click();
+  await expect(toast(page, '✓ Sent: Wisdom save DC 13 to Ivarro')).toBeVisible();
+  await drawer.locator('#party-roll-advantage').selectOption('advantage');
+  await drawer.locator('#party-roll-all').click();
+  await expect(toast(page, '✓ Sent: Wisdom save DC 13 to 2 characters')).toBeVisible();
+
+  const base = { rollType: 'save', rollTarget: 'wis', isPublic: false, dc: 13, flavor: 'DC 13' };
+  expect(asked()).toEqual([
+    {
+      name: 'request-player-rolls',
+      args: { ...base, targetPlayer: 'Ivarro', userConfirmedVisibility: true },
+      confirm: true,
+    },
+    ...['Ilvara', 'Ivarro'].map(targetPlayer => ({
+      name: 'request-player-rolls',
+      args: {
+        ...base,
+        targetPlayer,
+        userConfirmedVisibility: true,
+        advantage: 'advantage',
+      },
+      confirm: true,
+    })),
+  ]);
+});
+
 test('each action sends its own plan, and a double click sends once', async ({ page }) => {
   await fakeStream(page, gmActions(true));
   const calls = await fakeTools(page, bridge);
@@ -388,7 +426,7 @@ test('with GM Actions off nothing is planned and Pre-flight opens', async ({ pag
 
   await drawer.getByRole('button', { name: 'Short rest request' }).click();
   await expect(
-    toast(page, 'GM Actions are off. Turn on for tonight in Pre-flight turns them on.')
+    toast(page, 'GM Actions are off. Start session or the header Turn on button turns them on.')
   ).toBeVisible();
   await expect(page.getByRole('dialog', { name: '✈ Pre-flight' })).toBeVisible();
   // Pre-flight's Ready block reads get-play-session; nothing was planned or applied.
@@ -403,7 +441,7 @@ test('before the stream says GM Actions are on, a click plans nothing', async ({
 
   await drawer.locator('#party-pace').getByRole('button', { name: 'Fast' }).click();
   await expect(
-    toast(page, 'GM Actions are off. Turn on for tonight in Pre-flight turns them on.')
+    toast(page, 'GM Actions are off. Start session or the header Turn on button turns them on.')
   ).toBeVisible();
   expect(names(calls).filter(n => n !== 'get-play-session')).toEqual(['get-party']);
 });
@@ -431,7 +469,7 @@ test('an apply that times out says it may have applied and reloads the party', a
 
   await drawer.locator('#party-pace').getByRole('button', { name: 'Fast' }).click();
   await expect(
-    toast(page, '✗ apply-planned-change timed out. It may have applied; check Recent Changes.')
+    toast(page, '✗ The change timed out. It may have applied; check Recent Changes.')
   ).toBeVisible();
   await expect
     .poll(() => names(calls))
@@ -472,21 +510,17 @@ test('an apply whose answer got lost says it may have applied; a tool error does
   const hint = 'It may have applied; check Recent Changes.';
 
   await fast.click();
-  await expect(
-    toast(page, `✗ apply-planned-change: The bridge link closed. ${hint}`)
-  ).toBeVisible();
+  await expect(toast(page, `✗ The change: The bridge link closed. ${hint}`)).toBeVisible();
   await expect(fast).toBeEnabled();
   await fast.click();
-  await expect(toast(page, `✗ apply-planned-change: HTTP 524. ${hint}`)).toBeVisible();
+  await expect(toast(page, `✗ The change: HTTP 524. ${hint}`)).toBeVisible();
   await expect(fast).toBeEnabled();
   await fast.click();
-  await expect(toast(page, `✗ apply-planned-change: Failed to fetch. ${hint}`)).toBeVisible();
+  await expect(toast(page, `✗ The change: Failed to fetch. ${hint}`)).toBeVisible();
   await expect(fast).toBeEnabled();
   await fast.click();
   await expect(
-    page
-      .locator('.toast-stack')
-      .getByText('✗ apply-planned-change: Nothing to change', { exact: true })
+    page.locator('.toast-stack').getByText('✗ The change: Nothing to change', { exact: true })
   ).toBeVisible();
   // Each failure past the gate reloads the party, in case it landed.
   await expect.poll(() => names(calls).filter(n => n === 'get-party').length).toBe(5);
@@ -536,7 +570,7 @@ test('the stream saying GM Actions are off wins over the Pre-flight read', async
   const drawer = page.getByRole('dialog', { name: '🛡 Party' });
   await drawer.locator('#party-pace').getByRole('button', { name: 'Fast' }).click();
   await expect(
-    toast(page, 'GM Actions are off. Turn on for tonight in Pre-flight turns them on.')
+    toast(page, 'GM Actions are off. Start session or the header Turn on button turns them on.')
   ).toBeVisible();
   expect(names(calls)).not.toContain('plan-party-change');
 });
@@ -563,18 +597,19 @@ test('a failed plan, a refused apply and a plan that needs a confirm all say so'
 }) => {
   await fakeStream(page, gmActions(true));
   await fakePreflight(page);
+  const partyOff =
+    '"AI Tool: Party (writes)" is switched off. In Foundry, open the Settings tab, Game Settings, Foundry AI Tool and turn on "AI Tool: Party (writes)".';
   let answer: Answer = call =>
     call.name === 'plan-party-change'
-      ? { status: 422, json: { ok: false, error: 'The "party" feature is switched off' } }
+      ? { status: 422, json: { ok: false, error: partyOff } }
       : bridge(call);
   const calls = await fakeTools(page, call => answer(call));
   const drawer = await openParty(page);
   const fast = drawer.locator('#party-pace').getByRole('button', { name: 'Fast' });
 
   await fast.click();
-  await expect(
-    toast(page, '✗ plan-party-change: The "party" feature is switched off')
-  ).toBeVisible();
+  // A switch to turn on is said as a hint (no red cross, no tool name).
+  await expect(toast(page, partyOff)).toBeVisible();
   expect(names(calls)).toEqual(['get-party', 'plan-party-change']);
 
   // The server refuses with 403 when GM Actions went off after the page last heard.
@@ -585,7 +620,7 @@ test('a failed plan, a refused apply and a plan that needs a confirm all say so'
   await expect(fast).toBeEnabled();
   await fast.click();
   await expect(
-    toast(page, 'GM Actions are off. Turn on for tonight in Pre-flight turns them on.')
+    toast(page, 'GM Actions are off. Start session or the header Turn on button turns them on.')
   ).toBeVisible();
   const preflight = page.getByRole('dialog', { name: '✈ Pre-flight' });
   await expect(preflight).toBeVisible();
@@ -687,4 +722,38 @@ test('Open shows the actor in Foundry; Escape closes the drawer', async ({ page 
   await expect(drawer).toBeHidden();
   await expect(toast(page, '✗ open-in-foundry: No such actor')).toBeVisible();
   await expect(page.locator('.drawer-backdrop')).toHaveCount(0);
+});
+
+test('the roll bar says who still owes a roll and who rolled what', async ({ page }) => {
+  const row = (id: string, name: string, sentAt: number, extra: object = {}): object => ({
+    id,
+    sentAt,
+    label: 'Wisdom Saving Throw (Private)',
+    isPublic: false,
+    targetName: name,
+    actorId: id,
+    userId: id,
+    status: 'sent',
+    ...extra,
+  });
+  const now = Date.now();
+  await fakeStream(page, [
+    ...gmActions(true),
+    {
+      event: 'rolls',
+      data: {
+        rows: [
+          row('c', 'Tom', now - 1000),
+          row('b', 'Ivarro', now - 2000, { status: 'rolled', total: 17 }),
+          row('a', 'Ilvara', now - 3000),
+        ],
+      },
+    },
+  ]);
+  await fakeTools(page, bridge);
+  const drawer = await openParty(page);
+  const status = drawer.getByTestId('roll-status');
+  await expect(status).toContainText('Wisdom Saving Throw: waiting for 2 of 3');
+  await expect(status).toContainText('Ivarro rolled 17');
+  await expect(status).toContainText('Tom: waiting');
 });

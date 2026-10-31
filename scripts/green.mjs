@@ -1,11 +1,12 @@
 #!/usr/bin/env node
 /**
  * Keep-green: runs locally what the CI job `build-test` (.github/workflows/ci.yml) runs, in the same
- * order, minus `npm ci` and the artifact uploads. Quiet by design (D-122): every step writes its
+ * order (except that the steps needing neither the build nor a heavy slot run first, see lightFirst),
+ * minus `npm ci` and the artifact uploads. Quiet by design (D-122): every step writes its
  * stdout and stderr to a log file under the temp folder, and the run prints one line at the end:
  *
  *   green: OK, 35 steps in 6m12s
- *   green: FAILED at typecheck (C:\...\green-20261010-101500\01-typecheck.log)   + the last 30 log lines
+ *   green: FAILED at typecheck (C:\...\green-20261010-101500-4242\01-typecheck.log)   + the last 30 log lines
  *
  *   npm run green                       run every step, stop at the first failure
  *   npm run green -- --all              run every step, report every failed step
@@ -13,6 +14,8 @@
  *   npm run green -- --only a,b         run only these steps
  *   npm run green -- --from NAME        start at this step
  *   npm run green -- --skip a,b         leave these steps out
+ *   npm run green -- --cloud            run CI on GitHub for the pushed HEAD instead (see cloudGreen)
+ *   npm run green -- --quick            typecheck + unit tests of what changed vs aitool/main, no heavy lock
  *
  * The steps run in the repository the command is started in (the git top level of the current
  * directory). On Windows, when this process is not Node 22 (the global Node 24 crashes natively
@@ -26,12 +29,13 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { withHeavyLock } from './heavy-lock.mjs';
+import { HELD_ENV, acquire, lockDir } from './heavy-lock.mjs';
 
 /**
  * The steps that need a lot of RAM or CPU (lint, type check, build, the test suites, the browser
- * run). Each takes the heavy-check lock, so parallel greens, the pre-push hook and the gate's drift
- * check take turns instead of running together (see scripts/heavy-lock.mjs).
+ * run). A run takes the heavy-check lock once, at its first heavy step, and keeps it until its last
+ * one, so parallel greens and the gate's drift check take turns per run instead
+ * of queueing again for every step (see scripts/heavy-lock.mjs).
  */
 export const HEAVY_STEPS = new Set([
   'typecheck',
@@ -97,6 +101,7 @@ export const STEPS = [
   nodeTest('pi-gm-passwords', 'scripts/pi/gm-passwords.test.mjs'),
   nodeTest('pi-system-trial-guard', 'scripts/pi/system-trial-guard.test.mjs'),
   nodeTest('pi-player-creation', 'scripts/pi/player-creation.test.mjs'),
+  nodeTest('pi-world-switches', 'scripts/pi/world-switches.test.mjs'),
   nodeTest('pi-kit-session', 'scripts/pi/kit-session.test.mjs'),
   nodeTest('pi-fetch-kit-login', 'scripts/pi/fetch-kit-login.test.mjs'),
   nodeTest('pi-health-kit-line', 'scripts/pi/health-kit-line.test.mjs'),
@@ -108,6 +113,7 @@ export const STEPS = [
   nodeTest('pi-gh-runner', 'scripts/pi/gh-runner.test.mjs'),
   nodeTest('pi-stage7-foundry-url', 'scripts/pi/stage7-foundry-url.test.mjs'),
   nodeTest('pi-time-sync', 'scripts/pi/time-sync.test.mjs'),
+  nodeTest('pi-join-page-look', 'scripts/pi/join-page-look.test.mjs'),
   nodeTest('pi-vault-sync', 'scripts/pi/vault-sync.test.mjs'),
   nodeTest('pi-control-port-check', 'scripts/pi/control-port-check.test.mjs'),
   nodeTest('pi-stage-safety', 'scripts/pi/pi-stage-safety.test.mjs'),
@@ -235,10 +241,10 @@ export function ciUnsupported(yamlText, job = 'build-test') {
 
 /**
  * @param {string[]} argv
- * @returns {{ list: boolean, all: boolean, only: string[], skip: string[], from: string | null, error: string | null }}
+ * @returns {{ list: boolean, all: boolean, cloud: boolean, quick: boolean, only: string[], skip: string[], from: string | null, error: string | null }}
  */
 export function parseArgs(argv) {
-  const out = { list: false, all: false, only: [], skip: [], from: null, error: null };
+  const out = { list: false, all: false, cloud: false, quick: false, only: [], skip: [], from: null, error: null };
   const csv = (/** @type {string} */ v) =>
     v
       .split(',')
@@ -258,6 +264,8 @@ export function parseArgs(argv) {
     };
     if (flag === '--list') out.list = true;
     else if (flag === '--all') out.all = true;
+    else if (flag === '--cloud') out.cloud = true;
+    else if (flag === '--quick') out.quick = true;
     else if (flag === '--only' || flag === '--skip' || flag === '--from') {
       const v = value();
       if (v === null || v === '') {
@@ -272,11 +280,18 @@ export function parseArgs(argv) {
       return out;
     }
   }
+  if (out.cloud && (out.list || out.all || out.only.length + out.skip.length > 0 || out.from)) {
+    out.error = '--cloud runs the whole CI job and cannot be combined with --list, --all, --only, --skip or --from';
+  }
+  if (out.quick && (out.cloud || out.all || out.only.length + out.skip.length > 0 || out.from)) {
+    out.error = '--quick builds its own step list and cannot be combined with --cloud, --all, --only, --skip or --from';
+  }
   return out;
 }
 
 /**
- * The steps a run executes: from `--from`, then `--only`, then without `--skip`, in CI order.
+ * The steps a run executes: from `--from`, then `--only`, then without `--skip`, in CI order except
+ * that the light steps move ahead of the first heavy one (see lightFirst).
  * @param {Step[]} steps @param {ReturnType<typeof parseArgs>} opts
  * @returns {{ steps: Step[], error: string | null }}
  */
@@ -291,11 +306,34 @@ export function selectSteps(steps, opts) {
       error: `unknown step ${unknown.join(', ')} (npm run green -- --list shows them)`,
     };
   }
-  let selected = steps;
-  if (opts.from) selected = selected.slice(names.indexOf(opts.from));
+  // Reorder first, so `--from` cuts the real run order: a rerun from a light step still runs the heavy ones.
+  let selected = lightFirst(steps);
+  if (opts.from) selected = selected.slice(selected.findIndex(s => s.name === opts.from));
   if (opts.only.length > 0) selected = selected.filter(s => opts.only.includes(s.name));
   if (opts.skip.length > 0) selected = selected.filter(s => !opts.skip.includes(s.name));
   return { steps: selected, error: null };
+}
+
+/**
+ * The names of the steps that are not heavy and do not need the build: those that sit before the
+ * `build` step in STEPS and are not in HEAVY_STEPS (the pi-*, hook, plan-b, tv, tunnel, docs and
+ * ratchet-lite steps, about 250 s of a 6.5 minute run, 2026-10-30). The steps after `build`
+ * (bundle-budget, the smokes, validate-manifest) need its output and stay behind it.
+ */
+export const LIGHT_FIRST = new Set(
+  STEPS.slice(0, STEPS.findIndex(s => s.name === 'build'))
+    .filter(s => !HEAVY_STEPS.has(s.name))
+    .map(s => s.name)
+);
+
+/**
+ * Stable partition: the light steps first, then the rest in their order. The heavy-check lock is
+ * taken at the first heavy step and kept to the last, so this shortens the hold to the heavy part
+ * (typecheck..e2e) and runs the cheap steps, which fail fast, before it. CI keeps its own order.
+ * @param {Step[]} steps
+ */
+export function lightFirst(steps) {
+  return [...steps.filter(s => LIGHT_FIRST.has(s.name)), ...steps.filter(s => !LIGHT_FIRST.has(s.name))];
 }
 
 /** @param {number} ms */
@@ -341,6 +379,34 @@ export function cleanTreeHash(cwd) {
   return tree.status === 0 ? tree.stdout.trim() : null;
 }
 
+/**
+ * The tree hash the working tree would commit as with every change added (`git add -A`: changed,
+ * new and deleted files, not ignored ones), without touching the real index: a copy of it is used.
+ * A green run on a tree with uncommitted edits is then "green on the commit those edits become".
+ * @param {string} cwd
+ * @returns {string | null}
+ */
+export function worktreeTreeHash(cwd) {
+  const git = (/** @type {string[]} */ args, /** @type {Record<string, string>} */ extra = {}) =>
+    spawnSync('git', args, { cwd, encoding: 'utf8', windowsHide: true, env: { ...process.env, ...extra } });
+  const real = git(['rev-parse', '--git-path', 'index']);
+  if (real.status !== 0 || !real.stdout.trim()) return null;
+  const index = path.join(os.tmpdir(), `green-index-${process.pid}-${Date.now()}`);
+  try {
+    // A copy of the real index keeps git's file-stat cache, so `add -A` only hashes changed files.
+    try {
+      fs.copyFileSync(path.resolve(cwd, real.stdout.trim()), index);
+    } catch {
+      if (git(['read-tree', 'HEAD'], { GIT_INDEX_FILE: index }).status !== 0) return null;
+    }
+    if (git(['add', '-A'], { GIT_INDEX_FILE: index }).status !== 0) return null;
+    const tree = git(['write-tree'], { GIT_INDEX_FILE: index });
+    return tree.status === 0 && /^[0-9a-f]{40,64}$/.test(tree.stdout.trim()) ? tree.stdout.trim() : null;
+  } finally {
+    fs.rmSync(index, { force: true });
+  }
+}
+
 /** Where a full green run records the tree it passed on (per worktree, inside its git dir). @param {string} cwd */
 export function greenStampPath(cwd) {
   const r = spawnSync('git', ['rev-parse', '--git-path', 'green-ok'], {
@@ -352,18 +418,26 @@ export function greenStampPath(cwd) {
 }
 
 /**
- * Did `npm run green` pass on exactly this tree? (.git/green-ok holds the tree hash of the last full OK run.)
- * @param {string} cwd
+ * Did `npm run green` pass on exactly this tree? (.git/green-ok holds the tree hash of the last full
+ * OK run.) With `commits` (the commits a push sends, from the pre-push hook) every one of them must
+ * have that tree, whatever the working tree holds now; without, the working tree must be clean and
+ * HEAD must have it.
+ * @param {string} cwd @param {string[]} [commits]
  */
-export function greenPassedOnThisTree(cwd) {
-  const tree = cleanTreeHash(cwd);
+export function greenPassedOnThisTree(cwd, commits = []) {
   const file = greenStampPath(cwd);
-  if (!tree || !file) return false;
+  if (!file) return false;
+  let stamp;
   try {
-    return fs.readFileSync(file, 'utf8').trim() === tree;
+    stamp = fs.readFileSync(file, 'utf8').trim();
   } catch {
     return false;
   }
+  if (commits.length === 0) return cleanTreeHash(cwd) === stamp;
+  return commits.every(sha => {
+    const r = spawnSync('git', ['rev-parse', `${sha}^{tree}`], { cwd, encoding: 'utf8', windowsHide: true });
+    return r.status === 0 && r.stdout.trim() === stamp;
+  });
 }
 
 /**
@@ -506,13 +580,345 @@ function spawnStep(step, fd, cwd) {
         ...stepEnvironment(process.env, NODE22_DIR),
         FORCE_COLOR: '0',
         NO_COLOR: '1',
+        ...((step.name === 'e2e' || step.name === 'e2e-specs') && !process.env.E2E_PORT ? freePortEnv() : {}),
         ...step.env,
       },
     });
     return r.status ?? 1;
   };
-  // A heavy step takes the machine-wide lock (scripts/heavy-lock.mjs); the others just run.
-  return HEAVY_STEPS.has(step.name) ? withHeavyLock(`green ${step.name}`, run) : run();
+  // The quick run's e2e spec step shares the e2e solo lock (same fixed state folder).
+  if (step.name === 'e2e-specs') return soloLock('e2e', run);
+  return SOLO_STEPS.has(step.name) ? soloLock(step.name, run) : run();
+}
+
+/**
+ * Steps that two greens must never run at the same time, even each in its own heavy slot: the e2e
+ * run starts the dashboard with a fixed state folder (%TEMP%\cogm-dashboard-e2e, set in its
+ * playwright config). Measured 2026-10-30: two greens in e2e at once, one failed on the port.
+ */
+export const SOLO_STEPS = new Set(['e2e']);
+
+/**
+ * Run fn under a one-slot lock of its own (a `solo-<name>` folder next to the heavy-check slots).
+ * The heavy lock's held marker is left out on purpose: holding a heavy slot does not mean holding
+ * this one. Nothing waits for a heavy slot while holding this lock, so the two cannot deadlock.
+ * @template T @param {string} name @param {() => T} fn @returns {T}
+ */
+function soloLock(name, fn) {
+  const { [HELD_ENV]: _held, ...rest } = process.env;
+  const lock = acquire(`green ${name}`, {
+    env: { ...rest, HEAVY_LOCK_DIR: path.join(lockDir(), `solo-${name}`), HEAVY_LOCK_SLOTS: '1' },
+    log: () => {},
+  });
+  try {
+    return fn();
+  } finally {
+    lock.release();
+  }
+}
+
+/**
+ * A free port for the e2e dashboard (E2E_PORT, read by the playwright config), so a green never
+ * fails because another run, of any version, sits on the default 3197. Empty when none was found.
+ * @returns {Record<string, string>}
+ */
+function freePortEnv() {
+  const r = spawnSync(
+    process.execPath,
+    ['-e', "const s=require('net').createServer().listen(0,'127.0.0.1',()=>{console.log(s.address().port);s.close()})"],
+    { encoding: 'utf8', windowsHide: true }
+  );
+  const port = Number(r.stdout?.trim());
+  return Number.isInteger(port) && port > 1024 && ![31414, 31415, 31416].includes(port) ? { E2E_PORT: String(port) } : {};
+}
+
+/**
+ * The heavy-check lock for one green run: taken at the first heavy step, beaten before each later
+ * step (so a long run is never taken for stale), released after the last heavy step.
+ * @param {Step[]} steps the steps this run executes
+ * @param {(label: string) => ReturnType<typeof acquire>} take
+ * @param {string} label
+ * @param {Record<string, string | undefined>} env gets HELD_ENV while the lock is held, so a step's
+ *   own lock (lint-ratchet) does not wait on this run
+ */
+export function runLock(steps, take, label, env = process.env) {
+  const lastHeavy = steps.findLastIndex(s => HEAVY_STEPS.has(s.name));
+  /** @type {ReturnType<typeof acquire> | null} */
+  let lock = null;
+  const release = () => {
+    if (!lock) return;
+    if (lock.held) delete env[HELD_ENV];
+    lock.release();
+    lock = null;
+  };
+  let waitedMs = 0;
+  return {
+    /** @param {number} i @param {Step} step */
+    before(i, step) {
+      if (i > lastHeavy) return;
+      if (lock) {
+        lock.beat(step.name);
+        return;
+      }
+      if (!HEAVY_STEPS.has(step.name)) return;
+      lock = take(label);
+      waitedMs = lock.waitedMs;
+      if (lock.held) {
+        env[HELD_ENV] = String(process.pid);
+        lock.beat(step.name);
+      }
+    },
+    /** @param {number} i */
+    after(i) {
+      if (i >= lastHeavy) release();
+    },
+    release,
+    get waitedMs() {
+      return waitedMs;
+    },
+  };
+}
+
+/** Remote the lanes push to (CLAUDE.md: never the upstream repo). */
+const CLOUD_REMOTE = 'aitool';
+const CLOUD_WORKFLOW = 'ci.yml';
+
+/** Sleep without a timer, so green.mjs can stay synchronous. @param {number} ms */
+function sleepSync(ms) {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
+
+/**
+ * @param {string} cmd @param {string[]} args @param {string} cwd
+ * @returns {{ status: number, stdout: string, stderr: string }}
+ */
+function runCapture(cmd, args, cwd) {
+  const r = spawnSync(cmd, args, { cwd, encoding: 'utf8', windowsHide: true, timeout: 60_000 });
+  return { status: r.status ?? 1, stdout: r.stdout ?? '', stderr: `${r.stderr ?? ''}${r.error ? r.error.message : ''}` };
+}
+
+/** `owner/repo` from a GitHub remote URL (https or ssh), else null. @param {string} url */
+export function repoFromUrl(url) {
+  const m = /github\.com[:/]([^/\s]+)\/([^/\s]+?)(?:\.git)?\s*$/.exec(url.trim());
+  return m ? `${m[1]}/${m[2]}` : null;
+}
+
+/**
+ * `green --cloud`: the same checks on GitHub for the pushed HEAD, for when the local heavy-check
+ * queue is long. No local heavy run, no heavy-check lock. It refuses a dirty tree and a HEAD that
+ * is not on the remote branch, uses the CI run already started for that sha (a push to a PR branch
+ * starts one) or else starts ci.yml by workflow_dispatch, waits, and prints one line.
+ * @param {{
+ *   cwd: string, git?: (args: string[]) => { status: number, stdout: string, stderr: string },
+ *   gh?: (args: string[]) => { status: number, stdout: string, stderr: string },
+ *   now?: () => number, sleep?: (ms: number) => void, log?: (line: string) => void,
+ *   pollMs?: number, findMs?: number, timeoutMs?: number,
+ * }} o
+ * @returns {number} the process exit code
+ */
+export function cloudGreen(o) {
+  const {
+    cwd,
+    git = args => runCapture('git', args, cwd),
+    gh = args => runCapture('gh', args, cwd),
+    now = Date.now,
+    sleep = sleepSync,
+    log = console.log,
+    pollMs = 20_000,
+    findMs = 90_000,
+    timeoutMs = 60 * 60_000,
+  } = o;
+  const refuse = (/** @type {string} */ why) => {
+    log(`green --cloud: ${why}`);
+    return 1;
+  };
+  const out = (/** @type {string[]} */ args) => {
+    const r = git(args);
+    return r.status === 0 ? r.stdout.trim() : null;
+  };
+  const dirty = git(['status', '--porcelain']);
+  if (dirty.status !== 0) return refuse('git status failed');
+  if (dirty.stdout.trim()) return refuse('the working tree has uncommitted changes; commit them (CI runs the pushed commit)');
+  const branch = out(['rev-parse', '--abbrev-ref', 'HEAD']);
+  const sha = out(['rev-parse', 'HEAD']);
+  if (!branch || branch === 'HEAD' || !sha) return refuse('no branch checked out');
+  if (branch === 'main') return refuse('CI on main runs on push; use the merge train, not --cloud');
+  const remoteUrl = out(['remote', 'get-url', CLOUD_REMOTE]);
+  const repo = remoteUrl && repoFromUrl(remoteUrl);
+  if (!repo) return refuse(`no GitHub remote named ${CLOUD_REMOTE}`);
+  const lsRemote = git(['ls-remote', CLOUD_REMOTE, `refs/heads/${branch}`]);
+  if (lsRemote.status !== 0) return refuse(`could not reach ${CLOUD_REMOTE}: ${lsRemote.stderr.trim().split('\n')[0]}`);
+  const remoteHead = lsRemote.stdout.trim().split(/\s+/)[0];
+  if (remoteHead !== sha) {
+    return refuse(`HEAD ${sha.slice(0, 8)} is not pushed to ${CLOUD_REMOTE}/${branch} (git push -u ${CLOUD_REMOTE} ${branch}:${branch})`);
+  }
+
+  const started = now();
+  let ghError = '';
+  /** @param {string[]} extra @returns {{ databaseId: number, status: string, conclusion: string, headSha: string }[] | null} null when gh failed */
+  const listRuns = extra => {
+    const r = gh(['run', 'list', '-R', repo, '-w', CLOUD_WORKFLOW, '--json', 'databaseId,status,conclusion,event,headSha', '-L', '20', ...extra]);
+    if (r.status !== 0) {
+      ghError = (r.stderr || r.stdout).trim().split('\n')[0];
+      return null;
+    }
+    try {
+      return JSON.parse(r.stdout).filter((/** @type {{ headSha: string }} */ x) => x.headSha === sha);
+    } catch {
+      return [];
+    }
+  };
+  // A run that was cancelled or skipped says nothing about the commit.
+  const usable = (/** @type {{ conclusion: string }} */ x) => x.conclusion !== 'cancelled' && x.conclusion !== 'skipped';
+  const first = listRuns(['--commit', sha]);
+  if (!first) return refuse(`could not list CI runs (gh: ${ghError}); not starting a second run blind`);
+  let run = first.find(usable);
+  const earlier = Boolean(run && run.status === 'completed');
+  if (!run) {
+    // A branch with an open PR gets a pull_request run a few seconds after the push: wait for it
+    // instead of starting a second run (its concurrency group is the ref, not the PR's, so neither
+    // would cancel the other).
+    const pr = gh(['pr', 'list', '-R', repo, '--head', branch, '--state', 'open', '--json', 'number']);
+    let hasPr = false;
+    try {
+      hasPr = pr.status === 0 && JSON.parse(pr.stdout).length > 0;
+    } catch {
+      hasPr = false;
+    }
+    while (hasPr && !run && now() - started < findMs) {
+      sleep(Math.min(pollMs, 5000));
+      run = listRuns(['--commit', sha])?.find(usable);
+    }
+  }
+  if (!run) {
+    const d = gh(['workflow', 'run', CLOUD_WORKFLOW, '-R', repo, '--ref', branch]);
+    if (d.status !== 0) return refuse(`could not start ${CLOUD_WORKFLOW}: ${(d.stderr || d.stdout).trim().split('\n')[0]}`);
+    const dispatchedAt = now();
+    while (!run && now() - dispatchedAt < findMs) {
+      sleep(Math.min(pollMs, 5000));
+      run = listRuns(['--branch', branch, '--event', 'workflow_dispatch'])?.find(usable);
+    }
+    if (!run) return refuse(`started ${CLOUD_WORKFLOW} but found no run for ${sha.slice(0, 8)} within ${Math.round(findMs / 1000)} s`);
+  }
+
+  /** @type {{ status: string, conclusion: string, url: string, jobs: { name: string, conclusion: string, url: string, steps?: { name: string, conclusion: string }[] }[] } | null} */
+  let view = null;
+  let errors = 0;
+  while (now() - started < timeoutMs) {
+    const r = gh(['run', 'view', String(run.databaseId), '-R', repo, '--json', 'status,conclusion,url,jobs']);
+    if (r.status === 0) {
+      errors = 0;
+      try {
+        view = JSON.parse(r.stdout);
+      } catch {
+        view = null;
+      }
+      if (view?.status === 'completed') break;
+    } else if (++errors >= 5) {
+      return refuse(`gh failed 5 times in a row while waiting for run ${run.databaseId}: ${(r.stderr || r.stdout).trim().split('\n')[0]}`);
+    }
+    sleep(pollMs);
+  }
+  if (!view || view.status !== 'completed') return refuse(`CI run ${run.databaseId} was still going after ${formatDuration(now() - started)}`);
+  if (view.conclusion === 'success') {
+    log(`green: OK (cloud), CI run ${view.url} for ${sha.slice(0, 8)} in ${formatDuration(now() - started)}`);
+    return 0;
+  }
+  if (view.conclusion === 'cancelled') {
+    log(`green: FAILED (cloud, cancelled) CI run ${view.url} was cancelled, probably replaced by a newer run on the same ref; run --cloud again`);
+    return 1;
+  }
+  const bad = view.jobs.filter(j => j.conclusion && !['success', 'skipped', 'neutral'].includes(j.conclusion));
+  const where = bad.map(j => {
+    const step = j.steps?.find(s => s.conclusion === 'failure');
+    return `${j.name}${step ? ` at step "${step.name}"` : ''} (${j.url})`;
+  });
+  const retry = earlier ? ` (an earlier run; gh run rerun ${run.databaseId} --failed to retry)` : '';
+  log(`green: FAILED (cloud, ${view.conclusion}) ${where.length ? where.join('; ') : view.url}${retry}`);
+  return 1;
+}
+
+/** Scripts whose tests live in another file. */
+const QUICK_TEST_OF = { 'scripts/pre-push.mjs': 'scripts/green.test.mjs' };
+
+/**
+ * `green --quick`: the steps for the files a branch changed (CI on the pushed head is the green, the
+ * lane skill 2026-10-30). Per touched workspace its typecheck and unit tests; a `shared/` change
+ * typechecks every package (they build on it) and tests shared; a changed `*.test.mjs` (or the
+ * script next to it) runs under node --test; a changed dashboard e2e spec builds the dashboard and
+ * runs only that spec. None of these step names is in HEAVY_STEPS (hence `unit-*`, not `test-*`), so a quick run never takes a
+ * heavy slot (the e2e spec step keeps the small solo lock the e2e port needs).
+ * @param {string[]} files repo-relative paths, forward slashes
+ * @returns {Step[]}
+ */
+export function quickSteps(files, cwd = process.cwd()) {
+  /** @type {Step[]} */
+  const steps = [];
+  const pkgs = new Set();
+  for (const f of files) {
+    const m = /^packages\/([^/]+)\//.exec(f);
+    if (m) pkgs.add(m[1]);
+  }
+  const sharedTouched = files.some(f => f.startsWith('shared/'));
+  if (sharedTouched || pkgs.size > 0) steps.push({ name: 'build-shared', cmd: 'npm', args: ['run', 'build:shared'] });
+  if (sharedTouched) {
+    steps.push({ name: 'typecheck-all', cmd: 'npm', args: ['run', 'typecheck'] });
+    steps.push({ name: 'unit-shared', cmd: 'npm', args: ['run', 'test', '-w', '@gnuminator/shared'], env: CI });
+  } else {
+    for (const p of [...pkgs].sort()) {
+      steps.push({ name: `typecheck-${p}`, cmd: 'npm', args: ['run', 'typecheck', '-w', `@gnuminator/${p}`] });
+    }
+  }
+  for (const p of [...pkgs].sort()) {
+    steps.push({ name: `unit-${p}`, cmd: 'npm', args: ['run', 'test', '-w', `@gnuminator/${p}`], env: CI });
+  }
+  const nodeTests = new Set();
+  for (const f of files) {
+    if (/^(?:scripts|\.claude\/hooks)\/.*\.mjs$/.test(f) && isShellSafe(f)) {
+      nodeTests.add(
+        f.endsWith('.test.mjs') ? f : (QUICK_TEST_OF[f] ?? f.replace(/\.mjs$/, '.test.mjs'))
+      );
+    }
+  }
+  const tests = [...nodeTests].filter(f => fs.existsSync(path.join(cwd, f))).sort();
+  if (tests.length > 0) steps.push({ name: 'node-tests', cmd: 'node', args: ['--test', ...tests], env: CI });
+  const specs = files
+    .filter(f => /^packages\/cogm-dashboard\/web\/e2e\/.+\.spec\.ts$/.test(f) && isShellSafe(f) && fs.existsSync(path.join(cwd, f)))
+    .map(f => f.replace('packages/cogm-dashboard/web/', ''))
+    .sort();
+  if (specs.length > 0) {
+    steps.push({ name: 'build-dashboard', cmd: 'npm', args: ['run', 'build', '-w', '@gnuminator/cogm-dashboard'] });
+    steps.push({
+      name: 'e2e-specs',
+      cmd: 'npm',
+      args: ['run', 'test:e2e', '-w', '@gnuminator/cogm-dashboard', '--', ...specs],
+      env: CI,
+    });
+  }
+  return steps;
+}
+
+/**
+ * The files this checkout changed against the base: committed since the merge base, uncommitted
+ * and untracked. The base is aitool/main, else origin/main, else main.
+ * @param {string} cwd
+ * @returns {string[] | null} null when no base ref exists
+ */
+export function changedFiles(cwd) {
+  const git = (/** @type {string[]} */ args) => spawnSync('git', args, { cwd, encoding: 'utf8' });
+  const base = ['aitool/main', 'origin/main', 'main'].find(
+    b => git(['rev-parse', '--verify', '--quiet', b]).status === 0
+  );
+  if (!base) return null;
+  const mb = git(['merge-base', base, 'HEAD']).stdout.trim() || base;
+  // -z: git quotes and octal-escapes non-ASCII paths otherwise. Deleted files stay in the list.
+  const lines = (/** @type {string} */ t) => t.split('\0').filter(Boolean);
+  return [
+    ...new Set([
+      ...lines(git(['diff', '--name-only', '-z', mb]).stdout),
+      ...lines(git(['ls-files', '-z', '--others', '--exclude-standard']).stdout),
+    ]),
+  ].map(f => f.replace(/\\/g, '/'));
 }
 
 /**
@@ -520,14 +926,14 @@ function spawnStep(step, fd, cwd) {
  *   argv?: string[], steps?: Step[], cwd?: string, tmpdir?: string, now?: () => number,
  *   isTTY?: boolean, log?: (line: string) => void, write?: (text: string) => void,
  *   runStep?: (step: Step, fd: number, cwd: string) => number, note?: string | null,
- *   recordStamp?: boolean,
+ *   recordStamp?: boolean, changed?: string[], cloudOptions?: Partial<Parameters<typeof cloudGreen>[0]>, takeLock?: (label: string) => ReturnType<typeof acquire>,
  * }} [options]
  * @returns {number} the process exit code
  */
 export function main(options = {}) {
   const {
     argv = process.argv.slice(2),
-    steps = STEPS,
+    steps: stepsOption = STEPS,
     cwd = repoRoot(),
     tmpdir = os.tmpdir(),
     now = Date.now,
@@ -536,6 +942,7 @@ export function main(options = {}) {
     write = text => process.stdout.write(text),
     runStep = spawnStep,
     note = nodeNote(),
+    takeLock = label => acquire(label),
   } = options;
 
   const opts = parseArgs(argv);
@@ -544,7 +951,28 @@ export function main(options = {}) {
     return 2;
   }
   if (opts.list) {
-    for (const s of steps) log(s.name);
+    if (!opts.quick) {
+      const listed = selectSteps(stepsOption, opts);
+      if (listed.error) {
+        log(`green: ${listed.error}`);
+        return 2;
+      }
+      for (const s of listed.steps) log(s.name);
+      return 0;
+    }
+  }
+  const changed = opts.quick ? (options.changed !== undefined ? options.changed : changedFiles(cwd)) : [];
+  if (changed === null) {
+    log('green: --quick found no base (aitool/main, origin/main, main); git fetch aitool first');
+    return 2;
+  }
+  if (opts.list) {
+    for (const s of quickSteps(changed, cwd)) log(s.name);
+    return 0;
+  }
+  const steps = opts.quick ? quickSteps(changed, cwd) : stepsOption;
+  if (opts.quick && steps.length === 0) {
+    log('green: OK (quick), nothing to check: no package, script test or e2e spec changed vs the base');
     return 0;
   }
   const picked = selectSteps(steps, opts);
@@ -557,46 +985,72 @@ export function main(options = {}) {
     return 2;
   }
 
+  if (opts.cloud) return cloudGreen({ cwd, log, ...options.cloudOptions });
+
   if (note) log(note);
-  // A full run (every step) on a clean tree is recorded, so the pre-push hook can skip its ratchets.
+  // A full run (every step) is recorded with the tree it ran on (uncommitted edits included), so the
+  // pre-push hook can skip its em-dash ratchet when it pushes a commit with exactly that tree.
   const treeBefore =
     options.recordStamp === false ||
     steps !== STEPS ||
     opts.only.length + opts.skip.length > 0 ||
     opts.from
       ? null
-      : cleanTreeHash(cwd);
-  const logDir = path.join(tmpdir, `green-${stamp(new Date(now()))}`);
+      : worktreeTreeHash(cwd);
+  // The pid keeps two greens started in the same second (parallel lanes) out of each other's logs.
+  const logDir = path.join(tmpdir, `green-${stamp(new Date(now()))}-${process.pid}`);
   fs.mkdirSync(logDir, { recursive: true });
   const started = now();
   /** @type {{ name: string, logFile: string }[]} */
   const failed = [];
-  picked.steps.forEach((step, i) => {
-    if (failed.length > 0 && !opts.all) return;
-    const nn = String(steps.indexOf(step) + 1).padStart(2, '0');
-    const logFile = path.join(logDir, `${nn}-${step.name}.log`);
-    if (isTTY) write(`\x1b[2K\rgreen: [${i + 1}/${picked.steps.length}] ${step.name}`);
-    const fd = fs.openSync(logFile, 'w');
-    let status;
-    try {
-      status = runStep(step, fd, cwd);
-    } finally {
-      fs.closeSync(fd);
-    }
-    if (status !== 0) failed.push({ name: step.name, logFile });
-  });
+  /** @type {{ step: string, ms: number, status: number }[]} */
+  const timings = [];
+  const lock = runLock(picked.steps, takeLock, `green ${path.basename(cwd)}`);
+  try {
+    picked.steps.forEach((step, i) => {
+      if (failed.length > 0 && !opts.all) return;
+      const nn = String(steps.indexOf(step) + 1).padStart(2, '0');
+      const logFile = path.join(logDir, `${nn}-${step.name}.log`);
+      if (isTTY) write(`\x1b[2K\rgreen: [${i + 1}/${picked.steps.length}] ${step.name}`);
+      lock.before(i, step);
+      const fd = fs.openSync(logFile, 'w');
+      const stepStart = performance.now();
+      let status = 1;
+      try {
+        status = runStep(step, fd, cwd);
+      } finally {
+        fs.closeSync(fd);
+        lock.after(i);
+      }
+      timings.push({ step: step.name, ms: Math.round(performance.now() - stepStart), status });
+      if (status !== 0) failed.push({ name: step.name, logFile });
+    });
+  } finally {
+    lock.release();
+  }
   if (isTTY) write('\x1b[2K\r');
+  const ended = now();
+  try {
+    // For tuning the heavy-check lock: what each step took and how long the run waited for the lock.
+    fs.writeFileSync(
+      path.join(logDir, 'timings.json'),
+      `${JSON.stringify({ totalMs: ended - started, lockWaitMs: lock.waitedMs, steps: timings }, null, 1)}\n`
+    );
+  } catch {
+    // Timings are a nice-to-have.
+  }
+  const waited = lock.waitedMs >= 1000 ? ` (${formatDuration(lock.waitedMs)} of it waiting for the heavy-check lock)` : '';
 
   if (failed.length === 0) {
-    if (treeBefore && cleanTreeHash(cwd) === treeBefore) {
+    if (treeBefore && worktreeTreeHash(cwd) === treeBefore) {
       const stamp = greenStampPath(cwd);
       try {
         if (stamp) fs.writeFileSync(stamp, `${treeBefore}\n`);
       } catch {
-        // No stamp: the pre-push hook just runs its ratchets.
+        // No stamp: the pre-push hook just runs its em-dash ratchet.
       }
     }
-    log(`green: OK, ${picked.steps.length} steps in ${formatDuration(now() - started)}`);
+    log(`green: OK, ${picked.steps.length} steps in ${formatDuration(ended - started)}${waited}`);
     return 0;
   }
   for (const f of failed) log(`green: FAILED at ${f.name} (${f.logFile})`);

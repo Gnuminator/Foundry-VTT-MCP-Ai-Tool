@@ -123,8 +123,8 @@ describe('every package the Pi services import is a dependency of its workspace'
 
   test('the Pi scripts that load a package from the build only use the root dependencies', () => {
     const root = json('package.json');
-    const files = ['assistant-gm.mjs', 'player-creation-settings.mjs'].map(f =>
-      path.join(repo, 'scripts', 'pi', 'remote', f)
+    const files = ['assistant-gm.mjs', 'player-creation-settings.mjs', 'world-switches.mjs'].map(
+      f => path.join(repo, 'scripts', 'pi', 'remote', f)
     );
     // They load playwright-core with createRequire(<tool>/package.json)('playwright-core'): the scan sees it.
     for (const f of files) {

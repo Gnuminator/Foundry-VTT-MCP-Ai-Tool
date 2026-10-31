@@ -397,7 +397,7 @@ test.describe('Undo on the AI tab', () => {
     const c = await load(page);
     await c.getByRole('button', { name: 'Undo: Revealed a page' }).click();
     await expect(
-      toast(page, 'GM Actions are off. Turn on for tonight in Pre-flight turns them on.')
+      toast(page, 'GM Actions are off. Start session or the header Turn on button turns them on.')
     ).toBeVisible();
     // No confirm window; the gate opened Pre-flight, where Turn on for tonight turns GM Actions on.
     await expect(page.getByRole('dialog', { name: 'Destructive action' })).toHaveCount(0);
@@ -613,7 +613,7 @@ test.describe('Undo on the Everyone tab', () => {
     await c.getByRole('button', { name: 'Undo: Human h1' }).click();
     await undoWindow(page).getByRole('button', { name: 'Undo', exact: true }).click();
 
-    await expect(toast(page, '✗ apply-planned-change: The plan has expired.')).toBeVisible();
+    await expect(toast(page, '✗ The change: The plan has expired.')).toBeVisible();
     await expect(page.locator('.toast-stack').getByRole('button', { name: 'Undo' })).toHaveCount(0);
     await expect.poll(() => callsOf(calls, 'list-changes').length).toBeGreaterThan(before);
     expect(callsOf(calls, 'apply-planned-change')).toHaveLength(1);
@@ -658,7 +658,7 @@ test.describe('Undo on the Everyone tab', () => {
     const c = await openEveryone(page);
     await c.getByRole('button', { name: 'Undo: Human h1' }).click();
     await expect(
-      toast(page, 'GM Actions are off. Turn on for tonight in Pre-flight turns them on.')
+      toast(page, 'GM Actions are off. Start session or the header Turn on button turns them on.')
     ).toBeVisible();
     expect(names(calls)).not.toContain('plan-undo-changes');
   });

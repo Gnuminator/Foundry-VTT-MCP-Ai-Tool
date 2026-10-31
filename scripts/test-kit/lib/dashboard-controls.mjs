@@ -123,7 +123,23 @@ export const DASHBOARD_CONTROLS = [
   { name: 'dash.header.handouts', how: 'open', reach: [ADV], expect: '#handouts-drawer' },
   { name: 'dash.header.tarokka', how: 'open', reach: [ADV], expect: '#tarokka-drawer' },
   { name: 'dash.header.paper', how: 'skip', why: NEW_ONLY },
-  { name: 'dash.header.combat-buttons', how: 'toggle', reach: [ADV], changes: true },
+
+  // --- the live strip (/next?strip=1; the e2e spec live-strip.spec.ts and the live check cover it) ---
+  ...[
+    'dash.live.clear',
+    'dash.live.condition',
+    'dash.live.end-combat',
+    'dash.live.next-turn',
+    'dash.live.pan',
+    'dash.live.pick',
+    'dash.live.show-handout',
+    'dash.live.undo',
+    'dash.quickroll.again',
+  ].map(name => ({
+    name,
+    how: 'skip',
+    why: 'only on the live strip page (/next?strip=1); the e2e spec and the live check cover it',
+  })),
   {
     name: 'dash.header.version-tracker',
     how: 'skip',
@@ -173,7 +189,7 @@ export const DASHBOARD_CONTROLS = [
   {
     name: 'dash.header.gm-actions',
     how: 'write',
-    why: 'flips the master switch for game-changing actions; the write checks cover it',
+    why: 'opens the live play switch list (header line); the write checks cover it',
   },
 
   // --- the During layout trial (before the layout buttons: picking a layout hides the trial card) ---
@@ -339,7 +355,7 @@ export const DASHBOARD_CONTROLS = [
     why: 'puts an undone change back after the confirm window; dashboard-write-flows (i) clicks it',
   },
 
-  // --- the combat strip (only with a live combat; the buttons need GM Actions and Combat buttons on) ---
+  // --- the combat strip (only with a live combat; the buttons need GM Actions on) ---
   {
     name: 'dash.combat.boss-prompts',
     how: 'toggle',
@@ -363,7 +379,7 @@ export const DASHBOARD_CONTROLS = [
     reach: [MOMENT_DURING],
     expect: '.combatant.selected',
     optional: true,
-    why: 'only with a combat, GM Actions on and Combat buttons on',
+    why: 'only with a combat and GM Actions on',
   },
   {
     name: 'dash.combat.selection-clear',
@@ -386,9 +402,74 @@ export const DASHBOARD_CONTROLS = [
     name: 'dash.combat.selection-damage',
     how: 'open',
     reach: [MOMENT_DURING, 'dash.combat.select-combatant'],
-    expect: '#tool-detail',
+    expect: '[data-track="dash.damage.apply"]',
     optional: true,
-    why: 'needs a selected combatant (opens the tool form, runs nothing)',
+    why: 'needs a selected combatant (opens the Damage / Heal form, applies nothing until its button)',
+  },
+  {
+    name: 'dash.damage.mode-damage',
+    how: 'skip',
+    why: 'inside the Damage / Heal form: needs a fight and a picked combatant',
+  },
+  {
+    name: 'dash.damage.mode-heal',
+    how: 'skip',
+    why: 'inside the Damage / Heal form: needs a fight and a picked combatant',
+  },
+  {
+    name: 'dash.damage.amount',
+    how: 'skip',
+    why: 'inside the Damage / Heal form: needs a fight and a picked combatant',
+  },
+  {
+    name: 'dash.damage.type',
+    how: 'skip',
+    why: 'inside the Damage / Heal form: needs a fight and a picked combatant',
+  },
+  {
+    name: 'dash.damage.cancel',
+    how: 'skip',
+    why: 'inside the Damage / Heal form: needs a fight and a picked combatant',
+  },
+  {
+    name: 'dash.damage.apply',
+    how: 'write',
+    why: 'changes the HP of the picked tokens in Foundry (with Undo)',
+  },
+  {
+    name: 'dash.quickroll.what',
+    how: 'skip',
+    why: 'choice in the roll bar: the strip needs a fight, Party needs members',
+  },
+  {
+    name: 'dash.quickroll.dc',
+    how: 'skip',
+    why: 'field in the roll bar: the strip needs a fight, Party needs members',
+  },
+  {
+    name: 'dash.quickroll.visibility',
+    how: 'skip',
+    why: 'choice in the roll bar: the strip needs a fight, Party needs members',
+  },
+  {
+    name: 'dash.quickroll.advantage',
+    how: 'skip',
+    why: 'choice in the roll bar: the strip needs a fight, Party needs members',
+  },
+  {
+    name: 'dash.quickroll.picked',
+    how: 'write',
+    why: 'asks the picked players for a roll (shows on their screens)',
+  },
+  {
+    name: 'dash.quickroll.party',
+    how: 'write',
+    why: 'asks the whole party for a roll (shows on their screens)',
+  },
+  {
+    name: 'dash.quickroll.member',
+    how: 'write',
+    why: 'asks one player for a roll (shows on their screen)',
   },
   {
     name: 'dash.combat.start',
@@ -419,7 +500,13 @@ export const DASHBOARD_CONTROLS = [
     reach: [MOMENT_DURING],
     expect: '#tool-detail',
     optional: true,
-    why: 'needs a combat, GM Actions on and Combat buttons on (opens the tool form, runs nothing)',
+    why: 'needs a combat and GM Actions on (opens the tool form, runs nothing)',
+  },
+
+  {
+    name: 'dash.combat.foundry-targets',
+    how: 'skip',
+    why: 'new dashboard only (the combat strip button that picks the tokens targeted in Foundry); needs targets set in Foundry, the unit tests and the live check cover it',
   },
 
   // --- the Tool Runner ---
@@ -463,6 +550,11 @@ export const DASHBOARD_CONTROLS = [
     selector: '#tool-form .ref-item',
     optional: true,
     why: 'needs a picker with at least one choice (fills the field, runs nothing)',
+  },
+  {
+    name: 'dash.tools.foundry-targets',
+    how: 'skip',
+    why: 'new dashboard only (the Pick menu button that fills a field from the tokens targeted in Foundry); needs targets set in Foundry, the unit tests and the live check cover it',
   },
   {
     name: 'dash.tools.show-all-actors',
@@ -601,6 +693,11 @@ export const DASHBOARD_CONTROLS = [
   },
   { name: 'dash.ready.turn-on', how: 'write', why: 'turns the module switches and GM Actions on' },
   {
+    name: 'dash.live.turn-on',
+    how: 'write',
+    why: 'turns the module switches and GM Actions on, the same call as dash.ready.turn-on',
+  },
+  {
     name: 'dash.ready.turn-off',
     how: 'write',
     why: 'turns the switches Ready turned on off again',
@@ -616,8 +713,13 @@ export const DASHBOARD_CONTROLS = [
   { name: 'dash.tarokka.close', how: 'open', reach: TAROKKA, gone: '#tarokka-drawer' },
   { name: 'dash.tarokka.refresh', how: 'read', reach: TAROKKA, expect: '#tarokka-body' },
   { name: 'dash.tarokka.show-cards', how: 'toggle', reach: TAROKKA },
-  { name: 'dash.tarokka.import', how: 'write', why: 'stores a reading from tarokka-reading' },
   { name: 'dash.tarokka.roll', how: 'write', why: 'deals and stores a new reading' },
+  {
+    name: 'dash.tarokka.choose',
+    how: 'write',
+    why: 'opens the five-card form, only while Show cards is ticked; choose-save stores it',
+  },
+  { name: 'dash.tarokka.choose-save', how: 'write', why: 'stores the five cards the GM picked' },
   {
     name: 'dash.tarokka.open-obsidian',
     how: 'external',

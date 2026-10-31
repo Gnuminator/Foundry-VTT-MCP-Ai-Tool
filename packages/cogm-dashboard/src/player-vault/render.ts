@@ -10,6 +10,7 @@ import type { CharacterSheet, PlayerHandout, SheetItem, SheetSpell } from '@gnum
 
 import { htmlToMarkdown, neutralizeMarkdownText } from './html-md.js';
 import { NameAllocator } from './names.js';
+import type { PlayerBestRoll, PlayerStats } from './stats.js';
 import type { PlayerVaultFiles, PlayerVaultInput, VaultSession } from './types.js';
 
 /**
@@ -357,6 +358,75 @@ function sessionOrder(a: VaultSession, b: VaultSession): number {
 }
 
 // ---------------------------------------------------------------------------
+// Allowed stats
+// ---------------------------------------------------------------------------
+
+const STATS_PATH = 'My stats.md';
+
+function slotLabel(key: string): string {
+  const level = /^spell(\d+)$/.exec(key);
+  if (level) return Number(level[1]) === 0 ? 'Pact slots' : `Level ${level[1]} slots`;
+  return key === 'pact' ? 'Pact slots' : `${key} slots`;
+}
+
+function tallyText(values: Record<string, number>, label: (key: string) => string): string {
+  return Object.entries(values)
+    .map(([key, n]) => `${n} ${t(label(key))}`)
+    .join(', ');
+}
+
+function bestRollText(roll: PlayerBestRoll): string {
+  const natural = roll.natural !== null ? ` (natural ${roll.natural})` : '';
+  return `${roll.total}${roll.label ? `, ${roll.label}` : ''}${natural}`;
+}
+
+function renderStats(stats: PlayerStats): string {
+  const c = stats.campaign;
+  const party = section('The campaign so far', [
+    kv('Sessions', c.sessions),
+    kv('Time played', c.playMinutes > 0 ? `${Math.round(c.playMinutes)} minutes` : null),
+    kv('Fights', c.combats),
+    kv('Combat rounds', c.rounds),
+    kv('Party members who went down', c.pcDowns),
+    kv('Enemies defeated', c.npcKills),
+    kv('Spells cast', c.spellsCast),
+  ]);
+  const characters = stats.pcs.map(pc =>
+    section(t(pc.name.trim() === '' ? 'Character' : pc.name), [
+      kv('Sessions played', pc.sessions),
+      kv('Damage taken', pc.damageTaken),
+      kv('Healing received', pc.healingReceived),
+      kv('Times down', pc.downs),
+      kv('Enemies defeated', pc.kills),
+      kv('Spells cast', pc.spellsCast),
+      kv('Spell slots spent', tallyText(pc.slotsSpent, slotLabel)),
+      kv('Class resources and item uses', pc.resourcesSpent),
+      kv('Items used', pc.itemsUsed),
+      kv(
+        'Coins gained or spent',
+        tallyText(pc.currencyDelta, k => k)
+      ),
+      kv('Experience gained', pc.xpGained),
+      ...(pc.rolls > 0
+        ? [
+            kv('Rolls everyone could see', pc.rolls),
+            kv('Critical hits', pc.crits),
+            kv('Critical misses', pc.fumbles),
+            kv('Natural 20s', pc.d20[19]),
+            kv('Natural 1s', pc.d20[0]),
+            kv('Highest roll', pc.highestRoll ? bestRollText(pc.highestRoll) : null),
+          ]
+        : []),
+    ]).replace(/^## /, '### ')
+  );
+  const body = [
+    party,
+    ...(characters.some(v => v !== '') ? [`## My characters`, ...characters] : []),
+  ];
+  return `${['# My stats', ...body.filter(v => v !== '')].join('\n\n')}\n`;
+}
+
+// ---------------------------------------------------------------------------
 // The vault
 // ---------------------------------------------------------------------------
 
@@ -449,10 +519,12 @@ export function renderPlayerVault(input: PlayerVaultInput): PlayerVaultFiles {
     homeSection(input.sheets.length === 1 ? 'My character' : 'My characters', characters),
     homeSection('Recaps', recaps),
     homeSection('Handouts', handouts),
+    input.stats ? `## Stats\n\n- ${link('My stats', STATS_PATH)}` : '',
     homeSection('Session log', sessions),
   ].filter(v => v !== '');
   files.set('Home.md', `${home.join('\n\n')}\n`);
 
+  if (input.stats) files.set(STATS_PATH, renderStats(input.stats));
   for (const [path, content] of notes) files.set(path, content);
   for (const [path, content] of sessionNotes) files.set(path, content);
 

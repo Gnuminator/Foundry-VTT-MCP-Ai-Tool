@@ -8,10 +8,14 @@ import { useEffect, useRef, useState, type JSX } from 'react';
 
 import { Drawer, DrawerClose } from '../components/Drawer';
 import { useToast } from '../components/Toasts';
+import { TurnOnNote } from '../components/TurnOnNote';
 import { api, callTool, errorText } from '../lib/api';
-import { failCode, useGuardedChange } from '../lib/guarded';
+import { failCode, useGuardedTools } from '../lib/guarded';
 import { canMoveTo, moveTarget } from '../lib/handoutQueue';
+import { useLivePlay } from '../lib/livePlay';
+import { HANDOUT_NEEDS, offReason } from '../lib/liveSwitches';
 import { HANDOUTS_KEY } from '../lib/stream';
+import { handoutsSwitchOff, type FeatureList } from '../lib/switchOff';
 import { usage } from '../lib/usage';
 import { Button, QueryState } from '../ui';
 
@@ -36,7 +40,7 @@ interface RevealedPage {
 }
 
 /** A queued page (handouts/service.ts QueuedPageView). */
-interface QueuedPage {
+export interface QueuedPage {
   entryId: string;
   uuid: string;
   title: string | null;
@@ -46,23 +50,25 @@ interface QueuedPage {
 }
 
 /** One player's display name (GET /api/player/names). */
-interface PlayerName {
+export interface PlayerName {
   userId: string;
   name: string;
 }
 
-interface Scene {
+export interface Scene {
   id: string;
   name: string;
   active?: boolean;
 }
 
-interface HandoutsState {
+export interface HandoutsState {
   pages: RevealedPage[];
   queue: QueuedPage[];
   sceneNames: Record<string, string>;
   activeSceneId: string | null;
   players: PlayerName[];
+  /** The sentence to show when "AI Tool: Handouts (writes)" or "Allow Write Operations" is off. */
+  switchOff: string | null;
 }
 
 /** The unqueue answer (QueueChangeView): no plan, nothing to apply. */
@@ -77,11 +83,12 @@ const list = <T,>(x: T[] | null | undefined): T[] => (Array.isArray(x) ? x : [])
  * active) and the player names. Only list-revealed-pages failing fails the load; without scenes
  * "Reveal next" takes a page queued for any scene, and without names the ticks show user ids.
  */
-async function loadHandouts(): Promise<HandoutsState> {
-  const [view, scenes, players] = await Promise.all([
+export async function loadHandouts(): Promise<HandoutsState> {
+  const [view, scenes, players, features] = await Promise.all([
     callTool<{ pages?: RevealedPage[]; queue?: QueuedPage[] } | null>('list-revealed-pages', {}),
     callTool<Scene[] | { scenes?: Scene[] } | null>('list-scenes', {}).catch(() => []),
     api<PlayerName[]>('/api/player/names').catch((): PlayerName[] => []),
+    api<FeatureList>('/api/features').catch((): FeatureList | null => null),
   ]);
   const sceneList = Array.isArray(scenes) ? scenes : list(scenes?.scenes);
   return {
@@ -90,11 +97,12 @@ async function loadHandouts(): Promise<HandoutsState> {
     sceneNames: Object.fromEntries(sceneList.map(s => [s.id, s.name])),
     activeSceneId: sceneList.find(s => s.active)?.id ?? null,
     players: list(players),
+    switchOff: handoutsSwitchOff(features),
   };
 }
 
 /** The queue entry "Reveal next" takes: the oldest for the active scene or for any scene. */
-function nextQueued(s: HandoutsState): QueuedPage | null {
+export function nextQueued(s: HandoutsState): QueuedPage | null {
   return (
     s.queue.find(
       q => q.sceneId === null || s.activeSceneId === null || q.sceneId === s.activeSceneId
@@ -117,7 +125,9 @@ export function HandoutsDrawer({
   onQueuePage: (sceneId: string | null) => void;
 }): JSX.Element {
   const toast = useToast();
-  const runChange = useGuardedChange();
+  const live = useLivePlay();
+  const liveOff = live.off(HANDOUT_NEEDS);
+  const { plan } = useGuardedTools();
   // Loads on every opening (stale at once), after a change or undo while open, and when the
   // stream says a player opened a handout (handouts-seen).
   const handouts = useQuery({
@@ -165,7 +175,15 @@ export function HandoutsDrawer({
     // Reloads after every attempt, as the old page does: a cancelled or failed reveal may still
     // have changed the queue. An apply already started a reload (GAME_STATE_KEY); this joins it.
     // The button waits for the reload, so it never offers the page just revealed a second time.
-    void runChange('plan-page-reveal', args).finally(() => {
+    const who = next?.players?.length ? next.players.map(nameOf).join(', ') : 'every player';
+    // One line, no tick: a reveal has a working Undo (it is a write, not a destructive change).
+    const confirmLine = {
+      title: 'Show page to players',
+      question: `Show "${next?.title || 'Untitled'}" to ${who}${showNow ? ' now (Undo cannot close the popup)' : ''}?`,
+      confirmLabel: 'Show page to players',
+      pageUuid: next?.uuid,
+    };
+    void plan('plan-page-reveal', args, { confirmLine }).finally(() => {
       setShowNow(false);
       void handouts.refetch({ cancelRefetch: false }).finally(() => {
         revealingRef.current = false;
@@ -203,11 +221,11 @@ export function HandoutsDrawer({
       .then(
         result => {
           usage().trackTool('plan-page-reveal', 'ok');
-          toast(typeof result?.note === 'string' ? `✓ ${result.note}` : '✓ plan-page-reveal', 'ok');
+          toast(typeof result?.note === 'string' ? `✓ ${result.note}` : '✓ Page reveal done', 'ok');
         },
         (err: unknown) => {
           usage().trackTool('plan-page-reveal', 'error', failCode(err));
-          toast(`✗ plan-page-reveal: ${errorText(err)}`, 'err');
+          toast(`✗ Page reveal: ${errorText(err)}`, 'err');
         }
       )
       .finally(() => {
@@ -239,7 +257,7 @@ export function HandoutsDrawer({
         () => usage().trackTool('plan-page-reveal', 'ok'),
         (err: unknown) => {
           usage().trackTool('plan-page-reveal', 'error', failCode(err));
-          toast(`✗ plan-page-reveal: ${errorText(err)}`, 'err');
+          toast(`✗ Page reveal: ${errorText(err)}`, 'err');
         }
       )
       .finally(() => {
@@ -402,10 +420,19 @@ export function HandoutsDrawer({
             ref={nextRef}
             data-track="dash.handouts.reveal-next"
             disabled={!next || revealing || moving}
-            onClick={revealNext}
+            aria-disabled={liveOff.length > 0 ? 'true' : undefined}
+            title={liveOff.length > 0 ? offReason(liveOff) : undefined}
+            onClick={() => {
+              if (liveOff.length === 0) revealNext();
+            }}
           >
-            {next ? `Reveal next: ${next.title || 'Untitled'}` : 'Reveal next'}
+            {revealing
+              ? 'Revealing...'
+              : next
+                ? `Reveal next: ${next.title || 'Untitled'}`
+                : 'Reveal next'}
           </Button>
+          <TurnOnNote live={live} off={liveOff} />
           <label className="show-now" htmlFor="handouts-show-now">
             <input
               type="checkbox"
@@ -436,6 +463,11 @@ export function HandoutsDrawer({
         </>
       }
     >
+      {s?.switchOff && (
+        <p className="preflight-summary pf-warn" id="handouts-switch-off" role="status">
+          {s.switchOff}
+        </p>
+      )}
       <h3 className="preflight-h">Queue</h3>
       <ul className="preflight-list" id="handouts-queue" aria-label="Queue" ref={queueRef}>
         {queueBlock}

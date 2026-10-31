@@ -33,7 +33,7 @@ function queued(id: string, over: Record<string, unknown> = {}): Record<string, 
 const plan = {
   planId: 'plan-1',
   summary: 'Reveal page "Page a" to all players',
-  risk: 'destructive',
+  risk: 'write',
   diff: [{ text: 'allowlist the page' }],
 };
 

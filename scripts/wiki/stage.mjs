@@ -60,11 +60,19 @@ const COACH_LINE =
 const SIDEBAR = [
   {
     label: 'Start here',
-    pages: ['gm', 'gm/first-hour', 'gm/getting-started', 'gm/connect-claude-desktop', 'gm/claude-plans'],
+    pages: [
+      'gm',
+      'gm/first-15-minutes',
+      'gm/first-hour',
+      'gm/first-hour-quest',
+      'gm/getting-started',
+      'gm/connect-claude-desktop',
+      'gm/claude-plans',
+    ],
   },
   {
     label: 'Game night',
-    pages: ['gm/before-session', 'gm/game-night-runbook', 'gm/after-session', 'gm/tv-table-viewer'],
+    pages: ['gm/before-session', 'gm/before-session-quest', 'gm/game-night-runbook', 'gm/after-session', 'gm/tv-table-viewer'],
   },
   {
     label: 'The tool',
@@ -80,7 +88,7 @@ const SIDEBAR = [
   },
   {
     label: 'Your campaign',
-    pages: ['gm/prep-and-expectations', 'gm/prepare-session-0', 'gm/death-and-new-characters'],
+    pages: ['gm/prep-and-expectations', 'gm/prepare-session-0', 'gm/prepare-session-0-quest', 'gm/death-and-new-characters'],
   },
   { label: 'When it breaks', pages: ['gm/troubleshooting', 'gm/never-and-only-if'] },
   { label: 'For players', pages: ['player'], rest: 'player' },
@@ -99,6 +107,43 @@ function stagedPathOf(repoPath) {
 }
 
 const toPosix = p => p.split(path.sep).join('/');
+
+/**
+ * True when `offset` of `line` sits inside an inline code span. A span opens with a run of N
+ * backticks and closes at the next run of exactly N, so a double-backtick span can hold single
+ * backticks; a backslash-escaped backtick is no delimiter. An unclosed run is plain text.
+ */
+export function insideCodeSpan(line, offset) {
+  const runAt = i => {
+    let n = 1;
+    while (line[i + n] === '`') n++;
+    return n;
+  };
+  for (let i = 0; i < line.length; i++) {
+    if (line[i] === '\\') {
+      i++; // outside a span only: a backslash is no escape inside one (`C:\dir\`)
+    } else if (line[i] === '`') {
+      const n = runAt(i);
+      let close = -1;
+      for (let j = i + n; j < line.length; j++) {
+        if (line[j] !== '`') continue;
+        const m = runAt(j);
+        if (m === n) {
+          close = j;
+          break;
+        }
+        j += m - 1;
+      }
+      if (close === -1) {
+        i += n - 1; // an unclosed run is plain text
+      } else {
+        if (offset > i && offset < close) return true;
+        i = close + n - 1;
+      }
+    }
+  }
+  return false;
+}
 
 /** Returns a function: true for the lines that open, close or sit inside a fenced code block. */
 function fenceTracker() {
@@ -127,7 +172,9 @@ export function rewriteLinks(text, repoPath, images) {
     .split('\n')
     .map(line => {
       if (inCode(line)) return line;
-      return line.replace(/(!?)\]\(([^)\s]+)((?:\s+"[^"]*")?)\)/g, (match, bang, target, title) => {
+      return line.replace(/(!?)\]\(([^)\s]+)((?:\s+"[^"]*")?)\)/g, (match, bang, target, title, offset) => {
+        // A link shown inside an inline code span is an example, not a link.
+        if (insideCodeSpan(line, offset)) return match;
         if (
           /^[a-z][a-z0-9+.-]*:/i.test(target) ||
           target.startsWith('#') ||
@@ -148,7 +195,9 @@ export function rewriteLinks(text, repoPath, images) {
         }
         // A link into a staged section to a file that is not there is a typo, not a GitHub link.
         if (to !== null && !existsSync(path.join(repo, resolved))) {
-          throw new Error(`${repoPath}: the link ${target} points to ${resolved}, which does not exist`);
+          throw new Error(
+            `${repoPath}: the link ${target} points to ${resolved}, which does not exist`
+          );
         }
         const isDir =
           existsSync(path.join(repo, resolved)) &&
@@ -213,19 +262,28 @@ export function toSite(text, stagedPath) {
           : `${BASE}/${staged}`;
       };
       // A clip written as an image becomes a <video>.
-      const withClips = line.replace(/!\[([^\]]*)\]\(([^)\s]+\.(?:mp4|webm))\)/gi, (m, label, target) => {
-        const url = siteUrl(target);
-        return url === null
-          ? m
-          : `<video src="${url}" controls muted loop playsinline preload="metadata" aria-label="${escapeAttr(label)}"></video>`;
-      });
+      const withClips = line.replace(
+        /!\[([^\]]*)\]\(([^)\s]+\.(?:mp4|webm))\)/gi,
+        (m, label, target) => {
+          const url = siteUrl(target);
+          return url === null
+            ? m
+            : `<video src="${url}" controls muted loop playsinline preload="metadata" aria-label="${escapeAttr(label)}"></video>`;
+        }
+      );
+      // A time in a heading's last parentheses, "(15 minutes)", becomes a chip; the heading text
+      // stays as it is, so slugs and anchors do not move.
+      const chipped = withClips.replace(
+        /^(#{2,6} .*?)\s*(\((?:about )?\d+(?:-\d+)? (?:minutes?|hours?)(?: before)?\))\s*$/,
+        '$1 <span class="chip">$2</span>'
+      );
       // A link's text can wrap onto the line before, so only the `](target)` part is matched.
-      return withClips.replace(/\]\(([^)\s]+)((?:\s+"[^"]*")?)\)/g, (m, target, title) => {
+      return chipped.replace(/\]\(([^)\s]+)((?:\s+"[^"]*")?)\)/g, (m, target, title, offset) => {
+        if (insideCodeSpan(chipped, offset)) return m;
         const url = siteUrl(target);
         return url === null ? m : `](${url}${title})`;
       });
     })
-    .filter(l => l !== null)
     .join('\n');
 }
 
@@ -268,7 +326,11 @@ export function buildSidebar(slugs, order) {
   }).filter(g => g.items.length > 0);
   const left = slugs.filter(s => s !== 'index' && !placed.has(s));
   if (left.length > 0) groups.push({ label: LAST_GROUP, items: left.sort() });
-  const labels = { gm: 'GM guides overview', player: 'Player guide', foundry: 'Foundry basics overview' };
+  const labels = {
+    gm: 'GM guides overview',
+    player: 'Player guide',
+    foundry: 'Foundry basics overview',
+  };
   const asItem = slug => ({ slug, ...(labels[slug] ? { label: labels[slug] } : {}) });
   return [
     { slug: 'index', label: 'Home' },

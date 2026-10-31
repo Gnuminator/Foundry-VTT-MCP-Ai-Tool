@@ -118,6 +118,17 @@ set says so.
 - **What happens:** a plan (`plan-tarokka-import`); applied after your yes, then in **🃏 Tarokka** (under **Advanced ▾**).
 - **Tip:** keep **Show cards** unticked on the dashboard while players can see your screen.
 
+### Use a Tarokka reading you chose yourself
+
+- **Say:** "Store this Tarokka reading: the tome is `swords-7` (Seven of Swords), the holy symbol `glyphs-master` (Master of Glyphs), the sunsword `coins-1` (One of Coins), the ally `raven` and Strahd's location `donjon`."
+  Or open **🃏 Tarokka**, tick **Show cards** (the picks are on screen), press **Choose the cards…**, pick the five cards and press **Store this reading**.
+- **Card ids:** the tool takes ids, not names: a suit and a value (`swords-7`, `glyphs-master`, `coins-1`) for the common deck,
+  or one word for the high deck (`raven`, `donjon`, `broken-one`). A name gets an error that shows the format.
+- **What happens:** nothing is dealt. Each card must come from the right deck
+  (common for the first three, high for the last two) and none can repeat. The previous reading is archived, and Undo brings it back.
+- **Then reveal one card at a time:** in **🃏 Tarokka**, press **Reveal…** on one position and write what the players may read.
+  Nothing reaches the players until you do that, and the other four stay hidden.
+
 ## During the session
 
 ### Answer a rules question
@@ -133,6 +144,19 @@ set says so.
 - **What happens:** Claude reads the characters and the combat (`get-combat-state`,
   `list-characters`).
 - **Tip:** the dashboard's combat tracker shows HP bars without asking.
+
+### Start and end a fight
+
+- **In Foundry:** pick the tokens that fight (select them on the map, or drag a box around them),
+  right-click one and click the crossed swords (**Enter Combat**) in its token menu. That adds
+  every selected token to a new combat. Open the **Combat Encounters** tab and click **Roll All**
+  (or **Roll NPCs**) for the initiative, then **Start Combat**. When the fight is over, click **End
+  Combat** at the bottom of the tab and confirm.
+- **In the dashboard:** with **GM Actions** on (**Turn on for tonight** does it), click **Start
+  combat** in the Combat Tracker. It lists the tokens on the scene, ticks the player characters and
+  the hostile ones, and starts the fight at round 1 with an Undo. **End combat** shows once a fight runs. See [Combat Tracker](dashboard.md#combat-tracker).
+- **Tip:** the Damage / Heal and Condition buttons on a combatant, and Start and End combat, all
+  need live play on. If a button is greyed out it says why and has a **Turn on** next to it; the header should say "Live play on: all set".
 
 ### Run a boss fight
 

@@ -171,7 +171,6 @@ const els = {
   tarokkaSub: $('tarokka-sub'),
   tarokkaBody: $('tarokka-body'),
   tarokkaRefresh: $('tarokka-refresh'),
-  tarokkaImport: $('tarokka-import'),
   tarokkaRoll: $('tarokka-roll'),
   tarokkaShow: $('tarokka-show'),
   // Handouts drawer (I-039)
@@ -261,19 +260,16 @@ let settings = {
 // The GM's screen choices for this world (D-092, I-107), from the server's "prefs" event:
 // the During layout and whether the combat buttons show. See "During layouts" below.
 let duringPrefs = {
-  duringLayout: 'layered',
+  duringLayout: 'auto',
   duringFull: false,
-  combatButtons: false,
-  layoutPicked: false,
+  layoutPicked: true,
   hintDismissed: false,
   hintSessions: [],
 };
-/** Damage / Heal, Condition and Clear in the strip: GM Actions on and the Advanced switch on.
- * Never on the layout trial's made-up fight, so nothing can be sent for its combatants. */
+/** Damage / Heal, Condition and Clear in the strip: on with GM Actions (the Combat buttons setting
+ * is gone). Never on the layout trial's made-up fight, so nothing can be sent for its combatants. */
 function combatButtonsOn() {
-  return (
-    !!settings.gmActionsEnabled && !!duringPrefs.combatButtons && !(lastCombat && lastCombat.sample)
-  );
+  return !!settings.gmActionsEnabled && !(lastCombat && lastCombat.sample);
 }
 
 // GM Actions state
@@ -2371,8 +2367,8 @@ async function revealNextHandout() {
         action: 'reveal-next',
         ...(activeSceneId ? { sceneId: activeSceneId } : {}),
         ...(showNow ? { showNow: true } : {}),
-      },
-      { oneClick: true }
+      }
+      // No oneClick: the legacy page keeps asking in its window before a page reaches the players.
     );
   } finally {
     els.handoutsShowNow.checked = false;
@@ -3108,7 +3104,7 @@ async function onPartyClick(e) {
 // A plan-* tool is a read; apply-planned-change then applies it. A purpose-built
 // button passes oneClick: its plan with risk "write" applies at once with an Undo
 // toast (PB-17, D-086), the click being the confirmation. Everything else shows the
-// plan's diff in the confirm modal first: a destructive plan (a handout or Tarokka
+// plan's diff in the confirm modal first: a destructive plan (a Tarokka
 // reveal, a delete, with the destructive checkbox), a plan typed by hand in the Tool
 // Runner, and Claude's plans (opened from a plan link, they never come through here).
 // Everything stays behind GM Actions and the feature switches.
@@ -3177,7 +3173,7 @@ function renderTarokka() {
   if (!v || !v.available || !v.reading) {
     els.tarokkaSub.textContent = 'GM only. No reading stored yet.';
     els.tarokkaBody.innerHTML =
-      '<p class="empty">No reading in the vault. Import one from tarokka-reading or deal a new one.</p>';
+      '<p class="empty">No reading in the vault. Choose the cards or deal a new one.</p>';
     return;
   }
   const r = v.reading;
@@ -3373,9 +3369,6 @@ els.tarokkaClose.addEventListener('click', closeTarokka);
 els.drawerBackdrop.addEventListener('click', closeTarokka);
 els.tarokkaRefresh.addEventListener('click', () => void loadTarokka());
 els.tarokkaShow.addEventListener('change', renderTarokka);
-els.tarokkaImport.addEventListener('click', () =>
-  planThenApply('plan-tarokka-import', { source: 'tarokka-reading' }, { oneClick: true })
-);
 els.tarokkaRoll.addEventListener('click', () =>
   planThenApply('plan-tarokka-import', { source: 'builtin-roll' }, { oneClick: true })
 );
@@ -3699,6 +3692,10 @@ function summarizeSession(result) {
     endedAt: s.endedAt,
     rolls: s.rolls || 0,
     nat20: s.crits || 0,
+    publicCounts:
+      typeof s.publicRolls === 'number'
+        ? { rolls: s.publicRolls, nat20: s.publicCrits || 0, nat1: s.publicFumbles || 0 }
+        : null,
     nat1: s.fumbles || 0,
     mostDamage: top ? { name: top[0], amount: top[1].amount, fights: top[1].fights } : null,
     highestRoll: s.highestRoll || null,
@@ -3785,14 +3782,17 @@ async function loadAfterStats() {
 }
 
 /**
- * The text for the players' Discord channel. It leaves out the highest roll: the play log does
- * not keep a roll's visibility, so it may be a private or blind roll (stats/types.ts).
+ * The text for the players' Discord channel. It leaves out the highest roll: the session's
+ * unfiltered counts include private and blind rolls (stats/types.ts).
  */
 function statsForDiscord(a) {
   const lines = [`**${a.label || 'Last session'}** (${hoursMinutes(a.durationMin)})`];
-  lines.push(
-    `Rolls: ${a.rolls} (${plural(a.nat20, 'natural 20', 'natural 20s')}, ${plural(a.nat1, 'natural 1', 'natural 1s')})`
-  );
+  if (a.publicCounts) {
+    const p = a.publicCounts;
+    lines.push(
+      `Rolls: ${p.rolls} (${plural(p.nat20, 'natural 20', 'natural 20s')}, ${plural(p.nat1, 'natural 1', 'natural 1s')})`
+    );
+  }
   if (a.mostDamage) {
     lines.push(
       `Most damage: ${a.mostDamage.name}, ${a.mostDamage.amount} hp over ${plural(a.mostDamage.fights, 'fight', 'fights')}`
@@ -3810,7 +3810,12 @@ statEls.copy.addEventListener('click', async () => {
   if (!afterStats) return;
   try {
     await navigator.clipboard.writeText(statsForDiscord(afterStats));
-    toast('✓ Copied. The highest roll is left out (it may have been a private roll).', 'ok');
+    toast(
+      afterStats.publicCounts
+        ? '✓ Copied. Only public rolls are counted; the highest roll is left out.'
+        : '✓ Copied without roll counts (the bridge is older). The highest roll is left out.',
+      'ok'
+    );
   } catch (err) {
     toast(`✗ Could not copy: ${String(err.message || err)}`, 'err');
   }
@@ -4286,7 +4291,6 @@ const btnDuringFull = $('btn-during-full');
 const autoNote = $('during-auto-note');
 const layoutHint = $('layout-hint');
 const layoutTrial = $('layout-trial');
-const btnCombatButtons = $('btn-combat-buttons');
 /** Folded cards on the During screen; reset to the layout's defaults when the layout,
  * the context (combat or not) or the width class changes. */
 const folds = new Map();
@@ -4438,10 +4442,6 @@ function renderLayoutHint() {
 function renderDuringPrefs(next) {
   if (!next || typeof next !== 'object') return;
   duringPrefs = { ...duringPrefs, ...next };
-  btnCombatButtons.textContent = duringPrefs.combatButtons
-    ? '⚔ Combat buttons: on'
-    : '⚔ Combat buttons: off';
-  btnCombatButtons.classList.toggle('on', !!duringPrefs.combatButtons);
   layoutTrial.hidden = !!duringPrefs.layoutPicked;
   if (!combatButtonsOn()) selectedCombatants.clear();
   renderCombat(lastCombat);
@@ -4491,17 +4491,6 @@ btnDuringFull.addEventListener('click', () => {
 });
 $('layout-hint-close').addEventListener('click', () => {
   void savePrefs({ hintDismissed: true });
-});
-btnCombatButtons.addEventListener('click', () => {
-  const on = !duringPrefs.combatButtons;
-  void savePrefs({ combatButtons: on });
-  if (on)
-    toast(
-      settings.gmActionsEnabled
-        ? '✓ Combat buttons on: click combatants in the turn-order strip to pick them.'
-        : '✓ Combat buttons on. They show in the turn-order strip once GM Actions are on.',
-      'ok'
-    );
 });
 
 // --- The trial: each layout on the real screen, with a small guide card in the corner ---

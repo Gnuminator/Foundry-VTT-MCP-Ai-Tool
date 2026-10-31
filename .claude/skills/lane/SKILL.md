@@ -46,9 +46,10 @@ item is marked done; the board ignores a line on an item with no claim.
 
 ## Work
 
-- **Advisor (D-127):** call `advisor` (Opus, the user setting) once before you start coding and
-  once before you open the PR; act on it or say in the PR why not. The weekly check counts the
-  calls.
+- **Advisor (the user, 2026-10-29; was two a PR, D-127):** call `advisor` (Opus, the user setting)
+  once a PR, after the work is committed and before you open the PR; act on it or say in the PR
+  why not. Name the call in the PR handover and in the `- progress:` line (`advisor: 1`; a PR that
+  went without says why). The weekly check reads calls per merged PR (`usage:week`), target one.
 - **Subagents:** `model: "sonnet"` for code, tests, scripts and sweeps; `model: "haiku"` for
   reading and simple mechanical edits; Opus only for design and risky-PR reviews. Partition workers
   by file, lock shared contracts first, tell them to write big files in parts of at most about 250
@@ -91,13 +92,35 @@ item is marked done; the board ignores a line on an item with no claim.
 
 ## Before the PR
 
-- `npm run green`: everything CI's build-test job runs, quiet (one OK line, or the failing step
-  and its log tail). `--list`, `--only a,b`, `--from <step>` for a rerun. **Green on the final
-  commit:** run it again after the last review fix, on the committed tree. A full OK run on a clean
-  tree writes the tree hash to `.git/green-ok`; the `pre-push` hook (`scripts/pre-push.mjs`: the
-  lint and em-dash ratchets and the typecheck, about a minute) is skipped when that stamp matches,
-  and otherwise refuses a push that CI would fail on those. `SKIP_PREPUSH=1 git push ...` skips it
-  by hand.
+- **CI on the PR head is the green (the user, 2026-10-30 evening; vault Decisions log).** A lane
+  does not run the full `npm run green` before a PR: it waited a median 23.5 minutes for the heavy
+  lock for a 6.5 minute run. The routine: quick local checks of what you touched, push, let CI run
+  (`build-test` on Node 22, 24 and ARM, plus `dashboard-visual` for dashboard paths), fix what it
+  reports. `scripts/lane-merge.mjs --wait-ci` refuses a merge without CI green on the exact head,
+  so nothing skips CI. This also holds after review fixes: CI green on the new head is the answer.
+  - **Quick checks:** `npm run green -- --quick` (seconds to a couple of minutes, no heavy lock). It
+    diffs your branch against `aitool/main` (committed, uncommitted and untracked) and runs the
+    shared build, the typecheck and unit tests of each touched package (a `shared/` change
+    typechecks every package), the node tests of changed scripts and hooks (`foo.mjs` runs
+    `foo.test.mjs`), and the dashboard e2e specs you touched (after a dashboard build). Nothing
+    touched means "nothing to check". It never writes `.git/green-ok`.
+  - **Still yours:** `npm run docs:tools` after a tool change. Lint and em-dash baselines: the CI
+    ratchet tells you when a count dropped or rose; lower the baseline then
+    (`npm run lint:ratchet -- --update`).
+  - **The full local `npm run green`** only on request (the planner or the user asks) or when CI
+    cannot tell: Windows-only local behaviour (the heavy lock, the Node 22 PATH, the solo e2e lock,
+    the `.husky` hook path), checks CI does not run, or CI being down. A change to `green.mjs` or
+    `ci.yml` is judged by CI (the gate-scripts step and the ci.yml parity test run there). `--list`, `--only a,b`, `--from <step>` for a rerun. It shares the PC through the
+    machine-wide lock (`node scripts/heavy-lock.mjs status` shows who holds it and who waits; the
+    slot count is in `~/.foundry-ai-tool/heavy-lock.json`). A full OK run writes the tree to
+    `.git/green-ok`, which makes the `pre-push` hook skip its guard.
+  - **`npm run green -- --cloud`** (about 11 to 15 minutes, `run_in_background`) prints one line
+    once CI has finished for the pushed HEAD: use it to wait for CI instead of watching the PR. The
+    branch must be pushed (open the PR, a draft is fine, first, so it waits for the PR's own run);
+    it takes no lock and runs nothing locally.
+  - **The `pre-push` hook** (`scripts/pre-push.mjs`) runs only the em-dash ratchet (about a second,
+    no lock); the lint ratchet and typecheck are CI's job. `SKIP_PREPUSH=1 git push ...` skips it.
+  - Dashboard changes still need `visual:baselines`, as below.
 - **Dashboard change (anything under `packages/cogm-dashboard/`, stories included, or a
   `package-lock.json` change such as a Playwright bump):** push the branch, run `npm run visual:baselines -- <branch>` (starts `visual-baselines.yml` on GitHub,
   about 15 minutes, no Docker needed; the workflow runs on your branch, so a branch cut before it
@@ -120,7 +143,8 @@ item is marked done; the board ignores a line on an item with no claim.
 
 - Risky categories (guarded writes, bridge link, write gate, security, Pi scripts, wire contracts,
   the merge gate and CI: `scripts/lane-merge.mjs`, `green.mjs`, `drift-check.mjs`, `.github/`,
-  `.claude/hooks/`): an Opus review subagent. Everything else: a Sonnet review subagent (the gate
+  `.claude/hooks/`): an Opus review (the review runner until 2026-11-14, see Review runner below;
+  an Opus subagent as the fallback). Everything else: a Sonnet review, same paths (the gate
   decides which, see the next bullet; docs, tests, dashboard UI and kit scripts are usually
   Sonnet, and so is a delta round on lows, for a non-risky PR only: a risky PR's fixes go back to
   its Opus reviewer). Give it the PR number, the head sha and the area; it is read-only and writes
@@ -143,9 +167,10 @@ item is marked done; the board ignores a line on an item with no claim.
 - **Hybrid review flow (D-127):**
   - **Rounds:** every PR gets one review round plus one delta check by the same reviewer (D-101).
     A third round needs the planner; do not start one yourself (the runner refuses it without
-    `--allow-round3`, which is the planner's flag). Batch your findings into one fix round.
+    `--allow-round3`, which is the planner's flag; the one exception is `--delta` for a small commit
+    after a Merge, see below). Batch your findings into one fix round.
   - **Instant review:** PRs on the critical path, PRs other work stacks on, and risky PRs (the
-    gate's list) are reviewed now while you are alive, by a subagent as above.
+    gate's list) are reviewed now while you are alive, by the runner (or a subagent as above).
   - **Batched review:** low-risk PRs (build-ahead, board, lows, docs) do not wait for you: report
     "PR open" in the `- progress:` line and end. The planner has them reviewed once or twice a day
     by a review lane or by the API runner (next bullet). Fix the findings when they come back.
@@ -156,8 +181,11 @@ item is marked done; the board ignores a line on an item with no claim.
 scripts/review-runner`. It picks Opus for a PR the gate calls risky and Sonnet otherwise, checks
   the head out in a scratch worktree, writes the note in the format below to vault `Handoff/Reviews
 <date>/`, commits it with explicit paths and logs the cost in `~/.review-runner/ledger.jsonl`; it
-  stops at $95 in total. `--dry-run` shows the plan and spends nothing. Run it for real only when
-  the planner asked.
+  stops at $95 in total. `--dry-run` shows the plan and spends nothing. **Default review path
+  (the user, 2026-10-29):** until the credit ends on 2026-11-14 or the runner stops at $95, every
+  review round (the Sonnet and Opus rounds of D-101, delta checks included) runs on the runner;
+  your own PRs too. A subagent review is the fallback when the runner refuses (no key, no `npm ci`,
+  a stop) or the credit is spent; say which path was used in the PR handover.
 - **Review note format** (the merge gate reads it):
   - path: vault `Handoff/Reviews <YYYY-MM-DD>/<PR>-review.md`, round 2 `<PR>-review-round2.md`;
     Opus: `<PR>-opus-review.md`, `<PR>-opus-review-round2.md`, with the heading
@@ -167,8 +195,19 @@ scripts/review-runner`. It picks Opus for a PR the gate calls risky and Sonnet o
   - a `## Verdict` section whose first bold text is exactly `**Merge.**`, `**Merge after fixes.**`
     or `**Do not merge.**` (every note for the head must say Merge);
   - findings as H1, M1, L1 with file:line and a fix.
-- Fix the findings, push, and send the same reviewer (SendMessage to that subagent) the new head
-  for one delta round. Lows may go to the Backlog instead.
+- Fix the findings, push, and give the same reviewer the new head for one delta round: rerun the
+  runner on the new head (it counts the rounds itself), or SendMessage to the subagent that
+  reviewed. Lows may go to the Backlog instead. **Wait for CI green on the new head before asking
+  for that last round** (`gh pr checks`): a CI-only fix after a Merge is what forced a round 3
+  on #607, #610, #611 and #613.
+- **Small commit after a Merge (planner, 2026-10-30):** a docs-only, test-only or changelog-only
+  commit, or a merge of main that leaves the PR's own files alone, gets the runner's cheap delta
+  note instead of a round 3: `node scripts/review-runner/run.mjs <PR> --delta <sha the last Merge
+note reviewed>` (`--dry-run` first; no `--allow-round3`). It refuses, with the reason, when the
+  PR's own code changed or the change is large; that is a normal round, and a third one needs the
+  planner. On a risky PR the delta note is an Opus note (the gate wants an Opus Merge for the head),
+  still at a small budget. The runner also pins the head: it reviews the sha it read at the start and writes no
+  note when the head moved meanwhile, so push everything before you start it.
 - **Push:** `git push -u aitool claude/<topic>:claude/<topic>` (explicit refspec, never a bare
   push from a branch made off `aitool/main`).
 - **Ready to merge (the planner merges, 2026-10-16):** once every review for the head says Merge,
@@ -179,7 +218,7 @@ scripts/review-runner`. It picks Opus for a PR the gate calls risky and Sonnet o
   **Report in the vault first (2026-10-23):** write a `- progress:` line on your item in vault
   `Backlog.md` (pull first, then commit and push) carrying the PR number, the full head sha and
   the review note path, plus anything the brief asks for (a tally the brief names, say), as one
-  line like `- progress: <date> PR #<n> ready, head <40-char sha>, review <note path>`. Replace
+  line like `- progress: <date> PR #<n> ready, head <40-char sha>, review <note path>, advisor: 1`. Replace
   your earlier line instead of stacking another. That line is the ready state the planner reads;
   a planner that was replaced since your brief never sees a message. Only after the push may you
   SendMessage "the newest session titled Planner", and only if ListAgents shows one active. Never
@@ -211,11 +250,17 @@ scripts/review-runner`. It picks Opus for a PR the gate calls risky and Sonnet o
 - Handover: half a page to vault `Handoff/<lane> prompt <date>.md` and in full in the chat in a
   fenced block: task, state, open PRs, links, done-when, "follow CLAUDE.md". Findings a successor
   needs go in the vault, not side-session notes (archiving a session deletes those).
-- Write the `Handoff/<lane> prompt <date>.md` note at the first milestone (green passes, PR
+- Write the `Handoff/<lane> prompt <date>.md` note at the first milestone (quick checks pass, PR
   opened, a review says Merge) and update it at each later one, then commit and push the vault:
   done, left, branch, PR and head sha, the next command. Hitting the limit then means one step.
   At each milestone and at handover also update the `- progress:` line on your Backlog item (same
   rules as under "Ready to merge": vault first, then at most a message to the newest Planner).
+- **When you stop at the context line, tell the planner (2026-10-30):** push the handover note and
+  a `- progress:` line (`handed over at <context>, no PR yet` or the PR state, plus the note path),
+  then SendMessage "the newest session titled Planner" once (item ids, note path), even with no PR,
+  if ListAgents shows one active (never a fixed session id). A detached lane sends no turn-end note,
+  so this message is how the planner learns to start your successor; with no active planner the
+  pushed `- progress:` line is the report. Do not start a successor yourself; the planner does.
 - Before saying a session can be closed: no background run it owns is still going.
 - Never leave a user to-do only in chat: add it to vault `Waiting.md` (what to do, minutes, what it
   settles, a `- due:` line).

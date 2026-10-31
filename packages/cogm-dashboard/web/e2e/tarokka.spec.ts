@@ -1,6 +1,6 @@
 // The Tarokka drawer on the React dashboard: the reading (get-tarokka-reading, faked here) with
 // its empty and failed states, Show cards (hidden names never on the page), the Open buttons,
-// Import, New reading and a link pick in one click with Undo, Reveal through the confirm window
+// New reading and a link pick in one click with Undo, Reveal through the confirm window
 // (the destructive tick, both flags, Cancel, Show it now), open forms kept across reloads, the
 // GM Actions gate (and Pre-flight beside the drawer warning while Show cards is ticked), the
 // Obsidian link from the stream, and Escape.
@@ -158,6 +158,21 @@ const bridge: Answer = call => {
     }
     case 'undo-change':
       return ok({ changeId: 'u1', summary: `Undid ${String(call.args['changeId'])}` });
+    case 'list-ref-choices': {
+      const high = call.args['parent'] === 'ally' || call.args['parent'] === 'strahdLocation';
+      return ok({
+        choices: high
+          ? [
+              { id: 'raven', name: 'Raven' },
+              { id: 'donjon', name: 'Donjon' },
+            ]
+          : [
+              { id: 'swords-7', name: 'Seven of Swords' },
+              { id: 'coins-1', name: 'One of Coins' },
+              { id: 'glyphs-master', name: 'Master of Glyphs' },
+            ],
+      });
+    }
     case 'open-in-foundry':
       return ok({ opened: true });
     default:
@@ -327,9 +342,7 @@ test('shows the empty state, and a failed load says why and keeps the last readi
 
   fail = false;
   await drawer.getByRole('button', { name: '↻ Refresh' }).click();
-  await expect(body).toHaveText(
-    'No reading in the vault. Import one from tarokka-reading or deal a new one.'
-  );
+  await expect(body).toHaveText('No reading in the vault. Choose the cards or deal a new one.');
   await expect(sub).toHaveText('GM only. No reading stored yet.');
 
   view = READING;
@@ -351,20 +364,16 @@ test('shows the empty state, and a failed load says why and keeps the last readi
   );
 });
 
-test('Import and New reading apply in one click, with Undo; both reload the reading', async ({
-  page,
-}) => {
+test('New reading applies in one click, with Undo; each reloads the reading', async ({ page }) => {
   await fakeStream(page, gmActions(true));
   const calls = await fakeTools(page, bridge);
   const drawer = await openTarokka(page);
   await expect(drawer.locator('.tarokka-pos')).toHaveCount(5);
 
-  await drawer.getByRole('button', { name: 'Import from tarokka-reading' }).click();
+  await drawer.getByRole('button', { name: 'New reading (built-in roll)' }).click();
   await expect(toast(page, '✓ Applied: Stored a reading')).toBeVisible();
   await expect(page.getByRole('dialog', { name: /action/ })).toHaveCount(0);
-  expect(plans(calls)).toEqual([
-    { name: 'plan-tarokka-import', args: { source: 'tarokka-reading' } },
-  ]);
+  expect(plans(calls)).toEqual([{ name: 'plan-tarokka-import', args: { source: 'builtin-roll' } }]);
   expect(calls.find(c => c.name === 'apply-planned-change')).toEqual({
     name: 'apply-planned-change',
     args: { planId: 'im1' },
@@ -392,23 +401,66 @@ test('Import and New reading apply in one click, with Undo; both reload the read
   await expect.poll(() => loads(calls)).toBe(4);
 });
 
+test('Choose the cards stores the five picked cards, none twice', async ({ page }) => {
+  await fakeStream(page, gmActions(true));
+  const calls = await fakeTools(page, bridge);
+  const drawer = await openTarokka(page);
+  await expect(drawer.locator('.tarokka-pos')).toHaveCount(5);
+
+  const chooseToggle = drawer.getByRole('button', { name: 'Choose the cards…' });
+  await expect(chooseToggle).toBeDisabled();
+  await drawer.getByRole('checkbox', { name: 'Show cards' }).check();
+  await chooseToggle.click();
+  const form = drawer.locator('#tarokka-choose-form');
+  const store = form.getByRole('button', { name: 'Store this reading' });
+  await expect(form.locator('select')).toHaveCount(5);
+  await expect(store).toBeDisabled();
+  const pick = (position: string, value: string): Promise<string[]> =>
+    form.locator(`select[data-position="${position}"]`).selectOption(value);
+  await pick('tome', 'swords-7');
+  await pick('holySymbol', 'glyphs-master');
+  await pick('sunsword', 'coins-1');
+  await pick('ally', 'raven');
+  await expect(store).toBeDisabled();
+  await pick('strahdLocation', 'raven');
+  await expect(form).toContainText('Each card can be in the reading once.');
+  await expect(store).toBeDisabled();
+  await pick('strahdLocation', 'donjon');
+  await expect(store).toBeEnabled();
+
+  await store.click();
+  await expect(toast(page, '✓ Applied: Stored a reading')).toBeVisible();
+  expect(plans(calls)).toEqual([
+    {
+      name: 'plan-tarokka-import',
+      args: {
+        tome: 'swords-7',
+        holySymbol: 'glyphs-master',
+        sunsword: 'coins-1',
+        ally: 'raven',
+        strahdLocation: 'donjon',
+      },
+    },
+  ]);
+  await expect(form).toHaveCount(0);
+  await expect(chooseToggle).toBeFocused();
+});
+
 test('a failed import says why and still reloads; nothing is applied', async ({ page }) => {
   await fakeStream(page, gmActions(true));
   const calls = await fakeTools(page, call =>
     call.name === 'plan-tarokka-import'
-      ? { status: 422, json: { ok: false, error: 'No tarokka-reading reading is available' } }
+      ? { status: 422, json: { ok: false, error: 'Foundry is not connected' } }
       : bridge(call)
   );
   const drawer = await openTarokka(page);
   await expect(drawer.locator('.tarokka-pos')).toHaveCount(5);
 
-  await drawer.getByRole('button', { name: 'Import from tarokka-reading' }).click();
-  await expect(
-    toast(page, '✗ plan-tarokka-import: No tarokka-reading reading is available')
-  ).toBeVisible();
+  await drawer.getByRole('button', { name: 'New reading (built-in roll)' }).click();
+  await expect(toast(page, '✗ Tarokka import: Foundry is not connected')).toBeVisible();
   await expect.poll(() => loads(calls)).toBe(2);
   expect(names(calls)).not.toContain('apply-planned-change');
-  await expect(drawer.getByRole('button', { name: 'Import from tarokka-reading' })).toBeEnabled();
+  await expect(drawer.getByRole('button', { name: 'New reading (built-in roll)' })).toBeEnabled();
 });
 
 test('Link searches, picks in one click with Undo, and keeps an open form across reloads', async ({
@@ -525,7 +577,7 @@ test('a link search with no matches says so; a failed pick keeps the form', asyn
   found = CANDIDATES;
   await input.press('Enter');
   await tome.locator('.tarokka-candidate').first().getByRole('button', { name: 'Link' }).click();
-  await expect(toast(page, '✗ plan-tarokka-links: No current reading')).toBeVisible();
+  await expect(toast(page, '✗ Tarokka links: No current reading')).toBeVisible();
   await expect(tome.locator('.tarokka-candidate')).toHaveCount(4);
   await expect(input).toHaveValue('Nothing');
   expect(names(calls)).not.toContain('apply-planned-change');
@@ -730,10 +782,10 @@ test('with GM Actions off nothing is planned; the gate opens Pre-flight', async 
   await fakeStream(page, gmActions(false));
   const calls = await fakeTools(page, bridge);
   const drawer = await openTarokka(page);
-  const gate = 'GM Actions are off. Turn on for tonight in Pre-flight turns them on.';
+  const gate = 'GM Actions are off. Start session or the header Turn on button turns them on.';
   const preflight = page.getByRole('dialog', { name: '✈ Pre-flight' });
 
-  await drawer.getByRole('button', { name: 'Import from tarokka-reading' }).click();
+  await drawer.getByRole('button', { name: 'New reading (built-in roll)' }).click();
   await expect(toast(page, gate)).toBeVisible();
   await expect(preflight).toBeVisible();
   // Pre-flight opens on top of the drawer that asked for it; Escape hands the top back.
@@ -780,7 +832,7 @@ test('Pre-flight beside the drawer warns while Show cards is ticked, and Hide ca
   await show.check();
 
   // The gate opens Pre-flight with Tarokka still open: the two drawers side by side.
-  await drawer.getByRole('button', { name: 'Import from tarokka-reading' }).click();
+  await drawer.getByRole('button', { name: 'New reading (built-in roll)' }).click();
   const preflight = page.getByRole('dialog', { name: '✈ Pre-flight' });
   await expect(preflight).toBeVisible();
   const row = preflight.locator('.preflight-item', { hasText: 'Tarokka cards hidden' });
@@ -805,7 +857,7 @@ test('Pre-flight beside the drawer warns while Show cards is ticked, and Hide ca
   await page.keyboard.press('Escape');
   await expect(preflight).toBeHidden();
   await show.check();
-  await drawer.getByRole('button', { name: 'Import from tarokka-reading' }).click();
+  await drawer.getByRole('button', { name: 'New reading (built-in roll)' }).click();
   await expect(preflight).toBeVisible();
   await expect(row).toHaveClass(/pf-warn/);
   await expect(row.getByRole('button', { name: 'Hide cards' })).toBeVisible();
@@ -824,7 +876,7 @@ test('the gate brings Pre-flight to the top when it is open under Tarokka', asyn
   await expect(drawer).toHaveClass(/drawer-top/);
   await expect(preflight).not.toHaveClass(/drawer-top/);
 
-  await drawer.getByRole('button', { name: 'Import from tarokka-reading' }).click();
+  await drawer.getByRole('button', { name: 'New reading (built-in roll)' }).click();
   await expect(preflight).toHaveClass(/drawer-top/);
   await expect(drawer).not.toHaveClass(/drawer-top/);
   // Escape follows the top, not the order the drawers first opened in.
@@ -929,7 +981,6 @@ test('one change at a time: a reveal waiting on its plan or its confirm holds ev
   const releasePlan = await holdTool(page, calls, 'plan-tarokka-reveal', REVEAL_PLAN);
   const drawer = await openTarokka(page);
   // By id: the drawer is hidden from the accessibility tree while the confirm window is open.
-  const importButton = page.locator('#tarokka-import');
   const rollButton = page.locator('#tarokka-roll');
   const tome = pos(drawer, 'tome');
   const ally = pos(drawer, 'ally');
@@ -944,8 +995,7 @@ test('one change at a time: a reveal waiting on its plan or its confirm holds ev
 
   await planButton.click();
   await expect.poll(() => plans(calls).length).toBe(1);
-  // While the plan is out: no import, no new reading, no link, no second reveal.
-  await expect(importButton).toBeDisabled();
+  // While the plan is out: no new reading, no link, no second reveal.
   await expect(rollButton).toBeDisabled();
   await expect(allyLink).toBeDisabled();
   await expect(planButton).toBeDisabled();
@@ -954,21 +1004,19 @@ test('one change at a time: a reveal waiting on its plan or its confirm holds ev
   const confirm = page.getByRole('dialog', { name: 'Destructive action' });
   await expect(confirm).toBeVisible();
   // Still held while the confirm window is open.
-  await expect(importButton).toBeDisabled();
   await expect(rollButton).toBeDisabled();
   await confirm.getByRole('button', { name: 'Cancel' }).click();
 
   // Free again once the reload after the Cancel is in.
-  await expect(importButton).toBeEnabled();
   await expect(rollButton).toBeEnabled();
   await expect(allyLink).toBeEnabled();
   await expect(planButton).toBeEnabled();
   expect(plans(calls).map(c => c.name)).toEqual(['plan-tarokka-reveal']);
   expect(names(calls)).not.toContain('apply-planned-change');
 
-  // The other way round: an import holds the position buttons until its reload is in.
+  // The other way round: a new reading holds the position buttons until its reload is in.
   const releaseLoad = await holdTool(page, calls, 'get-tarokka-reading', READING);
-  await importButton.click();
+  await rollButton.click();
   await expect(toast(page, '✓ Applied: Stored a reading')).toBeVisible();
   await expect(planButton).toBeDisabled();
   await expect(allyLink).toBeDisabled();
@@ -981,7 +1029,8 @@ test('an apply the bridge refuses says why, has no Undo, reloads and keeps the d
   page,
 }) => {
   await fakeStream(page, gmActions(true));
-  const refusal = 'The "tarokka" feature is switched off in the module settings';
+  const refusal =
+    '"AI Tool: Tarokka (writes)" is switched off. In Foundry, open the Settings tab, Game Settings, Foundry AI Tool and turn on "AI Tool: Tarokka (writes)".';
   const calls = await fakeTools(page, call =>
     call.name === 'apply-planned-change'
       ? { status: 422, json: { ok: false, kind: 'tool', error: refusal } }
@@ -1000,7 +1049,7 @@ test('an apply the bridge refuses says why, has no Undo, reloads and keeps the d
   await confirm.getByRole('checkbox').check();
   await confirm.getByRole('button', { name: 'Run destructive action' }).click();
   // A clear no: no "may have applied" hint, no Undo.
-  await expect(toast(page, `✗ apply-planned-change: ${refusal}`)).toBeVisible();
+  await expect(toast(page, refusal)).toBeVisible();
   await expect(page.locator('.toast-stack .toast-undo')).toHaveCount(0);
   await expect.poll(() => loads(calls)).toBeGreaterThan(loaded);
   // The draft stays for another try, and every button is free again.
@@ -1011,7 +1060,7 @@ test('an apply the bridge refuses says why, has no Undo, reloads and keeps the d
 
   // A new reading refused the same way.
   await roll.click();
-  await expect(toast(page, `✗ apply-planned-change: ${refusal}`)).toHaveCount(2);
+  await expect(toast(page, refusal)).toHaveCount(2);
   await expect(page.locator('.toast-stack .toast-undo')).toHaveCount(0);
   await expect(roll).toBeEnabled();
 });
@@ -1036,7 +1085,7 @@ test('an apply that times out says it may have applied, reloads and keeps the dr
   await confirm.getByRole('checkbox').check();
   await confirm.getByRole('button', { name: 'Run destructive action' }).click();
   await expect(
-    toast(page, '✗ apply-planned-change timed out. It may have applied; check Recent Changes.')
+    toast(page, '✗ The change timed out. It may have applied; check Recent Changes.')
   ).toBeVisible();
   // The reload shows whether it went in; the form stays, as nothing says it did.
   await expect.poll(() => loads(calls)).toBeGreaterThan(loaded);

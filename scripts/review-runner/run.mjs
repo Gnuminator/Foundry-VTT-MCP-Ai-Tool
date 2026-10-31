@@ -9,7 +9,9 @@
  *
  * Options: --model opus|sonnet (default: Opus when the merge gate calls the PR risky, D-101, else
  * Sonnet), --round N (default: next after the existing notes; round 3 needs --allow-round3, which is
- * the planner's call), --vault DIR, --ledger FILE, --no-commit, --max-turns N, --keep-scratch.
+ * the planner's call), --delta SHA (a short note for a docs, test, changelog or merge-of-main commit
+ * after a Merge note for SHA; needs no --allow-round3; anything touching code is refused and stays a
+ * normal round; budget $0.75 Sonnet or $1.50 Opus), --vault DIR, --ledger FILE, --no-commit, --max-turns N, --keep-scratch.
  *
  * Money: every review's cost (the SDK's total_cost_usd, from `usage`) is appended to the ledger
  * (~/.review-runner/ledger.jsonl) and the runner starts no review once the total reaches $95; each
@@ -26,14 +28,18 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { judgeReviews, parseReviewNote } from '../lane-merge.mjs';
 import {
   AGENT_BY_CATEGORY,
+  DELTA_CAP_USD,
   KEY_VAR,
   MODEL_IDS,
   agentBody,
   appendLedger,
   budgetFor,
   buildPrompts,
+  checkHead,
+  classifyDelta,
   defaultLedgerPath,
   finishNote,
   latestRound,
@@ -104,11 +110,73 @@ function existingNotes(vault, pr) {
 }
 
 /**
- * Everything decided before any spend. Throws on a PR that cannot be reviewed.
- * @param {number} pr @param {import('./lib.mjs').Options} o @param {number} spent
+ * --delta: is the change since the last Merge note small (docs, tests, changelog, or a merge of main
+ * that leaves the PR's own files alone)? Throws when it is not, or when the reviewed sha was not a
+ * Merge for this PR or is not an ancestor of the head. Reads git only.
+ * @param {number} pr @param {string} head @param {string} given @param {{ name: string, file: string }[]} notes
+ * @param {string} repo @param {boolean} needOpus the gate calls the PR risky
  */
-function plan(pr, o, spent) {
-  const info = prInfo(pr);
+function deltaInfo(pr, head, given, notes, repo, needOpus) {
+  must('git', ['fetch', '-q', 'aitool', 'main'], repo);
+  must('git', ['fetch', '-q', 'aitool', `refs/pull/${pr}/head`], repo);
+  const fetched = must('git', ['rev-parse', 'FETCH_HEAD'], repo);
+  if (fetched !== head) throw new Error(`head moved: GitHub says ${head}, fetched ${fetched}`);
+  const r = run('git', ['rev-parse', '--verify', `${given}^{commit}`], repo);
+  if (!r.ok) throw new Error(`--delta ${given} is not a commit here (a force-push drops it); run a normal round`);
+  const reviewed = r.out;
+  if (reviewed === head) throw new Error(`--delta ${given} is the head itself; nothing changed since it was reviewed`);
+  if (!run('git', ['merge-base', '--is-ancestor', reviewed, head], repo).ok) {
+    throw new Error(`--delta ${given} is not an ancestor of the head (history was rewritten); run a normal round`);
+  }
+  // The same notes the gate reads, and only the latest round counts: an older Merge cannot be used
+  // past a later verdict, a malformed note stops the delta, and a delta note cannot seed another.
+  const reviewNotes = notes.filter(n => /review/i.test(n.name));
+  const parsed = reviewNotes.map(n => {
+    const text = fs.readFileSync(n.file, 'utf8');
+    return { n, text, note: parseReviewNote(n.name, text, pr) };
+  });
+  const bad = parsed.filter(x => x.note.malformed.length > 0);
+  if (bad.length > 0) throw new Error(`${bad[0].n.name} is malformed (${bad[0].note.malformed[0]}); fix it before a delta`);
+  // The gate's own verdict on the reviewed sha: another note's open Merge after fixes or Do not
+  // merge (any name the gate reads) means that sha was never clear, so a delta cannot clear its head.
+  const clear = judgeReviews(parsed.map(x => x.note), reviewed, needOpus);
+  if (!clear.ok) throw new Error(`the reviewed sha ${reviewed} is not clear at the gate (${clear.detail}); run a normal round`);
+  const latestName = latestRound(reviewNotes.map(n => n.name), pr).name;
+  const latest = parsed.find(x => x.n.name === latestName);
+  const said = latest ? latest.note.entries.filter(e => e.head === reviewed) : [];
+  if (said.length === 0 || said.some(e => !e.merge)) {
+    throw new Error(`the latest note (${latestName ?? 'none'}) does not say Merge for ${reviewed}; a delta note only follows the latest Merge`);
+  }
+  if (latest && /^Small delta from /m.test(latest.text)) {
+    throw new Error(`${latestName} is itself a small-delta note; chained deltas need a normal round (the planner decides)`);
+  }
+  if (needOpus && latest && !latest.note.opus) {
+    throw new Error(`this PR is risky and the Merge for ${reviewed} is not an Opus review; run a full Opus round`);
+  }
+  const lines = (/** @type {string[]} */ a) => must('git', a, repo).split(/\r?\n/).filter(Boolean);
+  // --no-renames: a rename of code into a test or docs path must show as a delete plus an add
+  const deltaFiles = lines(['diff', '--no-renames', '--name-only', reviewed, head]);
+  const prFilesOld = lines(['diff', '--no-renames', '--name-only', `aitool/main...${reviewed}`]);
+  const prFilesNew = lines(['diff', '--no-renames', '--name-only', `aitool/main...${head}`]);
+  const own = new Set([...prFilesOld, ...prFilesNew]);
+  const ownDelta = deltaFiles.filter(f => own.has(f));
+  const numstat = ownDelta.length ? lines(['diff', '--no-renames', '--numstat', reviewed, head, '--', ...ownDelta]) : [];
+  const ownLines = numstat.reduce((s, l) => {
+    const [a, d] = l.split('\t');
+    return s + (Number(a) || 0) + (Number(d) || 0);
+  }, 0);
+  const c = classifyDelta({ deltaFiles, prFilesOld, prFilesNew, ownLines });
+  if (!c.small) throw new Error(`not a small delta (${c.reasons.join('; ')}); run a normal round`);
+  return { reviewed, ownFiles: c.ownFiles, mainOnly: c.mainOnly, ownLines };
+}
+
+/**
+ * Everything decided before any spend. Throws on a PR that cannot be reviewed.
+ * @param {number} pr @param {import('./lib.mjs').Options} o @param {number} spent @param {string} repo
+ * @param {{ prInfo: typeof prInfo }} deps
+ */
+export function plan(pr, o, spent, repo, deps) {
+  const info = deps.prInfo(pr);
   if (info.state !== 'OPEN') throw new Error(`PR #${pr} is ${info.state}, not open`);
   const picked = pickModel(info.files);
   const model = o.model ?? picked.model;
@@ -117,10 +185,16 @@ function plan(pr, o, spent) {
     notes.map(n => n.name),
     pr
   );
-  if (round >= 3 && !o.allowRound3) {
+  if (o.delta && picked.categories.length > 0 && model !== 'opus') {
+    throw new Error(`PR #${pr} is risky (${picked.categories.join(', ')}); the gate needs an Opus Merge for the head, so a ${model} delta would be wasted. Drop --model or use opus`);
+  }
+  const delta = o.delta ? deltaInfo(pr, info.sha, o.delta, notes, repo, picked.categories.length > 0) : null;
+  // A small delta is the cheap way past round 3; the planner's flag is only for a full third round.
+  if (round >= 3 && !o.allowRound3 && !delta) {
     throw new Error(`PR #${pr} would be review round ${round}; a third round needs the planner (D-127). Pass --allow-round3 if the planner said so`);
   }
-  const budget = budgetFor(spent, model);
+  const full = budgetFor(spent, model);
+  const budget = full === null || !delta ? full : Math.min(full, DELTA_CAP_USD[model]);
   if (budget === null) throw new Error(`the $95 stop is reached (spent $${spent.toFixed(2)}); no review started`);
   const name = noteName(pr, model, round);
   const dir = path.join(o.vault, 'Dev', 'Foundry AI Tool', 'Handoff', `Reviews ${today()}`);
@@ -135,20 +209,21 @@ function plan(pr, o, spent) {
         ).name
       : null;
   const previous = prevName ? (notes.find(n => n.name === prevName) ?? null) : null;
-  return { pr, ...info, model, categories: picked.categories, round, budget, name, dir, previous };
+  return { pr, ...info, model, categories: picked.categories, round, budget, name, dir, previous, delta };
 }
 
 /** @param {ReturnType<typeof plan>} p */
 function describe(p) {
-  return `#${p.pr} ${p.title}\n  head ${p.sha}, ${p.files.length} files, model ${p.model} (${MODEL_IDS[p.model]}), round ${p.round}, budget $${p.budget}\n  risky: ${p.categories.join(', ') || 'no'}\n  note: ${path.join(p.dir, p.name)}`;
+  return `#${p.pr} ${p.title}\n  head ${p.sha}, ${p.files.length} files, model ${p.model} (${MODEL_IDS[p.model]}), round ${p.round}, budget $${p.budget}\n  risky: ${p.categories.join(', ') || 'no'}${p.delta ? `\n  small delta from ${p.delta.reviewed}: ${p.delta.ownFiles.length} own file(s), ${p.delta.mainOnly.length} from main, ${p.delta.ownLines} lines` : ''}\n  note: ${path.join(p.dir, p.name)}`;
 }
 
 /**
  * One real review: scratch worktree at the head, SDK run, note written and committed, ledger line.
  * @param {ReturnType<typeof plan>} p @param {import('./lib.mjs').Options} o @param {string} key
  * @param {string} repo
+ * @param {{ headOf: (pr: number) => string, query?: Function }} deps
  */
-async function review(p, o, key, repo) {
+export async function review(p, o, key, repo, deps) {
   const scratch = fs.mkdtempSync(path.join(os.tmpdir(), `review-runner-${p.pr}-`));
   const wt = path.join(scratch, 'wt');
   const diffPath = path.join(scratch, 'pr.diff');
@@ -161,7 +236,13 @@ async function review(p, o, key, repo) {
     if (fetched !== p.sha) throw new Error(`head moved: GitHub says ${p.sha}, fetched ${fetched}`);
     must('git', ['worktree', 'add', '--detach', '-q', wt, p.sha], repo);
     worktreeMade = true;
-    fs.writeFileSync(diffPath, must('git', ['diff', `aitool/main...${p.sha}`], repo) + '\n');
+    // A delta note sees only the change since the reviewed sha, in the PR's own files.
+    const diff = p.delta
+      ? p.delta.ownFiles.length > 0
+        ? must('git', ['diff', '--no-renames', p.delta.reviewed, p.sha, '--', ...p.delta.ownFiles], repo)
+        : ''
+      : must('git', ['diff', `aitool/main...${p.sha}`], repo);
+    fs.writeFileSync(diffPath, diff + '\n');
     fs.writeFileSync(bodyPath, p.body);
     // CLAUDE.md is gitignored, so a fresh checkout has none; the reviewer is told to read it.
     const claudeMd = path.join(repo, 'CLAUDE.md');
@@ -184,6 +265,7 @@ async function review(p, o, key, repo) {
       diffPath,
       bodyPath,
       agentChecklists,
+      delta: p.delta,
     });
 
     // Pull the vault before any spend: a dirty vault must not fail a review after it was paid for.
@@ -191,7 +273,9 @@ async function review(p, o, key, repo) {
       run('git', ['rebase', '--abort'], o.vault);
       throw new Error(`the vault could not be pulled (${o.vault}); fix it first, nothing was spent`);
     }
-    const { query } = await import('@anthropic-ai/claude-agent-sdk');
+    // Last look before the spend: a push since the plan means this sha is no longer the head.
+    checkHead(p.pr, p.sha, deps.headOf(p.pr), 'before the review started, nothing spent');
+    const query = deps.query ?? (await import('@anthropic-ai/claude-agent-sdk')).query;
     const env = { ...process.env, ANTHROPIC_API_KEY: key };
     delete env[KEY_VAR];
     const started = Date.now();
@@ -267,7 +351,25 @@ async function review(p, o, key, repo) {
     });
     if (result.subtype !== 'success') throw new Error(`the review ended with ${result.subtype} ($${costUsd.toFixed(2)} spent); no note written`);
 
-    const { text, problems } = finishNote(String(result.result), p.pr, p.model, p.sha, p.name);
+    // A push while the review ran: the spend is booked, but no note names a head that is gone.
+    /** @type {string} */
+    let current;
+    try {
+      current = deps.headOf(p.pr);
+    } catch (e) {
+      // gh failed after the spend: keep the paid answer (unless it holds a secret) instead of losing it
+      const raw = path.join(os.tmpdir(), `review-runner-${p.pr}-rejected.md`);
+      const kept = secretHits(String(result.result), key).length === 0;
+      if (kept) fs.writeFileSync(raw, String(result.result));
+      throw new Error(`could not re-read the PR head after the review (${e instanceof Error ? e.message : String(e)}); the cost is booked${kept ? `, the answer is kept at ${raw}` : ''}`);
+    }
+    checkHead(p.pr, p.sha, current, 'while the review ran, the cost is booked');
+    const finished = finishNote(String(result.result), p.pr, p.model, p.sha, p.name);
+    const { problems } = finished;
+    // Marks the note so a delta cannot seed another delta (deltaInfo refuses it).
+    const text = p.delta
+      ? finished.text.replace(/^Head reviewed:/m, `Small delta from ${p.delta.reviewed}\n\nHead reviewed:`)
+      : finished.text;
     const secrets = secretHits(text, key);
     for (const h of secrets) problems.push(`the note contains ${h}`);
     // Opus-named notes count for risky PRs: the answering model must be the one the name claims.
@@ -328,16 +430,17 @@ async function main() {
   if (!o.dryRun) run('git', ['worktree', 'prune'], repo);
   let spent = totalUsd(readLedger(o.ledger));
   console.log(`review-runner: ${o.dryRun ? 'DRY RUN, nothing is spent. ' : ''}spent so far $${spent.toFixed(2)} of $95`);
+  const deps = { prInfo, headOf: (/** @type {number} */ n) => prInfo(n).sha };
   let failed = 0;
   for (const pr of o.prs) {
     try {
-      const p = plan(pr, o, spent);
+      const p = plan(pr, o, spent, repo, deps);
       if (o.dryRun) {
         console.log(`would review ${describe(p)}`);
         continue;
       }
       console.log(`reviewing ${describe(p)}`);
-      const r = await review(p, o, key, repo);
+      const r = await review(p, o, key, repo, deps);
       spent = totalUsd(readLedger(o.ledger));
       console.log(`  done: $${r.costUsd.toFixed(2)}, ${r.turns} turns, ${r.file}\n  total spent $${spent.toFixed(2)} of $95`);
     } catch (e) {

@@ -1,7 +1,8 @@
 // Starting and ending the play session (mark-play-session, a log-only tool: no GM Actions, no
 // confirm). One hook for every button that does it (the header marker, Turn on for tonight's
-// "Start the session log"), so they share one pending state and one flow. Ending also turns off
-// what Turn on for tonight turned on, as the old page's End session did.
+// "Start the session log"), so they share one pending state and one flow. Starting also turns on
+// live play (GM Actions and every Turn on for tonight switch); ending turns off what that turned
+// on, as the old page's End session did.
 import {
   useIsMutating,
   useMutation,
@@ -59,6 +60,23 @@ export async function endTonightsSwitches(queryClient: QueryClient, toast: Toast
   }
 }
 
+/**
+ * Turns on live play when the session starts: the same call as Turn on for tonight. The session
+ * itself has already started, so a failure is toasted and the header line offers Turn on again.
+ */
+export async function startTonightsSwitches(queryClient: QueryClient, toast: Toast): Promise<void> {
+  try {
+    const data = await api<SwitchesWrite>('/api/session/switches', {
+      method: 'POST',
+      body: JSON.stringify({ action: 'ready' }),
+    });
+    applySwitchesWrite(queryClient, toast, data, 'ready');
+  } catch (err) {
+    toast(`✗ Turn on for tonight: ${errorText(err)}`, 'err');
+    void queryClient.invalidateQueries({ queryKey: SWITCHES_KEY });
+  }
+}
+
 /** The session as it is right after a mark that worked, until the next read says it. */
 function markedSession(action: MarkAction): PlaySession {
   const now = new Date().toISOString();
@@ -84,9 +102,11 @@ export function usePlaySessionMark(): { mark: (action: MarkAction) => void; pend
       queryClient.setQueryData<PlaySession>(PLAY_SESSION_KEY, markedSession(action));
     },
     onError: err => toast(`✗ mark-play-session: ${errorText(err)}`, 'err'),
-    onSettled: async (_data, _err, action) => {
+    onSettled: async (_data, err, action) => {
       // Ending also turns off what Ready turned on, whether or not the mark itself went through.
       if (action === 'end') await endTonightsSwitches(queryClient, toast);
+      // Starting is the one switch for live play: GM Actions and every Turn on for tonight switch.
+      else if (!err) await startTonightsSwitches(queryClient, toast);
       const outcome = (await refetch()) as { error?: unknown };
       if (outcome.error) toast(`✗ get-play-session: ${errorText(outcome.error)}`, 'err');
     },

@@ -51,8 +51,8 @@ help works offline and matches the installed version.
 
 **Advanced** (top right) holds the rest: the GM guides, the Prep, Party, Handouts and Tarokka
 panels (a panel already on the screen is scrolled to; otherwise it opens over the page), After a
-paper night, the Tool Runner, module diagnostics, the player links, the Combat buttons and During
-layouts entries, and the Version tracker (on by default; Advanced turns it off). The AI commentary and its settings (pause, diagnostics AI, tone, model) are not on
+paper night, the Tool Runner, module diagnostics, the player links and the During
+layouts entry, and the Version tracker (on by default; Advanced turns it off). The AI commentary and its settings (pause, diagnostics AI, tone, model) are not on
 this page; they are on the old dashboard.
 
 ### My character, one page per player
@@ -96,9 +96,12 @@ Not on the page at `/` yet. It is on the old dashboard at `/legacy/`, and needs 
 ![The turn-order strip with two combatants picked and the Damage / Heal, Condition, Clear and End combat buttons](../images/cogm/combat-control.png)
 
 - **Click combatants in the During view's turn-order strip to multi-select** them.
-- **Damage / Heal** or **Condition** opens the Tool Runner with the plan filled in for the picked
-  creatures. You confirm it, dnd5e works out resistances, vulnerabilities and immunities, and
-  Recent Changes has the Undo.
+- **Damage / Heal** opens a small form (amount, damage type chips, Damage or Heal) that applies at
+  once to the picked creatures; dnd5e works out resistances, vulnerabilities and immunities, the
+  toast has Undo and Recent Changes keeps the change. **Condition** opens the Tool Runner with the
+  plan filled in; you confirm it.
+- **Ask for a roll** (Party card and the strip): pick a check, save or skill, a DC and public or
+  private, then ask one player or the whole party in one click; it shows in the play log.
 - The strip can start a fight (a token picker) and end one. Turn order, initiative and saving
   throws stay in Foundry's own combat tracker.
 
@@ -121,7 +124,7 @@ Not on the page at `/` yet. It is on the old dashboard at `/legacy/`, and needs 
 - **Every change can be undone.** The dashboard's purpose-built buttons apply non-destructive
   changes in one click with an **Undo** message; plans typed by hand in the Tool Runner and plans
   from Claude or Obsidian always show a confirm window, and
-  **destructive actions** (deletes, reveals) require an explicit second confirm, so there are no
+  **destructive actions** (deletes, Tarokka reveals, hides) require an explicit second confirm, so there are no
   accidental table-wipes.
 
 ---

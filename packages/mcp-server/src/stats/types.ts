@@ -88,6 +88,15 @@ export interface SessionStats {
   rolls: number;
   crits: number;
   fumbles: number;
+  /**
+   * The same three numbers counting only rolls whose play record says `visibility: 'public'`
+   * (blind, GM, self and unrecorded rolls are left out). The only session roll counts that may
+   * go to the players' Discord channel. Here crits and fumbles are natural 20s and 1s on any
+   * public d20 roll; the PC fields of the same names count attack rolls only.
+   */
+  publicRolls: number;
+  publicCrits: number;
+  publicFumbles: number;
   spellsCast: number;
   spellSlotsSpent: number;
   resourcesSpent: number;
@@ -110,8 +119,8 @@ export interface SessionStats {
   /**
    * The session's highest d20 roll by a player character (attack, save, check, skill, tool,
    * initiative or death save; damage and healing do not count), or null without one. The
-   * earliest wins a tie. GM-only: play records do not keep a roll's visibility, so this may be
-   * a private or blind roll; never show it to players without filtering those first.
+   * earliest wins a tie. GM-only: this may be a private or blind roll. Players get
+   * `PcStats.publicHighestRoll`, which counts public rolls only.
    */
   highestRoll: HighestRoll | null;
 }
@@ -145,6 +154,16 @@ export interface PcStats {
   fumbles: number;
   /** Natural d20 results 1..20 (index 0 = a natural 1), kept dice only. */
   d20: number[];
+  /**
+   * The same four numbers counting only rolls whose play record says `visibility: 'public'`
+   * (blind, GM, self and unrecorded rolls are left out). These are the only roll numbers the
+   * player vault may show.
+   */
+  publicRolls: number;
+  publicCrits: number;
+  publicFumbles: number;
+  publicD20: number[];
+  publicHighestRoll: HighestRoll | null;
   spellsCast: number;
   /** Spell slots spent by slot key (`spell1`, `pact`, ...). */
   slotsSpent: Tally;

@@ -29,8 +29,18 @@ import {
   cleanTreeHash,
   greenStampPath,
   greenPassedOnThisTree,
+  worktreeTreeHash,
+  runLock,
+  HEAVY_STEPS,
+  LIGHT_FIRST,
+  lightFirst,
+  SOLO_STEPS,
+  cloudGreen,
+  repoFromUrl,
+  quickSteps,
 } from './green.mjs';
-import { main as prePush, CHECKS } from './pre-push.mjs';
+import { main as prePush, CHECKS, pushedCommits } from './pre-push.mjs';
+import { HELD_ENV } from './heavy-lock.mjs';
 
 const ciYml = fs.readFileSync(
   path.resolve(
@@ -135,6 +145,8 @@ test('parseArgs: flags, equals form, repeats and errors', () => {
   assert.deepEqual(parseArgs([]), {
     list: false,
     all: false,
+    cloud: false,
+    quick: false,
     only: [],
     skip: [],
     from: null,
@@ -158,6 +170,59 @@ test('selectSteps: from, only, skip, order and unknown names', () => {
   assert.deepEqual(names(['--skip', 'b,d']), ['a', 'c']);
   assert.deepEqual(names(['--from', 'b', '--skip', 'c']), ['b', 'd']);
   assert.match(selectSteps(s, parseArgs(['--only', 'zzz'])).error ?? '', /unknown step zzz/);
+});
+
+test('lightFirst: light steps run before the first heavy one, the post-build steps stay behind build', () => {
+  const names = selectSteps(STEPS, parseArgs([])).steps.map(s => s.name);
+  const firstHeavy = names.findIndex(n => HEAVY_STEPS.has(n));
+  const lastLight = names.findLastIndex(n => LIGHT_FIRST.has(n));
+  assert.ok(lastLight < firstHeavy, 'every light step is ahead of the first heavy step');
+  assert.ok(LIGHT_FIRST.has('pi-stage-safety') && LIGHT_FIRST.has('docs-lint') && LIGHT_FIRST.has('changelog'));
+  for (const n of ['typecheck', 'build', 'e2e', 'bundle-budget', 'mcp-schema-smoke', 'standalone-smoke', 'validate-manifest']) {
+    assert.ok(!LIGHT_FIRST.has(n), n);
+  }
+  const build = names.indexOf('build');
+  for (const n of ['bundle-budget', 'mcp-schema-smoke', 'split-smoke', 'validate-manifest']) {
+    assert.ok(names.indexOf(n) > build, `${n} stays after build`);
+  }
+  // Stable within the light group, nothing lost or doubled.
+  assert.deepEqual([...names].sort(), STEPS.map(s => s.name).sort());
+  assert.deepEqual(
+    names.filter(n => LIGHT_FIRST.has(n)),
+    STEPS.map(s => s.name).filter(n => LIGHT_FIRST.has(n))
+  );
+  assert.deepEqual(lightFirst([]), []);
+});
+
+test('lightFirst: --from a light step still runs typecheck and the other heavy steps', () => {
+  const full = selectSteps(STEPS, parseArgs([])).steps.map(s => s.name);
+  const light = full.find(n => LIGHT_FIRST.has(n));
+  const from = selectSteps(STEPS, parseArgs(['--from', light])).steps.map(s => s.name);
+  assert.deepEqual(from, full.slice(full.indexOf(light)));
+  const lastLight = full.findLast(n => LIGHT_FIRST.has(n));
+  const late = selectSteps(STEPS, parseArgs(['--from', lastLight])).steps.map(s => s.name);
+  assert.equal(late[0], lastLight);
+  assert.ok(late.includes('typecheck') && late.includes('e2e'), 'heavy steps survive a --from at the last light step');
+});
+
+test('LIGHT_FIRST: only known light commands, so a heavy step missing from HEAVY_STEPS fails here, not unlocked', () => {
+  const lightNpm = new Set(['emdash:ratchet', 'version:check', 'usage:catalog:check', 'docs:lint', 'docs:links', 'changelog:check']);
+  for (const s of STEPS.filter(s => LIGHT_FIRST.has(s.name))) {
+    const line = commandLine(s);
+    const ok = /^node --test /.test(line) || line === 'node tools/gm-coach/build.mjs' || (/^npm run (\S+)$/.exec(line) && lightNpm.has(/^npm run (\S+)$/.exec(line)[1]));
+    assert.ok(ok, `${s.name} (${line}) is not a known light command: add it to HEAVY_STEPS or to this list`);
+  }
+});
+
+test('runLock over the default order: the hold starts after every light step', () => {
+  const steps = selectSteps(STEPS, parseArgs([])).steps;
+  const taken = [];
+  const lock = runLock(steps, label => (taken.push(label), { held: true, waitedMs: 0, beat() {}, release() {} }), 'g', {});
+  steps.forEach((s, i) => {
+    lock.before(i, s);
+    if (LIGHT_FIRST.has(s.name)) assert.equal(taken.length, 0, `${s.name} runs before the lock`);
+  });
+  assert.equal(taken.length, 1);
 });
 
 test('formatDuration', () => {
@@ -199,12 +264,12 @@ test('main: all green prints one OK line and nothing else', () => {
   assert.deepEqual(r.ran, ['one', 'two', 'three']);
 });
 
-test('main: the log goes under green-<stamp>/<nn>-<step>.log', () => {
+test('main: the log goes under green-<stamp>-<pid>/<nn>-<step>.log', () => {
   const r = run([], { two: { status: 1, log: 'boom\n' } });
   const m = /FAILED at two \((.+)\)/.exec(r.lines[0]);
   assert.ok(m);
   assert.match(path.basename(m[1]), /^02-two\.log$/);
-  assert.match(path.basename(path.dirname(m[1])), /^green-\d{8}-\d{6}$/);
+  assert.equal(path.basename(path.dirname(m[1])), `${/^green-\d{8}-\d{6}/.exec(path.basename(path.dirname(m[1])))?.[0]}-${process.pid}`);
   assert.equal(path.dirname(path.dirname(m[1])), r.tmp);
 });
 
@@ -368,7 +433,9 @@ test('started through a junction, green still runs (exit code and output, not a 
     encoding: 'utf8',
   });
   assert.equal(r.status, 0, r.stderr);
-  assert.match(r.stdout, /^typecheck\n/);
+  const listed = r.stdout.trim().split('\n');
+  assert.ok(LIGHT_FIRST.has(listed[0]), 'the list starts with a light step (the real run order)');
+  assert.ok(listed.includes('typecheck'));
 });
 
 test('portableNode22Dir: on Windows under Node 24 the newest portable Node 22 comes first; elsewhere nothing changes', () => {
@@ -503,28 +570,173 @@ test('green stamp: matches only the clean tree it was recorded for', () => {
   assert.equal(cleanTreeHash(dir), null, 'an untracked file counts');
 });
 
-test('pre-push: runs the ratchets and typecheck, refuses on the first failure, skips after green', () => {
+test('worktreeTreeHash: uncommitted and untracked edits give the tree their commit will have, and the real index is untouched', () => {
+  const { dir, git } = tempRepo();
+  assert.equal(worktreeTreeHash(dir), cleanTreeHash(dir), 'clean tree: the HEAD tree');
+  fs.writeFileSync(path.join(dir, 'a.txt'), 'two\n');
+  fs.writeFileSync(path.join(dir, 'new.txt'), 'x\n');
+  fs.writeFileSync(path.join(dir, '.gitignore'), 'ignored.txt\n');
+  const dirty = worktreeTreeHash(dir);
+  assert.match(dirty, /^[0-9a-f]{40}$/);
+  assert.equal(git('diff', '--cached', '--name-only').stdout, '', 'nothing staged in the real index');
+  fs.writeFileSync(path.join(dir, 'ignored.txt'), 'x\n');
+  assert.equal(worktreeTreeHash(dir), dirty, 'an ignored file does not count');
+  git('add', '-A');
+  git('-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '-m', 'two');
+  assert.equal(git('rev-parse', 'HEAD^{tree}').stdout.trim(), dirty);
+});
+
+test('green stamp with pushed commits: every pushed commit must have the green tree, whatever the working tree holds', () => {
+  const { dir, git } = tempRepo();
+  const first = git('rev-parse', 'HEAD').stdout.trim();
+  fs.writeFileSync(greenStampPath(dir), `${cleanTreeHash(dir)}\n`);
+  fs.writeFileSync(path.join(dir, 'a.txt'), 'edited after the commit\n');
+  assert.equal(greenPassedOnThisTree(dir), false, 'without commits: a dirty tree never matches');
+  assert.equal(greenPassedOnThisTree(dir, [first]), true, 'the pushed commit has the green tree');
+  git('-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '-am', 'two');
+  const second = git('rev-parse', 'HEAD').stdout.trim();
+  assert.equal(greenPassedOnThisTree(dir, [second]), false);
+  assert.equal(greenPassedOnThisTree(dir, [first, second]), false, 'every commit must match');
+  assert.equal(greenPassedOnThisTree(dir, ['0123456789012345678901234567890123456789']), false, 'unknown commit');
+});
+
+test('main: a full green run stamps a dirty tree with the tree its commit will have', () => {
+  const { dir, git } = tempRepo();
+  fs.writeFileSync(path.join(dir, 'a.txt'), 'dirty\n');
+  const logs = fs.mkdtempSync(path.join(os.tmpdir(), 'green-stamp-logs-'));
+  // The real step list (so the run stamps), every step faked as passing, no lock.
+  const code = main({
+    cwd: dir,
+    tmpdir: logs,
+    argv: [],
+    isTTY: false,
+    note: null,
+    log: () => {},
+    runStep: () => 0,
+    takeLock: () => ({ held: false, waitedMs: 0, release() {}, beat() {} }),
+  });
+  assert.equal(code, 0);
+  git('add', '-A');
+  git('-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '-m', 'dirty');
+  assert.equal(fs.readFileSync(greenStampPath(dir), 'utf8').trim(), git('rev-parse', 'HEAD^{tree}').stdout.trim());
+  assert.equal(greenPassedOnThisTree(dir, [git('rev-parse', 'HEAD').stdout.trim()]), true);
+  const run = fs.readdirSync(logs).find(n => n.startsWith('green-'));
+  const timings = JSON.parse(fs.readFileSync(path.join(logs, run, 'timings.json'), 'utf8'));
+  assert.equal(timings.steps.length, STEPS.length);
+  assert.equal(timings.lockWaitMs, 0);
+});
+
+test('runLock: taken once at the first heavy step, beaten before each later step, released after the last heavy one', () => {
+  const steps = ['docs', 'typecheck', 'light', 'build', 'tail'].map(name => ({ name, cmd: 'x', args: [] }));
+  assert.ok(HEAVY_STEPS.has('typecheck') && HEAVY_STEPS.has('build'));
+  const events = [];
+  const env = {};
+  const take = label => {
+    events.push(`take ${label}`);
+    return { held: true, waitedMs: 4000, beat: s => events.push(`beat ${s}`), release: () => events.push('release') };
+  };
+  const lock = runLock(steps, take, 'green wt', env);
+  steps.forEach((s, i) => {
+    lock.before(i, s);
+    events.push(`run ${s.name}${env[HELD_ENV] ? ' (held)' : ''}`);
+    lock.after(i);
+  });
+  lock.release();
+  assert.deepEqual(events, [
+    'run docs',
+    'take green wt',
+    'beat typecheck',
+    'run typecheck (held)',
+    'beat light',
+    'run light (held)',
+    'beat build',
+    'run build (held)',
+    'release',
+    'run tail',
+  ]);
+  assert.equal(lock.waitedMs, 4000);
+  assert.equal(env[HELD_ENV], undefined);
+});
+
+test('runLock: a run with no heavy step never takes the lock; a failure mid-run still releases', () => {
+  const take = () => assert.fail('took the lock');
+  const light = runLock([{ name: 'docs', cmd: 'x', args: [] }], take, 'g', {});
+  light.before(0, { name: 'docs' });
+  light.after(0);
+  let released = 0;
+  const env = {};
+  const lock = runLock(
+    [{ name: 'typecheck' }, { name: 'build' }].map(s => ({ ...s, cmd: 'x', args: [] })),
+    () => ({ held: true, waitedMs: 0, beat() {}, release: () => released++ }),
+    'g',
+    env
+  );
+  lock.before(0, { name: 'typecheck' });
+  lock.release();
+  lock.release();
+  assert.equal(released, 1);
+  assert.equal(env[HELD_ENV], undefined);
+});
+
+test('solo steps (never two greens at once) are real heavy steps', () => {
+  assert.ok(SOLO_STEPS.has('e2e'));
+  for (const name of SOLO_STEPS) {
+    assert.ok(HEAVY_STEPS.has(name), `${name} is heavy`);
+    assert.ok(STEPS.some(s => s.name === name), `${name} is a step`);
+  }
+});
+
+test('pushedCommits: the local shas of the pushed refs, without deletes', () => {
+  const a = 'a'.repeat(40);
+  const b = 'b'.repeat(40);
+  const zero = '0'.repeat(40);
+  const text = `refs/heads/x ${a} refs/heads/x ${zero}\n(delete) ${zero} refs/heads/old ${b}\nrefs/heads/y ${b} refs/heads/y ${a}\n\n`;
+  assert.deepEqual(pushedCommits(text), [a, b]);
+  assert.deepEqual(pushedCommits(''), []);
+});
+
+test('pre-push: only the lock-free em dash guard runs, and the pushed commits reach the green check', () => {
+  const ran = [];
+  const seen = [];
+  const code = prePush({
+    cwd: '.',
+    env: {},
+    log: () => {},
+    commits: ['c1'],
+    passedGreen: (_cwd, commits) => {
+      seen.push(...commits);
+      return false;
+    },
+    runCheck: c => {
+      ran.push(c.name);
+      return 0;
+    },
+  });
+  assert.equal(code, 0);
+  assert.deepEqual(seen, ['c1']);
+  assert.deepEqual(ran, ['emdash:ratchet']);
+});
+
+test('pre-push: never takes the heavy lock and leaves lint and typecheck to CI', () => {
+  const src = fs.readFileSync(new URL('./pre-push.mjs', import.meta.url), 'utf8');
+  assert.doesNotMatch(src, /withHeavyLock|heavy-lock\.mjs'/);
+  assert.deepEqual(
+    CHECKS.map(c => c.name),
+    ['emdash:ratchet']
+  );
+});
+
+test('pre-push: refuses a failing guard, skips after green or by hand', () => {
   const lines = [];
   const ran = [];
   const base = { cwd: '.', env: {}, log: l => lines.push(l), passedGreen: () => false };
-  const pass = c => {
+  const failDash = c => {
     ran.push(c.name);
-    return 0;
+    return 1;
   };
-  assert.deepEqual(
-    CHECKS.map(c => c.name),
-    ['lint:ratchet', 'emdash:ratchet', 'typecheck']
-  );
-  assert.equal(prePush({ ...base, runCheck: pass }), 0);
-  assert.deepEqual(ran, ['lint:ratchet', 'emdash:ratchet', 'typecheck']);
-  ran.length = 0;
-  const failLint = c => {
-    ran.push(c.name);
-    return c.name === 'lint:ratchet' ? 1 : 0;
-  };
-  assert.equal(prePush({ ...base, runCheck: failLint }), 1);
-  assert.deepEqual(ran, ['lint:ratchet'], 'stops at the first failure');
-  assert.match(lines.at(-1), /lint:ratchet failed, push refused/);
+  assert.equal(prePush({ ...base, runCheck: failDash }), 1);
+  assert.deepEqual(ran, ['emdash:ratchet']);
+  assert.match(lines.at(-1), /emdash:ratchet failed, push refused/);
   ran.length = 0;
   const fail = c => {
     ran.push(c.name);
@@ -533,4 +745,381 @@ test('pre-push: runs the ratchets and typecheck, refuses on the first failure, s
   assert.equal(prePush({ ...base, passedGreen: () => true, runCheck: fail }), 0);
   assert.equal(prePush({ ...base, env: { SKIP_PREPUSH: '1' }, runCheck: fail }), 0);
   assert.deepEqual(ran, []);
+});
+
+// ---- green --quick: what a branch touched, no heavy lock ----
+
+const quickNames = files => quickSteps(files, path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')).map(s => s.name);
+
+test('quickSteps: typecheck and unit tests of each touched package only', () => {
+  assert.deepEqual(quickNames(['packages/mcp-server/src/a.ts', 'packages/discord-bot/src/b.ts']), [
+    'build-shared',
+    'typecheck-discord-bot',
+    'typecheck-mcp-server',
+    'unit-discord-bot',
+    'unit-mcp-server',
+  ]);
+  assert.deepEqual(quickNames(['docs/dev/X.md', 'changelog.d/x.md']), []);
+});
+
+test('quickSteps: a shared change typechecks every package and tests shared', () => {
+  assert.deepEqual(quickNames(['shared/src/types.ts']), ['build-shared', 'typecheck-all', 'unit-shared']);
+});
+
+test('quickSteps: a changed script runs its test, a changed test runs itself, a missing test is left out', () => {
+  const steps = quickSteps(
+    ['scripts/green.mjs', 'scripts/pre-push.mjs', 'scripts/no-such-thing.mjs', '.claude/hooks/guard-model.test.mjs'],
+    path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
+  );
+  const t = steps.find(s => s.name === 'node-tests');
+  assert.ok(t);
+  assert.ok(t.args.includes('scripts/green.test.mjs'));
+  assert.ok(t.args.includes('.claude/hooks/guard-model.test.mjs'));
+  assert.ok(!t.args.some(a => a.includes('no-such-thing')));
+});
+
+test('quickSteps: touched dashboard e2e specs build the dashboard and run only those specs', () => {
+  const steps = quickSteps(['packages/cogm-dashboard/web/e2e/help.spec.ts']);
+  const names = steps.map(s => s.name);
+  assert.deepEqual(names, [
+    'build-shared',
+    'typecheck-cogm-dashboard',
+    'unit-cogm-dashboard',
+    'build-dashboard',
+    'e2e-specs',
+  ]);
+  assert.deepEqual(steps.at(-1).args.slice(-2), ['--', 'e2e/help.spec.ts']);
+});
+
+test('quickSteps: no step name takes the heavy lock', () => {
+  const all = quickSteps(
+    ['shared/src/a.ts', 'packages/cogm-dashboard/web/e2e/help.spec.ts', 'packages/foundry-module/src/a.ts', 'scripts/green.mjs'],
+    path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
+  );
+  for (const s of all) {
+    assert.ok(!HEAVY_STEPS.has(s.name), `${s.name} would take a heavy slot`);
+    assert.ok(!LIGHT_FIRST.has(s.name), `${s.name} would be reordered by lightFirst`);
+    assert.doesNotThrow(() => commandLine(s));
+  }
+});
+
+test('main --quick: no base ref is an error, not "nothing to check"', () => {
+  const lines = [];
+  const code = main({
+    argv: ['--quick'],
+    cwd: os.tmpdir(),
+    isTTY: false,
+    note: null,
+    log: l => lines.push(l),
+    changed: null,
+    runStep: () => 0,
+  });
+  assert.equal(code, 2);
+  assert.match(lines.at(-1), /found no base/);
+});
+
+test('main --quick --list: lists the quick steps, and no base is an error too', () => {
+  const lines = [];
+  const base = { argv: ['--quick', '--list'], cwd: os.tmpdir(), note: null, log: l => lines.push(l) };
+  assert.equal(main({ ...base, changed: ['shared/src/a.ts'] }), 0);
+  assert.deepEqual(lines, ['build-shared', 'typecheck-all', 'unit-shared']);
+  lines.length = 0;
+  assert.equal(main({ ...base, changed: null }), 2);
+  assert.match(lines.at(-1), /found no base/);
+});
+
+test('quickSteps: a deleted package file still triggers that package', () => {
+  assert.deepEqual(quickNames(['packages/mcp-server/src/gone.ts']), [
+    'build-shared',
+    'typecheck-mcp-server',
+    'unit-mcp-server',
+  ]);
+});
+
+test('parseArgs: --quick stands alone', () => {
+  assert.equal(parseArgs(['--quick']).quick, true);
+  for (const bad of ['--cloud', '--all', '--only=a', '--skip=a', '--from=a']) {
+    assert.match(parseArgs(['--quick', bad]).error ?? '', /--quick builds its own step list/);
+  }
+});
+
+test('main --quick: runs the quick steps without the heavy lock, nothing to check is OK, no green stamp', () => {
+  const ran = [];
+  const lines = [];
+  let locked = 0;
+  const base = {
+    argv: ['--quick'],
+    cwd: os.tmpdir(),
+    tmpdir: fs.mkdtempSync(path.join(os.tmpdir(), 'quick-')),
+    isTTY: false,
+    note: null,
+    log: l => lines.push(l),
+    takeLock: () => {
+      locked++;
+      return { release() {}, beat() {}, waitedMs: 0 };
+    },
+    runStep: s => {
+      ran.push(s.name);
+      return 0;
+    },
+  };
+  assert.equal(main({ ...base, changed: ['packages/mcp-server/src/a.ts'] }), 0);
+  assert.deepEqual(ran, ['build-shared', 'typecheck-mcp-server', 'unit-mcp-server']);
+  assert.equal(locked, 0, 'a quick run takes no heavy slot');
+  assert.match(lines.at(-1), /^green: OK, 3 steps/);
+  lines.length = 0;
+  assert.equal(main({ ...base, changed: ['README.md'] }), 0);
+  assert.match(lines.at(-1), /OK \(quick\), nothing to check/);
+  assert.equal(main({ ...base, changed: ['packages/mcp-server/src/a.ts'], runStep: () => 1 }), 1);
+});
+
+// ---- green --cloud: a fake git and a fake gh, no network ----
+
+const SHA = 'a'.repeat(40);
+
+/** A fake git: `over` replaces the answer for a command. */
+function fakeGit(over = {}) {
+  const answers = {
+    'status --porcelain': '',
+    'rev-parse --abbrev-ref HEAD': 'claude/topic',
+    'rev-parse HEAD': SHA,
+    'remote get-url aitool': 'https://github.com/Gnuminator/Foundry-VTT-MCP-Ai-Tool.git',
+    'ls-remote aitool refs/heads/claude/topic': `${SHA}\trefs/heads/claude/topic`,
+    ...over,
+  };
+  return args => {
+    const v = answers[args.join(' ')];
+    return v === undefined ? { status: 1, stdout: '', stderr: 'no' } : { status: 0, stdout: v, stderr: '' };
+  };
+}
+
+/** A fake gh over scripted runs; records every call. */
+function fakeGh({ existing = [], laterExisting = null, dispatched = [], views = [], dispatchStatus = 0, openPr = false, listFails = false, viewFails = false }) {
+  const calls = [];
+  let viewNo = 0;
+  let commitLists = 0;
+  const gh = args => {
+    calls.push(args.join(' '));
+    if (args[0] === 'pr') return { status: 0, stdout: JSON.stringify(openPr ? [{ number: 1 }] : []), stderr: '' };
+    if (args[0] === 'run' && args[1] === 'list') {
+      if (listFails) return { status: 1, stdout: '', stderr: 'gh: not logged in' };
+      const isCommit = args.includes('--commit');
+      const rows = isCommit ? (commitLists++ > 0 && laterExisting ? laterExisting : existing) : args.includes('workflow_dispatch') ? dispatched : [];
+      return { status: 0, stdout: JSON.stringify(rows), stderr: '' };
+    }
+    if (args[0] === 'workflow') return { status: dispatchStatus, stdout: '', stderr: 'HTTP 403' };
+    if (args[0] === 'run' && args[1] === 'view') {
+      if (viewFails) return { status: 1, stdout: '', stderr: 'HTTP 401' };
+      return { status: 0, stdout: JSON.stringify(views[Math.min(viewNo++, views.length - 1)]), stderr: '' };
+    }
+    return { status: 1, stdout: '', stderr: 'unexpected' };
+  };
+  return { gh, calls };
+}
+
+function cloud(git, gh, extra = {}) {
+  const lines = [];
+  let t = 0;
+  const code = cloudGreen({
+    cwd: '.',
+    git,
+    gh,
+    now: () => t,
+    sleep: ms => {
+      t += ms;
+    },
+    log: l => lines.push(l),
+    pollMs: 1000,
+    findMs: 3000,
+    timeoutMs: 60_000,
+    ...extra,
+  });
+  return { code, lines };
+}
+
+const doneView = (conclusion, jobs = []) => ({ status: 'completed', conclusion, url: 'https://gh/run/7', jobs });
+
+test('parseArgs: --cloud is a flag that cannot be mixed with step selection', () => {
+  assert.equal(parseArgs(['--cloud']).cloud, true);
+  assert.equal(parseArgs([]).cloud, false);
+  assert.match(parseArgs(['--cloud', '--only', 'e2e']).error, /cannot be combined/);
+  assert.match(parseArgs(['--cloud', '--from', 'build']).error, /cannot be combined/);
+});
+
+test('main --cloud with a step flag is a usage error and never touches the lock or a step', () => {
+  const lines = [];
+  const code = main({
+    argv: ['--cloud', '--all'],
+    log: l => lines.push(l),
+    takeLock: () => assert.fail('no lock for --cloud'),
+    runStep: () => assert.fail('no local step for --cloud'),
+  });
+  assert.equal(code, 2);
+  assert.match(lines[0], /cannot be combined/);
+});
+
+test('main --cloud runs CI through gh: no heavy lock, no local step, no green stamp', () => {
+  const lines = [];
+  const { gh } = fakeGh({
+    existing: [{ databaseId: 7, status: 'completed', conclusion: 'success', headSha: SHA, event: 'pull_request' }],
+    views: [doneView('success')],
+  });
+  const code = main({
+    argv: ['--cloud'],
+    log: l => lines.push(l),
+    takeLock: () => assert.fail('no lock for --cloud'),
+    runStep: () => assert.fail('no local step for --cloud'),
+    cloudOptions: { git: fakeGit(), gh, sleep: () => {}, pollMs: 1 },
+  });
+  assert.equal(code, 0);
+  assert.equal(lines.length, 1);
+  assert.match(lines[0], /^green: OK \(cloud\)/);
+});
+
+test('repoFromUrl reads https and ssh remotes', () => {
+  assert.equal(repoFromUrl('https://github.com/Gnuminator/Foundry-VTT-MCP-Ai-Tool.git'), 'Gnuminator/Foundry-VTT-MCP-Ai-Tool');
+  assert.equal(repoFromUrl('git@github.com:Gnuminator/Foundry-VTT-MCP-Ai-Tool.git'), 'Gnuminator/Foundry-VTT-MCP-Ai-Tool');
+  assert.equal(repoFromUrl('https://example.com/x/y'), null);
+});
+
+test('cloud: refuses a dirty tree', () => {
+  const { gh, calls } = fakeGh({});
+  const { code, lines } = cloud(fakeGit({ 'status --porcelain': ' M scripts/green.mjs' }), gh);
+  assert.equal(code, 1);
+  assert.match(lines[0], /uncommitted changes/);
+  assert.deepEqual(calls, []);
+});
+
+test('cloud: refuses a HEAD that is not pushed', () => {
+  const { gh, calls } = fakeGh({});
+  const git = fakeGit({ 'ls-remote aitool refs/heads/claude/topic': `${'b'.repeat(40)}\trefs/heads/claude/topic` });
+  const { code, lines } = cloud(git, gh);
+  assert.equal(code, 1);
+  assert.match(lines[0], /not pushed to aitool\/claude\/topic/);
+  assert.deepEqual(calls, []);
+  const none = cloud(fakeGit({ 'ls-remote aitool refs/heads/claude/topic': '' }), gh);
+  assert.match(none.lines[0], /not pushed/);
+});
+
+test('cloud: reuses the CI run already started for the head and prints one OK line', () => {
+  const { gh, calls } = fakeGh({
+    existing: [{ databaseId: 7, status: 'in_progress', conclusion: '', headSha: SHA, event: 'pull_request' }],
+    views: [{ status: 'in_progress', conclusion: '', url: 'u', jobs: [] }, doneView('success')],
+  });
+  const { code, lines } = cloud(fakeGit(), gh);
+  assert.equal(code, 0);
+  assert.equal(lines.length, 1);
+  assert.match(lines[0], /^green: OK \(cloud\), CI run https:\/\/gh\/run\/7 for aaaaaaaa in 0m1s$/);
+  assert.ok(!calls.some(c => c.startsWith('workflow run')), 'no second run when one exists');
+});
+
+test('cloud: a cancelled run does not count, ci.yml is dispatched on the branch and its run is found', () => {
+  const { gh, calls } = fakeGh({
+    existing: [{ databaseId: 5, status: 'completed', conclusion: 'cancelled', headSha: SHA, event: 'push' }],
+    dispatched: [
+      { databaseId: 6, status: 'completed', conclusion: 'success', headSha: 'c'.repeat(40), event: 'workflow_dispatch' },
+      { databaseId: 7, status: 'queued', conclusion: '', headSha: SHA, event: 'workflow_dispatch' },
+    ],
+    views: [doneView('success')],
+  });
+  const { code } = cloud(fakeGit(), gh);
+  assert.equal(code, 0);
+  assert.ok(calls.includes('workflow run ci.yml -R Gnuminator/Foundry-VTT-MCP-Ai-Tool --ref claude/topic'));
+  assert.ok(calls.some(c => c.startsWith('run view 7 ')));
+});
+
+test('cloud: a failed run names the failed job, step and URL', () => {
+  const { gh } = fakeGh({
+    existing: [{ databaseId: 7, status: 'completed', conclusion: 'failure', headSha: SHA, event: 'pull_request' }],
+    views: [
+      doneView('failure', [
+        { name: 'build-test (Node 22)', conclusion: 'failure', url: 'https://gh/job/1', steps: [{ name: 'Setup', conclusion: 'success' }, { name: 'Run e2e', conclusion: 'failure' }] },
+        { name: 'build-test (Node 24)', conclusion: 'success', url: 'https://gh/job/2', steps: [] },
+      ]),
+    ],
+  });
+  const { code, lines } = cloud(fakeGit(), gh);
+  assert.equal(code, 1);
+  assert.equal(lines.length, 1);
+  assert.equal(
+    lines[0],
+    'green: FAILED (cloud, failure) build-test (Node 22) at step "Run e2e" (https://gh/job/1) (an earlier run; gh run rerun 7 --failed to retry)'
+  );
+});
+
+test('cloud: a branch with an open PR waits for the pull_request run instead of dispatching', () => {
+  const { gh, calls } = fakeGh({
+    openPr: true,
+    existing: [],
+    laterExisting: [{ databaseId: 7, status: 'queued', conclusion: '', headSha: SHA, event: 'pull_request' }],
+    views: [doneView('success')],
+  });
+  const { code } = cloud(fakeGit(), gh);
+  assert.equal(code, 0);
+  assert.ok(!calls.some(c => c.startsWith('workflow run')), 'no dispatch next to the PR run');
+});
+
+test('cloud: an open PR whose run never shows up still gets a dispatch with its own time to be found', () => {
+  const { gh, calls } = fakeGh({
+    openPr: true,
+    existing: [],
+    dispatched: [{ databaseId: 7, status: 'queued', conclusion: '', headSha: SHA, event: 'workflow_dispatch' }],
+    views: [doneView('success')],
+  });
+  const { code } = cloud(fakeGit(), gh);
+  assert.equal(code, 0);
+  assert.ok(calls.some(c => c.startsWith('workflow run')));
+});
+
+test('cloud: gh and git errors are reported, not turned into a dispatch or a wrong message', () => {
+  const list = fakeGh({ listFails: true });
+  const a = cloud(fakeGit(), list.gh);
+  assert.equal(a.code, 1);
+  assert.match(a.lines[0], /could not list CI runs \(gh: gh: not logged in\)/);
+  assert.ok(!list.calls.some(c => c.startsWith('workflow run')));
+  const view = fakeGh({ existing: [{ databaseId: 7, status: 'queued', conclusion: '', headSha: SHA, event: 'push' }], viewFails: true });
+  const b = cloud(fakeGit(), view.gh);
+  assert.equal(b.code, 1);
+  assert.match(b.lines[0], /gh failed 5 times in a row while waiting for run 7: HTTP 401/);
+  const ls = (args) => (args[0] === 'ls-remote' ? { status: 128, stdout: '', stderr: 'fatal: unable to access' } : fakeGit()(args));
+  const c = cloud(ls, fakeGh({}).gh);
+  assert.match(c.lines[0], /could not reach aitool: fatal: unable to access/);
+});
+
+test('cloud: a run cancelled while waiting is called cancelled, and main is refused', () => {
+  const { gh } = fakeGh({
+    existing: [{ databaseId: 7, status: 'queued', conclusion: '', headSha: SHA, event: 'push' }],
+    views: [doneView('cancelled', [{ name: 'build-test', conclusion: 'cancelled', url: 'j', steps: [] }])],
+  });
+  const a = cloud(fakeGit(), gh);
+  assert.equal(a.code, 1);
+  assert.match(a.lines[0], /^green: FAILED \(cloud, cancelled\) CI run https:\/\/gh\/run\/7 was cancelled/);
+  const b = cloud(fakeGit({ 'rev-parse --abbrev-ref HEAD': 'main' }), fakeGh({}).gh);
+  assert.equal(b.code, 1);
+  assert.match(b.lines[0], /CI on main runs on push/);
+});
+
+test('ci.yml keeps what --cloud relies on: workflow_dispatch and a per-ref concurrency group', () => {
+  const yml = fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '.github', 'workflows', 'ci.yml'), 'utf8');
+  assert.match(yml, /^ {2}workflow_dispatch:/m);
+  assert.match(yml, /^ {2}group: .*github\.ref/m);
+});
+
+test('cloud: refuses when the dispatch is rejected or no run shows up', () => {
+  const rejected = cloud(fakeGit(), fakeGh({ dispatchStatus: 1 }).gh);
+  assert.equal(rejected.code, 1);
+  assert.match(rejected.lines[0], /could not start ci\.yml: HTTP 403/);
+  const missing = cloud(fakeGit(), fakeGh({}).gh);
+  assert.equal(missing.code, 1);
+  assert.match(missing.lines[0], /found no run for aaaaaaaa/);
+});
+
+test('cloud: gives up when the run is still going at the timeout', () => {
+  const { gh } = fakeGh({
+    existing: [{ databaseId: 7, status: 'queued', conclusion: '', headSha: SHA, event: 'push' }],
+    views: [{ status: 'queued', conclusion: '', url: 'u', jobs: [] }],
+  });
+  const { code, lines } = cloud(fakeGit(), gh, { timeoutMs: 5000 });
+  assert.equal(code, 1);
+  assert.match(lines[0], /still going after 0m5s/);
 });

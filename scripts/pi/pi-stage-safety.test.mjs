@@ -382,7 +382,7 @@ describe('warn_dashboard_split (S3)', () => {
 
 describe('the stages', () => {
   // 18-time-sync is left out on purpose: it checks the snapshot just before its first write, so DRY_RUN and CHECK need none
-  // (scripts/pi/time-sync.test.mjs covers the refusal). 19-vault-sync is read-only and asks for a snapshot only with
+  // (scripts/pi/time-sync.test.mjs covers the refusal). 20-vault-sync is read-only and asks for a snapshot only with
   // SET_TIMEZONE=1 (scripts/pi/vault-sync.test.mjs).
   const stages = [
     '1-health', '2-node', '3-foundry', '4-tailscale', '5-tool', '5-check-world', '6-backup', '7-vault',

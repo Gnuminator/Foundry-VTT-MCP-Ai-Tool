@@ -41,8 +41,8 @@ currently shaped around a Curse of Strahd campaign.
   diff, apply. Each feature has its own switch in the module settings; most start off, and Allow Write
   Operations, Live play, Ownership, the table viewer and Undo for everything start on. A change is
   refused if anything changed since the plan, is recorded, and can be undone from the dashboard.
-- **Tarokka reading (Curse of Strahd).** Deal a reading with the built-in roll, or import one dealt
-  in the `tarokka-reading` module. The cards are kept GM-only, outside Foundry's world data. Link
+- **Tarokka reading (Curse of Strahd).** Deal a reading with the built-in roll, or choose the five
+  cards yourself, and lay them out on a card table on the canvas. The cards are kept GM-only, outside Foundry's world data. Link
   each card to a journal page, scene or actor, and reveal a card to players with only the text you
   write.
 - **Spoiler-safe player page.** `/player` is built by projection from what players can see in
@@ -107,9 +107,10 @@ Before a session the page opens on Pre-flight and Prep; the same page runs the s
 
 ![The turn-order strip with two combatants picked and the Damage / Heal, Condition, Clear and End combat buttons](docs/images/cogm/combat-control.png)
 
-**Damage and conditions from the dashboard:** with **GM Actions** and **⚔ Combat buttons** on
-(both off by default), select combatants in the turn-order strip and **Damage / Heal** or **Condition**
-opens the Tool Runner with the plan ready for them; you confirm it. The strip can also start and
+**Damage and conditions from the dashboard:** with **GM Actions** on (Start session turns them on)
+(both off by default), select combatants in the turn-order strip and **Damage / Heal**
+opens a small form that applies at once (with Undo) and **Condition** opens the Tool Runner with
+the plan ready for them; you confirm it. The strip can also start and
 end a fight. Turns, initiative and saving throws stay in Foundry.
 
 ![The Tool Runner drawer open on plan-actor-change, with its form fields and Pick… buttons](docs/images/cogm/tool-runner.png)
@@ -151,7 +152,7 @@ The bridge and the dashboard are decoupled, so they can run where it suits the t
 ## MCP tools
 
 98 tools in five sets. Each set is its own entry in Claude Desktop, with its own switch in the
-**Search and tools** menu; all 98 tools are about 113,300 characters of definitions that Claude
+**Search and tools** menu; all 98 tools are about 118,200 characters of definitions that Claude
 would otherwise read at the start of every chat. The dashboard always has every tool. Details and
 the full lists: [docs/reference/TOOL-SETS.md](docs/reference/TOOL-SETS.md).
 

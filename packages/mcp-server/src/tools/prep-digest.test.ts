@@ -537,6 +537,32 @@ describe('get-prep-digest', () => {
       expect(digest.warnings).toEqual([]);
     });
 
+    it('shows an encounter block as a suggested encounter in the digest (read-only)', async () => {
+      await seedPrep();
+      await prepNote(
+        'Prep/Encounters/Ambush.md',
+        { type: 'encounter-prep' },
+        '```encounter\nname: Goblin ambush\ncreatures:\n  - 2: Goblin\n```'
+      );
+      const digest = await makeTools({ vault: true, scene: SCENE }).handleGetPrepDigest({});
+      expect(digest.prep?.encounters).toEqual([
+        {
+          path: 'Prep/Encounters/Ambush.md',
+          encounters: [
+            {
+              name: 'Goblin ambush',
+              creatures: [{ name: 'Goblin', count: 2 }],
+              total: 2,
+              truncated: false,
+            },
+          ],
+        },
+      ]);
+      expect(JSON.parse(JSON.stringify(digest)).prep.encounters[0].encounters[0].name).toBe(
+        'Goblin ambush'
+      );
+    });
+
     it('no active scene is not a warning; quests still match', async () => {
       await seedPrep();
       const digest = await makeTools({ vault: true }).handleGetPrepDigest({});

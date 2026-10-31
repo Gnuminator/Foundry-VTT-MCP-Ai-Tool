@@ -41,6 +41,7 @@ import {
   type TestWorld,
 } from './test-support/foundry-mock/index.js';
 import { FoundryDataAccess } from './data-access.js';
+import { changeJournal } from './change-journal.js';
 
 let world: TestWorld;
 let restore: () => void;
@@ -89,12 +90,48 @@ function addActorWithHp(name: string, hp: { value: number; max?: number; temp?: 
 }
 
 // ===========================================================================
+// The AI change group ends with a turn or initiative write
+// ===========================================================================
+
+describe('FoundryDataAccess: combat writes end the AI change group', () => {
+  it.each([
+    ['advanceCombatTurn', (d: FoundryDataAccess): Promise<unknown> => d.advanceCombatTurn({})],
+    [
+      'setInitiative',
+      (d: FoundryDataAccess): Promise<unknown> =>
+        d.setInitiative({ combatantName: 'Hero', initiative: 12 }),
+    ],
+    [
+      'rollInitiativeForNpcs',
+      (d: FoundryDataAccess): Promise<unknown> => d.rollInitiativeForNpcs({}),
+    ],
+  ])('%s calls changeJournal.breakGroup once', async (_name, run) => {
+    installCombat({ turns: [makeCombatant({ id: 'c1', name: 'Hero' })], turn: 0, round: 1 });
+    const spy = vi.spyOn(changeJournal, 'breakGroup');
+
+    await run(da);
+
+    expect(spy).toHaveBeenCalledTimes(1);
+  });
+});
+
+// ===========================================================================
 // advanceCombatTurn
 // ===========================================================================
 
 describe('FoundryDataAccess — advanceCombatTurn', () => {
   it('throws when there is no active combat', async () => {
     await expect(da.advanceCombatTurn({})).rejects.toThrow('No active combat encounter.');
+  });
+
+  it('advances the fight the strip shows when this browser views none', async () => {
+    const combat = installCombat({ turns: [makeCombatant({ id: 'c1', name: 'Hero' })] });
+    combat.combatant = { name: 'Hero' };
+    (world as any).currentCombat = null;
+
+    await da.advanceCombatTurn({});
+
+    expect(combat.nextTurn).toHaveBeenCalledTimes(1);
   });
 
   it('advances to the next turn (no skipTo) via combat.nextTurn()', async () => {

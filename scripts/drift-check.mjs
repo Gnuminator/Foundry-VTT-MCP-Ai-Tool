@@ -4,8 +4,8 @@
  * once another lane's PR is on main: tool counts and sizes in the docs, the generated tool
  * reference, the tool-set budgets, the lint and em-dash baselines, the changelog fragments, the
  * usage catalog, the docs links. This script merges the newest main into a copy of the branch in a
- * throwaway git worktree, runs those guards there, and removes the worktree. The lane's own working
- * tree is never touched, and nothing is committed or pushed.
+ * throwaway git worktree, runs those guards there, and removes the worktree. The lane's tracked
+ * files are never touched (only a missing or stale, gitignored `shared/dist` is rebuilt), and nothing is committed or pushed.
  *
  *   npm run drift:check                  fetch main, trial-merge it aside, run the guards
  *   npm run drift:check -- --remote NAME take main from this remote
@@ -18,7 +18,9 @@
  * lockfile change made by the branch itself does not count). The workspace links (`@gnuminator/*`)
  * point at this checkout's own packages, and `@gnuminator/shared` is consumed through its build
  * (`shared/dist`): when the merge changed `shared/`, the worktree gets its own workspace links and
- * builds its own `shared`, so the guards test the merged tree against a shared built from it. A worktree left by a killed run is removed by the next run; one whose run is still
+ * builds its own `shared`, so the guards test the merged tree against a shared built from it. Before
+ * any of that, a checkout whose `shared/dist` is missing or older than `shared/src` gets `shared`
+ * built (ensureSharedBuilt), so a lane that never built it does not fail the mcp-server tests. A worktree left by a killed run is removed by the next run; one whose run is still
  * alive (another lane's, same repository) and younger than an hour is left alone.
  */
 import { spawnSync } from 'node:child_process';
@@ -221,6 +223,65 @@ function buildMergedShared(cwd, dir, buildCommand, log) {
   return `${r.stdout ?? ''}${r.stderr ?? ''}`.trim().split('\n').slice(-15).join('\n');
 }
 
+/** Newest mtime of any file under `dir` (0 when there is none). @param {string} dir */
+function newestMtime(dir) {
+  let newest = 0;
+  let entries;
+  try {
+    entries = fs.readdirSync(dir, { withFileTypes: true });
+  } catch {
+    return 0;
+  }
+  for (const e of entries) {
+    const p = path.join(dir, e.name);
+    newest = Math.max(newest, e.isDirectory() ? newestMtime(p) : fs.statSync(p).mtimeMs);
+  }
+  return newest;
+}
+
+/** The package entry named by `main` in shared/package.json, or null. @param {string} shared */
+function sharedEntry(shared) {
+  try {
+    const main = JSON.parse(fs.readFileSync(path.join(shared, 'package.json'), 'utf8')).main;
+    return typeof main === 'string' ? path.join(shared, main) : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The guards read `@gnuminator/shared` through its build (`shared/dist`). A lane checkout whose
+ * dist is missing or older than `shared/src` (a docs-only lane that never built it) would fail the
+ * mcp-server tests with "Failed to resolve entry", so it is built here first. Returns an error
+ * text, or null. @param {string} cwd @param {string} buildCommand @param {(line: string) => void} log
+ */
+export function ensureSharedBuilt(cwd, buildCommand, log) {
+  const shared = path.join(cwd, 'shared');
+  if (!fs.existsSync(path.join(shared, 'package.json')) || !fs.existsSync(path.join(shared, 'src'))) {
+    return null;
+  }
+  const dist = path.join(shared, 'dist');
+  const entry = sharedEntry(shared);
+  const distTime = entry && !fs.existsSync(entry) ? 0 : newestMtime(dist);
+  if (distTime && distTime >= newestMtime(path.join(shared, 'src'))) return null;
+  if (!fs.existsSync(path.join(cwd, 'node_modules'))) {
+    return 'shared/dist is missing or out of date and node_modules is missing: run npm ci, then npm run build -w @gnuminator/shared';
+  }
+  log(`drift-check: shared/dist is ${distTime ? 'older than shared/src' : 'missing'}; building shared.`);
+  const r = spawnSync(buildCommand, { cwd: shared, shell: true, encoding: 'utf8' });
+  if (r.status === 0) {
+    if (entry && !fs.existsSync(entry)) {
+      return `the build ran but emitted no ${path.relative(cwd, entry).replaceAll('\\', '/')}; delete shared/*.tsbuildinfo and run again`;
+    }
+    // shared is `composite`: tsc skips outputs whose content did not change, so a touched src could
+    // leave dist older than src for good. The stamp records that the build ran after the sources.
+    fs.mkdirSync(dist, { recursive: true });
+    fs.writeFileSync(path.join(dist, '.built-stamp'), new Date().toISOString());
+    return null;
+  }
+  return `${r.stdout ?? ''}${r.stderr ?? ''}`.trim().split('\n').slice(-15).join('\n');
+}
+
 /** Worktrees a killed run left behind. @param {string} cwd */
 function staleWorktrees(cwd) {
   return git(cwd, ['worktree', 'list', '--porcelain'])
@@ -269,6 +330,13 @@ export function runDriftCheck({
     return 2;
   }
   for (const stale of staleWorktrees(cwd)) removeWorktree(cwd, stale);
+
+  const sharedError = ensureSharedBuilt(cwd, sharedBuild, log);
+  if (sharedError !== null) {
+    log('drift-check: shared is not built and building it failed:');
+    log(sharedError);
+    return 2;
+  }
 
   if (git(cwd, ['merge-base', '--is-ancestor', main, 'HEAD']).ok) {
     log(`drift-check: the branch already contains ${main} (${mainSha.out}).`);
@@ -357,7 +425,8 @@ export function lockedCommand(check, dir) {
     return check.command;
   }
   const label = `drift-check ${check.name.split('(')[0].replace(/[^\w -]/g, '').trim()}`;
-  return `node "${script}" run --label "${label}" -- ${check.command}`;
+  // High priority: a merge waits on it, so it goes ahead of queued greens (an older lock ignores the flag).
+  return `node "${script}" run --label "${label}" --priority high -- ${check.command}`;
 }
 
 /**

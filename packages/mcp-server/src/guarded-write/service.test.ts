@@ -684,7 +684,7 @@ describe('undo (Foundry ops)', () => {
     expect(foundry.docs.get('Actor.ilvara')!.source.system.hp).toBe(10);
 
     await expect(service.undo(undone.changeId, { confirm: true })).rejects.toThrow(
-      /"test-feature" feature is switched off/
+      /"Test" is switched off\. In Foundry, open the Settings tab, Game Settings, Foundry AI Tool and turn on "Test"\./
     );
     foundry.features.push({ id: 'change-undo', name: '', hint: '', enabled: true });
     const redoPlan = await plan([HP_UPDATE], {
@@ -692,7 +692,7 @@ describe('undo (Foundry ops)', () => {
       undoes: { changes: [undone.changeId] },
     });
     await expect(service.applyPlan(redoPlan.planId, { confirm: true })).rejects.toThrow(
-      /"test-feature" feature is switched off/
+      /"Test" is switched off\. In Foundry, open the Settings tab, Game Settings, Foundry AI Tool and turn on "Test"\./
     );
     expect(foundry.docs.get('Actor.ilvara')!.source.system.hp).toBe(10);
 
@@ -842,6 +842,31 @@ describe('vault ops', () => {
     });
   });
 
+  it('bookkeepingDeletes excuses a vault delete only, a Foundry delete stays destructive', async () => {
+    const created = await vaultPlan([
+      { kind: 'vault-set', file: 'npc-secrets.json', path: 'sorvan.note', value: 'watching' },
+    ]);
+    await service.applyPlan(created.planId, { confirm: true });
+    const ops = [{ kind: 'vault-delete', file: 'npc-secrets.json', path: 'sorvan' }] as never;
+    const bookkeeping = await service.createPlan({
+      feature: 'test-feature',
+      summary: 'Queue entry goes',
+      vaultOps: ops,
+      bookkeepingDeletes: true,
+    });
+    expect(bookkeeping.risk).toBe('write');
+    expect(bookkeeping.requires.confirmDestructive).toBe(false);
+    foundry.add('Actor.ilvara', 'Actor', { name: 'Ilvara' });
+    const mixed = await service.createPlan({
+      feature: 'test-feature',
+      summary: 'Both',
+      vaultOps: ops,
+      ops: [{ kind: 'delete', uuid: 'Actor.ilvara' }] as never,
+      bookkeepingDeletes: true,
+    });
+    expect(mixed.risk).toBe('destructive');
+  });
+
   it('creates a missing file, and a delete makes the plan destructive', async () => {
     const created = await vaultPlan([
       { kind: 'vault-set', file: 'npc-secrets.json', path: 'sorvan.note', value: 'watching' },
@@ -885,7 +910,7 @@ describe('vault ops', () => {
     const p = await vaultPlan([{ kind: 'vault-set', file: 'a.json', path: 'x', value: 1 }]);
     foundry.features[0].writesAllowed = false;
     await expect(service.applyPlan(p.planId, { confirm: true })).rejects.toThrow(
-      /Write operations are disabled/
+      /Write operations are disabled in the module settings\. In Foundry, open the Settings tab, Game Settings, Foundry AI Tool and turn on "Allow Write Operations"\./
     );
     expect(await store.read('curse-of-strahd', 'gm', 'a.json')).toBeNull();
 

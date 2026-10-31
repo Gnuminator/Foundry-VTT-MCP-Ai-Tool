@@ -213,6 +213,29 @@ export interface PrepNote {
   truncated: boolean;
 }
 
+/** Encounter blocks read per note, and creatures kept per block. */
+export const PREP_ENCOUNTER_MAX_BLOCKS = 3;
+export const PREP_ENCOUNTER_MAX_CREATURES = 12;
+/** Encounter notes kept in the digest's `encounters`. */
+export const PREP_ENCOUNTERS_MAX = 5;
+
+/** A suggested encounter read from an `encounter` block in a Prep note (read-only). */
+export interface PrepEncounter {
+  name: string;
+  creatures: Array<{ name: string; count: number }>;
+  /** Creatures with counts added up. */
+  total: number;
+  /** True when the block had more creatures than were kept. */
+  truncated: boolean;
+}
+
+/** A prep note (encounter-prep first, any prep type) with its suggested encounters. */
+export interface PrepEncounterNote {
+  /** Campaign-relative path. */
+  path: string;
+  encounters: PrepEncounter[];
+}
+
 /** The digest's `prep` part. */
 export interface PrepNotesPart {
   /** Always PREP_NOTES_NOTICE. */
@@ -223,6 +246,11 @@ export interface PrepNotesPart {
   omitted: number;
   /** Matching notes the GM kept out with `ai_context: false`. */
   keptOut: number;
+  /**
+   * Suggested encounters from `encounter` blocks in prep notes (encounter-prep first), at most
+   * PREP_ENCOUNTERS_MAX notes. Suggestions only: nothing is created. Left out when there are none.
+   */
+  encounters?: PrepEncounterNote[];
   /**
    * What the notes were matched against; null when Foundry did not say (only the session plan is
    * looked for). openQuests is null when the prep scan failed (quest notes were not looked for).

@@ -57,30 +57,34 @@ page and Obsidian follow it.
 Marks the start and the end of a play session. The tool uses these marks to write one Obsidian note
 per session and to group the play log.
 
-- **Start session** is the button in the header. **Turn on for tonight** in Pre-flight is a different
-  button: it only switches on what the tool needs to change things.
+- **Start session** is the button in the header. It also turns on live play: GM Actions and every
+  **Turn on for tonight** switch (see "Live play on" below).
 - Click **Start session** when play begins. The text changes to "Session since 19:30".
 - Click **End session** when play ends. The text changes back to "No session". It also turns off
   again what **Turn on for tonight** turned on (see below), and GM Actions.
-- Starting a session only writes a line in the tool's own log. It never changes the game, so it
-  works with GM Actions off.
+- Starting a session writes a line in the tool's own log and turns live play on, so tools that
+  change the game can run after you confirm. There is no "log only" start any more.
 - If you forget, the notes still split sessions at a gap of 3 hours without events.
 
 The 📓 next to it opens your campaign's Home note in Obsidian (see "Open in Obsidian" below).
 
-### ⚔ GM Actions: off / on
+### Live play on: all set
 
-The master switch for changing the game from the dashboard. Click it to turn it on or off.
+**Start session** is the only switch for live play. One click turns on GM Actions and every
+**Turn on for tonight** switch; **End session** turns them off again. The line in the header
+shows the state and opens the list of switches. When the page cannot read the switches, the line
+says so (and still says if GM Actions is off).
 
-- **Off** (the default): you can look, read and run read-only tools. Nothing that changes the game
-  runs from the dashboard.
-- **On**: tools that change the game can run after you confirm, and Undo in Recent Changes works.
-  The combat buttons need their own switch as well (see **⚔ Combat buttons** below).
+- **Live play on: all set**: tools that change the game can run after you confirm, and Undo in
+  Recent Changes works.
+- **Something is off** (for example "Handouts is off: Turn on"): the controls that need it stay on
+  the screen, greyed out, with the reason and a **Turn on** button next to them. One click turns
+  everything on, the same as Start session.
 - It only guards the dashboard. It does not stop Claude Desktop.
-- Restarting the dashboard turns it off again.
+- Restarting the dashboard turns GM Actions off again.
 
-Turn it on when you are about to act, and off again after. **Turn on for tonight** turns it on
-for you, together with the module switches.
+The header has no off control. Start session turns live play on; **End session** or Pre-flight's
+**Turn them off again** turns it off.
 
 ### 🛠 Tools (Advanced)
 
@@ -112,8 +116,11 @@ again**) turns off exactly those, so a switch that was already on stays on. The 
 button show each switch (✓ on, ○ off). If Foundry did not take a change, a red toast names the
 switch; check it in Foundry's module settings, where every switch stays visible.
 
+A refusal toast ("... is switched off") offers the same click as a button, "Turn on (switch name) and the
+rest for tonight": it turns on all of the above, not only the named switch.
+
 Only the dashboard can do this, from the GM's login. Claude has no tool for it, so Claude can never
-switch on its own writes. **Start the session log** next to it is the same as **Start session** in
+switch on its own writes. **Start the session log and live play** next to it is the same as **Start session** in
 the header.
 
 ### 📜 Handouts (Advanced)
@@ -155,14 +162,10 @@ played on paper: one card per player character, filled in from the sheet in Foun
 numbers from the paper sheet; **Plan** makes one change per character, with the usual confirm and
 Undo. It needs GM Actions and the module switch "AI Tool: Paper sync (writes)".
 
-### ⚔ Combat buttons and ▦ Try the During layouts
+### ▦ Try the During layouts
 
-Two entries under **Advanced**, in the **During screen** group:
+One entry under **Advanced**, in the **During screen** group:
 
-- **⚔ Combat buttons: off / on** puts **Damage / Heal**, **Condition** and **Clear** in the
-  turn-order strip (see Combat Tracker below). Off by default: in Foundry, the dnd5e chat cards
-  already apply damage and healing, and that is the way to learn first. Your choice is kept for
-  this world.
 - **▦ Try the During layouts** starts the short layout trial again (see During layouts below).
 
 ### ⏸ Pause, 🩺 Diag AI, Tone, Model (old dashboard only)
@@ -182,13 +185,13 @@ These control the AI commentary panel, which is only on the old dashboard (`/leg
 The game happens in Foundry; the **During** screen sits next to it and keeps an eye on things.
 It comes in three layouts. Pick one with **Layout** at the top of the screen:
 
-- **Cards** (the default): the Live Feed is the big column. Recent Changes, Handouts and Party
+- **Cards**: the Live Feed is the big column. Recent Changes, Handouts and Party
   are cards at the side; open one and the others fold to a single line. The turn order shows
   only while a fight runs.
 - **Simple/Full**: Simple shows only the Live Feed, Recent Changes and Handouts. **Show
   everything** switches to Full: the turn order and Party as well, all open. **Show less** goes
   back.
-- **Auto**: follows the game. Without a fight it looks like Cards. When combat starts, the turn
+- **Auto** (the default): follows the game. Without a fight it looks like Cards. When combat starts, the turn
   order grows and Party opens in the big column; the Live Feed folds to the side.
 
 The **Try layouts** button next to **Layout** starts the trial any time, with a sample fight so
@@ -226,25 +229,32 @@ Defeated creatures are dimmed and never count as next. The ribbon never changes 
 only moves that screen's view.
 
 Combat in the dashboard is optional. If you want it, the strip can add damage, healing and
-conditions on several combatants at once: turn on **⚔ Combat buttons** under **Advanced** (off by
-default). With the combat buttons and GM Actions on (**Turn on for tonight** turns GM Actions on),
-click combatant rows to select them (click again to unselect). With one or more selected:
+conditions on several combatants at once. While a fight runs and live play is on (**Start session**
+turns it on), click combatant rows to select them (click again to unselect). With one or more selected:
 
-- **Damage / Heal**: opens the tool runner (`plan-actor-change`) with those names filled in. Pick
-  damage, healing or temp-hp and enter the amount (and the damage type, so dnd5e counts
-  resistances, vulnerabilities and immunities).
-- **Condition**: the same, for a condition: pick it, and untick **active** to remove it.
-- **Clear**: unselects all.
+- **Damage / Heal**: opens a small form: Damage or Heal, one amount, and damage type chips (so
+  dnd5e counts resistances, vulnerabilities and immunities). One button, named for what it does
+  ("Deal 8 fire damage to ... in Foundry"), applies it at once to every picked token; each takes
+  the full amount. The toast has **Undo** and Recent Changes keeps the change. There is no
+  confirm window for this form.
+- **Condition**: opens the tool runner with the picked names filled in: pick the condition, and
+  untick **active** to remove it. Click **Run...**; the confirm window lists each target and what
+  will change; click **Confirm**.
+- **Clear**: unselects all (and closes the Damage / Heal form).
+- **Ask for a roll** (under the strip, with GM Actions on): pick a check, save or skill, a DC and
+  private or public, then **Ask the party**, or **Ask** for the picked player characters. The
+  request goes to each player's chat and the play log at once, with no confirm window and no
+  Undo (it only posts a roll card).
 
-Fill in the amount and click **Run...**. The confirm window lists each target and what will
-change; click **Confirm**. A message lists each target's result ("Wolf 2: HP 11 to 5") with
-**Undo** for a few seconds; one click puts it back. Later, use **Undo** in Recent Changes.
+After a Damage / Heal or Condition change, a message lists each target's result ("Wolf 2: HP 11 to
+5") with **Undo** for a few seconds; one click puts it back. Later, use **Undo** in Recent
+Changes.
 
 **Start combat** and **End combat**: with no fight running and GM Actions on, the Combat Tracker
 offers **Start combat** (in most During layouts, a small **Start combat** button on the During bar
 opens the same thing). It lists the tokens on the scene you are viewing, with player characters and
 Hostile tokens ticked. Change the ticks and click **Start combat with N**. The fight starts at
-round 1, with **Undo**. **End combat** (with the combat buttons on) plans ending the fight; you
+round 1, with **Undo**. **End combat** plans ending the fight; you
 confirm it, and Undo brings it back.
 
 **👑 Boss prompts** (in the panel's top line, only while a creature with legendary actions or a lair
@@ -299,8 +309,10 @@ The top of the **After** view, for the session that just ended:
 - **Went down**: which heroes dropped to 0 HP, and how often.
 
 Below them: the session's length, **Open the session note** (in Obsidian, when it is set up) and
-**Copy the stats for Discord**, which copies the rolls, most damage and who went down for the
-players' channel, without the highest roll. **↻ Refresh** loads them again. The numbers come from
+**Copy the stats for Discord**, which copies the public roll counts, most damage and who went down
+for the players' channel, without the highest roll. The roll counts leave out private and blind
+rolls, so they can be lower than the numbers on your screen (an older bridge sends no public counts,
+and then the rolls line is left out). **↻ Refresh** loads them again. The numbers come from
 the tool's play log, the same as the Stats section of the Obsidian session note.
 
 ### Session notes (After)
@@ -503,12 +515,13 @@ Changes keeps the full history.
 
 The confirm window opens first for:
 
-- **Destructive changes**: deletes, and handout and Tarokka reveals and hides (players see a reveal
-  at once, so Undo cannot take it back from their eyes).
+- **Destructive changes**: deletes, Tarokka reveals and hides, and handout hides (players see a
+  reveal at once, so Undo cannot take it back from their eyes). A handout reveal has a working
+  Undo and asks in one line, with no tick.
 - **Plans you did not make on the dashboard**: a plan Claude made.
   Plan, confirm and undo stay for every AI change.
-- **Any plan made in the tool runner**, including the combat strip's Damage / Heal and Condition,
-  so you see which targets they hit before they apply.
+- **Any plan made in the tool runner**, including the combat strip's Condition, so you see which
+  targets it hits before it applies. (The strip's Damage / Heal form applies at once, with Undo.)
 - **Older tools without a plan** (from the tool runner), which have no Undo.
 
 In the confirm window:
@@ -516,7 +529,7 @@ In the confirm window:
 - For a planned change it shows the plan's summary and the list of what will change. Read it.
 - For other tools it shows the tool's name and the values it will run with.
 - **Cancel** (or Escape, or a click outside) runs nothing.
-- **Destructive action**: deletes, reveals and hides, and every Undo, need a second step. Tick
+- **Destructive action**: deletes, Tarokka reveals, hides and every Undo need a second step. Tick
   "I understand this changes the live game and may be hard to undo.", then click **Run destructive
   action**.
 
@@ -572,11 +585,13 @@ category **Foundry AI Tool**) and GM Actions on.
 Top row:
 
 - **↻ Refresh**: reloads the reading.
-- **Import from tarokka-reading**: takes the reading you dealt in the `tarokka-reading` module.
-  When you deal there with the switch on, Foundry first asks "Offer this reading to the AI Tool?";
-  answer yes, then import it here.
 - **New reading (built-in roll)**: deals a new reading with the tool's own roll. The previous
   reading is kept in an archive.
+- **Choose the cards…**: for a reading you drew by hand. Pick the five cards (the first three from
+  the common deck, the last two from the high deck, none twice) and press **Store this reading**.
+  Nothing is dealt. The previous reading is
+  kept in an archive, and Undo brings it back. It shows card names, so it only opens while
+  **Show cards** is ticked, and unticking that hides it again.
 - **📓 Obsidian**: opens the current reading's note in Obsidian.
 - **Show cards**: card names show as "Hidden card" until you tick this. Untick it before anyone looks at
   your screen.
@@ -609,8 +624,10 @@ pages show here: a new journal (one Claude just made, say) is not listed until y
   change the order: the first page is what **Reveal next** reveals. **Remove** takes one off the
   queue. Queueing changes nothing in Foundry.
 - **Reveal next: `<title>`**: plans the reveal of the next queued page for the scene that is active
-  now (or a page queued for any scene). The confirm window shows the change; applying it also takes
-  the page off the queue. Undo in Recent Changes hides it again and puts it back in the queue.
+  now (or a page queued for any scene). A one-line window asks `Show "<title>" to <players>?`
+  (no tick box; the reveal has a working Undo). Applying it also takes the page off the queue.
+  Undo in Recent Changes hides it again and puts it back in the queue (a player may already have
+  read it). If the queue changed since the drawer loaded, the window shows the plan in full.
   Tick **Show it now** next to it to also pop the page up on the screens of the players it is for
   (everyone when it is for every player). It is off every time unless you tick it, and Undo cannot
   close the popup.
@@ -669,8 +686,12 @@ choose **Set as Primary Party**. With more than one group, a list at the top pic
   a square ("put the party at the inn door").
 - **Rest**: posts dnd5e's short or long rest card to chat. Each player clicks it to rest their
   own character, the same card Foundry's party sheet posts.
+- **Ask for a roll**: pick a check, save or skill, a DC and private or public, then **Ask the
+  whole party**, or **Ask roll** on one member. It posts the roll request to the player's chat and
+  the play log (with GM Actions on). It has no confirm window and no Undo, since it only posts a
+  roll card.
 
-Each button applies in one click, with an **Undo** message. The actions need GM Actions on and
+Each of the other buttons applies in one click, with an **Undo** message. The actions need GM Actions on and
 the module setting **AI Tool: Party (writes)** switched on. Every change lands in Recent Changes
 with Undo; a rest card can only be undone while nobody has rested from it (after that, delete the
 card in Foundry's chat). Claude uses the same actions with `get-party` and `plan-party-change`.
@@ -692,7 +713,7 @@ recap, Handouts and Quests, and the live cards move down. Its parts:
 - **Open your character sheet**: a link to `/me`. At the top between sessions, at the bottom during
   a session.
 - **Combat order**: initiative and names as players know them. PCs have an HP bar; enemies and NPCs
-  have no HP numbers, only a rough band (healthy, bloodied, critical, down). Only standard conditions show. Hidden creatures are left out, and a creature
+  have no HP numbers and no band: players ask you who is hurt. (The rough band, healthy, bloodied, critical, down, is a switch for the host: `PLAYER_SHOW_ENEMY_HP_BANDS=true`.) Only standard conditions show. Hidden creatures are left out, and a creature
   whose name players cannot see is "Unknown creature".
 - **Session feed**: public rolls and what players could see happen, with creatures named the way
   players know them. Private, blind and GM rolls never show. Damage and healing amounts show for

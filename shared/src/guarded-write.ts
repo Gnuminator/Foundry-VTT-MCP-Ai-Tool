@@ -26,6 +26,17 @@ export interface GuardedUpdateOp {
   uuid: string;
   changes: Record<string, unknown>;
   unset?: string[];
+  /**
+   * A damage plan's dnd5e damage type (`fire`). Not written: the apply carries it in the write's
+   * marker so the Live Feed can say "took 5 fire damage". Absent for every other update.
+   */
+  damageType?: string;
+  /**
+   * The op is a plan-actor-change damage or healing write (its only job is the hit points). The
+   * apply carries the flag in the write marker so the Live Feed folds that change's "Applied" row
+   * into the damage or healing line; a multi-field change leaves it unset and keeps its row.
+   */
+  hpLine?: boolean;
 }
 
 /** Create a document: top-level (`documentName` only) or embedded (`parentUuid`). */

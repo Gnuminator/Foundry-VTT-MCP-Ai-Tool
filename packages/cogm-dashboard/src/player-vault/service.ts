@@ -13,6 +13,7 @@ import type { ThemeId } from '../theme.js';
 import type { PlayerLogStore } from './log-store.js';
 import { renderPlayerVault } from './render.js';
 import type { PlayerVaultInput, VaultPlayer } from './types.js';
+import { projectPlayStats } from './stats.js';
 import { writePlayerVault } from './writer.js';
 
 /** The most events the one-time backfill asks the bridge for (`get-session-log`). */
@@ -65,6 +66,8 @@ export interface PlayerVaultServiceOptions {
   theme: (worldId: string) => ThemeId;
   /** Folder with `aitool-theme-<id>.css`; default {@link DEFAULT_SNIPPET_DIR}. */
   snippetDir?: string;
+  /** How long one `get-play-stats` answer is reused (it rebuilds from the logs); default 5 min. */
+  statsTtlMs?: number;
 }
 
 /** What one rebuild did, for logs and tests. */
@@ -98,6 +101,7 @@ export class PlayerVaultService {
   private readonly lastHash = new Map<string, string>();
   private readonly backfilled = new Set<string>();
   private pending: SessionEvent[] = [];
+  private lastStats: { worldId: string; raw: unknown; at: number } | null = null;
 
   constructor(private readonly options: PlayerVaultServiceOptions) {}
 
@@ -156,8 +160,15 @@ export class PlayerVaultService {
     const theme = this.options.theme(world.id);
     const css = this.snippet(theme);
     const sessions = this.options.store.sessions(world.id);
+    const players = this.options.players();
+    const rawStats = players.length > 0 ? await this.playStats(world.id) : null;
 
-    for (const player of this.options.players()) {
+    for (const player of players) {
+      if (rawStats === undefined) {
+        // No stats answer yet (fresh process, bridge busy): keep the folder, My stats.md included.
+        result.failed.push(player.name);
+        continue;
+      }
       try {
         const sheets = await this.sheets(player.userId);
         if (sheets === null) {
@@ -173,6 +184,11 @@ export class PlayerVaultService {
             .filter(h => !h.players || h.players.includes(player.userId)),
           sheets,
           sessions,
+          stats: projectPlayStats(
+            rawStats,
+            world.id,
+            sheets.map(s => ({ id: s.id, name: s.name }))
+          ),
           theme: { id: theme, css },
         };
         const hash = createHash('sha256').update(JSON.stringify(input)).digest('hex');
@@ -210,6 +226,25 @@ export class PlayerVaultService {
         error: errorText(error),
       });
     }
+  }
+
+  /**
+   * The bridge's GM stats, once per pass; only `projectPlayStats` may read it. When the call
+   * fails the last good answer for the world stays; with none (undefined) the pass skips the
+   * vaults, so a failed call never drops the stats note.
+   */
+  private async playStats(worldId: string): Promise<unknown> {
+    const ttl = this.options.statsTtlMs ?? 300_000;
+    if (this.lastStats?.worldId === worldId && Date.now() - this.lastStats.at < ttl) {
+      return this.lastStats.raw;
+    }
+    try {
+      const raw = await this.options.client.callTool('get-play-stats', {});
+      this.lastStats = { worldId, raw, at: Date.now() };
+    } catch (error) {
+      this.options.logger.warn('Player vault: play stats unavailable', { error: errorText(error) });
+    }
+    return this.lastStats?.worldId === worldId ? this.lastStats.raw : undefined;
   }
 
   /** The player's own sheets, or null when the bridge could not answer. */

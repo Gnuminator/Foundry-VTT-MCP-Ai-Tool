@@ -9,7 +9,7 @@ import type { JSX, ReactNode } from 'react';
 
 import { errorText } from '../lib/api';
 
-import { Button } from './Button';
+import { Button, useAfter } from './Button';
 import { cx } from './cx';
 import styles from './states.module.css';
 
@@ -98,6 +98,19 @@ export function LoadingState({
       )}
     </LiveBlock>
   );
+}
+
+/** How long a lazy piece may take before "Loading..." shows in its place. */
+export const LOADING_AFTER_MS = 200;
+
+/**
+ * A Suspense fallback: nothing for the first 200 ms (a chunk that is already cached never
+ * flashes), then "Loading..." in place so a slow one does not look like a click that did nothing.
+ */
+export function DelayedLoading({ as = 'p', className }: BlockProps): JSX.Element | null {
+  const late = useAfter(true, LOADING_AFTER_MS);
+  if (!late) return null;
+  return <LoadingState as={as} {...(className ? { className } : {})} />;
 }
 
 interface ErrorStateProps extends BlockProps {

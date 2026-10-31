@@ -692,7 +692,10 @@ async function tokenTools() {
         .map(d => String(d.text || ''));
       assert(
         planNotes.some(n => /Also restored with /.test(n)),
-        `no "Also restored" note in ${brief(undone.plan.diff)}`
+        `no "Also restored" note in ${brief(undone.plan.diff)}. With a second GM browser logged in ` +
+          "as the same user, dnd5e's dependent delete may run there (its own action id); the " +
+          "history ties it to the AI change by the deleted effect's data (fileForeignDependents " +
+          'in change-history.ts), so a miss here is a bug in that link.'
       );
       assert(
         (await effectNames(ctx.wolfActorId)).includes(concentrating),

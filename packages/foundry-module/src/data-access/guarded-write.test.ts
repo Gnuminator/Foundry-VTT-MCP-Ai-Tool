@@ -682,7 +682,10 @@ describe('applyGuardedOps: refusals', () => {
     );
     world.setSetting(MODULE_ID, `feature.${FEATURE}.enabled`, false);
     const again = await request([{ kind: 'update', uuid: actor.uuid, changes: { name: 'Y' } }]);
-    await expectRefused(again, /switched off/);
+    await expectRefused(
+      again,
+      /is switched off\. In Foundry, open the Settings tab, Game Settings, Foundry AI Tool and turn on/
+    );
     expect(actor.name).toBe('X');
 
     await applyGuardedOps(undoRequest(applied));
@@ -806,6 +809,32 @@ describe('applyGuardedOps: rollback', () => {
     await applyGuardedOps(req);
     expect(tok.source.rotation).toBe(270);
     expect(tok.source.x).toBe(200);
+  });
+
+  it('marks an HP plan op for the feed on the apply only, never on a rollback', async () => {
+    const a = addActor({ name: 'A' });
+    const b = addActor({ name: 'B' });
+    const seen: Array<Record<string, any>> = [];
+    const realUpdate = a.update.bind(a);
+    a.update = (changes: Record<string, unknown>, options?: unknown): Promise<FakeDoc> => {
+      seen.push({ changes, options });
+      return realUpdate(changes);
+    };
+    const req = await request([
+      { kind: 'update', uuid: a.uuid, changes: { name: 'A2' }, hpLine: true, damageType: 'fire' },
+      { kind: 'update', uuid: b.uuid, changes: { name: 'B2' } },
+    ]);
+    b.failUpdates = true;
+    await expect(applyGuardedOps(req)).rejects.toThrow(/database refused the update/);
+    expect(seen).toHaveLength(2);
+    expect(seen[0]?.options[MODULE_ID]).toMatchObject({
+      changeMode: 'apply',
+      hpLine: true,
+      damageType: 'fire',
+    });
+    expect(seen[1]?.options[MODULE_ID].changeMode).toBe('rollback');
+    expect(seen[1]?.options[MODULE_ID]).not.toHaveProperty('hpLine');
+    expect(seen[1]?.options[MODULE_ID]).not.toHaveProperty('damageType');
   });
 
   it('lets a token position write cross walls, terrain and creatures, in the apply and in a rollback', async () => {

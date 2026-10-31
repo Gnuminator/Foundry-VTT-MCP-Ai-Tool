@@ -1,0 +1,79 @@
+/* The Damage / Heal form on the combat strip: a short panel under the action bar. Tokens only. */
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--border-soft);
+  background: var(--bg-elev);
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.toggle {
+  display: inline-flex;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.mode,
+.chip {
+  padding: 0.3rem 0.7rem;
+  font-size: var(--fs-sm);
+  color: var(--text);
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+
+.mode[aria-pressed='true'],
+.chip[aria-pressed='true'] {
+  color: var(--bg);
+  background: var(--accent-bright);
+  font-weight: 700;
+}
+
+.mode:focus-visible,
+.chip:focus-visible,
+.amount input:focus-visible {
+  outline: 2px solid var(--accent-bright);
+  outline-offset: 1px;
+}
+
+.amount input {
+  width: 6rem;
+  padding: 0.3rem 0.5rem;
+  font-size: var(--fs-md, 1rem);
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+.chip {
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  text-transform: capitalize;
+}
+
+.note {
+  margin: 0;
+  font-size: var(--fs-sm);
+  color: var(--text-dim, var(--text));
+}
+
+.note:empty {
+  display: none;
+}

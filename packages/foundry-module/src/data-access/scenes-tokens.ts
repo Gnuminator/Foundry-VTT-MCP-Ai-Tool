@@ -100,17 +100,31 @@ interface DistanceResult {
   approximate?: true;
 }
 
-/** The `getTargets` result. */
+/** One token in the `getTargets` result. */
+interface TargetToken {
+  tokenId: string;
+  name: string;
+  actorId: string | null;
+  ac: number | null;
+  hp: HpSnapshot | null;
+}
+
+/** A targeted or controlled token, as `getTargets` reads it. */
+interface TargetSource {
+  id: string;
+  name: string;
+  actor?: {
+    id?: string;
+    system?: { attributes?: { ac?: { value?: number | null }; hp?: Dnd5eHitPoints } };
+  } | null;
+}
+
+/** The `getTargets` result. `selected` is what the GM has selected on the canvas (not targeted). */
 interface TargetsResult {
   success: true;
   count: number;
-  targets: Array<{
-    tokenId: string;
-    name: string;
-    actorId: string | null;
-    ac: number | null;
-    hp: HpSnapshot | null;
-  }>;
+  targets: TargetToken[];
+  selected: TargetToken[];
 }
 
 /** The slice of the canvas global `measureDistance` calls for Foundry's own grid math. */
@@ -512,22 +526,31 @@ export class ScenesTokensDataAccess {
   /**
    * The tokens the acting GM currently has targeted (`game.user.targets`), each
    * with AC and HP — used to resolve attack targets without the caller passing
-   * coordinates or stat blocks.
+   * coordinates or stat blocks. `selected` lists the tokens controlled on the
+   * canvas (what a GM selects before targeting), same shape.
    */
   async getTargets(): Promise<TargetsResult> {
     shared.validateFoundryState();
 
-    const targets = Array.from(game.user?.targets ?? []);
+    const toToken = (t: TargetSource): TargetToken => ({
+      tokenId: t.id,
+      name: t.name,
+      actorId: t.actor?.id ?? null,
+      ac: t.actor?.system?.attributes?.ac?.value ?? null,
+      hp: this.hpSnapshot(t.actor?.system?.attributes?.hp),
+    });
+    // Targets fall back to the active GMs' when the bridge user has none (shared.currentTargetTokens).
+    // Canvas selection (`selected` below) is local to this browser: it only reflects the GM
+    // when the bridge runs in the GM's own browser.
+    const targets = shared.currentTargetTokens<TargetSource>();
+    // `typeof` guard: headless callers (tests) may have no `canvas` global at all.
+    const controlled =
+      typeof canvas === 'undefined' ? [] : Array.from(canvas?.tokens?.controlled ?? []);
     return {
       success: true,
       count: targets.length,
-      targets: targets.map(t => ({
-        tokenId: t.id,
-        name: t.name,
-        actorId: t.actor?.id ?? null,
-        ac: t.actor?.system?.attributes?.ac?.value ?? null,
-        hp: this.hpSnapshot(t.actor?.system?.attributes?.hp),
-      })),
+      targets: targets.map(toToken),
+      selected: controlled.map(toToken),
     };
   }
 }

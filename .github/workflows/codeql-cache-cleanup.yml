@@ -1,0 +1,84 @@
+name: CodeQL cache cleanup
+
+# CodeQL's default setup saves `codeql-overlay-base-database-*` caches on every push to main (about
+# 330 MB for JavaScript, a few MB for Python) and never removes the old ones. 60 of them filled
+# 9.4 GB of the repo's 10 GB cache limit and evicted the npm caches. This keeps the newest KEEP per ref, config hash and language and deletes
+# the rest. The default setup has no workflow file here, so it is matched by its name, "CodeQL".
+# The workflow_run trigger is best effort; the nightly schedule is the path that always runs.
+# A pull request touching this file runs it as a dry run (nothing is deleted) so the log shows what
+# it would do with the runner's own jq.
+on:
+  workflow_run:
+    workflows: [CodeQL]
+    types: [completed]
+  schedule:
+    - cron: '17 3 * * *'
+  pull_request:
+    paths: ['.github/workflows/codeql-cache-cleanup.yml']
+  workflow_dispatch:
+
+concurrency:
+  # One group for every run on main, so a nightly and a workflow_run run never race to delete.
+  group: codeql-cache-cleanup-${{ github.event_name == 'pull_request' && github.ref || 'main' }}
+  cancel-in-progress: false
+
+permissions:
+  actions: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      KEEP: '2'
+      DRY_RUN: ${{ github.event_name == 'pull_request' && '1' || '' }}
+    steps:
+      - name: Delete old CodeQL caches
+        run: |
+          set -euo pipefail
+          gh cache list --limit 500 --key codeql-overlay-base-database \
+            --json id,key,ref,sizeInBytes,createdAt > caches.json
+          before=$(jq 'map(.sizeInBytes) | add // 0' caches.json)
+          # Key: codeql-overlay-base-database-<n>-<config hash>-<language>-<cli version>-<sha>-<run>-<n>.
+          # Group by ref, hash and language, newest first, drop the first KEEP of each group.
+          jq -r --argjson keep "$KEEP" '
+            map(. + {grp: (.key | capture("^codeql-overlay-base-database-[0-9]+-(?<h>[0-9a-f]+)-(?<l>.+?)-[0-9]+[.][0-9]+[.][0-9]+-") | "\(.h)/\(.l)")})
+            | group_by([.ref, .grp])
+            | map(sort_by(.createdAt) | reverse | .[$keep:])
+            | flatten | .[] | "\(.id)\t\(.sizeInBytes)"' caches.json > old.tsv
+          total=$(jq length caches.json)
+          matched=$(jq '[.[] | select(.key | test("^codeql-overlay-base-database-[0-9]+-[0-9a-f]+-.+?-[0-9]+[.][0-9]+[.][0-9]+-"))] | length' caches.json)
+          if [ "$matched" -ne "$total" ]; then
+            echo "::warning::$((total - matched)) of $total CodeQL cache keys do not match the expected format and were left alone"
+          fi
+          if [ "$total" -gt 0 ] && [ "$matched" -eq 0 ]; then
+            echo "::error::no CodeQL cache key matches the expected format; has GitHub changed it?"
+            exit 1
+          fi
+          count=$(wc -l < old.tsv)
+          deleted=0
+          freed=0
+          while IFS=$'\t' read -r id size; do
+            if [ -n "$DRY_RUN" ]; then
+              echo "dry run: would delete cache $id"
+            elif ! gh cache delete "$id"; then
+              echo "::warning::could not delete cache $id"
+              continue
+            fi
+            deleted=$((deleted + 1))
+            freed=$((freed + size))
+          done < old.tsv
+          echo "CodeQL caches before: $total, $((before / 1048576)) MiB"
+          if [ -n "$DRY_RUN" ]; then
+            echo "Would delete $deleted of $count caches, $((freed / 1048576)) MiB"
+          else
+            echo "Deleted $deleted of $count caches, $((freed / 1048576)) MiB"
+            # A failed delete is only fine if the cache is gone anyway (an eviction): list again.
+            gh cache list --limit 500 --key codeql-overlay-base-database --json id --jq '.[].id' > after.txt
+            cut -f1 old.tsv | sort > old.ids
+            sort after.txt | comm -12 - old.ids > left.ids
+            echo "Still present after the run: $(wc -l < left.ids)"
+            [ ! -s left.ids ] || exit 1
+          fi

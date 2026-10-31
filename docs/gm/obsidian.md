@@ -70,6 +70,36 @@ turn it on in Foundry's Game Settings, category **Foundry AI Tool**). **Undo** i
 removes the journal, and the same note cannot be imported twice until you do. A note with
 `ai_context` set to false is refused.
 
+**An encounter idea for Claude:** a code block marked `encounter` (the Initiative Tracker block)
+in a prep note, for example one with `type` set to `encounter-prep` or in a session plan, shows
+up for Claude as a suggested encounter, so you can ask "what do I have prepared for the
+goblins?" Claude only reads it; nothing is made in Foundry. Write the block like this:
+
+````markdown
+```encounter
+name: Goblin ambush
+creatures:
+  - 2: Goblin
+  - Bugbear
+```
+````
+
+A line is `name`, `count: name` or `name, hit points, armor class` (the numbers after the name are
+ignored). Claude reads up to 3 blocks per note, 12 creatures per block and 5 notes. A note with
+`ai_context` set to false is skipped, and only the block's name and creatures are passed on, never
+the rest of the note.
+
+## The graph
+
+Every adventure gets one hub note, and the graph shows it as its own cluster. Journals, scenes and
+NPCs that sit in no adventure folder in Foundry are listed in **Without an adventure**, so none of
+them floats loose. Each day of changes is linked from the campaign home too.
+
+To colour the adventures, press Ctrl+P and run **Apply AI Tool graph colours**. If the Library
+(spells, monsters, items, books) crowds the graph, run **Hide the Library in the graph**; **Show the
+Library in the graph** puts it back. Both buttons are also in the plugin's settings. They change only
+the graph's colour groups and one search term, and your own groups and search text stay.
+
 ## Connect the plugin (once)
 
 The AI Tool plugin adds **Open in Foundry**, the reveal status of handouts and the shared theme. It

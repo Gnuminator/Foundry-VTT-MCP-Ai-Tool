@@ -8,9 +8,9 @@ initiative (single, all, NPCs, reset, manual edit), turn and round flow, the com
 encounter menus, the **Combat Tracker Settings** window, the Token HUD combat toggle, and the
 dnd5e layer on top (initiative formula, roll dialog, group initiative, grouped rows).
 
-Terms used below: *GM* = Gamemaster or Assistant GM; *player* = Player or Trusted Player.
-*Viewed encounter* = the Combat the tracker shows (`ui.combat.viewed`, also `game.combat`).
-*Row* = one combatant line. Labels are the English strings from core `public/lang/en.json`
+Terms used below: _GM_ = Gamemaster or Assistant GM; _player_ = Player or Trusted Player.
+_Viewed encounter_ = the Combat the tracker shows (`ui.combat.viewed`, also `game.combat`).
+_Row_ = one combatant line. Labels are the English strings from core `public/lang/en.json`
 and dnd5e `lang/en.json`; icons are Font Awesome class names from the templates.
 
 ## How to reach it
@@ -219,7 +219,8 @@ Sources: `C:/FoundryTest/app/client/applications/sheets/combatant-config.mjs`,
 
 GM, encounter not started:
 
-- **Start Combat** (swords icon plus text) - sets round 1 and gives the turn to the first row.
+- **Start Combat** (wide swords button at the bottom of the **Combat Encounters** tab, the only
+  footer button before the fight starts; once it runs the same place shows **End Combat**) - sets round 1 and gives the turn to the first row.
   Plays the start sound if a **Combat Theme** is chosen. dnd5e also recovers
   "encounter"-period uses and may whisper turn cards to owners. KB name "Begin Combat".
   Undo: **Previous Turn** from the first turn returns to **Not Started** (dnd5e recoveries
@@ -414,24 +415,24 @@ canvas.tokens.controlled.map(t => ({ name: t.name, inCombat: t.inCombat }))
 
 Stable selectors (inside `#combat` for the sidebar, `#combat-popout` for the pop-out):
 
-| Element | Selector | Accessible name / text |
-| --- | --- | --- |
-| Tab button | `#sidebar-tabs button[data-tab="combat"]` | "Combat Encounters" (role tab) |
-| Encounter bar | `nav.encounters` | "Combat Encounters Navigation" |
-| Create | `[data-action="createCombat"]` | "Create Combat" |
-| Encounter buttons | `[data-action="cycleCombat"][data-combat-id]` | "1", "2", ... or the encounter name |
-| Settings gear | `[data-action="trackerSettings"]` | "Combat Tracker Settings" |
-| Roll All / NPCs | `[data-action="rollAll"]`, `[data-action="rollNPC"]` | "Roll All", "Roll NPCs" |
-| Status | `strong.encounter-title` | "Round N" / "Not Started" / "No Combat" |
-| Encounter menu | `button.encounter-context-menu` | none (unnamed button) |
-| Rows | `li.combatant[data-combatant-id]` (`.active`, `.hide`, `.defeated`) | combatant name |
-| Row buttons | `[data-action="toggleHidden"]`, `"toggleDefeated"`, `"pingCombatant"`, `"panToCombatant"`, `"rollInitiative"` | "Hide"/"Show", "Mark Defeated"/"Unmark Defeated", "Ping Token", "Pan to Combatant", "Roll Initiative" |
-| Initiative field | `input.initiative-input` | "Initiative Value" |
-| dnd5e group row | `li.combatant-group[data-group-key]` (`.collapsed`) | "<Name> Group" |
-| Footer | `nav.combat-controls [data-action="startCombat"]` (also `previousRound`, `previousTurn`, `endCombat`, `nextTurn`, `nextRound`) | "Start Combat", "Previous Round", "Previous Turn", "End Combat", "Next Turn", "Next Round", player "End Turn" |
-| Menus | `#context-menu li.context-item` | entry text |
-| Settings window | `#combat-tracker-config` | fields `core.combatTrackerConfig.resource`, `.skipDefeated`, `.turnMarker.enabled`, `.turnMarker.animation`, `.turnMarker.src`, `.turnMarker.disposition`, `core.combatTheme` |
-| Token HUD toggle | `#token-hud [data-action="combat"]` | "Enter Combat" / "Exit Combat" |
+| Element           | Selector                                                                                                                       | Accessible name / text                                                                                                                                                        |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Tab button        | `#sidebar-tabs button[data-tab="combat"]`                                                                                      | "Combat Encounters" (role tab)                                                                                                                                                |
+| Encounter bar     | `nav.encounters`                                                                                                               | "Combat Encounters Navigation"                                                                                                                                                |
+| Create            | `[data-action="createCombat"]`                                                                                                 | "Create Combat"                                                                                                                                                               |
+| Encounter buttons | `[data-action="cycleCombat"][data-combat-id]`                                                                                  | "1", "2", ... or the encounter name                                                                                                                                           |
+| Settings gear     | `[data-action="trackerSettings"]`                                                                                              | "Combat Tracker Settings"                                                                                                                                                     |
+| Roll All / NPCs   | `[data-action="rollAll"]`, `[data-action="rollNPC"]`                                                                           | "Roll All", "Roll NPCs"                                                                                                                                                       |
+| Status            | `strong.encounter-title`                                                                                                       | "Round N" / "Not Started" / "No Combat"                                                                                                                                       |
+| Encounter menu    | `button.encounter-context-menu`                                                                                                | none (unnamed button)                                                                                                                                                         |
+| Rows              | `li.combatant[data-combatant-id]` (`.active`, `.hide`, `.defeated`)                                                            | combatant name                                                                                                                                                                |
+| Row buttons       | `[data-action="toggleHidden"]`, `"toggleDefeated"`, `"pingCombatant"`, `"panToCombatant"`, `"rollInitiative"`                  | "Hide"/"Show", "Mark Defeated"/"Unmark Defeated", "Ping Token", "Pan to Combatant", "Roll Initiative"                                                                         |
+| Initiative field  | `input.initiative-input`                                                                                                       | "Initiative Value"                                                                                                                                                            |
+| dnd5e group row   | `li.combatant-group[data-group-key]` (`.collapsed`)                                                                            | "<Name> Group"                                                                                                                                                                |
+| Footer            | `nav.combat-controls [data-action="startCombat"]` (also `previousRound`, `previousTurn`, `endCombat`, `nextTurn`, `nextRound`) | "Start Combat", "Previous Round", "Previous Turn", "End Combat", "Next Turn", "Next Round", player "End Turn"                                                                 |
+| Menus             | `#context-menu li.context-item`                                                                                                | entry text                                                                                                                                                                    |
+| Settings window   | `#combat-tracker-config`                                                                                                       | fields `core.combatTrackerConfig.resource`, `.skipDefeated`, `.turnMarker.enabled`, `.turnMarker.animation`, `.turnMarker.src`, `.turnMarker.disposition`, `core.combatTheme` |
+| Token HUD toggle  | `#token-hud [data-action="combat"]`                                                                                            | "Enter Combat" / "Exit Combat"                                                                                                                                                |
 
 Driving gotchas:
 

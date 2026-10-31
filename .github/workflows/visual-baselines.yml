@@ -6,7 +6,7 @@ name: visual-baselines
 # file: cut it from main after this workflow merged, or merge main into it. It runs on the branch
 # itself, not on main, so branch code never runs with main's cache access (CodeQL
 # actions/cache-poisoning). It renders the screens and the story
-# shots with --update-snapshots in the same Playwright image as dashboard-visual in ci.yml, and
+# shots with --update-snapshots in the same Playwright image as dashboard-visual-shard in ci.yml (one run here, not sharded), and
 # uploads only the PNGs that changed or are new. It never commits or pushes (read-only token): the
 # lane looks at the images and commits them itself. Keep the image tag in step with ci.yml.
 

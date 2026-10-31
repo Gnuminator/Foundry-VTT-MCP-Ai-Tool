@@ -39,6 +39,7 @@ import {
   deckOf,
   isTarokkaPosition,
   rollReading,
+  wrongDeckMessage,
   type RandomIndex,
   type TarokkaPosition,
 } from './deck.js';
@@ -54,7 +55,8 @@ const CARD_ID = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const UUID =
   /^(?:Compendium\.[\w-]+\.[\w-]+\.)?[A-Z][A-Za-z]+\.[A-Za-z0-9]{16}(?:\.[A-Z][A-Za-z]+\.[A-Za-z0-9]{16})*$/;
 
-export type TarokkaSource = 'builtin-roll' | 'tarokka-reading';
+/** `tarokka-reading` is no longer written; it stays so archived readings still parse. */
+export type TarokkaSource = 'builtin-roll' | 'tarokka-reading' | 'gm-chosen';
 
 export interface StoredPosition {
   cardName: string;
@@ -114,28 +116,6 @@ export interface TarokkaView {
   archivedReadings: number;
   revealJournalUuid: string | null;
   note: string;
-}
-
-interface ProviderSlot {
-  position?: unknown;
-  cardId?: unknown;
-  cardName?: unknown;
-  gmNote?: unknown;
-}
-
-interface ProviderResult {
-  success?: boolean;
-  error?: string;
-  available?: boolean;
-  reason?: string;
-  from?: string;
-  reading?: {
-    source?: unknown;
-    readingId?: unknown;
-    providerVersion?: unknown;
-    dealt?: unknown;
-    slots?: ProviderSlot[];
-  };
 }
 
 export interface TarokkaServiceOptions {
@@ -275,23 +255,23 @@ export class TarokkaService {
   // -------------------------------------------------------------------------
 
   /**
-   * Plan storing a reading: from tarokka-reading when available (`auto`,
-   * `tarokka-reading`), else (or with `builtin-roll`) a fresh built-in roll.
+   * Plan storing a reading: the cards the GM picked (`cards`), else a fresh built-in roll.
    */
   async planImport(args: {
-    source?: 'auto' | TarokkaSource;
-    userId?: string;
+    source?: 'auto' | 'builtin-roll';
     clear?: boolean;
-  }): Promise<PlanView & { source?: TarokkaSource; providerNote?: string }> {
-    const source = args.source ?? 'auto';
-    // 'auto' is the schema default that the dashboard Tools form fills in, so it is not a deal request.
+    /** A reading the GM picked by hand (all five positions): no draw. */
+    cards?: Partial<Record<TarokkaPosition, string>>;
+  }): Promise<PlanView & { source?: TarokkaSource }> {
     if (
-      args.clear &&
-      ((args.source !== undefined && args.source !== 'auto') || args.userId !== undefined)
+      args.cards !== undefined &&
+      (args.clear || (args.source !== undefined && args.source !== 'auto'))
     ) {
-      throw new Error(
-        'clear takes no source or userId: it archives the current reading and deals nothing'
-      );
+      throw new Error('cards takes no source or clear: it stores exactly the cards given');
+    }
+    // 'auto' is the schema default that the dashboard Tools form fills in, so it is not a deal request.
+    if (args.clear && args.source !== undefined && args.source !== 'auto') {
+      throw new Error('clear takes no source: it archives the current reading and deals nothing');
     }
     const worldId = await this.worldIds.current();
     const { file, config } = await this.load(worldId);
@@ -315,38 +295,10 @@ export class TarokkaService {
       });
     }
 
-    let reading: StoredReading | null = null;
-    let providerNote: string | undefined;
-    if (source === 'auto' || source === 'tarokka-reading') {
-      const result = unwrap<ProviderResult>(
-        await this.foundry.query(
-          'foundry-mcp-bridge.getTarokkaReading',
-          args.userId ? { userId: args.userId } : {}
-        ),
-        'Reading the tarokka-reading reading was refused'
-      );
-      if (result.available && result.reading) {
-        reading = this.fromProvider(result.reading, config);
-      } else if (source === 'tarokka-reading') {
-        throw new Error(result.reason ?? 'No tarokka-reading reading is available');
-      } else {
-        providerNote = result.reason;
-      }
-    }
-    reading ??= this.fromRoll(config);
+    const reading =
+      args.cards !== undefined ? this.fromChosen(args.cards, config) : this.fromRoll(config);
 
     const previous = file.current;
-    if (previous?.readingId === reading.readingId) {
-      // Re-import of the same deal: keep what was revealed for unchanged cards.
-      for (const position of TAROKKA_POSITIONS) {
-        const before = previous.positions[position];
-        const after = reading.positions[position];
-        if (before?.cardId === after.cardId) {
-          after.revealed = before.revealed === true;
-          if (before.revealPageUuid) after.revealPageUuid = before.revealPageUuid;
-        }
-      }
-    }
 
     const vaultOps: VaultOp[] = [];
     if (previous && previous.readingId !== reading.readingId) {
@@ -368,13 +320,13 @@ export class TarokkaService {
       set(`positions.${position}`, reading.positions[position]);
     }
 
-    const label = reading.source === 'builtin-roll' ? 'built-in roll' : 'tarokka-reading';
+    const label = reading.source === 'gm-chosen' ? 'chosen by the GM' : 'built-in roll';
     const plan = await this.guardedWrites.createPlan({
       feature: TAROKKA_FEATURE,
       summary: `Store a new Tarokka reading (${label})${previous && previous.readingId !== reading.readingId ? ', archiving the previous one' : ''}`,
       vaultOps,
     });
-    return { ...plan, source: reading.source, ...(providerNote ? { providerNote } : {}) };
+    return { ...plan, source: reading.source };
   }
 
   /** Plan linking a position's card to documents, naming it, or clearing its links. */
@@ -396,7 +348,7 @@ export class TarokkaService {
     const cardId = args.cardId ?? file.current?.positions[position]?.cardId;
     if (!cardId) throw new Error('No current reading; pass cardId to link a card in advance');
     if (!CARD_ID.test(cardId) || deckOf(cardId) !== POSITION_DECK[position]) {
-      throw new Error(`${cardId} is not a ${POSITION_DECK[position]}-deck card id`);
+      throw new Error(wrongDeckMessage(cardId, POSITION_DECK[position]));
     }
 
     const vaultOps: VaultOp[] = [];
@@ -644,36 +596,36 @@ export class TarokkaService {
     };
   }
 
-  private fromProvider(
-    raw: NonNullable<ProviderResult['reading']>,
+  /** The GM's own five cards: each from its position's deck, no card twice. */
+  private fromChosen(
+    cards: Partial<Record<TarokkaPosition, string>>,
     config: TarokkaConfig
   ): StoredReading {
-    if (raw.source !== 'tarokka-reading' || typeof raw.readingId !== 'string') {
-      throw new Error('Foundry returned an unexpected Tarokka reading');
+    for (const key of Object.keys(cards)) {
+      if (!isTarokkaPosition(key)) throw new Error(`Unknown position ${key}`);
     }
-    if (!/^[A-Za-z0-9_-]{1,64}$/.test(raw.readingId)) throw new Error('Bad tarokka-reading id');
-    const slots = Array.isArray(raw.slots) ? raw.slots : [];
+    const seen = new Set<string>();
     const positions = {} as Record<TarokkaPosition, StoredPosition>;
-    TAROKKA_POSITIONS.forEach((position, i) => {
-      const slot = slots[i];
-      const cardId = typeof slot?.cardId === 'string' ? slot.cardId : '';
-      if (!CARD_ID.test(cardId) || deckOf(cardId) !== POSITION_DECK[position]) {
-        throw new Error(
-          `The tarokka-reading reading has no valid card for ${POSITION_LABELS[position]}`
-        );
+    for (const position of TAROKKA_POSITIONS) {
+      const cardId = cards[position];
+      if (!cardId) throw new Error(`Choose a card for ${POSITION_LABELS[position]}`);
+      if (deckOf(cardId) !== POSITION_DECK[position]) {
+        throw new Error(wrongDeckMessage(cardId, POSITION_DECK[position]));
       }
+      if (seen.has(cardId)) throw new Error(`${cardId} is chosen twice; each card is dealt once`);
+      seen.add(cardId);
       positions[position] = {
-        cardName: this.nameFor(cardId, config, slot?.cardName),
+        cardName: this.nameFor(cardId, config),
         cardId,
-        gmNote: typeof slot?.gmNote === 'string' && slot.gmNote ? slot.gmNote : null,
+        gmNote: null,
         revealed: false,
       };
-    });
+    }
     return {
-      readingId: `tr-${raw.readingId}`,
-      source: 'tarokka-reading',
+      readingId: `chosen-${this.now().toString(36)}-${randomBytes(3).toString('hex')}`,
+      source: 'gm-chosen',
       readAt: new Date(this.now()).toISOString(),
-      providerVersion: typeof raw.providerVersion === 'string' ? raw.providerVersion : null,
+      providerVersion: null,
       positions,
     };
   }

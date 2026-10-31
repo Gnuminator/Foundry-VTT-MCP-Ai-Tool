@@ -28,7 +28,7 @@ and the campaign world.
 
 - The Orange Pi 5 Pro and its official USB-C power supply (5 V, 5 A).
 - A microSD card, 32 GB or larger (A2 class if you have one). An NVMe SSD later is strongly
-  recommended before real play: see "Moving to NVMe" below.
+  recommended before real play (done 2026-10-30, the card now only boots): see "Moving to NVMe" below.
 - An Ethernet cable to the router.
 - A card reader on this PC.
 - Fallback only: a monitor with an HDMI cable and a USB keyboard, if the Pi cannot be found on the
@@ -162,7 +162,7 @@ listed).
 | 10. Space check     | An hourly storage check (`10-space-check.sh`: `foundry-space-check.timer`, the checker in `/opt/foundry-ai-tool/space`) of every disk the backups, snapshots, the vault sync and the recordings use, written to `/var/lib/foundry-ai-tool/space/status.json` (below 20 % free is low, below 5 % is critical) and as a warning line in the journal. The nightly restic backup (stage 6) runs the check first: below 20 % it still runs, at critical it is skipped. `UNDO=1` removes it                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | **yes:** your OK (a new service and timer); then run stage 6 again so the backup gets its pre-check                                                                                                                                |
 | 11. World           | `11-world.sh` installs the bundle `push-world.ps1` built on this PC, after checking the tar and every checksum: the campaign world, its private modules and image folders. An existing campaign world is kept unless `REPLACE_WORLD=1`; a test copy `strahd-kit` is reset every time; old copies go to `/var/lib/foundry-import/prev-<time>`, never deleted. Each world gets a generated GM password (`/etc/foundry-ai-tool/world-<id>.env`) and is provisioned like stage 5. A Plan B push-back keeps the Pi's GM password and needs `REPLACE_WORLD=1 KIT_WORLD=` ([Plan B](PLAN-B.md#after-the-night)). See "Licensed content"                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | **yes:** your OK (Foundry stops for a few minutes), after a `dietpi-backup 1` snapshot                                                                                                                                             |
 | 12. Tunnel          | Part C (D-075): Cloudflare Tunnel, so players reach Foundry and the GM the dashboard through Cloudflare Access with no router port open (`12-tunnel.sh`). `cloudflared` from Cloudflare's signed apt repository (key pinned), service `foundry-ai-tool-cloudflared` in token mode: a root-only token file read through systemd `LoadCredential`, never an argument or environment variable; no token, no start. `FOUNDRY_PUBLIC_HOST=play.<domain>` sets Foundry's `hostname`, `proxySSL`, `proxyPort` 443. No firewall, SSH, network or Tailscale change. Stops first, before it installs anything, while Foundry has no administrator password, or any world has a Gamemaster or Assistant GM with no password or no Gamemaster at all (a never-launched world counts); `gm-passwords.sh` runs that read-only check on its own, again after adding worlds or GM users. It also checks that the bridge's control port 31414 answers on loopback and nothing listens beyond it (the `mcp` TCP route of D-095 reaches it through the tunnel, behind its own Access application, see [Remote access](REMOTE-ACCESS.md)) | **yes:** your OK and a snapshot; then run `set-tunnel-token.sh` yourself over SSH                                                                                                                                                  |
-| 13. Player creation | D-112, D-113: players make level-1 characters in Actor Studio at session 0 (`13-player-creation.sh`). Installs our Actor Studio fork build (`2.10.5-aitool.4`) from its GitHub release, checked against a pinned sha256, and sets the world settings creation needs (Player and Trusted Player may create actors; equipment selection on, from the Player's Handbook pack). See "Player character creation"                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | **yes:** your OK (Foundry stops for a few minutes), after a `dietpi-backup 1` snapshot                                                                                                                                             |
+| 13. Player creation | D-112, D-113: players make characters (level 1, levelled to 3) in Actor Studio at session 0 (`13-player-creation.sh`). Installs our Actor Studio fork build (`2.10.5-aitool.4`) from its GitHub release, checked against a pinned sha256, and sets the world settings creation needs (Player and Trusted Player may create actors; equipment selection on, from the Player's Handbook pack). See "Player character creation"                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | **yes:** your OK (Foundry stops for a few minutes), after a `dietpi-backup 1` snapshot                                                                                                                                             |
 | 14. System trial    | D-098: a new dnd5e version runs on the kit world `strahd-kit` first (`14-system-trial.sh`, `MODE=trial`, then `switch` or `rollback`). The release zip is pinned by sha256; the old version and a copy of every world are kept until the trial ends. While a trial is open, stages 5-check-world, 11 and 13 refuse to run. See "System trial (stage 14)"                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | **yes:** your OK for each mode (Foundry stops for a minute or two), after a `dietpi-backup 1` snapshot; never on a game-night day                                                                                                  |
 | 15. SSH keys only   | D-123, before Part C goes live (`15-ssh-keys-only.sh`): a drop-in `/etc/ssh/sshd_config.d/00-foundry-keys-only.conf` with `PasswordAuthentication no`, `KbdInteractiveAuthentication no` and `PermitRootLogin prohibit-password`, so SSH takes a key and never a password, root included. Refuses unless root has a valid key, sshd takes keys from it, the main config includes the drop-in folder and no `Match` block sets a login value; `sshd -t` after the write and `sshd -T` (root from three addresses) before the reload, and either one failing rolls the drop-in back; a 5-minute safety timer, armed first, removes the drop-in (and starts ssh if it is down) unless a new key-only connection confirms; then a reload, not a restart (open sessions stay up), and a `live:` check of what the running sshd offers. **The console login with the root password still works** (a screen and keyboard on the Pi): the way back in if a key is ever lost. `UNDO=1` removes the drop-in. See "SSH keys only (stage 15)"                                                                                     | **yes:** your OK (an SSH change), after a `dietpi-backup 1` snapshot, in default permission mode, never on a game-night day                                                                                                        |
 
@@ -211,7 +211,7 @@ Safety rules (you, 2026-10-04), so a mistake can never leave the Pi unusable:
   step, switch the session to the default permission mode and confirm the prompt yourself.
 - **Snapshots:** a full system snapshot (`dietpi-backup`, three kept in `/mnt/dietpi-backup`) is
   taken nightly and before every stage. To roll back: `dietpi-backup -1` (needs your OK). Your PC
-  also pulls copies (next section), so a dead SD card loses nothing.
+  also pulls copies (next section), so a dead SD card or SSD loses nothing.
 
 ## Snapshots on this PC
 
@@ -231,7 +231,8 @@ encryption).
 
 To restore after a reflash (each step with your OK): flash DietPi and run Part A, copy the archive
 to the Pi, unpack it into `/mnt/dietpi-backup` (`zstd -dc <archive> | tar -xpf - -C
-/mnt/dietpi-backup`), then run `dietpi-backup -1`.
+/mnt/dietpi-backup`), then run `dietpi-backup -1`. With card plus SSD (see "Moving to NVMe") read
+"Which part was lost" there first: a restore must not be run on a fresh card without it.
 
 ## Restic copies on this PC
 
@@ -409,7 +410,9 @@ After a real rebuild, `5-check-world.sh` (a throwaway world) and Claude Desktop'
 **Rebuilding the real Pi** (each step that changes the Pi needs your OK, and `dietpi-backup 1`
 first if there is anything left to keep):
 
-1. Part A with a new card. The host name must be `foundry-pi`: the Foundry licence in the backup is
+1. Part A with a new card (this is the case "both lost" in "Moving to NVMe", "Which part was lost":
+   if only the card or only the SSD died, follow that section instead; after a full rebuild redo the
+   move once the restore is done). The host name must be `foundry-pi`: the Foundry licence in the backup is
    bound to it and fails verification under any other name. A new card has a new SSH host key, so
    first clear the old one on this PC (`ssh-keygen -R foundry-pi`, and the same for the Tailscale
    name and the address you use), or SSH refuses with "host key changed".
@@ -865,7 +868,9 @@ command, and the installed training world is kept, with its passwords, because `
 2. On this PC build a fresh bundle with the `push-world.ps1` command above. Stage 11 deletes the bundle
    after a successful run, so each switch needs its own.
 3. Switch to the training world: run stage 11 with
-   `WORLD=frostmaiden-training KIT_WORLD= LAUNCH=frostmaiden-training EXTRA_GM_USER=Claude`.
+   `WORLD=frostmaiden-training KIT_WORLD= LAUNCH=frostmaiden-training EXTRA_GM_USER=Claude`
+   (after `scp scripts/pi/remote/world-switches.mjs foundry-pi:/root/`; add `WORLD_SWITCHES=1` when the
+   training world is kept and its switches must be set again, see "World switches" below).
 4. After the call, do steps 1 and 2 again (a snapshot taken for step 3 on an earlier day does not
    count: stage 11 wants one from today), then run stage 11 with
    `WORLD=frostmaiden-training KIT_WORLD= LAUNCH=curse-of-strahd EXTRA_GM_USER=Claude`. Check on the Pi
@@ -882,9 +887,65 @@ add `REPLACE_WORLD=1` to the command of step 3.
 If a proxy ever has to run elsewhere, it is our patched copy (it reads the cookie from a file and
 keeps it out of its logs), bound to `127.0.0.1`, never the upstream one (which logs the cookie).
 
+### World switches (frostmaiden-training and curse-of-strahd)
+
+A world that is reset from the PC copy starts with whatever its settings database held on the PC,
+which is mostly Foundry's defaults, and a test then starts with the AI Tool's switches off (the
+training world on 2026-10-29). Stage 11 sets the list below, so a test starts with them on. The
+user chose this list on 2026-10-30: both worlds get the same values, and the nightly ones (Handouts,
+writes) are **standing values**. Start session still turns on whatever is off, and End session
+turns off only what Start session turned on, so a standing value stays on after End session. One
+exception: a world copied while a night was still "ready" keeps that record, and its first End
+session then turns off what the record names; press Start and End once to clear it.
+
+| Setting (`namespace.key`)                         | Value | Why                                                                                                                  |
+| ------------------------------------------------- | ----- | -------------------------------------------------------------------------------------------------------------------- |
+| `foundry-mcp-bridge.allowWriteOperations`         | on    | The master switch for every AI write; nothing below works with it off.                                               |
+| `foundry-mcp-bridge.gmWindows`                    | on    | The Combat, Party, Session, Scene and Loot windows; a world that stored "off" would hide them.                       |
+| `foundry-mcp-bridge.feature.handouts.enabled`     | on    | Reveal next and the dashboard's player page; Danni's test found it off after a reset.                                |
+| `foundry-mcp-bridge.feature.party.enabled`        | on    | The Party drawer's travel pace, add party to combat and rest request.                                                |
+| `foundry-mcp-bridge.feature.tarokka.enabled`      | on    | Saving the Tarokka reading and publishing reveal pages (the Tarokka table).                                          |
+| `foundry-mcp-bridge.feature.live-play.enabled`    | on    | Damage, healing, conditions, resources, tokens; on by default, written so a stored "off" cannot hide it.             |
+| `foundry-mcp-bridge.feature.ownership.enabled`    | on    | Who owns which actor; on by default, written for the same reason.                                                    |
+| `foundry-mcp-bridge.feature.table-viewer.enabled` | on    | The TV's Table user; on by default, written for the same reason.                                                     |
+| `foundry-mcp-bridge.feature.change-undo.enabled`  | on    | Undo for everything from the Changes list; on by default, written for the same reason.                               |
+| `foundry-mcp-bridge.feature.who-notices.enabled`  | on    | Read-only: the passive Perception row in the Party drawer. It changes nothing, so it is safe to leave on.            |
+| `foundry-mcp-bridge.feature.rules-check.enabled`  | on    | Read-only: "does this attack look legal now". It changes nothing.                                                    |
+| `dnd5e.autoApplyDowned`                           | `all` | Unconscious and Dead land on monsters and characters at 0 hit points (W51: passed in David's combat test).           |
+| `item-piles.enableTrading`                        | on    | Players can use Request Trade. Item Piles is not active in every world: a world without it gets a warning, no error. |
+
+Left as they are (the module default, which is off): Obsidian mirror and import, Session notes, Scene
+restore, Room setup, Scene mood and music, NPC turn assistant, Paper sync, and "Live play, apply
+without confirming". Each is a deliberate opt-in with its own Undo; turn one on in Game Settings,
+Configure Settings, AI Tool when a night needs it.
+
+How it runs: `world-switches.mjs` (the table above as data; `world-switches.test.mjs` fails when
+the table and the data differ) joins the world as its GM with the login in
+`/etc/foundry-ai-tool/world-<id>.env`, sets only what differs, reloads and reads every value back.
+
+- **A new or reset world** (the kit world, and the training or campaign world when it is replaced):
+  stage 11 does it by itself, right after the world is provisioned.
+- **A push-back** (Plan B) never gets it: its settings come back from the PC as they were played.
+- **A kept world** is left alone. To set the list in it, run stage 11 with `WORLD_SWITCHES=1`
+  (the world's settings are copied to `prev-<time>` first). That is the checklist line for the next
+  test of a training world that was not reset: add `WORLD_SWITCHES=1` to the command of step 3 under
+  "Training world". It runs the world's provisioning again too (the GM login from the env file, the
+  bridge, the Assistant GM), and the copy in `prev` holds only `data/settings`. To put the settings
+  back: stop Foundry, replace the world's `data/settings` with that copy, start Foundry. Do not use
+  it on the real campaign after Danni has changed switches on purpose; it overwrites the values above.
+- **A new or reset world under auto overwrites the bundle's own values** for these settings. Use
+  `WORLD_SWITCHES=0` when the PC copy's values are deliberate.
+- **Not wanted:** `WORLD_SWITCHES=0`. The stage needs `world-switches.mjs` uploaded first:
+  `scp scripts/pi/remote/world-switches.mjs foundry-pi:/root/`, and removes the upload.
+
+The Pi has not run it yet; the first run is a later Pi day with the user's OK, after a
+`dietpi-backup 1` snapshot, like any stage 11 run.
+
 ## Player character creation (stage 13)
 
-For session 0 the players make their own level-1 characters in Actor Studio (D-112, D-113). Two
+For session 0 the players make their own characters in Actor Studio (D-112, D-113): built at
+level 1, then levelled up twice to the table's starting level 3 (the sheet's Level Up button needs
+Actor Studio's Milestone Levelling, set by the GM; stage 13 does not set it). Two
 things have to be true in the Strahd world on the Pi: the Actor Studio build is our fork, and the
 world lets players do it. Stage 13 does both, after a `dietpi-backup 1` snapshot and your OK (Foundry stops for a few minutes). It needs
 stages 5 and 11 first (the tool's build for Chromium, and the GM login in
@@ -1066,7 +1127,7 @@ session during a trial. CI runs it on the ARM runner, where a missing Docker fai
 
 ## Kit session (strahd-kit test run)
 
-Before session 0 it is worth watching a real player make a level-1 character, as a player, on the
+Before session 0 it is worth watching a real player make a character (level 1, then two level-ups to 3), as a player, on the
 Pi itself. The kit session does that in the throwaway world `strahd-kit` (never
 `curse-of-strahd`) and puts everything back afterwards. It is a pair of runs of one script,
 `kit-session.sh`, and it needs stages 5, 11 and 13 first (the tool's build for Chromium, the GM
@@ -1239,13 +1300,96 @@ After a dnd5e or Foundry update, the world migrates in the first GM browser that
 this takes several minutes for a big world, and a reload restarts it. Open the world once as GM,
 wait for "Migration completed", then let the players in.
 
-## Moving to NVMe (before real play)
+## Moving to NVMe (done 2026-10-30)
 
-microSD cards wear out and are slow under a server that writes all the time. With an M.2 NVMe SSD
-(2280 size) in the Pi, Claude moves the system with DietPi's drive manager: the system runs from the
-SSD and the card only starts it. That is the setup to use: DietPi offers no NVMe boot for this
-board, and flashing a bootloader into the Pi's SPI flash to boot straight from the SSD has caused
-boot problems for others, so it is not tried.
+microSD cards wear out and are slow under a server that writes all the time, so the Pi's system runs
+from an M.2 NVMe SSD (Samsung 512 GB, 2280, PCIe: one notch, M key; two notches is M.2 SATA and will not
+work). The card only starts it. DietPi's "Transfer RootFS" is not offered on the Orange Pi 5 Pro (its
+drive manager allows it only on Raspberry Pis and some Odroids), and flashing a bootloader into the
+Pi's SPI flash has caused boot problems for others, so the move is done by hand. The card keeps
+`/boot` (u-boot reads `/boot/dietpiEnv.txt` from it) and its old system stays untouched on it.
+
+### How it is set up now
+
+- `/` is the SSD's one ext4 partition (label `nvme-root`). `/boot/dietpiEnv.txt` on the card says
+  `rootdev=UUID=<SSD partition>`; the old file is kept as `/boot/dietpiEnv.txt.card`.
+- `/etc/fstab` mounts the card's partition at `/mnt/card` and binds `/mnt/card/boot` onto `/boot`, so
+  kernel and u-boot files that apt or DietPi write land on the card, where u-boot reads them. The
+  fstab before the move is kept as `/etc/fstab.card`.
+- `dietpi-backup` snapshots, the restic repository and Foundry's data are all on the SSD now. The
+  card's old copy of them is a frozen state from 2026-10-30 and is not updated.
+
+**Redoing the move** (each step that changes the Pi needs your OK; the guard stops a session from
+formatting a disk, so step 2 you run yourself):
+
+1. `dietpi-backup 1`, power off, fit the SSD, power on (`lsblk` shows `nvme0n1`). The services start
+   again at boot, so stop them now: Foundry, every `foundry-ai-tool-*` service (Syncthing and
+   cloudflared included) and `foundry-backup.timer`, so nothing writes to the card during the copy.
+   Stay clear of the nightly `dietpi-backup` (01:25) and the restic job (04:30); after step 3 run
+   `rsync` once more with `--delete` right before the reboot of step 4.
+2. Check before you wipe (this destroys the SSD's content, so look at it first): `findmnt -no SOURCE /`
+   must show `mmcblk1p1` (on the current Pi it shows `nvme0n1p1`: stop, nothing to redo), and
+   `lsblk -f /dev/nvme0n1` shows what the SSD holds (mount a data partition read-only and list it);
+   only an OK on that list lets you go on. Then format (you run this, the guard blocks a session):
+   `wipefs -a` on each `/dev/nvme0n1p*` that exists, then `wipefs -a /dev/nvme0n1`, then
+   `parted -s /dev/nvme0n1 mklabel gpt mkpart root ext4 1MiB 100%`, then
+   `mkfs.ext4 -q -L nvme-root /dev/nvme0n1p1`.
+3. Copy the system: mount the SSD at `/mnt/ssdroot`, bind-mount `/` at `/mnt/cardroot` (so the tmpfs
+   folders are left out), then
+   `rsync -aHAX --numeric-ids --exclude=/mnt/ssdroot --exclude=/mnt/cardroot /mnt/cardroot/ /mnt/ssdroot/`
+   (about 18 GB, 10 to 15 minutes from the card).
+4. In `/mnt/ssdroot/etc/fstab` point `/` at the SSD's UUID, and add the card at `/mnt/card` and
+   `/mnt/card/boot /boot none bind,x-systemd.requires-mounts-for=/mnt/card 0 0`. In the card's
+   `/boot/dietpiEnv.txt` set `rootdev=UUID=<SSD partition>`. Reboot. The working fstab has these
+   three lines: `UUID=<SSD> / ext4 noatime,lazytime,rw 0 1`,
+   `UUID=<card> /mnt/card ext4 noatime,lazytime,rw 0 2` and the bind line above.
+5. Check: `findmnt /` shows `/dev/nvme0n1p1`, `/boot` and `/mnt/card` show the card, no failed units,
+   Foundry on 30000, the dashboard on 3000, the bridge link up, the tunnel, the recorder bot and the
+   nightly `foundry-backup.timer`.
+
+This procedure is by hand, a recorded one-off (D-133): each command is shown to the user before it
+runs, and turning steps 3 to 5 into a reviewed stage script is not done.
+
+**If it does not boot:** the kernel waits for the root and there is no serial console. A monitor and
+keyboard on the Pi (HDMI) show where it waits; if it drops to an initramfs shell, mount the card
+there and fix `rootdev` in `dietpiEnv.txt`. Otherwise revert `rootdev` in `/boot/dietpiEnv.txt` on the
+card to the card's UUID (as in `dietpiEnv.txt.card`) from a Linux machine that can read ext4 (this PC
+is Windows and cannot), and the card boots its old system again. Without one, boot a second, freshly
+flashed card (Part A; never reflash the original, it holds the frozen fallback system): from there
+mount the SSD, put that card's UUID into the SSD's `/etc/fstab` (the `/mnt/card` line), and set
+`rootdev` on that card to the SSD's UUID.
+
+### Which part was lost
+
+- **Card lost, SSD fine:** no snapshot restore. Boot a freshly flashed card (Part A), then as above:
+  mount the SSD, put the new card's UUID into its fstab (until that is done `/boot` fails to mount
+  and the Pi stops in emergency mode), and `rootdev` on the new card to the SSD's UUID. Separately,
+  the new card's kernel must match the SSD's `/lib/modules`: copy `/boot` (kernel, initrd, dtb) from
+  the SSD's newest post-move snapshot (`data/boot/`) onto the new card, keep the new card's own
+  `dietpiEnv.txt` with the SSD `rootdev` (a mismatch shows as missing modules, possibly no network).
+  `nofail` on the `/mnt/card` line would boot with a stale `/boot` instead of stopping, so kernel
+  updates could land on the SSD unseen; it is not set.
+- **SSD lost, card fine:** the card's old system boots after reverting `rootdev`, but only until the
+  first kernel update after the move: later kernels and their initrd are on the card's `/boot` while
+  their `/lib/modules` are only on the SSD, so the old system can boot a kernel with no matching
+  modules (a missing Ethernet driver means no network). The snapshots on the SSD are gone too: the
+  copies are in `E:\PiBackup\snapshots` on the PC, and this PC cannot write the card's ext4. So keep
+  the card ready ahead of time: after every kernel update, with the SSD system running and the
+  user's OK, `rsync -a /lib/modules/ /mnt/card/lib/modules/`. If that was not done, boot a second,
+  freshly flashed card, mount the old card there and copy the modules from the PC archive. Then
+  restore the newest snapshot and redo the move with a new SSD.
+- **Both lost:** Part A on a new card, the `dietpi-backup` or restic restore, then redo the move.
+
+**Snapshots across the move:** `dietpi-backup` copies `/` (with the card's `/boot` visible through the
+bind) and skips `/mnt/*`, so `/mnt/card` is not swept in, and the snapshot holds the card's
+`dietpiEnv.txt` and the SSD's fstab. Restore a snapshot from after 2026-10-30 19:48 where you can. One
+from before has the card as `/` in its fstab and `rootdev`; `dietpi-backup -1` warns that the UUIDs
+differ and rewrites the root UUID, but it knows nothing of the `/mnt/card` and `/boot` lines and
+removes `/etc/fstab.card` and, through the bind, the card's `/boot/dietpiEnv.txt.card`. Before such a
+restore note the card's UUID (`blkid` on the card partition) somewhere outside `/` and `/boot`. After
+it put back the three fstab lines from step 4 and check `rootdev` in `/boot/dietpiEnv.txt` before
+rebooting, or the next kernel update lands on the SSD's own
+`/boot`, where u-boot never reads it.
 
 ## Board status report (stage 16)
 
@@ -1335,11 +1479,44 @@ a hand edit would be lost, the snapshot has it). Nothing else is touched and not
 - **Undo:** the same pipe with `UNDO=1` (back to DietPi's mode 2).
 - Tests: `scripts/pi/time-sync.test.mjs` (the stage in bash with stand-ins for systemctl, timedatectl and DietPi's tool).
 
-## Vault sync check and time zone (stage 19)
+## Join page look (stage 19)
+
+The page players see before they log in (`/join`) shows the world's Background Image, Join Page Theme, Next
+Session and World Description; all four are world settings (Game Settings, World Configuration), no code. Stage 19
+(`scripts/pi/remote/19-join-page-look.sh`) sets the picture and the description of the Curse of Strahd world on the
+Pi. Join Page Theme and Next Session are not touched. The picture is campaign art: it stays on the PC and the Pi,
+never in the repo or the vault.
+
+**Why a stage and not a GM script:** World Configuration is Foundry's `editWorld` request, and while a world runs
+the server accepts it only from the full Gamemaster role (`hasRole("GAMEMASTER")`, read in Foundry 14.369's setup
+view). The Assistant GM has role 3 (assistant), so `gm-script.sh` cannot do it, and nobody types the GM password.
+The stage therefore edits `world.json` with Foundry stopped (Foundry rewrites that file itself on exit).
+
+- Copy the picture and the description (an HTML file) to the Pi: `scp join-bg.webp join-desc.html foundry-pi:/root/`.
+- **Look first (changes nothing, needs no snapshot):**
+  `cat scripts/pi/remote/lib.sh scripts/pi/remote/19-join-page-look.sh | ssh foundry-pi 'IMAGE_SRC=/root/join-bg.webp EXPECT_SHA256=<sha> DESC_FILE=/root/join-desc.html DRY_RUN=1 bash -s'`
+  prints the current background and description and what would change.
+- **Run:** the same without `DRY_RUN=1`, after a `dietpi-backup` snapshot and the user's OK, never on a game-night day.
+  It refuses while players are online or a recording runs, saves the old values to
+  `/var/lib/foundry-ai-tool/join-page-look/<time>-<world>-before.json`, stops the Assistant GM browser and Foundry,
+  installs the picture as `worlds/curse-of-strahd/join-background.webp` (owner foundry, mode 644; a different picture
+  already there is kept in `/var/lib/foundry-ai-tool/join-page-look/`; root never writes into the world folder, the
+  foundry user copies the picture in), sets `background` and `description` in `world.json`, starts Foundry, waits
+  for the join page, starts the Assistant GM browser and checks that `/join` names the picture and the picture is
+  served. Until the join page answers, a failure stops Foundry, puts `world.json` back and starts both services again;
+  a failing `/join` or picture check after that only reports (the edit stays). It refuses during a dnd5e system trial
+  or a kit session, ignores a dropped SSH connection, and the same picture and description again change nothing.
+- **Another description later** (Danni sends his own): change the HTML file and run it again.
+- **Undo:** the same pipe with `UNDO=1` (and `EXPECT_SHA256`): the old description comes back, the background key is
+  removed when it was not set before, and the picture goes (a kept earlier picture comes back) unless the restored
+  background still names it.
+- Check the result logged out (a private window), reload once. Tests: `scripts/pi/join-page-look.test.mjs`.
+
+## Vault sync check and time zone (stage 20)
 
 Stage 7 puts the GM vault in `/var/lib/foundry-ai-tool/obsidian/gm` (on the Pi's root disk, which is the data
 volume: the NVMe move clones it, so the path does not change) and shares it with each added PC through Syncthing.
-Stage 19 (`scripts/pi/remote/19-vault-sync.sh`, Obsidian O8) is the check that it works and stays tidy:
+Stage 20 (`scripts/pi/remote/20-vault-sync.sh`, Obsidian O8) is the check that it works and stays tidy:
 
 - **The folder:** where `foundry-gm-vault` points, which disk it is on, and a warning if that is not the tool's data folder.
 - **The PCs:** which shared devices are connected right now (a PC that is off is only a note: it syncs when it comes back).
@@ -1351,14 +1528,14 @@ Stage 19 (`scripts/pi/remote/19-vault-sync.sh`, Obsidian O8) is the check that i
 
 Without `SET_TIMEZONE=1` the stage only reads: no snapshot, any time, game night included.
 
-- **Report:** `cat scripts/pi/remote/lib.sh scripts/pi/remote/19-vault-sync.sh | ssh foundry-pi 'bash -s'` (warnings are
+- **Report:** `cat scripts/pi/remote/lib.sh scripts/pi/remote/20-vault-sync.sh | ssh foundry-pi 'bash -s'` (warnings are
   not failures; it fails only when Syncthing or the folder is missing). `STRICT=1` also fails on a conflict or a wrong zone.
 - **Set the zone** (only if the report says it is wrong): after a `dietpi-backup` snapshot and the user's OK, the same pipe with
   `SET_TIMEZONE=1`. It runs `timedatectl set-timezone`; the bridge and the dashboard read the zone at start, so restart them
   (or the Pi) before the next session.
 - **O8 run order on the Pi day:** snapshot (`/boot/dietpi/dietpi-backup 1`), stage 7 (already run; run it again only with
   `PEER_ID=<the PC's ID>` and `PEER_NAME` to add a PC), then this stage's report, and a test note written on each side.
-- Tests: `scripts/pi/vault-sync.test.mjs` (the stage as text, and with `PI_STAGE19_CONTAINER=1` two real Syncthings in a
+- Tests: `scripts/pi/vault-sync.test.mjs` (the stage as text, and with `PI_STAGE20_CONTAINER=1` two real Syncthings in a
   Debian 13 ARM64 container: a note each way, a forced conflict, the zone checks).
 
 ## Where things live on the Pi

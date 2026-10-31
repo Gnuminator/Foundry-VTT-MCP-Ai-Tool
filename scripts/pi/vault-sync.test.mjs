@@ -1,6 +1,6 @@
-// Pi stage 19, vault sync check and time zone (scripts/pi/remote/19-vault-sync.sh, Obsidian O8):
+// Pi stage 20, vault sync check and time zone (scripts/pi/remote/20-vault-sync.sh, Obsidian O8):
 //   node --test scripts/pi/vault-sync.test.mjs
-// The text checks always run; PI_STAGE19_CONTAINER=1 (needs Docker) runs two real Syncthings in a Debian 13 ARM64 container.
+// The text checks always run; PI_STAGE20_CONTAINER=1 (needs Docker) runs two real Syncthings in a Debian 13 ARM64 container.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
@@ -9,9 +9,9 @@ import { describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
-const stage = readFileSync(path.join(repo, 'scripts', 'pi', 'remote', '19-vault-sync.sh'), 'utf8');
+const stage = readFileSync(path.join(repo, 'scripts', 'pi', 'remote', '20-vault-sync.sh'), 'utf8');
 
-describe('19-vault-sync.sh as text', () => {
+describe('20-vault-sync.sh as text', () => {
   test('is read-only unless SET_TIMEZONE=1, and then needs a snapshot first', () => {
     assert.match(stage, /if \[ "\$set_tz" = 1 \]; then\n {2}require_recent_snapshot\nfi/);
     assert.ok(
@@ -37,8 +37,8 @@ describe('19-vault-sync.sh as text', () => {
 });
 
 describe(
-  'stage 19 in the ARM64 container',
-  { skip: process.env.PI_STAGE19_CONTAINER !== '1' },
+  'stage 20 in the ARM64 container',
+  { skip: process.env.PI_STAGE20_CONTAINER !== '1' },
   () => {
     test('scenarios', () => {
       const r = spawnSync(
@@ -52,7 +52,7 @@ describe(
           `${repo}:/repo:ro`,
           'debian:13-slim',
           'bash',
-          '/repo/scripts/pi/container-test/stage19-scenarios.sh',
+          '/repo/scripts/pi/container-test/stage20-scenarios.sh',
         ],
         { encoding: 'utf8', timeout: 900000, env: { ...process.env, MSYS_NO_PATHCONV: '1' } }
       );

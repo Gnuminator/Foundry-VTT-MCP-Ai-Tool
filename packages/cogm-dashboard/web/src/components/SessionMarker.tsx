@@ -1,4 +1,4 @@
-import type { JSX } from 'react';
+import { useState, type JSX } from 'react';
 
 import { usePlaySessionMark } from '../lib/playSessionMark';
 import { usePlaySession } from '../lib/session';
@@ -17,6 +17,9 @@ export function SessionMarker(): JSX.Element {
   const { mark, pending } = usePlaySessionMark();
   const home = useObsidianFileUrl('Home');
   const open = session?.open === true;
+  // What the click asked for: the session flips to open before the call is done, so `open` would
+  // name the opposite while the button is busy.
+  const [asked, setAsked] = useState<'start' | 'end'>('start');
   return (
     <div
       className="session-control"
@@ -29,8 +32,13 @@ export function SessionMarker(): JSX.Element {
       <Button
         id="btn-session"
         data-track="dash.session.toggle"
-        disabled={pending}
-        onClick={() => mark(open ? 'end' : 'start')}
+        busy={pending}
+        busyLabel={asked === 'end' ? 'Ending session...' : 'Starting session...'}
+        onClick={() => {
+          const next = open ? 'end' : 'start';
+          setAsked(next);
+          mark(next);
+        }}
       >
         {open ? 'End session' : 'Start session'}
       </Button>

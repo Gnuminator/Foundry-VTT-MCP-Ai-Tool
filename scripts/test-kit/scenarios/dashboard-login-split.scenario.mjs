@@ -309,9 +309,8 @@ export default {
               const gm = document.querySelector('#btn-gm')?.textContent ?? '';
               if (!mark || mark.textContent?.trim() || gm.trim() === '' || gm.includes('…'))
                 return false;
-              const res = await fetch('/api/state').catch(() => null);
-              const state = res?.ok ? await res.json().catch(() => null) : null;
-              return state?.status?.foundry === 'reachable';
+              // No /api/state poll here: a poll before the page has taken its token logs a 401.
+              return true;
             },
             undefined,
             { timeout: 30000 }

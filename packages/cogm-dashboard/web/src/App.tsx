@@ -40,12 +40,7 @@ import {
 } from './components/Moments';
 import { RoleNotice } from './components/RoleNotice';
 import { panelChunk, LazyPanel, usePreloadPanels } from './components/LazyPanel';
-import {
-  PreflightButton,
-  PreflightDrawer,
-  VersionBanner,
-  usePreflightOnReconnect,
-} from './panels/Preflight';
+import { PreflightButton, VersionBanner, usePreflightOnReconnect } from './panels/Preflight';
 import type { ToolRequest } from './panels/Tools';
 import { api } from './lib/api';
 import { GmActionsGateContext } from './lib/guarded';
@@ -96,10 +91,13 @@ const partyChunk = panelChunk(() =>
 const paperChunk = panelChunk(() =>
   import('./panels/PaperSync').then(m => ({ default: m.PaperSyncDrawer }))
 );
+const preflightChunk = panelChunk(() =>
+  import('./panels/PreflightDrawer').then(m => ({ default: m.PreflightDrawer }))
+);
 const changesChunk = panelChunk(() => import('./panels/RecentChanges'));
 const afterChunk = panelChunk(() => import('./panels/After'));
 // The ones that dock into a view load at once; the floating ones when the browser is idle.
-const DOCKED_CHUNKS = [partyChunk, prepChunk, handoutsChunk, changesChunk];
+const DOCKED_CHUNKS = [partyChunk, prepChunk, handoutsChunk, changesChunk, preflightChunk];
 const FLOATING_CHUNKS = [
   afterChunk,
   paperChunk,
@@ -482,7 +480,10 @@ function Dashboard(): JSX.Element {
       />
       {dock(
         'preflight',
-        <PreflightDrawer
+        <LazyPanel
+          chunk={preflightChunk}
+          shell={{ id: 'preflight-drawer', title: '✈ Pre-flight' }}
+          show={shown('preflight')}
           open={shown('preflight')}
           onOpenChange={open => setDrawer('preflight', open)}
           tarokkaShown={tarokkaShown}

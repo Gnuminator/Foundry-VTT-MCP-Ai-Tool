@@ -47,6 +47,12 @@ const DamageForm = lazy(() => import('./DamageForm').then(m => ({ default: m.Dam
 
 const AI_KEY = [...CHANGES_KEY, 'ai'] as const;
 
+/** An error text with its full stop, so a hint can follow it. */
+const sentence = (text: string): string => {
+  const t = text.trim();
+  return /[.!?]$/.test(t) ? t : `${t}.`;
+};
+
 function Card({
   c,
   name,
@@ -163,6 +169,7 @@ export function LiveStrip(): JSX.Element {
   const [lastAsked, setLastAsked] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const busyRef = useRef(false);
+  const barRef = useRef<HTMLDivElement>(null);
 
   const stale = away && combat !== null;
   const rows = combat?.combatants ?? [];
@@ -206,6 +213,12 @@ export function LiveStrip(): JSX.Element {
     }
   }, []);
 
+  /** Clears the pick and hands keyboard focus to the pick bar, whose Clear / form just went. */
+  const clearPick = useCallback((): void => {
+    setPicked(new Set());
+    requestAnimationFrame(() => barRef.current?.focus());
+  }, []);
+
   const nextTurn = (): Promise<void> =>
     once(async () => {
       if (gated('advance-combat-turn')) return;
@@ -214,7 +227,7 @@ export function LiveStrip(): JSX.Element {
         void queryClient.invalidateQueries({ queryKey: GAME_STATE_KEY });
       } catch (err) {
         toast(
-          `✗ Next turn: ${errorText(err)}${mayHaveApplied(err) ? ' It may have applied; check the tracker.' : ''}`,
+          `✗ Next turn: ${mayHaveApplied(err) ? `${sentence(errorText(err))} It may have applied; check the tracker.` : errorText(err)}`,
           'err'
         );
       }
@@ -258,7 +271,7 @@ export function LiveStrip(): JSX.Element {
     once(async () => {
       if (targets.length === 0) return;
       const done = await plan('plan-actor-change', conditionArgs(targets, condition));
-      if (done.status === 'done') setPicked(new Set());
+      if (done.status === 'done') clearPick();
     });
 
   const undoable = lastUndoable(changes.data ?? []);
@@ -286,7 +299,7 @@ export function LiveStrip(): JSX.Element {
         toast(`✓ Undone: ${undoable.summary}`, 'ok');
       } catch (err) {
         toast(
-          `✗ Undo: ${errorText(err)}${mayHaveApplied(err) ? ' It may have applied; check Recent Changes.' : ''}`,
+          `✗ Undo: ${mayHaveApplied(err) ? `${sentence(errorText(err))} It may have applied; check Recent Changes.` : errorText(err)}`,
           'err'
         );
       } finally {
@@ -321,13 +334,15 @@ export function LiveStrip(): JSX.Element {
   const off = stale || busy;
   // Writes also wait for the switches (GM Actions, writes, live play), so a click never plans and
   // asks only to be refused at apply.
-  const writeOff = off || liveOff.length > 0 || !selectable;
+  // Next turn, the conditions and the Damage form are plain gated writes (GM Actions and writes);
+  // only Start / End combat is a live-play write.
+  const plainOff = live.off(ROLL_NEEDS);
+  const writeOff = off || plainOff.length > 0 || !selectable;
+  const endOff = off || liveOff.length > 0 || !selectable;
   const handoutOff = off || live.off(HANDOUT_NEEDS).length > 0;
-  const offTitle = stale
-    ? 'The bridge is away'
-    : liveOff.length > 0
-      ? offReason(liveOff)
-      : undefined;
+  const titleFor = (names: string[]): string | undefined =>
+    stale ? 'The bridge is away' : names.length > 0 ? offReason(names) : undefined;
+  const offTitle = titleFor(plainOff);
   const rollOff = off || roll.busy || live.off(ROLL_NEEDS).length > 0;
   const ask = (who: Combatant[]): void => {
     if (rollOff) return;
@@ -342,7 +357,7 @@ export function LiveStrip(): JSX.Element {
         <h2 className={styles['title']}>Live</h2>
         {combat !== null ? (
           <>
-            <span className={styles['meta']} id="live-meta">
+            <span className={styles['meta']} id="live-meta" role="status">
               {metaText(combat)}
             </span>
             <Button
@@ -364,17 +379,19 @@ export function LiveStrip(): JSX.Element {
               size="sm"
               id="live-end-combat"
               data-track="dash.live.end-combat"
-              aria-disabled={writeOff ? 'true' : undefined}
-              title={offTitle}
+              aria-disabled={endOff ? 'true' : undefined}
+              title={titleFor(liveOff)}
               onClick={() => {
-                if (!writeOff) void endCombat();
+                if (!endOff) void endCombat();
               }}
             >
               End combat
             </Button>
           </>
         ) : (
-          <span className={styles['meta']}>No fight.</span>
+          <span className={styles['meta']} role="status">
+            No fight.
+          </span>
         )}
         <Button
           type="button"
@@ -437,7 +454,14 @@ export function LiveStrip(): JSX.Element {
 
       {combat !== null && (
         <>
-          <div className={styles['bar']} role="group" aria-label="Picked creatures" id="live-pick">
+          <div
+            className={styles['bar']}
+            role="group"
+            aria-label="Picked creatures"
+            id="live-pick"
+            ref={barRef}
+            tabIndex={-1}
+          >
             <div className={styles['barRow']}>
               <span className={styles['who']} data-empty={kept.size === 0 ? 'true' : undefined}>
                 {pickText(pickedNames)}
@@ -448,19 +472,21 @@ export function LiveStrip(): JSX.Element {
                   variant="quiet"
                   size="sm"
                   data-track="dash.live.clear"
-                  onClick={() => setPicked(new Set())}
+                  onClick={clearPick}
                 >
                   Clear
                 </Button>
               )}
             </div>
-            {kept.size > 0 && (
+            {kept.size > 0 && plainOff.length === 0 && (
               <Suspense fallback={null}>
                 <DamageForm
                   targets={targets}
                   names={pickedNames}
                   stale={stale}
-                  onClose={() => setPicked(new Set())}
+                  locked={busy}
+                  once={once}
+                  onClose={clearPick}
                 />
               </Suspense>
             )}

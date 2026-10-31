@@ -42,6 +42,8 @@ export function DamageForm({
   targets,
   names,
   stale,
+  locked = false,
+  once = (work): Promise<void> => work(),
   onClose,
 }: {
   /** What the plan targets (token ids). */
@@ -49,13 +51,16 @@ export function DamageForm({
   /** What the button calls them. */
   names: string[];
   stale: boolean;
+  /** The strip runs another write; Apply waits (the strip's one lock, not a second one). */
+  locked?: boolean;
+  /** The strip's one-write-at-a-time lock. */
+  once?: (work: () => Promise<void>) => Promise<void>;
   onClose: () => void;
 }): JSX.Element {
   const { plan } = useGuardedTools();
   const [draft, setDraft] = useState<DamageDraft>(() => ({ ...EMPTY_DRAFT, type: readType() }));
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState('');
-  const busyRef = useRef(false);
   const amountRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -73,25 +78,29 @@ export function DamageForm({
   };
 
   const submit = (): void => {
-    if (busyRef.current || stale || !args) return;
-    busyRef.current = true;
-    setBusy(true);
-    void plan('plan-actor-change', args)
-      .then(outcome => {
-        if (outcome.status === 'done') onClose();
+    if (locked || stale || !args) return;
+    void once(async () => {
+      setBusy(true);
+      let closed = false;
+      try {
+        const outcome = await plan('plan-actor-change', args);
+        if (outcome.status === 'done') {
+          closed = true;
+          onClose();
+        }
         // The hit may have landed: a second press must not apply it again, so the amount is
         // cleared and the GM checks Recent Changes (the toast says so).
         else if (outcome.status === 'failed' && outcome.mayHaveApplied) {
           setDraft(d => ({ ...d, amount: '' }));
           setNote('It may have landed. Check Recent Changes before you apply again.');
         }
-      })
-      .finally(() => {
-        busyRef.current = false;
+      } finally {
         setBusy(false);
-        // The disabled Apply button drops keyboard focus; hand it back to the amount.
-        amountRef.current?.focus();
-      });
+        // The disabled Apply button drops keyboard focus; hand it back to the amount (unless the
+        // form just closed and the strip took focus to the pick bar).
+        if (!closed) amountRef.current?.focus();
+      }
+    });
   };
 
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>): void => {
@@ -179,7 +188,7 @@ export function DamageForm({
           variant="primary"
           id="damage-apply"
           data-track="dash.damage.apply"
-          aria-disabled={args && !stale ? undefined : 'true'}
+          aria-disabled={args && !stale && !locked ? undefined : 'true'}
           title={stale ? 'The bridge is away' : undefined}
           busy={busy}
           busyLabel="Applying..."

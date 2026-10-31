@@ -7,10 +7,10 @@
 // quick checks and CI do that). One prettier call on one file takes well under a second. Prettier
 // finds .prettierrc and .prettierignore from the file's own folder, so an ignored or unparseable
 // file is left as it is. Every failure is silent and exits 0: a hook must never block an edit.
-// Reads the hook payload (JSON) on stdin; prints nothing.
+// Reads the hook payload (JSON) on stdin; prints nothing, or a note when prettier changed the file.
 
 import path from 'node:path';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, realpathSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
@@ -42,20 +42,35 @@ export function targetOf(input, repoRoot = REPO_ROOT) {
 
 // A file that git has and that prettier would change at HEAD is left alone: formatting it would put
 // a whole-file reformat in the diff (about 60 of the .mjs and .tsx files are not prettier-clean, and
-// lint-staged only holds .ts, .js, .json and .md). A new file, or one git cannot show, is formatted.
+// lint-staged only holds .ts, .js, .json and .md). Only a file git positively says is not in HEAD
+// (or a folder that is no git repo) is formatted without the check; any other git failure (no git,
+// a timeout) skips the file, because the safe error is a missed format, not a whole-file reformat.
 function cleanAtHead(file, repoRoot, bin) {
-  const rel = path.posix.relative(normalize(repoRoot), file);
+  // the on-disk spelling of the path: git's tree lookup is case-sensitive, a Windows path is not
+  let rel;
+  try {
+    rel = path
+      .relative(realpathSync.native(repoRoot), realpathSync.native(file))
+      .replace(/\\/g, '/');
+  } catch {
+    return false;
+  }
+  if (!rel || rel.startsWith('..')) return false;
   const shown = spawnSync('git', ['show', `HEAD:${rel}`], {
     cwd: repoRoot,
-    timeout: 4000,
+    timeout: 2000,
     encoding: 'utf8',
     maxBuffer: 16 * 1024 * 1024,
   });
-  if (shown.status !== 0 || typeof shown.stdout !== 'string') return true;
+  if (shown.status !== 0) {
+    return /does not exist in|exists on disk, but not in|not a git repository|unknown revision|bad revision/.test(
+      String(shown.stderr)
+    );
+  }
   const check = spawnSync(
     process.execPath,
     [bin, '--check', '--log-level', 'silent', '--stdin-filepath', file],
-    { cwd: repoRoot, timeout: 6000, input: shown.stdout, stdio: ['pipe', 'ignore', 'ignore'] }
+    { cwd: repoRoot, timeout: 3000, input: shown.stdout, stdio: ['pipe', 'ignore', 'ignore'] }
   );
   return check.status === 0;
 }
@@ -70,7 +85,7 @@ export function formatEdited(input, repoRoot = REPO_ROOT, prettierRoot = repoRoo
     if (!cleanAtHead(file, repoRoot, bin)) return false;
     const r = spawnSync(process.execPath, [bin, '--write', '--log-level', 'silent', file], {
       cwd: repoRoot,
-      timeout: 8000,
+      timeout: 4000,
       stdio: 'ignore',
     });
     return r.status === 0;
@@ -86,7 +101,29 @@ function main() {
   } catch {
     return;
   }
-  formatEdited(input);
+  const file = targetOf(input);
+  let before = null;
+  try {
+    before = file ? readFileSync(file, 'utf8') : null;
+  } catch {
+    // unreadable: nothing to compare
+  }
+  if (!formatEdited(input) || before === null) return;
+  try {
+    if (readFileSync(file, 'utf8') !== before) {
+      // the next Edit's old_string must come from the formatted text
+      process.stdout.write(
+        `${JSON.stringify({
+          hookSpecificOutput: {
+            hookEventName: 'PostToolUse',
+            additionalContext: `${path.basename(file)} was reformatted by prettier: Read it again before the next Edit.`,
+          },
+        })}\n`
+      );
+    }
+  } catch {
+    // never block
+  }
 }
 
 const self = fileURLToPath(import.meta.url);

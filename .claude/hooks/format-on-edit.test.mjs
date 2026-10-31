@@ -120,6 +120,10 @@ test(
       assert.equal(readFileSync(messy, 'utf8'), 'const  a=2\n');
       assert.equal(formatEdited(edit(root, clean), root, REPO_ROOT), true);
       assert.equal(readFileSync(clean, 'utf8'), 'const a = 2;\n');
+      // a path in another case, or git failing, never formats an unclean file
+      writeFileSync(messy, 'const  a=3\n');
+      formatEdited(edit(root, messy.toUpperCase()), root, REPO_ROOT);
+      assert.equal(readFileSync(messy, 'utf8'), 'const  a=3\n');
       // a new file git does not know yet is formatted
       const fresh = path.join(root, 'fresh.mjs');
       writeFileSync(fresh, 'const  b=3\n');

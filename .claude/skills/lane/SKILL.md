@@ -11,9 +11,12 @@ one PR. Vault paths below are under `C:\Users\chris\Documents\Obsidian\vault\Dev
 
 ## Start
 
-1. **Edit and Write tools only for source files** (no sed, perl, python or heredoc edits of repo
-   files: the hook `guard-shell-edits.mjs` denies them; the hook `format-on-edit.mjs` runs
-   prettier on what they write). Pull the vault. Open `Backlog.md`, take the top item with no `claimed:` line that fits your
+**Edit and Write tools only for source files:** no sed, perl, python or heredoc edits of repo files
+(the hook `guard-shell-edits.mjs` denies them). The hook `format-on-edit.mjs` runs prettier on a
+file you edit when it was prettier-clean at HEAD (or is new), and tells you to Read it again when
+it changed it.
+
+1. Pull the vault. Open `Backlog.md`, take the top item with no `claimed:` line that fits your
    brief, write `claimed: <session title> <date>` under it and, on the next line,
    `- link: <your session link>` (the `link` field of `get_session "self"`, a `claude://` address;
    the board's lane card opens your session from it), commit and push the vault, then

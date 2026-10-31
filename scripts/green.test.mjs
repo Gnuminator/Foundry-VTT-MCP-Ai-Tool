@@ -785,15 +785,70 @@ test('quickSteps: touched dashboard e2e specs build the dashboard and run only t
     'build-shared',
     'typecheck-cogm-dashboard',
     'unit-cogm-dashboard',
+    'catalog-check',
     'build-dashboard',
+    'bundle-budget',
     'e2e-specs',
   ]);
   assert.deepEqual(steps.at(-1).args.slice(-2), ['--', 'e2e/help.spec.ts']);
 });
 
+test('quickSteps: dashboard web files add catalogue check, one build and the bundle budget', () => {
+  assert.deepEqual(quickNames(['packages/cogm-dashboard/web/src/App.tsx']), [
+    'build-shared',
+    'typecheck-cogm-dashboard',
+    'unit-cogm-dashboard',
+    'catalog-check',
+    'build-dashboard',
+    'bundle-budget',
+  ]);
+  // A touched spec as well: still one build, the budget before e2e.
+  const both = quickNames(['packages/cogm-dashboard/web/e2e/help.spec.ts', 'packages/cogm-dashboard/web/src/App.tsx']);
+  assert.equal(both.filter(n => n === 'build-dashboard').length, 1);
+  assert.ok(both.indexOf('bundle-budget') < both.indexOf('e2e-specs'));
+  const steps = quickSteps(['packages/cogm-dashboard/web/src/App.tsx']);
+  assert.deepEqual(steps.find(s => s.name === 'bundle-budget').args, ['run', 'bundle:budget', '-w', '@gnuminator/cogm-dashboard']);
+  assert.deepEqual(steps.find(s => s.name === 'catalog-check').args, ['run', 'usage:catalog:check']);
+});
+
+test('quickSteps: the catalogue check follows what usage-catalog.mjs scans', () => {
+  for (const f of [
+    'packages/cogm-dashboard/public/app.js',
+    'packages/foundry-module/src/ui/x.ts',
+    'scripts/usage-catalog.mjs',
+    'shared/src/usage-catalog.generated.ts',
+  ]) {
+    assert.ok(quickNames([f]).includes('catalog-check'), f);
+  }
+  assert.ok(!quickNames(['packages/mcp-server/src/a.ts']).includes('catalog-check'));
+  const pub = quickNames(['packages/cogm-dashboard/public/app.js']);
+  assert.ok(!pub.includes('build-dashboard') && !pub.includes('bundle-budget'), 'no web file, no build or budget');
+});
+
+test('main --quick: dashboard web changes end with the screenshot note, others do not', () => {
+  const lines = [];
+  const base = {
+    argv: ['--quick'],
+    cwd: os.tmpdir(),
+    tmpdir: fs.mkdtempSync(path.join(os.tmpdir(), 'quick-')),
+    isTTY: false,
+    note: null,
+    log: l => lines.push(l),
+    runStep: () => 0,
+  };
+  assert.equal(main({ ...base, changed: ['packages/cogm-dashboard/web/src/App.tsx'] }), 0);
+  assert.equal(lines.at(-1), 'Screenshots are not checked locally; CI dashboard-visual will run them.');
+  lines.length = 0;
+  assert.equal(main({ ...base, changed: ['packages/mcp-server/src/a.ts'] }), 0);
+  assert.ok(!lines.some(l => l.includes('Screenshots')));
+  lines.length = 0;
+  assert.equal(main({ ...base, changed: ['packages/cogm-dashboard/web/src/App.tsx'], runStep: () => 1 }), 1);
+  assert.equal(lines.at(-1), 'Screenshots are not checked locally; CI dashboard-visual will run them.');
+});
+
 test('quickSteps: no step name takes the heavy lock', () => {
   const all = quickSteps(
-    ['shared/src/a.ts', 'packages/cogm-dashboard/web/e2e/help.spec.ts', 'packages/foundry-module/src/a.ts', 'scripts/green.mjs'],
+    ['shared/src/a.ts', 'packages/cogm-dashboard/web/e2e/help.spec.ts', 'packages/cogm-dashboard/web/src/a.tsx','packages/foundry-module/src/a.ts', 'scripts/green.mjs'],
     path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
   );
   for (const s of all) {

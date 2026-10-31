@@ -2200,32 +2200,40 @@ test('merge train note: --dry-run writes nothing; a refusal writes a refusal eve
 
 test('refusal reasons: one cause tag per failure kind, once each, and a short body', () => {
   assert.deepEqual(
-    refusalCauses([
+    refusalCauses(
+    [
       'ci: failing: build-test (FAILURE); pending: dashboard-visual (IN_PROGRESS)',
       'ci: required but not reported: build-test (Node 22)',
       'ci: no checks reported for this PR yet',
       'ci: cannot read the required checks from the branch ruleset (gh api failed: x); refusing',
       'wait-ci: head moved from a to b',
+      'wait-ci: CI failed on abc1234: build-test (FAILURE)',
+      'wait-ci: timed out after 30 minutes; still waiting for x',
+      'wait-ci: gh pr view 5 failed 3 times in a row',
       'review: no review note for this head',
       'train: merge train full (4/4): run live:roundtrip',
-      'drift: drift-check failed (guards: bundle budget, lint ratchet) (log x.log); last lines below',
-      'drift: drift-check failed (log y.log); last lines below',
+      'drift: drift-check failed (guards: mcp-server tests (tool counts, tool sets), lint ratchet) (log x.log); last lines below',
       'weird line',
-    ]),
+    ],
+    ['mcp-server tests (tool counts, tool sets)', 'lint ratchet']
+    ),
     [
       'ci-failing',
       'ci-pending',
       'ci-missing',
       'ci-rules',
-      'wait-ci',
+      'wait-ci-head-moved',
+      'wait-ci-failing',
+      'wait-ci-timeout',
+      'wait-ci-other',
       'review',
       'train',
-      'drift-bundle-budget',
+      'drift-mcp-server-tests-tool-counts-tool-sets',
       'drift-lint-ratchet',
-      'drift',
       'other',
     ]
   );
+  assert.deepEqual(refusalCauses(['drift: drift-check failed (log y.log); last lines below']), ['drift']);
   assert.deepEqual(refusalCauses([]), []);
   const long = 'ci: failing: ' + 'x'.repeat(400);
   const body = refusalBody([

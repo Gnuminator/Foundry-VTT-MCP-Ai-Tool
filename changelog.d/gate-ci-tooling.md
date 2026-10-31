@@ -7,5 +7,7 @@
 - **A hand-dispatched CI run can no longer hide a merge-ref failure:** every `ci.yml` job name gets a
   ` [dispatch]` suffix on `workflow_dispatch`, so `green --cloud` runs have check keys of their own. The
   `latestChecks` note records why an undated finished check ranks oldest.
-- **`green --quick` runs the test kit scenario check** when the dashboard web app or `scripts/test-kit/`
-  changed, so a new control without its skip row fails locally.
+- **`green --quick` runs the test kit checks:** the kit control tests (a new control without its skip
+  row) when a usage-catalogue input or `scripts/test-kit/` changed, and the scenario check (`kit.mjs
+check`) when the dashboard web app or `scripts/test-kit/` changed, so both fail locally and not first
+  on CI.

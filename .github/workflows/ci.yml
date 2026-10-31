@@ -18,7 +18,9 @@ on:
 # A hand-dispatched run (`npm run green -- --cloud` on a branch without a PR) names every job with a
 # " [dispatch]" suffix. Its checks then have their own keys in a PR's check rollup, so the gate
 # (latestChecks in scripts/lane-merge.mjs) never takes a dispatch run on the branch head for the
-# pull_request run on the merge ref: a red merge-ref run stays visible next to a green dispatch.
+# pull_request run on the merge ref: a red merge-ref run stays visible next to a green dispatch. The
+# other side: a red or cancelled "[dispatch]" check on the head blocks the gate on purpose; rerun that
+# dispatch run (gh run rerun <id> --failed) or push again to clear it.
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref == 'refs/heads/main' && github.sha || github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}

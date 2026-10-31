@@ -935,8 +935,22 @@ the table and the data differ) joins the world as its GM with the login in
   it on the real campaign after Danni has changed switches on purpose; it overwrites the values above.
 - **A new or reset world under auto overwrites the bundle's own values** for these settings. Use
   `WORLD_SWITCHES=0` when the PC copy's values are deliberate.
+- **Owed switches:** before a world gets the switches, the stage writes the marker
+  `/etc/foundry-ai-tool/world-<id>.switches-pending`, and removes it once the driver has set and read back
+  every value. A run that stops in between (the driver failed, the connection dropped) leaves the marker,
+  and a plain rerun (auto) sets the switches in that world again, even a kept one. The run's own message
+  says which command to repeat; for the kit world it is the same command, never `WORLD_SWITCHES=1`.
+- **Giving the switches up:** `WORLD_SWITCHES=0` clears a leftover marker (the line "an old owed-switches
+  marker is cleared" in the output), and so does a run that gives that world no switches anyway, such as a
+  Plan B push-back that replaces it. A later plain run then no longer sets switches you gave up on.
+- **Push-back:** `WORLD_SWITCHES=1` together with a Plan B push-back is refused before anything stops
+  ("does not go with a Plan B push-back ... Nothing was changed"); leave `WORLD_SWITCHES` out or use `0`.
 - **Not wanted:** `WORLD_SWITCHES=0`. The stage needs `world-switches.mjs` uploaded first:
   `scp scripts/pi/remote/world-switches.mjs foundry-pi:/root/`, and removes the upload.
+- **The run's log:** like stages 14 and 19, stage 11 writes every line of its output, with a time, to
+  `/var/lib/foundry-import/world-run-<time>.log` (root only; the first line of the output names it). The stage
+  ignores a dropped SSH connection while Foundry is stopped, so after a drop `tail` that file to see how far
+  it got. Read the log, not the old output, before running the stage again.
 
 The Pi has not run it yet; the first run is a later Pi day with the user's OK, after a
 `dietpi-backup 1` snapshot, like any stage 11 run.

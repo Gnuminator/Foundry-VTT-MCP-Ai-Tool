@@ -722,7 +722,7 @@ describe('condition on', () => {
     addActor({ id: 'a1', name: 'Wolf' });
     g.CONFIG.ActiveEffect = {
       documentClass: {
-        fromStatusEffect: (id: string) =>
+        fromStatusEffect: (id: string): Promise<object> =>
           Promise.resolve({
             toObject: (): object => ({ statuses: [id], duration: { expiry: 'turnEnd' } }),
           }),

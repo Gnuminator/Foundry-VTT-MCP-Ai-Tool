@@ -120,7 +120,9 @@ if ($Only -in 'all', 'dashboard') {
     MCP_CONTROL_PORT = $TestEnv.ControlPort
     FOUNDRY_AI_OBSIDIAN_DIR = $TestEnv.ObsidianDir
     # The initiative ribbon shows portraits from Foundry's address as the browser reaches it.
-    DASHBOARD_FOUNDRY_URL = "http://localhost:$($TestEnv.FoundryPort)"
+    # TEST_FOUNDRY_FRAME_URL: the address of scripts/test-env/foundry-frame-proxy.mjs, so the GM page
+    # (/gm) can frame this Foundry (dev only; the Pi uses a Cloudflare header rule instead).
+    DASHBOARD_FOUNDRY_URL = if ($env:TEST_FOUNDRY_FRAME_URL) { $env:TEST_FOUNDRY_FRAME_URL } else { "http://localhost:$($TestEnv.FoundryPort)" }
     # Each test dashboard keeps its own player links and prefs: server A uses the default
     # ~/.foundry-ai-tool, the others a folder under their root (two dashboards on one links file
     # overwrite each other's saves).

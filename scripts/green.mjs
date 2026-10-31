@@ -396,7 +396,17 @@ export function worktreeTreeHash(cwd) {
   try {
     // A copy of the real index keeps git's file-stat cache, so `add -A` only hashes changed files.
     try {
-      fs.copyFileSync(path.resolve(cwd, real.stdout.trim()), index);
+      const realIndex = path.resolve(cwd, real.stdout.trim());
+      // Stat first: an index rewrite between the two calls can then only make the copy's mtime
+      // older than its content (more re-hashing), never newer.
+      const st = fs.statSync(realIndex);
+      fs.copyFileSync(realIndex, index);
+      // Git trusts a cached file stat only when the entry is older than the index file's own mtime
+      // (whole seconds); an entry from the same second is "racy" and gets re-hashed. The copy has
+      // a fresh mtime on Linux (Windows' CopyFile keeps the source's), which would turn a same-size
+      // edit made in the second of the last git command into a trusted stale entry, so it gets the
+      // real index's mtime, floored to the second: never later, an earlier one only costs a re-hash.
+      fs.utimesSync(index, st.atime, Math.floor(st.mtimeMs / 1000));
     } catch {
       if (git(['read-tree', 'HEAD'], { GIT_INDEX_FILE: index }).status !== 0) return null;
     }

@@ -1,6 +1,6 @@
 // Take: before a session: Pre-flight checks the bridge, the module,
 // the write switches and the players' page for spoilers (I-095); Turn on for tonight turns on
-// what tonight needs in one click (PB-17); the feature cards say when to turn the rest on.
+// what tonight needs in one click (PB-17); the guides say when to turn the rest on.
 //
 //   npm run demo:take -- preflight
 
@@ -9,7 +9,7 @@ import { runPreflight, setGmActions } from '../lib/dashboard.mjs';
 import { DEMO_USERS } from '../lib/env.mjs';
 import { closeAllWindows, unpause } from '../lib/foundry.mjs';
 
-export const meta = { title: 'Get ready for the session: Pre-flight, Ready, feature cards' };
+export const meta = { title: 'Get ready for the session: Pre-flight, Ready, guides' };
 
 /** Before recording: GM in Foundry (the checks read through it) and the dashboard. */
 export async function setup(t) {
@@ -35,14 +35,14 @@ export async function run(t) {
   });
 
   await t.step('findings', 'Read what each check found', async () => {
-    const items = page.locator('#preflight-auto li.preflight-item');
+    const items = page.locator('#preflight-drawer ul[aria-label="Checked by the tool"] li');
     const count = await items.count();
     for (let i = 0; i < Math.min(count, 6); i++) {
       await items.nth(i).scrollIntoViewIfNeeded();
       await items.nth(i).hover();
       await t.pause(500);
     }
-    const details = page.locator('#preflight-findings details.preflight-findings summary').first();
+    const details = page.locator('#preflight-drawer details.preflight-findings summary').first();
     if (await details.isVisible()) {
       await humanClick(details);
       await t.pause(2000);
@@ -67,25 +67,27 @@ export async function run(t) {
   });
 
   await t.step('manual', 'Tick the things only the GM can check', async () => {
-    const ticks = page.locator('#preflight-manual [data-tick]');
+    const ticks = page.locator(
+      '#preflight-drawer ul[aria-label="Check by hand"] input[type=checkbox]:not(:checked)'
+    );
     const n = Math.min(await ticks.count(), 2);
     for (let i = 0; i < n; i++) {
-      await humanClick(ticks.nth(i));
+      // The locator skips ticked boxes, so the next unticked one is always the first.
+      await humanClick(ticks.first());
       await t.pause(600);
     }
     await t.pause(1500);
   });
 
-  await t.step('features', 'Feature cards: what is on, and when to turn the rest on', async () => {
-    const cards = page.locator('#feature-cards-wrap');
-    await cards.scrollIntoViewIfNeeded();
-    await page.locator('#feature-cards .feature-card').first().waitFor({ state: 'visible' });
-    await t.pause(2500);
-    await t.shot('Dashboard', 'feature-cards');
-    await humanClick(page.locator('#feature-cards [data-help]').first());
+  await t.step('guide', 'The guides: what is on, and when to turn the rest on', async () => {
+    // The Pre-flight drawer covers the header: close it first.
+    await page.keyboard.press('Escape');
+    await page.locator('#preflight-drawer').waitFor({ state: 'hidden' });
+    await humanClick(page.locator('#btn-advanced'));
+    await humanClick(page.locator('#btn-guides'));
     await page.locator('#pane-help').waitFor({ state: 'visible' });
     await t.pause(3000);
-    await t.shot('Dashboard', 'feature-help');
+    await t.shot('Dashboard', 'guides');
     await page.locator('#pane-help .overlay-close').click();
   });
 }

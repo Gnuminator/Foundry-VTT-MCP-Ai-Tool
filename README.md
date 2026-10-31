@@ -101,9 +101,6 @@ Before a session the page opens on Pre-flight and Prep; the same page runs the s
 - **Inside Foundry and at the table:** an optional [GM windows](docs/gm/gm-windows.md) switch adds
   Combat, Party, Session, Scene and Loot windows next to the map, and
   [the TV at the table](docs/gm/tv-table-viewer.md) shows the map to an in-person group.
-- **AI commentary (optional, old dashboard page only):** streaming call-outs and an Ask box, on
-  `/legacy/`, not yet on the page at `/`. This uses the paid Anthropic API and only runs when an
-  `ANTHROPIC_API_KEY` is set; everything else works without it.
 
 ![The turn-order strip with two combatants picked and the Damage / Heal, Condition, Clear and End combat buttons](docs/images/cogm/combat-control.png)
 
@@ -240,9 +237,8 @@ module or a bridge. Silent install: `/S /HOST=<name or IP>`. See
 npm run dev:cogm              # → http://localhost:3000 (the player page is /player)
 ```
 
-The dashboard works without an API key: live feed, combat tracker, tool runner, Recent Changes,
-Tarokka and the player page all function. Only the optional AI commentary (old page only) needs
-`ANTHROPIC_API_KEY` (see `packages/cogm-dashboard/.env.example`). For the dashboard's Open in
+The dashboard needs no API key: live feed, combat tracker, tool runner, Recent Changes,
+Tarokka and the player page all function. For the dashboard's Open in
 Obsidian links, set `OBSIDIAN_VAULT_NAME` (or `FOUNDRY_AI_OBSIDIAN_DIR`) in
 `packages/cogm-dashboard/.env`. To run it with Claude Desktop
 closed, start the bridge standalone first: `npm run bridge:standalone`.

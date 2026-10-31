@@ -15,18 +15,8 @@ dashboard, and can optionally post a chosen comment back to Foundry chat.
   using the returned `latestTimestamp` as an incremental cursor.
 - **Combat tracker** — initiative order, HP bars, conditions, and death saves
   from `get-combat-state`.
-- **Streaming AI commentary** — when something significant happens (damage,
-  death, conditions, combat start/turn, resource spend), the AI streams one
-  short tactical or narrative comment. Comments are **batched and rate-limited**,
-  never one-per-event.
-- **Ask the AI** — type a question and get a streamed answer grounded in the
-  current game state.
-- **Post to chat** _(the only thing that mutates the game)_ — push a chosen
-  comment into Foundry as a GM whisper.
 - **Live module diagnostics** — polls `get-module-errors` and streams other
-  modules' errors/warnings to a diagnostics pane; the AI can offer a likely
-  cause/fix on new errors (toggleable "Diag AI", rate-capped, and deferred so it
-  never preempts combat commentary).
+  modules' errors/warnings to a diagnostics pane.
 
 Everything else is strictly read-only.
 
@@ -115,7 +105,7 @@ views, with Pre-flight, Prep, Party and Handouts docked in them, the During layo
 switch, the layout trial and the hint), the During folds, the Combat Tracker (the combat strip and
 the initiative ribbon above it), Live Feed, Recent Changes,
 the After stats and session notes, and the header's session marker, GM Actions switch and theme
-picker. Still on the old page only (`/legacy/`): the feature cards and the AI commentary.
+picker.
 
 - `npm run build` also builds it (Vite) into `dist/web`; the server serves its page at `/` and its
   files under `/next/`. The Docker image and the Pi get it with the rest of `dist/`.
@@ -341,7 +331,7 @@ Additional knobs (all optional — defaults shown; see `.env.example`):
 | ------------------------------- | ------- | ------------------------------------------------------ |
 | `ERROR_POLL_INTERVAL_MS`        | `6000`  | Module-diagnostics poll cadence                        |
 | `COGM_MAX_ERRORS`               | `100`   | Rolling module-error buffer size                       |
-| `COGM_COMMENT_ON_ERRORS`        | `true`  | AI auto-comments on new module errors (UI: "Diag AI")  |
+| `COGM_COMMENT_ON_ERRORS`        | `true`  | AI auto-comments on new module errors                  |
 | `ERROR_COMMENT_MIN_INTERVAL_MS` | `60000` | Minimum spacing between diagnostics comments           |
 | `MCP_REQUEST_TIMEOUT_MS`        | `15000` | Per-request timeout (a timeout forces a reconnect)     |
 | `MCP_CONNECT_TIMEOUT_MS`        | `5000`  | TCP connect timeout                                    |
@@ -387,13 +377,10 @@ For exposing this to a remote GM/players behind Cloudflare Access, see
   the full session history.
 - **Batched, capped commentary.** Bursts are debounced into a single comment and
   spaced by `COMMENT_MIN_INTERVAL_MS`. Short `max_tokens` keep outputs tight.
-- **Pause** stops auto-commentary entirely; **Haiku/Sonnet** in the model picker
-  trade some quality for lower cost/latency.
 
 ## Guardrails
 
-- **Read-mostly.** The only call that changes the game is the explicit
-  _Post to chat_ button (a GM whisper via `send-chat-message`).
+- **Read-mostly.** Calls that change the game go through plan, confirm and undo.
 - **Resilient to a dead backend.** The control client reconnects with backoff,
   every request is timeout-bounded, and a failed poll downgrades the status badge
   and retries — it never crashes the dashboard.

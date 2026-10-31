@@ -1005,6 +1005,12 @@ export const USAGE_CATALOG: readonly UsageCatalogEntry[] = [
     file: 'packages/cogm-dashboard/public/app.js',
   },
   {
+    name: 'dash.strip.reload',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/web/src/components/StripBoundary.tsx',
+  },
+  {
     name: 'dash.tarokka.choose',
     kind: 'action',
     surface: 'dashboard',

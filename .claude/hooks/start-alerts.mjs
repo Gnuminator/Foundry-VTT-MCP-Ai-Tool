@@ -34,7 +34,8 @@ const WAITING_NOTE = path.join('Dev', 'Foundry AI Tool', 'Waiting.md');
 const WAITING_LEAD_DAYS = 7;
 const WAITING_SHOWN = 4;
 const CI_REPO = 'Gnuminator/Foundry-VTT-MCP-Ai-Tool';
-const GH_TIMEOUT_MS = 4000;
+// Two gh calls at most, plus the 3 s snapshot fetch, stay under the hook's 10 s in settings.json.
+const GH_TIMEOUT_MS = 2500;
 const VAULT_MASTER = path.join('Dev', 'Foundry AI Tool', 'repo-docs', 'CLAUDE.md');
 
 // A worktree belongs to the main checkout: its .git file reads "gitdir: <main>/.git/worktrees/<name>"
@@ -338,7 +339,7 @@ export function mainRedAlert({ gh = runGh } = {}) {
       since = r;
     }
     const step = failedStep(gh, runs[0].databaseId);
-    return `main CI red since ${String(since.headSha).slice(0, 8)}${step ? ` (${clip(step, 60)})` : ''}; see the red main step in the planner skill before merging.`;
+    return `main CI red since ${String(since.headSha).slice(0, 8)}${step ? ` (${clip(step, 60)})` : ''}; the planner handles it (planner skill, Main is red).`;
   } catch {
     return null;
   }

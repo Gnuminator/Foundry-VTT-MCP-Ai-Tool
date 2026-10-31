@@ -161,10 +161,12 @@ Unblock first, fix properly second (vault `Design/Red main root cause 2026-10-31
 
 1. **Within 15 minutes of seeing it** (the start alert, a gate refusal naming a main failure, a
    lane note) do one of two things. Either **revert the last merge** on a branch, as a normal PR
-   with the quick checks and CI green (a revert of a clean merge needs no new review round; say so
-   in the PR). Or, when the break is a limit and not bad code (a bundle or tool-set budget, a
+   with the quick checks and CI green. Or, when the break is a limit and not bad code (a bundle or tool-set budget, a
    ratchet baseline), **a one-line temporary limit raise** as its own PR, with a Backlog item for the
    proper fix (`- done when:` the limit back, the cause removed) so the raise is not forgotten.
+   The unblock PR goes through the gate like any other (CI green on its head, a review note for
+   that sha, D-101); a one-line diff makes the review a short round, so ask for it at once. An
+   exemption from review would be the user's decision, not this skill's.
 2. **No other merges while main is red.** Do not run the gate for anything else; the only PR that
    merges is the unblock PR. Lanes may keep building and may push.
 3. When main is green again, the proper fix is a normal lane (claim, review, merge) from the

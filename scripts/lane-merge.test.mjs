@@ -83,7 +83,8 @@ const FAKE_LOCK_SOURCE = `import fs from 'node:fs';\nexport function acquire() {
 /** Is this call the drift run (wrapped in main's heavy-lock copy, or bare)? @param {string} cmd @param {string[]} args */
 const isDriftCall = (cmd, args) =>
   cmd === 'node' &&
-  (args[0] === '--input-type=module' || (/heavy-lock\.mjs$/.test(args[0] ?? '') && args[1] === 'run'));
+  (args[0] === '--input-type=module' ||
+    (/heavy-lock\.mjs$/.test(args[0] ?? '') && args[1] === 'run'));
 
 /**
  * A gate run against fakes. Returns the output lines, the exit code, the calls and the state file.
@@ -543,6 +544,71 @@ test('rollupProblems: check runs and commit statuses, failing, pending and missi
   assert.deepEqual(bad.missing, ['never-ran']);
 });
 
+test('rollupProblems: a newer run of the same check outvotes an old failure on the same head', () => {
+  const old = {
+    workflowName: 'CI',
+    name: 'build-test (Node 22)',
+    status: 'COMPLETED',
+    conclusion: 'FAILURE',
+    startedAt: '2026-10-31T07:56:17Z',
+  };
+  const fresh = { ...old, conclusion: 'SUCCESS', startedAt: '2026-10-31T09:24:42Z' };
+  assert.deepEqual(rollupProblems([old, fresh]).failing, []);
+  assert.deepEqual(rollupProblems([fresh, old]).failing, []);
+  // a newer run that failed still fails, and one still queued (no startedAt) is pending
+  assert.deepEqual(rollupProblems([fresh, { ...old, startedAt: '2026-10-31T10:00:00Z' }]).failing, [
+    'build-test (Node 22) (FAILURE)',
+  ]);
+  const queued = {
+    workflowName: 'CI',
+    name: 'build-test (Node 22)',
+    status: 'QUEUED',
+    conclusion: '',
+  };
+  assert.deepEqual(rollupProblems([old, fresh, queued]).pending, ['build-test (Node 22) (QUEUED)']);
+  // the same check name in another workflow is a different check
+  const other = { ...old, workflowName: 'Other' };
+  assert.deepEqual(rollupProblems([fresh, other]).failing, ['build-test (Node 22) (FAILURE)']);
+  // commit statuses: newest per context
+  assert.deepEqual(
+    rollupProblems([
+      { context: 'ci/legacy', state: 'FAILURE', startedAt: '2026-10-31T07:00:00Z' },
+      { context: 'ci/legacy', state: 'SUCCESS', startedAt: '2026-10-31T08:00:00Z' },
+    ]).failing,
+    []
+  );
+});
+
+test('latestChecks: unknown start times (Go zero time) rank by status, ties keep the worse', () => {
+  const base = { workflowName: 'CI', name: 'build-test (Node 22)' };
+  const ZERO = '0001-01-01T00:00:00Z';
+  const DAY = '2026-10-31T09:00:00Z';
+  const failed = {
+    ...base,
+    status: 'COMPLETED',
+    conclusion: 'FAILURE',
+    startedAt: '2026-10-31T07:56:17Z',
+  };
+  const passed = { ...failed, conclusion: 'SUCCESS' };
+  const queued = { ...base, status: 'QUEUED', conclusion: '', startedAt: ZERO };
+  const q = ['build-test (Node 22) (QUEUED)'];
+  const f = ['build-test (Node 22) (FAILURE)'];
+  // queued with the zero time is the newest, whatever the array order
+  assert.deepEqual(rollupProblems([failed, queued]), { failing: [], pending: q, missing: [] });
+  assert.deepEqual(rollupProblems([queued, failed]).pending, q);
+  assert.deepEqual(rollupProblems([passed, queued]).pending, q);
+  assert.deepEqual(rollupProblems([queued, passed]).pending, q);
+  // equal start times keep the worse entry, in either order
+  assert.deepEqual(rollupProblems([passed, failed]).failing, f);
+  assert.deepEqual(rollupProblems([failed, passed]).failing, f);
+  // a COMPLETED entry with the zero time is the oldest: a dated run replaces it
+  const zeroFailed = { ...failed, startedAt: ZERO };
+  assert.deepEqual(rollupProblems([zeroFailed, { ...passed, startedAt: DAY }]).failing, []);
+  assert.deepEqual(rollupProblems([{ ...passed, startedAt: DAY }, zeroFailed]).failing, []);
+  // two finished entries, both without a time: the failure stays
+  assert.deepEqual(rollupProblems([{ ...passed, startedAt: ZERO }, zeroFailed]).failing, f);
+});
+
 test('requiredContexts: reads the ruleset answer, nothing else counts', () => {
   assert.deepEqual(requiredContexts(JSON.stringify(RULES)), ['build-test']);
   assert.equal(requiredContexts('not json'), null);
@@ -868,7 +934,15 @@ test("H1: drift-check runs from a temp copy of main's script, not the branch's n
   const node = r.calls.find(c => c[0] === 'node');
   assert.match(node[1], /lane-merge-drift-.*heavy-lock\.mjs$/);
   assert.equal(fs.readFileSync(node[1], 'utf8'), FAKE_LOCK_SOURCE, "main's copy of the lock");
-  assert.deepEqual(node.slice(2, 9), ['run', '--label', 'drift-check (merge gate)', '--priority', 'high', '--', 'node']);
+  assert.deepEqual(node.slice(2, 9), [
+    'run',
+    '--label',
+    'drift-check (merge gate)',
+    '--priority',
+    'high',
+    '--',
+    'node',
+  ]);
   assert.equal(node.length, 10);
   const runner = node[9].replace(/^"|"$/g, '');
   assert.equal(node[9], `"${runner}"`, 'the runner path is quoted for the shell');
@@ -1437,6 +1511,15 @@ test('waitForCi: a failing check ends the wait at once, naming it, while others 
   assert.equal(r.result.code, 3);
   assert.match(r.result.reason, /CI failed on 3d24f70: lint \(FAILURE\)/);
   assert.equal(r.polls, 2, 'no further poll after the failure');
+});
+
+test('waitForCi: an old failure with a newer queued rerun keeps waiting', () => {
+  const old = { ...cr('build-test', 'COMPLETED', 'FAILURE'), startedAt: '2026-10-31T07:56:17Z' };
+  const queued = { ...cr('build-test', 'QUEUED', ''), startedAt: '0001-01-01T00:00:00Z' };
+  const done = { ...cr('build-test', 'COMPLETED', 'SUCCESS'), startedAt: '2026-10-31T09:24:42Z' };
+  const r = waitRun([{ statusCheckRollup: [old, queued] }, { statusCheckRollup: [old, done] }]);
+  assert.equal(r.result.ok, true);
+  assert.equal(r.polls, 2, 'did not stop at the old failure');
 });
 
 test('waitForCi: a failing commit status is named too', () => {

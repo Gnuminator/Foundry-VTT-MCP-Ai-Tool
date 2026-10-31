@@ -465,9 +465,52 @@ export function requiredContexts(json) {
 }
 
 /**
+ * The newest entry of each check in a rollup. A PR closed and reopened (or a workflow run again on
+ * a fresh merge ref) gets a second run on the same head, and GitHub keeps both in the rollup: an old
+ * failure must not outvote the newer run. Check runs are keyed by workflow and name, commit statuses
+ * by context, so a matrix job's `name:` must include its matrix variables or its legs hide each
+ * other. The later `startedAt` wins. A start time that is missing, not a number or at or below 0 (gh
+ * writes a missing time as Go's zero time `0001-01-01T00:00:00Z`) is unknown: an unfinished entry with
+ * an unknown time (queued) counts as the newest, a finished one as the oldest. On equal or unknown
+ * times the worse entry stays (failing over pending over success).
+ * @param {any[]} rollup @returns {any[]}
+ */
+export function latestChecks(rollup) {
+  const byKey = new Map();
+  const isStatusEntry = c => c.state !== undefined && c.status === undefined;
+  const unfinished = c =>
+    isStatusEntry(c)
+      ? ['PENDING', 'EXPECTED'].includes(String(c.state).toUpperCase())
+      : String(c.status ?? '').toUpperCase() !== 'COMPLETED';
+  const started = c => {
+    const t = c.startedAt ? Date.parse(c.startedAt) : NaN;
+    if (Number.isFinite(t) && t > 0) return t;
+    return unfinished(c) ? Infinity : 0;
+  };
+  const badness = c => {
+    if (unfinished(c)) return 1;
+    const v = String(isStatusEntry(c) ? c.state : c.conclusion).toUpperCase();
+    return ['SUCCESS', 'SKIPPED', 'NEUTRAL'].includes(v) ? 0 : 2;
+  };
+  for (const c of rollup) {
+    const key = isStatusEntry(c)
+      ? `status\u0000${c.context ?? c.name}`
+      : `run\u0000${c.workflowName ?? ''}\u0000${c.name ?? c.context}`;
+    const seen = byKey.get(key);
+    if (!seen) {
+      byKey.set(key, c);
+      continue;
+    }
+    const [tc, ts] = [started(c), started(seen)];
+    if (tc > ts || (tc === ts && badness(c) >= badness(seen))) byKey.set(key, c);
+  }
+  return [...byKey.values()];
+}
+
+/**
  * What is wrong with the CI checks of a PR. Handles both shapes of `statusCheckRollup`: a check run
- * `{ name, status, conclusion }` and a commit status `{ context, state }`. `required` are names that
- * must be in the rollup.
+ * `{ name, status, conclusion }` and a commit status `{ context, state }`. Only the newest entry of
+ * each check counts (`latestChecks`). `required` are names that must be in the rollup.
  * @param {any[]} rollup @param {string[]} [required]
  * @returns {{ failing: string[], pending: string[], missing: string[] }}
  */
@@ -475,7 +518,7 @@ export function rollupProblems(rollup, required = []) {
   const failing = [];
   const pending = [];
   const names = new Set();
-  for (const c of rollup) {
+  for (const c of latestChecks(rollup)) {
     names.add(c.name ?? c.context);
     if (c.state !== undefined && c.status === undefined) {
       const name = c.context ?? c.name ?? 'status';
@@ -1073,7 +1116,9 @@ function runDrift(run, tmpdir, notes) {
   // do not queue again each, so a merge never waits behind a green once per guard.
   const lock = run('git', ['show', `${MAIN}:scripts/heavy-lock.mjs`]);
   if (lock.status !== 0 || hasRelativeImports(lock.stdout) || /"/.test(dir)) {
-    notes.push(`drift-check: no usable scripts/heavy-lock.mjs on ${MAIN}; each heavy guard takes the lock on its own`);
+    notes.push(
+      `drift-check: no usable scripts/heavy-lock.mjs on ${MAIN}; each heavy guard takes the lock on its own`
+    );
     return run('node', ['--input-type=module', '-e', DRIFT_RUNNER, pathToFileURL(file).href]);
   }
   // The lock runs its command through the shell, so the runner is a file (no quotes in the command).
@@ -1081,8 +1126,21 @@ function runDrift(run, tmpdir, notes) {
   const lockFile = path.join(dir, 'heavy-lock.mjs');
   const runner = path.join(dir, 'drift-run.mjs');
   fs.writeFileSync(lockFile, lock.stdout);
-  fs.writeFileSync(runner, DRIFT_RUNNER.replace('process.argv[1]', JSON.stringify(pathToFileURL(file).href)));
-  return run('node', [lockFile, 'run', '--label', 'drift-check (merge gate)', '--priority', 'high', '--', 'node', `"${runner}"`]);
+  fs.writeFileSync(
+    runner,
+    DRIFT_RUNNER.replace('process.argv[1]', JSON.stringify(pathToFileURL(file).href))
+  );
+  return run('node', [
+    lockFile,
+    'run',
+    '--label',
+    'drift-check (merge gate)',
+    '--priority',
+    'high',
+    '--',
+    'node',
+    `"${runner}"`,
+  ]);
 }
 
 /**

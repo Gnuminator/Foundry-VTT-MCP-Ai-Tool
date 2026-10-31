@@ -724,6 +724,29 @@ describe('condition on', () => {
     expect(plan.targets[0]?.line).toBe('Wolf: Poisoned (for 1 round, brings back the expired one)');
   });
 
+  it('resets a stale rider and takes the start from the effect class when it has one', async () => {
+    addActor({
+      id: 'a1',
+      name: 'Wolf',
+      effects: [effect('dnd5eprone000000', 'Prone', ['prone'], { duration: { remaining: 0 } })],
+    });
+    g.CONFIG.ActiveEffect = {
+      documentClass: { getEffectStart: (): object => ({ time: 7, combat: 'c1', round: 2 }) },
+    };
+    // the static id of the rider comes from the fake status list
+    const plan = await planLiveChange(hpRequest({ action: 'condition', condition: 'unconscious' }));
+    const rider = plan.ops.find(o => (o as any).uuid === 'Actor.a1.ActiveEffect.dnd5eprone000000');
+    expect(rider).toMatchObject({
+      kind: 'update',
+      changes: {
+        disabled: false,
+        'duration.value': null,
+        'duration.expired': false,
+        start: { time: 7, combat: 'c1', round: 2 },
+      },
+    });
+  });
+
   it('leaves a custom multi-status effect alone and creates the condition', async () => {
     addActor({
       id: 'a1',

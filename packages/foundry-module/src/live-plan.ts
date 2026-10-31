@@ -463,6 +463,12 @@ function staleEffectFor(actor: LiveActor, statusId: string): Rec | null {
 
 /** The `start` block Foundry would give a new effect: now, and the current combat position. */
 function freshStart(): Rec {
+  const cls = rec(rec(rec(CONFIG)?.ActiveEffect)?.documentClass);
+  const own = cls?.getEffectStart;
+  if (typeof own === 'function') {
+    const start = rec((own as () => unknown).call(cls));
+    if (start) return start;
+  }
   const g = rec(game);
   const combat = rec(rec(g?.combats)?.active) ?? rec(g?.combat);
   return {
@@ -563,7 +569,16 @@ export async function planCondition(
       const staleRider = staleEffectFor(actor, riderId);
       const staleRiderUuid = staleRider ? effectUuid(staleRider) : null;
       if (staleRiderUuid) {
-        ops.push({ kind: 'update', uuid: staleRiderUuid, changes: { disabled: false } });
+        ops.push({
+          kind: 'update',
+          uuid: staleRiderUuid,
+          changes: {
+            disabled: false,
+            'duration.value': null,
+            'duration.expired': false,
+            start: freshStart(),
+          },
+        });
       } else
         ops.push({
           kind: 'create',

@@ -1,7 +1,8 @@
 // Dev only (item gm-page-wrapper): lets the test dashboard's GM page (/gm) frame the test Foundry.
-// Foundry 14 sends `X-Frame-Options: DENY`; this proxy sits in front of the test server and does
-// what the Cloudflare response-header rule does on the Pi: removes that header and sets
-// `Content-Security-Policy: frame-ancestors <dashboard origin>`. Never part of the production path.
+// Foundry 14 sends `X-Frame-Options: DENY` and refuses a page request with `Sec-Fetch-Dest:
+// iframe`; this proxy sits in front of the test server and does what the Cloudflare rules do on the
+// Pi: removes that response header, sets `Content-Security-Policy: frame-ancestors <dashboard
+// origin>` and drops the request header. Never part of the production path.
 //
 //   node scripts/test-env/foundry-frame-proxy.mjs [--listen 30091] [--target 30001] [--dashboard http://localhost:3100]
 //
@@ -9,8 +10,21 @@
 // ports (31414-31416) and the rehearsal ports (30100, 31614, 31615, 3300), as a dev session must.
 import http from 'node:http';
 import net from 'node:net';
+import { pathToFileURL } from 'node:url';
 
 export const FORBIDDEN_PORTS = [31414, 31415, 31416, 30100, 31614, 31615, 3300];
+
+/**
+ * The headers of a request to Foundry without `Sec-Fetch-Dest: iframe` or `frame`. Foundry 14 also
+ * refuses to answer a page request that says it is for a frame (View.assertDocumentDestination:
+ * only `document` and `empty` pass), so the response headers alone are not enough.
+ */
+export function rewriteRequestHeaders(headers) {
+  const dest = headers['sec-fetch-dest'];
+  if (dest !== 'iframe' && dest !== 'frame') return headers;
+  const { 'sec-fetch-dest': _dropped, ...rest } = headers;
+  return rest;
+}
 
 /** The headers of a Foundry response with the frame rules replaced. */
 export function rewriteHeaders(headers, dashboardOrigin) {
@@ -34,7 +48,13 @@ export function portProblem(port, label) {
 export function createProxy({ listen, target, dashboard }) {
   const server = http.createServer((req, res) => {
     const upstream = http.request(
-      { host: '127.0.0.1', port: target, method: req.method, path: req.url, headers: req.headers },
+      {
+        host: '127.0.0.1',
+        port: target,
+        method: req.method,
+        path: req.url,
+        headers: rewriteRequestHeaders(req.headers),
+      },
       response => {
         res.writeHead(
           response.statusCode ?? 502,
@@ -74,7 +94,7 @@ function arg(name, fallback) {
   return i >= 0 && process.argv[i + 1] ? process.argv[i + 1] : fallback;
 }
 
-if (import.meta.url === `file:///${process.argv[1].replace(/\\/g, '/')}`) {
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const listen = Number(arg('listen', '30091'));
   const target = Number(arg('target', '30001'));
   const dashboard = arg('dashboard', 'http://localhost:3100');

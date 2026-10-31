@@ -18,10 +18,12 @@ export const GM_LAYOUT_KEY = 'cogm_gm_layout';
 export const DEFAULT_STRIP_PX = 420;
 export const MIN_STRIP_PX = 320;
 const MAX_STRIP_PX = 720;
-/** Foundry needs room for the canvas plus its 300 px sidebar. */
-export const MIN_FOUNDRY_PX = 760;
+/** Foundry itself wants a window of at least 1024 x 768 and warns below that (seen live). */
+export const MIN_FOUNDRY_PX = 1024;
+/** The divider's hit area, between the panes. */
+const DIVIDER_PX = 12;
 /** Below this the page shows the strip alone (no side by side): both panes plus the divider. */
-export const SIDE_BY_SIDE_MIN_PX = 1088;
+export const SIDE_BY_SIDE_MIN_PX = MIN_STRIP_PX + DIVIDER_PX + MIN_FOUNDRY_PX;
 /** How long after the frame loads before the page says Foundry may not show here. */
 export const FRAME_WAIT_MS = 8000;
 
@@ -33,7 +35,10 @@ export const DEFAULT_LAYOUT: GmLayout = {
 
 /** The widest the strip may be for this viewport. */
 export function maxStripPx(viewportWidth: number): number {
-  return Math.max(MIN_STRIP_PX, Math.min(MAX_STRIP_PX, viewportWidth - MIN_FOUNDRY_PX));
+  return Math.max(
+    MIN_STRIP_PX,
+    Math.min(MAX_STRIP_PX, viewportWidth - MIN_FOUNDRY_PX - DIVIDER_PX)
+  );
 }
 
 export function clampStripPx(px: number, viewportWidth: number): number {

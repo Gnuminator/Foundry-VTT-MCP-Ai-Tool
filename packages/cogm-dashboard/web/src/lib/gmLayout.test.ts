@@ -11,19 +11,21 @@ import {
 import { LIVE_PICK_MESSAGE, LIVE_READY_MESSAGE } from './mapPick';
 
 describe('the strip width limits', () => {
-  it('keeps Foundry at 760 px or more and the strip between 320 and 720', () => {
-    expect(maxStripPx(1088)).toBe(328);
-    expect(maxStripPx(1400)).toBe(640);
+  it('keeps Foundry at 1024 px or more and the strip between 320 and 720', () => {
+    expect(maxStripPx(1356)).toBe(320);
+    expect(maxStripPx(1440)).toBe(404);
+    expect(maxStripPx(1600)).toBe(564);
     expect(maxStripPx(3000)).toBe(720);
     expect(clampStripPx(100, 1920)).toBe(320);
     expect(clampStripPx(900, 1920)).toBe(720);
-    expect(clampStripPx(420, 1100)).toBe(340);
+    expect(clampStripPx(420, 1440)).toBe(404);
+    expect(clampStripPx(420, 1920)).toBe(420);
     expect(clampStripPx(NaN, 1920)).toBe(420);
   });
 
-  it('fits side by side from 1088 px', () => {
-    expect(fitsSideBySide(1088)).toBe(true);
-    expect(fitsSideBySide(1087)).toBe(false);
+  it('fits side by side from 1356 px (strip 320 + divider 12 + Foundry 1024)', () => {
+    expect(fitsSideBySide(1356)).toBe(true);
+    expect(fitsSideBySide(1355)).toBe(false);
     expect(fitsSideBySide(390)).toBe(false);
   });
 });

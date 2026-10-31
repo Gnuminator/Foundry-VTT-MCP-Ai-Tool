@@ -2,7 +2,12 @@ import assert from 'node:assert/strict';
 import http from 'node:http';
 import { test } from 'node:test';
 
-import { createProxy, portProblem, rewriteHeaders } from './foundry-frame-proxy.mjs';
+import {
+  createProxy,
+  portProblem,
+  rewriteHeaders,
+  rewriteRequestHeaders,
+} from './foundry-frame-proxy.mjs';
 
 test('rewriteHeaders drops X-Frame-Options and any CSP, then frames the dashboard only', () => {
   const out = rewriteHeaders(
@@ -17,6 +22,17 @@ test('rewriteHeaders drops X-Frame-Options and any CSP, then frames the dashboar
     'Content-Type': 'text/html',
     'content-security-policy': 'frame-ancestors http://localhost:3100',
   });
+});
+
+test('rewriteRequestHeaders drops Sec-Fetch-Dest for a frame and leaves other requests alone', () => {
+  assert.deepEqual(rewriteRequestHeaders({ 'sec-fetch-dest': 'iframe', accept: 'text/html' }), {
+    accept: 'text/html',
+  });
+  assert.deepEqual(rewriteRequestHeaders({ 'sec-fetch-dest': 'frame' }), {});
+  const doc = { 'sec-fetch-dest': 'document' };
+  assert.equal(rewriteRequestHeaders(doc), doc);
+  const script = { 'sec-fetch-dest': 'script' };
+  assert.equal(rewriteRequestHeaders(script), script);
 });
 
 test('portProblem refuses live and rehearsal ports and junk', () => {

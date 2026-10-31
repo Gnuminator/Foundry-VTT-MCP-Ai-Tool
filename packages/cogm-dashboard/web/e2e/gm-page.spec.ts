@@ -32,7 +32,7 @@ async function setup(
     json: { foundryUrl: FOUNDRY, foundryOrigin: FOUNDRY },
   }
 ): Promise<void> {
-  await page.setViewportSize({ width: 1400, height: 900 });
+  await page.setViewportSize({ width: 1700, height: 900 });
   await fakeCommonRoutes(page);
   await fakeTools(page, () => ok({}), { playSession: true });
   await page.route('**/api/gm-page', route => route.fulfill(info));

@@ -24,6 +24,7 @@ import {
   AI_LIMIT,
   EVERYONE_LIMIT,
   EVERYONE_TOOL,
+  FILTER_AI,
   FILTER_ALL,
   changeState,
   dialogFor,
@@ -244,7 +245,7 @@ async function walkUndo(
 /** The one-line body of a list that is not there: a failure words itself, the rest use Panel's. */
 const failedText = (err: unknown): string => `Couldn't load changes: ${errorText(err)}`;
 
-function ChangesCard({ active }: { active: boolean }): JSX.Element {
+function ChangesCard({ active, oneList }: { active: boolean; oneList: boolean }): JSX.Element {
   const fold = useCardFold();
   const toast = useToast();
   const guarded = useGuardedTools();
@@ -263,7 +264,8 @@ function ChangesCard({ active }: { active: boolean }): JSX.Element {
     retry: false,
   });
   const supported = catalog.data?.tools?.some(t => t.name === EVERYONE_TOOL) === true;
-  const shown: Tab = supported ? tab : 'ai';
+  // The Live screen's "What just happened" is the Everyone list alone, with an AI only box.
+  const shown: Tab = supported ? (oneList ? 'everyone' : tab) : 'ai';
 
   // Each list loads while its tab shows (the Everyone list is not read otherwise), on every
   // switch to it, after a change or undo (GAME_STATE_KEY) and on a gm-change event (stream.ts).
@@ -379,7 +381,7 @@ function ChangesCard({ active }: { active: boolean }): JSX.Element {
         id="pane-changes"
         tabIndex={-1}
         className={folded ? 'is-folded' : undefined}
-        title="Recent Changes"
+        title={oneList ? 'What just happened' : 'Recent Changes'}
         titleId="changes-title"
         aria-labelledby="changes-title"
         help="dashboard#recent-changes"
@@ -401,7 +403,20 @@ function ChangesCard({ active }: { active: boolean }): JSX.Element {
           </button>
         }
         lead={
-          supported ? (
+          supported && oneList ? (
+            <div className="changes-toolbar" id="changes-toolbar">
+              <label className="changes-ai-only">
+                <input
+                  type="checkbox"
+                  id="changes-ai-only"
+                  data-track="dash.changes.ai-only"
+                  checked={personNow === FILTER_AI}
+                  onChange={e => setPerson(e.target.checked ? FILTER_AI : FILTER_ALL)}
+                />{' '}
+                AI only
+              </label>
+            </div>
+          ) : supported ? (
             <div className="changes-toolbar" id="changes-toolbar">
               <div className="changes-tabs" role="group" aria-label="Which changes to show">
                 <button
@@ -470,8 +485,13 @@ function ChangesCard({ active }: { active: boolean }): JSX.Element {
  * its tab, filter and data stay when the view changes. Over Before it has no slot: it loads
  * nothing and shows nothing.
  */
-export default function RecentChangesPane(): JSX.Element {
+export default function RecentChangesPane({
+  oneList = false,
+}: {
+  /** The Live screen: one list ("What just happened") with an AI only box, no tabs. */
+  oneList?: boolean;
+}): JSX.Element {
   const slot = useContext(DockContext);
   const host = useDockHost(slot);
-  return createPortal(<ChangesCard active={slot !== null} />, host);
+  return createPortal(<ChangesCard active={slot !== null} oneList={oneList} />, host);
 }

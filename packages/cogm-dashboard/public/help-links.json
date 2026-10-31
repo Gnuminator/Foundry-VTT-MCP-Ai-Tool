@@ -12,10 +12,6 @@
     "help": "dashboard#recent-changes"
   },
   {
-    "panel": "#pane-ai",
-    "help": "dashboard#ai-commentary"
-  },
-  {
     "panel": "#pane-diagnostics",
     "help": "dashboard#module-diagnostics"
   },

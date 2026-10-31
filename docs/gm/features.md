@@ -7,9 +7,7 @@ description: The feature switches of Foundry AI Tool you use at the table, what 
 
 The tool starts small. A few features are on from the start; the rest are off until you need them,
 so a new world never does more than you expect. This page lists each one: what it does, whether it
-starts on, and **when to turn it on**. The old dashboard (`/legacy/`) shows the same list as cards
-at the bottom of its **Before** view, each with a link back here. The page at `/` does not have the
-cards yet.
+starts on, and **when to turn it on**.
 
 Most switches are Foundry settings: the **Settings** tab (the gear icon in the sidebar), **Game
 Settings**, category **Foundry AI Tool**. Tick or untick, then **Save Changes**. They stop the

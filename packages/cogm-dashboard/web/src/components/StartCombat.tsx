@@ -57,6 +57,7 @@ function TokenList({
         try {
           await callTool('roll-initiative-for-npcs', { scope: 'npcs' }, { confirm: true });
           void queryClient.invalidateQueries({ queryKey: GAME_STATE_KEY });
+          toast('✓ Rolled initiative for the NPCs', 'ok');
         } catch (err) {
           toast(
             `✗ Roll initiative: ${errorText(err)}${mayHaveApplied(err) ? ' It may have applied; check the tracker.' : ''}`,

@@ -76,9 +76,11 @@ export async function resetDashboard(page) {
     // does not reopen them: open Recent Changes again for the rows that read #changes-body.
     press('.fold-btn[data-fold="changes"][aria-expanded="false"]');
     // A selected combatant stays selected: clear it, so the next click selects instead of unselecting.
-    press('#combat-actions .ca-btn.ghost');
+    press('[data-track="dash.combat.selection-clear"]');
     for (const pane of ['#pane-ai', '#pane-diagnostics', '#pane-links', '#pane-help'])
       press(`${pane} .overlay-close`);
+    // The Tool Runner keeps the tool it showed last: go back to the list, so the next row finds the search box.
+    press('#tool-back');
     for (const close of [
       '#drawer-close',
       '#tarokka-close',
@@ -91,6 +93,8 @@ export async function resetDashboard(page) {
     // A click on the page closes the Advanced menu.
     document.body.click();
   });
+  // Radix panels (drawers, the player links, the help pane) close on Escape; nothing open ignores it.
+  await page.keyboard.press('Escape');
   await page.waitForTimeout(60);
 }
 

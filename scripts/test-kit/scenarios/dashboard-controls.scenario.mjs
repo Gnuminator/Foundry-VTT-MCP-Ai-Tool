@@ -21,6 +21,7 @@ import {
   moduleSkips,
   readUsageCatalog,
 } from '../lib/dashboard-controls.mjs';
+import { waitReady } from '../lib/dashboard-page.mjs';
 import { sweepGroups } from '../lib/dashboard-sweep.mjs';
 import { tokenHeroes, waitFor } from '../lib/helpers.mjs';
 
@@ -64,20 +65,10 @@ export default {
       /** @type {import('playwright-core').Page} */
       let page;
       await t.step('open the dashboard', async () => {
-        // The old page (D-126): these steps use its controls; React is at / (D-126).
-        page = await browser.open('/legacy/', { viewport: VIEWPORT });
-        await page
-          .waitForFunction(
-            () => {
-              const bridge = document.querySelector('#status-bridge')?.textContent ?? '';
-              return bridge !== '' && !/connecting/i.test(bridge);
-            },
-            undefined,
-            { timeout: 30000 }
-          )
-          .catch(() => {
-            throw new Error('the dashboard never connected to its bridge');
-          });
+        page = await browser.open('/', { viewport: VIEWPORT });
+        await waitReady(page).catch(() => {
+          throw new Error('the dashboard never connected to its bridge');
+        });
         await page.waitForTimeout(800);
         // GM Actions on for the run (the Everyone tab's Undo opens its window only then), put back
         // afterwards. The sweep never clicks a write row, so nothing else changes.

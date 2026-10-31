@@ -61,13 +61,6 @@ export const ALLOWED = {
     'developer facts: the old page still exists and where its files are',
   'docs/dev/ARCHITECTURE.md': 'developer fact: the old page stays at /legacy/ until after G1',
   'scripts/green.test.mjs': 'a path used as a quick-check fixture',
-  'scripts/test-kit/lib/dashboard-controls.mjs':
-    'pending: the kit sweep still drives the old page (kit port)',
-  'scripts/test-kit/lib/dashboard-page.mjs':
-    'pending: the kit sweep still drives the old page (kit port)',
-  'scripts/test-kit/scenarios/dashboard-controls.scenario.mjs': 'pending: kit port',
-  'scripts/test-kit/scenarios/dashboard-login-split.scenario.mjs': 'pending: kit port',
-  'scripts/test-kit/scenarios/dashboard-write-flows.scenario.mjs': 'pending: kit port',
 };
 
 /** Tracked files in scope, as repo-relative paths with forward slashes. */

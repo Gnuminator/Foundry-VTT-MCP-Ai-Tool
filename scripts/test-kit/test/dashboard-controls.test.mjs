@@ -4,7 +4,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
@@ -33,6 +33,21 @@ import {
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 const pub = path.join(root, 'packages', 'cogm-dashboard', 'public');
 const read = (/** @type {string} */ f) => readFileSync(path.join(pub, f), 'utf8');
+const webSrc = path.join(root, 'packages', 'cogm-dashboard', 'web', 'src');
+
+/** Every source file of the React dashboard (no stories), as one string. */
+function readDashboardSources(/** @type {string} */ dir = webSrc) {
+  let text = '';
+  for (const e of readdirSync(dir, { withFileTypes: true })) {
+    const p = path.join(dir, e.name);
+    if (e.isDirectory()) text += readDashboardSources(p);
+    else if (/\.(tsx?|css)$/.test(e.name) && !/\.(stories|test)\./.test(e.name)) {
+      text += readFileSync(p, 'utf8');
+    }
+  }
+  return text;
+}
+const dashboardSources = readDashboardSources();
 const catalog = readUsageCatalog();
 const byName = new Map(CONTROLS.map(r => [r.name, r]));
 
@@ -148,7 +163,7 @@ test('module entries are skipped with the reason "inside Foundry: the foundry-co
 });
 
 test('expect and gone selectors point at ids and classes the front end has', () => {
-  const dashboardFiles = read('index.html') + read('app.js');
+  const dashboardFiles = dashboardSources;
   const playerFiles = read('player.html') + read('player.js');
   for (const r of CONTROLS) {
     const files = r.name.startsWith('player.') ? playerFiles : dashboardFiles;
@@ -163,7 +178,11 @@ test('expect and gone selectors point at ids and classes the front end has', () 
         assert.ok(
           files.includes(`id="${m[1]}"`) ||
             files.includes(`'${m[1]}'`) ||
-            files.includes(`$('${m[1]}')`),
+            files.includes(`$('${m[1]}')`) ||
+            // The React panels build their body id from the pane id (`${id}-body`).
+            // The undo window's buttons get `undo-${key}`.
+            (m[1].startsWith('undo-') && files.includes('id: `undo-${button.key}`')) ||
+            (m[1].endsWith('-body') && files.includes(`id="${m[1].slice(0, -5)}"`)),
           `${r.name}: id "${m[1]}" in "${sel}" is not in the page files`
         );
       }
@@ -178,8 +197,8 @@ test('expect and gone selectors point at ids and classes the front end has', () 
 });
 
 test('a control with a data-track mark in the page is found by it', () => {
-  const html = read('index.html') + read('player.html');
-  const code = read('app.js') + read('player.js');
+  const html = dashboardSources + read('player.html');
+  const code = dashboardSources + read('player.js');
   for (const r of CONTROLS) {
     if (r.selector || ['view', 'shortcut', 'write', 'error', 'skip'].includes(r.how)) continue;
     assert.equal(selectorOf(r), `[data-track="${r.name}"]`);

@@ -1,8 +1,8 @@
 /**
- * Small helpers for driving the GM dashboard page (packages/cogm-dashboard/public/index.html and app.js)
+ * Small helpers for driving the GM dashboard page (the React app in packages/cogm-dashboard/web/src, served at /)
  * with Playwright: the Advanced menu, the During screen's cards, the tool runner form, the confirm
  * window, the toasts with their Undo. Used by the write flow scenario (slice 4). Element ids come from
- * index.html and app.js; keep them in step. These helpers only click and read; they never call the
+ * web/src; keep them in step. These helpers only click and read; they never call the
  * dashboard's API themselves.
  */
 
@@ -45,8 +45,13 @@ export const squash = text =>
  */
 export async function waitReady(page) {
   await page.locator('#btn-gm').waitFor({ state: 'visible', timeout: 20000 });
+  // The stream mark is empty while all is well and names the trouble otherwise (Connection lost...).
   await page.waitForFunction(
-    () => /Bridge: connected/.test(document.querySelector('#status-bridge')?.textContent ?? ''),
+    () => {
+      const mark = document.querySelector('#stream-state');
+      const label = document.querySelector('#btn-gm')?.textContent ?? '';
+      return mark && !mark.textContent?.trim() && label.trim() !== '' && !label.includes('…');
+    },
     undefined,
     { timeout: 30000 }
   );
@@ -81,7 +86,7 @@ export async function menuClick(page, selector) {
  * @param {import('playwright-core').Page} page
  */
 export async function showDuring(page) {
-  await page.locator('[data-moment="during"]').click();
+  await page.locator('#tab-during').click();
   await page.locator('#moment-during').waitFor({ state: 'visible', timeout: 10000 });
 }
 
@@ -111,7 +116,7 @@ export async function openCard(page, name) {
 export function markToasts(page) {
   return page.evaluate(() =>
     document
-      .querySelectorAll('#toast-stack .toast')
+      .querySelectorAll('.toast-stack .toast')
       .forEach(el => el.setAttribute('data-seen', '1'))
   );
 }
@@ -127,7 +132,7 @@ export function markToasts(page) {
 export async function waitToast(page, want, timeout = 30000) {
   const handle = await page.waitForFunction(
     kind => {
-      for (const el of document.querySelectorAll('#toast-stack .toast:not([data-seen])')) {
+      for (const el of document.querySelectorAll('.toast-stack .toast:not([data-seen])')) {
         const cls = el.className;
         const text = el.textContent || '';
         if (/\b(err|warn)\b/.test(cls)) return { refused: true, text };
@@ -152,7 +157,7 @@ export async function waitToast(page, want, timeout = 30000) {
  */
 export async function undoFromToast(page) {
   const button = await page
-    .locator('#toast-stack .toast-undo:not([data-seen]) .toast-action')
+    .locator('.toast-stack .toast-undo:not([data-seen]) .toast-action')
     .last()
     .elementHandle();
   if (!button) throw new Error('no toast with an Undo button is on screen');
@@ -169,8 +174,8 @@ export async function undoFromToast(page) {
 export async function readModal(page) {
   await page.locator('#modal-backdrop').waitFor({ state: 'visible', timeout: 15000 });
   return {
-    title: squash(await page.locator('#modal-title').textContent()),
-    body: squash(await page.locator('#modal-body').innerText()),
+    title: squash(await page.locator('#modal h3').textContent()),
+    body: squash(await page.locator('#modal .modal-body').innerText()),
     destructive: await page.locator('#modal-destructive').isVisible(),
   };
 }
@@ -197,8 +202,8 @@ export async function confirmModal(page) {
 export async function settleWrite(page, { confirm = true } = {}) {
   await page.waitForFunction(
     () =>
-      !document.querySelector('#modal-backdrop')?.hasAttribute('hidden') ||
-      document.querySelector('#toast-stack .toast:not([data-seen])'),
+      document.querySelector('#modal-backdrop') ||
+      document.querySelector('.toast-stack .toast:not([data-seen])'),
     undefined,
     { timeout: 30000 }
   );
@@ -206,7 +211,7 @@ export async function settleWrite(page, { confirm = true } = {}) {
     const refusal = await page.evaluate(() =>
       [
         ...document.querySelectorAll(
-          '#toast-stack .toast.err:not([data-seen]), #toast-stack .toast.warn:not([data-seen])'
+          '.toast-stack .toast.err:not([data-seen]), .toast-stack .toast.warn:not([data-seen])'
         ),
       ]
         .map(el => el.textContent || '')
@@ -273,7 +278,7 @@ export async function resetUi(page) {
       if (await close.isVisible()) await close.click();
     }
     await page.evaluate(() =>
-      document.querySelectorAll('#toast-stack .toast').forEach(el => el.remove())
+      document.querySelectorAll('.toast-stack .toast').forEach(el => el.setAttribute('data-seen', '1'))
     );
   } catch {
     /* the page is gone or busy; the next flow reports it */

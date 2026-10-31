@@ -29,13 +29,7 @@ import {
   playerQueryRows,
 } from '../lib/foundry-sweep-play.mjs';
 import { settingsRows } from '../lib/foundry-sweep-settings.mjs';
-import {
-  Sweep,
-  closeWindows,
-  expandSidebar,
-  hideModuleOverlays,
-  resetControls,
-} from '../lib/foundry-sweep.mjs';
+import { Sweep, closeWindows, expandSidebar, hideModuleOverlays, resetControls } from '../lib/foundry-sweep.mjs';
 
 /** @type {import('../lib/contract.mjs').Scenario} */
 export default {

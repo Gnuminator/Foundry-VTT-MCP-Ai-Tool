@@ -782,17 +782,12 @@ test('runOddCheck: a probe is always deleted, also when the check throws', async
   const content = {
     ...boom,
     run: async () => ({
-      problems: [
-        { kind: 'CONTENT', what: 'x', evidence: 'Wolf: the feature has no activity to use' },
-      ],
+      problems: [{ kind: 'CONTENT', what: 'x', evidence: 'Wolf: the feature has no activity to use' }],
       notes: [],
     }),
   };
   const r2 = await runOddCheck(content, [row()], io);
-  assert.equal(
-    r2.failed[0].problems[0].evidence,
-    'Wolf: the feature has no activity to use; in p.m'
-  );
+  assert.equal(r2.failed[0].problems[0].evidence, 'Wolf: the feature has no activity to use; in p.m');
 });
 
 test('pickOddRows: smoke takes two per check and one per movement mode; full takes all', () => {

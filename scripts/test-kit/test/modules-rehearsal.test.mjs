@@ -17,23 +17,8 @@ import {
   splitFindings,
 } from '../../modules/lib.mjs';
 import { spawnSync } from 'node:child_process';
-import {
-  appDirOf,
-  archivePackage,
-  downloadZip,
-  installFromZip,
-  lockHolder,
-  unpackZip,
-  unsafeEntryName,
-  zipEntryNames,
-  zipFolder,
-} from '../../modules/ops.mjs';
-import {
-  errorFindings,
-  kitModuleFindings,
-  parseArgs,
-  versionMismatches,
-} from '../../modules/rehearse.mjs';
+import { appDirOf, archivePackage, downloadZip, installFromZip, lockHolder, unpackZip, unsafeEntryName, zipEntryNames, zipFolder } from '../../modules/ops.mjs';
+import { errorFindings, kitModuleFindings, parseArgs, versionMismatches } from '../../modules/rehearse.mjs';
 import { loadProfile, SHIPPED_PROFILES } from '../lib/profiles.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -44,13 +29,7 @@ function fakeModule(dataDir, kind, id, version, extra = {}) {
   mkdirSync(dir, { recursive: true });
   writeFileSync(
     path.join(dir, kind === 'system' ? 'system.json' : 'module.json'),
-    JSON.stringify({
-      id,
-      title: id,
-      version,
-      manifest: `https://example.test/${id}.json`,
-      ...extra,
-    })
+    JSON.stringify({ id, title: id, version, manifest: `https://example.test/${id}.json`, ...extra })
   );
   return dir;
 }
@@ -77,23 +56,14 @@ test('scanInstalled reads modules and systems and skips folders without a manife
   fakeModule(d, 'system', 'dnd5e', '6.0.5');
   mkdirSync(path.join(d, 'modules', 'README-only'));
   const got = scanInstalled(d);
-  assert.deepEqual(
-    got.map(p => [p.kind, p.id, p.version]),
-    [
-      ['module', 'dae', '14.0.19'],
-      ['system', 'dnd5e', '6.0.5'],
-    ]
-  );
+  assert.deepEqual(got.map(p => [p.kind, p.id, p.version]), [['module', 'dae', '14.0.19'], ['system', 'dnd5e', '6.0.5']]);
   assert.equal(got[0].verified, '14.368');
   rmSync(d, { recursive: true, force: true });
 });
 
 test('readManifest accepts https downloads only', () => {
   assert.equal(readManifest({ id: 'a', version: '1', download: 'http://x/z.zip' }).download, null);
-  assert.equal(
-    readManifest({ id: 'a', version: '1', download: 'https://x/z.zip' }).download,
-    'https://x/z.zip'
-  );
+  assert.equal(readManifest({ id: 'a', version: '1', download: 'https://x/z.zip' }).download, 'https://x/z.zip');
   assert.equal(readManifest(null), null);
 });
 
@@ -105,30 +75,9 @@ test('planUpdates names each package state', () => {
     { kind: 'module', id: 'd', version: '1.0.0', title: 'd', manifest: '', verified: '', dir: '' },
     { kind: 'module', id: 'e', version: '1.0.0', title: 'e', manifest: '', verified: '', dir: '' },
   ];
-  const pinned = {
-    updated: '',
-    foundry: null,
-    systems: {},
-    modules: {
-      a: { version: '1.0.0' },
-      b: { version: '1.5.0' },
-      c: { version: '3.0.0' },
-      d: { version: '2.0.0' },
-    },
-  };
-  const plan = planUpdates(
-    installed,
-    pinned,
-    {
-      c: { version: '3.1.0', download: 'https://x/c.zip' },
-      e: { version: null, error: 'HTTP 404' },
-    },
-    { modules: [{ id: 'a', licensed: true }] }
-  );
-  assert.deepEqual(
-    plan.map(p => p.state),
-    ['pinned', 'untested-installed', 'newer-upstream', 'behind-archive', 'unreachable']
-  );
+  const pinned = { updated: '', foundry: null, systems: {}, modules: { a: { version: '1.0.0' }, b: { version: '1.5.0' }, c: { version: '3.0.0' }, d: { version: '2.0.0' } } };
+  const plan = planUpdates(installed, pinned, { c: { version: '3.1.0', download: 'https://x/c.zip' }, e: { version: null, error: 'HTTP 404' } }, { modules: [{ id: 'a', licensed: true }] });
+  assert.deepEqual(plan.map(p => p.state), ['pinned', 'untested-installed', 'newer-upstream', 'behind-archive', 'unreachable']);
   assert.equal(plan[0].inStrahd, true);
   assert.equal(plan[0].licensed, true);
   assert.equal(plan[2].download, 'https://x/c.zip');
@@ -149,14 +98,8 @@ test('splitFindings keeps known upstream findings from hiding new ones', () => {
     ],
     expected
   );
-  assert.deepEqual(
-    r.known.map(f => f.expectedId),
-    ['k1', 'k2']
-  );
-  assert.deepEqual(
-    r.fresh.map(f => f.text),
-    ['HTTP 403 again', 'TypeError: new thing']
-  );
+  assert.deepEqual(r.known.map(f => f.expectedId), ['k1', 'k2']);
+  assert.deepEqual(r.fresh.map(f => f.text), ['HTTP 403 again', 'TypeError: new thing']);
   assert.deepEqual(r.unseen, ['k3']);
 });
 
@@ -165,57 +108,26 @@ test('a run passes only with passing steps and no new findings in the report', (
   assert.equal(runPassed([{ status: 'skip' }]), false); // nothing tested is no pass
   assert.equal(runPassed([{ status: 'pass' }, { status: 'fail' }]), false);
   assert.equal(runPassed([]), false);
-  const base = {
-    server: 'B',
-    stamp: 's',
-    gitSha: 'abc',
-    foundry: '14.369',
-    system: '6.0.6',
-    plan: [],
-    steps: [{ name: 'kit', status: 'pass' }],
-  };
-  assert.match(
-    renderReport({ ...base, findings: { known: [], fresh: [], unseen: [] } }),
-    /Verdict: \*\*PASS\*\*/
-  );
-  assert.match(
-    renderReport({
-      ...base,
-      findings: { known: [], fresh: [{ module: 'm', text: 't' }], unseen: [] },
-    }),
-    /Verdict: \*\*FAIL\*\*/
-  );
+  const base = { server: 'B', stamp: 's', gitSha: 'abc', foundry: '14.369', system: '6.0.6', plan: [], steps: [{ name: 'kit', status: 'pass' }] };
+  assert.match(renderReport({ ...base, findings: { known: [], fresh: [], unseen: [] } }), /Verdict: \*\*PASS\*\*/);
+  assert.match(renderReport({ ...base, findings: { known: [], fresh: [{ module: 'm', text: 't' }], unseen: [] } }), /Verdict: \*\*FAIL\*\*/);
 });
 
 test('errorFindings reads module errors in either shape', () => {
-  assert.deepEqual(errorFindings({ result: { errors: [{ moduleId: 'dae', message: 'boom' }] } }), [
-    { module: 'dae', text: 'boom' },
-  ]);
+  assert.deepEqual(errorFindings({ result: { errors: [{ moduleId: 'dae', message: 'boom' }] } }), [{ module: 'dae', text: 'boom' }]);
   assert.deepEqual(errorFindings({}), []);
-  const stacked = {
-    id: 'diag-1',
-    module: null,
-    message: 'x',
-    stack: 'at f (http://h/modules/dae/dae.js:1:1)',
-    timestampMs: 100,
-  };
+  const stacked = { id: 'diag-1', module: null, message: 'x', stack: 'at f (http://h/modules/dae/dae.js:1:1)', timestampMs: 100 };
   assert.deepEqual(errorFindings({ errors: [stacked, { message: 'y', timestampMs: 100 }] }), [
     { module: 'dae', text: 'x' },
     { module: '*', text: 'y' },
   ]);
   assert.deepEqual(errorFindings({ errors: [stacked] }, 101), []);
-  assert.equal(
-    errorFindings({ errors: [{ module: 'module:dae', message: 'z' }] })[0].module,
-    'dae'
-  );
+  assert.equal(errorFindings({ errors: [{ module: 'module:dae', message: 'z' }] })[0].module, 'dae');
 });
 
 test('parseArgs reads the command and its flags and refuses the rest', () => {
   const o = parseArgs(['run', '--server', 'C', '--size', 'full', '--no-kit', '--ids', 'a,b']);
-  assert.deepEqual(
-    [o.cmd, o.server, o.size, o.kit, o.ids],
-    ['run', 'C', 'full', false, ['a', 'b']]
-  );
+  assert.deepEqual([o.cmd, o.server, o.size, o.kit, o.ids], ['run', 'C', 'full', false, ['a', 'b']]);
   assert.throws(() => parseArgs(['run', '--bogus']));
   assert.throws(() => parseArgs(['run', '--size', 'huge']));
 });
@@ -269,10 +181,7 @@ function writeRealZip(file, entries) {
 }
 
 /** unpackZip uses the tar that reads zips (Windows bsdtar); GNU tar on Linux cannot, so those tests skip there. */
-const zipTar =
-  process.platform === 'win32'
-    ? path.join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'tar.exe')
-    : 'tar';
+const zipTar = process.platform === 'win32' ? path.join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'tar.exe') : 'tar';
 const canUnzip = /bsdtar/.test(spawnSync(zipTar, ['--version'], { encoding: 'utf8' }).stdout ?? '');
 
 test('zipEntryNames reads a real zip and unsafe entry names are refused before unpacking', () => {
@@ -283,10 +192,7 @@ test('zipEntryNames reads a real zip and unsafe entry names are refused before u
   assert.ok(['../x', 'a/../../x', '/abs', 'C:\\x', 'a\\..\\b'].every(unsafeEntryName));
   assert.ok(!['module.json', 'dir/..file', 'a/b.js'].some(unsafeEntryName));
   assert.throws(() => unpackZip(zip), /outside its folder/); // refused by our check, with or without bsdtar
-  writeFileSync(
-    path.join(d, 'plain.zip'),
-    'not a zip at all, long enough to pass the length check'
-  );
+  writeFileSync(path.join(d, 'plain.zip'), 'not a zip at all, long enough to pass the length check');
   assert.deepEqual(zipEntryNames(path.join(d, 'plain.zip')), []);
   // a zip that cannot be read exactly is refused, not passed as clean
   const whole = readFileSync(zip);
@@ -307,44 +213,30 @@ test('zipEntryNames reads a real zip and unsafe entry names are refused before u
   rmSync(d, { recursive: true, force: true });
 });
 
-test(
-  'a real zip unpacks, even with the package inside one folder',
-  { skip: !canUnzip && 'needs bsdtar' },
-  () => {
-    const d = tmp();
-    const zip = path.join(d, 'real.zip');
-    writeRealZip(zip, {
-      'demo/module.json': JSON.stringify({ id: 'demo', version: '1.0.0' }),
-      'demo/x.js': 'export {}',
-    });
-    const { tmp: out, root } = unpackZip(zip);
-    assert.ok(existsSync(path.join(root, 'x.js')));
-    rmSync(out, { recursive: true, force: true });
-    rmSync(d, { recursive: true, force: true });
-  }
-);
+test('a real zip unpacks, even with the package inside one folder', { skip: !canUnzip && 'needs bsdtar' }, () => {
+  const d = tmp();
+  const zip = path.join(d, 'real.zip');
+  writeRealZip(zip, { 'demo/module.json': JSON.stringify({ id: 'demo', version: '1.0.0' }), 'demo/x.js': 'export {}' });
+  const { tmp: out, root } = unpackZip(zip);
+  assert.ok(existsSync(path.join(root, 'x.js')));
+  rmSync(out, { recursive: true, force: true });
+  rmSync(d, { recursive: true, force: true });
+});
 
-test(
-  'bsdtar itself keeps a "../" entry inside the target folder (unpackZip still refuses it up front)',
-  { skip: !canUnzip && 'needs bsdtar' },
-  () => {
-    const d = tmp();
-    const zip = path.join(d, 'evil.zip');
-    const out = path.join(d, 'a', 'out');
-    mkdirSync(out, { recursive: true });
-    writeRealZip(zip, { 'module.json': '{}', '../evil.txt': 'x' });
-    spawnSync(zipTar, ['-xf', zip, '-C', out], { encoding: 'utf8' });
-    assert.equal(existsSync(path.join(d, 'a', 'evil.txt')), false);
-    rmSync(d, { recursive: true, force: true });
-  }
-);
+test('bsdtar itself keeps a "../" entry inside the target folder (unpackZip still refuses it up front)', { skip: !canUnzip && 'needs bsdtar' }, () => {
+  const d = tmp();
+  const zip = path.join(d, 'evil.zip');
+  const out = path.join(d, 'a', 'out');
+  mkdirSync(out, { recursive: true });
+  writeRealZip(zip, { 'module.json': '{}', '../evil.txt': 'x' });
+  spawnSync(zipTar, ['-xf', zip, '-C', out], { encoding: 'utf8' });
+  assert.equal(existsSync(path.join(d, 'a', 'evil.txt')), false);
+  rmSync(d, { recursive: true, force: true });
+});
 
 test('modeOfFormula reads the roll mode of a d20 formula', async () => {
   const { modeOfFormula } = await import('../scenarios/module-ac5e-roll-mode.scenario.mjs');
-  assert.deepEqual(
-    ['1d20+2', '2d20kl1 + 3', '2d20kh', '2d20dis + 3', 'nonsense'].map(modeOfFormula),
-    ['normal', 'disadvantage', 'advantage', 'other', 'other']
-  );
+  assert.deepEqual(['1d20+2', '2d20kl1 + 3', '2d20kh', '2d20dis + 3', 'nonsense'].map(modeOfFormula), ['normal', 'disadvantage', 'advantage', 'other', 'other']);
 });
 
 test('versionMismatches names packages whose version changed or went missing since the report', () => {
@@ -353,18 +245,8 @@ test('versionMismatches names packages whose version changed or went missing sin
     { id: 'b', kind: 'module', installed: '2.0.0' },
     { id: 'dnd5e', kind: 'system', installed: '6.0.6' },
   ];
-  assert.deepEqual(
-    versionMismatches(plan, [
-      { id: 'a', kind: 'module', version: '1.0.0' },
-      { id: 'b', kind: 'module', version: '2.1.0' },
-      { id: 'dnd5e', kind: 'system', version: '6.0.6' },
-    ]),
-    ['b 2.0.0 -> 2.1.0']
-  );
-  assert.deepEqual(versionMismatches(plan, [{ id: 'a', kind: 'module', version: 'v1.0.0' }]), [
-    'b 2.0.0 -> gone',
-    'dnd5e 6.0.6 -> gone',
-  ]);
+  assert.deepEqual(versionMismatches(plan, [{ id: 'a', kind: 'module', version: '1.0.0' }, { id: 'b', kind: 'module', version: '2.1.0' }, { id: 'dnd5e', kind: 'system', version: '6.0.6' }]), ['b 2.0.0 -> 2.1.0']);
+  assert.deepEqual(versionMismatches(plan, [{ id: 'a', kind: 'module', version: 'v1.0.0' }]), ['b 2.0.0 -> gone', 'dnd5e 6.0.6 -> gone']);
 });
 
 test('kitModuleFindings reads what module-load attached to the last kit report', () => {
@@ -372,85 +254,44 @@ test('kitModuleFindings reads what module-load attached to the last kit report',
   const dir = path.join(home, 'run-1');
   mkdirSync(dir);
   assert.equal(kitModuleFindings(home), null); // no last-run.json
-  const last = {
-    reportDir: dir,
-    server: 'A',
-    profile: 'modules-all',
-    finishedAt: new Date().toISOString(),
-  };
+  const last = { reportDir: dir, server: 'A', profile: 'modules-all', finishedAt: new Date().toISOString() };
   writeFileSync(path.join(home, 'last-run.json'), JSON.stringify({ lastRun: last }));
   assert.equal(kitModuleFindings(home), null); // no report yet
   const found = [{ module: 'dae', text: 'boom' }];
-  writeFileSync(
-    path.join(dir, 'report.json'),
-    JSON.stringify({
-      scenarios: [
-        { id: 'other', attachments: [] },
-        { id: 'module-load', attachments: [{ name: 'module-findings', data: found }] },
-      ],
-    })
-  );
+  writeFileSync(path.join(dir, 'report.json'), JSON.stringify({ scenarios: [{ id: 'other', attachments: [] }, { id: 'module-load', attachments: [{ name: 'module-findings', data: found }] }] }));
   assert.deepEqual(kitModuleFindings(home, 0, 'A'), found);
   assert.equal(kitModuleFindings(home, Date.now() + 60000, 'A'), null); // an older run than this rehearsal
   assert.equal(kitModuleFindings(home, 0, 'B'), null); // another server's run
-  writeFileSync(
-    path.join(home, 'last-run.json'),
-    JSON.stringify({ lastRun: { ...last, profile: 'srd' } })
-  );
+  writeFileSync(path.join(home, 'last-run.json'), JSON.stringify({ lastRun: { ...last, profile: 'srd' } }));
   assert.equal(kitModuleFindings(home, 0, 'A'), null); // another profile
   rmSync(home, { recursive: true, force: true });
 });
 
-test(
-  'the archive round trip: zip an installed module, archive it, install it elsewhere',
-  { skip: !canUnzip && 'needs bsdtar' },
-  async () => {
-    const d = tmp();
-    const root = path.join(d, 'archive');
-    const dataA = path.join(d, 'a', 'Data');
-    const dataB = path.join(d, 'b', 'Data');
-    const dir = fakeModule(dataA, 'module', 'demo', '1.2.3');
-    writeFileSync(path.join(dir, 'x.js'), 'export {}');
-    // a real zip (as a download is), plus the zip made from the installed folder
-    const real = path.join(d, 'demo-real.zip');
-    writeRealZip(real, {
-      'module.json': JSON.stringify({ id: 'demo', title: 'demo', version: '1.2.3' }),
-      'x.js': 'export {}',
-    });
-    await archivePackage({ root, kind: 'module', id: 'demo', version: '1.2.3', zip: real });
-    assert.equal(readPinned(root).modules.demo.version, '1.2.3');
-    const zip = await archivePackage({
-      root,
-      kind: 'module',
-      id: 'demo',
-      version: '1.2.3',
-      installedDir: dir,
-      licensed: true,
-      testedOn: 'server B',
-    });
-    const pin = readPinned(root).modules.demo;
-    assert.equal(pin.version, '1.2.3');
-    assert.equal(pin.licensed, true);
-    assert.match(pin.sha256, /^[0-9a-f]{64}$/);
-    assert.ok(zip.endsWith(path.join('modules', 'demo', '1.2.3', 'demo-1.2.3.zip')));
-    fakeModule(dataB, 'module', 'demo', '1.0.0');
-    installFromZip({
-      dataDir: dataB,
-      kind: 'module',
-      id: 'demo',
-      zip,
-      rollbackDir: path.join(d, 'rollback'),
-    });
-    assert.equal(scanInstalled(dataB)[0].version, '1.2.3');
-    assert.equal(
-      JSON.parse(readFileSync(path.join(d, 'rollback', 'module-demo', 'module.json'), 'utf8'))
-        .version,
-      '1.0.0'
-    );
-    zipFolder(dir, path.join(d, 'again.zip'));
-    rmSync(d, { recursive: true, force: true });
-  }
-);
+test('the archive round trip: zip an installed module, archive it, install it elsewhere', { skip: !canUnzip && 'needs bsdtar' }, async () => {
+  const d = tmp();
+  const root = path.join(d, 'archive');
+  const dataA = path.join(d, 'a', 'Data');
+  const dataB = path.join(d, 'b', 'Data');
+  const dir = fakeModule(dataA, 'module', 'demo', '1.2.3');
+  writeFileSync(path.join(dir, 'x.js'), 'export {}');
+  // a real zip (as a download is), plus the zip made from the installed folder
+  const real = path.join(d, 'demo-real.zip');
+  writeRealZip(real, { 'module.json': JSON.stringify({ id: 'demo', title: 'demo', version: '1.2.3' }), 'x.js': 'export {}' });
+  await archivePackage({ root, kind: 'module', id: 'demo', version: '1.2.3', zip: real });
+  assert.equal(readPinned(root).modules.demo.version, '1.2.3');
+  const zip = await archivePackage({ root, kind: 'module', id: 'demo', version: '1.2.3', installedDir: dir, licensed: true, testedOn: 'server B' });
+  const pin = readPinned(root).modules.demo;
+  assert.equal(pin.version, '1.2.3');
+  assert.equal(pin.licensed, true);
+  assert.match(pin.sha256, /^[0-9a-f]{64}$/);
+  assert.ok(zip.endsWith(path.join('modules', 'demo', '1.2.3', 'demo-1.2.3.zip')));
+  fakeModule(dataB, 'module', 'demo', '1.0.0');
+  installFromZip({ dataDir: dataB, kind: 'module', id: 'demo', zip, rollbackDir: path.join(d, 'rollback') });
+  assert.equal(scanInstalled(dataB)[0].version, '1.2.3');
+  assert.equal(JSON.parse(readFileSync(path.join(d, 'rollback', 'module-demo', 'module.json'), 'utf8')).version, '1.0.0');
+  zipFolder(dir, path.join(d, 'again.zip'));
+  rmSync(d, { recursive: true, force: true });
+});
 
 test('installFromZip refuses a zip whose manifest id is another package', () => {
   const d = tmp();
@@ -460,14 +301,7 @@ test('installFromZip refuses a zip whose manifest id is another package', () => 
   const data = path.join(d, 'b', 'Data');
   fakeModule(data, 'module', 'demo', '1.0.0');
   assert.throws(
-    () =>
-      installFromZip({
-        dataDir: data,
-        kind: 'module',
-        id: 'demo',
-        zip,
-        rollbackDir: path.join(d, 'rollback'),
-      }),
+    () => installFromZip({ dataDir: data, kind: 'module', id: 'demo', zip, rollbackDir: path.join(d, 'rollback') }),
     /not "demo"/
   );
   assert.equal(scanInstalled(data)[0].version, '1.0.0');
@@ -482,14 +316,8 @@ test('downloadZip stays on https, writes a .part file and keeps only real zips',
     return r;
   };
   const dest = path.join(d, 'a.zip');
-  await assert.rejects(
-    downloadZip('https://x.test/a.zip', dest, fake('PK\x03\x04data', 'http://x.test/a.zip')),
-    /redirected away from https/
-  );
-  await assert.rejects(
-    downloadZip('https://x.test/a.zip', dest, fake('<html>', 'https://x.test/a.zip')),
-    /not a zip/
-  );
+  await assert.rejects(downloadZip('https://x.test/a.zip', dest, fake('PK\x03\x04data', 'http://x.test/a.zip')), /redirected away from https/);
+  await assert.rejects(downloadZip('https://x.test/a.zip', dest, fake('<html>', 'https://x.test/a.zip')), /not a zip/);
   assert.equal(existsSync(dest), false);
   assert.equal(existsSync(`${dest}.part`), false);
   await downloadZip('https://x.test/a.zip', dest, fake('PK\x03\x04data', 'https://x.test/a.zip'));
@@ -515,10 +343,7 @@ test('lockHolder reads a test server lock and treats an unreadable one as held',
   assert.equal(lockHolder({ Root: d }), null);
   writeFileSync(path.join(d, 'lock.json'), JSON.stringify({ holder: null, queue: [] }));
   assert.equal(lockHolder({ Root: d }), null);
-  writeFileSync(
-    path.join(d, 'lock.json'),
-    JSON.stringify({ holder: 'Lane X', session: 'local_1' })
-  );
+  writeFileSync(path.join(d, 'lock.json'), JSON.stringify({ holder: 'Lane X', session: 'local_1' }));
   assert.deepEqual(lockHolder({ Root: d }), { holder: 'Lane X', session: 'local_1' });
   writeFileSync(path.join(d, 'lock.json'), '{ nope');
   assert.equal(lockHolder({ Root: d })?.holder, 'unreadable lock.json');
@@ -529,8 +354,7 @@ test('every expected finding names its id, module, match text and reason', () =>
   const file = path.join(here, '..', '..', 'modules', 'expected.json');
   const { expected } = JSON.parse(readFileSync(file, 'utf8'));
   for (const e of expected) {
-    for (const key of ['id', 'module', 'match', 'why'])
-      assert.equal(typeof e[key], 'string', `${e.id}: ${key}`);
+    for (const key of ['id', 'module', 'match', 'why']) assert.equal(typeof e[key], 'string', `${e.id}: ${key}`);
   }
   assert.equal(new Set(expected.map(e => e.id)).size, expected.length);
 });
@@ -538,28 +362,16 @@ test('every expected finding names its id, module, match text and reason', () =>
 test('the all-modules profile is valid and lists exactly the Strahd modules', () => {
   assert.ok(SHIPPED_PROFILES.includes('modules-all'));
   const profile = loadProfile('modules-all');
-  const strahd = JSON.parse(
-    readFileSync(path.join(here, '..', '..', 'modules', 'strahd-modules.json'), 'utf8')
-  );
-  const want = strahd.modules
-    .map(m => m.id)
-    .filter(id => id !== 'foundry-mcp-bridge')
-    .sort();
+  const strahd = JSON.parse(readFileSync(path.join(here, '..', '..', 'modules', 'strahd-modules.json'), 'utf8'));
+  const want = strahd.modules.map(m => m.id).filter(id => id !== 'foundry-mcp-bridge').sort();
   assert.deepEqual([...profile.modules].sort(), want);
   assert.deepEqual(profile.knownAlso, ['srd']);
 });
 
 test('NotYourTurn blocks players and trusted players, and only warns for GM and Assistant', () => {
-  const strahd = JSON.parse(
-    readFileSync(path.join(here, '..', '..', 'modules', 'strahd-modules.json'), 'utf8')
-  );
+  const strahd = JSON.parse(readFileSync(path.join(here, '..', '..', 'modules', 'strahd-modules.json'), 'utf8'));
   const nyt = strahd.modules.find(m => m.id === 'NotYourTurn');
   // Drop-down values: 0 Off, 1 Warning Only, 2 Dialog Box, 3 Autoblock. The AI Tool acts as a GM,
   // so a blocking GM value would stop AI-planned token moves.
-  assert.deepEqual(nyt.worldSettings, {
-    BlockPlayer: 3,
-    BlockTrusted: 3,
-    BlockAssistant: 1,
-    BlockGM: 1,
-  });
+  assert.deepEqual(nyt.worldSettings, { BlockPlayer: 3, BlockTrusted: 3, BlockAssistant: 1, BlockGM: 1 });
 });

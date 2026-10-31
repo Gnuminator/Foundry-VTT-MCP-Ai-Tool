@@ -46,9 +46,7 @@ export const READ_TOOLS = {
     success: true,
     foundryVersion: '14.368',
     system: { id: 'dnd5e', version: '6.0.5' },
-    modules: [
-      { id: 'foundry-mcp-bridge', title: 'Foundry AI Tool', version: '0.0.0', active: true },
-    ],
+    modules: [{ id: 'foundry-mcp-bridge', title: 'Foundry AI Tool', version: '0.0.0', active: true }],
   }),
 
   'get-module-errors': () => ({ success: true, count: 0, errors: [] }),

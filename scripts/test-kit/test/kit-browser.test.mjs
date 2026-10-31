@@ -160,10 +160,7 @@ test('a failed /api/ request is recorded once, with its tool and error, never it
   const dash = await browser.open('/');
   const api = 'http://d/api/tool';
   // the browser's own line for it is left out: the response listener says more
-  dash.emit(
-    'console',
-    consoleMsg('Failed to load resource: the server responded with a status of 422', api)
-  );
+  dash.emit('console', consoleMsg('Failed to load resource: the server responded with a status of 422', api));
   await dash.emit(
     'response',
     response(422, api, {

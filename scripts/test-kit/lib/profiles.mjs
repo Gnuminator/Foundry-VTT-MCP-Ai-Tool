@@ -18,7 +18,7 @@ export const SRD_PROFILE_FILE = path.join(here, '..', 'data', 'profiles', 'srd.j
 /** Profiles that ship in the repo besides `srd`. */
 export const SHIPPED_PROFILES = ['modules-all'];
 
-const PROFILE_ID_RE = /^[a-z0-9][a-z0-9-]{0,40}$/;
+const PROFILE_ID_RE =/^[a-z0-9][a-z0-9-]{0,40}$/;
 const PACK_KINDS = [
   'classes',
   'subclasses',

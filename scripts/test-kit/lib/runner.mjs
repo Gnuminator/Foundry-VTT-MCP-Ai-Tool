@@ -344,10 +344,9 @@ async function runOne({ scenario, file }, opts, consoleSink) {
       );
       consoleSink.push(...errors.map(x => ({ ...x, scenario: scenario.id })));
       // A scenario can name errors it reports itself (Actor Studio's own), so they are not blamed on the bridge module.
-      const known = [
-        ...(scenario.knownConsoleErrors ?? []),
-        ...(opts.knownConsoleErrors ?? []),
-      ].map(src => new RegExp(src));
+      const known = [...(scenario.knownConsoleErrors ?? []), ...(opts.knownConsoleErrors ?? [])].map(
+        src => new RegExp(src)
+      );
       const ours = errors.filter(
         (/** @type {{message: string, source: string}} */ x) =>
           (x.message.includes(MODULE_ID) || x.source.includes(MODULE_ID)) &&

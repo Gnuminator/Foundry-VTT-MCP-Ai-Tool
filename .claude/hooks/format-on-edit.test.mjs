@@ -100,6 +100,36 @@ test(
   }
 );
 
+test(
+  'formatEdited: a file that is not prettier-clean at HEAD is left alone, a clean one is formatted',
+  { skip: !hasPrettier },
+  () => {
+    const { root, cleanup } = fixture();
+    try {
+      const git = (...a) => spawnSync('git', ['-C', root, ...a], { stdio: 'ignore' });
+      git('init', '-q');
+      const messy = path.join(root, 'messy.mjs');
+      const clean = path.join(root, 'clean.mjs');
+      writeFileSync(messy, 'const  a=1\n');
+      writeFileSync(clean, 'const a = 1;\n');
+      git('add', '-A');
+      git('-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '-m', 'x');
+      writeFileSync(messy, 'const  a=2\n');
+      writeFileSync(clean, 'const  a=2\n');
+      assert.equal(formatEdited(edit(root, messy), root, REPO_ROOT), false);
+      assert.equal(readFileSync(messy, 'utf8'), 'const  a=2\n');
+      assert.equal(formatEdited(edit(root, clean), root, REPO_ROOT), true);
+      assert.equal(readFileSync(clean, 'utf8'), 'const a = 2;\n');
+      // a new file git does not know yet is formatted
+      const fresh = path.join(root, 'fresh.mjs');
+      writeFileSync(fresh, 'const  b=3\n');
+      assert.equal(formatEdited(edit(root, fresh), root, REPO_ROOT), true);
+    } finally {
+      cleanup();
+    }
+  }
+);
+
 test('the hook process: exits 0 and prints nothing, also on garbage stdin', () => {
   const { root, cleanup } = fixture();
   try {

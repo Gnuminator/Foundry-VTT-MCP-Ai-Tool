@@ -132,38 +132,57 @@ function redirectWrites(masked, raw) {
   return false;
 }
 
-/** True when a Bash or PowerShell command writes inside the repo (heuristic, every doubt allows). */
+// Segments of a command as aligned [masked, raw] pairs (masking keeps lengths, so the separators
+// found in the masked text cut the raw text at the same places).
+function segmentsOf(masked, raw) {
+  const out = [];
+  const sep = /&&|\|\||;|\||\r?\n/g;
+  let from = 0;
+  let m;
+  while ((m = sep.exec(masked))) {
+    out.push([masked.slice(from, m.index), raw.slice(from, m.index)]);
+    from = m.index + m[0].length;
+  }
+  out.push([masked.slice(from), raw.slice(from)]);
+  return out;
+}
+
+const CD = /^(?:cd|chdir|pushd|set-location|push-location|sl)\s+(?:-\w+\s+)*("[^"]*"|'[^']*'|\S+)/i;
+
+/**
+ * True when a Bash or PowerShell command writes inside the repo (heuristic, every doubt allows).
+ * A write is exempt when its own segment names the vault, scratchpad or temp, or when the last
+ * `cd` before it went there (or the command started outside the repo and the segment never names it).
+ */
 export function shellWritesRepo(command, cwd, repoRoot = REPO_ROOT) {
   try {
     const text = String(command ?? '');
     if (!text.trim() || text.length > MAX_ANALYZE) return false;
     const { outer, bodies } = splitBodies(text);
     const masked = maskQuotes(outer);
-    let writes = redirectWrites(masked, outer);
-    if (!writes) {
-      const maskedSegments = masked.split(/&&|\|\||;|\||\r?\n/);
-      const rawSegments = outer.split(/&&|\|\||;|\||\r?\n/);
-      // masking keeps lengths, but a split inside a quoted span differs between the two; compare by
-      // index only when the counts agree, else judge the masked text alone
-      writes = maskedSegments.some((seg, i) =>
-        segmentWrites(seg, rawSegments.length === maskedSegments.length ? rawSegments[i] : seg)
-      );
+    const root = normalize(repoRoot).toLowerCase();
+    const namesRepo = s => normalize(s).toLowerCase().includes(root);
+    let away = Boolean(cwd) && !insideRepo(cwd, '', repoRoot);
+    for (const [maskedSeg, rawSeg] of segmentsOf(masked, outer)) {
+      const cd = CD.exec(firstWord(rawSeg).rest);
+      if (cd) {
+        const target = cd[1].replace(/^["']+|["']+$/g, '');
+        const absolute = /^([a-zA-Z]:)?[\\/]/.test(target);
+        if (OUTSIDE.test(target) || (absolute && !insideRepo(target, '', repoRoot))) away = true;
+        else if (absolute) away = false;
+        continue;
+      }
+      const writes = redirectWrites(maskedSeg, rawSeg) || segmentWrites(maskedSeg, rawSeg);
+      if (!writes) continue;
+      if (OUTSIDE.test(rawSeg) || (away && !namesRepo(rawSeg))) continue;
+      return true;
     }
-    if (!writes) {
-      // a node or python script fed on stdin: the heredoc body is the script
-      const feeds = /\b(?:node|python3?|py)\b/.test(masked);
-      writes = feeds && bodies.some(b => SCRIPT_WRITES.test(b.body));
+    // a node or python script fed on stdin: the heredoc body is the script
+    const feeds = /\b(?:node|python3?|py)\b/.test(masked);
+    if (feeds && bodies.some(b => SCRIPT_WRITES.test(b.body))) {
+      return !(OUTSIDE.test(text) || (away && !namesRepo(text)));
     }
-    if (!writes) return false;
-    if (OUTSIDE.test(text)) return false;
-    if (
-      cwd &&
-      !insideRepo(cwd, '', repoRoot) &&
-      !normalize(text).toLowerCase().includes(normalize(repoRoot).toLowerCase())
-    ) {
-      return false; // run from outside the repo and never names it
-    }
-    return true;
+    return false;
   } catch {
     return false;
   }

@@ -222,6 +222,15 @@ test('shellWritesRepo: writing verbs and redirects count, reading and quoted tex
   ];
   for (const c of yes) assert.equal(shellWritesRepo(c, REPO_ROOT), true, c);
   for (const c of no) assert.equal(shellWritesRepo(c, REPO_ROOT), false, c);
+  // an outside path elsewhere in the command does not exempt a repo write
+  assert.equal(shellWritesRepo('npm ci 2>&1 | tee /tmp/ci.log', REPO_ROOT), true);
+  assert.equal(shellWritesRepo('rm -rf dist && cat /tmp/x', REPO_ROOT), true);
+  assert.equal(shellWritesRepo('npm test 2>&1 | tee /tmp/ci.log', REPO_ROOT), false);
+  assert.equal(shellWritesRepo('cd /tmp/work && rm -rf foo && cd - && ls', REPO_ROOT), false);
+  assert.equal(
+    shellWritesRepo(`cd ${os.tmpdir()}/x && touch a; cd "${REPO_ROOT}" && touch b`, REPO_ROOT),
+    true
+  );
   // a command run from outside the repo that never names it is not a repo write
   assert.equal(shellWritesRepo('rm -rf foo', os.tmpdir()), false);
   assert.equal(shellWritesRepo(`rm ${REPO_ROOT}/a`, os.tmpdir()), true);

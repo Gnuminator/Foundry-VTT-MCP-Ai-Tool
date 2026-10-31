@@ -113,7 +113,8 @@ item is marked done; the board ignores a line on an item with no claim.
     branch and open a draft PR, before baselines and review; `gh pr ready` before the gate. Never
     push with failing quick checks. A failure that is already on main is named in the PR body
     (check with `gh run list --branch main -w ci.yml -L 1`), not fixed by guessing.
-  - **Code comments** never contain `#<number>` (a PR or issue number): a test forbids it.
+  - **Code comments** never contain `#<number>` (a PR or issue number goes stale; name the topic
+    or the Decisions id instead).
   - **Still yours:** `npm run docs:tools` after a tool change. Lint and em-dash baselines: the CI
     ratchet tells you when a count dropped or rose; lower the baseline then
     (`npm run lint:ratchet -- --update`).

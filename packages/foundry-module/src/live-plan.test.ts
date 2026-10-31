@@ -695,7 +695,27 @@ describe('condition on', () => {
     );
     expect((plan.ops[0] as any).data.duration).toBeUndefined();
     expect((plan.ops[1] as any).data.duration).toEqual({ value: 1, units: 'rounds' });
-    expect(plan.targets[0]?.line).toBe('Wolf: Unconscious (for 1 round, adds Prone)');
+    expect(plan.targets[0]?.line).toBe('Wolf: Unconscious (for 1 round, adds Prone (not timed))');
+  });
+
+  it('replaces an expired effect that left actor.statuses (same fixed id)', async () => {
+    addActor({
+      id: 'a1',
+      name: 'Wolf',
+      effects: [effect('e1', 'Poisoned', ['poisoned'], { duration: { remaining: 0 } })],
+    });
+    const plan = await planLiveChange(
+      hpRequest({ action: 'condition', condition: 'poisoned', rounds: 1 })
+    );
+    expect(plan.ops.map(o => o.kind)).toEqual(['delete', 'create']);
+    expect(plan.targets[0]?.line).toBe('Wolf: Poisoned (for 1 round, replaces the expired one)');
+  });
+
+  it('says a timer needs the condition removed first when it is already on', async () => {
+    addActor({ id: 'a1', name: 'Wolf', statuses: ['poisoned'] });
+    await expect(
+      planLiveChange(hpRequest({ action: 'condition', condition: 'poisoned', rounds: 1 }))
+    ).rejects.toThrow(/remove it first/);
   });
 
   it('says rounds in the plural and keeps a duration the status already has', async () => {

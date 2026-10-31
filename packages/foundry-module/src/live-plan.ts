@@ -515,10 +515,20 @@ export async function planCondition(
       continue;
     }
     if (hasStatus(actor, status.id)) {
-      skip(`is already ${status.name}`);
+      skip(
+        `is already ${status.name}${rounds !== null ? ' (remove it first to put it on for a time)' : ''}`
+      );
       continue;
     }
     const extras: string[] = [];
+    // An expired or disabled effect leaves actor.statuses but keeps dnd5e's fixed id: delete it,
+    // or the create below would be refused as an id clash.
+    for (const stale of effectsOf(actor).filter(e => effectStatuses(e).includes(status.id))) {
+      const uuid = effectUuid(stale);
+      if (!uuid) continue;
+      ops.push({ kind: 'delete', uuid });
+      extras.push(`replaces the ${isExpired(stale) ? 'expired' : 'inactive'} one`);
+    }
     // Riders first: dnd5e adds a missing rider itself after the create, outside the plan.
     for (const riderId of status.riders) {
       if (hasStatus(actor, riderId)) continue;
@@ -530,7 +540,9 @@ export async function planCondition(
         data: await statusEffectData(riderId),
         keepId: true,
       });
-      extras.push(`adds ${rider ? localize(rider.name) : riderId}`);
+      extras.push(
+        `adds ${rider ? localize(rider.name) : riderId}${rounds !== null ? ' (not timed)' : ''}`
+      );
     }
     if (status.exclusiveGroup) {
       const others = statusEffectList()

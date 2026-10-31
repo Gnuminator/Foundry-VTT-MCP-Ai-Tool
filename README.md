@@ -29,7 +29,7 @@ currently shaped around a Curse of Strahd campaign.
 <p align="center">
   <a href="docs/images/brand/demo.mp4"><img src="docs/images/brand/demo-poster.png" alt="Foundry AI Tool: the During screen after one click dealt 14 necrotic damage to three creatures, with the Undo toast and the change listed in Recent Changes. Click for the 28 second video." width="100%"></a>
 </p>
-<p align="center"><sub>Click the picture for a 28 second video: damage three creatures at once, then undo it.</sub></p>
+<p align="center">Click the picture for a 28 second video: damage three creatures at once, then undo it.</p>
 
 ## What it does
 

@@ -5,7 +5,16 @@
 // guarded path in lib/guarded.ts (gate, plan, confirm, Undo toast); nothing here is a Tool runner.
 // The words and small rules are in lib/liveStrip.ts.
 import { useQuery } from '@tanstack/react-query';
-import { lazy, Suspense, useCallback, useContext, useRef, useState, type JSX } from 'react';
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  type JSX,
+} from 'react';
 
 import { callTool, errorText } from '../lib/api';
 import { AWAY_TEXT, NO_VALUE, canSelect, hpPercent, hpText, hpTone, metaText } from '../lib/combat';
@@ -13,6 +22,7 @@ import type { Combatant } from '../lib/combat';
 import { AI_LIMIT, readAiChanges } from '../lib/changes';
 import { useGuardedTools } from '../lib/guarded';
 import { useLivePlay } from '../lib/livePlay';
+import { useMapPick } from '../lib/mapPick';
 import { HANDOUT_NEEDS, ROLL_NEEDS, offReason } from '../lib/liveSwitches';
 import {
   CONDITIONS,
@@ -177,6 +187,15 @@ export function LiveStrip(): JSX.Element {
   // Ids that left the fight, or a switch going off, drop out of the pick.
   const kept = selectable ? new Set([...picked].filter(id => names.has(id))) : new Set<string>();
   if (kept.size !== picked.size) setPicked(kept);
+  // Live screen B: the tokens the GM controls on the map (sent by the Foundry window) are the pick.
+  const mapPick = useMapPick();
+  const hasRows = rows.length > 0;
+  useEffect(() => {
+    if (!selectable || mapPick === null) return;
+    setPicked(new Set(rows.filter(c => c.tokenId && mapPick.includes(c.tokenId)).map(c => c.id)));
+    // Only a new map pick (or the fight appearing) replaces the pick; a card click stays until then.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mapPick, hasRows, selectable]);
   const pickedRows = rows.filter(c => kept.has(c.id));
   const pickedNames = pickedRows.map(c => names.get(c.id) ?? c.name);
   const targets = pickedRows.map(c => c.tokenId ?? c.name);

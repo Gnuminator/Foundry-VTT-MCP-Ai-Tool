@@ -223,7 +223,7 @@ initials when it has none), its initiative, a small HP bar and its first two con
 **Concentrating** first. Click a portrait to move the GM's Foundry view to that token (it switches
 to the token's scene first if needed; with two GMs logged in it shows an error instead). Portraits
 need the dashboard to know Foundry's address: set `DASHBOARD_FOUNDRY_URL` to the one your browser
-uses, otherwise the initials show. A **Round** marker shows where the order wraps into the next
+uses, otherwise the initials show (the same setting decides who may show the dashboard's live strip in a Foundry window, so it must match the address you type for Foundry exactly). A **Round** marker shows where the order wraps into the next
 round, and a **Lair** marker shows where a lair action falls when a boss in the fight has one.
 Defeated creatures are dimmed and never count as next. The ribbon never changes the game; the click
 only moves that screen's view.

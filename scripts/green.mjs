@@ -862,7 +862,8 @@ export const QUICK_SCREENSHOT_NOTE = 'Screenshots are not checked locally; CI da
  * lane skill 2026-10-30). Per touched workspace its typecheck and unit tests; a `shared/` change
  * typechecks every package (they build on it) and tests shared; a changed `*.test.mjs` (or the
  * script next to it) runs under node --test; a changed dashboard e2e spec builds the dashboard and
- * runs only that spec. None of these step names is in HEAVY_STEPS (hence `unit-*`, not `test-*`), so a quick run never takes a
+ * runs only that spec; a change under the dashboard web app or `scripts/test-kit/` also builds the
+ * mcp-server and runs the kit scenario check. None of these step names is in HEAVY_STEPS (hence `unit-*`, not `test-*`), so a quick run never takes a
  * heavy slot (the e2e spec step keeps the small solo lock the e2e port needs).
  * @param {string[]} files repo-relative paths, forward slashes
  * @returns {Step[]}
@@ -913,6 +914,12 @@ export function quickSteps(files, cwd = process.cwd()) {
   }
   if (webTouched) {
     steps.push({ name: 'bundle-budget', cmd: 'npm', args: ['run', 'bundle:budget', '-w', '@gnuminator/cogm-dashboard'] });
+  }
+  // The kit scenario check (CI "Test kit scenario check"): a new dashboard control needs its skip row in
+  // the kit, which only this check notices. It reads the built tool catalog of the mcp-server.
+  if (webTouched || files.some(f => f.startsWith('scripts/test-kit/'))) {
+    steps.push({ name: 'build-mcp-server', cmd: 'npm', args: ['run', 'build', '-w', '@gnuminator/mcp-server'] });
+    steps.push({ name: 'kit-check', cmd: 'node', args: ['scripts/test-kit/kit.mjs', 'check'] });
   }
   if (specs.length > 0) {
     steps.push({

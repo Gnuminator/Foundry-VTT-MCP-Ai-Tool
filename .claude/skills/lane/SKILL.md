@@ -113,7 +113,9 @@ item is marked done; the board ignores a line on an item with no claim.
     `foo.test.mjs`), and the dashboard e2e specs you touched (after a dashboard build). A change under
     `packages/cogm-dashboard/web/` also runs `usage:catalog:check`, the dashboard build and
     `bundle:budget`; the catalogue check also runs for anything `scripts/usage-catalog.mjs` scans
-    (dashboard `public/`, module `src/`). Screenshots (`dashboard-visual`) are not checked locally:
+    (dashboard `public/`, module `src/`). A change under `packages/cogm-dashboard/web/` or
+    `scripts/test-kit/` also builds the mcp-server and runs `kit.mjs check`, so a new control without
+    its skip row fails here and not first on CI. Screenshots (`dashboard-visual`) are not checked locally:
     quick prints a reminder and CI runs them. Nothing
     touched means "nothing to check". It never writes `.git/green-ok`.
   - **Push early, never red (2026-10-31):** at the first milestone (quick checks pass) push the

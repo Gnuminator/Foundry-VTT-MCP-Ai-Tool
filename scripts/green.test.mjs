@@ -762,6 +762,14 @@ test('quickSteps: typecheck and unit tests of each touched package only', () => 
   assert.deepEqual(quickNames(['docs/dev/X.md', 'changelog.d/x.md']), []);
 });
 
+test('quickSteps: a dashboard web or test-kit change builds the mcp-server and runs the kit scenario check', () => {
+  const web = quickNames(['packages/cogm-dashboard/web/src/App.tsx']);
+  assert.ok(web.includes('build-mcp-server') && web.includes('kit-check'), web.join(','));
+  assert.ok(web.indexOf('build-mcp-server') < web.indexOf('kit-check'));
+  assert.deepEqual(quickNames(['scripts/test-kit/scenarios/a.json']), ['build-mcp-server', 'kit-check']);
+  assert.ok(!quickNames(['packages/mcp-server/src/a.ts']).includes('kit-check'));
+});
+
 test('quickSteps: a shared change typechecks every package and tests shared', () => {
   assert.deepEqual(quickNames(['shared/src/types.ts']), ['build-shared', 'typecheck-all', 'unit-shared']);
 });
@@ -788,6 +796,8 @@ test('quickSteps: touched dashboard e2e specs build the dashboard and run only t
     'catalog-check',
     'build-dashboard',
     'bundle-budget',
+    'build-mcp-server',
+    'kit-check',
     'e2e-specs',
   ]);
   assert.deepEqual(steps.at(-1).args.slice(-2), ['--', 'e2e/help.spec.ts']);
@@ -801,6 +811,8 @@ test('quickSteps: dashboard web files add catalogue check, one build and the bun
     'catalog-check',
     'build-dashboard',
     'bundle-budget',
+    'build-mcp-server',
+    'kit-check',
   ]);
   // A touched spec as well: still one build, the budget before e2e.
   const both = quickNames(['packages/cogm-dashboard/web/e2e/help.spec.ts', 'packages/cogm-dashboard/web/src/App.tsx']);
@@ -1158,6 +1170,17 @@ test('ci.yml keeps what --cloud relies on: workflow_dispatch and a per-ref concu
   const yml = fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '.github', 'workflows', 'ci.yml'), 'utf8');
   assert.match(yml, /^ {2}workflow_dispatch:/m);
   assert.match(yml, /^ {2}group: .*github\.ref/m);
+});
+
+test('ci.yml: every job name carries the dispatch suffix, so a --cloud run never shares a check key with the PR run', () => {
+  const yml = fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '.github', 'workflows', 'ci.yml'), 'utf8');
+  const names = yml.split(/\r?\n/).filter(l => /^ {4}name: /.test(l));
+  assert.ok(names.length >= 6, 'the job names were found');
+  for (const l of names) {
+    assert.ok(l.endsWith("${{ github.event_name == 'workflow_dispatch' && ' [dispatch]' || '' }}"), l);
+  }
+  // --cloud on a branch without a PR still has what it needs: the dispatch trigger to start a run
+  assert.match(yml, /^ {2}workflow_dispatch:/m);
 });
 
 test('cloud: refuses when the dispatch is rejected or no run shows up', () => {

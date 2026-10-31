@@ -15,7 +15,11 @@
 .PARAMETER Root      Plan B's folder (default C:\FoundryPlanB).
 .PARAMETER Upload    Send the bundle to the Pi (default: build and check only).
 .PARAMETER Modules   Module ids to ship (push-world's default: aitool-content, dnd-players-handbook, foundryvtt-actor-studio).
-.PARAMETER PiHost    The SSH name of the Pi (default foundry-pi).
+.PARAMETER PiModules Module ids the world uses that are already installed on the Pi and must not be shipped (passed to
+                     push-world.ps1). A world with active modules needs them in -Modules or here; for a drill that ships
+                     none use -Modules '' -PiModules id1,id2. Stage 11 refuses the bundle when the Pi lacks one or has an
+                     older version (versions that cannot be compared only warn).
+.PARAMETER PiHost   The SSH name of the Pi (default foundry-pi).
 .PARAMETER OutDir    Where the bundle is built (default a new folder under $env:TEMP).
 .PARAMETER AllowSettingKeys  Passed to push-world.ps1: reviewed ddb-importer.* setting keys. The default is the list the
                      campaign world needed (checked against the Pi backup of 2026-10-09): its ddb-importer settings
@@ -30,6 +34,7 @@ param(
   [string]$Root = '',
   [switch]$Upload,
   [string[]]$Modules = @(),
+  [string[]]$PiModules = @(),
   [string]$PiHost = 'foundry-pi',
   [string]$OutDir = '',
   [string[]]$AllowSettingKeys = @('ddb-importer.entity-*', 'ddb-importer.allowed-weapon-property-sources', 'ddb-importer.api-endpoint', 'ddb-importer.data-version'),
@@ -78,6 +83,7 @@ $pw = @{
 $level = Join-Path $L.AppDir 'node_modules' 'classic-level'
 if (Test-Path -LiteralPath $level -PathType Container) { $pw.LevelModule = $level }
 if ($Modules.Count) { $pw.Modules = $Modules }
+if ($PiModules.Count) { $pw.PiModules = $PiModules }
 if ($OutDir) { $pw.OutDir = $OutDir }
 if ($AllowSettingKeys.Count) { $pw.AllowSettingKeys = $AllowSettingKeys }
 if ($AllowMissing.Count) { $pw.AllowMissing = $AllowMissing }

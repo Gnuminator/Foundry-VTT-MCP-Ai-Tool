@@ -38,9 +38,9 @@ import { gzipSync } from 'node:zlib';
 // 150 on 2026-10-30: the one live switch (livePlay, liveSwitches, TurnOnNote, During and
 // GmActionsSwitch wiring, which the entry carries) took the first load to 149.2 KB; main alone was
 // 147.3 KB. Handouts went 3.0 to 3.1 KB with the switch note, so its limit is 4.
-// 151 on 2026-10-31: the feature chip words and the token-move fold (lib/feed.ts and lib/changes.ts,
-// which the stream and the cards share) took the first load to 150.1 KB.
-export const FIRST_LOAD_LIMIT_KB = 151;
+// 150 kept on 2026-10-31 (the build had reached 150.0 KB): the Pre-flight drawer (PreflightDrawer)
+// moved to its own chunk and the first load measured 147.8 KB. Not raised.
+export const FIRST_LOAD_LIMIT_KB = 150;
 
 /**
  * Lazy chunks by name stem (the file name without its hash and extension: `Tarokka-Cx9aB1zQ.js`
@@ -54,6 +54,7 @@ export const LAZY_LIMITS_KB = {
   PaperSync: 6, // 5.1 KB, measured 2026-10-23
   Party: 4, // 3.0 KB
   PlayerLinks: 2, // 1.2 KB
+  PreflightDrawer: 4, // 3.3 KB, measured 2026-10-31
   Prep: 4, // 3.2 KB
   RecentChanges: 7, // 5.6 KB, measured 2026-10-17
   Tarokka: 4, // 2.8 KB

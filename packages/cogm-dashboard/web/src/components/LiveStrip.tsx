@@ -198,11 +198,14 @@ export function LiveStrip(): JSX.Element {
   // Ids that left the fight, or a switch going off, drop out of the pick.
   const kept = selectable ? new Set([...picked].filter(id => names.has(id))) : new Set<string>();
   if (kept.size !== picked.size) setPicked(kept);
+  // 1 round belongs to a pick: with nobody picked (deselected, left the fight) it goes off.
+  if (kept.size === 0 && oneRound) setOneRound(false);
   // Live screen B: the tokens the GM controls on the map (sent by the Foundry window) are the pick.
   const mapPick = useMapPick();
   const hasRows = rows.length > 0;
   useEffect(() => {
     if (!selectable || mapPick === null) return;
+    setOneRound(false);
     setPicked(new Set(rows.filter(c => c.tokenId && mapPick.includes(c.tokenId)).map(c => c.id)));
     // Only a new map pick (or the fight appearing) replaces the pick; a card click stays until then.
     // eslint-disable-next-line react-hooks/exhaustive-deps

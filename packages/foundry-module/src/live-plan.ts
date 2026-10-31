@@ -575,6 +575,7 @@ export async function planCondition(
           changes: {
             disabled: false,
             'duration.value': null,
+            'duration.expiry': null,
             'duration.expired': false,
             start: freshStart(),
           },
@@ -616,6 +617,9 @@ export async function planCondition(
           disabled: false,
           'duration.value': rounds,
           'duration.units': rounds !== null ? 'rounds' : null,
+          // The ended one still carries its old expiry: a revived untimed effect must not end at
+          // the owner's next turn start, a timed one ends there (Foundry's default for a timed create).
+          'duration.expiry': rounds !== null ? 'turnStart' : null,
           'duration.expired': false,
           start: freshStart(),
         },

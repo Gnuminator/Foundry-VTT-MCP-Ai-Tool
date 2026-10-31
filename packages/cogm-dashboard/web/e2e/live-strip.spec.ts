@@ -220,6 +220,21 @@ test('1 round makes the next condition last one round, then the toggle resets wi
   await expect(toggle).toHaveAttribute('aria-pressed', 'false');
 });
 
+test('1 round goes off when the pick is deselected, so the next creature is not timed', async ({
+  page,
+}) => {
+  await setup(page, FIGHT);
+  await load(page);
+  const goblin = page.getByRole('button', { name: 'Goblin 1', exact: true });
+  await goblin.click();
+  const toggle = page.getByRole('button', { name: /1 round/ });
+  await toggle.click();
+  await expect(toggle).toHaveAttribute('aria-pressed', 'true');
+  await goblin.click();
+  await goblin.click();
+  await expect(toggle).toHaveAttribute('aria-pressed', 'false');
+});
+
 test('a failed timed add keeps 1 round on for the retry', async ({ page }) => {
   await setup(page, FIGHT, {
     answer: call =>

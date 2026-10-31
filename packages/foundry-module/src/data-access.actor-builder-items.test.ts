@@ -218,10 +218,9 @@ describe('FoundryDataAccess — useItem', () => {
     expect(result.message).toContain('targeting Goblin');
   });
 
-  it('still uses the item when no canvas is ready to take the targets', async () => {
-    const use = vi.fn(() => Promise.resolve());
+  function noCanvasWorld(): void {
     const item = makeItem({ id: 'spell1', name: 'Hold Person', type: 'spell' });
-    (item as any).use = use;
+    (item as any).use = vi.fn(() => Promise.resolve());
     world.addActor({ id: 'a1', name: 'Mage', items: [item] });
     const scene = world.addScene({
       id: 'scene1',
@@ -230,6 +229,12 @@ describe('FoundryDataAccess — useItem', () => {
       tokens: [makeToken({ id: 'tok-goblin', name: 'Goblin', x: 100, y: 100 })],
     });
     world.setActiveScene(scene.id);
+  }
+
+  it('sets targets through game.user.targets when there is no canvas (headless GM)', async () => {
+    noCanvasWorld();
+    const userTargets = new Set<unknown>(['stale']);
+    (game as any).user = { ...((game as any).user ?? {}), targets: userTargets };
 
     const result = await da.useItem({
       actorIdentifier: 'Mage',
@@ -237,7 +242,21 @@ describe('FoundryDataAccess — useItem', () => {
       targets: ['Goblin'],
     });
 
-    expect(use).toHaveBeenCalledTimes(1);
+    expect(Array.from(userTargets).map((t: any) => t.id)).toEqual(['tok-goblin']);
+    expect(result.targets).toEqual(['Goblin']);
+    expect(result.message).toContain('targeting Goblin');
+  });
+
+  it('still uses the item and says so when the no-canvas fallback fails', async () => {
+    noCanvasWorld();
+    (game as any).user = { ...((game as any).user ?? {}), targets: undefined };
+
+    const result = await da.useItem({
+      actorIdentifier: 'Mage',
+      itemIdentifier: 'Hold Person',
+      targets: ['Goblin'],
+    });
+
     expect(result.targets).toBeUndefined();
     expect(result.message).not.toContain('targeting');
     expect(result.message).toContain('targets not set: the canvas is not ready');

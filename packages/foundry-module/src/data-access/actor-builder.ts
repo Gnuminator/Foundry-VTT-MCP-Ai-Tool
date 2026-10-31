@@ -266,7 +266,24 @@ export class ActorBuilderDataAccess {
         const cv = typeof canvas === 'undefined' ? undefined : canvas;
         const layer = cv?.ready ? cv.tokens : undefined;
         if (!layer) {
-          targetsNotSet = 'the canvas is not ready';
+          // Headless GM (the Pi's Assistant GM): no canvas, so no Token objects. dnd5e only reads
+          // game.user.targets and accepts TokenDocuments there (TargetsField.getDescriptors uses
+          // `target.document ?? target`), so fill the set with the scene's token documents.
+          try {
+            const userTargets = game.user?.targets as unknown as Set<unknown> | undefined;
+            if (!userTargets) throw new Error('user has no targets set');
+            userTargets.clear();
+            for (const id of tokenIds) {
+              const doc = sceneTokens.get(id);
+              if (doc) userTargets.add(doc);
+            }
+            logInfo(
+              `[foundry-mcp-bridge] Set targets without a canvas: ${resolvedTargetNames.join(', ')}`
+            );
+          } catch (err) {
+            console.error('[foundry-mcp-bridge] Setting targets without a canvas failed:', err);
+            targetsNotSet = 'the canvas is not ready and Foundry refused the fallback';
+          }
         } else if (cv?.scene?.id !== scene.id) {
           // setTargets only finds ids on the viewed canvas; calling it would clear the GM's targets.
           targetsNotSet = 'the GM is viewing a different scene than the active one';

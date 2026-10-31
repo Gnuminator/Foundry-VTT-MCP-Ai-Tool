@@ -129,7 +129,7 @@
   gap: var(--space-3);
   min-height: 2.75rem;
   padding: var(--space-2) var(--space-3);
-  background: var(--warn-soft);
+  background: linear-gradient(var(--warn-soft), var(--warn-soft)), var(--bg-panel);
   color: var(--text);
   font-size: var(--text-sm);
 }

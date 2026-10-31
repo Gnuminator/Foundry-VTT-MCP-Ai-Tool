@@ -259,43 +259,39 @@ function GmWorkspace({
     setLoadCount(0);
   }, [frameSlot]);
 
-  const stripParts = (
-    <>
-      <div
-        className={styles.divider}
-        role="separator"
-        aria-orientation="vertical"
-        aria-label="Resize the live strip"
-        aria-valuemin={MIN_STRIP_PX}
-        aria-valuemax={maxStripPx(viewport)}
-        aria-valuenow={stripPx}
-        aria-valuetext={`${stripPx} pixels`}
-        title="Drag to resize, double-click to reset"
-        tabIndex={0}
-        onPointerDown={onDividerDown}
-        onPointerMove={onDividerMove}
-        onPointerUp={endDrag}
-        onPointerCancel={endDrag}
-        onDoubleClick={() => update({ stripPx: DEFAULT_STRIP_PX })}
-        onKeyDown={onDividerKey}
-      />
-      <aside className={styles.strip} ref={stripPaneRef} tabIndex={-1} aria-label="Live strip">
-        {!layout.hintSeen ? (
-          <p className={styles.hint}>
-            Pick tokens on the map and they are picked here too. Drag the line between the panes to
-            resize.{' '}
-            <button
-              type="button"
-              className={styles.link}
-              onClick={() => update({ hintSeen: true })}
-            >
-              Got it
-            </button>
-          </p>
-        ) : null}
-        <LiveStrip />
-      </aside>
-    </>
+  const dividerEl = (
+    <div
+      className={styles.divider}
+      role="separator"
+      aria-orientation="vertical"
+      aria-label="Resize the live strip"
+      aria-valuemin={MIN_STRIP_PX}
+      aria-valuemax={maxStripPx(viewport)}
+      aria-valuenow={stripPx}
+      aria-valuetext={`${stripPx} pixels`}
+      title="Drag to resize, double-click to reset"
+      tabIndex={0}
+      onPointerDown={onDividerDown}
+      onPointerMove={onDividerMove}
+      onPointerUp={endDrag}
+      onPointerCancel={endDrag}
+      onDoubleClick={() => update({ stripPx: DEFAULT_STRIP_PX })}
+      onKeyDown={onDividerKey}
+    />
+  );
+  const asideEl = (
+    <aside className={styles.strip} ref={stripPaneRef} tabIndex={-1} aria-label="Live strip">
+      {!layout.hintSeen ? (
+        <p className={styles.hint}>
+          Pick tokens on the map and they are picked here too. Drag the line between the panes to
+          resize.{' '}
+          <button type="button" className={styles.link} onClick={() => update({ hintSeen: true })}>
+            Got it
+          </button>
+        </p>
+      ) : null}
+      <LiveStrip />
+    </aside>
   );
 
   return (
@@ -341,7 +337,12 @@ function GmWorkspace({
         >
           {/* DOM order follows the screen: in "Strip left" the strip comes first for Tab and
               screen readers. The Foundry section keeps its child slot, so its frame never reloads. */}
-          {layout.mode === 'left' ? stripParts : null}
+          {layout.mode === 'left' ? (
+            <>
+              {asideEl}
+              {dividerEl}
+            </>
+          ) : null}
           <section className={styles.foundry} aria-label="Foundry">
             <div role="status" className={styles.bannerSlot}>
               {showBanner ? (
@@ -392,7 +393,12 @@ function GmWorkspace({
               />
             </div>
           </section>
-          {layout.mode !== 'window' && layout.mode !== 'left' ? stripParts : null}
+          {layout.mode === 'right' ? (
+            <>
+              {dividerEl}
+              {asideEl}
+            </>
+          ) : null}
         </div>
       )}
     </div>

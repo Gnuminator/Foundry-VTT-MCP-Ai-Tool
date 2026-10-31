@@ -156,6 +156,9 @@ test('keeps the layout per browser: strip left, and a divider the keyboard can m
   const frame = await page.locator('iframe[title="Foundry"]').boundingBox();
   expect(strip!.x).toBeLessThan(frame!.x);
   expect(strip!.width).toBe(320);
+  const handle = await page.getByRole('separator').boundingBox();
+  expect(strip!.x + strip!.width).toBeLessThanOrEqual(handle!.x);
+  expect(handle!.x).toBeLessThan(frame!.x);
   // Tab and screen-reader order follows the screen: the strip comes before Foundry in the DOM.
   const stripFirst = await page.evaluate(() => {
     const aside = document.querySelector('aside[aria-label="Live strip"]')!;

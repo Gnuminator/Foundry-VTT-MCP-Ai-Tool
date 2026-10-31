@@ -4,7 +4,9 @@
 //   - the main checkout's CLAUDE.md differs from the vault master (repo-docs/CLAUDE.md),
 //   - the due "Waiting on the user" items (vault Waiting.md, D-122),
 //   - somebody holds the test server lock (or it cannot be read, or a queue waits on a free lock),
-//   - a session-notes run was missed or paused on the usage limit (the watchdog).
+//   - a session-notes run was missed or paused on the usage limit (the watchdog),
+//   - main CI is red: the newest finished CI run on main failed (one or two `gh` calls; silent when
+//     gh is missing, offline or answers anything unexpected).
 //
 // The watchdog comes from the control center (GET 127.0.0.1:3200/snapshot.json,
 // Gnuminator/control-center), else from a snapshot.json under 30 minutes old in its data folder.
@@ -15,8 +17,10 @@
 // nothing at all. A failure inside the hook prints nothing: a start hook must never block a start.
 //
 // Overrides (tests and checks): START_ALERTS_REPO, START_ALERTS_VAULT, START_ALERTS_TEST_ROOT
-// (and _B, _C for those servers), START_ALERTS_SNAPSHOT_URL (or "off"), START_ALERTS_SNAPSHOT_FILE, START_ALERTS_CC_DIR.
+// (and _B, _C for those servers), START_ALERTS_SNAPSHOT_URL (or "off"), START_ALERTS_SNAPSHOT_FILE, START_ALERTS_CC_DIR,
+// START_ALERTS_MAIN_CI=off (skips the main CI check; the hook tests set it).
 
+import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -29,6 +33,8 @@ const FETCH_TIMEOUT_MS = 3000;
 const WAITING_NOTE = path.join('Dev', 'Foundry AI Tool', 'Waiting.md');
 const WAITING_LEAD_DAYS = 7;
 const WAITING_SHOWN = 4;
+const CI_REPO = 'Gnuminator/Foundry-VTT-MCP-Ai-Tool';
+const GH_TIMEOUT_MS = 4000;
 const VAULT_MASTER = path.join('Dev', 'Foundry AI Tool', 'repo-docs', 'CLAUDE.md');
 
 // A worktree belongs to the main checkout: its .git file reads "gitdir: <main>/.git/worktrees/<name>"
@@ -270,6 +276,74 @@ export function watchdogAlert(w) {
   return null;
 }
 
+// --- main CI (red main, planner skill) -------------------------------------------------------
+
+// gh as a function: args in, stdout out, null on any failure (gh missing, offline, not logged in).
+export function runGh(args) {
+  try {
+    const r = spawnSync('gh', args, { encoding: 'utf8', timeout: GH_TIMEOUT_MS, windowsHide: true });
+    return r.error || r.status !== 0 ? null : r.stdout;
+  } catch {
+    return null;
+  }
+}
+
+// The name of the first failing step of a run (gh run view --json jobs), else its failing job, else null.
+function failedStep(gh, id) {
+  try {
+    const jobs = JSON.parse(gh(['run', 'view', String(id), '-R', CI_REPO, '--json', 'jobs']) ?? '');
+    for (const job of jobs.jobs ?? []) {
+      const step = (job.steps ?? []).find(s => String(s.conclusion).toLowerCase() === 'failure');
+      if (step) return step.name;
+      if (String(job.conclusion).toLowerCase() === 'failure') return job.name;
+    }
+  } catch {
+    // no detail: the alert goes without the step
+  }
+  return null;
+}
+
+// "main CI red since <sha> (<step>)" when the newest finished CI run on main failed. Cancelled and
+// skipped runs say nothing and are passed over. "Since" is the oldest run of the unbroken red streak.
+export function mainRedAlert({ gh = runGh } = {}) {
+  try {
+    const out = gh([
+      'run',
+      'list',
+      '-R',
+      CI_REPO,
+      '--workflow',
+      'ci.yml',
+      '--branch',
+      'main',
+      '--event',
+      'push',
+      '--status',
+      'completed',
+      '--limit',
+      '15',
+      '--json',
+      'databaseId,conclusion,headSha',
+    ]);
+    if (!out) return null;
+    const runs = JSON.parse(out).filter(
+      r => r && !['cancelled', 'skipped'].includes(String(r.conclusion).toLowerCase())
+    );
+    const red = r =>
+      ['failure', 'timed_out', 'startup_failure'].includes(String(r.conclusion).toLowerCase());
+    if (!runs.length || !red(runs[0])) return null;
+    let since = runs[0];
+    for (const r of runs) {
+      if (!red(r)) break;
+      since = r;
+    }
+    const step = failedStep(gh, runs[0].databaseId);
+    return `main CI red since ${String(since.headSha).slice(0, 8)}${step ? ` (${clip(step, 60)})` : ''}; see the red main step in the planner skill before merging.`;
+  } catch {
+    return null;
+  }
+}
+
 // --- the snapshot --------------------------------------------------------------------------
 
 export async function loadSnapshot({ url, file, now = new Date(), fetchImpl = fetch } = {}) {
@@ -309,11 +383,13 @@ export async function collectAlerts({
   ccDir,
   now = new Date(),
   fetchImpl = fetch,
+  mainCi = null,
 }) {
   const lines = [];
   const add = line => {
     if (line) lines.push(line);
   };
+  if (mainCi) add(mainRedAlert({ gh: mainCi }));
   add(claudeMdAlert({ repoRoot, vaultDir }));
   add(waitingAlert({ vaultDir, now }));
   add(lockAlert(readLockFile(testEnvRoot), now));
@@ -361,6 +437,7 @@ export function optionsFrom(env = process.env) {
     testEnvRoot: testEnvRootFor(repoRoot, env),
     testEnvRootB: testEnvRootBFor(repoRoot, env),
     testEnvRootC: testEnvRootCFor(repoRoot, env),
+    mainCi: env.START_ALERTS_MAIN_CI === 'off' ? null : runGh,
     snapshotUrl: url === 'off' ? null : url,
     snapshotFile: env.START_ALERTS_SNAPSHOT_FILE || path.join(dataDir, 'snapshot.json'),
     ccDir:

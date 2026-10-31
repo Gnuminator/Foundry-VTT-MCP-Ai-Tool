@@ -14,6 +14,7 @@ import {
   formatOutput,
   lockAlert,
   mainCheckout,
+  mainRedAlert,
   parseWaiting,
   readLockFile,
   testEnvRootBFor,
@@ -405,6 +406,69 @@ test('every alert forced at once: one line each, ten lines at most', async () =>
   }
 });
 
+// A fake gh: `list` answers the run list, `view` the jobs of a run; null stands for a failed call.
+function fakeGh({ list, view }) {
+  const calls = [];
+  const gh = args => {
+    calls.push(args.join(' '));
+    const answer = args[1] === 'list' ? list : view;
+    return answer === null || answer === undefined ? null : JSON.stringify(answer);
+  };
+  return { gh, calls };
+}
+const RUN = (databaseId, conclusion, headSha) => ({ databaseId, conclusion, headSha });
+const JOBS = {
+  jobs: [
+    { name: 'build-test (Node 22)', conclusion: 'failure', steps: [
+      { name: 'Build', conclusion: 'success' },
+      { name: 'Dashboard bundle budget', conclusion: 'failure' },
+    ] },
+  ],
+};
+
+test('main CI red: names the oldest sha of the red streak and the failing step', () => {
+  const { gh, calls } = fakeGh({
+    list: [
+      RUN(5, 'failure', 'eeee5555aaaa'),
+      RUN(4, 'cancelled', 'dddd4444aaaa'),
+      RUN(3, 'failure', 'cccc3333aaaa'),
+      RUN(2, 'success', 'bbbb2222aaaa'),
+      RUN(1, 'failure', 'aaaa1111aaaa'),
+    ],
+    view: JOBS,
+  });
+  const line = mainRedAlert({ gh });
+  assert.match(line, /^main CI red since cccc3333 \(Dashboard bundle budget\)/);
+  assert.ok(calls[0].includes('--branch main') && calls[0].includes('--workflow ci.yml'));
+  assert.ok(calls[1].startsWith('run view 5 '));
+});
+
+test('main CI red: green, cancelled-only, empty, offline and garbage are silent', () => {
+  assert.equal(mainRedAlert({ gh: fakeGh({ list: [RUN(2, 'success', 'aaaa'), RUN(1, 'failure', 'bbbb')] }).gh }), null);
+  assert.equal(mainRedAlert({ gh: fakeGh({ list: [RUN(2, 'cancelled', 'aaaa')] }).gh }), null);
+  assert.equal(mainRedAlert({ gh: fakeGh({ list: [] }).gh }), null);
+  assert.equal(mainRedAlert({ gh: fakeGh({ list: null }).gh }), null); // gh missing or offline
+  assert.equal(mainRedAlert({ gh: () => 'not json' }), null);
+  assert.equal(mainRedAlert({ gh: () => { throw new Error('spawn gh ENOENT'); } }), null);
+  // a red run whose jobs cannot be read still alerts, without the step
+  const noJobs = fakeGh({ list: [RUN(9, 'failure', 'abcdef123456')], view: null });
+  assert.equal(mainRedAlert({ gh: noJobs.gh }).replace(/;.*$/, ''), 'main CI red since abcdef12');
+});
+
+test('main CI red: collectAlerts puts it first, and nothing runs without mainCi', async () => {
+  const f = fixture();
+  try {
+    const { gh } = fakeGh({ list: [RUN(7, 'failure', 'feedface0000')], view: JOBS });
+    const lines = await collectAlerts(opts(f, { mainCi: gh, fetchImpl: answer(snapshot({})) }));
+    assert.equal(lines.length, 1);
+    assert.match(lines[0], /^main CI red since feedface/);
+    // without mainCi (the tests, START_ALERTS_MAIN_CI=off) no gh call is made and no line appears
+    assert.deepEqual(await collectAlerts(opts(f, { fetchImpl: answer(snapshot({})) })), []);
+  } finally {
+    f.cleanup();
+  }
+});
+
 test('no control center: a fresh snapshot file is used, an old one is not', async () => {
   const f = fixture();
   try {
@@ -457,6 +521,7 @@ test('the hook as a process: silent when clean, JSON when an alert fires', () =>
       START_ALERTS_VAULT: f.vault,
       START_ALERTS_TEST_ROOT: f.testEnv,
       START_ALERTS_SNAPSHOT_URL: 'off',
+      START_ALERTS_MAIN_CI: 'off',
       START_ALERTS_SNAPSHOT_FILE: path.join(f.root, 'none.json'),
       START_ALERTS_CC_DIR: path.join(f.root, 'none'),
     };

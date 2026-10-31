@@ -18,8 +18,8 @@ decision), then ends. It does not sit and wait for lanes. Vault paths below are 
   vault handover (`Handoff/<lane> prompt <date>.md`) instead.
 - `gh pr list --state open` and the CI of each.
 - **Main's last CI run (2026-10-31):** at start and before each lane start,
-  `gh run list --branch main -w ci.yml -L 1`. Red means one fix lane first and the other starts
-  held until main is green again.
+  `gh run list --branch main -w ci.yml -L 1` (the start-alerts hook prints "main CI red since
+  <sha> (<step>)" when the newest finished run failed). Red means the "Main is red" step below.
 - `list_sessions` without `linked` (lanes start their own successors; they only show in the full
   list), then `get_usage` with each running lane's id (lanes underreport their context).
   `get_usage "self"` for your own context and the plan percentages.
@@ -153,6 +153,23 @@ then run `npm run live:roundtrip` (plus `live:sweep`
 when write handlers changed) on main through the test server lock, and on green
 `npm run lane:merge -- --train-reset <main sha>`; bisect if red. `--train` shows the count. Run
 the roundtrip before any Pi deploy too. Tell the user what was merged.
+
+## Main is red
+
+Unblock first, fix properly second (vault `Design/Red main root cause 2026-10-31.md`: #652 took
+11.5 hours and six review rounds while five ready PRs waited).
+
+1. **Within 15 minutes of seeing it** (the start alert, a gate refusal naming a main failure, a
+   lane note) do one of two things. Either **revert the last merge** on a branch, as a normal PR
+   with the quick checks and CI green (a revert of a clean merge needs no new review round; say so
+   in the PR). Or, when the break is a limit and not bad code (a bundle or tool-set budget, a
+   ratchet baseline), **a one-line temporary limit raise** as its own PR, with a Backlog item for the
+   proper fix (`- done when:` the limit back, the cause removed) so the raise is not forgotten.
+2. **No other merges while main is red.** Do not run the gate for anything else; the only PR that
+   merges is the unblock PR. Lanes may keep building and may push.
+3. When main is green again, the proper fix is a normal lane (claim, review, merge) from the
+   Backlog item. Name the red commit, the step and the unblock PR in that item's `- source:` line.
+4. Tell the user in one line: the red commit, what unblocked it, the Backlog item.
 
 ## Session cleanup
 

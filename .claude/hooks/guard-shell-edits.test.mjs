@@ -302,16 +302,19 @@ test('M4: a 100 KB single token or minified command is answered fast (and over t
     `${'-replace Set-Content a b c d e f g h '.repeat(2_600)}`,
     `-replace x; ${'Out-File '.repeat(11_000)}`,
   ];
-  // Best of 3: a busy machine (a parallel `npm run green`) can stall one run past the cap, but a
-  // hook that really backtracks is slow on every run, so the fastest run still exceeds it.
+  // The cap behaviour is the assertion: over the cap the command is answered unread (null), whatever
+  // it contains. The time bound is only a tripwire for catastrophic backtracking, which takes
+  // minutes or more on 100 KB, so it is generous (a slow CI runner went past the old 500 ms bound:
+  // PR #660, run 41194720006) and the fastest of 3 runs counts.
+  const BOUND_MS = 5000;
   for (const c of slow) {
     let best = Infinity;
-    for (let i = 0; i < 3 && best >= 500; i++) {
+    for (let i = 0; i < 3 && best >= BOUND_MS; i++) {
       const t = performance.now();
       assert.equal(decide(c, CWD, ROOT), null);
       best = Math.min(best, performance.now() - t);
     }
-    assert.ok(best < 500, `${c.slice(0, 20)}... took ${Math.round(best)} ms at best of 3`);
+    assert.ok(best < BOUND_MS, `${c.slice(0, 20)}... took ${Math.round(best)} ms at best of 3`);
   }
 });
 

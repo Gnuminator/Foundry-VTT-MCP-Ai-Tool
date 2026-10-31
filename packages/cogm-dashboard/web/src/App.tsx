@@ -18,7 +18,7 @@ import {
   raiseDrawer,
   showDocked,
 } from './components/Drawer';
-import { CombatStrip, type StripToolRequest } from './components/CombatStrip';
+import type { StripToolRequest } from './components/CombatStrip';
 import { FoldScope } from './components/Folds';
 import { LivePlayLine } from './components/GmActionsSwitch';
 import { SessionMarker } from './components/SessionMarker';
@@ -135,6 +135,13 @@ export function App(): JSX.Element {
   );
 }
 
+// The combat strip is its own chunk (the first load budget); it downloads right after the first
+// render, so it is on the page almost at once.
+const loadCombatStrip = (): Promise<{
+  default: typeof import('./components/CombatStrip').CombatStrip;
+}> => import('./components/CombatStrip').then(m => ({ default: m.CombatStrip }));
+const CombatStrip = lazy(loadCombatStrip);
+
 // Live screen A is its own chunk too: opt-in, and it pulls the Party, Handouts and changes panels in.
 const LiveScreen = lazy(() =>
   import('./components/LiveScreen').then(m => ({ default: m.LiveScreen }))
@@ -182,6 +189,9 @@ function Dashboard(): JSX.Element {
   useDashboardStream();
   usePreflightOnReconnect();
   usePreloadPanels(DOCKED_CHUNKS, FLOATING_CHUNKS);
+  useEffect(() => {
+    void loadCombatStrip().catch(() => undefined);
+  }, []);
   const { moment, pick } = useMoment();
   const during = useDuringLayout(moment, () => pick('during'));
   const { slotRefs, dockOf: slotOf } = useDocks(moment);
@@ -469,7 +479,9 @@ function Dashboard(): JSX.Element {
         }
         beforeTop={<LayoutTrialCard during={during} />}
         duringStrip={
-          <CombatStrip sample={showsSampleFight(during.trial)} onOpenTool={openToolFromStrip} />
+          <Suspense fallback={null}>
+            <CombatStrip sample={showsSampleFight(during.trial)} onOpenTool={openToolFromStrip} />
+          </Suspense>
         }
       />
       <LayoutTourGuide during={during} />

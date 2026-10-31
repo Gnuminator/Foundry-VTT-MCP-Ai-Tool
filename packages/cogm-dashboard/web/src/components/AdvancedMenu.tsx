@@ -1,58 +1,104 @@
-import { DropdownMenu } from 'radix-ui';
+import type { DropdownMenu } from 'radix-ui';
 import {
   createContext,
   useContext,
+  useEffect,
   useRef,
   useState,
+  type ComponentType,
   type JSX,
   type ReactElement,
   type ReactNode,
 } from 'react';
 
-import { useEscapeClose } from '../lib/escape';
 import { Button } from '../ui';
 
 /** Tells the menu an entry opened a panel, so the focus stays in that panel. */
-const PickedContext = createContext<() => void>(() => undefined);
+export const PickedContext = createContext<() => void>(() => undefined);
+
+/**
+ * The Radix parts the entries are made of. They come from the lazy menu chunk (AdvancedMenuImpl),
+ * so the first load budget does not carry the dropdown menu; the entries only render inside it.
+ */
+export interface MenuParts {
+  Item: typeof DropdownMenu.Item;
+  Label: typeof DropdownMenu.Label;
+}
+export const MenuPartsContext = createContext<MenuParts | null>(null);
+
+/** What the lazy menu is given. */
+export interface MenuImplProps {
+  children: ReactNode;
+  /** The button was used while the chunk loaded: open at once (a key press also picks the first entry). */
+  initialOpen: false | 'pointer' | 'keyboard';
+  /** Read once, as the menu mounts: the stand-in button had focus, so the real one takes it. */
+  hadFocus: () => boolean;
+}
+
+type MenuImpl = ComponentType<MenuImplProps>;
+const loadImpl = (): Promise<MenuImpl> =>
+  import('./AdvancedMenuImpl').then(m => m.AdvancedMenuImpl);
+
+/** The chunk is fetched this long after the page loads, so the button is ready before it is used. */
+const PRELOAD_DELAY_MS = 3000;
 
 /**
  * The Advanced ▾ menu in the header (the old #advanced): the panels and tools that are not part
- * of an evening at the table. A Radix dropdown menu, not modal, as on the old page: arrow keys
- * move between the entries, Enter or a click picks one and closes the menu, Escape or a click
- * outside closes it.
+ * of an evening at the table. Its Radix dropdown menu is a lazy chunk (the first load budget):
+ * until it has loaded, a plain button with the same id and look stands in, and a click on it
+ * opens the menu as soon as the chunk arrives. If focus was on the stand-in as it was swapped, the
+ * real button takes the focus.
  */
 export function AdvancedMenu({ children }: { children: ReactNode }): JSX.Element {
-  const [open, setOpen] = useState(false);
-  // With a toast up, the toast hands Escape on to the newest open panel (escape.ts): this menu.
-  useEscapeClose(open, () => setOpen(false));
-  // An entry that opened a panel keeps the focus there; Radix would hand it back to the button.
-  const picked = useRef(false);
+  const [Impl, setImpl] = useState<MenuImpl | null>(null);
+  const [wanted, setWanted] = useState<MenuImplProps['initialOpen']>(false);
+  const focused = useRef(false);
+  const loading = useRef(false);
+
+  const load = (): void => {
+    if (loading.current) return;
+    loading.current = true;
+    loadImpl().then(
+      impl => setImpl(() => impl),
+      () => {
+        // A failed download is tried again on the next click.
+        loading.current = false;
+      }
+    );
+  };
+  useEffect(() => {
+    const id = setTimeout(load, PRELOAD_DELAY_MS);
+    return (): void => clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- load only uses refs and a setter
+  }, []);
+
+  if (Impl)
+    return (
+      <Impl initialOpen={wanted} hadFocus={() => focused.current}>
+        {children}
+      </Impl>
+    );
   return (
     <div className="advanced" id="advanced">
-      <DropdownMenu.Root open={open} onOpenChange={setOpen} modal={false}>
-        <DropdownMenu.Trigger asChild>
-          <Button id="btn-advanced" data-track="dash.header.advanced">
-            Advanced ▾
-          </Button>
-        </DropdownMenu.Trigger>
-        <DropdownMenu.Portal>
-          <DropdownMenu.Content
-            className="advanced-menu"
-            id="advanced-menu"
-            align="end"
-            sideOffset={6}
-            onCloseAutoFocus={e => {
-              if (!picked.current) return;
-              picked.current = false;
-              e.preventDefault();
-            }}
-          >
-            <PickedContext.Provider value={() => (picked.current = true)}>
-              {children}
-            </PickedContext.Provider>
-          </DropdownMenu.Content>
-        </DropdownMenu.Portal>
-      </DropdownMenu.Root>
+      <Button
+        id="btn-advanced"
+        data-track="dash.header.advanced"
+        onPointerEnter={load}
+        onFocus={() => {
+          focused.current = true;
+          load();
+        }}
+        onBlur={() => {
+          focused.current = false;
+        }}
+        onClick={e => {
+          // detail 0: Enter or Space (no pointer click).
+          setWanted(e.detail === 0 ? 'keyboard' : 'pointer');
+          load();
+        }}
+      >
+        Advanced ▾
+      </Button>
     </div>
   );
 }
@@ -71,10 +117,12 @@ export function AdvancedItem({
   /** Not available now: the arrow keys skip it and it cannot be picked (the child is disabled too). */
   disabled?: boolean;
   children: ReactElement;
-}): JSX.Element {
+}): JSX.Element | null {
   const picked = useContext(PickedContext);
+  const parts = useContext(MenuPartsContext);
+  if (!parts) return null;
   return (
-    <DropdownMenu.Item
+    <parts.Item
       asChild
       disabled={disabled}
       onSelect={() => {
@@ -82,11 +130,13 @@ export function AdvancedItem({
       }}
     >
       {children}
-    </DropdownMenu.Item>
+    </parts.Item>
   );
 }
 
 /** A small heading over a group of entries (.menu-label). */
-export function AdvancedLabel({ children }: { children: ReactNode }): JSX.Element {
-  return <DropdownMenu.Label className="menu-label">{children}</DropdownMenu.Label>;
+export function AdvancedLabel({ children }: { children: ReactNode }): JSX.Element | null {
+  const parts = useContext(MenuPartsContext);
+  if (!parts) return null;
+  return <parts.Label className="menu-label">{children}</parts.Label>;
 }

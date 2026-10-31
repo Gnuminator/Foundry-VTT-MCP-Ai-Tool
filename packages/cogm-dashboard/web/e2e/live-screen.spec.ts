@@ -297,6 +297,18 @@ test('a 403 gm-actions-disabled on Undo says so and points at the header switch'
   await expect(page.locator('#btn-gm')).toBeFocused();
 });
 
+test('with GM Actions already off, a guarded button refuses and sends nothing', async ({
+  page,
+}) => {
+  const calls = await setup(page, { gmActions: false });
+  await load(page);
+  await page.locator('#live-header-undo').click();
+  await expect(toast(page, 'GM Actions are off. Start session')).toBeVisible();
+  // The refusal opens the gate: the header's switch (its Turn on button) takes the focus.
+  await expect(page.locator('#btn-gm')).toBeFocused();
+  expect(calls.map(c => c.name)).not.toContain('undo-change');
+});
+
 test('screen A has one Undo: the header one, not the strip', async ({ page }) => {
   await setup(page);
   await load(page);

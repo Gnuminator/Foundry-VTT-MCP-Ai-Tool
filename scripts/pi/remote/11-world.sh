@@ -25,8 +25,8 @@
 #   in $TOOL_ETC, and a later auto run sets them then even in a kept world. WORLD_SWITCHES=0 gives that up: the
 #   marker is cleared (also when a push-back replaces the world). WORLD_SWITCHES=1 with a Plan B push-back is
 #   refused before anything stops.
-# The run is logged in $IMPORT/world-run-<stamp>.log (root only; every line the stage prints with a time, not the
-# output of the tools it runs, such as the driver), so a dropped SSH connection, which the stage ignores
+# The run is logged in $IMPORT/world-run-<stamp>.log (root only; the stage's own lines from the bundle check on, with a
+# time, not the output of the tools it runs, such as the driver and the GM password check), so a dropped SSH connection, which the stage ignores
 # (trap '' HUP PIPE), leaves the story on the Pi.
 # REPLACE_KIT (1 lets the run reset an installed KIT_WORLD that is not a kit copy of WORLD; default 0 refuses it. A kit
 #   copy carries flags.foundry-ai-tool.kitOf = WORLD in its world.json, written by every reset; the Pi's older
@@ -264,12 +264,13 @@ on_exit() {
 trap on_exit EXIT
 # A dropped SSH connection must not kill the stage while Foundry is stopped: the next line of output would raise SIGPIPE
 # (stages 14 and 19 do the same; the output helpers in lib.sh already survive a failed write). Every line also goes
-# to a root-only log next to the bundle, like stages 14 and 19, so a dropped connection leaves the story on the Pi.
+# to a root-only log next to the bundle (stages 14 and 19 log too), so a dropped connection leaves the story on the Pi.
 trap '' HUP PIPE
 STAGE_LOG="$IMPORT/world-run-$stamp.log"
 if (umask 077 && : >>"$STAGE_LOG") 2>/dev/null; then
   ok "this run is logged in $STAGE_LOG"
 else
+  warn "could not create $IMPORT/world-run-$stamp.log: this run is not logged"
   STAGE_LOG=""
 fi
 tar --quoting-style=literal -tf "$BUNDLE" >"$work/names" || die "cannot read the tar"
@@ -645,7 +646,7 @@ NODE
       3)
         check_state=newer
         warn "documents in the Pi's $WORLD created or changed after $based_on: $newer_count (newest first, up to 5; collection, name, time$same_note):"
-        sed -n '2,6p' "$work/changes" | while IFS= read -r line; do printf '      %s\n' "$line" >&2; done
+        sed -n '2,6p' "$work/changes" | while IFS= read -r line; do out "      $line" 1; done
         if [ "$REPLACE_NEWER" = 1 ]; then
           warn "REPLACE_NEWER=1: the Pi's $WORLD is replaced anyway; its copy goes to $prev"
         else
@@ -815,7 +816,7 @@ provision_world() { # $1 world id
       . "$envf"
       set +a
       [ -n "${GM_USER:-}" ] && [ -n "${GM_PASSWORD:-}" ] || {
-        echo "ERROR: $envf has no GM_USER and GM_PASSWORD" >&2
+        out "ERROR: $envf has no GM_USER and GM_PASSWORD" 1
         exit 1
       }
       # The login stays in the environment, never on a command line (as in stage 13).
@@ -926,12 +927,13 @@ else
   prev_note="old copies kept in $prev ($(du -sh "$prev" | cut -f1)); remove them later, only with the user's OK"
 fi
 
-# Read-only closing check (lib-gm-passwords.sh; it clears the traps, which this stage has cleared above).
+# Read-only closing check (lib-gm-passwords.sh; it resets the EXIT, INT, TERM and HUP traps, so HUP is ignored again after it).
 if declare -F gm_passwords_notice >/dev/null; then
   gm_passwords_notice
 else
   warn "lib-gm-passwords.sh was not in the pipe, so the GM password check was skipped: run gm-passwords.sh (docs/dev/PI-SETUP.md)"
 fi
+trap '' HUP PIPE
 
 # The summary goes through out (not echo) so the run's log holds it too.
 say "summary"

@@ -947,9 +947,9 @@ the table and the data differ) joins the world as its GM with the login in
   ("does not go with a Plan B push-back ... Nothing was changed"); leave `WORLD_SWITCHES` out or use `0`.
 - **Not wanted:** `WORLD_SWITCHES=0`. The stage needs `world-switches.mjs` uploaded first:
   `scp scripts/pi/remote/world-switches.mjs foundry-pi:/root/`, and removes the upload.
-- **The run's log:** like stages 14 and 19, stage 11 writes every line it prints, with a time, to
+- **The run's log:** like stages 14 and 19, stage 11 writes the lines it prints itself (from the bundle check on), with a time, to
   `/var/lib/foundry-import/world-run-<time>.log` (root only; the output names it). It holds the stage's own
-  lines, not what the tools it runs print (the driver's lines show only on the screen). The stage
+  lines, not what the tools it runs print (the driver's and the GM password check's lines show only on the screen). The stage
   ignores a dropped SSH connection while Foundry is stopped, so after a drop `tail` that file to see how far
   it got. Read the log, not the old output, before running the stage again.
 

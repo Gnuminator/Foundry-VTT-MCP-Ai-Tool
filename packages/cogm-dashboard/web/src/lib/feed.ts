@@ -18,6 +18,8 @@ export interface FeedEvent {
   text: string;
   /** The guarded change that made the event (damage, healing, gm-change), when the module says. */
   changeId?: string;
+  /** The feature behind a gm-change (`actor-change`, `page-reveal`, ...), when the module says. */
+  feature?: string;
 }
 
 /** The events this page has seen. */
@@ -61,12 +63,14 @@ export function readFeedEvent(v: unknown): FeedEvent | null {
   const description = typeof v['description'] === 'string' ? v['description'] : '';
   const details = v['details'];
   const changeId = isRecord(details) ? details['changeId'] : undefined;
+  const feature = isRecord(details) ? details['feature'] : undefined;
   return {
     id,
     timestampMs: ms,
     eventType: type,
     text: lineOf(description, details) || type,
     ...(typeof changeId === 'string' && changeId ? { changeId } : {}),
+    ...(typeof feature === 'string' && feature ? { feature } : {}),
   };
 }
 
@@ -142,10 +146,24 @@ export function severityClass(eventType: string): string {
 }
 
 /**
- * The chip an event shows: the module's kind, except where that name means nothing to a GM. A
- * whispered or blind roll is a `gm-roll` to the module; the GM reads "private roll".
+ * A feature id in words ("actor change", "page reveal"), else "change": the chip of a gm-change
+ * event, whose line says what changed and on whom, and the feature on an AI row of Recent Changes.
  */
-export function eventLabel(eventType: string): string {
+export function gmChangeLabel(feature?: string): string {
+  const words = (feature ?? '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+  return words || 'change';
+}
+
+/**
+ * The chip an event shows: the module's kind, except where that name means nothing to a GM. A
+ * whispered or blind roll is a `gm-roll` to the module; the GM reads "private roll". A gm-change
+ * reads as the feature behind it.
+ */
+export function eventLabel(eventType: string, feature?: string): string {
+  if (eventType === GM_CHANGE_EVENT) return gmChangeLabel(feature);
   if (eventType === 'gm-roll') return 'private roll';
   if (eventType === 'roll-request') return 'roll request';
   if (eventType === 'death') return 'down';

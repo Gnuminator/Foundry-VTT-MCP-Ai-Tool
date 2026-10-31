@@ -99,6 +99,8 @@ describe('11-world.sh in an ARM64 container', { skip: containerReason }, () => {
           worlds: part('worlds'),
           modules: part('modules'),
           leak: part('leak'),
+          log: part('log'),
+          logMode: part('log mode'),
         });
       }
     },
@@ -141,6 +143,16 @@ describe('11-world.sh in an ARM64 container', { skip: containerReason }, () => {
     assert.equal(r.exit, '0', r.output);
     assert.match(r.output, /world frostmaiden-training installed/);
     assert.doesNotMatch(r.output, /KEPT/);
+    // The run is logged like stages 14 and 19: the output names the log, and the log holds the lines with a time.
+    assert.match(
+      r.output,
+      /^ {4}ok: this run is logged in \/var\/lib\/foundry-import\/world-run-\d{8}-\d{6}\.log$/m
+    );
+    assert.match(r.log, /^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d {5}ok: this run is logged in /m);
+    assert.match(r.log, /^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d ==> summary$/m);
+    assert.match(r.log, / {4}Foundry launches: curse-of-strahd$/m);
+    assert.equal(r.logMode, '600 root', 'the log is root only');
+    assert.equal(r.leak, 'no', 'no password reaches the log');
     const files = envFiles(r.after);
     const frost = files['world-frostmaiden-training.env'];
     assert.ok(frost, r.after);
@@ -788,6 +800,7 @@ describe('11-world.sh in an ARM64 container', { skip: containerReason }, () => {
     const r = run('switches-1-pushback');
     assert.equal(r.exit, '1', r.output);
     assert.match(r.output, /WORLD_SWITCHES=1 does not go with a Plan B push-back.*Nothing was changed/);
+    assert.doesNotMatch(r.output, /stopping the Assistant GM browser and Foundry/, 'refused before the stop');
     assert.deepEqual(lines(r.switches), [SW('frostmaiden-training')], 'only the first run set switches');
   });
 

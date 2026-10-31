@@ -311,7 +311,7 @@ Parameters:
 
 ### use-item
 
-Use an item on a character (cast spell, use ability, activate feature, consume item). Opens the item dialog in Foundry for the GM to confirm; on a no-canvas GM browser (the Pi) no dialog opens and the chat card Attack button reads the clicker targets. Specify targets by name. Returns "initiated" at once. Use get-character or search-character-items first to see available items/spells.
+Use an item on a character (cast spell, use ability, activate feature, consume item). Opens the item dialog in Foundry for the GM to confirm; on a GM browser without a canvas no dialog opens and the chat card Attack button reads the targets of whoever clicks it. Optionally specify targets by name. Returns "initiated" at once. Use get-character or search-character-items first to see available items/spells.
 
 Kind: changes something and can delete or overwrite. Title: Use item.
 

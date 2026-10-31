@@ -396,7 +396,17 @@ export function worktreeTreeHash(cwd) {
   try {
     // A copy of the real index keeps git's file-stat cache, so `add -A` only hashes changed files.
     try {
-      fs.copyFileSync(path.resolve(cwd, real.stdout.trim()), index);
+      const realIndex = path.resolve(cwd, real.stdout.trim());
+      // Stat first: an index rewrite between the two calls can then only make the copy's mtime
+      // older than its content (more re-hashing), never newer.
+      const st = fs.statSync(realIndex);
+      fs.copyFileSync(realIndex, index);
+      // Git trusts a cached file stat only when the entry is older than the index file's own mtime
+      // (whole seconds); an entry from the same second is "racy" and gets re-hashed. The copy has
+      // a fresh mtime on Linux (Windows' CopyFile keeps the source's), which would turn a same-size
+      // edit made in the second of the last git command into a trusted stale entry, so it gets the
+      // real index's mtime, floored to the second: never later, an earlier one only costs a re-hash.
+      fs.utimesSync(index, st.atime, Math.floor(st.mtimeMs / 1000));
     } catch {
       if (git(['read-tree', 'HEAD'], { GIT_INDEX_FILE: index }).status !== 0) return null;
     }
@@ -862,7 +872,9 @@ export const QUICK_SCREENSHOT_NOTE = 'Screenshots are not checked locally; CI da
  * lane skill 2026-10-30). Per touched workspace its typecheck and unit tests; a `shared/` change
  * typechecks every package (they build on it) and tests shared; a changed `*.test.mjs` (or the
  * script next to it) runs under node --test; a changed dashboard e2e spec builds the dashboard and
- * runs only that spec. None of these step names is in HEAVY_STEPS (hence `unit-*`, not `test-*`), so a quick run never takes a
+ * runs only that spec; a change under the dashboard web app or `scripts/test-kit/` also builds the
+ * mcp-server and runs the kit scenario check; that or a usage-catalogue input also runs the kit
+ * control tests (a new control without its skip row). None of these step names is in HEAVY_STEPS (hence `unit-*`, not `test-*`), so a quick run never takes a
  * heavy slot (the e2e spec step keeps the small solo lock the e2e port needs).
  * @param {string[]} files repo-relative paths, forward slashes
  * @returns {Step[]}
@@ -913,6 +925,23 @@ export function quickSteps(files, cwd = process.cwd()) {
   }
   if (webTouched) {
     steps.push({ name: 'bundle-budget', cmd: 'npm', args: ['run', 'bundle:budget', '-w', '@gnuminator/cogm-dashboard'] });
+  }
+  // A new control needs its row (or skip row) in the kit: the control tests fail on an unclassified
+  // catalog entry (CI "Test kit engine tests", npm run kit:test). They read the generated catalog.
+  const kitTouched = files.some(f => f.startsWith('scripts/test-kit/'));
+  if (kitTouched || files.some(f => USAGE_CATALOG_INPUT.test(f))) {
+    steps.push({
+      name: 'kit-controls',
+      cmd: 'node',
+      args: ['--test', 'scripts/test-kit/test/dashboard-controls.test.mjs', 'scripts/test-kit/test/foundry-controls.test.mjs'],
+      env: CI,
+    });
+  }
+  // The kit scenario check (CI "Test kit scenario check"): every scenario loads and names tools that
+  // exist. It reads the built tool catalog of the mcp-server.
+  if (webTouched || kitTouched) {
+    steps.push({ name: 'build-mcp-server', cmd: 'npm', args: ['run', 'build', '-w', '@gnuminator/mcp-server'] });
+    steps.push({ name: 'kit-check', cmd: 'node', args: ['scripts/test-kit/kit.mjs', 'check'] });
   }
   if (specs.length > 0) {
     steps.push({

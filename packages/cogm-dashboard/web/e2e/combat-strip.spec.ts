@@ -1320,6 +1320,9 @@ test.describe('when a write or a roll request fails', () => {
     await expect(page.locator('#damage-form')).toHaveCount(0);
     // The form closes as soon as the plan is made; the apply follows a tick later.
     await expect.poll(() => calls.filter(c => c.name === 'apply-planned-change').length).toBe(1);
+    // Settle, so a second apply that lands a moment after the first is caught too.
+    await page.waitForTimeout(300);
+    expect(calls.filter(c => c.name === 'apply-planned-change')).toHaveLength(1);
     expect(calls.filter(c => c.name === 'plan-actor-change')).toHaveLength(1);
   });
 

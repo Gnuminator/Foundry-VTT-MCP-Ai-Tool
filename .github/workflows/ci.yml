@@ -15,6 +15,12 @@ on:
 # Every merge commit gets a finished run, so a red cannot be hidden by the next merge (57 of 97 main
 # runs were cancelled 2026-10-14 to 10-30). The repo is public, so the extra runner minutes, the ARM
 # job included, are free.
+# A hand-dispatched run (`npm run green -- --cloud` on a branch without a PR) names every job with a
+# " [dispatch]" suffix. Its checks then have their own keys in a PR's check rollup, so the gate
+# (latestChecks in scripts/lane-merge.mjs) never takes a dispatch run on the branch head for the
+# pull_request run on the merge ref: a red merge-ref run stays visible next to a green dispatch. The
+# other side: a red or cancelled "[dispatch]" check on the head blocks the gate on purpose; rerun that
+# dispatch run (gh run rerun <id> --failed) or push again to clear it.
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref == 'refs/heads/main' && github.sha || github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
@@ -33,7 +39,7 @@ jobs:
         # 22: the release build. 24: what the Orange Pi runs (Foundry 14 requires Node 24,
         # and the bridge, dashboard and bot share that Node on the Pi).
         node: ['22', '24']
-    name: build-test (Node ${{ matrix.node }})
+    name: build-test (Node ${{ matrix.node }})${{ github.event_name == 'workflow_dispatch' && ' [dispatch]' || '' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -339,7 +345,7 @@ jobs:
     # its first parent is the base branch. Anything that is not a pull request (push to main,
     # manual run) always runs the screenshots.
     runs-on: ubuntu-latest
-    name: visual-changes (path filter)
+    name: visual-changes (path filter)${{ github.event_name == 'workflow_dispatch' && ' [dispatch]' || '' }}
     outputs:
       run: ${{ steps.filter.outputs.run }}
     steps:
@@ -382,7 +388,7 @@ jobs:
     needs: visual-changes
     if: needs.visual-changes.outputs.run == 'true'
     runs-on: ubuntu-latest
-    name: dashboard-visual shard ${{ matrix.shard }}/4
+    name: dashboard-visual shard ${{ matrix.shard }}/4${{ github.event_name == 'workflow_dispatch' && ' [dispatch]' || '' }}
     strategy:
       # Every shard reports, so one red shard does not hide another's diffs.
       fail-fast: false
@@ -448,7 +454,7 @@ jobs:
     needs: [visual-changes, dashboard-visual-shard]
     if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
-    name: dashboard-visual (screenshots)
+    name: dashboard-visual (screenshots)${{ github.event_name == 'workflow_dispatch' && ' [dispatch]' || '' }}
     steps:
       - name: Every shard passed, or was skipped by the filter
         run: |
@@ -470,7 +476,7 @@ jobs:
     # for claude -p. Every tools/<name>/ with a pyproject.toml and a tests/ folder runs, so a new
     # tool is picked up without editing this job.
     runs-on: ubuntu-latest
-    name: python-tests (Python 3.12)
+    name: python-tests (Python 3.12)${{ github.event_name == 'workflow_dispatch' && ' [dispatch]' || '' }}
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
@@ -507,7 +513,7 @@ jobs:
     # The Orange Pi is ARM (aarch64) and runs Node 24: the same steps on an ARM runner
     # catch native-module or architecture problems before the tool moves there.
     runs-on: ubuntu-24.04-arm
-    name: build-test (ARM, Node 24)
+    name: build-test (ARM, Node 24)${{ github.event_name == 'workflow_dispatch' && ' [dispatch]' || '' }}
     steps:
       - uses: actions/checkout@v4
 

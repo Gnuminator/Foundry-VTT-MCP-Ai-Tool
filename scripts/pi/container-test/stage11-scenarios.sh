@@ -368,8 +368,14 @@ scenario() {
     [ -d "$w" ] || continue
     if [ -f "$w/sentinel" ]; then echo "$(basename "$w") yes"; else echo "$(basename "$w") no"; fi
   done
+  echo "--- log"
+  # The newest run log (stage 11's STAGE_LOG); empty when the run refused before it started one.
+  runlog="$(ls "$IMPORT"/world-run-*.log 2>/dev/null | tail -n1 || true)"
+  [ -z "$runlog" ] || cat "$runlog"
+  echo "--- log mode"
+  [ -z "$runlog" ] || stat -c '%a %U' "$runlog"
   echo "--- leak"
-  leak_check /tmp/out.last /tmp/out.first
+  leak_check /tmp/out.last /tmp/out.first ${runlog:+"$runlog"}
   echo "=== END $name"
 }
 

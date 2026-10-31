@@ -309,7 +309,9 @@ if ($LASTEXITCODE -ne 0) { Fail 'ssh to the Pi failed' }
 if ($LASTEXITCODE -ne 0) { Fail 'scp failed' }
 Write-Host 'uploaded. Stage 11 has NOT been run. After a snapshot (dietpi-backup 1) and your OK:' -ForegroundColor Green
 if ($PushBack) {
-  Write-Host "  cat scripts/pi/remote/lib.sh scripts/pi/remote/lib-gm-passwords.sh scripts/pi/remote/11-world.sh | ssh $PiHost 'BUNDLE=/var/lib/foundry-import/$remoteName WORLD=$World REPLACE_WORLD=1 KIT_WORLD= bash -s'"
+  # A world other than the campaign needs LAUNCH (stage 11 refuses it without), the world Foundry keeps launching.
+  $launchWord = if ($World -ne 'curse-of-strahd') { ' LAUNCH=curse-of-strahd' } else { '' }
+  Write-Host "  cat scripts/pi/remote/lib.sh scripts/pi/remote/lib-gm-passwords.sh scripts/pi/remote/11-world.sh | ssh $PiHost 'BUNDLE=/var/lib/foundry-import/$remoteName WORLD=$World REPLACE_WORLD=1 KIT_WORLD=$launchWord bash -s'"
   Write-Host "It refuses if the Pi's world changed after $basedOn (it lists what changed). Only with your OK to lose those"
   Write-Host 'Pi-side changes: add REPLACE_NEWER=1. The Pi''s old copy is kept in /var/lib/foundry-import/prev-<time> either way.'
 } elseif ($World -ne 'curse-of-strahd') {

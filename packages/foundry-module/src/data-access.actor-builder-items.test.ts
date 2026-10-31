@@ -252,6 +252,7 @@ describe('FoundryDataAccess — useItem', () => {
     expect(use.mock.calls[0][0]).toMatchObject({ subsequentActions: false });
     expect(use.mock.calls[0][1]).toEqual({ configure: false });
     expect(result.message).toContain('no dialog was shown');
+    expect(result.message).toContain('whoever clicks');
   });
 
   it('sets targets through game.user.targets when there is no canvas (headless GM)', async () => {

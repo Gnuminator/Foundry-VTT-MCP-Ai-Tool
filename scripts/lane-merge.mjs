@@ -473,6 +473,15 @@ export function requiredContexts(json) {
  * writes a missing time as Go's zero time `0001-01-01T00:00:00Z`) is unknown: an unfinished entry with
  * an unknown time (queued) counts as the newest, a finished one as the oldest. On equal or unknown
  * times the worse entry stays (failing over pending over success).
+ * Chosen on purpose (#657 L3): a finished entry with no start time ranks oldest, so a dated run
+ * replaces it even when that run is a success older than the failure. The alternative (keep the
+ * undated failure) would block a PR for good once a retry has passed, and the dated entry is the
+ * only one that can be placed in time; two undated finished entries keep the worse one. A hand-dispatched ci.yml run
+ * (event workflow_dispatch) cannot collide with the pull_request run: its job names carry a
+ * " [dispatch]" suffix, so it is a key of its own. The other side: a failing or cancelled
+ * "[dispatch]" check on the head blocks the gate even when the pull_request run is green. That is on
+ * purpose; `gh run rerun <id> --failed` on the dispatch run (a newer start under the same key wins)
+ * or a new push clears it.
  * @param {any[]} rollup @returns {any[]}
  */
 export function latestChecks(rollup) {
@@ -700,7 +709,69 @@ export function writeTrain(file, state) {
 /** Vault note the PM board reads for the merge train (board README, "Merge train.md"). */
 export const TRAIN_NOTE_PATH = 'Dev/Foundry AI Tool/Merge train.md';
 
-/** @typedef {{ kind: 'merge' | 'reset' | 'refusal', pr?: number, at: string }} TrainEvent */
+/** @typedef {{ kind: 'merge' | 'reset' | 'refusal', pr?: number, at: string, reasons?: string[], driftGuards?: string[] }} TrainEvent */
+
+/** Longest reason line kept in a train commit body. */
+const REASON_MAX = 160;
+
+/**
+ * The cause tag of each refusal line: the word before its first colon (`ci`, `review`, `drift`,
+ * `train`, `pr`, `local`, `changelog`, `files`, `merge`, `wait-ci`), `other` when a line has none. Each
+ * tag once, in order, so refusals can be counted by cause from the commit subjects.
+ * A `ci` line is split into `ci-failing`, `ci-pending`, `ci-missing` and `ci-rules`; a `wait-ci` line
+ * into `wait-ci-failing`, `-timeout`, `-head-moved` and `-other`; a `drift` line into one
+ * `drift-<guard name>` per failing guard, which the caller passes as data (guard names hold commas
+ * and parentheses, so they are not parsed back out of the text).
+ * @param {string[]} reasons @param {string[]} [driftGuards] @returns {string[]}
+ */
+export function refusalCauses(reasons, driftGuards = []) {
+  const slug = (/** @type {string} */ s) =>
+    s
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '');
+  /** @type {string[]} */
+  const tags = [];
+  for (const r of reasons) {
+    const word = /^([a-z][a-z-]*):/.exec(r)?.[1] ?? 'other';
+    if (word === 'ci') {
+      // one ci line can carry several problems: failing, pending, required but not reported
+      if (/\bfailing:/.test(r)) tags.push('ci-failing');
+      if (/\bpending:|no checks reported/.test(r)) tags.push('ci-pending');
+      if (/required but not reported/.test(r)) tags.push('ci-missing');
+      if (!/\bfailing:|\bpending:|no checks reported|required but not reported/.test(r)) tags.push('ci-rules');
+    } else if (word === 'wait-ci') {
+      if (/CI failed on/.test(r)) tags.push('wait-ci-failing');
+      else if (/timed out/.test(r)) tags.push('wait-ci-timeout');
+      else if (/head moved/.test(r)) tags.push('wait-ci-head-moved');
+      else tags.push('wait-ci-other');
+    } else if (word === 'drift') {
+      const names = driftGuards.map(g => slug(g)).filter(Boolean);
+      if (names.length > 0) tags.push(...names.map(n => `drift-${n}`));
+      else tags.push('drift');
+    } else tags.push(word);
+  }
+  return [...new Set(tags)];
+}
+
+/**
+ * The reason lines of a refusal as a commit body: one line each, the first line of the failure only
+ * (drift-check output is not copied), cut to REASON_MAX characters, nothing that is not a plain line.
+ * @param {string[]} reasons @returns {string}
+ */
+export function refusalBody(reasons) {
+  return reasons
+    .map(r =>
+      r
+        .split(/\r?\n/)[0]
+        .replace(/\p{Cc}/gu, ' ')
+        .replace(/ \(log [^)]*\)/, '') // the drift log path (a temp file of this PC) says nothing in a shared commit
+        .trim()
+    )
+    .filter(Boolean)
+    .map(r => (r.length > REASON_MAX ? `${r.slice(0, REASON_MAX - 3)}...` : r))
+    .join('\n');
+}
 
 /**
  * The vault note text: `key: value` lines in a frontmatter, numbers, a commit hash, a result word
@@ -747,7 +818,11 @@ export function publishTrainNote({ vault, state, event, run, now }) {
       return merged.status === 0 ? '' : `vault pull failed (${why(merged)})`;
     };
     const label = event.kind === 'reset' ? 'reset' : `${event.kind} #${event.pr}`;
-    const subject = `Merge train: ${label}, ${state.since.length}/${TRAIN_SIZE}`;
+    const causes = event.kind === 'refusal' ? refusalCauses(event.reasons ?? [], event.driftGuards ?? []) : [];
+    const subject = `Merge train: ${label}, ${state.since.length}/${TRAIN_SIZE}${
+      causes.length > 0 ? ` [${causes.join(', ')}]` : ''
+    }`;
+    const body = event.kind === 'refusal' ? refusalBody(event.reasons ?? []) : '';
     let pushError = '';
     for (let attempt = 0; attempt < 2; attempt++) {
       const synced = sync();
@@ -756,7 +831,7 @@ export function publishTrainNote({ vault, state, event, run, now }) {
       fs.writeFileSync(file, renderTrainNote(state, event, now().toISOString()));
       const added = git('add', '--', TRAIN_NOTE_PATH);
       if (added.status !== 0) return `merge train note not committed (${why(added)})`;
-      const committed = git('commit', '-m', subject, '--', TRAIN_NOTE_PATH);
+      const committed = git('commit', '-m', subject, ...(body ? ['-m', body] : []), '--', TRAIN_NOTE_PATH);
       if (committed.status !== 0) return `merge train note not committed (${why(committed)})`;
       const pushed = git('push');
       if (pushed.status === 0) return '';
@@ -1222,13 +1297,19 @@ export function main(options = {}) {
     args.vault ?? env.FOUNDRY_AI_OBSIDIAN_DIR ?? path.join(home, 'Documents', 'Obsidian', 'vault');
   /**
    * Write the train state to the vault note. A failure is a warning text, never a failed merge.
-   * @param {TrainState} state @param {TrainEvent['kind']} kind @param {number} [pr]
+   * @param {TrainState} state @param {TrainEvent['kind']} kind @param {number} [pr] @param {string[]} [reasons] @param {string[]} [driftGuards]
    */
-  const recordTrain = (state, kind, pr) => {
+  const recordTrain = (state, kind, pr, reasons, driftGuards) => {
     const warn = publishTrainNote({
       vault,
       state,
-      event: { kind, ...(pr === undefined ? {} : { pr }), at: now().toISOString() },
+      event: {
+        kind,
+        ...(pr === undefined ? {} : { pr }),
+        ...(reasons === undefined ? {} : { reasons }),
+        ...(driftGuards === undefined ? {} : { driftGuards }),
+        at: now().toISOString(),
+      },
       run,
       now,
     });
@@ -1300,6 +1381,8 @@ export function main(options = {}) {
   // vault I/O, so a slow vault never keeps other lanes waiting.
   /** @type {(() => void) | null} */
   let release = null;
+  /** Names of the guards drift-check reported as failing, for the refusal tags. @type {string[]} */
+  const driftGuards = [];
   const finish = (code = 1) => {
     release?.();
     release = null;
@@ -1309,7 +1392,7 @@ export function main(options = {}) {
     for (const d of details) log(d);
     if (!args.dryRun) {
       try {
-        const warn = recordTrain(readTrain(statePath), 'refusal', n);
+        const warn = recordTrain(readTrain(statePath), 'refusal', n, failures, driftGuards);
         if (warn) log(`lane:merge: ${warn}`);
       } catch (e) {
         log(`lane:merge: WARNING: merge train note not written (${message(e)})`);
@@ -1531,7 +1614,12 @@ export function main(options = {}) {
       /* the tail below still shows the output */
     }
     if (drift.status !== 0) {
-      failures.push(`drift: drift-check failed (log ${logFile}); last lines below`);
+      // drift-check logs "  FAIL <guard name>" per failing guard; the names go into the refusal reason
+      const guards = [...output.matchAll(/^ {2}FAIL (.+?)\s*$/gm)].map(m => m[1]);
+      driftGuards.push(...guards);
+      failures.push(
+        `drift: drift-check failed${guards.length > 0 ? ` (guards: ${guards.join(', ')})` : ''} (log ${logFile}); last lines below`
+      );
       details.push(...output.replace(/\s+$/, '').split(/\r?\n/).slice(-TAIL_LINES));
     }
   } else if (failures.length > 0) {

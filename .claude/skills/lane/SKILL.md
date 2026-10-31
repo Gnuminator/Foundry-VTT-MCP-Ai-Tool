@@ -11,6 +11,11 @@ one PR. Vault paths below are under `C:\Users\chris\Documents\Obsidian\vault\Dev
 
 ## Start
 
+**Edit and Write tools only for source files:** no sed, perl, python or heredoc edits of repo files
+(the hook `guard-shell-edits.mjs` denies them). The hook `format-on-edit.mjs` runs prettier on a
+file you edit when it was prettier-clean at HEAD (or is new), and tells you to Read it again when
+it changed it.
+
 1. Pull the vault. Open `Backlog.md`, take the top item with no `claimed:` line that fits your
    brief, write `claimed: <session title> <date>` under it and, on the next line,
    `- link: <your session link>` (the `link` field of `get_session "self"`, a `claude://` address;
@@ -83,6 +88,9 @@ item is marked done; the board ignores a line on an item with no claim.
   (B 31524, C 31534);
   `Get-NetTCPConnection -State Listen -LocalPort 31414,31415,31416` shows nothing else bound.
   Stopping a background task may leave its node child running on Windows: check the PID.
+- **Reading to understand code (2026-10-31):** more than about eight files goes to an Explore
+  subagent (`model: "haiku"`) that returns a summary with file:line; you read only the few files
+  you will edit.
 - **Commands over 2 minutes** run in the background (`run_in_background`); never poll in a loop.
   On Windows never call `python3` (Store stub, hangs); use `python`. Bash heredocs drop
   backslashes: write code with `\n` or regex through the Write/Edit tools.
@@ -108,6 +116,12 @@ item is marked done; the board ignores a line on an item with no claim.
     (dashboard `public/`, module `src/`). Screenshots (`dashboard-visual`) are not checked locally:
     quick prints a reminder and CI runs them. Nothing
     touched means "nothing to check". It never writes `.git/green-ok`.
+  - **Push early, never red (2026-10-31):** at the first milestone (quick checks pass) push the
+    branch and open a draft PR, before baselines and review; `gh pr ready` before the gate. Never
+    push with failing quick checks. A failure that is already on main is named in the PR body
+    (check with `gh run list --branch main -w ci.yml -L 1`), not fixed by guessing.
+  - **Code comments** never contain `#<number>` (a PR or issue number goes stale; name the topic
+    or the Decisions id instead).
   - **Still yours:** `npm run docs:tools` after a tool change. Lint and em-dash baselines: the CI
     ratchet tells you when a count dropped or rose; lower the baseline then
     (`npm run lint:ratchet -- --update`).
@@ -250,7 +264,14 @@ note reviewed>` (`--dry-run` first; no `--allow-round3`). It refuses, with the r
 
 - The context hook prints one line at 350k (plan the handover) and 400k (hand over now); 200k
   and 250k while the planner has set low mode (weekly usage on or above pace). `get_usage "self"` gives
-  the exact number.
+  the exact number. A reading counts only when the response before it was also at or above the
+  line (one response sometimes reports its usage doubled, so a lone spike is a phantom: read it
+  again).
+- **Hard stop (2026-10-31):** at or above the out line the hook `context-stop.mjs` denies Edit,
+  Write, Agent and shell commands that write in the repo. Still allowed: reading, git add, commit
+  and push, `gh`, writes to the vault and the scratchpad, SendMessage, set_session_title,
+  wrap_up. Write the handover and stop; the deny lifts only when the context is under the line
+  again.
 - Handover: half a page to vault `Handoff/<lane> prompt <date>.md` and in full in the chat in a
   fenced block: task, state, open PRs, links, done-when, "follow CLAUDE.md". Findings a successor
   needs go in the vault, not side-session notes (archiving a session deletes those).

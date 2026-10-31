@@ -132,6 +132,7 @@ export const DASHBOARD_CONTROLS = [
     'dash.live.condition',
     'dash.live.end-combat',
     'dash.live.next-turn',
+    'dash.live.one-round',
     'dash.live.pan',
     'dash.live.pick',
     'dash.live.show-handout',

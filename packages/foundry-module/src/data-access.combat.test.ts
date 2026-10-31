@@ -626,6 +626,55 @@ describe('FoundryDataAccess — getCombatState: conditions', () => {
     expect(result.combatants[0].conditions).toEqual(['Poisoned', 'Blinded']);
   });
 
+  it('lists the rounds left on timed conditions, 0 once the time is up, and skips untimed ones', async () => {
+    const prone = makeEffect({
+      name: 'Prone',
+      statuses: ['prone'],
+      duration: { units: 'rounds', value: 1, remaining: 1 },
+    });
+    const poisoned = makeEffect({
+      name: 'Poisoned',
+      statuses: ['poisoned'],
+      duration: { units: 'rounds', value: 2, remaining: 0, expired: true },
+    });
+    // The round changed (remaining 0) but Foundry has not flagged it: it still applies.
+    const frightened = makeEffect({
+      name: 'Frightened',
+      statuses: ['frightened'],
+      duration: { units: 'rounds', value: 1, remaining: 0, expired: false },
+    });
+    const blinded = makeEffect({ name: 'Blinded', statuses: ['blinded'] });
+    const hours = makeEffect({
+      name: 'Charmed',
+      statuses: ['charmed'],
+      duration: { units: 'hours', value: 1 },
+    });
+    const actor = makeActor({
+      type: 'character',
+      system: hp(10),
+      hasPlayerOwner: true,
+      effects: [prone, poisoned, frightened, blinded, hours],
+    });
+    world.setCombat({
+      turns: [
+        makeCombatant({ id: 'c1', name: 'Hero', initiative: 20, actor, token: { disposition: 1 } }),
+      ],
+      turn: 0,
+      round: 1,
+      started: true,
+    });
+
+    const result = await da.getCombatState();
+    expect(result.combatants[0].conditions).toEqual([
+      'Prone',
+      'Poisoned',
+      'Frightened',
+      'Blinded',
+      'Charmed',
+    ]);
+    expect(result.combatants[0].timed).toEqual({ Prone: 1, Poisoned: 0, Frightened: 1 });
+  });
+
   it('excludes disabled effects from conditions', async () => {
     const poisoned = makeEffect({ name: 'Poisoned', statuses: ['poisoned'], disabled: false });
     const exhausted = makeEffect({ name: 'Exhaustion', statuses: ['exhaustion'], disabled: true });

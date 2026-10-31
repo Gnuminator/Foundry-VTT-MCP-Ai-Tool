@@ -53,6 +53,8 @@ export interface Combatant {
   actedThisRound: boolean;
   hp: CombatantHp;
   conditions: string[];
+  /** Rounds left on the timed conditions, by condition name (0 = the time is up); GM only. */
+  timed?: Record<string, number>;
   isPC: boolean;
   category: string; // 'pc' | 'npc' | 'enemy'
   defeated: boolean;

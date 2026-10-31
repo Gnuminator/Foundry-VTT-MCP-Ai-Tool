@@ -27,6 +27,7 @@ import { HANDOUT_NEEDS, ROLL_NEEDS, offReason } from '../lib/liveSwitches';
 import {
   CONDITIONS,
   StripUndoContext,
+  chipText,
   conditionArgs,
   displayNames,
   downWords,
@@ -149,11 +150,19 @@ function Card({
       </span>
       <span className={styles['chips']}>
         {down && <span className={`${styles['tag']} ${styles['down']}`}>{down}</span>}
-        {c.conditions.map(cond => (
-          <span key={cond} className={styles['tag']}>
-            {cond}
-          </span>
-        ))}
+        {c.conditions.map(cond => {
+          const left = c.timed?.[cond];
+          const ended = left === 0;
+          return (
+            <span
+              key={cond}
+              className={`${styles['tag']} ${ended ? styles['ended'] : ''}`}
+              title={ended ? `Time is up. Click ${cond} again to put it back.` : undefined}
+            >
+              {chipText(cond, left)}
+            </span>
+          );
+        })}
       </span>
     </li>
   );
@@ -173,6 +182,8 @@ export function LiveStrip(): JSX.Element {
   const [picked, setPicked] = useState<ReadonlySet<string>>(new Set());
   const [lastAsked, setLastAsked] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
+  // "1 round": the next condition lasts one round. Cleared with the pick, so a failed add keeps it.
+  const [oneRound, setOneRound] = useState(false);
   const busyRef = useRef(false);
   const barRef = useRef<HTMLDivElement>(null);
 
@@ -230,6 +241,7 @@ export function LiveStrip(): JSX.Element {
   /** Clears the pick and hands keyboard focus to the pick bar, whose Clear / form just went. */
   const clearPick = useCallback((): void => {
     setPicked(new Set());
+    setOneRound(false);
     requestAnimationFrame(() => barRef.current?.focus());
   }, []);
 
@@ -280,7 +292,10 @@ export function LiveStrip(): JSX.Element {
   const addCondition = (condition: string): Promise<void> =>
     once(async () => {
       if (targets.length === 0) return;
-      const done = await plan('plan-actor-change', conditionArgs(targets, condition));
+      const done = await plan(
+        'plan-actor-change',
+        conditionArgs(targets, condition, oneRound ? 1 : undefined)
+      );
       if (done.status === 'done') clearPick();
     });
 
@@ -490,6 +505,23 @@ export function LiveStrip(): JSX.Element {
               </Suspense>
             )}
             <div className={styles['barRow']} role="group" aria-label="Condition">
+              <button
+                type="button"
+                className={`${styles['cond']} ${oneRound ? styles['on'] : ''}`}
+                data-track="dash.live.one-round"
+                aria-pressed={oneRound}
+                aria-disabled={kept.size === 0 || writeOff ? 'true' : undefined}
+                title={
+                  kept.size === 0
+                    ? 'Pick a creature first'
+                    : (offTitle ?? 'The next condition lasts 1 round')
+                }
+                onClick={() => {
+                  if (kept.size > 0 && !writeOff) setOneRound(on => !on);
+                }}
+              >
+                {oneRound ? '✓ 1 round' : '1 round'}
+              </button>
               {CONDITIONS.map(cond => (
                 <button
                   key={cond}

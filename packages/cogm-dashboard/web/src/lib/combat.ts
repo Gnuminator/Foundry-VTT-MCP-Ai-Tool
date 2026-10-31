@@ -36,6 +36,8 @@ export interface Combatant {
   isCurrentTurn: boolean;
   hp: CombatantHp;
   conditions: string[];
+  /** Rounds left on the timed conditions, by name (0 = time is up); empty from an older module. */
+  timed?: Record<string, unknown>;
   isPC: boolean;
   /** 'pc', 'npc' or 'enemy'. */
   category: string;
@@ -100,6 +102,7 @@ function readCombatant(v: unknown): Combatant | null {
     conditions: Array.isArray(v['conditions'])
       ? v['conditions'].filter((c): c is string => typeof c === 'string')
       : [],
+    timed: isRecord(v['timed']) ? v['timed'] : {},
     isPC: v['isPC'] === true,
     category: typeof v['category'] === 'string' ? v['category'] : 'npc',
     defeated: v['defeated'] === true,

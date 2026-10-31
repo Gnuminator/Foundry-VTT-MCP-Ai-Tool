@@ -13,6 +13,7 @@ interface Raw {
   isCurrentTurn: boolean;
   hp: { value: number; max: number; temp: number };
   conditions: string[];
+  timed?: Record<string, number>;
   isPC: boolean;
   category: string;
   defeated: boolean;
@@ -191,6 +192,65 @@ test('a condition chip plans the condition for the picked creature and clears th
     active: true,
   });
   await expect(pickBar(page)).toContainText('pick a creature');
+});
+
+test('1 round makes the next condition last one round, then the toggle resets with the pick', async ({
+  page,
+}) => {
+  const calls = await setup(page, FIGHT);
+  await load(page);
+  const toggle = page.getByRole('button', { name: /1 round/ });
+  await page.getByRole('button', { name: 'Goblin 1', exact: true }).click();
+  await expect(toggle).toHaveAttribute('aria-pressed', 'false');
+  // Space presses it, as it does any button.
+  await toggle.focus();
+  await page.keyboard.press('Space');
+  await expect(toggle).toHaveAttribute('aria-pressed', 'true');
+  await expect(toggle).toHaveText('✓ 1 round');
+  await page.locator('button[data-condition="prone"]').click();
+  await expect.poll(() => writes(calls)).toEqual(['apply-planned-change']);
+  expect(calls.find(c => c.name === 'plan-actor-change')?.args).toEqual({
+    action: 'condition',
+    targets: ['tk-g1'],
+    condition: 'prone',
+    active: true,
+    rounds: 1,
+  });
+  await expect(pickBar(page)).toContainText('pick a creature');
+  await expect(toggle).toHaveAttribute('aria-pressed', 'false');
+});
+
+test('a failed timed add keeps 1 round on for the retry', async ({ page }) => {
+  await setup(page, FIGHT, {
+    answer: call =>
+      call.name === 'plan-actor-change'
+        ? { status: 422, json: { ok: false, error: 'No such token' } }
+        : undefined,
+  });
+  await load(page);
+  await page.getByRole('button', { name: 'Goblin 1', exact: true }).click();
+  const toggle = page.getByRole('button', { name: /1 round/ });
+  await toggle.click();
+  await page.locator('button[data-condition="prone"]').click();
+  await expect(toggle).toHaveAttribute('aria-pressed', 'true');
+});
+
+test('a timed condition says how long it has left, and an ended one says so', async ({ page }) => {
+  await setup(page, [
+    who('b', 'Brannoc', { initiative: 19, isCurrentTurn: true, isPC: true, category: 'pc' }),
+    who('g1', 'Goblin', {
+      conditions: ['Prone', 'Poisoned', 'Blinded'],
+      timed: { Prone: 1, Poisoned: 0 },
+    }),
+  ]);
+  await load(page);
+  const row = page.locator('#live-strip');
+  await expect(row.getByText('Prone, 1 round', { exact: true })).toBeVisible();
+  await expect(row.getByText('Poisoned, ended', { exact: true })).toHaveAttribute(
+    'title',
+    'Time is up. Click Poisoned again to put it back.'
+  );
+  await expect(row.getByText('Blinded', { exact: true })).toBeVisible();
 });
 
 test('Next turn is one click; End combat asks one plain question first', async ({ page }) => {

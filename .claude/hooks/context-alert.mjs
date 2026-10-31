@@ -103,7 +103,9 @@ export function recentContextsIn(lines, max = 2) {
       if (seen.has(id)) continue;
       seen.add(id);
     }
-    out.push(contextOf(j.message.usage));
+    const ctx = contextOf(j.message.usage);
+    if (ctx === 0 || j.message.model === '<synthetic>') continue; // an API error or interrupt note
+    out.push(ctx);
   }
   return out;
 }

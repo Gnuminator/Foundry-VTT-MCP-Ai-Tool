@@ -330,6 +330,18 @@ test('run: two advisor calls in a row at 166k stay silent in low mode', () => {
   }
 });
 
+test('confirmedContextIn: zero-usage synthetic messages do not count as a response', () => {
+  const synthetic = JSON.stringify({
+    type: 'assistant',
+    message: {
+      id: 'syn',
+      model: '<synthetic>',
+      usage: { input_tokens: 0, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 },
+    },
+  });
+  assert.equal(confirmedContextIn([turn(260_000), turn(262_000), synthetic]), 260_000);
+});
+
 test('messageFor: the event name defaults to PostToolUse', () => {
   const m = messageFor(1, 352_000, { plan: 350_000, out: 400_000 });
   assert.equal(m.hookSpecificOutput.hookEventName, 'PostToolUse');

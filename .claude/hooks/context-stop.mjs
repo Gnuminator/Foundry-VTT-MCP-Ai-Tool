@@ -65,7 +65,7 @@ export function insideRepo(target, cwd, repoRoot = REPO_ROOT) {
 
 // Places a handover or a log legitimately writes: the vault, the scratchpad, temp, the tool's home.
 const OUTSIDE =
-  /obsidian|scratchpad|side-session-notes|[\\/](?:temp|tmp)(?:[\\/\s"']|$)|\.foundry-ai-tool/i;
+  /obsidian[\\/]vault|scratchpad|side-session-notes|[\\/](?:temp|tmp)(?:[\\/\s"']|$)|\.foundry-ai-tool|\$env:te?mp|\$\{?TMPDIR|%te?mp%/i;
 
 const ALWAYS_OK =
   /^(?:git\s+(?:add|commit|push|fetch|status|diff|log|show|branch|rev-parse|ls-files|remote|config)\b|gh\b)/;
@@ -99,7 +99,7 @@ const TOOL_WRITES = /^(?:npx\s+)?(?:prettier\b.*\s--write\b|eslint\b.*\s--fix\b)
 const GIT_WRITES =
   /^git\s+(?:checkout|switch|reset|restore|merge|rebase|stash|apply|am|cherry-pick|clean|rm|mv|pull|revert)\b/;
 const SCRIPT_WRITES =
-  /writeFile|appendFile|createWriteStream|\.write\(|write_text|write_bytes|open\([^)]*['"][wa]/;
+  /writeFile|appendFile|createWriteStream|(?<!stdout|stderr)\.write\(|write_text|write_bytes|open\([^,)]*,\s*['"][wa]/;
 
 function firstWord(segment) {
   const s = segment.replace(/^[\s({&]+/, '').replace(/^(?:\w+=\S*\s+)+/, '');
@@ -121,15 +121,38 @@ function segmentWrites(masked, raw) {
 
 const NULL_TARGET = /^(?:\/dev\/null|nul|\$null|&\d)$/i;
 
-function redirectWrites(masked, raw) {
-  const re = /(?<![=\-<>])\d?>>?(?!&)\s*([^\s|;&<>]+)/g;
+// The non-null redirect targets of a segment.
+function redirectTargets(masked, raw) {
+  const re = /(?<![=\-<>])\d?>>?(?!&)\s*([^\s|;&<>)]+)/g;
+  const out = [];
   let m;
   while ((m = re.exec(masked))) {
     const at = m.index + m[0].length - m[1].length;
     const target = raw.slice(at, at + m[1].length).replace(/^["']+|["']+$/g, '');
-    if (!NULL_TARGET.test(target)) return true;
+    if (!NULL_TARGET.test(target)) out.push(target);
   }
-  return false;
+  return out;
+}
+
+const TARGET_LAST = new Set([
+  'cp',
+  'mv',
+  'tee',
+  'copy-item',
+  'move-item',
+]);
+
+// What decides whether a write leaves the repo: the redirect targets, the destination (last
+// argument) of cp, mv, tee and the file cmdlets, else the whole segment. A source path that is
+// outside the repo (`cp <scratchpad>/x src/x.ts`) must not exempt the write.
+function targetProbe(raw, redirects) {
+  if (redirects.length) return redirects.join(' ');
+  const { word, rest } = firstWord(raw);
+  if (TARGET_LAST.has(word)) {
+    const args = rest.trim().split(/\s+/);
+    return args[args.length - 1] ?? rest;
+  }
+  return raw;
 }
 
 // Segments of a command as aligned [masked, raw] pairs (masking keeps lengths, so the separators
@@ -172,14 +195,15 @@ export function shellWritesRepo(command, cwd, repoRoot = REPO_ROOT) {
         else if (absolute) away = false;
         continue;
       }
-      const writes = redirectWrites(maskedSeg, rawSeg) || segmentWrites(maskedSeg, rawSeg);
-      if (!writes) continue;
-      if (OUTSIDE.test(rawSeg) || (away && !namesRepo(rawSeg))) continue;
+      const redirects = redirectTargets(maskedSeg, rawSeg);
+      if (!redirects.length && !segmentWrites(maskedSeg, rawSeg)) continue;
+      const probe = targetProbe(rawSeg, redirects);
+      if (OUTSIDE.test(probe) || (away && !namesRepo(rawSeg))) continue;
       return true;
     }
     // a node or python script fed on stdin: the heredoc body is the script
-    const feeds = /\b(?:node|python3?|py)\b/.test(masked);
-    if (feeds && bodies.some(b => SCRIPT_WRITES.test(b.body))) {
+    const feeds = b => /\b(?:node|python3?|py)\s+(?:-\s*)?<</.test(b.intro);
+    if (bodies.some(b => feeds(b) && SCRIPT_WRITES.test(b.body))) {
       return !(OUTSIDE.test(text) || (away && !namesRepo(text)));
     }
     return false;
@@ -200,7 +224,7 @@ function denyMessage(context, out, what) {
 export function decide(input, env = process.env, repoRoot = REPO_ROOT) {
   try {
     if (!input || typeof input !== 'object' || !input.transcript_path) return null;
-    if (input.agent_id || input.agent_type) return null;
+    if (input.agent_id) return null; // agent_type alone also marks a main thread started with --agent
     const tool = String(input.tool_name ?? '');
     const args = input.tool_input && typeof input.tool_input === 'object' ? input.tool_input : {};
     let what = null;

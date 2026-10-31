@@ -173,6 +173,8 @@ test('calls from a subagent are left alone; a missing transcript or bad input al
     );
     assert.equal(decide(payload(path.join(root, 'missing.jsonl'), 'Edit', args), env), null);
     assert.equal(decide(payload(file, 'Edit', {}), env), null);
+    // agent_type alone marks a main thread started with --agent: the stop still applies
+    assert.ok(decide(payload(file, 'Edit', args, { agent_type: 'planner' }), env));
     assert.equal(decide(null, env), null);
     assert.equal(decide({ tool_name: 'Edit' }, env), null);
     assert.equal(run('text', env), '');
@@ -222,6 +224,26 @@ test('shellWritesRepo: writing verbs and redirects count, reading and quoted tex
   ];
   for (const c of yes) assert.equal(shellWritesRepo(c, REPO_ROOT), true, c);
   for (const c of no) assert.equal(shellWritesRepo(c, REPO_ROOT), false, c);
+  // review L1 and L2 (Opus, round 1)
+  for (const c of [
+    'rm -rf packages/obsidian-plugin/dist',
+    'npm run build -w packages/obsidian-plugin',
+    `cp "${os.tmpdir()}/scratchpad/x.ts" packages/shared/src/x.ts`,
+  ]) {
+    assert.equal(shellWritesRepo(c, REPO_ROOT), true, c);
+  }
+  for (const c of [
+    `node -e "process.stdout.write(require('./package.json').version)"`,
+    `python -c "import json; print(open('apps.json').read())"`,
+    'x=$(git rev-parse HEAD 2>/dev/null)',
+    '(Test-Path x 2>$null)',
+    'Set-Content $env:TEMP\\x.txt hi',
+    'echo hi > $TMPDIR/x.txt',
+    `cp a.ts "${os.tmpdir()}/scratchpad/a.ts"`,
+    "node scripts/x.mjs && git commit -F - <<'EOF'\nwriteFileSync\nEOF",
+  ]) {
+    assert.equal(shellWritesRepo(c, REPO_ROOT), false, c);
+  }
   // an outside path elsewhere in the command does not exempt a repo write
   assert.equal(shellWritesRepo('npm ci 2>&1 | tee /tmp/ci.log', REPO_ROOT), true);
   assert.equal(shellWritesRepo('rm -rf dist && cat /tmp/x', REPO_ROOT), true);

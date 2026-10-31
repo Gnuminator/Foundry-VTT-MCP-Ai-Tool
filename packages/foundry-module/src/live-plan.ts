@@ -444,6 +444,52 @@ export async function statusEffectData(id: string): Promise<Rec> {
   return data;
 }
 
+/**
+ * The expired or disabled effect that still holds a status's fixed dnd5e id (it left
+ * `actor.statuses`, so `hasStatus` is false), as `Actor#toggleStatusEffect` finds it: the one with
+ * the static id, else an effect whose only status is this one.
+ */
+function staleEffectFor(actor: LiveActor, statusId: string): Rec | null {
+  const staticId = str(findStatusEffect(statusId)?._id);
+  return (
+    effectsOf(actor).find(e => {
+      const statuses = effectStatuses(e);
+      return staticId !== null
+        ? str(e.id) === staticId && statuses.includes(statusId)
+        : statuses.length === 1 && statuses[0] === statusId;
+    }) ?? null
+  );
+}
+
+/** The `start` block Foundry would give a new effect: now, and the current combat position. */
+function freshStart(): Rec {
+  const cls = rec(rec(rec(CONFIG)?.ActiveEffect)?.documentClass);
+  const own = cls?.getEffectStart;
+  if (typeof own === 'function') {
+    const start = rec((own as () => unknown).call(cls));
+    if (start) return start;
+  }
+  const g = rec(game);
+  const combat = rec(rec(g?.combats)?.active) ?? rec(g?.combat);
+  return {
+    time: num(rec(g?.time)?.worldTime) ?? 0,
+    combat: str(combat?.id),
+    combatant: str(rec(combat?.combatant)?.id),
+    initiative: null,
+    round: num(combat?.round),
+    turn: num(combat?.turn),
+  };
+}
+
+/** A whole number of rounds from 1 to 100, null when the request has none. */
+function validRounds(rounds: number | undefined): number | null {
+  if (rounds === undefined) return null;
+  if (!Number.isInteger(rounds) || rounds < 1 || rounds > 100) {
+    throw new Error('rounds must be a whole number from 1 to 100');
+  }
+  return rounds;
+}
+
 export async function planCondition(
   targets: Target[],
   request: LiveActorRequest
@@ -451,6 +497,10 @@ export async function planCondition(
   if (!request.condition) throw new Error('Name the condition (prone, poisoned, exhaustion...)');
   const status = statusInfo(request.condition);
   const on = request.active !== false;
+  const rounds = on ? validRounds(request.rounds) : null;
+  if (rounds !== null && status.levels !== null) {
+    throw new Error(`${status.name} is a level, not a timed condition: leave rounds out`);
+  }
   const ops: GuardedOp[] = [];
   const previews: LiveTargetPreview[] = [];
   for (const { name, actor } of targets) {
@@ -502,22 +552,44 @@ export async function planCondition(
       continue;
     }
     if (hasStatus(actor, status.id)) {
-      skip(`is already ${status.name}`);
+      skip(
+        `is already ${status.name}${rounds !== null ? ' (remove it first to put it on for a time)' : ''}`
+      );
       continue;
     }
     const extras: string[] = [];
+    // An expired or disabled effect leaves actor.statuses but keeps dnd5e's fixed id, so a create
+    // would clash with it: bring that effect back with an update instead.
+    const stale = staleEffectFor(actor, status.id);
+    const staleUuid = stale ? effectUuid(stale) : null;
     // Riders first: dnd5e adds a missing rider itself after the create, outside the plan.
     for (const riderId of status.riders) {
       if (hasStatus(actor, riderId)) continue;
       const rider = findStatusEffect(riderId);
-      ops.push({
-        kind: 'create',
-        documentName: 'ActiveEffect',
-        parentUuid: actor.uuid,
-        data: await statusEffectData(riderId),
-        keepId: true,
-      });
-      extras.push(`adds ${rider ? localize(rider.name) : riderId}`);
+      const staleRider = staleEffectFor(actor, riderId);
+      const staleRiderUuid = staleRider ? effectUuid(staleRider) : null;
+      if (staleRiderUuid) {
+        ops.push({
+          kind: 'update',
+          uuid: staleRiderUuid,
+          changes: {
+            disabled: false,
+            'duration.value': null,
+            'duration.expired': false,
+            start: freshStart(),
+          },
+        });
+      } else
+        ops.push({
+          kind: 'create',
+          documentName: 'ActiveEffect',
+          parentUuid: actor.uuid,
+          data: await statusEffectData(riderId),
+          keepId: true,
+        });
+      extras.push(
+        `adds ${rider ? localize(rider.name) : riderId}${rounds !== null ? ' (not timed)' : ''}`
+      );
     }
     if (status.exclusiveGroup) {
       const others = statusEffectList()
@@ -531,13 +603,33 @@ export async function planCondition(
         }
       }
     }
-    ops.push({
-      kind: 'create',
-      documentName: 'ActiveEffect',
-      parentUuid: actor.uuid,
-      data: await statusEffectData(status.id),
-      keepId: true,
-    });
+    const data = await statusEffectData(status.id);
+    if (rounds !== null) {
+      data.duration = { ...rec(data.duration), value: rounds, units: 'rounds' };
+      extras.unshift(rounds === 1 ? 'for 1 round' : `for ${rounds} rounds`);
+    }
+    if (staleUuid) {
+      ops.push({
+        kind: 'update',
+        uuid: staleUuid,
+        changes: {
+          disabled: false,
+          'duration.value': rounds,
+          'duration.units': rounds !== null ? 'rounds' : null,
+          'duration.expired': false,
+          start: freshStart(),
+        },
+      });
+      extras.push(`brings back the ${isExpired(stale ?? {}) ? 'expired' : 'inactive'} one`);
+    } else {
+      ops.push({
+        kind: 'create',
+        documentName: 'ActiveEffect',
+        parentUuid: actor.uuid,
+        data,
+        keepId: true,
+      });
+    }
     const tail = extras.length > 0 ? ` (${extras.join(', ')})` : '';
     previews.push({ target: name, actorUuid: actor.uuid, line: `${name}: ${status.name}${tail}` });
   }

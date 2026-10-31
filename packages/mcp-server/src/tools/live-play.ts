@@ -60,6 +60,7 @@ const planParams = z.object({
   condition: z.string().min(1).optional(),
   active: z.boolean().optional(),
   level: z.number().int().min(0).optional(),
+  rounds: z.number().int().min(1).max(100).optional(),
   conditions: z.array(z.string().min(1)).optional(),
   resource: z.string().min(1).optional(),
   value: z.number().int().min(0).optional(),
@@ -200,6 +201,13 @@ export class LivePlayTools {
               default: true,
             },
             level: { type: 'integer', description: 'condition exhaustion: the level to set.' },
+            rounds: {
+              type: 'integer',
+              minimum: 1,
+              maximum: 100,
+              description:
+                'condition: lasts this many rounds, then counts as expired (clear-conditions removes it). Omit for until removed. Not for exhaustion.',
+            },
             conditions: {
               type: 'array',
               items: { type: 'string' },

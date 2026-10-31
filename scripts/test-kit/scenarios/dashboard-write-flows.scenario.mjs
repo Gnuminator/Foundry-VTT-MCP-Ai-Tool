@@ -262,7 +262,13 @@ export default {
         for (let i = 0; i < PUT_BACK_CAP; i++) {
           const change = (await changesSince(startedAt)).find(c => !keep.has(c.changeId));
           if (!change) break;
-          await t.guarded.undo(change.changeId);
+          try {
+            await t.guarded.undo(change.changeId);
+          } catch (e) {
+            // The flows leave the hero as they found it, so a conflict means this change was
+            // already taken back through its neighbour (an undo of an undo): nothing was written.
+            if (!/Conflict, nothing was written/.test(String(e?.message ?? e))) throw e;
+          }
           keep.add(change.changeId);
         }
         for (const fn of late.reverse()) await fn();
@@ -622,9 +628,21 @@ export default {
     /** A button of the undo window by its key (cancel, just-this, everything-since, apply). @param {string} key */
     const undoKey = key => page.locator(`#undo-actions #undo-${key}`);
 
-    /** Waits for the undo window and reads it. */
-    const readUndo = async () => {
-      await page.locator('#undo-backdrop').waitFor({ state: 'visible', timeout: 20000 });
+    /**
+     * Waits for the undo window and reads it. `button` is the Undo button just clicked: a click that
+     * lands while the list redraws opens nothing, so it is pressed once more after a few seconds.
+     * @param {import('playwright-core').Locator} [button]
+     */
+    const readUndo = async button => {
+      const backdrop = page.locator('#undo-backdrop');
+      if (button) {
+        const opened = await backdrop
+          .waitFor({ state: 'visible', timeout: 6000 })
+          .then(() => true)
+          .catch(() => false);
+        if (!opened) await button.click();
+      }
+      await backdrop.waitFor({ state: 'visible', timeout: 20000 });
       return {
         title: squash(await page.locator('#undo-window h3').textContent()),
         body: squash(await page.locator('#undo-body').innerText()),
@@ -632,6 +650,22 @@ export default {
           .locator('#undo-actions button')
           .evaluateAll(els => els.map(el => el.id.replace(/^undo-/, ''))),
       };
+    };
+
+    /**
+     * Clicks a button that opens the confirm window and reads the window; a click that lands while
+     * the list redraws opens nothing, so it is pressed once more after a few seconds.
+     * @param {import('playwright-core').Locator} button
+     */
+    const openConfirm = async button => {
+      await button.click();
+      const opened = await page
+        .locator('#modal-backdrop')
+        .waitFor({ state: 'visible', timeout: 6000 })
+        .then(() => true)
+        .catch(() => false);
+      if (!opened) await button.click();
+      return readModal(page);
     };
 
     const undoClosed = () =>
@@ -709,7 +743,7 @@ export default {
 
         const undo = await everyoneButton('undo', first);
         await undo.click();
-        const choose = await readUndo();
+        const choose = await readUndo(undo);
         t.check(
           /not the latest change/i.test(choose.body),
           'the window says this is not the latest change',
@@ -725,13 +759,13 @@ export default {
         t.equal(await hp(), both, `${h.name} HP after Cancel`);
 
         await undo.click();
-        await readUndo();
+        await readUndo(undo);
         await page.keyboard.press('Escape');
         await undoClosed();
         t.equal(await hp(), both, `${h.name} HP after Escape`);
 
         await undo.click();
-        await readUndo();
+        await readUndo(undo);
         await undoKey('just-this').click();
         await undoKey('apply').waitFor({ state: 'visible', timeout: 20000 });
         const confirm = await readUndo();
@@ -762,8 +796,7 @@ export default {
           page.locator('#modal-backdrop').waitFor({ state: 'hidden', timeout: 10000 });
 
         const redo = await everyoneButton('redo', first);
-        await redo.click();
-        const modal = await readModal(page);
+        const modal = await openConfirm(redo);
         t.check(/Redo/.test(modal.body), 'the window says what comes back', modal.body);
         t.check(modal.destructive, 'Redo asks for the destructive tick');
         t.check(
@@ -774,14 +807,12 @@ export default {
         await hidden();
         t.equal(await hp(), total(before) - 3, `${h.name} HP after Escape`);
 
-        await redo.click();
-        await readModal(page);
+        await openConfirm(redo);
         await page.locator('#modal-cancel').click();
         await hidden();
         t.equal(await hp(), total(before) - 3, `${h.name} HP after Cancel`);
 
-        await redo.click();
-        await readModal(page);
+        await openConfirm(redo);
         await markToasts(page);
         await confirmModal(page);
         await waitToast(page, 'ok');
@@ -799,7 +830,7 @@ export default {
         const since = now();
         const undo = await everyoneButton('undo', first);
         await undo.click();
-        const choose = await readUndo();
+        const choose = await readUndo(undo);
         t.check(
           choose.keys.includes('everything-since'),
           'the window offers Everything since',

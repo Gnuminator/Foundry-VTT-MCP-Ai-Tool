@@ -138,9 +138,9 @@ test('loads the party on open and shows each member and section', async ({ page 
     'On Maravia, hidden',
   ]);
   await expect(rows.nth(0).locator('.condition-chip')).toHaveText(['Exhaustion 2', 'Poisoned']);
-  // The same data drawn again (a refresh keeps the cached object) must not add a chip: the
-  // screenshots flaked on a third Exhaustion chip.
-  await drawer.getByRole('button', { name: '↻ Refresh' }).click();
+  // The same cached data drawn again (a button click sets the drawer busy, no refetch) must not
+  // add a chip: the screenshots flaked on a third Exhaustion chip.
+  await drawer.locator('#party-pace').getByRole('button', { name: 'Fast' }).click();
   await expect(rows.nth(0).locator('.condition-chip')).toHaveText(['Exhaustion 2', 'Poisoned']);
   await expect(rows.nth(0).locator('.hp-text')).toHaveText('5/20 +3');
   await expect(rows.nth(0).locator('.hp-fill')).toHaveClass('hp-fill low');

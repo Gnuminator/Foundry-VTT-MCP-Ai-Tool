@@ -91,7 +91,7 @@ const PREP_IDLE = '[data-track="dash.prep.refresh"]:not([disabled])';
 const PREFLIGHT_IDLE = '[data-track="dash.preflight.run"]:not([disabled])';
 const PARTY = [MOMENT_BEFORE, ADV, 'dash.header.party']; // overlay in Before and After
 const HANDOUTS = [MOMENT_BEFORE, ADV, 'dash.header.handouts']; // overlay in Before
-/** After a paper night is only in the new dashboard (/next); this sweep drives the old page. */
+/** The paper-form flow changes the world: checked by hand on a test server, never driven. */
 const NEW_ONLY = 'checked by hand on a test server (paper-form); the sweep does not drive it';
 /** Controls that only the old page (kept until after G1) has; the sweep drives the React dashboard. */
 const OLD_ONLY = 'old page only: the dashboard at / has no such control';
@@ -157,7 +157,7 @@ export const DASHBOARD_CONTROLS = [
   {
     name: 'dash.header.version-tracker',
     how: 'skip',
-    why: 'new dashboard only (I-127); the old page has no such switch, and a Storybook story covers it',
+    why: 'not driven by the sweep (I-127); a Storybook story covers it',
   },
   {
     name: 'dash.header.show-versions',
@@ -173,7 +173,12 @@ export const DASHBOARD_CONTROLS = [
   { name: 'dash.header.tools', how: 'open', reach: [ADV], expect: '#tools-drawer' },
   { name: 'dash.header.show-ai', how: 'skip', why: OLD_ONLY },
   { name: 'dash.header.show-diagnostics', how: 'open', reach: [ADV], expect: '#pane-diagnostics' },
-  { name: 'dash.header.player-links', how: 'open', reach: [ADV], expect: 'button[aria-label="Close player links"]' },
+  {
+    name: 'dash.header.player-links',
+    how: 'open',
+    reach: [ADV],
+    expect: 'button[aria-label="Close player links"]',
+  },
   { name: 'dash.header.pause', how: 'skip', why: OLD_ONLY },
   { name: 'dash.header.diag-ai', how: 'skip', why: OLD_ONLY },
   { name: 'dash.header.tone', how: 'skip', why: OLD_ONLY },
@@ -277,7 +282,7 @@ export const DASHBOARD_CONTROLS = [
   {
     name: 'dash.help.wiki',
     how: 'skip',
-    why: 'a link in the help pane of the React dashboard (/); the old page the sweep drives has none',
+    why: 'a link in the help pane that leaves the page',
   },
   { name: 'dash.help.during-layouts', how: 'open', reach: [MOMENT_DURING], expect: '#pane-help' },
   // The "?" app.js adds to each panel heading (help-links.json); the diagnostics one stands for all.
@@ -290,7 +295,12 @@ export const DASHBOARD_CONTROLS = [
   },
 
   // --- Recent Changes ---
-  { name: 'dash.changes.refresh', how: 'read', reach: [MOMENT_DURING], expect: '#pane-changes-body' },
+  {
+    name: 'dash.changes.refresh',
+    how: 'read',
+    reach: [MOMENT_DURING],
+    expect: '#pane-changes-body',
+  },
   {
     name: 'dash.changes.show-diff',
     how: 'toggle',
@@ -468,17 +478,17 @@ export const DASHBOARD_CONTROLS = [
   {
     name: 'dash.combat.start',
     how: 'skip',
-    why: 'new dashboard only (david-start-combat-picker, only with no fight running); an e2e test covers it',
+    why: 'not driven by the sweep (david-start-combat-picker, only with no fight running); an e2e test covers it',
   },
   {
     name: 'dash.during.start-combat',
     how: 'skip',
-    why: 'new dashboard only (the During bar button that opens the Start combat picker, only with no fight running); an e2e test covers it',
+    why: 'not driven by the sweep (the During bar button that opens the Start combat picker, only with no fight running); an e2e test covers it',
   },
   {
     name: 'dash.combat.start-cancel',
     how: 'skip',
-    why: 'new dashboard only (the token list of Start combat); an e2e test covers it',
+    why: 'not driven by the sweep (the token list of Start combat); an e2e test covers it',
   },
   {
     name: 'dash.combat.start-go',
@@ -500,7 +510,7 @@ export const DASHBOARD_CONTROLS = [
   {
     name: 'dash.combat.foundry-targets',
     how: 'skip',
-    why: 'new dashboard only (the combat strip button that picks the tokens targeted in Foundry); needs targets set in Foundry, the unit tests and the live check cover it',
+    why: 'not driven by the sweep (the combat strip button that picks the tokens targeted in Foundry); needs targets set in Foundry, the unit tests and the live check cover it',
   },
 
   // --- the Tool Runner ---
@@ -548,7 +558,7 @@ export const DASHBOARD_CONTROLS = [
   {
     name: 'dash.tools.foundry-targets',
     how: 'skip',
-    why: 'new dashboard only (the Pick menu button that fills a field from the tokens targeted in Foundry); needs targets set in Foundry, the unit tests and the live check cover it',
+    why: 'not driven by the sweep (the Pick menu button that fills a field from the tokens targeted in Foundry); needs targets set in Foundry, the unit tests and the live check cover it',
   },
   {
     name: 'dash.tools.show-all-actors',

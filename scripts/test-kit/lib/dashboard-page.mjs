@@ -45,15 +45,20 @@ export const squash = text =>
  */
 export async function waitReady(page) {
   await page.locator('#btn-gm').waitFor({ state: 'visible', timeout: 20000 });
-  // The stream mark is empty while all is well and names the trouble otherwise (Connection lost...).
+  // The stream mark is empty while all is well and names the trouble otherwise (Connection lost...),
+  // but it is also empty with Foundry away, so the bridge itself is asked: /api/state carries its status.
   await page.waitForFunction(
-    () => {
+    async () => {
       const mark = document.querySelector('#stream-state');
       const label = document.querySelector('#btn-gm')?.textContent ?? '';
-      return mark && !mark.textContent?.trim() && label.trim() !== '' && !label.includes('…');
+      if (!mark || mark.textContent?.trim() || label.trim() === '' || label.includes('…'))
+        return false;
+      const res = await fetch('/api/state').catch(() => null);
+      const state = res?.ok ? await res.json().catch(() => null) : null;
+      return state?.status?.controlChannel === 'connected' && state.status.foundry === 'reachable';
     },
     undefined,
-    { timeout: 30000 }
+    { timeout: 30000, polling: 500 }
   );
 }
 
@@ -273,12 +278,12 @@ export async function resetUi(page) {
     for (const selector of ['#drawer-close', '#tarokka-close']) {
       if (await page.locator(selector).isVisible()) await page.locator(selector).click();
     }
-    for (const pane of ['#pane-links', '#pane-help']) {
-      const close = page.locator(`${pane} .overlay-close`);
-      if (await close.isVisible()) await close.click();
-    }
+    // The links and help panes close on Escape (Radix panels).
+    await page.keyboard.press('Escape');
     await page.evaluate(() =>
-      document.querySelectorAll('.toast-stack .toast').forEach(el => el.setAttribute('data-seen', '1'))
+      document
+        .querySelectorAll('.toast-stack .toast')
+        .forEach(el => el.setAttribute('data-seen', '1'))
     );
   } catch {
     /* the page is gone or busy; the next flow reports it */

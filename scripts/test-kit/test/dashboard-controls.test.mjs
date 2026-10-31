@@ -181,7 +181,8 @@ test('expect and gone selectors point at ids and classes the front end has', () 
             files.includes(`$('${m[1]}')`) ||
             // The React panels build their body id from the pane id (`${id}-body`).
             // The undo window's buttons get `undo-${key}`.
-            (m[1].startsWith('undo-') && files.includes('id: `undo-${button.key}`')) ||
+            (/^undo-(cancel|just-this|everything-since|rewind|next|apply)$/.test(m[1]) &&
+              files.includes('id: `undo-${button.key}`')) ||
             (m[1].endsWith('-body') && files.includes(`id="${m[1].slice(0, -5)}"`)),
           `${r.name}: id "${m[1]}" in "${sel}" is not in the page files`
         );

@@ -422,7 +422,9 @@ export default {
           (listOf(await t.tool('get-party', {}), 'groups')[0] ?? {}).pace?.value;
         const was = await pace();
         // The button of the pace now set is disabled; any other one changes it.
-        const other = page.locator('#party-pace [data-track="dash.party.pace"]:not([disabled])').first();
+        const other = page
+          .locator('#party-pace [data-track="dash.party.pace"]:not([disabled])')
+          .first();
         await markToasts(page);
         await other.click();
         await settleWrite(page);
@@ -431,7 +433,9 @@ export default {
         t.check(set && set !== was, `the pace changed from ${was} to ${set}`);
         await undoFromToast(page);
         t.equal(await pace(), was, 'the pace after the Undo');
-        const rest = page.locator('#party-rest [data-track="dash.party.rest-short"]:not([disabled])');
+        const rest = page.locator(
+          '#party-rest [data-track="dash.party.rest-short"]:not([disabled])'
+        );
         if ((await rest.count()) === 0)
           return `pace ${was} to ${set} and back; no rest card to request`;
         await markToasts(page);
@@ -516,7 +520,8 @@ export default {
         await closeTools(page);
         t.check(await queued(), 'the page is on the reveal queue');
 
-        // Reveal the next queued page: a destructive plan, so the window asks twice.
+        // Reveal the next queued page: one confirm line with no destructive tick, since a reveal
+        // has a working Undo (Handouts.tsx; decision in the commit "one-line reveal confirm").
         await openCard(page, 'handouts');
         const next = page.locator('#handouts-next');
         await page.waitForFunction(
@@ -593,17 +598,19 @@ export default {
         await markToasts(page);
         await row.locator('[data-track="dash.links.make"]').click();
         await waitToast(page, 'ok');
-        await row.locator('[data-track="dash.links.remove"]').waitFor({ state: 'visible', timeout: 15000 });
+        await row
+          .locator('[data-track="dash.links.remove"]')
+          .waitFor({ state: 'visible', timeout: 15000 });
         const made = (await links()).find((/** @type {any} */ p) => p.userId === player.userId);
         t.check(made?.link, 'the dashboard made a link');
         await markToasts(page);
         await row.locator('[data-track="dash.links.remove"]').click();
         await waitToast(page, 'ok');
-        await row.locator('[data-track="dash.links.make"]').waitFor({ state: 'visible', timeout: 15000 });
+        await row
+          .locator('[data-track="dash.links.make"]')
+          .waitFor({ state: 'visible', timeout: 15000 });
         const gone = (await links()).find((/** @type {any} */ p) => p.userId === player.userId);
         t.check(!gone?.link, 'the link is removed');
-        // The links pane is a panel over the page: close it so the next flow can click.
-        await page.keyboard.press('Escape');
         return 'link made and removed';
       }
     );

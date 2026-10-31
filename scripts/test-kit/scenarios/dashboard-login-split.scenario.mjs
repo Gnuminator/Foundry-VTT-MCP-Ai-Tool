@@ -300,10 +300,14 @@ export default {
         await page.locator('#btn-gm').waitFor({ state: 'visible', timeout: 15000 });
         await page
           .waitForFunction(
-            () => {
+            async () => {
               const mark = document.querySelector('#stream-state');
               const gm = document.querySelector('#btn-gm')?.textContent ?? '';
-              return mark && !mark.textContent?.trim() && gm.trim() !== '' && !gm.includes('…');
+              if (!mark || mark.textContent?.trim() || gm.trim() === '' || gm.includes('…'))
+                return false;
+              const res = await fetch('/api/state').catch(() => null);
+              const state = res?.ok ? await res.json().catch(() => null) : null;
+              return state?.status?.foundry === 'reachable';
             },
             undefined,
             { timeout: 30000 }
@@ -313,8 +317,7 @@ export default {
           });
         const seen = await page.evaluate(() => ({
           bridge:
-            document.querySelector('#stream-state')?.textContent?.replace(/\s+/g, ' ').trim() ??
-            '',
+            document.querySelector('#stream-state')?.textContent?.replace(/\s+/g, ' ').trim() ?? '',
           gm: document.querySelector('#btn-gm')?.textContent?.replace(/\s+/g, ' ').trim() ?? '',
           controls: document.querySelectorAll('[data-track^="dash."]').length,
         }));

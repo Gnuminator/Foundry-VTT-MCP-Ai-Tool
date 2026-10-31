@@ -2,7 +2,15 @@
 // start. The rule is the module's (combat-plan.ts, no tokenIds): player characters and Hostile
 // tokens fight, Neutral and Friendly ones stay out until the GM ticks them. get-token-positions
 // gives the side as `category` (pc, enemy for Hostile, npc for the rest).
+import { createContext } from 'react';
+
 import { SIDE_LABEL, type Side } from './combat';
+
+/**
+ * True where Start combat also rolls initiative for the non-player combatants (live screen A, so
+ * the start is two clicks). Players roll their own. The default dashboard leaves it false.
+ */
+export const RollNpcInitiativeContext = createContext(false);
 
 /** One token of the viewed scene as get-token-positions lists it (the fields the picker reads). */
 export interface SceneToken {

@@ -2,14 +2,15 @@
 // scene. Player characters and Hostile tokens are ticked, Neutral and Friendly ones are not; the GM
 // changes the ticks and starts. Start plans plan-combat-change (a plain write, so the click applies
 // it) and the toast has Undo, which deletes the new combat. GM Actions must be on.
-import { useQuery } from '@tanstack/react-query';
-import { useState, type JSX } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useContext, useState, type JSX } from 'react';
 
-import { callTool } from '../lib/api';
-import { useGuardedChange } from '../lib/guarded';
+import { callTool, errorText } from '../lib/api';
+import { GAME_STATE_KEY, mayHaveApplied, useGuardedTools } from '../lib/guarded';
 import {
   canFight,
   defaultTicks,
+  RollNpcInitiativeContext,
   pickerRows,
   sideWords,
   startArgs,
@@ -17,6 +18,7 @@ import {
   type TokenPositionsAnswer,
 } from '../lib/startCombat';
 import { Button, QueryState } from '../ui';
+import { useToast } from './Toasts';
 
 function TokenList({
   rows,
@@ -29,7 +31,10 @@ function TokenList({
   sceneId: string | undefined;
   onClose: () => void;
 }): JSX.Element {
-  const run = useGuardedChange();
+  const { plan, gated } = useGuardedTools();
+  const rollNpcs = useContext(RollNpcInitiativeContext);
+  const toast = useToast();
+  const queryClient = useQueryClient();
   // Set once the GM touches a tick; until then the default stands.
   const [edited, setEdited] = useState<ReadonlySet<string> | null>(null);
   const [busy, setBusy] = useState(false);
@@ -44,11 +49,23 @@ function TokenList({
   const start = (): void => {
     if (busy || none) return;
     setBusy(true);
-    void run('plan-combat-change', args)
-      .then(done => {
-        if (done) onClose();
-      })
-      .finally(() => setBusy(false));
+    void (async () => {
+      const outcome = await plan('plan-combat-change', args);
+      if (outcome.status !== 'done') return;
+      // The fight exists now. The NPCs roll through the same gate and a plain write, as Next turn does.
+      if (rollNpcs && !gated('roll-initiative-for-npcs')) {
+        try {
+          await callTool('roll-initiative-for-npcs', { scope: 'npcs' }, { confirm: true });
+          void queryClient.invalidateQueries({ queryKey: GAME_STATE_KEY });
+        } catch (err) {
+          toast(
+            `✗ Roll initiative: ${errorText(err)}${mayHaveApplied(err) ? ' It may have applied; check the tracker.' : ''}`,
+            'err'
+          );
+        }
+      }
+      onClose();
+    })().finally(() => setBusy(false));
   };
   return (
     <>

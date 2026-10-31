@@ -72,7 +72,10 @@ const EVERYONE = {
   ],
 };
 
-async function setup(page: Page, opts: { changes?: unknown[] } = {}): Promise<ToolCall[]> {
+async function setup(
+  page: Page,
+  opts: { changes?: unknown[]; calm?: boolean } = {}
+): Promise<ToolCall[]> {
   await fakeCommonRoutes(page);
   await page.route('**/api/tools', route =>
     route.fulfill({
@@ -95,6 +98,33 @@ async function setup(page: Page, opts: { changes?: unknown[] } = {}): Promise<To
           return ok(PARTY);
         case 'undo-change':
           return ok({ changeId: 'u1', summary: 'Undid', mode: 'undo' });
+        case 'get-token-positions':
+          return ok({
+            success: true,
+            sceneId: 's1',
+            sceneName: 'Field',
+            tokens: [
+              { tokenId: 'tk-m', name: 'Mara', actorId: 'a1', category: 'pc', hidden: false },
+              { tokenId: 'tk-w', name: 'Wolf', actorId: 'a2', category: 'enemy', hidden: false },
+            ],
+          });
+        case 'plan-combat-change':
+          return ok({
+            planId: 'plan-start',
+            feature: 'live-play',
+            summary: 'Start combat on "Field" with 2 tokens',
+            risk: 'write',
+            requires: { confirm: true, confirmDestructive: false },
+          });
+        case 'apply-planned-change':
+          return ok({
+            changeId: 'chg-start',
+            planId: 'plan-start',
+            feature: 'live-play',
+            summary: 'Start combat on "Field" with 2 tokens',
+            mode: 'apply',
+            risk: 'write',
+          });
         default:
           return ok({});
       }
@@ -110,7 +140,9 @@ async function setup(page: Page, opts: { changes?: unknown[] } = {}): Promise<To
         {
           event: 'combat',
           data: {
-            combat: { active: true, round: 1, turn: 0, current: MARA, combatants: [MARA] },
+            combat: opts.calm
+              ? null
+              : { active: true, round: 1, turn: 0, current: MARA, combatants: [MARA] },
           },
         },
       ]),
@@ -178,6 +210,29 @@ test('What just happened is one list with an AI only box and Undo on each line',
   await expect(list).toContainText('Goblin 1: 5 fire damage');
   // One list: the AI and Everyone tabs of Recent Changes are not here.
   await expect(list.locator('#changes-tab-ai')).toHaveCount(0);
+});
+
+test('Start combat in two clicks also rolls initiative for the NPCs', async ({ page }) => {
+  const calls = await setup(page, { calm: true });
+  await load(page);
+  await page.getByRole('button', { name: 'Start combat' }).click();
+  await page.getByRole('button', { name: 'Start combat with 2' }).click();
+  await expect
+    .poll(() => calls.find(c => c.name === 'roll-initiative-for-npcs'))
+    .toMatchObject({ args: { scope: 'npcs' }, confirm: true });
+  const names = calls.map(c => c.name);
+  expect(names.indexOf('apply-planned-change')).toBeLessThan(
+    names.indexOf('roll-initiative-for-npcs')
+  );
+});
+
+test('How do I... opens the GM coach guide', async ({ page }) => {
+  await setup(page);
+  const request = page.waitForRequest(req => req.url().includes('/api/help/gm-coach'));
+  await load(page);
+  await page.locator('#live-how-do-i').click();
+  await request;
+  await expect(page.locator('#pane-help')).toBeVisible();
 });
 
 test('the default dashboard has the switch that opens the Live view', async ({ page }) => {

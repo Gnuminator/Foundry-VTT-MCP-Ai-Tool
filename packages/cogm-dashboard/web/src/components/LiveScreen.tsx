@@ -15,6 +15,7 @@ import { GAME_STATE_KEY, mayHaveApplied, useGuardedTools } from '../lib/guarded'
 import { lastUndoable, undoLabel } from '../lib/liveStrip';
 import { BACK_TO_STANDARD_TEXT, STANDARD_HREF } from '../lib/liveScreen';
 import { CHANGES_KEY, useDashboardStream } from '../lib/stream';
+import { RollNpcInitiativeContext } from '../lib/startCombat';
 import { useWorldTheme } from '../lib/worldTheme';
 import { Button, Popover } from '../ui';
 import { focusedElement, useConfirm } from './ConfirmDialog';
@@ -161,7 +162,9 @@ export function LiveScreen(): JSX.Element {
       </header>
       <RoleNotice />
       <main className={styles['page']} id="live-screen">
-        <LiveStrip />
+        <RollNpcInitiativeContext.Provider value>
+          <LiveStrip />
+        </RollNpcInitiativeContext.Provider>
         <div className={styles['grid']}>
           <DockContext.Provider value={partySlot}>
             <div className={styles['slot']} ref={setPartySlot} data-slot="party" />

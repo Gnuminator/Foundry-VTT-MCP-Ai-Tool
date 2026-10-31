@@ -567,7 +567,7 @@ function bridge(moment: Moment, live: boolean): (call: ToolCall) => { json: unkn
       case 'list-recent-changes':
         return ok({ changes: live ? LIVE_AI_CHANGES : [] });
       case 'list-changes':
-        return ok(LIVE_EVERYONE);
+        return ok(live ? LIVE_EVERYONE : { changes: [] });
       case 'get-play-session':
         return ok({ success: true, worldId: 'harbor-test', ...SESSIONS[moment] });
       case 'get-prep-digest':

@@ -17,6 +17,34 @@ export async function clickHeaderButton(page, selector, { human = false } = {}) 
   await click(btn);
 }
 
+/**
+ * Hide, on the recording, everything on the page that points to the old dashboard: the header's
+ * "Old dashboard" button, the note under it and the "not on this page yet" cards. Call after every
+ * load or reload (a reload drops the style; the observer keeps later redraws hidden).
+ */
+export async function hideOldDashboardLinks(page) {
+  await page.addStyleTag({
+    content: '.link-banner[role="note"], section.not-here-yet { display: none !important; }',
+  });
+  await page.evaluate(() => {
+    const hide = () => {
+      for (const el of document.querySelectorAll('button, a')) {
+        if (/^\s*Old dashboard\s*$/i.test(el.textContent ?? ''))
+          el.style.setProperty('display', 'none', 'important');
+      }
+    };
+    hide();
+    if (!globalThis.__hideOldDash) {
+      globalThis.__hideOldDash = new MutationObserver(hide);
+      globalThis.__hideOldDash.observe(document.body, {
+        childList: true,
+        subtree: true,
+        characterData: true,
+      });
+    }
+  });
+}
+
 /** Wait until the dashboard has loaded its tools and state. */
 export async function waitForDashboard(page) {
   await page.locator('#btn-gm').waitFor();

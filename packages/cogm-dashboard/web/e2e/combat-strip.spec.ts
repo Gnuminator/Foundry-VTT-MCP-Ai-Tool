@@ -500,6 +500,8 @@ test.describe('start combat', () => {
     expect(planned?.args).toEqual({ action: 'start', tokenIds: ['tk-wolf', 'tk-shop'] });
     // The picker closes once the change is in.
     await expect(list).toBeHidden();
+    // The default dashboard never rolls initiative: the GM does it (or asks Claude).
+    expect(calls.map(c => c.name)).not.toContain('roll-initiative-for-npcs');
   });
 
   test('Cancel closes the picker and writes nothing', async ({ page }) => {

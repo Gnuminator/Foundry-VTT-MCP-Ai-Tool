@@ -3,6 +3,8 @@ import { describe, expect, it } from 'vitest';
 import {
   canFight,
   defaultTicks,
+  newNpcCombatantIds,
+  npcTokenIds,
   pickerRows,
   sideWords,
   startArgs,
@@ -57,5 +59,31 @@ describe('the start-combat picker', () => {
     expect(sideWords(SCENE[1])).toBe('Hostile');
     expect(sideWords(SCENE[0])).toBe('Neutral or Friendly');
     expect(sideWords(SCENE[2])).toBe('PC');
+  });
+});
+
+describe('rolling initiative for the fight just started', () => {
+  it('names the ticked tokens that are not player characters', () => {
+    const rows = pickerRows(SCENE);
+    expect([...npcTokenIds(rows, new Set(['t1', 't2', 't4']))].sort()).toEqual(['t2', 't4']);
+  });
+
+  it('finds their combatants in the resolved fight and leaves the player characters out', () => {
+    const state = {
+      combatants: [
+        { id: 'c1', tokenId: 't1', isPC: true },
+        { id: 'c2', tokenId: 't2', isPC: false },
+        { id: 'c9', tokenId: 'other', isPC: false },
+      ],
+    };
+    expect(newNpcCombatantIds(state, new Set(['t1', 't2']))).toEqual(['c2']);
+  });
+
+  it('finds nothing when the resolved fight is another one, or the answer is odd', () => {
+    expect(
+      newNpcCombatantIds({ combatants: [{ id: 'old', tokenId: 'x' }] }, new Set(['t2']))
+    ).toEqual([]);
+    expect(newNpcCombatantIds(null, new Set(['t2']))).toEqual([]);
+    expect(newNpcCombatantIds({ active: false }, new Set(['t2']))).toEqual([]);
   });
 });

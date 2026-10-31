@@ -4,18 +4,19 @@
 // Show next handout, and Next turn / End combat / Undo in the header. Every write goes through the
 // guarded path in lib/guarded.ts (gate, plan, confirm, Undo toast); nothing here is a Tool runner.
 // The words and small rules are in lib/liveStrip.ts.
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { lazy, Suspense, useCallback, useRef, useState, type JSX } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { lazy, Suspense, useCallback, useContext, useRef, useState, type JSX } from 'react';
 
 import { callTool, errorText } from '../lib/api';
 import { AWAY_TEXT, NO_VALUE, canSelect, hpPercent, hpText, hpTone, metaText } from '../lib/combat';
 import type { Combatant } from '../lib/combat';
 import { AI_LIMIT, readAiChanges } from '../lib/changes';
-import { GAME_STATE_KEY, mayHaveApplied, useGuardedTools } from '../lib/guarded';
+import { useGuardedTools } from '../lib/guarded';
 import { useLivePlay } from '../lib/livePlay';
 import { HANDOUT_NEEDS, ROLL_NEEDS, offReason } from '../lib/liveSwitches';
 import {
   CONDITIONS,
+  StripUndoContext,
   conditionArgs,
   displayNames,
   downWords,
@@ -46,14 +47,6 @@ const StartCombat = lazy(() => import('./StartCombat').then(m => ({ default: m.S
 const DamageForm = lazy(() => import('./DamageForm').then(m => ({ default: m.DamageForm })));
 
 const AI_KEY = [...CHANGES_KEY, 'ai'] as const;
-
-/** The error, with the may-have-applied hint after a full stop when the write may have landed. */
-const failText = (err: unknown, where: string): string => {
-  const t = errorText(err).trim();
-  return mayHaveApplied(err)
-    ? `${/[.!?]$/.test(t) ? t : `${t}.`} It may have applied; check ${where}.`
-    : t;
-};
 
 function Card({
   c,
@@ -163,9 +156,9 @@ export function LiveStrip(): JSX.Element {
   const liveOff = live.off();
   const settings = useDashboardSettings();
   const toast = useToast();
-  const queryClient = useQueryClient();
   const askConfirm = useConfirm();
-  const { plan, gated, applyApproved } = useGuardedTools();
+  const showUndo = useContext(StripUndoContext);
+  const { plan, gated, call, applyApproved } = useGuardedTools();
   const roll = useQuickRoll();
   const [picked, setPicked] = useState<ReadonlySet<string>>(new Set());
   const [lastAsked, setLastAsked] = useState<string[]>([]);
@@ -223,13 +216,12 @@ export function LiveStrip(): JSX.Element {
 
   const nextTurn = (): Promise<void> =>
     once(async () => {
-      if (gated('advance-combat-turn')) return;
-      try {
-        await callTool('advance-combat-turn', {}, { confirm: true });
-        void queryClient.invalidateQueries({ queryKey: GAME_STATE_KEY });
-      } catch (err) {
-        toast(`✗ Next turn: ${failText(err, 'the tracker')}`, 'err');
-      }
+      await call(
+        'advance-combat-turn',
+        {},
+        { confirm: true },
+        { label: 'Next turn', checkIn: 'the tracker' }
+      );
     });
 
   const endCombat = (): Promise<void> =>
@@ -289,18 +281,13 @@ export function LiveStrip(): JSX.Element {
         returnTo: from,
       });
       if (!ok) return;
-      try {
-        await callTool(
-          'undo-change',
-          { changeId: undoable.changeId },
-          { confirm: true, confirmDestructive: true }
-        );
-        toast(`✓ Undone: ${undoable.summary}`, 'ok');
-      } catch (err) {
-        toast(`✗ Undo: ${failText(err, 'Recent Changes')}`, 'err');
-      } finally {
-        void queryClient.invalidateQueries({ queryKey: GAME_STATE_KEY });
-      }
+      const done = await call(
+        'undo-change',
+        { changeId: undoable.changeId },
+        { confirm: true, confirmDestructive: true },
+        { checkIn: 'Recent Changes' }
+      );
+      if (done.status === 'done') toast(`✓ Undone: ${undoable.summary}`, 'ok');
     });
 
   const nextHandout = handouts.data ? nextQueued(handouts.data) : null;
@@ -384,19 +371,21 @@ export function LiveStrip(): JSX.Element {
             </Button>
           </>
         )}
-        <Button
-          type="button"
-          size="sm"
-          id="live-undo"
-          data-track="dash.live.undo"
-          aria-disabled={undoable && !off ? undefined : 'true'}
-          title={undoable?.summary}
-          onClick={() => {
-            if (undoable && !off) void undo();
-          }}
-        >
-          {changes.isPending ? 'Loading changes' : undoLabel(undoable)}
-        </Button>
+        {showUndo && (
+          <Button
+            type="button"
+            size="sm"
+            id="live-undo"
+            data-track="dash.live.undo"
+            aria-disabled={undoable && !off ? undefined : 'true'}
+            title={undoable?.summary}
+            onClick={() => {
+              if (undoable && !off) void undo();
+            }}
+          >
+            {changes.isPending ? 'Loading changes' : undoLabel(undoable)}
+          </Button>
+        )}
       </div>
       <p className={styles['away']} id="live-away" role="status">
         {stale ? AWAY_TEXT : ''}

@@ -715,7 +715,7 @@ async function startBackend(): Promise<void> {
                   typeof name === 'string' && Object.hasOwn(toolRouter, name)
                     ? toolRouter[name]
                     : undefined;
-                if (!route) {
+                if (typeof route !== 'function') {
                   throw new Error(`Unknown tool: ${name}`);
                 }
                 // The dashboard says who asked (a GM's undo there is theirs, not the AI's).

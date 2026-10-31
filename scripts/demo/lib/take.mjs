@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { collectConsoleErrors, markFocus, measure, openWindow, setFocusSink } from './browser.mjs';
 import { CSS_SIZE, DEMO_USERS, RESOLUTIONS, demoWorld } from './env.mjs';
 import { joinFoundry, waitForCanvasReady } from './foundry.mjs';
-import { waitForDashboard } from './dashboard.mjs';
+import { hideOldDashboardLinks, waitForDashboard } from './dashboard.mjs';
 import { cropToPage } from './obs-setup.mjs';
 import { SCENES } from './scenes.mjs';
 
@@ -87,12 +87,13 @@ export class Take {
   }
 
   /**
-   * The co-GM dashboard (local mode: every caller is GM). The takes use the old page's controls,
-   * so they open it at /legacy/ (React is at /, D-126).
+   * The co-GM dashboard (local mode: every caller is GM). The takes drive the React dashboard at /;
+   * no take uses the old page at /legacy/.
    */
-  async dashboard(path = '/legacy/') {
+  async dashboard(path = '/') {
     const win = await this.#open('Dashboard', `${this.env.dashboardUrl}${path}`);
     await waitForDashboard(win.page);
+    await hideOldDashboardLinks(win.page);
     await this.#crop('Dashboard');
     return win;
   }

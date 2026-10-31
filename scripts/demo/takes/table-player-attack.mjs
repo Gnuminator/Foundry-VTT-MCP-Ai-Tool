@@ -122,7 +122,7 @@ export async function run(t) {
 
   await t.step('live-feed', 'The dashboard noted the roll in its Live Feed', async () => {
     const dash = (await t.scene('Dashboard')).page;
-    await dash.locator('#feed-body').filter({ hasText: 'Longsword' }).waitFor({ timeout: 10000 });
+    await dash.locator('#pane-feed').filter({ hasText: 'Longsword' }).waitFor({ timeout: 10000 });
     await t.pause(4500);
     await t.shot('Dashboard', 'live-feed');
   });

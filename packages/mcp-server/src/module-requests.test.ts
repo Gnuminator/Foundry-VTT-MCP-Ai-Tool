@@ -400,7 +400,7 @@ describe('createModuleRequestHandler with the repeat guard', () => {
     const handler = createModuleRequestHandler({
       toolRouter: {},
       guardedChangeTools: { handleUndoChange, handleApplyPlannedChange: vi.fn() } as never,
-      guardedWrites: { getPlan: vi.fn() } as never,
+      guardedWrites: { getPlan: vi.fn() },
       tarokkaPositionRevealed: vi.fn(async () => false),
       repeatGuard: new RepeatGuard(),
     });

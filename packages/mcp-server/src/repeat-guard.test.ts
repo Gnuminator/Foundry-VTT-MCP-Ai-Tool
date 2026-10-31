@@ -1,10 +1,10 @@
 import { describe, it, expect, vi } from 'vitest';
 import { RepeatGuard, isRepeatGuarded, stableStringify } from './repeat-guard.js';
 
-function guardWithClock() {
+function guardWithClock(): { guard: RepeatGuard; advance: (ms: number) => number } {
   let t = 1_000;
   const guard = new RepeatGuard(3000, () => t);
-  return { guard, advance: (ms: number) => (t += ms) };
+  return { guard, advance: (ms: number): number => (t += ms) };
 }
 
 describe('isRepeatGuarded', () => {

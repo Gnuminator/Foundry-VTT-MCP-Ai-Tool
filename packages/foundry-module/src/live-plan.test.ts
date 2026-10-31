@@ -698,17 +698,40 @@ describe('condition on', () => {
     expect(plan.targets[0]?.line).toBe('Wolf: Unconscious (for 1 round, adds Prone (not timed))');
   });
 
-  it('replaces an expired effect that left actor.statuses (same fixed id)', async () => {
+  it('brings back an expired effect with an update (it keeps the fixed id)', async () => {
     addActor({
       id: 'a1',
       name: 'Wolf',
-      effects: [effect('e1', 'Poisoned', ['poisoned'], { duration: { remaining: 0 } })],
+      effects: [
+        effect('dnd5epoisoned000', 'Poisoned', ['poisoned'], { duration: { remaining: 0 } }),
+      ],
     });
     const plan = await planLiveChange(
       hpRequest({ action: 'condition', condition: 'poisoned', rounds: 1 })
     );
-    expect(plan.ops.map(o => o.kind)).toEqual(['delete', 'create']);
-    expect(plan.targets[0]?.line).toBe('Wolf: Poisoned (for 1 round, replaces the expired one)');
+    expect(plan.ops).toHaveLength(1);
+    expect(plan.ops[0]).toMatchObject({
+      kind: 'update',
+      uuid: 'Actor.a1.ActiveEffect.dnd5epoisoned000',
+      changes: {
+        disabled: false,
+        'duration.value': 1,
+        'duration.units': 'rounds',
+        'duration.expired': false,
+      },
+    });
+    expect((plan.ops[0] as any).changes.start).toHaveProperty('time');
+    expect(plan.targets[0]?.line).toBe('Wolf: Poisoned (for 1 round, brings back the expired one)');
+  });
+
+  it('leaves a custom multi-status effect alone and creates the condition', async () => {
+    addActor({
+      id: 'a1',
+      name: 'Wolf',
+      effects: [effect('custom1', 'Mixed', ['poisoned', 'blinded'])],
+    });
+    const plan = await planLiveChange(hpRequest({ action: 'condition', condition: 'poisoned' }));
+    expect(plan.ops.map(o => o.kind)).toEqual(['create']);
   });
 
   it('says a timer needs the condition removed first when it is already on', async () => {

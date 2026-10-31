@@ -1171,6 +1171,7 @@ test.describe('the bridge is away', () => {
   test('a failed poll that the next one clears is never shown', async ({ page }) => {
     const { push } = await setup(page, { initial: [BRIDGE_UP, fight(PARTY_FIGHT)] });
     await load(page);
+    await expect(strip(page)).toBeVisible();
     // One poll fails: the control channel is up and Foundry's state is unknown.
     push([status({ foundry: 'unknown' })]);
     await page.waitForTimeout(1500);
@@ -1186,6 +1187,8 @@ test.describe('the bridge is away', () => {
   test('doubt that lasts is shown after the wait, and back is at once', async ({ page }) => {
     const { push } = await setup(page, { initial: [BRIDGE_UP, fight(PARTY_FIGHT)] });
     await load(page);
+    // The strip loads as its own chunk: a strip that mounts in doubt says so at once, so wait for it.
+    await expect(strip(page)).toBeVisible();
     push([status({ foundry: 'unknown' })]);
     await page.waitForTimeout(AWAY_AFTER_MS - 1500);
     await expect(away(page)).toHaveText('');
@@ -1427,6 +1430,26 @@ test.describe('when a write or a roll request fails', () => {
     await page.locator('#strip-roll-party').click();
     await expect(toastLike(page, /not confirmed.*may have been sent, check chat/)).toBeVisible();
   });
+});
+
+test('a strip chunk that fails to load says so, with a Reload button, and the page works', async ({
+  page,
+}) => {
+  let hits = 0;
+  await page.route('**/CombatStrip-*.js', route => {
+    hits += 1;
+    return route.abort();
+  });
+  await setup(page, { initial: [fight(PARTY_FIGHT)] });
+  await load(page);
+  await expect.poll(() => hits).toBeGreaterThan(0);
+  await expect(strip(page)).toHaveCount(0);
+  await expect(page.locator('#combat-load-failed')).toContainText(
+    'The combat strip could not load'
+  );
+  await expect(page.getByRole('button', { name: 'Reload the page' })).toBeVisible();
+  await expect(page.locator('#btn-advanced')).toBeVisible();
+  await expect(during(page)).toBeVisible();
 });
 
 test.describe('a phone', () => {

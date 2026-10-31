@@ -3,9 +3,10 @@
  * Drift check: run before posting "PR ready". Lanes merge in parallel, and some guards only fail
  * once another lane's PR is on main: tool counts and sizes in the docs, the generated tool
  * reference, the tool-set budgets, the lint and em-dash baselines, the changelog fragments, the
- * usage catalog, the docs links. This script merges the newest main into a copy of the branch in a
+ * usage catalog, the docs links, and (when the branch or main touched the dashboard or shared) the
+ * dashboard build and bundle budget. This script merges the newest main into a copy of the branch in a
  * throwaway git worktree, runs those guards there, and removes the worktree. The lane's tracked
- * files are never touched (only a missing or stale, gitignored `shared/dist` is rebuilt), and nothing is committed or pushed.
+ * files are never touched (only gitignored build output is rebuilt: a missing or stale `shared/dist`, and `packages/cogm-dashboard/dist` when a branch that already has main runs the dashboard build in place), and nothing is committed or pushed.
  *
  *   npm run drift:check                  fetch main, trial-merge it aside, run the guards
  *   npm run drift:check -- --remote NAME take main from this remote
@@ -30,7 +31,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 /** A guard with `when` runs only if the branch or main since the merge base changed a file under it. */
-const DASHBOARD_PATH = 'packages/cogm-dashboard/';
+const DASHBOARD_PATH = ['packages/cogm-dashboard/', 'shared/']; // the web bundle imports shared/src
 
 /** The guards that fail when two PRs are each green alone but not together. */
 export const CHECKS = [
@@ -309,7 +310,7 @@ function changedFiles(cwd, main) {
   if (!base.ok) return null;
   const files = [];
   for (const tip of ['HEAD', main]) {
-    const d = git(cwd, ['diff', '--name-only', base.out, tip]);
+    const d = git(cwd, ['-c', 'core.quotePath=false', 'diff', '--name-only', '--no-renames', base.out, tip]);
     if (!d.ok) return null;
     files.push(...d.out.split('\n').filter(Boolean));
   }
@@ -471,8 +472,9 @@ export function lockedCommand(check, dir) {
 export function runChecks(dir, checks, log, main, sha, merged, changed = null) {
   const failed = [];
   for (const check of checks) {
-    if (check.when && changed && !changed.some(f => f.startsWith(check.when))) {
-      log(`  skip ${check.name} (nothing under ${check.when} changed)`);
+    const when = check.when ? [check.when].flat() : null;
+    if (when && changed && !changed.some(f => when.some(p => f.startsWith(p)))) {
+      log(`  skip ${check.name} (nothing under ${when.join(' or ')} changed)`);
       continue;
     }
     if (check.needs && failed.includes(check.needs)) {

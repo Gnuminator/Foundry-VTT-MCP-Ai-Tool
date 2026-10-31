@@ -533,6 +533,31 @@ test('a guard with `when` runs when only main touched that path', () => {
   }
 });
 
+test('a guard whose `when` is a list runs when a file under any entry changed, even a non-ASCII name', () => {
+  const { tmp, lane } = repos();
+  try {
+    fs.mkdirSync(path.join(lane, 'dash'));
+    commit(lane, 'dash/ø.txt', 'a\n', 'non-ASCII name under the path');
+    const { code, out } = run(lane, [{ ...alwaysFails, when: ['other/', 'dash/'] }]);
+    assert.equal(code, 1, out);
+    assert.match(out, /FAIL dash budget/);
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('a guard with `when` is skipped on a branch that already has main and did not touch the path', () => {
+  const { tmp, lane } = repos();
+  try {
+    const { code, out } = run(lane, [alwaysFails]);
+    assert.equal(code, 0, out);
+    assert.match(out, /already contains/);
+    assert.match(out, /skip dash budget/);
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
 test('a guard that needs a failed guard is skipped, not counted as a second failure', () => {
   const { tmp, lane } = repos();
   try {

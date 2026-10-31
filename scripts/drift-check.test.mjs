@@ -481,3 +481,69 @@ test('a passing guard that prints tool-set headroom lines has them shown, other 
     fs.rmSync(tmp, { recursive: true, force: true });
   }
 });
+
+/** A stand-in for the bundle budget: fits with one file under dash/, over with two. */
+const dashBudget = {
+  name: 'dash budget',
+  command: "node -e \"process.exit(require('fs').readdirSync('dash').length > 1 ? 4 : 0)\"",
+  when: 'dash/',
+};
+const alwaysFails = { ...dashBudget, command: 'node -e "process.exit(9)"' };
+
+test('two branches each under the budget fail together once main is merged in', () => {
+  const { tmp, lane, other } = repos();
+  try {
+    fs.mkdirSync(path.join(lane, 'dash'));
+    commit(lane, 'dash/a.txt', 'a\n', 'lane adds to the dashboard');
+    fs.mkdirSync(path.join(other, 'dash'));
+    commit(other, 'dash/b.txt', 'b\n', 'other lane adds to the dashboard');
+    git(other, 'push', '-q', 'origin', 'HEAD:main');
+    const { code, out } = run(lane, [dashBudget]);
+    assert.equal(code, 1, out);
+    assert.match(out, /FAIL dash budget/);
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('a guard with `when` is skipped when neither side touched that path', () => {
+  const { tmp, lane, other } = repos();
+  try {
+    commit(other, 'main.txt', 'unrelated\n', 'other lane merged');
+    git(other, 'push', '-q', 'origin', 'HEAD:main');
+    const { code, out } = run(lane, [alwaysFails]);
+    assert.equal(code, 0, out);
+    assert.match(out, /skip dash budget \(nothing under dash\/ changed\)/);
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('a guard with `when` runs when only main touched that path', () => {
+  const { tmp, lane, other } = repos();
+  try {
+    fs.mkdirSync(path.join(other, 'dash'));
+    commit(other, 'dash/b.txt', 'b\n', 'other lane adds to the dashboard');
+    git(other, 'push', '-q', 'origin', 'HEAD:main');
+    const { code, out } = run(lane, [alwaysFails]);
+    assert.equal(code, 1, out);
+    assert.match(out, /FAIL dash budget/);
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('a guard that needs a failed guard is skipped, not counted as a second failure', () => {
+  const { tmp, lane } = repos();
+  try {
+    const { code, out } = run(lane, [
+      { name: 'build', command: 'node -e "process.exit(1)"' },
+      { name: 'budget', command: 'node -e "process.exit(1)"', needs: 'build' },
+    ]);
+    assert.equal(code, 1, out);
+    assert.match(out, /skip budget \(build failed\)/);
+    assert.match(out, /1 guard\(s\) fail/);
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});

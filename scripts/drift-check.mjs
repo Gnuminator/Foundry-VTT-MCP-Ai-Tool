@@ -29,6 +29,9 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+/** A guard with `when` runs only if the branch or main since the merge base changed a file under it. */
+const DASHBOARD_PATH = 'packages/cogm-dashboard/';
+
 /** The guards that fail when two PRs are each green alone but not together. */
 export const CHECKS = [
   { name: 'lint baseline', command: 'npm run lint:ratchet', heavy: true },
@@ -51,6 +54,21 @@ export const CHECKS = [
     command: 'npx vitest run src/write-gate.test.ts',
     cwd: 'packages/foundry-module',
     heavy: true,
+  },
+  // The dashboard first-load budget is a limit two PRs can overflow together while each fits alone
+  // (#642 and #648 turned main red for 11.5 hours on 2026-10-30). The build and the budget run on
+  // the merged tree, and only when the branch or main since the merge base touched the dashboard.
+  {
+    name: 'dashboard build',
+    command: 'npm run build -w @gnuminator/cogm-dashboard',
+    heavy: true,
+    when: DASHBOARD_PATH,
+  },
+  {
+    name: 'dashboard bundle budget',
+    command: 'npm run bundle:budget -w @gnuminator/cogm-dashboard',
+    when: DASHBOARD_PATH,
+    needs: 'dashboard build',
   },
 ];
 
@@ -282,6 +300,22 @@ export function ensureSharedBuilt(cwd, buildCommand, log) {
   return `${r.stdout ?? ''}${r.stderr ?? ''}`.trim().split('\n').slice(-15).join('\n');
 }
 
+/**
+ * Files changed on the branch, or on main, since their merge base. Null when git cannot tell, which
+ * runs every guard. @param {string} cwd @param {string} main
+ */
+function changedFiles(cwd, main) {
+  const base = git(cwd, ['merge-base', 'HEAD', main]);
+  if (!base.ok) return null;
+  const files = [];
+  for (const tip of ['HEAD', main]) {
+    const d = git(cwd, ['diff', '--name-only', base.out, tip]);
+    if (!d.ok) return null;
+    files.push(...d.out.split('\n').filter(Boolean));
+  }
+  return files;
+}
+
 /** Worktrees a killed run left behind. @param {string} cwd */
 function staleWorktrees(cwd) {
   return git(cwd, ['worktree', 'list', '--porcelain'])
@@ -340,7 +374,7 @@ export function runDriftCheck({
 
   if (git(cwd, ['merge-base', '--is-ancestor', main, 'HEAD']).ok) {
     log(`drift-check: the branch already contains ${main} (${mainSha.out}).`);
-    return runChecks(cwd, checks, log, main, mainSha.out, false);
+    return runChecks(cwd, checks, log, main, mainSha.out, false, changedFiles(cwd, main));
   }
 
   // The worktree borrows this checkout's node_modules, which would not match main's lockfile (a
@@ -402,7 +436,7 @@ export function runDriftCheck({
       return 1;
     }
     log(`drift-check: trial merge of ${main} (${mainSha.out}) in a throwaway worktree.`);
-    return runChecks(dir, checks, log, main, mainSha.out, true);
+    return runChecks(dir, checks, log, main, mainSha.out, true, changedFiles(cwd, main));
   } finally {
     process.off('SIGTERM', onSignal);
     process.off('SIGHUP', onSignal);
@@ -432,10 +466,19 @@ export function lockedCommand(check, dir) {
 /**
  * @param {string} dir @param {typeof CHECKS} checks @param {(line: string) => void} log
  * @param {string} main @param {string} sha @param {boolean} merged
+ * @param {string[] | null} [changed] files changed since the merge base; null runs every guard
  */
-function runChecks(dir, checks, log, main, sha, merged) {
+export function runChecks(dir, checks, log, main, sha, merged, changed = null) {
   const failed = [];
   for (const check of checks) {
+    if (check.when && changed && !changed.some(f => f.startsWith(check.when))) {
+      log(`  skip ${check.name} (nothing under ${check.when} changed)`);
+      continue;
+    }
+    if (check.needs && failed.includes(check.needs)) {
+      log(`  skip ${check.name} (${check.needs} failed)`);
+      continue;
+    }
     const r = spawnSync(lockedCommand(check, dir), {
       cwd: path.join(dir, check.cwd ?? '.'),
       env: { ...process.env, CI: 'true' },

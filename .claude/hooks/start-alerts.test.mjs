@@ -13,6 +13,7 @@ import {
   foundryPart,
   formatOutput,
   lockAlert,
+  MAX_LINES,
   mainCheckout,
   mainRedAlert,
   parseWaiting,
@@ -400,6 +401,12 @@ test('every alert forced at once: one line each, ten lines at most', async () =>
     const out = JSON.parse(formatOutput(lines));
     assert.equal(out.hookSpecificOutput.hookEventName, 'SessionStart');
     assert.equal(out.systemMessage.split('\n').length, 4); // the heading plus three alerts
+    // with the main CI line as well: it comes first and the total stays within the cap
+    const { gh } = fakeGh({ list: [RUN(1, 'failure', 'abcdef123456')], view: JOBS });
+    const four = await collectAlerts(opts(f, { fetchImpl: answer(snap), mainCi: gh }));
+    assert.equal(four.length, 4);
+    assert.match(four[0], /^main CI red since abcdef12/);
+    assert.ok(four.length <= MAX_LINES);
     assert.ok(formatOutput(Array(20).fill('x')).length > 0);
   } finally {
     f.cleanup();
@@ -426,7 +433,7 @@ const JOBS = {
   ],
 };
 
-test('main CI red: names the oldest sha of the red streak and the failing step', () => {
+test('main CI red: names the oldest sha of the red streak and the failing step', async () => {
   const { gh, calls } = fakeGh({
     list: [
       RUN(5, 'failure', 'eeee5555aaaa'),
@@ -437,22 +444,22 @@ test('main CI red: names the oldest sha of the red streak and the failing step',
     ],
     view: JOBS,
   });
-  const line = mainRedAlert({ gh });
+  const line = await mainRedAlert({ gh });
   assert.match(line, /^main CI red since cccc3333 \(Dashboard bundle budget\)/);
   assert.ok(calls[0].includes('--branch main') && calls[0].includes('--workflow ci.yml'));
   assert.ok(calls[1].startsWith('run view 5 '));
 });
 
-test('main CI red: green, cancelled-only, empty, offline and garbage are silent', () => {
-  assert.equal(mainRedAlert({ gh: fakeGh({ list: [RUN(2, 'success', 'aaaa'), RUN(1, 'failure', 'bbbb')] }).gh }), null);
-  assert.equal(mainRedAlert({ gh: fakeGh({ list: [RUN(2, 'cancelled', 'aaaa')] }).gh }), null);
-  assert.equal(mainRedAlert({ gh: fakeGh({ list: [] }).gh }), null);
-  assert.equal(mainRedAlert({ gh: fakeGh({ list: null }).gh }), null); // gh missing or offline
-  assert.equal(mainRedAlert({ gh: () => 'not json' }), null);
-  assert.equal(mainRedAlert({ gh: () => { throw new Error('spawn gh ENOENT'); } }), null);
+test('main CI red: green, cancelled-only, empty, offline and garbage are silent', async () => {
+  assert.equal(await mainRedAlert({ gh: fakeGh({ list: [RUN(2, 'success', 'aaaa'), RUN(1, 'failure', 'bbbb')] }).gh }), null);
+  assert.equal(await mainRedAlert({ gh: fakeGh({ list: [RUN(2, 'cancelled', 'aaaa')] }).gh }), null);
+  assert.equal(await mainRedAlert({ gh: fakeGh({ list: [] }).gh }), null);
+  assert.equal(await mainRedAlert({ gh: fakeGh({ list: null }).gh }), null); // gh missing or offline
+  assert.equal(await mainRedAlert({ gh: () => 'not json' }), null);
+  assert.equal(await mainRedAlert({ gh: () => { throw new Error('spawn gh ENOENT'); } }), null);
   // a red run whose jobs cannot be read still alerts, without the step
   const noJobs = fakeGh({ list: [RUN(9, 'failure', 'abcdef123456')], view: null });
-  assert.equal(mainRedAlert({ gh: noJobs.gh }).replace(/;.*$/, ''), 'main CI red since abcdef12');
+  assert.equal((await mainRedAlert({ gh: noJobs.gh })).replace(/;.*$/, ''), 'main CI red since abcdef12');
 });
 
 test('main CI red: collectAlerts puts it first, and nothing runs without mainCi', async () => {

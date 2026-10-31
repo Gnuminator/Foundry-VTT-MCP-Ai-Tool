@@ -76,7 +76,9 @@ _playing_** (its `foundry-mcp` AI-GM tools); do development here.
 runs when a session starts, resumes or clears. It prints nothing when all is fine, and otherwise
 up to ten short lines: the main checkout's `CLAUDE.md` differs from the vault master
 (`Dev/Foundry AI Tool/repo-docs/CLAUDE.md`), the due items in the vault's `Waiting.md`, who holds
-the test server lock, and a missed or paused session-notes run. The session notes come from the
+the test server lock, a missed or paused session-notes run, and `main CI red since <sha> (<step>)`
+when the newest finished push run of `ci.yml` on main failed (it needs a logged-in `gh`, stays
+silent without one, and `START_ALERTS_MAIN_CI=off` turns it off). The session notes come from the
 control center on `127.0.0.1:3200` (or its `snapshot.json` when that
 is under 30 minutes old); when neither answers on a PC that has the control center, one line says
 so. Check it by hand with `node .claude/hooks/start-alerts.mjs` (the `START_ALERTS_*` variables

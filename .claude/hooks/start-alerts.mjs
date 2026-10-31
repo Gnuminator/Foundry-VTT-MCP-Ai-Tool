@@ -20,7 +20,7 @@
 // (and _B, _C for those servers), START_ALERTS_SNAPSHOT_URL (or "off"), START_ALERTS_SNAPSHOT_FILE, START_ALERTS_CC_DIR,
 // START_ALERTS_MAIN_CI=off (skips the main CI check; the hook tests set it).
 
-import { spawnSync } from 'node:child_process';
+import { execFile } from 'node:child_process';
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -279,20 +279,24 @@ export function watchdogAlert(w) {
 
 // --- main CI (red main, planner skill) -------------------------------------------------------
 
-// gh as a function: args in, stdout out, null on any failure (gh missing, offline, not logged in).
+// gh as an async function: args in, stdout out, null on any failure (gh missing, offline, not logged
+// in, timed out). Async, so the snapshot fetch runs alongside it.
 export function runGh(args) {
-  try {
-    const r = spawnSync('gh', args, { encoding: 'utf8', timeout: GH_TIMEOUT_MS, windowsHide: true });
-    return r.error || r.status !== 0 ? null : r.stdout;
-  } catch {
-    return null;
-  }
+  return new Promise(resolve => {
+    try {
+      execFile('gh', args, { encoding: 'utf8', timeout: GH_TIMEOUT_MS, windowsHide: true }, (err, stdout) =>
+        resolve(err ? null : stdout)
+      );
+    } catch {
+      resolve(null);
+    }
+  });
 }
 
 // The name of the first failing step of a run (gh run view --json jobs), else its failing job, else null.
-function failedStep(gh, id) {
+async function failedStep(gh, id) {
   try {
-    const jobs = JSON.parse(gh(['run', 'view', String(id), '-R', CI_REPO, '--json', 'jobs']) ?? '');
+    const jobs = JSON.parse((await gh(['run', 'view', String(id), '-R', CI_REPO, '--json', 'jobs'])) ?? '');
     for (const job of jobs.jobs ?? []) {
       const step = (job.steps ?? []).find(s => String(s.conclusion).toLowerCase() === 'failure');
       if (step) return step.name;
@@ -306,9 +310,9 @@ function failedStep(gh, id) {
 
 // "main CI red since <sha> (<step>)" when the newest finished CI run on main failed. Cancelled and
 // skipped runs say nothing and are passed over. "Since" is the oldest run of the unbroken red streak.
-export function mainRedAlert({ gh = runGh } = {}) {
+export async function mainRedAlert({ gh = runGh } = {}) {
   try {
-    const out = gh([
+    const out = await gh([
       'run',
       'list',
       '-R',
@@ -338,7 +342,7 @@ export function mainRedAlert({ gh = runGh } = {}) {
       if (!red(r)) break;
       since = r;
     }
-    const step = failedStep(gh, runs[0].databaseId);
+    const step = await failedStep(gh, runs[0].databaseId);
     return `main CI red since ${String(since.headSha).slice(0, 8)}${step ? ` (${clip(step, 60)})` : ''}; the planner handles it (planner skill, Main is red).`;
   } catch {
     return null;
@@ -390,7 +394,8 @@ export async function collectAlerts({
   const add = line => {
     if (line) lines.push(line);
   };
-  if (mainCi) add(mainRedAlert({ gh: mainCi }));
+  // started first, awaited last: the gh calls run while the local checks and the snapshot fetch do
+  const mainRed = mainCi ? mainRedAlert({ gh: mainCi }) : null;
   add(claudeMdAlert({ repoRoot, vaultDir }));
   add(waitingAlert({ vaultDir, now }));
   add(lockAlert(readLockFile(testEnvRoot), now));
@@ -411,6 +416,8 @@ export async function collectAlerts({
   } else if (ccDir && existsSync(ccDir)) {
     add('Control center not answering on 127.0.0.1:3200: session notes not checked.');
   }
+  const red = mainRed ? await mainRed : null;
+  if (red) lines.unshift(red);
   return lines.slice(0, MAX_LINES);
 }
 

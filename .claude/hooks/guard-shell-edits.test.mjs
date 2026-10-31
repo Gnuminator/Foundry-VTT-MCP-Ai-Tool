@@ -309,9 +309,10 @@ test('M4: a 100 KB single token or minified command is answered fast (and over t
   // The cap itself (MAX_ANALYZE, 100 000 characters): a deny pattern under it is denied, the same
   // pattern padded past it is allowed unread.
   const deny = 'sed -i scripts/green.mjs';
-  const under = `${deny} ${'x'.repeat(99_000 - deny.length)}`.slice(0, 99_999);
-  const over = `${deny} ${'x'.repeat(100_001)}`;
-  assert.ok(under.length <= 100_000 && over.length > 100_000);
+  const under = `${deny} ${'x'.repeat(100_000 - deny.length - 1)}`;
+  const over = `${under}x`;
+  assert.equal(under.length, 100_000);
+  assert.equal(over.length, 100_001);
   assert.ok(denied(under), 'a command under the cap is read');
   assert.ok(allowed(over), 'a command over the cap is answered unread');
   const BOUND_MS = 5000;

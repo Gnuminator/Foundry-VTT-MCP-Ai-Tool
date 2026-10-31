@@ -99,7 +99,8 @@ function MemberRow({
   if (m.ac != null) facts.push(`AC ${m.ac}`);
   if (m.passivePerception != null) facts.push(`Passive Perception ${m.passivePerception}`);
   if (m.hitDice) facts.push(`Hit dice ${m.hitDice.value}/${m.hitDice.max}`);
-  const chips = list(m.conditions);
+  // A copy: unshift on the query data itself added one more Exhaustion chip on every render.
+  const chips = [...list(m.conditions)];
   if (m.exhaustion > 0) chips.unshift(`Exhaustion ${m.exhaustion}`);
   const tokens = list(m.tokens);
   let tokenText = sceneName ? `No token on ${sceneName}` : '';

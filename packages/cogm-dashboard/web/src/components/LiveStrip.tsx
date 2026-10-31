@@ -47,6 +47,14 @@ const DamageForm = lazy(() => import('./DamageForm').then(m => ({ default: m.Dam
 
 const AI_KEY = [...CHANGES_KEY, 'ai'] as const;
 
+/** The error, with the may-have-applied hint after a full stop when the write may have landed. */
+const failText = (err: unknown, where: string): string => {
+  const t = errorText(err).trim();
+  return mayHaveApplied(err)
+    ? `${/[.!?]$/.test(t) ? t : `${t}.`} It may have applied; check ${where}.`
+    : t;
+};
+
 function Card({
   c,
   name,
@@ -163,6 +171,7 @@ export function LiveStrip(): JSX.Element {
   const [lastAsked, setLastAsked] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const busyRef = useRef(false);
+  const barRef = useRef<HTMLDivElement>(null);
 
   const stale = away && combat !== null;
   const rows = combat?.combatants ?? [];
@@ -206,6 +215,12 @@ export function LiveStrip(): JSX.Element {
     }
   }, []);
 
+  /** Clears the pick and hands keyboard focus to the pick bar, whose Clear / form just went. */
+  const clearPick = useCallback((): void => {
+    setPicked(new Set());
+    requestAnimationFrame(() => barRef.current?.focus());
+  }, []);
+
   const nextTurn = (): Promise<void> =>
     once(async () => {
       if (gated('advance-combat-turn')) return;
@@ -213,10 +228,7 @@ export function LiveStrip(): JSX.Element {
         await callTool('advance-combat-turn', {}, { confirm: true });
         void queryClient.invalidateQueries({ queryKey: GAME_STATE_KEY });
       } catch (err) {
-        toast(
-          `✗ Next turn: ${errorText(err)}${mayHaveApplied(err) ? ' It may have applied; check the tracker.' : ''}`,
-          'err'
-        );
+        toast(`✗ Next turn: ${failText(err, 'the tracker')}`, 'err');
       }
     });
 
@@ -258,7 +270,7 @@ export function LiveStrip(): JSX.Element {
     once(async () => {
       if (targets.length === 0) return;
       const done = await plan('plan-actor-change', conditionArgs(targets, condition));
-      if (done.status === 'done') setPicked(new Set());
+      if (done.status === 'done') clearPick();
     });
 
   const undoable = lastUndoable(changes.data ?? []);
@@ -285,10 +297,7 @@ export function LiveStrip(): JSX.Element {
         );
         toast(`✓ Undone: ${undoable.summary}`, 'ok');
       } catch (err) {
-        toast(
-          `✗ Undo: ${errorText(err)}${mayHaveApplied(err) ? ' It may have applied; check Recent Changes.' : ''}`,
-          'err'
-        );
+        toast(`✗ Undo: ${failText(err, 'Recent Changes')}`, 'err');
       } finally {
         void queryClient.invalidateQueries({ queryKey: GAME_STATE_KEY });
       }
@@ -319,15 +328,16 @@ export function LiveStrip(): JSX.Element {
     });
 
   const off = stale || busy;
-  // Writes also wait for the switches (GM Actions, writes, live play), so a click never plans and
-  // asks only to be refused at apply.
+  // Writes wait for their switches, so a click never plans and asks only to be refused at apply.
+  // Damage, conditions and End combat are live-play writes (GM Actions, writes, live play); Next
+  // turn is a plain gated write (`advance-combat-turn`): GM Actions and writes only.
+  const plainOff = live.off(ROLL_NEEDS);
   const writeOff = off || liveOff.length > 0 || !selectable;
+  const nextOff = off || plainOff.length > 0 || !selectable;
+  const titleFor = (names: string[]): string | undefined =>
+    stale ? 'The bridge is away' : names.length > 0 ? offReason(names) : undefined;
+  const offTitle = titleFor(liveOff);
   const handoutOff = off || live.off(HANDOUT_NEEDS).length > 0;
-  const offTitle = stale
-    ? 'The bridge is away'
-    : liveOff.length > 0
-      ? offReason(liveOff)
-      : undefined;
   const rollOff = off || roll.busy || live.off(ROLL_NEEDS).length > 0;
   const ask = (who: Combatant[]): void => {
     if (rollOff) return;
@@ -340,21 +350,21 @@ export function LiveStrip(): JSX.Element {
     <section className={styles['strip']} id="live-strip" aria-label="Live strip">
       <div className={styles['header']}>
         <h2 className={styles['title']}>Live</h2>
-        {combat !== null ? (
+        <span className={styles['meta']} id="live-meta" role="status">
+          {combat !== null ? metaText(combat) : 'No fight.'}
+        </span>
+        {combat !== null && (
           <>
-            <span className={styles['meta']} id="live-meta">
-              {metaText(combat)}
-            </span>
             <Button
               type="button"
               variant="primary"
               size="sm"
               id="live-next-turn"
               data-track="dash.live.next-turn"
-              aria-disabled={writeOff ? 'true' : undefined}
-              title={offTitle}
+              aria-disabled={nextOff ? 'true' : undefined}
+              title={titleFor(plainOff)}
               onClick={() => {
-                if (!writeOff) void nextTurn();
+                if (!nextOff) void nextTurn();
               }}
             >
               Next turn
@@ -373,8 +383,6 @@ export function LiveStrip(): JSX.Element {
               End combat
             </Button>
           </>
-        ) : (
-          <span className={styles['meta']}>No fight.</span>
         )}
         <Button
           type="button"
@@ -437,7 +445,14 @@ export function LiveStrip(): JSX.Element {
 
       {combat !== null && (
         <>
-          <div className={styles['bar']} role="group" aria-label="Picked creatures" id="live-pick">
+          <div
+            className={styles['bar']}
+            role="group"
+            aria-label="Picked creatures"
+            id="live-pick"
+            ref={barRef}
+            tabIndex={-1}
+          >
             <div className={styles['barRow']}>
               <span className={styles['who']} data-empty={kept.size === 0 ? 'true' : undefined}>
                 {pickText(pickedNames)}
@@ -448,19 +463,21 @@ export function LiveStrip(): JSX.Element {
                   variant="quiet"
                   size="sm"
                   data-track="dash.live.clear"
-                  onClick={() => setPicked(new Set())}
+                  onClick={clearPick}
                 >
                   Clear
                 </Button>
               )}
             </div>
-            {kept.size > 0 && (
+            {kept.size > 0 && liveOff.length === 0 && (
               <Suspense fallback={null}>
                 <DamageForm
                   targets={targets}
                   names={pickedNames}
                   stale={stale}
-                  onClose={() => setPicked(new Set())}
+                  locked={busy}
+                  once={once}
+                  onClose={clearPick}
                 />
               </Suspense>
             )}

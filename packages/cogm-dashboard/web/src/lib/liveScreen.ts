@@ -13,6 +13,19 @@ export function isLiveScreen(search: string): boolean {
   return new URLSearchParams(search).get('live') === '1';
 }
 
+export type OptInScreenName = 'gm' | 'strip' | 'live';
+
+/**
+ * Which opt-in screen the address asks for: the GM page (/gm), the strip alone (?strip=1), the Live
+ * view (?live=1), else null (the default dashboard). The entry only decides; each screen is a chunk.
+ */
+export function optInScreen(pathname: string, search: string): OptInScreenName | null {
+  if (pathname === '/gm') return 'gm';
+  const params = new URLSearchParams(search);
+  if (params.get('strip') === '1') return 'strip';
+  return params.get('live') === '1' ? 'live' : null;
+}
+
 /** The words of the header switch on the default dashboard and of the way back. */
 export const TRY_LIVE_TEXT = 'Try the new live screen';
 export const BACK_TO_STANDARD_TEXT = 'Back to the During view';

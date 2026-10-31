@@ -99,6 +99,30 @@ describe('listenForMapPick', () => {
     expect(currentMapPick()).toBeNull();
   });
 
+  it('in its own window, takes a pick from the opener on its own origin and says it listens', () => {
+    const handlers: Array<(e: MessageEvent) => void> = [];
+    const posted: Array<[unknown, string]> = [];
+    const opener = { postMessage: (d: unknown, o: string): void => void posted.push([d, o]) };
+    const win = {
+      opener,
+      location: { origin: 'https://cogm.example.com' },
+      addEventListener: (_: string, fn: (e: MessageEvent) => void) => handlers.push(fn),
+      removeEventListener: vi.fn(),
+    } as unknown as Window;
+    (win as unknown as { parent: Window }).parent = win;
+    listenForMapPick(win);
+    expect(posted).toEqual([[{ type: LIVE_READY_MESSAGE }, 'https://cogm.example.com']]);
+    const send = (source: unknown, origin: string, ids: string[]): void =>
+      handlers.forEach(fn =>
+        fn({ source, origin, data: { type: LIVE_PICK_MESSAGE, tokenIds: ids } } as MessageEvent)
+      );
+    send({}, 'https://cogm.example.com', ['x']);
+    send(opener, 'https://evil.example', ['y']);
+    expect(currentMapPick()).toBeNull();
+    send(opener, 'https://cogm.example.com', ['a']);
+    expect(currentMapPick()).toEqual(['a']);
+  });
+
   it('keeps the same list object when the ids did not change', () => {
     setMapPick(['a']);
     const first = currentMapPick();

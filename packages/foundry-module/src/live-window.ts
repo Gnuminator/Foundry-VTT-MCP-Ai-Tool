@@ -218,6 +218,92 @@ export function isReadyFromFrame(
   }
 }
 
+/** A window this page can post to: the page that frames Foundry, or the one that opened it. */
+export interface PickTarget {
+  postMessage(data: unknown, origin: string): void;
+}
+
+/**
+ * The windows above this Foundry page (GM page, item gm-page-wrapper): the frame parent, and the
+ * opener when Foundry was opened from the GM page's "open in its own tab" button. Empty for a
+ * plain Foundry tab.
+ */
+export function pickTargets(win: {
+  parent: unknown;
+  opener?: unknown;
+  self?: unknown;
+}): PickTarget[] {
+  const self = win.self ?? win;
+  const targets: PickTarget[] = [];
+  const add = (w: unknown): void => {
+    if (w && w !== self && typeof (w as PickTarget).postMessage === 'function') {
+      targets.push(w as PickTarget);
+    }
+  };
+  add(win.parent);
+  if (win.opener !== win.parent) add(win.opener);
+  return targets;
+}
+
+/** Post the pick to each target, to the dashboard's origin only. */
+export function postPickToTargets(
+  targets: readonly PickTarget[],
+  origin: string,
+  tokenIds: string[]
+): void {
+  for (const target of targets) {
+    try {
+      target.postMessage({ type: LIVE_PICK_MESSAGE, tokenIds }, origin);
+    } catch (error) {
+      console.warn(`[${MODULE_ID}] Could not send the token pick to the GM page:`, error);
+    }
+  }
+}
+
+/** Whether a message is the GM page saying it listens: from a target window, from the dashboard. */
+export function isReadyFromTarget(
+  event: { data: unknown; source: unknown; origin: string },
+  targets: readonly unknown[],
+  origin: string
+): boolean {
+  const type = (event.data as { type?: unknown } | null)?.type;
+  return (
+    type === LIVE_READY_MESSAGE &&
+    event.origin === origin &&
+    event.source !== null &&
+    targets.includes(event.source)
+  );
+}
+
+/** The dashboard's origin from the "Live window address" setting, else this host on its port. */
+function dashboardOrigin(): string | null {
+  const url = configuredUrl();
+  return url ? new URL(url).origin : null;
+}
+
+let relayStarted = false;
+
+/**
+ * On `ready`, when this Foundry page sits in the GM page's frame (or was opened by it): tell the
+ * GM page which tokens this GM controls, now and on every change, and answer its "ready" message.
+ * Does nothing in a plain Foundry tab, and nothing for a player.
+ */
+export function startPickRelay(): void {
+  if (relayStarted || game.user?.isGM !== true) return;
+  const origin = dashboardOrigin();
+  if (origin === null) return;
+  const targets = pickTargets(window);
+  if (targets.length === 0) return;
+  relayStarted = true;
+  const send = (): void => postPickToTargets(targets, origin, controlledTokenIds());
+  Hooks.on('controlToken', send);
+  window.addEventListener('message', event => {
+    if (isReadyFromTarget(event, targets, origin)) send();
+  });
+  // The first message doubles as the hello: the GM page counts a pick as "Foundry is in the frame".
+  send();
+}
+
 function onFrameMessage(event: MessageEvent): void {
   const frame = frameOf();
   if (frame && isReadyFromFrame(event, frame)) postPick();
@@ -372,6 +458,7 @@ export function refreshLiveWindowButtons(): void {
 /** On `ready`: draw the pin and bring the window back if it was open before the reload. */
 export function restoreLiveWindow(): void {
   refreshLiveWindowButtons();
+  startPickRelay();
   if (canOpenLiveWindow() && loadState().open) {
     void openLiveWindow().catch((e: unknown): void =>
       console.warn(`${MODULE_ID} | live window restore failed`, e)
@@ -385,5 +472,6 @@ export function resetLiveWindow(): void {
   instance = null;
   hookId = null;
   closing = false;
+  relayStarted = false;
   document.getElementById(PIN_ID)?.remove();
 }

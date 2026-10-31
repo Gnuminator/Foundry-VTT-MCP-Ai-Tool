@@ -51,17 +51,33 @@ export function useMapPick(): readonly string[] | null {
   );
 }
 
-/** Start listening on this window; only the parent frame's messages count. Returns the stop. */
+/**
+ * Start listening on this window; only the parent frame's messages count, or, for the strip in its
+ * own window (the GM page opened it), the opener's, from this page's own origin. Returns the stop.
+ */
 export function listenForMapPick(target: Window = window): () => void {
+  const framed = target.parent !== target;
+  const opener: Window | null = framed ? null : ((target.opener as Window | null) ?? null);
   const onMessage = (event: MessageEvent): void => {
-    if (event.source === null || event.source !== target.parent || target.parent === target) return;
+    if (event.source === null) return;
+    const fromParent = framed && event.source === target.parent;
+    const fromOpener =
+      opener !== null && event.source === opener && event.origin === target.location.origin;
+    if (!fromParent && !fromOpener) return;
     const ids = parsePickMessage(event.data);
     if (ids !== null) setMapPick(ids);
   };
   target.addEventListener('message', onMessage);
   // The page is a lazy chunk and can start listening after the frame's load event: say so, and the
-  // Foundry window sends the current pick again. The message carries nothing.
-  if (target.parent !== target) target.parent.postMessage({ type: LIVE_READY_MESSAGE }, '*');
+  // Foundry window (or the GM page) sends the current pick again. The message carries nothing.
+  if (framed) target.parent.postMessage({ type: LIVE_READY_MESSAGE }, '*');
+  else if (opener !== null) {
+    try {
+      opener.postMessage({ type: LIVE_READY_MESSAGE }, target.location.origin);
+    } catch {
+      // A closed opener has nothing to tell.
+    }
+  }
   return () => target.removeEventListener('message', onMessage);
 }
 

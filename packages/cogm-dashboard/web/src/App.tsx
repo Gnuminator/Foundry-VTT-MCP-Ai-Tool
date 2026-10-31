@@ -43,7 +43,7 @@ import { PreflightButton, VersionBanner, usePreflightOnReconnect } from './panel
 import type { ToolRequest } from './panels/Tools';
 import { GmActionsGateContext } from './lib/guarded';
 import { showsSampleFight } from './lib/duringTrial';
-import { LIVE_SCREEN_HREF, TRY_LIVE_TEXT, isLiveScreen } from './lib/liveScreen';
+import { LIVE_SCREEN_HREF, TRY_LIVE_TEXT, optInScreen } from './lib/liveScreen';
 import { useDashboardStream } from './lib/stream';
 import { useWorldTheme } from './lib/worldTheme';
 import { Button } from './ui';
@@ -112,20 +112,15 @@ const FLOATING_CHUNKS = [
  * after G1 for the few panels that have not moved here.
  */
 export function App(): JSX.Element {
-  // /?strip=1: the live strip alone, the base the live screens build on (LiveStripPage).
-  const stripOnly = new URLSearchParams(window.location.search).get('strip') === '1';
-  // /?live=1: live screen A, the opt-in Live view next to During (components/LiveScreen.tsx).
-  const liveScreen = isLiveScreen(window.location.search);
+  // The opt-in screens (the GM page /gm, the strip alone ?strip=1, the Live view ?live=1) are
+  // chunks of their own; the entry only picks one (components/OptInScreen.tsx).
+  const screen = optInScreen(window.location.pathname, window.location.search);
   return (
     <HelpProvider>
       <ConfirmProvider>
-        {stripOnly ? (
+        {screen ? (
           <Suspense fallback={null}>
-            <LiveStripPage />
-          </Suspense>
-        ) : liveScreen ? (
-          <Suspense fallback={null}>
-            <LiveScreen />
+            <OptInScreen name={screen} />
           </Suspense>
         ) : (
           <Dashboard />
@@ -135,14 +130,8 @@ export function App(): JSX.Element {
   );
 }
 
-// Live screen A is its own chunk too: opt-in, and it pulls the Party, Handouts and changes panels in.
-const LiveScreen = lazy(() =>
-  import('./components/LiveScreen').then(m => ({ default: m.LiveScreen }))
-);
-
-// The live strip page is its own chunk: it is opt-in and pulls the Handouts panel in.
-const LiveStripPage = lazy(() =>
-  import('./components/LiveStripPage').then(m => ({ default: m.LiveStripPage }))
+const OptInScreen = lazy(() =>
+  import('./components/OptInScreen').then(m => ({ default: m.OptInScreen }))
 );
 
 /** The drawers this page has so far; each one's open state. */

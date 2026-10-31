@@ -20,10 +20,12 @@ export const LIVE_WINDOW_SETTING = 'liveWindow';
 export const LIVE_WINDOW_URL_SETTING = 'liveWindowUrl';
 /** The `type` of the message to the frame (the dashboard's lib/mapPick.ts reads the same string). */
 export const LIVE_PICK_MESSAGE = 'fmb-live-pick';
+/** The `type` the strip page posts back once it listens (the first pick can come before that). */
+export const LIVE_READY_MESSAGE = 'fmb-live-ready';
 /** The dashboard's port on the machine that runs the bridge. */
 export const DEFAULT_DASHBOARD_PORT = 3100;
 /** Browser storage key for the window's place and open state (per browser, like the window). */
-export const LIVE_WINDOW_STATE_KEY = `${MODULE_ID}.liveWindow`;
+export const LIVE_WINDOW_STATE_KEY = `${MODULE_ID}.liveWindowState`;
 const WINDOW_ID = 'fmb-live-window';
 const PIN_ID = 'fmb-live-pin';
 const DEFAULT_WIDTH = 420;
@@ -53,7 +55,7 @@ export function registerLiveWindowSettings(): void {
   });
   game.settings.register(MODULE_ID, LIVE_WINDOW_URL_SETTING, {
     name: 'AI Tool: Live window address',
-    hint: `Where this browser reaches the dashboard, for example https://dashboard.example.com. Empty means this host on port ${DEFAULT_DASHBOARD_PORT}. The dashboard must know this Foundry's address (DASHBOARD_FOUNDRY_URL) so it lets this page frame it.`,
+    hint: `Where this browser reaches the dashboard, for example https://dashboard.example.com. Empty means this host on port ${DEFAULT_DASHBOARD_PORT}. The dashboard must know this Foundry's address (DASHBOARD_FOUNDRY_URL, exactly as this browser opens Foundry) so it lets this page frame it. Behind a login, sign in to the dashboard in a normal tab first: a login page does not show inside the window.`,
     scope: 'world',
     config: true,
     type: String,
@@ -175,19 +177,50 @@ function frameOf(): HTMLIFrameElement | null {
   return instance?.element?.querySelector<HTMLIFrameElement>('iframe.fmb-live-frame') ?? null;
 }
 
-/** Tell the frame which tokens the GM controls now (to its own origin only). */
-export function postPick(): void {
-  const frame = frameOf();
-  const src = frame?.src;
-  if (!frame?.contentWindow || !src) return;
+/** Send a pick to a frame, to the frame's own origin only. */
+export function postPickTo(
+  frame: {
+    src: string;
+    contentWindow: { postMessage(data: unknown, origin: string): void } | null;
+  },
+  tokenIds: string[]
+): void {
+  if (!frame.contentWindow || !frame.src) return;
   try {
     frame.contentWindow.postMessage(
-      { type: LIVE_PICK_MESSAGE, tokenIds: controlledTokenIds() },
-      new URL(src).origin
+      { type: LIVE_PICK_MESSAGE, tokenIds },
+      new URL(frame.src).origin
     );
   } catch (error) {
     console.warn(`[${MODULE_ID}] Could not send the token pick to the live window:`, error);
   }
+}
+
+/** Tell the frame which tokens the GM controls now. */
+export function postPick(): void {
+  const frame = frameOf();
+  if (frame) postPickTo(frame, controlledTokenIds());
+}
+
+/** Whether a message is the strip page saying it listens: from this frame, from its own origin. */
+export function isReadyFromFrame(
+  event: { data: unknown; source: unknown; origin: string },
+  frame: { src: string; contentWindow: unknown }
+): boolean {
+  const type = (event.data as { type?: unknown } | null)?.type;
+  if (type !== LIVE_READY_MESSAGE || !frame.contentWindow || event.source !== frame.contentWindow) {
+    return false;
+  }
+  try {
+    return event.origin === new URL(frame.src).origin;
+  } catch {
+    return false;
+  }
+}
+
+function onFrameMessage(event: MessageEvent): void {
+  const frame = frameOf();
+  if (frame && isReadyFromFrame(event, frame)) postPick();
 }
 
 function escapeHtml(text: string): string {
@@ -237,12 +270,14 @@ function define(): new () => AppV2Instance {
 
     _onRender(): void {
       hookId ??= Hooks.on('controlToken', () => postPick());
+      window.addEventListener('message', onFrameMessage);
       this.remember(true);
     }
 
     _onClose(): void {
       if (hookId !== null) Hooks.off('controlToken', hookId);
       hookId = null;
+      window.removeEventListener('message', onFrameMessage);
       // A close from the switch or a reload is not the GM closing it: keep "open" as it was.
       this.remember(closing ? loadState().open : false);
     }

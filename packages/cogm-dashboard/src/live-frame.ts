@@ -20,18 +20,25 @@ export function liveFrameAncestors(foundryUrl: string | undefined): string {
   }
 }
 
-/** The header for a request that asks for the strip page, else null. */
+/**
+ * The header for a request that asks for the strip page, else null. The page reads the first
+ * `strip` value (`URLSearchParams.get`), so this reads the raw query the same way: Express would
+ * turn `?strip=1&strip=1` into a list and the header would be skipped for a page that still loads.
+ */
 export function liveFrameHeader(
-  query: Request['query'],
+  originalUrl: string,
   foundryUrl: string | undefined
 ): string | null {
-  return query['strip'] === '1' ? `frame-ancestors ${liveFrameAncestors(foundryUrl)}` : null;
+  const search = originalUrl.includes('?') ? originalUrl.slice(originalUrl.indexOf('?')) : '';
+  return new URLSearchParams(search).get('strip') === '1'
+    ? `frame-ancestors ${liveFrameAncestors(foundryUrl)}`
+    : null;
 }
 
 /** Express middleware: sets the header on any request with `?strip=1`. */
 export function liveFrameMiddleware(foundryUrl: string | undefined) {
   return (req: Request, res: Response, next: NextFunction): void => {
-    const value = liveFrameHeader(req.query, foundryUrl);
+    const value = liveFrameHeader(req.originalUrl, foundryUrl);
     if (value !== null) res.setHeader('Content-Security-Policy', value);
     next();
   };

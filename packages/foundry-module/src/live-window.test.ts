@@ -8,11 +8,14 @@ import { MODULE_ID } from './constants.js';
 import { AI_TOOL_CONTROL, addAiToolControls } from './ai-tool-controls.js';
 import {
   LIVE_PICK_MESSAGE,
+  LIVE_READY_MESSAGE,
   LIVE_WINDOW_SETTING,
   LIVE_WINDOW_URL_SETTING,
   canOpenLiveWindow,
+  isReadyFromFrame,
   liveFrameUrl,
   liveWindowEnabled,
+  postPickTo,
   registerLiveWindowSettings,
 } from './live-window.js';
 
@@ -60,6 +63,47 @@ describe('the live frame address', () => {
 
   it('shares the pick message name with the dashboard', () => {
     expect(LIVE_PICK_MESSAGE).toBe('fmb-live-pick');
+  });
+});
+
+describe('the pick messages', () => {
+  it('posts the ids to the frame origin only', () => {
+    const postMessage = vi.fn();
+    postPickTo({ src: 'https://dash.example.com/x?strip=1', contentWindow: { postMessage } }, [
+      'a',
+      'b',
+    ]);
+    expect(postMessage).toHaveBeenCalledWith(
+      { type: LIVE_PICK_MESSAGE, tokenIds: ['a', 'b'] },
+      'https://dash.example.com'
+    );
+  });
+
+  it('posts nothing before the frame has a window', () => {
+    expect(() =>
+      postPickTo({ src: 'https://dash.example.com/', contentWindow: null }, ['a'])
+    ).not.toThrow();
+  });
+
+  it('takes the ready message from this frame and its origin only', () => {
+    const win = {};
+    const frame = { src: 'https://dash.example.com/?strip=1', contentWindow: win };
+    const ready = { type: LIVE_READY_MESSAGE };
+    expect(
+      isReadyFromFrame({ data: ready, source: win, origin: 'https://dash.example.com' }, frame)
+    ).toBe(true);
+    expect(
+      isReadyFromFrame({ data: ready, source: {}, origin: 'https://dash.example.com' }, frame)
+    ).toBe(false);
+    expect(
+      isReadyFromFrame({ data: ready, source: win, origin: 'https://evil.example' }, frame)
+    ).toBe(false);
+    expect(
+      isReadyFromFrame(
+        { data: { type: 'x' }, source: win, origin: 'https://dash.example.com' },
+        frame
+      )
+    ).toBe(false);
   });
 });
 

@@ -6,6 +6,8 @@ import { useSyncExternalStore } from 'react';
 
 /** The `type` the Foundry module posts (packages/foundry-module/src/live-window.ts). */
 export const LIVE_PICK_MESSAGE = 'fmb-live-pick';
+/** The `type` the strip page posts to its parent once it listens. */
+export const LIVE_READY_MESSAGE = 'fmb-live-ready';
 /** More ids than a fight can hold are noise. */
 const MAX_IDS = 200;
 
@@ -57,6 +59,9 @@ export function listenForMapPick(target: Window = window): () => void {
     if (ids !== null) setMapPick(ids);
   };
   target.addEventListener('message', onMessage);
+  // The page is a lazy chunk and can start listening after the frame's load event: say so, and the
+  // Foundry window sends the current pick again. The message carries nothing.
+  if (target.parent !== target) target.parent.postMessage({ type: LIVE_READY_MESSAGE }, '*');
   return () => target.removeEventListener('message', onMessage);
 }
 

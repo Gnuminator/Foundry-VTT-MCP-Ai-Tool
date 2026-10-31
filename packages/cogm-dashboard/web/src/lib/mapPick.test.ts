@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
   LIVE_PICK_MESSAGE,
+  LIVE_READY_MESSAGE,
   currentMapPick,
   listenForMapPick,
   parsePickMessage,
@@ -43,7 +44,7 @@ describe('listenForMapPick', () => {
     fire: (source: unknown, data: unknown) => void;
   } {
     const handlers: Array<(e: MessageEvent) => void> = [];
-    const parent = {};
+    const parent = { postMessage: (): void => undefined };
     const win = {
       parent,
       addEventListener: (_: string, fn: (e: MessageEvent) => void) => handlers.push(fn),
@@ -70,6 +71,18 @@ describe('listenForMapPick', () => {
     stop();
     fire(parent, { type: LIVE_PICK_MESSAGE, tokenIds: ['c'] });
     expect(currentMapPick()).toEqual(['a']);
+  });
+
+  it('tells its parent it is listening', () => {
+    const posted: unknown[] = [];
+    const parent = {
+      postMessage: (data: unknown): void => {
+        posted.push(data);
+      },
+    };
+    const win = { parent, addEventListener: (): void => undefined } as unknown as Window;
+    listenForMapPick(win);
+    expect(posted).toEqual([{ type: LIVE_READY_MESSAGE }]);
   });
 
   it('does nothing on a page that is not in a frame', () => {

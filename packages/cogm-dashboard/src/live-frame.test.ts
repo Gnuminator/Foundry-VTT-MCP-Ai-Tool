@@ -26,11 +26,17 @@ describe('liveFrameAncestors', () => {
 
 describe('liveFrameHeader', () => {
   it('is set for ?strip=1 only', () => {
-    expect(liveFrameHeader({ strip: '1' }, 'http://localhost:30001')).toBe(
-      'frame-ancestors http://localhost:30001'
-    );
-    expect(liveFrameHeader({}, 'http://localhost:30001')).toBeNull();
-    expect(liveFrameHeader({ strip: '0' }, 'http://localhost:30001')).toBeNull();
-    expect(liveFrameHeader({ live: '1' }, 'http://localhost:30001')).toBeNull();
+    const foundry = 'http://localhost:30001';
+    expect(liveFrameHeader('/?strip=1', foundry)).toBe('frame-ancestors http://localhost:30001');
+    expect(liveFrameHeader('/', foundry)).toBeNull();
+    expect(liveFrameHeader('/?strip=0', foundry)).toBeNull();
+    expect(liveFrameHeader('/?live=1', foundry)).toBeNull();
+  });
+
+  it('reads a repeated strip key the way the page does (the first value)', () => {
+    const foundry = 'http://localhost:30001';
+    expect(liveFrameHeader('/?strip=1&strip=1', foundry)).not.toBeNull();
+    expect(liveFrameHeader('/?strip=1&strip=x', foundry)).not.toBeNull();
+    expect(liveFrameHeader('/?strip=x&strip=1', foundry)).toBeNull();
   });
 });

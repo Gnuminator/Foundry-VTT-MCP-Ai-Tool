@@ -624,7 +624,10 @@ function fileForeignDependents(groups: Map<string, ChangeRecord[]>): void {
     // The group's own unmarked records from the first AI source on (a concentration effect dnd5e
     // ended in the bridge's browser) may be the link between an item and the foreign dependents;
     // one from before it is the person's own action and ties nothing.
-    const own = group.filter(r => !r.changeId && r.t >= from);
+    // With an item source the actor rule tags concentration ends: only from that item delete on.
+    const itemSources = sources.filter(r => r.documentName === 'Item');
+    const ownFrom = itemSources.length > 0 ? Math.min(...itemSources.map(r => r.t)) : from;
+    const own = group.filter(r => !r.changeId && r.t >= ownFrom);
     const link = dependentsLink(
       ai,
       [...own, ...candidates],

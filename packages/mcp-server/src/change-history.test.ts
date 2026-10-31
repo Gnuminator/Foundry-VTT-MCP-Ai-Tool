@@ -654,6 +654,24 @@ describe('buildActions', () => {
       expect(actions.find(a => a.records.includes(dep))?.actionId).toBe('other-browser');
     });
 
+    it("ties nothing through the group's own concentration delete from before the first AI item delete, even after an AI effect delete", () => {
+      const effect = rec({
+        actionId: 'bridge',
+        changeId: 'chg-e',
+        changeMode: 'apply',
+        op: 'delete',
+        documentName: 'ActiveEffect',
+        uuid: 'Actor.a2.ActiveEffect.other',
+        rootUuid: 'Actor.a2',
+        data: { name: 'Other' },
+      });
+      const conc = concentration(effect.t + 1000);
+      const item = { ...aiItem(), t: effect.t + 2000 };
+      const dep = held(effect.t + 5000);
+      const actions = buildActions([effect, conc, item, dep]);
+      expect(actions.find(a => a.records.includes(dep))?.actionId).toBe('other-browser');
+    });
+
     it('files a foreign dependent named by two AI changes of one group by the time it arrived', () => {
       const ai = (changeId: string, t: number, id: string): ChangeRecord =>
         rec({

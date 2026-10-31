@@ -585,6 +585,12 @@ export const USAGE_CATALOG: readonly UsageCatalogEntry[] = [
     file: 'packages/cogm-dashboard/web/src/components/LiveStrip.tsx',
   },
   {
+    name: 'dash.live.one-round',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/web/src/components/LiveStrip.tsx',
+  },
+  {
     name: 'dash.live.pan',
     kind: 'action',
     surface: 'dashboard',

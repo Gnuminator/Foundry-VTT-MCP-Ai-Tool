@@ -79,6 +79,13 @@ export async function setGmActions(page, on, { human = false } = {}) {
     const t = document.querySelector('#btn-gm')?.textContent ?? '';
     return (t.trim() !== '' && !/GM Actions/i.test(t)) === want;
   }, on);
+  // The "Turned on" toast sits bottom right and pauses while hovered: a demo cursor sent to a
+  // control behind it would wait for ever. Let it time out first.
+  await page
+    .locator('.toast')
+    .first()
+    .waitFor({ state: 'hidden', timeout: 10000 })
+    .catch(() => {});
 }
 
 /**

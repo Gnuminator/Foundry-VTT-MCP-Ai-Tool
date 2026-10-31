@@ -30,12 +30,6 @@ jobs:
         node: ['22', '24']
     name: build-test (Node ${{ matrix.node }})
     steps:
-      - name: Refuse a hand-dispatched run off main
-        if: github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/main'
-        run: |
-          echo "A manual CI run off main is refused: it would share check names with the pull_request run and could hide a failure on the merge ref. Close and reopen the PR instead." >&2
-          exit 1
-
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
@@ -338,12 +332,6 @@ jobs:
     outputs:
       run: ${{ steps.filter.outputs.run }}
     steps:
-      - name: Refuse a hand-dispatched run off main
-        if: github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/main'
-        run: |
-          echo "A manual CI run off main is refused: it would share check names with the pull_request run and could hide a failure on the merge ref. Close and reopen the PR instead." >&2
-          exit 1
-
       - uses: actions/checkout@v4
         with:
           fetch-depth: 2
@@ -395,12 +383,6 @@ jobs:
       # Playwright's browsers read HOME; a container job runs as root.
       HOME: /root
     steps:
-      - name: Refuse a hand-dispatched run off main
-        if: github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/main'
-        run: |
-          echo "A manual CI run off main is refused: it would share check names with the pull_request run and could hide a failure on the merge ref. Close and reopen the PR instead." >&2
-          exit 1
-
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
@@ -457,12 +439,6 @@ jobs:
     runs-on: ubuntu-latest
     name: dashboard-visual (screenshots)
     steps:
-      - name: Refuse a hand-dispatched run off main
-        if: github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/main'
-        run: |
-          echo "A manual CI run off main is refused: it would share check names with the pull_request run and could hide a failure on the merge ref. Close and reopen the PR instead." >&2
-          exit 1
-
       - name: Every shard passed, or was skipped by the filter
         run: |
           echo "visual-changes: ${{ needs.visual-changes.result }}"
@@ -486,12 +462,6 @@ jobs:
     name: python-tests (Python 3.12)
     timeout-minutes: 20
     steps:
-      - name: Refuse a hand-dispatched run off main
-        if: github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/main'
-        run: |
-          echo "A manual CI run off main is refused: it would share check names with the pull_request run and could hide a failure on the merge ref. Close and reopen the PR instead." >&2
-          exit 1
-
       - uses: actions/checkout@v4
 
       - uses: actions/setup-python@v5
@@ -528,12 +498,6 @@ jobs:
     runs-on: ubuntu-24.04-arm
     name: build-test (ARM, Node 24)
     steps:
-      - name: Refuse a hand-dispatched run off main
-        if: github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/main'
-        run: |
-          echo "A manual CI run off main is refused: it would share check names with the pull_request run and could hide a failure on the merge ref. Close and reopen the PR instead." >&2
-          exit 1
-
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4

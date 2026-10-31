@@ -436,7 +436,7 @@ function Dashboard(): JSX.Element {
             id="try-live-screen"
             data-track="dash.header.try-live"
             href={LIVE_SCREEN_HREF}
-            title="The opt-in Live view: one fixed page for the whole evening"
+            title="The opt-in Live view: one fixed page"
           >
             {TRY_LIVE_TEXT}
           </a>

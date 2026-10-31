@@ -10,7 +10,32 @@ import {
   firstLoadFiles,
   formatTable,
   lazyLimitKb,
+  lowHeadroom,
 } from './bundle-budget.mjs';
+
+describe('lowHeadroom', () => {
+  const row = (name, gzipKb, limitKb) => ({
+    name,
+    raw: 0,
+    gzip: gzipKb * 1000,
+    limitKb,
+    ok: gzipKb <= limitKb,
+  });
+
+  it('flags a first load with under 2 KB left, not one with 2 KB or more', () => {
+    expect(lowHeadroom([row('first load (entry + preloads)', 148.5, 150)])).toHaveLength(1);
+    expect(lowHeadroom([row('first load (entry + preloads)', 147.9, 150)])).toHaveLength(0);
+  });
+
+  it('does not flag a row that is over the limit (the check already fails it)', () => {
+    expect(lowHeadroom([row('first load (entry + preloads)', 151, 150)])).toHaveLength(0);
+  });
+
+  it('flags a lazy chunk only when its room is small in KB and under 5 percent of its limit', () => {
+    expect(lowHeadroom([row('lazy: Tools-abc.js', 7.8, 8)])).toHaveLength(1);
+    expect(lowHeadroom([row('lazy: ModuleDiagnostics-abc.js', 0.8, 1)])).toHaveLength(0);
+  });
+});
 
 describe('chunkStem', () => {
   it('drops the 8 character hash and the extension', () => {

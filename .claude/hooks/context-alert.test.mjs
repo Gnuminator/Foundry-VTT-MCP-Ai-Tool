@@ -345,6 +345,8 @@ test('run: an advisor call whose last pass is past the out line still fires', ()
       },
     });
     const file = transcript(root, [turn(255_000), big]);
+    // The last pass (256,002), not the summed top level and not 0.
+    assert.equal(lastContextIn(readFileSync(file, 'utf8').split('\n')), 256_002);
     assert.match(JSON.parse(run(input(file), low)).systemMessage, /Context 255k: hand over now/);
   } finally {
     cleanup();

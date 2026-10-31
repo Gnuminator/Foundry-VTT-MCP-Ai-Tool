@@ -18,8 +18,9 @@
 // Calls from a subagent (agent_id) are left alone. The deny lifts by itself once the confirmed
 // context is under the line again (after a /compact): there is no state.
 //
-// The context is the confirmed one from context-alert.mjs (a reading counts only when the response
-// before it was also big, so a doubled phantom reading never stops a session).
+// The context is the confirmed one from context-alert.mjs: the last pass of an advisor response
+// (its top level sums two passes), and a reading counts only when the response before it was also
+// big, so a doubled phantom reading never stops a session.
 //
 // A false deny at 400k costs a handover that was due anyway, but every doubt allows: a payload we
 // do not understand, no transcript, a shell command that only reads. This is a nudge with a clear

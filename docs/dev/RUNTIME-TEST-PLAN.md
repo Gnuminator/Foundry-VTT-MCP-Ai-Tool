@@ -108,14 +108,14 @@ Spot-check that tool output matches what Foundry shows:
 - [ ] Player view layout on tablet/phone widths.
 - [ ] Visual polish: spacing, contrast, truncation, long names (705-actor world has long names), empty states.
 
-## 7. Performance & scale
+## 6. Performance & scale
 
 - [ ] Large world (705 actors, 160 scenes): `list-characters`/`list-scenes` latency + payload size; consider a `type=character` filter default for the dashboard.
 - [ ] Polling load: the dashboard's combined event/combat/error polls vs backend contention; tune intervals.
 - [ ] Event/error/chat buffer caps hold under a long session; no memory growth.
 - [ ] No per-poll world-info storm.
 
-## 8. Regression after the queued fixes
+## 7. Regression after the queued fixes
 
 Re-run the relevant slice after each fix lands + the module is rebuilt/reinstalled:
 

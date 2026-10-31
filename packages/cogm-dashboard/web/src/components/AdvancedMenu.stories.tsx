@@ -48,7 +48,10 @@ export const Closed: Story = {};
 export const Open: Story = {
   play: async ({ canvasElement }) => {
     await userEvent.click(within(canvasElement).getByRole('button', { name: /Advanced/ }));
-    await waitFor(() => expect(within(document.body).getByRole('menu')).toBeVisible());
+    // The menu is a lazy chunk: the click opens it as soon as it has arrived.
+    await waitFor(() => expect(within(document.body).getByRole('menu')).toBeVisible(), {
+      timeout: 10_000,
+    });
   },
 };
 

@@ -1,5 +1,5 @@
 // Co-GM dashboard helpers for Playwright. Element ids come from
-// packages/cogm-dashboard/public/index.html and app.js; keep them in step.
+// packages/cogm-dashboard/web/src (the React dashboard at /); keep them in step.
 
 import { humanClick, humanType } from './browser.mjs';
 
@@ -42,7 +42,8 @@ export async function setGmActions(page, on, { human = false } = {}) {
   if (on) {
     const click = human ? l => humanClick(l) : l => l.click();
     await click(page.locator('#btn-gm'));
-    await click(page.locator('[data-track="dash.live.turn-on"]').first());
+    // :visible, because the header also holds a hidden Turn on note with the same data-track.
+    await click(page.locator('[data-track="dash.live.turn-on"]:visible').first());
   } else {
     await setGmActionsApi(new URL(page.url()).origin, false);
   }
@@ -100,8 +101,8 @@ export async function readConfirmModal(page) {
   const modal = page.locator('#modal-backdrop');
   await modal.waitFor({ state: 'visible' });
   return {
-    title: (await page.locator('#modal-title').textContent())?.trim() ?? '',
-    body: (await page.locator('#modal-body').innerText()).trim(),
+    title: (await page.locator('#modal h3').textContent())?.trim() ?? '',
+    body: (await page.locator('#modal .modal-body').innerText()).trim(),
   };
 }
 
@@ -127,9 +128,7 @@ export async function closeTools(page, { human = false } = {}) {
 
 /** The Undo button of the newest change in Recent Changes. */
 export function newestUndoButton(page) {
-  // An attribute selector: the React pane's id is not in the legacy index.html that
-  // demo-scripts.test.ts checks the helpers' hash selectors against.
-  return page.locator('[id="pane-changes-body"] button[aria-label^="Undo:"]').first();
+  return page.locator('#pane-changes-body button[aria-label^="Undo:"]').first();
 }
 
 // --- Drawers ------------------------------------------------------------------
@@ -163,20 +162,23 @@ export async function revealNextHandout(page, { human = false } = {}) {
 /** The Pre-flight drawer; resolves once its checks have run. Returns the summary text. */
 export async function runPreflight(page, opts = {}) {
   await openDrawer(page, '#btn-preflight', '#preflight-drawer', opts);
-  await page.locator('#preflight-summary').waitFor({ state: 'visible', timeout: 60000 });
-  await page.waitForFunction(() => !document.querySelector('#preflight-run')?.disabled, undefined, {
-    timeout: 60000,
-  });
-  return (await page.locator('#preflight-summary').innerText()).trim();
+  const summary = page.locator('#preflight-drawer .preflight-summary').first();
+  await summary.waitFor({ state: 'visible', timeout: 60000 });
+  await page.waitForFunction(
+    () =>
+      !document.querySelector('#preflight-drawer button[data-track="dash.preflight.run"]')
+        ?.disabled,
+    undefined,
+    { timeout: 60000 }
+  );
+  return (await summary.innerText()).trim();
 }
 
 /** The Prep drawer; resolves once the digest has loaded. */
 export async function openPrep(page, opts = {}) {
   await openDrawer(page, '#btn-prep', '#prep-drawer', opts);
-  await page.waitForFunction(() => {
-    const last = document.querySelector('#prep-last');
-    return last && last.textContent.trim() !== '' && !last.textContent.includes('Loading');
-  });
+  // The "Last session" heading shows once the digest has loaded (a loading face has none).
+  await page.locator('#prep-drawer h3.preflight-h', { hasText: 'Last session' }).waitFor();
 }
 
 // --- The dashboard's REST API (local mode: every caller is GM) ----------------

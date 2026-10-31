@@ -316,10 +316,7 @@ test('Next turn that fails says so with a full stop before the hint', async ({ p
   await load(page);
   await page.locator('#live-next-turn').click();
   await expect(
-    toastText(
-      page,
-      /Advance combat turn: Bridge went quiet\. It may have applied; check Recent Changes\./
-    )
+    toastText(page, /Next turn: Bridge went quiet\. It may have applied; check the tracker\./)
   ).toBeVisible();
 });
 

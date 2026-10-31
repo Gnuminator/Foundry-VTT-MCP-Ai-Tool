@@ -216,7 +216,12 @@ export function LiveStrip(): JSX.Element {
 
   const nextTurn = (): Promise<void> =>
     once(async () => {
-      await call('advance-combat-turn', {}, { confirm: true });
+      await call(
+        'advance-combat-turn',
+        {},
+        { confirm: true },
+        { label: 'Next turn', checkIn: 'the tracker' }
+      );
     });
 
   const endCombat = (): Promise<void> =>
@@ -279,7 +284,8 @@ export function LiveStrip(): JSX.Element {
       const done = await call(
         'undo-change',
         { changeId: undoable.changeId },
-        { confirm: true, confirmDestructive: true }
+        { confirm: true, confirmDestructive: true },
+        { checkIn: 'Recent Changes' }
       );
       if (done.status === 'done') toast(`✓ Undone: ${undoable.summary}`, 'ok');
     });

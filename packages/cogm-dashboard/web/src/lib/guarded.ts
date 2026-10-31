@@ -112,8 +112,6 @@ export function mayHaveApplied(err: unknown): boolean {
   return err.kind === undefined && err.status >= 500;
 }
 
-const RECENT_CHANGES_HINT = 'It may have applied; check Recent Changes.';
-
 /** How a guarded change ended; the Tool runner shows done and failed under its form. */
 export type GuardedOutcome =
   /** The change went in (result: the apply answer), or the plan changed nothing (the plan). */
@@ -137,6 +135,10 @@ export interface GuardedOptions {
   alwaysConfirm?: boolean;
   /** The toast when GM Actions are off; the default points at Pre-flight. */
   gateText?: string;
+  /** What the failure toast calls the action (default: the tool's name in words). */
+  label?: string;
+  /** Where the failure toast sends the GM to see whether it landed (default: Recent Changes). */
+  checkIn?: string;
   /** The confirm window's lines for a write that is not a plan (default: the args as key: value). */
   lines?: string[];
   /** The confirm window's summary for a write that is not a plan (default: "Run <tool> ..."). */
@@ -313,17 +315,19 @@ export function useGuardedTools(): GuardedTools {
           void refusalToast(hint, refusedSwitchName(hint));
           return { outcome: { status: 'failed', error: hint } };
         }
+        const words = options.label ?? toolWords(name);
+        const checkHint = `It may have applied; check ${options.checkIn ?? 'Recent Changes'}.`;
         if (err instanceof ApiError && err.kind === 'timeout') {
           // The bridge stopped waiting after about 4 minutes; Foundry may still have done it.
-          toast(`✗ ${toolWords(name)} timed out. ${RECENT_CHANGES_HINT}`, 'err');
-          error = `Timed out. ${RECENT_CHANGES_HINT}`;
+          toast(`✗ ${words} timed out. ${checkHint}`, 'err');
+          error = `Timed out. ${checkHint}`;
         } else if (mayHaveApplied(err)) {
           const text = error.trim();
           const stop = /[.!?]$/.test(text) ? '' : '.';
-          error = `${text}${stop} ${RECENT_CHANGES_HINT}`;
-          toast(`✗ ${toolWords(name)}: ${error}`, 'err');
+          error = `${text}${stop} ${checkHint}`;
+          toast(`✗ ${words}: ${error}`, 'err');
         } else {
-          toast(`✗ ${toolWords(name)}: ${error}`, 'err');
+          toast(`✗ ${words}: ${error}`, 'err');
         }
         changed();
         return {

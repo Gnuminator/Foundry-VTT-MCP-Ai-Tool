@@ -77,7 +77,8 @@ function HeaderUndo(): JSX.Element {
       const done = await call(
         'undo-change',
         { changeId: undoable.changeId },
-        { confirm: true, confirmDestructive: true }
+        { confirm: true, confirmDestructive: true },
+        { checkIn: 'What just happened' }
       );
       if (done.status === 'done') toast(`✓ Undone: ${undoable.summary}`, 'ok');
     } finally {

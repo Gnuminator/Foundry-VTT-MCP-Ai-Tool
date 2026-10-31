@@ -73,7 +73,8 @@ function TokenList({
           const rolled = await call(
             'roll-initiative-for-npcs',
             { combatantIds: ids },
-            { confirm: true }
+            { confirm: true },
+            { label: 'Roll initiative', checkIn: 'the tracker' }
           );
           if (rolled.status === 'done') toast('✓ Rolled initiative for the NPCs', 'ok');
         }

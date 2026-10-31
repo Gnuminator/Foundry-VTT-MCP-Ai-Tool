@@ -274,9 +274,7 @@ test('a failed initiative roll is shown, not swallowed', async ({ page }) => {
   await load(page);
   await page.getByRole('button', { name: 'Start combat' }).click();
   await page.getByRole('button', { name: 'Start combat with 2' }).click();
-  await expect(
-    page.getByText(/Roll initiative for npcs: No active combat encounter/)
-  ).toBeVisible();
+  await expect(page.getByText(/Roll initiative: No active combat encounter/)).toBeVisible();
   await expect(page.getByText('✓ Rolled initiative for the NPCs')).toHaveCount(0);
 });
 

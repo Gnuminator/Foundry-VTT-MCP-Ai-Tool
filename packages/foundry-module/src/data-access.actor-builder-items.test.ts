@@ -218,9 +218,19 @@ describe('FoundryDataAccess — useItem', () => {
     expect(result.message).toContain('targeting Goblin');
   });
 
-  function noCanvasWorld(): void {
+  /** A headless client: core.noCanvas is on. */
+  function headless(): void {
+    // The world is reinstalled before each test, so this needs no restore.
+    const settings = (game as any).settings ?? ((game as any).settings = {});
+    const original = settings.get?.bind(settings);
+    settings.get = (ns: string, key: string) =>
+      ns === 'core' && key === 'noCanvas' ? true : original?.(ns, key);
+  }
+
+  function noCanvasWorld(): ReturnType<typeof vi.fn> {
+    const use = vi.fn(() => Promise.resolve());
     const item = makeItem({ id: 'spell1', name: 'Hold Person', type: 'spell' });
-    (item as any).use = vi.fn(() => Promise.resolve());
+    (item as any).use = use;
     world.addActor({ id: 'a1', name: 'Mage', items: [item] });
     const scene = world.addScene({
       id: 'scene1',
@@ -229,10 +239,23 @@ describe('FoundryDataAccess — useItem', () => {
       tokens: [makeToken({ id: 'tok-goblin', name: 'Goblin', x: 100, y: 100 })],
     });
     world.setActiveScene(scene.id);
+    return use;
   }
+
+  it('shows no dialog on a headless GM and says so', async () => {
+    const use = noCanvasWorld();
+    headless();
+    (game as any).user = { ...((game as any).user ?? {}), targets: new Set() };
+
+    const result = await da.useItem({ actorIdentifier: 'Mage', itemIdentifier: 'Hold Person' });
+
+    expect(use.mock.calls[0][1]).toEqual({ configure: false });
+    expect(result.message).toContain('no dialog was shown');
+  });
 
   it('sets targets through game.user.targets when there is no canvas (headless GM)', async () => {
     noCanvasWorld();
+    headless();
     const userTargets = new Set<unknown>(['stale']);
     (game as any).user = { ...((game as any).user ?? {}), targets: userTargets };
 
@@ -249,6 +272,7 @@ describe('FoundryDataAccess — useItem', () => {
 
   it('still uses the item and says so when the no-canvas fallback fails', async () => {
     noCanvasWorld();
+    headless();
     (game as any).user = { ...((game as any).user ?? {}), targets: undefined };
 
     const result = await da.useItem({
@@ -259,7 +283,33 @@ describe('FoundryDataAccess — useItem', () => {
 
     expect(result.targets).toBeUndefined();
     expect(result.message).not.toContain('targeting');
+    expect(result.message).toContain('targets not set: Foundry refused');
+  });
+
+  it('leaves the target set alone while a normal GM canvas is still loading', async () => {
+    noCanvasWorld();
+    const userTargets = new Set<unknown>(['keep']);
+    (game as any).user = { ...((game as any).user ?? {}), targets: userTargets };
+
+    const result = await da.useItem({
+      actorIdentifier: 'Mage',
+      itemIdentifier: 'Hold Person',
+      targets: ['Goblin'],
+    });
+
+    expect(Array.from(userTargets)).toEqual(['keep']);
     expect(result.message).toContain('targets not set: the canvas is not ready');
+  });
+
+  it('clears leftover targets on a headless GM when the call names none', async () => {
+    noCanvasWorld();
+    headless();
+    const userTargets = new Set<unknown>(['stale']);
+    (game as any).user = { ...((game as any).user ?? {}), targets: userTargets };
+
+    await da.useItem({ actorIdentifier: 'Mage', itemIdentifier: 'Hold Person' });
+
+    expect(userTargets.size).toBe(0);
   });
 
   it('does not clear the GM targets when the viewed scene is not the active one', async () => {

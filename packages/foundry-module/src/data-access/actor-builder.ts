@@ -189,6 +189,15 @@ export class ActorBuilderDataAccess {
    * Use an item on a character (cast spell, use ability, consume item, etc.)
    * This triggers the item's default use behavior in Foundry VTT
    */
+  /** True on a client that never draws a canvas (the Pi's headless Assistant GM sets core.noCanvas). */
+  private clientHasNoCanvas(): boolean {
+    try {
+      return game.settings.get('core', 'noCanvas') === true;
+    } catch {
+      return false;
+    }
+  }
+
   async useItem(params: UseItemInput): Promise<UseItemResult> {
     shared.validateFoundryState();
 
@@ -215,6 +224,11 @@ export class ActorBuilderDataAccess {
     // Handle targeting if targets are specified
     const resolvedTargetNames: string[] = [];
     let targetsNotSet = '';
+    const headless = this.clientHasNoCanvas();
+    if (!(targets && targets.length > 0) && headless) {
+      // Nobody sees a headless GM's target set; do not let an earlier call's targets ride along.
+      (game.user?.targets as unknown as Set<unknown> | undefined)?.clear();
+    }
     if (targets && targets.length > 0) {
       // Get all tokens on the current scene
       const scene = game.scenes?.active;
@@ -265,10 +279,14 @@ export class ActorBuilderDataAccess {
       if (tokenIds.length > 0) {
         const cv = typeof canvas === 'undefined' ? undefined : canvas;
         const layer = cv?.ready ? cv.tokens : undefined;
-        if (!layer) {
-          // Headless GM (the Pi's Assistant GM): no canvas, so no Token objects. dnd5e only reads
-          // game.user.targets and accepts TokenDocuments there (TargetsField.getDescriptors uses
-          // `target.document ?? target`), so fill the set with the scene's token documents.
+        if (!layer && !headless) {
+          // A GM that has a canvas but is still loading it: its target set holds Token objects.
+          targetsNotSet = 'the canvas is not ready';
+        } else if (!layer) {
+          // Headless GM (the Pi's Assistant GM sets core.noCanvas): no canvas, so no Token objects.
+          // dnd5e only reads game.user.targets and accepts TokenDocuments there
+          // (TargetsField.getDescriptors uses `target.document ?? target`), so fill the set with
+          // the scene's token documents.
           try {
             const userTargets = game.user?.targets as unknown as Set<unknown> | undefined;
             if (!userTargets) throw new Error('user has no targets set');
@@ -282,7 +300,7 @@ export class ActorBuilderDataAccess {
             );
           } catch (err) {
             console.error('[foundry-mcp-bridge] Setting targets without a canvas failed:', err);
-            targetsNotSet = 'the canvas is not ready and Foundry refused the fallback';
+            targetsNotSet = 'Foundry refused to set them without a canvas';
           }
         } else if (cv?.scene?.id !== scene.id) {
           // setTargets only finds ids on the viewed canvas; calling it would clear the GM's targets.
@@ -333,7 +351,9 @@ export class ActorBuilderDataAccess {
           if (options.spellLevel !== undefined) {
             usage.spell = { slot: `spell${options.spellLevel}` };
           }
-          const dialog = { configure: true }; // Always show dialog so GM can make choices
+          // Show the dialog so the GM can make choices, except in a headless browser (the Pi's
+          // Assistant GM): nobody can click it, the card would never be made, so dnd5e's defaults apply.
+          const dialog = { configure: !headless };
           const message = { create: true };
           useArgs = [usage, dialog, message];
         } else {
@@ -380,7 +400,11 @@ export class ActorBuilderDataAccess {
       const result: UseItemResult = {
         success: true,
         status: 'initiated',
-        message: `Item use initiated for ${actor.name} using ${item.name}${targetInfo}. If a dialog appeared in Foundry VTT, the GM should select options and confirm. The result will appear in chat.`,
+        message: `Item use initiated for ${actor.name} using ${item.name}${targetInfo}. ${
+          headless && systemId === 'dnd5e'
+            ? 'This GM browser has no canvas, so no dialog was shown and the system defaults were used (no spell upcasting choice).'
+            : 'If a dialog appeared in Foundry VTT, the GM should select options and confirm.'
+        } The result will appear in chat.`,
         itemName: item.name,
         actorName: actor.name,
         requiresGMInteraction: true,

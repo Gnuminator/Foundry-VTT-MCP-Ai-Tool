@@ -2,6 +2,8 @@ import type { DropdownMenu } from 'radix-ui';
 import {
   Component,
   createContext,
+  useCallback,
+  useRef,
   lazy,
   Suspense,
   useContext,
@@ -42,12 +44,37 @@ const Impl = lazy(loadImpl);
 const LOAD_DELAY_MS = 3000;
 
 /** The button that stands in until the menu's chunk has arrived; it looks like the real one. */
-function StandIn({ onClick }: { onClick: (kind: 'pointer' | 'keyboard') => void }): JSX.Element {
+function StandIn({
+  onClick,
+  handover,
+}: {
+  onClick: (kind: 'pointer' | 'keyboard') => void;
+  handover: FocusHandover;
+}): JSX.Element {
+  const current = useRef<HTMLButtonElement | null>(null);
+  const ref = useCallback(
+    (el: HTMLButtonElement | null): void => {
+      if (el) {
+        current.current = el;
+        // A stand-in that appears while the focus is owed (the Suspense copy) takes it.
+        if (handover.pending) {
+          handover.pending = false;
+          el.focus();
+        }
+      } else if (document.activeElement === current.current) {
+        // Removed while it has the focus, right now: the next button gets it.
+        handover.pending = true;
+      }
+    },
+    [handover]
+  );
   return (
     <div className="advanced" id="advanced">
       <Button
+        ref={ref}
         id="btn-advanced"
         data-track="dash.header.advanced"
+        data-standin=""
         aria-haspopup="menu"
         aria-expanded="false"
         data-state="closed"
@@ -73,47 +100,36 @@ export function AdvancedMenu({ children }: { children: ReactNode }): JSX.Element
     const timer = setTimeout(() => startTransition(() => setReady(true)), LOAD_DELAY_MS);
     return (): void => clearTimeout(timer);
   }, []);
+  const handover = useRef<FocusHandover>({ pending: false });
   const standIn = (
     <StandIn
+      handover={handover.current}
       onClick={kind => {
         setClicked(kind);
         startTransition(() => setReady(true));
       }}
     />
   );
+  if (!ready) return standIn;
   return (
-    <FocusHandover ready={ready}>
-      {ready ? (
-        <MenuGuard fallback={standIn}>
-          <Suspense fallback={standIn}>
-            <Impl initialOpen={clicked}>{children}</Impl>
-          </Suspense>
-        </MenuGuard>
-      ) : (
-        standIn
-      )}
-    </FocusHandover>
+    <MenuGuard fallback={standIn}>
+      <Suspense fallback={standIn}>
+        <Impl initialOpen={clicked} handover={handover.current}>
+          {children}
+        </Impl>
+      </Suspense>
+    </MenuGuard>
   );
 }
 
 /**
- * Hands the focus from the stand-in to the real button in the commit that swaps them. It asks at
- * that moment, before React changes the page (getSnapshotBeforeUpdate): only when the stand-in
- * has the focus then does the new button take it. Focus anywhere else (a docked panel's help
- * button, say) is left alone.
+ * Carries the focus across the swaps of the button (stand-in, the Suspense copy of it, the real
+ * one). Each stand-in asks at the moment it is removed, while it is still in the page, whether it
+ * has the focus; only then is `pending` set, and the next button to appear takes the focus.
+ * Focus anywhere else (a docked panel's help button, say) is never touched.
  */
-class FocusHandover extends Component<{ ready: boolean; children: ReactNode }> {
-  getSnapshotBeforeUpdate(prev: { ready: boolean }): boolean | null {
-    if (prev.ready === this.props.ready) return null;
-    const active = document.activeElement;
-    return active instanceof HTMLElement && active.id === 'btn-advanced';
-  }
-  override componentDidUpdate(_prev: unknown, _state: unknown, hadFocus: boolean | null): void {
-    if (hadFocus) document.getElementById('btn-advanced')?.focus();
-  }
-  override render(): ReactNode {
-    return this.props.children;
-  }
+export interface FocusHandover {
+  pending: boolean;
 }
 
 /**

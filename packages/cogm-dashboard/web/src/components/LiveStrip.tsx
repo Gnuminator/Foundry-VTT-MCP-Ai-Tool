@@ -47,10 +47,12 @@ const DamageForm = lazy(() => import('./DamageForm').then(m => ({ default: m.Dam
 
 const AI_KEY = [...CHANGES_KEY, 'ai'] as const;
 
-/** An error text with its full stop, so a hint can follow it. */
-const sentence = (text: string): string => {
-  const t = text.trim();
-  return /[.!?]$/.test(t) ? t : `${t}.`;
+/** The error, with the may-have-applied hint after a full stop when the write may have landed. */
+const failText = (err: unknown, where: string): string => {
+  const t = errorText(err).trim();
+  return mayHaveApplied(err)
+    ? `${/[.!?]$/.test(t) ? t : `${t}.`} It may have applied; check ${where}.`
+    : t;
 };
 
 function Card({
@@ -226,10 +228,7 @@ export function LiveStrip(): JSX.Element {
         await callTool('advance-combat-turn', {}, { confirm: true });
         void queryClient.invalidateQueries({ queryKey: GAME_STATE_KEY });
       } catch (err) {
-        toast(
-          `✗ Next turn: ${mayHaveApplied(err) ? `${sentence(errorText(err))} It may have applied; check the tracker.` : errorText(err)}`,
-          'err'
-        );
+        toast(`✗ Next turn: ${failText(err, 'the tracker')}`, 'err');
       }
     });
 
@@ -298,10 +297,7 @@ export function LiveStrip(): JSX.Element {
         );
         toast(`✓ Undone: ${undoable.summary}`, 'ok');
       } catch (err) {
-        toast(
-          `✗ Undo: ${mayHaveApplied(err) ? `${sentence(errorText(err))} It may have applied; check Recent Changes.` : errorText(err)}`,
-          'err'
-        );
+        toast(`✗ Undo: ${failText(err, 'Recent Changes')}`, 'err');
       } finally {
         void queryClient.invalidateQueries({ queryKey: GAME_STATE_KEY });
       }

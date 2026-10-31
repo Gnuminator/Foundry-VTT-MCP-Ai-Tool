@@ -719,6 +719,7 @@ async function startBackend(): Promise<void> {
                   typeof requestedBy === 'string'
                     ? requestedBy.trim().slice(0, MAX_REQUESTER_LENGTH)
                     : '';
+                // Guarded routes must not read `signal`: a joined second caller would share the first socket's abort.
                 const result: unknown = await repeatGuard.run(name, args, requester, () =>
                   route(args, {
                     ...(requester ? { requestedBy: requester } : {}),

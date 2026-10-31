@@ -1,6 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
 import { RepeatGuard, isRepeatGuarded, stableStringify } from './repeat-guard.js';
-import { TOOL_HINTS } from './tool-hints.js';
 
 function guardWithClock() {
   let t = 1_000;
@@ -9,26 +8,22 @@ function guardWithClock() {
 }
 
 describe('isRepeatGuarded', () => {
-  it('guards writes and destructive tools, not reads, plans or dice rolls', () => {
-    expect(isRepeatGuarded('apply-planned-change')).toBe(true);
-    expect(isRepeatGuarded('undo-change')).toBe(true);
-    expect(isRepeatGuarded('send-chat-message')).toBe(true);
-    expect(isRepeatGuarded('get-party')).toBe(false);
-    expect(isRepeatGuarded('plan-actor-change')).toBe(false);
-    expect(isRepeatGuarded('roll-npc-check')).toBe(false);
-    expect(isRepeatGuarded('not-a-tool')).toBe(false);
-    expect(isRepeatGuarded('toString')).toBe(false);
-  });
-
-  it('every tool that is not read-only is guarded except the named dice rolls', () => {
-    const open = Object.keys(TOOL_HINTS).filter(
-      n => TOOL_HINTS[n]?.kind !== 'read' && !isRepeatGuarded(n)
-    );
-    expect(open.sort()).toEqual([
-      'roll-initiative-for-npcs',
+  it('guards apply, undo and the session marker only', () => {
+    for (const t of ['apply-planned-change', 'undo-change', 'mark-play-session']) {
+      expect(isRepeatGuarded(t)).toBe(true);
+    }
+    for (const t of [
+      'get-party',
+      'plan-actor-change',
       'roll-npc-check',
-      'roll-saving-throws',
-    ]);
+      'use-npc-activity',
+      'advance-combat-turn',
+      'use-item',
+      'not-a-tool',
+      'toString',
+    ]) {
+      expect(isRepeatGuarded(t)).toBe(false);
+    }
   });
 });
 
@@ -87,8 +82,8 @@ describe('RepeatGuard', () => {
   it('treats the same args in another key order as the same call', async () => {
     const { guard } = guardWithClock();
     const run = vi.fn().mockResolvedValue('x');
-    await guard.run('send-chat-message', { message: 'hi', speaker: 'GM' }, '', run);
-    await guard.run('send-chat-message', { speaker: 'GM', message: 'hi' }, '', run);
+    await guard.run('apply-planned-change', { planId: 'p', confirm: true }, '', run);
+    await guard.run('apply-planned-change', { confirm: true, planId: 'p' }, '', run);
     expect(run).toHaveBeenCalledTimes(1);
   });
 
@@ -102,13 +97,37 @@ describe('RepeatGuard', () => {
     expect(run).toHaveBeenCalledTimes(2);
   });
 
-  it('never blocks read-only tools or dice rolls', async () => {
+  it('never blocks reads, plans, direct writes or dice rolls (a Multiattack is two identical calls)', async () => {
     const { guard } = guardWithClock();
     const run = vi.fn().mockResolvedValue('x');
-    for (const tool of ['get-party', 'plan-actor-change', 'roll-npc-check']) {
-      await guard.run(tool, { a: 1 }, '', run);
-      await guard.run(tool, { a: 1 }, '', run);
-    }
-    expect(run).toHaveBeenCalledTimes(6);
+    const calls = ['get-party', 'plan-actor-change', 'roll-npc-check', 'use-npc-activity'];
+    await Promise.all(
+      calls.flatMap(tool => [
+        guard.run(tool, { a: 1 }, '', run),
+        guard.run(tool, { a: 1 }, '', run),
+      ])
+    );
+    expect(run).toHaveBeenCalledTimes(8);
+  });
+
+  it('gives a joined caller the same rejection', async () => {
+    const { guard } = guardWithClock();
+    let fail!: (e: Error) => void;
+    const run = vi.fn(() => new Promise<string>((_r, rej) => (fail = rej)));
+    const a = guard.run('undo-change', { changeId: 'c1' }, '', run);
+    const b = guard.run('undo-change', { changeId: 'c1' }, '', run);
+    fail(new Error('boom'));
+    await expect(a).rejects.toThrow('boom');
+    await expect(b).rejects.toThrow('boom');
+    expect(run).toHaveBeenCalledTimes(1);
+  });
+
+  it('undo X, undo U (redo), undo X inside the window runs the third one', async () => {
+    const { guard } = guardWithClock();
+    const run = vi.fn().mockResolvedValue('x');
+    await guard.run('undo-change', { changeId: 'X' }, '', run);
+    await guard.run('undo-change', { changeId: 'U' }, '', run);
+    await guard.run('undo-change', { changeId: 'X' }, '', run);
+    expect(run).toHaveBeenCalledTimes(3);
   });
 });

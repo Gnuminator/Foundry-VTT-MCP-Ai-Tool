@@ -1,5 +1,5 @@
 /**
- * Repeat guard for control-channel `call_tool` writes.
+ * Repeat guard for the double-clickable writes (control channel `call_tool` and module requests).
  *
  * A double click (or a retrying client) can send the same write twice within a moment. The same
  * tool with the same arguments from the same requester inside `windowMs` gets the FIRST answer
@@ -8,31 +8,33 @@
  * (a refusal would show the second click as a failure while the first one worked), and a caller
  * that retries a call whose answer it lost gets that answer.
  *
- * Not guarded: read-only tools (TOOL_HINTS kind `read`, plan-* included, so a second plan is just
- * a second staged plan), the pure dice rolls (a repeat is a new roll on purpose), and failures
- * (a failed call changed nothing, so the retry must run). Apply and undo are keyed by their
+ * Guarded: only the allowlist below. Everything else (reads, plans, direct writes, dice rolls) runs
+ * every time. A failed call is not remembered (it changed nothing, so the retry must run), and
+ * any other guarded call that succeeds forgets the remembered answers, so an undo, redo, undo of
+ * one change inside the window is not swallowed. Apply and undo are keyed by their
  * arguments, so two different plans or changes never collide; the same plan id twice is the key
  * case. The service's own "already applied" check stays behind it for the later repeat.
  *
  * Pure: no SDK, no I/O; the clock is injectable.
  */
-import { TOOL_HINTS } from './tool-hints.js';
-
 /** Window in which the same call is a repeat (the live-repeat-guard item). */
 export const REPEAT_WINDOW_MS = 3000;
 
-/** Writes where a quick repeat is a legitimate new action: each call is a fresh dice roll. */
-const REPEAT_EXEMPT: ReadonlySet<string> = new Set([
-  'roll-npc-check',
-  'roll-saving-throws',
-  'roll-initiative-for-npcs',
+/**
+ * The guarded tools: the ones a double click hits (the Apply and Undo buttons, the Session
+ * window's start and end). Direct writes such as use-npc-activity, advance-combat-turn or
+ * use-item are NOT here: a quick identical repeat of those is often meant (a Multiattack is two
+ * identical calls, Next turn twice skips a dead monster) and a replay would swallow it silently.
+ */
+const REPEAT_GUARDED: ReadonlySet<string> = new Set([
+  'apply-planned-change',
+  'undo-change',
+  'mark-play-session',
 ]);
 
-/** Whether a repeat of this tool is guarded: it is a known write and not exempt. */
+/** Whether a repeat of this tool is guarded. */
 export function isRepeatGuarded(tool: string): boolean {
-  if (REPEAT_EXEMPT.has(tool)) return false;
-  const spec = Object.hasOwn(TOOL_HINTS, tool) ? TOOL_HINTS[tool] : undefined;
-  return spec !== undefined && spec.kind !== 'read';
+  return REPEAT_GUARDED.has(tool);
 }
 
 /** JSON with sorted object keys, so `{a,b}` and `{b,a}` are the same arguments. */
@@ -73,6 +75,10 @@ export class RepeatGuard {
     this.entries.set(key, entry);
     try {
       const result = (await entry.promise) as T;
+      // The world moved on: an answer remembered for another key may be stale now.
+      for (const [k, e] of this.entries) {
+        if (k !== key && e.expires !== undefined) this.entries.delete(k);
+      }
       entry.expires = this.now() + this.windowMs;
       return result;
     } catch (e) {

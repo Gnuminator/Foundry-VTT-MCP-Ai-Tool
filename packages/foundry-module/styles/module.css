@@ -53,10 +53,10 @@
 
 .mcp-bridge-status.connecting .mcp-bridge-status-indicator {
   background-color: #ff8c00;
-  animation: pulse 1.5s ease-in-out infinite;
+  animation: mcp-bridge-pulse 1.5s ease-in-out infinite;
 }
 
-@keyframes pulse {
+@keyframes mcp-bridge-pulse {
   0% {
     opacity: 1;
   }
@@ -331,22 +331,13 @@
   line-height: 1.4;
 }
 
-/* Form Footer */
-.form-footer {
+/* Form Footer of our Enhanced Creature Index window only; never Foundry's own form footers. */
+.eci-settings .form-footer {
   display: flex;
   justify-content: flex-end;
   padding-top: 1rem;
   border-top: 1px solid var(--color-border-dark, #444);
   margin-top: 1.5rem;
-}
-
-/* Dynamic visibility for service type fields */
-[data-service-type] {
-  display: block;
-}
-
-[data-service-type].hidden {
-  display: none;
 }
 /* Changes window (I-108, I-109). Colours come from Foundry's theme variables or from
    currentColor, so the window reads the same in the dark and the light theme. */

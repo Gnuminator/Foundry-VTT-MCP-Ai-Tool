@@ -155,6 +155,11 @@ night; changes made by hand in Foundry need no dashboard.
    in the output; a push-back never downgrades a module. When either version cannot be read as
    numbers (a missing `version`, `beta`, a broken `module.json`), the Pi's copy is kept too and the
    output says so: install the bundle's copy by hand if it is the right one.
+   For a world other than the campaign whose modules the Pi already has (a drill on the training
+   world, say), build with `-Modules '' -PiModules id1,id2` (the ids of its active modules): the
+   bundle ships none and stage 11 checks that the Pi has each one at the same or a newer version
+   (versions that cannot be compared only warn). The stage 11 command printed for such a world
+   carries `LAUNCH=curse-of-strahd`, the world Foundry keeps launching.
 
 4. **Clean up once the world is back on the Pi:** `.\scripts\plan-b\stop.ps1 -Clean -PushedBack`.
    It keeps Foundry and the licence for next time. Without `-PushedBack` it refuses to delete a

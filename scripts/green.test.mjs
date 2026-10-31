@@ -586,6 +586,31 @@ test('worktreeTreeHash: uncommitted and untracked edits give the tree their comm
   assert.equal(git('rev-parse', 'HEAD^{tree}').stdout.trim(), dirty);
 });
 
+test('worktreeTreeHash: a same-size edit in the second of the last git command is not read from the stale cached stat', () => {
+  // The flake of the test above: git compares cached stat times in whole seconds and re-hashes an
+  // entry that is not older than the index file ("racy"). On Linux the index copy has a fresh
+  // mtime, so the copy has to carry the real index's, or a second boundary between two hashes turns
+  // the entry into a trusted stale one. Here the second is pinned: file and index both ten seconds ago.
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'green-racy-'));
+  const git = (/** @type {string[]} */ ...args) => spawnSync('git', args, { cwd: dir, encoding: 'utf8' });
+  git('init', '-q');
+  git('config', 'core.trustctime', 'false');
+  const old = Math.floor(Date.now() / 1000) - 10;
+  const file = path.join(dir, 'a.txt');
+  fs.writeFileSync(file, 'one\n');
+  fs.utimesSync(file, old, old);
+  git('add', 'a.txt');
+  git('-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '-m', 'one');
+  fs.utimesSync(path.join(dir, '.git', 'index'), old, old);
+  fs.writeFileSync(file, 'two\n'); // the same 4 bytes
+  fs.utimesSync(file, old, old);
+  const hash = worktreeTreeHash(dir);
+  // No git status before this: it would refresh or smudge the real index and hide the case.
+  git('add', '-A');
+  git('-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '-m', 'two');
+  assert.equal(hash, git('rev-parse', 'HEAD^{tree}').stdout.trim());
+});
+
 test('green stamp with pushed commits: every pushed commit must have the green tree, whatever the working tree holds', () => {
   const { dir, git } = tempRepo();
   const first = git('rev-parse', 'HEAD').stdout.trim();
@@ -762,6 +787,17 @@ test('quickSteps: typecheck and unit tests of each touched package only', () => 
   assert.deepEqual(quickNames(['docs/dev/X.md', 'changelog.d/x.md']), []);
 });
 
+test('quickSteps: a dashboard web or test-kit change builds the mcp-server and runs the kit scenario check', () => {
+  const web = quickNames(['packages/cogm-dashboard/web/src/App.tsx']);
+  assert.ok(web.includes('build-mcp-server') && web.includes('kit-check'), web.join(','));
+  assert.ok(web.indexOf('build-mcp-server') < web.indexOf('kit-check'));
+  assert.deepEqual(quickNames(['scripts/test-kit/scenarios/a.json']), ['kit-controls', 'build-mcp-server', 'kit-check']);
+  // a module or catalogue input runs the control tests (a new control needs its skip row), not the scenario check
+  assert.deepEqual(quickNames(['packages/foundry-module/src/ui/x.ts']).filter(n => n.startsWith('kit')), ['kit-controls']);
+  assert.deepEqual(quickNames(['shared/src/usage-catalog.generated.ts']).filter(n => n.startsWith('kit')), ['kit-controls']);
+  assert.ok(!quickNames(['packages/mcp-server/src/a.ts']).includes('kit-check'));
+});
+
 test('quickSteps: a shared change typechecks every package and tests shared', () => {
   assert.deepEqual(quickNames(['shared/src/types.ts']), ['build-shared', 'typecheck-all', 'unit-shared']);
 });
@@ -788,6 +824,9 @@ test('quickSteps: touched dashboard e2e specs build the dashboard and run only t
     'catalog-check',
     'build-dashboard',
     'bundle-budget',
+    'kit-controls',
+    'build-mcp-server',
+    'kit-check',
     'e2e-specs',
   ]);
   assert.deepEqual(steps.at(-1).args.slice(-2), ['--', 'e2e/help.spec.ts']);
@@ -801,6 +840,9 @@ test('quickSteps: dashboard web files add catalogue check, one build and the bun
     'catalog-check',
     'build-dashboard',
     'bundle-budget',
+    'kit-controls',
+    'build-mcp-server',
+    'kit-check',
   ]);
   // A touched spec as well: still one build, the budget before e2e.
   const both = quickNames(['packages/cogm-dashboard/web/e2e/help.spec.ts', 'packages/cogm-dashboard/web/src/App.tsx']);
@@ -1158,6 +1200,26 @@ test('ci.yml keeps what --cloud relies on: workflow_dispatch and a per-ref concu
   const yml = fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '.github', 'workflows', 'ci.yml'), 'utf8');
   assert.match(yml, /^ {2}workflow_dispatch:/m);
   assert.match(yml, /^ {2}group: .*github\.ref/m);
+});
+
+test('ci.yml: every job name carries the dispatch suffix, so a --cloud run never shares a check key with the PR run', () => {
+  const yml = fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '.github', 'workflows', 'ci.yml'), 'utf8');
+  const lines = yml.split(/\r?\n/);
+  const jobsAt = lines.indexOf('jobs:');
+  assert.ok(jobsAt > 0, 'a jobs: section');
+  // split the jobs: section into one block per job id; each needs exactly one name: with the suffix
+  const blocks = [];
+  for (const l of lines.slice(jobsAt + 1)) {
+    if (/^ {2}[A-Za-z0-9_-]+:\s*$/.test(l)) blocks.push({ id: l.trim(), names: [] });
+    else if (/^ {4}name: /.test(l) && blocks.length) blocks.at(-1).names.push(l);
+  }
+  assert.ok(blocks.length >= 6, 'the jobs were found');
+  for (const b of blocks) {
+    assert.equal(b.names.length, 1, `${b.id} has exactly one name: line (a job without one shares its key)`);
+    assert.ok(b.names[0].endsWith("${{ github.event_name == 'workflow_dispatch' && ' [dispatch]' || '' }}"), b.id);
+  }
+  // --cloud on a branch without a PR still has what it needs: the dispatch trigger to start a run
+  assert.match(yml, /^ {2}workflow_dispatch:/m);
 });
 
 test('cloud: refuses when the dispatch is rejected or no run shows up', () => {

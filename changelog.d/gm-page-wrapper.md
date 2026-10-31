@@ -5,8 +5,8 @@
   login. A drag divider (also by keyboard), a layout saved per browser (strip right or left, or
   Foundry alone with the strip in its own window), and map picks in Foundry pick in the strip
   through the page. When Foundry refuses to be framed the page says so and offers to open Foundry
-  in its own tab. Foundry needs one Cloudflare response-header rule on the play host to be framed
-  (see the PR); players keep the plain Foundry link.
+  in its own tab. Foundry needs two Cloudflare header rules on the play host to be framed (see the
+  PR); players keep the plain Foundry link.
 
 ### Module
 

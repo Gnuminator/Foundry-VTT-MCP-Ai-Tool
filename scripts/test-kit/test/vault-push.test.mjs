@@ -4,7 +4,13 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { pushPaths, normalizePaths, parsePorcelain, otherChanges, defaultRun } from '../lib/vault-push.mjs';
+import {
+  pushPaths,
+  normalizePaths,
+  parsePorcelain,
+  otherChanges,
+  defaultRun,
+} from '../lib/vault-push.mjs';
 
 function git(cwd, ...args) {
   return execFileSync('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });

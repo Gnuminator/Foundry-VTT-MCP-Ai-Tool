@@ -171,6 +171,9 @@ export default {
               document.querySelector('#stream-state')?.textContent?.replace(/\s+/g, ' ').trim() ??
               '',
             subtitle: document.body.innerText,
+            // Rows of live data: changes, feed events, tools, combatants.
+            dataRows: document.querySelectorAll('.change-entry, .feed-item, .tool-item, .combatant')
+              .length,
           };
         });
         await shot(page, 'gm-page-no-token.png');
@@ -201,6 +204,7 @@ export default {
           !/Pre-flight: ready|Live play on|No session|events? coming/i.test(seen.subtitle),
           'the page shows no live data without a token (no pre-flight result, no live play line)'
         );
+        t.equal(seen.dataRows, 0, 'rows of live data on the page without a token');
         t.check(
           !/Foundry \d/.test(seen.subtitle),
           `the page shows no world without a token ("${seen.subtitle}")`
@@ -330,7 +334,7 @@ export default {
         t.check(seen.controls > 10, `the GM page has its controls (${seen.controls} found)`);
         t.check(
           seen.bridge === '',
-          `the page shows a connection problem with the GM token (stream mark "${seen.bridge}")`
+          `the page shows no connection problem with the GM token (stream mark "${seen.bridge}")`
         );
         t.check(!url.searchParams.has('token'), 'the token is taken out of the address bar');
         const gmErrors = browser.consoleErrors(page);

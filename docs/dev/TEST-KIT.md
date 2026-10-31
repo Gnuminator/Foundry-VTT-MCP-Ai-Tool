@@ -445,7 +445,9 @@ The kit drives the React dashboard at `/` (never the old page, which a test
 (`legacy-dashboard.test.mjs`) keeps out of the kit); the browser is headless unless `--headed` is passed.
 The element ids in `lib/dashboard-page.mjs` and the table come from `packages/cogm-dashboard/web/src`.
 A control only the old page has (pause, the AI tab and its Ask form, tone, model, the feature cards)
-is a `skip` row "old page only". The control sweep walks a classification table (`lib/dashboard-controls.mjs`) with one row for every
+is a `skip` row "old page only".
+
+The control sweep walks a classification table (`lib/dashboard-controls.mjs`) with one row for every
 dashboard and player control in the usage catalog, and a unit test fails when a control has no row (a new
 control must be classified on purpose). A row says what a test may do with the control: open it, read it,
 toggle it and put it back, check it is present (Obsidian and Foundry links, the AI controls), or never click it

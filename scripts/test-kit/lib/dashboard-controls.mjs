@@ -92,7 +92,7 @@ const PREFLIGHT_IDLE = '[data-track="dash.preflight.run"]:not([disabled])';
 const PARTY = [MOMENT_BEFORE, ADV, 'dash.header.party']; // overlay in Before and After
 const HANDOUTS = [MOMENT_BEFORE, ADV, 'dash.header.handouts']; // overlay in Before
 /** The paper-form flow changes the world: checked by hand on a test server, never driven. */
-const NEW_ONLY = 'checked by hand on a test server (paper-form); the sweep does not drive it';
+const NOT_DRIVEN = 'checked by hand on a test server (paper-form); the sweep does not drive it';
 /** Controls that only the old page (kept until after G1) has; the sweep drives the React dashboard. */
 const OLD_ONLY = 'old page only: the dashboard at / has no such control';
 const PLAYER_LINKS = [ADV, 'dash.header.player-links'];
@@ -123,7 +123,7 @@ export const DASHBOARD_CONTROLS = [
   { name: 'dash.header.party', how: 'open', reach: [ADV], expect: '#party-drawer' },
   { name: 'dash.header.handouts', how: 'open', reach: [ADV], expect: '#handouts-drawer' },
   { name: 'dash.header.tarokka', how: 'open', reach: [ADV], expect: '#tarokka-drawer' },
-  { name: 'dash.header.paper', how: 'skip', why: NEW_ONLY },
+  { name: 'dash.header.paper', how: 'skip', why: NOT_DRIVEN },
 
   // --- the live strip (/next?strip=1; the e2e spec live-strip.spec.ts and the live check cover it) ---
   ...[
@@ -203,7 +203,7 @@ export const DASHBOARD_CONTROLS = [
   { name: 'dash.trial.view', how: 'view', reach: LAYOUT_TOUR, expect: '#layout-tour' },
   { name: 'dash.trial.next', how: 'open', reach: LAYOUT_TOUR, changes: '#layout-tour-step' },
   { name: 'dash.trial.stop', how: 'open', reach: LAYOUT_TOUR, gone: '#layout-tour' },
-  { name: 'dash.during.layout-tour', how: 'skip', why: NEW_ONLY },
+  { name: 'dash.during.layout-tour', how: 'skip', why: NOT_DRIVEN },
   {
     name: 'dash.trial.use',
     how: 'write',
@@ -631,13 +631,13 @@ export const DASHBOARD_CONTROLS = [
   },
 
   // --- After a paper night (Paper nights B) ---
-  { name: 'dash.paper.close', how: 'skip', why: NEW_ONLY },
-  { name: 'dash.paper.refresh', how: 'skip', why: NEW_ONLY },
-  { name: 'dash.paper.add-item', how: 'skip', why: NEW_ONLY },
-  { name: 'dash.paper.remove-item', how: 'skip', why: NEW_ONLY },
-  { name: 'dash.paper.plan', how: 'skip', why: NEW_ONLY },
-  { name: 'dash.paper.reset', how: 'skip', why: NEW_ONLY },
-  { name: 'dash.paper.log-night', how: 'skip', why: NEW_ONLY },
+  { name: 'dash.paper.close', how: 'skip', why: NOT_DRIVEN },
+  { name: 'dash.paper.refresh', how: 'skip', why: NOT_DRIVEN },
+  { name: 'dash.paper.add-item', how: 'skip', why: NOT_DRIVEN },
+  { name: 'dash.paper.remove-item', how: 'skip', why: NOT_DRIVEN },
+  { name: 'dash.paper.plan', how: 'skip', why: NOT_DRIVEN },
+  { name: 'dash.paper.reset', how: 'skip', why: NOT_DRIVEN },
+  { name: 'dash.paper.log-night', how: 'skip', why: NOT_DRIVEN },
 
   // --- Party ---
   { name: 'dash.party.view', how: 'view', reach: PARTY, expect: '#party-drawer' },
@@ -781,7 +781,7 @@ export const DASHBOARD_CONTROLS = [
 
   // --- the After screen ---
   { name: 'dash.after.refresh', how: 'read', reach: [MOMENT_AFTER], expect: '#stat-cards' },
-  { name: 'dash.after.paper', how: 'skip', why: NEW_ONLY },
+  { name: 'dash.after.paper', how: 'skip', why: NOT_DRIVEN },
   {
     name: 'dash.after.copy-stats',
     how: 'external',
@@ -1049,7 +1049,7 @@ export const PLAYER_CONTROLS = [
     name: 'player.mine.sheet',
     how: 'external',
     optional: true,
-    why: 'a link that leaves the page for the character sheet (/me); clicking it timed out waiting for that page, so the sweep checks the link and its address',
+    why: 'a link that leaves the page for the character sheet (/me): the sweep checks the link and its address',
   },
   {
     name: 'player.mine.roll',

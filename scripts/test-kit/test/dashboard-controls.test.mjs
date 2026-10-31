@@ -35,13 +35,13 @@ const pub = path.join(root, 'packages', 'cogm-dashboard', 'public');
 const read = (/** @type {string} */ f) => readFileSync(path.join(pub, f), 'utf8');
 const webSrc = path.join(root, 'packages', 'cogm-dashboard', 'web', 'src');
 
-/** Every source file of the React dashboard (no stories), as one string. */
+/** Every .ts and .tsx source file of the React dashboard (no stories or tests), as one string; ids are checked here, never in CSS. */
 function readDashboardSources(/** @type {string} */ dir = webSrc) {
   let text = '';
   for (const e of readdirSync(dir, { withFileTypes: true })) {
     const p = path.join(dir, e.name);
     if (e.isDirectory()) text += readDashboardSources(p);
-    else if (/\.(tsx?|css)$/.test(e.name) && !/\.(stories|test)\./.test(e.name)) {
+    else if (/\.tsx?$/.test(e.name) && !/\.(stories|test)\./.test(e.name)) {
       text += readFileSync(p, 'utf8');
     }
   }
@@ -183,7 +183,10 @@ test('expect and gone selectors point at ids and classes the front end has', () 
             // The undo window's buttons get `undo-${key}`.
             (/^undo-(cancel|just-this|everything-since|rewind|next|apply)$/.test(m[1]) &&
               files.includes('id: `undo-${button.key}`')) ||
-            (m[1].endsWith('-body') && files.includes(`id="${m[1].slice(0, -5)}"`)),
+            (m[1].endsWith('-body') &&
+              (files.includes(`bodyId="${m[1]}"`) ||
+                (files.includes('bodyId: `${id}-body`') &&
+                  files.includes(`id: '${m[1].slice(0, -5)}'`)))),
           `${r.name}: id "${m[1]}" in "${sel}" is not in the page files`
         );
       }

@@ -43,6 +43,9 @@ import {
 } from '../lib/dashboard-page.mjs';
 
 const VIEWPORT = { width: 1440, height: 1000 };
+
+/** A pattern for exactly this text: the undo of a change gets a row whose summary starts "Undo: " plus the old one. @param {string} text */
+const exactly = text => new RegExp(`^\\s*${text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*$`);
 const HANDOUT_JOURNAL = 'Kit dashboard handout test (safe to delete)';
 const HANDOUT_PAGE = 'Kit Handout';
 const PARTY_GROUP = 'Kit Party';
@@ -221,7 +224,7 @@ export default {
     await t.step('open the dashboard on the During screen with GM Actions on', async () => {
       const tools = await t.http('/api/tools');
       const gmWasOn = tools.status === 200 && tools.data?.gmActionsEnabled === true;
-      page = await browser.open('/legacy/', { viewport: VIEWPORT });
+      page = await browser.open('/', { viewport: VIEWPORT });
       await waitReady(page);
       if (!gmWasOn) {
         // Registered first, so it runs after the undo below (undo needs GM Actions on).
@@ -259,11 +262,20 @@ export default {
         for (let i = 0; i < PUT_BACK_CAP; i++) {
           const change = (await changesSince(startedAt)).find(c => !keep.has(c.changeId));
           if (!change) break;
-          await t.guarded.undo(change.changeId);
+          try {
+            await t.guarded.undo(change.changeId);
+          } catch (e) {
+            // The flows leave the hero as they found it, so a conflict means this change was
+            // already taken back through its neighbour (an undo of an undo): nothing was written.
+            if (!/Conflict, nothing was written/.test(String(e?.message ?? e))) throw e;
+          }
           keep.add(change.changeId);
         }
         for (const fn of late.reverse()) await fn();
       });
+      // The React page reads the switches from its stream when it loads: load it again so the drawers see them on.
+      await page.reload();
+      await waitReady(page);
       await showDuring(page);
       await shot('during-screen.png');
       const switched = switchedOn.length
@@ -287,11 +299,13 @@ export default {
         });
         await openCard(page, 'changes');
         await page.locator('#changes-refresh').click();
-        const undo = page.locator(`#changes-body [data-undo="${change.changeId}"]`);
-        await undo.waitFor({ state: 'visible', timeout: 20000 });
         const entry = page
-          .locator('#changes-body .change-entry')
-          .filter({ has: page.locator(`[data-undo="${change.changeId}"]`) });
+          .locator('#pane-changes-body .change-entry')
+          .filter({ has: page.locator('[data-track="dash.changes.undo"]') })
+          .filter({ has: page.locator('.change-summary', { hasText: exactly(change.summary) }) })
+          .first();
+        await entry.waitFor({ state: 'visible', timeout: 20000 });
+        const undo = entry.locator('[data-track="dash.changes.undo"]');
         t.equal(
           squash(await entry.locator('.change-summary').innerText()),
           squash(change.summary),
@@ -407,14 +421,15 @@ export default {
         await menuClick(page, '#btn-party');
         await openCard(page, 'party');
         await page
-          .locator('#party-pace [data-party-pace]')
+          .locator('#party-pace [data-track="dash.party.pace"]')
           .first()
           .waitFor({ state: 'visible', timeout: 20000 });
         const pace = async () =>
           (listOf(await t.tool('get-party', {}), 'groups')[0] ?? {}).pace?.value;
         const was = await pace();
+        // The button of the pace now set is disabled; any other one changes it.
         const other = page
-          .locator(`#party-pace [data-party-pace]:not([data-party-pace="${was}"]):not([disabled])`)
+          .locator('#party-pace [data-track="dash.party.pace"]:not([disabled])')
           .first();
         await markToasts(page);
         await other.click();
@@ -424,7 +439,9 @@ export default {
         t.check(set && set !== was, `the pace changed from ${was} to ${set}`);
         await undoFromToast(page);
         t.equal(await pace(), was, 'the pace after the Undo');
-        const rest = page.locator('#party-rest [data-party-rest="short"]:not([disabled])');
+        const rest = page.locator(
+          '#party-rest [data-track="dash.party.rest-short"]:not([disabled])'
+        );
         if ((await rest.count()) === 0)
           return `pace ${was} to ${set} and back; no rest card to request`;
         await markToasts(page);
@@ -509,7 +526,8 @@ export default {
         await closeTools(page);
         t.check(await queued(), 'the page is on the reveal queue');
 
-        // Reveal the next queued page: a destructive plan, so the window asks twice.
+        // Reveal the next queued page: one confirm line with no destructive tick, since a reveal
+        // has a working Undo (Handouts.tsx; decision in the commit "one-line reveal confirm").
         await openCard(page, 'handouts');
         const next = page.locator('#handouts-next');
         await page.waitForFunction(
@@ -527,8 +545,8 @@ export default {
         await next.click();
         const { modal } = await settleWrite(page);
         t.check(
-          modal && modal.destructive,
-          'revealing a handout asks for the destructive box',
+          modal && !modal.destructive,
+          'revealing a handout is one confirm line, no destructive box (it has a working Undo)',
           modal
         );
         await waitToast(page, 'undo');
@@ -577,22 +595,26 @@ export default {
           }
         });
         await menuClick(page, '#btn-show-links');
-        const row = page.locator(`#links-body li[data-user="${player.userId}"]`);
+        const row = page.locator(`li[data-user="${player.userId}"]`);
         await row.waitFor({ state: 'visible', timeout: 15000 });
         t.check(
           /no link/.test(squash(await row.locator('.links-state').textContent())),
           'the row says "no link"'
         );
         await markToasts(page);
-        await row.locator('[data-links="make"]').click();
+        await row.locator('[data-track="dash.links.make"]').click();
         await waitToast(page, 'ok');
-        await row.locator('[data-links="remove"]').waitFor({ state: 'visible', timeout: 15000 });
+        await row
+          .locator('[data-track="dash.links.remove"]')
+          .waitFor({ state: 'visible', timeout: 15000 });
         const made = (await links()).find((/** @type {any} */ p) => p.userId === player.userId);
         t.check(made?.link, 'the dashboard made a link');
         await markToasts(page);
-        await row.locator('[data-links="remove"]').click();
+        await row.locator('[data-track="dash.links.remove"]').click();
         await waitToast(page, 'ok');
-        await row.locator('[data-links="make"]').waitFor({ state: 'visible', timeout: 15000 });
+        await row
+          .locator('[data-track="dash.links.make"]')
+          .waitFor({ state: 'visible', timeout: 15000 });
         const gone = (await links()).find((/** @type {any} */ p) => p.userId === player.userId);
         t.check(!gone?.link, 'the link is removed');
         return 'link made and removed';
@@ -604,18 +626,46 @@ export default {
     // (Just this / Everything since, because a later change touched the same hero), then confirm.
 
     /** A button of the undo window by its key (cancel, just-this, everything-since, apply). @param {string} key */
-    const undoKey = key => page.locator(`#undo-actions [data-undo-key="${key}"]`);
+    const undoKey = key => page.locator(`#undo-actions #undo-${key}`);
 
-    /** Waits for the undo window and reads it. */
-    const readUndo = async () => {
-      await page.locator('#undo-backdrop').waitFor({ state: 'visible', timeout: 20000 });
+    /**
+     * Waits for the undo window and reads it. `button` is the Undo button just clicked: a click that
+     * lands while the list redraws opens nothing, so it is pressed once more after a few seconds.
+     * @param {import('playwright-core').Locator} [button]
+     */
+    const readUndo = async button => {
+      const backdrop = page.locator('#undo-backdrop');
+      if (button) {
+        const opened = await backdrop
+          .waitFor({ state: 'visible', timeout: 6000 })
+          .then(() => true)
+          .catch(() => false);
+        if (!opened) await button.click();
+      }
+      await backdrop.waitFor({ state: 'visible', timeout: 20000 });
       return {
-        title: squash(await page.locator('#undo-title').textContent()),
+        title: squash(await page.locator('#undo-window h3').textContent()),
         body: squash(await page.locator('#undo-body').innerText()),
         keys: await page
-          .locator('#undo-actions [data-undo-key]')
-          .evaluateAll(els => els.map(el => el.getAttribute('data-undo-key') ?? '')),
+          .locator('#undo-actions button')
+          .evaluateAll(els => els.map(el => el.id.replace(/^undo-/, ''))),
       };
+    };
+
+    /**
+     * Clicks a button that opens the confirm window and reads the window; a click that lands while
+     * the list redraws opens nothing, so it is pressed once more after a few seconds.
+     * @param {import('playwright-core').Locator} button
+     */
+    const openConfirm = async button => {
+      await button.click();
+      const opened = await page
+        .locator('#modal-backdrop')
+        .waitFor({ state: 'visible', timeout: 6000 })
+        .then(() => true)
+        .catch(() => false);
+      if (!opened) await button.click();
+      return readModal(page);
     };
 
     const undoClosed = () =>
@@ -624,15 +674,19 @@ export default {
     /**
      * The Undo or Redo button of one change on the Everyone tab of Recent Changes; refreshes the
      * list until the row shows it.
-     * @param {'undo' | 'redo'} kind @param {string} id
+     * @param {'undo' | 'redo'} kind @param {{summary: string}} change
      */
-    const everyoneButton = async (kind, id) => {
+    const everyoneButton = async (kind, change) => {
       await openCard(page, 'changes');
       const tab = page.locator('#changes-tab-everyone');
       if (!(await tab.isVisible()))
         t.skip('no Everyone tab: the bridge does not serve list-changes');
       if ((await tab.getAttribute('aria-pressed')) !== 'true') await tab.click();
-      const button = page.locator(`#changes-body [data-ev-${kind}="${id}"]`);
+      const button = page
+        .locator('#pane-changes-body .change-entry')
+        .filter({ has: page.locator('.change-summary', { hasText: exactly(change.summary) }) })
+        .locator(`[data-track="dash.changes.everyone-${kind}"]`)
+        .first();
       await waitFor(
         async () => {
           if (await button.isVisible()) return true;
@@ -687,9 +741,9 @@ export default {
         const hp = async () => total(await readHero(h));
         const both = total(before) - 5;
 
-        const undo = await everyoneButton('undo', first.changeId);
+        const undo = await everyoneButton('undo', first);
         await undo.click();
-        const choose = await readUndo();
+        const choose = await readUndo(undo);
         t.check(
           /not the latest change/i.test(choose.body),
           'the window says this is not the latest change',
@@ -705,13 +759,13 @@ export default {
         t.equal(await hp(), both, `${h.name} HP after Cancel`);
 
         await undo.click();
-        await readUndo();
+        await readUndo(undo);
         await page.keyboard.press('Escape');
         await undoClosed();
         t.equal(await hp(), both, `${h.name} HP after Escape`);
 
         await undo.click();
-        await readUndo();
+        await readUndo(undo);
         await undoKey('just-this').click();
         await undoKey('apply').waitFor({ state: 'visible', timeout: 20000 });
         const confirm = await readUndo();
@@ -741,9 +795,8 @@ export default {
         const hidden = () =>
           page.locator('#modal-backdrop').waitFor({ state: 'hidden', timeout: 10000 });
 
-        const redo = await everyoneButton('redo', first.changeId);
-        await redo.click();
-        const modal = await readModal(page);
+        const redo = await everyoneButton('redo', first);
+        const modal = await openConfirm(redo);
         t.check(/Redo/.test(modal.body), 'the window says what comes back', modal.body);
         t.check(modal.destructive, 'Redo asks for the destructive tick');
         t.check(
@@ -754,14 +807,12 @@ export default {
         await hidden();
         t.equal(await hp(), total(before) - 3, `${h.name} HP after Escape`);
 
-        await redo.click();
-        await readModal(page);
+        await openConfirm(redo);
         await page.locator('#modal-cancel').click();
         await hidden();
         t.equal(await hp(), total(before) - 3, `${h.name} HP after Cancel`);
 
-        await redo.click();
-        await readModal(page);
+        await openConfirm(redo);
         await markToasts(page);
         await confirmModal(page);
         await waitToast(page, 'ok');
@@ -777,9 +828,9 @@ export default {
         if (!pair) t.skip('needs the Just this flow (h) before it');
         const { h, before, first } = pair;
         const since = now();
-        const undo = await everyoneButton('undo', first.changeId);
+        const undo = await everyoneButton('undo', first);
         await undo.click();
-        const choose = await readUndo();
+        const choose = await readUndo(undo);
         t.check(
           choose.keys.includes('everything-since'),
           'the window offers Everything since',

@@ -8,7 +8,7 @@
  * Then the dashboard goes back to its normal mode and answers without a token again. The restart back is
  * registered first, so a failed check never leaves the split on.
  *
- * What the app does today (public/app.js, src/app.ts): the page shell is a static file and loads for
+ * What the app does today (web/src, src/app.ts): the page shell is a static file and loads for
  * anyone; the login is enforced on the API (/api/state, /api/stream, /api/tool, ... answer 401 without a
  * token), so a GM page with no token stays disconnected and empty. A real browser is needed, so this
  * scenario is skipped against the fake.
@@ -155,7 +155,7 @@ export default {
           );
         }
         // The page is meant to fail (401s): its console errors stay out of the run's report and are attached here.
-        const page = await browser.open('/legacy/', {
+        const page = await browser.open('/', {
           fresh: true,
           viewport: VIEWPORT,
           expectErrors: true,
@@ -166,10 +166,14 @@ export default {
           const res = await fetch('/api/state');
           return {
             apiStatus: res.status,
+            // The React page names a stream trouble in #stream-state (empty while all is well).
             bridge:
-              document.querySelector('#status-bridge')?.textContent?.replace(/\s+/g, ' ').trim() ??
+              document.querySelector('#stream-state')?.textContent?.replace(/\s+/g, ' ').trim() ??
               '',
-            subtitle: document.querySelector('#world-subtitle')?.textContent?.trim() ?? '',
+            subtitle: document.body.innerText,
+            // Rows of live data: changes, feed events, tools, combatants.
+            dataRows: document.querySelectorAll('.change-entry, .feed-item, .tool-item, .combatant')
+              .length,
           };
         });
         await shot(page, 'gm-page-no-token.png');
@@ -197,14 +201,15 @@ export default {
         );
         t.check(seen.apiStatus === 401, `the page's own /api/state call answers ${seen.apiStatus}`);
         t.check(
-          !/Bridge: connected/.test(seen.bridge),
-          `the page shows "${seen.bridge}" without a token`
+          !/Pre-flight: ready|Live play on|No session|events? coming/i.test(seen.subtitle),
+          'the page shows no live data without a token (no pre-flight result, no live play line)'
         );
+        t.equal(seen.dataRows, 0, 'rows of live data on the page without a token');
         t.check(
           !/Foundry \d/.test(seen.subtitle),
           `the page shows no world without a token ("${seen.subtitle}")`
         );
-        return `API 401, page says "${seen.bridge}"`;
+        return `API 401, stream mark says "${seen.bridge}"`;
       })
     );
 
@@ -295,12 +300,18 @@ export default {
       guard(async () => {
         const gmApi = await call('/api/tools', { token: gmToken });
         t.check(gmApi.status === 200, `/api/tools with the GM token answers ${gmApi.status}`);
-        const page = await browser.open(`/legacy/?token=${gmToken}`, { fresh: true, viewport: VIEWPORT });
+        const page = await browser.open(`/?token=${gmToken}`, { fresh: true, viewport: VIEWPORT });
         await page.locator('#btn-gm').waitFor({ state: 'visible', timeout: 15000 });
         await page
           .waitForFunction(
-            () =>
-              /Bridge: connected/.test(document.querySelector('#status-bridge')?.textContent ?? ''),
+            async () => {
+              const mark = document.querySelector('#stream-state');
+              const gm = document.querySelector('#btn-gm')?.textContent ?? '';
+              if (!mark || mark.textContent?.trim() || gm.trim() === '' || gm.includes('…'))
+                return false;
+              // No /api/state poll here: a poll before the page has taken its token logs a 401.
+              return true;
+            },
             undefined,
             { timeout: 30000 }
           )
@@ -309,8 +320,7 @@ export default {
           });
         const seen = await page.evaluate(() => ({
           bridge:
-            document.querySelector('#status-bridge')?.textContent?.replace(/\s+/g, ' ').trim() ??
-            '',
+            document.querySelector('#stream-state')?.textContent?.replace(/\s+/g, ' ').trim() ?? '',
           gm: document.querySelector('#btn-gm')?.textContent?.replace(/\s+/g, ' ').trim() ?? '',
           controls: document.querySelectorAll('[data-track^="dash."]').length,
         }));
@@ -322,8 +332,8 @@ export default {
         );
         t.check(seen.controls > 10, `the GM page has its controls (${seen.controls} found)`);
         t.check(
-          /Bridge: connected/.test(seen.bridge),
-          `the page says "${seen.bridge}" with the GM token`
+          seen.bridge === '',
+          `the page shows no connection problem with the GM token (stream mark "${seen.bridge}")`
         );
         t.check(!url.searchParams.has('token'), 'the token is taken out of the address bar');
         const gmErrors = browser.consoleErrors(page);
@@ -333,7 +343,7 @@ export default {
           'the GM page logs no console errors',
           gmErrors.map(e => scrub(e.message).slice(0, 200))
         );
-        return `${seen.controls} controls, ${seen.bridge}`;
+        return `${seen.controls} controls, connected`;
       })
     );
 

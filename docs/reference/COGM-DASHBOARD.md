@@ -21,7 +21,7 @@ Before a session the page opens on **Before**, with Pre-flight and Prep:
 - **Live event feed**: damage, healing, deaths, conditions, spell slots and more, color-coded by
   type as they happen.
 - **Module diagnostics**: a running log of Foundry module errors and warnings so you catch a broken
-  module mid-session. (The optional AI explanation of a cause is on the old dashboard only.)
+  module mid-session.
 
 ### Before, during and after the session
 
@@ -29,8 +29,7 @@ The first screen follows the evening (the tabs in the header show where you are;
 look ahead or back):
 
 - **Before** (no session running): Pre-flight's checks next to Prep (last session, open quests,
-  next session notes, handouts waiting), and a Features slot that says "Not on this page yet"
-  (the per-feature cards are on the old dashboard at `/legacy/`). **Turn on for tonight** at the
+  next session notes, handouts waiting). **Turn on for tonight** at the
   top of Pre-flight turns on, in one click, what tonight needs ("Allow Write Operations", the Handouts, Live play, Party
   and Tarokka switches, GM Actions); **End session** turns off again what it turned on. Only the dashboard's
   GM route can do this (the bridge's control method `session_switches`, never an MCP tool), so
@@ -52,8 +51,7 @@ help works offline and matches the installed version.
 **Advanced** (top right) holds the rest: the GM guides, the Prep, Party, Handouts and Tarokka
 panels (a panel already on the screen is scrolled to; otherwise it opens over the page), After a
 paper night, the Tool Runner, module diagnostics, the player links and the During
-layouts entry, and the Version tracker (on by default; Advanced turns it off). The AI commentary and its settings (pause, diagnostics AI, tone, model) are not on
-this page; they are on the old dashboard.
+layouts entry, and the Version tracker (on by default; Advanced turns it off).
 
 ### My character, one page per player
 
@@ -80,16 +78,6 @@ with secret sections and unidentified items' true names left out.
 - The theme is saved in `dashboard-themes.json` in `COGM_STATE_DIR` (default
   `~/.foundry-ai-tool`). Until the dashboard knows the world (a GM in Foundry), each screen keeps
   the theme it showed last.
-
-### AI commentary that watches with you (old dashboard page only)
-
-Not on the page at `/` yet. It is on the old dashboard at `/legacy/`, and needs an Anthropic API key.
-
-- **Streaming commentary**: tactical or narrative call-outs when something significant happens
-  ("the Goblin Boss is bloodied and prone, press the attack").
-- **Ask the AI**: type a question like _"who's in trouble?"_ and get an answer grounded in the
-  current board state.
-- **Whisper to chat**: send any comment straight into Foundry as a GM whisper with one click.
 
 ### Damage and conditions on several creatures at once
 
@@ -136,9 +124,7 @@ must be open with the bridge connected).
 
 ```bash
 cd packages/cogm-dashboard
-# put your Anthropic API key in .env (ANTHROPIC_API_KEY=...) to enable the AI commentary (old page only)
 npm run dev          # → http://localhost:3000
 ```
 
-Without an API key the live feed, combat tracker, diagnostics and GM Actions all still work. Only
-the AI commentary is disabled.
+No API key is needed: the live feed, combat tracker, diagnostics and GM Actions all work without one.

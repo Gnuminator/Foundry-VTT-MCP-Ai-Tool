@@ -705,7 +705,7 @@ test('a run of token moves is one row, other changes stay as they are', async ({
       lines: ['Token "Ogre" moved'],
       things: [{ uuid: 'Token.t1', name: 'Ogre' }],
     });
-  await setup(page, {
+  const calls = await setup(page, {
     everyone: () => ({
       changes: [
         move('m1'),
@@ -727,7 +727,8 @@ test('a run of token moves is one row, other changes stay as they are', async ({
     'Token "Ogre" moved',
   ]);
   // The folded row undoes only its newest move, and its button says so.
-  await expect(
-    c.getByRole('button', { name: 'Undo the latest move: Token "Ogre" moved' }).first()
-  ).toBeVisible();
+  await c.getByRole('button', { name: 'Undo the latest move: Token "Ogre" moved' }).click();
+  await expect
+    .poll(() => callsOf(calls, 'plan-undo-changes').map(x => x.args))
+    .toEqual([{ id: 'm1', scope: 'just-this' }]);
 });

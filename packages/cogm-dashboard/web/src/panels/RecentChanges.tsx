@@ -167,6 +167,7 @@ function EveryoneRow({
               size="sm"
               data-track="dash.changes.everyone-undo"
               aria-label={row.undoLabel}
+              title={row.undoLabel}
               onClick={() => onUndo(row.id)}
             >
               Undo

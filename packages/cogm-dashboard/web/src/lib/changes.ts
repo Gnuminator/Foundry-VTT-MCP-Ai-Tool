@@ -241,7 +241,9 @@ export function foldTokenMoves(changes: readonly EveryoneChange[]): EveryoneChan
   };
   for (const c of changes) {
     const name = tokenMoveOf(c);
-    const key = name === null ? null : `${c.by}\u0000${c.things[0]?.uuid ?? name}`;
+    // A move that cannot be undone ends the run, so the folded row's Undo is the newest move's.
+    const key =
+      name === null ? null : `${c.by}\u0000${c.things[0]?.uuid ?? name}\u0000${c.canUndo}`;
     if (run && key !== null && run.key === key) {
       run.count += 1;
       continue;

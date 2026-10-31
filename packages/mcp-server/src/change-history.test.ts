@@ -654,10 +654,10 @@ describe('buildActions', () => {
       expect(actions.find(a => a.records.includes(dep))?.actionId).toBe('other-browser');
     });
 
-    it('files a foreign dependent by its data among two AI segments, in by time', () => {
-      const ai = (actionId: string, changeId: string, t: number, dep: string, id: string) =>
+    it('files a foreign dependent named by two AI changes of one group by the time it arrived', () => {
+      const ai = (changeId: string, t: number, id: string): ChangeRecord =>
         rec({
-          actionId,
+          actionId: 'bridge',
           changeId,
           changeMode: 'apply',
           t,
@@ -665,27 +665,16 @@ describe('buildActions', () => {
           documentName: 'ActiveEffect',
           uuid: `Actor.a2.ActiveEffect.${id}`,
           rootUuid: 'Actor.a2',
-          data: dependentsOf(dep),
+          data: dependentsOf('Actor.a1.ActiveEffect.held'),
         });
-      const ai1 = ai('bridge', 'chg-1', NOW, 'Actor.a1.ActiveEffect.d1', 'e1');
-      const ai2 = ai('bridge', 'chg-2', NOW + 20_000, 'Actor.a1.ActiveEffect.d2', 'e2');
-      const dep = (id: string, t: number): ChangeRecord =>
-        rec({
-          actionId: `other-${id}`,
-          t,
-          op: 'delete',
-          documentName: 'ActiveEffect',
-          uuid: `Actor.a1.ActiveEffect.${id}`,
-          parentUuid: 'Actor.a1',
-          name: id,
-        });
-      // d2 arrives first, d1 late (after the second change started): each follows its own change.
-      const d2 = dep('d2', NOW + 21_000);
-      const d1 = dep('d1', NOW + 25_000);
-      const actions = buildActions([ai1, ai2, d2, d1]).filter(a => a.changeId);
+      const ai1 = ai('chg-1', NOW, 'e1');
+      const ai2 = ai('chg-2', NOW + 20_000, 'e2');
+      // Both name the same dependent: one that landed between the changes belongs to the first.
+      const between = held(NOW + 5000);
+      const actions = buildActions([ai1, ai2, between]).filter(a => a.changeId);
       expect(actions.map(a => [a.changeId, a.followUps])).toEqual([
-        ['chg-1', [d1]],
-        ['chg-2', [d2]],
+        ['chg-1', [between]],
+        ['chg-2', []],
       ]);
     });
   });

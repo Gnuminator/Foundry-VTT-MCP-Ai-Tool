@@ -15,6 +15,7 @@ import {
 } from './control-target.js';
 
 import { buildToolRouter, collectToolDefinitions, DETACHED_TOOLS } from './tool-router.js';
+import { RepeatGuard } from './repeat-guard.js';
 import { createAiChangesAnnouncer, createModuleRequestHandler } from './module-requests.js';
 
 import { config } from './config.js';
@@ -544,6 +545,8 @@ async function startBackend(): Promise<void> {
     waitForEventTools,
   };
   const toolRouter = buildToolRouter(toolDeps);
+  // The same write twice within 3 s (a double click) answers with the first result (repeat-guard.ts).
+  const repeatGuard = new RepeatGuard();
   // Dashboard-only routes (O6): callable through call_tool by the dashboard's GM proxy, but not
   // MCP tools (no definition, in no tool set), so buildToolRouter's one-route-per-tool test and
   // the tool-set size budgets stay as they are. They are not listed to Claude, but not walled off
@@ -715,10 +718,12 @@ async function startBackend(): Promise<void> {
                   typeof requestedBy === 'string'
                     ? requestedBy.trim().slice(0, MAX_REQUESTER_LENGTH)
                     : '';
-                const result: unknown = await route(args, {
-                  ...(requester ? { requestedBy: requester } : {}),
-                  signal: socketAbort.signal,
-                });
+                const result: unknown = await repeatGuard.run(name, args, requester, () =>
+                  route(args, {
+                    ...(requester ? { requestedBy: requester } : {}),
+                    signal: socketAbort.signal,
+                  })
+                );
 
                 const payload: ToolResultPayload = {
                   content: [

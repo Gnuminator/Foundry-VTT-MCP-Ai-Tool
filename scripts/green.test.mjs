@@ -586,6 +586,31 @@ test('worktreeTreeHash: uncommitted and untracked edits give the tree their comm
   assert.equal(git('rev-parse', 'HEAD^{tree}').stdout.trim(), dirty);
 });
 
+test('worktreeTreeHash: a same-size edit in the second of the last git command is not read from the stale cached stat', () => {
+  // The flake of the test above: git compares cached stat times in whole seconds and re-hashes an
+  // entry that is not older than the index file ("racy"). On Linux the index copy has a fresh
+  // mtime, so the copy has to carry the real index's, or a second boundary between two hashes turns
+  // the entry into a trusted stale one. Here the second is pinned: file and index both ten seconds ago.
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'green-racy-'));
+  const git = (/** @type {string[]} */ ...args) => spawnSync('git', args, { cwd: dir, encoding: 'utf8' });
+  git('init', '-q');
+  git('config', 'core.trustctime', 'false');
+  const old = Math.floor(Date.now() / 1000) - 10;
+  const file = path.join(dir, 'a.txt');
+  fs.writeFileSync(file, 'one\n');
+  fs.utimesSync(file, old, old);
+  git('add', 'a.txt');
+  git('-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '-m', 'one');
+  fs.utimesSync(path.join(dir, '.git', 'index'), old, old);
+  fs.writeFileSync(file, 'two\n'); // the same 4 bytes
+  fs.utimesSync(file, old, old);
+  const hash = worktreeTreeHash(dir);
+  // No git status before this: it would refresh or smudge the real index and hide the case.
+  git('add', '-A');
+  git('-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '-m', 'two');
+  assert.equal(hash, git('rev-parse', 'HEAD^{tree}').stdout.trim());
+});
+
 test('green stamp with pushed commits: every pushed commit must have the green tree, whatever the working tree holds', () => {
   const { dir, git } = tempRepo();
   const first = git('rev-parse', 'HEAD').stdout.trim();

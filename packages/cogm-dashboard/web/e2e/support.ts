@@ -1,6 +1,6 @@
 // Shared bits of the browser tests: the GM token the test server runs with, and fakes for the
 // routes every page load calls.
-import type { Locator, Page } from '@playwright/test';
+import { expect, type Locator, type Page } from '@playwright/test';
 
 export const GM_TOKEN = 'e2e-gm-token';
 
@@ -39,8 +39,8 @@ export async function fakeStream(
  * A toast in the stack. Radix also repeats each toast's text in a screen-reader live region
  * outside the stack, so a page-wide getByText can match twice.
  */
-export const toast = (page: Page, text: string): Locator =>
-  page.locator('.toast-stack').getByText(text);
+export const toast = (page: Page, text: string | RegExp, options?: { exact?: boolean }): Locator =>
+  page.locator('.toast-stack').getByText(text, options);
 
 /** One POST /api/tool body: the tool, its args and the confirm flags of a write. */
 export interface ToolCall {
@@ -93,6 +93,9 @@ export const ok = (result: unknown): { json: unknown } => ({ json: { ok: true, r
  * entry; or from the keyboard, which also works while a drawer's backdrop covers the header.
  */
 export async function fromMenu(page: Page, id: string, keyboard = false): Promise<void> {
+  // The menu is a lazy chunk with a stand-in button until it arrives (AdvancedMenu.tsx): wait for
+  // the real one, as a person using the page does, so focus follows the usual path.
+  await expect(page.locator('#btn-advanced')).toHaveAttribute('aria-haspopup', 'menu');
   if (keyboard) {
     await page.locator('#btn-advanced').press('Enter');
     await page.locator(`#advanced-menu #${id}`).press('Enter');

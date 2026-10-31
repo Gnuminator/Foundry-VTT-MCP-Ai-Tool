@@ -717,11 +717,27 @@ describe('condition on', () => {
         disabled: false,
         'duration.value': 1,
         'duration.units': 'rounds',
+        'duration.expiry': 'turnStart',
         'duration.expired': false,
       },
     });
     expect((plan.ops[0] as any).changes.start).toHaveProperty('time');
     expect(plan.targets[0]?.line).toBe('Wolf: Poisoned (for 1 round, brings back the expired one)');
+  });
+
+  it('brings an ended effect back untimed with no expiry left over', async () => {
+    addActor({
+      id: 'a1',
+      name: 'Wolf',
+      effects: [
+        effect('dnd5epoisoned000', 'Poisoned', ['poisoned'], { duration: { remaining: 0 } }),
+      ],
+    });
+    const plan = await planLiveChange(hpRequest({ action: 'condition', condition: 'poisoned' }));
+    expect(plan.ops[0]).toMatchObject({
+      kind: 'update',
+      changes: { 'duration.value': null, 'duration.units': null, 'duration.expiry': null },
+    });
   });
 
   it('resets a stale rider and takes the start from the effect class when it has one', async () => {
@@ -741,6 +757,7 @@ describe('condition on', () => {
       changes: {
         disabled: false,
         'duration.value': null,
+        'duration.expiry': null,
         'duration.expired': false,
         start: { time: 7, combat: 'c1', round: 2 },
       },

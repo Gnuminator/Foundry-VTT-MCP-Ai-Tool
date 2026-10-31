@@ -254,6 +254,16 @@ function MenuHost(): JSX.Element {
 }
 
 const openMenu = async ({ canvasElement }: { canvasElement: HTMLElement }): Promise<void> => {
+  // The menu is a lazy chunk with a stand-in button until it arrives, and a click that lands as
+  // the two swap is lost: wait for the real button first.
+  await waitFor(
+    () =>
+      expect(within(canvasElement).getByRole('button', { name: /Advanced/ })).toHaveAttribute(
+        'aria-haspopup',
+        'menu'
+      ),
+    { timeout: 10_000 }
+  );
   await userEvent.click(within(canvasElement).getByRole('button', { name: /Advanced/ }));
   await waitFor(() => expect(within(document.body).getByRole('menu')).toBeVisible());
 };

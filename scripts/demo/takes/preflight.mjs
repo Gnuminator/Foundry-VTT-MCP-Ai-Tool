@@ -72,13 +72,17 @@ export async function run(t) {
     );
     const n = Math.min(await ticks.count(), 2);
     for (let i = 0; i < n; i++) {
-      await humanClick(ticks.nth(i));
+      // The locator skips ticked boxes, so the next unticked one is always the first.
+      await humanClick(ticks.first());
       await t.pause(600);
     }
     await t.pause(1500);
   });
 
   await t.step('guide', 'The guides: what is on, and when to turn the rest on', async () => {
+    // The Pre-flight drawer covers the header: close it first.
+    await page.keyboard.press('Escape');
+    await page.locator('#preflight-drawer').waitFor({ state: 'hidden' });
     await humanClick(page.locator('#btn-advanced'));
     await humanClick(page.locator('#btn-guides'));
     await page.locator('#pane-help').waitFor({ state: 'visible' });

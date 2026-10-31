@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { AiChange } from './changes';
 import type { Combatant } from './combat';
 import {
+  chipText,
   conditionArgs,
   displayNames,
   downWords,
@@ -89,7 +90,27 @@ describe('pickText', () => {
   });
 });
 
+describe('chipText', () => {
+  it('names an untimed condition as it is', () => {
+    expect(chipText('Prone', undefined)).toBe('Prone');
+  });
+  it('says the rounds left, singular or plural, and when the time is up', () => {
+    expect(chipText('Prone', 1)).toBe('Prone, 1 round');
+    expect(chipText('Prone', 3)).toBe('Prone, 3 rounds');
+    expect(chipText('Prone', 0)).toBe('Prone, ended');
+  });
+});
+
 describe('conditionArgs', () => {
+  it('adds the rounds when given', () => {
+    expect(conditionArgs(['t1'], 'prone', 1)).toEqual({
+      action: 'condition',
+      targets: ['t1'],
+      condition: 'prone',
+      active: true,
+      rounds: 1,
+    });
+  });
   it('turns a condition on for the tokens, with no duration', () => {
     expect(conditionArgs(['t1', 't2'], 'prone')).toEqual({
       action: 'condition',

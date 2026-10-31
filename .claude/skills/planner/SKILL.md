@@ -18,7 +18,7 @@ decision), then ends. It does not sit and wait for lanes. Vault paths below are 
   vault handover (`Handoff/<lane> prompt <date>.md`) instead.
 - `gh pr list --state open` and the CI of each.
 - **Main's last CI run (2026-10-31):** at start and before each lane start,
-  `gh run list --branch main -w ci.yml --event push --status completed -L 5` (the start-alerts hook prints "main CI red since
+  `gh run list --branch main -w ci.yml --event push --status completed -L 15` (the start-alerts hook prints "main CI red since
   <sha> (<step>)" when the newest finished run failed). Red means the "Main is red" step below.
 - `list_sessions` without `linked` (lanes start their own successors; they only show in the full
   list), then `get_usage` with each running lane's id (lanes underreport their context).
@@ -161,7 +161,7 @@ Unblock first, fix properly second (vault `Design/Red main root cause 2026-10-31
 
 1. **Open the unblock PR within 15 minutes of seeing it** (the start alert, a gate refusal naming a
    main failure, a lane note). Either **revert the merge that turned main red**: the `since` sha in
-   the alert, or the first red run in the list above, not simply the newest merge (others may have
+   the alert, or the oldest run of the unbroken red streak in the list above (skip cancelled runs), not simply the newest merge (others may have
    landed while its run was going). Reverting merged work needs the user's OK first, one line through
    the question tool (red commit, step, the PR to revert). Or, when the break is a limit and not bad
    code (a bundle or tool-set budget, a ratchet baseline), **a one-line temporary limit raise**, which

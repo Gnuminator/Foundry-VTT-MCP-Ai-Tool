@@ -21,7 +21,13 @@
 #   every world this run installs or resets (the kit world, and WORLD when it is replaced), never in a Plan B
 #   push-back (its settings come back from the PC as they were played); 1 sets them in WORLD too when it is kept
 #   (its settings database is copied to prev first); 0 sets none. The step runs while Foundry runs the world and
-#   is skipped without systemd.
+#   is skipped without systemd. A run that stops before its worlds got the switches leaves world-<id>.switches-pending
+#   in $TOOL_ETC, and a later auto run sets them then even in a kept world. WORLD_SWITCHES=0 gives that up: the
+#   marker is cleared (also when a push-back replaces the world). WORLD_SWITCHES=1 with a Plan B push-back is
+#   refused before anything stops.
+# The run is logged in $IMPORT/world-run-<stamp>.log (root only; the stage's own lines from the bundle check on, with a
+# time, not the output of the tools it runs, such as the driver and the GM password check), so a dropped SSH connection, which the stage ignores
+# (trap '' HUP PIPE), leaves the story on the Pi.
 # REPLACE_KIT (1 lets the run reset an installed KIT_WORLD that is not a kit copy of WORLD; default 0 refuses it. A kit
 #   copy carries flags.foundry-ai-tool.kitOf = WORLD in its world.json, written by every reset; the Pi's older
 #   strahd-kit counts for WORLD=curse-of-strahd. It lifts only that rule, never the refusal to name curse-of-strahd,
@@ -257,8 +263,16 @@ on_exit() {
 }
 trap on_exit EXIT
 # A dropped SSH connection must not kill the stage while Foundry is stopped: the next line of output would raise SIGPIPE
-# (stages 14 and 19 do the same; the output helpers in lib.sh already survive a failed write).
+# (stages 14 and 19 do the same; the output helpers in lib.sh already survive a failed write). Every line also goes
+# to a root-only log next to the bundle (stages 14 and 19 log too), so a dropped connection leaves the story on the Pi.
 trap '' HUP PIPE
+STAGE_LOG="$IMPORT/world-run-$stamp.log"
+if (umask 077 && : >>"$STAGE_LOG") 2>/dev/null; then
+  ok "this run is logged in $STAGE_LOG"
+else
+  warn "could not create $IMPORT/world-run-$stamp.log: this run is not logged"
+  STAGE_LOG=""
+fi
 tar --quoting-style=literal -tf "$BUNDLE" >"$work/names" || die "cannot read the tar"
 tar --quoting-style=literal -tvf "$BUNDLE" | cut -c1 >"$work/types"
 [ "$(wc -l <"$work/names")" = "$(wc -l <"$work/types")" ] || die "the tar listing is inconsistent (odd file names)"
@@ -632,7 +646,7 @@ NODE
       3)
         check_state=newer
         warn "documents in the Pi's $WORLD created or changed after $based_on: $newer_count (newest first, up to 5; collection, name, time$same_note):"
-        sed -n '2,6p' "$work/changes" | while IFS= read -r line; do printf '      %s\n' "$line" >&2; done
+        sed -n '2,6p' "$work/changes" | while IFS= read -r line; do out "      $line" 1; done
         if [ "$REPLACE_NEWER" = 1 ]; then
           warn "REPLACE_NEWER=1: the Pi's $WORLD is replaced anyway; its copy goes to $prev"
         else
@@ -802,7 +816,7 @@ provision_world() { # $1 world id
       . "$envf"
       set +a
       [ -n "${GM_USER:-}" ] && [ -n "${GM_PASSWORD:-}" ] || {
-        echo "ERROR: $envf has no GM_USER and GM_PASSWORD" >&2
+        out "ERROR: $envf has no GM_USER and GM_PASSWORD" 1
         exit 1
       }
       # The login stays in the environment, never on a command line (as in stage 13).
@@ -913,47 +927,49 @@ else
   prev_note="old copies kept in $prev ($(du -sh "$prev" | cut -f1)); remove them later, only with the user's OK"
 fi
 
-# Read-only closing check (lib-gm-passwords.sh; it clears the traps, which this stage has cleared above).
+# Read-only closing check (lib-gm-passwords.sh; it resets the EXIT, INT, TERM and HUP traps, so HUP is ignored again after it).
 if declare -F gm_passwords_notice >/dev/null; then
   gm_passwords_notice
 else
   warn "lib-gm-passwords.sh was not in the pipe, so the GM password check was skipped: run gm-passwords.sh (docs/dev/PI-SETUP.md)"
 fi
+trap '' HUP PIPE
 
+# The summary goes through out (not echo) so the run's log holds it too.
 say "summary"
-echo "    world $WORLD: $real_state"
+out "    world $WORLD: $real_state"
 if [ "$pushback" = 1 ]; then
   case "$check_state" in
-    newer) echo "    push-back based on $based_on: $newer_count newer Pi documents replaced (REPLACE_NEWER=1; the Pi's copy is in prev)" ;;
-    failed) echo "    push-back based on $based_on: the change check did not run (exit $scan_rc; REPLACE_NEWER=1; the Pi's copy is in prev)" ;;
-    clean) echo "    push-back based on $based_on: nothing on the Pi was newer" ;;
-    *) echo "    push-back based on $based_on: there was no $WORLD on the Pi to compare" ;;
+    newer) out "    push-back based on $based_on: $newer_count newer Pi documents replaced (REPLACE_NEWER=1; the Pi's copy is in prev)" ;;
+    failed) out "    push-back based on $based_on: the change check did not run (exit $scan_rc; REPLACE_NEWER=1; the Pi's copy is in prev)" ;;
+    clean) out "    push-back based on $based_on: nothing on the Pi was newer" ;;
+    *) out "    push-back based on $based_on: there was no $WORLD on the Pi to compare" ;;
   esac
 fi
-[ -z "$KIT_WORLD" ] || echo "    kit world $KIT_WORLD: reset ($KIT_TITLE)"
+[ -z "$KIT_WORLD" ] || out "    kit world $KIT_WORLD: reset ($KIT_TITLE)"
 # Masked the same way as module_check's warn lines: printable, at most 40 characters.
 module_version() { node -e 'try{process.stdout.write(String(require(process.argv[1]).version||"").replace(/[^\w.+-]/g,"?").slice(0,40))}catch{}' "$data/modules/$1/module.json"; }
 for id in "${modules[@]}"; do
-  echo "    module $id $(module_version "$id")"
+  out "    module $id $(module_version "$id")"
 done
 for id in "${kept_modules[@]}"; do
-  echo "    module $id $(module_version "$id") (the Pi's newer copy kept, not the bundle's)"
+  out "    module $id $(module_version "$id") (the Pi's newer copy kept, not the bundle's)"
 done
 for id in "${unsure_modules[@]}"; do
-  echo "    module $id $(module_version "$id") (the Pi's copy kept: its version and the bundle's cannot be compared)"
+  out "    module $id $(module_version "$id") (the Pi's copy kept: its version and the bundle's cannot be compared)"
 done
 if [ "${#switch_ids[@]}" -gt 0 ] && have_systemd; then
-  echo "    world switches set and verified in: ${switch_ids[*]}"
+  out "    world switches set and verified in: ${switch_ids[*]}"
 elif [ "${#switch_ids[@]}" -gt 0 ]; then
-  echo "    world switches: skipped (no systemd)"
+  out "    world switches: skipped (no systemd)"
 else
-  echo "    world switches: not touched (WORLD_SWITCHES=$WORLD_SWITCHES)"
+  out "    world switches: not touched (WORLD_SWITCHES=$WORLD_SWITCHES)"
 fi
-echo "    asset folders: ${assets[*]:-none}"
-echo "    Foundry launches: $LAUNCH"
+out "    asset folders: ${assets[*]:-none}"
+out "    Foundry launches: $LAUNCH"
 for id in "$WORLD" ${KIT_WORLD:+"$KIT_WORLD"}; do
-  [ ! -f "$TOOL_ETC/world-$id.env" ] || echo "    GM password file for $id: $TOOL_ETC/world-$id.env (the GM reads it with: ssh foundry-pi cat $TOOL_ETC/world-$id.env)"
+  [ ! -f "$TOOL_ETC/world-$id.env" ] || out "    GM password file for $id: $TOOL_ETC/world-$id.env (the GM reads it with: ssh foundry-pi cat $TOOL_ETC/world-$id.env)"
   extra="$(env_login "$TOOL_ETC/world-$id.env" EXTRA_GM_USER)"
-  [ -z "$extra" ] || echo "    the extra GM $extra of $id: the same file, EXTRA_GM_PASSWORD"
+  [ -z "$extra" ] || out "    the extra GM $extra of $id: the same file, EXTRA_GM_PASSWORD"
 done
-echo "    $prev_note"
+out "    $prev_note"

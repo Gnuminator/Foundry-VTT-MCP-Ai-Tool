@@ -155,6 +155,10 @@ button.portrait {
   color: var(--warn);
   font-size: var(--text-xs);
 }
+.tag.ended {
+  border: 1px dashed var(--warn);
+  background: transparent;
+}
 .tag.down {
   border: 1px solid var(--bad);
   background: transparent;
@@ -193,6 +197,10 @@ button.portrait {
   color: var(--text);
   font-size: var(--text-sm);
   cursor: pointer;
+}
+.cond.on {
+  background: var(--accent-soft);
+  border-color: var(--accent);
 }
 .cond[aria-disabled='true'] {
   opacity: 0.5;

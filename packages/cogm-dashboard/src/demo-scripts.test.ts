@@ -32,16 +32,27 @@ function sourceText(dir: string): string {
 
 describe('demo dashboard helpers', () => {
   it('only use element ids that the dashboard page has', () => {
-    const helpers = readFileSync(
-      path.join(repoRoot, 'scripts', 'demo', 'lib', 'dashboard.mjs'),
-      'utf8'
-    );
+    const demoDir = path.join(repoRoot, 'scripts', 'demo');
+    // The helpers and the takes in the repo (takes kept outside it are not scanned).
+    const helpers = [
+      path.join(demoDir, 'lib', 'dashboard.mjs'),
+      ...readdirSync(path.join(demoDir, 'takes'))
+        .filter(name => name.endsWith('.mjs'))
+        .map(name => path.join(demoDir, 'takes', name)),
+    ]
+      .map(file => readFileSync(file, 'utf8'))
+      .join('\n');
     // The React dashboard at /: an id is written in its source as id="x" or as a string 'x'.
+    // This accepts any such string in web/src, so it catches a deleted id, not a moved one.
     const page = sourceText(path.join(repoRoot, 'packages', 'cogm-dashboard', 'web', 'src'));
     const ids = [...new Set([...helpers.matchAll(/#([a-z][a-z0-9-]*)/g)].map(m => m[1]))];
     expect(ids.length).toBeGreaterThan(5);
+    // Foundry's own elements, which take scripts also click (table-player-attack runs in Foundry).
+    const foundryIds = new Set(['tooltip', 'chat-notifications']);
+    // The Before / During / After tabs are built as `tab-${moment}` in components/Moments.tsx.
+    const built = (id: string): boolean => /^tab-(before|during|after)$/.test(id);
     const missing = ids.filter(
-      id => !new RegExp(`[iI]d="${id}"|'${id}'`).test(page) // id="x", bodyId="x" or a string 'x'
+      id => !foundryIds.has(id) && !built(id) && !new RegExp(`[iI]d="${id}"|'${id}'`).test(page) // id="x", bodyId="x" or a string 'x'
     );
     expect(missing).toEqual([]);
   });

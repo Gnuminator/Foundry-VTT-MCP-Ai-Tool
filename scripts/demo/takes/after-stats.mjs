@@ -60,7 +60,8 @@ export async function run(t) {
   });
 
   await t.step('help', 'The "?" opens the guide right there', async () => {
-    await humanClick(page.locator('#after-stats .help-q'));
+    // The stats block has no "?" of its own on the React page: the first panel title under it does.
+    await humanClick(page.locator('.pane-title .help-q:visible').first());
     await page.locator('#pane-help').waitFor({ state: 'visible' });
     await t.pause(3500);
     await t.shot('Dashboard', 'after-help');

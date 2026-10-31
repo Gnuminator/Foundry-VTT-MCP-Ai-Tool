@@ -6,7 +6,7 @@
 // Needs PowerShell 7 (pwsh); skipped where it is missing.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { after, before, describe, test } from 'node:test';
@@ -344,6 +344,50 @@ describe('Plan B', { skip: !hasPwsh && 'PowerShell 7 (pwsh) is not available' },
       played.stderr + played.stdout,
       /no Data folder at .*push-back-[^\\/]*[\\/]data[\\/]Data/
     );
+  });
+
+  test('push-back.ps1 passes -PiModules on to push-world (a drill that ships no modules)', () => {
+    const root = mkdtempSync(path.join(tmp, 'push-back-'));
+    mkdirSync(path.join(root, 'data', 'Data'), { recursive: true });
+    writeFileSync(
+      path.join(root, 'state.json'),
+      JSON.stringify({
+        world: 'frostmaiden-training',
+        snapshot: { id: 'abc', short: 'abc', time: '2026-10-09T04:30:00+02:00' },
+        restoredAt: '2026-10-09T18:00:00+02:00',
+        played: true,
+        playedAt: '2026-10-09',
+        services: null,
+      })
+    );
+    const r = spawnSync(
+      'pwsh',
+      [
+        '-NoProfile',
+        '-NonInteractive',
+        '-Command',
+        `& '${path.join(here, 'push-back.ps1')}' -Root '${root}' -Modules '' -PiModules 'no-such-module'`,
+      ],
+      { encoding: 'utf8' }
+    );
+    assert.notEqual(r.status, 0);
+    // push-world reaches its own check of the Pi-side module: the parameter arrived.
+    assert.match(r.stderr + r.stdout, /no module\.json for -PiModules module no-such-module/);
+
+    // -Modules '' really empties the default list: with it lost, aitool-content would be in both lists.
+    const both = spawnSync(
+      'pwsh',
+      [
+        '-NoProfile',
+        '-NonInteractive',
+        '-Command',
+        `& '${path.join(here, 'push-back.ps1')}' -Root '${root}' -Modules '' -PiModules 'aitool-content'`,
+      ],
+      { encoding: 'utf8' }
+    );
+    assert.notEqual(both.status, 0);
+    assert.match(both.stderr + both.stdout, /no module\.json for -PiModules module aitool-content/);
+    assert.doesNotMatch(both.stderr + both.stdout, /in both -Modules and -PiModules/);
   });
 
   test('clean decision: played data stays until it is back on the Pi; data with no restore is never ours', () => {

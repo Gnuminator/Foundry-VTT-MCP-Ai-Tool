@@ -16,7 +16,8 @@ import { fileURLToPath } from 'node:url';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 
 /** What names the old page: its address (not part of a longer path) or its files. */
-export const OLD_PAGE = /(^|[^A-Za-z0-9_.\-/])\/legacy\b|public\/app\.js|public\/index\.html/;
+export const OLD_PAGE =
+  /(^|[^A-Za-z0-9_.\-/])\/legacy(?![A-Za-z0-9_-]|\.[A-Za-z0-9])|['"`(]legacy\/|public\/app\.js|public\/index\.html/i;
 
 /** Where the rule applies: tests, kit, demo scripts, skills, tools and the docs people read. */
 const IN_SCOPE = [
@@ -90,6 +91,9 @@ test('the pattern finds the old page and nothing longer', () => {
   assert.ok(!OLD_PAGE.test('the legacy (2014) rules'));
   assert.ok(!OLD_PAGE.test('legacyHeaders: false'));
   assert.ok(!OLD_PAGE.test('docs/legacy/x.md'));
+  assert.ok(!OLD_PAGE.test('GET /legacy-import and /legacy.html'));
+  assert.ok(OLD_PAGE.test("page.goto('legacy/')"));
+  assert.ok(OLD_PAGE.test('open /Legacy/ in the browser'));
 });
 
 test('no test, kit run, demo or guide names the old dashboard page', () => {

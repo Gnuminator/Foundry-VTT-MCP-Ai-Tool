@@ -61,9 +61,27 @@ export const CONDITIONS = [
   'unconscious',
 ] as const;
 
-/** The plan-actor-change arguments that put a condition on the picked tokens (on, no duration). */
-export function conditionArgs(targets: string[], condition: string): Record<string, unknown> {
-  return { action: 'condition', targets, condition, active: true };
+/**
+ * The plan-actor-change arguments that put a condition on the picked tokens: on, with no duration
+ * unless `rounds` is given.
+ */
+export function conditionArgs(
+  targets: string[],
+  condition: string,
+  rounds?: number
+): Record<string, unknown> {
+  const args = { action: 'condition', targets, condition, active: true };
+  return rounds === undefined ? args : { ...args, rounds };
+}
+
+/**
+ * A condition chip's words: the name, and for a timed one the rounds left ("Prone, 1 round") or
+ * "ended" once its time is up. `left` is what the module sent for that name (nothing: untimed).
+ */
+export function chipText(name: string, left: unknown): string {
+  if (typeof left !== 'number') return name;
+  if (left <= 0) return `${name}, ended`;
+  return `${name}, ${left} ${left === 1 ? 'round' : 'rounds'}`;
 }
 
 /**

@@ -134,13 +134,7 @@ function redirectTargets(masked, raw) {
   return out;
 }
 
-const TARGET_LAST = new Set([
-  'cp',
-  'mv',
-  'tee',
-  'copy-item',
-  'move-item',
-]);
+const TARGET_LAST = new Set(['cp', 'mv', 'tee', 'copy-item', 'move-item']);
 
 // What decides whether a write leaves the repo: the redirect targets, the destination (last
 // argument) of cp, mv, tee and the file cmdlets, else the whole segment. A source path that is
@@ -149,7 +143,11 @@ function targetProbe(raw, redirects) {
   if (redirects.length) return redirects.join(' ');
   const { word, rest } = firstWord(raw);
   if (TARGET_LAST.has(word)) {
-    const args = rest.trim().split(/\s+/);
+    // quoted paths with spaces stay whole; flags and redirects are not the destination
+    const tokens = rest.match(/"[^"]*"|'[^']*'|\S+/g) ?? [];
+    const at = tokens.findIndex(t => /^-destination$/i.test(t));
+    if (at >= 0 && tokens[at + 1]) return tokens[at + 1];
+    const args = tokens.slice(1).filter(t => !/^-/.test(t) && !/^\d?>/.test(t));
     return args[args.length - 1] ?? rest;
   }
   return raw;

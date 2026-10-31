@@ -153,9 +153,8 @@ test('run: a subagent event (agent_id) prints nothing and leaves the state for t
   try {
     const file = transcript(root, [turn(352_000)]);
     assert.equal(run(input(file, { agent_id: 'agent-1', agent_type: 'general-purpose' }), env), '');
-    assert.equal(run(input(file, { agent_type: 'Explore' }), env), '');
-    // The main thread still gets its line afterwards.
-    const out = JSON.parse(run(input(file), env));
+    // agent_type alone marks a main thread started with --agent: it gets its line
+    const out = JSON.parse(run(input(file, { agent_type: 'planner' }), env));
     assert.equal(out.systemMessage, 'Context 352k: plan the handover (lane skill).');
   } finally {
     cleanup();

@@ -240,6 +240,10 @@ test('shellWritesRepo: writing verbs and redirects count, reading and quoted tex
     'Set-Content $env:TEMP\\x.txt hi',
     'echo hi > $TMPDIR/x.txt',
     `cp a.ts "${os.tmpdir()}/scratchpad/a.ts"`,
+    `cp "${os.tmpdir()}/scratchpad/h.md" "C:/Users/chris/Documents/Obsidian/vault/Dev/Foundry AI Tool/Handoff/x prompt.md"`,
+    `git log | tee "C:/Users/chris/Documents/Obsidian/vault/Dev/Foundry AI Tool/x.md"`,
+    `Copy-Item a -Destination "C:/Users/chris/Documents/Obsidian/vault/Dev/Foundry AI Tool/x.md" -Force`,
+    `cp src "${os.tmpdir()}/scratchpad/a" 2>/dev/null`,
     "node scripts/x.mjs && git commit -F - <<'EOF'\nwriteFileSync\nEOF",
   ]) {
     assert.equal(shellWritesRepo(c, REPO_ROOT), false, c);

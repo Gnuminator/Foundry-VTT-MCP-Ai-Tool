@@ -28,6 +28,7 @@ import {
   changeState,
   dialogFor,
   filterChanges,
+  foldTokenMoves,
   filterOptions,
   firstStage,
   needsDestructive,
@@ -289,7 +290,7 @@ function ChangesCard({ active }: { active: boolean }): JSX.Element {
 
   const all: EveryoneChange[] = everyone.data?.changes ?? [];
   const personNow = validFilter(all, person);
-  const rows = filterChanges(all, personNow);
+  const rows = foldTokenMoves(filterChanges(all, personNow));
   const note = everyone.data?.note ?? '';
 
   // One Undo or Redo at a time: a second click while one runs (or its window is open) is ignored.

@@ -218,6 +218,24 @@ test.describe('the list', () => {
     await expect(feed(page).locator('.pane-meta')).toContainText('3 events');
   });
 
+  test('a change made in Foundry is chipped with its feature, never "gm-change"', async ({
+    page,
+  }) => {
+    await setup(page, {
+      initial: [
+        events(
+          [
+            raw('g1', 1, 'gm-change', 'Applied: Ilvara HP 10 -> 5', { feature: 'actor-change' }),
+            raw('g2', 2, 'gm-change', 'Applied: moved the Ogre token'),
+          ],
+          true
+        ),
+      ],
+    });
+    await load(page);
+    await expect(rows(page).locator('.event-type')).toHaveText(['change', 'actor change']);
+  });
+
   test('the count says "1 event" for one', async ({ page }) => {
     await setup(page, { initial: [events(THREE.slice(0, 1), true)] });
     await load(page);

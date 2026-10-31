@@ -112,6 +112,8 @@ export interface EveryoneChange {
   /** How many changes an undo entry took back, when the backend says. */
   covers: number | null;
   things: { uuid: string; name: string | null }[];
+  /** Set by `foldTokenMoves` on the newest of a run of moves: how many moves the row stands for. */
+  moves?: number;
 }
 
 /** What list-changes answers: the changes and an optional note ("older changes are not kept"). */
@@ -175,6 +177,8 @@ function whoOf(change: EveryoneChange): string {
 
 /** Undoing an undo is a redo: "Undo: Undo: 4 damage" reads "Redo: 4 damage". */
 function summaryOf(change: EveryoneChange): string {
+  const name = change.moves && change.moves > 1 ? tokenMoveOf(change) : null;
+  if (name !== null) return `${name} moved ${change.moves} times`;
   const twice = /^Undo:\s*Undo:\s*/;
   return twice.test(change.summary) ? `Redo: ${change.summary.replace(twice, '')}` : change.summary;
 }
@@ -205,6 +209,49 @@ export function filterChanges(
     return changes.filter(c => (c.kind === 'human' || isPersonUndo(c)) && whoOf(c) === name);
   }
   return [...changes];
+}
+
+const MOVED_SUFFIX = ' moved';
+
+/**
+ * A person's move of one token (the bridge words it "<token> moved": only x and y changed), as
+ * the name of what moved; null for any other change.
+ */
+function tokenMoveOf(c: EveryoneChange): string | null {
+  if (c.kind !== 'human' || c.undone || c.lines.length !== 1) return null;
+  const line = c.lines[0] ?? '';
+  if (!line.endsWith(MOVED_SUFFIX) || c.summary !== line) return null;
+  return line.slice(0, -MOVED_SUFFIX.length);
+}
+
+/**
+ * Folds a run of moves of the same token by the same person into one row, the newest one, with
+ * `moves` set: a drag across the map is dozens of moves and drowned the real changes (David,
+ * 2026-10-29). The list is newest first; any other change in between ends a run.
+ */
+export function foldTokenMoves(changes: readonly EveryoneChange[]): EveryoneChange[] {
+  const out: EveryoneChange[] = [];
+  let run: { head: EveryoneChange; key: string; count: number } | null = null;
+  const flush = (): void => {
+    if (run && run.count > 1) {
+      const i = out.indexOf(run.head);
+      out[i] = { ...run.head, moves: run.count };
+    }
+    run = null;
+  };
+  for (const c of changes) {
+    const name = tokenMoveOf(c);
+    const key = name === null ? null : `${c.by}\u0000${c.things[0]?.uuid ?? name}`;
+    if (run && key !== null && run.key === key) {
+      run.count += 1;
+      continue;
+    }
+    flush();
+    out.push(c);
+    if (key !== null) run = { head: c, key, count: 1 };
+  }
+  flush();
+  return out;
 }
 
 /** The filter to use for a list: the chosen one while it still exists, else all. */

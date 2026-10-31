@@ -693,3 +693,34 @@ test('the Everyone tab picks up a change made in Foundry without a click or a re
   moved = true;
   await expect(c.getByText('Moved Brenna')).toBeVisible({ timeout: 10_000 });
 });
+
+test('a run of token moves is one row, other changes stay as they are', async ({ page }) => {
+  const move = (id: string, by = 'Brenna'): Record<string, unknown> =>
+    human(id, {
+      by,
+      summary: 'Ogre moved',
+      lines: ['Ogre moved'],
+      things: [{ uuid: 'Token.t1', name: 'Ogre' }],
+    });
+  await setup(page, {
+    everyone: () => ({
+      changes: [
+        move('m1'),
+        move('m2'),
+        move('m3'),
+        human('h1', { summary: 'Brenna HP 13 to 7' }),
+        move('m4'),
+        move('m5', 'Aldric'),
+      ],
+      note: '',
+    }),
+  });
+  const c = await load(page);
+  await c.getByRole('button', { name: 'Everyone' }).click();
+  await expect(c.locator('.change-entry .change-summary')).toHaveText([
+    'Ogre moved 3 times',
+    'Brenna HP 13 to 7',
+    'Ogre moved',
+    'Ogre moved',
+  ]);
+});

@@ -13,6 +13,7 @@ import {
   filterChanges,
   filterOptions,
   firstStage,
+  foldTokenMoves,
   needsDestructive,
   nextStep,
   obsidianChangePath,
@@ -411,6 +412,46 @@ describe('readUndoPlan', () => {
     expect(flag('true')).toBe(false);
     expect(flag(1)).toBe(false);
     expect(readUndoPlan({ planId: 'p', requires: 'x' })?.requires.confirmDestructive).toBe(false);
+  });
+});
+
+describe('foldTokenMoves', () => {
+  const move = (id: string, by = 'Zed', uuid = 'Token.a'): EveryoneChange =>
+    human(id, by, {
+      summary: 'Ogre moved',
+      lines: ['Ogre moved'],
+      things: [{ uuid, name: 'Ogre' }],
+    });
+
+  it('folds a run of the same token by the same person into the newest', () => {
+    const out = foldTokenMoves([move('m1'), move('m2'), move('m3')]);
+    expect(out.map(c => c.id)).toEqual(['m1']);
+    expect(out[0]?.moves).toBe(3);
+    expect(rowView(out[0], out).summary).toBe('Ogre moved 3 times');
+  });
+
+  it('keeps a single move, other tokens, other people and real changes apart', () => {
+    const real = human('h', 'Zed');
+    const out = foldTokenMoves([
+      move('a'),
+      move('b', 'anna'),
+      move('c', 'anna', 'Token.b'),
+      real,
+      move('d'),
+      move('e'),
+    ]);
+    expect(out.map(c => c.id)).toEqual(['a', 'b', 'c', 'h', 'd']);
+    expect(out.map(c => c.moves)).toEqual([undefined, undefined, undefined, undefined, 2]);
+  });
+
+  it('never folds an AI change or an undone move', () => {
+    const out = foldTokenMoves([
+      ai('x', { summary: 'Ogre moved', lines: ['Ogre moved'] }),
+      ai('y', { summary: 'Ogre moved', lines: ['Ogre moved'] }),
+      move('u1'),
+      { ...move('u2'), undone: true },
+    ]);
+    expect(out).toHaveLength(4);
   });
 });
 

@@ -899,6 +899,18 @@ function renderCombatActions() {
 // Event feed (newest on top)
 // ---------------------------------------------------------------------------
 
+/** The chip of an event: a gm-change reads as the feature behind it ("actor change"). */
+function eventChip(ev) {
+  if (ev.eventType !== 'gm-change') return ev.eventType;
+  const feature = ev.details && typeof ev.details.feature === 'string' ? ev.details.feature : '';
+  return (
+    feature
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, ' ')
+      .trim() || 'change'
+  );
+}
+
 /** A roll event's full breakdown for the GM, else the event's own description. */
 function gmEventText(ev) {
   const breakdown = ev.details && ev.details.breakdown;
@@ -922,7 +934,7 @@ function addEvents(events) {
     node.innerHTML = `
       <div class="event-desc">${escapeHtml(gmEventText(ev))}</div>
       <div class="event-meta">
-        <span class="event-type">${escapeHtml(ev.eventType)}</span>
+        <span class="event-type">${escapeHtml(eventChip(ev))}</span>
         <span>${time}</span>
       </div>`;
     els.feedBody.insertBefore(node, els.feedBody.firstChild);

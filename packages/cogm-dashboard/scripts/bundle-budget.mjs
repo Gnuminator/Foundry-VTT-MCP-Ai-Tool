@@ -38,6 +38,9 @@ import { gzipSync } from 'node:zlib';
 // 150 on 2026-10-30: the one live switch (livePlay, liveSwitches, TurnOnNote, During and
 // GmActionsSwitch wiring, which the entry carries) took the first load to 149.2 KB; main alone was
 // 147.3 KB. Handouts went 3.0 to 3.1 KB with the switch note, so its limit is 4.
+// 150 kept on 2026-10-31 (the build had reached 150.0 KB): the Pre-flight drawer (PreflightDrawer)
+// and the Radix dropdown of the Advanced menu (AdvancedMenuImpl) moved to their own chunks and the
+// first load measured 145.1 KB, 4.9 KB of room. Not raised.
 export const FIRST_LOAD_LIMIT_KB = 150;
 
 /**
@@ -46,12 +49,14 @@ export const FIRST_LOAD_LIMIT_KB = 150;
  * percent, rounded up). Measured 2026-10-16.
  */
 export const LAZY_LIMITS_KB = {
+  AdvancedMenuImpl: 7, // 5.7 KB (the Radix dropdown menu), measured 2026-10-31
   Handouts: 4, // 3.1 KB with the live-switch note, measured 2026-10-30 (was 2.2 KB)
   InitiativeRibbon: 2, // 1.8 KB with portraits and the pan click (was 1.6 KB), measured 2026-10-28
   ModuleDiagnostics: 1, // 0.8 KB
   PaperSync: 6, // 5.1 KB, measured 2026-10-23
   Party: 4, // 3.0 KB
   PlayerLinks: 2, // 1.2 KB
+  PreflightDrawer: 4, // 3.3 KB, measured 2026-10-31
   Prep: 4, // 3.2 KB
   RecentChanges: 7, // 5.6 KB, measured 2026-10-17
   Tarokka: 4, // 2.8 KB

@@ -592,6 +592,111 @@ describe('buildActions', () => {
     ]);
   });
 
+  describe('dependent deletes from another browser, own records and segments', () => {
+    const dependentsOf = (...uuids: string[]): Record<string, unknown> => ({
+      flags: { dnd5e: { dependents: uuids.map(uuid => ({ uuid })) } },
+    });
+    const aiItem = (): ChangeRecord =>
+      rec({
+        actionId: 'bridge',
+        changeId: 'chg-i',
+        changeMode: 'apply',
+        op: 'delete',
+        documentName: 'Item',
+        uuid: 'Actor.a2.Item.i1',
+        rootUuid: 'Actor.a2',
+        rootName: 'Count Dorn',
+        name: 'Hold Person',
+        data: { name: 'Hold Person' },
+      });
+    const concentration = (t: number): ChangeRecord =>
+      rec({
+        actionId: 'bridge',
+        t,
+        op: 'delete',
+        documentName: 'ActiveEffect',
+        uuid: 'Actor.a2.ActiveEffect.conc',
+        parentUuid: 'Actor.a2',
+        rootUuid: 'Actor.a2',
+        rootName: 'Count Dorn',
+        name: 'Concentrating: Hold Person',
+        data: {
+          statuses: ['concentrating'],
+          origin: 'Actor.a2.Item.i1',
+          ...dependentsOf('Actor.a1.ActiveEffect.held'),
+        },
+      });
+    const held = (t: number): ChangeRecord =>
+      rec({
+        actionId: 'other-browser',
+        t,
+        op: 'delete',
+        documentName: 'ActiveEffect',
+        uuid: 'Actor.a1.ActiveEffect.held',
+        parentUuid: 'Actor.a1',
+        name: 'Hold Person',
+      });
+
+    it("ties foreign dependents through the group's own concentration delete after an AI item delete", () => {
+      const ai = aiItem();
+      const conc = concentration(ai.t + 200);
+      const dep = held(ai.t + 5000);
+      const [action] = buildActions([ai, conc, dep]);
+      expect(action.followUps).toEqual(expect.arrayContaining([dep]));
+    });
+
+    it("ties nothing through the group's own concentration delete from before the first AI source", () => {
+      const ai = aiItem();
+      const conc = concentration(ai.t - 3000);
+      const dep = held(ai.t + 5000);
+      const actions = buildActions([conc, ai, dep]);
+      // It stays the other browser's own action, not filed into the group.
+      expect(actions.find(a => a.records.includes(dep))?.actionId).toBe('other-browser');
+    });
+
+    it("ties nothing through the group's own concentration delete from before the first AI item delete, even after an AI effect delete", () => {
+      const effect = rec({
+        actionId: 'bridge',
+        changeId: 'chg-e',
+        changeMode: 'apply',
+        op: 'delete',
+        documentName: 'ActiveEffect',
+        uuid: 'Actor.a2.ActiveEffect.other',
+        rootUuid: 'Actor.a2',
+        data: { name: 'Other' },
+      });
+      const conc = concentration(effect.t + 1000);
+      const item = { ...aiItem(), t: effect.t + 2000 };
+      const dep = held(effect.t + 5000);
+      const actions = buildActions([effect, conc, item, dep]);
+      expect(actions.find(a => a.records.includes(dep))?.actionId).toBe('other-browser');
+    });
+
+    it('files a foreign dependent named by two AI changes of one group by the time it arrived', () => {
+      const ai = (changeId: string, t: number, id: string): ChangeRecord =>
+        rec({
+          actionId: 'bridge',
+          changeId,
+          changeMode: 'apply',
+          t,
+          op: 'delete',
+          documentName: 'ActiveEffect',
+          uuid: `Actor.a2.ActiveEffect.${id}`,
+          rootUuid: 'Actor.a2',
+          data: dependentsOf('Actor.a1.ActiveEffect.held'),
+        });
+      const ai1 = ai('chg-1', NOW, 'e1');
+      const ai2 = ai('chg-2', NOW + 20_000, 'e2');
+      // Both name the same dependent: one that landed between the changes belongs to the first.
+      const between = held(NOW + 5000);
+      const actions = buildActions([ai1, ai2, between]).filter(a => a.changeId);
+      expect(actions.map(a => [a.changeId, a.followUps])).toEqual([
+        ['chg-1', [between]],
+        ['chg-2', []],
+      ]);
+    });
+  });
+
   it('hands the planner only the follow-ups on other things, and reads the dependents link from sources only', () => {
     const dependentsOf = (...uuids: string[]): Record<string, unknown> => ({
       flags: { dnd5e: { dependents: uuids.map(uuid => ({ uuid })) } },

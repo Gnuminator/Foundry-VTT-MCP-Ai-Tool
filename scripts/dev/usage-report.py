@@ -12,7 +12,7 @@ Cost analysis (this repo's project folder only, main thread and subagents apart,
 """
 import json, os, sys, glob, collections, statistics, datetime
 
-ROOT = os.path.expanduser(r"~\.claude\projects")
+ROOT = os.path.join(os.path.expanduser("~"), ".claude", "projects")
 _VAL = ("--json", "--since", "--project", "--reread")
 _A = sys.argv[1:]
 _POS = [a for i, a in enumerate(_A) if not a.startswith("--") and not (i and _A[i - 1] in _VAL)]
@@ -57,7 +57,7 @@ def advisor_cost(u, model):
     """The advisor's own passes (type "advisor_message"), which the top-level usage does not include."""
     if not isinstance(u.get("iterations"), list):
         return 0.0
-    return sum(cost(i, i.get("model") or model) for i in u["iterations"]
+    return sum(cost(i, i.get("model") or "opus") for i in u["iterations"]
                if isinstance(i, dict) and i.get("type") == "advisor_message")
 
 def parts(u, model):

@@ -223,7 +223,7 @@ describe('FoundryDataAccess — useItem', () => {
     // The world is reinstalled before each test, so this needs no restore.
     const settings = (game as any).settings ?? ((game as any).settings = {});
     const original = settings.get?.bind(settings);
-    settings.get = (ns: string, key: string) =>
+    settings.get = (ns: string, key: string): unknown =>
       ns === 'core' && key === 'noCanvas' ? true : original?.(ns, key);
   }
 

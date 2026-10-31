@@ -186,6 +186,9 @@ test('loads the AI changes with their state, details and Undo where it can be', 
   await expect(rows.nth(2)).toHaveClass(/state-undone/);
   await expect(rows.nth(0).locator('.change-meta')).toContainText('by Danni');
   await expect(rows.nth(0).locator('.change-state')).toHaveText('destructive');
+  // The feature reads in words, not as its id.
+  await expect(rows.nth(0).locator('.change-meta')).toContainText('actor change');
+  await expect(rows.nth(0).locator('.change-meta')).not.toContainText('actor-change');
   // Undo only on the rows that can be undone.
   await expect(rows.nth(0).getByRole('button', { name: /^Undo/ })).toBeVisible();
   await expect(rows.nth(1).getByRole('button', { name: /^Undo/ })).toHaveCount(0);
@@ -698,8 +701,8 @@ test('a run of token moves is one row, other changes stay as they are', async ({
   const move = (id: string, by = 'Brenna'): Record<string, unknown> =>
     human(id, {
       by,
-      summary: 'Ogre moved',
-      lines: ['Ogre moved'],
+      summary: 'Token "Ogre" moved',
+      lines: ['Token "Ogre" moved'],
       things: [{ uuid: 'Token.t1', name: 'Ogre' }],
     });
   await setup(page, {
@@ -718,9 +721,13 @@ test('a run of token moves is one row, other changes stay as they are', async ({
   const c = await load(page);
   await c.getByRole('button', { name: 'Everyone' }).click();
   await expect(c.locator('.change-entry .change-summary')).toHaveText([
-    'Ogre moved 3 times',
+    'Token "Ogre" moved 3 times',
     'Brenna HP 13 to 7',
-    'Ogre moved',
-    'Ogre moved',
+    'Token "Ogre" moved',
+    'Token "Ogre" moved',
   ]);
+  // The folded row undoes only its newest move, and its button says so.
+  await expect(
+    c.getByRole('button', { name: 'Undo the latest move: Token "Ogre" moved' }).first()
+  ).toBeVisible();
 });

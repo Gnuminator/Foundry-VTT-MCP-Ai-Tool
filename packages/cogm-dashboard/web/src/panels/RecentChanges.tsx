@@ -49,6 +49,7 @@ import {
   type UndoScope,
   type UndoStage,
 } from '../lib/changes';
+import { gmChangeLabel } from '../lib/feed';
 import { failCode, useGuardedTools, type GuardedTools } from '../lib/guarded';
 import { CHANGES_KEY, useObsidianFileUrl } from '../lib/stream';
 import { usage } from '../lib/usage';
@@ -136,7 +137,7 @@ function AiRow({
       </div>
       <div className="change-meta">
         <span className="change-state">{state}</span>
-        <span>{change.feature}</span>
+        <span>{gmChangeLabel(change.feature)}</span>
         <span>{change.target}</span>
         <span>{timeText(change.appliedAt)}</span>
         {change.requestedBy && <span>by {change.requestedBy}</span>}
@@ -165,7 +166,7 @@ function EveryoneRow({
             <Button
               size="sm"
               data-track="dash.changes.everyone-undo"
-              aria-label={`Undo: ${row.summary}`}
+              aria-label={row.undoLabel}
               onClick={() => onUndo(row.id)}
             >
               Undo

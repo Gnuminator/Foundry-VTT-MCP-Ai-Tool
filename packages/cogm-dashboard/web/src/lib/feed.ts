@@ -146,8 +146,8 @@ export function severityClass(eventType: string): string {
 }
 
 /**
- * The chip of a gm-change event: the feature that made it in words ("actor change", "page
- * reveal"), else "change"; the line beside it says what changed and on whom.
+ * A feature id in words ("actor change", "page reveal"), else "change": the chip of a gm-change
+ * event, whose line says what changed and on whom, and the feature on an AI row of Recent Changes.
  */
 export function gmChangeLabel(feature?: string): string {
   const words = (feature ?? '')

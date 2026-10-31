@@ -418,8 +418,8 @@ describe('readUndoPlan', () => {
 describe('foldTokenMoves', () => {
   const move = (id: string, by = 'Zed', uuid = 'Token.a'): EveryoneChange =>
     human(id, by, {
-      summary: 'Ogre moved',
-      lines: ['Ogre moved'],
+      summary: 'Token "Ogre" moved',
+      lines: ['Token "Ogre" moved'],
       things: [{ uuid, name: 'Ogre' }],
     });
 
@@ -427,7 +427,7 @@ describe('foldTokenMoves', () => {
     const out = foldTokenMoves([move('m1'), move('m2'), move('m3')]);
     expect(out.map(c => c.id)).toEqual(['m1']);
     expect(out[0]?.moves).toBe(3);
-    expect(rowView(out[0], out).summary).toBe('Ogre moved 3 times');
+    expect(rowView(out[0], out).summary).toBe('Token "Ogre" moved 3 times');
   });
 
   it('keeps a single move, other tokens, other people and real changes apart', () => {
@@ -446,8 +446,8 @@ describe('foldTokenMoves', () => {
 
   it('never folds an AI change or an undone move', () => {
     const out = foldTokenMoves([
-      ai('x', { summary: 'Ogre moved', lines: ['Ogre moved'] }),
-      ai('y', { summary: 'Ogre moved', lines: ['Ogre moved'] }),
+      ai('x', { summary: 'Token "Ogre" moved', lines: ['Token "Ogre" moved'] }),
+      ai('y', { summary: 'Token "Ogre" moved', lines: ['Token "Ogre" moved'] }),
       move('u1'),
       { ...move('u2'), undone: true },
     ]);

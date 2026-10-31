@@ -310,15 +310,20 @@ export interface RowView {
   undoneText: string;
   redoId: string | null;
   thing: string;
+  /** The Undo button's name: a folded run of moves undoes only the newest, and says so. */
+  undoLabel: string;
 }
 
 export function rowView(change: EveryoneChange, all: readonly EveryoneChange[]): RowView {
   const redo = redoTarget(change, all);
+  const folded = change.moves !== undefined && change.moves > 1;
+  const summary = summaryOf(change);
   return {
+    undoLabel: folded ? `Undo the latest move: ${change.summary}` : `Undo: ${summary}`,
     id: change.id,
     who: whoOf(change),
     at: change.at,
-    summary: summaryOf(change),
+    summary,
     lines: change.lines,
     canUndo: change.canUndo && !change.undone,
     ownData: change.ownData,

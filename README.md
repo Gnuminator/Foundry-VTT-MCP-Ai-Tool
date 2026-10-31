@@ -84,11 +84,11 @@ currently shaped around a Curse of Strahd campaign.
 
 A live session control surface that runs in a browser tab on a second screen.
 
-![The During screen: the combat tracker as an initiative ribbon with portraits and a turn-order strip, the live feed and the party card](docs/images/cogm/overview.png)
+![The During screen: the combat tracker as an initiative ribbon with portraits and a turn-order strip with three creatures picked, the party card and Recent Changes](docs/images/cogm/overview.png)
 
 Before a session the page opens on Pre-flight and Prep; the same page runs the session and writes it up afterwards:
 
-![The Before screen: the Pre-flight checks with Turn on for tonight, and the Prep summary of the last session](docs/images/cogm/before.png)
+![The Before screen: the Pre-flight checks reading Ready for the session with live play switched on for tonight, and the Prep summary of the last session](docs/images/cogm/before.png)
 
 - **Live combat tracker:** initiative order, current turn, HP bars, conditions and death saves, in
   real time, with a ribbon of portraits for who is up and who is next (click one to pan Foundry to
@@ -105,7 +105,7 @@ Before a session the page opens on Pre-flight and Prep; the same page runs the s
   `/legacy/`, not yet on the page at `/`. This uses the paid Anthropic API and only runs when an
   `ANTHROPIC_API_KEY` is set; everything else works without it.
 
-![The turn-order strip with two combatants picked and the Damage / Heal, Condition, Clear and End combat buttons](docs/images/cogm/combat-control.png)
+![The turn-order strip with three creatures picked and the Damage / Heal form open: amount 14, necrotic, and a Deal 14 necrotic damage to 3 tokens button](docs/images/cogm/combat-control.png)
 
 **Damage and conditions from the dashboard:** with **GM Actions** on (Start session turns them on)
 (both off by default), select combatants in the turn-order strip and **Damage / Heal**
@@ -113,12 +113,12 @@ opens a small form that applies at once (with Undo) and **Condition** opens the 
 the plan ready for them; you confirm it. The strip can also start and
 end a fight. Turns, initiative and saving throws stay in Foundry.
 
-![The Tool Runner drawer open on plan-actor-change, with its form fields and Pick… buttons](docs/images/cogm/tool-runner.png)
+![The Tool Runner drawer open on plan-actor-change, filled in for 14 necrotic damage to Wolf 1, Wolf 2 and Vampire, with Pick… buttons and a Run button](docs/images/cogm/tool-runner.png)
 
 **Tool runner:** every bridge tool behind a searchable, categorized form. Every parameter that names
 something (an actor, a token, a journal page, a plan) has **Pick…**, a list of what exists now.
 
-![The Destructive action window for ending a combat, with its I understand box and the Cancel and Run destructive action buttons](docs/images/cogm/confirm.png)
+![The Confirm action window for the planned damage: what each of the three creatures takes and its new HP, with Cancel and Confirm buttons](docs/images/cogm/confirm.png)
 
 **Safe by default:** watching is always read-only; game-changing actions stay off until you flip the
 **GM Actions** switch; every write asks for confirmation, a planned change shows its diff, and

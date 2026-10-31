@@ -3,11 +3,16 @@
 A live **GM dashboard** that runs in a browser next to Foundry VTT. It watches the game as it
 happens and lets you run parts of it from the page.
 
-![The During screen: the combat tracker as an initiative ribbon with portraits and a turn-order strip, the live feed and the party card](../images/cogm/overview.png)
+![The During screen: the combat tracker as an initiative ribbon with portraits and a turn-order strip with three creatures picked, the party card and Recent Changes](../images/cogm/overview.png)
+
+The **Live** screen (the header's "Try the new live screen") puts the turn order, conditions, the
+next handout, Party and what just happened on one page:
+
+![Live screen A: the initiative cards with portraits and HP, the condition picker, Party, Handouts and What just happened](../images/cogm/live-screen.png)
 
 Before a session the page opens on **Before**, with Pre-flight and Prep:
 
-![The Before screen: the Pre-flight checks with Turn on for tonight, and the Prep summary of the last session](../images/cogm/before.png)
+![The Before screen: the Pre-flight checks reading Ready for the session with live play switched on for tonight, and the Prep summary of the last session](../images/cogm/before.png)
 
 ---
 
@@ -93,7 +98,7 @@ Not on the page at `/` yet. It is on the old dashboard at `/legacy/`, and needs 
 
 ### Damage and conditions on several creatures at once
 
-![The turn-order strip with two combatants picked and the Damage / Heal, Condition, Clear and End combat buttons](../images/cogm/combat-control.png)
+![The turn-order strip with three creatures picked and the Damage / Heal form open: amount 14, necrotic, and a Deal 14 necrotic damage to 3 tokens button](../images/cogm/combat-control.png)
 
 - **Click combatants in the During view's turn-order strip to multi-select** them.
 - **Damage / Heal** opens a small form (amount, damage type chips, Damage or Heal) that applies at
@@ -107,7 +112,7 @@ Not on the page at `/` yet. It is on the old dashboard at `/legacy/`, and needs 
 
 ### Do (almost) anything the bridge can do
 
-![The Tool Runner drawer open on plan-actor-change, with its form fields and Pick… buttons](../images/cogm/tool-runner.png)
+![The Tool Runner drawer open on plan-actor-change, filled in for 14 necrotic damage to Wolf 1, Wolf 2 and Vampire, with Pick… buttons and a Run button](../images/cogm/tool-runner.png)
 
 - A built-in **Tool Runner** exposes _every_ Foundry MCP tool behind a simple form: spawn NPCs and
   monsters from compendiums, set the scene's mood/lighting, create quest journals, drop loot, manage
@@ -116,7 +121,7 @@ Not on the page at `/` yet. It is on the old dashboard at `/legacy/`, and needs 
 
 ### Safe by default
 
-![The Destructive action window for ending a combat, with its I understand box and the Cancel and Run destructive action buttons](../images/cogm/confirm.png)
+![The Confirm action window for the planned damage: what each of the three creatures takes and its new HP, with Cancel and Confirm buttons](../images/cogm/confirm.png)
 
 - Watching the game is **always read-only**.
 - Game-changing actions stay off until you flip the **GM Actions** switch (or click **Turn on

@@ -162,7 +162,7 @@ export class LivePlayTools {
       {
         name: 'plan-actor-change',
         description:
-          'Plan damage, healing, temp HP, a condition or a resource change for one or more tokens or actors; apply it with apply-planned-change, revert it with undo-change. dnd5e applies resistances, immunities and temp HP; it previews each target ("Wolf 2: 12 fire damage, 6 taken, HP 11 to 5"). If the result says autoApply: true, the GM chose to skip confirming: apply it at once. If the GM\'s request says "go ahead", apply it in the same turn. D&D 5e only. It does not level up characters: that happens on the character sheet.',
+          'Plan damage, healing, temp HP, a condition or a resource change for one or more tokens or actors; apply it with apply-planned-change, revert it with undo-change. dnd5e works out resistances, vulnerabilities, immunities and temp HP; the result previews each target ("Wolf 2: 12 fire damage, 6 taken, HP 11 to 5"). If the result says autoApply: true, the GM chose to skip confirming: apply it at once. If the GM\'s request says "go ahead", apply it in the same turn. D&D 5e only. It does not level up characters: a level-up happens on the character sheet in Foundry, so say that.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -201,7 +201,13 @@ export class LivePlayTools {
               default: true,
             },
             level: { type: 'integer', description: 'condition exhaustion: the level to set.' },
-            rounds: { type: 'integer', description: 'condition: for this many rounds.' },
+            rounds: {
+              type: 'integer',
+              minimum: 1,
+              maximum: 100,
+              description:
+                'condition: lasts this many rounds, then counts as expired (clear-conditions removes it). Omit for until removed. Not for exhaustion.',
+            },
             conditions: {
               type: 'array',
               items: { type: 'string' },

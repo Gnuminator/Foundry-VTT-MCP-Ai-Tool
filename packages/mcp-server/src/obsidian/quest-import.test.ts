@@ -25,6 +25,7 @@ const QUEST = [
   'stakes: The village starves',
   '---',
   '%% GM hint, never imported. %%',
+  '# Top',
   '## Where it stands',
   'The **Sunsword** is in [[Vallaki|the town]].',
   '- Ask Ireena',
@@ -91,6 +92,8 @@ describe('readQuestNote', () => {
     const result = await readQuestNote(vaultDir, WORLD, rel);
     expect(result.html.startsWith('<h1>The Sunsword</h1>\n')).toBe(true);
     expect(result.html.match(/<h1>/g)).toHaveLength(1);
+    // The note's own top-level heading is shown as an h2, below the title.
+    expect(result.html).toContain('<h2>Top</h2>');
     const tricky = await note(
       'Campaigns/w1/Prep/Quests/Tricky.md',
       QUEST.replace('---', '---\ntitle: Tom & <b>Jerry</b>')

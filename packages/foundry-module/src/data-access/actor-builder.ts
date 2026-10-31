@@ -416,7 +416,7 @@ export class ActorBuilderDataAccess {
         status: 'initiated',
         message: `Item use initiated for ${actor.name} using ${item.name}${targetInfo}. ${
           headless && systemId === 'dnd5e'
-            ? 'This GM browser has no canvas, so no dialog was shown: the system defaults were used (the first activity, no upcasting unless a spell level was given) and the attack or damage roll is left to the buttons on the chat card.'
+            ? 'This GM browser has no canvas, so no dialog was shown: the system defaults were used (the first activity, no upcasting unless a spell level was given) and the attack or damage roll is left to the buttons on the chat card. The Attack button reads the targets of whoever clicks it, not the ones named here: target the token in Foundry before clicking Attack.'
             : 'If a dialog appeared in Foundry VTT, the GM should select options and confirm.'
         } The result will appear in chat.`,
         itemName: item.name,

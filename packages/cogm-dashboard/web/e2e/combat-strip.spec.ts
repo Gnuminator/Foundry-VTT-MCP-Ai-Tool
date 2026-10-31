@@ -1313,8 +1313,9 @@ test.describe('when a write or a roll request fails', () => {
     await openDamage(page);
     await page.locator('#damage-apply').dblclick();
     await expect(page.locator('#damage-form')).toHaveCount(0);
+    // The form closes as soon as the plan is made; the apply follows a tick later.
+    await expect.poll(() => calls.filter(c => c.name === 'apply-planned-change').length).toBe(1);
     expect(calls.filter(c => c.name === 'plan-actor-change')).toHaveLength(1);
-    expect(calls.filter(c => c.name === 'apply-planned-change')).toHaveLength(1);
   });
 
   test('Undo on the toast undoes the hit', async ({ page }) => {

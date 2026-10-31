@@ -45,6 +45,12 @@ export const USAGE_CATALOG: readonly UsageCatalogEntry[] = [
     file: 'packages/cogm-dashboard/public/app.js',
   },
   {
+    name: 'dash.changes.ai-only',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/web/src/panels/RecentChanges.tsx',
+  },
+  {
     name: 'dash.changes.everyone-redo',
     kind: 'action',
     surface: 'dashboard',
@@ -465,6 +471,12 @@ export const USAGE_CATALOG: readonly UsageCatalogEntry[] = [
     file: 'packages/cogm-dashboard/public/index.html',
   },
   {
+    name: 'dash.header.try-live',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/web/src/App.tsx',
+  },
+  {
     name: 'dash.header.version-tracker',
     kind: 'action',
     surface: 'dashboard',
@@ -519,6 +531,12 @@ export const USAGE_CATALOG: readonly UsageCatalogEntry[] = [
     file: 'packages/cogm-dashboard/public/app.js',
   },
   {
+    name: 'dash.live.back',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/web/src/components/LiveScreen.tsx',
+  },
+  {
     name: 'dash.live.clear',
     kind: 'action',
     surface: 'dashboard',
@@ -535,6 +553,30 @@ export const USAGE_CATALOG: readonly UsageCatalogEntry[] = [
     kind: 'action',
     surface: 'dashboard',
     file: 'packages/cogm-dashboard/web/src/components/LiveStrip.tsx',
+  },
+  {
+    name: 'dash.live.header-undo',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/web/src/components/LiveScreen.tsx',
+  },
+  {
+    name: 'dash.live.how-do-i',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/web/src/components/LiveScreen.tsx',
+  },
+  {
+    name: 'dash.live.legacy',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/web/src/components/LiveScreen.tsx',
+  },
+  {
+    name: 'dash.live.more',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/web/src/components/LiveScreen.tsx',
   },
   {
     name: 'dash.live.next-turn',

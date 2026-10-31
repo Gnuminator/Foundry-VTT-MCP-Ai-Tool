@@ -710,7 +710,11 @@ async function startBackend(): Promise<void> {
 
             const runCall = async (): Promise<void> => {
               try {
-                const route = toolRouter[name];
+                // Own keys only: a name such as "constructor" must not reach Object.prototype.
+                const route =
+                  typeof name === 'string' && Object.hasOwn(toolRouter, name)
+                    ? toolRouter[name]
+                    : undefined;
                 if (!route) {
                   throw new Error(`Unknown tool: ${name}`);
                 }

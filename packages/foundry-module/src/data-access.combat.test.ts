@@ -635,7 +635,13 @@ describe('FoundryDataAccess — getCombatState: conditions', () => {
     const poisoned = makeEffect({
       name: 'Poisoned',
       statuses: ['poisoned'],
-      duration: { units: 'rounds', value: 2, remaining: 0 },
+      duration: { units: 'rounds', value: 2, remaining: 0, expired: true },
+    });
+    // The round changed (remaining 0) but Foundry has not flagged it: it still applies.
+    const frightened = makeEffect({
+      name: 'Frightened',
+      statuses: ['frightened'],
+      duration: { units: 'rounds', value: 1, remaining: 0, expired: false },
     });
     const blinded = makeEffect({ name: 'Blinded', statuses: ['blinded'] });
     const hours = makeEffect({
@@ -647,7 +653,7 @@ describe('FoundryDataAccess — getCombatState: conditions', () => {
       type: 'character',
       system: hp(10),
       hasPlayerOwner: true,
-      effects: [prone, poisoned, blinded, hours],
+      effects: [prone, poisoned, frightened, blinded, hours],
     });
     world.setCombat({
       turns: [
@@ -659,8 +665,14 @@ describe('FoundryDataAccess — getCombatState: conditions', () => {
     });
 
     const result = await da.getCombatState();
-    expect(result.combatants[0].conditions).toEqual(['Prone', 'Poisoned', 'Blinded', 'Charmed']);
-    expect(result.combatants[0].timed).toEqual({ Prone: 1, Poisoned: 0 });
+    expect(result.combatants[0].conditions).toEqual([
+      'Prone',
+      'Poisoned',
+      'Frightened',
+      'Blinded',
+      'Charmed',
+    ]);
+    expect(result.combatants[0].timed).toEqual({ Prone: 1, Poisoned: 0, Frightened: 1 });
   });
 
   it('excludes disabled effects from conditions', async () => {

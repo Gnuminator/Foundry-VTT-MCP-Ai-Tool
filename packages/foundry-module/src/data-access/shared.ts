@@ -415,11 +415,15 @@ export function actorTimedConditions(actor: Actor | null | undefined): Record<st
       if (typeof name !== 'string') continue;
       const d = effectDuration(e);
       if (d.units !== 'rounds' || d.value === null) continue;
-      const remaining = rec(rec(e).duration).remaining;
-      timed[name] = d.expired
+      const duration = rec(rec(e).duration);
+      // "Remaining" reaches 0 as the round changes, but the effect (default expiry: its owner's
+      // next turn start) still applies until Foundry flags it expired: 0 only for that flag.
+      const ended = duration.expired === true || rec(e).expired === true;
+      const remaining = duration.remaining;
+      timed[name] = ended
         ? 0
         : typeof remaining === 'number'
-          ? Math.max(0, Math.ceil(remaining))
+          ? Math.max(1, Math.ceil(remaining))
           : d.value;
     }
   } catch {

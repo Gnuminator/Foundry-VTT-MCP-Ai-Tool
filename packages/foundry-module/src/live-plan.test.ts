@@ -688,6 +688,55 @@ describe('condition on', () => {
     ).rejects.toThrow('Nothing to change: Wolf: is already Poisoned');
   });
 
+  it('builds a round duration into the main effect only, not the rider', async () => {
+    addActor({ id: 'a1', name: 'Wolf' });
+    const plan = await planLiveChange(
+      hpRequest({ action: 'condition', condition: 'unconscious', rounds: 1 })
+    );
+    expect((plan.ops[0] as any).data.duration).toBeUndefined();
+    expect((plan.ops[1] as any).data.duration).toEqual({ value: 1, units: 'rounds' });
+    expect(plan.targets[0]?.line).toBe('Wolf: Unconscious (for 1 round, adds Prone)');
+  });
+
+  it('says rounds in the plural and keeps a duration the status already has', async () => {
+    addActor({ id: 'a1', name: 'Wolf' });
+    g.CONFIG.ActiveEffect = {
+      documentClass: {
+        fromStatusEffect: (id: string) =>
+          Promise.resolve({
+            toObject: (): object => ({ statuses: [id], duration: { expiry: 'turnEnd' } }),
+          }),
+      },
+    };
+    const plan = await planLiveChange(
+      hpRequest({ action: 'condition', condition: 'poisoned', rounds: 3 })
+    );
+    expect((plan.ops[0] as any).data.duration).toEqual({
+      expiry: 'turnEnd',
+      value: 3,
+      units: 'rounds',
+    });
+    expect(plan.targets[0]?.line).toBe('Wolf: Poisoned (for 3 rounds)');
+  });
+
+  it('refuses rounds on exhaustion and a bad number of rounds', async () => {
+    addActor({ id: 'a1', name: 'Wolf' });
+    await expect(
+      planLiveChange(hpRequest({ action: 'condition', condition: 'exhaustion', rounds: 2 }))
+    ).rejects.toThrow(/leave rounds out/);
+    await expect(
+      planLiveChange(hpRequest({ action: 'condition', condition: 'poisoned', rounds: 0 }))
+    ).rejects.toThrow(/whole number from 1 to 100/);
+  });
+
+  it('ignores rounds when removing a condition', async () => {
+    addActor({ id: 'a1', name: 'Wolf', effects: [effect('e1', 'Poisoned', ['poisoned'])] });
+    const plan = await planLiveChange(
+      hpRequest({ action: 'condition', condition: 'poisoned', active: false, rounds: 5 })
+    );
+    expect(plan.ops.every(o => o.kind === 'delete')).toBe(true);
+  });
+
   it('rejects an unknown condition and a missing one', async () => {
     addActor({ id: 'a1', name: 'Wolf' });
     await expect(

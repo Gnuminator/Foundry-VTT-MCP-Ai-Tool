@@ -534,7 +534,7 @@ Parameters:
 
 ### plan-actor-change
 
-Plan damage, healing, temp HP, a condition or a resource change for one or more tokens or actors; apply it with apply-planned-change, revert it with undo-change. dnd5e works out resistances, vulnerabilities, immunities and temp HP; the result previews each target ("Wolf 2: 12 fire damage, 6 taken, HP 11 to 5"). If the result says autoApply: true, the GM chose to skip confirming: apply it at once. If the GM's request says "go ahead", apply it in the same turn. D&D 5e only. It does not level up characters: a level-up happens on the character sheet in Foundry, so say that.
+Plan damage, healing, temp HP, a condition or a resource change for one or more tokens or actors; apply it with apply-planned-change, revert it with undo-change. dnd5e applies resistances, immunities and temp HP; it previews each target ("Wolf 2: 12 fire damage, 6 taken, HP 11 to 5"). If the result says autoApply: true, the GM chose to skip confirming: apply it at once. If the GM's request says "go ahead", apply it in the same turn. D&D 5e only. It does not level up characters: that happens on the character sheet.
 
 Kind: read-only. Title: Plan damage, healing or conditions.
 
@@ -549,6 +549,7 @@ Parameters:
 - `condition` (string): condition: the id or name (prone, poisoned, exhaustion...).
 - `active` (boolean): condition: false removes it. Default: `true`.
 - `level` (integer): condition exhaustion: the level to set.
+- `rounds` (integer): condition: for this many rounds.
 - `conditions` (array of string): clear-conditions: names to remove (prone...); omit for expired effects only.
 - `resource` (string): resource: "spell3", "pact", a class resource (Ki Points, primary) or an item name.
 - `value` (integer): resource: the new current value (0 to max).

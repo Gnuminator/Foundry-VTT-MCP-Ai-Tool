@@ -60,6 +60,7 @@ const planParams = z.object({
   condition: z.string().min(1).optional(),
   active: z.boolean().optional(),
   level: z.number().int().min(0).optional(),
+  rounds: z.number().int().min(1).max(100).optional(),
   conditions: z.array(z.string().min(1)).optional(),
   resource: z.string().min(1).optional(),
   value: z.number().int().min(0).optional(),
@@ -161,7 +162,7 @@ export class LivePlayTools {
       {
         name: 'plan-actor-change',
         description:
-          'Plan damage, healing, temp HP, a condition or a resource change for one or more tokens or actors; apply it with apply-planned-change, revert it with undo-change. dnd5e works out resistances, vulnerabilities, immunities and temp HP; the result previews each target ("Wolf 2: 12 fire damage, 6 taken, HP 11 to 5"). If the result says autoApply: true, the GM chose to skip confirming: apply it at once. If the GM\'s request says "go ahead", apply it in the same turn. D&D 5e only. It does not level up characters: a level-up happens on the character sheet in Foundry, so say that.',
+          'Plan damage, healing, temp HP, a condition or a resource change for one or more tokens or actors; apply it with apply-planned-change, revert it with undo-change. dnd5e applies resistances, immunities and temp HP; it previews each target ("Wolf 2: 12 fire damage, 6 taken, HP 11 to 5"). If the result says autoApply: true, the GM chose to skip confirming: apply it at once. If the GM\'s request says "go ahead", apply it in the same turn. D&D 5e only. It does not level up characters: that happens on the character sheet.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -200,6 +201,7 @@ export class LivePlayTools {
               default: true,
             },
             level: { type: 'integer', description: 'condition exhaustion: the level to set.' },
+            rounds: { type: 'integer', description: 'condition: for this many rounds.' },
             conditions: {
               type: 'array',
               items: { type: 'string' },

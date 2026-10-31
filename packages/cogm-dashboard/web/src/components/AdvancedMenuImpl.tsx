@@ -1,13 +1,5 @@
 import { DropdownMenu } from 'radix-ui';
-import {
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-  type JSX,
-  type ReactNode,
-} from 'react';
+import { useEffect, useMemo, useRef, useState, type JSX, type ReactNode } from 'react';
 
 import { useEscapeClose } from '../lib/escape';
 import { Button } from '../ui';
@@ -21,11 +13,8 @@ import { MenuPartsContext, type MenuParts } from './AdvancedMenu';
 export function AdvancedMenuImpl({
   children,
   initialOpen,
-  restoreFocus,
 }: {
   children: ReactNode;
-  /** The stand-in button had the focus when this chunk arrived. */
-  restoreFocus: boolean;
   /** The button was clicked while this chunk loaded: open at once. */
   initialOpen: false | 'pointer' | 'keyboard';
 }): JSX.Element {
@@ -35,12 +24,7 @@ export function AdvancedMenuImpl({
   // An entry that opened a panel keeps the focus there; Radix would hand it back to the button.
   const picked = useRef(false);
   const contentRef = useRef<HTMLDivElement>(null);
-  // The stand-in button (AdvancedMenu.tsx) is replaced by the real one as this mounts. If the
-  // stand-in had the focus, it would drop to the page body: put it on the new button.
-  useLayoutEffect(() => {
-    if (restoreFocus) document.getElementById('btn-advanced')?.focus();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- once, as the chunk mounts
-  }, []);
+  // (AdvancedMenu.tsx hands the focus from the stand-in to the real button when it had it.)
   // A click while the chunk loaded opens the menu now, after the button has the focus (a menu that
   // opens while the focus is on the page body is closed again by a modal drawer behind it). Opened
   // by the keyboard, Radix did not see the key, so the first entry takes the focus here, as it does

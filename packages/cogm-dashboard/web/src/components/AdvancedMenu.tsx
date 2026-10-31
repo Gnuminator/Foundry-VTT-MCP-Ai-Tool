@@ -7,7 +7,6 @@ import {
   useContext,
   startTransition,
   useEffect,
-  useRef,
   useState,
   type JSX,
   type ReactElement,
@@ -43,13 +42,7 @@ const Impl = lazy(loadImpl);
 const LOAD_DELAY_MS = 3000;
 
 /** The button that stands in until the menu's chunk has arrived; it looks like the real one. */
-function StandIn({
-  onClick,
-  onFocusChange,
-}: {
-  onClick: (kind: 'pointer' | 'keyboard') => void;
-  onFocusChange: (focused: boolean) => void;
-}): JSX.Element {
+function StandIn({ onClick }: { onClick: (kind: 'pointer' | 'keyboard') => void }): JSX.Element {
   return (
     <div className="advanced" id="advanced">
       <Button
@@ -58,9 +51,6 @@ function StandIn({
         aria-haspopup="menu"
         aria-expanded="false"
         data-state="closed"
-        onFocus={() => onFocusChange(true)}
-        // Moving to another element ends it; losing the button to the swap does not.
-        onBlur={e => e.relatedTarget && onFocusChange(false)}
         // detail is 0 for a click that came from Enter or Space.
         onClick={e => onClick(e.detail === 0 ? 'keyboard' : 'pointer')}
       >
@@ -79,7 +69,6 @@ function StandIn({
 export function AdvancedMenu({ children }: { children: ReactNode }): JSX.Element {
   const [clicked, setClicked] = useState<false | 'pointer' | 'keyboard'>(false);
   const [ready, setReady] = useState(false);
-  const hadFocus = useRef(false);
   useEffect(() => {
     const timer = setTimeout(() => startTransition(() => setReady(true)), LOAD_DELAY_MS);
     return (): void => clearTimeout(timer);
@@ -90,21 +79,41 @@ export function AdvancedMenu({ children }: { children: ReactNode }): JSX.Element
         setClicked(kind);
         startTransition(() => setReady(true));
       }}
-      onFocusChange={focused => {
-        hadFocus.current = focused;
-      }}
     />
   );
-  if (!ready) return standIn;
   return (
-    <MenuGuard fallback={standIn}>
-      <Suspense fallback={standIn}>
-        <Impl initialOpen={clicked} restoreFocus={hadFocus.current}>
-          {children}
-        </Impl>
-      </Suspense>
-    </MenuGuard>
+    <FocusHandover ready={ready}>
+      {ready ? (
+        <MenuGuard fallback={standIn}>
+          <Suspense fallback={standIn}>
+            <Impl initialOpen={clicked}>{children}</Impl>
+          </Suspense>
+        </MenuGuard>
+      ) : (
+        standIn
+      )}
+    </FocusHandover>
   );
+}
+
+/**
+ * Hands the focus from the stand-in to the real button in the commit that swaps them. It asks at
+ * that moment, before React changes the page (getSnapshotBeforeUpdate): only when the stand-in
+ * has the focus then does the new button take it. Focus anywhere else (a docked panel's help
+ * button, say) is left alone.
+ */
+class FocusHandover extends Component<{ ready: boolean; children: ReactNode }> {
+  getSnapshotBeforeUpdate(prev: { ready: boolean }): boolean | null {
+    if (prev.ready === this.props.ready) return null;
+    const active = document.activeElement;
+    return active instanceof HTMLElement && active.id === 'btn-advanced';
+  }
+  override componentDidUpdate(_prev: unknown, _state: unknown, hadFocus: boolean | null): void {
+    if (hadFocus) document.getElementById('btn-advanced')?.focus();
+  }
+  override render(): ReactNode {
+    return this.props.children;
+  }
 }
 
 /**

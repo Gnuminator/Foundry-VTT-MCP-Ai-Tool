@@ -80,6 +80,35 @@ test('the focus stays on the button when the real one replaces the stand-in', as
   await expect(page.locator('#btn-advanced')).toBeFocused();
 });
 
+test('the swap leaves the focus alone when it is not on the stand-in', async ({ page }) => {
+  test.setTimeout(45_000);
+  const chunk = await loadHoldingChunk(page);
+  // Something else has the focus (in the visual run it is a docked panel's help button; here the
+  // moment is not known, so no panel is docked, and the Pre-flight button stands in for it).
+  const help = page.locator('#btn-preflight');
+  await expect(help).toBeVisible();
+  // The stand-in had the focus earlier and lost it: this is what the old flag got wrong.
+  await page.locator('#btn-advanced').focus();
+  await help.focus();
+  await expect(help).toBeFocused();
+  await page
+    .locator('#btn-advanced')
+    .evaluate(el => ((window as unknown as { standIn: Element }).standIn = el));
+  await expect.poll(chunk.hits, { timeout: 10_000 }).toBeGreaterThan(0);
+  chunk.release();
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          document.getElementById('btn-advanced') !==
+          (window as unknown as { standIn: Element }).standIn
+      )
+    )
+    .toBe(true);
+  await expect(help).toBeFocused();
+  await expect(page.locator('#btn-advanced')).not.toBeFocused();
+});
+
 test('a chunk that fails to load leaves the stand-in and the page working', async ({ page }) => {
   const chunk = await loadHoldingChunk(page, true);
   await page.locator('#btn-advanced').click();

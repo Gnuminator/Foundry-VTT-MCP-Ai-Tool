@@ -1,5 +1,6 @@
 import type { DropdownMenu } from 'radix-ui';
 import {
+  Component,
   createContext,
   lazy,
   Suspense,
@@ -96,12 +97,32 @@ export function AdvancedMenu({ children }: { children: ReactNode }): JSX.Element
   );
   if (!ready) return standIn;
   return (
-    <Suspense fallback={standIn}>
-      <Impl initialOpen={clicked} restoreFocus={hadFocus.current}>
-        {children}
-      </Impl>
-    </Suspense>
+    <MenuGuard fallback={standIn}>
+      <Suspense fallback={standIn}>
+        <Impl initialOpen={clicked} restoreFocus={hadFocus.current}>
+          {children}
+        </Impl>
+      </Suspense>
+    </MenuGuard>
   );
+}
+
+/**
+ * Catches a menu chunk that failed to load (the dashboard server was restarted, the network
+ * dropped), so the header does not blank the page: the stand-in button stays, as the rest of the
+ * page works without the menu. Like LazyPanel's guard, it stays failed until a reload.
+ */
+class MenuGuard extends Component<
+  { fallback: ReactNode; children: ReactNode },
+  { failed: boolean }
+> {
+  override state = { failed: false };
+  static getDerivedStateFromError(): { failed: boolean } {
+    return { failed: true };
+  }
+  override render(): ReactNode {
+    return this.state.failed ? this.props.fallback : this.props.children;
+  }
 }
 
 /**

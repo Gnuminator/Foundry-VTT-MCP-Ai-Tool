@@ -72,7 +72,8 @@ export async function run(t) {
     );
     const n = Math.min(await ticks.count(), 2);
     for (let i = 0; i < n; i++) {
-      await humanClick(ticks.nth(i));
+      // The locator skips ticked boxes, so the next unticked one is always the first.
+      await humanClick(ticks.first());
       await t.pause(600);
     }
     await t.pause(1500);

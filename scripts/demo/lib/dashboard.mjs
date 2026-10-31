@@ -216,8 +216,8 @@ export async function runPreflight(page, opts = {}) {
 /** The Prep drawer; resolves once the digest has loaded. */
 export async function openPrep(page, opts = {}) {
   await openDrawer(page, '#btn-prep', '#prep-drawer', opts);
-  // The "Last session" heading shows once the digest has loaded (a loading face has none).
-  await page.locator('#prep-drawer h3.preflight-h', { hasText: 'Last session' }).waitFor();
+  // The "Last session" heading shows while loading too; its list shows once the digest is in.
+  await page.locator('#prep-drawer ul[aria-label="Last session"]').waitFor();
 }
 
 // --- The dashboard's REST API (local mode: every caller is GM) ----------------

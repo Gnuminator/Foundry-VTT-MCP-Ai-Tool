@@ -113,7 +113,11 @@ item is marked done; the board ignores a line on an item with no claim.
     `foo.test.mjs`), and the dashboard e2e specs you touched (after a dashboard build). A change under
     `packages/cogm-dashboard/web/` also runs `usage:catalog:check`, the dashboard build and
     `bundle:budget`; the catalogue check also runs for anything `scripts/usage-catalog.mjs` scans
-    (dashboard `public/`, module `src/`). Screenshots (`dashboard-visual`) are not checked locally:
+    (dashboard `public/`, module `src/`). A change under `packages/cogm-dashboard/web/` or
+    `scripts/test-kit/` also builds the mcp-server and runs `kit.mjs check` (scenarios load, tool
+    names exist). The kit control tests (`dashboard-controls`, `foundry-controls`) run for those and
+    for anything the catalogue scans, so a new control without its skip row fails here and not first
+    on CI. Screenshots (`dashboard-visual`) are not checked locally:
     quick prints a reminder and CI runs them. Nothing
     touched means "nothing to check". It never writes `.git/green-ok`.
   - **Push early, never red (2026-10-31):** at the first milestone (quick checks pass) push the
@@ -135,7 +139,9 @@ item is marked done; the board ignores a line on an item with no claim.
   - **`npm run green -- --cloud`** (about 11 to 15 minutes, `run_in_background`) prints one line
     once CI has finished for the pushed HEAD: use it to wait for CI instead of watching the PR. The
     branch must be pushed (open the PR, a draft is fine, first, so it waits for the PR's own run);
-    it takes no lock and runs nothing locally.
+    it takes no lock and runs nothing locally. A run it starts by dispatch (no PR yet) names its
+    checks `... [dispatch]`; if one of those is red when you open the PR, the gate refuses on it
+    until you rerun it (`gh run rerun <id> --failed`) or push again.
   - **The `pre-push` hook** (`scripts/pre-push.mjs`) runs only the em-dash ratchet (about a second,
     no lock); the lint ratchet and typecheck are CI's job. `SKIP_PREPUSH=1 git push ...` skips it.
   - Dashboard changes still need `visual:baselines`, as below.

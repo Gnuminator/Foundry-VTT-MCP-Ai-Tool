@@ -862,7 +862,9 @@ export const QUICK_SCREENSHOT_NOTE = 'Screenshots are not checked locally; CI da
  * lane skill 2026-10-30). Per touched workspace its typecheck and unit tests; a `shared/` change
  * typechecks every package (they build on it) and tests shared; a changed `*.test.mjs` (or the
  * script next to it) runs under node --test; a changed dashboard e2e spec builds the dashboard and
- * runs only that spec. None of these step names is in HEAVY_STEPS (hence `unit-*`, not `test-*`), so a quick run never takes a
+ * runs only that spec; a change under the dashboard web app or `scripts/test-kit/` also builds the
+ * mcp-server and runs the kit scenario check; that or a usage-catalogue input also runs the kit
+ * control tests (a new control without its skip row). None of these step names is in HEAVY_STEPS (hence `unit-*`, not `test-*`), so a quick run never takes a
  * heavy slot (the e2e spec step keeps the small solo lock the e2e port needs).
  * @param {string[]} files repo-relative paths, forward slashes
  * @returns {Step[]}
@@ -913,6 +915,23 @@ export function quickSteps(files, cwd = process.cwd()) {
   }
   if (webTouched) {
     steps.push({ name: 'bundle-budget', cmd: 'npm', args: ['run', 'bundle:budget', '-w', '@gnuminator/cogm-dashboard'] });
+  }
+  // A new control needs its row (or skip row) in the kit: the control tests fail on an unclassified
+  // catalog entry (CI "Test kit engine tests", npm run kit:test). They read the generated catalog.
+  const kitTouched = files.some(f => f.startsWith('scripts/test-kit/'));
+  if (kitTouched || files.some(f => USAGE_CATALOG_INPUT.test(f))) {
+    steps.push({
+      name: 'kit-controls',
+      cmd: 'node',
+      args: ['--test', 'scripts/test-kit/test/dashboard-controls.test.mjs', 'scripts/test-kit/test/foundry-controls.test.mjs'],
+      env: CI,
+    });
+  }
+  // The kit scenario check (CI "Test kit scenario check"): every scenario loads and names tools that
+  // exist. It reads the built tool catalog of the mcp-server.
+  if (webTouched || kitTouched) {
+    steps.push({ name: 'build-mcp-server', cmd: 'npm', args: ['run', 'build', '-w', '@gnuminator/mcp-server'] });
+    steps.push({ name: 'kit-check', cmd: 'node', args: ['scripts/test-kit/kit.mjs', 'check'] });
   }
   if (specs.length > 0) {
     steps.push({

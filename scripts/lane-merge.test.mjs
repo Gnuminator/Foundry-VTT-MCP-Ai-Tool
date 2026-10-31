@@ -30,6 +30,8 @@ import {
   parseNameStatus,
   parseReviewNote,
   publishTrainNote,
+  refusalBody,
+  refusalCauses,
   readTrain,
   renderTrainNote,
   relaunchFromMain,
@@ -173,7 +175,7 @@ function gate(o = {}) {
       return {
         status: o.drift ?? 0,
         stdout: 'drift output\n',
-        stderr: o.drift ? 'guard failed\n' : '',
+        stderr: o.drift ? '  FAIL bundle budget\nguard failed\n' : '',
       };
     }
     if (key === 'npm run drift:check') {
@@ -925,7 +927,7 @@ test('drift-check failing is reported with the last 30 lines of its output', () 
   const r = gate({ drift: 1 });
   assert.equal(r.code, 1);
   assert.ok(!r.merged);
-  assert.match(r.text, /drift: drift-check failed \(log /);
+  assert.match(r.text, /drift: drift-check failed \(guards: bundle budget\) \(log /);
   assert.ok(r.lines.includes('guard failed'));
 });
 
@@ -2188,6 +2190,85 @@ test('merge train note: --dry-run writes nothing; a refusal writes a refusal eve
   );
   const text = fs.readFileSync(NOTE_FILE(t.vault), 'utf8');
   assert.match(text, /count: 1\n[\s\S]*last-event: refusal\nlast-event-pr: 312\n/);
+  // the reason is in the commit (subject tag and body), never in the note the board parses
+  const commit = t.git.find(a => a[0] === 'commit');
+  assert.match(commit[2], /^Merge train: refusal #312, 1\/4 \[local\]$/);
+  assert.equal(commit[3], '-m');
+  assert.match(commit[4], /^local: the working tree is not clean/);
+  assert.doesNotMatch(text, /working tree/);
+});
+
+test('refusal reasons: one cause tag per failure kind, once each, and a short body', () => {
+  assert.deepEqual(
+    refusalCauses(
+    [
+      'ci: failing: build-test (FAILURE); pending: dashboard-visual (IN_PROGRESS)',
+      'ci: required but not reported: build-test (Node 22)',
+      'ci: no checks reported for this PR yet',
+      'ci: cannot read the required checks from the branch ruleset (gh api failed: x); refusing',
+      'wait-ci: head moved from a to b',
+      'wait-ci: CI failed on abc1234: build-test (FAILURE)',
+      'wait-ci: timed out after 30 minutes; still waiting for x',
+      'wait-ci: gh pr view 5 failed 3 times in a row',
+      'review: no review note for this head',
+      'train: merge train full (4/4): run live:roundtrip',
+      'drift: drift-check failed (guards: mcp-server tests (tool counts, tool sets), lint ratchet) (log x.log); last lines below',
+      'weird line',
+    ],
+    ['mcp-server tests (tool counts, tool sets)', 'lint ratchet']
+    ),
+    [
+      'ci-failing',
+      'ci-pending',
+      'ci-missing',
+      'ci-rules',
+      'wait-ci-head-moved',
+      'wait-ci-failing',
+      'wait-ci-timeout',
+      'wait-ci-other',
+      'review',
+      'train',
+      'drift-mcp-server-tests-tool-counts-tool-sets',
+      'drift-lint-ratchet',
+      'other',
+    ]
+  );
+  assert.deepEqual(refusalCauses(['drift: drift-check failed (log y.log); last lines below']), ['drift']);
+  assert.deepEqual(refusalCauses([]), []);
+  const long = 'ci: failing: ' + 'x'.repeat(400);
+  const body = refusalBody([
+    'review: a\nsecond line\u0007',
+    long,
+    '',
+    'drift: drift-check failed (guards: x) (log C:/tmp/l.log); last lines below',
+  ]).split('\n');
+  assert.equal(body.length, 3);
+  assert.equal(body[0], 'review: a');
+  assert.ok(body[1].length <= 160 && body[1].endsWith('...'));
+  assert.equal(body[2], 'drift: drift-check failed (guards: x); last lines below'); // no temp path
+});
+
+test('refusal reasons: a real vault commit carries the tags in the subject and the lines in the body', () => {
+  const { root, g } = realVault();
+  const vault = path.join(root, 'vault');
+  const warn = publishTrainNote({
+    vault,
+    state: TRAIN_STATE,
+    event: {
+      kind: 'refusal',
+      pr: 649,
+      at: NOTE_NOW,
+      reasons: ['ci: failing: build-test (FAILURE)', 'review: no note for this head'],
+    },
+    run: defaultRun,
+    now: () => new Date(NOTE_NOW),
+  });
+  assert.equal(warn, '');
+  const shown = g(path.join(root, 'remote.git'), 'log', '-1', '--format=%s%n--%n%b', 'main');
+  assert.equal(
+    shown.trim(),
+    'Merge train: refusal #649, 1/4 [ci-failing, review]\n--\nci: failing: build-test (FAILURE)\nreview: no note for this head'
+  );
 });
 
 test('merge train note: --train-reset writes a reset event, and a vault failure only warns', () => {

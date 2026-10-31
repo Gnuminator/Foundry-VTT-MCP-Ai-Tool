@@ -103,7 +103,11 @@ function GmWorkspace({
   foundryOrigin: string;
 }): JSX.Element {
   const viewport = useViewportWidth();
-  const sideBySide = fitsSideBySide(viewport);
+  // Once the panes show, a smaller window (browser zoom, a snapped window, devtools) must not take
+  // the Foundry frame away mid-fight: it only squeezes. A window that opens narrow shows the strip
+  // alone until it is widened.
+  const [sideBySide, setSideBySide] = useState(() => fitsSideBySide(viewport));
+  if (!sideBySide && fitsSideBySide(viewport)) setSideBySide(true);
   const [layout, setLayout] = useState<GmLayout>(loadLayout);
   const [dragging, setDragging] = useState(false);
   const [frameLoaded, setFrameLoaded] = useState(false);
@@ -280,8 +284,9 @@ function GmWorkspace({
             {showBanner ? (
               <div className={styles.banner} role="status">
                 <span>
-                  Foundry is not showing here? It may refuse to open inside this page, or you have
-                  not joined the world yet.
+                  Foundry is not showing here? It may refuse to open inside this page, you have not
+                  joined the world yet, or the module&apos;s &quot;Live window address&quot; is not
+                  this page&apos;s address.
                 </span>
                 <button type="button" className={styles.primary} onClick={openFoundryTab}>
                   Open Foundry in its own tab

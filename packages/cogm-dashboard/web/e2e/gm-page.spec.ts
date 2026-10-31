@@ -33,9 +33,14 @@ async function setup(
   }
 ): Promise<void> {
   await page.setViewportSize({ width: 1700, height: 900 });
+  await fakeApp(page);
+  await page.route('**/api/gm-page', route => route.fulfill(info));
+}
+
+/** The dashboard's routes with a three-creature fight, for any page of the app (the strip window too). */
+async function fakeApp(page: Page): Promise<void> {
   await fakeCommonRoutes(page);
   await fakeTools(page, () => ok({}), { playSession: true });
-  await page.route('**/api/gm-page', route => route.fulfill(info));
   await page.route('**/api/stream**', route =>
     route.fulfill({
       status: 200,
@@ -160,6 +165,47 @@ test('Foundry alone leaves the strip out and offers its own window', async ({ pa
   await page.getByRole('button', { name: 'Foundry alone' }).click();
   await expect(page.locator('#live-strip')).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Open the strip window' })).toBeVisible();
+});
+
+test('the strip window gets the map pick through the GM page, and asks for it when it opens', async ({
+  page,
+}) => {
+  await setup(page);
+  await fakeFoundry(page, ['tk-g1']);
+  await load(page);
+  await expect(goblin(page)).toHaveAttribute('aria-pressed', 'true');
+  await page.getByRole('button', { name: 'Foundry alone' }).click();
+  const popupPromise = page.waitForEvent('popup');
+  await page.getByRole('button', { name: 'Open the strip window' }).click();
+  const popup = await popupPromise;
+  // The new window has no fakes yet: give it the app's routes, then load it again as the strip.
+  await fakeApp(popup);
+  await popup.reload();
+  await expect(popup.getByRole('button', { name: 'Goblin 1', exact: true })).toHaveAttribute(
+    'aria-pressed',
+    'true'
+  );
+  await expect(popup.getByText('Map picks come from the GM page')).toBeVisible();
+});
+
+test('a window that gets smaller keeps the same Foundry frame', async ({ page }) => {
+  await setup(page);
+  await fakeFoundry(page, []);
+  await load(page);
+  const frame = page.locator('iframe[title="Foundry"]');
+  await expect(frame).toBeVisible();
+  await frame.evaluate(el => ((el as HTMLElement).dataset.keep = 'yes'));
+  await page.setViewportSize({ width: 1200, height: 900 });
+  await page.waitForTimeout(200);
+  await expect(page.locator('iframe[title="Foundry"][data-keep="yes"]')).toHaveCount(1);
+  await page.setViewportSize({ width: 1700, height: 900 });
+  await expect(page.locator('iframe[title="Foundry"][data-keep="yes"]')).toHaveCount(1);
+});
+
+test('nobody may frame the GM page, even with the strip query', async ({ page }) => {
+  await setup(page);
+  const res = await page.goto(`/gm?strip=1&token=${GM_TOKEN}`);
+  expect(res?.headers()['content-security-policy']).toBe("frame-ancestors 'none'");
 });
 
 test('a narrow window shows the strip alone and loads no Foundry frame', async ({ page }) => {

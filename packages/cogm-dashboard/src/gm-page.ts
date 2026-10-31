@@ -56,6 +56,10 @@ export function mountGmPage(app: Application, deps: GmPageDeps): void {
       res.redirect(302, gmRedirectTarget(req.originalUrl));
       return;
     }
+    // Nobody frames the GM page, whatever its query says (the live strip's `?strip=1` header, set
+    // earlier for Foundry, would otherwise let Foundry frame a page that frames Foundry).
+    res.setHeader('Content-Security-Policy', "frame-ancestors 'none'");
+    res.setHeader('X-Frame-Options', 'DENY');
     if (!fs.existsSync(deps.reactIndex)) return next();
     res.setHeader('Cache-Control', 'no-cache');
     res.sendFile(deps.reactIndex);

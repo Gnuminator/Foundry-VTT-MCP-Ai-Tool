@@ -110,6 +110,15 @@ describe('GET /api/gm-page', () => {
 });
 
 describe('GET /gm', () => {
+  it('lets nobody frame the page, not even with the strip query', async () => {
+    const port = await start('http://localhost:30091');
+    for (const search of ['', '?strip=1']) {
+      const res = await fetch(`http://127.0.0.1:${port}/gm${search}`);
+      expect(res.headers.get('content-security-policy')).toBe("frame-ancestors 'none'");
+      expect(res.headers.get('x-frame-options')).toBe('DENY');
+    }
+  });
+
   it('redirects /gm/ to /gm, keeping a plain query', async () => {
     const port = await start('');
     const res = await fetch(`http://127.0.0.1:${port}/gm/?token=abc`, { redirect: 'manual' });

@@ -1,5 +1,6 @@
 import { MODULE_ID, TOKEN_DISPOSITIONS } from '../constants.js';
 import { rec } from '../character-sheet-fields.js';
+import { effectDuration } from '../systems/core.js';
 import { viewedScene } from '../viewed-scene.js';
 
 /**
@@ -396,6 +397,35 @@ export function actorConditionNames(actor: Actor | null | undefined): string[] {
   } catch {
     return [];
   }
+}
+
+/**
+ * The rounds left on an actor's timed condition effects, by the same name `actorConditionNames`
+ * gives: whole rounds (0 once the time is up). Only effects with a duration in rounds get a key;
+ * a condition without one is not listed.
+ */
+export function actorTimedConditions(actor: Actor | null | undefined): Record<string, number> {
+  const timed: Record<string, number> = {};
+  if (!actor) return timed;
+  try {
+    const effs = actor.effects?.contents ?? actor.effects ?? [];
+    for (const e of effs) {
+      if ((e.statuses?.size ?? 0) === 0 || e.disabled) continue;
+      const name = e.name || rec(e).label;
+      if (typeof name !== 'string') continue;
+      const d = effectDuration(e);
+      if (d.units !== 'rounds' || d.value === null) continue;
+      const remaining = rec(rec(e).duration).remaining;
+      timed[name] = d.expired
+        ? 0
+        : typeof remaining === 'number'
+          ? Math.max(0, Math.ceil(remaining))
+          : d.value;
+    }
+  } catch {
+    return {};
+  }
+  return timed;
 }
 
 /** A document or data model as its `toJSON()` (plain data, no parent links), else the value. */

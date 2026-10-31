@@ -99,6 +99,8 @@ export interface CombatantSnapshot {
   img: string | null;
   hp: { value: number | null; max: number | null; temp: number } | null;
   conditions: string[];
+  /** Rounds left on the timed conditions, by condition name (0 = the time is up). */
+  timed: Record<string, number>;
   statuses: string[];
   isPC: boolean;
   category: 'pc' | 'enemy' | 'npc';
@@ -278,6 +280,7 @@ export class CombatDataAccess {
       img: cExtra.img || null,
       hp: hp ? { value: hp.value ?? null, max: hp.max ?? null, temp: hp.temp ?? 0 } : null,
       conditions: shared.actorConditionNames(actor),
+      timed: shared.actorTimedConditions(actor),
       statuses: Array.from(actorExtra?.statuses ?? []).filter(
         (s: unknown): s is string => typeof s === 'string'
       ),

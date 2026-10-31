@@ -15,6 +15,7 @@ import { HANDOUTS_FEATURE } from './handouts/service.js';
 import type { ModuleRequestHandler } from './foundry-connector.js';
 import type { Logger } from './logger.js';
 import { TAROKKA_FEATURE } from './tarokka/service.js';
+import type { RepeatGuard } from './repeat-guard.js';
 import type { ToolHandler } from './tool-router.js';
 import type { GuardedChangeTools } from './tools/guarded-changes.js';
 
@@ -64,6 +65,11 @@ export interface ModuleRequestDeps {
    * may not plan it again (the window never offers it); Claude and the dashboard still can.
    */
   tarokkaPositionRevealed: (position: string) => Promise<boolean>;
+  /**
+   * The bridge's repeat guard (repeat-guard.ts): a double click on Undo or on a reveal's Apply in
+   * a Foundry window answers with the first result. Shared with the control channel's call_tool.
+   */
+  repeatGuard?: RepeatGuard;
 }
 
 /**
@@ -87,7 +93,7 @@ export function createModuleRequestHandler(deps: ModuleRequestDeps): ModuleReque
     }
   };
 
-  return async (tool, args, requestedBy) => {
+  const dispatch: ModuleRequestHandler = async (tool, args, requestedBy) => {
     if (!(MODULE_REQUEST_TOOLS as readonly string[]).includes(tool)) {
       throw new Error(`Tool not allowed for module requests: ${tool}`);
     }
@@ -156,6 +162,10 @@ export function createModuleRequestHandler(deps: ModuleRequestDeps): ModuleReque
     if (!route) throw new Error(`Unknown tool: ${tool}`);
     return route(args);
   };
+  const guard = deps.repeatGuard;
+  if (!guard) return dispatch;
+  return (tool, args, requestedBy) =>
+    guard.run(tool, args, requesterLabel(requestedBy), () => dispatch(tool, args, requestedBy));
 }
 
 /**

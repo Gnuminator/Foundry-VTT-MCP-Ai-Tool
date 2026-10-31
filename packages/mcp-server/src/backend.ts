@@ -558,6 +558,7 @@ async function startBackend(): Promise<void> {
   foundryClient.setModuleRequestHandler(
     createModuleRequestHandler({
       toolRouter,
+      repeatGuard,
       guardedChangeTools,
       guardedWrites,
       tarokkaPositionRevealed: async position => {

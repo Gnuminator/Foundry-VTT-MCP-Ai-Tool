@@ -317,18 +317,16 @@ export function useGuardedTools(): GuardedTools {
         }
         const words = options.label ?? toolWords(name);
         const checkHint = `It may have applied; check ${options.checkIn ?? 'Recent Changes'}.`;
-        if (err instanceof ApiError && err.kind === 'timeout') {
-          // The bridge stopped waiting after about 4 minutes; Foundry may still have done it.
-          toast(`✗ ${words} timed out. ${checkHint}`, 'err');
+        // The bridge stopped waiting after about 4 minutes; Foundry may still have done it.
+        const timedOut = err instanceof ApiError && err.kind === 'timeout';
+        if (timedOut) {
           error = `Timed out. ${checkHint}`;
         } else if (mayHaveApplied(err)) {
           const text = error.trim();
           const stop = /[.!?]$/.test(text) ? '' : '.';
           error = `${text}${stop} ${checkHint}`;
-          toast(`✗ ${words}: ${error}`, 'err');
-        } else {
-          toast(`✗ ${words}: ${error}`, 'err');
         }
+        toast(timedOut ? `✗ ${words} timed out. ${checkHint}` : `✗ ${words}: ${error}`, 'err');
         changed();
         return {
           outcome: {

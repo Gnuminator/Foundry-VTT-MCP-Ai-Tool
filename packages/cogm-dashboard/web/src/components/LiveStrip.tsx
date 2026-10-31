@@ -332,17 +332,16 @@ export function LiveStrip(): JSX.Element {
     });
 
   const off = stale || busy;
-  // Writes also wait for the switches (GM Actions, writes, live play), so a click never plans and
-  // asks only to be refused at apply.
-  // Next turn, the conditions and the Damage form are plain gated writes (GM Actions and writes);
-  // only Start / End combat is a live-play write.
+  // Writes wait for their switches, so a click never plans and asks only to be refused at apply.
+  // Damage, conditions and End combat are live-play writes (GM Actions, writes, live play); Next
+  // turn is a plain gated write (`advance-combat-turn`): GM Actions and writes only.
   const plainOff = live.off(ROLL_NEEDS);
-  const writeOff = off || plainOff.length > 0 || !selectable;
-  const endOff = off || liveOff.length > 0 || !selectable;
-  const handoutOff = off || live.off(HANDOUT_NEEDS).length > 0;
+  const writeOff = off || liveOff.length > 0 || !selectable;
+  const nextOff = off || plainOff.length > 0 || !selectable;
   const titleFor = (names: string[]): string | undefined =>
     stale ? 'The bridge is away' : names.length > 0 ? offReason(names) : undefined;
-  const offTitle = titleFor(plainOff);
+  const offTitle = titleFor(liveOff);
+  const handoutOff = off || live.off(HANDOUT_NEEDS).length > 0;
   const rollOff = off || roll.busy || live.off(ROLL_NEEDS).length > 0;
   const ask = (who: Combatant[]): void => {
     if (rollOff) return;
@@ -355,21 +354,21 @@ export function LiveStrip(): JSX.Element {
     <section className={styles['strip']} id="live-strip" aria-label="Live strip">
       <div className={styles['header']}>
         <h2 className={styles['title']}>Live</h2>
-        {combat !== null ? (
+        <span className={styles['meta']} id="live-meta" role="status">
+          {combat !== null ? metaText(combat) : 'No fight.'}
+        </span>
+        {combat !== null && (
           <>
-            <span className={styles['meta']} id="live-meta" role="status">
-              {metaText(combat)}
-            </span>
             <Button
               type="button"
               variant="primary"
               size="sm"
               id="live-next-turn"
               data-track="dash.live.next-turn"
-              aria-disabled={writeOff ? 'true' : undefined}
-              title={offTitle}
+              aria-disabled={nextOff ? 'true' : undefined}
+              title={titleFor(plainOff)}
               onClick={() => {
-                if (!writeOff) void nextTurn();
+                if (!nextOff) void nextTurn();
               }}
             >
               Next turn
@@ -379,19 +378,15 @@ export function LiveStrip(): JSX.Element {
               size="sm"
               id="live-end-combat"
               data-track="dash.live.end-combat"
-              aria-disabled={endOff ? 'true' : undefined}
-              title={titleFor(liveOff)}
+              aria-disabled={writeOff ? 'true' : undefined}
+              title={offTitle}
               onClick={() => {
-                if (!endOff) void endCombat();
+                if (!writeOff) void endCombat();
               }}
             >
               End combat
             </Button>
           </>
-        ) : (
-          <span className={styles['meta']} role="status">
-            No fight.
-          </span>
         )}
         <Button
           type="button"
@@ -478,7 +473,7 @@ export function LiveStrip(): JSX.Element {
                 </Button>
               )}
             </div>
-            {kept.size > 0 && plainOff.length === 0 && (
+            {kept.size > 0 && liveOff.length === 0 && (
               <Suspense fallback={null}>
                 <DamageForm
                   targets={targets}

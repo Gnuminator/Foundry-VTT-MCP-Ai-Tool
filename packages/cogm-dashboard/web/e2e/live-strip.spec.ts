@@ -280,14 +280,32 @@ test('with writes off the Damage form is not offered, and Next turn waits', asyn
   expect(calls.some(c => c.name === 'advance-combat-turn')).toBe(false);
 });
 
-test('with only live play off Next turn and the Damage form still work', async ({ page }) => {
+test('with only live play off Next turn still works; End combat and Damage wait', async ({
+  page,
+}) => {
   const calls = await setup(page, FIGHT, { switchesOff: ['live-play'] });
   await load(page);
   await expect(page.locator('#live-end-combat')).toHaveAttribute('aria-disabled', 'true');
   await page.locator('#live-next-turn').click();
   await expect.poll(() => calls.map(c => c.name)).toContain('advance-combat-turn');
   await page.getByRole('button', { name: 'Goblin 1', exact: true }).click();
-  await expect(page.locator('#damage-form')).toBeVisible();
+  await expect(page.locator('#damage-form')).toHaveCount(0);
+});
+
+test('a double Enter in the amount sends one plan', async ({ page }) => {
+  const calls = await setup(page, FIGHT);
+  await load(page);
+  await page.getByRole('button', { name: 'Goblin 1', exact: true }).click();
+  const amount = page.getByRole('textbox', { name: 'Amount' });
+  await amount.fill('5');
+  // Both keydowns in one task, so the second arrives before the first answer.
+  await amount.evaluate(el => {
+    for (let i = 0; i < 2; i++) {
+      el.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    }
+  });
+  await expect(pickBar(page)).toContainText('pick a creature');
+  expect(calls.filter(c => c.name === 'plan-actor-change')).toHaveLength(1);
 });
 
 test('Next turn that fails says so with a full stop before the hint', async ({ page }) => {

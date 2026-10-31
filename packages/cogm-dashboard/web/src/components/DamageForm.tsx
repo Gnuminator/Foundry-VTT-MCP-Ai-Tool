@@ -43,7 +43,7 @@ export function DamageForm({
   names,
   stale,
   locked = false,
-  once = (work): Promise<void> => work(),
+  once,
   onClose,
 }: {
   /** What the plan targets (token ids). */
@@ -61,6 +61,7 @@ export function DamageForm({
   const [draft, setDraft] = useState<DamageDraft>(() => ({ ...EMPTY_DRAFT, type: readType() }));
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState('');
+  const ownLock = useRef(false);
   const amountRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -79,7 +80,19 @@ export function DamageForm({
 
   const submit = (): void => {
     if (locked || stale || !args) return;
-    void once(async () => {
+    // Without the strip's lock (the combat strip) the form keeps its own.
+    const run =
+      once ??
+      (async (work: () => Promise<void>): Promise<void> => {
+        if (ownLock.current) return;
+        ownLock.current = true;
+        try {
+          await work();
+        } finally {
+          ownLock.current = false;
+        }
+      });
+    void run(async () => {
       setBusy(true);
       let closed = false;
       try {

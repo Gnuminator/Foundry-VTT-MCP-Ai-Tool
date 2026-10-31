@@ -83,7 +83,8 @@ const FAKE_LOCK_SOURCE = `import fs from 'node:fs';\nexport function acquire() {
 /** Is this call the drift run (wrapped in main's heavy-lock copy, or bare)? @param {string} cmd @param {string[]} args */
 const isDriftCall = (cmd, args) =>
   cmd === 'node' &&
-  (args[0] === '--input-type=module' || (/heavy-lock\.mjs$/.test(args[0] ?? '') && args[1] === 'run'));
+  (args[0] === '--input-type=module' ||
+    (/heavy-lock\.mjs$/.test(args[0] ?? '') && args[1] === 'run'));
 
 /**
  * A gate run against fakes. Returns the output lines, the exit code, the calls and the state file.
@@ -544,7 +545,13 @@ test('rollupProblems: check runs and commit statuses, failing, pending and missi
 });
 
 test('rollupProblems: a newer run of the same check outvotes an old failure on the same head', () => {
-  const old = { workflowName: 'CI', name: 'build-test (Node 22)', status: 'COMPLETED', conclusion: 'FAILURE', startedAt: '2026-10-31T07:56:17Z' };
+  const old = {
+    workflowName: 'CI',
+    name: 'build-test (Node 22)',
+    status: 'COMPLETED',
+    conclusion: 'FAILURE',
+    startedAt: '2026-10-31T07:56:17Z',
+  };
   const fresh = { ...old, conclusion: 'SUCCESS', startedAt: '2026-10-31T09:24:42Z' };
   assert.deepEqual(rollupProblems([old, fresh]).failing, []);
   assert.deepEqual(rollupProblems([fresh, old]).failing, []);
@@ -552,7 +559,12 @@ test('rollupProblems: a newer run of the same check outvotes an old failure on t
   assert.deepEqual(rollupProblems([fresh, { ...old, startedAt: '2026-10-31T10:00:00Z' }]).failing, [
     'build-test (Node 22) (FAILURE)',
   ]);
-  const queued = { workflowName: 'CI', name: 'build-test (Node 22)', status: 'QUEUED', conclusion: '' };
+  const queued = {
+    workflowName: 'CI',
+    name: 'build-test (Node 22)',
+    status: 'QUEUED',
+    conclusion: '',
+  };
   assert.deepEqual(rollupProblems([old, fresh, queued]).pending, ['build-test (Node 22) (QUEUED)']);
   // the same check name in another workflow is a different check
   const other = { ...old, workflowName: 'Other' };
@@ -892,7 +904,15 @@ test("H1: drift-check runs from a temp copy of main's script, not the branch's n
   const node = r.calls.find(c => c[0] === 'node');
   assert.match(node[1], /lane-merge-drift-.*heavy-lock\.mjs$/);
   assert.equal(fs.readFileSync(node[1], 'utf8'), FAKE_LOCK_SOURCE, "main's copy of the lock");
-  assert.deepEqual(node.slice(2, 9), ['run', '--label', 'drift-check (merge gate)', '--priority', 'high', '--', 'node']);
+  assert.deepEqual(node.slice(2, 9), [
+    'run',
+    '--label',
+    'drift-check (merge gate)',
+    '--priority',
+    'high',
+    '--',
+    'node',
+  ]);
   assert.equal(node.length, 10);
   const runner = node[9].replace(/^"|"$/g, '');
   assert.equal(node[9], `"${runner}"`, 'the runner path is quoted for the shell');

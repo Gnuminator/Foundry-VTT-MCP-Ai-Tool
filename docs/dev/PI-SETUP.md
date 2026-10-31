@@ -937,7 +937,7 @@ the table and the data differ) joins the world as its GM with the login in
   `WORLD_SWITCHES=0` when the PC copy's values are deliberate.
 - **Owed switches:** before a world gets the switches, the stage writes the marker
   `/etc/foundry-ai-tool/world-<id>.switches-pending`, and removes it once the driver has set and read back
-  every value. A run that stops in between (the driver failed, the connection dropped) leaves the marker,
+  every value. A run that stops in between (the driver failed, the run was killed) leaves the marker,
   and a plain rerun (auto) sets the switches in that world again, even a kept one. The run's own message
   says which command to repeat; for the kit world it is the same command, never `WORLD_SWITCHES=1`.
 - **Giving the switches up:** `WORLD_SWITCHES=0` clears a leftover marker (the line "an old owed-switches
@@ -947,8 +947,9 @@ the table and the data differ) joins the world as its GM with the login in
   ("does not go with a Plan B push-back ... Nothing was changed"); leave `WORLD_SWITCHES` out or use `0`.
 - **Not wanted:** `WORLD_SWITCHES=0`. The stage needs `world-switches.mjs` uploaded first:
   `scp scripts/pi/remote/world-switches.mjs foundry-pi:/root/`, and removes the upload.
-- **The run's log:** like stages 14 and 19, stage 11 writes every line of its output, with a time, to
-  `/var/lib/foundry-import/world-run-<time>.log` (root only; the first line of the output names it). The stage
+- **The run's log:** like stages 14 and 19, stage 11 writes every line it prints, with a time, to
+  `/var/lib/foundry-import/world-run-<time>.log` (root only; the output names it). It holds the stage's own
+  lines, not what the tools it runs print (the driver's lines show only on the screen). The stage
   ignores a dropped SSH connection while Foundry is stopped, so after a drop `tail` that file to see how far
   it got. Read the log, not the old output, before running the stage again.
 

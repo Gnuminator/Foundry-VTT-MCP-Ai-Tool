@@ -25,8 +25,9 @@
 #   in $TOOL_ETC, and a later auto run sets them then even in a kept world. WORLD_SWITCHES=0 gives that up: the
 #   marker is cleared (also when a push-back replaces the world). WORLD_SWITCHES=1 with a Plan B push-back is
 #   refused before anything stops.
-# The run is logged in $IMPORT/world-run-<stamp>.log (root only; every line of output with a time), so a dropped SSH
-# connection, which the stage ignores (trap '' HUP PIPE), leaves the story on the Pi.
+# The run is logged in $IMPORT/world-run-<stamp>.log (root only; every line the stage prints with a time, not the
+# output of the tools it runs, such as the driver), so a dropped SSH connection, which the stage ignores
+# (trap '' HUP PIPE), leaves the story on the Pi.
 # REPLACE_KIT (1 lets the run reset an installed KIT_WORLD that is not a kit copy of WORLD; default 0 refuses it. A kit
 #   copy carries flags.foundry-ai-tool.kitOf = WORLD in its world.json, written by every reset; the Pi's older
 #   strahd-kit counts for WORLD=curse-of-strahd. It lifts only that rule, never the refusal to name curse-of-strahd,

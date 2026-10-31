@@ -54,7 +54,7 @@ const EventRow = memo(function EventRow({
     <div role="listitem" className={`event ${severityClass(event.eventType)}`}>
       <div className="event-desc">{event.text}</div>
       <div className="event-meta">
-        <span className="event-type">{eventLabel(event.eventType)}</span>
+        <span className="event-type">{eventLabel(event.eventType, event.feature)}</span>
         <span>
           <time dateTime={eventIso(event.timestampMs)}>
             {date ? `${date}, ` : ''}

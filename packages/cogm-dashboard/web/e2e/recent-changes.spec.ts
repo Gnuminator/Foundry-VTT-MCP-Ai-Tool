@@ -186,6 +186,9 @@ test('loads the AI changes with their state, details and Undo where it can be', 
   await expect(rows.nth(2)).toHaveClass(/state-undone/);
   await expect(rows.nth(0).locator('.change-meta')).toContainText('by Danni');
   await expect(rows.nth(0).locator('.change-state')).toHaveText('destructive');
+  // The feature reads in words, not as its id.
+  await expect(rows.nth(0).locator('.change-meta')).toContainText('actor change');
+  await expect(rows.nth(0).locator('.change-meta')).not.toContainText('actor-change');
   // Undo only on the rows that can be undone.
   await expect(rows.nth(0).getByRole('button', { name: /^Undo/ })).toBeVisible();
   await expect(rows.nth(1).getByRole('button', { name: /^Undo/ })).toHaveCount(0);
@@ -692,4 +695,40 @@ test('the Everyone tab picks up a change made in Foundry without a click or a re
   // A token moved in Foundry sends no gm-change: only the tab's own reading finds it.
   moved = true;
   await expect(c.getByText('Moved Brenna')).toBeVisible({ timeout: 10_000 });
+});
+
+test('a run of token moves is one row, other changes stay as they are', async ({ page }) => {
+  const move = (id: string, by = 'Brenna'): Record<string, unknown> =>
+    human(id, {
+      by,
+      summary: 'Token "Ogre" moved',
+      lines: ['Token "Ogre" moved'],
+      things: [{ uuid: 'Token.t1', name: 'Ogre' }],
+    });
+  const calls = await setup(page, {
+    everyone: () => ({
+      changes: [
+        move('m1'),
+        move('m2'),
+        move('m3'),
+        human('h1', { summary: 'Brenna HP 13 to 7' }),
+        move('m4'),
+        move('m5', 'Aldric'),
+      ],
+      note: '',
+    }),
+  });
+  const c = await load(page);
+  await c.getByRole('button', { name: 'Everyone' }).click();
+  await expect(c.locator('.change-entry .change-summary')).toHaveText([
+    'Token "Ogre" moved 3 times',
+    'Brenna HP 13 to 7',
+    'Token "Ogre" moved',
+    'Token "Ogre" moved',
+  ]);
+  // The folded row undoes only its newest move, and its button says so.
+  await c.getByRole('button', { name: 'Undo the latest move: Token "Ogre" moved' }).click();
+  await expect
+    .poll(() => callsOf(calls, 'plan-undo-changes').map(x => x.args))
+    .toEqual([{ id: 'm1', scope: 'just-this' }]);
 });

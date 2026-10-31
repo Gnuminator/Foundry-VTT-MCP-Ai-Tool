@@ -110,7 +110,11 @@ item is marked done; the board ignores a line on an item with no claim.
     diffs your branch against `aitool/main` (committed, uncommitted and untracked) and runs the
     shared build, the typecheck and unit tests of each touched package (a `shared/` change
     typechecks every package), the node tests of changed scripts and hooks (`foo.mjs` runs
-    `foo.test.mjs`), and the dashboard e2e specs you touched (after a dashboard build). Nothing
+    `foo.test.mjs`), and the dashboard e2e specs you touched (after a dashboard build). A change under
+    `packages/cogm-dashboard/web/` also runs `usage:catalog:check`, the dashboard build and
+    `bundle:budget`; the catalogue check also runs for anything `scripts/usage-catalog.mjs` scans
+    (dashboard `public/`, module `src/`). Screenshots (`dashboard-visual`) are not checked locally:
+    quick prints a reminder and CI runs them. Nothing
     touched means "nothing to check". It never writes `.git/green-ok`.
   - **Push early, never red (2026-10-31):** at the first milestone (quick checks pass) push the
     branch and open a draft PR, before baselines and review; `gh pr ready` before the gate. Never

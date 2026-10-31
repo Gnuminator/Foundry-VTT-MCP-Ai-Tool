@@ -200,6 +200,10 @@ jobs:
         # 19-join-page-look.sh (backlog join-page-look): background picture and description into world.json with Foundry
         # stopped, hash and webp checks, dry run, snapshot and quiet check required, UNDO, with stand-in systemctl and curl.
         run: node --test scripts/pi/join-page-look.test.mjs
+      - name: Pi stage 20 vault sync check
+        # 20-vault-sync.sh (Obsidian O8) as text: read-only unless SET_TIMEZONE=1, the zone name check, the conflict search. The
+        # stage itself runs with two real Syncthings in a container on the ARM runner (build-test-arm).
+        run: node --test scripts/pi/vault-sync.test.mjs
 
       - name: Pi stage 12 control port check
         # control_port_check in remote/lib.sh (D-095): the bridge's 31414 answers on loopback and nothing listens beyond it.
@@ -585,6 +589,13 @@ jobs:
         env:
           PI_STAGE7_CONTAINER: 1
         run: node --test scripts/pi/stage7-foundry-url.test.mjs
+
+      - name: Pi stage 20 in an ARM64 container
+        # scripts/pi/container-test/stage20-scenarios.sh: stage 20 on Debian 13 ARM64 with two real Syncthings (a note each way, a
+        # forced .sync-conflict file, STRICT, the zone checks, a missing folder).
+        env:
+          PI_STAGE20_CONTAINER: 1
+        run: node --test scripts/pi/vault-sync.test.mjs
 
       - name: Pi stage 16 in an ARM64 container
         # scripts/pi/container-test/stage16-scenarios.sh: stage 16 on Debian 13 ARM64 with stand-ins for systemd, curl and restic

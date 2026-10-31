@@ -344,7 +344,8 @@ scene changes and more. Each line shows its type and the time.
   proficiency = 19", plus the target's AC or DC and the outcome when they are known.
 - Private and blind rolls show a **private roll** chip. Players never see these. Roll requests
   show as **roll request**, and someone dropping to 0 HP shows **down**.
-- `gm-change` lines appear when a guarded change is applied or undone.
+- A line starting "Applied:" or "Undid:" appears when a guarded change is applied or undone. Its
+  chip names what made it, such as **actor change** or **page reveal**.
 
 ### AI commentary
 
@@ -405,7 +406,9 @@ undone here.
 **AI** (the list above) and **Everyone**, which also lists what the players and you did in Foundry
 over the last 7 days, such as hit points, items and tokens. Pick a person in the list above the rows
 to see only their changes. Each row shows who, when, what changed and, under "N line(s)", the
-details. **Undo** works on anyone's change. It first shows what it will put back, and you confirm.
+details. A run of moves of the same token by the same person is one row ("moved 6 times"); its
+**Undo** takes back only the latest move, and Foundry's Changes window still lists each move.
+**Undo** works on anyone's change. It first shows what it will put back, and you confirm.
 If something changed on the same thing since, it says "This is not the latest change to ..." and
 lists those later changes, and you choose **Just this** (keeps the later changes), **Everything
 since** (puts the thing back to how it was before this change) or **Cancel**. Under **Advanced**

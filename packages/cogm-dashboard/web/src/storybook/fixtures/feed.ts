@@ -14,11 +14,18 @@ export function feedLog(events: readonly FeedEvent[]): FeedLog {
   return addFeedEvents(EMPTY_FEED, events);
 }
 
-const ev = (id: string, ms: number, eventType: string, text: string): FeedEvent => ({
+const ev = (
+  id: string,
+  ms: number,
+  eventType: string,
+  text: string,
+  feature?: string
+): FeedEvent => ({
   id,
   timestampMs: ms,
   eventType,
   text,
+  ...(feature ? { feature } : {}),
 });
 
 /** The stream said it has no events yet. */
@@ -52,7 +59,7 @@ const KIND_EVENTS: FeedEvent[] = [
   ev('k12', at(20, 11), 'resource-spent', 'Mira used a level 2 spell slot'),
   ev('k13', at(20, 12), 'death', 'Goblin Archer is down (0 HP)'),
   ev('k14', at(20, 13), 'stabilize', 'Mira is stable'),
-  ev('k15', at(20, 14), 'gm-change', 'Applied: moved the Ogre Brute token'),
+  ev('k15', at(20, 14), 'gm-change', 'Applied: moved the Ogre Brute token', 'token-change'),
   ev('k16', at(20, 15), 'combat-end', 'Combat ended after 4 rounds'),
 ];
 

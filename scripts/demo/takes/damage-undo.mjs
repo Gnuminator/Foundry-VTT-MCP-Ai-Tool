@@ -76,7 +76,7 @@ export async function setup(t) {
   }, TARGETS);
   const dash = await t.dashboard();
   await setGmActions(dash.page, false);
-  await dash.page.locator('#moments [data-moment="during"]').click();
+  await dash.page.locator('#tab-during').click();
   await dash.page
     .locator('#pane-combat .combatant[data-name="Wolf 1"]')
     .waitFor({ timeout: 20000 });

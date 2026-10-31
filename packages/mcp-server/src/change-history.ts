@@ -621,9 +621,10 @@ function fileForeignDependents(groups: Map<string, ChangeRecord[]>): void {
     );
     if (candidates.length === 0) continue;
     const aiRoots: ReadonlySet<string> = new Set(ai.map(r => r.rootUuid));
-    // The group's own unmarked records (a concentration effect dnd5e ended in the bridge's
-    // browser) may be the link between an item and the foreign dependents.
-    const own = group.filter(r => !r.changeId);
+    // The group's own unmarked records from the first AI source on (a concentration effect dnd5e
+    // ended in the bridge's browser) may be the link between an item and the foreign dependents;
+    // one from before it is the person's own action and ties nothing.
+    const own = group.filter(r => !r.changeId && r.t >= from);
     const link = dependentsLink(
       ai,
       [...own, ...candidates],

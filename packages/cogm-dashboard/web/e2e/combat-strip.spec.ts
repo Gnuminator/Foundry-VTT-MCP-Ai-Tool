@@ -1429,6 +1429,22 @@ test.describe('when a write or a roll request fails', () => {
   });
 });
 
+test('a strip chunk that fails to load leaves the page working without the strip', async ({
+  page,
+}) => {
+  let hits = 0;
+  await page.route('**/CombatStrip-*.js', route => {
+    hits += 1;
+    return route.abort();
+  });
+  await setup(page, { initial: [fight(PARTY_FIGHT)] });
+  await load(page);
+  await expect.poll(() => hits).toBeGreaterThan(0);
+  await expect(strip(page)).toHaveCount(0);
+  await expect(page.locator('#btn-advanced')).toBeVisible();
+  await expect(during(page)).toBeVisible();
+});
+
 test.describe('a phone', () => {
   test('the strip shows a fight and keeps the page from scrolling sideways', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 800 });

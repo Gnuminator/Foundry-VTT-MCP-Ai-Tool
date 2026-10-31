@@ -500,6 +500,8 @@ test.describe('start combat', () => {
     expect(planned?.args).toEqual({ action: 'start', tokenIds: ['tk-wolf', 'tk-shop'] });
     // The picker closes once the change is in.
     await expect(list).toBeHidden();
+    // The default dashboard never rolls initiative: the GM does it (or asks Claude).
+    expect(calls.map(c => c.name)).not.toContain('roll-initiative-for-npcs');
   });
 
   test('Cancel closes the picker and writes nothing', async ({ page }) => {
@@ -1313,8 +1315,9 @@ test.describe('when a write or a roll request fails', () => {
     await openDamage(page);
     await page.locator('#damage-apply').dblclick();
     await expect(page.locator('#damage-form')).toHaveCount(0);
+    // The form closes as soon as the plan is made; the apply follows a tick later.
+    await expect.poll(() => calls.filter(c => c.name === 'apply-planned-change').length).toBe(1);
     expect(calls.filter(c => c.name === 'plan-actor-change')).toHaveLength(1);
-    expect(calls.filter(c => c.name === 'apply-planned-change')).toHaveLength(1);
   });
 
   test('Undo on the toast undoes the hit', async ({ page }) => {

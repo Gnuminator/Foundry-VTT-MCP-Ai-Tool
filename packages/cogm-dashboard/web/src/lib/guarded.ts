@@ -112,8 +112,6 @@ export function mayHaveApplied(err: unknown): boolean {
   return err.kind === undefined && err.status >= 500;
 }
 
-const RECENT_CHANGES_HINT = 'It may have applied; check Recent Changes.';
-
 /** How a guarded change ended; the Tool runner shows done and failed under its form. */
 export type GuardedOutcome =
   /** The change went in (result: the apply answer), or the plan changed nothing (the plan). */
@@ -137,6 +135,10 @@ export interface GuardedOptions {
   alwaysConfirm?: boolean;
   /** The toast when GM Actions are off; the default points at Pre-flight. */
   gateText?: string;
+  /** What the failure toast calls the action (default: the tool's name in words). */
+  label?: string;
+  /** Where the failure toast sends the GM to see whether it landed (default: Recent Changes). */
+  checkIn?: string;
   /** The confirm window's lines for a write that is not a plan (default: the args as key: value). */
   lines?: string[];
   /** The confirm window's summary for a write that is not a plan (default: "Run <tool> ..."). */
@@ -176,6 +178,18 @@ export interface GuardedTools {
    * flow that plans before it applies (Recent Changes' Undo), so it asks before it plans.
    */
   gated: (name: string, options?: GuardedOptions) => boolean;
+  /**
+   * A write tool that is not a plan and needs no confirm window (the click is the confirmation:
+   * Next turn, Undo): the gate, then the call with its confirm flags, with the same refusal (the
+   * 403 `gm-actions-disabled`) and failure toasts as every other guarded write. No success toast:
+   * the caller says what it did.
+   */
+  call: (
+    name: string,
+    args: Record<string, unknown>,
+    confirm: ToolConfirm,
+    options?: GuardedOptions
+  ) => Promise<GuardedOutcome>;
   /**
    * Applies a plan the GM already approved in a window of their own (the undo window: the choice
    * and the tick for a destructive plan were the confirmation). The gate, then apply-planned-change
@@ -301,18 +315,18 @@ export function useGuardedTools(): GuardedTools {
           void refusalToast(hint, refusedSwitchName(hint));
           return { outcome: { status: 'failed', error: hint } };
         }
-        if (err instanceof ApiError && err.kind === 'timeout') {
-          // The bridge stopped waiting after about 4 minutes; Foundry may still have done it.
-          toast(`✗ ${toolWords(name)} timed out. ${RECENT_CHANGES_HINT}`, 'err');
-          error = `Timed out. ${RECENT_CHANGES_HINT}`;
+        const words = options.label ?? toolWords(name);
+        const checkHint = `It may have applied; check ${options.checkIn ?? 'Recent Changes'}.`;
+        // The bridge stopped waiting after about 4 minutes; Foundry may still have done it.
+        const timedOut = err instanceof ApiError && err.kind === 'timeout';
+        if (timedOut) {
+          error = `Timed out. ${checkHint}`;
         } else if (mayHaveApplied(err)) {
           const text = error.trim();
           const stop = /[.!?]$/.test(text) ? '' : '.';
-          error = `${text}${stop} ${RECENT_CHANGES_HINT}`;
-          toast(`✗ ${toolWords(name)}: ${error}`, 'err');
-        } else {
-          toast(`✗ ${toolWords(name)}: ${error}`, 'err');
+          error = `${text}${stop} ${checkHint}`;
         }
+        toast(timedOut ? `✗ ${words} timed out. ${checkHint}` : `✗ ${words}: ${error}`, 'err');
         changed();
         return {
           outcome: {
@@ -495,6 +509,14 @@ export function useGuardedTools(): GuardedTools {
       return true;
     };
 
+    const call: GuardedTools['call'] = async (name, args, confirm, options = {}) => {
+      if (gmActionsOff) return refuse(name, 'gm-actions-off', options);
+      const sent = await send(name, args, confirm, options);
+      if ('outcome' in sent) return sent.outcome;
+      changed();
+      return { status: 'done', result: sent.result };
+    };
+
     const applyApproved: GuardedTools['applyApproved'] = async (
       planId,
       destructive,
@@ -505,7 +527,7 @@ export function useGuardedTools(): GuardedTools {
       return apply({ planId }, flags, options);
     };
 
-    return { plan, write, gated, applyApproved };
+    return { plan, write, gated, call, applyApproved };
   }, [toast, queryClient, openGate, gmActionsOff, askConfirm]);
 }
 

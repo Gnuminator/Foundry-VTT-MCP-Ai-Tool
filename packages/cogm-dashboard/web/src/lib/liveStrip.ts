@@ -2,8 +2,13 @@
 // a creature at 0 hit points reads, the pick bar's label and the condition plan, the End combat
 // question, the Undo button's label. Pure; components/LiveStrip.tsx draws it and sends nothing from
 // here.
+import { createContext } from 'react';
+
 import type { AiChange } from './changes';
 import type { Combatant } from './combat';
+
+/** False where the page has its own Undo (live screen A's header): the strip then leaves its own out. */
+export const StripUndoContext = createContext(true);
 
 /**
  * The names the strip shows, by combatant id: a name two or more creatures share gets a number in

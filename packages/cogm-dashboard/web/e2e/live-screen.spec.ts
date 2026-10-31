@@ -4,7 +4,7 @@
 // and the default dashboard's header switch that gets here. The bridge and the stream are faked.
 import { expect, test, type Page } from '@playwright/test';
 
-import { GM_TOKEN, fakeCommonRoutes, fakeTools, ok, type ToolCall } from './support';
+import { GM_TOKEN, fakeCommonRoutes, fakeTools, ok, toast, type ToolCall } from './support';
 
 const NL = String.fromCharCode(10);
 const sse = (events: { event: string; data: unknown }[]): string =>
@@ -74,7 +74,13 @@ const EVERYONE = {
 
 async function setup(
   page: Page,
-  opts: { changes?: unknown[]; calm?: boolean } = {}
+  opts: {
+    changes?: unknown[];
+    calm?: boolean;
+    /** Answers a tool before the defaults do; undefined falls through. */
+    override?: (call: ToolCall) => { status?: number; json: unknown } | undefined;
+    gmActions?: boolean;
+  } = {}
 ): Promise<ToolCall[]> {
   await fakeCommonRoutes(page);
   await page.route('**/api/tools', route =>
@@ -85,7 +91,18 @@ async function setup(
   const calls = await fakeTools(
     page,
     call => {
+      const overridden = opts.override?.(call);
+      if (overridden) return overridden;
       switch (call.name) {
+        case 'get-combat-state':
+          return ok({
+            success: true,
+            active: true,
+            combatants: [
+              { id: 'cb-m', tokenId: 'tk-m', isPC: true },
+              { id: 'cb-w', tokenId: 'tk-w', isPC: false },
+            ],
+          });
         case 'list-scenes':
           return ok([{ id: 's1', name: 'Field', active: true }]);
         case 'list-revealed-pages':
@@ -136,7 +153,7 @@ async function setup(
       status: 200,
       contentType: 'text/event-stream',
       body: sse([
-        { event: 'settings', data: { gmActionsEnabled: true } },
+        { event: 'settings', data: { gmActionsEnabled: opts.gmActions !== false } },
         {
           event: 'combat',
           data: {
@@ -219,12 +236,72 @@ test('Start combat in two clicks also rolls initiative for the NPCs', async ({ p
   await page.getByRole('button', { name: 'Start combat with 2' }).click();
   await expect
     .poll(() => calls.find(c => c.name === 'roll-initiative-for-npcs'))
-    .toMatchObject({ args: { scope: 'npcs' }, confirm: true });
+    // Only the Wolf's combatant: the player character rolls their own.
+    .toMatchObject({ args: { combatantIds: ['cb-w'] }, confirm: true });
   await expect(page.getByText('✓ Rolled initiative for the NPCs', { exact: true })).toBeVisible();
   const names = calls.map(c => c.name);
   expect(names.indexOf('apply-planned-change')).toBeLessThan(
     names.indexOf('roll-initiative-for-npcs')
   );
+});
+
+test('Start combat does not roll when the new fight is not the one the bridge resolves', async ({
+  page,
+}) => {
+  const calls = await setup(page, {
+    calm: true,
+    // An older encounter: none of the started tokens are in it.
+    override: call =>
+      call.name === 'get-combat-state'
+        ? ok({ success: true, active: true, combatants: [{ id: 'old', tokenId: 'tk-x' }] })
+        : undefined,
+  });
+  await load(page);
+  await page.getByRole('button', { name: 'Start combat' }).click();
+  await page.getByRole('button', { name: 'Start combat with 2' }).click();
+  await expect(page.getByText(/its NPCs were not found in the tracker/)).toBeVisible();
+  expect(calls.map(c => c.name)).not.toContain('roll-initiative-for-npcs');
+});
+
+test('a failed initiative roll is shown, not swallowed', async ({ page }) => {
+  await setup(page, {
+    calm: true,
+    override: call =>
+      call.name === 'roll-initiative-for-npcs'
+        ? { status: 422, json: { ok: false, error: 'No active combat encounter.' } }
+        : undefined,
+  });
+  await load(page);
+  await page.getByRole('button', { name: 'Start combat' }).click();
+  await page.getByRole('button', { name: 'Start combat with 2' }).click();
+  await expect(page.getByText(/Roll initiative: No active combat encounter/)).toBeVisible();
+  await expect(page.getByText('✓ Rolled initiative for the NPCs')).toHaveCount(0);
+});
+
+test('a 403 gm-actions-disabled on Undo says so and points at the header switch', async ({
+  page,
+}) => {
+  await setup(page, {
+    override: call =>
+      call.name === 'undo-change'
+        ? {
+            status: 403,
+            json: { ok: false, error: 'GM Actions are off', code: 'gm-actions-disabled' },
+          }
+        : undefined,
+  });
+  await load(page);
+  await page.locator('#live-header-undo').click();
+  await expect(toast(page, 'GM Actions are off. Start session')).toBeVisible();
+  // The gate opens the header's switch: it takes the focus.
+  await expect(page.locator('#btn-gm')).toBeFocused();
+});
+
+test('screen A has one Undo: the header one, not the strip', async ({ page }) => {
+  await setup(page);
+  await load(page);
+  await expect(page.locator('#live-header-undo')).toBeVisible();
+  await expect(page.locator('#live-undo')).toHaveCount(0);
 });
 
 test('How do I... opens the GM coach guide', async ({ page }) => {

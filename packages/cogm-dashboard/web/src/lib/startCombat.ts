@@ -53,6 +53,37 @@ export function sideWords(token: SceneToken): string {
   return token.category === 'pc' ? SIDE_LABEL.pc : 'Neutral or Friendly';
 }
 
+/** The tokens of a start that are not player characters: the ones that roll for initiative. */
+export function npcTokenIds(rows: readonly SceneToken[], ticked: ReadonlySet<string>): Set<string> {
+  return new Set(
+    rows
+      .filter(t => ticked.has(t.tokenId) && canFight(t) && t.category !== 'pc')
+      .map(t => t.tokenId)
+  );
+}
+
+/**
+ * The ids of the combatants in `state` (get-combat-state) made from `tokenIds`, player characters
+ * left out. Empty when the fight the bridge resolves is not the one just started (an older
+ * encounter on another scene), so initiative is never rolled in the wrong fight.
+ */
+export function newNpcCombatantIds(state: unknown, tokenIds: ReadonlySet<string>): string[] {
+  const list = (state as { combatants?: unknown } | null)?.combatants;
+  if (!Array.isArray(list)) return [];
+  const ids: string[] = [];
+  for (const c of list as { id?: unknown; tokenId?: unknown; isPC?: unknown }[]) {
+    if (
+      typeof c?.id === 'string' &&
+      typeof c.tokenId === 'string' &&
+      tokenIds.has(c.tokenId) &&
+      c.isPC !== true
+    ) {
+      ids.push(c.id);
+    }
+  }
+  return ids;
+}
+
 /** The plan request for the ticked tokens, in the picker's order. */
 export function startArgs(
   rows: readonly SceneToken[],

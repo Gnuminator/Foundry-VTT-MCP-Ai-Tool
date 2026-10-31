@@ -311,7 +311,7 @@ Parameters:
 
 ### use-item
 
-Use an item on a character (cast spell, use ability, activate feature, consume item). Opens the item dialog in Foundry VTT for the GM to configure options and confirm. Optionally specify targets by name. Returns immediately with status "initiated" - tell the user to check Foundry for any dialogs. Use get-character or search-character-items first to see available items/spells.
+Use an item on a character (cast spell, use ability, activate feature, consume item). Opens the item dialog in Foundry for the GM to confirm; on a no-canvas GM browser (the Pi) no dialog opens and the chat card Attack button reads the clicker targets. Specify targets by name. Returns "initiated" at once. Use get-character or search-character-items first to see available items/spells.
 
 Kind: changes something and can delete or overwrite. Title: Use item.
 
@@ -549,6 +549,7 @@ Parameters:
 - `condition` (string): condition: the id or name (prone, poisoned, exhaustion...).
 - `active` (boolean): condition: false removes it. Default: `true`.
 - `level` (integer): condition exhaustion: the level to set.
+- `rounds` (integer): condition: lasts this many rounds, then counts as expired (clear-conditions removes it). Omit for until removed. Not for exhaustion. Range: 1 to 100.
 - `conditions` (array of string): clear-conditions: names to remove (prone...); omit for expired effects only.
 - `resource` (string): resource: "spell3", "pact", a class resource (Ki Points, primary) or an item name.
 - `value` (integer): resource: the new current value (0 to max).

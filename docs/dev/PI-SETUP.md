@@ -1529,7 +1529,8 @@ Stage 20 (`scripts/pi/remote/20-vault-sync.sh`, Obsidian O8) is the check that i
 Without `SET_TIMEZONE=1` the stage only reads: no snapshot, any time, game night included.
 
 - **Report:** `cat scripts/pi/remote/lib.sh scripts/pi/remote/20-vault-sync.sh | ssh foundry-pi 'bash -s'` (warnings are
-  not failures; it fails only when Syncthing or the folder is missing). `STRICT=1` also fails on a conflict or a wrong zone.
+  not failures; it fails when Syncthing, its service, the foundry user or the folder is missing, or `TIMEZONE` is not a zone name).
+  `STRICT=1` also fails on a conflict, a wrong zone or a folder shared with no PC. The disk warnings never fail it.
 - **Set the zone** (only if the report says it is wrong): after a `dietpi-backup` snapshot and the user's OK, the same pipe with
   `SET_TIMEZONE=1`. It runs `timedatectl set-timezone`; the bridge and the dashboard read the zone at start, so restart them
   (or the Pi) before the next session.

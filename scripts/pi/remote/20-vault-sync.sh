@@ -13,9 +13,10 @@
 # vault file, and never restarts a service.
 #
 # Modes (environment, before bash):
-#   (none)           the report above; exit 0 even with conflicts or a wrong zone (they are warnings), exit 1 when Syncthing or
-#                    its folder is missing
-#   STRICT=1         exit 1 when there is any conflict file or the zone is wrong (a check that must be clean)
+#   (none)           the report above; exit 0 even with conflicts or a wrong zone (they are warnings), exit 1 when Syncthing, its service, the foundry
+#                    user or the folder is missing, or TIMEZONE is not a zone name
+#   STRICT=1         exit 1 when there is any conflict file, the zone is wrong or the folder is not shared with
+#                    any PC (a check that must be clean)
 #   SET_TIMEZONE=1   also set the time zone to TIMEZONE with `timedatectl set-timezone` when it differs. A system setting, so it
 #                    needs a dietpi-backup snapshot from today and the user's OK. The bridge and the dashboard read the zone
 #                    when they start: after a change, restart them (or the Pi) before the next session so their notes agree.
@@ -47,7 +48,7 @@ fi
 
 command -v syncthing >/dev/null 2>&1 || die "Syncthing is not installed: run stage 7 first"
 id "$FOUNDRY_USER" >/dev/null 2>&1 || die "the $FOUNDRY_USER user is missing: run stage 1 first"
-st() { runuser -u "$FOUNDRY_USER" -- env HOME="$TOOL_DATA" syncthing cli --home="$st_home" "$@"; }
+st() { runuser -u "$FOUNDRY_USER" -- env HOME="$TOOL_DATA" syncthing cli --home="$st_home" "$@" </dev/null; }
 
 say "Syncthing"
 if have_systemd; then
@@ -84,7 +85,7 @@ else
   connections="$(st show connections 2>/dev/null || true)"
   for dev_id in $shared; do
     name="$(st config devices "$dev_id" name get 2>/dev/null || echo "$dev_id")"
-    if printf '%s' "$connections" | tr -d ' \n' | grep -q "\"$dev_id\":{[^}]*\"connected\":true"; then
+    if [ "$(printf '%s' "$connections" | tr -d ' \n' | grep -c "\"$dev_id\":{[^}]*\"connected\":true")" -gt 0 ]; then
       ok "$name is connected"
     else
       echo "    $name is not connected right now (its PC may be off; it syncs when it comes back)"
@@ -100,7 +101,7 @@ if [ -z "$conflicts" ]; then
 else
   n="$(printf '%s\n' "$conflicts" | wc -l)"
   warn "$n conflict file(s): the same note changed on two PCs. Open both versions in Obsidian, keep what you want in the note, delete the .sync-conflict file"
-  printf '%s\n' "$conflicts" | head -n 20 | while IFS= read -r f; do
+  printf '%s\n' "$conflicts" | sed -n '1,20p' | while IFS= read -r f; do
     echo "      ${f#"$vault"/}  ($(date -r "$f" '+%Y-%m-%d %H:%M'))"
   done
   [ "$n" -le 20 ] || echo "      ... and $((n - 20)) more"
@@ -118,6 +119,8 @@ if [ "$have_tz" = "$want_tz" ]; then
 elif [ "$set_tz" = 1 ]; then
   have_systemd || die "no systemd here: cannot set the zone"
   timedatectl set-timezone "$want_tz" || die "timedatectl set-timezone $want_tz failed"
+  now_tz="$(timedatectl show -p Timezone --value 2>/dev/null || true)"
+  [ "$now_tz" = "$want_tz" ] || die "set-timezone ran but the zone reads '$now_tz'"
   ok "time zone: $have_tz -> $want_tz (the bridge and the dashboard keep the old zone until they restart)"
 else
   warn "the Pi is on $have_tz, not $want_tz: the notes get the wrong local time. Run this stage with SET_TIMEZONE=1 after a snapshot"

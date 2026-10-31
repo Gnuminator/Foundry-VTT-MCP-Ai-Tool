@@ -104,7 +104,7 @@ pc config folders foundry-gm-vault devices add --device-id "$pi_id"
 run_stage() { # env assignments first, as arguments: run_stage VAR=value ...
   (
     for kv in "$@"; do export "${kv?}"; done
-    bash <(cat "$LIB" "$STAGE") 2>&1
+    cat "$LIB" "$STAGE" | bash -s 2>&1
   )
 }
 
@@ -158,12 +158,13 @@ if [ "$before" = "$after" ]; then pass "the stage changed nothing in the vault";
 
 # 4.
 echo UTC >/etc/timezone
+ln -sf /usr/share/zoneinfo/UTC /etc/localtime
 out="$(run_stage)"
 rc=$?
 if [ "$rc" -eq 0 ] && echo "$out" | grep -q 'WARNING: the Pi is on UTC, not Europe/Copenhagen'; then pass "a wrong zone warns (exit 0)"; else fail "zone warn (exit $rc): $out"; fi
 out="$(run_stage SET_TIMEZONE=1)"
 rc=$?
-if [ "$rc" -eq 1 ] && echo "$out" | grep -q 'no systemd here' && [ "$(cat /etc/timezone)" = UTC ]; then
+if [ "$rc" -eq 1 ] && echo "$out" | grep -q 'no systemd here' && [ "$(readlink /etc/localtime)" = /usr/share/zoneinfo/UTC ]; then
   pass "SET_TIMEZONE=1 without systemd stops and changes nothing"
 else
   fail "set tz (exit $rc): $out"

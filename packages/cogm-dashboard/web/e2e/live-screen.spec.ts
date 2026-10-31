@@ -220,7 +220,7 @@ test('Start combat in two clicks also rolls initiative for the NPCs', async ({ p
   await expect
     .poll(() => calls.find(c => c.name === 'roll-initiative-for-npcs'))
     .toMatchObject({ args: { scope: 'npcs' }, confirm: true });
-  await expect(page.getByText('Rolled initiative for the NPCs')).toBeVisible();
+  await expect(page.getByText('✓ Rolled initiative for the NPCs', { exact: true })).toBeVisible();
   const names = calls.map(c => c.name);
   expect(names.indexOf('apply-planned-change')).toBeLessThan(
     names.indexOf('roll-initiative-for-npcs')

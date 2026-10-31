@@ -264,9 +264,9 @@ note reviewed>` (`--dry-run` first; no `--allow-round3`). It refuses, with the r
 
 - The context hook prints one line at 350k (plan the handover) and 400k (hand over now); 200k
   and 250k while the planner has set low mode (weekly usage on or above pace). `get_usage "self"` gives
-  the exact number. A reading counts only when the response before it was also at or above the
-  line (one response sometimes reports its usage doubled, so a lone spike is a phantom: read it
-  again).
+  the exact number. The hook reads the last pass of an advisor response (its top level sums two
+  passes, about twice the real context) and counts a reading only when the response before it was
+  also at or above the line.
 - **Hard stop (2026-10-31):** at or above the out line the hook `context-stop.mjs` denies Edit,
   Write, Agent and shell commands that write in the repo. Still allowed: reading, git add, commit
   and push, `gh`, writes to the vault and the scratchpad, SendMessage, set_session_title,

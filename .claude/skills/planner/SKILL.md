@@ -23,11 +23,11 @@ decision), then ends. It does not sit and wait for lanes. Vault paths below are 
 - `list_sessions` without `linked` (lanes start their own successors; they only show in the full
   list), then `get_usage` with each running lane's id (lanes underreport their context).
   `get_usage "self"` for your own context and the plan percentages.
-- **Phantom readings (2026-10-31):** one API response sometimes reports its usage doubled (161,654
-  then 327,920 then 164,453). A `get_usage` context about twice the lane's last one, or a peak
-  that no neighbour reading backs up, is a phantom: read it again before you call a lane over its
-  line or hand over yourself. `context-alert.mjs` and `context-stop.mjs` already count a reading
-  only when the response before it was also at or above the line.
+- **Phantom readings (2026-10-31):** an advisor call's top-level usage in the transcript sums two
+  executor passes, so it reads about twice the real context (vault `Design/Phantom context
+readings 2026-10-31.md`). `get_usage` reports the real context; a transcript or usage-log peak
+  right after an advisor call is a phantom. `context-alert.mjs` and `context-stop.mjs` read the
+  last pass (`usage.iterations`), with "the smaller of the last two readings" as a backstop.
 - **Again on every wake, not only at start (2026-10-30):** each lane note, gate exit or user
   message, re-read the `- claimed:` and `- progress:` lines of every claimed item, including lanes
   inherited from an earlier planner (detached lanes send you no turn-end notes). A lane that

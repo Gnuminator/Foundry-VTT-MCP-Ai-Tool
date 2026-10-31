@@ -8,9 +8,9 @@
 // ~/.foundry-ai-tool/context-thresholds.json = { "plan": n, "out": n }, which the planner writes;
 // the file wins over the env).
 //
-// Context = input + cache read + cache creation tokens of the last main-thread assistant response,
-// counted only when the response before it was at least as big (phantom doubled readings, see
-// confirmedContextIn).
+// Context = input + cache read + cache creation tokens of the last main-thread assistant response
+// (of its last sampling pass when the response has several, see contextOf), counted only when the
+// response before it was at least as big (a backstop, see confirmedContextIn).
 // Each line prints once per session (state: <tmp>/context-alert/<session_id>.json); the state
 // resets when the context drops under the plan line again (after a /compact or a new start).
 //
@@ -68,11 +68,23 @@ export function thresholdsFor(env = process.env) {
 
 // --- the transcript tail -------------------------------------------------------------------
 
+// A response that called a server-side tool (the advisor) is sampled more than once, and its
+// top-level usage is the sum of those passes: a call at 164k reads 328k. `usage.iterations` lists
+// the passes; the last one of type "message" is the context the session now holds ("advisor_message"
+// entries are the advisor model's own read). All 210 multi-pass responses from 2026-10-23 to
+// 2026-10-31 were advisor calls (vault Design/Phantom context readings 2026-10-31). A pass with no
+// token counts at all is ignored, so an unknown shape falls back to the top level, never to 0.
+const FIELDS = ['input_tokens', 'cache_read_input_tokens', 'cache_creation_input_tokens'];
+
 export function contextOf(usage) {
   const n = v => (Number.isFinite(v) ? v : 0);
-  return (
-    n(usage.input_tokens) + n(usage.cache_read_input_tokens) + n(usage.cache_creation_input_tokens)
-  );
+  const passes = Array.isArray(usage.iterations)
+    ? usage.iterations.filter(
+        it => it && it.type === 'message' && FIELDS.some(f => Number.isFinite(it[f]))
+      )
+    : [];
+  const u = passes.length ? passes[passes.length - 1] : usage;
+  return FIELDS.reduce((sum, f) => sum + n(u[f]), 0);
 }
 
 // The main-thread assistant responses with usage in the given text lines (a partial first line is
@@ -110,10 +122,12 @@ export function lastContextIn(lines) {
   return last ?? null;
 }
 
-// The context to act on. One API response sometimes reports its usage doubled (a retried request
-// counted twice: 161,654 then 327,920 then 164,453), which made two lanes hand over at a false
-// 574k and 607k. A reading counts only when the response before it was also big, so the effective
-// context is the smaller of the last two responses; with a single response it is that one.
+// The context to act on. An advisor call's top level reads about twice the real context (cache
+// read 161,654 then 327,920 then 164,453), which caused 38 false handovers from 2026-10-23 to
+// 2026-10-31 (and showed 574k and 607k for two that were due anyway); contextOf reads the last pass.
+// As a backstop for any other one-off spike, a reading counts only when the response before it was
+// also big, so the effective context is the smaller of the last two responses; with a single
+// response it is that one.
 export function confirmedContextIn(lines) {
   const [last, prev] = recentContextsIn(lines, 2);
   if (last === undefined) return null;

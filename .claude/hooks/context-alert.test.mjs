@@ -3,13 +3,14 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   confirmedContextIn,
   contextFromTranscript,
+  contextOf,
   lastContextIn,
   messageFor,
   run,
@@ -239,8 +240,8 @@ test('run: a missing or empty transcript, bad input and no session id print noth
   }
 });
 
-// A real doubled reading (2026-10-30): one response reported about twice the true context between
-// two normal ones. Two lanes handed over at a false 574k and 607k because of this.
+// A real doubled reading (2026-10-28, cache read): one response, an advisor call, reported about
+// twice the true context between two normal ones. 38 false handovers came from such readings.
 const DOUBLED_TRIPLE = [161_654, 327_920, 164_453];
 
 test('confirmedContextIn: a doubled reading between two normal ones never counts', () => {
@@ -273,6 +274,92 @@ test('run: the doubled triple stays silent in low mode, a real climb past the li
     // Two real readings above the out line: the line fires on the smaller one.
     const real = transcript(root, [turn(255_000), turn(262_000)], 'real.jsonl');
     assert.match(JSON.parse(run(input(real), low)).systemMessage, /Context 255k: hand over now/);
+  } finally {
+    cleanup();
+  }
+});
+
+// The real usage of the doubled response above (2026-10-28, an advisor call): the top level sums
+// the two executor passes (163,467 + 164,453 cache read), `iterations` holds each pass.
+const ADVISOR_USAGE = {
+  input_tokens: 4,
+  cache_creation_input_tokens: 2730,
+  cache_read_input_tokens: 327_920,
+  output_tokens: 454,
+  iterations: [
+    {
+      type: 'message',
+      input_tokens: 2,
+      cache_read_input_tokens: 163_467,
+      cache_creation_input_tokens: 986,
+    },
+    {
+      type: 'advisor_message',
+      input_tokens: 163_867,
+      cache_read_input_tokens: 0,
+      cache_creation_input_tokens: 0,
+    },
+    {
+      type: 'message',
+      input_tokens: 2,
+      cache_read_input_tokens: 164_453,
+      cache_creation_input_tokens: 1744,
+    },
+  ],
+};
+const advisorTurn = () =>
+  JSON.stringify({ type: 'assistant', message: { id: 'msg-advisor', usage: ADVISOR_USAGE } });
+
+test('contextOf: an advisor response counts its last pass, not the summed top level', () => {
+  assert.equal(contextOf(ADVISOR_USAGE), 2 + 164_453 + 1744);
+  assert.equal(contextOf({ ...ADVISOR_USAGE, iterations: [] }), 4 + 327_920 + 2730);
+  assert.equal(contextOf({ input_tokens: 1, cache_read_input_tokens: 2, iterations: 'x' }), 3);
+  // Shapes without a usable executor pass fall back to the top level, never to 0.
+  const top = { input_tokens: 1, cache_read_input_tokens: 2 };
+  const only = it => contextOf({ ...top, iterations: it });
+  assert.equal(only([ADVISOR_USAGE.iterations[1]]), 3);
+  assert.equal(only([{ input_tokens: 9 }, null]), 3);
+  assert.equal(only([{ type: 'message' }]), 3);
+  // The last executor pass wins, not the first one or the advisor's own read.
+  assert.equal(only([...ADVISOR_USAGE.iterations, ADVISOR_USAGE.iterations[1]]), 166_199);
+});
+
+test('run: an advisor call whose last pass is past the out line still fires', () => {
+  const { root, env, cleanup } = fixture();
+  try {
+    const low = { ...env, CONTEXT_ALERT_LOW: '1' };
+    const big = JSON.stringify({
+      type: 'assistant',
+      message: {
+        id: 'msg-advisor-big',
+        usage: {
+          ...ADVISOR_USAGE,
+          cache_read_input_tokens: 510_000,
+          iterations: [
+            { type: 'message', input_tokens: 2, cache_read_input_tokens: 254_000 },
+            ADVISOR_USAGE.iterations[1],
+            { type: 'message', input_tokens: 2, cache_read_input_tokens: 256_000 },
+          ],
+        },
+      },
+    });
+    const file = transcript(root, [turn(255_000), big]);
+    // The last pass (256,002), not the summed top level and not 0.
+    assert.equal(lastContextIn(readFileSync(file, 'utf8').split('\n')), 256_002);
+    assert.match(JSON.parse(run(input(file), low)).systemMessage, /Context 255k: hand over now/);
+  } finally {
+    cleanup();
+  }
+});
+
+test('run: two advisor calls in a row at 166k stay silent in low mode', () => {
+  const { root, env, cleanup } = fixture();
+  try {
+    const low = { ...env, CONTEXT_ALERT_LOW: '1' };
+    const second = advisorTurn().replace('msg-advisor', 'msg-advisor-2');
+    const file = transcript(root, [turn(160_000), advisorTurn(), second]);
+    assert.equal(lastContextIn(readFileSync(file, 'utf8').split('\n')), 166_199);
+    assert.equal(run(input(file), low), '');
   } finally {
     cleanup();
   }

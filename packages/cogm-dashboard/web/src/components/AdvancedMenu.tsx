@@ -40,7 +40,7 @@ const loadImpl = (): Promise<MenuImpl> =>
   import('./AdvancedMenuImpl').then(m => m.AdvancedMenuImpl);
 
 /** The chunk is fetched this long after the page loads, so the button is ready before it is used. */
-const PRELOAD_DELAY_MS = 3000;
+const PRELOAD_DELAY_MS = 1000;
 
 /**
  * The Advanced ▾ menu in the header (the old #advanced): the panels and tools that are not part

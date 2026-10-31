@@ -114,6 +114,7 @@ export const STEPS = [
   nodeTest('pi-stage7-foundry-url', 'scripts/pi/stage7-foundry-url.test.mjs'),
   nodeTest('pi-time-sync', 'scripts/pi/time-sync.test.mjs'),
   nodeTest('pi-join-page-look', 'scripts/pi/join-page-look.test.mjs'),
+  nodeTest('pi-vault-sync', 'scripts/pi/vault-sync.test.mjs'),
   nodeTest('pi-control-port-check', 'scripts/pi/control-port-check.test.mjs'),
   nodeTest('pi-stage-safety', 'scripts/pi/pi-stage-safety.test.mjs'),
   nodeTest('tunnel-client', 'installer/nsis/tunnel-client.test.mjs'),

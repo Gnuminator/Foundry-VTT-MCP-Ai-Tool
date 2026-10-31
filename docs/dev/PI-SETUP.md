@@ -1512,6 +1512,33 @@ The stage therefore edits `world.json` with Foundry stopped (Foundry rewrites th
   background still names it.
 - Check the result logged out (a private window), reload once. Tests: `scripts/pi/join-page-look.test.mjs`.
 
+## Vault sync check and time zone (stage 20)
+
+Stage 7 puts the GM vault in `/var/lib/foundry-ai-tool/obsidian/gm` (on the Pi's root disk, which is the data
+volume: the NVMe move clones it, so the path does not change) and shares it with each added PC through Syncthing.
+Stage 20 (`scripts/pi/remote/20-vault-sync.sh`, Obsidian O8) is the check that it works and stays tidy:
+
+- **The folder:** where `foundry-gm-vault` points, which disk it is on, and a warning if that is not the tool's data folder.
+- **The PCs:** which shared devices are connected right now (a PC that is off is only a note: it syncs when it comes back).
+- **Conflicts:** every `.sync-conflict-*` file, listed with its date. Syncthing makes one when the same note was changed on
+  two PCs before they met; both versions are kept. The GM opens both in Obsidian, keeps what is wanted and deletes the extra
+  file. The stage never moves, merges or deletes a vault file.
+- **The time zone:** must be `Europe/Copenhagen` (`TIMEZONE=<zone>` for another), because the session log, the change log and
+  the play stats stamp their notes with the Pi's local time. Today's Pi is already on it.
+
+Without `SET_TIMEZONE=1` the stage only reads: no snapshot, any time, game night included.
+
+- **Report:** `cat scripts/pi/remote/lib.sh scripts/pi/remote/20-vault-sync.sh | ssh foundry-pi 'bash -s'` (warnings are
+  not failures; it fails when Syncthing, its service, the foundry user or the folder is missing, or `TIMEZONE` is not a zone name).
+  `STRICT=1` also fails on a conflict, a wrong zone or a folder shared with no PC. The disk warnings never fail it.
+- **Set the zone** (only if the report says it is wrong): after a `dietpi-backup` snapshot and the user's OK, the same pipe with
+  `SET_TIMEZONE=1`. It runs `timedatectl set-timezone`; the bridge and the dashboard read the zone at start, so restart them
+  (or the Pi) before the next session.
+- **O8 run order on the Pi day:** snapshot (`/boot/dietpi/dietpi-backup 1`), stage 7 (already run; run it again only with
+  `PEER_ID=<the PC's ID>` and `PEER_NAME` to add a PC), then this stage's report, and a test note written on each side.
+- Tests: `scripts/pi/vault-sync.test.mjs` (the stage as text, and with `PI_STAGE20_CONTAINER=1` two real Syncthings in a
+  Debian 13 ARM64 container: a note each way, a forced conflict, the zone checks).
+
 ## Where things live on the Pi
 
 | What                                                         | Where                                                                                                                      |

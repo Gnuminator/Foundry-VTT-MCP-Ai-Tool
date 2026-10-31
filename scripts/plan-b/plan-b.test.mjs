@@ -373,6 +373,21 @@ describe('Plan B', { skip: !hasPwsh && 'PowerShell 7 (pwsh) is not available' },
     assert.notEqual(r.status, 0);
     // push-world reaches its own check of the Pi-side module: the parameter arrived.
     assert.match(r.stderr + r.stdout, /no module\.json for -PiModules module no-such-module/);
+
+    // -Modules '' really empties the default list: with it lost, aitool-content would be in both lists.
+    const both = spawnSync(
+      'pwsh',
+      [
+        '-NoProfile',
+        '-NonInteractive',
+        '-Command',
+        `& '${path.join(here, 'push-back.ps1')}' -Root '${root}' -Modules '' -PiModules 'aitool-content'`,
+      ],
+      { encoding: 'utf8' }
+    );
+    assert.notEqual(both.status, 0);
+    assert.match(both.stderr + both.stdout, /no module\.json for -PiModules module aitool-content/);
+    assert.doesNotMatch(both.stderr + both.stdout, /in both -Modules and -PiModules/);
   });
 
   test('clean decision: played data stays until it is back on the Pi; data with no restore is never ours', () => {

@@ -18,7 +18,7 @@
 .PARAMETER PiModules Module ids the world uses that are already installed on the Pi and must not be shipped (passed to
                      push-world.ps1). A world with active modules needs them in -Modules or here; for a drill that ships
                      none use -Modules '' -PiModules id1,id2. Stage 11 refuses the bundle when the Pi lacks one or has an
-                     older version.
+                     older version (versions that cannot be compared only warn).
 .PARAMETER PiHost   The SSH name of the Pi (default foundry-pi).
 .PARAMETER OutDir    Where the bundle is built (default a new folder under $env:TEMP).
 .PARAMETER AllowSettingKeys  Passed to push-world.ps1: reviewed ddb-importer.* setting keys. The default is the list the

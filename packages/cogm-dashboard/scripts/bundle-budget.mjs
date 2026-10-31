@@ -38,7 +38,9 @@ import { gzipSync } from 'node:zlib';
 // 150 on 2026-10-30: the one live switch (livePlay, liveSwitches, TurnOnNote, During and
 // GmActionsSwitch wiring, which the entry carries) took the first load to 149.2 KB; main alone was
 // 147.3 KB. Handouts went 3.0 to 3.1 KB with the switch note, so its limit is 4.
-export const FIRST_LOAD_LIMIT_KB = 150;
+// 151 on 2026-10-31: the feature chip words and the token-move fold (lib/feed.ts and lib/changes.ts,
+// which the stream and the cards share) took the first load to 150.1 KB.
+export const FIRST_LOAD_LIMIT_KB = 151;
 
 /**
  * Lazy chunks by name stem (the file name without its hash and extension: `Tarokka-Cx9aB1zQ.js`

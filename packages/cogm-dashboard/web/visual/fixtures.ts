@@ -28,7 +28,87 @@ export interface Setup {
   versionMismatch?: boolean;
   /** The module errors the stream brings (Module diagnostics). */
   moduleErrors?: boolean;
+  /** The Live screen: a fight on the strip, the AI changes list and the bridge's list-changes. */
+  live?: boolean;
 }
+
+/** One combatant as the stream's combat event sends it (made-up names). */
+const fighter = (
+  id: string,
+  name: string,
+  initiative: number,
+  hp: number,
+  max: number,
+  over: Record<string, unknown> = {}
+): Record<string, unknown> => ({
+  id,
+  name,
+  initiative,
+  isCurrentTurn: false,
+  hp: { value: hp, max, temp: 0 },
+  conditions: [],
+  isPC: false,
+  category: 'enemy',
+  defeated: false,
+  deathSaves: null,
+  tokenId: `tk-${id}`,
+  ...over,
+});
+
+const LIVE_FIGHT = [
+  fighter('f1', 'Brenna', 19, 21, 24, { isCurrentTurn: true, isPC: true, category: 'pc' }),
+  fighter('f2', 'Harbor thug', 15, 9, 30),
+  fighter('f3', 'Harbor thug', 12, 22, 30, { conditions: ['Prone'] }),
+  fighter('f4', 'Tobias', 8, 12, 27, { isPC: true, category: 'pc' }),
+];
+
+/** The AI's changes behind the Live screen's header Undo and "What just happened". */
+const LIVE_AI_CHANGES = [
+  {
+    changeId: 'ch2',
+    summary: 'Harbor thug 1: 7 fire damage',
+    canUndo: true,
+    appliedAt: iso(NOW - 120_000),
+  },
+  {
+    changeId: 'ch1',
+    summary: 'Harbor thug 2 is Prone',
+    canUndo: true,
+    appliedAt: iso(NOW - 300_000),
+  },
+];
+
+const LIVE_EVERYONE = {
+  changes: [
+    {
+      kind: 'ai',
+      id: 'ch2',
+      at: iso(NOW - 120_000),
+      by: 'Claude',
+      summary: 'Harbor thug 1: 7 fire damage',
+      lines: [],
+      canUndo: true,
+    },
+    {
+      kind: 'human',
+      id: 'h1',
+      at: iso(NOW - 180_000),
+      by: 'Mara',
+      summary: 'Moved Mara',
+      lines: [],
+      canUndo: false,
+    },
+    {
+      kind: 'ai',
+      id: 'ch1',
+      at: iso(NOW - 300_000),
+      by: 'Claude',
+      summary: 'Harbor thug 2 is Prone',
+      lines: [],
+      canUndo: true,
+    },
+  ],
+};
 
 // ---------------------------------------------------------------- the bridge's answers
 
@@ -481,9 +561,13 @@ const SESSION_NOTES = {
 };
 
 /** Answers POST /api/tool for the screen's moment. */
-function bridge(moment: Moment): (call: ToolCall) => { json: unknown } {
+function bridge(moment: Moment, live: boolean): (call: ToolCall) => { json: unknown } {
   return call => {
     switch (call.name) {
+      case 'list-recent-changes':
+        return ok({ changes: live ? LIVE_AI_CHANGES : [] });
+      case 'list-changes':
+        return ok(live ? LIVE_EVERYONE : { changes: [] });
       case 'get-play-session':
         return ok({ success: true, worldId: 'harbor-test', ...SESSIONS[moment] });
       case 'get-prep-digest':
@@ -571,6 +655,33 @@ export async function fakeDashboard(page: Page, setup: Setup): Promise<void> {
     ...(setup.moduleErrors
       ? [{ event: 'errors', data: { errors: MODULE_ERRORS, initial: true } }]
       : []),
+    ...(setup.live
+      ? [
+          {
+            event: 'combat',
+            data: {
+              combat: {
+                active: true,
+                round: 3,
+                turn: 0,
+                current: LIVE_FIGHT[0],
+                combatants: LIVE_FIGHT,
+              },
+            },
+          },
+        ]
+      : []),
   ]);
-  await fakeTools(page, bridge(setup.moment), { playSession: true });
+  if (setup.live) {
+    // The bridge has list-changes: "What just happened" is the one list with the AI only box.
+    await page.route('**/api/tools', route =>
+      route.fulfill({
+        json: {
+          tools: [...TOOLS, { name: 'list-changes' }, { name: 'list-recent-changes' }],
+          gmActionsEnabled: true,
+        },
+      })
+    );
+  }
+  await fakeTools(page, bridge(setup.moment, setup.live === true), { playSession: true });
 }

@@ -140,6 +140,19 @@ export const DASHBOARD_CONTROLS = [
     how: 'skip',
     why: 'only on the live strip page (/next?strip=1); the e2e spec and the live check cover it',
   })),
+  ...[
+    'dash.changes.ai-only',
+    'dash.header.try-live',
+    'dash.live.back',
+    'dash.live.header-undo',
+    'dash.live.how-do-i',
+    'dash.live.legacy',
+    'dash.live.more',
+  ].map(name => ({
+    name,
+    how: 'skip',
+    why: 'only on live screen A (/next/?live=1) or its opt-in link; the e2e spec live-screen.spec.ts covers it',
+  })),
   {
     name: 'dash.header.version-tracker',
     how: 'skip',

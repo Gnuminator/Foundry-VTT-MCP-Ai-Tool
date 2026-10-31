@@ -62,6 +62,22 @@ export const FIGHT: CombatState = {
   combatants: [BRANNOC, OGRE, MIRA, GOBLIN, TAMSIN],
 };
 
+/** The ogre is prone for one more round, poisoned with its time up, and blinded for good. */
+export const FIGHT_TIMED: CombatState = {
+  ...FIGHT,
+  combatants: [
+    BRANNOC,
+    {
+      ...OGRE,
+      conditions: ['Prone', 'Poisoned', 'Blinded'],
+      timed: { Prone: 1, Poisoned: 0 },
+    },
+    MIRA,
+    GOBLIN,
+    TAMSIN,
+  ],
+};
+
 /** Mira is at zero hit points with two failed death saves and one success. */
 export const FIGHT_DEATH_SAVES: CombatState = {
   ...FIGHT,

@@ -3,13 +3,14 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   confirmedContextIn,
   contextFromTranscript,
+  contextOf,
   lastContextIn,
   messageFor,
   run,
@@ -274,6 +275,56 @@ test('run: the doubled triple stays silent in low mode, a real climb past the li
     // Two real readings above the out line: the line fires on the smaller one.
     const real = transcript(root, [turn(255_000), turn(262_000)], 'real.jsonl');
     assert.match(JSON.parse(run(input(real), low)).systemMessage, /Context 255k: hand over now/);
+  } finally {
+    cleanup();
+  }
+});
+
+// The real usage of the doubled response above (2026-10-28, an advisor call): the top level sums
+// the two executor passes (163,467 + 164,453 cache read), `iterations` holds each pass.
+const ADVISOR_USAGE = {
+  input_tokens: 4,
+  cache_creation_input_tokens: 2730,
+  cache_read_input_tokens: 327_920,
+  output_tokens: 454,
+  iterations: [
+    {
+      type: 'message',
+      input_tokens: 2,
+      cache_read_input_tokens: 163_467,
+      cache_creation_input_tokens: 986,
+    },
+    {
+      type: 'advisor_message',
+      input_tokens: 163_867,
+      cache_read_input_tokens: 0,
+      cache_creation_input_tokens: 0,
+    },
+    {
+      type: 'message',
+      input_tokens: 2,
+      cache_read_input_tokens: 164_453,
+      cache_creation_input_tokens: 1744,
+    },
+  ],
+};
+const advisorTurn = () =>
+  JSON.stringify({ type: 'assistant', message: { id: 'msg-advisor', usage: ADVISOR_USAGE } });
+
+test('contextOf: an advisor response counts its last pass, not the summed top level', () => {
+  assert.equal(contextOf(ADVISOR_USAGE), 2 + 164_453 + 1744);
+  assert.equal(contextOf({ ...ADVISOR_USAGE, iterations: [] }), 4 + 327_920 + 2730);
+  assert.equal(contextOf({ input_tokens: 1, cache_read_input_tokens: 2, iterations: 'x' }), 3);
+});
+
+test('run: two advisor calls in a row at 166k stay silent in low mode', () => {
+  const { root, env, cleanup } = fixture();
+  try {
+    const low = { ...env, CONTEXT_ALERT_LOW: '1' };
+    const second = advisorTurn().replace('msg-advisor', 'msg-advisor-2');
+    const file = transcript(root, [turn(160_000), advisorTurn(), second]);
+    assert.equal(lastContextIn(readFileSync(file, 'utf8').split('\n')), 166_199);
+    assert.equal(run(input(file), low), '');
   } finally {
     cleanup();
   }

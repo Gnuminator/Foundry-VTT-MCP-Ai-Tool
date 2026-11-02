@@ -193,3 +193,75 @@ describe('the live window switch', () => {
     expect(on[AI_TOOL_CONTROL].tools.live).toMatchObject({ title: 'Live', button: true });
   });
 });
+
+describe('the live window open state', () => {
+  const STATE_KEY = `${MODULE_ID}.liveWindowState`;
+  let store: Map<string, string>;
+  let saved: { window: unknown; document: unknown };
+
+  /** A stand-in for Foundry's ApplicationV2: render and close call the hooks the window defines. */
+  class FakeApp {
+    static DEFAULT_OPTIONS = {};
+    rendered = false;
+    element = { querySelector: (): null => null };
+    position = { left: 5, top: 6, width: 400, height: 500 };
+    async render(): Promise<void> {
+      this.rendered = true;
+      (this as any)._onRender();
+    }
+    async close(): Promise<void> {
+      this.rendered = false;
+      (this as any)._onClose();
+    }
+  }
+
+  beforeEach(() => {
+    store = new Map();
+    saved = { window: g.window, document: g.document };
+    g.window = {
+      localStorage: {
+        getItem: (k: string): string | null => store.get(k) ?? null,
+        setItem: (k: string, v: string): void => void store.set(k, v),
+      },
+      location: { protocol: 'http:', hostname: 'localhost' },
+      innerWidth: 1600,
+      addEventListener: (): void => {},
+      removeEventListener: (): void => {},
+    };
+    g.document = { getElementById: (): null => null };
+  });
+
+  afterEach(() => {
+    g.window = saved.window;
+    g.document = saved.document;
+  });
+
+  async function openWindow(): Promise<typeof import('./live-window.js')> {
+    vi.resetModules();
+    install(true, true);
+    g.foundry.applications = { api: { ApplicationV2: FakeApp } };
+    const mod = await import('./live-window.js');
+    await mod.openLiveWindow();
+    return mod;
+  }
+
+  const openFlag = (): boolean => JSON.parse(store.get(STATE_KEY) ?? '{}').open;
+
+  it('remembers open while it is on screen', async () => {
+    await openWindow();
+    expect(openFlag()).toBe(true);
+  });
+
+  it('remembers closed when the GM closes it', async () => {
+    const mod = await openWindow();
+    await mod.toggleLiveWindow();
+    expect(openFlag()).toBe(false);
+  });
+
+  it('keeps open as it was when the switch closes it, so a reload brings it back', async () => {
+    const mod = await openWindow();
+    mod.closeLiveWindow();
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(openFlag()).toBe(true);
+  });
+});

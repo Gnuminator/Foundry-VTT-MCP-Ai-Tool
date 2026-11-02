@@ -1,11 +1,12 @@
 /**
  * Live screen B (item live-screen-b-foundry): the live strip page `/?strip=1` is framed by the
- * Foundry module's Live window. Every other page stays as it is; this page alone says who may
- * frame it, and only Foundry's own address does (`DASHBOARD_FOUNDRY_URL`, the address the GM's
+ * Foundry module's Live window. The other dashboard pages say only the dashboard itself may frame
+ * them ('self'); this page alone lets Foundry, and only Foundry's own address does (`DASHBOARD_FOUNDRY_URL`, the address the GM's
  * browser uses). Without that setting nobody but the dashboard itself may, and the window shows
  * an empty frame; the setting's hint in Foundry says so.
  */
 import type { NextFunction, Request, Response } from 'express';
+import * as path from 'path';
 
 import { normalizeFoundryUrl } from './combat-images.js';
 
@@ -30,12 +31,32 @@ export function liveFrameHeader(
   foundryUrl: string | undefined
 ): string | null {
   const search = originalUrl.includes('?') ? originalUrl.slice(originalUrl.indexOf('?')) : '';
-  return new URLSearchParams(search).get('strip') === '1'
-    ? `frame-ancestors ${liveFrameAncestors(foundryUrl)}`
-    : null;
+  if (new URLSearchParams(search).get('strip') === '1') {
+    return `frame-ancestors ${liveFrameAncestors(foundryUrl)}`;
+  }
+  return isPagePath(originalUrl.split('?')[0] ?? '') ? "frame-ancestors 'self'" : null;
 }
 
-/** Express middleware: sets the header on any request with `?strip=1`. */
+/**
+ * Whether a path can serve a dashboard page: no file extension (`/`, `/next/`) or a
+ * `.html`, whatever the spelling (`/INDEX.HTML`, `/index%2Ehtml`, `/x/../index.html`). Pages that
+ * set their own header (open, player, GM) overwrite this one; the API and the assets stay as they
+ * are. Nobody but the dashboard itself may frame the rest.
+ */
+function isPagePath(rawPath: string): boolean {
+  let decoded: string;
+  try {
+    decoded = decodeURIComponent(rawPath);
+  } catch {
+    return true;
+  }
+  const clean = path.posix.normalize(decoded.replace(/\\/g, '/')).toLowerCase();
+  if (clean === '/api' || clean.startsWith('/api/')) return false;
+  const ext = path.posix.extname(clean);
+  return ext === '' || ext === '.html' || ext === '.htm';
+}
+
+/** Express middleware: sets the header on a request with `?strip=1` or one for a dashboard page. */
 export function liveFrameMiddleware(foundryUrl: string | undefined) {
   return (req: Request, res: Response, next: NextFunction): void => {
     const value = liveFrameHeader(req.originalUrl, foundryUrl);

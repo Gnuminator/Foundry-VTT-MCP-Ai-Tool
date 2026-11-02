@@ -52,15 +52,38 @@ export function useMapPick(): readonly string[] | null {
 }
 
 /**
+ * The origin of the page that frames this one, when the browser says: `ancestorOrigins` (Chrome,
+ * Edge), else the referrer's. Null when neither is known; the source check then stands alone.
+ */
+function frameParentOrigin(target: Window): string | null {
+  try {
+    const ancestor = (target.location as { ancestorOrigins?: ArrayLike<string> } | undefined)
+      ?.ancestorOrigins?.[0];
+    if (ancestor && ancestor !== 'null') return ancestor;
+    const referrer = target.document?.referrer;
+    if (!referrer) return null;
+    // A frame that navigated itself has this page's own referrer: that says nothing about the parent.
+    const origin = new URL(referrer).origin;
+    return origin === target.location?.origin ? null : origin;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Start listening on this window; only the parent frame's messages count, or, for the strip in its
  * own window (the GM page opened it), the opener's, from this page's own origin. Returns the stop.
  */
 export function listenForMapPick(target: Window = window): () => void {
   const framed = target.parent !== target;
   const opener: Window | null = framed ? null : ((target.opener as Window | null) ?? null);
+  const parentOrigin = framed ? frameParentOrigin(target) : null;
   const onMessage = (event: MessageEvent): void => {
     if (event.source === null) return;
-    const fromParent = framed && event.source === target.parent;
+    const fromParent =
+      framed &&
+      event.source === target.parent &&
+      (parentOrigin === null || event.origin === parentOrigin);
     const fromOpener =
       opener !== null && event.source === opener && event.origin === target.location.origin;
     if (!fromParent && !fromOpener) return;

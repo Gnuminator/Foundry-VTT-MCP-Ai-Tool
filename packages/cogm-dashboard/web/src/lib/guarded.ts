@@ -31,6 +31,9 @@ export const GmActionsGateContext = createContext<() => void>(() => undefined);
 
 const GATE_TEXT = 'GM Actions are off. Start session or the header Turn on button turns them on.';
 
+/** The refusal toast's text; a page without the header (the strip page) says its own. */
+export const GateTextContext = createContext(GATE_TEXT);
+
 /** What a plan-* tool answers (guarded-write/service.ts on the bridge); the fields used here. */
 interface Plan {
   planId?: unknown;
@@ -223,6 +226,7 @@ export function useGuardedTools(): GuardedTools {
   const queryClient = useQueryClient();
   const settings = useDashboardSettings();
   const openGate = useContext(GmActionsGateContext);
+  const gateText = useContext(GateTextContext);
   const askConfirm = useConfirm();
   // Off until the stream says otherwise, as on the old page: a click before the first settings
   // event would plan and then be refused at apply, leaving the plan behind.
@@ -272,7 +276,7 @@ export function useGuardedTools(): GuardedTools {
 
     const refuse = (name: string, code: string, options: GuardedOptions): GuardedOutcome => {
       usage().trackTool(name, 'error', code);
-      void refusalToast(options.gateText ?? GATE_TEXT, null);
+      void refusalToast(options.gateText ?? gateText, null);
       openGate();
       return REFUSED;
     };
@@ -528,7 +532,7 @@ export function useGuardedTools(): GuardedTools {
     };
 
     return { plan, write, gated, call, applyApproved };
-  }, [toast, queryClient, openGate, gmActionsOff, askConfirm]);
+  }, [toast, queryClient, openGate, gateText, gmActionsOff, askConfirm]);
 }
 
 /**

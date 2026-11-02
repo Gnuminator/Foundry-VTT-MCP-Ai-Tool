@@ -242,6 +242,10 @@ body {
   text-overflow: ellipsis;
   max-width: 42ch;
 }
+.app-version {
+  font-variant-numeric: tabular-nums;
+  opacity: 0.85;
+}
 
 /* ---- Status pills ---- */
 .status-cluster {

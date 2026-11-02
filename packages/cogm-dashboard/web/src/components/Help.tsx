@@ -6,7 +6,7 @@ import { useEffect, useRef, useState, type JSX, type MouseEvent, type ReactNode 
 
 import { api, errorText } from '../lib/api';
 import { usage } from '../lib/usage';
-import { wikiUrl } from '../lib/wiki';
+import { helpLang, wikiUrl, type HelpLang } from '../lib/wiki';
 import { HelpContext, type OpenHelp } from './HelpButton';
 import { OverlayPane } from './OverlayPane';
 
@@ -31,7 +31,11 @@ function HelpHtml({
 }): JSX.Element {
   const body = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    const target = anchor ? body.current?.querySelector(`[id="${CSS.escape(anchor)}"]`) : null;
+    // A Danish page's headings also answer to the English id the link was written with.
+    const id = CSS.escape(anchor);
+    const target = anchor
+      ? body.current?.querySelector(`[id="${id}"], [data-en-id="${id}"]`)
+      : null;
     if (target) target.scrollIntoView({ block: 'start' });
     else body.current?.closest('.pane-body')?.scrollTo({ top: 0 });
   }, [html, anchor, seq]);
@@ -55,11 +59,24 @@ export function HelpProvider({ children }: { children: ReactNode }): JSX.Element
   // The last page stays after closing, so the pane never flashes "Help" or "Loading" on its way out.
   const [target, setTarget] = useState({ page: '', anchor: '', seq: 0 });
   const [open, setOpen] = useState(false);
+  const [lang, setLang] = useState<HelpLang>('en');
   const page = target.page;
+  // A Foundry basics page has no Danish twin, so it stays English; so does a page whose Danish
+  // twin is missing from the build (the English page is shown then).
+  const wantsDanish = lang === 'da' && !page.startsWith('foundry-') && page !== '';
 
   const help = useQuery({
-    queryKey: ['help', page],
-    queryFn: () => api<HelpPage>(`/api/help/${encodeURIComponent(page)}`),
+    queryKey: ['help', wantsDanish ? 'da' : 'en', page],
+    queryFn: async () => {
+      if (wantsDanish) {
+        try {
+          return await api<HelpPage>(`/api/help/${encodeURIComponent(`da-${page}`)}`);
+        } catch {
+          // Fall through to the English page; a real failure shows there.
+        }
+      }
+      return api<HelpPage>(`/api/help/${encodeURIComponent(page)}`);
+    },
     enabled: open,
     // A guide does not change while the page is open; a failure is asked again on the next open.
     staleTime: Infinity,
@@ -75,8 +92,12 @@ export function HelpProvider({ children }: { children: ReactNode }): JSX.Element
   const openHelp: OpenHelp = to => {
     // Only the first # splits: an anchor may hold one itself.
     const hash = to.indexOf('#');
-    const next =
+    const raw =
       hash < 0 ? { page: to, anchor: '' } : { page: to.slice(0, hash), anchor: to.slice(hash + 1) };
+    // A link inside a Danish guide names its Danish twin (`da-<page>`); the page state is the
+    // English key and the language picks the twin.
+    const next = raw.page.startsWith('da-') ? { ...raw, page: raw.page.slice('da-'.length) } : raw;
+    setLang(raw.page.startsWith('da-') ? 'da' : helpLang());
     setTarget(before => ({ ...next, seq: before.seq + 1 }));
     setOpen(true);
   };
@@ -95,7 +116,7 @@ export function HelpProvider({ children }: { children: ReactNode }): JSX.Element
         meta={
           <a
             className="help-wiki-link"
-            href={wikiUrl(page, target.anchor)}
+            href={wikiUrl(page, target.anchor, wantsDanish ? 'da' : 'en')}
             target="_blank"
             rel="noopener noreferrer"
             data-track="dash.help.wiki"

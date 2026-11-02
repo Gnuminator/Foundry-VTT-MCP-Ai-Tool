@@ -34,6 +34,20 @@ afterEach(() => {
 });
 
 describe('build-help', () => {
+  it('builds the Danish twins as da-<name>, linked to each other, with the English heading ids', () => {
+    const { status, pages } = build({
+      'gm/x.md': '# X\n\n## Part one\n\nSee [y](y.md).\n',
+      'gm/y.md': '# Y\n',
+      'da/gm/x.md': '---\ntitle: Ex\n---\n\n# Ex\n\n## Del et\n\nSe [y](y.md).\n',
+      'da/gm/y.md': '# Why\n',
+    });
+    expect(status).toBe(0);
+    expect(Object.keys(pages).sort()).toEqual(['da-x', 'da-y', 'x', 'y']);
+    expect(pages['da-x'].title).toBe('Ex');
+    expect(pages['da-x'].html).toContain('data-help="da-y#"');
+    expect(pages['da-x'].html).toContain('<h2 id="del-et" data-en-id="part-one">');
+  });
+
   it('keys docs/foundry pages as foundry-<name> and links across folders', () => {
     const { status, pages } = build({
       'gm/x.md': '# X\n\nSee [the y page](../foundry/y.md#a).\n',

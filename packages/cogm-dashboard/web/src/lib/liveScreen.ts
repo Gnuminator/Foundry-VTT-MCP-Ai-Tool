@@ -27,5 +27,5 @@ export function optInScreen(pathname: string, search: string): OptInScreenName |
 }
 
 /** The words of the header switch on the default dashboard and of the way back. */
-export const TRY_LIVE_TEXT = 'Try the new live screen';
+export const TRY_LIVE_TEXT = 'Live screen';
 export const BACK_TO_STANDARD_TEXT = 'Back to the During view';

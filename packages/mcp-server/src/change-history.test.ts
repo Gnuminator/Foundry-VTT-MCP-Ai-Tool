@@ -195,7 +195,7 @@ describe('describeRecord', () => {
     ).toEqual(['Deleted Wall']);
   });
 
-  it('says a token moved when only x and y changed', () => {
+  it('says a token moved when only x and y changed (no rotation)', () => {
     expect(
       describeRecord(
         rec({

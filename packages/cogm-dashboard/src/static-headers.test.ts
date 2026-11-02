@@ -13,7 +13,6 @@ import { fileURLToPath } from 'url';
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import type { CoGm } from './ai/anthropic-co-gm.js';
 import { createDashboard, PLAYER_CSP, type Dashboard } from './app.js';
 import { config, type Config } from './config.js';
 import { testWebDir } from './test-web-dir.js';
@@ -22,13 +21,6 @@ import { OPEN_PAGE_CSP } from './open-route.js';
 import { staticHeaders, type BigStat, type StaticHeaderGroup } from './static-headers.js';
 
 const PUBLIC_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'public');
-
-const fakeCoGm = {
-  enabled: false,
-  isBusy: false,
-  setWorld: (): void => undefined,
-  abortActive: (): void => undefined,
-} as unknown as CoGm;
 
 const fakeClient = {
   isConnected: true,
@@ -50,7 +42,6 @@ beforeAll(async () => {
     config: testConfig,
     logger: new Logger('error', 'static-headers-test'),
     client: fakeClient,
-    coGm: fakeCoGm,
   });
   server = dashboard.app.listen(0, '127.0.0.1');
   await new Promise<void>(resolve => server.once('listening', () => resolve()));

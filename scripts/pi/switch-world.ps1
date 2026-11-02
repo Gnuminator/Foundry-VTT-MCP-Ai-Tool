@@ -40,6 +40,7 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+$World = $World.ToLowerInvariant() # ValidateSet ignores case
 $remote = Join-Path $PSScriptRoot 'remote'
 $lib = Get-Content -Raw (Join-Path $remote 'lib.sh')
 $body = Get-Content -Raw (Join-Path $remote 'switch-world.sh')

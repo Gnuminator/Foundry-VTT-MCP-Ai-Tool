@@ -72,7 +72,7 @@ world_up() { curl -fs --max-time 5 "$base_url/join" 2>/dev/null | grep -q 'id="j
 
 orig_world="$(launched)"
 run_before="$(running)"
-say "world before: running ${run_before:-none}, launch choice ${orig_world:-none}"
+say "world before: running ${run_before:-none or not read from /api/status}, launch choice ${orig_world:-none}"
 
 if [ "$orig_world" = "$world" ] && [ "$run_before" = "$world" ]; then
   say "$world already runs and is what Foundry launches: nothing to do"
@@ -149,7 +149,8 @@ if [ "$was_gm" = 1 ]; then
   systemctl start "$gm_unit" || warn "the Assistant GM browser did not start: journalctl -u $gm_unit -n 50"
   for _ in $(seq 1 45); do
     id="$(systemctl show -p InvocationID --value "$gm_unit" 2>/dev/null || true)"
-    if [ -n "$id" ] && journalctl "_SYSTEMD_INVOCATION_ID=$id" --no-pager -o cat 2>/dev/null | grep -q "\[assistant-gm\] joined world $world "; then
+    # grep -c reads everything: with pipefail, grep -q could stop early and make journalctl's failed write fail the pipeline.
+    if [ -n "$id" ] && [ "$(journalctl "_SYSTEMD_INVOCATION_ID=$id" --no-pager -o cat 2>/dev/null | grep -c "\[assistant-gm\] joined world $world " || true)" -gt 0 ]; then
       joined=1
       break
     fi
@@ -170,7 +171,8 @@ else
   warn "the Assistant GM browser was not running or enabled before: it is left stopped, so the bridge and the dashboard have no Foundry link"
 fi
 
-say "world after: running $(running), launch choice $(launched)"
+after_run="$(running)"
+say "world after: running ${after_run:-not read from /api/status}, launch choice $(launched)"
 if [ "$was_gm" = 1 ] && [ "$joined" != 1 ]; then
   die "the Assistant GM browser did not report 'joined world $world' in time. $world runs and options.json launches it; the bridge and the dashboard follow once the browser joins (journalctl -u $gm_unit -n 50; its login must exist in $world)"
 fi

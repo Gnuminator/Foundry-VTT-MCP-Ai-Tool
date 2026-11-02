@@ -40,7 +40,10 @@ function fakePi({ launch = 'frostmaiden-training', running = launch, snapshot = 
   const config = path.join(d, 'Config');
   mkdirSync(config);
   const options = path.join(config, 'options.json');
-  writeFileSync(options, JSON.stringify({ port: 30000, world: launch, language: 'en.core' }, null, 2) + '\n');
+  writeFileSync(
+    options,
+    JSON.stringify({ port: 30000, world: launch, language: 'en.core' }, null, 2) + '\n'
+  );
   if (running) writeFileSync(path.join(d, 'running'), running);
   const dietpiDir = path.join(d, 'dietpi');
   mkdirSync(dietpiDir);
@@ -49,7 +52,10 @@ function fakePi({ launch = 'frostmaiden-training', running = launch, snapshot = 
   writeFileSync(stats, `${snapshot ? today : '2020-01-01'}_01:25:00  Backup completed\n`);
   const bin = path.join(d, 'node', 'bin');
   mkdirSync(bin, { recursive: true });
-  writeFileSync(path.join(bin, 'node'), `#!/usr/bin/env bash\nexec "${posix(process.execPath)}" "$@"\n`);
+  writeFileSync(
+    path.join(bin, 'node'),
+    `#!/usr/bin/env bash\nexec "${posix(process.execPath)}" "$@"\n`
+  );
   chmodSync(path.join(bin, 'node'), 0o755);
   return {
     d,
@@ -59,7 +65,8 @@ function fakePi({ launch = 'frostmaiden-training', running = launch, snapshot = 
     stats,
     nodeDir: path.join(d, 'node'),
     launched: () => JSON.parse(readFileSync(options, 'utf8')),
-    calls: () => (existsSync(path.join(d, 'calls')) ? readFileSync(path.join(d, 'calls'), 'utf8') : ''),
+    calls: () =>
+      existsSync(path.join(d, 'calls')) ? readFileSync(path.join(d, 'calls'), 'utf8') : '',
     worldJson: w => readFileSync(path.join(worlds, w, 'world.json'), 'utf8'),
   };
 }
@@ -126,7 +133,9 @@ const noService = calls => assert.doesNotMatch(calls, /systemctl (stop|start|res
 
 describe('switch-world.sh', () => {
   test('is valid bash', t => {
-    const res = spawnSync('bash', ['-n', path.join(remote, 'switch-world.sh')], { encoding: 'utf8' });
+    const res = spawnSync('bash', ['-n', path.join(remote, 'switch-world.sh')], {
+      encoding: 'utf8',
+    });
     if (res.error) return t.skip('no bash here');
     assert.equal(res.status, 0, res.stderr);
   });
@@ -136,7 +145,10 @@ describe('switch-world.sh', () => {
     const worldBefore = pi.worldJson('curse-of-strahd');
     const r = run(pi, { WORLD: 'curse-of-strahd' });
     assert.equal(r.status, 0, r.out);
-    assert.match(r.out, /world before: running frostmaiden-training, launch choice frostmaiden-training/);
+    assert.match(
+      r.out,
+      /world before: running frostmaiden-training, launch choice frostmaiden-training/
+    );
     assert.match(r.out, /world after: running curse-of-strahd, launch choice curse-of-strahd/);
     assert.match(r.out, /the Assistant GM browser joined curse-of-strahd/);
     const o = pi.launched();
@@ -246,8 +258,15 @@ describe('switch-world.sh', () => {
     assert.match(r.out, /options.json is put back/);
     assert.equal(pi.launched().world, 'frostmaiden-training');
     const calls = pi.calls();
-    assert.ok(calls.lastIndexOf('start foundry.service') > calls.indexOf('stop foundry.service'), calls);
-    assert.ok(calls.lastIndexOf('start foundry-ai-tool-gm-browser.service') > calls.lastIndexOf('stop foundry.service'), calls);
+    assert.ok(
+      calls.lastIndexOf('start foundry.service') > calls.indexOf('stop foundry.service'),
+      calls
+    );
+    assert.ok(
+      calls.lastIndexOf('start foundry-ai-tool-gm-browser.service') >
+        calls.lastIndexOf('stop foundry.service'),
+      calls
+    );
   });
 
   test('when only the Assistant GM browser does not join, the switch stays and the run exits 1 with the command to read', () => {
@@ -276,7 +295,12 @@ describe('switch-world.sh as text', () => {
 
   test('the checks come before the first stop', () => {
     const firstStop = stage.indexOf('systemctl stop');
-    for (const check of ['refuse_during_system_trial', 'require_quiet "', 'foundry_can_write', 'dry" = 1']) {
+    for (const check of [
+      'refuse_during_system_trial',
+      'require_quiet "',
+      'foundry_can_write',
+      'dry" = 1',
+    ]) {
       const at = stage.indexOf(check);
       assert.ok(at > 0 && at < firstStop, check);
     }
@@ -300,9 +324,16 @@ describe('switch-world.ps1', { skip: !hasPwsh && 'PowerShell 7 is not available'
       fake,
       `$args | Set-Content -Path '${path.join(d, 'args.txt')}'\n$stdin = @($input) -join "\`n"\nSet-Content -Path '${path.join(d, 'stdin.txt')}' -Value $stdin\nexit 0\n`
     );
-    const r = spawnSync('pwsh', ['-NoProfile', '-File', ps1, '-Ssh', fake, ...args], { encoding: 'utf8' });
+    const r = spawnSync('pwsh', ['-NoProfile', '-File', ps1, '-Ssh', fake, ...args], {
+      encoding: 'utf8',
+    });
     const read = f => (existsSync(path.join(d, f)) ? readFileSync(path.join(d, f), 'utf8') : '');
-    return { status: r.status, out: `${r.stdout}${r.stderr}`, args: read('args.txt'), stdin: read('stdin.txt') };
+    return {
+      status: r.status,
+      out: `${r.stdout}${r.stderr}`,
+      args: read('args.txt'),
+      stdin: read('stdin.txt'),
+    };
   }
 
   test('sends lib.sh and the stage, with WORLD (and DRY_RUN, FORCE) in front of bash', () => {

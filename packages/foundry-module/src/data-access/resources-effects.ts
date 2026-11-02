@@ -10,6 +10,14 @@ interface ConditionEntry {
   name: unknown;
   icon: unknown;
   description: unknown;
+  /** dnd5e's own rules page for the condition (a uuid, no text); absent for ones it has none for. */
+  reference?: string;
+}
+
+/** The uuid of the rules page dnd5e keeps for a condition (`CONFIG.DND5E.conditionTypes`), if any. */
+function conditionReference(id: string): string | undefined {
+  const ref = dig(globalThis, 'CONFIG', 'DND5E', 'conditionTypes', id, 'reference');
+  return typeof ref === 'string' && ref !== '' ? ref : undefined;
 }
 
 interface AvailableConditionsResult {
@@ -139,12 +147,16 @@ export class ResourcesEffectsDataAccess {
       return {
         success: true,
         gameSystem: game.system?.id,
-        conditions: rawConditions.map(c => ({
-          id: c.id,
-          name: c.name || c.label || c.id,
-          icon: c.icon || c.img,
-          description: c.description || '',
-        })),
+        conditions: rawConditions.map(c => {
+          const reference = conditionReference(c.id);
+          return {
+            id: c.id,
+            name: c.name || c.label || c.id,
+            icon: c.icon || c.img,
+            description: c.description || '',
+            ...(reference ? { reference } : {}),
+          };
+        }),
       };
     } catch (error) {
       throw new Error(

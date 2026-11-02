@@ -159,6 +159,36 @@ export const USAGE_CATALOG: readonly UsageCatalogEntry[] = [
     file: 'packages/cogm-dashboard/web/src/components/StartCombat.tsx',
   },
   {
+    name: 'dash.conditions.add',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/web/src/components/ConditionsPanel.tsx',
+  },
+  {
+    name: 'dash.conditions.close',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/web/src/components/ConditionsPanel.tsx',
+  },
+  {
+    name: 'dash.conditions.pick',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/web/src/components/ConditionsPanel.tsx',
+  },
+  {
+    name: 'dash.conditions.remove',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/web/src/components/ConditionsPanel.tsx',
+  },
+  {
+    name: 'dash.conditions.rules',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/web/src/components/ConditionsPanel.tsx',
+  },
+  {
     name: 'dash.damage.amount',
     kind: 'action',
     surface: 'dashboard',
@@ -199,6 +229,12 @@ export const USAGE_CATALOG: readonly UsageCatalogEntry[] = [
     kind: 'action',
     surface: 'dashboard',
     file: 'packages/cogm-dashboard/web/src/components/Drawer.tsx',
+  },
+  {
+    name: 'dash.during.conditions',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/web/src/components/During.tsx',
   },
   {
     name: 'dash.during.fold-changes',

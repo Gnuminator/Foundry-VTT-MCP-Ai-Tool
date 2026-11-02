@@ -1,6 +1,6 @@
 ---
 source: player/make-a-character.md
-sourceHash: 875ba47ec850
+sourceHash: e9b1e71da466
 title: Lav din karakter
 description: "Trin for trin: lav en level-3 karakter i Foundry med Actor Studio fra 2024 Player's Handbook (byg på level 1, level up to gange), tjek den og gør den til din egen."
 ---
@@ -143,7 +143,10 @@ De trin, du kommer til at se, nogenlunde i denne rækkefølge:
 
   ![Trinnet med background ability scores ved 0 Points Remaining](../../images/guides/studio-background-scores.png)
 
-- **Languages, skills og tools** fra din background.
+- **Languages, skills og tools** fra din background. Trinnet **Languages** beder dig vælge, ud over
+  Common: teksten siger for eksempel "Select 2 more Languages". Klik på de sprog, du vil have, i
+  listen (spørg din GM eller din D&D-hjælper, hvilke der passer til kampagnen), til teksten er
+  væk, og klik så **Next**.
 - **Backgroundens feat.** Nogle feats beder om flere valg. Magic Initiate beder for eksempel om
   to cantrips og en level-1 spell: vælg dem alle med **Select Spell** for hver. Vælgeren er Foundrys
   compendium browser, og den kræver lidt omhu:
@@ -163,7 +166,11 @@ De trin, du kommer til at se, nogenlunde i denne rækkefølge:
   ![Foundrys compendium browser i Magic Initiate-trinnet: de fleste spells står én gang per bog (SRD 5.1, SRD 5.2, PHB, PHB 2024), med filtrene Cleric, Druid og Wizard låst til](../../images/guides/studio-spell-picker.png)
 
 - **Class:** hit points, saving throws, **skills du kan vælge** (de fleste classes vælger to), træning i
-  våben og rustning og dine level-1 class features. Trinnene har overskriften "Level 1 -> 2", selvom
+  våben og rustning og dine level-1 class features. **Weapon Mastery:** barbarian, fighter,
+  paladin, ranger og rogue får et trin, hvor du vælger de våben, du kender mastery for (for
+  eksempel "Select 3 more Weapon Masteries" for en fighter). Vælg de våben, du vil kæmpe med, og
+  vent, til teksten er væk, før du klikker Next. Våbnets mastery-egenskab (Topple, Sap, Vex og så
+  videre) virker så, hver gang du angriber med det. Trinnene har overskriften "Level 1 -> 2", selvom
   du bygger en level-1 karakter først. Det er bare en mærkelig overskrift. Tag trinnene, som de
   kommer.
 
@@ -208,9 +215,10 @@ Dit sheet er åbent og viser level 1. Vores kampagne starter på level 3, så du
 
 ### Level up til level 3
 
-1. En gylden knap **Level Up** dukker op øverst på dit sheet. **Den vises kun, når GM'en har slået
-   Milestone Levelling til, eller har givet dig nok experience points (XP).** Er der ingen knap,
-   så spørg GM'en.
+1. En lille rund blå knap **Level Up** (Actor Studios logo, en pil på en drage) dukker op øverst
+   på dit sheet, ved siden af level-badget. Hold musen over den, så står der "Level Up". **Den
+   vises kun, når GM'en har slået Milestone Levelling til, eller har givet dig nok experience
+   points (XP).** Er der ingen knap, så spørg GM'en.
 2. Klik på den. Vinduet **Level Up Existing Class** åbner. Klik på **+** yderst til højre i rækken
    for din class (selve rækken gør ingenting).
 3. **Når du går fra level 2 til 3, vælger du også din subclass.** En liste **Choose Subclass**

@@ -140,7 +140,10 @@ The steps you will see, roughly in this order:
 
   ![The background ability score step at 0 Points Remaining](../images/guides/studio-background-scores.png)
 
-- **Languages, skills and tools** from your background.
+- **Languages, skills and tools** from your background. The **Languages** step asks you to
+  choose, on top of Common: the text says, for example, "Select 2 more Languages". Click
+  the languages you want in the list (ask your GM or your D&D helper which ones suit the
+  campaign) until that text is gone, then click **Next**.
 - **The background's feat.** Some feats ask for more choices. Magic Initiate, for example, asks for
   two cantrips and a level-1 spell: pick them all, using **Select Spell** for each. The picker is
   Foundry's compendium browser, and it needs care:
@@ -159,7 +162,11 @@ The steps you will see, roughly in this order:
   ![Foundry's compendium browser in the Magic Initiate step: most spells listed once per book (SRD 5.1, SRD 5.2, PHB, PHB 2024), with the Cleric, Druid and Wizard filters locked on](../images/guides/studio-spell-picker.png)
 
 - **Class:** hit points, saving throws, **skills to choose** (most classes pick two), weapon and
-  armour training, and your level-1 class features. The steps are headed "Level 1 -> 2" even though
+  armour training, and your level-1 class features. **Weapon Mastery:** barbarian, fighter,
+  paladin, ranger and rogue get a step that asks you to pick weapons whose mastery you know (for
+  example "Select 3 more Weapon Masteries" for a fighter). Pick the weapons you plan to fight
+  with, and wait until that text is gone before you click Next. The weapon's mastery property
+  (Topple, Sap, Vex and so on) then works whenever you attack with it. The steps are headed "Level 1 -> 2" even though
   you are building a level-1 character first; that is a labelling quirk. Do the steps as they come.
 
 ## 8. Equipment
@@ -203,9 +210,10 @@ level at a time, with the same builder.
 
 ### Level up to level 3
 
-1. A gold **Level Up** button appears at the top of your sheet. **It only shows when the GM has
-   switched on Milestone Levelling, or has given you enough experience points (XP).** If there is
-   no button, ask the GM.
+1. A small round blue **Level Up** button (the Actor Studio logo, an arrow on a dragon) appears
+   at the top of your sheet, beside the level badge. Hover over it to see "Level Up". **It only
+   shows when the GM has switched on Milestone Levelling, or has given you enough experience points
+   (XP).** If there is no button, ask the GM.
 2. Click it. The window **Level Up Existing Class** opens. Click the **+** at the right end of your
    class's row (the row itself does nothing).
 3. **Going from level 2 to 3, you also choose your subclass.** A **Choose Subclass** list appears

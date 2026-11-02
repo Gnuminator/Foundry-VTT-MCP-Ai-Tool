@@ -239,7 +239,7 @@ function modifiedTimeOf(source: Record<string, unknown>): number | null {
  * Other document types have none.
  */
 function contentHashOf(doc: FoundryDocument | null | undefined): string | undefined {
-  if (!doc || doc.documentName !== 'ActiveEffect') return undefined;
+  if (doc?.documentName !== 'ActiveEffect') return undefined;
   const { _stats, ...rest } = sourceOf(doc);
   void _stats;
   const duration = rest.duration;

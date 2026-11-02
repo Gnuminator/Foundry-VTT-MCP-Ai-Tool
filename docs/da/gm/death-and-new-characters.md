@@ -108,9 +108,10 @@ er bygget.
    Vasil." (`plan-ownership-change`).
 3. **Gør den til spillerens karakter.** I **Players**-listen (nederst til venstre) højreklikker du
    på spilleren, **User Configuration**, og vælger den nye karakter. Værktøjet gør ikke det trin.
-4. **Tilføj den til partiet.** Åbn partiets group-actor (arket, der hedder "The Party", eller hvad
-   du kaldte det), og træk den nye actor over på det. Værktøjet kan ikke tilføje eller fjerne
-   partimedlemmer. Når karakteren er i gruppen, tager **🛡 Party**-skuffen og `get-party` den med.
+4. **Partiet tager den af sig selv.** Når en spiller ejer den nye karakter, lægger Foundry den ind
+   i det primære party (se Recent Changes, med Undo), og **🛡 Party**-skuffen og `get-party` tager
+   den med. Intet at gøre, med mindre "AI Tool: Add player characters to the party" er slået fra:
+   så åbn partiets group-actor og træk den nye actor over på det.
 5. **Placér tokenet.** Træk actoren fra **Actors**-fanen over på scenen. Vil du flytte det bagefter,
    virker "Move Vasil next to Kasimir's token, go ahead." med **play** slået til
    (`plan-token-change`).

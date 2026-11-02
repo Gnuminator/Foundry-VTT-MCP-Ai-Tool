@@ -104,9 +104,10 @@ is built.
    Ownership**, set the player to Owner. Or, with **admin** on: "Make Anna the owner of Vasil." (`plan-ownership-change`).
 3. **Make it the player's character.** In the **Players** list (bottom left), right-click the
    player, **User Configuration**, and pick the new character. The tool does not do this step.
-4. **Add it to the party.** Open the party's group actor (the sheet called "The Party" or what you
-   named it) and drag the new actor onto it. The tool cannot add or remove party members; once the
-   character is in the group, the **🛡 Party** drawer and `get-party` include it.
+4. **The party takes it by itself.** Once a player owns the new character, Foundry adds it to the
+   primary party (see Recent Changes, with Undo), and the **🛡 Party** drawer and `get-party`
+   include it. Nothing to do, unless "AI Tool: Add player characters to the party" is switched off:
+   then open the party's group actor and drag the new actor onto it.
 5. **Place the token.** Drag the actor from the **Actors** tab onto the scene. To move it after that,
    "Move Vasil next to Kasimir's token, go ahead." works with **play** on (`plan-token-change`).
 6. **Give the player one handout.** A short page for the new character: what they know about the

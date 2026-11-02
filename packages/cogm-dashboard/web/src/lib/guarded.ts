@@ -329,7 +329,13 @@ export function useGuardedTools(): GuardedTools {
           queryClient.setQueryData<unknown[]>([...CHANGES_KEY, 'ai'], old =>
             Array.isArray(old) ? [...old] : old
           );
-          toast("✗ Couldn't undo it: it was changed after that. Nothing was written.", 'err');
+          const changedLater = /changed since|modified since/.test(error);
+          toast(
+            changedLater
+              ? "✗ Couldn't undo it: it was changed after that. Nothing was written."
+              : "✗ Couldn't undo it: Foundry no longer matches that change. Nothing was written.",
+            'err'
+          );
           changed();
           return { outcome: { status: 'failed', error } };
         }

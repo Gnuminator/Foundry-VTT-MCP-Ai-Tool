@@ -1034,8 +1034,7 @@ describe('applyGuardedOps: undo', () => {
       },
     });
     const passTurn = (doc: FakeDoc): void => {
-      // What Foundry writes as turns pass: the start stamp, the expired flag and the clock.
-      doc.source.start = { round: 2, turn: 1 };
+      // What Foundry writes as turns pass: the expired flag and the clock.
       doc.source.duration.expired = true;
       doc.source._stats.modifiedTime = clock += 1;
     };
@@ -1055,6 +1054,14 @@ describe('applyGuardedOps: undo', () => {
     edited.source._stats.modifiedTime = clock += 1;
     await expect(applyGuardedOps(undoRequest(second))).rejects.toThrow(/was modified since/);
     expect(registry.has(edited.uuid)).toBe(true);
+
+    // A later change that revives the same condition stamps a new start: the older undo refuses.
+    const third = await applyGuardedOps(await request([effect(addActor())]));
+    const revived = registry.get(third.results[0].uuid)!;
+    revived.source.duration.expired = true;
+    revived.source.duration.expired = false;
+    revived.source.start = { round: 5, turn: 0 };
+    await expect(applyGuardedOps(undoRequest(third))).rejects.toThrow(/was modified since/);
   });
 
   it('restores values and unsets the rules tag (v13 -= keys)', async () => {

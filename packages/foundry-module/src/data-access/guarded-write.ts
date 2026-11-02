@@ -91,7 +91,7 @@ export interface OpSnapshot {
   /** delete: `_stats.modifiedTime`, compared when the expected snapshot has one. */
   modifiedTime?: number | null;
   /**
-   * An effect's content without Foundry's own bookkeeping (`_stats`, `start`, `duration.expired`).
+   * An effect's content without Foundry's own bookkeeping (`_stats`, `duration.expired`).
    * When both sides have one it replaces the `modifiedTime` check: a turn passing is not an edit.
    */
   contentHash?: string;
@@ -232,23 +232,26 @@ function modifiedTimeOf(source: Record<string, unknown>): number | null {
 }
 
 /**
- * A fingerprint of an ActiveEffect without what Foundry rewrites by itself as turns pass (its
- * `_stats`, the `start` stamp and the `duration.expired` flag), so Undo of a timed condition still
+ * A fingerprint (FNV-1a of the stable JSON) of an ActiveEffect without what Foundry rewrites by
+ * itself as turns pass (its `_stats` and the `duration.expired` flag; `start` stays in, a later
+ * revive stamps a new one), so Undo of a timed condition still
  * works after a turn, while a real edit (name, statuses, changes, duration value) still conflicts.
  * Other document types have none.
  */
 function contentHashOf(doc: FoundryDocument | null | undefined): string | undefined {
   if (!doc || doc.documentName !== 'ActiveEffect') return undefined;
-  const { _stats, start, ...rest } = sourceOf(doc);
+  const { _stats, ...rest } = sourceOf(doc);
   void _stats;
-  void start;
   const duration = rest.duration;
   if (duration && typeof duration === 'object') {
     const { expired, ...kept } = duration as Record<string, unknown>;
     void expired;
     rest.duration = kept;
   }
-  return JSON.stringify(rest);
+  const text = stableStringify(rest);
+  let h = 0x811c9dc5;
+  for (let i = 0; i < text.length; i++) h = Math.imul(h ^ text.charCodeAt(i), 0x01000193) >>> 0;
+  return h.toString(16);
 }
 
 function hashField(doc: FoundryDocument): { contentHash?: string } {

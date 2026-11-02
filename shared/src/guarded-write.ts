@@ -74,7 +74,7 @@ export interface OpSnapshot {
   /** delete: `_stats.modifiedTime`, compared when the expected snapshot has one. */
   modifiedTime?: number | null;
   /**
-   * An effect's content without Foundry's own bookkeeping (`_stats`, `start`, `duration.expired`).
+   * An effect's content without Foundry's own bookkeeping (`_stats`, `duration.expired`).
    * When both sides have one it replaces the `modifiedTime` check: a turn passing is not an edit.
    */
   contentHash?: string;

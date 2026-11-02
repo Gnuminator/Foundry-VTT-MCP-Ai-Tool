@@ -1,6 +1,6 @@
 ---
 source: gm/features.md
-sourceHash: 8c8a3b6813e9
+sourceHash: 26a1a8b41d86
 title: Funktioner og hvornår du slår dem til
 description: De funktionsknapper i Foundry AI Tool, du bruger ved bordet, hvad hver af dem gør, og hvornår du skal slå dem til.
 ---

@@ -1,6 +1,6 @@
 ---
 source: gm/death-and-new-characters.md
-sourceHash: 6239881b71e2
+sourceHash: dafd85413e87
 title: Når en karakter dør
 description: Hvad du gør, når en spillerkarakter dør, hvordan du fører optegnelser over de faldne, og hvordan du får en ny karakter ind, med hvad værktøjet kan og ikke kan hjælpe med i hvert trin.
 ---

@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { gmLinks } from './check-sides.mjs';
+// The wiki workflow runs only this file: pull in the Danish twin tests with it.
+import './da.test.mjs';
 import {
   BASE,
   buildSidebar,

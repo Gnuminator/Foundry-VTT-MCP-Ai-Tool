@@ -32,7 +32,7 @@ them under a Danish language switch. Not translated: docs/foundry, reference, de
 
 Plain, short sentences, `du` to the reader, no em dashes (use a comma, a colon or a full stop), no
 stiff office Danish and no filler. Game terms and Foundry labels stay English, as the players say them
-and as they appear on screen (the user, 2026-09-30: translated terms read as nonsense at a Danish table).
+and as they appear on screen (translated terms read as nonsense at a Danish table).
 
 **Keep in English:** D&D, Foundry, Foundry VTT, Claude, Discord, Obsidian, vault, dashboard, token,
 actor, scene, journal, compendium, world, module, every sidebar tab and button as Foundry shows it

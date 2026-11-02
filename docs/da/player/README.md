@@ -45,8 +45,8 @@ dagen og vejr, hvis scenen har dem. Den har disse dele:
 Siden er bygget alene af det, spillere må se. Skjulte skabninger, sande navne, du ikke har lært,
 fjendens HP, GM-noter og hemmeligheder når aldrig frem til den.
 
-**My character.** Dit eget karakterark på din telefon eller laptop, skrivebeskyttet og ajour under
-spillet og altid opdateret. Din GM sender dig et privat link. Åbn det én gang, så husker siden det på den enhed
+**My character.** Dit eget karakterark på din telefon eller laptop, skrivebeskyttet og opdateret under
+spillet. Din GM sender dig et privat link. Åbn det én gang, så husker siden det på den enhed
 (lav et bogmærke eller læg det på din startskærm). Hold linket for dig selv: alle, der har det, kan
 læse dit ark. Det viser kun de karakterer, som din Foundry-bruger ejer. Vælg en visning øverst:
 **At the table** (HP, AC, slots, conditions og ressourcer med et blik), **Paper 2024** eller

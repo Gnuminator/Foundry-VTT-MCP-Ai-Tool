@@ -77,6 +77,8 @@ export interface QuickRoll {
   pick: RollPick;
   setPick: (change: Partial<RollPick>) => void;
   busy: boolean;
+  /** The characters being asked now (empty when idle): a button says busy only for its own ask. */
+  asking: readonly string[];
   /** Asks each character for the roll; one toast says how it went. */
   ask: (names: string[]) => Promise<void>;
 }
@@ -87,7 +89,8 @@ export function useQuickRoll(): QuickRoll {
   const { gated } = useGuardedTools();
   const queryClient = useQueryClient();
   const pick = useSyncExternalStore(subscribe, getPick);
-  const [busy, setBusy] = useState(false);
+  const [asking, setAsking] = useState<readonly string[]>([]);
+  const busy = asking.length > 0;
   const busyRef = useRef(false);
 
   const setPick = changePick;
@@ -97,7 +100,7 @@ export function useQuickRoll(): QuickRoll {
       if (busyRef.current || names.length === 0) return;
       if (gated('request-player-rolls')) return;
       busyRef.current = true;
-      setBusy(true);
+      setAsking(names);
       const ok: string[] = [];
       const failed: { name: string; error: string; maybeSent?: boolean }[] = [];
       try {
@@ -128,7 +131,7 @@ export function useQuickRoll(): QuickRoll {
         });
       } finally {
         busyRef.current = false;
-        setBusy(false);
+        setAsking([]);
       }
       usage().trackTool('request-player-rolls', failed.length === 0 ? 'ok' : 'error');
       toast(sentSummary(pick, ok, failed), ok.length > 0 ? 'ok' : 'err');
@@ -136,7 +139,7 @@ export function useQuickRoll(): QuickRoll {
     [gated, pick, toast, queryClient]
   );
 
-  return { pick, setPick, busy, ask };
+  return { pick, setPick, busy, asking, ask };
 }
 
 /**

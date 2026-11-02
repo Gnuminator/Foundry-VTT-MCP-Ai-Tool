@@ -1,6 +1,6 @@
 ---
 source: player/README.md
-sourceHash: 54cd2437f703
+sourceHash: 5a98a5ed319f
 title: Spillerguide
 description: Hvad spillere kan se, hvad værktøjet optager under spillet, hvilke dele der når en AI, og hvordan du får dine data slettet.
 ---
@@ -54,8 +54,8 @@ læse dit ark. Det viser kun de karakterer, som din Foundry-bruger ejer. Vælg e
 ark til at printe og skrive på, når bordet spiller på papir). Ligesom player page er den live
 bag login med e-mailkode.
 
-**Handouts i Foundry.** Når GM'en viser en handout, kan du også åbne den side i Foundrys
-Journal tab.
+**Handouts i Foundry.** Når GM'en viser en handout, får du en hvisken fra "Handout" i Foundrys
+chat med dens navn; klik på navnet for at åbne siden. Du kan også åbne den i Foundrys Journal tab.
 
 **Dine noter i Obsidian (valgfrit).** Hvis du holder noter i Obsidian, kan serveren holde en
 skrivebeskyttet mappe med dine handouts, recaps, din karakter, dine tal og session-loggen opdateret

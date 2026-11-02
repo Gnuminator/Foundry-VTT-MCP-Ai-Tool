@@ -55,6 +55,8 @@ COPY tsconfig*.json           ./
 # (packages/cogm-dashboard/scripts/build-help.mjs, which reuses the docs link checker).
 COPY docs/gm/                 ./docs/gm/
 COPY docs/foundry/            ./docs/foundry/
+# The Danish twins of the GM guides, which the help shows when the browser language is Danish.
+COPY docs/da/gm/              ./docs/da/gm/
 COPY scripts/check-links.mjs  ./scripts/
 
 # Build all workspaces. Produces dist/ under each package.

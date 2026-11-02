@@ -12,6 +12,7 @@ import { spentLedger } from './spent-actions.js';
 import { changeJournal } from './change-journal.js';
 import { playRecorder } from './play-recorder.js';
 import { USAGE_SOCKET_TYPE, trackUsage, usageRecorder } from './usage-recorder.js';
+import { applySelectionColor } from './token-selection-color.js';
 import { diagnostics } from './diagnostics.js';
 import { registerGmHelperQueries, unregisterGmHelperQueries } from './gm-helper-queries.js';
 import { registerGuardedFeature } from './guarded-features.js';
@@ -604,6 +605,16 @@ Hooks.once('init', async () => {
     await foundryMCPBridge.initialize();
   } catch (error) {
     console.error(`[${MODULE_ID}] Initialization failed:`, error);
+  }
+});
+
+// Selected tokens look different from the turn marker (test 3), on every client. Its own hook and
+// try block: a colour change must never stop the bridge from starting.
+Hooks.once('ready', () => {
+  try {
+    applySelectionColor();
+  } catch (error) {
+    console.warn(`[${MODULE_ID}] Could not set the token selection colour:`, error);
   }
 });
 

@@ -247,6 +247,7 @@ test('Start the session log starts it and then hides', async ({ page }) => {
 test('the real route answers with the bridge down', async ({ page }) => {
   // Nothing faked but the stream and the pre-flight run: the dashboard's own switches route.
   await fakeStream(page, []);
+  await page.unroute('**/api/session/switches');
   await page.route('**/api/preflight', route =>
     route.fulfill({ json: { ready: false, checks: [], scan: null } })
   );

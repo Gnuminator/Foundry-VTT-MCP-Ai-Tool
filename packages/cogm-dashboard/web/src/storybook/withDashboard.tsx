@@ -32,6 +32,12 @@ const DEFAULT_API: FakeApi = {
     '/api/theme': reply({ theme: 'neutral' }),
     '/api/usage': { status: 204 },
     '/api/space': reply({ available: false }),
+    // The module's switches read as on; a story about a switch or an unreadable read says its own.
+    '/api/session/switches': reply({
+      switches: { switches: [], ready: null, changed: [], failed: [] },
+      gmActionsEnabled: true,
+      error: null,
+    }),
     '/api/help/*': reply(HELP_PAGE),
   },
   tools: {

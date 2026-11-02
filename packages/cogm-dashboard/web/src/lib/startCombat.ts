@@ -84,6 +84,24 @@ export function newNpcCombatantIds(state: unknown, tokenIds: ReadonlySet<string>
   return ids;
 }
 
+/** The names of the ticked player characters, to ask each for initiative. */
+export function pcNames(rows: readonly SceneToken[], ticked: ReadonlySet<string>): string[] {
+  return rows
+    .filter(t => ticked.has(t.tokenId) && canFight(t) && t.category === 'pc')
+    .map(t => t.name);
+}
+
+/** request-player-rolls for one player character's initiative: a public roll, as at the table. */
+export function initiativeRequestArgs(name: string): Record<string, unknown> {
+  return {
+    rollType: 'initiative',
+    rollTarget: 'initiative',
+    targetPlayer: name,
+    isPublic: true,
+    userConfirmedVisibility: true,
+  };
+}
+
 /** The plan request for the ticked tokens, in the picker's order. */
 export function startArgs(
   rows: readonly SceneToken[],

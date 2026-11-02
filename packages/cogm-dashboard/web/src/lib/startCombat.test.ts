@@ -3,7 +3,9 @@ import { describe, expect, it } from 'vitest';
 import {
   canFight,
   defaultTicks,
+  initiativeRequestArgs,
   newNpcCombatantIds,
+  pcNames,
   npcTokenIds,
   pickerRows,
   sideWords,
@@ -59,6 +61,25 @@ describe('the start-combat picker', () => {
     expect(sideWords(SCENE[1])).toBe('Hostile');
     expect(sideWords(SCENE[0])).toBe('Neutral or Friendly');
     expect(sideWords(SCENE[2])).toBe('PC');
+  });
+});
+
+describe('asking the player characters for initiative', () => {
+  it('lists only the ticked player characters that can fight', () => {
+    const ticked = defaultTicks(SCENE);
+    expect(pcNames(pickerRows(SCENE), ticked)).toEqual(['Alder', 'Brannoc']);
+    expect(pcNames(pickerRows(SCENE), new Set(['t1']))).toEqual(['Brannoc']);
+    expect(pcNames(pickerRows(SCENE), new Set())).toEqual([]);
+  });
+
+  it('makes a public initiative request for one character', () => {
+    expect(initiativeRequestArgs('Brannoc')).toEqual({
+      rollType: 'initiative',
+      rollTarget: 'initiative',
+      targetPlayer: 'Brannoc',
+      isPublic: true,
+      userConfirmedVisibility: true,
+    });
   });
 });
 

@@ -10,8 +10,10 @@ import { useGuardedTools } from '../lib/guarded';
 import {
   canFight,
   defaultTicks,
+  initiativeRequestArgs,
   newNpcCombatantIds,
   npcTokenIds,
+  pcNames,
   RollNpcInitiativeContext,
   pickerRows,
   sideWords,
@@ -45,6 +47,9 @@ function TokenList({
     if (!next.delete(id)) next.add(id);
     setEdited(next);
   };
+  // Ask the ticked player characters to roll initiative (a roll request, like Ask roll).
+  const [askPcs, setAskPcs] = useState(true);
+  const pcCount = pcNames(rows, ticked).length;
   const args = startArgs(rows, ticked, sceneId);
   const none = args.tokenIds.length === 0;
   const start = (): void => {
@@ -53,6 +58,25 @@ function TokenList({
     void (async (): Promise<void> => {
       const outcome = await plan('plan-combat-change', args);
       if (outcome.status !== 'done') return;
+      // The players are asked first, so they can roll while the NPCs are rolled for.
+      const askNames = askPcs ? pcNames(rows, ticked) : [];
+      if (askNames.length > 0 && !gated('request-player-rolls')) {
+        const answers = await Promise.allSettled(
+          askNames.map(name =>
+            callTool('request-player-rolls', initiativeRequestArgs(name), { confirm: true })
+          )
+        );
+        const failed = askNames.filter((_, i) => answers[i]?.status === 'rejected');
+        const sent = askNames.length - failed.length;
+        if (failed.length === 0) {
+          toast(`✓ Asked ${sent === 1 ? askNames[0] : `${sent} characters`} to roll initiative`);
+        } else {
+          toast(
+            `Initiative was not asked of ${failed.join(', ')}. They can roll it in Foundry.`,
+            'warn'
+          );
+        }
+      }
       // The fight exists now. The NPCs roll through the same gate and a plain write, as Next turn does.
       const npcTokens = npcTokenIds(rows, ticked);
       if (rollNpcs && npcTokens.size > 0 && !gated('roll-initiative-for-npcs')) {
@@ -105,6 +129,17 @@ function TokenList({
           </li>
         ))}
       </ul>
+      {pcCount > 0 && (
+        <label className="cs-hint cs-ask-init">
+          <input
+            type="checkbox"
+            checked={askPcs}
+            disabled={busy}
+            onChange={() => setAskPcs(!askPcs)}
+          />{' '}
+          Ask the player characters to roll initiative
+        </label>
+      )}
       <div className="ca-row">
         <Button
           variant="primary"

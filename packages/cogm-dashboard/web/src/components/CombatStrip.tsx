@@ -199,13 +199,12 @@ function CombatantRow({
           ) : (
             <span className="combatant-text">{c.name}</span>
           )}
-          {(c.defeated || c.isCurrentTurn) && (
-            <span className="visually-hidden">
-              {[c.isCurrentTurn && 'current turn', c.defeated && 'defeated']
-                .filter(Boolean)
-                .join(', ')}
+          {c.isCurrentTurn && (
+            <span className="turn-pill" data-turn-pill>
+              <span aria-hidden="true">▶ </span>Up now
             </span>
           )}
+          {c.defeated && <span className="visually-hidden">defeated</span>}
           <span className={`side side-${side}`}>{SIDE_LABEL[side]}</span>
           {showReaction(bossFlag, c) && (
             <button

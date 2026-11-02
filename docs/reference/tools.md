@@ -468,7 +468,7 @@ Parameters:
 
 ### set-initiative
 
-Set or override a combatant's initiative value in the active combat.
+Set or override a combatant's initiative value in the active combat. The order changes but the turn does not move: whoever is up stays up until the next turn.
 
 Kind: changes something and can delete or overwrite. Title: Set initiative.
 

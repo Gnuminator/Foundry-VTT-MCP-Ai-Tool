@@ -1,4 +1,5 @@
 import { MODULE_ID, ERROR_MESSAGES } from '../constants.js';
+import { resolveCombat } from '../combat-resolve.js';
 import * as shared from './shared.js';
 import { trackUsage } from '../usage-recorder.js';
 import { logDebug, logInfo } from '../log.js';
@@ -607,6 +608,15 @@ export class PlayerRollsDataAccess {
       }
     }
 
+    // Initiative that is asked for during a fight fills the tracker, as a roll from the tracker does.
+    if (
+      character &&
+      args.rollType === 'initiative' &&
+      (await this.rollTrackerInitiative(character))
+    ) {
+      return;
+    }
+
     // Checks, saves and attacks roll through dnd5e itself, so conditions (poisoned), advantage
     // sources and Automated Conditions 5e apply as they would for a roll from the sheet.
     if (
@@ -650,6 +660,24 @@ export class PlayerRollsDataAccess {
         ? { messageMode: 'gm' }
         : { rollMode: 'whisper' };
     await roll.toMessage(messageData, { create: true, ...visibility });
+  }
+
+  /**
+   * Roll initiative for the actor's combatant in the fight the strip means, so the order in the
+   * tracker fills and Foundry posts its own initiative card. False when the actor is in no fight
+   * (the caller then rolls a plain d20 and the number only shows in chat).
+   */
+  private async rollTrackerInitiative(actor: Actor): Promise<boolean> {
+    const combat = resolveCombat<Combat>();
+    if (!combat) return false;
+    const raw: unknown = combat.combatants;
+    const all =
+      (raw as { contents?: Combatant[] } | undefined)?.contents ??
+      (Array.isArray(raw) ? (raw as Combatant[]) : []);
+    const mine = all.find(c => c.actorId === actor.id);
+    if (!mine?.id) return false;
+    await combat.rollInitiative([mine.id]);
+    return true;
   }
 
   /**

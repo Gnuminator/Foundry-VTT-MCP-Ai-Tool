@@ -343,6 +343,35 @@ describe('FoundryDataAccess — requestPlayerRolls', () => {
 // requestAbilityCheck / requestAttackRoll (wrappers)
 // ===========================================================================
 
+describe('FoundryDataAccess: an asked initiative roll fills the tracker', () => {
+  function installFight(combatants: Array<{ id: string; actorId: string }>): {
+    rollInitiative: ReturnType<typeof vi.fn>;
+  } {
+    const rollInitiative = vi.fn(() => Promise.resolve());
+    world.setCombat({ combatants: { contents: combatants }, rollInitiative });
+    return { rollInitiative };
+  }
+
+  it('rolls the actor’s combatant in the running fight', async () => {
+    const { rollInitiative } = installFight([
+      { id: 'c1', actorId: 'a1' },
+      { id: 'c2', actorId: 'a2' },
+    ]);
+    const done = await (da as any).playerRolls.rollTrackerInitiative({ id: 'a2' });
+    expect(done).toBe(true);
+    expect(rollInitiative).toHaveBeenCalledWith(['c2']);
+  });
+
+  it('falls back (false) when the actor is in no fight, or there is none', async () => {
+    const { rollInitiative } = installFight([{ id: 'c1', actorId: 'a1' }]);
+    expect(await (da as any).playerRolls.rollTrackerInitiative({ id: 'a9' })).toBe(false);
+    expect(rollInitiative).not.toHaveBeenCalled();
+    world.currentCombat = null;
+    for (const c of [...world.combats.contents]) world.combats.delete(c.id);
+    expect(await (da as any).playerRolls.rollTrackerInitiative({ id: 'a1' })).toBe(false);
+  });
+});
+
 describe('FoundryDataAccess: roll request event', () => {
   it('a private request is a roll-request event naming who may see it; a public one names no one', async () => {
     world.addUser({ id: 'u1', name: 'Alice', active: true, isGM: false });

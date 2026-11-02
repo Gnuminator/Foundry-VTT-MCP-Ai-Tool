@@ -44,7 +44,7 @@ test('the menu lists the panels and tools in the old page order', async ({ page 
   // So does a click outside it.
   await button.click();
   await expect(menu).toBeVisible();
-  await page.locator('.link-banner').click();
+  await page.locator('#moment-views').click({ position: { x: 4, y: 4 } });
   await expect(menu).toBeHidden();
 });
 

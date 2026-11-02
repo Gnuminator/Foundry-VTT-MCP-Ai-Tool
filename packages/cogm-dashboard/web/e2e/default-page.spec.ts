@@ -41,27 +41,20 @@ test('/ is the React dashboard', async ({ page }) => {
   await fakeBridge(page);
   await page.goto(`/?token=${GM_TOKEN}`);
   await expect(page.getByRole('tablist', { name: 'Moment of the evening' })).toBeVisible();
-  // The header button and the banner's link.
-  const links = await page.getByRole('link', { name: 'Old dashboard' }).all();
-  expect(links.length).toBeGreaterThan(0);
-  for (const link of links) {
-    await expect(link).toHaveAttribute('href', '/legacy/');
-  }
-  await expect(
-    page.locator('header .controls').getByRole('link', { name: 'Old dashboard' })
-  ).toHaveCount(1);
+  // Nothing on the page points to the retired old page.
+  await expect(page.getByRole('link', { name: 'Old dashboard' })).toHaveCount(0);
+  await expect(page.locator('a[href^="/legacy"]')).toHaveCount(0);
   // The preview wording is gone.
   await expect(page.getByText('New dashboard (preview)')).toHaveCount(0);
   await expect(page.getByText('still being built')).toHaveCount(0);
 });
 
-test('/legacy/ is the old page, and the old name /next/ goes to /', async ({ page }) => {
+test('the retired /legacy/ and the old name /next/ go to /', async ({ page }) => {
   await fakeStream(page, gmActions(true));
   await fakeBridge(page);
   await page.goto(`/legacy/?token=${GM_TOKEN}`);
-  await expect(page.locator('#moments')).toBeVisible();
-  await expect(page.locator('#btn-session')).toBeVisible();
-  expect(new URL(page.url()).pathname).toBe('/legacy/');
+  await expect(page.getByRole('tablist', { name: 'Moment of the evening' })).toBeVisible();
+  expect(new URL(page.url()).pathname).toBe('/');
 
   await page.goto(`/next/?token=${GM_TOKEN}`);
   await expect(page.getByRole('tablist', { name: 'Moment of the evening' })).toBeVisible();

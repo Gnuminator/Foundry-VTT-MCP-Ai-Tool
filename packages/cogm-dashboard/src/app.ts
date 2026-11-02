@@ -631,14 +631,12 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
   // The player page and the /open confirm page get their headers from inside express.static,
   // by file name and file identity, so no URL spelling (`/player%2Ehtml`, `/Player.html`,
   // `/x/../player.html`) serves them without.
-  // The React dashboard is the default at / (D-126, from 2026-11-01): a static shell like the old
-  // index.html; its data comes from the same routes, with the same token. Its files are served
-  // under /next/ (Vite's base), where the old name of the page also redirects, keeping the query
-  // (a saved link with ?token=). It is registered before the static files below, which would
-  // answer / with the old page. A build that is missing falls back to the old page.
+  // The React dashboard is the dashboard at / (D-126); its data comes from the routes below, with
+  // the same token. Its files are served under /next/ (Vite's base), where the old name of the
+  // page also redirects, keeping the query (a saved link with ?token=).
   const reactIndex = path.join(config.webDir, 'index.html');
   if (!fs.existsSync(reactIndex)) {
-    logger.warn('The React dashboard is not built: / shows the old page', {
+    logger.warn('The React dashboard is not built: / has no page', {
       webDir: config.webDir,
     });
   }
@@ -666,23 +664,22 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
   mountGmPage(app, { reactIndex, foundryUrl: config.foundryUrl, pageLimit, requireGm });
   // Only a plain query string is carried over (a saved ?token= or ?plan= link); anything else is
   // dropped, and the target is always "/" plus that, so it can never leave this origin.
-  app.get(['/next', '/next/'], pageLimit, (req: Request, res: Response) => {
+  app.get(['/next', '/next/', '/legacy', '/legacy/'], pageLimit, (req: Request, res: Response) => {
     const raw = req.originalUrl.includes('?')
       ? req.originalUrl.slice(req.originalUrl.indexOf('?'))
       : '';
     res.redirect(302, /^\?[A-Za-z0-9%=&._~+-]*$/.test(raw) ? `/${raw}` : '/');
   });
-  // The old page stays here until after G1 (D-126). Its files use relative paths (./app.js), so it
-  // is a static folder of its own; a request for /legacy redirects to /legacy/ with the query.
+  // The old dashboard page (/legacy/) is gone (the user, 2026-10-31): its address goes to / like
+  // /next/ above, so a saved link still lands on the dashboard. Its files are not served.
   const publicHeaders = staticHeaders(config.publicDir, [OPEN_PAGE_HEADERS, PLAYER_PAGE_HEADERS]);
-  // The old pages' stylesheets (unhashed, 89 KB for styles.css) go out gzipped; the page headers
+  // The pages' stylesheets (unhashed, 89 KB for styles.css) go out gzipped; the page headers
   // still come from the same hook, by file, and revalidation works as for express.static.
   const publicCss = gzipAssets(config.publicDir, {
     extensions: ['.css'],
     cacheControl: 'public, max-age=0',
     setHeaders: publicHeaders,
   });
-  app.use('/legacy', publicCss, express.static(config.publicDir, { setHeaders: publicHeaders }));
   app.use(publicCss, express.static(config.publicDir, { setHeaders: publicHeaders }));
 
   // The React dashboard's files: Vite puts a content hash in every file name under assets/, so

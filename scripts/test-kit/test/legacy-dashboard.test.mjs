@@ -48,19 +48,11 @@ const SKIPPED = [
  */
 export const ALLOWED = {
   'packages/cogm-dashboard/src/default-page.test.ts':
-    'server routes: / is React, /legacy/ still answers',
-  'packages/cogm-dashboard/src/token-url.test.ts': 'tests the old page script itself',
-  'packages/cogm-dashboard/web/e2e/old-page-trial.spec.ts':
-    'tests the old page itself; goes with it',
+    'server routes: /legacy/ redirects to /, none of its files answer',
   'packages/cogm-dashboard/web/e2e/default-page.spec.ts':
-    'routing: the link and /legacy/ still answer',
-  'packages/cogm-dashboard/web/e2e/player-redirect.spec.ts':
-    'the player redirect also holds on /legacy/',
-  'packages/cogm-dashboard/web/e2e/views.spec.ts':
-    'the header link to the old page, until it is removed',
-  'packages/cogm-dashboard/README.md':
-    'developer facts: the old page still exists and where its files are',
-  'docs/dev/ARCHITECTURE.md': 'developer fact: the old page stays at /legacy/ until after G1',
+    'routing: /legacy/ goes to /, no link to it on the page',
+  'packages/cogm-dashboard/README.md': 'developer facts: the old page is gone, /legacy/ redirects',
+  'docs/dev/ARCHITECTURE.md': 'developer fact: the old page is gone, /legacy/ redirects',
   'scripts/green.test.mjs': 'a path used as a quick-check fixture',
 };
 

@@ -38,19 +38,19 @@ without touching the rest of the app.
 
 ### Files
 
-| Path                             | Role                                                                        |
-| -------------------------------- | --------------------------------------------------------------------------- |
-| `src/feed/mcp-control-client.ts` | Reconnecting JSON-lines client for the control channel                      |
-| `src/feed/polling-feed.ts`       | `GameFeed` impl — incremental event + combat polling                        |
-| `src/state.ts`                   | Bounded view of the game (rolling events + combat snapshot)                 |
-| `src/ai/prompt.ts`               | Persona / 5e reference, event-significance rules, prompt assembly           |
-| `src/ai/anthropic-co-gm.ts`      | Streaming Messages API wrapper with prompt caching                          |
-| `src/ai/commentary.ts`           | Batches/debounces events into paced comments                                |
-| `src/ai/error-commentary.ts`     | Batches module errors into paced diagnostics comments                       |
-| `src/sse.ts`                     | Server-Sent Events hub                                                      |
-| `src/server.ts`                  | Express wiring, REST + SSE endpoints                                        |
-| `public/`                        | Vanilla-JS pages: the old dashboard (`/legacy/`), `/player`, `/me`, `/open` |
-| `web/`                           | The React dashboard (the page at `/`, built by Vite)                        |
+| Path                             | Role                                                              |
+| -------------------------------- | ----------------------------------------------------------------- |
+| `src/feed/mcp-control-client.ts` | Reconnecting JSON-lines client for the control channel            |
+| `src/feed/polling-feed.ts`       | `GameFeed` impl — incremental event + combat polling              |
+| `src/state.ts`                   | Bounded view of the game (rolling events + combat snapshot)       |
+| `src/ai/prompt.ts`               | Persona / 5e reference, event-significance rules, prompt assembly |
+| `src/ai/anthropic-co-gm.ts`      | Streaming Messages API wrapper with prompt caching                |
+| `src/ai/commentary.ts`           | Batches/debounces events into paced comments                      |
+| `src/ai/error-commentary.ts`     | Batches module errors into paced diagnostics comments             |
+| `src/sse.ts`                     | Server-Sent Events hub                                            |
+| `src/server.ts`                  | Express wiring, REST + SSE endpoints                              |
+| `public/`                        | Vanilla-JS pages: `/player`, `/me`, `/open`; shared styles        |
+| `web/`                           | The React dashboard (the page at `/`, built by Vite)              |
 
 ## Setup
 
@@ -89,9 +89,8 @@ built server), `npm run typecheck`, `npm run lint`.
 ## The React dashboard (the page at `/`)
 
 The dashboard pages moved to React + TypeScript (D-109), one panel at a time. The page lives in
-`web/` and is served at **`/`** (D-126, the default from 2026-11-01). The old page stays at
-**`/legacy/`** until after G1 (its files are `public/index.html` and `public/app.js`); `/next/`
-(the old preview address) redirects to `/`, and the React build's own files still load from
+`web/` and is served at **`/`** (D-126). The old vanilla page is gone (the user, 2026-10-31);
+`/legacy/` and `/next/` (the old preview address) redirect to `/`, and the React build's own files still load from
 `/next/assets/`. `/?plan=<planId>` (the Obsidian plugin's plan link) opens the plan's confirm
 window. `/player`, `/me` and `/open` are separate pages and did not move.
 

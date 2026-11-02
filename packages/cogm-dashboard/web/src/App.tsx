@@ -441,16 +441,8 @@ function Dashboard(): JSX.Element {
           >
             {TRY_LIVE_TEXT}
           </a>
-          <a className="btn" href="/legacy/" title="The old dashboard page, kept until after G1">
-            Old dashboard
-          </a>
         </div>
       </header>
-      <div className="link-banner" role="note">
-        Everything for running a session is on this page. Only the Features cards, the status lights
-        and the AI commentary are missing here: they are on the <a href="/legacy/">old dashboard</a>
-        .
-      </div>
       <PlanLink />
       <RoleNotice />
       <VersionBanner />

@@ -93,8 +93,6 @@ const PARTY = [MOMENT_BEFORE, ADV, 'dash.header.party']; // overlay in Before an
 const HANDOUTS = [MOMENT_BEFORE, ADV, 'dash.header.handouts']; // overlay in Before
 /** The paper-form flow changes the world: checked by hand on a test server, never driven. */
 const NOT_DRIVEN = 'checked by hand on a test server (paper-form); the sweep does not drive it';
-/** Controls that only the old page (kept until after G1) has; the sweep drives the React dashboard. */
-const OLD_ONLY = 'old page only: the dashboard at / has no such control';
 const PLAYER_LINKS = [ADV, 'dash.header.player-links'];
 const EVERYONE = [MOMENT_DURING, 'dash.changes.tab-everyone'];
 /** The undo window of the Everyone tab, open on the first change that can still be undone. */
@@ -110,7 +108,6 @@ const WRITE_FLOW = 'a write flow: it changes the game or the world, so the write
 /** @type {ControlRow[]} the run order: groups (second part of the name) run in order of first appearance */
 export const DASHBOARD_CONTROLS = [
   // --- the page ---
-  { name: 'dash.main.view', how: 'view', expect: '.topbar' },
   { name: MOMENT_BEFORE, how: 'toggle', restore: false, expect: '#moment-before' },
   { name: MOMENT_DURING, how: 'toggle', restore: false, expect: '#moment-during' },
   { name: MOMENT_AFTER, how: 'toggle', restore: false, expect: '#moment-after' },
@@ -150,7 +147,6 @@ export const DASHBOARD_CONTROLS = [
     'dash.live.back',
     'dash.live.header-undo',
     'dash.live.how-do-i',
-    'dash.live.legacy',
     'dash.live.more',
   ].map(name => ({
     name,
@@ -174,7 +170,6 @@ export const DASHBOARD_CONTROLS = [
   },
   { name: 'dash.header.layout-tour', how: 'open', reach: [ADV], expect: '#layout-tour' },
   { name: 'dash.header.tools', how: 'open', reach: [ADV], expect: '#tools-drawer' },
-  { name: 'dash.header.show-ai', how: 'skip', why: OLD_ONLY },
   { name: 'dash.header.show-diagnostics', how: 'open', reach: [ADV], expect: '#pane-diagnostics' },
   {
     name: 'dash.header.player-links',
@@ -182,12 +177,7 @@ export const DASHBOARD_CONTROLS = [
     reach: [ADV],
     expect: 'button[aria-label="Close player links"]',
   },
-  { name: 'dash.header.pause', how: 'skip', why: OLD_ONLY },
-  { name: 'dash.header.diag-ai', how: 'skip', why: OLD_ONLY },
-  { name: 'dash.header.tone', how: 'skip', why: OLD_ONLY },
-  { name: 'dash.header.model', how: 'skip', why: OLD_ONLY },
   { name: 'dash.header.theme', how: 'toggle' },
-  { name: 'dash.header.mist', how: 'skip', why: OLD_ONLY },
   {
     name: 'dash.header.gm-actions',
     how: 'write',
@@ -780,7 +770,6 @@ export const DASHBOARD_CONTROLS = [
   },
 
   // --- the Before screen's feature cards ---
-  { name: 'dash.features.read-more', how: 'skip', why: OLD_ONLY },
 
   // --- the After screen ---
   { name: 'dash.after.refresh', how: 'read', reach: [MOMENT_AFTER], expect: '#stat-cards' },
@@ -847,15 +836,6 @@ export const DASHBOARD_CONTROLS = [
     why: 'replaces a player link (the old one stops working)',
   },
   { name: 'dash.links.remove', how: 'write', why: 'removes a player link' },
-
-  // --- AI commentary ---
-  { name: 'dash.ai.ask', how: 'skip', why: OLD_ONLY },
-  { name: 'dash.ai.post-to-chat', how: 'skip', why: OLD_ONLY },
-  {
-    name: 'dash.ai.error',
-    how: 'error',
-    why: 'the message under an AI comment that failed; cannot be clicked',
-  },
 
   // --- help ---
   { name: 'dash.help.view', how: 'view', reach: [ADV, 'dash.header.guides'], expect: '#pane-help' },

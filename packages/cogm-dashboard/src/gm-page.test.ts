@@ -9,6 +9,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import type { CoGm } from './ai/anthropic-co-gm.js';
 import { createDashboard } from './app.js';
 import { config, type AuthConfig, type Config } from './config.js';
+import { testWebDir } from './test-web-dir.js';
 import { gmPageInfo, gmRedirectTarget } from './gm-page.js';
 import { parseAllowedHosts } from './host-allowlist.js';
 import { Logger } from './logger.js';
@@ -70,6 +71,7 @@ async function start(foundryUrl: string): Promise<number> {
   };
   const testConfig: Config = {
     ...config,
+    webDir: testWebDir(),
     host: '127.0.0.1',
     allowedHosts: parseAllowedHosts(''),
     auth,

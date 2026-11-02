@@ -90,8 +90,8 @@ built server), `npm run typecheck`, `npm run lint`.
 ## The React dashboard (the page at `/`)
 
 The dashboard pages moved to React + TypeScript (D-109), one panel at a time. The page lives in
-`web/` and is served at **`/`** (D-126). The old vanilla page is gone (the user, 2026-10-31);
-`/legacy/` and `/next/` (the old preview address) redirect to `/`, and the React build's own files still load from
+`web/` and is served at **`/`** (D-126). `/legacy/` and `/next/` (the preview address)
+redirect to `/`, and the React build's own files still load from
 `/next/assets/`. `/?plan=<planId>` (the Obsidian plugin's plan link) opens the plan's confirm
 window. `/player`, `/me` and `/open` are separate pages and did not move.
 
@@ -116,7 +116,7 @@ picker.
   (no bridge; each test fakes the routes it needs). Build first. They need Playwright's Chromium
   (`npx playwright install chromium`) or `PLAYWRIGHT_CHANNEL=msedge`. CI runs them on Node 22.
 - `npm run test:visual` runs the screenshot tests in Docker; see "Screenshot tests" below.
-- Usage names go in `data-track="..."` as string literals, as on the old page;
+- Usage names go in `data-track="..."` as string literals;
   `npm run usage:catalog` scans `web/src` too.
 
 ### Building a panel

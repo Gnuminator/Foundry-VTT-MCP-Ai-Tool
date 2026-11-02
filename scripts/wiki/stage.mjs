@@ -58,7 +58,15 @@ const SECTIONS = [
   { from: 'docs/player', to: 'player' },
   { from: 'docs/foundry', to: 'foundry' },
 ];
+/** The Danish twins (docs/da/README.md): staged under da/, not part of the sidebar list. */
+const DA_SECTIONS = [
+  { from: 'docs/da/gm', to: 'da/gm' },
+  { from: 'docs/da/player', to: 'da/player' },
+];
 const HOME = 'docs/wiki/index.md';
+const HOME_DA = 'docs/wiki/index.da.md';
+/** True for a page of the Danish tree: its links to other pages stay in Danish (or its fallback). */
+const isDanish = repoPath => repoPath.startsWith('docs/da/') || repoPath === HOME_DA;
 /** The Foundry basics a player needs, in reading order; staged twice (/foundry/ and /player/foundry/). */
 export const PLAYER_FOUNDRY = [
   'screen-tour',
@@ -74,9 +82,12 @@ const playerFoundryPath = repoPath => {
   return m && PLAYER_FOUNDRY.includes(m[1]) ? `player/foundry/${m[1]}.md` : null;
 };
 const GM_LABEL = '<p class="audience audience-gm">For the GM</p>';
+const GM_LABEL_DA = '<p class="audience audience-gm">Til GM\'en</p>';
 const COACH_MARKER ='<!-- wiki:coach-download -->';
 const COACH_LINE =
   'On the wiki you can download it here: [foundry-gm-coach.zip](downloads/foundry-gm-coach.zip).';
+const COACH_LINE_DA =
+  'På wikien kan du hente den her: [foundry-gm-coach.zip](../../gm/downloads/foundry-gm-coach.zip).';
 
 /** Sidebar groups (board A, 2026-10-29): label and page slugs, in order. GM side, then player side. */
 const SIDEBAR = [
@@ -118,6 +129,22 @@ const SIDEBAR = [
   { label: 'Foundry basics for players', pages: [], rest: 'player/foundry' },
 ];
 const LAST_GROUP = 'More guides';
+/** The Danish name of each sidebar group and of the overview links (the Foundry basics stay English). */
+const DA_LABELS = {
+  'Player or GM?': 'Spiller eller GM?',
+  'Start here': 'Kom i gang',
+  'Game night': 'Spilaften',
+  'The tool': 'Værktøjet',
+  'Your campaign': 'Din kampagne',
+  'When it breaks': 'Når noget går galt',
+  'Foundry basics': 'Foundry basics',
+  'Player guides': 'Spillerguides',
+  'Foundry basics for players': 'Foundry basics til spillere',
+  'More guides': 'Flere guides',
+  'GM guides overview': 'GM-guides, oversigt',
+  'Player guide': 'Spillerguide',
+  'Foundry basics overview': 'Foundry basics, oversigt',
+};
 
 /** Repo-relative path (forward slashes) of a staged page's source, mapped into the staged tree. */
 function stagedPathOf(repoPath, playerSide = false) {
@@ -126,7 +153,8 @@ function stagedPathOf(repoPath, playerSide = false) {
     if (copy !== null) return copy;
   }
   if (repoPath === HOME) return 'index.md';
-  for (const s of SECTIONS) {
+  if (repoPath === HOME_DA) return 'da/index.md';
+  for (const s of [...SECTIONS, ...DA_SECTIONS]) {
     if (repoPath.startsWith(`${s.from}/`)) return `${s.to}/${repoPath.slice(s.from.length + 1)}`;
   }
   if (repoPath.startsWith('docs/images/')) return `images/${repoPath.slice('docs/images/'.length)}`;
@@ -214,7 +242,8 @@ function fenceTracker() {
  */
 export function rewriteLinks(text, repoPath, images, opts = {}) {
   const playerCopy = opts.playerCopy === true;
-  const playerSide = playerCopy || repoPath.startsWith('docs/player/');
+  const playerSide =
+    playerCopy || repoPath.startsWith('docs/player/') || repoPath.startsWith('docs/da/player/');
   const staged = playerCopy ? playerFoundryPath(repoPath) : stagedPathOf(repoPath);
   const inCode = fenceTracker();
   if (playerCopy) text = stripOffSideLinks(text, repoPath);
@@ -237,15 +266,20 @@ export function rewriteLinks(text, repoPath, images, opts = {}) {
         const anchor = hash === -1 ? '' : target.slice(hash);
         const resolved = path.posix.normalize(path.posix.join(path.posix.dirname(repoPath), file));
         if (
-          repoPath.startsWith('docs/player/') &&
-          /^docs\/(gm|foundry)\/.+\.md$/.test(resolved) &&
+          (repoPath.startsWith('docs/player/') || repoPath.startsWith('docs/da/player/')) &&
+          /^docs\/(da\/)?(gm|foundry)\/.+\.md$/.test(resolved) &&
           !playerFoundryPath(resolved)
         ) {
           throw new Error(
             `${repoPath}: the link ${target} leaves the player side (${resolved} is a GM page)`
           );
         }
-        const to = stagedPathOf(resolved, playerSide);
+        let to = stagedPathOf(resolved, playerSide);
+        // A Danish page stays in Danish: a page with no twin (the Foundry basics) is its English
+        // page shown under /da/ (Starlight's fallback page, with a note that it is not translated).
+        if (to !== null && isDanish(repoPath) && /\.md$/.test(to) && !to.startsWith('da/')) {
+          to = `da/${to}`;
+        }
         if (to !== null && existsSync(path.join(repo, resolved))) {
           if (to.startsWith('images/')) images.add(resolved);
           const rel =
@@ -304,7 +338,9 @@ export function toSite(text, stagedPath) {
         if (i > 0 && line === '---') {
           inFront = false;
           // Every GM page says who it is for, at the top.
-          return stagedPath.startsWith('gm/') ? `${line}\n\n${GM_LABEL}\n` : line;
+          if (stagedPath.startsWith('gm/')) return `${line}\n\n${GM_LABEL}\n`;
+          if (stagedPath.startsWith('da/gm/')) return `${line}\n\n${GM_LABEL_DA}\n`;
+          return line;
         }
         return line;
       }
@@ -337,7 +373,7 @@ export function toSite(text, stagedPath) {
       // A time in a heading's last parentheses, "(15 minutes)", becomes a chip; the heading text
       // stays as it is, so slugs and anchors do not move.
       const chipped = withClips.replace(
-        /^(#{2,6} .*?)\s*(\((?:about )?\d+(?:-\d+)? (?:minutes?|hours?)(?: before)?\))\s*$/,
+        /^(#{2,6} .*?)\s*(\((?:about |ca\. )?\d+(?:-\d+)? (?:minutes?|hours?|minutter|timer?)(?: before| før)?\))\s*$/,
         '$1 <span class="chip">$2</span>'
       );
       // A link's text can wrap onto the line before, so only the `](target)` part is matched.
@@ -394,10 +430,17 @@ export function buildSidebar(slugs, order) {
     player: 'Player guide',
     foundry: 'Foundry basics overview',
   };
-  const asItem = slug => ({ slug, ...(labels[slug] ? { label: labels[slug] } : {}) });
+  const asItem = slug => ({
+    slug,
+    ...(labels[slug] ? { label: labels[slug], translations: { da: DA_LABELS[labels[slug]] } } : {}),
+  });
   return [
-    { slug: 'index', label: 'Player or GM?' },
-    ...groups.map(g => ({ label: g.label, items: g.items.map(asItem) })),
+    { slug: 'index', label: 'Player or GM?', translations: { da: DA_LABELS['Player or GM?'] } },
+    ...groups.map(g => ({
+      label: g.label,
+      ...(DA_LABELS[g.label] ? { translations: { da: DA_LABELS[g.label] } } : {}),
+      items: g.items.map(asItem),
+    })),
   ];
 }
 
@@ -405,10 +448,13 @@ function stagePage(repoPath, images, playerCopy = false) {
   const text = readFileSync(path.join(repo, repoPath), 'utf8').replace(/\r\n/g, '\n');
   let staged = rewriteLinks(text, repoPath, images, { playerCopy });
   // The download link goes in after the rewrite: the zip exists only in the staged tree.
-  if (repoPath === 'docs/gm/gm-coach.md') {
+  if (repoPath === 'docs/gm/gm-coach.md' || repoPath === 'docs/da/gm/gm-coach.md') {
     if (!staged.includes(COACH_MARKER))
-      throw new Error(`docs/gm/gm-coach.md lost its ${COACH_MARKER} line`);
-    staged = staged.replace(COACH_MARKER, COACH_LINE);
+      throw new Error(`${repoPath} lost its ${COACH_MARKER} line`);
+    staged = staged.replace(
+      COACH_MARKER,
+      repoPath.startsWith('docs/da/') ? COACH_LINE_DA : COACH_LINE
+    );
   }
   const rel = playerCopy ? playerFoundryPath(repoPath) : stagedPathOf(repoPath);
   const outRel = rel.replace(/(^|\/)README\.md$/, '$1index.md');
@@ -442,6 +488,16 @@ function main() {
     stagePage(`docs/foundry/${name}.md`, images, true)
   );
   slugs.push(...order['player/foundry']);
+
+  // The Danish pages: Starlight's `da` locale. They are not in the sidebar list: its `slug` entries
+  // show the Danish page where there is one and the English page otherwise.
+  if (existsSync(path.join(repo, HOME_DA))) stagePage(HOME_DA, images);
+  for (const s of DA_SECTIONS) {
+    if (!existsSync(path.join(repo, s.from))) continue;
+    for (const f of readdirSync(path.join(repo, s.from)).filter(n => n.endsWith('.md'))) {
+      stagePage(`${s.from}/${f}`, images);
+    }
+  }
 
   for (const img of images) {
     const out = path.join(publicOut, stagedPathOf(img));

@@ -28,7 +28,10 @@ document.addEventListener('DOMContentLoaded', function () {
   host.insertBefore(bar, host.firstChild);
   function show() {
     var n = boxes.filter(function (b) { return b.checked; }).length;
-    bar.textContent = n + ' of ' + boxes.length + ' done' + (n === boxes.length ? '. Quest complete.' : '');
+    var da = document.documentElement.lang === 'da';
+    bar.textContent = da
+      ? n + ' af ' + boxes.length + ' færdige' + (n === boxes.length ? '. Quest fuldført.' : '')
+      : n + ' of ' + boxes.length + ' done' + (n === boxes.length ? '. Quest complete.' : '');
   }
   boxes.forEach(function (b, i) {
     b.disabled = false;
@@ -52,6 +55,13 @@ export default defineConfig({
   integrations: [
     starlight({
       title: 'Foundry AI Tool',
+      // English at the root; the Danish GM and player guides under /da/ (docs/da/README.md).
+      // A page with no Danish version (the Foundry basics) shows its English page under /da/.
+      defaultLocale: 'root',
+      locales: {
+        root: { label: 'English', lang: 'en' },
+        da: { label: 'Dansk', lang: 'da' },
+      },
       description:
         'Guides for the GM and the players of a Foundry VTT game run with Foundry AI Tool.',
       logo: { src: './src/assets/logo.svg', alt: '' },
@@ -79,7 +89,13 @@ export default defineConfig({
       // to it would need the exclude below (the home page uses an absolute URL, which is skipped).
       plugins: [
         starlightLinksValidator({
-          exclude: ['/Foundry-VTT-MCP-Ai-Tool/storybook/**'],
+          // The /da/ pages of the Foundry basics are Starlight's fallback pages (the English page
+          // under /da/); the validator does not know them, but the build writes them.
+          exclude: [
+            '/Foundry-VTT-MCP-Ai-Tool/storybook/**',
+            '/Foundry-VTT-MCP-Ai-Tool/da/foundry/**',
+            '/Foundry-VTT-MCP-Ai-Tool/da/player/foundry/**',
+          ],
         }),
       ],
     }),

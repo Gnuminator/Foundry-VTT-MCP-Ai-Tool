@@ -105,7 +105,7 @@ is built.
 3. **Make it the player's character.** In the **Players** list (bottom left), right-click the
    player, **User Configuration**, and pick the new character. The tool does not do this step.
 4. **The party takes it by itself.** Once a player owns the new character, Foundry adds it to the
-   primary party (see Recent Changes, with Undo), and the **🛡 Party** drawer and `get-party`
+   primary party (see Recent Changes), and the **🛡 Party** drawer and `get-party`
    include it. Nothing to do, unless "AI Tool: Add player characters to the party" is switched off:
    then open the party's group actor and drag the new actor onto it.
 5. **Place the token.** Drag the actor from the **Actors** tab onto the scene. To move it after that,

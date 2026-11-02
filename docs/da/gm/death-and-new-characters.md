@@ -109,7 +109,7 @@ er bygget.
 3. **Gør den til spillerens karakter.** I **Players**-listen (nederst til venstre) højreklikker du
    på spilleren, **User Configuration**, og vælger den nye karakter. Værktøjet gør ikke det trin.
 4. **Partiet tager den af sig selv.** Når en spiller ejer den nye karakter, lægger Foundry den ind
-   i det primære party (se Recent Changes, med Undo), og **🛡 Party**-skuffen og `get-party` tager
+   i det primære party (se Recent Changes), og **🛡 Party**-skuffen og `get-party` tager
    den med. Intet at gøre, med mindre "AI Tool: Add player characters to the party" er slået fra:
    så åbn partiets group-actor og træk den nye actor over på det.
 5. **Placér tokenet.** Træk actoren fra **Actors**-fanen over på scenen. Vil du flytte det bagefter,

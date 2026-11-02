@@ -77,8 +77,11 @@ test('GM Actions off alone is named too', async ({ page }) => {
 
 test('switches that could not be read do not read "all set"', async ({ page }) => {
   await fakeStream(page, [{ event: 'settings', data: { gmActionsEnabled: true } }]);
+  // What the route answers when the bridge is away: 200 with no switches and the reason.
   await page.route('**/api/session/switches', route =>
-    route.fulfill({ status: 502, json: { error: 'The bridge is away' } })
+    route.fulfill({
+      json: { switches: null, gmActionsEnabled: true, error: 'The bridge is away' },
+    })
   );
   await page.goto(`/next/?token=${GM_TOKEN}`);
 

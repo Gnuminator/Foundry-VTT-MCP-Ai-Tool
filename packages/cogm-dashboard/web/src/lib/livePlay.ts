@@ -31,6 +31,15 @@ export interface LivePlay {
   pending: boolean;
 }
 
+/**
+ * Still loading is not unreadable. Unreadable is a failed read with nothing cached, or the answer
+ * the route gives when the bridge or module is away: 200 with no switches and the reason.
+ */
+function isUnreadable(data: SwitchesRead | undefined, status: string): boolean {
+  if (data === undefined) return status === 'error';
+  return data.switches === null && typeof data.error === 'string';
+}
+
 export function useLivePlay(): LivePlay {
   const queryClient = useQueryClient();
   const toast = useToast();
@@ -40,6 +49,8 @@ export function useLivePlay(): LivePlay {
     queryFn: () => api<SwitchesRead>('/api/session/switches'),
     retry: false,
     staleTime: 15_000,
+    // Controls stay disabled while the switches cannot be read: look again until they can.
+    refetchInterval: query => (isUnreadable(query.state.data, query.state.status) ? 5000 : false),
   });
   const list = read.data?.switches?.switches ?? [];
   const turn = useMutation({
@@ -55,8 +66,7 @@ export function useLivePlay(): LivePlay {
     },
   });
   const all = [GM_ACTIONS, ...list.map(s => s.id)];
-  // Still loading is not unreadable; a failed read with nothing cached is.
-  const unreadable = read.isError && read.data === undefined;
+  const unreadable = isUnreadable(read.data, read.status);
   return {
     off: (needs = COMBAT_NEEDS): string[] => offSwitches(needs, gmActions, list, unreadable),
     allOn: offSwitches(all, gmActions, list).length === 0,

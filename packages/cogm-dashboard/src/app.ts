@@ -8,15 +8,13 @@ import {
 } from '@gnuminator/shared';
 
 import { normalizeFoundryUrl, withPortraitUrls } from './combat-images.js';
-import type { Config, Tone } from './config.js';
+import type { Config } from './config.js';
 import { mountGmPage } from './gm-page.js';
 import { liveFrameMiddleware } from './live-frame.js';
 import type { Logger } from './logger.js';
 import { ToolError, TimeoutError } from './feed/mcp-control-client.js';
 import type { BridgeStatus, CombatState, GameFeedHandlers, WorldInfo } from './feed/types.js';
 import { GameState } from './state.js';
-import type { CoGm } from './ai/anthropic-co-gm.js';
-import { buildAskUserMessage } from './ai/prompt.js';
 import { SseHub } from './sse.js';
 import { AccessJwtVerifier, accessTokenFrom } from './access-jwt.js';
 import {
@@ -106,7 +104,6 @@ export interface DashboardDeps {
   config: Config;
   logger: Logger;
   client: DashboardClient;
-  coGm: CoGm;
   /** `/open` options (O4): the P1 origin allowlist (default none) and a test clock. */
   openRoute?: OpenRouteOptions;
   /** The built help (I-064); default dist/help.json next to the server. */
@@ -133,10 +130,6 @@ export interface Dashboard {
 }
 
 interface RuntimeSettings {
-  paused: boolean;
-  tone: Tone;
-  model: string;
-  commentOnErrors: boolean;
   /** Master switch for the write surface (GM Actions). Off by default for safety. */
   gmActionsEnabled: boolean;
 }
@@ -146,10 +139,6 @@ interface ToolInfo {
   description: string;
   inputSchema: unknown;
   mutates: ToolKind;
-}
-
-interface SecretTermsResult {
-  matches?: Array<{ category?: unknown; term?: unknown }>;
 }
 
 const TOOL_CATALOG_TTL_MS = 60_000;
@@ -204,14 +193,10 @@ function mapWorld(raw: unknown): WorldInfo {
 }
 
 export function createDashboard(deps: DashboardDeps): Dashboard {
-  const { config, logger, client, coGm } = deps;
+  const { config, logger, client } = deps;
 
   // --- Mutable runtime settings (controlled from the dashboard) --------------
   const settings: RuntimeSettings = {
-    paused: false,
-    tone: config.defaultTone,
-    model: config.anthropicModel,
-    commentOnErrors: config.commentOnErrors,
     gmActionsEnabled: false,
   };
 
@@ -242,11 +227,6 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
   // event empties it.
   const readCache = createReadCache();
   const playerHub = new SseHub(logger.child('player'));
-
-  // The AI commentary engines (CommentaryEngine, ErrorCommentaryEngine) are not built any more:
-  // the only page that showed their output and had Pause, Tone and Model was the old dashboard,
-  // which is gone, so a paid call would run with nothing to read it (D-066). The backend code
-  // stays until it is deleted by its own Backlog item.
 
   // --- Live status / world ---------------------------------------------------
   let currentStatus: BridgeStatus = {
@@ -381,14 +361,8 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
 
   function settingsPayload(): Record<string, unknown> {
     return {
-      paused: settings.paused,
-      tone: settings.tone,
-      model: settings.model,
-      aiEnabled: coGm.enabled,
-      commentOnErrors: settings.commentOnErrors,
       gmActionsEnabled: settings.gmActionsEnabled,
       pollIntervalMs: config.pollIntervalMs,
-      commentMinIntervalMs: config.commentMinIntervalMs,
       // GM-only (settings are sent through `gmOnly`): the Obsidian vault "Open in
       // Obsidian" links resolve against, or null when off.
       obsidian: config.obsidianVaultName ? { vault: config.obsidianVaultName } : null,
@@ -446,7 +420,6 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
       const raw = await client.callTool('get-world-info');
       world = mapWorld(raw);
       playerDirectory.harvest(raw);
-      coGm.setWorld(world);
       sse.broadcast('world', world, gmOnly);
       schedulePlayerBroadcast();
       broadcastTheme();
@@ -491,7 +464,6 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
         // Foundry dropped: invalidate the stale world so nothing acts on a world
         // that may be gone.
         world = null;
-        coGm.setWorld(null);
         sse.broadcast('world', null, gmOnly);
       }
     },
@@ -723,7 +695,6 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
     res.json({
       ok: true,
       controlChannel: currentStatus.controlChannel,
-      aiEnabled: coGm.enabled,
       splitEnabled: config.auth.splitEnabled,
     });
   });
@@ -806,57 +777,6 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
     sse.send(res, 'errors', { errors: state.recentErrors, initial: true });
   });
 
-  app.post('/api/ask', requireGm, (req: Request, res: Response) => {
-    const question = readStr(asRecord(req.body).question, '').trim();
-    if (!question) {
-      res.status(400).json({ error: 'A non-empty "question" is required.' });
-      return;
-    }
-    if (!coGm.enabled) {
-      res.status(400).json({ error: 'AI is disabled (no ANTHROPIC_API_KEY).' });
-      return;
-    }
-
-    const genId = `ask-${Date.now().toString(36)}`;
-    const tone = settings.tone;
-    const model = settings.model;
-    res.json({ accepted: true, id: genId });
-
-    // A direct question preempts any in-flight auto-comment (latest-wins).
-    // Commentary is GM-only: players never receive comment.* frames.
-    const context = state.buildContext();
-    sse.broadcast(
-      'comment.start',
-      { id: genId, kind: 'ask', tone, model, trigger: question },
-      gmOnly
-    );
-    void coGm
-      .stream({
-        model,
-        maxTokens: config.askMaxTokens,
-        userMessage: buildAskUserMessage(tone, context, question),
-        onDelta: text => sse.broadcast('comment.delta', { id: genId, text }, gmOnly),
-      })
-      .then(result => {
-        if (result.aborted) {
-          sse.broadcast('comment.aborted', { id: genId }, gmOnly);
-        } else {
-          sse.broadcast(
-            'comment.done',
-            { id: genId, text: result.text, usage: result.usage },
-            gmOnly
-          );
-        }
-      })
-      .catch((error: unknown) => {
-        sse.broadcast(
-          'comment.error',
-          { id: genId, message: error instanceof Error ? error.message : 'AI error' },
-          gmOnly
-        );
-      });
-  });
-
   // The theme, for any caller (the players' page loads it too).
   app.get('/api/theme', (req: Request, res: Response) => {
     if (!resolveRole(req, config.auth)) {
@@ -927,27 +847,6 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
     }
 
     switch (action) {
-      case 'toggle-pause':
-        settings.paused = !settings.paused;
-        break;
-      case 'pause':
-        settings.paused = true;
-        break;
-      case 'resume':
-        settings.paused = false;
-        break;
-      case 'set-tone':
-        if (value === 'narrative' || value === 'tactical') settings.tone = value;
-        break;
-      case 'set-model':
-        if (typeof value === 'string' && value.trim() !== '') settings.model = value.trim();
-        break;
-      case 'toggle-diag':
-        settings.commentOnErrors = !settings.commentOnErrors;
-        break;
-      case 'set-diag':
-        settings.commentOnErrors = value === true;
-        break;
       case 'toggle-gm-actions':
         settings.gmActionsEnabled = !settings.gmActionsEnabled;
         break;
@@ -961,57 +860,6 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
 
     broadcastSettings();
     res.json(settingsPayload());
-  });
-
-  app.post('/api/post-chat', requireGm, (req: Request, res: Response) => {
-    const body = asRecord(req.body);
-    const text = readStr(body.text, '').trim();
-    if (!text) {
-      res.status(400).json({ error: 'A non-empty "text" is required.' });
-      return;
-    }
-
-    const message = `🧠 AI: ${text}`;
-    // Always a whisper. gmNames lists only the GMs logged in right now; with none (or no world
-    // info yet) the module whispers to every GM user, and refuses rather than post publicly.
-    const gmNames = world?.gmNames ?? [];
-    const args: Record<string, unknown> = {
-      message,
-      messageType: 'whisper',
-      whisperTargets: gmNames,
-    };
-
-    // Whisper guard (M2): a whisper reaches every client's data (only its display
-    // is hidden), so text naming a GM secret needs the GM's explicit go-ahead.
-    const guard: Promise<Array<{ category: string; term: string }>> =
-      body.allowSecrets === true
-        ? Promise.resolve([])
-        : client.callTool<SecretTermsResult>('check-secret-terms', { text }).then(result =>
-            (Array.isArray(result?.matches) ? result.matches : []).map(m => ({
-              category: readStr(m.category, 'secret'),
-              term: readStr(m.term, ''),
-            }))
-          );
-
-    void guard
-      .then(async matches => {
-        if (matches.length > 0) {
-          res.status(409).json({
-            code: 'secret-terms',
-            matches,
-            error:
-              'The text names GM secrets. Whispers reach every player client; send again with allowSecrets to post anyway.',
-          });
-          return;
-        }
-        await client.callTool('send-chat-message', args);
-        res.json({ ok: true, whisperedTo: gmNames });
-      })
-      .catch((error: unknown) => {
-        res.status(502).json({
-          error: error instanceof Error ? error.message : 'Failed to post to Foundry chat.',
-        });
-      });
   });
 
   // --- Turn on for tonight (D3, PB-17) --------------------------------------------
@@ -1284,7 +1132,6 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
       playerVaults?.start();
     },
     close(): void {
-      coGm.abortActive();
       playerView.stop();
       playerVaults?.stop();
       if (playerTimer) clearTimeout(playerTimer);

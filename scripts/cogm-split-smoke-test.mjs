@@ -361,8 +361,6 @@ async function main() {
       const res = await request('POST', `${base}/api/tool`, {}, { name, args: { query: 'xx' } });
       check(`POST /api/tool ${name} as player → 403`, res.status === 403);
     }
-    const askNoToken = await request('POST', `${base}/api/ask`, {}, { question: 'hi' });
-    check('POST /api/ask without token → 403', askNoToken.status === 403);
     const ctrlNoToken = await request('POST', `${base}/api/control`, {}, { action: 'pause' });
     check('POST /api/control without token → 403', ctrlNoToken.status === 403);
     // GM token reaches the write surface (read tool → not gated by GM-actions confirm).

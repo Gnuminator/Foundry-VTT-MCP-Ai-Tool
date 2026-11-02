@@ -154,8 +154,5 @@ without a separate token.
   direct-to-port requests that bypass the tunnel.
 - The `GM_DASHBOARD_TOKEN` must be rotated if compromised — update the env var and
   restart the dashboard.
-- The Anthropic API key (`ANTHROPIC_API_KEY`) lives only in the dashboard Node process.
-  It is never sent to the browser, never echoed in API responses, and never crosses the
-  Cloudflare tunnel in the response direction. This is enforced by the dashboard's server
-  architecture (the key is read once at startup and used only for server-side Anthropic
-  API calls).
+- The dashboard makes no Anthropic API calls, so no Anthropic API key is stored on the
+  host or sent through the tunnel.

@@ -62,7 +62,6 @@ value. The complete list is in `docs/dev/REMOTE-ACCESS.md §5 (seams list)`. Sho
 - `<TUNNEL_UUID>` — from `cloudflared tunnel create cogm`
 - `<YOUR_DOMAIN>` — the domain on your Cloudflare account (e.g. `example.com`)
 - `<YOUR_LINUX_USER>` — the user account on the always-on host
-- `ANTHROPIC_API_KEY` — your Anthropic API key (runtime env/secret, never in the image)
 - `GM_EMAILS` — comma-separated email addresses that get the GM role
 - `GM_DASHBOARD_TOKEN` — a random secret for token-based GM auth (`openssl rand -hex 32`)
 

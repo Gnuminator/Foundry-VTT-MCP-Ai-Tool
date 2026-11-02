@@ -10,7 +10,8 @@
 - **The dashboard remembers your last choice (this browser):** the Recent Changes tab and person
   filter (and the Live screen's AI only box), which During cards are folded or open, the
   Before/During/After tab you picked (until the session starts or ends), the Party group and the
-  Who-would-notice DC, and the Tools search. A blocked or stale store falls back to the defaults.
-  The During layout is a world setting saved on the server and was already kept.
+  Who-would-notice DC. A blocked or stale store falls back to the defaults. The During layout is
+  still a world setting saved on the server, so it cannot be changed while no Foundry client is
+  connected.
 - **Turn-order cards are the same size in every During layout:** Auto's wider cards and type size
   now apply in Cards and Simple/Full too, and the row wraps in all of them.

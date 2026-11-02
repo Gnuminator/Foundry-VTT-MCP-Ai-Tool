@@ -761,3 +761,36 @@ test('the roll bar says who still owes a roll and who rolled what', async ({ pag
   await expect(status).toContainText('Ivarro rolled 17');
   await expect(status).toContainText('Tom: waiting');
 });
+
+test('the Party group and the notice DC are remembered for the next visit in this browser', async ({
+  page,
+}) => {
+  await fakeStream(page, []);
+  const other = {
+    ...GROUP,
+    actorId: 'g2',
+    name: 'Second',
+    primary: false,
+    members: [{ ...IVARRO, passives: { perception: 16, investigation: 12, insight: 10 } }],
+  };
+  const state = {
+    ...STATE,
+    groups: [
+      {
+        ...GROUP,
+        members: [{ ...ILVARA, passives: { perception: 13, investigation: 9, insight: null } }],
+      },
+      other,
+    ],
+  };
+  await fakeTools(page, call => (call.name === 'get-party' ? ok(state) : ok({})));
+  let drawer = await openParty(page);
+  await drawer.getByLabel('Party group').selectOption('g2');
+  await drawer.getByLabel('Notice DC').fill('14');
+  await expect(drawer.getByLabel('Notice DC')).toHaveValue('14');
+
+  await page.reload();
+  drawer = await openParty(page);
+  await expect(drawer.getByLabel('Party group')).toHaveValue('g2');
+  await expect(drawer.getByLabel('Notice DC')).toHaveValue('14');
+});

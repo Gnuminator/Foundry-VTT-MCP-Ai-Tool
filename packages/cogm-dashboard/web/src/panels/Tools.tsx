@@ -27,7 +27,6 @@ import {
   useGuardedTools,
   type GuardedOutcome,
 } from '../lib/guarded';
-import { REMEMBER, readText, writeChoice } from '../lib/remember';
 import { SETTINGS_KEY, useDashboardSettings, type DashboardSettings } from '../lib/stream';
 import {
   collectArgs,
@@ -191,11 +190,7 @@ function ToolRunner({
 
   // The page keeps every tool's form while it is open, closed or another tool is shown: a draft
   // is never lost to a misclick.
-  const [search, setSearchState] = useState(() => readText(REMEMBER.toolsSearch, ''));
-  const setSearch = (next: string): void => {
-    setSearchState(next);
-    writeChoice(REMEMBER.toolsSearch, next);
-  };
+  const [search, setSearch] = useState('');
   const [current, setCurrent] = useState<string | null>(null);
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
   const [result, setResult] = useState<ToolResult | null>(null);

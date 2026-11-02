@@ -345,3 +345,17 @@ for (const width of [1440, 400]) {
     expect(overflow).toBeLessThanOrEqual(0);
   });
 }
+
+test('the AI only box is remembered, and is its own choice, not the dashboard’s person filter', async ({
+  page,
+}) => {
+  await setup(page);
+  await page.addInitScript(() => localStorage.setItem('cogm_changes_person', 'person:Tobias'));
+  await load(page);
+  const list = page.locator('#pane-changes');
+  await expect(list.getByLabel('AI only')).not.toBeChecked();
+  await list.getByLabel('AI only').check();
+  await page.reload();
+  await expect(page.locator('#live-screen')).toBeVisible();
+  await expect(page.locator('#pane-changes').getByLabel('AI only')).toBeChecked();
+});

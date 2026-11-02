@@ -795,3 +795,27 @@ test.describe('the turn-order cards', () => {
     });
   }
 });
+
+test('the Before, During or After tab you picked comes back after a reload in the same session', async ({
+  page,
+}) => {
+  await setup(page, { events: [picked()] });
+  await load(page);
+  await expect(during(page)).toBeVisible();
+  await page.locator('#tab-after').click();
+  await expect(page.locator('#moment-after')).toBeVisible();
+  await page.reload();
+  await expect(page.locator('#moment-after')).toBeVisible();
+  await expect(during(page)).toBeHidden();
+});
+
+test('a tab picked while no session was open is not kept once a session is open', async ({
+  page,
+}) => {
+  await page.addInitScript(() =>
+    localStorage.setItem('cogm_moment_pin', '{"moment":"after","open":false}')
+  );
+  await setup(page, { events: [picked()], open: true });
+  await load(page);
+  await expect(during(page)).toBeVisible();
+});

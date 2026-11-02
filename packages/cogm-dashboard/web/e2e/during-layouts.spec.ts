@@ -741,3 +741,57 @@ test.describe('Escape and popups', () => {
     await expect(guide(page)).toBeHidden();
   });
 });
+
+test.describe('the turn-order cards', () => {
+  const MARA = {
+    id: 'm',
+    name: 'Mara',
+    initiative: 19,
+    isCurrentTurn: true,
+    hp: { value: 38, max: 44, temp: 0 },
+    conditions: [],
+    isPC: true,
+    category: 'pc',
+    defeated: false,
+    deathSaves: null,
+    tokenId: 'tk-m',
+  };
+  const ORC = { ...MARA, id: 'o', name: 'Orc', isCurrentTurn: false, isPC: false, tokenId: 'tk-o' };
+  const fight: Event = {
+    event: 'combat',
+    data: { combat: { active: true, round: 1, turn: 0, current: MARA, combatants: [MARA, ORC] } },
+  };
+
+  /** The width and type size of a turn-order card in a layout, in a fight, at a window width. */
+  async function cardIn(
+    page: Page,
+    layout: 'layered' | 'toggle' | 'auto',
+    width: number
+  ): Promise<{ width: number; font: string }> {
+    await page.setViewportSize({ width, height: 900 });
+    await setup(page, { events: [picked({ duringLayout: layout, duringFull: true }), fight] });
+    await load(page);
+    await expect(during(page)).toHaveAttribute('data-layout', layout);
+    const card = page.locator('#pane-combat .combatant').first();
+    await expect(card).toBeVisible();
+    return card.evaluate(el => ({
+      width: Math.round(el.getBoundingClientRect().width),
+      font: getComputedStyle(el).fontSize,
+    }));
+  }
+
+  for (const width of [1280, 1440]) {
+    test(`are the same size in Auto, Cards and Simple/Full at ${width} px`, async ({ browser }) => {
+      const sizes: { width: number; font: string }[] = [];
+      for (const layout of ['auto', 'layered', 'toggle'] as const) {
+        const context = await browser.newContext();
+        const page = await context.newPage();
+        sizes.push(await cardIn(page, layout, width));
+        await context.close();
+      }
+      expect(sizes[1]).toEqual(sizes[0]);
+      expect(sizes[2]).toEqual(sizes[0]);
+      expect(sizes[0]?.width).toBeGreaterThanOrEqual(192);
+    });
+  }
+});

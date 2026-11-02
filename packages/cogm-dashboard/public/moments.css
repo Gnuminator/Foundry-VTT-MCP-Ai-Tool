@@ -162,13 +162,6 @@
     'party feed'
     'party .';
 }
-#moment-during[data-layout='auto'][data-context='combat'] .slot-strip #pane-combat .pane-body {
-  flex-wrap: wrap;
-}
-#moment-during[data-layout='auto'][data-context='combat'] .slot-strip #pane-combat .combatant {
-  min-width: 12rem;
-  font-size: var(--fs-md);
-}
 #moment-during[data-layout='auto'][data-context='combat'] .slot-strip #pane-combat .conditions {
   display: flex;
 }
@@ -432,14 +425,17 @@
 .slot-strip #pane-combat .pane-body {
   display: flex;
   flex-direction: row;
+  flex-wrap: wrap;
   gap: 0.5rem;
   overflow-x: auto;
   padding: 0.6rem 0.8rem;
 }
+/* The same card size in every During layout (Auto used to have its own, wider one). */
 .slot-strip #pane-combat .combatant {
   flex: none;
   grid-template-columns: 1.8rem auto;
-  min-width: 9rem;
+  min-width: 12rem;
+  font-size: var(--fs-md);
 }
 .slot-strip #pane-combat .combatant .hp {
   grid-column: 1 / -1;

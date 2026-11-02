@@ -117,6 +117,8 @@ export const StartsTheSession: Story = {
     await waitFor(() =>
       expect(within(document.body).getAllByText('✓ Already on')).not.toHaveLength(0)
     );
+    // Let the stack finish moving the first toast up before the shot (its edge flickered by a row).
+    await new Promise(resolve => setTimeout(resolve, 600));
   },
 };
 

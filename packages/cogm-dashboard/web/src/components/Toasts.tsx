@@ -17,7 +17,8 @@ type ToastKind = 'ok' | 'err' | 'warn';
 /** The button on an applied change's toast (Undo); a click runs it and closes the toast. */
 export interface ToastAction {
   label: string;
-  onClick: () => void;
+  /** A promise keeps the toast up, its button busy, until it settles; then the toast closes. */
+  onClick: () => void | Promise<void>;
 }
 
 interface ToastItem {
@@ -66,6 +67,17 @@ export function ToastProvider({ children }: { children: ReactNode }): JSX.Elemen
   const remove = useCallback((id: number) => {
     setItems(list => list.filter(t => t.id !== id));
   }, []);
+  // The toast whose action is running (Undo): its button says so and ignores a second click.
+  const [running, setRunning] = useState<number | null>(null);
+  const runAction = (t: ToastItem, event: { preventDefault(): void }): void => {
+    event.preventDefault();
+    if (running !== null || !t.action) return;
+    setRunning(t.id);
+    void Promise.resolve(t.action.onClick()).finally(() => {
+      setRunning(null);
+      remove(t.id);
+    });
+  };
   const value = useMemo(() => show, [show]);
 
   return (
@@ -90,9 +102,10 @@ export function ToastProvider({ children }: { children: ReactNode }): JSX.Elemen
                 className="toast-action"
                 altText={`${t.action.label}: ${t.text}`}
                 data-track="dash.toast.undo"
-                onClick={t.action.onClick}
+                aria-disabled={running === t.id ? true : undefined}
+                onClick={event => runAction(t, event)}
               >
-                {t.action.label}
+                {running === t.id ? 'Working...' : t.action.label}
               </Toast.Action>
             )}
           </Toast.Root>

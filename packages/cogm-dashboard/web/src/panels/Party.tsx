@@ -157,7 +157,7 @@ function MemberRow({
         type="button"
         size="sm"
         data-track="dash.quickroll.member"
-        aria-label={askText}
+        aria-label={askBusy ? `Asking ${m.name} for a roll...` : askText}
         title={askOff.length > 0 ? offReason(askOff) : askText}
         aria-disabled={askOff.length > 0 ? 'true' : undefined}
         busy={askBusy}
@@ -450,7 +450,7 @@ export function PartyDrawer({
               onOpen={openActor}
               onAsk={() => void roll.ask([m.name])}
               askLabel={askLabel(roll, m.name)}
-              askBusy={roll.busy}
+              askBusy={roll.asking.length === 1 && roll.asking[0] === m.name}
               askOff={rollOff}
             />
           ))}
@@ -518,7 +518,7 @@ export function PartyDrawer({
               id="party-roll-all"
               data-track="dash.quickroll.party"
               aria-disabled={rollOff.length > 0 ? 'true' : undefined}
-              busy={roll.busy}
+              busy={roll.asking.length > 1 || (roll.asking.length === 1 && members.length === 1)}
               busyLabel="Asking..."
               title={rollOff.length > 0 ? offReason(rollOff) : undefined}
               onClick={() => {

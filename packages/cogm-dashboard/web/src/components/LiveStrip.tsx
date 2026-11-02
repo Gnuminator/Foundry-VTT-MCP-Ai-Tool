@@ -58,6 +58,8 @@ const StartCombat = lazy(() => import('./StartCombat').then(m => ({ default: m.S
 const DamageForm = lazy(() => import('./DamageForm').then(m => ({ default: m.DamageForm })));
 
 const AI_KEY = [...CHANGES_KEY, 'ai'] as const;
+/** The header buttons that say they are busy while their own write runs. */
+type BusyKey = 'next' | 'end' | 'undo';
 
 function Card({
   c,
@@ -181,7 +183,10 @@ export function LiveStrip(): JSX.Element {
   const roll = useQuickRoll();
   const [picked, setPicked] = useState<ReadonlySet<string>>(new Set());
   const [lastAsked, setLastAsked] = useState<string[]>([]);
-  const [busy, setBusy] = useState(false);
+  // False when idle; true while a write runs; a key when the write came from a header button that
+  // then says what it is doing.
+  const [busyState, setBusy] = useState<false | true | BusyKey>(false);
+  const busy = busyState !== false;
   // "1 round": the next condition lasts one round. Cleared with the pick, so a failed add keeps it.
   const [oneRound, setOneRound] = useState(false);
   const busyRef = useRef(false);
@@ -229,10 +234,10 @@ export function LiveStrip(): JSX.Element {
   });
 
   /** One write at a time: a second click while one runs does nothing. */
-  const once = useCallback(async (work: () => Promise<void>): Promise<void> => {
+  const once = useCallback(async (work: () => Promise<void>, key?: BusyKey): Promise<void> => {
     if (busyRef.current) return;
     busyRef.current = true;
-    setBusy(true);
+    setBusy(key ?? true);
     try {
       await work();
     } finally {
@@ -256,7 +261,7 @@ export function LiveStrip(): JSX.Element {
         { confirm: true },
         { label: 'Next turn', checkIn: 'the tracker' }
       );
-    });
+    }, 'next');
 
   const endCombat = (): Promise<void> =>
     once(async () => {
@@ -290,7 +295,7 @@ export function LiveStrip(): JSX.Element {
       });
       if (!ok) return;
       await applyApproved(planId, true);
-    });
+    }, 'end');
 
   const addCondition = (condition: string): Promise<void> =>
     once(async () => {
@@ -325,7 +330,7 @@ export function LiveStrip(): JSX.Element {
         { checkIn: 'Recent Changes' }
       );
       if (done.status === 'done') toast(`✓ Undone: ${undoable.summary}`, 'ok');
-    });
+    }, 'undo');
 
   const nextHandout = handouts.data ? nextQueued(handouts.data) : null;
   const showHandout = (): Promise<void> =>
@@ -386,6 +391,8 @@ export function LiveStrip(): JSX.Element {
               id="live-next-turn"
               data-track="dash.live.next-turn"
               aria-disabled={nextOff ? 'true' : undefined}
+              busy={busyState === 'next'}
+              busyLabel="Next turn..."
               title={titleFor(plainOff)}
               onClick={() => {
                 if (!nextOff) void nextTurn();
@@ -399,6 +406,8 @@ export function LiveStrip(): JSX.Element {
               id="live-end-combat"
               data-track="dash.live.end-combat"
               aria-disabled={writeOff ? 'true' : undefined}
+              busy={busyState === 'end'}
+              busyLabel="Ending..."
               title={offTitle}
               onClick={() => {
                 if (!writeOff) void endCombat();
@@ -415,6 +424,8 @@ export function LiveStrip(): JSX.Element {
             id="live-undo"
             data-track="dash.live.undo"
             aria-disabled={undoable && !off ? undefined : 'true'}
+            busy={busyState === 'undo'}
+            busyLabel="Undoing..."
             title={undoable?.summary}
             onClick={() => {
               if (undoable && !off) void undo();

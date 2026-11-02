@@ -62,6 +62,8 @@ function planLines(plan: Plan): string[] | null {
 interface Applied {
   changeId?: string;
   summary?: string;
+  /** What a create tool made (a journal's name). */
+  name?: string;
   /** "Show it now" on a handout reveal: the popup on the players' screens. */
   shown?: { ok: boolean; error?: string };
   copy?: unknown;
@@ -90,7 +92,9 @@ function doneText(name: string, result: Applied | null): string {
     return `✓ Applied: ${summary}${shown}`;
   }
   if (name === 'undo-change' && summary) return `✓ ${summary}`;
-  return `✓ ${toolWords(name)} done`;
+  // A tool that made something answers its name ("Create quest journal done: Rescue the Merchant").
+  const target = typeof result?.name === 'string' ? result.name : '';
+  return target ? `✓ ${toolWords(name)} done: ${target}` : `✓ ${toolWords(name)} done`;
 }
 
 /**
@@ -425,7 +429,7 @@ export function useGuardedTools(): GuardedTools {
       if (changeId) {
         toast(doneText('apply-planned-change', applied), 'ok', {
           label: 'Undo',
-          onClick: () => void undo(changeId, options),
+          onClick: () => undo(changeId, options),
         });
       } else {
         toast(doneText('apply-planned-change', applied), 'ok');

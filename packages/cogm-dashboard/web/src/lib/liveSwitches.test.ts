@@ -24,6 +24,11 @@ describe('which switches a control still needs', () => {
   it('ignores module switches until they are read', () => {
     expect(offSwitches(COMBAT_NEEDS, false, null)).toEqual(['GM Actions']);
   });
+
+  it('treats switches that could not be read as on: the click goes through and the server refuses', () => {
+    expect(offSwitches(COMBAT_NEEDS, true, null)).toEqual([]);
+    expect(offSwitches(COMBAT_NEEDS, true, [])).toEqual([]);
+  });
 });
 
 describe('the one-line reason', () => {

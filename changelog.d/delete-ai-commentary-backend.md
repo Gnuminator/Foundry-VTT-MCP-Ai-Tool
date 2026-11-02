@@ -1,0 +1,3 @@
+### Dashboard
+
+- **The AI commentary backend is deleted:** `src/ai/` (the Anthropic client, the commentary and error-commentary engines, the prompts), `POST /api/ask`, `POST /api/post-chat`, the `/api/control` actions for pause, tone, model and comment-on-errors, the `@anthropic-ai/sdk` dependency and the `ANTHROPIC_*`, `COGM_TONE` and `*COMMENT*` settings are gone. Nothing in the dashboard can call the paid API now, even with a key on the host. `/api/health` and the settings stream no longer carry `aiEnabled`, `paused`, `tone`, `model` or `commentOnErrors`. Old-page-only rules for comment cards, the ask bar and the Features cards are removed from the stylesheets. The Pi load check no longer loads the deleted AI client module.

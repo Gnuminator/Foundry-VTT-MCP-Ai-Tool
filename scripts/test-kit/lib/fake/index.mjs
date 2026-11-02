@@ -104,7 +104,7 @@ export async function startFake({ world: worldId }) {
     const url = new URL(req.url ?? '/', 'http://fake');
     const get = req.method === 'GET';
     if (get && url.pathname === '/api/health') {
-      const body = { ok: true, controlChannel: 'connected', aiEnabled: false, splitEnabled: false };
+      const body = { ok: true, controlChannel: 'connected', splitEnabled: false };
       return sendJson(res, 200, body);
     }
     if (get && url.pathname === '/api/tools') {

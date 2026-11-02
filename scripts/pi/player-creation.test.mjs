@@ -14,12 +14,25 @@ import path from 'node:path';
 import { after, before, describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-import { applyState, blockers, mismatches, readState } from './remote/player-creation-settings.mjs';
+import {
+  ABILITY_METHODS,
+  applyState,
+  blockers,
+  mismatches,
+  readState,
+} from './remote/player-creation-settings.mjs';
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const MODULE_ID = 'foundryvtt-actor-studio';
 const PACK = 'dnd-players-handbook.equipment';
-const ARGS = { moduleId: MODULE_ID, pack: PACK, roles: [1, 2] };
+const ARGS = { moduleId: MODULE_ID, pack: PACK, roles: [1, 2], methods: ABILITY_METHODS };
+// Actor Studio's defaults before the stage runs: manual entry on, the rest off.
+const DEFAULT_METHODS = {
+  allowStandardArray: false,
+  allowPointBuy: false,
+  allowManualInput: true,
+  allowRolling: false,
+};
 const TRACKING = `${MODULE_ID}.usage-tracking`;
 
 // A Setting document: Foundry keeps `value` as JSON (a JSONField), so an update with the string 'false'
@@ -46,6 +59,8 @@ function fakeGame({
   sources = { equipment: null, races: ['dnd-players-handbook.origins'] },
   isGM = true,
   moduleActive = true,
+  methods = DEFAULT_METHODS,
+  methodsRegistered = true,
 } = {}) {
   const values = new Map([
     ['core.permissions', { ACTOR_CREATE: actorCreate, FILES_BROWSE: [2, 3, 4] }],
@@ -53,6 +68,12 @@ function fakeGame({
     [`${MODULE_ID}.compendiumSources`, sources],
   ]);
   const registered = new Map([...values.keys()].map(k => [k, {}]));
+  if (methodsRegistered) {
+    for (const [key, value] of Object.entries(methods)) {
+      values.set(`${MODULE_ID}.${key}`, value);
+      registered.set(`${MODULE_ID}.${key}`, {});
+    }
+  }
   if (tracking) registered.set(TRACKING, {});
   const sets = [];
   return {
@@ -85,7 +106,7 @@ describe('player-creation-settings.mjs (the in-browser part)', () => {
     delete globalThis.CONST;
   });
 
-  test('sets the three settings, keeps the roles and sources that were there, then verifies', async () => {
+  test('sets the settings, keeps the roles and sources that were there, then verifies', async () => {
     globalThis.game = fakeGame();
     const start = readState(ARGS);
     assert.deepEqual(blockers(start, 'curse-of-strahd'), []);
@@ -94,8 +115,12 @@ describe('player-creation-settings.mjs (the in-browser part)', () => {
       'core.permissions ACTOR_CREATE',
       'enableEquipmentSelection',
       'compendiumSources.equipment',
+      'allowStandardArray',
+      'allowPointBuy',
+      'allowManualInput',
     ]);
     const end = readState(ARGS);
+    assert.deepEqual(end.abilityMethods, ABILITY_METHODS);
     assert.deepEqual(end.actorCreate, [1, 2, 3, 4]);
     assert.equal(end.enableEquipmentSelection, true);
     assert.deepEqual(end.compendiumSources, {
@@ -145,6 +170,47 @@ describe('player-creation-settings.mjs (the in-browser part)', () => {
     const changed = await applyState(ARGS);
     assert.ok(!changed.some(c => c.startsWith('usage-tracking')), changed.join(', '));
     assert.equal(docs[0].updates, 0);
+  });
+
+  test('ability methods: standard array and point buy on, manual and rolling off; a rolling-on world is switched off', async () => {
+    assert.deepEqual(ABILITY_METHODS, {
+      allowStandardArray: true,
+      allowPointBuy: true,
+      allowManualInput: false,
+      allowRolling: false,
+    });
+    globalThis.game = fakeGame({
+      methods: { ...DEFAULT_METHODS, allowRolling: true, allowStandardArray: true },
+    });
+    const start = readState(ARGS);
+    assert.match(mismatches(start, start).join('; '), /allowPointBuy is false, expected true/);
+    assert.match(mismatches(start, start).join('; '), /allowRolling is true, expected false/);
+    const changed = await applyState(ARGS);
+    assert.deepEqual(changed.filter(c => c.startsWith('allow')).sort(), [
+      'allowManualInput',
+      'allowPointBuy',
+      'allowRolling',
+    ]);
+    assert.deepEqual(mismatches(start, readState(ARGS)), []);
+    // a rerun, and a world that already has the values, set nothing
+    const sets = globalThis.game.sets.length;
+    assert.deepEqual(await applyState(ARGS), []);
+    assert.equal(globalThis.game.sets.length, sets);
+  });
+
+  test('blockers say so when the module does not register the ability method settings', () => {
+    globalThis.game = fakeGame({ methodsRegistered: false });
+    assert.match(
+      blockers(readState(ARGS), 'curse-of-strahd').join('; '),
+      /did not register enableEquipmentSelection, compendiumSources and the ability method settings/
+    );
+  });
+
+  test('readState and applyState get the methods through their argument (they run in the browser)', () => {
+    // page.evaluate serialises the function alone: it must not reach for the module-level constant.
+    for (const fn of [readState, applyState]) {
+      assert.doesNotMatch(fn.toString(), /ABILITY_METHODS/);
+    }
   });
 
   test('blockers name a non-GM login, an inactive module and the wrong world', () => {

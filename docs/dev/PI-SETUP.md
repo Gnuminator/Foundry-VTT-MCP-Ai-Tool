@@ -1005,7 +1005,9 @@ nothing and does not fail the stage. Without the extra file the stage warns that
   (never printed, passed in the environment and not on a command line). It sets
   `core.permissions` so `ACTOR_CREATE` includes Player and Trusted Player (roles already there stay),
   and Actor Studio's world settings `enableEquipmentSelection` = true and `compendiumSources` with
-  `equipment` = `["dnd-players-handbook.equipment"]` (the other sources keep their values), and
+  `equipment` = `["dnd-players-handbook.equipment"]` (the other sources keep their values), the ability
+  score methods `allowStandardArray` and `allowPointBuy` on and `allowManualInput` and `allowRolling` off
+  (our table uses the standard array and point buy), and
   turns Actor Studio's per-user `usage-tracking` off for every user who has it saved as on. It prints
   the values before and after, reloads the world and reads them back, and the stage stops with an
   error on any mismatch, if Actor Studio is not switched on in the world, or if that pack is not in

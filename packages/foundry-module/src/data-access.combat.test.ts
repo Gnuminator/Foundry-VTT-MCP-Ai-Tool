@@ -702,14 +702,22 @@ describe('FoundryDataAccess — getCombatState: conditions', () => {
       duration: { units: 'rounds', value: 1, expiry: 'turnStart' },
       start: { round: 3, turn: 0 },
     });
+    // A stamp from another fight: the prepared values count, not that start round.
+    const foreign = makeEffect({
+      name: 'Poisoned',
+      statuses: ['poisoned'],
+      duration: { units: 'rounds', value: 1, remaining: 1 },
+      start: { round: 9, turn: 0, combat: 'old-fight' },
+    });
     const early = makeActor({ type: 'character', system: hp(10), effects: [startedTurn] });
     const late = makeActor({
       type: 'character',
       system: hp(10),
-      effects: [fresh, overdue, notYet],
+      effects: [fresh, overdue, notYet, foreign],
     });
-    (early as { id?: string }).id = 'early';
-    (late as { id?: string }).id = 'late';
+    // Two unlinked tokens share one actor id: each is judged by its own place in the order.
+    (early as { id?: string }).id = 'wolf';
+    (late as { id?: string }).id = 'wolf';
     world.setCombat({
       turns: [
         makeCombatant({
@@ -734,7 +742,12 @@ describe('FoundryDataAccess — getCombatState: conditions', () => {
 
     const result = await da.getCombatState();
     expect(result.combatants[0].timed).toEqual({ Frightened: 0 });
-    expect(result.combatants[1].timed).toEqual({ Prone: 1, Restrained: 0, Blinded: 1 });
+    expect(result.combatants[1].timed).toEqual({
+      Prone: 1,
+      Restrained: 0,
+      Blinded: 1,
+      Poisoned: 1,
+    });
   });
 
   it('excludes disabled effects from conditions', async () => {

@@ -399,12 +399,14 @@ export function actorConditionNames(actor: Actor | null | undefined): string[] {
   }
 }
 
-/** The running combat as the timed-condition rule needs it: the round, the turn index, who sits where. */
+/** The running combat as the timed-condition rule needs it, for one combatant. */
 export interface TimedCombatContext {
+  combatId: string | null;
   round: number;
+  /** The index of the current turn. */
   turn: number;
-  /** The actor id of each entry in the turn order. */
-  turnActorIds: readonly (string | null)[];
+  /** This combatant's own index in the turn order (an unlinked token shares its actor's id). */
+  ownerIdx: number;
 }
 
 /**
@@ -431,13 +433,7 @@ export function actorTimedConditions(
       if (typeof name !== 'string') continue;
       const d = effectDuration(e);
       if (d.units !== 'rounds' || d.value === null) continue;
-      const left = timedLeft(
-        e,
-        d.value,
-        rec(rec(e).duration).expired === true,
-        actor,
-        combat ?? null
-      );
+      const left = timedLeft(e, d.value, rec(rec(e).duration).expired === true, combat ?? null);
       // Two effects of one name: a live one wins over an ended one.
       timed[name] = Math.max(timed[name] ?? 0, left);
     }
@@ -451,13 +447,17 @@ function timedLeft(
   e: ActiveEffect,
   value: number,
   expired: boolean,
-  actor: Actor,
   combat: TimedCombatContext | null
 ): number {
   const duration = rec(rec(e).duration);
-  const startRound = rec(rec(e).start).round;
+  const start = rec(rec(e).start);
+  const startRound = start.round;
+  // Foundry counts from the start stamp only inside the combat that stamped it.
+  const startCombat = rec(start.combat).id ?? start.combat;
+  const sameCombat =
+    startCombat === undefined || startCombat === null || startCombat === combat?.combatId;
   let remaining: unknown = duration.remaining;
-  if (combat && typeof startRound === 'number' && Number.isFinite(startRound)) {
+  if (combat && sameCombat && typeof startRound === 'number' && Number.isFinite(startRound)) {
     remaining = value - (combat.round - startRound);
     if ((remaining as number) < 0) return 0;
     // At 0 the round has changed but the effect still applies until its expiry point: the
@@ -465,11 +465,10 @@ function timedLeft(
     if (remaining === 0) {
       if (expired) return 0;
       const expiry = duration.expiry;
-      const ownerIdx = combat.turnActorIds.indexOf((actor as { id?: string | null }).id ?? null);
-      if (ownerIdx >= 0 && (expiry === undefined || expiry === null || expiry === 'turnStart')) {
-        return combat.turn >= ownerIdx ? 0 : 1;
+      if (expiry === undefined || expiry === null || expiry === 'turnStart') {
+        return combat.turn >= combat.ownerIdx ? 0 : 1;
       }
-      if (ownerIdx >= 0 && expiry === 'turnEnd') return combat.turn > ownerIdx ? 0 : 1;
+      if (expiry === 'turnEnd') return combat.turn > combat.ownerIdx ? 0 : 1;
       return 1;
     }
     return Math.ceil(remaining as number);

@@ -12,7 +12,7 @@
  * on these like on any update. `guarded-write.ts` branches here before it resolves a document.
  *
  * Wire mirror: the prefixes and the feature id live in `shared/src/foundry-setup.ts` (the module
- * does not import the shared package); `virtual-targets.test.ts` compares them.
+ * does not import the shared package); `virtual-targets.contract.test.ts` compares them.
  */
 import { MODULE_ID } from '../constants.js';
 
@@ -29,9 +29,24 @@ export const MAX_SETTING_JSON = 4000;
 /** Pack configuration fields a plan may set. */
 const PACK_FIELDS = ['ownership', 'locked', 'folder'] as const;
 
-/** A setting that must never be read into a plan: login, keys, tokens, licences, webhooks. */
+/**
+ * A setting that must never be read into a plan: login, keys, tokens, licences, webhooks. Narrow
+ * on purpose: many ordinary settings say "token" (token vision, rings) or "auth".
+ */
 const SECRET_NAME =
-  /pass(word|phrase)?|secret|token|api[-_ ]?key|apikey|auth|credential|private[-_ ]?key|webhook|licen[cs]e|patreon|salt/i;
+  /pass(word|phrase)\b|\bpasswd\b|secret|(api|access|auth|bot|refresh|bearer|session)[-_ ]?(key|token)|apikey|credential|private[-_ ]?key|webhook|licen[cs]e[-_ ]?key|patreon|\bsalt\b/i;
+
+/** Features whose writes may change a setting or a pack; undo and rollback put back what they changed. */
+const SETUP_FEATURES = new Set([SETUP_FEATURE_ID, 'change-undo', 'rollback']);
+
+/** Throws unless the feature of an apply may write a setting or a pack's configuration. */
+export function assertSetupFeature(feature: string): void {
+  if (!SETUP_FEATURES.has(feature)) {
+    throw new Error(
+      `Settings and pack configuration are only written by the "${SETUP_FEATURE_ID}" feature (got "${feature}")`
+    );
+  }
+}
 
 interface RegisteredSetting {
   namespace?: string;
@@ -98,6 +113,9 @@ export function assertSettingWritable(
   if (id === MODULE_CONFIG_SETTING) {
     const ok = paths.every(p => /^value\.[^.]+$/.test(p));
     if (!ok) throw new Error('core.moduleConfiguration may only be changed one module at a time');
+    if (paths.includes(`value.${MODULE_ID}`)) {
+      throw new Error('The AI Tool module cannot be turned off by a plan');
+    }
   }
   if (isSecretSetting(namespace, key)) {
     throw new Error(`${id} looks like a secret; it is never read or written by a plan`);

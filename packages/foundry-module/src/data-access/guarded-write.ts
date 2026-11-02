@@ -32,6 +32,7 @@ import {
 import { assertUserCreateAllowed, assertUserUpdateAllowed } from '../table-viewer-user.js';
 import { unsetKeyUpdate } from '../systems/core.js';
 import {
+  assertSetupFeature,
   executeVirtualUpdate,
   isVirtualUuid,
   snapshotVirtual,
@@ -541,7 +542,7 @@ async function executeUpdate(
   req: GuardedApplyRequest,
   changeMode?: ChangeWriteMode
 ): Promise<GuardedOpResult> {
-  if (isVirtualUuid(op.uuid)) return executeVirtual(op, index);
+  if (isVirtualUuid(op.uuid)) return executeVirtual(op, index, req);
   const doc = await resolve(op.uuid);
   if (!doc) throw new Error(`Document not found: ${op.uuid}`);
   if (doc.documentName === 'Setting') {
@@ -613,7 +614,12 @@ async function executeUpdate(
 }
 
 /** An update of a setting or a pack's configuration (virtual-targets.ts). */
-async function executeVirtual(op: GuardedUpdateOp, index: number): Promise<GuardedOpResult> {
+async function executeVirtual(
+  op: GuardedUpdateOp,
+  index: number,
+  req: GuardedApplyRequest
+): Promise<GuardedOpResult> {
+  assertSetupFeature(req.feature);
   const unset = op.unset ?? [];
   const paths = [...Object.keys(op.changes ?? {}), ...unset];
   const target = snapshotVirtual(op.uuid, paths, 'check');

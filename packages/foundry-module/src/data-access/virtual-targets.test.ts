@@ -165,6 +165,42 @@ describe('settings as a guarded target', () => {
     await expect(snapshotGuardedOps([setting('dnd5e.nope', 'x')])).rejects.toThrow(/Unknown/);
   });
 
+  it('is written only by the Foundry setup feature (and its undo), whatever other switch is on', async () => {
+    registerGuardedFeature({ id: 'live-play', name: 'Live play', hint: 'Test.' });
+    world.setSetting(MODULE_ID, 'feature.live-play.enabled', true);
+    const ops = [setting('dnd5e.diagonalMovement', '5105')];
+    await expect(applyGuardedOps(await request(ops, { feature: 'live-play' }))).rejects.toThrow(
+      /only written by the "foundry-setup" feature/
+    );
+    expect(world.settings.get('dnd5e.diagonalMovement')).toBe('555');
+    const pack: GuardedOp = {
+      kind: 'update',
+      uuid: 'PackConfig.dnd5e.monsters',
+      changes: { locked: true },
+    };
+    await expect(applyGuardedOps(await request([pack], { feature: 'live-play' }))).rejects.toThrow(
+      /only written by/
+    );
+  });
+
+  it('never turns the AI Tool module itself off', async () => {
+    const op: GuardedOp = {
+      kind: 'update',
+      uuid: 'GameSetting.core.moduleConfiguration',
+      changes: { [`value.${MODULE_ID}`]: false },
+    };
+    await expect(snapshotGuardedOps([op])).rejects.toThrow(/AI Tool module cannot be turned off/);
+  });
+
+  it('does not take a plain "token" or "auth" setting for a secret', () => {
+    g.game.settings.settings.set('dnd5e.tokenVision', { name: 'Token vision', config: true });
+    g.game.settings.settings.set('somemod.botToken', { name: 'Bot token', config: true });
+    const info = getSetupInfo({ area: 'setting', target: 'tokenVision' }) as any;
+    expect(info.settings[0].redacted).toBeUndefined();
+    const secret = getSetupInfo({ area: 'setting', target: 'somemod.botToken' }) as any;
+    expect(secret.settings[0].redacted).toBe(true);
+  });
+
   it('refuses an oversized value', async () => {
     world.setSetting('dnd5e', 'diagonalMovement', 'x'.repeat(5000));
     await expect(snapshotGuardedOps([setting('dnd5e.diagonalMovement', 'y')])).rejects.toThrow(

@@ -14,7 +14,7 @@ The bridge serves 99 tools in five sets. [Tool sets](TOOL-SETS.md) explains the 
 | [Play](#play) | `foundry-mcp-play` | 37 | Run the table live: tokens, combat turns, rolls, damage, conditions, resources, chat, scene mood, map notes and loot. |
 | [Prep](#prep) | `foundry-mcp-prep` | 20 | Prepare sessions and write recaps: quests and journals, encounter budgets, the Tarokka reading, handouts, the session log, play stats and the pre-flight check. |
 | [Build](#build) | `foundry-mcp-build` | 8 | Make and change NPCs, monsters and items: from a compendium or from scratch, with features, attacks and spells. Set up rooms: teleports and tokens in a room. |
-| [Admin](#admin) | `foundry-mcp-admin` | 10 | Set up and troubleshoot: installed modules and their errors, who owns which actor, and the Obsidian mirror settings. |
+| [Admin](#admin) | `foundry-mcp-admin` | 10 | Set up and troubleshoot: installed modules and their errors, Foundry settings and who can open a compendium pack, who owns which actor, and the Obsidian mirror settings. |
 
 ## Core
 
@@ -1410,7 +1410,7 @@ Parameters:
 
 ## Admin
 
-Set up and troubleshoot: installed modules and their errors, who owns which actor, and the Obsidian mirror settings.
+Set up and troubleshoot: installed modules and their errors, Foundry settings and who can open a compendium pack, who owns which actor, and the Obsidian mirror settings.
 
 ### get-modules
 

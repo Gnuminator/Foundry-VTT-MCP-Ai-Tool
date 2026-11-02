@@ -68,7 +68,7 @@ describe('tool catalog', () => {
       play: 50_000, // about 41,100 with the rounds field of plan-actor-change (condition-round-duration; raised 9,000 on purpose, confirmed by the user 2026-10-31); about 40,400 with wait-for-game-event (I-001; raised 1,000 on purpose, confirmed by the user 2026-10-29); about 39,400 before; about 39,000 with plan-combat-change (David's GM test; raised 1,500 on purpose, room for its start action); about 38,000 before, with plan-paper-sync (Paper nights A: eleven sheet fields in one schema, about 3,700 characters) on top of Paper nights C's session fields; raised 1,500 on purpose for check-action, 1,000 for the multiattack and path fields of plan-npc-turn, 3,000 for plan-paper-sync. The next Play tool needs another raise
       prep: 22_500, // about 22,200 (22,183 measured after #620's encounter suggestions); about 22,450 with the five chosen-card arguments of plan-tarokka-import (tarokka-gm-choice, no raise); about 22,100 with the clear option of plan-tarokka-import (#507, raised 500 on purpose); about 21,900 before. Near full: the next Prep tool needs a raise, which costs Claude Desktop context: the user decides, never raise it in passing
       build: 29_000, // about 28,100 with plan-room-setup (I-133)
-      admin: 9_000, // about 8,600 with plan-foundry-setup (D-135; raised 1,000 on purpose, the user's "god-mode for setup"); about 7,800 before
+      admin: 9_000, // about 8,700 with plan-foundry-setup (D-135, part 1; raised 1,000 for it, the number is an open question to the user); about 7,800 before
     } as const;
     for (const set of TOOL_SET_NAMES) {
       const served = stripToolRefs(filterToolsBySets(tools, resolveToolSets(set)));

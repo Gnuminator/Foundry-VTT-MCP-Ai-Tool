@@ -182,23 +182,6 @@ export function MomentTabs({
   );
 }
 
-/** A slot whose panel is not in the new dashboard yet. */
-function NotHereYet({ title, wide = false }: { title: string; wide?: boolean }): JSX.Element {
-  const classes = ['pane', 'not-here-yet'];
-  if (wide) classes.push('not-here-yet-wide');
-  return (
-    <section className={classes.join(' ')} aria-label={title}>
-      <div className="pane-head">
-        <h2>{title}</h2>
-      </div>
-      <p className="not-here-yet-text">
-        Not on this page yet. Find it on the <a href="/legacy/">old dashboard</a> (the button at the
-        top right).
-      </p>
-    </section>
-  );
-}
-
 /**
  * The three views (the old main#moment-views). All three stay in the page and the ones not on
  * screen are hidden, so the slots stay put and a panel docked in two moments only moves.
@@ -244,7 +227,6 @@ export function MomentViews({
         {beforeTop}
         <div className="slot" data-slot="preflight" ref={slotRefs['before-preflight']} />
         <div className="slot" data-slot="prep" ref={slotRefs['before-prep']} />
-        <NotHereYet title="Features" wide />
       </section>
       <section
         className={duringBar ? 'moment' : 'moment during-no-bar'}

@@ -53,6 +53,11 @@ behind the email-code login.
 **Handouts in Foundry.** When the GM reveals a handout, you can also open that page in Foundry's
 Journal tab.
 
+**Your notes in Obsidian (optional).** If you keep notes in Obsidian, the server can keep a
+read-only folder of your handouts, recaps, character, stats and the session log up to date on your
+computer. Nothing you do there goes back. If you skip it, you install nothing. See
+[Your notes in Obsidian](obsidian.md).
+
 ## What the tool records during play
 
 While you play, the tool keeps a **play log** on the GM's side. Entries carry the Foundry user name

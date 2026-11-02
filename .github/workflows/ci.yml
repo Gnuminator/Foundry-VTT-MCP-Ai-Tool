@@ -221,6 +221,11 @@ jobs:
         # stage itself runs with two real Syncthings in a container on the ARM runner (build-test-arm).
         run: node --test scripts/pi/vault-sync.test.mjs
 
+      - name: Pi stage 21 player vault share
+        # 21-player-vault.sh (player-vault-sync, D-134) as text: snapshot before every change, Send Only folders, no introducer,
+        # the marker check, one device per player. The stage itself runs with three real Syncthings in the ARM runner's container.
+        run: node --test scripts/pi/player-vault.test.mjs
+
       - name: Pi stage 12 control port check
         # control_port_check in remote/lib.sh (D-095): the bridge's 31414 answers on loopback and nothing listens beyond it.
         run: node --test scripts/pi/control-port-check.test.mjs
@@ -612,6 +617,13 @@ jobs:
         env:
           PI_STAGE20_CONTAINER: 1
         run: node --test scripts/pi/vault-sync.test.mjs
+
+      - name: Pi stage 21 in an ARM64 container
+        # scripts/pi/container-test/stage21-scenarios.sh: stage 21 on Debian 13 ARM64 with three real Syncthings (a note reaches only
+        # its player, a player's change never reaches the Pi, one device per player, remove and off keep the files).
+        env:
+          PI_STAGE21_CONTAINER: 1
+        run: node --test scripts/pi/player-vault.test.mjs
 
       - name: Pi stage 16 in an ARM64 container
         # scripts/pi/container-test/stage16-scenarios.sh: stage 16 on Debian 13 ARM64 with stand-ins for systemd, curl and restic

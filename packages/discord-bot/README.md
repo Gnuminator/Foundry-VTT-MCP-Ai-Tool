@@ -39,6 +39,17 @@ people is still to come. Works through Discord's end-to-end voice encryption (DA
 By default only members with Manage Server see `/record`; change that under Server Settings >
 Integrations. Ctrl+C in the bot window also stops and converts a running recording.
 
+## #changelog and #pr-log posts
+
+Two read-only channels (category Updates) on the game server. `announce/announce.mjs` is a plain Node
+script with no build step: `node announce/announce.mjs pr <n> <title>` (the merge gate runs it after a
+merge), `changelog <text>` (the release steps) and `deploy <version>` (Pi stage 5). Every post carries
+no allowed mentions; #pr-log posts also carry Discord's SUPPRESS_NOTIFICATIONS flag, #changelog posts
+(rare) are normal. It reads `DISCORD_TOKEN`,
+`DISCORD_CHANGELOG_CHANNEL_ID` and `DISCORD_PRLOG_CHANNEL_ID` from the environment or `discord-bot.env`;
+without them it prints one line and posts nothing. Exit 1 means a post failed, which callers only warn about.
+To keep everyone's phones quiet, set the server default to "Only @mentions" (Server Settings, Overview).
+
 ## Storage space notices
 
 Every 15 minutes the bot reads the Pi's space check (`/var/lib/foundry-ai-tool/space/status.json`,

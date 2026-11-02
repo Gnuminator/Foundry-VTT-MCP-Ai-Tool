@@ -28,20 +28,12 @@ The wiki (`docs/wiki`, staged by `scripts/wiki/stage.mjs`) has two sides. Its ho
 
 ## Danish twins (GM and player guides only)
 
-Every page in `docs/gm/` and `docs/player/` has a Danish twin at the same name under `docs/da/`:
-`docs/gm/first-hour.md` becomes `docs/da/gm/first-hour.md`, `docs/player/join.md` becomes
-`docs/da/player/join.md`. Not translated: `docs/foundry/`, reference, dev, design and history.
-
-- **Front matter:** the translated `title` and `description`, plus `source: gm/first-hour.md` (the
-  English page, relative to `docs/`) and `sourceHash:` (the first 12 hex characters of the SHA-256 of
-  the English file with line endings turned into `\n`). When the English page changes, translate the
-  change and update the hash; the check fails while the hash is old.
-- **Links:** correct relative paths from the twin's own place. A link to a page that has a Danish twin
-  points at the twin (from `docs/da/gm/`: `x.md` for a GM page, `../player/x.md` for a player page);
-  a link to a page with no twin (`docs/foundry/`, repo files) points at the English file
-  (`../../foundry/x.md`); images are `../../images/...`.
-- **Language:** game terms and Foundry labels stay English as they appear on screen (attack, saving
-  throw, token, Actors tab). Public docs voice: plain and human, no em dashes.
+Every page in `docs/gm/` and `docs/player/` has a Danish twin at the same name under `docs/da/`, and
+the wiki shows them under a Danish language switch. **The format, the check and the word list are in
+[da/README.md](da/README.md).** In short: the twin's front matter holds `source` and `sourceHash`,
+`npm run docs:links` fails when a guide has no twin or its twin is older than its source, and
+`node scripts/wiki/da.mjs stamp gm/x.md` records the new hash once the change is translated.
+Not translated: `docs/foundry/`, reference, dev, design and history.
 
 Supported: Foundry VTT 14 with the dnd5e 6 system. Foundry AI Tool is not affiliated with or endorsed by
 Foundry Gaming LLC.

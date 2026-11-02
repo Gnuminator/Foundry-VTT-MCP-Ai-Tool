@@ -1,5 +1,5 @@
 // A player who opens the GM page lands on the read-only player view (lib/role.ts for the new
-// dashboard, the same check in public/app.js for the old page at the root). The test server runs
+// dashboard). The test server runs
 // with a GM token and no player token: a visitor without a token is a player to the real server
 // (as a Cloudflare Access player is), and any other token is unknown to it (a GM's stale link).
 // Only the deployment that asks for a player token is faked, on /api/state.
@@ -9,10 +9,7 @@ import { GM_TOKEN, fakeCommonRoutes } from './support';
 
 const PLAYER_TOKEN = 'e2e-player-token';
 
-const PAGES = [
-  ['the main dashboard', '/'],
-  ['the old page', '/legacy/'],
-] as const;
+const PAGES = [['the main dashboard', '/']] as const;
 
 /** Waits for the page's /api/state answer, then long enough for a redirect to have happened. */
 async function settled(page: import('@playwright/test').Page, path: string): Promise<unknown> {

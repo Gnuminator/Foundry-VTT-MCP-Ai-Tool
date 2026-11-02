@@ -1,6 +1,6 @@
 ---
 source: gm/dashboard.md
-sourceHash: ff3e04c7a98e
+sourceHash: a44008dd24ad
 title: Dashboardet
 description: En rundtur i alle paneler og knapper på dashboardet, hvad de gør, og hvornår du bruger dem.
 ---

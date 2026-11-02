@@ -8,7 +8,7 @@
     "node": ">=22.23.4"
   },
   "scripts": {
-    "build": "astro build"
+    "build": "astro build && node ../../scripts/wiki/check-sides.mjs"
   },
   "dependencies": {
     "@astrojs/starlight": "0.42.7",

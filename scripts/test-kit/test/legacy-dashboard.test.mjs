@@ -1,7 +1,7 @@
 /**
  * Nothing may use or show the old dashboard page (the user, 2026-10-31): no test, kit run, demo
  * script or guide points at `/legacy/` or at the old page's files (`public/app.js`,
- * `public/index.html`). The page itself stays until after G1 (D-126), so the places that must name
+ * `public/index.html`). The page itself is gone (it redirects to /), so the places that must name
  * it are listed in ALLOWED with the reason. A listed place that stops naming it fails too, so the
  * list shrinks as the old page's last tests go. Runs with `npm run kit:test`, which CI and
  * `npm run green` run.
@@ -48,19 +48,11 @@ const SKIPPED = [
  */
 export const ALLOWED = {
   'packages/cogm-dashboard/src/default-page.test.ts':
-    'server routes: / is React, /legacy/ still answers',
-  'packages/cogm-dashboard/src/token-url.test.ts': 'tests the old page script itself',
-  'packages/cogm-dashboard/web/e2e/old-page-trial.spec.ts':
-    'tests the old page itself; goes with it',
+    'server routes: /legacy/ redirects to /, none of its files answer',
   'packages/cogm-dashboard/web/e2e/default-page.spec.ts':
-    'routing: the link and /legacy/ still answer',
-  'packages/cogm-dashboard/web/e2e/player-redirect.spec.ts':
-    'the player redirect also holds on /legacy/',
-  'packages/cogm-dashboard/web/e2e/views.spec.ts':
-    'the header link to the old page, until it is removed',
-  'packages/cogm-dashboard/README.md':
-    'developer facts: the old page still exists and where its files are',
-  'docs/dev/ARCHITECTURE.md': 'developer fact: the old page stays at /legacy/ until after G1',
+    'routing: /legacy/ goes to /, no link to it on the page',
+  'packages/cogm-dashboard/README.md': 'developer facts: the old page is gone, /legacy/ redirects',
+  'docs/dev/ARCHITECTURE.md': 'developer fact: the old page is gone, /legacy/ redirects',
   'scripts/green.test.mjs': 'a path used as a quick-check fixture',
 };
 

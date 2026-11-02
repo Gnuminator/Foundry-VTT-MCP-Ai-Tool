@@ -197,7 +197,7 @@ test('the header has the permanent Undo, Live play, How do I and More', async ({
   await expect(header.locator('#live-how-do-i')).toHaveText('How do I...');
   await header.locator('#live-more').click();
   const more = page.getByRole('dialog', { name: 'More' });
-  await expect(more.getByRole('link', { name: 'Old dashboard' })).toBeVisible();
+  await expect(more.getByRole('link', { name: 'Old dashboard' })).toHaveCount(0);
   await expect(more.getByRole('link', { name: 'Back to the During view' })).toBeVisible();
 });
 

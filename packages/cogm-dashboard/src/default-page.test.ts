@@ -1,6 +1,6 @@
 /**
- * Which page answers where (D-126, from 2026-11-01): the React dashboard at /, the old page at
- * /legacy/ until after G1, /next/ as a redirect to /, and the player pages unchanged.
+ * Which page answers where (D-126, from 2026-11-01): the React dashboard at /, /next/ and the
+ * retired /legacy/ as redirects to /, and the player pages unchanged.
  */
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'fs';
 import * as http from 'http';
@@ -14,7 +14,6 @@ import type { CoGm } from './ai/anthropic-co-gm.js';
 import { createDashboard, type Dashboard } from './app.js';
 import { config, type Config } from './config.js';
 import { Logger } from './logger.js';
-import { OPEN_PAGE_CSP } from './open-route.js';
 
 const fakeCoGm = {
   enabled: false,
@@ -100,20 +99,19 @@ describe('the default page', () => {
     }
   });
 
-  it('keeps the old page at /legacy/ with its relative files', async () => {
-    const page = await get(app.port, '/legacy/');
-    expect(page.status).toBe(200);
-    expect(page.body).toContain('id="moment-after"');
-    expect(page.body).not.toContain('React dashboard');
-    for (const p of ['/legacy/app.js', '/legacy/styles.css', '/legacy/moments.css']) {
-      expect([p, (await get(app.port, p)).status]).toEqual([p, 200]);
+  it('sends the retired old page /legacy/ to /, keeping the query, and serves none of its files', async () => {
+    for (const [from, to] of [
+      ['/legacy/', '/'],
+      ['/legacy', '/'],
+      ['/legacy?token=abc', '/?token=abc'],
+      ['/legacy/?token=abc', '/?token=abc'],
+    ] as const) {
+      const answer = await get(app.port, from);
+      expect([from, answer.status, answer.headers['location']]).toEqual([from, 302, to]);
     }
-  });
-
-  it('sends /legacy to /legacy/ with the query', async () => {
-    const answer = await get(app.port, '/legacy?token=abc');
-    expect(answer.status).toBe(301);
-    expect(answer.headers['location']).toBe('/legacy/?token=abc');
+    for (const p of ['/legacy/app.js', '/legacy/index.html', '/app.js', '/index.html']) {
+      expect([p, (await get(app.port, p)).status]).toEqual([p, 404]);
+    }
   });
 
   it('sends the old name /next/ to /, keeping the query', async () => {
@@ -134,25 +132,11 @@ describe('the default page', () => {
     expect(asset.headers['cache-control']).toContain('immutable');
   });
 
-  it('gives the player and open pages under /legacy/ the same headers as at the root', async () => {
-    for (const name of ['player.html', 'open.html']) {
-      const root = await get(app.port, `/${name}`);
-      const legacy = await get(app.port, `/legacy/${name}`);
-      expect([name, legacy.status]).toEqual([name, 200]);
-      expect(legacy.headers['content-security-policy']).toBeTruthy();
-      if (name === 'open.html') {
-        expect(legacy.headers['content-security-policy']).toBe(OPEN_PAGE_CSP);
-      }
-      expect(legacy.headers['content-security-policy']).toBe(
-        root.headers['content-security-policy']
-      );
-      expect(legacy.headers['cache-control']).toBe(root.headers['cache-control']);
-    }
-  });
-
   it('drops a query that is not plain text, so /next never redirects to another host', async () => {
     for (const from of [
       '/next/?//evil.example',
+      '/legacy/?//evil.example',
+      '/legacy?/%5Cevil',
       '/next/?/%5Cevil',
       '/next/?/\\evil',
       '/next/?x=//evil.example',
@@ -216,12 +200,12 @@ describe('the asset files have their own rate limit bucket', () => {
 });
 
 describe('without a React build', () => {
-  it('shows the old page at / instead of nothing', async () => {
+  it('says the dashboard is not built at / (and has no old page behind it)', async () => {
     const app = await start(null);
     try {
       const answer = await get(app.port, '/');
-      expect(answer.status).toBe(200);
-      expect(answer.body).toContain('id="moment-after"');
+      expect(answer.status).toBe(503);
+      expect(answer.body).toContain('npm run build');
     } finally {
       await app.stop();
     }

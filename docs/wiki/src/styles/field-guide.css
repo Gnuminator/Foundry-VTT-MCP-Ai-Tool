@@ -114,3 +114,43 @@ h1#_top,
   font-weight: 600;
   color: var(--sl-color-accent);
 }
+
+/* Player or GM: the home page chooser and the "For the GM" label on every GM page */
+.audience-choice {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  gap: 1rem;
+  margin: 1rem 0 1.5rem;
+}
+.audience-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 1.25rem 1.5rem;
+  border: 2px solid var(--sl-color-accent);
+  border-radius: 0.5rem;
+  background: var(--sl-color-bg-sidebar);
+  color: var(--sl-color-white);
+  text-decoration: none;
+}
+.audience-card strong {
+  font-family: var(--fg-heading);
+  font-size: 1.5rem;
+  color: var(--sl-color-text-accent);
+}
+.audience-card:hover,
+.audience-card:focus-visible {
+  background: var(--sl-color-accent-low);
+}
+.audience {
+  display: inline-block;
+  margin: 0 0 1rem;
+  padding: 0.1rem 0.7rem;
+  border-radius: 999px;
+  background: var(--fg-chip-bg);
+  color: var(--fg-chip-ink);
+  font-size: var(--sl-text-sm);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}

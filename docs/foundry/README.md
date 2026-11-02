@@ -7,7 +7,7 @@ description: Our own short pages on how Foundry VTT works, in reading order, for
 
 These pages explain Foundry itself, in plain words, with pictures from Foundry 14 and the D&D 5e
 system. They are written for a GM who has never used Foundry. Read them in this order with Foundry
-open in a test world, and try each thing as you read. Players only need the first three.
+open in a test world, and try each thing as you read. Players need only a few of them: on the wiki they have their own copy of the screen tour, joining, chat and dice, tokens, combat, measuring and the glossary.
 
 | #   | Page                                                  | What you learn                                               |
 | --- | ----------------------------------------------------- | ------------------------------------------------------------ |

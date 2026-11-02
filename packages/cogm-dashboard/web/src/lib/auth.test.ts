@@ -53,6 +53,33 @@ describe('playerPageUrl', () => {
   });
 });
 
+describe('the token in the address bar', () => {
+  /** The URL replaceState was last called with. */
+  function replaced(): string | undefined {
+    const spy = (history as unknown as { replaceState: ReturnType<typeof vi.fn> }).replaceState;
+    return spy.mock.calls.at(-1)?.[2] as string | undefined;
+  }
+
+  it('saves the token and takes it out of the address, keeping other parameters and the hash', async () => {
+    const items = storage();
+    await load('http://127.0.0.1/?token=t1&plan=p9#top');
+    expect(items.get('cogm_token')).toBe('t1');
+    expect(replaced()).toBe('/?plan=p9#top');
+  });
+
+  it('keeps the token in the address when storage is refused', async () => {
+    storage({}, true);
+    await load('http://127.0.0.1/?token=t1');
+    expect(replaced()).toBeUndefined();
+  });
+
+  it('leaves the address alone without a token', async () => {
+    storage();
+    await load('http://127.0.0.1/?plan=p9');
+    expect(replaced()).toBeUndefined();
+  });
+});
+
 describe('onlyPlayerToken', () => {
   it('is true only without a token here and with one on the player page key', async () => {
     storage({ cogm_player_token: 'p1' });

@@ -102,26 +102,6 @@ main.moment-views #moment-during.during-no-bar {
   }
 }
 
-/* A slot whose panel is not in the new dashboard yet (Moments.tsx NotHereYet): a short card,
-   never the tall Live Feed pane. */
-#moment-views .slot .pane.not-here-yet,
-#moment-views .pane.not-here-yet {
-  height: auto;
-  min-height: 0;
-}
-.not-here-yet-wide {
-  grid-column: 1 / -1;
-}
-.not-here-yet-text {
-  margin: 0;
-  padding: 0.7rem 0.9rem;
-  color: var(--text-dim);
-  font-size: var(--fs-sm);
-}
-.not-here-yet-text a {
-  color: var(--accent-bright);
-}
-
 /* The fold button first in a During card's head (Folds.tsx): the title stays on the left, next to
    the button, and the head's other items (the count, the actions) stay at the right. */
 #moment-during .pane-head > .fold-btn + * {

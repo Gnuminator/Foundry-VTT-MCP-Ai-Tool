@@ -1053,7 +1053,7 @@ test('a failing or throwing Discord post is a warning and never changes the exit
   assert.equal(thrown.lines.at(-1), 'lane:merge: WARNING Discord post failed (boom)');
 });
 
-test('the sender comes from main, else the checkout, else nothing (and a missing one posts nothing)', () => {
+test('the sender comes from main only; the checkout copy is never run (and a missing one posts nothing)', () => {
   const rel = 'packages/discord-bot/announce/announce.mjs';
   const repo = tmpDir();
   const git = (...a) => execFileSync('git', ['-C', repo, ...a], { encoding: 'utf8' });
@@ -1062,8 +1062,8 @@ test('the sender comes from main, else the checkout, else nothing (and a missing
   assert.equal(defaultAnnounce(1, 't', repo), '');
   fs.mkdirSync(path.join(repo, path.dirname(rel)), { recursive: true });
   fs.writeFileSync(path.join(repo, rel), '// checkout copy');
-  const local = announceSource(repo);
-  assert.equal(local?.file, path.join(repo, rel), 'the checkout copy when main has none');
+  assert.equal(announceSource(repo), null, 'the checkout copy alone is not used');
+  assert.equal(defaultAnnounce(1, 't', repo), '');
   git('add', '.');
   git('-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-qm', 'x');
   fs.writeFileSync(path.join(repo, rel), '// branch copy');

@@ -174,6 +174,8 @@ export const RISKY_CATEGORIES = [
       // The review runner writes the notes the gate counts (D-127), and the agent files go into its prompt.
       'scripts/review-runner/**',
       '.claude/agents/**',
+      // The gate and Pi stage 5 run this sender with the bot token after a merge or a deploy.
+      'packages/discord-bot/announce/**',
     ],
   },
 ];
@@ -971,10 +973,9 @@ export function defaultAnnounce(n, title, cwd = process.cwd()) {
 }
 
 /**
- * The sender to run: main's copy when main has it (a branch cut before the sender landed has none,
- * and the branch should not supply the code that holds the bot token), else this checkout's copy (only
- * the PR that introduces the sender runs into this), else none. The sender has no relative imports, so
- * one temp file is enough.
+ * The sender to run: main's copy, or none (no post) when main has none or git fails. The checkout's
+ * copy is never used: the PR's own code must not run with the bot token (the same rule as the gate's
+ * own copy). The sender has no relative imports, so one temp file is enough.
  * @param {string} cwd
  * @returns {{ file: string, cleanup: () => void } | null}
  */
@@ -990,8 +991,7 @@ export function announceSource(cwd) {
     fs.writeFileSync(file, git.stdout);
     return { file, cleanup: () => fs.rmSync(dir, { recursive: true, force: true }) };
   }
-  const local = path.join(cwd, ANNOUNCE_SCRIPT);
-  return fs.existsSync(local) ? { file: local, cleanup: () => {} } : null;
+  return null;
 }
 
 /**

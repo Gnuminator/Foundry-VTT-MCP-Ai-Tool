@@ -1,6 +1,6 @@
 // The folds of the During cards, as plain data and rules (D-092, I-107): which cards there are,
-// which are folded by default for a layout, a fight and a screen width, what a click does (on a
-// wide screen opening a side card folds the others), and how the GM's own choices are kept. No
+// which are folded by default for a layout, a fight and a screen width, what a click does (each card
+// opens and folds on its own, so any of them can be open together), and how the GM's own choices are kept. No
 // React here, so the rules have unit tests; components/Folds.tsx does the rest.
 //
 // Unlike the old page, which started over whenever a fight began or ended or the window crossed
@@ -49,17 +49,6 @@ export interface FoldSituation {
   width: WidthClass;
 }
 
-/**
- * The cards at the side on a wide screen: opening one folds the others there. Simple/Full has
- * none; in Auto during a fight the feed is a side card and Party takes the big column.
- */
-export function sideCards(layout: DuringLayout, context: DuringContext): FoldCard[] {
-  if (layout === 'toggle') return [];
-  return layout === 'auto' && context === 'combat'
-    ? ['changes', 'handouts', 'feed']
-    : ['changes', 'handouts', 'party'];
-}
-
 /** The folds a layout starts with. */
 export function defaultFolds(s: FoldSituation): Folds {
   const folds: Folds = { feed: false, changes: false, handouts: true, party: true };
@@ -90,16 +79,12 @@ export function foldsFor(choices: FoldChoices, s: FoldSituation): Folds {
 
 /**
  * The choices after a click on a card's fold button (or its title). An open card folds; a folded
- * one opens, and on a wide screen, when it is a side card, the other side cards fold. Only the
+ * one opens, and the other cards stay as they are. Only the
  * cards that change are kept as the GM's choice, so the rest still follow the defaults.
  */
 export function toggleFold(choices: FoldChoices, s: FoldSituation, card: FoldCard): FoldChoices {
   const before = foldsFor(choices, s);
   const after: Folds = { ...before, [card]: !before[card] };
-  if (before[card] && s.width === 'wide') {
-    const side = sideCards(s.layout, s.context);
-    if (side.includes(card)) for (const other of side) if (other !== card) after[other] = true;
-  }
   const key = keyOf(s);
   const kept: Partial<Folds> = { ...choices[key] };
   for (const name of FOLD_CARDS) if (after[name] !== before[name]) kept[name] = after[name];

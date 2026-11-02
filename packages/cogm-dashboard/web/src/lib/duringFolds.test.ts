@@ -9,7 +9,6 @@ import {
   foldBodyId,
   foldsFor,
   openFold,
-  sideCards,
   toggleFold,
   widthClass,
   type FoldChoices,
@@ -69,19 +68,6 @@ describe('defaultFolds', () => {
   });
 });
 
-describe('sideCards', () => {
-  it('Simple/Full has no side set', () => {
-    expect(sideCards('toggle', 'calm')).toEqual([]);
-  });
-  it('Cards: Recent Changes, Handouts and Party', () => {
-    expect(sideCards('layered', 'calm')).toEqual(['changes', 'handouts', 'party']);
-    expect(sideCards('auto', 'calm')).toEqual(['changes', 'handouts', 'party']);
-  });
-  it('Auto in a fight: the feed is at the side, Party is not', () => {
-    expect(sideCards('auto', 'combat')).toEqual(['changes', 'handouts', 'feed']);
-  });
-});
-
 describe('toggleFold', () => {
   it('folds an open card and opens a folded one', () => {
     let c = toggleFold(NO_CHOICES, at('layered'), 'feed');
@@ -90,51 +76,38 @@ describe('toggleFold', () => {
     expect(foldsFor(c, at('layered')).feed).toBe(false);
   });
 
-  it('on a wide screen opening a side card folds the other side cards', () => {
-    const s = at('layered');
-    const c = toggleFold(NO_CHOICES, s, 'handouts');
-    expect(foldsFor(c, s)).toEqual(folds(false, true, false, true));
-    // Opening Party now folds Handouts and Recent Changes (already folded).
-    expect(foldsFor(toggleFold(c, s, 'party'), s)).toEqual(folds(false, true, true, false));
-  });
-
-  it('folding a side card does not touch the others', () => {
-    const s = at('layered');
-    const open = toggleFold(NO_CHOICES, s, 'handouts');
-    const c = toggleFold(open, s, 'handouts');
-    expect(foldsFor(c, s)).toEqual(folds(false, true, true, true));
-  });
-
-  it('the feed is not a side card in Cards: folding and opening it moves nothing else', () => {
-    const s = at('layered');
-    const c = toggleFold(toggleFold(NO_CHOICES, s, 'handouts'), s, 'feed');
-    const d = toggleFold(c, s, 'feed');
-    expect(foldsFor(d, s)).toEqual(folds(false, true, false, true));
-  });
-
-  it('in Auto during a fight the feed is a side card, Party is not', () => {
-    const s = at('auto', 'combat');
-    const c = toggleFold(NO_CHOICES, s, 'feed');
-    expect(foldsFor(c, s)).toEqual(folds(false, true, true, false));
-    // Opening Handouts folds Recent Changes (folded) and the feed again; Party stays open.
-    expect(foldsFor(toggleFold(c, s, 'handouts'), s)).toEqual(folds(true, true, false, false));
-  });
-
-  it('not on a medium width or a phone: opening a card leaves the others', () => {
-    for (const width of ['medium', 'phone'] as const) {
+  it('opening a card leaves the others as they are, on every width', () => {
+    for (const width of ['wide', 'medium', 'phone'] as const) {
       const s = at('layered', 'calm', width);
-      const c = toggleFold(NO_CHOICES, s, 'handouts');
-      expect(foldsFor(c, s).party).toBe(true);
-      expect(foldsFor(c, s).handouts).toBe(false);
+      const before = foldsFor(NO_CHOICES, s);
+      let c = toggleFold(NO_CHOICES, s, 'handouts');
+      expect(foldsFor(c, s)).toEqual({ ...before, handouts: false });
+      c = toggleFold(c, s, 'party');
+      c = toggleFold(c, s, 'feed');
+      expect(foldsFor(c, s)).toEqual({
+        ...before,
+        handouts: false,
+        party: false,
+        feed: !before.feed,
+      });
     }
   });
 
-  it('Simple/Full has no side set: opening a card leaves the others', () => {
-    const s = at('toggle');
-    // Fold Handouts and Party, then open Handouts: Party stays folded.
-    const c = toggleFold(toggleFold(NO_CHOICES, s, 'handouts'), s, 'party');
+  it('Recent Changes, Handouts, Live Feed and Party can all be open together', () => {
+    for (const s of [at('layered'), at('auto'), at('auto', 'combat')]) {
+      let c: FoldChoices = NO_CHOICES;
+      for (const card of ['changes', 'handouts', 'feed', 'party'] as const) {
+        if (foldsFor(c, s)[card]) c = toggleFold(c, s, card);
+      }
+      expect(foldsFor(c, s)).toEqual(folds(false, false, false, false));
+    }
+  });
+
+  it('folding a card does not touch the others', () => {
+    const s = at('layered');
+    const open = toggleFold(NO_CHOICES, s, 'handouts');
+    const c = toggleFold(open, s, 'handouts');
     expect(foldsFor(c, s)).toEqual(folds(false, false, true, true));
-    expect(foldsFor(toggleFold(c, s, 'handouts'), s)).toEqual(folds(false, false, false, true));
   });
 
   it('does not change the choices it was given', () => {
@@ -185,19 +158,13 @@ describe('the GM choice is kept', () => {
     expect(foldsFor(c, s).party).toBe(defaultFolds(s).party);
     expect(Object.keys(c['layered|calm|wide'] ?? {})).toEqual(['feed']);
   });
-
-  it('side cards folded by an opening are kept as the GM choice', () => {
-    const s = at('layered');
-    const c = toggleFold(toggleFold(NO_CHOICES, s, 'handouts'), s, 'party');
-    expect(foldsFor(c, s)).toEqual(folds(false, true, true, false));
-  });
 });
 
 describe('openFold', () => {
   it('opens a folded card like a click, and leaves an open card alone', () => {
     const s = at('layered');
     const c = openFold(NO_CHOICES, s, 'party');
-    expect(foldsFor(c, s)).toEqual(folds(false, true, true, false));
+    expect(foldsFor(c, s)).toEqual(folds(false, false, true, false));
     expect(openFold(c, s, 'party')).toBe(c);
   });
 });

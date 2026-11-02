@@ -82,6 +82,8 @@ export const MAX_SHOW_USERS = 50;
 export const SHOW_DIFF_PREFIX = 'Show it now:';
 /** How long "show it now" waits for Foundry (it runs inside the guarded-write lock). */
 export const SHOW_TIMEOUT_MS = 15_000;
+/** Start of the diff text of a chat notice line; an undo's diff leaves such lines out. */
+export const NOTICE_DIFF_PREFIX = 'Chat notice:';
 
 const FEATURE_ID = /^[a-z][a-z0-9-]{1,40}$/;
 /** Vault files features may not write through vault ops. */
@@ -152,6 +154,12 @@ export interface PlanInput {
    */
   showToPlayers?: { uuid: string; users: string[] };
   /**
+   * A handout reveal's chat notice: after a successful apply, a short chat message in Foundry,
+   * whispered to these players (empty: every player who can see the page), that names the page
+   * and opens it on click. No page text. Undo takes back the change, never the message.
+   */
+  noticeToPlayers?: { uuid: string; users: string[] };
+  /**
    * The undo planner (I-109): the journal actions and audit changes this plan undoes. Carried onto
    * the audit entry the apply records, so the history can tell what is undone.
    */
@@ -203,6 +211,7 @@ interface StoredPlan extends PlanView {
   vaultChecks: Array<{ file: string; expected: PathValue }>;
   rulesVersion?: RulesVersion;
   showToPlayers?: { uuid: string; users: string[] };
+  noticeToPlayers?: { uuid: string; users: string[] };
   undoes?: { actions?: string[]; changes?: string[] };
   createdMs: number;
 }
@@ -230,6 +239,8 @@ export interface AppliedChange {
   documents?: string[];
   /** Only for an apply whose plan asked to show the page: whether the popup went out. */
   shown?: { ok: true; users: string[] } | { ok: false; error: string };
+  /** Only for an apply whose plan asked for a chat notice: whether the message was posted. */
+  noticed?: { ok: true } | { ok: false; error: string };
 }
 
 /** A row of `list-recent-changes`. */
@@ -299,21 +310,24 @@ function newId(prefix: string, now: number): string {
   return `${prefix}-${now.toString(36)}-${randomBytes(4).toString('hex')}`;
 }
 
-function validateShowToPlayers(show: unknown): { uuid: string; users: string[] } {
+function validateShowToPlayers(
+  show: unknown,
+  field = 'showToPlayers'
+): { uuid: string; users: string[] } {
   const { uuid, users } = (show ?? {}) as { uuid?: unknown; users?: unknown };
   if (
     typeof uuid !== 'string' ||
     !uuid ||
     !(uuid.includes('JournalEntryPage') || uuid.startsWith('JournalEntry.'))
   ) {
-    throw new Error('showToPlayers needs the uuid of a journal page or journal');
+    throw new Error(`${field} needs the uuid of a journal page or journal`);
   }
   if (
     !Array.isArray(users) ||
     users.length > MAX_SHOW_USERS ||
     users.some(u => typeof u !== 'string' || !u)
   ) {
-    throw new Error(`showToPlayers users must be a list of at most ${MAX_SHOW_USERS} user ids`);
+    throw new Error(`${field} users must be a list of at most ${MAX_SHOW_USERS} user ids`);
   }
   return { uuid, users: [...(users as string[])] };
 }
@@ -562,6 +576,10 @@ export class GuardedWriteService {
     }
     const showToPlayers =
       input.showToPlayers === undefined ? undefined : validateShowToPlayers(input.showToPlayers);
+    const noticeToPlayers =
+      input.noticeToPlayers === undefined
+        ? undefined
+        : validateShowToPlayers(input.noticeToPlayers, 'noticeToPlayers');
     const ops = input.ops === undefined ? [] : validateFoundryOps(input.ops);
     const vaultOps = input.vaultOps === undefined ? [] : validateVaultOps(input.vaultOps);
     const checks = input.vaultChecks === undefined ? [] : validateVaultChecks(input.vaultChecks);
@@ -639,6 +657,22 @@ export class GuardedWriteService {
       });
     }
 
+    if (noticeToPlayers) {
+      const who =
+        noticeToPlayers.users.length === 0
+          ? 'every player who can see it'
+          : noticeToPlayers.users.length === 1
+            ? '1 player'
+            : `${noticeToPlayers.users.length} players`;
+      diff.push({
+        op: ops.length + vaultOps.length,
+        kind: 'notice',
+        target: noticeToPlayers.uuid,
+        label: diff.find(d => d.target === noticeToPlayers.uuid)?.label ?? noticeToPlayers.uuid,
+        text: `${NOTICE_DIFF_PREFIX} whispers the page's title to ${who} in Foundry chat, with a link that opens it (no page text; Undo cannot take this back)`,
+      });
+    }
+
     for (const note of input.notes ?? []) {
       if (typeof note !== 'string' || !note.trim()) continue;
       diff.push({
@@ -677,6 +711,7 @@ export class GuardedWriteService {
       createdMs,
       ...(input.rulesVersion ? { rulesVersion: input.rulesVersion } : {}),
       ...(showToPlayers ? { showToPlayers } : {}),
+      ...(noticeToPlayers ? { noticeToPlayers } : {}),
       ...(input.undoes ? { undoes: input.undoes } : {}),
     };
 
@@ -931,7 +966,42 @@ export class GuardedWriteService {
     // A Foundry apply logs its own gm-change event; vault-only changes do it here.
     if (!foundry) await this.logGmChange(entry);
     const shown = plan.showToPlayers ? await this.showToPlayers(plan.showToPlayers) : undefined;
-    return { ...this.appliedView(entry), ...(shown ? { shown } : {}) };
+    const noticed = plan.noticeToPlayers
+      ? await this.noticeToPlayers(plan.noticeToPlayers)
+      : undefined;
+    return {
+      ...this.appliedView(entry),
+      ...(shown ? { shown } : {}),
+      ...(noticed ? { noticed } : {}),
+    };
+  }
+
+  /**
+   * Whisper the handout notice in Foundry chat. Never throws: the change is already applied, and a
+   * missing notice must not turn a good reveal into an error.
+   */
+  private async noticeToPlayers(notice: {
+    uuid: string;
+    users: string[];
+  }): Promise<NonNullable<AppliedChange['noticed']>> {
+    try {
+      unwrapBridgeReply(
+        await this.foundry.query(
+          'foundry-mcp-bridge.postHandoutNotice',
+          { uuid: notice.uuid, userIds: notice.users },
+          { timeoutMs: SHOW_TIMEOUT_MS }
+        ),
+        'Chat notice refused'
+      );
+      return { ok: true };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.warn('Handout chat notice failed after the change was applied', {
+        uuid: notice.uuid,
+        error: message,
+      });
+      return { ok: false, error: message };
+    }
   }
 
   /** Pop the page up on the players' screens (I-110). Never throws: the change is already applied. */
@@ -1025,7 +1095,9 @@ export class GuardedWriteService {
       appliedAt: foundry?.appliedAt ?? new Date(this.now()).toISOString(),
       diff: [
         ...entry.diff
-          .filter(line => !line.startsWith(SHOW_DIFF_PREFIX))
+          .filter(
+            line => !line.startsWith(SHOW_DIFF_PREFIX) && !line.startsWith(NOTICE_DIFF_PREFIX)
+          )
           .map(line => `undone: ${line}`),
         ...leftAlone,
       ],

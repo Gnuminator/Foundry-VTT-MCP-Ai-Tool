@@ -574,13 +574,6 @@ describe('O7 player vault spoiler canary (real createDashboard path)', () => {
           return Promise.resolve(source.sheets[userId] ?? null);
         },
       },
-      coGm: {
-        enabled: false,
-        isBusy: false,
-        setWorld: (): void => undefined,
-        abortActive: (): void => undefined,
-        stream: () => Promise.reject(new Error('off')),
-      } as never,
     });
 
     // Live events that arrive before the world is known are held, then stored.

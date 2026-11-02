@@ -83,6 +83,7 @@ function MemberRow({
   onAsk,
   askLabel: askText,
   askBusy,
+  askLocked,
   askOff,
 }: {
   m: PartyMember;
@@ -91,6 +92,8 @@ function MemberRow({
   onAsk: () => void;
   askLabel: string;
   askBusy: boolean;
+  /** Another ask is running: the button does nothing until it is done. */
+  askLocked: boolean;
   /** Names of the live play switches that are off; the button is disabled with them as the reason. */
   askOff: string[];
 }): JSX.Element {
@@ -157,9 +160,9 @@ function MemberRow({
         type="button"
         size="sm"
         data-track="dash.quickroll.member"
-        aria-label={askText}
+        aria-label={askBusy ? `Asking ${m.name} for a roll...` : askText}
         title={askOff.length > 0 ? offReason(askOff) : askText}
-        aria-disabled={askOff.length > 0 ? 'true' : undefined}
+        aria-disabled={askOff.length > 0 || askLocked ? 'true' : undefined}
         busy={askBusy}
         busyLabel="Asking..."
         onClick={() => {
@@ -450,7 +453,8 @@ export function PartyDrawer({
               onOpen={openActor}
               onAsk={() => void roll.ask([m.name])}
               askLabel={askLabel(roll, m.name)}
-              askBusy={roll.busy}
+              askBusy={roll.asking.length === 1 && roll.asking[0] === m.name}
+              askLocked={roll.busy}
               askOff={rollOff}
             />
           ))}
@@ -517,8 +521,8 @@ export function PartyDrawer({
               size="sm"
               id="party-roll-all"
               data-track="dash.quickroll.party"
-              aria-disabled={rollOff.length > 0 ? 'true' : undefined}
-              busy={roll.busy}
+              aria-disabled={rollOff.length > 0 || roll.busy ? 'true' : undefined}
+              busy={roll.asking.length > 1 || (roll.asking.length === 1 && members.length === 1)}
               busyLabel="Asking..."
               title={rollOff.length > 0 ? offReason(rollOff) : undefined}
               onClick={() => {

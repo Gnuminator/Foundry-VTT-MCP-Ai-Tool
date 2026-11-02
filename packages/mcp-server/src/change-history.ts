@@ -519,7 +519,13 @@ export function describeRecord(r: ChangeRecord, users?: UserNames): string[] {
 
   if (r.oversize) return [`${target} changed (the details were too large to keep)`];
   const after = r.after ?? [];
-  if (after.length > 0 && after.every(a => a.path === 'x' || a.path === 'y')) {
+  // A Foundry 14 drag turns the token to face where it goes, so its update carries `rotation`
+  // beside x and/or y (test 3: x,y,rotation or x,rotation on the Pi). That is still one move;
+  // a turn alone (no x or y) is not.
+  if (
+    after.some(a => a.path === 'x' || a.path === 'y') &&
+    after.every(a => a.path === 'x' || a.path === 'y' || a.path === 'rotation')
+  ) {
     return [`${target} moved`];
   }
   const prefix = inner ? `${subject}: ${inner} ` : `${subject}: `;

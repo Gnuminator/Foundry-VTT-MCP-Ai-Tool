@@ -67,7 +67,8 @@ function Picker({ onClose }: { onClose: () => void }): JSX.Element {
   const { plan } = useGuardedTools();
   const [ticked, setTicked] = useState<ReadonlySet<string>>(new Set());
   const [condition, setCondition] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [pending, setPending] = useState<'add' | 'remove' | null>(null);
+  const busy = pending !== null;
   const lock = useRef(false);
 
   const tokens = useQuery({
@@ -102,10 +103,10 @@ function Picker({ onClose }: { onClose: () => void }): JSX.Element {
   const apply = (active: boolean): void => {
     if (!ready || lock.current || !chosen) return;
     lock.current = true;
-    setBusy(true);
+    setPending(active ? 'add' : 'remove');
     void plan('plan-actor-change', conditionPlanArgs(targets, chosen.id, active)).finally(() => {
       lock.current = false;
-      setBusy(false);
+      setPending(null);
     });
   };
 
@@ -135,7 +136,7 @@ function Picker({ onClose }: { onClose: () => void }): JSX.Element {
         query={tokens}
         errorLabel="Couldn't load the tokens"
         onRetry={() => void tokens.refetch()}
-        isEmpty={d => (d.tokens ?? []).length === 0}
+        isEmpty={() => rows.length === 0}
         empty="No tokens on this scene."
       >
         {() => (
@@ -149,7 +150,8 @@ function Picker({ onClose }: { onClose: () => void }): JSX.Element {
                     disabled={busy}
                     onChange={() => toggle(t.tokenId)}
                   />{' '}
-                  <span className="cs-name">{t.name}</span>{' '}
+                  <span className="cs-name">{t.name}</span>
+                  {t.hidden && <span className="cs-note"> hidden</span>}{' '}
                   <span className={`side side-${t.category}`}>{sideWords(t)}</span>
                 </label>
               </li>
@@ -183,7 +185,7 @@ function Picker({ onClose }: { onClose: () => void }): JSX.Element {
           size="sm"
           data-track="dash.conditions.add"
           aria-disabled={ready ? undefined : 'true'}
-          busy={busy}
+          busy={pending === 'add'}
           busyLabel="Working..."
           onClick={() => apply(true)}
         >
@@ -193,6 +195,8 @@ function Picker({ onClose }: { onClose: () => void }): JSX.Element {
           size="sm"
           data-track="dash.conditions.remove"
           aria-disabled={ready ? undefined : 'true'}
+          busy={pending === 'remove'}
+          busyLabel="Working..."
           onClick={() => apply(false)}
         >
           {conditionButtonLabel(chosen, targets.length, false)}

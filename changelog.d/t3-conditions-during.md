@@ -2,7 +2,7 @@
 
 - **Conditions in the During view:** a **Conditions** button on the During bar (live play on) opens a
   small panel: tick tokens on the scene, pick a condition, **Add** or **Remove**. It works in a
-  fight and out of one, goes through the same plan-and-confirm path as Damage / Heal (with Undo),
+  fight and out of one, goes through the same plan-and-apply path as Damage / Heal (it applies at once, with Undo),
   and no longer needs Advanced, Tools. Each condition shows a **rules** link on hover or focus that
   opens dnd5e's own rules page for it in Foundry.
 

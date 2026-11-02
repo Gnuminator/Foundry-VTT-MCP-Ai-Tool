@@ -245,6 +245,12 @@ Efter en ændring med Damage / Heal eller Condition viser en besked hvert måls 
 11 to 5") med **Undo** i nogle sekunder; ét klik sætter det tilbage. Senere bruger du **Undo** i
 Recent Changes.
 
+**Conditions** (en knap på During-linjen, når live play og GM Actions er slået til; den virker både i
+en kamp og udenfor): afkryds tokens på den scene, du ser, vælg en condition, og klik **Add** eller
+**Remove**. Det sker med det samme, med **Undo**, og der er intet confirm-vindue. For Exhaustion
+hæver Add med ét niveau, og Remove fjerner dem alle. Et **rules**-link ved hver condition åbner
+dnd5e's egen side for den i Foundry.
+
 **Start combat** og **End combat**: når ingen kamp kører, og GM Actions er slået til, tilbyder Combat
 Tracker **Start combat** (i de fleste During-layouts åbner en lille **Start combat**-knap på
 During-bjælken det samme). Den viser tokens på den scene, du ser, med spillerkarakterer og Hostile

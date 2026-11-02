@@ -45,6 +45,9 @@ describe('the condition request', () => {
     const prone = { id: 'prone', name: 'Prone', reference: null };
     expect(conditionButtonLabel(prone, 1, true)).toBe('Add Prone to 1 token');
     expect(conditionButtonLabel(prone, 3, false)).toBe('Remove Prone from 3 tokens');
+    const ex = { id: 'exhaustion', name: 'Exhaustion', reference: null };
+    expect(conditionButtonLabel(ex, 2, true)).toBe('Add a level of Exhaustion to 2 tokens');
+    expect(conditionButtonLabel(ex, 1, false)).toBe('Clear Exhaustion from 1 token');
     expect(conditionButtonLabel(undefined, 2, true)).toBe('Add a condition to 2 tokens');
   });
 });

@@ -391,7 +391,12 @@ export function DuringBar({ during }: { during: DuringController }): JSX.Element
       {conditionsHere && conditionsOpen && (
         <div className="during-conditions">
           <Suspense fallback={<DelayedLoading as="div" />}>
-            <ConditionsPanel onClose={() => setConditionsOpen(false)} />
+            <ConditionsPanel
+                onClose={() => {
+                  setConditionsOpen(false);
+                  requestAnimationFrame(() => document.getElementById('btn-during-conditions')?.focus());
+                }}
+              />
           </Suspense>
         </div>
       )}

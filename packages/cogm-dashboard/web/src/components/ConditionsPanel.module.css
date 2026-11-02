@@ -24,6 +24,7 @@
 }
 
 .pick {
+  min-height: 2.25rem;
   padding: 0.2rem 0.6rem;
   border: 1px solid var(--border);
   border-radius: var(--r-pill);
@@ -42,6 +43,7 @@
 /* The rules link shows on hover or focus, and always for the picked condition; a touch screen has
    no hover, so it stays visible there. */
 .rules {
+  min-height: 2.25rem;
   padding: 0.1rem 0.35rem;
   border: 0;
   background: transparent;

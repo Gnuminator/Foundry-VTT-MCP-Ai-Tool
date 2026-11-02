@@ -15,6 +15,12 @@ interface ConditionEntry {
 }
 
 /** The uuid of the rules page dnd5e keeps for a condition (`CONFIG.DND5E.conditionTypes`), if any. */
+function localizeName(key: unknown): string {
+  if (typeof key !== 'string' || key === '') return '';
+  const i18n = (game as Partial<Game>).i18n;
+  return i18n?.has(key) ? i18n.localize(key) : key;
+}
+
 function conditionReference(id: string): string | undefined {
   const ref = dig(globalThis, 'CONFIG', 'DND5E', 'conditionTypes', id, 'reference');
   return typeof ref === 'string' && ref !== '' ? ref : undefined;
@@ -151,7 +157,7 @@ export class ResourcesEffectsDataAccess {
           const reference = conditionReference(c.id);
           return {
             id: c.id,
-            name: c.name || c.label || c.id,
+            name: localizeName(c.name || c.label) || c.id,
             icon: c.icon || c.img,
             description: c.description || '',
             ...(reference ? { reference } : {}),

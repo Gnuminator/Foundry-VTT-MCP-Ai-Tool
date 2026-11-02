@@ -46,6 +46,10 @@ export function conditionButtonLabel(
   active: boolean
 ): string {
   const who = count === 1 ? '1 token' : `${count} tokens`;
+  // Exhaustion has levels: Add raises one level, Remove clears them all (live-plan.ts).
+  if (choice?.id === 'exhaustion') {
+    return active ? `Add a level of Exhaustion to ${who}` : `Clear Exhaustion from ${who}`;
+  }
   const what = choice ? choice.name : 'a condition';
   return active ? `Add ${what} to ${who}` : `Remove ${what} from ${who}`;
 }

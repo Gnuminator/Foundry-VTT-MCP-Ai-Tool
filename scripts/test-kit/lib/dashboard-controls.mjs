@@ -491,7 +491,7 @@ export const DASHBOARD_CONTROLS = [
   {
     name: 'dash.during.conditions',
     how: 'skip',
-    why: 'not driven by the sweep (the During bar button that opens the Conditions panel); the unit tests and the live check cover it',
+    why: 'not driven by the sweep (the During bar button that opens the Conditions panel); the helper unit tests and the live check cover it',
   },
   {
     name: 'dash.conditions.pick',
@@ -511,12 +511,12 @@ export const DASHBOARD_CONTROLS = [
   {
     name: 'dash.conditions.add',
     how: 'write',
-    why: 'plans and applies a condition on the picked tokens (with Undo); the unit tests and the live check cover it',
+    why: 'plans and applies a condition on the picked tokens (with Undo); the helper unit tests and the live check cover it',
   },
   {
     name: 'dash.conditions.remove',
     how: 'write',
-    why: 'plans and applies removing a condition from the picked tokens (with Undo); the unit tests and the live check cover it',
+    why: 'plans and applies removing a condition from the picked tokens (with Undo); the helper unit tests and the live check cover it',
   },
   {
     name: 'dash.combat.end',

@@ -14,7 +14,6 @@ import type { CoGm } from './ai/anthropic-co-gm.js';
 import { createDashboard, type Dashboard } from './app.js';
 import { config, type Config } from './config.js';
 import { Logger } from './logger.js';
-import { OPEN_PAGE_CSP } from './open-route.js';
 
 const fakeCoGm = {
   enabled: false,

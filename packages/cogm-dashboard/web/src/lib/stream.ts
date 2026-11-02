@@ -5,6 +5,7 @@
 import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 
+import { callTool } from './api';
 import { streamUrl } from './auth';
 import { bridgeAway, bridgeBlip, readCombat, type CombatState } from './combat';
 import { EMPTY_FEED, addFeedEvents, hasNewGmChange, readFeedEvents, type FeedLog } from './feed';
@@ -431,6 +432,47 @@ export function useCombat(): CombatState | null {
     gcTime: Infinity,
   });
   return data ?? null;
+}
+
+/**
+ * A fight read straight from `get-combat-state`, with the portrait addresses the server already
+ * made for the same creatures (the server rewrites them before it streams; a direct read has the
+ * raw path, which `readCombat` drops).
+ */
+export function withKnownPortraits(
+  fresh: CombatState | null,
+  known: CombatState | null
+): CombatState | null {
+  if (!fresh) return fresh;
+  const imgs = new Map((known?.combatants ?? []).map(c => [c.id, c.img]));
+  const fix = (c: CombatState['combatants'][number]): CombatState['combatants'][number] => ({
+    ...c,
+    img: c.img ?? imgs.get(c.id) ?? null,
+  });
+  return {
+    ...fresh,
+    current: fresh.current ? fix(fresh.current) : null,
+    combatants: fresh.combatants.map(fix),
+  };
+}
+
+/**
+ * Reads the fight now instead of waiting for the server's next poll (item live-strip-instant): a
+ * strip write calls this when it lands. A failed read changes nothing; the stream catches up.
+ */
+export async function refreshCombat(queryClient: QueryClient): Promise<void> {
+  try {
+    const raw = await callTool<unknown>('get-combat-state', {});
+    // Only an answer that says whether a fight runs counts; anything else must not end the fight.
+    if (typeof (raw as { active?: unknown } | null)?.active !== 'boolean') return;
+    const known = queryClient.getQueryData<CombatState | null>(COMBAT_KEY) ?? null;
+    queryClient.setQueryData<CombatState | null>(
+      COMBAT_KEY,
+      withKnownPortraits(readCombat(raw), known)
+    );
+  } catch {
+    // The 4 s poll shows it.
+  }
 }
 
 /** Whether a fight is running, as the stream last said; false until it says. */

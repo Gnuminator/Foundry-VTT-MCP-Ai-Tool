@@ -65,11 +65,48 @@
 .card[data-side='npc'] {
   border-color: var(--npc);
 }
+/* The turn: a solid ring in the page text colour (no side uses it) plus a "Turn" badge, so it reads in
+   both themes and next to a side border. */
 .card[data-current='true'] {
-  box-shadow: 0 0 0 3px var(--accent-glow);
+  position: relative;
+  box-shadow:
+    0 0 0 2px var(--bg),
+    0 0 0 5px var(--text);
 }
+.turnBadge {
+  grid-column: 1 / -1;
+  justify-self: start;
+  margin-bottom: var(--space-1);
+  padding: 0 var(--space-2);
+  border-radius: var(--r-pill);
+  background: var(--text);
+  color: var(--bg);
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+/* A pick is a check mark and a soft fill, so it never looks like the turn. */
 .card[data-picked='true'] {
   background: var(--accent-soft);
+}
+.pick[aria-pressed='true']::before {
+  /* aria-pressed already says it; the empty alternative keeps the mark out of the button's name. */
+  content: '✓ ' / '';
+}
+.card[data-pending='true'] {
+  opacity: 0.7;
+  animation: pending 1s ease-in-out infinite alternate;
+}
+@keyframes pending {
+  to {
+    opacity: 0.45;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .card[data-pending='true'] {
+    animation: none;
+  }
 }
 /* A dashed edge, not a fade: opacity drops the small text under the contrast floor. */
 .card[data-down='true'] {
@@ -155,6 +192,17 @@ button.portrait {
   color: var(--warn);
   font-size: var(--text-xs);
 }
+button.chip {
+  border: 0;
+  font-family: inherit;
+  cursor: pointer;
+}
+button.chip[aria-disabled='true'] {
+  cursor: default;
+}
+button.chip.ended {
+  border: 1px dashed var(--warn);
+}
 .tag.ended {
   border: 1px dashed var(--warn);
   background: transparent;
@@ -205,6 +253,9 @@ button.portrait {
 .cond[aria-disabled='true'] {
   opacity: 0.5;
   cursor: default;
+}
+.cond[data-busy='true'] {
+  cursor: progress;
 }
 
 .handout {

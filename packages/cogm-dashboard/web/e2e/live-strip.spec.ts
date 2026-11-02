@@ -261,11 +261,34 @@ test('a timed condition says how long it has left, and an ended one says so', as
   await load(page);
   const row = page.locator('#live-strip');
   await expect(row.getByText('Prone, 1 round', { exact: true })).toBeVisible();
-  await expect(row.getByText('Poisoned, ended', { exact: true })).toHaveAttribute(
+  await expect(row.getByText('Poisoned, ended ×', { exact: true })).toHaveAttribute(
     'title',
-    'Time is up. Click Poisoned again to put it back.'
+    'Time is up. Click to take Poisoned off.'
   );
   await expect(row.getByText('Blinded', { exact: true })).toBeVisible();
+});
+
+test('a condition chip takes the condition off through the guarded path', async ({ page }) => {
+  const calls = await setup(page, [
+    who('b', 'Brannoc', { initiative: 19, isCurrentTurn: true, isPC: true, category: 'pc' }),
+    who('g1', 'Goblin', { conditions: ['Prone'] }),
+  ]);
+  await load(page);
+  await page.getByRole('button', { name: 'Prone, take off' }).click();
+  await expect.poll(() => writes(calls)).toEqual(['apply-planned-change']);
+  expect(calls.find(c => c.name === 'plan-actor-change')?.args).toMatchObject({
+    action: 'condition',
+    targets: ['tk-g1'],
+    condition: 'Prone',
+    active: false,
+  });
+});
+
+test('the header says whose turn it is and the card carries the turn badge', async ({ page }) => {
+  await setup(page, FIGHT);
+  await load(page);
+  await expect(page.locator('#live-meta')).toHaveText("Round 2 · Brannoc's turn");
+  await expect(cards(page).first().getByText('▶ Turn')).toBeVisible();
 });
 
 test('Next turn is one click; End combat asks one plain question first', async ({ page }) => {

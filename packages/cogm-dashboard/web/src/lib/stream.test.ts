@@ -16,8 +16,10 @@ import {
   startStream,
   streamRetryDelay,
   streamTrouble,
+  withKnownPortraits,
   type StreamLink,
 } from './stream';
+import { readCombat } from './combat';
 
 // auth.ts reads the page's location when it loads; there is no page here.
 vi.mock('./auth', () => ({ streamUrl: (): string => '/api/stream' }));
@@ -223,5 +225,26 @@ describe('the events handler and Recent Changes', () => {
     onEvents(queryClient, { events: [event('a', 'gm-change'), event('b', 'gm-change')] });
     await vi.advanceTimersByTimeAsync(CHANGES_RELOAD_MS);
     expect(reloaded()).toBe(true);
+  });
+});
+
+describe('a combat read straight from the tool', () => {
+  const raw = (img: string | null): unknown => ({
+    active: true,
+    round: 2,
+    turn: 0,
+    current: null,
+    combatants: [{ id: 'a', name: 'Wolf', hp: { value: 5, max: 11, temp: 0 }, img }],
+  });
+
+  it('keeps the portrait address the stream already had', () => {
+    const known = readCombat(raw('http://f/wolf.png'));
+    const fresh = readCombat(raw('/tokens/wolf.png'));
+    expect(withKnownPortraits(fresh, known)?.combatants[0]?.img).toBe('http://f/wolf.png');
+  });
+
+  it('has no portrait when none was ever known, and no fight stays none', () => {
+    expect(withKnownPortraits(readCombat(raw('/x.png')), null)?.combatants[0]?.img).toBeNull();
+    expect(withKnownPortraits(null, null)).toBeNull();
   });
 });

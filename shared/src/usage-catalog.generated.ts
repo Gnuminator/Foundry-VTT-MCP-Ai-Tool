@@ -537,6 +537,12 @@ export const USAGE_CATALOG: readonly UsageCatalogEntry[] = [
     file: 'packages/cogm-dashboard/web/src/components/LiveStrip.tsx',
   },
   {
+    name: 'dash.live.remove-condition',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/web/src/components/LiveStrip.tsx',
+  },
+  {
     name: 'dash.live.show-handout',
     kind: 'action',
     surface: 'dashboard',

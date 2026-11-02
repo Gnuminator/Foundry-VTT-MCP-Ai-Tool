@@ -1147,7 +1147,7 @@ test needs no second Foundry and no prep (decided 2026-11-02): `.\scripts\pi\swi
 see what runs now and what would change). Each use needs the user's OK first (pi-work); never on a game-night day.
 
 - **What it does** (`scripts/pi/remote/switch-world.sh`): sets `world` in `options.json` (a reboot keeps the choice), stops and
-  starts Foundry and the Assistant GM browser, waits for "joined world <id>" and prints the world before and after. The
+  starts Foundry and the Assistant GM browser, waits for `joined world <id>` and prints the world before and after. The
   bridge and the dashboard follow, because the Assistant GM browser carries the bridge link. It never edits world data.
 - **Refuses** while players are online or a Discord recording runs (`-Force` goes on anyway), during an open dnd5e system trial
   (except a switch to `strahd-kit` in the trial phase) and during a kit session. Like every stage it needs a `dietpi-backup`

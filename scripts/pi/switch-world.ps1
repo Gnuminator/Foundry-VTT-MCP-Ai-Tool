@@ -8,8 +8,8 @@
   stage sets the world in options.json (so a reboot keeps it), restarts Foundry and the Assistant GM browser
   and waits for "joined world <id>"; the bridge and the dashboard follow. It never edits world data. It prints
   which world runs before and after. It refuses while people are online or a recording runs; -Force goes on
-  anyway. Each use needs the user's OK (docs: pi-work); a snapshot is only warned about, because only the
-  launch choice changes. Never on a game-night day: after a test, switch back to curse-of-strahd.
+  anyway. Each use needs the user's OK (docs: pi-work); a dietpi-backup snapshot from today is required
+  (a world that launches after an update is migrated by Foundry). Never on a game-night day: after a test, switch back to curse-of-strahd.
 
 .PARAMETER World
   curse-of-strahd, frostmaiden-training or strahd-kit.
@@ -52,4 +52,5 @@ $envText = "WORLD=$World"
 if ($DryRun) { $envText += ' DRY_RUN=1' }
 if ($Force) { $envText += ' FORCE=1' }
 $script | & $Ssh $PiHost "$envText bash -s"
-if ($LASTEXITCODE -ne 0) { throw "ssh $PiHost failed (exit $LASTEXITCODE); see the lines above" }
+if ($LASTEXITCODE -eq 255) { throw "ssh could not reach $PiHost (exit 255); nothing was changed" }
+if ($LASTEXITCODE -ne 0) { throw "the world switch on $PiHost ended with exit $LASTEXITCODE; read the lines above (the switch may still be in place)" }

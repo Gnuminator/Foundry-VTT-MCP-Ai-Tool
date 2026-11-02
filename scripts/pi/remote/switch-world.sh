@@ -14,8 +14,8 @@
 #   2. WORLD already the launched and running world: prints that and changes nothing (exit 0);
 #   3. DRY_RUN=1 stops here and prints what it would do;
 #   4. nobody online (lib.sh require_quiet: players, the Assistant GM browser not counted, and a Discord recording); FORCE=1
-#      (the PC wrapper's -Force) only warns. A dietpi-backup snapshot from today is NOT required, because only the launch
-#      choice changes; without one this prints a warning, and REQUIRE_SNAPSHOT=1 makes it a refusal;
+#      (the PC wrapper's -Force) only warns. A dietpi-backup snapshot from today is required (lib.sh, NO_SNAPSHOT=1
+#      overrides): a world that launches after a Foundry or dnd5e update is migrated by Foundry, and the migration has no undo;
 #   5. stops the Assistant GM browser and Foundry, sets options.json to WORLD, starts Foundry and waits for the join page
 #      of WORLD (and /api/status, when it names a world, must name WORLD);
 #   6. starts the Assistant GM browser again (it was running, or enabled) and waits for "joined world WORLD" in its journal;
@@ -68,7 +68,7 @@ running() {
     "$node" -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{const w=JSON.parse(s).world;process.stdout.write(typeof w==="string"?w:"")}catch{}})' 2>/dev/null || true
 }
 # /join answers 200 even when no world runs, so look for the join form's template (as stage 11 does).
-world_up() { curl -fs --max-time 5 "$base_url/join" 2>/dev/null | grep -q 'id="join-game"'; }
+world_up() { [ "$(curl -fs --max-time 5 "$base_url/join" 2>/dev/null | grep -c 'id="join-game"' || true)" -gt 0 ]; }
 
 orig_world="$(launched)"
 run_before="$(running)"
@@ -80,15 +80,13 @@ if [ "$orig_world" = "$world" ] && [ "$run_before" = "$world" ]; then
 fi
 
 if [ "$dry" = 1 ]; then
+  if have_systemd; then say "dry run: people online in Foundry: $(users_online) (the Assistant GM browser counts as one)"; fi
+  if (require_recent_snapshot) >/dev/null 2>&1; then say "dry run: a dietpi-backup snapshot from today exists"; else say "dry run: NO dietpi-backup snapshot from today: a real run would refuse (take one: /boot/dietpi/dietpi-backup 1)"; fi
   say "dry run: would stop the Assistant GM browser and Foundry, set options.json to $world, start Foundry, start the Assistant GM browser and wait for it to join $world; nothing changed"
   exit 0
 fi
 
-if [ "${REQUIRE_SNAPSHOT:-0}" = 1 ]; then
-  require_recent_snapshot
-elif ! (require_recent_snapshot) >/dev/null 2>&1; then
-  warn "no dietpi-backup snapshot from today: only the launch choice changes here, so the run goes on (REQUIRE_SNAPSHOT=1 would refuse)"
-fi
+require_recent_snapshot
 require_quiet "switching the world to $world"
 
 was_foundry=0 was_gm=0 stopped=0 set_done=0
@@ -104,6 +102,18 @@ restore() {
   if [ "$set_done" = 1 ]; then foundry_edit_json "$options" 'o.world = a[0] || null' "$orig_world" || warn "could not put options.json back: set \"world\" to '$orig_world' in $options"; fi
   [ "$was_foundry" = 1 ] && { systemctl start foundry.service || true; }
   [ "$was_gm" = 1 ] && { systemctl start "$gm_unit" || true; }
+  if [ "$was_foundry" = 1 ]; then
+    local back=0
+    for _ in $(seq 1 60); do
+      if world_up; then back=1; break; fi
+      sleep 2
+    done
+    if [ "$back" = 1 ]; then
+      warn "Foundry runs '$(running)' again (options.json launches '$(launched)')"
+    else
+      warn "Foundry did not come back on '${orig_world:-no world}': journalctl -u foundry -n 50"
+    fi
+  fi
   return 0
 }
 # A dropped SSH connection must not kill the stage while Foundry is stopped: the next line of output would raise SIGPIPE.

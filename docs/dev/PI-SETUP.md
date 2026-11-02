@@ -1150,8 +1150,9 @@ see what runs now and what would change). Each use needs the user's OK first (pi
   starts Foundry and the Assistant GM browser, waits for "joined world <id>" and prints the world before and after. The
   bridge and the dashboard follow, because the Assistant GM browser carries the bridge link. It never edits world data.
 - **Refuses** while players are online or a Discord recording runs (`-Force` goes on anyway), during an open dnd5e system trial
-  and during a kit session. A snapshot is only warned about (`REQUIRE_SNAPSHOT=1` makes it a refusal), since only the launch
-  choice changes.
+  (except a switch to `strahd-kit` in the trial phase) and during a kit session. Like every stage it needs a `dietpi-backup`
+  snapshot from today (`NO_SNAPSHOT=1` overrides): a world that launches after a Foundry or dnd5e update is migrated by Foundry,
+  and that has no undo. `-DryRun` also prints who is online and whether a snapshot from today exists.
 - **Failure:** if the new world does not come up, `options.json` goes back to the old world and both services start again. If
   only the browser does not join, the switch stays and the run exits 1 (the Assistant GM user must exist in that world).
 - Tests: `scripts/pi/switch-world.test.mjs` (stand-ins for systemctl, curl and journalctl). **Not run on the Pi yet.**

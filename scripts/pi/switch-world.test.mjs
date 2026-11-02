@@ -92,6 +92,10 @@ systemctl() {
     "is-enabled foundry-ai-tool-gm-browser.service") [ "\${GM_ACTIVE-1}" = 1 ] ;;
     "stop foundry.service") rm -f "${dd}/running" ;;
     "start foundry.service")
+      if [ -n "\${FOUNDRY_RUNS_INSTEAD:-}" ] && [ "\$("$NODE_DIR/bin/node" -e 'process.stdout.write(require(process.argv[1]).world)' "$OPTIONS_FILE")" = curse-of-strahd ]; then
+        printf '%s' "\$FOUNDRY_RUNS_INSTEAD" >"${dd}/running"
+        return 0
+      fi
       [ -z "\${FOUNDRY_FAIL_FOR:-}" ] || [ "\$("$NODE_DIR/bin/node" -e 'process.stdout.write(require(process.argv[1]).world)' "$OPTIONS_FILE")" != "\$FOUNDRY_FAIL_FOR" ] ||
         return 0
       "$NODE_DIR/bin/node" -e 'process.stdout.write(require(process.argv[1]).world)' "$OPTIONS_FILE" >"${dd}/running" ;;
@@ -238,16 +242,29 @@ describe('switch-world.sh', () => {
     assert.equal(pi.launched().world, 'frostmaiden-training');
   });
 
-  test('without a snapshot from today it warns and goes on; REQUIRE_SNAPSHOT=1 refuses', () => {
+  test('without a snapshot from today nothing stops; NO_SNAPSHOT=1 overrides, and a dry run says so', () => {
     const pi = fakePi({ snapshot: false });
-    const refused = run(pi, { WORLD: 'curse-of-strahd', REQUIRE_SNAPSHOT: '1' });
+    const refused = run(pi, { WORLD: 'curse-of-strahd' });
     assert.notEqual(refused.status, 0);
     assert.match(refused.out, /snapshot/);
     noService(pi.calls());
-    const r = run(pi, { WORLD: 'curse-of-strahd' });
+    assert.equal(pi.launched().world, 'frostmaiden-training');
+    const dry = run(pi, { WORLD: 'curse-of-strahd', DRY_RUN: '1' });
+    assert.match(dry.out, /NO dietpi-backup snapshot from today: a real run would refuse/);
+    assert.match(dry.out, /people online in Foundry: 0/);
+    const r = run(pi, { WORLD: 'curse-of-strahd', NO_SNAPSHOT: '1' });
     assert.equal(r.status, 0, r.out);
-    assert.match(r.out, /WARNING: no dietpi-backup snapshot from today/);
     assert.equal(pi.launched().world, 'curse-of-strahd');
+  });
+
+  test('when Foundry comes up on another world than asked, options.json is put back and the old world runs', () => {
+    const pi = fakePi({ launch: 'frostmaiden-training' });
+    const r = run(pi, { WORLD: 'curse-of-strahd', FOUNDRY_RUNS_INSTEAD: 'strahd-kit' });
+    assert.notEqual(r.status, 0);
+    assert.match(r.out, /Foundry runs 'strahd-kit', not curse-of-strahd/);
+    assert.equal(pi.launched().world, 'frostmaiden-training');
+    assert.equal(readFileSync(path.join(pi.d, 'running'), 'utf8'), 'frostmaiden-training');
+    assert.match(r.out, /Foundry runs 'frostmaiden-training' again/);
   });
 
   test('when the new world does not come up, options.json is put back and Foundry and the browser start again', () => {

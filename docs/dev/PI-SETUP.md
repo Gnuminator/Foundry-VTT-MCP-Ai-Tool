@@ -1140,6 +1140,22 @@ still running (Foundry stops before any world folder moves), and a kit session t
 (trial, switch and rollback refused, `status` works). `kit-session-scenarios.sh` adds the kit
 session during a trial. CI runs it on the ARM runner, where a missing Docker fails the step.
 
+## Switching the running world
+
+One command moves the world the Pi's Foundry runs between `curse-of-strahd`, `frostmaiden-training` and `strahd-kit`, so a
+test needs no second Foundry and no prep (decided 2026-11-02): `.\scripts\pi\switch-world.ps1 -World <id>` (add `-DryRun` to
+see what runs now and what would change). Each use needs the user's OK first (pi-work); never on a game-night day.
+
+- **What it does** (`scripts/pi/remote/switch-world.sh`): sets `world` in `options.json` (a reboot keeps the choice), stops and
+  starts Foundry and the Assistant GM browser, waits for "joined world <id>" and prints the world before and after. The
+  bridge and the dashboard follow, because the Assistant GM browser carries the bridge link. It never edits world data.
+- **Refuses** while players are online or a Discord recording runs (`-Force` goes on anyway), during an open dnd5e system trial
+  and during a kit session. A snapshot is only warned about (`REQUIRE_SNAPSHOT=1` makes it a refusal), since only the launch
+  choice changes.
+- **Failure:** if the new world does not come up, `options.json` goes back to the old world and both services start again. If
+  only the browser does not join, the switch stays and the run exits 1 (the Assistant GM user must exist in that world).
+- Tests: `scripts/pi/switch-world.test.mjs` (stand-ins for systemctl, curl and journalctl). **Not run on the Pi yet.**
+
 ## Kit session (strahd-kit test run)
 
 Before session 0 it is worth watching a real player make a character (level 1, then two level-ups to 3), as a player, on the

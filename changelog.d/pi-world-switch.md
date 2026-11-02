@@ -1,0 +1,3 @@
+### Pi
+
+- **One command switches the world the Pi runs:** `scripts/pi/switch-world.ps1 -World curse-of-strahd|frostmaiden-training|strahd-kit` (stage script `scripts/pi/remote/switch-world.sh`) sets the launch world in `options.json`, restarts Foundry and the Assistant GM browser, waits for "joined world", and prints the world before and after. It refuses while people are online or a recording runs (`-Force` overrides), during a system trial and during a kit session, puts the old world back if the new one does not start, and never edits world data. `-DryRun` shows the plan. The Pi run is not done yet: it needs the user's OK first.

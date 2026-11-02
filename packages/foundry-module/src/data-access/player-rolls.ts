@@ -608,10 +608,12 @@ export class PlayerRollsDataAccess {
       }
     }
 
-    // Initiative that is asked for during a fight fills the tracker, as a roll from the tracker does.
+    // A public initiative request during a fight fills the tracker, as a roll from the tracker
+    // does. A private one keeps its whisper, so it takes the plain path below.
     if (
       character &&
       args.rollType === 'initiative' &&
+      isPublic &&
       (await this.rollTrackerInitiative(character))
     ) {
       return;

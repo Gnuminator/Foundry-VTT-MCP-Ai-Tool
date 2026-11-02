@@ -96,7 +96,10 @@ export function isActiveGm(): boolean {
 
 interface GroupLike {
   id?: string;
-  system?: { members?: unknown; addMember?(actor: unknown): Promise<unknown> };
+  /** The stored data: `system.members` entries are `{ actor: id, ... }`. */
+  _source?: unknown;
+  system?: { members?: unknown };
+  update?: (data: object) => Promise<unknown>;
 }
 
 /** A player-owned character. */
@@ -116,8 +119,7 @@ function memberIds(group: GroupLike): Set<string> {
 
 /** The primary party, or null. */
 function primaryParty(): GroupLike | null {
-  const party = rec(rec(gameRec()?.actors)?.party);
-  return party ? (party as GroupLike) : null;
+  return rec(rec(gameRec()?.actors)?.party);
 }
 
 /**
@@ -196,20 +198,17 @@ async function doSync(): Promise<string[]> {
     done.add(id);
     if (!members.has(id)) fresh.push(actor);
   }
-  const system = rec(party.system);
-  const update = (party as { update?(data: object): Promise<unknown> }).update;
-  if (fresh.length > 0 && typeof update === 'function') {
+  if (fresh.length > 0 && typeof party.update === 'function') {
     // One write for everyone: dnd5e's addMember rewrites the whole member list each time, so one
     // update per sync is what Undo can take back cleanly. Its own row in Recent Changes, never a
     // follow-up of the ownership edit that made a character eligible.
-    const source = rec(party as unknown)?._source;
-    const current = rec(rec(source)?.system)?.members;
-    const kept = Array.isArray(current)
-      ? current
-      : contentsOf(system?.members).map(m => ({ actor: rec(rec(m)?.actor)?.id }));
+    const current = rec(rec(party._source)?.system)?.members;
+    const kept: unknown[] = Array.isArray(current)
+      ? (current as unknown[])
+      : contentsOf(party.system?.members).map(m => ({ actor: rec(rec(m)?.actor)?.id }));
     const next = [...kept, ...fresh.map(a => ({ actor: rec(a)?.id }))];
     changeJournal.breakGroup();
-    await update.call(party, { 'system.members': next });
+    await party.update({ 'system.members': next });
     changeJournal.breakGroup();
   }
   await game.settings.set(MODULE_ID, PARTY_AUTO_DONE_SETTING, {

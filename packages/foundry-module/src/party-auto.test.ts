@@ -72,13 +72,13 @@ function install(contents: Fake[], withParty: boolean): void {
   g.game = {
     user: { id: 'gm1' },
     users: {
-      get activeGM() {
+      get activeGM(): { id: string } {
         return { id: activeGm };
       },
     },
     actors,
     settings: {
-      get: (_m: string, key: string) =>
+      get: (_m: string, key: string): unknown =>
         key === PARTY_AUTO_SETTING ? enabled : key === PARTY_AUTO_DONE_SETTING ? done : undefined,
       set: vi.fn(async (m: string, key: string, value: unknown) => {
         if (key === PARTY_AUTO_DONE_SETTING) {

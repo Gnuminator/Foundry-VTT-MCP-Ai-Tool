@@ -62,8 +62,8 @@ function planLines(plan: Plan): string[] | null {
 interface Applied {
   changeId?: string;
   summary?: string;
-  /** What a create tool made (a journal's name). */
-  name?: string;
+  /** The journal a create-quest-journal call made (the tool's answer). */
+  journalName?: string;
   /** "Show it now" on a handout reveal: the popup on the players' screens. */
   shown?: { ok: boolean; error?: string };
   copy?: unknown;
@@ -93,7 +93,7 @@ function doneText(name: string, result: Applied | null): string {
   }
   if (name === 'undo-change' && summary) return `✓ ${summary}`;
   // A tool that made something answers its name ("Create quest journal done: Rescue the Merchant").
-  const target = typeof result?.name === 'string' ? result.name : '';
+  const target = typeof result?.journalName === 'string' ? result.journalName : '';
   return target ? `✓ ${toolWords(name)} done: ${target}` : `✓ ${toolWords(name)} done`;
 }
 

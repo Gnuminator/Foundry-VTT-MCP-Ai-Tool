@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
-import { COMBAT_NEEDS, HANDOUT_NEEDS, offReason, offSwitches } from './liveSwitches';
+import {
+  COMBAT_NEEDS,
+  GM_ACTIONS,
+  HANDOUT_NEEDS,
+  UNREADABLE,
+  offReason,
+  offSwitches,
+} from './liveSwitches';
 
 const list = [
   { id: 'writes', name: 'Allow Write Operations', on: true },
@@ -25,9 +32,13 @@ describe('which switches a control still needs', () => {
     expect(offSwitches(COMBAT_NEEDS, false, null)).toEqual(['GM Actions']);
   });
 
-  it('treats switches that could not be read as on: the click goes through and the server refuses', () => {
-    expect(offSwitches(COMBAT_NEEDS, true, null)).toEqual([]);
-    expect(offSwitches(COMBAT_NEEDS, true, [])).toEqual([]);
+  it('treats switches that could not be read as not on, for a control that needs one', () => {
+    expect(offSwitches(COMBAT_NEEDS, true, null, true)).toEqual([UNREADABLE]);
+    expect(offSwitches(COMBAT_NEEDS, false, null, true)).toEqual(['GM Actions', UNREADABLE]);
+    // GM Actions alone is the dashboard's own switch and always readable.
+    expect(offSwitches([GM_ACTIONS], true, null, true)).toEqual([]);
+    expect(offReason([UNREADABLE])).toBe(UNREADABLE);
+    expect(offReason(['GM Actions', UNREADABLE])).toBe(`${UNREADABLE}; GM Actions is off`);
   });
 });
 

@@ -55,11 +55,12 @@ export function useLivePlay(): LivePlay {
     },
   });
   const all = [GM_ACTIONS, ...list.map(s => s.id)];
+  // Still loading is not unreadable; a failed read with nothing cached is.
+  const unreadable = read.isError && read.data === undefined;
   return {
-    off: (needs = COMBAT_NEEDS): string[] => offSwitches(needs, gmActions, list),
+    off: (needs = COMBAT_NEEDS): string[] => offSwitches(needs, gmActions, list, unreadable),
     allOn: offSwitches(all, gmActions, list).length === 0,
-    // Still loading is not unreadable; a failed read with nothing cached is.
-    unreadable: read.isError && read.data === undefined,
+    unreadable,
     list,
     turnOn: (): void => {
       if (!turn.isPending) turn.mutate();

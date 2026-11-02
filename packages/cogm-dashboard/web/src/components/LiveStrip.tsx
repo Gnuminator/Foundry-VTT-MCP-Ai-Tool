@@ -294,8 +294,10 @@ export function LiveStrip(): JSX.Element {
         returnTo: from,
       });
       if (!ok) return;
+      // Busy on the button only once the write runs, not while the GM answers the question.
+      setBusy('end');
       await applyApproved(planId, true);
-    }, 'end');
+    });
 
   const addCondition = (condition: string): Promise<void> =>
     once(async () => {
@@ -323,6 +325,7 @@ export function LiveStrip(): JSX.Element {
         returnTo: from,
       });
       if (!ok) return;
+      setBusy('undo');
       const done = await call(
         'undo-change',
         { changeId: undoable.changeId },
@@ -330,7 +333,7 @@ export function LiveStrip(): JSX.Element {
         { checkIn: 'Recent Changes' }
       );
       if (done.status === 'done') toast(`✓ Undone: ${undoable.summary}`, 'ok');
-    }, 'undo');
+    });
 
   const nextHandout = handouts.data ? nextQueued(handouts.data) : null;
   const showHandout = (): Promise<void> =>

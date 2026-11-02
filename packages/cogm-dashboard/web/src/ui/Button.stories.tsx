@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import { expect, fn, userEvent, within } from 'storybook/test';
+import { expect, fn, userEvent, waitFor, within } from 'storybook/test';
 
 import { VEIL } from '../storybook/modes';
 
@@ -31,7 +31,7 @@ export const BusySlow: Story = {
   play: async ({ canvasElement, args }) => {
     const button = within(canvasElement).getByRole('button');
     await expect(button).toHaveAttribute('aria-busy', 'true');
-    await expect(button).toHaveTextContent('Waiting for Foundry...');
+    await waitFor(() => expect(button).toHaveTextContent('Waiting for Foundry...'));
     await userEvent.click(button);
     button.focus();
     await userEvent.keyboard('{Enter}');

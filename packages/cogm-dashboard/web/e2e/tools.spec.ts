@@ -201,7 +201,9 @@ const bridge = (call: ToolCall): ToolAnswer => {
   }
   if (call.name === 'apply-planned-change') return ok(APPLIED);
   if (call.name === 'undo-change') return ok({ changeId: 'ch1', summary: 'Undid: Damage' });
-  if (call.name === 'create-quest-journal') return ok({ summary: 'Made "Find Ilvara"' });
+  if (call.name === 'create-quest-journal') {
+    return ok({ summary: 'Made "Find Ilvara"', journalName: 'Find Ilvara' });
+  }
   return ok({});
 };
 
@@ -697,7 +699,7 @@ test('a write that is not a plan asks with its args, names shown with their ids'
     'sceneId: Valmere (s2)',
   ]);
   await confirm.getByRole('button', { name: 'Confirm' }).click();
-  await expect(toast(page, '✓ Create quest journal done')).toBeVisible();
+  await expect(toast(page, '✓ Create quest journal done: Find Ilvara')).toBeVisible();
   expect(named(calls, 'create-quest-journal')).toEqual([
     {
       name: 'create-quest-journal',

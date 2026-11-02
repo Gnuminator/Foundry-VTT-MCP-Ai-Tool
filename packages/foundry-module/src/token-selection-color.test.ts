@@ -24,7 +24,7 @@ describe('applySelectionColor', () => {
     expect(colors.CONTROLLED).toBe(SELECTION_COLOR);
     expect(colors.HOSTILE).toBe(0xe72124);
     expect(set).toHaveBeenCalledTimes(2);
-    expect(set).toHaveBeenCalledWith({ refreshBorder: true });
+    expect(set).toHaveBeenCalledWith({ refreshState: true, refreshBorder: true });
   });
 
   it('is a no-op without the disposition colours, and works before a canvas exists', () => {
@@ -35,12 +35,9 @@ describe('applySelectionColor', () => {
     expect(applySelectionColor()).toBe(true);
   });
 
-  it('picks a colour that is not the turn marker orange', () => {
-    const channels = [
-      (SELECTION_COLOR >> 16) & 255,
-      (SELECTION_COLOR >> 8) & 255,
-      SELECTION_COLOR & 255,
-    ];
-    expect(channels[0]).toBeLessThan(channels[2]);
+  it('picks a colour that is none of core disposition colours or the turn marker orange', () => {
+    // Core 14 defaults: hostile, neutral, friendly, inactive, party, secret, and the old controlled.
+    const core = [0xe72124, 0xf1d836, 0x43dfdf, 0x555555, 0x33bc4e, 0xa612d4, 0xff9829];
+    expect(core).not.toContain(SELECTION_COLOR);
   });
 });

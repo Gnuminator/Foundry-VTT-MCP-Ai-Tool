@@ -4,13 +4,16 @@
  *
  * Foundry 14 core draws both: the combat turn marker (an orange ring around the turn holder) and,
  * for a selected token, a border in `CONFIG.Canvas.dispositionColors.CONTROLLED` (orange as
- * well). Core selects a token only when a combatant is clicked in the combat tracker; the optional
- * Monk's Combat Details selects the turn holder on its turn (`select-combatant`), so both marks can
- * land on one token and the two are hard to tell apart. None of the other Strahd modules draws a
- * turn ring or changes the border colour. Only the selection colour is ours to change, so it moves
- * to cyan: the turn marker keeps its look. A player's own token shows the same colour on hover.
+ * well). The optional Monk's Combat Details selects the turn holder on its turn
+ * (`select-combatant`), and a click on a combatant in the tracker does too, so both marks can land
+ * on one token and the two are hard to tell apart. None of the other Strahd modules draws a turn
+ * ring or changes the border colour. Only the selection colour is ours to change, so it moves to
+ * white: the turn marker keeps its look. Cyan was too close to core's friendly colour (hover shows
+ * a border too), and the border has a black outline, so white shows on light and dark maps. The
+ * same colour also tints the controls of selected lights, tiles, drawings, notes and regions, and
+ * a player's own token on hover.
  */
-export const SELECTION_COLOR = 0x00d5ff;
+export const SELECTION_COLOR = 0xffffff;
 
 interface BorderToken {
   renderFlags?: { set: (flags: Record<string, boolean>) => void };
@@ -24,6 +27,8 @@ export function applySelectionColor(): boolean {
   colors.CONTROLLED = SELECTION_COLOR;
   const placeables = (canvas as { tokens?: { placeables?: BorderToken[] } } | undefined)?.tokens
     ?.placeables;
-  for (const token of placeables ?? []) token.renderFlags?.set({ refreshBorder: true });
+  // The colour is a tint set by the state refresh, so the redraw needs refreshState.
+  for (const token of placeables ?? [])
+    token.renderFlags?.set({ refreshState: true, refreshBorder: true });
   return true;
 }

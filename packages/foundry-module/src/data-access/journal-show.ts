@@ -75,16 +75,17 @@ export async function postHandoutNotice(
     name?: string;
     testUserPermission?: (user: unknown, level: string) => boolean;
   };
-  const recipients =
-    asked.length > 0
-      ? users.filter(u => asked.includes(u.id)).map(u => u.id)
-      : users
-          .filter(u => !u.isGM && target.testUserPermission?.(u, 'OBSERVER') === true)
-          .map(u => u.id);
+  // Only players who can open the page, named or not: a link that opens nothing is no notice.
+  const recipients = users
+    .filter(u => (asked.length === 0 || asked.includes(u.id)) && !u.isGM)
+    .filter(u => target.testUserPermission?.(u, 'OBSERVER') === true)
+    .map(u => u.id);
   if (recipients.length === 0) return { posted: false, uuid, users: [] };
   await ChatMessage.create({
     content: handoutNoticeContent(uuid, target.name ?? ''),
-    speaker: ChatMessage.getSpeaker({ alias: 'Handout' }),
+    // Explicit and neutral: getSpeaker with only an alias takes the GM's selected token, and dnd5e
+    // would show that actor's portrait (a hidden monster, say) on the players' whisper.
+    speaker: { scene: null, actor: null, token: null, alias: 'Handout' },
     whisper: recipients,
   });
   return { posted: true, uuid, users: recipients };

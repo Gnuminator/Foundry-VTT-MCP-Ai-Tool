@@ -965,10 +965,11 @@ export class GuardedWriteService {
     await this.notifyRecorded(worldId, entry.changeId);
     // A Foundry apply logs its own gm-change event; vault-only changes do it here.
     if (!foundry) await this.logGmChange(entry);
-    const shown = plan.showToPlayers ? await this.showToPlayers(plan.showToPlayers) : undefined;
-    const noticed = plan.noticeToPlayers
-      ? await this.noticeToPlayers(plan.noticeToPlayers)
-      : undefined;
+    // Side by side, so a stalled client holds the lock for one timeout, not two.
+    const [shown, noticed] = await Promise.all([
+      plan.showToPlayers ? this.showToPlayers(plan.showToPlayers) : undefined,
+      plan.noticeToPlayers ? this.noticeToPlayers(plan.noticeToPlayers) : undefined,
+    ]);
     return {
       ...this.appliedView(entry),
       ...(shown ? { shown } : {}),
@@ -985,14 +986,21 @@ export class GuardedWriteService {
     users: string[];
   }): Promise<NonNullable<AppliedChange['noticed']>> {
     try {
-      unwrapBridgeReply(
+      const reply = unwrapBridgeReply(
         await this.foundry.query(
           'foundry-mcp-bridge.postHandoutNotice',
           { uuid: notice.uuid, userIds: notice.users },
           { timeoutMs: SHOW_TIMEOUT_MS }
         ),
         'Chat notice refused'
-      );
+      ) as { posted?: boolean } | null;
+      // The module posts nothing when no player can open the page: say so, not "ok".
+      if (reply?.posted === false) {
+        return {
+          ok: false,
+          error: 'No player can open the page, so no chat notice was posted',
+        };
+      }
       return { ok: true };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);

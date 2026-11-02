@@ -50,7 +50,8 @@ read your sheet. It shows only the characters your Foundry user owns. Pick a vie
 and write on when the table plays on paper). Like the player page, it is live
 behind the email-code login.
 
-**Handouts in Foundry.** When the GM reveals a handout, you can also open that page in Foundry's
+**Handouts in Foundry.** When the GM reveals a handout, you get a whisper from "Handout" in
+Foundry's chat with its name; click the name to open the page. You can also open it in Foundry's
 Journal tab.
 
 **Your notes in Obsidian (optional).** If you keep notes in Obsidian, the server can keep a

@@ -993,6 +993,30 @@ describe('planPageReveal: chat notice (test 3)', () => {
     expect(notices()).toHaveLength(before);
   });
 
+  it('says so when the module posted nothing because no player can open the page', async () => {
+    foundry.handlers['foundry-mcp-bridge.postHandoutNotice'] = (): unknown => ({
+      posted: false,
+      users: [],
+    });
+    const plan = await handouts.planPageReveal({ pageUuid: PAGE1, action: 'reveal', copy: false });
+    const applied = await apply(plan.planId);
+    expect(applied.noticed).toEqual({
+      ok: false,
+      error: 'No player can open the page, so no chat notice was posted',
+    });
+  });
+
+  it('refuses a malformed notice when planning', async () => {
+    await expect(
+      guarded.createPlan({
+        feature: 'handouts',
+        summary: 'x',
+        vaultOps: [{ kind: 'vault-set', file: 'reveals.json', path: 'x', value: 1 }],
+        noticeToPlayers: { uuid: 'Actor.ilvara', users: [] },
+      })
+    ).rejects.toThrow(/noticeToPlayers needs the uuid of a journal page or journal/);
+  });
+
   it('still reveals when the notice cannot be posted, and says so', async () => {
     foundry.handlers['foundry-mcp-bridge.postHandoutNotice'] = (): unknown => {
       throw new Error('chat is down');

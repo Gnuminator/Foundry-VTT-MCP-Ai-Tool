@@ -78,6 +78,7 @@ describe('postHandoutNotice', () => {
   });
 
   it('whispers the title and a link to the players named, and no page text', async () => {
+    setPageOwnership({ default: 0, anna: 2, bo: 2 });
     const result = await postHandoutNotice({ uuid: pageUuid, userIds: ['anna'] });
     expect(result).toEqual({ posted: true, uuid: pageUuid, users: ['anna'] });
     expect(messages()).toHaveLength(1);
@@ -85,6 +86,21 @@ describe('postHandoutNotice', () => {
     expect(messages()[0].content).toBe(
       `<p>A handout was revealed to you: @UUID[${pageUuid}]{Letter}</p>`
     );
+  });
+
+  it('leaves out a named player who cannot open the page', async () => {
+    setPageOwnership({ default: 0, anna: 2 });
+    const result = await postHandoutNotice({ uuid: pageUuid, userIds: ['anna', 'bo'] });
+    expect(result.users).toEqual(['anna']);
+    setPageOwnership({ default: 0 });
+    expect((await postHandoutNotice({ uuid: pageUuid, userIds: ['bo'] })).posted).toBe(false);
+  });
+
+  it('names no actor or token as speaker even while the GM has a token selected', async () => {
+    setPageOwnership({ default: 0, anna: 2 });
+    await postHandoutNotice({ uuid: pageUuid });
+    const speaker = (messages()[0] as unknown as { speaker: Record<string, unknown> }).speaker;
+    expect(speaker).toEqual({ scene: null, actor: null, token: null, alias: 'Handout' });
   });
 
   it('with no players named tells every non-GM who can observe the page', async () => {

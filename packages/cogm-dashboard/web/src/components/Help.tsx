@@ -116,7 +116,7 @@ export function HelpProvider({ children }: { children: ReactNode }): JSX.Element
         meta={
           <a
             className="help-wiki-link"
-            href={wikiUrl(page, target.anchor, wantsDanish ? 'da' : 'en')}
+            href={wikiUrl(page, target.anchor, help.data?.page.startsWith('da-') ? 'da' : 'en')}
             target="_blank"
             rel="noopener noreferrer"
             data-track="dash.help.wiki"

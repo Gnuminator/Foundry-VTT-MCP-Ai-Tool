@@ -4,7 +4,16 @@
 // (no systemd, no Pi needed), and the stages are checked as text for what they must and must not contain.
 import { strict as assert } from 'node:assert';
 import { spawnSync } from 'node:child_process';
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  utimesSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, describe, test } from 'node:test';
@@ -58,14 +67,21 @@ function nodeDir() {
   const d = tmp();
   mkdirSync(join(d, 'bin'));
   // A script that forwards to this node works on Windows (Git bash) and Linux alike.
-  writeFileSync(join(d, 'bin', 'node'), `#!/usr/bin/env bash\nexec "${posix(process.execPath)}" "$@"\n`, { mode: 0o755 });
+  writeFileSync(
+    join(d, 'bin', 'node'),
+    `#!/usr/bin/env bash\nexec "${posix(process.execPath)}" "$@"\n`,
+    { mode: 0o755 }
+  );
   return posix(d);
 }
 
 function run(body, opts = {}, env = {}) {
   const nd = nodeDir();
   const script = stubs(opts).replace(/NODE_DIR=.*\nmkdir.*\n/, `NODE_DIR="${nd}"\n`) + body;
-  const r = spawnSync('bash', ['-c', script], { encoding: 'utf8', env: { ...process.env, ...env } });
+  const r = spawnSync('bash', ['-c', script], {
+    encoding: 'utf8',
+    env: { ...process.env, ...env },
+  });
   return { status: r.status, out: `${r.stdout}${r.stderr}` };
 }
 
@@ -83,13 +99,18 @@ describe('enable_unit restarts only when something changed (S1)', () => {
   });
 
   test('a changed unit file restarts it', () => {
-    const r = run(`mark_changed ${path}; enable_unit ${unit}; echo "CALLS:$CALLS"`, { active: unit });
+    const r = run(`mark_changed ${path}; enable_unit ${unit}; echo "CALLS:$CALLS"`, {
+      active: unit,
+    });
     assert.equal(r.status, 0, r.out);
     assert.equal(restarts(calls(r.out)), 1, r.out);
   });
 
   test('a changed dependency file (its EnvironmentFile) restarts it, an unchanged one does not', () => {
-    const changed = run(`mark_changed /etc/x.env; enable_unit ${unit} /etc/x.env; echo "CALLS:$CALLS"`, { active: unit });
+    const changed = run(
+      `mark_changed /etc/x.env; enable_unit ${unit} /etc/x.env; echo "CALLS:$CALLS"`,
+      { active: unit }
+    );
     assert.equal(restarts(calls(changed.out)), 1, changed.out);
     const same = run(`enable_unit ${unit} /etc/x.env; echo "CALLS:$CALLS"`, { active: unit });
     assert.equal(restarts(calls(same.out)), 0, same.out);
@@ -100,7 +121,7 @@ describe('enable_unit restarts only when something changed (S1)', () => {
     const f = posix(join(d, 'a.conf'));
     const r = run(
       `write_file ${f} 0644 hello; file_changed ${f} && echo FIRST_CHANGED
-       LIB_CHANGED=" "; write_file ${f} 0644 hello || true; file_changed ${f} && echo SECOND_CHANGED || echo SECOND_SAME`,
+       LIB_CHANGED=" "; write_file ${f} 0644 hello || true; file_changed ${f} && echo SECOND_CHANGED || echo SECOND_SAME`
     );
     assert.match(r.out, /FIRST_CHANGED/);
     assert.match(r.out, /SECOND_SAME/);
@@ -112,18 +133,30 @@ describe('enable_unit restarts only when something changed (S1)', () => {
     const env = posix(join(d, 'x.env'));
     writeFileSync(join(d, 'x.env'), 'A=1\n'); // written now, e.g. by an earlier run whose restart was refused
     const past = new Date(Date.now() - 3600_000).toISOString();
-    const newer = run(`enable_unit ${unit} ${env}; echo "CALLS:$CALLS"`, { active: unit }, { SHOW_TS: past });
+    const newer = run(
+      `enable_unit ${unit} ${env}; echo "CALLS:$CALLS"`,
+      { active: unit },
+      { SHOW_TS: past }
+    );
     assert.equal(restarts(calls(newer.out)), 1, newer.out);
     assert.match(newer.out, /newer than the running service/);
     const future = new Date(Date.now() + 3600_000).toISOString();
-    const older = run(`enable_unit ${unit} ${env}; echo "CALLS:$CALLS"`, { active: unit }, { SHOW_TS: future });
+    const older = run(
+      `enable_unit ${unit} ${env}; echo "CALLS:$CALLS"`,
+      { active: unit },
+      { SHOW_TS: future }
+    );
     assert.equal(restarts(calls(older.out)), 0, older.out);
   });
 
   test('a stopped unit is started, and RESTART_UNITS=1 restarts a running one', () => {
     const stopped = run(`enable_unit ${unit}; echo "CALLS:$CALLS"`);
     assert.match(calls(stopped.out), /\|start foo\.service/, stopped.out);
-    const forced = run(`enable_unit ${unit}; echo "CALLS:$CALLS"`, { active: unit }, { RESTART_UNITS: '1' });
+    const forced = run(
+      `enable_unit ${unit}; echo "CALLS:$CALLS"`,
+      { active: unit },
+      { RESTART_UNITS: '1' }
+    );
     assert.equal(restarts(calls(forced.out)), 1, forced.out);
   });
 
@@ -160,8 +193,10 @@ describe('require_quiet: players online and active recordings (S2, R8)', () => {
   const gmActive = 'foundry.service foundry-ai-tool-gm-browser.service';
   const kitActive = 'foundry.service foundry-ai-tool-kit-gm-browser.service';
   const thisRun = { INVOCATION: 'run-2', JOURNAL_ID: 'run-2' };
-  const joinedLine = '[assistant-gm] joined world curse-of-strahd as Assistant GM (GM: true, module active: true)';
-  const quiet = (users, env, active = gmActive) => run('require_quiet "the test"; echo PASSED', { active, users }, env);
+  const joinedLine =
+    '[assistant-gm] joined world curse-of-strahd as Assistant GM (GM: true, module active: true)';
+  const quiet = (users, env, active = gmActive) =>
+    run('require_quiet "the test"; echo PASSED', { active, users }, env);
 
   test('the Assistant GM browser counts as one user once it has joined', () => {
     const env = { ...thisRun, JOURNAL: joinedLine };
@@ -175,7 +210,8 @@ describe('require_quiet: players online and active recordings (S2, R8)', () => {
   test('the Kit GM browser counts the same way, and both together are two users', () => {
     const env = { ...thisRun, JOURNAL: joinedLine };
     assert.equal(quiet(1, env, kitActive).status, 0);
-    const both = 'foundry.service foundry-ai-tool-gm-browser.service foundry-ai-tool-kit-gm-browser.service';
+    const both =
+      'foundry.service foundry-ai-tool-gm-browser.service foundry-ai-tool-kit-gm-browser.service';
     assert.equal(quiet(2, env, both).status, 0);
     const three = quiet(3, env, both);
     assert.notEqual(three.status, 0);
@@ -183,7 +219,10 @@ describe('require_quiet: players online and active recordings (S2, R8)', () => {
   });
 
   test('an Assistant GM that runs but has not joined (no world, login failing) is not subtracted', () => {
-    const waiting = quiet(1, { ...thisRun, JOURNAL: '[assistant-gm] no world is running at http://127.0.0.1:30000; trying again in 30 s' });
+    const waiting = quiet(1, {
+      ...thisRun,
+      JOURNAL: '[assistant-gm] no world is running at http://127.0.0.1:30000; trying again in 30 s',
+    });
     assert.notEqual(waiting.status, 0, waiting.out);
     assert.match(waiting.out, /1 player\(s\) are online/);
     const empty = quiet(1, thisRun);
@@ -204,15 +243,26 @@ describe('require_quiet: players online and active recordings (S2, R8)', () => {
   });
 
   test('a service that is stopped is not subtracted even if its journal once said it joined', () => {
-    const r = run('require_quiet "the test"; echo PASSED', { active: 'foundry.service', users: 1 }, { ...thisRun, JOURNAL: joinedLine });
+    const r = run(
+      'require_quiet "the test"; echo PASSED',
+      { active: 'foundry.service', users: 1 },
+      { ...thisRun, JOURNAL: joinedLine }
+    );
     assert.notEqual(r.status, 0, r.out);
   });
 
   test('an unreadable /api/status refuses unless FORCE=1', () => {
-    const refused = run('require_quiet "the test"; echo PASSED', { active: 'foundry.service', readable: false });
+    const refused = run('require_quiet "the test"; echo PASSED', {
+      active: 'foundry.service',
+      readable: false,
+    });
     assert.notEqual(refused.status, 0);
     assert.match(refused.out, /cannot read who is online/);
-    const forced = run('require_quiet "the test"; echo PASSED', { active: 'foundry.service', readable: false }, { FORCE: '1' });
+    const forced = run(
+      'require_quiet "the test"; echo PASSED',
+      { active: 'foundry.service', readable: false },
+      { FORCE: '1' }
+    );
     assert.equal(forced.status, 0, forced.out);
     assert.match(forced.out, /FORCE=1: going on/);
   });
@@ -270,18 +320,34 @@ describe('require_quiet: players online and active recordings (S2, R8)', () => {
     };
     const bot = 'foundry-ai-tool-discord-bot.service';
     const before = new Date(Date.now() - 3600_000).toISOString(); // the bot started an hour ago, session 30 minutes ago
-    const running = run(`recording_active ${mk()} && echo ACTIVE || echo QUIET`, { active: bot }, { SHOW_TS: before });
+    const running = run(
+      `recording_active ${mk()} && echo ACTIVE || echo QUIET`,
+      { active: bot },
+      { SHOW_TS: before }
+    );
     assert.match(running.out, /ACTIVE/, running.out);
     const after = new Date(Date.now() - 10 * 60_000).toISOString(); // bot restarted after the folder: a crash leftover
-    const leftover = run(`recording_active ${mk()} && echo ACTIVE || echo QUIET`, { active: bot }, { SHOW_TS: after });
+    const leftover = run(
+      `recording_active ${mk()} && echo ACTIVE || echo QUIET`,
+      { active: bot },
+      { SHOW_TS: after }
+    );
     assert.match(leftover.out, /QUIET/, leftover.out);
-    const stopped = run(`recording_active ${mk()} && echo ACTIVE || echo QUIET`, {}, { SHOW_TS: before });
+    const stopped = run(
+      `recording_active ${mk()} && echo ACTIVE || echo QUIET`,
+      {},
+      { SHOW_TS: before }
+    );
     assert.match(stopped.out, /QUIET/, stopped.out);
     // A session the bot converted after a crash (or failed to) is finished, whatever it changed after the start.
     for (const marker of ['convert-report.json', 'convert-failed.json']) {
       const d = mk();
       writeFileSync(join(d, 'night', 'raw', marker), '{}');
-      const done = run(`recording_active ${d} && echo ACTIVE || echo QUIET`, { active: bot }, { SHOW_TS: before });
+      const done = run(
+        `recording_active ${d} && echo ACTIVE || echo QUIET`,
+        { active: bot },
+        { SHOW_TS: before }
+      );
       assert.match(done.out, /QUIET/, `${marker}: ${done.out}`);
     }
   });
@@ -312,7 +378,11 @@ describe('require_recent_snapshot (S4)', () => {
     mkdirSync(dir);
     const stats = join(d, 'stats');
     if (lines !== null) writeFileSync(stats, lines);
-    return run('require_recent_snapshot; echo PASSED', {}, { DIETPI_DIR: posix(dir), DIETPI_BACKUP_STATS: posix(stats), ...env });
+    return run(
+      'require_recent_snapshot; echo PASSED',
+      {},
+      { DIETPI_DIR: posix(dir), DIETPI_BACKUP_STATS: posix(stats), ...env }
+    );
   };
   const day = offsetDays => {
     const t = new Date(Date.now() - offsetDays * 86400_000);
@@ -334,7 +404,9 @@ describe('require_recent_snapshot (S4)', () => {
   });
 
   test('a backup that started or was cancelled today does not count (M1)', () => {
-    const r = snap(`${day(1)}_01:25:28  Backup completed\n${day(0)}_09:00:00  Backup starting\n${day(0)}_09:00:01  Backup cancelled: Insufficient free space\n`);
+    const r = snap(
+      `${day(1)}_01:25:28  Backup completed\n${day(0)}_09:00:00  Backup starting\n${day(0)}_09:00:01  Backup cancelled: Insufficient free space\n`
+    );
     assert.notEqual(r.status, 0, r.out);
   });
 
@@ -349,7 +421,11 @@ describe('require_recent_snapshot (S4)', () => {
   });
 
   test('off DietPi (a test container) the check is skipped', () => {
-    const r = run('require_recent_snapshot; echo PASSED', {}, { DIETPI_DIR: '/nonexistent-dietpi-dir' });
+    const r = run(
+      'require_recent_snapshot; echo PASSED',
+      {},
+      { DIETPI_DIR: '/nonexistent-dietpi-dir' }
+    );
     assert.equal(r.status, 0, r.out);
     assert.match(r.out, /skipped/);
   });
@@ -383,10 +459,24 @@ describe('warn_dashboard_split (S3)', () => {
 describe('the stages', () => {
   // 18-time-sync is left out on purpose: it checks the snapshot just before its first write, so DRY_RUN and CHECK need none
   // (scripts/pi/time-sync.test.mjs covers the refusal). 20-vault-sync is read-only and asks for a snapshot only with
-  // SET_TIMEZONE=1 (scripts/pi/vault-sync.test.mjs).
+  // SET_TIMEZONE=1 (scripts/pi/vault-sync.test.mjs). 21-player-vault is read-only in its report mode and asks for the snapshot in
+  // every mode that changes something (scripts/pi/player-vault.test.mjs).
   const stages = [
-    '1-health', '2-node', '3-foundry', '4-tailscale', '5-tool', '5-check-world', '6-backup', '7-vault',
-    '8-recorder', '9-ssh-log', '10-space-check', '11-world', '12-tunnel', '13-player-creation', '15-ssh-keys-only',
+    '1-health',
+    '2-node',
+    '3-foundry',
+    '4-tailscale',
+    '5-tool',
+    '5-check-world',
+    '6-backup',
+    '7-vault',
+    '8-recorder',
+    '9-ssh-log',
+    '10-space-check',
+    '11-world',
+    '12-tunnel',
+    '13-player-creation',
+    '15-ssh-keys-only',
     '16-board-status',
   ];
 
@@ -407,6 +497,7 @@ describe('the stages', () => {
       '8-recorder': 'require_no_recording',
       '11-world': 'require_quiet',
       '12-tunnel': 'require_quiet',
+      '21-player-vault': 'enable_unit "$dashboard_unit"', // enable_unit calls require_quiet before a restart; OFF asks first
     };
     for (const [s, fn] of Object.entries(quiet)) {
       assert.ok(read(`scripts/pi/remote/${s}.sh`).includes(fn), `${s}.sh calls ${fn}`);
@@ -426,7 +517,10 @@ describe('the stages', () => {
     assert.doesNotMatch(text, /rm -rf "\$\{FOUNDRY_APP:\?\}"\/\*/);
     assert.match(text, /mv "\$new" "\$FOUNDRY_APP"/);
     // The stop in the install flow comes after the check (the rollback in stage3_exit stops it too, and sits above).
-    assert.ok(text.indexOf('require_quiet') < text.indexOf('systemctl stop foundry.service\n    foundry_stopped=1'));
+    assert.ok(
+      text.indexOf('require_quiet') <
+        text.indexOf('systemctl stop foundry.service\n    foundry_stopped=1')
+    );
   });
 
   test('stage 5 posts the deployed release to #changelog, only for a new tag build, never fatally', () => {
@@ -493,7 +587,9 @@ mv() {
     const setup = () => {
       const root = tmp();
       mkdirSync(join(root, 'node24', 'bin'), { recursive: true });
-      writeFileSync(join(root, 'node24', 'bin', 'node'), '#!/bin/sh\necho v24.20.0\n', { mode: 0o755 });
+      writeFileSync(join(root, 'node24', 'bin', 'node'), '#!/bin/sh\necho v24.20.0\n', {
+        mode: 0o755,
+      });
       const prelude = `
 NODE_DIR=${posix(root)}/node24
 NEW_PATH="$NODE_DIR.new"; TARGET_PATH="$NODE_DIR"
@@ -517,7 +613,10 @@ ${failMv}
     };
     const stage2 = read('scripts/pi/remote/2-node.sh');
     const go = (fail, root, prelude) =>
-      spawnSync('bash', ['-c', `source "${lib}"\n${prelude}\n${stage2}`], { encoding: 'utf8', env: { ...process.env, FAIL_MV: fail ? '1' : '0' } });
+      spawnSync('bash', ['-c', `source "${lib}"\n${prelude}\n${stage2}`], {
+        encoding: 'utf8',
+        env: { ...process.env, FAIL_MV: fail ? '1' : '0' },
+      });
     const version = file => readFileSync(file, 'utf8').match(/v24\.\d+\.\d+/)?.[0];
 
     test('control: without a failure the new Node is in place and the old one is kept as .prev', () => {
@@ -534,7 +633,10 @@ ${failMv}
       assert.notEqual(r.status, 0, r.stdout + r.stderr);
       assert.match(r.stderr, /the old one is back in place/);
       assert.equal(version(join(root, 'node24', 'bin', 'node')), 'v24.20.0', r.stdout + r.stderr);
-      assert.ok(!existsSync(join(root, 'node24.prev')), 'the .prev folder was moved back, not copied');
+      assert.ok(
+        !existsSync(join(root, 'node24.prev')),
+        'the .prev folder was moved back, not copied'
+      );
     });
   });
 
@@ -571,15 +673,28 @@ ${failMv}
     };
     const go = (root, prelude, env) => {
       const nd = nodeDir();
-      const script = stubs({ active: 'foundry.service', users: 0 }).replace(/NODE_DIR=.*\nmkdir.*\n/, `NODE_DIR="${nd}"\n`) + prelude + stage3;
+      const script =
+        stubs({ active: 'foundry.service', users: 0 }).replace(
+          /NODE_DIR=.*\nmkdir.*\n/,
+          `NODE_DIR="${nd}"\n`
+        ) +
+        prelude +
+        stage3;
       // The systemctl calls go to a file: the stage may exit (its EXIT trap rolls back) before it could print them.
       const callsLog = join(root, 'calls.log');
       writeFileSync(callsLog, '');
       // As a file, not `bash -c`: the Windows command line ends at about 8,000 characters and cut this script off.
       const scriptFile = join(root, 'stage3.sh');
       writeFileSync(scriptFile, script);
-      const r = spawnSync('bash', [posix(scriptFile)], { encoding: 'utf8', env: { ...process.env, CALLS_LOG: posix(callsLog), ...env } });
-      return { status: r.status, out: `${r.stdout}${r.stderr}`, calls: readFileSync(callsLog, 'utf8') };
+      const r = spawnSync('bash', [posix(scriptFile)], {
+        encoding: 'utf8',
+        env: { ...process.env, CALLS_LOG: posix(callsLog), ...env },
+      });
+      return {
+        status: r.status,
+        out: `${r.stdout}${r.stderr}`,
+        calls: readFileSync(callsLog, 'utf8'),
+      };
     };
 
     test('control: without a failure the new program runs, the old one is .prev and the zip is removed', () => {
@@ -588,14 +703,20 @@ ${failMv}
       assert.equal(r.status, 0, r.out);
       assert.equal(readFileSync(join(root, 'foundry', 'main.js'), 'utf8'), 'new');
       assert.equal(readFileSync(join(root, 'foundry.prev', 'main.js'), 'utf8'), 'old');
-      assert.ok(!existsSync(join(root, 'foundryvtt.zip')), 'the zip is removed once the new program runs');
+      assert.ok(
+        !existsSync(join(root, 'foundryvtt.zip')),
+        'the zip is removed once the new program runs'
+      );
     });
 
     test('FOUNDRY_EXPECT_VERSION refuses a zip of another version before anything stops', () => {
       const { root, prelude } = setup();
       const r = go(root, prelude, { FOUNDRY_EXPECT_VERSION: '14.369' });
       assert.notEqual(r.status, 0, r.out);
-      assert.match(r.out, /holds Foundry 14\.999, not FOUNDRY_EXPECT_VERSION=14\.369\. Nothing was changed/);
+      assert.match(
+        r.out,
+        /holds Foundry 14\.999, not FOUNDRY_EXPECT_VERSION=14\.369\. Nothing was changed/
+      );
       assert.equal(readFileSync(join(root, 'foundry', 'main.js'), 'utf8'), 'old');
       assert.ok(existsSync(join(root, 'foundryvtt.zip')));
       assert.doesNotMatch(r.calls, /stop foundry/, 'Foundry was not stopped');
@@ -606,19 +727,26 @@ ${failMv}
         const { root, prelude } = setup();
         const r = go(root, prelude, { FOUNDRY_EXPECT_VERSION: want });
         if (want === '14.999') assert.equal(r.status, 0, r.out);
-        else assert.notEqual(r.status, 0, 'a longer expectation than the zip version does not match');
+        else
+          assert.notEqual(r.status, 0, 'a longer expectation than the zip version does not match');
       }
     });
 
     test('FOUNDRY_EXPECT_VERSION with no zip compares the installed program: another version refuses, the same passes the check', () => {
-      for (const [want, refused] of [['14.369', true], ['14.368', false]]) {
+      for (const [want, refused] of [
+        ['14.369', true],
+        ['14.368', false],
+      ]) {
         const { root, prelude } = setup();
         rmSync(join(root, 'foundryvtt.zip'));
         writeFileSync(join(root, 'foundry', 'package.json'), '{"version":"14.368.0"}');
         const r = go(root, prelude, { FOUNDRY_EXPECT_VERSION: want });
         if (refused) {
           assert.notEqual(r.status, 0, r.out);
-          assert.match(r.out, /installed Foundry is 14\.368\.0, not FOUNDRY_EXPECT_VERSION=14\.369\. Nothing was changed/);
+          assert.match(
+            r.out,
+            /installed Foundry is 14\.368\.0, not FOUNDRY_EXPECT_VERSION=14\.369\. Nothing was changed/
+          );
           assert.doesNotMatch(r.calls, /stop foundry/);
         } else {
           assert.match(r.out, /Foundry already installed/, r.out);
@@ -635,8 +763,15 @@ ${failMv}
       assert.ok(!existsSync(join(root, 'foundry.prev')), 'moved back');
       assert.ok(!existsSync(join(root, 'foundry.failed')));
       assert.ok(!existsSync(join(root, 'foundry.new')), 'the staged copy is removed');
-      assert.ok(existsSync(join(root, 'foundryvtt.zip')), 'the zip stays so the stage can be run again');
-      assert.match(r.calls, /\|stop foundry\.service.*\|stop foundry\.service\|start foundry\.service$/, 'stopped for the swap, then Foundry is started again last');
+      assert.ok(
+        existsSync(join(root, 'foundryvtt.zip')),
+        'the zip stays so the stage can be run again'
+      );
+      assert.match(
+        r.calls,
+        /\|stop foundry\.service.*\|stop foundry\.service\|start foundry\.service$/,
+        'stopped for the swap, then Foundry is started again last'
+      );
     });
 
     test('a new program that does not start is replaced by the old one, and Foundry is started again', () => {
@@ -648,7 +783,10 @@ ${failMv}
       assert.ok(existsSync(join(root, 'foundryvtt.zip')));
       // stop (the swap), start (the new one, fails), stop (the rollback), start (the old one, works)
       assert.match(r.out, /the old Foundry program is back/);
-      assert.match(r.calls, /\|stop foundry\.service.*\|start foundry\.service\|stop foundry\.service\|start foundry\.service\s*$/);
+      assert.match(
+        r.calls,
+        /\|stop foundry\.service.*\|start foundry\.service\|stop foundry\.service\|start foundry\.service\s*$/
+      );
     });
 
     test('a failing rm inside the rollback does not end it halfway (no set -e in the trap)', () => {
@@ -672,7 +810,14 @@ ${failMv}
 
     test('the zip is kept when Foundry has started but does not answer yet', () => {
       const { root, prelude } = setup();
-      const r = go(root, prelude.replace('write_file() { return 0; }', `write_file() { return 0; }; curl() { case "$*" in *api/status*) echo '{"active":true,"users":0}' ;; *) return 22 ;; esac; }`), {});
+      const r = go(
+        root,
+        prelude.replace(
+          'write_file() { return 0; }',
+          `write_file() { return 0; }; curl() { case "$*" in *api/status*) echo '{"active":true,"users":0}' ;; *) return 22 ;; esac; }`
+        ),
+        {}
+      );
       assert.equal(r.status, 0, r.out);
       assert.match(r.out, /the zip is kept until it answers/);
       assert.ok(existsSync(join(root, 'foundryvtt.zip')));
@@ -697,12 +842,19 @@ describe('the nightly backup waits while players are online (r37 S7)', () => {
 
   // The script dates its marker with `date +%F` and `date -d yesterday +%F`; the test's fake date answers with a fixed
   // calendar day (the 15th, "n days ago" counts back from it), so no test depends on the real clock.
-  const dayAgo = (n) => `2026-03-${String(15 - n).padStart(2, '0')}`;
+  const dayAgo = n => `2026-03-${String(15 - n).padStart(2, '0')}`;
 
   // users: the number curl reports per look (the list is consumed by each sleep; the last one stays).
   // marker: the text of an existing skip marker ('' is one from an earlier version of the script), or null for none.
   // midnightAfterFirstSleep: the fake clock moves on one day when the first sleep ends (a run that waits past midnight).
-  function nightly({ users = [0], active = 'foundry.service', env = {}, curlFails = false, marker = null, midnightAfterFirstSleep = false } = {}) {
+  function nightly({
+    users = [0],
+    active = 'foundry.service',
+    env = {},
+    curlFails = false,
+    marker = null,
+    midnightAfterFirstSleep = false,
+  } = {}) {
     const d = tmp();
     const bin = join(d, 'bin');
     mkdirSync(bin);
@@ -714,15 +866,22 @@ describe('the nightly backup waits while players are online (r37 S7)', () => {
     const seq = join(d, 'users.seq');
     writeFileSync(seq, users.join('\n') + '\n');
     writeFileSync(log, '');
-    const tool = (name, text) => writeFileSync(join(bin, name), `#!/usr/bin/env bash\n${text}\n`, { mode: 0o755 });
-    tool('systemctl', `echo "systemctl $*" >>"$LOG"
+    const tool = (name, text) =>
+      writeFileSync(join(bin, name), `#!/usr/bin/env bash\n${text}\n`, { mode: 0o755 });
+    tool(
+      'systemctl',
+      `echo "systemctl $*" >>"$LOG"
 case "$1" in
   is-active) case " $ACTIVE " in *" \${@: -1} "*) exit 0 ;; esac; exit 1 ;;
   show) case "$*" in *InvocationID*) echo "\${INVOCATION:-}" ;; *) echo "\${SHOW_TS:-}" ;; esac ;;
 esac
-exit 0`);
-    tool('curl', `if [ "\${CURL_FAILS:-0}" = 1 ]; then exit 22; fi
-echo "{\\"active\\":true,\\"users\\":$(head -n 1 "$SEQ")}"`);
+exit 0`
+    );
+    tool(
+      'curl',
+      `if [ "\${CURL_FAILS:-0}" = 1 ]; then exit 22; fi
+echo "{\\"active\\":true,\\"users\\":$(head -n 1 "$SEQ")}"`
+    );
     // The fake date: today and yesterday come from two files; the first sleep may move the clock past midnight.
     const days = join(d, 'days');
     mkdirSync(days);
@@ -732,17 +891,26 @@ echo "{\\"active\\":true,\\"users\\":$(head -n 1 "$SEQ")}"`);
       writeFileSync(join(days, 'today.next'), `2026-03-16`);
       writeFileSync(join(days, 'yesterday.next'), dayAgo(0));
     }
-    tool('date', `case "$*" in
+    tool(
+      'date',
+      `case "$*" in
   "+%F") cat "$DAYS/today" ;;
   "-d yesterday +%F") if [ "\${FAKE_NO_YESTERDAY:-0}" = 1 ]; then exit 1; fi; cat "$DAYS/yesterday" ;;
   *) exec /usr/bin/date "$@" ;;
-esac`);
-    tool('sleep', `echo "sleep $*" >>"$LOG"
+esac`
+    );
+    tool(
+      'sleep',
+      `echo "sleep $*" >>"$LOG"
 for f in today yesterday; do if [ -f "$DAYS/$f.next" ]; then mv "$DAYS/$f.next" "$DAYS/$f"; fi; done
-tail -n +2 "$SEQ" >"$SEQ.next"; if [ -s "$SEQ.next" ]; then mv "$SEQ.next" "$SEQ"; else rm -f "$SEQ.next"; fi`);
+tail -n +2 "$SEQ" >"$SEQ.next"; if [ -s "$SEQ.next" ]; then mv "$SEQ.next" "$SEQ"; else rm -f "$SEQ.next"; fi`
+    );
     tool('restic', 'echo "restic $*" >>"$LOG"');
     // JOURNAL is the log of the run with invocation id JOURNAL_ID; any other run has nothing.
-    tool('journalctl', 'case "$*" in *"_SYSTEMD_INVOCATION_ID=${JOURNAL_ID:-none}"*) printf "%s\\n" "${JOURNAL:-}" ;; esac');
+    tool(
+      'journalctl',
+      'case "$*" in *"_SYSTEMD_INVOCATION_ID=${JOURNAL_ID:-none}"*) printf "%s\\n" "${JOURNAL:-}" ;; esac'
+    );
     const script = join(d, 'foundry-backup.sh');
     writeFileSync(script, body, { mode: 0o755 });
     const r = spawnSync('bash', ['-c', 'export PATH="$BIN:$PATH"; exec bash "$SCRIPT"'], {
@@ -769,12 +937,17 @@ tail -n +2 "$SEQ" >"$SEQ.next"; if [ -s "$SEQ.next" ]; then mv "$SEQ.next" "$SEQ
       calls,
       sleeps: (calls.match(/^sleep /gm) || []).length,
       marker: existsSync(join(d, 'marker', 'skipped-last-night')),
-      markerText: existsSync(join(d, 'marker', 'skipped-last-night')) ? readFileSync(join(d, 'marker', 'skipped-last-night'), 'utf8').trim() : null,
+      markerText: existsSync(join(d, 'marker', 'skipped-last-night'))
+        ? readFileSync(join(d, 'marker', 'skipped-last-night'), 'utf8').trim()
+        : null,
     };
   }
 
   test('the script was found in the stage', () => {
-    assert.ok(body && body.includes('restic backup'), 'could not cut the nightly script out of 6-backup.sh');
+    assert.ok(
+      body && body.includes('restic backup'),
+      'could not cut the nightly script out of 6-backup.sh'
+    );
   });
 
   test('nobody online: Foundry stops at once and the backup runs', () => {
@@ -790,8 +963,14 @@ tail -n +2 "$SEQ" >"$SEQ.next"; if [ -s "$SEQ.next" ]; then mv "$SEQ.next" "$SEQ
     assert.equal(r.status, 0, r.out);
     assert.equal(r.sleeps, 2, r.calls);
     assert.match(r.calls, /sleep 1800/);
-    assert.match(r.out, /3 player\(s\) online in Foundry: not stopping it for the backup; trying again in 30 minutes \(1 of 6\)/);
-    assert.ok(r.calls.indexOf('sleep') < r.calls.indexOf('systemctl stop foundry.service'), 'the stop comes after the waiting');
+    assert.match(
+      r.out,
+      /3 player\(s\) online in Foundry: not stopping it for the backup; trying again in 30 minutes \(1 of 6\)/
+    );
+    assert.ok(
+      r.calls.indexOf('sleep') < r.calls.indexOf('systemctl stop foundry.service'),
+      'the stop comes after the waiting'
+    );
   });
 
   test('players still there after six waits: the night is skipped with an ERROR, Foundry never stopped, no backup, a marker is left', () => {
@@ -890,25 +1069,49 @@ tail -n +2 "$SEQ" >"$SEQ.next"; if [ -s "$SEQ.next" ]; then mv "$SEQ.next" "$SEQ
   });
 
   test('the Assistant GM and the Kit GM are not players once they have joined, and are before', () => {
-    const joinedLine = '[assistant-gm] joined world w as Assistant GM (GM: true, module active: true)';
+    const joinedLine =
+      '[assistant-gm] joined world w as Assistant GM (GM: true, module active: true)';
     const thisRun = { INVOCATION: 'run-2', JOURNAL_ID: 'run-2' };
-    for (const unit of ['foundry-ai-tool-gm-browser.service', 'foundry-ai-tool-kit-gm-browser.service']) {
+    for (const unit of [
+      'foundry-ai-tool-gm-browser.service',
+      'foundry-ai-tool-kit-gm-browser.service',
+    ]) {
       const active = `foundry.service ${unit}`;
       const joined = nightly({ users: [1], active, env: { ...thisRun, JOURNAL: joinedLine } });
       assert.equal(joined.status, 0, joined.out);
       assert.equal(joined.sleeps, 0, unit);
-      const waiting = nightly({ users: [1], active, env: { ...thisRun, JOURNAL: '[assistant-gm] no world is running', FOUNDRY_BACKUP_MAX_WAITS: '1' } });
+      const waiting = nightly({
+        users: [1],
+        active,
+        env: {
+          ...thisRun,
+          JOURNAL: '[assistant-gm] no world is running',
+          FOUNDRY_BACKUP_MAX_WAITS: '1',
+        },
+      });
       assert.notEqual(waiting.status, 0, waiting.out);
       assert.equal(waiting.sleeps, 1);
       // A join that belongs to an earlier run of the service (it left the game and was started again) does not count.
-      const earlier = nightly({ users: [1], active, env: { INVOCATION: 'run-2', JOURNAL_ID: 'run-1', JOURNAL: joinedLine, FOUNDRY_BACKUP_MAX_WAITS: '1' } });
+      const earlier = nightly({
+        users: [1],
+        active,
+        env: {
+          INVOCATION: 'run-2',
+          JOURNAL_ID: 'run-1',
+          JOURNAL: joinedLine,
+          FOUNDRY_BACKUP_MAX_WAITS: '1',
+        },
+      });
       assert.notEqual(earlier.status, 0, earlier.out);
     }
   });
 
   test('the service allows for the waiting, and the stage runs the first backup without it under FORCE=1', () => {
     assert.match(stage6, /TimeoutStartSec=5h/);
-    assert.match(stage6, /if \[ "\$FORCE" = 1 \]; then[\s\S]*?FOUNDRY_BACKUP_ANYWAY=1 "\$backup_script"/);
+    assert.match(
+      stage6,
+      /if \[ "\$FORCE" = 1 \]; then[\s\S]*?FOUNDRY_BACKUP_ANYWAY=1 "\$backup_script"/
+    );
   });
 });
 
@@ -918,7 +1121,10 @@ describe('the helper scripts the user runs check players and recordings first', 
   const scripts = {
     'set-tunnel-token.sh': { unit: 'foundry-ai-tool-cloudflared.service', reached: /is missing/ },
     'set-dashboard-access.sh': { unit: 'foundry-ai-tool-dashboard.service', reached: /is missing/ },
-    'set-discord-token.sh': { unit: 'foundry-ai-tool-discord-bot.service', reached: /is missing: run stage 8/ },
+    'set-discord-token.sh': {
+      unit: 'foundry-ai-tool-discord-bot.service',
+      reached: /is missing: run stage 8/,
+    },
   };
 
   // lib.sh is copied next to the script (as the user does with scp) with the Pi replaced at its end: no root, a fake
@@ -949,7 +1155,7 @@ systemctl() {
   return 0
 }
 curl() { echo '{"active":true,"users":'"$USERS"'}'; }
-`,
+`
     );
     let text = read(`scripts/pi/remote/${name}`);
     const args = [];
@@ -1010,47 +1216,65 @@ curl() { echo '{"active":true,"users":'"$USERS"'}'; }
       writeFileSync(join(d, name), read(`scripts/pi/remote/${name}`));
       const r = spawnSync('bash', [posix(join(d, name))], { encoding: 'utf8', input: '' });
       assert.notEqual(r.status, 0);
-      assert.match(`${r.stdout}${r.stderr}`, /lib\.sh is missing: copy lib\.sh next to this script/);
+      assert.match(
+        `${r.stdout}${r.stderr}`,
+        /lib\.sh is missing: copy lib\.sh next to this script/
+      );
     }
   });
 });
 
 // set-discord-token.ps1 -Force passes FORCE=1 to the Pi in front of bash (PowerShell 7; a fake ssh records its arguments).
 const hasPwsh = (() => {
-  const p = spawnSync('pwsh', ['-NoProfile', '-Command', '$PSVersionTable.PSVersion.Major'], { encoding: 'utf8' });
+  const p = spawnSync('pwsh', ['-NoProfile', '-Command', '$PSVersionTable.PSVersion.Major'], {
+    encoding: 'utf8',
+  });
   return p.status === 0 && Number(String(p.stdout).trim()) >= 7;
 })();
-describe('set-discord-token.ps1 passes FORCE through', { skip: !hasPwsh && 'PowerShell 7 is not available' }, () => {
-  const ps1 = join(repo, 'scripts', 'pi', 'set-discord-token.ps1');
+describe(
+  'set-discord-token.ps1 passes FORCE through',
+  { skip: !hasPwsh && 'PowerShell 7 is not available' },
+  () => {
+    const ps1 = join(repo, 'scripts', 'pi', 'set-discord-token.ps1');
 
-  function runPs1(extra = '') {
-    const d = tmp();
-    const log = join(d, 'ssh.log');
-    const stdinFile = join(d, 'stdin.txt');
-    const fake = join(d, 'fake-ssh.ps1');
-    // The fake ssh records its arguments and what arrived on stdin (the script text), then reports success.
-    writeFileSync(fake, `Add-Content -Path $env:FAKE_SSH_LOG -Value ($args -join ' | ')\n$input | Out-String | Set-Content -Path $env:FAKE_SSH_STDIN\nexit 0\n`);
-    const token = 'A'.repeat(60);
-    // Read-Host would wait for a console: a function of the same name stands in (a command lookup finds functions first).
-    const command = `function Read-Host { param([string]$Prompt, [switch]$AsSecureString) if ($AsSecureString) { ConvertTo-SecureString '${token}' -AsPlainText -Force } else { '' } }; & '${ps1}' -Ssh '${fake}' ${extra}; exit $LASTEXITCODE`;
-    const r = spawnSync('pwsh', ['-NoProfile', '-Command', command], {
-      encoding: 'utf8',
-      env: { ...process.env, FAKE_SSH_LOG: log, FAKE_SSH_STDIN: stdinFile },
+    function runPs1(extra = '') {
+      const d = tmp();
+      const log = join(d, 'ssh.log');
+      const stdinFile = join(d, 'stdin.txt');
+      const fake = join(d, 'fake-ssh.ps1');
+      // The fake ssh records its arguments and what arrived on stdin (the script text), then reports success.
+      writeFileSync(
+        fake,
+        `Add-Content -Path $env:FAKE_SSH_LOG -Value ($args -join ' | ')\n$input | Out-String | Set-Content -Path $env:FAKE_SSH_STDIN\nexit 0\n`
+      );
+      const token = 'A'.repeat(60);
+      // Read-Host would wait for a console: a function of the same name stands in (a command lookup finds functions first).
+      const command = `function Read-Host { param([string]$Prompt, [switch]$AsSecureString) if ($AsSecureString) { ConvertTo-SecureString '${token}' -AsPlainText -Force } else { '' } }; & '${ps1}' -Ssh '${fake}' ${extra}; exit $LASTEXITCODE`;
+      const r = spawnSync('pwsh', ['-NoProfile', '-Command', command], {
+        encoding: 'utf8',
+        env: { ...process.env, FAKE_SSH_LOG: log, FAKE_SSH_STDIN: stdinFile },
+      });
+      return {
+        status: r.status,
+        out: `${r.stdout}${r.stderr}`,
+        calls: existsSync(log) ? readFileSync(log, 'utf8').trim() : '',
+        stdin: existsSync(stdinFile) ? readFileSync(stdinFile, 'utf8') : '',
+        token,
+      };
+    }
+
+    test('-Force puts FORCE=1 in front of bash on the ssh line, and the token stays off it', () => {
+      const r = runPs1('-Force');
+      assert.equal(r.status, 0, r.out);
+      assert.equal(r.calls, 'foundry-pi | FORCE=1 bash -s -- no-log');
+      assert.ok(!r.calls.includes(r.token) && !r.out.includes(r.token));
+      assert.ok(r.stdin.includes(`TOKEN_IN='${r.token}'`), 'the token travels on stdin');
     });
-    return { status: r.status, out: `${r.stdout}${r.stderr}`, calls: existsSync(log) ? readFileSync(log, 'utf8').trim() : '', stdin: existsSync(stdinFile) ? readFileSync(stdinFile, 'utf8') : '', token };
+
+    test('without -Force the command is the plain one', () => {
+      const r = runPs1();
+      assert.equal(r.status, 0, r.out);
+      assert.equal(r.calls, 'foundry-pi | bash -s -- no-log');
+    });
   }
-
-  test('-Force puts FORCE=1 in front of bash on the ssh line, and the token stays off it', () => {
-    const r = runPs1('-Force');
-    assert.equal(r.status, 0, r.out);
-    assert.equal(r.calls, 'foundry-pi | FORCE=1 bash -s -- no-log');
-    assert.ok(!r.calls.includes(r.token) && !r.out.includes(r.token));
-    assert.ok(r.stdin.includes(`TOKEN_IN='${r.token}'`), 'the token travels on stdin');
-  });
-
-  test('without -Force the command is the plain one', () => {
-    const r = runPs1();
-    assert.equal(r.status, 0, r.out);
-    assert.equal(r.calls, 'foundry-pi | bash -s -- no-log');
-  });
-});
+);

@@ -1,6 +1,6 @@
 ---
 source: player/README.md
-sourceHash: 8175e288da44
+sourceHash: 30aac08eabc4
 title: Spillerguide
 description: Hvad spillere kan se, hvad værktøjet optager under spillet, hvilke dele der når en AI, og hvordan du får dine data slettet.
 ---
@@ -56,6 +56,11 @@ bag login med e-mailkode.
 
 **Handouts i Foundry.** Når GM'en viser en handout, kan du også åbne den side i Foundrys
 Journal tab.
+
+**Dine noter i Obsidian (valgfrit).** Hvis du holder noter i Obsidian, kan serveren holde en
+skrivebeskyttet mappe med dine handouts, recaps, din karakter, dine tal og session-loggen opdateret
+på din computer. Intet du gør dér går tilbage. Springer du over, installerer du ikke noget. Se
+[Dine noter i Obsidian](obsidian.md).
 
 ## Hvad værktøjet optager under spillet
 

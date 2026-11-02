@@ -165,7 +165,8 @@ The steps you will see, roughly in this order:
   armour training, and your level-1 class features. **Weapon Mastery:** barbarian, fighter,
   paladin, ranger and rogue get a step headed **Weapon Mastery** that asks you to pick weapons
   whose mastery you know (3 for a fighter, 2 for the others). The counter above the list may say
-  "Select 3 more Weapon Proficiencies": that is the same thing, just a confusing label. Pick the
+  something like "Select 3 more Weapon Proficiencies" (a confusing label, but it counts your
+  weapon picks). Pick the
   weapons you plan to fight with, and wait until the counter is gone before you click Next. You
   can then use a picked weapon's mastery property (Topple, Sap, Vex and so on) when you attack
   with it. The steps are headed "Level 1 -> 2" even though
@@ -213,7 +214,7 @@ level at a time, with the same builder.
 ### Level up to level 3
 
 1. A small button with the blue Actor Studio logo appears at the top of your sheet, beside the
-   level badge. It is not gold and has no text; hover over it to see "Level Up". **It only
+   level badge. It has no text, only the logo in a thin gold frame; hover over it to see "Level Up". **It only
    shows when the GM has switched on Milestone Levelling, or has given you enough experience points
    (XP).** If there is no button, ask the GM.
 2. Click it. The window **Level Up Existing Class** opens. Click the **+** at the right end of your

@@ -1,6 +1,6 @@
 ---
 source: player/make-a-character.md
-sourceHash: 24d34e7e84ab
+sourceHash: 4ecba0c20035
 title: Lav din karakter
 description: "Trin for trin: lav en level-3 karakter i Foundry med Actor Studio fra 2024 Player's Handbook (byg på level 1, level up to gange), tjek den og gør den til din egen."
 ---
@@ -169,7 +169,8 @@ De trin, du kommer til at se, nogenlunde i denne rækkefølge:
   våben og rustning og dine level-1 class features. **Weapon Mastery:** barbarian, fighter,
   paladin, ranger og rogue får et trin med overskriften **Weapon Mastery**, hvor du vælger de
   våben, du kender mastery for (3 for en fighter, 2 for de andre). Tælleren over listen kan sige
-  "Select 3 more Weapon Proficiencies": det er det samme, bare en forvirrende tekst. Vælg de våben,
+  noget i retning af "Select 3 more Weapon Proficiencies" (en forvirrende tekst, men den tæller dine
+  våbenvalg). Vælg de våben,
   du vil kæmpe med, og vent, til tælleren er væk, før du klikker Next. Du kan så bruge et valgt
   våbens mastery-egenskab (Topple, Sap, Vex og så videre), når du angriber med det. Trinnene har overskriften "Level 1 -> 2", selvom
   du bygger en level-1 karakter først. Det er bare en mærkelig overskrift. Tag trinnene, som de
@@ -217,7 +218,7 @@ Dit sheet er åbent og viser level 1. Vores kampagne starter på level 3, så du
 ### Level up til level 3
 
 1. En lille knap med Actor Studios blå logo dukker op øverst på dit sheet, ved siden af
-   level-badget. Den er ikke gylden og har ingen tekst; hold musen over den, så står der "Level
+   level-badget. Den har ingen tekst, kun logoet i en tynd gylden ramme; hold musen over den, så står der "Level
    Up". **Den vises kun, når GM'en har slået Milestone Levelling til, eller har givet dig nok experience
    points (XP).** Er der ingen knap, så spørg GM'en.
 2. Klik på den. Vinduet **Level Up Existing Class** åbner. Klik på **+** yderst til højre i rækken

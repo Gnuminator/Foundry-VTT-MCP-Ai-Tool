@@ -38,7 +38,7 @@ export function liveFrameHeader(
 }
 
 /**
- * Whether a path can serve a dashboard page: no file extension (`/`, `/next/`, `/legacy/`) or a
+ * Whether a path can serve a dashboard page: no file extension (`/`, `/next/`) or a
  * `.html`, whatever the spelling (`/INDEX.HTML`, `/index%2Ehtml`, `/x/../index.html`). Pages that
  * set their own header (open, player, GM) overwrite this one; the API and the assets stay as they
  * are. Nobody but the dashboard itself may frame the rest.

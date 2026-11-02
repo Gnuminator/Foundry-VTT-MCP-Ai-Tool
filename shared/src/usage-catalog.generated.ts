@@ -75,13 +75,19 @@ export const USAGE_CATALOG: readonly UsageCatalogEntry[] = [
     file: 'packages/cogm-dashboard/web/src/panels/RecentChanges.tsx',
   },
   {
-    name: 'dash.changes.tab-ai',
+    name: 'dash.changes.tab-everything',
     kind: 'action',
     surface: 'dashboard',
     file: 'packages/cogm-dashboard/web/src/panels/RecentChanges.tsx',
   },
   {
-    name: 'dash.changes.tab-everyone',
+    name: 'dash.changes.tab-game',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/web/src/panels/RecentChanges.tsx',
+  },
+  {
+    name: 'dash.changes.tab-tool',
     kind: 'action',
     surface: 'dashboard',
     file: 'packages/cogm-dashboard/web/src/panels/RecentChanges.tsx',

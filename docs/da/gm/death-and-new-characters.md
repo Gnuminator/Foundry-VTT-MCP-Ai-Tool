@@ -13,7 +13,7 @@ faldne og at få en ny karakter ind.
 
 Kort fortalt:
 
-1. Markér karakteren som død i Foundry. Behold actor'en, slet den ikke.
+1. Markér karakteren som død i Foundry. Behold actoren, slet den ikke.
 2. Lad spilleren kunne se det gamle ark (Observer).
 3. Skriv en linje i din dødslog.
 4. Få den nye karakter ind: ownership, user, party, token, ét handout.
@@ -44,7 +44,7 @@ Værktøjet følger hit points, ikke liv og død:
   disintegrate ser ud som enhver anden 0 HP for værktøjet. Om en karakter er død, er din
   afgørelse, og du markerer det (næste afsnit).
 - **📋 Prep-skuffen viser, hvem der gik ned sidste session**: spillerkarakterer og NPC'er hver for
-  sig. Det betyder faldt til 0 HP, så en karakter, der kom op igen, står der også.
+  sig. Det betyder, at de faldt til 0 HP, så en karakter, der kom op igen, står der også.
 - **Værktøjet sletter ingenting.** Intet værktøj sletter en actor.
 
 ## Ved bordet: dødsøjeblikket
@@ -54,25 +54,25 @@ Værktøjet følger hit points, ikke liv og død:
    afgør den ikke.
 2. **Markér karakteren som død.** I en kamp klikker du på kraniet (**Mark Defeated**) på
    karakterens række i Foundrys Combat Tracker: det dæmper rækken og giver karakteren statussen
-   **Dead**. Uden for en kamp højreklikker du på token'en og vælger **Dead** blandt status-ikonerne.
+   **Dead**. Uden for en kamp højreklikker du på tokenet og vælger **Dead** blandt status-ikonerne.
    Med **play**-sættet slået til i Claude Desktop kan du også sige: "Mark Kasimir as dead, go
    ahead." (`plan-actor-change`, en condition-ændring. **Undo** i **Recent Changes** tager den
    tilbage, hvis du var for hurtig).
 3. **Spil scenen færdig.** Spilleren bliver ved bordet. Lad dem gerne tale for en allieret eller en
    NPC resten af kampen. Foundry springer kun besejrede rækker over, når **Skip Defeated** er slået
    til i Combat Trackers indstillinger. Ellers klikker du forbi turen.
-4. **Lad token'en ligge**, til scenen er slut. Liget kan få betydning (plyndring, en begravelse, et
+4. **Lad tokenet ligge**, til scenen er slut. Liget kan få betydning (plyndring, en begravelse, et
    forsøg på genoplivning).
 
-Slet ikke actor'en. Play stats, session notes i Obsidian og dødsloggen peger alle på den, og en
+Slet ikke actoren. Play stats, session notes i Obsidian og dødsloggen peger alle på den, og en
 senere genoplivning kræver arket, som det var.
 
 ## Efter sessionen: ryd op
 
-- **Flyt actor'en** til en mappe, der hedder "Fallen", i **Actors**-fanen, så den er af vejen men
+- **Flyt actoren** til en mappe, der hedder "Fallen", i **Actors**-fanen, så den er af vejen men
   bevaret.
 - **Ændr spillerens adgang til Observer**, så de stadig kan læse det gamle ark, men ikke ændre det.
-  Højreklik på actor'en i **Actors**-fanen, **Configure Ownership**, sæt spilleren til Observer.
+  Højreklik på actoren i **Actors**-fanen, **Configure Ownership**, sæt spilleren til Observer.
   Eller, med **admin**-sættet slået til i Claude Desktop: "Set Anna to Observer on Kasimir."
   (`plan-ownership-change`. Du bekræfter, og **Undo** i **Recent Changes** tager den tilbage). "Who
   owns Kasimir?" viser den nuværende adgang (`list-actor-ownership`). Ændringer af ownership kræver
@@ -111,7 +111,7 @@ er bygget.
 4. **Tilføj den til partiet.** Åbn partiets group-actor (arket, der hedder "The Party", eller hvad
    du kaldte det), og træk den nye actor over på det. Værktøjet kan ikke tilføje eller fjerne
    partimedlemmer. Når karakteren er i gruppen, tager **🛡 Party**-skuffen og `get-party` den med.
-5. **Placér token'en.** Træk actor'en fra **Actors**-fanen over på scenen. For at flytte den bagefter
+5. **Placér tokenet.** Træk actoren fra **Actors**-fanen over på scenen. Vil du flytte det bagefter,
    virker "Move Vasil next to Kasimir's token, go ahead." med **play** slået til
    (`plan-token-change`).
 6. **Giv spilleren ét handout.** En kort side til den nye karakter: hvad de ved om partiet og
@@ -143,7 +143,7 @@ senere.
 | Du tager afgørelsen       | "Mark Kasimir as dead, go ahead."                              | play  |
 | Efter sessionen           | "Who went down last session, and how?"                         | prep  |
 | Dødsloggen                | "Write a short death log entry for Kasimir from last session." | prep  |
-| Gammelt ark kun læsning   | "Set Anna to Observer on Kasimir."                             | admin |
+| Gammelt ark: kun læsning  | "Set Anna to Observer on Kasimir."                             | admin |
 | Ny karakter               | "Make Anna the owner of Vasil."                                | admin |
 | Den nye karakters handout | "Reveal the page 'Vasil' in 'Handouts' to Anna."               | prep  |
 

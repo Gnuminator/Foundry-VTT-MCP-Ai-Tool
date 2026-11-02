@@ -18,7 +18,7 @@ Tag trinene i rækkefølge. Trin 3 er det, der oftest er halvt gjort på forhån
 spiller lægger mærke til først, hvis det ikke er.
 :::
 
-**Fremgang:** fem trin. De to første handler om spillerne, de næste to om verdenen, det
+**Fremgang:** fem trin. De to første handler om spillerne, de næste to om worlden, det
 sidste er en generalprøve.
 
 ## Trin 1 af 5: E-mails (5 minutter)
@@ -57,15 +57,15 @@ I **Game Settings**, kategorien **[Aardvark Games] Actor Studio (AI Tool fork)**
 - [ ] **Configure equipment & gold**: **Enable Equipment Selection** er afkrydset.
 - [ ] **Configure spells**: sæt flueben ved **Enable Spell Selection**.
 - [ ] **Configure progression**, under **Leveling Options**: sæt flueben ved **Enable Level Up** og
-      **Milestone Levelling**. Uden den ser ingen en **Level Up**-knap, før de har
-      experience points.
+      **Milestone Levelling**. Uden den indstilling ser ingen en **Level Up**-knap, før de har
+      nok experience points.
 
 :::tip
 På vores server har scriptet allerede sat **Create Actors**, udstyret og Player's Handbook som kilde
 til udstyr. Tjek de tre, og sæt resten selv.
 :::
 
-**Du er færdig, når** artslisten kun viser 2024-arterne, en Cleric får en **Spells**-fane, og en ny karakters ark har en **Level Up**-knap.
+**Du er færdig, når** species-listen kun viser 2024-species, en Cleric får en **Spells**-fane, og en ny karakters ark har en **Level Up**-knap.
 
 ## Trin 4 af 5: Tilmeldingssiden (5 minutter)
 
@@ -85,7 +85,7 @@ udseende.
 - [ ] Som GM tjekker du arket med tjeklisten i trin 10 på den side.
 - [ ] Slet karakteren og brugeren Test Player.
 
-**Du er færdig, når** en karakter på level 3 blev rigtig, fra det første klik til tjeklisten.
+**Du er færdig, når** en karakter på level 3 er blevet lavet rigtigt, fra det første klik til tjeklisten.
 
 ## Quest klaret
 

@@ -12,7 +12,7 @@ når du beder om det, ændre den. Det virker med dit Claude-abonnement; du skal 
 
 ## Før du spørger
 
-- Claude Desktop kører og er forbundet til bridgen (på Pi'en ved bordet, på bygherrens PC under test).
+- Claude Desktop kører og er forbundet til bridgen (på Pi'en ved bordet, på udviklerens PC under test).
 - Foundry er åben i din browser, og du er logget ind som GM. Uden en GM i Foundry kan Claude ikke nå
   spillet.
 - Dashboardets panel **✈ Pre-flight** viser "Foundry connected", og der er ingen "Connection lost".
@@ -114,7 +114,7 @@ Tarokka-læsningen, handouts, indstillingerne for Obsidian mirror):
 1. Claude laver en plan. Der ændres intet endnu.
 2. Claude viser dig planen: et resumé og listen over, hvad der ændres.
 3. Du siger ja i chatten, eller du apply'er planen selv i dashboardet (se
-   [Applying a plan Claude made](dashboard.md#anvend-en-plan-claude-lavede)). Claude er bedt om at
+   [Anvend en plan, Claude lavede](dashboard.md#anvend-en-plan-claude-lavede)). Claude er bedt om at
    vente på dit ja, før den apply'er en plan. Hvis du skriver "kør" i forespørgslen ("Giv 12 fire
    damage til Wolf 2, kør"), er det dit ja, så Claude planlægger og apply'er i ét hug.
 4. Ændringen bliver registreret. Den vises i dashboardets **Recent Changes**, hvor du kan undo'e den.
@@ -153,7 +153,7 @@ lige så vel som Claudes.
 Andre kontakter i samme kategori: table viewer, "Undo for everything" og GM-vinduerne starter tændt;
 scene mood og musik, room setup, scene restore, NPC turn assistant og paper sync starter slukket, og
 det samme gør "AI Tool: Who would notice" (en række med passive scores i party-skuffen, kun læsning)
-og "AI Tool: Rules check". [Features and when to turn them on](features.md) siger, hvad hver af dem
+og "AI Tool: Rules check". [Funktioner og hvornår du slår dem til](features.md) siger, hvad hver af dem
 gør.
 
 **Session notes går ind uden at spørge.** Med "AI Tool: Session notes (writes)" tændt lægger bridgen
@@ -175,7 +175,7 @@ hånden i Foundry. Så:
   `apply-planned-change` allerede viser dig planen og venter på din confirm, og du kan undo'e dem. De
   direkte handlinger nedenfor gør ikke, så med **Always allow** på writes stopper Claude Desktop heller
   ikke for dem. For at blive spurgt før hver ændring skal du sætte **Write/delete tools** til **Needs
-  approval**. Trin for trin i [Connect Claude Desktop](connect-claude-desktop.md).
+  approval**. Trin for trin i [Forbind Claude Desktop til serveren](connect-claude-desktop.md).
 - Når Claude bruger et item eller en spell, åbner Foundry brugsdialogen på din skærm, og du gør den
   færdig dér.
 

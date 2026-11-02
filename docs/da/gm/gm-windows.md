@@ -7,7 +7,7 @@ description: Fem små vinduer i Foundry (Combat, Party, Session, Scene, Loot), d
 
 # GM-vinduerne
 
-Under spillet kigger du hele tiden på de samme få ting: hvis tur det er, hvor såret selskabet er,
+Under spillet kigger du hele tiden på de samme få ting: hvis tur det er, hvor såret partiet er,
 om sessionen er markeret som i gang, hvordan lys og vejr er. Dashboardet viser
 alt det, men det bor i en anden browserfane. **GM-vinduerne** lægger de samme ting i små
 vinduer inde i Foundry, lige ved siden af kortet, så du kan køre en hel scene fra én skærm.
@@ -18,20 +18,20 @@ De er **kun til dig**. Spillerne ser dem aldrig, og der sendes intet til spiller
 
 ## Slå dem til eller fra
 
-Vinduerne er slået til som standard i en ny verden. I en verden, hvor modulets indstillinger nogensinde er blevet gemt,
-kan kontakten stadig stå på fra, og du kan selv slå den fra, hvis du ikke vil have knapperne.
+Vinduerne er slået til som standard i en ny world. I en world, hvor modulets indstillinger nogensinde er blevet gemt,
+kan indstillingen stadig være slået fra, og du kan selv slå den fra, hvis du ikke vil have knapperne.
 
 1. Klik på tandhjulet i sidebaren (fanen **Settings**), derefter **Game Settings**.
 2. Vælg kategorien **Foundry AI Tool**.
 3. Sæt flueben ved **AI Tool: GM windows** (eller fjern det for at skjule knapperne) og tryk på **Save Changes**.
 
-![Kontakten til GM-vinduerne i Game Settings](../../images/guides/gm-windows-setting.png)
+![Indstillingen til GM-vinduerne i Game Settings](../../images/guides/gm-windows-setting.png)
 
 Knapperne dukker op med det samme, uden genindlæsning. Fjerner du fluebenet, lukkes alle åbne vinduer.
 
 ## Hvor knapperne er
 
-Yderst til venstre på kortet har scene controls en gruppe, der hedder **AI Tool** (tryllestavs-ikonet nederst).
+Yderst til venstre på kortet har scene controls en gruppe, der hedder **AI Tool** (tryllestavsikonet nederst).
 Klik på den, så åbner en anden kolonne med en knap til hvert vindue, i denne rækkefølge: Changes,
 Handouts og Tarokka (de tre er der altid), derefter **Combat**, **Party**, **Session**, **Scene** og **Loot**. Hold musen over en knap for at se dens navn.
 
@@ -54,10 +54,10 @@ Knapperne **Previous turn** og **Next turn** gør nøjagtigt det samme som pilen
 tracker. De vises først, når kampen er startet. Er der ingen kamp i gang, siger vinduet det.
 
 Når du beder Claude (eller dashboardets combat-bjælke) om at gå videre til næste tur eller sætte initiative lige
-efter en ændring af skade fra AI'en, så vent et sekund eller to først. Foundry kan tilføje Unconscious et øjeblik efter,
+efter en skadesændring fra AI'en, så vent et sekund eller to først. Foundry kan tilføje Unconscious et øjeblik efter,
 at hit points er faldet, og skifter turen i det mellemrum, tæller den sene condition som en separat
 ændring, så fortryder du skaden, bliver Unconscious på karakteren. Knappen Next turn i dette
-vindue er ikke berørt.
+vindue påvirkes ikke.
 
 Hvornår: når bordet venter på dig, så rækkefølgen og hvem der er bloodied er et blik væk.
 
@@ -65,23 +65,23 @@ Hvornår: når bordet venter på dig, så rækkefølgen og hvem der er bloodied 
 
 ![Vinduet Party](../../images/guides/gm-window-party.png)
 
-Ét kort per spillerkarakter: hit points, armor class (AC), passive Perception (PP), level, aktuelle
+Ét kort pr. spillerkarakter: hit points, armor class (AC), passive Perception (PP), level, aktuelle
 conditions og de spell slots, der er tilbage. Det viser kun karakterer, en spiller ejer, så et monster eller en
-test-karakter uden ejer dukker aldrig op. Det opdaterer sig selv, når hit points eller conditions ændrer sig.
+testkarakter uden ejer dukker aldrig op. Det opdaterer sig selv, når hit points eller conditions ændrer sig.
 
-**Bed om rolls.** En bjælke over kortene vælger rollet (et ability check, et saving throw eller en
+**Bed om slag.** En bjælke over kortene vælger slaget (en ability check, en saving throw eller en
 skill), en valgfri DC, advantage og Public. **Ask** på et kort sender anmodningen til netop den karakter;
-knappen under bjælken (**Group save** for et saving throw, ellers **Ask everyone**) sender den til
-hver karakter på listen. Spillerne klikker på roll-kortet i chatten som sædvanligt. Resultatlisten under
-bjælken fyldes ud, efterhånden som rollene kommer, per karakter, med "passes" eller "fails", når du gav en DC. Kun
-det roll, du bad om, tæller: et andet save, en skill eller et angreb fra samme karakter udfylder
-ikke rækken. Et blot indtastet terningeslag fra den karakter, som `/r 1d20`, udfylder den, så sig til
-spillerne, at de skal klikke på kortet. Anmodningerne logges som alle andre roll-anmodninger, så recap og
+knappen under bjælken (**Group save** for en saving throw, ellers **Ask everyone**) sender den til
+hver karakter på listen. Spillerne klikker på slagkortet i chatten som sædvanligt. Resultatlisten under
+bjælken fyldes ud, efterhånden som slagene kommer, pr. karakter, med "passes" eller "fails", når du gav en DC. Kun
+det slag, du bad om, tæller: en anden save, en skill eller en attack fra samme karakter udfylder
+ikke rækken. Et blot indtastet terningslag fra den karakter, som `/r 1d20`, udfylder den, så sig til
+spillerne, at de skal klikke på kortet. Anmodningerne logges som alle andre anmodninger om slag, så recap og
 statistik ser dem.
 
 Knapperne er grå, med årsagen, mens "Allow Write Operations" er slået fra.
 
-Hvornår: når du planlægger en kamp eller et baghold og vil vide, hvad selskabet kan tåle, og når
+Hvornår: når du planlægger en kamp eller et baghold og vil vide, hvad partiet kan tåle, og når
 nogen spørger "hvad var min passive Perception nu igen".
 
 ## Session
@@ -90,7 +90,7 @@ nogen spørger "hvad var min passive Perception nu igen".
 
 Om en play session er **åben** eller ej, siden hvornår, og hvornår der sidst skete noget. Knappen
 starter eller afslutter session-markøren, den samme som i dashboardet. Markøren skriver kun en linje
-i session log (det er den, Claudes recap bygges af); den ændrer intet i spillet, og
+i session log (det er ud fra den, Claudes recap bygges); den ændrer intet i spillet, og
 du kan starte eller afslutte den igen, når du vil.
 
 Vinduet kræver, at AI Tool er forbundet (dashboardets **✈ Pre-flight** siger "Foundry connected"). Er det
@@ -116,8 +116,8 @@ konfiguration.
 
 ![Vinduet Loot](../../images/guides/gm-window-loot.png)
 
-Hvad selskabet bærer af skatte. Et kort for hver spillerkarakter med deres mønter (og hvad
-mønterne svarer til i guldmønter) og deres skatte-items, med en total for hele selskabet
+Hvad partiet bærer af skatte. Et kort for hver spillerkarakter med deres mønter (og hvad
+mønterne svarer til i guldmønter) og deres skatte-items, med en total for hele partiet
 øverst. Det opdaterer sig selv, når nogen får eller bruger mønter, eller et item tilføjes eller fjernes.
 
 Kun items, der er markeret som skat, tæller: på itemets ark sætter du **Loot Type** til Art Object,
@@ -125,13 +125,13 @@ Gemstone, Treasure eller Trade Good. Almindeligt eventyrudstyr (et koben, en sov
 vinduet ikke er en liste over alt i rygsækken. Vinduet viser kun; for at dele loot ud beder du
 Claude ("giv Thorin 50 guld og en rubin") og bekræfter den ændring, den planlægger.
 
-Hvornår: efter en kamp eller et skatkammer, for at se, hvad selskabet har nu, og hvem der har det.
+Hvornår: efter en kamp eller et skatkammer, for at se, hvad partiet har nu, og hvem der har det.
 
 ## Hvis noget ser forkert ud
 
-- **Ingen AI Tool-gruppe overhovedet:** kontakten er slået fra (se Slå dem til eller fra ovenfor), eller du er ikke logget ind som GM. Spillerne
+- **Ingen AI Tool-gruppe overhovedet:** indstillingen er slået fra (se Slå dem til eller fra ovenfor), eller du er ikke logget ind som GM. Spillerne
   får aldrig gruppen.
-- **En besked nederst siger, at GM-vinduerne er slået fra:** kontakten er slået fra. Slå den til igen i
+- **En besked nederst siger, at GM-vinduerne er slået fra:** indstillingen er slået fra. Slå den til igen i
   indstillingerne.
 - **Combat eller Party er tom:** der er ingen kamp i gang, eller ingen karakter ejes endnu af en spiller. Vinduet
   fortæller, hvilket af dem.

@@ -17,11 +17,11 @@ kontrolpanel i browseren, dashboardet, der viser bordet live.
 
 Du bestemmer stadig selv, men kend de to slags ændringer:
 
-- **Guarded changes.** Skade, helbredelse, conditions, spell slots, token-flytninger og redigeringer, og
-  værktøjets egne funktioner (party, Tarokka, handouts, Obsidian-mirroret): Claude laver en plan for en ændring, og du godkender den, og
-  hver sådan ændring kan fortrydes.
+- **Guarded changes.** Damage, healing, conditions, spell slots, flytning og redigering af tokens, og
+  værktøjets egne funktioner (party, Tarokka, handouts, Obsidian mirror): Claude laver en plan, du
+  godkender den, og hver sådan ændring kan fortrydes.
 - **Direct actions.** Mange af Claudes andre værktøjer (rolls, nye NPC'er, journals, chat
-  og mere) virker, så snart Claude bruger dem, og værktøjet kan ikke fortryde dem. [Asking Claude](asking-claude.md)
+  og mere) virker, så snart Claude bruger dem, og værktøjet kan ikke fortryde dem. [Spørg Claude](asking-claude.md)
   viser hvilke, og hvordan du får Claude Desktop til at spørge først, hvis du vil have det.
 
 Spillerne får deres egen side, der aldrig viser spoilere.
@@ -47,13 +47,12 @@ Spillerne får deres egen side, der aldrig viser spoilere.
   der vil ændre sig. Hver guarded change, uanset om den kom fra dashboardet eller fra Claude, står
   der med Undo.
 - **Claude Desktop er der, hvor du taler med Claude.** Claude læser spillet gennem bridgen. Til
-  de guarded funktioner laver den en plan for en ændring, viser den til dig og venter på dit ja, før den
-  anvender den.
-  Du kan også selv anvende dens plan i dashboardet.
+  de guarded funktioner laver den en plan, viser den til dig og venter på dit ja, før den
+  apply'er den. Du kan også selv apply'e dens plan i dashboardet.
 - **Obsidian er til læsning og forberedelse.** Værktøjet skriver noter dér, efter at der er sket noget. Intet,
   du skriver i Obsidian, løber tilbage til Foundry af sig selv. Den ene undtagelse er en quest-note i
-  din `Prep`-mappe: du kan importere den som en quest-journal kun for GM, efter du har bekræftet en plan (se
-  [Features](features.md#obsidian-import)).
+  din `Prep`-mappe: du kan importere den som en quest-journal kun til GM'en, efter du har bekræftet en plan (se
+  [Funktioner og hvornår du slår dem til](features.md#obsidian-import)).
 - **Bridgen forbinder dem.** Modulet inde i Foundry taler med bridgen. Claude Desktop og
   dashboardet taler også med bridgen.
 
@@ -67,15 +66,15 @@ Spillerne får deres egen side, der aldrig viser spoilere.
 To ting, du skal vide fra start:
 
 - Modulet kører inde i en Foundry-browser på serveren, logget ind som en hjælper-GM kaldet
-  Assistant GM. Den holder forbindelsen til bridgen, så værktøjet virker, selv når ingen menneskelig GM er logget
-  ind, og din egen browser kører aldrig bridgen. Går den ned, så fortæl det til værktøjets admin.
+  Assistant GM. Det holder forbindelsen til bridgen, så værktøjet virker, selv når ingen menneskelig GM er logget
+  ind, og din egen browser kører aldrig bridgen. Går det ned, så fortæl det til værktøjets admin.
 - Spillere bruger aldrig bridgen. De ser Foundry som sædvanligt. De kan også åbne spillersiden. Den
   ligger bag den samme login med e-mailkode som spillet.
 
 ## Hvad der er særligt ved Curse of Strahd
 
 - **Tarokka-læsning.** Træk en læsning med værktøjets indbyggede roll, eller vælg de
-  fem kort selv. Kortene er kun for GM og ligger uden for Foundry. Du kan koble hvert kort til en
+  fem kort selv. Kortene er kun for GM'en og ligger uden for Foundry. Du kan koble hvert kort til en
   journal-side, en scene eller en actor. Du afslører et kort ved at skrive den tekst, spillerne må læse.
 - **En spoilersikker spillerside.** Den viser navne, som spillerne kender dem ("Unknown creature"
   ellers), ingen HP-tal på fjender, kun offentlige rolls og kun de handouts, du afslører.
@@ -92,7 +91,7 @@ Foundry-ord:
 - **World:** din kampagne i Foundry: dens scenes, actors, journals og indstillinger.
 - **Scene:** et kort. Den **active scene** er den, spillerne er på.
 - **Navigation Name:** et andet navn til en scene, som spillerne ser i stedet for det rigtige.
-- **Actor:** en karakter eller skabning med et ark (en PC, en NPC, et monster).
+- **Actor:** en karakter eller creature med et ark (en PC, en NPC, et monster).
 - **Token:** en actors billede på kortet. Dens **Display Name**-indstilling bestemmer, hvem der ser dens navn.
 - **Journal:** en bog med sider i Journal tab. En **journal page** er én side i den.
 - **Compendium:** et bibliotek med færdigt indhold, for eksempel de officielle bøger, du ejer.
@@ -106,7 +105,7 @@ Foundry-ord:
 
 Værktøjsord:
 
-- **MCP:** den måde, Claude Desktop taler med værktøjer på. Værktøjets post i Claude Desktop hedder
+- **MCP:** den måde, Claude Desktop taler med værktøjer på. Værktøjets punkt i Claude Desktop hedder
   `foundry-mcp`, og "MCP Bridge" eller "MCP Server" i Foundrys beskeder betyder dette værktøj.
 - **Direct action:** et værktøj, der ændrer spillet, så snart Claude eller dashboardet bruger det. Det står
   ikke i Recent Changes, og værktøjet kan ikke fortryde det. Du retter det i hånden i Foundry.
@@ -115,13 +114,13 @@ Værktøjsord:
 - **Plan:** en foreslået ændring med en liste over, hvad den vil gøre (diffen). Planer udløber efter 15
   minutter.
 - **Feature switch:** en indstilling, der lader én funktion lave ændringer, for eksempel "AI Tool: Tarokka
-  (writes)". De fleste er slået fra som standard. Nogle få starter slået til (Live play til skade, helbredelse og conditions,
-  Ownership, table viewer og Undo til alt). [Features](features.md) lister hver enkelt.
+  (writes)". De fleste er slået fra som standard. Nogle få starter slået til (Live play til damage, healing og conditions,
+  Ownership, table viewer og Undo til alt). [Funktioner og hvornår du slår dem til](features.md) lister hver enkelt.
 - **GM Actions:** dashboardets kontakt til at ændre spillet fra dashboardet. Slået fra som standard.
 - **GM token:** en adgangskodelignende del af dashboardets GM-adresse (`?token=…`). Værktøjets admin
   giver dig adressen. Åbn den én gang, så husker browseren den.
-- **Recent Changes:** dashboardets panel, der lister anvendte ændringer, hver med Undo når det er muligt.
-- **Bridge vault:** værktøjets eget GM-only lager på bridgens computer: Tarokka-læsningen,
+- **Recent Changes:** dashboardets panel, der lister gennemførte ændringer, hver med Undo, når det er muligt.
+- **Bridge vault:** værktøjets eget lager kun til GM'en på bridgens computer: Tarokka-læsningen,
   afslørede handouts, ændringshistorikken og logfilerne. Det er ikke en del af Foundrys world-backup.
 - **Play log:** optegnelsen over, hvad der sker under spil (rolls, HP, rests, combat), med hver spillers
   brugernavn. Session notes og stats kommer fra den.
@@ -131,17 +130,17 @@ Værktøjsord:
 
 Til kampagnen kører Foundry, bridgen, dashboardet og Assistant GM-browseren alle på
 hjemmeserveren Orange Pi, og du starter ikke noget dér selv. Din egen del er lille: installér
-forbindelsen til Claude Desktop én gang ([Connect Claude Desktop to the server](connect-claude-desktop.md)),
+forbindelsen til Claude Desktop én gang ([Forbind Claude Desktop til serveren](connect-claude-desktop.md)),
 og brug så [tjeklisten før session](before-session.md). Du når Foundry og dashboardet
 gennem Cloudflare, som af og til beder om en kode på e-mail.
 
-### Opsætning på adminens egen pc (Windows)
+### Opsætning på adminens egen PC (Windows)
 
-> **Note: denne del er til værktøjets admins egen Windows-pc** (og som nødplan, hvis serveren
+> **Note: denne del er til værktøjets admins egen Windows-PC** (og som nødplan, hvis serveren
 > fejler på spilaftenen). Du gør den ikke. Serverens opsætning står i
 > [docs/dev/PI-SETUP.md](../../dev/PI-SETUP.md).
 
-På adminens egen pc kører alt på én Windows-pc: Claude Desktop, bridgen, dashboardet
+På adminens egen PC kører alt på én Windows-PC: Claude Desktop, bridgen, dashboardet
 og den browser, hvor du er logget ind i Foundry som GM.
 
 1. **Foundry 14 med dnd5e-systemet.** Værktøjet understøtter Foundry 14 med dnd5e 6.
@@ -158,7 +157,7 @@ værktøjet bygget én gang og en terminal. [README](../../../README.md#installa
    (`claude_desktop_config.json`), som fem poster: `foundry-mcp` (core) og `foundry-mcp-play`,
    `-prep`, `-build`, `-admin`. Afslut og genstart Claude Desktop. Herefter starter Claude Desktop
    bridgen, når det selv starter. Vælg så, hvilke værktøjssæt der er slået til: se
-   [Asking Claude](asking-claude.md#tool-sets-hvilke-kontakter-du-skal-tænde).
+   [Spørg Claude](asking-claude.md#tool-sets-hvilke-kontakter-du-skal-tænde).
 5. **Dashboardet.** Det startes i hånden: åbn en terminal i værktøjets mappe og kør
    `npm run dev:cogm`. Lad vinduet stå åbent, for lukker du det, stopper dashboardet. Åbn så
    `http://localhost:3000` i din browser.
@@ -172,13 +171,13 @@ værktøjet bygget én gang og en terminal. [README](../../../README.md#installa
 Når Foundry-mirroret er slået til, viser NPC-noter hele stat blocken og portrættet, scene-noter
 viser kortet, og journal-sider beholder deres tabeller og billeder. Bed Claude tilføje compendiums til
 mirrorets Library (`plan-obsidian-mirror` med `libraryPacks`, for eksempel dine monstre,
-spells, klasser og feats), og værktøjet skriver en note for hver post i `AI Tool/Library/`:
-monstre med stat blocks, spells, items, klasser med deres features efter level, subclasses,
+spells, classes og feats), og værktøjet skriver en note for hver post i `AI Tool/Library/`:
+monstre med stat blocks, spells, items, classes med deres features efter level, subclasses,
 species, backgrounds og feats. Billeder kopieres til `AI Tool/Attachments/`.
 
 Library er sorteret efter slags og så efter bog: `AI Tool/Library/Monsters/Monster Manual (2024)/`,
 `AI Tool/Library/Spells/Player's Handbook (2024)/` og så videre. Poster uden bog kommer i
-`Other`. Noter har egenskaberne `book` og `page`, når compendium'et angiver dem, og
+`Other`. Noter har egenskaberne `book` og `page`, når compendiet angiver dem, og
 `AI Tool/Library/Books/` har én note pr. bog, der lister alt fra den bog. Hver
 Library-note linker til sin bogs note, så hver bog bliver et knudepunkt i Obsidians graph view. Noterne
 om din world følger Foundrys egne mapper på samme måde: en journal i Foundrys mappe "Act 1"
@@ -203,11 +202,11 @@ Det er bogindhold, du har købt, så det bliver på din computer:
 
 Hver gang du spiller, er rækkefølgen enkel: start Claude Desktop, åbn Foundry og join som
 GM, åbn dashboardet i din browser. [Tjeklisten før session](before-session.md) har
-detaljerne. (På adminens egen pc startes dashboardet også i hånden, med
+detaljerne. (På adminens egen PC startes dashboardet også i hånden, med
 `npm run dev:cogm`.)
 
 ## Næste
 
-- [A tour of the dashboard](dashboard.md)
-- [Asking Claude](asking-claude.md)
-- [Before each session](before-session.md)
+- [Dashboardet](dashboard.md)
+- [Spørg Claude](asking-claude.md)
+- [Før hver session](before-session.md)

@@ -97,7 +97,7 @@ GM Actions. **End session** slår det fra igen, som den slog til. Se
 - **Ved bordet:** i Foundry har **AI Tool** i værktøjslinjen til venstre en knap, **Tarokka table**
   (kun GM). **Place** lægger det næste kort med bagsiden opad, **Flip** vender et kort, **Show to
   players** åbner bordet på alle spilleres skærm, **Stop showing** lukker det. Spillerne ser
-  bagsiden af de kort, du har lagt, og forsiden af dem, du har vendt, ikke andet (ingen positionsnavne,
+  bagsiden af de kort, du har lagt, og forsiden af dem, du har vendt. Intet andet (ingen positionsnavne,
   ingen noter). **Picture** giver et kort et billede fra worldens filer. At vende et kort er en
   afsløring: det kræver, at denne knap er slået til, og det markerer også kortet som afsløret i
   skuffen og lægger en side til spillerne i afsløringsjournalen. Bordet kræver, at kortlægningen
@@ -117,7 +117,7 @@ GM Actions. **End session** slår det fra igen, som den slog til. Se
 - **Hvad den gør:** lader værktøjet ændre, hvilke Foundry-dokumenter det spejler ind i din
   Obsidian-vault (spejlindstillingerne). Session notes og statistik bliver skrevet uanset.
 - **Starter:** slået fra. Indstillingen "AI Tool: Obsidian mirror (writes)".
-- **Slå den til, når:** du vil have actors, scener eller journals fra Foundry som noter i Obsidian,
+- **Slå den til, når:** du vil have actors, scenes eller journals fra Foundry som noter i Obsidian,
   og beder Claude sætte det op.
 - **Mere:** [Open in Obsidian](dashboard.md#open-in-obsidian-).
 
@@ -140,7 +140,7 @@ GM Actions. **End session** slår det fra igen, som den slog til. Se
 - **Hvad den gør:** efter en optaget session skriver værktøjet noterne (en Recap til spillerne, et
   GM-resumé og scenerne) og **lægger dem ind i Foundry af sig selv, uden at spørge**: en journal
   kun for GM, "Session notes", med ét indlæg pr. session. Ændringen står i Recent Changes med
-  **Undo**. Recap'en havner også i Handouts-køen, så spillerne først ser den, når du afslører den.
+  **Undo**. Recappen havner også i Handouts-køen, så spillerne først ser den, når du afslører den.
   Dashboardets **After**-visning viser, hvor noterne er, med **Read**, **Approve without
   revealing** og **Undo**.
 - **Starter:** slået fra. Indstillingen "AI Tool: Session notes (writes)". Turn on for tonight slår
@@ -151,7 +151,7 @@ GM Actions. **End session** slår det fra igen, som den slog til. Se
 
 ## Boss prompts
 
-- **Hvad den gør:** i turn-order strip'en vises pips for legendary actions og resistance, en
+- **Hvad den gør:** i turn-order stripen vises pips for legendary actions og resistance, en
   påmindelse om lair actions og reaktionsmærker for skabningerne i kampen. Intet ændrer sig i
   Foundry.
 - **Starter:** slået fra. En knap i dashboardets Combat Tracker, som huskes i denne browser.
@@ -169,7 +169,7 @@ GM Actions. **End session** slår det fra igen, som den slog til. Se
   Settings**, **Dice So Nice**, klik på **Configure Dice Roles**, og vælg **AI Tool: The Veil**
   (eller **AI Tool: Neutral**) i kolonnen **Theme** i rækken **Basic**. Hver spiller kan stadig
   vælge sine egne terninger under **3D Dice Settings**.
-- **Mere:** [tjeklisten før sessionen](before-session.md#slå-til-det-aftenen-kræver).
+- **Mere:** [tjeklisten før sessionen](before-session.md#slå-til-hvad-aftenen-kræver).
 
 ## GM windows
 
@@ -193,7 +193,7 @@ GM Actions. **End session** slår det fra igen, som den slog til. Se
 
 ## De andre knapper
 
-De ligger i samme kategori i Game Settings. Undtagen den sidste bliver en ændring, de tillader, kun
+De ligger i samme kategori i Game Settings. Bortset fra den sidste bliver en ændring, de tillader, først
 udført, når du har bekræftet en plan, og den står i Recent Changes med Undo.
 [Asking Claude](asking-claude.md#funktionskontakter) gennemgår dem sammen med de andre.
 
@@ -212,7 +212,7 @@ udført, når du har bekræftet en plan, og den står i Recent Changes med Undo.
 - **Room setup** ("AI Tool: Room setup (writes)"): tilføjer teleport regions og fylder et rum med
   tokens. Starter slået fra. Slå den til, mens du forbereder et kort.
 - **Scene restore** ("AI Tool: Scene restore (writes)"): sætter en scenes vægge, lys, tiles og
-  tokens tilbage fra en backupkopi af world'en. Starter slået fra. Slå den til, når et kort er
+  tokens tilbage fra en backupkopi af worlden. Starter slået fra. Slå den til, når et kort er
   blevet ødelagt i hånden.
 - **Paper sync** ("AI Tool: Paper sync (writes)"): skriver tallene fra et papirark tilbage på en
   karakter efter en aften spillet på papir. XP, level og klasse bliver aldrig ændret. Starter

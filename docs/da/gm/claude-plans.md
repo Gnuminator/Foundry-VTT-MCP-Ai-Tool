@@ -51,11 +51,11 @@ en spilaften løber tør, så spil videre uden den: alt kan gøres i hånden i F
 
 | Hvad                  | Pro                                                                         |
 | --------------------- | --------------------------------------------------------------------------- |
-| Brug                  | Mindst fem gange Free-brugen pr. fem-timers session.                        |
+| Brug                  | Mindst fem gange Free-brugen pr. femtimersperiode.                          |
 | At løbe tør           | Du kan slå betalte brugskreditter til for at fortsætte efter grænsen.       |
 | Modeller              | Også Opus, den stærkeste model, til svær forberedelse og regelspørgsmål.    |
 | Projects              | Ingen grænse på fem.                                                        |
-| Research, Claude Code | Med. Bruges ikke til dette værktøj.                                         |
+| Research, Claude Code | Inkluderet. Bruges ikke til dette værktøj.                                  |
 | Pris                  | 20 USD om måneden eller 200 USD om året (priser i andre valutaer varierer). |
 
 Skills, desktop extensions (den lokale slags forbindelse, værktøjet bruger), desktop-appen og
@@ -68,7 +68,7 @@ nu og da, eller når du vil have Claude ved bordet hele aftenen. Prøv Free før
 ## Ikke afklaret endnu
 
 - **Værktøjets forbindelse på Free.** Claude Desktop forbinder til spillet gennem et lokalt program
-  (en lokal MCP-server). Anthropic opfører desktop extensions som inkluderet på Free, men deres
+  (en lokal MCP-server). Anthropic anfører desktop extensions som inkluderet på Free, men deres
   hjælpesider siger ikke pr. plan, om servere sat op i Claude Desktops konfigurationsfil virker. Det
   har virket på Free før. Vi tester det på din PC før session 0.
 - **Den præcise grænse.** Anthropic offentliggør ikke tal for Free; den afhænger af, hvor meget hver

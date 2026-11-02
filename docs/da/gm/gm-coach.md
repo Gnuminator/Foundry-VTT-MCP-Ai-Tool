@@ -15,14 +15,14 @@ hjælper dig også med at planlægge: hvad du skal forberede til en session, sam
 
 Coachen er en hjælper, der kender siderne. Den kan ikke se eller ændre dit spil. Når du vil have Claude
 til at kigge på dine karakterer, planlægge en ændring eller forberede noter, er det en helt almindelig Claude Desktop-chat
-med Foundry-connectorerne slået til ([Spørg Claude](asking-claude.md)). Guarded changes
-(damage, conditions, token-flytninger og lignende) bliver planlagt først, vist for dig, udført efter dit
-ja og gemt i Recent Changes med en Undo. Nogle af Claudes andre tools virker med det samme og kan ikke
-fortrydes. Coachen kan forklare begge dele.
+med Foundry-connectorerne slået til ([Spørg Claude](asking-claude.md)). Beskyttede ændringer
+(skade, conditions, token-flytninger og lignende) bliver planlagt først, vist for dig, udført efter dit
+ja og gemt i Recent Changes med en Undo. Nogle af Claudes andre værktøjer virker med det samme og kan
+ikke fortrydes. Coachen kan forklare begge dele.
 
 Den kender hver side i disse guides, så du kan også spørge den om dashboardet, GM-vinduerne,
-feature switches, checklisterne før og efter en session, spilaftenens runbook og
-tv'et ved bordet. På spilaftenen giver den dig runbook'ens trin først.
+funktionskontakterne, checklisterne før og efter en session, spilaftenens runbook og
+tv'et ved bordet. På spilaftenen giver den dig runbookens trin først.
 
 Den svarer først ud fra sine sider og siger det. Når siderne ikke dækker noget, kan den svare
 ud fra almen viden, men siger det til dig, fordi mange guides på nettet beskriver ældre Foundry-versioner.
@@ -30,7 +30,7 @@ Den søger aldrig på nettet, og den har ingen bog- eller kampagnetekst.
 
 ## Læg den ind (én gang, ca. 5 minutter)
 
-Du skal bruge filen `foundry-gm-coach.zip` fra tool-adminen.
+Du skal bruge filen `foundry-gm-coach.zip` fra værktøjets administrator.
 
 <!-- wiki:coach-download -->
 
@@ -57,7 +57,7 @@ Når du planlægger med den, stiller den et par spørgsmål og foreslår mulighe
 spørge på dansk.
 
 Tjek dens svar mod skærmen. Hvis den nævner en knap, du ikke kan finde, så sig det: så fortæller den dig,
-om den del er blevet tjekket i et live spil.
+om den del er blevet tjekket i et rigtigt spil.
 
 ## Hvis skills ikke virker på din konto: et Claude Project
 
@@ -74,7 +74,7 @@ besked, så på den gratis plan æder det din grænse meget hurtigere. Upload ku
 
 ## At holde den opdateret
 
-Tool-adminen bygger en ny zip, når siderne ændrer sig (`npm run gm-coach`). Siderne inde i
+Værktøjets administrator bygger en ny zip, når siderne ændrer sig (`npm run gm-coach`). Siderne inde i
 zip-filen er en kopi fra den dag, den blev bygget, så en feature, der kom senere, står ikke i dem.
-Hvis coachen beskriver en knap, der ikke findes, eller ikke kender en ny, så bed tool-adminen om en frisk zip.
+Hvis coachen beskriver en knap, der ikke findes, eller ikke kender en ny, så bed værktøjets administrator om en frisk zip.
 For at opdatere fjerner du den gamle skill og uploader den nye zip.

@@ -7,7 +7,7 @@ description: En kort tjekliste til GM'en, når en spilsession er slut.
 
 # Efter hver session
 
-Gør det her lige efter, at spillerne er gået, mens Foundry og dashboardet stadig er åbne. Hvert punkt
+Gør det lige efter, at spillerne er gået, mens Foundry og dashboardet stadig er åbne. Hvert punkt
 er én handling.
 
 ## Luk sessionen
@@ -61,8 +61,8 @@ der laves inde i en spillers mappe, går tabt ved næste opdatering.
 
 ## Hvis en spiller beder om at få sine data fjernet
 
-Én kommando fjerner en spillers optegnelser fra bridge-vaulten: hvert slag, hver ændring og hver
-chatbesked under vedkommendes Foundry-brugernavn samt dashboardets brugsoptegnelser. Det er med
+Én kommando fjerner en spillers data fra bridge-vaulten: hvert terningslag, hver ændring og hver
+chatbesked under vedkommendes Foundry-brugernavn samt dashboardets brugsdata. Det er med
 vilje ikke et AI-værktøj: Claude kan ikke slette nogens data.
 
 Du kører den ikke selv: giv anmodningen videre til den, der satte værktøjet op. Der skal bruges en
@@ -75,9 +75,9 @@ terminal på den maskine, der kører bridgen (Orange Pi, når spillet er hostet 
 3. Se, hvad der ville blive fjernet, uden at ændre noget:
    `npm run vault -- forget-user <world id> <user name> --dry-run`
 4. Fjern det: samme kommando uden `--dry-run`. Hvis du kun vil fjerne den chat, vedkommende skrev,
-   og beholde slagene i statistikken, så tilføj `--chat-only`.
+   og beholde terningslagene i statistikken, så tilføj `--chat-only`.
 5. Obsidian-noterne indhenter det selv: når bridgen skriver GM-vaulten (altid på Pi'en), renderer
-   den dem igen næste gang der sker noget i verdenen. Kør `npm run obsidian -- export` for at
+   den dem igen næste gang der sker noget i worlden. Kør `npm run obsidian -- export` for at
    genopbygge dem med det samme, eller hvis bridgen ikke skriver en vault. Noter, der ikke længere
    bliver lavet, flyttes til Obsidians mappe `.trash`; tøm den. En note, du har redigeret i hånden,
    bliver som den er: tjek den.

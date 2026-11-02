@@ -14,7 +14,7 @@ Foundry. Adressen er den, tool-administratoren gav dig (på administratorens ege
 Det er altid sikkert at kigge med. Bortset fra session-markeringerne og at sætte et handout i kø
 ændrer intet på dashboardet spillet, før du slår **GM Actions** til og bekræfter.
 
-> Hold dashboardet væk fra alle skærme, spillerne kan se, og del aldrig dets vindue i Discord eller
+> Hold dashboardet væk fra alle skærme, som spillerne kan se, og del aldrig dets vindue i Discord eller
 > et videoopkald. Det viser de rigtige navne, præcis HP, private rolls og, når du beder om det,
 > Tarokka-kort.
 
@@ -62,7 +62,7 @@ Obsidian-note pr. session og til at gruppere play log.
 - Klik på **Start session**, når spillet begynder. Teksten skifter til "Session since 19:30".
 - Klik på **End session**, når spillet er slut. Teksten skifter tilbage til "No session". Den slår
   også det fra igen, som **Turn on for tonight** slog til (se nedenfor), og GM Actions.
-- Når en session starter, skrives en linje i værktøjets eget log, og live play slås til, så
+- Når en session starter, skrives en linje i værktøjets egen log, og live play slås til, så
   værktøjer, der ændrer spillet, kan køre, når du har bekræftet. Der findes ikke længere en
   start, der kun logger.
 - Hvis du glemmer det, deler noterne stadig sessionerne ved et hul på 3 timer uden hændelser.
@@ -96,7 +96,7 @@ Under **Advanced ▾**, Tools. Åbner tool runneren. Se "Tool runneren" nedenfor
 I headeren, ved siden af **Advanced ▾**. Åbner pre-flight-tjekket: kør det, før spillerne kommer
 på. Værktøjet sætter selv flueben ved det, det kan tjekke (Foundry connected, module- og
 bridge-versioner passer sammen, skrivekontakterne, hemmeligheder i world-indstillinger, navne,
-spillerne kan se, som afslører en hemmelighed, module-konflikter, Obsidian-noter, play session,
+som spillerne kan se, og som afslører en hemmelighed, module-konflikter, Obsidian-noter, play session,
 Turn on for tonight, spillersiden, Tarokka-kort skjult). Under det står de ting, du selv skal
 tjekke, fra [før hver session](before-session.md); dine flueben bliver i denne browser, til du
 klikker på **Clear ticks**. Selve knappen står som **Pre-flight: ready** eller **Pre-flight: 2 to
@@ -108,14 +108,14 @@ opdatere.
 
 #### Turn on for tonight
 
-Øverst i Pre-flight-panelet. Ét klik slår det til, en aften ved bordet har brug for:
+Øverst i Pre-flight-panelet. Ét klik slår det til, som en aften ved bordet kræver:
 
 - i Foundrys module-indstillinger: "Allow Write Operations", "AI Tool: Handouts (writes)", "AI Tool:
   Live play (writes)", "AI Tool: Party (writes)" og "AI Tool: Tarokka (writes)";
 - på dashboardet: **GM Actions**.
 
-Det slår kun det til, der er slået fra, og husker det i world'en. **End session** (eller **Turn them
-off again**) slår præcis dem fra igen, så en kontakt, der allerede var slået til, bliver slået til.
+Det slår kun det til, der er slået fra, og husker det i worlden. **End session** (eller **Turn them
+off again**) slår præcis dem fra igen, så en kontakt, der allerede var slået til, forbliver slået til.
 Chipsene under knappen viser hver kontakt (✓ til, ○ fra). Hvis Foundry ikke tog imod en ændring,
 nævner en rød toast kontakten; tjek den i Foundrys module-indstillinger, hvor hver kontakt altid
 er synlig.
@@ -156,7 +156,7 @@ Flere punkter under **Advanced ▾**, Tools:
 - **🩺 Module diagnostics** viser eller skjuler panelet Module Diagnostics (se nedenfor).
 - **Version tracker: on / off** er slået til som standard. Mens den er til, dukker et punkt
   **📦 Versions** op i samme menu; slå den fra for at skjule det og stoppe opslagene online. Det
-  åbner en tabel over, hvad der er installeret (Foundry, spilsystemet og module'ne), ved siden af den
+  åbner en tabel over, hvad der er installeret (Foundry, spilsystemet og modulerne), ved siden af den
   nyeste udgave, med en status for hver. Den fortæller kun, hvad der er forældet; den opdaterer
   aldrig noget.
 
@@ -207,7 +207,7 @@ gemmes for denne world, i enhver browser.
 En smal strimmel øverst i visningen **During**. Den viser den aktive combat: initiative, hvis tur
 det er (fremhævet), og hver deltagers HP-bar og tal. Hver række er mærket **PC**, **Enemy** eller
 **NPC**. Den øverste linje viser runden og antallet af deltagere. Ture, initiative og saves bliver i
-Foundrys eget combat tracker, og skade går normalt gennem dnd5e's chatkort der.
+Foundrys eget combat tracker, og skade går normalt gennem dnd5e-chatkortene der.
 
 Over rækkerne er **initiative ribbon**: én strimmel i turorden, der starter med den, der er i gang.
 Det væsen står stort med sit navn; de næste to er tydelige, og resten toner ud mod højre. Hver har
@@ -217,10 +217,10 @@ Klik på et portræt for at flytte GM'ens Foundry-visning til det token (den ski
 tokenets scene, hvis det er nødvendigt; hvis to GM'er er logget ind, viser den en fejl i stedet).
 Portrætter kræver, at dashboardet kender Foundrys adresse: sæt `DASHBOARD_FOUNDRY_URL` til den, din
 browser bruger, ellers vises initialerne (den samme indstilling afgør, hvem der må vise dashboardets
-live-strimmel i et Foundry-vindue, så den skal passe præcist med den adresse, du skriver til Foundry).
+live-strimmel i et Foundry-vindue, så den skal passe præcist med den adresse, du skriver for at åbne Foundry).
 En **Round**-markering viser, hvor rækkefølgen løber over i næste runde, og en **Lair**-markering
 viser, hvor en lair action falder, når en boss i kampen har en. Besejrede væsener er nedtonede og
-tæller aldrig som næste. Ribbon'en ændrer aldrig spillet; klikket flytter kun den skærms visning.
+tæller aldrig som næste. Ribbonen ændrer aldrig spillet; klikket flytter kun visningen på den skærm.
 
 Combat i dashboardet er valgfri. Hvis du vil bruge den, kan strimlen give skade, healing og
 conditions til flere deltagere på én gang. Mens en kamp kører, og live play er slået til (**Start
@@ -258,7 +258,7 @@ første bosskamp. Det viser:
 - **Legendary**- og **Resist**-pips på hver boss-række: fyldte for brug tilbage i denne runde, som
   dnd5e tæller dem (et væsen i sin lair kan have en mere). Brug dem på væsenets sheet i Foundry;
   pipsene følger med inden for få sekunder.
-- En **🏰 Lair action**-påmindelse, når turordenen passerer initiative 20 (eller lair'ens egen
+- En **🏰 Lair action**-påmindelse, når turordenen passerer initiative 20 (eller lairens egen
   værdi), for et væsen hvis "in lair"-felt er afkrydset på dets sheet.
 - **⚡ legendary actions left** for hver boss, der ikke har sin egen tur.
 - En **R**-knap på hver boss, der stadig er i live: klik på den, når væsenet bruger sin reaction.
@@ -328,7 +328,7 @@ slots, rolls, scene-skift og mere. Hver linje viser sin type og tidspunktet.
 
 ### Module Diagnostics
 
-Fejl og advarsler fra Foundry-module'ne, fanget i GM'ens browser. Hold musen over en linje for
+Fejl og advarsler fra Foundry-modulerne, fanget i GM'ens browser. Hold musen over en linje for
 detaljer. Nyttigt, når noget i Foundry opfører sig forkert midt i en session. Gamle poster kan blive
 stående på listen efter en genindlæsning.
 
@@ -355,8 +355,8 @@ fra før ændringen tilbage. Den afviser og skriver ingenting, hvis det samme er
 Undo virker, selv når featurens kontakt er slået fra; Redo kræver, at den er slået til. Klik på **↻**
 for at genindlæse listen.
 
-Kun guarded changes står her: skade, healing, conditions, resources og token-flytninger, redigeringer
-og sletninger gør, mens ændringer fra andre værktøjer (rolls, nye actors) ikke gør og ikke kan
+Kun guarded changes står her: skade, healing, conditions, resources samt flytning, redigering og
+sletning af tokens. Ændringer fra andre værktøjer (rolls, nye actors) står her ikke og kan ikke
 fortrydes her.
 
 **Fanen Everyone.** Når AI Tool på serveren er ny nok, har Recent Changes to faner: **AI** (listen
@@ -365,11 +365,11 @@ hit points, items og tokens. Vælg en person i listen over rækkerne for kun at 
 ændringer. Hver række viser hvem, hvornår, hvad der blev ændret og, under "N line(s)", detaljerne.
 En række flytninger af det samme token af den samme person er én række ("moved 6 times"); dens
 **Undo** tager kun den seneste flytning tilbage, og Foundrys Changes-vindue viser stadig hver
-flytning. **Undo** virker på enhvers ændring. Den viser først, hvad den vil sætte tilbage, og du
-bekræfter. Hvis noget er ændret på det samme siden, står der "This is not the latest change to ...",
-og de senere ændringer vises, og du vælger **Just this** (beholder de senere ændringer), **Everything
+flytning. **Undo** virker på alles ændringer. Den viser først, hvad den vil sætte tilbage, og du
+bekræfter. Hvis det samme er ændret siden, står der "This is not the latest change to ...",
+de senere ændringer vises, og du vælger **Just this** (beholder de senere ændringer), **Everything
 since** (sætter tingen tilbage til, som den var før denne ændring) eller **Cancel**. Under
-**Advanced** (i det første spørgsmål, hvilket det end er) fortryder **Rewind the whole table to
+**Advanced** (i det første spørgsmål, uanset hvilket det er) fortryder **Rewind the whole table to
 here** hver ændring ved bordet siden da; den viser, hvor mange ændringer det er, og spørger to
 gange. En fortrudt ændring er markeret "Undone by ...", med **Redo** til at sætte den tilbage, når
 det stadig kan lade sig gøre. Når den blev fortrudt sammen med andre ændringer (Everything since
@@ -384,7 +384,7 @@ Du behøver ikke have dashboardet åbent for at se eller fortryde, hvad der blev
 venstre værktøjslinje (scene controls) er der en gruppe **AI Tool**, kun vist for GM'er. Det er
 **tryllestav-ikonet** (sparkles) nederst i kolonnen, under Tokens, Tiles, Drawings, Walls, Lights,
 Sounds, Regions og Journal Notes; hold musen over det for at se "AI Tool". Klik på det, og klik
-derefter på **Changes**: et vindue åbner med alt, der blev ændret den sidste uge, nyeste først, af
+derefter på **Changes**: et vindue åbner med alt, der blev ændret i den sidste uge, nyeste først, af
 spillere, af dig og af AI'en. Hver række viser tidspunktet, hvem der gjorde det ("by Thorin", eller
 et **AI**-mærke), hvad der blev ændret, og **Undo**, så længe ændringen stadig kan fortrydes. Klik på
 "Changes" på en række for at se de linjer, der blev ændret, og **Show more** for de sidste 100.
@@ -393,7 +393,7 @@ et **AI**-mærke), hvad der blev ændret, og **Undo**, så længe ændringen sta
 
 **Undo** beder dig bekræfte først og viser, hvad der sættes tilbage, og siger derefter "Undone: ...",
 eller fortæller, hvorfor den afviste (for eksempel fordi det samme er ændret igen siden). Hvis
-ændringen ikke er den seneste på den ting (Thorins HP blev ændret igen bagefter, siger vi), viser
+ændringen ikke er den seneste på den ting (for eksempel hvis Thorins HP blev ændret igen bagefter), viser
 vinduet de senere ændringer og spørger:
 
 - **Just this**: fortryd kun denne ændring og behold de senere.
@@ -432,7 +432,7 @@ handout-skuffe viser, så du kan afsløre et handout uden at forlade Foundry:
   skærmene hos de spillere, den er til. Det er uden kryds, hver gang vinduet åbner, og går tilbage til
   uden kryds efter hver reveal (også efter en cancel), så det er et valg, du tager hver gang.
   Krydset bliver stående, mens du beslutter dig: en opdatering fjerner det ikke. Undo kan ikke lukke
-  popup'en.
+  popuppen.
 - **Who has read what**: hvert afsløret handout, hvem det er til, og et flueben ved navnet på hver
   spiller, der har åbnet det på spillersiden (hold musen over for tidspunktet).
 
@@ -462,7 +462,7 @@ Claude.
   det er uden kryds, hver gang formularen åbner. Klik derefter på **Reveal**: et Foundry-vindue viser
   præcis, hvad der ændres, og beder dig bekræfte, fordi en reveal ikke kan tages tilbage ved bordet.
   Cancel, og intet sker (din tekst bliver i formularen). Undo i **Changes** tager revealen tilbage,
-  men kan ikke lukke popup'en. Spillerne får kun din tekst, aldrig kortets navn.
+  men kan ikke lukke popuppen. Spillerne får kun din tekst, aldrig kortets navn.
 
 Det, du skriver i en formular, bliver stående, når vinduet opdaterer sig selv (det opdaterer, når en
 ændring bliver registreret, og **Refresh** genindlæser det i hånden). At knytte et kort og at lægge
@@ -472,7 +472,7 @@ slået fra, står årsagen øverst i vinduet.
 
 ## Confirm-vinduet
 
-Dashboardets egne knapper, der laver en planlagt ændring (partiets tempo og rest-anmodning,
+Dashboardets egne knapper, der laver en planlagt ændring (gruppens tempo og rest-anmodning,
 Tarokka-links og -importer), anvender den med det samme, når du klikker: dit klik er bekræftelsen. En
 besked siger, hvad der ændrede sig, med **Undo** i nogle sekunder; Recent Changes gemmer hele
 historikken.
@@ -544,7 +544,7 @@ igen.
 
 ## Tarokka-skuffen (🃏 Tarokka)
 
-Kun for GM. Læsningen ligger i bridge-vaulten, udenfor Foundry, så spillernes browsere aldrig modtager
+Kun for GM. Læsningen ligger i bridge-vaulten, uden for Foundry, så spillernes browsere aldrig modtager
 den. At ændre noget kræver kontakten "AI Tool: Tarokka (writes)" (Game Settings, kategorien **Foundry
 AI Tool**) og at GM Actions er slået til.
 
@@ -569,16 +569,16 @@ Hver af de fem positioner viser:
 - links: **Open Journal**, **Open Scene** eller **Open Actor** åbner det sammenkædede dokument på din
   Foundry-skærm (intet ændres); "not linked", når der ikke er et;
 - "hidden from players" eller "revealed" (med **Open page** til reveal-siden);
-- **Link…**: søg i din world's journals, sider, scener og actors, og klik derefter på **Link** ved
+- **Link…**: søg i din worlds journals, sider, scener og actors, og klik derefter på **Link** ved
   den rigtige;
 - **Reveal…**: skriv en valgfri sidetitel og præcis det, spillerne må læse, og derefter **Plan
   reveal…**. Spillerne får kun din tekst, aldrig kortets navn. Sæt kryds ved **Show it now** for at få
   siden til at poppe op på spillernes skærme, så snart du anvender revealen. Det er fra hver gang, med
-  mindre du sætter kryds, og Undo tager revealen tilbage, men kan ikke lukke popup'en.
+  mindre du sætter kryds, og Undo tager revealen tilbage, men kan ikke lukke popuppen.
 
 Import, ny læsning og link anvendes med ét klik, med en **Undo**-besked. En reveal åbner
 confirm-vinduet med listen over, hvad der ændres, og det destruktive trin, fordi bordet ikke kan
-se det usagt. Hver af dem dukker op i Recent Changes og kan fortrydes der.
+glemme, hvad det har set. Hver af dem dukker op i Recent Changes og kan fortrydes der.
 
 ## Handout-skuffen (📜 Handouts)
 
@@ -596,7 +596,7 @@ listen, før du trykker på **+ Queue a page** for den. Skuffen viser:
   have læst den). Hvis køen er ændret, siden skuffen blev indlæst, viser vinduet planen i fuld
   længde. Sæt kryds ved **Show it now** ved siden af for også at få siden til at poppe op på skærmene
   hos de spillere, den er til (alle, når den er til alle spillere). Det er fra hver gang, med mindre
-  du sætter kryds, og Undo kan ikke lukke popup'en.
+  du sætter kryds, og Undo kan ikke lukke popuppen.
 - **+ Queue a page**: åbner tool runneren på `plan-page-reveal` med `action` queue. Vælg siden,
   eventuelt en scene og de spillere, den er til, og kør den.
 - **Revealed**: hvert handout, hvem det er til, og et flueben for hver spiller, der har åbnet det på
@@ -627,20 +627,20 @@ Uden Foundry forbundet viser skuffen stadig last session og siger, hvad der mang
 
 ## Party-skuffen (🛡 Party)
 
-Partiet med et blik, fra dnd5e Group-actoren. Den kræver et parti i Foundry: i fanen Actors, lav en
+Gruppen med et blik, fra dnd5e Group-actoren. Den kræver en gruppe i Foundry: i fanen Actors, lav en
 Actor af typen **Group**, træk karaktererne over på den, højreklik derefter på den og vælg **Set as
-Primary Party**. Med mere end én gruppe vælger en liste øverst, hvilken.
+Primary Party**. Med mere end én Group-actor vælger en liste øverst, hvilken.
 
 - **Members**: hver karakters HP, AC, passive Perception, hit dice tilbage, conditions og
   exhaustion, death saves ved 0 HP, og om tokenet er på scenen og i encounteret. **Open** viser
   karakterarket i Foundry.
 - **Who would notice**: med module-indstillingen **AI Tool: Who would notice** slået til, skriv en DC,
   og hver karakter viser chips for passive Perception, Investigation og Insight, med et flueben for en
-  score på eller over DC'en og et kryds under. Scorerne er dnd5e's egne, så conditions og exhaustion
+  score på eller over DC'en og et kryds under. Scorerne er dnd5es egne, så conditions og exhaustion
   allerede er talt med. Kun du ser det; intet bliver rullet eller sendt til spillerne.
-- **Travel pace**: Slow, Normal eller Fast. Hvis et medlem er slowed, siger skuffen, at partiet
+- **Travel pace**: Slow, Normal eller Fast. Hvis et medlem er slowed, siger skuffen, at gruppen
   alligevel bevæger sig i langsomt tempo.
-- **Combat**: tilføjer partiets tokens på den aktuelle scene til encounteret, eller starter et
+- **Combat**: tilføjer gruppens tokens på den aktuelle scene til encounteret, eller starter et
   encounter med dem, når der ikke er et.
 - **Place the party here**: scroll først Foundrys kort til stedet. Knappen sætter hvert medlem uden
   token på den scene, du kigger på, ved siden af hinanden på de nærmeste frie felter, omkring midten
@@ -649,7 +649,7 @@ Primary Party**. Med mere end én gruppe vælger en liste øverst, hvilken.
   efter du har flyttet dem; hvis du allerede har slettet et af dem i hånden, afviser Undo, så slet
   også de andre i hånden. Claude kan også placere dem ved et token, en map note eller et felt ("put
   the party at the inn door").
-- **Rest**: sender dnd5e's short rest- eller long rest-kort til chatten. Hver spiller klikker på det
+- **Rest**: sender dnd5es short rest- eller long rest-kort til chatten. Hver spiller klikker på det
   for at hvile sin egen karakter, det samme kort som Foundrys party sheet sender.
 - **Ask for a roll**: vælg en check, save eller skill, en DC og privat eller offentlig, og klik derefter
   på **Ask the whole party**, eller **Ask roll** på ét medlem. Det sender roll-anmodningen til
@@ -693,7 +693,7 @@ sessionerne åbner den med Last recap, Handouts og Quests, og de levende kort ry
   forrige sluttede) har et **New**-mærke. En side til udvalgte spillere siger "just for you".
 - **Quests**: afslørede sider, hvis titel siger "quest" (eller "opgave").
 
-Headeren viser world'en, scenens **Navigation Name** (ellers "Current scene", aldrig det rigtige
+Headeren viser worlden, scenens **Navigation Name** (ellers "Current scene", aldrig det rigtige
 navn) med dens tid på dagen (kun på scener med global illumination) og vejr, for eksempel "Village
 Square (Dusk, Rain)", og en status: `live`, `foundry offline`, `disconnected` eller `connecting…`.
 Med The Veil-temaet har footeren også et **Mist**-valg, som kun ændrer den enhed.
@@ -730,7 +730,7 @@ Hver spiller kan have sin egen karakterside: deres sheet på en telefon eller la
 og opdateret under spillet (HP, spell slots, conditions, resources). Den åbner fra et privat link,
 som du laver én gang pr. spiller.
 
-1. **Advanced**, **🔗 Player links**. Panelet viser hver spiller (ikke-GM) i world'en.
+1. **Advanced**, **🔗 Player links**. Panelet viser hver spiller (ikke-GM) i worlden.
 2. **Make link** ved siden af en spiller. Linket bliver kopieret; send det til den spiller i en
    direkte besked, ikke i bordets chat. Senere kopierer **Copy link** det igen.
 3. Spilleren åbner det én gang. Siden husker det på den enhed, så det bagefter virker fra et bogmærke
@@ -749,7 +749,7 @@ Siden har fire visninger, og hver spiller vælger sin (husket på deres enhed):
 - **At the table**: store HP, AC og initiative, conditions, spell slots, resources, attacks og
   prepared spells. Den følger dashboardets tema.
 - **Paper 2024** (standard-papirvisningen) og **Paper 2014**: sort på hvidt, i den samme rækkefølge som
-  den trykte karakterark i den udgave, så en spiller kan skrive det af på papir eller printe det
+  det trykte karakterark i den udgave, så en spiller kan skrive det af på papir eller printe det
   (**Print** nederst).
 - **Paper night**: et ark til et bord, der spiller på papir. Hver blok viser værdien, som den var, da
   arket blev printet, og en boks til at skrive den nye i. **Print all party sheets** i panelet Player
@@ -757,7 +757,7 @@ Siden har fire visninger, og hver spiller vælger sin (husket på deres enhed):
 
 Det, siden udelader: GM'ens hemmelige sektioner i beskrivelser, de sande navne på uidentificerede
 items (den viser, hvad spilleren ser i Foundry) og enhver actor, spilleren ikke ejer. Som
-spillersiden er den live på Pi'en bag login med e-mailkode, så spillerne når den fra deres egne
+spillersiden er den live på Pi bag login med e-mailkode, så spillerne når den fra deres egne
 enheder.
 
 ## Open in Obsidian (📓)
@@ -769,7 +769,7 @@ og kun når dashboardet kender navnet på din Obsidian-vault (indstillingen `OBS
 
 Den anden vej har noter fra Foundry-mirroren i Obsidian **Open in Foundry**-links. De åbner en lille
 dashboard-side, der beder dig klikke på **Open**; dokumentet åbner derefter på din Foundry-skærm, og
-intet i world'en ændres.
+intet i worlden ændres.
 
 ### Obsidian-pluginet (valgfrit)
 

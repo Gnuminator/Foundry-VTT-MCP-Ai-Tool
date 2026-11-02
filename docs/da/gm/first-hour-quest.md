@@ -14,48 +14,48 @@ og dine flueben bliver i denne browser. I dashboardets hjælpepanel kan du kun l
 
 :::note
 Lav hele questen i en test world, aldrig i kampagnen. En test world er en world, hvor intet
-kan gå i stykker. Bed tool-adminen om en, hvis du ikke har en.
+kan gå i stykker. Bed værktøjets administrator om en, hvis du ikke har en.
 :::
 
-**Fremgang:** trin 1 af 4 er skærmen, trin 2 er mennesker og world's, trin 3 er bordet,
+**Fremgang:** trin 1 af 4 er skærmen, trin 2 er mennesker og worlds, trin 3 er bordet,
 trin 4 er værktøjet. Ca. en time i alt.
 
 ## Trin 1 af 4: Skærmen (15 minutter)
 
-- [ ] Åbn Foundry, start test world'en og kom ind som **Game Master**.
-- [ ] Læs [En rundtur på Foundry-skærmen](../../foundry/screen-tour.md).
+- [ ] Åbn Foundry, start test worlden og kom ind som **Game Master**.
+- [ ] Læs [A tour of the Foundry screen](../../foundry/screen-tour.md).
 - [ ] Find **sidebaren** til højre, **scene controls** til venstre, **scene
       navigation** øverst og **kortet** i midten.
-- [ ] Åbn [Foundry-ordlisten](../../foundry/glossary.md) i en anden fane og lad den stå.
+- [ ] Åbn [Foundry glossary](../../foundry/glossary.md) i en anden fane og lad den stå.
 - [ ] Læs [Kom i gang](getting-started.md) (vores egen).
 
 **Du er færdig, når** du kan pege på hver af skærmens fire dele uden at kigge.
 
-## Trin 2 af 4: Mennesker og world's (10 minutter)
+## Trin 2 af 4: Mennesker og worlds (10 minutter)
 
-- [ ] Læs [Brugere og rettigheder](../../foundry/users-and-permissions.md) og find de fire roller:
+- [ ] Læs [Users and permissions](../../foundry/users-and-permissions.md) og find de fire roller:
       Player, Trusted, Assistant og Game Master. Dine spillere er Players, du er Game Master.
-- [ ] Læs [World's og at komme ind](../../foundry/worlds-and-joining.md): hvad det gør at starte en
+- [ ] Læs [Worlds and joining](../../foundry/worlds-and-joining.md): hvad det gør at starte en
       world, hvad join-siden er, og hvad **Return to Setup** gør.
 
 **Du er færdig, når** du kan sige i én sætning, hvad en Player ikke må, som du må.
 
 ## Trin 3 af 4: At køre bordet (25 minutter)
 
-Prøv hver af dem i test world'en, mens du læser.
+Prøv hver af dem i test worlden, mens du læser.
 
 - [ ] [Scenes](../../foundry/scenes.md): lav en scene, se den, og aktivér den derefter. Læg mærke til,
       at det er aktivering, der viser den for spillerne.
 - [ ] [Actors](../../foundry/actors.md): åbn et karakterark og et monsterark.
 - [ ] [Tokens](../../foundry/tokens.md): træk en actor ud på kortet.
-- [ ] [Journal-sider](../../foundry/journals.md): lav en side og se, hvordan du ville vise den for
+- [ ] [Journal entries](../../foundry/journals.md): lav en side og se, hvordan du ville vise den for
       spillerne.
-- [ ] [Chat og terninger](../../foundry/chat-and-dice.md): rul en terning i chatten, og derefter et
-      privat GM-roll.
+- [ ] [Chat and dice](../../foundry/chat-and-dice.md): rul en terning i chatten, og derefter et
+      privat terningslag, kun for GM'en.
 - [ ] [Combat](../../foundry/combat.md): sæt to tokens i en kamp, rul initiative og klik dig
       gennem et par ture.
 
-**Du er færdig, når** du har startet og afsluttet en kamp i test world'en.
+**Du er færdig, når** du har startet og afsluttet en kamp i test worlden.
 
 :::tip
 Går du i stå på en knap? Spørg din [GM coach](gm-coach.md) i Claude. Den svarer ud fra de samme sider.
@@ -68,7 +68,7 @@ Går du i stå på en knap? Spørg din [GM coach](gm-coach.md) i Claude. Den sva
 - [ ] Åbn dashboardet på din anden skærm og find **Recent Changes**. Hver ændring, Claude
       laver, står dér med en **Undo**.
 - [ ] Læs [Spørg Claude](asking-claude.md): hvordan en plan bliver vist for dig, og hvordan du godkender den.
-- [ ] Stil Claude et spørgsmål, der kun læser, for eksempel "Hvilke karakterer er der i world'en?"
+- [ ] Stil Claude et spørgsmål, der kun læser, for eksempel "Hvilke karakterer er der i worlden?"
 - [ ] Læs [Før hver session](before-session.md) én gang, så du ved, hvad checklisten er.
 
 **Du er færdig, når** du har spurgt Claude om noget og ved, hvor dens ændringer ville dukke op.

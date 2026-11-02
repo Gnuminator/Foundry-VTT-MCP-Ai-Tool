@@ -1,11 +1,11 @@
 ---
 source: gm/tv-table-viewer.md
 sourceHash: 50779223cd7d
-title: Tv'et ved bordet
+title: TV'et ved bordet
 description: Vis kortet på et tv ved en session, hvor I sidder i samme rum. Tv'et logger ind én gang som en spiller ved navn Table og bliver logget ind.
 ---
 
-# Tv'et ved bordet
+# TV'et ved bordet
 
 Til en session, hvor alle sidder i samme rum: et tv (eller en ekstra skærm) viser kortet for hele
 bordet. Det kommer ind i spillet som sin egen spiller ved navn **Table**. Den er ikke GM og ejer ingen
@@ -14,12 +14,12 @@ dashboardet eller dine noter er på den.
 
 Du sætter det op én gang. Derefter åbner tv'et på kortet af sig selv, også efter en genstart.
 
-**Hvad du skal bruge:** en Windows-pc ved tv'et med PowerShell 7 (`pwsh`), Edge eller Chrome og en kopi
-af værktøjets mappe (den indeholder filerne i `scripts\tv`). Bed tool-adminen sætte det op.
+**Hvad du skal bruge:** en Windows-PC ved tv'et med PowerShell 7 (`pwsh`), Edge eller Chrome og en kopi
+af værktøjets mappe (den indeholder filerne i `scripts\tv`). Bed værktøjets administrator sætte det op.
 
 ## Én gang: lav Table-spilleren
 
-1. Åbn Claude med **Admin**-tools slået til (**+** i chatfeltet, **Connectors**, slå **foundry-mcp-admin** til).
+1. Åbn Claude med **Admin**-værktøjerne slået til (**+** i chatfeltet, **Connectors**, slå **foundry-mcp-admin** til).
 2. Spørg: "Plan a Table user for the TV." Claude viser en plan: én ny spiller ved navn Table, ingen
    adgangskode.
 3. Læs den og bekræft den. Den står i **Recent Changes**, med en **Undo**, hvis du fortryder.
@@ -28,14 +28,14 @@ Hvis der allerede findes en bruger ved navn Table (en spiller eller en GM), elle
 brugerlisten, siger den det og planlægger ingenting. Table-spilleren er markeret som tv'et, så handout-kvitteringerne, spillertallet og sessionens fremmøde
 udelader den. (En Table-spiller lavet med en ældre version er ikke markeret: fortryd dens plan i Recent Changes og planlæg den igen, ellers bliver den ved med at blive talt med.)
 
-**Hvis kortet er mørkt på tv'et:** på en scene med token vision slået til ser en spiller kun det, som hendes
+**Hvis kortet er mørkt på tv'et:** på en scene med token vision slået til ser en spiller kun det, som spillerens
 egne karakterer kan se, og Table har ingen. Giv Table samme udsyn som partyet: bed Claude
-"Give Table Observer on the party characters." (Claude planlægger det med ownership-tool'et, du
+"Give Table Observer on the party characters." (Claude planlægger det med ownership-værktøjet, du
 bekræfter.) Tjek det én gang på dit rigtige kort før sessionen, med tv'et forbundet.
 
 ## Én gang: log tv'et ind
 
-Du skal bruge et tastatur på tv'ets computer, men kun til dette trin. Bed først tool-adminen om tv'ets
+Du skal bruge et tastatur på tv'ets computer, men kun til dette trin. Bed først værktøjets administrator om tv'ets
 e-mailadresse: koden, der beviser "det her er tv'et", bliver sendt dertil.
 
 1. På tv'ets computer åbner du PowerShell i værktøjets mappe og kører (brug spillets adresse):
@@ -73,7 +73,7 @@ adresse (`-Url https://host/foundry`). Scriptet leder så efter join-siden på
 Mens tv'et kører, åbner browseren en kontrolport, som kun denne computer kan nå. Alle,
 der er logget ind på denne Windows-konto, kan bruge den, så brug en tv-pc, som kun bordet bruger.
 
-E-mailkoden fra Cloudflare bliver først spurgt om igen, når Access-sessionen slutter (uger).
+E-mailkoden fra Cloudflare bliver først bedt om igen, når Access-sessionen slutter (uger).
 Når tv'et viser Cloudflares loginside, gør du "log tv'et ind" ovenfor en gang til.
 
 ## Under sessionen

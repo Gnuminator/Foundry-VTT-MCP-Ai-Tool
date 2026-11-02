@@ -46,7 +46,7 @@ Siden er bygget alene af det, spillere må se. Skjulte skabninger, sande navne, 
 fjendens HP, GM-noter og hemmeligheder når aldrig frem til den.
 
 **My character.** Dit eget karakterark på din telefon eller laptop, skrivebeskyttet og ajour under
-spillet. Din GM sender dig et privat link. Åbn det én gang, så husker siden det på den enhed
+spillet og altid opdateret. Din GM sender dig et privat link. Åbn det én gang, så husker siden det på den enhed
 (lav et bogmærke eller læg det på din startskærm). Hold linket for dig selv: alle, der har det, kan
 læse dit ark. Det viser kun de karakterer, som din Foundry-bruger ejer. Vælg en visning øverst:
 **At the table** (HP, AC, slots, conditions og ressourcer med et blik), **Paper 2024** eller
@@ -55,7 +55,7 @@ ark til at printe og skrive på, når bordet spiller på papir). Ligesom player 
 bag login med e-mailkode.
 
 **Handouts i Foundry.** Når GM'en viser en handout, kan du også åbne den side i Foundrys
-Journal-fane.
+Journal tab.
 
 ## Hvad værktøjet optager under spillet
 
@@ -77,8 +77,7 @@ den, der udløste den, når Foundry oplyser hvem. Den optager:
 
 GM'en bruger den til session notes og statistik (for eksempel skade givet og helbredelse modtaget
 pr. karakter). Play log bliver på den maskine, der kører værktøjet. De session notes og den
-statistik, der laves ud fra den, ligger i GM'ens Obsidian-noter. Intet af det gemmes i Foundry-
-world'en.
+statistik, der laves ud fra den, ligger i GM'ens Obsidian-noter. Intet af det gemmes i Foundry-worlden.
 
 ## Hvad der når en AI
 
@@ -94,13 +93,13 @@ world'en.
   når nogen skriver `/record start` i Discord. Botten kommer så ind i voice-kanalen og skriver en
   besked om det, og den stopper ved `/record stop`. Den optager ét lydspor pr. person, og kun mens
   din mikrofon sender lyd: når du er muted, bliver intet af dit optaget.
-  - Lyden går gennem Discord og bordets hjemmeserver (Orange Pi'en), som sletter sin kopi 7 dage
-    efter, at pc'en har kopieret den. Den gemmes på pc'en hos den spiller, der kører værktøjet.
-    At gøre den til tekst (speech to text) sker på den pc, ikke i skyen.
+  - Lyden går gennem Discord og bordets hjemmeserver (Orange Pi-serveren), som sletter sin kopi
+    7 dage efter, at PC'en har kopieret den. Den gemmes på PC'en hos den spiller, der kører
+    værktøjet. At gøre den til tekst (speech to text) sker på den PC, ikke i skyen.
   - Teksten går derefter til Claude, under Claude-kontoen hos den, der kører note-trinnet, for at
     skrive et ryddet transcript, noter pr. scene og et kort recap, på dansk og engelsk.
   - Noterne kommer derefter ind i en Foundry-journal, som kun GM'en kan åbne, og i GM'ens noter
-    (et Obsidian vault), som også når GM'ens egen pc. Recap'et til spillerne er et udkast, indtil
+    (et Obsidian vault), som også når GM'ens egen PC. Recappet til spillerne er et udkast, indtil
     GM'en har læst det og vist det: så dukker det op sammen med de andre handouts. Ting, GM'en
     siger, som kun er til GM'en, holdes ude af det.
 
@@ -108,9 +107,9 @@ world'en.
 
 Før den første optagede session skriver den spiller, der kører værktøjet, en besked i Discord, der
 siger præcis, hvad der optages, og hver spiller svarer ja eller nej skriftligt. Intet svar tæller
-som nej. Kort sagt: dit eget lydspor optages. Det går gennem Discord og Pi'en (slettet der 7 dage
-efter, at pc'en kopierer det) og gemmes på den spillers pc. Transcripts og noter kommer ind i
-GM'ens noter, som også når GM'ens pc. Optagelserne gemmes for at træne og teste bordets egne
+som nej. Kort sagt: dit eget lydspor optages. Det går gennem Discord og Pi-serveren (slettet der 7 dage
+efter, at PC'en kopierer det) og gemmes på den spillers PC. Transcripts og noter kommer ind i
+GM'ens noter, som også når GM'ens PC. Optagelserne gemmes for at træne og teste bordets egne
 tale-værktøjer, indtil du beder om, at din bliver slettet. Du kan sige nej: så bliver dit spor
 slettet efter hver session, før noget gøres til tekst, og noterne skrives uden dig. Du kan også
 skifte mening senere: dine spor bliver slettet, og transcripts og noter skrives igen uden dig.

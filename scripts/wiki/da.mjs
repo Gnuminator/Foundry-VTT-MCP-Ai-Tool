@@ -22,6 +22,7 @@ import { fileURLToPath } from 'node:url';
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const docs = path.join(repo, 'docs');
 export const SECTIONS = ['gm', 'player'];
+const EM_DASH = String.fromCharCode(0x2014);
 
 /** Hash of an English page: SHA-256 of the text with CRLF turned into LF, first 12 hex characters. */
 export function hashOf(text) {
@@ -83,7 +84,17 @@ export function checkTwins(root = docs) {
           `\`node scripts/wiki/da.mjs stamp ${page}\` (hash ${fm.sourceHash}, now ${want})`
       );
     }
-    if (twin.includes('—')) {
+    // YAML: a plain value with ": " or " #" breaks the front matter, the build says so only later.
+    const raw = /^---\r?\n([\s\S]*?)\r?\n---/.exec(twin)?.[1] ?? '';
+    for (const line of raw.split(/\r?\n/)) {
+      const kv = /^(title|description): +(?!['"])(.*)$/.exec(line);
+      if (kv && /(: | #)/.test(kv[2])) {
+        problems.push(
+          `docs/${twinOf(page)}: front matter ${kv[1]} needs quotes (it has ": " or " #")`
+        );
+      }
+    }
+    if (twin.includes(EM_DASH)) {
       problems.push(`docs/${twinOf(page)} has an em dash (public docs voice: none)`);
     }
   }

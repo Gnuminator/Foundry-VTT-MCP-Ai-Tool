@@ -24,19 +24,19 @@ minutter er nok til de fleste sessioner.
    scene, klar til at blive beskrevet.
 2. **Tre til fem scener, der måske sker.** Én linje hver: hvor, hvem, hvad der foregår. Nogle
    sker ikke; gem dem til senere.
-3. **Dem, de måske møder.** For hver: et navn, hvad de vil have, og én ting, der gør dem lette at huske
+3. **De personer, de måske møder.** For hver: et navn, hvad de vil have, og én ting, der gør dem lette at huske
    (en stemme, en vane, et udseende).
 4. **Steder.** Det næste eller de næste to steder, med scenen klar i Foundry (map, walls, lights).
 5. **Ting, de kan finde ud af.** Spor, rygter og hemmeligheder, skrevet som enkelte fakta. Del hver ud
    der, hvor den passer, ikke kun der, hvor bogen lægger den.
 6. **Kampe, der måske kommer.** Monstrene, deres stat blocks åbnet én gang i Foundry, og tokens
    klar. Et hurtigt blik på deres angreb og specielle træk sparer tid ved bordet.
-7. **Belønninger.** Skatte, genstande eller information, spillerne kan tjene i aften.
+7. **Belønninger.** Skat, items eller information, spillerne kan tjene i aften.
 
 Du kan springe over: at skrive dialog ud, at planlægge, hvad spillerne gør, og regler, du kan slå op,
 når de dukker op ("jeg afgør det sådan her nu og tjekker efter sessionen" er fint).
 
-På Foundry-siden er [Før hver session](before-session.md) det 15 minutters tjek, du tager før spillet.
+På Foundry-siden er [Før hver session](before-session.md) tjekket på 15 minutter, du tager før spillet.
 
 ## Tal forventninger igennem
 
@@ -46,10 +46,10 @@ før kampagnen starter sparer meget. Vælg de emner, der betyder noget for jeres
 - **Hvad alle bedst kan lide:** kampe, at tale med karakterer, at udforske, gåder, en stærk historie.
   De fleste kampagner har det hele; det her fortæller dig, hvor du skal bruge tiden.
 - **Tone:** hvor mørkt eller uhyggeligt spillet må blive. Aftal **lines** (ting, der aldrig sker
-  i spillet) og **veils** (ting, der sker, men uden for scenen). Alle må sige "lad os springe det her over"
+  i spillet) og **veils** (ting, der sker, men uden for billedet). Alle må sige "lad os springe det her over"
   når som helst, uden spørgsmål.
-- **Karakterers død:** kan det ske, og hvad så? (Se [Når en karakter dør](death-and-new-characters.md).)
-- **Ét selskab:** karaktererne rejser sammen og har en grund til det. Ingen kampe mellem spillernes
+- **Karakterdød:** kan det ske, og hvad så? (Se [Når en karakter dør](death-and-new-characters.md).)
+- **Ét party:** karaktererne rejser sammen og har en grund til det. Ingen kampe mellem spillernes
   karakterer, medmindre alle er enige.
 - **Regler:** hvilken bog, for eksempel 2024 Player's Handbook. GM'en træffer en afgørelse ved
   bordet og slår det op bagefter.
@@ -72,7 +72,7 @@ Alle ved bordet bruger den samme metode. 2024 Player's Handbook tilbyder tre:
 | ------------------ | ---------------------------------------------------------------- | ---------------------------------------------------------- |
 | **Standard array** | Alle får de samme seks tal: 15, 14, 13, 12, 10, 8.               | Retfærdigt og hurtigt. Ingen karakter er meget stærkere.   |
 | **Point buy**      | Hver spiller bruger 27 point på sine scores (hver fra 8 til 15). | Mere valgfrihed, stadig retfærdigt.                        |
-| **Rolling**        | Slå fire sekssidede terninger per score og drop den laveste.     | Overraskelser: nogle karakterer meget stærke, nogle svage. |
+| **Rolling**        | Slå fire sekssidede terninger pr. score og drop den laveste.     | Overraskelser: nogle karakterer meget stærke, nogle svage. |
 
 Spørg spillerne, hvad de synes, og beslut så. Sæt metoden i Actor Studio, før nogen åbner builderen
 ([Forbered session 0](prepare-session-0.md), trin 3). Vælger du rolling, så beslut også,
@@ -80,21 +80,21 @@ om alle slår, hvor de andre kan se det.
 
 ## En dagsorden til session 0, du kan ændre
 
-Session 0 er her online: Discord voice, Foundry i browseren. Tiderne er cirkatal; drop, flyt eller
+Session 0 er her online: Discord voice, Foundry i browseren. Tiderne er omtrentlige; drop, flyt eller
 forkort hvad som helst.
 
-| #   | Hvad                                                                                                                   | Ca.     |
-| --- | ---------------------------------------------------------------------------------------------------------------------- | ------- |
-| 1   | **Goddag og teknik-tjek.** Alle er i Discord voice og logget ind i Foundry ([Kom ind i spillet](../player/join.md)).   | 15 min  |
-| 2   | **Pitchen.** Hvilken slags kampagne det er, i få sætninger, uden spoilers.                                             | 10 min  |
-| 3   | **Snak om forventninger.** De emner ovenfor, der betyder noget for dig.                                                | 30 min  |
-| 4   | **Ability scores og muligheder.** Snakken ovenfor; sæt derefter metoden i Actor Studio, mens spillerne venter.         | 10 min  |
-| 5   | **Karakterer.** Spillerne bygger ([Lav din karakter](../player/make-a-character.md)); du tjekker hvert ark.            | 60 min  |
-| 6   | **Hvordan karaktererne kender hinanden.** Ét bånd per karakter til en anden, eller en grund til, at de rejser sammen.  | 15 min  |
-| 7   | **En intro-scene eller prolog (valgfrit).** Sagtens en halv session. Hvis tiden er knap, åbner den session 1 i stedet. | 60+ min |
-| 8   | **Afslutning.** Næste dato, og hvad spillerne skal læse inden da.                                                      | 5 min   |
+| #   | Hvad                                                                                                                         | Ca.     |
+| --- | ---------------------------------------------------------------------------------------------------------------------------- | ------- |
+| 1   | **Velkommen og teknik-tjek.** Alle er i Discord voice og logget ind i Foundry ([Kom ind i spillet](../player/join.md)).      | 15 min  |
+| 2   | **Pitchen.** Hvilken slags kampagne det er, i få sætninger, uden spoilers.                                                   | 10 min  |
+| 3   | **Snak om forventninger.** De emner ovenfor, der betyder noget for dig.                                                      | 30 min  |
+| 4   | **Ability scores og muligheder.** Snakken ovenfor; sæt derefter metoden i Actor Studio, mens spillerne venter.               | 10 min  |
+| 5   | **Karakterer.** Spillerne bygger ([Lav din karakter](../player/make-a-character.md)); du tjekker hvert ark.                  | 60 min  |
+| 6   | **Hvordan karaktererne kender hinanden.** Én forbindelse pr. karakter til en anden, eller en grund til, at de rejser sammen. | 15 min  |
+| 7   | **En intro-scene eller prolog (valgfrit).** Sagtens en halv session. Hvis tiden er knap, åbner den session 1 i stedet.       | 60+ min |
+| 8   | **Afslutning.** Næste dato, og hvad spillerne skal læse inden da.                                                            | 5 min   |
 
-Uden intro-scenen er det ca. 2,5 time; med den 3,5 til 4. Pauser hver time eller deromkring hjælper
+Uden intro-scenen er det ca. 2,5 timer; med den 3,5 til 4. Pauser hver time eller deromkring hjælper
 online.
 
 En besked til Discord et par dage før (ret ordene til dine egne):

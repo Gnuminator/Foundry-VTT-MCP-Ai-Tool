@@ -11,13 +11,13 @@ Her gennemgår du, hvordan du laver en **level-3 karakter** i Foundry, sådan so
 session 0: vores kampagne starter på level 3. Builderen laver altid en level-1 karakter, så du
 bygger den først (trin 1 til 9) og levler den derefter op to gange til level 3. Det er også her, du
 vælger din subclass (trin 10). Første gang tager det cirka en time. Du skal være logget ind først:
-se [Join spillet](join.md).
+se [Kom med i spillet](join.md).
 
 Vi bruger **Actor Studio**, en character builder inde i Foundry. Den stiller de samme spørgsmål som
 2024 Player's Handbook, i samme rækkefølge, og udfylder dit character sheet for dig. Du kan ikke
 ødelægge noget: går det galt, sletter GM'en karakteren, og du starter forfra.
 
-Tjekket på Foundry 14, D&D 5e system 6, Actor Studio 2.10.5 og 2024 Player's Handbook modulet
+Tjekket på Foundry 14, D&D 5e system 6, Actor Studio 2.10.5 og 2024 Player's Handbook-modulet
 2.2.0 (oktober 2026).
 
 ## Før du starter
@@ -121,7 +121,7 @@ Builderen gennemgår, hvad din species, background og class giver dig, ét trin 
 får: klik **Next**. Andre beder dig vælge. Efter **Complete** kan et trin vise et tomt panel i
 omkring 5 sekunder: vent på det næste.
 
-**Vælg alt, et trin beder om, før du klikker Next.** Knappen Next virker, selv når du ikke har valgt
+**Vælg alt, hvad et trin beder om, før du klikker Next.** Knappen Next virker, selv når du ikke har valgt
 noget, og så mangler din karakter bare det valg. Kig efter tekst som "Select 1 more Skill
 Proficiency": den skal være væk, før du klikker Next. **Previous** går et trin tilbage.
 
@@ -162,7 +162,7 @@ De trin, du kommer til at se, nogenlunde i denne rækkefølge:
 
   ![Foundrys compendium browser i Magic Initiate-trinnet: de fleste spells står én gang per bog (SRD 5.1, SRD 5.2, PHB, PHB 2024), med filtrene Cleric, Druid og Wizard låst til](../../images/guides/studio-spell-picker.png)
 
-- **Class:** hit points, saving throws, **skills at vælge** (de fleste classes vælger to), træning i
+- **Class:** hit points, saving throws, **skills du kan vælge** (de fleste classes vælger to), træning i
   våben og rustning og dine level-1 class features. Trinnene har overskriften "Level 1 -> 2", selvom
   du bygger en level-1 karakter først. Det er bare en mærkelig overskrift. Tag trinnene, som de
   kommer.
@@ -193,7 +193,7 @@ vælge, for eksempel "Cantrips: 0/3, Spells: 0/6".
 
 1. Klik **[+] Cantrips** for at åbne listen, og så på **+** til højre for hver cantrip, du vil have.
    **Spring cantrips over, du allerede har fået fra en feat** som Magic Initiate: listen tilbyder
-   dem stadig, og en dobbelt spilder et valg.
+   dem stadig, og en dublet spilder et valg.
 2. Gør det samme under **[+] Level 1**.
 3. Når begge tællere er fyldt, klik **Finalize Spells**.
 
@@ -211,8 +211,8 @@ Dit sheet er åbent og viser level 1. Vores kampagne starter på level 3, så du
 1. En gylden knap **Level Up** dukker op øverst på dit sheet. **Den vises kun, når GM'en har slået
    Milestone Levelling til, eller har givet dig nok experience points (XP).** Er der ingen knap,
    så spørg GM'en.
-2. Klik på den. Vinduet **Level Up Existing Class** åbner. Klik på **+** yderst til højre i din
-   classs række (selve rækken gør ingenting).
+2. Klik på den. Vinduet **Level Up Existing Class** åbner. Klik på **+** yderst til højre i rækken
+   for din class (selve rækken gør ingenting).
 3. **Når du går fra level 2 til 3, vælger du også din subclass.** En liste **Choose Subclass**
    dukker op under class-rækken. Klik på den (åbner den ikke, så klik igen), vælg en og læs dens
    beskrivelse. Baren nederst når 100 %, når du har valgt.
@@ -223,13 +223,13 @@ Dit sheet er åbent og viser level 1. Vores kampagne starter på level 3, så du
    - **Informationstrin** (nye class features, **Max Prepared Spells**, trinnet **Subclass**):
      klik **Next**.
 5. Klik **Complete** på det sidste trin. **På level 3 åbner der så et andet vindue med din
-   subclasss features (for eksempel "Champion • Level 2 -> 3, Step 1 of 1"). Klik Complete i det
+   subclassens features (for eksempel "Champion • Level 2 -> 3, Step 1 of 1"). Klik Complete i det
    også.** Springer du det over, viser sheetet det nye level, men ingen subclass og ingen subclass
    features.
 6. Gør det to gange: først level 1 til 2 (ingen subclass da, så gå direkte til **Add Character
    Level**), derefter level 2 til 3.
 
-Et level-up for en caster hæver, hvor mange spells du må **prepare**, men det spørger **ikke**, hvilke
+Et level-up for en caster hæver, hvor mange spells du må **prepare**, men det spørger **ikke** om, hvilke
 nye spells du lærer (en wizards to nye spellbook-spells, for eksempel). Åbn fanen **Spells**
 bagefter og spørg GM'en eller din D&D-hjælper, hvilke du skal tilføje.
 
@@ -237,8 +237,8 @@ bagefter og spørg GM'en eller din D&D-hjælper, hvilke du skal tilføje.
 
 Gå dit sheet igennem, før du kalder det færdigt. Spørg GM'en, hvis noget ser forkert ud.
 
-- [ ] Leveln er 3, og class, subclass, species og background er rigtige.
-- [ ] Hit points: din classs hit die på det højeste på level 1, plus gennemsnittet (eller dit slag)
+- [ ] Levelet er 3, og class, subclass, species og background er rigtige.
+- [ ] Hit points: den højeste værdi på din classens hit die på level 1, plus gennemsnittet (eller dit slag)
       for level 2 og 3, plus din Constitution modifier for hvert af de tre levels (en fighter
       med Constitution 14, der tog gennemsnittet, har 12 + 8 + 8 = 28).
 - [ ] Proficiency bonus er +2 (den bliver ved med at være +2 til level 5).
@@ -255,10 +255,10 @@ Gå dit sheet igennem, før du kalder det færdigt. Spørg GM'en, hvis noget ser
 - [ ] Udstyr og guld ligger i fanen **Inventory**. **Wizards:** startsættet har ingen
       spellbook. Bed GM'en om at tilføje en.
 
-**Prepare dine spells.** Classes, der prepare'r spells (for eksempel wizard, cleric, druid), starter
-uden nogen prepared. Under fanen **Spells** står der på kortet øverst, hvor mange du må prepare. Klik
-på den lille knap yderst til højre i en spells række for at prepare den; hold musen over den for at se,
-om en spell er prepared ("Prepared" eller "Not Prepared").
+**Forbered dine spells.** Classes, der forbereder spells (for eksempel wizard, cleric, druid), starter
+uden nogen forberedte. Under fanen **Spells** står der på kortet øverst, hvor mange du må forberede. Klik
+på den lille knap yderst til højre i rækken for en spell for at forberede den; hold musen over den for
+at se, om en spell er forberedt ("Prepared" eller "Not Prepared").
 
 ![Fanen Spells på character sheetet, musen på en spells prepare-knap, der viser Prepared](../../images/guides/sheet-prepare-spell.png)
 
@@ -270,7 +270,7 @@ Det er dit job at vide, hvad din karakter kan, så spillet ikke går i stå, men
 
 ## 11. Gør den til din karakter
 
-Foundry skal vide, hvilken karakter der er din, så den bruger den til dine rul og tokens.
+Foundry skal vide, hvilken karakter der er din, så den bruger den til dine rolls og tokens.
 
 1. I listen **Players** nederst til venstre højreklikker du på dit eget navn og vælger **User
    Configuration**.
@@ -311,4 +311,4 @@ GM'en det som dit portræt og dit token.
 - Hvordan din karakter kender de andre, eller hvorfor de rejser sammen.
 - Alt om verdenen, som din karakter ville vide.
 
-Hvad værktøjet gemmer, mens du spiller, og hvordan du får det fjernet: [spillerguide](README.md).
+Hvad værktøjet optager, mens du spiller, og hvordan du får det fjernet: [spillerguide](README.md).

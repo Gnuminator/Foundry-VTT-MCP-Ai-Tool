@@ -2,7 +2,7 @@
 source: gm/prepare-session-0.md
 sourceHash: c70aa9f2351f
 title: Forbered session 0
-description: Opsætningen af verdenen, før spillerne laver deres karakterer til session 0 (på vores server mest et tjek), en prøvekørsel som spiller og hvad du gør på aftenen.
+description: Opsætningen af worlden, før spillerne laver deres karakterer til session 0 (på vores server mest et tjek), en prøvekørsel som spiller og hvad du gør på aftenen.
 ---
 
 # Forbered session 0
@@ -21,7 +21,7 @@ spillerne må oprette karakterer, Actor Studio giver startudstyr, og udstyret ko
 Player's Handbook. Så trin 2 er et tjek, og det er udstyrsrækken i trin 3 også.
 **Alt andet i trin 3 er dit**: de andre rækker under Compendium Sources, Enable Spell Selection
 og metoden til ability scores. Scriptet rører dem ikke, og indtil du har sat dem, kan en spiller se
-den ældre gratis artsliste og intet Spells-trin (se efter, hvad verdenen viser). Sammenlign hvert vindue med billedet og
+den ældre gratis species-liste og intet Spells-trin (se efter, hvad worlden viser). Sammenlign hvert vindue med billedet og
 tabellen, og ret det, der er anderledes. Trin 1 og 4 er også dine.
 
 Det hele er almindelige Foundry-indstillinger, du sætter som Gamemaster i din browser. Intet her kræver
@@ -68,7 +68,7 @@ Settings tab, **Game Settings**, kategorien **[Aardvark Games] Actor Studio (AI 
 
 1. **Compendium Sources**, **Select sources**. Vinduet åbner med **Show Selected Only**
    afkrydset, så det kun viser de packs, der allerede bruges: fjern fluebenet for at se dem alle. Sæt kun flueben ved
-   pakkerne fra Player's Handbook-modulet (deres navne ender på `[dnd-players-handbook]`):
+   packsene fra Player's Handbook-modulet (deres navne ender på `[dnd-players-handbook]`):
 
    | Række                                         | Sæt flueben ved   | Gjort på vores server?  |
    | --------------------------------------------- | ----------------- | ----------------------- |
@@ -89,9 +89,9 @@ Settings tab, **Game Settings**, kategorien **[Aardvark Games] Actor Studio (AI 
    den ene. Hvis I ikke har haft snakken endnu ([Snakken om ability scores](prep-and-expectations.md#snakken-om-ability-scores)),
    kan du ændre det på aftenen, før
    spillerne åbner builderen. Manual input lader en spiller skrive et vilkårligt tal; lad den være slået fra, medmindre
-   du vil det.
+   du vil have det.
 3. **Configure equipment & gold**: **Enable Equipment Selection** er afkrydset.
-4. **Configure spells**: sæt flueben ved **Enable Spell Selection**. Adminens script sætter ikke denne, så
+4. **Configure spells**: sæt flueben ved **Enable Spell Selection**. Adminens script sætter ikke den, så
    den kan være slået fra, indtil du sætter flueben. Er den slået fra, får en spellcaster måske ingen **Spells**-fane og skal tilføje
    cantrips og spells i hånden på det færdige ark, og det er let at gøre forkert. Er den slået til,
    spørger builderen efter dem og viser, hvor mange der er tilladt.
@@ -104,11 +104,11 @@ Settings tab, **Game Settings**, kategorien **[Aardvark Games] Actor Studio (AI 
 5. **Configure progression**, under **Leveling Options**: sæt flueben ved **Enable Level Up** og **Milestone
    Levelling**. **Uden Milestone Levelling ser en spiller ingen gylden Level Up-knap på sit
    ark, før karakteren har 300 XP (til level 2) og derefter 900 XP (til level 3).** Når den er slået til,
-   er knappen der altid, og spillerne kan stige i level uden XP, og det vil vi til
+   er knappen der altid, og spillerne kan stige i level uden XP, og det vil vi ved
    session 0. (Alternativet er, at du selv giver hver karakter 900 XP.) Efter session 0 kan du
    fjerne fluebenet igen, hvis du hellere vil dele levels ud efter XP.
 
-Når det hele er sat, er der et hurtigt tegn på, at packs'ene er rigtige: artslisten viser kun 2024-arterne,
+Når det hele er sat, er der et hurtigt tegn på, at packsene er rigtige: species-listen viser kun 2024-species,
 en Cleric får en **Spells**-fane, og en ny karakters ark har en **Level Up**-knap.
 Trin 5 er den fulde test.
 
@@ -117,13 +117,13 @@ Lad usage tracking være slået fra: vores kopi af Actor Studio har den slået f
 Actor Studio læser disse indstillinger, når siden indlæses. Ændrer du en, mens spillerne har
 spillet åbent, så bed dem genindlæse (F5), før de åbner builderen.
 
-Vores bord holder sig til 2024 Player's Handbook. Hvis du nogensinde tillader mere (for eksempel ældre arter
+Vores bord holder sig til 2024 Player's Handbook. Hvis du nogensinde tillader mere (for eksempel ældre species
 i vores eget indholdsmodul), så sæt flueben ved de packs også og sig det til spillerne.
 
 ## 4. Giv tilmeldingssiden kampagnens udseende (valgfrit)
 
 Tilmeldingssiden er det første, dine spillere ser, når de åbner linket til spillet. Ét klik giver den
-The Veil: slottet i tågen som baggrundsbillede og en lampelysende linje over din verdensbeskrivelse.
+The Veil: slottet i tågen som baggrundsbillede og en linje i lampelys over din world-beskrivelse.
 
 1. Settings tab, **Game Settings**, kategorien **Foundry AI Tool**, knappen **Choose join page look**.
 2. Behold eller ret **The lamplit line** (én kort linje).
@@ -154,7 +154,7 @@ forventninger](prep-and-expectations.md#en-dagsorden-til-session-0-du-kan-ændre
   svar: hvilken metode til ability scores, hvilke muligheder der er tilladt, og alt om kampagnen.
 - Spillerne bygger samtidig; det tager dem ca. en time, level ups medregnet. Bliv i voice til spørgsmål.
 - Når en spiller er færdig, åbner du karakterens ark og går tjeklisten i trin 10 igennem
-  sammen med spilleren. Det mest almindelige: et valg, der blev sprunget over med **Next** (en manglende skill eller spell). Ret det
+  sammen med spilleren. Den hyppigste fejl: et valg, der blev sprunget over med **Next** (en manglende skill eller spell). Ret det
   i hånden, eller slet karakteren og lad dem lave den om.
 - **Wizards:** Player's Handbook-modulets startudstyr til wizards har ingen spellbook. Åbn
   wizardens ark og fanen **Inventory**. I fanen **Compendium Packs** i sidebaren klikker du på
@@ -168,4 +168,4 @@ forventninger](prep-and-expectations.md#en-dagsorden-til-session-0-du-kan-ændre
 ## Bagefter
 
 Du kan fjerne fluebenet ved **Create Actors** for spillerne igen; ingen har brug for det, før en karakter dør. Når
-en gør det, se [Når en karakter dør](death-and-new-characters.md).
+det sker, se [Når en karakter dør](death-and-new-characters.md).

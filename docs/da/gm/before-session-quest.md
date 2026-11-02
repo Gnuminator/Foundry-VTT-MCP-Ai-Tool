@@ -2,7 +2,7 @@
 source: gm/before-session-quest.md
 sourceHash: cc94433bdcff
 title: 'Quest: før en session'
-description: De 15 minutter før spil som en kort quest, fire trin med tider, der slutter, når session loggen kører.
+description: De 15 minutter før spil som en kort quest, fire trin med tider, der slutter, når sessionsloggen kører.
 ---
 
 # Quest: før en session
@@ -18,7 +18,7 @@ Der er intet at starte på en PC og ingen terminal at åbne: dashboardet kører 
 Du skal bruge spillets adresse og dashboardets adresse fra værktøjets administrator.
 :::
 
-**Fremdrift:** fire trin, der slutter med, at session loggen kører.
+**Fremdrift:** fire trin, der slutter med, at sessionsloggen kører.
 
 ## Trin 1 af 4: Start det hele (4 minutter)
 
@@ -28,7 +28,7 @@ Du skal bruge spillets adresse og dashboardets adresse fra værktøjets administ
 - [ ] Se på headeren: **✈ Pre-flight** siger "ready" eller "N to fix", og der vises intet
       "Connection lost"-mærke.
 
-**Du er færdig, når** headeren ser rolig ud. Hvis den ikke gør, så se [Fejlfinding](troubleshooting.md).
+**Du er færdig, når** headeren ser rolig ud. Hvis den ikke gør det, så se [Fejlfinding](troubleshooting.md).
 
 ## Trin 2 af 4: Pre-flight og kontakter (3 minutter)
 

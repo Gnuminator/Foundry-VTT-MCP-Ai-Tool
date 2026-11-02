@@ -33,7 +33,7 @@ description: Guides til en GM, der kører et spil med Foundry AI Tool, skrevet t
 | [Kogebog](cookbook.md)                                           | Færdige forespørgsler og klik før, under og efter en session.                                               |
 | [Din Obsidian-vault](obsidian.md)                                | Hvad der ligger i din vault, hvor din forberedelse havner, og hvordan du forbinder pluginet til serveren.   |
 | [Forberedelse og forventninger](prep-and-expectations.md)        | Hvad du skal forberede, forventningssnakken, ability scores og en dagsorden til session 0.                  |
-| [Forbered session 0](prepare-session-0.md)                       | Gør verdenen klar, så spillerne kan lave deres karakterer, og kør aftenen.                                  |
+| [Forbered session 0](prepare-session-0.md)                       | Gør worlden klar, så spillerne kan lave deres karakterer, og kør aftenen.                                   |
 | [Quest: forbered session 0](prepare-session-0-quest.md)          | Opsætning til session 0 som fem trin, du kan sætte flueben ved.                                             |
 | [Før hver session](before-session.md)                            | En tjekliste til de 15 minutter før spil.                                                                   |
 | [Quest: før en session](before-session-quest.md)                 | De 15 minutter før spil som fire trin.                                                                      |
@@ -46,5 +46,5 @@ description: Guides til en GM, der kører et spil med Foundry AI Tool, skrevet t
 | [Forbind Claude Desktop til serveren](connect-claude-desktop.md) | Installer den lille Windows-klient og tunnelnøglen, så Claude Desktop når serveren.                         |
 | [Claude Free eller Pro](claude-plans.md)                         | Hvad der virker på den gratis Claude-plan, dens grænser, og hvad Pro giver dig.                             |
 
-Hvad spillerne ser, og hvad værktøjet optegner om dem: [spillerguiden](../player/README.md) og
+Hvad spillerne ser, og hvad værktøjet registrerer om dem: [spillerguiden](../player/README.md) og
 [spillerens kogebog](../player/cookbook.md).

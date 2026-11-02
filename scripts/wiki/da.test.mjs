@@ -42,7 +42,10 @@ test('a missing twin, a stale twin, an em dash and an orphan twin are each repor
   const root = tree({
     'gm/a.md': EN,
     'player/join.md': EN,
-    'da/player/join.md': twin('000000000000').replace('Hej.', 'Hej — hej.'),
+    'da/player/join.md': twin('000000000000').replace(
+      'Hej.',
+      `Hej ${String.fromCharCode(0x2014)} hej.`
+    ),
     'da/player/old.md': twin(hashOf(EN)),
   });
   const problems = checkTwins(root);
@@ -51,6 +54,17 @@ test('a missing twin, a stale twin, an em dash and an orphan twin are each repor
   assert.ok(problems.some(p => p.includes('older than docs/player/join.md')));
   assert.ok(problems.some(p => p.includes('em dash')));
   assert.ok(problems.some(p => p.includes('docs/da/player/old.md has no English page')));
+  rmSync(root, { recursive: true });
+});
+
+test('an unquoted front matter value with a colon is reported', () => {
+  const bad = twin(hashOf(EN)).replace(
+    'description: Sådan kommer du ind.',
+    'description: Trin: kom ind.'
+  );
+  const root = tree({ 'player/join.md': EN, 'da/player/join.md': bad });
+  assert.equal(checkTwins(root).length, 1);
+  assert.match(checkTwins(root)[0], /description needs quotes/);
   rmSync(root, { recursive: true });
 });
 

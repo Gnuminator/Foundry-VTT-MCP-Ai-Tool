@@ -19,11 +19,11 @@ som fire trin med tider.
 ## Start det hele
 
 - [ ] Start **Claude Desktop**. Den forbinder til bridgen på Pi'en.
-- [ ] Åbn Foundry i din browser, start verdenen og log ind som din GM-bruger.
+- [ ] Åbn Foundry i din browser, start worlden og log ind som din GM-bruger.
 - [ ] Åbn dashboardets adresse på din anden skærm. Cloudflare kan først bede om en kode på mail,
       ligesom når du går ind i spillet.
 - [ ] Se på dashboardets header: knappen **✈ Pre-flight** skal sige "ready" eller "N to fix", og der
-      må ikke vises noget "Connection lost"-mærke. Hvis der gør, eller hvis Pre-flights første linje
+      må ikke vises noget "Connection lost"-mærke. Hvis det vises, eller hvis Pre-flights første linje
       siger, at Foundry ikke er forbundet, så se [Fejlfinding](troubleshooting.md).
 
 ## Kør pre-flight-tjekket
@@ -32,7 +32,7 @@ som fire trin med tider.
       på siden). Ret alt, der er markeret med ✗, og se på hver **!**. Det meste af resten af denne
       side står også i Pre-flight-panelets liste "Check by hand" (ikke tjekket af GM-vinduerne).
 
-## Slå til, det aftenen kræver
+## Slå til, hvad aftenen kræver
 
 - [ ] Klik på **Turn on for tonight** i Pre-flight-panelet. Ét klik slår "Allow Write Operations",
       "AI Tool: Handouts (writes)", "AI Tool: Live play (writes)", "AI Tool: Party (writes)",
@@ -43,7 +43,7 @@ som fire trin med tider.
 - [ ] Tjek, at [GM-vinduerne](gm-windows.md) er slået til: åbn fanen **Settings** i Foundry, **Game
       Settings**, kategorien **Foundry AI Tool**, og sæt flueben ved **AI Tool: GM windows**, hvis
       det ikke er sat, og klik så på **Save Changes**. Knapperne Combat, Party, Session, Scene og Loot
-      vises så i AI Tool-gruppen i scene controls. En verden, der blev gemt tidligere, kan have den
+      vises så i AI Tool-gruppen i scene controls. En world, der blev gemt tidligere, kan have den
       slået fra.
 
 - [ ] Én gang, før session 1 (kun med modulet Dice So Nice): vælg bordets terninger, **AI
@@ -60,13 +60,13 @@ som fire trin med tider.
       sæt **Display Name** til **Hovered by Anyone**, og gem. Tokens, der allerede ligger på
       kortet, beholder deres gamle indstilling: højreklik på hver enkelt, klik på tandhjulet
       (tooltip **Open Configuration**), og sæt den dér også.
-- [ ] Skjul tokens, spillerne ikke skal vide om endnu: højreklik på token'en, klik på øjeknappen
+- [ ] Skjul tokens, spillerne ikke skal vide om endnu: højreklik på tokenet, klik på øjeknappen
       (tooltip **Hide**).
 - [ ] Åbn spillersiden i en ny fane (dashboardets adresse med `/player` til sidst), og tjek, at
       combat-rækkefølgen, feedet og handouts ikke viser noget, du vil holde hemmeligt.
 - [ ] Handouts: tjek, at hver side i din handouts-journal står på **None**, medmindre du har
       vist den (åbn journalen, højreklik på en side, **Configure Ownership**). Trinene står i
-      [Revealing a handout](dashboard.md#afslør-et-handout).
+      [Afslør et handout](dashboard.md#afslør-et-handout).
 - [ ] I Tarokka-skuffen (🃏 **Tarokka**, under **Advanced ▾**): sørg for, at **Show cards** ikke er sat flueben ved.
 
 ## Forbered

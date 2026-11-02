@@ -13,7 +13,7 @@ Korte regler. Hver har sin begrundelse på linjen under.
 
 - **Vis aldrig dashboardet, Claude Desktop eller Obsidian på en skærm, spillerne kan se, og
   del aldrig de vinduer i Discord eller et videoopkald.**
-  De viser rigtige navne, præcis HP, private rolls, GM-noter og Tarokka-kortene.
+  De viser rigtige navne, præcis HP, private slag, GM-noter og Tarokka-kortene.
 - **Giv aldrig spillerne dashboardets GM-adresse eller GM-token.**
   GM-siden kan ændre spillet og viser alle hemmeligheder; spillerne får kun `/player`.
 - **Send aldrig en whisper, der nævner en hemmelighed.**
@@ -21,13 +21,13 @@ Korte regler. Hver har sin begrundelse på linjen under.
 - **Anvend aldrig en plan, du ikke har læst.**
   Listen over ændringer i confirm-vinduet er din eneste forhåndsvisning.
 - **Slå aldrig "Allow Non-GM Users to Run the Bridge" til.**
-  Modulets forbindelse til bridgen er kun bygget til en GM's browser; det her lader en spillers
-  browser lave den.
+  Modulets forbindelse til bridgen er kun bygget til GM'ens browser; det her lader en spillers
+  browser oprette den.
 - **Omdøb eller flyt aldrig modulets mappe `foundry-mcp-bridge`.**
   Foundry indlæser kun et modul fra en mappe, der er opkaldt efter dets id.
 - **Slet aldrig bridge-vaultens mappe.**
   Den holder Tarokka-læsningen, de afslørede handouts, ændringshistorikken og loggene, og
-  Foundrys backup af verdenen tager den ikke med.
+  Foundrys backup af worlden tager den ikke med.
 - **Åbn aldrig dashboardet mod dit netværk eller internettet uden et GM-token.**
   Alle, der når GM-siden, kan ændre dit spil.
 - **Kør aldrig en anden bridge ved siden af den, der allerede kører.**
@@ -36,7 +36,7 @@ Korte regler. Hver har sin begrundelse på linjen under.
 ## Gør kun det her hvis
 
 - **Klik kun på Start session, når spillet begynder, og på End session, når det slutter.**
-  Start session er den eneste kontakt til live play: den slår GM Actions og alle feature-kontakter
+  Start session er den eneste knap til live play: den slår GM Actions og alle feature-knapper
   ("AI Tool: … (writes)") til, Tarokka og Party med. Med live play slået fra kan et fejlklik ikke ændre
   noget. End session (eller Pre-flights "Turn them off again") slår det hele fra igen.
 - **Sæt kun flueben ved "Show cards" i Tarokka-skuffen, hvis ingen andre kan se din skærm.** (Skuffen
@@ -54,15 +54,15 @@ Korte regler. Hver har sin begrundelse på linjen under.
   Foundrys navigationslinje kan vise spillerne det rigtige navn; et Navigation Name erstatter det.
 - **Ret kun en note, værktøjet har lavet, i Obsidian, hvis du vil have den frosset.**
   Værktøjet overskriver aldrig en note, du har rettet, så den holder op med at blive opdateret (den står i
-  `AI Tool/_status.md`, eller `AI Tool/Foundry/_status.md` for noter om PCs, NPCs, scenes og
+  `AI Tool/_status.md`, eller `AI Tool/Foundry/_status.md` for noter om PC'er, NPC'er, scenes og
   journals).
 - **Slå kun "Allow Write Operations" fra, hvis du vil have, at værktøjet ikke ændrer noget.**
   Det stopper alle ændringer fra Claude og fra dashboardet, chatbeskeder og Undo med;
   læsning virker stadig.
 - **Vælg kun "Always allow" til de værktøjer, der ændrer spillet, hvis du er tryg ved ikke at blive spurgt
   af Claude Desktop.** Ændringer gennem planen bliver stadig bekræftet og kan fortrydes; direkte
-  handlinger (rolls, nye NPCs, journals, chatbeskeder) bliver ikke. Sæt **Write/delete tools** til
+  handlinger (slag, nye NPC'er, journals, chatbeskeder) bliver ikke. Sæt **Write/delete tools** til
   **Needs approval** for at blive spurgt hver gang.
 - **Sæt ikke en Anthropic API key på dashboardet, medmindre du accepterer prisen.**
-  Det er den betalte API, afregnet per brug, og den sender spilbegivenheder til Anthropic automatisk. Den
+  Det er den betalte API, afregnet pr. brug, og den sender begivenheder fra spillet til Anthropic automatisk. Den
   normale opsætning har ingen nøgle.

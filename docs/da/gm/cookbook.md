@@ -13,7 +13,7 @@ citationstegn og skift navnene ud med dine egne.
 
 Før og efter sessionen vil du have **core** og **prep** tændt i Claude Desktop-chatten; ved bordet
 **core** og **play** (se
-[Asking Claude](asking-claude.md#tool-sets-hvilke-kontakter-du-skal-tænde)). En opskrift, der kræver et
+[Spørg Claude](asking-claude.md#tool-sets-hvilke-kontakter-du-skal-tænde)). En opskrift, der kræver et
 andet set, siger det.
 
 ## Fire vaner der gør hver forespørgsel bedre
@@ -23,7 +23,7 @@ andet set, siger det.
 2. **Sig, hvad du vil have tilbage.** "En liste med tre", "ét afsnit, jeg kan læse højt", "en tabel
    med HP og AC".
 3. **Bed om en plan før ændringer.** "Vis mig planen først og vent på mit OK." Guarded changes venter
-   altid; det her får de direkte til at vente også.
+   altid; det får også de direkte til at vente.
 4. **Sig, hvilke bøger der gælder for regler.** "Brug kun bøgerne i mine Foundry-compendiums, og
    fortæl mig, hvor du fandt det."
 
@@ -47,12 +47,12 @@ andet set, siger det.
   "location-prep", "quest-prep" og så videre). For at knytte den til noget i Foundry skal du sætte
   "fvtt_uuid" til dens UUID: pas-ikonet i arkets titellinje kopierer den. Et indsat link virker også,
   og det samme gør en liste af UUID'er til en note om flere ting. En note lavet ud fra ét goblin-token
-  dækker alle goblin-tokens. UUID'er fra et compendium passer ikke: kopiér den fra actoren i din
+  dækker alle goblin-tokens. UUID'er fra et compendium passer ikke: kopiér UUID'en fra actoren i din
   world. "Nyeste" session-plan betyder den seneste "date"-egenskab (ellers den senest gemte fil), så en
   plan dateret to sessioner frem vinder over næste uges. Sæt "ai_context" til false for at holde en
   note væk fra Claude. Claude ser omkring 12 linjer pr. note (egenskaberne først), så læg hovedpunkterne
   øverst. Den nemme måde: **New prep note for this** på NPC-, scene- eller quest-noten sætter alt det
-  her for dig (se [Your Obsidian vault](obsidian.md), "Make a prep note").
+  her for dig (se [Din Obsidian-vault](obsidian.md), "Make a prep note").
 
 ### Tjek at alt er klar
 
@@ -77,8 +77,8 @@ andet set, siger det.
   med navn, CR og hvorfor den passer."
 - **Hvad der sker:** Claude søger i dine compendiums (`search-compendium`, `list-creatures-by-criteria`
   i **build**-settet).
-- **Tip:** for at lægge ét i world'en skal du tænde **build** og spørge: "Tilføj en Ghoul fra
-  compendiet til world'en. Vis mig det først."
+- **Tip:** for at lægge ét i worlden skal du tænde **build** og spørge: "Tilføj en Ghoul fra
+  compendiet til worlden. Vis mig det først."
 
 ### Et hurtigt NPC-kort
 
@@ -150,7 +150,7 @@ andet set, siger det.
 
 ### Start og slut et slagsmål
 
-- **I Foundry:** vælg de tokens, der kæmper (marker dem på kortet, eller træk en boks rundt om dem),
+- **I Foundry:** vælg de tokens, der kæmper (vælg dem på kortet, eller træk en boks rundt om dem),
   højreklik på ét og klik på de krydsede sværd (**Enter Combat**) i dets token-menu. Det tilføjer alle
   de valgte tokens til en ny combat. Åbn fanen **Combat Encounters** og klik **Roll All** (eller
   **Roll NPCs**) for initiative, så **Start Combat**. Når slagsmålet er slut, klik **End Combat**
@@ -167,7 +167,7 @@ andet set, siger det.
 
 - **Klik:** **👑 Boss prompts** i combat trackerens øverste linje for at tænde den (den vises, når en
   creature med legendary actions eller en lair er med i slagsmålet, og starter slukket).
-- **Hvad der sker:** pips for legendary actions og resistances, en påmindelse, når lair'en handler, og
+- **Hvad der sker:** pips for legendary actions og resistances, en påmindelse, når lairen handler, og
   et **R**-mærke pr. creature for dens reaction i denne round.
 - **Tip:** sæt hak ved "in lair" på creaturens sheet i Foundry, så lair-påmindelsen og den ekstra
   legendary-brug tæller med.
@@ -221,13 +221,13 @@ Det kræver, at **play**-settet er tændt.
 - **Hvad der sker:** karakteren får status **Dead**. Værktøjet følger 0 HP og death saves, men
   bestemmer aldrig, at nogen er død; det er dit valg.
 - **Tip:** behold actoren; slet den aldrig. Resten (Observer-adgang til spilleren, dødslog, en ny
-  karakter) står på [When a character dies](death-and-new-characters.md).
+  karakter) står på [Når en karakter dør](death-and-new-characters.md).
 
 ### Optag sessionen i Discord
 
 - **Skriv** (eller bed den, der kører værktøjet, om at skrive) i Discords tekstkanal: `/record start`,
   når spillet begynder, `/record stop`, når det slutter.
-- **Hvad der sker:** optage-botten optager hver taler. Foreløbig starter bygherren botten før
+- **Hvad der sker:** optagelsesbotten optager hver taler. Foreløbig starter udvikleren botten før
   sessionen.
 - **Tip:** fortæl spillerne i starten, at sessionen bliver optaget.
 
@@ -256,9 +256,9 @@ Det kræver, at **play**-settet er tændt.
 ### Session notes og spillerrecappet
 
 - **Gør:** ingenting. Efter `/record stop` bliver optagelsen lavet om til tekst på bordets PC, og
-  Claude skriver noterne. Foreløbig starter bygherren det; fra den første kampagnesession kører det af
-  sig selv hver time. Hvis det ikke kørte, så bed bygherren køre det.
-- **Hvad der sker:** i sessionens mappe, under `notes`, på dansk og engelsk: den rensede transcript,
+  Claude skriver noterne. Foreløbig starter udvikleren det; fra den første kampagnesession kører det af
+  sig selv hver time. Hvis det ikke kørte, så bed udvikleren køre det.
+- **Hvad der sker:** i sessionens mappe, under `notes`, på dansk og engelsk: det rensede transcript,
   noter pr. scene (hvad der skete, NPC'er, loot, åbne tråde, en "GM only"-del), et resumé til dig og et
   udkast til recap til spillerne. Med kontakten "AI Tool: Session notes (writes)" tændt går de så ind i
   Foundry af sig selv: en journal kun til GM'en i mappen "Session notes" med siderne Recap, GM summary
@@ -277,4 +277,4 @@ Det kræver, at **play**-settet er tændt.
 - **Claude vælger det forkerte token:** nævn det præcist ("Wolf 2") eller vælg det i tool runneren.
 - **En plan bliver afvist:** dens funktionskontakt er slukket, planen er mere end 15 minutter gammel,
   eller tingen er ændret i Foundry siden. Bed om en ny plan.
-- **Alt andet:** [Troubleshooting](troubleshooting.md).
+- **Alt andet:** [Fejlfinding](troubleshooting.md).

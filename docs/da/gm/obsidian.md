@@ -13,13 +13,13 @@ og bogteksten, så den bliver på din pc. Spillerne får deres egne vaults uden 
 
 ## Hvad der er i den
 
-- **Home:** din startside til kampagnen, `Home.md` i world'ens mappe. Den er sorteret efter, hvad
-  du laver (før, under og efter en session) med links og levende tabeller til NPC'er, scener,
+- **Home:** din startside til kampagnen, `Home.md` i worldens mappe. Den er sorteret efter, hvad
+  du laver (før, under og efter en session) med links og levende tabeller til NPC'er, scenes,
   quests, story items og session notes. Værktøjet laver den én gang og omskriver den aldrig, efter
   du har redigeret den. Knappen 📓 ved siden af Start session i dashboardet åbner den.
-- **AI Tool-mappen:** noter, værktøjet skriver. Karakterer, NPC'er, scener, journals, quests,
+- **AI Tool-mappen:** noter, værktøjet skriver. Karakterer, NPC'er, scenes, journals, quests,
   Library (monstre, spells, regler), session notes og statistik, og under `Everyone` én note pr.
-  dag med hver ændring, spillerne, du og AI'en lavede i Foundry (hvem, hvornår, hvad. Fortryd i
+  dag med hver ændring, som spillerne, du og AI'en lavede i Foundry (hvem, hvornår, hvad. Fortryd i
   dashboardet, ikke her). Værktøjet omskriver disse, så planlæg ikke dit spil i dem. En note, du
   har redigeret, bliver liggende og står i `_status.md`. En redigeret dagsnote under `Everyone`
   står ikke der, den holder bare op med at blive opdateret.
@@ -30,7 +30,7 @@ og bogteksten, så den bliver på din pc. Spillerne får deres egne vaults uden 
 
 ## Seen in
 
-En NPC-note og en scenenote har en **Seen in**-liste: de play sessions, hvor den NPC eller scene
+En NPC-note og en scene-note har en **Seen in**-liste: de sessioner, hvor den NPC eller scene
 dukkede op, nyeste først, hver et link til sessionsnoten. Den kommer fra det, Foundry registrerede
 ved bordet, så den kræver ingen opsætning og gætter aldrig ud fra navne. Kun det, spillerne så,
 tæller: der bliver intet listet, mens ingen spiller er forbundet (din forberedelse, at lave NPC'er
@@ -40,7 +40,7 @@ aktiverede den, eller en spiller kom ind. Hvad der sker med en skjult token (dam
 dens tur i combat), et hvisket eller blindt slag og en scene, du kun forhåndsviste, tæller ikke. Et
 offentligt slag fra en skjult NPC gør, fordi spillerne læser det i chatten. Spillere, der kom ind,
 før du markerede sessionens start, tæller stadig. Egenskaben `last_seen` har datoen for den nyeste
-session, til at sortere efter i en Base. En spillerkarakter har ingen liste, fordi dens statsnote
+session, til at sortere efter i en Base. En spillerkarakter har ingen liste, fordi dens stats-note
 siger det hele.
 
 ## Lav en prep-note
@@ -93,7 +93,7 @@ videre, aldrig resten af noten.
 
 ## Grafen
 
-Hvert eventyr får én hub-note, og grafen viser det som sin egen klynge. Journals, scener og NPC'er,
+Hvert eventyr får én hub-note, og grafen viser det som sin egen klynge. Journals, scenes og NPC'er,
 der ikke ligger i nogen eventyrmappe i Foundry, står under **Without an adventure**, så ingen af
 dem flyder løst. Hver dags ændringer er også linket fra kampagnens Home.
 
@@ -107,7 +107,7 @@ egen søgetekst bliver stående.
 
 AI Tool-pluginet tilføjer **Open in Foundry**, handouts' afsløringsstatus og det fælles tema. Det
 taler kun med dashboardet. Når dashboardet kører på serveren, vogter Cloudflare det, og pluginet har
-brug for tre værdier for at komme igennem. Bygger'en sætter dem ind sammen med dig under
+brug for tre værdier for at komme igennem. Byggeren sætter dem ind sammen med dig under
 opsætningen, på din pc. De kommer aldrig i chat eller i en note.
 
 1. I Obsidian: Settings, Community plugins, **Foundry AI Tool**, tandhjulet.
@@ -117,13 +117,13 @@ opsætningen, på din pc. De kommer aldrig i chat eller i en note.
 5. **Cloudflare Access Client Secret:** tilføj endnu en secret og indsæt Client Secret.
 
 **Obsidians Add secret-dialog** har to felter. **ID** er bare et navn, du vælger, så du kan finde
-secret'en igen senere, aldrig selve værdien. Brug `foundry-gm-token`, `cf-access-client-id` og
+secreten igen senere, aldrig selve værdien. Brug `foundry-gm-token`, `cf-access-client-id` og
 `cf-access-client-secret`. **Secret** er værdien. Indsæt kun værdien: Cloudflares kopiknapper kopierer
 også headerens navn (`CF-Access-Client-Id: ...`), og pluginet dropper det for dig, men renere er
 bedre. Tilbage i pluginets indstillinger vælger du hver secret ud fra dens ID.
 
 **Hvor GM token kommer fra:** det er `token=`-delen af det link, som dashboardets opsætningsscript
-skrev ud (`http://<name>:3000/?token=<token>`: alt efter `token=`), eller også læser bygger'en den
+skrev ud (`http://<name>:3000/?token=<token>`: alt efter `token=`), eller også læser byggeren den
 fra `dashboard-access.env` på serveren i sit eget SSH-vindue.
 
 De tre værdier bliver i Obsidians secret-lager på din pc. De er ikke i vaulten, så Syncthing kopierer
@@ -134,10 +134,10 @@ Foundry-skærm.
 
 ## Når det ikke virker
 
-| Besked                                          | Hvad du gør                                                                  |
-| ----------------------------------------------- | ---------------------------------------------------------------------------- |
-| "...did not come from the dashboard"            | Cloudflare Client ID eller Secret er forkert eller udløbet: spørg bygger'en. |
-| "...Check the GM token in the plugin settings." | GM token er forkert: indsæt den igen.                                        |
-| "The dashboard at ... did not answer"           | Adressen er forkert, eller serveren er nede: tjek dashboardet i en browser.  |
+| Besked                                          | Hvad du gør                                                                 |
+| ----------------------------------------------- | --------------------------------------------------------------------------- |
+| "...did not come from the dashboard"            | Cloudflare Client ID eller Secret er forkert eller udløbet: spørg byggeren. |
+| "...Check the GM token in the plugin settings." | GM token er forkert: indsæt den igen.                                       |
+| "The dashboard at ... did not answer"           | Adressen er forkert, eller serveren er nede: tjek dashboardet i en browser. |
 
-Cloudflare-token'en gælder i et år. Cloudflare sender en mail til bygger'en, før den udløber.
+Cloudflare-tokenet gælder i et år. Cloudflare sender en mail til byggeren, før den udløber.

@@ -243,3 +243,34 @@ test('insideCodeSpan: delimiter runs, escapes and unclosed runs', () => {
   assert.equal(insideCodeSpan('a `C:\\x\\` [l](y.md)', 13), false);
   assert.equal(insideCodeSpan('a `C:\\x\\` [l](y.md)', 5), true);
 });
+
+test('a Danish page links to Danish pages and shows the Foundry basics under /da/', () => {
+  const images = new Set();
+  const gm = rewriteLinks(
+    '[tour](../../foundry/screen-tour.md#x) [tid](first-hour-quest.md) ![b](../../images/brand/logo.svg)',
+    'docs/da/gm/first-hour.md',
+    images
+  );
+  assert.equal(
+    gm,
+    '[tour](../foundry/screen-tour.md#x) [tid](first-hour-quest.md) ![b](../../images/brand/logo.svg)'
+  );
+  assert.deepEqual([...images], ['docs/images/brand/logo.svg']);
+  const player = rewriteLinks('[tokens](../../foundry/tokens.md)', 'docs/da/player/join.md', new Set());
+  assert.equal(player, '[tokens](foundry/tokens.md)');
+  assert.throws(
+    () => rewriteLinks('[perm](../../foundry/users-and-permissions.md)', 'docs/da/player/join.md', new Set()),
+    /leaves the player side/
+  );
+  assert.throws(
+    () => rewriteLinks('[gm](../gm/dashboard.md)', 'docs/da/player/join.md', new Set()),
+    /leaves the player side/
+  );
+});
+
+test('toSite labels Danish GM pages and chips a Danish time in a heading', () => {
+  const out = toSite('---\ntitle: T\n---\n\n## Skærmen (ca. 20 minutter)\n', 'da/gm/first-hour.md');
+  assert.ok(out.includes('<p class="audience audience-gm">Til GM\'en</p>'));
+  assert.ok(out.includes('## Skærmen <span class="chip">(ca. 20 minutter)</span>'));
+  assert.ok(!toSite('---\ntitle: T\n---\n', 'da/player/join.md').includes('audience'));
+});

@@ -26,14 +26,14 @@ Du skal bruge: en Windows-PC, Claude Desktop installeret og logget ind, og tunne
 4. Gå videre. Et lille vindue spørger efter **Client ID** og derefter **secret**. Indsæt hver af dem
    og tryk Enter. Secret er skjult, mens du indsætter; det er normalt. Intet, du indsætter, bliver
    vist eller gemt andre steder end i et låst lager, som kun din Windows-bruger kan åbne.
-5. Afslut. Start Claude Desktop. Klik på **+** i chatfeltet, vælg **Connectors**, og slå dem til,
+5. Gør installationen færdig. Start Claude Desktop. Klik på **+** i chatfeltet, vælg **Connectors**, og slå dem til,
    du vil bruge (`foundry-mcp` er Core; Play og Prep er dem, du bruger mest). En connector, der er
-   slået fra, er ikke tilgængelig i den chat. Gør derefter "Stop 'Allow'-spørgsmålene" nedenfor én
+   slået fra, er ikke tilgængelig i den chat. Gør derefter afsnittet Stop "Allow"-spørgsmålene nedenfor én
    gang, så Claude ikke spørger "Allow?" ved hvert eneste værktøjskald.
 
 ## Tjek, at det virker
 
-Spørg Claude: _"What world is open in Foundry?"_ Et normalt svar med verdenens navn betyder, at du
+Spørg Claude: _"What world is open in Foundry?"_ Et normalt svar med worldens navn betyder, at du
 er forbundet. Hvis Claude siger, at den ikke kan nå bridgen, så gå til listen nedenfor.
 
 ## Stop "Allow"-spørgsmålene
@@ -45,7 +45,7 @@ ikke sætte det for dig. Du gør det én gang pr. connector.
 1. Åbn **Customize** i Claude Desktop, og derefter **Connectors**.
 2. Klik på en af Foundry-connectorerne (`foundry-mcp`, `foundry-mcp-play`, `foundry-mcp-prep`,
    `foundry-mcp-build`, `foundry-mcp-admin`).
-3. Under **Tool permissions**: klik på drop-down'en til højre for linjen **Read-only tools**
+3. Under **Tool permissions**: klik på drop-downmenuen til højre for linjen **Read-only tools**
    (den kan sige **Blocked** eller **Needs approval** nu) og vælg **Always allow** (fluebenet).
 4. Gør det samme på linjen **Write/delete tools**. Vi foreslår **Always allow** dér også, fordi
    værktøjet allerede viser dig en plan og beder dig bekræfte, før det ændrer noget, så du
@@ -59,11 +59,11 @@ På en ny installation kan hver Foundry-connector vise **Blocked** for begge gru
 connector, du bruger; en connector, du aldrig sætter, bliver som den er.
 
 Hvert Foundry-værktøj er markeret som læsende eller ændrende, så de to grupper sorterer sig selv. Nogle
-få Play-værktøjer handler med det samme uden en plan (slag, chatbeskeder, at flytte eller slette
+få Play-værktøjer handler med det samme uden en plan (terningslag, chatbeskeder, at flytte eller slette
 tokens); med **Always allow** på writes stopper Claude Desktop heller ikke for dem. Flere detaljer i
 [Asking Claude](asking-claude.md).
 
-**For at gå tilbage:** sæt drop-down'en **Write/delete tools** til **Needs approval** (hånden) på
+**For at gå tilbage:** sæt drop-downmenuen **Write/delete tools** til **Needs approval** (hånden) på
 connectorens skærm **Tool permissions**. Gør det samme for **Read-only tools**, hvis du også vil
 spørges, når der læses.
 
@@ -77,13 +77,13 @@ spørges, når der læses.
 - **Nøglen blev afvist:** Client ID eller secret blev indsat forkert, eller nøglen blev slået fra.
   Kør installationsprogrammet igen og indsæt begge igen, eller bed om en ny nøgle.
 - **Alt virkede i går, og intet virker i dag:** åbn spillets adresse først.
-  Hvis den ikke loader, er serveren nede; se [Runbook til spilaftenen](game-night-runbook.md).
+  Hvis den ikke indlæses, er serveren nede; se [Runbook til spilaftenen](game-night-runbook.md).
 
 ## Fjern det igen
 
 Settings, Apps, **Foundry AI Tool Client**, Uninstall. Det fjerner de fem connectors, tunnelen
-og din gemte nøgle. Din nøgle kan også slås fra fra serversiden når som helst, så en tabt
-laptop er ikke et problem: sig det til den, der byggede værktøjet.
+og din gemte nøgle. Din nøgle kan også til enhver tid slås fra på serversiden, så en mistet
+laptop ikke er et problem: sig det til den, der byggede værktøjet.
 
 ## Godt at vide
 
@@ -91,4 +91,4 @@ laptop er ikke et problem: sig det til den, der byggede værktøjet.
   kan bruge den uden nøglen, og nøglen forlader aldrig din PC.
 - Du skal ikke bruge Tailscale eller noget andet program til det her.
 - Hvis du skifter til en ny PC, så installer igen dér med samme nøgle, eller bed om en ny og lad
-  den gamle slå fra.
+  den gamle blive slået fra.

@@ -796,3 +796,54 @@ test('a saved tab the page does not offer, or blocked storage, gives the Tool ta
   const c = await load(page);
   await expect(c.getByRole('button', { name: 'Tool' })).toHaveAttribute('aria-pressed', 'true');
 });
+
+test.describe('Undo and Redo on the Game tab', () => {
+  const gameList = {
+    changes: [
+      human('h1'),
+      human('h5', { summary: 'Hurt one', undone: true, undoneBy: 'a9', canUndo: false }),
+      aiEntry('a9', {
+        summary: 'Undo: Hurt one',
+        mode: 'undo',
+        feature: 'change-undo',
+        requestedBy: 'Danni',
+        canUndo: true,
+        covers: 1,
+      }),
+    ],
+    note: '',
+  };
+
+  test('Undo on a Game row plans that row and applies only after the undo window', async ({
+    page,
+  }) => {
+    const calls = await setup(page, { everyone: () => gameList });
+    const c = await load(page);
+    await c.getByRole('button', { name: 'Game' }).click();
+    await c.getByRole('button', { name: 'Undo: Human h1' }).click();
+    const dialog = undoWindow(page);
+    await expect(dialog.getByRole('heading', { name: 'Undo this change?' })).toBeVisible();
+    expect(callsOf(calls, 'plan-undo-changes')).toEqual([
+      { name: 'plan-undo-changes', args: { id: 'h1', scope: 'just-this' } },
+    ]);
+    expect(names(calls)).not.toContain('apply-planned-change');
+    await dialog.getByRole('button', { name: 'Undo', exact: true }).click();
+    await expect.poll(() => callsOf(calls, 'apply-planned-change').length).toBe(1);
+  });
+
+  test('Redo on a Game row undoes the undo entry, which this tab does not list', async ({
+    page,
+  }) => {
+    const calls = await setup(page, { everyone: () => gameList });
+    const c = await load(page);
+    await c.getByRole('button', { name: 'Game' }).click();
+    await expect(c.locator('.change-entry')).toHaveCount(2);
+    await expect(c.getByText('Undo: Hurt one')).toHaveCount(0);
+    await c.getByRole('button', { name: 'Redo: Hurt one' }).click();
+    const dialog = page.getByRole('dialog', { name: 'Destructive action' });
+    await dialog.getByRole('checkbox').check();
+    await dialog.getByRole('button', { name: 'Run destructive action' }).click();
+    await expect.poll(() => callsOf(calls, 'undo-change').length).toBe(1);
+    expect(callsOf(calls, 'undo-change')[0]?.args).toEqual({ changeId: 'a9' });
+  });
+});

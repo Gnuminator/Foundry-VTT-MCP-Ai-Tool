@@ -360,8 +360,8 @@ sletning af tokens. Ændringer fra andre værktøjer (rolls, nye actors) står h
 fortrydes her.
 
 **De tre faner.** Når AI Tool på serveren er ny nok, har Recent Changes tre faner: **Tool**
-(listen ovenfor: alt, der er gjort gennem AI Tool, altså Claude og dashboardets knapper, hver med
-Undo), **Game** (hvad spillerne og du selv gjorde direkte i Foundry de sidste 7 dage, som hit points,
+(listen ovenfor: de guarded changes, der er gjort gennem AI Tool, altså Claude og dashboardets
+knapper, med Undo, hvor den stadig kan bruges), **Game** (hvad spillerne og du selv gjorde direkte i Foundry de sidste 7 dage, som hit points,
 items og tokens) og **Everything** (begge dele sammen, nyeste først). Hold musen over en fane for at
 se det. Ændringer fra dashboardet, som "Poisoned on Randal ... by GM (dashboard)", står under Tool.
 På Game og Everything kan du vælge en person i listen over rækkerne for kun at se vedkommendes

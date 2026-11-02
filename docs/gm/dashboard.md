@@ -351,8 +351,8 @@ edits and deletes are, while changes from other tools (rolls, new actors) are no
 undone here.
 
 **The three tabs.** When the AI Tool on the server is new enough, Recent Changes has three tabs:
-**Tool** (the list above: everything done through the AI Tool, that is Claude and the dashboard
-buttons, each with Undo), **Game** (what the players and you did directly in Foundry over the last 7
+**Tool** (the list above: the guarded changes made through the AI Tool, that is Claude and the
+dashboard buttons, with Undo where it can still be done), **Game** (what the players and you did directly in Foundry over the last 7
 days, such as hit points, items and tokens) and **Everything** (both together, newest first). Hover
 a tab to see this. Dashboard changes such as "Poisoned on Randal ... by GM (dashboard)" are in
 Tool. On Game and Everything, pick a person in the list above the rows to see only their changes

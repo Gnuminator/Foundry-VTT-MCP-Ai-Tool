@@ -257,7 +257,7 @@ const TAB_TEXT: Record<ChangesTab, { label: string; title: string }> = {
   tool: {
     label: 'Tool',
     title:
-      'Everything done through the AI Tool: Claude and the dashboard buttons. Each can be undone.',
+      'The guarded changes made through the AI Tool (Claude and the dashboard buttons), with Undo where it can still be done.',
   },
   game: {
     label: 'Game',

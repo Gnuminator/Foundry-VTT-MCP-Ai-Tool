@@ -245,17 +245,19 @@ export function pickTargets(win: {
   return targets;
 }
 
-/** Post the pick to each target, to the dashboard's origin only. */
+/** Post the pick to each target, to each of the dashboard's origins only. */
 export function postPickToTargets(
   targets: readonly PickTarget[],
-  origin: string,
+  origins: readonly string[],
   tokenIds: string[]
 ): void {
   for (const target of targets) {
-    try {
-      target.postMessage({ type: LIVE_PICK_MESSAGE, tokenIds }, origin);
-    } catch (error) {
-      console.warn(`[${MODULE_ID}] Could not send the token pick to the GM page:`, error);
+    for (const origin of origins) {
+      try {
+        target.postMessage({ type: LIVE_PICK_MESSAGE, tokenIds }, origin);
+      } catch (error) {
+        console.warn(`[${MODULE_ID}] Could not send the token pick to the GM page:`, error);
+      }
     }
   }
 }
@@ -264,21 +266,52 @@ export function postPickToTargets(
 export function isReadyFromTarget(
   event: { data: unknown; source: unknown; origin: string },
   targets: readonly unknown[],
-  origin: string
+  origins: readonly string[]
 ): boolean {
   const type = (event.data as { type?: unknown } | null)?.type;
   return (
     type === LIVE_READY_MESSAGE &&
-    event.origin === origin &&
+    origins.includes(event.origin) &&
     event.source !== null &&
     targets.includes(event.source)
   );
 }
 
-/** The dashboard's origin from the "Live window address" setting, else this host on its port. */
-function dashboardOrigin(): string | null {
+function originOf(text: string | undefined): string | null {
+  if (!text || text === 'null') return null;
+  try {
+    const url = new URL(text);
+    return url.protocol === 'http:' || url.protocol === 'https:' ? url.origin : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The origins the GM page can have: the page that frames this Foundry (the browser's own record of
+ * its parent, else the referrer of the frame), and only when neither is known the "Live window
+ * address" setting. The GM page does not depend on that setting, which belongs to the Live window and is often empty. Picks and
+ * answers only ever go to a window that already frames or opened this page.
+ */
+export function dashboardOrigins(
+  win: {
+    location?: { origin?: string; ancestorOrigins?: ArrayLike<string> };
+    document?: { referrer?: string };
+  },
+  configured: string | null
+): string[] {
+  const own = win.location?.origin;
+  const known = [originOf(win.location?.ancestorOrigins?.[0]), originOf(win.document?.referrer)];
+  // The referrer of a page Foundry navigated itself is Foundry: that is not the GM page.
+  const parents = known.filter((o): o is string => o !== null && o !== own);
+  if (parents.length > 0) return [...new Set(parents)];
+  const fallback = originOf(configured ?? undefined);
+  return fallback !== null ? [fallback] : [];
+}
+
+function currentDashboardOrigins(): string[] {
   const url = configuredUrl();
-  return url ? new URL(url).origin : null;
+  return dashboardOrigins(window, url);
 }
 
 let relayStarted = false;
@@ -290,23 +323,88 @@ let relayStarted = false;
  */
 export function startPickRelay(): void {
   if (relayStarted || game.user?.isGM !== true) return;
-  const origin = dashboardOrigin();
-  if (origin === null) return;
   const targets = pickTargets(window);
   if (targets.length === 0) return;
+  const origins = currentDashboardOrigins();
+  if (origins.length === 0) return;
   relayStarted = true;
-  const send = (): void => postPickToTargets(targets, origin, controlledTokenIds());
+  const send = (): void => postPickToTargets(targets, origins, controlledTokenIds());
   Hooks.on('controlToken', send);
   window.addEventListener('message', event => {
-    if (isReadyFromTarget(event, targets, origin)) send();
+    if (isReadyFromTarget(event, targets, origins)) send();
   });
   // The first message doubles as the hello: the GM page counts a pick as "Foundry is in the frame".
   send();
 }
 
+/** How long the strip page has to say it listens before the window explains the blank frame. */
+export const FRAME_WAIT_MS = 8000;
+
+/**
+ * What to tell the GM when the strip page did not answer: the address tried, and the usual causes
+ * with the fix for each, in plain words.
+ */
+export function liveWindowWhy(url: string, addressSet: boolean): string[] {
+  return [
+    `The live strip did not answer from ${url}.`,
+    'Check that the dashboard is running (open that address in another tab).',
+    addressSet
+      ? 'Check the address in the module setting "AI Tool: Live window address": it must be the address your browser uses for the dashboard.'
+      : 'If the dashboard is on another computer or behind a login, set "AI Tool: Live window address" in the module settings to its address.',
+    'The dashboard must know this Foundry address (DASHBOARD_FOUNDRY_URL, exactly as this browser opens Foundry), or it refuses to show inside Foundry.',
+    'Behind a login, sign in to the dashboard in a normal tab first.',
+  ];
+}
+
+let whyTimer: number | null = null;
+
+function whyPanel(): HTMLElement | null {
+  return instance?.element?.querySelector<HTMLElement>('.fmb-live-why') ?? null;
+}
+
+function hideWhy(): void {
+  if (whyTimer !== null) window.clearTimeout(whyTimer);
+  whyTimer = null;
+  const panel = whyPanel();
+  if (panel) panel.hidden = true;
+}
+
+/** Start the wait for the strip page's "ready"; when it does not come, show the panel. */
+function armWhy(): void {
+  hideWhy();
+  whyTimer = window.setTimeout(() => {
+    whyTimer = null;
+    const panel = whyPanel();
+    const frame = frameOf();
+    if (!panel || !frame) return;
+    const lines = liveWindowWhy(frame.src, configuredSetting() !== '');
+    panel.innerHTML =
+      lines.map(line => `<p>${escapeHtml(line)}</p>`).join('') +
+      '<button type="button" class="fmb-live-retry">Try again</button>';
+    panel.querySelector('.fmb-live-retry')?.addEventListener('click', () => {
+      const url = configuredUrl();
+      if (url) frame.src = url;
+      armWhy();
+    });
+    panel.hidden = false;
+  }, FRAME_WAIT_MS);
+}
+
+function configuredSetting(): string {
+  try {
+    const value: unknown = game.settings.get(MODULE_ID, LIVE_WINDOW_URL_SETTING);
+    return typeof value === 'string' ? value.trim() : '';
+  } catch {
+    return '';
+  }
+}
+
 function onFrameMessage(event: MessageEvent): void {
   const frame = frameOf();
-  if (frame && isReadyFromFrame(event, frame)) postPick();
+  if (frame && isReadyFromFrame(event, frame)) {
+    hideWhy();
+    postPick();
+  }
 }
 
 function escapeHtml(text: string): string {
@@ -338,7 +436,7 @@ function define(): new () => AppV2Instance {
       if (!canOpenLiveWindow()) return Promise.resolve({ html: '' });
       const url = configuredUrl();
       const html = url
-        ? `<iframe class="fmb-live-frame" title="Live strip" src="${escapeHtml(url)}" referrerpolicy="no-referrer-when-downgrade"></iframe>`
+        ? `<iframe class="fmb-live-frame" title="Live strip" src="${escapeHtml(url)}" referrerpolicy="no-referrer-when-downgrade"></iframe><div class="fmb-live-why" role="status" hidden></div>`
         : '<p class="fmb-live-note">The live window address is not a web address. Set "AI Tool: Live window address" in the module settings.</p>';
       return Promise.resolve({ html });
     }
@@ -351,6 +449,7 @@ function define(): new () => AppV2Instance {
       // One frame for the life of the window: a redraw must not reload the strip.
       if (content.querySelector('iframe.fmb-live-frame') && html.includes('<iframe')) return;
       content.innerHTML = html;
+      armWhy();
       content.querySelector('iframe.fmb-live-frame')?.addEventListener('load', () => postPick());
     }
 
@@ -364,6 +463,7 @@ function define(): new () => AppV2Instance {
       if (hookId !== null) Hooks.off('controlToken', hookId);
       hookId = null;
       window.removeEventListener('message', onFrameMessage);
+      hideWhy();
       // A close from the switch or a reload is not the GM closing it: keep "open" as it was.
       this.remember(closing ? loadState().open : false);
     }
@@ -415,7 +515,10 @@ export function closeLiveWindow(): void {
 function reloadLiveWindow(): void {
   const frame = frameOf();
   const url = configuredUrl();
-  if (frame && url) frame.src = url;
+  if (frame && url) {
+    frame.src = url;
+    armWhy();
+  }
 }
 
 /** Open or close the window from the toolbar and the pin. */

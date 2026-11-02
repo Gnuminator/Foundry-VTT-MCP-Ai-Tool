@@ -330,76 +330,74 @@ function GmWorkspace({
           <LiveStrip />
         </div>
       ) : (
-        <div
-          className={styles.panes}
-          data-mode={layout.mode}
-          style={{ ['--strip-px' as string]: `${stripPx}px` }}
-        >
-          {/* DOM order follows the screen: in "Strip left" the strip comes first for Tab and
-              screen readers. The Foundry section keeps its child slot, so its frame never reloads. */}
-          {layout.mode === 'left' ? (
-            <>
-              {asideEl}
-              {dividerEl}
-            </>
-          ) : null}
-          <section className={styles.foundry} aria-label="Foundry">
-            <div role="status" className={styles.bannerSlot}>
-              {showBanner ? (
-                <div className={styles.banner}>
-                  <span>
-                    Can&apos;t see Foundry here? It may refuse to open inside this page, you may not
-                    have joined the world yet, or the module&apos;s &quot;Live window address&quot;
-                    is not set to this page.
-                  </span>
-                  <button type="button" className={styles.primary} onClick={openFoundryTab}>
-                    Open Foundry in its own tab
-                  </button>
-                  <button
-                    type="button"
-                    className={styles.link}
-                    onClick={() => setBannerHidden(true)}
-                  >
-                    Hide
-                  </button>
-                </div>
-              ) : null}
-            </div>
-            {layout.mode === 'window' ? (
-              <div className={styles.windowBar}>
-                {stripWindowOpen ? (
-                  'The live strip is open in its own window.'
-                ) : (
-                  <>
-                    The live strip opens in its own window.{' '}
-                    <button type="button" className={styles.primary} onClick={openStripWindow}>
-                      Open the strip window
-                    </button>
-                  </>
-                )}
+        <>
+          <div role="status" className={styles.bannerSlot}>
+            {showBanner ? (
+              <div className={styles.banner}>
+                <span>
+                  Can&apos;t see Foundry here? It may refuse to open inside this page, or the world
+                  may not be joined yet. If it stays blank, open Foundry in its own tab: map picks
+                  still arrive here.
+                </span>
+                <button type="button" className={styles.primary} onClick={openFoundryTab}>
+                  Open Foundry in its own tab
+                </button>
+                <button type="button" className={styles.link} onClick={() => setBannerHidden(true)}>
+                  Hide
+                </button>
               </div>
             ) : null}
-            <div className={styles.frameWrap}>
-              {!frameLoaded ? <p className={styles.loading}>Loading Foundry...</p> : null}
-              <iframe
-                ref={frameRef}
-                className={styles.frame}
-                data-loaded={frameLoaded ? '' : undefined}
-                title="Foundry"
-                src={foundryUrl}
-                allow="autoplay; fullscreen; clipboard-write"
-                referrerPolicy="no-referrer-when-downgrade"
-                onLoad={onFrameLoad}
-              />
-            </div>
-          </section>
-          {layout.mode === 'right' ? (
-            <>
-              {dividerEl}
-              {asideEl}
-            </>
-          ) : null}
-        </div>
+          </div>
+          <div
+            className={styles.panes}
+            data-mode={layout.mode}
+            style={{ ['--strip-px' as string]: `${stripPx}px` }}
+          >
+            {/* DOM order follows the screen: in "Strip left" the strip comes first for Tab and
+              screen readers. The Foundry section keeps its child slot, so its frame never reloads. */}
+            {layout.mode === 'left' ? (
+              <>
+                {asideEl}
+                {dividerEl}
+              </>
+            ) : null}
+            <section className={styles.foundry} aria-label="Foundry">
+              {layout.mode === 'window' ? (
+                <div className={styles.windowBar}>
+                  {stripWindowOpen ? (
+                    'The live strip is open in its own window.'
+                  ) : (
+                    <>
+                      The live strip opens in its own window.{' '}
+                      <button type="button" className={styles.primary} onClick={openStripWindow}>
+                        Open the strip window
+                      </button>
+                    </>
+                  )}
+                </div>
+              ) : null}
+              <div className={styles.frameWrap}>
+                {!frameLoaded ? <p className={styles.loading}>Loading Foundry...</p> : null}
+                <iframe
+                  ref={frameRef}
+                  className={styles.frame}
+                  data-loaded={frameLoaded ? '' : undefined}
+                  title="Foundry"
+                  src={foundryUrl}
+                  allow="autoplay; fullscreen; clipboard-write"
+                  referrerPolicy="no-referrer-when-downgrade"
+                  onLoad={onFrameLoad}
+                />
+              </div>
+            </section>
+            {layout.mode === 'right' ? (
+              <>
+                {dividerEl}
+                {asideEl}
+              </>
+            ) : null}
+          </div>
+        </>
       )}
     </div>
   );

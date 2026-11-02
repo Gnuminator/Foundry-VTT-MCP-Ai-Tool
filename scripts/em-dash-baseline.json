@@ -1,5 +1,5 @@
 {
-  "total": 1401,
+  "total": 1398,
   "files": {
     ".claude/skills/foundry-core-ui/reference/dnd5e-actor-sheets.md": 157,
     ".claude/skills/foundry-core-ui/reference/document-sheets.md": 45,
@@ -32,7 +32,7 @@
     "packages/cogm-dashboard/src/feed/mcp-control-client.ts": 6,
     "packages/cogm-dashboard/src/feed/polling-feed.ts": 5,
     "packages/cogm-dashboard/src/sse.ts": 1,
-    "packages/cogm-dashboard/src/state.ts": 5,
+    "packages/cogm-dashboard/src/state.ts": 2,
     "packages/foundry-module/src/data-access.actor-builder-activity.test.ts": 2,
     "packages/foundry-module/src/data-access.actor-builder-items.test.ts": 10,
     "packages/foundry-module/src/data-access.actor-builder-npc.test.ts": 23,

@@ -30,9 +30,12 @@ export function liveFrameHeader(
   foundryUrl: string | undefined
 ): string | null {
   const search = originalUrl.includes('?') ? originalUrl.slice(originalUrl.indexOf('?')) : '';
-  return new URLSearchParams(search).get('strip') === '1'
-    ? `frame-ancestors ${liveFrameAncestors(foundryUrl)}`
-    : null;
+  if (new URLSearchParams(search).get('strip') === '1') {
+    return `frame-ancestors ${liveFrameAncestors(foundryUrl)}`;
+  }
+  // The dashboard page itself is the same file: nobody but the dashboard may frame it.
+  const path = originalUrl.split('?')[0];
+  return path === '/' || path === '/index.html' ? "frame-ancestors 'self'" : null;
 }
 
 /** Express middleware: sets the header on any request with `?strip=1`. */

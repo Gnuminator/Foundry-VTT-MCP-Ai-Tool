@@ -73,6 +73,55 @@ describe('listenForMapPick', () => {
     expect(currentMapPick()).toEqual(['a']);
   });
 
+  it('drops a message whose origin is not the framing page, when the browser names it', () => {
+    resetMapPick();
+    const handlers: Array<(e: MessageEvent) => void> = [];
+    const parent = { postMessage: (): void => undefined };
+    const win = {
+      parent,
+      location: { ancestorOrigins: ['https://foundry.example.com'] },
+      addEventListener: (_: string, fn: (e: MessageEvent) => void) => handlers.push(fn),
+    } as unknown as Window;
+    listenForMapPick(win);
+    const send = (origin: string, ids: string[]): void =>
+      handlers.forEach(fn =>
+        fn({
+          source: parent,
+          origin,
+          data: { type: LIVE_PICK_MESSAGE, tokenIds: ids },
+        } as unknown as MessageEvent)
+      );
+    send('https://evil.example', ['x']);
+    expect(currentMapPick()).toBeNull();
+    send('https://foundry.example.com', ['a']);
+    expect(currentMapPick()).toEqual(['a']);
+  });
+
+  it('falls back to the referrer origin when there are no ancestor origins', () => {
+    resetMapPick();
+    const handlers: Array<(e: MessageEvent) => void> = [];
+    const parent = { postMessage: (): void => undefined };
+    const win = {
+      parent,
+      location: {},
+      document: { referrer: 'https://foundry.example.com/game' },
+      addEventListener: (_: string, fn: (e: MessageEvent) => void) => handlers.push(fn),
+    } as unknown as Window;
+    listenForMapPick(win);
+    const send = (origin: string, ids: string[]): void =>
+      handlers.forEach(fn =>
+        fn({
+          source: parent,
+          origin,
+          data: { type: LIVE_PICK_MESSAGE, tokenIds: ids },
+        } as unknown as MessageEvent)
+      );
+    send('https://evil.example', ['x']);
+    expect(currentMapPick()).toBeNull();
+    send('https://foundry.example.com', ['b']);
+    expect(currentMapPick()).toEqual(['b']);
+  });
+
   it('tells its parent it is listening', () => {
     const posted: unknown[] = [];
     const parent = {

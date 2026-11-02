@@ -4,8 +4,9 @@
 // since the Dashboard that normally does is not on this page. In a Foundry window it also listens
 // for the tokens the GM controls on the map (lib/mapPick.ts); opened by the GM page as its own
 // window, it hears them from the GM page instead.
-import { useEffect, type JSX, type MouseEvent } from 'react';
+import { useCallback, useEffect, type JSX, type MouseEvent } from 'react';
 
+import { GmActionsGateContext } from '../lib/guarded';
 import { listenForMapPick } from '../lib/mapPick';
 import { useDashboardStream } from '../lib/stream';
 import { LiveStrip } from './LiveStrip';
@@ -35,17 +36,24 @@ function backToGmPage(event: MouseEvent<HTMLAnchorElement>): void {
 export function LiveStripPage(): JSX.Element {
   useDashboardStream();
   useEffect(() => listenForMapPick(), []);
+  // This page has no header or Pre-flight drawer: a refused click sends the focus to the strip's
+  // own Turn on button.
+  const openGate = useCallback((): void => {
+    document.querySelector<HTMLElement>('[data-track="dash.live.turn-on"]')?.focus();
+  }, []);
   return (
-    <main className="live-strip-page">
-      {openedByGmPage() ? (
-        <p className="live-strip-page-note">
-          Map picks come from the GM page.{' '}
-          <a href="/gm" target="_blank" rel="opener" onClick={backToGmPage}>
-            Back to the GM page
-          </a>
-        </p>
-      ) : null}
-      <LiveStrip />
-    </main>
+    <GmActionsGateContext.Provider value={openGate}>
+      <main className="live-strip-page">
+        {openedByGmPage() ? (
+          <p className="live-strip-page-note">
+            Map picks come from the GM page.{' '}
+            <a href="/gm" target="_blank" rel="opener" onClick={backToGmPage}>
+              Back to the GM page
+            </a>
+          </p>
+        ) : null}
+        <LiveStrip />
+      </main>
+    </GmActionsGateContext.Provider>
   );
 }

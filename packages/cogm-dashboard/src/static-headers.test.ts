@@ -143,11 +143,15 @@ describe('the player page CSP on every URL that serves it', () => {
   it('leaves the other pages their own headers', async () => {
     const index = await get('/');
     expect(index.status).toBe(200);
-    expect(index.headers['content-security-policy']).toBeUndefined();
+    // The dashboard page itself says only the dashboard may frame it (live-frame.ts).
+    expect(index.headers['content-security-policy']).toBe("frame-ancestors 'self'");
     for (const p of ['/index.html', '/app.js', '/player.js', '/styles.css']) {
       const answer = await get(p);
       expect([p, answer.status]).toEqual([p, 200]);
-      expect([p, answer.headers['content-security-policy']]).toEqual([p, undefined]);
+      expect([p, answer.headers['content-security-policy']]).toEqual([
+        p,
+        p === '/index.html' ? "frame-ancestors 'self'" : undefined,
+      ]);
     }
     for (const p of ['/open', '/open.html', '/OPEN.HTML', '/open%2Ehtml', '/x/../open.html']) {
       const answer = await get(p);

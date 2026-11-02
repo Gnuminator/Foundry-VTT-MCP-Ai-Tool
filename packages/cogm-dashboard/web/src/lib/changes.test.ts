@@ -12,6 +12,8 @@ import {
   dialogFor,
   filterChanges,
   filterOptions,
+  gameChanges,
+  CHANGES_TABS,
   firstStage,
   foldTokenMoves,
   needsDestructive,
@@ -458,9 +460,20 @@ describe('foldTokenMoves', () => {
 describe('person filter', () => {
   const all = [human('act:1', 'Zed'), human('act:2', 'anna'), human('act:3', 'Zed'), ai('c1')];
 
-  it('lists Everyone, AI, then each person once, A to Z', () => {
-    expect(filterOptions(all).map(o => o.label)).toEqual(['Everyone', 'AI', 'anna', 'Zed']);
-    expect(filterOptions([]).map(o => o.label)).toEqual(['Everyone', 'AI']);
+  it('lists Everyone, Tool, then each person once, A to Z', () => {
+    expect(filterOptions(all).map(o => o.label)).toEqual(['Everyone', 'Tool', 'anna', 'Zed']);
+    expect(filterOptions([]).map(o => o.label)).toEqual(['Everyone', 'Tool']);
+  });
+
+  it('has no Tool choice for the Game tab, and drops a Tool pick there', () => {
+    expect(filterOptions(all, false).map(o => o.label)).toEqual(['Everyone', 'anna', 'Zed']);
+    expect(validFilter(all, 'ai', false)).toBe('all');
+    expect(validFilter(all, 'ai')).toBe('ai');
+  });
+
+  it('the Game list is what people did in Foundry, the Tool tab is not in it', () => {
+    expect(gameChanges(all).map(c => c.id)).toEqual(['act:1', 'act:2', 'act:3']);
+    expect(CHANGES_TABS).toEqual(['tool', 'game', 'everything']);
   });
 
   it('gives each option a value, the person ones by name', () => {

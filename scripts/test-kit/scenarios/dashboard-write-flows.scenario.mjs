@@ -672,15 +672,15 @@ export default {
       page.locator('#undo-backdrop').waitFor({ state: 'hidden', timeout: 10000 });
 
     /**
-     * The Undo or Redo button of one change on the Everyone tab of Recent Changes; refreshes the
+     * The Undo or Redo button of one change on the Everything tab of Recent Changes; refreshes the
      * list until the row shows it.
      * @param {'undo' | 'redo'} kind @param {{summary: string}} change
      */
     const everyoneButton = async (kind, change) => {
       await openCard(page, 'changes');
-      const tab = page.locator('#changes-tab-everyone');
+      const tab = page.locator('#changes-tab-everything');
       if (!(await tab.isVisible()))
-        t.skip('no Everyone tab: the bridge does not serve list-changes');
+        t.skip('no Everything tab: the bridge does not serve list-changes');
       if ((await tab.getAttribute('aria-pressed')) !== 'true') await tab.click();
       const button = page
         .locator('#pane-changes-body .change-entry')
@@ -694,7 +694,7 @@ export default {
           return false;
         },
         {
-          label: `the ${kind === 'undo' ? 'Undo' : 'Redo'} button on the Everyone tab`,
+          label: `the ${kind === 'undo' ? 'Undo' : 'Redo'} button on the Everything tab`,
           timeoutMs: 30000,
         }
       );

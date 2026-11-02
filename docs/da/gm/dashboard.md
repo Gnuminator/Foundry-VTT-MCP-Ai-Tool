@@ -359,10 +359,13 @@ Kun guarded changes står her: skade, healing, conditions, resources samt flytni
 sletning af tokens. Ændringer fra andre værktøjer (rolls, nye actors) står her ikke og kan ikke
 fortrydes her.
 
-**Fanen Everyone.** Når AI Tool på serveren er ny nok, har Recent Changes to faner: **AI** (listen
-ovenfor) og **Everyone**, som også viser, hvad spillerne og du gjorde i Foundry de sidste 7 dage, som
-hit points, items og tokens. Vælg en person i listen over rækkerne for kun at se vedkommendes
-ændringer. Hver række viser hvem, hvornår, hvad der blev ændret og, under "N line(s)", detaljerne.
+**De tre faner.** Når AI Tool på serveren er ny nok, har Recent Changes tre faner: **Tool**
+(listen ovenfor: alt, der er gjort gennem AI Tool, altså Claude og dashboardets knapper, hver med
+Undo), **Game** (hvad spillerne og du selv gjorde direkte i Foundry de sidste 7 dage, som hit points,
+items og tokens) og **Everything** (begge dele sammen, nyeste først). Hold musen over en fane for at
+se det. Ændringer fra dashboardet, som "Poisoned on Randal ... by GM (dashboard)", står under Tool.
+På Game og Everything kan du vælge en person i listen over rækkerne for kun at se vedkommendes
+ændringer (Everything har også **Tool** i listen). Dashboardet husker den fane, du valgte, til næste gang. Hver række viser hvem, hvornår, hvad der blev ændret og, under "N line(s)", detaljerne.
 En række flytninger af det samme token af den samme person er én række ("moved 6 times"); dens
 **Undo** tager kun den seneste flytning tilbage, og Foundrys Changes-vindue viser stadig hver
 flytning. **Undo** virker på alles ændringer. Den viser først, hvad den vil sætte tilbage, og du

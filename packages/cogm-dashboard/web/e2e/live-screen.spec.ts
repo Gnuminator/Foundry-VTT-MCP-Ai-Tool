@@ -225,8 +225,8 @@ test('What just happened is one list with an AI only box and Undo on each line',
   await list.getByLabel('AI only').check();
   await expect(list).not.toContainText('Moved Tobias');
   await expect(list).toContainText('Goblin 1: 5 fire damage');
-  // One list: the AI and Everyone tabs of Recent Changes are not here.
-  await expect(list.locator('#changes-tab-ai')).toHaveCount(0);
+  // One list: the Tool, Game and Everything tabs of Recent Changes are not here.
+  await expect(list.locator('#changes-tab-tool')).toHaveCount(0);
 });
 
 test('Start combat in two clicks also rolls initiative for the NPCs', async ({ page }) => {

@@ -1,6 +1,6 @@
 // Recent Changes on the React dashboard: the AI list and, when the bridge has list-changes, the
 // Everyone list (person filter, Redo), the reload on a gm-change event, and every Undo through the
-// guarded paths: the AI tab's confirm window and undo-change, the Everyone tab's plan, undo window
+// guarded paths: the AI tab's confirm window and undo-change, the Everything tab's plan, undo window
 // (just this, everything since, the rewind and its second question) and apply-planned-change, a
 // reveal's plain undo-change (#330), and the refusals (GM Actions off, a failed plan, a failed
 // list).
@@ -160,7 +160,7 @@ async function load(page: Page): Promise<Locator> {
 
 async function openEveryone(page: Page): Promise<Locator> {
   const c = await load(page);
-  await c.getByRole('button', { name: 'Everyone' }).click();
+  await c.getByRole('button', { name: 'Everything' }).click();
   await expect(c.getByText('Human h1')).toBeVisible();
   return c;
 }
@@ -169,7 +169,7 @@ test.beforeEach(async ({ page }) => {
   await fakeCommonRoutes(page);
 });
 
-test('loads the AI changes with their state, details and Undo where it can be', async ({
+test('the Tool tab loads the changes with their state, details and Undo where it can be', async ({
   page,
 }) => {
   const calls = await setup(page);
@@ -201,11 +201,11 @@ test('loads the AI changes with their state, details and Undo where it can be', 
   await expect(rows.nth(1).locator('summary')).toHaveCount(0);
 });
 
-test('an older bridge has no Everyone tab', async ({ page }) => {
+test('an older bridge has only the Tool list', async ({ page }) => {
   await setup(page, { catalog: ['list-recent-changes', 'undo-change'] });
   const c = await load(page);
   await expect(c.locator('.change-entry')).toHaveCount(3);
-  await expect(c.getByRole('button', { name: 'Everyone' })).toHaveCount(0);
+  await expect(c.getByRole('button', { name: 'Everything' })).toHaveCount(0);
   await expect(c.locator('#changes-toolbar')).toHaveCount(0);
 });
 
@@ -224,7 +224,7 @@ test('an empty list and a failed one say so; the failed one can try again', asyn
   await expect(c.locator('#changes-meta')).toHaveText('-');
   fail = false;
   await c.getByRole('button', { name: 'Try again' }).click();
-  await expect(c).toContainText('No guarded changes yet.');
+  await expect(c).toContainText('No changes through the AI Tool yet.');
   await expect(c.locator('#changes-meta')).toHaveText('0 shown');
   expect(callsOf(calls, 'list-recent-changes').length).toBeGreaterThanOrEqual(1);
 });
@@ -294,15 +294,18 @@ test('a gm-change event from Foundry reloads the list once', async ({ page }) =>
   expect(callsOf(calls, 'list-recent-changes')).toHaveLength(2);
 });
 
-test('the Everyone tab loads on its first open, filters by person and shows undone and redo', async ({
+test('the Everything tab loads on its first open, filters by person and shows undone and redo', async ({
   page,
 }) => {
   const calls = await setup(page);
   const c = await load(page);
   expect(callsOf(calls, 'list-changes')).toEqual([]);
 
-  await c.getByRole('button', { name: 'Everyone' }).click();
-  await expect(c.getByRole('button', { name: 'Everyone' })).toHaveAttribute('aria-pressed', 'true');
+  await c.getByRole('button', { name: 'Everything' }).click();
+  await expect(c.getByRole('button', { name: 'Everything' })).toHaveAttribute(
+    'aria-pressed',
+    'true'
+  );
   await expect(c.getByText('Human h1')).toBeVisible();
   expect(callsOf(calls, 'list-changes')).toEqual([{ name: 'list-changes', args: { limit: 100 } }]);
   await expect(c.locator('#changes-meta')).toHaveText('5 shown');
@@ -315,7 +318,7 @@ test('the Everyone tab loads on its first open, filters by person and shows undo
   const person = c.getByLabel('Show changes by');
   await expect(person.locator('option')).toHaveText([
     'Everyone',
-    'AI',
+    'Tool',
     'Aldric',
     'Brenna',
     'Danni',
@@ -323,18 +326,51 @@ test('the Everyone tab loads on its first open, filters by person and shows undo
   await person.selectOption({ label: 'Brenna' });
   await expect(c.locator('.change-entry')).toHaveCount(1);
   await expect(c.locator('#changes-meta')).toHaveText('1 shown');
-  await person.selectOption({ label: 'AI' });
+  await person.selectOption({ label: 'Tool' });
   await expect(c.locator('.change-entry')).toHaveCount(2);
-  await c.getByRole('button', { name: 'AI', exact: true }).click();
+  await c.getByRole('button', { name: 'Tool', exact: true }).click();
   await expect(c.getByText('Revealed a page')).toBeVisible();
 });
 
-test('the Everyone tab says why a list is empty', async ({ page }) => {
+test('three tabs, Tool, Game and Everything, each with a tooltip saying what it lists', async ({
+  page,
+}) => {
+  const calls = await setup(page);
+  const c = await load(page);
+  const tabs = c.getByRole('group', { name: 'Which changes to show' }).getByRole('button');
+  await expect(tabs).toHaveText(['Tool', 'Game', 'Everything']);
+  for (const tab of await tabs.all()) await expect(tab).toHaveAttribute('title', /.+/);
+  await expect(c.getByRole('button', { name: 'Tool' })).toHaveAttribute('aria-pressed', 'true');
+  // The Tool list is the guarded changes and has no person filter.
+  await expect(c.getByLabel('Show changes by')).toHaveCount(0);
+
+  // Game: only what people did in Foundry (the two human rows), with no Tool choice in the filter.
+  await c.getByRole('button', { name: 'Game' }).click();
+  await expect(c.getByText('Human h1')).toBeVisible();
+  await expect(c.locator('.change-entry')).toHaveCount(2);
+  await expect(c.getByText('Revealed a page')).toHaveCount(0);
+  await expect(c.getByLabel('Show changes by').locator('option')).toHaveText([
+    'Everyone',
+    'Aldric',
+    'Brenna',
+    'Danni',
+  ]);
+  await expect(c.locator('#changes-meta')).toHaveText('2 shown');
+
+  // Everything: both kinds, newest first, with the Tool choice.
+  await c.getByRole('button', { name: 'Everything' }).click();
+  await expect(c.getByText('Revealed a page')).toBeVisible();
+  await expect(c.locator('#changes-meta')).toHaveText('5 shown');
+  await expect(c.getByLabel('Show changes by').locator('option').nth(1)).toHaveText('Tool');
+  expect(callsOf(calls, 'list-changes').length).toBeGreaterThan(0);
+});
+
+test('the Everything tab says why a list is empty', async ({ page }) => {
   await setup(page, {
     everyone: () => ({ changes: [], note: 'Older changes are not kept.' }),
   });
   const c = await load(page);
-  await c.getByRole('button', { name: 'Everyone' }).click();
+  await c.getByRole('button', { name: 'Everything' }).click();
   await expect(c).toContainText('Older changes are not kept.');
 
   await page.unroute('**/api/tool');
@@ -409,7 +445,7 @@ test.describe('Undo on the AI tab', () => {
   });
 });
 
-test.describe('Undo on the Everyone tab', () => {
+test.describe('Undo on the Everything tab', () => {
   test('plans, shows the lines and applies with the click on Undo as the confirmation', async ({
     page,
   }) => {
@@ -677,7 +713,7 @@ test('Recent Changes is a During fold card and sits in After as well', async ({ 
   await expect(c.locator('.change-entry').first()).toBeVisible();
 });
 
-test('the Everyone tab picks up a change made in Foundry without a click or a reload', async ({
+test('the Everything tab picks up a change made in Foundry without a click or a reload', async ({
   page,
 }) => {
   let moved = false;
@@ -688,7 +724,7 @@ test('the Everyone tab picks up a change made in Foundry without a click or a re
     }),
   });
   const c = await load(page);
-  await c.getByRole('button', { name: 'Everyone' }).click();
+  await c.getByRole('button', { name: 'Everything' }).click();
   await expect(c.getByText('Human h1')).toBeVisible();
   await expect(c.getByText('Moved Brenna')).toHaveCount(0);
 
@@ -719,7 +755,7 @@ test('a run of token moves is one row, other changes stay as they are', async ({
     }),
   });
   const c = await load(page);
-  await c.getByRole('button', { name: 'Everyone' }).click();
+  await c.getByRole('button', { name: 'Everything' }).click();
   await expect(c.locator('.change-entry .change-summary')).toHaveText([
     'Token "Ogre" moved 3 times',
     'Brenna HP 13 to 7',

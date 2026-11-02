@@ -350,10 +350,13 @@ Only guarded changes are listed here: damage, healing, conditions, resources and
 edits and deletes are, while changes from other tools (rolls, new actors) are not and cannot be
 undone here.
 
-**The Everyone tab.** When the AI Tool on the server is new enough, Recent Changes has two tabs:
-**AI** (the list above) and **Everyone**, which also lists what the players and you did in Foundry
-over the last 7 days, such as hit points, items and tokens. Pick a person in the list above the rows
-to see only their changes. Each row shows who, when, what changed and, under "N line(s)", the
+**The three tabs.** When the AI Tool on the server is new enough, Recent Changes has three tabs:
+**Tool** (the list above: everything done through the AI Tool, that is Claude and the dashboard
+buttons, each with Undo), **Game** (what the players and you did directly in Foundry over the last 7
+days, such as hit points, items and tokens) and **Everything** (both together, newest first). Hover
+a tab to see this. Dashboard changes such as "Poisoned on Randal ... by GM (dashboard)" are in
+Tool. On Game and Everything, pick a person in the list above the rows to see only their changes
+(Everything also has **Tool** in that list). The dashboard keeps the tab you picked for next time. Each row shows who, when, what changed and, under "N line(s)", the
 details. A run of moves of the same token by the same person is one row ("moved 6 times"); its
 **Undo** takes back only the latest move, and Foundry's Changes window still lists each move.
 **Undo** works on anyone's change. It first shows what it will put back, and you confirm.

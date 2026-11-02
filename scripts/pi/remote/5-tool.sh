@@ -177,6 +177,7 @@ $loads_out"
   chown -R root:root "$app"
   chmod 755 "$app"
   ok "built $ref ($commit), version $(node -p "require('$app/package.json').version") in $app"
+  built_new=1
 fi
 
 say "the Foundry module"
@@ -354,6 +355,13 @@ if have_systemd; then
   else
     ok "tool ports listen on loopback, shared only with the tailnet"
   fi
+fi
+
+# A new release tag was built: one silent Danish line in #changelog. Off until the bot env on the Pi has
+# DISCORD_CHANGELOG_CHANNEL_ID; a failure is never fatal (announce.mjs prints one warning line).
+if [ "${built_new:-}" = 1 ] && printf '%s' "$ref" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$' &&
+  [ -f "$app/packages/discord-bot/announce/announce.mjs" ]; then
+  timeout 15 "$NODE_DIR/bin/node" "$app/packages/discord-bot/announce/announce.mjs" deploy "$ref" || true
 fi
 
 say "stage 5 done: run 5-check-world.sh for the throwaway check world, or set up the Assistant GM in the real world"

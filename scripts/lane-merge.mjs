@@ -53,6 +53,9 @@ export const TRAIN_SIZE = 4;
 
 /** The remote and branch the gate trusts. */
 const REMOTE = 'aitool';
+/** The silent #pr-log post after a merge: the sender lives in the bot package, plain Node. */
+const ANNOUNCE_SCRIPT = path.join('packages', 'discord-bot', 'announce', 'announce.mjs');
+const ANNOUNCE_TIMEOUT_MS = 10_000;
 const MAIN = `${REMOTE}/main`;
 /** Where the branch ruleset lives. */
 export const REPO = 'Gnuminator/Foundry-VTT-MCP-Ai-Tool';
@@ -945,6 +948,25 @@ export function acquireLock(file, opts = {}) {
 }
 
 /**
+ * Post "#<n> <title>" to #pr-log, silently. Fire and forget with a short timeout: any problem is
+ * one warning line, never a changed exit code.
+ * @param {number} n @param {string} title @param {string} [cwd]
+ * @returns {string} a warning, or '' when posted or skipped
+ */
+export function defaultAnnounce(n, title, cwd = process.cwd()) {
+  const script = path.join(cwd, ANNOUNCE_SCRIPT);
+  if (!fs.existsSync(script)) return '';
+  const r = spawnSync(process.execPath, [script, 'pr', String(n), title || `PR ${n}`], {
+    encoding: 'utf8',
+    timeout: ANNOUNCE_TIMEOUT_MS,
+    cwd,
+  });
+  if (r.status === 0) return '';
+  const why = r.error?.message ?? (firstLine(r.stdout || r.stderr) || `exit ${r.status}`);
+  return `Discord post for #${n} failed (${why})`;
+}
+
+/**
  * The real `run`: gh, git, node and npm. `npm` is a .cmd file on Windows, so it goes through the
  * shell as one command string (an args array under a shell is deprecated, DEP0190).
  * @param {string} cmd @param {string[]} args
@@ -1256,8 +1278,9 @@ export function entryDecision(argv1, self) {
  *   argv?: string[], run?: Run, log?: (line: string) => void, env?: Record<string, string | undefined>,
  *   home?: string, tmpdir?: string, now?: () => Date, fetched?: boolean, selfPath?: string, lockTimeoutMs?: number,
  *   sleep?: (ms: number) => void, clock?: () => number, waitPollMs?: number, waitTimeoutMs?: number,
- *   progress?: (line: string) => void,
- * }} [options] `progress` gets live lines that are not part of the verdict (stderr by default).
+ *   progress?: (line: string) => void, announce?: (n: number, title: string) => string,
+ * }} [options] `announce` posts to #pr-log after a merge and returns a warning or ''; the real one
+ * runs only with the real `run`, so tests never post. `progress` gets live lines that are not part of the verdict (stderr by default).
  * @returns {number} the process exit code
  */
 export function main(options = {}) {
@@ -1277,6 +1300,7 @@ export function main(options = {}) {
     waitPollMs = WAIT_POLL_MS,
     waitTimeoutMs = WAIT_TIMEOUT_MS,
     progress = line => console.error(line),
+    announce = run === defaultRun ? defaultAnnounce : () => '',
   } = options;
   const args = parseArgs(argv);
   if (args.error) {
@@ -1684,6 +1708,13 @@ export function main(options = {}) {
   // After the merged line, so a slow or hanging vault push never hides a merge that happened.
   const noteWarning = recordTrain(train, 'merge', n);
   if (noteWarning) log(`lane:merge: ${noteWarning}`);
+  // The Discord post is a courtesy: a failure is a warning line and never changes the exit code.
+  try {
+    const postWarning = announce(n, String(pr.title ?? ''));
+    if (postWarning) log(`lane:merge: WARNING ${postWarning}`);
+  } catch (e) {
+    log(`lane:merge: WARNING Discord post failed (${message(e)})`);
+  }
   return 0;
 }
 

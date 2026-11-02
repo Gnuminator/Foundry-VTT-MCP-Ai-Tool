@@ -429,6 +429,14 @@ describe('the stages', () => {
     assert.ok(text.indexOf('require_quiet') < text.indexOf('systemctl stop foundry.service\n    foundry_stopped=1'));
   });
 
+  test('stage 5 posts the deployed release to #changelog, only for a new tag build, never fatally', () => {
+    const text = read('scripts/pi/remote/5-tool.sh');
+    assert.match(text, /built_new=1/);
+    assert.match(text, /\[ "\$\{built_new:-\}" = 1 \]/);
+    assert.match(text, /announce\.mjs" deploy "\$ref" \|\| true/);
+    assert.ok(text.indexOf('announce.mjs" deploy') < text.indexOf('say "stage 5 done'));
+  });
+
   test('stage 5 and 12 warn when the dashboard split is off', () => {
     assert.match(read('scripts/pi/remote/5-tool.sh'), /warn_dashboard_split/);
     assert.match(read('scripts/pi/remote/12-tunnel.sh'), /warn_dashboard_split/);

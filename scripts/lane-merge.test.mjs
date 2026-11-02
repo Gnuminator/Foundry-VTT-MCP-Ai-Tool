@@ -15,6 +15,7 @@ import {
   TRAIN_NOTE_PATH,
   TRAIN_SIZE,
   acquireLock,
+  defaultAnnounce,
   defaultRun,
   entryDecision,
   findReviewNotes,
@@ -199,6 +200,7 @@ function gate(o = {}) {
     now: () => new Date('2026-10-10T12:00:00Z'),
     lockTimeoutMs: o.lockTimeoutMs ?? 300,
     selfPath: SELF,
+    ...(o.announce ? { announce: o.announce } : {}),
     ...(o.fetched === undefined ? {} : { fetched: o.fetched }),
     clock: () => clockMs,
     sleep: ms => {
@@ -1022,6 +1024,36 @@ test('merge train: a merged module PR is appended, and the third one asks for a 
     third.lines.at(-1),
     'lane:merge: merged #312 at 3d24f70; merge train 3/4; run live:roundtrip before the next module merge'
   );
+});
+
+test('a merge posts the number and title to #pr-log; a dry run and a refusal post nothing', () => {
+  /** @type {Array<[number, string]>} */
+  const posts = [];
+  const announce = (n, title) => (posts.push([n, title]), '');
+  const merged = gate({ announce });
+  assert.equal(merged.code, 0, merged.text);
+  assert.deepEqual(posts, [[312, 'A thing']]);
+  assert.equal(gate({ announce, argv: ['--dry-run'] }).code, 0);
+  assert.equal(gate({ announce, merge: 1 }).code, 1);
+  assert.equal(posts.length, 1);
+});
+
+test('a failing or throwing Discord post is a warning and never changes the exit code', () => {
+  const warned = gate({ announce: () => 'Discord post for #312 failed (offline)' });
+  assert.equal(warned.code, 0);
+  assert.ok(warned.lines.some(l => l.includes('merged #312')));
+  assert.equal(warned.lines.at(-1), 'lane:merge: WARNING Discord post for #312 failed (offline)');
+  const thrown = gate({
+    announce: () => {
+      throw new Error('boom');
+    },
+  });
+  assert.equal(thrown.code, 0);
+  assert.equal(thrown.lines.at(-1), 'lane:merge: WARNING Discord post failed (boom)');
+});
+
+test('defaultAnnounce skips quietly when the sender is not in the checkout', () => {
+  assert.equal(defaultAnnounce(1, 't', tmpDir()), '');
 });
 
 test('a dry run does not touch the train even for a module PR', () => {

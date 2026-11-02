@@ -26,6 +26,19 @@ Start from a clean, up-to-date checkout of `main` (the main checkout, or a workt
    builds and publishes the GitHub release (assets and checks: [DEPLOYMENT](DEPLOYMENT.md#cutting-a-new-release-maintainers)).
 
 6. **Verify the release** (the `curl` in DEPLOYMENT), then deploy to the Pi if wanted.
+7. **Tell the players in #changelog** (a normal post; it never mentions anyone). Write 2 to 5 short Danish lines from the new
+   CHANGELOG section: what players and the GM notice, game terms in English, no em dashes, nothing
+   purely internal (tooling, tests, CI). Post them in one message from the PC:
+
+   ```bash
+   node packages/discord-bot/announce/announce.mjs changelog "**v0.24.0**
+   - Spillersiden viser nu kampen live
+   - ..."
+   ```
+
+   A Pi stage 5 build of a new release tag posts "Serveren kører nu vX.Y.Z." by itself once the Pi's bot env
+   has `DISCORD_CHANGELOG_CHANNEL_ID`. Posting is optional and never blocks a release; it prints one warning
+   if Discord cannot be reached.
 
 ## The Pi
 

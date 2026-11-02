@@ -106,6 +106,7 @@ if [ -z "$ref" ]; then
   ok "no TOOL_REF: building the newest release tag, $ref"
 fi
 say "the tool at $ref"
+prev_ref="$(cat "$app/.tool-ref" 2>/dev/null || true)"
 # The same ref is not built again, unless its build still has the dev packages although this stage can drop them
 # (an earlier stage 5 did not, or the ref moved past the prune since): then it is built once more, pruned. A pruned
 # build carries .tool-pruned.
@@ -177,6 +178,8 @@ $loads_out"
   chown -R root:root "$app"
   chmod 755 "$app"
   ok "built $ref ($commit), version $(node -p "require('$app/package.json').version") in $app"
+  # Building the running tag again (the prune) is not a new release.
+  [ "$prev_ref" = "$ref" ] || built_new=1
 fi
 
 say "the Foundry module"
@@ -342,7 +345,7 @@ if have_systemd; then
     curl -fs -o /dev/null http://127.0.0.1:3000/ && break
     sleep 2
   done
-  curl -fs -o /dev/null http://127.0.0.1:3000/ && ok "dashboard answers on 127.0.0.1:3000" ||
+  curl -fs -o /dev/null http://127.0.0.1:3000/ && ok "dashboard answers on 127.0.0.1:3000" && dash_ok=1 ||
     warn "dashboard does not answer yet; see: journalctl -u foundry-ai-tool-dashboard -n 50"
   ss -ltn | grep -E ':(31414|31415|3000) ' || true
   # Tailscale serve listens on the Pi's tailnet addresses (100.64.0.0/10 and fd7a:115c:a1e0::/48);
@@ -354,6 +357,15 @@ if have_systemd; then
   else
     ok "tool ports listen on loopback, shared only with the tailnet"
   fi
+fi
+
+# A release tag the Pi did not run before was built and the dashboard answers: one Danish line in
+# #changelog (a normal post, rare). Off until the bot env on the Pi has DISCORD_CHANGELOG_CHANNEL_ID; a
+# failure is never fatal (announce.mjs prints one warning line). A run that dies before this point posts
+# nothing, and the rerun finds the build already there, so it posts nothing either (a courtesy post).
+if [ "${built_new:-}" = 1 ] && [ "${dash_ok:-}" = 1 ] && printf '%s' "$ref" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$' &&
+  [ -f "$app/packages/discord-bot/announce/announce.mjs" ]; then
+  timeout 15 "$NODE_DIR/bin/node" "$app/packages/discord-bot/announce/announce.mjs" deploy "$ref" || true
 fi
 
 say "stage 5 done: run 5-check-world.sh for the throwaway check world, or set up the Assistant GM in the real world"

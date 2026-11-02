@@ -1,0 +1,11 @@
+### Dashboard
+
+- **During cards open together:** opening Handouts, Party, Live Feed or Recent Changes no longer
+  folds the other side cards. Each card keeps its own height and scrolls inside itself.
+- **Recent Changes has three tabs:** **Tool** (everything done through the AI Tool, with Undo; the
+  old AI tab), **Game** (what players and the GM changed directly in Foundry) and **Everything**
+  (both; the old Everyone tab). Each tab has a tooltip saying what it lists, the person filter says
+  **Tool** instead of AI, and the small Obsidian links in the rows and next to Start session now
+  say "Obsidian" and have a tooltip.
+- **The dashboard remembers your last choice:** the Recent Changes tab and person filter (and the
+  Live screen's AI only box) come back as you left them, in the same browser.

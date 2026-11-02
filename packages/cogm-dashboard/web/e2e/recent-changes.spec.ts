@@ -767,3 +767,32 @@ test('a run of token moves is one row, other changes stay as they are', async ({
     .poll(() => callsOf(calls, 'plan-undo-changes').map(x => x.args))
     .toEqual([{ id: 'm1', scope: 'just-this' }]);
 });
+
+test('the tab and the person are remembered for the next visit in this browser', async ({
+  page,
+}) => {
+  await setup(page);
+  let c = await load(page);
+  await expect(c.getByRole('button', { name: 'Tool' })).toHaveAttribute('aria-pressed', 'true');
+  await c.getByRole('button', { name: 'Everything' }).click();
+  await c.getByLabel('Show changes by').selectOption({ label: 'Brenna' });
+  await expect(c.locator('.change-entry')).toHaveCount(1);
+
+  await page.reload();
+  c = card(page);
+  await expect(c.getByRole('button', { name: 'Everything' })).toHaveAttribute(
+    'aria-pressed',
+    'true'
+  );
+  await expect(c.getByLabel('Show changes by')).toHaveValue('person:Brenna');
+  await expect(c.locator('.change-entry')).toHaveCount(1);
+});
+
+test('a saved tab the page does not offer, or blocked storage, gives the Tool tab', async ({
+  page,
+}) => {
+  await setup(page);
+  await page.addInitScript(() => localStorage.setItem('cogm_changes_tab', 'everyone'));
+  const c = await load(page);
+  await expect(c.getByRole('button', { name: 'Tool' })).toHaveAttribute('aria-pressed', 'true');
+});

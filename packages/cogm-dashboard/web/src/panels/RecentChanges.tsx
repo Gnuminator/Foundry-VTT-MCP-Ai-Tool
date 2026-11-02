@@ -28,6 +28,7 @@ import {
   EVERYONE_TOOL,
   FILTER_AI,
   FILTER_ALL,
+  CHANGES_TABS,
   changeState,
   dialogFor,
   filterChanges,
@@ -55,6 +56,7 @@ import {
   type UndoStage,
 } from '../lib/changes';
 import { gmChangeLabel } from '../lib/feed';
+import { REMEMBER, readChoice, readText, writeChoice } from '../lib/remember';
 import { failCode, useGuardedTools, type GuardedTools } from '../lib/guarded';
 import { CHANGES_KEY, useObsidianFileUrl } from '../lib/stream';
 import { usage } from '../lib/usage';
@@ -312,8 +314,24 @@ function ChangesCard({ active, oneList }: { active: boolean; oneList: boolean })
   const toast = useToast();
   const guarded = useGuardedTools();
   const undoWindow = useUndoWindow();
-  const [tab, setTab] = useState<ChangesTab>('tool');
-  const [person, setPerson] = useState(FILTER_ALL);
+  // The GM's last tab and person come back on the next visit (lib/remember.ts).
+  const [tab, setTabState] = useState<ChangesTab>(() =>
+    readChoice(REMEMBER.changesTab, CHANGES_TABS, 'tool')
+  );
+  // The Live screen's AI only box is its own choice, so it never changes the dashboard's person.
+  const personKey = oneList ? REMEMBER.liveAiOnly : REMEMBER.changesPerson;
+  const [person, setPersonState] = useState(() => {
+    const saved = readText(personKey, FILTER_ALL);
+    return oneList && saved !== FILTER_AI ? FILTER_ALL : saved;
+  });
+  const setTab = (next: ChangesTab): void => {
+    setTabState(next);
+    writeChoice(REMEMBER.changesTab, next);
+  };
+  const setPerson = (next: string): void => {
+    setPersonState(next);
+    writeChoice(personKey, next);
+  };
   const cardRef = useRef<HTMLElement>(null);
 
   // The Game and Everything tabs need the bridge's list-changes: an older bridge has none and

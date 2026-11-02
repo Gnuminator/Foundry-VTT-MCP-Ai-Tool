@@ -675,6 +675,68 @@ describe('FoundryDataAccess — getCombatState: conditions', () => {
     expect(result.combatants[0].timed).toEqual({ Prone: 1, Poisoned: 0, Frightened: 1 });
   });
 
+  it('works the rounds left out from the effect start and the running combat, not the prepared values', async () => {
+    // No prepared remaining/expired at all (a reloaded GM client): only the stored start.
+    const fresh = makeEffect({
+      name: 'Prone',
+      statuses: ['prone'],
+      duration: { units: 'rounds', value: 3 },
+      start: { round: 2, turn: 0 },
+    });
+    const overdue = makeEffect({
+      name: 'Restrained',
+      statuses: ['restrained'],
+      duration: { units: 'rounds', value: 1, remaining: 1 },
+      start: { round: 1, turn: 0 },
+    });
+    // Round changed (0 left) and the owner's turn has started: ended; before it: still 1.
+    const startedTurn = makeEffect({
+      name: 'Frightened',
+      statuses: ['frightened'],
+      duration: { units: 'rounds', value: 1, expiry: 'turnStart' },
+      start: { round: 3, turn: 0 },
+    });
+    const notYet = makeEffect({
+      name: 'Blinded',
+      statuses: ['blinded'],
+      duration: { units: 'rounds', value: 1, expiry: 'turnStart' },
+      start: { round: 3, turn: 0 },
+    });
+    const early = makeActor({ type: 'character', system: hp(10), effects: [startedTurn] });
+    const late = makeActor({
+      type: 'character',
+      system: hp(10),
+      effects: [fresh, overdue, notYet],
+    });
+    (early as { id?: string }).id = 'early';
+    (late as { id?: string }).id = 'late';
+    world.setCombat({
+      turns: [
+        makeCombatant({
+          id: 'c1',
+          name: 'A',
+          initiative: 20,
+          actor: early,
+          token: { disposition: 1 },
+        }),
+        makeCombatant({
+          id: 'c2',
+          name: 'B',
+          initiative: 10,
+          actor: late,
+          token: { disposition: 1 },
+        }),
+      ],
+      turn: 0,
+      round: 4,
+      started: true,
+    });
+
+    const result = await da.getCombatState();
+    expect(result.combatants[0].timed).toEqual({ Frightened: 0 });
+    expect(result.combatants[1].timed).toEqual({ Prone: 1, Restrained: 0, Blinded: 1 });
+  });
+
   it('excludes disabled effects from conditions', async () => {
     const poisoned = makeEffect({ name: 'Poisoned', statuses: ['poisoned'], disabled: false });
     const exhausted = makeEffect({ name: 'Exhaustion', statuses: ['exhaustion'], disabled: true });

@@ -16,8 +16,9 @@ import {
   type SwitchesRead,
   type SwitchesWrite,
 } from './sessionSwitches';
+import { markUndoRefused } from './liveStrip';
 import { isSwitchOffRefusal, refusedSwitchName } from './switchOff';
-import { SETTINGS_KEY, useDashboardSettings, type DashboardSettings } from './stream';
+import { CHANGES_KEY, SETTINGS_KEY, useDashboardSettings, type DashboardSettings } from './stream';
 import { usage } from './usage';
 
 /**
@@ -318,6 +319,19 @@ export function useGuardedTools(): GuardedTools {
           const hint = error.replace(/^Error:\s*/, '');
           void refusalToast(hint, refusedSwitchName(hint));
           return { outcome: { status: 'failed', error: hint } };
+        }
+        if (name === 'undo-change' && /Conflict, nothing was written/.test(error)) {
+          // Someone changed it after the change: nothing was written, so one plain line, and the
+          // strip stops offering this Undo (Recent Changes still lists it).
+          const changeId = args['changeId'];
+          if (typeof changeId === 'string') markUndoRefused(changeId);
+          // A new array, so the strips that read the list draw again at once.
+          queryClient.setQueryData<unknown[]>([...CHANGES_KEY, 'ai'], old =>
+            Array.isArray(old) ? [...old] : old
+          );
+          toast("✗ Couldn't undo it: it was changed after that. Nothing was written.", 'err');
+          changed();
+          return { outcome: { status: 'failed', error } };
         }
         const words = options.label ?? toolWords(name);
         const checkHint = `It may have applied; check ${options.checkIn ?? 'Recent Changes'}.`;

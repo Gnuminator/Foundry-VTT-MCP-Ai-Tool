@@ -226,7 +226,13 @@ function undoRequest(applied: GuardedApplyResult): GuardedApplyRequest {
     ops: results.map(inverseOf),
     expected: results.map((r): OpSnapshot => {
       if (r.kind === 'update') return { exists: true, values: r.after ?? [] };
-      if (r.kind === 'create') return { exists: true, modifiedTime: r.modifiedTime ?? null };
+      if (r.kind === 'create') {
+        return {
+          exists: true,
+          modifiedTime: r.modifiedTime ?? null,
+          ...(r.contentHash ? { contentHash: r.contentHash } : {}),
+        };
+      }
       return { exists: true, idTaken: false };
     }),
   };
@@ -1016,6 +1022,41 @@ describe('applyGuardedOps: change journal marker', () => {
 // ---------------------------------------------------------------------------
 
 describe('applyGuardedOps: undo', () => {
+  it('undoes a timed condition after turns passed, but not after a real edit', async () => {
+    const effect = (actor: FakeDoc): GuardedOp => ({
+      kind: 'create',
+      documentName: 'ActiveEffect',
+      parentUuid: actor.uuid,
+      data: {
+        name: 'Restrained',
+        statuses: ['restrained'],
+        duration: { value: 1, units: 'rounds' },
+      },
+    });
+    const passTurn = (doc: FakeDoc): void => {
+      // What Foundry writes as turns pass: the start stamp, the expired flag and the clock.
+      doc.source.start = { round: 2, turn: 1 };
+      doc.source.duration.expired = true;
+      doc.source._stats.modifiedTime = clock += 1;
+    };
+
+    const actor = addActor();
+    const applied = await applyGuardedOps(await request([effect(actor)]));
+    const created = registry.get(applied.results[0].uuid)!;
+    passTurn(created);
+    await applyGuardedOps(undoRequest(applied));
+    expect(registry.has(created.uuid)).toBe(false);
+
+    const other = addActor();
+    const second = await applyGuardedOps(await request([effect(other)]));
+    const edited = registry.get(second.results[0].uuid)!;
+    passTurn(edited);
+    edited.source.name = 'Restrained (GM note)';
+    edited.source._stats.modifiedTime = clock += 1;
+    await expect(applyGuardedOps(undoRequest(second))).rejects.toThrow(/was modified since/);
+    expect(registry.has(edited.uuid)).toBe(true);
+  });
+
   it('restores values and unsets the rules tag (v13 -= keys)', async () => {
     const actor = addActor({ flags: { [MODULE_ID]: { attitude: 'hostile' } } });
     const applied = await applyGuardedOps(

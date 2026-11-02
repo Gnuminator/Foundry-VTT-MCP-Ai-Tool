@@ -90,6 +90,11 @@ export interface OpSnapshot {
   values?: PathValue[];
   /** delete: `_stats.modifiedTime`, compared when the expected snapshot has one. */
   modifiedTime?: number | null;
+  /**
+   * An effect's content without Foundry's own bookkeeping (`_stats`, `start`, `duration.expired`).
+   * When both sides have one it replaces the `modifiedTime` check: a turn passing is not an edit.
+   */
+  contentHash?: string;
   /** create with keepId: a document with that id already exists. */
   idTaken?: boolean;
   /**
@@ -128,6 +133,8 @@ export interface GuardedOpResult {
   alreadyGone?: true;
   /** create: `_stats.modifiedTime` of the new document (undo conflict check). */
   modifiedTime?: number | null;
+  /** create of an ActiveEffect: its content hash (see OpSnapshot.contentHash). */
+  contentHash?: string;
 }
 
 export interface GuardedApplyResult {
@@ -222,6 +229,31 @@ function readPath(source: Record<string, unknown>, path: string): PathValue {
 function modifiedTimeOf(source: Record<string, unknown>): number | null {
   const stats = source._stats as { modifiedTime?: unknown } | undefined;
   return typeof stats?.modifiedTime === 'number' ? stats.modifiedTime : null;
+}
+
+/**
+ * A fingerprint of an ActiveEffect without what Foundry rewrites by itself as turns pass (its
+ * `_stats`, the `start` stamp and the `duration.expired` flag), so Undo of a timed condition still
+ * works after a turn, while a real edit (name, statuses, changes, duration value) still conflicts.
+ * Other document types have none.
+ */
+function contentHashOf(doc: FoundryDocument | null | undefined): string | undefined {
+  if (!doc || doc.documentName !== 'ActiveEffect') return undefined;
+  const { _stats, start, ...rest } = sourceOf(doc);
+  void _stats;
+  void start;
+  const duration = rest.duration;
+  if (duration && typeof duration === 'object') {
+    const { expired, ...kept } = duration as Record<string, unknown>;
+    void expired;
+    rest.duration = kept;
+  }
+  return JSON.stringify(rest);
+}
+
+function hashField(doc: FoundryDocument): { contentHash?: string } {
+  const contentHash = contentHashOf(doc);
+  return contentHash === undefined ? {} : { contentHash };
 }
 
 function nameOf(doc: FoundryDocument): string | null {
@@ -337,6 +369,7 @@ async function snapshotOp(op: GuardedOp): Promise<OpSnapshot> {
         documentName: doc.documentName,
         name: nameOf(doc),
         modifiedTime: modifiedTimeOf(sourceOf(doc)),
+        ...hashField(doc),
         ...(parent ? { parent } : {}),
         ...(levelContents === undefined ? {} : { levelContents }),
       };
@@ -412,6 +445,11 @@ function conflictReason(
   if (op.kind === 'delete') {
     if ((current.levelContents ?? 0) > 0) {
       return `${current.levelContents} thing(s) sit on this level and Foundry would delete them with it`;
+    }
+    if (expected.contentHash !== undefined && current.contentHash !== undefined) {
+      return expected.contentHash === current.contentHash
+        ? null
+        : 'the document was modified since';
     }
     if (
       expected.modifiedTime !== undefined &&
@@ -676,6 +714,7 @@ async function executeCreate(
     name: nameOf(created),
     parentUuid: op.parentUuid ?? null,
     modifiedTime: modifiedTimeOf(sourceOf(created)),
+    ...hashField(created),
   };
 }
 

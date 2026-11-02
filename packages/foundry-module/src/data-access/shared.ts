@@ -399,12 +399,28 @@ export function actorConditionNames(actor: Actor | null | undefined): string[] {
   }
 }
 
+/** The running combat as the timed-condition rule needs it: the round, the turn index, who sits where. */
+export interface TimedCombatContext {
+  round: number;
+  turn: number;
+  /** The actor id of each entry in the turn order. */
+  turnActorIds: readonly (string | null)[];
+}
+
 /**
  * The rounds left on an actor's timed condition effects, by the same name `actorConditionNames`
  * gives: whole rounds (0 once the time is up). Only effects with a duration in rounds get a key;
  * a condition without one is not listed.
+ *
+ * With the running combat and the effect's stored start round the count is worked out here
+ * (duration minus rounds gone), so it is right after a reload and does not depend on a browser
+ * having prepared the effect during the fight. Without them it falls back to the values Foundry
+ * prepared (`duration.remaining`, `duration.expired`). An overdue effect is 0, never 1.
  */
-export function actorTimedConditions(actor: Actor | null | undefined): Record<string, number> {
+export function actorTimedConditions(
+  actor: Actor | null | undefined,
+  combat?: TimedCombatContext | null
+): Record<string, number> {
   const timed: Record<string, number> = {};
   if (!actor) return timed;
   try {
@@ -415,16 +431,13 @@ export function actorTimedConditions(actor: Actor | null | undefined): Record<st
       if (typeof name !== 'string') continue;
       const d = effectDuration(e);
       if (d.units !== 'rounds' || d.value === null) continue;
-      const duration = rec(rec(e).duration);
-      // "Remaining" reaches 0 as the round changes, but the effect (default expiry: its owner's
-      // next turn start) still applies until Foundry flags it expired: 0 only for that flag.
-      const ended = duration.expired === true;
-      const remaining = duration.remaining;
-      const left = ended
-        ? 0
-        : typeof remaining === 'number' && Number.isFinite(remaining)
-          ? Math.max(1, Math.ceil(remaining))
-          : d.value;
+      const left = timedLeft(
+        e,
+        d.value,
+        rec(rec(e).duration).expired === true,
+        actor,
+        combat ?? null
+      );
       // Two effects of one name: a live one wins over an ended one.
       timed[name] = Math.max(timed[name] ?? 0, left);
     }
@@ -432,6 +445,42 @@ export function actorTimedConditions(actor: Actor | null | undefined): Record<st
     return {};
   }
   return timed;
+}
+
+function timedLeft(
+  e: ActiveEffect,
+  value: number,
+  expired: boolean,
+  actor: Actor,
+  combat: TimedCombatContext | null
+): number {
+  const duration = rec(rec(e).duration);
+  const startRound = rec(rec(e).start).round;
+  let remaining: unknown = duration.remaining;
+  if (combat && typeof startRound === 'number' && Number.isFinite(startRound)) {
+    remaining = value - (combat.round - startRound);
+    if ((remaining as number) < 0) return 0;
+    // At 0 the round has changed but the effect still applies until its expiry point: the
+    // owner's turn start (the default) or end. Foundry's own flag counts when it is set.
+    if (remaining === 0) {
+      if (expired) return 0;
+      const expiry = duration.expiry;
+      const ownerIdx = combat.turnActorIds.indexOf((actor as { id?: string | null }).id ?? null);
+      if (ownerIdx >= 0 && (expiry === undefined || expiry === null || expiry === 'turnStart')) {
+        return combat.turn >= ownerIdx ? 0 : 1;
+      }
+      if (ownerIdx >= 0 && expiry === 'turnEnd') return combat.turn > ownerIdx ? 0 : 1;
+      return 1;
+    }
+    return Math.ceil(remaining as number);
+  }
+  // Foundry's prepared values: "remaining" reaches 0 as the round changes, but the effect still
+  // applies until Foundry flags it expired: 0 only for that flag, or once it is overdue.
+  if (expired) return 0;
+  if (typeof remaining === 'number' && Number.isFinite(remaining)) {
+    return remaining < 0 ? 0 : Math.max(1, Math.ceil(remaining));
+  }
+  return value;
 }
 
 /** A document or data model as its `toJSON()` (plain data, no parent links), else the value. */

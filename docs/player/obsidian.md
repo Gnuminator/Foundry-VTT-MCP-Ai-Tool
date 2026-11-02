@@ -68,7 +68,8 @@ update. Keep your own notes in a second Obsidian vault.
 ## If Syncthing says something is wrong
 
 - **"Locally Changed Items" (yellow):** you, or Obsidian, changed something in the folder. Nothing
-  went to the server. Press **Revert Local Changes** to put the server's version back.
+  went to the server. Press **Revert Local Changes** to put the server's version back. (This also removes any note you
+  added there yourself.)
 - **Obsidian's own files:** Obsidian writes a few settings files into the vault (`workspace.json`
   and the like). They cause the yellow notice. To stop it: in Syncthing open the folder, **Edit**,
   **Ignore Patterns**, and paste:

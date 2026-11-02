@@ -72,7 +72,7 @@ opdatering. Hold dine egne noter i en anden Obsidian-vault.
 ## Hvis Syncthing siger, at noget er galt
 
 - **"Locally Changed Items" (gul):** du eller Obsidian har ændret noget i mappen. Intet er gået til
-  serveren. Tryk **Revert Local Changes** for at få serverens version tilbage.
+  serveren. Tryk **Revert Local Changes** for at få serverens version tilbage. (Det fjerner også alle noter, du selv har lagt der.)
 - **Obsidians egne filer:** Obsidian skriver nogle indstillingsfiler ind i vaulten (`workspace.json`
   og lignende). De giver den gule besked. For at stoppe den: åbn mappen i Syncthing, **Edit**,
   **Ignore Patterns**, og indsæt:

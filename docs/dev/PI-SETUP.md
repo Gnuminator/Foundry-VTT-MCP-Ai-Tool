@@ -1566,8 +1566,9 @@ is `docs/player/obsidian.md`.
   player's devices (no introducer, no auto-accept). A player's change or deletion is ignored on the Pi. A player who never sends a
   device ID is never touched. One device belongs to one player and never to `foundry-gm-vault`; the stage refuses otherwise.
 - **The dashboard switch** is a systemd drop-in, `foundry-ai-tool-dashboard.service.d/player-vault.conf`, not a line in
-  `dashboard.env` (stage 7 rewrites that file whole). The dashboard restarts only when the drop-in is new, through the usual quiet
-  check (no players online, no recording).
+  `dashboard.env` (stage 7 rewrites that file whole). The dashboard restarts only when the drop-in is new or changed (and is started if it was
+  stopped), through the usual quiet check (no players online, no recording). `OFF=1` asks for quiet first, restarts a running
+  dashboard once, and leaves a stopped one stopped; the report compares the running process with the drop-in.
 - **Only a folder the dashboard wrote is shared** (it must hold `.aitool-player.json`, and must not be a link). The stage never
   writes, moves or deletes a vault note; its only file in a player folder is Syncthing's `.stignore` (temp files and the marker).
 - **Report** (read-only, any time): `cat scripts/pi/remote/lib.sh scripts/pi/remote/21-player-vault.sh | ssh foundry-pi 'bash -s'`.

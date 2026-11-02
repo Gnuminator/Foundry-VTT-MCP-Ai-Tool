@@ -82,6 +82,21 @@ describe('21-player-vault.sh as text', () => {
     assert.match(off, /try-restart/);
   });
 
+  test('a change ignores a dropped SSH session and refuses conflicting switches', () => {
+    const snap = stage.indexOf('require_recent_snapshot\n  # A dropped');
+    assert.ok(snap > 0);
+    assert.ok(stage.indexOf("trap '' HUP PIPE") > snap);
+    assert.ok(stage.indexOf("trap '' HUP PIPE") < stage.indexOf('config folders add --id'));
+    assert.match(stage, /give only one of OFF=1, REMOVE=1 and SETUP=1/);
+    assert.match(stage, /OFF=1 takes every player out/);
+  });
+
+  test('root does not create the players folder through a link', () => {
+    const fn = stage.slice(stage.indexOf('ensure_dashboard_switch() {'));
+    assert.ok(fn.indexOf('[ ! -L "$players_dir" ]') > 0);
+    assert.ok(fn.indexOf('[ ! -L "$players_dir" ]') < fn.indexOf('install -d'));
+  });
+
   test('an add checks the folder and the device before it touches the dashboard', () => {
     const add = stage.slice(stage.indexOf('add)\n'));
     assert.ok(

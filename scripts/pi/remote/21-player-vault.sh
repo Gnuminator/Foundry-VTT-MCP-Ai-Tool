@@ -17,7 +17,8 @@
 #   STRICT=1         with the report: exit 1 when a player folder is not Send Only, a device is on two players' folders or on
 #                    the GM vault, or a shared folder is missing
 #   SETUP=1          switch the dashboard's player vaults on (a systemd drop-in with FOUNDRY_AI_PLAYER_VAULTS_DIR) and make the
-#                    players folder; restarts the dashboard only when the drop-in is new or changed. Snapshot first.
+#                    players folder; restarts the dashboard only when the drop-in is new or changed (and starts it if it
+#                    was stopped). Snapshot first.
 #   PLAYER="<name>" DEVICE_ID=<id> [DEVICE_NAME=<name>]
 #                    add: SETUP as above, then share that player's folder with that device (a second device of the same
 #                    player is another run). <name> is the folder's name below the players folder, as the report lists it.
@@ -48,6 +49,12 @@ device_name="${DEVICE_NAME:-}"
 strict="${STRICT:-0}"
 problems=0
 
+switches=0
+for sw in "${OFF:-0}" "${REMOVE:-0}" "${SETUP:-0}"; do [ "$sw" != 1 ] || switches=$((switches + 1)); done
+[ "$switches" -le 1 ] || die "give only one of OFF=1, REMOVE=1 and SETUP=1"
+if [ "${OFF:-0}" = 1 ] && { [ -n "$player" ] || [ -n "$device_id" ]; }; then
+  die "OFF=1 takes every player out: it does not take PLAYER or DEVICE_ID (use REMOVE=1 for one player)"
+fi
 mode=report
 if [ "${OFF:-0}" = 1 ]; then
   mode=off
@@ -84,6 +91,8 @@ command -v syncthing >/dev/null 2>&1 || die "Syncthing is not installed: run sta
 id "$FOUNDRY_USER" >/dev/null 2>&1 || die "the $FOUNDRY_USER user is missing: run stage 1 first"
 if [ "$mode" != report ]; then
   require_recent_snapshot
+  # A dropped SSH session must not stop a change halfway (stages 11, 14 and 19 do the same).
+  trap '' HUP PIPE
 fi
 
 st() { runuser -u "$FOUNDRY_USER" -- env HOME="$TOOL_DATA" syncthing cli --home="$st_home" "$@" </dev/null; }
@@ -128,8 +137,23 @@ check_player_folder() {
 }
 
 # ---- The dashboard switch -------------------------------------------------------------------------------------------
+# dashboard_live: prints "yes" or "no" for whether the RUNNING dashboard process has FOUNDRY_AI_PLAYER_VAULTS_DIR (not the
+# unit file: a refused or interrupted restart leaves the two apart), and "stopped" when it does not run.
+dashboard_live() {
+  local pid
+  pid="$(systemctl show -p MainPID --value "$dashboard_unit" 2>/dev/null || true)"
+  if [ -z "$pid" ] || [ "$pid" = 0 ]; then
+    echo stopped
+  elif tr '\0' '\n' <"/proc/$pid/environ" 2>/dev/null | grep -q '^FOUNDRY_AI_PLAYER_VAULTS_DIR='; then
+    echo yes
+  else
+    echo no
+  fi
+}
 ensure_dashboard_switch() {
   say "the dashboard's player vaults"
+  # Root creates and chowns below; a link the foundry user left at the folder would send that elsewhere.
+  [ ! -L "$players_dir" ] || die "$players_dir is a link: refused"
   install -d -m 0750 -o "$FOUNDRY_USER" -g "$FOUNDRY_USER" "$TOOL_DATA/obsidian" "$players_dir"
   ok "$players_dir"
   if have_systemd; then
@@ -218,7 +242,11 @@ remove_player() {
   local slug fid d
   slug="$(slug_for "$player")"
   fid="$folder_prefix$slug"
-  st config folders list | grep -x "$fid" >/dev/null || die "there is no Syncthing folder $fid: nothing to remove"
+  if ! st config folders list | grep -x "$fid" >/dev/null; then
+    # An earlier run may have died between the folder and its devices: a given device is still forgotten.
+    [ -n "$device_id" ] && st config devices list | grep -x "$device_id" >/dev/null && forget_if_unused "$device_id"
+    die "there is no Syncthing folder $fid: nothing to remove"
+  fi
   if [ -n "$device_id" ]; then
     say "unsharing $fid from $device_id"
     st config folders "$fid" devices list | grep -x "$device_id" >/dev/null || die "$device_id is not on $fid"
@@ -264,13 +292,21 @@ switch_off() {
   if [ -f "$dropin" ]; then
     rm -f -- "${dropin:?}"
     ok "removed $dropin"
-    if have_systemd; then
-      systemctl daemon-reload
-      # try-restart: a stopped dashboard stays stopped.
-      if systemctl try-restart "$dashboard_unit"; then ok "$dashboard_unit restarted if it was running"; else die "$dashboard_unit did not restart; see journalctl -u $dashboard_unit -n 50"; fi
-    fi
   else
     ok "no drop-in"
+  fi
+  # Also when the drop-in was already gone: an earlier run may have died before the restart (the report shows it).
+  if have_systemd && [ -f "/etc/systemd/system/$dashboard_unit" ]; then
+    if [ "$(dashboard_live)" = yes ]; then
+      require_quiet_if_active "$dashboard_unit" "restarting the dashboard to switch player vaults off"
+      systemctl daemon-reload
+      # try-restart: a stopped dashboard stays stopped.
+      systemctl try-restart "$dashboard_unit" || die "$dashboard_unit did not restart; see journalctl -u $dashboard_unit -n 50"
+      ok "$dashboard_unit restarted without the setting"
+    else
+      systemctl daemon-reload
+      ok "the dashboard does not have the setting"
+    fi
   fi
   say "stage 21 done: player vaults are off; the files in $players_dir stay"
 }
@@ -284,13 +320,12 @@ report() {
   fi
   if have_systemd && [ -f "/etc/systemd/system/$dashboard_unit" ]; then
     # The running process, not the unit file: a refused restart leaves the two apart.
-    local pid live=0
-    pid="$(systemctl show -p MainPID --value "$dashboard_unit" 2>/dev/null || true)"
-    if [ -n "$pid" ] && [ "$pid" != 0 ] && tr '\0' '\n' <"/proc/$pid/environ" 2>/dev/null | grep -q '^FOUNDRY_AI_PLAYER_VAULTS_DIR='; then live=1; fi
-    if [ -f "$dropin" ] && [ "$live" = 0 ] && [ -n "$pid" ] && [ "$pid" != 0 ]; then
+    local live
+    live="$(dashboard_live)"
+    if [ -f "$dropin" ] && [ "$live" = no ]; then
       warn "the drop-in is there but the running dashboard does not have the setting yet (it restarts when the Pi is quiet)"
-    elif [ ! -f "$dropin" ] && [ "$live" = 1 ]; then
-      warn "no drop-in, but the running dashboard still writes player vaults (the switch-off restart is pending)"
+    elif [ ! -f "$dropin" ] && [ "$live" = yes ]; then
+      warn "no drop-in, but the running dashboard still writes player vaults (run OFF=1 again to restart it)"
       problems=$((problems + 1))
     fi
   fi

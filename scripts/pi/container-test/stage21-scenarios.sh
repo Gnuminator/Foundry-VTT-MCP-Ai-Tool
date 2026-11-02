@@ -180,7 +180,8 @@ else
   fail "device flags"
 fi
 # A accepts: the same folder id, receive only.
-sa config folders add --id "$mira_fid" --label Mira --path "$a_vault" --type receiveonly
+# A player who skips "Receive Only" (send and receive): the Pi's Send Only must still keep everything out (scenario 4).
+sa config folders add --id "$mira_fid" --label Mira --path "$a_vault" --type sendreceive
 sa config folders "$mira_fid" devices add --device-id "$pi_id"
 if wait_for 90 test -f "$a_vault/Handouts/Letter.md"; then pass "a note on the Pi reaches Mira's device"; else fail "no sync to A: $(ls -A "$a_vault"); $(tail -n 5 /tmp/pi-st.log)"; fi
 if [ ! -e "$a_vault/.aitool-player.json" ]; then pass "the marker file is not offered"; else fail "the marker file reached A"; fi
@@ -265,7 +266,19 @@ fi
 out="$(run_stage REMOVE=1 PLAYER="$mira")"; rc=$?
 if [ "$rc" -eq 1 ] && echo "$out" | grep -q 'nothing to remove'; then pass "removing twice says so"; else fail "second remove (exit $rc): $out"; fi
 
-# 9.
+# 8b. A device that is on the GM vault is refused for a player (B is a stand-in GM PC here).
+pi config devices add --device-id "$b_id" --name gm-pc
+pi config folders foundry-gm-vault devices add --device-id "$b_id"
+out="$(run_stage PLAYER="$mira" DEVICE_ID="$b_id")"; rc=$?
+if [ "$rc" -eq 1 ] && echo "$out" | grep -q 'already on the folder foundry-gm-vault'; then pass "a GM vault device is refused for a player"; else fail "gm device (exit $rc): $out"; fi
+pi config folders foundry-gm-vault devices "$b_id" delete
+# B stays paired but on no folder: a player-vault switch-off must not forget it.
+
+# 9. Conflicting modes are refused; OFF removes the shares and the drop-in, forgets only player devices.
+out="$(run_stage OFF=1 PLAYER="$mira")"; rc=$?
+if [ "$rc" -eq 1 ] && echo "$out" | grep -q 'OFF=1 takes every player out'; then pass "OFF with PLAYER is refused"; else fail "off+player (exit $rc): $out"; fi
+out="$(run_stage OFF=1 SETUP=1)"; rc=$?
+if [ "$rc" -eq 1 ] && echo "$out" | grep -q 'only one of'; then pass "two switches are refused"; else fail "two switches (exit $rc): $out"; fi
 out="$(run_stage PLAYER="$mira" DEVICE_ID="$a_id")"
 out="$(run_stage OFF=1)"; rc=$?
 if [ "$rc" -eq 0 ] && [ -z "$(pi config folders list | grep foundry-player-)" ] && [ ! -e "$dropin" ] &&
@@ -274,5 +287,6 @@ if [ "$rc" -eq 0 ] && [ -z "$(pi config folders list | grep foundry-player-)" ] 
 else
   fail "off (exit $rc): $out"
 fi
+if pi config devices list | grep -qx "$b_id"; then pass "OFF=1 leaves a device that was on no player folder"; else fail "OFF forgot an unrelated device"; fi
 
 [ "$fails" -eq 0 ] && echo "ALL SCENARIOS OK" || exit 1

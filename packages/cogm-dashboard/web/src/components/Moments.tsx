@@ -15,12 +15,14 @@ import {
 } from 'react';
 
 import type { DuringScreen } from '../lib/duringTrial';
+import { REMEMBER, readJson, readMomentPin, writeJson } from '../lib/remember';
 import { usePlaySession, type PlaySession } from '../lib/session';
 
 import type { DuringFolds } from './Folds';
 import { LiveFeed } from './LiveFeed';
 
 export type Moment = 'before' | 'during' | 'after';
+
 /** The drawers that dock into a view (Drawer.tsx); the others float over the page. */
 export type DrawerDockName = 'preflight' | 'prep' | 'party' | 'handouts';
 /** Everything that docks: the drawers and the Recent Changes card (a pane, not a drawer). */
@@ -59,14 +61,29 @@ export function useMoment(): { moment: Moment | null; pick: (moment: Moment) => 
   const [pinned, setPinned] = useState<Moment | null>(null);
   const open = session?.open;
   const [seenOpen, setSeenOpen] = useState(open);
+  const [restored, setRestored] = useState(false);
   if (open !== seenOpen) {
     setSeenOpen(open);
-    if (seenOpen !== undefined) setPinned(null);
+    if (seenOpen !== undefined) {
+      setPinned(null);
+      writeJson(REMEMBER.momentPin, null);
+    }
   }
+  // The pick of the last visit comes back once the session is known, when the session is still as
+  // it was then (open or closed): a new session starts on its own moment again.
+  if (open !== undefined && !restored) {
+    setRestored(true);
+    const saved = readMomentPin(readJson(REMEMBER.momentPin));
+    if (saved && saved.open === open) setPinned(saved.moment);
+  }
+  const pick = (moment: Moment): void => {
+    setPinned(moment);
+    if (open !== undefined) writeJson(REMEMBER.momentPin, { moment, open });
+  };
   // The time of the last poll (answered or failed), not the clock: each poll checks the 12 hours
   // again, also while the bridge is down.
   const fromSession = session ? momentFromSession(session, checkedAt) : failed ? 'before' : null;
-  return { moment: pinned ?? fromSession, pick: setPinned };
+  return { moment: pinned ?? fromSession, pick };
 }
 
 type SlotKey = `${Moment}-${DockName}`;

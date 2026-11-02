@@ -7,5 +7,8 @@
   (both; the old Everyone tab). Each tab has a tooltip saying what it lists, the person filter says
   **Tool** instead of AI, and the small Obsidian links in the rows and next to Start session now
   say "Obsidian" and have a tooltip.
-- **The dashboard remembers your last choice:** the Recent Changes tab and person filter (and the
-  Live screen's AI only box) come back as you left them, in the same browser.
+- **The dashboard remembers your last choice (this browser):** the Recent Changes tab and person
+  filter (and the Live screen's AI only box), which During cards are folded or open, the
+  Before/During/After tab you picked (until the session starts or ends), the Party group and the
+  Who-would-notice DC, and the Tools search. A blocked or stale store falls back to the defaults.
+  The During layout is a world setting saved on the server and was already kept.

@@ -8,6 +8,11 @@ export const REMEMBER = {
   changesTab: 'cogm_changes_tab',
   changesPerson: 'cogm_changes_person',
   liveAiOnly: 'cogm_live_ai_only',
+  foldChoices: 'cogm_fold_choices',
+  momentPin: 'cogm_moment_pin',
+  partyGroup: 'cogm_party_group',
+  partyNoticeDc: 'cogm_party_notice_dc',
+  toolsSearch: 'cogm_tools_search',
 } as const;
 
 function read(key: string): string | null {
@@ -36,4 +41,31 @@ export function writeChoice(key: string, value: string): void {
   } catch {
     // Private window or blocked site data.
   }
+}
+
+const MOMENTS = ['before', 'during', 'after'] as const;
+
+/** A saved Before/During/After pick: the moment and whether a session was open when it was picked. */
+export function readMomentPin(
+  raw: unknown
+): { moment: (typeof MOMENTS)[number]; open: boolean } | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const r = raw as Record<string, unknown>;
+  const moment = MOMENTS.find(m => m === r['moment']);
+  return moment && typeof r['open'] === 'boolean' ? { moment, open: r['open'] } : null;
+}
+
+/** A saved JSON value, parsed; undefined when nothing is saved, it is not JSON, or the store is blocked. */
+export function readJson(key: string): unknown {
+  const saved = read(key);
+  if (saved === null) return undefined;
+  try {
+    return JSON.parse(saved);
+  } catch {
+    return undefined;
+  }
+}
+
+export function writeJson(key: string, value: unknown): void {
+  writeChoice(key, JSON.stringify(value));
 }

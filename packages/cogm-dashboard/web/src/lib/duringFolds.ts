@@ -5,7 +5,7 @@
 //
 // Unlike the old page, which started over whenever a fight began or ended or the window crossed
 // 600 or 900 px, a card the GM folded or opened keeps that choice for the same layout, fight and
-// width class. State lives in memory for the page load only.
+// width class. The choices are kept in this browser (lib/remember.ts).
 import type { DuringContext } from './duringTrial';
 import type { DuringLayout } from './prefsModel';
 
@@ -89,6 +89,26 @@ export function toggleFold(choices: FoldChoices, s: FoldSituation, card: FoldCar
   const kept: Partial<Folds> = { ...choices[key] };
   for (const name of FOLD_CARDS) if (after[name] !== before[name]) kept[name] = after[name];
   return { ...choices, [key]: kept };
+}
+
+/**
+ * Saved choices, checked: only situations of the form layout|context|width with boolean folds of
+ * the four cards are kept; anything else (an old shape, a hand edit) is dropped.
+ */
+export function readFoldChoices(raw: unknown): FoldChoices {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return NO_CHOICES;
+  const out: Record<string, Partial<Folds>> = {};
+  for (const [key, value] of Object.entries(raw)) {
+    if (!/^(layered|toggle|auto)\|(calm|combat)\|(phone|medium|wide)$/.test(key)) continue;
+    if (!value || typeof value !== 'object' || Array.isArray(value)) continue;
+    const kept: Partial<Folds> = {};
+    for (const card of FOLD_CARDS) {
+      const v = (value as Record<string, unknown>)[card];
+      if (typeof v === 'boolean') kept[card] = v;
+    }
+    if (Object.keys(kept).length > 0) out[key] = kept;
+  }
+  return out;
 }
 
 /** The choices after opening a card from outside (the Advanced menu's Party and Handouts). */

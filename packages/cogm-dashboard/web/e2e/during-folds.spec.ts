@@ -546,3 +546,27 @@ test.describe('the folds are kept', () => {
     await expectFolds(page, folds(true, false, false, false));
   });
 });
+
+test.describe('remembered after a reload', () => {
+  test('the folds come back as the GM left them in this browser', async ({ page }) => {
+    await setup(page, 'layered');
+    await load(page);
+    await foldButton(page, 'handouts').click();
+    await foldButton(page, 'feed').click();
+    await expectFolds(page, folds(true, false, false, true));
+    await page.reload();
+    await load(page);
+    await expectFolds(page, folds(true, false, false, true));
+  });
+
+  test('a saved choice that makes no sense is ignored, and a blocked store changes nothing', async ({
+    page,
+  }) => {
+    await setup(page, 'layered');
+    await page.addInitScript(() =>
+      localStorage.setItem('cogm_fold_choices', '{"layered|calm|wide":{"feed":"x"},"junk":1}')
+    );
+    await load(page);
+    await expectFolds(page, folds(false, false, true, true));
+  });
+});

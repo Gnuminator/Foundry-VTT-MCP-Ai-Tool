@@ -220,6 +220,7 @@ jobs:
         # 20-vault-sync.sh (Obsidian O8) as text: read-only unless SET_TIMEZONE=1, the zone name check, the conflict search. The
         # stage itself runs with two real Syncthings in a container on the ARM runner (build-test-arm).
         run: node --test scripts/pi/vault-sync.test.mjs
+
       - name: Pi stage 21 player vault share
         # 21-player-vault.sh (player-vault-sync, D-134) as text: snapshot before every change, Send Only folders, no introducer,
         # the marker check, one device per player. The stage itself runs with three real Syncthings in the ARM runner's container.

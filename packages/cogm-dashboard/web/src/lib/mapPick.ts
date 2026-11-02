@@ -61,7 +61,10 @@ function frameParentOrigin(target: Window): string | null {
       ?.ancestorOrigins?.[0];
     if (ancestor && ancestor !== 'null') return ancestor;
     const referrer = target.document?.referrer;
-    return referrer ? new URL(referrer).origin : null;
+    if (!referrer) return null;
+    // A frame that navigated itself has this page's own referrer: that says nothing about the parent.
+    const origin = new URL(referrer).origin;
+    return origin === target.location?.origin ? null : origin;
   } catch {
     return null;
   }

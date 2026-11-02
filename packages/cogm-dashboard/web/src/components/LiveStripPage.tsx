@@ -41,11 +41,16 @@ export function LiveStripPage(): JSX.Element {
   // This page has no header or Pre-flight drawer: a refused click sends the focus to the strip's
   // own Turn on button.
   const openGate = useCallback((): void => {
-    // The first Turn on button can be a hidden one (a disabled control's note): take a shown one.
-    const buttons = document.querySelectorAll<HTMLElement>('[data-track="dash.live.turn-on"]');
-    Array.from(buttons)
-      .find(b => b.offsetParent !== null)
-      ?.focus();
+    // A refusal can come before the note that holds the button has drawn: look after the next
+    // frame. The first Turn on button can be a hidden one (a disabled control's note): take a shown one.
+    requestAnimationFrame(() =>
+      requestAnimationFrame(() => {
+        const buttons = document.querySelectorAll<HTMLElement>('[data-track="dash.live.turn-on"]');
+        Array.from(buttons)
+          .find(b => b.getClientRects().length > 0)
+          ?.focus();
+      })
+    );
   }, []);
   return (
     <GmActionsGateContext.Provider value={openGate}>

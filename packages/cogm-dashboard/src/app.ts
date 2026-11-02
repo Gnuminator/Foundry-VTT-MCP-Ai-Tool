@@ -655,7 +655,8 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
     message: 'Too many requests',
     validate: { xForwardedForHeader: false },
   });
-  // The live strip page is the one page the Foundry module frames (live screen B).
+  // Who may frame a page: the live strip page lets Foundry (live screen B), the other pages only
+  // the dashboard itself.
   app.use(liveFrameMiddleware(config.foundryUrl));
   app.get('/', pageLimit, (_req: Request, res: Response, next: NextFunction) => {
     if (!fs.existsSync(reactIndex)) return next();

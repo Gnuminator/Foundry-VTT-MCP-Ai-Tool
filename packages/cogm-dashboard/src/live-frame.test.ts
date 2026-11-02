@@ -29,12 +29,26 @@ describe('liveFrameHeader', () => {
     const foundry = 'http://localhost:30001';
     expect(liveFrameHeader('/?strip=1', foundry)).toBe('frame-ancestors http://localhost:30001');
     expect(liveFrameHeader('/api/world', foundry)).toBeNull();
-    expect(liveFrameHeader('/player.html', foundry)).toBeNull();
+    expect(liveFrameHeader('/app.js', foundry)).toBeNull();
+    expect(liveFrameHeader('/next/assets/index-abc.js', foundry)).toBeNull();
+    expect(liveFrameHeader('/API/world', foundry)).toBeNull();
   });
 
   it('lets only the dashboard itself frame the plain page', () => {
     const foundry = 'http://localhost:30001';
-    for (const url of ['/', '/index.html', '/?strip=0', '/?live=1', '/index.html?x=1']) {
+    for (const url of [
+      '/',
+      '/index.html',
+      '/?strip=0',
+      '/?live=1',
+      '/index.html?x=1',
+      '/next/',
+      '/next/index.html',
+      '/legacy/',
+      '/INDEX.HTML',
+      '/index%2Ehtml',
+      '/x/../index.html',
+    ]) {
       expect(liveFrameHeader(url, foundry)).toBe("frame-ancestors 'self'");
     }
   });

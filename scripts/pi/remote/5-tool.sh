@@ -51,7 +51,7 @@ check_build_loads() {
     import { pathToFileURL } from "node:url";
     const groups = {
       bridge: ["config.js", "logger.js", "foundry-connector.js", "handouts/strip-secrets.js", "prompts/register.js"].map(f => "packages/mcp-server/dist/" + f),
-      dashboard: ["app.js", "config.js", "ai/anthropic-co-gm.js"].map(f => "packages/cogm-dashboard/dist/" + f),
+      dashboard: ["app.js", "config.js"].map(f => "packages/cogm-dashboard/dist/" + f),
       shared: ["shared/dist/index.js"],
     };
     if (existsSync("packages/discord-bot/package.json")) groups.discord = ["packages/discord-bot/dist/rec/voice.js"];

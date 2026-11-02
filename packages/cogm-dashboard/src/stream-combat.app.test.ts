@@ -6,7 +6,6 @@ import type { AddressInfo } from 'net';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { CoGm } from './ai/anthropic-co-gm.js';
 import { createDashboard, type Dashboard } from './app.js';
 import { config, type AuthConfig, type Config } from './config.js';
 import type { CombatState } from './feed/types.js';
@@ -28,14 +27,6 @@ const fakeBridge = {
   listTools: (): Promise<unknown[]> => Promise.resolve([]),
   callTool: <T>(): Promise<T> => Promise.resolve({} as T),
 };
-
-const fakeCoGm = {
-  enabled: false,
-  isBusy: false,
-  setWorld: (): void => undefined,
-  abortActive: (): void => undefined,
-  notifyCombatChange: (): void => undefined,
-} as unknown as CoGm;
 
 const FIGHT: CombatState = {
   active: true,
@@ -70,7 +61,6 @@ async function start(): Promise<Harness> {
     config: testConfig,
     logger: new Logger('error', 'stream-combat-test'),
     client: fakeBridge,
-    coGm: fakeCoGm,
   });
   const server = dashboard.app.listen(0, '127.0.0.1');
   await new Promise<void>(resolve => server.once('listening', () => resolve()));

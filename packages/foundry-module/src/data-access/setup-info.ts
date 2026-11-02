@@ -14,6 +14,7 @@ import {
   readPackEntry,
   readSettingValue,
   registeredSettings,
+  settingTypeName,
 } from './virtual-targets.js';
 
 const LIST_CAP = 50;
@@ -41,18 +42,6 @@ interface FolderLike {
   type?: string;
 }
 
-function typeName(type: unknown): string {
-  if (typeof type === 'function') return (type as { name?: string }).name ?? 'unknown';
-  if (type && typeof type === 'object') {
-    return (
-      (type as { name?: string }).name ??
-      (type as { constructor?: { name?: string } }).constructor?.name ??
-      'object'
-    );
-  }
-  return 'unknown';
-}
-
 function settingsInfo(target: string | undefined): unknown {
   const wanted = (target ?? '').trim();
   const lower = wanted.toLowerCase();
@@ -78,7 +67,7 @@ function settingsInfo(target: string | undefined): unknown {
       id,
       name: meta.name ? game.i18n.localize(meta.name) : key,
       scope: meta.scope ?? 'client',
-      type: typeName(meta.type),
+      type: settingTypeName(meta.type),
       config: meta.config !== false,
       requiresReload: meta.requiresReload === true,
       default: meta.default,
@@ -92,18 +81,19 @@ function settingsInfo(target: string | undefined): unknown {
       );
     }
     if (meta.range) row.range = meta.range;
-    if (isSecretSetting(namespace, key)) {
+    let value: unknown;
+    try {
+      value = readSettingValue(namespace, key);
+    } catch (error) {
+      row.valueError = error instanceof Error ? error.message : String(error);
+    }
+    if (isSecretSetting(namespace, key, value)) {
       row.redacted = true;
-    } else {
-      try {
-        const value = readSettingValue(namespace, key);
-        const json = JSON.stringify(value ?? null);
-        if (json.length > MAX_SETTING_JSON)
-          row.value = `(${json.length} characters, too long to show)`;
-        else row.value = value;
-      } catch (error) {
-        row.valueError = error instanceof Error ? error.message : String(error);
-      }
+      delete row.default;
+    } else if (!row.valueError) {
+      const json = JSON.stringify(value ?? null);
+      row.value =
+        json.length > MAX_SETTING_JSON ? `(${json.length} characters, too long to show)` : value;
     }
     return row;
   });

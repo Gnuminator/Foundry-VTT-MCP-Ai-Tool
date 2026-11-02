@@ -545,9 +545,7 @@ async function executeUpdate(
   if (isVirtualUuid(op.uuid)) return executeVirtual(op, index, req);
   const doc = await resolve(op.uuid);
   if (!doc) throw new Error(`Document not found: ${op.uuid}`);
-  if (doc.documentName === 'Setting') {
-    throw new Error('Settings are changed through GameSetting.<namespace>.<key>, not by document');
-  }
+  if (doc.documentName === 'Setting') throw new Error(SETTING_DOCUMENT_REFUSAL);
   if (doc.documentName === 'User') {
     assertUserUpdateAllowed(Object.keys(op.changes ?? {}), op.unset ?? []);
   }
@@ -613,6 +611,9 @@ async function executeUpdate(
   return result;
 }
 
+const SETTING_DOCUMENT_REFUSAL =
+  'Settings are changed through GameSetting.<namespace>.<key>, not as documents';
+
 /** An update of a setting or a pack's configuration (virtual-targets.ts). */
 async function executeVirtual(
   op: GuardedUpdateOp,
@@ -622,7 +623,7 @@ async function executeVirtual(
   assertSetupFeature(req.feature);
   const unset = op.unset ?? [];
   const paths = [...Object.keys(op.changes ?? {}), ...unset];
-  const target = snapshotVirtual(op.uuid, paths, 'check');
+  const target = snapshotVirtual(op.uuid, paths);
   if (!target.exists) throw new Error(`Target not found: ${op.uuid}`);
   const before = paths.map(path => readPath(target.source, path));
   await executeVirtualUpdate(op.uuid, { ...op.changes }, unset);
@@ -696,6 +697,7 @@ async function executeCreate(
   req: GuardedApplyRequest,
   changeMode?: ChangeWriteMode
 ): Promise<GuardedOpResult> {
+  if (op.documentName === 'Setting') throw new Error(SETTING_DOCUMENT_REFUSAL);
   if (op.documentName === 'User') assertUserCreateAllowed(req.feature, op.data);
   const data = foundry.utils.deepClone(op.data);
   if (req.mode === 'apply' && isRulesTagged(op.documentName)) {
@@ -740,6 +742,7 @@ async function executeDelete(
     if (req.mode === 'undo') return goneResult(op, index);
     throw new Error(`Document not found: ${op.uuid}`);
   }
+  if (doc.documentName === 'Setting') throw new Error(SETTING_DOCUMENT_REFUSAL);
   const deleted = sourceOf(doc);
   const result: GuardedOpResult = {
     index,

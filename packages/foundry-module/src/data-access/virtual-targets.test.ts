@@ -64,7 +64,7 @@ beforeEach(() => {
         collection: 'dnd5e.monsters',
         metadata: { label: 'Monsters' },
         documentName: 'Actor',
-        ownership: { PLAYER: 'OBSERVER', TRUSTED: 'OBSERVER', ASSISTANT: 'OWNER' },
+        ownership: { PLAYER: 'OBSERVER', ASSISTANT: 'OWNER' },
         locked: false,
         folder: null,
       },
@@ -157,12 +157,50 @@ describe('settings as a guarded target', () => {
     for (const op of bad) await expect(snapshotGuardedOps([op])).rejects.toThrow();
   });
 
-  it('refuses a secret and an unknown setting, and never reads one into a snapshot', async () => {
-    await expect(snapshotGuardedOps([setting('dnd5e.apiKey', 'x')])).rejects.toThrow(/secret/);
-    await expect(snapshotGuardedOps([setting('somemod.hiddenText', 'x')])).rejects.toThrow(
-      /secret/
+  it('treats a secret and an unknown setting as not found, never reading one into a snapshot', async () => {
+    for (const key of ['dnd5e.apiKey', 'somemod.hiddenText', 'dnd5e.nope']) {
+      const [snap] = await snapshotGuardedOps([setting(key, 'x')]);
+      expect(snap).toEqual({ exists: false });
+    }
+    // A value that holds a secret-looking string counts too, whatever the key is called.
+    g.game.settings.settings.set('somemod.config', { name: 'Config', config: true, type: Object });
+    world.setSetting('somemod', 'config', {
+      hook: 'https://discord.com/api/webhooks/123/abcdefghijklmnopqrstuvwxyz',
+    });
+    const [hooked] = await snapshotGuardedOps([setting('somemod.config', {})]);
+    expect(hooked).toEqual({ exists: false });
+    await expect(applyGuardedOps(await request([setting('dnd5e.apiKey', 'x')]))).rejects.toThrow(
+      /not found/
     );
-    await expect(snapshotGuardedOps([setting('dnd5e.nope', 'x')])).rejects.toThrow(/Unknown/);
+  });
+
+  it('accepts only the path "value" (and never walks into the prototype)', async () => {
+    const odd = (path: string): GuardedOp => ({
+      kind: 'update',
+      uuid: 'GameSetting.dnd5e.diagonalMovement',
+      changes: { [path]: 'x' },
+    });
+    await expect(snapshotGuardedOps([odd('value.x')])).rejects.toThrow(/"value" only/);
+    await expect(snapshotGuardedOps([odd('value.__proto__.isGM')])).rejects.toThrow(/Unsafe path/);
+    const modules: GuardedOp = {
+      kind: 'update',
+      uuid: 'GameSetting.core.moduleConfiguration',
+      changes: { 'value.__proto__': true },
+    };
+    await expect(snapshotGuardedOps([modules])).rejects.toThrow(/Unsafe path/);
+  });
+
+  it('refuses a Setting document by create or delete', async () => {
+    g.CONFIG.Setting = { documentClass: { create: () => Promise.resolve(null) } };
+    const create: GuardedOp = { kind: 'create', documentName: 'Setting', data: { key: 'x' } };
+    await expect(applyGuardedOps(await request([create]))).rejects.toThrow(/not as documents/);
+  });
+
+  it('plans nothing for a setting with no value yet', async () => {
+    g.game.settings.settings.set('dnd5e.fresh', { name: 'Fresh', config: true, type: String });
+    await expect(applyGuardedOps(await request([setting('dnd5e.fresh', 'x')]))).rejects.toThrow(
+      /no value yet/
+    );
   });
 
   it('is written only by the Foundry setup feature (and its undo), whatever other switch is on', async () => {
@@ -201,11 +239,19 @@ describe('settings as a guarded target', () => {
     expect(secret.settings[0].redacted).toBe(true);
   });
 
-  it('refuses an oversized value', async () => {
-    world.setSetting('dnd5e', 'diagonalMovement', 'x'.repeat(5000));
-    await expect(snapshotGuardedOps([setting('dnd5e.diagonalMovement', 'y')])).rejects.toThrow(
-      /too much data/
-    );
+  it('keeps a DataField-typed setting usable (Foundry 14 renames the field to the setting id)', () => {
+    class StringField {
+      name = 'dnd5e.fieldy';
+    }
+    g.game.settings.settings.set('dnd5e.fieldy', {
+      name: 'Fieldy',
+      scope: 'world',
+      config: true,
+      type: new StringField(),
+    });
+    world.setSetting('dnd5e', 'fieldy', 'abc');
+    const info = getSetupInfo({ area: 'setting', target: 'dnd5e.fieldy' }) as any;
+    expect(info.settings[0]).toMatchObject({ type: 'String', value: 'abc' });
   });
 });
 
@@ -262,7 +308,7 @@ describe('getSetupInfo', () => {
     const info = getSetupInfo({ area: 'pack', target: 'monsters' }) as any;
     expect(info.packs[0]).toMatchObject({
       id: 'dnd5e.monsters',
-      ownership: { PLAYER: 'OBSERVER', TRUSTED: 'OBSERVER', ASSISTANT: 'OWNER' },
+      ownership: { PLAYER: 'OBSERVER', ASSISTANT: 'OWNER' },
       configured: {},
     });
     expect(info.folders).toEqual([{ id: 'f1', name: 'Hidden' }]);

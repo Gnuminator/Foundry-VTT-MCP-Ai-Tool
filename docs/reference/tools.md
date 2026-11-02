@@ -1491,7 +1491,7 @@ Parameters:
 
 ### plan-foundry-setup
 
-Read or plan Foundry setup; apply with apply-planned-change, revert with undo-change. mode read lists, mode plan plans. area setting: target namespace.key (read: part of a name too), value the new value. area pack: target a pack id (dnd5e.monsters), value {ownership:{PLAYER,TRUSTED,ASSISTANT: NONE|LIMITED|OBSERVER|OWNER}, locked, folder (name or null)}. Secrets are hidden. Needs the Foundry setup switch.
+Read or plan Foundry setup; apply with apply-planned-change, revert with undo-change. mode read lists, mode plan plans. area setting: target namespace.key (read: part of a name too), value the new value. area pack: target a pack id (dnd5e.monsters), value {ownership:{PLAYER,TRUSTED,ASSISTANT: NONE|LIMITED|OBSERVER|OWNER; a role gets the highest level of its own and lower roles}, locked, folder (name or null)}. Secrets are hidden. Needs the Foundry setup switch.
 
 Kind: read-only. Title: Read or plan Foundry setup.
 

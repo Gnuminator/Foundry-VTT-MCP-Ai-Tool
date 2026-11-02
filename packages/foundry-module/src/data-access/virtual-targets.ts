@@ -15,6 +15,7 @@
  * does not import the shared package); `virtual-targets.contract.test.ts` compares them.
  */
 import { MODULE_ID } from '../constants.js';
+import { KNOWN_SECRET_SETTINGS, SECRET_PATTERNS, stringLeaves } from '../preflight-scan.js';
 
 export const SETUP_FEATURE_ID = 'foundry-setup';
 export const SETTING_UUID_PREFIX = 'GameSetting.';
@@ -82,12 +83,50 @@ export function parseSettingUuid(uuid: string): { namespace: string; key: string
   return { namespace: rest.slice(0, dot), key: rest.slice(dot + 1) };
 }
 
-/** True for a setting whose value must not reach a plan, a diff or the audit log. */
-export function isSecretSetting(namespace: string, key: string): boolean {
-  const meta = registeredSettings().get(`${namespace}.${key}`);
-  if (SECRET_NAME.test(key) || (meta?.name && SECRET_NAME.test(String(meta.name)))) return true;
+/**
+ * A setting's type as one of `Boolean`, `Number`, `String` or the constructor's name. Foundry 14
+ * renames a DataField-typed setting's field to the setting id, so an object's own `name` is not
+ * its type: the constructor says which field it is.
+ */
+export function settingTypeName(type: unknown): string {
+  if (typeof type === 'function') return (type as { name?: string }).name ?? 'unknown';
+  if (type && typeof type === 'object') {
+    const ctor = (type as { constructor?: { name?: string } }).constructor?.name ?? 'object';
+    if (ctor === 'StringField') return 'String';
+    if (ctor === 'BooleanField') return 'Boolean';
+    if (ctor === 'NumberField') return 'Number';
+    return ctor;
+  }
+  return 'unknown';
+}
+
+/**
+ * True for a setting whose value must not reach a plan, a diff or the audit log: by name (key or
+ * localized name), by the preflight scan's list of known secret settings, as a hidden text
+ * setting, or when the value holds a secret-looking string (`value` given).
+ */
+export function isSecretSetting(namespace: string, key: string, value?: unknown): boolean {
+  const id = `${namespace}.${key}`;
+  const meta = registeredSettings().get(id);
+  const name = meta?.name ? game.i18n.localize(meta.name) : '';
+  if (SECRET_NAME.test(key) || SECRET_NAME.test(name) || SECRET_NAME.test(String(meta?.name))) {
+    return true;
+  }
+  if (KNOWN_SECRET_SETTINGS.some(known => known.setting === id)) return true;
   // A free-text setting that no settings screen shows is where modules keep keys and tokens.
-  return namespace !== 'core' && meta?.config === false && meta.type === String;
+  if (namespace !== 'core' && meta?.config === false && settingTypeName(meta.type) === 'String') {
+    return true;
+  }
+  if (value === undefined) return false;
+  const leaves = stringLeaves(value);
+  return leaves.some(leaf => SECRET_PATTERNS.some(secret => secret.pattern.test(leaf)));
+}
+
+/** Path segments that would walk into `Object.prototype`. */
+function assertSafePath(path: string): void {
+  if (path.split('.').some(seg => ['__proto__', 'constructor', 'prototype'].includes(seg))) {
+    throw new Error(`Unsafe path: ${path}`);
+  }
 }
 
 /**
@@ -101,6 +140,7 @@ export function assertSettingWritable(
   paths: readonly string[]
 ): void {
   const id = `${namespace}.${key}`;
+  paths.forEach(assertSafePath);
   if (namespace === MODULE_ID) {
     throw new Error(`The AI Tool's own settings cannot be changed by a plan (${id})`);
   }
@@ -117,11 +157,9 @@ export function assertSettingWritable(
       throw new Error('The AI Tool module cannot be turned off by a plan');
     }
   }
-  if (isSecretSetting(namespace, key)) {
-    throw new Error(`${id} looks like a secret; it is never read or written by a plan`);
+  if (id !== MODULE_CONFIG_SETTING && !(paths.length === 1 && paths[0] === 'value')) {
+    throw new Error(`A setting is changed through the path "value" only (got ${paths.join(', ')})`);
   }
-  const meta = registeredSettings().get(id);
-  if (!meta) throw new Error(`Unknown setting: ${id}`);
 }
 
 /** The value as plain, JSON-safe data (a DataModel to its source, a Set to an array). */
@@ -163,11 +201,7 @@ export interface VirtualSnapshot {
 }
 
 /** The target's current source, for the plan-time diff and the apply-time conflict check. */
-export function snapshotVirtual(
-  uuid: string,
-  paths: readonly string[],
-  mode: 'plan' | 'check' = 'plan'
-): VirtualSnapshot {
+export function snapshotVirtual(uuid: string, paths: readonly string[]): VirtualSnapshot {
   if (uuid.startsWith(PACK_UUID_PREFIX)) {
     const packId = uuid.slice(PACK_UUID_PREFIX.length);
     const bad = paths.find(p => !(PACK_FIELDS as readonly string[]).includes(p));
@@ -184,11 +218,12 @@ export function snapshotVirtual(
   const { namespace, key } = parseSettingUuid(uuid);
   assertSettingWritable(namespace, key, paths);
   const meta = registeredSettings().get(`${namespace}.${key}`);
+  // A setting that is gone (its module is off or renamed it) or now looks secret is "not found",
+  // not an error, so an undo or rewind of other changes goes on without it.
+  if (!meta) return { exists: false, documentName: 'Setting', name: null, source: {} };
   const value = readSettingValue(namespace, key);
-  if (mode === 'plan' && JSON.stringify(value ?? null).length > MAX_SETTING_JSON) {
-    throw new Error(
-      `${namespace}.${key} holds too much data to plan (over ${MAX_SETTING_JSON} characters)`
-    );
+  if (isSecretSetting(namespace, key, value)) {
+    return { exists: false, documentName: 'Setting', name: null, source: {} };
   }
   const label = meta?.name ? game.i18n.localize(meta.name) : key;
   return {
@@ -200,6 +235,7 @@ export function snapshotVirtual(
 }
 
 function setAtPath(target: Record<string, unknown>, path: string, value: unknown): void {
+  assertSafePath(path);
   const keys = path.split('.');
   let node = target;
   for (const key of keys.slice(0, -1)) {
@@ -211,6 +247,7 @@ function setAtPath(target: Record<string, unknown>, path: string, value: unknown
 }
 
 function deleteAtPath(target: Record<string, unknown>, path: string): void {
+  assertSafePath(path);
   const keys = path.split('.');
   let node: unknown = target;
   for (const key of keys.slice(0, -1)) {
@@ -242,7 +279,11 @@ export async function executeVirtualUpdate(
   const { namespace, key } = parseSettingUuid(uuid);
   assertSettingWritable(namespace, key, [...Object.keys(changes), ...unset]);
   if (unset.includes('value')) throw new Error('A setting cannot be unset, only given a value');
-  const holder: Record<string, unknown> = { value: readSettingValue(namespace, key) };
+  const current = readSettingValue(namespace, key);
+  if (current === undefined) {
+    throw new Error(`${namespace}.${key} has no value yet; set it once in Foundry first`);
+  }
+  const holder: Record<string, unknown> = { value: current };
   for (const [path, value] of Object.entries(changes)) setAtPath(holder, path, value);
   for (const path of unset) deleteAtPath(holder, path);
   await game.settings.set(namespace, key, holder.value);

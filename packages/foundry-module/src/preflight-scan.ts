@@ -161,7 +161,7 @@ export function maskSecret(value: string): string {
 }
 
 /** Every string inside a setting's stored JSON value (or the raw text when it is not JSON). */
-function stringLeaves(raw: unknown): string[] {
+export function stringLeaves(raw: unknown): string[] {
   let value: unknown = raw;
   if (typeof raw === 'string') {
     try {

@@ -37,7 +37,7 @@ const rangeRow = {
 const packRow = {
   id: 'dnd5e.monsters',
   label: 'Monsters',
-  ownership: { PLAYER: 'OBSERVER', TRUSTED: 'OBSERVER', ASSISTANT: 'OWNER' },
+  ownership: { PLAYER: 'OBSERVER', ASSISTANT: 'OWNER' },
   configured: {},
   locked: false,
   folder: null,
@@ -125,6 +125,28 @@ describe('plan-foundry-setup: settings', () => {
     expect(createPlan).not.toHaveBeenCalled();
   });
 
+  it('read mode takes no value; a hidden setting and a toString choice are refused', async () => {
+    const { tools, query } = makeTools();
+    await expect(
+      plan(tools, { mode: 'read', area: 'setting', target: 'core.fontSize', value: 1 })
+    ).rejects.toThrow(/value is for mode plan/);
+    await expect(
+      plan(tools, {
+        mode: 'plan',
+        area: 'setting',
+        target: 'dnd5e.diagonalMovement',
+        value: 'toString',
+      })
+    ).rejects.toThrow(/accepts 555, 5105/);
+    query.mockImplementationOnce(() => ({
+      area: 'setting',
+      settings: [{ ...settingRow, id: 'dnd5e.hidden', config: false }],
+    }));
+    await expect(
+      plan(tools, { mode: 'plan', area: 'setting', target: 'dnd5e.hidden', value: '5105' })
+    ).rejects.toThrow(/hidden setting/);
+  });
+
   it('notes a reload and a client-scope setting', async () => {
     const { tools } = makeTools();
     const out = await plan(tools, {
@@ -156,6 +178,19 @@ describe('plan-foundry-setup: packs', () => {
       },
     ]);
     expect(input.summary).toMatch(/PLAYER: OBSERVER to NONE/);
+  });
+
+  it('refuses a level a higher role cannot get while a lower role keeps more', async () => {
+    const { tools, createPlan } = makeTools();
+    await expect(
+      plan(tools, {
+        mode: 'plan',
+        area: 'pack',
+        target: 'dnd5e.monsters',
+        value: { ownership: { TRUSTED: 'NONE' } },
+      })
+    ).rejects.toThrow(/TRUSTED would still have OBSERVER/);
+    expect(createPlan).not.toHaveBeenCalled();
   });
 
   it('sets locked and moves the pack to a folder by name or back to the root', async () => {

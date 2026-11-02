@@ -101,7 +101,7 @@ export class FoundrySetupTools {
       {
         name: 'plan-foundry-setup',
         description:
-          'Read or plan Foundry setup; apply with apply-planned-change, revert with undo-change. mode read lists, mode plan plans. area setting: target namespace.key (read: part of a name too), value the new value. area pack: target a pack id (dnd5e.monsters), value {ownership:{PLAYER,TRUSTED,ASSISTANT: NONE|LIMITED|OBSERVER|OWNER}, locked, folder (name or null)}. Secrets are hidden. Needs the Foundry setup switch.',
+          'Read or plan Foundry setup; apply with apply-planned-change, revert with undo-change. mode read lists, mode plan plans. area setting: target namespace.key (read: part of a name too), value the new value. area pack: target a pack id (dnd5e.monsters), value {ownership:{PLAYER,TRUSTED,ASSISTANT: NONE|LIMITED|OBSERVER|OWNER; a role gets the highest level of its own and lower roles}, locked, folder (name or null)}. Secrets are hidden. Needs the Foundry setup switch.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -137,7 +137,10 @@ export class FoundrySetupTools {
 
   private async planFoundrySetup(args: unknown): Promise<unknown> {
     const p = params.parse(args ?? {});
-    if (p.mode === 'read') return this.info(p.area, p.target);
+    if (p.mode === 'read') {
+      if (p.value !== undefined) throw new Error('value is for mode plan; read takes no value');
+      return this.info(p.area, p.target);
+    }
     if (!p.target) throw new Error('Plan mode needs a target');
     if (p.value === undefined) throw new Error('Plan mode needs a value');
     return p.area === 'setting'
@@ -152,6 +155,14 @@ export class FoundrySetupTools {
     const row = (await this.info('setting', target)).settings?.find(s => s.id === target);
     if (!row) throw new Error(`No setting "${target}" is registered (read the namespace first)`);
     if (row.redacted) throw new Error(`${target} is a secret; plans never read or write it`);
+    if (!row.config) {
+      throw new Error(
+        `${target} is a hidden setting (module bookkeeping, not on a settings screen); plans do not change those`
+      );
+    }
+    if (row.value === undefined) {
+      throw new Error(`${target} has no value yet; set it once in Foundry first`);
+    }
     this.checkSettingValue(row, value);
     if (same(row.value, value))
       throw new Error(`Nothing to change: ${target} is already that value`);
@@ -180,7 +191,7 @@ export class FoundrySetupTools {
 
   /** Throws when the value does not fit the setting's type, choices or range. */
   private checkSettingValue(row: SettingRow, value: unknown): void {
-    if (row.choices && !(String(value) in row.choices)) {
+    if (row.choices && !Object.hasOwn(row.choices, String(value))) {
       throw new Error(
         `${row.id} accepts ${Object.keys(row.choices).join(', ')} (got ${JSON.stringify(value)})`
       );
@@ -219,7 +230,20 @@ export class FoundrySetupTools {
         const level = value.ownership[role];
         if (!level || current[role] === level) continue;
         merged[role] = level;
-        lines.push(`${role}: ${current[role] ?? 'default'} to ${level}`);
+        lines.push(`${role}: ${current[role] ?? 'inherits'} to ${level}`);
+      }
+      // A role gets the highest level of its own and every lower role, so a lower level set on
+      // a higher role does nothing while a lower role keeps a higher one.
+      for (const role of PACK_OWNERSHIP_ROLES) {
+        const asked = value.ownership[role];
+        if (!asked) continue;
+        const lower = PACK_OWNERSHIP_ROLES.slice(0, PACK_OWNERSHIP_ROLES.indexOf(role) + 1);
+        const best = Math.max(...lower.map(r => PACK_OWNERSHIP_LEVELS.indexOf(merged[r] as never)));
+        if (PACK_OWNERSHIP_LEVELS[best] !== asked) {
+          throw new Error(
+            `${role} would still have ${PACK_OWNERSHIP_LEVELS[best]}, not ${asked}: a role gets the highest level of its own and every lower role (PLAYER, TRUSTED, ASSISTANT). Lower the lower role too.`
+          );
+        }
       }
       // The whole role map is written, so roles the request leaves out keep their level.
       if (!same(merged, current)) changes.ownership = merged;
@@ -250,14 +274,15 @@ export class FoundrySetupTools {
       throw new Error(`Nothing to change: ${pack.label} already looks like that`);
     }
     const ops: GuardedOp[] = [{ kind: 'update', uuid: `${PACK_UUID_PREFIX}${target}`, changes }];
+    const notes = ['Players see a changed pack the next time they open the Compendiums tab.'];
     const plan = await this.guardedWrites.createPlan({
       feature: FOUNDRY_SETUP_FEATURE_ID,
       summary: `Change pack ${pack.label} (${target}): ${lines.join(', ')}`,
       ops,
       pathLabels: { ownership: 'ownership', locked: 'locked', folder: 'folder' },
-      notes: ['Players see a changed pack the next time they open the Compendiums tab.'],
+      notes,
     });
     this.logger.info(`Planned pack change for ${target}`);
-    return { ...plan, notes: lines, autoApply: false };
+    return { ...plan, notes: [...lines, ...notes], autoApply: false };
   }
 }

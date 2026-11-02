@@ -182,7 +182,7 @@ class FoundryMCPBridge {
       registerGuardedFeature({
         id: SETUP_FEATURE_ID,
         name: 'AI Tool: Foundry setup (writes)',
-        hint: 'Lets the AI change Foundry settings, turn modules on or off and set who can open a compendium pack, after you confirm the plan, and puts the old value back on undo. Never touches passwords or the AI Tool’s own switches.',
+        hint: 'Lets the AI change Foundry settings and set who can open a compendium pack, after you confirm the plan, and puts the old value back on undo. Never touches passwords or the AI Tool’s own switches.',
       });
       registerGuardedFeature({
         id: 'table-viewer',

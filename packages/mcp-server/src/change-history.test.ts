@@ -217,9 +217,9 @@ describe('describeRecord', () => {
       documentName: 'Token',
       uuid: 'Scene.s1.Token.t1',
       parentUuid: 'Scene.s1',
-      name: 'Riswynn',
+      name: 'Wolf 1',
       rootUuid: 'Scene.s1.Token.t1',
-      rootName: 'Riswynn',
+      rootName: 'Wolf 1',
     } as const;
     // The real shapes of the test 3 drags on the Pi: x,y,rotation, x,rotation and y,rotation.
     for (const [before, after] of [
@@ -237,7 +237,7 @@ describe('describeRecord', () => {
       ],
     ] as const) {
       expect(describeRecord(rec({ ...token, before: [...before], after: [...after] }))).toEqual([
-        'Token "Riswynn" moved',
+        'Token "Wolf 1" moved',
       ]);
     }
   });
@@ -248,14 +248,14 @@ describe('describeRecord', () => {
         documentName: 'Token',
         uuid: 'Scene.s1.Token.t1',
         parentUuid: 'Scene.s1',
-        name: 'Riswynn',
+        name: 'Wolf 1',
         rootUuid: 'Scene.s1.Token.t1',
-        rootName: 'Riswynn',
+        rootName: 'Wolf 1',
         before: [val('rotation', 0)],
         after: [val('rotation', 90)],
       })
     );
-    expect(lines).not.toEqual(['Token "Riswynn" moved']);
+    expect(lines).toEqual(['Token "Wolf 1": rotation 0 -> 90']);
   });
 
   it('shows an oversize record and a record with unknown before values', () => {

@@ -1170,7 +1170,7 @@ scp scripts/pi/remote/kit-session.mjs foundry-pi:/root/ && cat scripts/pi/remote
   `ACTOR_CREATE`, roles already there stay), points Actor Studio at the Player's Handbook packs
   (origins for species, features and backgrounds; classes for classes and subclasses; spells, feats
   and equipment each from their own pack; the item source is left alone), turns on the standard
-  array, spell selection and equipment selection and turns off manual input, point buy and rolling,
+  array, point buy, spell selection and equipment selection and turns off manual input and rolling,
   turns usage tracking off, and creates the user `Kit Player` with no password if it is missing. An
   existing `Kit Player` must be a Player who really joins without a password (the script tries it),
   otherwise nothing is changed. Values are printed before and after, read back after a reload, and a

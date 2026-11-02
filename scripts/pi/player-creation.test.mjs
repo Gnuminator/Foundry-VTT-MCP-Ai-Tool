@@ -1,6 +1,6 @@
 // Tests for Pi stage 13 (scripts/pi/remote/13-player-creation.sh, D-112 and D-113):
 //   node --test scripts/pi/player-creation.test.mjs
-// - the in-browser part (player-creation-settings.mjs) against a fake `game`: the three settings, and
+// - the in-browser part (player-creation-settings.mjs) against a fake `game`: the three settings, the ability score methods (standard array and point buy on, manual and rolling off), and
 //   Actor Studio's per-user usage-tracking turned off (D-113), a second run changing nothing;
 // - with PI_STAGE13_CONTAINER=1 (needs Docker; CI runs it on the ARM runner): the stage itself in a
 //   Debian 13 ARM64 container with stand-ins for systemd (scripts/pi/container-test/stage13-scenarios.sh):

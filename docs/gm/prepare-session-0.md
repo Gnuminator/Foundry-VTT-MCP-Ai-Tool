@@ -77,17 +77,19 @@ Settings tab, **Game Settings**, the category **[Aardvark Games] Actor Studio (A
    | Feat Compendia                                | Feats             | Not set by the script |
    | Equipment Compendia                           | Equipment         | Yes, check it         |
 
+   The ability score methods (item 2 below) are set by the script too.
+
    Untick the D&D 5e system's own packs (the older free rules), or every list shows each choice
    twice. Click **Save**, then **Yes** when Foundry asks to reload.
 
    ![Compendium Sources with the Player's Handbook packs ticked in every row](../images/guides/studio-sources.png)
 
-2. **Configure ability scores**: tick the method you and the players agreed on (**Allow standard
-   array**, **Allow point buy**, **Allow rolling**, **Allow manual input**), so the builder offers
-   only that one. If you haven't had the talk yet ([The ability score
-   talk](prep-and-expectations.md#the-ability-score-talk)), you can change this on the night before
-   the players open the builder. Manual input lets a player type any number; leave it off unless
-   you want that.
+2. **Configure ability scores**: the admin's script sets **Allow standard array** and **Allow point
+   buy** on and **Allow rolling** and **Allow manual input** off, so each player picks the standard
+   array or point buy and nobody can type any number. Check that these four are as described. If
+   you want a different set after the talk ([The ability score
+   talk](prep-and-expectations.md#the-ability-score-talk)), change it here before the players open
+   the builder, and tell the admin: running the script again puts our two methods back.
 3. **Configure equipment & gold**: **Enable Equipment Selection** is ticked.
 4. **Configure spells**: tick **Enable Spell Selection**. The admin's script does not set this, so
    it may be off until you tick it. With it off, a spellcaster may get no **Spells** tab and has to add

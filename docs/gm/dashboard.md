@@ -63,7 +63,7 @@ per session and to group the play log.
   change the game can run after you confirm. There is no "log only" start any more.
 - If you forget, the notes still split sessions at a gap of 3 hours without events.
 
-The 📓 next to it opens your campaign's Home note in Obsidian (see "Open in Obsidian" below).
+The 📓 Obsidian link next to it opens your campaign's Home note in Obsidian (see "Open in Obsidian" below).
 
 ### Live play on: all set
 
@@ -173,8 +173,8 @@ The game happens in Foundry; the **During** screen sits next to it and keeps an 
 It comes in three layouts. Pick one with **Layout** at the top of the screen:
 
 - **Cards**: the Live Feed is the big column. Recent Changes, Handouts and Party
-  are cards at the side; open one and the others fold to a single line. The turn order shows
-  only while a fight runs.
+  are cards at the side; open any of them, also together. The turn order shows only while a
+  fight runs.
 - **Simple/Full**: Simple shows only the Live Feed, Recent Changes and Handouts. **Show
   everything** switches to Full: the turn order and Party as well, all open. **Show less** goes
   back.
@@ -340,7 +340,7 @@ Every guarded change that was applied, newest first, up to 20. Each row shows:
   reveal or a hide), `undone`, or `undo` (the undo itself);
 - the feature (for example `tarokka` or `handouts`), what it changed, and when;
 - "N line(s)": click to see the full list of what changed;
-- 📓: opens that month's change history in Obsidian.
+- 📓 Obsidian: opens that month's change history in Obsidian.
 
 **Undo** asks for the second confirmation and needs GM Actions on. It puts back the values from
 before the change. It refuses, and writes nothing, if the same thing was changed again since.

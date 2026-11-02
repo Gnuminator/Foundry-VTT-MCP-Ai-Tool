@@ -54,7 +54,8 @@ export function momentFromSession(session: PlaySession, now: number): Moment {
  * The moment on screen: the one the GM picked with a tab, else the session's. Null until the
  * first answer, so a reload during a session does not show Before (and run its panels) first.
  * A failed read shows Before. The pick holds until a session starts or ends (the open flag
- * flips), or the page reloads.
+ * flips); a reload brings it back while the session is as it was and the pick is under 12 hours
+ * old (so a pick from another game night is forgotten).
  */
 export function useMoment(): { moment: Moment | null; pick: (moment: Moment) => void } {
   const { session, failed, checkedAt } = usePlaySession();
@@ -74,11 +75,13 @@ export function useMoment(): { moment: Moment | null; pick: (moment: Moment) => 
   if (open !== undefined && !restored) {
     setRestored(true);
     const saved = readMomentPin(readJson(REMEMBER.momentPin));
-    if (saved && saved.open === open) setPinned(saved.moment);
+    if (saved && saved.open === open && Date.now() - saved.at <= AFTER_WINDOW_MS) {
+      setPinned(saved.moment);
+    }
   }
   const pick = (moment: Moment): void => {
     setPinned(moment);
-    if (open !== undefined) writeJson(REMEMBER.momentPin, { moment, open });
+    if (open !== undefined) writeJson(REMEMBER.momentPin, { moment, open, at: Date.now() });
   };
   // The time of the last poll (answered or failed), not the clock: each poll checks the 12 hours
   // again, also while the bridge is down.

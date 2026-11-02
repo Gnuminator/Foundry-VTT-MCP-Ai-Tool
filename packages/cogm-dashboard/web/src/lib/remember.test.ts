@@ -101,15 +101,17 @@ describe('readFoldChoices', () => {
 
 describe('readMomentPin', () => {
   it('reads a moment with the session state it was picked in', () => {
-    expect(readMomentPin({ moment: 'after', open: false })).toEqual({
+    expect(readMomentPin({ moment: 'after', open: false, at: 5 })).toEqual({
       moment: 'after',
       open: false,
+      at: 5,
     });
   });
 
   it('refuses a moment that does not exist or a missing flag', () => {
     expect(readMomentPin({ moment: 'later', open: true })).toBeNull();
     expect(readMomentPin({ moment: 'during' })).toBeNull();
+    expect(readMomentPin({ moment: 'during', open: true })).toBeNull();
     expect(readMomentPin(null)).toBeNull();
   });
 });

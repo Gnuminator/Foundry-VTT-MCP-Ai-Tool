@@ -813,7 +813,19 @@ test('a tab picked while no session was open is not kept once a session is open'
   page,
 }) => {
   await page.addInitScript(() =>
-    localStorage.setItem('cogm_moment_pin', '{"moment":"after","open":false}')
+    localStorage.setItem('cogm_moment_pin', '{"moment":"after","open":false,"at":1}')
+  );
+  await setup(page, { events: [picked()], open: true });
+  await load(page);
+  await expect(during(page)).toBeVisible();
+});
+
+test('a tab picked in this session but over 12 hours ago is forgotten', async ({ page }) => {
+  await page.addInitScript(() =>
+    localStorage.setItem(
+      'cogm_moment_pin',
+      JSON.stringify({ moment: 'after', open: true, at: Date.now() - 13 * 3600_000 })
+    )
   );
   await setup(page, { events: [picked()], open: true });
   await load(page);

@@ -67,7 +67,7 @@ Obsidian-note pr. session og til at gruppere play log.
   start, der kun logger.
 - Hvis du glemmer det, deler noterne stadig sessionerne ved et hul på 3 timer uden hændelser.
 
-📓 ved siden af åbner din kampagnes Home-note i Obsidian (se "Open in Obsidian" nedenfor).
+📓 Obsidian ved siden af åbner din kampagnes Home-note i Obsidian (se "Open in Obsidian" nedenfor).
 
 ### Live play on: all set
 
@@ -181,7 +181,7 @@ Spillet foregår i Foundry; **During**-skærmen står ved siden af og holder øj
 findes i tre layouts. Vælg et med **Layout** øverst på skærmen:
 
 - **Cards**: Live Feed er den store kolonne. Recent Changes, Handouts og Party er kort i siden;
-  åbn et, og de andre foldes sammen til én linje. Turordenen vises kun, mens en kamp kører.
+  åbn dem, som du vil, også flere ad gangen. Turordenen vises kun, mens en kamp kører.
 - **Simple/Full**: Simple viser kun Live Feed, Recent Changes og Handouts. **Show everything**
   skifter til Full: turordenen og Party også, alt åbent. **Show less** går tilbage.
 - **Auto** (standard): følger spillet. Uden kamp ser det ud som Cards. Når combat starter, vokser
@@ -348,7 +348,7 @@ Hver guarded change, der blev anvendt, nyeste først, op til 20. Hver række vis
   en reveal eller en hide), `undone` eller `undo` (selve fortrydelsen);
 - featuren (for eksempel `tarokka` eller `handouts`), hvad den ændrede, og hvornår;
 - "N line(s)": klik for at se hele listen over, hvad der blev ændret;
-- 📓: åbner den måneds ændringshistorik i Obsidian.
+- 📓 Obsidian: åbner den måneds ændringshistorik i Obsidian.
 
 **Undo** beder om den anden bekræftelse og kræver, at GM Actions er slået til. Den sætter værdierne
 fra før ændringen tilbage. Den afviser og skriver ingenting, hvis det samme er ændret igen siden.

@@ -252,7 +252,7 @@ async function walkUndo(
 /** The one-line body of a list that is not there: a failure words itself, the rest use Panel's. */
 const failedText = (err: unknown): string => `Couldn't load changes: ${errorText(err)}`;
 
-/** What each tab is called, what it lists (its tooltip) and its usage name (literals for the catalogue). */
+/** What each tab is called and what it lists (its tooltip). The usage names are literals in TabButton. */
 const TAB_TEXT: Record<ChangesTab, { label: string; title: string }> = {
   tool: {
     label: 'Tool',

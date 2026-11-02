@@ -71,7 +71,7 @@ export async function resetDashboard(page) {
     press('#undo-backdrop');
     if (document.querySelector('#changes-tab-tool[aria-pressed="false"]'))
       press('#changes-tab-tool');
-    // The remembered choices (lib/remember.ts) must not carry one row's state into the next.
+    // Forget the remembered choices (lib/remember.ts), so the next page load starts from the defaults.
     for (const key of ['cogm_fold_choices', 'cogm_moment_pin', 'cogm_changes_person'])
       localStorage.removeItem(key);
     press('#layout-tour-stop');

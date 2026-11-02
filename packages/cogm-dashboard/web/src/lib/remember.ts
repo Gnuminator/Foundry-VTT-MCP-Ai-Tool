@@ -44,14 +44,17 @@ export function writeChoice(key: string, value: string): void {
 
 const MOMENTS = ['before', 'during', 'after'] as const;
 
-/** A saved Before/During/After pick: the moment and whether a session was open when it was picked. */
+/** A saved Before/During/After pick: the moment, whether a session was open and when (ms) it was picked. */
 export function readMomentPin(
   raw: unknown
-): { moment: (typeof MOMENTS)[number]; open: boolean } | null {
+): { moment: (typeof MOMENTS)[number]; open: boolean; at: number } | null {
   if (!raw || typeof raw !== 'object') return null;
   const r = raw as Record<string, unknown>;
   const moment = MOMENTS.find(m => m === r['moment']);
-  return moment && typeof r['open'] === 'boolean' ? { moment, open: r['open'] } : null;
+  const at = r['at'];
+  return moment && typeof r['open'] === 'boolean' && typeof at === 'number'
+    ? { moment, open: r['open'], at }
+    : null;
 }
 
 /** A saved JSON value, parsed; undefined when nothing is saved, it is not JSON, or the store is blocked. */

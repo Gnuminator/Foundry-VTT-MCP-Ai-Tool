@@ -75,7 +75,7 @@ export function useMoment(): { moment: Moment | null; pick: (moment: Moment) => 
   if (open !== undefined && !restored) {
     setRestored(true);
     const saved = readMomentPin(readJson(REMEMBER.momentPin));
-    if (saved && saved.open === open && Date.now() - saved.at <= AFTER_WINDOW_MS) {
+    if (saved?.open === open && Date.now() - saved.at <= AFTER_WINDOW_MS) {
       setPinned(saved.moment);
     }
   }

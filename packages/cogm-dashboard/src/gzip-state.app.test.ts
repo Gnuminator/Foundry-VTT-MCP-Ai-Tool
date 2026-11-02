@@ -8,7 +8,6 @@ import { gunzipSync } from 'zlib';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { CoGm } from './ai/anthropic-co-gm.js';
 import { createDashboard, type Dashboard } from './app.js';
 import { config, type AuthConfig, type Config } from './config.js';
 import { parseAllowedHosts } from './host-allowlist.js';
@@ -30,13 +29,6 @@ const fakeBridge = {
   callTool: <T>(name: string): Promise<T> =>
     Promise.resolve((name === 'get-world-info' ? { id: 'gz-world', title: BIG_TITLE } : {}) as T),
 };
-const fakeCoGm = {
-  enabled: false,
-  isBusy: false,
-  setWorld: (): void => undefined,
-  abortActive: (): void => undefined,
-} as unknown as CoGm;
-
 let dashboard: Dashboard | null = null;
 let server: http.Server | null = null;
 
@@ -59,7 +51,6 @@ async function start(): Promise<number> {
     config: testConfig,
     logger: new Logger('error', 'gzip-test'),
     client: fakeBridge,
-    coGm: fakeCoGm,
   });
   server = dashboard.app.listen(0, '127.0.0.1');
   await new Promise<void>(resolve => server?.once('listening', () => resolve()));

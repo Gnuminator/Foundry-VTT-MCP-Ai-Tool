@@ -6,7 +6,6 @@ import type { AddressInfo } from 'net';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { CoGm } from './ai/anthropic-co-gm.js';
 import { createDashboard, type Dashboard } from './app.js';
 import { config, type AuthConfig, type Config } from './config.js';
 import { parseAllowedHosts } from './host-allowlist.js';
@@ -28,13 +27,6 @@ const fakeBridge = {
   listTools: (): Promise<unknown[]> => Promise.resolve([]),
   callTool: <T>(): Promise<T> => Promise.resolve({} as T),
 };
-const fakeCoGm = {
-  enabled: false,
-  isBusy: false,
-  setWorld: (): void => undefined,
-  abortActive: (): void => undefined,
-} as unknown as CoGm;
-
 let dashboard: Dashboard | undefined;
 let server: http.Server | undefined;
 
@@ -58,7 +50,6 @@ async function start(): Promise<number> {
     config: testConfig,
     logger: new Logger('error', 'versions-test'),
     client: fakeBridge,
-    coGm: fakeCoGm,
     kitLastRunFile: null,
   });
   server = dashboard.app.listen(0, '127.0.0.1');

@@ -17,7 +17,7 @@ export const LIVE_VIEWS = {
   live: 'The strip and the combat order on one fixed page. Use it on a second screen or a tablet.',
   gm: 'Foundry and the strip in one browser window. Use it when there is only one screen. Close your normal Foundry tab first: a user can be joined once.',
   window:
-    'A small window inside Foundry, next to the map. Turn it on in Foundry: Game Settings, Configure Settings, Foundry AI Tool, "AI Tool: Live window". Then the Live button shows in the AI Tool group.',
+    'A small window inside Foundry, next to the map. Turn it on in Foundry: the Settings tab, Game Settings, category Foundry AI Tool, "AI Tool: Live window". Then the Live button shows in the AI Tool group.',
 } as const;
 
 export const NO_FOUNDRY_ADDRESS_NOTE =
@@ -32,6 +32,7 @@ export const NO_FOUNDRY_ADDRESS_NOTE =
 export function LiveViewsMenu(): JSX.Element {
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
+  const button = useRef<HTMLButtonElement>(null);
   const panelId = useId();
   const info = useQuery({
     queryKey: ['gm-page'],
@@ -49,7 +50,9 @@ export function LiveViewsMenu(): JSX.Element {
       if (root.current && !root.current.contains(e.target as Node)) setOpen(false);
     };
     const onKey = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape') setOpen(false);
+      if (e.key !== 'Escape') return;
+      setOpen(false);
+      button.current?.focus();
     };
     document.addEventListener('pointerdown', onDown);
     document.addEventListener('keydown', onKey);
@@ -62,6 +65,7 @@ export function LiveViewsMenu(): JSX.Element {
   return (
     <div className={styles.root} ref={root} id="live-views">
       <Button
+        ref={button}
         id="btn-live-views"
         data-track="dash.header.live-views"
         aria-expanded={open}
@@ -78,7 +82,7 @@ export function LiveViewsMenu(): JSX.Element {
           </a>
           {isGm ? (
             <>
-              <a className={styles.entry} id="live-views-gm" href="./gm">
+              <a className={styles.entry} id="live-views-gm" href="/gm">
                 <strong>GM page</strong>
                 <span>{LIVE_VIEWS.gm}</span>
               </a>

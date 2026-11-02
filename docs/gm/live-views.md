@@ -36,8 +36,8 @@ left, the strip on the right.
 
 ## Live window
 
-The Live window lives inside Foundry. Turn it on there: **Settings**, **Configure Settings**, the
-**Foundry AI Tool** category, **AI Tool: Live window**. A **Live** button then appears in the AI Tool
+The Live window lives inside Foundry. Turn it on there: the **Settings** tab, **Game
+Settings**, category **Foundry AI Tool**, **AI Tool: Live window**. A **Live** button then appears in the AI Tool
 group. If the window is empty, it says why and what to change; the usual cause is the setting **AI
 Tool: Live window address**.
 

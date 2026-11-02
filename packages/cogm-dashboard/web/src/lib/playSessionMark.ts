@@ -6,6 +6,7 @@
 import {
   useIsMutating,
   useMutation,
+  useMutationState,
   useQueryClient,
   type QueryClient,
 } from '@tanstack/react-query';
@@ -90,7 +91,12 @@ function markedSession(action: MarkAction): PlaySession {
  * so two buttons cannot send at once. The status shows the new state at once and the next read
  * confirms it.
  */
-export function usePlaySessionMark(): { mark: (action: MarkAction) => void; pending: boolean } {
+export function usePlaySessionMark(): {
+  mark: (action: MarkAction) => void;
+  pending: boolean;
+  /** What the running mark is doing, from any button; null when none runs. */
+  asked: MarkAction | null;
+} {
   const queryClient = useQueryClient();
   const toast = useToast();
   const { refetch } = usePlaySession();
@@ -112,5 +118,9 @@ export function usePlaySessionMark(): { mark: (action: MarkAction) => void; pend
     },
   });
   const pending = useIsMutating({ mutationKey: MARK_KEY }) > 0;
-  return { mark: mutation.mutate, pending };
+  const [asked = null] = useMutationState<MarkAction>({
+    filters: { mutationKey: MARK_KEY, status: 'pending' },
+    select: m => m.state.variables as MarkAction,
+  });
+  return { mark: mutation.mutate, pending, asked };
 }

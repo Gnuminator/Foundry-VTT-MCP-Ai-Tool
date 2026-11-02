@@ -113,6 +113,12 @@ export const StartsTheSession: Story = {
     await waitFor(() =>
       expect(within(document.body).getAllByText('✓ Play session started')).not.toHaveLength(0)
     );
+    // The ready step answers right after the marker; the shot waits for its toast too.
+    await waitFor(() =>
+      expect(within(document.body).getAllByText('✓ Already on')).not.toHaveLength(0)
+    );
+    // Let the stack finish moving the first toast up before the shot (its edge flickered by a row).
+    await new Promise(resolve => setTimeout(resolve, 600));
   },
 };
 

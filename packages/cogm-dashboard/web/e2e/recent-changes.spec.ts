@@ -353,7 +353,6 @@ test('three tabs, Tool, Game and Everything, each with a tooltip saying what it 
     'Everyone',
     'Aldric',
     'Brenna',
-    'Danni',
   ]);
   await expect(c.locator('#changes-meta')).toHaveText('2 shown');
 

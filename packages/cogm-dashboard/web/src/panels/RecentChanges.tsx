@@ -110,7 +110,7 @@ function ObsidianLink({ change }: { change: AiChange }): JSX.Element | null {
       title="Open this month's change log in Obsidian"
       aria-label="Open this month's change log in Obsidian"
     >
-      📓
+      📓 Obsidian
     </a>
   );
 }
@@ -353,8 +353,10 @@ function ChangesCard({ active, oneList }: { active: boolean; oneList: boolean })
   const current = fromBridge ? everyone : ai;
 
   const all: EveryoneChange[] = everyone.data?.changes ?? [];
-  const personNow = validFilter(all, person, shown !== 'game');
-  const rows = foldTokenMoves(filterChanges(shown === 'game' ? gameChanges(all) : all, personNow));
+  // The Game tab lists only what people did in Foundry, so its people and rows come from that.
+  const pool = shown === 'game' ? gameChanges(all) : all;
+  const personNow = validFilter(pool, person, shown !== 'game');
+  const rows = foldTokenMoves(filterChanges(pool, personNow));
   const note = everyone.data?.note ?? '';
 
   // One Undo or Redo at a time: a second click while one runs (or its window is open) is ignored.
@@ -431,7 +433,7 @@ function ChangesCard({ active, oneList }: { active: boolean; oneList: boolean })
     ? 'No changes through the AI Tool yet.'
     : all.length === 0
       ? 'No changes in the last 7 days.'
-      : shown === 'game' && gameChanges(all).length === 0
+      : shown === 'game' && pool.length === 0
         ? 'No changes made in Foundry in the last 7 days.'
         : 'No changes by this person.';
   const message =
@@ -496,7 +498,7 @@ function ChangesCard({ active, oneList }: { active: boolean; oneList: boolean })
                   value={personNow}
                   onChange={e => setPerson(e.target.value)}
                 >
-                  {filterOptions(all, shown !== 'game').map(o => (
+                  {filterOptions(pool, shown !== 'game').map(o => (
                     <option key={o.value} value={o.value}>
                       {o.label}
                     </option>

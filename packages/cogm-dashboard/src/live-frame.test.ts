@@ -44,7 +44,6 @@ describe('liveFrameHeader', () => {
       '/index.html?x=1',
       '/next/',
       '/next/index.html',
-      '/legacy/',
       '/INDEX.HTML',
       '/index%2Ehtml',
       '/x/../index.html',

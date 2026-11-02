@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { gmLinks } from './check-sides.mjs';
 import {
   BASE,
   buildSidebar,
@@ -203,6 +204,22 @@ test('the player copy of a Foundry page keeps its player links and drops the res
   );
   const out = rewriteLinks(text, 'docs/foundry/tokens.md', new Set(), { playerCopy: true });
   assert.equal(out, 'See [combat](combat.md#turns) and actors, also GM.');
+});
+
+test('check-sides finds links from a player page to the GM side, and none to its own', () => {
+  const html = [
+    `<a href="${BASE}/player/join/">ok</a>`,
+    `<a href="${BASE}/player/foundry/tokens/">ok</a>`,
+    `<a href="${BASE}/">home</a> <a href="https://x.test/gm/">external</a>`,
+    `<a href="${BASE}/gm/first-hour/">bad</a>`,
+    `<a href="${BASE}/foundry/combat/#turns">bad</a>`,
+    `<a href="${BASE}/da/gm/">bad</a>`,
+  ].join('\n');
+  assert.deepEqual(gmLinks(html), [
+    `${BASE}/gm/first-hour/`,
+    `${BASE}/foundry/combat/#turns`,
+    `${BASE}/da/gm/`,
+  ]);
 });
 
 test('rewriteLinks: a double-backtick span holding a link or a single backtick stays as written', () => {

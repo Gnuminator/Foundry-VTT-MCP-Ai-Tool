@@ -36,5 +36,20 @@ export const onRequest = defineRouteMiddleware(context => {
   const route = context.locals.starlightRoute;
   const side = sideOf(context.url.pathname);
   if (side === null) return;
-  route.sidebar = keep(route.sidebar as Entry[], side) as typeof route.sidebar;
+  const kept = keep(route.sidebar as Entry[], side);
+  route.sidebar = kept as typeof route.sidebar;
+  // The previous/next links come from the whole sidebar: rebuild them from this side's pages, so
+  // the first player page never points back at a GM page.
+  const links = flatten(kept);
+  const at = links.findIndex(link => (link as { isCurrent?: boolean }).isCurrent === true);
+  if (at !== -1) {
+    route.pagination = {
+      prev: links[at - 1] as typeof route.pagination.prev,
+      next: links[at + 1] as typeof route.pagination.next,
+    };
+  }
 });
+
+function flatten(entries: Entry[]): Entry[] {
+  return entries.flatMap(entry => (entry.type === 'group' ? flatten(entry.entries) : [entry]));
+}

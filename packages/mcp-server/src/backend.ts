@@ -50,6 +50,7 @@ import { NpcTurnTools } from './tools/npc-turn.js';
 import { PaperSyncTools } from './tools/paper-sync.js';
 import { RoomSetupTools } from './tools/room-setup.js';
 import { TableViewerTools } from './tools/table-viewer.js';
+import { FoundrySetupTools } from './tools/foundry-setup.js';
 
 import { TokenManipulationTools } from './tools/token-manipulation.js';
 
@@ -457,6 +458,7 @@ async function startBackend(): Promise<void> {
   });
   const sceneMoodTools = new SceneMoodTools({ foundryClient, guardedWrites, logger });
   const tableViewerTools = new TableViewerTools({ foundryClient, guardedWrites, logger });
+  const foundrySetupTools = new FoundrySetupTools({ foundryClient, guardedWrites, logger });
   const livePlayTools = new LivePlayTools({
     foundryClient,
     guardedWrites,
@@ -515,6 +517,7 @@ async function startBackend(): Promise<void> {
     sceneMoodTools,
     rulesCheckTools,
     tableViewerTools,
+    foundrySetupTools,
     dnd5eAddFeatureTool,
     dnd5eNpcTools,
     dnd5eFeaturesFromCompendiumTools,

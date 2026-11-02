@@ -93,6 +93,8 @@ export function rootOfUuid(uuid: string): string {
   const parts = uuid.split('.');
   if (parts[0] === 'Scene') return parts.slice(0, 4).join('.');
   if (parts[0] === 'Compendium') return uuid;
+  // Foundry setup targets (a setting, a pack's configuration) are one thing each, whole.
+  if (parts[0] === 'GameSetting' || parts[0] === 'PackConfig') return uuid;
   return parts.slice(0, 2).join('.');
 }
 

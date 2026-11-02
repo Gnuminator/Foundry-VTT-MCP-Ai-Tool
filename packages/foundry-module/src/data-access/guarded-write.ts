@@ -32,6 +32,12 @@ import {
 import { assertUserCreateAllowed, assertUserUpdateAllowed } from '../table-viewer-user.js';
 import { unsetKeyUpdate } from '../systems/core.js';
 import {
+  executeVirtualUpdate,
+  isVirtualUuid,
+  snapshotVirtual,
+  virtualSource,
+} from './virtual-targets.js';
+import {
   RULES_FLAG_PATH,
   rulesTagForCreate,
   rulesTagUpdateIfChanged,
@@ -317,6 +323,17 @@ function countOnLevel(level: FoundryDocument): number {
 async function snapshotOp(op: GuardedOp): Promise<OpSnapshot> {
   switch (op.kind) {
     case 'update': {
+      if (isVirtualUuid(op.uuid)) {
+        const paths = updatePaths(op);
+        const virtual = snapshotVirtual(op.uuid, paths);
+        if (!virtual.exists) return { exists: false };
+        return {
+          exists: true,
+          documentName: virtual.documentName,
+          name: virtual.name,
+          values: paths.map(path => readPath(virtual.source, path)),
+        };
+      }
       const doc = await resolve(op.uuid);
       if (!doc) return { exists: false };
       const source = sourceOf(doc);
@@ -524,8 +541,12 @@ async function executeUpdate(
   req: GuardedApplyRequest,
   changeMode?: ChangeWriteMode
 ): Promise<GuardedOpResult> {
+  if (isVirtualUuid(op.uuid)) return executeVirtual(op, index);
   const doc = await resolve(op.uuid);
   if (!doc) throw new Error(`Document not found: ${op.uuid}`);
+  if (doc.documentName === 'Setting') {
+    throw new Error('Settings are changed through GameSetting.<namespace>.<key>, not by document');
+  }
   if (doc.documentName === 'User') {
     assertUserUpdateAllowed(Object.keys(op.changes ?? {}), op.unset ?? []);
   }
@@ -589,6 +610,27 @@ async function executeUpdate(
     );
   }
   return result;
+}
+
+/** An update of a setting or a pack's configuration (virtual-targets.ts). */
+async function executeVirtual(op: GuardedUpdateOp, index: number): Promise<GuardedOpResult> {
+  const unset = op.unset ?? [];
+  const paths = [...Object.keys(op.changes ?? {}), ...unset];
+  const target = snapshotVirtual(op.uuid, paths, 'check');
+  if (!target.exists) throw new Error(`Target not found: ${op.uuid}`);
+  const before = paths.map(path => readPath(target.source, path));
+  await executeVirtualUpdate(op.uuid, { ...op.changes }, unset);
+  const after = virtualSource(op.uuid);
+  return {
+    index,
+    kind: 'update',
+    uuid: op.uuid,
+    documentName: target.documentName,
+    name: target.name,
+    parentUuid: null,
+    before,
+    after: paths.map(path => readPath(after, path)),
+  };
 }
 
 /** Token geometry: the paths Foundry 14 can drop without an error. */

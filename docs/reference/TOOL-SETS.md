@@ -4,7 +4,7 @@ description: The five tool sets Claude Desktop loads (core, play, prep, build, a
 
 # Tool sets
 
-The bridge has 98 tools. Their definitions are about 118,200 characters of JSON, about 28,100 to
+The bridge has 99 tools. Their definitions are about 118,200 characters of JSON, about 28,100 to
 36,900 tokens that Claude reads at the start of every conversation, before anyone types. Many
 tools also look alike, which makes Claude pick the wrong one more often.
 
@@ -18,7 +18,7 @@ what the conversation needs. The switches are remembered for new chats.
 | **play**  | `foundry-mcp-play`   | 37    | about 41,000      | Running the table live: tokens, combat, rolls, damage, conditions, chat, mood, loot.         |
 | **prep**  | `foundry-mcp-prep`   | 20    | about 22,200      | Prep and recaps: quests, journals, encounter budgets, Tarokka, handouts, session log, stats. |
 | **build** | `foundry-mcp-build`  | 8     | about 28,800      | Making NPCs, monsters and items, from a compendium or from scratch; room setup.              |
-| **admin** | `foundry-mcp-admin`  | 9     | about 7,800       | Modules and their errors, actor ownership, the Obsidian mirror.                              |
+| **admin** | `foundry-mcp-admin`  | 10    | about 8,700       | Modules and their errors, actor ownership, Foundry setup, the Obsidian mirror.               |
 
 A prep chat with core and prep on carries about 40,600 characters instead of 118,200. Core alone is
 about 15% of everything.
@@ -52,8 +52,8 @@ code disagree. Each tool's description and parameters are in the [tool reference
   `create-actor-from-compendium`, `dnd5e-create-npc`, `dnd5e-add-feature`,
   `dnd5e-add-features-from-compendium`, `manage-world-items`, `plan-room-setup`
 - **admin:** `get-modules`, `get-module-errors`, `clear-module-errors`, `get-module-manifest`,
-  `list-actor-ownership`, `plan-ownership-change`, `plan-table-viewer`, `get-obsidian-mirror`,
-  `plan-obsidian-mirror`
+  `list-actor-ownership`, `plan-ownership-change`, `plan-table-viewer`, `plan-foundry-setup`,
+  `get-obsidian-mirror`, `plan-obsidian-mirror`
 
 ## Prompts
 

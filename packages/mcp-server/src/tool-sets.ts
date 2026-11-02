@@ -159,6 +159,7 @@ export const TOOL_SETS: Readonly<Record<ToolSetName, ToolSetSpec>> = {
       'list-actor-ownership',
       'plan-ownership-change',
       'plan-table-viewer',
+      'plan-foundry-setup',
       'get-obsidian-mirror',
       'plan-obsidian-mirror',
     ],

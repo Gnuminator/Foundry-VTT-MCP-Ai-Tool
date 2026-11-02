@@ -106,6 +106,7 @@ export const NON_WRITE_METHODS: readonly string[] = [
   'getModuleErrors',
   'getModuleManifest',
   'getModules',
+  'getSetupInfo',
   'getPagesForPlayers',
   'getPartyCharacters',
   'getPartyState',

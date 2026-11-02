@@ -38,7 +38,8 @@
   display: flex;
   gap: var(--space-2);
   margin: 0;
-  padding: 0 0 var(--space-1);
+  /* The top padding holds the turn badge, which sits on the current card's top edge. */
+  padding: 0.9rem 0 var(--space-1);
   list-style: none;
   overflow-x: auto;
 }
@@ -74,9 +75,9 @@
     0 0 0 5px var(--text);
 }
 .turnBadge {
-  grid-column: 1 / -1;
-  justify-self: start;
-  margin-bottom: var(--space-1);
+  position: absolute;
+  top: -0.7rem;
+  right: var(--space-2);
   padding: 0 var(--space-2);
   border-radius: var(--r-pill);
   background: var(--text);
@@ -285,6 +286,7 @@ button.chip.ended {
   .cards {
     flex-direction: column;
     gap: var(--space-1);
+    padding-top: var(--space-1);
     overflow-x: visible;
   }
   .card {
@@ -302,6 +304,7 @@ button.chip.ended {
       0 0 0 3px var(--text);
   }
   .turnBadge {
+    position: static;
     order: -1;
     margin: 0;
     padding: 0 var(--space-1);

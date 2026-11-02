@@ -214,8 +214,9 @@ export function filterChanges(
 const MOVED_SUFFIX = ' moved';
 
 /**
- * A person's move of one token (the bridge words it "<token> moved": only x and y changed), as
- * the name of what moved; null for any other change.
+ * A person's move of one token (the bridge words it "<token> moved": x and/or y changed, with or
+ * without the rotation a Foundry 14 drag adds; see `describeRecord`), as the name of what moved;
+ * null for any other change.
  */
 function tokenMoveOf(c: EveryoneChange): string | null {
   if (c.kind !== 'human' || c.undone || c.lines.length !== 1) return null;

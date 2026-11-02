@@ -5,6 +5,8 @@
 //   - core.permissions: ACTOR_CREATE includes the Player and Trusted Player roles (the roles already there stay);
 //   - Actor Studio, world settings: enableEquipmentSelection = true, and compendiumSources with
 //     equipment = ["dnd-players-handbook.equipment"] (every other source keeps its value);
+//   - Actor Studio, world settings: the ability score methods our table uses (the user, 2026-11-02): allowStandardArray
+//     and allowPointBuy on, allowManualInput and allowRolling off (David saw only manual entry offered);
 //   - Actor Studio's per-user usage-tracking: every saved value that is not false becomes false.
 // It prints the values before and after, reloads the world and reads them back, and exits 1 on any mismatch.
 // A second run changes nothing. Passwords are never printed.
@@ -50,13 +52,20 @@ const MODULE_ID = 'foundryvtt-actor-studio';
 const EQUIPMENT_PACK = 'dnd-players-handbook.equipment';
 // CONST.USER_ROLES.PLAYER and TRUSTED: the roles that may create actors (and so open Actor Studio).
 const PLAYER_ROLES = [1, 2];
+// Actor Studio's ability score methods: standard array and point buy only.
+export const ABILITY_METHODS = {
+  allowStandardArray: true,
+  allowPointBuy: true,
+  allowManualInput: false,
+  allowRolling: false,
+};
 
 const log = msg => console.log(`[player-creation] ${msg}`);
 
 // Runs in the browser: the values this script cares about, plus what must exist for them to work.
 // trackingOn: how many users have Actor Studio's usage-tracking saved as anything but false (a saved
 // per-user value overrides the off default); null when the module does not register the setting.
-export function readState({ moduleId, pack }) {
+export function readState({ moduleId, pack, methods }) {
   const settings = game.settings;
   const registered = key => settings.settings.has(`${moduleId}.${key}`);
   const permissions = settings.get('core', 'permissions');
@@ -74,11 +83,16 @@ export function readState({ moduleId, pack }) {
     moduleActive: game.modules.get(moduleId)?.active === true,
     packExists: game.packs.has(pack),
     studioSettingsRegistered:
-      registered('enableEquipmentSelection') && registered('compendiumSources'),
+      registered('enableEquipmentSelection') &&
+      registered('compendiumSources') &&
+      Object.keys(methods).every(registered),
     actorCreate: permissions?.ACTOR_CREATE ?? null,
     enableEquipmentSelection: registered('enableEquipmentSelection')
       ? settings.get(moduleId, 'enableEquipmentSelection')
       : null,
+    abilityMethods: Object.fromEntries(
+      Object.keys(methods).map(key => [key, registered(key) ? settings.get(moduleId, key) : null])
+    ),
     compendiumSources: registered('compendiumSources')
       ? JSON.parse(JSON.stringify(settings.get(moduleId, 'compendiumSources')))
       : null,
@@ -86,7 +100,7 @@ export function readState({ moduleId, pack }) {
 }
 
 // Runs in the browser: changes only what differs; returns what it changed.
-export async function applyState({ moduleId, pack, roles }) {
+export async function applyState({ moduleId, pack, roles, methods }) {
   const changed = [];
   if (roles.join() !== [CONST.USER_ROLES.PLAYER, CONST.USER_ROLES.TRUSTED].join()) {
     throw new Error(`the player roles are ${JSON.stringify(CONST.USER_ROLES)} in this Foundry`);
@@ -115,6 +129,13 @@ export async function applyState({ moduleId, pack, roles }) {
     changed.push('compendiumSources.equipment');
   }
 
+  for (const [key, wanted] of Object.entries(methods)) {
+    if (game.settings.get(moduleId, key) !== wanted) {
+      await game.settings.set(moduleId, key, wanted);
+      changed.push(key);
+    }
+  }
+
   // Usage tracking stays off for every user (D-113): each saved per-user value that is not false is
   // set to false, the same way the test kit's turnOffTrackingFor does it.
   const trackingKey = `${moduleId}.usage-tracking`;
@@ -133,6 +154,7 @@ const show = state =>
     ACTOR_CREATE: state.actorCreate,
     enableEquipmentSelection: state.enableEquipmentSelection,
     'compendiumSources.equipment': state.compendiumSources?.equipment ?? null,
+    abilityMethods: state.abilityMethods,
     'usage-tracking on (users)': state.trackingOn,
   });
 
@@ -144,7 +166,9 @@ export function blockers(state, world) {
   if (!state.moduleActive) {
     problems.push(`the ${MODULE_ID} module is not active in this world (enable it as a GM first)`);
   } else if (!state.studioSettingsRegistered) {
-    problems.push(`${MODULE_ID} did not register enableEquipmentSelection and compendiumSources`);
+    problems.push(
+      `${MODULE_ID} did not register enableEquipmentSelection, compendiumSources and the ability method settings`
+    );
   }
   if (!state.packExists) problems.push(`the compendium ${EQUIPMENT_PACK} is not in this world`);
   if (!Array.isArray(state.actorCreate)) problems.push('core.permissions has no ACTOR_CREATE list');
@@ -165,6 +189,11 @@ export function mismatches(before, after) {
   if (after.trackingOn) problems.push(`usage-tracking is still on for ${after.trackingOn} user(s)`);
   if (after.enableEquipmentSelection !== true)
     problems.push('enableEquipmentSelection is not true');
+  for (const [key, wanted] of Object.entries(ABILITY_METHODS)) {
+    if (after.abilityMethods?.[key] !== wanted) {
+      problems.push(`${key} is ${JSON.stringify(after.abilityMethods?.[key])}, expected ${wanted}`);
+    }
+  }
   const sources = after.compendiumSources ?? {};
   if (JSON.stringify(sources.equipment) !== JSON.stringify([EQUIPMENT_PACK])) {
     problems.push(`compendiumSources.equipment is ${JSON.stringify(sources.equipment)}`);
@@ -219,7 +248,12 @@ async function main() {
       page.waitForFunction(() => globalThis.game?.ready === true, null, { timeout: 120_000 });
     await ready();
 
-    const args = { moduleId: MODULE_ID, pack: EQUIPMENT_PACK, roles: PLAYER_ROLES };
+    const args = {
+      moduleId: MODULE_ID,
+      pack: EQUIPMENT_PACK,
+      roles: PLAYER_ROLES,
+      methods: ABILITY_METHODS,
+    };
     const before = await page.evaluate(readState, args);
     log(`world ${before.world}, joined as ${before.user} (GM: ${before.isGM})`);
     const problems = blockers(before, world);

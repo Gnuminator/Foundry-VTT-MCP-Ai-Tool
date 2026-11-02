@@ -391,22 +391,54 @@ describe('FoundryDataAccess: an asked initiative roll fills the tracker', () => 
     expect(rollInitiative).not.toHaveBeenCalled();
   });
 
-  it('refuses a request made before this fight began', async () => {
+  it('leaves a request made before this fight began to the plain roll', async () => {
     const rollInitiative = vi.fn(() => Promise.resolve());
     world.setCombat({
       combatants: { contents: [{ id: 'c1', actorId: 'a1' }] },
       rollInitiative,
       _stats: { createdTime: 2000 },
     });
-    await expect((da as any).playerRolls.rollTrackerInitiative({ id: 'a1' }, 1000)).rejects.toThrow(
-      /earlier fight/
-    );
+    expect(await (da as any).playerRolls.rollTrackerInitiative({ id: 'a1' }, 1000)).toBe(false);
+    expect(rollInitiative).not.toHaveBeenCalled();
     expect(await (da as any).playerRolls.rollTrackerInitiative({ id: 'a1' }, 3000)).toBe(true);
+    // An unknown time (NaN) is no reason to skip the tracker or to refuse.
+    expect(await (da as any).playerRolls.rollTrackerInitiative({ id: 'a1' }, NaN)).toBe(true);
+  });
+
+  it('does not roll twice when Foundry wrote the number and then threw', async () => {
+    const combatant: { id: string; actorId: string; initiative?: number } = {
+      id: 'c1',
+      actorId: 'a1',
+    };
+    world.setCombat({
+      combatants: {
+        contents: [combatant],
+        get: (id: string) => (id === 'c1' ? combatant : undefined),
+      },
+      rollInitiative: vi.fn(() => {
+        combatant.initiative = 14;
+        return Promise.reject(new Error('card failed'));
+      }),
+    });
+    expect(await (da as any).playerRolls.rollTrackerInitiative({ id: 'a1' })).toBe(true);
+  });
+
+  it('leaves a hidden combatant to Foundry’s own card rule', async () => {
+    const { rollInitiative } = installFight([{ id: 'c1', actorId: 'a1', hidden: true } as any]);
+    await (da as any).playerRolls.rollTrackerInitiative({ id: 'a1' });
+    expect(rollInitiative).toHaveBeenCalledWith(['c1'], {});
+  });
+
+  it('plain-rolls when the combatant is not the caller’s to roll', async () => {
+    const { rollInitiative } = installFight([{ id: 'c1', actorId: 'a1', isOwner: false } as any]);
+    expect(await (da as any).playerRolls.rollTrackerInitiative({ id: 'a1' })).toBe(false);
+    expect(rollInitiative).not.toHaveBeenCalled();
   });
 
   it('falls back to a plain roll when Foundry will not roll it', async () => {
+    const plain = { id: 'c1', actorId: 'a1' };
     world.setCombat({
-      combatants: { contents: [{ id: 'c1', actorId: 'a1' }] },
+      combatants: { contents: [plain], get: () => plain },
       rollInitiative: vi.fn(() => Promise.reject(new Error('no'))),
     });
     expect(await (da as any).playerRolls.rollTrackerInitiative({ id: 'a1' })).toBe(false);

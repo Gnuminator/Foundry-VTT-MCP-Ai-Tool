@@ -142,7 +142,7 @@ function TokenList({
         ))}
       </ul>
       {pcCount > 0 && (
-        <label className="cs-hint cs-ask-init">
+        <label className="cs-hint">
           <input
             type="checkbox"
             checked={askPcs}

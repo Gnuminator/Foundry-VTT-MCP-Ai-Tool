@@ -690,29 +690,35 @@ export class PlayerRollsDataAccess {
       (Array.isArray(raw) ? (raw as Combatant[]) : []);
     const mine = all.find(c => c.actorId === actor.id);
     if (!mine?.id || (mine as { isOwner?: boolean }).isOwner === false) return false;
-    // Never overwrite a number that is already there, and never write into a fight that began after
-    // the request was made (a card left open from an earlier fight).
+    // Never overwrite a number that is already there.
     if (typeof mine.initiative === 'number') {
       throw new InitiativeRefused('Your initiative is already in the tracker.');
     }
+    // A card made before this fight began (left open from an earlier fight, or asked for before
+    // Start combat) takes the plain roll, as it did before the tracker path existed.
     const startedAt = (combat as { _stats?: { createdTime?: number | null } })._stats?.createdTime;
     if (
       typeof requestedAt === 'number' &&
+      Number.isFinite(requestedAt) &&
       typeof startedAt === 'number' &&
       startedAt > requestedAt
     ) {
-      throw new InitiativeRefused('This request was made for an earlier fight.');
+      return false;
     }
     try {
-      await combat.rollInitiative([mine.id], {
-        ...(shared.usesMessageModes()
+      // A hidden combatant keeps Foundry's own rule (a GM-only card); the rest get a public one.
+      const visibility = (mine as { hidden?: boolean }).hidden
+        ? {}
+        : shared.usesMessageModes()
           ? { messageMode: shared.rollModeFor(true) }
-          : { messageOptions: { rollMode: shared.rollModeFor(true) } }),
-      });
+          : { messageOptions: { rollMode: shared.rollModeFor(true) } };
+      await combat.rollInitiative([mine.id], visibility);
     } catch (error) {
-      // Foundry would not roll it (permissions, a module): the plain roll below still answers.
+      // Foundry would not roll it (permissions, a module): the plain roll below still answers,
+      // unless the number was already written before it threw (then the tracker has it).
       logDebug(`[${MODULE_ID}] Tracker initiative failed, rolling a plain d20:`, error);
-      return false;
+      const written = combat.combatants.get(mine.id)?.initiative;
+      return typeof written === 'number';
     }
     return true;
   }

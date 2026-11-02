@@ -12,6 +12,7 @@ import { spentLedger } from './spent-actions.js';
 import { changeJournal } from './change-journal.js';
 import { playRecorder } from './play-recorder.js';
 import { USAGE_SOCKET_TYPE, trackUsage, usageRecorder } from './usage-recorder.js';
+import { applySelectionColor } from './token-selection-color.js';
 import { diagnostics } from './diagnostics.js';
 import { registerGmHelperQueries, unregisterGmHelperQueries } from './gm-helper-queries.js';
 import { registerGuardedFeature } from './guarded-features.js';
@@ -611,6 +612,9 @@ Hooks.once('ready', async () => {
   try {
     // Usage log (I-084): every client batches its own events every 10 s.
     usageRecorder.start();
+
+    // Selected tokens look different from the turn marker (test 3), on every client.
+    applySelectionColor();
 
     // A player who joins while the GM shows the Tarokka table sees it at once.
     onTableSettingChanged();

@@ -2,6 +2,210 @@
 
 ## Unreleased
 
+## v0.24.0 (released 2026-11-02): the live strip, the live screen and the Foundry live window, conditions for a number of rounds, no old dashboard in the guides
+
+**Unchanged:** the module id, the socket channel, the `foundry-mcp-bridge.*` method prefix, the settings
+namespace and the WebSocket port 31415; no tool or bridge method was added or removed. **Added:**
+the optional `rounds` on a condition in `plan-actor-change`, `timed` on the combatants in the combat
+state, and the module settings "AI Tool: Live window" and "AI Tool: Live window address". Update the
+module and the bridge together. The Orange Pi builds the newest release tag, not `main` (D-126).
+
+### Dashboard
+
+- **Back under the first-load bundle budget:** the Pre-flight drawer loads from its own chunk, so
+  the first load drops from 150.0 to 147.8 KB gzip (limit 150). The header button and the
+  version banner stay in the entry.
+- **More room in the first load:** the Advanced menu's dropdown code and the combat strip load from
+  their own chunks (a plain Advanced button stands in until the menu arrives and opens it as soon
+  as it does; the strip downloads right after the first render). The first load drops from 150.0
+  to 144.6 KB gzip (limit 150).
+- **Recent Changes, token moves (changes-token-moves):** in the new dashboard, on the Everyone tab, a run of moves of the same token by the same person takes one row ("Token "Ogre" moved 6 times", newest time) instead of one row per move. The row's Undo takes back only the newest move. Any other change in between ends the run; Foundry's Changes window and `/legacy` still list every move.
+- **Feed, say what changed (feed-gm-change-wording):** the chip on a change made in Foundry names the feature behind it ("actor change", "page reveal") instead of "gm-change", and the AI rows of Recent Changes show the feature in words, in the new dashboard and on the old page (`/legacy`). The line beside it still says what changed and on whom.
+- **GM page (third live-screen option):** `/gm` shows Foundry in one pane and the live strip (the
+  same component as the Live screen and the Foundry window) in the other, GM only, behind the same
+  login. A drag divider (also by keyboard), a layout saved per browser (strip right or left, or
+  Foundry alone with the strip in its own window), and map picks in Foundry pick in the strip
+  through the page. When Foundry refuses to be framed the page says so and offers to open Foundry
+  in its own tab. Foundry needs two Cloudflare header rules on the play host to be framed (see the
+  PR); players keep the plain Foundry link.
+- **Live screen A, review fixes (#654):** Undo and Next turn on the live strip, the header Undo and
+  the NPC initiative roll after Start combat now share the dashboard's guarded call, so a refusal
+  because GM Actions are off shows the usual toast and a failure says so. The roll after Start
+  combat only touches the NPCs of the fight just started (and says so when it cannot find them,
+  instead of rolling in an older fight); a player-owned NPC-type creature put in the fight (a
+  familiar, say) is now rolled for too. The page has one Undo (the header's), and the toast's
+  pointer to the Turn on button now moves focus there.
+- **Live screen A (opt-in):** a "Try the new live screen" link in the dashboard header opens a second
+  view at `/?live=1`: one fixed page for the whole evening, with the live strip on top, Party always
+  open, Handouts, and "What just happened" as one list (an "AI only" box, Undo on each line). The
+  header carries a permanent "Undo: (the last change)" (one click, no confirm window unless the change
+  is a destructive one), the Live play line, "How do I..." (the GM coach) and More (theme, old
+  dashboard, back to the During view). The page does not rearrange itself and has no layout choice
+  or banner. The During view stays the default. On this page Start combat also rolls initiative for
+  the non-player combatants right after the fight starts (players roll their own), so starting a
+  fight is two clicks.
+- **The live strip page can be framed by Foundry:** `/?strip=1` now sends
+  `Content-Security-Policy: frame-ancestors <DASHBOARD_FOUNDRY_URL origin>` (the dashboard itself
+  when that is not set); no other page changes.
+- **Live buttons show they are working:** Start and End session, Turn on, Start combat, Damage / Heal, the roll buttons (strip, Party and each member) and "Start the session log" say what they are doing ("Starting session...") and stay locked until Foundry answers; after 2 seconds they say "Waiting for Foundry...". A lazy panel that takes more than 200 ms shows "Loading..." in place.
+- **Plain error toasts:** a failed change names what it was ("Combat change: ...", "The change timed out") instead of a tool id.
+- **Start combat looks like a button** in the During bar, and Try layouts and the Full toggle are outlined buttons too.
+- **GM Actions off:** the strip says that damage, conditions and rolls on the combatants need live play, with the Turn on button; Ask roll on each Party member is disabled with the reason, like the others.
+- **Header:** when the module's switches cannot be read, the live play line says so instead of "all set". Turn on for tonight's log button reads "Start the session log and live play".
+- **Live strip lows (PR #642 review):** Next turn waits for GM Actions and writes only (it is not a live-play write); the Damage form is not offered while a switch it needs is off. The Damage form and the strip share one busy lock, so a hit and Next turn cannot run together. After the form closes, Clear or a condition is applied, keyboard focus goes to the pick bar. The fight summary is one live region that stays mounted, small buttons have a 24 px minimum height, and the "may have applied" hint always follows a full stop.
+- **"1 round" on the live strip's condition picker:** a toggle in front of the conditions; with it
+  on, the next condition added lasts one round (`rounds: 1` through the planned change). The
+  condition chip then says how long it has left ("Prone, 1 round") and "Poisoned, ended" once the
+  time is up, with a hint to click the condition again to put it back. An ended timed condition
+  used to look like a plain one.
+- **Live strip (live-strip-component):** one combat row of creature cards with the portrait leading each (click to pan), numbered duplicate names, "dead" or "down, death saves" at 0 hit points, an always-present pick bar with Damage / Heal inline and condition chips, Next turn, End combat (one plain confirm) and Undo in the header, the roll bar with Again, and Show next handout. Opt-in at `/?strip=1`; the base screens A and B build on. The one-round condition duration is a separate item.
+- **One roll choice:** the combat strip's roll bar and the Party card's now share one saved choice, so an out-of-date bar can no longer overwrite the other's.
+- **Roll requests that got no answer:** the toast says "not confirmed ... it may have been sent, check chat" instead of "Not sent".
+- **Damage / Heal after a failure that may have landed:** the form clears the amount, so a second press cannot hit twice. A failed plan keeps the amount.
+- **After view:** the Discord summary posts only the public roll counts (and none from an older bridge that does not send them).
+- Failure-path tests for the Damage / Heal form and quick rolls; the damage-undo demo take follows the new form.
+
+### Module
+
+- **Conditions that last a number of rounds:** `plan-actor-change` takes an optional `rounds` (1 to 100) for a condition. The plan builds it into the status effect as a duration in rounds; during a fight Foundry counts it down and it counts as expired after that many rounds, and `clear-conditions` (no names) removes it. The preview says "for 1 round". Exhaustion (a level) refuses it. This is the backend for the live strip's "1 round" choice.
+- **Map picks go up to the GM page:** a Foundry page that sits in the GM page's frame (or was opened
+  by it) posts the controlled token ids to it, to the dashboard origin only, and answers its
+  "ready" message.
+- **Live window (live screen B, off by default):** turn on "AI Tool: Live window" in the module
+  settings and the GM gets a Live button in the AI Tool group and a small pin at the screen edge.
+  It opens the dashboard's live strip in a window about 400 px wide next to the map, the same strip
+  as the Live page. Controlling tokens on the map picks the same creatures in the strip, the window
+  remembers its place and comes back after a reload, and the Combat, Party and Session windows are
+  unchanged. "AI Tool: Live window address" holds the dashboard address when it is not this host on
+  port 3100.
+- **Timed conditions in the combat state:** each combatant carries `timed`, the rounds left on its
+  timed condition effects by name (0 once the time is up).
+- **Our styles no longer restyle Foundry's own forms:** the form footer rules are scoped to the Enhanced Creature Index window, the unused service-type rules are gone, and the connection pulse animation has a module-specific name. A test fails if a stylesheet of ours gains a selector that names none of our classes.
+
+### Tooling
+
+- **Context hard stop:** a PreToolUse hook (`context-stop.mjs`) denies edits, subagents and repo-writing shell commands once a session is at or above its hand-over line, and says to hand over now.
+- **Prettier on edit:** a PostToolUse hook (`format-on-edit.mjs`) formats the `.ts`, `.tsx`, `.js`, `.mjs`, `.json` or `.md` file an Edit or Write just changed, when that file was prettier-clean at HEAD or is new.
+- **Phantom context readings:** `context-alert.mjs` counts a reading only when the response before it was also big, so one doubled API response no longer triggers a handover.
+- **Demo takes drive the current dashboard:** the demo harness (`scripts/demo`) opens the dashboard at `/` instead of the old page at `/legacy/`, and the helpers and takes use the current page's tabs, Tool Runner, confirm window, Pre-flight and Prep drawers. The Pre-flight take shows the guides instead of the old Features cards. The helper test now checks the ids against the current dashboard source.
+- **`green --quick` covers more of the dashboard:** a change under `packages/cogm-dashboard/web/` now also runs the usage catalogue check, the dashboard build and the bundle budget, the steps CI failed on after a quick pass. The catalogue check also runs when a file it scans changes (dashboard `public/`, module `src/`). A quick run that touched dashboard web files ends with a reminder that screenshots are left to CI.
+- **Stopped lanes reach the planner:** a lane that hands over at its context line now always
+  messages the newest Planner, and the planner re-reads every claimed Backlog item on each wake,
+  starts a successor for a stopped lane and archives the old session once its worktree is clean.
+- **A check keeps the old dashboard out:** `npm run kit:test` (so CI and `npm run green`) now fails when a test, kit run, demo script, skill or guide names `/legacy/` or the old page's files, unless the file is on a short list of places that test the old page or its routes on purpose. The list shrinks as the old page's last tests go.
+- **Context alert reads the real context after an advisor call:** a response that called the
+  advisor tool reports usage summed over its two sampling passes, so the context hook saw about
+  twice the real context (210 such responses since 2026-10-23, 38 false handovers). The hook now
+  reads the last pass from `usage.iterations`.
+- **Planner turns Remote Control on for itself:** new sessions no longer connect to Remote Control by
+  default (the app setting is off), so finished lanes can be archived and idle notices work; the
+  planner skill now switches it on for the planner session at start, so it stays reachable from the
+  phone.
+- **Green runs the light steps first:** `npm run green` runs the steps that need neither the build nor a heavy slot (hook, docs, Pi, Plan B and TV tests, the changelog check) before the first heavy step, so the heavy-check lock is held only for typecheck through the browser run. CI keeps its own order. `--from` and `--list` follow the reordered run order, so a rerun from a light step still runs typecheck.
+- **Stale comments:** `heavy-lock.mjs`, `green.mjs` and `lane-merge.mjs` no longer say the pre-push hook takes the heavy lock.
+
+### Fixes
+
+- **Merge gate refusals say why:** each refusal commit in the vault's Merge train history now has the
+  cause tags in its subject (`Merge train: refusal #649, 2/4 [ci-failing, review]`; `ci-pending`,
+  `ci-missing`, `train`, `drift-<guard name>` and so on) and the reason lines in its body, so refusals
+  can be counted by cause. The train note itself is unchanged.
+- **A hand-dispatched CI run can no longer hide a merge-ref failure:** every `ci.yml` job name gets a
+  `[dispatch]` suffix on `workflow_dispatch`, so `green --cloud` runs have check keys of their own. The
+  `latestChecks` note records why an undated finished check ranks oldest.
+- **`green --quick` runs the test kit checks:** the kit control tests (a new control without its skip
+  row) when a usage-catalogue input or `scripts/test-kit/` changed, and the scenario check (`kit.mjs
+check`) when the dashboard web app or `scripts/test-kit/` changed, so both fail locally and not first
+  on CI.
+- The merge gate counts only the newest run of each CI check. A PR closed and reopened to rerun CI
+  against a fixed main no longer stays blocked by the old failure on the same head. A run that is
+  still queued (gh reports its start time as 0001-01-01) counts as the newest; with equal or unknown
+  times the worse result stays.
+- **Green tree hash:** `worktreeTreeHash` copies the real index with the real index's mtime (floored to the second), so git's racy-stat check still re-hashes a same-size edit made in the second of the last git command. On Linux the plain copy got a fresh mtime and a second boundary between two hashes could return a stale tree (the CI flake in the worktreeTreeHash test); the new test pins the second and fails without the fix.
+- **Start alert when main CI is red:** the start-alerts hook prints `main CI red since <sha> (<step>)`
+  when the newest finished CI run on main failed (cancelled runs are passed over; it stays silent when
+  `gh` is missing or offline). `START_ALERTS_MAIN_CI=off` skips it.
+- **Planner skill: "Main is red" step:** within 15 minutes revert the last merge or raise the limit by
+  one line with a Backlog item, no other merges while main is red, then the proper fix as a normal lane.
+- **Edit guard test no longer flakes on a slow runner:** the "100 KB single token" test keeps its
+  unread-over-the-cap assertion and uses a generous time bound.
+- **No double writes from a double click:** the bridge answers a repeated Apply, Undo or session
+  start or end (same arguments, same person) within 3 seconds with the first result instead of
+  running it again, so a double click cannot apply a guarded write twice. Other tools, such as
+  attacks, dice rolls and Next turn, run every time, and a failed call can be retried at once.
+- **Tests:** the live screen's "Rolled initiative" toast check looks inside the toast stack, so Radix's repeat of the text in its screen-reader live region no longer makes it fail with a strict-mode violation on a slow runner. The `toast` test helper takes a regex and `exact`. The app shows each toast once.
+- **NPC attacks use the GM's targets:** `use-npc-activity` reads the tokens targeted in Foundry the way `get-targets` does: the bridge user's, else an active GM's, so it works when the bridge runs in another GM's browser.
+- **Play stats count public rolls per session:** each session in `get-play-stats` carries `publicRolls`, `publicCrits` and `publicFumbles` (blind, GM, self and unrecorded rolls left out), so the After view can post roll counts to Discord without leaking private ones.
+- **Prep digest:** when the encounter scan stops at its 100-note limit, the digest says so in its own warning instead of folding it into "could not be read".
+- **Docs:** the prep tool-set size figures in `docs/reference/TOOL-SETS.md` match the measured size.
+- **Party: one Exhaustion chip, however often the drawer redraws:** the chip was added to the
+  member's own condition list on every render, so a second render showed "Exhaustion 1" twice and a
+  third thrice. It is added to a copy now. This was also what made the Live screen screenshots flake.
+- **Planner playbook:** the "Main is red" step names the oldest run of the unbroken red streak (cancelled runs skipped) as the commit to revert, and the main CI listing uses `-L 15` like the start-alerts hook.
+- **Imported quests show their title on the player page:** a quest made from an Obsidian note now starts with its title as a heading, so the Quests card shows the quest name instead of "Quest Details".
+- **Two PRs that fit the dashboard budget alone can no longer turn main red together:** the merge
+  gate's drift check now builds the dashboard and runs the bundle budget on the trial merge with
+  the newest main whenever the branch or main since the merge base touched `packages/cogm-dashboard/` or `shared/`.
+- **Budgets warn before they fail:** the dashboard bundle budget prints a GitHub warning when the
+  first load has under 2 KB left (a raise must leave 2 KB or make something lazy), and the tool-set
+  size test adds the same annotation under 500 characters.
+- **CI runs on main are no longer cancelled by the next merge,** so a red on main shows on the commit
+  that caused it.
+- **use-item wording:** the tool text says plainly that, with no dialog on a GM browser without a canvas, the chat card Attack button reads the targets of whoever clicks it.
+- **Tests:** the combat strip double-click test waits a short settle and checks that only one apply was sent; the use-item test checks the Attack-button sentence.
+- **use-item on a no-canvas GM:** the answer and the tool description now say no dialog opens there,
+  and that the chat card's Attack button reads the targets of whoever clicks it.
+- **Tests:** the combat strip "a double click sends one plan" e2e waits for the apply instead of
+  racing the form closing; the quest import test covers a note with its own top-level heading.
+- **Undo by data, narrower tie:** only the group's own records from the first AI item delete on
+  (from the first AI delete when no item was deleted) can tie another browser's dependent deletes
+  to an AI change through the actor rule; a concentration end from before it stays the person's own
+  action. New tests cover an item delete with the group's own concentration end, and filing by time
+  among two AI changes.
+- **Undo: a dependent effect deleted in another browser:** when dnd5e deletes a dependent (the
+  effect concentration put on another actor, a template, a region, a summoned token) in another
+  browser logged in as the same GM user as the bridge, the change history now files it under the AI change that ended
+  the concentration by the deleted effect's own data, so the undo plan puts it back ("Also
+  restored"). It no longer shows as a separate action of that person.
+- **usage-report.py:** a response that called the advisor reports its last executor pass as the context (it was the two passes summed, about double), and its cost now includes the advisor's own pass.
+- **Use item with a target, no canvas:** `use-item` with `targets` now sets the target when the only GM online is the headless Assistant GM on the Pi (client setting `core.noCanvas`). It fills the user's target set with the scene's token documents, which dnd5e reads for the use card, and clears the set once the card is made. On that client no dialog is opened (nobody can click it): the first activity is used, and the attack or damage roll is left to the buttons on the chat card; the answer says so. A GM whose canvas is still loading keeps the old "targets not set" answer. Any GM who turns the canvas off in their own client settings gets the headless behaviour too.
+
+### Pi
+
+- **Vault sync check and time zone (stage 20, Obsidian O8):** `scripts/pi/remote/20-vault-sync.sh` reports where the GM vault
+  sits and on which disk, which PCs are connected, every `.sync-conflict-*` file (the same note changed on two PCs) and whether
+  the Pi is on `Europe/Copenhagen`. It only reads unless `SET_TIMEZONE=1` (snapshot and OK first), and never touches a vault
+  file. Tested with two real Syncthings in the ARM64 container.
+- **The Pi's system runs from an NVMe SSD:** the card only boots it. PI-SETUP.md "Moving to NVMe" now
+  records the manual move (DietPi's Transfer RootFS is not offered on this board), how to redo it,
+  how to roll back, and what a rebuild and the snapshot restore mean with card plus SSD.
+
+### Test kit
+
+- **The dashboard sweep drives the React dashboard:** `dashboard-controls`, `dashboard-login-split`
+  and `dashboard-write-flows` open `/` instead of the old page, and the control table and page helpers use
+  the React ids. Controls only the old page has (pause, the AI tab, tone, model, feature cards) are `skip`
+  rows "old page only". The kit no longer names the old page anywhere.
+
+### Documentation
+
+- **No old-dashboard text in the guides:** the GM guide, the dashboard reference, the feature list, "never and only if", troubleshooting, the READMEs and the runtime test plan no longer describe the old dashboard page (status lights, Features cards, AI commentary with Ask and Post to chat, Pause, Diag AI, Tone, Model, the storage banner). They describe the page at `/` only.
+
+### Orange Pi
+
+- **Stage 11, owed world switches:** a `world-<id>.switches-pending` marker left by a failed run is now cleared when the world is replaced by a push-back or a run with `WORLD_SWITCHES=0`, and when `WORLD_SWITCHES=0` runs on the kept world, so a later plain run no longer sets switches the GM gave up on. `WORLD_SWITCHES=1` together with a Plan B push-back is refused up front, the failure message no longer says `0` "leaves" the switches, and the stage ignores a dropped SSH connection (`trap '' HUP PIPE`, as stages 14 and 19 do; its run log is a separate change).
+- **Tests:** stage 19 has a test for a failed read of the picture now in the world (nothing written, nothing stopped), and its runuser pattern is looser.
+- **Stage 11 run log:** stage 11 now logs the lines it prints itself from the bundle check on (not the output of the tools it runs, such as the driver), with a time, to `/var/lib/foundry-import/world-run-<time>.log` (root only), like stages 14 and 19. It already ignores a dropped SSH connection while Foundry is stopped (`trap '' HUP PIPE`); now the Pi keeps the story of such a run. The closing summary goes into the log too.
+- **Docs:** `docs/dev/PI-SETUP.md` "World switches" and the stage 11 header describe the owed-switches marker, how `WORLD_SWITCHES=0` clears it, the refusal of `WORLD_SWITCHES=1` with a Plan B push-back, and the log. The push-back refusal test now also checks that it comes before Foundry stops.
+
+### Session notes
+
+- **Consent file:** `consent set` refuses to rewrite a file whose `players` has an entry that is not an object (it would have been dropped, and it may be a "no"), and keeps other top-level keys when it rewrites.
+
+### Pi scripts
+
+- **Plan B push-back takes `-PiModules`:** `push-back.ps1 -Modules '' -PiModules id1,id2` builds a bundle for a world whose modules are already on the Pi, without shipping them (it passes the list on to `push-world.ps1`). This lets the Pi-side rollback drill run on the training world without touching the campaign's module folders.
+
 ## v0.23.0 (released 2026-10-30): paper nights, the rules check and rules search, waiting for game events, the NPC turn assistant, the Tarokka table, Pi stage scripts, Obsidian and test kit work
 
 **Unchanged:** the module id, the socket channel, the `foundry-mcp-bridge.*` method prefix, the settings

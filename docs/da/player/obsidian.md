@@ -6,7 +6,7 @@ source: player/obsidian.md
 
 # Dine noter i Obsidian
 
-**Det her er valgfrit.** Alt i det står også på [spillersiden](README.md) og under My character i
+**Det her er valgfrit.** Alt i det står også på [spillersiden](../../player/README.md) og under My character i
 din browser. Hvis du gerne vil have dine kampagnenoter i [Obsidian](https://obsidian.md) (en gratis
 notes-app), kan bordets server holde en lille notemappe til dig opdateret på din computer: de
 handouts, GM'en har givet dig, recaps, din karakter, dine tal og session-loggen.

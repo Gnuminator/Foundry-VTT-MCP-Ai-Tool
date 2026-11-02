@@ -2,11 +2,12 @@
 title: Dine noter i Obsidian
 description: Valgfrit. Få dine handouts, recaps, din karakter og session-loggen som noter i Obsidian på din egen computer, skrivebeskyttet, med Syncthing. Opsætning, indhold og hvordan du stopper.
 source: player/obsidian.md
+sourceHash: d828d4066b0c
 ---
 
 # Dine noter i Obsidian
 
-**Det her er valgfrit.** Alt i det står også på [spillersiden](../../player/README.md) og under My character i
+**Det her er valgfrit.** Alt i det står også på [spillersiden](README.md) og under My character i
 din browser. Hvis du gerne vil have dine kampagnenoter i [Obsidian](https://obsidian.md) (en gratis
 notes-app), kan bordets server holde en lille notemappe til dig opdateret på din computer: de
 handouts, GM'en har givet dig, recaps, din karakter, dine tal og session-loggen.

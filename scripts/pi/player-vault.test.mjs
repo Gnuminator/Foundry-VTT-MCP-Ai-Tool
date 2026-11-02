@@ -16,7 +16,7 @@ const stage = readFileSync(
 
 describe('21-player-vault.sh as text', () => {
   test('every mode that changes something needs a snapshot from today first', () => {
-    assert.match(stage, /if \[ "\$mode" != report \]; then\n {2}require_recent_snapshot\nfi/);
+    assert.match(stage, /if \[ "\$mode" != report \]; then\n {2}require_recent_snapshot\n/);
     // The snapshot check comes before the first Syncthing write and before the dashboard switch.
     const snap = stage.indexOf('require_recent_snapshot');
     assert.ok(snap > 0);

@@ -3,7 +3,13 @@
  * owns stay out, only the active GM's client writes, and the setting turns it off.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { PARTY_AUTO_SETTING, isPlayerCharacter, syncParty } from './party-auto.js';
+import { changeJournal } from './change-journal.js';
+import {
+  PARTY_AUTO_DONE_SETTING,
+  PARTY_AUTO_SETTING,
+  isPlayerCharacter,
+  syncParty,
+} from './party-auto.js';
 
 const g = globalThis as any;
 
@@ -27,8 +33,10 @@ let enabled: boolean;
 let activeGm: string;
 let created: any[];
 let primarySet: any[];
+let done: unknown;
 
 function install(contents: Fake[], withParty: boolean): void {
+  done = { ids: [] };
   members = [];
   created = [];
   primarySet = [];
@@ -57,9 +65,14 @@ function install(contents: Fake[], withParty: boolean): void {
     },
     actors,
     settings: {
-      get: (_m: string, key: string) => (key === PARTY_AUTO_SETTING ? enabled : undefined),
-      set: vi.fn(async (_m: string, key: string, value: unknown) => {
-        primarySet.push([key, value]);
+      get: (_m: string, key: string) =>
+        key === PARTY_AUTO_SETTING ? enabled : key === PARTY_AUTO_DONE_SETTING ? done : undefined,
+      set: vi.fn(async (m: string, key: string, value: unknown) => {
+        if (key === PARTY_AUTO_DONE_SETTING) {
+          done = value;
+          return;
+        }
+        primarySet.push([key, value, m]);
         actors.party = party;
       }),
     },
@@ -107,7 +120,40 @@ describe('party auto', () => {
     expect(created).toEqual([
       { name: 'Party', type: 'group', system: { type: { value: 'party' } } },
     ]);
-    expect(primarySet).toEqual([['primaryParty', { actor: party }]]);
+    expect(primarySet).toEqual([['primaryParty', { actor: party }, 'dnd5e']]);
+  });
+
+  it('sets the only group as primary instead of making another', async () => {
+    const lone = { id: 'g9', name: 'Old group', type: 'group', hasPlayerOwner: false };
+    install([hero, lone], false);
+    party.id = 'g9';
+    actors.contents = [hero, Object.assign(party, lone, { id: 'g9' })];
+    expect(await syncParty()).toEqual(['Hero']);
+    expect(created).toHaveLength(0);
+    expect(primarySet).toHaveLength(1);
+  });
+
+  it('adds a character once: an undone addition stays out after a reload', async () => {
+    install([hero, cleric], true);
+    await syncParty();
+    members.splice(0, members.length, { actor: cleric });
+    expect(await syncParty()).toEqual([]);
+    expect(members.map(m => m.actor.id)).toEqual(['a2']);
+  });
+
+  it('counts a character that is already a member as added', async () => {
+    install([hero], true);
+    members.push({ actor: hero });
+    expect(await syncParty()).toEqual([]);
+    expect((done as { ids: string[] }).ids).toEqual(['a1']);
+  });
+
+  it('breaks the change group around each addition', async () => {
+    install([hero, cleric], true);
+    const spy = vi.spyOn(changeJournal, 'breakGroup');
+    await syncParty();
+    expect(spy).toHaveBeenCalledTimes(4);
+    spy.mockRestore();
   });
 
   it('makes no party when no player owns a character', async () => {

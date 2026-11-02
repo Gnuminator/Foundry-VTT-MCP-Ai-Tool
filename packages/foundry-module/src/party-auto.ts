@@ -14,13 +14,18 @@
  *   journal files it under Recent Changes, Everyone, with Undo. There is no bridge handler.
  * - The world setting "AI Tool: Add player characters to the party" (default on) turns it off.
  *
- * Someone the GM takes out of the party by hand is added again at the next world load; switch the
- * setting off to manage the party yourself.
+ * A character is added once (its id goes into a hidden world setting), so someone the GM takes out
+ * of the party by hand, or an addition that was undone, stays out. Each addition is its own change
+ * group, so Undo takes back only the party and not the edit made just before it.
  */
+import { changeJournal } from './change-journal.js';
 import { MODULE_ID } from './constants.js';
 
 /** World setting key. */
 export const PARTY_AUTO_SETTING = 'partyAuto';
+
+/** Hidden world setting: the actor ids already added once, so an Undo or a removal sticks. */
+export const PARTY_AUTO_DONE_SETTING = 'partyAutoDone';
 
 type Rec = Record<string, unknown>;
 
@@ -48,6 +53,23 @@ export function registerPartyAutoSettings(): void {
     type: Boolean,
     default: true,
   });
+  game.settings.register(MODULE_ID, PARTY_AUTO_DONE_SETTING, {
+    name: 'Party: characters already added',
+    hint: 'The actors the automatic party added once. Not shown.',
+    scope: 'world',
+    config: false,
+    type: Object,
+    default: { ids: [] },
+  });
+}
+
+function doneIds(): Set<string> {
+  try {
+    const ids = rec(game.settings.get(MODULE_ID, PARTY_AUTO_DONE_SETTING))?.ids;
+    return new Set(Array.isArray(ids) ? ids.filter((i): i is string => typeof i === 'string') : []);
+  } catch {
+    return new Set();
+  }
 }
 
 /** Whether the GM left it on. A setting that is not registered counts as off. */
@@ -93,16 +115,25 @@ function primaryParty(): GroupLike | null {
   return party ? (party as GroupLike) : null;
 }
 
-/** Make the group "Party" and set it as the primary party. */
-async function createParty(): Promise<GroupLike | null> {
-  const ActorCls = (globalThis as unknown as { Actor?: { create(data: object): Promise<unknown> } })
-    .Actor;
-  if (!ActorCls) return null;
-  const group = (await ActorCls.create({
-    name: 'Party',
-    type: 'group',
-    system: { type: { value: 'party' } },
-  })) as GroupLike | undefined;
+/**
+ * Make the primary party: the only group there is (the GM made it and never set it as primary),
+ * else a new group "Party". Either way it becomes the dnd5e primary party.
+ */
+async function makeParty(): Promise<GroupLike | null> {
+  const groups = contentsOf(rec(gameRec()?.actors)).filter(a => rec(a)?.type === 'group');
+  let group: GroupLike | null = groups.length === 1 ? (groups[0] as GroupLike) : null;
+  if (!group) {
+    const ActorCls = (
+      globalThis as unknown as { Actor?: { create(data: object): Promise<unknown> } }
+    ).Actor;
+    if (!ActorCls) return null;
+    group =
+      ((await ActorCls.create({
+        name: 'Party',
+        type: 'group',
+        system: { type: { value: 'party' } },
+      })) as GroupLike | undefined) ?? null;
+  }
   if (!group?.id) return null;
   await game.settings.set('dnd5e', 'primaryParty', { actor: group });
   return primaryParty() ?? group;
@@ -127,24 +158,44 @@ export function syncParty(): Promise<string[]> {
 
 async function doSync(): Promise<string[]> {
   if (!partyAutoEnabled() || !isActiveGm()) return [];
-  const wanted = contentsOf(rec(gameRec()?.actors)).filter(isPlayerCharacter);
+  // Added once is enough: a character the GM took out of the party, or an addition that was
+  // undone, stays out. A character that is already a member counts as added.
+  const done = doneIds();
+  const wanted = contentsOf(rec(gameRec()?.actors))
+    .filter(isPlayerCharacter)
+    .filter(a => !done.has(String(rec(a)?.id)));
   if (wanted.length === 0) return [];
   let party = primaryParty();
   if (!party) {
-    party = await createParty();
+    party = await makeParty();
     if (!party) return [];
   }
+  const members = memberIds(party);
   const added: string[] = [];
+  const before = done.size;
   for (const actor of wanted) {
     const id = rec(actor)?.id;
-    if (typeof id !== 'string' || memberIds(party).has(id)) continue;
-    if (!party.system?.addMember) return added;
+    if (typeof id !== 'string') continue;
+    if (members.has(id)) {
+      done.add(id);
+      continue;
+    }
+    if (!party.system?.addMember) break;
     try {
+      // Each addition is its own row in Recent Changes, never a follow-up of the edit before it
+      // (the ownership change that made the character eligible), so Undo takes back only the party.
+      changeJournal.breakGroup();
       await party.system.addMember(actor);
+      changeJournal.breakGroup();
+      done.add(id);
+      members.add(id);
       added.push(String(rec(actor)?.name ?? id));
     } catch (error) {
       console.warn(`[${MODULE_ID}] party: could not add ${String(rec(actor)?.name ?? id)}`, error);
     }
+  }
+  if (done.size !== before) {
+    await game.settings.set(MODULE_ID, PARTY_AUTO_DONE_SETTING, { ids: [...done] });
   }
   return added;
 }

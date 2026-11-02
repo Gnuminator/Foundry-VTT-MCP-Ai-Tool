@@ -20,9 +20,9 @@ The wiki (`docs/wiki`, staged by `scripts/wiki/stage.mjs`) has two sides. Its ho
 "player or GM?".
 
 - **Player side:** `docs/player/` plus a copy of the Foundry basics a player needs (`PLAYER_FOUNDRY`
-  in the stage script) at `/player/foundry/`. The sidebar shows nothing else. A player page must
-  not link to a GM page or to another Foundry page: staging fails if it does.
-- **GM side:** `docs/gm/` and all of `docs/foundry/`. Every GM page starts with a "For the GM" label.
+  in the stage script) at `/player/foundry/`. The sidebar shows nothing else. A player page may
+  link only to player pages and to those Foundry copies: staging fails if it links anywhere else on the wiki.
+- **GM side:** `docs/gm/` and all of `docs/foundry/`. Every page under `docs/gm/` starts with a "For the GM" label.
 - A new player guide goes in `docs/player/` and shows up by itself. A new GM guide goes in
   `docs/gm/`, and in the `SIDEBAR` list of the stage script if it should not land under "More guides".
 

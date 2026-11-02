@@ -13,7 +13,7 @@
  *
  * Two sides (the user, 2026-11-02): the player side is /player/ plus a copy of the Foundry basics a
  * player needs at /player/foundry/ (PLAYER_FOUNDRY); the GM side is /gm/ plus all of /foundry/.
- * The sidebar of each side shows only its own pages (docs/wiki/src/routeData.ts filters it), the
+ * The sidebar of each side shows only its own pages (docs/wiki/src/routeData.mjs filters it), the
  * home page asks "player or GM?", and every GM page starts with a "For the GM" label. A player page
  * must not link to a GM page (staging fails); a link in a player copy of a Foundry page to a page
  * the player side lacks becomes plain text.

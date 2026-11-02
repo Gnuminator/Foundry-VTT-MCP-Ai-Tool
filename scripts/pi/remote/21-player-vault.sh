@@ -91,6 +91,7 @@ st show system >/dev/null 2>&1 || die "Syncthing does not answer on its GUI addr
 st config folders list | grep -x "$gm_folder" >/dev/null || die "the folder $gm_folder is missing: run stage 7 first"
 my_id="$(st show system | sed -n 's/.*"myID": "\([A-Z0-9-]*\)".*/\1/p')"
 [ -n "$my_id" ] || die "could not read the Pi's device ID"
+[ -z "$device_id" ] || [ "$device_id" != "$my_id" ] || die "DEVICE_ID is this Pi's own ID: give the player's device ID (Syncthing, Actions, Show ID)"
 
 # slug_for NAME: letters and digits of the name plus 8 hex of its hash, so two players never share an id and the id stays plain ASCII.
 slug_for() {
@@ -120,6 +121,7 @@ check_player_folder() {
   local dir="$players_dir/$1"
   [ -d "$players_dir" ] || die "$players_dir does not exist yet: run this stage with SETUP=1, and wait a minute for the dashboard to write the folders"
   [ ! -L "$dir" ] || die "$dir is a link: refused"
+  [ "$(readlink -f "$players_dir")" = "$TOOL_DATA/obsidian/players" ] || die "$players_dir is a link or leads somewhere else: refused"
   [ -d "$dir" ] || die "there is no player folder '$1' in $players_dir (the report lists the names; the dashboard writes a folder about a minute after it starts)"
   [ -f "$dir/.aitool-player.json" ] && [ ! -L "$dir/.aitool-player.json" ] && grep -q 'foundry-ai-tool' "$dir/.aitool-player.json" ||
     die "$dir has no dashboard marker (.aitool-player.json): it is not a player vault the dashboard wrote, so it is not shared"
@@ -163,10 +165,13 @@ share_player() {
 
   say "the folder for $player"
   # Syncthing's per-device ignore file: our writer's temp files are never offered, nor the marker (it names the Foundry user).
-  write_file "$dir/.stignore" 0640 "// Written by scripts/pi/remote/21-player-vault.sh (Syncthing does not sync this file).
+  # Written as the foundry user through a temp file and a rename: that user owns the folder, so root must not follow a link
+  # it left at .stignore (lib.sh foundry_copy_file has the same rule).
+  runuser -u "$FOUNDRY_USER" -- sh -c 't="$1.foundry-tmp"; rm -f "$t" && printf "%s\n" "$2" >"$t" && mv -f "$t" "$1"' sh "$dir/.stignore" \
+    "// Written by scripts/pi/remote/21-player-vault.sh (Syncthing does not sync this file).
 .aitool-player.json
-.*.aitool-tmp-*" || true
-  chown "$FOUNDRY_USER:$FOUNDRY_USER" "$dir/.stignore"
+.*.aitool-tmp-*"
+  ok "$dir/.stignore"
   if st config folders list | grep -x "$fid" >/dev/null; then
     ok "folder $fid already there"
     [ "$(st config folders "$fid" path get)" = "$dir" ] ||
@@ -198,8 +203,14 @@ share_player() {
     st config folders "$fid" devices add --device-id "$device_id"
     ok "shared $fid with $device_name"
   fi
+  # Read it back from Syncthing: everything else depends on these.
+  [ "$(st config folders "$fid" type get)" = sendonly ] || die "read-back: $fid is not Send Only"
+  [ "$(st config folders "$fid" path get)" = "$dir" ] || die "read-back: $fid has the wrong path"
+  st config folders "$fid" devices list | grep -x "$device_id" >/dev/null || die "read-back: $device_id is not on $fid"
+  [ "$(st config devices "$device_id" introducer get)" = false ] && [ "$(st config devices "$device_id" auto-accept-folders get)" = false ] ||
+    die "read-back: the device is an introducer or auto-accepts folders"
   echo "    this Pi's device ID: $my_id"
-  echo "    folder: $fid ($dir), Send Only"
+  echo "    folder: $fid ($dir), Send Only (read back)"
   say "stage 21 done: tell $player to add the Pi in Syncthing (Add Remote Device, compare the ID above), accept the folder, set it to Receive Only, and open it in Obsidian (docs/player/obsidian.md)"
 }
 
@@ -238,23 +249,28 @@ forget_if_unused() {
 }
 
 switch_off() {
-  local f
+  local f d devices=""
+  # Quiet first: a refusal after the drop-in is gone would leave the dashboard writing with nothing a rerun could see.
+  if [ -f "$dropin" ]; then require_quiet_if_active "$dashboard_unit" "switching player vaults off (restarts the dashboard)"; fi
   say "player folders out of Syncthing"
   for f in $(player_folders); do
+    devices="$devices $(folder_devices "$f")"
     st config folders "$f" delete
     ok "removed $f (files stay)"
   done
-  for f in $(st config devices list | grep -vx "$my_id" || true); do forget_if_unused "$f"; done
+  # Only devices that were on a player folder; a GM PC that is paired but not shared yet is left alone.
+  for d in $devices; do forget_if_unused "$d"; done
   say "the dashboard switch"
   if [ -f "$dropin" ]; then
     rm -f -- "${dropin:?}"
-    mark_changed "$dropin"
     ok "removed $dropin"
+    if have_systemd; then
+      systemctl daemon-reload
+      # try-restart: a stopped dashboard stays stopped.
+      if systemctl try-restart "$dashboard_unit"; then ok "$dashboard_unit restarted if it was running"; else die "$dashboard_unit did not restart; see journalctl -u $dashboard_unit -n 50"; fi
+    fi
   else
     ok "no drop-in"
-  fi
-  if have_systemd && [ -f "/etc/systemd/system/$dashboard_unit" ]; then
-    enable_unit "$dashboard_unit" "$dropin"
   fi
   say "stage 21 done: player vaults are off; the files in $players_dir stay"
 }
@@ -267,8 +283,16 @@ report() {
     echo "    the dashboard does not write player vaults yet (run with SETUP=1)"
   fi
   if have_systemd && [ -f "/etc/systemd/system/$dashboard_unit" ]; then
-    systemctl show -p Environment "$dashboard_unit" 2>/dev/null | grep -q 'FOUNDRY_AI_PLAYER_VAULTS_DIR' ||
-      echo "    the running dashboard does not have the setting (not restarted since)"
+    # The running process, not the unit file: a refused restart leaves the two apart.
+    local pid live=0
+    pid="$(systemctl show -p MainPID --value "$dashboard_unit" 2>/dev/null || true)"
+    if [ -n "$pid" ] && [ "$pid" != 0 ] && tr '\0' '\n' <"/proc/$pid/environ" 2>/dev/null | grep -q '^FOUNDRY_AI_PLAYER_VAULTS_DIR='; then live=1; fi
+    if [ -f "$dropin" ] && [ "$live" = 0 ] && [ -n "$pid" ] && [ "$pid" != 0 ]; then
+      warn "the drop-in is there but the running dashboard does not have the setting yet (it restarts when the Pi is quiet)"
+    elif [ ! -f "$dropin" ] && [ "$live" = 1 ]; then
+      warn "no drop-in, but the running dashboard still writes player vaults (the switch-off restart is pending)"
+      problems=$((problems + 1))
+    fi
   fi
 
   say "player folders on disk"
@@ -336,6 +360,14 @@ setup)
   say "stage 21 done: player vaults are on; the dashboard writes a folder per player within a minute"
   ;;
 add)
+  # Refuse a wrong folder or device before the dashboard is touched (when the players folder is not there yet, the first
+  # run only switches on and asks for a rerun).
+  if [ -d "$players_dir" ]; then
+    check_player_folder "$player"
+    if other="$(device_on_other_folder "$device_id" "$folder_prefix$(slug_for "$player")")"; then
+      die "device $device_id is already on the folder $other: one device belongs to one player, and never to the GM vault. Nothing was shared"
+    fi
+  fi
   ensure_dashboard_switch
   share_player
   ;;

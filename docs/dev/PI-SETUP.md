@@ -1576,7 +1576,9 @@ is `docs/player/obsidian.md`.
   1. `SETUP=1` switches the dashboard's player vaults on and restarts the dashboard once; wait a minute and run the report to see
      the folder names.
   2. Per player who asked (they send a device ID, see the player guide): `PLAYER="<folder name>" DEVICE_ID=<id> DEVICE_NAME=<name>`.
-     It prints the Pi's device ID; the player compares it, accepts the Pi and the folder and sets it to Receive Only.
+     It prints the Pi's device ID; the player compares it, accepts the Pi and the folder and sets it to Receive Only. The
+     remote shell reads the ssh line first: a folder name with an apostrophe (D'Arcy) needs it written as `'\''`, and
+     `DEVICE_NAME` is something the operator picks, never pasted from a player's message.
   3. Stop: `REMOVE=1 PLAYER="<name>" [DEVICE_ID=<id>]` (a device, or the whole player folder out of Syncthing, files stay);
      `OFF=1` takes every player folder out of Syncthing and removes the drop-in.
 - Tests: `scripts/pi/player-vault.test.mjs` (the stage as text, and with `PI_STAGE21_CONTAINER=1` three real Syncthings in a

@@ -57,14 +57,37 @@ describe('21-player-vault.sh as text', () => {
   });
 
   test('never writes, moves or deletes a vault note', () => {
-    // The only rm is the dashboard drop-in, with the guarded variable; the only vault file written is Syncthing's .stignore.
+    // The only rm is the dashboard drop-in, with the guarded variable; the only vault file written is Syncthing's .stignore,
+    // as the foundry user through a temp file (root must not follow a link in a folder that user owns).
     const rms = stage.match(/\brm\b[^\n]*/g) ?? [];
     assert.deepEqual(
-      rms.filter(l => !l.includes('${dropin:?}')).filter(l => !l.startsWith('rm -f --')),
+      rms
+        .filter(l => !l.includes('${dropin:?}'))
+        .filter(l => !l.startsWith('rm -f "$t" && printf')),
       []
     );
-    assert.doesNotMatch(stage, /-delete|\bmv\b|\bcp\b|rm -rf/);
-    assert.match(stage, /write_file "\$dir\/\.stignore"/);
+    assert.doesNotMatch(stage, /-delete|\bcp\b|rm -rf|\bchown\b/);
+    assert.match(
+      stage,
+      /runuser -u "\$FOUNDRY_USER" -- sh -c 't="\$1\.foundry-tmp"[^\n]*"\$dir\/\.stignore"/
+    );
+    assert.doesNotMatch(stage, /write_file "\$dir/);
+  });
+
+  test('switching off asks for a quiet Pi before it changes anything', () => {
+    const off = stage.slice(stage.indexOf('switch_off() {'));
+    assert.ok(off.indexOf('require_quiet_if_active') > 0);
+    assert.ok(off.indexOf('require_quiet_if_active') < off.indexOf('config folders "$f" delete'));
+    assert.ok(off.indexOf('config folders "$f" delete') < off.indexOf('rm -f -- "${dropin:?}"'));
+    assert.match(off, /try-restart/);
+  });
+
+  test('an add checks the folder and the device before it touches the dashboard', () => {
+    const add = stage.slice(stage.indexOf('add)\n'));
+    assert.ok(
+      add.indexOf('check_player_folder "$player"') < add.indexOf('ensure_dashboard_switch')
+    );
+    assert.ok(add.indexOf('device_on_other_folder') < add.indexOf('ensure_dashboard_switch'));
   });
 
   test('the player name, device id and device name are checked before anything is touched', () => {

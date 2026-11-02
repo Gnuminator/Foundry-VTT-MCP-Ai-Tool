@@ -212,6 +212,52 @@ describe('describeRecord', () => {
     ).toEqual(['Token "Wolf 2" moved']);
   });
 
+  it('says a token moved when a Foundry 14 drag also turned it (x, y and rotation)', () => {
+    const token = {
+      documentName: 'Token',
+      uuid: 'Scene.s1.Token.t1',
+      parentUuid: 'Scene.s1',
+      name: 'Riswynn',
+      rootUuid: 'Scene.s1.Token.t1',
+      rootName: 'Riswynn',
+    } as const;
+    // The real shapes of the test 3 drags on the Pi: x,y,rotation, x,rotation and y,rotation.
+    for (const [before, after] of [
+      [
+        [val('x', 400), val('y', 400), val('rotation', 0)],
+        [val('x', 500), val('y', 300), val('rotation', 225)],
+      ],
+      [
+        [val('x', 500), val('rotation', 225)],
+        [val('x', 600), val('rotation', 270)],
+      ],
+      [
+        [val('y', 300), val('rotation', 270)],
+        [val('y', 400), val('rotation', 180)],
+      ],
+    ] as const) {
+      expect(describeRecord(rec({ ...token, before: [...before], after: [...after] }))).toEqual([
+        'Token "Riswynn" moved',
+      ]);
+    }
+  });
+
+  it('keeps a turn on its own as a change, not a move', () => {
+    const lines = describeRecord(
+      rec({
+        documentName: 'Token',
+        uuid: 'Scene.s1.Token.t1',
+        parentUuid: 'Scene.s1',
+        name: 'Riswynn',
+        rootUuid: 'Scene.s1.Token.t1',
+        rootName: 'Riswynn',
+        before: [val('rotation', 0)],
+        after: [val('rotation', 90)],
+      })
+    );
+    expect(lines).not.toEqual(['Token "Riswynn" moved']);
+  });
+
   it('shows an oversize record and a record with unknown before values', () => {
     expect(describeRecord(rec({ oversize: true }))).toEqual([
       'Ilvara changed (the details were too large to keep)',

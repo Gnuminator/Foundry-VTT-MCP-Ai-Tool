@@ -6,10 +6,12 @@
 // window, it hears them from the GM page instead.
 import { useCallback, useEffect, type JSX, type MouseEvent } from 'react';
 
-import { GmActionsGateContext } from '../lib/guarded';
+import { GateTextContext, GmActionsGateContext } from '../lib/guarded';
 import { listenForMapPick } from '../lib/mapPick';
 import { useDashboardStream } from '../lib/stream';
 import { LiveStrip } from './LiveStrip';
+
+const STRIP_GATE_TEXT = 'GM Actions are off. Press Turn on in the strip.';
 
 /** Whether the GM page opened this window (no frame parent, an opener on this origin). */
 function openedByGmPage(): boolean {
@@ -39,21 +41,27 @@ export function LiveStripPage(): JSX.Element {
   // This page has no header or Pre-flight drawer: a refused click sends the focus to the strip's
   // own Turn on button.
   const openGate = useCallback((): void => {
-    document.querySelector<HTMLElement>('[data-track="dash.live.turn-on"]')?.focus();
+    // The first Turn on button can be a hidden one (a disabled control's note): take a shown one.
+    const buttons = document.querySelectorAll<HTMLElement>('[data-track="dash.live.turn-on"]');
+    Array.from(buttons)
+      .find(b => b.offsetParent !== null)
+      ?.focus();
   }, []);
   return (
     <GmActionsGateContext.Provider value={openGate}>
-      <main className="live-strip-page">
-        {openedByGmPage() ? (
-          <p className="live-strip-page-note">
-            Map picks come from the GM page.{' '}
-            <a href="/gm" target="_blank" rel="opener" onClick={backToGmPage}>
-              Back to the GM page
-            </a>
-          </p>
-        ) : null}
-        <LiveStrip />
-      </main>
+      <GateTextContext.Provider value={STRIP_GATE_TEXT}>
+        <main className="live-strip-page">
+          {openedByGmPage() ? (
+            <p className="live-strip-page-note">
+              Map picks come from the GM page.{' '}
+              <a href="/gm" target="_blank" rel="opener" onClick={backToGmPage}>
+                Back to the GM page
+              </a>
+            </p>
+          ) : null}
+          <LiveStrip />
+        </main>
+      </GateTextContext.Provider>
     </GmActionsGateContext.Provider>
   );
 }

@@ -131,11 +131,18 @@ export class HandoutsController {
           planId: plan.planId,
           confirm: true,
           confirmDestructive: true,
-        })) as { shown?: { ok?: boolean; error?: string } } | null;
+        })) as {
+          shown?: { ok?: boolean; error?: string };
+          noticed?: { ok?: boolean; error?: string };
+        } | null;
         this.deps.notifyInfo(`Revealed: ${plan.summary}`);
         if (applied?.shown?.ok === false) {
           this.failed(
             `Revealed, but the page could not be shown on the players' screens: ${applied.shown.error ?? 'unknown error'}`
+          );
+        } else if (applied?.noticed?.ok === false) {
+          this.failed(
+            `Revealed, but the chat notice to the players was not posted: ${applied.noticed.error ?? 'unknown error'}`
           );
         }
       }

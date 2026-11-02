@@ -140,8 +140,8 @@ The steps you will see, roughly in this order:
 
   ![The background ability score step at 0 Points Remaining](../images/guides/studio-background-scores.png)
 
-- **Languages, skills and tools** from your background. The **Languages** step asks you to
-  choose, on top of Common: the text says, for example, "Select 2 more Languages". Click
+- **Languages, skills and tools** from your background. The background's **Choose Languages**
+  step gives you Common and asks you to pick two more: the text says "Select 2 more Languages". Click
   the languages you want in the list (ask your GM or your D&D helper which ones suit the
   campaign) until that text is gone, then click **Next**.
 - **The background's feat.** Some feats ask for more choices. Magic Initiate, for example, asks for
@@ -163,10 +163,12 @@ The steps you will see, roughly in this order:
 
 - **Class:** hit points, saving throws, **skills to choose** (most classes pick two), weapon and
   armour training, and your level-1 class features. **Weapon Mastery:** barbarian, fighter,
-  paladin, ranger and rogue get a step that asks you to pick weapons whose mastery you know (for
-  example "Select 3 more Weapon Masteries" for a fighter). Pick the weapons you plan to fight
-  with, and wait until that text is gone before you click Next. The weapon's mastery property
-  (Topple, Sap, Vex and so on) then works whenever you attack with it. The steps are headed "Level 1 -> 2" even though
+  paladin, ranger and rogue get a step headed **Weapon Mastery** that asks you to pick weapons
+  whose mastery you know (3 for a fighter, 2 for the others). The counter above the list may say
+  "Select 3 more Weapon Proficiencies": that is the same thing, just a confusing label. Pick the
+  weapons you plan to fight with, and wait until the counter is gone before you click Next. You
+  can then use a picked weapon's mastery property (Topple, Sap, Vex and so on) when you attack
+  with it. The steps are headed "Level 1 -> 2" even though
   you are building a level-1 character first; that is a labelling quirk. Do the steps as they come.
 
 ## 8. Equipment
@@ -210,8 +212,8 @@ level at a time, with the same builder.
 
 ### Level up to level 3
 
-1. A small round blue **Level Up** button (the Actor Studio logo, an arrow on a dragon) appears
-   at the top of your sheet, beside the level badge. Hover over it to see "Level Up". **It only
+1. A small button with the blue Actor Studio logo appears at the top of your sheet, beside the
+   level badge. It is not gold and has no text; hover over it to see "Level Up". **It only
    shows when the GM has switched on Milestone Levelling, or has given you enough experience points
    (XP).** If there is no button, ask the GM.
 2. Click it. The window **Level Up Existing Class** opens. Click the **+** at the right end of your

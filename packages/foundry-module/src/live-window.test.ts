@@ -15,7 +15,7 @@ import {
   dashboardOrigins,
   liveWindowWhy,
   isReadyFromFrame,
-  isReadyFromTarget,
+  readyOriginFromTarget,
   liveFrameUrl,
   pickTargets,
   postPickToTargets,
@@ -179,22 +179,20 @@ describe('the picks sent up to the GM page', () => {
   it('answers a ready message from a target window and the dashboard origin only', () => {
     const parent = {};
     const ready = { type: LIVE_READY_MESSAGE };
-    const origins = [origin];
-    expect(isReadyFromTarget({ data: ready, source: parent, origin }, [parent], origins)).toBe(
-      true
-    );
-    expect(isReadyFromTarget({ data: ready, source: {}, origin }, [parent], origins)).toBe(false);
-    expect(isReadyFromTarget({ data: ready, source: null, origin }, [parent], origins)).toBe(false);
+    // The origin is read from the message itself: no setting is needed.
+    expect(readyOriginFromTarget({ data: ready, source: parent, origin }, [parent])).toBe(origin);
+    expect(readyOriginFromTarget({ data: ready, source: {}, origin }, [parent])).toBeNull();
+    expect(readyOriginFromTarget({ data: ready, source: null, origin }, [parent])).toBeNull();
     expect(
-      isReadyFromTarget(
-        { data: ready, source: parent, origin: 'https://evil.example' },
-        [parent],
-        origins
-      )
-    ).toBe(false);
+      readyOriginFromTarget({ data: { type: 'x' }, source: parent, origin }, [parent])
+    ).toBeNull();
+    // Not a web origin, and not Foundry's own.
     expect(
-      isReadyFromTarget({ data: { type: 'x' }, source: parent, origin }, [parent], origins)
-    ).toBe(false);
+      readyOriginFromTarget({ data: ready, source: parent, origin: 'null' }, [parent])
+    ).toBeNull();
+    expect(
+      readyOriginFromTarget({ data: ready, source: parent, origin }, [parent], origin)
+    ).toBeNull();
   });
 });
 

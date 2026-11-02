@@ -113,6 +113,8 @@ function GmWorkspace({
   const [frameLoaded, setFrameLoaded] = useState(false);
   const [loadCount, setLoadCount] = useState(0);
   const [connected, setConnected] = useState(false);
+  const connectedRef = useRef(false);
+  connectedRef.current = connected;
   const [timedOut, setTimedOut] = useState(false);
   const [bannerHidden, setBannerHidden] = useState(false);
   const [tabOpen, setTabOpen] = useState(false);
@@ -178,9 +180,18 @@ function GmWorkspace({
       if (foundryTab.current?.closed === true) foundryTab.current = null;
       setStripWindowOpen(stripWindow.current !== null);
       setTabOpen(foundryTab.current !== null);
+      // A Foundry tab we opened never gets a frame "load" from us: say hello until its module has
+      // answered with a pick, so it learns this page's address from the first message.
+      if (foundryTab.current !== null && !connectedRef.current) {
+        try {
+          foundryTab.current.postMessage({ type: 'fmb-live-ready' }, foundryOrigin);
+        } catch {
+          // A tab that just closed has nothing to hear it.
+        }
+      }
     }, 1000);
     return (): void => window.clearInterval(timer);
-  }, []);
+  }, [foundryOrigin]);
 
   const openStripWindow = (): void => {
     stripWindow.current = window.open('/?strip=1', STRIP_WINDOW, STRIP_FEATURES);

@@ -262,19 +262,22 @@ export function postPickToTargets(
   }
 }
 
-/** Whether a message is the GM page saying it listens: from a target window, from the dashboard. */
-export function isReadyFromTarget(
+/**
+ * The origin of a message that is the GM page saying it listens, or null. It counts only from a
+ * window that frames this Foundry or opened it (`targets`) and from a web origin other than this
+ * Foundry's own; the module then answers that origin, whatever the Live window address says.
+ */
+export function readyOriginFromTarget(
   event: { data: unknown; source: unknown; origin: string },
   targets: readonly unknown[],
-  origins: readonly string[]
-): boolean {
+  ownOrigin?: string
+): string | null {
   const type = (event.data as { type?: unknown } | null)?.type;
-  return (
-    type === LIVE_READY_MESSAGE &&
-    origins.includes(event.origin) &&
-    event.source !== null &&
-    targets.includes(event.source)
-  );
+  if (type !== LIVE_READY_MESSAGE || event.source === null || !targets.includes(event.source)) {
+    return null;
+  }
+  const origin = originOf(event.origin);
+  return origin !== null && origin !== ownOrigin ? origin : null;
 }
 
 function originOf(text: string | undefined): string | null {
@@ -325,13 +328,19 @@ export function startPickRelay(): void {
   if (relayStarted || game.user?.isGM !== true) return;
   const targets = pickTargets(window);
   if (targets.length === 0) return;
+  // Known early (the frame parent, else the setting); the GM page's own first message adds its
+  // origin, which is the one that counts when Foundry was opened in a tab or by a browser without
+  // `ancestorOrigins`.
   const origins = currentDashboardOrigins();
-  if (origins.length === 0) return;
   relayStarted = true;
   const send = (): void => postPickToTargets(targets, origins, controlledTokenIds());
   Hooks.on('controlToken', send);
   window.addEventListener('message', event => {
-    if (isReadyFromTarget(event, targets, origins)) send();
+    const origin = readyOriginFromTarget(event, targets, window.location.origin);
+    if (origin === null) return;
+    // What the GM page itself said wins over the early guess.
+    origins.splice(0, origins.length, origin);
+    send();
   });
   // The first message doubles as the hello: the GM page counts a pick as "Foundry is in the frame".
   send();

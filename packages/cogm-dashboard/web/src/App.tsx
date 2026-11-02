@@ -2,6 +2,7 @@ import { lazy, Suspense, useCallback, useEffect, useState, type JSX, type ReactN
 import { flushSync } from 'react-dom';
 
 import { AdvancedItem, AdvancedLabel, AdvancedMenu } from './components/AdvancedMenu';
+import { LiveViewsMenu } from './components/LiveViewsMenu';
 import { ConfirmProvider } from './components/ConfirmDialog';
 import { PlanLink } from './components/PlanLink';
 import {
@@ -44,7 +45,7 @@ import { PreflightButton, VersionBanner, usePreflightOnReconnect } from './panel
 import type { ToolRequest } from './panels/Tools';
 import { GmActionsGateContext } from './lib/guarded';
 import { showsSampleFight } from './lib/duringTrial';
-import { LIVE_SCREEN_HREF, TRY_LIVE_TEXT, optInScreen } from './lib/liveScreen';
+import { optInScreen } from './lib/liveScreen';
 import { useDashboardStream } from './lib/stream';
 import { useWorldTheme } from './lib/worldTheme';
 import { Button } from './ui';
@@ -431,15 +432,7 @@ function Dashboard(): JSX.Element {
               </Button>
             </AdvancedItem>
           </AdvancedMenu>
-          <a
-            className="btn"
-            id="try-live-screen"
-            data-track="dash.header.try-live"
-            href={LIVE_SCREEN_HREF}
-            title="The opt-in Live view: one fixed page"
-          >
-            {TRY_LIVE_TEXT}
-          </a>
+          <LiveViewsMenu />
         </div>
       </header>
       <PlanLink />

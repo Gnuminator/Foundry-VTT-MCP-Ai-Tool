@@ -143,7 +143,7 @@ export const DASHBOARD_CONTROLS = [
   })),
   ...[
     'dash.changes.ai-only',
-    'dash.header.try-live',
+    'dash.header.live-views',
     'dash.live.back',
     'dash.live.header-undo',
     'dash.live.how-do-i',

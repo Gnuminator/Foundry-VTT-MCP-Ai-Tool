@@ -6,7 +6,7 @@
 - **Live strip, take a condition off:** a condition chip on a creature card is a button that removes
   that condition through the guarded path (plan, apply, Undo). An ended timed chip shows an x and
   says it takes the condition off.
-- **Live strip, no waiting for the poll:** after any write the strip reads the fight at once, and
+- **Live strip, no waiting for the poll:** after a strip button's write the strip reads the fight at once, and
   the cards a condition write is on show that it is working until Foundry answers.
 - **Live strip, narrow places:** under about 500 px (the Live window, the GM page strip pane,
   `/?strip=1`) each creature is one line, dead creatures fold to a slim line and the pick, damage,

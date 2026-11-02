@@ -71,6 +71,7 @@ function Card({
   stale,
   pending,
   canRemove,
+  offNote,
   onPick,
   onRemove,
 }: {
@@ -83,6 +84,8 @@ function Card({
   pending: boolean;
   /** Chips take their condition off on a click (a write is allowed and none is running). */
   canRemove: boolean;
+  /** Why a chip cannot be clicked now (a switch is off, the bridge is away), or nothing. */
+  offNote: string | undefined;
   onPick: () => void;
   onRemove: (condition: string) => void;
 }): JSX.Element {
@@ -189,7 +192,7 @@ function Card({
               data-condition={cond}
               aria-disabled={canRemove && !stale ? undefined : 'true'}
               aria-label={`${chipText(cond, left)}, take off`}
-              title={chipTitle(cond, left)}
+              title={canRemove && !stale ? chipTitle(cond, left) : offNote}
               onClick={() => {
                 if (canRemove && !stale) onRemove(cond);
               }}
@@ -525,6 +528,7 @@ export function LiveStrip(): JSX.Element {
               stale={stale}
               pending={pendingIds.has(c.id)}
               canRemove={!writeOff}
+              offNote={offTitle ?? (busy ? 'A change is on its way' : undefined)}
               onRemove={cond => void removeCondition(c, cond)}
               onPick={() =>
                 setPicked(old => {

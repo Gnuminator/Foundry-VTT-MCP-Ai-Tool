@@ -6,6 +6,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   CHANGES_KEY,
   CHANGES_RELOAD_MS,
+  COMBAT_KEY,
+  REFRESH_COMBAT_MAX_MS,
+  refreshCombat,
   FEED_KEY,
   STREAM_DROP_GRACE_MS,
   STREAM_GIVE_UP_AFTER,
@@ -23,6 +26,8 @@ import { readCombat } from './combat';
 
 // auth.ts reads the page's location when it loads; there is no page here.
 vi.mock('./auth', () => ({ streamUrl: (): string => '/api/stream' }));
+const callTool = vi.hoisted(() => vi.fn());
+vi.mock('./api', () => ({ callTool }));
 
 const T = 1_000_000;
 const dropped: StreamLink = { state: 'dropped', since: T };
@@ -225,6 +230,51 @@ describe('the events handler and Recent Changes', () => {
     onEvents(queryClient, { events: [event('a', 'gm-change'), event('b', 'gm-change')] });
     await vi.advanceTimersByTimeAsync(CHANGES_RELOAD_MS);
     expect(reloaded()).toBe(true);
+  });
+});
+
+describe('refreshCombat', () => {
+  const fight = readCombat({
+    active: true,
+    round: 1,
+    turn: 0,
+    current: null,
+    combatants: [{ id: 'a', name: 'Wolf' }],
+  });
+  const fresh = (): QueryClient => {
+    const qc = new QueryClient();
+    qc.setQueryData(COMBAT_KEY, fight);
+    return qc;
+  };
+  beforeEach(() => {
+    callTool.mockReset();
+    vi.useFakeTimers();
+  });
+  afterEach(() => vi.useRealTimers());
+
+  it('leaves the fight alone when the read fails or says nothing about a fight', async () => {
+    const qc = fresh();
+    callTool.mockRejectedValueOnce(new Error('away'));
+    await refreshCombat(qc);
+    callTool.mockResolvedValueOnce({});
+    await refreshCombat(qc);
+    expect(qc.getQueryData(COMBAT_KEY)).toBe(fight);
+  });
+
+  it('gives up on a read that does not answer', async () => {
+    const qc = fresh();
+    callTool.mockReturnValueOnce(new Promise(() => undefined));
+    const done = refreshCombat(qc);
+    await vi.advanceTimersByTimeAsync(REFRESH_COMBAT_MAX_MS);
+    await done;
+    expect(qc.getQueryData(COMBAT_KEY)).toBe(fight);
+  });
+
+  it('ends the fight when the tool says none runs', async () => {
+    const qc = fresh();
+    callTool.mockResolvedValueOnce({ active: false });
+    await refreshCombat(qc);
+    expect(qc.getQueryData(COMBAT_KEY)).toBeNull();
   });
 });
 

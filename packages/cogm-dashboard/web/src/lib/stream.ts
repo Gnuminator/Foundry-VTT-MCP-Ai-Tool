@@ -179,6 +179,9 @@ export function onStatus(queryClient: QueryClient, data: unknown): void {
   }
 }
 
+/** Counts the `combat` events of the stream, so a direct read can tell a newer push arrived. */
+let combatSeq = 0;
+
 /** One handler per event this page uses; each puts the event into the query cache. */
 const HANDLERS: Record<string, (queryClient: QueryClient, data: unknown) => void> = {
   errors: onErrors,
@@ -211,6 +214,7 @@ const HANDLERS: Record<string, (queryClient: QueryClient, data: unknown) => void
     queryClient.setQueryData<unknown>(ROLLS_KEY, (data as { rows?: unknown } | null)?.rows),
   // The whole fight (lib/combat.ts), null when none runs: the During layouts and the strip read it.
   combat: (queryClient, data) => {
+    combatSeq += 1;
     const combat = readCombat((data as { combat?: unknown } | null)?.combat);
     queryClient.setQueryData<CombatState | null>(COMBAT_KEY, () => combat);
   },
@@ -464,6 +468,7 @@ export const REFRESH_COMBAT_MAX_MS = 2500;
  * strip write calls this when it lands. A failed read changes nothing; the stream catches up.
  */
 export async function refreshCombat(queryClient: QueryClient): Promise<void> {
+  const seq = combatSeq;
   try {
     // Bounded: a slow bridge must not hold the strip's buttons; the poll catches up.
     const raw = await Promise.race([
@@ -474,6 +479,8 @@ export async function refreshCombat(queryClient: QueryClient): Promise<void> {
     ]);
     // Only an answer that says whether a fight runs counts; anything else must not end the fight.
     if (typeof (raw as { active?: unknown } | null)?.active !== 'boolean') return;
+    // A fight the stream pushed while this read was out is newer than the read: keep the stream's.
+    if (combatSeq !== seq) return;
     const known = queryClient.getQueryData<CombatState | null>(COMBAT_KEY) ?? null;
     queryClient.setQueryData<CombatState | null>(
       COMBAT_KEY,

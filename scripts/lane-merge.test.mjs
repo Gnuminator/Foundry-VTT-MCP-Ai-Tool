@@ -15,6 +15,7 @@ import {
   TRAIN_NOTE_PATH,
   TRAIN_SIZE,
   acquireLock,
+  announceSource,
   defaultAnnounce,
   defaultRun,
   entryDecision,
@@ -1052,8 +1053,26 @@ test('a failing or throwing Discord post is a warning and never changes the exit
   assert.equal(thrown.lines.at(-1), 'lane:merge: WARNING Discord post failed (boom)');
 });
 
-test('defaultAnnounce skips quietly when the sender is not in the checkout', () => {
-  assert.equal(defaultAnnounce(1, 't', tmpDir()), '');
+test('the sender comes from main, else the checkout, else nothing (and a missing one posts nothing)', () => {
+  const rel = 'packages/discord-bot/announce/announce.mjs';
+  const repo = tmpDir();
+  const git = (...a) => execFileSync('git', ['-C', repo, ...a], { encoding: 'utf8' });
+  git('init', '-q');
+  assert.equal(announceSource(repo), null, 'nothing anywhere');
+  assert.equal(defaultAnnounce(1, 't', repo), '');
+  fs.mkdirSync(path.join(repo, path.dirname(rel)), { recursive: true });
+  fs.writeFileSync(path.join(repo, rel), '// checkout copy');
+  const local = announceSource(repo);
+  assert.equal(local?.file, path.join(repo, rel), 'the checkout copy when main has none');
+  git('add', '.');
+  git('-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-qm', 'x');
+  fs.writeFileSync(path.join(repo, rel), '// branch copy');
+  git('update-ref', 'refs/remotes/aitool/main', 'HEAD');
+  const main = announceSource(repo);
+  assert.ok(main && main.file !== path.join(repo, rel), 'main wins over the branch copy');
+  assert.equal(fs.readFileSync(main.file, 'utf8').trim(), '// checkout copy');
+  main.cleanup();
+  assert.ok(!fs.existsSync(main.file), 'the temp copy is removed');
 });
 
 test('a dry run does not touch the train even for a module PR', () => {

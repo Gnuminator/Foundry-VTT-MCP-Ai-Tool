@@ -954,16 +954,43 @@ export function acquireLock(file, opts = {}) {
  * @returns {string} a warning, or '' when posted or skipped
  */
 export function defaultAnnounce(n, title, cwd = process.cwd()) {
-  const script = path.join(cwd, ANNOUNCE_SCRIPT);
-  if (!fs.existsSync(script)) return '';
-  const r = spawnSync(process.execPath, [script, 'pr', String(n), title || `PR ${n}`], {
-    encoding: 'utf8',
-    timeout: ANNOUNCE_TIMEOUT_MS,
-    cwd,
-  });
-  if (r.status === 0) return '';
-  const why = r.error?.message ?? (firstLine(r.stdout || r.stderr) || `exit ${r.status}`);
-  return `Discord post for #${n} failed (${why})`;
+  const script = announceSource(cwd);
+  if (!script) return '';
+  try {
+    const r = spawnSync(process.execPath, [script.file, 'pr', String(n), title || `PR ${n}`], {
+      encoding: 'utf8',
+      timeout: ANNOUNCE_TIMEOUT_MS,
+      cwd,
+    });
+    if (r.status === 0) return '';
+    const why = r.error?.message ?? (firstLine(r.stdout || r.stderr) || `exit ${r.status}`);
+    return `Discord post for #${n} failed (${why})`;
+  } finally {
+    script.cleanup();
+  }
+}
+
+/**
+ * The sender to run: main's copy (the branch never supplies code that holds the bot token, and a
+ * branch cut before the sender landed has none), else this checkout's copy, else none. The sender has
+ * no relative imports, so one temp file is enough.
+ * @param {string} cwd
+ * @returns {{ file: string, cleanup: () => void } | null}
+ */
+export function announceSource(cwd) {
+  const git = spawnSync(
+    'git',
+    ['show', `${REMOTE}/main:${ANNOUNCE_SCRIPT.split(path.sep).join('/')}`],
+    { encoding: 'utf8', cwd, timeout: ANNOUNCE_TIMEOUT_MS }
+  );
+  if (git.status === 0 && git.stdout) {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lane-announce-'));
+    const file = path.join(dir, 'announce.mjs');
+    fs.writeFileSync(file, git.stdout);
+    return { file, cleanup: () => fs.rmSync(dir, { recursive: true, force: true }) };
+  }
+  const local = path.join(cwd, ANNOUNCE_SCRIPT);
+  return fs.existsSync(local) ? { file: local, cleanup: () => {} } : null;
 }
 
 /**

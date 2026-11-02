@@ -408,9 +408,8 @@ function armWhy(): void {
     const lines = liveWindowWhy(frame.src, configuredSetting() !== '');
     // Show the live region first, then fill it, so a screen reader announces the text.
     panel.hidden = false;
-    panel.innerHTML =
-      lines.map(line => `<p>${escapeHtml(line)}</p>`).join('') +
-      '<button type="button" class="fmb-live-retry">Try again</button>';
+    const paragraphs = lines.map(line => `<p>${escapeHtml(line)}</p>`).join('');
+    panel.innerHTML = `${paragraphs}<button type="button" class="fmb-live-retry">Try again</button>`;
     panel.querySelector('.fmb-live-retry')?.addEventListener('click', () => {
       const url = configuredUrl();
       if (url) frame.src = url;

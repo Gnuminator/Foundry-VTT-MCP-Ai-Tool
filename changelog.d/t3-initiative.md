@@ -11,5 +11,7 @@
 
 ### Module
 
-- **Asked initiative fills the tracker:** a roll request for initiative rolls the character's
-  combatant in the running fight (Foundry's own initiative card) instead of a loose d20.
+- **Asked initiative fills the tracker:** a public roll request for initiative (without an added
+  modifier) rolls the character's combatant in the running fight, with Foundry's own initiative
+  card, instead of a loose d20. It never overwrites an initiative that is already there and
+  refuses a card left over from an earlier fight.

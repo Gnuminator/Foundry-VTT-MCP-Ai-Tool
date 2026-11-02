@@ -6,7 +6,8 @@ import { useQuery } from '@tanstack/react-query';
 import { useContext, useState, type JSX } from 'react';
 
 import { callTool } from '../lib/api';
-import { useGuardedTools } from '../lib/guarded';
+import { mayHaveApplied, useGuardedTools } from '../lib/guarded';
+import { usage } from '../lib/usage';
 import {
   canFight,
   defaultTicks,
@@ -67,14 +68,25 @@ function TokenList({
           )
         );
         const failed = askNames.filter((_, i) => answers[i]?.status === 'rejected');
+        const unsure = askNames.filter((_, i) => {
+          const a = answers[i];
+          return a?.status === 'rejected' && mayHaveApplied(a.reason);
+        });
+        const sure = failed.filter(name => !unsure.includes(name));
         const sent = askNames.length - failed.length;
+        usage().trackTool('request-player-rolls', failed.length === 0 ? 'ok' : 'error');
         if (failed.length === 0) {
           toast(`✓ Asked ${sent === 1 ? askNames[0] : `${sent} characters`} to roll initiative`);
         } else {
-          toast(
-            `Initiative was not asked of ${failed.join(', ')}. They can roll it in Foundry.`,
-            'warn'
-          );
+          const parts = [
+            sure.length > 0
+              ? `Initiative was not asked of ${sure.join(', ')}. They can roll it in Foundry.`
+              : '',
+            unsure.length > 0
+              ? `Not confirmed for ${unsure.join(', ')}: it may have been sent, check chat.`
+              : '',
+          ];
+          toast(parts.filter(Boolean).join(' '), 'warn');
         }
       }
       // The fight exists now. The NPCs roll through the same gate and a plain write, as Next turn does.

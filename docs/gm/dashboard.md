@@ -241,7 +241,11 @@ Changes.
 offers **Start combat** (in most During layouts, a small **Start combat** button on the During bar
 opens the same thing). It lists the tokens on the scene you are viewing, with player characters and
 Hostile tokens ticked. Change the ticks and click **Start combat with N**. The fight starts at
-round 1, with **Undo**. **End combat** plans ending the fight; you
+round 1, with **Undo**. A ticked box, **Ask the player characters to roll initiative**, sends each
+ticked player character a public roll request; when they roll it, the number fills their place in
+the tracker. Undo removes the fight but leaves the request cards in chat. Whoever is up shows an
+**Up now** label. Changing an initiative later (the tool **set-initiative**) re-orders the fight but
+does not move the turn. **End combat** plans ending the fight; you
 confirm it, and Undo brings it back.
 
 **👑 Boss prompts** (in the panel's top line, only while a creature with legendary actions or a lair

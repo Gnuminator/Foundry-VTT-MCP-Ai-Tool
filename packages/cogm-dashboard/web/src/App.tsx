@@ -294,15 +294,14 @@ function Dashboard(): JSX.Element {
             <h1>
               Foundry <span className="wordmark-ai">AI</span> Tool
             </h1>
-            <p className="subtitle">
-              Live AI dungeon master&apos;s assistant
+            <div className="subtitle-row">
+              <p className="subtitle">Live AI dungeon master&apos;s assistant</p>
               {appVersion ? (
                 <span className="app-version" id="app-version" title="The running tool version">
-                  {' '}
                   {appVersion}
                 </span>
               ) : null}
-            </p>
+            </div>
           </div>
         </div>
         <MomentTabs moment={moment} onPick={pick} />

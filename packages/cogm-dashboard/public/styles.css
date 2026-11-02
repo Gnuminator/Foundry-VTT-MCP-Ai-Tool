@@ -242,9 +242,18 @@ body {
   text-overflow: ellipsis;
   max-width: 42ch;
 }
+.subtitle-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  min-width: 0;
+}
 .app-version {
+  flex: none;
+  margin-top: 0.1rem;
+  font-size: var(--fs-xs);
+  color: var(--text-dim);
   font-variant-numeric: tabular-nums;
-  opacity: 0.85;
 }
 
 /* ---- Status pills ---- */

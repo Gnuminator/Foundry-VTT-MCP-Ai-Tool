@@ -456,13 +456,22 @@ export function withKnownPortraits(
   };
 }
 
+/** The longest a strip write waits for the fight to be read back. */
+export const REFRESH_COMBAT_MAX_MS = 2500;
+
 /**
  * Reads the fight now instead of waiting for the server's next poll (item live-strip-instant): a
  * strip write calls this when it lands. A failed read changes nothing; the stream catches up.
  */
 export async function refreshCombat(queryClient: QueryClient): Promise<void> {
   try {
-    const raw = await callTool<unknown>('get-combat-state', {});
+    // Bounded: a slow bridge must not hold the strip's buttons; the poll catches up.
+    const raw = await Promise.race([
+      callTool<unknown>('get-combat-state', {}),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('slow')), REFRESH_COMBAT_MAX_MS)
+      ),
+    ]);
     // Only an answer that says whether a fight runs counts; anything else must not end the fight.
     if (typeof (raw as { active?: unknown } | null)?.active !== 'boolean') return;
     const known = queryClient.getQueryData<CombatState | null>(COMBAT_KEY) ?? null;

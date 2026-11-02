@@ -256,6 +256,7 @@ button.chip.ended {
 }
 .cond[data-busy='true'] {
   cursor: progress;
+  opacity: 0.4;
 }
 
 .handout {

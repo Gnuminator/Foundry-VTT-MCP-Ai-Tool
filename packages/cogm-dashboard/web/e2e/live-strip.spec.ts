@@ -282,6 +282,28 @@ test('a condition chip takes the condition off through the guarded path', async 
     condition: 'Prone',
     active: false,
   });
+  // The strip reads the fight back at once, not at the next poll.
+  await expect.poll(() => calls.map(c => c.name)).toContain('get-combat-state');
+});
+
+test('a write that goes through reads the fight back, and the new fight shows at once', async ({
+  page,
+}) => {
+  let afterWrite = false;
+  const calls = await setup(page, FIGHT, {
+    answer: call => {
+      if (call.name === 'apply-planned-change') afterWrite = true;
+      if (call.name !== 'get-combat-state' || !afterWrite) return undefined;
+      const moved = FIGHT.map((c, i) => ({ ...c, isCurrentTurn: i === 1 }));
+      return ok({ active: true, round: 2, turn: 1, current: moved[1], combatants: moved });
+    },
+  });
+  await load(page);
+  await expect(page.locator('#live-meta')).toHaveText("Round 2 · Brannoc's turn");
+  await page.getByRole('button', { name: 'Goblin 1', exact: true }).click();
+  await page.locator('button[data-condition="prone"]').click();
+  await expect(page.locator('#live-meta')).toHaveText("Round 2 · Goblin 1's turn");
+  expect(calls.some(c => c.name === 'get-combat-state')).toBe(true);
 });
 
 test('the header says whose turn it is and the card carries the turn badge', async ({ page }) => {

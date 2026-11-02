@@ -228,6 +228,8 @@ export function LiveStrip(): JSX.Element {
   const barRef = useRef<HTMLDivElement>(null);
 
   const stale = away && combat !== null;
+  const awayRef = useRef(false);
+  awayRef.current = away;
   const rows = combat?.combatants ?? [];
   const selectable = canSelect({
     gmActions: settings?.gmActionsEnabled === true,
@@ -260,9 +262,13 @@ export function LiveStrip(): JSX.Element {
   const currentId = rows.find(c => c.isCurrentTurn)?.id;
   useEffect(() => {
     if (!currentId) return;
-    const el = cardsRef.current?.querySelector<HTMLElement>('[data-current="true"]');
-    if (el && typeof el.scrollIntoView === 'function') {
-      el.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    // Only the card row moves, never the page (a GM may be reading Party below the strip).
+    const row = cardsRef.current;
+    const el = row?.querySelector<HTMLElement>('[data-current="true"]');
+    if (!row || !el || row.scrollWidth <= row.clientWidth) return;
+    const left = el.offsetLeft - row.offsetLeft;
+    if (left < row.scrollLeft || left + el.offsetWidth > row.scrollLeft + row.clientWidth) {
+      row.scrollTo({ left: Math.max(0, left - 8) });
     }
   }, [currentId]);
 
@@ -287,7 +293,7 @@ export function LiveStrip(): JSX.Element {
       await work();
     } finally {
       // Read the fight at once: the card shows the change now, not at the next 4 s poll.
-      await refreshCombat(queryClient);
+      if (!awayRef.current) await refreshCombat(queryClient);
       busyRef.current = false;
       setBusy(false);
       setPendingIds(new Set());
@@ -595,7 +601,7 @@ export function LiveStrip(): JSX.Element {
                   className={styles['cond']}
                   data-track="dash.live.condition"
                   data-condition={cond}
-                  data-busy={busy && pendingIds.size > 0 ? 'true' : undefined}
+                  data-busy={busy ? 'true' : undefined}
                   aria-disabled={kept.size === 0 || writeOff ? 'true' : undefined}
                   title={kept.size === 0 ? 'Pick a creature first' : offTitle}
                   onClick={() => {

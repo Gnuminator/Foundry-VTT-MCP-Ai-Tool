@@ -211,7 +211,7 @@ remove_player() {
   if [ -n "$device_id" ]; then
     say "unsharing $fid from $device_id"
     st config folders "$fid" devices list | grep -x "$device_id" >/dev/null || die "$device_id is not on $fid"
-    st config folders "$fid" devices delete --device-id "$device_id"
+    st config folders "$fid" devices "$device_id" delete
     ok "$fid no longer shared with $device_id"
     forget_if_unused "$device_id"
   else

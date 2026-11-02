@@ -22,9 +22,9 @@ Checked on Foundry 14, D&D 5e system 6, Actor Studio 2.10.5 and the 2024 Player'
 
 Ask your GM, or read the session 0 message, for:
 
-- **How you get your ability scores.** The standard array (15, 14, 13, 12, 10, 8), point buy, or
-  rolling. The GM may ask the table first: the standard array gives balanced characters, rolling
-  can give very strong or very weak ones. The builder only offers the methods the GM switched on.
+- **How you get your ability scores.** Our table uses two methods: the standard array (15, 14, 13,
+  12, 10, 8) and point buy. Rolling and typing in your own numbers are switched off, so the builder
+  offers just those two. Pick whichever you like; the standard array is the quicker one.
 - **Which options are allowed.** Usually everything in the 2024 Player's Handbook; our table keeps
   to it. Some tables add or remove species, backgrounds or classes.
 - **Anything special about the campaign.** Some campaigns suggest backgrounds or character ideas.

@@ -85,7 +85,11 @@ export const STEPS = [
   nodeTest('hook-start-alerts', '.claude/hooks/start-alerts.test.mjs'),
   nodeTest('drift-check-test', 'scripts/drift-check.test.mjs'),
   nodeTest('test-env-frame-proxy', 'scripts/test-env/foundry-frame-proxy.test.mjs'),
-  nodeTest('hook-context-alert', '.claude/hooks/context-alert.test.mjs', '.claude/hooks/context-stop.test.mjs'),
+  nodeTest(
+    'hook-context-alert',
+    '.claude/hooks/context-alert.test.mjs',
+    '.claude/hooks/context-stop.test.mjs'
+  ),
   nodeTest(
     'hook-edit-guard',
     '.claude/hooks/guard-shell-edits.test.mjs',
@@ -93,7 +97,14 @@ export const STEPS = [
     '.claude/hooks/guard-model.test.mjs',
     '.claude/hooks/format-on-edit.test.mjs'
   ),
-  nodeTest('gate-scripts', 'scripts/green.test.mjs', 'scripts/lane-merge.test.mjs', 'scripts/visual-baselines.test.mjs', 'scripts/review-runner/lib.test.mjs', 'scripts/heavy-lock.test.mjs'),
+  nodeTest(
+    'gate-scripts',
+    'scripts/green.test.mjs',
+    'scripts/lane-merge.test.mjs',
+    'scripts/visual-baselines.test.mjs',
+    'scripts/review-runner/lib.test.mjs',
+    'scripts/heavy-lock.test.mjs'
+  ),
   nodeTest('usage-week', 'scripts/dev/usage-week.test.mjs'),
   nodeTest('gamenight-watch', 'scripts/gamenight-watch.test.mjs'),
   nodeTest('pi-space-check', 'scripts/pi/space-check.test.mjs'),
@@ -118,6 +129,7 @@ export const STEPS = [
   nodeTest('pi-join-page-look', 'scripts/pi/join-page-look.test.mjs'),
   nodeTest('pi-vault-sync', 'scripts/pi/vault-sync.test.mjs'),
   nodeTest('pi-player-vault', 'scripts/pi/player-vault.test.mjs'),
+  nodeTest('pi-world-switch', 'scripts/pi/switch-world.test.mjs'),
   nodeTest('pi-control-port-check', 'scripts/pi/control-port-check.test.mjs'),
   nodeTest('pi-stage-safety', 'scripts/pi/pi-stage-safety.test.mjs'),
   nodeTest('tunnel-client', 'installer/nsis/tunnel-client.test.mjs'),
@@ -247,7 +259,16 @@ export function ciUnsupported(yamlText, job = 'build-test') {
  * @returns {{ list: boolean, all: boolean, cloud: boolean, quick: boolean, only: string[], skip: string[], from: string | null, error: string | null }}
  */
 export function parseArgs(argv) {
-  const out = { list: false, all: false, cloud: false, quick: false, only: [], skip: [], from: null, error: null };
+  const out = {
+    list: false,
+    all: false,
+    cloud: false,
+    quick: false,
+    only: [],
+    skip: [],
+    from: null,
+    error: null,
+  };
   const csv = (/** @type {string} */ v) =>
     v
       .split(',')
@@ -284,10 +305,12 @@ export function parseArgs(argv) {
     }
   }
   if (out.cloud && (out.list || out.all || out.only.length + out.skip.length > 0 || out.from)) {
-    out.error = '--cloud runs the whole CI job and cannot be combined with --list, --all, --only, --skip or --from';
+    out.error =
+      '--cloud runs the whole CI job and cannot be combined with --list, --all, --only, --skip or --from';
   }
   if (out.quick && (out.cloud || out.all || out.only.length + out.skip.length > 0 || out.from)) {
-    out.error = '--quick builds its own step list and cannot be combined with --cloud, --all, --only, --skip or --from';
+    out.error =
+      '--quick builds its own step list and cannot be combined with --cloud, --all, --only, --skip or --from';
   }
   return out;
 }
@@ -324,7 +347,10 @@ export function selectSteps(steps, opts) {
  * (bundle-budget, the smokes, validate-manifest) need its output and stay behind it.
  */
 export const LIGHT_FIRST = new Set(
-  STEPS.slice(0, STEPS.findIndex(s => s.name === 'build'))
+  STEPS.slice(
+    0,
+    STEPS.findIndex(s => s.name === 'build')
+  )
     .filter(s => !HEAVY_STEPS.has(s.name))
     .map(s => s.name)
 );
@@ -336,7 +362,10 @@ export const LIGHT_FIRST = new Set(
  * @param {Step[]} steps
  */
 export function lightFirst(steps) {
-  return [...steps.filter(s => LIGHT_FIRST.has(s.name)), ...steps.filter(s => !LIGHT_FIRST.has(s.name))];
+  return [
+    ...steps.filter(s => LIGHT_FIRST.has(s.name)),
+    ...steps.filter(s => !LIGHT_FIRST.has(s.name)),
+  ];
 }
 
 /** @param {number} ms */
@@ -391,7 +420,12 @@ export function cleanTreeHash(cwd) {
  */
 export function worktreeTreeHash(cwd) {
   const git = (/** @type {string[]} */ args, /** @type {Record<string, string>} */ extra = {}) =>
-    spawnSync('git', args, { cwd, encoding: 'utf8', windowsHide: true, env: { ...process.env, ...extra } });
+    spawnSync('git', args, {
+      cwd,
+      encoding: 'utf8',
+      windowsHide: true,
+      env: { ...process.env, ...extra },
+    });
   const real = git(['rev-parse', '--git-path', 'index']);
   if (real.status !== 0 || !real.stdout.trim()) return null;
   const index = path.join(os.tmpdir(), `green-index-${process.pid}-${Date.now()}`);
@@ -414,7 +448,9 @@ export function worktreeTreeHash(cwd) {
     }
     if (git(['add', '-A'], { GIT_INDEX_FILE: index }).status !== 0) return null;
     const tree = git(['write-tree'], { GIT_INDEX_FILE: index });
-    return tree.status === 0 && /^[0-9a-f]{40,64}$/.test(tree.stdout.trim()) ? tree.stdout.trim() : null;
+    return tree.status === 0 && /^[0-9a-f]{40,64}$/.test(tree.stdout.trim())
+      ? tree.stdout.trim()
+      : null;
   } finally {
     fs.rmSync(index, { force: true });
   }
@@ -448,7 +484,11 @@ export function greenPassedOnThisTree(cwd, commits = []) {
   }
   if (commits.length === 0) return cleanTreeHash(cwd) === stamp;
   return commits.every(sha => {
-    const r = spawnSync('git', ['rev-parse', `${sha}^{tree}`], { cwd, encoding: 'utf8', windowsHide: true });
+    const r = spawnSync('git', ['rev-parse', `${sha}^{tree}`], {
+      cwd,
+      encoding: 'utf8',
+      windowsHide: true,
+    });
     return r.status === 0 && r.stdout.trim() === stamp;
   });
 }
@@ -593,7 +633,9 @@ function spawnStep(step, fd, cwd) {
         ...stepEnvironment(process.env, NODE22_DIR),
         FORCE_COLOR: '0',
         NO_COLOR: '1',
-        ...((step.name === 'e2e' || step.name === 'e2e-specs') && !process.env.E2E_PORT ? freePortEnv() : {}),
+        ...((step.name === 'e2e' || step.name === 'e2e-specs') && !process.env.E2E_PORT
+          ? freePortEnv()
+          : {}),
         ...step.env,
       },
     });
@@ -638,11 +680,16 @@ function soloLock(name, fn) {
 function freePortEnv() {
   const r = spawnSync(
     process.execPath,
-    ['-e', "const s=require('net').createServer().listen(0,'127.0.0.1',()=>{console.log(s.address().port);s.close()})"],
+    [
+      '-e',
+      "const s=require('net').createServer().listen(0,'127.0.0.1',()=>{console.log(s.address().port);s.close()})",
+    ],
     { encoding: 'utf8', windowsHide: true }
   );
   const port = Number(r.stdout?.trim());
-  return Number.isInteger(port) && port > 1024 && ![31414, 31415, 31416].includes(port) ? { E2E_PORT: String(port) } : {};
+  return Number.isInteger(port) && port > 1024 && ![31414, 31415, 31416].includes(port)
+    ? { E2E_PORT: String(port) }
+    : {};
 }
 
 /**
@@ -707,7 +754,11 @@ function sleepSync(ms) {
  */
 function runCapture(cmd, args, cwd) {
   const r = spawnSync(cmd, args, { cwd, encoding: 'utf8', windowsHide: true, timeout: 60_000 });
-  return { status: r.status ?? 1, stdout: r.stdout ?? '', stderr: `${r.stderr ?? ''}${r.error ? r.error.message : ''}` };
+  return {
+    status: r.status ?? 1,
+    stdout: r.stdout ?? '',
+    stderr: `${r.stderr ?? ''}${r.error ? r.error.message : ''}`,
+  };
 }
 
 /** `owner/repo` from a GitHub remote URL (https or ssh), else null. @param {string} url */
@@ -751,7 +802,10 @@ export function cloudGreen(o) {
   };
   const dirty = git(['status', '--porcelain']);
   if (dirty.status !== 0) return refuse('git status failed');
-  if (dirty.stdout.trim()) return refuse('the working tree has uncommitted changes; commit them (CI runs the pushed commit)');
+  if (dirty.stdout.trim())
+    return refuse(
+      'the working tree has uncommitted changes; commit them (CI runs the pushed commit)'
+    );
   const branch = out(['rev-parse', '--abbrev-ref', 'HEAD']);
   const sha = out(['rev-parse', 'HEAD']);
   if (!branch || branch === 'HEAD' || !sha) return refuse('no branch checked out');
@@ -760,38 +814,68 @@ export function cloudGreen(o) {
   const repo = remoteUrl && repoFromUrl(remoteUrl);
   if (!repo) return refuse(`no GitHub remote named ${CLOUD_REMOTE}`);
   const lsRemote = git(['ls-remote', CLOUD_REMOTE, `refs/heads/${branch}`]);
-  if (lsRemote.status !== 0) return refuse(`could not reach ${CLOUD_REMOTE}: ${lsRemote.stderr.trim().split('\n')[0]}`);
+  if (lsRemote.status !== 0)
+    return refuse(`could not reach ${CLOUD_REMOTE}: ${lsRemote.stderr.trim().split('\n')[0]}`);
   const remoteHead = lsRemote.stdout.trim().split(/\s+/)[0];
   if (remoteHead !== sha) {
-    return refuse(`HEAD ${sha.slice(0, 8)} is not pushed to ${CLOUD_REMOTE}/${branch} (git push -u ${CLOUD_REMOTE} ${branch}:${branch})`);
+    return refuse(
+      `HEAD ${sha.slice(0, 8)} is not pushed to ${CLOUD_REMOTE}/${branch} (git push -u ${CLOUD_REMOTE} ${branch}:${branch})`
+    );
   }
 
   const started = now();
   let ghError = '';
   /** @param {string[]} extra @returns {{ databaseId: number, status: string, conclusion: string, headSha: string }[] | null} null when gh failed */
   const listRuns = extra => {
-    const r = gh(['run', 'list', '-R', repo, '-w', CLOUD_WORKFLOW, '--json', 'databaseId,status,conclusion,event,headSha', '-L', '20', ...extra]);
+    const r = gh([
+      'run',
+      'list',
+      '-R',
+      repo,
+      '-w',
+      CLOUD_WORKFLOW,
+      '--json',
+      'databaseId,status,conclusion,event,headSha',
+      '-L',
+      '20',
+      ...extra,
+    ]);
     if (r.status !== 0) {
       ghError = (r.stderr || r.stdout).trim().split('\n')[0];
       return null;
     }
     try {
-      return JSON.parse(r.stdout).filter((/** @type {{ headSha: string }} */ x) => x.headSha === sha);
+      return JSON.parse(r.stdout).filter(
+        (/** @type {{ headSha: string }} */ x) => x.headSha === sha
+      );
     } catch {
       return [];
     }
   };
   // A run that was cancelled or skipped says nothing about the commit.
-  const usable = (/** @type {{ conclusion: string }} */ x) => x.conclusion !== 'cancelled' && x.conclusion !== 'skipped';
+  const usable = (/** @type {{ conclusion: string }} */ x) =>
+    x.conclusion !== 'cancelled' && x.conclusion !== 'skipped';
   const first = listRuns(['--commit', sha]);
-  if (!first) return refuse(`could not list CI runs (gh: ${ghError}); not starting a second run blind`);
+  if (!first)
+    return refuse(`could not list CI runs (gh: ${ghError}); not starting a second run blind`);
   let run = first.find(usable);
   const earlier = Boolean(run && run.status === 'completed');
   if (!run) {
     // A branch with an open PR gets a pull_request run a few seconds after the push: wait for it
     // instead of starting a second run (its concurrency group is the ref, not the PR's, so neither
     // would cancel the other).
-    const pr = gh(['pr', 'list', '-R', repo, '--head', branch, '--state', 'open', '--json', 'number']);
+    const pr = gh([
+      'pr',
+      'list',
+      '-R',
+      repo,
+      '--head',
+      branch,
+      '--state',
+      'open',
+      '--json',
+      'number',
+    ]);
     let hasPr = false;
     try {
       hasPr = pr.status === 0 && JSON.parse(pr.stdout).length > 0;
@@ -805,20 +889,34 @@ export function cloudGreen(o) {
   }
   if (!run) {
     const d = gh(['workflow', 'run', CLOUD_WORKFLOW, '-R', repo, '--ref', branch]);
-    if (d.status !== 0) return refuse(`could not start ${CLOUD_WORKFLOW}: ${(d.stderr || d.stdout).trim().split('\n')[0]}`);
+    if (d.status !== 0)
+      return refuse(
+        `could not start ${CLOUD_WORKFLOW}: ${(d.stderr || d.stdout).trim().split('\n')[0]}`
+      );
     const dispatchedAt = now();
     while (!run && now() - dispatchedAt < findMs) {
       sleep(Math.min(pollMs, 5000));
       run = listRuns(['--branch', branch, '--event', 'workflow_dispatch'])?.find(usable);
     }
-    if (!run) return refuse(`started ${CLOUD_WORKFLOW} but found no run for ${sha.slice(0, 8)} within ${Math.round(findMs / 1000)} s`);
+    if (!run)
+      return refuse(
+        `started ${CLOUD_WORKFLOW} but found no run for ${sha.slice(0, 8)} within ${Math.round(findMs / 1000)} s`
+      );
   }
 
   /** @type {{ status: string, conclusion: string, url: string, jobs: { name: string, conclusion: string, url: string, steps?: { name: string, conclusion: string }[] }[] } | null} */
   let view = null;
   let errors = 0;
   while (now() - started < timeoutMs) {
-    const r = gh(['run', 'view', String(run.databaseId), '-R', repo, '--json', 'status,conclusion,url,jobs']);
+    const r = gh([
+      'run',
+      'view',
+      String(run.databaseId),
+      '-R',
+      repo,
+      '--json',
+      'status,conclusion,url,jobs',
+    ]);
     if (r.status === 0) {
       errors = 0;
       try {
@@ -828,26 +926,41 @@ export function cloudGreen(o) {
       }
       if (view?.status === 'completed') break;
     } else if (++errors >= 5) {
-      return refuse(`gh failed 5 times in a row while waiting for run ${run.databaseId}: ${(r.stderr || r.stdout).trim().split('\n')[0]}`);
+      return refuse(
+        `gh failed 5 times in a row while waiting for run ${run.databaseId}: ${(r.stderr || r.stdout).trim().split('\n')[0]}`
+      );
     }
     sleep(pollMs);
   }
-  if (!view || view.status !== 'completed') return refuse(`CI run ${run.databaseId} was still going after ${formatDuration(now() - started)}`);
+  if (!view || view.status !== 'completed')
+    return refuse(
+      `CI run ${run.databaseId} was still going after ${formatDuration(now() - started)}`
+    );
   if (view.conclusion === 'success') {
-    log(`green: OK (cloud), CI run ${view.url} for ${sha.slice(0, 8)} in ${formatDuration(now() - started)}`);
+    log(
+      `green: OK (cloud), CI run ${view.url} for ${sha.slice(0, 8)} in ${formatDuration(now() - started)}`
+    );
     return 0;
   }
   if (view.conclusion === 'cancelled') {
-    log(`green: FAILED (cloud, cancelled) CI run ${view.url} was cancelled, probably replaced by a newer run on the same ref; run --cloud again`);
+    log(
+      `green: FAILED (cloud, cancelled) CI run ${view.url} was cancelled, probably replaced by a newer run on the same ref; run --cloud again`
+    );
     return 1;
   }
-  const bad = view.jobs.filter(j => j.conclusion && !['success', 'skipped', 'neutral'].includes(j.conclusion));
+  const bad = view.jobs.filter(
+    j => j.conclusion && !['success', 'skipped', 'neutral'].includes(j.conclusion)
+  );
   const where = bad.map(j => {
     const step = j.steps?.find(s => s.conclusion === 'failure');
     return `${j.name}${step ? ` at step "${step.name}"` : ''} (${j.url})`;
   });
-  const retry = earlier ? ` (an earlier run; gh run rerun ${run.databaseId} --failed to retry)` : '';
-  log(`green: FAILED (cloud, ${view.conclusion}) ${where.length ? where.join('; ') : view.url}${retry}`);
+  const retry = earlier
+    ? ` (an earlier run; gh run rerun ${run.databaseId} --failed to retry)`
+    : '';
+  log(
+    `green: FAILED (cloud, ${view.conclusion}) ${where.length ? where.join('; ') : view.url}${retry}`
+  );
   return 1;
 }
 
@@ -867,7 +980,8 @@ export function touchesDashboardWeb(files) {
 }
 
 /** Printed at the end of a quick run that touched dashboard web files. */
-export const QUICK_SCREENSHOT_NOTE = 'Screenshots are not checked locally; CI dashboard-visual will run them.';
+export const QUICK_SCREENSHOT_NOTE =
+  'Screenshots are not checked locally; CI dashboard-visual will run them.';
 
 /**
  * `green --quick`: the steps for the files a branch changed (CI on the pushed head is the green, the
@@ -890,17 +1004,32 @@ export function quickSteps(files, cwd = process.cwd()) {
     if (m) pkgs.add(m[1]);
   }
   const sharedTouched = files.some(f => f.startsWith('shared/'));
-  if (sharedTouched || pkgs.size > 0) steps.push({ name: 'build-shared', cmd: 'npm', args: ['run', 'build:shared'] });
+  if (sharedTouched || pkgs.size > 0)
+    steps.push({ name: 'build-shared', cmd: 'npm', args: ['run', 'build:shared'] });
   if (sharedTouched) {
     steps.push({ name: 'typecheck-all', cmd: 'npm', args: ['run', 'typecheck'] });
-    steps.push({ name: 'unit-shared', cmd: 'npm', args: ['run', 'test', '-w', '@gnuminator/shared'], env: CI });
+    steps.push({
+      name: 'unit-shared',
+      cmd: 'npm',
+      args: ['run', 'test', '-w', '@gnuminator/shared'],
+      env: CI,
+    });
   } else {
     for (const p of [...pkgs].sort()) {
-      steps.push({ name: `typecheck-${p}`, cmd: 'npm', args: ['run', 'typecheck', '-w', `@gnuminator/${p}`] });
+      steps.push({
+        name: `typecheck-${p}`,
+        cmd: 'npm',
+        args: ['run', 'typecheck', '-w', `@gnuminator/${p}`],
+      });
     }
   }
   for (const p of [...pkgs].sort()) {
-    steps.push({ name: `unit-${p}`, cmd: 'npm', args: ['run', 'test', '-w', `@gnuminator/${p}`], env: CI });
+    steps.push({
+      name: `unit-${p}`,
+      cmd: 'npm',
+      args: ['run', 'test', '-w', `@gnuminator/${p}`],
+      env: CI,
+    });
   }
   const nodeTests = new Set();
   for (const f of files) {
@@ -911,7 +1040,8 @@ export function quickSteps(files, cwd = process.cwd()) {
     }
   }
   const tests = [...nodeTests].filter(f => fs.existsSync(path.join(cwd, f))).sort();
-  if (tests.length > 0) steps.push({ name: 'node-tests', cmd: 'node', args: ['--test', ...tests], env: CI });
+  if (tests.length > 0)
+    steps.push({ name: 'node-tests', cmd: 'node', args: ['--test', ...tests], env: CI });
   const webTouched = touchesDashboardWeb(files);
   // CI order: usage catalogue after typecheck, bundle budget after the build. The dashboard `typecheck`
   // script already covers web/tsconfig.json (tsc --noEmit && tsc -p web --noEmit).
@@ -919,14 +1049,27 @@ export function quickSteps(files, cwd = process.cwd()) {
     steps.push({ name: 'catalog-check', cmd: 'npm', args: ['run', 'usage:catalog:check'] });
   }
   const specs = files
-    .filter(f => /^packages\/cogm-dashboard\/web\/e2e\/.+\.spec\.ts$/.test(f) && isShellSafe(f) && fs.existsSync(path.join(cwd, f)))
+    .filter(
+      f =>
+        /^packages\/cogm-dashboard\/web\/e2e\/.+\.spec\.ts$/.test(f) &&
+        isShellSafe(f) &&
+        fs.existsSync(path.join(cwd, f))
+    )
     .map(f => f.replace('packages/cogm-dashboard/web/', ''))
     .sort();
   if (specs.length > 0 || webTouched) {
-    steps.push({ name: 'build-dashboard', cmd: 'npm', args: ['run', 'build', '-w', '@gnuminator/cogm-dashboard'] });
+    steps.push({
+      name: 'build-dashboard',
+      cmd: 'npm',
+      args: ['run', 'build', '-w', '@gnuminator/cogm-dashboard'],
+    });
   }
   if (webTouched) {
-    steps.push({ name: 'bundle-budget', cmd: 'npm', args: ['run', 'bundle:budget', '-w', '@gnuminator/cogm-dashboard'] });
+    steps.push({
+      name: 'bundle-budget',
+      cmd: 'npm',
+      args: ['run', 'bundle:budget', '-w', '@gnuminator/cogm-dashboard'],
+    });
   }
   // A new control needs its row (or skip row) in the kit: the control tests fail on an unclassified
   // catalog entry (CI "Test kit engine tests", npm run kit:test). They read the generated catalog.
@@ -935,14 +1078,22 @@ export function quickSteps(files, cwd = process.cwd()) {
     steps.push({
       name: 'kit-controls',
       cmd: 'node',
-      args: ['--test', 'scripts/test-kit/test/dashboard-controls.test.mjs', 'scripts/test-kit/test/foundry-controls.test.mjs'],
+      args: [
+        '--test',
+        'scripts/test-kit/test/dashboard-controls.test.mjs',
+        'scripts/test-kit/test/foundry-controls.test.mjs',
+      ],
       env: CI,
     });
   }
   // The kit scenario check (CI "Test kit scenario check"): every scenario loads and names tools that
   // exist. It reads the built tool catalog of the mcp-server.
   if (webTouched || kitTouched) {
-    steps.push({ name: 'build-mcp-server', cmd: 'npm', args: ['run', 'build', '-w', '@gnuminator/mcp-server'] });
+    steps.push({
+      name: 'build-mcp-server',
+      cmd: 'npm',
+      args: ['run', 'build', '-w', '@gnuminator/mcp-server'],
+    });
     steps.push({ name: 'kit-check', cmd: 'node', args: ['scripts/test-kit/kit.mjs', 'check'] });
   }
   if (specs.length > 0) {
@@ -1019,7 +1170,11 @@ export function main(options = {}) {
       return 0;
     }
   }
-  const changed = opts.quick ? (options.changed !== undefined ? options.changed : changedFiles(cwd)) : [];
+  const changed = opts.quick
+    ? options.changed !== undefined
+      ? options.changed
+      : changedFiles(cwd)
+    : [];
   if (changed === null) {
     log('green: --quick found no base (aitool/main, origin/main, main); git fetch aitool first');
     return 2;
@@ -1030,7 +1185,9 @@ export function main(options = {}) {
   }
   const steps = opts.quick ? quickSteps(changed, cwd) : stepsOption;
   if (opts.quick && steps.length === 0) {
-    log('green: OK (quick), nothing to check: no package, script test or e2e spec changed vs the base');
+    log(
+      'green: OK (quick), nothing to check: no package, script test or e2e spec changed vs the base'
+    );
     return 0;
   }
   const picked = selectSteps(steps, opts);
@@ -1097,7 +1254,10 @@ export function main(options = {}) {
   } catch {
     // Timings are a nice-to-have.
   }
-  const waited = lock.waitedMs >= 1000 ? ` (${formatDuration(lock.waitedMs)} of it waiting for the heavy-check lock)` : '';
+  const waited =
+    lock.waitedMs >= 1000
+      ? ` (${formatDuration(lock.waitedMs)} of it waiting for the heavy-check lock)`
+      : '';
 
   if (failed.length === 0) {
     if (treeBefore && worktreeTreeHash(cwd) === treeBefore) {

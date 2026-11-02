@@ -61,6 +61,4 @@ Short rules. Each has its reason on the next line.
   by Claude Desktop.** Changes through the plan are still confirmed and can be undone; direct
   actions (rolls, new NPCs, journals, chat messages) are not. Set **Write/delete tools** to
   **Needs approval** to be asked each time.
-- **Do not set an Anthropic API key on the dashboard unless you accept the cost.**
-  It is the paid API, billed per use, and it sends game events to Anthropic automatically. The
-  normal setup has no key.
+- **The dashboard never calls the paid API.** A key on the host does nothing there.

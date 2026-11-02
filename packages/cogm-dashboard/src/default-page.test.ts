@@ -10,17 +10,9 @@ import * as path from 'path';
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import type { CoGm } from './ai/anthropic-co-gm.js';
 import { createDashboard, type Dashboard } from './app.js';
 import { config, type Config } from './config.js';
 import { Logger } from './logger.js';
-
-const fakeCoGm = {
-  enabled: false,
-  isBusy: false,
-  setWorld: (): void => undefined,
-  abortActive: (): void => undefined,
-} as unknown as CoGm;
 
 const fakeClient = {
   isConnected: true,
@@ -60,7 +52,6 @@ async function start(
     config: testConfig,
     logger: new Logger('error', 'default-page-test'),
     client: fakeClient,
-    coGm: fakeCoGm,
   });
   const server = dashboard.app.listen(0, '127.0.0.1');
   await new Promise<void>(resolve => server.once('listening', () => resolve()));

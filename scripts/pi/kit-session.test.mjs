@@ -246,7 +246,7 @@ describe('kit-session.mjs setup (the in-browser part)', () => {
       'compendiumSources (races, racialFeatures, backgrounds, classes, subclasses, spells, feats, equipment)',
       'allowStandardArray = true',
       'allowManualInput = false',
-      'allowPointBuy = false',
+      'allowPointBuy = true',
       'allowRolling = false',
       'enableSpellSelection = true',
       'enableEquipmentSelection = true',
@@ -275,7 +275,7 @@ describe('kit-session.mjs setup (the in-browser part)', () => {
     assert.deepEqual(FLAGS, {
       allowStandardArray: true,
       allowManualInput: false,
-      allowPointBuy: false,
+      allowPointBuy: true,
       allowRolling: false,
       enableSpellSelection: true,
       enableEquipmentSelection: true,

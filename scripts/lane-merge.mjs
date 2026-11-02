@@ -971,9 +971,10 @@ export function defaultAnnounce(n, title, cwd = process.cwd()) {
 }
 
 /**
- * The sender to run: main's copy (the branch never supplies code that holds the bot token, and a
- * branch cut before the sender landed has none), else this checkout's copy, else none. The sender has
- * no relative imports, so one temp file is enough.
+ * The sender to run: main's copy when main has it (a branch cut before the sender landed has none,
+ * and the branch should not supply the code that holds the bot token), else this checkout's copy (only
+ * the PR that introduces the sender runs into this), else none. The sender has no relative imports, so
+ * one temp file is enough.
  * @param {string} cwd
  * @returns {{ file: string, cleanup: () => void } | null}
  */

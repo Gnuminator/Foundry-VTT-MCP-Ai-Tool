@@ -1,7 +1,9 @@
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it, vi } from 'vitest';
 import {
   SUPPRESS_NOTIFICATIONS,
   deployLine,
+  isEntry,
   loadSettings,
   parseEnv,
   postMessage,
@@ -76,6 +78,24 @@ describe('announce', () => {
       ok: false,
       reason: 'offline',
     });
+  });
+
+  it('never lets the token reach a result, even through an error message', async () => {
+    const bad = await postMessage({ token: 'abc\ndef', channelId: '1', content: 'x', fetchImpl: fakeFetch() });
+    expect(bad).toEqual({ ok: false, reason: 'token has invalid characters' });
+    const f = vi.fn(async () => {
+      throw new Error('bad header Bot sekret.tok');
+    });
+    const r = await postMessage({ token: 'sekret.tok', channelId: '1', content: 'x', fetchImpl: f });
+    expect(JSON.stringify(r)).not.toContain('sekret');
+  });
+
+  it('knows its own entry through real paths', () => {
+    const self = fileURLToPath(import.meta.url);
+    expect(isEntry(self, self)).toBe(true);
+    expect(isEntry(undefined, self)).toBe(false);
+    expect(isEntry(`${self}.other`, self)).toBe(false);
+    if (process.platform === 'win32') expect(isEntry(self.toUpperCase(), self)).toBe(true);
   });
 
   it('routes pr to #pr-log and changelog/deploy to #changelog', async () => {

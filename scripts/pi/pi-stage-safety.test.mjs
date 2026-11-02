@@ -431,7 +431,9 @@ describe('the stages', () => {
 
   test('stage 5 posts the deployed release to #changelog, only for a new tag build, never fatally', () => {
     const text = read('scripts/pi/remote/5-tool.sh');
-    assert.match(text, /built_new=1/);
+    assert.match(text, /\[ "\$prev_ref" = "\$ref" \] \|\| built_new=1/);
+    assert.match(text, /dash_ok=1/);
+    assert.match(text, /\[ "\$\{dash_ok:-\}" = 1 \]/);
     assert.match(text, /\[ "\$\{built_new:-\}" = 1 \]/);
     assert.match(text, /announce\.mjs" deploy "\$ref" \|\| true/);
     assert.ok(text.indexOf('announce.mjs" deploy') < text.indexOf('say "stage 5 done'));

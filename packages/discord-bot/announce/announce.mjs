@@ -13,9 +13,9 @@
  * environment first, then from discord-bot.env (PC: %APPDATA%\foundry-ai-tool\discord-bot.env, Pi:
  * /etc/foundry-ai-tool/discord-bot.env, or the file ANNOUNCE_ENV_FILE names).
  */
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, realpathSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 export const API = 'https://discord.com/api/v10';
@@ -97,6 +97,8 @@ export async function postMessage({
   timeoutMs = TIMEOUT_MS,
 }) {
   if (!token || !channelId) return { ok: false, reason: 'not configured' };
+  // A token with a stray newline makes fetch quote it in its error; refuse before it gets that far.
+  if (!/^[\w.-]+$/.test(token)) return { ok: false, reason: 'token has invalid characters' };
   const text = String(content).trim().slice(0, MAX_CONTENT);
   if (!text) return { ok: false, reason: 'empty message' };
   try {
@@ -114,7 +116,8 @@ export async function postMessage({
     const body = /** @type {{ id?: string }} */ (await res.json().catch(() => ({})));
     return { ok: true, id: body.id ?? '' };
   } catch (e) {
-    return { ok: false, reason: e instanceof Error ? e.message : String(e) };
+    const reason = e instanceof Error ? e.message : String(e);
+    return { ok: false, reason: reason.split(token).join('[token]') };
   }
 }
 
@@ -167,7 +170,22 @@ export async function runCli(argv, o = {}) {
   return 1;
 }
 
-if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
+/** Same file? Real paths, lowercased on Windows, so a junction or a drive letter case is no silent exit 0. */
+export function isEntry(argv1, self = fileURLToPath(import.meta.url)) {
+  if (!argv1) return false;
+  const norm = p => {
+    let r;
+    try {
+      r = realpathSync(p);
+    } catch {
+      r = resolve(p);
+    }
+    return process.platform === 'win32' ? r.toLowerCase() : r;
+  };
+  return norm(argv1) === norm(self);
+}
+
+if (isEntry(process.argv[1])) {
   // exitCode, not process.exit: exiting with a socket still closing trips a libuv assertion on Windows.
   runCli(process.argv.slice(2)).then(
     code => {

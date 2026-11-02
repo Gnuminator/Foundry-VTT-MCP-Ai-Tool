@@ -608,13 +608,20 @@ Hooks.once('init', async () => {
   }
 });
 
+// Selected tokens look different from the turn marker (test 3), on every client. Its own hook and
+// try block: a colour change must never stop the bridge from starting.
+Hooks.once('ready', () => {
+  try {
+    applySelectionColor();
+  } catch (error) {
+    console.warn(`[${MODULE_ID}] Could not set the token selection colour:`, error);
+  }
+});
+
 Hooks.once('ready', async () => {
   try {
     // Usage log (I-084): every client batches its own events every 10 s.
     usageRecorder.start();
-
-    // Selected tokens look different from the turn marker (test 3), on every client.
-    applySelectionColor();
 
     // A player who joins while the GM shows the Tarokka table sees it at once.
     onTableSettingChanged();

@@ -549,9 +549,7 @@ can drive it, and that even the GM can't fat-finger a destructive bulk operation
    (delete what was created, restore originals, recreate what was deleted). On failure the
    transaction rolls back in reverse order; a bounded history is kept for after-the-fact undo.
 
-**Secrets.** The Anthropic API key used by the AI commentary lives **only** on the dashboard's Node
-server, read from the environment. It is never sent to the browser and never crosses the
-control channel.
+**Secrets.** No Anthropic API key is used anywhere: the dashboard makes no paid API calls.
 
 ---
 
@@ -559,15 +557,14 @@ control channel.
 
 A standalone product that turns the same bridge into a **live session companion**. It is
 original work (not derived from upstream) and has **no Claude Desktop dependency at runtime** —
-it talks to the backend's control channel directly and calls the Anthropic API itself.
+it talks to the backend's control channel directly and makes no Anthropic API calls.
 
 **Two halves:**
 
-- **A Node/Express server (`server.ts`).** It owns the secrets and the control-channel client.
-  It serves the static browser UI, exposes a REST + **Server-Sent Events** API, and is the only
-  thing that ever holds the Anthropic key.
+- **A Node/Express server (`server.ts`).** It owns the control-channel client and the GM and
+  player tokens. It serves the static browser UI and exposes a REST + **Server-Sent Events** API.
 - **A pure browser client.** HTML/CSS/JS that renders the live feed, the combat tracker,
-  and the GM-action surface (the streamed AI commentary left with the old page). It only ever talks to its own server.
+  and the GM-action surface. It only ever talks to its own server.
   The pages were rewritten in React + TypeScript + Vite (D-109, `web/`). React is the page at `/`
   (D-126); the old page is gone (2026-10-31) and `/legacy/` and `/next/` redirect
   to `/` (package README, "The React dashboard").
@@ -585,14 +582,8 @@ failure doesn't flap the "Foundry reachable" badge. It distinguishes channel-dow
 `unknown`) from "backend up, Foundry module not connected" (report `unreachable`) using the
 typed errors from §4b.
 
-**The AI commentary (`ai/`).** `CoGm` is a thin wrapper over the Anthropic **Messages API** with
-streaming. The large persona/rules/world block carries a `cache_control` breakpoint and is
-byte-identical every call (served from the prompt cache after the first request); the volatile
-game state goes in the user turn and is never cached. Each request is independent (no growing
-conversation), keeping context bounded. Concurrency is **latest-wins**: a direct question
-aborts any in-flight auto-comment. Commentary engines auto-generate comments on new events,
-combat changes, and (optionally) module errors, debounced and rate-limited. If no API key is
-present, the AI is disabled gracefully and the _feed still runs_.
+**No AI in the dashboard.** The dashboard makes no Anthropic API calls and holds no API key.
+AI work happens when someone asks Claude through the MCP tools (subscription-first, D-066).
 
 **The GM-action surface (the write half).** The dashboard can invoke **any** bridge tool via
 `POST /api/tool`, but with server-side gating that mirrors the module's risk model:
@@ -609,8 +600,6 @@ present, the AI is disabled gracefully and the _feed still runs_.
 - **Reads are always free.** Writes require a master **GM Actions** switch (off by default) to
   be on **and** an explicit `confirm`. Destructive tools require a _second_ `confirmDestructive`.
   Gating is enforced on the **server**, not in CSS — a hostile browser can't bypass it.
-- `send-chat-message` is the one always-available write the AI commentary uses to whisper the GM (it
-  targets the world's GM names, derived from `get-world-info`).
 
 This is also where the **player vs GM split** lives (built in Phase 6: `auth.ts`, `redact.ts`,
 role-aware `sse.ts`, `requireGm`, `/player`): GM-only data is filtered off the SSE stream and the

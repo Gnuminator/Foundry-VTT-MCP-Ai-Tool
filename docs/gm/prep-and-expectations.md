@@ -64,7 +64,9 @@ Write down what you agree on and post it in Discord, so nobody has to remember i
 
 ## The ability score talk
 
-Everyone at the table uses the same method. The 2024 Player's Handbook offers three:
+Our server is already set to offer the standard array and point buy, and each player picks one of
+the two; rolling and typing in your own numbers are switched off. The 2024 Player's Handbook
+offers three methods, so you may want to explain why rolling is not on the list:
 
 | Method             | How it works                                                      | Good for                                           |
 | ------------------ | ----------------------------------------------------------------- | -------------------------------------------------- |
@@ -72,9 +74,10 @@ Everyone at the table uses the same method. The 2024 Player's Handbook offers th
 | **Point buy**      | Each player spends 27 points on their scores (each from 8 to 15). | More choice, still fair.                           |
 | **Rolling**        | Roll four six-sided dice per score and drop the lowest.           | Surprises: some characters very strong, some weak. |
 
-Ask the players what they think, then decide. Set the method in Actor Studio before anyone opens
-the builder ([Prepare session 0](prepare-session-0.md), step 3). If you pick rolling, decide too
-whether everyone rolls where the others can see it.
+Ask the players what they think. If the table wants a different set (say rolling too), change it in
+Actor Studio before anyone opens the builder ([Prepare session 0](prepare-session-0.md), step 2),
+and tell the admin, because running the server script again puts our two methods back. If you add
+rolling, decide too whether everyone rolls where the others can see it.
 
 ## A session 0 agenda you can change
 
@@ -86,7 +89,7 @@ shorten anything.
 | 1   | **Hello and tech check.** Everyone is in Discord voice and logged in to Foundry ([Join the game](../player/join.md)). | 15 min  |
 | 2   | **The pitch.** What kind of campaign this is, in a few sentences, without spoilers.                                   | 10 min  |
 | 3   | **Expectations talk.** The topics above that matter to you.                                                           | 30 min  |
-| 4   | **Ability scores and options.** The talk above; then set the method in Actor Studio while the players wait.           | 10 min  |
+| 4   | **Ability scores and options.** The talk above; change the methods in Actor Studio only if the table wants to.        | 10 min  |
 | 5   | **Characters.** Players build ([Make your character](../player/make-a-character.md)); you check each sheet.           | 60 min  |
 | 6   | **How the characters know each other.** One link per character to another, or a reason they travel together.          | 15 min  |
 | 7   | **An intro scene or prologue (optional).** Easily half a session. If time runs short, it opens session 1 instead.     | 60+ min |
@@ -98,7 +101,7 @@ online.
 A message to post in Discord a few days before (change the words to your own):
 
 > Session 0 is on [date] at [time], online. Please have Foundry open and logged in before we start.
-> We'll talk about what kind of game we want, pick how we get ability scores, and make our
+> We'll talk about what kind of game we want, talk about how we get ability scores, and make our
 > characters together. Think about a class you'd like to play, and bring any questions or wishes
 > for the campaign.
 

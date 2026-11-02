@@ -45,13 +45,6 @@ async function start(help: unknown): Promise<string> {
       listTools: (): Promise<unknown[]> => Promise.resolve([]),
       callTool: <T>(): Promise<T> => Promise.reject(new Error('no tools')),
     },
-    coGm: {
-      enabled: false,
-      isBusy: false,
-      setWorld: (): void => undefined,
-      abortActive: (): void => undefined,
-      stream: () => Promise.reject(new Error('off')),
-    } as never,
     helpFile: file,
   });
   server = dashboard.app.listen(0, '127.0.0.1');

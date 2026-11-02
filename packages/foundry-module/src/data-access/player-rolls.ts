@@ -708,7 +708,7 @@ export class PlayerRollsDataAccess {
         ...(shared.usesMessageModes()
           ? { messageMode: shared.rollModeFor(true) }
           : { messageOptions: { rollMode: shared.rollModeFor(true) } }),
-      } as never);
+      });
     } catch (error) {
       // Foundry would not roll it (permissions, a module): the plain roll below still answers.
       logDebug(`[${MODULE_ID}] Tracker initiative failed, rolling a plain d20:`, error);

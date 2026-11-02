@@ -20,6 +20,7 @@ import * as openPage from '../public/open.js';
 import type { CoGm } from './ai/anthropic-co-gm.js';
 import { createDashboard, type Dashboard, type DashboardDeps } from './app.js';
 import { config, type AuthConfig, type Config } from './config.js';
+import { testWebDir } from './test-web-dir.js';
 import { ChannelError, TimeoutError, ToolError } from './feed/mcp-control-client.js';
 import { parseAllowedHosts } from './host-allowlist.js';
 import { Logger } from './logger.js';
@@ -142,7 +143,12 @@ async function start(
 ): Promise<Harness> {
   const bridge = new FakeBridge();
   const clock = { t: 1_000_000 };
-  const testConfig: Config = { ...config, ...overrides, auth: { ...config.auth, ...auth } };
+  const testConfig: Config = {
+    ...config,
+    webDir: testWebDir(),
+    ...overrides,
+    auth: { ...config.auth, ...auth },
+  };
   const dashboard = createDashboard({
     config: testConfig,
     logger: new Logger('error', 'open-route-test'),
@@ -340,8 +346,8 @@ describe('GET /open (the static confirm page)', () => {
     const otherRes = { setHeader: (name: string, value: string): string => (other[name] = value) };
     hook(
       otherRes as never,
-      path.join(PUBLIC_DIR, 'index.html'),
-      statSync(path.join(PUBLIC_DIR, 'index.html'))
+      path.join(PUBLIC_DIR, 'styles.css'),
+      statSync(path.join(PUBLIC_DIR, 'styles.css'))
     );
     expect(other).toEqual({});
   });

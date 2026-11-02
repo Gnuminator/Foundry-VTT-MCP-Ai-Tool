@@ -13,6 +13,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import type { CoGm } from './ai/anthropic-co-gm.js';
 import { createDashboard } from './app.js';
 import { config, type AuthConfig, type Config } from './config.js';
+import { testWebDir } from './test-web-dir.js';
 import { HOST_NOT_ALLOWED, HOST_NOT_ALLOWED_MESSAGE, parseAllowedHosts } from './host-allowlist.js';
 import { Logger } from './logger.js';
 import { OPEN_PAGE_CSP } from './open-route.js';
@@ -87,6 +88,7 @@ async function start(auth: AuthConfig, overrides: Partial<Config> = {}): Promise
   const logger = new CapturingLogger();
   const testConfig: Config = {
     ...config,
+    webDir: testWebDir(),
     host: '127.0.0.1',
     allowedHosts: parseAllowedHosts(''),
     ...overrides,

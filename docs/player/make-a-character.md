@@ -57,7 +57,7 @@ The builder window has the tabs **Abilities**, **Species**, **Background** and *
 **Character Name** box at the bottom and a bar that says how far you are.
 
 > If you get the message "User requires the 'Create New Actors' permission", tell the GM. Players
-> can't make characters until the GM ticks **Create Actors** for the Player role (see the GM's [Prepare session 0](../gm/prepare-session-0.md)).
+> can't make characters until the GM ticks **Create Actors** for the Player role (the GM's "Prepare session 0" page covers it).
 
 ## 2. Abilities
 

@@ -9,7 +9,7 @@
 // The old pane has no controls (no filter, clear or pause), and none was added. What is new: the
 // list is a real list that can be scrolled with the keyboard, new events are announced (one short
 // message per batch, see below), a feed shown while the bridge is away says so, and the card has
-// the "?" the old page added from help-links.json.
+// the "?" the old page had.
 import { memo, useState, type JSX } from 'react';
 
 import { foldBodyId } from '../lib/duringFolds';

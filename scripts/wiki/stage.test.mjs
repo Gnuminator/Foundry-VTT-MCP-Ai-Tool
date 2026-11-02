@@ -1,6 +1,16 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { BASE, buildSidebar, insideCodeSpan, navOrder, pageUrl, rewriteLinks, toSite } from './stage.mjs';
+import { gmLinks } from './check-sides.mjs';
+import {
+  BASE,
+  buildSidebar,
+  insideCodeSpan,
+  navOrder,
+  pageUrl,
+  rewriteLinks,
+  stripOffSideLinks,
+  toSite,
+} from './stage.mjs';
 
 const GH = 'https://github.com/Gnuminator/Foundry-VTT-MCP-Ai-Tool';
 
@@ -122,6 +132,9 @@ test('toSite makes site URLs, keeps anchors, shows clips as video and drops the 
       'title: T',
       '---',
       '',
+      '<p class="audience audience-gm">For the GM</p>',
+      '',
+      '',
       '<a id="t"></a>',
       '',
       `See [the dashboard](${BASE}/gm/dashboard/#combat) and [join](${BASE}/player/join/).`,
@@ -136,15 +149,77 @@ test('toSite makes site URLs, keeps anchors, shows clips as video and drops the 
 });
 
 test('the sidebar groups pages, puts a section README first and catches unknown pages last', () => {
-  const slugs = ['index', 'gm', 'gm/first-hour', 'gm/dashboard', 'gm/new-page', 'player', 'player/join'];
-  const sidebar = buildSidebar(slugs, { player: ['player', 'player/join'] });
+  const slugs = [
+    'index',
+    'gm',
+    'gm/first-hour',
+    'gm/dashboard',
+    'gm/new-page',
+    'foundry',
+    'player',
+    'player/join',
+    'player/foundry/tokens',
+  ];
+  const sidebar = buildSidebar(slugs, {
+    foundry: ['foundry'],
+    player: ['player', 'player/join'],
+    'player/foundry': ['player/foundry/tokens'],
+  });
   assert.deepEqual(
     sidebar.map(g => g.label),
-    ['Home', 'Start here', 'The tool', 'For players', 'More guides']
+    [
+      'Player or GM?',
+      'Start here',
+      'The tool',
+      'Foundry basics',
+      'Player guides',
+      'Foundry basics for players',
+      'More guides',
+    ]
   );
   assert.deepEqual(sidebar[1].items.map(i => i.slug), ['gm', 'gm/first-hour']);
-  assert.deepEqual(sidebar[3].items.map(i => i.slug), ['player', 'player/join']);
-  assert.deepEqual(sidebar[4].items.map(i => i.slug), ['gm/new-page']);
+  assert.deepEqual(sidebar[4].items.map(i => i.slug), ['player', 'player/join']);
+  assert.deepEqual(sidebar[5].items.map(i => i.slug), ['player/foundry/tokens']);
+  assert.deepEqual(sidebar[6].items.map(i => i.slug), ['gm/new-page']);
+});
+
+test('a player page links to the player copy of a Foundry page, never to a GM page', () => {
+  const out = rewriteLinks('[tokens](../foundry/tokens.md)', 'docs/player/join.md', new Set());
+  assert.equal(out, '[tokens](foundry/tokens.md)');
+  assert.throws(
+    () => rewriteLinks('[GM](../gm/prepare-session-0.md)', 'docs/player/join.md', new Set()),
+    /leaves the player side/
+  );
+  assert.throws(
+    () => rewriteLinks('[perm](../foundry/users-and-permissions.md)', 'docs/player/join.md', new Set()),
+    /leaves the player side/
+  );
+});
+
+test('the player copy of a Foundry page keeps its player links and drops the rest to plain text', () => {
+  const text = 'See [combat](combat.md#turns) and [actors](actors.md), also [GM](../gm/dashboard.md).';
+  assert.equal(
+    stripOffSideLinks(text, 'docs/foundry/tokens.md'),
+    'See [combat](combat.md#turns) and actors, also GM.'
+  );
+  const out = rewriteLinks(text, 'docs/foundry/tokens.md', new Set(), { playerCopy: true });
+  assert.equal(out, 'See [combat](combat.md#turns) and actors, also GM.');
+});
+
+test('check-sides finds links from a player page to the GM side, and none to its own', () => {
+  const html = [
+    `<a href="${BASE}/player/join/">ok</a>`,
+    `<a href="${BASE}/player/foundry/tokens/">ok</a>`,
+    `<a href="${BASE}/">home</a> <a href="https://x.test/gm/">external</a>`,
+    `<a href="${BASE}/gm/first-hour/">bad</a>`,
+    `<a href="${BASE}/foundry/combat/#turns">bad</a>`,
+    `<a href="${BASE}/da/gm/">bad</a>`,
+  ].join('\n');
+  assert.deepEqual(gmLinks(html), [
+    `${BASE}/gm/first-hour/`,
+    `${BASE}/foundry/combat/#turns`,
+    `${BASE}/da/gm/`,
+  ]);
 });
 
 test('rewriteLinks: a double-backtick span holding a link or a single backtick stays as written', () => {

@@ -1,6 +1,7 @@
 ---
 title: Foundry AI Tool
 description: Guides for the GM and the players of a Foundry VTT game run with Foundry AI Tool.
+template: splash
 ---
 
 # Foundry AI Tool
@@ -9,23 +10,26 @@ Foundry AI Tool sits next to Foundry VTT (D&D 5e). It gives the GM a dashboard f
 lets Claude help with prep and play, and writes the session notes. Every change Claude makes is
 logged and can be undone.
 
-## Are you the GM?
+## Who are you?
 
-New to running Foundry? Read [First 15 minutes](../gm/first-15-minutes.md) first, then [your first hour as GM](../gm/first-hour.md): Foundry's own
-guides for the basics, in a set order, and our pages for the tool.
+<div class="audience-choice">
+<a class="audience-card" href="/Foundry-VTT-MCP-Ai-Tool/player/">
+<strong>I am a player</strong>
+<span>Join the game, make your character, and see what is recorded. A few Foundry basics, in plain words.</span>
+</a>
+<a class="audience-card" href="/Foundry-VTT-MCP-Ai-Tool/gm/">
+<strong>I am the GM</strong>
+<span>Set up the tool, run game night, and prepare the campaign. Every guide, plus Foundry from the ground up.</span>
+</a>
+</div>
 
-After that, the [GM guides](../gm/README.md) cover the dashboard, asking Claude, the checklists for
-before and after a session, and what to do when something breaks on game night.
-
-## Are you a player?
-
-Start with [Join the game](../player/join.md), then [Make your character](../player/make-a-character.md).
-The [player guide](../player/README.md) says what you see, what gets recorded and how to have your
-data removed.
+New to running Foundry? As the GM, read [First 15 minutes](../gm/first-15-minutes.md) first, then
+[your first hour as GM](../gm/first-hour.md). A player starts with
+[Join the game](../player/join.md), then [Make your character](../player/make-a-character.md).
 
 ## About these pages
 
-The same pages are the help panel in the dashboard. They describe Foundry 14 with the D&D 5e
+The GM pages are also the help panel in the dashboard. They describe Foundry 14 with the D&D 5e
 system (version 6). The source is in the
 [project's repository](https://github.com/Gnuminator/Foundry-VTT-MCP-Ai-Tool).
 

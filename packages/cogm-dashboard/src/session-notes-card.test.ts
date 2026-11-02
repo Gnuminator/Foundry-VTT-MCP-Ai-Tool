@@ -10,11 +10,6 @@ const read = (file: string): string =>
   readFileSync(new URL(`../public/${file}`, import.meta.url), 'utf8');
 
 describe('session notes card', () => {
-  it('lives only on the GM page', () => {
-    expect(read('index.html')).toContain('id="notes-card"');
-    expect(read('app.js')).toContain('/api/session-notes');
-  });
-
   it('never appears on the players page', () => {
     for (const file of ['player.html', 'player.js']) {
       const text = read(file);

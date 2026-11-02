@@ -72,6 +72,8 @@ export default defineConfig({
       ],
       head: [{ tag: 'script', content: questScript }],
       sidebar,
+      // Keeps the sidebar of the visitor's side only (player or GM).
+      routeMiddleware: './src/routeData.mjs',
       // Every link and anchor must resolve, as `mkdocs --strict` did. The coach zip is in public/,
       // so it is checked too. Storybook is copied into the site after this build: a relative link
       // to it would need the exclude below (the home page uses an absolute URL, which is skipped).

@@ -42,43 +42,43 @@ function scan(files: string[]): Found[] {
   return found;
 }
 
-describe.each([
-  ['the GM page', ['index.html', 'app.js'], 'dash.'],
-  ['the player page', ['player.html', 'player.js'], 'player.'],
-])('control names of %s', (_label, files, prefix) => {
-  const found = scan(files);
+describe.each([['the player page', ['player.html', 'player.js'], 'player.']])(
+  'control names of %s',
+  (_label, files, prefix) => {
+    const found = scan(files);
 
-  it('has instrumented controls', () => {
-    expect(found.length).toBeGreaterThanOrEqual(5);
-  });
+    it('has instrumented controls', () => {
+      expect(found.length).toBeGreaterThanOrEqual(5);
+    });
 
-  it('are valid, lowercase, literal and use the surface prefix', () => {
-    for (const { kind, name } of found) {
-      expect(USAGE_KINDS as readonly string[], name).toContain(kind);
-      expect(name.length, name).toBeLessThanOrEqual(USAGE_NAME_MAX);
-      expect(name, name).toMatch(USAGE_NAME_RE);
-      expect(name.startsWith(prefix), name).toBe(true);
-    }
-  });
+    it('are valid, lowercase, literal and use the surface prefix', () => {
+      for (const { kind, name } of found) {
+        expect(USAGE_KINDS as readonly string[], name).toContain(kind);
+        expect(name.length, name).toBeLessThanOrEqual(USAGE_NAME_MAX);
+        expect(name, name).toMatch(USAGE_NAME_RE);
+        expect(name.startsWith(prefix), name).toBe(true);
+      }
+    });
 
-  it('never put free text in a name (no spaces, capitals or underscores)', () => {
-    for (const { name } of found) expect(name).not.toMatch(/\s|[A-Z_]/);
-  });
-});
+    it('never put free text in a name (no spaces, capitals or underscores)', () => {
+      for (const { name } of found) expect(name).not.toMatch(/\s|[A-Z_]/);
+    });
+  }
+);
 
 describe('usage.js', () => {
   const source = read('usage.js');
 
   it('is plain browser JS: no inline scripts in the pages, no eval', () => {
-    for (const page of ['index.html', 'player.html']) {
+    for (const page of ['player.html', '../web/index.html']) {
       const html = read(page);
-      expect(html).toMatch(/src="(\.\/)?usage\.js"/);
+      expect(html).toMatch(/src="(\.?\/)?usage\.js"/);
     }
     expect(source).not.toMatch(/\beval\s*\(|new Function\s*\(/);
   });
 
   it('sends the page-specific endpoint, never reads typed text', () => {
-    expect(read('index.html')).toContain('data-usage-endpoint="/api/usage"');
+    expect(read('../web/index.html')).toContain('data-usage-endpoint="/api/usage"');
     expect(read('player.html')).toContain('data-usage-endpoint="/api/player/usage"');
     expect(source).not.toMatch(/\.value\b/);
   });

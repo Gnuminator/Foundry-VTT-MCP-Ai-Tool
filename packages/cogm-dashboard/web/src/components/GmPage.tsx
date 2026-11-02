@@ -28,7 +28,7 @@ import {
   type GmLayout,
   type GmMode,
 } from '../lib/gmLayout';
-import { LIVE_PICK_MESSAGE, currentMapPick, setMapPick } from '../lib/mapPick';
+import { LIVE_PICK_MESSAGE, LIVE_READY_MESSAGE, currentMapPick, setMapPick } from '../lib/mapPick';
 import { useDashboardStream } from '../lib/stream';
 import { LiveStrip } from './LiveStrip';
 import styles from './GmPage.module.css';
@@ -113,8 +113,6 @@ function GmWorkspace({
   const [frameLoaded, setFrameLoaded] = useState(false);
   const [loadCount, setLoadCount] = useState(0);
   const [connected, setConnected] = useState(false);
-  const connectedRef = useRef(false);
-  connectedRef.current = connected;
   const [timedOut, setTimedOut] = useState(false);
   const [bannerHidden, setBannerHidden] = useState(false);
   const [tabOpen, setTabOpen] = useState(false);
@@ -150,6 +148,15 @@ function GmWorkspace({
         setConnected(true);
         setMapPick(message.ids);
         postToStripWindow(stripWindow.current, message.ids);
+      } else if (message.kind === 'hello') {
+        // Foundry's module just started (a join, a reload, a tab we opened): it does not know this
+        // page's address yet. Answer to Foundry's own origin; its reply carries the current pick.
+        setConnected(true);
+        try {
+          (event.source as Window).postMessage({ type: LIVE_READY_MESSAGE }, foundryOrigin);
+        } catch {
+          // A window that just closed has nothing to answer.
+        }
       } else {
         postToStripWindow(stripWindow.current, currentMapPick() ?? []);
       }
@@ -180,18 +187,9 @@ function GmWorkspace({
       if (foundryTab.current?.closed === true) foundryTab.current = null;
       setStripWindowOpen(stripWindow.current !== null);
       setTabOpen(foundryTab.current !== null);
-      // A Foundry tab we opened never gets a frame "load" from us: say hello until its module has
-      // answered with a pick, so it learns this page's address from the first message.
-      if (foundryTab.current !== null && !connectedRef.current) {
-        try {
-          foundryTab.current.postMessage({ type: 'fmb-live-ready' }, foundryOrigin);
-        } catch {
-          // A tab that just closed has nothing to hear it.
-        }
-      }
     }, 1000);
     return (): void => window.clearInterval(timer);
-  }, [foundryOrigin]);
+  }, []);
 
   const openStripWindow = (): void => {
     stripWindow.current = window.open('/?strip=1', STRIP_WINDOW, STRIP_FEATURES);
@@ -346,9 +344,9 @@ function GmWorkspace({
             {showBanner ? (
               <div className={styles.banner}>
                 <span>
-                  Can&apos;t see Foundry here? It may refuse to open inside this page, or the world
-                  may not be joined yet. If it stays blank, open Foundry in its own tab: map picks
-                  still arrive here.
+                  Can&apos;t see Foundry here? If you see its join screen, join inside this frame
+                  first. If it stays blank, it may refuse to open inside this page: open Foundry in
+                  its own tab, map picks still arrive here.
                 </span>
                 <button type="button" className={styles.primary} onClick={openFoundryTab}>
                   Open Foundry in its own tab

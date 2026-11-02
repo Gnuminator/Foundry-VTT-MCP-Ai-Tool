@@ -7,8 +7,10 @@ import { createTestWorld, type TestWorld } from './test-support/foundry-mock/ind
 import { MODULE_ID } from './constants.js';
 import { AI_TOOL_CONTROL, addAiToolControls } from './ai-tool-controls.js';
 import {
+  LIVE_HELLO_MESSAGE,
   LIVE_PICK_MESSAGE,
   LIVE_READY_MESSAGE,
+  postHelloToTargets,
   LIVE_WINDOW_SETTING,
   LIVE_WINDOW_URL_SETTING,
   canOpenLiveWindow,
@@ -132,6 +134,18 @@ describe('the picks sent up to the GM page', () => {
       { type: LIVE_PICK_MESSAGE, tokenIds: ['t1', 't2'] },
       origin
     );
+    expect(b.postMessage).toHaveBeenCalledTimes(1);
+  });
+
+  it('says hello with no data to every target, to any origin, so the GM page can answer', () => {
+    const a = { postMessage: vi.fn() };
+    const b = {
+      postMessage: vi.fn(() => {
+        throw new Error('closed');
+      }),
+    };
+    postHelloToTargets([b, a]);
+    expect(a.postMessage).toHaveBeenCalledWith({ type: LIVE_HELLO_MESSAGE }, '*');
     expect(b.postMessage).toHaveBeenCalledTimes(1);
   });
 

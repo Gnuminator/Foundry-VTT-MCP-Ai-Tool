@@ -20,6 +20,8 @@ export const LIVE_WINDOW_SETTING = 'liveWindow';
 export const LIVE_WINDOW_URL_SETTING = 'liveWindowUrl';
 /** The `type` of the message to the frame (the dashboard's lib/mapPick.ts reads the same string). */
 export const LIVE_PICK_MESSAGE = 'fmb-live-pick';
+/** The `type` of the no-data hello to the GM page (the dashboard's lib/mapPick.ts reads it too). */
+export const LIVE_HELLO_MESSAGE = 'fmb-live-hello';
 /** The `type` the strip page posts back once it listens (the first pick can come before that). */
 export const LIVE_READY_MESSAGE = 'fmb-live-ready';
 /** The dashboard's port on the machine that runs the bridge. */
@@ -245,6 +247,20 @@ export function pickTargets(win: {
   return targets;
 }
 
+/**
+ * Say hello to each window above this page. It carries no data, so any origin may hear it; the
+ * answer (a ready from the GM page) is what tells this module where the GM page lives.
+ */
+export function postHelloToTargets(targets: readonly PickTarget[]): void {
+  for (const target of targets) {
+    try {
+      target.postMessage({ type: LIVE_HELLO_MESSAGE }, '*');
+    } catch (error) {
+      console.warn(`[${MODULE_ID}] Could not say hello to the GM page:`, error);
+    }
+  }
+}
+
 /** Post the pick to each target, to each of the dashboard's origins only. */
 export function postPickToTargets(
   targets: readonly PickTarget[],
@@ -342,6 +358,9 @@ export function startPickRelay(): void {
     origins.splice(0, origins.length, origin);
     send();
   });
+  // The GM page loads before this relay starts, so its own "ready" was missed (and a reloaded
+  // Foundry tab missed it too): say hello, no data, and it answers with a ready from its origin.
+  postHelloToTargets(targets);
   // The first message doubles as the hello: the GM page counts a pick as "Foundry is in the frame".
   send();
 }
@@ -387,6 +406,8 @@ function armWhy(): void {
     const frame = frameOf();
     if (!panel || !frame) return;
     const lines = liveWindowWhy(frame.src, configuredSetting() !== '');
+    // Show the live region first, then fill it, so a screen reader announces the text.
+    panel.hidden = false;
     panel.innerHTML =
       lines.map(line => `<p>${escapeHtml(line)}</p>`).join('') +
       '<button type="button" class="fmb-live-retry">Try again</button>';
@@ -395,7 +416,6 @@ function armWhy(): void {
       if (url) frame.src = url;
       armWhy();
     });
-    panel.hidden = false;
   }, FRAME_WAIT_MS);
 }
 

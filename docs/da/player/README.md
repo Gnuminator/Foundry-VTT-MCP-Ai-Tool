@@ -1,6 +1,6 @@
 ---
 source: player/README.md
-sourceHash: 54cd2437f703
+sourceHash: 5a98a5ed319f
 title: Spillerguide
 description: Hvad spillere kan se, hvad værktøjet optager under spillet, hvilke dele der når en AI, og hvordan du får dine data slettet.
 ---

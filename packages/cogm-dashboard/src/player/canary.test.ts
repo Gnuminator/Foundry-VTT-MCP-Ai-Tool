@@ -13,7 +13,6 @@ import type { Server } from 'http';
 import type { PlayerVisibility } from '@gnuminator/shared';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import type { CoGm, StreamRequest, StreamResult } from '../ai/anthropic-co-gm.js';
 import { createDashboard, type Dashboard } from '../app.js';
 import { config, type Config } from '../config.js';
 import type { CombatState, SessionEvent } from '../feed/types.js';
@@ -43,7 +42,6 @@ const CANARY = {
   unrevealedLink: 'CANARY-UNREVEALED-LINK',
   inlineRoll: 'CANARY-INLINE-ROLL',
   tarokka: 'CANARY-TAROKKA-CARD',
-  aiText: 'CANARY-AI-COMMENTARY',
   /** Actor id of every non-PC combatant: only player characters may carry one to a player. */
   npcActor: 'CANARY-NPC-ACTOR-ID',
   /** A scene mood preset name or free text the module must never forward as time of day or weather. */
@@ -53,28 +51,6 @@ const CANARY = {
   /** A GM-only section inside a revealed recap page. */
   recapSecret: 'CANARY-RECAP-GM-SECRET',
 } as const;
-
-/** An enabled co-GM whose every answer is a canary: AI output is GM-only. */
-const fakeCoGm = {
-  enabled: true,
-  isBusy: false,
-  setWorld: (): void => undefined,
-  abortActive: (): void => undefined,
-  stream: (request: StreamRequest): Promise<StreamResult> => {
-    request.onDelta(CANARY.aiText);
-    return Promise.resolve({
-      text: CANARY.aiText,
-      usage: {
-        inputTokens: 0,
-        outputTokens: 0,
-        cacheReadTokens: 0,
-        cacheWriteTokens: 0,
-        cacheHit: false,
-      },
-      aborted: false,
-    });
-  },
-} as unknown as CoGm;
 
 const REVEALED = 'JournalEntry.aaaaaaaaaaaaaaaa.JournalEntryPage.bbbbbbbbbbbbbbbb';
 const UNREVEALED = 'JournalEntry.cccccccccccccccc.JournalEntryPage.dddddddddddddddd';
@@ -94,12 +70,10 @@ const visibility: PlayerVisibility = {
   ],
 };
 
-let sentChat: unknown[] = [];
-
 const fakeClient = {
   isConnected: true,
   listTools: (): Promise<unknown[]> => Promise.resolve([]),
-  callTool: <T>(name: string, args: Record<string, unknown> = {}): Promise<T> => {
+  callTool: <T>(name: string, _args: Record<string, unknown> = {}): Promise<T> => {
     const answers: Record<string, unknown> = {
       'get-world-info': {
         id: CANARY.worldId,
@@ -141,14 +115,7 @@ const fakeClient = {
           },
         ],
       },
-      'check-secret-terms': {
-        matches: (typeof args.text === 'string' ? args.text : '').includes(CANARY.tarokka)
-          ? [{ category: 'tarokka-card', term: CANARY.tarokka }]
-          : [],
-      },
-      'send-chat-message': { ok: true },
     };
-    if (name === 'send-chat-message') sentChat.push(args);
     return name in answers
       ? Promise.resolve(answers[name] as T)
       : Promise.reject(new Error(`unknown tool ${name}`));
@@ -351,14 +318,11 @@ beforeAll(async () => {
     ...config,
     auth: { ...config.auth, splitEnabled: true, gmToken: GM_TOKEN, playerToken: '' },
     playerView: { showEnemyConditions: true, showEnemyHpBands: true },
-    commentDebounceMs: 10,
-    commentMinIntervalMs: 0,
   };
   dashboard = createDashboard({
     config: testConfig,
     logger,
     client: fakeClient,
-    coGm: fakeCoGm,
   });
   server = dashboard.app.listen(0, '127.0.0.1');
   await new Promise<void>(resolve => server.once('listening', () => resolve()));
@@ -455,15 +419,7 @@ describe('canary suite: nothing GM-only reaches a player', () => {
       readStream('/api/player/stream', 800, GM_TOKEN),
       readStream('/api/stream', 800), // the player role on the legacy stream
     ]);
-    const gmReading = readStream('/api/stream', 800, GM_TOKEN);
     await wait(100);
-    // AI output: an answer to the GM, and commentary on the events below.
-    const ask = await fetch(`${base}/api/ask`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-CoGM-Token': GM_TOKEN },
-      body: JSON.stringify({ question: 'What happens next?' }),
-    });
-    expect(ask.status).toBe(200);
     dashboard.handlers.onEvents(
       [
         event('late-blind', {
@@ -480,8 +436,6 @@ describe('canary suite: nothing GM-only reaches a player', () => {
       expect(text).toContain('event: state');
       expect(leaks(text)).toEqual([]);
     }
-    // Control: the GM stream did carry the AI output.
-    expect(await gmReading).toContain(CANARY.aiText);
   });
 
   it('the player page and script carry no GM data, and the page has a strict CSP', async () => {
@@ -492,41 +446,5 @@ describe('canary suite: nothing GM-only reaches a player', () => {
     }
     const page = await get('/player');
     expect(page.headers.get('content-security-policy')).toContain("script-src 'self'");
-  });
-});
-
-describe('whisper guard', () => {
-  it('refuses a whisper naming a GM secret until the GM confirms', async () => {
-    sentChat = [];
-    const post = (body: Record<string, unknown>): Promise<Response> =>
-      fetch(`${base}/api/post-chat`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-CoGM-Token': GM_TOKEN },
-        body: JSON.stringify(body),
-      });
-    const refused = await post({ text: `The ${CANARY.tarokka} points to the church.` });
-    expect(refused.status).toBe(409);
-    expect(await refused.json()).toMatchObject({ code: 'secret-terms' });
-    expect(sentChat).toHaveLength(0);
-
-    const forced = await post({
-      text: `The ${CANARY.tarokka} points to the church.`,
-      allowSecrets: true,
-    });
-    expect(forced.status).toBe(200);
-    expect(sentChat).toHaveLength(1);
-
-    const plain = await post({ text: 'Remember the bridge toll.' });
-    expect(plain.status).toBe(200);
-    expect(sentChat).toHaveLength(2);
-  });
-
-  it('a player cannot post at all', async () => {
-    const res = await fetch(`${base}/api/post-chat`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: 'hi' }),
-    });
-    expect(res.status).toBe(403);
   });
 });

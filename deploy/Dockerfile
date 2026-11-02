@@ -14,7 +14,7 @@
 #    - cloudflared — use the sidecar in docker-compose.yml.template instead.
 #
 #  Runtime secrets:
-#    All secrets (ANTHROPIC_API_KEY, GM_DASHBOARD_TOKEN, GM_EMAILS, etc.) must
+#    All secrets (GM_DASHBOARD_TOKEN, GM_EMAILS, etc.) must
 #    be injected at runtime via environment variables or Docker secrets. They
 #    must NEVER be baked into this image or an image layer.
 #
@@ -22,7 +22,6 @@
 #    docker build -t foundry-ai-tool .
 #  Run (minimal):
 #    docker run -p 3000:3000 \
-#      -e ANTHROPIC_API_KEY=<YOUR_KEY> \
 #      -e GM_EMAILS=<YOU@EXAMPLE.COM> \
 #      foundry-ai-tool
 #  See deploy/docker-compose.yml.template for the full wired-up example.
@@ -114,7 +113,7 @@ EXPOSE 31415
 # These are defaults suitable for the containerised topology. Override via
 # docker run -e, docker-compose env:, or Docker secrets at runtime.
 #
-# !! NEVER set ANTHROPIC_API_KEY, GM_DASHBOARD_TOKEN, GM_EMAILS here !!
+# !! NEVER set GM_DASHBOARD_TOKEN, GM_EMAILS here !!
 #    Inject them at runtime. Baking them into the image is a security risk.
 
 # DASHBOARD_HOST / FOUNDRY_LINK_HOST are 0.0.0.0 because a container must listen

@@ -1,4 +1,4 @@
-import type { Combatant, CombatState, ModuleError, SessionEvent } from './feed/types.js';
+import type { CombatState, ModuleError, SessionEvent } from './feed/types.js';
 
 /**
  * Bounded in-memory view of the game. Keeps a rolling window of recent events
@@ -90,55 +90,4 @@ export class GameState {
       .join('|');
     return `${round}:${turn}:${current?.id ?? 'none'}|${perCombatant}`;
   }
-
-  /**
-   * Compact, human-readable snapshot for the model's volatile (uncached) turn:
-   * a combat summary plus the most recent events. Bounded by design.
-   */
-  buildContext(maxRecentEvents = 25): string {
-    const lines: string[] = [];
-
-    if (this.combatState?.active) {
-      const { round, turn, current, combatants } = this.combatState;
-      lines.push(`# Combat — round ${round}, turn ${turn}`);
-      if (current) {
-        lines.push(`Active combatant: ${describeCombatant(current)}`);
-      }
-      const order = combatants
-        .filter(c => !c.defeated)
-        .slice(0, 16)
-        .map(c => `  - ${describeCombatant(c)}`);
-      if (order.length > 0) {
-        lines.push('Initiative order (active):');
-        lines.push(...order);
-      }
-      const downed = combatants.filter(c => c.defeated).length;
-      if (downed > 0) lines.push(`(${downed} combatant(s) down/defeated)`);
-    } else {
-      lines.push('# Combat — none active');
-    }
-
-    const recent = this.events.slice(-maxRecentEvents);
-    lines.push('');
-    lines.push(`# Recent events (${recent.length})`);
-    if (recent.length === 0) {
-      lines.push('  (no recent events)');
-    } else {
-      for (const event of recent) {
-        const stamp = new Date(event.timestampMs).toLocaleTimeString();
-        lines.push(`  [${stamp}] (${event.eventType}) ${event.description}`);
-      }
-    }
-
-    return lines.join('\n');
-  }
-}
-
-function describeCombatant(c: Combatant): string {
-  const hp = `${c.hp.value}/${c.hp.max}${c.hp.temp ? ` (+${c.hp.temp} temp)` : ''} HP`;
-  const init = c.initiative ?? '—';
-  const side = c.isPC ? 'PC' : c.category === 'enemy' ? 'enemy' : 'NPC';
-  const conditions = c.conditions.length > 0 ? ` [${c.conditions.join(', ')}]` : '';
-  const turn = c.isCurrentTurn ? ' ◀ current' : '';
-  return `${c.name} (${side}, init ${init}): ${hp}${conditions}${turn}`;
 }

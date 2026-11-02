@@ -7,7 +7,7 @@
  *
  *   - stand up a mock control channel returning canned world/combat/events/errors
  *   - run the REAL dashboard server pointed at it, with the split enabled
- *     (GM_DASHBOARD_TOKEN set, ANTHROPIC_API_KEY empty)
+ *     (GM_DASHBOARD_TOKEN set)
  *   - GM /api/state    → sees exact enemy HP, module errors, settings, GM names
  *   - player /api/state → enemy HP nulled, hidden combatant dropped, NO errors/
  *     settings, GM names stripped; still sees the PC HP + public event feed
@@ -250,7 +250,6 @@ async function main() {
       MCP_CONTROL_PORT: String(bridgePort),
       PORT: String(dashPort),
       GM_DASHBOARD_TOKEN: GM_TOKEN,
-      ANTHROPIC_API_KEY: '',
       POLL_INTERVAL_MS: '250',
       COMBAT_POLL_INTERVAL_MS: '250',
       ERROR_POLL_INTERVAL_MS: '250',
@@ -361,7 +360,7 @@ async function main() {
       const res = await request('POST', `${base}/api/tool`, {}, { name, args: { query: 'xx' } });
       check(`POST /api/tool ${name} as player → 403`, res.status === 403);
     }
-    const ctrlNoToken = await request('POST', `${base}/api/control`, {}, { action: 'pause' });
+    const ctrlNoToken = await request('POST', `${base}/api/control`, {}, { action: 'set-gm-actions' });
     check('POST /api/control without token → 403', ctrlNoToken.status === 403);
     // GM token reaches the write surface (read tool → not gated by GM-actions confirm).
     const gmTool = await request(

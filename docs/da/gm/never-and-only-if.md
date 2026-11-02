@@ -63,6 +63,4 @@ Korte regler. Hver har sin begrundelse på linjen under.
   af Claude Desktop.** Ændringer gennem planen bliver stadig bekræftet og kan fortrydes; direkte
   handlinger (slag, nye NPC'er, journals, chatbeskeder) bliver ikke. Sæt **Write/delete tools** til
   **Needs approval** for at blive spurgt hver gang.
-- **Sæt ikke en Anthropic API key på dashboardet, medmindre du accepterer prisen.**
-  Det er den betalte API, afregnet pr. brug, og den sender begivenheder fra spillet til Anthropic automatisk. Den
-  normale opsætning har ingen nøgle.
+- **Dashboardet kalder aldrig den betalte API.** En nøgle på maskinen gør ingenting der.

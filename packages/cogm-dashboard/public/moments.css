@@ -650,7 +650,7 @@ a.btn {
   color: var(--accent-bright);
 }
 
-/* ---- Before: the feature cards (I-064, app.js loadFeatureCards) ---- */
+/* ---- Feature pills (on / off tags) ---- */
 .feature-pill {
   font-size: var(--fs-xs);
   padding: 0.1rem 0.5rem;

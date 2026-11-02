@@ -152,8 +152,8 @@ Tooltip } from 'radix-ui'`), not the single `@radix-ui/react-*` ones. `web/src/u
   `public/themes/brand.css` (The Veil's overrides in `veil.css`). Use them in new rules instead of
   numbers; never write a `z-index` number in a component or in `next.css`.
 - **Styles:** a new rule goes in a CSS Module next to its component (`Thing.module.css`, Vite
-  built in) and reads the tokens. Do not edit `public/styles.css` or `public/moments.css`: the old
-  page shares them. The components render the old class names (`.pane`, `.drawer`, `.pane-title`,
+  built in) and reads the tokens. Only delete rules from `public/styles.css` or `public/moments.css`
+  when nothing renders them. The components render the old class names (`.pane`, `.drawer`, `.pane-title`,
   `.empty`, `.btn`, ...), so those files still style them.
 - **Keep what the tests and the guide rely on:** the outer classes, the DOM where an old CSS
   selector depends on it, every element `id`, every `data-track="dash...."` name (written out as a

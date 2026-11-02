@@ -423,16 +423,6 @@ body {
   color: var(--on-accent);
   border-color: var(--accent-bright);
 }
-.btn.paused {
-  background: linear-gradient(180deg, color-mix(in srgb, var(--warn) 70%, white), var(--warn));
-  color: var(--on-warn);
-  border-color: var(--warn);
-  font-weight: 700;
-}
-.btn.paused:hover {
-  color: var(--on-warn);
-  border-color: var(--warn);
-}
 .btn.toggle-off {
   opacity: 0.55;
   color: var(--text-dim);
@@ -840,16 +830,7 @@ body {
 }
 
 /* =============================================================================
-   AI COMMENTARY
-   ============================================================================= */
-@keyframes blink {
-  50% {
-    opacity: 0;
-  }
-}
-
-/* =============================================================================
-   ASK BAR
+   TEXT INPUT
    ============================================================================= */
 .ask-input {
   flex: 1;

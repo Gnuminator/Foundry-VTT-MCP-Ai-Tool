@@ -15,7 +15,7 @@
 #  Secrets:
 #    The .env file approach is shown here for clarity. In a real deployment,
 #    prefer Docker Secrets (secrets: block) or a secrets manager so plaintext
-#    API keys do not sit on disk. The key must NEVER be baked into the image.
+#    API keys do not sit on disk. No secret may be baked into the image.
 #
 #  See deploy/README.md for an index of all templates in this folder.
 # =============================================================================

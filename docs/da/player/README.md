@@ -90,9 +90,7 @@ statistik, der laves ud fra den, ligger i GM'ens Obsidian-noter. Intet af det ge
   Desktop-appen. Claude læser så det, den har brug for, fra spillet gennem værktøjet:
   karakterark, chat, session loggen eller play-statistikken. Det går til Anthropic under GM'ens
   Claude-konto. Der sendes intet, når ingen spørger.
-- **Dashboard-kommentarer, kun hvis en API key er sat.** GM'ens dashboard kan kommentere spillet
-  af sig selv, men kun med en separat betalt API key. Så går de seneste hændelser i spillet og
-  kampens tilstand automatisk til Anthropic. Det er slået fra, medmindre GM'en slår det til.
+- **Dashboardet kalder ingen AI.** GM'ens dashboard sender ikke noget til Anthropic af sig selv.
 - **Sessionsoptagelser, kun med dit ja, og kun når de er startet.** Se
   [Optagelse og dit samtykke](#optagelse-og-dit-samtykke) nedenfor. En session bliver kun optaget,
   når nogen skriver `/record start` i Discord. Botten kommer så ind i voice-kanalen og skriver en

@@ -1,4 +1,4 @@
-import express, { type Express, type NextFunction, type Request, type Response } from 'express';
+import express, { type Express, type Request, type Response } from 'express';
 import rateLimit from 'express-rate-limit';
 import {
   createSpaceStatusReader,
@@ -16,8 +16,6 @@ import { ToolError, TimeoutError } from './feed/mcp-control-client.js';
 import type { BridgeStatus, CombatState, GameFeedHandlers, WorldInfo } from './feed/types.js';
 import { GameState } from './state.js';
 import type { CoGm } from './ai/anthropic-co-gm.js';
-import { CommentaryEngine } from './ai/commentary.js';
-import { ErrorCommentaryEngine } from './ai/error-commentary.js';
 import { buildAskUserMessage } from './ai/prompt.js';
 import { SseHub } from './sse.js';
 import { AccessJwtVerifier, accessTokenFrom } from './access-jwt.js';
@@ -245,35 +243,10 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
   const readCache = createReadCache();
   const playerHub = new SseHub(logger.child('player'));
 
-  const commentary = new CommentaryEngine({
-    coGm,
-    state,
-    logger,
-    // AI commentary is GM-facing, never streamed to a player.
-    broadcast: (type: string, payload: unknown): void => sse.broadcast(type, payload, gmOnly),
-    settings: {
-      getTone: (): Tone => settings.tone,
-      getModel: (): string => settings.model,
-      isPaused: (): boolean => settings.paused,
-    },
-    minIntervalMs: config.commentMinIntervalMs,
-    debounceMs: config.commentDebounceMs,
-    maxTokens: config.commentMaxTokens,
-  });
-
-  const errorCommentary = new ErrorCommentaryEngine({
-    coGm,
-    logger,
-    // Diagnostics commentary is GM-facing, never streamed to a player.
-    broadcast: (type: string, payload: unknown): void => sse.broadcast(type, payload, gmOnly),
-    settings: {
-      getModel: (): string => settings.model,
-      isEnabled: (): boolean => settings.commentOnErrors,
-    },
-    minIntervalMs: config.errorCommentMinIntervalMs,
-    debounceMs: config.commentDebounceMs,
-    maxTokens: config.errorCommentMaxTokens,
-  });
+  // The AI commentary engines (CommentaryEngine, ErrorCommentaryEngine) are not built any more:
+  // the only page that showed their output and had Pause, Tone and Model was the old dashboard,
+  // which is gone, so a paid call would run with nothing to read it (D-066). The backend code
+  // stays until it is deleted by its own Backlog item.
 
   // --- Live status / world ---------------------------------------------------
   let currentStatus: BridgeStatus = {
@@ -284,7 +257,6 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
     foundryDownSince: null,
   };
   let world: WorldInfo | null = null;
-  let firstCombatSeen = false;
   let lastCombatJson = '';
   let worldRefreshInflight = false;
   let worldRetryTimer: NodeJS.Timeout | null = null;
@@ -531,17 +503,14 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
       readCache.clear();
       sse.broadcast('events', { events: added, initial: meta.initial }, gmOnly);
       schedulePlayerBroadcast();
-      if (!meta.initial) commentary.notifyEvents(added);
     },
     onErrors(errors, meta) {
       const added = state.addErrors(errors);
       if (added.length === 0) return;
       sse.broadcast('errors', { errors: added, initial: meta.initial }, gmOnly);
-      if (!meta.initial) errorCommentary.notifyErrors(added);
     },
     onCombat(rawCombat: CombatState | null) {
       const combat = withPortraitUrls(rawCombat, normalizeFoundryUrl(config.foundryUrl ?? ''));
-      const prevSignature = state.combatSignature();
       state.setCombat(combat);
 
       const json = JSON.stringify(combat);
@@ -550,12 +519,6 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
         sse.broadcast('combat', { combat }, gmOnly);
         schedulePlayerBroadcast();
       }
-
-      const signature = state.combatSignature();
-      if (firstCombatSeen && signature !== null && signature !== prevSignature) {
-        commentary.notifyCombatChange();
-      }
-      firstCombatSeen = true;
     },
   };
 
@@ -655,8 +618,12 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
   });
   // The live strip page is the one page the Foundry module frames (live screen B).
   app.use(liveFrameMiddleware(config.foundryUrl));
-  app.get('/', pageLimit, (_req: Request, res: Response, next: NextFunction) => {
-    if (!fs.existsSync(reactIndex)) return next();
+  app.get('/', pageLimit, (_req: Request, res: Response) => {
+    // No old page to fall back to: say what is missing instead of a bare "Cannot GET /".
+    if (!fs.existsSync(reactIndex)) {
+      res.status(503).type('text/plain').send('The dashboard is not built: run npm run build.');
+      return;
+    }
     res.setHeader('Cache-Control', 'no-cache');
     res.sendFile(reactIndex);
   });

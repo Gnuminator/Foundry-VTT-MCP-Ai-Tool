@@ -1,8 +1,9 @@
 # The dashboard
 
-A standalone live **dashboard with AI commentary** for the Foundry VTT MCP bridge. It watches the
-running game, streams an AI Game Master's-assistant commentary to a browser
-dashboard, and can optionally post a chosen comment back to Foundry chat.
+A standalone live **co-GM dashboard** for the Foundry VTT MCP bridge. It watches the running game
+and shows it in the browser. The AI commentary the old page had (and its Pause, Tone and Model
+controls) is gone: the server no longer builds the commentary engines, so nothing calls the paid
+API on its own. The engine code under `src/ai/` stays until a Backlog item deletes it.
 
 > **Why a separate app?** MCP / Claude Desktop can only respond when _you_
 > prompt it — it cannot react to the game on its own. To get genuinely live,

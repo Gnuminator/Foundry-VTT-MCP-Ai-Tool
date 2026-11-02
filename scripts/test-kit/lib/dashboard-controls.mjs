@@ -278,7 +278,7 @@ export const DASHBOARD_CONTROLS = [
     why: 'a link in the help pane that leaves the page',
   },
   { name: 'dash.help.during-layouts', how: 'open', reach: [MOMENT_DURING], expect: '#pane-help' },
-  // The "?" app.js adds to each panel heading (help-links.json); the diagnostics one stands for all.
+  // The "?" after each panel heading; the diagnostics one stands for all.
   {
     name: 'dash.help.panel',
     how: 'open',

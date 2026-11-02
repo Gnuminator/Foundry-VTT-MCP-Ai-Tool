@@ -19,7 +19,7 @@ interface OverlayPaneProps {
   bodyClassName?: string;
   /** Attributes on the scrolling body (a name and a tab stop for a body that scrolls). */
   bodyProps?: ComponentProps<typeof Panel>['bodyProps'];
-  /** The guide page and heading the "?" after the title opens (help-links.json on the old page). */
+  /** The guide page and heading the "?" after the title opens. */
   help?: string;
   /** A line between the head and the body (e.g. the diagnostics space note). */
   note?: ReactNode;

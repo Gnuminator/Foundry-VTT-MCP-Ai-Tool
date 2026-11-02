@@ -109,8 +109,7 @@ const FLOATING_CHUNKS = [
 ];
 
 /**
- * The dashboard (D-109): the page at / (D-126, the default from 2026-11-01). The old page is at /legacy/ until
- * after G1 for the few panels that have not moved here.
+ * The dashboard (D-109): the page at / (D-126). The old vanilla page is gone; /legacy/ redirects here.
  */
 export function App(): JSX.Element {
   // The opt-in screens (the GM page /gm, the strip alone ?strip=1, the Live view ?live=1) are

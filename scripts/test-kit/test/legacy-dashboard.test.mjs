@@ -1,7 +1,7 @@
 /**
  * Nothing may use or show the old dashboard page (the user, 2026-10-31): no test, kit run, demo
  * script or guide points at `/legacy/` or at the old page's files (`public/app.js`,
- * `public/index.html`). The page itself stays until after G1 (D-126), so the places that must name
+ * `public/index.html`). The page itself is gone (it redirects to /), so the places that must name
  * it are listed in ALLOWED with the reason. A listed place that stops naming it fails too, so the
  * list shrinks as the old page's last tests go. Runs with `npm run kit:test`, which CI and
  * `npm run green` run.

@@ -1,5 +1,5 @@
-// The React dashboard is the page at / (D-126): the old page is at /legacy/, the old /next/ name
-// redirects, a saved link with ?token= still signs in, and the plan link of the Obsidian plugin
+// The React dashboard is the page at / (D-126): the old /next/ and /legacy/ names
+// redirect here, a saved link with ?token= still signs in, and the plan link of the Obsidian plugin
 // (/?plan=<planId>) opens the plan's confirm window once GM Actions are on.
 import { expect, test, type Page } from '@playwright/test';
 

@@ -135,6 +135,8 @@ describe('the default page', () => {
   it('drops a query that is not plain text, so /next never redirects to another host', async () => {
     for (const from of [
       '/next/?//evil.example',
+      '/legacy/?//evil.example',
+      '/legacy?/%5Cevil',
       '/next/?/%5Cevil',
       '/next/?/\\evil',
       '/next/?x=//evil.example',
@@ -198,11 +200,12 @@ describe('the asset files have their own rate limit bucket', () => {
 });
 
 describe('without a React build', () => {
-  it('has no page at / (and no old page behind it)', async () => {
+  it('says the dashboard is not built at / (and has no old page behind it)', async () => {
     const app = await start(null);
     try {
       const answer = await get(app.port, '/');
-      expect(answer.status).toBe(404);
+      expect(answer.status).toBe(503);
+      expect(answer.body).toContain('npm run build');
     } finally {
       await app.stop();
     }

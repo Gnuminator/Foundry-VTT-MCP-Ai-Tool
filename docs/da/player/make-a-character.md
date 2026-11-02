@@ -1,6 +1,6 @@
 ---
 source: player/make-a-character.md
-sourceHash: d82e94124d99
+sourceHash: 875ba47ec850
 title: Lav din karakter
 description: "Trin for trin: lav en level-3 karakter i Foundry med Actor Studio fra 2024 Player's Handbook (byg på level 1, level up to gange), tjek den og gør den til din egen."
 ---
@@ -24,9 +24,9 @@ Tjekket på Foundry 14, D&D 5e system 6, Actor Studio 2.10.5 og 2024 Player's Ha
 
 Spørg din GM, eller læs beskeden om session 0, om:
 
-- **Hvordan du får dine ability scores.** Standard array (15, 14, 13, 12, 10, 8), point buy eller
-  terningkast. GM'en spørger måske bordet først: standard array giver ensartede karakterer, terningkast
-  kan give meget stærke eller meget svage. Builderen tilbyder kun de metoder, GM'en har slået til.
+- **Hvordan du får dine ability scores.** Vores bord bruger to metoder: standard array (15, 14,
+  13, 12, 10, 8) og point buy. Terningkast og at skrive sine egne tal er slået fra, så builderen tilbyder
+  kun de to. Vælg den, du vil; standard array er den hurtigste.
 - **Hvilke muligheder der er tilladt.** Som regel alt i 2024 Player's Handbook, og det holder vores
   bord sig til. Nogle borde tilføjer eller fjerner species, backgrounds eller classes.
 - **Om der er noget særligt ved kampagnen.** Nogle kampagner foreslår backgrounds eller ideer til

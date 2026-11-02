@@ -14,11 +14,12 @@ older free rules instead of the 2024 Player's Handbook, and the **Level Up** but
 until a character has the experience points for it. This page sets all three up, once, a week or so
 before session 0. It takes about 30 minutes.
 
-**On our server part of it is done already.** The admin's setup script sets three things for characters:
-players may create characters, Actor Studio gives starting equipment, and the equipment comes from
-the Player's Handbook. So step 2 is a check, and so is the equipment row in step 3.
-**Everything else in step 3 is yours**: the other Compendium Sources rows, Enable Spell Selection
-and the ability score method. The script does not touch them, and until you set them a player may see
+**On our server part of it is done already.** The admin's setup script sets four things for characters:
+players may create characters, Actor Studio gives starting equipment, the equipment comes from
+the Player's Handbook, and the ability scores come from the standard array or point buy. So step 2
+is a check, and so are the equipment row and the ability score methods in step 3.
+**Everything else in step 3 is yours**: the other Compendium Sources rows and Enable Spell Selection.
+The script does not touch them, and until you set them a player may see
 the older free species list and no Spells step (look at what the world shows). Compare each window with the picture and the
 table, and set what differs. Steps 1 and 4 are yours too.
 

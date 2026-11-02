@@ -1,6 +1,6 @@
 ---
 source: gm/prepare-session-0.md
-sourceHash: c70aa9f2351f
+sourceHash: 1491474b0d8e
 title: Forbered session 0
 description: Opsætningen af worlden, før spillerne laver deres karakterer til session 0 (på vores server mest et tjek), en prøvekørsel som spiller og hvad du gør på aftenen.
 ---
@@ -16,11 +16,12 @@ Som standard kan spillerne ikke det: de må ikke oprette karakterer, Actor Studi
 før en karakter har nok experience points til det. Denne side sætter alle tre ting op, én gang, en uge
 eller deromkring før session 0. Det tager ca. 30 minutter.
 
-**På vores server er en del allerede gjort.** Adminens opsætningsscript sætter tre ting for karakterer:
-spillerne må oprette karakterer, Actor Studio giver startudstyr, og udstyret kommer fra
-Player's Handbook. Så trin 2 er et tjek, og det er udstyrsrækken i trin 3 også.
-**Alt andet i trin 3 er dit**: de andre rækker under Compendium Sources, Enable Spell Selection
-og metoden til ability scores. Scriptet rører dem ikke, og indtil du har sat dem, kan en spiller se
+**På vores server er en del allerede gjort.** Adminens opsætningsscript sætter fire ting for karakterer:
+spillerne må oprette karakterer, Actor Studio giver startudstyr, udstyret kommer fra
+Player's Handbook, og ability scores kommer fra standard array eller point buy. Så trin 2 er et tjek,
+og det er udstyrsrækken og metoderne til ability scores i trin 3 også.
+**Alt andet i trin 3 er dit**: de andre rækker under Compendium Sources og Enable Spell Selection.
+Scriptet rører dem ikke, og indtil du har sat dem, kan en spiller se
 den ældre gratis species-liste og intet Spells-trin (se efter, hvad worlden viser). Sammenlign hvert vindue med billedet og
 tabellen, og ret det, der er anderledes. Trin 1 og 4 er også dine.
 
@@ -79,17 +80,18 @@ Settings tab, **Game Settings**, kategorien **[Aardvark Games] Actor Studio (AI 
    | Feat Compendia                                | Feats             | Sættes ikke af scriptet |
    | Equipment Compendia                           | Equipment         | Ja, tjek det            |
 
+   Metoderne til ability scores (punkt 2 herunder) sættes også af scriptet.
+
    Fjern flueben ved D&D 5e-systemets egne packs (de ældre gratis regler), ellers viser hver liste hvert valg
    to gange. Klik på **Save**, og derefter **Yes**, når Foundry spørger, om den skal genindlæse.
 
    ![Compendium Sources med Player's Handbook-packs afkrydset i hver række](../../images/guides/studio-sources.png)
 
-2. **Configure ability scores**: sæt flueben ved den metode, du og spillerne er blevet enige om (**Allow standard
-   array**, **Allow point buy**, **Allow rolling**, **Allow manual input**), så builderen kun tilbyder
-   den ene. Hvis I ikke har haft snakken endnu ([Snakken om ability scores](prep-and-expectations.md#snakken-om-ability-scores)),
-   kan du ændre det på aftenen, før
-   spillerne åbner builderen. Manual input lader en spiller skrive et vilkårligt tal; lad den være slået fra, medmindre
-   du vil have det.
+2. **Configure ability scores**: adminens script sætter **Allow standard array** og **Allow point
+   buy** til og **Allow rolling** og **Allow manual input** fra, så hver spiller vælger standard array
+   eller point buy, og ingen kan skrive et vilkårligt tal. Tjek, at de fire står, som beskrevet. Vil du have et andet sæt efter
+   snakken ([Snakken om ability scores](prep-and-expectations.md#snakken-om-ability-scores)), så ændr det her, før
+   spillerne åbner builderen, og sig det til admin: kører scriptet igen, kommer vores to metoder tilbage.
 3. **Configure equipment & gold**: **Enable Equipment Selection** er afkrydset.
 4. **Configure spells**: sæt flueben ved **Enable Spell Selection**. Adminens script sætter ikke den, så
    den kan være slået fra, indtil du sætter flueben. Er den slået fra, får en spellcaster måske ingen **Spells**-fane og skal tilføje

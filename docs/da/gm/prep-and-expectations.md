@@ -1,6 +1,6 @@
 ---
 source: gm/prep-and-expectations.md
-sourceHash: 2152922e251d
+sourceHash: 6c3224ee69c2
 title: Forberedelse og forventninger
 description: Hvad du skal forberede til en session, hvordan du taler forventninger igennem med bordet, og en dagsorden til session 0, du kan ændre som du vil, med din GM coach som hjælp til planlægningen.
 ---
@@ -66,7 +66,9 @@ Skriv ned, hvad I bliver enige om, og læg det op i Discord, så ingen skal husk
 
 ## Snakken om ability scores
 
-Alle ved bordet bruger den samme metode. 2024 Player's Handbook tilbyder tre:
+Vores server er allerede sat til at tilbyde standard array og point buy, og hver spiller vælger en af de to;
+rolling og at skrive sine egne tal er slået fra. 2024 Player's Handbook tilbyder tre metoder, så du vil måske
+forklare, hvorfor rolling ikke er på listen:
 
 | Metode             | Sådan virker den                                                 | God til                                                    |
 | ------------------ | ---------------------------------------------------------------- | ---------------------------------------------------------- |
@@ -74,8 +76,9 @@ Alle ved bordet bruger den samme metode. 2024 Player's Handbook tilbyder tre:
 | **Point buy**      | Hver spiller bruger 27 point på sine scores (hver fra 8 til 15). | Mere valgfrihed, stadig retfærdigt.                        |
 | **Rolling**        | Slå fire sekssidede terninger pr. score og drop den laveste.     | Overraskelser: nogle karakterer meget stærke, nogle svage. |
 
-Spørg spillerne, hvad de synes, og beslut så. Sæt metoden i Actor Studio, før nogen åbner builderen
-([Forbered session 0](prepare-session-0.md), trin 3). Vælger du rolling, så beslut også,
+Spørg spillerne, hvad de synes. Vil bordet have et andet sæt (fx også rolling), så ændr det i Actor Studio,
+før nogen åbner builderen ([Forbered session 0](prepare-session-0.md), trin 2), og sig det til admin, for
+kører serverscriptet igen, kommer vores to metoder tilbage. Tilføjer du rolling, så beslut også,
 om alle slår, hvor de andre kan se det.
 
 ## En dagsorden til session 0, du kan ændre
@@ -88,7 +91,7 @@ forkort hvad som helst.
 | 1   | **Velkommen og teknik-tjek.** Alle er i Discord voice og logget ind i Foundry ([Kom ind i spillet](../player/join.md)).      | 15 min  |
 | 2   | **Pitchen.** Hvilken slags kampagne det er, i få sætninger, uden spoilers.                                                   | 10 min  |
 | 3   | **Snak om forventninger.** De emner ovenfor, der betyder noget for dig.                                                      | 30 min  |
-| 4   | **Ability scores og muligheder.** Snakken ovenfor; sæt derefter metoden i Actor Studio, mens spillerne venter.               | 10 min  |
+| 4   | **Ability scores og muligheder.** Snakken ovenfor; ændr kun metoderne i Actor Studio, hvis bordet vil det.                   | 10 min  |
 | 5   | **Karakterer.** Spillerne bygger ([Lav din karakter](../player/make-a-character.md)); du tjekker hvert ark.                  | 60 min  |
 | 6   | **Hvordan karaktererne kender hinanden.** Én forbindelse pr. karakter til en anden, eller en grund til, at de rejser sammen. | 15 min  |
 | 7   | **En intro-scene eller prolog (valgfrit).** Sagtens en halv session. Hvis tiden er knap, åbner den session 1 i stedet.       | 60+ min |
@@ -100,7 +103,7 @@ online.
 En besked til Discord et par dage før (ret ordene til dine egne):
 
 > Session 0 er den [dato] kl. [tid], online. Sørg for at have Foundry åbent og være logget ind, før vi starter.
-> Vi snakker om, hvilken slags spil vi vil have, vælger, hvordan vi får ability scores, og laver vores
+> Vi snakker om, hvilken slags spil vi vil have, snakker om, hvordan vi får ability scores, og laver vores
 > karakterer sammen. Tænk over en class, du kunne tænke dig at spille, og kom med spørgsmål eller ønsker
 > til kampagnen.
 

@@ -51,6 +51,15 @@ export function fitsSideBySide(viewportWidth: number): boolean {
   return viewportWidth >= SIDE_BY_SIDE_MIN_PX;
 }
 
+/**
+ * Both panes show but Foundry gets less than it asks for: the window was narrowed after the panes
+ * opened (they stay, so a fight never loses the frame). The page then suggests Foundry alone plus
+ * the strip window. "Foundry alone" and the tab already give Foundry the whole width.
+ */
+export function foundrySqueezed(viewportWidth: number, mode: GmMode): boolean {
+  return mode !== 'window' && !fitsSideBySide(viewportWidth);
+}
+
 /** A saved layout, or the defaults for anything missing or wrong. */
 export function parseLayout(raw: string | null): GmLayout {
   try {

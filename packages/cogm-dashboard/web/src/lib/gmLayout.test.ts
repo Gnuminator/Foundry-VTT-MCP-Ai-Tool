@@ -5,6 +5,7 @@ import {
   clampStripPx,
   classifyMessage,
   fitsSideBySide,
+  foundrySqueezed,
   maxStripPx,
   parseLayout,
 } from './gmLayout';
@@ -27,6 +28,13 @@ describe('the strip width limits', () => {
     expect(fitsSideBySide(1356)).toBe(true);
     expect(fitsSideBySide(1355)).toBe(false);
     expect(fitsSideBySide(390)).toBe(false);
+  });
+
+  it('calls Foundry squeezed below 1356 px unless it already has the window to itself', () => {
+    expect(foundrySqueezed(1280, 'right')).toBe(true);
+    expect(foundrySqueezed(1280, 'left')).toBe(true);
+    expect(foundrySqueezed(1280, 'window')).toBe(false);
+    expect(foundrySqueezed(1440, 'right')).toBe(false);
   });
 });
 

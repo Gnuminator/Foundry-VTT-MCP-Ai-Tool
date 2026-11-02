@@ -269,15 +269,98 @@ button.chip.ended {
   color: var(--text-mid);
 }
 
-@container (max-width: 30rem) {
+.turnWord {
+  display: inline;
+}
+
+/* Under about 500 px (the Live window, the /gm strip pane, /?strip=1): one line per creature
+   (portrait, name, HP bar, chips), a dead creature on a slim line, and the actions pinned to the
+   bottom of the window so eight creatures and the action bar fit without scrolling to act. */
+@container (max-width: 31.25rem) {
+  .strip {
+    gap: var(--space-2);
+    padding: var(--space-2);
+  }
   .cards {
     flex-direction: column;
+    gap: var(--space-1);
     overflow-x: visible;
   }
   .card {
     flex: 0 0 auto;
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-1) var(--space-2);
+    border-width: 2px;
+  }
+  .card[data-current='true'] {
+    box-shadow:
+      0 0 0 1px var(--bg),
+      0 0 0 3px var(--text);
+  }
+  .turnBadge {
+    order: -1;
+    margin: 0;
+    padding: 0 var(--space-1);
+  }
+  .turnWord {
+    display: none;
+  }
+  .portrait {
+    flex: 0 0 1.75rem;
+    width: 1.75rem;
+    height: 1.75rem;
+    font-size: var(--text-2xs);
+  }
+  .pick {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  .hpText {
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+  .hpBar {
+    flex: 0 0 3rem;
+  }
+  .chips {
+    flex: 0 1 auto;
+    flex-wrap: nowrap;
+    min-width: 0;
+    min-height: 0;
+    margin: 0;
+    overflow: hidden;
   }
   .chips:empty {
     display: none;
   }
+  .tag {
+    white-space: nowrap;
+  }
+  /* Dead creatures fold to a slim line: the name and the word, no bar. */
+  .card[data-down='true'] .hpBar,
+  .card[data-down='true'] .hpText,
+  .card[data-down='true'] .portrait {
+    display: none;
+  }
+  .card[data-down='true'] {
+    padding-block: 0;
+  }
+  .actions {
+    position: sticky;
+    bottom: 0;
+    z-index: 1;
+    margin-top: auto;
+    padding-top: var(--space-2);
+    background: var(--bg);
+    box-shadow: 0 -6px 8px -6px var(--border-strong);
+  }
+}
+
+.actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
 }

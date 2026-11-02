@@ -117,7 +117,7 @@ function Card({
     >
       {c.isCurrentTurn && (
         <span className={styles['turnBadge']} aria-hidden="true">
-          ▶ Turn
+          ▶<span className={styles['turnWord']}> Turn</span>
         </span>
       )}
       {c.tokenUuid ? (
@@ -533,7 +533,7 @@ export function LiveStrip(): JSX.Element {
       )}
 
       {combat !== null && (
-        <>
+        <div className={styles['actions']}>
           <div
             className={styles['bar']}
             role="group"
@@ -652,7 +652,7 @@ export function LiveStrip(): JSX.Element {
               </Button>
             </QuickRollBar>
           )}
-        </>
+        </div>
       )}
 
       <div className={styles['handout']} id="live-handout">

@@ -18,10 +18,12 @@ import { ApiError, api } from '../lib/api';
 import {
   DEFAULT_STRIP_PX,
   FRAME_WAIT_MS,
+  MIN_FOUNDRY_PX,
   MIN_STRIP_PX,
   clampStripPx,
   classifyMessage,
   fitsSideBySide,
+  foundrySqueezed,
   loadLayout,
   maxStripPx,
   saveLayout,
@@ -317,6 +319,14 @@ function GmWorkspace({
           Back to the dashboard
         </a>
       </header>
+      {!stripOnly && foundrySqueezed(viewport, layout.mode) ? (
+        <p className={styles.line} role="status" id="gm-squeezed">
+          Foundry needs {MIN_FOUNDRY_PX} px and gets less here.{' '}
+          <button type="button" className={styles.link} onClick={() => update({ mode: 'window' })}>
+            Use Foundry alone and the strip window
+          </button>
+        </p>
+      ) : null}
       {stripOnly ? (
         <div className={styles.single} ref={stripPaneRef} tabIndex={-1}>
           <p className={styles.line}>

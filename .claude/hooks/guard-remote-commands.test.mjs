@@ -81,6 +81,13 @@ test('kit-session.sh (the strahd-kit test run) passes the guard as documented, u
   }
 });
 
+test('switch-world.sh (the world switch) passes the guard as documented, dry run and real', () => {
+  for (const env of ['WORLD=frostmaiden-training DRY_RUN=1', 'WORLD=curse-of-strahd FORCE=1']) {
+    const command = `cat scripts/pi/remote/lib.sh scripts/pi/remote/switch-world.sh | ssh foundry-pi '${env} bash -s'`;
+    assert.equal(kind(command), 'allow', `${env}: ${JSON.stringify(decide(command, repo))}`);
+  }
+});
+
 test('every script in scripts/pi/remote is one of the kinds checked above', () => {
   const dir = path.join(repo, 'scripts', 'pi', 'remote');
   const known = n =>
@@ -93,6 +100,7 @@ test('every script in scripts/pi/remote is one of the kinds checked above', () =
       'gm-passwords.sh',
       'kit-session.sh',
       'put-runner-token.sh',
+      'switch-world.sh',
     ].includes(n);
   const unchecked = readdirSync(dir).filter(n => n.endsWith('.sh') && !known(n));
   assert.deepEqual(unchecked, [], 'add a guard test for each new script the user runs over SSH');

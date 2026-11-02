@@ -25,7 +25,8 @@
 #   B. For each world, the kit copy first so a failure stops the run before the real world (Foundry runs it, headless Chromium joins as the world's GM with the login in
 #      /etc/foundry-ai-tool/world-<id>.env, never printed): Foundry's ACTOR_CREATE permission includes the Player
 #      and Trusted Player roles (the roles already there stay), Actor Studio's enableEquipmentSelection is on and
-#      its equipment source is dnd-players-handbook.equipment. The values before and after are printed and read
+#      its equipment source is dnd-players-handbook.equipment, and the ability score methods are standard array and
+#      point buy on, manual entry and rolling off. The values before and after are printed and read
 #      back after a reload (player-creation-settings.mjs). Safe to run again: nothing changes the second time.
 #      Before each world starts, its settings database is copied to /var/lib/foundry-import/prev-<stamp>/worlds/.
 #   Afterwards options.json launches the world it launched before, and Foundry and the Assistant GM browser

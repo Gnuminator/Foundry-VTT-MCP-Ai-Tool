@@ -1,14 +1,12 @@
 # The dashboard
 
 A standalone live **co-GM dashboard** for the Foundry VTT MCP bridge. It watches the running game
-and shows it in the browser. The AI commentary the old page had (and its Pause, Tone and Model
-controls) is gone: the server no longer builds the commentary engines, so nothing calls the paid
-API on its own. The engine code under `src/ai/` stays until a Backlog item deletes it.
+and shows it in the browser. It does not call the Anthropic API: AI work happens when someone asks
+Claude through the MCP tools.
 
 > **Why a separate app?** MCP / Claude Desktop can only respond when _you_
-> prompt it — it cannot react to the game on its own. To get genuinely live,
-> autonomous reactions, this dashboard **pulls** the game feed off the bridge's
-> control channel and drives the **Anthropic Messages API** itself.
+> prompt it — it cannot react to the game on its own. This dashboard **pulls**
+> the game feed off the bridge's control channel and shows it live.
 
 ## What it does
 
@@ -28,8 +26,6 @@ Everything else is strictly read-only.
   (browser)        (bridge)              control channel                   │
                                                                            ├─ PollingGameFeed  (get-recent-events / get-combat-state / get-module-errors)
                                                                            ├─ GameState        (bounded rolling window + combat snapshot)
-                                                                           ├─ CoGm             (@anthropic-ai/sdk, streaming + prompt caching)
-                                                                           ├─ CommentaryEngine + ErrorCommentaryEngine (batch / debounce / cap)
                                                                            └─ Express + SSE    ──►  browser dashboard (4 panes)
 ```
 
@@ -39,19 +35,15 @@ without touching the rest of the app.
 
 ### Files
 
-| Path                             | Role                                                              |
-| -------------------------------- | ----------------------------------------------------------------- |
-| `src/feed/mcp-control-client.ts` | Reconnecting JSON-lines client for the control channel            |
-| `src/feed/polling-feed.ts`       | `GameFeed` impl — incremental event + combat polling              |
-| `src/state.ts`                   | Bounded view of the game (rolling events + combat snapshot)       |
-| `src/ai/prompt.ts`               | Persona / 5e reference, event-significance rules, prompt assembly |
-| `src/ai/anthropic-co-gm.ts`      | Streaming Messages API wrapper with prompt caching                |
-| `src/ai/commentary.ts`           | Batches/debounces events into paced comments                      |
-| `src/ai/error-commentary.ts`     | Batches module errors into paced diagnostics comments             |
-| `src/sse.ts`                     | Server-Sent Events hub                                            |
-| `src/server.ts`                  | Express wiring, REST + SSE endpoints                              |
-| `public/`                        | Vanilla-JS pages: `/player`, `/me`, `/open`; shared styles        |
-| `web/`                           | The React dashboard (the page at `/`, built by Vite)              |
+| Path                             | Role                                                        |
+| -------------------------------- | ----------------------------------------------------------- |
+| `src/feed/mcp-control-client.ts` | Reconnecting JSON-lines client for the control channel      |
+| `src/feed/polling-feed.ts`       | `GameFeed` impl — incremental event + combat polling        |
+| `src/state.ts`                   | Bounded view of the game (rolling events + combat snapshot) |
+| `src/sse.ts`                     | Server-Sent Events hub                                      |
+| `src/server.ts`                  | Express wiring, REST + SSE endpoints                        |
+| `public/`                        | Vanilla-JS pages: `/player`, `/me`, `/open`; shared styles  |
+| `web/`                           | The React dashboard (the page at `/`, built by Vite)        |
 
 ## Setup
 
@@ -66,7 +58,7 @@ Then configure this package:
 ```bash
 cd packages/cogm-dashboard
 cp .env.example .env
-# edit .env and set ANTHROPIC_API_KEY
+# edit .env only if you need to change a default
 ```
 
 ## Run
@@ -160,8 +152,8 @@ Tooltip } from 'radix-ui'`), not the single `@radix-ui/react-*` ones. `web/src/u
   `public/themes/brand.css` (The Veil's overrides in `veil.css`). Use them in new rules instead of
   numbers; never write a `z-index` number in a component or in `next.css`.
 - **Styles:** a new rule goes in a CSS Module next to its component (`Thing.module.css`, Vite
-  built in) and reads the tokens. Do not edit `public/styles.css` or `public/moments.css`: the old
-  page shares them. The components render the old class names (`.pane`, `.drawer`, `.pane-title`,
+  built in) and reads the tokens. Only delete rules from `public/styles.css` or `public/moments.css`
+  when nothing renders them. The components render the old class names (`.pane`, `.drawer`, `.pane-title`,
   `.empty`, `.btn`, ...), so those files still style them.
 - **Keep what the tests and the guide rely on:** the outer classes, the DOM where an old CSS
   selector depends on it, every element `id`, every `data-track="dash...."` name (written out as a
@@ -306,37 +298,29 @@ without the hash; an unlisted one gets a default limit. It fails when one is ove
 after the build and writes the table to the job summary. To raise a limit on purpose, change the
 constant in the same pull request and say why.
 
-The dashboard runs **without** an API key too — you still get the live feed and
-combat tracker; only the AI panes are disabled until a key is set.
+The dashboard needs no API key; it does not call the Anthropic API.
 
 ## Configuration
 
 All via `.env` (see `.env.example`):
 
-| Variable                                | Default               | Purpose                                             |
-| --------------------------------------- | --------------------- | --------------------------------------------------- |
-| `ANTHROPIC_API_KEY`                     | —                     | Enables AI commentary / ask (never committed)       |
-| `ANTHROPIC_MODEL`                       | `claude-opus-5-5`     | Default model (switchable live in the UI)           |
-| `POLL_INTERVAL_MS`                      | `4000`                | Event-delta poll cadence                            |
-| `COMBAT_POLL_INTERVAL_MS`               | = poll interval       | Combat-state poll cadence                           |
-| `COMMENT_MIN_INTERVAL_MS`               | `20000`               | Minimum spacing between auto-comments               |
-| `COMMENT_DEBOUNCE_MS`                   | `1500`                | Window that batches an event burst into one comment |
-| `MCP_CONTROL_HOST` / `MCP_CONTROL_PORT` | `127.0.0.1` / `31414` | Bridge control channel                              |
-| `PORT`                                  | `3000`                | Dashboard HTTP/SSE port                             |
-| `COGM_TONE`                             | `tactical`            | Starting tone (`tactical` \| `narrative`)           |
+| Variable                                | Default               | Purpose                   |
+| --------------------------------------- | --------------------- | ------------------------- |
+| `POLL_INTERVAL_MS`                      | `4000`                | Event-delta poll cadence  |
+| `COMBAT_POLL_INTERVAL_MS`               | = poll interval       | Combat-state poll cadence |
+| `MCP_CONTROL_HOST` / `MCP_CONTROL_PORT` | `127.0.0.1` / `31414` | Bridge control channel    |
+| `PORT`                                  | `3000`                | Dashboard HTTP/SSE port   |
 
 Additional knobs (all optional — defaults shown; see `.env.example`):
 
-| Variable                        | Default | Purpose                                                |
-| ------------------------------- | ------- | ------------------------------------------------------ |
-| `ERROR_POLL_INTERVAL_MS`        | `6000`  | Module-diagnostics poll cadence                        |
-| `COGM_MAX_ERRORS`               | `100`   | Rolling module-error buffer size                       |
-| `COGM_COMMENT_ON_ERRORS`        | `true`  | AI auto-comments on new module errors                  |
-| `ERROR_COMMENT_MIN_INTERVAL_MS` | `60000` | Minimum spacing between diagnostics comments           |
-| `MCP_REQUEST_TIMEOUT_MS`        | `15000` | Per-request timeout (a timeout forces a reconnect)     |
-| `MCP_CONNECT_TIMEOUT_MS`        | `5000`  | TCP connect timeout                                    |
-| `MCP_HEARTBEAT_INTERVAL_MS`     | `10000` | Heartbeat ping cadence (half-open detection)           |
-| `MCP_STALENESS_THRESHOLD_MS`    | `30000` | Window after last reply before the channel reads stale |
+| Variable                     | Default | Purpose                                                |
+| ---------------------------- | ------- | ------------------------------------------------------ |
+| `ERROR_POLL_INTERVAL_MS`     | `6000`  | Module-diagnostics poll cadence                        |
+| `COGM_MAX_ERRORS`            | `100`   | Rolling module-error buffer size                       |
+| `MCP_REQUEST_TIMEOUT_MS`     | `15000` | Per-request timeout (a timeout forces a reconnect)     |
+| `MCP_CONNECT_TIMEOUT_MS`     | `5000`  | TCP connect timeout                                    |
+| `MCP_HEARTBEAT_INTERVAL_MS`  | `10000` | Heartbeat ping cadence (half-open detection)           |
+| `MCP_STALENESS_THRESHOLD_MS` | `30000` | Window after last reply before the channel reads stale |
 
 ## Player vs GM split (Phase 6)
 
@@ -349,34 +333,21 @@ GM-only data filtered **server-side** (never just hidden in the browser).
   `http://host:3000/?token=<GM_DASHBOARD_TOKEN>`; the token is remembered in that browser.
 - **Player view** (`/player`) — public **combat order** + public **event feed** only. Filtered
   server-side: exact enemy/NPC HP is removed, GM-hidden combatants are dropped, event details
-  (which carry HP before/after) are stripped, and module diagnostics, settings, the AI commentary,
-  and the entire write/GM-action surface are never sent. Players still see the party's HP and the
-  public feed.
+  (which carry HP before/after) are stripped, and module diagnostics, settings, and the entire
+  write/GM-action surface are never sent. Players still see the party's HP and the public feed.
 - **Auth.** GM identity is proven by a token (header `X-CoGM-Token`, `?token=` query, or `cogm_token`
-  cookie) **or** a Cloudflare Access email in `GM_EMAILS`. The write endpoints (`/api/ask`,
-  `/api/control`, `/api/post-chat`, `/api/tools`, `/api/tool`) return 403 for non-GMs. The Anthropic
-  key always stays server-side.
+  cookie) **or** a Cloudflare Access email in `GM_EMAILS`. The write endpoints (`/api/control`,
+  `/api/tools`, `/api/tool`) return 403 for non-GMs.
 
 Configure via `.env` (see `.env.example`): `GM_DASHBOARD_TOKEN`, `PLAYER_DASHBOARD_TOKEN`,
 `GM_EMAILS`, `CF_ACCESS_TEAM_DOMAIN`, `CF_ACCESS_AUD`, `PLAYER_SHOW_ENEMY_CONDITIONS`, `PLAYER_SHOW_ENEMY_HP_BANDS`.
 For exposing this to a remote GM/players behind Cloudflare Access, see
 [`docs/dev/REMOTE-ACCESS.md`](../../docs/dev/REMOTE-ACCESS.md).
 
-## Cost control
+## Cost
 
-- **Prompt caching.** The large static persona + 5e reference + campaign context
-  carries a `cache_control` breakpoint and is byte-identical every request, so
-  it is served from Anthropic's prompt cache after the first call. Tone and live
-  game state live in the (uncached) user turn, so the cache stays warm across
-  tone switches and turns. The UI shows `cache ✓` / `cache miss` and token counts
-  per generation. (Note: prompt caching only kicks in once the cached prefix
-  clears the model's minimum cacheable size — ~4 K tokens on Opus, ~2 K on
-  Sonnet; the static block is sized with this in mind.)
-- **Bounded context.** Each request is independent (no growing conversation) and
-  includes only a combat snapshot plus a rolling window of recent events — never
-  the full session history.
-- **Batched, capped commentary.** Bursts are debounced into a single comment and
-  spaced by `COMMENT_MIN_INTERVAL_MS`. Short `max_tokens` keep outputs tight.
+The dashboard makes no paid API calls. AI work happens when someone asks Claude (Claude Desktop or
+Claude Code) through the MCP tools, under that person's subscription.
 
 ## Guardrails
 
@@ -384,4 +355,3 @@ For exposing this to a remote GM/players behind Cloudflare Access, see
 - **Resilient to a dead backend.** The control client reconnects with backoff,
   every request is timeout-bounded, and a failed poll downgrades the status badge
   and retries — it never crashes the dashboard.
-- **Bounded model context** as described above.

@@ -14,11 +14,12 @@ older free rules instead of the 2024 Player's Handbook, and the **Level Up** but
 until a character has the experience points for it. This page sets all three up, once, a week or so
 before session 0. It takes about 30 minutes.
 
-**On our server part of it is done already.** The admin's setup script sets three things for characters:
-players may create characters, Actor Studio gives starting equipment, and the equipment comes from
-the Player's Handbook. So step 2 is a check, and so is the equipment row in step 3.
-**Everything else in step 3 is yours**: the other Compendium Sources rows, Enable Spell Selection
-and the ability score method. The script does not touch them, and until you set them a player may see
+**On our server part of it is done already.** The admin's setup script sets four things for characters:
+players may create characters, Actor Studio gives starting equipment, the equipment comes from
+the Player's Handbook, and the ability scores come from the standard array or point buy. So step 2
+is a check, and so are the equipment row and the ability score methods in step 3.
+**Everything else in step 3 is yours**: the other Compendium Sources rows and Enable Spell Selection.
+The script does not touch them, and until you set them a player may see
 the older free species list and no Spells step (look at what the world shows). Compare each window with the picture and the
 table, and set what differs. Steps 1 and 4 are yours too.
 
@@ -77,17 +78,19 @@ Settings tab, **Game Settings**, the category **[Aardvark Games] Actor Studio (A
    | Feat Compendia                                | Feats             | Not set by the script |
    | Equipment Compendia                           | Equipment         | Yes, check it         |
 
+   The ability score methods (item 2 below) are set by the script too.
+
    Untick the D&D 5e system's own packs (the older free rules), or every list shows each choice
    twice. Click **Save**, then **Yes** when Foundry asks to reload.
 
    ![Compendium Sources with the Player's Handbook packs ticked in every row](../images/guides/studio-sources.png)
 
-2. **Configure ability scores**: tick the method you and the players agreed on (**Allow standard
-   array**, **Allow point buy**, **Allow rolling**, **Allow manual input**), so the builder offers
-   only that one. If you haven't had the talk yet ([The ability score
-   talk](prep-and-expectations.md#the-ability-score-talk)), you can change this on the night before
-   the players open the builder. Manual input lets a player type any number; leave it off unless
-   you want that.
+2. **Configure ability scores**: the admin's script sets **Allow standard array** and **Allow point
+   buy** on and **Allow rolling** and **Allow manual input** off, so each player picks the standard
+   array or point buy and nobody can type any number. Check that these four are as described. If
+   you want a different set after the talk ([The ability score
+   talk](prep-and-expectations.md#the-ability-score-talk)), change it here before the players open
+   the builder, and tell the admin: running the script again puts our two methods back.
 3. **Configure equipment & gold**: **Enable Equipment Selection** is ticked.
 4. **Configure spells**: tick **Enable Spell Selection**. The admin's script does not set this, so
    it may be off until you tick it. With it off, a spellcaster may get no **Spells** tab and has to add

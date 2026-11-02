@@ -6,7 +6,6 @@ import type { AddressInfo } from 'net';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { CoGm } from './ai/anthropic-co-gm.js';
 import { createDashboard, type Dashboard } from './app.js';
 import { config, type AuthConfig, type Config } from './config.js';
 import type { BridgeStatus, SessionEvent } from './feed/types.js';
@@ -43,14 +42,6 @@ const fakeBridge = {
     Promise.resolve((name === 'get-world-info' ? WORLD_INFO : {}) as T),
 };
 
-const fakeCoGm = {
-  enabled: false,
-  isBusy: false,
-  setWorld: (): void => undefined,
-  abortActive: (): void => undefined,
-  notifyCombatChange: (): void => undefined,
-} as unknown as CoGm;
-
 const REACHABLE: BridgeStatus = {
   controlChannel: 'connected',
   foundry: 'reachable',
@@ -84,7 +75,6 @@ async function start(): Promise<Harness> {
     config: testConfig,
     logger: new Logger('error', 'stream-rolls-test'),
     client: fakeBridge,
-    coGm: fakeCoGm,
   });
   const server = dashboard.app.listen(0, '127.0.0.1');
   await new Promise<void>(resolve => server.once('listening', () => resolve()));

@@ -84,9 +84,7 @@ from it are in the GM's Obsidian notes. None of it is stored in the Foundry worl
   app. Claude then reads what it needs from the game through the tool: character sheets, chat,
   the session log or the play stats. That goes to Anthropic under the GM's Claude account. Nothing
   is sent when nobody asks.
-- **Dashboard commentary, only if an API key is set.** The GM's dashboard can comment on the game
-  by itself, but only with a separate paid API key. Then recent game events and the combat state go
-  to Anthropic automatically. It is off unless the GM turns it on.
+- **The dashboard does not call an AI.** It only shows the game. It sends nothing to Anthropic on its own.
 - **Session recordings, only with your yes, and only when started.** See
   [Recording and your consent](#recording-and-your-consent) below. A session is recorded only when
   someone types `/record start` in Discord. The bot then joins the voice channel and posts a

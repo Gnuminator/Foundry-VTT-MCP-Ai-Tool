@@ -17,7 +17,6 @@ import { FOUNDRY_UUID_MAX_LENGTH, FOUNDRY_UUID_SOURCE } from '@gnuminator/shared
 import { afterEach, describe, expect, it } from 'vitest';
 
 import * as openPage from '../public/open.js';
-import type { CoGm } from './ai/anthropic-co-gm.js';
 import { createDashboard, type Dashboard, type DashboardDeps } from './app.js';
 import { config, type AuthConfig, type Config } from './config.js';
 import { testWebDir } from './test-web-dir.js';
@@ -114,13 +113,6 @@ class FakeBridge {
   }
 }
 
-const fakeCoGm = {
-  enabled: false,
-  isBusy: false,
-  setWorld: (): void => undefined,
-  abortActive: (): void => undefined,
-} as unknown as CoGm;
-
 interface Harness {
   base: string;
   port: number;
@@ -153,7 +145,6 @@ async function start(
     config: testConfig,
     logger: new Logger('error', 'open-route-test'),
     client: bridge,
-    coGm: fakeCoGm,
     openRoute: { now: () => clock.t, ...openRoute },
   });
   const server = dashboard.app.listen(0, '127.0.0.1');

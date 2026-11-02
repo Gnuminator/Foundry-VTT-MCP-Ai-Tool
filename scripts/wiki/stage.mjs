@@ -11,6 +11,13 @@
  *   docs/wiki/src/assets/logo.svg, public/favicon.png    the brand
  *   docs/wiki/src/sidebar.generated.json           the grouped sidebar
  *
+ * Two sides (the user, 2026-11-02): the player side is /player/ plus a copy of the Foundry basics a
+ * player needs at /player/foundry/ (PLAYER_FOUNDRY); the GM side is /gm/ plus all of /foundry/.
+ * The sidebar of each side shows only its own pages (docs/wiki/src/routeData.mjs filters it), the
+ * home page asks "player or GM?", and every GM page starts with a "For the GM" label. A player page
+ * must not link to a GM page (staging fails); a link in a player copy of a Foundry page to a page
+ * the player side lacks becomes plain text.
+ *
  * Links: a link between the staged pages becomes the page's site URL (Starlight does not resolve
  * .md links); a link to any other repo file becomes a GitHub link, the same rule as the dashboard
  * help. The first `# H1` of a page is dropped (Starlight prints the title). The sidebar groups
@@ -52,11 +59,26 @@ const SECTIONS = [
   { from: 'docs/foundry', to: 'foundry' },
 ];
 const HOME = 'docs/wiki/index.md';
-const COACH_MARKER = '<!-- wiki:coach-download -->';
+/** The Foundry basics a player needs, in reading order; staged twice (/foundry/ and /player/foundry/). */
+export const PLAYER_FOUNDRY = [
+  'screen-tour',
+  'worlds-and-joining',
+  'chat-and-dice',
+  'tokens',
+  'combat',
+  'measuring-and-templates',
+  'glossary',
+];
+const playerFoundryPath = repoPath => {
+  const m = /^docs\/foundry\/([a-z0-9-]+)\.md$/.exec(repoPath);
+  return m && PLAYER_FOUNDRY.includes(m[1]) ? `player/foundry/${m[1]}.md` : null;
+};
+const GM_LABEL = '<p class="audience audience-gm">For the GM</p>';
+const COACH_MARKER ='<!-- wiki:coach-download -->';
 const COACH_LINE =
   'On the wiki you can download it here: [foundry-gm-coach.zip](downloads/foundry-gm-coach.zip).';
 
-/** Sidebar groups (board A, 2026-10-29): label and page slugs, in order. */
+/** Sidebar groups (board A, 2026-10-29): label and page slugs, in order. GM side, then player side. */
 const SIDEBAR = [
   {
     label: 'Start here',
@@ -91,13 +113,18 @@ const SIDEBAR = [
     pages: ['gm/prep-and-expectations', 'gm/prepare-session-0', 'gm/prepare-session-0-quest', 'gm/death-and-new-characters'],
   },
   { label: 'When it breaks', pages: ['gm/troubleshooting', 'gm/never-and-only-if'] },
-  { label: 'For players', pages: ['player'], rest: 'player' },
   { label: 'Foundry basics', pages: ['foundry'], rest: 'foundry' },
+  { label: 'Player guides', pages: ['player'], rest: 'player' },
+  { label: 'Foundry basics for players', pages: [], rest: 'player/foundry' },
 ];
 const LAST_GROUP = 'More guides';
 
 /** Repo-relative path (forward slashes) of a staged page's source, mapped into the staged tree. */
-function stagedPathOf(repoPath) {
+function stagedPathOf(repoPath, playerSide = false) {
+  if (playerSide) {
+    const copy = playerFoundryPath(repoPath);
+    if (copy !== null) return copy;
+  }
   if (repoPath === HOME) return 'index.md';
   for (const s of SECTIONS) {
     if (repoPath.startsWith(`${s.from}/`)) return `${s.to}/${repoPath.slice(s.from.length + 1)}`;
@@ -145,6 +172,25 @@ export function insideCodeSpan(line, offset) {
   return false;
 }
 
+/**
+ * In the player copy of a Foundry page, a link to a page the player side does not carry becomes its
+ * plain text, so a player never lands on a GM page.
+ */
+export function stripOffSideLinks(text, repoPath) {
+  return text.replace(
+    /(?<!!)\[([^\]]+)\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g,
+    (match, label, target) => {
+      if (/^[a-z][a-z0-9+.-]*:/i.test(target) || target.startsWith('#') || target.startsWith('/'))
+        return match;
+      const file = target.split('#')[0];
+      const resolved = path.posix.normalize(path.posix.join(path.posix.dirname(repoPath), file));
+      return /^docs\/(gm|foundry)\/.+\.md$/.test(resolved) && !playerFoundryPath(resolved)
+        ? label
+        : match;
+    }
+  );
+}
+
 /** Returns a function: true for the lines that open, close or sit inside a fenced code block. */
 function fenceTracker() {
   let fence = null;
@@ -164,10 +210,14 @@ function fenceTracker() {
  * @param {string} text the page
  * @param {string} repoPath where the page lives in the repo (forward slashes)
  * @param {Set<string>} images collects the repo paths of the images the page uses
+ * @param {{ playerCopy?: boolean }} [opts] playerCopy: this is the player-side copy of a Foundry page
  */
-export function rewriteLinks(text, repoPath, images) {
-  const staged = stagedPathOf(repoPath);
+export function rewriteLinks(text, repoPath, images, opts = {}) {
+  const playerCopy = opts.playerCopy === true;
+  const playerSide = playerCopy || repoPath.startsWith('docs/player/');
+  const staged = playerCopy ? playerFoundryPath(repoPath) : stagedPathOf(repoPath);
   const inCode = fenceTracker();
+  if (playerCopy) text = stripOffSideLinks(text, repoPath);
   return text
     .split('\n')
     .map(line => {
@@ -186,7 +236,16 @@ export function rewriteLinks(text, repoPath, images) {
         const file = hash === -1 ? target : target.slice(0, hash);
         const anchor = hash === -1 ? '' : target.slice(hash);
         const resolved = path.posix.normalize(path.posix.join(path.posix.dirname(repoPath), file));
-        const to = stagedPathOf(resolved);
+        if (
+          repoPath.startsWith('docs/player/') &&
+          /^docs\/(gm|foundry)\/.+\.md$/.test(resolved) &&
+          !playerFoundryPath(resolved)
+        ) {
+          throw new Error(
+            `${repoPath}: the link ${target} leaves the player side (${resolved} is a GM page)`
+          );
+        }
+        const to = stagedPathOf(resolved, playerSide);
         if (to !== null && existsSync(path.join(repo, resolved))) {
           if (to.startsWith('images/')) images.add(resolved);
           const rel =
@@ -242,7 +301,11 @@ export function toSite(text, stagedPath) {
     .split('\n')
     .map((line, i) => {
       if (inFront) {
-        if (i > 0 && line === '---') inFront = false;
+        if (i > 0 && line === '---') {
+          inFront = false;
+          // Every GM page says who it is for, at the top.
+          return stagedPath.startsWith('gm/') ? `${line}\n\n${GM_LABEL}\n` : line;
+        }
         return line;
       }
       if (inCode(line)) return line;
@@ -333,21 +396,21 @@ export function buildSidebar(slugs, order) {
   };
   const asItem = slug => ({ slug, ...(labels[slug] ? { label: labels[slug] } : {}) });
   return [
-    { slug: 'index', label: 'Home' },
+    { slug: 'index', label: 'Player or GM?' },
     ...groups.map(g => ({ label: g.label, items: g.items.map(asItem) })),
   ];
 }
 
-function stagePage(repoPath, images) {
+function stagePage(repoPath, images, playerCopy = false) {
   const text = readFileSync(path.join(repo, repoPath), 'utf8').replace(/\r\n/g, '\n');
-  let staged = rewriteLinks(text, repoPath, images);
+  let staged = rewriteLinks(text, repoPath, images, { playerCopy });
   // The download link goes in after the rewrite: the zip exists only in the staged tree.
   if (repoPath === 'docs/gm/gm-coach.md') {
     if (!staged.includes(COACH_MARKER))
       throw new Error(`docs/gm/gm-coach.md lost its ${COACH_MARKER} line`);
     staged = staged.replace(COACH_MARKER, COACH_LINE);
   }
-  const rel = stagedPathOf(repoPath);
+  const rel = playerCopy ? playerFoundryPath(repoPath) : stagedPathOf(repoPath);
   const outRel = rel.replace(/(^|\/)README\.md$/, '$1index.md');
   const out = path.join(docsOut, outRel);
   mkdirSync(path.dirname(out), { recursive: true });
@@ -375,6 +438,10 @@ function main() {
       f === 'README.md' ? s.to : `${s.to}/${f.replace(/\.md$/, '')}`
     );
   }
+  order['player/foundry'] = PLAYER_FOUNDRY.map(name =>
+    stagePage(`docs/foundry/${name}.md`, images, true)
+  );
+  slugs.push(...order['player/foundry']);
 
   for (const img of images) {
     const out = path.join(publicOut, stagedPathOf(img));

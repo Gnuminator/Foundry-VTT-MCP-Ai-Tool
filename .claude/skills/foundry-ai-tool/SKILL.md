@@ -159,8 +159,7 @@ Checks:
 5. Whisper guard: with a reading in the vault (`plan-tarokka-import` builtin-roll, Tarokka switch
    on), `POST /api/post-chat` with a card name in a sentence (any case) answers 409
    `secret-terms`; with `allowSecrets: true` it posts; plain text posts; without the GM token 403.
-   The GM page's confirm prompt is only on AI commentary cards (needs `ANTHROPIC_API_KEY`), and
-   `app.js` is an ES module, so its functions cannot be called from the console.
+   The dashboard has no AI commentary cards and no confirm prompt for them any more.
 
 Gotchas: Foundry's page cannot `fetch` the dashboard (no CORS), so read player state from
 PowerShell. Foundry itself gives players every non-hidden combatant's name; `/player` is stricter.

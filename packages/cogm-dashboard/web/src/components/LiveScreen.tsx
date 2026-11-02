@@ -151,9 +151,6 @@ export function LiveScreen(): JSX.Element {
               <a className="btn" href={STANDARD_HREF} data-track="dash.live.back">
                 {BACK_TO_STANDARD_TEXT}
               </a>
-              <a className="btn" href="/legacy/" data-track="dash.live.legacy">
-                Old dashboard
-              </a>
             </div>
           </Popover>
         </div>

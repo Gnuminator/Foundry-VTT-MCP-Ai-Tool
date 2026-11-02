@@ -99,7 +99,7 @@ export function showDocked(id: string): boolean {
 interface DrawerProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** The old page's id (preflight-drawer, ...); styles.css and help-links.json key on it. */
+  /** The old page's id (preflight-drawer, ...); styles.css keys on it. */
   id: string;
   title: ReactNode;
   /** The line under the title (.drawer-sub). */

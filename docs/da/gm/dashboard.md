@@ -1,6 +1,6 @@
 ---
 source: gm/dashboard.md
-sourceHash: dc09a344be85
+sourceHash: 3e0e088a1d95
 title: Dashboardet
 description: En rundtur i alle paneler og knapper på dashboardet, hvad de gør, og hvornår du bruger dem.
 ---
@@ -245,11 +245,21 @@ Efter en ændring med Damage / Heal eller Condition viser en besked hvert måls 
 11 to 5") med **Undo** i nogle sekunder; ét klik sætter det tilbage. Senere bruger du **Undo** i
 Recent Changes.
 
+**Conditions** (en knap på During-linjen, når live play og GM Actions er slået til; den virker både i
+en kamp og udenfor): afkryds tokens på den scene, du ser, vælg en condition, og klik **Add** eller
+**Remove**. Det sker med det samme, med **Undo**, og der er intet confirm-vindue. For Exhaustion
+hæver Add med ét niveau, og Remove fjerner dem alle. Et **rules**-link ved hver condition åbner
+dnd5e's egen side for den i Foundry.
+
 **Start combat** og **End combat**: når ingen kamp kører, og GM Actions er slået til, tilbyder Combat
 Tracker **Start combat** (i de fleste During-layouts åbner en lille **Start combat**-knap på
 During-bjælken det samme). Den viser tokens på den scene, du ser, med spillerkarakterer og Hostile
 tokens afkrydset. Ændr fluebenene, og klik på **Start combat with N**. Kampen starter i runde 1, med
-**Undo**. **End combat** planlægger at afslutte kampen; du bekræfter, og Undo bringer den tilbage.
+**Undo**. Et afkrydsningsfelt, **Ask the player characters to roll initiative**, sender hver afkrydset
+spillerkarakter en offentlig rulle-anmodning; når de ruller, står tallet i trackeren. Undo fjerner
+kampen, men anmodningerne bliver i chatten. Den, der har tur, viser **Up now**. Ændrer du en initiative
+bagefter (værktøjet **set-initiative**), skifter rækkefølgen, men turen flytter sig ikke.
+**End combat** planlægger at afslutte kampen; du bekræfter, og Undo bringer den tilbage.
 
 **👑 Boss prompts** (i panelets øverste linje, kun mens et væsen med legendary actions eller en lair
 er med i kampen; slået fra, til du slår det til, og husket i denne browser). Slå det til før den

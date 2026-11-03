@@ -5,7 +5,8 @@
 import { createContext } from 'react';
 
 import type { AiChange } from './changes';
-import type { Combatant } from './combat';
+import { metaText } from './combat';
+import type { Combatant, CombatState } from './combat';
 
 /** False where the page has its own Undo (live screen A's header): the strip then leaves its own out. */
 export const StripUndoContext = createContext(true);
@@ -74,6 +75,25 @@ export function conditionArgs(
   return rounds === undefined ? args : { ...args, rounds };
 }
 
+/** The plan-actor-change arguments that take a condition off one creature (`active: false`). */
+export function removeConditionArgs(target: string, condition: string): Record<string, unknown> {
+  return { action: 'condition', targets: [target], condition, active: false };
+}
+
+/** A condition chip's tooltip: it removes the condition, and for an ended one it says why it is still there. */
+export function chipTitle(name: string, left: unknown): string {
+  return typeof left === 'number' && left <= 0
+    ? `Time is up. Click to take ${name} off.`
+    : `Click to take ${name} off.`;
+}
+
+/** The header's line: "Round 3 · Wolf 2's turn", or the plain round line when nobody has the turn. */
+export function turnText(combat: CombatState, names: ReadonlyMap<string, string>): string {
+  const now = combat.combatants.find(c => c.isCurrentTurn);
+  if (!now) return metaText(combat);
+  return `Round ${combat.round} · ${names.get(now.id) ?? now.name}'s turn`;
+}
+
 /**
  * A condition chip's words: the name, and for a timed one the rounds left ("Prone, 1 round") or
  * "ended" once its time is up. `left` is what the module sent for that name (nothing: untimed).
@@ -99,7 +119,25 @@ export function endQuestion(summary: string | null, warning: string | null): str
  */
 export function lastUndoable(changes: readonly AiChange[]): AiChange | null {
   const newest = changes[0];
-  return newest && newest.mode !== 'undo' && !newest.undoneBy && newest.canUndo ? newest : null;
+  return newest &&
+    newest.mode !== 'undo' &&
+    !newest.undoneBy &&
+    newest.canUndo &&
+    !refusedUndos.has(newest.changeId)
+    ? newest
+    : null;
+}
+
+/** Changes whose Undo the bridge refused as a conflict: the strip stops offering them. */
+const refusedUndos = new Set<string>();
+
+export function markUndoRefused(changeId: string): void {
+  refusedUndos.add(changeId);
+}
+
+/** For tests. */
+export function clearRefusedUndos(): void {
+  refusedUndos.clear();
 }
 
 /** "Undo: Wolf 2: 12 fire damage": the button's words, cut so the header does not grow. */

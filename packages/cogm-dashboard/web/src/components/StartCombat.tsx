@@ -6,12 +6,15 @@ import { useQuery } from '@tanstack/react-query';
 import { useContext, useState, type JSX } from 'react';
 
 import { callTool } from '../lib/api';
-import { useGuardedTools } from '../lib/guarded';
+import { mayHaveApplied, useGuardedTools } from '../lib/guarded';
+import { usage } from '../lib/usage';
 import {
   canFight,
   defaultTicks,
+  initiativeRequestArgs,
   newNpcCombatantIds,
   npcTokenIds,
+  pcNames,
   RollNpcInitiativeContext,
   pickerRows,
   sideWords,
@@ -45,6 +48,9 @@ function TokenList({
     if (!next.delete(id)) next.add(id);
     setEdited(next);
   };
+  // Ask the ticked player characters to roll initiative (a roll request, like Ask roll).
+  const [askPcs, setAskPcs] = useState(true);
+  const pcCount = pcNames(rows, ticked).length;
   const args = startArgs(rows, ticked, sceneId);
   const none = args.tokenIds.length === 0;
   const start = (): void => {
@@ -53,6 +59,40 @@ function TokenList({
     void (async (): Promise<void> => {
       const outcome = await plan('plan-combat-change', args);
       if (outcome.status !== 'done') return;
+      // The players are asked first, so they can roll while the NPCs are rolled for.
+      const askNames = askPcs ? pcNames(rows, ticked) : [];
+      if (askNames.length > 0 && !gated('request-player-rolls')) {
+        // One after another: the module saves each card's button in one shared world setting, and
+        // parallel asks overwrite each other's entries (then /me cannot roll for those players).
+        const answers: PromiseSettledResult<unknown>[] = [];
+        for (const name of askNames) {
+          const [answer] = await Promise.allSettled([
+            callTool('request-player-rolls', initiativeRequestArgs(name), { confirm: true }),
+          ]);
+          answers.push(answer);
+        }
+        const failed = askNames.filter((_, i) => answers[i]?.status === 'rejected');
+        const unsure = askNames.filter((_, i) => {
+          const a = answers[i];
+          return a?.status === 'rejected' && mayHaveApplied(a.reason);
+        });
+        const sure = failed.filter(name => !unsure.includes(name));
+        const sent = askNames.length - failed.length;
+        usage().trackTool('request-player-rolls', failed.length === 0 ? 'ok' : 'error');
+        if (failed.length === 0) {
+          toast(`✓ Asked ${sent === 1 ? askNames[0] : `${sent} characters`} to roll initiative`);
+        } else {
+          const parts = [
+            sure.length > 0
+              ? `Initiative was not asked of ${sure.join(', ')}. They can roll it in Foundry.`
+              : '',
+            unsure.length > 0
+              ? `Not confirmed for ${unsure.join(', ')}: it may have been sent, check chat.`
+              : '',
+          ];
+          toast(parts.filter(Boolean).join(' '), 'warn');
+        }
+      }
       // The fight exists now. The NPCs roll through the same gate and a plain write, as Next turn does.
       const npcTokens = npcTokenIds(rows, ticked);
       if (rollNpcs && npcTokens.size > 0 && !gated('roll-initiative-for-npcs')) {
@@ -105,6 +145,17 @@ function TokenList({
           </li>
         ))}
       </ul>
+      {pcCount > 0 && (
+        <label className="cs-hint">
+          <input
+            type="checkbox"
+            checked={askPcs}
+            disabled={busy}
+            onChange={() => setAskPcs(!askPcs)}
+          />{' '}
+          Ask the player characters to roll initiative
+        </label>
+      )}
       <div className="ca-row">
         <Button
           variant="primary"

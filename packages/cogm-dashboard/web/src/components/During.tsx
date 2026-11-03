@@ -43,6 +43,10 @@ import { TurnOnNote } from './TurnOnNote';
 
 // The picker is a lazy chunk (bundle budget): it loads when the bar's Start combat is clicked.
 const StartCombat = lazy(() => import('./StartCombat').then(m => ({ default: m.StartCombat })));
+// So is the Conditions panel: it loads when the bar's Conditions button is clicked.
+const ConditionsPanel = lazy(() =>
+  import('./ConditionsPanel').then(m => ({ default: m.ConditionsPanel }))
+);
 
 /** What the layout buttons say while the world (and so the saved choice) is not known yet. */
 export const NOT_READY_TIP =
@@ -233,6 +237,12 @@ export function DuringBar({ during }: { during: DuringController }): JSX.Element
   const startHere = barHere && liveOff.length === 0;
   const pickerRow = useRef<HTMLDivElement>(null);
   const giveFocusBack = useRef(false);
+  // Conditions work in a fight and out of one, so the button is on the bar whenever live play is on.
+  const conditionsHere = trial === null && liveOff.length === 0;
+  const [conditionsOpen, setConditionsOpen] = useState(false);
+  useEffect(() => {
+    if (!conditionsHere) setConditionsOpen(false);
+  }, [conditionsHere]);
   // The picker belongs to the button: when the button goes away (a fight began, Full, GM Actions
   // off), the next calm screen starts closed.
   useEffect(() => {
@@ -361,6 +371,32 @@ export function DuringBar({ during }: { during: DuringController }): JSX.Element
               onDismiss={() => {
                 giveFocusBack.current = true;
                 setPicking(false);
+              }}
+            />
+          </Suspense>
+        </div>
+      )}
+      {conditionsHere && (
+        <Button
+          id="btn-during-conditions"
+          data-track="dash.during.conditions"
+          aria-expanded={conditionsOpen}
+          aria-controls="conditions-panel"
+          title="Add or remove a condition on tokens, in a fight or out of one"
+          onClick={() => setConditionsOpen(open => !open)}
+        >
+          Conditions
+        </Button>
+      )}
+      {conditionsHere && conditionsOpen && (
+        <div className="during-conditions">
+          <Suspense fallback={<DelayedLoading as="div" />}>
+            <ConditionsPanel
+              onClose={() => {
+                setConditionsOpen(false);
+                requestAnimationFrame(() =>
+                  document.getElementById('btn-during-conditions')?.focus()
+                );
               }}
             />
           </Suspense>

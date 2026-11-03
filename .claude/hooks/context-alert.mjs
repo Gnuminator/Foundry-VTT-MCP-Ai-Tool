@@ -3,10 +3,7 @@
 // PostToolUse (every tool) and UserPromptSubmit, so it must be fast: it reads only the last 512 KB
 // of the transcript (transcripts reach tens of MB), no network, no full-file read.
 //
-// Rule: plan the handover at 350k tokens, be out by 400k. While weekly usage is on or above pace the
-// lines are 200k and 250k (low mode: env CONTEXT_ALERT_LOW=1, or the file
-// ~/.foundry-ai-tool/context-thresholds.json = { "plan": n, "out": n }, which the planner writes;
-// the file wins over the env).
+// Rule (fixed, the user 2026-11-03): plan the handover at 200k tokens, be out by 250k.
 //
 // Context = input + cache read + cache creation tokens of the last main-thread assistant response
 // (of its last sampling pass when the response has several, see contextOf), counted only when the
@@ -17,8 +14,7 @@
 // Output: JSON with `systemMessage` (shown to the user) and `hookSpecificOutput.additionalContext`
 // (for Claude), or nothing at all. Any failure prints nothing and exits 0: a hook must never block.
 //
-// Overrides (tests and checks): CONTEXT_ALERT_LOW, CONTEXT_ALERT_THRESHOLDS_FILE,
-// CONTEXT_ALERT_STATE_DIR.
+// Override (tests and checks): CONTEXT_ALERT_STATE_DIR.
 
 import {
   closeSync,
@@ -33,38 +29,9 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
-export const PLAN_AT = 350_000;
-export const OUT_AT = 400_000;
-export const LOW_PLAN_AT = 200_000;
-export const LOW_OUT_AT = 250_000;
+export const PLAN_AT = 200_000;
+export const OUT_AT = 250_000;
 export const TAIL_BYTES = 512 * 1024;
-
-// --- thresholds ----------------------------------------------------------------------------
-
-function validPair(plan, out) {
-  return Number.isFinite(plan) && Number.isFinite(out) && plan > 0 && out > plan
-    ? { plan, out }
-    : null;
-}
-
-export function thresholdsFile(env = process.env) {
-  return (
-    env.CONTEXT_ALERT_THRESHOLDS_FILE ||
-    path.join(os.homedir(), '.foundry-ai-tool', 'context-thresholds.json')
-  );
-}
-
-export function thresholdsFor(env = process.env) {
-  try {
-    const data = JSON.parse(readFileSync(thresholdsFile(env), 'utf8').replace(/^﻿/, ''));
-    const pair = validPair(Number(data?.plan), Number(data?.out));
-    if (pair) return pair;
-  } catch {
-    // no file, or unreadable: the env or the defaults
-  }
-  if (env.CONTEXT_ALERT_LOW === '1') return { plan: LOW_PLAN_AT, out: LOW_OUT_AT };
-  return { plan: PLAN_AT, out: OUT_AT };
-}
 
 // --- the transcript tail -------------------------------------------------------------------
 
@@ -197,14 +164,14 @@ function writeLevel(sessionId, level, env) {
 
 const k = tokens => `${Math.round(tokens / 1000)}k`;
 
-export function messageFor(level, context, { plan, out }, eventName) {
+export function messageFor(level, context, eventName) {
   const hookEventName = eventName || 'PostToolUse';
   if (level === 2) {
     return {
       systemMessage: `Context ${k(context)}: hand over now.`,
       hookSpecificOutput: {
         hookEventName,
-        additionalContext: `Context is ${k(context)} tokens (D-122 hard line ${k(out)}): stop taking new work and write the handover prompt now (lane skill), then stop.`,
+        additionalContext: `Context is ${k(context)} tokens (D-122 hard line ${k(OUT_AT)}): stop taking new work and write the handover prompt now (lane skill), then stop.`,
       },
     };
   }
@@ -212,7 +179,7 @@ export function messageFor(level, context, { plan, out }, eventName) {
     systemMessage: `Context ${k(context)}: plan the handover (lane skill).`,
     hookSpecificOutput: {
       hookEventName,
-      additionalContext: `Context is ${k(context)} tokens (D-122 handover line ${k(plan)}): finish the current step, then write the handover prompt and stop. Out by ${k(out)}.`,
+      additionalContext: `Context is ${k(context)} tokens (D-122 handover line ${k(PLAN_AT)}): finish the current step, then write the handover prompt and stop. Out by ${k(OUT_AT)}.`,
     },
   };
 }
@@ -227,8 +194,7 @@ export function run(input, env = process.env) {
     const sessionId = input.session_id || 'unknown';
     const context = contextFromTranscript(input.transcript_path);
     if (context === null) return '';
-    const thresholds = thresholdsFor(env);
-    const level = context >= thresholds.out ? 2 : context >= thresholds.plan ? 1 : 0;
+    const level = context >= OUT_AT ? 2 : context >= PLAN_AT ? 1 : 0;
     const announced = readLevel(sessionId, env);
     if (level === 0) {
       if (announced) writeLevel(sessionId, 0, env);
@@ -236,7 +202,7 @@ export function run(input, env = process.env) {
     }
     if (level <= announced) return '';
     writeLevel(sessionId, level, env);
-    return JSON.stringify(messageFor(level, context, thresholds, input.hook_event_name));
+    return JSON.stringify(messageFor(level, context, input.hook_event_name));
   } catch {
     return '';
   }

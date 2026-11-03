@@ -1,5 +1,5 @@
 // Live screen A (item live-screen-a): the opt-in "Live" view of the dashboard. During stays the
-// default; the Live view is the same page with ?live=1, reached from the header switch or typed.
+// default; the Live view is the same page with ?live=1, reached from the Live views menu or typed.
 
 /**
  * The Live view's address and the default dashboard's, relative to the page they are on: the new
@@ -26,6 +26,5 @@ export function optInScreen(pathname: string, search: string): OptInScreenName |
   return params.get('live') === '1' ? 'live' : null;
 }
 
-/** The words of the header switch on the default dashboard and of the way back. */
-export const TRY_LIVE_TEXT = 'Live screen';
+/** The words of the way back. */
 export const BACK_TO_STANDARD_TEXT = 'Back to the During view';

@@ -48,6 +48,7 @@ import {
   type SelectionAction,
 } from '../lib/combat';
 import { useLivePlay, type LivePlay } from '../lib/livePlay';
+import { chipText } from '../lib/liveStrip';
 import { offReason } from '../lib/liveSwitches';
 import { useBridgeAway, useCombat, useDashboardSettings } from '../lib/stream';
 import { DelayedLoading, Panel, Pill } from '../ui';
@@ -199,13 +200,12 @@ function CombatantRow({
           ) : (
             <span className="combatant-text">{c.name}</span>
           )}
-          {(c.defeated || c.isCurrentTurn) && (
-            <span className="visually-hidden">
-              {[c.isCurrentTurn && 'current turn', c.defeated && 'defeated']
-                .filter(Boolean)
-                .join(', ')}
+          {c.isCurrentTurn && (
+            <span className="turn-pill" data-turn-pill>
+              <span aria-hidden="true">▶ </span>Up now
             </span>
           )}
+          {c.defeated && <span className="visually-hidden">defeated</span>}
           <span className={`side side-${side}`}>{SIDE_LABEL[side]}</span>
           {showReaction(bossFlag, c) && (
             <button
@@ -234,7 +234,7 @@ function CombatantRow({
           <div className="conditions">
             {c.conditions.map(cond => (
               <Pill key={cond} variant="condition">
-                {cond}
+                {chipText(cond, c.timed?.[cond])}
               </Pill>
             ))}
           </div>

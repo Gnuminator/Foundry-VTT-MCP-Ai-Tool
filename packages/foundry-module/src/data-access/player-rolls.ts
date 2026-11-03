@@ -1,4 +1,5 @@
 import { MODULE_ID, ERROR_MESSAGES } from '../constants.js';
+import { resolveCombat } from '../combat-resolve.js';
 import * as shared from './shared.js';
 import { trackUsage } from '../usage-recorder.js';
 import { logDebug, logInfo } from '../log.js';
@@ -22,6 +23,9 @@ interface ResolveResult {
   errorType?: 'PLAYER_OFFLINE' | 'PLAYER_NOT_FOUND' | 'CHARACTER_NOT_FOUND';
   errorMessage?: string;
 }
+
+/** An initiative request the tracker will not take (already rolled, or from an earlier fight). */
+class InitiativeRefused extends Error {}
 
 /** A GM's choice for a d20 roll; absent means dnd5e decides from conditions and flags. */
 type RollAdvantage = 'advantage' | 'disadvantage';
@@ -520,6 +524,7 @@ export class PlayerRollsDataAccess {
           dc: button.attr('data-dc') !== undefined && Number.isFinite(dcRaw) ? dcRaw : null,
           isGmRoll,
           advantage: parseAdvantage(button.attr('data-advantage')),
+          requestedAt: Number(rec(clickedMessage)?.timestamp),
         });
 
         // Update the ChatMessage to reflect rolled state
@@ -544,8 +549,12 @@ export class PlayerRollsDataAccess {
         }
       } catch (error) {
         console.error(`[${MODULE_ID}] Error executing roll:`, error);
-        trackUsage('error', 'module.error.roll-button', { code: 'roll-failed' });
-        ui.notifications?.error('Failed to execute roll');
+        if (error instanceof InitiativeRefused) {
+          ui.notifications?.warn(error.message);
+        } else {
+          trackUsage('error', 'module.error.roll-button', { code: 'roll-failed' });
+          ui.notifications?.error('Failed to execute roll');
+        }
 
         // Re-enable button on error so user can try again
         button.prop('disabled', false);
@@ -581,6 +590,8 @@ export class PlayerRollsDataAccess {
     dc: number | null;
     isGmRoll: boolean;
     advantage?: RollAdvantage | undefined;
+    /** When the request card was posted (ms); an initiative roll refuses a later fight. */
+    requestedAt?: number | undefined;
   }): Promise<void> {
     const { rollLabel, isPublic, characterId, targetUserId, dc, isGmRoll, advantage } = args;
     // A custom formula is the GM's own; only d20 rolls take the choice.
@@ -605,6 +616,19 @@ export class PlayerRollsDataAccess {
           }
         }
       }
+    }
+
+    // A public initiative request during a fight fills the tracker, as a roll from the tracker
+    // does. A private one keeps its whisper, so it takes the plain path below.
+    // A request with a modifier added keeps the plain path, so the card's formula is honoured.
+    if (
+      character &&
+      args.rollType === 'initiative' &&
+      isPublic &&
+      /^1d20([+-]\d+)?$/.test(args.rollFormula.replace(/\s+/g, '')) &&
+      (await this.rollTrackerInitiative(character, args.requestedAt))
+    ) {
+      return;
     }
 
     // Checks, saves and attacks roll through dnd5e itself, so conditions (poisoned), advantage
@@ -650,6 +674,54 @@ export class PlayerRollsDataAccess {
         ? { messageMode: 'gm' }
         : { rollMode: 'whisper' };
     await roll.toMessage(messageData, { create: true, ...visibility });
+  }
+
+  /**
+   * Roll initiative for the actor's combatant in the fight the strip means, so the order in the
+   * tracker fills and Foundry posts its own initiative card. False when the actor is in no fight
+   * (the caller then rolls a plain d20 and the number only shows in chat).
+   */
+  private async rollTrackerInitiative(actor: Actor, requestedAt?: number): Promise<boolean> {
+    const combat = resolveCombat<Combat>();
+    if (!combat) return false;
+    const raw: unknown = combat.combatants;
+    const all =
+      (raw as { contents?: Combatant[] } | undefined)?.contents ??
+      (Array.isArray(raw) ? (raw as Combatant[]) : []);
+    const mine = all.find(c => c.actorId === actor.id);
+    if (!mine?.id || (mine as { isOwner?: boolean }).isOwner === false) return false;
+    // Never overwrite a number that is already there.
+    if (typeof mine.initiative === 'number') {
+      throw new InitiativeRefused('Your initiative is already in the tracker.');
+    }
+    // A card made before this fight began (left open from an earlier fight, or asked for before
+    // Start combat) takes the plain roll, as it did before the tracker path existed. A number
+    // already there is refused first, whatever the card's age.
+    const startedAt = (combat as { _stats?: { createdTime?: number | null } })._stats?.createdTime;
+    if (
+      typeof requestedAt === 'number' &&
+      Number.isFinite(requestedAt) &&
+      typeof startedAt === 'number' &&
+      startedAt > requestedAt
+    ) {
+      return false;
+    }
+    try {
+      // A hidden combatant keeps Foundry's own rule (a GM-only card); the rest get a public one.
+      const visibility = (mine as { hidden?: boolean }).hidden
+        ? {}
+        : shared.usesMessageModes()
+          ? { messageMode: shared.rollModeFor(true) }
+          : { messageOptions: { rollMode: shared.rollModeFor(true) } };
+      await combat.rollInitiative([mine.id], visibility);
+    } catch (error) {
+      // Foundry would not roll it (permissions, a module): the plain roll below still answers,
+      // unless the number was already written before it threw (then the tracker has it).
+      logDebug(`[${MODULE_ID}] Tracker initiative failed, rolling a plain d20:`, error);
+      const written = combat.combatants.get(mine.id)?.initiative;
+      return typeof written === 'number';
+    }
+    return true;
   }
 
   /**
@@ -887,6 +959,7 @@ export class PlayerRollsDataAccess {
         dc,
         isGmRoll: false,
         advantage: parseAdvantage(state.advantage),
+        requestedAt: sentAt,
       });
       // The roll is posted: a failed mark must not read as a failed roll (the player would press
       // again and roll twice).
@@ -898,6 +971,7 @@ export class PlayerRollsDataAccess {
       }
       return { success: true, message: `${rollLabel} rolled.` };
     } catch (error) {
+      if (error instanceof InitiativeRefused) return { success: false, error: error.message };
       console.error(`[${MODULE_ID}] Error rolling for a player:`, error);
       trackUsage('error', 'module.error.roll-button', { code: 'roll-failed' });
       return { success: false, error: 'The roll did not work. Try it in Foundry instead.' };

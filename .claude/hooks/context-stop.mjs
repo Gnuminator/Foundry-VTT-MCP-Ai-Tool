@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 // Context hard stop (PreToolUse hook, insights report 2026-10-31): once the main thread is at or
-// above the "out" line (400k, or the low-mode file ~/.foundry-ai-tool/context-thresholds.json, the
-// same source as context-alert.mjs), no new work starts. The alert hook prints its line once and
+// above the "out" line (250k, OUT_AT in context-alert.mjs), no new work starts. The alert hook prints its line once and
 // nothing enforced it; two lanes ran on to 574k and 607k.
 //
 // Denied above the line:
@@ -22,7 +21,7 @@
 // (its top level sums two passes), and a reading counts only when the response before it was also
 // big, so a doubled phantom reading never stops a session.
 //
-// A false deny at 400k costs a handover that was due anyway, but every doubt allows: a payload we
+// A false deny at 250k costs a handover that was due anyway, but every doubt allows: a payload we
 // do not understand, no transcript, a shell command that only reads. This is a nudge with a clear
 // message, not a security boundary (a script run from a file can still write).
 // Reads the hook payload (JSON) on stdin; prints a deny decision or nothing.
@@ -30,7 +29,7 @@
 import path from 'node:path';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { contextFromTranscript, thresholdsFor } from './context-alert.mjs';
+import { OUT_AT, contextFromTranscript } from './context-alert.mjs';
 import { maskQuotes, splitBodies } from './guard-shell-edits.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -216,7 +215,7 @@ export function shellWritesRepo(command, cwd, repoRoot = REPO_ROOT) {
 const k = tokens => `${Math.round(tokens / 1000)}k`;
 
 function denyMessage(context, out, what) {
-  return `Context is ${k(context)}, at or above the hand-over line (${k(out)}): ${what} is new work. Hand over now: write the handover note to the vault (Handoff/<lane> prompt <date>.md), update the - progress: line on the Backlog item, git add/commit/push what is done, tell the newest Planner, and stop. Still allowed: Read, Grep, Glob, git add/commit/push, gh, writes to the vault and the scratchpad, SendMessage, set_session_title, wrap_up, update_plan. Under the line again (after /compact) this lifts by itself.`;
+  return `Context is ${k(context)}, at or above the hand-over line (${k(out)}): ${what} is new work. Hand over now: write the handover note to the vault (Handoff/<lane> prompt <date>.md), update the - progress: line on the Backlog item, git add/commit/push what is done, and stop. Still allowed: Read, Grep, Glob, git add/commit/push, gh, writes to the vault and the scratchpad, SendMessage, set_session_title, wrap_up, update_plan. Under the line again (after /compact) this lifts by itself.`;
 }
 
 /** The deny reason for a hook payload, or null to allow. Never throws. */
@@ -241,9 +240,8 @@ export function decide(input, env = process.env, repoRoot = REPO_ROOT) {
     if (!what) return null;
     const context = contextFromTranscript(input.transcript_path);
     if (context === null) return null;
-    const { out } = thresholdsFor(env);
-    if (context < out) return null;
-    return denyMessage(context, out, what);
+    if (context < OUT_AT) return null;
+    return denyMessage(context, OUT_AT, what);
   } catch {
     return null;
   }

@@ -325,12 +325,41 @@ test('How do I... opens the GM coach guide', async ({ page }) => {
   await expect(page.locator('#pane-help')).toBeVisible();
 });
 
-test('the default dashboard has the switch that opens the Live view', async ({ page }) => {
+test('the default dashboard has one Live views menu with the three views', async ({ page }) => {
   await setup(page);
+  await page.route('**/api/gm-page', route =>
+    route.fulfill({ json: { foundryUrl: null, foundryOrigin: null } })
+  );
   await page.goto(`/next/?token=${GM_TOKEN}`);
-  const link = page.locator('#try-live-screen');
-  await expect(link).toHaveText('Live screen');
-  await expect(link).toHaveAttribute('href', './?live=1');
+  await page.locator('#btn-live-views').click();
+  await expect(page.locator('#live-views-live')).toHaveAttribute('href', './?live=1');
+  await expect(page.locator('#live-views-gm')).toHaveAttribute('href', '/gm');
+  await expect(page.locator('#live-views-window')).toContainText('AI Tool: Live window');
+  await expect(page.locator('#live-views [role="note"]')).toContainText('DASHBOARD_FOUNDRY_URL');
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#live-views-live')).toHaveCount(0);
+  await expect(page.locator('#btn-live-views')).toBeFocused();
+});
+
+test('Live views shows a player only the Live screen, and no address note with Foundry known', async ({
+  page,
+}) => {
+  await setup(page);
+  await page.route('**/api/gm-page', route =>
+    route.fulfill({ status: 403, json: { error: 'GM only' } })
+  );
+  await page.goto(`/next/?token=${GM_TOKEN}`);
+  await page.locator('#btn-live-views').click();
+  await expect(page.locator('#live-views-live')).toBeVisible();
+  await expect(page.locator('#live-views-gm')).toHaveCount(0);
+  await page.unroute('**/api/gm-page');
+  await page.route('**/api/gm-page', route =>
+    route.fulfill({ json: { foundryUrl: 'http://f/', foundryOrigin: 'http://f' } })
+  );
+  await page.reload();
+  await page.locator('#btn-live-views').click();
+  await expect(page.locator('#live-views-gm')).toBeVisible();
+  await expect(page.locator('#live-views [role="note"]')).toHaveCount(0);
 });
 
 for (const width of [1440, 400]) {

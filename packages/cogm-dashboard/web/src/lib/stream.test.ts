@@ -6,6 +6,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   CHANGES_KEY,
   CHANGES_RELOAD_MS,
+  COMBAT_KEY,
+  REFRESH_COMBAT_MAX_MS,
+  refreshCombat,
   FEED_KEY,
   STREAM_DROP_GRACE_MS,
   STREAM_GIVE_UP_AFTER,
@@ -16,11 +19,15 @@ import {
   startStream,
   streamRetryDelay,
   streamTrouble,
+  withKnownPortraits,
   type StreamLink,
 } from './stream';
+import { readCombat } from './combat';
 
 // auth.ts reads the page's location when it loads; there is no page here.
 vi.mock('./auth', () => ({ streamUrl: (): string => '/api/stream' }));
+const callTool = vi.hoisted(() => vi.fn());
+vi.mock('./api', () => ({ callTool }));
 
 const T = 1_000_000;
 const dropped: StreamLink = { state: 'dropped', since: T };
@@ -223,5 +230,106 @@ describe('the events handler and Recent Changes', () => {
     onEvents(queryClient, { events: [event('a', 'gm-change'), event('b', 'gm-change')] });
     await vi.advanceTimersByTimeAsync(CHANGES_RELOAD_MS);
     expect(reloaded()).toBe(true);
+  });
+});
+
+describe('refreshCombat', () => {
+  const fight = readCombat({
+    active: true,
+    round: 1,
+    turn: 0,
+    current: null,
+    combatants: [{ id: 'a', name: 'Wolf' }],
+  });
+  const fresh = (): QueryClient => {
+    const qc = new QueryClient();
+    qc.setQueryData(COMBAT_KEY, fight);
+    return qc;
+  };
+  beforeEach(() => {
+    callTool.mockReset();
+    vi.useFakeTimers();
+  });
+  afterEach(() => vi.useRealTimers());
+
+  it('leaves the fight alone when the read fails or says nothing about a fight', async () => {
+    const qc = fresh();
+    callTool.mockRejectedValueOnce(new Error('away'));
+    await refreshCombat(qc);
+    callTool.mockResolvedValueOnce({});
+    await refreshCombat(qc);
+    expect(qc.getQueryData(COMBAT_KEY)).toBe(fight);
+  });
+
+  it('gives up on a read that does not answer', async () => {
+    const qc = fresh();
+    callTool.mockReturnValueOnce(new Promise(() => undefined));
+    const done = refreshCombat(qc);
+    await vi.advanceTimersByTimeAsync(REFRESH_COMBAT_MAX_MS);
+    await done;
+    expect(qc.getQueryData(COMBAT_KEY)).toBe(fight);
+  });
+
+  it('ends the fight when the tool says none runs', async () => {
+    const qc = fresh();
+    callTool.mockResolvedValueOnce({ active: false });
+    await refreshCombat(qc);
+    expect(qc.getQueryData(COMBAT_KEY)).toBeNull();
+  });
+
+  it('keeps a fight the stream pushed while the read was out', async () => {
+    const qc = fresh();
+    const listeners = new Map<string, (e: MessageEvent<string>) => void>();
+    const source = {
+      readyState: 1,
+      onopen: null,
+      onerror: null,
+      close: (): void => undefined,
+      addEventListener: (name: string, fn: (e: MessageEvent<string>) => void): void => {
+        listeners.set(name, fn);
+      },
+    };
+    const stop = startStream(qc, {
+      create: () => source as unknown as EventSource,
+      schedule: (): (() => void) => () => undefined,
+    });
+    let answer: (raw: unknown) => void = (): void => undefined;
+    callTool.mockReturnValueOnce(
+      new Promise<unknown>(resolve => {
+        answer = resolve;
+      })
+    );
+    const done = refreshCombat(qc);
+    // The stream pushes the newer fight, then the older read comes back.
+    listeners.get('combat')?.({
+      data: JSON.stringify({
+        combat: { active: true, round: 3, turn: 0, current: null, combatants: [] },
+      }),
+    } as MessageEvent<string>);
+    answer({ active: true, round: 1, turn: 0, current: null, combatants: [] });
+    await done;
+    stop();
+    expect(qc.getQueryData<{ round: number }>(COMBAT_KEY)?.round).toBe(3);
+  });
+});
+
+describe('a combat read straight from the tool', () => {
+  const raw = (img: string | null): unknown => ({
+    active: true,
+    round: 2,
+    turn: 0,
+    current: null,
+    combatants: [{ id: 'a', name: 'Wolf', hp: { value: 5, max: 11, temp: 0 }, img }],
+  });
+
+  it('keeps the portrait address the stream already had', () => {
+    const known = readCombat(raw('http://f/wolf.png'));
+    const fresh = readCombat(raw('/tokens/wolf.png'));
+    expect(withKnownPortraits(fresh, known)?.combatants[0]?.img).toBe('http://f/wolf.png');
+  });
+
+  it('has no portrait when none was ever known, and no fight stays none', () => {
+    expect(withKnownPortraits(readCombat(raw('/x.png')), null)?.combatants[0]?.img).toBeNull();
+    expect(withKnownPortraits(null, null)).toBeNull();
   });
 });

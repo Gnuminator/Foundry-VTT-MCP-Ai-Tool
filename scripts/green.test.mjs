@@ -38,6 +38,7 @@ import {
   cloudGreen,
   repoFromUrl,
   quickSteps,
+  quickLintSteps,
 } from './green.mjs';
 import { main as prePush, CHECKS, pushedCommits } from './pre-push.mjs';
 import { HELD_ENV } from './heavy-lock.mjs';
@@ -784,7 +785,8 @@ test('quickSteps: typecheck and unit tests of each touched package only', () => 
     'unit-discord-bot',
     'unit-mcp-server',
   ]);
-  assert.deepEqual(quickNames(['docs/dev/X.md', 'changelog.d/x.md']), []);
+  // Markdown that is not there (deleted) gets only the link check.
+  assert.deepEqual(quickNames(['docs/dev/X.md', 'changelog.d/x.md']), ['docs-links-quick']);
 });
 
 test('quickSteps: a dashboard web or test-kit change builds the mcp-server and runs the kit scenario check', () => {
@@ -799,7 +801,7 @@ test('quickSteps: a dashboard web or test-kit change builds the mcp-server and r
 });
 
 test('quickSteps: a shared change typechecks every package and tests shared', () => {
-  assert.deepEqual(quickNames(['shared/src/types.ts']), ['build-shared', 'typecheck-all', 'unit-shared']);
+  assert.deepEqual(quickNames(['shared/src/types.ts']), ['build-shared', 'typecheck-all', 'lint-changed', 'unit-shared']);
 });
 
 test('quickSteps: a changed script runs its test, a changed test runs itself, a missing test is left out', () => {
@@ -820,6 +822,7 @@ test('quickSteps: touched dashboard e2e specs build the dashboard and run only t
   assert.deepEqual(names, [
     'build-shared',
     'typecheck-cogm-dashboard',
+    'lint-changed',
     'unit-cogm-dashboard',
     'catalog-check',
     'build-dashboard',
@@ -836,6 +839,7 @@ test('quickSteps: dashboard web files add catalogue check, one build and the bun
   assert.deepEqual(quickNames(['packages/cogm-dashboard/web/src/App.tsx']), [
     'build-shared',
     'typecheck-cogm-dashboard',
+    'lint-changed',
     'unit-cogm-dashboard',
     'catalog-check',
     'build-dashboard',
@@ -925,6 +929,77 @@ test('main --quick --list: lists the quick steps, and no base is an error too', 
   assert.match(lines.at(-1), /found no base/);
 });
 
+test('quickLintSteps: ESLint on changed TypeScript, markdownlint on changed Markdown, then the link check', () => {
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'quick-lint-'));
+  const touch = f => {
+    fs.mkdirSync(path.dirname(path.join(cwd, f)), { recursive: true });
+    fs.writeFileSync(path.join(cwd, f), '');
+  };
+  for (const f of ['packages/a/src/b.ts', 'packages/a/src/c.tsx', 'packages/a/src/types.d.ts', 'docs/gm/x.md', 'changelog.d/y.md', 'scripts/z.mjs']) touch(f);
+  const files = [
+    'packages/a/src/c.tsx',
+    'packages/a/src/b.ts',
+    'packages/a/src/types.d.ts',
+    'packages/a/src/gone.ts',
+    'docs/gm/x.md',
+    'changelog.d/y.md',
+    'docs/gm/gone.md',
+    'scripts/z.mjs',
+  ];
+  const steps = quickLintSteps(files, cwd);
+  assert.deepEqual(steps.map(s => s.name), ['lint-changed', 'docs-lint-changed', 'docs-links-quick']);
+  // present files only, sorted; no .d.ts (ESLint ignores it), no deleted file (ESLint fails on it)
+  assert.deepEqual(steps[0].args, ['eslint', '--no-warn-ignored', '--max-warnings', '0', 'packages/a/src/b.ts', 'packages/a/src/c.tsx']);
+  assert.equal(steps[0].cmd, 'npx');
+  // --no-globs: only the named files, not the config's "**/*.md"
+  assert.deepEqual(steps[1].args, ['run', 'docs:lint', '--', '--no-globs', 'changelog.d/y.md', 'docs/gm/x.md']);
+  assert.deepEqual(steps[2].args, ['run', 'docs:links']);
+  for (const s of steps) assert.doesNotThrow(() => commandLine(s));
+
+  // A deleted Markdown file alone: nothing to lint, but a link to it may now be broken.
+  assert.deepEqual(quickLintSteps(['docs/gm/gone.md'], cwd).map(s => s.name), ['docs-links-quick']);
+  // No TypeScript or Markdown: no lint step.
+  assert.deepEqual(quickLintSteps(['scripts/z.mjs', 'packages/a/package.json'], cwd), []);
+  // A name that would need quoting is left out rather than breaking the command line.
+  touch('docs/gm/with space.md');
+  assert.deepEqual(quickLintSteps(['docs/gm/with space.md'], cwd).map(s => s.name), ['docs-links-quick']);
+});
+
+test('quickLintSteps: a changed lint config or a very long list lints everything', () => {
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'quick-lint-'));
+  assert.deepEqual(quickLintSteps(['eslint.config.mjs'], cwd), [{ name: 'lint-changed', cmd: 'npm', args: ['run', 'lint'] }]);
+  assert.deepEqual(
+    quickLintSteps(['.markdownlint-cli2.jsonc'], cwd).map(s => [s.name, ...s.args]),
+    [
+      ['docs-lint-changed', 'run', 'docs:lint'],
+      ['docs-links-quick', 'run', 'docs:links'],
+    ]
+  );
+  const many = Array.from({ length: 151 }, (_, i) => `packages/a/src/f${i}.ts`);
+  for (const f of many) {
+    fs.mkdirSync(path.dirname(path.join(cwd, f)), { recursive: true });
+    fs.writeFileSync(path.join(cwd, f), '');
+  }
+  assert.deepEqual(quickLintSteps(many, cwd)[0].args, ['run', 'lint']);
+});
+
+test('quickSteps: the lint steps sit after the typecheck, before the unit tests, and take no heavy slot', () => {
+  const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+  const names = quickNames(['packages/mcp-server/src/index.ts', 'docs/dev/ARCHITECTURE.md']);
+  assert.deepEqual(names, [
+    'build-shared',
+    'typecheck-mcp-server',
+    'lint-changed',
+    'docs-lint-changed',
+    'docs-links-quick',
+    'unit-mcp-server',
+  ]);
+  for (const s of quickSteps(['packages/mcp-server/src/index.ts', 'docs/dev/ARCHITECTURE.md'], root)) {
+    assert.ok(!HEAVY_STEPS.has(s.name), `${s.name} would take a heavy slot`);
+    assert.ok(!LIGHT_FIRST.has(s.name), `${s.name} would be reordered by lightFirst`);
+  }
+});
+
 test('quickSteps: a deleted package file still triggers that package', () => {
   assert.deepEqual(quickNames(['packages/mcp-server/src/gone.ts']), [
     'build-shared',
@@ -965,7 +1040,7 @@ test('main --quick: runs the quick steps without the heavy lock, nothing to chec
   assert.equal(locked, 0, 'a quick run takes no heavy slot');
   assert.match(lines.at(-1), /^green: OK, 3 steps/);
   lines.length = 0;
-  assert.equal(main({ ...base, changed: ['README.md'] }), 0);
+  assert.equal(main({ ...base, changed: ['package.json'] }), 0);
   assert.match(lines.at(-1), /OK \(quick\), nothing to check/);
   assert.equal(main({ ...base, changed: ['packages/mcp-server/src/a.ts'], runStep: () => 1 }), 1);
 });

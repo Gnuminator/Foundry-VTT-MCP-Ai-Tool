@@ -15,7 +15,7 @@
  *   npm run green -- --from NAME        start at this step
  *   npm run green -- --skip a,b         leave these steps out
  *   npm run green -- --cloud            run CI on GitHub for the pushed HEAD instead (see cloudGreen)
- *   npm run green -- --quick            typecheck + unit tests of what changed vs aitool/main, no heavy lock
+ *   npm run green -- --quick            typecheck, lint and unit tests of what changed vs aitool/main, no heavy lock
  *
  * The steps run in the repository the command is started in (the git top level of the current
  * directory). On Windows, when this process is not Node 22 (the global Node 24 crashes natively
@@ -983,10 +983,57 @@ export function touchesDashboardWeb(files) {
 export const QUICK_SCREENSHOT_NOTE =
   'Screenshots are not checked locally; CI dashboard-visual will run them.';
 
+/** More changed files than this lint the whole repo instead (a Windows command line has a limit). */
+const QUICK_LINT_MAX_FILES = 150;
+
+/**
+ * The lint steps of `green --quick` (CI found lint errors that the quick checks let through):
+ * ESLint on the changed TypeScript files and markdownlint on the changed Markdown, both with the
+ * repo's own config and ignores, then the link and Danish twin check when any Markdown changed. A
+ * changed lint config lints everything it covers. Deleted files and names that would need quoting
+ * are left out. CI's lint ratchet and docs lint still run the full set.
+ * @param {string[]} files repo-relative paths, forward slashes
+ * @param {string} cwd
+ * @returns {Step[]}
+ */
+export function quickLintSteps(files, cwd) {
+  /** @type {Step[]} */
+  const steps = [];
+  const present = (/** @type {RegExp} */ re) =>
+    files.filter(f => re.test(f) && isShellSafe(f) && fs.existsSync(path.join(cwd, f))).sort();
+  const ts = present(/\.tsx?$/).filter(f => !f.endsWith('.d.ts'));
+  const lintAll = files.includes('eslint.config.mjs') || ts.length > QUICK_LINT_MAX_FILES;
+  if (lintAll) {
+    steps.push({ name: 'lint-changed', cmd: 'npm', args: ['run', 'lint'] });
+  } else if (ts.length > 0) {
+    steps.push({
+      name: 'lint-changed',
+      cmd: 'npx',
+      args: ['eslint', '--no-warn-ignored', '--max-warnings', '0', ...ts],
+    });
+  }
+  const md = present(/\.md$/);
+  const docsAll = files.includes('.markdownlint-cli2.jsonc') || md.length > QUICK_LINT_MAX_FILES;
+  if (docsAll) {
+    steps.push({ name: 'docs-lint-changed', cmd: 'npm', args: ['run', 'docs:lint'] });
+  } else if (md.length > 0) {
+    steps.push({
+      name: 'docs-lint-changed',
+      cmd: 'npm',
+      args: ['run', 'docs:lint', '--', '--no-globs', ...md],
+    });
+  }
+  if (docsAll || files.some(f => f.endsWith('.md'))) {
+    steps.push({ name: 'docs-links-quick', cmd: 'npm', args: ['run', 'docs:links'] });
+  }
+  return steps;
+}
+
 /**
  * `green --quick`: the steps for the files a branch changed (CI on the pushed head is the green, the
  * lane skill 2026-10-30). Per touched workspace its typecheck and unit tests; a `shared/` change
- * typechecks every package (they build on it) and tests shared; a changed `*.test.mjs` (or the
+ * typechecks every package (they build on it) and tests shared; changed TypeScript and Markdown
+ * are linted (quickLintSteps); a changed `*.test.mjs` (or the
  * script next to it) runs under node --test; a changed dashboard e2e spec builds the dashboard and
  * runs only that spec; a change under the dashboard web app or `scripts/test-kit/` also builds the
  * mcp-server and runs the kit scenario check; that or a usage-catalogue input also runs the kit
@@ -1008,12 +1055,6 @@ export function quickSteps(files, cwd = process.cwd()) {
     steps.push({ name: 'build-shared', cmd: 'npm', args: ['run', 'build:shared'] });
   if (sharedTouched) {
     steps.push({ name: 'typecheck-all', cmd: 'npm', args: ['run', 'typecheck'] });
-    steps.push({
-      name: 'unit-shared',
-      cmd: 'npm',
-      args: ['run', 'test', '-w', '@gnuminator/shared'],
-      env: CI,
-    });
   } else {
     for (const p of [...pkgs].sort()) {
       steps.push({
@@ -1022,6 +1063,15 @@ export function quickSteps(files, cwd = process.cwd()) {
         args: ['run', 'typecheck', '-w', `@gnuminator/${p}`],
       });
     }
+  }
+  steps.push(...quickLintSteps(files, cwd));
+  if (sharedTouched) {
+    steps.push({
+      name: 'unit-shared',
+      cmd: 'npm',
+      args: ['run', 'test', '-w', '@gnuminator/shared'],
+      env: CI,
+    });
   }
   for (const p of [...pkgs].sort()) {
     steps.push({
@@ -1186,7 +1236,7 @@ export function main(options = {}) {
   const steps = opts.quick ? quickSteps(changed, cwd) : stepsOption;
   if (opts.quick && steps.length === 0) {
     log(
-      'green: OK (quick), nothing to check: no package, script test or e2e spec changed vs the base'
+      'green: OK (quick), nothing to check: no package, script test, e2e spec, TypeScript or Markdown changed vs the base'
     );
     return 0;
   }

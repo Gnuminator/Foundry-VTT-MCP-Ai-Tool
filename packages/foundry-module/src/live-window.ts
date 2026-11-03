@@ -45,7 +45,7 @@ interface SavedState {
 export function registerLiveWindowSettings(): void {
   game.settings.register(MODULE_ID, LIVE_WINDOW_SETTING, {
     name: 'AI Tool: Live window',
-    hint: 'Adds a Live button to the AI Tool group (GM only) and a small pin at the edge of the screen. It opens the dashboard live strip in a window next to the map: the combat order, the party and the quick buttons. Picking tokens on the map picks them in the strip. The Combat, Party and Session windows stay as they are. Needs the dashboard to be running.',
+    hint: 'Adds a Live button (GM only) that opens the dashboard live strip in a window next to the map; needs the dashboard to be running.',
     scope: 'world',
     config: true,
     type: Boolean,

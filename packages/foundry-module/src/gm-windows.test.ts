@@ -349,6 +349,5 @@ describe('the switch, the buttons and the windows', () => {
     expect(config.name).toBe('AI Tool: GM windows');
     for (const word of ['Combat', 'Party', 'Session', 'Scene', 'Loot'])
       expect(config.hint).toContain(word);
-    expect(config.hint).toContain('closes the open windows');
   });
 });

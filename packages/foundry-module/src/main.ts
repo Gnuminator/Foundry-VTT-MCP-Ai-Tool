@@ -167,7 +167,7 @@ class FoundryMCPBridge {
       registerGuardedFeature({
         id: LIVE_PLAY_FEATURE_ID,
         name: 'AI Tool: Live play (writes)',
-        hint: 'Lets the dashboard and the AI apply damage, healing, temporary hit points, conditions and resources (spell slots, class resources, item uses), move, change or delete tokens, and dress the scene (area templates, darkness and light, map notes, loot).',
+        hint: 'Lets the dashboard and the AI change hit points, conditions, resources, tokens and the scene during play.',
         defaultEnabled: true,
         autoApply: {
           name: 'AI Tool: Live play, apply without confirming',
@@ -177,7 +177,7 @@ class FoundryMCPBridge {
       registerGuardedFeature({
         id: 'session-notes',
         name: 'AI Tool: Session notes (writes)',
-        hint: 'Puts the notes of a recorded session (Recap, GM summary, Scenes) into a GM-only journal in Foundry automatically, without asking, as soon as Foundry is open with writes on. Each one shows in Changes with an Undo. Players see the Recap only when you reveal it.',
+        hint: 'Puts the notes of a recorded session into a GM-only journal automatically, without asking; each one shows in Changes with an Undo.',
       });
       registerGuardedFeature({
         id: OWNERSHIP_FEATURE_ID,
@@ -188,55 +188,55 @@ class FoundryMCPBridge {
       registerGuardedFeature({
         id: SETUP_FEATURE_ID,
         name: 'AI Tool: Foundry setup (writes)',
-        hint: 'Lets the AI change Foundry settings and set who can open a compendium pack, after you confirm the plan, and puts the old value back on undo. Never touches passwords or the AI Tool’s own switches.',
+        hint: 'Lets the AI change Foundry settings and who can open a compendium pack, after you confirm; never passwords or these switches.',
       });
       registerGuardedFeature({
         id: 'table-viewer',
         name: 'AI Tool: Table viewer (writes)',
-        hint: 'Lets the AI create the Table user that the TV at the table signs in as (Player role, no password, owns nothing), after you confirm the plan. It shows in Changes with an Undo.',
+        hint: 'Lets the AI create the Table user that the TV at the table signs in as, after you confirm.',
         defaultEnabled: true,
       });
       registerGuardedFeature({
         id: SCENE_RESTORE_FEATURE_ID,
         name: 'AI Tool: Scene restore (writes)',
-        hint: "Lets the AI put a scene's walls, lights, tiles and tokens back from a backup copy of the world, after you confirm the plan. Each restore shows in Changes with an Undo.",
+        hint: "Lets the AI put a scene's walls, lights, tiles and tokens back from a world backup, after you confirm.",
       });
       registerGuardedFeature({
         id: ROOM_SETUP_FEATURE_ID,
         name: 'AI Tool: Room setup (writes)',
-        hint: 'Lets the AI add teleport regions and fill a room with tokens, after you confirm the plan. Each setup shows in Changes with an Undo.',
+        hint: 'Lets the AI add teleport regions and fill a room with tokens, after you confirm.',
       });
       registerGuardedFeature({
         id: SCENE_MOOD_FEATURE_ID,
         name: 'AI Tool: Scene mood and music (writes)',
-        hint: "Lets the AI set a scene's darkness, light and weather, save and apply mood presets, and start, stop or switch playlists, after you confirm the plan. Each change shows in Changes with an Undo.",
+        hint: "Lets the AI set a scene's darkness, light, weather and playlists, after you confirm.",
       });
       registerGuardedFeature({
         id: NPC_TURN_FEATURE_ID,
         name: 'AI Tool: NPC turn assistant (writes)',
-        hint: 'Lets the AI move a monster on its turn and take hit points off the creatures it hits, after you confirm the plan. Each turn shows in Changes with an Undo. The attacks and saves are rolled first, separately.',
+        hint: 'Lets the AI move a monster on its turn and take hit points off the creatures it hits, after you confirm.',
       });
       registerGuardedFeature({
         id: PAPER_SYNC_FEATURE_ID,
         name: 'AI Tool: Paper sync (writes)',
-        hint: 'Lets the AI write the numbers from a paper sheet back into a character after a night played on paper (hit points, spell slots, hit dice, class resources, item uses, coins, exhaustion, conditions, inspiration, death saves and item quantities), one plan per character after you confirm. Removing an item asks for a second confirm. Each one shows in Changes with an Undo. XP, level and class are never changed.',
+        hint: 'Lets the AI write the numbers from a paper sheet back into a character after a night played on paper, one plan per character after you confirm.',
       });
       registerGuardedFeature({
         id: WHO_NOTICES_FEATURE_ID,
         name: 'AI Tool: Who would notice',
-        hint: "Adds a row to the dashboard's Party drawer: type a DC and see which characters would notice it from their passive Perception, Investigation and Insight. GM only; players never see it.",
+        hint: "Adds a row to the dashboard's Party drawer that shows which characters would notice a DC (GM only).",
         readOnly: true,
       });
       registerGuardedFeature({
         id: RULES_CHECK_FEATURE_ID,
         name: 'AI Tool: Rules check',
-        hint: 'Lets the AI check whether an attack, spell or item looks legal right now (turn, cost, range, spell slots, uses left) and say why.',
+        hint: 'Lets the AI check whether an attack, spell or item looks legal right now and say why.',
         readOnly: true,
       });
       registerGuardedFeature({
         id: 'change-undo',
         name: 'AI Tool: Undo for everything',
-        hint: "Lets the AI Tool undo and redo anyone's changes (players', yours and the AI's) from the Changes list: one change, or everything since on the same thing. Each undo is confirmed first and logged, and can be undone again.",
+        hint: "Lets the AI Tool undo and redo anyone's changes from the Changes list, each one confirmed first.",
         defaultEnabled: true,
       });
 

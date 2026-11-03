@@ -228,9 +228,9 @@ export class ModuleSettings {
 
     // Help (D-108): opens the GM guides on the wiki. First, so it sits at the top of the list.
     menus.registerMenu(this.moduleId, 'helpMenu', {
-      name: 'Help',
+      name: 'AI Tool: Help',
       label: 'Open the GM guide',
-      hint: 'The guides for the GM in a new browser tab: your first hour, the dashboard, asking Claude, the checklists before and after a session, and what to do when something breaks on game night.',
+      hint: 'Opens the GM guides in a new browser tab.',
       icon: 'fas fa-circle-question',
       type: createHelpMenu(),
       restricted: true,
@@ -238,9 +238,9 @@ export class ModuleSettings {
 
     // Enhanced Creature Index submenu
     menus.registerMenu(this.moduleId, 'enhancedIndexMenu', {
-      name: 'Enhanced Creature Index',
+      name: 'AI Tool: Creature index',
       label: 'Configure Enhanced Index',
-      hint: 'The Enhanced Creature Index pre-computes creature statistics for instant filtering by Challenge Rating, creature type, and abilities. This enables AI models to quickly find creatures matching specific criteria without loading every compendium entry.',
+      hint: 'Pre-computes creature statistics so the AI can find monsters by Challenge Rating, type and abilities quickly.',
       icon: 'fas fa-search-plus',
       type: createEnhancedIndexMenu(),
       restricted: true,
@@ -248,9 +248,9 @@ export class ModuleSettings {
 
     // Join page look (I-086): The Veil on the players' first screen
     menus.registerMenu(this.moduleId, 'joinPageMenu', {
-      name: 'Join page look',
+      name: 'AI Tool: Join page look',
       label: 'Choose join page look',
-      hint: "Give Foundry's join page (the first screen players see) the campaign look, The Veil: the castle in the mist as the background picture and a lamplit line at the top of the world description. Your description text stays as it is.",
+      hint: "Gives Foundry's join page, the first screen players see, the campaign look called The Veil.",
       icon: 'fas fa-door-open',
       type: createJoinPageMenu(),
       restricted: true,

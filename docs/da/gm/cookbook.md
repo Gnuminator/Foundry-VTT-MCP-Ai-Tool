@@ -125,12 +125,12 @@ andet set, siger det.
 ### Brug en Tarokka-læsning, du selv har valgt
 
 - **Sig:** "Gem denne Tarokka-læsning: tome er `swords-7` (Seven of Swords), holy symbol `glyphs-master` (Master of Glyphs), sunsword `coins-1` (One of Coins), ally `raven` og Strahds placering `donjon`."
-  Eller åbn **🃏 Tarokka**, sæt hak i **Show cards** (valgene er på skærmen), tryk **Choose the cards…**, vælg de fem kort og tryk **Store this reading**.
+  Eller åbn **🃏 Tarokka**, sæt hak i **Show cards** (valgene er på skærmen), tryk **Choose the cards**, vælg de fem kort og tryk **Store this reading**.
 - **Kort-id'er:** værktøjet tager id'er, ikke navne: en suit og en værdi (`swords-7`, `glyphs-master`, `coins-1`) for det almindelige dæk,
   eller ét ord for det høje dæk (`raven`, `donjon`, `broken-one`). Et navn giver en fejl, der viser formatet.
 - **Hvad der sker:** der trækkes intet. Hvert kort skal komme fra det rigtige dæk
   (det almindelige til de første tre, det høje til de sidste to), og ingen må gentages. Den forrige læsning arkiveres, og Undo bringer den tilbage.
-- **Afslør så ét kort ad gangen:** i **🃏 Tarokka** trykker du på **Reveal…** ved én position og skriver, hvad spillerne må læse.
+- **Afslør så ét kort ad gangen:** i **🃏 Tarokka** trykker du på **Reveal to players** ved én position og skriver, hvad spillerne må læse.
   Intet når spillerne, før du gør det, og de andre fire forbliver skjulte.
 
 ## Under sessionen

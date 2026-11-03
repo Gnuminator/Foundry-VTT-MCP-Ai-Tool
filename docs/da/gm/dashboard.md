@@ -519,17 +519,17 @@ du selv vil gøre én helt bestemt ting, eller for at anvende en plan, Claude la
    eller `destructive`.
 2. Klik på et værktøj. Du ser dets beskrivelse og en formular. Felter markeret med **\*** er
    obligatoriske.
-3. Udfyld formularen og klik på **Run** (en læsning) eller **Run…** (en ændring, som åbner
+3. Udfyld formularen og klik på **Run** (en læsning) eller **Plan and confirm** (en ændring, som åbner
    confirm-vinduet).
 4. Svaret vises under formularen som **Result** eller **Error**. **‹ All tools** går tilbage.
 
 Når GM Actions er slået fra, siger en advarselsbjælke øverst det, med en knap **Enable GM Actions**.
 Læsninger virker stadig.
 
-### Pick…-knapper
+### Knappen Pick from list
 
 Hvert felt, der navngiver noget (en actor, et token, en scene, en journalside, en deltager, en
-compendium-post, en plan, en ændring), har en **Pick…**-knap. Den viser, hvad der findes lige nu; klik
+compendium-post, en plan, en ændring), har en **Pick from list**-knap. Den viser, hvad der findes lige nu; klik
 på en for at udfylde feltet. Du kan stadig skrive i hånden.
 
 - Listen har et filterfelt. For compendium-poster og dokumenter skal du skrive mindst 2 bogstaver for
@@ -546,8 +546,8 @@ Når Claude planlægger en ændring i Claude Desktop, kan du anvende den fra das
 
 1. Slå **GM Actions** til.
 2. Åbn **🛠 Tools**, søg efter `apply-planned-change`.
-3. Klik på **Pick…** ved siden af `planId` og vælg planen.
-4. Klik på **Run…**. Confirm-vinduet viser planens opsummering og hvad der ændres.
+3. Klik på **Pick from list** ved siden af `planId` og vælg planen.
+4. Klik på **Plan and confirm**. Confirm-vinduet viser planens opsummering og hvad der ændres.
 5. Bekræft. Ændringen dukker op i **Recent Changes** med **Undo**.
 
 `get-planned-change` uden `planId` viser hver plan, der stadig venter. Planer udløber efter 15
@@ -565,7 +565,7 @@ AI Tool**) og at GM Actions er slået til.
 - **↻ Refresh**: genindlæser læsningen.
 - **New reading (built-in roll)**: lægger en ny læsning med værktøjets eget roll. Den forrige læsning
   gemmes i et arkiv.
-- **Choose the cards…**: til en læsning, du trak i hånden. Vælg de fem kort (de første tre fra det
+- **Choose the cards**: til en læsning, du trak i hånden. Vælg de fem kort (de første tre fra det
   almindelige dæk, de sidste to fra det høje dæk, ingen to gange) og tryk på **Store this reading**.
   Intet bliver lagt. Den forrige læsning gemmes i et arkiv, og Undo bringer den tilbage. Den viser
   kortnavne, så den kun åbner, mens **Show cards** er afkrydset, og fjerner du krydset, skjules den
@@ -581,9 +581,9 @@ Hver af de fem positioner viser:
 - links: **Open Journal**, **Open Scene** eller **Open Actor** åbner det sammenkædede dokument på din
   Foundry-skærm (intet ændres); "not linked", når der ikke er et;
 - "hidden from players" eller "revealed" (med **Open page** til reveal-siden);
-- **Link…**: søg i din worlds journals, sider, scener og actors, og klik derefter på **Link** ved
+- **Add a link**: søg i din worlds journals, sider, scener og actors, og klik derefter på **Link** ved
   den rigtige;
-- **Reveal…**: skriv en valgfri sidetitel og præcis det, spillerne må læse, og derefter **Plan
+- **Reveal to players**: skriv en valgfri sidetitel og præcis det, spillerne må læse, og derefter **Plan
   reveal…**. Spillerne får kun din tekst, aldrig kortets navn. Sæt kryds ved **Show it now** for at få
   siden til at poppe op på spillernes skærme, så snart du anvender revealen. Det er fra hver gang, med
   mindre du sætter kryds, og Undo tager revealen tilbage, men kan ikke lukke popuppen.

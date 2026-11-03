@@ -7,7 +7,7 @@ import { PHONE_VIEW, VEIL } from '../storybook/modes';
 
 import { RefPicker } from './RefPicker';
 
-// The "Pick…" button beside a Tool runner field that names something: a list of what exists now
+// The "Pick from list" button beside a Tool runner field that names something: a list of what exists now
 // (list-ref-choices, answered by the fake bridge) with a filter box.
 function Picker({
   multiple = false,

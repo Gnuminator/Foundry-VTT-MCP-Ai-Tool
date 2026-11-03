@@ -1617,8 +1617,10 @@ The player-facing content is cut to the seven kept books (PHB 2024, DMG 2024, Co
   visible and is named in the log), and locks the module packs again at the end. A second run changes nothing.
   `seven-books-delete-legacy.js` deletes the legacy pack for good (`MODE=delete`).
 - **Where it runs:** the module packs are shared by every world on this Foundry, so the trim runs in the one world that holds the
-  legacy pack, `curse-of-strahd`, which must be the running world. The other worlds (strahd-kit, the training world) show dead
-  links in the PHB 2024 entries that were re-pointed; a real run asks for `OTHER_WORLDS_OK=1` while they exist.
+  legacy pack, `curse-of-strahd`, which must be the running world. In the other worlds (strahd-kit, the
+  training world) the moved entries are gone from the shared packs (they are kept only in this world's legacy pack), the
+  re-pointed PHB 2024 links are dead, and the dnd5e packs stay visible because hiding is per world, so the strahd-kit test
+  kit does not show the trimmed view. A real run asks for `OTHER_WORLDS_OK=1` while other worlds exist.
 - **Run it:** `scp` the two scripts to `/root/`, then
   `cat lib.sh 22-seven-books.sh gm-script.sh | ssh foundry-pi 'bash -s'` (a dry run: counts and a list of what stays visible).
   Snapshot first (`/boot/dietpi/dietpi-backup 1`), the user's OK, then the same with `APPLY=1` (and `OTHER_WORLDS_OK=1`). Any

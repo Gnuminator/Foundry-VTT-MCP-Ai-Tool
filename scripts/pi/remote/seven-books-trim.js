@@ -17,10 +17,12 @@
 //      a pack that kept entries link to (it stays visible and is named in the log); dnd5e.items and dnd5e.monsters
 //      are hidden once nothing kept links to them.
 // The module packs are shared by every world on this Foundry, so run it in the one world that holds the legacy
-// pack (curse-of-strahd); the other worlds see links to world packs that exist only there (stage 22 asks for an OK).
+// pack (curse-of-strahd). In every other world the moved entries are gone from the shared packs (kept only in the
+// legacy pack of this world), the re-pointed links reach world packs that exist only here, and the dnd5e packs stay
+// visible (hiding is per world), so the strahd-kit test kit does not show the trimmed view (stage 22 asks for an OK).
 // Actor Studio's compendiumSources are not set here: stage 13 owns them.
 // Module packs are locked again at the end of every real run, also after a failure (a killed run is put right by the
-// next one). A failure carries the progress lines in its error text.
+// next real run, not by a dry run). A failure carries the progress lines in its error text.
 const KEEP = new Set(['PHB 2024', 'DMG 2024', 'CoS', 'CoSCO', 'TCoE', 'XGtE', 'MotM']);
 const TRIM = ['classes', 'species', 'backgrounds', 'feats', 'spells', 'items'].map(
   n => `aitool-content.${n}`
@@ -373,14 +375,26 @@ const real = async () => {
   };
 };
 
+let result;
+let failure = null;
 try {
-  return await real();
+  result = await real();
 } catch (e) {
-  throw new Error(`${e.message}\nDONE BEFORE THE FAILURE:\n${done.join('\n')}`);
-} finally {
-  // A killed run skips the lock in unlocked(): every module pack the run may have opened is locked again here.
-  for (const id of scan) {
-    const pack = game.packs.get(id);
+  failure = e;
+}
+// A killed run skips the lock in unlocked(): every module pack the run may have opened is locked again here, each
+// on its own so that one refusal neither hides the error above nor leaves the other packs open.
+const relockFailures = [];
+for (const id of scan) {
+  const pack = game.packs.get(id);
+  try {
     if (!pack.locked) await pack.configure({ locked: true });
+  } catch (e) {
+    relockFailures.push(`could not lock ${id} again: ${e.message}`);
   }
 }
+if (failure || relockFailures.length) {
+  const head = failure ? failure.message : 'the trim finished but module packs could not be locked';
+  throw new Error(`${head}\nDONE BEFORE THE FAILURE:\n${[...done, ...relockFailures].join('\n')}`);
+}
+return result;

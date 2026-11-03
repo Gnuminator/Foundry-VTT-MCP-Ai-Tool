@@ -311,6 +311,23 @@ describe('seven-books-trim.js', () => {
     }
   });
 
+  test('a refused relock keeps the progress in the error and the other packs get locked', async () => {
+    const world = standardWorld();
+    wire(world);
+    const feats = world.packs.get('aitool-content.feats');
+    const configure = feats.configure.bind(feats);
+    feats.configure = async change => {
+      if (change.locked === true) throw new Error('refused');
+      return configure(change);
+    };
+    await assert.rejects(
+      run(trimSource, world, false),
+      /module packs could not be locked[\s\S]*MOVE 2 entries[\s\S]*could not lock aitool-content\.feats again: refused/
+    );
+    assert.equal(world.packs.get('aitool-content.spells').locked, true);
+    assert.equal(world.packs.get('aitool-content.items').locked, true);
+  });
+
   test('the same id in two packs, or in the legacy pack for another entry, stops the run before any change', async () => {
     const world = standardWorld();
     wire(world);

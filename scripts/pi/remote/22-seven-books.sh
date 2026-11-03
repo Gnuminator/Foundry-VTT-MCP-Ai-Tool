@@ -19,7 +19,8 @@
 # Env (in front of bash): WORLD (curse-of-strahd); MODE=trim (default) or delete; APPLY=1 for a real run (without it
 # the stage does a dry run, which counts and prints and changes nothing; any other APPLY value is refused); FORCE=1
 # overrides the players and recording checks (never the snapshot); OTHER_WORLDS_OK=1 for a real trim while other
-# worlds exist on this Foundry (they share the edited module packs and show dead links for the re-pointed ones); for
+# worlds exist on this Foundry (they share the edited module packs: the moved entries are gone there, the re-pointed
+# links are dead, the dnd5e packs stay visible and strahd-kit does not show the trimmed view); for
 # MODE=delete also DELETE_LEGACY=with-the-users-ok (the legacy pack holds the only copy of about 1500 entries on the
 # Pi; the PC's content module and the snapshot are the way back). A GM_SCRIPT in the environment is ignored: the
 # script follows MODE.
@@ -64,9 +65,9 @@ if [ "$MODE" = trim ]; then
   others="$(find "$FOUNDRY_DATA/Data/worlds" -mindepth 1 -maxdepth 1 -type d -printf '%f ' 2>/dev/null | tr ' ' '\n' | grep -vx "$WORLD" | tr '\n' ' ' || true)"
   if [ -n "${others// /}" ]; then
     if [ -n "${APPLY:-}" ] && [ "${OTHER_WORLDS_OK:-}" != 1 ]; then
-      die "other worlds share the module packs this trim edits (${others% }): their PHB 2024 links to the SRD items and creatures would point at world packs that exist only in $WORLD. Put OTHER_WORLDS_OK=1 in front of bash once the user accepts that. Nothing was changed"
+      die "other worlds (${others% }) share the module packs this trim edits: in them the moved entries are gone (kept only in $WORLD's legacy pack), the PHB 2024 links to SRD items and creatures point at world packs that exist only in $WORLD, and the dnd5e packs stay visible (so strahd-kit does not show the trimmed view). Put OTHER_WORLDS_OK=1 in front of bash once the user accepts that. Nothing was changed"
     fi
-    warn "other worlds (${others% }) share the edited module packs; their re-pointed links will not resolve"
+    warn "other worlds (${others% }) share the edited module packs; the moved entries are gone there and the re-pointed links will not resolve"
   fi
 fi
 

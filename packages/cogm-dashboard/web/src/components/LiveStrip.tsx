@@ -4,7 +4,7 @@
 // Show next handout, and Next turn / End combat / Undo in the header. Every write goes through the
 // guarded path in lib/guarded.ts (gate, plan, confirm, Undo toast); nothing here is a Tool runner.
 // The words and small rules are in lib/liveStrip.ts.
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   lazy,
   Suspense,
@@ -17,7 +17,7 @@ import {
 } from 'react';
 
 import { callTool, errorText } from '../lib/api';
-import { AWAY_TEXT, NO_VALUE, canSelect, hpPercent, hpText, hpTone, metaText } from '../lib/combat';
+import { AWAY_TEXT, NO_VALUE, canSelect, hpPercent, hpText, hpTone } from '../lib/combat';
 import type { Combatant } from '../lib/combat';
 import { AI_LIMIT, readAiChanges } from '../lib/changes';
 import { useGuardedTools } from '../lib/guarded';
@@ -28,12 +28,15 @@ import {
   CONDITIONS,
   StripUndoContext,
   chipText,
+  chipTitle,
   conditionArgs,
   displayNames,
   downWords,
   endQuestion,
   lastUndoable,
   pickText,
+  removeConditionArgs,
+  turnText,
   undoLabel,
 } from '../lib/liveStrip';
 import { initialsOf } from '../lib/ribbon';
@@ -44,6 +47,7 @@ import {
   useBridgeAway,
   useCombat,
   useDashboardSettings,
+  refreshCombat,
 } from '../lib/stream';
 import { Button } from '../ui';
 import { focusedElement, useConfirm } from './ConfirmDialog';
@@ -67,14 +71,25 @@ function Card({
   picked,
   selectable,
   stale,
+  pending,
+  canRemove,
+  offNote,
   onPick,
+  onRemove,
 }: {
   c: Combatant;
   name: string;
   picked: boolean;
   selectable: boolean;
   stale: boolean;
+  /** A write on this creature is running: the card says so until Foundry answers. */
+  pending: boolean;
+  /** Chips take their condition off on a click (a write is allowed and none is running). */
+  canRemove: boolean;
+  /** Why a chip cannot be clicked now (a switch is off, the bridge is away), or nothing. */
+  offNote: string | undefined;
   onPick: () => void;
+  onRemove: (condition: string) => void;
 }): JSX.Element {
   const toast = useToast();
   const [broken, setBroken] = useState<string | null>(null);
@@ -101,8 +116,15 @@ function Card({
       data-current={c.isCurrentTurn ? 'true' : undefined}
       data-picked={picked ? 'true' : undefined}
       data-down={down ? 'true' : undefined}
+      data-pending={pending ? 'true' : undefined}
+      aria-busy={pending ? 'true' : undefined}
       {...(c.isCurrentTurn ? { 'aria-current': 'true' as const } : {})}
     >
+      {c.isCurrentTurn && (
+        <span className={styles['turnBadge']} aria-hidden="true">
+          ▶<span className={styles['turnWord']}> Turn</span>
+        </span>
+      )}
       {c.tokenUuid ? (
         <button
           type="button"
@@ -154,15 +176,35 @@ function Card({
         {down && <span className={`${styles['tag']} ${styles['down']}`}>{down}</span>}
         {c.conditions.map(cond => {
           const left = c.timed?.[cond];
-          const ended = left === 0;
+          const ended = typeof left === 'number' && left <= 0;
+          const classes = `${styles['tag']} ${ended ? styles['ended'] : ''}`;
+          // Only the conditions the picker offers come off with a click: Exhaustion levels and
+          // spell effects are not one write away, so they stay plain text.
+          const removable = (CONDITIONS as readonly string[]).includes(cond.toLowerCase());
+          if (!selectable || !removable) {
+            return (
+              <span key={cond} className={classes}>
+                {chipText(cond, left)}
+              </span>
+            );
+          }
           return (
-            <span
+            <button
               key={cond}
-              className={`${styles['tag']} ${ended ? styles['ended'] : ''}`}
-              title={ended ? `Time is up. Click ${cond} again to put it back.` : undefined}
+              type="button"
+              className={`${classes} ${styles['chip']}`}
+              data-track="dash.live.remove-condition"
+              data-condition={cond}
+              aria-disabled={canRemove && !stale ? undefined : 'true'}
+              aria-label={`${chipText(cond, left)}, take off`}
+              title={canRemove && !stale ? chipTitle(cond, left) : offNote}
+              onClick={() => {
+                if (canRemove && !stale) onRemove(cond);
+              }}
             >
               {chipText(cond, left)}
-            </span>
+              {ended ? ' ×' : ''}
+            </button>
           );
         })}
       </span>
@@ -177,6 +219,7 @@ export function LiveStrip(): JSX.Element {
   const liveOff = live.off();
   const settings = useDashboardSettings();
   const toast = useToast();
+  const queryClient = useQueryClient();
   const askConfirm = useConfirm();
   const showUndo = useContext(StripUndoContext);
   const { plan, gated, call, applyApproved } = useGuardedTools();
@@ -187,12 +230,17 @@ export function LiveStrip(): JSX.Element {
   // then says what it is doing.
   const [busyState, setBusy] = useState<false | true | BusyKey>(false);
   const busy = busyState !== false;
+  // The creatures a running condition write is on: their cards show it until Foundry answers.
+  const [pendingIds, setPendingIds] = useState<ReadonlySet<string>>(new Set());
+  const cardsRef = useRef<HTMLOListElement>(null);
   // "1 round": the next condition lasts one round. Cleared with the pick, so a failed add keeps it.
   const [oneRound, setOneRound] = useState(false);
   const busyRef = useRef(false);
   const barRef = useRef<HTMLDivElement>(null);
 
   const stale = away && combat !== null;
+  const awayRef = useRef(false);
+  awayRef.current = away;
   const rows = combat?.combatants ?? [];
   const selectable = canSelect({
     gmActions: settings?.gmActionsEnabled === true,
@@ -221,6 +269,20 @@ export function LiveStrip(): JSX.Element {
   const party = rows.filter(c => c.isPC && !c.defeated);
   const pickedPcs = pickedRows.filter(c => c.isPC);
 
+  // A single-row strip scrolls the creature whose turn it is into view when the turn changes.
+  const currentId = rows.find(c => c.isCurrentTurn)?.id;
+  useEffect(() => {
+    if (!currentId) return;
+    // Only the card row moves, never the page (a GM may be reading Party below the strip).
+    const row = cardsRef.current;
+    const el = row?.querySelector<HTMLElement>('[data-current="true"]');
+    if (!row || !el || row.scrollWidth <= row.clientWidth) return;
+    const left = el.offsetLeft - row.offsetLeft;
+    if (left < row.scrollLeft || left + el.offsetWidth > row.scrollLeft + row.clientWidth) {
+      row.scrollTo({ left: Math.max(0, left - 8) });
+    }
+  }, [currentId]);
+
   const changes = useQuery({
     queryKey: AI_KEY,
     queryFn: async () => readAiChanges(await callTool('list-recent-changes', { limit: AI_LIMIT })),
@@ -234,17 +296,23 @@ export function LiveStrip(): JSX.Element {
   });
 
   /** One write at a time: a second click while one runs does nothing. */
-  const once = useCallback(async (work: () => Promise<void>, key?: BusyKey): Promise<void> => {
-    if (busyRef.current) return;
-    busyRef.current = true;
-    setBusy(key ?? true);
-    try {
-      await work();
-    } finally {
-      busyRef.current = false;
-      setBusy(false);
-    }
-  }, []);
+  const once = useCallback(
+    async (work: () => Promise<void>, key?: BusyKey): Promise<void> => {
+      if (busyRef.current) return;
+      busyRef.current = true;
+      setBusy(key ?? true);
+      try {
+        await work();
+      } finally {
+        // Read the fight at once: the card shows the change now, not at the next 4 s poll.
+        if (!awayRef.current) await refreshCombat(queryClient);
+        busyRef.current = false;
+        setBusy(false);
+        setPendingIds(new Set());
+      }
+    },
+    [queryClient]
+  );
 
   /** Clears the pick and hands keyboard focus to the pick bar, whose Clear / form just went. */
   const clearPick = useCallback((): void => {
@@ -302,11 +370,18 @@ export function LiveStrip(): JSX.Element {
   const addCondition = (condition: string): Promise<void> =>
     once(async () => {
       if (targets.length === 0) return;
+      setPendingIds(new Set(kept));
       const done = await plan(
         'plan-actor-change',
         conditionArgs(targets, condition, oneRound ? 1 : undefined)
       );
       if (done.status === 'done') clearPick();
+    });
+
+  const removeCondition = (c: Combatant, condition: string): Promise<void> =>
+    once(async () => {
+      setPendingIds(new Set([c.id]));
+      await plan('plan-actor-change', removeConditionArgs(c.tokenId ?? c.name, condition));
     });
 
   const undoable = lastUndoable(changes.data ?? []);
@@ -383,7 +458,7 @@ export function LiveStrip(): JSX.Element {
       <div className={styles['header']}>
         <h2 className={styles['title']}>Live</h2>
         <span className={styles['meta']} id="live-meta" role="status">
-          {combat !== null ? metaText(combat) : 'No fight.'}
+          {combat !== null ? turnText(combat, names) : 'No fight.'}
         </span>
         {combat !== null && (
           <>
@@ -462,7 +537,7 @@ export function LiveStrip(): JSX.Element {
           </div>
         )
       ) : (
-        <ol className={styles['cards']} aria-label="Turn order">
+        <ol className={styles['cards']} aria-label="Turn order" ref={cardsRef}>
           {rows.map(c => (
             <Card
               key={c.id}
@@ -471,6 +546,10 @@ export function LiveStrip(): JSX.Element {
               picked={kept.has(c.id)}
               selectable={selectable}
               stale={stale}
+              pending={pendingIds.has(c.id)}
+              canRemove={!writeOff}
+              offNote={offTitle ?? (busy ? 'A change is on its way' : undefined)}
+              onRemove={cond => void removeCondition(c, cond)}
               onPick={() =>
                 setPicked(old => {
                   const next = new Set(old);
@@ -484,7 +563,7 @@ export function LiveStrip(): JSX.Element {
       )}
 
       {combat !== null && (
-        <>
+        <div className={styles['actions']}>
           <div
             className={styles['bar']}
             role="group"
@@ -546,6 +625,7 @@ export function LiveStrip(): JSX.Element {
                   className={styles['cond']}
                   data-track="dash.live.condition"
                   data-condition={cond}
+                  data-busy={busy ? 'true' : undefined}
                   aria-disabled={kept.size === 0 || writeOff ? 'true' : undefined}
                   title={kept.size === 0 ? 'Pick a creature first' : offTitle}
                   onClick={() => {
@@ -602,7 +682,7 @@ export function LiveStrip(): JSX.Element {
               </Button>
             </QuickRollBar>
           )}
-        </>
+        </div>
       )}
 
       <div className={styles['handout']} id="live-handout">

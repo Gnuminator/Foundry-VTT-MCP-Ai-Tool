@@ -5,6 +5,7 @@
 import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 
+import { callTool } from './api';
 import { streamUrl } from './auth';
 import { bridgeAway, bridgeBlip, readCombat, type CombatState } from './combat';
 import { EMPTY_FEED, addFeedEvents, hasNewGmChange, readFeedEvents, type FeedLog } from './feed';
@@ -178,6 +179,9 @@ export function onStatus(queryClient: QueryClient, data: unknown): void {
   }
 }
 
+/** Counts the `combat` events of the stream, so a direct read can tell a newer push arrived. */
+let combatSeq = 0;
+
 /** One handler per event this page uses; each puts the event into the query cache. */
 const HANDLERS: Record<string, (queryClient: QueryClient, data: unknown) => void> = {
   errors: onErrors,
@@ -210,6 +214,7 @@ const HANDLERS: Record<string, (queryClient: QueryClient, data: unknown) => void
     queryClient.setQueryData<unknown>(ROLLS_KEY, (data as { rows?: unknown } | null)?.rows),
   // The whole fight (lib/combat.ts), null when none runs: the During layouts and the strip read it.
   combat: (queryClient, data) => {
+    combatSeq += 1;
     const combat = readCombat((data as { combat?: unknown } | null)?.combat);
     queryClient.setQueryData<CombatState | null>(COMBAT_KEY, () => combat);
   },
@@ -431,6 +436,62 @@ export function useCombat(): CombatState | null {
     gcTime: Infinity,
   });
   return data ?? null;
+}
+
+/**
+ * A fight read straight from `get-combat-state`, with the portrait addresses the server already
+ * made for the same creatures (the server rewrites them before it streams; a direct read has the
+ * raw path, which `readCombat` drops).
+ */
+export function withKnownPortraits(
+  fresh: CombatState | null,
+  known: CombatState | null
+): CombatState | null {
+  if (!fresh) return fresh;
+  const imgs = new Map((known?.combatants ?? []).map(c => [c.id, c.img]));
+  const fix = (c: CombatState['combatants'][number]): CombatState['combatants'][number] => ({
+    ...c,
+    img: c.img ?? imgs.get(c.id) ?? null,
+  });
+  return {
+    ...fresh,
+    current: fresh.current ? fix(fresh.current) : null,
+    combatants: fresh.combatants.map(fix),
+  };
+}
+
+/** The longest a strip write waits for the fight to be read back. */
+export const REFRESH_COMBAT_MAX_MS = 2500;
+
+/**
+ * Reads the fight now instead of waiting for the server's next poll (item live-strip-instant): a
+ * strip write calls this when it lands. A failed read changes nothing; the stream catches up.
+ */
+export async function refreshCombat(queryClient: QueryClient): Promise<void> {
+  const seq = combatSeq;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    // Bounded: a slow bridge must not hold the strip's buttons; the poll catches up.
+    const raw = await Promise.race([
+      callTool<unknown>('get-combat-state', {}),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error('slow')), REFRESH_COMBAT_MAX_MS);
+      }),
+    ]);
+    // Only an answer that says whether a fight runs counts; anything else must not end the fight.
+    if (typeof (raw as { active?: unknown } | null)?.active !== 'boolean') return;
+    // A fight the stream pushed while this read was out is newer than the read: keep the stream's.
+    if (combatSeq !== seq) return;
+    const known = queryClient.getQueryData<CombatState | null>(COMBAT_KEY) ?? null;
+    queryClient.setQueryData<CombatState | null>(
+      COMBAT_KEY,
+      withKnownPortraits(readCombat(raw), known)
+    );
+  } catch {
+    // The 4 s poll shows it.
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 /** Whether a fight is running, as the stream last said; false until it says. */

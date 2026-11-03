@@ -133,6 +133,7 @@ export const DASHBOARD_CONTROLS = [
     'dash.live.one-round',
     'dash.live.pan',
     'dash.live.pick',
+    'dash.live.remove-condition',
     'dash.live.show-handout',
     'dash.live.undo',
     'dash.quickroll.again',

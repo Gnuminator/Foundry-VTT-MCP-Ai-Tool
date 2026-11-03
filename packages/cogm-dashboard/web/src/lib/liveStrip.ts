@@ -5,7 +5,8 @@
 import { createContext } from 'react';
 
 import type { AiChange } from './changes';
-import type { Combatant } from './combat';
+import { metaText } from './combat';
+import type { Combatant, CombatState } from './combat';
 
 /** False where the page has its own Undo (live screen A's header): the strip then leaves its own out. */
 export const StripUndoContext = createContext(true);
@@ -72,6 +73,25 @@ export function conditionArgs(
 ): Record<string, unknown> {
   const args = { action: 'condition', targets, condition, active: true };
   return rounds === undefined ? args : { ...args, rounds };
+}
+
+/** The plan-actor-change arguments that take a condition off one creature (`active: false`). */
+export function removeConditionArgs(target: string, condition: string): Record<string, unknown> {
+  return { action: 'condition', targets: [target], condition, active: false };
+}
+
+/** A condition chip's tooltip: it removes the condition, and for an ended one it says why it is still there. */
+export function chipTitle(name: string, left: unknown): string {
+  return typeof left === 'number' && left <= 0
+    ? `Time is up. Click to take ${name} off.`
+    : `Click to take ${name} off.`;
+}
+
+/** The header's line: "Round 3 · Wolf 2's turn", or the plain round line when nobody has the turn. */
+export function turnText(combat: CombatState, names: ReadonlyMap<string, string>): string {
+  const now = combat.combatants.find(c => c.isCurrentTurn);
+  if (!now) return metaText(combat);
+  return `Round ${combat.round} · ${names.get(now.id) ?? now.name}'s turn`;
 }
 
 /**

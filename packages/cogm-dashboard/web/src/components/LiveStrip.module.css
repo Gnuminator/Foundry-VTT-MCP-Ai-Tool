@@ -38,7 +38,8 @@
   display: flex;
   gap: var(--space-2);
   margin: 0;
-  padding: 0 0 var(--space-1);
+  /* The top padding holds the turn badge, which sits on the current card's top edge. */
+  padding: 0.9rem 0 var(--space-1);
   list-style: none;
   overflow-x: auto;
 }
@@ -65,11 +66,48 @@
 .card[data-side='npc'] {
   border-color: var(--npc);
 }
+/* The turn: a solid ring in the page text colour (no side uses it) plus a "Turn" badge, so it reads in
+   both themes and next to a side border. */
 .card[data-current='true'] {
-  box-shadow: 0 0 0 3px var(--accent-glow);
+  position: relative;
+  box-shadow:
+    0 0 0 2px var(--bg),
+    0 0 0 5px var(--text);
 }
+.turnBadge {
+  position: absolute;
+  top: -0.7rem;
+  right: var(--space-2);
+  padding: 0 var(--space-2);
+  border-radius: var(--r-pill);
+  background: var(--text);
+  color: var(--bg);
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+/* A pick is a check mark and a soft fill, so it never looks like the turn. */
 .card[data-picked='true'] {
   background: var(--accent-soft);
+}
+.pick[aria-pressed='true']::before {
+  /* aria-pressed already says it; the empty alternative keeps the mark out of the button's name. */
+  content: '✓ ' / '';
+}
+.card[data-pending='true'] {
+  opacity: 0.7;
+  animation: pending 1s ease-in-out infinite alternate;
+}
+@keyframes pending {
+  to {
+    opacity: 0.45;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .card[data-pending='true'] {
+    animation: none;
+  }
 }
 /* A dashed edge, not a fade: opacity drops the small text under the contrast floor. */
 .card[data-down='true'] {
@@ -155,6 +193,23 @@ button.portrait {
   color: var(--warn);
   font-size: var(--text-xs);
 }
+button.chip {
+  border: 0;
+  font-family: inherit;
+  cursor: pointer;
+  min-height: 1.75rem;
+  padding-block: 0.15rem;
+}
+button.chip:focus-visible {
+  outline: 2px solid var(--text);
+  outline-offset: 1px;
+}
+button.chip[aria-disabled='true'] {
+  cursor: default;
+}
+button.chip.ended {
+  border: 1px dashed var(--warn);
+}
 .tag.ended {
   border: 1px dashed var(--warn);
   background: transparent;
@@ -206,6 +261,10 @@ button.portrait {
   opacity: 0.5;
   cursor: default;
 }
+.cond[data-busy='true'] {
+  cursor: progress;
+  opacity: 0.4;
+}
 
 .handout {
   display: flex;
@@ -218,15 +277,99 @@ button.portrait {
   color: var(--text-mid);
 }
 
-@container (max-width: 30rem) {
+.turnWord {
+  display: inline;
+}
+
+/* Under about 500 px (the Live window, the /gm strip pane, /?strip=1): one line per creature
+   (portrait, name, HP bar, chips), a dead creature on a slim line, and the actions pinned to the
+   bottom of the window so eight creatures and the action bar fit without scrolling to act. */
+@container (max-width: 31.25rem) {
   .cards {
     flex-direction: column;
+    gap: var(--space-1);
+    padding-top: var(--space-1);
     overflow-x: visible;
   }
   .card {
     flex: 0 0 auto;
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-1) var(--space-2);
+    border-width: 2px;
+  }
+  .card[data-current='true'] {
+    box-shadow:
+      0 0 0 1px var(--bg),
+      0 0 0 3px var(--text);
+  }
+  .turnBadge {
+    position: static;
+    order: -1;
+    margin: 0;
+    padding: 0 var(--space-1);
+  }
+  .turnWord {
+    display: none;
+  }
+  .portrait {
+    flex: 0 0 1.75rem;
+    width: 1.75rem;
+    height: 1.75rem;
+    font-size: var(--text-2xs);
+  }
+  .pick {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  .hpText {
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+  .hpBar {
+    flex: 0 0 3rem;
+  }
+  /* Chips take their own line under the name: nothing cut off, every chip reachable and visible. */
+  .card {
+    flex-wrap: wrap;
+  }
+  .chips {
+    flex: 1 1 100%;
+    flex-wrap: wrap;
+    min-width: 0;
+    min-height: 0;
+    margin: 0;
   }
   .chips:empty {
     display: none;
   }
+  .tag {
+    white-space: nowrap;
+  }
+  /* Dead creatures fold to a slim line: the name and the word, no bar. */
+  .card[data-down='true'] .hpBar,
+  .card[data-down='true'] .hpText,
+  .card[data-down='true'] .portrait {
+    display: none;
+  }
+  .card[data-down='true'] {
+    padding-block: 0;
+  }
+  .actions {
+    position: sticky;
+    bottom: 0;
+    z-index: 1;
+    margin-top: auto;
+    padding-top: var(--space-2);
+    background: var(--bg);
+    box-shadow: 0 -6px 8px -6px var(--border-strong);
+  }
+}
+
+.actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
 }

@@ -1,10 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
 import type { AiChange } from './changes';
-import type { Combatant } from './combat';
+import type { Combatant, CombatState } from './combat';
 import {
   chipText,
+  chipTitle,
   conditionArgs,
+  removeConditionArgs,
+  turnText,
   displayNames,
   downWords,
   endQuestion,
@@ -120,6 +123,44 @@ describe('conditionArgs', () => {
       condition: 'prone',
       active: true,
     });
+  });
+});
+
+describe('removeConditionArgs and chipTitle', () => {
+  it('turns one condition off on one token', () => {
+    expect(removeConditionArgs('t1', 'prone')).toEqual({
+      action: 'condition',
+      targets: ['t1'],
+      condition: 'prone',
+      active: false,
+    });
+  });
+  it('says the chip takes the condition off, and that an ended one is over', () => {
+    expect(chipTitle('prone', undefined)).toBe('Click to take prone off.');
+    expect(chipTitle('prone', 2)).toBe('Click to take prone off.');
+    expect(chipTitle('restrained', 0)).toBe('Time is up. Click to take restrained off.');
+  });
+});
+
+describe('turnText', () => {
+  const fight = (a: Combatant, b: Combatant): CombatState => ({
+    active: true,
+    round: 3,
+    turn: 1,
+    current: b,
+    combatants: [a, b],
+  });
+  it('names whose turn it is, with the numbered name', () => {
+    const wolf1 = who('a', 'Wolf');
+    const wolf2 = { ...who('b', 'Wolf'), isCurrentTurn: true };
+    expect(turnText(fight(wolf1, wolf2), displayNames([wolf1, wolf2]))).toBe(
+      "Round 3 · Wolf 2's turn"
+    );
+  });
+  it('falls back to the round line when nobody has the turn', () => {
+    expect(turnText(fight(who('a', 'Wolf'), who('b', 'Bat')), new Map())).toBe(
+      'Round 3 · 2 combatants'
+    );
   });
 });
 

@@ -49,7 +49,37 @@ const KIND_EVENTS: FeedEvent[] = [
   ev('k2', at(20, 1), 'journal-created', 'Journal "Harbor rumors" was created'),
   ev('k3', at(20, 2), 'journal-updated', 'Journal "Harbor rumors" was changed'),
   ev('k4', at(20, 3), 'combat-start', 'Combat begins in Old Mill'),
-  ev('k5', at(20, 4), 'roll', 'Brannoc attacks the Ogre Brute: 17 vs AC 14, hit'),
+  {
+    ...ev('k5', at(20, 4), 'roll', 'Brannoc, Longsword attack: 1d20 (10) +7 = 17 vs AC 14: hit'),
+    roll: {
+      who: 'Brannoc',
+      label: 'Longsword attack',
+      total: 17,
+      attack: true,
+      dc: 14,
+      passed: true,
+      natural: 10,
+    },
+  },
+  {
+    ...ev(
+      'k5b',
+      at(20, 4) + 30_000,
+      'roll',
+      'Mira, Perception check: 2d20adv (4) +1 = 5 (advantage) vs DC 12: failure'
+    ),
+    roll: {
+      who: 'Mira',
+      label: 'Perception check',
+      total: 5,
+      attack: false,
+      dc: 12,
+      passed: false,
+      natural: 4,
+      dropped: [2],
+      advantage: 'advantage',
+    },
+  },
   ev('k6', at(20, 5), 'damage-roll', 'Brannoc rolls damage: 9 slashing'),
   ev('k7', at(20, 6), 'gm-roll', 'GM roll for the Ancient Wyrm: Stealth 22 (secret)'),
   ev('k8', at(20, 7), 'damage', 'Ogre Brute takes 9 slashing damage'),

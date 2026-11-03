@@ -16,7 +16,8 @@ export const HANDOUT_NEEDS: readonly string[] = [GM_ACTIONS, 'writes', 'handouts
 export function offSwitches(
   needs: readonly string[],
   gmActions: boolean,
-  list: SessionSwitch[] | null
+  list: SessionSwitch[] | null,
+  unreadable = false
 ): string[] {
   const off: string[] = [];
   for (const id of needs) {
@@ -27,12 +28,21 @@ export function offSwitches(
       if (s && !s.on) off.push(s.name.replace(/^AI Tool: /, '').replace(/ \(writes\)$/, ''));
     }
   }
+  // A control that needs a module switch cannot say it is on when the switches cannot be read.
+  if (unreadable && !list?.length && needs.some(id => id !== GM_ACTIONS)) off.push(UNREADABLE);
   return off;
 }
+
+/** The entry `offSwitches` adds when the module's switches could not be read. */
+export const UNREADABLE = "Can't read the live play switches";
 
 /** "Live play is off" or "Handouts and GM Actions are off", one line a disabled control shows. */
 export function offReason(names: string[]): string {
   if (names.length === 0) return '';
+  if (names.includes(UNREADABLE)) {
+    const others = names.filter(n => n !== UNREADABLE);
+    return others.length > 0 ? `${UNREADABLE}; ${offReason(others)}` : UNREADABLE;
+  }
   if (names.length === 1) return `${names[0]} is off`;
   return `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]} are off`;
 }

@@ -25,7 +25,7 @@ import {
   snapshotGuardedOps,
 } from './data-access/guarded-write.js';
 import { ensureJournalFolder } from './data-access/journal-folder.js';
-import { showJournalPage } from './data-access/journal-show.js';
+import { postHandoutNotice, showJournalPage } from './data-access/journal-show.js';
 import { FoundryDataAccess } from './data-access.js';
 import {
   PLAYER_VIEW_QUERIES,
@@ -192,6 +192,9 @@ export class QueryHandlers {
     );
     handlers.on(`${modulePrefix}.showJournalPage`, (data: unknown) =>
       this.withGmGate('Failed to show the page to the players', () => showJournalPage(data))
+    );
+    handlers.on(`${modulePrefix}.postHandoutNotice`, (data: unknown) =>
+      this.withGmGate('Failed to post the handout notice', () => postHandoutNotice(data))
     );
     handlers.on(`${modulePrefix}.listGuardedFeatures`, () =>
       this.withGmGate('Failed to list features', () => Promise.resolve(listGuardedFeatures()))

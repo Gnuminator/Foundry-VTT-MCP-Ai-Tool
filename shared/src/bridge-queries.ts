@@ -114,6 +114,23 @@ export interface ShowJournalPageReply {
   users: string[];
 }
 
+/**
+ * Request of `postHandoutNotice`: whisper a short "handout revealed" chat message that names the
+ * page and links to it. `userIds` empty means every player who can see the page.
+ */
+export interface PostHandoutNoticeRequest {
+  uuid: string;
+  userIds: string[];
+}
+
+/** Reply of `postHandoutNotice`. */
+export interface PostHandoutNoticeReply {
+  posted: boolean;
+  uuid: string;
+  /** Foundry user ids the message was whispered to (empty when nobody could see the page). */
+  users: string[];
+}
+
 /** Reply of `ensureJournalFolder`. */
 export interface EnsureJournalFolderReply {
   folderId: string;
@@ -150,6 +167,10 @@ export interface BridgeQueryMap {
   'foundry-mcp-bridge.showJournalPage': {
     request: ShowJournalPageRequest;
     reply: ShowJournalPageReply;
+  };
+  'foundry-mcp-bridge.postHandoutNotice': {
+    request: PostHandoutNoticeRequest;
+    reply: PostHandoutNoticeReply;
   };
   'foundry-mcp-bridge.listGuardedFeatures': { request: undefined; reply: GuardedFeatureState[] };
   'foundry-mcp-bridge.ensureJournalFolder': {

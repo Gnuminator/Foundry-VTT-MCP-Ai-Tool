@@ -7,13 +7,17 @@ import { createTestWorld, type TestWorld } from './test-support/foundry-mock/ind
 import { MODULE_ID } from './constants.js';
 import { AI_TOOL_CONTROL, addAiToolControls } from './ai-tool-controls.js';
 import {
+  LIVE_HELLO_MESSAGE,
   LIVE_PICK_MESSAGE,
   LIVE_READY_MESSAGE,
+  postHelloToTargets,
   LIVE_WINDOW_SETTING,
   LIVE_WINDOW_URL_SETTING,
   canOpenLiveWindow,
+  dashboardOrigins,
+  liveWindowWhy,
   isReadyFromFrame,
-  isReadyFromTarget,
+  readyOriginFromTarget,
   liveFrameUrl,
   pickTargets,
   postPickToTargets,
@@ -125,7 +129,7 @@ describe('the picks sent up to the GM page', () => {
   it('posts the ids to the dashboard origin only', () => {
     const a = { postMessage: vi.fn() };
     const b = { postMessage: vi.fn() };
-    postPickToTargets([a, b], origin, ['t1', 't2']);
+    postPickToTargets([a, b], [origin], ['t1', 't2']);
     expect(a.postMessage).toHaveBeenCalledWith(
       { type: LIVE_PICK_MESSAGE, tokenIds: ['t1', 't2'] },
       origin
@@ -133,22 +137,76 @@ describe('the picks sent up to the GM page', () => {
     expect(b.postMessage).toHaveBeenCalledTimes(1);
   });
 
+  it('says hello with no data to every target, to any origin, so the GM page can answer', () => {
+    const a = { postMessage: vi.fn() };
+    const b = {
+      postMessage: vi.fn(() => {
+        throw new Error('closed');
+      }),
+    };
+    postHelloToTargets([b, a]);
+    expect(a.postMessage).toHaveBeenCalledWith({ type: LIVE_HELLO_MESSAGE }, '*');
+    expect(b.postMessage).toHaveBeenCalledTimes(1);
+  });
+
+  it('finds the GM page origin from the frame parent, not from the Live window address', () => {
+    const own = 'http://foundry.local:30001';
+    const page = 'https://dash.example.com';
+    // The browser's own record of the parent wins; the setting is not asked.
+    expect(
+      dashboardOrigins(
+        { location: { origin: own, ancestorOrigins: [page] }, document: { referrer: '' } },
+        'http://localhost:3100'
+      )
+    ).toEqual([page]);
+    // Without ancestorOrigins (Firefox): the referrer of the frame.
+    expect(
+      dashboardOrigins(
+        { location: { origin: own }, document: { referrer: `${page}/gm` } },
+        'http://localhost:3100'
+      )
+    ).toEqual([page]);
+    // A referrer that is Foundry itself (it navigated the page) is not the GM page.
+    expect(
+      dashboardOrigins({ location: { origin: own }, document: { referrer: `${own}/join` } }, null)
+    ).toEqual([]);
+    // Only then the setting counts.
+    expect(
+      dashboardOrigins(
+        { location: { origin: own }, document: { referrer: `${own}/join` } },
+        'http://localhost:3100'
+      )
+    ).toEqual(['http://localhost:3100']);
+    expect(
+      dashboardOrigins({ location: { origin: own, ancestorOrigins: ['null'] } }, null)
+    ).toEqual([]);
+  });
+
+  it('explains a blank frame with the address and the fixes', () => {
+    const empty = liveWindowWhy('http://x:3100/?strip=1', false).join(' ');
+    expect(empty).toContain('http://x:3100/?strip=1');
+    expect(empty).toContain('DASHBOARD_FOUNDRY_URL');
+    expect(empty).toContain('set "AI Tool: Live window address"');
+    expect(liveWindowWhy('u', true).join(' ')).toContain('Check the address in the module setting');
+  });
+
   it('answers a ready message from a target window and the dashboard origin only', () => {
     const parent = {};
     const ready = { type: LIVE_READY_MESSAGE };
-    expect(isReadyFromTarget({ data: ready, source: parent, origin }, [parent], origin)).toBe(true);
-    expect(isReadyFromTarget({ data: ready, source: {}, origin }, [parent], origin)).toBe(false);
-    expect(isReadyFromTarget({ data: ready, source: null, origin }, [parent], origin)).toBe(false);
+    // The origin is read from the message itself: no setting is needed.
+    expect(readyOriginFromTarget({ data: ready, source: parent, origin }, [parent])).toBe(origin);
+    expect(readyOriginFromTarget({ data: ready, source: {}, origin }, [parent])).toBeNull();
+    expect(readyOriginFromTarget({ data: ready, source: null, origin }, [parent])).toBeNull();
     expect(
-      isReadyFromTarget(
-        { data: ready, source: parent, origin: 'https://evil.example' },
-        [parent],
-        origin
-      )
-    ).toBe(false);
+      readyOriginFromTarget({ data: { type: 'x' }, source: parent, origin }, [parent])
+    ).toBeNull();
+    // Not a web origin, and not Foundry's own.
     expect(
-      isReadyFromTarget({ data: { type: 'x' }, source: parent, origin }, [parent], origin)
-    ).toBe(false);
+      readyOriginFromTarget({ data: ready, source: parent, origin: 'null' }, [parent])
+    ).toBeNull();
+    expect(
+      readyOriginFromTarget({ data: ready, source: parent, origin }, [parent], origin)
+    ).toBeNull();
   });
 });
 

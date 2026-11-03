@@ -208,8 +208,11 @@ async function load() {
     $('me-updated').textContent =
       `Updated ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
   } catch (err) {
-    if (!data)
-      $('me-main').innerHTML = `<p class="me-empty">${esc(String(err.message || err))}</p>`;
+    if (!data) {
+      const text =
+        err instanceof TypeError ? 'Could not load your sheet. Ask your GM.' : err.message;
+      $('me-main').innerHTML = `<p class="me-empty">${esc(String(text))}</p>`;
+    }
     $('me-updated').textContent = 'Not updated: the table may be offline.';
   }
 }

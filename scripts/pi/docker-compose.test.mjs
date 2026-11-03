@@ -48,14 +48,23 @@ describe('22-docker.sh as text', () => {
     assert.doesNotMatch(code, /\brm\b|\bmv\b|prune|reboot|shutdown/);
   });
 
-  test('keeps the .env lines it does not own and writes only the three managed names', () => {
+  test('keeps the .env lines it does not own and writes only the four managed names', () => {
     assert.match(s22, /FOUNDRY_UID=\$uid/);
     assert.match(s22, /FOUNDRY_GID=\$gid/);
     assert.match(s22, /DASHBOARD_ALLOWED_HOSTS=\$hosts/);
+    assert.match(s22, /FOUNDRY_AI_PLAYER_VAULTS_DIR=\$vaults/);
     assert.match(
       s22,
-      /grep -vE '\^\(#\|\[\[:space:\]\]\*\$\|FOUNDRY_UID=\|FOUNDRY_GID=\|DASHBOARD_ALLOWED_HOSTS=\)'/
+      /grep -vE '\^\(#\|\[\[:space:\]\]\*\$\|FOUNDRY_UID=\|FOUNDRY_GID=\|DASHBOARD_ALLOWED_HOSTS=\|FOUNDRY_AI_PLAYER_VAULTS_DIR=\)'/
     );
+  });
+
+  test('compose passes the player vaults folder to the dashboard and gives Foundry time to stop', () => {
+    const compose = read('deploy/pi/compose.yml');
+    assert.match(compose, /FOUNDRY_AI_PLAYER_VAULTS_DIR: \$\{FOUNDRY_AI_PLAYER_VAULTS_DIR:-\}/);
+    assert.match(compose, /init: true # node is not PID 1/);
+    assert.equal((compose.match(/stop_grace_period: 90s/g) ?? []).length, 2);
+    assert.doesNotMatch(compose, /check `docker compose config`/);
   });
 });
 
@@ -84,6 +93,30 @@ describe('23-compose.sh as text', () => {
     assert.ok((cut.match(/rollback_now/g) ?? []).length >= 3);
     assert.match(cut, /ROLLED BACK/);
     assert.doesNotMatch(s23, /down -v|--volumes|--rmi|system prune|volume rm/);
+  });
+
+  test('cutover is refused unless a test switch is set, before anything else runs', () => {
+    const refuse = s23.indexOf('MODE=cutover is not supported');
+    assert.ok(refuse > 0);
+    assert.match(s23, /\[ "\$mode" = cutover \] && \[ "\$\{TEST_ALLOW_CUTOVER:-0\}" != 1 \]/);
+    assert.ok(refuse < s23.indexOf('mode_up() {'));
+    assert.ok(refuse < s23.indexOf("trap '' HUP PIPE"));
+  });
+
+  test('containers are found by label, a dead daemon fails closed, and HUP and PIPE are ignored', () => {
+    assert.match(s23, /label=com\.docker\.compose\.project=\$1/);
+    assert.match(s23, /docker info >\/dev\/null 2>&1 \|\| return 1/);
+    assert.match(s23, /trap '' HUP PIPE/);
+    assert.match(s23, /docker update --restart=no/);
+    assert.match(s23, /FORCE:-0/);
+    assert.match(s23, /live_project-rehearsal/);
+    assert.doesNotMatch(s23, /dc ps/);
+  });
+
+  test('the health gate leaves gm-browser out; env values with $ # \\ or quotes are refused', () => {
+    assert.match(s23, /gate_services="foundry bridge dashboard"/);
+    assert.match(s23, /check_env_values/);
+    assert.doesNotMatch(s23, /docker compose config/);
   });
 
   test('units are only disabled, never masked or removed; the unit files stay', () => {

@@ -23,9 +23,10 @@
 #   1. checks the deployed checkout ($TOOL_DIR/app, built by stage 5) has deploy/pi/compose.yml and the foundry user exists;
 #   2. installs the missing packages and checks `docker compose version` is 2.24 or newer;
 #   3. enables docker.service (a running daemon is left alone) and waits for `docker info`;
-#   4. writes deploy/pi/.env in that checkout: FOUNDRY_UID and FOUNDRY_GID (the foundry user's ids) and
-#      DASHBOARD_ALLOWED_HOSTS (the Pi's tailnet name, found the way stage 5 finds it, else from the dashboard unit).
-#      Other lines already in the file (a rehearsal's ports, say) are kept; the three names are rewritten;
+#   4. writes deploy/pi/.env in that checkout: FOUNDRY_UID and FOUNDRY_GID (the foundry user's ids),
+#      DASHBOARD_ALLOWED_HOSTS (the Pi's tailnet name, found the way stage 5 finds it, else from the dashboard unit) and
+#      FOUNDRY_AI_PLAYER_VAULTS_DIR (from stage 21's dashboard drop-in; empty when stage 21 has not run).
+#      Other lines already in the file (a rehearsal's ports, say) are kept; the four names are rewritten;
 #   5. builds the images: `docker compose -f deploy/pi/compose.yml build` in the checkout (log: $TOOL_DIR/docker-build.log).
 # Safe to run again: the packages are checked first, an unchanged .env is left alone, and a build that finds its layers
 # cached takes seconds. A new stage 5 build replaces the checkout and with it the .env: run this stage again after it.
@@ -36,7 +37,8 @@
 # These lines are bash (Git Bash, or Claude's Bash tool), not PowerShell:
 #   cat scripts/pi/remote/lib.sh scripts/pi/remote/22-docker.sh | ssh foundry-pi 'DRY_RUN=1 bash -s'
 #   cat scripts/pi/remote/lib.sh scripts/pi/remote/22-docker.sh | ssh foundry-pi 'bash -s'
-# Tests only: TOOL_CHECKOUT points at a stand-in checkout, DASHBOARD_UNIT at a stand-in dashboard unit file.
+# Tests only: TOOL_CHECKOUT points at a stand-in checkout, DASHBOARD_UNIT at a stand-in dashboard unit file,
+# PLAYER_VAULT_DROPIN at a stand-in stage 21 drop-in.
 
 dry="${DRY_RUN:-0}"
 skip_build="${SKIP_BUILD:-0}"
@@ -45,6 +47,7 @@ compose_dir="$checkout/deploy/pi"
 compose_file="$compose_dir/compose.yml"
 env_file="$compose_dir/.env"
 dash_unit="${DASHBOARD_UNIT:-/etc/systemd/system/foundry-ai-tool-dashboard.service}"
+player_dropin="${PLAYER_VAULT_DROPIN:-/etc/systemd/system/foundry-ai-tool-dashboard.service.d/player-vault.conf}"
 build_log="$TOOL_DIR/docker-build.log"
 min_compose=2.24.0
 
@@ -83,14 +86,26 @@ tailnet_name() {
   printf '%s' "$n"
 }
 
-# The .env content: the three managed names first, then whatever else the file already held (comments of ours dropped).
+# The player vaults folder stage 21 put into the dashboard unit's drop-in (the compose dashboard has no drop-in).
+player_vaults_dir() {
+  local v=""
+  if [ -f "$player_dropin" ]; then
+    v="$(sed -n 's/^Environment=FOUNDRY_AI_PLAYER_VAULTS_DIR=//p' "$player_dropin" | head -n 1)"
+  fi
+  # A path; anything else would end up in an env file.
+  case "$v" in *[!A-Za-z0-9/._-]*) v="" ;; esac
+  printf '%s' "$v"
+}
+
+# The .env content: the four managed names first, then whatever else the file already held (comments of ours dropped).
 build_env_content() {
-  local hosts="$1" kept=""
+  local hosts="$1" kept="" vaults
+  vaults="$(player_vaults_dir)"
   if [ -f "$env_file" ]; then
-    kept="$(grep -vE '^(#|[[:space:]]*$|FOUNDRY_UID=|FOUNDRY_GID=|DASHBOARD_ALLOWED_HOSTS=)' "$env_file" || true)"
+    kept="$(grep -vE '^(#|[[:space:]]*$|FOUNDRY_UID=|FOUNDRY_GID=|DASHBOARD_ALLOWED_HOSTS=|FOUNDRY_AI_PLAYER_VAULTS_DIR=)' "$env_file" || true)"
   fi
   printf '%s\n' "# Written by scripts/pi/remote/22-docker.sh (rewritten on every run; other lines are kept). No secrets here."
-  printf '%s\n' "FOUNDRY_UID=$uid" "FOUNDRY_GID=$gid" "DASHBOARD_ALLOWED_HOSTS=$hosts"
+  printf '%s\n' "FOUNDRY_UID=$uid" "FOUNDRY_GID=$gid" "DASHBOARD_ALLOWED_HOSTS=$hosts" "FOUNDRY_AI_PLAYER_VAULTS_DIR=$vaults"
   if [ -n "$kept" ]; then printf '%s\n' "$kept"; fi
 }
 

@@ -7,7 +7,7 @@
 # the GitHub runner and the stage scripts. Every service uses network_mode: host, so the loopback ports are the
 # ones the host already uses and Tailscale serve, the tunnel and Plan B need no change.
 #
-# Ports and folders come from the environment (deploy/pi/.env, written by stage 23, or the shell). The defaults are
+# Ports and folders come from the environment (deploy/pi/.env, written by stage 22, or the shell). The defaults are
 # the live ones. A rehearsal beside the live stack sets FOUNDRY_HTTP_PORT=30100 BRIDGE_CONTROL_PORT=31614
 # BRIDGE_LINK_PORT=31615 DASHBOARD_PORT=3300 and its OWN FOUNDRY_DATA_DIR / TOOL_DATA_DIR (never the live ones:
 # two Foundrys on one data folder corrupt it). See deploy/pi/test.env.
@@ -16,9 +16,10 @@
 # BRIDGE_LINK_PORT and Foundry's own port is FOUNDRY_HTTP_PORT here.
 #
 # The env files (/etc/foundry-ai-tool/*.env) are the same files the systemd units read, with the same KEY=value
-# lines. Compose parses quotes like a shell, systemd keeps them differently for some values: after the first
-# cutover check `docker compose config` for a value you quoted. `environment:` below wins over an env file, so an
-# env file must not set the ports or the host/folder variables listed here.
+# lines. Compose expands $VAR in unquoted and double-quoted values and drops " #..." comments, systemd does
+# neither: stage 23 refuses a value with $, #, a backslash or a quote (it names the key, never the value). Do NOT
+# run `docker compose config`: it prints every resolved value, passwords included. `environment:` below wins over
+# an env file, so an env file must not set the ports or the host/folder variables listed here.
 
 name: foundry-ai-tool-pi
 
@@ -49,6 +50,8 @@ services:
     image: foundry-ai-tool-pi/foundry:local
     # Foundry is licensed: the host's copy is mounted, read-only, never baked into an image.
     working_dir: /opt/foundry
+    init: true # node is not PID 1: signals reach it and zombies are reaped
+    stop_grace_period: 90s # the unit gets 90 s from systemd; a SIGKILL mid LevelDB flush costs data
     command: ["node", "/opt/foundry/main.js", "--dataPath=/var/lib/foundry", "--port=${FOUNDRY_HTTP_PORT:-30000}", "--noupnp"]
     environment:
       HOME: /var/lib/foundry
@@ -69,6 +72,7 @@ services:
     image: foundry-ai-tool-pi/app:local
     working_dir: /app
     command: ["node", "/app/packages/mcp-server/dist/standalone.js"]
+    stop_grace_period: 90s
     depends_on:
       foundry:
         condition: service_healthy # After=foundry.service
@@ -110,13 +114,15 @@ services:
       NODE_ENV: production
       PORT: "${DASHBOARD_PORT:-3000}"
       DASHBOARD_HOST: 127.0.0.1
-      # The Pi's tailnet name for the DNS rebinding guard (stage 5 reads it from `tailscale status`; stage 23
+      # The Pi's tailnet name for the DNS rebinding guard (stage 5 reads it from `tailscale status`; stage 22
       # writes it into deploy/pi/.env). Empty = loopback names only.
       DASHBOARD_ALLOWED_HOSTS: ${DASHBOARD_ALLOWED_HOSTS:-}
       COGM_STATE_DIR: ${TOOL_DATA_DIR:-/var/lib/foundry-ai-tool}/dashboard
       MCP_CONTROL_HOST: 127.0.0.1
       MCP_CONTROL_PORT: "${BRIDGE_CONTROL_PORT:-31414}"
       FOUNDRY_AI_DATA_DIR: ${TOOL_DATA_DIR:-/var/lib/foundry-ai-tool}/vault
+      # Stage 21 sets this in a systemd drop-in; stage 22 copies it into deploy/pi/.env. Empty = player vaults off.
+      FOUNDRY_AI_PLAYER_VAULTS_DIR: ${FOUNDRY_AI_PLAYER_VAULTS_DIR:-}
     volumes:
       - ${TOOL_DATA_DIR:-/var/lib/foundry-ai-tool}:${TOOL_DATA_DIR:-/var/lib/foundry-ai-tool}
     healthcheck:

@@ -16,6 +16,10 @@ on:
       - 'scripts/pi/remote/23-compose.sh'
       - 'scripts/pi/container-test/stage2[23]-scenarios.sh'
       - 'scripts/pi/docker-compose.test.mjs'
+      - 'scripts/pi/remote/lib.sh'
+      - 'packages/mcp-server/**'
+      - 'packages/cogm-dashboard/**'
+      - 'shared/**'
       - 'package-lock.json'
       - '.github/workflows/pi-images.yml'
   pull_request:
@@ -27,6 +31,10 @@ on:
       - 'scripts/pi/remote/23-compose.sh'
       - 'scripts/pi/container-test/stage2[23]-scenarios.sh'
       - 'scripts/pi/docker-compose.test.mjs'
+      - 'scripts/pi/remote/lib.sh'
+      - 'packages/mcp-server/**'
+      - 'packages/cogm-dashboard/**'
+      - 'shared/**'
       - 'package-lock.json'
       - '.github/workflows/pi-images.yml'
   workflow_dispatch:

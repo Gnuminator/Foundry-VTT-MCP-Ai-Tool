@@ -1614,15 +1614,19 @@ side, each only after a `dietpi-backup` snapshot and the user's OK; nothing here
 
 - **Stage 22** (`scripts/pi/remote/22-docker.sh`): Debian 13's own `docker.io`, the compose plugin (`docker-compose`, or
   `docker-compose-v2` where the archive has that name) and `docker-buildx`; enables `docker.service`; writes
-  `deploy/pi/.env` in the deployed checkout (`/opt/foundry-ai-tool/app`: the foundry user's ids and the tailnet name); builds the
-  three images. Starts nothing. `DRY_RUN=1` prints the plan, `SKIP_BUILD=1` skips the build. Run it again after every stage 5
-  build (the checkout, and its `.env`, is replaced).
-- **Stage 23** (`scripts/pi/remote/23-compose.sh`, `MODE=status|up|down|cutover|rollback`): `up` and `down` start and stop the
-  stack (`up` is refused next to a running unit on the live ports or data folders); `cutover` stops and disables the four units,
-  starts the stack and rolls back by itself when it is not healthy; `rollback` is the one command back (stack down, units
-  enabled and started in order). `status` is read-only.
-- Do not run stages 3 or 5 on a cut-over Pi: they would enable the units next to the containers (`deploy/pi/deployed-state.sh`
-  shows it as FAIL).
+  `deploy/pi/.env` in the deployed checkout (`/opt/foundry-ai-tool/app`: the foundry user's ids, the tailnet name and the player
+  vaults folder from stage 21); builds the three images. Starts nothing. `DRY_RUN=1` prints the plan, `SKIP_BUILD=1` skips the
+  build. Run it again after every stage 5 build (the checkout, and its `.env`, is replaced).
+- **Stage 23** (`scripts/pi/remote/23-compose.sh`, `MODE=status|up|down|rollback`): `up` and `down` start and stop the stack
+  for a rehearsal (`up` is refused next to a running or enabled unit on the live ports or data folders; a rehearsal on other
+  ports is its own compose project and never touches the live containers); `rollback` is the one command back (every container
+  of the live project stopped, found by label, then the units enabled and started in order). `status` is read-only. Containers
+  are always found by label, and a Docker daemon that does not answer makes the stage refuse. **`MODE=cutover` is refused for now:**
+  it needs a compose-aware nightly backup (`6-backup.sh` stops `foundry.service` and copies the worlds) and guards in every stage
+  that starts `foundry.service` (Backlog: `pi-compose-cutover`). The go/no-go on 2026-11-11 is therefore a rehearsal beside the
+  units (snapshot, stage 22, stage 23 `MODE=up` on the `test.env` ports), not a switch.
+- Do not run stages 3 or 5 while the live project has containers: they would enable the units next to them
+  (`deploy/pi/deployed-state.sh` shows it as FAIL). Without a cutover there are none; `MODE=rollback` first if there are.
 - Tests: `scripts/pi/docker-compose.test.mjs` (both stages as text; with `PI_STAGE22_CONTAINER=1` the scenario scripts
   `scripts/pi/container-test/stage22-scenarios.sh` and `stage23-scenarios.sh` in an ARM64 container). The scenarios use stand-ins
   for apt, docker, systemctl and ss, so they also run in Git Bash.

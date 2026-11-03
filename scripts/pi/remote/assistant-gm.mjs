@@ -23,7 +23,7 @@
 import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
 import net from 'node:net';
-import { lstatSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { lstatSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { isAbsolute, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -50,6 +50,10 @@ const WAIT_FOR_WORLD_MS = 30_000;
 
 const LINK_POLL_MS = 15_000;
 const LINK_GRACE_MS = 120_000;
+// A link restart that does not bring the socket back (another GM is the bridge user, the module is broken) would
+// repeat every few minutes all night. At most LINK_MAX_RESTARTS in LINK_WINDOW_MS; after that the watcher only logs.
+const LINK_MAX_RESTARTS = 3;
+const LINK_WINDOW_MS = 6 * 3_600_000;
 
 const log = msg => console.log(`[assistant-gm] ${msg}`);
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -96,13 +100,47 @@ export function linkVerdict(state, since, now, graceMs = LINK_GRACE_MS) {
   return { restart: now - first >= graceMs, since: first };
 }
 
-async function watchLink(port, context) {
+/**
+ * Whether another link restart is allowed. `history` is the times (ms) of earlier ones; returns the verdict and the
+ * history to store (old entries dropped, `now` added when allowed).
+ */
+export function linkRestartBudget(history, now, max = LINK_MAX_RESTARTS, windowMs = LINK_WINDOW_MS) {
+  const recent = (Array.isArray(history) ? history : []).filter(
+    t => Number.isFinite(t) && now - t < windowMs
+  );
+  if (recent.length >= max) return { allowed: false, history: recent };
+  return { allowed: true, history: [...recent, now] };
+}
+
+// The restart times live in the browser profile (it survives a restart); a missing or broken file counts as empty.
+function readRestartHistory(file) {
+  try {
+    return JSON.parse(readFileSync(file, 'utf8'));
+  } catch {
+    return [];
+  }
+}
+
+async function watchLink(port, context, historyFile) {
   let since = null;
   for (;;) {
     await sleep(LINK_POLL_MS);
     const verdict = linkVerdict(await probeLink(port), since, Date.now());
     since = verdict.since;
     if (verdict.restart) {
+      const budget = linkRestartBudget(readRestartHistory(historyFile), Date.now());
+      if (!budget.allowed) {
+        log(
+          `no module socket for ${LINK_GRACE_MS / 1000} s, but ${LINK_MAX_RESTARTS} link restarts happened in the last ${LINK_WINDOW_MS / 3_600_000} h: not restarting again (is this user the bridge user?)`
+        );
+        since = Date.now(); // look again after another grace period
+        continue;
+      }
+      try {
+        writeFileSync(historyFile, JSON.stringify(budget.history));
+      } catch {
+        // the profile is not writable: restart anyway, the cap then cannot hold
+      }
       log(`the bridge has had no module socket for ${LINK_GRACE_MS / 1000} s; restarting the browser`);
       await context.close().catch(() => {});
       process.exit(1);
@@ -228,17 +266,23 @@ async function run() {
       user: game.user.name,
       isGM: game.user.isGM,
       module: game.modules.get(id)?.active ?? false,
+      // The module dials the bridge only from the browser of the user in its bridgeUserId setting.
+      bridgeUser: game.modules.get(id)?.active ? game.settings.get(id, 'bridgeUserId') === game.user.id : false,
     }),
     MODULE_ID
   );
   log(
-    `joined world ${info.world} as ${info.user} (GM: ${info.isGM}, module active: ${info.module})`
+    `joined world ${info.world} as ${info.user} (GM: ${info.isGM}, module active: ${info.module}, bridge user: ${info.bridgeUser})`
   );
   if (!info.module) log(`the ${MODULE_ID} module is not active in this world; enable it as a GM`);
-  // The link check runs only where GM_LINK_WATCH=1 (the compose service sets it; the systemd unit does not, it has
-  // no start limit) and only when the module is active in this world (a kit or trial world without it would loop).
+  // The link check runs only where GM_LINK_WATCH=1 (the compose service sets it; the systemd unit does not, it is
+  // left as it was), only when the module is active in this world (a kit or trial world without it would loop) and
+  // only as the module's bridge user (any other user cannot fix the socket by restarting). Restarts are capped
+  // (linkRestartBudget): Docker's unless-stopped policy has no start limit either.
   const linkPort = Number(process.env.MCP_CONTROL_PORT);
-  if (process.env.GM_LINK_WATCH === '1' && linkPort > 0 && info.module) watchLink(linkPort, context);
+  if (process.env.GM_LINK_WATCH === '1' && linkPort > 0 && info.module && info.bridgeUser) {
+    watchLink(linkPort, context, join(env('GM_BROWSER_PROFILE'), 'link-restarts.json'));
+  }
   // Stay. Foundry sends a client back to /join when the world stops or the user is kicked;
   // exit then and let systemd start a fresh browser.
   for (;;) {

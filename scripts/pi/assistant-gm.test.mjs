@@ -29,6 +29,7 @@ import {
   extraGm,
   installDryRunGuard,
   isReadEvent,
+  linkRestartBudget,
   linkVerdict,
   parseScriptArgs,
   probeLink,
@@ -534,6 +535,31 @@ describe('link check', () => {
   test('a connected module or an unreachable bridge resets the clock and never restarts', () => {
     assert.deepEqual(linkVerdict('connected', 1000, 9e9, grace), { restart: false, since: null });
     assert.deepEqual(linkVerdict('unreachable', 1000, 9e9, grace), { restart: false, since: null });
+  });
+
+  test('link restarts are capped per window; old ones age out; a broken history counts as empty', () => {
+    const hour = 3_600_000;
+    let h = [];
+    for (let i = 0; i < 3; i++) {
+      const b = linkRestartBudget(h, i * hour, 3, 6 * hour);
+      assert.equal(b.allowed, true);
+      h = b.history;
+    }
+    assert.equal(linkRestartBudget(h, 3 * hour, 3, 6 * hour).allowed, false);
+    const later = linkRestartBudget(h, 6 * hour, 3, 6 * hour);
+    assert.equal(later.allowed, true);
+    assert.equal(later.history.length, 3);
+    assert.equal(linkRestartBudget('junk', 5, 3, 6 * hour).allowed, true);
+    assert.equal(linkRestartBudget([null, 'x'], 5, 3, 6 * hour).history.length, 1);
+  });
+
+  test('the watcher runs only for the bridge user and is off in the systemd unit', () => {
+    const src = readFileSync(
+      path.join(path.dirname(fileURLToPath(import.meta.url)), 'remote', 'assistant-gm.mjs'),
+      'utf8'
+    );
+    assert.match(src, /info\.module && info\.bridgeUser/);
+    assert.doesNotMatch(src, /the systemd unit has no start limit/);
   });
 
   test('probeLink reads link_status from the control port', async () => {

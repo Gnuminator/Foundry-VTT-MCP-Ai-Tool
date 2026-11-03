@@ -84,6 +84,32 @@ svcs="foundry bridge dashboard gm-browser"
 case "$1" in
   info) [ ! -f "$F/daemon-down" ] || exit 1 ;;
   image) [ ! -f "$F/missing-image" ] || exit 1 ;;
+  ps)
+    # docker ps -q|-aq --filter label=com.docker.compose.project=P [--filter label=com.docker.compose.service=S]
+    [ ! -f "$F/daemon-down" ] || exit 1
+    shift; all=0; proj=""; want=""
+    while [ $# -gt 0 ]; do
+      case "$1" in
+        -aq) all=1 ;;
+        --filter) shift
+          case "$1" in
+            label=com.docker.compose.project=*) proj="${1#label=com.docker.compose.project=}" ;;
+            label=com.docker.compose.service=*) want="${1#label=com.docker.compose.service=}" ;;
+          esac ;;
+      esac
+      shift
+    done
+    for s in $svcs; do
+      [ -f "$F/c/$s" ] || continue
+      [ "$(cat "$F/p-$s" 2>/dev/null || echo foundry-ai-tool-pi)" = "$proj" ] || continue
+      [ -z "$want" ] || [ "$want" = "$s" ] || continue
+      read -r st h r <"$F/c/$s"
+      [ "$all" = 1 ] || [ "$st" = running ] || continue
+      echo "$s"
+    done ;;
+  update | stop) ;;
+  rm) [ ! -f "$F/rm-fail" ] || exit 1
+      for a in "$@"; do case "$a" in rm | -f) ;; *) rm -f "$F/c/$a" ;; esac; done ;;
   inspect)
     case "$*" in
       *StartedAt*) echo 2026-11-03T10:00:00Z ;;
@@ -91,17 +117,11 @@ case "$1" in
     esac ;;
   logs) cat "$F/logs/${@: -1}" 2>/dev/null; exit 0 ;;
   compose)
-    shift 3 # compose -f FILE
+    proj="$5"
+    # compose -f FILE -p PROJECT: like the real thing, it fails when the interpolation needs a .env that is gone
+    [ -f "$(dirname "$3")/.env" ] || exit 1
+    shift 5
     case "$1" in
-      ps)
-        flags="$2"; want="${3:-}"
-        for s in $svcs; do
-          [ -f "$F/c/$s" ] || continue
-          [ -z "$want" ] || [ "$want" = "$s" ] || continue
-          read -r st h r <"$F/c/$s"
-          [ "$flags" = -aq ] || [ "$st" = running ] || continue
-          echo "$s"
-        done ;;
       config)
         case "$2" in
           --services) for s in $svcs; do echo "$s"; done ;;
@@ -109,11 +129,14 @@ case "$1" in
         esac ;;
       up)
         [ ! -f "$F/up-hard-fail" ] || exit 1
-        for s in $svcs; do echo "running healthy 0" >"$F/c/$s"; done
-        if [ -f "$F/up-unhealthy" ]; then echo "running unhealthy 0" >"$F/c/bridge"; exit 1; fi ;;
+        for s in $svcs; do echo "running healthy 0" >"$F/c/$s"; echo "$proj" >"$F/p-$s"; done
+        if [ -f "$F/up-unhealthy" ]; then echo "running unhealthy 0" >"$F/c/bridge"; exit 1; fi
+        if [ -f "$F/gm-unhealthy" ]; then echo "running unhealthy 0" >"$F/c/gm-browser"; exit 1; fi ;;
       down)
         [ ! -f "$F/down-fail" ] || exit 1
-        rm -f "$F"/c/* ;;
+        for s in $svcs; do
+          [ "$(cat "$F/p-$s" 2>/dev/null || echo foundry-ai-tool-pi)" = "$proj" ] && rm -f "$F/c/$s"
+        done ;;
     esac ;;
 esac
 exit 0
@@ -138,6 +161,7 @@ run_stage() { # env assignments as arguments
     cat "$STAGE"
   } >"$f"
   OUT="$(
+    export TEST_ALLOW_CUTOVER=1
     for kv in "$@"; do export "${kv?}"; done
     export PATH="$BIN:$PATH" DIETPI_DIR="$SB/dietpi" DIETPI_BACKUP_STATS="$SB/stats" PORT_WAIT=1 WAIT_TIMEOUT=5
     unset FOUNDRY_HTTP_PORT_UNSET
@@ -193,27 +217,27 @@ if [ "$RC" -eq 0 ] && echo "$CALLS" | grep -qE 'compose.* up -d --wait .*--no-bu
   pass "a rehearsal comes up beside the running units and touches none of them"
 else fail "up rehearsal (rc $RC): $OUT"; fi
 new_pi
-for u in $all_units; do rm -f "$FAKE/active-$u"; done
+for u in $all_units; do rm -f "$FAKE/active-$u" "$FAKE/enabled-$u"; done
 run_stage MODE=up
 if [ "$RC" -eq 0 ] && echo "$CALLS" | grep -q 'compose.* up' && echo "$OUT" | grep -q 'the stack runs and is healthy'; then pass "up on the live ports works while the units are off"; else fail "up off (rc $RC): $OUT"; fi
 new_pi
-for u in $all_units; do rm -f "$FAKE/active-$u"; done
+for u in $all_units; do rm -f "$FAKE/active-$u" "$FAKE/enabled-$u"; done
 echo 3000 >"$FAKE/busy"
 run_stage MODE=up
 if [ "$RC" -eq 1 ] && echo "$OUT" | grep -q 'port 3000 is already in use' && ! echo "$CALLS" | grep -q 'compose.* up'; then pass "up refuses a port something else holds"; else fail "up busy (rc $RC): $OUT"; fi
 new_pi
-for u in $all_units; do rm -f "$FAKE/active-$u"; done
+for u in $all_units; do rm -f "$FAKE/active-$u" "$FAKE/enabled-$u"; done
 touch "$FAKE/up-unhealthy"
 run_stage MODE=up
 if [ "$RC" -eq 1 ] && echo "$OUT" | grep -q 'not healthy' && ! echo "$CALLS" | grep -q 'compose.* down'; then pass "an unhealthy up exits 1 and leaves the stack for a look"; else fail "up unhealthy (rc $RC): $OUT"; fi
 new_pi nosnapshot
-for u in $all_units; do rm -f "$FAKE/active-$u"; done
+for u in $all_units; do rm -f "$FAKE/active-$u" "$FAKE/enabled-$u"; done
 run_stage MODE=up
 if [ "$RC" -eq 1 ] && echo "$OUT" | grep -q 'no dietpi-backup snapshot' && ! echo "$CALLS" | grep -q 'compose.* up'; then pass "up needs a snapshot from today"; else fail "up nosnapshot (rc $RC): $OUT"; fi
 
 # 4. down
 new_pi
-for u in $all_units; do rm -f "$FAKE/active-$u"; done
+for u in $all_units; do rm -f "$FAKE/active-$u" "$FAKE/enabled-$u"; done
 running_stack
 run_stage MODE=down
 if [ "$RC" -eq 0 ] && stack_gone && echo "$CALLS" | grep -q 'compose.* down'; then pass "down removes the containers"; else fail "down (rc $RC): $OUT"; fi
@@ -290,16 +314,95 @@ if [ "$RC" -eq 0 ] && all_on foundry.service $bridge $dash && ! unit_on $gmb && 
 # 10. rollback with a stack that will not go down starts no unit
 new_pi
 run_stage MODE=cutover
-touch "$FAKE/down-fail"
+touch "$FAKE/down-fail" "$FAKE/rm-fail"
 : >"$FAKE/calls"
 run_stage MODE=rollback
 if [ "$RC" -eq 1 ] && echo "$OUT" | grep -q 'still run after down' && ! echo "$CALLS" | grep -q 'enable --now' && all_off $all_units; then pass "rollback starts no unit while containers remain (two copies would clash)"; else fail "rollback blocked (rc $RC): $OUT"; fi
 
 # 11. rollback needs neither a quiet table nor a snapshot
 new_pi nosnapshot
-for u in $all_units; do rm -f "$FAKE/active-$u"; done
+for u in $all_units; do rm -f "$FAKE/active-$u" "$FAKE/enabled-$u"; done
 echo 5 >"$FAKE/online"
 run_stage MODE=rollback
 if [ "$RC" -eq 0 ] && all_on $all_units && echo "$OUT" | grep -q 'no snapshot from today; going on'; then pass "rollback is the way out: a snapshot gap is a warning, not a stop"; else fail "rollback nosnap (rc $RC): $OUT"; fi
+
+# 12. cutover is refused for now (the backup and the other stages do not know the stack)
+new_pi
+run_stage MODE=cutover TEST_ALLOW_CUTOVER=0
+if [ "$RC" -eq 1 ] && echo "$OUT" | grep -q 'MODE=cutover is not supported' && all_on $all_units && ! echo "$CALLS" | grep -qE 'disable|compose.* up'; then pass "MODE=cutover is refused and changes nothing"; else fail "cutover refused (rc $RC): $OUT"; fi
+run_stage MODE=cutover TEST_ALLOW_CUTOVER=0 DRY_RUN=1
+if [ "$RC" -eq 1 ] && echo "$OUT" | grep -q 'not supported'; then pass "also with DRY_RUN=1"; else fail "cutover dry refused (rc $RC): $OUT"; fi
+
+# 13. the Docker daemon is down: containers may exist and come back with it, so nothing is assumed
+new_pi
+for u in $all_units; do rm -f "$FAKE/active-$u" "$FAKE/enabled-$u"; done
+touch "$FAKE/daemon-down"
+run_stage MODE=up
+if [ "$RC" -eq 1 ] && echo "$OUT" | grep -q 'daemon does not answer' && ! echo "$CALLS" | grep -q 'compose.* up'; then pass "up is refused while the Docker daemon is down"; else fail "up daemon (rc $RC): $OUT"; fi
+run_stage MODE=status
+if [ "$RC" -eq 1 ] && echo "$OUT" | grep -q 'which containers exist is unknown'; then pass "status says the container state is unknown and exits 1"; else fail "status daemon (rc $RC): $OUT"; fi
+run_stage MODE=rollback
+if [ "$RC" -eq 1 ] && all_off $all_units && ! echo "$CALLS" | grep -qE 'enable --now|disable --now docker'; then pass "rollback with the daemon down starts no unit"; else fail "rollback daemon (rc $RC): $OUT"; fi
+run_stage MODE=rollback FORCE=1
+if [ "$RC" -eq 0 ] && all_on $all_units && order_ok 'disable --now docker.service docker.socket' "enable --now foundry.service"; then pass "FORCE=1 disables docker.service and docker.socket first, then starts the units"; else fail "rollback force (rc $RC): $OUT / $CALLS"; fi
+
+# 14. no deploy/pi/.env (a stage 5 replaced the checkout) but the containers run: found by label, rollback removes them
+new_pi
+for u in $all_units; do rm -f "$FAKE/active-$u" "$FAKE/enabled-$u"; done
+running_stack
+rm -f "$SB/tool/app/deploy/pi/.env"
+run_stage MODE=status
+if [ "$RC" -eq 0 ] && echo "$OUT" | grep -q 'container foundry'; then pass "status lists the containers without a .env"; else fail "status no env (rc $RC): $OUT"; fi
+run_stage MODE=rollback
+if [ "$RC" -eq 0 ] && stack_gone && all_on $all_units && echo "$CALLS" | grep -q 'docker rm -f' && echo "$CALLS" | grep -q 'docker update --restart=no'; then
+  pass "without a .env, rollback finds the containers by label, stops them and starts the units"
+else fail "rollback no env (rc $RC): $OUT"; fi
+new_pi
+running_stack
+rm -f "$SB/tool/app/deploy/pi/.env"
+run_stage MODE=cutover
+if [ "$RC" -eq 1 ] && ! echo "$CALLS" | grep -qE 'disable --now'; then pass "cutover stops nothing when the .env is gone"; else fail "cutover no env (rc $RC): $OUT"; fi
+
+# 15. a rehearsal is its own compose project and never touches the live one
+new_pi
+for u in $all_units; do rm -f "$FAKE/active-$u" "$FAKE/enabled-$u"; done
+mkdir -p "$SB/rfdata" "$SB/rdata"
+run_stage MODE=up $reh FOUNDRY_DATA_DIR="$SB/rfdata" TOOL_DATA_DIR="$SB/rdata"
+if [ "$RC" -eq 0 ] && echo "$CALLS" | grep -q -- '-p foundry-ai-tool-pi-rehearsal up' && ! echo "$CALLS" | grep -q -- '-p foundry-ai-tool-pi up'; then pass "a rehearsal up uses the project foundry-ai-tool-pi-rehearsal"; else fail "rehearsal project (rc $RC): $CALLS"; fi
+run_stage MODE=down $reh FOUNDRY_DATA_DIR="$SB/rfdata" TOOL_DATA_DIR="$SB/rdata"
+if [ "$RC" -eq 0 ] && echo "$CALLS" | grep -q -- '-p foundry-ai-tool-pi-rehearsal down'; then pass "a rehearsal down stops the rehearsal project"; else fail "rehearsal down (rc $RC): $CALLS"; fi
+echo foundry-ai-tool-pi >"$FAKE/p-foundry"
+running_stack
+echo foundry-ai-tool-pi >"$FAKE/p-bridge"
+run_stage MODE=down $reh FOUNDRY_DATA_DIR="$SB/rfdata" TOOL_DATA_DIR="$SB/rdata"
+if ! stack_gone; then pass "a rehearsal down leaves the live containers alone"; else fail "rehearsal down touched live: $OUT"; fi
+
+# 16. up on a running live stack asks for a quiet table
+new_pi
+for u in $all_units; do rm -f "$FAKE/active-$u" "$FAKE/enabled-$u"; done
+running_stack
+echo 3 >"$FAKE/online"
+run_stage MODE=up
+if [ "$RC" -eq 1 ] && echo "$OUT" | grep -q 'player(s) are online' && ! echo "$CALLS" | grep -q 'compose.* up'; then pass "up on a running live stack refuses while players are online"; else fail "up players (rc $RC): $OUT"; fi
+
+# 17. a gm-browser that is not healthy does not roll back a cutover and does not fail the check
+new_pi
+touch "$FAKE/gm-unhealthy"
+run_stage MODE=cutover
+if [ "$RC" -eq 0 ] && all_off $all_units && ! stack_gone && echo "$OUT" | grep -q 'gm-browser is not healthy' && ! echo "$OUT" | grep -q 'ROLLED BACK'; then pass "the cutover gate is foundry, bridge and dashboard; gm-browser only warns"; else fail "gm unhealthy (rc $RC): $OUT"; fi
+
+# 18. an env value compose would read differently from systemd is refused, naming the key and never the value
+new_pi
+for u in $all_units; do rm -f "$FAKE/active-$u" "$FAKE/enabled-$u"; done
+printf 'GOOD=abc\nASSISTANT_PASSWORD=pa$$sw0rd-s3cret\n' >"$SB/etc/assistant-gm.env"
+run_stage MODE=up
+if [ "$RC" -eq 1 ] && echo "$OUT" | grep -q 'assistant-gm.env:ASSISTANT_PASSWORD' && ! echo "$OUT" | grep -q 's3cret' && ! echo "$CALLS" | grep -q 'compose.* up'; then pass "an env value with a dollar sign is refused by key, the value is never printed"; else fail "env values (rc $RC): $OUT"; fi
+
+# 19. an SSH drop (stdout closed) mid-run does not stop the switch half way, and the run is logged on the Pi
+new_pi
+run_stage MODE=status
+f="$SB/run.sh"
+( export TEST_ALLOW_CUTOVER=1 MODE=cutover PATH="$BIN:$PATH" DIETPI_DIR="$SB/dietpi" DIETPI_BACKUP_STATS="$SB/stats" PORT_WAIT=1 WAIT_TIMEOUT=5; bash "$f" 2>&1 | head -n 1 >/dev/null )
+if all_off $all_units && ! stack_gone && ls "$SB"/tool/compose-run-*.log >/dev/null 2>&1; then pass "a closed stdout does not interrupt a cutover; the run is logged"; else fail "sigpipe: $(cat "$SB"/tool/compose-run-*.log 2>&1 | tail -5)"; fi
 
 if [ "$fails" -eq 0 ]; then echo "ALL SCENARIOS OK"; else echo "$fails scenario check(s) FAILED"; exit 1; fi

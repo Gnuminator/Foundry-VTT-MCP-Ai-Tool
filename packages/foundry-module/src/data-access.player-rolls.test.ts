@@ -147,6 +147,8 @@ describe('FoundryDataAccess — requestPlayerRolls', () => {
     // button HTML + flavor surfaced in content
     expect(msg.content).toContain('mcp-roll-button');
     expect(msg.content).toContain('DEX Ability Check (Public)');
+    expect(msg.content).toContain('Roll for Silvera: DEX check');
+    expect(msg.content).not.toContain('style=');
     expect(msg.content).toContain('Perception sweep');
 
     // the module flags carry a single rollButtons entry, unrolled, with formula 1d20+3

@@ -139,12 +139,11 @@ export class PlayerRollsDataAccess {
         (advantage ? ` (${advantage})` : '');
 
       const rollButtonHtml = `
-        <div class="mcp-roll-request" style="margin: 12px 0; padding: 12px; border: 1px solid #ccc; border-radius: 8px; background: #f9f9f9;">
-          <p><strong>Roll Request:</strong> ${buttonLabel}</p>
-          <p><strong>Target:</strong> ${playerInfo.targetName} ${playerInfo.character ? `(${playerInfo.character.name})` : ''}</p>
-          ${data.flavor ? `<p><strong>Context:</strong> ${data.flavor}</p>` : ''}
+        <div class="mcp-roll-request">
+          <p class="mcp-roll-heading"><strong>${escapeAttr(this.buildRollHeading(playerInfo.character?.name || playerInfo.targetName, data.rollType, data.rollTarget, data.dc))}</strong></p>
+          ${data.flavor ? `<p class="mcp-roll-context">${data.flavor}</p>` : ''}
 
-          <div style="text-align: center; margin-top: 8px;">
+          <div class="mcp-roll-actions">
             <!-- Single Roll Button (clickable by both character owner and GM) -->
             <button class="mcp-roll-button mcp-button-active"
                     data-button-id="${buttonId}"
@@ -1121,7 +1120,7 @@ export class PlayerRollsDataAccess {
       };
 
       const rolledHtml = `
-        <div class="mcp-roll-request" style="margin: 10px 0; padding: 10px; border: 1px solid #ccc; border-radius: 5px; background: #f9f9f9;">
+        <div class="mcp-roll-request">
           <p><strong>Roll Request:</strong> ${rollLabel}</p>
           <p><strong>Status:</strong> ✅ <strong>Completed by ${rolledByName}</strong> at ${timestamp}</p>
         </div>
@@ -1469,16 +1468,56 @@ export class PlayerRollsDataAccess {
   }
 
   /** Human-readable button label for a roll request. */
+  /** An ability's or skill's name in words ("Dexterity", "Perception") from dnd5e's config, else a readable fallback. */
+  private rollTargetName(rollType: string, rollTarget: string): string {
+    const config = rec(rec((globalThis as { CONFIG?: unknown }).CONFIG)?.DND5E);
+    const label = (v: unknown): string | undefined => {
+      const l = rec(v)?.label;
+      return typeof l === 'string' && l ? l : undefined;
+    };
+    if (rollType === 'skill') {
+      const named = label(rec(config?.skills)?.[this.getSkillCode(rollTarget)]);
+      return named ?? rollTarget.charAt(0).toUpperCase() + rollTarget.slice(1);
+    }
+    const named = label(rec(config?.abilities)?.[rollTarget.toLowerCase()]);
+    return named ?? rollTarget.toUpperCase();
+  }
+
+  /** The card's heading: "Roll for Mara: Perception, DC 12". */
+  private buildRollHeading(who: string, rollType: string, rollTarget: string, dc?: number): string {
+    let what: string;
+    switch (rollType) {
+      case 'ability':
+        what = `${this.rollTargetName(rollType, rollTarget)} check`;
+        break;
+      case 'skill':
+        what = this.rollTargetName(rollType, rollTarget);
+        break;
+      case 'save':
+        what = `${this.rollTargetName(rollType, rollTarget)} saving throw`;
+        break;
+      case 'attack':
+        what = `${rollTarget} attack`;
+        break;
+      case 'initiative':
+        what = 'Initiative';
+        break;
+      default:
+        what = 'Roll';
+    }
+    return `Roll for ${who}: ${what}${dc != null ? `, DC ${dc}` : ''}`;
+  }
+
   private buildRollButtonLabel(rollType: string, rollTarget: string, isPublic: boolean): string {
     const visibility = isPublic ? 'Public' : 'Private';
 
     switch (rollType) {
       case 'ability':
-        return `${rollTarget.toUpperCase()} Ability Check (${visibility})`;
+        return `${this.rollTargetName(rollType, rollTarget)} Ability Check (${visibility})`;
       case 'skill':
-        return `${rollTarget.charAt(0).toUpperCase() + rollTarget.slice(1)} Skill Check (${visibility})`;
+        return `${this.rollTargetName(rollType, rollTarget)} Skill Check (${visibility})`;
       case 'save':
-        return `${rollTarget.toUpperCase()} Saving Throw (${visibility})`;
+        return `${this.rollTargetName(rollType, rollTarget)} Saving Throw (${visibility})`;
       case 'attack':
         return `${rollTarget} Attack (${visibility})`;
       case 'initiative':

@@ -9,15 +9,13 @@ subclass, spells, choices), and you have no tool that runs it.
 1. `list-characters`, then `get-character` for the character. Note class levels, subclass, the
    current level and the total level, ability scores, feats, known and prepared spells, and
    resources.
-2. Work out what the next level grants and what is chosen. **The connector does not return the
-   class's advancement list or level table** (checked on test server A: `get-compendium-item` on a
-   class gives its description, hit die and starting equipment, no per-level features). So:
-   take the class's per-level features from your knowledge of the 2024 class table, then look
-   each feature up by name (`search-compendium` for the feature, then `get-compendium-item`) and
-   read what it does. Say plainly: "the level table is from general knowledge; the level-up
-   window in Foundry shows the real list, check it matches". If a feature's name finds no entry,
-   say so. (A read-only `get-level-up-options` tool is planned and will replace this step.)
-   Choices to look for: subclass (level 3), Ability Score Improvement or feat, expertise, fighting
+2. Work out what the next level grants and what is chosen: call `get-level-up-options` with the
+   character's name (and `className` for a multiclass character). It only reads. It says what the
+   next level grants, which choices are open (hit points, ability score improvement or feat,
+   subclass, spells, items) and any earlier advancement left unfinished. Then look each feature
+   up by name (`search-compendium` for the feature, then `get-compendium-item`) and read what it
+   does. If the tool returns nothing for a class, or a feature's name finds no entry, say so and
+   say that the level-up window in Foundry shows the real list. Choices to look for: subclass (level 3), Ability Score Improvement or feat, expertise, fighting
    style, spells. For a subclass, find it by name the same way.
 3. For each choice, `search-compendium` / `get-compendium-item` the candidates (feats, spells,
    features) and read them. Never describe an option from memory alone. Note that each name can
@@ -43,8 +41,8 @@ subclass, spells, choices), and you have no tool that runs it.
 
 ## Limits to say out loud
 
-- You cannot see the advancement list; the level-up window on the sheet is the authority. If it
-  offers something your list did not, trust the window and look the entry up by name.
+- `get-level-up-options` reads only; the level-up window on the sheet is the authority. If it
+  offers something the tool did not list, trust the window and look the entry up by name.
 - Multiclassing: check the prerequisites and the multiclass proficiencies from the entries before
   recommending; say it is worth confirming with the GM.
 - Don't recommend anything outside the books the GM allows at the table.

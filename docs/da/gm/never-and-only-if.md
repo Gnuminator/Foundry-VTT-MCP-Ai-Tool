@@ -1,6 +1,6 @@
 ---
 source: gm/never-and-only-if.md
-sourceHash: bfc945de7176
+sourceHash: 30ecefd7863a
 title: Gør aldrig det her, gør kun det her hvis
 description: Korte regler til GM'en, hver med sin begrundelse på én linje.
 ---
@@ -13,7 +13,7 @@ Korte regler. Hver har sin begrundelse på linjen under.
 
 - **Vis aldrig dashboardet, Claude Desktop eller Obsidian på en skærm, spillerne kan se, og
   del aldrig de vinduer i Discord eller et videoopkald.**
-  De viser rigtige navne, præcis HP, private slag, GM-noter og Tarokka-kortene.
+  De viser rigtige navne, præcis HP, private roll, GM-noter og Tarokka-kortene.
 - **Giv aldrig spillerne dashboardets GM-adresse eller GM-token.**
   GM-siden kan ændre spillet og viser alle hemmeligheder; spillerne får kun `/player`.
 - **Send aldrig en whisper, der nævner en hemmelighed.**
@@ -36,8 +36,10 @@ Korte regler. Hver har sin begrundelse på linjen under.
 ## Gør kun det her hvis
 
 - **Klik kun på Start session, når spillet begynder, og på End session, når det slutter.**
-  Start session er den eneste knap til live play: den slår GM Actions og alle feature-knapper
-  ("AI Tool: … (writes)") til, Tarokka og Party med. Med live play slået fra kan et fejlklik ikke ændre
+  Start session er den eneste knap til live play: den slår GM Actions og de fem kontakter, en
+  aften skal bruge, til (Allow Write Operations, Handouts, Live play, Party og Tarokka). Resten, for
+  eksempel Obsidian-spejlet og -importen, session notes, scene mood og room setup, forbliver slået fra,
+  til du slår dem til. Med live play slået fra kan et fejlklik ikke ændre
   noget. End session (eller Pre-flights "Turn them off again") slår det hele fra igen.
 - **Sæt kun flueben ved "Show cards" i Tarokka-skuffen, hvis ingen andre kan se din skærm.** (Skuffen
   ligger under Advanced ▾.)
@@ -61,6 +63,6 @@ Korte regler. Hver har sin begrundelse på linjen under.
   læsning virker stadig.
 - **Vælg kun "Always allow" til de værktøjer, der ændrer spillet, hvis du er tryg ved ikke at blive spurgt
   af Claude Desktop.** Ændringer gennem planen bliver stadig bekræftet og kan fortrydes; direkte
-  handlinger (slag, nye NPC'er, journals, chatbeskeder) bliver ikke. Sæt **Write/delete tools** til
+  handlinger (roll, nye NPC'er, journals, chatbeskeder) bliver ikke. Sæt **Write/delete tools** til
   **Needs approval** for at blive spurgt hver gang.
 - **Dashboardet kalder aldrig den betalte API.** En nøgle på maskinen gør ingenting der.

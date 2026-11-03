@@ -469,13 +469,14 @@ export const REFRESH_COMBAT_MAX_MS = 2500;
  */
 export async function refreshCombat(queryClient: QueryClient): Promise<void> {
   const seq = combatSeq;
+  let timer: ReturnType<typeof setTimeout> | undefined;
   try {
     // Bounded: a slow bridge must not hold the strip's buttons; the poll catches up.
     const raw = await Promise.race([
       callTool<unknown>('get-combat-state', {}),
-      new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('slow')), REFRESH_COMBAT_MAX_MS)
-      ),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error('slow')), REFRESH_COMBAT_MAX_MS);
+      }),
     ]);
     // Only an answer that says whether a fight runs counts; anything else must not end the fight.
     if (typeof (raw as { active?: unknown } | null)?.active !== 'boolean') return;
@@ -488,6 +489,8 @@ export async function refreshCombat(queryClient: QueryClient): Promise<void> {
     );
   } catch {
     // The 4 s poll shows it.
+  } finally {
+    clearTimeout(timer);
   }
 }
 

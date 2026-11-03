@@ -286,6 +286,41 @@ test('a condition chip takes the condition off through the guarded path', async 
   await expect.poll(() => calls.map(c => c.name)).toContain('get-combat-state');
 });
 
+test('with live play off a condition chip writes nothing', async ({ page }) => {
+  const calls = await setup(
+    page,
+    [
+      who('b', 'Brannoc', { initiative: 19, isCurrentTurn: true, isPC: true, category: 'pc' }),
+      who('g1', 'Goblin', { conditions: ['Prone'] }),
+    ],
+    { switchesOff: ['live-play'] }
+  );
+  await load(page);
+  const chip = page.getByRole('button', { name: 'Prone, take off' });
+  await expect(chip).toHaveAttribute('aria-disabled', 'true');
+  await chip.click();
+  expect(writes(calls)).toEqual([]);
+});
+
+test('with GM Actions off a condition is text, not a take-off button', async ({ page }) => {
+  await setup(page, [who('g1', 'Goblin', { conditions: ['Prone'] })], { gmActions: false });
+  await load(page);
+  await expect(page.locator('#live-strip').getByText('Prone', { exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: /take off/ })).toHaveCount(0);
+});
+
+test('Exhaustion and spell effects stay text: only the picker conditions come off with a click', async ({
+  page,
+}) => {
+  await setup(page, [
+    who('b', 'Brannoc', { initiative: 19, isCurrentTurn: true, isPC: true, category: 'pc' }),
+    who('g1', 'Goblin', { conditions: ['Prone', 'Exhaustion 2', 'Bless'] }),
+  ]);
+  await load(page);
+  await expect(page.getByRole('button', { name: 'Prone, take off' })).toHaveCount(1);
+  await expect(page.getByRole('button', { name: /Exhaustion|Bless/ })).toHaveCount(0);
+});
+
 test('a write that goes through reads the fight back, and the new fight shows at once', async ({
   page,
 }) => {

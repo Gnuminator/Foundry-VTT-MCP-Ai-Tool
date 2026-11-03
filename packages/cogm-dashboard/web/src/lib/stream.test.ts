@@ -276,6 +276,37 @@ describe('refreshCombat', () => {
     await refreshCombat(qc);
     expect(qc.getQueryData(COMBAT_KEY)).toBeNull();
   });
+
+  it('keeps a fight the stream pushed while the read was out', async () => {
+    const qc = fresh();
+    const listeners = new Map<string, (e: MessageEvent<string>) => void>();
+    const source = {
+      readyState: 1,
+      onopen: null,
+      onerror: null,
+      close: (): void => undefined,
+      addEventListener: (name: string, fn: (e: MessageEvent<string>) => void): void => {
+        listeners.set(name, fn);
+      },
+    };
+    const stop = startStream(qc, {
+      create: () => source as unknown as EventSource,
+      schedule: () => () => undefined,
+    });
+    let answer: (raw: unknown) => void = () => undefined;
+    callTool.mockReturnValueOnce(new Promise(resolve => (answer = resolve)));
+    const done = refreshCombat(qc);
+    // The stream pushes the newer fight, then the older read comes back.
+    listeners.get('combat')?.({
+      data: JSON.stringify({
+        combat: { active: true, round: 3, turn: 0, current: null, combatants: [] },
+      }),
+    } as MessageEvent<string>);
+    answer({ active: true, round: 1, turn: 0, current: null, combatants: [] });
+    await done;
+    stop();
+    expect(qc.getQueryData<{ round: number }>(COMBAT_KEY)?.round).toBe(3);
+  });
 });
 
 describe('a combat read straight from the tool', () => {

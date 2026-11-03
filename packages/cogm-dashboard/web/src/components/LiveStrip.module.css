@@ -197,6 +197,12 @@ button.chip {
   border: 0;
   font-family: inherit;
   cursor: pointer;
+  min-height: 1.75rem;
+  padding-block: 0.15rem;
+}
+button.chip:focus-visible {
+  outline: 2px solid var(--text);
+  outline-offset: 1px;
 }
 button.chip[aria-disabled='true'] {
   cursor: default;
@@ -279,10 +285,6 @@ button.chip.ended {
    (portrait, name, HP bar, chips), a dead creature on a slim line, and the actions pinned to the
    bottom of the window so eight creatures and the action bar fit without scrolling to act. */
 @container (max-width: 31.25rem) {
-  .strip {
-    gap: var(--space-2);
-    padding: var(--space-2);
-  }
   .cards {
     flex-direction: column;
     gap: var(--space-1);
@@ -329,13 +331,16 @@ button.chip.ended {
   .hpBar {
     flex: 0 0 3rem;
   }
+  /* Chips take their own line under the name: nothing cut off, every chip reachable and visible. */
+  .card {
+    flex-wrap: wrap;
+  }
   .chips {
-    flex: 0 1 auto;
-    flex-wrap: nowrap;
+    flex: 1 1 100%;
+    flex-wrap: wrap;
     min-width: 0;
     min-height: 0;
     margin: 0;
-    overflow: hidden;
   }
   .chips:empty {
     display: none;

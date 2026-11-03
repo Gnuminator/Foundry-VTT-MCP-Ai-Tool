@@ -178,7 +178,10 @@ function Card({
           const left = c.timed?.[cond];
           const ended = typeof left === 'number' && left <= 0;
           const classes = `${styles['tag']} ${ended ? styles['ended'] : ''}`;
-          if (!selectable) {
+          // Only the conditions the picker offers come off with a click: Exhaustion levels and
+          // spell effects are not one write away, so they stay plain text.
+          const removable = (CONDITIONS as readonly string[]).includes(cond.toLowerCase());
+          if (!selectable || !removable) {
             return (
               <span key={cond} className={classes}>
                 {chipText(cond, left)}

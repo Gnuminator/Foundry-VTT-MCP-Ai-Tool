@@ -695,7 +695,8 @@ export class PlayerRollsDataAccess {
       throw new InitiativeRefused('Your initiative is already in the tracker.');
     }
     // A card made before this fight began (left open from an earlier fight, or asked for before
-    // Start combat) takes the plain roll, as it did before the tracker path existed.
+    // Start combat) takes the plain roll, as it did before the tracker path existed. A number
+    // already there is refused first, whatever the card's age.
     const startedAt = (combat as { _stats?: { createdTime?: number | null } })._stats?.createdTime;
     if (
       typeof requestedAt === 'number' &&

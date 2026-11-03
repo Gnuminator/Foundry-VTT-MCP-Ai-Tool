@@ -62,11 +62,15 @@ function TokenList({
       // The players are asked first, so they can roll while the NPCs are rolled for.
       const askNames = askPcs ? pcNames(rows, ticked) : [];
       if (askNames.length > 0 && !gated('request-player-rolls')) {
-        const answers = await Promise.allSettled(
-          askNames.map(name =>
-            callTool('request-player-rolls', initiativeRequestArgs(name), { confirm: true })
-          )
-        );
+        // One after another: the module saves each card's button in one shared world setting, and
+        // parallel asks overwrite each other's entries (then /me cannot roll for those players).
+        const answers: PromiseSettledResult<unknown>[] = [];
+        for (const name of askNames) {
+          const [answer] = await Promise.allSettled([
+            callTool('request-player-rolls', initiativeRequestArgs(name), { confirm: true }),
+          ]);
+          answers.push(answer);
+        }
         const failed = askNames.filter((_, i) => answers[i]?.status === 'rejected');
         const unsure = askNames.filter((_, i) => {
           const a = answers[i];

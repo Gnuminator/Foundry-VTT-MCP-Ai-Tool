@@ -298,7 +298,8 @@ test('with live play off a condition chip writes nothing', async ({ page }) => {
   await load(page);
   const chip = page.getByRole('button', { name: 'Prone, take off' });
   await expect(chip).toHaveAttribute('aria-disabled', 'true');
-  await chip.click();
+  // Playwright treats aria-disabled as not enabled: force the click the handler must ignore.
+  await chip.click({ force: true });
   expect(writes(calls)).toEqual([]);
 });
 

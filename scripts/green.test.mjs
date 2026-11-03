@@ -930,8 +930,9 @@ test('main --quick --list: lists the quick steps, and no base is an error too', 
   assert.match(lines.at(-1), /found no base/);
 });
 
-test('quickLintSteps: ESLint on changed TypeScript, markdownlint on changed Markdown, then the link check', () => {
+test('quickLintSteps: ESLint on changed TypeScript, markdownlint on changed Markdown, then the link check', t => {
   const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'quick-lint-'));
+  t.after(() => fs.rmSync(cwd, { recursive: true, force: true }));
   const touch = f => {
     fs.mkdirSync(path.dirname(path.join(cwd, f)), { recursive: true });
     fs.writeFileSync(path.join(cwd, f), '');
@@ -950,7 +951,7 @@ test('quickLintSteps: ESLint on changed TypeScript, markdownlint on changed Mark
   const steps = quickLintSteps(files, cwd);
   assert.deepEqual(steps.map(s => s.name), ['lint-changed', 'docs-lint-changed', 'docs-links-quick']);
   // present files only, sorted; no .d.ts (ESLint ignores it), no deleted file (ESLint fails on it)
-  assert.deepEqual(steps[0].args, ['eslint', '--no-warn-ignored', '--max-warnings', '0', 'packages/a/src/b.ts', 'packages/a/src/c.tsx']);
+  assert.deepEqual(steps[0].args, ['--no-install', 'eslint', '--no-warn-ignored', '--max-warnings', '0', 'packages/a/src/b.ts', 'packages/a/src/c.tsx']);
   assert.equal(steps[0].cmd, 'npx');
   // --no-globs: only the named files, not the config's "**/*.md"
   assert.deepEqual(steps[1].args, ['run', 'docs:lint', '--', '--no-globs', 'changelog.d/y.md', 'docs/gm/x.md']);
@@ -966,9 +967,14 @@ test('quickLintSteps: ESLint on changed TypeScript, markdownlint on changed Mark
   assert.deepEqual(quickLintSteps(['docs/gm/with space.md'], cwd).map(s => s.name), ['docs-links-quick']);
 });
 
-test('quickLintSteps: a changed lint config or a very long list lints everything', () => {
+test('quickLintSteps: a changed lint config or a very long list lints everything', t => {
   const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'quick-lint-'));
-  assert.deepEqual(quickLintSteps(['eslint.config.mjs'], cwd), [{ name: 'lint-changed', cmd: 'npm', args: ['run', 'lint'] }]);
+  t.after(() => fs.rmSync(cwd, { recursive: true, force: true }));
+  const lintAll = { name: 'lint-changed', cmd: 'npm', args: ['run', 'lint', '--', '--max-warnings', '0'] };
+  // ESLint's own inputs: its config, Prettier's (eslint-plugin-prettier), the type-aware tsconfig, the lockfile.
+  for (const f of ['eslint.config.mjs', '.prettierrc', '.prettierignore', 'tsconfig.eslint.json', 'package-lock.json']) {
+    assert.deepEqual(quickLintSteps([f], cwd), [lintAll], f);
+  }
   assert.deepEqual(
     quickLintSteps(['.markdownlint-cli2.jsonc'], cwd).map(s => [s.name, ...s.args]),
     [
@@ -990,7 +996,7 @@ test('quickLintSteps: a changed lint config or a very long list lints everything
   assert.equal(quickLintSteps(few, cwd)[0].cmd, 'npx');
   const many = make(120);
   assert.ok(many.join(' ').length > QUICK_LINT_MAX_CHARS);
-  assert.deepEqual(quickLintSteps(many, cwd)[0].args, ['run', 'lint']);
+  assert.deepEqual(quickLintSteps(many, cwd)[0], lintAll);
   const mdMany = many.map(f => f.replace(/\.stories\.tsx$/, '.md'));
   for (const f of mdMany) fs.writeFileSync(path.join(cwd, f), '');
   assert.deepEqual(quickLintSteps(mdMany, cwd)[0].args, ['run', 'docs:lint']);

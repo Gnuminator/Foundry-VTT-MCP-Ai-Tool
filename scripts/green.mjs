@@ -989,6 +989,19 @@ export const QUICK_SCREENSHOT_NOTE =
  */
 export const QUICK_LINT_MAX_CHARS = 6000;
 
+/**
+ * A change to one of these can change ESLint's result on files the branch did not touch (the config,
+ * Prettier's settings through eslint-plugin-prettier, the type-aware rules' tsconfig, a plugin bump
+ * in the lockfile): the quick run lints everything then.
+ */
+const LINT_ALL_INPUTS = new Set([
+  'eslint.config.mjs',
+  '.prettierrc',
+  '.prettierignore',
+  'tsconfig.eslint.json',
+  'package-lock.json',
+]);
+
 /** True when the file names fit on one command line. @param {string[]} files */
 const fitsCommandLine = files => files.join(' ').length <= QUICK_LINT_MAX_CHARS;
 
@@ -1008,14 +1021,19 @@ export function quickLintSteps(files, cwd) {
   const present = (/** @type {RegExp} */ re) =>
     files.filter(f => re.test(f) && isShellSafe(f) && fs.existsSync(path.join(cwd, f))).sort();
   const ts = present(/\.tsx?$/).filter(f => !f.endsWith('.d.ts'));
-  const lintAll = files.includes('eslint.config.mjs') || !fitsCommandLine(ts);
+  const lintAll = files.some(f => LINT_ALL_INPUTS.has(f)) || !fitsCommandLine(ts);
   if (lintAll) {
-    steps.push({ name: 'lint-changed', cmd: 'npm', args: ['run', 'lint'] });
+    steps.push({
+      name: 'lint-changed',
+      cmd: 'npm',
+      args: ['run', 'lint', '--', '--max-warnings', '0'],
+    });
   } else if (ts.length > 0) {
     steps.push({
       name: 'lint-changed',
       cmd: 'npx',
-      args: ['eslint', '--no-warn-ignored', '--max-warnings', '0', ...ts],
+      // --no-install: without node_modules, fail rather than fetch whatever ESLint is latest.
+      args: ['--no-install', 'eslint', '--no-warn-ignored', '--max-warnings', '0', ...ts],
     });
   }
   const md = present(/\.md$/);

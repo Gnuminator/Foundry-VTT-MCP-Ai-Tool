@@ -1,6 +1,6 @@
 ---
 source: gm/getting-started.md
-sourceHash: c18877a8983a
+sourceHash: 9038df932594
 title: Kom i gang
 description: Hvad Foundry AI Tool er, dets dele i almindeligt sprog, hvordan de hænger sammen, en kort ordliste og hvordan det sættes op.
 ---
@@ -24,7 +24,7 @@ Du bestemmer stadig selv, men kend de to slags ændringer:
   og mere) virker, så snart Claude bruger dem, og værktøjet kan ikke fortryde dem. [Spørg Claude](asking-claude.md)
   viser hvilke, og hvordan du får Claude Desktop til at spørge først, hvis du vil have det.
 
-Spillerne får deres egen side, der aldrig viser spoilere.
+Spillerne får deres egen side. Den er bygget til at udelade det, kun GM'en skal se.
 
 ## Delene
 
@@ -35,7 +35,7 @@ Spillerne får deres egen side, der aldrig viser spoilere.
 | **Bridgen**        | Et lille program på hjemmeserveren (Orange Pi).                             | Det forbinder Foundry, Claude Desktop, dashboardet og Obsidian.               |
 | **Claude Desktop** | Anthropics Claude-app på din computer. En lille klient når bridgen for den. | At spørge Claude om spillet, forberedelse, regler og planlagte ændringer.     |
 | **Dashboardet**    | En webside på din anden skærm.                                              | Dit kontrolpanel: live feed, combat, godkende og fortryde ændringer.          |
-| **Spillersiden**   | En skrivebeskyttet side i dashboardet på `/player`.                         | Det, spillerne må se: kamprækkefølge, et sikkert feed, handouts, recaps.      |
+| **Spillersiden**   | En skrivebeskyttet side i dashboardet på `/player`.                         | Det, spillerne må se: combat-rækkefølge, et sikkert feed, handouts, recaps.   |
 | **Obsidian**       | En notesapp. Værktøjet skriver noter ind i en Obsidian-vault.               | Læsning og forberedelse: session notes, ændringshistorik, stats, world-noter. |
 | **Orange Pi**      | En lille hjemmeserver, der altid er tændt.                                  | Kører Foundry, bridgen og dashboardet hele tiden.                             |
 
@@ -84,47 +84,7 @@ To ting, du skal vide fra start:
 Tarokka- og handout-funktionerne er slået fra, indtil du slår dem til i Game Settings (se
 [turen rundt i dashboardet](dashboard.md)).
 
-## Ordliste
-
-Foundry-ord:
-
-- **World:** din kampagne i Foundry: dens scenes, actors, journals og indstillinger.
-- **Scene:** et kort. Den **active scene** er den, spillerne er på.
-- **Navigation Name:** et andet navn til en scene, som spillerne ser i stedet for det rigtige.
-- **Actor:** en karakter eller creature med et ark (en PC, en NPC, et monster).
-- **Token:** en actors billede på kortet. Dens **Display Name**-indstilling bestemmer, hvem der ser dens navn.
-- **Journal:** en bog med sider i Journal tab. En **journal page** er én side i den.
-- **Compendium:** et bibliotek med færdigt indhold, for eksempel de officielle bøger, du ejer.
-- **Ownership:** hvem der må se eller redigere et dokument: None, Limited, Observer, Owner. Observer betyder
-  "kan læse".
-- **Game Settings:** Foundrys indstillingsvindue (Settings tab, tandhjulet, så **Game Settings**).
-  Værktøjets indstillinger ligger i kategorien **Foundry AI Tool**. Indstillinger og beskeder dér, der siger
-  "MCP Bridge" (for eksempel **Enable MCP Bridge**), hører til modulet.
-- **World id:** din worlds korte id, navnet på dens mappe på Foundry-serveren. Værktøjet bruger
-  det som mappenavn i Obsidian (`Campaigns/<world id>/`).
-
-Værktøjsord:
-
-- **MCP:** den måde, Claude Desktop taler med værktøjer på. Værktøjets punkt i Claude Desktop hedder
-  `foundry-mcp`, og "MCP Bridge" eller "MCP Server" i Foundrys beskeder betyder dette værktøj.
-- **Direct action:** et værktøj, der ændrer spillet, så snart Claude eller dashboardet bruger det. Det står
-  ikke i Recent Changes, og værktøjet kan ikke fortryde det. Du retter det i hånden i Foundry.
-- **Guarded change:** en ændring, der sker i tre trin: plan, confirm, apply. Den bliver registreret og kan
-  fortrydes.
-- **Plan:** en foreslået ændring med en liste over, hvad den vil gøre (diffen). Planer udløber efter 15
-  minutter.
-- **Feature switch:** en indstilling, der lader én funktion lave ændringer, for eksempel "AI Tool: Tarokka
-  (writes)". De fleste er slået fra som standard. Nogle få starter slået til (Live play til damage, healing og conditions,
-  Ownership, table viewer og Undo til alt). [Funktioner og hvornår du slår dem til](features.md) lister hver enkelt.
-- **GM Actions:** dashboardets kontakt til at ændre spillet fra dashboardet. Slået fra som standard.
-- **GM token:** en adgangskodelignende del af dashboardets GM-adresse (`?token=…`). Værktøjets admin
-  giver dig adressen. Åbn den én gang, så husker browseren den.
-- **Recent Changes:** dashboardets panel, der lister gennemførte ændringer, hver med Undo, når det er muligt.
-- **Bridge vault:** værktøjets eget lager kun til GM'en på bridgens computer: Tarokka-læsningen,
-  afslørede handouts, ændringshistorikken og logfilerne. Det er ikke en del af Foundrys world-backup.
-- **Play log:** optegnelsen over, hvad der sker under spil (rolls, HP, rests, combat), med hver spillers
-  brugernavn. Session notes og stats kommer fra den.
-- **Play session:** én aften med spil. Du markerer dens start og slutning i dashboardet.
+Ordlisten med Foundry-ordene og værktøjsordene i guiderne ligger på siden [Ordliste](glossary.md).
 
 ## Sådan er det sat op
 
@@ -166,13 +126,13 @@ værktøjet bygget én gang og en terminal. [README](../../../README.md#installa
    Desktops konfiguration. Til dashboardets 📓-links skal du også sætte `OBSIDIAN_VAULT_NAME` (eller
    `FOUNDRY_AI_OBSIDIAN_DIR`) i `packages/cogm-dashboard/.env`.
 
-### Monstre, spells og regler i Obsidian (Library)
+### Monsters, spells og regler i Obsidian (Library)
 
 Når Foundry-mirroret er slået til, viser NPC-noter hele stat blocken og portrættet, scene-noter
 viser kortet, og journal-sider beholder deres tabeller og billeder. Bed Claude tilføje compendiums til
-mirrorets Library (`plan-obsidian-mirror` med `libraryPacks`, for eksempel dine monstre,
+mirrorets Library (`plan-obsidian-mirror` med `libraryPacks`, for eksempel dine monsters,
 spells, classes og feats), og værktøjet skriver en note for hver post i `AI Tool/Library/`:
-monstre med stat blocks, spells, items, classes med deres features efter level, subclasses,
+monsters med stat blocks, spells, items, classes med deres features efter level, subclasses,
 species, backgrounds og feats. Billeder kopieres til `AI Tool/Attachments/`.
 
 Library er sorteret efter slags og så efter bog: `AI Tool/Library/Monsters/Monster Manual (2024)/`,

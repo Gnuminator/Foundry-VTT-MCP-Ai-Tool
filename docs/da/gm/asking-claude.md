@@ -23,7 +23,7 @@ Claude holder ikke selv øje med spillet. Den læser det, den skal bruge, i det 
 
 - Karakterer og NPC'er: sheets, HP, spell slots, items, effects, conditions.
 - Combat tracker, den aktuelle scene, tokens og deres placering.
-- Journals i din world (Claude kan søge i deres tekst) og compendium-opslag som monstre, spells og
+- Journals i din world (Claude kan søge i deres tekst) og compendium-opslag som monsters, spells og
   items (Claude finder dem på navn).
 - Chat, session log og play stats (pr. PC en spiller ejer: damage, healing, downs, rolls, spells,
   resources, loot, XP).
@@ -43,7 +43,7 @@ foreslå eller også handle.
 - "Find tre undead med CR 1 til 3 i mine compendiums til fire karakterer på level 3."
 - "Hvordan virker grappling i 2024-reglerne? Fortæl mig, hvor i mine Foundry-bøger du fandt det."
 - "Slå initiative for NPC'erne i den aktuelle combat."
-- "Træk en ny Tarokka-læsning med det indbyggede slag. Vis mig planen først."
+- "Træk en ny Tarokka-læsning med det indbyggede roll. Vis mig planen først."
 - "Lav en plan for at vise siden 'Old letter' i journalen 'Handouts' for spillerne."
 
 Flere færdige forespørgsler, sorteret efter før, under og efter en session:
@@ -52,7 +52,7 @@ Flere færdige forespørgsler, sorteret efter før, under og efter en session:
 Forespørgsler der går galt:
 
 - "Dræb ulven." Hvilken ulv? Flere tokens kan have samme navn. Sig "Wolf 2" eller vælg tokenet.
-- "Gør det næste slagsmål federe." For vagt. Sig, hvad du vil have: hårdere, kortere, mere terræn.
+- "Gør det næste combat federe." For vagt. Sig, hvad du vil have: hårdere, kortere, mere terræn.
 - "Ret alt fra i går aftes." Claude kan ikke fortryde direkte handlinger; se nedenfor.
 
 ## Tool sets: hvilke kontakter du skal tænde
@@ -67,7 +67,7 @@ chats.
 | ------------------- | ----- | ---------------------------------------------------------------------------------- |
 | `foundry-mcp`       | core  | Altid. Slå ting op, og se, apply eller undo Claudes planlagte ændringer.           |
 | `foundry-mcp-prep`  | prep  | Forberede en session, skrive et recap, arbejde med quests, Tarokka eller handouts. |
-| `foundry-mcp-build` | build | Lave eller ændre NPC'er, monstre og items.                                         |
+| `foundry-mcp-build` | build | Lave eller ændre NPC'er, monsters og items.                                        |
 | `foundry-mcp-play`  | play  | Lade Claude køre tingene ved bordet: tokens, combat, rolls, damage, chat.          |
 | `foundry-mcp-admin` | admin | Tjekke modules og fejl, ændre hvem der ejer en actor, Obsidian mirror.             |
 
@@ -124,7 +124,7 @@ planen er mere end 15 minutter gammel, eller hvis det samme er ændret i Foundry
 lavet. Deletes samt Tarokka-reveals og -hides tæller som destruktive og kræver også dit udtrykkelige
 ja. At vise en handout-side for spillerne er en almindelig ændring med en Undo, så ét ja er nok.
 
-I et langt slagsmål bliver confirm-trinnet trættende. Indstillingen **AI Tool: Live play, apply
+I et langt combat bliver confirm-trinnet trættende. Indstillingen **AI Tool: Live play, apply
 without confirming** (Game Settings, kategorien **Foundry AI Tool**; slukket som standard) springer
 det over for damage, healing, conditions og resources, som Claude planlægger. Hver ændring havner
 stadig i Recent Changes med **Undo**. Dashboardets party- og Tarokka-knapper har aldrig brug for den:

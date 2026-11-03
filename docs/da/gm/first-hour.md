@@ -64,7 +64,7 @@ det basale sidder:
 - [Layers, walls and lighting](../../foundry/walls-and-lighting.md): hvad der blokerer sigt og bevægelse
   på et kort.
 - [Measuring and templates](../../foundry/measuring-and-templates.md): linealen og områder for spells.
-- [Compendiums](../../foundry/compendiums.md): bibliotekerne med monstre, items og spells.
+- [Compendiums](../../foundry/compendiums.md): bibliotekerne med monsters, items og spells.
 - [Modules](../../foundry/modules.md): at slå modules til og fra i en world.
 - [Playlists and sound](../../foundry/playlists.md): musik og lyd.
 

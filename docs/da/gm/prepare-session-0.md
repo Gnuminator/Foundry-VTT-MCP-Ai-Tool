@@ -164,7 +164,7 @@ forventninger](prep-and-expectations.md#en-dagsorden-til-session-0-du-kan-ændre
   arket.
 - Tjek, at hver spiller har valgt sin karakter i **User Configuration** (spillerlisten viser
   `Name [Character]`).
-- **Tjek, at hver færdig karakter er i Party.** "Ask the party"-kast uden for kamp (fx "alle slår
+- **Tjek, at hver færdig karakter er i Party.** "Ask the party"-kast uden for combat (fx "alle slår
   Perception") går til Party. Karakterer kommer med af sig selv, når en spiller ejer dem
   (indstillingen "AI Tool: Add player characters to the party", slået til som standard), så åbn
   Party-skuespilleren og tjek, at alle står på listen. Er indstillingen slået fra, eller mangler en,

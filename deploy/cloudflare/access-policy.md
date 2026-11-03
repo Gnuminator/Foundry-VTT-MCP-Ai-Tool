@@ -113,9 +113,9 @@ GM_DASHBOARD_TOKEN=<RANDOM_SECRET_HEX_32_BYTES>
 
 If set, presenting this value as:
 
-- Header: `X-GM-Token: <TOKEN>`
-- Query param: `?gm_token=<TOKEN>`
-- Cookie: `gm_token=<TOKEN>`
+- Header: `x-cogm-token: <TOKEN>`
+- Query param: `?token=<TOKEN>`
+- Cookie: `cogm_token=<TOKEN>`
 
 ...also grants the GM role, regardless of the injected email. Useful for API clients or
 scripts that call the dashboard outside a browser session. Keep it secret — treat it like

@@ -34,12 +34,19 @@ import os from 'node:os';
 import path from 'node:path';
 import { createInterface } from 'node:readline';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { contextOf } from '../../.claude/hooks/context-alert.mjs';
 import { noteFile, writeNote } from './weekly-check-note.mjs';
 
 export const REPO = 'Gnuminator/Foundry-VTT-MCP-Ai-Tool';
 export const PROJECT_DIR = 'C--Users-chris-Documents-Claude-Code-Projects-Foundry-VTT-AI-Tool';
 export const MIN_TURNS = 3;
 export const RESET_DROP = 3;
+// Lane handover lines (context-alert.mjs): 200k until the change day, 250k from it (the user,
+// 2026-11-04). A lane session counts as handed over when its confirmed peak reached the line that
+// was in force on the day it started.
+export const LANE_LINE_CHANGE_DAY = '2026-11-04';
+export const LANE_LINE_BEFORE = 200_000;
+export const LANE_LINE_AFTER = 250_000;
 export const TARGETS = {
   startup: 75_000, // Claude Desktop floor about 74k (D-122 phase 3 log); headless starts are about 38k
   tokensPerPrM: 18,
@@ -167,6 +174,8 @@ export function parseResponse(line) {
     model,
     sidechain: Boolean(j.isSidechain),
     ctx: input + cacheRead + cacheCreate,
+    // the context the session holds (the last pass of an advisor response), as the hooks read it
+    real: contextOf(u),
     cost: (priceOf(model) * (input + 0.1 * cacheRead + 2 * cacheCreate + 5 * output)) / 1e6,
   };
 }
@@ -332,6 +341,47 @@ function newDay(day) {
   };
 }
 
+// A lane is a main-thread transcript under the project's worktree folders.
+export function isLaneFile(file) {
+  return file.split(/[\\/]/).some(s => s.startsWith(`${PROJECT_DIR}--claude-worktrees-`));
+}
+
+// The peak context of a session as the hooks confirm it: a reading counts only when the response
+// before it was at least as big, so one doubled response never counts.
+export function confirmedPeak(turns) {
+  let peak = 0;
+  for (let i = 0; i < turns.length; i++) {
+    const c = i === 0 ? turns[0].real : Math.min(turns[i].real, turns[i - 1].real);
+    if (c > peak) peak = c;
+  }
+  return peak;
+}
+
+// Lane sessions that started in the window: how many reached their handover line, with the context
+// they handed over at, and how many reached 200k, 250k and 300k whatever the line was.
+export function laneStats(qualifying, prCount) {
+  const lanes = qualifying
+    .filter(s => isLaneFile(s.file))
+    .map(s => {
+      const line =
+        dayKey(new Date(s.turns[0].t)) >= LANE_LINE_CHANGE_DAY ? LANE_LINE_AFTER : LANE_LINE_BEFORE;
+      return { peak: confirmedPeak(s.turns), line };
+    });
+  const handed = lanes.filter(l => l.peak >= l.line);
+  const peaks = handed.map(l => l.peak);
+  return {
+    lanes: lanes.length,
+    handovers: handed.length,
+    handoversPerPr: prCount ? handed.length / prCount : null,
+    handoverMedian: median(peaks),
+    handoverMax: peaks.length ? Math.max(...peaks) : null,
+    peakMedian: median(lanes.map(l => l.peak)),
+    over200k: lanes.filter(l => l.peak >= 200_000).length,
+    over250k: lanes.filter(l => l.peak >= 250_000).length,
+    over300k: lanes.filter(l => l.peak >= 300_000).length,
+  };
+}
+
 function sessionStats(list) {
   const base = sum(list, s => s.turns[0].ctx * s.turns.length);
   const all = sum(list, s => sum(s.turns, t => t.ctx));
@@ -413,8 +463,11 @@ export async function buildReport({ root, now, days, prs = null, usageLog = null
     total.costPerPoint = total.weeklyPoints > 0 ? coveredCost / total.weeklyPoints : null;
   }
 
+  const lanes = laneStats(qualifying, prs ? total.prs : null);
+
   return {
     window: { days, from: keys[0], to: keys[keys.length - 1] },
+    lanes,
     files: files.length,
     responses: responses.length,
     days: rows,
@@ -496,6 +549,21 @@ export function formatModels(models) {
     .join(' | ')}`;
 }
 
+// Lane handovers: sessions in .claude/worktrees that reached their line (200k, 250k from
+// 2026-11-04), per merged PR, and the context they stopped at. Before 2026-11-04: 9 lanes, 5 of
+// them handed over at 200k within about 35 minutes.
+export function formatLanes(lanes) {
+  if (!lanes || !lanes.lanes) return 'Lanes: none in the window';
+  const perPr = Number.isFinite(lanes.handoversPerPr)
+    ? ` (${num(lanes.handoversPerPr, 2)} per merged PR)`
+    : '';
+  return (
+    `Lanes: ${lanes.lanes} sessions, ${lanes.handovers} handed over${perPr}, ` +
+    `context at handover median ${kilo(lanes.handoverMedian)} max ${kilo(lanes.handoverMax)}, ` +
+    `peak median ${kilo(lanes.peakMedian)}; reached 200k ${lanes.over200k}, 250k ${lanes.over250k}, 300k ${lanes.over300k}`
+  );
+}
+
 export function formatReport(report, notes = []) {
   const header = COLUMNS.map(([name, w], i) => (i === 0 ? name.padEnd(w) : name.padStart(w))).join(
     ' '
@@ -510,6 +578,7 @@ export function formatReport(report, notes = []) {
     row({ ...report.total, day: 'Window' }),
     formatTargets(report.targets),
     formatModels(report.models),
+    formatLanes(report.lanes),
     `Advisor calls (main sessions): ${report.advisorCalls}${
       Number.isFinite(report.advisorPerPr)
         ? ` (${num(report.advisorPerPr, 1)} per merged PR, target 1)`

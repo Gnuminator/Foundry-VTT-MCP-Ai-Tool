@@ -441,11 +441,9 @@ a refusal, or on an open Foundry port, instead of copying over an open world. Th
 (`stop-decision.test.mjs`, through `pwsh`).
 
 `dashboard-controls` and `player-rendered` also need a real browser and skip themselves against the fake.
-The kit drives the React dashboard at `/` (never the old page, which a test
-(`legacy-dashboard.test.mjs`) keeps out of the kit); the browser is headless unless `--headed` is passed.
+The kit drives the React dashboard at `/` (a test, `legacy-dashboard.test.mjs`, keeps the retired
+page out of the kit); the browser is headless unless `--headed` is passed.
 The element ids in `lib/dashboard-page.mjs` and the table come from `packages/cogm-dashboard/web/src`.
-The old page is gone, and so are the table rows for the controls only it had (pause, the AI tab and
-its Ask form, tone, model, the feature cards).
 
 The control sweep walks a classification table (`lib/dashboard-controls.mjs`) with one row for every
 dashboard and player control in the usage catalog, and a unit test fails when a control has no row (a new

@@ -616,9 +616,11 @@ first. Without Foundry connected, the drawer still shows last session and says w
 
 ## The party drawer (🛡 Party)
 
-The party at a glance, from the dnd5e Group actor. It needs a party in Foundry: in the Actors
-tab, create an Actor of type **Group**, drag the characters onto it, then right-click it and
-choose **Set as Primary Party**. With more than one group, a list at the top picks which one.
+The party at a glance, from the dnd5e Group actor. Foundry makes the party by itself: the AI Tool
+keeps a primary party (a Group actor called "Party") and adds every character a player owns, so
+there is nothing to set up. NPCs and actors no player owns stay out. Each batch of additions shows in
+Recent Changes with Undo; to take out an older character, remove it on the party sheet (it stays out of that party). A party you delete is made again the next time a character is added or the world loads. To manage the party by hand, switch off "AI Tool: Add player characters to the
+party" in the module settings. With more than one group, a list at the top picks which one.
 
 - **Members**: each character's HP, AC, passive Perception, hit dice left, conditions and
   exhaustion, death saves at 0 HP, and whether the token is on the scene and in the encounter.

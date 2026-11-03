@@ -489,6 +489,36 @@ export const DASHBOARD_CONTROLS = [
     why: 'plans and applies a combat on the scene; the unit and e2e tests and the live check cover it',
   },
   {
+    name: 'dash.during.conditions',
+    how: 'skip',
+    why: 'not driven by the sweep (the During bar button that opens the Conditions panel); the helper unit tests and the live check cover it',
+  },
+  {
+    name: 'dash.conditions.pick',
+    how: 'skip',
+    why: 'not driven by the sweep (picks a condition in the Conditions panel, changes nothing)',
+  },
+  {
+    name: 'dash.conditions.rules',
+    how: 'skip',
+    why: 'not driven by the sweep (opens dnd5e rules page for the condition in Foundry, changes nothing)',
+  },
+  {
+    name: 'dash.conditions.close',
+    how: 'skip',
+    why: 'not driven by the sweep (closes the Conditions panel)',
+  },
+  {
+    name: 'dash.conditions.add',
+    how: 'write',
+    why: 'plans and applies a condition on the picked tokens (with Undo); the helper unit tests and the live check cover it',
+  },
+  {
+    name: 'dash.conditions.remove',
+    how: 'write',
+    why: 'plans and applies removing a condition from the picked tokens (with Undo); the helper unit tests and the live check cover it',
+  },
+  {
     name: 'dash.combat.end',
     how: 'open',
     // Only the After page (web/src) has it; the old page's files do not, so the data-track

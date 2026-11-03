@@ -434,6 +434,23 @@ describe('FoundryDataAccess — getAvailableConditions', () => {
     ]);
   });
 
+  it('adds dnd5e’s own rules-page uuid when its condition table has one', async () => {
+    const ref =
+      'Compendium.dnd5e.content24.JournalEntry.phbAppendixCRule.JournalEntryPage.QxCrRcgMdUd3gfzz';
+    (globalThis as any).CONFIG.DND5E = { conditionTypes: { prone: { reference: ref } } };
+    (globalThis as any).CONFIG.statusEffects = [
+      { id: 'prone', name: 'Prone' },
+      { id: 'dead', name: 'Dead' },
+    ];
+    try {
+      const result = await da.getAvailableConditions();
+      expect(result.conditions[0].reference).toBe(ref);
+      expect('reference' in result.conditions[1]).toBe(false);
+    } finally {
+      delete (globalThis as any).CONFIG.DND5E;
+    }
+  });
+
   it('falls back name to label then id when name is absent', async () => {
     (globalThis as any).CONFIG.statusEffects = [
       { id: 'stunned', label: 'Stunned via Label', icon: 'icons/stunned.svg' },

@@ -42,6 +42,7 @@ import { RoleNotice } from './components/RoleNotice';
 import { panelChunk, LazyPanel, usePreloadPanels } from './components/LazyPanel';
 import { PreflightButton, VersionBanner, usePreflightOnReconnect } from './panels/Preflight';
 import type { ToolRequest } from './panels/Tools';
+import { appVersionLabel } from './lib/appVersion';
 import { GmActionsGateContext } from './lib/guarded';
 import { showsSampleFight } from './lib/duringTrial';
 import { LIVE_SCREEN_HREF, TRY_LIVE_TEXT, optInScreen } from './lib/liveScreen';
@@ -111,6 +112,8 @@ const FLOATING_CHUNKS = [
 /**
  * The dashboard (D-109): the page at / (D-126). The old vanilla page is gone; /legacy/ redirects here.
  */
+const appVersion = appVersionLabel();
+
 export function App(): JSX.Element {
   // The opt-in screens (the GM page /gm, the strip alone ?strip=1, the Live view ?live=1) are
   // chunks of their own; the entry only picks one (components/OptInScreen.tsx).
@@ -291,7 +294,14 @@ function Dashboard(): JSX.Element {
             <h1>
               Foundry <span className="wordmark-ai">AI</span> Tool
             </h1>
-            <p className="subtitle">Live AI dungeon master&apos;s assistant</p>
+            <div className="subtitle-row">
+              <p className="subtitle">Live AI dungeon master&apos;s assistant</p>
+              {appVersion ? (
+                <span className="app-version" id="app-version" title="The running tool version">
+                  {appVersion}
+                </span>
+              ) : null}
+            </div>
           </div>
         </div>
         <MomentTabs moment={moment} onPick={pick} />

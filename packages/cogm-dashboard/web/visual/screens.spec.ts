@@ -13,6 +13,8 @@ for (const theme of THEMES) {
       await showScreen(page, screen, theme);
       await expect(page).toHaveScreenshot(`${screen.name}-${theme}.png`, {
         fullPage: screen.fullPage,
+        // The tool version changes with every release; it must not move every baseline.
+        mask: [page.locator('#app-version')],
       });
     });
   }

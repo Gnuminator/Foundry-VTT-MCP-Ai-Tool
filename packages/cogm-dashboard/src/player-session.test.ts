@@ -164,7 +164,7 @@ describe('player page markup', () => {
 
   it('has a real Not you? Change button and no bare em dash values', () => {
     expect(html).toMatch(/<button id="who-change"/);
-    expect(html).not.toContain('—');
+    expect(html).not.toContain(String.fromCharCode(0x2014));
     expect(html).not.toMatch(/bridge|dnd5e/i);
   });
 

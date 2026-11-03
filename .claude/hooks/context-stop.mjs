@@ -215,7 +215,7 @@ export function shellWritesRepo(command, cwd, repoRoot = REPO_ROOT) {
 const k = tokens => `${Math.round(tokens / 1000)}k`;
 
 function denyMessage(context, out, what) {
-  return `Context is ${k(context)}, at or above the hand-over line (${k(out)}): ${what} is new work. Hand over now: write the handover note to the vault (Handoff/<lane> prompt <date>.md), update the - progress: line on the Backlog item, git add/commit/push what is done, tell the newest Planner, and stop. Still allowed: Read, Grep, Glob, git add/commit/push, gh, writes to the vault and the scratchpad, SendMessage, set_session_title, wrap_up, update_plan. Under the line again (after /compact) this lifts by itself.`;
+  return `Context is ${k(context)}, at or above the hand-over line (${k(out)}): ${what} is new work. Hand over now: write the handover note to the vault (Handoff/<lane> prompt <date>.md), update the - progress: line on the Backlog item, git add/commit/push what is done, and stop. Still allowed: Read, Grep, Glob, git add/commit/push, gh, writes to the vault and the scratchpad, SendMessage, set_session_title, wrap_up, update_plan. Under the line again (after /compact) this lifts by itself.`;
 }
 
 /** The deny reason for a hook payload, or null to allow. Never throws. */

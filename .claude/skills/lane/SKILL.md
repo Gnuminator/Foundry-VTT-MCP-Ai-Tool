@@ -47,10 +47,9 @@ pushes only `Backlog.md`; a vault problem is a warning (with uncommitted edits i
 - **Advisor:** call `advisor` once, after the work is committed and before you open the PR; act on
   it or say in the PR why not.
 - **Subagents:** `model: "sonnet"` for code, tests, scripts and sweeps; Opus only for design and
-  the one risky-PR review. Haiku is good advice for reading long notes and logs and read-only
-  sweeps. Partition workers by file, lock shared contracts first, tell them to write big files in
-  parts of at most about 250 lines per call and keep downloads out of the repo. Workers never
-  build, sync or commit; you integrate.
+  the one risky-PR review; Haiku suits long notes, logs and read-only sweeps. Partition workers by
+  file, lock shared contracts first, tell them to write big files in parts of about 250 lines.
+  Workers never build, sync or commit; you integrate.
 - **Set `model` on every Agent call, Workflow `agent()` call and `start_session`** (an unset model
   inherits the caller's). The hook `guard-model.mjs` denies one without it (forks, cloud starts and
   the title-only offer are exempt). Agent takes `sonnet`, `haiku`, `opus`; `start_session` takes a
@@ -71,9 +70,8 @@ status -Server B` (and C), take a free one with `-Server X` and pass it to start
 ## Before the PR
 
 - **CI on the PR head is the green.** A lane does not run the full `npm run green` before a PR.
-  Quick local checks of what you touched, push, let CI run (`build-test` on Node 22, 24 and ARM,
-  plus `dashboard-visual` for dashboard paths), fix what it reports, also after review fixes.
-  `scripts/lane-merge.mjs --wait-ci` refuses a merge without CI green on the exact head.
+  Quick local checks of what you touched, push, let CI run, fix what it reports, also after review
+  fixes. `scripts/lane-merge.mjs --wait-ci` refuses a merge without CI green on the exact head.
   - **Quick checks:** `npm run green -- --quick` (seconds to a couple of minutes, no heavy lock). It
     diffs your branch against `aitool/main` and runs, for what you touched: the shared build,
     typecheck and unit tests per package, ESLint, markdownlint and `docs:links`, the node tests of
@@ -113,7 +111,8 @@ scripts/heavy-lock.mjs status`). `npm run green -- --cloud` (background) prints 
   (`review-guarded-writes`, `review-wire-contracts`, `review-pi-ci`, `model: "opus"`) or a formal
   Opus review, not both. Everything else gets a Sonnet review plus CI. The reviewer is a read-only
   subagent; give it the PR number, the full head sha, the area, a `git diff aitool/main...HEAD`
-  file and the PR description, in a checkout at that sha. It writes the note.
+  file and the PR description, in a checkout at that sha. A narrow agent cannot write files: save
+  its answer unchanged as the note. A note with only lows says **Merge.**
 - **Review note format** (the merge gate reads it):
   - path: vault `Handoff/Reviews <YYYY-MM-DD>/<PR>-review.md`, round 2 `<PR>-review-round2.md`;
     Opus: `<PR>-opus-review.md`, `<PR>-opus-review-round2.md`, with the heading
@@ -146,8 +145,7 @@ scripts/heavy-lock.mjs status`). `npm run green -- --cloud` (background) prints 
   refusal. The gate checks CI on the head, a review note for that sha, the changelog fragment,
   `drift:check` and the merge train. `--wait-ci` waits for CI first; exit codes: 0 ok or merged, 1
   refused, 2 usage, 3 a check failed, 4 head moved, 5 timed out. **Do not pipe the gate through
-  `tail` or `head`** (the pipe hides its exit code): run it plain, in the background if it may
-  wait, and read its last line.
+  `tail` or `head`** (it hides the exit code): run it plain and read its last line.
 
 ## Context and handover
 
@@ -158,7 +156,9 @@ scripts/heavy-lock.mjs status`). `npm run green -- --cloud` (background) prints 
   that write in the repo. Still allowed: reading, git add, commit and push, `gh`, writes to the
   vault and the scratchpad, SendMessage, wrap_up. Write the handover and stop; the deny lifts when
   the context is under the line again.
-- **Handover:** half a page to vault `Handoff/<lane> prompt <date>.md` and in full in the chat in
+- **Handover:** write the note at your first milestone and update it with the `- progress:` line at
+  each later one, so the handover is one step. Half a page to vault `Handoff/<lane> prompt
+  <date>.md` and in full in the chat in
   a fenced block: task, state, branch, PR and head sha, done-when, the next command, "follow
   CLAUDE.md". Findings a successor needs go in the vault, not side-session notes (archiving a
   session deletes those). Push the note and a `- progress:` line (`handed over at <context>, no PR

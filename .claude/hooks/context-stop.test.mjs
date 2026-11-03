@@ -71,6 +71,7 @@ test('above the out line: edits of repo files, Agent and repo-writing commands a
     for (const [tool, args] of denied) {
       const reason = decide(payload(file, tool, args), env);
       assert.match(reason ?? '', /hand-over line \(250k\).*Hand over now/, tool);
+      assert.doesNotMatch(reason ?? '', /Planner/, tool);
     }
     const out = JSON.parse(run(payload(file, 'Edit', { file_path: inRepo('a.ts') }), env));
     assert.equal(out.hookSpecificOutput.permissionDecision, 'deny');

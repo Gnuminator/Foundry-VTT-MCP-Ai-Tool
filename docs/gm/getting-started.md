@@ -1,6 +1,6 @@
 ---
 title: Getting started
-description: What Foundry AI Tool is, its parts in plain words, how they fit together, a short glossary and how it is set up.
+description: What Foundry AI Tool is, its parts in plain words, how they fit together and how it is set up.
 ---
 
 # Getting started

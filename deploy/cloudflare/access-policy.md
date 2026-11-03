@@ -118,7 +118,7 @@ If set, presenting this value as:
 - Cookie: `cogm_token=<TOKEN>`
 
 ...also grants the GM role, regardless of the injected email. Useful for API clients or
-scripts that call the dashboard outside a browser session. Keep it secret — treat it like
+scripts that call the dashboard outside a browser session. Keep it secret. Treat it like
 a password.
 
 ### `PLAYER_DASHBOARD_TOKEN` (optional)

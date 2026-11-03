@@ -52,7 +52,7 @@ Flere færdige forespørgsler, sorteret efter før, under og efter en session:
 Forespørgsler der går galt:
 
 - "Dræb ulven." Hvilken ulv? Flere tokens kan have samme navn. Sig "Wolf 2" eller vælg tokenet.
-- "Gør det næste combat federe." For vagt. Sig, hvad du vil have: hårdere, kortere, mere terræn.
+- "Gør den næste combat federe." For vagt. Sig, hvad du vil have: hårdere, kortere, mere terræn.
 - "Ret alt fra i går aftes." Claude kan ikke fortryde direkte handlinger; se nedenfor.
 
 ## Tool sets: hvilke kontakter du skal tænde
@@ -124,7 +124,7 @@ planen er mere end 15 minutter gammel, eller hvis det samme er ændret i Foundry
 lavet. Deletes samt Tarokka-reveals og -hides tæller som destruktive og kræver også dit udtrykkelige
 ja. At vise en handout-side for spillerne er en almindelig ændring med en Undo, så ét ja er nok.
 
-I et langt combat bliver confirm-trinnet trættende. Indstillingen **AI Tool: Live play, apply
+I en lang combat bliver confirm-trinnet trættende. Indstillingen **AI Tool: Live play, apply
 without confirming** (Game Settings, kategorien **Foundry AI Tool**; slukket som standard) springer
 det over for damage, healing, conditions og resources, som Claude planlægger. Hver ændring havner
 stadig i Recent Changes med **Undo**. Dashboardets party- og Tarokka-knapper har aldrig brug for den:

@@ -1,6 +1,6 @@
 ---
 source: player/README.md
-sourceHash: db5e7ddd42e1
+sourceHash: b85e67b0d6a0
 title: Spillerguide
 description: Hvad spillere kan se, hvad værktøjet optager under spillet, hvilke dele der når en AI, og hvordan du får dine data slettet.
 ---
@@ -116,7 +116,7 @@ som nej.
 Discord og Pi-serveren (slettet der 7 dage efter, at PC'en kopierer det) og gemmes på den spillers
 PC. Transcripts og noter kommer ind i GM'ens noter, som også når GM'ens PC.
 
-**Træning har sin egen sætning:** optagelserne gemmes også for at træne og teste bordets egne
+**Træning:** optagelserne gemmes også for at træne og teste bordets egne
 tale-værktøjer, indtil du beder om, at din bliver slettet.
 
 **Hvis du siger nej:** dit spor bliver slettet efter hver session, før noget gøres til tekst, og

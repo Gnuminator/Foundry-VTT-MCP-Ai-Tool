@@ -110,7 +110,7 @@ says exactly what is recorded, and each player replies yes or no in writing. No 
 passes through Discord and the Pi (deleted there 7 days after the PC copies it) and is kept on that
 player's PC. Transcripts and notes go into the GM's notes, which also reach the GM's PC.
 
-**Training is its own sentence:** the recordings are also kept to train and test the table's own
+**Training:** the recordings are also kept to train and test the table's own
 speech tools, until you ask for yours to be deleted.
 
 **If you say no:** your track is deleted after each session, before anything is turned into text, and

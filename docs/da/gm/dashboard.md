@@ -226,7 +226,7 @@ conditions til flere deltagere på én gang. Mens en combat kører, og live play
 session** slår det til), klik på deltagernes rækker for at vælge dem (klik igen for at fravælge).
 Med en eller flere valgt:
 
-- **Damage / Heal**: åbner en lille formular: Damage eller Heal, ét beløb og chips for skadetype (så
+- **Damage / Heal**: åbner en lille formular: Damage eller Heal, ét beløb og chips for damage-type (så
   dnd5e tæller resistances, vulnerabilities og immunities med). Én knap, opkaldt efter hvad den gør
   ("Deal 8 fire damage to ... in Foundry"), anvender det med det samme på hvert valgt token; hver
   får hele beløbet. Toasten har **Undo**, og Recent Changes gemmer ændringen. Der er intet

@@ -148,7 +148,7 @@ andet set, siger det.
 - **Hvad der sker:** Claude læser karaktererne og combat (`get-combat-state`, `list-characters`).
 - **Tip:** dashboardets combat tracker viser HP-bjælker, uden at du spørger.
 
-### Start og slut et combat
+### Start og slut en combat
 
 - **I Foundry:** vælg de tokens, der kæmper (vælg dem på kortet, eller træk en boks rundt om dem),
   højreklik på ét og klik på de krydsede sværd (**Enter Combat**) i dets token-menu. Det tilføjer alle
@@ -157,7 +157,7 @@ andet set, siger det.
   nederst i fanen og bekræft.
 - **I dashboardet:** med **GM Actions** tændt (**Turn on for tonight** gør det) klik **Start combat**
   i Combat Tracker. Den lister tokens på scenen, sætter hak ved spillerkaraktererne og de fjendtlige,
-  og starter combaten i round 1 med en Undo. **End combat** vises, når et combat kører. Se
+  og starter combaten i round 1 med en Undo. **End combat** vises, når en combat kører. Se
   [Combat Tracker](dashboard.md#combat-tracker).
 - **Tip:** knapperne Damage / Heal og Condition på en combatant samt Start og End combat kræver alle,
   at live play er tændt. Hvis en knap er grået ud, siger den hvorfor og har en **Turn on** ved siden af;

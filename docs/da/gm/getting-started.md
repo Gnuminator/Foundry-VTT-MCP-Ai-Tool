@@ -1,8 +1,8 @@
 ---
 source: gm/getting-started.md
-sourceHash: 73efb5c15e86
+sourceHash: 9c4a1e4fc34e
 title: Kom i gang
-description: Hvad Foundry AI Tool er, dets dele i almindeligt sprog, hvordan de hænger sammen, en kort ordliste og hvordan det sættes op.
+description: Hvad Foundry AI Tool er, dets dele i almindeligt sprog, hvordan de hænger sammen og hvordan det sættes op.
 ---
 
 # Kom i gang

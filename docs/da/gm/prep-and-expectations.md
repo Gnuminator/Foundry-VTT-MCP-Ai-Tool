@@ -30,7 +30,7 @@ minutter er nok til de fleste sessioner.
 5. **Ting, de kan finde ud af.** Spor, rygter og hemmeligheder, skrevet som enkelte fakta. Del hver ud
    der, hvor den passer, ikke kun der, hvor bogen lægger den.
 6. **Kampe, der måske kommer.** Monsters, deres stat blocks åbnet én gang i Foundry, og tokens
-   klar. Et hurtigt blik på deres attack og specielle træk sparer tid ved bordet.
+   klar. Et hurtigt blik på deres attacks og specielle træk sparer tid ved bordet.
 7. **Belønninger.** Skat, items eller information, spillerne kan tjene i aften.
 
 Du kan springe over: at skrive dialog ud, at planlægge, hvad spillerne gør, og regler, du kan slå op,

@@ -53,7 +53,7 @@ Prøv hver af dem i test worlden, mens du læser.
 - [ ] [Chat and dice](../../foundry/chat-and-dice.md): rul en terning i chatten, og derefter et
       privat terningslag, kun for GM'en.
 - [ ] [Combat](../../foundry/combat.md): sæt to tokens i en combat, rul initiative og klik dig
-      gennem et par ture.
+      gennem et par turns.
 
 **Du er færdig, når** du har startet og afsluttet en combat i test worlden.
 

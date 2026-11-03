@@ -59,7 +59,7 @@ describe('sessionSwitches', () => {
       'party',
       'tarokka',
     ]);
-    expect(r.switches[0]?.name).toBe('Allow Write Operations');
+    expect(r.switches[0]?.name).toBe('AI Tool: Allow Write Operations');
     expect(on(r)).toEqual(['writes', 'live-play']);
     expect(r.ready).toBeNull();
     expect(r.changed).toEqual([]);

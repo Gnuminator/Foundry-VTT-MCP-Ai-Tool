@@ -261,8 +261,8 @@ export class ModuleSettings {
     // ============================================================================
 
     game.settings.register(this.moduleId, 'enabled', {
-      name: 'Enable MCP Bridge',
-      hint: 'Master switch to enable/disable the MCP bridge connection',
+      name: 'AI Tool: Connect to the AI Tool server',
+      hint: 'Master switch. Turn it off to disconnect Foundry from the AI Tool.',
       scope: 'world',
       config: true,
       type: Boolean,
@@ -271,8 +271,8 @@ export class ModuleSettings {
     });
 
     game.settings.register(this.moduleId, 'serverHost', {
-      name: 'Websocket Server Host',
-      hint: 'IP address for local Websocket Server connections to the MCP Server (usually localhost).',
+      name: 'AI Tool: Server address',
+      hint: 'Where the AI Tool server runs. Leave it as localhost unless you were told otherwise.',
       scope: 'world',
       config: true,
       type: String,
@@ -295,8 +295,8 @@ export class ModuleSettings {
     // ============================================================================
 
     game.settings.register(this.moduleId, 'allowWriteOperations', {
-      name: 'Allow Write Operations',
-      hint: 'Let AI model create actors, NPCs, and modify world content. Reading is always allowed.',
+      name: 'AI Tool: Allow Write Operations',
+      hint: 'Lets the AI Tool change the world. Reading is always allowed.',
       scope: 'world',
       config: true,
       type: Boolean,
@@ -308,8 +308,8 @@ export class ModuleSettings {
     // headless bridge client (e.g. on the Orange Pi), log it in as a dedicated
     // Assistant GM user instead of turning this on.
     game.settings.register(this.moduleId, 'allowNonGmAccess', {
-      name: 'Allow Non-GM Users to Run the Bridge',
-      hint: 'Off by default. When on, a non-GM user can start and use the bridge from their own browser. For a headless bridge client, use an Assistant GM user instead.',
+      name: 'AI Tool: Let players connect it',
+      hint: 'Off by default. When on, a player can start the AI Tool link from their own browser. For a browser that runs without a person, use an Assistant GM user instead.',
       scope: 'world',
       config: true,
       type: Boolean,
@@ -320,8 +320,8 @@ export class ModuleSettings {
     // choices hold only "Any GM" until `refreshBridgeUserChoices()` adds the GM
     // users at ready (game.users is not loaded at init).
     game.settings.register(this.moduleId, 'bridgeUserId', {
-      name: 'Bridge User',
-      hint: 'Which GM keeps the link to the AI Tool. Only that user\'s browser connects; other GMs stay quiet. "Any GM" lets every GM connect and the tool uses the first.',
+      name: 'AI Tool: Which GM connects',
+      hint: 'Only this GM\'s browser connects to the AI Tool. "Any GM" lets every GM connect and the first one is used.',
       scope: 'world',
       config: true,
       type: String,
@@ -335,10 +335,10 @@ export class ModuleSettings {
     // ============================================================================
 
     game.settings.register(this.moduleId, 'maxActorsPerRequest', {
-      name: 'Max Actors Per Request',
-      hint: 'Maximum number of actors AI model can create in a single request',
+      name: 'AI Tool: Max actors per request',
+      hint: 'The most actors the AI Tool may create in one request.',
       scope: 'world',
-      config: true,
+      config: false, // Developer setting: no menu entry
       type: Number,
       default: 10,
       range: {
@@ -351,10 +351,10 @@ export class ModuleSettings {
     // Chat log buffer size — how many recent chat messages the EventTracker
     // keeps in memory for the get-chat-log / play-by-play tools.
     game.settings.register(this.moduleId, 'chatLogBufferSize', {
-      name: 'Chat Log Buffer Size',
-      hint: 'Number of recent chat messages to keep in memory for AI chat-log and combat play-by-play tools.',
+      name: 'AI Tool: Chat messages kept',
+      hint: 'How many recent chat messages the AI Tool can read back.',
       scope: 'world',
-      config: true,
+      config: false, // Developer setting: no menu entry
       type: Number,
       default: 200,
       range: {
@@ -368,10 +368,10 @@ export class ModuleSettings {
     // and only creates log entries without user-actionable features
 
     game.settings.register(this.moduleId, 'rulesSearchPacks', {
-      name: 'Rules search packs',
-      hint: 'Which packages the search-rules tool reads, as package names or pack ids separated by commas. Leave empty for the default: dnd-players-handbook, dnd5e and the aitool-content rules packs (classes, species, backgrounds, feats, spells, items, journals = the Books, including the DMG 2024). Adventure text is never searched unless the caller asks.',
+      name: 'AI Tool: Rules search packs',
+      hint: 'Which packs the rules search reads, as pack ids separated by commas. Leave empty for the default rules packs. Adventure text is never searched unless asked.',
       scope: 'world',
-      config: true,
+      config: false, // Developer setting: no menu entry
       type: String,
       default: '',
     });
@@ -405,8 +405,8 @@ export class ModuleSettings {
     // ============================================================================
 
     game.settings.register(this.moduleId, 'enableNotifications', {
-      name: 'Show Connection Messages',
-      hint: 'Display notifications when connecting/disconnecting from AI model',
+      name: 'AI Tool: Show connection messages',
+      hint: 'Shows a message when the AI Tool connects or disconnects.',
       scope: 'world',
       config: true,
       type: Boolean,
@@ -414,8 +414,8 @@ export class ModuleSettings {
     });
 
     game.settings.register(this.moduleId, 'autoReconnectEnabled', {
-      name: 'Auto-Reconnect on Disconnect',
-      hint: 'Automatically try to reconnect if the connection to AI model is lost',
+      name: 'AI Tool: Reconnect by itself',
+      hint: 'Tries to connect again when the link to the AI Tool drops.',
       scope: 'world',
       config: true,
       type: Boolean,
@@ -423,10 +423,10 @@ export class ModuleSettings {
     });
 
     game.settings.register(this.moduleId, 'heartbeatInterval', {
-      name: 'Connection Check Frequency',
-      hint: 'How often to check if AI model is still connected (seconds)',
+      name: 'AI Tool: Connection check (seconds)',
+      hint: 'How often to check that the AI Tool is still connected.',
       scope: 'world',
-      config: true,
+      config: false, // Developer setting: no menu entry
       type: Number,
       default: 30,
       range: {
@@ -515,9 +515,7 @@ export class ModuleSettings {
    */
   updateConnectionStatusDisplay(connected: boolean, _toolCount: number): void {
     try {
-      const statusText = connected
-        ? `✅ Connected`
-        : `❌ Disconnected - Use connection panel to connect`;
+      const statusText = connected ? 'Connected' : 'Not connected. Is the AI Tool server started?';
 
       // Update the hint for the enabled setting to show status
       const enabledSetting = settingsRegistry().get(`${this.moduleId}.enabled`);

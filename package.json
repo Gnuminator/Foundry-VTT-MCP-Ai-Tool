@@ -1,7 +1,7 @@
 {
   "name": "foundry-ai-tool",
   "version": "0.24.0",
-  "description": "Foundry AI Tool — MCP server + Foundry module + co-GM dashboard for AI-powered Foundry VTT integration",
+  "description": "Foundry AI Tool: MCP server + Foundry module + co-GM dashboard for AI-powered Foundry VTT integration",
   "private": true,
   "workspaces": [
     "packages/*",

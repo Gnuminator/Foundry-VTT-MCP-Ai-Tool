@@ -7,7 +7,13 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 import { sanitizeHandoutHtml } from './player/sanitize.js';
-import { handoutTitle, sessionPhase, splitHandouts } from '../public/player-session.js';
+import {
+  handoutTitle,
+  sessionPhase,
+  splitHandouts,
+  visibleHandouts,
+  whoLine,
+} from '../public/player-session.js';
 
 const open = { open: true, endedAt: null };
 const closed = { open: false, endedAt: '2026-09-28T22:00:00.000Z' };
@@ -131,8 +137,36 @@ describe('splitHandouts', () => {
   });
 });
 
+describe('private handouts follow the picked name', () => {
+  const all = { id: 'a', title: 'Map' };
+  const mine = { id: 'b', title: 'Letter', players: ['u1'] };
+  const theirs = { id: 'c', title: 'Note', players: ['u2'] };
+
+  it('shows a chosen-player handout only to the picked player', () => {
+    expect(visibleHandouts([all, mine, theirs], 'u1')).toEqual([all, mine]);
+    expect(visibleHandouts([all, mine, theirs], 'u2')).toEqual([all, theirs]);
+  });
+
+  it('hides chosen-player handouts while no name is picked', () => {
+    expect(visibleHandouts([all, mine], null)).toEqual([all]);
+    expect(visibleHandouts(undefined, 'u1')).toEqual([]);
+  });
+
+  it('always says which name the page thinks you are', () => {
+    expect(whoLine({ userId: 'u1', name: 'Ask' })).toBe('Playing as Ask');
+    expect(whoLine(null)).toBe('No name picked');
+    expect(whoLine({ userId: null, name: null })).toBe('No name picked');
+  });
+});
+
 describe('player page markup', () => {
   const html = readFileSync(new URL('../public/player.html', import.meta.url), 'utf8');
+
+  it('has a real Not you? Change button and no bare em dash values', () => {
+    expect(html).toMatch(/<button id="who-change"/);
+    expect(html).not.toContain('—');
+    expect(html).not.toMatch(/bridge|dnd5e/i);
+  });
 
   it('has every card the order rules name, and no toggle hiding them', () => {
     for (const id of ['card-combat', 'card-feed', 'card-recap', 'card-handouts', 'card-quests']) {

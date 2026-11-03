@@ -3,6 +3,7 @@ import { handleAiChangesSocketMessage } from './ai-changes-signal.js';
 import { registerAiToolControls } from './ai-tool-controls.js';
 import { registerLatestRecapButton } from './latest-recap.js';
 import { setBridgeLink } from './bridge-link.js';
+import { GM_GUIDE_URL } from './help-menu.js';
 import { SocketBridge, type BridgeConnectionInfo } from './socket-bridge.js';
 import { QueryHandlers } from './queries.js';
 import { ModuleSettings, isBridgeUser, registerSettingsUsageHooks } from './settings.js';
@@ -170,13 +171,13 @@ class FoundryMCPBridge {
         defaultEnabled: true,
         autoApply: {
           name: 'AI Tool: Live play, apply without confirming',
-          hint: 'Damage, healing, conditions and resources that Claude plans apply at once, without the confirm step. Each one still shows an Undo and is listed in Recent Changes.',
+          hint: 'Damage, healing, conditions and resources that Claude plans apply at once, without the confirm step. Each one still shows an Undo and is listed in Changes.',
         },
       });
       registerGuardedFeature({
         id: 'session-notes',
         name: 'AI Tool: Session notes (writes)',
-        hint: 'Puts the notes of a recorded session (Recap, GM summary, Scenes) into a GM-only journal in Foundry automatically, without asking, as soon as Foundry is open with writes on. Each one shows in Recent Changes with an Undo. Players see the Recap only when you reveal it.',
+        hint: 'Puts the notes of a recorded session (Recap, GM summary, Scenes) into a GM-only journal in Foundry automatically, without asking, as soon as Foundry is open with writes on. Each one shows in Changes with an Undo. Players see the Recap only when you reveal it.',
       });
       registerGuardedFeature({
         id: OWNERSHIP_FEATURE_ID,
@@ -192,33 +193,33 @@ class FoundryMCPBridge {
       registerGuardedFeature({
         id: 'table-viewer',
         name: 'AI Tool: Table viewer (writes)',
-        hint: 'Lets the AI create the Table user that the TV at the table signs in as (Player role, no password, owns nothing), after you confirm the plan. It shows in Recent Changes with an Undo.',
+        hint: 'Lets the AI create the Table user that the TV at the table signs in as (Player role, no password, owns nothing), after you confirm the plan. It shows in Changes with an Undo.',
         defaultEnabled: true,
       });
       registerGuardedFeature({
         id: SCENE_RESTORE_FEATURE_ID,
         name: 'AI Tool: Scene restore (writes)',
-        hint: "Lets the AI put a scene's walls, lights, tiles and tokens back from a backup copy of the world, after you confirm the plan. Each restore shows in Recent Changes with an Undo.",
+        hint: "Lets the AI put a scene's walls, lights, tiles and tokens back from a backup copy of the world, after you confirm the plan. Each restore shows in Changes with an Undo.",
       });
       registerGuardedFeature({
         id: ROOM_SETUP_FEATURE_ID,
         name: 'AI Tool: Room setup (writes)',
-        hint: 'Lets the AI add teleport regions and fill a room with tokens, after you confirm the plan. Each setup shows in Recent Changes with an Undo.',
+        hint: 'Lets the AI add teleport regions and fill a room with tokens, after you confirm the plan. Each setup shows in Changes with an Undo.',
       });
       registerGuardedFeature({
         id: SCENE_MOOD_FEATURE_ID,
         name: 'AI Tool: Scene mood and music (writes)',
-        hint: "Lets the AI set a scene's darkness, light and weather, save and apply mood presets, and start, stop or switch playlists, after you confirm the plan. Each change shows in Recent Changes with an Undo.",
+        hint: "Lets the AI set a scene's darkness, light and weather, save and apply mood presets, and start, stop or switch playlists, after you confirm the plan. Each change shows in Changes with an Undo.",
       });
       registerGuardedFeature({
         id: NPC_TURN_FEATURE_ID,
         name: 'AI Tool: NPC turn assistant (writes)',
-        hint: 'Lets the AI move a monster on its turn and take hit points off the creatures it hits, after you confirm the plan. Each turn shows in Recent Changes with an Undo. The attacks and saves are rolled first, separately.',
+        hint: 'Lets the AI move a monster on its turn and take hit points off the creatures it hits, after you confirm the plan. Each turn shows in Changes with an Undo. The attacks and saves are rolled first, separately.',
       });
       registerGuardedFeature({
         id: PAPER_SYNC_FEATURE_ID,
         name: 'AI Tool: Paper sync (writes)',
-        hint: 'Lets the AI write the numbers from a paper sheet back into a character after a night played on paper (hit points, spell slots, hit dice, class resources, item uses, coins, exhaustion, conditions, inspiration, death saves and item quantities), one plan per character after you confirm. Removing an item asks for a second confirm. Each one shows in Recent Changes with an Undo. XP, level and class are never changed.',
+        hint: 'Lets the AI write the numbers from a paper sheet back into a character after a night played on paper (hit points, spell slots, hit dice, class resources, item uses, coins, exhaustion, conditions, inspiration, death saves and item quantities), one plan per character after you confirm. Removing an item asks for a second confirm. Each one shows in Changes with an Undo. XP, level and class are never changed.',
       });
       registerGuardedFeature({
         id: WHO_NOTICES_FEATURE_ID,
@@ -304,9 +305,7 @@ class FoundryMCPBridge {
       const validation = this.settings.validateSettings();
       if (!validation.valid) {
         console.warn(`[${MODULE_ID}] Invalid settings:`, validation.errors);
-        ui.notifications.warn(
-          `MCP Bridge settings validation failed: ${validation.errors.join(', ')}`
-        );
+        ui.notifications.warn(`AI Tool settings need a look: ${validation.errors.join(', ')}`);
       }
 
       // Auto-connect when enabled (always automatic)
@@ -421,7 +420,7 @@ class FoundryMCPBridge {
 
       // Show connection notification based on user preference
       if (this.settings.getSetting('enableNotifications')) {
-        ui.notifications.info('🔗 MCP Bridge connected successfully');
+        ui.notifications.info('AI Tool connected');
       }
       logInfo(
         `[${MODULE_ID}] GM connection established - Bridge active for user: ${game.user?.name}`
@@ -438,7 +437,7 @@ class FoundryMCPBridge {
         if (now - this.lastServerNoticeAt >= SERVER_NOTICE_THROTTLE_MS) {
           this.lastServerNoticeAt = now;
           ui.notifications?.warn(
-            'MCP Server not found. Install it from https://github.com/Gnuminator/Foundry-VTT-MCP-Ai-Tool'
+            `Cannot reach the AI Tool server. Is it started? Troubleshooting: ${GM_GUIDE_URL}`
           );
         }
       }
@@ -483,7 +482,7 @@ class FoundryMCPBridge {
 
       // Show disconnection notification based on user preference
       if (this.settings.getSetting('enableNotifications')) {
-        ui.notifications.info('MCP Bridge disconnected');
+        ui.notifications.info('AI Tool disconnected');
       }
     } catch (error) {
       console.error(`[${MODULE_ID}] Error stopping bridge:`, error);

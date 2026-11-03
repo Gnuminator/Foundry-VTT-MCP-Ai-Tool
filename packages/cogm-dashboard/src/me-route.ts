@@ -85,7 +85,7 @@ export function mountMeRoute(app: Express, options: MeRouteOptions): void {
       return;
     }
     if (typeof client.characterSheet !== 'function') {
-      res.status(501).json({ error: 'This bridge cannot read character sheets.' });
+      res.status(501).json({ error: 'Your sheet is not available here. Ask your GM.' });
       return;
     }
     client
@@ -98,10 +98,10 @@ export function mountMeRoute(app: Express, options: MeRouteOptions): void {
           privateRolls: options.events ? privateRollsFor(userId, options.events()) : [],
         })
       )
-      .catch((error: unknown) => {
-        res.status(502).json({
-          error: error instanceof Error ? error.message : 'Could not read the character.',
-        });
+      .catch(() => {
+        res
+          .status(502)
+          .json({ error: 'Could not read your character. Wait a moment and try again.' });
       });
   });
 
@@ -124,7 +124,7 @@ export function mountMeRoute(app: Express, options: MeRouteOptions): void {
       return;
     }
     if (typeof client.playerRoll !== 'function') {
-      res.status(501).json({ error: 'This bridge cannot roll for you. Roll in Foundry instead.' });
+      res.status(501).json({ error: 'Rolling from this page is not available. Roll in Foundry.' });
       return;
     }
     if (rolling.has(userId)) {
@@ -152,7 +152,7 @@ export function mountMeRoute(app: Express, options: MeRouteOptions): void {
         res.status(502).json({
           error: writesOff
             ? 'Rolling from this page is switched off right now. Roll in Foundry, or ask your GM.'
-            : message || 'The roll did not work.',
+            : 'Could not roll. Ask your GM.',
         });
       })
       .finally(() => rolling.delete(userId));

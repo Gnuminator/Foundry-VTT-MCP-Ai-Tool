@@ -109,7 +109,8 @@ item is marked done; the board ignores a line on an item with no claim.
   - **Quick checks:** `npm run green -- --quick` (seconds to a couple of minutes, no heavy lock). It
     diffs your branch against `aitool/main` (committed, uncommitted and untracked) and runs the
     shared build, the typecheck and unit tests of each touched package (a `shared/` change
-    typechecks every package), the node tests of changed scripts and hooks (`foo.mjs` runs
+    typechecks every package), ESLint on changed TypeScript and markdownlint on changed Markdown
+    (plus `docs:links` when Markdown changed), the node tests of changed scripts and hooks (`foo.mjs` runs
     `foo.test.mjs`), and the dashboard e2e specs you touched (after a dashboard build). A change under
     `packages/cogm-dashboard/web/` also runs `usage:catalog:check`, the dashboard build and
     `bundle:budget`; the catalogue check also runs for anything `scripts/usage-catalog.mjs` scans

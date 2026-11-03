@@ -195,7 +195,7 @@ describe('describeRecord', () => {
     ).toEqual(['Deleted Wall']);
   });
 
-  it('says a token moved when only x and y changed', () => {
+  it('says a token moved when only x and y changed (no rotation)', () => {
     expect(
       describeRecord(
         rec({
@@ -210,6 +210,52 @@ describe('describeRecord', () => {
         })
       )
     ).toEqual(['Token "Wolf 2" moved']);
+  });
+
+  it('says a token moved when a Foundry 14 drag also turned it (x, y and rotation)', () => {
+    const token = {
+      documentName: 'Token',
+      uuid: 'Scene.s1.Token.t1',
+      parentUuid: 'Scene.s1',
+      name: 'Wolf 1',
+      rootUuid: 'Scene.s1.Token.t1',
+      rootName: 'Wolf 1',
+    } as const;
+    // The real shapes of the test 3 drags on the Pi: x,y,rotation, x,rotation and y,rotation.
+    for (const [before, after] of [
+      [
+        [val('x', 400), val('y', 400), val('rotation', 0)],
+        [val('x', 500), val('y', 300), val('rotation', 225)],
+      ],
+      [
+        [val('x', 500), val('rotation', 225)],
+        [val('x', 600), val('rotation', 270)],
+      ],
+      [
+        [val('y', 300), val('rotation', 270)],
+        [val('y', 400), val('rotation', 180)],
+      ],
+    ] as const) {
+      expect(describeRecord(rec({ ...token, before: [...before], after: [...after] }))).toEqual([
+        'Token "Wolf 1" moved',
+      ]);
+    }
+  });
+
+  it('keeps a turn on its own as a change, not a move', () => {
+    const lines = describeRecord(
+      rec({
+        documentName: 'Token',
+        uuid: 'Scene.s1.Token.t1',
+        parentUuid: 'Scene.s1',
+        name: 'Wolf 1',
+        rootUuid: 'Scene.s1.Token.t1',
+        rootName: 'Wolf 1',
+        before: [val('rotation', 0)],
+        after: [val('rotation', 90)],
+      })
+    );
+    expect(lines).toEqual(['Token "Wolf 1": rotation 0 -> 90']);
   });
 
   it('shows an oversize record and a record with unknown before values', () => {

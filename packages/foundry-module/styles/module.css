@@ -764,3 +764,25 @@
   border-radius: 6px 0 0 6px;
   cursor: pointer;
 }
+
+/* The Live window explains a frame that stays blank. */
+.fmb-live-window .window-content {
+  position: relative;
+}
+
+.fmb-live-window .fmb-live-why {
+  position: absolute;
+  inset: 0;
+  overflow: auto;
+  padding: 0.75rem;
+  background: var(--color-cool-5, #222);
+  color: var(--color-light-1, #eee);
+}
+
+.fmb-live-window .fmb-live-why[hidden] {
+  display: none;
+}
+
+.fmb-live-window .fmb-live-why p {
+  margin: 0 0 0.5rem;
+}

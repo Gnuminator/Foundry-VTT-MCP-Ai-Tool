@@ -39,7 +39,9 @@ jobs:
 
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
-          node-version: '22'
+          # An exact version, not '22': some runners resolved '22' to 22.23.3, which Astro refuses
+          # (docs/wiki/package.json engines: >=22.23.4). Raise it together with that engines line.
+          node-version: '22.23.4'
           cache: npm
           cache-dependency-path: docs/wiki/package-lock.json
 

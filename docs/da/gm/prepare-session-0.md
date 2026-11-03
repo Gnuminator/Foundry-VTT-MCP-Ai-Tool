@@ -1,6 +1,6 @@
 ---
 source: gm/prepare-session-0.md
-sourceHash: 1491474b0d8e
+sourceHash: 5302b7674ef9
 title: Forbered session 0
 description: Opsætningen af worlden, før spillerne laver deres karakterer til session 0 (på vores server mest et tjek), en prøvekørsel som spiller og hvad du gør på aftenen.
 ---

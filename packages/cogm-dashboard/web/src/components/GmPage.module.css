@@ -113,11 +113,9 @@
   color: var(--text-mid);
 }
 
-/* The banner floats over the top of the Foundry pane, so showing it never resizes the canvas. */
+/* The banner sits in its own row above both panes, never over Foundry. */
 .bannerSlot {
-  position: absolute;
-  inset: 0 0 auto;
-  z-index: 2;
+  flex: none;
 }
 
 .banner,

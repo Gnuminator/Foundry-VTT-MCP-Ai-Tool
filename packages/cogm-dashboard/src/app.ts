@@ -983,6 +983,7 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
           gmActionsEnabled: settings.gmActionsEnabled,
           sessionSwitches,
           playerState: currentPlayerState(),
+          foundryUrl: config.foundryUrl,
         })
       )
       .then(result => res.json(result))

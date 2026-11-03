@@ -387,6 +387,21 @@ describe('reveal-next with show it now (I-110)', () => {
     ]);
   });
 
+  it('whispers a chat notice for the next queued page, to the players it was queued for', async () => {
+    foundry.handlers['foundry-mcp-bridge.postHandoutNotice'] = (): unknown => ({ posted: true });
+    await handouts.queuePage({ pageUuid: PAGE1, players: [ANNA] });
+    const plan = await handouts.planPageReveal({ action: 'reveal-next' });
+    expect(plan.diff.find(d => d.kind === 'notice')).toMatchObject({ target: PAGE1 });
+    const applied = await guarded.applyPlan(plan.planId, {
+      confirm: true,
+      confirmDestructive: true,
+    });
+    expect(applied.noticed).toEqual({ ok: true });
+    expect(
+      foundry.calls.filter(([m]) => m.endsWith('postHandoutNotice')).map(([, d]) => d)
+    ).toEqual([{ uuid: PAGE1, userIds: [ANNA] }]);
+  });
+
   it('plans no popup without showNow', async () => {
     await handouts.queuePage({ pageUuid: PAGE1 });
     const plan = await handouts.planPageReveal({ action: 'reveal-next' });

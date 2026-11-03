@@ -33,6 +33,6 @@ The GM pages are also the help panel in the dashboard. They describe Foundry 14 
 system (version 6). The source is in the
 [project's repository](https://github.com/Gnuminator/Foundry-VTT-MCP-Ai-Tool).
 
-For people building the dashboard: every component and panel of the new dashboard, in every state
+For people building the dashboard: every component and panel of the dashboard, in every state
 and in both themes, is in the
 [component stories](https://gnuminator.github.io/Foundry-VTT-MCP-Ai-Tool/storybook/).

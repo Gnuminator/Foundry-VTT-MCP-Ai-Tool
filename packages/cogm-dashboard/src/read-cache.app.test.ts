@@ -6,7 +6,6 @@ import type { AddressInfo } from 'net';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import type { CoGm } from './ai/anthropic-co-gm.js';
 import { createDashboard, type Dashboard } from './app.js';
 import { config, type AuthConfig, type Config } from './config.js';
 import type { SessionEvent } from './feed/types.js';
@@ -21,13 +20,6 @@ const AUTH: AuthConfig = {
   playerToken: 'player-token-for-the-read-cache-test',
   gmEmails: [],
 };
-
-const fakeCoGm = {
-  enabled: false,
-  isBusy: false,
-  setWorld: (): void => undefined,
-  abortActive: (): void => undefined,
-} as unknown as CoGm;
 
 interface Harness {
   port: number;
@@ -61,7 +53,6 @@ async function start(): Promise<Harness> {
         return Promise.resolve({} as T);
       },
     },
-    coGm: fakeCoGm,
   });
   const server = dashboard.app.listen(0, '127.0.0.1');
   await new Promise<void>(resolve => server.once('listening', () => resolve()));

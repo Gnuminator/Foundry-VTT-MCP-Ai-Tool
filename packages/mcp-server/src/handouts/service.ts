@@ -248,14 +248,23 @@ function assertSceneId(value: unknown): string | null {
 
 /**
  * "Show it now" (I-110): the plan option that pops the page up on the players' screens after the
- * reveal, for the players it is revealed to (every player when `players` is not set).
+ * reveal, for the players it is revealed to (every player when `players` is not set). Every
+ * reveal also asks for a chat notice (test 3: Foundry alone must be enough to play): a whisper
+ * with the page's title and a link, no page text.
  */
 function showPlayers(
   showNow: boolean,
   uuid: string,
   players: string[] | undefined
-): { showToPlayers?: { uuid: string; users: string[] } } {
-  return showNow ? { showToPlayers: { uuid, users: players ?? [] } } : {};
+): {
+  showToPlayers?: { uuid: string; users: string[] };
+  noticeToPlayers: { uuid: string; users: string[] };
+} {
+  const users = players ?? [];
+  return {
+    ...(showNow ? { showToPlayers: { uuid, users } } : {}),
+    noticeToPlayers: { uuid, users },
+  };
 }
 
 /** A player-facing sentence: "to every player" or "to 2 chosen players". */

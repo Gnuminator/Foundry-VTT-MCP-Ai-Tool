@@ -44,6 +44,8 @@ const repo = process.env.BUILD_HELP_REPO ?? path.resolve(here, '../../..');
 const guideDirs = [
   { dir: path.join(repo, 'docs', 'gm'), prefix: '' },
   { dir: path.join(repo, 'docs', 'foundry'), prefix: 'foundry-' },
+  // The Danish twins of the GM guides (docs/da/gm): `da-<name>`. The Foundry basics have none.
+  { dir: path.join(repo, 'docs', 'da', 'gm'), prefix: 'da-' },
 ];
 const outFile = process.env.BUILD_HELP_OUT ?? path.join(here, '..', 'dist', 'help.json');
 const GITHUB = 'https://github.com/Gnuminator/Foundry-VTT-MCP-Ai-Tool/blob/main';
@@ -165,6 +167,25 @@ for (const page of pages) {
   const { title, body } = splitFrontMatter(sources.get(page));
   const h1 = /^#\s+(.+)$/m.exec(body);
   out.pages[page] = { title: title ?? (h1 ? h1[1].trim() : page), html: render(page, body) };
+}
+
+/** The `<hN id="...">` ids of a rendered page, in order. */
+const headingIds = html => [...html.matchAll(/<h[1-6] id="([^"]*)"/g)].map(m => m[1]);
+
+// A link into a Danish page carries the English heading's anchor (the callers know no other).
+// When a twin has the same headings in the same order as its English page, each Danish heading
+// also answers to the English id (`data-en-id`), so the panel scrolls to the right place.
+for (const page of pages.filter(p => p.startsWith('da-'))) {
+  const english = out.pages[page.slice('da-'.length)];
+  if (!english) continue;
+  const enIds = headingIds(english.html);
+  const daIds = headingIds(out.pages[page].html);
+  if (enIds.length !== daIds.length) continue;
+  let i = 0;
+  out.pages[page].html = out.pages[page].html.replace(
+    /<(h[1-6]) id="([^"]*)"/g,
+    (_all, tag, id) => `<${tag} id="${id}" data-en-id="${escapeAttr(enIds[i++])}"`
+  );
 }
 
 if (problems.length > 0) fail(`${problems.length} problem(s):\n  ${problems.join('\n  ')}`);

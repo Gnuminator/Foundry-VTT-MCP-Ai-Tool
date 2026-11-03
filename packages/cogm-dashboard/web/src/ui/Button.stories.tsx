@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import { fn } from 'storybook/test';
+import { expect, fn, userEvent, waitFor, within } from 'storybook/test';
 
 import { VEIL } from '../storybook/modes';
 
@@ -26,7 +26,17 @@ export const Busy: Story = {
 };
 /** Still waiting after 2 seconds: the label says so (the story shortens the wait to nothing). */
 export const BusySlow: Story = {
-  args: { ...Busy.args, slowAfterMs: 0 },
+  args: { ...Busy.args, slowAfterMs: 0, onClick: fn() },
+  // A busy button drops a click and the Enter key, and stays focusable (aria-disabled, not disabled).
+  play: async ({ canvasElement, args }) => {
+    const button = within(canvasElement).getByRole('button');
+    await expect(button).toHaveAttribute('aria-busy', 'true');
+    await waitFor(() => expect(button).toHaveTextContent('Waiting for Foundry...'));
+    await userEvent.click(button);
+    button.focus();
+    await userEvent.keyboard('{Enter}');
+    await expect(args.onClick).not.toHaveBeenCalled();
+  },
 };
 
 /** Every variant in both sizes, enabled and disabled: the matrix a design change must keep intact. */

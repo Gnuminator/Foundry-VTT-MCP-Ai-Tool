@@ -6,7 +6,6 @@ import type { AddressInfo } from 'net';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import type { CoGm } from './ai/anthropic-co-gm.js';
 import { createDashboard } from './app.js';
 import { config, type AuthConfig, type Config } from './config.js';
 import { testWebDir } from './test-web-dir.js';
@@ -42,13 +41,6 @@ describe('gmRedirectTarget', () => {
   });
 });
 
-const fakeCoGm = {
-  enabled: false,
-  isBusy: false,
-  setWorld: (): void => undefined,
-  abortActive: (): void => undefined,
-} as unknown as CoGm;
-
 const bridge = {
   isConnected: true,
   listTools: (): Promise<unknown[]> => Promise.resolve([]),
@@ -81,7 +73,6 @@ async function start(foundryUrl: string): Promise<number> {
     config: testConfig,
     logger: new Logger('error', 'gm-page-test'),
     client: bridge,
-    coGm: fakeCoGm,
   });
   const server = dashboard.app.listen(0, '127.0.0.1');
   await new Promise<void>(resolve => server.once('listening', () => resolve()));

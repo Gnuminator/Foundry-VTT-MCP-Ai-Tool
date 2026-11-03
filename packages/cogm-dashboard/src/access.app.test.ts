@@ -7,7 +7,6 @@ import type { AddressInfo } from 'net';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import type { CoGm } from './ai/anthropic-co-gm.js';
 import { createDashboard } from './app.js';
 import { config, type AuthConfig, type Config } from './config.js';
 import { parseAllowedHosts } from './host-allowlist.js';
@@ -28,13 +27,6 @@ function token(email: string, aud = AUD): string {
 }
 
 const keys = [{ ...publicKey.export({ format: 'jwk' }), kid: 'k1', kty: 'RSA' }];
-
-const fakeCoGm = {
-  enabled: false,
-  isBusy: false,
-  setWorld: (): void => undefined,
-  abortActive: (): void => undefined,
-} as unknown as CoGm;
 
 const bridge = {
   isConnected: true,
@@ -72,7 +64,6 @@ async function start(
     config: testConfig,
     logger: new Logger('error', 'access-test'),
     client: bridge,
-    coGm: fakeCoGm,
     accessFetch: options.accessFetch ?? goodKeys,
   });
   const server = dashboard.app.listen(0, '127.0.0.1');

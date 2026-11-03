@@ -156,10 +156,6 @@ Checks:
    handler; as `Player` (second origin), the journal is listed and the page opens. Hide (also
    destructive): ownership back, the entry gone from `gm\reveals.json`, the page gone in both
    places. `undo-change` works on every one of these.
-5. Whisper guard: with a reading in the vault (`plan-tarokka-import` builtin-roll, Tarokka switch
-   on), `POST /api/post-chat` with a card name in a sentence (any case) answers 409
-   `secret-terms`; with `allowSecrets: true` it posts; plain text posts; without the GM token 403.
-   The dashboard has no AI commentary cards and no confirm prompt for them any more.
 
 Gotchas: Foundry's page cannot `fetch` the dashboard (no CORS), so read player state from
 PowerShell. Foundry itself gives players every non-hidden combatant's name; `/player` is stricter.

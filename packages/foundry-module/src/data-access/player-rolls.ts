@@ -1225,19 +1225,33 @@ export class PlayerRollsDataAccess {
     const exactCharacter = game.actors?.find(
       (actor: Actor) => actor.name?.toLowerCase() === searchTerm && actor.hasPlayerOwner
     );
-    const partialUser = exactCharacter
-      ? undefined
-      : allUsers.find((u: User) => Boolean(u.name?.toLowerCase().includes(searchTerm)));
-    if (partialUser) {
-      return this.resultForUser(partialUser);
+    const partialUsers = exactCharacter
+      ? []
+      : allUsers.filter((u: User) => Boolean(u.name?.toLowerCase().includes(searchTerm)));
+    if (partialUsers.length > 1) {
+      return this.ambiguousTarget(
+        targetPlayer,
+        partialUsers.map(u => `${u.name} (${u.id})`)
+      );
+    }
+    if (partialUsers[0]) {
+      return this.resultForUser(partialUsers[0]);
     }
 
-    // 2) Player-owned character by partial name.
-    const character =
-      exactCharacter ??
-      game.actors?.find((actor: Actor) =>
-        Boolean(actor.name?.toLowerCase().includes(searchTerm) && actor.hasPlayerOwner)
+    // 2) Player-owned character by partial name: several partials are refused, never a first pick.
+    let character = exactCharacter;
+    if (!character) {
+      const partialCharacters = Array.from(game.actors || []).filter(
+        (actor: Actor) => actor.name?.toLowerCase().includes(searchTerm) && actor.hasPlayerOwner
       );
+      if (partialCharacters.length > 1) {
+        return this.ambiguousTarget(
+          targetPlayer,
+          partialCharacters.map(a => `${a.name} (${a.id})`)
+        );
+      }
+      character = partialCharacters[0];
+    }
     if (character) {
       const ownerUser = allUsers.find(
         (u: User) => character.testUserPermission(u, 'OWNER') && !u.isGM
@@ -1269,12 +1283,18 @@ export class PlayerRollsDataAccess {
     }
 
     // 3) Any character that exists but has no player owner at all.
-    const anyCharacter = game.actors?.find((actor: Actor) => {
-      if (!actor.name) return false;
-      return (
-        actor.name.toLowerCase() === searchTerm || actor.name.toLowerCase().includes(searchTerm)
+    const unowned = Array.from(game.actors || []).filter((actor: Actor) =>
+      Boolean(actor.name?.toLowerCase().includes(searchTerm))
+    );
+    const anyCharacter =
+      unowned.find((actor: Actor) => actor.name?.toLowerCase() === searchTerm) ??
+      (unowned.length === 1 ? unowned[0] : undefined);
+    if (!anyCharacter && unowned.length > 1) {
+      return this.ambiguousTarget(
+        targetPlayer,
+        unowned.map(a => `${a.name} (${a.id})`)
       );
-    });
+    }
     if (anyCharacter && !anyCharacter.hasPlayerOwner) {
       return {
         found: true,
@@ -1294,6 +1314,18 @@ export class PlayerRollsDataAccess {
           .map(u => u.name)
           .join(', ') || 'none'
       }`,
+    };
+  }
+
+  /** Several partial matches: not found, with the candidates and ids so the caller can pick. */
+  private ambiguousTarget(targetPlayer: string, candidates: string[]): ResolveResult {
+    const shown = candidates.slice(0, 10).join(', ');
+    const more = candidates.length > 10 ? `, ...(+${candidates.length - 10} more)` : '';
+    return {
+      found: false,
+      targetName: targetPlayer,
+      errorType: 'PLAYER_NOT_FOUND',
+      errorMessage: `Multiple players or characters match "${targetPlayer}": ${shown}${more}. Use the exact name or the id.`,
     };
   }
 

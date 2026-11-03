@@ -313,6 +313,61 @@ describe('FoundryDataAccess — requestPlayerRolls', () => {
     expect(result.message).toContain('Roll request sent to Tom');
   });
 
+  it('refuses several partial player names, listing them with ids', async () => {
+    world.addUser({ id: 'u1', name: 'Alice Smith', active: true, isGM: false });
+    world.addUser({ id: 'u2', name: 'Alice Jones', active: true, isGM: false });
+
+    const result = await da.requestPlayerRolls({
+      rollType: 'ability',
+      rollTarget: 'dex',
+      targetPlayer: 'Alice',
+      isPublic: true,
+      rollModifier: '',
+      flavor: '',
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error).toMatch(/Multiple players or characters match "Alice"/);
+    expect(result.error).toContain('Alice Smith (u1)');
+    expect(result.error).toContain('Alice Jones (u2)');
+  });
+
+  it('refuses several partial character names, listing them with ids', async () => {
+    world.addUser({ id: 'u1', name: 'Tom', active: true, isGM: false });
+    addPlayerCharacter({ id: 'a1', name: 'Aria Stormwind', ownerUserId: 'u1' });
+    addPlayerCharacter({ id: 'a2', name: 'Aria Brightwood', ownerUserId: 'u1' });
+
+    const result = await da.requestPlayerRolls({
+      rollType: 'ability',
+      rollTarget: 'dex',
+      targetPlayer: 'Aria',
+      isPublic: true,
+      rollModifier: '',
+      flavor: '',
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('Aria Stormwind (a1)');
+    expect(result.error).toContain('Aria Brightwood (a2)');
+  });
+
+  it('refuses several partial matches among characters nobody owns', async () => {
+    world.addActor({ id: 'n1', name: 'Goblin Archer', type: 'npc' });
+    world.addActor({ id: 'n2', name: 'Goblin Boss', type: 'npc' });
+
+    const result = await da.requestPlayerRolls({
+      rollType: 'ability',
+      rollTarget: 'dex',
+      targetPlayer: 'Goblin',
+      isPublic: true,
+      rollModifier: '',
+      flavor: '',
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('Goblin Archer (n1)');
+  });
+
   it('appends a custom rollModifier to the formula', async () => {
     world.addUser({ id: 'u1', name: 'Alice', active: true, isGM: false });
     addPlayerCharacter({

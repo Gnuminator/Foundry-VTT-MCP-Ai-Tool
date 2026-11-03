@@ -573,7 +573,13 @@ export class CombatDataAccess {
   ): Promise<(T | TargetError)[]> {
     const results: (T | TargetError)[] = [];
     for (const id of targets) {
-      const actor = shared.resolveTargetActor(id);
+      let actor: Actor | undefined;
+      try {
+        actor = shared.resolveTargetActor(id);
+      } catch (err) {
+        results.push({ target: id, error: err instanceof Error ? err.message : String(err) });
+        continue;
+      }
       if (!actor) {
         results.push({ target: id, error: 'actor/token not found' });
         continue;

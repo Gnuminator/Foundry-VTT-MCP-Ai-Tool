@@ -79,7 +79,7 @@ import { PlaySessionTools } from './tools/play-session.js';
 import { PlayStatsTools } from './tools/play-stats.js';
 import { PlayerViewTools } from './tools/player-view.js';
 import { PreflightTools } from './tools/preflight.js';
-import { WrapperRegistry } from './wrapper-registry.js';
+import { WrapperRegistry, type WrapperStatus } from './wrapper-registry.js';
 import { LivePlayTools } from './tools/live-play.js';
 import { PartyTools } from './tools/party.js';
 import { PrepDigestTools } from './tools/prep-digest.js';
@@ -430,7 +430,7 @@ async function startBackend(): Promise<void> {
   const wrapperRegistry = new WrapperRegistry();
   const preflightTools = new PreflightTools({
     foundryClient,
-    wrapperStatus: () => wrapperRegistry.status(),
+    wrapperStatus: (): WrapperStatus => wrapperRegistry.status(),
     secretTerms,
     worldIds,
     playSession: playSessionTools,

@@ -463,7 +463,7 @@ async function startWrapper(): Promise<void> {
 
       throw new McpError(
         ErrorCode.InternalError,
-        `Foundry AI Tool tools could not be listed: ${messageOf(e)}. Tell the GM; restarting Claude Desktop usually fixes it.`
+        `Foundry AI Tool tools could not be listed: ${String(messageOf(e))}. Tell the GM; restarting Claude Desktop usually fixes it.`
       );
     }
   });

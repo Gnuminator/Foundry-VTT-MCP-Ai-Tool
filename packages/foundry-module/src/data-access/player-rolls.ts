@@ -1325,7 +1325,7 @@ export class PlayerRollsDataAccess {
       found: false,
       targetName: targetPlayer,
       errorType: 'PLAYER_NOT_FOUND',
-      errorMessage: `Multiple players or characters match "${targetPlayer}": ${shown}${more}. Use the exact name or the id.`,
+      errorMessage: `Multiple players or characters match "${targetPlayer}": ${shown}${more}. Use the exact name.`,
     };
   }
 

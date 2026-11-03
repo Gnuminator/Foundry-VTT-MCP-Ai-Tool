@@ -5,9 +5,14 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createTestWorld, makeActor, type TestWorld } from './test-support/foundry-mock/index.js';
+import {
+  createTestWorld,
+  makeActor,
+  makeToken,
+  type TestWorld,
+} from './test-support/foundry-mock/index.js';
 import { FoundryDataAccess } from './data-access.js';
-import { findActorByIdentifier } from './data-access/shared.js';
+import { findActorByIdentifier, resolveTargetActor } from './data-access/shared.js';
 
 let world: TestWorld;
 let restore: () => void;
@@ -64,6 +69,29 @@ describe('findActorByIdentifier', () => {
       world.actors.add(makeActor({ id: `gob${i}`, name: `Goblin ${i}`, type: 'npc' }));
     }
     expect(() => findActorByIdentifier('Goblin')).toThrow(/\(\+2 more\)/);
+  });
+});
+
+describe('resolveTargetActor with an ambiguous world name', () => {
+  it('prefers a token on the scene named exactly so', () => {
+    world.addScene({
+      id: 's1',
+      active: true,
+      tokens: [
+        makeToken({
+          id: 'tokA',
+          name: 'Aria',
+          actorId: 'aria-storm',
+          actorLink: false,
+          actor: makeActor({ id: 'aria-storm', name: 'Aria copy', type: 'npc' }),
+        }),
+      ],
+    });
+    expect(resolveTargetActor('Aria')?.name).toBe('Aria copy');
+  });
+
+  it('still refuses when no token settles it', () => {
+    expect(() => resolveTargetActor('Aria')).toThrow(/Multiple characters match/);
   });
 });
 

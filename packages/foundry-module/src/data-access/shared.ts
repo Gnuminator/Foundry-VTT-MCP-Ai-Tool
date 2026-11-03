@@ -264,7 +264,15 @@ export function ambiguousActorMessage(identifier: string, actors: Actor[]): stri
  * actor picker sends ids), then falls back to that world actor.
  */
 export function resolveTargetActor(identifier: string): Actor | undefined {
-  const worldActor = findActorByIdentifier(identifier);
+  let worldActor: Actor | undefined;
+  try {
+    worldActor = findActorByIdentifier(identifier);
+  } catch (err) {
+    // Several world actors fit, but a token on the scene named exactly so is unambiguous.
+    const token = findSceneTokenActor(identifier);
+    if (token) return token;
+    throw err;
+  }
   return findSceneTokenActor(identifier, worldActor?.id) ?? worldActor;
 }
 

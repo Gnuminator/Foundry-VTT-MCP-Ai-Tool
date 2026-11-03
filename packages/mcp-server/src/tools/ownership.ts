@@ -289,6 +289,9 @@ export class OwnershipTools {
         return actor ? [actor] : [];
       }
     } catch (error) {
+      if (error instanceof Error && error.message.includes('Multiple characters match')) {
+        throw error;
+      }
       this.logger.error(`Failed to resolve actors for "${identifier}":`, error);
       return [];
     }

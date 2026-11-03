@@ -221,7 +221,9 @@ export class ActorBuilderDataAccess {
     const { actorIdentifier, itemIdentifier, targets, options = {} } = params;
 
     // Find the actor
-    const actor = shared.findActorByIdentifier(actorIdentifier);
+    // A token id (a combatant has only that) finds an unlinked NPC token's own actor.
+    const actor =
+      shared.findActorByIdentifier(actorIdentifier) ?? shared.findSceneTokenActor(actorIdentifier);
     if (!actor) {
       throw new Error(`Actor not found: ${actorIdentifier}`);
     }
@@ -450,7 +452,7 @@ export class ActorBuilderDataAccess {
         } The result will appear in chat.`,
         itemName: item.name,
         actorName: actor.name,
-        requiresGMInteraction: !(attackActivity || (headless && systemId === 'dnd5e')),
+        requiresGMInteraction: !(attackActivity ?? (headless && systemId === 'dnd5e')),
       };
 
       if (resolvedTargetNames.length > 0) {

@@ -59,6 +59,7 @@ import { TurnOnNote } from './TurnOnNote';
 const StartCombat = lazy(() => import('./StartCombat').then(m => ({ default: m.StartCombat })));
 // So are the Damage / Heal form and the roll row (first-load budget).
 const DamageForm = lazy(() => import('./DamageForm').then(m => ({ default: m.DamageForm })));
+const AttackForm = lazy(() => import('./AttackForm').then(m => ({ default: m.AttackForm })));
 const FoundryTargetsButton = lazy(() =>
   import('./FoundryTargetsButton').then(m => ({ default: m.FoundryTargetsButton }))
 );
@@ -274,6 +275,7 @@ function ActionBar({
   count,
   stale,
   onAct,
+  onAttack,
   onClear,
   onEnd,
   combatants,
@@ -282,6 +284,7 @@ function ActionBar({
   count: number;
   stale: boolean;
   onAct: (action: SelectionAction) => void;
+  onAttack: () => void;
   onClear: () => void;
   onEnd: () => void;
   combatants: ReadonlyArray<Combatant>;
@@ -303,6 +306,21 @@ function ActionBar({
       />
     </Suspense>
   );
+  const attackButton = (
+    <button
+      type="button"
+      className="ca-btn"
+      data-track="dash.combat.attack"
+      data-sel="attack"
+      aria-disabled={off}
+      title={away}
+      onClick={() => {
+        if (!stale) onAttack();
+      }}
+    >
+      Attack
+    </button>
+  );
   const endButton = (
     <button
       type="button"
@@ -322,6 +340,7 @@ function ActionBar({
     return (
       <div className="ca-row">
         <span className="ca-hint">Click combatants to deal damage or set a condition on them.</span>
+        {attackButton}
         {foundryButton}
         {endButton}
       </div>
@@ -345,6 +364,7 @@ function ActionBar({
       >
         Damage / Heal
       </button>
+      {attackButton}
       <button
         type="button"
         className="ca-btn"
@@ -423,6 +443,7 @@ export function CombatStrip({
   const [reactions, setReactions] = useState<Reactions>(NO_REACTIONS);
   const [picked, setPicked] = useState<ReadonlySet<string>>(new Set());
   const [damageOpen, setDamageOpen] = useState(false);
+  const [attackOpen, setAttackOpen] = useState(false);
 
   const showSample = sample && real === null;
   const combat = showSample ? SAMPLE_COMBAT : real;
@@ -443,6 +464,9 @@ export function CombatStrip({
   // Clear, an emptied pick or GM Actions going off close it for good: it must not reopen with the
   // next pick.
   if (damageOpen && !showDamage) setDamageOpen(false);
+  // The Attack form needs no pick; GM Actions going off or the fight ending closes it.
+  const showAttack = attackOpen && selectable;
+  if (attackOpen && !showAttack) setAttackOpen(false);
   const pickedRows = (combat?.combatants ?? []).filter(c => kept.has(c.id));
   const partyRows = (combat?.combatants ?? []).filter(c => c.isPC && !c.defeated);
   const used = combat ? reactionsFor(reactions, combat.round) : NO_REACTIONS.used;
@@ -544,6 +568,7 @@ export function CombatStrip({
                   if (action === 'damage') setDamageOpen(true);
                   else onOpenTool(planRequest(action, targets));
                 }}
+                onAttack={() => setAttackOpen(true)}
                 onClear={() => setPicked(new Set())}
                 onEnd={() => onOpenTool(endCombatRequest())}
                 combatants={combat?.combatants ?? []}
@@ -562,6 +587,22 @@ export function CombatStrip({
                   // The form's own button unmounts with it: put focus back on the one that opened it.
                   requestAnimationFrame(() =>
                     document.querySelector<HTMLElement>('[data-sel="damage"]')?.focus()
+                  );
+                }}
+              />
+            </Suspense>
+          )}
+          {showAttack && (
+            <Suspense fallback={<DelayedLoading as="div" />}>
+              <AttackForm
+                combatants={combat?.combatants ?? []}
+                picked={pickedRows.map(c => c.id)}
+                stale={stale}
+                onClose={() => {
+                  setAttackOpen(false);
+                  // The form's own button unmounts with it: put focus back on the one that opened it.
+                  requestAnimationFrame(() =>
+                    document.querySelector<HTMLElement>('[data-sel="attack"]')?.focus()
                   );
                 }}
               />

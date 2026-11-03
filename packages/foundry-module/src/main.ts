@@ -437,7 +437,7 @@ class FoundryMCPBridge {
         if (now - this.lastServerNoticeAt >= SERVER_NOTICE_THROTTLE_MS) {
           this.lastServerNoticeAt = now;
           ui.notifications?.warn(
-            `Cannot reach the AI Tool server. Is it started? Troubleshooting: ${GM_GUIDE_URL}`
+            `Cannot reach the AI Tool server. Is it started? Troubleshooting: ${GM_GUIDE_URL}troubleshooting/`
           );
         }
       }

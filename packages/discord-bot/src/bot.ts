@@ -272,13 +272,14 @@ export class RecorderBot {
     what: string,
     err: Error
   ): void {
-    log.error(`Recording problem: ${what} could not be written (${err.message})`, err);
+    const detail = `Recording problem: ${what} could not be written (${err.message}). Check the disk space on the recorder host; other files of this recording may be affected too.`;
+    log.error(detail, err);
     if (told.value) return;
     told.value = true;
     const text =
       'Recording problem: part of the recording could not be saved. Tell the owner, who should check the disk space on the recorder host.';
     void channel.send(text).catch(() => undefined);
-    if (this.notifyOwner) void this.notifyOwner(text);
+    if (this.notifyOwner) void this.notifyOwner(detail);
   }
 
   private speakerResolver(guild: Guild): (userId: string) => SpeakerInfo {

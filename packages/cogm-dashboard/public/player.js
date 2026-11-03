@@ -454,7 +454,10 @@ async function loadNames() {
 async function askWho() {
   const names = await loadNames();
   // Nobody known yet (the bridge has not seen the players): ask again next visit.
-  if (names.length === 0) return;
+  if (names.length === 0) {
+    showWho(null);
+    return;
+  }
   elWhoList.innerHTML = '';
   for (const n of names) {
     const b = document.createElement('button');

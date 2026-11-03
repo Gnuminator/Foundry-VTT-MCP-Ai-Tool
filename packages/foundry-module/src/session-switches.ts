@@ -98,7 +98,7 @@ function readRecord(): SessionReadyRecord | null {
 }
 
 function switchName(id: string): string {
-  if (id === 'writes') return 'AI Tool: Allow Write Operations';
+  if (id === 'writes') return 'Allow Write Operations';
   return listGuardedFeatures().find(f => f.id === id)?.name ?? id;
 }
 

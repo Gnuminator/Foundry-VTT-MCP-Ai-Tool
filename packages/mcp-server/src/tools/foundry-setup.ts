@@ -8,6 +8,7 @@ import {
   PACK_UUID_PREFIX,
   SETTING_UUID_PREFIX,
   freeText,
+  unwrapBridgeReply,
   type GuardedOp,
 } from '@gnuminator/shared';
 import { FoundryClient } from '../foundry-client.js';
@@ -101,7 +102,7 @@ export class FoundrySetupTools {
       {
         name: 'plan-foundry-setup',
         description:
-          'Read or plan Foundry setup; apply with apply-planned-change, revert with undo-change. mode read lists, mode plan plans. area setting: target namespace.key (read: part of a name too), value the new value. area pack: target a pack id (dnd5e.monsters), value {ownership:{PLAYER,TRUSTED,ASSISTANT: NONE|LIMITED|OBSERVER|OWNER; a role gets the highest level of its own and lower roles}, locked, folder (name or null)}. Secrets are hidden. Needs the Foundry setup switch.',
+          'Read or plan Foundry setup; apply with apply-planned-change, revert with undo-change. mode read lists, mode plan plans. area setting: target namespace.key (read: part of a name too), value the new value. area pack: target a pack id (dnd5e.monsters), value {ownership:{PLAYER,TRUSTED: NONE|LIMITED|OBSERVER|OWNER, ASSISTANT: OWNER only; a role gets the highest level of its own and lower roles}, locked, folder (name or null)}. Secrets are hidden. Needs the Foundry setup switch.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -129,10 +130,13 @@ export class FoundrySetupTools {
   }
 
   private async info(area: string, target: string | undefined): Promise<SetupInfo> {
-    return (await this.foundryClient.query('foundry-mcp-bridge.getSetupInfo', {
-      area,
-      target,
-    })) as SetupInfo;
+    return unwrapBridgeReply(
+      (await this.foundryClient.query('foundry-mcp-bridge.getSetupInfo', {
+        area,
+        target,
+      })) as SetupInfo,
+      'Setup read refused'
+    );
   }
 
   private async planFoundrySetup(args: unknown): Promise<unknown> {
@@ -150,7 +154,7 @@ export class FoundrySetupTools {
 
   private async planSetting(target: string, value: unknown): Promise<unknown> {
     if (!/^[^.\s]+\.[^\s]+$/.test(target)) {
-      throw new Error('A setting target is namespace.key, for example dnd5e.diagonalMovement');
+      throw new Error('A setting target is namespace.key, for example core.gridDiagonals');
     }
     const row = (await this.info('setting', target)).settings?.find(s => s.id === target);
     if (!row) throw new Error(`No setting "${target}" is registered (read the namespace first)`);
@@ -224,6 +228,11 @@ export class FoundrySetupTools {
     const changes: Record<string, unknown> = {};
     const lines: string[] = [];
     if (value.ownership) {
+      if (value.ownership.ASSISTANT !== undefined && value.ownership.ASSISTANT !== 'OWNER') {
+        throw new Error(
+          'ASSISTANT must stay OWNER: the bridge reads every pack as the Assistant GM, and Foundry itself refuses to configure a pack below it'
+        );
+      }
       const current = pack.ownership ?? {};
       const merged: Record<string, string> = { ...current };
       for (const role of PACK_OWNERSHIP_ROLES) {

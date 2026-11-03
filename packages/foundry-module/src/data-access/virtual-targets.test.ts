@@ -3,7 +3,7 @@
  * Snapshot, apply, undo through the real `applyGuardedOps`, the conflict check, and the refusals
  * (the bridge's own switches, the permission table, secrets).
  */
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, onTestFinished } from 'vitest';
 import { createTestWorld, type TestWorld } from '../test-support/foundry-mock/index.js';
 import { registerGuardedFeature, resetGuardedFeaturesForTests } from '../guarded-features.js';
 import {
@@ -17,7 +17,7 @@ import {
   type OpSnapshot,
 } from './guarded-write.js';
 import { getSetupInfo } from './setup-info.js';
-import { SETUP_FEATURE_ID } from './virtual-targets.js';
+import { SETUP_FEATURE_ID, isSecretSetting } from './virtual-targets.js';
 
 const MODULE_ID = 'foundry-mcp-bridge';
 const g = globalThis as any;
@@ -193,14 +193,77 @@ describe('settings as a guarded target', () => {
   it('refuses a Setting document by create or delete', async () => {
     g.CONFIG.Setting = { documentClass: { create: (): Promise<null> => Promise.resolve(null) } };
     const create: GuardedOp = { kind: 'create', documentName: 'Setting', data: { key: 'x' } };
-    await expect(applyGuardedOps(await request([create]))).rejects.toThrow(/not as documents/);
+    await expect(snapshotGuardedOps([create])).rejects.toThrow(/not as documents/);
   });
 
-  it('plans nothing for a setting with no value yet', async () => {
-    g.game.settings.settings.set('dnd5e.fresh', { name: 'Fresh', config: true, type: String });
-    await expect(applyGuardedOps(await request([setting('dnd5e.fresh', 'x')]))).rejects.toThrow(
-      /no value yet/
+  it('hides secrets under camelCase key names and object keys', async () => {
+    g.game.settings.settings.set('somemod.discordToken', {
+      name: 'Bot',
+      config: true,
+      type: String,
+    });
+    world.setSetting('somemod', 'discordToken', 'MTA0NzE2NTk4.Gx7Yk2.abcdefghijklmnop');
+    g.game.settings.settings.set('somemod.options', {
+      name: 'Options',
+      config: true,
+      type: Object,
+    });
+    world.setSetting('somemod', 'options', { token: 'MTA0NzE2NTk4.Gx7Yk2.abcdefghijklmnop' });
+    for (const key of ['somemod.discordToken', 'somemod.options']) {
+      const [snap] = await snapshotGuardedOps([setting(key, 'x')]);
+      expect(snap).toEqual({ exists: false });
+    }
+    expect(isSecretSetting('somemod', 'plain', { token: 'short' })).toBe(false);
+  });
+
+  it('refuses a new value that looks like a secret, and one that is too long to read back', async () => {
+    const hook = 'https://discord.com/api/webhooks/123/abcdefghijklmnopqrstuvwxyz';
+    await expect(snapshotGuardedOps([setting('dnd5e.diagonalMovement', hook)])).rejects.toThrow(
+      /looks like a secret/
     );
+    world.setSetting('dnd5e', 'diagonalMovement', 'x'.repeat(5000));
+    await expect(snapshotGuardedOps([setting('dnd5e.diagonalMovement', 'y')])).rejects.toThrow(
+      /too much data/
+    );
+  });
+
+  it('checks the new value against the setting field before anything is confirmed', async () => {
+    g.game.settings.settings.set('dnd5e.choosy', {
+      name: 'Choosy',
+      config: true,
+      type: { validate: (v: unknown) => (v === 'a' ? undefined : { message: 'not a choice' }) },
+    });
+    world.setSetting('dnd5e', 'choosy', 'a');
+    await expect(snapshotGuardedOps([setting('dnd5e.choosy', 'zzz')])).rejects.toThrow(
+      /does not accept that value \(not a choice\)/
+    );
+    const [ok] = await snapshotGuardedOps([setting('dnd5e.choosy', 'a')]);
+    expect(ok).toMatchObject({ exists: true });
+  });
+
+  it('keeps the Assistant GM role at OWNER on a pack', async () => {
+    const lower: GuardedOp = {
+      kind: 'update',
+      uuid: 'PackConfig.dnd5e.monsters',
+      changes: { ownership: { PLAYER: 'NONE', ASSISTANT: 'NONE' } },
+    };
+    await expect(snapshotGuardedOps([lower])).rejects.toThrow(/Assistant GM role must keep OWNER/);
+  });
+
+  it('refuses to read a Setting document into a snapshot by update or delete', async () => {
+    const previous = g.fromUuid;
+    g.fromUuid = (): Promise<unknown> => Promise.resolve({ documentName: 'Setting', id: 's1' });
+    onTestFinished(() => {
+      g.fromUuid = previous;
+    });
+    const update: GuardedOp = {
+      kind: 'update',
+      uuid: 'Setting.s1',
+      changes: { value: 'x' },
+    };
+    const del: GuardedOp = { kind: 'delete', uuid: 'Setting.s1' };
+    await expect(snapshotGuardedOps([update])).rejects.toThrow(/not as documents/);
+    await expect(snapshotGuardedOps([del])).rejects.toThrow(/not as documents/);
   });
 
   it('is written only by the Foundry setup feature (and its undo), whatever other switch is on', async () => {

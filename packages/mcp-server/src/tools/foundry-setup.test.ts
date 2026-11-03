@@ -153,6 +153,27 @@ describe('plan-foundry-setup: settings', () => {
     ).rejects.toThrow(/hidden setting/);
   });
 
+  it('turns a bridge refusal into a clear error', async () => {
+    const { tools, query } = makeTools();
+    query.mockImplementationOnce(() => ({ error: 'Access denied', success: false }));
+    await expect(plan(tools, { mode: 'read', area: 'setting' })).rejects.toThrow(
+      /Setup read refused: Access denied/
+    );
+  });
+
+  it('refuses to lower the Assistant GM role on a pack', async () => {
+    const { tools, createPlan } = makeTools();
+    await expect(
+      plan(tools, {
+        mode: 'plan',
+        area: 'pack',
+        target: 'dnd5e.monsters',
+        value: { ownership: { PLAYER: 'NONE', ASSISTANT: 'NONE' } },
+      })
+    ).rejects.toThrow(/ASSISTANT must stay OWNER/);
+    expect(createPlan).not.toHaveBeenCalled();
+  });
+
   it('notes a reload and a client-scope setting', async () => {
     const { tools } = makeTools();
     const out = await plan(tools, {

@@ -15,7 +15,13 @@
  * does not import the shared package); `virtual-targets.contract.test.ts` compares them.
  */
 import { MODULE_ID } from '../constants.js';
-import { KNOWN_SECRET_SETTINGS, SECRET_PATTERNS, stringLeaves } from '../preflight-scan.js';
+import {
+  KNOWN_SECRET_SETTINGS,
+  MIN_KEY_NAME_VALUE,
+  SECRET_KEY_NAME,
+  SECRET_PATTERNS,
+  stringLeaves,
+} from '../preflight-scan.js';
 
 export const SETUP_FEATURE_ID = 'foundry-setup';
 export const SETTING_UUID_PREFIX = 'GameSetting.';
@@ -121,7 +127,25 @@ export function isSecretSetting(namespace: string, key: string, value?: unknown)
   }
   if (value === undefined) return false;
   const leaves = stringLeaves(value);
-  return leaves.some(leaf => SECRET_PATTERNS.some(secret => secret.pattern.test(leaf)));
+  if (leaves.some(leaf => SECRET_PATTERNS.some(secret => secret.pattern.test(leaf)))) return true;
+  const longString = (leaf: string): boolean =>
+    leaf.length >= MIN_KEY_NAME_VALUE && !/\s/.test(leaf);
+  // Same rule as the preflight scan: a secret-sounding key (or object key) holding a long string.
+  if (SECRET_KEY_NAME.test(key) || SECRET_KEY_NAME.test(name)) return leaves.some(longString);
+  return hasSecretKeyedString(value, longString, 0);
+}
+
+/** True when an object key that sounds secret holds a long string without spaces. */
+function hasSecretKeyedString(
+  value: unknown,
+  longString: (leaf: string) => boolean,
+  depth: number
+): boolean {
+  if (depth > 6 || value === null || typeof value !== 'object') return false;
+  return Object.entries(value as Record<string, unknown>).some(([k, v]) => {
+    if (SECRET_KEY_NAME.test(k) && stringLeaves(v).some(longString)) return true;
+    return hasSecretKeyedString(v, longString, depth + 1);
+  });
 }
 
 /** Path segments that would walk into `Object.prototype`. */
@@ -202,6 +226,29 @@ function packOf(packId: string): { metadata?: { label?: string } } | undefined {
     | undefined;
 }
 
+/**
+ * Foundry's own pack configuration refuses unless the Assistant GM role keeps OWNER; the bridge's
+ * Assistant client reads every pack through that level, so a plan may not lower it.
+ */
+function assertAssistantKeepsPack(ownership: unknown): void {
+  if (ownership === null || typeof ownership !== 'object') return;
+  const level = (ownership as Record<string, unknown>).ASSISTANT;
+  if (level !== undefined && level !== 'OWNER') {
+    throw new Error('The Assistant GM role must keep OWNER on a pack');
+  }
+}
+
+/** Foundry 14 validates a setting through its DataField on `set`; refuse before the GM confirms. */
+function assertValidForField(type: unknown, value: unknown, id: string): void {
+  const validate = (type as { validate?: (v: unknown) => unknown } | null | undefined)?.validate;
+  if (typeof validate !== 'function') return;
+  const failure = validate.call(type, value) as { message?: unknown } | undefined | null | void;
+  if (failure) {
+    const why = typeof failure.message === 'string' ? failure.message : 'not allowed';
+    throw new Error(`${id} does not accept that value (${why})`);
+  }
+}
+
 export interface VirtualSnapshot {
   exists: boolean;
   documentName: string;
@@ -210,12 +257,17 @@ export interface VirtualSnapshot {
 }
 
 /** The target's current source, for the plan-time diff and the apply-time conflict check. */
-export function snapshotVirtual(uuid: string, paths: readonly string[]): VirtualSnapshot {
+export function snapshotVirtual(
+  uuid: string,
+  paths: readonly string[],
+  changes?: Record<string, unknown>
+): VirtualSnapshot {
   if (uuid.startsWith(PACK_UUID_PREFIX)) {
     const packId = uuid.slice(PACK_UUID_PREFIX.length);
     const bad = paths.find(p => !(PACK_FIELDS as readonly string[]).includes(p));
     if (bad)
       throw new Error(`A pack configuration has no "${bad}" (use ownership, locked, folder)`);
+    assertAssistantKeepsPack(changes?.ownership);
     const pack = packOf(packId);
     return {
       exists: pack !== undefined,
@@ -234,6 +286,16 @@ export function snapshotVirtual(uuid: string, paths: readonly string[]): Virtual
   if (isSecretSetting(namespace, key, value)) {
     return { exists: false, documentName: 'Setting', name: null, source: {} };
   }
+  // A value that read mode cannot show must not be replaced blind, and a new value that looks
+  // secret would land in the plan, the diff and the audit (and block its own undo).
+  if (JSON.stringify(value ?? null).length > MAX_SETTING_JSON) {
+    throw new Error(`${namespace}.${key} holds too much data to change through a plan`);
+  }
+  if (changes && Object.values(changes).some(v => isSecretSetting(namespace, key, v))) {
+    throw new Error(`The new value for ${namespace}.${key} looks like a secret and is not planned`);
+  }
+  if (changes && 'value' in changes)
+    assertValidForField(meta.type, changes.value, `${namespace}.${key}`);
   const label = meta?.name ? game.i18n.localize(meta.name) : key;
   return {
     exists: true,
@@ -275,6 +337,7 @@ export async function executeVirtualUpdate(
   unset: readonly string[]
 ): Promise<void> {
   if (uuid.startsWith(PACK_UUID_PREFIX)) {
+    assertAssistantKeepsPack(changes.ownership);
     const packId = uuid.slice(PACK_UUID_PREFIX.length);
     const all = packEntries();
     const entry = { ...(all[packId] ?? {}) };
@@ -289,9 +352,6 @@ export async function executeVirtualUpdate(
   assertSettingWritable(namespace, key, [...Object.keys(changes), ...unset]);
   if (unset.includes('value')) throw new Error('A setting cannot be unset, only given a value');
   const current = readSettingValue(namespace, key);
-  if (current === undefined) {
-    throw new Error(`${namespace}.${key} has no value yet; set it once in Foundry first`);
-  }
   const holder: Record<string, unknown> = { value: current };
   for (const [path, value] of Object.entries(changes)) setAtPath(holder, path, value);
   for (const path of unset) deleteAtPath(holder, path);

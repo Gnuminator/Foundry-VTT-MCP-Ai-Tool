@@ -42,6 +42,55 @@ interface FolderLike {
   type?: string;
 }
 
+type SettingMeta = ReturnType<typeof registeredSettings> extends Map<string, infer V> ? V : never;
+
+/**
+ * Allowed values and limits. Foundry 14 and dnd5e 6 keep them on the DataField (`type.choices`,
+ * `type.min/max/step`); older registrations put `choices` and `range` on the setting itself.
+ */
+function settingLimits(meta: SettingMeta): {
+  choices?: Record<string, unknown>;
+  range?: { min?: number; max?: number; step?: number };
+} {
+  const field = (meta.type && typeof meta.type === 'object' ? meta.type : {}) as {
+    choices?: unknown;
+    min?: unknown;
+    max?: unknown;
+    step?: unknown;
+  };
+  let raw: unknown = field.choices ?? meta.choices;
+  if (typeof raw === 'function') {
+    try {
+      raw = (raw as () => unknown)();
+    } catch {
+      raw = undefined;
+    }
+  }
+  const out: ReturnType<typeof settingLimits> = {};
+  if (Array.isArray(raw)) raw = Object.fromEntries(raw.map(v => [String(v), v]));
+  if (raw && typeof raw === 'object') {
+    out.choices = Object.fromEntries(
+      Object.entries(raw as Record<string, unknown>).map(([k, v]) => {
+        const label = typeof v === 'object' && v !== null ? (v as { label?: unknown }).label : v;
+        return [k, typeof label === 'string' ? game.i18n.localize(label) : label];
+      })
+    );
+  }
+  const num = (v: unknown): number | undefined => (typeof v === 'number' ? v : undefined);
+  const range = {
+    min: num(field.min) ?? meta.range?.min,
+    max: num(field.max) ?? meta.range?.max,
+    step: num(field.step) ?? meta.range?.step,
+  };
+  if (range.min !== undefined || range.max !== undefined || range.step !== undefined) {
+    out.range = {};
+    if (range.min !== undefined) out.range.min = range.min;
+    if (range.max !== undefined) out.range.max = range.max;
+    if (range.step !== undefined) out.range.step = range.step;
+  }
+  return out;
+}
+
 function settingsInfo(target: string | undefined): unknown {
   const wanted = (target ?? '').trim();
   const lower = wanted.toLowerCase();
@@ -72,15 +121,9 @@ function settingsInfo(target: string | undefined): unknown {
       requiresReload: meta.requiresReload === true,
       default: meta.default,
     };
-    if (meta.choices) {
-      row.choices = Object.fromEntries(
-        Object.entries(meta.choices).map(([k, v]) => [
-          k,
-          typeof v === 'string' ? game.i18n.localize(v) : v,
-        ])
-      );
-    }
-    if (meta.range) row.range = meta.range;
+    const limits = settingLimits(meta);
+    if (limits.choices) row.choices = limits.choices;
+    if (limits.range) row.range = limits.range;
     let value: unknown;
     try {
       value = readSettingValue(namespace, key);

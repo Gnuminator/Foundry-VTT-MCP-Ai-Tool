@@ -150,9 +150,9 @@ export const KNOWN_SECRET_SETTINGS: readonly KnownSetting[] = [
 ];
 
 /** Setting keys whose name suggests a secret; flagged when they hold a long string without spaces. */
-const SECRET_KEY_NAME =
+export const SECRET_KEY_NAME =
   /(?:token|secret|api[-_]?key|apikey|password|passwd|cookie|webhook|bearer|credential)/i;
-const MIN_KEY_NAME_VALUE = 12;
+export const MIN_KEY_NAME_VALUE = 12;
 
 /** At most four leading characters and the length; never the value. */
 export function maskSecret(value: string): string {

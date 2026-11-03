@@ -326,7 +326,7 @@ async function snapshotOp(op: GuardedOp): Promise<OpSnapshot> {
     case 'update': {
       if (isVirtualUuid(op.uuid)) {
         const paths = updatePaths(op);
-        const virtual = snapshotVirtual(op.uuid, paths);
+        const virtual = snapshotVirtual(op.uuid, paths, op.changes);
         if (!virtual.exists) return { exists: false };
         return {
           exists: true,
@@ -337,6 +337,7 @@ async function snapshotOp(op: GuardedOp): Promise<OpSnapshot> {
       }
       const doc = await resolve(op.uuid);
       if (!doc) return { exists: false };
+      if (doc.documentName === 'Setting') throw new Error(SETTING_DOCUMENT_REFUSAL);
       const source = sourceOf(doc);
       return {
         exists: true,
@@ -348,6 +349,7 @@ async function snapshotOp(op: GuardedOp): Promise<OpSnapshot> {
     case 'delete': {
       const doc = await resolve(op.uuid);
       if (!doc) return { exists: false };
+      if (doc.documentName === 'Setting') throw new Error(SETTING_DOCUMENT_REFUSAL);
       const parent = parentOf((doc as { parent?: FoundryDocument | null }).parent ?? null);
       const levelContents = doc.documentName === 'Level' ? countOnLevel(doc) : undefined;
       return {
@@ -360,6 +362,7 @@ async function snapshotOp(op: GuardedOp): Promise<OpSnapshot> {
       };
     }
     case 'create': {
+      if (op.documentName === 'Setting') throw new Error(SETTING_DOCUMENT_REFUSAL);
       const parent = op.parentUuid ? await resolve(op.parentUuid) : null;
       const parentLabel = parentOf(parent);
       return {
@@ -623,7 +626,7 @@ async function executeVirtual(
   assertSetupFeature(req.feature);
   const unset = op.unset ?? [];
   const paths = [...Object.keys(op.changes ?? {}), ...unset];
-  const target = snapshotVirtual(op.uuid, paths);
+  const target = snapshotVirtual(op.uuid, paths, op.changes);
   if (!target.exists) throw new Error(`Target not found: ${op.uuid}`);
   const before = paths.map(path => readPath(target.source, path));
   await executeVirtualUpdate(op.uuid, { ...op.changes }, unset);

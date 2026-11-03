@@ -14,9 +14,9 @@ The player makes every change by clicking in Foundry, mostly in the character bu
 ## Ground rules
 
 1. **Look it up, don't recall it.** Rules text, class features and options come from the books in
-   Foundry's compendiums, read with the connector tools (`list-compendium-packs`,
-   `search-compendium`, `get-compendium-item`; `search-journals` and `list-journals` only for a
-   rules term, see rule 6). Name the entry
+   Foundry's compendiums, read with the connector tools (`list-compendium-packs`, `search-rules`,
+   `search-compendium`, `get-compendium-item`, `get-level-up-options`; `search-journals` and
+   `list-journals` only for a rules term, see rule 6). Name the entry
    and the pack. If you could not find it, say "not in the Foundry books" and label anything else
    "from general knowledge, check the book".
 2. **2024 rules first.** Prefer the entry from the 2024 Player's Handbook ("PHB 2024"); say so when
@@ -39,11 +39,11 @@ The player makes every change by clicking in Foundry, mostly in the character bu
 
 - **Can:** list characters, read a whole sheet (`get-character`), one item in full
   (`get-character-entity`, `search-character-items`), list compendium packs, find an entry by
-  **name** (`search-compendium`), read it in full (`get-compendium-item`), search and read world
-  journals.
-- **Cannot:** search the text inside compendium books (name search only; pack journals are not
-  readable yet), see a class's per-level advancement list, run or finish a level-up, create or edit
-  a character. See `references/level-up.md` for how level-ups work around that.
+  **name** (`search-compendium`), search the text of the rules books (`search-rules`), read an entry
+  in full (`get-compendium-item`), see what a character's next level grants and which choices are
+  open (`get-level-up-options`), search and read world journals.
+- **Cannot:** run or finish a level-up, create or edit a character. The level-up window in Foundry
+  is the authority; see `references/level-up.md`.
 
 ## Which page to open
 

@@ -45,7 +45,7 @@ Prøv hver af dem i test worlden, mens du læser.
 4. [Journal entries](../../foundry/journals.md): noter og handouts, og at vise en side for
    spillerne.
 5. [Chat and dice](../../foundry/chat-and-dice.md): chatloggen, at slå med terninger og private terningslag, kun for GM'en.
-6. [Combat](../../foundry/combat.md): combat tracker, initiative, ture og runder.
+6. [Combat](../../foundry/combat.md): combat tracker, initiative, turns og rounds.
 
 ## 4. Værktøjet (10 minutter)
 
@@ -64,7 +64,7 @@ det basale sidder:
 - [Layers, walls and lighting](../../foundry/walls-and-lighting.md): hvad der blokerer sigt og bevægelse
   på et kort.
 - [Measuring and templates](../../foundry/measuring-and-templates.md): linealen og områder for spells.
-- [Compendiums](../../foundry/compendiums.md): bibliotekerne med monstre, items og spells.
+- [Compendiums](../../foundry/compendiums.md): bibliotekerne med monsters, items og spells.
 - [Modules](../../foundry/modules.md): at slå modules til og fra i en world.
 - [Playlists and sound](../../foundry/playlists.md): musik og lyd.
 

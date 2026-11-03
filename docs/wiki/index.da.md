@@ -33,5 +33,9 @@ GM-siderne er også hjælpepanelet i dashboardet. De beskriver Foundry 14 med D&
 (version 6). Kilden ligger i
 [projektets repository](https://github.com/Gnuminator/Foundry-VTT-MCP-Ai-Tool).
 
+Til dem, der bygger dashboardet: hver komponent og hvert panel i dashboardet, i alle tilstande og i
+begge temaer, ligger i
+[component stories](https://gnuminator.github.io/Foundry-VTT-MCP-Ai-Tool/storybook/).
+
 Guides om selve Foundry (Foundry basics) findes kun på engelsk. Når en dansk side linker dertil,
 åbner den engelske side med en lille note om det.

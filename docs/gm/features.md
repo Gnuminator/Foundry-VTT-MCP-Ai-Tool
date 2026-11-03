@@ -18,7 +18,7 @@ Foundry (Module Management lists it as **Foundry AI Tool**); every switch on thi
 its settings, and nearly all of them are named "AI Tool: ..." (Allow Write Operations is the
 exception). The **dashboard** is the web page next to Foundry that
 you open in another tab. The **GM windows** are small windows inside Foundry; they have their own
-switch, "AI Tool: GM windows", which is off until you turn it on (see
+switch, "AI Tool: GM windows", which is on by default (see
 [The GM windows](gm-windows.md)). The module's switches are all in one place: scroll to the heading
 **Foundry AI Tool** in Game Settings.
 
@@ -133,7 +133,7 @@ GM Actions. **End session** turns off again what it turned on. See
 
 - **What it does:** after a recorded session, the tool writes the notes (a Recap for the players,
   a GM summary and the scenes) and **puts them into Foundry by itself, without asking**: a GM-only
-  journal "Session notes", one entry per session. The change is logged in Recent Changes with
+  journal in the folder "Session notes", one entry per session (named with the date and title). The change is logged in Recent Changes with
   **Undo**. The Recap also lands in the Handouts queue, so the players see it only when you reveal
   it. The dashboard's **After** view shows where the notes are, with **Read**, **Approve without
   revealing** and **Undo**.
@@ -168,8 +168,9 @@ GM Actions. **End session** turns off again what it turned on. See
 
 - **What it does:** adds Combat, Party, Session, Scene and Loot buttons to the AI Tool group in the scene
   controls (GM only). Each opens a small window next to the map, so you can run a scene from one
-  screen without the dashboard tab. Only the Combat turn buttons and the Session start and end
-  change anything, and nothing here asks Claude.
+  screen without the dashboard tab. The Combat turn buttons and the Session start and end change
+  the game, and the Party window has roll request buttons that ask your players to roll. Nothing
+  here asks Claude.
 - **Starts:** on (a world where the settings were saved earlier may have it off). Setting "AI Tool: GM windows".
 - **Turn it off when:** you do not want the extra buttons in the scene controls.
 - **More:** [The GM windows](gm-windows.md).

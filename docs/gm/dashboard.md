@@ -570,7 +570,7 @@ Each of the five positions shows:
 - **Add a link**: search your world's journals, pages, scenes and actors, then click **Link** on the
   right one;
 - **Reveal to players**: type an optional page title and exactly what the players may read, then **Plan
-  reveal…**. The players get only your text, never the card name. Tick **Show it now** to pop the
+  reveal**. The players get only your text, never the card name. Tick **Show it now** to pop the
   page up on the players' screens as soon as you apply the reveal. It is off every time unless you
   tick it, and Undo takes back the reveal but cannot close the popup.
 

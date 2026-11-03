@@ -1,6 +1,6 @@
 ---
 source: gm/dashboard.md
-sourceHash: 68d16886cb8d
+sourceHash: 05a725e73bb5
 title: Dashboardet
 description: En rundtur i alle paneler og knapper på dashboardet, hvad de gør, og hvornår du bruger dem.
 ---
@@ -584,7 +584,7 @@ Hver af de fem positioner viser:
 - **Add a link**: søg i din worlds journals, sider, scener og actors, og klik derefter på **Link** ved
   den rigtige;
 - **Reveal to players**: skriv en valgfri sidetitel og præcis det, spillerne må læse, og derefter **Plan
-  reveal…**. Spillerne får kun din tekst, aldrig kortets navn. Sæt kryds ved **Show it now** for at få
+  reveal**. Spillerne får kun din tekst, aldrig kortets navn. Sæt kryds ved **Show it now** for at få
   siden til at poppe op på spillernes skærme, så snart du anvender revealen. Det er fra hver gang, med
   mindre du sætter kryds, og Undo tager revealen tilbage, men kan ikke lukke popuppen.
 

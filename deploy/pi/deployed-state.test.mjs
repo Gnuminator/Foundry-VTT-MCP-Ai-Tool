@@ -87,7 +87,7 @@ function run(opts = {}) {
       `case "$1" in\nps) case "$*" in *label=com.docker.compose.project=foundry-ai-tool-pi*) printf '${list}\\n';; *) printf 'runner-job-1|\\n';; esac;;\ninspect) case "$4" in\n${cases}\nrunner-job-1) echo 'exited|0|none';;\nesac;;\nesac`
     );
   }
-  const ldconfig = stub(path.join(root, 'bin'), 'ldconfig', opts.icu === false ? 'true' : 'echo "libicuuc.so.72 => /usr/lib/libicuuc.so.72"');
+  const ldconfig = stub(path.join(root, 'bin'), 'ldconfig', opts.icu === false ? 'true' : opts.icu === 'long' ? 'echo "libicuuc.so.72 => /usr/lib/libicuuc.so.72"; i=0; while [ $i -lt 4000 ]; do echo "libfiller$i.so.1 => /usr/lib/libfiller$i.so.1"; i=$((i+1)); done' : 'echo "libicuuc.so.72 => /usr/lib/libicuuc.so.72"');
 
   const env = {
     ...process.env,
@@ -256,6 +256,11 @@ describe('deployed-state.sh', { skip: noBash }, () => {
     const r = run({ ref: null });
     assert.equal(r.code, 1);
     assert.match(r.out, /FAIL: no build at/);
+  });
+
+  test('libicu is found when ldconfig prints a long list (no SIGPIPE under pipefail)', () => {
+    const r = run({ icu: 'long' });
+    assert.match(r.out, /libicu is installed/);
   });
 
   test('missing libicu warns', () => {

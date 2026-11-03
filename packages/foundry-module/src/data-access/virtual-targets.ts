@@ -240,9 +240,18 @@ function assertAssistantKeepsPack(ownership: unknown): void {
 
 /** Foundry 14 validates a setting through its DataField on `set`; refuse before the GM confirms. */
 function assertValidForField(type: unknown, value: unknown, id: string): void {
-  const validate = (type as { validate?: (v: unknown) => unknown } | null | undefined)?.validate;
-  if (typeof validate !== 'function') return;
-  const failure = validate.call(type, value) as { message?: unknown } | undefined | null | void;
+  const field = type as
+    | { clean?: (v: unknown) => unknown; validate?: (v: unknown, o: object) => unknown }
+    | null
+    | undefined;
+  if (typeof field?.validate !== 'function') return;
+  // Same order as `ClientSettings#set`: clean the value, then validate it without throwing.
+  const cleaned = typeof field.clean === 'function' ? field.clean(value) : value;
+  const failure = field.validate(cleaned, { fallback: false }) as
+    | { message?: unknown }
+    | undefined
+    | null
+    | void;
   if (failure) {
     const why = typeof failure.message === 'string' ? failure.message : 'not allowed';
     throw new Error(`${id} does not accept that value (${why})`);
@@ -285,6 +294,11 @@ export function snapshotVirtual(
   const value = readSettingValue(namespace, key);
   if (isSecretSetting(namespace, key, value)) {
     return { exists: false, documentName: 'Setting', name: null, source: {} };
+  }
+  if (meta.config === false && `${namespace}.${key}` !== MODULE_CONFIG_SETTING) {
+    throw new Error(
+      `${namespace}.${key} is a hidden setting (module bookkeeping); plans do not change those`
+    );
   }
   // A value that read mode cannot show must not be replaced blind, and a new value that looks
   // secret would land in the plan, the diff and the audit (and block its own undo).

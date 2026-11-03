@@ -204,12 +204,27 @@ function Test-WorldVersion([string]$AppBuild, [string]$WorldCoreVersion) {
 function Test-FoundryUnpack([int]$ExitCode, [string[]]$ErrorLines = @()) {
   if ($ExitCode -eq 0) { return @{ Ok = $true; Skipped = 0; Message = 'unpacked' } }
   $lines = @($ErrorLines | ForEach-Object { "$_".Trim() } | Where-Object { $_ })
-  $other = @($lines | Where-Object { $_ -notmatch '[\\/]\.bin([\\/]|[''"\s:]|$)' })
-  if ($lines.Count -eq 0 -or $other.Count -gt 0) {
+  $binLines = @($lines | Where-Object { $_ -match '[\\/]\.bin([\\/]|[''"\s:]|$)' })
+  # bsdtar ends a run with per-entry errors with this summary line, which names no path.
+  $other = @($lines | Where-Object { $_ -notmatch '[\\/]\.bin([\\/]|[''"\s:]|$)' -and $_ -notmatch 'Error exit delayed from previous errors\.?$' })
+  if ($binLines.Count -eq 0 -or $other.Count -gt 0) {
     $first = if ($other.Count) { $other[0] } else { 'no error text' }
     return @{ Ok = $false; Skipped = 0; Message = "could not unpack the Foundry zip (tar exit ${ExitCode}): $first" }
   }
-  return @{ Ok = $true; Skipped = $lines.Count; Message = "unpacked; skipped $($lines.Count) node_modules/.bin link(s) Windows cannot create (not needed)" }
+  return @{ Ok = $true; Skipped = $binLines.Count; Message = "unpacked; skipped $($binLines.Count) node_modules/.bin link(s) Windows cannot create (not needed)" }
+}
+
+# Runs the unpack with native stderr captured and neither the error preference nor
+# $PSNativeCommandUseErrorActionPreference turning a non-zero exit into a throw (pwsh 7.0 to 7.5),
+# then judges it with Test-FoundryUnpack.
+function Invoke-FoundryUnpack([string]$Tar, [string[]]$TarArgs) {
+  $run = & {
+    $ErrorActionPreference = 'Continue'
+    $PSNativeCommandUseErrorActionPreference = $false
+    $out = & $Tar @TarArgs 2>&1
+    @{ Code = $LASTEXITCODE; Lines = @($out | ForEach-Object { "$_" }) }
+  }
+  return Test-FoundryUnpack ([int]$run.Code) $run.Lines
 }
 
 # The module manifest text with the default bridge port flag set (rehearsal) or removed (game

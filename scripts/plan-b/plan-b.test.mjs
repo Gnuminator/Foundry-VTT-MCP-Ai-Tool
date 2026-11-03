@@ -187,6 +187,10 @@ describe('Plan B', { skip: !hasPwsh && 'PowerShell 7 (pwsh) is not available' },
         clean = (Test-FoundryUnpack 0 @()).Ok
         bin = Test-FoundryUnpack 1 $bin
         mixed = Test-FoundryUnpack 1 ($bin + "tar.exe: main.mjs: Can't create 'main.mjs': No space left on device")
+        summary = (Test-FoundryUnpack 1 ($bin + 'tar.exe: Error exit delayed from previous errors.')).Ok
+        summaryAlone = (Test-FoundryUnpack 1 @('tar.exe: Error exit delayed from previous errors.')).Ok
+        fake = Invoke-FoundryUnpack 'pwsh' @('-NoProfile', '-Command', '[Console]::Error.WriteLine("tar.exe: node_modules/.bin/x: Cannot create symlink: Invalid argument"); exit 1')
+        fakeOther = (Invoke-FoundryUnpack 'pwsh' @('-NoProfile', '-Command', '[Console]::Error.WriteLine("tar.exe: a.txt: Disk full"); exit 1')).Ok
         noText = (Test-FoundryUnpack 1 @()).Ok
         lookalike = (Test-FoundryUnpack 1 @("tar.exe: node_modules/.binary/x: Can't create")).Ok
       }`);
@@ -195,6 +199,11 @@ describe('Plan B', { skip: !hasPwsh && 'PowerShell 7 (pwsh) is not available' },
     assert.equal(r.bin.Skipped, 2);
     assert.equal(r.mixed.Ok, false);
     assert.match(r.mixed.Message, /No space left/);
+    assert.equal(r.summary, true);
+    assert.equal(r.summaryAlone, false);
+    assert.equal(r.fake.Ok, true);
+    assert.equal(r.fake.Skipped, 1);
+    assert.equal(r.fakeOther, false);
     assert.equal(r.noText, false);
     assert.equal(r.lookalike, false);
   });

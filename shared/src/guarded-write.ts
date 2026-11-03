@@ -73,6 +73,11 @@ export interface OpSnapshot {
   values?: PathValue[];
   /** delete: `_stats.modifiedTime`, compared when the expected snapshot has one. */
   modifiedTime?: number | null;
+  /**
+   * An effect's content without Foundry's own bookkeeping (`_stats`, `duration.expired`).
+   * When both sides have one it replaces the `modifiedTime` check: a turn passing is not an edit.
+   */
+  contentHash?: string;
   /** create with keepId: a document with that id already exists. */
   idTaken?: boolean;
   /** delete of a Scene Level: things on it that Foundry would delete too (refused above 0). */
@@ -117,6 +122,8 @@ export interface GuardedOpResult {
   alreadyGone?: true;
   /** create: `_stats.modifiedTime` of the new document (undo conflict check). */
   modifiedTime?: number | null;
+  /** create of an ActiveEffect: its content hash (see OpSnapshot.contentHash). */
+  contentHash?: string;
 }
 
 export interface GuardedApplyResult {
@@ -224,7 +231,11 @@ export function expectedAfterApply(executed: GuardedOpResult): OpSnapshot {
     case 'update':
       return { exists: true, values: executed.after ?? [] };
     case 'create':
-      return { exists: true, modifiedTime: executed.modifiedTime ?? null };
+      return {
+        exists: true,
+        modifiedTime: executed.modifiedTime ?? null,
+        ...(executed.contentHash ? { contentHash: executed.contentHash } : {}),
+      };
     case 'delete':
       return { exists: true, idTaken: false };
   }

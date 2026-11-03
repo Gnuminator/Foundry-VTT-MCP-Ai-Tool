@@ -1,6 +1,6 @@
 ---
 source: gm/dashboard.md
-sourceHash: 9dec523c4dec
+sourceHash: 51a848c84cfe
 title: Dashboardet
 description: En rundtur i alle paneler og knapper på dashboardet, hvad de gør, og hvornår du bruger dem.
 ---
@@ -255,7 +255,11 @@ dnd5e's egen side for den i Foundry.
 Tracker **Start combat** (i de fleste During-layouts åbner en lille **Start combat**-knap på
 During-bjælken det samme). Den viser tokens på den scene, du ser, med spillerkarakterer og Hostile
 tokens afkrydset. Ændr fluebenene, og klik på **Start combat with N**. Kampen starter i runde 1, med
-**Undo**. **End combat** planlægger at afslutte kampen; du bekræfter, og Undo bringer den tilbage.
+**Undo**. Et afkrydsningsfelt, **Ask the player characters to roll initiative**, sender hver afkrydset
+spillerkarakter en offentlig rulle-anmodning; når de ruller, står tallet i trackeren. Undo fjerner
+kampen, men anmodningerne bliver i chatten. Den, der har tur, viser **Up now**. Ændrer du en initiative
+bagefter (værktøjet **set-initiative**), skifter rækkefølgen, men turen flytter sig ikke.
+**End combat** planlægger at afslutte kampen; du bekræfter, og Undo bringer den tilbage.
 
 **👑 Boss prompts** (i panelets øverste linje, kun mens et væsen med legendary actions eller en lair
 er med i kampen; slået fra, til du slår det til, og husket i denne browser). Slå det til før den

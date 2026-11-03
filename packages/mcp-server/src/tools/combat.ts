@@ -8,6 +8,10 @@ import type {
   CombatToolResult,
 } from './types/combat-types.js';
 
+/** Said with every set-initiative answer: Foundry re-sorts the order but keeps the turn where it was. */
+export const SET_INITIATIVE_NOTE =
+  'The initiative changed, but the turn did not move: whoever was up is still up.';
+
 interface CombatToolsOptions {
   foundryClient: FoundryClient;
   logger: Logger;
@@ -50,7 +54,8 @@ export class CombatTools {
       },
       {
         name: 'set-initiative',
-        description: "Set or override a combatant's initiative value in the active combat.",
+        description:
+          "Set or override a combatant's initiative value in the active combat. The order changes but the turn does not move: whoever is up stays up until the next turn.",
         inputSchema: {
           type: 'object',
           properties: {
@@ -136,7 +141,7 @@ export class CombatTools {
       if (response?.success === false) {
         throw new Error(response.error || 'Failed to set initiative');
       }
-      return response;
+      return response ? { ...response, note: SET_INITIATIVE_NOTE } : response;
     } catch (error: unknown) {
       this.logger.error('Error setting initiative', error);
       if (error instanceof z.ZodError) {

@@ -329,7 +329,7 @@ test('the default dashboard has the switch that opens the Live view', async ({ p
   await setup(page);
   await page.goto(`/next/?token=${GM_TOKEN}`);
   const link = page.locator('#try-live-screen');
-  await expect(link).toHaveText('Try the new live screen');
+  await expect(link).toHaveText('Live screen');
   await expect(link).toHaveAttribute('href', './?live=1');
 });
 

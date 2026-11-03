@@ -43,6 +43,25 @@ function Header(): JSX.Element {
 
 const render = (): JSX.Element => <Header />;
 
+/**
+ * Holds a two-toast stack still for the screenshot. The first toast moves up when the second comes,
+ * and its bottom edge lands on a fraction of a pixel: Chromium snapped it to either of two rows from
+ * run to run (a 325 px diff on CI, however long the story waited). One fresh paint of the stack
+ * always lands on the same row. The toasts' close timers are paused too (Radix pauses them while
+ * the window is blurred), so a slow runner cannot lose a toast before the shot.
+ */
+async function settleToasts(): Promise<void> {
+  window.dispatchEvent(new Event('blur'));
+  const stack = document.querySelector<HTMLElement>('.toast-stack');
+  if (stack) {
+    const display = stack.style.display;
+    stack.style.display = 'none';
+    void stack.offsetHeight;
+    stack.style.display = display;
+  }
+  await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+}
+
 const seed = (
   session: Handler,
   extra: Partial<DashboardParameters> = {}
@@ -113,6 +132,11 @@ export const StartsTheSession: Story = {
     await waitFor(() =>
       expect(within(document.body).getAllByText('✓ Play session started')).not.toHaveLength(0)
     );
+    // The ready step answers right after the marker; the shot waits for its toast too.
+    await waitFor(() =>
+      expect(within(document.body).getAllByText('✓ Already on')).not.toHaveLength(0)
+    );
+    await settleToasts();
   },
 };
 
@@ -162,6 +186,7 @@ export const EndsTheSession: Story = {
         0
       )
     );
+    await settleToasts();
   },
 };
 

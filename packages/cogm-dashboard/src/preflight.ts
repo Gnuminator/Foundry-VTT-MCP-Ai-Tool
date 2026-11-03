@@ -5,10 +5,15 @@
  */
 import type { PreflightCheck, PreflightChecksResult } from '@gnuminator/shared';
 
+import { gmPageInfo } from './gm-page.js';
 import { readyCheck, type SessionSwitches } from './session-switches.js';
 
 /** The checks this file adds to the bridge's list. */
-export type DashboardPreflightCheckId = 'ready' | 'player-page' | 'bridge-checks';
+export type DashboardPreflightCheckId =
+  | 'ready'
+  | 'player-page'
+  | 'bridge-checks'
+  | 'foundry-address';
 
 export interface DashboardPreflightCheck extends Omit<PreflightCheck, 'id'> {
   id: PreflightCheck['id'] | DashboardPreflightCheckId;
@@ -28,6 +33,28 @@ export interface DashboardPreflightInput {
   sessionSwitches: SessionSwitches | null;
   /** What `/api/player/state` would send right now (with handouts). */
   playerState: unknown;
+  /** `DASHBOARD_FOUNDRY_URL` as configured; unset or empty gives a warning. */
+  foundryUrl?: string | undefined;
+}
+
+/** Foundry's address for the GM page and the Live window: both stay blank without it. */
+export function foundryAddressCheck(foundryUrl: string | undefined): DashboardPreflightCheck {
+  const label = 'Foundry address set';
+  if (gmPageInfo(foundryUrl).foundryUrl !== null) {
+    return {
+      id: 'foundry-address',
+      label,
+      status: 'ok',
+      detail: 'The GM page and the Live window know where Foundry is.',
+    };
+  }
+  return {
+    id: 'foundry-address',
+    label,
+    status: 'warn',
+    detail:
+      'DASHBOARD_FOUNDRY_URL is not set, so the GM page cannot open Foundry and the Live window inside Foundry stays blank. Set it to the address your browser uses for Foundry and restart the dashboard.',
+  };
 }
 
 /** `check-secret-terms` takes at most 5000 characters per call. */
@@ -132,6 +159,7 @@ export async function runDashboardPreflight(
       ];
   checks.push(
     readyCheck(input.sessionSwitches, input.gmActionsEnabled),
+    foundryAddressCheck(input.foundryUrl),
     await playerPageCheck(input)
   );
   return {

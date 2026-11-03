@@ -70,10 +70,27 @@ describe('runDashboardPreflight', () => {
     expect(result.checks.map(c => [c.id, c.status])).toEqual([
       ['foundry-link', 'ok'],
       ['ready', 'warn'],
+      ['foundry-address', 'warn'],
       ['player-page', 'ok'],
     ]);
     expect(texts).toEqual(['Wolf 1']);
     expect(result.moduleVersion).toBe('0.19.0');
+  });
+
+  it('warns without DASHBOARD_FOUNDRY_URL, stays ready, and is ok once it is set', async () => {
+    const { callTool } = tools();
+    const base = { callTool, gmActionsEnabled: false, sessionSwitches: null, playerState: {} };
+    const unset = await runDashboardPreflight(base);
+    const warn = unset.checks.find(c => c.id === 'foundry-address');
+    expect(warn?.status).toBe('warn');
+    expect(warn?.detail).toContain('DASHBOARD_FOUNDRY_URL');
+    expect(unset.ready).toBe(true);
+    for (const foundryUrl of ['', '   ', 'not a url']) {
+      const r = await runDashboardPreflight({ ...base, foundryUrl });
+      expect(r.checks.find(c => c.id === 'foundry-address')?.status).toBe('warn');
+    }
+    const set = await runDashboardPreflight({ ...base, foundryUrl: 'http://localhost:30001' });
+    expect(set.checks.find(c => c.id === 'foundry-address')?.status).toBe('ok');
   });
 
   it('fails on a secret term on /player', async () => {
@@ -159,7 +176,12 @@ describe('GET /api/preflight', () => {
     const res = await fetch(`${base}/api/preflight`, { headers: { 'X-CoGM-Token': GM_TOKEN } });
     expect(res.status).toBe(200);
     const body = (await res.json()) as { checks: Array<{ id: string }> };
-    expect(body.checks.map(c => c.id)).toEqual(['foundry-link', 'ready', 'player-page']);
+    expect(body.checks.map(c => c.id)).toEqual([
+      'foundry-link',
+      'ready',
+      'foundry-address',
+      'player-page',
+    ]);
   });
 
   it('survives a bridge answer without checks and keeps serving', async () => {

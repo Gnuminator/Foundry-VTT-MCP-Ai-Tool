@@ -178,23 +178,19 @@ function Assert-SafePorts {
   if (($ports | Select-Object -Unique).Count -ne $ports.Count) { throw 'Test ports must all be different.' }
 }
 
-# The repo's Node: the newest portable Node 24 in %LOCALAPPDATA%\node24\node-v24.x.y-win-x64 (the
-# version differs per PC), else the newest in the older %LOCALAPPDATA%\node22 folder (kept until
-# every PC has a node24 folder), else the node on PATH.
+# The repo's Node: the newest portable Node 22 in %LOCALAPPDATA%\node22\node-v22.x.y-win-x64
+# (the version differs per PC), else the node on PATH.
 function Get-NodeExe {
-  if ($IsWindows) {
-    foreach ($major in 24, 22) {
-      $portableRoot = Join-Path $HOME 'AppData' 'Local' "node$major"
-      if (-not (Test-Path $portableRoot)) { continue }
-      $portable = Get-ChildItem $portableRoot -Directory -Filter "node-v$major.*-win-x64" |
-        Where-Object { $_.Name -match '^node-v(\d+\.\d+\.\d+)-' -and (Test-Path (Join-Path $_.FullName 'node.exe')) } |
-        Sort-Object { [version]($_.Name -replace '^node-v(\d+\.\d+\.\d+)-.*$', '$1') } -Descending |
-        Select-Object -First 1
-      if ($portable) { return Join-Path $portable.FullName 'node.exe' }
-    }
+  $portableRoot = Join-Path $HOME 'AppData' 'Local' 'node22'
+  if ($IsWindows -and (Test-Path $portableRoot)) {
+    $portable = Get-ChildItem $portableRoot -Directory -Filter 'node-v22.*-win-x64' |
+      Where-Object { $_.Name -match '^node-v(\d+\.\d+\.\d+)-' -and (Test-Path (Join-Path $_.FullName 'node.exe')) } |
+      Sort-Object { [version]($_.Name -replace '^node-v(\d+\.\d+\.\d+)-.*$', '$1') } -Descending |
+      Select-Object -First 1
+    if ($portable) { return Join-Path $portable.FullName 'node.exe' }
   }
   $node = Get-Command node -ErrorAction SilentlyContinue
-  if (-not $node) { throw 'Node.js not found (need 24; Foundry 14 needs 24 too).' }
+  if (-not $node) { throw 'Node.js not found (need 22+; Foundry 14 needs 24).' }
   return $node.Source
 }
 
@@ -207,7 +203,7 @@ function Get-NodeVersion([string]$Exe) {
 }
 
 # A Node that satisfies Foundry's own `engines.node` (e.g. ">=24.13.1 <25.0.0" for 14.368),
-# (a range, not a version). Checks PATH, then the default install.
+# which differs from the Node 22 the repo builds with. Checks PATH, then the default install.
 function Get-FoundryNodeExe([string]$AppRoot) {
   $pkg = Join-Path $AppRoot 'package.json'
   $range = if (Test-Path $pkg) { (Get-Content $pkg -Raw | ConvertFrom-Json).engines.node } else { $null }
@@ -219,7 +215,7 @@ function Get-FoundryNodeExe([string]$AppRoot) {
     $v = Get-NodeVersion $exe
     if ($v -and $v -ge $min -and (-not $max -or $v -lt $max)) { return $exe }
   }
-  throw "No Node.js matching Foundry's requirement '$range' found (install it; the repo's portable Node is not used for Foundry)."
+  throw "No Node.js matching Foundry's requirement '$range' found (install it; the repo's Node 22 is not used for Foundry)."
 }
 
 # The Foundry version in an app folder (its package.json), or $null.

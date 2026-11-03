@@ -6,7 +6,7 @@
 #   pwsh scripts/test-kit/register-nightly.ps1 -Remove
 #
 # The task "Foundry AI Tool kit run" runs `kit-run.mjs --nightly` in the main checkout with the
-# portable Node 24, only while you are logged on (no stored password), in a hidden console, and
+# portable Node 22, only while you are logged on (no stored password), in a hidden console, and
 # appends its output to <kit home>\nightly.log. It tests the main checkout as it is: pull main
 # there to test the newest. A PC that is asleep, off or logged off at that time skips the night;
 # a missed run is not started later (it could stop a test server you are using during the day).

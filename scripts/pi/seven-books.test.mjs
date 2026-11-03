@@ -333,7 +333,7 @@ describe('seven-books-trim.js', () => {
     const world2 = standardWorld();
     wire(world2);
     world2.packs.set(legacy.collection, legacy);
-    await assert.rejects(run(trimSource, world2, false), /legacy pack holds Not Bane/);
+    await assert.rejects(run(trimSource, world2, false), /the legacy pack holds Not Bane/);
     assert.ok(world2.packs.get('aitool-content.spells').docs.has(id(3)));
   });
 

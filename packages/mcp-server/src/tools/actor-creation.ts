@@ -34,7 +34,7 @@ export class ActorCreationTools {
       {
         name: 'create-actor-from-compendium',
         description:
-          'Create one or more actors from a specific compendium entry with custom names. Use search-compendium first to find the exact creature you want, then use this tool with the packId and itemId from the search results.',
+          'Direct write. Create one or more actors from a specific compendium entry with custom names. Use search-compendium first to find the exact creature you want, then use this tool with the packId and itemId from the search results.',
         inputSchema: {
           type: 'object',
           properties: {

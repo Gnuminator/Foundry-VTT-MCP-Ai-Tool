@@ -34,7 +34,7 @@ export class DiceRollTools {
       {
         name: 'request-player-rolls',
         description:
-          'Request dice rolls from players with interactive buttons. Creates roll buttons in Foundry chat that players can click. VISIBILITY WORKFLOW: Before calling this function, ensure the user has specified whether they want a public or private roll. If they have already specified "public" or "private" in their request (e.g., "public performance check", "private stealth roll"), you can proceed directly. If the visibility is ambiguous or unspecified, ask: "Do you want this to be a PUBLIC roll (visible to all players) or PRIVATE roll (visible to player and GM only)?" and wait for their answer. Supports character-to-player resolution and GM fallback.',
+          'Direct write. Request dice rolls from players with interactive buttons. Creates roll buttons in Foundry chat that players can click. VISIBILITY WORKFLOW: Before calling this function, ensure the user has specified whether they want a public or private roll. If they have already specified "public" or "private" in their request (e.g., "public performance check", "private stealth roll"), you can proceed directly. If the visibility is ambiguous or unspecified, ask: "Do you want this to be a PUBLIC roll (visible to all players) or PRIVATE roll (visible to player and GM only)?" and wait for their answer. Supports character-to-player resolution and GM fallback.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -94,7 +94,7 @@ export class DiceRollTools {
       {
         name: 'request-ability-check',
         description:
-          'Request an ability check from a player, posting a clickable roll button to their chat. Shows the DC when provided. Use for checks like "Perception check to notice the ambush".',
+          'Direct write. Request an ability check from a player, posting a clickable roll button to their chat. Shows the DC when provided. Use for checks like "Perception check to notice the ambush".',
         inputSchema: {
           type: 'object',
           properties: {
@@ -131,7 +131,7 @@ export class DiceRollTools {
       {
         name: 'request-attack-roll',
         description:
-          'Request an attack roll for a specific weapon or spell from a player, posting a clickable roll button to their chat.',
+          'Direct write. Request an attack roll for a specific weapon or spell from a player, posting a clickable roll button to their chat.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -162,7 +162,7 @@ export class DiceRollTools {
       {
         name: 'roll-npc-check',
         description:
-          'Roll directly for an NPC actor (no player prompt) and post the result to chat. Supports ability checks, saving throws, skill checks, and attacks.',
+          'Direct write. Roll directly for an NPC actor (no player prompt) and post the result to chat. Supports ability checks, saving throws, skill checks, and attacks.',
         inputSchema: {
           type: 'object',
           properties: {

@@ -85,9 +85,9 @@ describe('definitions', () => {
     ]);
   });
 
-  it('tells the caller about autoApply, apply-planned-change, undo-change and Recent Changes', () => {
+  it('tells the caller about apply-planned-change, undo-change and Recent Changes (the autoApply rule lives on apply-planned-change)', () => {
     const def = tools.getToolDefinitions()[0];
-    expect(def.description).toContain('autoApply: true');
+    expect(def.description).not.toContain('autoApply');
     expect(def.description).toContain('apply-planned-change');
     expect(def.description).toContain('undo-change');
     expect(def.description).toContain('Recent Changes');

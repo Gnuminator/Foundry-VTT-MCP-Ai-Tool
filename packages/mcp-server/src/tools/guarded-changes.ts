@@ -67,7 +67,7 @@ export class GuardedChangeTools {
       {
         name: 'apply-planned-change',
         description:
-          'Apply a pending planned change after the GM has seen its diff and agreed. Requires confirm: true, plus confirmDestructive: true when the plan risk is "destructive" (it deletes something). Fails without writing anything if the affected documents changed since the plan was made, if "Allow Write Operations" or the feature is switched off in the module settings. The change is recorded and can be undone with undo-change. When the plan also pops a page up on the players\' screens (showNow), the result has shown: { ok: true } or { ok: false, error }, and undo does not take the popup back. A handout reveal also posts a chat notice (result noticed: { ok }); undo keeps it.',
+          'Apply a pending planned change once the GM has agreed. Needs confirm: true, plus confirmDestructive: true for a "destructive" plan (it deletes). If the plan says autoApply: true, or the GM said "go ahead", apply it in the same turn (a delete still needs confirmDestructive). Writes nothing if the documents changed since the plan, or "Allow Write Operations" or the feature is switched off. The change is recorded; undo-change takes it back. A showNow popup shows shown: { ok } or { ok: false, error }, and undo does not recall it. A handout reveal also posts a chat notice (noticed: { ok }); undo keeps it.',
         inputSchema: {
           type: 'object',
           properties: {

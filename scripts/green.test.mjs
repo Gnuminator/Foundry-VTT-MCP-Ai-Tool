@@ -39,6 +39,7 @@ import {
   repoFromUrl,
   quickSteps,
   quickLintSteps,
+  QUICK_LINT_MAX_CHARS,
 } from './green.mjs';
 import { main as prePush, CHECKS, pushedCommits } from './pre-push.mjs';
 import { HELD_ENV } from './heavy-lock.mjs';
@@ -975,12 +976,26 @@ test('quickLintSteps: a changed lint config or a very long list lints everything
       ['docs-links-quick', 'run', 'docs:links'],
     ]
   );
-  const many = Array.from({ length: 151 }, (_, i) => `packages/a/src/f${i}.ts`);
-  for (const f of many) {
-    fs.mkdirSync(path.dirname(path.join(cwd, f)), { recursive: true });
-    fs.writeFileSync(path.join(cwd, f), '');
-  }
+  // Real-length paths: about 90 of them pass the budget, well under cmd.exe's 8191 characters.
+  const dir = 'packages/cogm-dashboard/web/src/components/some-longer-folder';
+  const make = n => {
+    const list = Array.from({ length: n }, (_, i) => `${dir}/ComponentWithAName${i}.stories.tsx`);
+    for (const f of list) {
+      fs.mkdirSync(path.dirname(path.join(cwd, f)), { recursive: true });
+      fs.writeFileSync(path.join(cwd, f), '');
+    }
+    return list;
+  };
+  const few = make(20);
+  assert.equal(quickLintSteps(few, cwd)[0].cmd, 'npx');
+  const many = make(120);
+  assert.ok(many.join(' ').length > QUICK_LINT_MAX_CHARS);
   assert.deepEqual(quickLintSteps(many, cwd)[0].args, ['run', 'lint']);
+  const mdMany = many.map(f => f.replace(/\.stories\.tsx$/, '.md'));
+  for (const f of mdMany) fs.writeFileSync(path.join(cwd, f), '');
+  assert.deepEqual(quickLintSteps(mdMany, cwd)[0].args, ['run', 'docs:lint']);
+  // Every per-file step stays under the limit, the npx or npm words included.
+  for (const s of quickLintSteps(few, cwd)) assert.ok(commandLine(s).length < 8191);
 });
 
 test('quickSteps: the lint steps sit after the typecheck, before the unit tests, and take no heavy slot', () => {

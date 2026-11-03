@@ -983,8 +983,14 @@ export function touchesDashboardWeb(files) {
 export const QUICK_SCREENSHOT_NOTE =
   'Screenshots are not checked locally; CI dashboard-visual will run them.';
 
-/** More changed files than this lint the whole repo instead (a Windows command line has a limit). */
-const QUICK_LINT_MAX_FILES = 150;
+/**
+ * Changed file names longer than this, joined, lint the whole repo instead: the step runs through
+ * cmd.exe and npx.cmd or npm.cmd, which stop at 8191 characters (about 120 real paths).
+ */
+export const QUICK_LINT_MAX_CHARS = 6000;
+
+/** True when the file names fit on one command line. @param {string[]} files */
+const fitsCommandLine = files => files.join(' ').length <= QUICK_LINT_MAX_CHARS;
 
 /**
  * The lint steps of `green --quick` (CI found lint errors that the quick checks let through):
@@ -1002,7 +1008,7 @@ export function quickLintSteps(files, cwd) {
   const present = (/** @type {RegExp} */ re) =>
     files.filter(f => re.test(f) && isShellSafe(f) && fs.existsSync(path.join(cwd, f))).sort();
   const ts = present(/\.tsx?$/).filter(f => !f.endsWith('.d.ts'));
-  const lintAll = files.includes('eslint.config.mjs') || ts.length > QUICK_LINT_MAX_FILES;
+  const lintAll = files.includes('eslint.config.mjs') || !fitsCommandLine(ts);
   if (lintAll) {
     steps.push({ name: 'lint-changed', cmd: 'npm', args: ['run', 'lint'] });
   } else if (ts.length > 0) {
@@ -1013,7 +1019,7 @@ export function quickLintSteps(files, cwd) {
     });
   }
   const md = present(/\.md$/);
-  const docsAll = files.includes('.markdownlint-cli2.jsonc') || md.length > QUICK_LINT_MAX_FILES;
+  const docsAll = files.includes('.markdownlint-cli2.jsonc') || !fitsCommandLine(md);
   if (docsAll) {
     steps.push({ name: 'docs-lint-changed', cmd: 'npm', args: ['run', 'docs:lint'] });
   } else if (md.length > 0) {

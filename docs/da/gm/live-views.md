@@ -1,6 +1,6 @@
 ---
 source: gm/live-views.md
-sourceHash: a89545e1c19f
+sourceHash: 6b757bff9a9c
 title: Live-visningerne
 description: De tre måder at have combat-strippen ved siden af Foundry (Live screen, GM page, Live window), hvor knappen Live views er, og hvornår du bruger hvilken.
 ---
@@ -30,7 +30,7 @@ venstre og stripen til højre.
   med Foundry åbent i en anden fane er dit navn gråt i listen over brugere inde i siden.
 - Log ind inde i siden. Den gule besked "Can't see Foundry here?" øverst over Foundry forsvinder, når
   du er kommet ind.
-- Stripen kan højst fylde 28 procent af bredden. Træk i skillelinjen, eller brug piletasterne på den.
+- Stripen er 320 til 720 pixel bred, og Foundry beholder altid mindst 1024 pixel. Træk i skillelinjen, eller brug piletasterne på den.
   Strip right, Strip left og Foundry alone skifter uden at genindlæse Foundry. Dit valg bliver gemt.
 - Hvis Foundry ikke vil åbne inde i siden, tilbyder siden at åbne det i sin egen fane.
 - Dashboardet skal kende Foundrys adresse (`DASHBOARD_FOUNDRY_URL`). Gør det ikke det, siger menuen
@@ -43,4 +43,4 @@ Settings**, kategorien **Foundry AI Tool**, **AI Tool: Live window**. En knap **
 Hvis vinduet er tomt, siger det hvorfor og hvad der skal ændres; den sædvanlige årsag er indstillingen
 **AI Tool: Live window address**.
 
-Dashboardet kan ikke slå indstillingen til for dig, fordi den ligger i din Foundry-browser.
+Dashboardet har endnu ingen knap til den; slå den til i Foundry.

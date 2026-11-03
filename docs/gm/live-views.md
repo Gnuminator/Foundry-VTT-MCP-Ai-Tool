@@ -28,7 +28,7 @@ left, the strip on the right.
   already open in another tab your name is greyed out in the join list inside the page.
 - Join inside the page. The yellow note "Can't see Foundry here?" on top of Foundry goes away once you
   have joined.
-- The strip can take up to 28 percent of the width. Drag the divider, or use the arrow keys on it.
+- The strip is 320 to 720 pixels wide, and Foundry always keeps at least 1024 pixels. Drag the divider, or use the arrow keys on it.
   Strip right, Strip left and Foundry alone switch without reloading Foundry. Your choice is kept.
 - If Foundry will not open inside the page, the page offers to open it in its own tab.
 - The dashboard needs to know Foundry's address (`DASHBOARD_FOUNDRY_URL`). If it does not, the
@@ -41,4 +41,4 @@ Settings**, category **Foundry AI Tool**, **AI Tool: Live window**. A **Live** b
 group. If the window is empty, it says why and what to change; the usual cause is the setting **AI
 Tool: Live window address**.
 
-The dashboard cannot turn the setting on for you, because it is stored in your Foundry browser.
+The dashboard has no switch for it yet; turn it on in Foundry.

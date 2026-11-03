@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useId, useRef, useState, type JSX } from 'react';
 
-import { api } from '../lib/api';
+import { api, ApiError } from '../lib/api';
 import { useEscapeClose } from '../lib/escape';
 import { LIVE_SCREEN_HREF } from '../lib/liveScreen';
 import { Button } from '../ui';
@@ -21,7 +21,7 @@ export const LIVE_VIEWS = {
 } as const;
 
 export const NO_FOUNDRY_ADDRESS_NOTE =
-  'The dashboard does not know Foundry’s address yet (DASHBOARD_FOUNDRY_URL), so the GM page and the Live window cannot open Foundry here.';
+  'The dashboard does not know Foundry’s address yet (DASHBOARD_FOUNDRY_URL), so the GM page cannot show Foundry, and the Live window inside Foundry stays empty.';
 
 /**
  * The header's one Live views entry (live-views-find, gm-page-entry): Live screen, GM page and the
@@ -40,8 +40,11 @@ export function LiveViewsMenu(): JSX.Element {
     retry: false,
     staleTime: Infinity,
   });
-  const isGm = info.isSuccess;
-  const knowsFoundry = info.data?.foundryUrl != null;
+  // Only a refusal means "not the GM"; a restart or a bad gateway must not hide the rows for good.
+  const refused =
+    info.error instanceof ApiError && (info.error.status === 403 || info.error.status === 401);
+  const isGm = info.isSuccess || (info.isError && !refused);
+  const knowsFoundry = !info.isSuccess || info.data.foundryUrl != null;
 
   useEscapeClose(open, () => setOpen(false));
   useEffect(() => {

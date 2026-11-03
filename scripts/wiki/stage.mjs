@@ -112,6 +112,7 @@ const SIDEBAR = [
     pages: [
       'gm/dashboard',
       'gm/gm-windows',
+      'gm/live-views',
       'gm/features',
       'gm/asking-claude',
       'gm/gm-coach',

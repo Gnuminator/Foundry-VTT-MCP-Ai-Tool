@@ -13,7 +13,7 @@ const HOOK = path.join(path.dirname(fileURLToPath(import.meta.url)), 'context-st
 
 function fixture() {
   const root = mkdtempSync(path.join(os.tmpdir(), 'context-stop-test-'));
-  const env = { CONTEXT_ALERT_THRESHOLDS_FILE: path.join(root, 'none.json') };
+  const env = {};
   return { root, env, cleanup: () => rmSync(root, { recursive: true, force: true }) };
 }
 
@@ -70,7 +70,8 @@ test('above the out line: edits of repo files, Agent and repo-writing commands a
     ];
     for (const [tool, args] of denied) {
       const reason = decide(payload(file, tool, args), env);
-      assert.match(reason ?? '', /hand-over line \(400k\).*Hand over now/, tool);
+      assert.match(reason ?? '', /hand-over line \(250k\).*Hand over now/, tool);
+      assert.doesNotMatch(reason ?? '', /Planner/, tool);
     }
     const out = JSON.parse(run(payload(file, 'Edit', { file_path: inRepo('a.ts') }), env));
     assert.equal(out.hookSpecificOutput.permissionDecision, 'deny');
@@ -115,15 +116,15 @@ test('under the line, and after a compact, nothing is denied', () => {
   const { root, env, cleanup } = fixture();
   try {
     const args = { file_path: inRepo('a.ts') };
-    assert.equal(decide(payload(transcript(root, [380_000, 390_000]), 'Edit', args), env), null);
+    assert.equal(decide(payload(transcript(root, [230_000, 240_000]), 'Edit', args), env), null);
     assert.ok(
-      decide(payload(transcript(root, [380_000, 405_000], 'a.jsonl'), 'Edit', args), env) === null
+      decide(payload(transcript(root, [230_000, 255_000], 'a.jsonl'), 'Edit', args), env) === null
     );
-    assert.ok(decide(payload(transcript(root, [405_000, 410_000], 'b.jsonl'), 'Edit', args), env));
+    assert.ok(decide(payload(transcript(root, [255_000, 260_000], 'b.jsonl'), 'Edit', args), env));
     // after /compact the context falls and the deny lifts
     assert.equal(
       decide(
-        payload(transcript(root, [405_000, 410_000, 90_000, 95_000], 'c.jsonl'), 'Edit', args),
+        payload(transcript(root, [255_000, 260_000, 90_000, 95_000], 'c.jsonl'), 'Edit', args),
         env
       ),
       null
@@ -133,29 +134,21 @@ test('under the line, and after a compact, nothing is denied', () => {
   }
 });
 
-test('a doubled phantom reading never stops a session; the low-mode file sets the line', () => {
+test('a doubled phantom reading never stops a session', () => {
   const { root, env, cleanup } = fixture();
   try {
     const args = { file_path: inRepo('a.ts') };
-    // Real triple 161,654 / 327,920 / 164,453 against the low-mode out line of 250k.
-    const lowFile = path.join(root, 'th.json');
-    writeFileSync(lowFile, JSON.stringify({ plan: 200_000, out: 250_000 }));
-    const low = { CONTEXT_ALERT_THRESHOLDS_FILE: lowFile };
+    // Real triple 161,654 / 327,920 / 164,453 against the out line of 250k.
     for (const [i, seq] of [
       [161_654, 327_920],
       [327_920, 164_453],
       [161_654, 327_920, 164_453],
     ].entries()) {
-      assert.equal(decide(payload(transcript(root, seq, `p${i}.jsonl`), 'Edit', args), low), null);
+      assert.equal(decide(payload(transcript(root, seq, `p${i}.jsonl`), 'Edit', args), env), null);
     }
     // Two big responses in a row are real.
     assert.ok(
-      decide(payload(transcript(root, [255_000, 262_000], 'real.jsonl'), 'Edit', args), low)
-    );
-    // The same phantom is also no reason to stop at the default 400k line.
-    assert.equal(
-      decide(payload(transcript(root, [200_000, 420_000], 'q.jsonl'), 'Edit', args), env),
-      null
+      decide(payload(transcript(root, [255_000, 262_000], 'real.jsonl'), 'Edit', args), env)
     );
   } finally {
     cleanup();

@@ -89,7 +89,7 @@ jobs:
         run: node --test scripts/test-env/foundry-frame-proxy.test.mjs
 
       - name: Context alert hook
-        # .claude/hooks/context-alert.mjs (D-122): one line at the 350k and 400k handover marks, and
+        # .claude/hooks/context-alert.mjs (D-122): one line at the 200k and 250k handover marks, and
         # context-stop.mjs: the hard stop above the out line. Both ignore doubled phantom readings.
         run: node --test .claude/hooks/context-alert.test.mjs .claude/hooks/context-stop.test.mjs
 

@@ -18,7 +18,7 @@ og bogteksten, så den bliver på din pc. Spillerne får deres egne vaults uden 
   quests, story items og session notes. Værktøjet laver den én gang og omskriver den aldrig, efter
   du har redigeret den. Knappen 📓 ved siden af Start session i dashboardet åbner den.
 - **AI Tool-mappen:** noter, værktøjet skriver. Karakterer, NPC'er, scenes, journals, quests,
-  Library (monstre, spells, regler), session notes og statistik, og under `Everyone` én note pr.
+  Library (monsters, spells, regler), session notes og statistik, og under `Everyone` én note pr.
   dag med hver ændring, som spillerne, du og AI'en lavede i Foundry (hvem, hvornår, hvad. Fortryd i
   dashboardet, ikke her). Værktøjet omskriver disse, så planlæg ikke dit spil i dem. En note, du
   har redigeret, bliver liggende og står i `_status.md`. En redigeret dagsnote under `Everyone`
@@ -35,10 +35,10 @@ dukkede op, nyeste først, hver et link til sessionsnoten. Den kommer fra det, F
 ved bordet, så den kræver ingen opsætning og gætter aldrig ud fra navne. Kun det, spillerne så,
 tæller: der bliver intet listet, mens ingen spiller er forbundet (din forberedelse, at lave NPC'er
 og at placere tokens tæller aldrig). En NPC tæller, når den rullede, talte, brugte noget, blev
-ramt eller helbredt, tog sin tur i combat, eller havde en synlig token på den aktive scene, da du
+ramt eller helbredt, tog sin turn i combat, eller havde en synlig token på den aktive scene, da du
 aktiverede den, eller en spiller kom ind. Hvad der sker med en skjult token (damage, conditions,
-dens tur i combat), et hvisket eller blindt slag og en scene, du kun forhåndsviste, tæller ikke. Et
-offentligt slag fra en skjult NPC gør, fordi spillerne læser det i chatten. Spillere, der kom ind,
+dens turn i combat), et hvisket eller blindt roll og en scene, du kun forhåndsviste, tæller ikke. Et
+offentligt roll fra en skjult NPC gør, fordi spillerne læser det i chatten. Spillere, der kom ind,
 før du markerede sessionens start, tæller stadig. Egenskaben `last_seen` har datoen for den nyeste
 session, til at sortere efter i en Base. En spillerkarakter har ingen liste, fordi dens stats-note
 siger det hele.
@@ -98,7 +98,7 @@ der ikke ligger i nogen eventyrmappe i Foundry, står under **Without an adventu
 dem flyder løst. Hver dags ændringer er også linket fra kampagnens Home.
 
 For at farve eventyrene trykker du Ctrl+P og kører **Apply AI Tool graph colours**. Hvis Library
-(spells, monstre, items, bøger) fylder for meget i grafen, så kør **Hide the Library in the graph**.
+(spells, monsters, items, bøger) fylder for meget i grafen, så kør **Hide the Library in the graph**.
 **Show the Library in the graph** sætter den tilbage. Begge knapper er også i pluginets
 indstillinger. De ændrer kun grafens farvegrupper og ét søgeudtryk, og dine egne grupper og din
 egen søgetekst bliver stående.

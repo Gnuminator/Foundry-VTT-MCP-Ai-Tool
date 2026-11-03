@@ -76,6 +76,10 @@ export interface RollBreakdown {
   parts: RollBreakdownPart[];
   /** The kept natural d20 result, for d20 rolls. */
   natural?: number;
+  /** The d20s that did not count (the lower one on advantage), for the roll box. */
+  droppedD20?: number[];
+  /** `advantage` or `disadvantage` when the roll was made with one. */
+  advantage?: 'advantage' | 'disadvantage';
   actorName: string;
   total: number;
   /** Target AC (attacks) or DC (saves/checks), when the roll carries one. */
@@ -515,6 +519,12 @@ export function describeRoll(
       detailPlayerSafe,
     };
     if (natural !== undefined) breakdown.natural = natural;
+    const d20Part = parts.find(p => p.kind === 'dice' && /d20/.test(p.formula));
+    if (d20Part?.kind === 'dice' && d20Part.dropped && d20Part.dropped.length > 0) {
+      breakdown.droppedD20 = d20Part.dropped;
+    }
+    if (advantageMode === 1) breakdown.advantage = 'advantage';
+    else if (advantageMode === -1) breakdown.advantage = 'disadvantage';
     if (dc !== undefined) breakdown.dc = dc;
     if (outcome !== undefined) breakdown.outcome = outcome;
     return breakdown;

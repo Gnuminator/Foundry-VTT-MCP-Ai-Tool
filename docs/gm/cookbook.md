@@ -72,8 +72,8 @@ set says so.
 
 - **Say:** "Find three undead of CR 1 to 3 in my compendiums for four level 3 characters. A table
   with name, CR and why it fits."
-- **What happens:** Claude searches your compendiums (`search-compendium`, `list-creatures-by-criteria`
-  in the **build** set).
+- **What happens:** Claude searches your compendiums (`search-compendium` is always on, `list-creatures-by-criteria`
+  is in the **build** set).
 - **Tip:** to put one in the world, switch **build** on and ask: "Add a Ghoul from the compendium
   to the world. Show me first."
 

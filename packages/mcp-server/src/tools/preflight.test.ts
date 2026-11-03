@@ -38,6 +38,7 @@ interface Setup {
   vaultDirSet?: boolean;
   paperNights?: Array<{ date: string; startedAt: string }>;
   paperNightsError?: string;
+  wrappers?: Array<{ version: string | null; sets: string }>;
 }
 
 function tools(setup: Setup = {}): { tools: PreflightTools; query: ReturnType<typeof vi.fn> } {
@@ -87,6 +88,11 @@ function tools(setup: Setup = {}): { tools: PreflightTools; query: ReturnType<ty
     obsidianVaultDirSet: setup.vaultDirSet ?? true,
     logger: logger(),
     bridgeVersion: '1.2.3',
+    wrapperStatus: () => ({
+      current: '1.2.3',
+      wrappers: setup.wrappers ?? [],
+      behind: (setup.wrappers ?? []).some(w => w.version !== '1.2.3'),
+    }),
   };
   return { tools: new PreflightTools(options), query };
 }
@@ -108,6 +114,7 @@ describe('get-preflight', () => {
     expect(result.checks.map(c => c.id)).toEqual([
       'foundry-link',
       'versions',
+      'wrapper',
       'write-switches',
       'world-settings',
       'visible-names',
@@ -160,6 +167,22 @@ describe('get-preflight', () => {
       {}
     )) as PreflightChecksResult;
     expect(byId(result)['play-session']?.status).toBe('info');
+  });
+
+  it('warns when a Claude Desktop connector is older or sends no version', async () => {
+    const ok = (await tools({
+      wrappers: [{ version: '1.2.3', sets: 'core' }],
+    }).tools.handleGetPreflight({})) as PreflightChecksResult;
+    expect(byId(ok).wrapper?.status).toBe('ok');
+    const old = (await tools({
+      wrappers: [
+        { version: '1.2.3', sets: 'core' },
+        { version: null, sets: 'unknown' },
+      ],
+    }).tools.handleGetPreflight({})) as PreflightChecksResult;
+    expect(byId(old).wrapper).toMatchObject({ status: 'warn' });
+    expect(byId(old).wrapper?.detail).toContain('installer');
+    expect(old.ready).toBe(true);
   });
 
   it('fails on a version mismatch and names both versions', async () => {

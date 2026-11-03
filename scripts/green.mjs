@@ -18,9 +18,9 @@
  *   npm run green -- --quick            typecheck, lint and unit tests of what changed vs aitool/main, no heavy lock
  *
  * The steps run in the repository the command is started in (the git top level of the current
- * directory). On Windows, when this process is not Node 22 (the global Node 24 crashes natively
- * in the socket tests), every step runs with the portable Node 22 first on PATH (see
- * portableNode22Dir). scripts/green.test.mjs compares the list below with ci.yml: a CI command that is
+ * directory). On Windows, when this process is older than Node 24.22 (Node 24.15 crashes natively
+ * in the socket tests), every step runs with the portable Node 24 first on PATH (see
+ * portableNodeDir). scripts/green.test.mjs compares the list below with ci.yml: a CI command that is
  * neither covered by a step nor in CI_ONLY (with a reason) fails the test, which keeps green and CI
  * in step.
  */
@@ -140,7 +140,7 @@ export const STEPS = [
   { name: 'gm-coach-build', cmd: 'node', args: ['tools/gm-coach/build.mjs'] },
   { name: 'build', cmd: 'npm', args: ['run', 'build'] },
   {
-    // CI runs this on Node 22 only; green is run on Node 22.
+    // CI runs this on Node 24 only; green is run on Node 24.
     name: 'bundle-budget',
     cmd: 'npm',
     args: ['run', 'bundle:budget', '-w', '@gnuminator/cogm-dashboard'],
@@ -541,25 +541,36 @@ export function isEntryModule(argv1, self) {
 }
 
 /**
- * The folder of the newest portable Node 22 (`%LOCALAPPDATA%\node22\node-v22.*`, the toolchain the
+ * True when `version` (for example "24.22.2") is Node 24.22 or newer, the first line that does not
+ * crash natively on Windows in the dashboard socket tests.
+ * @param {string} version
+ */
+function isSafeNode(version) {
+  const [major = 0, minor = 0] = version.split('.').map(Number);
+  return major > 24 || (major === 24 && minor >= 22);
+}
+
+/**
+ * The folder of the newest portable Node 24 (`%LOCALAPPDATA%\node24\node-v24.*`, the toolchain the
  * project uses on Windows), or null. Node 24.15 on Windows crashes natively (exit code 0xC0000409,
  * no message) in 20 to 40 percent of the co-GM dashboard socket test runs, which showed up as
- * vitest "Channel closed" on the fork pool; the same tests passed 60 of 60 runs on Node 22.22.2.
- * @param {{ platform?: string, localAppData?: string, major?: number,
+ * vitest "Channel closed" on the fork pool; Node 24.22.2 passed 15 of 15 runs. The pin is skipped
+ * when this process is already Node 24.22 or newer.
+ * @param {{ platform?: string, localAppData?: string, version?: string,
  *   readdir?: (dir: string) => string[], exists?: (file: string) => boolean }} [o]
- * @returns {string | null} the folder to put first on PATH, or null (not Windows, already Node 22,
- *   or no portable Node 22 found)
+ * @returns {string | null} the folder to put first on PATH, or null (not Windows, already Node 24.22+,
+ *   or no portable Node 24 found)
  */
-export function portableNode22Dir(o = {}) {
+export function portableNodeDir(o = {}) {
   const {
     platform = process.platform,
     localAppData = process.env.LOCALAPPDATA,
-    major = Number(process.versions.node.split('.')[0]),
+    version: currentVersion = process.versions.node,
     readdir = (/** @type {string} */ d) => fs.readdirSync(d),
     exists = (/** @type {string} */ f) => fs.existsSync(f),
   } = o;
-  if (platform !== 'win32' || major === 22 || !localAppData) return null;
-  const root = path.join(localAppData, 'node22');
+  if (platform !== 'win32' || isSafeNode(currentVersion) || !localAppData) return null;
+  const root = path.join(localAppData, 'node24');
   let names;
   try {
     names = readdir(root);
@@ -568,7 +579,7 @@ export function portableNode22Dir(o = {}) {
   }
   const version = (/** @type {string} */ n) => n.split('-')[1]?.split('.').map(Number) ?? [];
   const newest = names
-    .filter(n => /^node-v22\.\d+\.\d+-win-x64$/.test(n))
+    .filter(n => /^node-v24\.\d+\.\d+-win-x64$/.test(n))
     .sort((a, b) => {
       const [x, y] = [version(a), version(b)];
       return (y[1] ?? 0) - (x[1] ?? 0) || (y[2] ?? 0) - (x[2] ?? 0);
@@ -577,44 +588,43 @@ export function portableNode22Dir(o = {}) {
   return newest ? path.join(root, newest) : null;
 }
 
-const NODE22_DIR = portableNode22Dir();
+const PORTABLE_NODE_DIR = portableNodeDir();
 
 /**
- * The environment for the steps: `base`, with the portable Node 22 first on PATH when `node22Dir` is set.
+ * The environment for the steps: `base`, with the portable Node 24 first on PATH when `nodeDir` is set.
  * Every PATH key is dropped and one is set (a parent that is an MSYS or Cygwin process can hand over both
  * `PATH` and `Path`, and Windows would then pick one of them, which could be the one without the pin).
- * @param {Record<string, string | undefined>} base @param {string | null} node22Dir
+ * @param {Record<string, string | undefined>} base @param {string | null} nodeDir
  * @param {string} [delimiter]
  */
-export function stepEnvironment(base, node22Dir, delimiter = path.delimiter) {
+export function stepEnvironment(base, nodeDir, delimiter = path.delimiter) {
   const env = { ...base };
-  if (!node22Dir) return env;
+  if (!nodeDir) return env;
   const keys = Object.keys(env).filter(k => k.toLowerCase() === 'path');
   const key = keys[0] ?? 'PATH';
   const old = env[key] ?? '';
   for (const k of keys) delete env[k];
-  env[key] = `${node22Dir}${delimiter}${old}`;
+  env[key] = `${nodeDir}${delimiter}${old}`;
   return env;
 }
 
 /**
  * The one line that says which Node the steps run on (Windows only, where the pin matters), or null.
- * Without it a missing portable Node 22 silently brings the native crashes back looking like flakes.
- * @param {{ platform?: string, major?: number, version?: string, dir?: string | null }} [o]
+ * Without it a missing portable Node 24 silently brings the native crashes back looking like flakes.
+ * @param {{ platform?: string, version?: string, dir?: string | null }} [o]
  * @returns {string | null}
  */
 export function nodeNote(o = {}) {
   const {
     platform = process.platform,
-    major = Number(process.versions.node.split('.')[0]),
     version = process.versions.node,
-    dir = NODE22_DIR,
+    dir = PORTABLE_NODE_DIR,
   } = o;
   if (platform !== 'win32') return null;
-  if (dir) return `green: steps on Node 22 (${dir})`;
-  return major === 22
+  if (dir) return `green: steps on Node 24 (${dir})`;
+  return isSafeNode(version)
     ? `green: steps on Node ${version}`
-    : `green: no portable Node 22 found; steps run on Node ${version}`;
+    : `green: no portable Node 24 found; steps run on Node ${version}`;
 }
 
 /**
@@ -630,7 +640,7 @@ function spawnStep(step, fd, cwd) {
       shell: true,
       stdio: ['ignore', fd, fd],
       env: {
-        ...stepEnvironment(process.env, NODE22_DIR),
+        ...stepEnvironment(process.env, PORTABLE_NODE_DIR),
         FORCE_COLOR: '0',
         NO_COLOR: '1',
         ...((step.name === 'e2e' || step.name === 'e2e-specs') && !process.env.E2E_PORT

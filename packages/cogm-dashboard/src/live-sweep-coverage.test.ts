@@ -18,7 +18,7 @@ const RECORDED_SKIPS: Record<string, string> = {
   'plan-table-viewer':
     'creates a Foundry user; checked by hand on server A (plan, apply, join as Table, undo), see the PR',
   'plan-foundry-setup':
-    'ships off behind the "Foundry setup" switch (D-135); checked by hand on a test server (hide a pack from players, change and restore a setting, undo each, a refused secret), see the PR',
+    'ships off behind the "Foundry setup" switch (D-135); checked by hand on a test server (hide a pack from players, change and restore a setting, undo each, a refused value outside the choices, a refused Assistant GM downgrade), see the PR',
   'plan-npc-turn':
     'ships off behind the "NPC turn assistant" switch (I-125); checked by hand on server A (small combat: read, plan a move, apply, undo), see the PR',
   'plan-paper-sync':

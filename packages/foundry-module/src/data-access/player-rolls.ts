@@ -140,10 +140,9 @@ export class PlayerRollsDataAccess {
 
       // The heading carries the DC; the tool and the dashboard fold "DC n" into the flavor too, so
       // a trailing one is dropped here and the card shows it once.
-      const cardFlavor =
-        data.dc != null
-          ? data.flavor.replace(/[\s,;.–—-]*\bDC\s*\d+\s*$/i, '').trim()
-          : data.flavor;
+      const dashes = String.fromCharCode(0x2013, 0x2014);
+      const trailingDc = new RegExp(`[\\s,;.${dashes}-]*\\bDC\\s*\\d+\\s*$`, 'i');
+      const cardFlavor = data.dc != null ? data.flavor.replace(trailingDc, '').trim() : data.flavor;
 
       const rollButtonHtml = `
         <div class="mcp-roll-request">

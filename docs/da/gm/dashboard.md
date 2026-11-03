@@ -1,6 +1,6 @@
 ---
 source: gm/dashboard.md
-sourceHash: cf7f7afda549
+sourceHash: 3eec2a8d8873
 title: Dashboardet
 description: En rundtur i alle paneler og knapper på dashboardet, hvad de gør, og hvornår du bruger dem.
 ---
@@ -631,7 +631,7 @@ Gruppen med et blik, fra dnd5e Group-actoren. Foundry laver gruppen af sig selv:
 primært party (en Group-actor, der hedder "Party") og lægger hver karakter, en spiller ejer, ind i
 det, så der er intet at sætte op. NPC'er og actors, ingen spiller ejer, bliver udenfor. Hvert
 parti tilføjelser står i Recent Changes med Undo; vil du have en ældre karakter ud, så fjern den på
-party-arket (den bliver udenfor). Vil du styre gruppen selv, så slå "AI Tool: Add player
+party-arket (den bliver udenfor dette party). Et party, du sletter, bliver lavet igen, næste gang en karakter tilføjes, eller verdenen indlæses. Vil du styre gruppen selv, så slå "AI Tool: Add player
 characters to the party" fra i modulets indstillinger. Med mere end én Group-actor vælger en liste
 øverst, hvilken.
 

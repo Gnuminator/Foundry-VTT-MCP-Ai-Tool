@@ -61,20 +61,29 @@ export function registerPartyAutoSettings(): void {
     scope: 'world',
     config: false,
     type: Object,
-    default: { ids: [] },
+    default: { parties: {} },
   });
 }
 
-/** The ids already added to the party `partyId`; a different party (a new one) starts empty. */
-function doneIds(partyId: string | undefined): Set<string> {
+/** The stored lists, one per party id (an older single `{ partyId, ids }` list reads as one entry). */
+function storedParties(): Record<string, string[]> {
   try {
     const stored = rec(game.settings.get(MODULE_ID, PARTY_AUTO_DONE_SETTING));
-    if (stored?.partyId !== partyId) return new Set();
-    const ids = stored?.ids;
-    return new Set(Array.isArray(ids) ? ids.filter((i): i is string => typeof i === 'string') : []);
+    const out: Record<string, string[]> = {};
+    const strings = (v: unknown): string[] =>
+      Array.isArray(v) ? v.filter((i): i is string => typeof i === 'string') : [];
+    const parties = rec(stored?.parties);
+    if (parties) for (const [id, ids] of Object.entries(parties)) out[id] = strings(ids);
+    else if (typeof stored?.partyId === 'string') out[stored.partyId] = strings(stored.ids);
+    return out;
   } catch {
-    return new Set();
+    return {};
   }
+}
+
+/** The ids already added to the party `partyId`; a party never seen before starts empty. */
+function doneIds(partyId: string | undefined): Set<string> {
+  return new Set((partyId && storedParties()[partyId]) || []);
 }
 
 /** Whether the GM left it on. A setting that is not registered counts as off. */
@@ -123,11 +132,18 @@ function primaryParty(): GroupLike | null {
 }
 
 /**
- * A group the GM made and never set as primary, which is safe to adopt: the only group there is,
- * holding only player characters (or nobody), and not a sweep fixture.
+ * A group that is safe to adopt as the primary party: one this module filled before (the GM took
+ * its primary mark away), else the only group there is, holding only player characters (or
+ * nobody), and not a sweep fixture.
  */
 function adoptableGroup(): GroupLike | null {
   const groups = contentsOf(rec(gameRec()?.actors)).filter(a => rec(a)?.type === 'group');
+  const known = storedParties();
+  const earlier = groups.find(a => {
+    const id = rec(a)?.id;
+    return typeof id === 'string' && id in known;
+  });
+  if (earlier) return rec(earlier);
   if (groups.length !== 1) return null;
   const group = groups[0] as GroupLike & { name?: string };
   if (String(group.name ?? '').startsWith('AI Tool Sweep')) return null;
@@ -211,10 +227,14 @@ async function doSync(): Promise<string[]> {
     await party.update({ 'system.members': next });
     changeJournal.breakGroup();
   }
-  await game.settings.set(MODULE_ID, PARTY_AUTO_DONE_SETTING, {
-    partyId: party.id,
-    ids: [...done],
-  });
+  // No write (and no broadcast to every client) when nothing changed.
+  const parties = storedParties();
+  const before = party.id ? parties[party.id] : undefined;
+  if (party.id && before?.length !== done.size) {
+    await game.settings.set(MODULE_ID, PARTY_AUTO_DONE_SETTING, {
+      parties: { ...parties, [party.id]: [...done] },
+    });
+  }
   return fresh.map(a => String(rec(a)?.name ?? rec(a)?.id));
 }
 

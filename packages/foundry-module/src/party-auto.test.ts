@@ -57,7 +57,7 @@ function makeGroup(id: string): any {
 }
 
 function install(contents: Fake[], withParty: boolean): void {
-  done = { ids: [] };
+  done = { parties: {} };
   created = [];
   primarySet = [];
   updates = [];
@@ -92,6 +92,8 @@ function install(contents: Fake[], withParty: boolean): void {
   };
 }
 
+const doneFor = (id: string): string[] =>
+  (done as { parties: Record<string, string[]> }).parties[id] ?? [];
 const memberIdsOf = (): string[] => party.system.members.map((m: any) => m.actor.id);
 
 beforeEach(() => {
@@ -192,7 +194,7 @@ describe('party auto', () => {
     party.system.members = [{ actor: hero }];
     expect(await syncParty()).toEqual([]);
     expect(updates).toHaveLength(0);
-    expect((done as { ids: string[] }).ids).toEqual(['a1']);
+    expect(doneFor('g1')).toEqual(['a1']);
   });
 
   it('makes a deleted party again and fills it', async () => {
@@ -203,6 +205,49 @@ describe('party auto', () => {
     expect(await syncParty()).toEqual(['Hero', 'Cleric']);
     expect(created).toHaveLength(1);
     expect(memberIdsOf()).toEqual(['a1', 'a2']);
+  });
+
+  it('remembers removals per party, so switching the primary and back keeps them out', async () => {
+    install([hero, cleric], true);
+    await syncParty();
+    party._source.system.members = [{ actor: 'a2' }];
+    party.system.members = [{ actor: cleric }];
+    const first = party;
+    actors.party = makeGroup('g2');
+    expect(await syncParty()).toEqual(['Hero', 'Cleric']);
+    actors.party = first;
+    expect(await syncParty()).toEqual([]);
+    expect(memberIdsOf()).toEqual(['a2']);
+  });
+
+  it('reads the older single-party list', async () => {
+    install([hero, cleric], true);
+    done = { partyId: 'g1', ids: ['a1'] };
+    expect(await syncParty()).toEqual(['Cleric']);
+    expect(doneFor('g1')).toEqual(['a1', 'a2']);
+  });
+
+  it('writes the list only when it changed', async () => {
+    install([hero], true);
+    await syncParty();
+    const set = g.game.settings.set as ReturnType<typeof vi.fn>;
+    set.mockClear();
+    await syncParty();
+    expect(set).not.toHaveBeenCalled();
+  });
+
+  it('takes a group it filled before as primary again instead of making a second one', async () => {
+    install([hero], true);
+    await syncParty();
+    actors.party = null;
+    actors.contents = [
+      hero,
+      party,
+      { id: 'g9', type: 'group', name: 'Split', system: { members: [] } },
+    ];
+    await syncParty();
+    expect(created).toHaveLength(0);
+    expect(primarySet).toHaveLength(1);
   });
 
   it('breaks the change group around the write', async () => {
@@ -217,7 +262,7 @@ describe('party auto', () => {
     install([hero], true);
     party.update.mockRejectedValueOnce(new Error('no'));
     await expect(syncParty()).rejects.toThrow('no');
-    expect((done as { ids: string[] }).ids).toEqual([]);
+    expect(doneFor('g1')).toEqual([]);
     expect(await syncParty()).toEqual(['Hero']);
   });
 

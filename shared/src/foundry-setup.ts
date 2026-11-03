@@ -1,0 +1,32 @@
+/**
+ * Foundry setup with undo (D-135): `plan-foundry-setup` (admin set) reads and plans changes to a
+ * world or client setting, a compendium pack's configuration (who may open it, locked, folder),
+ * and (later) modules on or off and user roles. Each is a guarded update of a pseudo uuid the
+ * module understands (`module: data-access/virtual-targets.ts`), so plan, confirm, undo, the
+ * conflict check and Recent Changes work as for any document.
+ */
+
+/** The guarded feature switch ("AI Tool: Foundry setup (writes)"), off by default. */
+export const FOUNDRY_SETUP_FEATURE_ID = 'foundry-setup';
+
+/** `GameSetting.<namespace>.<key>`: the target of a setting change; the path `value` is the value. */
+export const SETTING_UUID_PREFIX = 'GameSetting.';
+/** `PackConfig.<packId>`: the target of a pack's configuration; paths `ownership`, `locked`, `folder`. */
+export const PACK_UUID_PREFIX = 'PackConfig.';
+
+export const MODULE_CONFIG_SETTING = 'core.moduleConfiguration';
+
+/** What `plan-foundry-setup` can read and change. */
+export const FOUNDRY_SETUP_AREAS = ['setting', 'pack'] as const;
+export type FoundrySetupArea = (typeof FOUNDRY_SETUP_AREAS)[number];
+
+export const FOUNDRY_SETUP_MODES = ['read', 'plan'] as const;
+export type FoundrySetupMode = (typeof FOUNDRY_SETUP_MODES)[number];
+
+/** The roles a compendium pack's ownership is set for, as Foundry stores them. */
+export const PACK_OWNERSHIP_ROLES = ['PLAYER', 'TRUSTED', 'ASSISTANT'] as const;
+export type PackOwnershipRole = (typeof PACK_OWNERSHIP_ROLES)[number];
+
+/** A pack's ownership levels (`CONST.DOCUMENT_OWNERSHIP_LEVELS` names). */
+export const PACK_OWNERSHIP_LEVELS = ['NONE', 'LIMITED', 'OBSERVER', 'OWNER'] as const;
+export type PackOwnershipLevel = (typeof PACK_OWNERSHIP_LEVELS)[number];

@@ -150,7 +150,7 @@ export const TOOL_SETS: Readonly<Record<ToolSetName, ToolSetSpec>> = {
   admin: {
     title: 'Admin',
     purpose:
-      'Set up and troubleshoot: installed modules and their errors, who owns which actor, and the Obsidian mirror settings.',
+      'Set up and troubleshoot: installed modules and their errors, Foundry settings and who can open a compendium pack, who owns which actor, and the Obsidian mirror settings.',
     tools: [
       'get-modules',
       'get-module-errors',
@@ -159,6 +159,7 @@ export const TOOL_SETS: Readonly<Record<ToolSetName, ToolSetSpec>> = {
       'list-actor-ownership',
       'plan-ownership-change',
       'plan-table-viewer',
+      'plan-foundry-setup',
       'get-obsidian-mirror',
       'plan-obsidian-mirror',
     ],

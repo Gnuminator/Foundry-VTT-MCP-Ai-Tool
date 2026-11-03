@@ -33,6 +33,7 @@ import type { NpcTurnTools } from './tools/npc-turn.js';
 import type { PaperSyncTools } from './tools/paper-sync.js';
 import type { RoomSetupTools } from './tools/room-setup.js';
 import type { TableViewerTools } from './tools/table-viewer.js';
+import type { FoundrySetupTools } from './tools/foundry-setup.js';
 import type { PlaySessionTools } from './tools/play-session.js';
 import type { PlayStatsTools } from './tools/play-stats.js';
 import type { PlayerViewTools } from './tools/player-view.js';
@@ -82,6 +83,7 @@ export interface ToolRouterDeps {
   sceneMoodTools: SceneMoodTools;
   rulesCheckTools: RulesCheckTools;
   tableViewerTools: TableViewerTools;
+  foundrySetupTools: FoundrySetupTools;
   partyTools: PartyTools;
   playSessionTools: PlaySessionTools;
   playStatsTools: PlayStatsTools;
@@ -226,6 +228,7 @@ export function buildToolRouter(deps: ToolRouterDeps): Record<string, ToolHandle
     'list-scene-moods': args => deps.sceneMoodTools.handleToolCall('list-scene-moods', args),
     'check-action': args => deps.rulesCheckTools.handleToolCall('check-action', args),
     'plan-table-viewer': args => deps.tableViewerTools.handleToolCall('plan-table-viewer', args),
+    'plan-foundry-setup': args => deps.foundrySetupTools.handleToolCall('plan-foundry-setup', args),
     'plan-scene-restore': args => deps.sceneRestoreTools.handleToolCall('plan-scene-restore', args),
     'plan-npc-turn': args => deps.npcTurnTools.handleToolCall('plan-npc-turn', args),
     'plan-paper-sync': args => deps.paperSyncTools.handleToolCall('plan-paper-sync', args),
@@ -275,6 +278,7 @@ export function collectToolDefinitions(deps: ToolRouterDeps): ToolDefinitionLike
     ...deps.sceneMoodTools.getToolDefinitions(),
     ...deps.rulesCheckTools.getToolDefinitions(),
     ...deps.tableViewerTools.getToolDefinitions(),
+    ...deps.foundrySetupTools.getToolDefinitions(),
     ...deps.tokenManipulationTools.getToolDefinitions(),
     ...deps.chatLogTools.getToolDefinitions(),
     ...deps.resourceTools.getToolDefinitions(),

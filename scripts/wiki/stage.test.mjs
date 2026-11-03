@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { gmLinks } from './check-sides.mjs';
 // The wiki workflow runs only this file: pull in the Danish twin tests with it.
@@ -275,4 +276,21 @@ test('toSite labels Danish GM pages and chips a Danish time in a heading', () =>
   assert.ok(out.includes('<p class="audience audience-gm">Til GM\'en</p>'));
   assert.ok(out.includes('## Skærmen <span class="chip">(ca. 20 minutter)</span>'));
   assert.ok(!toSite('---\ntitle: T\n---\n', 'da/player/join.md').includes('audience'));
+});
+
+test('the wiki workflow pins a Node that Astro accepts (docs/wiki engines)', () => {
+  const read = (/** @type {string} */ p) =>
+    readFileSync(new URL(`../../${p}`, import.meta.url), 'utf8');
+  const engines = JSON.parse(read('docs/wiki/package.json')).engines.node;
+  const min = /^>=(\d+)\.(\d+)\.(\d+)$/.exec(engines);
+  assert.ok(min, `docs/wiki engines.node is ${engines}, expected >=x.y.z`);
+  const pins = [...read('.github/workflows/wiki.yml').matchAll(/node-version:\s*'([^']*)'/g)];
+  assert.equal(pins.length, 1, 'wiki.yml has one setup-node');
+  // An exact version: a bare '22' let some runners take 22.23.3, below Astro's floor.
+  const pin = /^(\d+)\.(\d+)\.(\d+)$/.exec(pins[0][1]);
+  assert.ok(pin, `wiki.yml node-version '${pins[0][1]}' is not an exact x.y.z`);
+  const num = (/** @type {RegExpExecArray} */ m) => [1, 2, 3].map(i => Number(m[i]));
+  const [a, b] = [num(pin), num(min)];
+  const cmp = a[0] - b[0] || a[1] - b[1] || a[2] - b[2];
+  assert.ok(cmp >= 0, `wiki.yml pins Node ${pins[0][1]}, below docs/wiki ${engines}`);
 });

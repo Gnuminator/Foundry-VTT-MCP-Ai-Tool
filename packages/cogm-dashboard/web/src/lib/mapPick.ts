@@ -8,6 +8,11 @@ import { useSyncExternalStore } from 'react';
 export const LIVE_PICK_MESSAGE = 'fmb-live-pick';
 /** The `type` the strip page posts to its parent once it listens. */
 export const LIVE_READY_MESSAGE = 'fmb-live-ready';
+/**
+ * The `type` the Foundry module posts, no data, to the window that frames or opened it when its
+ * relay starts: the GM page answers with a ready, so the module learns the page's origin.
+ */
+export const LIVE_HELLO_MESSAGE = 'fmb-live-hello';
 /** More ids than a fight can hold are noise. */
 const MAX_IDS = 200;
 

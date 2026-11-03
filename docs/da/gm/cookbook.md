@@ -1,6 +1,6 @@
 ---
 source: gm/cookbook.md
-sourceHash: 248bf79ba945
+sourceHash: 8885ca2877f1
 title: Cookbook
 description: Færdige forespørgsler og klik til GM'en, grupperet efter det øjeblik du har brug for dem (før, under og efter en session), med hvad der sker og ét tip til hver.
 ---

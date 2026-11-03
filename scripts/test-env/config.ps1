@@ -190,7 +190,7 @@ function Get-NodeExe {
     if ($portable) { return Join-Path $portable.FullName 'node.exe' }
   }
   $node = Get-Command node -ErrorAction SilentlyContinue
-  if (-not $node) { throw 'Node.js not found (need 22+; Foundry 14 needs 24).' }
+  if (-not $node) { throw 'Node.js not found (need 24+; install portable Node 24.22 or newer in %LOCALAPPDATA%\node24).' }
   return $node.Source
 }
 

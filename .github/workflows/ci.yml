@@ -588,6 +588,13 @@ jobs:
           PI_STAGE13_CONTAINER: 1
         run: node --test scripts/pi/player-creation.test.mjs
 
+      - name: Pi stage 22 in an ARM64 container
+        # scripts/pi/container-test/stage22-scenarios.sh: the seven-book trim stage's checks in front of gm-script.sh
+        # (dry run first, the wrong world, players online, the delete needing the user's OK).
+        env:
+          PI_STAGE22_CONTAINER: 1
+        run: node --test scripts/pi/seven-books.test.mjs
+
       - name: Pi kit session in an ARM64 container
         # scripts/pi/container-test/kit-session-scenarios.sh: MODE=up and MODE=down on Debian 13 ARM64 with stand-ins
         # for systemd (the refusals, a failed driver putting everything back, a second run).

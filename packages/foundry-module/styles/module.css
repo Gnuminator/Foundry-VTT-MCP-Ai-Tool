@@ -786,3 +786,21 @@
 .fmb-live-window .fmb-live-why p {
   margin: 0 0 0.5rem;
 }
+
+/* Roll request chat card: Foundry's own colours, so it follows the theme. */
+.mcp-roll-request {
+  margin: 8px 0;
+  padding: 10px 12px;
+  /* Tints of the inherited text colour, so it reads on a light or a dark chat. */
+  border: 1px solid color-mix(in srgb, currentColor 30%, transparent);
+  border-radius: 6px;
+  background: color-mix(in srgb, currentColor 7%, transparent);
+  color: inherit;
+}
+.mcp-roll-request p {
+  margin: 0 0 4px 0;
+}
+.mcp-roll-request .mcp-roll-actions {
+  text-align: center;
+  margin-top: 8px;
+}

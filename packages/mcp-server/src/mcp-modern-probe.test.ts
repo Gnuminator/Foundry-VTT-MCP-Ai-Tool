@@ -1,10 +1,10 @@
-// What our stdio server does when an MCP 2026-07-28 client talks to it (I-138). The wrapper
-// (dist/index.js) runs on the v1 SDK, which has no `server/discover` and expects `initialize`
-// first. A dual-era client probes `server/discover`, gets an error and falls back to `initialize`;
-// a modern-only client would not. This test starts the real built wrapper against a fake control
-// bridge and records what each kind of client sees: nothing may crash or hang, and `tools/list`
-// keeps its order across calls. It needs the build (`npm run build`), which `npm run green` does
-// before the tests.
+// What our stdio server does for a 2025-11-25 client and for an MCP 2026-07-28 client (I-138).
+// The wrapper (dist/index.js) serves both from one factory through the v2 SDK's `serveStdio`: an
+// `initialize` opens a 2025-era connection, `server/discover` or a request with the modern `_meta`
+// opens a 2026-era one. This test starts the real built wrapper against a fake control bridge and
+// checks nothing crashes or hangs, `tools/list` keeps its order across calls, 2025-era results
+// stay free of the new fields and 2026-era list results carry `ttlMs` and `cacheScope`. It needs
+// the build (`npm run build`), which `npm run green` does before the tests.
 import { type ChildProcess, spawn } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as net from 'node:net';
@@ -12,9 +12,9 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { LATEST_PROTOCOL_VERSION } from '@modelcontextprotocol/sdk/types.js';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
+import { FAKE_TOOLS, startFakeBridge } from './test-support/fake-control-bridge.js';
 import { rmTmp } from './test-support/rm-tmp.js';
 
 const distIndex = path.resolve(
@@ -22,15 +22,6 @@ const distIndex = path.resolve(
   '..',
   'dist',
   'index.js'
-);
-
-// Deliberately not alphabetical: the order we serve is the bridge's order, and it must not move.
-const FAKE_TOOLS = ['search-journals', 'get-world-info', 'list-characters', 'get-character'].map(
-  name => ({
-    name,
-    description: `Fake ${name}`,
-    inputSchema: { type: 'object', properties: {} },
-  })
 );
 
 const REPLY_TIMEOUT_MS = 10_000;
@@ -50,40 +41,6 @@ type Frame = {
   result?: unknown;
   error?: { code: number; message: string };
 };
-
-/** Newline-delimited control channel the wrapper dials: answers list_tools and call_tool. */
-function startFakeBridge(): Promise<{ server: net.Server; port: number }> {
-  return new Promise(resolve => {
-    const server = net.createServer(sock => {
-      let buf = '';
-      sock.setEncoding('utf8');
-      sock.on('error', () => {});
-      sock.on('data', (chunk: string) => {
-        buf += chunk;
-        let idx: number;
-        while ((idx = buf.indexOf('\n')) >= 0) {
-          const line = buf.slice(0, idx).trim();
-          buf = buf.slice(idx + 1);
-          if (!line) continue;
-          let req: { id: string; method: string };
-          try {
-            req = JSON.parse(line) as { id: string; method: string };
-          } catch {
-            continue;
-          }
-          const result =
-            req.method === 'list_tools'
-              ? { tools: FAKE_TOOLS }
-              : { content: [{ type: 'text', text: 'fake result' }] };
-          sock.write(`${JSON.stringify({ id: req.id, result })}\n`);
-        }
-      });
-    });
-    server.listen(0, '127.0.0.1', () => {
-      resolve({ server, port: (server.address() as net.AddressInfo).port });
-    });
-  });
-}
 
 /** One wrapper process spoken to in raw JSON-RPC lines, so we control exactly what is sent. */
 class Wrapper {
@@ -174,6 +131,18 @@ class Wrapper {
     return ((res.result as { tools: Array<{ name: string }> }).tools ?? []).map(t => t.name);
   }
 
+  /** Closes the wrapper's stdin the way Claude Desktop does on exit; resolves with its exit code. */
+  async endInput(): Promise<number | null> {
+    this.child.stdin!.end();
+    const deadline = Date.now() + REPLY_TIMEOUT_MS;
+    while (this.exited === undefined) {
+      if (Date.now() > deadline)
+        throw new Error(`wrapper still running after stdin end: ${this.stderr}`);
+      await new Promise(resolve => setTimeout(resolve, 50));
+    }
+    return this.exited;
+  }
+
   /** Kills the process and resolves once it has exited, so it no longer writes into the temp folder. */
   async kill(): Promise<void> {
     if (this.exited !== undefined) return;
@@ -206,13 +175,13 @@ describe('MCP 2026-07-28 probe against dist/index.js', () => {
     if (tmpDir) await rmTmp(tmpDir);
   });
 
-  function start(): Wrapper {
+  function start(port: number | undefined = bridge?.port): Wrapper {
     const child = spawn(process.execPath, [distIndex], {
       stdio: ['pipe', 'pipe', 'pipe'],
       env: {
         ...process.env,
         MCP_CONTROL_HOST: '127.0.0.1',
-        MCP_CONTROL_PORT: String(bridge?.port),
+        MCP_CONTROL_PORT: String(port),
         TEMP: tmpDir,
         TMP: tmpDir,
         TMPDIR: tmpDir,
@@ -235,55 +204,141 @@ describe('MCP 2026-07-28 probe against dist/index.js', () => {
     expect(second).toEqual(first);
   });
 
-  it('answers server/discover with modern _meta with an error and stays up', async () => {
+  it('exits with code 0 when stdin ends, in either era', async () => {
+    const legacy = start();
+    await legacy.initialize();
+    expect(await legacy.endInput()).toBe(0);
+    const modern = start();
+    await modern.request('server/discover', { _meta: MODERN_META });
+    expect(await modern.endInput()).toBe(0);
+  });
+
+  it('keeps the 2025-11-25 results free of 2026-07-28 fields', async () => {
+    const w = start();
+    await w.initialize();
+    const res = await w.request('tools/list');
+    expect(res.result).not.toHaveProperty('resultType');
+    expect(res.result).not.toHaveProperty('ttlMs');
+    expect(res.result).not.toHaveProperty('cacheScope');
+    const call = await w.request('tools/call', { name: 'get-world-info', arguments: {} });
+    expect(call.error).toBeUndefined();
+    expect(JSON.stringify(call.result)).toContain('fake result');
+  });
+
+  it('answers server/discover with modern _meta with the 2026-07-28 era and stays up', async () => {
     const w = start();
     const res = await w.request('server/discover', { _meta: MODERN_META });
-    // Today the v1 SDK does not know the method: a JSON-RPC error, not a result. A dual-era client
-    // reads that as "legacy server" and falls back to initialize.
-    expect(res.error?.code).toBe(-32601);
-    expect(res.result).toBeUndefined();
-    // The fallback works on the same process.
-    await w.initialize();
-    expect(await w.toolNames()).toEqual(FAKE_TOOLS.map(t => t.name));
+    expect(res.error).toBeUndefined();
+    const found = res.result as { supportedVersions: string[]; capabilities: object };
+    expect(found.supportedVersions).toContain('2026-07-28');
+    expect(found.capabilities).toEqual({ tools: {}, prompts: {} });
+    // The connection is modern from here on: lists carry the cache fields.
+    const listed = (await w.request('tools/list', { _meta: MODERN_META })).result as {
+      tools: Array<{ name: string }>;
+    };
+    expect(listed.tools.map(t => t.name)).toEqual(FAKE_TOOLS.map(t => t.name));
     expect(w.exited).toBeUndefined();
   });
 
-  it('answers tools/list with modern _meta and no initialize, and stays up', async () => {
+  it('answers tools/list with modern _meta and no initialize with ttlMs and cacheScope', async () => {
     const w = start();
     const res = await w.request('tools/list', { _meta: MODERN_META });
-    // Pins what v1 does today: no initialize needed, a legacy result with no modern fields. A
-    // move to the new protocol changes this on purpose; update it then.
     expect(res.error).toBeUndefined();
     const listed = res.result as { tools: Array<{ name: string }> };
     expect(listed.tools.map(t => t.name)).toEqual(FAKE_TOOLS.map(t => t.name));
-    expect(listed).not.toHaveProperty('resultType');
-    expect(listed).not.toHaveProperty('ttlMs');
-    await w.initialize();
-    const first = await w.toolNames({ _meta: MODERN_META });
+    expect(listed).toMatchObject({ resultType: 'complete', ttlMs: 60_000, cacheScope: 'private' });
     const second = await w.toolNames({ _meta: MODERN_META });
-    expect(first).toEqual(FAKE_TOOLS.map(t => t.name));
-    expect(second).toEqual(first);
+    expect(second).toEqual(FAKE_TOOLS.map(t => t.name));
     expect(w.exited).toBeUndefined();
   });
 
-  it('answers initialize asking for 2026-07-28 with the newest era the SDK speaks (a tripwire on SDK bumps)', async () => {
+  it('answers prompts/list with modern _meta with its own ttlMs', async () => {
+    const w = start();
+    const res = await w.request('prompts/list', { _meta: MODERN_META });
+    expect(res.error).toBeUndefined();
+    expect(res.result).toMatchObject({ resultType: 'complete', ttlMs: 3_600_000 });
+  });
+
+  it('calls a tool with modern _meta and no initialize', async () => {
+    const w = start();
+    const res = await w.request('tools/call', {
+      name: 'get-world-info',
+      arguments: {},
+      _meta: MODERN_META,
+    });
+    expect(res.error).toBeUndefined();
+    expect(JSON.stringify(res.result)).toContain('fake result');
+    expect(res.result).toMatchObject({ resultType: 'complete' });
+  });
+
+  it('answers initialize asking for 2026-07-28 in the 2025-11-25 era (legacy is served)', async () => {
     const w = start();
     const res = await w.request('initialize', {
       protocolVersion: '2026-07-28',
       capabilities: {},
       clientInfo: { name: 'probe-modern', version: '0.0.0' },
     });
-    expect((res.result as { protocolVersion: string }).protocolVersion).toBe(
-      LATEST_PROTOCOL_VERSION
-    );
+    // serveStdio's default `legacy: 'serve'`: an initialize opens a 2025-era connection.
+    expect((res.result as { protocolVersion: string }).protocolVersion).toBe('2025-11-25');
   });
 
-  it('calls a tool after a modern probe and the legacy handshake', async () => {
+  it('answers prompts/get for an unknown prompt with an invalid-params error, in either era', async () => {
+    const legacy = start();
+    await legacy.initialize();
+    const old = await legacy.request('prompts/get', { name: 'no-such-prompt' });
+    expect(old.error?.code).toBe(-32602);
+    expect(legacy.exited).toBeUndefined();
+    const modern = start();
+    const res = await modern.request('prompts/get', { name: 'no-such-prompt', _meta: MODERN_META });
+    expect(res.error?.code).toBe(-32602);
+    expect(modern.exited).toBeUndefined();
+  });
+
+  it('refuses a request for an unsupported protocol version and stays up', async () => {
     const w = start();
-    await w.request('server/discover', { _meta: MODERN_META });
+    const res = await w.request('tools/list', {
+      _meta: { ...MODERN_META, 'io.modelcontextprotocol/protocolVersion': '2099-01-01' },
+    });
+    expect(res.result).toBeUndefined();
+    expect(res.error).toBeTruthy();
+    // The wrapper still serves a normal client afterwards.
+    const ok = await w.request('tools/list', { _meta: MODERN_META });
+    expect(ok.error).toBeUndefined();
+    expect(w.exited).toBeUndefined();
+  });
+
+  it('answers a tool call for an unknown method with a protocol error and stays up', async () => {
+    const w = start();
     await w.initialize();
-    const res = await w.request('tools/call', { name: 'get-world-info', arguments: {} });
-    expect(res.error).toBeUndefined();
-    expect(JSON.stringify(res.result)).toContain('fake result');
+    const res = await w.request('no/such-method', {});
+    expect(res.error?.code).toBe(-32601);
+    expect(w.exited).toBeUndefined();
+  });
+
+  describe('when the bridge fails tools/list', () => {
+    let failing: { server: net.Server; port: number } | undefined;
+
+    beforeAll(async () => {
+      failing = await startFakeBridge({ failList: true });
+    });
+
+    afterAll(() => {
+      failing?.server.close();
+    });
+
+    it('answers an empty list with ttlMs 0 for a 2026-07-28 client', async () => {
+      const w = start(failing?.port);
+      const res = await w.request('tools/list', { _meta: MODERN_META });
+      expect(res.error).toBeUndefined();
+      expect(res.result).toMatchObject({ tools: [], ttlMs: 0, cacheScope: 'private' });
+    });
+
+    it('answers an empty list with no cache fields for a 2025-11-25 client', async () => {
+      const w = start(failing?.port);
+      await w.initialize();
+      const res = await w.request('tools/list');
+      expect(res.error).toBeUndefined();
+      expect(res.result).toEqual({ tools: [] });
+    });
   });
 });

@@ -1,16 +1,12 @@
 #!/usr/bin/env node
 
-import { Server } from '@modelcontextprotocol/sdk/server/index.js';
+import { type CallToolResult, type ListToolsResult, Server } from '@modelcontextprotocol/server';
 
-import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-
-import {
-  type CallToolResult,
-  CallToolRequestSchema,
-  ListToolsRequestSchema,
-} from '@modelcontextprotocol/sdk/types.js';
+import { StdioServerTransport, serveStdio } from '@modelcontextprotocol/server/stdio';
 
 import { config } from './config.js';
+
+import { LIST_CACHE_HINTS } from './list-cache-hints.js';
 
 import {
   BACKEND_LOCK_HELD_EXIT_CODE,
@@ -379,26 +375,30 @@ async function startWrapper(): Promise<void> {
   });
   for (const warning of TOOL_SET_SELECTION.warnings) backend.log(warning);
 
-  const mcp = new Server(
-    { name: config.server.name, version: config.server.version },
-    {
-      capabilities: { tools: {}, ...PROMPTS_CAPABILITY },
-      instructions: toolSetInstructions(TOOL_SET_SELECTION),
-    }
-  );
-
-  // The ready-made "/" prompts (prompts/list, prompts/get). Static, answered right here.
-  registerPromptHandlers(mcp, TOOL_SET_SELECTION.all ? undefined : TOOL_SET_SELECTION.sets);
-
   // Setup cleanup handlers - cross-platform approach
 
   // When stdin closes (Claude Desktop exits), clean up the backend
 
-  process.stdin.on('end', () => {
+  const shutdown = (): never => {
     backend.cleanup();
 
     process.exit(0);
-  });
+  };
+
+  process.stdin.on('end', shutdown);
+
+  // stdin gone without 'end', and a transport that closed on its own (a line over the 10 MiB cap,
+  // a broken stdout): serveStdio's transport stops reading then, so without this the wrapper
+  // would stay up on the backend socket and answer nothing.
+  process.stdin.on('close', shutdown);
+
+  class ExitingTransport extends StdioServerTransport {
+    override async close(): Promise<void> {
+      await super.close();
+
+      shutdown();
+    }
+  }
 
   // Also handle process termination signals
 
@@ -418,68 +418,97 @@ async function startWrapper(): Promise<void> {
   // when it cuts a result.
   const listedTools = new Map<string, ToolDefinitionLike>();
 
-  mcp.setRequestHandler(ListToolsRequestSchema, async () => {
-    try {
-      const res = (await backend.send('list_tools', {})) as ListToolsReply;
-
-      try {
-        backend.log('ListTools handler: received from backend', {
-          hasTools: !!res.tools,
-          toolCount: res.tools?.length || 0,
-        });
-      } catch {}
-
-      // Picker annotations (x-foundry-ref) are for the dashboard only, and this entry lists only
-      // its tool sets (the dashboard reads the control channel and sees every tool).
-      const listed = filterToolsBySets(
-        (res.tools ?? []) as Parameters<typeof stripToolRefs>[0],
-        TOOL_SET_SELECTION
-      );
-      const served = stripToolRefs(listed);
-      for (const tool of served as ToolDefinitionLike[]) listedTools.set(tool.name, tool);
-      return { tools: served };
-    } catch (e) {
-      // Log but return empty to remain MCP-compliant
-
-      try {
-        backend.log('ListTools failed; returning empty', { error: messageOf(e) });
-      } catch {}
-
-      return { tools: [] };
-    }
-  });
-
   // One line per call (name, set, ms, size, ok; no arguments) for the tool-set trimming data.
   const callLog = new ToolCallLog();
 
-  mcp.setRequestHandler(CallToolRequestSchema, async request => {
-    const { name, arguments: args } = request.params as unknown as CallToolParams;
-    const toolName = String(name);
+  // serveStdio calls this once per connection (and once for a discarded server/discover probe), so
+  // it only builds a server over the state above and starts nothing.
+  const buildServer = (): Server => {
+    const mcp = new Server(
+      { name: config.server.name, version: config.server.version },
+      {
+        capabilities: { tools: {}, ...PROMPTS_CAPABILITY },
+        instructions: toolSetInstructions(TOOL_SET_SELECTION),
+        // ttlMs and cacheScope for the list results of MCP 2026-07-28; 2025-11-25 clients never see them.
+        cacheHints: LIST_CACHE_HINTS,
+      }
+    );
 
-    return (await runLoggedCall(
-      callLog,
-      toolName,
-      async () => {
-        const res = (await backend.send('call_tool', {
-          name,
-          args: args ?? {},
-        })) as ToolResultLike;
+    // The ready-made "/" prompts (prompts/list, prompts/get). Static, answered right here.
+    registerPromptHandlers(mcp, TOOL_SET_SELECTION.all ? undefined : TOOL_SET_SELECTION.sets);
 
-        // One size cap for every tool result Claude gets (D-109); the dashboard reads them in full.
-        return capToolResult(res, toolName, listedTools.get(toolName));
-      },
-      (e: unknown): ToolResultLike => ({
-        content: [
-          { type: 'text', text: `Error: ${templateText(messageOf(e) || 'Backend unavailable')}` },
-        ],
-        isError: true,
-      })
-    )) as unknown as CallToolResult;
+    mcp.setRequestHandler('tools/list', async (_request, ctx) => {
+      try {
+        const res = (await backend.send('list_tools', {})) as ListToolsReply;
+
+        try {
+          backend.log('ListTools handler: received from backend', {
+            hasTools: !!res.tools,
+            toolCount: res.tools?.length || 0,
+          });
+        } catch {}
+
+        // Picker annotations (x-foundry-ref) are for the dashboard only, and this entry lists only
+        // its tool sets (the dashboard reads the control channel and sees every tool).
+        const listed = filterToolsBySets(
+          (res.tools ?? []) as Parameters<typeof stripToolRefs>[0],
+          TOOL_SET_SELECTION
+        );
+        const served = stripToolRefs(listed);
+        for (const tool of served as ToolDefinitionLike[]) listedTools.set(tool.name, tool);
+        // The backend's tool definitions are already protocol-shaped; v2 types the schema strictly.
+        return { tools: served as unknown as ListToolsResult['tools'] };
+      } catch (e) {
+        // Log but return empty to remain MCP-compliant
+
+        try {
+          backend.log('ListTools failed; returning empty', { error: messageOf(e) });
+        } catch {}
+
+        // Not cacheable: a 2026-era client must not hold an empty list for the tool TTL. A handler's own
+        // `ttlMs` reaches the wire in either era, so it is added only on a request that carries the
+        // 2026 `_meta` envelope (`ctx.mcpReq.envelope`); a 2025-11-25 client gets the plain empty list.
+        if (ctx.mcpReq.envelope) {
+          return { tools: [], ttlMs: 0, cacheScope: 'private' };
+        }
+        return { tools: [] };
+      }
+    });
+
+    mcp.setRequestHandler('tools/call', async request => {
+      const { name, arguments: args } = request.params as unknown as CallToolParams;
+      const toolName = String(name);
+
+      return (await runLoggedCall(
+        callLog,
+        toolName,
+        async () => {
+          const res = (await backend.send('call_tool', {
+            name,
+            args: args ?? {},
+          })) as ToolResultLike;
+
+          // One size cap for every tool result Claude gets (D-109); the dashboard reads them in full.
+          return capToolResult(res, toolName, listedTools.get(toolName));
+        },
+        (e: unknown): ToolResultLike => ({
+          content: [
+            { type: 'text', text: `Error: ${templateText(messageOf(e) || 'Backend unavailable')}` },
+          ],
+          isError: true,
+        })
+      )) as unknown as CallToolResult;
+    });
+
+    return mcp;
+  };
+
+  // The era (2025-11-25 `initialize` or 2026-07-28 `server/discover` and per-request `_meta`) is
+  // chosen per connection by serveStdio; both are served from the one factory.
+  serveStdio(buildServer, {
+    transport: new ExitingTransport(),
+    onerror: error => backend.log('serveStdio error', { error: messageOf(error) }),
   });
-
-  const transport = new StdioServerTransport();
-
-  await mcp.connect(transport);
 }
 
 startWrapper().catch(err => {

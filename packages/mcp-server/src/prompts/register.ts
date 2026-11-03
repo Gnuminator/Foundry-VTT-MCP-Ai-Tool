@@ -7,13 +7,7 @@
  * request (unknown prompt, missing argument) becomes a JSON-RPC "invalid
  * params" error with a message the GM can read.
  */
-import type { Server } from '@modelcontextprotocol/sdk/server/index.js';
-import {
-  ErrorCode,
-  GetPromptRequestSchema,
-  ListPromptsRequestSchema,
-  McpError,
-} from '@modelcontextprotocol/sdk/types.js';
+import { ProtocolError, ProtocolErrorCode, type Server } from '@modelcontextprotocol/server';
 
 import type { ToolSetName } from '../tool-sets.js';
 
@@ -27,13 +21,15 @@ export const PROMPTS_CAPABILITY = { prompts: {} } as const;
  * `prompts/get` answers any prompt by name: a client only asks for listed ones.
  */
 export function registerPromptHandlers(server: Server, sets?: readonly ToolSetName[]): void {
-  server.setRequestHandler(ListPromptsRequestSchema, () => ({ prompts: listPrompts(sets) }));
+  server.setRequestHandler('prompts/list', () => ({ prompts: listPrompts(sets) }));
 
-  server.setRequestHandler(GetPromptRequestSchema, request => {
+  server.setRequestHandler('prompts/get', request => {
     try {
       return getPrompt(request.params.name, request.params.arguments);
     } catch (error) {
-      if (error instanceof PromptError) throw new McpError(ErrorCode.InvalidParams, error.message);
+      if (error instanceof PromptError) {
+        throw new ProtocolError(ProtocolErrorCode.InvalidParams, error.message);
+      }
       throw error;
     }
   });

@@ -16,8 +16,9 @@ import {
   type SwitchesRead,
   type SwitchesWrite,
 } from './sessionSwitches';
+import { markUndoRefused } from './liveStrip';
 import { isSwitchOffRefusal, refusedSwitchName } from './switchOff';
-import { SETTINGS_KEY, useDashboardSettings, type DashboardSettings } from './stream';
+import { CHANGES_KEY, SETTINGS_KEY, useDashboardSettings, type DashboardSettings } from './stream';
 import { usage } from './usage';
 
 /**
@@ -65,6 +66,8 @@ function planLines(plan: Plan): string[] | null {
 interface Applied {
   changeId?: string;
   summary?: string;
+  /** The journal a create-quest-journal call made (the tool's answer). */
+  journalName?: string;
   /** "Show it now" on a handout reveal: the popup on the players' screens. */
   shown?: { ok: boolean; error?: string };
   copy?: unknown;
@@ -93,7 +96,9 @@ function doneText(name: string, result: Applied | null): string {
     return `✓ Applied: ${summary}${shown}`;
   }
   if (name === 'undo-change' && summary) return `✓ ${summary}`;
-  return `✓ ${toolWords(name)} done`;
+  // A tool that made something answers its name ("Create quest journal done: Rescue the Merchant").
+  const target = typeof result?.journalName === 'string' ? result.journalName : '';
+  return target ? `✓ ${toolWords(name)} done: ${target}` : `✓ ${toolWords(name)} done`;
 }
 
 /**
@@ -319,6 +324,25 @@ export function useGuardedTools(): GuardedTools {
           void refusalToast(hint, refusedSwitchName(hint));
           return { outcome: { status: 'failed', error: hint } };
         }
+        if (name === 'undo-change' && /Conflict, nothing was written/.test(error)) {
+          // Someone changed it after the change: nothing was written, so one plain line, and the
+          // strip stops offering this Undo (Recent Changes still lists it).
+          const changeId = args['changeId'];
+          if (typeof changeId === 'string') markUndoRefused(changeId);
+          // A new array, so the strips that read the list draw again at once.
+          queryClient.setQueryData<unknown[]>([...CHANGES_KEY, 'ai'], old =>
+            Array.isArray(old) ? [...old] : old
+          );
+          const changedLater = /changed since|modified since/.test(error);
+          toast(
+            changedLater
+              ? "✗ Couldn't undo it: it was changed after that. Nothing was written."
+              : "✗ Couldn't undo it: Foundry no longer matches that change. Nothing was written.",
+            'err'
+          );
+          changed();
+          return { outcome: { status: 'failed', error } };
+        }
         const words = options.label ?? toolWords(name);
         const checkHint = `It may have applied; check ${options.checkIn ?? 'Recent Changes'}.`;
         // The bridge stopped waiting after about 4 minutes; Foundry may still have done it.
@@ -429,7 +453,7 @@ export function useGuardedTools(): GuardedTools {
       if (changeId) {
         toast(doneText('apply-planned-change', applied), 'ok', {
           label: 'Undo',
-          onClick: () => void undo(changeId, options),
+          onClick: () => undo(changeId, options),
         });
       } else {
         toast(doneText('apply-planned-change', applied), 'ok');

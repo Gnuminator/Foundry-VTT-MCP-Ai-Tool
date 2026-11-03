@@ -6,12 +6,18 @@
 //   npm run build -w @gnuminator/cogm-dashboard     tsc, the help pages, then this build
 //   npm run dev:web -w @gnuminator/cogm-dashboard   Vite on 5173, /api and the old assets
 //                                                   proxied to a dashboard on COGM_DEV_TARGET
+import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
 
 const webDir = fileURLToPath(new URL('.', import.meta.url));
+const appVersion = (
+  JSON.parse(readFileSync(fileURLToPath(new URL('../package.json', import.meta.url)), 'utf8')) as {
+    version: string;
+  }
+).version;
 const target = process.env.COGM_DEV_TARGET ?? 'http://127.0.0.1:3100';
 // Served by the dashboard from public/; the React page reuses them as they are.
 const SERVER_PATHS = [
@@ -31,6 +37,8 @@ export default defineConfig({
   // public/ belongs to the old pages and the server serves it; nothing to copy.
   publicDir: false,
   plugins: [react()],
+  // The tool version for the header (lib/appVersion.ts).
+  define: { __APP_VERSION__: JSON.stringify(appVersion) },
   build: {
     outDir: fileURLToPath(new URL('../dist/web', import.meta.url)),
     emptyOutDir: true,

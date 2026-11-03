@@ -2,7 +2,7 @@
   "name": "@gnuminator/cogm-dashboard",
   "version": "0.24.0",
   "author": "Gnuminator <gnuminator@users.noreply.github.com>",
-  "description": "Standalone live AI \"Co-GM\" dashboard that pulls the Foundry VTT MCP bridge feed and streams Claude commentary to a browser.",
+  "description": "Standalone live AI \"Co-GM\" dashboard that pulls the Foundry VTT MCP bridge feed and shows it in a browser.",
   "type": "module",
   "private": true,
   "main": "dist/server.js",
@@ -25,7 +25,6 @@
     "lint:fix": "eslint src web --fix"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": ">=0.40.0",
     "@gnuminator/shared": "*",
     "dotenv": "^16.3.0",
     "express": "^4.19.0",

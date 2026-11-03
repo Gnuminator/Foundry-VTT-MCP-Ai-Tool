@@ -6,7 +6,7 @@ description: Every tool the bridge serves, by tool set, with its description and
 
 # Tool reference
 
-The bridge serves 98 tools in five sets. [Tool sets](TOOL-SETS.md) explains the sets and how Claude Desktop loads them; this page lists every tool with the description and parameters Claude reads.
+The bridge serves 99 tools in five sets. [Tool sets](TOOL-SETS.md) explains the sets and how Claude Desktop loads them; this page lists every tool with the description and parameters Claude reads.
 
 | Set | Claude Desktop entry | Tools | For |
 | --- | --- | --- | --- |
@@ -14,7 +14,7 @@ The bridge serves 98 tools in five sets. [Tool sets](TOOL-SETS.md) explains the 
 | [Play](#play) | `foundry-mcp-play` | 37 | Run the table live: tokens, combat turns, rolls, damage, conditions, resources, chat, scene mood, map notes and loot. |
 | [Prep](#prep) | `foundry-mcp-prep` | 20 | Prepare sessions and write recaps: quests and journals, encounter budgets, the Tarokka reading, handouts, the session log, play stats and the pre-flight check. |
 | [Build](#build) | `foundry-mcp-build` | 8 | Make and change NPCs, monsters and items: from a compendium or from scratch, with features, attacks and spells. Set up rooms: teleports and tokens in a room. |
-| [Admin](#admin) | `foundry-mcp-admin` | 9 | Set up and troubleshoot: installed modules and their errors, who owns which actor, and the Obsidian mirror settings. |
+| [Admin](#admin) | `foundry-mcp-admin` | 10 | Set up and troubleshoot: installed modules and their errors, Foundry settings and who can open a compendium pack, who owns which actor, and the Obsidian mirror settings. |
 
 ## Core
 
@@ -215,7 +215,7 @@ Parameters:
 
 ### apply-planned-change
 
-Apply a pending planned change after the GM has seen its diff and agreed. Requires confirm: true, plus confirmDestructive: true when the plan risk is "destructive" (it deletes something). Fails without writing anything if the affected documents changed since the plan was made, if "Allow Write Operations" or the feature is switched off in the module settings. The change is recorded and can be undone with undo-change. When the plan also pops a page up on the players' screens (showNow), the result has shown: { ok: true } or { ok: false, error }, and undo does not take the popup back.
+Apply a pending planned change after the GM has seen its diff and agreed. Requires confirm: true, plus confirmDestructive: true when the plan risk is "destructive" (it deletes something). Fails without writing anything if the affected documents changed since the plan was made, if "Allow Write Operations" or the feature is switched off in the module settings. The change is recorded and can be undone with undo-change. When the plan also pops a page up on the players' screens (showNow), the result has shown: { ok: true } or { ok: false, error }, and undo does not take the popup back. A handout reveal also posts a chat notice (result noticed: { ok }); undo keeps it.
 
 Kind: changes something and can delete or overwrite. Title: Apply planned change.
 
@@ -1040,7 +1040,7 @@ No parameters.
 
 ### plan-page-reveal
 
-Plan revealing a journal page to players, or hiding one already revealed. Reveal adds the page to the allowlist and, by default (setOwnership: true), raises its ownership to Observer if players cannot already see it, recording the old ownership for Hide; refused if the page is already allowlisted and still observable. When no player can open the page's journal, the reveal instead COPIES the page into the player journal "Handouts" (created on first use, Observer for players): the copy gets the page's name and content, text without any secret blocks or @Embed enrichers and with links to documents players cannot open turned into plain text, or an image's source and caption; the source page and its journal are never changed. Revealing the same source again updates its copy; only text and image pages can be copied. A reveal has an Undo (a player may already have read it); Hide is destructive. Hide removes the page from the allowlist and, by default, restores the ownership recorded at reveal time; for a copied handout (pass the source or the copy) it deletes the copy, the "Handouts" journal stays. Write nothing but a title into the summary. Returns a planId for apply-planned-change (plus copy and note).
+Plan revealing a journal page to players, or hiding one already revealed. Reveal adds the page to the allowlist and, by default (setOwnership: true), raises its ownership to Observer if players cannot already see it, recording the old ownership for Hide; refused if the page is already allowlisted and still observable. When no player can open the page's journal, the reveal instead COPIES the page into the player journal "Handouts" (created on first use, Observer for players): the copy gets the page's name and content, text without any secret blocks or @Embed enrichers and with links to documents players cannot open turned into plain text, or an image's source and caption; the source page and its journal are never changed. Revealing the same source again updates its copy; only text and image pages can be copied. Applying a reveal also whispers its players a chat notice (title and link, no text; Undo keeps it). A reveal has an Undo (a player may already have read it); Hide is destructive. Hide removes the page from the allowlist and, by default, restores the ownership recorded at reveal time; for a copied handout (pass the source or the copy) it deletes the copy, the "Handouts" journal stays. Write nothing but a title into the summary. Returns a planId for apply-planned-change (plus copy and note).
 
 Kind: read-only. Title: Plan page reveal.
 
@@ -1410,7 +1410,7 @@ Parameters:
 
 ## Admin
 
-Set up and troubleshoot: installed modules and their errors, who owns which actor, and the Obsidian mirror settings.
+Set up and troubleshoot: installed modules and their errors, Foundry settings and who can open a compendium pack, who owns which actor, and the Obsidian mirror settings.
 
 ### get-modules
 
@@ -1488,6 +1488,19 @@ Kind: read-only. Title: Plan the TV table viewer user.
 Parameters:
 
 - `name` (string): The user's name on Foundry's join page. Default "Table".
+
+### plan-foundry-setup
+
+Read or plan Foundry setup; apply with apply-planned-change, revert with undo-change. mode read lists, mode plan plans. area setting: target namespace.key (read: part of a name too), value the new value. area pack: target a pack id (dnd5e.monsters), value {ownership:{PLAYER,TRUSTED: NONE|LIMITED|OBSERVER|OWNER, ASSISTANT: OWNER only; a role gets the highest level of its own and lower roles}, locked, folder (name or null)}. Secrets are hidden. Needs the Foundry setup switch.
+
+Kind: read-only. Title: Read or plan Foundry setup.
+
+Parameters:
+
+- `mode` (string, required): One of: `read`, `plan`.
+- `area` (string, required): One of: `setting`, `pack`.
+- `target` (string): Setting namespace.key, or a pack id.
+- `value` (any): plan only: the new value, or the pack changes.
 
 ### get-obsidian-mirror
 

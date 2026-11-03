@@ -12,11 +12,13 @@ import { spentLedger } from './spent-actions.js';
 import { changeJournal } from './change-journal.js';
 import { playRecorder } from './play-recorder.js';
 import { USAGE_SOCKET_TYPE, trackUsage, usageRecorder } from './usage-recorder.js';
+import { applySelectionColor } from './token-selection-color.js';
 import { diagnostics } from './diagnostics.js';
 import { registerGmHelperQueries, unregisterGmHelperQueries } from './gm-helper-queries.js';
 import { registerGuardedFeature } from './guarded-features.js';
 import { LIVE_PLAY_FEATURE_ID } from './live-plan.js';
 import { OWNERSHIP_FEATURE_ID } from './data-access/ownership-players.js';
+import { SETUP_FEATURE_ID } from './data-access/virtual-targets.js';
 import { SCENE_MOOD_FEATURE_ID } from './scene-mood.js';
 import { SCENE_RESTORE_FEATURE_ID } from './scene-state.js';
 import { NPC_TURN_FEATURE_ID } from './npc-turn.js';
@@ -26,6 +28,7 @@ import { RULES_CHECK_FEATURE_ID } from './rules-check.js';
 import { PARTY_FEATURE_ID, WHO_NOTICES_FEATURE_ID } from './party-scan.js';
 import { registerGmWindowsSetting } from './gm-windows.js';
 import { registerLiveWindowSettings, restoreLiveWindow } from './live-window.js';
+import { registerPartyAuto, registerPartyAutoSettings } from './party-auto.js';
 import { registerSessionSwitchSettings } from './session-switches.js';
 import { registerDiceThemes } from './dice-themes.js';
 import { TAROKKA_FEATURE_ID } from './tarokka.js';
@@ -126,6 +129,9 @@ class FoundryMCPBridge {
       registerSessionSwitchSettings();
       registerGmWindowsSetting();
       registerLiveWindowSettings();
+      // Player characters go into the dnd5e party by themselves (active GM's client only).
+      registerPartyAutoSettings();
+      registerPartyAuto();
       // The Tarokka card table (D-130): the public table every client reads, players included.
       registerTarokkaTableSettings();
       // Themed dice (I-085): every client, players included; silent without Dice So Nice.
@@ -177,6 +183,11 @@ class FoundryMCPBridge {
         name: 'AI Tool: Ownership (writes)',
         hint: 'Lets the dashboard and the AI change which players own or can see an actor.',
         defaultEnabled: true,
+      });
+      registerGuardedFeature({
+        id: SETUP_FEATURE_ID,
+        name: 'AI Tool: Foundry setup (writes)',
+        hint: 'Lets the AI change Foundry settings and set who can open a compendium pack, after you confirm the plan, and puts the old value back on undo. Never touches passwords or the AI Tool’s own switches.',
       });
       registerGuardedFeature({
         id: 'table-viewer',
@@ -604,6 +615,16 @@ Hooks.once('init', async () => {
     await foundryMCPBridge.initialize();
   } catch (error) {
     console.error(`[${MODULE_ID}] Initialization failed:`, error);
+  }
+});
+
+// Selected tokens look different from the turn marker (test 3), on every client. Its own hook and
+// try block: a colour change must never stop the bridge from starting.
+Hooks.once('ready', () => {
+  try {
+    applySelectionColor();
+  } catch (error) {
+    console.warn(`[${MODULE_ID}] Could not set the token selection colour:`, error);
   }
 });
 

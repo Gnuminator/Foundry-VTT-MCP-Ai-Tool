@@ -11,7 +11,9 @@ import {
   displayNames,
   downWords,
   endQuestion,
+  clearRefusedUndos,
   lastUndoable,
+  markUndoRefused,
   pickText,
   undoLabel,
 } from './liveStrip';
@@ -190,6 +192,14 @@ describe('the Undo button', () => {
     ).toBeNull();
     expect(lastUndoable([change({ changeId: 'x', undoneBy: 'u' })])).toBeNull();
     expect(lastUndoable([])).toBeNull();
+  });
+
+  it('stops offering a change whose Undo was refused as a conflict', () => {
+    clearRefusedUndos();
+    expect(lastUndoable([change({ changeId: 'r' })])?.changeId).toBe('r');
+    markUndoRefused('r');
+    expect(lastUndoable([change({ changeId: 'r' })])).toBeNull();
+    clearRefusedUndos();
   });
 
   it('labels the button with the change, cut when long', () => {

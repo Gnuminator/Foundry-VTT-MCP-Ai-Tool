@@ -12,12 +12,10 @@ import { parseAllowedHosts, type AllowedHosts } from './host-allowlist.js';
  * Everything is sourced from environment variables (loaded from a local `.env`
  * via dotenv) with sensible defaults so the dashboard runs out of the box
  * against a bridge on the standard 127.0.0.1:31414 control channel. No secrets
- * are ever hard-coded — the Anthropic key only comes from the environment.
+ * are ever hard-coded.
  */
 
 const moduleDir = path.dirname(fileURLToPath(import.meta.url));
-
-export type Tone = 'tactical' | 'narrative';
 
 export interface Config {
   /** HTTP port the dashboard (and its SSE stream) listens on. */
@@ -44,32 +42,12 @@ export interface Config {
   readonly pollIntervalMs: number;
   /** How often to poll combat state, in ms. */
   readonly combatPollIntervalMs: number;
-  /** Minimum spacing between auto-generated AI comments, in ms. */
-  readonly commentMinIntervalMs: number;
-  /** Debounce window used to batch a burst of events into one comment, in ms. */
-  readonly commentDebounceMs: number;
-  /** Anthropic API key (empty string ⇒ AI features disabled, feed still runs). */
-  readonly anthropicApiKey: string;
-  /** Default Claude model id. */
-  readonly anthropicModel: string;
-  /** Starting commentary tone. */
-  readonly defaultTone: Tone;
   /** Rolling window size for the in-memory event buffer. */
   readonly maxEvents: number;
-  /** Token cap for an auto-generated comment. */
-  readonly commentMaxTokens: number;
-  /** Token cap for an "ask the co-GM" answer. */
-  readonly askMaxTokens: number;
   /** How often to poll module diagnostics (errors/warnings), in ms. */
   readonly errorPollIntervalMs: number;
   /** Rolling window size for the in-memory module-error buffer. */
   readonly maxErrors: number;
-  /** Whether the co-GM auto-comments on new module errors. */
-  readonly commentOnErrors: boolean;
-  /** Minimum spacing between diagnostics comments, in ms. */
-  readonly errorCommentMinIntervalMs: number;
-  /** Token cap for a diagnostics comment. */
-  readonly errorCommentMaxTokens: number;
   /** Control-channel per-request reply timeout, in ms. */
   readonly controlRequestTimeoutMs: number;
   /** Control-channel TCP connect timeout, in ms. */
@@ -213,8 +191,6 @@ const auth: AuthConfig = {
 
 const pollIntervalMs = readNumber('POLL_INTERVAL_MS', 4000);
 
-const tone: Tone = readString('COGM_TONE', 'tactical') === 'narrative' ? 'narrative' : 'tactical';
-
 const logLevelRaw = readString('LOG_LEVEL', 'info');
 const logLevel: Config['logLevel'] =
   logLevelRaw === 'debug' || logLevelRaw === 'warn' || logLevelRaw === 'error'
@@ -232,19 +208,9 @@ export const config: Config = {
   mcpPort: readNumber('MCP_CONTROL_PORT', 31414),
   pollIntervalMs,
   combatPollIntervalMs: readNumber('COMBAT_POLL_INTERVAL_MS', pollIntervalMs),
-  commentMinIntervalMs: readNumber('COMMENT_MIN_INTERVAL_MS', 20000),
-  commentDebounceMs: readNumber('COMMENT_DEBOUNCE_MS', 1500),
-  anthropicApiKey: readString('ANTHROPIC_API_KEY', ''),
-  anthropicModel: readString('ANTHROPIC_MODEL', 'claude-opus-5-5'),
-  defaultTone: tone,
   maxEvents: readNumber('COGM_MAX_EVENTS', 80),
-  commentMaxTokens: readNumber('COGM_COMMENT_MAX_TOKENS', 320),
-  askMaxTokens: readNumber('COGM_ASK_MAX_TOKENS', 700),
   errorPollIntervalMs: readNumber('ERROR_POLL_INTERVAL_MS', 6000),
   maxErrors: readNumber('COGM_MAX_ERRORS', 100),
-  commentOnErrors: readBool('COGM_COMMENT_ON_ERRORS', true),
-  errorCommentMinIntervalMs: readNumber('ERROR_COMMENT_MIN_INTERVAL_MS', 60000),
-  errorCommentMaxTokens: readNumber('COGM_ERROR_COMMENT_MAX_TOKENS', 280),
   controlRequestTimeoutMs: readNumber('MCP_REQUEST_TIMEOUT_MS', 15000),
   controlConnectTimeoutMs: readNumber('MCP_CONNECT_TIMEOUT_MS', 5000),
   controlHeartbeatIntervalMs: readNumber('MCP_HEARTBEAT_INTERVAL_MS', 10000),

@@ -25,7 +25,7 @@ import {
   snapshotGuardedOps,
 } from './data-access/guarded-write.js';
 import { ensureJournalFolder } from './data-access/journal-folder.js';
-import { showJournalPage } from './data-access/journal-show.js';
+import { postHandoutNotice, showJournalPage } from './data-access/journal-show.js';
 import { FoundryDataAccess } from './data-access.js';
 import {
   PLAYER_VIEW_QUERIES,
@@ -61,6 +61,7 @@ import { LIVE_SWEEP_QUERY, liveSweep } from './live-sweep.js';
 import { SESSION_SWITCHES_QUERY, sessionSwitches } from './session-switches.js';
 import { CHARACTER_SHEET_QUERY, PLAYER_ROLL_QUERY, characterSheets } from './character-sheet.js';
 import { gateWriteHandlers } from './write-gate.js';
+import { getSetupInfo } from './data-access/setup-info.js';
 
 /** First argument of a FoundryDataAccess method: the wire payload shape its handler forwards. */
 type DataArg<K extends keyof FoundryDataAccess> = FoundryDataAccess[K] extends (
@@ -192,6 +193,9 @@ export class QueryHandlers {
     );
     handlers.on(`${modulePrefix}.showJournalPage`, (data: unknown) =>
       this.withGmGate('Failed to show the page to the players', () => showJournalPage(data))
+    );
+    handlers.on(`${modulePrefix}.postHandoutNotice`, (data: unknown) =>
+      this.withGmGate('Failed to post the handout notice', () => postHandoutNotice(data))
     );
     handlers.on(`${modulePrefix}.listGuardedFeatures`, () =>
       this.withGmGate('Failed to list features', () => Promise.resolve(listGuardedFeatures()))
@@ -556,6 +560,7 @@ export class QueryHandlers {
 
     // Diagnostics (module troubleshooting)
     handlers.set(`${modulePrefix}.getModules`, this.handleGetModules.bind(this));
+    handlers.set(`${modulePrefix}.getSetupInfo`, this.handleGetSetupInfo.bind(this));
     handlers.set(`${modulePrefix}.getModuleErrors`, this.handleGetModuleErrors.bind(this));
     handlers.set(`${modulePrefix}.clearModuleErrors`, this.handleClearModuleErrors.bind(this));
     handlers.set(`${modulePrefix}.getModuleManifest`, this.handleGetModuleManifest.bind(this));
@@ -1747,6 +1752,10 @@ export class QueryHandlers {
     return this.withGmGate('Failed to get modules', async () => {
       return await this.dataAccess.getModules(data || {});
     });
+  }
+
+  async handleGetSetupInfo(data: unknown): Promise<unknown> {
+    return this.withGmGate('Failed to read the Foundry setup', async () => getSetupInfo(data));
   }
 
   async handleGetModuleErrors(data: {

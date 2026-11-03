@@ -237,6 +237,12 @@ After a Damage / Heal or Condition change, a message lists each target's result 
 5") with **Undo** for a few seconds; one click puts it back. Later, use **Undo** in Recent
 Changes.
 
+**Conditions** (a button on the During bar, with live play and GM Actions on; it works in a fight and
+out of one): tick tokens on the scene you are viewing, pick a condition, then **Add** or **Remove**.
+It applies at once, with **Undo**, and there is no confirm window. For Exhaustion, Add raises one
+level and Remove clears them all. A **rules** link by each condition opens dnd5e's own page for it
+in Foundry.
+
 **Start combat** and **End combat**: with no fight running and GM Actions on, the Combat Tracker
 offers **Start combat** (in most During layouts, a small **Start combat** button on the During bar
 opens the same thing). It lists the tokens on the scene you are viewing, with player characters and
@@ -612,9 +618,11 @@ first. Without Foundry connected, the drawer still shows last session and says w
 
 ## The party drawer (🛡 Party)
 
-The party at a glance, from the dnd5e Group actor. It needs a party in Foundry: in the Actors
-tab, create an Actor of type **Group**, drag the characters onto it, then right-click it and
-choose **Set as Primary Party**. With more than one group, a list at the top picks which one.
+The party at a glance, from the dnd5e Group actor. Foundry makes the party by itself: the AI Tool
+keeps a primary party (a Group actor called "Party") and adds every character a player owns, so
+there is nothing to set up. NPCs and actors no player owns stay out. Each batch of additions shows in
+Recent Changes with Undo; to take out an older character, remove it on the party sheet (it stays out of that party). A party you delete is made again the next time a character is added or the world loads. To manage the party by hand, switch off "AI Tool: Add player characters to the
+party" in the module settings. With more than one group, a list at the top picks which one.
 
 - **Members**: each character's HP, AC, passive Perception, hit dice left, conditions and
   exhaustion, death saves at 0 HP, and whether the token is on the scene and in the encounter.

@@ -259,6 +259,9 @@
   align-items: center;
   gap: 0.5rem 0.9rem;
 }
+.during-conditions {
+  flex: 1 1 100%;
+}
 .layout-switch {
   display: inline-flex;
   align-items: stretch;
@@ -650,65 +653,7 @@ a.btn {
   color: var(--accent-bright);
 }
 
-/* ---- Before: the feature cards (I-064, app.js loadFeatureCards) ---- */
-.feature-cards-wrap {
-  grid-column: 1 / -1;
-  display: grid;
-  gap: 0.6rem;
-}
-.feature-cards-head h2 {
-  margin: 0 0 0.15rem;
-  font-size: 1rem;
-}
-.feature-cards {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
-  gap: 0.6rem;
-}
-.feature-group {
-  grid-column: 1 / -1;
-  margin: 0.3rem 0 0;
-  font-size: var(--fs-xs);
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--text-dim);
-}
-.feature-card {
-  padding: 0.75rem 0.85rem;
-  border: 1px solid var(--border-soft);
-  border-radius: var(--r-md);
-  background: var(--bg-elev);
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-  min-width: 0;
-}
-.feature-card.is-on {
-  opacity: 0.8;
-}
-.feature-card-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
-}
-.feature-card h3 {
-  margin: 0;
-  font-size: var(--fs-sm);
-}
-.feature-card p {
-  margin: 0;
-  font-size: var(--fs-sm);
-  color: var(--text-mid);
-}
-.feature-card .feature-when {
-  color: var(--text-dim);
-}
-.feature-card .link-btn {
-  align-self: flex-start;
-  margin-top: auto;
-}
+/* ---- Feature pills (on / off tags) ---- */
 .feature-pill {
   font-size: var(--fs-xs);
   padding: 0.1rem 0.5rem;

@@ -1,7 +1,7 @@
 // The GM page's layout (item gm-page-wrapper): which side the strip is on, how wide, the limits
 // of the divider, and which messages count. Pure, so the page's rules are tested without a
 // browser. The numbers come from the design note (vault Design/GM page design 2026-10-31.md).
-import { LIVE_PICK_MESSAGE, LIVE_READY_MESSAGE } from './mapPick';
+import { LIVE_HELLO_MESSAGE, LIVE_PICK_MESSAGE, LIVE_READY_MESSAGE } from './mapPick';
 
 export type GmMode = 'right' | 'left' | 'window';
 
@@ -99,6 +99,7 @@ export function saveLayout(layout: GmLayout): void {
 /** The pick or ready message and where it came from, for the page's one message handler. */
 export type GmMessage =
   | { kind: 'pick'; from: 'foundry'; ids: readonly string[] }
+  | { kind: 'hello'; from: 'foundry' }
   | { kind: 'ready'; from: 'strip-window' };
 
 interface Sources {
@@ -135,6 +136,7 @@ export function classifyMessage(
       .slice(0, 200);
     return { kind: 'pick', from: 'foundry', ids };
   }
+  if (type === LIVE_HELLO_MESSAGE && fromFoundry) return { kind: 'hello', from: 'foundry' };
   if (type === LIVE_READY_MESSAGE && origin === s.ownOrigin && source === s.stripWindow) {
     return { kind: 'ready', from: 'strip-window' };
   }

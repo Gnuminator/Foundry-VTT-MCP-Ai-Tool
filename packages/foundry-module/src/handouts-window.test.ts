@@ -235,6 +235,17 @@ describe('HandoutsController', () => {
     expect(c.view.actionError).toMatch(/could not be shown.*nobody is online/);
   });
 
+  it('Reveal next: says so when the page was revealed but the chat notice was not posted', async () => {
+    const deps = makeDeps();
+    const c = new HandoutsController(deps, () => {});
+    await c.load();
+    deps.request.mockResolvedValueOnce(plan);
+    deps.request.mockResolvedValueOnce({ noticed: { ok: false, error: 'No handler found' } });
+    await c.revealNext();
+    expect(deps.notifyInfo).toHaveBeenCalled();
+    expect(c.view.actionError).toMatch(/chat notice.*not posted.*No handler found/);
+  });
+
   it('Reveal next: does nothing with nothing queued, and ignores a second click while busy', async () => {
     const deps = makeDeps();
     deps.request.mockResolvedValue({ queue: [] });

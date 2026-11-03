@@ -9,7 +9,7 @@ import {
   maxStripPx,
   parseLayout,
 } from './gmLayout';
-import { LIVE_PICK_MESSAGE, LIVE_READY_MESSAGE } from './mapPick';
+import { LIVE_HELLO_MESSAGE, LIVE_PICK_MESSAGE, LIVE_READY_MESSAGE } from './mapPick';
 
 describe('the strip width limits', () => {
   it('keeps Foundry at 1024 px or more and the strip between 320 and 720', () => {
@@ -69,6 +69,21 @@ describe('classifyMessage', () => {
     ownOrigin: 'https://cogm.example.com',
   };
   const pick = { type: LIVE_PICK_MESSAGE, tokenIds: ['a', 3, '', 'b'] };
+
+  it('takes a hello from Foundry (frame or tab) so the page can answer it', () => {
+    const hello = { type: LIVE_HELLO_MESSAGE };
+    expect(classifyMessage({ data: hello, source: frame, origin: s.foundryOrigin }, s)).toEqual({
+      kind: 'hello',
+      from: 'foundry',
+    });
+    expect(classifyMessage({ data: hello, source: tab, origin: s.foundryOrigin }, s)?.kind).toBe(
+      'hello'
+    );
+    expect(
+      classifyMessage({ data: hello, source: frame, origin: 'https://evil.example' }, s)
+    ).toBeNull();
+    expect(classifyMessage({ data: hello, source: popup, origin: s.foundryOrigin }, s)).toBeNull();
+  });
 
   it('takes a pick from the Foundry frame or tab, from Foundry origin only', () => {
     expect(classifyMessage({ data: pick, source: frame, origin: s.foundryOrigin }, s)).toEqual({

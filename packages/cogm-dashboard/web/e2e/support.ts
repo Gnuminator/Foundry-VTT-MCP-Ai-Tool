@@ -18,6 +18,7 @@ export const SERVER_THEME = 'neutral';
 export async function fakeCommonRoutes(page: Page, theme = SERVER_THEME): Promise<void> {
   await page.route('**/api/theme', route => route.fulfill({ json: { theme } }));
   await page.route('**/api/usage', route => route.fulfill({ status: 204 }));
+  await fakeSwitchesRead(page);
 }
 
 /**
@@ -32,6 +33,24 @@ export async function fakeStream(
   const body = `retry: 600000\n\n${lines.join('')}`;
   await page.route('**/api/stream**', route =>
     route.fulfill({ status: 200, contentType: 'text/event-stream', body })
+  );
+}
+
+/**
+ * The module's switches read as on (none needed) unless a spec answers its own: without a bridge
+ * the real route says it cannot read them, and the live controls stay disabled for that.
+ */
+export async function fakeSwitchesRead(page: Page): Promise<void> {
+  await page.route('**/api/session/switches', route =>
+    route.request().method() === 'GET'
+      ? route.fulfill({
+          json: {
+            switches: { switches: [], ready: null, changed: [], failed: [] },
+            gmActionsEnabled: true,
+            error: null,
+          },
+        })
+      : route.fallback()
   );
 }
 

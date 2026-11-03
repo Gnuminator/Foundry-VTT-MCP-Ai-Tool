@@ -50,6 +50,8 @@ export const WRITE_METHODS: readonly string[] = [
   'createJournalEntry',
   // "Show it now" (I-110): pops a page up on the players' screens (Show Players)
   'showJournalPage',
+  // a handout reveal's chat notice: a whisper that names the page and links to it
+  'postHandoutNotice',
   // the session notes folder (recap lane, D-087; GM-only)
   'ensureJournalFolder',
   'updateCampaignProgress',
@@ -106,6 +108,7 @@ export const NON_WRITE_METHODS: readonly string[] = [
   'getModuleErrors',
   'getModuleManifest',
   'getModules',
+  'getSetupInfo',
   'getPagesForPlayers',
   'getPartyCharacters',
   'getPartyState',

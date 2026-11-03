@@ -71,8 +71,8 @@ GM Actions. **End session** turns off again what it turned on. See
   scene you are looking at, adding the party to combat, and a rest request every player can
   answer from their own character.
 - **Starts:** off. Setting "AI Tool: Party (writes)". Turn on for tonight turns it on.
-- **Turn it on when:** the party travels or rests for the first time. It needs a Group actor set
-  as the primary party in Foundry.
+- **Turn it on when:** the party travels or rests for the first time. The primary party (a Group
+  actor) is made and filled with the player characters by itself.
 - **More:** [The party drawer](dashboard.md#the-party-drawer--party).
 
 ## Who would notice

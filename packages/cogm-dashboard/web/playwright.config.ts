@@ -25,7 +25,7 @@ export default defineConfig({
   outputDir: path.join(packageDir, 'test-results'),
   fullyParallel: true,
   // The CI runner has 4 vCPUs; Playwright's default there is 2 workers. Locally: the default.
-  workers: process.env.CI ? 4 : undefined,
+  ...(process.env.CI ? { workers: 4 } : {}),
   forbidOnly: Boolean(process.env.CI),
   // No retries: a flaky test fails the run (the trace shows why) instead of passing quietly.
   retries: 0,

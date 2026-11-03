@@ -290,7 +290,7 @@ describe('createPlan (Foundry ops)', () => {
   it('expires plans after 15 minutes and caps how many are kept', async () => {
     const p = await plan([HP_UPDATE]);
     now += PLAN_TTL_MS;
-    expect(() => service.getPlan(p.planId)).toThrow(/No pending plan/);
+    expect(() => service.getPlan(p.planId)).toThrow(/No pending plan.*get-planned-change/);
 
     service = makeService({ maxPlans: 2 });
     const a = await plan([HP_UPDATE]);

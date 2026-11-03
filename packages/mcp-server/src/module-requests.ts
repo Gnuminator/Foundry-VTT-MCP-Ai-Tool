@@ -97,9 +97,7 @@ export function createModuleRequestHandler(deps: ModuleRequestDeps): ModuleReque
 
   const dispatch: ModuleRequestHandler = async (tool, args, requestedBy) => {
     if (!(MODULE_REQUEST_TOOLS as readonly string[]).includes(tool)) {
-      throw new Error(
-        `Tool not allowed for module requests: ${tool}. Only the Foundry window's own buttons (the module requests list) may call it; ask Claude in chat instead.`
-      );
+      throw new Error(`Tool not allowed for module requests: ${tool}`);
     }
     if (tool === 'undo-change') {
       return deps.guardedChangeTools.handleUndoChange(args, requesterLabel(requestedBy));

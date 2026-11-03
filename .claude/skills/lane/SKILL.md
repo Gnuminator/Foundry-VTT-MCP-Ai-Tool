@@ -149,10 +149,11 @@ scripts/heavy-lock.mjs status`). `npm run green -- --cloud` (background) prints 
 
 ## Context and handover
 
-- The context hook prints one line at 200k (plan the handover) and 250k (hand over now);
-  `get_usage "self"` gives the exact number. An advisor call's top-level usage reads about twice
-  the real context; the hook reads the last pass.
-- **Hard stop:** at or above 250k `context-stop.mjs` denies Edit, Write, Agent and shell commands
+- The context hook prints one line at 250k (plan the handover) and 300k (hand over now) for a
+  lane, a session whose cwd is under `.claude/worktrees/` (the user, 2026-11-04); the planner and
+  other sessions keep 200k and 250k. `get_usage "self"` gives the exact number. An advisor call's
+  top-level usage reads about twice the real context; the hook reads the last pass.
+- **Hard stop:** at or above 300k `context-stop.mjs` denies Edit, Write, Agent and shell commands
   that write in the repo. Still allowed: reading, git add, commit and push, `gh`, writes to the
   vault and the scratchpad, SendMessage, wrap_up. Write the handover and stop; the deny lifts when
   the context is under the line again.

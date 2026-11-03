@@ -39,7 +39,7 @@ actor, scene, journal, compendium, world, module, every sidebar tab and button a
 (Actors tab, Scenes tab, Game Settings), every dashboard label and panel name as the dashboard shows it
 (Pre-flight, Recent Changes), attack, attack roll, saving throw, ability check, hit points, HP, AC,
 initiative, combat tracker, spell slot, short rest, long rest, advantage, disadvantage, condition names,
-NPC, monster, spell, feature, item, handout, recap, quest, play log, session notes, prompt, plan,
+NPC, monster, roll, damage, healing, combat, turn, round, spell, feature, item, handout, recap, quest, play log, session notes, prompt, plan,
 confirm, undo, API key, Pro, Max.
 
 **Use Danish for:** GM (`GM'en`, `GM'ens`), player (`spiller`, `spillerne`), campaign (`kampagne`),

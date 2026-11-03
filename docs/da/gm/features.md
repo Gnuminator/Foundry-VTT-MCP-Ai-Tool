@@ -1,6 +1,6 @@
 ---
 source: gm/features.md
-sourceHash: 26a1a8b41d86
+sourceHash: b6bdeec53ee4
 title: Funktioner og hvornår du slår dem til
 description: De funktionsknapper i Foundry AI Tool, du bruger ved bordet, hvad hver af dem gør, og hvornår du skal slå dem til.
 ---
@@ -19,7 +19,7 @@ stopper dashboardets ændringer lige så vel som Claudes.
 (Module Management viser det som **Foundry AI Tool**). Alle knapperne på siden her er indstillinger
 i det, og næsten alle hedder "AI Tool: ..." (Allow Write Operations er undtagelsen). **Dashboardet**
 er websiden ved siden af Foundry, som du åbner i en anden fane. **GM-vinduerne** er små vinduer inde
-i Foundry. De har deres egen knap, "AI Tool: GM windows", som er slået fra, til du slår den til (se
+i Foundry. De har deres egen knap, "AI Tool: GM windows", som er slået til som standard (se
 [GM-vinduerne](gm-windows.md)). Modulets knapper ligger alle samme sted: scroll til overskriften
 **Foundry AI Tool** i Game Settings.
 
@@ -54,8 +54,8 @@ GM Actions. **End session** slår det fra igen, som den slog til. Se
   Recent Changes. Dashboardets egne knapper ændrer den ikke: Condition viser altid confirm-vinduet,
   og Damage / Heal udfører med det samme fra sin lille formular, med Undo.
 - **Starter:** slået fra. Indstillingen "AI Tool: Live play, apply without confirming".
-- **Slå den til, når:** du lader Claude klare damage i lange kampe, og det bliver trættende at
-  bekræfte hvert slag. Lad den stå fra, mens du stadig lærer, hvad Claude gør.
+- **Slå den til, når:** du lader Claude klare damage i lange combats, og det bliver trættende at
+  bekræfte hvert roll. Lad den stå fra, mens du stadig lærer, hvad Claude gør.
 - **Mere:** [Asking Claude](asking-claude.md#funktionskontakter).
 
 ## Handouts
@@ -84,7 +84,7 @@ GM Actions. **End session** slår det fra igen, som den slog til. Se
   intet bliver rullet, og spillerne ser det aldrig.
 - **Starter:** slået fra. Indstillingen "AI Tool: Who would notice". Den er ikke med i Turn on for
   tonight.
-- **Slå den til, når:** du vil vide, hvem der opdager noget skjult, uden at bede om slag.
+- **Slå den til, når:** du vil vide, hvem der opdager noget skjult, uden at bede om roll.
 - **Mere:** [The party drawer](dashboard.md#party-skuffen--party).
 
 ## Tarokka
@@ -139,7 +139,7 @@ GM Actions. **End session** slår det fra igen, som den slog til. Se
 
 - **Hvad den gør:** efter en optaget session skriver værktøjet noterne (en Recap til spillerne, et
   GM-resumé og scenerne) og **lægger dem ind i Foundry af sig selv, uden at spørge**: en journal
-  kun for GM, "Session notes", med ét indlæg pr. session. Ændringen står i Recent Changes med
+  kun for GM i mappen "Session notes", med ét indlæg pr. session (navngivet med dato og titel). Ændringen står i Recent Changes med
   **Undo**. Recappen havner også i Handouts-køen, så spillerne først ser den, når du afslører den.
   Dashboardets **After**-visning viser, hvor noterne er, med **Read**, **Approve without
   revealing** og **Undo**.
@@ -152,7 +152,7 @@ GM Actions. **End session** slår det fra igen, som den slog til. Se
 ## Boss prompts
 
 - **Hvad den gør:** i turn-order stripen vises pips for legendary actions og resistance, en
-  påmindelse om lair actions og reaktionsmærker for skabningerne i kampen. Intet ændrer sig i
+  påmindelse om lair actions og reaktionsmærker for skabningerne i combaten. Intet ændrer sig i
   Foundry.
 - **Starter:** slået fra. En knap i dashboardets Combat Tracker, som huskes i denne browser.
 - **Slå den til, når:** før den første bosskamp.
@@ -163,7 +163,7 @@ GM Actions. **End session** slår det fra igen, som den slog til. Se
 - **Hvad den gør:** når modulet **Dice So Nice** er installeret og slået til, passer to terningesæt
   til dashboardets temaer: **AI Tool: The Veil** (røgfarvet gråt-grønt glas med drivende tåge,
   tallene i lampeguld) og **AI Tool: Neutral** (dyb marineblå med blå-hvide tal). Kun de 3D-terningers
-  udseende ændrer sig. Slag og play log forbliver de samme.
+  udseende ændrer sig. Roll og play log forbliver de samme.
 - **Starter:** sættene findes, så snart Dice So Nice gør, men ingen bruger dem, før de vælger dem.
 - **Slå den til, når:** før session 1. Vil du gøre et af dem til bordets standard, så åbn **Game
   Settings**, **Dice So Nice**, klik på **Configure Dice Roles**, og vælg **AI Tool: The Veil**
@@ -175,8 +175,9 @@ GM Actions. **End session** slår det fra igen, som den slog til. Se
 
 - **Hvad den gør:** tilføjer knapperne Combat, Party, Session, Scene og Loot til AI Tool-gruppen i
   scene controls (kun GM). Hver åbner et lille vindue ved siden af kortet, så du kan køre en scene
-  fra én skærm uden dashboard-fanen. Kun Combat-knapperne til tur og Session-knapperne start og
-  slut ændrer noget, og intet her spørger Claude.
+  fra én skærm uden dashboard-fanen. Combat-knapperne til turn og Session-knapperne start og slut
+  ændrer spillet, og Party-vinduet har roll-knapper, der beder dine spillere om et roll. Intet her
+  spørger Claude.
 - **Starter:** slået til (en world, hvor indstillingerne er gemt tidligere, kan have den slået
   fra). Indstillingen "AI Tool: GM windows".
 - **Slå den fra, når:** du ikke vil have de ekstra knapper i scene controls.
@@ -206,9 +207,9 @@ udført, når du har bekræftet en plan, og den står i Recent Changes med Undo.
 - **Scene mood and music** ("AI Tool: Scene mood and music (writes)"): en scenes mørke, lys og
   vejr, gemte mood presets og at starte, stoppe eller skifte playlists. Starter slået fra. Slå den
   til, når du vil have Claude til at sætte stemningen i en scene.
-- **NPC turn assistant** ("AI Tool: NPC turn assistant (writes)"): flytter et monster på dets tur
+- **NPC turn assistant** ("AI Tool: NPC turn assistant (writes)"): flytter et monster på dets turn
   og trækker hit points fra de skabninger, det rammer. Attacks og saves bliver rullet først, hver
-  for sig. Starter slået fra. Slå den til, når du vil have Claude til at hjælpe med et monsters tur.
+  for sig. Starter slået fra. Slå den til, når du vil have Claude til at hjælpe med et monsters turn.
 - **Room setup** ("AI Tool: Room setup (writes)"): tilføjer teleport regions og fylder et rum med
   tokens. Starter slået fra. Slå den til, mens du forbereder et kort.
 - **Scene restore** ("AI Tool: Scene restore (writes)"): sætter en scenes vægge, lys, tiles og

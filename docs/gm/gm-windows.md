@@ -31,7 +31,7 @@ The buttons appear at once, without reloading. Unticking the switch closes every
 
 On the left edge of the map, the scene controls have a group called **AI Tool** (the wand icon at the
 bottom). Click it and a second column opens with one button for each window, in this order: Changes,
-Handouts and Tarokka (these three are always there), then **Combat**, **Party**, **Session**, **Scene** and **Loot**. Hold the mouse over a button to see its name.
+Handouts, Tarokka and Tarokka table (these four are always there), then **Combat**, **Party**, **Session**, **Scene** and **Loot**. A **Live** button comes last when "AI Tool: Live window" is on (see [The live views](live-views.md)). Hold the mouse over a button to see its name.
 
 ![The AI Tool group in the scene controls](../images/guides/gm-windows-buttons.png)
 

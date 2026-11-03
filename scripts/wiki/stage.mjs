@@ -99,6 +99,7 @@ const SIDEBAR = [
       'gm/first-hour',
       'gm/first-hour-quest',
       'gm/getting-started',
+      'gm/glossary',
       'gm/connect-claude-desktop',
       'gm/claude-plans',
     ],

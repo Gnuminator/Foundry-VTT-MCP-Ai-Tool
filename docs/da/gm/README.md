@@ -1,6 +1,6 @@
 ---
 source: gm/README.md
-sourceHash: 5ad3728b25f1
+sourceHash: 8cf62ad90125
 title: GM-guides
 description: Guides til en GM, der kører et spil med Foundry AI Tool, skrevet til en, der er ny i Foundry og i værktøjet.
 ---
@@ -9,12 +9,15 @@ description: Guides til en GM, der kører et spil med Foundry AI Tool, skrevet t
 
 **Start med én side:** [De første 15 minutter](first-15-minutes.md). Det er den, du skal læse først.
 
-**Ny i at køre Foundry?** Brug så [din første time som GM](first-hour.md) på en fast læserækkefølge.
+Så i denne rækkefølge:
 
-**På en ny PC:** [forbind først Claude Desktop til serveren](connect-claude-desktop.md).
+1. [Din første time som GM](first-hour.md), hvis du er ny i at køre Foundry.
+2. [Kom i gang](getting-started.md), én gang.
+3. Tjeklisterne [før en session](before-session.md) og [efter en session](after-session.md), hver gang
+   du spiller.
 
-**Start her:** læs [Kom i gang](getting-started.md) én gang, og brug derefter tjeklisterne
-[før en session](before-session.md) og [efter en session](after-session.md) hver gang du spiller.
+På en ny PC [forbinder du først Claude Desktop til serveren](connect-claude-desktop.md). Et ord, du
+ikke kender, står i [ordlisten](glossary.md).
 
 **Inde fra Foundry:** fanen Settings, **Game Settings**, kategorien **Foundry AI Tool**, knappen
 **Open the GM guide** åbner disse sider i en ny browserfane.
@@ -24,7 +27,8 @@ description: Guides til en GM, der kører et spil med Foundry AI Tool, skrevet t
 | [De første 15 minutter](first-15-minutes.md)                     | Siden du læser først: hvad det er, fire små trin, og hvad du kan ignorere indtil videre.                    |
 | [Din første time som GM](first-hour.md)                          | En fast læserækkefølge: Foundrys egne guides til det basale, vores sider til værktøjet.                     |
 | [Quest: din første time](first-hour-quest.md)                    | Den første time som fire trin, du kan sætte flueben ved.                                                    |
-| [Kom i gang](getting-started.md)                                 | Hvad værktøjet er, dets dele, hvordan de hænger sammen, en ordliste og dagens opsætning.                    |
+| [Kom i gang](getting-started.md)                                 | Hvad værktøjet er, dets dele, hvordan de hænger sammen og dagens opsætning.                                 |
+| [Ordliste](glossary.md)                                          | Foundry-ordene og værktøjsordene i guiderne.                                                                |
 | [Dashboardet](dashboard.md)                                      | Hvert panel og hver knap på dashboardet, hvad de gør, og hvornår du bruger dem.                             |
 | [GM-vinduerne](gm-windows.md)                                    | Combat, Party, Session, Scene og Loot som små vinduer ved siden af kortet, og hvordan du slår dem til.      |
 | [Live-visningerne](live-views.md)                                | Live screen, GM page og Live window: de tre måder at have combat-strippen ved siden af Foundry.             |

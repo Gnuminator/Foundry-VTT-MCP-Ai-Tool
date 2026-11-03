@@ -549,6 +549,10 @@ describe('link check', () => {
     const downPort = await listen(down);
     assert.equal(await probeLink(upPort), 'connected');
     assert.equal(await probeLink(downPort), 'disconnected');
+    // An older bridge answers an unknown method with an error: never a reason to restart.
+    const old = net.createServer(s => s.on('data', () => s.write('{"id":"link","error":"unknown method"}\n')));
+    assert.equal(await probeLink(await listen(old)), 'unreachable');
+    old.close();
     up.close();
     down.close();
     assert.equal(await probeLink(upPort), 'unreachable');

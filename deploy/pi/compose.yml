@@ -153,6 +153,7 @@ services:
       FOUNDRY_URL: http://127.0.0.1:${FOUNDRY_HTTP_PORT:-30000}
       CHROMIUM: /usr/local/bin/chromium-nosandbox
       MCP_CONTROL_PORT: "${BRIDGE_CONTROL_PORT:-31414}"
+      GM_LINK_WATCH: "1"
       GM_BROWSER_PROFILE: ${TOOL_DATA_DIR:-/var/lib/foundry-ai-tool}/gm-browser
     volumes:
       - ${TOOL_DATA_DIR:-/var/lib/foundry-ai-tool}:${TOOL_DATA_DIR:-/var/lib/foundry-ai-tool}
@@ -160,6 +161,6 @@ services:
       <<: *health
       # The bridge reports the module's socket connected (control method link_status). Docker does not restart an
       # unhealthy container: the driver exits itself (restart: unless-stopped brings it back) when the bridge
-      # listens but has had no module socket for 2 min (MCP_CONTROL_PORT below turns that watcher on).
+      # listens but has had no module socket for 2 min (GM_LINK_WATCH below turns that watcher on).
       test: ["CMD", "node", "/opt/gm/healthcheck.mjs", "link", "${BRIDGE_CONTROL_PORT:-31414}"]
       start_period: 60s

@@ -74,7 +74,9 @@ export function probeLink(port, host = '127.0.0.1', timeoutMs = 5000) {
       if (!buffer.includes('\n')) return;
       try {
         const reply = JSON.parse(buffer.split('\n')[0]);
-        done(reply?.result?.module === 'connected' ? 'connected' : 'disconnected');
+        // Only an explicit answer counts: an older bridge or an error reply is "unreachable", never a reason to restart.
+        const module = reply?.result?.module;
+        done(module === 'connected' || module === 'disconnected' ? module : 'unreachable');
       } catch {
         done('unreachable');
       }
@@ -233,9 +235,10 @@ async function run() {
     `joined world ${info.world} as ${info.user} (GM: ${info.isGM}, module active: ${info.module})`
   );
   if (!info.module) log(`the ${MODULE_ID} module is not active in this world; enable it as a GM`);
-  // The link check runs only where MCP_CONTROL_PORT is set (the compose service sets it).
+  // The link check runs only where GM_LINK_WATCH=1 (the compose service sets it; the systemd unit does not, it has
+  // no start limit) and only when the module is active in this world (a kit or trial world without it would loop).
   const linkPort = Number(process.env.MCP_CONTROL_PORT);
-  if (linkPort > 0) watchLink(linkPort, context);
+  if (process.env.GM_LINK_WATCH === '1' && linkPort > 0 && info.module) watchLink(linkPort, context);
   // Stay. Foundry sends a client back to /join when the world stops or the user is kicked;
   // exit then and let systemd start a fresh browser.
   for (;;) {

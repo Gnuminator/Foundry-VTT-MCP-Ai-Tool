@@ -397,6 +397,15 @@ describe('11-world.sh in an ARM64 container', { skip: containerReason }, () => {
     assert.equal(r.leak, 'no');
   });
 
+  test('pi-modules-pushback: a Plan B push-back keeps the pi-modules line and leaves the Pi copy of the module alone', () => {
+    const r = run('pi-modules-pushback');
+    assert.equal(r.exit, '0', r.output);
+    assert.match(r.output, /a Plan B push-back of frostmaiden-training/);
+    assert.match(r.output, /modules already on the Pi, left as they are: aitool-content/);
+    assert.deepEqual(lines(r.modules), ['aitool-content yes', 'foundry-mcp-bridge no']);
+    assert.equal(r.leak, 'no');
+  });
+
   test('pi-modules-newer: a Pi copy newer than the PC version the world was checked against is fine', () => {
     const r = run('pi-modules-newer');
     assert.equal(r.exit, '0', r.output);

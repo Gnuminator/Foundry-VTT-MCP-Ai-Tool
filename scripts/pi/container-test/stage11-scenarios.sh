@@ -304,7 +304,8 @@ scenario() {
     echo "--- first run switches pending"
     ls "$TOOL_ETC" | grep 'switches-pending$' || true
   fi
-  [ "$pushback2" = 0 ] || manifest_extra=$'gm-password: kept (push-back)\nbased-on-snapshot: 2026-10-30T12:00:00Z'
+  # Appended, so a pi-modules: line a setup function put there still reaches the push-back bundle.
+  [ "$pushback2" = 0 ] || manifest_extra="${manifest_extra:+$manifest_extra$'\n'}"$'gm-password: kept (push-back)\nbased-on-snapshot: 2026-10-30T12:00:00Z'
   run_stage "$bw" "${env_words[@]}" "${rerun_words[@]}" >/tmp/out.last
   local rc=$?
   echo "--- output"
@@ -390,7 +391,8 @@ scenario kit-default-refused frostmaiden-training - WORLD=frostmaiden-training
 scenario kit-needs-title frostmaiden-training - WORLD=frostmaiden-training KIT_WORLD=frost-kit
 scenario launch-not-installed frostmaiden-training - WORLD=frostmaiden-training KIT_WORLD= LAUNCH=nope
 scenario pi-modules-installed frostmaiden-training pimod_installed WORLD=frostmaiden-training KIT_WORLD= LAUNCH=curse-of-strahd EXTRA_GM_USER=Claude
-scenario pi-modules-missing frostmaiden-training pimod_missing WORLD=frostmaiden-training KIT_WORLD= LAUNCH=curse-of-strahd EXTRA_GM_USER=Claude
+scenario pi-modules-pushback frostmaiden-training pimod_installed WORLD=frostmaiden-training KIT_WORLD= LAUNCH=curse-of-strahd rerun pushback2 RERUN:REPLACE_WORLD=1 RERUN:REPLACE_NEWER=1
+scenario pi-modules-missingfrostmaiden-training pimod_missing WORLD=frostmaiden-training KIT_WORLD= LAUNCH=curse-of-strahd EXTRA_GM_USER=Claude
 scenario launch-omitted frostmaiden-training - WORLD=frostmaiden-training KIT_WORLD= EXTRA_GM_USER=Claude
 scenario kit-is-campaign frostmaiden-training - WORLD=frostmaiden-training KIT_WORLD=curse-of-strahd "KIT_TITLE=Frost kit" LAUNCH=curse-of-strahd
 scenario kit-is-launch frostmaiden-training - WORLD=frostmaiden-training KIT_WORLD=frost-kit "KIT_TITLE=Frost kit" LAUNCH=frost-kit

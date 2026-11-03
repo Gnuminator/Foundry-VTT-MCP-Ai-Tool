@@ -33,19 +33,16 @@ permissions:
 jobs:
   build-test:
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        # 22: the release build. 24: what the Orange Pi runs (Foundry 14 requires Node 24,
-        # and the bridge, dashboard and bot share that Node on the Pi).
-        node: ['22', '24']
-    name: build-test (Node ${{ matrix.node }})${{ github.event_name == 'workflow_dispatch' && ' [dispatch]' || '' }}
+    # Node 24 is the floor (decision 45): the release build, the installer, the Orange Pi and
+    # Foundry 14 all run it. This is the one full x64 job, so the bundle budget, the zip upload
+    # and the browser tests live here.
+    name: build-test (Node 24)${{ github.event_name == 'workflow_dispatch' && ' [dispatch]' || '' }}
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
         with:
-          node-version: ${{ matrix.node }}
+          node-version: '24'
           cache: 'npm'
 
       - name: Install dependencies
@@ -270,7 +267,6 @@ jobs:
           node tools/gm-coach/build.mjs
 
       - name: Keep the GM coach zip
-        if: matrix.node == '22'
         uses: actions/upload-artifact@v4
         with:
           name: foundry-gm-coach
@@ -283,8 +279,7 @@ jobs:
       - name: Dashboard bundle budget
         # UI-05: the React dashboard's first-load JS and each lazy chunk against their gzip limits
         # (packages/cogm-dashboard/scripts/bundle-budget.mjs, limits recorded in the script). Fails
-        # when one grows past its limit; the table also goes to the job summary. Once per run.
-        if: matrix.node == '22'
+        # when one grows past its limit; the table also goes to the job summary.
         run: npm run bundle:budget -w @gnuminator/cogm-dashboard
 
       - name: Test kit engine tests
@@ -335,17 +330,15 @@ jobs:
         run: node scripts/cogm-split-smoke-test.mjs
 
       - name: Install Chromium for the dashboard browser tests
-        if: matrix.node == '22'
         run: npm exec -w @gnuminator/cogm-dashboard -- playwright install --with-deps chromium
 
       - name: Dashboard browser tests (React dashboard)
         # Playwright against the built dashboard at /next/ (packages/cogm-dashboard/web, D-109):
-        # the real server with no bridge, the /api routes faked in the browser. Once per run.
-        if: matrix.node == '22'
+        # the real server with no bridge, the /api routes faked in the browser.
         run: npm run test:e2e -w @gnuminator/cogm-dashboard
 
       - name: Keep the browser test report
-        if: failure() && matrix.node == '22'
+        if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: dashboard-playwright-report
@@ -424,7 +417,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: '24'
           cache: 'npm'
 
       - name: Install dependencies
@@ -545,23 +538,12 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Typecheck and lint (green-gate + lint ratchet)
-        # Documented green-gate: a type/lint error that doesn't break the build
-        # must still fail CI. Runs before build to fail fast. Every lint rule is an
-        # error now (D-109), so the lint ratchet fails on any finding; the baseline
-        # scripts/lint-baseline.json stays at 0.
-        run: npm run typecheck && npm run lint:ratchet && npm run emdash:ratchet && npm run version:check
-
+      # The ARM job does only ARM work: typecheck, the lint and em-dash ratchets, the version
+      # check and the docs lint are architecture independent and run once, in the x64 job.
       - name: Usage catalogue is current
         # shared/src/usage-catalog.generated.ts lists every control that reports usage
         # (docs/design/USAGE-LOG.md); regenerate with `npm run usage:catalog`.
         run: npm run usage:catalog:check
-
-      - name: Docs lint and internal links
-        # markdownlint (.markdownlint-cli2.jsonc) and every relative link and #anchor in the
-        # tracked Markdown (scripts/check-links.mjs), I-081. docs/reference/tools.md is generated
-        # from the tool catalog; the mcp-server tests fail while it is stale (`npm run docs:tools`).
-        run: npm run docs:lint && npm run docs:links
 
       - name: Build (all workspaces)
         run: npm run build

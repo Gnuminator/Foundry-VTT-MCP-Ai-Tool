@@ -53,13 +53,13 @@ console.log(`Version: ${version}\n`);
 // Configuration
 const rootDir = path.join(__dirname, '..');
 const config = {
-  // Node 22 LTS ("Jod"). The SHA-256 is the line for this zip in
-  // https://nodejs.org/dist/v22.23.3/SHASUMS256.txt; the build fails if the download differs.
+  // Node 24 LTS ("Krypton"; the floor since decision 45). The SHA-256 is the line for this zip in
+  // https://nodejs.org/dist/v24.22.2/SHASUMS256.txt; the build fails if the download differs.
   // To bump: change the three Node lines and the hash together.
-  nodeVersion: 'v22.23.3',
-  nodeArchive: 'node-v22.23.3-win-x64.zip',
-  nodeUrl: 'https://nodejs.org/dist/v22.23.3/node-v22.23.3-win-x64.zip',
-  nodeSha256: '2b0ff57b049cda1bbcea2240eec20467018713c1efe1f7360c2681859b90ed71',
+  nodeVersion: 'v24.22.2',
+  nodeArchive: 'node-v24.22.2-win-x64.zip',
+  nodeUrl: 'https://nodejs.org/dist/v24.22.2/node-v24.22.2-win-x64.zip',
+  nodeSha256: 'ca1bff5d8ead13c9f2ea404a176db46bd430704d5b5113734049fa365e7799e2',
   // cloudflared (Cloudflare's own release; the SHA-256 is the digest GitHub lists for this asset).
   // To bump: change the version, the URL and the hash together.
   cloudflaredVersion: '2026.10.0',

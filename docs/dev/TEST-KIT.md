@@ -248,7 +248,7 @@ run); it tests that checkout's code.
 **Overnight:** `pwsh scripts/test-kit/register-nightly.ps1` registers the Windows scheduled task
 "Foundry AI Tool kit run" (every night at 03:30, `-At 04:00` for another time, `-Remove` to take
 it away, `-WhatIf` to see what it would register). It runs `kit-run.mjs --nightly` in the main
-checkout with the portable Node 22 while you are logged on, in a hidden console, and appends its
+checkout with the portable Node 24 while you are logged on, in a hidden console, and appends its
 output to `<kit home>\nightly.log`. A PC that is asleep, off or logged off at that time skips the
 night; a missed run is not started later, so it never stops a test server you use during the day.
 The task stops a run after 6 hours without warning, which leaves its lock behind: the next nightly

@@ -28,6 +28,22 @@ interface UsableItemMethods {
   roll?: () => Promise<unknown>;
 }
 
+/** A dnd5e attack activity: the roll the dashboard's Attack asks for. */
+interface AttackActivity {
+  type?: string;
+  rollAttack: (config: object, dialog: object, message: object) => Promise<unknown>;
+}
+
+/** The first attack activity of a dnd5e item, if it has one. */
+function findAttackActivity(item: Item): AttackActivity | undefined {
+  const activities = (item.system as { activities?: Iterable<AttackActivity> } | undefined)
+    ?.activities;
+  if (!activities) return undefined;
+  return Array.from(activities).find(
+    a => a.type === 'attack' && typeof a.rollAttack === 'function'
+  );
+}
+
 /** One damage dice part as the attack, aura and save-feature builders take it. */
 export interface BuilderDamagePart {
   number: number;
@@ -47,6 +63,7 @@ export interface UseItemInput {
         skipDialog?: boolean | undefined; // Skip confirmation dialogs (default: true for MCP)
         spellLevel?: number | undefined; // For spells: cast at higher level
         versatile?: boolean | undefined; // For versatile weapons: use versatile damage
+        rollAttack?: boolean | undefined; // dnd5e: also roll the item's attack, no dialog, against the targets
       }
     | undefined;
 }
@@ -221,6 +238,14 @@ export class ActorBuilderDataAccess {
     const itemAny: Item & UsableItemMethods = item;
     const systemId = game.system.id;
 
+    // rollAttack: the item's first attack activity is rolled right after the card (no dialog), so
+    // refuse an item without one before anything is targeted or used.
+    const attackActivity = options.rollAttack ? findAttackActivity(item) : undefined;
+    if (options.rollAttack) {
+      if (systemId !== 'dnd5e') throw new Error('rollAttack needs the dnd5e game system');
+      if (!attackActivity) throw new Error(`"${item.name}" has no attack to roll`);
+    }
+
     // Handle targeting if targets are specified
     const resolvedTargetNames: string[] = [];
     let targetsNotSet = '';
@@ -354,8 +379,8 @@ export class ActorBuilderDataAccess {
           }
           // Show the dialog so the GM can make choices, except in a headless browser (the Pi's
           // Assistant GM): nobody can click it, the card would never be made, so dnd5e's defaults apply.
-          const dialog = { configure: !headless };
-          if (headless) {
+          const dialog = { configure: !headless && !attackActivity };
+          if (headless || attackActivity) {
             // Other dialogs would open unseen as well: the activity choice (shift skips it and takes
             // the first usable activity) and the attack/damage roll dialogs that dnd5e opens after
             // the card. The card is made; the rolls are left to the card's buttons.
@@ -370,6 +395,8 @@ export class ActorBuilderDataAccess {
         // Fire and forget - don't await, as dialogs block the promise
         itemAny
           .use(...useArgs)
+          // The targets are still set while the attack rolls: dnd5e reads them for the AC.
+          .then(() => attackActivity?.rollAttack({}, { configure: false }, { create: true }))
           .catch((err: Error) => {
             console.error(`[foundry-mcp-bridge] Error using item ${item.name}:`, err);
           })
@@ -415,13 +442,15 @@ export class ActorBuilderDataAccess {
         success: true,
         status: 'initiated',
         message: `Item use initiated for ${actor.name} using ${item.name}${targetInfo}. ${
-          headless && systemId === 'dnd5e'
-            ? 'This GM browser has no canvas, so no dialog was shown: the system defaults were used (the first activity, no upcasting unless a spell level was given) and the attack or damage roll is left to the buttons on the chat card. The Attack button reads the targets of whoever clicks it, not the ones named here: target the token in Foundry before clicking Attack.'
-            : 'If a dialog appeared in Foundry VTT, the GM should select options and confirm.'
+          attackActivity
+            ? 'The attack is rolled without a dialog; the roll appears in chat.'
+            : headless && systemId === 'dnd5e'
+              ? 'This GM browser has no canvas, so no dialog was shown: the system defaults were used (the first activity, no upcasting unless a spell level was given) and the attack or damage roll is left to the buttons on the chat card. The Attack button reads the targets of whoever clicks it, not the ones named here: target the token in Foundry before clicking Attack.'
+              : 'If a dialog appeared in Foundry VTT, the GM should select options and confirm.'
         } The result will appear in chat.`,
         itemName: item.name,
         actorName: actor.name,
-        requiresGMInteraction: !(headless && systemId === 'dnd5e'),
+        requiresGMInteraction: !(attackActivity || (headless && systemId === 'dnd5e')),
       };
 
       if (resolvedTargetNames.length > 0) {

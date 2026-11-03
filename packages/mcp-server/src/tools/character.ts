@@ -149,6 +149,11 @@ export class CharacterTools {
               type: 'number',
               description: 'For spells: cast at a higher level than base (D&D 5e upcasting)',
             },
+            rollAttack: {
+              type: 'boolean',
+              description:
+                "D&D 5e: also roll the item's attack at once, with no dialog, against the targets. Errors when the item has no attack.",
+            },
           },
           required: ['actorIdentifier', 'itemIdentifier'],
         },
@@ -388,10 +393,18 @@ export class CharacterTools {
       consume: z.boolean().optional(),
       spellLevel: z.number().optional(),
       skipDialog: z.boolean().optional(),
+      rollAttack: z.boolean().optional(),
     });
 
-    const { actorIdentifier, itemIdentifier, targets, consume, spellLevel, skipDialog } =
-      schema.parse(args);
+    const {
+      actorIdentifier,
+      itemIdentifier,
+      targets,
+      consume,
+      spellLevel,
+      skipDialog,
+      rollAttack,
+    } = schema.parse(args);
 
     this.logger.info('Using item', {
       actorIdentifier,
@@ -423,6 +436,7 @@ export class CharacterTools {
           consume: consume ?? true,
           spellLevel,
           skipDialog: skipDialog ?? true, // Default to skipping dialogs for MCP automation
+          ...(rollAttack ? { rollAttack } : {}),
         },
       })) as Rec;
 

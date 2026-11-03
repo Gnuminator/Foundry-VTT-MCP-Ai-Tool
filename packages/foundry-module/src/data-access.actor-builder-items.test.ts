@@ -112,6 +112,48 @@ describe('FoundryDataAccess — useItem', () => {
     });
   });
 
+  it('rollAttack: uses the item without a dialog, then rolls its attack activity without one', async () => {
+    const use = vi.fn(() => Promise.resolve());
+    const rollAttack = vi.fn(() => Promise.resolve());
+    const item = makeItem({ id: 'w1', name: 'Scimitar', type: 'weapon' });
+    (item as any).use = use;
+    (item as any).system = { activities: [{ type: 'save' }, { type: 'attack', rollAttack }] };
+    world.addActor({ id: 'a1', name: 'Bandit', items: [item] });
+
+    const result = await da.useItem({
+      actorIdentifier: 'Bandit',
+      itemIdentifier: 'Scimitar',
+      options: { rollAttack: true },
+    });
+    await flush();
+
+    expect(use.mock.calls[0]).toEqual([
+      { event: { shiftKey: true }, subsequentActions: false },
+      { configure: false },
+      { create: true },
+    ]);
+    expect(rollAttack).toHaveBeenCalledWith({}, { configure: false }, { create: true });
+    expect(result.requiresGMInteraction).toBe(false);
+    expect(result.message).toContain('rolled without a dialog');
+  });
+
+  it('rollAttack: refuses an item with no attack before using it', async () => {
+    const use = vi.fn(() => Promise.resolve());
+    const item = makeItem({ id: 'f1', name: 'Second Wind', type: 'feat' });
+    (item as any).use = use;
+    (item as any).system = { activities: [{ type: 'heal' }] };
+    world.addActor({ id: 'a1', name: 'Fighter', items: [item] });
+
+    await expect(
+      da.useItem({
+        actorIdentifier: 'Fighter',
+        itemIdentifier: 'Second Wind',
+        options: { rollAttack: true },
+      })
+    ).rejects.toThrow('"Second Wind" has no attack to roll');
+    expect(use).not.toHaveBeenCalled();
+  });
+
   it('resolves the item by id as well as by name', async () => {
     const use = vi.fn(() => Promise.resolve());
     const item = makeItem({ id: 'item-id-xyz', name: 'Healing Word', type: 'spell' });

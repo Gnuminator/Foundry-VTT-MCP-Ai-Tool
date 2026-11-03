@@ -322,6 +322,7 @@ Parameters:
 - `targets` (array of string): Target character/token names or IDs. Use ["self"] to target the caster. If omitted, GM selects targets in Foundry.
 - `consume` (boolean): Whether to consume charges/uses (default: true)
 - `spellLevel` (number): For spells: cast at a higher level than base (D&D 5e upcasting)
+- `rollAttack` (boolean): D&D 5e: also roll the item's attack at once, with no dialog, against the targets. Errors when the item has no attack.
 
 ### request-player-rolls
 

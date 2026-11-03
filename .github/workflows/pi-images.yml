@@ -100,7 +100,9 @@ jobs:
         run: |
           victim="$($COMPOSE ps -q bridge)"
           [ -n "$victim" ] || { echo "::error::no bridge container"; exit 1; }
-          docker kill "$victim"
+          # Kill the main process from the host, like a crash. `docker kill` counts as a manual stop here and the
+          # restart policy leaves the container down (the first ARM run showed exited, restart count 0).
+          sudo kill -KILL "$(docker inspect -f '{{.State.Pid}}' "$victim")"
           for i in $(seq 1 60); do
             state="$(docker inspect -f '{{.State.Status}}|{{if .State.Health}}{{.State.Health.Status}}{{end}}|{{.RestartCount}}' "$victim")"
             echo "after kill ($i): $state"

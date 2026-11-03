@@ -361,6 +361,10 @@ mode_status() {
       warn "a systemd unit and the stack run at the same time"
       return 1
     fi
+    if [ "$project" = "$live_project" ] && stack_running "$live_project-rehearsal"; then
+      warn "a rehearsal is running (project $live_project-rehearsal, restart: unless-stopped, it returns after a reboot): MODE=down with the rehearsal ports stops it"
+      return 1
+    fi
   else
     echo "    no docker (stage 22 not run)"
   fi
@@ -368,6 +372,10 @@ mode_status() {
 }
 
 mode_up() {
+  # The live project next to the stock units is the cutover that is refused for now; MODE=up is for rehearsal ports.
+  if [ "$project" = "$live_project" ] && [ "${TEST_ALLOW_CUTOVER:-0}" != 1 ]; then
+    die "MODE=up on the live ports (project $live_project) is the cutover, which is not supported yet (Backlog: pi-compose-cutover): the nightly backup and the other stages would run next to the containers. Use rehearsal ports (deploy/pi/test.env). Nothing was changed"
+  fi
   need_daemon "starting the stack"
   preflight_stack
   conflict_guard
@@ -396,6 +404,9 @@ mode_up() {
 mode_down() {
   command -v docker >/dev/null 2>&1 || die "no docker: nothing to stop"
   need_daemon "stopping the containers"
+  if [ "$project" = "$live_project" ] && ! stack_running && stack_running "$live_project-rehearsal"; then
+    die "no live container runs, but a rehearsal does (project $live_project-rehearsal): run MODE=down again with the rehearsal ports (FOUNDRY_HTTP_PORT=30100 BRIDGE_CONTROL_PORT=31614 BRIDGE_LINK_PORT=31615 DASHBOARD_PORT=3300 and its data folders). Nothing was changed"
+  fi
   if [ "$dry" = 1 ]; then
     say "dry run: would stop and remove the containers of project $project; nothing changed"
     return 0

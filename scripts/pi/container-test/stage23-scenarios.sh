@@ -405,4 +405,17 @@ f="$SB/run.sh"
 ( export TEST_ALLOW_CUTOVER=1 MODE=cutover PATH="$BIN:$PATH" DIETPI_DIR="$SB/dietpi" DIETPI_BACKUP_STATS="$SB/stats" PORT_WAIT=1 WAIT_TIMEOUT=5; bash "$f" 2>&1 | head -n 1 >/dev/null )
 if all_off $all_units && ! stack_gone && ls "$SB"/tool/compose-run-*.log >/dev/null 2>&1; then pass "a closed stdout does not interrupt a cutover; the run is logged"; else fail "sigpipe: $(cat "$SB"/tool/compose-run-*.log 2>&1 | tail -5)"; fi
 
+# 20. MODE=up on the live ports is the refused cutover; a rehearsal left running is seen by status and by a down without its ports
+new_pi
+for u in $all_units; do rm -f "$FAKE/active-$u" "$FAKE/enabled-$u"; done
+run_stage MODE=up TEST_ALLOW_CUTOVER=0
+if [ "$RC" -eq 1 ] && echo "$OUT" | grep -q 'is the cutover, which is not supported' && ! echo "$CALLS" | grep -q 'compose.* up'; then pass "MODE=up on the live ports is refused"; else fail "up live refused (rc $RC): $OUT"; fi
+mkdir -p "$SB/rfdata" "$SB/rdata"
+run_stage MODE=up $reh FOUNDRY_DATA_DIR="$SB/rfdata" TOOL_DATA_DIR="$SB/rdata" TEST_ALLOW_CUTOVER=0
+if [ "$RC" -eq 0 ]; then pass "a rehearsal up still works with the cutover refused"; else fail "rehearsal up (rc $RC): $OUT"; fi
+run_stage MODE=status
+if [ "$RC" -eq 1 ] && echo "$OUT" | grep -q 'a rehearsal is running'; then pass "status warns about a running rehearsal"; else fail "status rehearsal (rc $RC): $OUT"; fi
+run_stage MODE=down
+if [ "$RC" -eq 1 ] && echo "$OUT" | grep -q 'a rehearsal does' && ! stack_gone; then pass "down without the rehearsal ports leaves it and names the ports"; else fail "down rehearsal (rc $RC): $OUT"; fi
+
 if [ "$fails" -eq 0 ]; then echo "ALL SCENARIOS OK"; else echo "$fails scenario check(s) FAILED"; exit 1; fi

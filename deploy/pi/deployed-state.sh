@@ -75,6 +75,10 @@ if have "$DOCKER"; then
       fi
     done <<<"$rows"
   fi
+  # A rehearsal (stage 23 on other ports) is its own project and restarts with the daemon: never leave one behind.
+  if [ -n "$("$DOCKER" ps -aq --filter "label=com.docker.compose.project=$COMPOSE_PROJECT-rehearsal" 2>/dev/null)" ]; then
+    warn "a rehearsal stack is present (project $COMPOSE_PROJECT-rehearsal): stage 23 MODE=down with the rehearsal ports stops it"
+  fi
 else
   ok "no Docker on this host (the stack runs on systemd)"
 fi

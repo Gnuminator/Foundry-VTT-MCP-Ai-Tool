@@ -164,6 +164,10 @@ forventninger](prep-and-expectations.md#en-dagsorden-til-session-0-du-kan-ændre
   arket.
 - Tjek, at hver spiller har valgt sin karakter i **User Configuration** (spillerlisten viser
   `Name [Character]`).
+- **Læg hver færdig karakter i Party.** Terningekast uden for kamp (fx "alle slår Perception") går
+  til Party, så en karakter uden for den bliver sprunget over. Åbn Party-skuespilleren og træk hver
+  færdig karakter ind på arket, eller bed Claude om det. Følgende NPC'er kommer med på samme måde:
+  sæt NPC'ens token til **Friendly** og træk NPC'en ind i Party.
 - Tilføj portrætter: spillerne kan ikke uploade billeder, så de sender dem til dig. Åbn arket, klik
   på portrættet og vælg billedet.
 

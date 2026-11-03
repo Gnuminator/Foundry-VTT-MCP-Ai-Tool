@@ -165,6 +165,10 @@ expectations](prep-and-expectations.md#a-session-0-agenda-you-can-change).
   sheet.
 - Check each player picked their character in **User Configuration** (the Players list shows
   `Name [Character]`).
+- **Put each finished character into the Party.** Roll requests outside combat (for example "everyone
+  roll Perception") go to the Party, so a character that is not in it is skipped. Open the Party
+  actor and drag each finished character onto its sheet, or ask Claude to add them. Following NPCs
+  join the same way: set the NPC's token disposition to **Friendly**, then drag the NPC into the Party.
 - Add portraits: players can't upload pictures, so they send them to you. Open the sheet, click
   the portrait and pick the image.
 

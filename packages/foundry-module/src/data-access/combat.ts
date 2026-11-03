@@ -218,7 +218,11 @@ export class CombatDataAccess {
     const started = combat.started ?? false;
 
     const timedCombat = started
-      ? { combatId: (combat as { id?: string | null }).id ?? null, round: combat.round ?? 0 }
+      ? {
+          combatId: (combat as { id?: string | null }).id ?? null,
+          round: combat.round ?? 0,
+          turnIds: turns.map(t => t.id),
+        }
       : null;
     const combatants = turns.map((c, idx) =>
       this.summarizeCombatant(c, idx, currentIndex, started, timedCombat)
@@ -256,7 +260,11 @@ export class CombatDataAccess {
     idx: number,
     currentIndex: number,
     started: boolean,
-    timedCombat: { combatId: string | null; round: number } | null = null
+    timedCombat: {
+      combatId: string | null;
+      round: number;
+      turnIds?: (string | null | undefined)[];
+    } | null = null
   ): CombatantSnapshot {
     const actor = c.actor;
     const hp = actor?.system?.attributes?.hp;

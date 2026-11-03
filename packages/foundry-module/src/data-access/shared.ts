@@ -407,6 +407,8 @@ export interface TimedCombatContext {
   turn: number;
   /** This combatant's own index in the turn order (an unlinked token shares its actor's id). */
   ownerIdx: number;
+  /** The combatant ids in turn order, to find the one an effect was stamped on. */
+  turnIds?: (string | null | undefined)[];
 }
 
 /**
@@ -450,25 +452,36 @@ function timedLeft(
   combat: TimedCombatContext | null
 ): number {
   const duration = rec(rec(e).duration);
-  const start = rec(rec(e).start);
-  const startRound = start.round;
+  // The stored ids, not the live document: `start.combat` and `start.combatant` resolve to
+  // documents (null once the fight is deleted), the source keeps the id strings.
+  const sourceStart = rec(rec(rec(e)._source).start);
+  const docStart = rec(rec(e).start);
+  const idOf = (source: unknown, live: unknown): string | null => {
+    if (typeof source === 'string') return source;
+    const id = rec(live).id ?? live;
+    return typeof id === 'string' ? id : null;
+  };
+  const startRound = sourceStart.round ?? docStart.round;
+  const startCombat = idOf(sourceStart.combat, docStart.combat);
+  const startCombatant = idOf(sourceStart.combatant, docStart.combatant);
   // Foundry counts from the start stamp only inside the combat that stamped it.
-  const startCombat = rec(start.combat).id ?? start.combat;
-  const sameCombat =
-    startCombat === undefined || startCombat === null || startCombat === combat?.combatId;
+  const sameCombat = startCombat === null || startCombat === combat?.combatId;
   let remaining: unknown = duration.remaining;
   if (combat && sameCombat && typeof startRound === 'number' && Number.isFinite(startRound)) {
     remaining = value - (combat.round - startRound);
     if ((remaining as number) < 0) return 0;
     // At 0 the round has changed but the effect still applies until its expiry point: the
-    // owner's turn start (the default) or end. Foundry's own flag counts when it is set.
+    // holder's turn start (the default) or end. Foundry's own flag counts when it is set. The
+    // holder is the combatant the effect was stamped on, else this one (Foundry's rule).
     if (remaining === 0) {
       if (expired) return 0;
       const expiry = duration.expiry;
-      if (expiry === undefined || expiry === null || expiry === 'turnStart') {
-        return combat.turn >= combat.ownerIdx ? 0 : 1;
-      }
-      if (expiry === 'turnEnd') return combat.turn > combat.ownerIdx ? 0 : 1;
+      // No expiry event at all: the duration alone decides, so it is over at once.
+      if (expiry === null) return 0;
+      const stamped = startCombatant ? (combat.turnIds?.indexOf(startCombatant) ?? -1) : -1;
+      const holderIdx = stamped >= 0 ? stamped : combat.ownerIdx;
+      if (expiry === undefined || expiry === 'turnStart') return combat.turn >= holderIdx ? 0 : 1;
+      if (expiry === 'turnEnd') return combat.turn > holderIdx ? 0 : 1;
       return 1;
     }
     return Math.ceil(remaining as number);

@@ -1,6 +1,6 @@
 ---
 source: gm/prepare-session-0.md
-sourceHash: 5302b7674ef9
+sourceHash: 867065d6bcac
 title: Forbered session 0
 description: Opsætningen af worlden, før spillerne laver deres karakterer til session 0 (på vores server mest et tjek), en prøvekørsel som spiller og hvad du gør på aftenen.
 ---
@@ -164,10 +164,12 @@ forventninger](prep-and-expectations.md#en-dagsorden-til-session-0-du-kan-ændre
   arket.
 - Tjek, at hver spiller har valgt sin karakter i **User Configuration** (spillerlisten viser
   `Name [Character]`).
-- **Læg hver færdig karakter i Party.** Terningekast uden for kamp (fx "alle slår Perception") går
-  til Party, så en karakter uden for den bliver sprunget over. Åbn Party-skuespilleren og træk hver
-  færdig karakter ind på arket, eller bed Claude om det. Følgende NPC'er kommer med på samme måde:
-  sæt NPC'ens token til **Friendly** og træk NPC'en ind i Party.
+- **Tjek, at hver færdig karakter er i Party.** "Ask the party"-kast uden for kamp (fx "alle slår
+  Perception") går til Party. Karakterer kommer med af sig selv, når en spiller ejer dem
+  (indstillingen "AI Tool: Add player characters to the party", slået til som standard), så åbn
+  Party-skuespilleren og tjek, at alle står på listen. Er indstillingen slået fra, eller mangler en,
+  så træk karakteren ind på Party-arket. Følgende NPC'er kommer med på samme måde: træk NPC'en ind
+  på Party-arket, og sæt dens token til **Friendly**, så "all friendly NPCs"-kast tager den med.
 - Tilføj portrætter: spillerne kan ikke uploade billeder, så de sender dem til dig. Åbn arket, klik
   på portrættet og vælg billedet.
 

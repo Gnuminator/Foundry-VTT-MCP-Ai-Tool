@@ -264,7 +264,7 @@ describe('createPlan (Foundry ops)', () => {
       ],
       [
         { feature: 'test-feature', summary: 's', ops: [{ kind: 'delete', uuid: 'Actor.gone' }] },
-        /document not found: Actor.gone/,
+        /document Actor.gone not found\. Use list-characters/,
       ],
       [
         {
@@ -272,7 +272,7 @@ describe('createPlan (Foundry ops)', () => {
           summary: 's',
           ops: [{ kind: 'create', documentName: 'Item', parentUuid: 'Actor.gone', data: {} }],
         },
-        /parent not found/,
+        /parent Actor.gone not found/,
       ],
     ];
     for (const [input, message] of cases) {

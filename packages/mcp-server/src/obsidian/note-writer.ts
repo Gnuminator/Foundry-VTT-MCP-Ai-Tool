@@ -19,6 +19,8 @@
 import { promises as fsp } from 'fs';
 import * as path from 'path';
 
+import { errorMessage as sharedErrorMessage } from '@gnuminator/shared';
+
 import { writeFileAtomic } from './atomic-write.js';
 import type { OwnershipResult } from './ownership.js';
 
@@ -26,7 +28,7 @@ import type { OwnershipResult } from './ownership.js';
 export const KEPT_AT_OLD_PATH = 'kept at its old path because it was edited';
 
 export function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
+  return sharedErrorMessage(error);
 }
 
 export function errorCode(error: unknown): string | undefined {

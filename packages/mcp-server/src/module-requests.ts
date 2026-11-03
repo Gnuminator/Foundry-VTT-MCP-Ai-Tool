@@ -5,9 +5,11 @@
  * Kept out of `backend.ts` so both can be tested without starting the backend.
  */
 import {
+  errorMessage,
   MODULE_CAPABILITY_AI_CHANGES_SIGNAL,
   MODULE_REQUEST_TOOLS,
   type ModuleRequestData,
+  unknownToolMessage,
 } from '@gnuminator/shared';
 import type { GuardedWriteService } from './guarded-write/service.js';
 import { UNDO_FEATURE } from './guarded-write/undo-planner.js';
@@ -95,7 +97,9 @@ export function createModuleRequestHandler(deps: ModuleRequestDeps): ModuleReque
 
   const dispatch: ModuleRequestHandler = async (tool, args, requestedBy) => {
     if (!(MODULE_REQUEST_TOOLS as readonly string[]).includes(tool)) {
-      throw new Error(`Tool not allowed for module requests: ${tool}`);
+      throw new Error(
+        `Tool not allowed for module requests: ${tool}. Only the Foundry window's own buttons (the module requests list) may call it; ask Claude in chat instead.`
+      );
     }
     if (tool === 'undo-change') {
       return deps.guardedChangeTools.handleUndoChange(args, requesterLabel(requestedBy));
@@ -106,7 +110,7 @@ export function createModuleRequestHandler(deps: ModuleRequestDeps): ModuleReque
         throw new Error('mark-play-session from the Foundry window needs action "start" or "end"');
       }
       const route = deps.toolRouter[tool];
-      if (!route) throw new Error(`Unknown tool: ${tool}`);
+      if (!route) throw new Error(unknownToolMessage(tool));
       // The marker line records who clicked: the GM's name when the window sent no note.
       const note =
         typeof args.note === 'string' && args.note.trim() !== ''
@@ -137,7 +141,7 @@ export function createModuleRequestHandler(deps: ModuleRequestDeps): ModuleReque
         );
       }
       const route = deps.toolRouter[tool];
-      if (!route) throw new Error(`Unknown tool: ${tool}`);
+      if (!route) throw new Error(unknownToolMessage(tool));
       const result: unknown = await route(args);
       remember(result);
       return result;
@@ -159,7 +163,7 @@ export function createModuleRequestHandler(deps: ModuleRequestDeps): ModuleReque
       return deps.guardedChangeTools.handleApplyPlannedChange(safe, requesterLabel(requestedBy));
     }
     const route = deps.toolRouter[tool];
-    if (!route) throw new Error(`Unknown tool: ${tool}`);
+    if (!route) throw new Error(unknownToolMessage(tool));
     return route(args);
   };
   const guard = deps.repeatGuard;
@@ -187,7 +191,7 @@ export function createAiChangesAnnouncer(
     if (!foundry.activeModuleHasCapability(MODULE_CAPABILITY_AI_CHANGES_SIGNAL)) return;
     foundry.query(AI_CHANGES_UPDATED_QUERY, {}, { timeoutMs: ANNOUNCE_TIMEOUT_MS }).catch(error => {
       logger.debug('Could not announce the recorded change to the module', {
-        error: error instanceof Error ? error.message : String(error),
+        error: errorMessage(error),
       });
     });
   };

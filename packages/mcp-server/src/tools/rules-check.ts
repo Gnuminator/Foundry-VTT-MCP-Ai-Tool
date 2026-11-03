@@ -7,6 +7,7 @@ import {
   type LiveMoveFact,
   type LiveTargetPreview,
   type RulesCheckResult,
+  featureSwitchOff,
 } from '@gnuminator/shared';
 import type { FoundryClient } from '../foundry-client.js';
 import type { Logger } from '../logger.js';
@@ -33,8 +34,7 @@ const params = z.object({
   castLevel: z.number().int().min(1).max(9).optional(),
 });
 
-const SWITCH_OFF =
-  'The rules check is switched off. In Foundry, open the Settings tab, Game Settings, Foundry AI Tool and turn on "AI Tool: Rules check".';
+const SWITCH_OFF = featureSwitchOff('The rules check', 'AI Tool: Rules check');
 
 type Rec = Record<string, unknown>;
 const rec = (v: unknown): Rec => (v !== null && typeof v === 'object' ? (v as Rec) : {});

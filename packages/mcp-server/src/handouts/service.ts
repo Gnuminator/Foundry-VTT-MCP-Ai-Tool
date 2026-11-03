@@ -33,6 +33,7 @@
  * fine).
  */
 import {
+  errorMessage,
   type GuardedOp,
   type GuardedUpdateOp,
   MODULE_ID,
@@ -680,7 +681,7 @@ export class HandoutsService {
         extraVaultOps: [{ kind: 'vault-delete', file: QUEUE_FILE, path: `entries.${entryId}` }],
       });
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = errorMessage(error);
       throw new Error(
         `${message} (the next queued page is ${entry.uuid}; remove it with action "unqueue" to go on)`,
         { cause: error }

@@ -496,7 +496,7 @@ describe('CompendiumTools.handleGetCompendiumItem', () => {
     const { tools } = makeTools(() => null);
     await expect(
       tools.handleGetCompendiumItem({ packId: 'dnd5e.monsters', itemId: 'missing-id' })
-    ).rejects.toThrow('Item missing-id not found in pack dnd5e.monsters');
+    ).rejects.toThrow('Item missing-id in pack dnd5e.monsters not found. Use search-compendium');
   });
 
   it('throws (wraps message) when the Foundry client throws', async () => {

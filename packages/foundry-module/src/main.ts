@@ -27,6 +27,7 @@ import { RULES_CHECK_FEATURE_ID } from './rules-check.js';
 import { PARTY_FEATURE_ID, WHO_NOTICES_FEATURE_ID } from './party-scan.js';
 import { registerGmWindowsSetting } from './gm-windows.js';
 import { registerLiveWindowSettings, restoreLiveWindow } from './live-window.js';
+import { registerPartyAuto, registerPartyAutoSettings } from './party-auto.js';
 import { registerSessionSwitchSettings } from './session-switches.js';
 import { registerDiceThemes } from './dice-themes.js';
 import { TAROKKA_FEATURE_ID } from './tarokka.js';
@@ -127,6 +128,9 @@ class FoundryMCPBridge {
       registerSessionSwitchSettings();
       registerGmWindowsSetting();
       registerLiveWindowSettings();
+      // Player characters go into the dnd5e party by themselves (active GM's client only).
+      registerPartyAutoSettings();
+      registerPartyAuto();
       // The Tarokka card table (D-130): the public table every client reads, players included.
       registerTarokkaTableSettings();
       // Themed dice (I-085): every client, players included; silent without Dice So Nice.

@@ -1,6 +1,6 @@
 ---
 source: gm/features.md
-sourceHash: 8c8a3b6813e9
+sourceHash: 26a1a8b41d86
 title: Funktioner og hvornår du slår dem til
 description: De funktionsknapper i Foundry AI Tool, du bruger ved bordet, hvad hver af dem gør, og hvornår du skal slå dem til.
 ---
@@ -73,8 +73,8 @@ GM Actions. **End session** slår det fra igen, som den slog til. Se
   kigger på, at tilføje partiet til combat og en rest-forespørgsel, som hver spiller kan svare på
   fra sin egen karakter.
 - **Starter:** slået fra. Indstillingen "AI Tool: Party (writes)". Turn on for tonight slår den til.
-- **Slå den til, når:** partiet rejser eller hviler for første gang. Den kræver en Group-actor, der
-  er sat som primært party i Foundry.
+- **Slå den til, når:** partiet rejser eller hviler for første gang. Det primære party (en
+  Group-actor) bliver lavet og fyldt med spillerkaraktererne af sig selv.
 - **Mere:** [The party drawer](dashboard.md#party-skuffen--party).
 
 ## Who would notice

@@ -132,6 +132,7 @@ export const STEPS = [
   nodeTest('pi-world-switch', 'scripts/pi/switch-world.test.mjs'),
   nodeTest('pi-control-port-check', 'scripts/pi/control-port-check.test.mjs'),
   nodeTest('pi-stage-safety', 'scripts/pi/pi-stage-safety.test.mjs'),
+  nodeTest('pi-deployed-state', 'deploy/pi/deployed-state.test.mjs'),
   nodeTest('tunnel-client', 'installer/nsis/tunnel-client.test.mjs'),
   nodeTest('plan-b', 'scripts/plan-b/plan-b.test.mjs'),
   nodeTest('tv-table-viewer', 'scripts/tv/start-table-viewer.test.mjs'),

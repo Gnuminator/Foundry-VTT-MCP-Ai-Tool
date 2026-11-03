@@ -28,6 +28,8 @@ const GOOD_UNITS = {
   'foundry-ai-tool-gm-browser.service': { active: 'active', sub: 'running', restarts: 0 },
 };
 
+const OFF = { active: 'inactive', sub: 'dead', restarts: 0 };
+
 function stub(dir, name, body) {
   const file = path.join(dir, name);
   writeFileSync(file, `#!/bin/sh\n${body}\n`);
@@ -53,8 +55,10 @@ function run(opts = {}) {
     'assistant-gm.env': 'ASSISTANT_GM_PASSWORD="pw"\n',
   };
   for (const [f, text] of Object.entries(envFiles)) writeFileSync(path.join(etc, f), text);
-  if (opts.version !== null)
-    writeFileSync(path.join(tool, 'app', 'package.json'), `{\n  "version": "${opts.version ?? '0.25.0'}"\n}\n`);
+  if (opts.ref !== null) {
+    writeFileSync(path.join(tool, 'app', 'package.json'), '{\n  "version": "0.24.0"\n}\n');
+    writeFileSync(path.join(tool, 'app', '.tool-ref'), `${opts.ref ?? 'v0.25.0'}\n`);
+  }
   writeFileSync(path.join(tool, 'gm-browser', 'assistant-gm.mjs'), opts.helper ?? 'helper-v1\n');
 
   const units = { ...GOOD_UNITS, ...(opts.units ?? {}) };
@@ -69,14 +73,18 @@ function run(opts = {}) {
 
   let dockerPath = path.join(root, 'bin', 'no-docker');
   if (opts.containers !== null && opts.containers !== undefined) {
-    const list = Object.keys(opts.containers).join('\\n');
+    // Containers are keyed by compose service; `ps` answers only when asked for the compose project, and a stray
+    // exited job container (a GitHub runner's) shows up when the filter is missing.
+    const list = Object.keys(opts.containers)
+      .map(s => `p-${s}-1|${s}`)
+      .join('\\n');
     const cases = Object.entries(opts.containers)
-      .map(([n, c]) => `${n}) echo '${c.state}|${c.restarts}|${c.health}';;`)
+      .map(([s, c]) => `p-${s}-1) echo '${c.state}|${c.restarts}|${c.health}';;`)
       .join('\n');
     dockerPath = stub(
       path.join(root, 'bin'),
       'docker',
-      `case "$1" in\nps) printf '${list}\\n';;\ninspect) case "$4" in\n${cases}\nesac;;\nesac`
+      `case "$1" in\nps) case "$*" in *label=com.docker.compose.project=foundry-ai-tool-pi*) printf '${list}\\n';; *) printf 'runner-job-1|\\n';; esac;;\ninspect) case "$4" in\n${cases}\nrunner-job-1) echo 'exited|0|none';;\nesac;;\nesac`
     );
   }
   const ldconfig = stub(path.join(root, 'bin'), 'ldconfig', opts.icu === false ? 'true' : 'echo "libicuuc.so.72 => /usr/lib/libicuuc.so.72"');
@@ -96,10 +104,10 @@ function run(opts = {}) {
 
 describe('deployed-state.sh', { skip: noBash }, () => {
   test('a healthy Pi on systemd passes', () => {
-    const r = run({ expect: { EXPECT_VERSION: '0.25.0' } });
+    const r = run({ expect: { EXPECT_REF: 'v0.25.0', EXPECT_MAIN_AHEAD: '3' } });
     assert.equal(r.code, 0, r.out);
     assert.match(r.out, /foundry-ai-tool-bridge\.service is active, no restarts/);
-    assert.match(r.out, /deployed version 0\.25\.0 is the one expected/);
+    assert.match(r.out, /deployed ref v0\.25\.0 is the newest release; main is 3 commit\(s\) past it/);
     assert.match(r.out, /0 failed/);
   });
 
@@ -170,7 +178,7 @@ describe('deployed-state.sh', { skip: noBash }, () => {
 
   test('an uninstalled optional unit is fine, a required one fails', () => {
     const r = run({ units: { 'foundry-ai-tool-gm-browser.service': null, 'foundry.service': null } });
-    assert.match(r.out, /gm-browser\.service is not installed \(optional\)/);
+    assert.match(r.out, /gm-browser\.service is not installed/);
     assert.match(r.out, /FAIL: foundry\.service is not installed/);
   });
 
@@ -193,19 +201,59 @@ describe('deployed-state.sh', { skip: noBash }, () => {
   });
 
   test('containers: a healthy container that restarted once warns with the count', () => {
-    const r = run({ containers: { foundry: { state: 'running', restarts: 2, health: 'healthy' } } });
+    const r = run({
+      containers: { foundry: { state: 'running', restarts: 2, health: 'healthy' } },
+      units: { 'foundry.service': OFF },
+    });
     assert.equal(r.code, 0, r.out);
     assert.match(r.out, /WARNING: container foundry is healthy but restarted 2 time/);
   });
 
-  test('a stale build and a changed helper warn when expectations are given', () => {
-    const r = run({ version: '0.24.0', expect: { EXPECT_VERSION: '0.25.0', EXPECT_ASSISTANT_GM_SHA256: 'deadbeef' } });
-    assert.match(r.out, /WARNING: deployed version is 0\.24\.0, main has 0\.25\.0/);
+  test('after the cutover the retired units are fine; a unit running next to its container is a port clash', () => {
+    const healthy = { state: 'running', restarts: 0, health: 'healthy' };
+    const cut = run({
+      containers: { foundry: healthy, bridge: healthy, dashboard: healthy, 'gm-browser': healthy },
+      units: {
+        'foundry.service': OFF,
+        'foundry-ai-tool-bridge.service': OFF,
+        'foundry-ai-tool-dashboard.service': OFF,
+        'foundry-ai-tool-gm-browser.service': OFF,
+      },
+    });
+    assert.equal(cut.code, 0, cut.out);
+    assert.match(cut.out, /units \(containers\)/);
+    assert.match(cut.out, /foundry\.service is inactive \(retired; the foundry container runs\)/);
+    const clash = run({
+      containers: { bridge: healthy },
+      units: { 'foundry-ai-tool-bridge.service': { active: 'active', sub: 'running', restarts: 0 } },
+    });
+    assert.equal(clash.code, 1);
+    assert.match(clash.out, /FAIL: foundry-ai-tool-bridge\.service is active and the bridge container is running too/);
+  });
+
+  test('containers outside the compose project are ignored', () => {
+    const r = run({ containers: {} });
+    assert.match(r.out, /no containers in project foundry-ai-tool-pi/);
+    assert.doesNotMatch(r.out, /runner-job/);
+    assert.equal(r.code, 0, r.out);
+  });
+
+  test('a stale ref and a changed helper warn when expectations are given', () => {
+    const r = run({
+      ref: 'v0.24.0',
+      expect: { EXPECT_REF: 'v0.25.0', EXPECT_MAIN_AHEAD: '41', EXPECT_ASSISTANT_GM_SHA256: 'deadbeef' },
+    });
+    assert.match(r.out, /WARNING: deployed ref is v0\.24\.0, the newest release is v0\.25\.0; main is 41 commit\(s\) past it/);
     assert.match(r.out, /WARNING: Assistant GM helper differs from the repo copy/);
   });
 
+  test('a package.json that matches the release proves nothing: only the ref counts', () => {
+    const r = run({ ref: 'v0.24.0', expect: { EXPECT_REF: 'v0.25.0' } });
+    assert.match(r.out, /WARNING: deployed ref is v0\.24\.0/);
+  });
+
   test('no build at all fails', () => {
-    const r = run({ version: null });
+    const r = run({ ref: null });
     assert.equal(r.code, 1);
     assert.match(r.out, /FAIL: no build at/);
   });

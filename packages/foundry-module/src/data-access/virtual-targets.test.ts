@@ -31,11 +31,11 @@ beforeEach(() => {
   restore = world.install();
   resetGuardedFeaturesForTests();
   resetGuardedOutcomes();
-  g.game.settings.register = () => undefined;
+  g.game.settings.register = (): undefined => undefined;
   registerGuardedFeature({ id: SETUP_FEATURE_ID, name: 'Foundry setup', hint: 'Test.' });
   world.setSetting(MODULE_ID, 'allowWriteOperations', true);
   world.setSetting(MODULE_ID, `feature.${SETUP_FEATURE_ID}.enabled`, true);
-  g.game.i18n = { localize: (s: string) => s };
+  g.game.i18n = { localize: (s: string): string => s };
   const registered = new Map<string, Record<string, unknown>>([
     ['dnd5e.diagonalMovement', { name: 'Diagonal', scope: 'world', type: String, config: true }],
     ['dnd5e.apiKey', { name: 'Key', scope: 'world', type: String, config: true }],
@@ -191,7 +191,7 @@ describe('settings as a guarded target', () => {
   });
 
   it('refuses a Setting document by create or delete', async () => {
-    g.CONFIG.Setting = { documentClass: { create: () => Promise.resolve(null) } };
+    g.CONFIG.Setting = { documentClass: { create: (): Promise<null> => Promise.resolve(null) } };
     const create: GuardedOp = { kind: 'create', documentName: 'Setting', data: { key: 'x' } };
     await expect(applyGuardedOps(await request([create]))).rejects.toThrow(/not as documents/);
   });

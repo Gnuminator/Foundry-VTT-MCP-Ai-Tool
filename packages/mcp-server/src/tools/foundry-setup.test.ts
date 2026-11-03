@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi, type Mock } from 'vitest';
 
 import { FoundrySetupTools } from './foundry-setup.js';
 
@@ -43,7 +43,11 @@ const packRow = {
   folder: null,
 };
 
-function makeTools() {
+function makeTools(): {
+  tools: FoundrySetupTools;
+  query: Mock;
+  createPlan: Mock;
+} {
   const query = vi.fn((_method: string, data: any) => {
     if (data.area === 'setting') {
       const rows = [settingRow, secretRow, rangeRow].filter(r => r.id === data.target);
@@ -55,12 +59,14 @@ function makeTools() {
       folders: [{ id: 'f1', name: 'Hidden' }],
     };
   });
-  const createPlan = vi.fn((input: any) => Promise.resolve({ planId: 'p1', ...input, diff: [] }));
+  const createPlan = vi.fn(
+    (input: any): Promise<unknown> => Promise.resolve({ planId: 'p1', ...input, diff: [] })
+  );
   const logger: any = { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() };
-  logger.child = () => logger;
+  logger.child = (): unknown => logger;
   const tools = new FoundrySetupTools({
     foundryClient: { query } as any,
-    guardedWrites: { createPlan } as any,
+    guardedWrites: { createPlan },
     logger,
   });
   return { tools, query, createPlan };
@@ -93,7 +99,7 @@ describe('plan-foundry-setup: settings', () => {
       value: '5105',
     });
     expect(createPlan).toHaveBeenCalledTimes(1);
-    const input = createPlan.mock.calls[0]![0];
+    const input = createPlan.mock.calls[0][0];
     expect(input.feature).toBe('foundry-setup');
     expect(input.ops).toEqual([
       { kind: 'update', uuid: 'GameSetting.dnd5e.diagonalMovement', changes: { value: '5105' } },
@@ -169,7 +175,7 @@ describe('plan-foundry-setup: packs', () => {
       target: 'dnd5e.monsters',
       value: { ownership: { PLAYER: 'NONE', TRUSTED: 'NONE' } },
     });
-    const input = createPlan.mock.calls[0]![0];
+    const input = createPlan.mock.calls[0][0];
     expect(input.ops).toEqual([
       {
         kind: 'update',
@@ -201,7 +207,7 @@ describe('plan-foundry-setup: packs', () => {
       target: 'dnd5e.monsters',
       value: { locked: true, folder: 'hidden' },
     });
-    expect(createPlan.mock.calls[0]![0].ops[0].changes).toEqual({ locked: true, folder: 'f1' });
+    expect(createPlan.mock.calls[0][0].ops[0].changes).toEqual({ locked: true, folder: 'f1' });
   });
 
   it('refuses nothing to change, an unknown pack, a bad role or level, an unknown folder', async () => {

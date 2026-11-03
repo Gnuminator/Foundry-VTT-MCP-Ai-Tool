@@ -65,10 +65,12 @@ interface RegisteredSetting {
 /** The registered settings (`game.settings.settings`, a Map keyed `namespace.key`). */
 export function registeredSettings(): Map<string, RegisteredSetting> {
   const map = (game.settings as unknown as { settings?: unknown }).settings;
-  return map instanceof Map ? (map as Map<string, RegisteredSetting>) : new Map();
+  return map instanceof Map
+    ? new Map<string, RegisteredSetting>(map as Map<string, RegisteredSetting>)
+    : new Map<string, RegisteredSetting>();
 }
 
-export function isVirtualUuid(uuid: unknown): uuid is string {
+export function isVirtualUuid(uuid: unknown): boolean {
   return (
     typeof uuid === 'string' &&
     (uuid.startsWith(SETTING_UUID_PREFIX) || uuid.startsWith(PACK_UUID_PREFIX))
@@ -166,11 +168,18 @@ export function assertSettingWritable(
 function plain(value: unknown): unknown {
   if (value === undefined) return undefined;
   if (value instanceof Set) return [...value];
-  const withObject = value as { toObject?: (source?: boolean) => unknown } | null;
-  if (withObject && typeof withObject === 'object' && typeof withObject.toObject === 'function') {
-    return JSON.parse(JSON.stringify(withObject.toObject(true)));
-  }
-  return value === null || typeof value !== 'object' ? value : JSON.parse(JSON.stringify(value));
+  if (hasToObject(value)) return JSON.parse(JSON.stringify(value.toObject(true))) as unknown;
+  return value === null || typeof value !== 'object'
+    ? value
+    : (JSON.parse(JSON.stringify(value)) as unknown);
+}
+
+function hasToObject(value: unknown): value is { toObject: (source?: boolean) => unknown } {
+  return (
+    value !== null &&
+    typeof value === 'object' &&
+    typeof (value as { toObject?: unknown }).toObject === 'function'
+  );
 }
 
 export function readSettingValue(namespace: string, key: string): unknown {
@@ -243,7 +252,7 @@ function setAtPath(target: Record<string, unknown>, path: string, value: unknown
     if (next === null || typeof next !== 'object') node[key] = {};
     node = node[key] as Record<string, unknown>;
   }
-  node[keys[keys.length - 1] as string] = value;
+  node[keys[keys.length - 1]] = value;
 }
 
 function deleteAtPath(target: Record<string, unknown>, path: string): void {
@@ -255,7 +264,7 @@ function deleteAtPath(target: Record<string, unknown>, path: string): void {
     node = (node as Record<string, unknown>)[key];
   }
   if (node !== null && typeof node === 'object') {
-    delete (node as Record<string, unknown>)[keys[keys.length - 1] as string];
+    delete (node as Record<string, unknown>)[keys[keys.length - 1]];
   }
 }
 

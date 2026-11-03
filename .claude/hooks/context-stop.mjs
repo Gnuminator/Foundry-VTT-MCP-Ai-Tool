@@ -21,7 +21,7 @@
 // (its top level sums two passes), and a reading counts only when the response before it was also
 // big, so a doubled phantom reading never stops a session.
 //
-// A false deny at 250k costs a handover that was due anyway, but every doubt allows: a payload we
+// A false deny at the out line costs a handover that was due anyway, but every doubt allows: a payload we
 // do not understand, no transcript, a shell command that only reads. This is a nudge with a clear
 // message, not a security boundary (a script run from a file can still write).
 // Reads the hook payload (JSON) on stdin; prints a deny decision or nothing.
@@ -240,7 +240,7 @@ export function decide(input, env = process.env, repoRoot = REPO_ROOT) {
     if (!what) return null;
     const context = contextFromTranscript(input.transcript_path);
     if (context === null) return null;
-    const { out } = limitsFor(input.cwd);
+    const { out } = limitsFor(env.CLAUDE_PROJECT_DIR || input.cwd);
     if (context < out) return null;
     return denyMessage(context, out, what);
   } catch {

@@ -204,7 +204,8 @@ export function run(input, env = process.env) {
     const sessionId = input.session_id || 'unknown';
     const context = contextFromTranscript(input.transcript_path);
     if (context === null) return '';
-    const limits = limitsFor(input.cwd);
+    // CLAUDE_PROJECT_DIR is fixed for the session; the payload cwd moves with a `cd`
+    const limits = limitsFor(env.CLAUDE_PROJECT_DIR || input.cwd);
     const level = context >= limits.out ? 2 : context >= limits.plan ? 1 : 0;
     const announced = readLevel(sessionId, env);
     if (level === 0) {

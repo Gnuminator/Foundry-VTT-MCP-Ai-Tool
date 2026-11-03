@@ -153,6 +153,26 @@ test('run: a lane stays quiet at 220k, plans at 250k, is out at 300k; the main c
   }
 });
 
+test('run: CLAUDE_PROJECT_DIR decides lane or planner, not a cwd that moved with a cd', () => {
+  const { root, env, cleanup } = fixture();
+  try {
+    const lane = 'C:\\P\\Foundry\\.claude\\worktrees\\lane-a-1';
+    const main = 'C:\\P\\Foundry';
+    const file = transcript(root, [turn(260_000)]);
+    // planner in the main checkout that cd'd into a lane: still out at 250k
+    const p = run(input(file, { cwd: lane }), { ...env, CLAUDE_PROJECT_DIR: main });
+    assert.match(p, /hand over now/);
+    // lane that cd'd to main: only the plan line at 260k
+    const l = run(input(file, { cwd: main, session_id: 'l' }), {
+      ...env,
+      CLAUDE_PROJECT_DIR: lane,
+    });
+    assert.match(l, /plan the handover/);
+  } finally {
+    cleanup();
+  }
+});
+
 test('run: silent under the plan line, plan line at 200k, out line at 250k', () => {
   const { root, env, cleanup } = fixture();
   try {
@@ -394,7 +414,7 @@ test('the hook process: prints the plan line as JSON, and nothing on garbage std
       spawnSync(process.execPath, [HOOK], {
         input: stdin,
         encoding: 'utf8',
-        env: { ...process.env, ...env },
+        env: { ...process.env, CLAUDE_PROJECT_DIR: '', ...env },
       });
     const ok = spawn(JSON.stringify(input(file)));
     assert.equal(ok.status, 0);

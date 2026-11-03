@@ -237,6 +237,8 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
     foundryDownSince: null,
   };
   let world: WorldInfo | null = null;
+  /** The last world id seen, kept when `world` is nulled on a drop, to spot a switch. */
+  let lastWorldId: string | null = null;
   let lastCombatJson = '';
   let worldRefreshInflight = false;
   let worldRetryTimer: NodeJS.Timeout | null = null;
@@ -412,13 +414,25 @@ export function createDashboard(deps: DashboardDeps): Dashboard {
     return tools;
   }
 
+  /** A different world opened: the old world's events, errors and combat must not show. */
+  function resetForNewWorld(): void {
+    state.reset();
+    readCache.clear();
+    lastCombatJson = '';
+    sse.broadcast('reset', {}, gmOnly);
+    logger.info('World changed: cleared the events and errors of the previous world');
+  }
+
   async function refreshWorld(attempt = 0): Promise<void> {
     // Collapse concurrent triggers (transition + immediate poll) into one call.
     if (worldRefreshInflight) return;
     worldRefreshInflight = true;
     try {
       const raw = await client.callTool('get-world-info');
-      world = mapWorld(raw);
+      const next = mapWorld(raw);
+      if (lastWorldId !== null && next.id !== lastWorldId) resetForNewWorld();
+      lastWorldId = next.id;
+      world = next;
       playerDirectory.harvest(raw);
       sse.broadcast('world', world, gmOnly);
       schedulePlayerBroadcast();

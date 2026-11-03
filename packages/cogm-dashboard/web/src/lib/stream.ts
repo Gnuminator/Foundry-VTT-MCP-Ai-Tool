@@ -194,6 +194,14 @@ const HANDLERS: Record<string, (queryClient: QueryClient, data: unknown) => void
   // so another open window follows without waiting for its minute poll.
   'play-session': queryClient => void queryClient.invalidateQueries({ queryKey: PLAY_SESSION_KEY }),
   status: onStatus,
+  // A different world opened (GM only, no payload): the old world's events, errors and fight go,
+  // and everything read from the game (handouts, changes, ...) is read again.
+  reset: queryClient => {
+    queryClient.setQueryData<FeedLog>(FEED_KEY, EMPTY_FEED);
+    queryClient.setQueryData<ModuleErrorLog>(MODULE_ERRORS_KEY, EMPTY_LOG);
+    queryClient.setQueryData<CombatState | null>(COMBAT_KEY, null);
+    void queryClient.invalidateQueries({ queryKey: ['game'] });
+  },
   settings: (queryClient, data) =>
     queryClient.setQueryData<DashboardSettings>(SETTINGS_KEY, data as DashboardSettings),
   world: (queryClient, data) =>

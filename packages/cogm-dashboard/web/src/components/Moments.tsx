@@ -15,12 +15,14 @@ import {
 } from 'react';
 
 import type { DuringScreen } from '../lib/duringTrial';
+import { REMEMBER, readJson, readMomentPin, writeJson } from '../lib/remember';
 import { usePlaySession, type PlaySession } from '../lib/session';
 
 import type { DuringFolds } from './Folds';
 import { LiveFeed } from './LiveFeed';
 
 export type Moment = 'before' | 'during' | 'after';
+
 /** The drawers that dock into a view (Drawer.tsx); the others float over the page. */
 export type DrawerDockName = 'preflight' | 'prep' | 'party' | 'handouts';
 /** Everything that docks: the drawers and the Recent Changes card (a pane, not a drawer). */
@@ -52,21 +54,39 @@ export function momentFromSession(session: PlaySession, now: number): Moment {
  * The moment on screen: the one the GM picked with a tab, else the session's. Null until the
  * first answer, so a reload during a session does not show Before (and run its panels) first.
  * A failed read shows Before. The pick holds until a session starts or ends (the open flag
- * flips), or the page reloads.
+ * flips); a reload brings it back while the session is as it was and the pick is under 12 hours
+ * old (so a pick from another game night is forgotten).
  */
 export function useMoment(): { moment: Moment | null; pick: (moment: Moment) => void } {
   const { session, failed, checkedAt } = usePlaySession();
   const [pinned, setPinned] = useState<Moment | null>(null);
   const open = session?.open;
   const [seenOpen, setSeenOpen] = useState(open);
+  const [restored, setRestored] = useState(false);
   if (open !== seenOpen) {
     setSeenOpen(open);
-    if (seenOpen !== undefined) setPinned(null);
+    if (seenOpen !== undefined) {
+      setPinned(null);
+      writeJson(REMEMBER.momentPin, null);
+    }
   }
+  // The pick of the last visit comes back once the session is known, when the session is still as
+  // it was then (open or closed): a new session starts on its own moment again.
+  if (open !== undefined && !restored) {
+    setRestored(true);
+    const saved = readMomentPin(readJson(REMEMBER.momentPin));
+    if (saved?.open === open && Date.now() - saved.at <= AFTER_WINDOW_MS) {
+      setPinned(saved.moment);
+    }
+  }
+  const pick = (moment: Moment): void => {
+    setPinned(moment);
+    if (open !== undefined) writeJson(REMEMBER.momentPin, { moment, open, at: Date.now() });
+  };
   // The time of the last poll (answered or failed), not the clock: each poll checks the 12 hours
   // again, also while the bridge is down.
   const fromSession = session ? momentFromSession(session, checkedAt) : failed ? 'before' : null;
-  return { moment: pinned ?? fromSession, pick: setPinned };
+  return { moment: pinned ?? fromSession, pick };
 }
 
 type SlotKey = `${Moment}-${DockName}`;

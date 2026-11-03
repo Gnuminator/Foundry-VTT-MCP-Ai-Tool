@@ -1,11 +1,11 @@
 // The folds of the During cards, as plain data and rules (D-092, I-107): which cards there are,
-// which are folded by default for a layout, a fight and a screen width, what a click does (on a
-// wide screen opening a side card folds the others), and how the GM's own choices are kept. No
+// which are folded by default for a layout, a fight and a screen width, what a click does (each card
+// opens and folds on its own, so any of them can be open together), and how the GM's own choices are kept. No
 // React here, so the rules have unit tests; components/Folds.tsx does the rest.
 //
 // Unlike the old page, which started over whenever a fight began or ended or the window crossed
 // 600 or 900 px, a card the GM folded or opened keeps that choice for the same layout, fight and
-// width class. State lives in memory for the page load only.
+// width class. The choices are kept in this browser (lib/remember.ts).
 import type { DuringContext } from './duringTrial';
 import type { DuringLayout } from './prefsModel';
 
@@ -49,17 +49,6 @@ export interface FoldSituation {
   width: WidthClass;
 }
 
-/**
- * The cards at the side on a wide screen: opening one folds the others there. Simple/Full has
- * none; in Auto during a fight the feed is a side card and Party takes the big column.
- */
-export function sideCards(layout: DuringLayout, context: DuringContext): FoldCard[] {
-  if (layout === 'toggle') return [];
-  return layout === 'auto' && context === 'combat'
-    ? ['changes', 'handouts', 'feed']
-    : ['changes', 'handouts', 'party'];
-}
-
 /** The folds a layout starts with. */
 export function defaultFolds(s: FoldSituation): Folds {
   const folds: Folds = { feed: false, changes: false, handouts: true, party: true };
@@ -90,20 +79,36 @@ export function foldsFor(choices: FoldChoices, s: FoldSituation): Folds {
 
 /**
  * The choices after a click on a card's fold button (or its title). An open card folds; a folded
- * one opens, and on a wide screen, when it is a side card, the other side cards fold. Only the
+ * one opens, and the other cards stay as they are. Only the
  * cards that change are kept as the GM's choice, so the rest still follow the defaults.
  */
 export function toggleFold(choices: FoldChoices, s: FoldSituation, card: FoldCard): FoldChoices {
   const before = foldsFor(choices, s);
   const after: Folds = { ...before, [card]: !before[card] };
-  if (before[card] && s.width === 'wide') {
-    const side = sideCards(s.layout, s.context);
-    if (side.includes(card)) for (const other of side) if (other !== card) after[other] = true;
-  }
   const key = keyOf(s);
   const kept: Partial<Folds> = { ...choices[key] };
   for (const name of FOLD_CARDS) if (after[name] !== before[name]) kept[name] = after[name];
   return { ...choices, [key]: kept };
+}
+
+/**
+ * Saved choices, checked: only situations of the form layout|context|width with boolean folds of
+ * the four cards are kept; anything else (an old shape, a hand edit) is dropped.
+ */
+export function readFoldChoices(raw: unknown): FoldChoices {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return NO_CHOICES;
+  const out: Record<string, Partial<Folds>> = {};
+  for (const [key, value] of Object.entries(raw)) {
+    if (!/^(layered|toggle|auto)\|(calm|combat)\|(phone|medium|wide)$/.test(key)) continue;
+    if (!value || typeof value !== 'object' || Array.isArray(value)) continue;
+    const kept: Partial<Folds> = {};
+    for (const card of FOLD_CARDS) {
+      const v = (value as Record<string, unknown>)[card];
+      if (typeof v === 'boolean') kept[card] = v;
+    }
+    if (Object.keys(kept).length > 0) out[key] = kept;
+  }
+  return out;
 }
 
 /** The choices after opening a card from outside (the Advanced menu's Party and Handouts). */

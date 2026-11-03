@@ -45,9 +45,10 @@ export function SessionMarker(): JSX.Element {
           href={home}
           target="_blank"
           rel="noopener"
+          title="Open the campaign Home note in Obsidian"
           aria-label="Open the campaign Home note in Obsidian"
         >
-          📓
+          📓 Obsidian
         </a>
       ) : null}
     </div>

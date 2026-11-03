@@ -225,8 +225,8 @@ test('What just happened is one list with an AI only box and Undo on each line',
   await list.getByLabel('AI only').check();
   await expect(list).not.toContainText('Moved Tobias');
   await expect(list).toContainText('Goblin 1: 5 fire damage');
-  // One list: the AI and Everyone tabs of Recent Changes are not here.
-  await expect(list.locator('#changes-tab-ai')).toHaveCount(0);
+  // One list: the Tool, Game and Everything tabs of Recent Changes are not here.
+  await expect(list.locator('#changes-tab-tool')).toHaveCount(0);
 });
 
 test('Start combat in two clicks also rolls initiative for the NPCs', async ({ page }) => {
@@ -374,3 +374,17 @@ for (const width of [1440, 400]) {
     expect(overflow).toBeLessThanOrEqual(0);
   });
 }
+
+test('the AI only box is remembered, and is its own choice, not the dashboard’s person filter', async ({
+  page,
+}) => {
+  await setup(page);
+  await page.addInitScript(() => localStorage.setItem('cogm_changes_person', 'person:Tobias'));
+  await load(page);
+  const list = page.locator('#pane-changes');
+  await expect(list.getByLabel('AI only')).not.toBeChecked();
+  await list.getByLabel('AI only').check();
+  await page.reload();
+  await expect(page.locator('#live-screen')).toBeVisible();
+  await expect(page.locator('#pane-changes').getByLabel('AI only')).toBeChecked();
+});

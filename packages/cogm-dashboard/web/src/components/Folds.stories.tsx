@@ -25,8 +25,8 @@ import { MomentViews, useDocks } from './Moments';
 
 // The folds of the During cards: Live Feed, Recent Changes, Handouts and Party, each with a fold
 // button first in its head. The whole During view is on screen, as the page shows it, with the
-// layout on; the play steps press the fold buttons the way a GM would (the side set on a wide
-// screen, the title click, no side set on a phone). Recent Changes is still a placeholder
+// layout on; the play steps press the fold buttons the way a GM would (cards open together, the
+// title click). Recent Changes is still a placeholder
 // here, with the same head and button.
 const meta = {
   title: 'Components/During folds',
@@ -120,14 +120,14 @@ const press =
 /** Cards, wide: the Live Feed and Recent Changes open, Handouts and Party folded. */
 export const CardsDefault: Story = { parameters: bridge(PICKED), render: page };
 
-/** Opening Handouts folds the other side cards: Recent Changes stays folded with Party. */
+/** Opening Handouts leaves the other cards as they are: it opens next to Recent Changes. */
 export const CardsOpenHandouts: Story = {
   parameters: bridge(PICKED),
   render: page,
   play: press('Open Handouts'),
 };
 
-/** Opening Party after that folds Handouts again. */
+/** Opening Party after that: Recent Changes, Handouts and Party are open together. */
 export const CardsOpenParty: Story = {
   parameters: bridge(PICKED),
   render: page,
@@ -141,7 +141,7 @@ export const CardsFeedFolded: Story = {
   play: press('Fold Live Feed'),
 };
 
-/** Simple/Full on Full: all four open, no side set. */
+/** Simple/Full on Full: all four open. */
 export const FullEverythingOpen: Story = {
   parameters: bridge({ ...PICKED, duringLayout: 'toggle', duringFull: true }),
   render: page,

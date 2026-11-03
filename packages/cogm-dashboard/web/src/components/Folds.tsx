@@ -11,6 +11,7 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useState,
   useSyncExternalStore,
   type JSX,
@@ -19,7 +20,7 @@ import {
 
 import {
   FOLD_TITLES,
-  NO_CHOICES,
+  readFoldChoices,
   foldBodyId,
   foldsFor,
   openFold,
@@ -30,6 +31,7 @@ import {
   type FoldSituation,
 } from '../lib/duringFolds';
 import type { DuringScreen } from '../lib/duringTrial';
+import { REMEMBER, readJson, writeJson } from '../lib/remember';
 
 /** moments.css switches to one column under 900 px, and the feed folds on a phone under 600 px. */
 const WIDE_QUERY = '(min-width: 900px)';
@@ -58,14 +60,17 @@ export interface DuringFolds {
 }
 
 /**
- * The folds for the screen on show. The GM's choices stay in memory for as long as the page is
- * open, per layout, fight and width class, so leaving During and coming back finds them as they
- * were (the cards stay mounted, so their data stays too).
+ * The folds for the screen on show. The GM's choices are kept in this browser, per layout,
+ * fight and width class, so leaving During (or reloading) and coming back finds them as they were (the cards stay mounted, so their data stays too).
  */
 export function useDuringFolds(screen: Pick<DuringScreen, 'layout' | 'context'>): DuringFolds {
   const wide = useMediaQuery(WIDE_QUERY);
   const phone = useMediaQuery(PHONE_QUERY);
-  const [choices, setChoices] = useState<FoldChoices>(NO_CHOICES);
+  const [choices, setChoices] = useState<FoldChoices>(() =>
+    readFoldChoices(readJson(REMEMBER.foldChoices))
+  );
+  // The folds come back as the GM left them, also after a reload (lib/remember.ts).
+  useEffect(() => writeJson(REMEMBER.foldChoices, choices), [choices]);
   const { layout, context } = screen;
   const width = widthClass(wide, phone);
   const situation: FoldSituation = { layout, context, width };

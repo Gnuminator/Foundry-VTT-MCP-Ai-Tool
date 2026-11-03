@@ -67,13 +67,16 @@ export async function resetDashboard(page) {
       if (shown(el)) /** @type {HTMLElement} */ (el).click();
     };
     if (shown(document.querySelector('#modal-backdrop'))) press('#modal-cancel');
-    // The undo window closes on a click on its backdrop (I-109); Recent Changes goes back to the AI tab.
+    // The undo window closes on a click on its backdrop (I-109); Recent Changes goes back to the Tool tab.
     press('#undo-backdrop');
-    if (document.querySelector('#changes-tab-everyone[aria-pressed="true"]'))
-      press('#changes-tab-ai');
+    if (document.querySelector('#changes-tab-tool[aria-pressed="false"]'))
+      press('#changes-tab-tool');
+    // Forget the remembered choices (lib/remember.ts), so the next page load starts from the defaults.
+    for (const key of ['cogm_fold_choices', 'cogm_moment_pin', 'cogm_changes_person'])
+      localStorage.removeItem(key);
     press('#layout-tour-stop');
-    // Opening a During card folds its side cards (wide screens), and the fold rows' restore click
-    // does not reopen them: open Recent Changes again for the rows that read #changes-body.
+    // A fold row's restore click does not reopen a card it folded: open Recent Changes again for
+    // the rows that read #changes-body.
     press('.fold-btn[data-fold="changes"][aria-expanded="false"]');
     // A selected combatant stays selected: clear it, so the next click selects instead of unselecting.
     press('[data-track="dash.combat.selection-clear"]');

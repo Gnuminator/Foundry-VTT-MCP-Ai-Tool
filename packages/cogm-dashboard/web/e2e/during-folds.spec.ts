@@ -1,6 +1,6 @@
 // The During folds on the React dashboard (D-092, I-107): the four cards (Live Feed, Recent
 // Changes, Handouts, Party) and their fold buttons, the defaults per layout, fight and width, the
-// side set on a wide screen, the title click, and that the GM's own choices are kept (across the
+// cards open together, the title click, and that the GM's own choices are kept (across the
 // fight starting and ending, the window crossing 600 and 900 px, and leaving During). The bridge
 // and the stream are faked in the browser; nothing here needs a world.
 import { expect, test, type Locator, type Page } from '@playwright/test';
@@ -313,17 +313,20 @@ test.describe('opening and folding', () => {
     await expectFolds(page, folds(false, false, false, false));
   });
 
-  test('wide: opening a side card folds the other side cards', async ({ page }) => {
+  test('wide: Recent Changes, Handouts, Live Feed and Party can be open together', async ({
+    page,
+  }) => {
     await setup(page, 'layered');
     await load(page);
     await foldButton(page, 'handouts').click();
-    await expectFolds(page, folds(false, true, false, true));
+    await expectFolds(page, folds(false, false, false, true));
     await foldButton(page, 'party').click();
-    await expectFolds(page, folds(false, true, true, false));
-    // The feed is the big column, not a side card: it is left alone.
+    await expectFolds(page, folds(false, false, false, false));
+    // Each card keeps its own size and scrolls inside itself, so all four fit on the page.
+    for (const name of CARDS) await expect(card(page, name)).toBeVisible();
     await foldButton(page, 'feed').click();
     await foldButton(page, 'feed').click();
-    await expectFolds(page, folds(false, true, true, false));
+    await expectFolds(page, folds(false, false, false, false));
   });
 
   test('Simple/Full has no side set', async ({ page }) => {
@@ -349,13 +352,13 @@ test.describe('opening and folding', () => {
     await expect(page.locator('#party-drawer')).toHaveClass(/docked/);
   });
 
-  test('Auto in a fight: the feed is a side card, Party is the big column', async ({ page }) => {
+  test('Auto in a fight: opening the feed leaves the other cards alone', async ({ page }) => {
     const { push } = await setup(page, 'auto');
     await load(page);
     push([fightOn]);
     await expectFolds(page, folds(true, false, true, false));
     await foldButton(page, 'feed').click();
-    await expectFolds(page, folds(false, true, true, false));
+    await expectFolds(page, folds(false, false, true, false));
   });
 
   for (const [label, size] of [
@@ -433,13 +436,13 @@ test.describe('the folds are kept', () => {
     await load(page);
     await foldButton(page, 'handouts').click();
     await foldButton(page, 'feed').click();
-    await expectFolds(page, folds(true, true, false, true));
+    await expectFolds(page, folds(true, false, false, true));
     await page.locator('#tab-after').click();
     await expect(during(page)).toBeHidden();
     await page.locator('#tab-before').click();
     await page.locator('#tab-during').click();
     await expect(during(page)).toBeVisible();
-    await expectFolds(page, folds(true, true, false, true));
+    await expectFolds(page, folds(true, false, false, true));
   });
 
   test('a folded card keeps what it loaded', async ({ page }) => {
@@ -466,9 +469,9 @@ test.describe('the folds are kept', () => {
   test('Auto: the fight starting and ending does not undo the GM’s choice', async ({ page }) => {
     const { push } = await setup(page, 'auto');
     await load(page);
-    // Calm: the GM opens Handouts (Recent Changes and Party fold with it).
+    // Calm: the GM opens Handouts next to Recent Changes.
     await foldButton(page, 'handouts').click();
-    await expectFolds(page, folds(false, true, false, true));
+    await expectFolds(page, folds(false, false, false, true));
 
     // The fight starts: Auto shows its combat defaults the first time.
     push([fightOn]);
@@ -481,7 +484,7 @@ test.describe('the folds are kept', () => {
     // The fight ends: calm is as the GM left it.
     push([fightOff]);
     await expect(during(page)).toHaveAttribute('data-context', 'calm');
-    await expectFolds(page, folds(false, true, false, true));
+    await expectFolds(page, folds(false, false, false, true));
 
     // The next fight finds the fight choice too.
     push([fightOn]);
@@ -494,7 +497,7 @@ test.describe('the folds are kept', () => {
     await load(page);
     await foldButton(page, 'handouts').click();
     await foldButton(page, 'feed').click();
-    await expectFolds(page, folds(true, true, false, true));
+    await expectFolds(page, folds(true, false, false, true));
 
     // Medium: its own defaults the first time.
     await page.setViewportSize(MEDIUM);
@@ -510,7 +513,7 @@ test.describe('the folds are kept', () => {
     await page.setViewportSize(MEDIUM);
     await expectFolds(page, folds(false, false, true, false));
     await page.setViewportSize(WIDE);
-    await expectFolds(page, folds(true, true, false, true));
+    await expectFolds(page, folds(true, false, false, true));
   });
 
   test('each layout keeps its own choices', async ({ page }) => {
@@ -533,13 +536,37 @@ test.describe('the folds are kept', () => {
     const pick = (name: string): Locator =>
       page.getByRole('group', { name: 'During layout' }).getByRole('button', { name, exact: true });
     await foldButton(page, 'party').click();
-    await expectFolds(page, folds(false, true, true, false));
+    await expectFolds(page, folds(false, false, true, false));
     await pick('Simple/Full').click();
     await expectFolds(page, folds(false, false, false, false));
     await foldButton(page, 'feed').click();
     await pick('Cards').click();
-    await expectFolds(page, folds(false, true, true, false));
+    await expectFolds(page, folds(false, false, true, false));
     await pick('Simple/Full').click();
     await expectFolds(page, folds(true, false, false, false));
+  });
+});
+
+test.describe('remembered after a reload', () => {
+  test('the folds come back as the GM left them in this browser', async ({ page }) => {
+    await setup(page, 'layered');
+    await load(page);
+    await foldButton(page, 'handouts').click();
+    await foldButton(page, 'feed').click();
+    await expectFolds(page, folds(true, false, false, true));
+    await page.reload();
+    await load(page);
+    await expectFolds(page, folds(true, false, false, true));
+  });
+
+  test('a saved choice that makes no sense is ignored, and a blocked store changes nothing', async ({
+    page,
+  }) => {
+    await setup(page, 'layered');
+    await page.addInitScript(() =>
+      localStorage.setItem('cogm_fold_choices', '{"layered|calm|wide":{"feed":"x"},"junk":1}')
+    );
+    await load(page);
+    await expectFolds(page, folds(false, false, true, true));
   });
 });

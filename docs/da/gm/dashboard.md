@@ -1,6 +1,6 @@
 ---
 source: gm/dashboard.md
-sourceHash: 51a848c84cfe
+sourceHash: 3e0e088a1d95
 title: Dashboardet
 description: En rundtur i alle paneler og knapper på dashboardet, hvad de gør, og hvornår du bruger dem.
 ---
@@ -67,7 +67,7 @@ Obsidian-note pr. session og til at gruppere play log.
   start, der kun logger.
 - Hvis du glemmer det, deler noterne stadig sessionerne ved et hul på 3 timer uden hændelser.
 
-📓 ved siden af åbner din kampagnes Home-note i Obsidian (se "Open in Obsidian" nedenfor).
+📓 Obsidian ved siden af åbner din kampagnes Home-note i Obsidian (se "Open in Obsidian" nedenfor).
 
 ### Live play on: all set
 
@@ -181,7 +181,7 @@ Spillet foregår i Foundry; **During**-skærmen står ved siden af og holder øj
 findes i tre layouts. Vælg et med **Layout** øverst på skærmen:
 
 - **Cards**: Live Feed er den store kolonne. Recent Changes, Handouts og Party er kort i siden;
-  åbn et, og de andre foldes sammen til én linje. Turordenen vises kun, mens en kamp kører.
+  åbn dem, som du vil, også flere ad gangen. Turordenen vises kun, mens en kamp kører.
 - **Simple/Full**: Simple viser kun Live Feed, Recent Changes og Handouts. **Show everything**
   skifter til Full: turordenen og Party også, alt åbent. **Show less** går tilbage.
 - **Auto** (standard): følger spillet. Uden kamp ser det ud som Cards. Når combat starter, vokser
@@ -358,7 +358,7 @@ Hver guarded change, der blev anvendt, nyeste først, op til 20. Hver række vis
   en reveal eller en hide), `undone` eller `undo` (selve fortrydelsen);
 - featuren (for eksempel `tarokka` eller `handouts`), hvad den ændrede, og hvornår;
 - "N line(s)": klik for at se hele listen over, hvad der blev ændret;
-- 📓: åbner den måneds ændringshistorik i Obsidian.
+- 📓 Obsidian: åbner den måneds ændringshistorik i Obsidian.
 
 **Undo** beder om den anden bekræftelse og kræver, at GM Actions er slået til. Den sætter værdierne
 fra før ændringen tilbage. Den afviser og skriver ingenting, hvis det samme er ændret igen siden.
@@ -369,10 +369,13 @@ Kun guarded changes står her: skade, healing, conditions, resources samt flytni
 sletning af tokens. Ændringer fra andre værktøjer (rolls, nye actors) står her ikke og kan ikke
 fortrydes her.
 
-**Fanen Everyone.** Når AI Tool på serveren er ny nok, har Recent Changes to faner: **AI** (listen
-ovenfor) og **Everyone**, som også viser, hvad spillerne og du gjorde i Foundry de sidste 7 dage, som
-hit points, items og tokens. Vælg en person i listen over rækkerne for kun at se vedkommendes
-ændringer. Hver række viser hvem, hvornår, hvad der blev ændret og, under "N line(s)", detaljerne.
+**De tre faner.** Når AI Tool på serveren er ny nok, har Recent Changes tre faner: **Tool**
+(listen ovenfor: de guarded changes, der er gjort gennem AI Tool, altså Claude og dashboardets
+knapper, med Undo, hvor den stadig kan bruges), **Game** (hvad spillerne og du selv gjorde direkte i Foundry de sidste 7 dage, som hit points,
+items og tokens) og **Everything** (begge dele sammen, nyeste først). Hold musen over en fane for at
+se det. Ændringer fra dashboardet, som "Poisoned on Randal ... by GM (dashboard)", står under Tool.
+På Game og Everything kan du vælge en person i listen over rækkerne for kun at se vedkommendes
+ændringer (Everything har også **Tool** i listen). Dashboardet husker den fane, du valgte, til næste gang. Hver række viser hvem, hvornår, hvad der blev ændret og, under "N line(s)", detaljerne.
 En række flytninger af det samme token af den samme person er én række ("moved 6 times"); dens
 **Undo** tager kun den seneste flytning tilbage, og Foundrys Changes-vindue viser stadig hver
 flytning. **Undo** virker på alles ændringer. Den viser først, hvad den vil sætte tilbage, og du

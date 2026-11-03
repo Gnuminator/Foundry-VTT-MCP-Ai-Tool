@@ -14,6 +14,7 @@ import { GAME_STATE_KEY, useGuardedChange } from '../lib/guarded';
 import { useLivePlay } from '../lib/livePlay';
 import { ROLL_NEEDS, offReason } from '../lib/liveSwitches';
 import { noticed } from '../lib/notice';
+import { REMEMBER, readText, writeChoice } from '../lib/remember';
 import { usage } from '../lib/usage';
 import { Button, Pill, QueryState } from '../ui';
 
@@ -193,7 +194,11 @@ const NOTICE_SKILLS = [
 
 /** I-078: who would notice a hidden thing at a typed DC. GM only; nothing is rolled or sent. */
 function WhoNotices({ members }: { members: PartyMember[] }): JSX.Element | null {
-  const [dcText, setDcText] = useState('');
+  const [dcText, setDcTextState] = useState(() => readText(REMEMBER.partyNoticeDc, ''));
+  const setDcText = (next: string): void => {
+    setDcTextState(next);
+    writeChoice(REMEMBER.partyNoticeDc, next);
+  };
   if (!members.some(m => m.passives)) return null;
   const parsed = dcText.trim() === '' ? NaN : Number(dcText);
   const dc = Number.isFinite(parsed) ? parsed : null;
@@ -387,7 +392,13 @@ export function PartyDrawer({
     staleTime: 0,
     retry: false,
   });
-  const [groupId, setGroupId] = useState<string | null>(null);
+  const [groupId, setGroupIdState] = useState<string | null>(
+    () => readText(REMEMBER.partyGroup, '') || null
+  );
+  const setGroupId = (next: string): void => {
+    setGroupIdState(next);
+    writeChoice(REMEMBER.partyGroup, next);
+  };
   // One change at a time; the ref also catches a double click before the re-render.
   const [busy, setBusy] = useState(false);
   const busyRef = useRef(false);

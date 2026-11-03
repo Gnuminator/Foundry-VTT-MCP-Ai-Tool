@@ -1,14 +1,16 @@
 // Recent Changes (D-077, I-109): what changed at the table and an Undo for it, ported from the old
-// page. Two lists when the bridge has `list-changes`: AI (the guarded changes, list-recent-changes)
-// and Everyone (players, the GM and the AI, with a person filter and Redo). It docks in the During
+// page. Three tabs when the bridge has `list-changes`: Tool (every change made through the AI
+// Tool, Claude and the dashboard buttons: the guarded changes, list-recent-changes), Game (what
+// players and the GM did directly in Foundry) and Everything (both, with a person filter and
+// Redo); an older bridge shows the Tool list alone. It docks in the During
 // and After views as a card (a fold card in During) and reloads when a change lands: an apply or an
 // undo here (GAME_STATE_KEY), a `gm-change` event from Foundry (lib/stream.ts), or its ↻ button.
 //
 // Every Undo goes through the dashboard's guarded paths (lib/guarded.ts), never a new write path:
-// the AI tab's Undo and a Redo are undo-change after the confirm window; the Everyone tab's Undo
+// the Tool tab's Undo and a Redo are undo-change after the confirm window; the Game and Everything tabs' Undo
 // plans with plan-undo-changes, walks the undo window (just this, everything since, rewind) and
 // applies the plan with apply-planned-change; a reveal's Undo (it also wrote the AI Tool's own
-// data, which a plan cannot put back) is the plain undo-change, as the AI tab's (PR #330). GM only:
+// data, which a plan cannot put back) is the plain undo-change, as the Tool tab's (PR #330). GM only:
 // the player view never loads this page, and the routes it calls refuse a player.
 import { useQuery } from '@tanstack/react-query';
 import { useContext, useRef, useState, type JSX } from 'react';
@@ -26,11 +28,13 @@ import {
   EVERYONE_TOOL,
   FILTER_AI,
   FILTER_ALL,
+  CHANGES_TABS,
   changeState,
   dialogFor,
   filterChanges,
   foldTokenMoves,
   filterOptions,
+  gameChanges,
   firstStage,
   needsDestructive,
   nextStep,
@@ -44,6 +48,7 @@ import {
   rowView,
   validFilter,
   type AiChange,
+  type ChangesTab,
   type EveryoneChange,
   type RowView,
   type UndoPlan,
@@ -51,12 +56,11 @@ import {
   type UndoStage,
 } from '../lib/changes';
 import { gmChangeLabel } from '../lib/feed';
+import { REMEMBER, readChoice, readText, writeChoice } from '../lib/remember';
 import { failCode, useGuardedTools, type GuardedTools } from '../lib/guarded';
 import { CHANGES_KEY, useObsidianFileUrl } from '../lib/stream';
 import { usage } from '../lib/usage';
 import { Button, Panel, panelStateOf } from '../ui';
-
-type Tab = 'ai' | 'everyone';
 
 /** The two lists, under CHANGES_KEY so one invalidation reloads whichever is showing. */
 const AI_KEY = [...CHANGES_KEY, 'ai'] as const;
@@ -108,7 +112,7 @@ function ObsidianLink({ change }: { change: AiChange }): JSX.Element | null {
       title="Open this month's change log in Obsidian"
       aria-label="Open this month's change log in Obsidian"
     >
-      📓
+      📓 Obsidian
     </a>
   );
 }
@@ -248,17 +252,90 @@ async function walkUndo(
 /** The one-line body of a list that is not there: a failure words itself, the rest use Panel's. */
 const failedText = (err: unknown): string => `Couldn't load changes: ${errorText(err)}`;
 
+/** What each tab is called and what it lists (its tooltip). The usage names are literals in TabButton. */
+const TAB_TEXT: Record<ChangesTab, { label: string; title: string }> = {
+  tool: {
+    label: 'Tool',
+    title:
+      'The guarded changes made through the AI Tool (Claude and the dashboard buttons), with Undo where it can still be done.',
+  },
+  game: {
+    label: 'Game',
+    title: 'What players and you changed directly in Foundry, over the last 7 days.',
+  },
+  everything: {
+    label: 'Everything',
+    title: 'Tool and Game changes together, newest first.',
+  },
+};
+
+function TabButton({
+  tab,
+  shown,
+  onPick,
+}: {
+  tab: ChangesTab;
+  shown: ChangesTab;
+  onPick: (tab: ChangesTab) => void;
+}): JSX.Element {
+  const { label, title } = TAB_TEXT[tab];
+  const props = {
+    type: 'button',
+    className: 'changes-tab',
+    id: `changes-tab-${tab}`,
+    title,
+    'aria-pressed': shown === tab,
+    onClick: () => onPick(tab),
+  } as const;
+  switch (tab) {
+    case 'tool':
+      return (
+        <button {...props} data-track="dash.changes.tab-tool">
+          {label}
+        </button>
+      );
+    case 'game':
+      return (
+        <button {...props} data-track="dash.changes.tab-game">
+          {label}
+        </button>
+      );
+    case 'everything':
+      return (
+        <button {...props} data-track="dash.changes.tab-everything">
+          {label}
+        </button>
+      );
+  }
+}
+
 function ChangesCard({ active, oneList }: { active: boolean; oneList: boolean }): JSX.Element {
   const fold = useCardFold();
   const toast = useToast();
   const guarded = useGuardedTools();
   const undoWindow = useUndoWindow();
-  const [tab, setTab] = useState<Tab>('ai');
-  const [person, setPerson] = useState(FILTER_ALL);
+  // The GM's last tab and person come back on the next visit (lib/remember.ts).
+  const [tab, setTabState] = useState<ChangesTab>(() =>
+    readChoice(REMEMBER.changesTab, CHANGES_TABS, 'tool')
+  );
+  // The Live screen's AI only box is its own choice, so it never changes the dashboard's person.
+  const personKey = oneList ? REMEMBER.liveAiOnly : REMEMBER.changesPerson;
+  const [person, setPersonState] = useState(() => {
+    const saved = readText(personKey, FILTER_ALL);
+    return oneList && saved !== FILTER_AI ? FILTER_ALL : saved;
+  });
+  const setTab = (next: ChangesTab): void => {
+    setTabState(next);
+    writeChoice(REMEMBER.changesTab, next);
+  };
+  const setPerson = (next: string): void => {
+    setPersonState(next);
+    writeChoice(personKey, next);
+  };
   const cardRef = useRef<HTMLElement>(null);
 
-  // The Everyone tab needs the bridge's list-changes: an older bridge has none and the tab stays
-  // hidden (the catalog is the Tool runner's, kept by the server for a minute).
+  // The Game and Everything tabs need the bridge's list-changes: an older bridge has none and
+  // the Tool list stands alone (the catalog is the Tool runner's, kept by the server for a minute).
   const catalog = useQuery({
     queryKey: TOOLS_KEY,
     queryFn: () => api<{ tools?: { name: string }[] }>('/api/tools'),
@@ -267,15 +344,16 @@ function ChangesCard({ active, oneList }: { active: boolean; oneList: boolean })
     retry: false,
   });
   const supported = catalog.data?.tools?.some(t => t.name === EVERYONE_TOOL) === true;
-  // The Live screen's "What just happened" is the Everyone list alone, with an AI only box.
-  const shown: Tab = supported ? (oneList ? 'everyone' : tab) : 'ai';
+  // The Live screen's "What just happened" is the Everything list alone, with an AI only box.
+  const shown: ChangesTab = supported ? (oneList ? 'everything' : tab) : 'tool';
+  const fromBridge = shown !== 'tool';
 
-  // Each list loads while its tab shows (the Everyone list is not read otherwise), on every
+  // Each list loads while its tab shows (the Game and Everything lists are not read otherwise), on every
   // switch to it, after a change or undo (GAME_STATE_KEY) and on a gm-change event (stream.ts).
   const ai = useQuery({
     queryKey: AI_KEY,
     queryFn: async () => readAiChanges(await callTool('list-recent-changes', { limit: AI_LIMIT })),
-    enabled: active && shown === 'ai',
+    enabled: active && !fromBridge,
     staleTime: 0,
     retry: false,
   });
@@ -283,18 +361,20 @@ function ChangesCard({ active, oneList }: { active: boolean; oneList: boolean })
     queryKey: EVERYONE_KEY,
     queryFn: async () =>
       readEveryoneChanges(await callTool(EVERYONE_TOOL, { limit: EVERYONE_LIMIT })),
-    enabled: active && shown === 'everyone',
+    enabled: active && fromBridge,
     staleTime: 0,
     retry: false,
     // A token a player or the GM moved in Foundry sends no gm-change event: the tab reads again
     // while it shows (not in a hidden browser tab).
     refetchInterval: EVERYONE_REFRESH_MS,
   });
-  const current = shown === 'ai' ? ai : everyone;
+  const current = fromBridge ? everyone : ai;
 
   const all: EveryoneChange[] = everyone.data?.changes ?? [];
-  const personNow = validFilter(all, person);
-  const rows = foldTokenMoves(filterChanges(all, personNow));
+  // The Game tab lists only what people did in Foundry, so its people and rows come from that.
+  const pool = shown === 'game' ? gameChanges(all) : all;
+  const personNow = validFilter(pool, person, shown !== 'game');
+  const rows = foldTokenMoves(filterChanges(pool, personNow));
   const note = everyone.data?.note ?? '';
 
   // One Undo or Redo at a time: a second click while one runs (or its window is open) is ignored.
@@ -349,7 +429,7 @@ function ChangesCard({ active, oneList }: { active: boolean; oneList: boolean })
       });
     });
 
-  // Redo is undoing the undo: it asks first, like Undo on the AI tab.
+  // Redo is undoing the undo: it asks first, like Undo on the Tool tab.
   const redo = (id: string): void =>
     void run(async () => {
       const change = all.find(c => c.id === id);
@@ -364,14 +444,15 @@ function ChangesCard({ active, oneList }: { active: boolean; oneList: boolean })
     isEmpty: d => rows.length === 0 && d.note === '',
     detect: true,
   });
-  const state = shown === 'ai' ? aiState : everyoneState;
-  const count = shown === 'ai' ? (ai.data?.length ?? 0) : rows.length;
+  const state = fromBridge ? everyoneState : aiState;
+  const count = fromBridge ? rows.length : (ai.data?.length ?? 0);
   const meta = state === 'ready' || state === 'empty' ? `${count} shown` : '-';
-  const emptyText =
-    shown === 'ai'
-      ? 'No guarded changes yet.'
-      : all.length === 0
-        ? 'No changes in the last 7 days.'
+  const emptyText = !fromBridge
+    ? 'No changes through the AI Tool yet.'
+    : all.length === 0
+      ? 'No changes in the last 7 days.'
+      : shown === 'game' && pool.length === 0
+        ? 'No changes made in Foundry in the last 7 days.'
         : 'No changes by this person.';
   const message =
     state === 'error' ? failedText(current.error) : state === 'empty' ? emptyText : undefined;
@@ -422,28 +503,11 @@ function ChangesCard({ active, oneList }: { active: boolean; oneList: boolean })
           ) : supported ? (
             <div className="changes-toolbar" id="changes-toolbar">
               <div className="changes-tabs" role="group" aria-label="Which changes to show">
-                <button
-                  type="button"
-                  className="changes-tab"
-                  id="changes-tab-ai"
-                  data-track="dash.changes.tab-ai"
-                  aria-pressed={shown === 'ai'}
-                  onClick={() => setTab('ai')}
-                >
-                  AI
-                </button>
-                <button
-                  type="button"
-                  className="changes-tab"
-                  id="changes-tab-everyone"
-                  data-track="dash.changes.tab-everyone"
-                  aria-pressed={shown === 'everyone'}
-                  onClick={() => setTab('everyone')}
-                >
-                  Everyone
-                </button>
+                <TabButton tab="tool" shown={shown} onPick={setTab} />
+                <TabButton tab="game" shown={shown} onPick={setTab} />
+                <TabButton tab="everything" shown={shown} onPick={setTab} />
               </div>
-              {shown === 'everyone' && (
+              {fromBridge && (
                 <select
                   id="changes-person"
                   className="select changes-person"
@@ -452,7 +516,7 @@ function ChangesCard({ active, oneList }: { active: boolean; oneList: boolean })
                   value={personNow}
                   onChange={e => setPerson(e.target.value)}
                 >
-                  {filterOptions(all).map(o => (
+                  {filterOptions(pool, shown !== 'game').map(o => (
                     <option key={o.value} value={o.value}>
                       {o.label}
                     </option>
@@ -467,8 +531,8 @@ function ChangesCard({ active, oneList }: { active: boolean; oneList: boolean })
         {...(message !== undefined ? { stateMessage: message } : {})}
         onRetry={() => void current.refetch()}
       >
-        {shown === 'ai' && ai.data?.map(c => <AiRow key={c.changeId} change={c} onUndo={undoAi} />)}
-        {shown === 'everyone' && (
+        {!fromBridge && ai.data?.map(c => <AiRow key={c.changeId} change={c} onUndo={undoAi} />)}
+        {fromBridge && (
           <>
             {note && <p className="empty">{note}</p>}
             {rows.map(c => (

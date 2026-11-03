@@ -94,8 +94,8 @@ const HANDOUTS = [MOMENT_BEFORE, ADV, 'dash.header.handouts']; // overlay in Bef
 /** The paper-form flow changes the world: checked by hand on a test server, never driven. */
 const NOT_DRIVEN = 'checked by hand on a test server (paper-form); the sweep does not drive it';
 const PLAYER_LINKS = [ADV, 'dash.header.player-links'];
-const EVERYONE = [MOMENT_DURING, 'dash.changes.tab-everyone'];
-/** The undo window of the Everyone tab, open on the first change that can still be undone. */
+const EVERYONE = [MOMENT_DURING, 'dash.changes.tab-everything'];
+/** The undo window of the Everything tab, open on the first change that can still be undone. */
 const UNDO_WINDOW = [...EVERYONE, 'dash.changes.everyone-undo'];
 const UNDO_APPLY = '#undo-actions #undo-apply';
 const PICKER = [...TOOLS];
@@ -311,19 +311,27 @@ export const DASHBOARD_CONTROLS = [
     why: 'opens Obsidian; shown only with a recent change and a known vault',
   },
   { name: 'dash.changes.undo', how: 'write', why: WRITE_FLOW },
-  // The Everyone tab (I-109): the toolbar shows once the bridge serves list-changes; the person
-  // select shows with the Everyone tab. Undo opens the undo window (a plan, nothing changes before
-  // Apply); Redo asks in the confirm window first, like Undo in the AI tab. The sweep puts the AI tab
-  // back before every row (resetDashboard).
+  // The Game and Everything tabs (I-109): the toolbar shows once the bridge serves list-changes; the
+  // person select shows with either. Undo opens the undo window (a plan, nothing changes before
+  // Apply); Redo asks in the confirm window first, like Undo in the Tool tab. The sweep puts the
+  // Tool tab back before every row (resetDashboard).
   {
-    name: 'dash.changes.tab-everyone',
+    name: 'dash.changes.tab-everything',
     how: 'open',
     reach: [MOMENT_DURING],
     expect: '#changes-person',
     optional: true,
-    why: 'the Everyone tab shows only when the bridge serves list-changes',
+    why: 'the Everything tab shows only when the bridge serves list-changes',
   },
-  { name: 'dash.changes.tab-ai', how: 'open', reach: EVERYONE, gone: '#changes-person' },
+  {
+    name: 'dash.changes.tab-game',
+    how: 'open',
+    reach: [MOMENT_DURING],
+    expect: '#changes-person',
+    optional: true,
+    why: 'the Game tab shows only when the bridge serves list-changes',
+  },
+  { name: 'dash.changes.tab-tool', how: 'open', reach: EVERYONE, gone: '#changes-person' },
   {
     name: 'dash.changes.person',
     how: 'toggle',

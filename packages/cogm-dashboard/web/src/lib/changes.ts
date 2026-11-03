@@ -188,14 +188,28 @@ export interface FilterOption {
   label: string;
 }
 
-/** The choices of the person filter: Everyone, AI, then everyone seen in the list, A to Z. */
-export function filterOptions(changes: readonly EveryoneChange[]): FilterOption[] {
+/** The three lists of the Recent Changes card, in tab order (the user, 2026-11-02). */
+export type ChangesTab = 'tool' | 'game' | 'everything';
+
+export const CHANGES_TABS: readonly ChangesTab[] = ['tool', 'game', 'everything'];
+
+/** The Game tab: what players and the GM did directly in Foundry, not through the AI Tool. */
+export function gameChanges(changes: readonly EveryoneChange[]): EveryoneChange[] {
+  return changes.filter(c => c.kind === 'human');
+}
+
+/**
+ * The choices of the person filter: Everyone, Tool, then everyone seen in the list, A to Z. The
+ * Game tab has no Tool choice (`withTool` false): nothing there came through the AI Tool.
+ */
+export function filterOptions(changes: readonly EveryoneChange[], withTool = true): FilterOption[] {
   const names = new Set<string>();
   for (const c of changes) if (c.kind === 'human' || isPersonUndo(c)) names.add(whoOf(c));
   const people = [...names]
     .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }))
     .map(name => ({ value: personFilter(name), label: name }));
-  return [{ value: FILTER_ALL, label: 'Everyone' }, { value: FILTER_AI, label: 'AI' }, ...people];
+  const head = [{ value: FILTER_ALL, label: 'Everyone' }];
+  return [...head, ...(withTool ? [{ value: FILTER_AI, label: 'Tool' }] : []), ...people];
 }
 
 /** The changes a filter value keeps (an unknown value keeps all; see `validFilter`). */
@@ -258,8 +272,12 @@ export function foldTokenMoves(changes: readonly EveryoneChange[]): EveryoneChan
 }
 
 /** The filter to use for a list: the chosen one while it still exists, else all. */
-export function validFilter(changes: readonly EveryoneChange[], filter: string): string {
-  return filterOptions(changes).some(o => o.value === filter) ? filter : FILTER_ALL;
+export function validFilter(
+  changes: readonly EveryoneChange[],
+  filter: string,
+  withTool = true
+): string {
+  return filterOptions(changes, withTool).some(o => o.value === filter) ? filter : FILTER_ALL;
 }
 
 /** The change that undid `change`, when it is in the list. */

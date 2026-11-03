@@ -48,13 +48,13 @@ In **Game Settings**, category **Core**, the **User Permissions** button:
 
 In **Game Settings**, category **[Aardvark Games] Actor Studio (AI Tool fork)**:
 
-- [ ] **Compendium Sources**, **Select sources**: untick **Show Selected Only**, tick the
+- [ ] **Compendium Sources**, **Select sources**: tick the
       Player's Handbook packs in each row and untick the D&D 5e system's own packs. The table is in
       [Prepare session 0](prepare-session-0.md). Click **Save**, then **Yes** to reload.
 - [ ] **Configure ability scores**: tick the one method you and the players agreed on.
 - [ ] **Configure equipment & gold**: **Enable Equipment Selection** is ticked.
 - [ ] **Configure spells**: tick **Enable Spell Selection**.
-- [ ] **Configure progression**, under **Leveling Options**: tick **Enable Level Up** and
+- [ ] **Configure progression**, under **Level Up Options**: tick **Enable Level Up** and
       **Milestone Levelling**. Without it nobody sees a **Level Up** button until they have the
       experience points.
 

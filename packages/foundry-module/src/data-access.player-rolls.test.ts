@@ -558,9 +558,26 @@ describe('FoundryDataAccess — requestAbilityCheck (wrapper)', () => {
     expect(result.success).toBe(true);
     const msg = world.messages.contents[world.messages.contents.length - 1];
     expect(msg.content).toContain('WIS Ability Check (Public)');
-    expect(msg.content).toContain('Spot the trap — DC 15');
+    expect(msg.content).toContain('Spot the trap');
+    expect(msg.content).not.toContain('Spot the trap — DC 15');
     // The click handler reads the DC from the button and rolls against it.
     expect(msg.content).toContain('data-dc="15"');
+  });
+
+  it('shows the DC once on the card: the heading has it, the folded flavor does not repeat it', async () => {
+    world.addUser({ id: 'u1', name: 'Alice', active: true, isGM: false });
+    addPlayerCharacter({ id: 'a1', name: 'Silvera', ownerUserId: 'u1' });
+    await da.requestAbilityCheck({
+      targetPlayer: 'Alice',
+      ability: 'wis',
+      dc: 15,
+      isPublic: true,
+      reason: 'Spot the trap',
+    });
+    const msg = world.messages.contents[world.messages.contents.length - 1];
+    expect(msg.content).toContain('Roll for Silvera: WIS check, DC 15');
+    expect(msg.content).toContain('Spot the trap');
+    expect(msg.content.match(/DC 15/g)).toHaveLength(1);
   });
 
   it('puts no data-dc on a request without a DC', async () => {

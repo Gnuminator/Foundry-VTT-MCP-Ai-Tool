@@ -138,10 +138,17 @@ export class PlayerRollsDataAccess {
         this.buildRollButtonLabel(data.rollType, data.rollTarget, data.isPublic) +
         (advantage ? ` (${advantage})` : '');
 
+      // The heading carries the DC; the tool and the dashboard fold "DC n" into the flavor too, so
+      // a trailing one is dropped here and the card shows it once.
+      const cardFlavor =
+        data.dc != null
+          ? data.flavor.replace(/[\s,;.–—-]*\bDC\s*\d+\s*$/i, '').trim()
+          : data.flavor;
+
       const rollButtonHtml = `
         <div class="mcp-roll-request">
           <p class="mcp-roll-heading"><strong>${escapeAttr(this.buildRollHeading(playerInfo.character?.name || playerInfo.targetName, data.rollType, data.rollTarget, data.dc))}</strong></p>
-          ${data.flavor ? `<p class="mcp-roll-context">${data.flavor}</p>` : ''}
+          ${cardFlavor ? `<p class="mcp-roll-context">${cardFlavor}</p>` : ''}
 
           <div class="mcp-roll-actions">
             <!-- Single Roll Button (clickable by both character owner and GM) -->

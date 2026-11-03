@@ -1,0 +1,150 @@
+/* Svelte spike (never merged): the look both Party versions share (BRIEF.md). */
+.spk-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgb(0 0 0 / 55%);
+}
+
+.spk-dialog {
+  position: fixed;
+  top: 40px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(560px, calc(100vw - 32px));
+  max-height: calc(100vh - 80px);
+  overflow: auto;
+  padding: 16px 20px;
+  border-radius: 8px;
+  background: #1c1b22;
+  color: #f2f0ea;
+  font: 15px/1.4 system-ui, sans-serif;
+}
+
+.spk-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.spk-head h2 {
+  margin: 0;
+  font-size: 20px;
+}
+
+.spk-sub,
+.spk-facts {
+  margin: 2px 0 0;
+  color: #c9c5bb;
+  font-size: 13px;
+}
+
+.spk-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 12px 0;
+}
+
+.spk-dialog button,
+.spk-dialog select,
+.spk-open {
+  min-height: 32px;
+  padding: 4px 12px;
+  border: 1px solid #8a8577;
+  border-radius: 6px;
+  background: #2b2a33;
+  color: #f2f0ea;
+  font: inherit;
+}
+
+.spk-dialog button:disabled {
+  opacity: 0.6;
+}
+
+.spk-dialog button:focus-visible,
+.spk-dialog select:focus-visible {
+  outline: 2px solid #f0c674;
+  outline-offset: 2px;
+}
+
+.spk-members {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.spk-member {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+  border-top: 1px solid #3a3842;
+}
+
+.spk-name {
+  font-weight: 600;
+}
+
+.spk-star {
+  color: #f0c674;
+}
+
+.spk-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.spk-chip {
+  padding: 0 8px;
+  border-radius: 10px;
+  background: #4a2f36;
+  font-size: 12px;
+}
+
+.spk-hp {
+  min-width: 90px;
+  text-align: right;
+  font-size: 13px;
+}
+
+.spk-hp-bar {
+  height: 6px;
+  margin-top: 4px;
+  border-radius: 3px;
+  background: #3a3842;
+}
+
+.spk-hp-fill {
+  height: 100%;
+  border-radius: 3px;
+  background: #5fb35f;
+}
+
+.spk-hp-fill.mid {
+  background: #d9a441;
+}
+
+.spk-hp-fill.low {
+  background: #d9534f;
+}
+
+.spk-dialog h3 {
+  margin: 16px 0 4px;
+  font-size: 15px;
+}
+
+.spk-error {
+  color: #ffb4ab;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}

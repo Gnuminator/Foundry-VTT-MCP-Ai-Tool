@@ -11,13 +11,19 @@ import type { StorybookConfig } from '@storybook/react-vite';
 const config: StorybookConfig = {
   // Stories sit next to the component they show; the overview page and later whole-screen
   // prototypes (design round 3) live under src/storybook/.
-  stories: ['../src/**/*.mdx', '../src/**/*.stories.@(ts|tsx)'],
+  // Svelte spike (never merged): the two Party versions under web/spike.
+  stories: ['../src/**/*.mdx', '../src/**/*.stories.@(ts|tsx)', '../spike/**/*.stories.@(ts|tsx)'],
   addons: ['@storybook/addon-docs', '@storybook/addon-a11y', '@storybook/addon-themes'],
   framework: { name: '@storybook/react-vite', options: {} },
   core: { disableTelemetry: true },
   typescript: {
     // The stories already hold the props they use; skipping the docgen pass keeps the build quick.
     reactDocgen: false,
+  },
+  // Svelte spike: compiles the .svelte files the Svelte Party story mounts.
+  viteFinal: async config => {
+    const { svelte } = await import('@sveltejs/vite-plugin-svelte');
+    return { ...config, plugins: [...(config.plugins ?? []), svelte()] };
   },
 };
 

@@ -12,6 +12,7 @@ import {
   makeActor,
   makeEffect,
   makeItem,
+  makeToken,
   type TestWorld,
 } from './test-support/foundry-mock/index.js';
 import { FoundryDataAccess } from './data-access.js';
@@ -134,6 +135,36 @@ describe('searchCharacterItems — character resolution', () => {
     world.actors.add(makeHero());
     const result = await da.searchCharacterItems({ characterIdentifier: 'aldric' });
     expect(result.characterId).toBe('actor1xxxxxxxxxxx');
+  });
+
+  it("finds an unlinked token's own actor by token id", async () => {
+    const synthetic = makeActor({
+      id: 'wolf',
+      name: 'Wolf 2',
+      items: [makeItem({ id: 'bite1', name: 'Bite', type: 'weapon' })],
+    });
+    world.actors.add(makeActor({ id: 'wolf', name: 'Wolf', items: [] }));
+    world.setActiveScene(
+      world.addScene({
+        id: 'scene1',
+        active: true,
+        tokens: [
+          makeToken({
+            id: 'tok-w2',
+            name: 'Wolf 2',
+            actorId: 'wolf',
+            actorLink: false,
+            actor: synthetic,
+          }),
+        ],
+      }).id
+    );
+    const result = await da.searchCharacterItems({
+      characterIdentifier: 'tok-w2',
+      type: 'weapon',
+    });
+    expect(result.characterName).toBe('Wolf 2');
+    expect(result.matches.map(m => m.name)).toEqual(['Bite']);
   });
 });
 

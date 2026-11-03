@@ -79,6 +79,36 @@ describe('FoundryDataAccess — useItem', () => {
     ).rejects.toThrow('Actor not found: ghost');
   });
 
+  it("finds an unlinked token by its token id and uses that token's own actor", async () => {
+    const use = vi.fn(() => Promise.resolve());
+    const item = makeItem({ id: 'bite1', name: 'Bite', type: 'weapon' });
+    (item as any).use = use;
+    const synthetic = makeActor({ id: 'wolf', name: 'Wolf 2', items: [item] });
+    world.addActor({ id: 'wolf', name: 'Wolf', items: [] });
+    const scene = world.addScene({
+      id: 'scene1',
+      name: 'Field',
+      active: true,
+      tokens: [
+        makeToken({ id: 'tok-w1', name: 'Wolf 1', actorId: 'wolf', actorLink: false }),
+        makeToken({
+          id: 'tok-w2',
+          name: 'Wolf 2',
+          actorId: 'wolf',
+          actorLink: false,
+          actor: synthetic,
+        }),
+      ],
+    });
+    world.setActiveScene(scene.id);
+
+    const result = await da.useItem({ actorIdentifier: 'tok-w2', itemIdentifier: 'Bite' });
+    await flush();
+
+    expect(use).toHaveBeenCalledTimes(1);
+    expect(result.actorName).toBe('Wolf 2');
+  });
+
   it('throws when the item is not on the actor', async () => {
     world.addActor({ id: 'a1', name: 'Mage', items: [] });
 

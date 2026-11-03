@@ -38,9 +38,10 @@ export const NOT_CONNECTED_TAIL =
   'Tell the GM that Foundry is not connected (the world must be open in a browser with a GM joined); do not retry.';
 
 /** A plan that is gone (expired, applied or cancelled). */
-export const PLAN_GONE_TAIL = 'List the pending plans with get-planned-change, or make a new plan.';
+export const PLAN_GONE_TAIL =
+  'It may have been applied already: check list-recent-changes first. If it was not, list the pending plans with get-planned-change or make a new plan.';
 
 /** A tool name the backend does not know. */
 export function unknownToolMessage(name: string): string {
-  return `Unknown tool: ${name}. If it should exist, its tool set may be switched off in Claude's Search and tools menu; tell the GM which set to switch on.`;
+  return `Unknown tool: ${name}. This bridge has no tool with that name. Check the name against the listed tools; if the module or bridge was just updated, tell the GM to restart the bridge.`;
 }

@@ -36,6 +36,6 @@ describe('featureSwitchOff', () => {
 describe('next-step messages', () => {
   it('name the tool to use', () => {
     expect(notFoundMessage('Item 5', 'search-character-items')).toContain('search-character-items');
-    expect(unknownToolMessage('foo')).toContain('tool set');
+    expect(unknownToolMessage('foo')).toContain('restart the bridge');
   });
 });

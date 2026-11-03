@@ -104,7 +104,7 @@ describe('createModuleRequestHandler', () => {
       tarokkaPositionRevealed: vi.fn(async () => false),
     });
     await expect(empty('list-recent-changes', {}, danni)).rejects.toThrow(
-      /Unknown tool: list-recent-changes.*switched off/
+      /Unknown tool: list-recent-changes.*restart the bridge/
     );
   });
 

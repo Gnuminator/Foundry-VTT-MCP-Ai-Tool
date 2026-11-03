@@ -4,7 +4,7 @@ import * as os from 'os';
 import * as path from 'path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { GuardedApplyOutcome, GuardedOp } from '@gnuminator/shared';
+import { NOT_CONNECTED_TAIL, type GuardedApplyOutcome, type GuardedOp } from '@gnuminator/shared';
 
 import { FakeFoundry } from '../test-support/fake-foundry.js';
 import { AuditLog } from '../vault/audit.js';
@@ -102,6 +102,7 @@ describe('apply timeout and outcome polling (PB-04)', () => {
     for (const message of [
       'Foundry VTT module not connected. Please ensure Foundry is running',
       'Not connected to Foundry VTT module',
+      `Query foundry-mcp-bridge.applyGuardedOps failed: Not connected to Foundry VTT module. ${NOT_CONNECTED_TAIL}`,
     ]) {
       applyImpl = (): Promise<any> => Promise.reject(new Error(message));
       const spy = vi.fn();

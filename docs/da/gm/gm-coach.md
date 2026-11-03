@@ -16,7 +16,7 @@ hjælper dig også med at planlægge: hvad du skal forberede til en session, sam
 Coachen er en hjælper, der kender siderne. Den kan ikke se eller ændre dit spil. Når du vil have Claude
 til at kigge på dine karakterer, planlægge en ændring eller forberede noter, er det en helt almindelig Claude Desktop-chat
 med Foundry-connectorerne slået til ([Spørg Claude](asking-claude.md)). Beskyttede ændringer
-(skade, conditions, token-flytninger og lignende) bliver planlagt først, vist for dig, udført efter dit
+(damage, conditions, token-flytninger og lignende) bliver planlagt først, vist for dig, udført efter dit
 ja og gemt i Recent Changes med en Undo. Nogle af Claudes andre værktøjer virker med det samme og kan
 ikke fortrydes. Coachen kan forklare begge dele.
 
@@ -50,7 +50,7 @@ Foundry. For at være sikker kan du begynde med "GM coach:".
 - "GM coach: guide mig igennem at starte en combat og rulle initiative."
 - "GM coach: hvad tjekker jeg i de 15 minutter, før vi spiller?"
 - "GM coach: Claude siger, at et tool set er slået fra. Hvor slår jeg det til?"
-- "GM coach: dashboardet mistede forbindelsen midt i en kamp. Hvad nu?"
+- "GM coach: dashboardet mistede forbindelsen midt i en combat. Hvad nu?"
 - "GM coach: hjælp mig med at planlægge session 0. Stil mig spørgsmål først."
 
 Når du planlægger med den, stiller den et par spørgsmål og foreslår muligheder. Valgene er dine. Du kan

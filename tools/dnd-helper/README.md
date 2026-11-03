@@ -29,9 +29,8 @@ Writes `tools/dnd-helper/dist/foundry-dnd-helper.zip` (and the unpacked folder).
 
 ## Known limits
 
-- Rules search is by entry name only; the text inside compendium books cannot be searched until the
-  `search-rules` tool exists (Backlog `dnd-helper-search-rules`).
-- The class item the connector returns has no advancement list, so level-up advice takes the
-  per-level table from Claude's general knowledge and looks each feature up by name; the level-up
-  window in Foundry is the authority. A read-only `get-level-up-options` tool is a later item
-  (`dnd-helper-levelup`).
+- Rules search reads the text of the rulebook chapters and of item, spell and feature descriptions
+  (`search-rules`); `search-compendium` still matches entry names only.
+- Level-up advice starts from `get-level-up-options`, which says what the next level grants and
+  which choices are open. It only reads: the level-up window in Foundry is the authority, and the
+  player makes every choice there.

@@ -65,6 +65,58 @@ describe('readFeedEvent', () => {
     expect(readFeedEvent(roll)?.text).toBe('Brannoc attacks the Ogre: 17 vs AC 14, hit');
   });
 
+  it('reads the roll box: who, what, total, verdict and both d20s on advantage', () => {
+    const roll = {
+      ...raw,
+      eventType: 'roll',
+      actorName: 'Mara',
+      details: {
+        rollType: 'skill',
+        total: 17,
+        label: 'Perception check',
+        natural: 14,
+        droppedD20: [6],
+        advantage: 'advantage',
+        dc: 12,
+        outcome: 'success',
+      },
+    };
+    expect(readFeedEvent(roll)?.roll).toEqual({
+      who: 'Mara',
+      label: 'Perception check',
+      total: 17,
+      attack: false,
+      dc: 12,
+      passed: true,
+      natural: 14,
+      dropped: [6],
+      advantage: 'advantage',
+    });
+  });
+
+  it('judges an attack against AC and gives no verdict without a DC', () => {
+    const base = {
+      ...raw,
+      eventType: 'gm-roll',
+      details: { rollType: 'attack', total: 9, label: 'Bite attack' },
+    };
+    expect(readFeedEvent(base)?.roll).toEqual({
+      who: 'Goblin',
+      label: 'Bite attack',
+      total: 9,
+      attack: true,
+    });
+    const miss = { ...base, details: { ...base.details, dc: 14, outcome: 'failure' } };
+    expect(readFeedEvent(miss)?.roll).toMatchObject({ attack: true, dc: 14, passed: false });
+  });
+
+  it('gives a roll box only to roll events that carry the parts', () => {
+    expect(readFeedEvent({ ...raw, details: { total: 5, label: 'x' } })?.roll).toBeUndefined();
+    expect(
+      readFeedEvent({ ...raw, eventType: 'roll', details: { total: 5 } })?.roll
+    ).toBeUndefined();
+  });
+
   it('ignores a breakdown that is empty or not text', () => {
     expect(readFeedEvent({ ...raw, details: { breakdown: '' } })?.text).toBe(raw.description);
     expect(readFeedEvent({ ...raw, details: { breakdown: 5 } })?.text).toBe(raw.description);

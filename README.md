@@ -117,8 +117,8 @@ something (an actor, a token, a journal page, a plan) has **Pick…**, a list of
 
 ![The Destructive action window for ending a combat, with its I understand box and the Cancel and Run destructive action buttons](docs/images/cogm/confirm.png)
 
-**Safe by default:** watching is always read-only; game-changing actions stay off until you flip the
-**GM Actions** switch; every write asks for confirmation, a planned change shows its diff, and
+**Safe by default:** watching is always read-only; game-changing actions stay off until you press
+**Start session**; every write asks for confirmation, a planned change shows its diff, and
 destructive actions need a second confirmation.
 
 > Full tour for GMs: **[docs/gm/dashboard.md](docs/gm/dashboard.md)**.
@@ -186,7 +186,7 @@ Enable it in your world (requires Foundry **v14** with the dnd5e 6 system).
 
 ### 2. Set up the bridge (MCP server)
 
-Requires Node.js 22+.
+Requires Node.js 24+.
 
 ```bash
 git clone https://github.com/Gnuminator/Foundry-VTT-MCP-Ai-Tool.git

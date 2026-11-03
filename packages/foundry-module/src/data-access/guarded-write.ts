@@ -32,6 +32,13 @@ import {
 import { assertUserCreateAllowed, assertUserUpdateAllowed } from '../table-viewer-user.js';
 import { unsetKeyUpdate } from '../systems/core.js';
 import {
+  assertSetupFeature,
+  executeVirtualUpdate,
+  isVirtualUuid,
+  snapshotVirtual,
+  virtualSource,
+} from './virtual-targets.js';
+import {
   RULES_FLAG_PATH,
   rulesTagForCreate,
   rulesTagUpdateIfChanged,
@@ -317,8 +324,20 @@ function countOnLevel(level: FoundryDocument): number {
 async function snapshotOp(op: GuardedOp): Promise<OpSnapshot> {
   switch (op.kind) {
     case 'update': {
+      if (isVirtualUuid(op.uuid)) {
+        const paths = updatePaths(op);
+        const virtual = snapshotVirtual(op.uuid, paths, op.changes);
+        if (!virtual.exists) return { exists: false };
+        return {
+          exists: true,
+          documentName: virtual.documentName,
+          name: virtual.name,
+          values: paths.map(path => readPath(virtual.source, path)),
+        };
+      }
       const doc = await resolve(op.uuid);
       if (!doc) return { exists: false };
+      if (doc.documentName === 'Setting') throw new Error(SETTING_DOCUMENT_REFUSAL);
       const source = sourceOf(doc);
       return {
         exists: true,
@@ -330,6 +349,7 @@ async function snapshotOp(op: GuardedOp): Promise<OpSnapshot> {
     case 'delete': {
       const doc = await resolve(op.uuid);
       if (!doc) return { exists: false };
+      if (doc.documentName === 'Setting') throw new Error(SETTING_DOCUMENT_REFUSAL);
       const parent = parentOf((doc as { parent?: FoundryDocument | null }).parent ?? null);
       const levelContents = doc.documentName === 'Level' ? countOnLevel(doc) : undefined;
       return {
@@ -342,6 +362,7 @@ async function snapshotOp(op: GuardedOp): Promise<OpSnapshot> {
       };
     }
     case 'create': {
+      if (op.documentName === 'Setting') throw new Error(SETTING_DOCUMENT_REFUSAL);
       const parent = op.parentUuid ? await resolve(op.parentUuid) : null;
       const parentLabel = parentOf(parent);
       return {
@@ -524,8 +545,10 @@ async function executeUpdate(
   req: GuardedApplyRequest,
   changeMode?: ChangeWriteMode
 ): Promise<GuardedOpResult> {
+  if (isVirtualUuid(op.uuid)) return executeVirtual(op, index, req);
   const doc = await resolve(op.uuid);
   if (!doc) throw new Error(`Document not found: ${op.uuid}`);
+  if (doc.documentName === 'Setting') throw new Error(SETTING_DOCUMENT_REFUSAL);
   if (doc.documentName === 'User') {
     assertUserUpdateAllowed(Object.keys(op.changes ?? {}), op.unset ?? []);
   }
@@ -591,6 +614,35 @@ async function executeUpdate(
   return result;
 }
 
+const SETTING_DOCUMENT_REFUSAL =
+  'Settings are changed through GameSetting.<namespace>.<key>, not as documents';
+
+/** An update of a setting or a pack's configuration (virtual-targets.ts). */
+async function executeVirtual(
+  op: GuardedUpdateOp,
+  index: number,
+  req: GuardedApplyRequest
+): Promise<GuardedOpResult> {
+  assertSetupFeature(req.feature);
+  const unset = op.unset ?? [];
+  const paths = [...Object.keys(op.changes ?? {}), ...unset];
+  const target = snapshotVirtual(op.uuid, paths, op.changes);
+  if (!target.exists) throw new Error(`Target not found: ${op.uuid}`);
+  const before = paths.map(path => readPath(target.source, path));
+  await executeVirtualUpdate(op.uuid, { ...op.changes }, unset);
+  const after = virtualSource(op.uuid);
+  return {
+    index,
+    kind: 'update',
+    uuid: op.uuid,
+    documentName: target.documentName,
+    name: target.name,
+    parentUuid: null,
+    before,
+    after: paths.map(path => readPath(after, path)),
+  };
+}
+
 /** Token geometry: the paths Foundry 14 can drop without an error. */
 const VERIFIED_TOKEN_PATHS = new Set(['x', 'y', 'width', 'height', 'depth']);
 
@@ -648,6 +700,7 @@ async function executeCreate(
   req: GuardedApplyRequest,
   changeMode?: ChangeWriteMode
 ): Promise<GuardedOpResult> {
+  if (op.documentName === 'Setting') throw new Error(SETTING_DOCUMENT_REFUSAL);
   if (op.documentName === 'User') assertUserCreateAllowed(req.feature, op.data);
   const data = foundry.utils.deepClone(op.data);
   if (req.mode === 'apply' && isRulesTagged(op.documentName)) {
@@ -692,6 +745,7 @@ async function executeDelete(
     if (req.mode === 'undo') return goneResult(op, index);
     throw new Error(`Document not found: ${op.uuid}`);
   }
+  if (doc.documentName === 'Setting') throw new Error(SETTING_DOCUMENT_REFUSAL);
   const deleted = sourceOf(doc);
   const result: GuardedOpResult = {
     index,

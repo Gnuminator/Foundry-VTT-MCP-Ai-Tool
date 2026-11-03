@@ -57,7 +57,11 @@ function RollTotal({ roll }: { roll: RollBox }): JSX.Element {
   return (
     <span className="event-roll-result">
       {roll.dropped && roll.natural !== undefined && (
-        <span className="event-roll-d20s" aria-label={roll.advantage ?? 'two d20s'}>
+        <span
+          className="event-roll-d20s"
+          role="img"
+          aria-label={`${roll.advantage ?? 'two d20s'}: ${roll.natural} counts, ${roll.dropped.join(', ')} dropped`}
+        >
           <b className="is-kept">{roll.natural}</b>
           {roll.dropped.map((d, i) => (
             <s key={i}>{d}</s>

@@ -1,5 +1,5 @@
-// Tests for the context alert hook (context-alert.mjs): tail parsing, the fixed 200k and 250k
-// lines, once per threshold, and silence on every failure.
+// Tests for the context alert hook (context-alert.mjs): tail parsing, the 200k and 250k
+// lines (250k and 300k for a lane), once per threshold, and silence on every failure.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
@@ -12,7 +12,10 @@ import {
   contextFromTranscript,
   contextOf,
   lastContextIn,
+  limitsFor,
   messageFor,
+  LANE_OUT_AT,
+  LANE_PLAN_AT,
   run,
   OUT_AT,
   PLAN_AT,
@@ -103,9 +106,71 @@ test('contextFromTranscript: only the tail is read from a large file', () => {
   }
 });
 
-test('the lines are fixed at 200k and 250k, whatever the environment says', () => {
+test('the default lines are 200k and 250k, whatever the environment says', () => {
   assert.equal(PLAN_AT, 200_000);
   assert.equal(OUT_AT, 250_000);
+});
+
+test('limitsFor: a lane (cwd under .claude/worktrees/) gets 250k and 300k, everything else 200k and 250k', () => {
+  const main = { plan: 200_000, out: 250_000 };
+  const lane = { plan: 250_000, out: 300_000 };
+  assert.equal(LANE_PLAN_AT, 250_000);
+  assert.equal(LANE_OUT_AT, 300_000);
+  assert.deepEqual(limitsFor('C:\\P\\Foundry VTT AI Tool\\.claude\\worktrees\\lane-a-1'), lane);
+  assert.deepEqual(limitsFor('C:/P/Foundry VTT AI Tool/.claude/worktrees/lane-a-1/packages'), lane);
+  assert.deepEqual(limitsFor('/c/P/.CLAUDE/Worktrees/lane-a'), lane);
+  assert.deepEqual(limitsFor('C:\\P\\Foundry VTT AI Tool'), main);
+  assert.deepEqual(limitsFor('C:\\P\\.claude\\worktreesfoo\\a'), main);
+  assert.deepEqual(limitsFor(undefined), main);
+  assert.deepEqual(limitsFor(''), main);
+});
+
+test('run: a lane stays quiet at 220k, plans at 250k, is out at 300k; the main checkout keeps 200k and 250k', () => {
+  const { root, env, cleanup } = fixture();
+  try {
+    const laneCwd = 'C:\\P\\Foundry\\.claude\\worktrees\\lane-a-1';
+    const mainCwd = 'C:\\P\\Foundry';
+    const at = (ctx, name) => transcript(root, [turn(ctx)], name);
+    assert.equal(run(input(at(220_000, 'l1.jsonl'), { cwd: laneCwd }), env), '');
+    const plan = JSON.parse(run(input(at(252_000, 'l2.jsonl'), { cwd: laneCwd }), env));
+    assert.equal(plan.systemMessage, 'Context 252k: plan the handover (lane skill).');
+    assert.match(plan.hookSpecificOutput.additionalContext, /252k tokens .*250k.*Out by 300k/);
+    assert.equal(run(input(at(280_000, 'l3.jsonl'), { cwd: laneCwd }), env), '');
+    const out = JSON.parse(run(input(at(301_000, 'l4.jsonl'), { cwd: laneCwd }), env));
+    assert.equal(out.systemMessage, 'Context 301k: hand over now.');
+    assert.match(out.hookSpecificOutput.additionalContext, /hard line 300k/);
+    // the planner in the main checkout
+    const p = JSON.parse(
+      run(input(at(202_000, 'm1.jsonl'), { cwd: mainCwd, session_id: 'p' }), env)
+    );
+    assert.match(p.hookSpecificOutput.additionalContext, /200k.*Out by 250k/);
+    const po = JSON.parse(
+      run(input(at(251_000, 'm2.jsonl'), { cwd: mainCwd, session_id: 'p' }), env)
+    );
+    assert.equal(po.systemMessage, 'Context 251k: hand over now.');
+  } finally {
+    cleanup();
+  }
+});
+
+test('run: CLAUDE_PROJECT_DIR decides lane or planner, not a cwd that moved with a cd', () => {
+  const { root, env, cleanup } = fixture();
+  try {
+    const lane = 'C:\\P\\Foundry\\.claude\\worktrees\\lane-a-1';
+    const main = 'C:\\P\\Foundry';
+    const file = transcript(root, [turn(260_000)]);
+    // planner in the main checkout that cd'd into a lane: still out at 250k
+    const p = run(input(file, { cwd: lane }), { ...env, CLAUDE_PROJECT_DIR: main });
+    assert.match(p, /hand over now/);
+    // lane that cd'd to main: only the plan line at 260k
+    const l = run(input(file, { cwd: main, session_id: 'l' }), {
+      ...env,
+      CLAUDE_PROJECT_DIR: lane,
+    });
+    assert.match(l, /plan the handover/);
+  } finally {
+    cleanup();
+  }
 });
 
 test('run: silent under the plan line, plan line at 200k, out line at 250k', () => {
@@ -349,7 +414,7 @@ test('the hook process: prints the plan line as JSON, and nothing on garbage std
       spawnSync(process.execPath, [HOOK], {
         input: stdin,
         encoding: 'utf8',
-        env: { ...process.env, ...env },
+        env: { ...process.env, CLAUDE_PROJECT_DIR: '', ...env },
       });
     const ok = spawn(JSON.stringify(input(file)));
     assert.equal(ok.status, 0);

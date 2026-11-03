@@ -52,15 +52,15 @@ Værktøjet følger hit points, ikke liv og død:
 1. **Tag afgørelsen.** Tjek death saves på arket eller i Combat Tracker. Regelafgørelsen er din.
    Claude kan slå reglen op ("What happens on a third failed death save? Use only my books."), men
    afgør den ikke.
-2. **Markér karakteren som død.** I en kamp klikker du på kraniet (**Mark Defeated**) på
+2. **Markér karakteren som død.** I en combat klikker du på kraniet (**Mark Defeated**) på
    karakterens række i Foundrys Combat Tracker: det dæmper rækken og giver karakteren statussen
-   **Dead**. Uden for en kamp højreklikker du på tokenet og vælger **Dead** blandt status-ikonerne.
+   **Dead**. Uden for en combat højreklikker du på tokenet og vælger **Dead** blandt status-ikonerne.
    Med **play**-sættet slået til i Claude Desktop kan du også sige: "Mark Kasimir as dead, go
    ahead." (`plan-actor-change`, en condition-ændring. **Undo** i **Recent Changes** tager den
    tilbage, hvis du var for hurtig).
 3. **Spil scenen færdig.** Spilleren bliver ved bordet. Lad dem gerne tale for en allieret eller en
-   NPC resten af kampen. Foundry springer kun besejrede rækker over, når **Skip Defeated** er slået
-   til i Combat Trackers indstillinger. Ellers klikker du forbi turen.
+   NPC resten af combaten. Foundry springer kun besejrede rækker over, når **Skip Defeated** er slået
+   til i Combat Trackers indstillinger. Ellers klikker du forbi turnen.
 4. **Lad tokenet ligge**, til scenen er slut. Liget kan få betydning (plyndring, en begravelse, et
    forsøg på genoplivning).
 
@@ -102,7 +102,7 @@ er bygget.
 
 1. **Spilleren bygger karakteren** på samme måde, som bordet byggede de andre, på det level, du
    vælger (som regel partiets level). Værktøjet har ingen karakterbygger. Dets NPC-værktøjer laver
-   monstre og NPC'er, ikke spillerkarakterer.
+   monsters og NPC'er, ikke spillerkarakterer.
 2. **Giv spilleren ownership.** Højreklik på den nye actor i **Actors**-fanen, **Configure
    Ownership**, sæt spilleren til Owner. Eller, med **admin** slået til: "Make Anna the owner of
    Vasil." (`plan-ownership-change`).

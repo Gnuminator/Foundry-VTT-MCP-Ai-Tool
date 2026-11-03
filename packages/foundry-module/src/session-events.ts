@@ -536,6 +536,9 @@ export class EventTracker {
     const [only] = described.rolls;
     if (only && described.rolls.length === 1) {
       if (only.natural !== undefined) details.natural = only.natural;
+      if (only.droppedD20 !== undefined) details.droppedD20 = only.droppedD20;
+      if (only.advantage !== undefined) details.advantage = only.advantage;
+      details.label = only.label;
       if (only.dc !== undefined) details.dc = only.dc;
       if (only.outcome !== undefined) details.outcome = only.outcome;
     }

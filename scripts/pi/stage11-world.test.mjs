@@ -13,7 +13,7 @@
 // where every world of the run is marked), no password in the output,
 // and the old campaign default (the kit copy reset and marked, no extra GM), the kit-copy rule (an installed
 // KIT_WORLD that is not a kit copy of WORLD is refused unless REPLACE_KIT=1; a second world's own kit copy resets twice)
-// and suffix-only module versions (-aitool.n compared as a number), and how options.json is written (by the foundry
+// a Plan B push-back that names pi-modules (the Pi's module copy stays), and suffix-only module versions (-aitool.n compared as a number), and how options.json is written (by the foundry
 // user through options.json.foundry-tmp and a rename: mode and owner stay, a link at the temp name is never followed)
 // with the up-front refusals for a kit session that is up, a Config folder the foundry user cannot write, and no Node. Without PI_STAGE11_CONTAINER the file skips.
 // PI_STAGE11_OUTPUT=<file> checks a saved stage11-scenarios.sh output instead of starting Docker.

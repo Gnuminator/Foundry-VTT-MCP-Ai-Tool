@@ -392,7 +392,7 @@ scenario kit-needs-title frostmaiden-training - WORLD=frostmaiden-training KIT_W
 scenario launch-not-installed frostmaiden-training - WORLD=frostmaiden-training KIT_WORLD= LAUNCH=nope
 scenario pi-modules-installed frostmaiden-training pimod_installed WORLD=frostmaiden-training KIT_WORLD= LAUNCH=curse-of-strahd EXTRA_GM_USER=Claude
 scenario pi-modules-pushback frostmaiden-training pimod_installed WORLD=frostmaiden-training KIT_WORLD= LAUNCH=curse-of-strahd rerun pushback2 RERUN:REPLACE_WORLD=1 RERUN:REPLACE_NEWER=1
-scenario pi-modules-missingfrostmaiden-training pimod_missing WORLD=frostmaiden-training KIT_WORLD= LAUNCH=curse-of-strahd EXTRA_GM_USER=Claude
+scenario pi-modules-missing frostmaiden-training pimod_missing WORLD=frostmaiden-training KIT_WORLD= LAUNCH=curse-of-strahd EXTRA_GM_USER=Claude
 scenario launch-omitted frostmaiden-training - WORLD=frostmaiden-training KIT_WORLD= EXTRA_GM_USER=Claude
 scenario kit-is-campaign frostmaiden-training - WORLD=frostmaiden-training KIT_WORLD=curse-of-strahd "KIT_TITLE=Frost kit" LAUNCH=curse-of-strahd
 scenario kit-is-launch frostmaiden-training - WORLD=frostmaiden-training KIT_WORLD=frost-kit "KIT_TITLE=Frost kit" LAUNCH=frost-kit

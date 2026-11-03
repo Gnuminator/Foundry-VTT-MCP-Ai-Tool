@@ -1,6 +1,6 @@
 ---
 source: player/make-a-character.md
-sourceHash: 4ecba0c20035
+sourceHash: c539e91418c9
 title: Lav din karakter
 description: "Trin for trin: lav en level-3 karakter i Foundry med Actor Studio fra 2024 Player's Handbook (byg på level 1, level up to gange), tjek den og gør den til din egen."
 ---
@@ -17,7 +17,7 @@ Vi bruger **Actor Studio**, en character builder inde i Foundry. Den stiller de 
 2024 Player's Handbook, i samme rækkefølge, og udfylder dit character sheet for dig. Du kan ikke
 ødelægge noget: går det galt, sletter GM'en karakteren, og du starter forfra.
 
-Tjekket på Foundry 14, D&D 5e system 6, Actor Studio 2.10.5 og 2024 Player's Handbook-modulet
+Tjekket på Foundry 14, D&D 5e system 6, Actor Studio 2.10.5 (vores build, 2.10.5-aitool.4) og 2024 Player's Handbook-modulet
 2.2.0 (oktober 2026).
 
 ## Før du starter
@@ -248,7 +248,7 @@ bagefter og spørg GM'en eller din D&D-hjælper, hvilke du skal tilføje.
 Gå dit sheet igennem, før du kalder det færdigt. Spørg GM'en, hvis noget ser forkert ud.
 
 - [ ] Levelet er 3, og class, subclass, species og background er rigtige.
-- [ ] Hit points: den højeste værdi på din classens hit die på level 1, plus gennemsnittet (eller dit slag)
+- [ ] Hit points: den højeste værdi på din classens hit die på level 1, plus gennemsnittet (eller dit roll)
       for level 2 og 3, plus din Constitution modifier for hvert af de tre levels (en fighter
       med Constitution 14, der tog gennemsnittet, har 12 + 8 + 8 = 28).
 - [ ] Proficiency bonus er +2 (den bliver ved med at være +2 til level 5).

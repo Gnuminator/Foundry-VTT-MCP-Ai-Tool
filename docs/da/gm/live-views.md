@@ -7,7 +7,7 @@ description: De tre måder at have combat-strippen ved siden af Foundry (Live sc
 
 # Live-visningerne
 
-Under en kamp vil du have combat-rækkefølgen og de hurtige knapper (skade, conditions, party) i
+Under en combat vil du have combat-rækkefølgen og de hurtige knapper (damage, conditions, party) i
 syne, mens du kigger på kortet. Det kan gøres på tre måder. Alle tre ligger det samme sted: knappen
 **Live views** øverst på dashboardet.
 

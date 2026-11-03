@@ -29,8 +29,8 @@ minutter er nok til de fleste sessioner.
 4. **Steder.** Det næste eller de næste to steder, med scenen klar i Foundry (map, walls, lights).
 5. **Ting, de kan finde ud af.** Spor, rygter og hemmeligheder, skrevet som enkelte fakta. Del hver ud
    der, hvor den passer, ikke kun der, hvor bogen lægger den.
-6. **Kampe, der måske kommer.** Monstrene, deres stat blocks åbnet én gang i Foundry, og tokens
-   klar. Et hurtigt blik på deres angreb og specielle træk sparer tid ved bordet.
+6. **Kampe, der måske kommer.** Monsters, deres stat blocks åbnet én gang i Foundry, og tokens
+   klar. Et hurtigt blik på deres attacks og specielle træk sparer tid ved bordet.
 7. **Belønninger.** Skat, items eller information, spillerne kan tjene i aften.
 
 Du kan springe over: at skrive dialog ud, at planlægge, hvad spillerne gør, og regler, du kan slå op,
@@ -43,13 +43,13 @@ På Foundry-siden er [Før hver session](before-session.md) tjekket på 15 minut
 De fleste problemer ved et bord kommer af, at folk vil have forskellige spil, ikke af regler. En kort snak
 før kampagnen starter sparer meget. Vælg de emner, der betyder noget for jeres gruppe:
 
-- **Hvad alle bedst kan lide:** kampe, at tale med karakterer, at udforske, gåder, en stærk historie.
+- **Hvad alle bedst kan lide:** combats, at tale med karakterer, at udforske, gåder, en stærk historie.
   De fleste kampagner har det hele; det her fortæller dig, hvor du skal bruge tiden.
 - **Tone:** hvor mørkt eller uhyggeligt spillet må blive. Aftal **lines** (ting, der aldrig sker
   i spillet) og **veils** (ting, der sker, men uden for billedet). Alle må sige "lad os springe det her over"
   når som helst, uden spørgsmål.
 - **Karakterdød:** kan det ske, og hvad så? (Se [Når en karakter dør](death-and-new-characters.md).)
-- **Ét party:** karaktererne rejser sammen og har en grund til det. Ingen kampe mellem spillernes
+- **Ét party:** karaktererne rejser sammen og har en grund til det. Ingen combats mellem spillernes
   karakterer, medmindre alle er enige.
 - **Regler:** hvilken bog, for eksempel 2024 Player's Handbook. GM'en træffer en afgørelse ved
   bordet og slår det op bagefter.

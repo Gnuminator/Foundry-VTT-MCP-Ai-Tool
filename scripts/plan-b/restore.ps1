@@ -174,8 +174,10 @@ if (-not $ver.Ok) {
   New-Item -ItemType Directory -Force -Path $L.AppDir | Out-Null
   # Windows' own tar unpacks zips far faster than Expand-Archive (22,000 files).
   $tar = if ($IsWindows) { Join-Path $env:SystemRoot 'System32\tar.exe' } else { 'tar' }
-  & $tar -xf $FoundryZip -C $L.AppDir
-  if ($LASTEXITCODE -ne 0) { throw "could not unpack $FoundryZip (tar exit $LASTEXITCODE)" }
+  $tarOut = & $tar -xf $FoundryZip -C $L.AppDir 2>&1
+  $unpack = Test-FoundryUnpack $LASTEXITCODE @($tarOut | ForEach-Object { "$_" })
+  if (-not $unpack.Ok) { throw "$($unpack.Message) ($FoundryZip)" }
+  if ($unpack.Skipped) { Write-Warning $unpack.Message }
   $ver = Test-WorldVersion (Get-PlanBAppBuild $L) $core
   if (-not $ver.Ok) { throw "after installing: $($ver.Message)" }
 }

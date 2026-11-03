@@ -197,6 +197,21 @@ function Test-WorldVersion([string]$AppBuild, [string]$WorldCoreVersion) {
   return @{ Ok = $false; Message = "Foundry here is $AppBuild, the world was last opened with ${world}: install Foundry $world into the app folder (restore.ps1 -FoundryZip <FoundryVTT-Node-$world.zip>)" }
 }
 
+# Whether unpacking the Foundry zip worked. Windows tar.exe cannot create the node_modules/.bin
+# links in the zip (exit 1, "Invalid argument") although every real file is unpacked, and the app
+# never starts anything through them on Windows. So a non-zero exit is fine when every complaint
+# names a .bin path; any other complaint, or none, is a failure.
+function Test-FoundryUnpack([int]$ExitCode, [string[]]$ErrorLines = @()) {
+  if ($ExitCode -eq 0) { return @{ Ok = $true; Skipped = 0; Message = 'unpacked' } }
+  $lines = @($ErrorLines | ForEach-Object { "$_".Trim() } | Where-Object { $_ })
+  $other = @($lines | Where-Object { $_ -notmatch '[\\/]\.bin([\\/]|[''"\s:]|$)' })
+  if ($lines.Count -eq 0 -or $other.Count -gt 0) {
+    $first = if ($other.Count) { $other[0] } else { 'no error text' }
+    return @{ Ok = $false; Skipped = 0; Message = "could not unpack the Foundry zip (tar exit ${ExitCode}): $first" }
+  }
+  return @{ Ok = $true; Skipped = $lines.Count; Message = "unpacked; skipped $($lines.Count) node_modules/.bin link(s) Windows cannot create (not needed)" }
+}
+
 # The module manifest text with the default bridge port flag set (rehearsal) or removed (game
 # night: the release default, 31415). The module reads the flag only while the world has no
 # stored port (scripts/plan-b check.ps1 says when the link does not come up).

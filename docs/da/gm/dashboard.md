@@ -1,6 +1,6 @@
 ---
 source: gm/dashboard.md
-sourceHash: a44008dd24ad
+sourceHash: 9dec523c4dec
 title: Dashboardet
 description: En rundtur i alle paneler og knapper på dashboardet, hvad de gør, og hvornår du bruger dem.
 ---
@@ -633,9 +633,13 @@ Uden Foundry forbundet viser skuffen stadig last session og siger, hvad der mang
 
 ## Party-skuffen (🛡 Party)
 
-Gruppen med et blik, fra dnd5e Group-actoren. Den kræver en gruppe i Foundry: i fanen Actors, lav en
-Actor af typen **Group**, træk karaktererne over på den, højreklik derefter på den og vælg **Set as
-Primary Party**. Med mere end én Group-actor vælger en liste øverst, hvilken.
+Gruppen med et blik, fra dnd5e Group-actoren. Foundry laver gruppen af sig selv: AI Tool holder et
+primært party (en Group-actor, der hedder "Party") og lægger hver karakter, en spiller ejer, ind i
+det, så der er intet at sætte op. NPC'er og actors, ingen spiller ejer, bliver udenfor. Hvert
+parti tilføjelser står i Recent Changes med Undo; vil du have en ældre karakter ud, så fjern den på
+party-arket (den bliver udenfor dette party). Et party, du sletter, bliver lavet igen, næste gang en karakter tilføjes, eller verdenen indlæses. Vil du styre gruppen selv, så slå "AI Tool: Add player
+characters to the party" fra i modulets indstillinger. Med mere end én Group-actor vælger en liste
+øverst, hvilken.
 
 - **Members**: hver karakters HP, AC, passive Perception, hit dice tilbage, conditions og
   exhaustion, death saves ved 0 HP, og om tokenet er på scenen og i encounteret. **Open** viser

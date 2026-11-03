@@ -155,7 +155,10 @@ fi
 
 # ---- packages ------------------------------------------------------------------------------------------------
 say "packages"
-if "$LDCONFIG" -p 2>/dev/null | grep -q 'libicuuc\.so'; then
+# Read the whole list first: grep -q quits at the first match, and under pipefail a real Pi's long
+# `ldconfig -p` output would then end in SIGPIPE and read as "missing".
+libs="$("$LDCONFIG" -p 2>/dev/null)" || libs=""
+if grep -q 'libicuuc\.so' <<<"$libs"; then
   ok "libicu is installed"
 else
   warn "libicu is missing: the GitHub runner (stage 17) stops without it"

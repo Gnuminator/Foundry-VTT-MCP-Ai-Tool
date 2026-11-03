@@ -387,6 +387,12 @@ export const USAGE_CATALOG: readonly UsageCatalogEntry[] = [
     file: 'packages/cogm-dashboard/web/src/components/During.tsx',
   },
   {
+    name: 'dash.header.live-views',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/web/src/components/LiveViewsMenu.tsx',
+  },
+  {
     name: 'dash.header.paper',
     kind: 'action',
     surface: 'dashboard',
@@ -442,12 +448,6 @@ export const USAGE_CATALOG: readonly UsageCatalogEntry[] = [
   },
   {
     name: 'dash.header.tools',
-    kind: 'action',
-    surface: 'dashboard',
-    file: 'packages/cogm-dashboard/web/src/App.tsx',
-  },
-  {
-    name: 'dash.header.try-live',
     kind: 'action',
     surface: 'dashboard',
     file: 'packages/cogm-dashboard/web/src/App.tsx',

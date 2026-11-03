@@ -26,6 +26,7 @@ play.
 | [Getting started](getting-started.md)                             | What the tool is, its parts, how they fit together, a glossary, and today's setup.             |
 | [The dashboard](dashboard.md)                                     | Every panel and button on the dashboard, what it does and when to use it.                      |
 | [The GM windows](gm-windows.md)                                   | Combat, Party, Session, Scene and Loot as small windows next to the map, and how to switch on. |
+| [The live views](live-views.md)                                   | Live screen, GM page and Live window: the three ways to keep the combat strip next to Foundry. |
 | [Features and when to turn them on](features.md)                  | Each feature switch, what it does, and the moment to turn it on.                               |
 | [Asking Claude](asking-claude.md)                                 | Good requests, the ready-made prompts, how Claude's changes are approved, its limits.          |
 | [Your GM coach in Claude](gm-coach.md)                            | Add the Foundry GM coach skill to your Claude account, and how to ask it.                      |

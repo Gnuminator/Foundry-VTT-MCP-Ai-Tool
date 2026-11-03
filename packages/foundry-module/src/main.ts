@@ -171,7 +171,7 @@ class FoundryMCPBridge {
         defaultEnabled: true,
         autoApply: {
           name: 'AI Tool: Live play, apply without confirming',
-          hint: 'Damage, healing, conditions and resources that Claude plans apply at once, without the confirm step. Each one still shows an Undo and is listed in Changes.',
+          hint: 'Damage, healing, conditions and resources that Claude plans apply at once, without the confirm step, each with an Undo in Changes.',
         },
       });
       registerGuardedFeature({

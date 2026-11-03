@@ -10,8 +10,7 @@ export function errorMessage(error: unknown): string {
   if (error instanceof Error) return error.message;
   if (typeof error === 'string') return error;
   try {
-    const json = JSON.stringify(error);
-    return json === undefined ? String(error) : json;
+    return JSON.stringify(error) ?? String(error);
   } catch {
     return String(error);
   }

@@ -6,7 +6,7 @@ description: Every tool the bridge serves, by tool set, with its description and
 
 # Tool reference
 
-The bridge serves 98 tools in five sets. [Tool sets](TOOL-SETS.md) explains the sets and how Claude Desktop loads them; this page lists every tool with the description and parameters Claude reads.
+The bridge serves 99 tools in five sets. [Tool sets](TOOL-SETS.md) explains the sets and how Claude Desktop loads them; this page lists every tool with the description and parameters Claude reads.
 
 | Set | Claude Desktop entry | Tools | For |
 | --- | --- | --- | --- |
@@ -14,7 +14,7 @@ The bridge serves 98 tools in five sets. [Tool sets](TOOL-SETS.md) explains the 
 | [Play](#play) | `foundry-mcp-play` | 37 | Run the table live: tokens, combat turns, rolls, damage, conditions, resources, chat, scene mood, map notes and loot. |
 | [Prep](#prep) | `foundry-mcp-prep` | 20 | Prepare sessions and write recaps: quests and journals, encounter budgets, the Tarokka reading, handouts, the session log, play stats and the pre-flight check. |
 | [Build](#build) | `foundry-mcp-build` | 8 | Make and change NPCs, monsters and items: from a compendium or from scratch, with features, attacks and spells. Set up rooms: teleports and tokens in a room. |
-| [Admin](#admin) | `foundry-mcp-admin` | 9 | Set up and troubleshoot: installed modules and their errors, who owns which actor, and the Obsidian mirror settings. |
+| [Admin](#admin) | `foundry-mcp-admin` | 10 | Set up and troubleshoot: installed modules and their errors, Foundry settings and who can open a compendium pack, who owns which actor, and the Obsidian mirror settings. |
 
 ## Core
 
@@ -1410,7 +1410,7 @@ Parameters:
 
 ## Admin
 
-Set up and troubleshoot: installed modules and their errors, who owns which actor, and the Obsidian mirror settings.
+Set up and troubleshoot: installed modules and their errors, Foundry settings and who can open a compendium pack, who owns which actor, and the Obsidian mirror settings.
 
 ### get-modules
 
@@ -1488,6 +1488,19 @@ Kind: read-only. Title: Plan the TV table viewer user.
 Parameters:
 
 - `name` (string): The user's name on Foundry's join page. Default "Table".
+
+### plan-foundry-setup
+
+Read or plan Foundry setup; apply with apply-planned-change, revert with undo-change. mode read lists, mode plan plans. area setting: target namespace.key (read: part of a name too), value the new value. area pack: target a pack id (dnd5e.monsters), value {ownership:{PLAYER,TRUSTED: NONE|LIMITED|OBSERVER|OWNER, ASSISTANT: OWNER only; a role gets the highest level of its own and lower roles}, locked, folder (name or null)}. Secrets are hidden. Needs the Foundry setup switch.
+
+Kind: read-only. Title: Read or plan Foundry setup.
+
+Parameters:
+
+- `mode` (string, required): One of: `read`, `plan`.
+- `area` (string, required): One of: `setting`, `pack`.
+- `target` (string): Setting namespace.key, or a pack id.
+- `value` (any): plan only: the new value, or the pack changes.
 
 ### get-obsidian-mirror
 

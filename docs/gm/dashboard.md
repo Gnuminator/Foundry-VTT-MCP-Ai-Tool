@@ -237,6 +237,12 @@ After a Damage / Heal or Condition change, a message lists each target's result 
 5") with **Undo** for a few seconds; one click puts it back. Later, use **Undo** in Recent
 Changes.
 
+**Conditions** (a button on the During bar, with live play and GM Actions on; it works in a fight and
+out of one): tick tokens on the scene you are viewing, pick a condition, then **Add** or **Remove**.
+It applies at once, with **Undo**, and there is no confirm window. For Exhaustion, Add raises one
+level and Remove clears them all. A **rules** link by each condition opens dnd5e's own page for it
+in Foundry.
+
 **Start combat** and **End combat**: with no fight running and GM Actions on, the Combat Tracker
 offers **Start combat** (in most During layouts, a small **Start combat** button on the During bar
 opens the same thing). It lists the tokens on the scene you are viewing, with player characters and

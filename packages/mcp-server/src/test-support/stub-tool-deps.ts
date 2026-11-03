@@ -33,6 +33,7 @@ import { NpcTurnTools } from '../tools/npc-turn.js';
 import { PaperSyncTools } from '../tools/paper-sync.js';
 import { RoomSetupTools } from '../tools/room-setup.js';
 import { TableViewerTools } from '../tools/table-viewer.js';
+import { FoundrySetupTools } from '../tools/foundry-setup.js';
 import { PlaySessionTools } from '../tools/play-session.js';
 import { PlayStatsTools } from '../tools/play-stats.js';
 import { PlayerViewTools } from '../tools/player-view.js';
@@ -100,6 +101,7 @@ export function stubToolRouterDeps(): ToolRouterDeps {
       worldIds: {} as any,
     }),
     tableViewerTools: new TableViewerTools({ ...base, guardedWrites: {} as any }),
+    foundrySetupTools: new FoundrySetupTools({ ...base, guardedWrites: {} as any }),
     playSessionTools: new PlaySessionTools({ worldIds: {} as any, store: {} as any, logger }),
     playStatsTools: new PlayStatsTools({ worldIds: {} as any, store: {} as any, logger }),
     playerViewTools: new PlayerViewTools({

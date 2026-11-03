@@ -2,6 +2,7 @@ import { lazy, Suspense, useCallback, useEffect, useState, type JSX, type ReactN
 import { flushSync } from 'react-dom';
 
 import { AdvancedItem, AdvancedLabel, AdvancedMenu } from './components/AdvancedMenu';
+import { LiveViewsMenu } from './components/LiveViewsMenu';
 import { ConfirmProvider } from './components/ConfirmDialog';
 import { PlanLink } from './components/PlanLink';
 import {
@@ -42,9 +43,10 @@ import { RoleNotice } from './components/RoleNotice';
 import { panelChunk, LazyPanel, usePreloadPanels } from './components/LazyPanel';
 import { PreflightButton, VersionBanner, usePreflightOnReconnect } from './panels/Preflight';
 import type { ToolRequest } from './panels/Tools';
+import { appVersionLabel } from './lib/appVersion';
 import { GmActionsGateContext } from './lib/guarded';
 import { showsSampleFight } from './lib/duringTrial';
-import { LIVE_SCREEN_HREF, TRY_LIVE_TEXT, optInScreen } from './lib/liveScreen';
+import { optInScreen } from './lib/liveScreen';
 import { useDashboardStream } from './lib/stream';
 import { useWorldTheme } from './lib/worldTheme';
 import { Button } from './ui';
@@ -111,6 +113,8 @@ const FLOATING_CHUNKS = [
 /**
  * The dashboard (D-109): the page at / (D-126). The old vanilla page is gone; /legacy/ redirects here.
  */
+const appVersion = appVersionLabel();
+
 export function App(): JSX.Element {
   // The opt-in screens (the GM page /gm, the strip alone ?strip=1, the Live view ?live=1) are
   // chunks of their own; the entry only picks one (components/OptInScreen.tsx).
@@ -291,7 +295,14 @@ function Dashboard(): JSX.Element {
             <h1>
               Foundry <span className="wordmark-ai">AI</span> Tool
             </h1>
-            <p className="subtitle">Live AI dungeon master&apos;s assistant</p>
+            <div className="subtitle-row">
+              <p className="subtitle">Live AI dungeon master&apos;s assistant</p>
+              {appVersion ? (
+                <span className="app-version" id="app-version" title="The running tool version">
+                  {appVersion}
+                </span>
+              ) : null}
+            </div>
           </div>
         </div>
         <MomentTabs moment={moment} onPick={pick} />
@@ -431,15 +442,7 @@ function Dashboard(): JSX.Element {
               </Button>
             </AdvancedItem>
           </AdvancedMenu>
-          <a
-            className="btn"
-            id="try-live-screen"
-            data-track="dash.header.try-live"
-            href={LIVE_SCREEN_HREF}
-            title="The opt-in Live view: one fixed page"
-          >
-            {TRY_LIVE_TEXT}
-          </a>
+          <LiveViewsMenu />
         </div>
       </header>
       <PlanLink />

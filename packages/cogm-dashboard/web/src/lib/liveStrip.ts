@@ -99,7 +99,25 @@ export function endQuestion(summary: string | null, warning: string | null): str
  */
 export function lastUndoable(changes: readonly AiChange[]): AiChange | null {
   const newest = changes[0];
-  return newest && newest.mode !== 'undo' && !newest.undoneBy && newest.canUndo ? newest : null;
+  return newest &&
+    newest.mode !== 'undo' &&
+    !newest.undoneBy &&
+    newest.canUndo &&
+    !refusedUndos.has(newest.changeId)
+    ? newest
+    : null;
+}
+
+/** Changes whose Undo the bridge refused as a conflict: the strip stops offering them. */
+const refusedUndos = new Set<string>();
+
+export function markUndoRefused(changeId: string): void {
+  refusedUndos.add(changeId);
+}
+
+/** For tests. */
+export function clearRefusedUndos(): void {
+  refusedUndos.clear();
 }
 
 /** "Undo: Wolf 2: 12 fire damage": the button's words, cut so the header does not grow. */

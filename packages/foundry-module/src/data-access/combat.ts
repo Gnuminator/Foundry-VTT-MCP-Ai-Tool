@@ -217,8 +217,15 @@ export class CombatDataAccess {
     const currentIndex = combat.turn ?? 0;
     const started = combat.started ?? false;
 
+    const timedCombat = started
+      ? {
+          combatId: (combat as { id?: string | null }).id ?? null,
+          round: combat.round ?? 0,
+          turnIds: turns.map(t => t.id),
+        }
+      : null;
     const combatants = turns.map((c, idx) =>
-      this.summarizeCombatant(c, idx, currentIndex, started)
+      this.summarizeCombatant(c, idx, currentIndex, started, timedCombat)
     );
 
     return {
@@ -252,7 +259,12 @@ export class CombatDataAccess {
     c: TrackerCombatant,
     idx: number,
     currentIndex: number,
-    started: boolean
+    started: boolean,
+    timedCombat: {
+      combatId: string | null;
+      round: number;
+      turnIds?: (string | null | undefined)[];
+    } | null = null
   ): CombatantSnapshot {
     const actor = c.actor;
     const hp = actor?.system?.attributes?.hp;
@@ -280,7 +292,10 @@ export class CombatDataAccess {
       img: cExtra.img || null,
       hp: hp ? { value: hp.value ?? null, max: hp.max ?? null, temp: hp.temp ?? 0 } : null,
       conditions: shared.actorConditionNames(actor),
-      timed: shared.actorTimedConditions(actor),
+      timed: shared.actorTimedConditions(
+        actor,
+        timedCombat ? { ...timedCombat, turn: currentIndex, ownerIdx: idx } : null
+      ),
       statuses: Array.from(actorExtra?.statuses ?? []).filter(
         (s: unknown): s is string => typeof s === 'string'
       ),

@@ -399,12 +399,32 @@ export function actorConditionNames(actor: Actor | null | undefined): string[] {
   }
 }
 
+/** The running combat as the timed-condition rule needs it, for one combatant. */
+export interface TimedCombatContext {
+  combatId: string | null;
+  round: number;
+  /** The index of the current turn. */
+  turn: number;
+  /** This combatant's own index in the turn order (an unlinked token shares its actor's id). */
+  ownerIdx: number;
+  /** The combatant ids in turn order, to find the one an effect was stamped on. */
+  turnIds?: (string | null | undefined)[];
+}
+
 /**
  * The rounds left on an actor's timed condition effects, by the same name `actorConditionNames`
  * gives: whole rounds (0 once the time is up). Only effects with a duration in rounds get a key;
  * a condition without one is not listed.
+ *
+ * With the running combat and the effect's stored start round the count is worked out here
+ * (duration minus rounds gone), so it is right after a reload and does not depend on a browser
+ * having prepared the effect during the fight. Without them it falls back to the values Foundry
+ * prepared (`duration.remaining`, `duration.expired`). An overdue effect is 0, never 1.
  */
-export function actorTimedConditions(actor: Actor | null | undefined): Record<string, number> {
+export function actorTimedConditions(
+  actor: Actor | null | undefined,
+  combat?: TimedCombatContext | null
+): Record<string, number> {
   const timed: Record<string, number> = {};
   if (!actor) return timed;
   try {
@@ -415,16 +435,7 @@ export function actorTimedConditions(actor: Actor | null | undefined): Record<st
       if (typeof name !== 'string') continue;
       const d = effectDuration(e);
       if (d.units !== 'rounds' || d.value === null) continue;
-      const duration = rec(rec(e).duration);
-      // "Remaining" reaches 0 as the round changes, but the effect (default expiry: its owner's
-      // next turn start) still applies until Foundry flags it expired: 0 only for that flag.
-      const ended = duration.expired === true;
-      const remaining = duration.remaining;
-      const left = ended
-        ? 0
-        : typeof remaining === 'number' && Number.isFinite(remaining)
-          ? Math.max(1, Math.ceil(remaining))
-          : d.value;
+      const left = timedLeft(e, d.value, rec(rec(e).duration).expired === true, combat ?? null);
       // Two effects of one name: a live one wins over an ended one.
       timed[name] = Math.max(timed[name] ?? 0, left);
     }
@@ -432,6 +443,56 @@ export function actorTimedConditions(actor: Actor | null | undefined): Record<st
     return {};
   }
   return timed;
+}
+
+function timedLeft(
+  e: ActiveEffect,
+  value: number,
+  expired: boolean,
+  combat: TimedCombatContext | null
+): number {
+  const duration = rec(rec(e).duration);
+  // The stored ids, not the live document: `start.combat` and `start.combatant` resolve to
+  // documents (null once the fight is deleted), the source keeps the id strings.
+  const sourceStart = rec(rec(rec(e)._source).start);
+  const docStart = rec(rec(e).start);
+  const idOf = (source: unknown, live: unknown): string | null => {
+    if (typeof source === 'string') return source;
+    const id = rec(live).id ?? live;
+    return typeof id === 'string' ? id : null;
+  };
+  const startRound = sourceStart.round ?? docStart.round;
+  const startCombat = idOf(sourceStart.combat, docStart.combat);
+  const startCombatant = idOf(sourceStart.combatant, docStart.combatant);
+  // Foundry counts from the start stamp only inside the combat that stamped it.
+  const sameCombat = startCombat === null || startCombat === combat?.combatId;
+  let remaining: unknown = duration.remaining;
+  if (combat && sameCombat && typeof startRound === 'number' && Number.isFinite(startRound)) {
+    remaining = value - (combat.round - startRound);
+    if ((remaining as number) < 0) return 0;
+    // At 0 the round has changed but the effect still applies until its expiry point: the
+    // holder's turn start (the default) or end. Foundry's own flag counts when it is set. The
+    // holder is the combatant the effect was stamped on, else this one (Foundry's rule).
+    if (remaining === 0) {
+      if (expired) return 0;
+      const expiry = duration.expiry;
+      // No expiry event at all: the duration alone decides, so it is over at once.
+      if (expiry === null) return 0;
+      const stamped = startCombatant ? (combat.turnIds?.indexOf(startCombatant) ?? -1) : -1;
+      const holderIdx = stamped >= 0 ? stamped : combat.ownerIdx;
+      if (expiry === undefined || expiry === 'turnStart') return combat.turn >= holderIdx ? 0 : 1;
+      if (expiry === 'turnEnd') return combat.turn > holderIdx ? 0 : 1;
+      return 1;
+    }
+    return Math.ceil(remaining as number);
+  }
+  // Foundry's prepared values: "remaining" reaches 0 as the round changes, but the effect still
+  // applies until Foundry flags it expired: 0 only for that flag, or once it is overdue.
+  if (expired) return 0;
+  if (typeof remaining === 'number' && Number.isFinite(remaining)) {
+    return remaining < 0 ? 0 : Math.max(1, Math.ceil(remaining));
+  }
+  return value;
 }
 
 /** A document or data model as its `toJSON()` (plain data, no parent links), else the value. */

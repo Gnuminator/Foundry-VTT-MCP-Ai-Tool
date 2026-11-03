@@ -61,6 +61,7 @@ import { LIVE_SWEEP_QUERY, liveSweep } from './live-sweep.js';
 import { SESSION_SWITCHES_QUERY, sessionSwitches } from './session-switches.js';
 import { CHARACTER_SHEET_QUERY, PLAYER_ROLL_QUERY, characterSheets } from './character-sheet.js';
 import { gateWriteHandlers } from './write-gate.js';
+import { getSetupInfo } from './data-access/setup-info.js';
 
 /** First argument of a FoundryDataAccess method: the wire payload shape its handler forwards. */
 type DataArg<K extends keyof FoundryDataAccess> = FoundryDataAccess[K] extends (
@@ -559,6 +560,7 @@ export class QueryHandlers {
 
     // Diagnostics (module troubleshooting)
     handlers.set(`${modulePrefix}.getModules`, this.handleGetModules.bind(this));
+    handlers.set(`${modulePrefix}.getSetupInfo`, this.handleGetSetupInfo.bind(this));
     handlers.set(`${modulePrefix}.getModuleErrors`, this.handleGetModuleErrors.bind(this));
     handlers.set(`${modulePrefix}.clearModuleErrors`, this.handleClearModuleErrors.bind(this));
     handlers.set(`${modulePrefix}.getModuleManifest`, this.handleGetModuleManifest.bind(this));
@@ -1750,6 +1752,10 @@ export class QueryHandlers {
     return this.withGmGate('Failed to get modules', async () => {
       return await this.dataAccess.getModules(data || {});
     });
+  }
+
+  async handleGetSetupInfo(data: unknown): Promise<unknown> {
+    return this.withGmGate('Failed to read the Foundry setup', async () => getSetupInfo(data));
   }
 
   async handleGetModuleErrors(data: {

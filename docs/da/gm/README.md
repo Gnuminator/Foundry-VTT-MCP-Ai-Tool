@@ -1,6 +1,6 @@
 ---
 source: gm/README.md
-sourceHash: 02d82631e7d5
+sourceHash: 5ad3728b25f1
 title: GM-guides
 description: Guides til en GM, der kører et spil med Foundry AI Tool, skrevet til en, der er ny i Foundry og i værktøjet.
 ---
@@ -27,6 +27,7 @@ description: Guides til en GM, der kører et spil med Foundry AI Tool, skrevet t
 | [Kom i gang](getting-started.md)                                 | Hvad værktøjet er, dets dele, hvordan de hænger sammen, en ordliste og dagens opsætning.                    |
 | [Dashboardet](dashboard.md)                                      | Hvert panel og hver knap på dashboardet, hvad de gør, og hvornår du bruger dem.                             |
 | [GM-vinduerne](gm-windows.md)                                    | Combat, Party, Session, Scene og Loot som små vinduer ved siden af kortet, og hvordan du slår dem til.      |
+| [Live-visningerne](live-views.md)                                | Live screen, GM page og Live window: de tre måder at have combat-strippen ved siden af Foundry.             |
 | [Funktioner og hvornår du slår dem til](features.md)             | Hver funktionskontakt, hvad den gør, og hvornår du slår den til.                                            |
 | [Spørg Claude](asking-claude.md)                                 | Gode forespørgsler, de færdige prompts, hvordan Claudes ændringer godkendes, og dens grænser.               |
 | [Din GM-coach i Claude](gm-coach.md)                             | Læg Foundry GM coach-skillen ind på din Claude-konto, og lær, hvordan du spørger den.                       |

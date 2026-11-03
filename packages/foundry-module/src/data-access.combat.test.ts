@@ -675,6 +675,143 @@ describe('FoundryDataAccess — getCombatState: conditions', () => {
     expect(result.combatants[0].timed).toEqual({ Prone: 1, Poisoned: 0, Frightened: 1 });
   });
 
+  it('works the rounds left out from the effect start and the running combat, not the prepared values', async () => {
+    // No prepared remaining/expired at all (a reloaded GM client): only the stored start.
+    const fresh = makeEffect({
+      name: 'Prone',
+      statuses: ['prone'],
+      duration: { units: 'rounds', value: 3 },
+      start: { round: 2, turn: 0 },
+    });
+    const overdue = makeEffect({
+      name: 'Restrained',
+      statuses: ['restrained'],
+      duration: { units: 'rounds', value: 1, remaining: 1 },
+      start: { round: 1, turn: 0 },
+    });
+    // Round changed (0 left) and the owner's turn has started: ended; before it: still 1.
+    const startedTurn = makeEffect({
+      name: 'Frightened',
+      statuses: ['frightened'],
+      duration: { units: 'rounds', value: 1, expiry: 'turnStart' },
+      start: { round: 3, turn: 0 },
+    });
+    const notYet = makeEffect({
+      name: 'Blinded',
+      statuses: ['blinded'],
+      duration: { units: 'rounds', value: 1, expiry: 'turnStart' },
+      start: { round: 3, turn: 0 },
+    });
+    // A stamp from another fight: the prepared values count, not that start round.
+    const foreign = makeEffect({
+      name: 'Poisoned',
+      statuses: ['poisoned'],
+      duration: { units: 'rounds', value: 1, remaining: 1 },
+      start: { round: 9, turn: 0, combat: 'old-fight' },
+    });
+    const early = makeActor({ type: 'character', system: hp(10), effects: [startedTurn] });
+    const late = makeActor({
+      type: 'character',
+      system: hp(10),
+      effects: [fresh, overdue, notYet, foreign],
+    });
+    // Two unlinked tokens share one actor id: each is judged by its own place in the order.
+    (early as { id?: string }).id = 'wolf';
+    (late as { id?: string }).id = 'wolf';
+    world.setCombat({
+      turns: [
+        makeCombatant({
+          id: 'c1',
+          name: 'A',
+          initiative: 20,
+          actor: early,
+          token: { disposition: 1 },
+        }),
+        makeCombatant({
+          id: 'c2',
+          name: 'B',
+          initiative: 10,
+          actor: late,
+          token: { disposition: 1 },
+        }),
+      ],
+      turn: 0,
+      round: 4,
+      started: true,
+    });
+
+    const result = await da.getCombatState();
+    expect(result.combatants[0].timed).toEqual({ Frightened: 0 });
+    expect(result.combatants[1].timed).toEqual({
+      Prone: 1,
+      Restrained: 0,
+      Blinded: 1,
+      Poisoned: 1,
+    });
+  });
+
+  it('times an ended effect against the combatant it was stamped on, and ignores a deleted fight', async () => {
+    // Stamped on combatant c1 (index 0); its holder is c3 (index 2).
+    const stamped = makeEffect({
+      name: 'Restrained',
+      statuses: ['restrained'],
+      duration: { units: 'rounds', value: 1, expiry: 'turnStart' },
+      start: { round: 3, turn: 0, combatant: 'c1' },
+    });
+    // The fight it was stamped in is gone: the live field is null, the source keeps the id.
+    const deleted = makeEffect({
+      name: 'Poisoned',
+      statuses: ['poisoned'],
+      duration: { units: 'rounds', value: 10, remaining: 7 },
+      start: { round: 6, turn: 0, combat: null },
+    });
+    (deleted as { _source?: unknown })._source = { start: { round: 6, combat: 'old-fight' } };
+    const noExpiry = makeEffect({
+      name: 'Blinded',
+      statuses: ['blinded'],
+      duration: { units: 'rounds', value: 1, expiry: null },
+      start: { round: 3, turn: 0 },
+    });
+    const holder = makeActor({
+      type: 'character',
+      system: hp(10),
+      effects: [stamped, deleted, noExpiry],
+    });
+    const other = makeActor({ type: 'character', system: hp(10) });
+    world.setCombat({
+      turns: [
+        makeCombatant({
+          id: 'c1',
+          name: 'A',
+          initiative: 20,
+          actor: other,
+          token: { disposition: 1 },
+        }),
+        makeCombatant({
+          id: 'c2',
+          name: 'B',
+          initiative: 15,
+          actor: other,
+          token: { disposition: 1 },
+        }),
+        makeCombatant({
+          id: 'c3',
+          name: 'C',
+          initiative: 10,
+          actor: holder,
+          token: { disposition: 1 },
+        }),
+      ],
+      turn: 0,
+      round: 4,
+      started: true,
+    });
+    const result = await da.getCombatState();
+    // Round 4, turn 0: c1's turn has started, so the effect stamped on c1 is over, although
+    // its holder (index 2) has not had its turn yet. The deleted fight's stamp is not used.
+    expect(result.combatants[2].timed).toEqual({ Restrained: 0, Poisoned: 7, Blinded: 0 });
+  });
+
   it('excludes disabled effects from conditions', async () => {
     const poisoned = makeEffect({ name: 'Poisoned', statuses: ['poisoned'], disabled: false });
     const exhausted = makeEffect({ name: 'Exhaustion', statuses: ['exhaustion'], disabled: true });

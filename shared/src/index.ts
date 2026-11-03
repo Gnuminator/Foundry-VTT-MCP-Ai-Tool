@@ -29,6 +29,7 @@ export * from './prep-digest.js';
 export * from './party.js';
 export * from './live-play.js';
 export * from './ownership.js';
+export * from './foundry-setup.js';
 export * from './character-sheet.js';
 export * from './combat-change.js';
 export * from './scene-change.js';

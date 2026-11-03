@@ -259,6 +259,9 @@
   align-items: center;
   gap: 0.5rem 0.9rem;
 }
+.during-conditions {
+  flex: 1 1 100%;
+}
 .layout-switch {
   display: inline-flex;
   align-items: stretch;

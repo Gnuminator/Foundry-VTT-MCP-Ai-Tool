@@ -48,6 +48,7 @@ import {
   type SelectionAction,
 } from '../lib/combat';
 import { useLivePlay, type LivePlay } from '../lib/livePlay';
+import { chipText } from '../lib/liveStrip';
 import { offReason } from '../lib/liveSwitches';
 import { useBridgeAway, useCombat, useDashboardSettings } from '../lib/stream';
 import { DelayedLoading, Panel, Pill } from '../ui';
@@ -233,7 +234,7 @@ function CombatantRow({
           <div className="conditions">
             {c.conditions.map(cond => (
               <Pill key={cond} variant="condition">
-                {cond}
+                {chipText(cond, c.timed?.[cond])}
               </Pill>
             ))}
           </div>

@@ -5,15 +5,22 @@
 //
 // What it makes true (a second run changes nothing):
 //   1. Every entry in aitool-content classes, species, backgrounds, feats, spells and items whose source book is not
-//      one of the seven moves, with the same id, into the GM-only world pack world.legacy-other-books. An entry
-//      with no book stays. An entry that a kept entry links to (also through other kept entries) stays too, so no
-//      link breaks. A kept entry that links to an id that is only in the legacy pack gets that entry back.
+//      one of the seven moves, with the same id, into the GM-only world pack world.legacy-other-books; the copy
+//      carries flags.foundry-ai-tool.sourcePack (the pack it came from). An entry with no book stays. An entry that a
+//      kept entry links to (also through other kept entries) stays too, so no link breaks. A kept entry that links
+//      to an id that is only in the legacy pack gets that entry back. Ids are matched with name and type (and the
+//      source pack when the copy has one); an id that two packs share, or that the legacy pack holds for another
+//      entry, stops the run before anything changes.
 //   2. The SRD items and creatures that kept entries still link to are copied (same ids) into the player-visible
 //      world packs world.linked-srd-items and world.linked-srd-creatures, and the links are re-pointed.
-//   3. The dnd5e Item and Actor packs (and content24, tables, tables24) are hidden from Player and Trusted;
-//      dnd5e.items and dnd5e.monsters too once nothing kept links to them.
+//   3. The dnd5e Item and Actor packs (and content24, tables, tables24) are hidden from Player and Trusted, except
+//      a pack that kept entries link to (it stays visible and is named in the log); dnd5e.items and dnd5e.monsters
+//      are hidden once nothing kept links to them.
 // The module packs are shared by every world on this Foundry, so run it in the one world that holds the legacy
-// pack (curse-of-strahd). Actor Studio's compendiumSources are not set here: stage 13 owns them.
+// pack (curse-of-strahd); the other worlds see links to world packs that exist only there (stage 22 asks for an OK).
+// Actor Studio's compendiumSources are not set here: stage 13 owns them.
+// Module packs are locked again at the end of every real run, also after a failure (a killed run is put right by the
+// next one). A failure carries the progress lines in its error text.
 const KEEP = new Set(['PHB 2024', 'DMG 2024', 'CoS', 'CoSCO', 'TCoE', 'XGtE', 'MotM']);
 const TRIM = ['classes', 'species', 'backgrounds', 'feats', 'spells', 'items'].map(
   n => `aitool-content.${n}`
@@ -33,9 +40,14 @@ const HIDDEN = { PLAYER: 'NONE', TRUSTED: 'NONE', ASSISTANT: 'OWNER', GAMEMASTER
 const OPEN = { PLAYER: 'OBSERVER', TRUSTED: 'OBSERVER', ASSISTANT: 'OWNER', GAMEMASTER: 'OWNER' };
 const HIDE_EXTRA = ['dnd5e.content24', 'dnd5e.tables', 'dnd5e.tables24'];
 const LINK = /Compendium\.([A-Za-z0-9_-]+\.[A-Za-z0-9_-]+)\.(?:[A-Za-z]+\.)?([A-Za-z0-9]{16})/g;
-const log = t => args.log(t);
+const done = []; // the progress lines, so a failure can say how far the run got
+const log = t => {
+  done.push(t);
+  args.log(t);
+};
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 const ownershipOf = p => JSON.parse(JSON.stringify(p.ownership ?? p.config?.ownership ?? {}));
+const sourcePackOf = e => e.flags?.['foundry-ai-tool']?.sourcePack;
 const verdict = e => {
   const book = e.system?.source?.book;
   return !book || KEEP.has(book) ? 'keep' : 'move';
@@ -78,15 +90,17 @@ const indexAll = async () => {
 };
 const index = await indexAll();
 const legacyPack = game.packs.get(LEGACY);
-const legacyIds = new Set(legacyPack ? (await legacyPack.getIndex()).map(e => e._id) : []);
+const legacyIndex = new Map(
+  legacyPack ? (await legacyPack.getIndex({ fields: ['flags'] })).map(e => [e._id, e]) : []
+);
 
 // 1. What moves: not one of the seven books.
-const moved = new Map(); // "pack|id" -> name
+const moved = new Map(); // "pack|id" -> the index entry
 const counts = {};
 for (const id of TRIM) {
   counts[id] = { keep: 0, move: 0, keptAsDependency: 0 };
   for (const e of index[id]) {
-    if (verdict(e) === 'move') moved.set(`${id}|${e._id}`, e.name);
+    if (verdict(e) === 'move') moved.set(`${id}|${e._id}`, e);
     else counts[id].keep++;
   }
   counts[id].move = [...moved.keys()].filter(k => k.startsWith(`${id}|`)).length;
@@ -107,7 +121,7 @@ for (let changed = true; changed; ) {
     if (moved.has(key)) continue;
     for (const t of targets) {
       if (!moved.has(t)) continue;
-      retained.push(moved.get(t));
+      retained.push(moved.get(t).name);
       counts[t.split('|')[0]].keptAsDependency++;
       counts[t.split('|')[0]].move--;
       moved.delete(t);
@@ -115,13 +129,41 @@ for (let changed = true; changed; ) {
     }
   }
 }
+// The same id in two packs, or an id the legacy pack holds for another entry, would merge two entries into one.
+const collisions = [];
+const firstOf = new Map(); // id -> "pack|name"
+for (const [key, e] of moved) {
+  const [pack, docId] = key.split('|');
+  const first = firstOf.get(docId);
+  if (first && first.pack !== pack)
+    collisions.push(`${docId}: ${first.pack} ${first.name} and ${pack} ${e.name}`);
+  else firstOf.set(docId, { pack, name: e.name });
+  const old = legacyIndex.get(docId);
+  if (
+    old &&
+    !(
+      old.name === e.name &&
+      old.type === e.type &&
+      (!sourcePackOf(old) || sourcePackOf(old) === pack)
+    )
+  )
+    collisions.push(`${docId}: the legacy pack holds ${old.name}, ${pack} has ${e.name}`);
+}
+if (collisions.length)
+  throw new Error(
+    `${collisions.length} id collision(s), nothing changed: ${collisions.slice(0, 10).join(' | ')}`
+  );
 // A kept entry that links to something only the legacy pack has: that entry comes back.
 const comeBack = new Map(); // id -> pack
 for (const [key, targets] of links) {
   if (moved.has(key)) continue;
   for (const t of targets) {
     const [pack, id] = t.split('|');
-    if (TRIM.includes(pack) && legacyIds.has(id) && !index[pack].has(id)) comeBack.set(id, pack);
+    const old = legacyIndex.get(id);
+    if (!TRIM.includes(pack) || !old || index[pack].has(id)) continue;
+    if (sourcePackOf(old) && sourcePackOf(old) !== pack)
+      log(`NOT RESTORED ${id} to ${pack}: the legacy copy came from ${sourcePackOf(old)}`);
+    else comeBack.set(id, pack);
   }
 }
 for (const id of TRIM) log(`COUNT ${id}: ${JSON.stringify(counts[id])}`);
@@ -158,7 +200,14 @@ log(
   `SRD LINKS: ${srdTargets.items.size} items, ${srdTargets.monsters.size} creatures; ${todo.length} kept entries to re-point`
 );
 
-const hide = game.packs
+// 3. Which packs to hide: not a pack that kept entries link to (only dnd5e.items and dnd5e.monsters are re-pointed).
+const linkedPacks = new Map(); // pack -> number of kept entries linking to it
+for (const [key, targets] of links) {
+  if (moved.has(key)) continue;
+  for (const pack of new Set([...targets].map(t => t.split('|')[0])))
+    linkedPacks.set(pack, (linkedPacks.get(pack) ?? 0) + 1);
+}
+const candidates = game.packs
   .filter(
     p =>
       p.collection.startsWith('dnd5e.') &&
@@ -166,134 +215,172 @@ const hide = game.packs
       (['Item', 'Actor'].includes(p.documentName) || HIDE_EXTRA.includes(p.collection))
   )
   .map(p => p.collection);
+const hide = candidates.filter(id => !linkedPacks.has(id));
+const leftVisible = candidates.filter(id => linkedPacks.has(id));
 const toHide = hide.filter(id => !same(ownershipOf(game.packs.get(id)), HIDDEN));
 log(`HIDE from Player and Trusted: ${toHide.length} of ${hide.length} packs not hidden yet`);
+log(
+  `LEFT VISIBLE because kept entries link to them: ${leftVisible.length}${leftVisible.length ? ` (${leftVisible.map(id => `${id} ${linkedPacks.get(id)}`).join(', ')})` : ''}`
+);
+for (const id of leftVisible) {
+  if (same(ownershipOf(game.packs.get(id)), HIDDEN))
+    log(`WARNING ${id} is hidden from players although kept entries link to it: make it visible`);
+}
 log(`MOVE ${moved.size} entries to ${LEGACY}`);
 if (args.dryRun) {
   return { move: moved.size, comeBack: comeBack.size, repoint: todo.length, hide: toHide.length };
 }
 
 // ---- real run ----
-let legacy = legacyPack;
-if (!legacy) {
-  legacy = await CompendiumCollection.createCompendium({
-    type: 'Item',
-    label: 'Legacy and other books (GM only)',
-    name: 'legacy-other-books',
-    package: 'world',
-  });
-}
-await setOwnership(legacy, HIDDEN);
-
-// Create in the target first, delete from the source only after the create is confirmed, chunk by chunk.
-for (const id of TRIM) {
-  const ids = [...moved.keys()].filter(k => k.startsWith(`${id}|`)).map(k => k.split('|')[1]);
-  const pack = game.packs.get(id);
-  await unlocked(pack, async () => {
-    for (let i = 0; i < ids.length; i += 40) {
-      const chunk = ids.slice(i, i + 40);
-      const fresh = chunk.filter(x => !legacy.index.has(x));
-      if (fresh.length) {
-        const data = (await pick(pack, fresh)).map(d => ({ ...d.toObject(), folder: null }));
-        const made = await Item.createDocuments(data, { pack: LEGACY, keepId: true });
-        if (made.length !== fresh.length)
-          throw new Error(
-            `${id}: created ${made.length} of ${fresh.length}; nothing of this chunk deleted`
-          );
-      }
-      await Item.deleteDocuments(chunk, { pack: id });
-    }
-  });
-  log(`MOVED ${id}: ${ids.length}, left ${pack.index.size}`);
-}
-for (const [id, target] of comeBack) {
-  const pack = game.packs.get(target);
-  await unlocked(pack, async () => {
-    const doc = await legacy.getDocument(id);
-    const made = await Item.createDocuments([{ ...doc.toObject(), folder: null }], {
-      pack: target,
-      keepId: true,
-    });
-    if (made.length !== 1) throw new Error(`${id}: not created in ${target}`);
-    await Item.deleteDocuments([id], { pack: LEGACY });
-  });
-  log(`RESTORED ${id} to ${target} (run again to check its own links)`);
-}
-
-// Copies, same ids, then the re-pointing in the kept entries.
-for (const kind of ['items', 'monsters']) {
-  const ids = [...srdTargets[kind]];
-  if (!ids.length) continue;
-  const doc = kind === 'items' ? Item : Actor;
-  let pack = game.packs.get(LINKED[kind]);
-  if (!pack) {
-    pack = await CompendiumCollection.createCompendium({
-      type: kind === 'items' ? 'Item' : 'Actor',
-      label:
-        kind === 'items' ? 'Linked equipment (from SRD 5.1)' : 'Linked creatures (from SRD 5.1)',
-      name: LINKED[kind].split('.')[1],
+const real = async () => {
+  let legacy = legacyPack;
+  if (!legacy) {
+    legacy = await CompendiumCollection.createCompendium({
+      type: 'Item',
+      label: 'Legacy and other books (GM only)',
+      name: 'legacy-other-books',
       package: 'world',
     });
   }
-  await setOwnership(pack, OPEN);
-  const fresh = ids.filter(x => !pack.index.has(x));
-  if (fresh.length) {
-    const docs = await pick(game.packs.get(`dnd5e.${kind}`), fresh);
-    if (docs.length !== fresh.length)
-      throw new Error(`dnd5e.${kind}: got ${docs.length} of ${fresh.length}`);
-    await doc.createDocuments(
-      docs.map(d => d.toObject()),
-      { pack: pack.collection, keepId: true }
-    );
+  await setOwnership(legacy, HIDDEN);
+
+  // Create in the target first, delete from the source only after the create is confirmed, chunk by chunk.
+  for (const id of TRIM) {
+    const ids = [...moved.keys()].filter(k => k.startsWith(`${id}|`)).map(k => k.split('|')[1]);
+    const pack = game.packs.get(id);
+    await unlocked(pack, async () => {
+      for (let i = 0; i < ids.length; i += 40) {
+        const chunk = ids.slice(i, i + 40);
+        const fresh = chunk.filter(x => !legacy.index.has(x));
+        if (fresh.length) {
+          const data = (await pick(pack, fresh)).map(d => {
+            const o = d.toObject();
+            return {
+              ...o,
+              folder: null,
+              flags: {
+                ...o.flags,
+                'foundry-ai-tool': { ...o.flags?.['foundry-ai-tool'], sourcePack: id },
+              },
+            };
+          });
+          const made = await Item.createDocuments(data, { pack: LEGACY, keepId: true });
+          if (made.length !== fresh.length)
+            throw new Error(
+              `${id}: created ${made.length} of ${fresh.length}; nothing of this chunk deleted`
+            );
+        }
+        await Item.deleteDocuments(chunk, { pack: id });
+      }
+    });
+    log(`MOVED ${id}: ${ids.length}, left ${pack.index.size}`);
   }
-  log(`COPIED into ${pack.collection}: ${fresh.length} (now ${pack.index.size})`);
-}
-const swap = text =>
-  text.replace(re, (m, kind, type, id) => `Compendium.${LINKED[kind]}.${type ?? ''}${id}`);
-let repointed = 0;
-for (const pid of [...new Set(todo.map(t => t[0]))]) {
-  const pack = game.packs.get(pid);
-  const ids = todo.filter(t => t[0] === pid).map(t => t[1]);
-  await unlocked(pack, async () => {
-    for (const d of await pick(pack, ids)) {
-      const o = d.toObject();
-      await d.update({ system: JSON.parse(swap(JSON.stringify(o.system))) });
-      if (re.test(JSON.stringify(o.effects ?? []))) {
+  for (const [id, target] of comeBack) {
+    const pack = game.packs.get(target);
+    await unlocked(pack, async () => {
+      const doc = await legacy.getDocument(id);
+      const made = await Item.createDocuments([{ ...doc.toObject(), folder: null }], {
+        pack: target,
+        keepId: true,
+      });
+      if (made.length !== 1) throw new Error(`${id}: not created in ${target}`);
+      await Item.deleteDocuments([id], { pack: LEGACY });
+    });
+    log(`RESTORED ${id} to ${target} (run again to check its own links)`);
+  }
+
+  // Copies, same ids, then the re-pointing in the kept entries.
+  for (const kind of ['items', 'monsters']) {
+    const ids = [...srdTargets[kind]];
+    if (!ids.length) continue;
+    const doc = kind === 'items' ? Item : Actor;
+    let pack = game.packs.get(LINKED[kind]);
+    if (!pack) {
+      pack = await CompendiumCollection.createCompendium({
+        type: kind === 'items' ? 'Item' : 'Actor',
+        label:
+          kind === 'items' ? 'Linked equipment (from SRD 5.1)' : 'Linked creatures (from SRD 5.1)',
+        name: LINKED[kind].split('.')[1],
+        package: 'world',
+      });
+    }
+    await setOwnership(pack, OPEN);
+    const fresh = ids.filter(x => !pack.index.has(x));
+    if (fresh.length) {
+      const docs = await pick(game.packs.get(`dnd5e.${kind}`), fresh);
+      if (docs.length !== fresh.length)
+        throw new Error(`dnd5e.${kind}: got ${docs.length} of ${fresh.length}`);
+      await doc.createDocuments(
+        docs.map(d => d.toObject()),
+        { pack: pack.collection, keepId: true }
+      );
+    }
+    log(`COPIED into ${pack.collection}: ${fresh.length} (now ${pack.index.size})`);
+  }
+  const swap = text =>
+    text.replace(re, (m, kind, type, id) => `Compendium.${LINKED[kind]}.${type ?? ''}${id}`);
+  let repointed = 0;
+  for (const pid of [...new Set(todo.map(t => t[0]))]) {
+    const pack = game.packs.get(pid);
+    const ids = todo.filter(t => t[0] === pid).map(t => t[1]);
+    await unlocked(pack, async () => {
+      for (const d of await pick(pack, ids)) {
+        const o = d.toObject();
+        await d.update({ system: JSON.parse(swap(JSON.stringify(o.system))) });
+        if (re.test(JSON.stringify(o.effects ?? []))) {
+          re.lastIndex = 0;
+          const eff = JSON.parse(swap(JSON.stringify(o.effects)));
+          await d.updateEmbeddedDocuments(
+            'ActiveEffect',
+            eff.map(e => ({ _id: e._id, changes: e.changes, flags: e.flags }))
+          );
+        }
         re.lastIndex = 0;
-        const eff = JSON.parse(swap(JSON.stringify(o.effects)));
-        await d.updateEmbeddedDocuments(
-          'ActiveEffect',
-          eff.map(e => ({ _id: e._id, changes: e.changes, flags: e.flags }))
-        );
+        repointed++;
+      }
+    });
+    log(`RE-POINTED in ${pid}: ${ids.length}`);
+  }
+
+  // Nothing kept may still link to dnd5e.items or dnd5e.monsters before they are hidden.
+  let left = 0;
+  const after = await indexAll();
+  for (const id of scan) {
+    for (const e of after[id]) {
+      if (re.test(blobOf(e))) {
+        left++;
+        log(`STILL LINKS ${id} ${e.name}`);
       }
       re.lastIndex = 0;
-      repointed++;
     }
-  });
-  log(`RE-POINTED in ${pid}: ${ids.length}`);
-}
-
-// Nothing kept may still link to dnd5e.items or dnd5e.monsters before they are hidden.
-let left = 0;
-const after = await indexAll();
-for (const id of scan) {
-  for (const e of after[id]) {
-    if (re.test(blobOf(e))) {
-      left++;
-      log(`STILL LINKS ${id} ${e.name}`);
-    }
-    re.lastIndex = 0;
   }
-}
-log(`kept entries still linking to dnd5e.items or dnd5e.monsters: ${left}`);
-for (const pid of hide) await setOwnership(game.packs.get(pid), HIDDEN);
-if (left === 0) {
+  log(`kept entries still linking to dnd5e.items or dnd5e.monsters: ${left}`);
+  for (const pid of hide) await setOwnership(game.packs.get(pid), HIDDEN);
+  if (left !== 0) {
+    throw new Error(
+      `${left} kept entries still link to the SRD packs; dnd5e.items and dnd5e.monsters stay visible`
+    );
+  }
   for (const pid of ['dnd5e.items', 'dnd5e.monsters'])
     await setOwnership(game.packs.get(pid), HIDDEN);
   log('HIDDEN dnd5e.items and dnd5e.monsters');
-} else {
-  throw new Error(
-    `${left} kept entries still link to the SRD packs; dnd5e.items and dnd5e.monsters stay visible`
-  );
+  return {
+    moved: moved.size,
+    comeBack: comeBack.size,
+    repointed,
+    hidden: hide.length + 2,
+    leftVisible: leftVisible.length,
+  };
+};
+
+try {
+  return await real();
+} catch (e) {
+  throw new Error(`${e.message}\nDONE BEFORE THE FAILURE:\n${done.join('\n')}`);
+} finally {
+  // A killed run skips the lock in unlocked(): every module pack the run may have opened is locked again here.
+  for (const id of scan) {
+    const pack = game.packs.get(id);
+    if (!pack.locked) await pack.configure({ locked: true });
+  }
 }
-return { moved: moved.size, comeBack: comeBack.size, repointed, hidden: hide.length + 2 };

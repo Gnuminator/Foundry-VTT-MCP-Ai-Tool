@@ -19,7 +19,7 @@ const SCAN = [
   'world.linked-srd-items',
   'world.linked-srd-creatures',
 ];
-const LINK = /Compendium\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.(?:[A-Za-z]+\.)?([A-Za-z0-9]{16})/g;
+const LINK = /Compendium\.([A-Za-z0-9_-]+\.[A-Za-z0-9_-]+)\.(?:[A-Za-z]+\.)?([A-Za-z0-9]{16})/g;
 const log = t => args.log(t);
 
 const legacy = game.packs.get(LEGACY);
@@ -31,9 +31,12 @@ const own = JSON.parse(JSON.stringify(legacy.ownership ?? legacy.config?.ownersh
 if (own.PLAYER !== 'NONE' || own.TRUSTED !== 'NONE') {
   throw new Error(`the legacy pack is visible to players (${JSON.stringify(own)}); not deleting`);
 }
-const legacyIds = new Set((await legacy.getIndex()).map(e => e._id));
+const legacyIndex = new Map((await legacy.getIndex({ fields: ['flags'] })).map(e => [e._id, e]));
+const legacyIds = new Set(legacyIndex.keys());
 log(`legacy pack holds ${legacyIds.size} entries`);
 
+// A link is cut off by the deletion when it names the legacy pack, or names an id that the legacy pack holds (from
+// that pack, or untagged) and that its own pack no longer has.
 const linked = [];
 for (const id of SCAN) {
   const pack = game.packs.get(id);
@@ -41,7 +44,17 @@ for (const id of SCAN) {
   for (const e of await pack.getIndex({ fields: ['system', 'effects'] })) {
     const blob = JSON.stringify(e.system ?? '') + JSON.stringify(e.effects ?? '');
     for (const m of blob.matchAll(LINK)) {
-      if (legacyIds.has(m[1]) && !pack.index.has(m[1])) linked.push(`${e.name} (${id})`);
+      const [, targetPack, targetId] = m;
+      const old = legacyIndex.get(targetId);
+      const from = old?.flags?.['foundry-ai-tool']?.sourcePack;
+      if (
+        targetPack === LEGACY
+          ? old
+          : old &&
+            (!from || from === targetPack) &&
+            !game.packs.get(targetPack)?.index.has(targetId)
+      )
+        linked.push(`${e.name} (${id})`);
     }
   }
 }

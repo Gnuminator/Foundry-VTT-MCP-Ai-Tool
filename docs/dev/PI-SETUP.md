@@ -1605,6 +1605,31 @@ is `docs/player/obsidian.md`.
   Debian 13 ARM64 container: a note reaches only its player, what a player changes never reaches the Pi, one device per player,
   remove and off).
 
+## Seven-book trim (stage 22)
+
+The player-facing content is cut to the seven kept books (PHB 2024, DMG 2024, CoS, CoSCO, TCoE, XGtE, MotM). Stage 22
+(`scripts/pi/remote/22-seven-books.sh`) is the checks in front of `gm-script.sh`; the work is two GM scripts in the same folder.
+
+- **What it does:** `seven-books-trim.js` moves every `aitool-content` entry from another book into the GM-only pack
+  `world.legacy-other-books` (same ids, tagged with the pack they came from), keeps entries that kept ones link to, copies the SRD
+  items and creatures that kept entries link to into `world.linked-srd-items` and `world.linked-srd-creatures` (player-visible)
+  and re-points the links, hides the dnd5e Item and Actor packs from Player and Trusted (a pack that kept entries link to stays
+  visible and is named in the log), and locks the module packs again at the end. A second run changes nothing.
+  `seven-books-delete-legacy.js` deletes the legacy pack for good (`MODE=delete`).
+- **Where it runs:** the module packs are shared by every world on this Foundry, so the trim runs in the one world that holds the
+  legacy pack, `curse-of-strahd`, which must be the running world. The other worlds (strahd-kit, the training world) show dead
+  links in the PHB 2024 entries that were re-pointed; a real run asks for `OTHER_WORLDS_OK=1` while they exist.
+- **Run it:** `scp` the two scripts to `/root/`, then
+  `cat lib.sh 22-seven-books.sh gm-script.sh | ssh foundry-pi 'bash -s'` (a dry run: counts and a list of what stays visible).
+  Snapshot first (`/boot/dietpi/dietpi-backup 1`), the user's OK, then the same with `APPLY=1` (and `OTHER_WORLDS_OK=1`). Any
+  other `APPLY` value is refused; a `GM_SCRIPT` in the environment is ignored (the script follows `MODE`).
+- **Run it again** after anything that puts the dropped books back: a stage 11 push of `aitool-content`, a content module update.
+  Stage 13 sets Actor Studio's sources afterwards (run it after this stage).
+- **Delete:** `MODE=delete APPLY=1 DELETE_LEGACY=with-the-users-ok` only after the user's OK; the legacy pack holds the only copy of
+  about 1500 entries on the Pi (the PC's content module and the snapshot are the way back).
+- Tests: `scripts/pi/seven-books.test.mjs` (the GM scripts against in-memory packs; with `PI_STAGE22_CONTAINER=1` the stage in a
+  Debian 13 ARM64 container, run by the ARM job in CI).
+
 ## Where things live on the Pi
 
 | What                                                         | Where                                                                                                                      |

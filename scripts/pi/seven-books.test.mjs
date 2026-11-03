@@ -59,6 +59,7 @@ function makePack(
           type: d.type,
           system: d.system,
           effects: d.effects,
+          flags: d.flags,
         });
       return out;
     },
@@ -239,7 +240,16 @@ describe('seven-books-trim.js', () => {
       assert.deepEqual(world.packs.get(p).ownership, HIDDEN, p);
     }
     assert.notDeepEqual(world.packs.get('dnd5e.rules').ownership, HIDDEN, 'rules stay visible');
-    for (const p of world.packs.values()) assert.equal(p.locked, false);
+    // the module packs are locked at the end, the world packs the run made are not
+    for (const p of world.packs.values()) {
+      const module = /^(aitool-content|dnd-players-handbook)\./.test(p.collection);
+      assert.equal(p.locked, module, p.collection);
+    }
+    // the legacy copy says where it came from
+    assert.equal(
+      legacy.docs.get(id(3)).flags['foundry-ai-tool'].sourcePack,
+      'aitool-content.spells'
+    );
   });
 
   test('a second run changes nothing', async () => {
@@ -284,6 +294,66 @@ describe('seven-books-trim.js', () => {
     assert.ok(spells.docs.has(id(3)));
   });
 
+  test('a pack left unlocked by a killed run is locked again, and a failure carries the progress', async () => {
+    const world = standardWorld();
+    wire(world);
+    const items = world.packs.get('aitool-content.items');
+    items.locked = false; // what a killed earlier run leaves behind
+    world.globals.Item.createDocuments = async () => {
+      throw new Error('socket closed');
+    };
+    await assert.rejects(
+      run(trimSource, world, false),
+      /socket closed\nDONE BEFORE THE FAILURE:\n[\s\S]*MOVE 2 entries/
+    );
+    for (const p of world.packs.values()) {
+      if (/^aitool-content\./.test(p.collection)) assert.equal(p.locked, true, p.collection);
+    }
+  });
+
+  test('the same id in two packs, or in the legacy pack for another entry, stops the run before any change', async () => {
+    const world = standardWorld();
+    wire(world);
+    // Bane (spells) and a feat share an id
+    world.packs.get('aitool-content.feats').docs.set(id(3), {
+      _id: id(3),
+      name: 'Other Feat',
+      type: 'feat',
+      system: { source: { book: 'Other' } },
+    });
+    await assert.rejects(run(trimSource, world, true), /id collision.*Bane/);
+    assert.ok(!world.packs.has('world.legacy-other-books'));
+    assert.ok(world.packs.get('aitool-content.spells').docs.has(id(3)));
+    // the legacy pack already holds that id for a different entry
+    world.packs.get('aitool-content.feats').docs.delete(id(3));
+    const legacy = makePack('world.legacy-other-books', 'Item', [
+      { _id: id(3), name: 'Not Bane', type: 'spell', system: {} },
+    ]);
+    legacy.ownership = HIDDEN;
+    const world2 = standardWorld();
+    wire(world2);
+    world2.packs.set(legacy.collection, legacy);
+    await assert.rejects(run(trimSource, world2, false), /legacy pack holds Not Bane/);
+    assert.ok(world2.packs.get('aitool-content.spells').docs.has(id(3)));
+  });
+
+  test('a pack that kept entries link to stays visible and is named', async () => {
+    const world = standardWorld();
+    wire(world);
+    world.packs.get('aitool-content.spells').docs.get(id(4)).system.description.value = link(
+      'dnd5e.classes',
+      id(800)
+    );
+    const { lines } = await run(trimSource, world, true);
+    assert.match(
+      lines.join('\n'),
+      /LEFT VISIBLE because kept entries link to them: 1 \(dnd5e\.classes 1\)/
+    );
+    await run(trimSource, world, false);
+    assert.notDeepEqual(world.packs.get('dnd5e.classes').ownership, HIDDEN);
+    assert.deepEqual(world.packs.get('dnd5e.items').ownership, HIDDEN);
+  });
+
   test('skips a world without the aitool-content packs', async () => {
     const { result } = await run(trimSource, { globals: { game: { packs: new Packs() } } }, false);
     assert.deepEqual(result, { skipped: true });
@@ -305,6 +375,24 @@ describe('seven-books-delete-legacy.js', () => {
     const real = await run(deleteSource, world, false);
     assert.deepEqual(real.result, { deleted: true, entries: 2 });
     assert.ok(world.packs.get('world.legacy-other-books').deleted);
+  });
+
+  test('checks the pack a link names, not the pack it sits in', async () => {
+    const world = standardWorld();
+    wire(world);
+    await run(trimSource, world, false);
+    // Bane is in the legacy pack; a kept PHB 2024 entry links to the same id in aitool-content.spells
+    world.packs.get('dnd-players-handbook.equipment').docs.set(id(50), {
+      _id: id(50),
+      name: 'Kept Elsewhere',
+      type: 'spell',
+      system: { description: { value: link('aitool-content.spells', id(3)) } },
+    });
+    await assert.rejects(run(deleteSource, world, true), /still links to the legacy pack/);
+    // a link to an id of another pack's name in the legacy pack is not a dangling link
+    world.packs.get('dnd-players-handbook.equipment').docs.get(id(50)).system.description.value =
+      link('dnd-players-handbook.equipment', id(3));
+    assert.deepEqual((await run(deleteSource, world, true)).result, { wouldDelete: 2 });
   });
 
   test('refuses a legacy pack that players can see', async () => {

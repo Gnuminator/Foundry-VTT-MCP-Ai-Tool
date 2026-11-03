@@ -24,7 +24,7 @@ apt_setup() { apt-get update && apt-get install -y --no-install-recommends nodej
 }
 mkdir -p /opt/node24/bin /run/systemd/system
 ln -sf "$(command -v node)" /opt/node24/bin/node
-for f in systemctl curl journalctl sleep systemd-run; do install -m 755 "$H/bin/$f" "/usr/local/sbin/$f"; done
+for f in systemctl curl journalctl sleep systemd-run logger; do install -m 755 "$H/bin/$f" "/usr/local/sbin/$f"; done
 eval "$(grep -E '^(FOUNDRY_USER|FOUNDRY_DATA|TOOL_DIR|TOOL_ETC|TOOL_DATA)=' "$R/lib.sh")"
 id "$FOUNDRY_USER" >/dev/null 2>&1 || useradd --system --home-dir "$FOUNDRY_DATA" --shell /usr/sbin/nologin "$FOUNDRY_USER"
 
@@ -46,7 +46,7 @@ absent() { # $1 name, $2 what must not be in the output, $3 the output
 
 fresh_pi() { # $1 the world /api/status reports
   rm -rf "${FOUNDRY_DATA:?}" "${TOOL_DIR:?}" "${TOOL_ETC:?}" "${TOOL_DATA:?}" /root/seven-books-*.js
-  rm -f /tmp/stopped-* /tmp/calls /tmp/status /tmp/status_rc /tmp/started-kit
+  rm -f /tmp/stopped-* /tmp/calls /tmp/logger /tmp/status /tmp/status_rc /tmp/started-kit
   mkdir -p "$FOUNDRY_DATA/Data/worlds" "$TOOL_DIR/gm-browser" "$TOOL_ETC" "$TOOL_DATA"
   echo '// stand-in' >"$TOOL_DIR/gm-browser/assistant-gm.mjs"
   echo 'GM_USER=Gamemaster' >"$TOOL_ETC/assistant-gm.env"
@@ -125,6 +125,42 @@ if want no-upload; then
   out="$(run_stage '')"
   check no-upload 'scp the GM scripts' "$out"
   check no-upload 'exit 1' "$out"
+fi
+
+if want gm-script-env-ignored; then
+  # GM_SCRIPT in the environment must not turn MODE=trim into the delete script (or skip the DELETE_LEGACY check)
+  fresh_pi curse-of-strahd
+  out="$(run_stage 'GM_SCRIPT=/root/seven-books-delete-legacy.js')"
+  check gm-script-env-ignored 'dry run of /root/seven-books-trim.js' "$out"
+  check gm-script-env-ignored 'GM script /root/seven-books-trim.js' "$out"
+  absent gm-script-env-ignored 'seven-books-delete-legacy' "$(cat /tmp/calls) $out"
+  fresh_pi curse-of-strahd
+  out="$(run_stage 'GM_SCRIPT=/root/seven-books-delete-legacy.js MODE=delete APPLY=1')"
+  check gm-script-env-ignored 'DELETE_LEGACY=with-the-users-ok' "$out"
+  absent gm-script-env-ignored 'systemd-run' "$(cat /tmp/calls)"
+fi
+
+if want apply-must-be-1; then
+  fresh_pi curse-of-strahd
+  out="$(run_stage 'APPLY=0')"
+  check apply-must-be-1 'APPLY must be 1 or left out' "$out"
+  check apply-must-be-1 'exit 1' "$out"
+  absent apply-must-be-1 'systemd-run' "$(cat /tmp/calls)"
+fi
+
+if want other-worlds; then
+  fresh_pi curse-of-strahd
+  mkdir -p "$FOUNDRY_DATA/Data/worlds/curse-of-strahd" "$FOUNDRY_DATA/Data/worlds/strahd-kit"
+  out="$(run_stage '')"
+  check other-worlds 'other worlds \(strahd-kit\) share the edited module packs' "$out"
+  check other-worlds 'exit 0' "$out"
+  # a real run needs the OK for the other worlds, and then the dry run that has just passed
+  out="$(run_stage 'APPLY=1')"
+  check other-worlds 'OTHER_WORLDS_OK=1' "$out"
+  check other-worlds 'exit 1' "$out"
+  out="$(run_stage 'APPLY=1 OTHER_WORLDS_OK=1')"
+  check other-worlds 'REAL run of /root/seven-books-trim.js' "$out"
+  check other-worlds 'exit 0' "$out"
 fi
 
 if want bad-mode; then

@@ -17,9 +17,12 @@
 #   scp scripts/pi/remote/seven-books-trim.js scripts/pi/remote/seven-books-delete-legacy.js foundry-pi:/root/
 #   cat scripts/pi/remote/lib.sh scripts/pi/remote/22-seven-books.sh scripts/pi/remote/gm-script.sh | ssh foundry-pi 'bash -s'
 # Env (in front of bash): WORLD (curse-of-strahd); MODE=trim (default) or delete; APPLY=1 for a real run (without it
-# the stage does a dry run, which counts and prints and changes nothing); FORCE=1 overrides the players and recording
-# checks (never the snapshot); for MODE=delete also DELETE_LEGACY=with-the-users-ok (the legacy pack holds the only
-# copy of about 1500 entries on the Pi; the PC's content module and the snapshot are the way back).
+# the stage does a dry run, which counts and prints and changes nothing; any other APPLY value is refused); FORCE=1
+# overrides the players and recording checks (never the snapshot); OTHER_WORLDS_OK=1 for a real trim while other
+# worlds exist on this Foundry (they share the edited module packs and show dead links for the re-pointed ones); for
+# MODE=delete also DELETE_LEGACY=with-the-users-ok (the legacy pack holds the only copy of about 1500 entries on the
+# Pi; the PC's content module and the snapshot are the way back). A GM_SCRIPT in the environment is ignored: the
+# script follows MODE.
 # Take a snapshot first (/boot/dietpi/dietpi-backup 1) and get the user's OK before APPLY=1. Do the dry run first:
 # gm-script.sh refuses a real run of a file without a passed dry run of the same sha256.
 
@@ -29,16 +32,20 @@ require_recent_snapshot
 WORLD="${WORLD:-curse-of-strahd}"
 MODE="${MODE:-trim}"
 [[ "$WORLD" =~ ^[a-z0-9-]+$ ]] || die "'$WORLD' is not a valid world id (lowercase letters, digits, dashes). Nothing was changed"
+# APPLY is exactly 1 for a real run; any other value (APPLY=0, APPLY=no) is refused, never taken for a real run.
+case "${APPLY:-}" in "" | 1) ;; *) die "APPLY must be 1 or left out (got '${APPLY}'). Nothing was changed" ;; esac
+# GM_SCRIPT comes from MODE alone (a GM_SCRIPT in the environment is ignored), so the delete script never runs without
+# the DELETE_LEGACY check below.
+unset GM_SCRIPT
 case "$MODE" in
-  trim) GM_SCRIPT="${GM_SCRIPT:-/root/seven-books-trim.js}" ;;
+  trim) GM_SCRIPT=/root/seven-books-trim.js ;;
   delete)
-    GM_SCRIPT="${GM_SCRIPT:-/root/seven-books-delete-legacy.js}"
+    GM_SCRIPT=/root/seven-books-delete-legacy.js
     [ "${DELETE_LEGACY:-}" = with-the-users-ok ] || [ -z "${APPLY:-}" ] ||
       die "MODE=delete APPLY=1 deletes the legacy pack for good: put DELETE_LEGACY=with-the-users-ok in front of bash once the user has said yes. Nothing was changed"
     ;;
   *) die "MODE must be trim or delete (got '$MODE'). Nothing was changed" ;;
 esac
-case "$GM_SCRIPT" in /root/seven-books-*.js) ;; *) die "GM_SCRIPT must be /root/seven-books-trim.js or /root/seven-books-delete-legacy.js (got $GM_SCRIPT)" ;; esac
 [ -f "$GM_SCRIPT" ] && [ ! -L "$GM_SCRIPT" ] || die "no $GM_SCRIPT: scp the GM scripts to /root/ first (see the header). Nothing was changed"
 have_systemd || die "needs systemd (the Pi, not a test container). Nothing was changed"
 
@@ -50,6 +57,18 @@ running="$(curl -fs --max-time 5 http://127.0.0.1:30000/api/status 2>/dev/null |
 [ -n "$running" ] || die "cannot read which world runs (/api/status on port 30000 has no world): start $WORLD first. Nothing was changed"
 [ "$running" = "$WORLD" ] || die "world $running is running, not $WORLD: the trim must run in $WORLD (it holds the legacy pack). Nothing was changed"
 ok "world $WORLD is running"
+
+# The trim edits module packs (links re-pointed to world packs that exist only in $WORLD), and every world on this
+# Foundry shares those packs: the other worlds then show dead links in the PHB 2024 entries (hiding is per world too).
+if [ "$MODE" = trim ]; then
+  others="$(find "$FOUNDRY_DATA/Data/worlds" -mindepth 1 -maxdepth 1 -type d -printf '%f ' 2>/dev/null | tr ' ' '\n' | grep -vx "$WORLD" | tr '\n' ' ' || true)"
+  if [ -n "${others// /}" ]; then
+    if [ -n "${APPLY:-}" ] && [ "${OTHER_WORLDS_OK:-}" != 1 ]; then
+      die "other worlds share the module packs this trim edits (${others% }): their PHB 2024 links to the SRD items and creatures would point at world packs that exist only in $WORLD. Put OTHER_WORLDS_OK=1 in front of bash once the user accepts that. Nothing was changed"
+    fi
+    warn "other worlds (${others% }) share the edited module packs; their re-pointed links will not resolve"
+  fi
+fi
 
 require_quiet "the seven-book trim"
 

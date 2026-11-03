@@ -1,5 +1,5 @@
 // Limits DDB-Importer's Muncher to the seven kept books plus the Monster Manual, so a later import cannot bring the
-// dropped books back into aitool-content (the user, 2026-11-04). A GM script like seven-books-trim.js, but for the
+// dropped books back into aitool-content (the user, 2026-11-03). A GM script like seven-books-trim.js, but for the
 // PC: DDB-Importer never goes to the Pi (docs/dev/PI-SETUP.md). Run it in the content-build world (test server A,
 // world ai-tool-test) as a GM, for example pasted into a script macro there. The dry run (args.dryRun, or no args)
 // only reports. It sets two world settings of ddb-importer and nothing else:
@@ -13,8 +13,10 @@ const ID = 'ddb-importer';
 const SOURCE_IDS = [145, 146, 6, 26, 67, 27, 85, 5, 147];
 const FILTER = 'munching-policy-use-source-filter';
 const SOURCES = 'munching-policy-muncher-sources';
-const dry = args?.dryRun ?? true;
-const log = t => (args?.log ? args.log(t) : console.log(t));
+// `args` exists only under gm-script.sh; pasted into a macro it is not declared at all.
+const opts = typeof args === 'undefined' ? {} : args;
+const dry = opts.dryRun ?? true;
+const log = t => (opts.log ? opts.log(t) : console.log(t));
 if (!game.user.isGM) throw new Error('run this as a GM');
 for (const key of [FILTER, SOURCES]) {
   if (!game.settings.settings.has(`${ID}.${key}`))

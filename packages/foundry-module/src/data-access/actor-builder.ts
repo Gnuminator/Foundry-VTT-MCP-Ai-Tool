@@ -31,6 +31,8 @@ interface UsableItemMethods {
 /** A dnd5e attack activity: the roll the dashboard's Attack asks for. */
 interface AttackActivity {
   type?: string;
+  /** Activity#use: the card and its consumption belong to this activity, not the item's first. */
+  use: (...args: unknown[]) => Promise<unknown>;
   rollAttack: (config: object, dialog: object, message: object) => Promise<unknown>;
 }
 
@@ -40,7 +42,7 @@ function findAttackActivity(item: Item): AttackActivity | undefined {
     ?.activities;
   if (!activities) return undefined;
   return Array.from(activities).find(
-    a => a.type === 'attack' && typeof a.rollAttack === 'function'
+    a => a.type === 'attack' && typeof a.rollAttack === 'function' && typeof a.use === 'function'
   );
 }
 
@@ -347,6 +349,12 @@ export class ActorBuilderDataAccess {
           resolvedTargetNames.length = 0;
         }
       }
+      // With no dialog to fix them, an attack must not roll against old targets or none.
+      if (attackActivity && (targetsNotSet || tokenIds.length < targets.length)) {
+        throw new Error(
+          `Targets not set (${targetsNotSet || 'a target is not on the active scene'}); nothing was used or rolled`
+        );
+      }
     }
 
     try {
@@ -395,10 +403,15 @@ export class ActorBuilderDataAccess {
           useArgs = [{ createMessage: true }];
         }
         // Fire and forget - don't await, as dialogs block the promise
-        itemAny
-          .use(...useArgs)
+        // With rollAttack the attack activity makes the card (its own consumption), so the card and
+        // the roll come from the same activity; no result means nothing was used, so nothing rolls.
+        (attackActivity ? attackActivity.use(...useArgs) : itemAny.use(...useArgs))
           // The targets are still set while the attack rolls: dnd5e reads them for the AC.
-          .then(() => attackActivity?.rollAttack({}, { configure: false }, { create: true }))
+          .then(used =>
+            used && attackActivity
+              ? attackActivity.rollAttack({}, { configure: false }, { create: true })
+              : undefined
+          )
           .catch((err: Error) => {
             console.error(`[foundry-mcp-bridge] Error using item ${item.name}:`, err);
           })

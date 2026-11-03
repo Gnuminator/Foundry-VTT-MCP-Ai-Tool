@@ -998,6 +998,26 @@ test.describe('picking combatants', () => {
     expect(calls.some(c => c.name === 'use-item')).toBe(false);
   });
 
+  test('Attack: a token that is only selected in Foundry is not a target', async ({ page }) => {
+    const { calls } = await setup(page, {
+      initial: [fight(ATTACKERS, { turn: 1 })],
+      answer: call =>
+        call.name === 'get-targets'
+          ? ok({
+              targets: [],
+              selected: [{ tokenId: 'tok-brannoc', name: 'Brannoc', actorId: 'a1' }],
+            })
+          : attackAnswers([])(call),
+    });
+    await load(page);
+    await page.locator('#combat-actions [data-sel="attack"]').click();
+    await page.locator('#attack-go').click();
+    await expect(page.locator('#attack-note')).toHaveText(
+      'Nothing is targeted in Foundry. Target a token there or pick one in the list.'
+    );
+    expect(calls.some(c => c.name === 'use-item')).toBe(false);
+  });
+
   test('Escape closes the Attack form without writing', async ({ page }) => {
     const { calls } = await setup(page, {
       initial: [fight(ATTACKERS, { turn: 1 })],

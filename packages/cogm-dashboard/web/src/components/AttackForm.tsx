@@ -99,7 +99,10 @@ export function AttackForm({
         let tokens: string[];
         if (targetRow?.tokenId) tokens = [targetRow.tokenId];
         else {
-          tokens = (await fetchFoundryTargets()).tokens.map(t => t.tokenId);
+          // Only what is targeted: a token that is merely selected (often the attacker's own)
+          // must never become the target.
+          const found = await fetchFoundryTargets();
+          tokens = found.source === 'targeted' ? found.tokens.map(t => t.tokenId) : [];
         }
         const args = attackArgs(attackerToken, weaponId, tokens);
         if (!args) {

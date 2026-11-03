@@ -143,11 +143,14 @@ describe('FoundryDataAccess — useItem', () => {
   });
 
   it('rollAttack: uses the item without a dialog, then rolls its attack activity without one', async () => {
-    const use = vi.fn(() => Promise.resolve());
+    const itemUse = vi.fn(() => Promise.resolve());
+    const use = vi.fn(() => Promise.resolve({ id: 'card' }));
     const rollAttack = vi.fn(() => Promise.resolve());
     const item = makeItem({ id: 'w1', name: 'Scimitar', type: 'weapon' });
-    (item as any).use = use;
-    (item as any).system = { activities: [{ type: 'save' }, { type: 'attack', rollAttack }] };
+    (item as any).use = itemUse;
+    (item as any).system = {
+      activities: [{ type: 'save' }, { type: 'attack', use, rollAttack }],
+    };
     world.addActor({ id: 'a1', name: 'Bandit', items: [item] });
 
     const result = await da.useItem({
@@ -157,6 +160,8 @@ describe('FoundryDataAccess — useItem', () => {
     });
     await flush();
 
+    // The attack activity makes the card (not the item's first usable activity, the save).
+    expect(itemUse).not.toHaveBeenCalled();
     expect(use.mock.calls[0]).toEqual([
       { event: { shiftKey: true }, subsequentActions: false },
       { configure: false },
@@ -165,6 +170,79 @@ describe('FoundryDataAccess — useItem', () => {
     expect(rollAttack).toHaveBeenCalledWith({}, { configure: false }, { create: true });
     expect(result.requiresGMInteraction).toBe(false);
     expect(result.message).toContain('rolled without a dialog');
+  });
+
+  it('rollAttack: rolls nothing when the use made no card', async () => {
+    const use = vi.fn(() => Promise.resolve(undefined));
+    const rollAttack = vi.fn(() => Promise.resolve());
+    const item = makeItem({ id: 'w1', name: 'Scimitar', type: 'weapon' });
+    (item as any).use = vi.fn();
+    (item as any).system = { activities: [{ type: 'attack', use, rollAttack }] };
+    world.addActor({ id: 'a1', name: 'Bandit', items: [item] });
+
+    await da.useItem({
+      actorIdentifier: 'Bandit',
+      itemIdentifier: 'Scimitar',
+      options: { rollAttack: true },
+    });
+    await flush();
+
+    expect(use).toHaveBeenCalledTimes(1);
+    expect(rollAttack).not.toHaveBeenCalled();
+  });
+
+  it('rollAttack: refuses when a named target is not on the active scene', async () => {
+    const use = vi.fn(() => Promise.resolve({ id: 'card' }));
+    const item = makeItem({ id: 'w1', name: 'Scimitar', type: 'weapon' });
+    (item as any).system = {
+      activities: [{ type: 'attack', use, rollAttack: vi.fn(() => Promise.resolve()) }],
+    };
+    world.addActor({ id: 'a1', name: 'Bandit', items: [item] });
+    const scene = world.addScene({
+      id: 'scene1',
+      name: 'Field',
+      active: true,
+      tokens: [makeToken({ id: 'tok-goblin', name: 'Goblin' })],
+    });
+    world.setActiveScene(scene.id);
+    stubCanvas(scene.id);
+
+    await expect(
+      da.useItem({
+        actorIdentifier: 'Bandit',
+        itemIdentifier: 'Scimitar',
+        targets: ['tok-gone'],
+        options: { rollAttack: true },
+      })
+    ).rejects.toThrow('Targets not set');
+    expect(use).not.toHaveBeenCalled();
+  });
+
+  it('rollAttack: refuses when the GM views another scene than the active one', async () => {
+    const use = vi.fn(() => Promise.resolve({ id: 'card' }));
+    const item = makeItem({ id: 'w1', name: 'Scimitar', type: 'weapon' });
+    (item as any).system = {
+      activities: [{ type: 'attack', use, rollAttack: vi.fn(() => Promise.resolve()) }],
+    };
+    world.addActor({ id: 'a1', name: 'Bandit', items: [item] });
+    const scene = world.addScene({
+      id: 'scene1',
+      name: 'Field',
+      active: true,
+      tokens: [makeToken({ id: 'tok-goblin', name: 'Goblin' })],
+    });
+    world.setActiveScene(scene.id);
+    stubCanvas('other-scene');
+
+    await expect(
+      da.useItem({
+        actorIdentifier: 'Bandit',
+        itemIdentifier: 'Scimitar',
+        targets: ['Goblin'],
+        options: { rollAttack: true },
+      })
+    ).rejects.toThrow('viewing a different scene');
+    expect(use).not.toHaveBeenCalled();
   });
 
   it('rollAttack: refuses an item with no attack before using it', async () => {

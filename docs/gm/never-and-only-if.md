@@ -34,8 +34,9 @@ Short rules. Each has its reason on the next line.
 ## Only do this if
 
 - **Click Start session only when play begins, and End session when it ends.**
-  Start session is the only switch for live play: it turns on GM Actions and every feature switch
-  ("AI Tool: … (writes)"), Tarokka and Party included. With live play off, a misclick cannot change
+  Start session is the only switch for live play: it turns on GM Actions and the five switches a
+  night needs (Allow Write Operations, Handouts, Live play, Party and Tarokka). The rest, such as the
+  Obsidian mirror and import, session notes, scene mood and room setup, stay off until you turn them on. With live play off, a misclick cannot change
   anything. End session (or Pre-flight's "Turn them off again") turns it all off again.
 - **Tick "Show cards" in the Tarokka drawer only if nobody else can see your screen.** (The
   drawer is under Advanced ▾.)

@@ -78,7 +78,7 @@ export class PreflightTools {
       {
         name: 'get-preflight',
         description:
-          'GM ONLY. Pre-flight check before a session. action "checks" (default): one checklist with ok, warn, fail or info per item: Foundry link, module and bridge versions match, "Allow Write Operations" and the feature switches, secrets in world settings (every player can read those), names players can see that match a secret term (playlists, sounds, scenes, tokens, journals, actors), module conflicts, Obsidian notes, play session (with a warning for a paper night that has no paper sync yet); ready is true when nothing failed. action "scan": the findings behind those items. Secret values are masked, never returned. Read-only.',
+          'GM ONLY. Pre-flight check before a session. action "checks" (default): one checklist with ok, warn, fail or info per item: Foundry link, module and bridge versions match, Claude Desktop connector versions, "Allow Write Operations" and the feature switches, secrets in world settings (every player can read those), names players can see that match a secret term (playlists, sounds, scenes, tokens, journals, actors), module conflicts, Obsidian notes, play session (with a warning for a paper night that has no paper sync yet); ready is true when nothing failed. action "scan": the findings behind those items. Secret values are masked, never returned. Read-only.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -263,7 +263,7 @@ export class PreflightTools {
         id: 'wrapper',
         label,
         status: 'info',
-        detail: 'No Claude Desktop connector has called a tool since the bridge started.',
+        detail: 'No Claude Desktop connector is connected right now.',
       };
     }
     if (!status.behind) {
@@ -271,7 +271,7 @@ export class PreflightTools {
         id: 'wrapper',
         label,
         status: 'ok',
-        detail: `Every connector runs ${this.bridgeVersion}.`,
+        detail: `No connector is older than the bridge (${this.bridgeVersion}).`,
       };
     }
     const old = status.wrappers.filter(

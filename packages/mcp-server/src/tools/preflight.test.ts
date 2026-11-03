@@ -8,6 +8,7 @@ import type {
 import { describe, expect, it, vi } from 'vitest';
 
 import { SecretTermsService } from '../secret-terms.js';
+import { WrapperRegistry } from '../wrapper-registry.js';
 import { PreflightTools, type PreflightToolsOptions } from './preflight.js';
 
 function logger(): any {
@@ -88,11 +89,14 @@ function tools(setup: Setup = {}): { tools: PreflightTools; query: ReturnType<ty
     obsidianVaultDirSet: setup.vaultDirSet ?? true,
     logger: logger(),
     bridgeVersion: '1.2.3',
-    wrapperStatus: () => ({
-      current: '1.2.3',
-      wrappers: setup.wrappers ?? [],
-      behind: (setup.wrappers ?? []).some(w => w.version !== '1.2.3'),
-    }),
+    wrapperStatus: () => {
+      const registry = new WrapperRegistry('1.2.3');
+      (setup.wrappers ?? []).forEach((w, i) => {
+        if (w.version === null) registry.toolCallWithoutRequester(i);
+        else registry.hello(i, w);
+      });
+      return registry.status();
+    },
   };
   return { tools: new PreflightTools(options), query };
 }

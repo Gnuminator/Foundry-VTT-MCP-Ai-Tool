@@ -2,8 +2,9 @@
  * Which stdio wrappers (Claude Desktop connectors) are connected to this backend, and which
  * version each runs. A wrapper is a copy installed once per PC and filters the tool list with
  * its own copy of tool-sets.ts, so an old wrapper silently hides newer tools. A current wrapper
- * says `hello` with its version; a connection that calls tools without a `requestedBy` and
- * never said hello is an old wrapper (the dashboard always sets `requestedBy`).
+ * says `hello` with its version; the dashboard says `hello` with `client: 'dashboard'`. Any
+ * other connection that calls a tool without a `requestedBy` and never said hello is an old
+ * wrapper (the dashboard sets `requestedBy` on its writes only, so it must say hello).
  */
 import { TOOL_VERSION } from '@gnuminator/shared';
 
@@ -39,11 +40,19 @@ export function isOlderVersion(version: string, current: string): boolean {
 export class WrapperRegistry {
   private readonly byConnection = new Map<number, WrapperEntry>();
 
+  /** Connections that said they are not a Claude Desktop wrapper (the dashboard). */
+  private readonly notWrappers = new Set<number>();
+
   constructor(private readonly current: string = TOOL_VERSION) {}
 
-  /** A wrapper said hello on this connection. */
+  /** A wrapper said hello on this connection (the dashboard says hello too, as `client`). */
   hello(connection: number, params: unknown): void {
-    const p = (params ?? {}) as { version?: unknown; sets?: unknown };
+    const p = (params ?? {}) as { version?: unknown; sets?: unknown; client?: unknown };
+    if (p.client === 'dashboard') {
+      this.byConnection.delete(connection);
+      this.notWrappers.add(connection);
+      return;
+    }
     this.byConnection.set(connection, {
       version: typeof p.version === 'string' && p.version ? p.version.slice(0, 40) : null,
       sets: typeof p.sets === 'string' && p.sets ? p.sets.slice(0, 80) : 'unknown',
@@ -52,13 +61,14 @@ export class WrapperRegistry {
 
   /** A tool call without a requester arrived: a wrapper; an old one when it never said hello. */
   toolCallWithoutRequester(connection: number): void {
-    if (!this.byConnection.has(connection)) {
+    if (!this.byConnection.has(connection) && !this.notWrappers.has(connection)) {
       this.byConnection.set(connection, { version: null, sets: 'unknown' });
     }
   }
 
   close(connection: number): void {
     this.byConnection.delete(connection);
+    this.notWrappers.delete(connection);
   }
 
   status(): WrapperStatus {

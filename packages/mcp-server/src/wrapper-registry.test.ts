@@ -35,6 +35,19 @@ describe('WrapperRegistry', () => {
     expect(reg.status().behind).toBe(true);
   });
 
+  it('never counts the dashboard, which says hello as itself', () => {
+    const reg = new WrapperRegistry('0.25.0');
+    reg.hello(3, { client: 'dashboard', version: '0.25.0' });
+    reg.toolCallWithoutRequester(3);
+    expect(reg.status()).toMatchObject({ wrappers: [], behind: false });
+  });
+
+  it('keeps a newer wrapper out of "behind"', () => {
+    const reg = new WrapperRegistry('0.25.0');
+    reg.hello(1, { version: '0.26.0', sets: 'all' });
+    expect(reg.status().behind).toBe(false);
+  });
+
   it('forgets a closed connection', () => {
     const reg = new WrapperRegistry('0.25.0');
     reg.toolCallWithoutRequester(2);

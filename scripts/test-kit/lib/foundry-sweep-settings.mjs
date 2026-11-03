@@ -28,16 +28,13 @@ const REBUILD_FAILED = /^Failed to build enhanced creature index/;
 
 /** The visible settings, by label, as the module registers them. */
 export const SETTING_LABELS = [
-  'Enable MCP Bridge',
-  'Websocket Server Host',
-  'Allow Write Operations',
-  'Allow Non-GM Users to Run the Bridge',
-  'Bridge User',
-  'Max Actors Per Request',
-  'Chat Log Buffer Size',
-  'Show Connection Messages',
-  'Auto-Reconnect on Disconnect',
-  'Connection Check Frequency',
+  'AI Tool: Connect to the AI Tool server',
+  'AI Tool: Server address',
+  'AI Tool: Allow Write Operations',
+  'AI Tool: Let players connect it',
+  'AI Tool: Which GM connects',
+  'AI Tool: Show connection messages',
+  'AI Tool: Reconnect by itself',
 ];
 
 /** The nine feature switches: setting key, label, default. */

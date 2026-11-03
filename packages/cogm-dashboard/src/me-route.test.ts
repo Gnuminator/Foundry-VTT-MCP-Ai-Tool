@@ -153,7 +153,7 @@ describe('/api/me and the player links', () => {
     expect(refused.status).toBe(409);
     expect(((await refused.json()) as { error: string }).error).toMatch(/no such roll request/);
     const off = await post(key, 'writesoff0000000');
-    expect(off.status).toBe(502);
+    expect(off.status).toBe(409);
     const offText = ((await off.json()) as { error: string }).error;
     expect(offText).toMatch(/switched off/);
     expect(offText).not.toMatch(/module settings/);

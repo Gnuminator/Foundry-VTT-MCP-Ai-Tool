@@ -149,7 +149,8 @@ export function mountMeRoute(app: Express, options: MeRouteOptions): void {
         const message = error instanceof Error ? error.message : '';
         // The module's switch for writes is off: say so in table words, not settings words.
         const writesOff = /Write operations are disabled/i.test(message);
-        res.status(502).json({
+        // 409 for the writes-off case so the page shows this line; other failures stay 502.
+        res.status(writesOff ? 409 : 502).json({
           error: writesOff
             ? 'Rolling from this page is switched off right now. Roll in Foundry, or ask your GM.'
             : 'Could not roll. Ask your GM.',

@@ -294,7 +294,11 @@ describe('refreshCombat', () => {
       schedule: () => () => undefined,
     });
     let answer: (raw: unknown) => void = () => undefined;
-    callTool.mockReturnValueOnce(new Promise(resolve => (answer = resolve)));
+    callTool.mockReturnValueOnce(
+      new Promise<unknown>(resolve => {
+        answer = resolve;
+      })
+    );
     const done = refreshCombat(qc);
     // The stream pushes the newer fight, then the older read comes back.
     listeners.get('combat')?.({

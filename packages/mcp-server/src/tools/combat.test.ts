@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { CombatTools } from './combat.js';
+import { CombatTools, SET_INITIATIVE_NOTE } from './combat.js';
 
 /**
  * Tests for CombatTools — a thin, deterministic layer over FoundryClient.query.
@@ -159,7 +159,8 @@ describe('CombatTools.handleSetInitiative', () => {
       combatantName: 'Goblin',
       initiative: 15,
     });
-    expect(result).toBe(payload);
+    expect(result).toEqual({ ...payload, note: SET_INITIATIVE_NOTE });
+    expect(SET_INITIATIVE_NOTE).toMatch(/turn did not move/);
   });
 
   it('returns a parameter-error string (not a throw) when combatantName is missing', async () => {

@@ -343,6 +343,136 @@ describe('FoundryDataAccess — requestPlayerRolls', () => {
 // requestAbilityCheck / requestAttackRoll (wrappers)
 // ===========================================================================
 
+describe('FoundryDataAccess: an asked initiative roll fills the tracker', () => {
+  function installFight(combatants: Array<{ id: string; actorId: string }>): {
+    rollInitiative: ReturnType<typeof vi.fn>;
+  } {
+    const rollInitiative = vi.fn(() => Promise.resolve());
+    world.setCombat({ combatants: { contents: combatants }, rollInitiative });
+    return { rollInitiative };
+  }
+
+  it('rolls the actor’s combatant in the running fight', async () => {
+    const { rollInitiative } = installFight([
+      { id: 'c1', actorId: 'a1' },
+      { id: 'c2', actorId: 'a2' },
+    ]);
+    const done = await (da as any).playerRolls.rollTrackerInitiative({ id: 'a2' });
+    expect(done).toBe(true);
+    expect(rollInitiative).toHaveBeenCalledWith(['c2'], expect.any(Object));
+  });
+
+  it('falls back (false) when the actor is in no fight, or there is none', async () => {
+    const { rollInitiative } = installFight([{ id: 'c1', actorId: 'a1' }]);
+    expect(await (da as any).playerRolls.rollTrackerInitiative({ id: 'a9' })).toBe(false);
+    expect(rollInitiative).not.toHaveBeenCalled();
+    world.currentCombat = null;
+    for (const c of [...world.combats.contents]) world.combats.delete(c.id);
+    expect(await (da as any).playerRolls.rollTrackerInitiative({ id: 'a1' })).toBe(false);
+  });
+
+  it('asks for a public card, whatever chat mode the roller has', async () => {
+    const { rollInitiative } = installFight([{ id: 'c1', actorId: 'a1' }]);
+    await (da as any).playerRolls.rollTrackerInitiative({ id: 'a1' });
+    expect(rollInitiative.mock.calls[0]?.[1]).toEqual(
+      expect.objectContaining(
+        'messageMode' in (rollInitiative.mock.calls[0]?.[1] as object)
+          ? { messageMode: 'public' }
+          : { messageOptions: expect.any(Object) }
+      )
+    );
+  });
+
+  it('refuses to overwrite an initiative that is already there', async () => {
+    const { rollInitiative } = installFight([{ id: 'c1', actorId: 'a1', initiative: 18 } as any]);
+    await expect((da as any).playerRolls.rollTrackerInitiative({ id: 'a1' })).rejects.toThrow(
+      /already in the tracker/
+    );
+    expect(rollInitiative).not.toHaveBeenCalled();
+  });
+
+  it('leaves a request made before this fight began to the plain roll', async () => {
+    const rollInitiative = vi.fn(() => Promise.resolve());
+    world.setCombat({
+      combatants: { contents: [{ id: 'c1', actorId: 'a1' }] },
+      rollInitiative,
+      _stats: { createdTime: 2000 },
+    });
+    expect(await (da as any).playerRolls.rollTrackerInitiative({ id: 'a1' }, 1000)).toBe(false);
+    expect(rollInitiative).not.toHaveBeenCalled();
+    expect(await (da as any).playerRolls.rollTrackerInitiative({ id: 'a1' }, 3000)).toBe(true);
+    // An unknown time (NaN) is no reason to skip the tracker or to refuse.
+    expect(await (da as any).playerRolls.rollTrackerInitiative({ id: 'a1' }, NaN)).toBe(true);
+  });
+
+  it('does not roll twice when Foundry wrote the number and then threw', async () => {
+    const combatant: { id: string; actorId: string; initiative?: number } = {
+      id: 'c1',
+      actorId: 'a1',
+    };
+    world.setCombat({
+      combatants: {
+        contents: [combatant],
+        get: (id: string) => (id === 'c1' ? combatant : undefined),
+      },
+      rollInitiative: vi.fn(() => {
+        combatant.initiative = 14;
+        return Promise.reject(new Error('card failed'));
+      }),
+    });
+    expect(await (da as any).playerRolls.rollTrackerInitiative({ id: 'a1' })).toBe(true);
+  });
+
+  it('leaves a hidden combatant to Foundry’s own card rule', async () => {
+    const { rollInitiative } = installFight([{ id: 'c1', actorId: 'a1', hidden: true } as any]);
+    await (da as any).playerRolls.rollTrackerInitiative({ id: 'a1' });
+    expect(rollInitiative).toHaveBeenCalledWith(['c1'], {});
+  });
+
+  it('plain-rolls when the combatant is not the caller’s to roll', async () => {
+    const { rollInitiative } = installFight([{ id: 'c1', actorId: 'a1', isOwner: false } as any]);
+    expect(await (da as any).playerRolls.rollTrackerInitiative({ id: 'a1' })).toBe(false);
+    expect(rollInitiative).not.toHaveBeenCalled();
+  });
+
+  it('falls back to a plain roll when Foundry will not roll it', async () => {
+    const plain = { id: 'c1', actorId: 'a1' };
+    world.setCombat({
+      combatants: { contents: [plain], get: () => plain },
+      rollInitiative: vi.fn(() => Promise.reject(new Error('no'))),
+    });
+    expect(await (da as any).playerRolls.rollTrackerInitiative({ id: 'a1' })).toBe(false);
+  });
+
+  it('takes the tracker only for a public, unmodified initiative card', async () => {
+    const { toMessage } = installRollSpy();
+    const { rollInitiative } = installFight([{ id: 'c1', actorId: 'a1' }]);
+    world.addActor({ id: 'a1', name: 'Silvera', type: 'character' });
+    const base = {
+      rollLabel: 'Initiative',
+      rollType: 'initiative',
+      rollTarget: 'initiative',
+      characterId: 'a1',
+      targetUserId: 'u1',
+      dc: null,
+      isGmRoll: false,
+    };
+    const roll = (over: object): Promise<void> =>
+      (da as any).playerRolls.rollForButton({
+        ...base,
+        isPublic: true,
+        rollFormula: '1d20+2',
+        ...over,
+      });
+    await roll({});
+    expect(rollInitiative).toHaveBeenCalledTimes(1);
+    await roll({ isPublic: false });
+    await roll({ rollFormula: '1d20+2+1d4' });
+    expect(rollInitiative).toHaveBeenCalledTimes(1);
+    expect(toMessage).toHaveBeenCalledTimes(2);
+  });
+});
+
 describe('FoundryDataAccess: roll request event', () => {
   it('a private request is a roll-request event naming who may see it; a public one names no one', async () => {
     world.addUser({ id: 'u1', name: 'Alice', active: true, isGM: false });

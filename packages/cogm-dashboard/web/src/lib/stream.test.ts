@@ -291,9 +291,9 @@ describe('refreshCombat', () => {
     };
     const stop = startStream(qc, {
       create: () => source as unknown as EventSource,
-      schedule: () => () => undefined,
+      schedule: (): (() => void) => () => undefined,
     });
-    let answer: (raw: unknown) => void = () => undefined;
+    let answer: (raw: unknown) => void = (): void => undefined;
     callTool.mockReturnValueOnce(
       new Promise<unknown>(resolve => {
         answer = resolve;

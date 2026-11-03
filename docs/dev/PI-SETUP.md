@@ -1605,6 +1605,28 @@ is `docs/player/obsidian.md`.
   Debian 13 ARM64 container: a note reaches only its player, what a player changes never reaches the Pi, one device per player,
   remove and off).
 
+## The stack in containers (stages 22 and 23)
+
+Backlog `pi-docker-compose`. `deploy/pi/compose.yml` runs Foundry, the bridge, the dashboard and the Assistant GM browser
+as containers on the same loopback ports; the systemd units stay installed until the cutover is trusted. Everything about
+the images, settings, rehearsal and the checks is in [`deploy/pi/README.md`](../../deploy/pi/README.md). Two stages do the Pi
+side, each only after a `dietpi-backup` snapshot and the user's OK; nothing here is retired yet.
+
+- **Stage 22** (`scripts/pi/remote/22-docker.sh`): Debian 13's own `docker.io`, the compose plugin (`docker-compose`, or
+  `docker-compose-v2` where the archive has that name) and `docker-buildx`; enables `docker.service`; writes
+  `deploy/pi/.env` in the deployed checkout (`/opt/foundry-ai-tool/app`: the foundry user's ids and the tailnet name); builds the
+  three images. Starts nothing. `DRY_RUN=1` prints the plan, `SKIP_BUILD=1` skips the build. Run it again after every stage 5
+  build (the checkout, and its `.env`, is replaced).
+- **Stage 23** (`scripts/pi/remote/23-compose.sh`, `MODE=status|up|down|cutover|rollback`): `up` and `down` start and stop the
+  stack (`up` is refused next to a running unit on the live ports or data folders); `cutover` stops and disables the four units,
+  starts the stack and rolls back by itself when it is not healthy; `rollback` is the one command back (stack down, units
+  enabled and started in order). `status` is read-only.
+- Do not run stages 3 or 5 on a cut-over Pi: they would enable the units next to the containers (`deploy/pi/deployed-state.sh`
+  shows it as FAIL).
+- Tests: `scripts/pi/docker-compose.test.mjs` (both stages as text; with `PI_STAGE22_CONTAINER=1` the scenario scripts
+  `scripts/pi/container-test/stage22-scenarios.sh` and `stage23-scenarios.sh` in an ARM64 container). The scenarios use stand-ins
+  for apt, docker, systemctl and ss, so they also run in Git Bash.
+
 ## Where things live on the Pi
 
 | What                                                         | Where                                                                                                                      |

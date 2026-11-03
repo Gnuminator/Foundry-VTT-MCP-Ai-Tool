@@ -18,6 +18,7 @@ import {
   symlinkSync,
   writeFileSync,
 } from 'node:fs';
+import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import { after, describe, test } from 'node:test';
@@ -28,7 +29,9 @@ import {
   extraGm,
   installDryRunGuard,
   isReadEvent,
+  linkVerdict,
   parseScriptArgs,
+  probeLink,
   readScript,
   runScriptSource,
   summarize,
@@ -513,5 +516,41 @@ describe('gm-script.sh', { skip: !hasBash && 'no bash here' }, () => {
       /WITHOUT a dry run: the castle import broke the session/
     );
     assert.equal(runs().split('\n').length, 2);
+  });
+});
+
+describe('link check', () => {
+  const grace = 120_000;
+
+  test('restarts only after the module socket has been missing for the whole grace time', () => {
+    let v = linkVerdict('disconnected', null, 1000, grace);
+    assert.deepEqual(v, { restart: false, since: 1000 });
+    v = linkVerdict('disconnected', v.since, 1000 + grace - 1, grace);
+    assert.equal(v.restart, false);
+    v = linkVerdict('disconnected', v.since, 1000 + grace, grace);
+    assert.equal(v.restart, true);
+  });
+
+  test('a connected module or an unreachable bridge resets the clock and never restarts', () => {
+    assert.deepEqual(linkVerdict('connected', 1000, 9e9, grace), { restart: false, since: null });
+    assert.deepEqual(linkVerdict('unreachable', 1000, 9e9, grace), { restart: false, since: null });
+  });
+
+  test('probeLink reads link_status from the control port', async () => {
+    const answer = module =>
+      net.createServer(s =>
+        s.on('data', () => s.write(`${JSON.stringify({ id: 'link', result: { ok: true, module } })}\n`))
+      );
+    const listen = server =>
+      new Promise(r => server.listen(0, '127.0.0.1', () => r(server.address().port)));
+    const up = answer('connected');
+    const down = answer('disconnected');
+    const upPort = await listen(up);
+    const downPort = await listen(down);
+    assert.equal(await probeLink(upPort), 'connected');
+    assert.equal(await probeLink(downPort), 'disconnected');
+    up.close();
+    down.close();
+    assert.equal(await probeLink(upPort), 'unreachable');
   });
 });

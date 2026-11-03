@@ -10,7 +10,7 @@ import path from 'node:path';
 import { after, describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-import { controlPing, httpOk, processRunning, run } from './healthcheck.mjs';
+import { controlPing, httpOk, linkConnected, processRunning, run } from './healthcheck.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const dirs = [];
@@ -43,6 +43,19 @@ describe('healthcheck', () => {
     good.close();
     odd.close();
     assert.match(await controlPing(goodPort), /ECONNREFUSED/);
+  });
+
+  test('link: healthy only when the bridge reports the module socket connected', async () => {
+    const answer = module => net.createServer(s => s.on('data', () => s.write(`{"id":"link","result":{"ok":true,"module":"${module}"}}\n`)));
+    const up = answer('connected');
+    const down = answer('disconnected');
+    const upPort = await listen(up);
+    const downPort = await listen(down);
+    assert.equal(await linkConnected(upPort), null);
+    assert.match(await linkConnected(downPort), /no Foundry module socket/);
+    up.close();
+    down.close();
+    assert.match(await linkConnected(upPort), /ECONNREFUSED/);
   });
 
   test('process: finds a command line in a fake /proc and says when there is none', () => {

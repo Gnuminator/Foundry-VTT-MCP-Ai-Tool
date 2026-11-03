@@ -18,10 +18,11 @@
 //
 // The next line tells the Pi stages what this driver can do (stage 11 checks it before it needs a feature).
 // Add a word when a stage must tell a new driver from an old one; never remove one.
-// assistant-gm features: extra-gm
+// assistant-gm features: extra-gm link-check
 
 import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
+import net from 'node:net';
 import { lstatSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { isAbsolute, join } from 'node:path';
@@ -47,8 +48,65 @@ const ASSISTANT_ROLE = 3; // CONST.USER_ROLES.ASSISTANT: a GM, but the human GM 
 const CHECK_EVERY_MS = 60_000;
 const WAIT_FOR_WORLD_MS = 30_000;
 
+const LINK_POLL_MS = 15_000;
+const LINK_GRACE_MS = 120_000;
+
 const log = msg => console.log(`[assistant-gm] ${msg}`);
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+/**
+ * Asks the bridge's control port whether the Foundry module's socket is connected (method link_status).
+ * Resolves 'connected', 'disconnected' (the bridge answers, no module socket) or 'unreachable' (the bridge
+ * does not answer: a browser restart cannot fix that, so it is never a reason to restart).
+ */
+export function probeLink(port, host = '127.0.0.1', timeoutMs = 5000) {
+  return new Promise(resolve => {
+    const socket = net.createConnection({ host, port });
+    let buffer = '';
+    const done = state => {
+      socket.destroy();
+      resolve(state);
+    };
+    socket.setTimeout(timeoutMs, () => done('unreachable'));
+    socket.on('connect', () => socket.write('{"id":"link","method":"link_status"}\n'));
+    socket.on('data', chunk => {
+      buffer += chunk.toString('utf8');
+      if (!buffer.includes('\n')) return;
+      try {
+        const reply = JSON.parse(buffer.split('\n')[0]);
+        done(reply?.result?.module === 'connected' ? 'connected' : 'disconnected');
+      } catch {
+        done('unreachable');
+      }
+    });
+    socket.on('error', () => done('unreachable'));
+  });
+}
+
+/**
+ * The link check's decision. `since` is when the module socket was first seen missing (null while it is
+ * there or the bridge is down). Restart only when the bridge listens but has had no module socket for
+ * graceMs, which covers a page reload or a short world restart.
+ */
+export function linkVerdict(state, since, now, graceMs = LINK_GRACE_MS) {
+  if (state !== 'disconnected') return { restart: false, since: null };
+  const first = since ?? now;
+  return { restart: now - first >= graceMs, since: first };
+}
+
+async function watchLink(port, context) {
+  let since = null;
+  for (;;) {
+    await sleep(LINK_POLL_MS);
+    const verdict = linkVerdict(await probeLink(port), since, Date.now());
+    since = verdict.since;
+    if (verdict.restart) {
+      log(`the bridge has had no module socket for ${LINK_GRACE_MS / 1000} s; restarting the browser`);
+      await context.close().catch(() => {});
+      process.exit(1);
+    }
+  }
+}
 
 async function launch(profile, extra = {}) {
   const context = await browserType().launchPersistentContext(profile, {
@@ -175,6 +233,9 @@ async function run() {
     `joined world ${info.world} as ${info.user} (GM: ${info.isGM}, module active: ${info.module})`
   );
   if (!info.module) log(`the ${MODULE_ID} module is not active in this world; enable it as a GM`);
+  // The link check runs only where MCP_CONTROL_PORT is set (the compose service sets it).
+  const linkPort = Number(process.env.MCP_CONTROL_PORT);
+  if (linkPort > 0) watchLink(linkPort, context);
   // Stay. Foundry sends a client back to /join when the world stops or the user is kicked;
   // exit then and let systemd start a fresh browser.
   for (;;) {

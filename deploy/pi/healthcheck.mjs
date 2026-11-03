@@ -1,6 +1,7 @@
 // Container health checks for the Pi stack (deploy/pi/compose.yml). Exit 0 = healthy, 1 = not.
 //   node healthcheck.mjs http <url>        any 2xx within 5 s (Foundry /api/status, dashboard /api/health)
 //   node healthcheck.mjs control <port>    the bridge's control port answers a JSON-lines ping on loopback
+//   node healthcheck.mjs link <port>       the bridge reports the Foundry module's socket connected (Assistant GM)
 //   node healthcheck.mjs process <text>    a running process whose command line contains <text> (the Assistant GM)
 // Dependency-free so the same file runs in every image. The reason for a failure goes to stderr (docker inspect
 // shows it in the health log).
@@ -46,6 +47,26 @@ export function controlPing(port, host = '127.0.0.1') {
   });
 }
 
+// The Assistant GM's link: the bridge answers link_status with the module socket connected.
+export function linkConnected(port, host = '127.0.0.1') {
+  return new Promise(resolve => {
+    const socket = net.createConnection({ host, port });
+    let buffer = '';
+    const done = reason => {
+      socket.destroy();
+      resolve(reason);
+    };
+    socket.setTimeout(TIMEOUT_MS, () => done(`no link_status answer on ${host}:${port}`));
+    socket.on('connect', () => socket.write('{"id":"link","method":"link_status"}\n'));
+    socket.on('data', chunk => {
+      buffer += chunk.toString('utf8');
+      if (!buffer.includes('\n')) return;
+      done(buffer.includes('"module":"connected"') ? null : 'the bridge has no Foundry module socket');
+    });
+    socket.on('error', e => done(reasonOf(e)));
+  });
+}
+
 export function processRunning(text, procDir = '/proc') {
   let entries;
   try {
@@ -69,8 +90,9 @@ export async function run(argv) {
   const [kind, arg] = argv;
   if (kind === 'http' && arg) return httpOk(arg);
   if (kind === 'control' && /^\d+$/.test(arg ?? '')) return controlPing(Number(arg));
+  if (kind === 'link' && /^\d+$/.test(arg ?? '')) return linkConnected(Number(arg));
   if (kind === 'process' && arg) return processRunning(arg);
-  return 'usage: healthcheck.mjs http <url> | control <port> | process <text>';
+  return 'usage: healthcheck.mjs http <url> | control <port> | link <port> | process <text>';
 }
 
 if (import.meta.url === `file://${process.argv[1].replace(/\\/g, '/')}` || process.argv[1]?.endsWith('healthcheck.mjs')) {

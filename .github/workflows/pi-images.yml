@@ -1,0 +1,145 @@
+name: Pi images
+
+# Builds the Orange Pi container images (deploy/pi/Dockerfile) on an ARM64 runner, starts the test stack
+# (deploy/pi/compose.yml + compose.test.yml, a stand-in for the licensed Foundry) and checks what the Pi stages will
+# rely on: every service comes up healthy, deploy/pi/deployed-state.sh reads it, a killed container comes back
+# healthy, and a container that restarted too often is reported as a crash loop. Its own workflow, apart from
+# ci.yml: it only runs for changes that can affect the images, and a slow Docker build stays out of ci.yml's
+# job-time split. Not a required check until it has run green on a few PRs.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'deploy/pi/**'
+      - 'scripts/pi/remote/assistant-gm.mjs'
+      - 'scripts/pi/remote/22-docker.sh'
+      - 'scripts/pi/remote/23-compose.sh'
+      - 'scripts/pi/container-test/stage2[23]-scenarios.sh'
+      - 'scripts/pi/docker-compose.test.mjs'
+      - 'package-lock.json'
+      - '.github/workflows/pi-images.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'deploy/pi/**'
+      - 'scripts/pi/remote/assistant-gm.mjs'
+      - 'scripts/pi/remote/22-docker.sh'
+      - 'scripts/pi/remote/23-compose.sh'
+      - 'scripts/pi/container-test/stage2[23]-scenarios.sh'
+      - 'scripts/pi/docker-compose.test.mjs'
+      - 'package-lock.json'
+      - '.github/workflows/pi-images.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: pi-images-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+permissions:
+  contents: read
+
+jobs:
+  pi-images:
+    runs-on: ubuntu-24.04-arm
+    name: pi-images (ARM, Node 24)${{ github.event_name == 'workflow_dispatch' && ' [dispatch]' || '' }}
+    timeout-minutes: 30
+    env:
+      COMPOSE: docker compose --env-file deploy/pi/test.env -f deploy/pi/compose.yml -f deploy/pi/compose.test.yml
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Prepare the test environment
+        run: |
+          date +%s > "$RUNNER_TEMP/pi-images-start"
+          data="$RUNNER_TEMP/tool-data"
+          mkdir -p "$data/vault" "$data/dashboard" "$data/gm-browser" "$RUNNER_TEMP/tool-etc"
+          # What deployed-state.sh reads as the deployed build: a folder with a package.json and a ref.
+          mkdir -p "$RUNNER_TEMP/tool-dir/app"
+          echo '{"name":"stand-in"}' > "$RUNNER_TEMP/tool-dir/app/package.json"
+          echo "v0.0.0-ci" > "$RUNNER_TEMP/tool-dir/app/.tool-ref"
+          {
+            echo "FOUNDRY_UID=$(id -u)"
+            echo "FOUNDRY_GID=$(id -g)"
+            echo "TOOL_DATA_DIR=$data"
+            echo "TOOL_ETC_DIR=$RUNNER_TEMP/tool-etc"
+          } >> "$GITHUB_ENV"
+
+      - name: Compose file is valid
+        run: $COMPOSE config --quiet
+
+      - name: Build the images
+        run: $COMPOSE --profile gm-browser build
+
+      - name: Image sizes
+        run: |
+          docker image ls --filter 'reference=foundry-ai-tool-pi/*' --format 'table {{.Repository}}:{{.Tag}}\t{{.Size}}'
+          {
+            echo '### Pi image sizes'
+            echo
+            echo '| Image | Size |'
+            echo '| --- | --- |'
+            docker image ls --filter 'reference=foundry-ai-tool-pi/*' --format '| {{.Repository}}:{{.Tag}} | {{.Size}} |'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Start the stack and wait until it is healthy
+        run: $COMPOSE up -d --wait --wait-timeout 180
+
+      - name: Deployed-state check reads the stack
+        # deploy/pi/deployed-state.sh runs locally too: DOCKER finds the compose project by its label, and
+        # TOOL_DIR / TOOL_ETC point at the folders prepared above. With containers present the systemd units must be
+        # retired or absent (none exist on a runner), so a clean exit means the stack looks right.
+        run: |
+          out="$(TOOL_DIR="$RUNNER_TEMP/tool-dir" TOOL_ETC="$RUNNER_TEMP/tool-etc" bash deploy/pi/deployed-state.sh)" || status=$?
+          echo "$out"
+          [ "${status:-0}" -eq 0 ] || { echo "::error::deployed-state.sh reported a FAIL on a healthy stack"; exit 1; }
+          for s in foundry bridge dashboard; do
+            echo "$out" | grep -q "container $s is running and healthy, no restarts" || { echo "::error::container $s not reported healthy"; exit 1; }
+          done
+
+      - name: A killed container comes back healthy
+        run: |
+          victim="$($COMPOSE ps -q bridge)"
+          [ -n "$victim" ] || { echo "::error::no bridge container"; exit 1; }
+          docker kill "$victim"
+          for i in $(seq 1 60); do
+            state="$(docker inspect -f '{{.State.Status}}|{{if .State.Health}}{{.State.Health.Status}}{{end}}|{{.RestartCount}}' "$victim")"
+            echo "after kill ($i): $state"
+            case "$state" in running\|healthy\|[1-9]*) exit 0 ;; esac
+            sleep 3
+          done
+          echo "::error::the bridge container did not return healthy after a kill"
+          docker logs --tail 50 "$victim" || true
+          exit 1
+
+      - name: Crash-loop detection
+        # The bridge now has one restart on record. At the default threshold that is a warning, with the threshold
+        # lowered to 1 it must be a FAIL (the same rule that flags a real crash loop at 5).
+        run: |
+          export TOOL_DIR="$RUNNER_TEMP/tool-dir" TOOL_ETC="$RUNNER_TEMP/tool-etc"
+          out="$(bash deploy/pi/deployed-state.sh)" || { echo "$out"; echo "::error::one restart must not fail at the default threshold"; exit 1; }
+          echo "$out" | grep -q 'container bridge is healthy but restarted 1 time' || { echo "$out"; echo "::error::the restart was not reported"; exit 1; }
+          if out="$(LOOP_RESTARTS=1 bash deploy/pi/deployed-state.sh)"; then
+            echo "$out"; echo "::error::a restart count at the threshold was not reported as FAIL"; exit 1
+          fi
+          echo "$out" | grep -q 'FAIL: container bridge is in a crash loop' || { echo "$out"; echo "::error::no crash-loop FAIL for the bridge"; exit 1; }
+
+      # Stages 22 and 23 in an ARM64 container (apt, docker, systemctl stand-ins). Here and not in ci.yml: the
+      # path filter keeps it to changes that matter, and ci.yml's job-time split (decision 26) does not apply.
+      - name: Pi stages 22 and 23 in an ARM64 container
+        env:
+          PI_STAGE22_CONTAINER: 1
+        run: node --test scripts/pi/docker-compose.test.mjs deploy/pi/healthcheck.test.mjs
+
+      - name: Logs and teardown
+        if: always()
+        run: |
+          $COMPOSE logs --no-color --tail 40 || true
+          $COMPOSE --profile gm-browser down --volumes --remove-orphans || true
+
+      - name: Job time
+        if: always()
+        run: |
+          start="$(cat "$RUNNER_TEMP/pi-images-start" 2>/dev/null || date +%s)"
+          secs=$(( $(date +%s) - start ))
+          echo "Job time up to this step: $((secs / 60)) min $((secs % 60)) s"
+          echo "Job time (up to the last step): $((secs / 60)) min $((secs % 60)) s" >> "$GITHUB_STEP_SUMMARY"

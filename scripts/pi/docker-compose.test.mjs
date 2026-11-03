@@ -1,0 +1,147 @@
+// Pi stages 22 and 23 (scripts/pi/remote/22-docker.sh and 23-compose.sh, backlog pi-docker-compose):
+//   node --test scripts/pi/docker-compose.test.mjs
+// The text checks always run. PI_STAGE22_CONTAINER=1 (needs Docker) runs the scenario scripts in a Debian 13 ARM64
+// container; they use stand-ins for apt, docker, systemctl and ss, so they also run without a container in Git Bash:
+//   REPO=$PWD bash scripts/pi/container-test/stage22-scenarios.sh   (and stage23-scenarios.sh)
+import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+import { describe, test } from 'node:test';
+import { fileURLToPath } from 'node:url';
+
+const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
+const read = rel => readFileSync(path.join(repo, rel), 'utf8');
+const s22 = read('scripts/pi/remote/22-docker.sh');
+const s23 = read('scripts/pi/remote/23-compose.sh');
+
+describe('22-docker.sh as text', () => {
+  test('is valid bash', t => {
+    const r = spawnSync('bash', ['-n', path.join(repo, 'scripts/pi/remote/22-docker.sh')], {
+      encoding: 'utf8',
+    });
+    if (r.error) return t.skip('no bash here');
+    assert.equal(r.status, 0, r.stderr);
+  });
+
+  test('asks for a snapshot after the dry run and before the first install, write and build', () => {
+    const snap = s22.indexOf('\nrequire_recent_snapshot\n');
+    assert.ok(snap > 0);
+    assert.ok(s22.indexOf('if [ "$dry" = 1 ]; then') < snap);
+    for (const write of [
+      'apt_install',
+      'DEBIAN_FRONTEND=noninteractive apt-get update',
+      'enable_unit docker.service',
+      'write_file "$env_file"',
+      '(cd "$checkout" && docker compose -f deploy/pi/compose.yml build)',
+    ]) {
+      assert.ok(snap < s22.indexOf(write), write);
+    }
+  });
+
+  test('installs from Debian, adds no user to any group, starts no stack, deletes nothing', () => {
+    assert.match(s22, /docker\.io/);
+    assert.doesNotMatch(s22, /download\.docker\.com|get\.docker\.com|sources\.list\.d|apt-key/);
+    const code = s22.replace(/^\s*#.*$/gm, '');
+    assert.doesNotMatch(code, /usermod|adduser|gpasswd|groupadd/);
+    assert.doesNotMatch(code, /compose[^\n]* (up|start|down|rm)\b/);
+    assert.doesNotMatch(code, /\brm\b|\bmv\b|prune|reboot|shutdown/);
+  });
+
+  test('keeps the .env lines it does not own and writes only the three managed names', () => {
+    assert.match(s22, /FOUNDRY_UID=\$uid/);
+    assert.match(s22, /FOUNDRY_GID=\$gid/);
+    assert.match(s22, /DASHBOARD_ALLOWED_HOSTS=\$hosts/);
+    assert.match(
+      s22,
+      /grep -vE '\^\(#\|\[\[:space:\]\]\*\$\|FOUNDRY_UID=\|FOUNDRY_GID=\|DASHBOARD_ALLOWED_HOSTS=\)'/
+    );
+  });
+});
+
+describe('23-compose.sh as text', () => {
+  test('is valid bash', t => {
+    const r = spawnSync('bash', ['-n', path.join(repo, 'scripts/pi/remote/23-compose.sh')], {
+      encoding: 'utf8',
+    });
+    if (r.error) return t.skip('no bash here');
+    assert.equal(r.status, 0, r.stderr);
+  });
+
+  test('cutover: snapshot and quiet check come before the first stop, the state record before it too', () => {
+    const cut = s23.slice(s23.indexOf('mode_cutover() {'), s23.indexOf('mode_rollback() {'));
+    const snap = cut.indexOf('require_recent_snapshot');
+    const quiet = cut.indexOf('require_quiet "cutting over');
+    const record = cut.indexOf(': >"$state_file"');
+    const stop = cut.indexOf('systemctl disable --now');
+    assert.ok(snap > 0 && snap < quiet && quiet < record && record < stop);
+    // The images are checked (preflight) before anything stops.
+    assert.ok(cut.indexOf('preflight_stack') < snap);
+  });
+
+  test('cutover rolls back by itself when a stop or the start does not hold, and never stops the stack with -v', () => {
+    const cut = s23.slice(s23.indexOf('mode_cutover() {'), s23.indexOf('mode_rollback() {'));
+    assert.ok((cut.match(/rollback_now/g) ?? []).length >= 3);
+    assert.match(cut, /ROLLED BACK/);
+    assert.doesNotMatch(s23, /down -v|--volumes|--rmi|system prune|volume rm/);
+  });
+
+  test('units are only disabled, never masked or removed; the unit files stay', () => {
+    assert.doesNotMatch(s23, /systemctl (mask|unmask)|\brm\b[^\n]*\.service|daemon-reload/);
+    assert.match(s23, /systemctl disable --now/);
+    assert.match(s23, /systemctl enable --now/);
+  });
+
+  test('up never builds (stage 22 does) and refuses the live ports and data folders next to a running unit', () => {
+    assert.match(s23, /up -d --wait --wait-timeout "\$wait_timeout" --no-build/);
+    assert.match(s23, /share their data folder/);
+    assert.match(s23, /live port\(s\)/);
+  });
+
+  test('rollback needs no quiet table and only warns without a snapshot', () => {
+    const rb = s23.slice(
+      s23.indexOf('mode_rollback() {'),
+      s23.indexOf('case "$mode" in\n  status) mode_status')
+    );
+    assert.doesNotMatch(rb, /require_quiet/);
+    assert.match(rb, /\( require_recent_snapshot \) \|\| warn/);
+  });
+
+  test('the dependency order is foundry, bridge, dashboard, gm-browser', () => {
+    assert.match(
+      s23,
+      /units=\(foundry\.service foundry-ai-tool-bridge\.service foundry-ai-tool-dashboard\.service foundry-ai-tool-gm-browser\.service\)/
+    );
+  });
+});
+
+for (const [n, script] of [
+  ['22', 'stage22-scenarios.sh'],
+  ['23', 'stage23-scenarios.sh'],
+]) {
+  describe(
+    `stage ${n} in the ARM64 container`,
+    { skip: process.env.PI_STAGE22_CONTAINER !== '1' },
+    () => {
+      test('scenarios', () => {
+        const r = spawnSync(
+          'docker',
+          [
+            'run',
+            '--rm',
+            '--platform',
+            'linux/arm64',
+            '-v',
+            `${repo}:/repo:ro`,
+            'debian:13-slim',
+            'bash',
+            `/repo/scripts/pi/container-test/${script}`,
+          ],
+          { encoding: 'utf8', timeout: 900000, env: { ...process.env, MSYS_NO_PATHCONV: '1' } }
+        );
+        assert.equal(r.status, 0, r.stdout + r.stderr);
+        assert.ok(r.stdout.includes('ALL SCENARIOS OK'), r.stdout);
+      });
+    }
+  );
+}

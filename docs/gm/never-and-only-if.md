@@ -18,7 +18,7 @@ Short rules. Each has its reason on the next line.
   A whisper's text reaches every player's browser; only its display is hidden.
 - **Never apply a plan you have not read.**
   The list of changes in the confirm window is your only preview.
-- **Never turn on "Allow Non-GM Users to Run the Bridge".**
+- **Never turn on "AI Tool: Let players connect it".**
   The module's connection to the bridge is built for a GM's browser only; this lets a player's
   browser make it.
 - **Never rename or move the module's folder `foundry-mcp-bridge`.**

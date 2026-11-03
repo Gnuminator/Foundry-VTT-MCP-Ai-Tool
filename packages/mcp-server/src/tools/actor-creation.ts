@@ -64,7 +64,7 @@ export class ActorCreationTools {
             quantity: {
               type: 'number',
               description:
-                "Number of actors to create (default: based on names array length); capped by the GM's Max Actors Per Request setting (1 to 50)",
+                'Number of actors to create (default: based on names array length); limited to 1 to 50 actors per request',
               minimum: 1,
               maximum: 50,
             },

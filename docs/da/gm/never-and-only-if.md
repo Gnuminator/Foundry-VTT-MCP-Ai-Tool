@@ -1,6 +1,6 @@
 ---
 source: gm/never-and-only-if.md
-sourceHash: bfc945de7176
+sourceHash: 4039eddc8fe2
 title: Gør aldrig det her, gør kun det her hvis
 description: Korte regler til GM'en, hver med sin begrundelse på én linje.
 ---
@@ -20,7 +20,7 @@ Korte regler. Hver har sin begrundelse på linjen under.
   En whispers tekst når frem til alle spilleres browsere; kun visningen er skjult.
 - **Anvend aldrig en plan, du ikke har læst.**
   Listen over ændringer i confirm-vinduet er din eneste forhåndsvisning.
-- **Slå aldrig "Allow Non-GM Users to Run the Bridge" til.**
+- **Slå aldrig "AI Tool: Let players connect it" til.**
   Modulets forbindelse til bridgen er kun bygget til GM'ens browser; det her lader en spillers
   browser oprette den.
 - **Omdøb eller flyt aldrig modulets mappe `foundry-mcp-bridge`.**

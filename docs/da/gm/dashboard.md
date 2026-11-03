@@ -1,6 +1,6 @@
 ---
 source: gm/dashboard.md
-sourceHash: 3e0e088a1d95
+sourceHash: c035a14bea1d
 title: Dashboardet
 description: En rundtur i alle paneler og knapper på dashboardet, hvad de gør, og hvornår du bruger dem.
 ---
@@ -687,7 +687,7 @@ kører), kommer de levende kort først: Combat order, Session feed og derefter H
 sessionerne åbner den med Last recap, Handouts og Quests, og de levende kort rykker ned. Dens dele:
 
 - **Who are you?** Ved en spillers første besøg en liste med navne. Valget afgør kun, hvilke
-  handouts "just for you" der vises; headeren siger derefter "Playing as ..." med **not you?** til at
+  handouts "just for you" der vises; headeren siger derefter "Playing as ..." med en **Not you? Change**-knap til at
   vælge igen. **Skip** lader det være uvalgt.
 - **You**: øverst, for en spiller, der åbnede sit eget `/me`-link på den enhed: "Your turn" eller "You
   are up next", et lille kort for hver af deres karakterer (HP, conditions, concentration) og en
@@ -712,7 +712,8 @@ sessionerne åbner den med Last recap, Handouts og Quests, og de levende kort ry
 
 Headeren viser worlden, scenens **Navigation Name** (ellers "Current scene", aldrig det rigtige
 navn) med dens tid på dagen (kun på scener med global illumination) og vejr, for eksempel "Village
-Square (Dusk, Rain)", og en status: `live`, `foundry offline`, `disconnected` eller `connecting…`.
+Square (Dusk, Rain)", og en status: "Live", "Foundry is offline. Wait a moment.", "Not connected. Wait a moment." eller
+"Connecting…".
 Med The Veil-temaet har footeren også et **Mist**-valg, som kun ændrer den enhed.
 
 Spillerne åbner den fra deres egne enheder, bag det samme login med e-mailkode som Foundry.

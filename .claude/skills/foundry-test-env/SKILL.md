@@ -109,7 +109,7 @@ setup screen.
    use `read_page` (filter interactive), `form_input` the name `Claude`, leave the password
    empty, click "Join Game Session". The pane keeps the session; one session = one user per
    origin (a second user joins on `http://127.0.0.1:30001`).
-3. Expect the notification **"MCP Bridge connected successfully"** (bottom-left shows
+3. Expect the notification **"AI Tool connected"** (bottom-left shows
    `Claude [GM]`). The module dials `ws://localhost:31515` because the test copy's
    `module.json` has `flags.foundry-mcp-bridge.defaultServerPort = 31515`.
 4. Test (see Next steps). Before stopping Foundry: Settings tab, scroll down, **Return to

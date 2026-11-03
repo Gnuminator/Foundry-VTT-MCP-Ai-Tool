@@ -1,6 +1,6 @@
 ---
 source: player/cookbook.md
-sourceHash: ba64e8ba4435
+sourceHash: 81116def5c63
 title: Spillerens kogebog
 description: Korte how-tos til spillere om player page, at vælge dit navn, handouts til dig, og hvordan du beder GM'en om det, værktøjet ved.
 ---
@@ -15,7 +15,7 @@ Player page er live bag login med e-mailkode. GM'en sender dig adressen.
 ## Vælg dit navn på player page
 
 - **Gør:** første gang du åbner player page, så klik på dit navn øverst. Så står der
-  "Playing as ...". Klikkede du på det forkerte? Klik på **not you?** og vælg igen.
+  "Playing as ...". Klikkede du på det forkerte? Klik på **Not you? Change** og vælg igen.
 - **Hvorfor:** handouts, der kun er til dig, vises først, når du har valgt dit navn. Valget fortæller
   også GM'en, hvilke handouts du har åbnet.
 - **Tip:** dit valg huskes i den browser. På en ny computer eller i en ny browser skal du vælge igen.

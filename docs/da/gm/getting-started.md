@@ -1,6 +1,6 @@
 ---
 source: gm/getting-started.md
-sourceHash: c18877a8983a
+sourceHash: b327a92e3ebb
 title: Kom i gang
 description: Hvad Foundry AI Tool er, dets dele i almindeligt sprog, hvordan de hænger sammen, en kort ordliste og hvordan det sættes op.
 ---
@@ -99,7 +99,7 @@ Foundry-ord:
   "kan læse".
 - **Game Settings:** Foundrys indstillingsvindue (Settings tab, tandhjulet, så **Game Settings**).
   Værktøjets indstillinger ligger i kategorien **Foundry AI Tool**. Indstillinger og beskeder dér, der siger
-  "MCP Bridge" (for eksempel **Enable MCP Bridge**), hører til modulet.
+  "AI Tool" (for eksempel **AI Tool: Connect to the AI Tool server**), hører til modulet.
 - **World id:** din worlds korte id, navnet på dens mappe på Foundry-serveren. Værktøjet bruger
   det som mappenavn i Obsidian (`Campaigns/<world id>/`).
 

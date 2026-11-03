@@ -83,7 +83,7 @@ backend's copy of the session events, written only when there are events) and
 
 Last full pass: 2026-09-28, all green (see CLAUDE.md). For each item record evidence.
 
-1. Bridge connects (notification "MCP Bridge connected successfully"); `get-world-info` returns
+1. Bridge connects (notification "AI Tool connected"); `get-world-info` returns
    `ai-tool-test`.
 2. Query lockdown: join as `Player` in a second tab on `http://127.0.0.1:30001` (separate cookies;
    open it with `tabs_create` + `navigate`, not `preview_start`). In its console,

@@ -670,7 +670,7 @@ cards come first: Combat order, Session feed, then Handouts. Between sessions it
 recap, Handouts and Quests, and the live cards move down. Its parts:
 
 - **Who are you?** On a player's first visit, a list of names. The pick only decides which
-  handouts "just for you" show; the header then says "Playing as ..." with **not you?** to pick
+  handouts "just for you" show; the header then says "Playing as ..." with a **Not you? Change** button to pick
   again. **Skip** leaves it unpicked.
 - **You**: at the top, for a player who opened their own `/me` link on that device: "Your turn" or
   "You are up next", a small card for each of their characters (HP, conditions, concentration) and
@@ -692,8 +692,8 @@ recap, Handouts and Quests, and the live cards move down. Its parts:
 
 The header shows the world, the scene's **Navigation Name** (else "Current scene", never the real
 name) with its time of day (only on scenes with global illumination) and weather, for example
-"Village Square (Dusk, Rain)", and a status: `live`, `foundry offline`, `disconnected` or
-`connecting…`. With The Veil theme the footer also has a **Mist** choice, which only changes that
+"Village Square (Dusk, Rain)", and a status: "Live", "Foundry is offline. Wait a moment.", "Not connected. Wait a moment." or
+"Connecting…". With The Veil theme the footer also has a **Mist** choice, which only changes that
 device.
 
 Players open it from their own devices, behind the same email-code login as Foundry.

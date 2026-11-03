@@ -1,6 +1,6 @@
 ---
 source: gm/dashboard.md
-sourceHash: 3e0e088a1d95
+sourceHash: 07a0c8ee32b2
 title: Dashboardet
 description: En rundtur i alle paneler og knapper på dashboardet, hvad de gør, og hvornår du bruger dem.
 ---
@@ -63,8 +63,7 @@ Obsidian-note pr. session og til at gruppere play log.
 - Klik på **End session**, når spillet er slut. Teksten skifter tilbage til "No session". Den slår
   også det fra igen, som **Turn on for tonight** slog til (se nedenfor), og GM Actions.
 - Når en session starter, skrives en linje i værktøjets egen log, og live play slås til, så
-  værktøjer, der ændrer spillet, kan køre, når du har bekræftet. Der findes ikke længere en
-  start, der kun logger.
+  værktøjer, der ændrer spillet, kan køre, når du har bekræftet.
 - Hvis du glemmer det, deler noterne stadig sessionerne ved et hul på 3 timer uden hændelser.
 
 📓 Obsidian ved siden af åbner din kampagnes Home-note i Obsidian (se "Open in Obsidian" nedenfor).
@@ -181,14 +180,14 @@ Spillet foregår i Foundry; **During**-skærmen står ved siden af og holder øj
 findes i tre layouts. Vælg et med **Layout** øverst på skærmen:
 
 - **Cards**: Live Feed er den store kolonne. Recent Changes, Handouts og Party er kort i siden;
-  åbn dem, som du vil, også flere ad gangen. Turordenen vises kun, mens en kamp kører.
+  åbn dem, som du vil, også flere ad gangen. Turordenen vises kun, mens en combat kører.
 - **Simple/Full**: Simple viser kun Live Feed, Recent Changes og Handouts. **Show everything**
   skifter til Full: turordenen og Party også, alt åbent. **Show less** går tilbage.
-- **Auto** (standard): følger spillet. Uden kamp ser det ud som Cards. Når combat starter, vokser
+- **Auto** (standard): følger spillet. Uden combat ser det ud som Cards. Når combat starter, vokser
   turordenen, og Party åbner i den store kolonne; Live Feed foldes ind i siden.
 
 Knappen **Try layouts** ved siden af **Layout** starter prøven når som helst, med en eksempelkamp, så
-du kan se, hvad Auto gør. Indtil en kamp starter, ser Auto ud som Cards, og linjen ved siden af
+du kan se, hvad Auto gør. Indtil en combat starter, ser Auto ud som Cards, og linjen ved siden af
 **Layout** siger det.
 
 Klik på **▸** eller et sammenfoldet korts titel for at åbne det, **▾** for at folde det sammen. I et
@@ -204,10 +203,10 @@ gemmes for denne world, i enhver browser.
 
 ### Combat Tracker
 
-En smal strimmel øverst i visningen **During**. Den viser den aktive combat: initiative, hvis tur
+En smal strimmel øverst i visningen **During**. Den viser den aktive combat: initiative, hvis turn
 det er (fremhævet), og hver deltagers HP-bar og tal. Hver række er mærket **PC**, **Enemy** eller
-**NPC**. Den øverste linje viser runden og antallet af deltagere. Ture, initiative og saves bliver i
-Foundrys eget combat tracker, og skade går normalt gennem dnd5e-chatkortene der.
+**NPC**. Den øverste linje viser rounden og antallet af deltagere. Turns, initiative og saves bliver i
+Foundrys eget combat tracker, og damage går normalt gennem dnd5e-chatkortene der.
 
 Over rækkerne er **initiative ribbon**: én strimmel i turorden, der starter med den, der er i gang.
 Det væsen står stort med sit navn; de næste to er tydelige, og resten toner ud mod højre. Hver har
@@ -218,16 +217,16 @@ tokenets scene, hvis det er nødvendigt; hvis to GM'er er logget ind, viser den 
 Portrætter kræver, at dashboardet kender Foundrys adresse: sæt `DASHBOARD_FOUNDRY_URL` til den, din
 browser bruger, ellers vises initialerne (den samme indstilling afgør, hvem der må vise dashboardets
 live-strimmel i et Foundry-vindue, så den skal passe præcist med den adresse, du skriver for at åbne Foundry).
-En **Round**-markering viser, hvor rækkefølgen løber over i næste runde, og en **Lair**-markering
-viser, hvor en lair action falder, når en boss i kampen har en. Besejrede væsener er nedtonede og
+En **Round**-markering viser, hvor rækkefølgen løber over i næste round, og en **Lair**-markering
+viser, hvor en lair action falder, når en boss i combaten har en. Besejrede væsener er nedtonede og
 tæller aldrig som næste. Ribbonen ændrer aldrig spillet; klikket flytter kun visningen på den skærm.
 
-Combat i dashboardet er valgfri. Hvis du vil bruge den, kan strimlen give skade, healing og
-conditions til flere deltagere på én gang. Mens en kamp kører, og live play er slået til (**Start
+Combat i dashboardet er valgfri. Hvis du vil bruge den, kan strimlen give damage, healing og
+conditions til flere deltagere på én gang. Mens en combat kører, og live play er slået til (**Start
 session** slår det til), klik på deltagernes rækker for at vælge dem (klik igen for at fravælge).
 Med en eller flere valgt:
 
-- **Damage / Heal**: åbner en lille formular: Damage eller Heal, ét beløb og chips for skadetype (så
+- **Damage / Heal**: åbner en lille formular: Damage eller Heal, ét beløb og chips for damage-type (så
   dnd5e tæller resistances, vulnerabilities og immunities med). Én knap, opkaldt efter hvad den gør
   ("Deal 8 fire damage to ... in Foundry"), anvender det med det samme på hvert valgt token; hver
   får hele beløbet. Toasten har **Undo**, og Recent Changes gemmer ændringen. Der er intet
@@ -246,33 +245,33 @@ Efter en ændring med Damage / Heal eller Condition viser en besked hvert måls 
 Recent Changes.
 
 **Conditions** (en knap på During-linjen, når live play og GM Actions er slået til; den virker både i
-en kamp og udenfor): afkryds tokens på den scene, du ser, vælg en condition, og klik **Add** eller
+en combat og udenfor): afkryds tokens på den scene, du ser, vælg en condition, og klik **Add** eller
 **Remove**. Det sker med det samme, med **Undo**, og der er intet confirm-vindue. For Exhaustion
 hæver Add med ét niveau, og Remove fjerner dem alle. Et **rules**-link ved hver condition åbner
 dnd5e's egen side for den i Foundry.
 
-**Start combat** og **End combat**: når ingen kamp kører, og GM Actions er slået til, tilbyder Combat
+**Start combat** og **End combat**: når ingen combat kører, og GM Actions er slået til, tilbyder Combat
 Tracker **Start combat** (i de fleste During-layouts åbner en lille **Start combat**-knap på
 During-bjælken det samme). Den viser tokens på den scene, du ser, med spillerkarakterer og Hostile
-tokens afkrydset. Ændr fluebenene, og klik på **Start combat with N**. Kampen starter i runde 1, med
+tokens afkrydset. Ændr fluebenene, og klik på **Start combat with N**. Combaten starter i round 1, med
 **Undo**. Et afkrydsningsfelt, **Ask the player characters to roll initiative**, sender hver afkrydset
 spillerkarakter en offentlig rulle-anmodning; når de ruller, står tallet i trackeren. Undo fjerner
-kampen, men anmodningerne bliver i chatten. Den, der har tur, viser **Up now**. Ændrer du en initiative
-bagefter (værktøjet **set-initiative**), skifter rækkefølgen, men turen flytter sig ikke.
-**End combat** planlægger at afslutte kampen; du bekræfter, og Undo bringer den tilbage.
+combaten, men anmodningerne bliver i chatten. Den, der har turn, viser **Up now**. Ændrer du en initiative
+bagefter (værktøjet **set-initiative**), skifter rækkefølgen, men turnen flytter sig ikke.
+**End combat** planlægger at afslutte combaten; du bekræfter, og Undo bringer den tilbage.
 
 **👑 Boss prompts** (i panelets øverste linje, kun mens et væsen med legendary actions eller en lair
-er med i kampen; slået fra, til du slår det til, og husket i denne browser). Slå det til før den
+er med i combaten; slået fra, til du slår det til, og husket i denne browser). Slå det til før den
 første bosskamp. Det viser:
 
-- **Legendary**- og **Resist**-pips på hver boss-række: fyldte for brug tilbage i denne runde, som
+- **Legendary**- og **Resist**-pips på hver boss-række: fyldte for brug tilbage i denne round, som
   dnd5e tæller dem (et væsen i sin lair kan have en mere). Brug dem på væsenets sheet i Foundry;
   pipsene følger med inden for få sekunder.
 - En **🏰 Lair action**-påmindelse, når turordenen passerer initiative 20 (eller lairens egen
   værdi), for et væsen hvis "in lair"-felt er afkrydset på dets sheet.
-- **⚡ legendary actions left** for hver boss, der ikke har sin egen tur.
+- **⚡ legendary actions left** for hver boss, der ikke har sin egen turn.
 - En **R**-knap på hver boss, der stadig er i live: klik på den, når væsenet bruger sin reaction.
-  Markeringerne nulstilles i næste runde. De bliver på dashboardet; intet ændres i Foundry.
+  Markeringerne nulstilles i næste round. De bliver på dashboardet; intet ændres i Foundry.
 
 Spillersiden viser aldrig noget af dette.
 
@@ -290,14 +289,14 @@ som er nemmere at læse på en ekstra skærm og har søgning.
 Øverst i visningen **After**, for den session, der lige er slut:
 
 - **Rolls**: hvor mange, med de naturlige 20'ere og naturlige 1'ere.
-- **Most damage**: den helt, der gjorde mest skade, og over hvor mange kampe.
-- **Highest roll**: det højeste d20-roll af en helt (attacks, saves, checks, initiative; skade
+- **Most damage**: den helt, der gjorde mest damage, og over hvor mange combats.
+- **Highest roll**: det højeste d20-roll af en helt (attacks, saves, checks, initiative; damage
   tæller ikke), hvem der slog det, og hvad det var. Det kan være et privat eller blind roll, så det
   bliver på din skærm.
 - **Went down**: hvilke helte der faldt til 0 HP, og hvor ofte.
 
 Under dem: sessionens længde, **Open the session note** (i Obsidian, når det er sat op) og **Copy
-the stats for Discord**, som kopierer de offentlige roll-tal, mest skade og hvem der gik ned til
+the stats for Discord**, som kopierer de offentlige roll-tal, mest damage og hvem der gik ned til
 spillernes kanal, uden det højeste roll. Roll-tallene udelader private og blinde rolls, så de kan
 være lavere end tallene på din skærm (en ældre bridge sender ingen offentlige tal, og så udelades
 roll-linjen). **↻ Refresh** henter dem igen. Tallene kommer fra værktøjets play log, det samme som
@@ -306,8 +305,8 @@ afsnittet Stats i Obsidian-sessionsnoten.
 ### Session notes (After)
 
 Under tonight's stats, når noterne fra en optaget session findes (session-pipelinen skriver dem efter
-sessionen). Værktøjet lægger dem i Foundry **af sig selv, uden at spørge**: en journal kun for GM,
-"Session notes", med siderne Recap, GM summary og Scenes, logget i Recent Changes med Undo. Kortet
+sessionen). Værktøjet lægger dem i Foundry **af sig selv, uden at spørge**: en journal kun for GM i mappen
+"Session notes" (navngivet med dato og titel), med siderne Recap, GM summary og Scenes, logget i Recent Changes med Undo. Kortet
 siger, hvor de er:
 
 - **Waiting**: de kommer ind af sig selv, så snart en GM er i Foundry, "Allow Write Operations" er
@@ -325,7 +324,7 @@ kun Recap gør, når du afslører den.
 
 ### Live Feed
 
-Det, der sker ved bordet, nyeste øverst: skade, healing, hvem der falder til 0 HP, conditions, spell
+Det, der sker ved bordet, nyeste øverst: damage, healing, hvem der falder til 0 HP, conditions, spell
 slots, rolls, scene-skift og mere. Hver linje viser sin type og tidspunktet.
 
 - Du ser hvert rolls fulde regnestykke, for eksempel "Wolf 1, Bite attack: 1d20 (15) +2 STR +2
@@ -365,7 +364,7 @@ fra før ændringen tilbage. Den afviser og skriver ingenting, hvis det samme er
 Undo virker, selv når featurens kontakt er slået fra; Redo kræver, at den er slået til. Klik på **↻**
 for at genindlæse listen.
 
-Kun guarded changes står her: skade, healing, conditions, resources samt flytning, redigering og
+Kun guarded changes står her: damage, healing, conditions, resources samt flytning, redigering og
 sletning af tokens. Ændringer fra andre værktøjer (rolls, nye actors) står her ikke og kan ikke
 fortrydes her.
 
@@ -622,7 +621,7 @@ spiller, der valgte det navn ("Playing as ...") øverst på siden.
 
 Fakta til at forberede din næste session, ét sted og uden AI. **Refresh** genindlæser dem.
 
-- **Last session**: dens dato og længde, scenerne i den rækkefølge, du besøgte dem, kampe og runder,
+- **Last session**: dens dato og længde, scenerne i den rækkefølge, du besøgte dem, combats og rounds,
   spillerkaraktererne og de NPC'er, der gik ned til 0 HP (ikke hvem der døde: værktøjet ved aldrig
   det), de handouts, du afslørede (og hvem der har åbnet dem), og **Beats**, en kort liste over, hvad
   der skete. **All beats** henter hele listen, når den korte er afkortet.
@@ -682,7 +681,7 @@ det (derefter skal du slette kortet i Foundrys chat). Claude bruger de samme han
 ## Spillersiden (/player)
 
 Den side, spillerne kigger på: dashboardets adresse med `/player` til sidst. Åbn den selv før en
-session for at tjekke, hvad de ser. Den følger aftenen. Mens en session er åben (eller en kamp
+session for at tjekke, hvad de ser. Den følger aftenen. Mens en session er åben (eller en combat
 kører), kommer de levende kort først: Combat order, Session feed og derefter Handouts. Mellem
 sessionerne åbner den med Last recap, Handouts og Quests, og de levende kort rykker ned. Dens dele:
 
@@ -691,7 +690,7 @@ sessionerne åbner den med Last recap, Handouts og Quests, og de levende kort ry
   vælge igen. **Skip** lader det være uvalgt.
 - **You**: øverst, for en spiller, der åbnede sit eget `/me`-link på den enhed: "Your turn" eller "You
   are up next", et lille kort for hver af deres karakterer (HP, conditions, concentration) og en
-  concentration-påmindelse, når de tager skade. Deres åbne roll-anmodninger vises her som
+  concentration-påmindelse, når de tager damage. Deres åbne roll-anmodninger vises her som
   **Roll**-knapper.
 - **Open your character sheet**: et link til `/me`. Øverst mellem sessionerne, nederst under en
   session.
@@ -701,7 +700,7 @@ sessionerne åbner den med Last recap, Handouts og Quests, og de levende kort ry
   almindelige conditions vises. Skjulte væsener udelades, og et væsen, hvis navn spillerne ikke kan se,
   er "Unknown creature".
 - **Session feed**: offentlige rolls og det, spillerne kunne se ske, med væsener navngivet, som
-  spillerne kender dem. Private, blinde og GM-rolls vises aldrig. Skade- og healing-beløb vises kun
+  spillerne kender dem. Private, blinde og GM-rolls vises aldrig. Damage- og healing-beløb vises kun
   for PC'er (andre er bare "was hit").
 - **Last recap**: den nyeste afslørede side, hvis titel siger "recap" (eller "opsummering",
   "resume").

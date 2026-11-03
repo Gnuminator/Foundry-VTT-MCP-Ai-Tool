@@ -7,7 +7,13 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { limitsFor } from './context-alert.mjs';
 import { REPO_ROOT, decide, insideRepo, run, shellWritesRepo } from './context-stop.mjs';
+
+// REPO_ROOT is a lane worktree when the tests run in one and the main checkout on CI, so the out
+// line the REPO_ROOT cwd gets differs; tests that sit near the line shift by BUMP.
+const OUT = limitsFor(REPO_ROOT).out;
+const BUMP = OUT - 250_000;
 
 const HOOK = path.join(path.dirname(fileURLToPath(import.meta.url)), 'context-stop.mjs');
 
@@ -70,7 +76,11 @@ test('above the out line: edits of repo files, Agent and repo-writing commands a
     ];
     for (const [tool, args] of denied) {
       const reason = decide(payload(file, tool, args), env);
-      assert.match(reason ?? '', /hand-over line \(250k\).*Hand over now/, tool);
+      assert.match(
+        reason ?? '',
+        new RegExp(`hand-over line \\(${OUT / 1000}k\\).*Hand over now`),
+        tool
+      );
       assert.doesNotMatch(reason ?? '', /Planner/, tool);
     }
     const out = JSON.parse(run(payload(file, 'Edit', { file_path: inRepo('a.ts') }), env));
@@ -116,17 +126,68 @@ test('under the line, and after a compact, nothing is denied', () => {
   const { root, env, cleanup } = fixture();
   try {
     const args = { file_path: inRepo('a.ts') };
-    assert.equal(decide(payload(transcript(root, [230_000, 240_000]), 'Edit', args), env), null);
-    assert.ok(
-      decide(payload(transcript(root, [230_000, 255_000], 'a.jsonl'), 'Edit', args), env) === null
+    const b = BUMP;
+    assert.equal(
+      decide(payload(transcript(root, [230_000 + b, 240_000 + b]), 'Edit', args), env),
+      null
     );
-    assert.ok(decide(payload(transcript(root, [255_000, 260_000], 'b.jsonl'), 'Edit', args), env));
+    assert.ok(
+      decide(
+        payload(transcript(root, [230_000 + b, 255_000 + b], 'a.jsonl'), 'Edit', args),
+        env
+      ) === null
+    );
+    assert.ok(
+      decide(payload(transcript(root, [255_000 + b, 260_000 + b], 'b.jsonl'), 'Edit', args), env)
+    );
     // after /compact the context falls and the deny lifts
     assert.equal(
       decide(
-        payload(transcript(root, [255_000, 260_000, 90_000, 95_000], 'c.jsonl'), 'Edit', args),
+        payload(
+          transcript(root, [255_000 + b, 260_000 + b, 90_000, 95_000], 'c.jsonl'),
+          'Edit',
+          args
+        ),
         env
       ),
+      null
+    );
+  } finally {
+    cleanup();
+  }
+});
+
+test('the out line is 300k for a lane cwd and 250k elsewhere', () => {
+  const { root, env, cleanup } = fixture();
+  try {
+    const lane = 'C:\\P\\Foundry\\.claude\\worktrees\\lane-a-1';
+    const main = 'C:\\P\\Foundry';
+    const agent = { model: 'sonnet', prompt: 'x' };
+    const call = (ctxs, name, cwd) =>
+      decide(payload(transcript(root, ctxs, name), 'Agent', agent, { cwd }), env);
+    // 260k: out for the planner, still fine for a lane
+    assert.match(call([260_000, 262_000], 'a.jsonl', main) ?? '', /hand-over line \(250k\)/);
+    assert.equal(call([260_000, 262_000], 'b.jsonl', lane), null);
+    assert.equal(call([295_000, 299_000], 'c.jsonl', lane), null);
+    assert.match(call([305_000, 310_000], 'd.jsonl', lane) ?? '', /hand-over line \(300k\)/);
+    assert.match(call([305_000, 310_000], 'e.jsonl', main) ?? '', /hand-over line \(250k\)/);
+  } finally {
+    cleanup();
+  }
+});
+
+test('CLAUDE_PROJECT_DIR decides lane or planner, not a cwd that moved with a cd', () => {
+  const { root, cleanup } = fixture();
+  try {
+    const lane = 'C:\\P\\Foundry\\.claude\\worktrees\\lane-a-1';
+    const main = 'C:\\P\\Foundry';
+    const agent = { model: 'sonnet', prompt: 'x' };
+    const file = transcript(root, [270_000, 272_000]);
+    // a planner that cd'd into a lane worktree is still stopped at 250k
+    assert.ok(decide(payload(file, 'Agent', agent, { cwd: lane }), { CLAUDE_PROJECT_DIR: main }));
+    // a lane that cd'd to the main checkout is still allowed up to 300k
+    assert.equal(
+      decide(payload(file, 'Agent', agent, { cwd: main }), { CLAUDE_PROJECT_DIR: lane }),
       null
     );
   } finally {
@@ -138,7 +199,7 @@ test('a doubled phantom reading never stops a session', () => {
   const { root, env, cleanup } = fixture();
   try {
     const args = { file_path: inRepo('a.ts') };
-    // Real triple 161,654 / 327,920 / 164,453 against the out line of 250k.
+    // Real triple 161,654 / 327,920 / 164,453 against the out line (250k, 300k in a lane).
     for (const [i, seq] of [
       [161_654, 327_920],
       [327_920, 164_453],
@@ -148,7 +209,10 @@ test('a doubled phantom reading never stops a session', () => {
     }
     // Two big responses in a row are real.
     assert.ok(
-      decide(payload(transcript(root, [255_000, 262_000], 'real.jsonl'), 'Edit', args), env)
+      decide(
+        payload(transcript(root, [255_000 + BUMP, 262_000 + BUMP], 'real.jsonl'), 'Edit', args),
+        env
+      )
     );
   } finally {
     cleanup();
@@ -263,7 +327,7 @@ test('the hook process: prints a deny as JSON, nothing on garbage stdin', () => 
       spawnSync(process.execPath, [HOOK], {
         input: stdin,
         encoding: 'utf8',
-        env: { ...process.env, ...env },
+        env: { ...process.env, CLAUDE_PROJECT_DIR: '', ...env },
       });
     const r = spawn(JSON.stringify(payload(file, 'Edit', { file_path: inRepo('a.ts') })));
     assert.equal(r.status, 0);

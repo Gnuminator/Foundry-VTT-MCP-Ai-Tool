@@ -22,7 +22,7 @@ people is still to come. Works through Discord's end-to-end voice encryption (DA
 
 2. Invite the bot with the scopes `bot` and `applications.commands` and the permissions View
    Channels, Connect, Send Messages and Use Slash Commands.
-3. Build and run (Node 22.12 or newer):
+3. Build and run (Node 24 or newer):
 
    ```bash
    npm run build -w @gnuminator/discord-bot

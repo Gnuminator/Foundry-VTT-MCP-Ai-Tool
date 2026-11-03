@@ -60,7 +60,7 @@ per session and to group the play log.
 - Click **End session** when play ends. The text changes back to "No session". It also turns off
   again what **Turn on for tonight** turned on (see below), and GM Actions.
 - Starting a session writes a line in the tool's own log and turns live play on, so tools that
-  change the game can run after you confirm. There is no "log only" start any more.
+  change the game can run after you confirm.
 - If you forget, the notes still split sessions at a gap of 3 hours without events.
 
 The 📓 Obsidian link next to it opens your campaign's Home note in Obsidian (see "Open in Obsidian" below).
@@ -300,7 +300,7 @@ the tool's play log, the same as the Stats section of the Obsidian session note.
 
 Below tonight's stats, once the notes of a recorded session exist (the session pipeline writes them
 after the session). The tool puts them into Foundry **by itself, without asking**: a GM-only
-journal "Session notes" with the pages Recap, GM summary and Scenes, logged in Recent Changes with
+journal in the folder "Session notes" (named with the date and title) with the pages Recap, GM summary and Scenes, logged in Recent Changes with
 Undo. The card says where they are:
 
 - **Waiting**: they go in by themselves as soon as a GM is in Foundry, "Allow Write Operations" is

@@ -7,13 +7,15 @@ description: Guides for a GM running a game with Foundry AI Tool, written for so
 
 **Start with one page:** [First 15 minutes](first-15-minutes.md). It is the one to read first.
 
-**New to running Foundry?** Then spend [your first hour as GM](first-hour.md) on a set reading order.
+Then, in this order:
 
-**On a new PC:** first [connect Claude Desktop to the server](connect-claude-desktop.md).
+1. [Your first hour as GM](first-hour.md), if you are new to running Foundry.
+2. [Getting started](getting-started.md), once.
+3. The [before-session](before-session.md) and [after-session](after-session.md) checklists, every
+   time you play.
 
-**Start here:** read [Getting started](getting-started.md) once, then use the
-[before-session](before-session.md) and [after-session](after-session.md) checklists every time you
-play.
+On a new PC, [connect Claude Desktop to the server](connect-claude-desktop.md) first. A word you do
+not know is in the [glossary](glossary.md).
 
 **From inside Foundry:** Settings tab, **Game Settings**, category **Foundry AI Tool**, the
 **Open the GM guide** button opens these pages in a new browser tab.
@@ -23,7 +25,8 @@ play.
 | [First 15 minutes](first-15-minutes.md)                           | The one page to read first: what this is, four small steps, what to ignore for now.            |
 | [Your first hour as GM](first-hour.md)                            | A set reading order: Foundry's own guides for the basics, our pages for the tool.              |
 | [Quest: your first hour](first-hour-quest.md)                     | The first hour as four stages to tick off.                                                     |
-| [Getting started](getting-started.md)                             | What the tool is, its parts, how they fit together, a glossary, and today's setup.             |
+| [Getting started](getting-started.md)                             | What the tool is, its parts, how they fit together, and today's setup.                         |
+| [Glossary](glossary.md)                                           | The Foundry words and the tool words used in these guides.                                     |
 | [The dashboard](dashboard.md)                                     | Every panel and button on the dashboard, what it does and when to use it.                      |
 | [The GM windows](gm-windows.md)                                   | Combat, Party, Session, Scene and Loot as small windows next to the map, and how to switch on. |
 | [The live views](live-views.md)                                   | Live screen, GM page and Live window: the three ways to keep the combat strip next to Foundry. |

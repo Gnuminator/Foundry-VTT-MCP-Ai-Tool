@@ -293,20 +293,23 @@ export function LiveStrip(): JSX.Element {
   });
 
   /** One write at a time: a second click while one runs does nothing. */
-  const once = useCallback(async (work: () => Promise<void>, key?: BusyKey): Promise<void> => {
-    if (busyRef.current) return;
-    busyRef.current = true;
-    setBusy(key ?? true);
-    try {
-      await work();
-    } finally {
-      // Read the fight at once: the card shows the change now, not at the next 4 s poll.
-      if (!awayRef.current) await refreshCombat(queryClient);
-      busyRef.current = false;
-      setBusy(false);
-      setPendingIds(new Set());
-    }
-  }, [queryClient]);
+  const once = useCallback(
+    async (work: () => Promise<void>, key?: BusyKey): Promise<void> => {
+      if (busyRef.current) return;
+      busyRef.current = true;
+      setBusy(key ?? true);
+      try {
+        await work();
+      } finally {
+        // Read the fight at once: the card shows the change now, not at the next 4 s poll.
+        if (!awayRef.current) await refreshCombat(queryClient);
+        busyRef.current = false;
+        setBusy(false);
+        setPendingIds(new Set());
+      }
+    },
+    [queryClient]
+  );
 
   /** Clears the pick and hands keyboard focus to the pick bar, whose Clear / form just went. */
   const clearPick = useCallback((): void => {

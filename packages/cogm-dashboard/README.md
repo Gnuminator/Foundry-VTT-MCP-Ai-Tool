@@ -106,7 +106,7 @@ picker.
   `http://127.0.0.1:3100`).
 - `npm run test:e2e` runs the Playwright browser tests in `web/e2e` against the built server
   (no bridge; each test fakes the routes it needs). Build first. They need Playwright's Chromium
-  (`npx playwright install chromium`) or `PLAYWRIGHT_CHANNEL=msedge`. CI runs them on Node 22.
+  (`npx playwright install chromium`) or `PLAYWRIGHT_CHANNEL=msedge`. CI runs them on Node 24.
 - `npm run test:visual` runs the screenshot tests in Docker; see "Screenshot tests" below.
 - Usage names go in `data-track="..."` as string literals;
   `npm run usage:catalog` scans `web/src` too.

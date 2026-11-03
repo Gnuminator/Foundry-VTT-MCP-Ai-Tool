@@ -22,7 +22,7 @@ import {
   parseArgs,
   selectSteps,
   formatDuration,
-  portableNode22Dir,
+  portableNodeDir,
   stepEnvironment,
   nodeNote,
   main,
@@ -440,45 +440,49 @@ test('started through a junction, green still runs (exit code and output, not a 
   assert.ok(listed.includes('typecheck'));
 });
 
-test('portableNode22Dir: on Windows under Node 24 the newest portable Node 22 comes first; elsewhere nothing changes', () => {
+test('portableNodeDir: on Windows under Node older than 24.22 the newest portable Node 24 comes first; elsewhere nothing changes', () => {
   const localAppData = path.join('C:', 'Users', 'u', 'AppData', 'Local');
   const base = {
     platform: 'win32',
     localAppData,
-    major: 24,
-    readdir: () => ['node-v22.9.1-win-x64', 'node-v22.22.2-win-x64', 'node-v20.1.0-win-x64', 'x'],
+    version: '24.15.0',
+    readdir: () => ['node-v24.9.1-win-x64', 'node-v24.22.2-win-x64', 'node-v22.1.0-win-x64', 'x'],
     exists: () => true,
   };
-  assert.equal(portableNode22Dir(base), path.join(localAppData, 'node22', 'node-v22.22.2-win-x64'));
-  assert.equal(portableNode22Dir({ ...base, major: 22 }), null, 'already Node 22');
-  assert.equal(portableNode22Dir({ ...base, platform: 'linux' }), null, 'not Windows');
-  assert.equal(portableNode22Dir({ ...base, localAppData: '' }), null, 'no LOCALAPPDATA');
-  assert.equal(portableNode22Dir({ ...base, exists: () => false }), null, 'no node.exe in it');
+  assert.equal(portableNodeDir(base), path.join(localAppData, 'node24', 'node-v24.22.2-win-x64'));
+  assert.equal(portableNodeDir({ ...base, version: '24.22.2' }), null, 'already Node 24.22.2');
+  assert.equal(portableNodeDir({ ...base, version: '24.30.0' }), null, 'newer Node 24');
+  assert.equal(portableNodeDir({ ...base, version: '25.0.0' }), null, 'newer major');
+  assert.ok(portableNodeDir({ ...base, version: '24.21.9' }), 'just below 24.22 still pins');
+  assert.ok(portableNodeDir({ ...base, version: '22.22.2' }), 'Node 22 gets the pin');
+  assert.equal(portableNodeDir({ ...base, platform: 'linux' }), null, 'not Windows');
+  assert.equal(portableNodeDir({ ...base, localAppData: '' }), null, 'no LOCALAPPDATA');
+  assert.equal(portableNodeDir({ ...base, exists: () => false }), null, 'no node.exe in it');
   assert.equal(
-    portableNode22Dir({
+    portableNodeDir({
       ...base,
       readdir: () => {
         throw new Error('ENOENT');
       },
     }),
     null,
-    'no node22 folder'
+    'no node24 folder'
   );
 });
 
 test('stepEnvironment: one PATH key with the pin first, even when the parent holds PATH and Path', () => {
-  const dir = 'C:\\n22';
+  const dir = 'C:\\n24';
   const env = stepEnvironment({ PATH: 'a', Path: 'b', Other: 'x' }, dir, ';');
   const pathKeys = Object.keys(env).filter(k => k.toLowerCase() === 'path');
   assert.deepEqual(pathKeys, ['PATH']);
-  assert.equal(env.PATH, 'C:\\n22;a');
+  assert.equal(env.PATH, 'C:\\n24;a');
   assert.equal(env.Other, 'x');
   assert.deepEqual(
     stepEnvironment({ Path: 'b' }, dir, ';'),
-    { Path: 'C:\\n22;b' },
+    { Path: 'C:\\n24;b' },
     'the real casing is kept'
   );
-  assert.deepEqual(stepEnvironment({}, dir, ';'), { PATH: 'C:\\n22;' }, 'no PATH at all');
+  assert.deepEqual(stepEnvironment({}, dir, ';'), { PATH: 'C:\\n24;' }, 'no PATH at all');
   const base = { Path: 'b', PATH: 'a' };
   assert.deepEqual(stepEnvironment(base, null), base, 'no pin: untouched');
   assert.deepEqual(base, { Path: 'b', PATH: 'a' }, 'the input is not changed');
@@ -486,18 +490,18 @@ test('stepEnvironment: one PATH key with the pin first, even when the parent hol
 
 test('nodeNote: Windows says which Node the steps run on, other systems say nothing', () => {
   assert.equal(
-    nodeNote({ platform: 'win32', major: 24, version: '24.15.0', dir: 'C:\\n22' }),
-    'green: steps on Node 22 (C:\\n22)'
+    nodeNote({ platform: 'win32', version: '24.15.0', dir: 'C:\\n24' }),
+    'green: steps on Node 24 (C:\\n24)'
   );
   assert.equal(
-    nodeNote({ platform: 'win32', major: 24, version: '24.15.0', dir: null }),
-    'green: no portable Node 22 found; steps run on Node 24.15.0'
+    nodeNote({ platform: 'win32', version: '24.15.0', dir: null }),
+    'green: no portable Node 24 found; steps run on Node 24.15.0'
   );
   assert.equal(
-    nodeNote({ platform: 'win32', major: 22, version: '22.22.2', dir: null }),
-    'green: steps on Node 22.22.2'
+    nodeNote({ platform: 'win32', version: '24.22.2', dir: null }),
+    'green: steps on Node 24.22.2'
   );
-  assert.equal(nodeNote({ platform: 'linux', major: 24, version: '24.1.0', dir: null }), null);
+  assert.equal(nodeNote({ platform: 'linux', version: '24.1.0', dir: null }), null);
 });
 
 test('docs:lint: markdown in .gitignore folders (playwright-report, test-results) is not linted', () => {
@@ -531,11 +535,11 @@ test('docs:lint: markdown in .gitignore folders (playwright-report, test-results
 });
 
 test('main: the Node note is the first line, before the steps', () => {
-  const r = run([], {}, undefined, 'green: steps on Node 22 (x)');
-  assert.deepEqual(r.lines, ['green: steps on Node 22 (x)', 'green: OK, 3 steps in 1m2s']);
+  const r = run([], {}, undefined, 'green: steps on Node 24 (x)');
+  assert.deepEqual(r.lines, ['green: steps on Node 24 (x)', 'green: OK, 3 steps in 1m2s']);
   assert.equal(
-    run(['--list'], {}, undefined, 'green: steps on Node 22 (x)').lines.includes(
-      'green: steps on Node 22 (x)'
+    run(['--list'], {}, undefined, 'green: steps on Node 24 (x)').lines.includes(
+      'green: steps on Node 24 (x)'
     ),
     false
   );

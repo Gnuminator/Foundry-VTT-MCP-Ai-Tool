@@ -38,7 +38,10 @@ export function parseProgress(text) {
     const block = lines.slice(start, end);
     if (/^##\s+[SML]\s/.test(block[0])) {
       const id = block.map(l => /^-\s+id\s*:\s*(\S+)/i.exec(l)).find(Boolean)?.[1];
-      const progress = block.map(l => /^-\s+progress\s*:\s*(.*?)\s*$/i.exec(l)).find(Boolean)?.[1];
+      const progress = block
+        .map(l => /^-\s+progress\s*:\s*(.*?)\s*$/i.exec(l)?.[1])
+        .filter(Boolean)
+        .join('\n');
       if (id && progress) map.set(id, progress);
     }
     start = end;

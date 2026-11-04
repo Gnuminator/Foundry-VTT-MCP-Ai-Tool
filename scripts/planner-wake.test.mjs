@@ -27,6 +27,11 @@ test('parseProgress reads only items with an id and a progress line', () => {
   assert.equal(m.get('third'), 'handed over at 250k');
 });
 
+test('parseProgress joins several progress lines of one item', () => {
+  const m = parseProgress('## S X\n- id: x\n- progress: one\n- progress: two\n');
+  assert.equal(m.get('x'), 'one\ntwo');
+});
+
 test('changedProgress reports new and changed lines, not removed ones', () => {
   const before = parseProgress(backlog());
   assert.deepEqual(changedProgress(before, before), []);

@@ -12,12 +12,13 @@ then ends; it does not poll for lanes (see Waking). Vault paths are under
 ## Read the state (measured, never from memory)
 
 - `Backlog.md`, `Waiting.md`, CLAUDE.md "Holds now". The `- progress:` line on a claimed item is
-  the lane's ready state; lanes message nobody, so read it on every wake for every claimed item, inherited lanes included. Never message an idle lane (it re-reads its context). A lane that stopped with a handover and no running successor gets one the same
-  turn (Sonnet; the brief points at its `Handoff/<lane> prompt <date>.md`; a card if the turn cannot
-  start sessions), and the stopped lane is archived first (git refuses a branch another worktree holds).
+  the lane's ready state; lanes message nobody, so read it on every wake for every claimed item,
+  inherited lanes included. Never message an idle lane. A lane that stopped with a handover and no
+  running successor gets one the same turn (Sonnet; the brief points at its `Handoff/<lane> prompt
+<date>.md`; a card if the turn cannot start sessions), and the stopped lane is archived first.
 - `gh pr list --state open` and the CI of each; main's last runs at start and before each lane
-  start: `gh run list --branch main -w ci.yml --event push --status completed -L 15` (the start
-  hook prints "main CI red since <sha>"). Red means "Main is red".
+  start: `gh run list --branch main -w ci.yml --event push --status completed -L 15` (red means
+  "Main is red").
 - `list_sessions` without `linked` (lanes start their own successors), then `get_usage` with each
   running lane's id (lanes underreport their context) and `"self"` for yours and the plan
   percentages.
@@ -76,10 +77,12 @@ The planner ends after its outcome. At 200k context it plans the handover and ke
 
 ## Waking
 
-While lanes run, end each turn by starting `node scripts/planner-wake.mjs` with `run_in_background`.
-It exits when a `- progress:` line in vault Backlog.md is new or changed (the app wakes you; the
-output names the item), or after 4 h of quiet (exit 4). Exit 3 (idle over an hour, cold): start a fresh planner (`start_session`, Opus, the printed brief) and end. Stop it when you hand over.
-Never poll or wake on a timer.
+While lanes run, end each turn by stopping any old watcher, pushing your vault edits, then starting
+`node scripts/planner-wake.mjs` with `run_in_background`, and re-read the Backlog progress lines once
+after arming. It exits when a `- progress:` line in vault Backlog.md is new or changed (the app
+wakes you; the output names the item), or after 4 h of quiet (exit 4: re-arm or hand over). Exit 3
+(idle over an hour, cold): start a fresh planner (`start_session`, Opus, the printed brief) and end.
+Exit 1: tell the user. Stop it when you hand over. Never poll or wake on a timer.
 
 ## Merges
 

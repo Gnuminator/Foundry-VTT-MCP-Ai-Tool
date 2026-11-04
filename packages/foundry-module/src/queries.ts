@@ -60,6 +60,7 @@ import { planRoomSetup, ROOM_SETUP_QUERY } from './room-setup.js';
 import { LIVE_SWEEP_QUERY, liveSweep } from './live-sweep.js';
 import { SESSION_SWITCHES_QUERY, sessionSwitches } from './session-switches.js';
 import { CHARACTER_SHEET_QUERY, PLAYER_ROLL_QUERY, characterSheets } from './character-sheet.js';
+import { UPLOAD_PLAYER_PORTRAIT_QUERY, uploadPlayerPortrait } from './player-portrait.js';
 import { gateWriteHandlers } from './write-gate.js';
 import { getSetupInfo } from './data-access/setup-info.js';
 
@@ -350,6 +351,13 @@ export class QueryHandlers {
         }
         return this.dataAccess.executePlayerRoll(body.userId, body.buttonId);
       })
+    );
+
+    // "Upload my portrait": store a picture a player sent for a character they own, in
+    // assets/players/<their slug>/ (player-portrait.ts checks ownership and the bytes). A write
+    // (write-gate.ts); not an MCP tool (the control method `player_portrait`). GM client only.
+    handlers.on(`${modulePrefix}.${UPLOAD_PLAYER_PORTRAIT_QUERY}`, (data: unknown) =>
+      this.withGmGate('Portrait upload failed', () => uploadPlayerPortrait(data))
     );
 
     // Obsidian mirror (O4, read-only): the export index of PCs, NPCs, scenes,

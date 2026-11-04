@@ -22,8 +22,6 @@ import {
   lairTurnIndex,
   livingBosses,
   metaText,
-  planRequest,
-  endCombatRequest,
   pruneSelection,
   reactionLabel,
   reactionsFor,
@@ -393,20 +391,6 @@ describe('selecting combatants and the action bar', () => {
       who({ id: 'c3', name: 'Bram' }),
     ]);
     expect(selectedTargets(wolves, new Set(['c2', 'c3']))).toEqual(['tok2', 'Bram']);
-    expect(planRequest('damage', ['Alder'])).toEqual({
-      name: 'plan-actor-change',
-      prefill: { action: 'damage', targets: ['Alder'] },
-    });
-    expect(planRequest('condition', ['A', 'B']).prefill).toEqual({
-      action: 'condition',
-      targets: ['A', 'B'],
-    });
-  });
-});
-
-describe('ending the fight', () => {
-  it('opens the tool runner on plan-combat-change with the end action', () => {
-    expect(endCombatRequest()).toEqual({ name: 'plan-combat-change', prefill: { action: 'end' } });
   });
 });
 

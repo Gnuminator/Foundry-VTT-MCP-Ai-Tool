@@ -131,8 +131,8 @@ resources; scene dressing (placing templates, darkness and light, adding map not
 and starting a fight. Plans that delete something (clearing a template, removing a map note, ending
 a fight) and token moves and changes still wait for your yes. Each change still lands in Recent
 Changes with **Undo**. The dashboard's party and Tarokka buttons never need it: they apply at once with an
-**Undo** message. Its Damage / Heal form applies at once the same way; its Condition button goes
-through the tool runner and always shows the confirm window (see
+**Undo** message. Its Damage / Heal form applies at once the same way; its Condition chips ask in
+one line before they apply (see
 [the dashboard guide](dashboard.md#the-confirm-window)).
 
 ### Feature switches

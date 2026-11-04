@@ -224,10 +224,11 @@ turns it on), click combatant rows to select them (click again to unselect). Wit
   ("Deal 8 fire damage to ... in Foundry"), applies it at once to every picked token; each takes
   the full amount. The toast has **Undo** and Recent Changes keeps the change. There is no
   confirm window for this form.
-- **Condition**: opens the tool runner with the picked names filled in: pick the condition, and
-  untick **active** to remove it. Click **Run...**; the confirm window lists each target and what
-  will change; click **Confirm**.
-- **Clear**: unselects all (and closes the Damage / Heal form).
+- **Condition**: opens a row of condition chips under the strip. Click one (say **prone**); one
+  plain question asks "Set prone on ...?", and **Set prone** puts it on every picked token. The
+  toast has **Undo** and Recent Changes keeps the change. To take a condition off, use the chip on
+  the live strip or the **Conditions** panel.
+- **Clear**: unselects all (and closes the Damage / Heal form or the condition chips).
 - **Ask for a roll** (under the strip, with GM Actions on): pick a check, save or skill, a DC and
   private or public, then **Ask the party**, or **Ask** for the picked player characters. The
   request goes to each player's chat and the play log at once, with no confirm window and no
@@ -251,8 +252,8 @@ round 1, with **Undo**. A ticked box, **Ask the player characters to roll initia
 ticked player character a public roll request; when they roll it, the number fills their place in
 the tracker. Undo removes the fight but leaves the request cards in chat. Whoever is up shows an
 **Up now** label. Changing an initiative later (the tool **set-initiative**) re-orders the fight but
-does not move the turn. **End combat** plans ending the fight; you
-confirm it, and Undo brings it back.
+does not move the turn. **End combat** plans ending the fight and asks one plain
+question; you confirm it, and Undo (on the toast and in Recent Changes) brings it back.
 
 **👑 Boss prompts** (in the panel's top line, only while a creature with legendary actions or a lair
 is in the fight; off until you turn it on, and remembered in this browser). Turn it on before the
@@ -484,8 +485,9 @@ The confirm window opens first for:
   Undo and asks in one line, with no tick.
 - **Plans you did not make on the dashboard**: a plan Claude made.
   Plan, confirm and undo stay for every AI change.
-- **Any plan made in the tool runner**, including the combat strip's Condition, so you see which
-  targets it hits before it applies. (The strip's Damage / Heal form applies at once, with Undo.)
+- **Any plan made in the tool runner**, so you see which targets it hits before it applies. (The
+  strip's Damage / Heal form applies at once, with Undo; its Condition chips and End combat ask in
+  one line.)
 - **Older tools without a plan** (from the tool runner), which have no Undo.
 
 In the confirm window:

@@ -20,6 +20,7 @@ import { callTool, errorText } from '../lib/api';
 import { AWAY_TEXT, NO_VALUE, canSelect, hpPercent, hpText, hpTone } from '../lib/combat';
 import type { Combatant } from '../lib/combat';
 import { AI_LIMIT, readAiChanges } from '../lib/changes';
+import { useEndCombat } from '../lib/endCombat';
 import { useGuardedTools } from '../lib/guarded';
 import { useLivePlay } from '../lib/livePlay';
 import { useMapPick } from '../lib/mapPick';
@@ -32,7 +33,6 @@ import {
   conditionArgs,
   displayNames,
   downWords,
-  endQuestion,
   lastUndoable,
   pickText,
   removeConditionArgs,
@@ -222,7 +222,8 @@ export function LiveStrip(): JSX.Element {
   const queryClient = useQueryClient();
   const askConfirm = useConfirm();
   const showUndo = useContext(StripUndoContext);
-  const { plan, gated, call, applyApproved } = useGuardedTools();
+  const { plan, gated, call } = useGuardedTools();
+  const planEnd = useEndCombat();
   const roll = useQuickRoll();
   const [picked, setPicked] = useState<ReadonlySet<string>>(new Set());
   const [lastAsked, setLastAsked] = useState<string[]>([]);
@@ -331,41 +332,8 @@ export function LiveStrip(): JSX.Element {
       );
     }, 'next');
 
-  const endCombat = (): Promise<void> =>
-    once(async () => {
-      const from = focusedElement();
-      if (gated('plan-combat-change')) return;
-      let planned: { planId?: unknown; summary?: unknown; warning?: unknown } | null;
-      try {
-        planned = await callTool<typeof planned>('plan-combat-change', {
-          action: 'end',
-        });
-      } catch (err) {
-        toast(`✗ End combat: ${errorText(err)}`, 'err');
-        return;
-      }
-      const planId = typeof planned?.planId === 'string' ? planned.planId : '';
-      if (!planId) {
-        toast('✗ End combat: the bridge made no plan', 'err');
-        return;
-      }
-      const ok = await askConfirm({
-        title: 'End combat',
-        summary: endQuestion(
-          typeof planned?.summary === 'string' ? planned.summary : null,
-          typeof planned?.warning === 'string' ? planned.warning : null
-        ),
-        diff: [],
-        compact: true,
-        confirmLabel: 'End combat',
-        destructive: false,
-        returnTo: from,
-      });
-      if (!ok) return;
-      // Busy on the button only once the write runs, not while the GM answers the question.
-      setBusy('end');
-      await applyApproved(planId, true);
-    });
+  // Busy on the button only once the write runs, not while the GM answers the question.
+  const endCombat = (): Promise<void> => once(() => planEnd(() => setBusy('end')));
 
   const addCondition = (condition: string): Promise<void> =>
     once(async () => {

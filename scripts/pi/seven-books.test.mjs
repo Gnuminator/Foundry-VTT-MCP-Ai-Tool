@@ -444,7 +444,10 @@ describe('seven-books-trim.js', () => {
       'dnd-players-handbook.hidden',
       id(71)
     );
-    await assert.rejects(run(check, world, true), /DRIFT.*"deadLinks":1/);
+    // listed, but not drift: a rerun of the trim could not fix it
+    const dead = await run(check, world, true);
+    assert.match(dead.lines.join('\n'), /dnd-players-handbook\.hidden 1\), unexpected: 1/);
+    assert.match(dead.lines.join('\n'), /no drift/);
   });
 
   test('skips a world without the aitool-content packs', async () => {

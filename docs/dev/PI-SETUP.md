@@ -1657,7 +1657,8 @@ The player-facing content is cut to the seven kept books (PHB 2024, DMG 2024, Co
   as a dry run and fails with `DRIFT: ...` when the world no longer matches what the trim leaves: an entry of a dropped book is
   back in `aitool-content` (`move`), a kept entry links to something only the legacy pack has (`comeBack`) or to the SRD packs
   (`repoint`), a dnd5e pack is visible again (`hide`, `srdVisible`), or a kept entry links into a pack players cannot open
-  (`deadLinks`; the known GM-only `summons` and `tables` packs are only listed). It stops the Assistant GM for the length of
+  (`srdVisible`). Kept entries that link into a pack players cannot open are listed (`LINKS INTO PACKS PLAYERS CANNOT OPEN`, the
+  known GM-only `summons` and `tables` among them) but are not drift: a trim rerun cannot fix them. It stops the Assistant GM for the length of
   the run like any GM script. Run it after a stage 11 push, a module update and stage 25; `no drift` is the pass line.
 - **Delete:** `MODE=delete APPLY=1 DELETE_LEGACY=with-the-users-ok` only after the user's OK; the legacy pack holds the only copy of
   about 1500 entries on the Pi (the PC's content module and the snapshot are the way back).

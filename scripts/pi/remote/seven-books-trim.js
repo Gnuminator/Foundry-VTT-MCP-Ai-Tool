@@ -257,7 +257,9 @@ if (args.dryRun) {
     const srdVisible = ['dnd5e.items', 'dnd5e.monsters'].filter(
       pid => game.packs.get(pid) && !same(ownershipOf(game.packs.get(pid)), HIDDEN)
     );
-    const drift = { ...result, deadLinks: unexpectedDead.length, srdVisible: srdVisible.length };
+    // Links into packs players cannot open are listed above but are not drift: running the trim again cannot change
+    // them (it never touches the ownership of aitool-content packs), so they are a finding for the user.
+    const drift = { ...result, srdVisible: srdVisible.length };
     if (Object.values(drift).some(n => n > 0))
       throw new Error(
         `DRIFT: the world no longer matches the seven-book trim ${JSON.stringify(drift)}; run stage 22 again (dry run first)\n${done.join('\n')}`

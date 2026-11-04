@@ -1132,6 +1132,7 @@ export class QueryHandlers {
       configureDialog?: boolean;
       spellLevel?: number;
       versatile?: boolean;
+      rollAttack?: boolean;
     };
   }): Promise<unknown> {
     return this.withGmGate('Failed to use item', async () => {

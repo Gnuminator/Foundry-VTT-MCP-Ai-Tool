@@ -1,0 +1,50 @@
+/* The Attack form on the combat strip: a short panel under the action bar. */
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--border-soft);
+  background: var(--bg-elev);
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-2);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  font-size: var(--fs-sm);
+  color: var(--text-dim, var(--text));
+}
+
+.field select {
+  min-width: 10rem;
+  max-width: 100%;
+  padding: 0.3rem 0.5rem;
+  font-size: var(--fs-md, 1rem);
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+}
+
+.field select:focus-visible {
+  outline: 2px solid var(--accent-bright);
+  outline-offset: 1px;
+}
+
+.note {
+  margin: 0;
+  font-size: var(--fs-sm);
+  color: var(--text-dim, var(--text));
+}
+
+.note:empty {
+  display: none;
+}

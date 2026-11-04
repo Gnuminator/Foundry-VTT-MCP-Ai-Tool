@@ -74,6 +74,7 @@ export function GmPage(): JSX.Element {
     const gmOnly = info.error instanceof ApiError && info.error.status === 403;
     return (
       <main className={styles.page}>
+        <RoleNotice />
         <p className={styles.note} role="alert">
           {gmOnly
             ? 'This page is for the GM.'

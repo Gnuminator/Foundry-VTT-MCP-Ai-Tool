@@ -79,9 +79,15 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
       refusal.code
     );
   }
-  // A 200 that is not JSON is a sign-in page or a proxy's page standing in for the dashboard (a
-  // lost login), not an answer.
-  if (body === undefined) throw new ApiError(plainError(401), 401, undefined, 'login-needed');
+  if (body === undefined) {
+    // A 200 whose type is not JSON (HTML) is a sign-in page or a proxy's page standing in for the
+    // dashboard (a lost login), not an answer. An empty body is just an empty answer.
+    const type = res.headers?.get('content-type') ?? '';
+    if (type !== '' && !/json/i.test(type)) {
+      throw new ApiError(plainError(401), 401, undefined, 'login-needed');
+    }
+    return {} as T;
+  }
   return body as T;
 }
 
@@ -115,7 +121,6 @@ export async function callTool<T>(
 /** Sentences the tools write for Claude, not for the GM. */
 const CLAUDE_TAILS = [
   /\s*Tell the GM and stop here; do not work around it with other tools\.?/g,
-  /\s*Tell the GM that Foundry is not connected \([^)]*\); do not retry\.?/g,
   /\s*It may have been applied already: check list-recent-changes first\.[^]*?make a new plan\.?/g,
   /\s*Use [a-z][a-z0-9-]* to find the right one, then try again\.?/g,
 ];
@@ -128,7 +133,11 @@ const TOOL_ID =
  * ("plan-combat-change" as "combat change"), so no id reaches a toast, empty state or tooltip.
  */
 export function plainText(message: string): string {
-  let text = message;
+  // The not-connected tail is the one note worth keeping, said to the GM.
+  let text = message.replace(
+    /Tell the GM that Foundry is not connected \([^)]*\); do not retry\.?/,
+    'Foundry is not connected: open the world in a browser with a GM joined.'
+  );
   for (const tail of CLAUDE_TAILS) text = text.replace(tail, '');
   text = text.replace(TOOL_ID, id => toolWords(id).toLowerCase());
   return text.trim() || plainError(500);

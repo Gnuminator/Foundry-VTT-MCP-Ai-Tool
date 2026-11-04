@@ -1,17 +1,25 @@
 // api(): the message a failed route shows, in words (item dashboard-truth, dashboard-plain-errors).
+import {
+  NOT_CONNECTED_TAIL,
+  PLAN_GONE_TAIL,
+  STOP_AND_TELL,
+  featureSwitchOff,
+  notFoundMessage,
+} from '@gnuminator/shared';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { ApiError, api, errorText, plainError, plainText } from './api';
 
 vi.mock('./auth', () => ({ authHeaders: (): Record<string, string> => ({}) }));
 
-function answer(status: number, body: unknown, json = true): void {
+function answer(status: number, body: unknown, json = true, type = 'application/json'): void {
   vi.stubGlobal(
     'fetch',
     vi.fn(
       async (): Promise<unknown> => ({
         ok: status >= 200 && status < 300,
         status,
+        headers: { get: (): string => type },
         json: async (): Promise<unknown> => {
           if (!json) throw new SyntaxError('Unexpected token <');
           return body;
@@ -47,12 +55,17 @@ describe('api errors', () => {
     expect(err.message).not.toMatch(/HTTP|502/);
   });
 
-  it('treats a 200 that is not JSON as a login needed', async () => {
-    answer(200, undefined, false);
+  it('treats a 200 page that is not JSON as a login needed', async () => {
+    answer(200, undefined, false, 'text/html; charset=utf-8');
     const err = (await api('/x').catch((e: unknown) => e)) as ApiError;
     expect(err.status).toBe(401);
     expect(err.code).toBe('login-needed');
     expect(err.message).toMatch(/GM link/);
+  });
+
+  it('takes an empty JSON-typed 200 as an empty answer, not a lost login', async () => {
+    answer(200, undefined, false, 'application/json');
+    await expect(api('/x')).resolves.toEqual({});
   });
 });
 
@@ -76,7 +89,22 @@ describe('plainText', () => {
       plainText(
         'Foundry is down. Tell the GM that Foundry is not connected (the world must be open); do not retry.'
       )
-    ).toBe('Foundry is down.');
+    ).toBe(
+      'Foundry is down. Foundry is not connected: open the world in a browser with a GM joined.'
+    );
+  });
+
+  it('strips the shared wording the tools send Claude (so an edit there cannot bring it back)', () => {
+    for (const tail of [STOP_AND_TELL, PLAN_GONE_TAIL]) {
+      expect(plainText(`Nothing happened. ${tail}`)).toBe('Nothing happened.');
+    }
+    expect(plainText(notFoundMessage('That journal', 'list-journals'))).toBe(
+      'That journal not found.'
+    );
+    expect(plainText(`Not there. ${NOT_CONNECTED_TAIL}`)).toBe(
+      'Not there. Foundry is not connected: open the world in a browser with a GM joined.'
+    );
+    expect(plainText(featureSwitchOff('Paper sync', 'Paper sync'))).not.toMatch(/Tell the GM/);
   });
 
   it('drops the plan-gone tail that names tools', () => {

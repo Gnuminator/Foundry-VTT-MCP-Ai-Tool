@@ -145,21 +145,15 @@ The steps you will see, roughly in this order:
   the languages you want in the list (ask your GM or your D&D helper which ones suit the
   campaign) until that text is gone, then click **Next**.
 - **The background's feat.** Some feats ask for more choices. Magic Initiate, for example, asks for
-  two cantrips and a level-1 spell: pick them all, using **Select Spell** for each. The picker is
-  Foundry's compendium browser, and it needs care:
-  - **Pick the copy labelled "PHB 2024".** Most spells are listed once per book (SRD 5.1, SRD 5.2,
-    PHB, PHB 2024), so you see the same name up to four times.
-  - **Pick only spells of the class named after Magic Initiate**, for example Wizard spells for
-    Magic Initiate (Wizard). The class filters are locked on for Cleric, Druid and Wizard together,
-    so you are also shown spells from the other two lists, and nothing stops you picking one.
-  - The search box in that browser needs **Enter** before it filters.
+  two cantrips and a level-1 spell: pick them all, using **Select Spell** for each. A **Select
+  Spells** window opens with the spells you may take, each listed once, from the Player's Handbook
+  and from the spell list the feat names. Type in **Search spells...** to find one, click the
+  spells you want (the window stops you when you have enough) and click **Add Selected**. A spell
+  you already picked is not offered again. One thing to know:
   - **A feat that asks for a spellcasting ability, and then asks again** (a second Magic Initiate
     step): the second step puts the ability back to **Intelligence**, although it should match the
     first. Set it again to the same ability as your cantrips, for example Wisdom for a cleric's
     list.
-  - A spell card may linger at the bottom right of the screen after the browser closes. Ignore it.
-
-  ![Foundry's compendium browser in the Magic Initiate step: most spells listed once per book (SRD 5.1, SRD 5.2, PHB, PHB 2024), with the Cleric, Druid and Wizard filters locked on](../images/guides/studio-spell-picker.png)
 
 - **Class:** hit points, saving throws, **skills to choose** (most classes pick two), weapon and
   armour training, and your level-1 class features. **Weapon Mastery:** barbarian, fighter,

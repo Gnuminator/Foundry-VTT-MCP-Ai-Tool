@@ -99,8 +99,8 @@ Settings tab, **Game Settings**, the category **[Aardvark Games] Actor Studio (A
 
    The Spell Compendia row (item 1) decides which spells that Spells tab offers, so tick only the
    Player's Handbook there. Feats such as Magic Initiate are different: they open Foundry's own
-   spell browser, which lists every edition whatever you ticked. The player guide tells players to
-   pick the "PHB 2024" copy.
+   spell window (from Actor Studio 2.10.5-aitool.5), which offers the Player's Handbook spells of
+   the list the feat names, each once.
 
 5. **Configure progression**, under **Leveling Options**: tick **Enable Level Up** and **Milestone
    Levelling**. **Without Milestone Levelling a player sees no gold Level Up button on their

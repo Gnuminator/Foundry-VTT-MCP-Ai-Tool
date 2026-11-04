@@ -103,7 +103,7 @@ jobs:
 
       - name: Weekly usage report
         # scripts/dev (usage-week D-122 targets, usage-now, usage-report, weekly-check-note) against fixture transcripts.
-        run: node --test scripts/dev/usage-week.test.mjs scripts/dev/usage-now.test.mjs scripts/dev/usage-report.test.mjs scripts/dev/weekly-check-note.test.mjs
+        run: npm run dev:test
 
       - name: Game-night watch
         # scripts/gamenight-watch.mjs (I-145): the down/slow/recovered state machine, the probe and the message text.
@@ -257,8 +257,8 @@ jobs:
         run: node --test scripts/tv/start-table-viewer.test.mjs
 
       - name: Wiki staging scripts
-        # scripts/wiki (stage.mjs and the Danish page check), both test files in the folder.
-        run: node --test scripts/wiki/stage.test.mjs scripts/wiki/da.test.mjs
+        # scripts/wiki (stage.mjs and the Danish page check), every *.test.mjs in the folder (wiki.yml does not run them).
+        run: npm run wiki:test
 
       - name: Dnd helper skill build
         # tools/dnd-helper/build.mjs, the skill zip builder (the zip itself is not kept).

@@ -5,8 +5,9 @@
  *
  *   node scripts/test-coverage-check.mjs
  *
- * A file counts as run when its path (or a glob that matches it) is written in .github/workflows/*.yml
- * or in a script of the root package.json, or when it falls under a RUNNERS pattern: a tool that
+ * A file counts as run when its path (or a glob that matches it) is written in a `run:` command of
+ * .github/workflows/*.yml (comments do not count) or in a root package.json script that such a
+ * command starts with `npm run`, or when it falls under a RUNNERS pattern: a tool that
  * finds its own files (vitest includes, the Playwright test dirs, pytest in tools/*). Each RUNNERS
  * entry must still match a file, so a runner that is retired is noticed.
  */
@@ -14,6 +15,7 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { ciRunCommands } from './green.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -84,6 +86,42 @@ export function checkCoverage(files, commandText) {
   return { unrun, staleRunners };
 }
 
+/** The `run:` commands of every job of one workflow file (comments and `with:` text excluded). @param {string} yaml */
+export function workflowCommands(yaml) {
+  const jobs = [];
+  let inJobs = false;
+  for (const line of yaml.split(/\r?\n/)) {
+    if (/^jobs:\s*$/.test(line)) inJobs = true;
+    else if (inJobs) {
+      const m = /^ {2}([A-Za-z_][\w-]*):\s*$/.exec(line);
+      if (m) jobs.push(m[1]);
+    }
+  }
+  return jobs.flatMap(j => ciRunCommands(yaml, j));
+}
+
+/**
+ * Commands plus the root package scripts they start with `npm run <name>` (followed to any depth).
+ * A script nobody invokes does not count.
+ * @param {string[]} commands @param {Record<string, string>} scripts
+ */
+export function expandCommands(commands, scripts) {
+  const out = [];
+  const seen = new Set();
+  const queue = [...commands];
+  while (queue.length) {
+    const c = queue.shift();
+    out.push(c);
+    for (const m of c.matchAll(/npm run ([\w:.-]+)/g)) {
+      if (!seen.has(m[1]) && scripts[m[1]]) {
+        seen.add(m[1]);
+        queue.push(scripts[m[1]]);
+      }
+    }
+  }
+  return out;
+}
+
 function main() {
   const tracked = execFileSync('git', ['ls-files'], { cwd: ROOT, encoding: 'utf8', maxBuffer: 1 << 26 })
     .split(/\r?\n/)
@@ -95,7 +133,7 @@ function main() {
     .filter(n => n.endsWith('.yml'))
     .map(n => fs.readFileSync(path.join(wfDir, n), 'utf8'));
   const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
-  const text = [...workflows, ...Object.values(pkg.scripts ?? {})].join('\n');
+  const text = expandCommands(workflows.flatMap(workflowCommands), pkg.scripts ?? {}).join('\n');
   const { unrun, staleRunners } = checkCoverage(files, text);
   if (unrun.length === 0 && staleRunners.length === 0) {
     console.log(`test-coverage: OK, ${files.length} test files all run somewhere`);

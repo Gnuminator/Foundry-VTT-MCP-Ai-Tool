@@ -1,6 +1,40 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { checkCoverage, globToRegExp, isTestFile, pathsIn } from './test-coverage-check.mjs';
+import {
+  checkCoverage,
+  expandCommands,
+  globToRegExp,
+  isTestFile,
+  pathsIn,
+  workflowCommands,
+} from './test-coverage-check.mjs';
+
+test('workflowCommands: run commands of every job; a file named only in a comment is not run', () => {
+  const yaml = [
+    'jobs:',
+    '  one:',
+    '    steps:',
+    '      - name: A',
+    '        # covered by scripts/only-comment.test.mjs elsewhere',
+    '        run: node --test scripts/a.test.mjs',
+    '  two:',
+    '    steps:',
+    '      - run: npm run b:test',
+  ].join('\n');
+  const cmds = workflowCommands(yaml);
+  assert.deepEqual(cmds, ['node --test scripts/a.test.mjs', 'npm run b:test']);
+  assert.ok(!pathsIn(cmds.join('\n')).includes('scripts/only-comment.test.mjs'));
+});
+
+test('expandCommands: follows npm run into scripts, only when a command invokes them', () => {
+  const scripts = {
+    'b:test': 'node --test scripts/b.test.mjs && npm run c:test',
+    'c:test': 'node --test scripts/c.test.mjs',
+    'unused:test': 'node --test scripts/unused.test.mjs',
+  };
+  const text = expandCommands(['npm run b:test'], scripts).join('\n');
+  assert.deepEqual(pathsIn(text), ['scripts/b.test.mjs', 'scripts/c.test.mjs']);
+});
 
 test('isTestFile: test, spec and pytest names only', () => {
   assert.ok(isTestFile('scripts/a.test.mjs'));

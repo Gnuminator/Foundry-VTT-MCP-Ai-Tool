@@ -23,6 +23,10 @@
 // Actor Studio's compendiumSources are not set here: stage 13 owns them.
 // Module packs are locked again at the end of every real run, also after a failure (a killed run is put right by the
 // next real run, not by a dry run). A failure carries the progress lines in its error text.
+// The check mode (stage 22 MODE=check puts `const CHECK_ONLY = true;` in front of this file) never runs for real, even if
+// gm-script.sh is pointed at the generated file without --dry-run.
+if (typeof CHECK_ONLY !== 'undefined' && CHECK_ONLY && !args.dryRun)
+  throw new Error('check only: this file is never a real run');
 const KEEP = new Set(['PHB 2024', 'DMG 2024', 'CoS', 'CoSCO', 'TCoE', 'XGtE', 'MotM']);
 const TRIM = ['classes', 'species', 'backgrounds', 'feats', 'spells', 'items'].map(
   n => `aitool-content.${n}`
@@ -232,6 +236,14 @@ for (const id of leftVisible) {
     log(`WARNING ${id} is hidden from players although kept entries link to it: make it visible`);
 }
 log(`MOVE ${moved.size} entries to ${LEGACY}`);
+// A rerun deletes the old legacy copy of an entry that is moving again (it came back into aitool-content) and writes the
+// content pack's version in its place: a GM edit of the legacy copy is lost, so the dry run says how many.
+const replacing = [...moved]
+  .filter(([key]) => legacyIndex.has(key.split('|')[1]))
+  .map(([, e]) => e.name);
+log(
+  `REPLACE stale legacy copies with the content pack's version: ${replacing.length}${replacing.length ? ` (${replacing.slice(0, 40).join(' | ')})` : ''}`
+);
 // Kept entries that link into a pack players cannot open (a dead link for them). The summons and tables packs were
 // GM-only before the trim and are a known open point; anything else is drift.
 const KNOWN_GM_ONLY = ['aitool-content.summons', 'aitool-content.tables'];
@@ -310,7 +322,7 @@ const real = async () => {
           const made = await Item.createDocuments(data, { pack: LEGACY, keepId: true });
           if (made.length !== fresh.length)
             throw new Error(
-              `${id}: created ${made.length} of ${fresh.length}; nothing of this chunk deleted`
+              `${id}: created ${made.length} of ${fresh.length}; nothing deleted from ${id} (${stale.length} stale legacy copies were already replaced)`
             );
         }
         await Item.deleteDocuments(chunk, { pack: id });

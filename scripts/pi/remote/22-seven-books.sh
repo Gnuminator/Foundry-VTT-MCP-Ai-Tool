@@ -29,7 +29,7 @@
 # gm-script.sh refuses a real run of a file without a passed dry run of the same sha256.
 
 require_root
-trap '' PIPE # a closed pipe (ssh dropped) must not kill the stage halfway through a step
+trap '' HUP PIPE # a dropped ssh (HUP, closed pipe) (ssh dropped) must not kill the stage halfway through a step
 [ "${MODE:-trim}" = check ] || require_recent_snapshot # the drift check only reads
 
 WORLD="${WORLD:-curse-of-strahd}"
@@ -55,7 +55,8 @@ case "$MODE" in
       die "no /root/seven-books-trim.js: scp the GM scripts to /root/ first (see the header). Nothing was changed"
     GM_SCRIPT=/root/seven-books-check.js
     { printf 'const CHECK_ONLY = true;\n'; cat /root/seven-books-trim.js; } >"$GM_SCRIPT.new" &&
-      mv -f -- "$GM_SCRIPT.new" "$GM_SCRIPT"
+      mv -f -- "$GM_SCRIPT.new" "$GM_SCRIPT" ||
+      die "could not write $GM_SCRIPT. Nothing was changed"
     ;;
   *) die "MODE must be trim, check or delete (got '$MODE'). Nothing was changed" ;;
 esac

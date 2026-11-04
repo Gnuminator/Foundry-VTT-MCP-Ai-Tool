@@ -401,6 +401,40 @@ describe('seven-books-trim.js', () => {
     assert.ok(!spells.docs.has(id(3)));
   });
 
+  test('the dry run says how many stale legacy copies a rerun replaces, and a failed create loses nothing', async () => {
+    const world = standardWorld();
+    wire(world);
+    await run(trimSource, world, false);
+    const spells = world.packs.get('aitool-content.spells');
+    spells.docs.set(id(3), spell(3, 'Bane', 'PHB', 'new text'));
+    const dry = await run(trimSource, world, true);
+    assert.match(dry.lines.join('\n'), /REPLACE stale legacy copies .*: 1 \(Bane\)/);
+    const create = world.globals.Item.createDocuments;
+    world.globals.Item.createDocuments = async () => [];
+    await assert.rejects(run(trimSource, world, false), /created 0 of/);
+    assert.ok(spells.docs.has(id(3)), 'still in the content pack');
+    world.globals.Item.createDocuments = create;
+    await run(trimSource, world, false);
+    assert.equal(
+      world.packs.get('world.legacy-other-books').docs.get(id(3)).system.description.value,
+      'new text'
+    );
+  });
+
+  test('check mode is never a real run, and the stage keeps its snapshot and signal lines', async () => {
+    const world = standardWorld();
+    wire(world);
+    await assert.rejects(
+      run(`const CHECK_ONLY = true;\n${trimSource}`, world, false),
+      /never a real run/
+    );
+    assert.ok(!world.packs.has('world.legacy-other-books'));
+    const stage = readFileSync(path.join(remote, '22-seven-books.sh'), 'utf8');
+    assert.match(stage, /trap '' HUP PIPE/);
+    assert.match(stage, /\|\| require_recent_snapshot/);
+    assert.match(stage, /MODE=check only reads/);
+  });
+
   test('effect descriptions of re-pointed entries are re-pointed too', async () => {
     const world = standardWorld();
     wire(world);

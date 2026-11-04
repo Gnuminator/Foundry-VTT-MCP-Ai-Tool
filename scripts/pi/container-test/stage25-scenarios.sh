@@ -55,7 +55,7 @@ same() { # $1 name, $2 what, $3 the value before, $4 the value after
 
 fresh_pi() {
   rm -rf "${FOUNDRY_DATA:?}" "${FOUNDRY_APP:?}" "${TOOL_DIR:?}" "${TOOL_ETC:?}" "${TOOL_DATA:?}" "${IMPORT:?}" "${MIRROR:?}" "${SRC:?}"
-  rm -f /tmp/stopped-* /tmp/disabled-* /tmp/calls /tmp/status /tmp/status_rc /tmp/joinfail /tmp/join_fail /tmp/gm-counts /tmp/pins /tmp/mv_fail /tmp/restart-hook /tmp/gm-nojoin /tmp/gm-stale /tmp/hook-done
+  rm -f /tmp/stopped-* /tmp/disabled-* /tmp/calls /tmp/status /tmp/status_rc /tmp/joinfail /tmp/join_fail /tmp/gm-counts /tmp/pins /tmp/mv_fail /tmp/mv_fail_keep /tmp/restart-hook /tmp/gm-nojoin /tmp/gm-stale /tmp/hook-done
   mkdir -p "$MODS" "$FOUNDRY_APP" "$TOOL_DIR/gm-browser" "$TOOL_ETC" "$TOOL_DATA" "$MIRROR/modules" "$SRC"
   chown -R "$FOUNDRY_USER" "$FOUNDRY_DATA"
   echo '{"version":"14.368.0"}' >"$FOUNDRY_APP/package.json"
@@ -373,8 +373,11 @@ if want undo-restore-fails; then
   base_setup
   out="$(run_stage 'APPLY=1')"
   check undo-restore-fails-setup 'exit 0' "$out"
+  # the failure stays for the whole run: UNDO's exit trap retries the restore, and a one-shot failure would let it succeed
   echo alpha >/tmp/mv_fail
+  touch /tmp/mv_fail_keep
   out="$(run_stage 'UNDO=1')"
+  rm -f /tmp/mv_fail /tmp/mv_fail_keep
   check undo-restore-fails 'cannot move' "$out"
   check undo-restore-fails 'putting the folders back did not finish' "$out"
   absent undo-restore-fails 'alpha: 1.0.0 is back' "$out"

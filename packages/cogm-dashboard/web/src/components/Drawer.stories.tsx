@@ -80,7 +80,12 @@ export const Empty: Story = {
   render: () => <Demo state="empty" stateMessage="Nothing queued yet." />,
 };
 export const Failed: Story = {
-  render: () => <Demo state="error" stateMessage="Couldn’t load the handouts: HTTP 500" />,
+  render: () => (
+    <Demo
+      state="error"
+      stateMessage="Couldn’t load the handouts: The dashboard could not finish that. Try again in a moment."
+    />
+  ),
 };
 export const BridgeDown: Story = { render: () => <Demo state="bridge-down" /> };
 export const Gated: Story = { render: () => <Demo state="gated" /> };

@@ -517,7 +517,9 @@ test('an apply whose answer got lost says it may have applied; a tool error does
   await expect(toast(page, `✗ The change: The bridge link closed. ${hint}`)).toBeVisible();
   await expect(fast).toBeEnabled();
   await fast.click();
-  await expect(toast(page, `✗ The change: HTTP 524. ${hint}`)).toBeVisible();
+  await expect(
+    toast(page, `✗ The change: The dashboard could not finish that. Try again in a moment. ${hint}`)
+  ).toBeVisible();
   await expect(fast).toBeEnabled();
   await fast.click();
   await expect(toast(page, `✗ The change: Failed to fetch. ${hint}`)).toBeVisible();
@@ -719,12 +721,12 @@ test('Open shows the actor in Foundry; Escape closes the drawer', async ({ page 
 
   openFails = true;
   await rows.nth(0).getByRole('button', { name: 'Open' }).click();
-  await expect(toast(page, '✗ open-in-foundry: No such actor')).toBeVisible();
+  await expect(toast(page, '✗ Open in Foundry: No such actor')).toBeVisible();
 
   // The toast is the top Radix layer, but Escape goes to the drawer and the toast stays.
   await page.keyboard.press('Escape');
   await expect(drawer).toBeHidden();
-  await expect(toast(page, '✗ open-in-foundry: No such actor')).toBeVisible();
+  await expect(toast(page, '✗ Open in Foundry: No such actor')).toBeVisible();
   await expect(page.locator('.drawer-backdrop')).toHaveCount(0);
 });
 

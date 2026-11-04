@@ -33,6 +33,7 @@ import {
 import { LIVE_PICK_MESSAGE, LIVE_READY_MESSAGE, currentMapPick, setMapPick } from '../lib/mapPick';
 import { useDashboardStream } from '../lib/stream';
 import { LiveStrip } from './LiveStrip';
+import { RoleNotice } from './RoleNotice';
 import styles from './GmPage.module.css';
 
 interface GmPageInfo {
@@ -88,8 +89,8 @@ export function GmPage(): JSX.Element {
     return (
       <main className={styles.page}>
         <p className={styles.note} role="alert">
-          Set the Foundry address first: DASHBOARD_FOUNDRY_URL, the address your browser uses for
-          Foundry (see the dashboard setup notes). <a href="./">Back to the dashboard</a>
+          The dashboard does not know Foundry’s address yet. Ask whoever set up the dashboard to add
+          the address your browser uses for Foundry. <a href="./">Back to the dashboard</a>
         </p>
       </main>
     );
@@ -328,6 +329,7 @@ function GmWorkspace({
           Back to the dashboard
         </a>
       </header>
+      <RoleNotice />
       {!stripOnly && foundrySqueezed(viewport, layout.mode) ? (
         <p className={styles.line} role="status" id="gm-squeezed">
           Foundry needs {MIN_FOUNDRY_PX} px and gets less here.{' '}

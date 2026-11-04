@@ -209,7 +209,7 @@ export const MarkFails: Story = {
     const canvas = within(canvasElement);
     await userEvent.click(await canvas.findByRole('button', { name: 'Start session' }));
     await waitFor(() =>
-      expect(within(document.body).getAllByText(/^✗ mark-play-session: /)).not.toHaveLength(0)
+      expect(within(document.body).getAllByText(/^✗ Play session: /)).not.toHaveLength(0)
     );
     await expect(canvas.getByText('No session')).toBeVisible();
   },

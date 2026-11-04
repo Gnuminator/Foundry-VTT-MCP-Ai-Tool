@@ -41,7 +41,7 @@ if (refusal) {
   process.exit(1);
 }
 
-dashboard.onFeed({ pollNow: () => feed.pollNow() });
+dashboard.onFeed({ pollNow: () => feed.pollNow(), resync: () => feed.resync() });
 feed.start();
 dashboard.start();
 

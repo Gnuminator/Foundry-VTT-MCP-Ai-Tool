@@ -1,6 +1,6 @@
 ---
 source: gm/asking-claude.md
-sourceHash: a1ac4b837667
+sourceHash: b0a4db5b5d07
 title: Spørg Claude
 description: Sådan bruger du Claude Desktop med værktøjet, gode forespørgsler, de færdige prompts, hvordan Claudes ændringer godkendes, og hvad Claude ikke kan.
 ---

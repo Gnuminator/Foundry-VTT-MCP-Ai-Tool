@@ -382,7 +382,7 @@ describe('13-player-creation.sh in an ARM64 container', { skip: containerReason 
     return r;
   };
   const count = (calls, call) => calls.filter(c => c === call).length;
-  const PINNED = '2.10.5-aitool.4';
+  const PINNED = '2.10.5-aitool.5';
   const GOOD_CALLS = [
     'is-active --quiet foundry.service',
     'is-active --quiet foundry-ai-tool-gm-browser.service',
@@ -492,10 +492,10 @@ describe('13-player-creation.sh in an ARM64 container', { skip: containerReason 
   test('a newer installed build is refused before anything stops (the downgrade guard)', () => {
     const r = run('downgrade-refused');
     assert.equal(r.exit, 1, r.output);
-    assert.match(
-      r.output,
-      /2\.10\.5-aitool\.9 is newer than 2\.10\.5-aitool\.4: .*ALLOW_DOWNGRADE=1/
-    );
+    const line = r.output
+      .split('\n')
+      .find(l => l.includes(`2.10.5-aitool.9 is newer than ${PINNED}:`));
+    assert.ok(line && line.includes('ALLOW_DOWNGRADE=1'), r.output);
     assert.deepEqual(r.calls, []);
     assert.equal(r.version, '2.10.5-aitool.9');
   });

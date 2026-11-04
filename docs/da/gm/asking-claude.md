@@ -1,6 +1,6 @@
 ---
 source: gm/asking-claude.md
-sourceHash: b21633be1692
+sourceHash: a1ac4b837667
 title: Spørg Claude
 description: Sådan bruger du Claude Desktop med værktøjet, gode forespørgsler, de færdige prompts, hvordan Claudes ændringer godkendes, og hvad Claude ikke kan.
 ---
@@ -53,7 +53,7 @@ Forespørgsler der går galt:
 
 - "Dræb ulven." Hvilken ulv? Flere tokens kan have samme navn. Sig "Wolf 2" eller vælg tokenet.
 - "Gør den næste combat federe." For vagt. Sig, hvad du vil have: hårdere, kortere, mere terræn.
-- "Ret alt fra i går aftes." Claude kan ikke fortryde direkte handlinger; se nedenfor.
+- "Ret alt fra i går aftes." Direkte handlinger kan kun fortrydes for ændringer af actors, tokens, journals og combat; se nedenfor.
 
 ## Tool sets: hvilke kontakter du skal tænde
 
@@ -141,7 +141,7 @@ lige så vel som Claudes.
 | -------------------------------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Allow Write Operations                       | Til      | Ændre overhovedet noget. Slukket gør hele værktøjet skrivebeskyttet (se nedenfor).                                                                                           |
 | AI Tool: Live play (writes)                  | Til      | Give damage, healing, temporary hit points, conditions og resources; flytte, ændre eller slette tokens; placere templates, sætte mørke og lys, tilføje map notes, give loot. |
-| AI Tool: Live play, apply without confirming | Fra      | Springe confirm-trinnet over for damage, healing, conditions og resources, som Claude planlægger.                                                                            |
+| AI Tool: Live play, apply without confirming | Fra      | Springe confirm-trinnet over for damage, healing, conditions, resources og start af en kamp, som Claude planlægger.                                                          |
 | AI Tool: Ownership (writes)                  | Til      | Ændre hvilke spillere der ejer eller kan se en actor.                                                                                                                        |
 | AI Tool: Party (writes)                      | Fra      | Ændre partyets rejsetempo, placere partyet på kortet, tilføje det til combat, sende en rest-anmodning.                                                                       |
 | AI Tool: Handouts (writes)                   | Fra      | Vise eller skjule journalsider for spillerne.                                                                                                                                |
@@ -164,8 +164,9 @@ afsløret, eller du har redigeret en side. Spillerne ser kun Recap, og kun når 
 venter i reveal-køen. "Turn on for tonight" tænder ikke denne kontakt.
 
 **Direkte handlinger** (rolls, nye NPC'er, journals, chatbeskeder og andet) sker, så snart Claude
-bruger værktøjet. De står ikke i Recent Changes, og værktøjet kan ikke undo'e dem; du retter dem i
-hånden i Foundry. Så:
+bruger værktøjet. De står ikke i Recent Changes, men deres ændringer af actors, tokens, journals og combat
+vises i Changes-listen og kan undo'es dér, så længe "AI Tool: Undo for everything" er tændt.
+Chatbeskeder og rolls kan ikke undo'es; dem retter du i hånden i Foundry. Så:
 
 - Bed Claude fortælle dig, hvad den vil gøre, før den gør det: "Fortæl mig planen, og vent så på
   mit OK."
@@ -195,7 +196,7 @@ Dashboardets **GM Actions**-kontakt beskytter kun dashboardet. Den stopper ikke 
   spillet gennem den.
 - **Se skærmen.** Den læser spildata, ikke billedet af kortet.
 - **Komme udenom en funktionskontakt.** Er en funktion slukket, kan ingen plan for den apply'es.
-- **Undo'e direkte handlinger.** Kun guarded changes har Undo.
+- **Undo'e chatbeskeder og rolls.** Kun ændringer af spildokumenter kan undo'es.
 - **Læse bøger, du ikke har i Foundry.** Værktøjet indeholder ingen bog- eller eventyrtekst. Claude
   læser reglerne og eventyret fra compendiums og journals i din world, i det øjeblik du spørger. Er en
   bog ikke installeret i Foundry, kan Claude ikke citere den.

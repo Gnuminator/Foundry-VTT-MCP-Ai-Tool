@@ -251,7 +251,7 @@ const LANGUAGE_LINE =
  */
 export function toolSetInstructions(selection: Pick<ToolSetSelection, 'sets' | 'all'>): string {
   const intro =
-    'Foundry AI Tool: access to the Foundry VTT game (D&D 5e). Tools named plan-* only prepare a change; it happens when apply-planned-change runs, and undo-change takes it back. A tool whose description starts "Direct write." acts at once, with no plan. A change it makes to Foundry documents is recorded in the change journal and can be taken back with list-changes and plan-undo-changes while the journal is on; chat messages and rolls cannot.';
+    'Foundry AI Tool: access to the Foundry VTT game (D&D 5e). Tools named plan-* only prepare a change; it happens when apply-planned-change runs, and undo-change takes it back. A tool whose description starts "Direct write." acts at once, with no plan. A change it makes to Foundry documents is recorded in the change journal (listed as the GM\'s own change) and can be taken back with list-changes and plan-undo-changes while the journal is on; chat messages and rolls cannot.';
   // Serving every set: no other connector to name, so no switch-first text.
   if (selection.all) return `${intro} This connector serves every tool set.\n${LANGUAGE_LINE}`;
   const lines = [intro, 'This connector serves:'];

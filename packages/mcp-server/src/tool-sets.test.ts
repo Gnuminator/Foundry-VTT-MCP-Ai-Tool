@@ -146,6 +146,16 @@ describe('toolSetInstructions', () => {
     expect(text).toContain("listed as the GM's own change");
   });
 
+  it('names what the journal covers, what it does not, the switches and the 7 days', () => {
+    const text = toolSetInstructions(resolveToolSets('core'));
+    expect(text).toContain('actors, items, effects, tokens, scenes, combat and journals');
+    expect(text).toContain('does not record music (playlists), folders');
+    expect(text).toContain('undo-change needs only the latter');
+    expect(text).toContain('AI Tool: Undo for everything');
+    expect(text).toContain('AI Tool: Allow Write Operations');
+    expect(text).toContain('kept for 7 days');
+  });
+
   it('has no em dashes', () => {
     for (const raw of ['all', 'core', 'play', 'prep', 'build', 'admin'])
       expect(toolSetInstructions(resolveToolSets(raw))).not.toMatch(/\u2014/);

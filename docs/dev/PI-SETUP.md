@@ -1513,6 +1513,27 @@ a hand edit would be lost, the snapshot has it). Nothing else is touched and not
 - **Undo:** the same pipe with `UNDO=1` (back to DietPi's mode 2).
 - Tests: `scripts/pi/time-sync.test.mjs` (the stage in bash with stand-ins for systemctl, timedatectl and DietPi's tool).
 
+## Discord bot on the game server (stage 26)
+
+The Pi's bot (`/etc/foundry-ai-tool/discord-bot.env`) was set up against a test server. Stage 26
+(`scripts/pi/remote/26-discord-game-server.sh`) points it at the game server "D&D GUTTERNE": `DISCORD_GUILD_ID`
+(so `/record` registers there at once), `DISCORD_SESSION_POST_CHANNEL_ID` (#session-notes, the session-over post),
+`GAMENIGHT_WATCH_CHANNEL_ID` (#gm-bot) and `DISCORD_CHANGELOG_CHANNEL_ID` (#changelog, Pi deploy lines). The token
+and every other line stay as they are and are never printed. The first real run saves the old file as
+`discord-bot.env.before-game-server` (same owner and mode, it holds the token) and restarts the bot, which ends a
+recording, so it refuses while players are online or a recording runs. `/record` registered in the old server stays
+there until the bot leaves it.
+
+- **Look first (changes nothing):** `cat scripts/pi/remote/lib.sh scripts/pi/remote/26-discord-game-server.sh | ssh foundry-pi 'DRY_RUN=1 bash -s'`
+- **Run:** after a `dietpi-backup` snapshot and the user's OK, the same pipe with `'bash -s'`. The session-over post
+  also needs the player page link, which the Pi's file does not have: add `PLAYER_PAGE_URL=https://<player page>` (no
+  `?token=`; it also sets `FOUNDRY_AI_DASHBOARD_URL=http://127.0.0.1:3000`, the Pi's dashboard port). Without it the
+  stage warns that the post stays off. A rerun after a cut-off run restarts a bot that is older than the file.
+- **Check:** `CHECK=1` (the four lines, and "Registered /record in server ..." in the bot's journal since it started), then
+  `/record` in a voice channel on the game server and a session-over post in #session-notes.
+- **Undo:** the same pipe with `UNDO=1` (the saved file back, the bot restarted).
+- Tests: `scripts/pi/discord-game-server.test.mjs` and `scripts/pi/container-test/stage26-scenarios.sh`.
+
 ## Join page look (stage 19)
 
 The page players see before they log in (`/join`) shows the world's Background Image, Join Page Theme, Next
@@ -1605,6 +1626,32 @@ is `docs/player/obsidian.md`.
   Debian 13 ARM64 container: a note reaches only its player, what a player changes never reaches the Pi, one device per player,
   remove and off).
 
+## The stack in containers (stages 23 and 24)
+
+Backlog `pi-docker-compose`. `deploy/pi/compose.yml` runs Foundry, the bridge, the dashboard and the Assistant GM browser
+as containers on the same loopback ports; the systemd units stay installed until the cutover is trusted. Everything about
+the images, settings, rehearsal and the checks is in [`deploy/pi/README.md`](../../deploy/pi/README.md). Two stages do the Pi
+side, each only after a `dietpi-backup` snapshot and the user's OK; nothing here is retired yet.
+
+- **Stage 23** (`scripts/pi/remote/23-docker.sh`): Debian 13's own `docker.io`, the compose plugin (`docker-compose`, or
+  `docker-compose-v2` where the archive has that name) and `docker-buildx`; enables `docker.service`; writes
+  `deploy/pi/.env` in the deployed checkout (`/opt/foundry-ai-tool/app`: the foundry user's ids, the tailnet name and the player
+  vaults folder from stage 21); builds the three images. Starts nothing. `DRY_RUN=1` prints the plan, `SKIP_BUILD=1` skips the
+  build. Run it again after every stage 5 build (the checkout, and its `.env`, is replaced).
+- **Stage 24** (`scripts/pi/remote/24-compose.sh`, `MODE=status|up|down|rollback`): `up` and `down` start and stop the stack
+  for a rehearsal (`up` is refused next to a running or enabled unit on the live ports or data folders; a rehearsal on other
+  ports is its own compose project and never touches the live containers); `rollback` is the one command back (every container
+  of the live project stopped, found by label, then the units enabled and started in order). `status` is read-only. Containers
+  are always found by label, and a Docker daemon that does not answer makes the stage refuse. **`MODE=cutover` is refused for now:**
+  it needs a compose-aware nightly backup (`6-backup.sh` stops `foundry.service` and copies the worlds) and guards in every stage
+  that starts `foundry.service` (Backlog: `pi-compose-cutover`). The go/no-go on 2026-11-11 is therefore a rehearsal beside the
+  units (snapshot, stage 23, stage 24 `MODE=up` on the `test.env` ports), not a switch.
+- Do not run stages 3 or 5 while the live project has containers: they would enable the units next to them
+  (`deploy/pi/deployed-state.sh` shows it as FAIL). Without a cutover there are none; `MODE=rollback` first if there are.
+- Tests: `scripts/pi/docker-compose.test.mjs` (both stages as text; with `PI_STAGE23_CONTAINER=1` the scenario scripts
+  `scripts/pi/container-test/stage23-scenarios.sh` and `stage24-scenarios.sh` in an ARM64 container). The scenarios use stand-ins
+  for apt, docker, systemctl and ss, so they also run in Git Bash.
+
 ## Seven-book trim (stage 22)
 
 The player-facing content is cut to the seven kept books (PHB 2024, DMG 2024, CoS, CoSCO, TCoE, XGtE, MotM). Stage 22
@@ -1631,6 +1678,18 @@ The player-facing content is cut to the seven kept books (PHB 2024, DMG 2024, Co
   about 1500 entries on the Pi (the PC's content module and the snapshot are the way back).
 - Tests: `scripts/pi/seven-books.test.mjs` (the GM scripts against in-memory packs; with `PI_STAGE22_CONTAINER=1` the stage in a
   Debian 13 ARM64 container, run by the ARM job in CI).
+
+## Pinned modules (stage 25)
+
+Stage 25 (`scripts/pi/remote/25-modules.sh`) installs the module versions pinned in the PC archive. The plan, the checks and
+the undo are in [MODULE-REHEARSAL.md](MODULE-REHEARSAL.md) ("Pi: install from the archive").
+
+- **Run it:** copy the archive's `modules/` and `pinned.json` to `/home/dietpi/module-archive` (`node scripts/modules/rehearse.mjs pi-plan`
+  prints the `scp`), then `cat lib.sh 25-modules.sh | ssh foundry-pi 'bash -s'` (a dry run). Snapshot first, the user's OK, then the
+  same with `APPLY=1`. `ONLY=id1,id2` limits it; `UNDO=1` puts the last run's old folders back.
+- Old and replaced folders stay in `/var/lib/foundry-import/prev-<time>-modules` and `failed-<time>-modules` until the user removes them.
+- Tests: `scripts/pi/modules-stage.test.mjs` (the stage as text; with `PI_STAGE25_CONTAINER=1` the scenarios in a Debian 13 ARM64
+  container, run by the ARM job in CI).
 
 ## Where things live on the Pi
 

@@ -4,6 +4,11 @@
 # made /tmp/kitnojoin. The line carries nothing secret, like the real driver's.
 echo "journalctl $*" >>/tmp/calls
 case "$*" in
+  _SYSTEMD_INVOCATION_ID=*)
+    # Stage 25 scenarios: the journal of the Assistant GM browser's current run (browser_joined in lib.sh); the line is
+    # missing while /tmp/gm-nojoin exists.
+    [ -f /tmp/gm-nojoin ] || echo "[assistant-gm] joined world curse-of-strahd as Assistant GM (GM: true, module active: true)"
+    ;;
   *foundry-ai-tool-kit-gm-browser*)
     if [ -f /tmp/started-kit ] && [ ! -f /tmp/kitnojoin ]; then
       echo "[assistant-gm] joined world strahd-kit as Kit GM (GM: true, module active: true)"

@@ -99,11 +99,11 @@ jobs:
 
       - name: Merge gate and keep-green scripts
         # scripts/green.mjs (parity with this job) and scripts/lane-merge.mjs (D-122 merge gate).
-        run: node --test scripts/green.test.mjs scripts/lane-merge.test.mjs scripts/visual-baselines.test.mjs scripts/review-runner/lib.test.mjs scripts/heavy-lock.test.mjs
+        run: node --test scripts/green.test.mjs scripts/lane-merge.test.mjs scripts/visual-baselines.test.mjs scripts/review-runner/lib.test.mjs scripts/heavy-lock.test.mjs scripts/test-coverage-check.test.mjs
 
       - name: Weekly usage report
-        # scripts/dev/usage-week.mjs (D-122 targets) against fixture transcripts.
-        run: node --test scripts/dev/usage-week.test.mjs
+        # scripts/dev (usage-week D-122 targets, usage-now, usage-report, weekly-check-note) against fixture transcripts.
+        run: npm run dev:test
 
       - name: Game-night watch
         # scripts/gamenight-watch.mjs (I-145): the down/slow/recovered state machine, the probe and the message text.
@@ -260,6 +260,25 @@ jobs:
       - name: TV table viewer script
         # scripts/tv/start-table-viewer.ps1 (tv-login, G1): the kiosk command and its refusals (needs pwsh 7; the command tests also need Edge or Chrome and are skipped where missing).
         run: node --test scripts/tv/start-table-viewer.test.mjs
+
+      - name: Wiki staging scripts
+        # scripts/wiki (stage.mjs and the Danish page check), every *.test.mjs in the folder (wiki.yml does not run them).
+        run: npm run wiki:test
+
+      - name: Dnd helper skill build
+        # tools/dnd-helper/build.mjs, the skill zip builder (the zip itself is not kept).
+        run: node --test tools/dnd-helper/build.test.mjs
+
+      - name: Livekit recorder
+        # tools/livekit/recorder is not a workspace: it has its own package.json and lockfile, so it installs on its own.
+        run: npm ci --prefix tools/livekit/recorder
+
+      - name: Livekit recorder tests
+        run: npm test --prefix tools/livekit/recorder
+
+      - name: Every test file runs
+        # Fails when a *.test.*, *.spec.* or test_*.py file is reached by no workflow command or known runner (scripts/test-coverage-check.mjs).
+        run: node scripts/test-coverage-check.mjs
 
       - name: Changelog fragments
         # Each PR adds its CHANGELOG entry as a file in changelog.d/ (D-089); this checks the format.
@@ -586,6 +605,13 @@ jobs:
         env:
           PI_STAGE22_CONTAINER: 1
         run: node --test scripts/pi/seven-books.test.mjs
+
+      - name: Pi stage 25 (modules) in an ARM64 container
+        # scripts/pi/container-test/stage25-scenarios.sh: the pinned module install on Debian 13 ARM64 with stand-ins for
+        # systemd (a dry run, the real run and a rerun, UNDO=1, a failed start or move putting the old folders back, the refusals).
+        env:
+          PI_STAGE25_CONTAINER: 1
+        run: node --test scripts/pi/modules-stage.test.mjs
 
       - name: Pi kit session in an ARM64 container
         # scripts/pi/container-test/kit-session-scenarios.sh: MODE=up and MODE=down on Debian 13 ARM64 with stand-ins

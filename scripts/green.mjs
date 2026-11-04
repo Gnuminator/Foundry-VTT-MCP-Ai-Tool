@@ -104,7 +104,8 @@ export const STEPS = [
     'scripts/visual-baselines.test.mjs',
     'scripts/review-runner/lib.test.mjs',
     'scripts/heavy-lock.test.mjs',
-    'scripts/test-coverage-check.test.mjs'
+    'scripts/test-coverage-check.test.mjs',
+    'scripts/planner-wake.test.mjs'
   ),
   { name: 'usage-week', cmd: 'npm', args: ['run', 'dev:test'], env: CI },
   nodeTest('gamenight-watch', 'scripts/gamenight-watch.test.mjs'),

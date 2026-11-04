@@ -1,6 +1,6 @@
 ---
 source: gm/prepare-session-0.md
-sourceHash: 828bd6b398bc
+sourceHash: e6e9be007953
 title: Forbered session 0
 description: Opsætningen af worlden, før spillerne laver deres karakterer til session 0 (på vores server mest et tjek), en prøvekørsel som spiller og hvad du gør på aftenen.
 ---
@@ -99,9 +99,10 @@ Settings tab, **Game Settings**, kategorien **[Aardvark Games] Actor Studio (AI 
    spørger builderen efter dem og viser, hvor mange der er tilladt.
 
    Rækken Spell Compendia (punkt 1) bestemmer, hvilke spells Spells-fanen tilbyder, så sæt kun flueben ved
-   Player's Handbook der. Feats som Magic Initiate er anderledes: de åbner Foundrys egen
-   spell-browser, som viser alle udgaver, uanset hvad du har sat flueben ved. Spillerguiden beder spillerne
-   vælge kopien "PHB 2024".
+   Player's Handbook der. Feats som Magic Initiate er anderledes: de åbner et eget
+   spell-vindue (fra Actor Studio 2.10.5-aitool.5), som tilbyder Player's Handbook-spells fra
+   alle classes, hver kun én gang. Det begrænser dem ikke til featens class, så spilleren vælger
+   selv fra featens class-liste (guiden fortæller hvordan).
 
 5. **Configure progression**, under **Level Up Options**: sæt flueben ved **Enable Level Up** og **Milestone
    Levelling**. **Uden Milestone Levelling ser en spiller ingen gylden Level Up-knap på sit

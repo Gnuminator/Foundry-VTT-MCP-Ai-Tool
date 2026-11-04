@@ -99,8 +99,9 @@ scripts/heavy-lock.mjs status`). `npm run green -- --cloud` (background) prints 
 ## Review and merge
 
 - **Pick the reviewer with the gate, before the first review:** once the PR is pushed, run the
-  gate's `--dry-run` (command below). A `risky (...)` line ending in "an Opus review is required"
-  means Opus whatever your own reading says; its other refusals at this point (no review note,
+  gate's `--dry-run` (command below). A `risky (...): an Opus review is required; ...` line (it
+  ends with `Opus note for head <sha>: found (...)` or `missing`) means Opus whatever your own
+  reading says; its other refusals at this point (no review note,
   CI pending) are expected.
 - **One pass:** a risky PR (guarded writes, the write gate, bridge link, security, Pi scripts, wire
   contracts, as the gate decides) gets one Opus pass: a narrow agent in `.claude/agents/`

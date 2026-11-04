@@ -23,6 +23,10 @@
 // Actor Studio's compendiumSources are not set here: stage 13 owns them.
 // Module packs are locked again at the end of every real run, also after a failure (a killed run is put right by the
 // next real run, not by a dry run). A failure carries the progress lines in its error text.
+// The check mode (stage 22 MODE=check puts `const CHECK_ONLY = true;` in front of this file) never runs for real, even if
+// gm-script.sh is pointed at the generated file without --dry-run.
+if (typeof CHECK_ONLY !== 'undefined' && CHECK_ONLY && !args.dryRun)
+  throw new Error('check only: this file is never a real run');
 const KEEP = new Set(['PHB 2024', 'DMG 2024', 'CoS', 'CoSCO', 'TCoE', 'XGtE', 'MotM']);
 const TRIM = ['classes', 'species', 'backgrounds', 'feats', 'spells', 'items'].map(
   n => `aitool-content.${n}`
@@ -47,7 +51,10 @@ const log = t => {
   done.push(t);
   args.log(t);
 };
-const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+// Foundry hands the ownership back with its keys in another order than they were set in: compare sorted keys.
+const sorted = o =>
+  JSON.stringify(Object.fromEntries(Object.entries(o ?? {}).sort(([a], [b]) => (a < b ? -1 : 1))));
+const same = (a, b) => sorted(a) === sorted(b);
 const ownershipOf = p => JSON.parse(JSON.stringify(p.ownership ?? p.config?.ownership ?? {}));
 const sourcePackOf = e => e.flags?.['foundry-ai-tool']?.sourcePack;
 const verdict = e => {
@@ -229,8 +236,49 @@ for (const id of leftVisible) {
     log(`WARNING ${id} is hidden from players although kept entries link to it: make it visible`);
 }
 log(`MOVE ${moved.size} entries to ${LEGACY}`);
+// A rerun deletes the old legacy copy of an entry that is moving again (it came back into aitool-content) and writes the
+// content pack's version in its place: a GM edit of the legacy copy is lost, so the dry run says how many.
+const replacing = [...moved]
+  .filter(([key]) => legacyIndex.has(key.split('|')[1]))
+  .map(([, e]) => e.name);
+log(
+  `REPLACE stale legacy copies with the content pack's version: ${replacing.length}${replacing.length ? ` (${replacing.slice(0, 40).join(' | ')})` : ''}`
+);
+// Kept entries that link into a pack players cannot open (a dead link for them). The summons and tables packs were
+// GM-only before the trim and are a known open point; anything else is drift.
+const KNOWN_GM_ONLY = ['aitool-content.summons', 'aitool-content.tables'];
+const deadForPlayers = [...linkedPacks.keys()].filter(pid => {
+  const p = game.packs.get(pid);
+  return p && ownershipOf(p).PLAYER === 'NONE';
+});
+const unexpectedDead = deadForPlayers.filter(pid => !KNOWN_GM_ONLY.includes(pid));
+log(
+  `LINKS INTO PACKS PLAYERS CANNOT OPEN: ${deadForPlayers.length}${deadForPlayers.length ? ` (${deadForPlayers.map(id => `${id} ${linkedPacks.get(id)}`).join(', ')})` : ''}, unexpected: ${unexpectedDead.length}`
+);
 if (args.dryRun) {
-  return { move: moved.size, comeBack: comeBack.size, repoint: todo.length, hide: toHide.length };
+  const result = {
+    move: moved.size,
+    comeBack: comeBack.size,
+    repoint: todo.length,
+    hide: toHide.length,
+  };
+  // The check mode of stage 22 (MODE=check) puts `const CHECK_ONLY = true;` in front of this file: a read-only run that
+  // fails when the world no longer matches what the trim leaves, so a stage 11 push or a module update cannot undo the
+  // trim unseen. The ordinary dry run only reports.
+  if (typeof CHECK_ONLY !== 'undefined' && CHECK_ONLY) {
+    const srdVisible = ['dnd5e.items', 'dnd5e.monsters'].filter(
+      pid => game.packs.get(pid) && !same(ownershipOf(game.packs.get(pid)), HIDDEN)
+    );
+    // Links into packs players cannot open are listed above but are not drift: running the trim again cannot change
+    // them (it never touches the ownership of aitool-content packs), so they are a finding for the user.
+    const drift = { ...result, srdVisible: srdVisible.length };
+    if (Object.values(drift).some(n => n > 0))
+      throw new Error(
+        `DRIFT: the world no longer matches the seven-book trim ${JSON.stringify(drift)}; run stage 22 again (dry run first)\n${done.join('\n')}`
+      );
+    log('no drift: the world matches the seven-book trim');
+  }
+  return result;
 }
 
 // ---- real run ----
@@ -253,7 +301,12 @@ const real = async () => {
     await unlocked(pack, async () => {
       for (let i = 0; i < ids.length; i += 40) {
         const chunk = ids.slice(i, i + 40);
-        const fresh = chunk.filter(x => !legacy.index.has(x));
+        // An entry that is in the legacy pack already (a killed earlier run, or a stage 11 push that brought it back
+        // into aitool-content) is replaced by the copy from the content pack, never kept as the stale one. The old
+        // copy goes first; if the create then fails, the entry is still in its content pack and the run stops.
+        const stale = chunk.filter(x => legacy.index.has(x));
+        if (stale.length) await Item.deleteDocuments(stale, { pack: LEGACY });
+        const fresh = chunk;
         if (fresh.length) {
           const data = (await pick(pack, fresh)).map(d => {
             const o = d.toObject();
@@ -269,7 +322,7 @@ const real = async () => {
           const made = await Item.createDocuments(data, { pack: LEGACY, keepId: true });
           if (made.length !== fresh.length)
             throw new Error(
-              `${id}: created ${made.length} of ${fresh.length}; nothing of this chunk deleted`
+              `${id}: created ${made.length} of ${fresh.length}; nothing deleted from ${id} (${stale.length} stale legacy copies were already replaced)`
             );
         }
         await Item.deleteDocuments(chunk, { pack: id });
@@ -334,7 +387,12 @@ const real = async () => {
           const eff = JSON.parse(swap(JSON.stringify(o.effects)));
           await d.updateEmbeddedDocuments(
             'ActiveEffect',
-            eff.map(e => ({ _id: e._id, changes: e.changes, flags: e.flags }))
+            eff.map(e => ({
+              _id: e._id,
+              changes: e.changes,
+              flags: e.flags,
+              description: e.description,
+            }))
           );
         }
         re.lastIndex = 0;

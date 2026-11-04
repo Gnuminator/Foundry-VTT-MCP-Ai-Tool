@@ -15,7 +15,7 @@ We use **Actor Studio**, a character builder inside Foundry. It asks the same qu
 2024 Player's Handbook, in the same order, and fills in your character sheet for you. You can't
 break anything: if it goes wrong, the GM deletes the character and you start again.
 
-Checked on Foundry 14, D&D 5e system 6, Actor Studio 2.10.5 (our build, 2.10.5-aitool.4) and the 2024 Player's Handbook module
+Checked on Foundry 14, D&D 5e system 6, Actor Studio 2.10.5 (our build, 2.10.5-aitool.4; the Magic Initiate step on 2.10.5-aitool.5) and the 2024 Player's Handbook module
 2.2.0 (October 2026).
 
 ## Before you start
@@ -145,21 +145,19 @@ The steps you will see, roughly in this order:
   the languages you want in the list (ask your GM or your D&D helper which ones suit the
   campaign) until that text is gone, then click **Next**.
 - **The background's feat.** Some feats ask for more choices. Magic Initiate, for example, asks for
-  two cantrips and a level-1 spell: pick them all, using **Select Spell** for each. The picker is
-  Foundry's compendium browser, and it needs care:
-  - **Pick the copy labelled "PHB 2024".** Most spells are listed once per book (SRD 5.1, SRD 5.2,
-    PHB, PHB 2024), so you see the same name up to four times.
-  - **Pick only spells of the class named after Magic Initiate**, for example Wizard spells for
-    Magic Initiate (Wizard). The class filters are locked on for Cleric, Druid and Wizard together,
-    so you are also shown spells from the other two lists, and nothing stops you picking one.
-  - The search box in that browser needs **Enter** before it filters.
+  two cantrips and a level-1 spell: pick them all, using **Select Spell** for each. A **Select
+  Spells** window opens with Player's Handbook spells, each listed once. **The window lists the
+  spells of every class, not only of the one the feat is for, so it does not stop you from picking
+  a wrong one.** The feat's name tells you which class list to use: a Sage's feat reads Magic
+  Initiate (Wizard), so take wizard spells. If you are unsure which spells are on that class's list,
+  look the spell up on the class's page in the Player's Handbook or ask your GM or D&D helper. Type
+  in **Search spells...** to find one, click the spells you want (the window stops you when you
+  have enough) and click **Add Selected**. A spell you already picked is not offered again. One
+  thing to know:
   - **A feat that asks for a spellcasting ability, and then asks again** (a second Magic Initiate
     step): the second step puts the ability back to **Intelligence**, although it should match the
     first. Set it again to the same ability as your cantrips, for example Wisdom for a cleric's
     list.
-  - A spell card may linger at the bottom right of the screen after the browser closes. Ignore it.
-
-  ![Foundry's compendium browser in the Magic Initiate step: most spells listed once per book (SRD 5.1, SRD 5.2, PHB, PHB 2024), with the Cleric, Druid and Wizard filters locked on](../images/guides/studio-spell-picker.png)
 
 - **Class:** hit points, saving throws, **skills to choose** (most classes pick two), weapon and
   armour training, and your level-1 class features. **Weapon Mastery:** barbarian, fighter,

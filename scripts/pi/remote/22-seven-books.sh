@@ -16,7 +16,8 @@
 # and DRY_RUN for it; the order matters, lib.sh first):
 #   scp scripts/pi/remote/seven-books-trim.js scripts/pi/remote/seven-books-delete-legacy.js foundry-pi:/root/
 #   cat scripts/pi/remote/lib.sh scripts/pi/remote/22-seven-books.sh scripts/pi/remote/gm-script.sh | ssh foundry-pi 'bash -s'
-# Env (in front of bash): WORLD (curse-of-strahd); MODE=trim (default) or delete; APPLY=1 for a real run (without it
+# Env (in front of bash): WORLD (curse-of-strahd); MODE=trim (default), check (read-only: fails when the world no
+# longer matches the trim; run it after a stage 11 push or a content module update, no OK needed) or delete; APPLY=1 for a real run (without it
 # the stage does a dry run, which counts and prints and changes nothing; any other APPLY value is refused); FORCE=1
 # overrides the players and recording checks (never the snapshot); OTHER_WORLDS_OK=1 for a real trim while other
 # worlds exist on this Foundry (they share the edited module packs: the moved entries are gone there, the re-pointed
@@ -28,7 +29,8 @@
 # gm-script.sh refuses a real run of a file without a passed dry run of the same sha256.
 
 require_root
-require_recent_snapshot
+trap '' HUP PIPE # a dropped ssh (HUP, closed pipe) (ssh dropped) must not kill the stage halfway through a step
+[ "${MODE:-trim}" = check ] || require_recent_snapshot # the drift check only reads
 
 WORLD="${WORLD:-curse-of-strahd}"
 MODE="${MODE:-trim}"
@@ -45,7 +47,18 @@ case "$MODE" in
     [ "${DELETE_LEGACY:-}" = with-the-users-ok ] || [ -z "${APPLY:-}" ] ||
       die "MODE=delete APPLY=1 deletes the legacy pack for good: put DELETE_LEGACY=with-the-users-ok in front of bash once the user has said yes. Nothing was changed"
     ;;
-  *) die "MODE must be trim or delete (got '$MODE'). Nothing was changed" ;;
+  check)
+    # Read-only drift check: the trim script with CHECK_ONLY in front, always a dry run; it fails when the world no
+    # longer matches what the trim leaves (a stage 11 push or a content module update put books back). Needs no OK.
+    [ -z "${APPLY:-}" ] || die "MODE=check only reads and takes no APPLY. Nothing was changed"
+    [ -f /root/seven-books-trim.js ] && [ ! -L /root/seven-books-trim.js ] ||
+      die "no /root/seven-books-trim.js: scp the GM scripts to /root/ first (see the header). Nothing was changed"
+    GM_SCRIPT=/root/seven-books-check.js
+    { printf 'const CHECK_ONLY = true;\n'; cat /root/seven-books-trim.js; } >"$GM_SCRIPT.new" &&
+      mv -f -- "$GM_SCRIPT.new" "$GM_SCRIPT" ||
+      die "could not write $GM_SCRIPT. Nothing was changed"
+    ;;
+  *) die "MODE must be trim, check or delete (got '$MODE'). Nothing was changed" ;;
 esac
 [ -f "$GM_SCRIPT" ] && [ ! -L "$GM_SCRIPT" ] || die "no $GM_SCRIPT: scp the GM scripts to /root/ first (see the header). Nothing was changed"
 have_systemd || die "needs systemd (the Pi, not a test container). Nothing was changed"

@@ -2382,6 +2382,7 @@ test('wait-ci: a relaunched child killed by a signal still ends with a verdict l
   });
   assert.equal(code, 1);
   assert.deepEqual(lines, [
+    "lane:merge: refused because main's copy of the gate was killed (SIGTERM)",
     "lane:merge: wait-ci ended: exit 1, main's copy of the gate was killed (SIGTERM)",
   ]);
   const failed = relaunch({
@@ -2655,6 +2656,21 @@ test('releasePr: the fold plus version bumps only; anything else is not a releas
       x.head['installer/nsis/foundry-mcp-server.nsi'] += 'Exec "evil"\n';
     }),
     /foundry-mcp-server\.nsi changes more than its version line/
+  );
+  // A path that names an Object.prototype member is not a version file.
+  assert.match(
+    why(x => x.files.push({ path: 'constructor', changeType: 'MODIFIED' })),
+    /constructor is not a changelog or version file/
+  );
+  // The registry path on the DisplayVersion line may not change with the version.
+  assert.match(
+    why(edit('installer/nsis/foundry-mcp-server.nsi', 'Software\\Uninstall', 'Software\\Evil')),
+    /foundry-mcp-server\.nsi changes more than its version line/
+  );
+  // A dropped version field is not a bump.
+  assert.match(
+    why(edit('packages/foundry-module/module.json', '  "version": "0.26.0",\n', '')),
+    /module\.json drops or adds a version field/
   );
   assert.match(
     why(edit('packages/foundry-module/module.json', '0.26.0', 'latest')),

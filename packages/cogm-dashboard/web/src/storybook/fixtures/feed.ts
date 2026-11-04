@@ -95,6 +95,15 @@ const KIND_EVENTS: FeedEvent[] = [
 
 export const FEED_KINDS: FeedLog = feedLog(KIND_EVENTS);
 
+/**
+ * Only the roll rows (an attack against AC and an advantage check against a DC) and the plain roll
+ * line, so the shot shows them: in the every-kind log the newest rows push them out of the frame.
+ */
+export const FEED_ROLLS: FeedLog = feedLog([
+  ev('r1', at(20, 3), 'roll', 'Mira rolls Perception: 17'),
+  ...KIND_EVENTS.filter(e => e.roll !== undefined),
+]);
+
 /** A line long enough to wrap on a narrow card. */
 const LONG_EVENTS: FeedEvent[] = [
   ev(

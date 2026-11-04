@@ -1,6 +1,6 @@
 ---
 source: gm/asking-claude.md
-sourceHash: 98105f9fdbfc
+sourceHash: 7f41e95fc797
 title: Spørg Claude
 description: Sådan bruger du Claude Desktop med værktøjet, gode forespørgsler, de færdige prompts, hvordan Claudes ændringer godkendes, og hvad Claude ikke kan.
 ---
@@ -132,7 +132,7 @@ give loot); og start af en kamp. Planer, der sletter noget (fjerne en template, 
 afslutte en kamp), og flytning og ændring af tokens venter stadig på dit ja. Hver ændring havner
 stadig i Recent Changes med **Undo**. Dashboardets party- og Tarokka-knapper har aldrig brug for den:
 de apply'er med det samme med en **Undo**-besked. Dens Damage / Heal-formular apply'er også med det
-samme på samme måde; dens Condition-knap går gennem tool runneren og viser altid confirm-vinduet (se
+samme på samme måde; dens Condition-chips spørger i én linje før de apply'er (se
 [dashboard-guiden](dashboard.md#confirm-vinduet)).
 
 ### Funktionskontakter

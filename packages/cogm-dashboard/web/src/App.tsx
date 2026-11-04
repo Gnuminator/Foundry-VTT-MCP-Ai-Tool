@@ -19,7 +19,6 @@ import {
   raiseDrawer,
   showDocked,
 } from './components/Drawer';
-import type { StripToolRequest } from './components/CombatStrip';
 import { FoldScope } from './components/Folds';
 import { LivePlayLine } from './components/GmActionsSwitch';
 import { StripBoundary } from './components/StripBoundary';
@@ -277,12 +276,6 @@ function Dashboard(): JSX.Element {
   };
   // Another panel opens the Tool runner on a tool with its form filled in.
   const [toolRequest, setToolRequest] = useState<ToolRequest | null>(null);
-  // The combat strip's Condition (and End combat): the Tool runner on plan-actor-change, filled in
-  // for the picked combatants (Damage / Heal has its own form). It plans first; nothing is written until the GM confirms there.
-  const openToolFromStrip = useCallback((request: StripToolRequest): void => {
-    setToolRequest(r => ({ ...request, seq: (r?.seq ?? 0) + 1 }));
-    setDrawers(d => ({ ...d, tools: true }));
-  }, []);
 
   return (
     <GmActionsGateContext.Provider value={openGmActionsGate}>
@@ -468,7 +461,7 @@ function Dashboard(): JSX.Element {
           // strip's place instead of blanking the page.
           <StripBoundary>
             <Suspense fallback={null}>
-              <CombatStrip sample={showsSampleFight(during.trial)} onOpenTool={openToolFromStrip} />
+              <CombatStrip sample={showsSampleFight(during.trial)} />
             </Suspense>
           </StripBoundary>
         }

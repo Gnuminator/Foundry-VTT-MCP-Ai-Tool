@@ -12,6 +12,7 @@ import {
   FEED_LONG,
   FEED_NONE,
   FEED_OLDER_DAYS,
+  FEED_ROLLS,
 } from '../storybook/fixtures/feed';
 import { PHONE_VIEW, VEIL } from '../storybook/modes';
 import type { DashboardParameters } from '../storybook/withDashboard';
@@ -87,6 +88,13 @@ export const FewEvents: Story = { parameters: seed({ log: FEED_FEW }), render };
 
 /** Every kind the module logs, each with its own colour on the rail and the chip. */
 export const EveryKind: Story = { parameters: seed({ log: FEED_KINDS }), render };
+
+/** The roll rows: who and what, the total with its verdict, and the kept and dropped d20s. */
+export const RollRows: Story = {
+  name: 'Roll rows',
+  parameters: seed({ log: FEED_ROLLS }),
+  render,
+};
 
 export const LongLines: Story = { parameters: seed({ log: FEED_LONG }), render };
 

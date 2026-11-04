@@ -2,7 +2,7 @@
 
 Verified on Foundry 14.368 / dnd5e 6.0.6, module 14.01, 2026-10-28 (test server C; the module's request dialog, the combat movement switch and the save card were driven live; player-side rolling, the Assign XP dialog and loot were not).
 
-**Verdict: drop.** A save a player rolls from its request card is written into the card as a message update and no dnd5e roll message is created. The play recorder listens only for new chat messages, so those saves are missing from the session log, recaps and stats (seen in the 2026-10-04 walkthrough). dnd5e 6's own roll requests and our `request-player-rolls` are logged. Keep it only if Danni wants its bar badly enough that we teach the recorder to read its cards.
+**Verdict: keep.** Kept for now (the user, 2026-11-04; Danni decides after he tries the one-click roll buttons we are building). The catch: a save a player rolls from its request card is written into the card as a message update and no dnd5e roll message is created. The play recorder listens only for new chat messages, so those saves are missing from the session log, recaps and stats (seen in the 2026-10-04 walkthrough). dnd5e 6's own roll requests and our `request-player-rolls` are logged. Keep it only if Danni wants its bar badly enough that we teach the recorder to read its cards.
 
 **For Danni's guides:** The bar of your players' faces on the canvas: click a face to jump to that token; the dice button asks everyone for the same save in one go (but the AI's recap will not see those rolls).
 

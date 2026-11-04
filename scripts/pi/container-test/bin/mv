@@ -12,7 +12,7 @@ if [ -f /tmp/mv_fail ]; then
   if [ "${#paths[@]}" = 2 ] && [ -n "$want" ]; then
     src="${paths[0]%/}"
     if [ "${src##*/}" = "$want" ]; then
-      rm -f /tmp/mv_fail
+      [ -f /tmp/mv_fail_keep ] || rm -f /tmp/mv_fail # /tmp/mv_fail_keep: the failure stays (the exit trap's retry fails too)
       echo "mv: cannot move '$src': fake failure (/tmp/mv_fail)" >&2
       exit 1
     fi

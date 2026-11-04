@@ -2,7 +2,7 @@
 // chips, a damage or heal toggle, and one button that says what it does. It plans and applies in
 // the same click through plan-actor-change (dnd5e works out resistances), so there is no separate
 // roll-then-apply; the toast has Undo and Recent Changes keeps the change. Several targets (an
-// area effect) take the same amount each. Condition stays in the Tool runner.
+// area effect) take the same amount each. Condition has its own picker (ConditionForm).
 import { useEffect, useRef, useState, type JSX, type KeyboardEvent } from 'react';
 
 import {

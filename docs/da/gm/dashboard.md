@@ -1,6 +1,6 @@
 ---
 source: gm/dashboard.md
-sourceHash: f0d9810269b0
+sourceHash: e582b0c16354
 title: Dashboardet
 description: En rundtur i alle paneler og knapper på dashboardet, hvad de gør, og hvornår du bruger dem.
 ---
@@ -231,10 +231,11 @@ Med en eller flere valgt:
   ("Deal 8 fire damage to ... in Foundry"), anvender det med det samme på hvert valgt token; hver
   får hele beløbet. Toasten har **Undo**, og Recent Changes gemmer ændringen. Der er intet
   confirm-vindue til denne formular.
-- **Condition**: åbner tool runneren med de valgte navne udfyldt: vælg condition, og fjern fluebenet
-  ved **active** for at fjerne den. Klik på **Run...**; confirm-vinduet viser hvert mål og hvad der
-  ændres; klik på **Confirm**.
-- **Clear**: fravælger alle (og lukker formularen Damage / Heal).
+- **Condition**: åbner en række condition-chips under strimlen. Klik på én (fx **prone**); ét enkelt
+  spørgsmål spørger "Set prone on ...?", og **Set prone** sætter den på hvert valgt token. Toasten
+  har **Undo**, og Recent Changes gemmer ændringen. Vil du fjerne en condition, så brug chippen på
+  live-strimlen eller panelet **Conditions**.
+- **Clear**: fravælger alle (og lukker formularen Damage / Heal eller condition-chipsene).
 - **Ask for a roll** (under strimlen, med GM Actions slået til): vælg en check, save eller skill, en
   DC og privat eller offentlig, og klik derefter på **Ask the party**, eller **Ask** for de valgte
   spillerkarakterer. Anmodningen går til hver spillers chat og til play log på én gang, uden
@@ -258,7 +259,8 @@ tokens afkrydset. Ændr fluebenene, og klik på **Start combat with N**. Combate
 spillerkarakter en offentlig rulle-anmodning; når de ruller, står tallet i trackeren. Undo fjerner
 combaten, men anmodningerne bliver i chatten. Den, der har turn, viser **Up now**. Ændrer du en initiative
 bagefter (værktøjet **set-initiative**), skifter rækkefølgen, men turnen flytter sig ikke.
-**End combat** planlægger at afslutte combaten; du bekræfter, og Undo bringer den tilbage.
+**End combat** planlægger at afslutte combaten og stiller ét enkelt spørgsmål; du bekræfter, og Undo
+(på toasten og i Recent Changes) bringer den tilbage.
 
 **👑 Boss prompts** (i panelets øverste linje, kun mens et væsen med legendary actions eller en lair
 er med i combaten; slået fra, til du slår det til, og husket i denne browser). Slå det til før den
@@ -496,8 +498,9 @@ Confirm-vinduet åbner først ved:
   fungerende Undo og spørger i én linje, uden kryds.
 - **Planer, du ikke lavede på dashboardet**: en plan, Claude lavede. Plan, confirm og undo gælder for
   hver AI-ændring.
-- **Enhver plan lavet i tool runneren**, også kampstrimlens Condition, så du ser, hvilke mål den
-  rammer, før den anvendes. (Strimlens formular Damage / Heal anvendes med det samme, med Undo.)
+- **Enhver plan lavet i tool runneren**, så du ser, hvilke mål den rammer, før den anvendes.
+  (Strimlens formular Damage / Heal anvendes med det samme, med Undo; dens Condition-chips og End
+  combat spørger i én linje.)
 - **Ældre værktøjer uden plan** (fra tool runneren), som ikke har nogen Undo.
 
 I confirm-vinduet:

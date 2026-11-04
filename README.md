@@ -106,8 +106,8 @@ Before a session the page opens on Pre-flight and Prep; the same page runs the s
 
 **Damage and conditions from the dashboard:** with **GM Actions** on (Start session turns them on)
 (both off by default), select combatants in the turn-order strip and **Damage / Heal**
-opens a small form that applies at once (with Undo) and **Condition** opens the Tool Runner with
-the plan ready for them; you confirm it. The strip can also start and
+opens a small form that applies at once (with Undo) and **Condition** opens condition chips: pick
+one, confirm one plain question, and it applies (with Undo). The strip can also start and
 end a fight. Turns, initiative and saving throws stay in Foundry.
 
 ![The Tool Runner drawer open on plan-actor-change, with its form fields and Pick from list buttons](docs/images/cogm/tool-runner.png)

@@ -10,6 +10,7 @@ import {
   turnText,
   displayNames,
   downWords,
+  conditionQuestion,
   endQuestion,
   clearRefusedUndos,
   lastUndoable,
@@ -92,6 +93,20 @@ describe('pickText', () => {
     expect(pickText(['Wolf 1'])).toBe('Wolf 1');
     expect(pickText(['Wolf 1', 'Wolf 2'])).toBe('Wolf 1 and Wolf 2');
     expect(pickText(['a', 'b', 'c'])).toBe('3 creatures');
+  });
+});
+
+describe('conditionQuestion', () => {
+  it('names the condition and the picked creatures the way the pick bar does', () => {
+    expect(conditionQuestion('prone', ['Brannoc'])).toBe(
+      'Set prone on Brannoc? Undo stays in Recent Changes.'
+    );
+    expect(conditionQuestion('poisoned', ['Wolf 1', 'Wolf 2'])).toBe(
+      'Set poisoned on Wolf 1 and Wolf 2? Undo stays in Recent Changes.'
+    );
+    expect(conditionQuestion('stunned', ['a', 'b', 'c'])).toBe(
+      'Set stunned on 3 creatures? Undo stays in Recent Changes.'
+    );
   });
 });
 

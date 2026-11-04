@@ -58,6 +58,8 @@ export const WRITE_METHODS: readonly string[] = [
   'updateJournalContent',
   // chat and rolls (new chat messages)
   'playerRoll',
+  // "Upload my portrait": stores a player's picture file under assets/players/<slug>/
+  'uploadPlayerPortrait',
   'request-player-rolls',
   'requestAbilityCheck',
   'requestAttackRoll',

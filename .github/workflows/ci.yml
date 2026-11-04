@@ -99,7 +99,7 @@ jobs:
 
       - name: Merge gate and keep-green scripts
         # scripts/green.mjs (parity with this job) and scripts/lane-merge.mjs (D-122 merge gate).
-        run: node --test scripts/green.test.mjs scripts/lane-merge.test.mjs scripts/visual-baselines.test.mjs scripts/review-runner/lib.test.mjs scripts/heavy-lock.test.mjs scripts/test-coverage-check.test.mjs
+        run: node --test scripts/green.test.mjs scripts/lane-merge.test.mjs scripts/visual-baselines.test.mjs scripts/review-runner/lib.test.mjs scripts/heavy-lock.test.mjs scripts/test-coverage-check.test.mjs scripts/planner-wake.test.mjs
 
       - name: Weekly usage report
         # scripts/dev (usage-week D-122 targets, usage-now, usage-report, weekly-check-note) against fixture transcripts.
@@ -208,6 +208,11 @@ jobs:
         # 18-time-sync.sh (backlog pi-ntp): DietPi mode 4 only when needed, dry run, check, undo, snapshot required, with stand-in
         # systemctl, timedatectl and dietpi-set_software.
         run: node --test scripts/pi/time-sync.test.mjs
+
+      - name: Pi stage 26 Discord game server
+        # 26-discord-game-server.sh (backlog discord-pi-game-server) as text: the ids, snapshot and quiet checks before the write,
+        # the token never echoed. The scenarios run in a container on the ARM runner (build-test-arm).
+        run: node --test scripts/pi/discord-game-server.test.mjs
 
       - name: Pi stage 19 join page look
         # 19-join-page-look.sh (backlog join-page-look): background picture and description into world.json with Foundry
@@ -649,6 +654,13 @@ jobs:
         env:
           PI_STAGE21_CONTAINER: 1
         run: node --test scripts/pi/player-vault.test.mjs
+
+      - name: Pi stage 26 in an ARM64 container
+        # scripts/pi/container-test/stage26-scenarios.sh: stage 26 on Debian 13 ARM64 with the real lib.sh (dry run, the four lines
+        # set and the token kept, the saved copy, rerun, check, duplicates, the snapshot rule, undo).
+        env:
+          PI_STAGE26_CONTAINER: 1
+        run: node --test scripts/pi/discord-game-server.test.mjs
 
       - name: Pi stage 16 in an ARM64 container
         # scripts/pi/container-test/stage16-scenarios.sh: stage 16 on Debian 13 ARM64 with stand-ins for systemd, curl and restic

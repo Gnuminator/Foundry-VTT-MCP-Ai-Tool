@@ -191,6 +191,12 @@ class FoundryMCPBridge {
         hint: 'Lets the AI change Foundry settings and who can open a compendium pack, after you confirm; never passwords or these switches.',
       });
       registerGuardedFeature({
+        id: 'player-portrait',
+        name: 'AI Tool: Player portraits (writes)',
+        hint: "Lets a player change the picture of their own character from the dashboard's player page (the file goes into their own folder under assets/players).",
+        defaultEnabled: true,
+      });
+      registerGuardedFeature({
         id: 'table-viewer',
         name: 'AI Tool: Table viewer (writes)',
         hint: 'Lets the AI create the Table user that the TV at the table signs in as, after you confirm.',

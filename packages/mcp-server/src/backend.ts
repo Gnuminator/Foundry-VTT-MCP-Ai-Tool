@@ -95,6 +95,7 @@ import { PlayLogPump, playLogSettings } from './play-log-pump.js';
 import { ChangeJournalPump, changeJournalSettings } from './change-journal-pump.js';
 import { ChangeHistory, journalLinks } from './change-history.js';
 import { UsageLog, handleRecordUsage } from './usage-log.js';
+import { handlePlayerPortrait, PortraitError } from './player-portrait.js';
 import {
   handleCharacterSheet,
   handlePlayerRoll,
@@ -874,6 +875,22 @@ async function startBackend(): Promise<void> {
             } catch (e: unknown) {
               const message = e instanceof Error ? e.message : 'Switches failed';
               socket.write(`${JSON.stringify({ id: msg.id, error: { message } })}\n`);
+            }
+
+            continue;
+          }
+
+          // "Upload my portrait" (player-portrait.ts): the dashboard's player page sends a
+          // player's picture for a character they own. Not a tool, never listed to Claude.
+          if (msg.method === 'player_portrait') {
+            try {
+              const result = await handlePlayerPortrait(foundryClient, guardedWrites, msg.params);
+              socket.write(`${JSON.stringify({ id: msg.id, result })}\n`);
+            } catch (e: unknown) {
+              const message = e instanceof Error ? e.message : 'The picture was not saved.';
+              const error =
+                e instanceof PortraitError ? { message, code: 'portrait' } : controlError(e);
+              socket.write(`${JSON.stringify({ id: msg.id, error })}\n`);
             }
 
             continue;

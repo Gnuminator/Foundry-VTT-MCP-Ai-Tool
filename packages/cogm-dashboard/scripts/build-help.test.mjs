@@ -26,7 +26,7 @@ function build(files) {
     encoding: 'utf8',
   });
   const pages = run.status === 0 ? JSON.parse(readFileSync(out, 'utf8')).pages : null;
-  return { status: run.status, stderr: run.stderr, pages };
+  return { status: run.status, stderr: run.stderr, stdout: run.stdout, pages };
 }
 
 afterEach(() => {
@@ -46,6 +46,25 @@ describe('build-help', () => {
     expect(pages['da-x'].title).toBe('Ex');
     expect(pages['da-x'].html).toContain('data-help="da-y#"');
     expect(pages['da-x'].html).toContain('<h2 id="del-et" data-en-id="part-one">');
+  });
+
+  it('warns when a Danish twin has other headings than its English page', () => {
+    const { status, stderr, stdout, pages } = build({
+      'gm/x.md': '# X\n\n## One\n\n## Two\n',
+      'da/gm/x.md': '# Ex\n\n## Et\n',
+    });
+    expect(status).toBe(0);
+    expect(`${stderr}${stdout}`).toContain('warning: da-x has 2 headings');
+    expect(pages['da-x'].html).not.toContain('data-en-id');
+  });
+
+  it('writes the English heading id into data-en-id escaped once', () => {
+    const { pages } = build({
+      'gm/x.md': '# X\n\n## Q & A\n',
+      'da/gm/x.md': '# Ex\n\n## Sp & Sv\n',
+    });
+    expect(pages['da-x'].html).toMatch(/data-en-id="[^"&]*"/);
+    expect(pages['da-x'].html).not.toContain('&amp;amp;');
   });
 
   it('keys docs/foundry pages as foundry-<name> and links across folders', () => {

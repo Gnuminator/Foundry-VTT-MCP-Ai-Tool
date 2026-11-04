@@ -104,7 +104,8 @@ export const STEPS = [
     'scripts/visual-baselines.test.mjs',
     'scripts/review-runner/lib.test.mjs',
     'scripts/heavy-lock.test.mjs',
-    'scripts/test-coverage-check.test.mjs'
+    'scripts/test-coverage-check.test.mjs',
+    'scripts/planner-wake.test.mjs'
   ),
   { name: 'usage-week', cmd: 'npm', args: ['run', 'dev:test'], env: CI },
   nodeTest('gamenight-watch', 'scripts/gamenight-watch.test.mjs'),
@@ -127,6 +128,7 @@ export const STEPS = [
   nodeTest('pi-gh-runner', 'scripts/pi/gh-runner.test.mjs'),
   nodeTest('pi-stage7-foundry-url', 'scripts/pi/stage7-foundry-url.test.mjs'),
   nodeTest('pi-time-sync', 'scripts/pi/time-sync.test.mjs'),
+  nodeTest('pi-discord-game-server', 'scripts/pi/discord-game-server.test.mjs'),
   nodeTest('pi-join-page-look', 'scripts/pi/join-page-look.test.mjs'),
   nodeTest('pi-vault-sync', 'scripts/pi/vault-sync.test.mjs'),
   nodeTest('pi-player-vault', 'scripts/pi/player-vault.test.mjs'),

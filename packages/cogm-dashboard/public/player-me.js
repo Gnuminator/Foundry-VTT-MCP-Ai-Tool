@@ -23,6 +23,29 @@ export function mySheets(me) {
     }));
 }
 
+/** The largest picture the page sends, in bytes (the server checks again, by the bytes). */
+export const PORTRAIT_MAX_BYTES = 5 * 1024 * 1024;
+
+/**
+ * A quick check before a picture is sent: a line telling the player what is wrong, or null. The
+ * server decides in the end (it reads the type from the bytes, not from the name).
+ */
+export function portraitProblem(file) {
+  if (!file) return 'Pick a picture first.';
+  if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) {
+    return 'Only PNG, JPG or WebP pictures work.';
+  }
+  if (file.size > PORTRAIT_MAX_BYTES) return 'That picture is too big. The limit is 5 MB.';
+  if (file.size === 0) return 'That file is empty.';
+  return null;
+}
+
+/** The line shown after a failed upload: the server's own words for a refusal, else a fixed one. */
+export function portraitFailure(status, body) {
+  if (status >= 500) return 'Could not save your picture. Ask your GM.';
+  return (body && body.error) || 'Could not save your picture. Ask your GM.';
+}
+
 /** The roll requests waiting for the player: a button id and its text, nothing else. */
 export function myRollRequests(me) {
   const list = me && Array.isArray(me.rollRequests) ? me.rollRequests : [];

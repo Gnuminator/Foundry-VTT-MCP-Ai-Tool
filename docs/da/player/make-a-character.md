@@ -1,6 +1,6 @@
 ---
 source: player/make-a-character.md
-sourceHash: c539e91418c9
+sourceHash: 5d126330bf4f
 title: Lav din karakter
 description: "Trin for trin: lav en level-3 karakter i Foundry med Actor Studio fra 2024 Player's Handbook (byg på level 1, level up to gange), tjek den og gør den til din egen."
 ---
@@ -291,10 +291,22 @@ Foundry skal vide, hvilken karakter der er din, så den bruger den til dine roll
 
 Players-listen viser nu dit navn med karakterens navn i parentes.
 
-## 12. Et portræt (valgfrit)
+## 12. Dit billede (valgfrit)
 
-Spillere kan ikke uploade billeder til Foundry. Send dit billede til GM'en på Discord, så tilføjer
-GM'en det som dit portræt og dit token.
+Du kan sætte din egen tegning på din karakter fra spillersiden. Foundrys egen filbrowser er lukket
+for spillere, så det er vejen ind.
+
+1. Åbn spillersiden på den enhed, hvor du åbnede dit private link (det der er pinnet på Discord).
+   Tryk på **Upload my portrait** i kortet **You**.
+2. Vælg én PNG-, JPG- eller WebP-fil på højst 5 MB.
+3. Listen ved siden af knappen står på **Portrait and token**, så det samme billede også bliver dit
+   token på kortet. Vælg **Portrait only** for kun at ændre portrættet.
+4. Vent på "Done". Din karakter har nu det nye billede i Foundry. Har du mere end én karakter,
+   vælger du først hvilken.
+
+Billedet gemmes i din egen mappe, så ingen andres filer bliver rørt. GM'en kan se ændringen under
+Changes og fortryde den, hvis noget gik galt. En fil, der ikke er en rigtig PNG, JPG eller WebP,
+eller som er for stor, bliver afvist med en kort besked; send den til GM'en på Discord i stedet.
 
 ## Hvis noget går galt
 

@@ -147,6 +147,8 @@ describe('FoundryDataAccess — requestPlayerRolls', () => {
     // button HTML + flavor surfaced in content
     expect(msg.content).toContain('mcp-roll-button');
     expect(msg.content).toContain('DEX Ability Check (Public)');
+    expect(msg.content).toContain('Roll for Silvera: DEX check');
+    expect(msg.content).not.toContain('style=');
     expect(msg.content).toContain('Perception sweep');
 
     // the module flags carry a single rollButtons entry, unrolled, with formula 1d20+3
@@ -311,6 +313,61 @@ describe('FoundryDataAccess — requestPlayerRolls', () => {
 
     expect(result.success).toBe(true);
     expect(result.message).toContain('Roll request sent to Tom');
+  });
+
+  it('refuses several partial player names, listing them with ids', async () => {
+    world.addUser({ id: 'u1', name: 'Alice Smith', active: true, isGM: false });
+    world.addUser({ id: 'u2', name: 'Alice Jones', active: true, isGM: false });
+
+    const result = await da.requestPlayerRolls({
+      rollType: 'ability',
+      rollTarget: 'dex',
+      targetPlayer: 'Alice',
+      isPublic: true,
+      rollModifier: '',
+      flavor: '',
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error).toMatch(/Multiple players or characters match "Alice"/);
+    expect(result.error).toContain('Alice Smith (u1)');
+    expect(result.error).toContain('Alice Jones (u2)');
+  });
+
+  it('refuses several partial character names, listing them with ids', async () => {
+    world.addUser({ id: 'u1', name: 'Tom', active: true, isGM: false });
+    addPlayerCharacter({ id: 'a1', name: 'Aria Stormwind', ownerUserId: 'u1' });
+    addPlayerCharacter({ id: 'a2', name: 'Aria Brightwood', ownerUserId: 'u1' });
+
+    const result = await da.requestPlayerRolls({
+      rollType: 'ability',
+      rollTarget: 'dex',
+      targetPlayer: 'Aria',
+      isPublic: true,
+      rollModifier: '',
+      flavor: '',
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('Aria Stormwind (a1)');
+    expect(result.error).toContain('Aria Brightwood (a2)');
+  });
+
+  it('refuses several partial matches among characters nobody owns', async () => {
+    world.addActor({ id: 'n1', name: 'Goblin Archer', type: 'npc' });
+    world.addActor({ id: 'n2', name: 'Goblin Boss', type: 'npc' });
+
+    const result = await da.requestPlayerRolls({
+      rollType: 'ability',
+      rollTarget: 'dex',
+      targetPlayer: 'Goblin',
+      isPublic: true,
+      rollModifier: '',
+      flavor: '',
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('Goblin Archer (n1)');
   });
 
   it('appends a custom rollModifier to the formula', async () => {
@@ -556,9 +613,26 @@ describe('FoundryDataAccess — requestAbilityCheck (wrapper)', () => {
     expect(result.success).toBe(true);
     const msg = world.messages.contents[world.messages.contents.length - 1];
     expect(msg.content).toContain('WIS Ability Check (Public)');
-    expect(msg.content).toContain('Spot the trap — DC 15');
+    expect(msg.content).toContain('Spot the trap');
+    expect(msg.content).not.toContain('Spot the trap — DC 15');
     // The click handler reads the DC from the button and rolls against it.
     expect(msg.content).toContain('data-dc="15"');
+  });
+
+  it('shows the DC once on the card: the heading has it, the folded flavor does not repeat it', async () => {
+    world.addUser({ id: 'u1', name: 'Alice', active: true, isGM: false });
+    addPlayerCharacter({ id: 'a1', name: 'Silvera', ownerUserId: 'u1' });
+    await da.requestAbilityCheck({
+      targetPlayer: 'Alice',
+      ability: 'wis',
+      dc: 15,
+      isPublic: true,
+      reason: 'Spot the trap',
+    });
+    const msg = world.messages.contents[world.messages.contents.length - 1];
+    expect(msg.content).toContain('Roll for Silvera: WIS check, DC 15');
+    expect(msg.content).toContain('Spot the trap');
+    expect(msg.content.match(/DC 15/g)).toHaveLength(1);
   });
 
   it('puts no data-dc on a request without a DC', async () => {

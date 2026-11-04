@@ -86,7 +86,7 @@ jobs:
         run: node --test scripts/test-env/foundry-frame-proxy.test.mjs
 
       - name: Context alert hook
-        # .claude/hooks/context-alert.mjs (D-122): one line at the 200k and 250k handover marks, and
+        # .claude/hooks/context-alert.mjs (D-122): one line at the 200k and 250k handover marks (250k and 300k for a lane), and
         # context-stop.mjs: the hard stop above the out line. Both ignore doubled phantom readings.
         run: node --test .claude/hooks/context-alert.test.mjs .claude/hooks/context-stop.test.mjs
 
@@ -236,6 +236,11 @@ jobs:
         # lib.sh's game-night guards (enable_unit restarts only on change, players online, active recording, snapshot from
         # today, dashboard split warning) with stand-in systemctl and curl, and the stages' pins, swaps and ignore lists.
         run: node --test scripts/pi/pi-stage-safety.test.mjs
+
+      - name: Pi deployed-state check
+        # deploy/pi/deployed-state.sh (backlog pi-deployed-state-check): the read-only check of units, containers, env names,
+        # packages and the deployed ref, with stand-in systemctl, docker and ldconfig.
+        run: node --test deploy/pi/deployed-state.test.mjs
 
       - name: Tunnel client script
         # installer/nsis/tunnel-client.ps1 (D-095): the order of the Install steps and the quoted -NoTask start.
@@ -569,6 +574,13 @@ jobs:
         env:
           PI_STAGE13_CONTAINER: 1
         run: node --test scripts/pi/player-creation.test.mjs
+
+      - name: Pi stage 22 in an ARM64 container
+        # scripts/pi/container-test/stage22-scenarios.sh: the seven-book trim stage's checks in front of gm-script.sh
+        # (dry run first, the wrong world, players online, the delete needing the user's OK).
+        env:
+          PI_STAGE22_CONTAINER: 1
+        run: node --test scripts/pi/seven-books.test.mjs
 
       - name: Pi kit session in an ARM64 container
         # scripts/pi/container-test/kit-session-scenarios.sh: MODE=up and MODE=down on Debian 13 ARM64 with stand-ins

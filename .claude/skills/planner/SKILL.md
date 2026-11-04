@@ -65,7 +65,7 @@ the removed id, repoint or drop it. Review lows become S items. Triage `## Captu
 
 ## Before a planner ends or hands over
 
-The planner ends after its outcome, or at 200k context (out by 250k). Before it stops:
+The planner ends after its outcome, or at 200k context (out by 250k; lanes in `.claude/worktrees/` get 250k and 300k). Before it stops:
 
 1. Write the handover note (running lanes with session ids and `- progress:` state, open PRs, what
    is next), and start the next planner or leave a copy-paste prompt.

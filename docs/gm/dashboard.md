@@ -60,7 +60,7 @@ per session and to group the play log.
 - Click **End session** when play ends. The text changes back to "No session". It also turns off
   again what **Turn on for tonight** turned on (see below), and GM Actions.
 - Starting a session writes a line in the tool's own log and turns live play on, so tools that
-  change the game can run after you confirm. There is no "log only" start any more.
+  change the game can run after you confirm.
 - If you forget, the notes still split sessions at a gap of 3 hours without events.
 
 The 📓 Obsidian link next to it opens your campaign's Home note in Obsidian (see "Open in Obsidian" below).
@@ -300,7 +300,7 @@ the tool's play log, the same as the Stats section of the Obsidian session note.
 
 Below tonight's stats, once the notes of a recorded session exist (the session pipeline writes them
 after the session). The tool puts them into Foundry **by itself, without asking**: a GM-only
-journal "Session notes" with the pages Recap, GM summary and Scenes, logged in Recent Changes with
+journal in the folder "Session notes" (named with the date and title) with the pages Recap, GM summary and Scenes, logged in Recent Changes with
 Undo. The card says where they are:
 
 - **Waiting**: they go in by themselves as soon as a GM is in Foundry, "Allow Write Operations" is
@@ -506,17 +506,17 @@ want to do one exact thing yourself, or to apply a plan Claude made.
    Actors, Journals & Quests, Guarded changes, and more). Each shows a tag: `read`, `write` or
    `destructive`.
 2. Click a tool. You see its description and a form. Fields marked **\*** are required.
-3. Fill in the form and click **Run** (a read) or **Run…** (a change, which opens the confirm
+3. Fill in the form and click **Run** (a read) or **Plan and confirm** (a change, which opens the confirm
    window).
 4. The answer shows under the form as **Result** or **Error**. **‹ All tools** goes back.
 
 When GM Actions are off, a warning bar at the top says so, with an **Enable GM Actions** button.
 Reads still work.
 
-### Pick… buttons
+### Pick from list buttons
 
 Every field that names something (an actor, a token, a scene, a journal page, a combatant, a
-compendium entry, a plan, a change) has a **Pick…** button. It lists what exists right now; click
+compendium entry, a plan, a change) has a **Pick from list** button. It lists what exists right now; click
 one to fill the field. You can still type by hand.
 
 - The list has a filter box. For compendium entries and documents, type at least 2 letters to
@@ -533,8 +533,8 @@ When Claude plans a change in Claude Desktop, you can apply it from the dashboar
 
 1. Turn on **GM Actions**.
 2. Open **🛠 Tools**, search for `apply-planned-change`.
-3. Click **Pick…** next to `planId` and choose the plan.
-4. Click **Run…**. The confirm window shows the plan's summary and what will change.
+3. Click **Pick from list** next to `planId` and choose the plan.
+4. Click **Plan and confirm**. The confirm window shows the plan's summary and what will change.
 5. Confirm. The change appears in **Recent Changes** with **Undo**.
 
 `get-planned-change` without a `planId` lists every plan still waiting. Plans expire after 15
@@ -551,7 +551,7 @@ Top row:
 - **↻ Refresh**: reloads the reading.
 - **New reading (built-in roll)**: deals a new reading with the tool's own roll. The previous
   reading is kept in an archive.
-- **Choose the cards…**: for a reading you drew by hand. Pick the five cards (the first three from
+- **Choose the cards**: for a reading you drew by hand. Pick the five cards (the first three from
   the common deck, the last two from the high deck, none twice) and press **Store this reading**.
   Nothing is dealt. The previous reading is
   kept in an archive, and Undo brings it back. It shows card names, so it only opens while
@@ -567,10 +567,10 @@ Each of the five positions shows:
 - links: **Open Journal**, **Open Scene** or **Open Actor** open the linked document on your
   Foundry screen (nothing changes); "not linked" when there is none;
 - "hidden from players" or "revealed" (with **Open page** for the reveal page);
-- **Link…**: search your world's journals, pages, scenes and actors, then click **Link** on the
+- **Add a link**: search your world's journals, pages, scenes and actors, then click **Link** on the
   right one;
-- **Reveal…**: type an optional page title and exactly what the players may read, then **Plan
-  reveal…**. The players get only your text, never the card name. Tick **Show it now** to pop the
+- **Reveal to players**: type an optional page title and exactly what the players may read, then **Plan
+  reveal**. The players get only your text, never the card name. Tick **Show it now** to pop the
   page up on the players' screens as soon as you apply the reveal. It is off every time unless you
   tick it, and Undo takes back the reveal but cannot close the popup.
 

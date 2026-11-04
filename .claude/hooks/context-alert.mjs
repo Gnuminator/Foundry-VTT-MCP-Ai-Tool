@@ -3,7 +3,8 @@
 // PostToolUse (every tool) and UserPromptSubmit, so it must be fast: it reads only the last 512 KB
 // of the transcript (transcripts reach tens of MB), no network, no full-file read.
 //
-// Rule (fixed, the user 2026-11-03): plan the handover at 200k tokens, be out by 250k.
+// Rule (the user 2026-11-03, lanes eased 2026-11-04): plan the handover at 200k tokens, be out by
+// 250k; a lane (session project dir under .claude/worktrees/) plans at 250k and is out by 300k.
 //
 // Context = input + cache read + cache creation tokens of the last main-thread assistant response
 // (of its last sampling pass when the response has several, see contextOf), counted only when the
@@ -31,7 +32,17 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 export const PLAN_AT = 200_000;
 export const OUT_AT = 250_000;
+export const LANE_PLAN_AT = 250_000;
+export const LANE_OUT_AT = 300_000;
 export const TAIL_BYTES = 512 * 1024;
+
+// A lane works in a worktree under .claude/worktrees/; the planner and other sessions in the main
+// checkout keep the lower lines. A path we cannot read as a lane gets the lower lines. Callers pass
+// CLAUDE_PROJECT_DIR (fixed for the session), falling back to the payload cwd.
+export function limitsFor(dir) {
+  const lane = typeof dir === 'string' && /[\\/]\.claude[\\/]worktrees[\\/]/i.test(dir);
+  return lane ? { plan: LANE_PLAN_AT, out: LANE_OUT_AT } : { plan: PLAN_AT, out: OUT_AT };
+}
 
 // --- the transcript tail -------------------------------------------------------------------
 
@@ -164,14 +175,14 @@ function writeLevel(sessionId, level, env) {
 
 const k = tokens => `${Math.round(tokens / 1000)}k`;
 
-export function messageFor(level, context, eventName) {
+export function messageFor(level, context, eventName, limits = limitsFor()) {
   const hookEventName = eventName || 'PostToolUse';
   if (level === 2) {
     return {
       systemMessage: `Context ${k(context)}: hand over now.`,
       hookSpecificOutput: {
         hookEventName,
-        additionalContext: `Context is ${k(context)} tokens (D-122 hard line ${k(OUT_AT)}): stop taking new work and write the handover prompt now (lane skill), then stop.`,
+        additionalContext: `Context is ${k(context)} tokens (D-122 hard line ${k(limits.out)}): stop taking new work and write the handover prompt now (lane skill), then stop.`,
       },
     };
   }
@@ -179,7 +190,7 @@ export function messageFor(level, context, eventName) {
     systemMessage: `Context ${k(context)}: plan the handover (lane skill).`,
     hookSpecificOutput: {
       hookEventName,
-      additionalContext: `Context is ${k(context)} tokens (D-122 handover line ${k(PLAN_AT)}): finish the current step, then write the handover prompt and stop. Out by ${k(OUT_AT)}.`,
+      additionalContext: `Context is ${k(context)} tokens (D-122 handover line ${k(limits.plan)}): finish the current step, then write the handover prompt and stop. Out by ${k(limits.out)}.`,
     },
   };
 }
@@ -194,7 +205,9 @@ export function run(input, env = process.env) {
     const sessionId = input.session_id || 'unknown';
     const context = contextFromTranscript(input.transcript_path);
     if (context === null) return '';
-    const level = context >= OUT_AT ? 2 : context >= PLAN_AT ? 1 : 0;
+    // CLAUDE_PROJECT_DIR is fixed for the session; the payload cwd moves with a `cd`
+    const limits = limitsFor(env.CLAUDE_PROJECT_DIR || input.cwd);
+    const level = context >= limits.out ? 2 : context >= limits.plan ? 1 : 0;
     const announced = readLevel(sessionId, env);
     if (level === 0) {
       if (announced) writeLevel(sessionId, 0, env);
@@ -202,7 +215,7 @@ export function run(input, env = process.env) {
     }
     if (level <= announced) return '';
     writeLevel(sessionId, level, env);
-    return JSON.stringify(messageFor(level, context, input.hook_event_name));
+    return JSON.stringify(messageFor(level, context, input.hook_event_name, limits));
   } catch {
     return '';
   }

@@ -1,6 +1,6 @@
 ---
 source: player/README.md
-sourceHash: 5a98a5ed319f
+sourceHash: b85e67b0d6a0
 title: Spillerguide
 description: Hvad spillere kan se, hvad værktøjet optager under spillet, hvilke dele der når en AI, og hvordan du får dine data slettet.
 ---
@@ -18,12 +18,12 @@ Er du ny ved bordet? Start med [Kom med i spillet](join.md) (adressen, login, Di
 
 **Player page.** En skrivebeskyttet webside. Den kører live på bordets hjemmeserver, bag den samme
 slags login med e-mailkode som selve spillet (Cloudflare Access), så kun adresser på GM'ens liste
-kommer ind. GM'en sender dig adressen. Under en session viser den kampen først. Mellem sessioner
+kommer ind. GM'en sender dig adressen. Under en session viser den combaten først. Mellem sessioner
 starter den med det seneste recap, handouts og quests. Overskriften nævner scenen, med tidspunkt på
 dagen og vejr, hvis scenen har dem. Den har disse dele:
 
-- **Combat order:** hvem der handler hvornår, den aktuelle tur og runden. Spillerkarakterer har en
-  HP-bar. Monstre og NPC'er viser ingen HP-tal og intet helbredsord (den, der kører værktøjet, kan
+- **Combat order:** hvem der handler hvornår, den aktuelle turn og rounden. Spillerkarakterer har en
+  HP-bar. Monsters og NPC'er viser ingen HP-tal og intet helbredsord (den, der kører værktøjet, kan
   slå et groft ord til: healthy, bloodied, critical eller down), kun almindelige conditions (som
   prone eller frightened), og de står under det navn, du kender dem under, eller som "Unknown
   creature".
@@ -37,7 +37,7 @@ dagen og vejr, hvis scenen har dem. Den har disse dele:
   titlen, hver i sin egen boks.
 - **You:** hvis du har åbnet dit private link (se My character nedenfor), står der øverst på siden
   "Your turn" eller "You are up next". Den viser hver af dine karakterer med HP og conditions og
-  minder dig om Constitution saving throw, når din karakter, der koncentrerer sig, tager skade.
+  minder dig om Constitution saving throw, når din karakter, der koncentrerer sig, tager damage.
 - **Roll buttons:** når GM'en beder dig om et roll, vises det som en knap på denne side (og på My
   character), hvis du har åbnet dit private link. Tryk på den, så går dit roll til bordet. Du ser
   kun anmodninger, der er til dig.
@@ -74,13 +74,13 @@ den, der udløste den, når Foundry oplyser hvem. Den optager:
   vundet eller mistet;
 - conditions og effekter;
 - short og long rests;
-- kamp: start, ture og slut;
+- combat: start, turns og slut;
 - roll-anmodninger (hvem der blev bedt om hvad);
 - token-flytninger, scene-skift, XP, level og valuta;
 - hvem der kom ind i og forlod spillet;
 - chatbeskeder med deres tekst, også in-character, out-of-character og whispers.
 
-GM'en bruger den til session notes og statistik (for eksempel skade givet og helbredelse modtaget
+GM'en bruger den til session notes og statistik (for eksempel damage givet og healing modtaget
 pr. karakter). Play log bliver på den maskine, der kører værktøjet. De session notes og den
 statistik, der laves ud fra den, ligger i GM'ens Obsidian-noter. Intet af det gemmes i Foundry-worlden.
 
@@ -110,12 +110,18 @@ statistik, der laves ud fra den, ligger i GM'ens Obsidian-noter. Intet af det ge
 
 Før den første optagede session skriver den spiller, der kører værktøjet, en besked i Discord, der
 siger præcis, hvad der optages, og hver spiller svarer ja eller nej skriftligt. Intet svar tæller
-som nej. Kort sagt: dit eget lydspor optages. Det går gennem Discord og Pi-serveren (slettet der 7 dage
-efter, at PC'en kopierer det) og gemmes på den spillers PC. Transcripts og noter kommer ind i
-GM'ens noter, som også når GM'ens PC. Optagelserne gemmes for at træne og teste bordets egne
-tale-værktøjer, indtil du beder om, at din bliver slettet. Du kan sige nej: så bliver dit spor
-slettet efter hver session, før noget gøres til tekst, og noterne skrives uden dig. Du kan også
-skifte mening senere: dine spor bliver slettet, og transcripts og noter skrives igen uden dig.
+som nej.
+
+**Hvis du siger ja:** dit eget lydspor optages, og kun mens din mikrofon sender lyd. Det går gennem
+Discord og Pi-serveren (slettet der 7 dage efter, at PC'en kopierer det) og gemmes på den spillers
+PC. Transcripts og noter kommer ind i GM'ens noter, som også når GM'ens PC.
+
+**Træning:** optagelserne gemmes også for at træne og teste bordets egne
+tale-værktøjer, indtil du beder om, at din bliver slettet.
+
+**Hvis du siger nej:** dit spor bliver slettet efter hver session, før noget gøres til tekst, og
+noterne skrives uden dig. Du kan også skifte mening senere: dine spor bliver slettet, og transcripts
+og noter skrives igen uden dig.
 
 ## Hvor længe det gemmes
 

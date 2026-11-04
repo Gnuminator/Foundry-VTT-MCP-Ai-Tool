@@ -50,7 +50,7 @@ help works offline and matches the installed version.
 
 **Advanced** (top right) holds the rest: the GM guides, the Prep, Party, Handouts and Tarokka
 panels (a panel already on the screen is scrolled to; otherwise it opens over the page), After a
-paper night, the Tool Runner, module diagnostics, the player links and the During
+paper night, the Tools, module diagnostics, the player links and the During
 layouts entry, and the Version tracker (on by default; Advanced turns it off).
 
 ### My character, one page per player
@@ -95,7 +95,7 @@ with secret sections and unidentified items' true names left out.
 
 ### Do (almost) anything the bridge can do
 
-![The Tool Runner drawer open on plan-actor-change, with its form fields and Pick… buttons](../images/cogm/tool-runner.png)
+![The Tool Runner drawer open on plan-actor-change, with its form fields and Pick from list buttons](../images/cogm/tool-runner.png)
 
 - A built-in **Tool Runner** exposes _every_ Foundry MCP tool behind a simple form: spawn NPCs and
   monsters from compendiums, set the scene's mood/lighting, create quest journals, drop loot, manage
@@ -107,8 +107,8 @@ with secret sections and unidentified items' true names left out.
 ![The Destructive action window for ending a combat, with its I understand box and the Cancel and Run destructive action buttons](../images/cogm/confirm.png)
 
 - Watching the game is **always read-only**.
-- Game-changing actions stay off until you flip the **GM Actions** switch (or click **Turn on
-  for tonight** in Pre-flight, which turns it on; **End session** turns it off).
+- Game-changing actions stay off until you press **Start session** (or click **Turn on
+  for tonight** in Pre-flight; **End session** turns it off again).
 - **Every change can be undone.** The dashboard's purpose-built buttons apply non-destructive
   changes in one click with an **Undo** message; plans typed by hand in the Tool Runner and plans
   from Claude or Obsidian always show a confirm window, and

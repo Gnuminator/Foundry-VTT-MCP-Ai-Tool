@@ -104,14 +104,18 @@ from it are in the GM's Obsidian notes. None of it is stored in the Foundry worl
 ## Recording and your consent
 
 Before the first recorded session, the player who runs the tool posts a message in Discord that
-says exactly what is recorded, and each player replies yes or no in writing. No reply counts as
-no. In short: your own voice track is recorded; it passes through Discord and the Pi (deleted there
-7 days after the PC copies it) and is kept on that player's PC; transcripts and notes go into the
-GM's notes, which also reach the GM's PC; the recordings are kept to train and test the table's own
-speech tools until you ask for yours to be deleted. You can say no: then your track is deleted
-after each session, before anything is turned into text, and the notes are written without you.
-You can also change your mind later: your tracks are deleted and the transcripts and notes written
-again without you.
+says exactly what is recorded, and each player replies yes or no in writing. No reply counts as no.
+
+**If you say yes:** your own voice track is recorded, and only while your microphone sends sound. It
+passes through Discord and the Pi (deleted there 7 days after the PC copies it) and is kept on that
+player's PC. Transcripts and notes go into the GM's notes, which also reach the GM's PC.
+
+**Training:** the recordings are also kept to train and test the table's own
+speech tools, until you ask for yours to be deleted.
+
+**If you say no:** your track is deleted after each session, before anything is turned into text, and
+the notes are written without you. You can change your mind later: your tracks are deleted and the
+transcripts and notes written again without you.
 
 ## How long it is kept
 

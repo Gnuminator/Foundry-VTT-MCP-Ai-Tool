@@ -20,10 +20,10 @@ Player page er live bag login med e-mailkode. GM'en sender dig adressen.
   også GM'en, hvilke handouts du har åbnet.
 - **Tip:** dit valg huskes i den browser. På en ny computer eller i en ny browser skal du vælge igen.
 
-## Følg kampen
+## Følg combaten
 
-- **Se på:** **Combat order** på player page: hvem der handler hvornår, hvis tur det er, og runden.
-- **Godt at vide:** dit party har HP-bars. Monstre viser ingen tal og intet helbredsord (spørg GM'en,
+- **Se på:** **Combat order** på player page: hvem der handler hvornår, hvis turn det er, og rounden.
+- **Godt at vide:** dit party har HP-bars. Monsters viser ingen tal og intet helbredsord (spørg GM'en,
   hvem der er såret; den, der kører værktøjet, kan slå et groft ord til), og en skabning, hvis navn
   du ikke har lært, hedder "Unknown creature". Skjulte skabninger er slet ikke på listen.
 
@@ -49,7 +49,7 @@ Player page er live bag login med e-mailkode. GM'en sender dig adressen.
 Kun GM'en taler med Claude i dag, i sin egen Claude-app. Hvis du vil vide noget, som værktøjet holder
 styr på, så spørg GM'en. Gode spørgsmål:
 
-- "Hvor meget skade gav jeg sidste session?" (play-statistikken pr. karakter)
+- "Hvor meget damage gav jeg sidste session?" (play-statistikken pr. karakter)
 - "Hvilke handouts har vi indtil videre?"
 - "Kan du sende os et recap af sidste session?" (et recap uden spoilers, lavet til spillere)
 - "Hvad stod der i brevet fra i sidste uge igen?"

@@ -3,7 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -131,12 +131,13 @@ test('run: a lane stays quiet at 220k, plans at 250k, is out at 300k; the main c
     const laneCwd = 'C:\\P\\Foundry\\.claude\\worktrees\\lane-a-1';
     const mainCwd = 'C:\\P\\Foundry';
     const at = (ctx, name) => transcript(root, [turn(ctx)], name);
-    assert.equal(run(input(at(220_000, 'l1.jsonl'), { cwd: laneCwd }), env), '');
-    const plan = JSON.parse(run(input(at(252_000, 'l2.jsonl'), { cwd: laneCwd }), env));
+    const laneEnv = { ...env, CLAUDE_PROJECT_DIR: laneCwd };
+    assert.equal(run(input(at(220_000, 'l1.jsonl'), { cwd: laneCwd }), laneEnv), '');
+    const plan = JSON.parse(run(input(at(252_000, 'l2.jsonl'), { cwd: laneCwd }), laneEnv));
     assert.equal(plan.systemMessage, 'Context 252k: plan the handover (lane skill).');
     assert.match(plan.hookSpecificOutput.additionalContext, /252k tokens .*250k.*Out by 300k/);
-    assert.equal(run(input(at(280_000, 'l3.jsonl'), { cwd: laneCwd }), env), '');
-    const out = JSON.parse(run(input(at(301_000, 'l4.jsonl'), { cwd: laneCwd }), env));
+    assert.equal(run(input(at(280_000, 'l3.jsonl'), { cwd: laneCwd }), laneEnv), '');
+    const out = JSON.parse(run(input(at(301_000, 'l4.jsonl'), { cwd: laneCwd }), laneEnv));
     assert.equal(out.systemMessage, 'Context 301k: hand over now.');
     assert.match(out.hookSpecificOutput.additionalContext, /hard line 300k/);
     // the planner in the main checkout
@@ -153,22 +154,30 @@ test('run: a lane stays quiet at 220k, plans at 250k, is out at 300k; the main c
   }
 });
 
-test('limitsFor: any of several dirs under .claude/worktrees/ makes a lane', () => {
+test('limitsFor: a worktree project dir or a worktree transcript folder makes a lane', () => {
   const lane = { plan: 250_000, out: 300_000 };
   const main = { plan: 200_000, out: 250_000 };
-  assert.deepEqual(limitsFor('C:\\P\\Foundry', 'C:\\P\\Foundry\\.claude\\worktrees\\a'), lane);
+  const wt = 'C:\\Users\\u\\.claude\\projects\\C--P-Foundry-VTT-AI-Tool--claude-worktrees-lane-a\\s.jsonl';
+  const mainT = 'C:\\Users\\u\\.claude\\projects\\C--P-Foundry-VTT-AI-Tool\\s.jsonl';
+  assert.deepEqual(limitsFor('C:\\P\\Foundry', wt), lane);
+  assert.deepEqual(limitsFor('C:\\P\\Foundry', wt.toUpperCase()), lane);
   assert.deepEqual(limitsFor('C:\\P\\Foundry\\.claude\\worktrees\\a', undefined), lane);
-  assert.deepEqual(limitsFor('C:\\P\\Foundry', 'C:\\P\\Foundry\\packages'), main);
+  assert.deepEqual(limitsFor('C:\\P\\Foundry', mainT), main);
+  assert.deepEqual(limitsFor(undefined, undefined), main);
 });
 
-test('run: a lane counts when either CLAUDE_PROJECT_DIR or the payload cwd is under worktrees', () => {
+test('run: the desktop-app lane shape and the planner that cd-ed into a worktree', () => {
   const { root, env, cleanup } = fixture();
   try {
     const lane = 'C:\\P\\Foundry\\.claude\\worktrees\\lane-a-1';
     const main = 'C:\\P\\Foundry';
     const file = transcript(root, [turn(260_000)]);
-    // desktop-app shape: project dir is the main checkout, cwd is the worktree -> lane, plan line only
-    const a = run(input(file, { cwd: lane, session_id: 'a' }), {
+    const laneDir = path.join(root, 'C--P-Foundry--claude-worktrees-lane-a-1');
+    mkdirSync(laneDir);
+    const laneFile = transcript(laneDir, [turn(260_000)]);
+    // desktop-app lane: project dir is the main checkout, the transcript sits in the worktree
+    // folder, the cwd is the worktree -> lane, plan line only
+    const a = run(input(laneFile, { cwd: lane, session_id: 'a' }), {
       ...env,
       CLAUDE_PROJECT_DIR: main,
     });
@@ -179,8 +188,8 @@ test('run: a lane counts when either CLAUDE_PROJECT_DIR or the payload cwd is un
       CLAUDE_PROJECT_DIR: lane,
     });
     assert.match(l, /plan the handover/);
-    // neither under worktrees -> planner, out at 250k
-    const p = run(input(file, { cwd: main, session_id: 'p' }), {
+    // planner in the main checkout that cd-ed into a lane: the cwd does not count, still out at 250k
+    const p = run(input(file, { cwd: lane, session_id: 'p' }), {
       ...env,
       CLAUDE_PROJECT_DIR: main,
     });

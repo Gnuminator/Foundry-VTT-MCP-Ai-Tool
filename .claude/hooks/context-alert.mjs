@@ -4,7 +4,7 @@
 // of the transcript (transcripts reach tens of MB), no network, no full-file read.
 //
 // Rule (the user 2026-11-03, lanes eased 2026-11-04): plan the handover at 200k tokens, be out by
-// 250k; a lane (session project dir under .claude/worktrees/) plans at 250k and is out by 300k.
+// 250k; a lane (project dir under .claude/worktrees/, or a transcript in a worktree project folder) plans at 250k and is out by 300k.
 //
 // Context = input + cache read + cache creation tokens of the last main-thread assistant response
 // (of its last sampling pass when the response has several, see contextOf), counted only when the
@@ -38,11 +38,17 @@ export const TAIL_BYTES = 512 * 1024;
 
 // A lane works in a worktree under .claude/worktrees/; the planner and other sessions in the main
 // checkout keep the lower lines. A path we cannot read as a lane gets the lower lines. Callers pass
-// every directory we know of: in a session the desktop app starts in a worktree, CLAUDE_PROJECT_DIR
-// is the main checkout (the hook command itself runs main's copy) and only the payload cwd is the
-// worktree, so a session is a lane when any of them is under .claude/worktrees/.
-export function limitsFor(...dirs) {
-  const lane = dirs.some(d => typeof d === 'string' && /[\\/]\.claude[\\/]worktrees[\\/]/i.test(d));
+// only what is fixed for the whole session: CLAUDE_PROJECT_DIR and the transcript path, never the
+// payload cwd (it moves with every cd, so a planner that cds into a worktree would become a lane).
+// In a session the desktop app starts in a worktree, CLAUDE_PROJECT_DIR is the main checkout (the
+// hook command itself runs main's copy), but the transcript lives in a project folder named after
+// the worktree: `...-Foundry-VTT-AI-Tool--claude-worktrees-<name>`.
+const WORKTREE_DIR = /[\\/]\.claude[\\/]worktrees[\\/]/i;
+const WORKTREE_PROJECT = /--claude-worktrees-/i;
+export function limitsFor(projectDir, transcriptPath) {
+  const lane =
+    (typeof projectDir === 'string' && WORKTREE_DIR.test(projectDir)) ||
+    (typeof transcriptPath === 'string' && WORKTREE_PROJECT.test(transcriptPath));
   return lane ? { plan: LANE_PLAN_AT, out: LANE_OUT_AT } : { plan: PLAN_AT, out: OUT_AT };
 }
 
@@ -207,8 +213,8 @@ export function run(input, env = process.env) {
     const sessionId = input.session_id || 'unknown';
     const context = contextFromTranscript(input.transcript_path);
     if (context === null) return '';
-    // either one under .claude/worktrees/ makes a lane (see limitsFor)
-    const limits = limitsFor(env.CLAUDE_PROJECT_DIR, input.cwd);
+    // both are fixed for the session (see limitsFor)
+    const limits = limitsFor(env.CLAUDE_PROJECT_DIR, input.transcript_path);
     const level = context >= limits.out ? 2 : context >= limits.plan ? 1 : 0;
     const announced = readLevel(sessionId, env);
     if (level === 0) {

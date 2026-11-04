@@ -3,16 +3,17 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { limitsFor } from './context-alert.mjs';
 import { REPO_ROOT, decide, insideRepo, run, shellWritesRepo } from './context-stop.mjs';
 
-// REPO_ROOT is a lane worktree when the tests run in one and the main checkout on CI, so the out
-// line the REPO_ROOT cwd gets differs; tests that sit near the line shift by BUMP.
-const OUT = limitsFor(REPO_ROOT).out;
+// The lane decision uses CLAUDE_PROJECT_DIR and the transcript path only, never the cwd, so the
+// fixtures (empty env, transcripts in the temp dir) are always the planner's line; tests that sit
+// near the line shift by BUMP (0 unless the lines change).
+const OUT = limitsFor(undefined, undefined).out;
 const BUMP = OUT - 250_000;
 
 const HOOK = path.join(path.dirname(fileURLToPath(import.meta.url)), 'context-stop.mjs');
@@ -157,40 +158,56 @@ test('under the line, and after a compact, nothing is denied', () => {
   }
 });
 
-test('the out line is 300k for a lane cwd and 250k elsewhere', () => {
+// The transcript of a desktop-app worktree session sits in a project folder named after the worktree.
+function laneTranscript(root, contexts, name) {
+  const dir = path.join(root, 'C--P-Foundry--claude-worktrees-lane-a-1');
+  mkdirSync(dir, { recursive: true });
+  return transcript(dir, contexts, name);
+}
+
+test('the out line is 300k for a lane (project dir or transcript folder) and 250k elsewhere', () => {
   const { root, env, cleanup } = fixture();
   try {
     const lane = 'C:\\P\\Foundry\\.claude\\worktrees\\lane-a-1';
-    const main = 'C:\\P\\Foundry';
     const agent = { model: 'sonnet', prompt: 'x' };
-    const call = (ctxs, name, cwd) =>
-      decide(payload(transcript(root, ctxs, name), 'Agent', agent, { cwd }), env);
+    const planner = (ctxs, name) =>
+      decide(payload(transcript(root, ctxs, name), 'Agent', agent), env);
+    const byTranscript = (ctxs, name) =>
+      decide(payload(laneTranscript(root, ctxs, name), 'Agent', agent), env);
+    const byProjectDir = (ctxs, name) =>
+      decide(payload(transcript(root, ctxs, name), 'Agent', agent), {
+        CLAUDE_PROJECT_DIR: lane,
+      });
     // 260k: out for the planner, still fine for a lane
-    assert.match(call([260_000, 262_000], 'a.jsonl', main) ?? '', /hand-over line \(250k\)/);
-    assert.equal(call([260_000, 262_000], 'b.jsonl', lane), null);
-    assert.equal(call([295_000, 299_000], 'c.jsonl', lane), null);
-    assert.match(call([305_000, 310_000], 'd.jsonl', lane) ?? '', /hand-over line \(300k\)/);
-    assert.match(call([305_000, 310_000], 'e.jsonl', main) ?? '', /hand-over line \(250k\)/);
+    assert.match(planner([260_000, 262_000], 'a.jsonl') ?? '', /hand-over line \(250k\)/);
+    assert.equal(byTranscript([260_000, 262_000], 'b.jsonl'), null);
+    assert.equal(byProjectDir([260_000, 262_000], 'b2.jsonl'), null);
+    assert.equal(byTranscript([295_000, 299_000], 'c.jsonl'), null);
+    assert.match(byTranscript([305_000, 310_000], 'd.jsonl') ?? '', /hand-over line \(300k\)/);
+    assert.match(byProjectDir([305_000, 310_000], 'd2.jsonl') ?? '', /hand-over line \(300k\)/);
+    assert.match(planner([305_000, 310_000], 'e.jsonl') ?? '', /hand-over line \(250k\)/);
   } finally {
     cleanup();
   }
 });
 
-test('a lane counts when either CLAUDE_PROJECT_DIR or the payload cwd is under worktrees', () => {
+test('the payload cwd does not decide lane or planner: a planner that cd-ed into a worktree is still out at 250k', () => {
   const { root, cleanup } = fixture();
   try {
     const lane = 'C:\\P\\Foundry\\.claude\\worktrees\\lane-a-1';
     const main = 'C:\\P\\Foundry';
     const agent = { model: 'sonnet', prompt: 'x' };
     const file = transcript(root, [270_000, 272_000]);
-    // desktop-app shape: project dir is the main checkout, cwd the worktree -> a lane, allowed to 300k
+    const laneFile = laneTranscript(root, [270_000, 272_000], 'l.jsonl');
+    // planner in the main checkout that cd-ed into a lane worktree: still stopped at 250k
+    assert.ok(decide(payload(file, 'Agent', agent, { cwd: lane }), { CLAUDE_PROJECT_DIR: main }));
+    // desktop-app lane: project dir is the main checkout, transcript in the worktree folder,
+    // cwd anywhere -> a lane, allowed to 300k
     assert.equal(
-      decide(payload(file, 'Agent', agent, { cwd: lane }), { CLAUDE_PROJECT_DIR: main }),
+      decide(payload(laneFile, 'Agent', agent, { cwd: main }), { CLAUDE_PROJECT_DIR: main }),
       null
     );
-    // neither under worktrees -> stopped at 250k
-    assert.ok(decide(payload(file, 'Agent', agent, { cwd: main }), { CLAUDE_PROJECT_DIR: main }));
-    // a lane that cd'd to the main checkout is still allowed up to 300k
+    // a lane that cd-ed to the main checkout is still allowed up to 300k
     assert.equal(
       decide(payload(file, 'Agent', agent, { cwd: main }), { CLAUDE_PROJECT_DIR: lane }),
       null

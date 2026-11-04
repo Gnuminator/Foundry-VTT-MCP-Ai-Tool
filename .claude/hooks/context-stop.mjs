@@ -240,7 +240,7 @@ export function decide(input, env = process.env, repoRoot = REPO_ROOT) {
     if (!what) return null;
     const context = contextFromTranscript(input.transcript_path);
     if (context === null) return null;
-    const { out } = limitsFor(env.CLAUDE_PROJECT_DIR, input.cwd);
+    const { out } = limitsFor(env.CLAUDE_PROJECT_DIR, input.transcript_path);
     if (context < out) return null;
     return denyMessage(context, out, what);
   } catch {

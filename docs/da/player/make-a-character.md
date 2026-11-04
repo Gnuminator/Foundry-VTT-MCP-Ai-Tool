@@ -1,6 +1,6 @@
 ---
 source: player/make-a-character.md
-sourceHash: 5d126330bf4f
+sourceHash: 8c60319dd1e1
 title: Lav din karakter
 description: "Trin for trin: lav en level-3 karakter i Foundry med Actor Studio fra 2024 Player's Handbook (byg på level 1, level up to gange), tjek den og gør den til din egen."
 ---
@@ -17,7 +17,7 @@ Vi bruger **Actor Studio**, en character builder inde i Foundry. Den stiller de 
 2024 Player's Handbook, i samme rækkefølge, og udfylder dit character sheet for dig. Du kan ikke
 ødelægge noget: går det galt, sletter GM'en karakteren, og du starter forfra.
 
-Tjekket på Foundry 14, D&D 5e system 6, Actor Studio 2.10.5 (vores build, 2.10.5-aitool.4) og 2024 Player's Handbook-modulet
+Tjekket på Foundry 14, D&D 5e system 6, Actor Studio 2.10.5 (vores build, 2.10.5-aitool.4; Magic Initiate-trinnet på 2.10.5-aitool.5) og 2024 Player's Handbook-modulet
 2.2.0 (oktober 2026).
 
 ## Før du starter
@@ -148,22 +148,19 @@ De trin, du kommer til at se, nogenlunde i denne rækkefølge:
   listen (spørg din GM eller din D&D-hjælper, hvilke der passer til kampagnen), til teksten er
   væk, og klik så **Next**.
 - **Backgroundens feat.** Nogle feats beder om flere valg. Magic Initiate beder for eksempel om
-  to cantrips og en level-1 spell: vælg dem alle med **Select Spell** for hver. Vælgeren er Foundrys
-  compendium browser, og den kræver lidt omhu:
-  - **Vælg kopien mærket "PHB 2024".** De fleste spells står der én gang per bog (SRD 5.1, SRD 5.2,
-    PHB, PHB 2024), så du ser det samme navn op til fire gange.
-  - **Vælg kun spells fra den class, der står efter Magic Initiate**, for eksempel Wizard spells til
-    Magic Initiate (Wizard). Class-filtrene er låst til Cleric, Druid og Wizard på én gang, så du
-    også får vist spells fra de to andre lister, og intet forhindrer dig i at vælge en af dem.
-  - Søgefeltet i den browser skal have **Enter**, før det filtrerer.
+  to cantrips og en level-1 spell: vælg dem alle med **Select Spell** for hver. Et **Select
+  Spells**-vindue åbner med spells fra Player's Handbook, hver kun én gang. **Vinduet viser spells
+  fra alle classes, ikke kun fra den class, featen hører til, så det stopper dig ikke, hvis du
+  vælger en forkert.** Featens navn fortæller, hvilken class-liste du skal bruge: en Sages feat
+  hedder Magic Initiate (Wizard), så tag wizard-spells. Er du i tvivl om, hvilke spells der står på
+  den class' liste, så slå spellen op på class-siden i Player's Handbook eller spørg din GM eller
+  din D&D-hjælper. Skriv i **Search spells...** for at finde en, klik på de spells, du vil have
+  (vinduet stopper dig, når du har nok), og klik **Add Selected**. En spell, du allerede har
+  valgt, tilbydes ikke igen. Én ting at vide:
   - **En feat, der beder om en spellcasting ability og så spørger igen** (et andet Magic Initiate
     trin): det andet trin sætter ability tilbage til **Intelligence**, selvom den burde passe til den
     første. Sæt den igen til samme ability som dine cantrips, for eksempel Wisdom til en clerics
     liste.
-  - Et spell-kort kan blive hængende nederst til højre på skærmen, efter browseren er lukket.
-    Ignorér det.
-
-  ![Foundrys compendium browser i Magic Initiate-trinnet: de fleste spells står én gang per bog (SRD 5.1, SRD 5.2, PHB, PHB 2024), med filtrene Cleric, Druid og Wizard låst til](../../images/guides/studio-spell-picker.png)
 
 - **Class:** hit points, saving throws, **skills du kan vælge** (de fleste classes vælger to), træning i
   våben og rustning og dine level-1 class features. **Weapon Mastery:** barbarian, fighter,

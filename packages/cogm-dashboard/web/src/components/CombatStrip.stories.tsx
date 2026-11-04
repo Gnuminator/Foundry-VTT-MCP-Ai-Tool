@@ -32,8 +32,6 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-const noop = (): void => undefined;
-
 interface Setup {
   /** The fight; omitted for none. */
   fight?: CombatState;
@@ -87,7 +85,7 @@ function Host({
         {...(layout === 'layered' && !fight ? { 'data-view': 'full' } : {})}
       >
         <div className="slot slot-strip" data-slot="strip">
-          <CombatStrip sample={sample} onOpenTool={noop} />
+          <CombatStrip sample={sample} />
         </div>
       </section>
     </div>
@@ -161,6 +159,40 @@ export const DamageFormOpen: Story = {
     await userEvent.click(await canvas.findByRole('button', { name: /Damage \/ Heal/ }));
     await userEvent.type(await canvas.findByRole('textbox', { name: 'Amount' }), '7');
     await userEvent.click(await canvas.findByRole('button', { name: 'fire' }));
+  },
+};
+
+/**
+ * Two picked, Condition pressed: the condition chips under the action bar. A chip plans the
+ * condition, one confirm asks, and it applies with Undo (no Tool runner).
+ */
+export const ConditionPickerOpen: Story = {
+  name: 'Condition picker, two picked',
+  parameters: seed({ fight: FIGHT }),
+  render: render(),
+  play: async ctx => {
+    await pick('Ogre Brute', 'Goblin Archer')(ctx);
+    const canvas = within(ctx.canvasElement);
+    await userEvent.click(await canvas.findByRole('button', { name: 'Condition' }));
+    const picker = await canvas.findByRole('group', { name: 'Set a condition' });
+    await waitFor(() =>
+      expect(within(picker).getByRole('button', { name: 'prone' })).toHaveFocus()
+    );
+  },
+};
+
+/** The same picker on a phone. */
+export const ConditionPickerPhone: Story = {
+  name: 'Condition picker (phone)',
+  tags: ['phone'],
+  globals: PHONE_VIEW,
+  parameters: seed({ fight: FIGHT }),
+  render: render(),
+  play: async ctx => {
+    await pick('Ogre Brute')(ctx);
+    const canvas = within(ctx.canvasElement);
+    await userEvent.click(await canvas.findByRole('button', { name: 'Condition' }));
+    await canvas.findByRole('group', { name: 'Set a condition' });
   },
 };
 

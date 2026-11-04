@@ -86,8 +86,8 @@ with secret sections and unidentified items' true names left out.
 - **Click combatants in the During view's turn-order strip to multi-select** them.
 - **Damage / Heal** opens a small form (amount, damage type chips, Damage or Heal) that applies at
   once to the picked creatures; dnd5e works out resistances, vulnerabilities and immunities, the
-  toast has Undo and Recent Changes keeps the change. **Condition** opens the Tool Runner with the
-  plan filled in; you confirm it.
+  toast has Undo and Recent Changes keeps the change. **Condition** opens condition chips: a chip
+  plans it, one plain confirm asks, and it applies with Undo.
 - **Ask for a roll** (Party card and the strip): pick a check, save or skill, a DC and public or
   private, then ask one player or the whole party in one click; it shows in the play log.
 - The strip can start a fight (a token picker) and end one. Turn order, initiative and saving

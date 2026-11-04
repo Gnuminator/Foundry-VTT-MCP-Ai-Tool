@@ -12,7 +12,7 @@ server. Foundry's own UI is `foundry-core-ui`; the test servers are `foundry-tes
 
 ## Index
 
-The Strahd list is `scripts/modules/strahd-modules.json` (34 modules; `tarokka-reading` left it on 2026-10-29, D-130; it carries the same verdict
+The Strahd list is `scripts/modules/strahd-modules.json` (37 entries with our two own; `tarokka-reading` left it on 2026-10-29, D-130; the final list of 2026-11-04 is Danni's 35 picks plus our four decisions: Monk's Player Settings dropped, Item Piles added with its companion `itempilesdnd5e`, FXMaster and Monk's TokenBar kept, Health Estimate and Racooze Map Library dropped; it carries the same verdict
 word as this table, and a test keeps the all-modules kit profile in step with its ids). Version =
 the version on test server A (the pinned set) when the page was written or refreshed on 2026-10-28.
 
@@ -26,19 +26,19 @@ the version on test server A (the pinned set) when the page was written or refre
 | `dice-so-nice`             | 6.4.4           | `references/dice-so-nice.md`             | keep     |
 | `NotYourTurn`              | 4.1.0           | `references/NotYourTurn.md`              | keep     |
 | `automated-conditions-5e`  | 14.606.4.5      | `references/automated-conditions-5e.md`  | keep     |
-| `monks-player-settings`    | 14.01           | `references/monks-player-settings.md`    | keep     |
+| `monks-player-settings`    | 14.01           | `references/monks-player-settings.md`    | drop     |
 | `vtta-tokenizer`           | 5.0.3           | `references/vtta-tokenizer.md`           | keep     |
 | `tarokka-reading`          | 1.0.5           | `references/tarokka-reading.md`          | drop     |
 | `combat-spell-timer`       | 2.3.0           | `references/combat-spell-timer.md`       | drop     |
 | `dae`                      | 14.0.19         | `references/dae.md`                      | optional |
 | `monks-combat-details`     | 14.03           | `references/monks-combat-details.md`     | keep     |
-| `monks-tokenbar`           | 14.01           | `references/monks-tokenbar.md`           | drop     |
+| `monks-tokenbar`           | 14.01           | `references/monks-tokenbar.md`           | keep     |
 | `3ds-atlas`                | 1.5.3           | `references/3ds-atlas.md`                | keep     |
 | `JB2A_DnD5e`               | 0.9.4           | `references/JB2A_DnD5e.md`               | optional |
 | `autoanimations`           | 8.0.1           | `references/autoanimations.md`           | optional |
 | `calendaria`               | 1.4.6           | `references/calendaria.md`               | keep     |
 | `lib-wrapper`              | 1.13.5.1        | `references/lib-wrapper.md`              | keep     |
-| `racooze-map-library`      | 1.2.42          | `references/racooze-map-library.md`      | optional |
+| `racooze-map-library`      | 1.2.42          | `references/racooze-map-library.md`      | drop     |
 | `racoozes-free-battlemaps` | 1.2.0           | `references/racoozes-free-battlemaps.md` | optional |
 | `sequencer`                | 4.3.0           | `references/sequencer.md`                | keep     |
 | `share-media`              | 3.14.3          | `references/share-media.md`              | keep     |
@@ -51,13 +51,13 @@ the version on test server A (the pinned set) when the page was written or refre
 | `dd-import`                | 6.1.1           | `references/dd-import.md`                | keep     |
 | `dice-calculator`          | 4.0.6           | `references/dice-calculator.md`          | keep     |
 | `gm-vision`                | 2.0.5           | `references/gm-vision.md`                | keep     |
-| `healthEstimate`           | 36.1.1          | `references/healthEstimate.md`           | keep     |
+| `healthEstimate`           | 36.1.1          | `references/healthEstimate.md`           | drop     |
 | `nice-more-dice`           | 1.4.2           | `references/nice-more-dice.md`           | keep     |
 | `item-piles`               | 3.3.4           | `references/item-piles.md`               | optional |
 | `tidy5e-sheet`             | 14.4.0          | `references/tidy5e-sheet.md`             | optional |
 | `quick-insert`             | 3.7.8           | `references/quick-insert.md`             | keep     |
 | `find-the-culprit`         | 3.3.0           | `references/find-the-culprit.md`         | keep     |
-| `fxmaster`                 | 8.4.2           | `references/fxmaster.md`                 | optional |
+| `fxmaster`                 | 8.4.2           | `references/fxmaster.md`                 | keep     |
 | `tokenmagic`               | 0.8.4           | `references/tokenmagic.md`               | drop     |
 | `fxbus`                    | 0.8.0           | `references/fxbus.md`                    | drop     |
 | `theatre`                  | 3.4.2           | `references/theatre.md`                  | drop     |
@@ -82,7 +82,7 @@ None of the nine broke the world: all nine plus the 23 modules of the earlier ke
 | Tidy 5e Sheets                  | 14.4.0          | optional  | Our writes and rolls show up in it live; it removes the Tokenizer portrait button                                |
 | Quick Insert                    | 3.7.8           | keep      | Turn on "GMs only", or players can search the names of actors and scenes they cannot see                         |
 | Find the Culprit                | 3.3.0           | keep      | Disables our bridge during a search; Zero Modules and Reset restored the 14 modules that were active in that run |
-| FXMaster                        | 8.4.2           | optional  | Weather lives in a scene flag, separate from the core weather `plan-scene-mood` sets                             |
+| FXMaster                        | 8.4.2           | keep      | Weather lives in a scene flag, separate from the core weather `plan-scene-mood` sets                             |
 | Token Magic FX                  | 0.8.4           | drop      | Works and survives our token moves, but noisy and overlaps Automated Animations                                  |
 | FX Bus                          | 0.8.0           | drop      | Screen shake panel; client-side only, no data; not needed at the table                                           |
 | Theatre Inserts                 | v3.4.2          | drop      | Its chat lines have no speaker: our log reads them as out-of-character chat from the user                        |

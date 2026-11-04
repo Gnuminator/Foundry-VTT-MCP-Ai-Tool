@@ -46,6 +46,14 @@ export function pickText(names: readonly string[]): string {
   return `${names.length} creatures`;
 }
 
+/**
+ * The combat strip's confirm question for a condition: "Set prone on Brannoc and Mira? Undo stays
+ * in Recent Changes." The names are worded as the pick bar words them.
+ */
+export function conditionQuestion(condition: string, names: readonly string[]): string {
+  return `Set ${condition} on ${pickText(names)}? Undo stays in Recent Changes.`;
+}
+
 /** The conditions the chips offer, most used first (dnd5e's own names). */
 export const CONDITIONS = [
   'prone',

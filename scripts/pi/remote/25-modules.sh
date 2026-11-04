@@ -77,7 +77,7 @@ json_get() { # $1 file, $2 key: one printable string field of a JSON file (a BOM
 mod_version() { json_get "$moddir/$1/module.json" version; }
 world_up() { # the join page of a running world; curl's output is captured first so grep -q cannot SIGPIPE it
   local page
-  page="$(curl -fs http://127.0.0.1:30000/join 2>/dev/null || true)"
+  page="$(curl -fs --max-time 5 http://127.0.0.1:30000/join 2>/dev/null || true)"
   [[ "$page" == *'id="join-game"'* ]]
 }
 GM_UNIT=foundry-ai-tool-gm-browser.service
@@ -87,6 +87,10 @@ GM_UNIT=foundry-ai-tool-gm-browser.service
 wait_back_up() {
   local _
   have_systemd || return 0
+  if [ "${expect_world:-1}" != 1 ]; then
+    warn "no world answered before the restart, so none is awaited now (an UNDO of a run that left Foundry without a world)"
+    return 0
+  fi
   for _ in $(seq 1 60); do
     world_up && break
     sleep 2
@@ -145,29 +149,43 @@ state_phase() { # $1 the phase word: rewrites that one line
 # failed/<id> (only when it is the state's new version, or when the old one moved out and something else sits in its
 # place). A module with no old folder (old NONE) is moved aside when its new folder is there. Safe to run twice.
 undo_state() {
-  local prev failed id old new moved=0 cur
+  local prev failed id old new moved=0 cur rc=0
   prev="$(state_get prev)"
   failed="$(state_get failed)"
   [ -n "$prev" ] && [ -n "$failed" ] || return 0
+  # Every move is checked by hand: this runs inside "||" and in the exit trap, where errexit does not stop it, so a failed
+  # move must not read as "is back". mv -T never puts a folder inside one that is already there. The return value is 1
+  # when any folder could not be put back (a failed module does not stop the others).
   while IFS='|' read -r id old new; do
     [[ "$id" =~ $ID_RE ]] || continue
     cur="$(mod_version "$id")"
     if [ -d "$prev/$id" ]; then
       if [ -e "$moddir/$id" ] || [ -L "$moddir/$id" ]; then
-        install -d -m 700 "$failed"
-        mv "$moddir/$id" "$(free_path "$failed/$id")"
+        install -d -m 700 "$failed" && mv -T "$moddir/$id" "$(free_path "$failed/$id")" || {
+          warn "$id: cannot move $moddir/$id aside to $failed; the old folder stays in $prev/$id"
+          rc=1
+          continue
+        }
       fi
-      mv "$prev/$id" "$moddir/$id"
+      mv -T "$prev/$id" "$moddir/$id" || {
+        warn "$id: cannot move $prev/$id back to $moddir/$id"
+        rc=1
+        continue
+      }
       ok "$id: $old is back (replaced $new moved to $failed)"
       moved=1
     elif [ "$old" = NONE ] && [ -d "$moddir/$id" ] && [ "$cur" = "$new" ]; then
-      install -d -m 700 "$failed"
-      mv "$moddir/$id" "$(free_path "$failed/$id")"
+      install -d -m 700 "$failed" && mv -T "$moddir/$id" "$(free_path "$failed/$id")" || {
+        warn "$id: cannot move $moddir/$id aside to $failed"
+        rc=1
+        continue
+      }
       ok "$id: was not installed before, $new moved aside to $failed"
       moved=1
     fi
   done < <(state_modules)
-  [ "$moved" = 1 ] || ok "nothing to put back"
+  [ "$moved" = 1 ] || [ "$rc" = 1 ] || ok "nothing to put back"
+  return "$rc"
 }
 
 stopped=0
@@ -195,17 +213,30 @@ start_services() { # as they were before the run
   fi
 }
 on_exit() {
-  [ -z "$work" ] || rm -rf "${work:?}"
-  [ "$stopped" = 1 ] && have_systemd || return 0
-  # Foundry may have been started again by the failed run (the read-back): stop it before folders move.
-  systemctl stop foundry-ai-tool-gm-browser.service 2>/dev/null || true
-  systemctl stop foundry.service 2>/dev/null || true
-  if [ "$undo" = 1 ]; then
-    undo_state || warn "putting the folders back did not finish (see above); the state is in $STATE"
-    state_phase undone 2>/dev/null || true
+  set +e # errexit is off in the trap: every step below runs, whatever an earlier one did
+  local restored=1
+  if [ "$stopped" = 1 ] && have_systemd; then
+    # Foundry may have been started again by the failed run (the read-back): stop it before folders move.
+    systemctl stop foundry-ai-tool-gm-browser.service 2>/dev/null
+    systemctl stop foundry.service 2>/dev/null
+    if [ "$undo" = 1 ]; then
+      if undo_state; then
+        state_phase undone 2>/dev/null
+      else
+        restored=0 # the phase is installing (written here, as an UNDO of a finished run starts at installed), so the next run is refused until UNDO=1 has finished the job
+        state_phase installing 2>/dev/null
+        warn "putting the folders back did not finish (see above); the state in $STATE stays at phase=installing: run UNDO=1"
+      fi
+    fi
+    start_services || warn "Foundry or the Assistant GM browser did not come back: see journalctl -u foundry -n 50"
+    if [ "$restored" = 1 ]; then
+      warn "the run did not finish: ${undo:+the old folders are back, }Foundry and the Assistant GM browser are as they were"
+    else
+      warn "the run did not finish and NOT every old folder is back; Foundry and the Assistant GM browser were started again"
+    fi
   fi
-  start_services || warn "Foundry or the Assistant GM browser did not come back: see journalctl -u foundry -n 50"
-  warn "the run did not finish: ${undo:+the old folders are back, }Foundry and the Assistant GM browser are as they were"
+  # The work folder goes last: the restore never reads it, but a failure above must not leave the run without its log lines.
+  [ -z "$work" ] || rm -rf "${work:?}"
 }
 trap on_exit EXIT
 
@@ -217,14 +248,26 @@ if [ -n "$UNDO" ]; then
   # No "Foundry must be running" check here: a run killed after it stopped Foundry (the state UNDO exists for) leaves it
   # stopped, and a module that keeps the world from launching leaves no world. Both start again below, as a run began.
   require_quiet "putting the old module folders back"
+  # Whether a world answers now, read before anything stops: a Foundry with no world open (the run died, or a module kept
+  # the world from launching) has none to wait for after the restart, and waiting 120 s for it would end in a failure.
+  # A Foundry that is down (a killed run stopped it) had a world: it is awaited. Only a running Foundry with no world is not.
+  expect_world=1
+  if have_systemd && systemctl is-active --quiet foundry.service && ! world_up; then expect_world=0; fi
   stop_services
   was_foundry=1
   if have_systemd && systemctl is-enabled --quiet "$GM_UNIT" 2>/dev/null; then was_gm_browser=1; fi
   undo=1
-  undo_state
+  # A failed restore marks the run unfinished (a new APPLY=1 is refused) and clears undo, so the exit trap does not retry it
+  # on its own: the next UNDO=1 then does the whole job, with its read-back.
+  undo_state || {
+    state_phase installing
+    undo=""
+    die "putting the folders back did not finish (see the lines above); the state in $STATE is at phase=installing, so APPLY=1 is refused and UNDO=1 can run again once the cause is fixed"
+  }
   state_phase undone
   undo=""
   start_services || die "the old folders are back, but Foundry did not start: journalctl -u foundry -n 50"
+  stopped=0 # started again: a later failure (the read-back) must not run the exit trap's stop and restart a second time
   wait_back_up || die "the old folders are back, but Foundry or the Assistant GM browser did not come up again: journalctl -u foundry -n 50 and journalctl -u foundry-ai-tool-gm-browser -n 30"
   say "reading the old versions back"
   mismatch=0
@@ -253,7 +296,11 @@ if [ -n "$UNDO" ]; then
   done < <(state_modules)
   [ "$mismatch" = 0 ] || die "UNDO finished, but the versions above do not match the state in $STATE. Check them by hand"
   trap - EXIT
-  ok "the old module folders are back; Foundry and the Assistant GM browser are as they were"
+  if [ "$was_gm_browser" = 1 ]; then
+    ok "the old module folders are back; Foundry and the Assistant GM browser are started again"
+  else
+    ok "the old module folders are back; Foundry is started again (the Assistant GM browser was not enabled)"
+  fi
   exit 0
 fi
 
@@ -290,9 +337,24 @@ if [ -n "$foundry_version" ] && node -e 'const a=process.argv[1].split(".").map(
   fi
 fi
 
-work="$IMPORT/work-$stamp-modules"
-install -d -m 755 "$work"
+# The work folder sits in Foundry's Data folder (a dot folder Foundry does not read), owned by root, so root never writes into
+# a folder the foundry user controls. Only $work/<id> belongs to the foundry user: the zips are unpacked there as that user,
+# not as root, so nothing an entry does can write outside what the foundry user may write. $IMPORT is
+# root-only and holds the kept folders (prev-*, failed-*) and the state. Same filesystem as $moddir, so the moves never copy.
+work="$data/.stage25-work-$stamp"
+install -d -m 755 "$work" # root-owned: root copies the zips in here, and only $work/<id> (below) belongs to the foundry user
 [ "$(stat -c %d "$work")" = "$(stat -c %d "$moddir")" ] || die "$work and $moddir are on different filesystems: the folder moves would copy. Nothing was changed"
+[ "$(stat -c %d "$work")" = "$(stat -c %d "$IMPORT")" ] || die "$work and $IMPORT are on different filesystems: the old folders would be copied, not moved. Nothing was changed"
+
+# The copies of the zips come first: their room is checked before the first copy (the unpacked room follows pass 1).
+zip_total=0
+while IFS=$'\t' read -r id _ file _; do
+  if [ -n "$ONLY" ] && [[ ",$ONLY," != *",$id,"* ]]; then continue; fi
+  [[ "$file" =~ ^modules/[A-Za-z0-9_.-]+/[A-Za-z0-9_.+-]+/[A-Za-z0-9_.+-]+\.zip$ ]] && [[ "$file" != *..* ]] || continue # pass 1 refuses it with its own line
+  [ -f "$MIRROR/$file" ] && [ ! -L "$MIRROR/$file" ] || continue
+  zip_total=$((zip_total + $(stat -c %s "$MIRROR/$file")))
+done <<<"$pins"
+check_room "$work" "$zip_total"
 
 # Pass 1 checks the pins and every zip (a copy of it) without unpacking anything and adds up the room the unpacking needs;
 # the room is checked once, before pass 2 unpacks.
@@ -314,7 +376,7 @@ while IFS=$'\t' read -r id version file sha; do
   zip="$MIRROR/$file"
   [ -f "$zip" ] && [ ! -L "$zip" ] || die "$id: no file $zip (a link does not count). Nothing was changed"
   # Everything below works on a copy, so the file cannot change between the check and the unpack.
-  install -d -m 755 "$work/$id"
+  install -d -m 755 -o "$FOUNDRY_USER" -g "$FOUNDRY_USER" "$work/$id"
   cp -- "$zip" "$work/$id.zip"
   chmod 644 "$work/$id.zip"
   got="$(sha256sum "$work/$id.zip" | cut -d' ' -f1)"
@@ -324,10 +386,10 @@ while IFS=$'\t' read -r id version file sha; do
       /* | *\\* | ../* | */../* | */.. | ..) die "$id: the zip has an entry outside its folder (\"$name\"). Nothing was changed" ;;
     esac
   done < <(unzip -Z1 "$work/$id.zip" </dev/null)
-  # zipinfo marks a link with an "l" in its permission column; root unpacks, so none may be written (an entry through a
-  # link could land anywhere). The listing is captured first (a failed unzip must not read as "no link") and awk reads
-  # all of it (a grep -q that stops early would SIGPIPE unzip on a large zip). The folder is handed to the foundry user
-  # when it moves into place.
+  # zipinfo marks a link with an "l" in its permission column; none may be written (an entry through a link could land
+  # anywhere the foundry user can write, which is where the zip is unpacked as). The listing is captured first (a failed
+  # unzip must not read as "no link") and awk reads all of it (a grep -q that stops early would SIGPIPE unzip on a large
+  # zip). The unpacked folder is already the foundry user's; the chown when it moves into place only makes sure of it.
   listing="$(unzip -Z "$work/$id.zip" </dev/null)" || die "$id: cannot read the zip's entries. Nothing was changed"
   if awk '/^l/ { f = 1 } END { exit !f }' <<<"$listing"; then die "$id: the zip holds a link. Nothing was changed"; fi
   zbytes="$(unzip -Zt "$work/$id.zip" </dev/null | awk '/bytes uncompressed/ { print $3 }' || true)"
@@ -337,13 +399,13 @@ while IFS=$'\t' read -r id version file sha; do
   [ "$zfile" -le "$biggest_zip" ] || biggest_zip=$zfile
   checked+=("$id|$version")
 done <<<"$pins"
-check_room "$IMPORT" "$((unpacked_bytes + biggest_zip))"
+check_room "$work" "$((unpacked_bytes + biggest_zip))"
 
 plan=() # id|old|new|croot (the unpacked folder that holds module.json)
 unchanged=0
 for entry in "${checked[@]}"; do
   IFS='|' read -r id version <<<"$entry"
-  unzip -q "$work/$id.zip" -d "$work/$id" </dev/null || die "$id: cannot unpack the zip. Nothing was changed"
+  runuser -u "$FOUNDRY_USER" -- unzip -q "$work/$id.zip" -d "$work/$id" </dev/null || die "$id: cannot unpack the zip. Nothing was changed"
   rm -f "$work/$id.zip"
   [ -z "$(find "$work/$id" ! -type f ! -type d -print -quit)" ] || die "$id: the zip holds a link or special file. Nothing was changed"
   croot=""
@@ -381,7 +443,7 @@ done
 
 if [ -n "$ONLY" ]; then
   for want in ${ONLY//,/ }; do
-    cut -f1 <<<"$pins" | grep -qxF -- "$want" || die "ONLY names $want, which is not in pinned.json. Nothing was changed"
+    awk -F'\t' -v w="$want" '$1 == w { f = 1 } END { exit !f }' <<<"$pins" || die "ONLY names $want, which is not in pinned.json. Nothing was changed"
   done
 fi
 ok "${#plan[@]} module(s) to change, $unchanged already at the pinned version"

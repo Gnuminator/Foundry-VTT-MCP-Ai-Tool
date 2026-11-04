@@ -107,7 +107,7 @@ function renderCombat(combat) {
           ? `<span class="cond">${c.conditions.map(escape).join(', ')}</span>`
           : '';
       return `<div class="${cls.join(' ')}">
-        <span class="init">${escape(c.initiative ?? 'none')}</span>
+        <span class="init">${escape(c.initiative ?? 'not rolled')}</span>
         <span class="dot ${escape(c.side)}"></span>
         <span class="name">${escape(c.name)}</span>
         ${conds}
@@ -367,8 +367,9 @@ async function onMineState(s) {
       const div = document.createElement('button');
       div.type = 'button';
       div.className = 'mine-alert';
-      div.textContent = r.text;
+      div.textContent = `${r.text} ✕`;
       div.title = 'Dismiss';
+      div.setAttribute('aria-label', `${r.text} (tap to dismiss)`);
       div.addEventListener('click', () => div.remove());
       elMineAlerts.prepend(div);
     }

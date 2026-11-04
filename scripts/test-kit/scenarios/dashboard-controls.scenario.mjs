@@ -12,7 +12,7 @@
  *
  * The combat strip's controls only show with a live combat: when the kit has its scene and a
  * legendary monster, the sweep runs during a combat of that boss and one hero
- * (put back at the end), and the six combat rows must then pass instead of being skipped.
+ * (put back at the end), and the combat rows in BOSS_COMBAT_ROWS must then pass instead of being skipped.
  */
 import {
   CONTROLS,
@@ -35,7 +35,6 @@ export const BOSS_COMBAT_ROWS = [
   'dash.combat.selection-clear',
   'dash.combat.selection-condition',
   'dash.combat.selection-damage',
-  'dash.combat.end',
 ];
 
 /** @type {import('../lib/contract.mjs').Scenario} */

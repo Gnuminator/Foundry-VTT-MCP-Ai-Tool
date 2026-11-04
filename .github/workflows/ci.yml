@@ -228,6 +228,11 @@ jobs:
         # the marker check, one device per player. The stage itself runs with three real Syncthings in the ARM runner's container.
         run: node --test scripts/pi/player-vault.test.mjs
 
+      - name: Pi stage 22 seven-book trim
+        # seven-books-trim.js, seven-books-delete-legacy.js and ddb-source-filter.js against in-memory packs, and the stage as
+        # text. The stage itself runs in a container on the ARM runner (build-test-arm).
+        run: node --test scripts/pi/seven-books.test.mjs
+
       - name: Pi world switch
         # switch-world.sh (backlog pi-world-switch) with stand-in systemctl, curl and journalctl: the refusals before anything
         # stops, the order of stop and start, the rollback of options.json, and the PC wrapper switch-world.ps1.

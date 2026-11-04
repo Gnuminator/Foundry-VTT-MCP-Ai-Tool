@@ -1,6 +1,7 @@
 // The combat strip on the React dashboard (D-092, I-070, I-095): the rows from a `combat` stream
 // event, picking rows and the action bar, Damage / Heal opening its small form (one guarded write
-// when its button is pressed) and Condition opening the Tool runner filled in, Boss prompts and the reaction buttons, the fight marked old
+// when its button is pressed), Condition and End combat inline (plan, one confirm, apply with
+// Undo; no Tool runner), Boss prompts and the reaction buttons, the fight marked old
 // while the bridge is away, and that the strip is out of the way when no fight runs. The bridge
 // and the stream are faked in the browser; nothing here needs a world.
 import { expect, test, type Locator, type Page } from '@playwright/test';
@@ -706,6 +707,38 @@ test.describe('start combat', () => {
   });
 });
 
+/** The bridge's plan for End combat, as plan-combat-change answers it. */
+const endAnswer = (call: ToolCall): { status?: number; json: unknown } | undefined => {
+  if (call.name === 'plan-combat-change') {
+    return ok({
+      planId: 'plan-end',
+      feature: 'live-play',
+      summary: 'End combat on "Field" (round 2, 4 combatants)',
+      warning: 'Undo brings the fight back, but not expired effects.',
+      risk: 'destructive',
+      requires: { confirm: true, confirmDestructive: true },
+    });
+  }
+  if (call.name === 'apply-planned-change') {
+    return ok({
+      changeId: 'chg-end',
+      planId: 'plan-end',
+      feature: 'live-play',
+      summary: 'End combat on "Field"',
+      mode: 'apply',
+      risk: 'destructive',
+    });
+  }
+  return undefined;
+};
+
+/** The toast that says a change went in, with its Undo button. */
+const undoToast = (page: Page, text: string): Locator =>
+  page
+    .locator('.toast-stack .toast.toast-undo')
+    .filter({ hasText: text })
+    .getByRole('button', { name: 'Undo' });
+
 test.describe('picking combatants', () => {
   test('GM Actions off: no rows to pick; End combat and the roll buttons are disabled with Turn on', async ({
     page,
@@ -938,20 +971,54 @@ test.describe('picking combatants', () => {
     ]);
   });
 
-  test('End combat opens the Tool runner on plan-combat-change, filled in, and writes nothing', async ({
+  test('End combat plans, asks one plain question, then applies with Undo; no Tool runner', async ({
     page,
   }) => {
-    const { calls } = await setup(page, { initial: [fight(PARTY_FIGHT)] });
+    const { calls } = await setup(page, { initial: [fight(PARTY_FIGHT)], answer: endAnswer });
     await load(page);
     await page.locator('#combat-actions [data-sel="end"]').click();
 
-    const drawer = page.getByRole('dialog', { name: '🛠 Tool Runner' });
-    await expect(drawer).toBeVisible();
-    await expect(drawer.locator('#tool-detail-name')).toHaveText('plan-combat-change');
-    await expect(drawer.locator('#tool-field-action')).toHaveValue('end');
-    // Nothing planned or applied: the GM presses Run in the Tool runner.
-    await expect(drawer.locator('#tool-run')).toBeVisible();
-    expect(beyondReads(calls)).toEqual([]);
+    const dialog = page.getByRole('dialog');
+    await expect(dialog).toContainText('End combat on "Field" (round 2, 4 combatants)?');
+    await expect(dialog).toContainText('Undo stays in Recent Changes.');
+    await expect(dialog).toContainText('not expired effects');
+    await expect(dialog.getByRole('checkbox')).toHaveCount(0);
+    await expect(page.getByRole('dialog', { name: '🛠 Tool Runner' })).toHaveCount(0);
+    expect(calls.find(c => c.name === 'plan-combat-change')?.args).toEqual({ action: 'end' });
+    // Nothing applied until the GM says yes.
+    expect(calls.some(c => c.name === 'apply-planned-change')).toBe(false);
+
+    await dialog.getByRole('button', { name: 'End combat' }).click();
+    await expect
+      .poll(() => calls.find(c => c.name === 'apply-planned-change'))
+      .toMatchObject({ args: { planId: 'plan-end' }, confirm: true, confirmDestructive: true });
+    await expect(undoToast(page, '✓ Applied: End combat on "Field"')).toBeVisible();
+  });
+
+  test('End combat: Cancel in the question applies nothing', async ({ page }) => {
+    const { calls } = await setup(page, { initial: [fight(PARTY_FIGHT)], answer: endAnswer });
+    await load(page);
+    await page.locator('#combat-actions [data-sel="end"]').click();
+    const dialog = page.getByRole('dialog');
+    await expect(dialog).toContainText('End combat on "Field"');
+    await dialog.getByRole('button', { name: 'Cancel' }).click();
+    await expect(dialog).toHaveCount(0);
+    expect(calls.some(c => c.name === 'apply-planned-change')).toBe(false);
+  });
+
+  test('End combat: a plan that fails says so in a toast and applies nothing', async ({ page }) => {
+    const { calls } = await setup(page, {
+      initial: [fight(PARTY_FIGHT)],
+      answer: call =>
+        call.name === 'plan-combat-change'
+          ? { status: 422, json: { ok: false, error: 'No combat to end', kind: 'tool' } }
+          : undefined,
+    });
+    await load(page);
+    await page.locator('#combat-actions [data-sel="end"]').click();
+    await expect(toast(page, '✗ End combat: No combat to end')).toBeVisible();
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    expect(calls.some(c => c.name === 'apply-planned-change')).toBe(false);
   });
 
   test('two combatants with one name go in by token id, and the picker hint says whose', async ({
@@ -987,6 +1054,47 @@ test.describe('picking combatants', () => {
       targets: ['tok-wolf-1', 'tok-wolf-2', 'Tamsin'],
       amount: 4,
     });
+  });
+
+  test('Condition opens the chips inline; a chip plans, asks once, then applies with Undo', async ({
+    page,
+  }) => {
+    const { calls } = await setup(page, { initial: [fight(PARTY_FIGHT)] });
+    await load(page);
+    await row(page, 'Brannoc').click();
+    await row(page, 'Ogre Brute').click();
+    await page.locator('#combat-actions [data-sel="condition"]').click();
+    const picker = page.locator('#condition-form');
+    await expect(picker).toBeVisible();
+    await expect(page.getByRole('dialog', { name: '🛠 Tool Runner' })).toHaveCount(0);
+    // The first chip has the focus; opening the picker writes nothing.
+    await expect(picker.getByRole('button', { name: 'prone' })).toBeFocused();
+    expect(beyondReads(calls)).toEqual([]);
+
+    await picker.getByRole('button', { name: 'poisoned' }).click();
+    const dialog = page.getByRole('dialog');
+    await expect(dialog).toContainText(
+      'Set poisoned on Brannoc and Ogre Brute? Undo stays in Recent Changes.'
+    );
+    await expect(dialog.getByRole('checkbox')).toHaveCount(0);
+    // Planned in the bridge's order, nothing applied until the GM says yes.
+    expect(calls.find(c => c.name === 'plan-actor-change')?.args).toEqual({
+      action: 'condition',
+      targets: ['Brannoc', 'Ogre Brute'],
+      condition: 'poisoned',
+      active: true,
+    });
+    expect(calls.some(c => c.name === 'apply-planned-change')).toBe(false);
+
+    await dialog.getByRole('button', { name: 'Set poisoned' }).click();
+    await expect
+      .poll(() => calls.find(c => c.name === 'apply-planned-change'))
+      .toMatchObject({ args: { planId: 'plan-hit' }, confirm: true });
+    await expect(undoToast(page, '✓ Applied:')).toBeVisible();
+    // The picker closes once the change is in; the pick stays for the next action.
+    await expect(picker).toHaveCount(0);
+    await expect(page.locator('#combat-actions .ca-count')).toHaveText('2 selected');
+    await expect(page.locator('#combat-actions [data-sel="condition"]')).toBeFocused();
   });
 
   const ATTACKERS = [
@@ -1108,15 +1216,46 @@ test.describe('picking combatants', () => {
     expect(calls.some(c => c.name === 'use-item')).toBe(false);
   });
 
-  test('Condition opens it with the action set to condition', async ({ page }) => {
+  test('Condition: Cancel in the question applies nothing and keeps the picker', async ({
+    page,
+  }) => {
     const { calls } = await setup(page, { initial: [fight(PARTY_FIGHT)] });
     await load(page);
     await row(page, 'Brannoc').click();
     await page.locator('#combat-actions [data-sel="condition"]').click();
-    const drawer = page.getByRole('dialog', { name: '🛠 Tool Runner' });
-    await expect(drawer.locator('#tool-detail-name')).toHaveText('plan-actor-change');
-    await expect(drawer.locator('#tool-field-action')).toHaveValue('condition');
-    await expect(drawer.locator('#tool-field-targets')).toHaveValue('Brannoc');
+    await page.locator('#condition-form').getByRole('button', { name: 'prone' }).click();
+    const dialog = page.getByRole('dialog');
+    await expect(dialog).toContainText('Set prone on Brannoc?');
+    await dialog.getByRole('button', { name: 'Cancel' }).click();
+    await expect(dialog).toHaveCount(0);
+    await expect(page.locator('#condition-form')).toBeVisible();
+    expect(calls.some(c => c.name === 'apply-planned-change')).toBe(false);
+  });
+
+  test('Condition: the picker closes with its Cancel, Escape, or Damage / Heal', async ({
+    page,
+  }) => {
+    const { calls } = await setup(page, { initial: [fight(PARTY_FIGHT)] });
+    await load(page);
+    await row(page, 'Brannoc').click();
+    const open = page.locator('#combat-actions [data-sel="condition"]');
+    await open.click();
+    await page.locator('#condition-form').getByRole('button', { name: 'Cancel' }).click();
+    await expect(page.locator('#condition-form')).toHaveCount(0);
+    await expect(open).toBeFocused();
+
+    await open.click();
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#condition-form')).toHaveCount(0);
+
+    // One form at a time under the bar.
+    await open.click();
+    await page.locator('#combat-actions [data-sel="damage"]').click();
+    await expect(page.locator('#condition-form')).toHaveCount(0);
+    await expect(page.locator('#damage-form')).toBeVisible();
+    await open.click();
+    await expect(page.locator('#damage-form')).toHaveCount(0);
+    await expect(page.locator('#condition-form')).toBeVisible();
     expect(beyondReads(calls)).toEqual([]);
   });
 });

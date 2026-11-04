@@ -141,6 +141,18 @@ export const USAGE_CATALOG: readonly UsageCatalogEntry[] = [
     file: 'packages/cogm-dashboard/web/src/components/CombatStrip.tsx',
   },
   {
+    name: 'dash.combat.condition',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/web/src/components/ConditionForm.tsx',
+  },
+  {
+    name: 'dash.combat.condition-cancel',
+    kind: 'action',
+    surface: 'dashboard',
+    file: 'packages/cogm-dashboard/web/src/components/ConditionForm.tsx',
+  },
+  {
     name: 'dash.combat.end',
     kind: 'action',
     surface: 'dashboard',

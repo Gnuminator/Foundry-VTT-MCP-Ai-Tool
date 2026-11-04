@@ -29,6 +29,11 @@ case "$cmd" in
     [ ! -f /tmp/nobridge ] || exit 1
     exit 0
     ;;
+  is-enabled)
+    # Stage 25 scenarios: a unit is enabled unless /tmp/disabled-<unit> exists.
+    [ -z "$unit" ] || [ ! -f "/tmp/disabled-$unit" ] || exit 1
+    exit 0
+    ;;
   is-active)
     state=inactive
     code=3
@@ -62,6 +67,8 @@ case "$cmd" in
       exit 0
     fi
     [ -z "$unit" ] || rm -f "/tmp/stopped-$unit"
+    # Stage 25 scenarios: /tmp/gm-stale gives a started Assistant GM browser a new invocation id (see the journalctl stand-in).
+    if [ "$unit" = foundry-ai-tool-gm-browser.service ] && [ -f /tmp/gm-stale ]; then echo fake-invocation-2 >/tmp/gm-invocation; fi
     # Stage 25 scenarios: /tmp/restart-hook (an executable) runs when Foundry is started, to change a module folder under it.
     if [ "$unit" = foundry.service ] && [ -x /tmp/restart-hook ]; then /tmp/restart-hook; fi
     # Stage 14 scenarios: /tmp/fake_foundry_opens makes a started Foundry open the world options.json names.

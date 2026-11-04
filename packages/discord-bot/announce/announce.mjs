@@ -1,15 +1,18 @@
 /**
- * Posts to the two read-only channels on the game server: #changelog (a short Danish line per
- * release or Pi deploy) and #pr-log (one line per PR merged to main).
+ * Posts to the read-only channels on the game server: #changelog (a short Danish line per
+ * release or Pi deploy, read by the players), #dashboard-changelog (the GM-only post about the
+ * dashboard) and #pr-log (one line per PR merged to main).
  *
  * Plain Node with no dependencies and no build step, so the merge gate, the release steps and the Pi
  * stage can all run it as `node packages/discord-bot/announce/announce.mjs <kind> ...`. #pr-log posts
  * are sent with SUPPRESS_NOTIFICATIONS (flag 4096), so nobody gets a push or a desktop alert;
  * #changelog posts are normal (rare, and the server's notification setting decides). No post mentions
- * anyone (allowed_mentions parse is empty). A failure never throws to the caller: the CLI prints one warning line and exits 1,
+ * anyone (allowed_mentions parse is empty), except the `dashboard` kind, which may mention the GM role
+ * and nothing else (allowed_mentions roles is that one id). A failure never throws to the caller: the CLI prints one warning line and exits 1,
  * and callers treat that as a warning only.
  *
- * Settings: DISCORD_TOKEN, DISCORD_CHANGELOG_CHANNEL_ID, DISCORD_PRLOG_CHANNEL_ID, from the real
+ * Settings: DISCORD_TOKEN, DISCORD_CHANGELOG_CHANNEL_ID, DISCORD_PRLOG_CHANNEL_ID,
+ * DISCORD_DASHBOARD_CHANGELOG_CHANNEL_ID, DISCORD_GM_ROLE_ID, from the real
  * environment first, then from discord-bot.env (PC: %APPDATA%\foundry-ai-tool\discord-bot.env, Pi:
  * /etc/foundry-ai-tool/discord-bot.env, or the file ANNOUNCE_ENV_FILE names).
  */
@@ -52,7 +55,8 @@ export function defaultEnvFile(env = process.env) {
 /**
  * @param {Record<string, string | undefined>} env
  * @param {string} [envFile]
- * @returns {{ token: string, changelogChannel: string, prLogChannel: string }}
+ * @returns {{ token: string, changelogChannel: string, prLogChannel: string,
+ *   dashboardChannel: string, gmRoleId: string }}
  */
 export function loadSettings(env = process.env, envFile = defaultEnvFile(env)) {
   let fromFile = {};
@@ -67,6 +71,8 @@ export function loadSettings(env = process.env, envFile = defaultEnvFile(env)) {
     token: pick('DISCORD_TOKEN'),
     changelogChannel: pick('DISCORD_CHANGELOG_CHANNEL_ID'),
     prLogChannel: pick('DISCORD_PRLOG_CHANNEL_ID'),
+    dashboardChannel: pick('DISCORD_DASHBOARD_CHANGELOG_CHANNEL_ID'),
+    gmRoleId: pick('DISCORD_GM_ROLE_ID'),
   };
 }
 
@@ -82,9 +88,9 @@ export function deployLine(version) {
 }
 
 /**
- * Post one message; silent (no push or desktop alert) unless `silent` is false. Never mentions anyone.
- * Never throws.
- * @param {{ token: string, channelId: string, content: string, silent?: boolean,
+ * Post one message; silent (no push or desktop alert) unless `silent` is false. Mentions nobody,
+ * unless `mentionRoleId` (a numeric role id) is given: then only that role can be pinged. Never throws.
+ * @param {{ token: string, channelId: string, content: string, silent?: boolean, mentionRoleId?: string,
  *   fetchImpl?: typeof fetch, timeoutMs?: number }} o
  * @returns {Promise<{ ok: true, id: string } | { ok: false, reason: string }>}
  */
@@ -93,6 +99,7 @@ export async function postMessage({
   channelId,
   content,
   silent = true,
+  mentionRoleId = '',
   fetchImpl = globalThis.fetch,
   timeoutMs = TIMEOUT_MS,
 }) {
@@ -108,7 +115,9 @@ export async function postMessage({
       body: JSON.stringify({
         content: text,
         ...(silent ? { flags: SUPPRESS_NOTIFICATIONS } : {}),
-        allowed_mentions: { parse: [] },
+        allowed_mentions: /^\d+$/.test(mentionRoleId)
+          ? { parse: [], roles: [mentionRoleId] }
+          : { parse: [] },
       }),
       signal: AbortSignal.timeout(timeoutMs),
     });
@@ -122,7 +131,7 @@ export async function postMessage({
 }
 
 const USAGE =
-  'usage: announce.mjs pr <number> <title...> | changelog <text...> | deploy <version>';
+  'usage: announce.mjs pr <number> <title...> | changelog <text...> | dashboard <text...> | deploy <version>';
 
 /**
  * @param {string[]} argv
@@ -133,13 +142,16 @@ const USAGE =
 export async function runCli(argv, o = {}) {
   const { env = process.env, fetchImpl, log = console.log, timeoutMs } = o;
   const [kind, ...rest] = argv;
-  /** @type {'prLog' | 'changelog'} */
+  /** @type {'prLog' | 'changelog' | 'dashboard'} */
   let target = 'changelog';
   let content = '';
   if (kind === 'pr' && rest.length >= 2 && /^\d+$/.test(rest[0])) {
     target = 'prLog';
     content = prLine(rest[0], rest.slice(1).join(' '));
   } else if (kind === 'changelog' && rest.length >= 1) {
+    content = rest.join(' ');
+  } else if (kind === 'dashboard' && rest.length >= 1) {
+    target = 'dashboard';
     content = rest.join(' ');
   } else if (kind === 'deploy' && rest.length === 1) {
     content = deployLine(rest[0]);
@@ -148,7 +160,8 @@ export async function runCli(argv, o = {}) {
     return 2;
   }
   const s = loadSettings(env, o.envFile);
-  const channelId = target === 'prLog' ? s.prLogChannel : s.changelogChannel;
+  const channelId =
+    target === 'prLog' ? s.prLogChannel : target === 'dashboard' ? s.dashboardChannel : s.changelogChannel;
   if (!s.token || !channelId) {
     log(`announce: no Discord settings for ${kind}; nothing posted`);
     return 0;
@@ -159,6 +172,8 @@ export async function runCli(argv, o = {}) {
     channelId,
     content,
     silent: target === 'prLog',
+    // Only the GM post may ping, and only the GM role; without the id it is a plain post.
+    ...(target === 'dashboard' ? { mentionRoleId: s.gmRoleId } : {}),
     ...(fetchImpl ? { fetchImpl } : {}),
     ...(timeoutMs ? { timeoutMs } : {}),
   });

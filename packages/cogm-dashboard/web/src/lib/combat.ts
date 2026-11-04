@@ -367,23 +367,8 @@ export function selectedTargets(
     : [];
 }
 
+/** What the action bar opens under itself: the Damage / Heal form or the Condition picker. */
 export type SelectionAction = 'damage' | 'condition';
-
-/** The tool runner's request for Damage / Heal or Condition on these targets (plan, then apply). */
-export function planRequest(
-  action: SelectionAction,
-  targets: string[]
-): { name: 'plan-actor-change'; prefill: { action: SelectionAction; targets: string[] } } {
-  return { name: 'plan-actor-change', prefill: { action, targets } };
-}
-
-/** The tool runner's request to end the fight (plan, confirm, then apply; Undo in Recent Changes). */
-export function endCombatRequest(): {
-  name: 'plan-combat-change';
-  prefill: { action: 'end' };
-} {
-  return { name: 'plan-combat-change', prefill: { action: 'end' } };
-}
 
 // --- The bridge --------------------------------------------------------------------------------
 

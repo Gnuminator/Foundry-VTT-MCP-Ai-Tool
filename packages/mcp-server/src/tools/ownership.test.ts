@@ -369,7 +369,10 @@ describe("OwnershipTools.handleToolCall('plan-ownership-change')", () => {
       'Multiple characters match "Aria": Aria Stormwind (aria-storm), Aria Brightwood (aria-bright). ' +
       'Use the exact name or the 16-character id.';
     const { tools, createPlan } = makeTools((method: string) => {
-      if (method === 'foundry-mcp-bridge.findActor') throw new Error(ambiguous);
+      // Real bridge errors arrive wrapped like this.
+      if (method === 'foundry-mcp-bridge.findActor') {
+        throw new Error(`Query foundry-mcp-bridge.findActor failed: ${ambiguous}`);
+      }
       return [{ id: 'p1', name: 'John' }];
     });
     await expect(

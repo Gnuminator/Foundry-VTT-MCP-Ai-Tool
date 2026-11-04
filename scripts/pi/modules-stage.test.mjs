@@ -31,7 +31,10 @@ describe('stage 25 as text', () => {
 
   test('refuses a new run after one that did not finish, and checks the room once before unpacking', () => {
     assert.match(code, /state_get phase\)" = installing/);
-    assert.equal(code.match(/check_room "/g).length, 1);
+    // two checks: the copies of the zips (before the first copy), then the unpacked room (before the first unpack)
+    assert.equal(code.match(/check_room "/g).length, 2);
+    assert.ok(code.indexOf('check_room "') < code.indexOf('cp -- "$zip"'));
+    assert.match(code, /runuser -u "\$FOUNDRY_USER" -- unzip -q "\$work\/\$id\.zip"/);
     assert.ok(code.indexOf('check_room "') < code.indexOf('unzip -q "$work/$id.zip"'));
   });
 

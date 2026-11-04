@@ -1,11 +1,12 @@
-// Tests for Pi stage 24 (scripts/pi/remote/24-modules.sh: the pinned module versions from the PC archive):
+// Tests for Pi stage 25 (scripts/pi/remote/25-modules.sh: the pinned module versions from the PC archive):
 //   node --test scripts/pi/modules-stage.test.mjs
 // - the stage as text: the guards a Pi stage needs (an EXIT trap, a state file, ${var:?} on every rm -rf, nothing
 //   downloaded, no module switched on);
-// - with PI_STAGE24_CONTAINER=1 (needs Docker; CI runs it on the ARM runner): the stage itself in a Debian 13 ARM64
-//   container with stand-ins for systemd and curl (scripts/pi/container-test/stage24-scenarios.sh): a dry run that
-//   changes nothing, the real run, a rerun, UNDO=1, a failed start putting the old folders back, and the refusals
-//   (a wrong sha256, a "../" entry, a link, a wrong id or version in the zip, an unsafe pin, players online).
+// - with PI_STAGE25_CONTAINER=1 (needs Docker; CI runs it on the ARM runner): the stage itself in a Debian 13 ARM64
+//   container with stand-ins for systemd and curl (scripts/pi/container-test/stage25-scenarios.sh): a dry run that
+//   changes nothing, the real run, a rerun, UNDO=1 with its read-back, a failed start, a browser that never joins, a
+//   failed move and a version mismatch putting the old folders back, a crashed run refusing a new one, and the
+//   refusals (a wrong sha256, a "../" entry, a link, a wrong id or version in the zip, an unsafe pin, players online).
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
@@ -14,13 +15,26 @@ import { describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
-const stage = readFileSync(path.join(repo, 'scripts/pi/remote/24-modules.sh'), 'utf8');
+const stage = readFileSync(path.join(repo, 'scripts/pi/remote/25-modules.sh'), 'utf8');
 const code = stage
   .split('\n')
   .filter(line => !line.trimStart().startsWith('#'))
   .join('\n');
 
-describe('stage 24 as text', () => {
+describe('stage 25 as text', () => {
+  test('logs through lib.sh STAGE_LOG, reads back with browser_joined, no early-exit grep on a pipe', () => {
+    assert.match(code, /STAGE_LOG="\$LOG_FILE"/);
+    assert.doesNotMatch(code, /STATE_LOG/);
+    assert.match(code, /browser_joined "\$GM_UNIT"/);
+    assert.doesNotMatch(code, /(journalctl|unzip|curl)[^\n]*\|\s*grep -q/);
+  });
+
+  test('refuses a new run after one that did not finish, and checks the room once before unpacking', () => {
+    assert.match(code, /state_get phase\)" = installing/);
+    assert.equal(code.match(/check_room "/g).length, 1);
+    assert.ok(code.indexOf('check_room "') < code.indexOf('unzip -q "$work/$id.zip"'));
+  });
+
   test('every rm -rf has a ${var:?} guard', () => {
     const lines = code.split('\n').filter(l => /\brm\s+(-\w*r\w*f|-\w*f\w*r)/.test(l));
     assert.ok(lines.length > 0);
@@ -47,8 +61,8 @@ describe('stage 24 as text', () => {
 });
 
 describe(
-  'stage 24 in the ARM64 container',
-  { skip: process.env.PI_STAGE24_CONTAINER !== '1' },
+  'stage 25 in the ARM64 container',
+  { skip: process.env.PI_STAGE25_CONTAINER !== '1' },
   () => {
     test('scenarios', () => {
       const image =
@@ -64,7 +78,7 @@ describe(
           `${repo}:/repo:ro`,
           image,
           'bash',
-          '/repo/scripts/pi/container-test/stage24-scenarios.sh',
+          '/repo/scripts/pi/container-test/stage25-scenarios.sh',
         ],
         { encoding: 'utf8' }
       );

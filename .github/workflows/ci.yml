@@ -582,11 +582,11 @@ jobs:
           PI_STAGE22_CONTAINER: 1
         run: node --test scripts/pi/seven-books.test.mjs
 
-      - name: Pi stage 24 (modules) in an ARM64 container
-        # scripts/pi/container-test/stage24-scenarios.sh: the pinned module install on Debian 13 ARM64 with stand-ins for
-        # systemd (a dry run, the real run and a rerun, UNDO=1, a failed start putting the old folders back, the refusals).
+      - name: Pi stage 25 (modules) in an ARM64 container
+        # scripts/pi/container-test/stage25-scenarios.sh: the pinned module install on Debian 13 ARM64 with stand-ins for
+        # systemd (a dry run, the real run and a rerun, UNDO=1, a failed start or move putting the old folders back, the refusals).
         env:
-          PI_STAGE24_CONTAINER: 1
+          PI_STAGE25_CONTAINER: 1
         run: node --test scripts/pi/modules-stage.test.mjs
 
       - name: Pi kit session in an ARM64 container

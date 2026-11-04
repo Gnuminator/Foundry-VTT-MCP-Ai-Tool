@@ -1,6 +1,6 @@
 ### Pi
 
-- **Stage 24 installs the pinned Foundry modules on the Pi:** `scripts/pi/remote/24-modules.sh` reads the module
+- **Stage 25 installs the pinned Foundry modules on the Pi:** `scripts/pi/remote/25-modules.sh` reads the module
   archive's `pinned.json` on the Pi, checks every zip (sha256, entry names, the id and version inside) before it changes
   anything, and shows a dry run by default. A real run (`APPLY=1`, snapshot and nobody online first) moves each old
   folder aside, puts the pinned version in, restarts Foundry and reads the result back; a failure puts the old folders

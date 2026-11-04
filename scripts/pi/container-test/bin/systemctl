@@ -17,6 +17,14 @@ for a in "$@"; do
   esac
 done
 case "$cmd" in
+  show)
+    # Stage 25 scenarios: /tmp/gm-invocation gives the running Assistant GM browser an invocation id (browser_joined in
+    # lib.sh needs one); without that file `show` prints nothing, as before.
+    if [ "$unit" = foundry-ai-tool-gm-browser.service ] && [ -f /tmp/gm-invocation ] && [ ! -f "/tmp/stopped-$unit" ]; then
+      cat /tmp/gm-invocation
+    fi
+    exit 0
+    ;;
   cat)
     [ ! -f /tmp/nobridge ] || exit 1
     exit 0
@@ -54,6 +62,8 @@ case "$cmd" in
       exit 0
     fi
     [ -z "$unit" ] || rm -f "/tmp/stopped-$unit"
+    # Stage 25 scenarios: /tmp/restart-hook (an executable) runs when Foundry is started, to change a module folder under it.
+    if [ "$unit" = foundry.service ] && [ -x /tmp/restart-hook ]; then /tmp/restart-hook; fi
     # Stage 14 scenarios: /tmp/fake_foundry_opens makes a started Foundry open the world options.json names.
     if [ "$unit" = foundry.service ] && [ -f /tmp/fake_foundry_opens ]; then
       world="$(sed -n 's/.*"world": *"\([^"]*\)".*/\1/p' /var/lib/foundry/Config/options.json)"

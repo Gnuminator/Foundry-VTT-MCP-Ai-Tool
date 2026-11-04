@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Stage 24: install the pinned Foundry modules from the PC's module archive (docs/dev/MODULE-REHEARSAL.md, "Pi: install
+# Stage 25: install the pinned Foundry modules from the PC's module archive (docs/dev/MODULE-REHEARSAL.md, "Pi: install
 # from the archive"). It reads $MIRROR/pinned.json (the PC archive's mirror, put on the Pi with the scp that
 # `node scripts/modules/rehearse.mjs pi-plan` prints), and for every pinned module that is not at its pinned version:
 # stops the Assistant GM browser and Foundry, moves the old folder to $IMPORT/prev-<time>-modules/<id>, puts the pinned
@@ -10,27 +10,32 @@
 #   (foundry-mcp-bridge) is stage 5's and aitool-content is stage 11's: a pin for either is skipped with a line.
 #
 # Order in a Pi sitting: stages 3, 14, 5 and 13 first (Foundry 14.369 needs the installed login drivers to know its user
-# select, see the refusal below), this stage next, the Docker cutover (stages 22-docker and 23, refused here once the
-# stack is cut over) after it. Run it on the strahd-kit world first (kit-session.sh MODE=up, then the Pi kit run), then
-# on the real world; a snapshot before each. Stage 22 (seven books) runs after the content modules changed.
+# select, see the refusal below), this stage next, the Docker cutover (stages 23 and 24, which restart foundry.service
+# too) after it. The install goes into the one modules folder every world on the Pi shares, so it applies to all worlds at
+# once, and Foundry restarts into whichever world launches: test the versions on the PC test server and its kit first,
+# then run this stage once on the Pi (a kit session must be down, see the refusal below). A snapshot before it. Stage 22
+# (seven books) runs after the content modules changed. The Docker cutover guard (Backlog item refuse_when_cut_over) will
+# refuse this stage once the stack is cut over; it does not exist in the script yet.
 #
 # Nothing changes before the checks pass, and the checks are the whole of a dry run (no APPLY): the pins and the
 # mirror, every zip's sha256 (of a copy), its entry names (no absolute path, no "..", no link or device in what is
-# unpacked), the module.json inside (its id and version must be the pin's), the room on the disk, and (for a real run) a
-# snapshot from today, nobody online and no recording, no kit session, no open dnd5e trial. The last run's state is in
-# $STATE; UNDO=1 puts that run's old folders back (a module that had no old folder is moved aside, never deleted).
+# unpacked), the room on the disk (all zips unpacked at once plus the largest zip), the module.json inside (its id and
+# version must be the pin's), and (for a real run) a snapshot from today, nobody online and no recording, no kit
+# session, no open dnd5e trial, Foundry running with a world. The last run's state is in $STATE; UNDO=1 puts that run's
+# old folders back (a module that had no old folder is moved aside, never deleted) and reads the versions back. A real
+# run is refused while the state says an earlier run did not finish (phase=installing): UNDO=1 first.
 # A real run that fails after Foundry stopped (an unpack, a move, the start, the read-back) undoes what it did in the
 # same way and starts Foundry and the Assistant GM browser as they were. Nothing is deleted: old and replaced folders
 # stay under $IMPORT (prev-<time>-modules, failed-<time>-modules) until the user removes them.
 #
 #   scp -r <archive>/modules <archive>/pinned.json foundry-pi:<MIRROR>/     (pi-plan prints the command)
-#   cat scripts/pi/remote/lib.sh scripts/pi/remote/24-modules.sh | ssh foundry-pi 'bash -s'            a dry run
-#   cat scripts/pi/remote/lib.sh scripts/pi/remote/24-modules.sh | ssh foundry-pi 'APPLY=1 bash -s'    the real run
-#   cat scripts/pi/remote/lib.sh scripts/pi/remote/24-modules.sh | ssh foundry-pi 'UNDO=1 bash -s'     the last run back
+#   cat scripts/pi/remote/lib.sh scripts/pi/remote/25-modules.sh | ssh foundry-pi 'bash -s'            a dry run
+#   cat scripts/pi/remote/lib.sh scripts/pi/remote/25-modules.sh | ssh foundry-pi 'APPLY=1 bash -s'    the real run
+#   cat scripts/pi/remote/lib.sh scripts/pi/remote/25-modules.sh | ssh foundry-pi 'UNDO=1 bash -s'     the last run back
 # Env (in front of bash): APPLY=1 (anything else but empty is refused), UNDO=1, MIRROR (default
 # /home/dietpi/module-archive), ONLY (comma separated module ids: install just those), FORCE=1 (players or recording
 # check only, never the snapshot). Take the snapshot (/boot/dietpi/dietpi-backup 1) and get the user's OK before APPLY=1
-# or UNDO=1. The one run at a time is a lock in $IMPORT; every line also goes to $STATE_LOG.
+# or UNDO=1. The one run at a time is a lock in $IMPORT; in a real run or UNDO every line also goes to $STAGE_LOG.
 
 require_root
 MIRROR="${MIRROR:-/home/dietpi/module-archive}"
@@ -39,7 +44,7 @@ APPLY="${APPLY:-}"
 UNDO="${UNDO:-}"
 IMPORT=/var/lib/foundry-import
 STATE="$IMPORT/modules-stage.state"
-STATE_LOG="$IMPORT/modules-stage.log"
+LOG_FILE="$IMPORT/modules-stage.log" # lib.sh out() writes every line to $STAGE_LOG once it is set below
 data="$FOUNDRY_DATA/Data"
 moddir="$data/modules"
 stamp="$(date +%Y%m%d-%H%M%S)"
@@ -55,12 +60,12 @@ case "$UNDO" in "" | 1) ;; *) die "UNDO must be 1 or left out (got '$UNDO'). Not
 command -v unzip >/dev/null || die "unzip is not installed (apt install unzip). Nothing was changed"
 [ -d "$moddir" ] || die "no $moddir: Foundry has not run here yet (stage 3). Nothing was changed"
 [ ! -e "$TOOL_DATA/kit-session.env" ] || die "a kit session is up ($TOOL_DATA/kit-session.env exists, the Kit GM browser holds strahd-kit): run kit-session.sh MODE=down first. Nothing was changed"
-refuse_during_system_trial "stage 24 (modules)"
+refuse_during_system_trial "stage 25 (modules)"
 install -d -m 700 "$IMPORT"
 exec 9>"$IMPORT/modules-stage.lock"
-flock -n 9 || die "another stage 24 run holds $IMPORT/modules-stage.lock. Nothing was changed"
+flock -n 9 || die "another stage 25 run holds $IMPORT/modules-stage.lock. Nothing was changed"
 trap '' HUP PIPE
-[ -n "$APPLY$UNDO" ] || STAGE_LOG=""
+if [ -n "$APPLY$UNDO" ]; then STAGE_LOG="$LOG_FILE"; else STAGE_LOG=""; fi
 if [ -n "$UNDO" ]; then run_word=UNDO; elif [ -n "$APPLY" ]; then run_word=APPLY; else run_word="dry run"; fi
 ok "$run_word started${STAGE_LOG:+ (logged in $STAGE_LOG)}"
 [ -z "$APPLY$UNDO" ] || require_recent_snapshot
@@ -70,7 +75,39 @@ json_get() { # $1 file, $2 key: one printable string field of a JSON file (a BOM
   node -e 'try{let s=require("fs").readFileSync(process.argv[1],"utf8").replace(/^﻿/,"");const v=JSON.parse(s)[process.argv[2]];if(v!=null)process.stdout.write(String(v).replace(/[^\w.+-]/g,"?").slice(0,60))}catch{}' "$1" "$2"
 }
 mod_version() { json_get "$moddir/$1/module.json" version; }
-world_up() { curl -fs http://127.0.0.1:30000/join 2>/dev/null | grep -q 'id="join-game"'; }
+world_up() { # the join page of a running world; curl's output is captured first so grep -q cannot SIGPIPE it
+  local page
+  page="$(curl -fs http://127.0.0.1:30000/join 2>/dev/null || true)"
+  [[ "$page" == *'id="join-game"'* ]]
+}
+GM_UNIT=foundry-ai-tool-gm-browser.service
+# wait_back_up: after Foundry was started, wait for its world and (when it ran before) the Assistant GM browser to join it
+# in its current run (lib.sh browser_joined: the systemd invocation id, so a line from before the restart does not count).
+# Returns 1 when the world did not come back, 2 when the browser did not join.
+wait_back_up() {
+  local _
+  have_systemd || return 0
+  for _ in $(seq 1 60); do
+    world_up && break
+    sleep 2
+  done
+  world_up || return 1
+  ok "Foundry is up"
+  [ "$was_gm_browser" = 1 ] || return 0
+  for _ in $(seq 1 45); do
+    if browser_joined "$GM_UNIT"; then
+      ok "the Assistant GM browser joined the world"
+      return 0
+    fi
+    sleep 2
+  done
+  return 2
+}
+require_world_running() { # a stage that restarts Foundry needs it running with a world now: a stopped one has nothing to come back to
+  have_systemd || return 0
+  systemctl is-active --quiet foundry.service || die "foundry.service is not running (start it, with the world, first). Nothing was changed"
+  world_up || die "Foundry runs, but no world answers on port 30000 (launch the world first). Nothing was changed"
+}
 free_path() { # $1, or $1.2, $1.3 ... when it exists
   local p="$1" n=2
   while [ -e "$p" ] || [ -L "$p" ]; do
@@ -177,6 +214,7 @@ if [ -n "$UNDO" ]; then
   [ -f "$STATE" ] || die "no $STATE: there is no run to undo. Nothing was changed"
   [ "$(state_get phase)" != undone ] || die "the last run ($(state_get stamp)) is already undone. Nothing was changed"
   say "UNDO: putting back the folders of the run from $(state_get stamp)"
+  require_world_running
   require_quiet "putting the old module folders back"
   stop_services
   undo=1
@@ -184,9 +222,43 @@ if [ -n "$UNDO" ]; then
   state_phase undone
   undo=""
   start_services || die "the old folders are back, but Foundry did not start: journalctl -u foundry -n 50"
+  wait_back_up || die "the old folders are back, but Foundry or the Assistant GM browser did not come up again: journalctl -u foundry -n 50 and journalctl -u foundry-ai-tool-gm-browser -n 30"
+  say "reading the old versions back"
+  mismatch=0
+  while IFS='|' read -r id old new; do
+    [[ "$id" =~ $ID_RE ]] || continue
+    now="$(mod_version "$id")"
+    case "$old" in
+      unknown) ok "$id: the old folder had no readable module.json, so no version to compare" ;;
+      NONE)
+        if [ -e "$moddir/$id" ]; then
+          warn "$id: was not installed before, but $moddir/$id exists (version '${now:-?}')"
+          mismatch=1
+        else
+          ok "$id: not installed, as before"
+        fi
+        ;;
+      *)
+        if [ "$now" = "$old" ]; then
+          ok "$id $now"
+        else
+          warn "$id: $moddir/$id/module.json says '${now:-?}', the run changed it from $old"
+          mismatch=1
+        fi
+        ;;
+    esac
+  done < <(state_modules)
+  [ "$mismatch" = 0 ] || die "UNDO finished, but the versions above do not match the state in $STATE. Check them by hand"
   trap - EXIT
   ok "the old module folders are back; Foundry and the Assistant GM browser are as they were"
   exit 0
+fi
+
+# An earlier real run that did not finish (killed, power cut) leaves phase=installing: some old folders may have moved.
+# A new run would rotate that state away and lose where they went, so UNDO=1 has to come first.
+if [ "$(state_get phase)" = installing ]; then
+  msg="the last run ($(state_get stamp)) did not finish (phase=installing in $STATE): module folders may have moved. Run UNDO=1 first"
+  if [ -n "$APPLY" ]; then die "$msg. Nothing was changed"; else warn "$msg"; fi
 fi
 
 # ---- checks (a dry run is these) ----------------------------------------------------------------------------
@@ -219,9 +291,11 @@ work="$IMPORT/work-$stamp-modules"
 install -d -m 755 "$work"
 [ "$(stat -c %d "$work")" = "$(stat -c %d "$moddir")" ] || die "$work and $moddir are on different filesystems: the folder moves would copy. Nothing was changed"
 
-plan=() # id|old|new|croot (the unpacked folder that holds module.json)
-bytes=0
-unchanged=0
+# Pass 1 checks the pins and every zip (a copy of it) without unpacking anything and adds up the room the unpacking needs;
+# the room is checked once, before pass 2 unpacks.
+checked=() # id|version of every pin that pass 2 unpacks
+unpacked_bytes=0
+biggest_zip=0
 while IFS=$'\t' read -r id version file sha; do
   if [ -n "$ONLY" ] && [[ ",$ONLY," != *",$id,"* ]]; then continue; fi
   case "$id" in
@@ -248,8 +322,24 @@ while IFS=$'\t' read -r id version file sha; do
     esac
   done < <(unzip -Z1 "$work/$id.zip" </dev/null)
   # zipinfo marks a link with an "l" in its permission column; root unpacks, so none may be written (an entry through a
-  # link could land anywhere). The folder is handed to the foundry user when it moves into place.
-  ! unzip -Z "$work/$id.zip" </dev/null | grep -q '^l' || die "$id: the zip holds a link. Nothing was changed"
+  # link could land anywhere). The listing is captured first (a failed unzip must not read as "no link") and awk reads
+  # all of it (a grep -q that stops early would SIGPIPE unzip on a large zip). The folder is handed to the foundry user
+  # when it moves into place.
+  listing="$(unzip -Z "$work/$id.zip" </dev/null)" || die "$id: cannot read the zip's entries. Nothing was changed"
+  if awk '/^l/ { f = 1 } END { exit !f }' <<<"$listing"; then die "$id: the zip holds a link. Nothing was changed"; fi
+  zbytes="$(unzip -Zt "$work/$id.zip" </dev/null | awk '/bytes uncompressed/ { print $3 }' || true)"
+  [[ "$zbytes" =~ ^[0-9]+$ ]] || die "$id: cannot read the zip's unpacked size. Nothing was changed"
+  unpacked_bytes=$((unpacked_bytes + zbytes))
+  zfile=$(stat -c %s "$work/$id.zip")
+  [ "$zfile" -le "$biggest_zip" ] || biggest_zip=$zfile
+  checked+=("$id|$version")
+done <<<"$pins"
+check_room "$IMPORT" "$((unpacked_bytes + biggest_zip))"
+
+plan=() # id|old|new|croot (the unpacked folder that holds module.json)
+unchanged=0
+for entry in "${checked[@]}"; do
+  IFS='|' read -r id version <<<"$entry"
   unzip -q "$work/$id.zip" -d "$work/$id" </dev/null || die "$id: cannot unpack the zip. Nothing was changed"
   rm -f "$work/$id.zip"
   [ -z "$(find "$work/$id" ! -type f ! -type d -print -quit)" ] || die "$id: the zip holds a link or special file. Nothing was changed"
@@ -283,9 +373,8 @@ while IFS=$'\t' read -r id version file sha; do
     old=unknown
   fi
   plan+=("$id|$old|$version|$croot")
-  bytes=$((bytes + $(du -sb "$croot" | cut -f1)))
   out "    $id: ${old/NONE/not installed} -> $version"
-done <<<"$pins"
+done
 
 if [ -n "$ONLY" ]; then
   for want in ${ONLY//,/ }; do
@@ -299,7 +388,6 @@ if [ "${#plan[@]}" -eq 0 ]; then
   [ -z "$work" ] || rm -rf "${work:?}"
   exit 0
 fi
-check_room "$IMPORT" "$((bytes * 2))"
 
 if [ -z "$APPLY" ]; then
   ok "dry run: nothing was changed (APPLY=1 for the real run, after a snapshot and the user's OK)"
@@ -309,7 +397,9 @@ if [ -z "$APPLY" ]; then
 fi
 
 # ---- the real run -------------------------------------------------------------------------------------------
+require_world_running
 require_quiet "installing modules"
+since="$(date '+%F %T')" # the journal reads below start here, so a line from before the restart cannot count
 prev="$IMPORT/prev-$stamp-modules"
 failed="$IMPORT/failed-$stamp-modules"
 install -d -m 700 "$prev"
@@ -338,25 +428,14 @@ done
 if have_systemd; then
   say "starting Foundry again"
   systemctl restart foundry.service
-  for _ in $(seq 1 60); do
-    world_up && break
-    sleep 2
-  done
-  world_up || die "Foundry's world did not come back on port 30000 (the old folders are put back; see: journalctl -u foundry -n 50)"
-  ok "Foundry is up"
-  if [ "$was_gm_browser" = 1 ]; then
-    enable_unit foundry-ai-tool-gm-browser.service
-    joined=0
-    for _ in $(seq 1 45); do
-      if journalctl -u foundry-ai-tool-gm-browser --since '-3 min' --no-pager | grep -q 'joined world'; then
-        joined=1
-        break
-      fi
-      sleep 2
-    done
-    [ "$joined" = 1 ] || die "the Assistant GM browser did not join the world again (the old folders are put back; see: journalctl -u foundry-ai-tool-gm-browser -n 30)"
-    ok "the Assistant GM browser joined the world"
-  fi
+  [ "$was_gm_browser" != 1 ] || enable_unit "$GM_UNIT"
+  rc=0
+  wait_back_up || rc=$?
+  case "$rc" in
+    0) ;;
+    1) die "Foundry's world did not come back on port 30000 (the old folders are put back; see: journalctl -u foundry -n 50)" ;;
+    *) die "the Assistant GM browser did not join the world again (the old folders are put back; see: journalctl -u foundry-ai-tool-gm-browser -n 30)" ;;
+  esac
 else
   warn "no systemd here (a test container?): Foundry and the Assistant GM browser were not started"
 fi
@@ -370,7 +449,7 @@ for row in "${plan[@]}"; do
 done
 # Foundry reads the module folders at start; the journal since the restart names a module it could not read.
 if have_systemd; then
-  bad="$(journalctl -u foundry --since '-5 min' --no-pager 2>/dev/null | grep -iE 'module.*(failed|error|invalid)' | head -n 5 || true)"
+  bad="$(journalctl -u foundry --since "$since" --no-pager 2>/dev/null | grep -iE 'module.*(failed|error|invalid)' | head -n 5 || true)"
   [ -z "$bad" ] || warn "Foundry's log since the start mentions a module problem:"$'\n'"$bad"
 fi
 

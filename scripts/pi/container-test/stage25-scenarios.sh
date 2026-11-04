@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Stage 24 (scripts/pi/remote/24-modules.sh) in a Debian 13 ARM64 container with no systemd: stand-ins for systemctl,
+# Stage 25 (scripts/pi/remote/25-modules.sh) in a Debian 13 ARM64 container with no systemd: stand-ins for systemctl,
 # curl (/api/status and /join), journalctl and sleep make it take its systemd path. The zips are made by make-zip.mjs
 # and pinned in a pinned.json the way `rehearse.mjs archive` writes it. Each scenario prints PASS or FAIL lines:
-#   docker run --rm --platform linux/arm64 -v "<repo>:/repo:ro" <IMAGE> bash /repo/scripts/pi/container-test/stage24-scenarios.sh [name ...]
+#   docker run --rm --platform linux/arm64 -v "<repo>:/repo:ro" <IMAGE> bash /repo/scripts/pi/container-test/stage25-scenarios.sh [name ...]
 # DESTRUCTIVE: it wipes the Foundry data folder, the import folder and the module mirror and installs the fakes into
 # /usr/local/sbin. It refuses to run anywhere but a container.
 set -uo pipefail
@@ -23,7 +23,7 @@ apt_setup() { apt-get update && apt-get install -y --no-install-recommends nodej
 }
 mkdir -p /opt/node24/bin /run/systemd/system
 ln -sf "$(command -v node)" /opt/node24/bin/node
-for f in systemctl curl journalctl sleep logger; do install -m 755 "$H/bin/$f" "/usr/local/sbin/$f"; done
+for f in systemctl curl journalctl sleep logger mv; do install -m 755 "$H/bin/$f" "/usr/local/sbin/$f"; done
 eval "$(grep -E '^(FOUNDRY_USER|FOUNDRY_APP|FOUNDRY_DATA|TOOL_DIR|TOOL_ETC|TOOL_DATA)=' "$R/lib.sh")"
 id "$FOUNDRY_USER" >/dev/null 2>&1 || useradd --system --home-dir "$FOUNDRY_DATA" --shell /usr/sbin/nologin "$FOUNDRY_USER"
 MODS="$FOUNDRY_DATA/Data/modules"
@@ -55,13 +55,14 @@ same() { # $1 name, $2 what, $3 the value before, $4 the value after
 
 fresh_pi() {
   rm -rf "${FOUNDRY_DATA:?}" "${FOUNDRY_APP:?}" "${TOOL_DIR:?}" "${TOOL_ETC:?}" "${TOOL_DATA:?}" "${IMPORT:?}" "${MIRROR:?}" "${SRC:?}"
-  rm -f /tmp/stopped-* /tmp/calls /tmp/status /tmp/status_rc /tmp/joinfail /tmp/gm-counts /tmp/pins
+  rm -f /tmp/stopped-* /tmp/calls /tmp/status /tmp/status_rc /tmp/joinfail /tmp/gm-counts /tmp/pins /tmp/mv_fail /tmp/restart-hook /tmp/gm-nojoin
   mkdir -p "$MODS" "$FOUNDRY_APP" "$TOOL_DIR/gm-browser" "$TOOL_ETC" "$TOOL_DATA" "$MIRROR/modules" "$SRC"
   chown -R "$FOUNDRY_USER" "$FOUNDRY_DATA"
   echo '{"version":"14.368.0"}' >"$FOUNDRY_APP/package.json"
   echo '// stand-in' >"$TOOL_DIR/gm-browser/assistant-gm.mjs"
   printf '{"active":true,"world":"curse-of-strahd","users":0}' >/tmp/status
   echo 0 >/tmp/status_rc
+  echo fake-invocation-1 >/tmp/gm-invocation # the Assistant GM browser has a run whose journal says it joined
   : >/tmp/calls
   : >/tmp/pins
 }
@@ -107,7 +108,7 @@ marker() { cat "$MODS/$1/marker.txt" 2>/dev/null || echo "(none)"; }
 # $1 the environment words (a single string), prints the output and "exit N"
 run_stage() {
   local out rc
-  out="$(cd /root && cat "$R/lib.sh" "$R/24-modules.sh" | env NO_SNAPSHOT=1 $1 bash -s 2>&1)"
+  out="$(cd /root && cat "$R/lib.sh" "$R/25-modules.sh" | env NO_SNAPSHOT=1 $1 bash -s 2>&1)"
   rc=$?
   printf '%s\nexit %s\n' "$out" "$rc"
 }
@@ -135,7 +136,9 @@ if want dry-run; then
   check dry-run 'gamma: not installed -> 0.5.0' "$out"
   check dry-run 'current 3.0.0: already installed' "$out"
   check dry-run 'dry run: nothing was changed' "$out"
+  check dry-run "room for the run's" "$out"
   check dry-run 'exit 0' "$out"
+  [ ! -e "$IMPORT/modules-stage.log" ] && echo "PASS dry-run: no log file" || { echo "FAIL dry-run: log file written"; fail=1; }
   same dry-run 'the module folders' "$before" "$(tree_hash)"
   absent dry-run 'stop foundry' "$(cat /tmp/calls)"
   [ ! -e "$IMPORT/modules-stage.state" ] && echo "PASS dry-run: no state file" || { echo "FAIL dry-run: state file written"; fail=1; }
@@ -160,6 +163,8 @@ if want apply; then
   check apply 'old 1.0.0' "$(cat "$prev/alpha/marker.txt")"
   [ ! -e "$prev/gamma" ] && echo "PASS apply: gamma had no old folder" || { echo "FAIL apply: gamma in prev"; fail=1; }
   check apply 'phase=installed' "$(cat "$IMPORT/modules-stage.state")"
+  check apply-log 'APPLY started' "$(cat "$IMPORT/modules-stage.log" 2>/dev/null)"
+  check apply-log 'done: 3 module\(s\) installed' "$(cat "$IMPORT/modules-stage.log" 2>/dev/null)"
   check apply "^$FOUNDRY_USER\$" "$(stat -c %U "$MODS/alpha/module.json")"
   check apply 'stop foundry.service' "$(cat /tmp/calls)"
   check apply 'restart foundry.service' "$(cat /tmp/calls)"
@@ -179,6 +184,10 @@ if want undo; then
   check undo 'alpha: 1.0.0 is back' "$out"
   check undo 'gamma: was not installed before' "$out"
   check undo 'the old module folders are back' "$out"
+  check undo 'Foundry is up' "$out"
+  check undo 'the Assistant GM browser joined the world' "$out"
+  check undo 'alpha 1.0.0' "$out"
+  check undo 'gamma: not installed, as before' "$out"
   check undo 'exit 0' "$out"
   check undo 'old 1.0.0' "$(marker alpha)"
   check undo 'old 2.0.0' "$(marker beta)"
@@ -208,8 +217,101 @@ if want join-fails; then
   check join-fails 'exit 1' "$out"
   same join-fails 'the module folders (old ones restored)' "$before" "$(tree_hash)"
   check join-fails 'phase=undone' "$(cat "$IMPORT/modules-stage.state")"
-  # the trap started Foundry again as it was before the run
-  check join-fails 'restart foundry.service' "$(tail -n 8 /tmp/calls)"
+  # the trap started Foundry again as it was before the run: a second restart, after the old folders moved back
+  [ "$(grep -c '^restart foundry.service' /tmp/calls)" = 2 ] && echo "PASS join-fails: Foundry restarted twice (the run, the trap)" || { echo "FAIL join-fails: restarts"; fail=1; }
+  last_restart="$(grep -n '^restart foundry.service' /tmp/calls | tail -n1 | cut -d: -f1)"
+  last_back="$(grep -n '^mv .*prev-.*/alpha ' /tmp/calls | tail -n1 | cut -d: -f1)"
+  [ -n "$last_back" ] && [ "$last_restart" -gt "$last_back" ] && echo "PASS join-fails: the last restart is after the folders went back" || { echo "FAIL join-fails: restart order ($last_restart, $last_back)"; fail=1; }
+fi
+
+if want gm-browser-never-joins; then
+  base_setup
+  before="$(tree_hash)"
+  touch /tmp/gm-nojoin
+  out="$(run_stage 'APPLY=1')"
+  check gm-nojoin 'the Assistant GM browser did not join the world again' "$out"
+  check gm-nojoin 'alpha: 1.0.0 is back' "$out"
+  check gm-nojoin 'exit 1' "$out"
+  same gm-nojoin 'the module folders (old ones restored)' "$before" "$(tree_hash)"
+  check gm-nojoin 'phase=undone' "$(cat "$IMPORT/modules-stage.state")"
+fi
+
+if want partial-move; then
+  # the move of beta's old folder fails after alpha was already replaced: the trap puts alpha back
+  base_setup
+  before="$(tree_hash)"
+  echo beta >/tmp/mv_fail
+  out="$(run_stage 'APPLY=1')"
+  check partial-move 'cannot move' "$out"
+  check partial-move 'alpha: 1.0.0 is back' "$out"
+  check partial-move 'exit 1' "$out"
+  same partial-move 'the module folders (alpha restored, beta untouched)' "$before" "$(tree_hash)"
+  check partial-move 'phase=undone' "$(cat "$IMPORT/modules-stage.state")"
+fi
+
+if want version-mismatch; then
+  # something changes alpha's module.json while Foundry starts: the read-back refuses and the old folders come back
+  base_setup
+  before="$(tree_hash)"
+  cat >/tmp/restart-hook <<'HOOK'
+#!/usr/bin/env bash
+if grep -q 'new 1.1.0' /var/lib/foundry/Data/modules/alpha/marker.txt 2>/dev/null; then
+  echo '{"id":"alpha","version":"9.9.9"}' >/var/lib/foundry/Data/modules/alpha/module.json
+fi
+HOOK
+  chmod +x /tmp/restart-hook
+  out="$(run_stage 'APPLY=1')"
+  check version-mismatch "alpha: .*module.json says '9.9.9', not the pinned 1.1.0" "$out"
+  check version-mismatch 'exit 1' "$out"
+  same version-mismatch 'the module folders (old ones restored)' "$before" "$(tree_hash)"
+  # UNDO reads the old versions back too
+  base_setup
+  out="$(run_stage 'APPLY=1')"
+  check undo-mismatch-setup 'exit 0' "$out"
+  cat >/tmp/restart-hook <<'HOOK'
+#!/usr/bin/env bash
+if grep -q 'old 1.0.0' /var/lib/foundry/Data/modules/alpha/marker.txt 2>/dev/null; then
+  echo '{"id":"alpha","version":"9.9.9"}' >/var/lib/foundry/Data/modules/alpha/module.json
+fi
+HOOK
+  chmod +x /tmp/restart-hook
+  out="$(run_stage 'UNDO=1')"
+  check undo-mismatch "alpha: .*module.json says '9.9.9', the run changed it from 1.0.0" "$out"
+  check undo-mismatch 'do not match the state' "$out"
+  check undo-mismatch 'exit 1' "$out"
+fi
+
+if want crashed-run; then
+  # a run that died mid-way leaves phase=installing: a new APPLY must not rotate that state away
+  base_setup
+  out="$(run_stage 'APPLY=1')"
+  check crashed-run-setup 'exit 0' "$out"
+  sed -i 's/^phase=.*/phase=installing/' "$IMPORT/modules-stage.state"
+  state_before="$(cat "$IMPORT/modules-stage.state")"
+  out="$(run_stage 'APPLY=1')"
+  check crashed-run 'did not finish' "$out"
+  check crashed-run 'Run UNDO=1 first' "$out"
+  check crashed-run 'exit 1' "$out"
+  same crashed-run 'the state file' "$state_before" "$(cat "$IMPORT/modules-stage.state")"
+  [ ! -e "$IMPORT/modules-stage.state.last" ] && echo "PASS crashed-run: state not rotated" || { echo "FAIL crashed-run: state rotated to .last"; fail=1; }
+  out="$(run_stage '')"
+  check crashed-run-dry 'WARNING: .*did not finish' "$out"
+  check crashed-run-dry 'exit 0' "$out"
+  out="$(run_stage 'UNDO=1')"
+  check crashed-run-undo 'alpha: 1.0.0 is back' "$out"
+  check crashed-run-undo 'exit 0' "$out"
+  check crashed-run-undo 'old 1.0.0' "$(marker alpha)"
+fi
+
+if want foundry-stopped; then
+  base_setup
+  touch /tmp/stopped-foundry.service
+  out="$(run_stage 'APPLY=1')"
+  check foundry-stopped 'foundry.service is not running' "$out"
+  check foundry-stopped 'exit 1' "$out"
+  absent foundry-stopped 'stop foundry' "$(cat /tmp/calls)"
+  out="$(run_stage 'UNDO=1')"
+  check foundry-stopped-undo 'there is no run to undo|foundry.service is not running' "$out"
 fi
 
 if want bad-sha; then
@@ -231,7 +333,7 @@ if want bad-entry; then
   out="$(run_stage 'APPLY=1')"
   check bad-entry 'delta: the zip has an entry outside its folder' "$out"
   check bad-entry 'exit 1' "$out"
-  [ ! -e "$MODS/../escape.txt" ] && echo "PASS bad-entry: nothing written outside" || { echo "FAIL bad-entry: escape.txt exists"; fail=1; }
+  [ ! -e "$IMPORT/escape.txt" ] && [ ! -e "$IMPORT/work-escape.txt" ] && echo "PASS bad-entry: nothing written outside" || { echo "FAIL bad-entry: escape.txt exists"; fail=1; }
   absent bad-entry 'stop foundry' "$(cat /tmp/calls)"
 fi
 
@@ -243,6 +345,19 @@ if want link-in-zip; then
   check link-in-zip 'delta: the zip holds a link' "$out"
   check link-in-zip 'exit 1' "$out"
   absent link-in-zip 'stop foundry' "$(cat /tmp/calls)"
+fi
+
+if want link-in-large-zip; then
+  # the link comes first among thousands of entries: a check that stops reading early (grep -q under pipefail) failed open
+  base_setup
+  entries=('L:evil=/etc/passwd' 'module.json={"id":"delta","version":"1.0.0"}')
+  for i in $(seq 1 3000); do entries+=("f$i.txt=x"); done
+  pin delta 1.0.0 "${entries[@]}"
+  write_pins
+  out="$(run_stage 'APPLY=1')"
+  check link-in-large-zip 'delta: the zip holds a link' "$out"
+  check link-in-large-zip 'exit 1' "$out"
+  absent link-in-large-zip 'stop foundry' "$(cat /tmp/calls)"
 fi
 
 if want wrong-version; then
@@ -312,7 +427,7 @@ fi
 
 if want players-online; then
   base_setup
-  printf '{"active":true,"world":"curse-of-strahd","users":2}' >/tmp/status
+  printf '{"active":true,"world":"curse-of-strahd","users":3}' >/tmp/status # the joined Assistant GM browser is one of them
   before="$(tree_hash)"
   out="$(run_stage 'APPLY=1')"
   check players-online '2 player\(s\) are online' "$out"

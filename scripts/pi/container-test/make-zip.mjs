@@ -1,5 +1,5 @@
 // Writes a zip of stored (uncompressed) entries, so a test can name an entry any way it likes (zip(1) refuses a "../"
-// name). Used by stage24-scenarios.sh:  node make-zip.mjs <out.zip> <name=content> [<name=content> ...]
+// name). Used by stage25-scenarios.sh:  node make-zip.mjs <out.zip> <name=content> [<name=content> ...]
 // A name that ends in "/" is a folder entry (no content).
 import { writeFileSync } from 'node:fs';
 

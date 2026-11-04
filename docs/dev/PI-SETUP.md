@@ -1513,6 +1513,27 @@ a hand edit would be lost, the snapshot has it). Nothing else is touched and not
 - **Undo:** the same pipe with `UNDO=1` (back to DietPi's mode 2).
 - Tests: `scripts/pi/time-sync.test.mjs` (the stage in bash with stand-ins for systemctl, timedatectl and DietPi's tool).
 
+## Discord bot on the game server (stage 26)
+
+The Pi's bot (`/etc/foundry-ai-tool/discord-bot.env`) was set up against a test server. Stage 26
+(`scripts/pi/remote/26-discord-game-server.sh`) points it at the game server "D&D GUTTERNE": `DISCORD_GUILD_ID`
+(so `/record` registers there at once), `DISCORD_SESSION_POST_CHANNEL_ID` (#session-notes, the session-over post),
+`GAMENIGHT_WATCH_CHANNEL_ID` (#gm-bot) and `DISCORD_CHANGELOG_CHANNEL_ID` (#changelog, Pi deploy lines). The token
+and every other line stay as they are and are never printed. The first real run saves the old file as
+`discord-bot.env.before-game-server` (same owner and mode, it holds the token) and restarts the bot, which ends a
+recording, so it refuses while players are online or a recording runs. `/record` registered in the old server stays
+there until the bot leaves it.
+
+- **Look first (changes nothing):** `cat scripts/pi/remote/lib.sh scripts/pi/remote/26-discord-game-server.sh | ssh foundry-pi 'DRY_RUN=1 bash -s'`
+- **Run:** after a `dietpi-backup` snapshot and the user's OK, the same pipe with `'bash -s'`. The session-over post
+  also needs the player page link, which the Pi's file does not have: add `PLAYER_PAGE_URL=https://<player page>` (no
+  `?token=`; it also sets `FOUNDRY_AI_DASHBOARD_URL=http://127.0.0.1:3000`, the Pi's dashboard port). Without it the
+  stage warns that the post stays off. A rerun after a cut-off run restarts a bot that is older than the file.
+- **Check:** `CHECK=1` (the four lines, and "Registered /record in server ..." in the bot's journal since it started), then
+  `/record` in a voice channel on the game server and a session-over post in #session-notes.
+- **Undo:** the same pipe with `UNDO=1` (the saved file back, the bot restarted).
+- Tests: `scripts/pi/discord-game-server.test.mjs` and `scripts/pi/container-test/stage26-scenarios.sh`.
+
 ## Join page look (stage 19)
 
 The page players see before they log in (`/join`) shows the world's Background Image, Join Page Theme, Next

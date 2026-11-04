@@ -122,9 +122,28 @@ export const WithObsidianLink: Story = {
   },
 };
 
+let sessionStarted = false;
+
 /** Start session writes the marker and says so. */
 export const StartsTheSession: Story = {
-  parameters: seed(toolOk(PLAY_SESSION_CLOSED)),
+  // Once the marker is written, the session reads as open, as the real bridge answers.
+  parameters: {
+    dashboard: {
+      api: {
+        tools: {
+          'get-play-session': () =>
+            toolOk(sessionStarted ? PLAY_SESSION_OPEN : PLAY_SESSION_CLOSED),
+          'mark-play-session': () => {
+            sessionStarted = true;
+            return toolOk({ success: true });
+          },
+        },
+      },
+    },
+  },
+  beforeEach: () => {
+    sessionStarted = false;
+  },
   render,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
@@ -136,6 +155,8 @@ export const StartsTheSession: Story = {
     await waitFor(() =>
       expect(within(document.body).getAllByText('✓ Already on')).not.toHaveLength(0)
     );
+    // The status follows the marker: it reads open, not "No session", in the shot.
+    await expect(await canvas.findByText('Session active')).toBeVisible();
     await settleToasts();
   },
 };

@@ -1,7 +1,7 @@
 /** scripts/planner-wake.mjs: progress parsing, change detection, cold rule, brief, args. No vault, no waiting. */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseProgress, changedProgress, isCold, freshBrief, parseArgs, DEFAULTS } from './planner-wake.mjs';
+import { parseProgress, changedProgress, readUpstreamBacklog, isCold, freshBrief, parseArgs, DEFAULTS } from './planner-wake.mjs';
 
 const backlog = (progressA = '2026-11-04 PR #1 ready, head aaa') =>
   [
@@ -37,6 +37,19 @@ test('changedProgress reports new and changed lines, not removed ones', () => {
   const removed = new Map(before);
   removed.delete('first');
   assert.deepEqual(changedProgress(before, removed), []);
+});
+
+test('readUpstreamBacklog fetches, then shows the upstream file; null when unreadable', () => {
+  /** @type {string[][]} */
+  const calls = [];
+  const ok = readUpstreamBacklog(args => {
+    calls.push(args);
+    return args[0] === 'show' ? { status: 0, stdout: '## S A' } : { status: 1, stdout: '' };
+  });
+  assert.equal(ok, '## S A');
+  assert.deepEqual(calls[0], ['fetch', '-q']);
+  assert.match(calls[1].join(' '), /^show @\{u\}:Dev\/Foundry AI Tool\/Backlog\.md$/);
+  assert.equal(readUpstreamBacklog(() => ({ status: 128, stdout: '' })), null);
 });
 
 test('isCold flips at the threshold', () => {

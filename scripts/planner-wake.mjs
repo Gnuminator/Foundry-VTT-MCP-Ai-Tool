@@ -5,8 +5,9 @@
  *
  *   node scripts/planner-wake.mjs [--vault <dir>] [--interval <s>] [--cold-after <s>] [--max-wait <s>]
  *
- * The baseline is the progress lines at start. Each round fast-forwards the vault (never a rebase or
- * autostash), reads Backlog.md and compares. Exit codes:
+ * The baseline is the progress lines at start. Each round runs `git fetch` in the vault and reads
+ * Backlog.md from the upstream commit (`git show @{u}:...`), so the shared working tree is never
+ * touched and uncommitted vault edits cannot hide a change. Exit codes:
  *   0  a progress line changed and the planner has been waiting less than --cold-after (default 3600 s)
  *   3  a progress line changed after --cold-after: the planner is cold, so it starts a fresh planner
  *      with the printed brief instead of working on in its old context
@@ -16,7 +17,6 @@
  * the planner has been idle. Output: one line per changed item, `<id>: <progress line>`.
  */
 import { spawnSync } from 'node:child_process';
-import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -97,12 +97,30 @@ export function parseArgs(argv) {
   return o;
 }
 
-/** Fast-forward the vault; a problem is ignored (the next round retries). @param {string} vault */
-function pullVault(vault) {
-  spawnSync('git', ['-C', vault, 'pull', '--ff-only', '-q'], {
+/** @typedef {(args: string[]) => { status: number | null, stdout: string }} Git */
+
+/** @type {(vault: string) => Git} */
+const gitIn = vault => args => {
+  const r = spawnSync('git', ['-C', vault, ...args], {
+    encoding: 'utf8',
     timeout: 30000,
+    maxBuffer: 64 * 1024 * 1024,
     env: { ...process.env, GIT_TERMINAL_PROMPT: '0' }
   });
+  return { status: r.status, stdout: r.stdout ?? '' };
+};
+
+/**
+ * Backlog.md as the vault's upstream branch has it: fetch, then `git show @{u}:<path>`. Never touches
+ * the working tree (the vault is shared with the planner, lanes and open Obsidian notes, and may be
+ * dirty). A fetch problem is ignored: the last fetched copy is read. Returns null when unreadable.
+ * @param {Git} git
+ * @returns {string | null}
+ */
+export function readUpstreamBacklog(git) {
+  git(['fetch', '-q']);
+  const r = git(['show', `@{u}:${BACKLOG_PATH}`]);
+  return r.status === 0 && r.stdout ? r.stdout : null;
 }
 
 async function main() {
@@ -113,24 +131,19 @@ async function main() {
     console.error(`planner-wake: ${e instanceof Error ? e.message : e}`);
     process.exit(1);
   }
-  const file = path.join(o.vault, ...BACKLOG_PATH.split('/'));
-  const read = () => parseProgress(fs.readFileSync(file, 'utf8'));
-  if (!fs.existsSync(file)) {
-    console.error(`planner-wake: no ${BACKLOG_PATH} in ${o.vault}`);
+  const git = gitIn(o.vault);
+  const first = readUpstreamBacklog(git);
+  if (first === null) {
+    console.error(`planner-wake: cannot read ${BACKLOG_PATH} from the upstream branch of ${o.vault}`);
     process.exit(1);
   }
-  const before = read();
+  const before = parseProgress(first);
   const started = Date.now();
   for (;;) {
     await new Promise(r => setTimeout(r, o.interval * 1000));
     const waited = (Date.now() - started) / 1000;
-    pullVault(o.vault);
-    let changes;
-    try {
-      changes = changedProgress(before, read());
-    } catch {
-      continue; // the vault rewrote the file under us: try again next round
-    }
+    const text = readUpstreamBacklog(git);
+    const changes = text === null ? [] : changedProgress(before, parseProgress(text));
     if (changes.length) {
       for (const c of changes) console.log(`${c.id}: ${c.progress}`);
       if (isCold(waited, o.coldAfter)) {

@@ -494,7 +494,7 @@ describe('13-player-creation.sh in an ARM64 container', { skip: containerReason 
     assert.equal(r.exit, 1, r.output);
     assert.match(
       r.output,
-      /2\.10\.5-aitool\.9 is newer than 2\.10\.5-aitool\.4: .*ALLOW_DOWNGRADE=1/
+      new RegExp(`2\\.10\\.5-aitool\\.9 is newer than ${PINNED.replace(/\./g, '\\.')}: .*ALLOW_DOWNGRADE=1`)
     );
     assert.deepEqual(r.calls, []);
     assert.equal(r.version, '2.10.5-aitool.9');

@@ -103,9 +103,16 @@ export const STEPS = [
     'scripts/lane-merge.test.mjs',
     'scripts/visual-baselines.test.mjs',
     'scripts/review-runner/lib.test.mjs',
-    'scripts/heavy-lock.test.mjs'
+    'scripts/heavy-lock.test.mjs',
+    'scripts/test-coverage-check.test.mjs'
   ),
-  nodeTest('usage-week', 'scripts/dev/usage-week.test.mjs'),
+  nodeTest(
+    'usage-week',
+    'scripts/dev/usage-week.test.mjs',
+    'scripts/dev/usage-now.test.mjs',
+    'scripts/dev/usage-report.test.mjs',
+    'scripts/dev/weekly-check-note.test.mjs'
+  ),
   nodeTest('gamenight-watch', 'scripts/gamenight-watch.test.mjs'),
   nodeTest('pi-space-check', 'scripts/pi/space-check.test.mjs'),
   nodeTest('pi-backup-record', 'scripts/pi/backup-pull-record.test.mjs'),
@@ -136,6 +143,10 @@ export const STEPS = [
   nodeTest('tunnel-client', 'installer/nsis/tunnel-client.test.mjs'),
   nodeTest('plan-b', 'scripts/plan-b/plan-b.test.mjs'),
   nodeTest('tv-table-viewer', 'scripts/tv/start-table-viewer.test.mjs'),
+  nodeTest('wiki-scripts', 'scripts/wiki/stage.test.mjs', 'scripts/wiki/da.test.mjs'),
+  nodeTest('dnd-helper-test', 'tools/dnd-helper/build.test.mjs'),
+  { name: 'livekit-recorder-test', cmd: 'npm', args: ['test', '--prefix', 'tools/livekit/recorder'], env: CI },
+  { name: 'coverage-check', cmd: 'node', args: ['scripts/test-coverage-check.mjs'] },
   { name: 'changelog', cmd: 'npm', args: ['run', 'changelog:check'] },
   nodeTest('gm-coach-test', 'tools/gm-coach/build.test.mjs'),
   { name: 'gm-coach-build', cmd: 'node', args: ['tools/gm-coach/build.mjs'] },
@@ -179,6 +190,8 @@ export const STEPS = [
  * @type {Record<string, string>}
  */
 export const CI_ONLY = {
+  'npm ci --prefix tools/livekit/recorder':
+    "Installs the livekit recorder's own packages (it is not a workspace); on a PC run it once in that folder.",
   'npm exec -w @gnuminator/cogm-dashboard -- playwright install --with-deps chromium':
     'Installs Chromium and its system packages on the CI runner; on a PC it is a one-time `npx playwright install chromium`.',
 };

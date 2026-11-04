@@ -1661,7 +1661,9 @@ The player-facing content is cut to the seven kept books (PHB 2024, DMG 2024, Co
   `world.legacy-other-books` (same ids, tagged with the pack they came from), keeps entries that kept ones link to, copies the SRD
   items and creatures that kept entries link to into `world.linked-srd-items` and `world.linked-srd-creatures` (player-visible)
   and re-points the links, hides the dnd5e Item and Actor packs from Player and Trusted (a pack that kept entries link to stays
-  visible and is named in the log), and locks the module packs again at the end. A second run changes nothing.
+  visible and is named in the log), and locks the module packs again at the end. A second run changes nothing. A rerun replaces
+  the legacy copy of an entry that came back into `aitool-content` (the dry run prints `REPLACE stale legacy copies`; a GM edit of
+  the legacy copy is lost).
   `seven-books-delete-legacy.js` deletes the legacy pack for good (`MODE=delete`).
 - **Where it runs:** the module packs are shared by every world on this Foundry, so the trim runs in the one world that holds the
   legacy pack, `curse-of-strahd`, which must be the running world. In the other worlds (strahd-kit, the
@@ -1674,6 +1676,13 @@ The player-facing content is cut to the seven kept books (PHB 2024, DMG 2024, Co
   other `APPLY` value is refused; a `GM_SCRIPT` in the environment is ignored (the script follows `MODE`).
 - **Run it again** after anything that puts the dropped books back: a stage 11 push of `aitool-content`, a content module update.
   Stage 13 sets Actor Studio's sources afterwards (run it after this stage).
+- **Check for drift (read-only):** `MODE=check` (same `scp` and pipe as the dry run, no `APPLY`, no snapshot needed) runs the trim
+  as a dry run and fails with `DRIFT: ...` when the world no longer matches what the trim leaves: an entry of a dropped book is
+  back in `aitool-content` (`move`), a kept entry links to something only the legacy pack has (`comeBack`) or to the SRD packs
+  (`repoint`), a dnd5e pack is visible again (`hide`, `srdVisible`), or a kept entry links into a pack players cannot open
+  (`srdVisible`). Kept entries that link into a pack players cannot open are listed (`LINKS INTO PACKS PLAYERS CANNOT OPEN`, the
+  known GM-only `summons` and `tables` among them) but are not drift: a trim rerun cannot fix them. It stops the Assistant GM for the length of
+  the run like any GM script. Run it after a stage 11 push, a module update and stage 25; `no drift` is the pass line.
 - **Delete:** `MODE=delete APPLY=1 DELETE_LEGACY=with-the-users-ok` only after the user's OK; the legacy pack holds the only copy of
   about 1500 entries on the Pi (the PC's content module and the snapshot are the way back).
 - Tests: `scripts/pi/seven-books.test.mjs` (the GM scripts against in-memory packs; with `PI_STAGE22_CONTAINER=1` the stage in a

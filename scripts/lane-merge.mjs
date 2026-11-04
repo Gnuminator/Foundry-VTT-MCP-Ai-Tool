@@ -4,7 +4,11 @@
  * before anything is changed; each failure is one line. The end is either
  *
  *   lane:merge: merged #312 at 1a2b3c4; merge train 2/4
- *   lane:merge: NOT merged #312        (then one line per failed check, exit 1)
+ *   lane:merge: NOT merged #312        (then one line per failed check, the notices, and last
+ *   lane:merge: refused because ...     every reason on one line; exit 1)
+ *
+ * A release PR (the changelog fold plus version bumps, docs/dev/RELEASING.md) passes the changelog
+ * check without a fragment; see releasePr.
  *
  *   npm run lane:merge -- <PR>                         check, then merge
  *   npm run lane:merge -- <PR> --dry-run               all checks, no merge, no train write
@@ -382,6 +386,52 @@ export function findReviewNotes(vault, prNumber) {
 }
 
 /**
+ * The naming rule the gate reads review notes by, for a refusal that found none (a note under any
+ * other name is silently not read, as `741-merge-delta-ba0d45e7.md` was).
+ * @param {number} prNumber
+ */
+export function reviewNamingRule(prNumber) {
+  return (
+    `the gate reads files named ${prNumber}-*review*.md in a "Handoff/Reviews <date>/" folder ` +
+    `(for a risky PR, named ${prNumber}-opus-review... or headed "# PR #${prNumber} Opus review"), ` +
+    'each with a "Head reviewed:" line holding the full 40-character sha above "## Verdict"'
+  );
+}
+
+/**
+ * Files in the "Reviews ..." folders that start with `<N>-` but are not read as review notes
+ * because "review" is not in the name. Empty when the vault or Handoff folder is missing.
+ * @param {string} vault @param {number} prNumber
+ * @returns {string[]}
+ */
+export function unreadPrNotes(vault, prNumber) {
+  const handoff = path.join(vault, 'Dev', 'Foundry AI Tool', 'Handoff');
+  if (!fs.existsSync(handoff)) return [];
+  /** @type {string[]} */
+  const out = [];
+  for (const dir of fs.readdirSync(handoff, { withFileTypes: true })) {
+    if (!dir.isDirectory() || !dir.name.startsWith('Reviews ')) continue;
+    for (const file of fs.readdirSync(path.join(handoff, dir.name))) {
+      if (file.endsWith('.md') && file.startsWith(`${prNumber}-`) && !/review/i.test(file)) {
+        out.push(`${dir.name}/${file}`);
+      }
+    }
+  }
+  return out.sort();
+}
+
+/**
+ * The Opus notes that give a verdict for this head (any verdict), for the risky notice: it says
+ * whether the Opus review it asks for is there. Mirrors judgeReviews: `opus` plus an entry tied to
+ * the full head sha.
+ * @param {ReviewNote[]} notes @param {string} headSha @returns {string[]}
+ */
+export function opusNotesForHead(notes, headSha) {
+  const head = headSha.toLowerCase();
+  return notes.filter(n => n.opus && n.entries.some(e => e.head === head)).map(n => n.name);
+}
+
+/**
  * Do the review notes clear this head commit? Every verdict any note gives for the head must be
  * Merge (a Merge after fixes or Do not merge in any note refuses), at least one must be a Merge,
  * and when the PR is risky at least one Merge must come from an Opus review.
@@ -655,6 +705,135 @@ export function hasChangelogFragment(files) {
   );
 }
 
+/** Every place scripts/sync-version.mjs stamps the version, and what may change there. */
+const VERSION_JSON = [
+  'package.json',
+  'shared/package.json',
+  'packages/cogm-dashboard/package.json',
+  'packages/discord-bot/package.json',
+  'packages/foundry-module/package.json',
+  'packages/mcp-server/package.json',
+  'packages/obsidian-plugin/package.json',
+  'packages/foundry-module/module.json',
+  'packages/obsidian-plugin/manifest.json',
+];
+const SEMVER_RE = '\\d+\\.\\d+\\.\\d+(?:-[0-9A-Za-z.-]+)?';
+/** Text files with a version line: every changed line must be one of these, on both sides. */
+const VERSION_TEXT = {
+  'shared/src/version.ts': [new RegExp(`^export const TOOL_VERSION = '${SEMVER_RE}';$`)],
+  'installer/nsis/foundry-mcp-server.nsi': [
+    new RegExp(`^\\s*!define VERSION "v${SEMVER_RE}"$`),
+    new RegExp(`^\\s*WriteRegStr HKCU "[^"]+" "DisplayVersion" "${SEMVER_RE}"$`),
+  ],
+};
+const isVersion = (/** @type {unknown} */ v) =>
+  typeof v === 'string' && new RegExp(`^${SEMVER_RE}$`).test(v);
+
+/** Parsed JSON or undefined. @param {string | null} text */
+const jsonOf = text => {
+  if (text === null) return undefined;
+  try {
+    return JSON.parse(text);
+  } catch {
+    return undefined;
+  }
+};
+
+/**
+ * The same JSON once the version fields are blanked: the top-level `version`, and in
+ * package-lock.json the root's and each workspace entry's (the entries sync-version stamps).
+ * @param {string} file @param {any} data @returns {{ data: any, versions: unknown[] } | null}
+ */
+function withoutVersions(file, data) {
+  if (!data || typeof data !== 'object' || Array.isArray(data)) return null;
+  const copy = structuredClone(data);
+  const versions = [copy.version];
+  delete copy.version;
+  if (file === 'package-lock.json') {
+    for (const [key, entry] of Object.entries(copy.packages ?? {})) {
+      const own =
+        key === '' ||
+        key === 'shared' ||
+        (key.startsWith('packages/') && !key.includes('node_modules'));
+      if (own && entry && typeof entry === 'object' && 'version' in entry) {
+        versions.push(entry.version);
+        delete entry.version;
+      }
+    }
+  }
+  return { data: copy, versions };
+}
+
+/** Deep equality of two parsed JSON values. @param {any} a @param {any} b @returns {boolean} */
+function sameJson(a, b) {
+  if (a === b) return true;
+  if (typeof a !== 'object' || typeof b !== 'object' || a === null || b === null) return false;
+  if (Array.isArray(a) !== Array.isArray(b)) return false;
+  const ka = Object.keys(a);
+  const kb = Object.keys(b);
+  return ka.length === kb.length && ka.every(k => Object.hasOwn(b, k) && sameJson(a[k], b[k]));
+}
+
+/**
+ * Is this a release PR (docs/dev/RELEASING.md steps 1 and 2), which folds the fragments instead of
+ * adding one? Strict: CHANGELOG.md changes, the root package.json version changes, and every other
+ * file is a deleted changelog.d fragment or a place sync-version stamps where only the version
+ * changed (JSON compared with the version fields blanked; in version.ts and the NSIS script every
+ * changed line must be a version line on both sides). `read(rev, path)` gives a file at the merge
+ * base ('base') or the head ('head'), null when it is not there.
+ * @param {{ path: string, changeType?: string }[]} files
+ * @param {(rev: 'base' | 'head', file: string) => string | null} read
+ * @returns {{ release: boolean, why: string }} `why` says what stops it being one
+ */
+export function releasePr(files, read) {
+  const no = (/** @type {string} */ why) => ({ release: false, why });
+  const norm = files.map(f => ({ ...f, path: f.path.replace(/\\/g, '/') }));
+  if (!norm.some(f => f.path === 'CHANGELOG.md')) return no('CHANGELOG.md is not changed');
+  if (!norm.some(f => f.path === 'package.json')) return no('the root package.json is not changed');
+  for (const f of norm) {
+    const type = String(f.changeType ?? '').toUpperCase();
+    if (f.path === 'CHANGELOG.md') {
+      if (type === 'DELETED') return no('CHANGELOG.md is deleted');
+      continue;
+    }
+    if (/^changelog\.d\/[^/]+\.md$/.test(f.path) && !/README\.md$/i.test(f.path)) {
+      if (type !== 'DELETED') return no(`${f.path} is not deleted`);
+      continue;
+    }
+    const isJson = VERSION_JSON.includes(f.path) || f.path === 'package-lock.json';
+    const patterns = VERSION_TEXT[/** @type {keyof typeof VERSION_TEXT} */ (f.path)];
+    if (!isJson && !patterns) return no(`${f.path} is not a changelog or version file`);
+    const base = read('base', f.path);
+    const head = read('head', f.path);
+    if (base === null || head === null) return no(`${f.path} is added or deleted`);
+    if (isJson) {
+      const a = withoutVersions(f.path, jsonOf(base));
+      const b = withoutVersions(f.path, jsonOf(head));
+      if (!a || !b) return no(`${f.path} is not a JSON object`);
+      if (!sameJson(a.data, b.data)) return no(`${f.path} changes more than its version`);
+      if (!b.versions.every(v => v === undefined || isVersion(v))) {
+        return no(`${f.path} has a version that is not x.y.z`);
+      }
+      continue;
+    }
+    const la = lf(base).split('\n');
+    const lb = lf(head).split('\n');
+    if (la.length !== lb.length) return no(`${f.path} changes more than its version line`);
+    const versionLine = (/** @type {string} */ l) => patterns.some(p => p.test(l));
+    for (let i = 0; i < la.length; i++) {
+      if (la[i] !== lb[i] && !(versionLine(la[i]) && versionLine(lb[i]))) {
+        return no(`${f.path} changes more than its version line (line ${i + 1})`);
+      }
+    }
+  }
+  const rootBase = jsonOf(read('base', 'package.json'))?.version;
+  const rootHead = jsonOf(read('head', 'package.json'))?.version;
+  if (!isVersion(rootHead) || rootBase === rootHead) {
+    return no('the root package.json version does not change');
+  }
+  return { release: true, why: '' };
+}
+
 /**
  * Parses `git diff -z --name-status --no-renames` output: NUL-separated status and path pairs, so a
  * path with non-ASCII characters comes through as it is, not quoted. A rename or copy entry (should
@@ -744,7 +923,8 @@ export function refusalCauses(reasons, driftGuards = []) {
       if (/\bfailing:/.test(r)) tags.push('ci-failing');
       if (/\bpending:|no checks reported/.test(r)) tags.push('ci-pending');
       if (/required but not reported/.test(r)) tags.push('ci-missing');
-      if (!/\bfailing:|\bpending:|no checks reported|required but not reported/.test(r)) tags.push('ci-rules');
+      if (!/\bfailing:|\bpending:|no checks reported|required but not reported/.test(r))
+        tags.push('ci-rules');
     } else if (word === 'wait-ci') {
       if (/CI failed on/.test(r)) tags.push('wait-ci-failing');
       else if (/timed out/.test(r)) tags.push('wait-ci-timeout');
@@ -823,7 +1003,8 @@ export function publishTrainNote({ vault, state, event, run, now }) {
       return merged.status === 0 ? '' : `vault pull failed (${why(merged)})`;
     };
     const label = event.kind === 'reset' ? 'reset' : `${event.kind} #${event.pr}`;
-    const causes = event.kind === 'refusal' ? refusalCauses(event.reasons ?? [], event.driftGuards ?? []) : [];
+    const causes =
+      event.kind === 'refusal' ? refusalCauses(event.reasons ?? [], event.driftGuards ?? []) : [];
     const subject = `Merge train: ${label}, ${state.since.length}/${TRAIN_SIZE}${
       causes.length > 0 ? ` [${causes.join(', ')}]` : ''
     }`;
@@ -836,7 +1017,14 @@ export function publishTrainNote({ vault, state, event, run, now }) {
       fs.writeFileSync(file, renderTrainNote(state, event, now().toISOString()));
       const added = git('add', '--', TRAIN_NOTE_PATH);
       if (added.status !== 0) return `merge train note not committed (${why(added)})`;
-      const committed = git('commit', '-m', subject, ...(body ? ['-m', body] : []), '--', TRAIN_NOTE_PATH);
+      const committed = git(
+        'commit',
+        '-m',
+        subject,
+        ...(body ? ['-m', body] : []),
+        '--',
+        TRAIN_NOTE_PATH
+      );
       if (committed.status !== 0) return `merge train note not committed (${why(committed)})`;
       const pushed = git('push');
       if (pushed.status === 0) return '';
@@ -1149,10 +1337,22 @@ export function relaunchFromMain(o) {
   return { relaunched: true, code: r.status ?? 1, fetched: true, error: null, killed };
 }
 
+/**
+ * The last line of every refusal: every reason on one line, so a `tail` of the output shows why and
+ * not only the notices. Several reasons are numbered (a reason can hold `;` itself).
+ * @param {string[]} reasons
+ */
+export function refusedBecause(reasons) {
+  const all = reasons.map(r => r.replace(/\s*\r?\n\s*/g, ' ').trim()).filter(Boolean);
+  if (all.length === 0) return 'lane:merge: refused because of an unknown reason';
+  if (all.length === 1) return `lane:merge: refused because ${all[0]}`;
+  return `lane:merge: refused because ${all.map((r, i) => `(${i + 1}) ${r}`).join(' ')}`;
+}
+
 /** What each exit code of the gate means, for the `--wait-ci` verdict line. */
 const EXIT_REASONS = {
   0: 'ok (checks pass or merged)',
-  1: 'refused (see the lines above)',
+  1: 'refused (the "refused because" line above says why)',
   2: 'usage error',
   [EXIT_CI_FAILED]: 'a CI check failed',
   [EXIT_HEAD_MOVED]: 'the PR head moved while waiting',
@@ -1181,6 +1381,7 @@ export function runEntry({ argv, relaunch, runMain, log }) {
     const gate = relaunch();
     if (gate.error) {
       log(`lane:merge: NOT merged: ${gate.error}`);
+      log(refusedBecause([gate.error]));
       if (wait) log(verdictLine(1, gate.error));
       return 1;
     }
@@ -1195,6 +1396,7 @@ export function runEntry({ argv, relaunch, runMain, log }) {
     const reason = `unexpected error: ${e instanceof Error ? e.message : String(e)}`;
     if (e instanceof Error && e.stack) console.error(e.stack);
     log(`lane:merge: NOT merged: ${reason}`);
+    log(refusedBecause([reason]));
     if (wait) log(verdictLine(1, reason));
     return 1;
   }
@@ -1450,6 +1652,8 @@ export function main(options = {}) {
         log(`lane:merge: WARNING: merge train note not written (${message(e)})`);
       }
     }
+    // Last, so a `tail` of the output always shows why, not only the notices above.
+    log(refusedBecause(failures));
     return code;
   };
 
@@ -1567,6 +1771,8 @@ export function main(options = {}) {
   let localFiles = [];
   /** @type {string | null} */
   let filesError = fetchError ? `git fetch ${REMOTE} main failed: ${fetchError}` : null;
+  /** The merge base, once the local diff is read. @type {string | null} */
+  let mergeBase = null;
   if (atHead && !filesError) {
     const base = run('git', ['merge-base', MAIN, 'HEAD']);
     const diff =
@@ -1583,7 +1789,10 @@ export function main(options = {}) {
         : base;
     if (base.status !== 0 || diff.status !== 0) {
       filesError = `git merge-base/diff against ${MAIN} failed: ${firstLine(diff.stderr || diff.stdout)}`;
-    } else localFiles = parseNameStatus(diff.stdout);
+    } else {
+      localFiles = parseNameStatus(diff.stdout);
+      mergeBase = base.stdout.trim();
+    }
   }
   const ghFiles = (pr.files ?? []).map((/** @type {any} */ f) => ({ ...f, path: String(f.path) }));
   const files = [
@@ -1596,7 +1805,6 @@ export function main(options = {}) {
 
   // c. Review notes for the head commit.
   const hits = riskyHits(paths);
-  for (const h of hits) notes.push(`risky (${h.name}): ${h.file}; an Opus review is required`);
   /** @type {ReviewNote[] | null} */
   let reviews = null;
   try {
@@ -1604,20 +1812,60 @@ export function main(options = {}) {
   } catch (e) {
     failures.push(`review: cannot read the vault ${vault}: ${message(e)}`);
   }
+  // The notice says whether the Opus note it asks for is there, so it never reads as a refusal
+  // when it is (the review: line, if any, says what is wrong).
+  const opusFound = opusNotesForHead(reviews ?? [], head);
+  const opusState = opusFound.length ? `found (${opusFound.join(', ')})` : 'missing';
+  for (const h of hits) {
+    notes.push(
+      `risky (${h.name}): ${h.file}; an Opus review is required; Opus note for head ${short(head)}: ${opusState}`
+    );
+  }
   if (reviews === null) {
     if (!failures.some(f => f.startsWith('review:'))) {
       failures.push(`review: vault not found at ${vault} (pass --vault DIR)`);
     }
   } else {
     const verdict = judgeReviews(reviews, head, hits.length > 0);
-    if (!verdict.ok) failures.push(`review: ${verdict.detail}`);
+    if (!verdict.ok) {
+      let hint = '';
+      // No note counted: say how a note must be named, and which notes of this PR were not read.
+      if (/^no review note for head |^only a Sonnet review /.test(verdict.detail)) {
+        /** @type {string[]} */
+        let skipped = [];
+        try {
+          skipped = unreadPrNotes(vault, n);
+        } catch {
+          /* the hint is extra; the refusal stands without it */
+        }
+        hint = `; ${reviewNamingRule(n)}`;
+        if (skipped.length) hint += `; not read (no "review" in the name): ${skipped.join(', ')}`;
+      }
+      failures.push(`review: ${verdict.detail}${hint}`);
+    }
   }
 
-  // d. Changelog fragment.
+  // d. Changelog fragment, or a release PR (it folds the fragments into CHANGELOG.md instead).
   if (args.noChangelog === null && !hasChangelogFragment(files)) {
-    failures.push(
-      'changelog: no added or changed changelog.d/*.md fragment (or pass --no-changelog "reason")'
-    );
+    // Only from the local diff: the file contents at the merge base and the head are read by git.
+    const release =
+      atHead && mergeBase && paths.includes('CHANGELOG.md')
+        ? releasePr(files, (rev, file) => {
+            const shown = run('git', ['show', `${rev === 'base' ? mergeBase : head}:${file}`]);
+            return shown.status === 0 ? shown.stdout : null;
+          })
+        : null;
+    if (release?.release) {
+      notes.push(
+        'changelog: a release PR (only the fold and version bumps), so no fragment is needed'
+      );
+    } else {
+      failures.push(
+        `changelog: no added or changed changelog.d/*.md fragment (or pass --no-changelog "reason")${
+          release ? `; not a release PR: ${release.why}` : ''
+        }`
+      );
+    }
   }
 
   // e. This checkout is the PR head and clean.

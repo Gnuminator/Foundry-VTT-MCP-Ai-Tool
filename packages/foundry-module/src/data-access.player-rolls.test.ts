@@ -1052,7 +1052,7 @@ describe('FoundryDataAccess — updateRollButtonMessage', () => {
       },
     });
     (msg as any).canUserModify = (): boolean => true;
-    da.saveRollButtonMessageId('btn-h', 'm-h');
+    await da.saveRollButtonMessageId('btn-h', 'm-h');
 
     await da.updateRollButtonMessage('btn-h', 'gm', 'Perception Skill Check (Public)');
 
@@ -1081,7 +1081,7 @@ describe('FoundryDataAccess — updateRollButtonMessage', () => {
       },
     });
     (msg as any).canUserModify = (): boolean => true;
-    da.saveRollButtonMessageId('btn-old', 'm-old');
+    await da.saveRollButtonMessageId('btn-old', 'm-old');
 
     await da.updateRollButtonMessage('btn-old', 'gm', 'DEX Saving Throw (Public)');
 

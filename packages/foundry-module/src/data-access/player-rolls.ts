@@ -201,7 +201,7 @@ export class PlayerRollsDataAccess {
       if (!chatMessage) {
         throw new Error('Foundry did not create the roll-request chat message');
       }
-      this.saveRollButtonMessageId(buttonId, chatMessage.id);
+      await this.saveRollButtonMessageId(buttonId, chatMessage.id);
 
       // The Live Feed (GM) and the target player's own page (/me) list the request. No visibility
       // stamp: the public /player feed never shows it (events without one are dropped there).
@@ -1032,11 +1032,12 @@ export class PlayerRollsDataAccess {
   }
 
   /** Persist a buttonId → messageId mapping (so the message can be rewritten later). */
-  saveRollButtonMessageId(buttonId: string, messageId: string): void {
+  async saveRollButtonMessageId(buttonId: string, messageId: string): Promise<void> {
     try {
       const buttonMessageMap = rec(game.settings.get(MODULE_ID, 'buttonMessageMap')) ?? {};
       buttonMessageMap[buttonId] = messageId;
-      void game.settings.set(MODULE_ID, 'buttonMessageMap', buttonMessageMap);
+      // Awaited: the next ask reads the map again, and a write still in flight would be lost.
+      await game.settings.set(MODULE_ID, 'buttonMessageMap', buttonMessageMap);
     } catch (error) {
       console.error(`[${MODULE_ID}] Error saving button-message mapping:`, error);
     }

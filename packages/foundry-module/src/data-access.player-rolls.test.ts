@@ -903,8 +903,8 @@ describe('FoundryDataAccess — rollNpcCheck', () => {
 // ===========================================================================
 
 describe('FoundryDataAccess — roll button↔message id mapping', () => {
-  it('round-trips a buttonId→messageId mapping through settings', () => {
-    da.saveRollButtonMessageId('btn-1', 'msg-1');
+  it('round-trips a buttonId→messageId mapping through settings', async () => {
+    await da.saveRollButtonMessageId('btn-1', 'msg-1');
     expect(da.getRollButtonMessageId('btn-1')).toBe('msg-1');
   });
 
@@ -912,9 +912,9 @@ describe('FoundryDataAccess — roll button↔message id mapping', () => {
     expect(da.getRollButtonMessageId('missing')).toBeNull();
   });
 
-  it('accumulates multiple mappings in the same settings object', () => {
-    da.saveRollButtonMessageId('btn-a', 'msg-a');
-    da.saveRollButtonMessageId('btn-b', 'msg-b');
+  it('accumulates multiple mappings in the same settings object', async () => {
+    await da.saveRollButtonMessageId('btn-a', 'msg-a');
+    await da.saveRollButtonMessageId('btn-b', 'msg-b');
     expect(da.getRollButtonMessageId('btn-a')).toBe('msg-a');
     expect(da.getRollButtonMessageId('btn-b')).toBe('msg-b');
   });
@@ -984,7 +984,7 @@ describe('FoundryDataAccess — updateRollButtonMessage', () => {
   });
 
   it('throws when the mapped message no longer exists', async () => {
-    da.saveRollButtonMessageId('btn-1', 'gone');
+    void da.saveRollButtonMessageId('btn-1', 'gone');
     await expect(da.updateRollButtonMessage('btn-1', 'gm', 'Roll')).rejects.toThrow(
       'ChatMessage gone not found'
     );
@@ -997,7 +997,7 @@ describe('FoundryDataAccess — updateRollButtonMessage', () => {
       flags: { [MODULE_ID]: { rollButtons: { 'btn-1': { rolled: false } } } },
     });
     (msg as any).canUserModify = (): boolean => true;
-    da.saveRollButtonMessageId('btn-1', 'm1');
+    void da.saveRollButtonMessageId('btn-1', 'm1');
 
     await da.updateRollButtonMessage('btn-1', 'gm', 'DEX Check');
 
@@ -1020,7 +1020,7 @@ describe('FoundryDataAccess — updateRollButtonMessage', () => {
       flags: { [MODULE_ID]: { rollButtons: {} } },
     });
     (msg as any).canUserModify = (): boolean => true;
-    da.saveRollButtonMessageId('btn-2', 'm2');
+    void da.saveRollButtonMessageId('btn-2', 'm2');
 
     await da.updateRollButtonMessage('btn-2', 'u1', 'STR Save');
 
@@ -1038,7 +1038,7 @@ describe('FoundryDataAccess — updateRollButtonMessage', () => {
       flags: { [MODULE_ID]: { rollButtons: {} } },
     });
     (msg as any).canUserModify = (): boolean => false;
-    da.saveRollButtonMessageId('btn-3', 'm3');
+    void da.saveRollButtonMessageId('btn-3', 'm3');
 
     const emitSpy = vi.spyOn((globalThis as any).game.socket, 'emit');
 
@@ -1066,7 +1066,7 @@ describe('FoundryDataAccess — updateRollButtonMessage', () => {
       flags: { [MODULE_ID]: { rollButtons: {} } },
     });
     (msg as any).canUserModify = (): boolean => false;
-    da.saveRollButtonMessageId('btn-4', 'm4');
+    void da.saveRollButtonMessageId('btn-4', 'm4');
 
     await expect(da.updateRollButtonMessage('btn-4', 'u1', 'Roll')).rejects.toThrow(
       'No Game Master is online to update the chat message'
@@ -1086,7 +1086,7 @@ describe('FoundryDataAccess — legacy roll-state redirects', () => {
       flags: { [MODULE_ID]: { rollButtons: {} } },
     });
     (msg as any).canUserModify = (): boolean => true;
-    da.saveRollButtonMessageId('btn-5', 'm5');
+    void da.saveRollButtonMessageId('btn-5', 'm5');
 
     await da.saveRollState('btn-5', 'gm');
 
@@ -1106,7 +1106,7 @@ describe('FoundryDataAccess — legacy roll-state redirects', () => {
       flags: { [MODULE_ID]: { rollButtons: {} } },
     });
     (msg as any).canUserModify = (): boolean => true;
-    da.saveRollButtonMessageId('btn-6', 'm6');
+    void da.saveRollButtonMessageId('btn-6', 'm6');
 
     expect(da.requestRollStateSave('btn-6', 'gm')).toBeUndefined();
   });
@@ -1184,7 +1184,7 @@ describe('FoundryDataAccess: player page roll buttons', () => {
       flags: { [MODULE_ID]: { rollButtons: { [buttonId]: state } } },
     });
     (msg as any).canUserModify = (): boolean => true;
-    da.saveRollButtonMessageId(buttonId, messageId);
+    void da.saveRollButtonMessageId(buttonId, messageId);
     return msg;
   }
 

@@ -1,7 +1,7 @@
 // The Tool runner on the React dashboard: the catalog by category (GET /api/tools, faked here),
 // the search, a read, form checks, a plan typed by hand through the GM Actions gate and the
 // confirm window (Cancel, Confirm, Undo), a destructive plan, a write that is not a plan, a failed
-// plan, an apply the bridge refuses, Pick from list lists naming a prefilled value, the Escape order, where
+// plan, an apply the bridge refuses, picker lists naming a prefilled value, the Escape order, where
 // focus goes (a gate request expires), Enter never applying a change, and "+ Queue a page" in the
 // Handouts drawer.
 import { expect, test, type Locator, type Page, type Route } from '@playwright/test';
@@ -800,7 +800,7 @@ test('an apply that timed out says it may have applied', async ({ page }) => {
   );
 });
 
-test('Escape closes an open Pick from list list, then the confirm window, then the drawer', async ({
+test('Escape closes an open picker list, then the confirm window, then the drawer', async ({
   page,
 }) => {
   await fakeStream(page, gmActions(true));

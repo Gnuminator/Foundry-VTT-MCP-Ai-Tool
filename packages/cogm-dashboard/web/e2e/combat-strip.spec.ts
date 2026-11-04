@@ -504,6 +504,41 @@ test.describe('start combat', () => {
     expect(calls.map(c => c.name)).not.toContain('roll-initiative-for-npcs');
   });
 
+  test('a lost answer to the first ask stops the asking: the rest count as not asked', async ({
+    page,
+  }) => {
+    const pc = (tokenId: string, name: string): Record<string, unknown> => ({
+      tokenId,
+      name,
+      actorId: `a-${tokenId}`,
+      category: 'pc',
+      hidden: false,
+    });
+    const { calls } = await setup(page, {
+      ...FULL_CALM,
+      answer: call => {
+        if (call.name === 'get-token-positions')
+          return ok({
+            success: true,
+            sceneName: 'Field',
+            tokens: [pc('tk-a', 'Aria'), pc('tk-b', 'Brannoc')],
+          });
+        if (call.name === 'request-player-rolls')
+          return {
+            status: 502,
+            json: { ok: false, error: 'The bridge did not answer', kind: 'timeout' },
+          };
+        return undefined;
+      },
+    });
+    await load(page);
+    await page.getByRole('button', { name: 'Start combat' }).click();
+    await page.getByRole('button', { name: 'Start combat with 2' }).click();
+    await expect(page.getByText('Not confirmed for Aria')).toBeVisible();
+    await expect(page.getByText('Initiative was not asked of Brannoc')).toBeVisible();
+    expect(calls.filter(c => c.name === 'request-player-rolls')).toHaveLength(1);
+  });
+
   test('Cancel closes the picker and writes nothing', async ({ page }) => {
     const { calls } = await setup(page, FULL_CALM);
     await load(page);
@@ -1465,6 +1500,18 @@ test.describe('when a write or a roll request fails', () => {
         confirm: true,
         confirmDestructive: true,
       });
+  });
+
+  test('a double click on the toast Undo sends one undo', async ({ page }) => {
+    const { calls } = await setup(page, { initial: [fight(PARTY_FIGHT)] });
+    await load(page);
+    await openDamage(page);
+    await page.locator('#damage-apply').click();
+    await expect(page.locator('#damage-form')).toHaveCount(0);
+    await page.locator('.toast-stack .toast-undo .toast-action').dblclick();
+    await expect.poll(() => calls.filter(c => c.name === 'undo-change').length).toBe(1);
+    await page.waitForTimeout(300);
+    expect(calls.filter(c => c.name === 'undo-change')).toHaveLength(1);
   });
 
   test('an apply with no answer may have landed: the amount is cleared, not kept for a second hit', async ({

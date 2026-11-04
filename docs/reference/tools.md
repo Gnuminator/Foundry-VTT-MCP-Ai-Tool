@@ -1162,7 +1162,7 @@ Parameters:
 - `packId` (string, required): ID of the compendium pack containing the creature (e.g., "dnd5e.monsters")
 - `itemId` (string, required): ID of the specific creature entry within the pack (get this from search-compendium results)
 - `names` (array of string, required): Custom names for the created actors (e.g., ["Flameheart", "Sneak", "Peek"]). Items: at least 1.
-- `quantity` (number): Number of actors to create (default: based on names array length); capped by the GM's Max Actors Per Request setting (1 to 50). Range: 1 to 50.
+- `quantity` (number): Number of actors to create (default: based on names array length); limited to 1 to 50 actors per request. Range: 1 to 50.
 - `addToScene` (boolean): Whether to add created actors to the current scene as tokens. Default: `false`.
 - `placement` (object): Token placement options (only used when addToScene is true)
   - `type` (string, required): Placement strategy. One of: `random`, `grid`, `center`, `coordinates`. Default: `grid`.

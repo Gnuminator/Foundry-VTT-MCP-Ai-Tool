@@ -220,7 +220,7 @@ describe('FoundryDataAccess.searchRules', () => {
     expect(res.skippedPacks).toEqual(['dnd5e.broken']);
     allowlistSetting = 'nothing-matches-this';
     const none = await da.searchRules({ query: 'grapple' });
-    expect(none.note).toMatch(/No pack matches/);
+    expect(none.note).toMatch(/No rules pack matched/);
   });
 
   it('treats a non-numeric limit as the default and shares one index build', async () => {

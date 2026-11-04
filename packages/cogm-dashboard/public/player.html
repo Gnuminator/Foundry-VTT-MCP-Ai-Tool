@@ -47,9 +47,7 @@
         margin: 0;
       }
       .badge {
-        font-size: 11px;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
+        font-size: 12px;
         color: var(--muted);
         border: 1px solid var(--line);
         border-radius: 999px;
@@ -259,6 +257,12 @@
         border-radius: 6px;
         border: 1px solid var(--amber);
         color: var(--amber);
+        display: block;
+        width: 100%;
+        background: none;
+        font: inherit;
+        text-align: left;
+        cursor: pointer;
       }
       .mine-char {
         display: flex;
@@ -321,9 +325,14 @@
         font-weight: 400;
         margin-left: 6px;
       }
-      #who a {
+      #who button {
         color: var(--muted);
+        background: none;
+        border: 1px solid var(--line);
         margin-left: 6px;
+        padding: 2px 8px;
+        font: inherit;
+        cursor: pointer;
       }
       .who-pick {
         background: var(--panel-2);
@@ -365,12 +374,14 @@
   <body>
     <header>
       <h1>🎲 Player View</h1>
-      <span id="world" class="sub">—</span>
+      <span id="world" class="sub">No world yet</span>
       <span id="scene" class="sub"></span>
       <span style="flex: 1"></span>
       <span id="who" class="sub" hidden>
         <span id="who-name"></span>
-        <a id="who-change" href="#" data-track="player.who.change">not you?</a>
+        <button id="who-change" type="button" data-track="player.who.change">
+          Not you? Change
+        </button>
       </span>
       <span id="status" class="badge">connecting…</span>
     </header>
@@ -425,10 +436,11 @@
     </div>
 
     <footer>
-      Read-only player view. The server builds everything here from what players can already see in
-      Foundry: hidden creatures, enemy HP numbers, GM notes and secrets never reach this page.
+      Read-only view of what players can already see in Foundry. Hidden creatures, enemy HP numbers
+      and GM notes never reach this page. Handouts meant for one player show only under the name
+      picked at the top.
       <label id="mist-control" class="mist" hidden>
-        Mist
+        Background fog
         <select id="select-mist" data-track="player.footer.mist">
           <option value="calm">Calm</option>
           <option value="drift">Drifting</option>

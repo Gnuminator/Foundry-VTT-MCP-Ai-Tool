@@ -25,7 +25,7 @@ export const PANEL_REFRESH_DEBOUNCE_MS = 200;
 export function registerGmWindowsSetting(): void {
   game.settings.register(MODULE_ID, GM_WINDOWS_SETTING, {
     name: 'AI Tool: GM windows',
-    hint: 'Adds Combat, Party, Session, Scene and Loot buttons to the AI Tool group in the scene controls (GM only). Each opens a window next to the map: the combat order, the party, the session marker, the scene mood and the coins and loot the party carries. Combat has Previous and Next turn buttons (same as the combat tracker), Party has roll request buttons (one character or everyone, with a group save; they post the same roll cards as the AI tool) and Session has Start and End; nothing else here changes the game. Turning this off closes the open windows.',
+    hint: 'Adds Combat, Party, Session, Scene and Loot buttons to the AI Tool group in the scene controls (GM only), each opening a window next to the map.',
     scope: 'world',
     config: true,
     type: Boolean,

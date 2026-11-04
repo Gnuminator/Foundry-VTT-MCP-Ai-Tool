@@ -75,6 +75,16 @@ export function uniqueSessionDir(sessionsDir: string, d: Date): string {
   return join(sessionsDir, name);
 }
 
+/** The public reply to `/record stop`: tracks and minutes only, no paths or packet counts. */
+export function stopSummary(trackSeconds: number[], incomplete: boolean): string {
+  const minutes = Math.max(1, Math.round(Math.max(0, ...trackSeconds) / 60));
+  const n = trackSeconds.length;
+  const base = `Recording stopped and saved: ${n} ${n === 1 ? 'track' : 'tracks'}, about ${minutes} ${minutes === 1 ? 'minute' : 'minutes'}.`;
+  return incomplete
+    ? `${base} Part of the recording may be missing. Tell the owner before the next session.`
+    : base;
+}
+
 export class RecorderBot {
   readonly client = new Client({
     intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildVoiceStates],
@@ -262,12 +272,14 @@ export class RecorderBot {
     what: string,
     err: Error
   ): void {
-    const text = `Recording problem: ${what} could not be written (${err.message}). Check the disk space on the recorder host; other files of this recording may be affected too.`;
-    log.error(text, err);
+    const detail = `Recording problem: ${what} could not be written (${err.message}). Check the disk space on the recorder host; other files of this recording may be affected too.`;
+    log.error(detail, err);
     if (told.value) return;
     told.value = true;
+    const text =
+      'Recording problem: part of the recording could not be saved. Tell the owner, who should check the disk space on the recorder host.';
     void channel.send(text).catch(() => undefined);
-    if (this.notifyOwner) void this.notifyOwner(text);
+    if (this.notifyOwner) void this.notifyOwner(detail);
   }
 
   private speakerResolver(guild: Guild): (userId: string) => SpeakerInfo {
@@ -351,8 +363,11 @@ export class RecorderBot {
     try {
       await recorder.start();
     } catch (err) {
+      log.error(`Could not join ${channel.name}`, err);
       await this.stop('join failed');
-      await i.editReply(`Could not join ${channel.name}: ${(err as Error).message}`);
+      await i.editReply(
+        `Could not join ${channel.name}. Check that the bot may join that channel, then try /record start again.`
+      );
       return;
     }
     await i.editReply(NOTICE);
@@ -369,19 +384,26 @@ export class RecorderBot {
       return 'Recording stopped. Nobody spoke, so there is nothing to convert.';
     try {
       const result = convertSession(a.session.dir);
-      const lines = result.tracks.map(
-        t =>
-          `${t.file}: ${Math.round(t.seconds / 60)} min, ${t.stats.packets} packets${
-            t.stats.droppedDave ? `, ${t.stats.droppedDave} undecrypted dropped` : ''
-          }`
+      // Paths, packet counts and per-file detail stay in the log; the channel gets the short form.
+      log.info(
+        `Recording converted (${a.session.dir}): ${result.tracks
+          .map(
+            t =>
+              `${t.file}: ${Math.round(t.seconds / 60)} min, ${t.stats.packets} packets${
+                t.stats.droppedDave ? `, ${t.stats.droppedDave} undecrypted dropped` : ''
+              }`
+          )
+          .join('; ')}`
       );
       const failed = a.session.failedFiles;
-      const warn = failed.length
-        ? `\nWarning: ${failed.join(', ')} could not be written, so the recording may be incomplete.`
-        : '';
-      return `Recording stopped and converted (${a.session.dir}):\n${lines.join('\n')}${warn}`;
+      if (failed.length) log.error(`Files that could not be written: ${failed.join(', ')}`);
+      return stopSummary(
+        result.tracks.map(t => t.seconds),
+        failed.length > 0
+      );
     } catch (err) {
-      return `Recording stopped, but converting failed: ${(err as Error).message}. The raw files are kept in ${a.session.dir}.`;
+      log.error(`Converting the recording failed; raw files kept in ${a.session.dir}`, err);
+      return 'Recording stopped, but the audio could not be prepared. The raw files are kept. Ask the owner to look at the recorder log.';
     }
   }
 

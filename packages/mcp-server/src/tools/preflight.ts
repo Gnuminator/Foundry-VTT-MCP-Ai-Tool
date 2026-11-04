@@ -155,7 +155,7 @@ export class PreflightTools {
             label: 'Foundry connected',
             status: 'fail',
             detail:
-              'Foundry is not connected. Open the world in your browser and join as your GM user, then wait for "MCP Bridge connected successfully".',
+              'Foundry is not connected. Open the world in your browser and join as your GM user, then wait for "AI Tool connected".',
           }
     );
     checks.push(this.versionCheck(connected, moduleVersion));

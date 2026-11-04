@@ -79,3 +79,19 @@ export function handoutTitle(h) {
     .trim();
   return text || title;
 }
+
+/**
+ * Handouts this viewer may see: a handout revealed to chosen players (`players` is a list of
+ * Foundry user ids) shows only to the name picked on the page. The table is trusted (D-065); the
+ * server already projected the list.
+ */
+export function visibleHandouts(handouts, userId) {
+  return (handouts || []).filter(
+    h => !Array.isArray(h.players) || (userId && h.players.includes(userId))
+  );
+}
+
+/** The line that always says which name the page thinks the viewer is. */
+export function whoLine(who) {
+  return who && who.name ? `Playing as ${who.name}` : 'No name picked';
+}

@@ -20,7 +20,7 @@ Foundry words:
   "can read".
 - **Game Settings:** Foundry's settings window (Settings tab, gear icon, then **Game Settings**).
   The tool's settings are in the category **Foundry AI Tool**. Settings and messages there that say
-  "MCP Bridge" (for example **Enable MCP Bridge**) belong to the module.
+  "AI Tool" (for example **AI Tool: Connect to the AI Tool server**) belong to the module.
 - **World id:** your world's short id, the name of its folder on the Foundry server. The tool uses
   it as a folder name in Obsidian (`Campaigns/<world id>/`).
 

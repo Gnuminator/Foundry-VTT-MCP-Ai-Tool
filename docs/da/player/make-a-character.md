@@ -1,6 +1,6 @@
 ---
 source: player/make-a-character.md
-sourceHash: fad060c33c8e
+sourceHash: f5a88c794d03
 title: Lav din karakter
 description: "Trin for trin: lav en level-3 karakter i Foundry med Actor Studio fra 2024 Player's Handbook (byg på level 1, level up to gange), tjek den og gør den til din egen."
 ---
@@ -17,7 +17,7 @@ Vi bruger **Actor Studio**, en character builder inde i Foundry. Den stiller de 
 2024 Player's Handbook, i samme rækkefølge, og udfylder dit character sheet for dig. Du kan ikke
 ødelægge noget: går det galt, sletter GM'en karakteren, og du starter forfra.
 
-Tjekket på Foundry 14, D&D 5e system 6, Actor Studio 2.10.5 (vores build, 2.10.5-aitool.4) og 2024 Player's Handbook-modulet
+Tjekket på Foundry 14, D&D 5e system 6, Actor Studio 2.10.5 (vores build, 2.10.5-aitool.4; Magic Initiate-trinnet på 2.10.5-aitool.5) og 2024 Player's Handbook-modulet
 2.2.0 (oktober 2026).
 
 ## Før du starter

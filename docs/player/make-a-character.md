@@ -15,7 +15,7 @@ We use **Actor Studio**, a character builder inside Foundry. It asks the same qu
 2024 Player's Handbook, in the same order, and fills in your character sheet for you. You can't
 break anything: if it goes wrong, the GM deletes the character and you start again.
 
-Checked on Foundry 14, D&D 5e system 6, Actor Studio 2.10.5 (our build, 2.10.5-aitool.4) and the 2024 Player's Handbook module
+Checked on Foundry 14, D&D 5e system 6, Actor Studio 2.10.5 (our build, 2.10.5-aitool.4; the Magic Initiate step on 2.10.5-aitool.5) and the 2024 Player's Handbook module
 2.2.0 (October 2026).
 
 ## Before you start

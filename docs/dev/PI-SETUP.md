@@ -1632,6 +1632,18 @@ The player-facing content is cut to the seven kept books (PHB 2024, DMG 2024, Co
 - Tests: `scripts/pi/seven-books.test.mjs` (the GM scripts against in-memory packs; with `PI_STAGE22_CONTAINER=1` the stage in a
   Debian 13 ARM64 container, run by the ARM job in CI).
 
+## Pinned modules (stage 24)
+
+Stage 24 (`scripts/pi/remote/24-modules.sh`) installs the module versions pinned in the PC archive. The plan, the checks and
+the undo are in [MODULE-REHEARSAL.md](MODULE-REHEARSAL.md) ("Pi: install from the archive").
+
+- **Run it:** copy the archive's `modules/` and `pinned.json` to `/home/dietpi/module-archive` (`node scripts/modules/rehearse.mjs pi-plan`
+  prints the `scp`), then `cat lib.sh 24-modules.sh | ssh foundry-pi 'bash -s'` (a dry run). Snapshot first, the user's OK, then the
+  same with `APPLY=1`. `ONLY=id1,id2` limits it; `UNDO=1` puts the last run's old folders back.
+- Old and replaced folders stay in `/var/lib/foundry-import/prev-<time>-modules` and `failed-<time>-modules` until the user removes them.
+- Tests: `scripts/pi/modules-stage.test.mjs` (the stage as text; with `PI_STAGE24_CONTAINER=1` the scenarios in a Debian 13 ARM64
+  container, run by the ARM job in CI).
+
 ## Where things live on the Pi
 
 | What                                                         | Where                                                                                                                      |

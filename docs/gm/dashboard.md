@@ -623,6 +623,14 @@ The facts for preparing your next session, in one place and without AI. **Refres
 Claude reads the same facts with `get-prep-digest`, which the prompt `prep-next-session` uses
 first. Without Foundry connected, the drawer still shows last session and says what is missing.
 
+**Previously on.** `get-prep-digest` (not the drawer yet) opens with a short "Previously on": the
+GM summary of the newest recorded session that has one. It reads only
+`<sessions folder>/<date>-discord/notes/summary.en.md` (or `summary.da.md` when only the Danish
+one is written), never the player recap draft or a transcript. The sessions folder is
+`FVTT_SESSIONS_DIR`, else `Documents\FoundrySessions` in your user folder, on the computer the
+bridge runs on. If no session has a summary yet, or the bridge cannot see that folder (it runs on
+another computer), Claude says so in one line.
+
 ## The party drawer (🛡 Party)
 
 The party at a glance, from the dnd5e Group actor. Foundry makes the party by itself: the AI Tool

@@ -258,12 +258,45 @@ export interface PrepNotesPart {
   matchedAgainst: { scene: string | null; tokens: number; openQuests: number | null } | null;
 }
 
+/** Longest "Previously on" text kept, in characters; a longer summary is cut at a line end. */
+export const PREP_PREVIOUSLY_MAX_CHARS = 1500;
+
+/**
+ * "Previously on": the GM summary (`notes/summary.<lang>.md`) of the newest recorded session that
+ * has one, read from the sessions folder (FVTT_SESSIONS_DIR, else Documents/FoundrySessions).
+ * Only that file is read: never the player recap draft or a transcript.
+ *
+ * - `found`: `session` is the folder name, `title` the summary's heading after "Summary:",
+ *   `text` the summary (cut to PREP_PREVIOUSLY_MAX_CHARS, then `truncated` is true).
+ * - `none`: the folder was read, but no `*-discord` session in it has a written summary yet.
+ * - `unreachable`: this bridge cannot see the folder (it may run on another computer).
+ *
+ * `note` is a plain sentence for the GM in every case.
+ */
+export type PrepPreviously =
+  | {
+      status: 'found';
+      sessionsDir: string;
+      session: string;
+      lang: 'en' | 'da';
+      title: string | null;
+      text: string;
+      truncated: boolean;
+      note: string;
+    }
+  | { status: 'none' | 'unreachable'; sessionsDir: string; note: string };
+
 /** What `get-prep-digest` returns. */
 export interface PrepDigest {
   schema: 1;
   action: 'summary' | 'last-session';
   worldId: string;
   computedAt: number;
+  /**
+   * "Previously on", first so the digest opens with it. Undefined when the bridge was started
+   * without a sessions folder (only tests do that).
+   */
+  previously?: PrepPreviously;
   /** Null when the vault has no play session yet. */
   lastSession: PrepLastSession | null;
   /** Open quests only; null when Foundry was not reachable. */

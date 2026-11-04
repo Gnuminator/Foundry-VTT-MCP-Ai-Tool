@@ -20,7 +20,7 @@ import { createAiChangesAnnouncer, createModuleRequestHandler } from './module-r
 
 import { config } from './config.js';
 
-import { MAX_REQUESTER_LENGTH, unknownToolMessage } from '@gnuminator/shared';
+import { MAX_REQUESTER_LENGTH, sessionsDirFrom, unknownToolMessage } from '@gnuminator/shared';
 import type { ToolResultPayload } from '@gnuminator/shared';
 
 import { createControlReader } from './control-reader.js';
@@ -447,6 +447,7 @@ async function startBackend(): Promise<void> {
     guardedWrites,
     tarokka: tarokkaService,
     vaultDir: obsidianVaultDir,
+    sessionsDir: sessionsDirFrom(process.env.FVTT_SESSIONS_DIR),
     logger,
   });
   const partyTools = new PartyTools({ foundryClient, guardedWrites, logger });

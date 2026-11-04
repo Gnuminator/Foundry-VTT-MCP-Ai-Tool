@@ -110,10 +110,10 @@ opens a small form that applies at once (with Undo) and **Condition** opens the 
 the plan ready for them; you confirm it. The strip can also start and
 end a fight. Turns, initiative and saving throws stay in Foundry.
 
-![The Tool Runner drawer open on plan-actor-change, with its form fields and Pick… buttons](docs/images/cogm/tool-runner.png)
+![The Tool Runner drawer open on plan-actor-change, with its form fields and Pick from list buttons](docs/images/cogm/tool-runner.png)
 
 **Tool runner:** every bridge tool behind a searchable, categorized form. Every parameter that names
-something (an actor, a token, a journal page, a plan) has **Pick…**, a list of what exists now.
+something (an actor, a token, a journal page, a plan) has **Pick from list**, a list of what exists now.
 
 ![The Destructive action window for ending a combat, with its I understand box and the Cancel and Run destructive action buttons](docs/images/cogm/confirm.png)
 

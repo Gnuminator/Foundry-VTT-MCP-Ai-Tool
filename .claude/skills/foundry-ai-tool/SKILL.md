@@ -55,7 +55,7 @@ Features plan with read-only `plan-*` tools; one generic `apply-planned-change` 
   yellow banner at the top of the runner and moves the search box up: take a new screenshot
   before clicking.
 - Tool runner: search, then a form built from the tool's schema. Parameters that name something
-  have **Pick…**: a filterable list of what exists now (tokens of the current scene with
+  have **Pick from list**: a filterable list of what exists now (tokens of the current scene with
   disposition, hidden flag and position; actors; journals; compendium entries by search; plans;
   changes; ...). Multi-select for list parameters; typing by hand still works. A red
   "same name ×N" means the tool matches by name and several share it. Candidates come from the

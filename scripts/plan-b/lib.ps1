@@ -197,6 +197,36 @@ function Test-WorldVersion([string]$AppBuild, [string]$WorldCoreVersion) {
   return @{ Ok = $false; Message = "Foundry here is $AppBuild, the world was last opened with ${world}: install Foundry $world into the app folder (restore.ps1 -FoundryZip <FoundryVTT-Node-$world.zip>)" }
 }
 
+# Whether unpacking the Foundry zip worked. Windows tar.exe cannot create the node_modules/.bin
+# links in the zip (exit 1, "Invalid argument") although every real file is unpacked, and the app
+# never starts anything through them on Windows. So a non-zero exit is fine when every complaint
+# names a .bin path; any other complaint, or none, is a failure.
+function Test-FoundryUnpack([int]$ExitCode, [string[]]$ErrorLines = @()) {
+  if ($ExitCode -eq 0) { return @{ Ok = $true; Skipped = 0; Message = 'unpacked' } }
+  $lines = @($ErrorLines | ForEach-Object { "$_".Trim() } | Where-Object { $_ })
+  $binLines = @($lines | Where-Object { $_ -match '[\\/]\.bin([\\/]|[''"\s:]|$)' })
+  # bsdtar ends a run with per-entry errors with this summary line, which names no path.
+  $other = @($lines | Where-Object { $_ -notmatch '[\\/]\.bin([\\/]|[''"\s:]|$)' -and $_ -notmatch 'Error exit delayed from previous errors\.?$' })
+  if ($binLines.Count -eq 0 -or $other.Count -gt 0) {
+    $first = if ($other.Count) { $other[0] } else { 'no error text' }
+    return @{ Ok = $false; Skipped = 0; Message = "could not unpack the Foundry zip (tar exit ${ExitCode}): $first" }
+  }
+  return @{ Ok = $true; Skipped = $binLines.Count; Message = "unpacked; skipped $($binLines.Count) node_modules/.bin link(s) Windows cannot create (not needed)" }
+}
+
+# Runs the unpack with native stderr captured and neither the error preference nor
+# $PSNativeCommandUseErrorActionPreference turning a non-zero exit into a throw (pwsh 7.0 to 7.5),
+# then judges it with Test-FoundryUnpack.
+function Invoke-FoundryUnpack([string]$Tar, [string[]]$TarArgs) {
+  $run = & {
+    $ErrorActionPreference = 'Continue'
+    $PSNativeCommandUseErrorActionPreference = $false
+    $out = & $Tar @TarArgs 2>&1
+    @{ Code = $LASTEXITCODE; Lines = @($out | ForEach-Object { "$_" }) }
+  }
+  return Test-FoundryUnpack ([int]$run.Code) $run.Lines
+}
+
 # The module manifest text with the default bridge port flag set (rehearsal) or removed (game
 # night: the release default, 31415). The module reads the flag only while the world has no
 # stored port (scripts/plan-b check.ps1 says when the link does not come up).

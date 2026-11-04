@@ -28,9 +28,10 @@ afterEach(async () => {
 
 async function start(
   options: { shared?: boolean; failFor?: string } = {}
-): Promise<{ base: string; asked: string[]; rolled: string[][] }> {
+): Promise<{ base: string; asked: string[]; rolled: string[][]; portraits: string[][] }> {
   const asked: string[] = [];
   const rolled: string[][] = [];
+  const portraits: string[][] = [];
   const client = {
     isConnected: true,
     listTools: (): Promise<unknown[]> => Promise.resolve([]),
@@ -61,6 +62,21 @@ async function start(
             )
           : r
       );
+    },
+    playerPortrait: (
+      userId: string,
+      actorId: string,
+      target: string,
+      data: string
+    ): Promise<unknown> => {
+      portraits.push([userId, actorId, target, data]);
+      if (actorId === 'notyours00000000') {
+        return Promise.reject(
+          Object.assign(new Error('That is not your character.'), { code: 'portrait' })
+        );
+      }
+      if (actorId === 'boom000000000000') return Promise.reject(new Error('raw internal detail'));
+      return Promise.resolve({ ok: true, path: 'assets/players/x/p.png', actorName: 'Brenna' });
     },
     characterSheet: (userId: string): Promise<unknown> => {
       asked.push(userId);
@@ -97,7 +113,12 @@ async function start(
     foundryDownSince: null,
   });
   await new Promise(resolve => setTimeout(resolve, 200));
-  return { base: `http://127.0.0.1:${(server.address() as AddressInfo).port}`, asked, rolled };
+  return {
+    base: `http://127.0.0.1:${(server.address() as AddressInfo).port}`,
+    asked,
+    rolled,
+    portraits,
+  };
 }
 
 const gm = { 'X-CoGM-Token': GM_TOKEN };
@@ -157,6 +178,68 @@ describe('/api/me and the player links', () => {
     const offText = ((await off.json()) as { error: string }).error;
     expect(offText).toMatch(/switched off/);
     expect(offText).not.toMatch(/module settings/);
+  });
+
+  describe('uploading a portrait', () => {
+    const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3, 4]);
+    const ACTOR = 'actor00000000001';
+    const upload = (
+      base: string,
+      key: string | undefined,
+      body: Buffer,
+      query = `actor=${ACTOR}&target=both`
+    ): Promise<Response> =>
+      fetch(`${base}/api/me/portrait?${query}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/octet-stream',
+          ...(key ? { 'X-CoGM-Me': key } : {}),
+        },
+        body,
+      });
+
+    it('sends the picture for the key owner, as that player only', async () => {
+      const { base, portraits } = await start();
+      const key = keyOf(await makeLink(base, PLAYER));
+      expect((await upload(base, undefined, PNG)).status).toBe(401);
+      expect((await upload(base, 'x'.repeat(24), PNG)).status).toBe(401);
+      expect(portraits).toEqual([]);
+      const res = await upload(base, key, PNG);
+      expect(res.status).toBe(200);
+      expect(await res.json()).toMatchObject({ ok: true, actorName: 'Brenna' });
+      expect(portraits).toEqual([[PLAYER, ACTOR, 'both', PNG.toString('base64')]]);
+    });
+
+    it('refuses what is not a PNG, JPG or WebP by its bytes, an empty body and a bad actor', async () => {
+      const { base, portraits } = await start();
+      const key = keyOf(await makeLink(base, PLAYER));
+      const html = Buffer.from('<html><script>alert(1)</script></html>');
+      expect((await upload(base, key, html)).status).toBe(415);
+      expect((await upload(base, key, Buffer.alloc(0))).status).toBe(400);
+      expect((await upload(base, key, PNG, 'actor=../../etc&target=portrait')).status).toBe(400);
+      expect(portraits).toEqual([]);
+    });
+
+    it('refuses a picture over 5 MB', async () => {
+      const { base, portraits } = await start();
+      const key = keyOf(await makeLink(base, PLAYER));
+      const big = Buffer.concat([PNG, Buffer.alloc(5 * 1024 * 1024)]);
+      expect((await upload(base, key, big)).status).toBe(413);
+      expect(portraits).toEqual([]);
+    });
+
+    it('shows a refusal the player can act on, and hides a raw failure', async () => {
+      const { base } = await start();
+      const key = keyOf(await makeLink(base, PLAYER));
+      const refused = await upload(base, key, PNG, 'actor=notyours00000000&target=portrait');
+      expect(refused.status).toBe(409);
+      expect(((await refused.json()) as { error: string }).error).toBe(
+        'That is not your character.'
+      );
+      const failed = await upload(base, key, PNG, 'actor=boom000000000000&target=portrait');
+      expect(failed.status).toBe(502);
+      expect(((await failed.json()) as { error: string }).error).not.toMatch(/raw internal/);
+    });
   });
 
   it('no key, a wrong key or an old key gets nothing', async () => {

@@ -95,6 +95,13 @@ export interface DashboardClient {
   characterSheet?(userId: string): Promise<unknown>;
   /** The player's roll button: the module rolls for their character; absent on fakes. */
   playerRoll?(userId: string, buttonId: string): Promise<unknown>;
+  /** "Upload my portrait": a player's picture for their own character; absent on fakes. */
+  playerPortrait?(
+    userId: string,
+    actorId: string,
+    target: 'portrait' | 'both',
+    data: string
+  ): Promise<unknown>;
   /** Session notes (recap lane, D-087): list, get, put, approve; absent on fakes. */
   sessionNotes?(action: SessionNotesAction, params?: Record<string, unknown>): Promise<unknown>;
   readonly isConnected?: boolean;

@@ -1113,6 +1113,12 @@ export const PLAYER_CONTROLS = [
     why: 'only shown to a player with an open roll request',
   },
   {
+    name: 'player.mine.portrait',
+    how: 'external',
+    optional: true,
+    why: 'opens the browser file picker and writes a picture into the Foundry world; checked by hand on the test server and in the unit tests',
+  },
+  {
     name: 'player.footer.mist',
     how: 'toggle',
     optional: true,
